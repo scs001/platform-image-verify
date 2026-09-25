@@ -1485,7 +1485,7 @@ page {
 }
 
 .showcase-card {
-  width: calc(50% - 9px);
+  width: 48%;
   box-sizing: border-box;
   min-height: 140px;
   padding: 22px;

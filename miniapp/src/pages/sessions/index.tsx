@@ -33,14 +33,18 @@ function Group({
   title,
   count,
   badge,
+  defaultOpen = false,
+  bodyClass = "",
   children,
 }: {
   title: string;
   count?: number;
   badge?: boolean;
+  defaultOpen?: boolean;
+  bodyClass?: string;
   children?: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <View className="grp-sec">
       <View className="grp-sec-hd" onClick={() => setOpen((v) => !v)}>
@@ -49,7 +53,7 @@ function Group({
         {typeof count === "number" && count > 0 ? <Text className="grp-sec-count">{count}</Text> : null}
         <Text className="grp-sec-caret">{open ? "▾" : "▸"}</Text>
       </View>
-      {open ? <View className="grp-sec-body">{children}</View> : null}
+      {open ? <View className={`grp-sec-body ${bodyClass}`}>{children}</View> : null}
     </View>
   );
 }
@@ -166,41 +170,45 @@ export default function SessionsPage() {
         </View>
       ) : null}
       <ScrollView scrollY className="sessions-list">
-        {sessions.map((s) => (
-          <View
-            key={s.id}
-            className="session-item"
-            data-testid="mp-session-item"
-            data-unseen={isSessionUnseen(s, lastSeen) ? "true" : "false"}
-            onClick={() => {
-              open(s.id);
-            }}
-          >
-            <View className="session-title-row">
-              {isSessionUnseen(s, lastSeen) ? <View className="session-unread-dot" /> : null}
-              <Text className="session-title">{s.title || "未命名会话"}</Text>
-            </View>
-            <View className="session-meta-row">
-              <Text className="session-when">{when(s)}</Text>
-              <Text
-                className="session-share-icon"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void handleShare(s.id);
+        <View className="grp-groups">
+          {/* The primary surface gets the same group chrome, expanded by
+              default — the page reads as one stack of collapsible sections
+              (user feedback: history list needs a header like the rest). */}
+          <Group title="历史会话" count={sessions.length} defaultOpen bodyClass="grp-sec-body-bleed">
+            {sessions.map((s) => (
+              <View
+                key={s.id}
+                className="session-item"
+                data-testid="mp-session-item"
+                data-unseen={isSessionUnseen(s, lastSeen) ? "true" : "false"}
+                onClick={() => {
+                  open(s.id);
                 }}
               >
-                ↗
-              </Text>
-            </View>
-          </View>
-        ))}
-        {view.kind === "list" && sessions.length === 0 ? (
-          <View className="sessions-empty">
-            <Text>还没有历史会话</Text>
-          </View>
-        ) : null}
-
-        <View className="grp-groups">
+                <View className="session-title-row">
+                  {isSessionUnseen(s, lastSeen) ? <View className="session-unread-dot" /> : null}
+                  <Text className="session-title">{s.title || "未命名会话"}</Text>
+                </View>
+                <View className="session-meta-row">
+                  <Text className="session-when">{when(s)}</Text>
+                  <Text
+                    className="session-share-icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleShare(s.id);
+                    }}
+                  >
+                    ↗
+                  </Text>
+                </View>
+              </View>
+            ))}
+            {view.kind === "list" && sessions.length === 0 ? (
+              <View className="sessions-empty">
+                <Text>还没有历史会话</Text>
+              </View>
+            ) : null}
+          </Group>
           <Group title="我的分享" count={shares?.length ?? 0}>
             {shares !== null && shares.length > 0 ? (
               shares.map((s) => (

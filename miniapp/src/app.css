@@ -781,9 +781,14 @@ page {
   height: 100vh;
 }
 
-.sessions-list,
+.sessions-list {
+  padding: 12px 0 0;
+}
+
 .session-item {
-  padding: 22px 24px;
+  /* Roomier on the right: the ↗ glyph needs optical clearance (user report:
+     the right edge read as unpadded). */
+  padding: 22px 32px 22px 24px;
   background: #fff;
   border-bottom: 1px solid #f3f4f6;
 }
@@ -1599,7 +1604,7 @@ page {
 }
 
 .session-share-icon {
-  padding: 8px 4px 8px 24px;
+  padding: 8px 8px 8px 24px;
   font-size: 28px;
   color: #6b7280;
 }
@@ -1654,6 +1659,12 @@ page {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* The history group's rows pad themselves — the body stays full-bleed so
+   separators and tap targets run edge-to-edge inside the group card. */
+.grp-sec-body-bleed {
+  padding: 0 0 8px;
 }
 
 .grp-sec-empty {

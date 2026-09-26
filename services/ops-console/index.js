@@ -30,6 +30,22 @@ if (!TOKEN) {
   console.error("[ops-console] OPS_CONSOLE_TOKEN not set — refusing to start open");
   process.exit(1);
 }
+// Browser login (design D8): a dedicated Logto "Traditional Web" app. All
+// values live in the cluster Secret; absent OIDC env ⇒ token-only mode.
+// The email allowlist FAILS CLOSED: the tenant carries mini-program-bound
+// end-user accounts, so "authenticated" alone is not authorization.
+const LOGTO_ENDPOINT = process.env.LOGTO_ENDPOINT?.replace(/\/+$/, "");
+const LOGTO_APP_ID = process.env.LOGTO_APP_ID?.trim() || "";
+const LOGTO_APP_SECRET = process.env.LOGTO_APP_SECRET?.trim() || "";
+const OPS_PUBLIC_URL = process.env.OPS_PUBLIC_URL?.replace(/\/+$/, "") || "";
+const SESSION_SECRET = process.env.SESSION_SECRET?.trim() || "";
+const ALLOWED_EMAILS = new Set(
+  (process.env.OPS_ALLOWED_EMAILS || "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean),
+);
+const OIDC_ENABLED = !!(LOGTO_ENDPOINT && LOGTO_APP_ID && LOGTO_APP_SECRET && OPS_PUBLIC_URL && SESSION_SECRET);
+if (OIDC_ENABLED && !ALLOWED_EMAILS.size) {
+  console.error("[ops-console] OIDC configured but OPS_ALLOWED_EMAILS is empty — login will fail closed until it is set");
+}
 const PORT = Number(process.env.PORT) || 4598;
 const HOST = process.env.HOST || "0.0.0.0"; // in-pod all-interfaces; ClusterIP/NodePort fronts it
 const POLL_SECS = Number(process.env.POLL_SECS) || 45;
@@ -85,6 +101,58 @@ function getJson(url, { headers = {}, ca, timeoutMs = 10_000 } = {}) {
     req.on("timeout", () => { req.destroy(new Error(`timeout from ${u.host}`)); });
     req.on("error", reject);
   });
+}
+
+// ── session cookies + OIDC (browser login; HMAC-signed, no deps) ─────────────
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+
+const SESSION_COOKIE = "ops_session";
+const STATE_COOKIE = "ops_state";
+const SESSION_TTL_MS = 24 * 3600 * 1000;
+const sign = (payload) => createHmac("sha256", SESSION_SECRET).update(payload).digest("base64url");
+function cookieSet(name, payload, maxAgeMs) {
+  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  return `${name}=${body}.${sign(body)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(maxAgeMs / 1000)}`;
+}
+function cookieClear(name) { return `${name}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`; }
+function cookieRead(header, name) {
+  const raw = (header || "").split(";").map((c) => c.trim()).find((c) => c.startsWith(`${name}=`));
+  if (!raw) return null;
+  const [body, sig] = raw.slice(name.length + 1).split(".");
+  if (!body || !sig) return null;
+  const want = sign(body);
+  if (sig.length !== want.length || !timingSafeEqual(Buffer.from(sig), Buffer.from(want))) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(body, "base64url").toString());
+    if (payload.exp * 1000 < Date.now()) return null;
+    return payload;
+  } catch { return null; }
+}
+async function postForm(url, params) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const mod = u.protocol === "http:" ? http : https;
+    const body = new URLSearchParams(params).toString();
+    const req = mod.request(url, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, timeout: 10_000 }, (res) => {
+      let b = ""; res.on("data", (c) => (b += c));
+      res.on("end", () => { try { resolve({ status: res.statusCode, json: JSON.parse(b) }); } catch { reject(new Error("non-JSON from OIDC token endpoint")); } });
+    });
+    req.on("timeout", () => req.destroy(new Error("timeout")));
+    req.on("error", reject);
+    req.end(body);
+  });
+}
+
+// Discovery once at boot; login routes 503 if OIDC is off.
+let oidc = null;
+if (OIDC_ENABLED) {
+  const discoUrl = LOGTO_ENDPOINT.endsWith("/oidc")
+    ? `${LOGTO_ENDPOINT}/.well-known/openid-configuration`
+    : `${LOGTO_ENDPOINT}/oidc/.well-known/openid-configuration`;
+  getJson(discoUrl).then((d) => {
+    oidc = { auth: d.authorization_endpoint, token: d.token_endpoint, userinfo: d.userinfo_endpoint };
+    console.log("[ops-console] OIDC login ready");
+  }).catch((e) => console.error(`[ops-console] OIDC discovery failed: ${e.message} (login unavailable, token mode active)`));
 }
 
 // ── k8s source (in-cluster read-only SA) ─────────────────────────────────────
@@ -313,13 +381,15 @@ function renderBoard() {
 
   const cards = m.cards.map((c) => {
     const driftCls = { "in-agreement": "ok", unknown: "" }[c.drift?.status] ?? "warn";
-    const driftTxt = {
+    // Guarded per-key (an eager object literal would deref a null drift when
+    // the k8s source is down — the board must render during incidents).
+    const driftTxt = !c.drift ? "no data" : {
       "in-agreement": `all at ${c.drift.running || "?"}`,
       "newer-build-not-rolled": `newer build ${c.drift.built} not rolled (running ${c.drift.running})`,
       "cluster-out-of-sync": "cluster diverges from GitOps",
       "cluster-out-of-sync-and-stale": `pod stale (${c.drift.running}) & cluster out of sync`,
       unknown: "no data",
-    }[c.drift?.status] || "no data";
+    }[c.drift.status] || "no data";
     const probe = c.probe?.configured
       ? cell("probe", c.probe.ok ? `ok ${c.probe.ms}ms` : `FAIL`, c.probe.ok ? "ok" : "bad")
       : cell("probe", "not configured");
@@ -389,11 +459,66 @@ function renderBoard() {
 </body></html>`;
 }
 
-// ── server (token-gated; read-only surface) ─────────────────────────────────
+// ── server (token OR session cookie; read-only surface) ─────────────────────
 const server = http.createServer((req, res) => {
   if (req.url === "/healthz") { res.writeHead(200, { "content-type": "application/json" }); return res.end('{"ok":true}'); }
-  const auth = req.headers.authorization || "";
-  if (auth !== `Bearer ${TOKEN}`) { res.writeHead(401, { "content-type": "text/plain" }); return res.end("unauthorized"); }
+
+  const authed = (req.headers.authorization === `Bearer ${TOKEN}`)
+    ? { via: "token" }
+    : (() => { const s = cookieRead(req.headers.cookie, SESSION_COOKIE); return s ? { via: "browser", email: s.email } : null; })();
+
+  // Browser login (D8). /auth/login is reachable unauthenticated on purpose;
+  // admission happens at callback against the allowlist (fail closed).
+  if (req.method === "GET" && req.url === "/auth/login") {
+    if (!OIDC_ENABLED) { res.writeHead(503, { "content-type": "text/plain" }); return res.end("login not configured (token-only mode)"); }
+    if (!oidc) { res.writeHead(503, { "content-type": "text/plain" }); return res.end("login initializing, retry"); }
+    const state = randomBytes(18).toString("base64url");
+    res.setHeader("Set-Cookie", cookieSet(STATE_COOKIE, { state, exp: Math.floor((Date.now() + 600_000) / 1000) }, 600_000));
+    const u = new URL(oidc.auth);
+    u.searchParams.set("client_id", LOGTO_APP_ID);
+    u.searchParams.set("redirect_uri", `${OPS_PUBLIC_URL}/auth/callback`);
+    u.searchParams.set("response_type", "code");
+    u.searchParams.set("scope", "openid profile email");
+    u.searchParams.set("state", state);
+    return res.writeHead(302, { location: u.toString() }).end();
+  }
+  if (req.method === "GET" && req.url.startsWith("/auth/callback")) {
+    if (!OIDC_ENABLED || !oidc) { res.writeHead(503); return res.end("login not configured"); }
+    const q = new URL(req.url, "http://x").searchParams;
+    const st = cookieRead(req.headers.cookie, STATE_COOKIE);
+    res.setHeader("Set-Cookie", cookieClear(STATE_COOKIE));
+    if (!st || st.state !== q.get("state")) { res.writeHead(401, { "content-type": "text/plain" }); return res.end("bad state"); }
+    (async () => {
+      const tokenRes = await postForm(oidc.token, {
+        grant_type: "authorization_code",
+        code: q.get("code"),
+        redirect_uri: `${OPS_PUBLIC_URL}/auth/callback`,
+        client_id: LOGTO_APP_ID,
+        client_secret: LOGTO_APP_SECRET,
+      });
+      if (tokenRes.status !== 200 || !tokenRes.json.access_token) throw new Error(`token exchange HTTP ${tokenRes.status}`);
+      // The userinfo call over TLS to the provider IS the identity verification
+      // (single-file console: no local JWKS/RSA verification — design D8).
+      const me = await getJson(oidc.userinfo, { headers: { authorization: `Bearer ${tokenRes.json.access_token}` } });
+      const email = String(me.email || "").toLowerCase();
+      // Fail closed: the tenant holds mini-program-bound end-user accounts.
+      if (!ALLOWED_EMAILS.size || !ALLOWED_EMAILS.has(email)) {
+        console.error(`[ops-console] login refused for ${email || "(no email)"}`);
+        res.writeHead(403, { "content-type": "text/plain" });
+        return res.end("not authorized for this board");
+      }
+      res.setHeader("Set-Cookie", cookieSet(SESSION_COOKIE, { email, exp: Math.floor((Date.now() + SESSION_TTL_MS) / 1000) }, SESSION_TTL_MS));
+      res.writeHead(302, { location: "/" }).end();
+    })().catch((e) => { console.error(`[ops-console] callback failed: ${e.message}`); res.writeHead(401); res.end("login failed"); });
+    return;
+  }
+  if (req.url === "/auth/logout") {
+    res.setHeader("Set-Cookie", cookieClear(SESSION_COOKIE));
+    res.writeHead(302, { location: "/" }).end();
+    return;
+  }
+
+  if (!authed) { res.writeHead(401, { "content-type": "text/plain" }); return res.end("unauthorized"); }
   if (req.method === "GET" && (req.url === "/" || req.url === "/index.html")) {
     res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
     return res.end(renderBoard());

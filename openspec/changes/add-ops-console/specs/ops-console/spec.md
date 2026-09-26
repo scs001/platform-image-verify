@@ -68,19 +68,29 @@ The console SHALL poll each data source on a fixed cadence (30–60s), store eac
 - **WHEN** a snapshot ages past the retention window
 - **THEN** it SHALL be deleted from the store
 
-### Requirement: Access is token-gated and strictly read-only
+### Requirement: Access is authenticated (browser login or token) and strictly read-only
 
-The console SHALL require a bearer token (from its deployment environment, never stored in the repository) on every request, rejecting unauthenticated requests. It SHALL NOT expose any mutating operation: no pod exec, no restart, no build trigger, no Kubernetes write of any kind. Its Kubernetes access SHALL use a dedicated service account limited to read-only verbs on the watched namespaces.
+The console SHALL accept exactly two authentication paths: (a) browser login via the operator's OIDC provider (Logto) — authorization-code flow with server-side session cookie, the client credentials and allowlist living only in the deployment Secret; (b) the bearer token for programmatic clients. Unauthenticated requests to board routes SHALL be rejected. Login SHALL be gated by an email allowlist that fails closed: when the allowlist is unset, no OIDC-authenticated user is admitted (the tenant contains end-user accounts from mini-program binding, so "authenticated" alone is not authorization). When OIDC is not configured, the console SHALL operate in token-only mode.
+
+#### Scenario: Browser login round-trip
+
+- **WHEN** an unauthenticated browser hits the board and follows the login redirect through the OIDC provider as an allowlisted user
+- **THEN** the console SHALL set a session cookie and render the board on the next request
+
+#### Scenario: Allowlist fails closed
+
+- **WHEN** an OIDC-authenticated user's email is not on the allowlist, or the allowlist is unset
+- **THEN** the console SHALL refuse the session with an authorization error and no board content
 
 #### Scenario: Unauthenticated request is rejected
 
-- **WHEN** a request arrives without the console's token
+- **WHEN** a request arrives without the console's token or a valid session cookie
 - **THEN** the console SHALL respond with an authentication error and no board content
 
 #### Scenario: No mutation surface exists
 
 - **WHEN** the console's HTTP surface is enumerated
-- **THEN** every route SHALL be a read (board render, snapshot query, or stats/probe passthrough of the pollers' own reads)
+- **THEN** every route SHALL be a read (board render, snapshot query, login/logout, or stats/probe passthrough of the pollers' own reads)
 
 ### Requirement: No secrets live in the repository
 

@@ -67,3 +67,9 @@ Server-side string-template single page: cluster banner (per-node memory bars fr
 
 - Whether `metrics.k8s.io` (metrics-server) is readable through the SA in this k3s — if not, node memory bars degrade to "n/a" in v1 (resolved at deploy time, not blocking).
 - Sparkline granularity (raw snapshots vs hourly downsample for the 7-day window) — resolve at implementation from actual row volumes.
+
+### D8: Browser login via a dedicated Logto application (added after first live use)
+
+Bearer tokens are for curl, not browsers. The console gains the platform's own login pattern (see `server/logto-auth.js`) in a self-contained form: a NEW confidential "Traditional Web" application in the same Logto tenant, authorization-code flow with a signed state cookie, token exchange server-side, and an HMAC-signed session cookie. Differences from the platform's implementation, deliberately: identity is verified by calling the provider's userinfo endpoint with the exchanged access token instead of verifying the ID-token signature locally (the console is a single zero-dependency file; porting JWKS/RSA verification is not worth it — the userinfo call over TLS to the trusted provider is the verification). Authorization is an email allowlist from the Secret that FAILS CLOSED when unset — the tenant carries end-user accounts created by mini-program binding, so "authenticated" must not imply "operator". The bearer token stays as the programmatic path; when OIDC env is absent the console runs token-only (previous behavior).
+
+Client credentials (LOGTO_APP_ID/LOGTO_APP_SECRET), SESSION_SECRET, OPS_PUBLIC_URL, and OPS_ALLOWED_EMAILS live only in the cluster Secret. The Logto application itself is created by the operator in the Logto console (Management-API credentials are not held by this repo) with redirect URI `{OPS_PUBLIC_URL}/auth/callback`.

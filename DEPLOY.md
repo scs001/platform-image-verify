@@ -1042,3 +1042,32 @@ scripts/
   mp-stub-cell.mjs                  # stub cell used by test-mp-auth (not a test)
   test-ws-reconnect.mjs             # shared WsClient reconnect state machine
 ```
+
+### Ops console (internal read-only board)
+
+`ops-console` (fd-infra-deploy `all-services/prod/ops-console.yaml`) is the
+internal operations board (spec: `openspec/specs/ops-console` in the paas
+repo). NodePort **31890** on any node, e.g.
+`http://<node-ip>:31890/` — every route except `/healthz` needs
+`Authorization: Bearer <OPS_CONSOLE_TOKEN>`; the token lives only in the
+cluster Secret `ops-console-secrets` (same rule as platform-secrets:
+
+```bash
+kubectl -n fd-prod get secret ops-console-secrets \
+  -o jsonpath='{.data.OPS_CONSOLE_TOKEN}' | base64 -d; echo
+```
+
+What it shows: cluster banner (per-node memory, 24h Evicted/OOM count,
+Jenkins queue depth, ArgoCD sync), one vertical chain card per watched
+deployment (replicas, image tag, `/api/ready` probe), Jenkins/Harbor blocks,
+search-relay quota/cache stats, and a per-card **version-drift light**
+comparing the running tag, the GitOps sync state, and the latest successful
+Jenkins build's pushed tag — `newer-build-not-rolled` means a build exists
+that was never rolled; `cluster-out-of-sync` means the cluster diverges from
+the GitOps repo.
+
+Updating the board's code: edit `services/ops-console/index.js` in the paas
+repo, re-embed into the ConfigMap, push, then
+`kubectl -n fd-prod rollout restart deploy/ops-console` — **subPath ConfigMap
+mounts do not hot-update running pods** (same for search-relay's code).
+Rollback is deleting the deployment; nothing else depends on the console.

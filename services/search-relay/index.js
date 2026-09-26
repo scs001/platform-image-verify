@@ -62,6 +62,19 @@ if (!KEYS.serpapi.length) {
 }
 console.log(`[search-relay] ${KEYS.serpapi.length} serpapi key(s), ${KEYS.glm.length} glm key(s) (fallback: not wired), ${KEYS.tokens.length} token(s), cap ${DAILY_CAP}/day`);
 
+// ── stats counters (GET /v1/stats — the ops board's data source) ────────────
+// Aggregates only, keyed by token PREFIX and key INDEX: never a token value,
+// never a provider key. ops-console spec forbids secret material in stats.
+const stats = {
+  startedAt: Date.now(),
+  cacheHits: 0,
+  cacheMisses: 0,
+  clientErrors: 0, // 4xx other than auth
+  upstreamErrors: 0, // 5xx relay responses
+  poolDry: 0, // all keys exhausted/cooling
+  keyFailures: KEYS.serpapi.map(() => 0), // by pool index
+};
+
 // ── per-token daily counters ─────────────────────────────────────────────────
 const tokenDays = new Map(); // token -> { day: "YYYY-MM-DD", count }
 function todayUtc() {
@@ -136,6 +149,7 @@ async function poolSearch(query, num) {
       keyCooldown.delete(key);
       return results;
     } catch (err) {
+      stats.keyFailures[KEYS.serpapi.indexOf(key)] += 1;
       // Quota/auth failures exhaust the key; anything else (rate, transient)
       // gets a short cooldown so the next call can retry it.
       const exhausting = /run out of searches|account|api key|unauthorized|401|429/i.test(String(err.message) + String(err.status));
@@ -153,7 +167,6 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify(body));
   };
   if (req.method === "GET" && req.url === "/healthz") return json(200, { ok: true });
-  if (req.method !== "POST" || !req.url.startsWith("/v1/search")) return json(404, { error: "not found" });
 
   const auth = req.headers.authorization || "";
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
@@ -163,31 +176,75 @@ const server = http.createServer((req, res) => {
     return json(401, { error: "invalid token" });
   }
 
+  // Read-only aggregates for the ops board. Secret-free by construction:
+  // token prefixes and key indexes only (spec: ops-console, stats scenario).
+  if (req.method === "GET" && req.url === "/v1/stats") {
+    const day = todayUtc();
+    return json(200, {
+      day,
+      dailyCap: DAILY_CAP,
+      tokens: KEYS.tokens.map((t) => {
+        const rec = tokenDays.get(t);
+        return { prefix: `${t.slice(0, 6)}…`, count: rec && rec.day === day ? rec.count : 0 };
+      }),
+      cache: {
+        hits: stats.cacheHits,
+        misses: stats.cacheMisses,
+        hitRate: stats.cacheHits + stats.cacheMisses > 0
+          ? Number((stats.cacheHits / (stats.cacheHits + stats.cacheMisses)).toFixed(3))
+          : null,
+        entries: cache.size,
+      },
+      keys: KEYS.serpapi.map((k, i) => ({
+        index: i,
+        failures: stats.keyFailures[i] ?? 0,
+        coolingDown: Date.now() < (keyCooldown.get(k) || 0),
+      })),
+      errors: {
+        client: stats.clientErrors,
+        upstream: stats.upstreamErrors,
+        poolDry: stats.poolDry,
+      },
+      uptimeSec: Math.round((Date.now() - stats.startedAt) / 1000),
+    });
+  }
+
+  if (req.method !== "POST" || !req.url.startsWith("/v1/search")) return json(404, { error: "not found" });
+
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", async () => {
     const started = Date.now();
     try {
       const { query, num: rawNum } = JSON.parse(body || "{}");
-      if (typeof query !== "string" || !query.trim()) return json(400, { error: "missing query" });
+      if (typeof query !== "string" || !query.trim()) {
+        stats.clientErrors += 1;
+        return json(400, { error: "missing query" });
+      }
       const num = Math.min(10, Math.max(1, Math.floor(Number(rawNum) || 8)));
 
       if (tokenCount(token) >= DAILY_CAP) {
+        stats.clientErrors += 1;
         return json(429, { error: `daily cap (${DAILY_CAP}) reached for this token` });
       }
 
       const cacheKey = `${query.trim().toLowerCase()}\u0000${num}`;
       const cached = cacheGet(cacheKey);
       if (cached) {
+        stats.cacheHits += 1;
         console.log(`[search-relay] 200 token=${tokenTag} cache=hit ${Date.now() - started}ms`);
         return json(200, { results: cached });
       }
+      stats.cacheMisses += 1;
 
       const results = await poolSearch(query.trim(), num);
       cacheSet(cacheKey, results);
-      tokenTake(token);      console.log(`[search-relay] 200 token=${tokenTag} cache=miss ${results.length}r ${Date.now() - started}ms`);
+      tokenTake(token);
+      console.log(`[search-relay] 200 token=${tokenTag} cache=miss ${results.length}r ${Date.now() - started}ms`);
       json(200, { results });
     } catch (err) {
+      stats.upstreamErrors += 1;
+      if (/all serpapi keys exhausted/i.test(err.message)) stats.poolDry += 1;
       console.error(`[search-relay] 503 token=${tokenTag} ${err.message}`);
       json(503, { error: err.message });
     }

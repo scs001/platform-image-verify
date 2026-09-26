@@ -154,7 +154,7 @@ if (OIDC_ENABLED) {
     ? `${LOGTO_ENDPOINT}/.well-known/openid-configuration`
     : `${LOGTO_ENDPOINT}/oidc/.well-known/openid-configuration`;
   getJson(discoUrl).then((d) => {
-    oidc = { auth: d.authorization_endpoint, token: d.token_endpoint, userinfo: d.userinfo_endpoint };
+    oidc = { auth: d.authorization_endpoint, token: d.token_endpoint, userinfo: d.userinfo_endpoint, endSession: d.end_session_endpoint || null };
     console.log("[ops-console] OIDC login ready");
   }).catch((e) => console.error(`[ops-console] OIDC discovery failed: ${e.message} (login unavailable, token mode active)`));
 }
@@ -514,6 +514,8 @@ function renderBoard() {
   .pill.warn{color:var(--warn);border-color:oklch(0.80 0.15 85/.4)}
   .pill.bad{color:var(--bad);border-color:oklch(0.62 0.22 25/.45)}
   .updated{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+  .logout{color:var(--muted);font-size:12px;text-decoration:none;padding:3px 10px;border:1px solid var(--border);border-radius:6px;background:var(--card)}
+  .logout:hover{color:var(--fg);border-color:var(--accent)}
   .staleflag{color:var(--warn);font-size:12px}
   .vitals{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;margin:0 0 16px}
   .vchip{display:flex;align-items:center;gap:8px;padding:5px 10px;background:var(--card);border:1px solid var(--border);border-radius:8px;min-height:32px}
@@ -552,6 +554,7 @@ function renderBoard() {
       <span class="pill ${overall.cls}"><span class="dot"></span>${esc(overall.label)}</span>
       ${staleNote ? `<span class="staleflag">${staleNote}</span>` : ""}
       <span class="updated">polled ${esc(updated)} · refreshes every ${POLL_SECS}s</span>
+      <a class="logout" href="/auth/logout" title="End this board session">log out</a>
     </div>
   </header>
   ${vitals}
@@ -616,13 +619,25 @@ const server = http.createServer((req, res) => {
         res.writeHead(403, { "content-type": "text/plain" });
         return res.end("not authorized for this board");
       }
-      res.setHeader("Set-Cookie", cookieSet(SESSION_COOKIE, { email, orgs, exp: Math.floor((Date.now() + SESSION_TTL_MS) / 1000) }, SESSION_TTL_MS));
+      // idt (the id_token) rides the session so logout can send id_token_hint —
+      // providers only honor post_logout_redirect_uri when the hint is present.
+      res.setHeader("Set-Cookie", cookieSet(SESSION_COOKIE, { email, orgs, idt: tokenRes.json.id_token || "", exp: Math.floor((Date.now() + SESSION_TTL_MS) / 1000) }, SESSION_TTL_MS));
       res.writeHead(302, { location: "/" }).end();
     })().catch((e) => { console.error(`[ops-console] callback failed: ${e.message}`); res.writeHead(401); res.end("login failed"); });
     return;
   }
   if (req.url === "/auth/logout") {
+    // Clear the local cookie, then end the PROVIDER session too — otherwise
+    // the board's auto-redirect silently signs the user straight back in via
+    // the still-live Logto SSO session and "logout" appears to do nothing.
     res.setHeader("Set-Cookie", cookieClear(SESSION_COOKIE));
+    if (OIDC_ENABLED && oidc?.endSession) {
+      const sess = cookieRead(req.headers.cookie, SESSION_COOKIE);
+      const u = new URL(oidc.endSession);
+      if (sess?.idt) u.searchParams.set("id_token_hint", sess.idt);
+      u.searchParams.set("post_logout_redirect_uri", `${OPS_PUBLIC_URL}/`);
+      return res.writeHead(302, { location: u.toString() }).end();
+    }
     res.writeHead(302, { location: "/" }).end();
     return;
   }

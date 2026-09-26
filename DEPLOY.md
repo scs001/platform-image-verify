@@ -1063,7 +1063,7 @@ kubectl -n fd-prod get secret ops-console-secrets \
   -o jsonpath='{.data.OPS_CONSOLE_TOKEN}' | base64 -d; echo
 ```
 
-The board's canonical URL is **https://paas-admin.finddatatech.cloud/** (SafeLine → Caddy on cheap-1 → NodePort 31890 over tailscale; the raw `http://<node-ip>:31890` still works VPN-side, and both redirect URIs are registered in Logto). Login is Logto SSO against the allowlist.
+The board's canonical URL is **https://paas-admin.finddatatech.cloud/** (SafeLine → Caddy on cheap-1 → NodePort 31890 over tailscale; the raw `http://<node-ip>:31890` still works VPN-side, and both redirect URIs are registered in Logto). Login is Logto SSO against the allowlist — visiting the board URL logged out auto-redirects to the sign-in page (API callers without a session keep a flat 401; send `Authorization: Bearer <token>`).
 
 What it shows: cluster banner (per-node memory, 24h Evicted/OOM count,
 Jenkins queue depth, ArgoCD sync), one vertical chain card per watched

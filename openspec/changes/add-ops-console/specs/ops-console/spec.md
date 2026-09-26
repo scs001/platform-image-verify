@@ -70,16 +70,16 @@ The console SHALL poll each data source on a fixed cadence (30–60s), store eac
 
 ### Requirement: Access is authenticated (browser login or token) and strictly read-only
 
-The console SHALL accept exactly two authentication paths: (a) browser login via the operator's OIDC provider (Logto) — authorization-code flow with server-side session cookie, the client credentials and allowlist living only in the deployment Secret; (b) the bearer token for programmatic clients. Unauthenticated requests to board routes SHALL be rejected. Login SHALL be gated by an email allowlist that fails closed: when the allowlist is unset, no OIDC-authenticated user is admitted (the tenant contains end-user accounts from mini-program binding, so "authenticated" alone is not authorization). When OIDC is not configured, the console SHALL operate in token-only mode.
+The console SHALL accept exactly two authentication paths: (a) browser login via the operator's OIDC provider (Logto) — authorization-code flow with server-side session cookie, the client credentials and the required-organization ID living only in the deployment Secret; (b) the bearer token for programmatic clients. Unauthenticated requests to board routes SHALL be rejected. Login SHALL be gated by OIDC organization membership: the ID token's organizations claim must contain the configured required organization ID, and admission SHALL fail closed when the claim is absent or membership is missing (the tenant contains end-user accounts from mini-program binding, so "authenticated" alone is not authorization). A tenant-role gate was built first but withdrawn: this Logto build never issues the roles claim in any token despite the console toggle (verified empirically against the live provider). When OIDC is not configured, the console SHALL operate in token-only mode.
 
 #### Scenario: Browser login round-trip
 
 - **WHEN** an unauthenticated browser hits the board and follows the login redirect through the OIDC provider as an allowlisted user
 - **THEN** the console SHALL set a session cookie and render the board on the next request
 
-#### Scenario: Allowlist fails closed
+#### Scenario: Organization gate fails closed
 
-- **WHEN** an OIDC-authenticated user's email is not on the allowlist, or the allowlist is unset
+- **WHEN** an OIDC-authenticated user is not a member of the required organization, or the organizations claim is absent entirely
 - **THEN** the console SHALL refuse the session with an authorization error and no board content
 
 #### Scenario: Unauthenticated request is rejected

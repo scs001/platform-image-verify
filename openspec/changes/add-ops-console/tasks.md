@@ -29,3 +29,7 @@
 
 - [x] 5.1 Implement OIDC login in `services/ops-console/index.js`: authorization-code flow against a dedicated Logto app (discovery at boot, signed state cookie, server-side token exchange, userinfo-call verification, HMAC-signed session cookie), email allowlist failing closed when unset, `/auth/logout`; bearer token retained as the programmatic path; verify with a stub-OIDC harness that the full redirect→callback→cookie round-trip renders the board, that a non-allowlisted email is refused, that an unset allowlist refuses everyone, and that bearer-only mode still works
 - [x] 5.2 Operator creates the Logto "Traditional Web" application (redirect URI `{OPS_PUBLIC_URL}/auth/callback`) and patches `ops-console-secrets` with LOGTO_ENDPOINT/LOGTO_APP_ID/LOGTO_APP_SECRET/SESSION_SECRET/OPS_PUBLIC_URL/OPS_ALLOWED_EMAILS; roll the console and verify a real browser login renders the board
+
+## 6. Role-based admission (D9)
+
+- [x] 6.1 Gate login on Logto membership, fail closed — BUILT AS ORGANIZATION MEMBERSHIP, not the tenant role first attempted: this Logto build never issues the roles claim (verified live with a hand-driven OIDC probe across three scope variants); organization `ops-console` (ID tvs6wkjtn8ic) created, operator added, authorize scope carries urn:logto:scope:organizations, admission checks the id_token organizations claim; harness 11/11 (member/non-member/missing-claim/unset-org) and live-verified both directions (member renders the board, wrong required org refused 403, restored renders again)

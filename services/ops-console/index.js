@@ -39,12 +39,16 @@ const LOGTO_APP_ID = process.env.LOGTO_APP_ID?.trim() || "";
 const LOGTO_APP_SECRET = process.env.LOGTO_APP_SECRET?.trim() || "";
 const OPS_PUBLIC_URL = process.env.OPS_PUBLIC_URL?.replace(/\/+$/, "") || "";
 const SESSION_SECRET = process.env.SESSION_SECRET?.trim() || "";
-const ALLOWED_EMAILS = new Set(
-  (process.env.OPS_ALLOWED_EMAILS || "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean),
-);
+// Admission is ORGANIZATION-membership based: the Logto organization whose ID
+// must appear in the ID token's `organizations` claim. (Tenant ROLE claims were
+// tried first — this Logto build never ships the roles claim in any token,
+// verified empirically — while the organizations claim is this tenant's native,
+// proven gating mechanism, the same one the platform uses for group access.)
+// Fail closed: no org claim / no membership, no board.
+const REQUIRED_ORG = process.env.OPS_REQUIRED_ORG?.trim() || "";
 const OIDC_ENABLED = !!(LOGTO_ENDPOINT && LOGTO_APP_ID && LOGTO_APP_SECRET && OPS_PUBLIC_URL && SESSION_SECRET);
-if (OIDC_ENABLED && !ALLOWED_EMAILS.size) {
-  console.error("[ops-console] OIDC configured but OPS_ALLOWED_EMAILS is empty — login will fail closed until it is set");
+if (OIDC_ENABLED) {
+  console.log(`[ops-console] login gate: Logto organization membership required (fail closed)${REQUIRED_ORG ? "" : " — OPS_REQUIRED_ORG unset: logins will be refused"}`);
 }
 const PORT = Number(process.env.PORT) || 4598;
 const HOST = process.env.HOST || "0.0.0.0"; // in-pod all-interfaces; ClusterIP/NodePort fronts it
@@ -478,7 +482,7 @@ const server = http.createServer((req, res) => {
     u.searchParams.set("client_id", LOGTO_APP_ID);
     u.searchParams.set("redirect_uri", `${OPS_PUBLIC_URL}/auth/callback`);
     u.searchParams.set("response_type", "code");
-    u.searchParams.set("scope", "openid profile email");
+    u.searchParams.set("scope", "openid profile email urn:logto:scope:organizations");
     u.searchParams.set("state", state);
     return res.writeHead(302, { location: u.toString() }).end();
   }
@@ -501,13 +505,22 @@ const server = http.createServer((req, res) => {
       // (single-file console: no local JWKS/RSA verification — design D8).
       const me = await getJson(oidc.userinfo, { headers: { authorization: `Bearer ${tokenRes.json.access_token}` } });
       const email = String(me.email || "").toLowerCase();
-      // Fail closed: the tenant holds mini-program-bound end-user accounts.
-      if (!ALLOWED_EMAILS.size || !ALLOWED_EMAILS.has(email)) {
-        console.error(`[ops-console] login refused for ${email || "(no email)"}`);
+      // Organization-membership gate, fail closed. The `organizations` claim
+      // (org IDs) rides the ID token when the authorize request carries
+      // urn:logto:scope:organizations. Decode the id_token payload — signature
+      // verification is unnecessary: it arrived directly from the provider's
+      // token endpoint over TLS behind our client-secret exchange (D8 trust).
+      const idClaims = (() => {
+        try { return JSON.parse(Buffer.from(String(tokenRes.json.id_token || "").split(".")[1] || "", "base64url").toString()); }
+        catch { return {}; }
+      })();
+      const orgs = Array.isArray(idClaims.organizations) ? idClaims.organizations.map(String) : [];
+      if (!REQUIRED_ORG || !orgs.includes(REQUIRED_ORG)) {
+        console.error(`[ops-console] login refused for ${email || "(no email)"} — org membership missing (required org: ${REQUIRED_ORG || "(unset)"}, has: [${orgs.join(", ")}])`);
         res.writeHead(403, { "content-type": "text/plain" });
         return res.end("not authorized for this board");
       }
-      res.setHeader("Set-Cookie", cookieSet(SESSION_COOKIE, { email, exp: Math.floor((Date.now() + SESSION_TTL_MS) / 1000) }, SESSION_TTL_MS));
+      res.setHeader("Set-Cookie", cookieSet(SESSION_COOKIE, { email, orgs, exp: Math.floor((Date.now() + SESSION_TTL_MS) / 1000) }, SESSION_TTL_MS));
       res.writeHead(302, { location: "/" }).end();
     })().catch((e) => { console.error(`[ops-console] callback failed: ${e.message}`); res.writeHead(401); res.end("login failed"); });
     return;

@@ -1049,8 +1049,14 @@ scripts/
 internal operations board (spec: `openspec/specs/ops-console` in the paas
 repo). NodePort **31890** on any node, e.g.
 `http://<node-ip>:31890/` — every route except `/healthz` needs
-`Authorization: Bearer <OPS_CONSOLE_TOKEN>`; the token lives only in the
-cluster Secret `ops-console-secrets` (same rule as platform-secrets:
+`Authorization: Bearer <OPS_CONSOLE_TOKEN>` — or, better, just log in via
+Logto: access is gated on membership in the Logto organization `ops-console`
+(ID `tvs6wkjtn8ic`, carried by the ID token's organizations claim; fail-closed
+when absent). To grant someone the board: Logto console → Organizations →
+ops-console → Members → Add member. No redeploy needed. The tenant-roles
+approach was tried and withdrawn — this Logto build never issues the roles
+claim (see design D10). Secrets live only in the cluster Secret
+`ops-console-secrets` (same rule as platform-secrets:
 
 ```bash
 kubectl -n fd-prod get secret ops-console-secrets \

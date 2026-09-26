@@ -1,13 +1,13 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-08-30T00:00:00.000Z",
-  "title": "Design System: Platform",
+  "generatedAt": "2026-09-26T00:00:00.000Z",
+  "title": "Design System: Platform (web)",
   "extensions": {
     "colorMeta": {
       "primary": {
         "role": "primary",
         "displayName": "Workbench Blue",
-        "canonical": "oklch(0.64 0.16 250)",
+        "canonical": "light-dark(oklch(0.48 0.16 250), oklch(0.64 0.16 250))",
         "tonalRamp": [
           "oklch(0.18 0.05 250)",
           "oklch(0.30 0.10 250)",
@@ -37,7 +37,7 @@
       "ring": {
         "role": "primary",
         "displayName": "Focus Blue",
-        "canonical": "oklch(0.55 0.15 250)",
+        "canonical": "light-dark(oklch(0.52 0.15 250), oklch(0.55 0.15 250))",
         "tonalRamp": [
           "oklch(0.18 0.05 250)",
           "oklch(0.28 0.09 250)",
@@ -51,8 +51,8 @@
       },
       "background": {
         "role": "neutral",
-        "displayName": "Near-Black Worktop",
-        "canonical": "oklch(0.16 0 0)",
+        "displayName": "Worktop",
+        "canonical": "light-dark(oklch(0.98 0 0), oklch(0.16 0 0))",
         "tonalRamp": [
           "oklch(0.10 0 0)",
           "oklch(0.16 0 0)",
@@ -66,8 +66,8 @@
       },
       "foreground": {
         "role": "neutral",
-        "displayName": "Soft White",
-        "canonical": "oklch(0.96 0 0)",
+        "displayName": "Soft White / Ink",
+        "canonical": "light-dark(oklch(0.22 0 0), oklch(0.96 0 0))",
         "tonalRamp": [
           "oklch(0.10 0 0)",
           "oklch(0.20 0 0)",
@@ -82,7 +82,7 @@
       "card": {
         "role": "neutral",
         "displayName": "Card Surface",
-        "canonical": "oklch(0.19 0 0)",
+        "canonical": "light-dark(oklch(1 0 0), oklch(0.19 0 0))",
         "tonalRamp": [
           "oklch(0.10 0 0)",
           "oklch(0.16 0 0)",
@@ -97,7 +97,7 @@
       "muted": {
         "role": "neutral",
         "displayName": "Quiet Surface",
-        "canonical": "oklch(0.23 0 0)",
+        "canonical": "light-dark(oklch(0.96 0 0), oklch(0.23 0 0))",
         "tonalRamp": [
           "oklch(0.10 0 0)",
           "oklch(0.16 0 0)",
@@ -112,7 +112,7 @@
       "muted-foreground": {
         "role": "neutral",
         "displayName": "Dim Gray",
-        "canonical": "oklch(0.65 0 0)",
+        "canonical": "light-dark(oklch(0.48 0 0), oklch(0.65 0 0))",
         "tonalRamp": [
           "oklch(0.10 0 0)",
           "oklch(0.16 0 0)",
@@ -127,7 +127,7 @@
       "secondary": {
         "role": "neutral",
         "displayName": "Raised Surface",
-        "canonical": "oklch(0.24 0 0)",
+        "canonical": "light-dark(oklch(0.96 0 0), oklch(0.24 0 0))",
         "tonalRamp": [
           "oklch(0.10 0 0)",
           "oklch(0.16 0 0)",
@@ -142,7 +142,7 @@
       "border": {
         "role": "neutral",
         "displayName": "Hairline Gray",
-        "canonical": "oklch(0.28 0 0)",
+        "canonical": "light-dark(oklch(0.90 0 0), oklch(0.28 0 0))",
         "tonalRamp": [
           "oklch(0.10 0 0)",
           "oklch(0.16 0 0)",
@@ -154,16 +154,46 @@
           "oklch(0.96 0 0)"
         ]
       },
+      "scrim": {
+        "role": "neutral",
+        "displayName": "Scrim",
+        "canonical": "light-dark(oklch(0.44 0 0 / 0.40), oklch(0 0 0 / 0.60))",
+        "tonalRamp": [
+          "oklch(0 0 0 / 0.60)",
+          "oklch(0.15 0 0 / 0.55)",
+          "oklch(0.25 0 0 / 0.50)",
+          "oklch(0.35 0 0 / 0.45)",
+          "oklch(0.44 0 0 / 0.40)",
+          "oklch(0.55 0 0 / 0.35)",
+          "oklch(0.70 0 0 / 0.30)",
+          "oklch(0.90 0 0 / 0.25)"
+        ]
+      },
       "destructive": {
         "role": "signal",
         "displayName": "Error Red",
-        "canonical": "oklch(0.62 0.22 25)",
+        "canonical": "light-dark(oklch(0.52 0.22 25), oklch(0.62 0.22 25))",
         "tonalRamp": [
           "oklch(0.18 0.07 25)",
           "oklch(0.30 0.12 25)",
           "oklch(0.40 0.16 25)",
           "oklch(0.50 0.19 25)",
           "oklch(0.62 0.22 25)",
+          "oklch(0.74 0.19 25)",
+          "oklch(0.86 0.12 25)",
+          "oklch(0.95 0.05 25)"
+        ]
+      },
+      "destructive-deep": {
+        "role": "signal",
+        "displayName": "Deep Error Red",
+        "canonical": "light-dark(oklch(0.52 0.22 25), oklch(0.55 0.22 25))",
+        "tonalRamp": [
+          "oklch(0.18 0.07 25)",
+          "oklch(0.30 0.12 25)",
+          "oklch(0.40 0.16 25)",
+          "oklch(0.50 0.19 25)",
+          "oklch(0.55 0.22 25)",
           "oklch(0.74 0.19 25)",
           "oklch(0.86 0.12 25)",
           "oklch(0.95 0.05 25)"
@@ -187,7 +217,7 @@
       "success": {
         "role": "signal",
         "displayName": "Done Green",
-        "canonical": "oklch(0.72 0.17 145)",
+        "canonical": "light-dark(oklch(0.52 0.15 145), oklch(0.72 0.17 145))",
         "tonalRamp": [
           "oklch(0.18 0.05 145)",
           "oklch(0.30 0.09 145)",
@@ -202,7 +232,7 @@
       "warning": {
         "role": "signal",
         "displayName": "Pending Amber",
-        "canonical": "oklch(0.80 0.15 85)",
+        "canonical": "light-dark(oklch(0.52 0.14 85), oklch(0.80 0.15 85))",
         "tonalRamp": [
           "oklch(0.20 0.05 85)",
           "oklch(0.32 0.09 85)",
@@ -220,7 +250,7 @@
       "title": { "displayName": "Section Title", "purpose": "Panel sub-sections and markdown h1/h2 — 16–18px semibold." },
       "body": { "displayName": "Body", "purpose": "Chat transcript, markdown prose, composer input — 14px, 1.625 line-height." },
       "label": { "displayName": "Label", "purpose": "Buttons, nav, inputs, chips, block headers — 12px medium." },
-      "mono": { "displayName": "Mono", "purpose": "Tool names, code (Shiki), skills, command tokens — system mono, 12px." }
+      "mono": { "displayName": "Mono", "purpose": "Tool names, code (Shiki dual-theme), skills, command tokens — system mono, 12px." }
     },
     "shadows": [
       {
@@ -234,10 +264,12 @@
       { "name": "chevron-rotate", "value": "transform 150ms ease", "purpose": "Disclosure rotation on thinking/tool block chevrons." },
       { "name": "spinner", "value": "rotate 1s linear infinite", "purpose": "Loading states (animate-spin)." },
       { "name": "streaming-pulse", "value": "opacity 2s cubic-bezier(0.4, 0, 0.6, 1) infinite", "purpose": "Streaming placeholder while tokens arrive (animate-pulse)." },
-      { "name": "dialog-fade", "value": "opacity 150ms ease-out", "purpose": "Dialog overlay/content entrance — fade only." }
+      { "name": "dialog-fade", "value": "opacity 150ms ease-out", "purpose": "Dialog overlay/content entrance — fade only." },
+      { "name": "outline-jump-flash", "value": "background-color 1.2s ease-out (12% primary → transparent)", "purpose": "Outline-rail jump arrival wash on the target turn; forced reflow before re-adding lets a rapid re-tap restart it." }
     ],
     "breakpoints": [
-      { "name": "md", "value": "768px" }
+      { "name": "sm", "value": "640px", "purpose": "Welcome prompt grid 1 ↔ 2 columns." },
+      { "name": "md", "value": "768px", "purpose": "The structural break: sidebar rail ↔ off-canvas overlay drawer." }
     ]
   },
   "components": [
@@ -277,7 +309,7 @@
       "name": "Nav Item",
       "kind": "nav",
       "refersTo": "nav-item-active",
-      "description": "Sidebar navigation item; active state is the rail's only blue.",
+      "description": "Sidebar navigation item (rail on wide viewports, drawer below md); active state is the rail's only blue.",
       "html": "<div style=\"display:flex;flex-direction:column;gap:2px;width:220px\"><button class=\"ds-nav-item\">知识库</button><button class=\"ds-nav-item is-active\">对话</button></div>",
       "css": ".ds-nav-item { display: flex; width: 100%; padding: 8px 12px; border: none; border-radius: 6px; background: transparent; color: var(--color-muted-foreground); font-size: 14px; text-align: left; cursor: pointer; transition: background 150ms cubic-bezier(0.4, 0, 0.2, 1), color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-nav-item:hover { background: var(--color-muted); color: var(--color-foreground); } .ds-nav-item.is-active { background: var(--color-primary-deep); color: var(--color-primary-foreground); } .ds-nav-item:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--color-card), 0 0 0 4px var(--color-ring); }"
     },
@@ -324,38 +356,44 @@
   ],
   "narrative": {
     "northStar": "The Night Workbench",
-    "overview": "Platform is a dark room with one lamp on. The interface is a personal workbench the owner keeps open all day: near-black surfaces, hairline borders, and a single blue accent that means exactly one thing — work is happening here. When the assistant streams, when a field takes focus, when the user speaks (the blue bubble), the lamp is on. Everything else recedes to grays so the work is the brightest thing on screen.\n\nThe feel is calm, precise, utilitarian. Surfaces never lift or glow; state changes are decisive color swaps, not movements. Density is compact — 12–14px body text, 6px paddings on rows, tight vertical rhythm — because this is an Operate surface: the visitor completes tasks, scans status, and reads transcripts, often for hours. The chat transcript is the product's center; every panel (Knowledge, Models, MCP, Skills, Agents, Dashboard) is a quiet toolshed behind it.\n\nThe system is deliberately dark-only (decision D9; light mode is deferred and later is a one-file token swap). It runs identically in the browser and the Electron desktop app, so nothing may assume a browser chrome, custom fonts, or a network-loaded asset.",
+    "overview": "Platform is a workbench with one lamp on. The interface is the surface the owner keeps open all day: quiet neutral surfaces, hairline borders, and a single blue accent that means exactly one thing — work is happening here. When the assistant streams, when a field takes focus, when the user speaks (the blue bubble), the lamp is on. Everything else recedes so the work is the brightest thing on screen.\n\nThe room now has windows: every color token is a light-dark() pair and color-scheme decides which half applies — follow the OS by default (no JavaScript, no flash), or one data-theme attribute on <html> for an explicit choice. The dark half is the original palette, unchanged; the light half is its daylight translation, with card above background in both themes so a raised surface reads raised anywhere. Contrast is enforced, not eyeballed: scripts/test-palette-contrast.mjs parses the token file and fails the pairing that drops below WCAG AA in either theme. The lamp logic survives the daylight unchanged — one blue, tonal layering, shadows only on detached layers.\n\nThe feel is calm, precise, utilitarian. Surfaces never lift or glow; state changes are decisive color swaps, not movements. Density is compact — 12–14px body text, 6px paddings on rows, tight vertical rhythm — because this is an Operate surface: the visitor completes tasks, scans status, and reads transcripts, often for hours. The chat transcript is the product's center; every panel (Knowledge, Models, Extensions, Agents, Tasks, Status) is a quiet toolshed behind it, now gathered under one Settings roof. The system runs identically in the browser and the Electron desktop app, so nothing may assume browser chrome, custom fonts, or a network-loaded asset.",
     "keyCharacteristics": [
-      "Dark-only tonal layering: depth comes from surface lightness (0.16 → 0.19 → 0.23) plus 1px hairlines, never from shadow",
-      "One accent color (Workbench Blue) with strict semantic scope: live work only",
+      "Dual-theme by one mechanism: every token a light-dark(<light>, <dark>) pair; color-scheme picks the half — nothing themes any other way",
+      "Neutral tonal layering (light: 0.98 paper → 1.00 card → 0.96 muted; dark: 0.16 → 0.19 → 0.23) plus 1px hairlines; depth is lightness, never shadow",
+      "One accent (Workbench Blue) with strict semantic scope: live work only",
       "System font stacks, zero webfonts — the type is meant to be invisible",
-      "Compact, information-dense layout: fixed 240px rail, centered 768px transcript",
-      "Shadows mark detached layers only (menus, dialogs, toast); everything resting is flat",
-      "Monospace is a first-class voice: tool names, code, skills, identifiers"
+      "Compact, information-dense: fixed 240px rail (or its below-md overlay drawer), centered 768px transcript",
+      "Shadows mark detached layers only (menus, dialogs, toast, the mobile drawer); everything resting is flat",
+      "Monospace is a first-class voice: tool names, code, skills, identifiers",
+      "One icon language: Lucide everywhere, no emoji in the UI"
     ],
     "rules": [
       { "name": "The One Lamp Rule", "body": "Workbench Blue appears on ≤10% of any screen and always means live work: streaming, focus, selection, active navigation, or the user's own words. If blue is used decoratively, the lamp goes out — the accent dies.", "section": "colors" },
+      { "name": "The One Mechanism Rule", "body": "A color themes exactly one way: a light-dark() pair in the @theme block, resolved by color-scheme. No per-component light variants, no [data-theme] forks below the token layer, no hand-written theme hex in JSX. scripts/test-palette-contrast.mjs gates every pair at WCAG AA in both halves — run it after touching any value.", "section": "colors" },
       { "name": "The Dead Navy Rule", "body": "The 2019-era navy palette of the pre-redesign vanilla page is a confirmed anti-reference. No navy, no desaturated steel blues, no second accent hue.", "section": "colors" },
       { "name": "The Invisible Type Rule", "body": "System stacks only. Never introduce a webfont, icon font, or remote-loaded type — the font swap must stay invisible and the desktop bundle stays self-contained.", "section": "typography" },
       { "name": "The Content-First Rule", "body": "The transcript is the loudest thing on screen. Markdown headings top out at 18px; no panel heading, chrome label, or status line may outsize the words the agent produces.", "section": "typography" },
-      { "name": "The Floating-Only Shadow Rule", "body": "A box-shadow asserts 'this layer is detached and will disappear.' Resting cards, rows, inputs, and buttons are flat. If a surface needs emphasis, lighten its tone or add a hairline — never a shadow.", "section": "elevation" },
+      { "name": "The Floating-Only Shadow Rule", "body": "A box-shadow asserts 'this layer is detached and will disappear.' Resting cards, rows, inputs, and buttons are flat. If a surface needs emphasis, shift its tone or add a hairline — never a shadow.", "section": "elevation" },
       { "name": "The Soft Mouth Rule", "body": "Only the surfaces you speak through get the 16px radius — the composer and the user bubble. Everything the machine renders back stays at 6–8px: the conversation's softness belongs to the human side.", "section": "shapes" }
     ],
     "dos": [
       "Do use Workbench Blue for exactly five things: streaming, focus/selection, active nav, running tools, and the user bubble (The One Lamp Rule).",
-      "Do build depth with the four neutral steps (0.16/0.19/0.23/0.24) and 1px hairlines — a raised surface is a lighter surface.",
+      "Do theme every new color as a light-dark() pair in the @theme block, and run scripts/test-palette-contrast.mjs after touching any value — AA in both halves or it doesn't ship (The One Mechanism Rule).",
+      "Do build depth with the neutral steps and 1px hairlines — a raised surface is a lighter (dark) or whiter (light) surface.",
       "Do center the transcript at 768px (max-w-3xl) and keep 24px between turns.",
       "Do use monospace for anything the machine emits or accepts as an identifier: tool names, code, skills, /commands.",
+      "Do use Lucide for every icon, at the established sizes (14px in-turn actions, 16px controls) — one icon language, no emoji.",
       "Do resolve every user-visible string through the locale bundles — zh-CN lands first; design labels that survive both Chinese and English widths.",
-      "Do keep state changes as instant color swaps (transition-colors, 150ms); the only transforms are functional (chevron rotation) and the only loops are semantic (spinner, streaming pulse)."
+      "Do keep state changes as instant color swaps (transition-colors, 150ms); the only transforms are functional (chevron rotation) and the only loops are semantic (spinner, streaming pulse, outline jump flash)."
     ],
     "donts": [
       "Don't add a second accent hue, gradients, glassmorphism, or neon glow — flat tonal layering is the identity.",
       "Don't put a box-shadow on anything that rests; shadow means floating and temporary.",
       "Don't introduce webfonts, icon fonts, or remote type assets (The Invisible Type Rule).",
-      "Don't design light-mode variants or [data-theme=\"light\"] styles yet — dark-only is decision D9; when light mode lands it is a one-file token swap, not a per-component fork.",
+      "Don't hand-write light-mode or dark-mode values in components, or fork styles under [data-theme] — the token pair is the only theming path.",
       "Don't let markdown or panel headings exceed 18px, or add entrance/parallax/decorative motion.",
-      "Don't hard-code new hex colors in components — extend the @theme tokens instead (the existing #22272e code surface is a known debt, not a license)."
+      "Don't hard-code hex colors in components — extend the @theme tokens instead.",
+      "Don't design a second navigation pattern for mobile — the below-md drawer is the same rail, floating."
     ]
   }
 }

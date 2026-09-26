@@ -366,103 +366,199 @@ function boardModel() {
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const ago = (ts) => (ts ? `${Math.max(0, Math.round((Date.now() - ts) / 1000))}s ago` : "never");
-const cell = (label, value, cls = "") =>
-  `<div class="cell ${cls}"><div class="lbl">${esc(label)}</div><div class="val">${value === null ? "n/a" : esc(value)}</div></div>`;
+
+// Overall health: the one dot a tired operator reads first. Red beats amber
+// beats green; "stale source" counts as amber because a dark cell lies.
+function overallStatus(m) {
+  let bad = 0, warn = 0;
+  for (const c of m.cards) {
+    if (c.replicas && c.replicas.startsWith("0")) bad += 1;
+    if (c.probe?.configured && c.probe.ok === false) bad += 1;
+    if (c.drift && !["in-agreement", "unknown"].includes(c.drift.status)) warn += 1;
+  }
+  if (m.harbor && m.harbor.reachable === false) bad += 1;
+  if (m.banner.jenkinsQueue > 0) warn += 1;
+  if (m.banner.oomEvictions > 0) warn += 1;
+  if (m.stale.k8s || m.stale.jenkins) warn += 1;
+  if (bad) return { cls: "bad", label: `${bad} incident${bad > 1 ? "s" : ""}`, count: bad };
+  if (warn) return { cls: "warn", label: `${warn} warning${warn > 1 ? "s" : ""}`, count: warn };
+  return { cls: "ok", label: "all nominal", count: 0 };
+}
 
 function renderBoard() {
   const m = boardModel();
-  const nodeBars = m.banner.nodes.map((n) => {
+  const overall = overallStatus(m);
+
+  // ── cluster vitals strip ──
+  const nodes = [...m.banner.nodes].sort((a, b) => (b.memUsageBytes || 0) - (a.memUsageBytes || 0));
+  const nodeChips = nodes.map((n) => {
     const pct = n.memUsageBytes && n.memAllocatable
       ? Math.round((parseInt(n.memUsageBytes) / parseInt(n.memAllocatable)) * 100) : null;
-    const w = pct ?? 0;
-    const color = !n.ready ? "bad" : n.pressure || (pct !== null && pct > 85) ? "warn" : "ok";
-    return `<div class="node ${color}" title="${esc(n.name)}${pct !== null ? ` ${pct}%` : " mem n/a"}">
-      <span class="nname">${esc(n.name.split(/(?<=^liuliang|cheap-)/)[0].slice(0, 8))}</span>
-      <div class="bar"><div class="fill" style="width:${Math.min(100, w)}%"></div></div>
-      <span class="pct">${pct === null ? "n/a" : pct + "%"}</span>
+    const cls = !n.ready ? "bad" : n.pressure || (pct !== null && pct >= 85) ? "warn" : "";
+    return `<div class="vchip ${cls}" title="${esc(n.name)}${pct !== null ? ` — memory ${pct}% of allocatable` : ""}${n.pressure ? " — pressure" : ""}">
+      <span class="vname">${esc(n.name)}</span>
+      <span class="vbar"><span class="vfill" style="width:${Math.min(100, pct ?? 0)}%"></span></span>
+      <span class="vpct">${pct === null ? "n/a" : pct + "%"}</span>
     </div>`;
   }).join("");
+  const vitals = `<section class="vitals" aria-label="cluster vitals">
+    ${nodeChips}
+    <span class="vsep"></span>
+    <div class="vchip ${m.banner.oomEvictions > 0 ? "warn" : ""}" title="Evicted + OOM events in the last 24h">
+      <span class="vname">evict/oom 24h</span><span class="vbig ${m.banner.oomEvictions > 0 ? "warn" : ""}">${m.banner.oomEvictions}</span>
+    </div>
+    <div class="vchip ${m.banner.jenkinsQueue > 0 ? "warn" : ""}" title="Jobs waiting for the Jenkins executor">
+      <span class="vname">jenkins queue</span><span class="vbig ${m.banner.jenkinsQueue > 0 ? "warn" : ""}">${m.banner.jenkinsQueue ?? "n/a"}</span>
+    </div>
+    <div class="vchip" title="GitOps application state">
+      <span class="vname">argocd</span>
+      <span class="vbig ${m.banner.argocd?.sync === "Synced" ? "ok" : "warn"}">${m.banner.argocd ? esc(m.banner.argocd.sync) : "n/a"}</span>
+    </div>
+  </section>`;
+
+  // ── deployment chain cards ──
+  const chain = (label, value, cls = "", title = "") =>
+    `<div class="step ${cls}"${title ? ` title="${esc(title)}"` : ""}><span class="slabel">${esc(label)}</span><span class="svalue">${value === null || value === "" ? "n/a" : value}</span></div>`;
+  const arrow = `<span class="sarrow" aria-hidden="true">→</span>`;
 
   const cards = m.cards.map((c) => {
-    const driftCls = { "in-agreement": "ok", unknown: "" }[c.drift?.status] ?? "warn";
-    // Guarded per-key (an eager object literal would deref a null drift when
-    // the k8s source is down — the board must render during incidents).
+    const driftCls = !c.drift ? "" : { "in-agreement": "ok", unknown: "" }[c.drift.status] ?? "warn";
     const driftTxt = !c.drift ? "no data" : {
-      "in-agreement": `all at ${c.drift.running || "?"}`,
+      "in-agreement": `in sync at ${c.drift.running || "?"}`,
       "newer-build-not-rolled": `newer build ${c.drift.built} not rolled (running ${c.drift.running})`,
       "cluster-out-of-sync": "cluster diverges from GitOps",
       "cluster-out-of-sync-and-stale": `pod stale (${c.drift.running}) & cluster out of sync`,
-      unknown: "no data",
-    }[c.drift.status] || "no data";
+      unknown: "no drift data",
+    }[c.drift.status] || "no drift data";
     const probe = c.probe?.configured
-      ? cell("probe", c.probe.ok ? `ok ${c.probe.ms}ms` : `FAIL`, c.probe.ok ? "ok" : "bad")
-      : cell("probe", "not configured");
-    return `<div class="card">
-      <div class="cardhead"><span class="cname">${esc(c.name)}</span>
-        <span class="drift ${driftCls}" title="${esc(driftTxt)}">${esc(driftTxt)}</span></div>
-      <div class="row">
-        ${cell("replicas", c.replicas, c.replicas && !c.replicas.startsWith("0") ? "ok" : "bad")}
-        ${cell("image", c.runningTag)}
+      ? (c.probe.ok
+        ? chain("probe", `ok · ${c.probe.ms}ms`, "ok")
+        : chain("probe", "FAIL", "bad", c.probe.error || ""))
+      : chain("probe", "not configured", "", "no PROBE_ URL for this deployment");
+    const synced = c.name !== "search-relay";
+    return `<article class="card">
+      <header class="chead">
+        <h2>${esc(c.name)}</h2>
+        <span class="drift ${driftCls}"><span class="dot"></span>${esc(driftTxt)}</span>
+      </header>
+      <div class="chain">
+        ${chain("build", m.jenkins?.builtTag ?? null, m.jenkins ? "ok" : "", m.jenkins ? `Jenkins #${m.jenkins.lastSuccessful?.number ?? "?"}` : "")}
+        ${arrow}
+        ${chain("image", c.runningTag)}
+        ${arrow}
+        ${synced ? chain("gitops", m.banner.argocd?.sync ?? null, m.banner.argocd?.sync === "Synced" ? "ok" : "warn") : chain("gitops", "n/a")}
+        ${arrow}
+        ${chain("pods", c.replicas, c.replicas && !c.replicas.startsWith("0") ? "ok" : "bad")}
+        ${arrow}
         ${probe}
       </div>
-    </div>`;
+    </article>`;
   }).join("");
 
-  const relayBlock = m.relay ? `<div class="card">
-      <div class="cardhead"><span class="cname">search-relay stats</span>
-        <span class="muted">uptime ${Math.round((m.relay.uptimeSec || 0) / 60)}m</span></div>
-      <div class="row">
-        ${cell("quota today", (m.relay.tokens || []).map((t) => `${t.prefix} ${t.count}/${m.relay.dailyCap}`).join(", ") || "n/a")}
-        ${cell("cache hit", m.relay.cache?.hitRate === null || m.relay.cache?.hitRate === undefined ? "n/a" : `${Math.round(m.relay.cache.hitRate * 100)}% (${m.relay.cache.hits}/${m.relay.cache.hits + m.relay.cache.cache_misses || m.relay.cache.misses || 0})`)}
-        ${cell("5xx", String((m.relay.errors?.upstream ?? 0) + (m.relay.errors?.poolDry ?? 0)))}
-        ${cell("key fails", String((m.relay.keys || []).reduce((a, k) => a + k.failures, 0)))}
-      </div></div>` : `<div class="card"><div class="cardhead"><span class="cname">search-relay stats</span></div><div class="muted">unavailable${m.stale.relay ? " (stale)" : ""}</div></div>`;
+  // ── jenkins / harbor / relay ──
+  const jenkinsCard = m.jenkins ? `<article class="card">
+    <header class="chead"><h2>jenkins</h2>
+      <span class="drift ${m.jenkins.queueDepth > 0 ? "warn" : "ok"}"><span class="dot"></span>queue ${m.jenkins.queueDepth}</span></header>
+    <div class="chain">
+      ${chain("last ok build", m.jenkins.lastSuccessful ? `#${m.jenkins.lastSuccessful.number}` : "n/a", "ok", m.jenkins.lastSuccessful ? ago(m.jenkins.lastSuccessful.ts) : "")}
+      ${chain("pushed tag", m.jenkins.builtTag ?? "n/a")}
+      ${chain("history", (m.jenkins.lastBuilds || []).slice(0, 4).map((b) => `#${b.number}${b.building ? "…" : b.result === "SUCCESS" ? "✓" : b.result ? "✗" : "?"}`).join("  "))}
+    </div>
+  </article>` : `<article class="card is-down"><header class="chead"><h2>jenkins</h2><span class="drift bad"><span class="dot"></span>unreachable${m.stale.jenkins ? " · stale" : ""}</span></header></article>`;
 
-  const jenkinsBlock = m.jenkins ? `<div class="card">
-      <div class="cardhead"><span class="cname">jenkins</span>
-        <span class="${m.jenkins.queueDepth > 0 ? "warn" : "ok"}">queue ${m.jenkins.queueDepth}</span></div>
-      <div class="row">
-        ${cell("last ok build", m.jenkins.lastSuccessful ? `#${m.jenkins.lastSuccessful.number} (${ago(m.jenkins.lastSuccessful.ts)})` : "n/a")}
-        ${cell("built tag", m.jenkins.builtTag)}
-        ${cell("recent", (m.jenkins.lastBuilds || []).slice(0, 4).map((b) => `#${b.number}:${b.building ? "…" : b.result || "?"}`).join(" "))}
-      </div></div>` : `<div class="card"><div class="cardhead"><span class="cname">jenkins</span></div><div class="muted">unavailable${m.stale.jenkins ? " (stale)" : ""}</div></div>`;
+  const harborCard = m.harbor
+    ? `<article class="card"><header class="chead"><h2>harbor</h2><span class="drift ok"><span class="dot"></span>reachable</span></header></article>`
+    : `<article class="card is-down"><header class="chead"><h2>harbor</h2><span class="drift bad"><span class="dot"></span>unreachable</span></header></article>`;
 
-  const harborBlock = m.harbor ? `<div class="card"><div class="cardhead"><span class="cname">harbor</span><span class="ok">reachable</span></div></div>`
-    : `<div class="card"><div class="cardhead"><span class="cname">harbor</span><span class="bad">unreachable</span></div></div>`;
+  const relayBody = m.relay ? (() => {
+    const cap = m.relay.dailyCap ?? 300;
+    const used = (m.relay.tokens || []).reduce((a, t) => a + t.count, 0);
+    const pct = Math.min(100, Math.round((used / cap) * 100));
+    const hit = m.relay.cache?.hitRate;
+    return `<article class="card"><header class="chead"><h2>search-relay</h2>
+      <span class="drift ${pct >= 90 ? "warn" : "ok"}"><span class="dot"></span>${used}/${cap} today</span></header>
+      <div class="chain">
+        ${chain("quota", `${used}/${cap}`, pct >= 90 ? "warn" : "ok", (m.relay.tokens || []).map((t) => `${t.prefix} ${t.count}`).join(", "))}
+        ${chain("cache hit", hit === null || hit === undefined ? "n/a" : `${Math.round(hit * 100)}%`, "ok", `${m.relay.cache?.hits ?? 0} hits / ${m.relay.cache?.misses ?? 0} misses`)}
+        ${chain("5xx", String((m.relay.errors?.upstream ?? 0) + (m.relay.errors?.poolDry ?? 0)), (m.relay.errors?.upstream ?? 0) + (m.relay.errors?.poolDry ?? 0) > 0 ? "warn" : "ok", `${m.relay.errors?.poolDry ?? 0} pool-dry`)}
+        ${chain("key fails", String((m.relay.keys || []).reduce((a, k) => a + k.failures, 0)), "")}
+      </div></article>`;
+  })() : `<article class="card is-down"><header class="chead"><h2>search-relay</h2><span class="drift bad"><span class="dot"></span>stats unavailable${m.stale.relay ? " · stale" : ""}</span></header></article>`;
 
-  return `<!doctype html><html><head><meta charset="utf-8">
+  const updated = ago(m.ts);
+  const staleNote = m.stale.k8s || m.stale.jenkins ? `<span class="staleflag">some sources stale</span>` : "";
+
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta http-equiv="refresh" content="30">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>fd ops</title>
 <style>
-  body{font:13px/1.45 -apple-system,system-ui,sans-serif;margin:16px;background:#0f1115;color:#d7dae0}
-  h1{font-size:15px;margin:0 0 12px;color:#fff}
-  .banner{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px;padding:8px;background:#161a22;border-radius:8px}
-  .node{display:flex;gap:6px;align-items:center;padding:2px 8px;border-radius:6px;background:#1d222d}
-  .node.bad{outline:1px solid #b4483f}.node.warn{outline:1px solid #b48a3f}
-  .bar{width:56px;height:8px;background:#2a303c;border-radius:4px;overflow:hidden}
-  .fill{height:100%;background:#4f9e64}.node.warn .fill{background:#c29343}.node.bad .fill{background:#bf5b52}
-  .nname{font-size:11px;color:#9aa3b2}.pct{font-size:11px}
-  .grid{display:flex;flex-wrap:wrap;gap:12px}
-  .card{background:#161a22;border-radius:8px;padding:10px 12px;min-width:300px;flex:1}
-  .cardhead{display:flex;justify-content:space-between;margin-bottom:8px}
-  .cname{font-weight:600;color:#fff}
-  .row{display:flex;gap:10px;flex-wrap:wrap}
-  .cell{min-width:80px}.lbl{font-size:10px;text-transform:uppercase;color:#78818f}.val{font-size:12px;word-break:break-all}
-  .ok .val,.val.ok{color:#69c17d}.bad .val,.val.bad{color:#d07069}.warn{color:#c29343}.ok{color:#69c17d}
-  .muted{color:#78818f;font-size:12px}
-  .stale{color:#c29343;font-size:11px;margin-left:8px}
+  :root{
+    --bg:oklch(0.16 0 0);--card:oklch(0.19 0 0);--card-2:oklch(0.22 0 0);
+    --border:oklch(0.28 0 0);--fg:oklch(0.96 0 0);--muted:oklch(0.65 0 0);
+    --accent:oklch(0.64 0.16 250);--ok:oklch(0.72 0.17 145);--warn:oklch(0.80 0.15 85);--bad:oklch(0.62 0.22 25);
+  }
+  *{box-sizing:border-box}
+  html{background:var(--bg)}
+  body{margin:0;padding:20px clamp(14px,3vw,32px) 40px;font:400 13px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:var(--fg);-webkit-font-smoothing:antialiased}
+  ::selection{background:oklch(0.64 0.16 250/.35)}
+  a{color:var(--accent)}
+  .wrap{max-width:1280px;margin:0 auto}
+  header.page{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:2px 0 14px}
+  h1{font-size:18px;font-weight:650;letter-spacing:-0.02em;margin:0}
+  h1 .lamp{display:inline-block;width:8px;height:8px;border-radius:99px;background:var(--accent);margin-right:9px;box-shadow:0 0 8px oklch(0.64 0.16 250/.55);vertical-align:1px}
+  .pagestatus{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:7px;padding:3px 11px;border-radius:99px;border:1px solid var(--border);background:var(--card);font-size:12px;font-weight:550}
+  .pill .dot{width:7px;height:7px}
+  .pill.ok{color:var(--ok);border-color:oklch(0.72 0.17 145/.35)}
+  .pill.warn{color:var(--warn);border-color:oklch(0.80 0.15 85/.4)}
+  .pill.bad{color:var(--bad);border-color:oklch(0.62 0.22 25/.45)}
+  .updated{color:var(--muted);font-size:12px;font-variant-numeric:tabular-nums}
+  .staleflag{color:var(--warn);font-size:12px}
+  .vitals{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;margin:0 0 16px}
+  .vchip{display:flex;align-items:center;gap:8px;padding:5px 10px;background:var(--card);border:1px solid var(--border);border-radius:8px;min-height:32px}
+  .vchip.warn{border-color:oklch(0.80 0.15 85/.45)}
+  .vchip.bad{border-color:oklch(0.62 0.22 25/.5)}
+  .vname{font-size:11px;color:var(--muted);white-space:nowrap}
+  .vbar{width:56px;height:6px;border-radius:99px;background:oklch(0.28 0 0);overflow:hidden;display:inline-block}
+  .vfill{display:block;height:100%;background:var(--accent);border-radius:99px}
+  .vchip.warn .vfill{background:var(--warn)}.vchip.bad .vfill{background:var(--bad)}
+  .vpct,.vbig{font-size:12px;font-variant-numeric:tabular-nums}
+  .vbig.warn{color:var(--warn)}.vbig.ok{color:var(--ok)}
+  .vsep{width:1px;background:var(--border);margin:2px 4px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:14px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:13px 16px 15px;box-shadow:0 1px 2px oklch(0 0 0/.25)}
+  .card.is-down{border-color:oklch(0.62 0.22 25/.4)}
+  .chead{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 10px}
+  h2{font-size:13.5px;font-weight:600;margin:0;letter-spacing:0.01em}
+  .drift{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);text-align:right}
+  .drift.ok{color:var(--ok)}.drift.warn{color:var(--warn)}.drift.bad{color:var(--bad)}
+  .dot{width:6px;height:6px;border-radius:99px;background:var(--muted);flex:none}
+  .drift.ok .dot{background:var(--ok)}.drift.warn .dot{background:var(--warn)}.drift.bad .dot{background:var(--bad)}
+  .chain{display:flex;align-items:flex-start;gap:9px;flex-wrap:wrap}
+  .step{display:flex;flex-direction:column;gap:2px;min-width:58px}
+  .slabel{font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted)}
+  .svalue{font-size:12.5px;font-variant-numeric:tabular-nums;word-break:break-all}
+  .step.ok .svalue{color:var(--ok)}.step.warn .svalue{color:var(--warn)}.step.bad .svalue{color:var(--bad)}
+  .sarrow{color:oklch(0.4 0 0);font-size:12px;margin-top:13px}
+  .muted{color:var(--muted);font-size:12px}
+  @media (max-width:640px){.chain{flex-direction:column;gap:7px}.sarrow{display:none}.grid{grid-template-columns:1fr}}
+  @media (prefers-reduced-motion:no-preference){.card{transition:border-color .2s ease-out}}
 </style></head><body>
-<h1>fd ops — ${new Date(m.ts).toISOString()}${m.stale.k8s || m.stale.jenkins ? '<span class="stale">some sources stale</span>' : ""}</h1>
-<div class="banner">
-  ${nodeBars}
-  <span class="muted">24h evict/oom: <b class="${m.banner.oomEvictions > 0 ? "warn" : ""}">${m.banner.oomEvictions}</b></span>
-  <span class="muted">jenkins queue: <b>${m.banner.jenkinsQueue ?? "n/a"}</b></span>
-  <span class="muted">argocd: <b class="${m.banner.argocd?.sync === "Synced" ? "ok" : "warn"}">${m.banner.argocd ? `${m.banner.argocd.sync}/${m.banner.argocd.health}` : "n/a"}</b></span>
+<div class="wrap">
+  <header class="page">
+    <h1><span class="lamp"></span>fd ops</h1>
+    <div class="pagestatus">
+      <span class="pill ${overall.cls}"><span class="dot"></span>${esc(overall.label)}</span>
+      ${staleNote ? `<span class="staleflag">${staleNote}</span>` : ""}
+      <span class="updated">polled ${esc(updated)} · refreshes every ${POLL_SECS}s</span>
+    </div>
+  </header>
+  ${vitals}
+  <div class="grid">${cards}${jenkinsCard}${harborCard}${relayBody}</div>
 </div>
-<div class="grid">${cards}${jenkinsBlock}${harborBlock}${relayBlock}</div>
 </body></html>`;
 }
-
 // ── server (token OR session cookie; read-only surface) ─────────────────────
 const server = http.createServer((req, res) => {
   if (req.url === "/healthz") { res.writeHead(200, { "content-type": "application/json" }); return res.end('{"ok":true}'); }

@@ -166,7 +166,18 @@ function ActivityGroupView({
   );
 }
 
-export function TurnView({ turn, onRegenerate }: { turn: Turn; onRegenerate?: () => void }) {
+export function TurnView({
+  turn,
+  onRegenerate,
+  onReload,
+}: {
+  turn: Turn;
+  onRegenerate?: () => void;
+  // Interrupted-answer recovery: passed for the latest interrupted assistant
+  // turn — refetches the session so the server's full transcript replaces the
+  // locally truncated one.
+  onReload?: () => void;
+}) {
   const toggleBlock = useChatStore((s) => s.toggleBlock);
 
   if (turn.role === "user") {
@@ -235,7 +246,16 @@ export function TurnView({ turn, onRegenerate }: { turn: Turn; onRegenerate?: ()
         </View>
       ) : null}
       {turn.streaming ? <Text className="turn-cursor">▍</Text> : null}
-      {turn.interrupted ? <Text className="turn-interrupted">回答已中断</Text> : null}
+      {turn.interrupted ? (
+        <View className="turn-interrupted-row">
+          <Text className="turn-interrupted">回答已中断</Text>
+          {onReload ? (
+            <Text className="turn-reload" onClick={onReload} data-testid="mp-turn-reload">
+              重新加载回答
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }

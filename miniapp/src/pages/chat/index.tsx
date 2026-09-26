@@ -167,12 +167,19 @@ export default function ChatPage() {
   }));
 
   // Per-row share (the history drawer's ↗): mints a token for ANY session
-  // and parks it in the ref the forward-card hook reads.
+  // and parks it in the ref the forward-card hook reads. Success is a MODAL,
+  // not a toast — the completion lives in the native capsule ⋯ menu, and a
+  // 2.5s toast did not teach that (critique re-run P2).
   const shareSession = async (id: string) => {
     try {
       const { token } = await createShare(id);
       shareTokenRef.current = token;
-      Taro.showToast({ title: "已生成卡片，点右上角 ⋯ 转发", icon: "none", duration: 2500 });
+      Taro.showModal({
+        title: "已生成分享卡片",
+        content: "点右上角「···」，选择「转发」发给朋友",
+        showCancel: false,
+        confirmText: "知道了",
+      });
     } catch (e) {
       Taro.showToast({ title: (e as Error).message || "分享失败", icon: "none" });
     }
@@ -413,18 +420,20 @@ export default function ChatPage() {
           <View className="hd-side">
             <Text
               className="hd-btn"
+              aria-label="历史"
               onClick={() => {
                 setHistoryOpen(true);
               }}
             >
               ☰{historyUnread ? <Text className="hd-unread-dot" /> : null}
             </Text>
-            <Text className="hd-btn" onClick={() => void handleShare()}>
+            <Text className="hd-btn" aria-label="分享" onClick={() => void handleShare()}>
               ↗
             </Text>
           </View>
           <View
             className={`hd-chip${sendDisabled ? " hd-chip-disabled" : ""}`}
+            aria-label="切换模型或智能体"
             onClick={openPanel}
           >
             <Text className="hd-chip-text">{chipLabel}</Text>
@@ -433,6 +442,7 @@ export default function ChatPage() {
           <View className="hd-side hd-side-right">
             <Text
               className="hd-btn"
+              aria-label="新对话"
               onClick={() => {
                 // Every tap answers (openspec: revise-mp-history-ux): the
                 // button must never read as broken. Blank-session taps stay
@@ -563,7 +573,23 @@ export default function ChatPage() {
         ) : null}
         {turns.map((t) => (
           <View key={t.id} id={t.id} className={t.id === flashId ? "turn-wrap turn-flash" : "turn-wrap"}>
-            <TurnView turn={t} onRegenerate={t.id === lastAssistantId ? regenerate : undefined} />
+            <TurnView
+              turn={t}
+              onRegenerate={t.id === lastAssistantId ? regenerate : undefined}
+              onReload={
+                t.role === "assistant" &&
+                t.id === lastAssistantId &&
+                t.interrupted &&
+                !isStreaming &&
+                currentSessionId
+                  ? () => {
+                      // Refetch the session: the server holds the full answer
+                      // the local truncation replaced.
+                      if (currentSessionId) runtime.send({ type: "switch_session", id: currentSessionId });
+                    }
+                  : undefined
+              }
+            />
           </View>
         ))}
         <View id="msg-bottom" className="msg-bottom" />
@@ -609,16 +635,17 @@ export default function ChatPage() {
             }}
           />
           <View className="composer-actions">
-            <Text className="composer-attach" onClick={pickFile}>
+            <Text className="composer-attach" aria-label="添加附件" onClick={pickFile}>
               📎
             </Text>
             {isStreaming ? (
-              <View className="composer-stop" onClick={handleStop}>
+              <View className="composer-stop" aria-label="停止" onClick={handleStop}>
                 <Text className="composer-stop-glyph">■</Text>
               </View>
             ) : (
               <View
                 className={`composer-send${pendingConfig !== null ? " composer-send-disabled" : ""}`}
+                aria-label={pendingConfig !== null ? "配置中" : "发送"}
                 onClick={handleSend}
               >
                 <Text className="composer-send-glyph">↑</Text>

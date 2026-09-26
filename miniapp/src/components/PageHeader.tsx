@@ -26,12 +26,13 @@ export default function PageHeader({
     >
       <View className="page-header-row" style={{ height: `${ins.navHeight}px` }}>
         {onBack ? (
-          <Text className="page-header-back" data-testid="mp-header-back" onClick={onBack}>
+          <Text className="page-header-back" aria-label="返回" data-testid="mp-header-back" onClick={onBack}>
             ‹
           </Text>
         ) : (
           <Text
             className="page-header-back"
+            aria-label="返回"
             data-testid="mp-header-back"
             onClick={() =>
               Taro.navigateBack({

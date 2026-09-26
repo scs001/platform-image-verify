@@ -59,6 +59,7 @@ export function OutlineRail({ entries, onJump }: Props) {
     <View className="outline-rail">
       <View
         className="outline-edge"
+        aria-label="对话大纲"
         onClick={() => {
           setExpanded(true);
         }}

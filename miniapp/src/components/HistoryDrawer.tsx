@@ -168,7 +168,7 @@ export default function HistoryDrawer({
       <View className="hisd-panel" data-testid="mp-history-drawer">
         <View className="hisd-head">
           <Text className="hisd-title">历史</Text>
-          <Text className="hisd-close" data-testid="mp-history-close" onClick={onClose}>
+          <Text className="hisd-close" aria-label="关闭" data-testid="mp-history-close" onClick={onClose}>
             ✕
           </Text>
         </View>

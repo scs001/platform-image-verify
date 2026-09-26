@@ -42,7 +42,19 @@ export default function LoginPage() {
     }
   };
 
-  const unbind = async () => {
+  // Unbind deletes the server-side binding — destructive, so it confirms
+  // like revoke and cron delete do (critique re-run P2).
+  const unbind = () => {
+    Taro.showModal({
+      title: "退出登录",
+      content: "将解绑当前微信并清除本机登录状态，确定？",
+      success: (r) => {
+        if (r.confirm) void doUnbind();
+      },
+    });
+  };
+
+  const doUnbind = async () => {
     await logout();
     Taro.showToast({ title: "已退出登录", icon: "none" });
     setBindCode("");
@@ -83,8 +95,8 @@ export default function LoginPage() {
           暂不登录，先看看 ›
         </Text>
 
-        <Text className="login-unbind" onClick={() => setShowServer((v) => !v)}>
-          服务器地址：{currentBaseUrl()}
+        <Text className="login-server-toggle" onClick={() => setShowServer((v) => !v)}>
+          高级：服务器地址 ›
         </Text>
         {showServer ? (
           <View className="login-field">

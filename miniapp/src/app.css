@@ -21,6 +21,19 @@ page {
   position: relative;
 }
 
+/* Inline 产出 viewer over the REST fetch — the scroll-view gets NO horizontal
+   padding (Scroller Padding Rule); the turns pad themselves. */
+.sessions-detail {
+  flex: 1;
+  min-height: 0;
+  padding: 16px 0 0;
+  box-sizing: border-box;
+}
+
+.sessions-detail .turn {
+  padding: 0 24px;
+}
+
 /* ── shared page header (navigationStyle:"custom" subpages) ────────────── */
 
 .page-header {
@@ -135,7 +148,7 @@ page {
 .hisd-close {
   font-size: 30px;
   color: #6b7280;
-  padding: 24px 28px;
+  padding: 26px 28px;
 }
 
 .hisd-scroll {
@@ -491,6 +504,21 @@ page {
 .turn-interrupted {
   font-size: 22px;
   color: #9ca3af;
+}
+
+/* Interrupted-answer recovery (critique re-run P2): the full transcript is
+   one switch_session away — surface it next to the marker. */
+.turn-interrupted-row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  margin-top: 8px;
+}
+
+.turn-reload {
+  font-size: 24px;
+  color: #2563eb;
+  padding: 24px 8px;
 }
 
 .turn-actions {
@@ -1031,6 +1059,17 @@ page {
   text-decoration: underline;
 }
 
+/* Server-address toggle — own voice, NOT the unbind style it borrowed
+   (critique re-run P2: two adjacent underlined gray lines meant two
+   different things). */
+.login-server-toggle {
+  margin-top: 24px;
+  padding: 24px 0;
+  text-align: center;
+  font-size: 24px;
+  color: #9ca3af;
+}
+
 /* The "browse first, sign in later" exit — WeChat's forced-login rule means
    the login page must never be a dead end (openspec: mp-demo-mode). */
 .login-skip {
@@ -1217,8 +1256,8 @@ page {
   flex-shrink: 0;
   font-size: 24px;
   color: #dc2626;
-  /* Hit area for the destructive control (harden) — padded, not bare text. */
-  padding: 8px 0 8px 24px;
+  /* Destructive: full 88rpx hit bar (critique re-run P1). */
+  padding: 28px 0 28px 24px;
 }
 
 /* Read-only shared-session page (recipient side, reached via forward card). */
@@ -1417,7 +1456,8 @@ page {
 
 .cron-submit {
   align-self: flex-start;
-  padding: 12px 32px;
+  /* Primary submit carries the full 88rpx hit bar (critique re-run P1). */
+  padding: 24px 32px;
   border-radius: 12px;
   background: #2563eb;
   color: #fff;
@@ -1739,8 +1779,8 @@ page {
   font-size: 22px;
   font-weight: 600;
   color: #15803d;
-  /* The exit-demo link is the line's only target — padded to ~79rpx. */
-  padding: 24px 16px;
+  /* The exit-demo link is the line's only target — padded to the bar. */
+  padding: 30px 16px;
 }
 
 /* ── history groups + row share (revise-mp-history-ux) ─────────────────── */

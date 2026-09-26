@@ -531,7 +531,16 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (!authed) { res.writeHead(401, { "content-type": "text/plain" }); return res.end("unauthorized"); }
+  if (!authed) {
+    // Browsers get redirected to the login page; programmatic callers that
+    // present (or omit) an Authorization header get the flat 401 they expect.
+    if (req.method === "GET" && !req.headers.authorization && OIDC_ENABLED) {
+      res.writeHead(302, { location: "/auth/login" });
+      return res.end();
+    }
+    res.writeHead(401, { "content-type": "text/plain" });
+    return res.end("unauthorized");
+  }
   if (req.method === "GET" && (req.url === "/" || req.url === "/index.html")) {
     res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
     return res.end(renderBoard());

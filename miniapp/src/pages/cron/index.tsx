@@ -3,7 +3,7 @@
 // 任务产出通过 chat-history REST 内联查看(与会话页同一只读查看器模式)。
 // 小程序无 i18n 运行时,按约定直接用中文字面量。
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Input, Picker, ScrollView, Text, Textarea, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import {
@@ -14,6 +14,7 @@ import {
   type CronJob,
 } from "@platform/core";
 import { Markdown } from "@/components/Markdown";
+import PageHeader from "@/components/PageHeader";
 import { describeJobSchedule, formatInJobTz } from "@/lib/cron-text";
 import { runtime, wsSend } from "@/lib/runtime";
 
@@ -98,6 +99,7 @@ function JobCard({ job, onView }: { job: CronJob; onView: (sessionId: string) =>
 export default function CronPage() {
   const jobs = useCronStore((s) => s.jobs);
   const lastError = useCronStore((s) => s.lastError);
+  const lastAdded = useCronStore((s) => s.lastAdded);
   const clearError = useCronStore((s) => s.clearError);
   const presets = useChatStore((s) => s.presets);
   const currentPreset = useChatStore((s) => s.currentPreset);
@@ -116,8 +118,33 @@ export default function CronPage() {
   const [agentIdx, setAgentIdx] = useState(-1);
   const [tz, setTz] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [localError, setLocalError] = useState<string | null>(null);
+  // 创建确认(harden):表单保持打开、字段保留,直到服务器的 cron_added
+  // 确认或 cron_error 拒绝;8 秒无回应用超时兜底。乐观关闭曾把拒绝藏在
+  // 一个刚刚收起的表单里。
+  const [pending, setPending] = useState(false);
+  const pendingAtRef = useRef(0);
   // 内联产出查看器(REST)
   const [viewing, setViewing] = useState<{ title?: string; messages: ChatMessage[] } | null>(null);
+
+  useEffect(() => {
+    if (!pending) return;
+    if (lastAdded && lastAdded.at >= pendingAtRef.current) {
+      setPending(false);
+      setPrompt("");
+      setName("");
+      setFormOpen(false);
+      Taro.showToast({ title: "任务已创建", icon: "none" });
+    } else if (lastError?.action === "cron_add") {
+      setPending(false);
+      setLocalError(lastError.message);
+      clearError();
+    }
+    const timer = setTimeout(() => {
+      setPending(false);
+      setLocalError("服务器未确认，请检查连接后重试");
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [pending, lastAdded, lastError, clearError]);
 
   useEffect(() => {
     void runtime.boot();
@@ -133,6 +160,7 @@ export default function CronPage() {
   }, []);
 
   const submit = () => {
+    if (pending) return;
     setLocalError(null);
     clearError();
     if (!prompt.trim()) {
@@ -164,7 +192,7 @@ export default function CronPage() {
       }
       iso = new Date(`${date}T${whenTime}`).toISOString();
     }
-    wsSend({
+    const sent = wsSend({
       type: "cron_add",
       cron: expr,
       when: iso,
@@ -173,9 +201,14 @@ export default function CronPage() {
       tz: tz.trim() || null,
       sessionTitle: name.trim() || null,
     });
-    setPrompt("");
-    setName("");
-    setFormOpen(false);
+    if (!sent) {
+      // The runtime already toasted; the inline error keeps the open form
+      // honest about WHY the button did nothing.
+      setLocalError("未连接，无法创建任务");
+      return;
+    }
+    pendingAtRef.current = Date.now();
+    setPending(true);
   };
 
   const viewSession = async (sessionId: string) => {
@@ -190,10 +223,7 @@ export default function CronPage() {
   if (viewing) {
     return (
       <View className="cron-page">
-        <View className="sessions-back" onClick={() => setViewing(null)}>
-          <Text>‹ 返回任务列表</Text>
-        </View>
-        {viewing.title ? <Text className="cron-viewer-title">{viewing.title}</Text> : null}
+        <PageHeader title={viewing.title || "任务产出"} onBack={() => setViewing(null)} />
         <ScrollView scrollY className="sessions-detail">
           {viewing.messages.map((m, i) =>
             m.role === "user" ? (
@@ -220,6 +250,7 @@ export default function CronPage() {
 
   return (
     <View className="cron-page" data-testid="mp-cron-page">
+      <PageHeader title="定时任务" />
       <View className="cron-toolbar">
         <Text className="cron-count">共 {jobs.length} 个任务</Text>
         <Text className="picker-link" onClick={() => setFormOpen((v) => !v)}>
@@ -332,8 +363,12 @@ export default function CronPage() {
               {errorText}
             </Text>
           ) : null}
-          <Text className="cron-submit" onClick={submit} data-testid="mp-cron-submit">
-            创建任务
+          <Text
+            className={`cron-submit${pending ? " cron-submit-disabled" : ""}`}
+            onClick={submit}
+            data-testid="mp-cron-submit"
+          >
+            {pending ? "创建中…" : "创建任务"}
           </Text>
         </View>
       ) : null}

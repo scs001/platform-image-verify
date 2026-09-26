@@ -9,6 +9,8 @@ import { ScrollView, Text, Textarea, View } from "@tarojs/components";
 import Taro, { eventCenter, useDidShow, useShareAppMessage } from "@tarojs/taro";
 import { createShare, useChatStore } from "@platform/core";
 import { OutlineRail, type OutlineEntry } from "@/components/OutlineRail";
+import HistoryDrawer from "@/components/HistoryDrawer";
+import { topInsets } from "@/lib/top-insets";
 import { SelectionPanel, type PanelPickKind, type PanelRow } from "@/components/SelectionPanel";
 import { recentStrip, relativeTime, showcaseCards } from "@/lib/showcase";
 import { TurnView } from "@/components/TurnView";
@@ -63,6 +65,9 @@ export default function ChatPage() {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const attachSeq = useRef(0);
   const [panelOpen, setPanelOpen] = useState(false);
+  // The history drawer (☰ / 查看历史): the old sessions page as a sheet on
+  // this page — no navigation hop.
+  const [historyOpen, setHistoryOpen] = useState(false);
   // No-bound-account state (non-demo deployments): the page stays browsable
   // with a sign-in banner — never an automatic jump to the login page
   // (openspec: mp-demo-mode; WeChat's forced-login rule). Demo deployments
@@ -161,6 +166,18 @@ export default function ChatPage() {
       : "/pages/chat/index",
   }));
 
+  // Per-row share (the history drawer's ↗): mints a token for ANY session
+  // and parks it in the ref the forward-card hook reads.
+  const shareSession = async (id: string) => {
+    try {
+      const { token } = await createShare(id);
+      shareTokenRef.current = token;
+      Taro.showToast({ title: "已生成卡片，点右上角 ⋯ 转发", icon: "none", duration: 2500 });
+    } catch (e) {
+      Taro.showToast({ title: (e as Error).message || "分享失败", icon: "none" });
+    }
+  };
+
   const handleShare = async () => {
     if (runtime.loginRequiredNow()) {
       goLogin();
@@ -170,13 +187,7 @@ export default function ChatPage() {
       Taro.showToast({ title: "还没有可分享的会话", icon: "none" });
       return;
     }
-    try {
-      const { token } = await createShare(sessionId);
-      shareTokenRef.current = token;
-      Taro.showToast({ title: "已生成卡片，点右上角 ⋯ 转发", icon: "none", duration: 2500 });
-    } catch (e) {
-      Taro.showToast({ title: (e as Error).message || "分享失败", icon: "none" });
-    }
+    await shareSession(sessionId);
   };
 
   const goLogin = () => {
@@ -221,8 +232,18 @@ export default function ChatPage() {
 
   const sendDisabled = isStreaming || pendingConfig !== null;
 
+  // Double-submit guard: both taps can pass the isStreaming check before the
+  // server echo flips it, so the composer owns a short local in-flight window.
+  const sendInFlight = useRef(false);
+  const armSendGuard = () => {
+    sendInFlight.current = true;
+    setTimeout(() => {
+      sendInFlight.current = false;
+    }, 800);
+  };
+
   const handleSend = () => {
-    if (isStreaming) return;
+    if (isStreaming || sendInFlight.current) return;
     // Sending without a bound account is the voluntary sign-in trigger.
     if (runtime.loginRequiredNow()) {
       goLogin();
@@ -235,7 +256,9 @@ export default function ChatPage() {
     // agent's context (the web composer's exact contract).
     const refs = attached.map((a) => `@doc:${a.id}`).join(" ");
     const full = refs ? (text ? `${text} ${refs}` : refs) : text;
-    runtime.send({ type: "prompt", text: full });
+    // A failed send keeps the draft — the toast from the runtime explains why.
+    if (!runtime.send({ type: "prompt", text: full })) return;
+    armSendGuard();
     setDraft("");
     setAttachments([]);
     // A fresh prompt belongs at the bottom — re-arm stickiness even if an
@@ -324,15 +347,17 @@ export default function ChatPage() {
   const handlePick = (kind: PanelPickKind, id: string) => {
     if (isStreaming || pendingConfig !== null) return;
     const store = useChatStore.getState();
+    // Send FIRST, pend only on success: a pendingConfig set without a send
+    // would disable the composer waiting for an ack that can never arrive.
     if (kind === "model" && id !== currentModel) {
+      if (!runtime.send({ type: "set_model", id })) return;
       store.setPendingConfig("model");
-      runtime.send({ type: "set_model", id });
     } else if (kind === "agent" && id !== currentAgent) {
+      if (!runtime.send({ type: "set_agent", id })) return;
       store.setPendingConfig("agent");
-      runtime.send({ type: "set_agent", id });
     } else if (kind === "preset" && id !== currentPreset) {
+      if (!runtime.send({ type: "set_preset", id })) return;
       store.setPendingConfig("preset");
-      runtime.send({ type: "set_preset", id });
     }
   };
 
@@ -356,7 +381,9 @@ export default function ChatPage() {
   const regenerate =
     !isStreaming && lastUserText
       ? () => {
-          runtime.send({ type: "prompt", text: lastUserText });
+          if (sendInFlight.current) return;
+          if (!runtime.send({ type: "prompt", text: lastUserText })) return;
+          armSendGuard();
         }
       : undefined;
 
@@ -374,6 +401,58 @@ export default function ChatPage() {
 
   return (
     <View className="chat-page">
+      {/* One committed top bar (navigationStyle:"custom", layout P2 #5): the
+          three-zone bar IS the header — the status bar pads above it and the
+          capsule's lane is reserved on the right. Status notices sit BELOW
+          the bar; nothing renders under the system status text. */}
+      <View
+        className="chat-topbar"
+        style={{ paddingTop: `${topInsets().statusBar}px`, paddingRight: `${topInsets().capsuleReserve}px` }}
+      >
+        <View className="chat-header" style={{ height: `${topInsets().navHeight}px` }}>
+          <View className="hd-side">
+            <Text
+              className="hd-btn"
+              onClick={() => {
+                setHistoryOpen(true);
+              }}
+            >
+              ☰{historyUnread ? <Text className="hd-unread-dot" /> : null}
+            </Text>
+            <Text className="hd-btn" onClick={() => void handleShare()}>
+              ↗
+            </Text>
+          </View>
+          <View
+            className={`hd-chip${sendDisabled ? " hd-chip-disabled" : ""}`}
+            onClick={openPanel}
+          >
+            <Text className="hd-chip-text">{chipLabel}</Text>
+            <Text className="hd-chip-caret">▾</Text>
+          </View>
+          <View className="hd-side hd-side-right">
+            <Text
+              className="hd-btn"
+              onClick={() => {
+                // Every tap answers (openspec: revise-mp-history-ux): the
+                // button must never read as broken. Blank-session taps stay
+                // idempotent (no duplicate session) — they just say so now.
+                if (turns.length === 0) {
+                  Taro.showToast({ title: "已是新对话", icon: "none" });
+                  return;
+                }
+                // Clear the view only when the server actually took the request.
+                if (!runtime.send({ type: "new_session" })) return;
+                useChatStore.getState().clearView();
+                Taro.showToast({ title: "已开启新对话", icon: "none" });
+              }}
+            >
+              ＋
+            </Text>
+          </View>
+        </View>
+      </View>
+
       {/* One quiet status area (openspec: redesign-mp-home): connection
           trouble is a slim tap-to-retry line, the demo origin is one notice
           line — never stacked full-width banners. The unbound sign-in
@@ -404,48 +483,6 @@ export default function ChatPage() {
           </View>
         )
       ) : null}
-
-      <View className="chat-header">
-        <View className="hd-side">
-          <Text
-            className="hd-btn"
-            onClick={() => {
-              Taro.navigateTo({ url: "/pages/sessions/index" });
-            }}
-          >
-            ☰{historyUnread ? <Text className="hd-unread-dot" /> : null}
-          </Text>
-          <Text className="hd-btn" onClick={() => void handleShare()}>
-            ↗
-          </Text>
-        </View>
-        <View
-          className={`hd-chip${sendDisabled ? " hd-chip-disabled" : ""}`}
-          onClick={openPanel}
-        >
-          <Text className="hd-chip-text">{chipLabel}</Text>
-          <Text className="hd-chip-caret">▾</Text>
-        </View>
-        <View className="hd-side hd-side-right">
-          <Text
-            className="hd-btn"
-            onClick={() => {
-              // Every tap answers (openspec: revise-mp-history-ux): the
-              // button must never read as broken. Blank-session taps stay
-              // idempotent (no duplicate session) — they just say so now.
-              if (turns.length === 0) {
-                Taro.showToast({ title: "已是新对话", icon: "none" });
-                return;
-              }
-              useChatStore.getState().clearView();
-              runtime.send({ type: "new_session" });
-              Taro.showToast({ title: "已开启新对话", icon: "none" });
-            }}
-          >
-            ＋
-          </Text>
-        </View>
-      </View>
 
       <ScrollView
         scrollY
@@ -517,7 +554,7 @@ export default function ChatPage() {
             <Text
               className="welcome-history"
               onClick={() => {
-                Taro.navigateTo({ url: "/pages/sessions/index" });
+                setHistoryOpen(true);
               }}
             >
               查看历史 ›
@@ -604,6 +641,8 @@ export default function ChatPage() {
         onPick={handlePick}
         onClose={() => setPanelOpen(false)}
       />
+
+      <HistoryDrawer open={historyOpen} onClose={() => setHistoryOpen(false)} onShare={shareSession} />
 
       {outlineEntries.length >= 3 ? (
         <OutlineRail entries={outlineEntries} onJump={jumpToTurn} />

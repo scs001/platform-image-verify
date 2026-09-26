@@ -21,70 +21,183 @@ page {
   position: relative;
 }
 
-.conn-banner {
+/* ── shared page header (navigationStyle:"custom" subpages) ────────────── */
+
+.page-header {
+  width: 100%;
+  flex-shrink: 0;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  /* Right padding (capsule reserve) and top padding (status bar) arrive as
+     inline real-px styles from PageHeader. */
+}
+
+.page-header-row {
+  display: flex;
+  align-items: center;
+}
+
+.page-header-back {
+  font-size: 44px;
+  line-height: 1;
+  color: #111827;
+  /* 88rpx hit bar. */
+  padding: 22px 28px 22px 8px;
+}
+
+.page-header-spacer {
+  width: 80px;
+}
+
+.page-header-title {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font-size: 30px;
+  font-weight: 600;
+  color: #111827;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ── history drawer (the ☰ sheet on chat) ──────────────────────────────── */
+/* Sheet mechanics mirror the selection panel (mask fade + 0.25s slide-up +
+   delayed visibility on close); taller cap (85vh) so all four groups can be
+   on screen at once. Horizontal padding lives on CHILDREN of the scroll
+   (Scroller Padding Rule) — .hisd-groups carries it. */
+
+.hisd-root {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  z-index: 900;
+  visibility: hidden;
+  transition: visibility 0s linear 0.25s;
+}
+
+.hisd-root-open {
+  visibility: visible;
+  transition-delay: 0s;
+}
+
+.hisd-mask {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(17, 24, 39, 0.45);
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+
+.hisd-root-open .hisd-mask {
+  opacity: 1;
+}
+
+.hisd-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+  background: #f3f4f6;
+  border-radius: 24px 24px 0 0;
+  transform: translateY(100%);
+  transition: transform 0.25s;
+}
+
+.hisd-root-open .hisd-panel {
+  transform: translateY(0);
+}
+
+.hisd-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 24px;
-  background: #fef3c7;
-  color: #92400e;
+  padding: 12px 12px 8px 28px;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 24px 24px 0 0;
 }
 
-.conn-retry {
-  padding: 4px 20px;
-  border-radius: 999px;
-  background: #92400e;
-  color: #fff;
-  font-size: 24px;
+.hisd-title {
+  font-size: 30px;
+  font-weight: 600;
+  color: #111827;
 }
 
-/* ── sign-in / demo banners (openspec: mp-demo-mode) ───────────────────── */
+.hisd-close {
+  font-size: 30px;
+  color: #6b7280;
+  padding: 24px 28px;
+}
 
-.auth-banner {
+.hisd-scroll {
+  flex: 1;
+  min-height: 0;
+  padding: 0 0 calc(env(safe-area-inset-bottom) + 24px);
+  box-sizing: border-box;
+}
+
+.hisd-groups {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 24px;
-  background: #eff6ff;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 0 24px;
 }
 
-.auth-banner-text {
-  color: #1d4ed8;
+.hisd-state {
+  display: flex;
+  justify-content: center;
+  padding: 60px 24px;
+  color: #6b7280;
   font-size: 26px;
 }
 
-.auth-banner-link {
-  color: #1d4ed8;
-  font-size: 24px;
-  font-weight: 600;
-}
-
-.auth-banner-actions {
-  display: flex;
+.hisd-state-error {
+  flex-direction: column;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
+  color: #b91c1c;
 }
 
-.demo-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 24px;
-  background: #f0fdf4;
+.hisd-retry {
+  color: #2563eb;
+  font-size: 26px;
+  padding: 26px 32px;
 }
 
-.demo-banner-text {
-  color: #15803d;
-  font-size: 24px;
-}
-
-.demo-banner-link {
-  color: #15803d;
-  font-size: 24px;
-  font-weight: 600;
+/* 加载更多 — full-width row under the visible sessions, hit bar height. */
+.hisd-more {
+  display: block;
+  text-align: center;
+  color: #2563eb;
+  font-size: 26px;
+  padding: 26px 24px;
 }
 
 /* ── chat header (three zones) ─────────────────────────────────────────── */
+
+/* The committed top bar (navigationStyle:"custom"): the status bar pads
+   above (inline, real px), the capsule lane is reserved on the right, and
+   the three-zone row fills the nav height. Banners render below the bar. */
+.chat-topbar {
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.chat-topbar .chat-header {
+  align-items: center;
+  padding: 0 20px;
+  border-bottom: none;
+}
 
 .chat-header {
   display: flex;
@@ -109,7 +222,8 @@ page {
   font-size: 40px;
   line-height: 1;
   color: #111827;
-  padding: 6px 8px;
+  /* 88rpx hit bar (adapt): 40 glyph + 48 padding = 44px thumb target. */
+  padding: 24px 16px;
 }
 
 .hd-chip {
@@ -120,7 +234,8 @@ page {
   gap: 6px;
   max-width: 440px;
   margin: 0 auto;
-  padding: 8px 18px;
+  /* Header chip is a tap target too — 26rpx padding brings it to the bar. */
+  padding: 26px 24px;
   border-radius: 999px;
   background: #f3f4f6;
 }
@@ -147,7 +262,7 @@ page {
   margin-left: auto;
   color: #2563eb;
   font-size: 26px;
-  padding: 8px 6px;
+  padding: 26px 16px;
 }
 
 /* ── selection panel (half-screen sheet) ───────────────────────────────── */
@@ -217,7 +332,7 @@ page {
 .sel-panel-close {
   font-size: 30px;
   color: #6b7280;
-  padding: 4px 8px;
+  padding: 24px 16px;
 }
 
 .sel-scroll {
@@ -243,7 +358,7 @@ page {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 20px 16px;
+  padding: 24px 16px;
   border-radius: 16px;
 }
 
@@ -295,11 +410,6 @@ page {
   color: #111827;
 }
 
-.welcome-brand-sub {
-  font-size: 24px;
-  color: #6b7280;
-}
-
 .welcome-cards {
   display: flex;
   flex-wrap: wrap;
@@ -337,7 +447,7 @@ page {
 .welcome-history {
   font-size: 26px;
   color: #2563eb;
-  padding: 8px;
+  padding: 26px 8px;
 }
 
 .turn-wrap {
@@ -393,7 +503,7 @@ page {
 .turn-action {
   font-size: 24px;
   color: #6b7280;
-  padding: 6px 0;
+  padding: 26px 16px;
 }
 
 .blk {
@@ -622,7 +732,7 @@ page {
 
 .md-quote {
   padding: 10px 16px;
-  border-left: 6px solid #d1d5db;
+  border-left: 6px solid #9ca3af;
   background: #f9fafb;
   color: #4b5563;
 }
@@ -676,14 +786,14 @@ page {
 .chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 16px;
 }
 
 .chip {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 14px;
+  padding: 10px 8px 10px 16px;
   border-radius: 999px;
   background: #f3f4f6;
   font-size: 22px;
@@ -703,6 +813,12 @@ page {
 
 .chip-x {
   color: #6b7280;
+  /* The removable chip's ✕ extends its hit box with padding pulled back by
+     negative margins — the glyph stays put, the thumb target roughly doubles
+     (~79rpx ≈ 40px). WeChat compact-inline norm; destructive controls carry
+     the full 88rpx bar instead. */
+  padding: 24px 14px;
+  margin: -14px -6px -14px -4px;
 }
 
 .composer {
@@ -737,7 +853,7 @@ page {
 
 .composer-attach {
   font-size: 40px;
-  padding: 4px 10px 4px 0;
+  padding: 16px 10px 16px 0;
 }
 
 .composer-send,
@@ -746,8 +862,8 @@ page {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 64px;
-  height: 64px;
+  width: 88px;
+  height: 88px;
   border-radius: 50%;
   background: #2563eb;
   color: #fff;
@@ -818,6 +934,16 @@ page {
 
 .sessions-error {
   color: #b91c1c;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+}
+
+/* Retry on the error view (harden): a dead list must be re-enterable. */
+.sessions-retry {
+  color: #2563eb;
+  font-size: 26px;
+  padding: 26px 32px;
 }
 
 /* ── login page ────────────────────────────────────────────────────────── */
@@ -826,7 +952,7 @@ page {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 120px 48px 0;
+  padding: 40px 48px 0;
   min-height: 100vh;
   box-sizing: border-box;
 }
@@ -862,7 +988,7 @@ page {
 }
 
 .login-input {
-  padding: 20px 24px;
+  padding: 24px 24px;
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 12px;
@@ -898,6 +1024,7 @@ page {
 
 .login-unbind {
   margin-top: 24px;
+  padding: 28px 0;
   text-align: center;
   font-size: 24px;
   color: #6b7280;
@@ -908,7 +1035,8 @@ page {
    the login page must never be a dead end (openspec: mp-demo-mode). */
 .login-skip {
   display: block;
-  margin-top: 28px;
+  margin-top: 8px;
+  padding: 26px 0;
   text-align: center;
   font-size: 26px;
   color: #2563eb;
@@ -939,7 +1067,7 @@ page {
 
 .server-input {
   flex: 1;
-  padding: 10px 16px;
+  padding: 20px 16px;
   background: #f3f4f6;
   border-radius: 8px;
   font-size: 24px;
@@ -964,12 +1092,12 @@ page {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 56px;
+  width: 44px;
+  height: 88px;
   background: #fff;
   border: 1px solid #e5e7eb;
   border-right: none;
-  border-radius: 10px 0 0 10px;
+  border-radius: 16px 0 0 16px;
   box-shadow: -2px 2px 8px rgba(0, 0, 0, 0.08);
 }
 
@@ -1008,7 +1136,7 @@ page {
 .outline-collapse {
   font-size: 24px;
   color: #6b7280;
-  padding: 0 6px;
+  padding: 24px 12px;
 }
 
 .outline-card-list {
@@ -1046,7 +1174,7 @@ page {
    outline-jump-flash): a primary-tinted wash fading out over ~1.2s. */
 @keyframes turn-flash-kf {
   from {
-    background-color: rgba(59, 130, 246, 0.14);
+    background-color: rgba(37, 99, 235, 0.14);
   }
   to {
     background-color: transparent;
@@ -1089,6 +1217,8 @@ page {
   flex-shrink: 0;
   font-size: 24px;
   color: #dc2626;
+  /* Hit area for the destructive control (harden) — padded, not bare text. */
+  padding: 8px 0 8px 24px;
 }
 
 /* Read-only shared-session page (recipient side, reached via forward card). */
@@ -1102,12 +1232,12 @@ page {
 
 .share-banner {
   padding: 16px 24px;
-  background: #eef2ff;
+  background: #eff6ff;
 }
 
 .share-banner-text {
   font-size: 22px;
-  color: #4338ca;
+  color: #1d4ed8;
 }
 
 .share-loading {
@@ -1122,10 +1252,27 @@ page {
 .share-unavailable {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   font-size: 26px;
   color: #6b7280;
+}
+
+/* Dead-token page (harden): stack the explanation, then hand the outsider
+   the demo funnel — the one page non-users see must not dead-end. */
+.share-unavailable-sub {
+  margin-top: 8px;
+  font-size: 24px;
+  color: #9ca3af;
+}
+
+.share-demo-link {
+  margin-top: 48px;
+  font-size: 28px;
+  font-weight: 600;
+  color: #2563eb;
+  padding: 24px 0;
 }
 
 /* Horizontal padding lives on the CHILDREN, not the scroll-view: WeChat's
@@ -1194,7 +1341,7 @@ page {
 }
 
 .cron-seg {
-  padding: 8px 20px;
+  padding: 24px 24px;
   border-radius: 999px;
   font-size: 26px;
   color: #6b7280;
@@ -1208,9 +1355,11 @@ page {
 }
 
 .cron-day {
-  width: 64px;
-  height: 56px;
-  line-height: 56px;
+  /* 88rpx hit height; width capped at 82rpx so seven pills + gaps fit the
+     662rpx form interior without wrapping the last day. */
+  width: 82px;
+  height: 88px;
+  line-height: 88px;
   text-align: center;
   border-radius: 12px;
   font-size: 24px;
@@ -1225,7 +1374,7 @@ page {
 }
 
 .cron-input {
-  padding: 14px 20px;
+  padding: 20px 20px;
   border-radius: 12px;
   border: 1px solid #e5e7eb;
   font-size: 26px;
@@ -1273,6 +1422,10 @@ page {
   background: #2563eb;
   color: #fff;
   font-size: 28px;
+}
+
+.cron-submit-disabled {
+  opacity: 0.5;
 }
 
 .cron-card {
@@ -1351,7 +1504,7 @@ page {
 }
 
 .cron-card-btn {
-  padding: 6px 20px;
+  padding: 26px 20px;
   border-radius: 10px;
   border: 1px solid #e5e7eb;
   font-size: 24px;
@@ -1361,14 +1514,6 @@ page {
 .cron-card-danger {
   color: #dc2626;
   border-color: rgba(220, 38, 38, 0.35);
-}
-
-.cron-viewer-title {
-  display: block;
-  font-size: 30px;
-  font-weight: 600;
-  color: #111827;
-  padding: 8px 32px 12px;
 }
 
 /* 会话列表未读红点 + 会话页定时任务入口(scheduled-task-notifications) */
@@ -1392,7 +1537,7 @@ page {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #ef4444;
+  background: #2563eb;
   margin-left: 4px;
 }
 
@@ -1418,7 +1563,7 @@ page {
 .blk-cron-title {
   font-size: 26px;
   font-weight: 600;
-  color: #1f2937;
+  color: #111827;
 }
 
 .blk-cron-schedule {
@@ -1480,6 +1625,7 @@ page {
 .cta-secondary {
   font-size: 24px;
   color: #6b7280;
+  padding: 26px 16px;
 }
 
 .showcase-grid {
@@ -1536,7 +1682,7 @@ page {
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  padding: 14px 8px;
+  padding: 26px 8px;
 }
 
 .recent-title {
@@ -1560,7 +1706,7 @@ page {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 8px 0;
+  padding: 16px 0;
   background: #f9fafb;
 }
 
@@ -1580,7 +1726,7 @@ page {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 24px;
+  padding: 0 24px;
   background: #f0fdf4;
 }
 
@@ -1593,6 +1739,8 @@ page {
   font-size: 22px;
   font-weight: 600;
   color: #15803d;
+  /* The exit-demo link is the line's only target — padded to ~79rpx. */
+  padding: 24px 16px;
 }
 
 /* ── history groups + row share (revise-mp-history-ux) ─────────────────── */
@@ -1604,7 +1752,7 @@ page {
 }
 
 .session-share-icon {
-  padding: 8px 8px 8px 24px;
+  padding: 24px 16px 24px 24px;
   font-size: 28px;
   color: #6b7280;
 }
@@ -1629,7 +1777,7 @@ page {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 20px 24px;
+  padding: 26px 24px;
 }
 
 .grp-sec-title {
@@ -1673,7 +1821,7 @@ page {
 }
 
 .grp-sec-link {
-  padding: 12px 0;
+  padding: 26px 0;
   font-size: 26px;
   color: #2563eb;
 }

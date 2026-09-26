@@ -8,6 +8,7 @@ import { useState } from "react";
 import { Input, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { loginWithBindCode, logout } from "@/lib/auth";
+import PageHeader from "@/components/PageHeader";
 import { baseUrl as currentBaseUrl, setBaseUrl, token } from "@/lib/config";
 import { runtime } from "@/lib/runtime";
 
@@ -49,6 +50,7 @@ export default function LoginPage() {
 
   return (
     <View className="login-page">
+      <PageHeader title="登录" />
       <View className="login-card">
         <Text className="login-title">登录 Platform</Text>
         <Text className="login-sub">

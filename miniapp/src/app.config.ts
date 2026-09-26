@@ -1,9 +1,14 @@
 export default defineAppConfig({
-  pages: ["pages/chat/index", "pages/sessions/index", "pages/login/index", "pages/share/index", "pages/cron/index"],
+  pages: ["pages/chat/index", "pages/login/index", "pages/share/index", "pages/cron/index"],
   window: {
     backgroundTextStyle: "light",
-    navigationBarBackgroundColor: "#111827",
+    // Custom navigation on every page (layout P2 #5): the daylight world
+    // draws its own top bar; the dark native bar (an Inverted Ink violation
+    // and a double header on chat) is gone. Pages pad for the status bar and
+    // reserve the capsule lane via lib/top-insets + PageHeader.
+    navigationStyle: "custom",
+    // Status bar glyphs stay dark on the light header/paper.
+    navigationBarTextStyle: "black",
     navigationBarTitleText: "Platform",
-    navigationBarTextStyle: "white",
   },
 });

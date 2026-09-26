@@ -5,9 +5,13 @@
 
 import { useEffect, useState } from "react";
 import { ScrollView, Text, View } from "@tarojs/components";
-import { useRouter } from "@tarojs/taro";
+import Taro, { useRouter } from "@tarojs/taro";
 import { getSharedSession } from "@platform/core";
 import { Markdown } from "@/components/Markdown";
+import PageHeader from "@/components/PageHeader";
+import { clearToken, enterDemoBase, isDemoBase } from "@/lib/config";
+import { recordEmail } from "@/lib/auth";
+import { runtime } from "@/lib/runtime";
 
 interface ChatMessage {
   role: string;
@@ -43,11 +47,27 @@ export default function SharePage() {
     };
   }, [token]);
 
+  // The dead-link page is the product's one touchpoint with outsiders — a
+  // prospective user's first contact must not end in a gray line. Same demo
+  // entry semantics as the chat welcome's 先体验 (origin switch + re-boot).
+  const tryDemo = () => {
+    if (!isDemoBase()) enterDemoBase();
+    clearToken();
+    recordEmail("");
+    void runtime.switchBase();
+    Taro.reLaunch({ url: "/pages/chat/index" });
+  };
+
   if (view.kind === "unavailable") {
     return (
       <View className="share-page">
+        <PageHeader title="FD" />
         <View className="share-unavailable">
           <Text>该共享会话已不可用</Text>
+          <Text className="share-unavailable-sub">链接可能已被撤销或过期</Text>
+          <Text className="share-demo-link" onClick={tryDemo} data-testid="mp-share-demo-link">
+            直接体验 FD 对话 ›
+          </Text>
         </View>
       </View>
     );
@@ -55,6 +75,7 @@ export default function SharePage() {
 
   return (
     <View className="share-page">
+      <PageHeader title="FD" />
       <View className="share-banner">
         <Text className="share-banner-text">共享会话 · 只读</Text>
       </View>

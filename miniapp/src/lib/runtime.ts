@@ -9,7 +9,7 @@
 // async auth probe), and onShow can only ever reconnect the one client —
 // never spawn a second.
 
-import { eventCenter } from "@tarojs/taro";
+import Taro, { eventCenter } from "@tarojs/taro";
 import { WsClient, useChatStore, useCronStore, type ClientMessage, type ServerMessage } from "@platform/core";
 import { ensureAuth, LOGIN_REQUIRED_EVENT } from "./auth";
 import { baseUrl } from "./config";
@@ -47,8 +47,28 @@ export function loginRequiredNow(): boolean {
   return loginRequired;
 }
 
-function send(msg: ClientMessage) {
+// Internal fire-and-forget — for the protocol's own replays (onOpen queries),
+// where silence is correct because the connection is known-live.
+function rawSend(msg: ClientMessage) {
   client?.send(JSON.stringify(msg));
+}
+
+// UI-action send. A dropped switch_session / cron_add / prompt reads as a
+// broken button, so a down socket must never be silent: say why in a toast,
+// nudge the reconnect, and let the caller keep its local state (draft stays,
+// form stays open) by returning false.
+function send(msg: ClientMessage): boolean {
+  const status = useChatStore.getState().status;
+  if (!client || status !== "connected") {
+    Taro.showToast({
+      title: status === "connecting" ? "连接中，稍候再试" : "未连接，正在重连…",
+      icon: "none",
+    });
+    if (!client || status === "disconnected") runtime.reconnectNow();
+    return false;
+  }
+  client.send(JSON.stringify(msg));
+  return true;
 }
 
 async function start(): Promise<void> {
@@ -87,7 +107,7 @@ async function start(): Promise<void> {
       useCronStore.getState().apply(m as ServerMessage);
     },
     onOpen: () => {
-      for (const type of INITIAL_QUERIES) send({ type } as ClientMessage);
+      for (const type of INITIAL_QUERIES) rawSend({ type } as ClientMessage);
     },
   });
   client.connect();

@@ -567,6 +567,12 @@ export function resolveShippedPresetRoot() {
     anchors.push(join(dirname(createRequire(import.meta.url).resolve("@deepseek-ai/dsh/package.json"))));
   } catch { /* not repo-local — expected with a global dsh install */ }
   anchors.push(join(DSH_HOME, "profiles", "node_modules", "@deepseek-ai", "dsh"));
+  // The Docker image's shared dsh install (the prefix that puts the `dsh` CLI
+  // on PATH — see Dockerfile's /opt/dsh install layer). A freshly baked
+  // /opt/dsh-home has no dsh self-install under profiles/node_modules yet, so
+  // without this anchor a server image pod resolves nothing and the whole
+  // preset roster silently vanishes on every boot.
+  anchors.push("/opt/dsh/node_modules/@deepseek-ai/dsh");
   for (const anchor of anchors) {
     const root = join(anchor, "config", "agent-presets");
     if (existsSync(root) && statSync(root).isDirectory()) return root;
@@ -578,6 +584,16 @@ export function resolveShippedPresetRoot() {
 // Returns the patch path for the bridge's --patch args, or null when the
 // shipped preset root cannot be resolved (caller omits the flag).
 export async function writePresetsPatch() {
+  mkdirSync(dirname(PRESETS_PATCH_PATH), { recursive: true });
+  // The bridge source is copied into the profile dir because the loader
+  // resolves a relative plugin name beside the profile's cordis.yml. Written
+  // UNCONDITIONALLY, before the roster check: platform-permission-bridge.js
+  // (written by writePermissionsPatch, loaded by its unconditional overlay)
+  // imports this file — skipping it here on an unresolvable preset root left
+  // a dangling import that crashed dsh at boot (fresh baked /opt/dsh-home,
+  // where no dsh self-install anchor exists yet).
+  const bridgeTarget = join(dirname(PRESETS_PATCH_PATH), PRESET_BRIDGE_FILE);
+  atomicWriteTextSync(bridgeTarget, readFileSync(BRIDGE_SOURCE, "utf8"));
   const presetRoot = resolveShippedPresetRoot();
   if (!presetRoot) {
     console.warn(
@@ -585,11 +601,6 @@ export async function writePresetsPatch() {
     );
     return null;
   }
-  mkdirSync(dirname(PRESETS_PATCH_PATH), { recursive: true });
-  // The bridge source is copied into the profile dir because the loader
-  // resolves a relative plugin name beside the profile's cordis.yml.
-  const bridgeTarget = join(dirname(PRESETS_PATCH_PATH), PRESET_BRIDGE_FILE);
-  atomicWriteTextSync(bridgeTarget, readFileSync(BRIDGE_SOURCE, "utf8"));
   const patch = [
     { id: "sdk-jsonrpc-server", disabled: true },
     {

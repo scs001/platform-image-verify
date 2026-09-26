@@ -10,11 +10,26 @@
 // never spawn a second.
 
 import Taro, { eventCenter } from "@tarojs/taro";
-import { WsClient, useChatStore, useCronStore, type ClientMessage, type ServerMessage } from "@platform/core";
+import {
+  setChatErrorSink,
+  WsClient,
+  useChatStore,
+  useCronStore,
+  type ClientMessage,
+  type ServerMessage,
+} from "@platform/core";
 import { ensureAuth, LOGIN_REQUIRED_EVENT } from "./auth";
 import { baseUrl } from "./config";
 import { installHttp } from "./taro-http";
 import { taroSocketFactory } from "./taro-socket";
+
+// Baseline error visibility (add-mp-demo-quota-end D6): core routes no-run
+// errors here; unwired, they were console.error — invisible. The coded demo
+// quota shapes bypass this sink (their own terminal state), so nothing toasts
+// twice.
+setChatErrorSink((message) => {
+  Taro.showToast({ title: message, icon: "none" });
+});
 
 function wsUrl(): string {
   return `${baseUrl().replace(/^http/, "ws")}/`;

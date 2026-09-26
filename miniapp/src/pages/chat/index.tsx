@@ -10,6 +10,7 @@ import Taro, { eventCenter, useDidShow, useShareAppMessage } from "@tarojs/taro"
 import { createShare, useChatStore } from "@platform/core";
 import { OutlineRail, type OutlineEntry } from "@/components/OutlineRail";
 import HistoryDrawer from "@/components/HistoryDrawer";
+import DemoQuotaCard from "@/components/DemoQuotaCard";
 import { topInsets } from "@/lib/top-insets";
 import { SelectionPanel, type PanelPickKind, type PanelRow } from "@/components/SelectionPanel";
 import { recentStrip, relativeTime, showcaseCards } from "@/lib/showcase";
@@ -52,6 +53,10 @@ export default function ChatPage() {
   const currentPreset = useChatStore((s) => s.currentPreset);
   const currentSessionId = useChatStore((s) => s.currentSessionId);
   const sessions = useChatStore((s) => s.sessions);
+  // Demo quota end state (add-mp-demo-quota-end): the coded terminal
+  // condition from the store, plus the running budget count for the line.
+  const demoExhausted = useChatStore((s) => s.demoExhausted);
+  const demoBudgetLeft = useChatStore((s) => s.demoBudgetLeft);
   // 入口浮现(spec: scheduled-task-notifications):任何会话有未看新内容时,
   // ☰ 上点亮红点。lastSeen 随 sessions 变化重读(点开会话后 sessions 广播
   // 会刷新,红点随之熄灭)。
@@ -230,6 +235,15 @@ export default function ChatPage() {
     runtime.onForeground();
   });
 
+  // Quota-end draft restoration (add-mp-demo-quota-end): the rejected prompt
+  // returns only when the draft is empty at that moment — never over newer
+  // words (design D6 risk).
+  useEffect(() => {
+    if (!demoExhausted) return;
+    const text = lastSentRef.current;
+    setDraft((cur) => (cur.trim() === "" && text ? text : cur));
+  }, [demoExhausted]);
+
   // Charts live in `echarts` fences of COMPLETED assistant turns; draw any
   // freshly registered canvases once layout has settled.
   useEffect(() => {
@@ -242,6 +256,10 @@ export default function ChatPage() {
   // Double-submit guard: both taps can pass the isStreaming check before the
   // server echo flips it, so the composer owns a short local in-flight window.
   const sendInFlight = useRef(false);
+  // The last prompt's full text (refs + attachments): the quota end arrives
+  // async AFTER the draft was cleared — restore from here (only when the
+  // draft is empty, so a newer draft is never clobbered).
+  const lastSentRef = useRef<string | null>(null);
   const armSendGuard = () => {
     sendInFlight.current = true;
     setTimeout(() => {
@@ -266,6 +284,7 @@ export default function ChatPage() {
     // A failed send keeps the draft — the toast from the runtime explains why.
     if (!runtime.send({ type: "prompt", text: full })) return;
     armSendGuard();
+    lastSentRef.current = full;
     setDraft("");
     setAttachments([]);
     // A fresh prompt belongs at the bottom — re-arm stickiness even if an
@@ -479,14 +498,18 @@ export default function ChatPage() {
       {demo && status === "connected" ? (
         isDemoBase() ? (
           <View className="demo-line">
-            <Text className="demo-line-text">演示环境 · 数据定期清空</Text>
+            <Text className="demo-line-text">
+              演示环境 · {demoBudgetLeft !== null ? `剩 ${demoBudgetLeft} 条` : "数据定期清空"}
+            </Text>
             <Text className="demo-line-link" onClick={exitDemo}>
               退出演示 ›
             </Text>
           </View>
         ) : (
           <View className="demo-line">
-            <Text className="demo-line-text">体验模式 · 额度有限</Text>
+            <Text className="demo-line-text">
+              体验模式 · {demoBudgetLeft !== null ? `剩 ${demoBudgetLeft} 条` : "额度有限"}
+            </Text>
             <Text className="demo-line-link" onClick={goLogin}>
               绑定账号解锁完整功能 ›
             </Text>
@@ -592,6 +615,17 @@ export default function ChatPage() {
             />
           </View>
         ))}
+        {demoExhausted ? (
+          <View className="turn-wrap">
+            <DemoQuotaCard
+              shape={demoExhausted.shape}
+              message={demoExhausted.message}
+              onBind={goLogin}
+              onReconnect={() => runtime.reconnectNow()}
+              onDismiss={() => useChatStore.setState({ demoExhausted: null })}
+            />
+          </View>
+        ) : null}
         <View id="msg-bottom" className="msg-bottom" />
       </ScrollView>
 

@@ -131,6 +131,14 @@ interface State {
   // view-level finalize; without this flag the orphaned run's late events
   // would open a fresh streaming turn and re-disable the composer.
   suppressed: boolean;
+  // Demo quota end state (add-mp-demo-quota-end): set by the coded
+  // demo_limit / sandbox_limit errors, cleared by the next accepted echo.
+  // `shape` picks the recovery affordance — "cell" (per-cell budget, bind to
+  // upgrade) vs "connection" (per-connection budget, reconnect to reset).
+  demoExhausted: { shape: "cell" | "connection"; message: string } | null;
+  // Remaining demo prompt budget after the last accepted echo; null when no
+  // budget applies to this connection (bound accounts / non-demo shapes).
+  demoBudgetLeft: number | null;
   // Cross-page composer handoff: a non-chat page (e.g. the library's "Start
   // conversation") parks a draft here before navigating to /chat; ChatPage
   // consumes it into its local draft on mount and clears it. Null = nothing
@@ -318,6 +326,8 @@ export const useChatStore = create<State>((set) => ({
   todos: [],
   todoCounts: NO_TODOS,
   suppressed: false,
+  demoExhausted: null,
+  demoBudgetLeft: null,
   composerDraft: null,
 
   setComposerDraft: (text) => set({ composerDraft: text }),
@@ -375,8 +385,16 @@ export const useChatStore = create<State>((set) => ({
       switch (m.type) {
         case "user":
           turns.push({ id: nextId(), role: "user", text: m.text });
-          // A new prompt's echo ends any suppression from a prior stop.
-          return { turns, suppressed: false };
+          // A new prompt's echo ends any suppression from a prior stop, and
+          // an accepted prompt proves the quota has recovered (fresh
+          // connection or new budget) — carry the count when the server
+          // reports one (demo shapes only).
+          return {
+            turns,
+            suppressed: false,
+            demoExhausted: null,
+            ...(typeof m.budgetLeft === "number" ? { demoBudgetLeft: m.budgetLeft } : {}),
+          };
 
         case "agent_start":
           // Fresh assistant turn only when there isn't already an open one.
@@ -465,6 +483,20 @@ export const useChatStore = create<State>((set) => ({
         }
 
         case "error": {
+          // The designed quota end (add-mp-demo-quota-end) is a terminal
+          // state, not an error to toast: route the coded shapes into
+          // demoExhausted so the owning view can render the end-state card.
+          // The pending-config clear matches the generic branch below — a
+          // rejected change never gets its confirming broadcast.
+          if (m.code === "demo_limit" || m.code === "sandbox_limit") {
+            return {
+              demoExhausted: {
+                shape: m.code === "demo_limit" ? "cell" : "connection",
+                message: m.message,
+              },
+              pendingConfig: null,
+            };
+          }
           // An error with no run in flight (e.g. "Agent is still
           // initializing" broadcast during cold boot, or a rejected
           // concurrent prompt) must not fabricate an empty assistant turn —

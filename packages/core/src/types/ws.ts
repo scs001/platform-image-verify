@@ -7,7 +7,7 @@
 // ── Server → client ─────────────────────────────────────────────────────────
 
 export type ServerMessage =
-  | { type: "user"; text: string }
+  | { type: "user"; text: string; budgetLeft?: number }
   | { type: "agent_start" }
   | { type: "text"; delta: string }
   | { type: "thinking"; delta: string }
@@ -17,7 +17,9 @@ export type ServerMessage =
   | { type: "skill_use"; name: string; args?: string }
   | { type: "command_use"; name: string; args?: string; message?: string }
   | { type: "done" }
-  | { type: "error"; message: string }
+  // `code` carries the machine-readable shape when the error is a designed
+  // terminal condition (demo_limit / sandbox_limit — add-mp-demo-quota-end).
+  | { type: "error"; message: string; code?: string }
   | { type: "current_model"; id: string | null; effort?: string | null }
   | { type: "models"; models: ModelInfo[] }
   | { type: "model_changed"; id: string | null; effort?: string | null }

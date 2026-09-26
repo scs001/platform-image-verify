@@ -74,6 +74,52 @@ page {
   text-overflow: ellipsis;
 }
 
+/* ── demo quota end card (add-mp-demo-quota-end) ────────────────────────── */
+/* Block-card pattern at the transcript foot: white card, hairline, 12rpx;
+   one Pocket Blue primary action. */
+
+.quota-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 24px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+}
+
+.quota-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.quota-card-title {
+  font-size: 28px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.quota-card-close {
+  font-size: 28px;
+  color: #6b7280;
+  padding: 20px 0 20px 24px;
+}
+
+.quota-card-body {
+  font-size: 24px;
+  line-height: 1.6;
+  color: #4b5563;
+}
+
+.quota-card-action {
+  align-self: flex-start;
+  font-size: 28px;
+  font-weight: 600;
+  color: #2563eb;
+  padding: 22px 8px;
+}
+
 /* ── history drawer (the ☰ sheet on chat) ──────────────────────────────── */
 /* Sheet mechanics mirror the selection panel (mask fade + 0.25s slide-up +
    delayed visibility on close); taller cap (85vh) so all four groups can be

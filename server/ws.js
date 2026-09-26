@@ -31,16 +31,27 @@ export function createDemoBudget(limit, { everyone = false } = {}) {
       used += 1;
       return true;
     },
+    // Remaining budget after usage, or null when this budget does not apply
+    // to the identity at all (non-demo users on the per-cell shape). Powers
+    // the user echo's budgetLeft (add-mp-demo-quota-end).
+    remaining(user) {
+      if (!everyone && !user?.groups?.includes?.("demo")) return null;
+      return Math.max(0, limit - used);
+    },
   };
 }
 
+// The code field is the machine-readable quota shape (add-mp-demo-quota-end):
+// the two shapes recover differently — bind to upgrade vs reconnect to reset.
 export const DEMO_LIMIT_REPLY = {
   type: "error",
+  code: "demo_limit",
   message: "体验额度已用完。在登录页输入绑定码，绑定你的平台账号即可解锁完整功能。",
 };
 
 export const SANDBOX_LIMIT_REPLY = {
   type: "error",
+  code: "sandbox_limit",
   message: "演示额度已用完（每次连接 20 条）。断开重连可继续体验。",
 };
 
@@ -71,6 +82,13 @@ export function attachWebSocket(ctx) {
   const takeBudget = (ws) =>
     ctx.DEMO_SANDBOX ? ws.sandboxBudget.take(null) : demoBudget.take(ws.user);
   const budgetReply = () => (ctx.DEMO_SANDBOX ? SANDBOX_LIMIT_REPLY : DEMO_LIMIT_REPLY);
+  // budgetLeft rides the accepted prompt's echo (add-mp-demo-quota-end): the
+  // remaining count AFTER this prompt, present only when a budget applies to
+  // the connection. Absent field ⇒ no budget (bound accounts).
+  const budgetLeftField = (ws) => {
+    const left = ctx.DEMO_SANDBOX ? ws.sandboxBudget.remaining(null) : demoBudget.remaining(ws.user);
+    return left === null ? {} : { budgetLeft: left };
+  };
   ctx.server.on("upgrade", (req, socket, head) => {
     if (!authorizeUpgrade(ctx, req)) {
       socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
@@ -275,7 +293,7 @@ ctx.wss.on("connection", (ws, req) => {
           ctx.promptStoppedByNavigation = false;
           ctx.isStreaming = true;
           try {
-            ctx.broadcast({ type: "user", text });
+            ctx.broadcast({ type: "user", text, ...budgetLeftField(ws) });
 
             if (entry) {
               // Remote-agent fork: expand refs before streaming from its

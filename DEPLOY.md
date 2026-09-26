@@ -268,6 +268,53 @@ ASSISTANT_NAME=Your Name Here
 kubectl -n fd-prod rollout restart deploy/platform
 ```
 
+### Web search relay (operator-side service)
+
+The agent's web search ships **inside the app** — `platform.bundle.json` mounts
+`server/websearch-mcp.js` (tools `mcp__websearch__web_search` / `__web_read`)
+in every deployment form with zero customer configuration. Search itself is
+served by an **operator-run relay** you deploy and key: the platform holds only
+`SEARCH_RELAY_URL` + `SEARCH_RELAY_TOKEN`, never a provider key.
+
+A reference implementation ships at **`services/search-relay/`** (zero-dependency
+single file; `node services/search-relay/index.js`, loopback :4597 by default,
+front it with a TLS proxy in prod). Keys and caller tokens live in
+`services/search-relay/keys.json` (gitignored; `keys.example.json` is the
+template) — add SerpAPI keys to `serpapi[]` to widen the pool, and one entry per
+customer in `tokens[]`. The GLM fallback slot is reserved but not wired; wire it
+when a GLM search key arrives.
+
+The relay must implement exactly one endpoint:
+
+```
+POST {SEARCH_RELAY_URL}/v1/search
+Authorization: Bearer <the deployment's SEARCH_RELAY_TOKEN>
+{"query": "...", "num": 8}          # num pre-clamped by the client to 1..10
+
+200 {"results": [{"title": "...", "url": "https://...", "snippet": "..."}]}
+4xx/5xx {"error": "..."}            # surfaced verbatim to the agent as a tool error
+```
+
+Relay-side expectations (they are the cost controls — demo/sandbox users have
+full search access by product decision, and per-prompt budgets do not meter
+tool calls): pool multiple provider keys and rotate on 429/quota-exhaustion,
+fall back to a second provider (e.g. GLM search) when the pool is dry, cache
+identical queries with a TTL, and cap each token's daily call count. Issue
+**per-customer tokens** so a leaked desktop settings file costs one token's
+quota, not the pool.
+
+Wiring per form factor — no code changes in any of them:
+
+| Form | Where the pair lives |
+|---|---|
+| dev `npm start` | `.env` (forwarded by the launcher's key list) |
+| packaged desktop | `settings.json` in userData (injected via `SETTING_KEYS`) |
+| cloud cells | env of the **gateway process** — `baseEnv` flows into every cell |
+
+Verify from a deployment: ask the agent to search (tool block shows results),
+or run `npx playwright test e2e/websearch.spec.js --project=fast` (hermetic —
+stub relay, no provider spend).
+
 #### Chat fixes: pack agents on the local runtime, folded reasoning, one name — APPLIED 2026-09-22
 
 Live on `sha-a90c2b1` (`fd-prod`, `ASSISTANT_NAME=FD`). Four reported defects, one

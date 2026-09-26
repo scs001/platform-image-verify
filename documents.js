@@ -17,6 +17,7 @@ import { randomUUID } from "node:crypto";
 import * as db from "./db.js";
 import * as readers from "./readers.js";
 import * as search from "./documents-search.js";
+import { fetchUrlAsText } from "./server/web-fetch.js";
 import { PDFParse } from "pdf-parse";
 
 // Supported file extensions -> document type. The single source of truth for
@@ -46,9 +47,7 @@ export function typeForFilename(filename) {
   return EXT_TYPE_MAP[ext] || null;
 }
 
-// URL fetch caps (mirror the former knowledge module).
-const MAX_FETCH_BYTES = 2_000_000;
-const FETCH_TIMEOUT_MS = 15_000;
+// URL fetch caps live in server/web-fetch.js (shared with the websearch MCP).
 
 let broadcast = () => {}; // injected WS broadcast (no-op until initStore)
 
@@ -164,103 +163,6 @@ async function extractSourceText({ type, buffer, content, url }) {
     return text;
   }
   throw new Error(`Unsupported document type: ${type}`);
-}
-
-// ── URL ingestion: fetch + HTML-to-text ──────────────────────────────────────
-
-// Resolve the HTTP(S) proxy to use for URL ingestion. Node's global fetch does
-// not honor http_proxy/https_proxy env vars, so this is consumed explicitly
-// below. https_proxy is preferred over http_proxy.
-function proxyForUrl() {
-  return (
-    process.env.https_proxy ||
-    process.env.HTTPS_PROXY ||
-    process.env.http_proxy ||
-    process.env.HTTP_PROXY ||
-    ""
-  );
-}
-
-async function fetchUrlAsText(url) {
-  let parsed;
-  try {
-    parsed = new URL(url);
-  } catch {
-    throw new Error("Invalid URL");
-  }
-  if (!["http:", "https:"].includes(parsed.protocol)) {
-    throw new Error("Only http(s) URLs are allowed");
-  }
-  if (isPrivateHost(parsed.hostname)) {
-    throw new Error("Fetching private or local network hosts is not allowed");
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  const proxyUrl = proxyForUrl();
-  let res;
-  try {
-    const options = {
-      signal: controller.signal,
-      redirect: "follow",
-      headers: { "User-Agent": "platform-documents/1.0" },
-    };
-    if (proxyUrl) {
-      // Node's global fetch ignores http_proxy/https_proxy env vars, so when a
-      // proxy is configured route through it via undici's ProxyAgent dispatcher
-      // (undici is the engine behind Node's fetch). undici's own fetch is used
-      // here so the dispatcher instance is guaranteed compatible.
-      const { ProxyAgent, fetch: undiciFetch } = await import("undici");
-      options.dispatcher = new ProxyAgent(proxyUrl);
-      res = await undiciFetch(url, options);
-    } else {
-      res = await fetch(url, options);
-    }
-  } catch (err) {
-    throw new Error(`URL fetch failed: ${err.message}`);
-  } finally {
-    clearTimeout(timeout);
-  }
-  if (!res.ok) throw new Error(`URL fetch failed: HTTP ${res.status}`);
-
-  let html = await res.text();
-  if (html.length > MAX_FETCH_BYTES) html = html.slice(0, MAX_FETCH_BYTES);
-
-  // Strip scripts/styles then tags to plain text.
-  return htmlToText(html);
-}
-
-function htmlToText(html) {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n\s*\n+/g, "\n\n")
-    .trim();
-}
-
-// Block loopback, private, link-local, and .local hosts to prevent SSRF.
-function isPrivateHost(hostname) {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
-  if (host === "localhost" || host.endsWith(".local")) return true;
-  if (host === "::1" || host === "0:0:0:0:0:0:0:1") return true;
-
-  const parts = host.split(".").map(Number);
-  if (parts.length === 4 && parts.every((n) => Number.isInteger(n) && n >= 0 && n <= 255)) {
-    const [a, b] = parts;
-    if (a === 0 || a === 10 || a === 127) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    if (a === 169 && b === 254) return true; // link-local
-  }
-  return false;
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

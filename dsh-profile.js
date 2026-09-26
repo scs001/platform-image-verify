@@ -350,7 +350,29 @@ function toMcpClientEntry(name, config) {
     entry.config.transport = "stdio";
     entry.config.command = config.command;
     if (config.args) entry.config.args = config.args;
-    if (config.env) entry.config.env = config.env;
+    // envRefs: names of environment variables to forward EXPLICITLY. dsh's
+    // subprocess layer scrubs credential-shaped names (KEY/PASSWORD/SECRET/
+    // TOKEN) from MCP children, so e.g. SEARCH_RELAY_TOKEN never survives the
+    // ambient-env hop — dsh-subprocess's sanctioned path for a deliberate
+    // credential is exactly this per-entry env, merged after its scrub. Only
+    // NAMES live in the manifest/DB (git-safe); values resolve here from
+    // process.env at every patch write, so a rotated token lands on the next
+    // restart/HMR swap. An unset ref is warned and omitted — the server
+    // degrades to its own "not configured" behavior.
+    if (Array.isArray(config.envRefs)) {
+      const resolved = {};
+      for (const ref of config.envRefs) {
+        const v = process.env[ref];
+        if (v == null || v === "") {
+          console.warn(`[dsh-profile] MCP "${name}" envRef ${ref} is not set; the server may run degraded`);
+          continue;
+        }
+        resolved[ref] = v;
+      }
+      if (Object.keys(resolved).length) entry.config.env = { ...(config.env || {}), ...resolved };
+    } else if (config.env) {
+      entry.config.env = config.env;
+    }
     // Relative command/args are authored against the repo root (where
     // mcp.json lives). The dsh child's cwd is the WORKSPACE and moves on
     // set_workspace, so pin the spawn cwd unless the config sets one — an

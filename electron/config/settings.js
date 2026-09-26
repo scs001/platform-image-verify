@@ -24,6 +24,10 @@ export const SETTING_KEYS = [
   "LOGTO_CLIENT_TYPE",
   "SESSION_TTL_HRS",
   "DESKTOP_SERVER_PORT",
+  // Search relay (websearch MCP): both must be set or web_search degrades to
+  // an explicit "not configured" tool error.
+  "SEARCH_RELAY_URL",
+  "SEARCH_RELAY_TOKEN",
 ];
 
 function settingsFile() {

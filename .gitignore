@@ -97,3 +97,6 @@ connect-app/
 /auth/
 # Deployment scratch (image build contexts / live-pod patches)
 .platform-*.tar.gz
+
+# websearch relay (services/search-relay) — operator-side, never commit
+services/search-relay/keys.json

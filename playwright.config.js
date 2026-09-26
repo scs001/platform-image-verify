@@ -102,6 +102,12 @@ export default defineConfig({
             // Hermetic-mode defaults: only fill gaps — dotenv keeps real .env values.
             LLM_API_KEY: process.env.LLM_API_KEY || "sk-e2e-dummy-key",
             LLM_BASE_URL: process.env.LLM_BASE_URL || "http://127.0.0.1:9/v1",
+            // Relay pair for the bundled websearch MCP: dummy values prove the
+            // envRefs forwarding (dsh's subprocess scrub would strip a
+            // TOKEN-shaped ambient name; the patch entry must carry it
+            // explicitly). Nothing calls the relay in the fast suite.
+            SEARCH_RELAY_URL: process.env.SEARCH_RELAY_URL || "http://127.0.0.1:4598",
+            SEARCH_RELAY_TOKEN: process.env.SEARCH_RELAY_TOKEN || "e2e-relay-dummy-token",
             AGENTS_CONFIG_URL: "",
             CHAT_HISTORY_STORE_DIR: storeDirs.chat,
             DOCUMENTS_STORE_DIR: storeDirs.docs,

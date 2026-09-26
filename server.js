@@ -246,6 +246,14 @@ function seedStartupMcpConfigs(mcpJsonServers) {
   }
   for (const [name, entry] of Object.entries(ctx.bundle.mcpServers)) {
     const { enabled = true, ...config } = entry;
+    // The bundle owns its rows' config (command/args/envRefs drift across
+    // releases); seeding alone is skip-if-exists, so a changed bundle would
+    // leave a stale row shadowing it forever. Sync bundled-origin configs on
+    // startup while preserving the admin's enable/disable choice.
+    const existing = extensionStore.getMcpServer(name);
+    if (existing?.origin === "bundled" && JSON.stringify(existing.config) !== JSON.stringify(config)) {
+      extensionStore.updateMcpServer(name, { config });
+    }
     extensionStore.seedMcpServer({
       name,
       config,

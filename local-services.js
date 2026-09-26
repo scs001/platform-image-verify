@@ -39,6 +39,9 @@ const SETTING_KEYS = [
   "LOGTO_APP_SECRET",
   "LOGTO_CLIENT_TYPE",
   "LOGTO_END_SESSION",
+  // Search relay (websearch MCP); both set or web_search degrades explicitly.
+  "SEARCH_RELAY_URL",
+  "SEARCH_RELAY_TOKEN",
 ];
 
 const DEV_SETTINGS_FILE = "dev-settings.json";

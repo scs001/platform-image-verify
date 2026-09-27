@@ -1,7 +1,6 @@
 import { LogIn, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore, withReturnTo } from "@/hooks/useAuth";
-import { MiniProgramBinding } from "@/components/settings/MiniProgramBinding";
 import { cn } from "@/lib/utils";
 
 export function AccountSection() {
@@ -32,7 +31,6 @@ export function AccountSection() {
               <LogOut className="h-4 w-4" aria-hidden="true" />
               {t("login.logout")}
             </a>
-            {auth.ssoAuthenticated && <MiniProgramBinding />}
           </>
         ) : (
           <>
@@ -88,10 +86,9 @@ export function AccountSection() {
         data-testid="sso-logout"
         className="inline-flex w-fit items-center gap-2 rounded-md border border-input bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-accent"
       >
-        <LogOut className="h-4 w-4" aria-hidden="true" />
-        {t("login.logout")}
-      </a>
-      <MiniProgramBinding />
-    </div>
-  );
+<LogOut className="h-4 w-4" aria-hidden="true" />
+      {t("login.logout")}
+    </a>
+  </div>
+);
 }

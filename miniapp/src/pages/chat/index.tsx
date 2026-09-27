@@ -15,9 +15,15 @@ import { topInsets } from "@/lib/top-insets";
 import { SelectionPanel, type PanelPickKind, type PanelRow } from "@/components/SelectionPanel";
 import { recentStrip, relativeTime, showcaseCards } from "@/lib/showcase";
 import { TurnView } from "@/components/TurnView";
-import { authHeaders, isDemoAccount, LOGIN_REQUIRED_EVENT, recordEmail } from "@/lib/auth";
-import { clearToken, enterDemoBase, exitDemoBase, isDemoBase } from "@/lib/config";
-import { baseUrl } from "@/lib/config";
+import {
+  authError,
+  authHeaders,
+  CONN_NOTE_EVENT,
+  isDemoAccount,
+  LOGIN_REQUIRED_EVENT,
+  recordEmail,
+} from "@/lib/auth";
+import { baseUrl, clearToken, enterDemoBase, exitDemoBase, isDemoBase } from "@/lib/config";
 import { drawAllCharts } from "@/lib/charts";
 import { runtime } from "@/lib/runtime";
 import { getLastSeen, isSessionUnseen } from "@/lib/unread";
@@ -150,11 +156,45 @@ export default function ChatPage() {
   }, []);
 
   // A completed sign-in (or demo login) clears the banner once the socket is
-  // actually up; returning from the login page re-checks demo-ness with the
-  // fresh identity.
+  // actually up. The same moment re-reads demo-ness: an unbound launch boots
+  // straight into the sandbox with no tap (openspec: add-mp-scan-bind), so the
+  // value captured at mount — from the ACCOUNT origin — would otherwise keep
+  // the demo notice (and its bind CTA) off screen entirely.
   useEffect(() => {
-    if (status === "connected") setUnbound(false);
+    if (status !== "connected") return;
+    setUnbound(false);
+    setDemo(isDemoAccount() || isDemoBase());
   }, [status]);
+
+  // ── connection diagnostics (2026-09-27) ──────────────────────────────────
+  // On a real device the disconnect line is the ONLY surface: show which
+  // server the app is talking to (tappable to change it, the same override the
+  // login page and the drawer's 服务器 field write) and, underneath, the
+  // transport's own error — `request:fail url not in domain list` and
+  // `connectSocket:fail …` name their causes outright.
+  const [connNote, setConnNote] = useState(() => authError());
+  useEffect(() => {
+    const refresh = () => setConnNote(authError());
+    eventCenter.on(CONN_NOTE_EVENT, refresh);
+    // Read again once the subscription is live. A refused origin fails in the
+    // same tick as the boot, and React runs passive effects later than that —
+    // so the first reason can land after the initial read and before this
+    // listener exists. noteConnError dedupes identical reasons, so no later
+    // retry would re-announce it: without this line the line stays blank until
+    // the failure text changes (observed on 127.0.0.1:3319).
+    refresh();
+    return () => {
+      eventCenter.off(CONN_NOTE_EVENT, refresh);
+    };
+  }, []);
+
+  const editServer = () => {
+    // NOT an editable showModal: base libraries without `editable` render it
+    // as a plain dialog, so the tap could do nothing at all on a real device.
+    // The login page's 高级：服务器地址 field is a real input on every client;
+    // `?server=1` expands it so the field is the first thing on screen.
+    void Taro.navigateTo({ url: "/pages/login/index?server=1" });
+  };
 
   // ── session share (openspec: add-session-share) ─────────────────────────
   // The forward card needs a token, but WeChat calls onShareAppMessage when
@@ -226,6 +266,20 @@ export default function ChatPage() {
     exitDemoBase();
     setDemo(false);
     void runtime.switchBase();
+  };
+
+  // The bind CTA the sandbox notice leads with (openspec: mp-demo-sandbox):
+  // leave the demo, put the account origin back, re-boot, and open the login
+  // page — where scan-to-bind is the primary action, so this one tap is the
+  // whole distance from demo to a bound account. 退出演示 stays as the plain
+  // exit that lands in the browsable unbound state instead.
+  const bindFromDemo = () => {
+    exitDemoBase();
+    clearToken();
+    recordEmail("");
+    setDemo(false);
+    void runtime.switchBase();
+    Taro.navigateTo({ url: "/pages/login/index" });
   };
 
   // Returning from the login page (with a fresh token) lands here: re-boot /
@@ -487,11 +541,18 @@ export default function ChatPage() {
           line — never stacked full-width banners. The unbound sign-in
           affordance lives INSIDE the welcome as its CTA. */}
       {status !== "connected" ? (
-        <View className="conn-line" onClick={() => runtime.reconnectNow()}>
-          <Text className="conn-line-dot" />
-          <Text className="conn-line-text">
-            {status === "connecting" ? "连接中…" : "已断开 · 点击重试"}
-          </Text>
+        <View className="conn-block">
+          <View className="conn-line" onClick={() => runtime.reconnectNow()}>
+            <Text className="conn-line-dot" />
+            <Text className="conn-line-text">
+              {status === "connecting" ? "连接中…" : "已断开 · 点击重试"}
+            </Text>
+          </View>
+          <View className="conn-server" onClick={editServer}>
+            <Text className="conn-server-text">服务器 {baseUrl()}</Text>
+            <Text className="conn-server-edit">修改</Text>
+          </View>
+          {connNote ? <Text className="conn-note">{connNote}</Text> : null}
         </View>
       ) : null}
 
@@ -501,7 +562,10 @@ export default function ChatPage() {
             <Text className="demo-line-text">
               演示环境 · {demoBudgetLeft !== null ? `剩 ${demoBudgetLeft} 条` : "数据定期清空"}
             </Text>
-            <Text className="demo-line-link" onClick={exitDemo}>
+            <Text className="demo-line-link" onClick={bindFromDemo}>
+              绑定账号解锁完整功能 ›
+            </Text>
+            <Text className="demo-line-link demo-line-exit" onClick={exitDemo}>
               退出演示 ›
             </Text>
           </View>

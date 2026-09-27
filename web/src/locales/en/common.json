@@ -569,6 +569,7 @@
       "models": "Models",
       "mcp": "MCP Servers",
       "skills": "Skills",
+      "wechat-app": "WeChat App",
       "status": "System Status"
     },
     "general": {
@@ -585,16 +586,23 @@
       "email": "Signed-in email",
       "openHint": "This instance is open and does not require an account.",
       "optionalSsoHint": "Sign in with your organization’s SSO to keep your own model and MCP preferences on this shared runtime.",
-      "signedOutHint": "Sign in through your organization’s SSO to use this instance.",
-      "mp": {
-        "title": "WeChat mini program",
-        "hint": "Enter this bind code on the mini-program login page to pair this account with your WeChat (valid 5 minutes, single use; afterwards sign-in is automatic).",
-        "getCode": "Get bind code",
-        "refresh": "Refresh",
-        "retry": "Retry",
-        "loading": "Fetching…",
-        "unavailable": "This deployment does not run the multi-tenant gateway; mini-program binding is unavailable."
-      }
+      "signedOutHint": "Sign in through your organization’s SSO to use this instance."
+    },
+    "wechat-app": {
+      "title": "WeChat mini program",
+      "scanHint": "In the mini program, tap 扫码绑定 on the login page and scan this code with your phone.",
+      "typeHint": "No camera, or the scan will not take? Type the 6 digits on that same mini-program page — it is the same code.",
+      "validity": "Single use, valid for 5 minutes.",
+      "expiresIn": "Expires in {{time}}",
+      "expired": "This code has expired.",
+      "refresh": "Refresh",
+      "retry": "Retry",
+      "loading": "Fetching…",
+      "signedOut": "Sign in to pair this account with your WeChat.",
+      "signIn": "Sign in",
+      "openInstance": "This instance is open and has no accounts, so there is nothing to pair with the mini program.",
+      "unavailable": "This server is older than the version that mints bind codes; update it to pair the mini program.",
+      "error": "Could not fetch a bind code."
     }
   },
   "preview": {
@@ -689,6 +697,78 @@
     }
   },
   "resources": {
+    "binding": {
+        "asOf": "as of {{age}}",
+        "ageNow": "just now",
+        "ageMinutes": "{{count}} min ago",
+        "ageHours": "{{count}} h ago",
+        "ageDays": "{{count}} d ago",
+        "stale": "Data may be stale",
+        "notRefreshable": "Refresh not enabled here",
+        "refreshing": "Refreshing…",
+        "refresh": "Refresh",
+        "refreshed": "Updated · {{added}} new, {{revised}} changed",
+        "refreshUnchanged": "Already up to date",
+        "refreshFailed": "Refresh failed",
+        "unbind": "Unbind",
+        "unbindConfirm": "Unbind this chart from its data source? The chart keeps its current data as a static snapshot.",
+        "series": "Series {{index}}",
+        "periodLabel": "Periods",
+        "period": {
+          "6m": "Last 6 months",
+          "1y": "Last year",
+          "all": "All"
+        },
+        "periodCount": "{{count}} periods stored",
+      "periodShown": "{{count}} shown",
+        "bindAction": "Bind a data source",
+        "pickTitle": "Choose the call this chart came from",
+        "cancel": "Cancel",
+        "pickEmpty": "This turn ran no bindable data call.",
+        "pickPoints": "{{count}} points",
+        "attach": "Bind",
+        "timeline": "History",
+        "timelineTitle": "Refresh history",
+        "timelineEmpty": "No refreshes recorded yet.",
+        "window": {
+          "24h": "24 hours",
+          "7d": "7 days",
+          "30d": "30 days",
+          "all": "All time"
+        },
+        "backToCurrent": "Back to current",
+        "viewingAsOf": "Viewing the chart as of {{moment}}",
+        "viewAsOf": "View as of this refresh",
+        "historical": "Historical view",
+        "trigger": {
+          "manual": "Manual",
+          "scheduled": "Scheduled",
+          "onOpen": "On open"
+        },
+        "outcome": {
+          "ok": "Updated",
+          "unchanged": "Unchanged",
+          "skipped_fresh": "Skipped (fresh)",
+          "error": "Failed"
+        },
+        "count": {
+          "added": "{{count}} added",
+          "revised": "{{count}} revised",
+          "resourced": "{{count}} from a new source",
+          "unchanged": "{{count}} unchanged",
+          "missing": "{{count}} missing",
+          "anomalies": "{{count}} conflicts"
+        },
+        "reason": {
+          "credential": "sign-in needed",
+          "unreachable": "source unreachable",
+          "tool_error": "source returned an error",
+          "unit_mismatch": "unit changed",
+          "map_violation": "response shape changed",
+          "allowlist": "not enabled for refresh",
+          "fresh": "still fresh"
+        }
+    },
     "title": "Resources",
     "search": "Search resources",
     "count": "{{count}} items",

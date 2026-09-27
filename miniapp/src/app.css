@@ -1091,6 +1091,72 @@ page {
   opacity: 0.5;
 }
 
+/* Manual 6-digit entry is the FALLBACK to the scan button above it
+   (openspec: add-mp-scan-bind): visible and equal in function, quiet in
+   weight, so the page still has exactly one primary action. */
+.login-submit-ghost {
+  margin-top: 0;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+}
+
+.login-submit-text-ghost {
+  color: #374151;
+}
+
+/* Scan-to-bind — the page's primary action. */
+.login-scan {
+  padding: 26px 0;
+  border-radius: 12px;
+  background: #2563eb;
+  display: flex;
+  justify-content: center;
+}
+
+.login-scan-text {
+  color: #fff;
+  font-size: 32px;
+  font-weight: 500;
+}
+
+.login-scan-hint {
+  margin-top: -8px;
+  font-size: 22px;
+  line-height: 1.6;
+  color: #9ca3af;
+  word-break: break-all;
+}
+
+.login-or {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.login-or::before,
+.login-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #e5e7eb;
+}
+
+.login-or-text {
+  font-size: 22px;
+  color: #9ca3af;
+}
+
+/* The way into the illustrated walkthrough, for anyone the copy above does not
+   reach (openspec: mp-bind-guide). */
+.login-guide {
+  display: block;
+  margin-top: 8px;
+  padding: 22px 0;
+  text-align: center;
+  font-size: 24px;
+  color: #9ca3af;
+}
+
 .login-submit-text {
   color: #fff;
   font-size: 30px;
@@ -1132,6 +1198,308 @@ page {
   font-size: 44px;
   letter-spacing: 16px;
   font-weight: 600;
+}
+
+/* ── bind guide (openspec: mp-bind-guide) ──────────────────────────────── */
+/* Four steps, each with a schematic drawn in plain boxes: a browser window, a
+   login form, the settings list with the WeChat App row lit, and a phone with
+   a scan frame. No images, no network, nothing to ship alongside the bundle. */
+
+.guide-page {
+  min-height: 100vh;
+  background: #f9fafb;
+}
+
+.guide-body {
+  padding: 24px 32px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.guide-lede {
+  font-size: 26px;
+  color: #6b7280;
+  line-height: 1.6;
+}
+
+.guide-step {
+  display: flex;
+  gap: 20px;
+}
+
+.guide-step-index {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.guide-step-index-text {
+  color: #fff;
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.guide-step-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 8px;
+}
+
+.guide-step-text {
+  font-size: 28px;
+  color: #111827;
+  line-height: 1.5;
+}
+
+/* schematic: a browser window */
+.guide-browser {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  padding: 16px;
+}
+
+.guide-browser-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.guide-browser-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #d1d5db;
+}
+
+.guide-browser-addr {
+  flex: 1;
+  margin-left: 6px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  overflow: hidden;
+}
+
+.guide-browser-addr-text {
+  font-size: 20px;
+  color: #6b7280;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* schematic: the login form */
+.guide-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 8px 0 4px;
+}
+
+.guide-form-field {
+  height: 40px;
+  border-radius: 8px;
+  background: #f3f4f6;
+}
+
+.guide-form-btn {
+  height: 40px;
+  width: 45%;
+  border-radius: 8px;
+  background: #2563eb;
+}
+
+/* schematic: the settings list */
+.guide-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.guide-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: 10px;
+}
+
+.guide-settings-row-active {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.guide-settings-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #d1d5db;
+}
+
+.guide-settings-line {
+  flex: 1;
+  height: 14px;
+  border-radius: 7px;
+  background: #e5e7eb;
+}
+
+.guide-settings-active-text {
+  font-size: 22px;
+  color: #2563eb;
+  font-weight: 500;
+}
+
+/* schematic: a phone with the scan frame */
+.guide-phone {
+  width: 220px;
+  border: 2px solid #d1d5db;
+  border-radius: 24px;
+  background: #fff;
+  padding: 14px;
+}
+
+.guide-phone-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 20px 0;
+  border-radius: 16px;
+  background: #f9fafb;
+}
+
+.guide-scan-frame {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  background: #fff;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.guide-scan-qr {
+  width: 84px;
+  height: 84px;
+  background: #111827;
+  border-radius: 4px;
+}
+
+.guide-scan-corner {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border: 4px solid #2563eb;
+}
+
+.guide-scan-tl {
+  top: -2px;
+  left: -2px;
+  border-right: none;
+  border-bottom: none;
+  border-top-left-radius: 8px;
+}
+
+.guide-scan-tr {
+  top: -2px;
+  right: -2px;
+  border-left: none;
+  border-bottom: none;
+  border-top-right-radius: 8px;
+}
+
+.guide-scan-bl {
+  bottom: -2px;
+  left: -2px;
+  border-right: none;
+  border-top: none;
+  border-bottom-left-radius: 8px;
+}
+
+.guide-scan-br {
+  bottom: -2px;
+  right: -2px;
+  border-left: none;
+  border-top: none;
+  border-bottom-right-radius: 8px;
+}
+
+.guide-scan-btn {
+  width: 96px;
+  height: 30px;
+  border-radius: 15px;
+  background: #2563eb;
+}
+
+/* the copyable site address */
+.guide-url {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+}
+
+.guide-url-text {
+  flex: 1;
+  font-size: 24px;
+  color: #111827;
+  word-break: break-all;
+}
+
+.guide-url-copy {
+  flex-shrink: 0;
+  font-size: 24px;
+  color: #2563eb;
+}
+
+.guide-url-done {
+  margin-top: -12px;
+  font-size: 22px;
+  color: #059669;
+}
+
+.guide-error {
+  font-size: 24px;
+  color: #dc2626;
+  line-height: 1.5;
+}
+
+.guide-scan-action {
+  margin-top: 8px;
+  padding: 26px 0;
+  border-radius: 12px;
+  background: #2563eb;
+  display: flex;
+  justify-content: center;
+}
+
+.guide-scan-action-disabled {
+  opacity: 0.5;
+}
+
+.guide-scan-action-text {
+  color: #fff;
+  font-size: 32px;
+  font-weight: 500;
+}
+
+.guide-footnote {
+  font-size: 22px;
+  color: #9ca3af;
+  line-height: 1.6;
 }
 
 /* ── sessions page server-address row ──────────────────────────────────── */
@@ -1786,14 +2154,21 @@ page {
   flex-shrink: 0;
 }
 
-/* One quiet status area: slim connection line + one-line demo notice. */
+/* One quiet status area: slim connection line + one-line demo notice. While
+   disconnected it also names the server in use (tap to change) and, when the
+   transport reported one, the failure reason — the only surface a real device
+   has for either. */
+.conn-block {
+  background: #f9fafb;
+  flex-shrink: 0;
+}
+
 .conn-line {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 16px 0;
-  background: #f9fafb;
+  padding: 16px 0 4px;
 }
 
 .conn-line-dot {
@@ -1806,6 +2181,37 @@ page {
 .conn-line-text {
   font-size: 22px;
   color: #6b7280;
+}
+
+.conn-server {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 0 24px 12px;
+}
+
+.conn-server-text {
+  font-size: 20px;
+  color: #9ca3af;
+  max-width: 78%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conn-server-edit {
+  font-size: 20px;
+  color: #2563eb;
+}
+
+.conn-note {
+  display: block;
+  font-size: 19px;
+  line-height: 1.5;
+  color: #b45309;
+  padding: 0 24px 14px;
+  word-break: break-all;
 }
 
 .demo-line {
@@ -1825,8 +2231,19 @@ page {
   font-size: 22px;
   font-weight: 600;
   color: #15803d;
-  /* The exit-demo link is the line's only target — padded to the bar. */
+  /* Both notice links are tap targets on the line — padded to the bar, and the
+     row wraps on a narrow phone rather than shrinking either one. */
   padding: 30px 16px;
+  flex-shrink: 0;
+}
+
+/* 退出演示 — the plain way out, deliberately quieter than the bind CTA beside
+   it (openspec: add-mp-scan-bind): leaving the sandbox is a valid answer, it
+   just is not the one that unlocks the product. */
+.demo-line-exit {
+  font-weight: 400;
+  color: #6b7280;
+  padding-left: 0;
 }
 
 /* ── history groups + row share (revise-mp-history-ux) ─────────────────── */
@@ -2037,6 +2454,55 @@ page {
 
 .res-action-danger {
   color: #dc2626;
+}
+
+/* 绑定图表的数据源行(add-chart-data-binding 5.1):来源行、刷新、过期徽标、
+   数据区间。旧 cell 不发 bindings 字段时整块不渲染,所以这里没有“空状态”。 */
+.res-bind {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.res-bind-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.res-bind-source {
+  font-size: 24px;
+  color: #6b7280;
+}
+
+.res-bind-stale {
+  font-size: 22px;
+  color: #b45309;
+  background: #fef3c7;
+  border-radius: 999px;
+  padding: 2px 14px;
+}
+
+.res-bind-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 22px;
+}
+
+.res-bind-count {
+  font-size: 22px;
+  color: #9ca3af;
+  margin-left: auto;
+}
+
+.res-bind-notice {
+  font-size: 24px;
+  color: #6b7280;
 }
 
 /* 聊天里指向工作区文件的链接渲染成文件 chip(add-resource-library 8.2)。 */

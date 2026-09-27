@@ -556,6 +556,7 @@
       "models": "模型",
       "mcp": "MCP 服务器",
       "skills": "技能",
+      "wechat-app": "微信小程序",
       "status": "系统状态"
     },
     "general": {
@@ -572,16 +573,23 @@
       "email": "已登录邮箱",
       "openHint": "此实例开放访问，无需账户。",
       "signedOutHint": "请通过组织 SSO 登录后使用此实例。",
-      "optionalSsoHint": "使用组织的 SSO 登录，可在这个共享运行时上保留你自己的模型和 MCP 偏好。",
-      "mp": {
-        "title": "微信小程序",
-        "hint": "在微信小程序登录页输入以下绑定码，即可将当前账号与你的微信绑定（5 分钟内有效，一次性使用，绑定后自动登录）。",
-        "getCode": "获取绑定码",
-        "refresh": "刷新",
-        "retry": "重试",
-        "loading": "获取中…",
-        "unavailable": "当前部署未启用多租户网关，小程序绑定不可用。"
-      }
+      "optionalSsoHint": "使用组织的 SSO 登录，可在这个共享运行时上保留你自己的模型和 MCP 偏好。"
+    },
+    "wechat-app": {
+      "title": "微信小程序",
+      "scanHint": "在小程序登录页点击「扫码绑定」，用相机扫描右侧二维码即可完成绑定。",
+      "typeHint": "没有相机或扫码不便？也可以在小程序登录页手动输入同样的 6 位数字。",
+      "validity": "单次使用，5 分钟内有效。",
+      "expiresIn": "{{time}} 后失效",
+      "expired": "绑定码已失效。",
+      "refresh": "刷新",
+      "retry": "重试",
+      "loading": "获取中…",
+      "signedOut": "登录后即可把这个账号与微信绑定。",
+      "signIn": "登录",
+      "openInstance": "此实例开放访问、没有账号体系，无需绑定小程序。",
+      "unavailable": "当前服务器版本较旧，尚未提供绑定码接口，升级后即可绑定。",
+      "error": "获取绑定码失败。"
     }
   },
   "bindings": {
@@ -689,6 +697,78 @@
     }
   },
   "resources": {
+    "binding": {
+        "asOf": "截至 {{age}}",
+        "ageNow": "刚刚",
+        "ageMinutes": "{{count}} 分钟前",
+        "ageHours": "{{count}} 小时前",
+        "ageDays": "{{count}} 天前",
+        "stale": "数据可能已过期",
+        "notRefreshable": "当前部署不可刷新",
+        "refreshing": "刷新中…",
+        "refresh": "刷新",
+        "refreshed": "已更新 · 新增 {{added}}，变化 {{revised}}",
+        "refreshUnchanged": "数据已是最新",
+        "refreshFailed": "刷新失败",
+        "unbind": "解除绑定",
+        "unbindConfirm": "解除该图表与数据源的绑定？图表会保留当前数据作为静态快照。",
+        "series": "第 {{index}} 条序列",
+        "periodLabel": "数据区间",
+        "period": {
+          "6m": "近 6 月",
+          "1y": "近 1 年",
+          "all": "全部"
+        },
+        "periodCount": "已存 {{count}} 个周期",
+      "periodShown": "显示 {{count}} 个",
+        "bindAction": "绑定数据源",
+        "pickTitle": "选择绘制该图表的数据调用",
+        "cancel": "取消",
+        "pickEmpty": "本轮没有可绑定的数据调用。",
+        "pickPoints": "{{count}} 个数据点",
+        "attach": "绑定",
+        "timeline": "观测历史",
+        "timelineTitle": "刷新记录",
+        "timelineEmpty": "还没有刷新记录。",
+        "window": {
+          "24h": "24 小时",
+          "7d": "7 天",
+          "30d": "30 天",
+          "all": "全部时间"
+        },
+        "backToCurrent": "返回当前",
+        "viewingAsOf": "正在查看 {{moment}} 的数据",
+        "viewAsOf": "查看该时刻",
+        "historical": "历史视图",
+        "trigger": {
+          "manual": "手动",
+          "scheduled": "定时",
+          "onOpen": "打开时"
+        },
+        "outcome": {
+          "ok": "已更新",
+          "unchanged": "无变化",
+          "skipped_fresh": "已跳过（数据新鲜）",
+          "error": "失败"
+        },
+        "count": {
+          "added": "新增 {{count}}",
+          "revised": "修正 {{count}}",
+          "resourced": "换源 {{count}}",
+          "unchanged": "未变 {{count}}",
+          "missing": "缺失 {{count}}",
+          "anomalies": "冲突 {{count}}"
+        },
+        "reason": {
+          "credential": "需要重新登录",
+          "unreachable": "数据源不可达",
+          "tool_error": "数据源返回错误",
+          "unit_mismatch": "单位已变化",
+          "map_violation": "响应结构已变化",
+          "allowlist": "该工具未开放刷新",
+          "fresh": "数据仍然新鲜"
+        }
+    },
     "title": "资源",
     "search": "搜索资源",
     "count": "{{count}} 个资源",

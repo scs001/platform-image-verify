@@ -556,6 +556,7 @@
       "models": "モデル",
       "mcp": "MCP サーバー",
       "skills": "スキル",
+      "wechat-app": "WeChat ミニプログラム",
       "status": "システム状態"
     },
     "general": {
@@ -572,16 +573,23 @@
       "email": "ログイン中のメール",
       "openHint": "このインスタンスは公開されており、アカウントは不要です。",
       "signedOutHint": "このインスタンスを利用するには組織の SSO でログインしてください。",
-      "optionalSsoHint": "組織の SSO でサインインすると、この共有ランタイムで自分のモデルと MCP の設定を保持できます。",
-      "mp": {
-        "title": "WeChat ミニプログラム",
-        "hint": "ミニプログラムのログイン画面でこのバインドコードを入力すると、このアカウントと WeChat が紐づきます（5 分間有効・一回限り。以後は自動ログイン）。",
-        "getCode": "バインドコードを取得",
-        "refresh": "更新",
-        "retry": "再試行",
-        "loading": "取得中…",
-        "unavailable": "この環境ではマルチテナントゲートウェイが有効でないため、ミニプログラムのバインドは利用できません。"
-      }
+      "optionalSsoHint": "組織の SSO でサインインすると、この共有ランタイムで自分のモデルと MCP の設定を保持できます。"
+    },
+    "wechat-app": {
+      "title": "WeChat ミニプログラム",
+      "scanHint": "ミニプログラムのログイン画面で「扫码绑定」をタップし、このコードをスマートフォンでスキャンしてください。",
+      "typeHint": "カメラがない、またはスキャンできない場合は、同じログイン画面で 6 桁の数字を直接入力できます。",
+      "validity": "一回限り・5 分間有効。",
+      "expiresIn": "残り {{time}}",
+      "expired": "コードの有効期限が切れました。",
+      "refresh": "更新",
+      "retry": "再試行",
+      "loading": "取得中…",
+      "signedOut": "サインインすると、このアカウントと WeChat を紐づけられます。",
+      "signIn": "サインイン",
+      "openInstance": "このインスタンスは公開されておりアカウントがないため、ミニプログラムと紐づける対象がありません。",
+      "unavailable": "このサーバーはバインドコードの発行に対応していません。更新すると紐づけできます。",
+      "error": "バインドコードを取得できませんでした。"
     }
   },
   "bindings": {
@@ -689,6 +697,78 @@
     }
   },
   "resources": {
+    "binding": {
+        "asOf": "{{age}}時点",
+        "ageNow": "たった今",
+        "ageMinutes": "{{count}} 分前",
+        "ageHours": "{{count}} 時間前",
+        "ageDays": "{{count}} 日前",
+        "stale": "データが古い可能性があります",
+        "notRefreshable": "この環境では更新できません",
+        "refreshing": "更新中…",
+        "refresh": "更新",
+        "refreshed": "更新しました · 新規 {{added}}、変更 {{revised}}",
+        "refreshUnchanged": "最新の状態です",
+        "refreshFailed": "更新に失敗しました",
+        "unbind": "バインド解除",
+        "unbindConfirm": "このグラフとデータソースのバインドを解除しますか？グラフは現在のデータを静的なスナップショットとして保持します。",
+        "series": "系列 {{index}}",
+        "periodLabel": "期間",
+        "period": {
+          "6m": "直近6か月",
+          "1y": "直近1年",
+          "all": "すべて"
+        },
+        "periodCount": "{{count}} 期間を保存",
+      "periodShown": "{{count}} 件表示",
+        "bindAction": "データソースをバインド",
+        "pickTitle": "このグラフの元になった呼び出しを選択",
+        "cancel": "キャンセル",
+        "pickEmpty": "このターンにはバインド可能なデータ呼び出しがありません。",
+        "pickPoints": "{{count}} 点",
+        "attach": "バインド",
+        "timeline": "履歴",
+        "timelineTitle": "更新履歴",
+        "timelineEmpty": "更新の記録はまだありません。",
+        "window": {
+          "24h": "24時間",
+          "7d": "7日",
+          "30d": "30日",
+          "all": "全期間"
+        },
+        "backToCurrent": "現在に戻る",
+        "viewingAsOf": "{{moment}} 時点のグラフを表示中",
+        "viewAsOf": "この時点を表示",
+        "historical": "履歴表示",
+        "trigger": {
+          "manual": "手動",
+          "scheduled": "定期",
+          "onOpen": "開いたとき"
+        },
+        "outcome": {
+          "ok": "更新",
+          "unchanged": "変更なし",
+          "skipped_fresh": "スキップ（最新）",
+          "error": "失敗"
+        },
+        "count": {
+          "added": "{{count}} 追加",
+          "revised": "{{count}} 修正",
+          "resourced": "{{count}} 別ソース",
+          "unchanged": "{{count}} 変更なし",
+          "missing": "{{count}} 欠落",
+          "anomalies": "{{count}} 競合"
+        },
+        "reason": {
+          "credential": "再ログインが必要",
+          "unreachable": "データソースに到達できません",
+          "tool_error": "データソースがエラーを返しました",
+          "unit_mismatch": "単位が変わりました",
+          "map_violation": "レスポンス形状が変わりました",
+          "allowlist": "更新が許可されていません",
+          "fresh": "まだ最新です"
+        }
+    },
     "title": "リソース",
     "search": "リソースを検索",
     "count": "{{count}} 件",

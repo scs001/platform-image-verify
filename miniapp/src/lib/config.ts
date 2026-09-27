@@ -55,6 +55,18 @@ export function exitDemoBase(): void {
   Taro.removeStorageSync(PRE_DEMO_KEY);
 }
 
+// The origin that serves the ACCOUNT (openspec: add-mp-scan-bind): while the
+// client sits in the accountless sandbox the current base IS the demo one, but
+// the QR a user is told to look for lives on the account deployment — the
+// origin 退出演示 restores, or the build's default when nothing was remembered.
+// Surfaces that must never point at the sandbox (the guide's copy row) and the
+// auto-demo switch's return trip both read this instead of baseUrl().
+export function accountBaseUrl(): string {
+  if (baseUrl() !== DEMO_BASE) return baseUrl();
+  const saved = String(Taro.getStorageSync(PRE_DEMO_KEY) || "");
+  return saved && saved !== DEMO_BASE ? saved : DEFAULT_BASE;
+}
+
 export function token(): string {
   return Taro.getStorageSync(TOKEN_KEY) || "";
 }

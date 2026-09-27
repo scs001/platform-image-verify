@@ -18,6 +18,9 @@ import Taro, { eventCenter } from "@tarojs/taro";
 import { baseUrl, clearToken, setToken, token } from "./config";
 
 export const LOGIN_REQUIRED_EVENT = "platform:login-required";
+// Raised whenever the recorded connection reason changes, so the chat page's
+// disconnect line can re-render with it.
+export const CONN_NOTE_EVENT = "platform:conn-note";
 
 // The identity email of the last successful login (persisted so a relaunch
 // knows demo-ness before the first silent exchange completes). Demo-enabled
@@ -52,6 +55,30 @@ export function authHeaders(): Record<string, string> {
 
 type LoginOutcome = "token" | "binding_required" | "failed";
 
+// Why the last auth attempt failed, in the transport's own words — wx errors
+// like `request:fail url not in domain list`, or the server's own
+// `code2Session rejected: …`. The chat page shows this under the disconnect
+// line: on a real device it is the only place the reason is visible, and it is
+// what tells a domain-whitelist block apart from a rejected login.
+let lastAuthError = "";
+
+export function authError(): string {
+  return lastAuthError;
+}
+
+export function noteConnError(message: unknown) {
+  const text = String(message || "").trim().slice(0, 200);
+  if (!text || text === lastAuthError) return;
+  lastAuthError = text;
+  eventCenter.trigger(CONN_NOTE_EVENT);
+}
+
+export function clearConnError() {
+  if (!lastAuthError) return;
+  lastAuthError = "";
+  eventCenter.trigger(CONN_NOTE_EVENT);
+}
+
 async function postJson(path: string, data: Record<string, string>) {
   return Taro.request({
     url: `${baseUrl()}${path}`,
@@ -67,7 +94,8 @@ async function silentLogin(): Promise<LoginOutcome> {
   let code = "";
   try {
     ({ code } = await Taro.login());
-  } catch {
+  } catch (err) {
+    noteConnError((err as { errMsg?: string })?.errMsg || (err as Error)?.message || "wx.login failed");
     return "failed";
   }
   try {
@@ -76,11 +104,14 @@ async function silentLogin(): Promise<LoginOutcome> {
     if (res.statusCode === 200 && body?.token) {
       setToken(body.token);
       recordEmail(body.email);
+      clearConnError();
       return "token";
     }
     if (res.statusCode === 404 && body?.error === "binding_required") return "binding_required";
+    noteConnError(`${res.statusCode} ${body?.error || "login failed"}`);
     return "failed";
-  } catch {
+  } catch (err) {
+    noteConnError((err as { errMsg?: string })?.errMsg || (err as Error)?.message || "login request failed");
     return "failed";
   }
 }
@@ -151,10 +182,14 @@ export async function ensureAuth(): Promise<"none" | "token" | "binding_required
   try {
     const res = await Taro.request({ url: `${baseUrl()}/api/auth/me`, method: "GET" });
     if (res.statusCode === 200 && (res.data as { mode?: string } | undefined)?.mode === "none") {
+      clearConnError();
       return "none";
     }
     return silentLogin();
-  } catch {
+  } catch (err) {
+    // The classic one on a real device: `request:fail url not in domain list`
+    // — the MP console's request-domain list is missing this origin.
+    noteConnError((err as { errMsg?: string })?.errMsg || (err as Error)?.message || "auth probe failed");
     return "failed";
   }
 }

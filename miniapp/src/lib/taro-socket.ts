@@ -12,9 +12,19 @@
 
 import Taro from "@tarojs/taro";
 import type { SocketFactory, SocketHandle } from "@platform/core";
-import { authHeaders } from "./auth";
+import { authHeaders, clearConnError, noteConnError } from "./auth";
 
 type Handlers = Parameters<SocketHandle["setHandlers"]>[0];
+
+// wx's own wording for the transport failure (`connectSocket:fail …`), kept so
+// the chat page can show WHY the socket is down on a real device — the one
+// signal we get when the request-domain list is fine but the socket-domain
+// list is not.
+function errText(err: unknown): string {
+  if (!err) return "";
+  const e = err as { errMsg?: string; message?: string };
+  return e.errMsg || e.message || String(err);
+}
 
 export const taroSocketFactory: SocketFactory = (url) => {
   let task: Taro.SocketTask | null = null;
@@ -29,19 +39,29 @@ export const taroSocketFactory: SocketFactory = (url) => {
       return;
     }
     if (handlers) {
-      t.onOpen(() => handlers?.onOpen());
+      t.onOpen(() => {
+        clearConnError();
+        handlers?.onOpen();
+      });
       t.onMessage((m: { data?: unknown }) => {
         handlers?.onMessage(typeof m.data === "string" ? m.data : "");
       });
-      t.onClose(() => handlers?.onClose());
-      t.onError(() => handlers?.onError());
+      t.onClose((res: { code?: number; reason?: string }) => {
+        if (res?.reason) noteConnError(`socket closed (${res.code}): ${res.reason}`);
+        handlers?.onClose();
+      });
+      t.onError((err: unknown) => {
+        noteConnError(errText(err) || "socket error");
+        handlers?.onError();
+      });
     }
     for (const data of pendingSends) void t.send({ data });
     pendingSends.length = 0;
   };
 
-  const failConnect = () => {
+  const failConnect = (err?: unknown) => {
     // Surface the failure as a close so the WsClient's backoff takes over.
+    noteConnError(errText(err) || "connectSocket failed");
     handlers?.onError();
     handlers?.onClose();
   };

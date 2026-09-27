@@ -18,8 +18,8 @@ import {
   type ClientMessage,
   type ServerMessage,
 } from "@platform/core";
-import { ensureAuth, LOGIN_REQUIRED_EVENT } from "./auth";
-import { baseUrl } from "./config";
+import { ensureAuth, LOGIN_REQUIRED_EVENT, recordEmail } from "./auth";
+import { baseUrl, clearToken, DEMO_BASE, enterDemoBase, exitDemoBase } from "./config";
 import { installHttp } from "./taro-http";
 import { taroSocketFactory } from "./taro-socket";
 
@@ -63,6 +63,12 @@ let bootGen = 0;
 // WeChat rejects forced login before the user has browsed).
 let loginRequired = false;
 
+// Whether this app run has already taken the automatic trip into the sandbox
+// (openspec: add-mp-scan-bind, D4). ONE-SHOT per run on purpose: the entry must
+// never fight a deliberate 退出演示 (or a hand-edited server address) by hauling
+// the user back on the next boot. A fresh launch re-evaluates from scratch.
+let autoDemoTaken = false;
+
 export function loginRequiredNow(): boolean {
   return loginRequired;
 }
@@ -98,18 +104,43 @@ async function start(): Promise<void> {
     return;
   }
   installHttp();
-  const auth = await ensureAuth();
+  let auth = await ensureAuth();
   if (gen !== bootGen) return;
+
+  // Unbound, on a build whose paired sandbox is a DIFFERENT origin: land in the
+  // sandbox instead of parking the user on an unbound banner they have to tap
+  // through (openspec: mp-demo-sandbox, revised). Dev builds pair localhost for
+  // both origins, so the guard is false and their behavior is unchanged.
+  //
+  // The sandbox is an entry route, not a trap: if it cannot hand out a session
+  // the account origin comes back and the page shows its ordinary unbound
+  // state, where 先体验 remains a deliberate tap.
+  if (auth === "binding_required" && !autoDemoTaken && DEMO_BASE !== baseUrl()) {
+    autoDemoTaken = true;
+    enterDemoBase(); // remembers the account origin for 退出演示 / the bind CTA
+    clearToken();
+    recordEmail("");
+    const demo = await ensureAuth();
+    if (gen !== bootGen) return;
+    if (demo === "token" || demo === "none") {
+      auth = demo;
+    } else {
+      exitDemoBase();
+      auth = "binding_required";
+    }
+  }
+
   if (auth === "failed") {
     authFailed = true;
     useChatStore.getState().setStatus("disconnected");
     return;
   }
   if (auth === "binding_required") {
-    // Not an error: this WeChat user has no bound platform account yet and
-    // the deployment has no demo mode. The page shows a "登录后开始使用"
-    // banner (user-initiated sign-in); after a successful sign-in the page's
-    // foreground hook re-boots us with the fresh token.
+    // Not an error: this WeChat user has no bound platform account yet, and
+    // there is no sandbox to land in — none is paired on this build, the one
+    // per-run trip is spent, or the sandbox itself just failed. The page shows
+    // a "登录后开始使用" banner (user-initiated sign-in); after a successful
+    // sign-in the page's foreground hook re-boots us with the fresh token.
     loginRequired = true;
     useChatStore.getState().setStatus("disconnected");
     eventCenter.trigger(LOGIN_REQUIRED_EVENT);

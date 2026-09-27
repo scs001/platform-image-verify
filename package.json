@@ -53,6 +53,7 @@
     "@playwright/test": "latest",
     "electron": "^43.1.1",
     "electron-builder": "^26.15.3",
+    "jsqr": "^1.4.0",
     "typescript": "^7.0.2"
   }
 }

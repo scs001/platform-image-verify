@@ -2,6 +2,7 @@ export default defineAppConfig({
   pages: [
     "pages/chat/index",
     "pages/login/index",
+    "pages/bind-guide/index",
     "pages/share/index",
     "pages/cron/index",
     "pages/resources/index",

@@ -556,6 +556,7 @@
       "models": "Modelos",
       "mcp": "Servidores MCP",
       "skills": "Habilidades",
+      "wechat-app": "Mini programa de WeChat",
       "status": "Estado del sistema"
     },
     "general": {
@@ -572,16 +573,23 @@
       "email": "Correo de la sesión",
       "openHint": "Esta instancia es abierta y no requiere una cuenta.",
       "signedOutHint": "Inicia sesión mediante el SSO de tu organización para usar esta instancia.",
-      "optionalSsoHint": "Inicia sesión con el SSO de tu organización para conservar tu modelo y tus preferencias de MCP en este entorno compartido.",
-      "mp": {
-        "title": "Mini programa de WeChat",
-        "hint": "Introduce este código de vinculación en la página de inicio de sesión del mini programa para asociar esta cuenta con tu WeChat (válido 5 minutos, un solo uso; después el inicio es automático).",
-        "getCode": "Obtener código",
-        "refresh": "Actualizar",
-        "retry": "Reintentar",
-        "loading": "Obteniendo…",
-        "unavailable": "Este despliegue no ejecuta la pasarela multiinquilino; la vinculación del mini programa no está disponible."
-      }
+      "optionalSsoHint": "Inicia sesión con el SSO de tu organización para conservar tu modelo y tus preferencias de MCP en este entorno compartido."
+    },
+    "wechat-app": {
+      "title": "Mini programa de WeChat",
+      "scanHint": "En el mini programa, toca 扫码绑定 en la página de inicio de sesión y escanea este código.",
+      "typeHint": "¿Sin cámara o el escaneo no funciona? Escribe los 6 dígitos en esa misma página del mini programa: es el mismo código.",
+      "validity": "Un solo uso, válido 5 minutos.",
+      "expiresIn": "Caduca en {{time}}",
+      "expired": "Este código ha caducado.",
+      "refresh": "Actualizar",
+      "retry": "Reintentar",
+      "loading": "Obteniendo…",
+      "signedOut": "Inicia sesión para asociar esta cuenta con tu WeChat.",
+      "signIn": "Iniciar sesión",
+      "openInstance": "Esta instancia es abierta y no tiene cuentas, así que no hay nada que asociar al mini programa.",
+      "unavailable": "Este servidor es anterior a la versión que genera códigos de vinculación; actualízalo para vincular el mini programa.",
+      "error": "No se pudo obtener un código de vinculación."
     }
   },
   "bindings": {
@@ -689,6 +697,78 @@
     }
   },
   "resources": {
+    "binding": {
+        "asOf": "hasta {{age}}",
+        "ageNow": "ahora mismo",
+        "ageMinutes": "hace {{count}} min",
+        "ageHours": "hace {{count}} h",
+        "ageDays": "hace {{count}} d",
+        "stale": "Los datos pueden estar desactualizados",
+        "notRefreshable": "Actualización no habilitada aquí",
+        "refreshing": "Actualizando…",
+        "refresh": "Actualizar",
+        "refreshed": "Actualizado · {{added}} nuevos, {{revised}} modificados",
+        "refreshUnchanged": "Ya está al día",
+        "refreshFailed": "Falló la actualización",
+        "unbind": "Desvincular",
+        "unbindConfirm": "¿Desvincular este gráfico de su fuente de datos? El gráfico conservará los datos actuales como instantánea estática.",
+        "series": "Serie {{index}}",
+        "periodLabel": "Periodos",
+        "period": {
+          "6m": "Últimos 6 meses",
+          "1y": "Último año",
+          "all": "Todo"
+        },
+        "periodCount": "{{count}} periodos guardados",
+      "periodShown": "{{count}} mostrados",
+        "bindAction": "Vincular una fuente de datos",
+        "pickTitle": "Elige la llamada que produjo este gráfico",
+        "cancel": "Cancelar",
+        "pickEmpty": "Este turno no ejecutó ninguna llamada de datos vinculable.",
+        "pickPoints": "{{count}} puntos",
+        "attach": "Vincular",
+        "timeline": "Historial",
+        "timelineTitle": "Historial de actualizaciones",
+        "timelineEmpty": "Aún no hay actualizaciones registradas.",
+        "window": {
+          "24h": "24 horas",
+          "7d": "7 días",
+          "30d": "30 días",
+          "all": "Todo el tiempo"
+        },
+        "backToCurrent": "Volver al actual",
+        "viewingAsOf": "Viendo el gráfico hasta {{moment}}",
+        "viewAsOf": "Ver en ese momento",
+        "historical": "Vista histórica",
+        "trigger": {
+          "manual": "Manual",
+          "scheduled": "Programada",
+          "onOpen": "Al abrir"
+        },
+        "outcome": {
+          "ok": "Actualizado",
+          "unchanged": "Sin cambios",
+          "skipped_fresh": "Omitida (datos frescos)",
+          "error": "Falló"
+        },
+        "count": {
+          "added": "{{count}} añadidos",
+          "revised": "{{count}} revisados",
+          "resourced": "{{count}} de otra fuente",
+          "unchanged": "{{count}} sin cambios",
+          "missing": "{{count}} ausentes",
+          "anomalies": "{{count}} conflictos"
+        },
+        "reason": {
+          "credential": "sesión necesaria",
+          "unreachable": "fuente inaccesible",
+          "tool_error": "la fuente devolvió un error",
+          "unit_mismatch": "la unidad cambió",
+          "map_violation": "la forma de la respuesta cambió",
+          "allowlist": "no habilitado para actualizar",
+          "fresh": "todavía fresco"
+        }
+    },
     "title": "Recursos",
     "search": "Buscar recursos",
     "count": "{{count}} elementos",

@@ -15,6 +15,7 @@ import {
   TerminalSquare,
   Activity,
   UserRound,
+  Smartphone,
   type LucideIcon,
 } from "lucide-react";
 
@@ -23,6 +24,9 @@ const GeneralSection = lazy(() =>
 );
 const AccountSection = lazy(() =>
   import("@/components/settings/AccountSection").then((m) => ({ default: m.AccountSection })),
+);
+const WeChatAppSection = lazy(() =>
+  import("@/components/settings/WeChatAppSection").then((m) => ({ default: m.WeChatAppSection })),
 );
 const ModelsPage = lazy(() => import("@/pages/ModelsPage").then((m) => ({ default: m.ModelsPage })));
 const ExtensionsPage = lazy(() =>
@@ -80,6 +84,13 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: TerminalSquare,
     Component: ExtensionsPage as React.LazyExoticComponent<React.ComponentType<any>>,
     props: { type: "skills" },
+  },
+  {
+    slug: "wechat-app",
+    labelKey: "settings.sections.wechat-app",
+    testId: "settings-section-wechat-app",
+    icon: Smartphone,
+    Component: WeChatAppSection as React.LazyExoticComponent<React.ComponentType<any>>,
   },
   {
     slug: "status",

@@ -52,25 +52,19 @@ newer than every file under `miniapp/src`), and the simulator was left pointed a
 `https://craw.finddatatech.cloud` with token/email cleared, where its cold boot silently re-bound the
 same openid and reconnected. Console 提审 stays the user's step, as the task says.
 
-**Web — prepared, not pushed.** The gate the pipeline runs is green on this tree
-(`npm run web:build`: `check:locales` 618 keys × 5 + `vite build`), and the section's chunk is the
-10.4 KB-gzip lazy chunk recorded above. What remains is a commit and the standard pipeline, and that
-step is **not** a pure mechanical one on this working tree: it carries a second in-flight change
-(`add-chart-data-binding`, whose own deploy task 6.4 is still open and whose artifacts are the
-`chart-*.js`, `dsh-profile-template/platform-chart-bind-bridge.js`, `e2e/fake-mcp.js`,
-`playwright.config.js` and `server/*` hunks). Options, both one command away:
+**Web — shipped 2026-09-28.**
 
-1. **This change only** — stage this change's files plus the two intra-file hunks that are separable:
-   the `settings.sections.wechat-app` line and the `settings.wechat-app` block in the five locale files
-   (their `resources.binding.*` block stays unstaged). Then `git push`, trigger the Jenkins `platform`
-   job, bump the `platform` image tag in the GitOps repo, let ArgoCD sync, and re-probe.
-2. **Both changes together** — stage the whole tree as one release commit. Cheaper, but it couples two
-   changes' provenance in one sha and only one of them can be archived against it.
+| Step | Result |
+| --- | --- |
+| Commit | `b600011` — this change only, 38 files. The sibling change's 33 entries stayed unstaged: for the five locale files the worktree keeps their `resources.binding.*` block while the commit carries only this change's keys (verified by re-implementing `check:locales`'s key-set comparison over the **index** blobs: 560 keys × 5, no missing/extra) |
+| Release branch | `gitee/deploy/prod-snapshot` fast-forwarded `ea802e5 → b600011` (the two in-between commits are docs + the openspec archive only) |
+| Jenkins | triggered via the generic webhook (`token=platform`); build **#32** checked out `b6000116137f026ea6d0525f351559d60419d3e3`, `Finished: SUCCESS`, `Pushed 100.64.0.8:30880/paas_private/platform:sha-b600011` |
+| GitOps | `fd-infra-deploy` commit **`0d04e18`**: `all-services/prod/platform.yaml` `sha-ea802e5 → sha-b600011` (the repo's unrelated dirty `mcp-cheap/` file left untouched); ArgoCD refreshed → `Synced` at `0d04e18`; `deployment "platform" successfully rolled out`, pod `platform-86bbdddffc-9xg2s`, **0 restarts** |
+| Deployed assets | `/assets/WeChatAppSection-CbzN9wBk.js` → **200, 28,256 B**, carrying `mp-binding-qr` / `mp-binding-code` / `mp-binding-refresh`, `shape-rendering="crispEdges"` (the QR renderer) and the `settings/wechat-app` URL builder. Its hash differs from the local build's because the local one also contained the sibling change's web code — the image carries this commit's tree only, which is the point of the hunk-only commit |
+| Gating intact | `/settings/wechat-app` anonymous → 302 (Logto's login gate), `/api/mp/bindcode` anonymous → 401, `/api/config` → 200, `/api/auth/me` → `mode: logto` |
+| Sandbox leg (what the auto-entry now depends on) | `demo.finddatatech.cloud/api/auth/me` → `mode: none`; anonymous `POST /api/documents` → 403 (`演示环境不支持上传文档…`); an anonymous `wss://demo.finddatatech.cloud/` opens with **no identity sent** and receives the full roster (`current_model`, `agents`, `sessions`, `permissions`, …) — the "no login, no popup" contract, unchanged by this release |
 
-Either way the post-deploy verification is the same three checks: the deployed cell answers the
-`/settings/wechat-app` assets (the section's lazy chunk is in the image), `node scripts/probe-demo-live.mjs`
-re-runs clean (the sandbox leg is untouched by this change but is what the auto-entry now depends on),
-and — on a real device — an unbound 体验版 lands in the demo with the bind CTA visible.
+One correction to the plan above: `scripts/probe-demo-live.mjs` is the probe for the **gateway-shaped** `MP_DEMO_MODE` (multi-tenant cells), and fd-prod is single-process, where that mode is inert by design — so it is not the right post-deploy check for the sandbox pod. The direct checks in the table above (mode `none`, uploads refused, anonymous WS with a full roster) are what actually pins the sandbox contract.
 
 ## Notes for the next reader
 

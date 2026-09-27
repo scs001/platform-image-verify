@@ -115,7 +115,7 @@ function ToolBlockBase({ block, onToggle }: Props) {
               type="button"
               data-testid="tool-preview"
               onClick={() =>
-                openPreview({ name: baseName(fileRef.rel), url: fileUrl(fileRef.root, fileRef.rel) })
+                openPreview({ name: baseName(fileRef.rel), url: fileUrl(fileRef.root, fileRef.rel), ref: fileRef })
               }
               className="inline-flex items-center gap-1 rounded-sm border border-border bg-background px-2 py-0.5 font-medium text-foreground hover:bg-muted"
             >

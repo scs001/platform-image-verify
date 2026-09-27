@@ -134,7 +134,7 @@ function MarkdownLink({ href, children, ...rest }: any) {
     const ref = linkRef(href, useChatStore.getState().currentWorkspace);
     if (!ref) return;
     e.preventDefault();
-    openPreview({ name: baseName(ref.rel), url: fileUrl(ref.root, ref.rel) });
+    openPreview({ name: baseName(ref.rel), url: fileUrl(ref.root, ref.rel), ref });
   };
   return (
     <a

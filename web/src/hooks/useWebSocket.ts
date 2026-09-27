@@ -8,6 +8,7 @@
 import { useEffect, useRef } from "react";
 import { WsClient, useChatStore, useCronStore, type ClientMessage, type ServerMessage } from "@platform/core";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
+import { useResourcesStore } from "@/hooks/useResourcesStore";
 import { browserSocketFactory } from "@/lib/browser-socket";
 
 // In dev (Vite on :5173), Vite doesn't proxy the root WS path — connect
@@ -33,6 +34,7 @@ export function useWebSocket(enabled: boolean, identityKey = "") {
   const apply = useChatStore((s) => s.apply);
   const applyExtensions = useExtensionsStore((s) => s.applyEvent);
   const applyCron = useCronStore((s) => s.apply);
+  const applyResources = useResourcesStore((s) => s.applyEvent);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,6 +53,7 @@ export function useWebSocket(enabled: boolean, identityKey = "") {
         apply(msg as ServerMessage);
         applyExtensions(msg as ServerMessage);
         applyCron(msg as ServerMessage);
+        applyResources(msg as ServerMessage);
       },
       // The protocol's initial state queries, replayed on every reconnect so
       // a resumed socket re-syncs rosters and the session list.
@@ -94,7 +97,7 @@ export function useWebSocket(enabled: boolean, identityKey = "") {
       window.removeEventListener("platform:reconnect", onManualReconnect);
       client.close();
     };
-  }, [apply, applyCron, applyExtensions, enabled, identityKey, setStatus]);
+  }, [apply, applyCron, applyExtensions, applyResources, enabled, identityKey, setStatus]);
 
   return { send: (msg: ClientMessage) => sendRef.current(msg) };
 }

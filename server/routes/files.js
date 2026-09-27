@@ -1,14 +1,16 @@
 // Read-only file serving for the preview drawer (openspec: file-preview-drawer).
 //
 // This is the first route that hands arbitrary file bytes to the browser, so
-// the safety properties ARE the feature: read-only, an allowlist of two roots,
-// and a realpath + prefix check that rejects traversal, absolute paths and
+// the safety properties ARE the feature: read-only, an allowlist of roots
+// (workspace, uploads, and the resource library's stored copies), and a
+// realpath + prefix check that rejects traversal, absolute paths and
 // symlinks that escape their root. Content the browser could execute in this
 // origin is never served inline — anything off the safe-type allowlist forces a
 // download disposition with an opaque type.
 
 import { mkdir, realpath, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import * as resources from "../../resources.js";
 import { storeDir } from "../../paths.js";
 
 // Uploaded files get their own root, apart from the agent workspace: the agent
@@ -76,6 +78,9 @@ function rootsFor(ctx) {
   return {
     workspace: ctx.dshBridge?.getCwd?.() || process.cwd(),
     uploads: UPLOADS_DIR,
+    // Stored resource bytes (openspec: add-resource-library). Server-written
+    // only — resources.saveFile is the sole writer; this route stays read-only.
+    resources: resources.filesRoot(),
   };
 }
 

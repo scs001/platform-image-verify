@@ -27,6 +27,7 @@ export function ToastHost() {
     <div
       role="status"
       aria-live="polite"
+      data-testid="toast"
       className="pointer-events-none fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-md border border-border bg-card px-4 py-2 text-sm text-foreground shadow-lg"
     >
       {msg}

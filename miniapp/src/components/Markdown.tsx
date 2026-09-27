@@ -11,6 +11,8 @@ import { Canvas, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
 import { parseChartOption, parseMarkdown, type Inline, type MdNode } from "@/lib/markdown";
 import { chartStatus, registerChart, subscribeCharts } from "@/lib/charts";
+import { baseName, fileLinkRef, useChatStore } from "@platform/core";
+import { FileChip } from "@/components/FileChip";
 
 function chartIdFor(text: string): string {
   // Stable id from the fence body so re-renders reuse the same canvas.
@@ -47,6 +49,12 @@ function Inlines({ parts }: { parts: Inline[] }) {
           );
         }
         if (p.type === "link") {
+          // 指向工作区文件的链接渲染成文件 chip(预览 / 转发 / 存入资源);
+          // 其余链接保持"复制链接"——小程序打不开任意外部地址。
+          const ref = fileLinkRef(p.href, useChatStore.getState().currentWorkspace);
+          if (ref) {
+            return <FileChip key={i} name={p.text || baseName(ref.rel)} fileRef={ref} />;
+          }
           return (
             <Text
               key={i}

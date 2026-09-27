@@ -14,7 +14,7 @@
 
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdtemp, mkdir, readdir, rm, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -151,6 +151,36 @@ async function main() {
       const res = await call(method, route, body);
       exercised.push(`${method} ${route} → ${res.status}`);
       if (res.status >= 400) failures.push(`${method} ${route} returned ${res.status}: ${res.text.slice(0, 200)}`);
+    }
+
+    // Resource save (openspec: add-resource-library): reads a workspace file
+    // and writes the stored copy under the resources store in
+    // PLATFORM_DATA_DIR. The source fixture is created and removed by the audit
+    // itself, so it cannot mask a cell-created stray; the boot-time store-dir
+    // creation is exercised by initStore regardless.
+    const sourceRel = "audit-source.txt";
+    await writeFile(path.join(cwd, sourceRel), "containment resource audit");
+    const savedResource = await call("POST", "/api/resources", { path: sourceRel });
+    exercised.push(`POST /api/resources → ${savedResource.status}`);
+    if (savedResource.status >= 400) {
+      failures.push(`POST /api/resources returned ${savedResource.status}: ${savedResource.text.slice(0, 200)}`);
+    }
+    const listedResources = await call("GET", "/api/resources");
+    exercised.push(`GET /api/resources → ${listedResources.status}`);
+    if (listedResources.status !== 200 || !JSON.parse(listedResources.text || "{}").total) {
+      failures.push(`GET /api/resources did not show the saved resource: ${listedResources.text.slice(0, 200)}`);
+    }
+    await rm(path.join(cwd, sourceRel), { force: true });
+
+    // The library is not an auth-exempt surface: the same request without the
+    // cell's identity headers must be refused by the existing auth gate — no
+    // new auth mechanism was introduced (openspec: add-resource-library).
+    const unauthenticated = await fetch(base + "/api/resources");
+    exercised.push(`GET /api/resources (no identity) → ${unauthenticated.status}`);
+    if (unauthenticated.status !== 401) {
+      failures.push(
+        `/api/resources answered ${unauthenticated.status} without identity — it must sit behind the cell auth gate`,
+      );
     }
 
     // Cron persistence is WebSocket-only; it writes cron-store/jobs.json.

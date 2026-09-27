@@ -9,6 +9,7 @@ import multer from "multer";
 import compression from "compression";
 import * as chatHistory from "./chat-history.js";
 import * as documents from "./documents.js";
+import * as resources from "./resources.js";
 import * as db from "./db.js";
 import * as trace from "./server/trace.js";
 import * as bots from "./server/bots.js";
@@ -37,6 +38,7 @@ import { registerCronRoutes } from "./server/routes/cron.js";
 import { registerMpRoutes } from "./server/routes/mp.js";
 import { registerRegistryRoutes } from "./server/routes/registry.js";
 import { registerFileRoutes } from "./server/routes/files.js";
+import { registerResourceRoutes } from "./server/routes/resources.js";
 import { registerBotRoutes, WEBHOOK_PREFIX } from "./server/routes/bots.js";
 import { registerBotRelayRoutes, RELAY_PREFIX } from "./server/routes/bot-relay.js";
 import { registerExternalServiceRoutes } from "./server/routes/external-services.js";
@@ -194,6 +196,8 @@ registerBotRoutes(ctx);
 // Preview drawer file serving — mounted with the other /api routes, BEFORE the
 // static SPA fallback, so the catch-all cannot shadow /api/files.
 registerFileRoutes(ctx);
+// Resource library (charts + saved files) — same placement rule as /api/files.
+registerResourceRoutes(ctx);
 registerStaticAndFallback(ctx);
 registerExternalServiceRoutes(ctx);
 
@@ -592,6 +596,12 @@ await Promise.all([
     isBusy: () => ctx.isStreaming,
   }),
 ]);
+
+// Resource library: inject the WS broadcast and run the one-time chart seeding
+// pass. Deliberately AFTER runLegacyMigrations — on a fresh database the legacy
+// import lands messages that must be seeded too, and the seeding marker is
+// one-shot, so seeding before the import would skip them forever.
+await resources.initStore({ broadcast: ctx.broadcast });
 console.log("Platform fully initialized");
 
 // ── Graceful shutdown ────────────────────────────────────────────────────────

@@ -67,6 +67,8 @@ npm run dist      # 然后才能打包安装程序
 | `DEFAULT_MODEL` | 默认聊天模型（须是 `dsh-profile.js` 声明的模型 id 之一）。 |
 | `PORT` / `HOST` | 监听地址（默认 `3000` / `localhost`）。 |
 | `PLATFORM_DATA_DIR` | 磁盘存储根目录（SQLite、会话等）。 |
+| `RESOURCES_STORAGE_PATH` | 资源库存储目录覆盖（默认 `PLATFORM_DATA_DIR/resources-store`）。 |
+| `RESOURCE_MAX_FILE_BYTES` | 单个文件资源的字节上限（默认 20MB）；比小程序下载上限更高时按客户端调整。 |
 | `AUTH_MODE` | 登录模式：未设为开放访问，`forward_auth` 信任反代身份头，`logto` 使用 Logto OIDC 登录。 |
 | `PAAS_BASE_URL` | Logto 回调的公开地址；未设时从请求 `Host` 推导。 |
 | `SESSION_SECRET` | 会话签名密钥；未设时自动生成并持久化到 `PLATFORM_DATA_DIR/auth/session-secret`。 |
@@ -125,9 +127,10 @@ Logto 控制台需要注册两个应用，并启用 organizations / organization
 - **`dsh-profile.js`** — 写 dsh profile（`settings.yaml`、MCP patch、skills patch）。
 - **`documents.js`** — 第一方文档 RAG（LlamaIndex.TS + PageIndex + SQLite）。
 - **`chat-history.js`** — 只读聊天持久化（每个 turn 镜像到 SQLite）。
+- **`resources.js`** — 第一方资源库：自动收录对话里生成的图表（```echarts 围栏），用户可另存工作区文件；字节放在 `resources-store/`，经 `/api/files?root=resources` 只读伺服。
 - **`server/routes/external-services.js`** — 目录中 `external-service` 应用的 `/external/:appId` 反向代理。**token 留在服务端**。
 - **`electron/`** — 桌面 supervisor（进程管理，不跑业务逻辑）。
-- **`web/`** — 唯一前端（Vite + React 19 + TypeScript + Tailwind v4 + shadcn）。路由：`/chat`、`/knowledge`、`/dashboard`、`/mcp`、`/skills`、`/models`、`/trace`、`/agents`、`/bots`、`/external/:appId`。
+- **`web/`** — 唯一前端（Vite + React 19 + TypeScript + Tailwind v4 + shadcn）。路由：`/chat`、`/knowledge`、`/resources`、`/agents`、`/bots`、`/trace`、`/tasks`、`/external/:appId`。
 - **`skills/`** — 本地技能（`SKILL.md`），用 `/skill:<name>` 调用。
 
 ---
@@ -246,6 +249,8 @@ Everything sensitive lives in **`.env`** and **`mcp.json`** (both gitignored; te
 | `DEFAULT_MODEL` | Default chat model (must be one of the model ids declared in `dsh-profile.js`). |
 | `PORT` / `HOST` | Bind address (default `3000` / `localhost`). |
 | `PLATFORM_DATA_DIR` | Root for all on-disk stores (SQLite, sessions, cron). |
+| `RESOURCES_STORAGE_PATH` | Override for the resource library's store dir (default `PLATFORM_DATA_DIR/resources-store`). |
+| `RESOURCE_MAX_FILE_BYTES` | Per-file byte cap for saved resources (default 20MB); lower it to match a client platform's download limit. |
 | `AUTH_MODE` | Login mode: unset for open access, `forward_auth` for trusted proxy headers, or `logto` for Logto OIDC login. |
 | `PAAS_BASE_URL` | Public callback base URL for Logto; derived from request `Host` when unset. |
 | `SESSION_SECRET` | Session signing secret; auto-generated and persisted under `PLATFORM_DATA_DIR/auth/session-secret` when unset. |
@@ -304,9 +309,10 @@ The per-cell env matrix (`PLATFORM_DATA_DIR`, `DSH_HOME`, `MCP_CONFIG_PATH`, `PO
 - **`dsh-profile.js`** — writes dsh profile (`settings.yaml`, MCP patch, skills patch).
 - **`documents.js`** — first-party document RAG (LlamaIndex.TS + PageIndex + SQLite).
 - **`chat-history.js`** — read-only chat persistence (mirrors each turn to SQLite).
+- **`resources.js`** — first-party resource library: charts generated in chat are captured automatically (```echarts fences) and users can save workspace files; bytes live under `resources-store/` and are served read-only via `/api/files?root=resources`.
 - **`server/routes/external-services.js`** — `/external/:appId` reverse proxy for catalog `external-service` apps. **Tokens stay server-side.**
 - **`electron/`** — desktop supervisor (process management only).
-- **`web/`** — sole frontend (Vite + React 19 + TypeScript + Tailwind v4 + shadcn). Routes: `/chat`, `/knowledge`, `/dashboard`, `/mcp`, `/skills`, `/models`, `/trace`, `/agents`, `/bots`, `/external/:appId`.
+- **`web/`** — sole frontend (Vite + React 19 + TypeScript + Tailwind v4 + shadcn). Routes: `/chat`, `/knowledge`, `/resources`, `/agents`, `/bots`, `/trace`, `/tasks`, `/external/:appId`.
 - **`skills/`** — local skills (`SKILL.md`), invoked via `/skill:<name>`.
 
 ---

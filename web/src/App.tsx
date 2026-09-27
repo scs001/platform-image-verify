@@ -38,6 +38,9 @@ const TraceDetailPage = lazy(() =>
 );
 const SharePage = lazy(() => import("@/pages/SharePage").then((m) => ({ default: m.SharePage })));
 const TasksPage = lazy(() => import("@/pages/TasksPage").then((m) => ({ default: m.TasksPage })));
+const ResourcesPage = lazy(() =>
+  import("@/pages/ResourcesPage").then((m) => ({ default: m.ResourcesPage })),
+);
 const ExternalServicePage = lazy(() =>
   import("@/pages/EmbeddedServicePages").then((m) => ({ default: m.ExternalServicePage })),
 );
@@ -236,8 +239,9 @@ export default function App() {
               element={<ChatPage send={send} onToggleNav={() => setNavOpen((v) => !v)} />}
             />
 
-            {/* Work surfaces — the five nav tabs. */}
+            {/* Work surfaces — the nav tabs. */}
             <Route path="/knowledge" element={<DocumentsPage send={send} />} />
+            <Route path="/resources" element={<ResourcesPage send={send} />} />
             <Route path="/agents" element={<AgentsPage />} />
             <Route path="/bots" element={<BotsPage />} />
             <Route path="/trace" element={<TracePage />} />

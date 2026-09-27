@@ -12,6 +12,7 @@
   "nav": {
     "chat": "聊天",
     "knowledge": "知识库",
+    "resources": "资源",
     "agents": "智能体",
     "bots": "机器人",
     "trace": "调用追踪",
@@ -685,6 +686,47 @@
       "title": "定时任务",
       "created": "在对话中创建的任务",
       "notFound": "任务状态暂不可用——请打开任务页面查看。"
+    }
+  },
+  "resources": {
+    "title": "资源",
+    "search": "搜索资源",
+    "count": "{{count}} 个资源",
+    "loading": "正在加载资源…",
+    "loadMore": "加载更多",
+    "error": "无法加载资源库：{{message}}",
+    "empty": "你生成的图表会自动出现在这里；在对话中保存的文件也在这里。",
+    "emptyFiltered": "没有符合当前筛选条件的资源。",
+    "chartUnrenderable": "该图表无法渲染。",
+    "kind": {
+      "chart": "图表",
+      "file": "文件"
+    },
+    "filter": {
+      "all": "全部",
+      "chart": "图表",
+      "file": "文件"
+    },
+    "actions": {
+      "save": "存入资源",
+      "rename": "重命名",
+      "renameSave": "保存",
+      "delete": "删除",
+      "deleteConfirm": "确定删除该资源？此操作不可撤销。",
+      "download": "下载",
+      "jump": "打开会话"
+    },
+    "save": {
+      "saved": "已存入资源",
+      "exists": "资源库中已存在",
+      "failed": "保存失败：{{message}}",
+      "errors": {
+        "invalid_path": "该文件不在工作区内。",
+        "file_not_found": "该文件已不在工作区中。",
+        "file_too_large": "文件过大，无法存入资源。",
+        "db_unavailable": "资源库暂不可用。",
+        "store_failed": "保存失败，请重试。"
+      }
     }
   }
 }

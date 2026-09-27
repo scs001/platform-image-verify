@@ -6,12 +6,18 @@
 // revokes the URL so the blob is not held for the tab's lifetime.
 
 import { create } from "zustand";
+import type { FileRef } from "@platform/core";
 
 export interface PreviewTarget {
   name: string;
   url: string;
   // The URL is a blob object URL this store must revoke on close/replace.
   objectUrl?: boolean;
+  // The served-file reference this target came from, when it came from one
+  // (openspec: add-resource-library — the drawer offers "save to resources"
+  // only for workspace files, which is exactly what this carries). Absent for
+  // local blob previews and uploads.
+  ref?: FileRef;
 }
 
 interface PreviewState {

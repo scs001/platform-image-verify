@@ -254,7 +254,7 @@ export function Composer({ send, value, onChange, focusTick = 0 }: Props) {
   // the server actually stored carry a reference.
   const previewAttachment = (a: Attachment) => {
     if (!a.preview) return;
-    openPreview({ name: a.name, url: fileUrl(a.preview.root, a.preview.rel) });
+    openPreview({ name: a.name, url: fileUrl(a.preview.root, a.preview.rel), ref: a.preview });
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

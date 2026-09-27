@@ -37,6 +37,11 @@ export type ServerMessage =
   | { type: "catalog_changed" }
   | { type: "skills"; skills: SkillInfo[] }
   | { type: "documents_status"; [k: string]: unknown }
+  // Resource library consistency (openspec: add-resource-library): emitted on
+  // capture/save/rename/delete; clients refetch their current query rather than
+  // patching. `resourceType` is the RESOURCE's kind ("chart" | "file") — `type`
+  // is taken by the message discriminator.
+  | { type: "resources_changed"; action: "created" | "renamed" | "deleted"; id: string; resourceType: string }
   | { type: "sessions"; sessions: SessionMeta[]; current?: string }
   | { type: "session_changed"; id: string }
   | { type: "session_loaded"; id: string; title?: string; messages: ChatMessage[] }

@@ -15,8 +15,10 @@
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, X } from "lucide-react";
+import { Download, FolderPlus, X } from "lucide-react";
+import { saveErrorKey, saveResource, useChatStore } from "@platform/core";
 import { Markdown } from "@/components/Markdown";
+import { showToast } from "@/components/Toast";
 import { usePreviewStore, type PreviewTarget } from "@/hooks/usePreviewStore";
 import { baseName, kindOf } from "@/lib/file-preview";
 
@@ -28,6 +30,36 @@ export default function PreviewDrawer() {
   const { t } = useTranslation();
   const target = usePreviewStore((s) => s.target);
   const close = usePreviewStore((s) => s.close);
+  const [saving, setSaving] = useState(false);
+
+  // Save-to-resources (openspec: add-resource-library): only workspace files
+  // can be saved — uploads already belong to the document library, and a local
+  // blob was never on the server. The resource is a COPY, so it keeps working
+  // after the workspace file changes or disappears; the session id is passed
+  // for provenance, nothing more.
+  const saveToResources = async () => {
+    const ref = target?.ref;
+    if (!ref || ref.root !== "workspace") return;
+    setSaving(true);
+    try {
+      const { inserted } = await saveResource({
+        path: ref.rel,
+        sessionId: useChatStore.getState().currentSessionId,
+      });
+      showToast(inserted ? t("resources.save.saved") : t("resources.save.exists"));
+    } catch (err) {
+      // A known refusal gets the LOCALIZED reason; an unknown one falls back to
+      // the server's own text rather than swallowing it.
+      const key = saveErrorKey(err);
+      showToast(
+        key
+          ? t(`resources.save.errors.${key}`)
+          : t("resources.save.failed", { message: (err as Error).message }),
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -49,6 +81,19 @@ export default function PreviewDrawer() {
         <span data-testid="preview-name" className="min-w-0 flex-1 truncate text-sm font-medium">
           {target.name}
         </span>
+        {target.ref?.root === "workspace" ? (
+          <button
+            type="button"
+            onClick={() => void saveToResources()}
+            disabled={saving}
+            data-testid="preview-save-resource"
+            aria-label={t("resources.actions.save")}
+            title={t("resources.actions.save")}
+            className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+          >
+            <FolderPlus className="h-4 w-4" aria-hidden="true" />
+          </button>
+        ) : null}
         <a
           href={target.url}
           download={target.name}

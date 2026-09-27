@@ -326,6 +326,45 @@ const MIGRATIONS = [
       )`,
     ],
   },
+  {
+    // resource-library: artifacts produced in chat (openspec: add-resource-library).
+    // Charts are captured automatically from assistant turns; files are saved
+    // by explicit user action. `type` + `payload` is the extension seam for
+    // future kinds — a new type adds rows, never a schema change.
+    //
+    // Provenance is a SOFT reference on purpose: session_id/message_id carry
+    // no foreign key, so deleting a session leaves its resources intact, with
+    // session_title (a snapshot taken at capture time) as the display fallback.
+    //
+    // content_hash is UNIQUE because a resource's identity IS its content:
+    // regeneration re-emits identical chart specs, and this constraint (plus
+    // the insert-or-return-existing helper) is what makes that idempotent.
+    // file_path is relative to the resources root that /api/files serves
+    // (`root=resources`); payload holds the normalized chart option JSON.
+    version: 16,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS resources (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        source TEXT NOT NULL,
+        session_id TEXT,
+        session_title TEXT,
+        message_id INTEGER,
+        payload TEXT,
+        file_path TEXT,
+        file_size INTEGER,
+        file_mime TEXT,
+        content_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_seen_at TEXT,
+        seeded INTEGER NOT NULL DEFAULT 0
+      )`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_resources_hash ON resources(content_hash)`,
+      `CREATE INDEX IF NOT EXISTS idx_resources_type ON resources(type, created_at DESC)`,
+    ],
+  },
 ];
 
 function nowIso() {
@@ -453,18 +492,20 @@ export function setTitle(id, title, updatedAt) {
   return result.changes > 0;
 }
 
-// Append a message with the next per-session seq. Returns the inserted seq.
+// Append a message with the next per-session seq. Returns { seq, id } — the
+// per-session sequence and the row id (the resource library keeps the row id
+// as a soft message reference) — or null when the DB is unavailable.
 export function appendMessage(sessionId, role, content, createdAt, blocksJson) {
   if (!dbReady) return null;
   const row = db
     .prepare("SELECT COALESCE(MAX(seq), 0) AS max_seq FROM chat_messages WHERE session_id = ?")
     .get(sessionId);
   const seq = (row?.max_seq ?? 0) + 1;
-  stmt(
+  const info = stmt(
     `INSERT INTO chat_messages (session_id, role, content, seq, created_at, blocks)
      VALUES (?, ?, ?, ?, ?, ?)`
   ).run(sessionId, role, content, seq, createdAt, blocksJson ?? null);
-  return seq;
+  return { seq, id: Number(info.lastInsertRowid) };
 }
 
 export function listChatSessions() {
@@ -1370,4 +1411,145 @@ export function listRelayLog(limit = 50) {
        FROM bot_relay_log ORDER BY ts DESC, rowid DESC LIMIT ?`
     )
     .all(Math.max(1, Number(limit) || 50));
+}
+
+// ── Resource library ────────────────────────────────────────────────────────
+//
+// Rows for chat-produced artifacts (openspec: add-resource-library). The
+// service module (resources.js) owns capture, byte copying and the store dir;
+// these helpers are the storage contract only. `insertResource` folds dedupe
+// into the write itself: the UNIQUE content_hash means an identical spec or
+// file returns the EXISTING row rather than racing a check-then-insert.
+
+const RESOURCE_COLS = `id, type, title, source, session_id AS sessionId,
+  session_title AS sessionTitle, message_id AS messageId, payload,
+  file_path AS filePath, file_size AS fileSize, file_mime AS fileMime,
+  content_hash AS contentHash, created_at AS createdAt,
+  updated_at AS updatedAt, last_seen_at AS lastSeenAt, seeded`;
+
+// LIKE needs the query's own wildcards neutralized: a search for "50%" must
+// not turn into "match everything".
+function escapeLike(q) {
+  return String(q).replace(/[\\%_]/g, (m) => `\\${m}`);
+}
+
+export function getResource(id) {
+  if (!dbReady) return null;
+  return stmt(`SELECT ${RESOURCE_COLS} FROM resources WHERE id = ?`).get(String(id)) ?? null;
+}
+
+export function findResourceByHash(contentHash) {
+  if (!dbReady) return null;
+  return (
+    stmt(`SELECT ${RESOURCE_COLS} FROM resources WHERE content_hash = ?`).get(String(contentHash)) ?? null
+  );
+}
+
+// Insert, or return the existing row for the same content hash. `inserted`
+// distinguishes the two for the caller's message ("saved" vs "already in the
+// library") and for the seeding pass's counts.
+export function insertResource(fields) {
+  if (!dbReady) return { inserted: false, resource: null };
+  const info = stmt(
+    `INSERT INTO resources (id, type, title, source, session_id, session_title, message_id,
+       payload, file_path, file_size, file_mime, content_hash, created_at, updated_at, last_seen_at, seeded)
+     VALUES (@id, @type, @title, @source, @session_id, @session_title, @message_id,
+       @payload, @file_path, @file_size, @file_mime, @content_hash, @created_at, @updated_at, @last_seen_at, @seeded)
+     ON CONFLICT(content_hash) DO NOTHING`
+  ).run({
+    id: fields.id,
+    type: fields.type,
+    title: fields.title,
+    source: fields.source,
+    session_id: fields.sessionId ?? null,
+    session_title: fields.sessionTitle ?? null,
+    message_id: fields.messageId ?? null,
+    payload: fields.payload ?? null,
+    file_path: fields.filePath ?? null,
+    file_size: fields.fileSize ?? null,
+    file_mime: fields.fileMime ?? null,
+    content_hash: fields.contentHash,
+    created_at: fields.createdAt,
+    updated_at: fields.updatedAt,
+    last_seen_at: fields.lastSeenAt ?? null,
+    seeded: fields.seeded ? 1 : 0,
+  });
+  if (info.changes > 0) return { inserted: true, resource: getResource(fields.id) };
+  return { inserted: false, resource: findResourceByHash(fields.contentHash) };
+}
+
+export function touchResourceSeen(id, iso) {
+  if (!dbReady) return false;
+  return stmt("UPDATE resources SET last_seen_at = ? WHERE id = ?").run(iso, String(id)).changes > 0;
+}
+
+// List with the page's filters. `type` and `q` are optional; the count query
+// mirrors the filter predicates so pagination metadata always agrees.
+export function listResources({ type = null, q = null, limit = 50, offset = 0 } = {}) {
+  if (!dbReady) return { items: [], total: 0 };
+  const params = {
+    type: type || null,
+    q: q ? `%${escapeLike(q)}%` : null,
+    limit: Math.max(1, Number(limit) || 50),
+    offset: Math.max(0, Number(offset) || 0),
+  };
+  const where = `WHERE (@type IS NULL OR type = @type)
+      AND (@q IS NULL OR title LIKE @q ESCAPE '\\')`;
+  const items = db
+    .prepare(
+      `SELECT ${RESOURCE_COLS} FROM resources ${where} ORDER BY created_at DESC, rowid DESC LIMIT @limit OFFSET @offset`
+    )
+    .all(params);
+  const total = db.prepare(`SELECT COUNT(*) AS n FROM resources ${where}`).get(params).n;
+  return { items, total, limit: params.limit, offset: params.offset };
+}
+
+export function renameResource(id, title, updatedAt) {
+  if (!dbReady) return null;
+  const ok =
+    stmt("UPDATE resources SET title = ?, updated_at = ? WHERE id = ?").run(
+      String(title),
+      updatedAt,
+      String(id)
+    ).changes > 0;
+  return ok ? getResource(id) : null;
+}
+
+// Delete and return the removed row — the caller needs file_path to drop the
+// stored bytes. Null when the row did not exist.
+export function deleteResource(id) {
+  if (!dbReady) return null;
+  const row = getResource(id);
+  if (!row) return null;
+  stmt("DELETE FROM resources WHERE id = ?").run(String(id));
+  return row;
+}
+
+export function countResources() {
+  if (!dbReady) return 0;
+  return db.prepare("SELECT COUNT(*) AS n FROM resources").get().n;
+}
+
+// Assistant messages that could contain chart fences, with the session title
+// for the provenance snapshot — the seeding pass's input. The LIKE prefilter
+// keeps a large history from being JSON-scanned message by message.
+export function listMessagesWithChartFences() {
+  if (!dbReady) return [];
+  return db
+    .prepare(
+      `SELECT m.id AS messageId, m.session_id AS sessionId, m.content AS content, m.created_at AS createdAt, s.title AS sessionTitle
+       FROM chat_messages m
+       LEFT JOIN chat_sessions s ON s.id = m.session_id
+       WHERE m.role = 'assistant' AND m.content LIKE '%\`\`\`echarts%'
+       ORDER BY m.id`
+    )
+    .all();
+}
+
+// Wrap a multi-insert pass (the seeding run) in one transaction. better-sqlite3
+// transactions nest via savepoints, so calling this from inside another
+// transaction is safe.
+export function runInTransaction(fn) {
+  if (!dbReady) return null;
+  return db.transaction(fn)();
 }

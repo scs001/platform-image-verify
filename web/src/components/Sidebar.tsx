@@ -59,6 +59,7 @@ interface Props {
 const NAV_BASE = [
   { to: "/chat", key: "nav.chat", testId: "nav-chat", icon: MessageSquare },
   { to: "/knowledge", key: "nav.knowledge", testId: "nav-knowledge", icon: BookOpen },
+  { to: "/resources", key: "nav.resources", testId: "nav-resources", icon: FolderOpen },
   { to: "/agents", key: "nav.agents", testId: "nav-agents", icon: Sparkles },
   { to: "/bots", key: "nav.bots", testId: "nav-bots", icon: Bot },
   { to: "/trace", key: "nav.trace", testId: "nav-trace", icon: Waypoints },

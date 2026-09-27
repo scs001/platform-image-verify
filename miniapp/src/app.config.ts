@@ -1,5 +1,11 @@
 export default defineAppConfig({
-  pages: ["pages/chat/index", "pages/login/index", "pages/share/index", "pages/cron/index"],
+  pages: [
+    "pages/chat/index",
+    "pages/login/index",
+    "pages/share/index",
+    "pages/cron/index",
+    "pages/resources/index",
+  ],
   window: {
     backgroundTextStyle: "light",
     // Custom navigation on every page (layout P2 #5): the daylight world

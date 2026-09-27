@@ -12,6 +12,7 @@
   "nav": {
     "chat": "Chat",
     "knowledge": "Knowledge",
+    "resources": "Resources",
     "agents": "Agents",
     "bots": "Bots",
     "trace": "Trace",
@@ -685,6 +686,47 @@
       "title": "Scheduled task",
       "created": "Task created from chat",
       "notFound": "Job state unavailable — open the Tasks page."
+    }
+  },
+  "resources": {
+    "title": "Resources",
+    "search": "Search resources",
+    "count": "{{count}} items",
+    "loading": "Loading resources…",
+    "loadMore": "Load more",
+    "error": "Could not load the library: {{message}}",
+    "empty": "Charts you generate appear here automatically. Files you save from the chat land here too.",
+    "emptyFiltered": "No resources match this filter.",
+    "chartUnrenderable": "This chart could not be rendered.",
+    "kind": {
+      "chart": "Chart",
+      "file": "File"
+    },
+    "filter": {
+      "all": "All",
+      "chart": "Charts",
+      "file": "Files"
+    },
+    "actions": {
+      "save": "Save to resources",
+      "rename": "Rename",
+      "renameSave": "Save",
+      "delete": "Delete",
+      "deleteConfirm": "Delete this resource? This cannot be undone.",
+      "download": "Download",
+      "jump": "Open conversation"
+    },
+    "save": {
+      "saved": "Saved to resources",
+      "exists": "Already in resources",
+      "failed": "Could not save: {{message}}",
+      "errors": {
+        "invalid_path": "That file is outside the workspace.",
+        "file_not_found": "The file no longer exists in the workspace.",
+        "file_too_large": "The file is too large to save.",
+        "db_unavailable": "The library is unavailable right now.",
+        "store_failed": "Saving failed. Please try again."
+      }
     }
   }
 }

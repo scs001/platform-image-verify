@@ -145,6 +145,13 @@ export async function gotoDocuments(page) {
   await expect(page.getByTestId("documents-page")).toBeVisible({ timeout: 15000 });
 }
 
+// Navigate to the React Resources page (openspec: add-resource-library).
+export async function gotoResources(page) {
+  await pinLocaleEn(page);
+  await page.goto("/resources");
+  await expect(page.getByTestId("resources-page")).toBeVisible({ timeout: 15000 });
+}
+
 // Navigate to the React Knowledge page (was /documents).
 export async function gotoKnowledge(page) {
   await pinLocaleEn(page);

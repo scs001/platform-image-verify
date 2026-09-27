@@ -22,6 +22,7 @@
 
 import { promises as fs } from "node:fs";
 import * as db from "./db.js";
+import * as resources from "./resources.js";
 import { storeDir } from "./paths.js";
 import { truncateTitle as truncateTitleShared } from "./lib/persistence.js";
 
@@ -157,7 +158,24 @@ export function recordMessage(sessionId, role, content, blocks) {
     db.touchSession(sessionId, now);
     if (path) db.setSessionPath(sessionId, path);
   }
-  db.appendMessage(sessionId, role, content || "", now, blocks?.length ? JSON.stringify(blocks) : undefined);
+  const inserted = db.appendMessage(sessionId, role, content || "", now, blocks?.length ? JSON.stringify(blocks) : undefined);
+  // Charts ride the mirror funnel (openspec: add-resource-library): every
+  // assistant turn that reaches SQLite — web, mini program, scheduled task — is
+  // examined once, here. A parse failure is a skipped chart, never a failed
+  // message record.
+  if (role === "assistant" && inserted) {
+    try {
+      resources.captureFromMessage({
+        sessionId,
+        messageId: inserted.id,
+        sessionTitle: db.getSessionMeta(sessionId)?.title || null,
+        text: content || "",
+        createdAt: now,
+      });
+    } catch (err) {
+      console.warn(`[resources] capture failed for session ${sessionId}: ${err.message}`);
+    }
+  }
 }
 
 // ── Listing ──────────────────────────────────────────────────────────────────

@@ -19,6 +19,9 @@ process.env.PLATFORM_DATA_DIR = DATA_DIR;
 const { registerFileRoutes, UPLOADS_DIR, saveUploadFile, removeUploadDir } = await import(
   "../server/routes/files.js"
 );
+// The resources root resolves through paths.js too, so it also honors the
+// PLATFORM_DATA_DIR set above (openspec: add-resource-library, task 4.1).
+const resources = await import("../resources.js");
 
 function request(app, path_, headers = {}) {
   const server = createServer(app);
@@ -203,4 +206,57 @@ test("an unknown root is rejected", async () => {
   const app = await appWith(ws);
   await mkdir(path.join(ws, "sub"));
   assert.equal((await request(app, file("etc", "passwd"))).status, 403);
+});
+
+test("the resources root serves stored copies with the same disposition rules", async () => {
+  // A stored resource file is addressed as `<resource-id>/<name>` relative to
+  // the resources root, which lives under PLATFORM_DATA_DIR.
+  const app = await appWith(await mkdtemp(path.join(tmpdir(), "ws-")));
+  await mkdir(path.join(resources.filesRoot(), "res-1"), { recursive: true });
+  await writeFile(path.join(resources.filesRoot(), "res-1", "report.pdf"), "%PDF-1.4 bytes");
+  await writeFile(
+    path.join(resources.filesRoot(), "res-1", "evil.html"),
+    "<script>alert(document.cookie)</script>",
+  );
+
+  const pdf = await request(app, file("resources", "res-1/report.pdf"));
+  assert.equal(pdf.status, 200);
+  assert.equal(pdf.body.toString(), "%PDF-1.4 bytes");
+  assert.equal(pdf.headers["content-type"], "application/pdf");
+  assert.match(pdf.headers["content-disposition"], /^inline;/);
+
+  const html = await request(app, file("resources", "res-1/evil.html"));
+  assert.equal(html.status, 200);
+  assert.match(html.headers["content-disposition"], /^attachment;/);
+  assert.equal(html.headers["content-type"], "application/octet-stream");
+
+  assert.ok(resources.filesRoot().startsWith(DATA_DIR), "root lives under the data dir");
+});
+
+test("traversal against the resources root is rejected without reading outside", async () => {
+  const outside = await mkdtemp(path.join(tmpdir(), "outside-"));
+  await writeFile(path.join(outside, "secret.txt"), "TOP SECRET");
+  const app = await appWith(await mkdtemp(path.join(tmpdir(), "ws-")));
+
+  const traversal = await request(
+    app,
+    file("resources", "../" + path.basename(outside) + "/secret.txt"),
+  );
+  assert.equal(traversal.status, 403);
+  assert.ok(!traversal.body.toString().includes("TOP SECRET"));
+
+  const absolute = await request(app, file("resources", path.join(outside, "secret.txt")));
+  assert.equal(absolute.status, 403);
+
+  // A symlink inside the root pointing out of it: refused by realpath.
+  await mkdir(path.join(resources.filesRoot(), "res-2"), { recursive: true });
+  await symlink(
+    path.join(outside, "secret.txt"),
+    path.join(resources.filesRoot(), "res-2", "escape.txt"),
+  );
+  const escaping = await request(app, file("resources", "res-2/escape.txt"));
+  assert.equal(escaping.status, 403);
+  assert.ok(!escaping.body.toString().includes("TOP SECRET"));
+
+  assert.equal((await request(app, file("resources", "res-2/nope.txt"))).status, 404);
 });

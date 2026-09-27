@@ -12,6 +12,7 @@
   "nav": {
     "chat": "Discussion",
     "knowledge": "Connaissance",
+    "resources": "Ressources",
     "agents": "Agents",
     "bots": "Bots",
     "trace": "Traçage",
@@ -685,6 +686,47 @@
       "title": "Tâche planifiée",
       "created": "Tâche créée depuis le chat",
       "notFound": "État de la tâche indisponible — ouvrez la page Tâches."
+    }
+  },
+  "resources": {
+    "title": "Ressources",
+    "search": "Rechercher des ressources",
+    "count": "{{count}} éléments",
+    "loading": "Chargement des ressources…",
+    "loadMore": "Charger plus",
+    "error": "Impossible de charger la bibliothèque : {{message}}",
+    "empty": "Les graphiques que vous générez apparaissent ici automatiquement. Les fichiers enregistrés depuis la conversation aussi.",
+    "emptyFiltered": "Aucune ressource ne correspond à ce filtre.",
+    "chartUnrenderable": "Ce graphique n'a pas pu être affiché.",
+    "kind": {
+      "chart": "Graphique",
+      "file": "Fichier"
+    },
+    "filter": {
+      "all": "Tout",
+      "chart": "Graphiques",
+      "file": "Fichiers"
+    },
+    "actions": {
+      "save": "Enregistrer dans les ressources",
+      "rename": "Renommer",
+      "renameSave": "Enregistrer",
+      "delete": "Supprimer",
+      "deleteConfirm": "Supprimer cette ressource ? Action irréversible.",
+      "download": "Télécharger",
+      "jump": "Ouvrir la conversation"
+    },
+    "save": {
+      "saved": "Enregistré dans les ressources",
+      "exists": "Déjà dans les ressources",
+      "failed": "Échec de l'enregistrement : {{message}}",
+      "errors": {
+        "invalid_path": "Ce fichier est en dehors de l'espace de travail.",
+        "file_not_found": "Le fichier n'existe plus dans l'espace de travail.",
+        "file_too_large": "Le fichier est trop volumineux pour être enregistré.",
+        "db_unavailable": "La bibliothèque est indisponible pour le moment.",
+        "store_failed": "Échec de l'enregistrement. Réessayez."
+      }
     }
   }
 }

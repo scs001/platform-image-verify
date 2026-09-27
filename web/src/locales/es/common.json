@@ -12,6 +12,7 @@
   "nav": {
     "chat": "Chat",
     "knowledge": "Conocimiento",
+    "resources": "Recursos",
     "agents": "Agentes",
     "bots": "Bots",
     "trace": "Traza",
@@ -685,6 +686,47 @@
       "title": "Tarea programada",
       "created": "Tarea creada desde el chat",
       "notFound": "Estado de la tarea no disponible: abre la página de Tareas."
+    }
+  },
+  "resources": {
+    "title": "Recursos",
+    "search": "Buscar recursos",
+    "count": "{{count}} elementos",
+    "loading": "Cargando recursos…",
+    "loadMore": "Cargar más",
+    "error": "No se pudo cargar la biblioteca: {{message}}",
+    "empty": "Los gráficos que generas aparecen aquí automáticamente. Los archivos que guardas desde el chat también.",
+    "emptyFiltered": "Ningún recurso coincide con este filtro.",
+    "chartUnrenderable": "No se pudo representar este gráfico.",
+    "kind": {
+      "chart": "Gráfico",
+      "file": "Archivo"
+    },
+    "filter": {
+      "all": "Todos",
+      "chart": "Gráficos",
+      "file": "Archivos"
+    },
+    "actions": {
+      "save": "Guardar en recursos",
+      "rename": "Renombrar",
+      "renameSave": "Guardar",
+      "delete": "Eliminar",
+      "deleteConfirm": "¿Eliminar este recurso? No se puede deshacer.",
+      "download": "Descargar",
+      "jump": "Abrir conversación"
+    },
+    "save": {
+      "saved": "Guardado en recursos",
+      "exists": "Ya está en recursos",
+      "failed": "No se pudo guardar: {{message}}",
+      "errors": {
+        "invalid_path": "Ese archivo está fuera del espacio de trabajo.",
+        "file_not_found": "El archivo ya no existe en el espacio de trabajo.",
+        "file_too_large": "El archivo es demasiado grande para guardarlo.",
+        "db_unavailable": "La biblioteca no está disponible ahora mismo.",
+        "store_failed": "No se pudo guardar. Inténtalo de nuevo."
+      }
     }
   }
 }

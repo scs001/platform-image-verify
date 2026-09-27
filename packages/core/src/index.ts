@@ -29,4 +29,8 @@ export { httpPublic } from "./api/http";
 export * from "./api/documents-api";
 export * from "./api/extensions-api";
 export * from "./api/llm-api";
+export * from "./api/resources-api";
 export * from "./api/trace-api";
+
+// The path/href → file-reference rule (web preview drawer + MP file chip).
+export * from "./lib/file-ref";

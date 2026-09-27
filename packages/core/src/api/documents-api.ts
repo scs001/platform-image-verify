@@ -2,15 +2,12 @@
 // Mirrors the vanilla app.js behavior but typed and React-friendly.
 
 import { http, type HttpResponse } from "./http";
-
 // The reference the read-only serving route resolves ({root,rel} of a stored
-// file). Pure shape — defined here so the client is decoupled from the web
-// preview module.
-export type FileRoot = "workspace" | "uploads";
-export interface FileRef {
-  root: FileRoot;
-  rel: string;
-}
+// file). Defined once in lib/file-ref (shared with the mini program's file
+// chip); the document API is just another producer of them.
+import type { FileRef } from "../lib/file-ref";
+
+export type { FileRef } from "../lib/file-ref";
 
 export interface DocMeta {
   id: string;

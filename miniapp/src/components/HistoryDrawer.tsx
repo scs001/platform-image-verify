@@ -21,6 +21,7 @@ import {
   type ShareInfo,
 } from "@platform/core";
 import { baseUrl, setBaseUrl } from "@/lib/config";
+import { loadResources, subscribeResources } from "@/lib/resources";
 import { runtime } from "@/lib/runtime";
 import { getLastSeen, markSessionSeen, isSessionUnseen } from "@/lib/unread";
 
@@ -85,6 +86,8 @@ export default function HistoryDrawer({
   const currentSessionId = useChatStore((s) => s.currentSessionId);
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [shares, setShares] = useState<ShareInfo[] | null>(null);
+  // 资源库入口:旧 cell 没有 /api/resources(404)→ supported:false,整组隐藏。
+  const [resources, setResources] = useState<{ supported: boolean; total: number } | null>(null);
   const [view, setView] = useState<{ kind: "idle" | "loading" | "list" | "error"; message?: string }>({
     kind: "idle",
   });
@@ -101,12 +104,14 @@ export default function HistoryDrawer({
       return;
     }
     try {
-      const [list, shareList] = await Promise.all([
+      const [list, shareList, resourcePage] = await Promise.all([
         listChatSessions(),
         listShares().catch(() => [] as ShareInfo[]),
+        loadResources({ limit: 1 }),
       ]);
       setSessions(list);
       setShares(shareList);
+      setResources({ supported: resourcePage.supported, total: resourcePage.total });
       setView({ kind: "list" });
     } catch (err) {
       setView({ kind: "error", message: (err as Error).message });
@@ -116,6 +121,16 @@ export default function HistoryDrawer({
   useEffect(() => {
     if (open) void load();
   }, [open, load]);
+
+  // 抽屉开着时资源数保持最新:只刷新计数,不动会话列表(否则翻页/滚动被重置)。
+  useEffect(() => {
+    if (!open) return;
+    return subscribeResources(() => {
+      void loadResources({ limit: 1 }).then((r) =>
+        setResources({ supported: r.supported, total: r.total }),
+      );
+    });
+  }, [open]);
 
   const openSession = (id: string) => {
     // A failed switch toasts from the runtime and keeps the drawer up.
@@ -254,6 +269,18 @@ export default function HistoryDrawer({
                   <Text className="grp-sec-empty">暂无分享链接</Text>
                 )}
               </Group>
+
+              {resources?.supported ? (
+                <Group title="🗂 我的资源" count={resources.total}>
+                  <View
+                    className="grp-sec-link"
+                    data-testid="mp-resources-entry"
+                    onClick={() => Taro.navigateTo({ url: "/pages/resources/index" })}
+                  >
+                    <Text>打开资源库 ›</Text>
+                  </View>
+                </Group>
+              ) : null}
 
               <Group title="⏰ 定时任务" count={cronJobs.length} badge={unseenCount > 0}>
                 <View className="grp-sec-link" onClick={() => Taro.navigateTo({ url: "/pages/cron/index" })}>

@@ -46,6 +46,11 @@ const INITIAL_QUERIES = [
   "cron_list",
 ] as const;
 
+// Extra subscribers beyond the two shared stores — for page-local surfaces
+// (the resource library's live refresh) that should not become global stores
+// just to hear one event.
+const serverListeners = new Set<(m: ServerMessage) => void>();
+
 let client: WsClient | null = null;
 let starting: Promise<void> | null = null;
 let authFailed = false;
@@ -120,6 +125,7 @@ async function start(): Promise<void> {
     onMessage: (m) => {
       useChatStore.getState().apply(m as ServerMessage);
       useCronStore.getState().apply(m as ServerMessage);
+      for (const fn of serverListeners) fn(m as ServerMessage);
     },
     onOpen: () => {
       for (const type of INITIAL_QUERIES) rawSend({ type } as ClientMessage);
@@ -181,6 +187,14 @@ export const runtime = {
       return;
     }
     void this.boot();
+  },
+
+  // Subscribe to raw protocol events (page-local consumers). Returns an
+  // unsubscribe function; listeners survive reconnects because the fan-out
+  // lives on the client's onMessage, not on the socket itself.
+  onServerMessage(fn: (m: ServerMessage) => void): () => void {
+    serverListeners.add(fn);
+    return () => serverListeners.delete(fn);
   },
 
   // Mini-program foreground: backgrounding kills sockets. Reconnect only when

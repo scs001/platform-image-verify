@@ -541,7 +541,7 @@
   },
   "login": {
     "title": "Iniciar sesión",
-    "description": "Este despliegue usa el inicio de sesión único de tu organización. Inicia sesión para continuar en {{brand}}.",
+    "description": "Este despliegue usa el inicio de sesión único de tu organización. Inicia sesión para continuar en {{company}}.",
     "action": "Iniciar sesión con SSO",
     "logout": "Cerrar sesión",
     "loadFailed": "No se pudo cargar el estado de autenticación: {{error}}",
@@ -557,6 +557,7 @@
       "mcp": "Servidores MCP",
       "skills": "Habilidades",
       "wechat-app": "Mini programa de WeChat",
+      "branding": "Marca del despliegue",
       "status": "Estado del sistema"
     },
     "general": {
@@ -590,6 +591,18 @@
       "openInstance": "Esta instancia es abierta y no tiene cuentas, así que no hay nada que asociar al mini programa.",
       "unavailable": "Este servidor es anterior a la versión que genera códigos de vinculación; actualízalo para vincular el mini programa.",
       "error": "No se pudo obtener un código de vinculación."
+    },
+    "branding": {
+      "title": "Marca del despliegue",
+      "hint": "Cómo se presenta este despliegue en la página de inicio de sesión y en la pestaña del navegador. Los campos vacíos vuelven a las variables de entorno o a los valores integrados.",
+      "companyName": "Nombre de la empresa",
+      "assistantName": "Nombre del asistente",
+      "brandIconUrl": "URL del icono de marca",
+      "brandIconUrlHint": "Se muestra en la tarjeta de inicio de sesión y como icono de la pestaña. Debe ser una URL http(s)://.",
+      "loginFooterText": "Texto del pie de inicio de sesión",
+      "loginFooterTextHint": "Una línea bajo la tarjeta de inicio de sesión. Vacío = sin pie.",
+      "saved": "Guardado: actualiza para ver la nueva marca en todas partes.",
+      "saveFailed": "No se pudo guardar: {{error}}"
     }
   },
   "bindings": {

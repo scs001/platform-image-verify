@@ -9,7 +9,18 @@
 //   - mac arm64 + win x64 targets. The bundled-resource build (scripts/build-*.js)
 //     is cross-platform Node.
 //
+// Build branding (openspec: add-deployment-branding): PRODUCT_NAME renames the
+// app/installers (fork branding without editing source); the icon is the
+// vendored build/icon.png unless scripts/fetch-build-icon.js (run by predist)
+// downloaded a fork's ICON_URL to build/icon.downloaded.png.
+//
 // Build with:  npm run dist
+
+import { existsSync } from "node:fs";
+
+const productName = (process.env.PRODUCT_NAME || "").trim() || "Platform";
+const icon = existsSync("build/icon.downloaded.png") ? "build/icon.downloaded.png" : "build/icon.png";
+const companyName = (process.env.COMPANY_NAME || "").trim() || undefined;
 
 /** @type {import('electron-builder').Configuration['extraResources']} */
 const extraResources = [
@@ -23,7 +34,8 @@ const extraResources = [
 /** @type {import('electron-builder').Configuration} */
 const config = {
   appId: "com.earendil.platform",
-  productName: "Platform",
+  productName,
+  icon,
   directories: { output: "dist" },
   asar: false,
   // Native addons (better-sqlite3, tree-sitter, fsevents) run under the BUNDLED
@@ -83,7 +95,7 @@ const config = {
     // Force an arch suffix on every dmg so arm64 + x64 are distinguishable
     // (without this, the x64 dmg is named "Platform-1.0.0.dmg" - ambiguous).
     // biome-ignore lint/suspicious/noTemplateCurlyInString: electron-builder substitutes ${version}/${arch}/${ext} itself — this is not a JS template
-    artifactName: "Platform-${version}-${arch}.${ext}",
+    artifactName: `${productName}-\${version}-\${arch}.\${ext}`,
     target: [
       // No `arch` here: the arch is selected per CI job via `electron-builder
       // --arm64` / `--x64` (a config arch list would make EVERY job build ALL
@@ -109,6 +121,7 @@ const config = {
 
   win: {
     target: [{ target: "nsis", arch: ["x64"] }],
+    legalTrademarks: companyName,
   },
 };
 

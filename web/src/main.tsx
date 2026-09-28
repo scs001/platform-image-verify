@@ -17,6 +17,17 @@ if (!rootEl) throw new Error("#root not found");
 // blank page.
 void loadAppConfig().then((config) => {
   if (config.assistantName) document.title = config.assistantName;
+  // Tab favicon: inject only when a brand icon is configured — unset keeps
+  // today's default (no icon link, browser default tab icon).
+  if (config.brandIconUrl) {
+    let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+    link.href = config.brandIconUrl;
+  }
   createRoot(rootEl).render(
     <StrictMode>
       <BrowserRouter>

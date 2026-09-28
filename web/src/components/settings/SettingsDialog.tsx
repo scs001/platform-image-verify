@@ -10,11 +10,12 @@
 // history.back(), so a deep-linked open (no background) lands on /chat instead
 // of leaving the app.
 
-import { Suspense, useCallback, useEffect, useRef } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
-import { SETTINGS_SECTIONS, resolveSection, settingsPath } from "./sections";
+import { DEFAULT_SECTION, SETTINGS_SECTIONS, settingsPath } from "./sections";
+import { useAuthStore } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
 // Focusable descendants, for the focus trap.
@@ -29,8 +30,24 @@ export function SettingsDialog({ backgroundPath }: { backgroundPath: string }) {
   const panelRef = useRef<HTMLDivElement>(null);
   // The element focused before the modal opened, restored on close.
   const returnFocusRef = useRef<Element | null>(null);
+  const auth = useAuthStore();
 
-  const active = resolveSection(slug);
+  // Auth-on: admin-only sections (branding) are hidden from non-admins, and
+  // deep links to them fall through to the first visible section. Auth-off:
+  // every section shows (the server routes are open then too).
+  const authOn = auth.mode !== null && auth.mode !== "none";
+  const isAdmin = Boolean(auth.groups?.includes("admin"));
+  const sections = useMemo(
+    () => SETTINGS_SECTIONS.filter((s) => !s.adminOnly || !authOn || isAdmin),
+    [authOn, isAdmin],
+  );
+  const active = useMemo(
+    () =>
+      sections.find((s) => s.slug === slug) ??
+      sections.find((s) => s.slug === DEFAULT_SECTION) ??
+      sections[0],
+    [sections, slug],
+  );
 
   const close = useCallback(() => {
     navigate(backgroundPath, { replace: true });
@@ -120,7 +137,7 @@ export function SettingsDialog({ backgroundPath }: { backgroundPath: string }) {
             <div className="px-2 pb-2 pt-1 text-sm font-semibold text-foreground">
               {t("settings.title")}
             </div>
-            {SETTINGS_SECTIONS.map((s) => {
+            {sections.map((s) => {
               const Icon = s.icon;
               const isActive = s.slug === active.slug;
               return (

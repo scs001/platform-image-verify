@@ -90,6 +90,13 @@ jobs:
       - name: Build web + package installers
         shell: bash
         env:
+          # Build branding (deployment-branding): fork-settable repo variables
+          # (Settings → Secrets and variables → Actions → Variables) so a fork
+          # brands its installers without editing the workflow. Unset = the
+          # defaults (name "Platform", vendored build/icon.png).
+          PRODUCT_NAME: ${{ vars.PRODUCT_NAME }}
+          ICON_URL: ${{ vars.ICON_URL }}
+          COMPANY_NAME: ${{ vars.COMPANY_NAME }}
           # macOS signing + notarization (gated - empty/absent = unsigned;
           # electron-builder's built-in `mac.notarize` skips when APPLE_* env
           # is absent, so unsigned CI smoke builds still succeed)
@@ -112,6 +119,9 @@ jobs:
           # `npm run dist` runs electron-builder via `node .../cli.js` directly
           # (not the bare bin command): the npm bin shim in a `&&` chain
           # silently no-ops on the Windows runner (see package.json `dist`).
+          # Echo the resolved branding so a dispatch dry run logs what it used.
+          echo "PRODUCT_NAME='${PRODUCT_NAME:-Platform}' COMPANY_NAME='${COMPANY_NAME:-<unset>}'"
+          [ -n "$ICON_URL" ] && echo "ICON_URL=$ICON_URL" || echo "ICON_URL=<unset> (vendored icon)"
           npm run dist -- --${{ matrix.arch }}
 
       - name: Upload installers

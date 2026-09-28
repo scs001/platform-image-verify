@@ -541,7 +541,7 @@
   },
   "login": {
     "title": "登录",
-    "description": "此部署使用组织单点登录。请登录以继续使用 {{brand}}。",
+    "description": "此部署使用组织单点登录。请登录以继续使用 {{company}}。",
     "action": "使用 SSO 登录",
     "logout": "退出登录",
     "loadFailed": "无法加载认证状态：{{error}}",
@@ -557,6 +557,7 @@
       "mcp": "MCP 服务器",
       "skills": "技能",
       "wechat-app": "微信小程序",
+      "branding": "部署品牌",
       "status": "系统状态"
     },
     "general": {
@@ -590,6 +591,18 @@
       "openInstance": "此实例开放访问、没有账号体系，无需绑定小程序。",
       "unavailable": "当前服务器版本较旧，尚未提供绑定码接口，升级后即可绑定。",
       "error": "获取绑定码失败。"
+    },
+    "branding": {
+      "title": "部署品牌",
+      "hint": "此部署在登录页和浏览器标签上如何称呼自己。留空的字段将回退到环境变量或内置默认值。",
+      "companyName": "公司名称",
+      "assistantName": "助手名称",
+      "brandIconUrl": "品牌图标 URL",
+      "brandIconUrlHint": "显示在登录卡片和浏览器标签图标上，必须是 http(s):// 链接。",
+      "loginFooterText": "登录页脚文字",
+      "loginFooterTextHint": "登录卡片下方的一行文字，留空则不显示。",
+      "saved": "已保存 — 刷新后即可看到新的品牌信息。",
+      "saveFailed": "保存失败：{{error}}"
     }
   },
   "bindings": {

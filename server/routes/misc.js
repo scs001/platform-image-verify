@@ -93,14 +93,61 @@ export function registerMiscRoutes(ctx) {
   });
 
   // ── Server config (documents state, deployment branding) ──────────────────
+  // Branding resolution: stored (SQLite) → env → null. The web falls back to
+  // localized defaults for each null field.
+  const brandingField = (key, envName) => {
+    const stored = db.isDbReady() ? db.getDeploymentConfig(key) : null;
+    if (stored !== null && stored !== undefined) return stored;
+    return (process.env[envName] || "").trim() || null;
+  };
+
   app.get("/api/config", (_req, res) => {
     res.json({
       documentsEnabled: db.isDbReady(),
       // The deployment's name for the assistant, shown in the sidebar, the turn
       // header and the composer placeholder. Unset (or blank) ⇒ null, and the
       // web keeps its own localized defaults.
-      assistantName: (process.env.ASSISTANT_NAME || "").trim() || null,
+      assistantName: brandingField("assistantName", "ASSISTANT_NAME"),
+      companyName: brandingField("companyName", "COMPANY_NAME"),
+      brandIconUrl: brandingField("brandIconUrl", "BRAND_ICON_URL"),
+      loginFooterText: brandingField("loginFooterText", "LOGIN_FOOTER_TEXT"),
     });
+  });
+
+  // ── Branding write (admin-gated; open when auth off) ──────────────────────
+  // Full-replace of provided fields: omitted = unchanged, empty string = clear
+  // back to the env fallback. All strings capped at 200 chars; brandIconUrl
+  // must be http(s):// when non-empty.
+  const BRANDING_KEYS = ["companyName", "assistantName", "brandIconUrl", "loginFooterText"];
+
+  app.put("/api/config/branding", (req, res) => {
+    if (ctx.authEnabled && !req.user?.groups?.includes("admin")) {
+      return res.status(403).json({ error: "Admin group required" });
+    }
+    if (!db.isDbReady()) {
+      return res.status(503).json({ error: "Branding is disabled (database unavailable)" });
+    }
+    const body = req.body || {};
+    const updates = {};
+    for (const key of BRANDING_KEYS) {
+      if (!Object.prototype.hasOwnProperty.call(body, key)) continue;
+      const value = body[key];
+      if (typeof value !== "string") {
+        return res.status(400).json({ error: `Field '${key}' must be a string` });
+      }
+      if (value.length > 200) {
+        return res.status(400).json({ error: `Field '${key}' exceeds 200 characters` });
+      }
+      if (key === "brandIconUrl" && value && !/^https?:\/\//.test(value)) {
+        return res.status(400).json({ error: "brandIconUrl must be an http(s):// URL" });
+      }
+      updates[key] = value;
+    }
+    for (const [key, value] of Object.entries(updates)) {
+      if (value === "") db.clearDeploymentConfig(key);
+      else db.setDeploymentConfig(key, value);
+    }
+    res.json({ ok: true });
   });
 
   // ── Supervisor / system status (for the Dashboard view) ──────────────────

@@ -11,7 +11,7 @@
     "start": "node scripts/start.js",
     "gateway": "node gateway/index.js",
     "start:electron": "electron .",
-    "predist": "node scripts/build-node.js && node scripts/verify-bundle.js",
+    "predist": "node scripts/fetch-build-icon.js && node scripts/build-node.js && node scripts/verify-bundle.js",
     "dist": "npm run web:build && node node_modules/electron-builder/cli.js --publish never",
     "clean:bundle": "rm -rf resources/node",
     "test:e2e": "playwright test --project=fast",

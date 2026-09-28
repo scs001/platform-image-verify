@@ -7,12 +7,18 @@ import { useTranslation } from "react-i18next";
 
 export interface AppConfig {
   documentsEnabled: boolean;
-  // Deployment name for the assistant (server `ASSISTANT_NAME`); null = use the
-  // localized defaults.
+  // Deployment name for the assistant (branding store → ASSISTANT_NAME); null
+  // = use the localized defaults.
   assistantName: string | null;
+  // Deployment branding (branding store → env → null). companyName feeds the
+  // login copy; brandIconUrl the login card + favicon; loginFooterText the
+  // login footer. Null = current unbranded behavior.
+  companyName: string | null;
+  brandIconUrl: string | null;
+  loginFooterText: string | null;
 }
 
-let config: AppConfig = { documentsEnabled: true, assistantName: null };
+let config: AppConfig = { documentsEnabled: true, assistantName: null, companyName: null, brandIconUrl: null, loginFooterText: null };
 const listeners = new Set<() => void>();
 
 function emit(next: AppConfig) {
@@ -36,9 +42,13 @@ export async function loadAppConfig(timeoutMs = 1500): Promise<AppConfig> {
   try {
     const res = await fetch("/api/config", { signal: AbortSignal.timeout(timeoutMs) });
     const body = await res.json();
+    const str = (v: unknown) => (typeof v === "string" && v ? v : null);
     emit({
       documentsEnabled: body?.documentsEnabled ?? true,
-      assistantName: typeof body?.assistantName === "string" && body.assistantName ? body.assistantName : null,
+      assistantName: str(body?.assistantName),
+      companyName: str(body?.companyName),
+      brandIconUrl: str(body?.brandIconUrl),
+      loginFooterText: str(body?.loginFooterText),
     });
   } catch {
     /* keep defaults */

@@ -32,7 +32,12 @@ miniapp/dist/
 
 # Electron build artifacts
 dist/
-build/
+# build/ contents are gitignored except the vendored default icon
+# (deployment-branding); the ICON_URL download stays ignored (build-local,
+# fork-specific). 'build/*' + negation, not 'build/': a directory rule
+# excludes everything beneath it unconditionally.
+build/*
+!build/icon.png
 resources/node/
 resources/openconnector/
 # Keep original tarballs out of the repo

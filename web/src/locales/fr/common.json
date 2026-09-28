@@ -541,7 +541,7 @@
   },
   "login": {
     "title": "Connexion",
-    "description": "Ce déploiement utilise le connexion unique de votre organisation. Connectez-vous pour accéder à {{brand}}.",
+    "description": "Ce déploiement utilise le connexion unique de votre organisation. Connectez-vous pour accéder à {{company}}.",
     "action": "Se connecter avec le SSO",
     "logout": "Déconnexion",
     "loadFailed": "Impossible de charger l’état d’authentification : {{error}}",
@@ -557,6 +557,7 @@
       "mcp": "Serveurs MCP",
       "skills": "Compétences",
       "wechat-app": "Mini-programme WeChat",
+      "branding": "Image de marque du déploiement",
       "status": "État du système"
     },
     "general": {
@@ -590,6 +591,18 @@
       "openInstance": "Cette instance est ouverte et sans compte : il n'y a rien à associer au mini-programme.",
       "unavailable": "Ce serveur est antérieur à la version qui génère les codes de liaison ; mettez-le à jour pour associer le mini-programme.",
       "error": "Impossible d'obtenir un code de liaison."
+    },
+    "branding": {
+      "title": "Image de marque du déploiement",
+      "hint": "Comment ce déploiement se présente sur la page de connexion et dans l'onglet du navigateur. Les champs vides reviennent aux variables d'environnement ou aux valeurs intégrées.",
+      "companyName": "Nom de l'entreprise",
+      "assistantName": "Nom de l'assistant",
+      "brandIconUrl": "URL de l'icône de marque",
+      "brandIconUrlHint": "Affichée sur la carte de connexion et comme icône d'onglet. Doit être une URL http(s)://.",
+      "loginFooterText": "Texte du pied de page de connexion",
+      "loginFooterTextHint": "Une ligne sous la carte de connexion. Vide = aucun pied de page.",
+      "saved": "Enregistré — actualisez pour voir la nouvelle marque partout.",
+      "saveFailed": "Échec de l'enregistrement : {{error}}"
     }
   },
   "bindings": {

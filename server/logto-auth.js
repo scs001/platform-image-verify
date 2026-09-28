@@ -35,6 +35,19 @@ function requestBase(req, configured) {
   return `${proto}://${req.headers.host}`;
 }
 
+// Same-origin return path for the post-login redirect: relative, one leading
+// "/", not "//" (protocol-relative = open redirect). Anything else → "/".
+function safeReturnPath(value) {
+  if (typeof value !== "string" || !/^\/(?!\/)/.test(value)) return "/";
+  return value;
+}
+
+// ui_locales passthrough: any ≤10-char [a-zA-Z-] value; Logto ignores unknowns.
+function safeUiLocales(value) {
+  if (typeof value !== "string" || !/^[a-zA-Z-]{1,10}$/.test(value)) return undefined;
+  return value;
+}
+
 function isPublicClient(config) {
   return config.LOGTO_CLIENT_TYPE === "public";
 }
@@ -140,7 +153,9 @@ export async function createLogtoAuth(config, { fetchImpl = fetch } = {}) {
     const codeVerifier = publicClient ? base64url(randomBytes(32)) : null;
     const codeChallenge = codeVerifier ? base64url(createHash("sha256").update(codeVerifier).digest()) : null;
     const redirectUri = `${requestBase(req, config.PAAS_BASE_URL)}/auth/callback`;
-    const statePayload = { state, nonce, codeVerifier, exp: Math.floor(Date.now() / 1000) + STATE_TTL_MS / 1000 };
+    const rd = safeReturnPath(req.query.rd);
+    const uiLocales = safeUiLocales(req.query.ui_locales);
+    const statePayload = { state, nonce, codeVerifier, rd, exp: Math.floor(Date.now() / 1000) + STATE_TTL_MS / 1000 };
     res.append("Set-Cookie", sessionCookie(STATE_COOKIE, statePayload, sessionSecret, STATE_TTL_MS, secureCookie(req)));
     res.redirect(redirectUrl(discovery, {
       client_id: clientId,
@@ -151,6 +166,7 @@ export async function createLogtoAuth(config, { fetchImpl = fetch } = {}) {
       nonce,
       code_challenge: codeChallenge,
       code_challenge_method: codeChallenge ? "S256" : undefined,
+      ui_locales: uiLocales,
     }));
   }
 
@@ -185,7 +201,7 @@ export async function createLogtoAuth(config, { fetchImpl = fetch } = {}) {
       if (!email) throw new Error("ID token has no email");
       const payload = { email, groups: mapGroups(claims), exp: Math.floor(Date.now() / 1000) + ttlMs / 1000 };
       res.append("Set-Cookie", sessionCookie(SESSION_COOKIE, payload, sessionSecret, ttlMs, secureCookie(req)));
-      res.redirect("/");
+      res.redirect(safeReturnPath(statePayload.rd));
     } catch (error) {
       console.error("[logto] callback failed:", error.message);
       tokenError(res);

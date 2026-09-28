@@ -16,6 +16,7 @@ import {
   Activity,
   UserRound,
   Smartphone,
+  Paintbrush,
   type LucideIcon,
 } from "lucide-react";
 
@@ -27,6 +28,9 @@ const AccountSection = lazy(() =>
 );
 const WeChatAppSection = lazy(() =>
   import("@/components/settings/WeChatAppSection").then((m) => ({ default: m.WeChatAppSection })),
+);
+const BrandingSection = lazy(() =>
+  import("@/components/settings/BrandingSection").then((m) => ({ default: m.BrandingSection })),
 );
 const ModelsPage = lazy(() => import("@/pages/ModelsPage").then((m) => ({ default: m.ModelsPage })));
 const ExtensionsPage = lazy(() =>
@@ -45,6 +49,9 @@ export interface SettingsSection {
   // Props the section's component needs. ExtensionsPage serves two sections
   // and distinguishes them by this prop.
   props?: Record<string, unknown>;
+  // Admin-only when auth is on (the `admin` group); visible to everyone when
+  // auth is off. Matches the server-side gate on the section's routes.
+  adminOnly?: boolean;
 }
 
 export const SETTINGS_SECTIONS: SettingsSection[] = [
@@ -91,6 +98,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     testId: "settings-section-wechat-app",
     icon: Smartphone,
     Component: WeChatAppSection as React.LazyExoticComponent<React.ComponentType<any>>,
+  },
+  {
+    slug: "branding",
+    labelKey: "settings.sections.branding",
+    testId: "settings-section-branding",
+    icon: Paintbrush,
+    Component: BrandingSection as React.LazyExoticComponent<React.ComponentType<any>>,
+    adminOnly: true,
   },
   {
     slug: "status",

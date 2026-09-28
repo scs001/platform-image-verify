@@ -274,3 +274,61 @@ test("RS256 ID tokens still verify", async () => {
   assert.equal(res.redirectUrl, "/");
   assert.ok(sessionCookie(res));
 });
+
+// ── rd carry-through + ui_locales (deployment branding change) ──────────────
+
+function loginRequest(query = {}) {
+  const req = request("/auth/login");
+  req.query = query;
+  return req;
+}
+
+test("login carries rd and ui_locales into the state cookie and the redirect", async () => {
+  const auth = await createLogtoAuth(config(), { fetchImpl: responseStub() });
+  const res = responseRecorder();
+  await registerHandlers(auth)["/auth/login"](loginRequest({ rd: "/chat/abc123", ui_locales: "zh-CN" }), res);
+  const url = new URL(res.redirectUrl);
+  assert.equal(url.searchParams.get("ui_locales"), "zh-CN");
+  const stateCookie = res.appendCalls.find((call) => call.name === "Set-Cookie" && call.value.startsWith("paas_oauth_state="))?.value;
+  assert.ok(stateCookie);
+  const statePayload = verifySignedCookie(stateCookie.split(";")[0].split("=").slice(1).join("="), secret);
+  assert.equal(statePayload.rd, "/chat/abc123");
+});
+
+test("invalid rd and ui_locales values are dropped, not rejected", async () => {
+  const auth = await createLogtoAuth(config(), { fetchImpl: responseStub() });
+  const res = responseRecorder();
+  await registerHandlers(auth)["/auth/login"](loginRequest({ rd: "https://evil.example", ui_locales: "xx-TOOLONGVALUE" }), res);
+  const url = new URL(res.redirectUrl);
+  assert.equal(url.searchParams.get("ui_locales"), null);
+  const stateCookie = res.appendCalls.find((call) => call.name === "Set-Cookie" && call.value.startsWith("paas_oauth_state="))?.value;
+  const statePayload = verifySignedCookie(stateCookie.split(";")[0].split("=").slice(1).join("="), secret);
+  assert.equal(statePayload.rd, "/");
+});
+
+test("callback redirects to the carried rd after a successful exchange", async () => {
+  const nonce = "nonce";
+  const auth = await createLogtoAuth(config(), {
+    fetchImpl: responseStub({ tokenBody: { id_token: idToken({ nonce }) } }),
+  });
+  const req = request("/auth/callback?code=code&state=state");
+  req.headers.cookie = `paas_oauth_state=${signSession({ state: "state", nonce, rd: "/chat/abc123", exp: Math.floor(Date.now() / 1000) + 60 }, secret)}`;
+  const res = responseRecorder();
+  await registerHandlers(auth)["/auth/callback"](req, res);
+  assert.equal(res.redirectUrl, "/chat/abc123");
+  assert.ok(sessionCookie(res));
+});
+
+test("callback falls back to / for invalid, protocol-relative, or missing rd", async () => {
+  const auth = await createLogtoAuth(config(), { fetchImpl: responseStub({ tokenBody: { id_token: idToken({ nonce: "nonce" }) } }) });
+  const handlers = registerHandlers(auth);
+  for (const rd of ["https://evil.example", "//evil.example", undefined, "relative/path"]) {
+    const req = request("/auth/callback?code=code&state=state");
+    const payload = { state: "state", nonce: "nonce", exp: Math.floor(Date.now() / 1000) + 60 };
+    if (rd !== undefined) payload.rd = rd;
+    req.headers.cookie = `paas_oauth_state=${signSession(payload, secret)}`;
+    const res = responseRecorder();
+    await handlers["/auth/callback"](req, res);
+    assert.equal(res.redirectUrl, "/", `rd=${rd}`);
+  }
+});

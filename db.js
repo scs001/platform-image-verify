@@ -471,6 +471,18 @@ const MIGRATIONS = [
       `CREATE INDEX IF NOT EXISTS idx_chart_refreshes_fetched ON chart_refreshes(fetched_at)`,
     ],
   },
+  {
+    version: 19,
+    statements: [
+      // Deployment-wide key/value config (branding now, future knobs without
+      // migrations). Same shape as user_preferences, resolved stored→env at read.
+      `CREATE TABLE IF NOT EXISTS deployment_config (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+    ],
+  },
 ];
 
 function nowIso() {
@@ -1041,6 +1053,27 @@ export function getAllPreferences() {
   if (!dbReady) return {};
   const rows = stmt("SELECT key, value FROM user_preferences").all();
   return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+}
+
+// ── Deployment config (deployment-wide, key/value; branding etc.) ────────────
+
+export function setDeploymentConfig(key, value) {
+  if (!dbReady) return;
+  stmt(
+    `INSERT INTO deployment_config (key, value, updated_at)
+     VALUES (@key, @value, @updatedAt)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+  ).run({ key, value: String(value), updatedAt: nowIso() });
+}
+
+export function clearDeploymentConfig(key) {
+  if (!dbReady) return;
+  stmt("DELETE FROM deployment_config WHERE key = ?").run(key);
+}
+
+export function getDeploymentConfig(key) {
+  if (!dbReady) return null;
+  return stmt("SELECT value FROM deployment_config WHERE key = ?").get(key)?.value ?? null;
 }
 
 export function normalizeIdentityEmail(email) {

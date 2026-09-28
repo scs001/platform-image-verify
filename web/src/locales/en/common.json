@@ -541,7 +541,7 @@
   },
   "login": {
     "title": "Sign in",
-    "description": "This deployment uses your organization’s single sign-on. Sign in to continue to {{brand}}.",
+    "description": "This deployment uses your organization’s single sign-on. Sign in to continue to {{company}}.",
     "action": "Sign in with SSO",
     "logout": "Sign out",
     "loadFailed": "Unable to load authentication state: {{error}}",
@@ -570,6 +570,7 @@
       "mcp": "MCP Servers",
       "skills": "Skills",
       "wechat-app": "WeChat App",
+      "branding": "Deployment branding",
       "status": "System Status"
     },
     "general": {
@@ -603,6 +604,18 @@
       "openInstance": "This instance is open and has no accounts, so there is nothing to pair with the mini program.",
       "unavailable": "This server is older than the version that mints bind codes; update it to pair the mini program.",
       "error": "Could not fetch a bind code."
+    },
+    "branding": {
+      "title": "Deployment branding",
+      "hint": "What this deployment calls itself on the login page and the browser tab. Empty fields fall back to environment variables or the built-in defaults.",
+      "companyName": "Company name",
+      "assistantName": "Assistant name",
+      "brandIconUrl": "Brand icon URL",
+      "brandIconUrlHint": "Shown on the login card and as the tab favicon. Must be an http(s):// URL.",
+      "loginFooterText": "Login footer text",
+      "loginFooterTextHint": "One line shown under the login card. Leave empty for no footer.",
+      "saved": "Saved — refresh to see the new branding everywhere.",
+      "saveFailed": "Could not save: {{error}}"
     }
   },
   "preview": {

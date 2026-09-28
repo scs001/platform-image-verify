@@ -1,26 +1,67 @@
-import { LogIn, ShieldCheck } from "lucide-react";
+import { Globe, LogIn, ShieldCheck } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuthStore, withReturnTo } from "@/hooks/useAuth";
-import { useBranding } from "@/hooks/useAppConfig";
+import { useAppConfig, useBranding } from "@/hooks/useAppConfig";
+import { useLanguage } from "@/i18n/useLanguage";
+import type { Locale } from "@/i18n/config";
+
+// Anonymous language switcher: the same useLanguage mechanism Settings →
+// General uses (localStorage `platform.locale` + i18n.changeLanguage), so the
+// pre-login choice persists exactly like the in-app one.
+function LocalePicker() {
+  const { locale, locales, changeLocale } = useLanguage();
+  return (
+    <label className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+      <Globe className="h-3.5 w-3.5" aria-hidden="true" />
+      <select
+        value={locale}
+        onChange={(e) => changeLocale(e.target.value as Locale)}
+        data-testid="login-locale-select"
+        aria-label={locale}
+        className="rounded-md border border-input bg-background px-1.5 py-1 text-xs text-foreground focus:border-primary focus:outline-none"
+      >
+        {locales.map((l) => (
+          <option key={l.code} value={l.code}>
+            {l.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
 
 export function LoginPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { brand } = useBranding();
+  const { companyName, brandIconUrl, loginFooterText } = useAppConfig();
   const auth = useAuthStore();
   const [searchParams] = useSearchParams();
   const authError = searchParams.get("auth_error");
-  const loginUrl = withReturnTo(auth.loginUrl, window.location.href);
+  // The company name personalizes the copy; without one, the deployment brand
+  // (assistant name / localized default) keeps the current wording.
+  const company = companyName || brand;
+  // Logto mode: the server passes ui_locales through to the hosted sign-in
+  // page so it opens in the user's picked language. Other modes ignore it.
+  const localeSuffix = auth.mode === "logto" ? `&ui_locales=${encodeURIComponent(i18n.language)}` : "";
+  const loginUrl = `${withReturnTo(auth.loginUrl, window.location.href)}${localeSuffix}`;
 
   return (
     <main className="flex h-dvh items-center justify-center bg-background p-6" data-testid="login-page">
       <section className="w-full max-w-md rounded-lg border border-border bg-card p-8 shadow-lg">
         <div className="mb-6 flex items-center gap-3 text-primary-deep">
-          <ShieldCheck className="h-8 w-8" aria-hidden="true" />
+          {brandIconUrl ? (
+            <img src={brandIconUrl} alt="" className="h-8 w-8 rounded object-contain" data-testid="login-brand-icon" />
+          ) : (
+            <ShieldCheck className="h-8 w-8" aria-hidden="true" />
+          )}
           <h1 className="text-xl font-semibold text-foreground">{t("login.title")}</h1>
+          <span className="ml-auto">
+            <LocalePicker />
+          </span>
         </div>
         <p className="text-sm leading-6 text-muted-foreground">
-          {auth.mode === "none" ? t("settings.account.optionalSsoHint") : t("login.description", { brand })}
+          {auth.mode === "none" ? t("settings.account.optionalSsoHint") : t("login.description", { company })}
         </p>
         {authError && (
           <p className="mt-4 rounded-md border border-destructive bg-destructive/10 p-3 text-xs text-destructive" role="alert">
@@ -48,6 +89,11 @@ export function LoginPage() {
           >
             {t("bindings.continueAnonymous")}
           </Link>
+        )}
+        {loginFooterText && (
+          <p className="mt-6 text-center text-xs text-muted-foreground" data-testid="login-footer">
+            {loginFooterText}
+          </p>
         )}
       </section>
     </main>

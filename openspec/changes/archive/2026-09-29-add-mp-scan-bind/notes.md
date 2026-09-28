@@ -33,7 +33,7 @@ Environment: a hermetic **account** cell on `:3310` (`scripts/mp-bind-cell.mjs`)
 | Disconnect diagnostics name the server and the reason | dead origin `:3319`: `.conn-block` with `服务器 http://127.0.0.1:3319` + `修改` and `.conn-note` = `request:fail` |
 | 修改 opens the real editor pre-filled | login page opens with the server field **expanded**, `value="http://127.0.0.1:3319"` |
 | Saving a changed address re-boots against it | field edited to `:3310` + `保存并重连` → `platform.baseUrl` = `http://127.0.0.1:3310`; after the re-boot `.conn-line` = 0 and `.conn-note` = 0 (a successful connection clears the reason and the block) |
-| Simulator left in a clean state | origin restored to `https://craw.finddatatech.cloud` with token/email cleared; the cold boot then silently re-bound the same openid (`aloadtree@gmail.com`) and connected |
+| Simulator left in a clean state | origin restored to `https://craw.finddatatech.cloud` with token/email cleared; the cold boot then silently re-bound the same openid (the simulator's own bound account) and connected |
 
 ### Two defects the walkthrough caught (both fixed in this change)
 

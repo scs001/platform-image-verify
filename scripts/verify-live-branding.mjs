@@ -1,13 +1,15 @@
 // Live verification of add-deployment-branding + ADMIN_GROUPS on craw.finddatatech.cloud
-// Drives a real browser: Logto login as aloadtree -> admin section -> save branding
+// Drives a real browser: Logto login -> admin section -> save branding
 // -> anonymous login page render -> cleanup. Prints PASS/FAIL per step.
 import { chromium } from "playwright";
 
 const BASE = "https://craw.finddatatech.cloud";
-const EMAIL = process.env.LIVE_EMAIL || "aloadtree@gmail.com";
+// Which account to log in as comes from the environment only: this repo is
+// public on GitHub, so no real account name or address may be a default here.
+const EMAIL = process.env.LIVE_EMAIL || "";
 const PASSWORD = process.env.LIVE_PW;
-if (!PASSWORD) {
-  console.error("LIVE_PW env var required (password for " + EMAIL + ")");
+if (!PASSWORD || !EMAIL) {
+  console.error("LIVE_EMAIL and LIVE_PW env vars required (the account to log in as)");
   process.exit(2);
 }
 

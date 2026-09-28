@@ -6,6 +6,8 @@ export interface AuthInfo {
   mode: AuthMode;
   email: string | null;
   groups: string[] | null;
+  // Deployment-configured admin group names (server ADMIN_GROUPS).
+  adminGroups?: string[];
   authenticated: boolean;
   loginUrl: string;
   logoutUrl: string;

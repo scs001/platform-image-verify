@@ -14,7 +14,7 @@ export function registerLlmRoutes(ctx) {
   // models reach the adapter without a restart. The active model is untouched.
   // Admin-gated under forward-auth (a config mutation).
   app.post("/api/models/refresh", async (req, res) => {
-    if (ctx.authEnabled && !req.user?.groups?.includes("admin")) {
+    if (ctx.authEnabled && !ctx.isAdminUser?.(req.user)) {
       return res.status(403).json({ error: "Admin group required" });
     }
     try {

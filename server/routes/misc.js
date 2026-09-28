@@ -11,7 +11,8 @@ export function registerMiscRoutes(ctx) {
   const { app, catalog, db, cron } = ctx;
 
   // Identity introspection: lets the frontend render login state without
-  // inspecting headers. email/groups are null when auth is off.
+  // inspecting headers. email/groups are null when auth is off. adminGroups
+  // tells the web which group names gate admin surfaces (ADMIN_GROUPS).
   app.get("/api/auth/me", (req, res) => {
     const ssoUser = req.ssoUser || null;
     const mode = ctx.authMode || "none";
@@ -21,6 +22,7 @@ export function registerMiscRoutes(ctx) {
       email: req.user?.email ?? null,
       groups: req.user?.groups ?? null,
       authenticated,
+      adminGroups: ctx.adminGroups ?? ["admin"],
       loginUrl: mode === "logto" ? "/auth/login" : ctx.AUTH_LOGIN_PATH,
       logoutUrl: mode === "logto" ? "/api/auth/logout" : ctx.AUTH_LOGOUT_PATH,
       ssoConfigured: ctx.ssoEnabled,
@@ -38,7 +40,7 @@ export function registerMiscRoutes(ctx) {
   });
 
   app.post("/api/catalog/refresh", async (req, res) => {
-    if (ctx.authEnabled && !req.user?.groups?.includes("admin")) {
+    if (ctx.authEnabled && !ctx.isAdminUser?.(req.user)) {
       return res.status(403).json({ error: "Admin group required" });
     }
     try {
@@ -121,7 +123,7 @@ export function registerMiscRoutes(ctx) {
   const BRANDING_KEYS = ["companyName", "assistantName", "brandIconUrl", "loginFooterText"];
 
   app.put("/api/config/branding", (req, res) => {
-    if (ctx.authEnabled && !req.user?.groups?.includes("admin")) {
+    if (ctx.authEnabled && !ctx.isAdminUser?.(req.user)) {
       return res.status(403).json({ error: "Admin group required" });
     }
     if (!db.isDbReady()) {

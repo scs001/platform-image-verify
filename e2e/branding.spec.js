@@ -195,6 +195,17 @@ test.describe("deployment branding (logto mode)", () => {
     expect(cfg.json).toMatchObject({ companyName: "寻数科技", loginFooterText: "© 2026 寻数科技" });
   });
 
+  test("admin gate follows ADMIN_GROUPS, not the literal 'admin' group", async ({ request }) => {
+    // /api/auth/me reports the deployment's admin group names; the default
+    // (unset ADMIN_GROUPS) is the historical literal "admin".
+    const me = await (await request.get(`${BASE}/api/auth/me`)).json();
+    expect(me.adminGroups).toEqual(["admin"]);
+    // A user whose groups contain "admin" passes the gate (covered above via
+    // adminCookie). Under ADMIN_GROUPS=platform-admin the same user would NOT
+    // pass — verified hermetically in the route tests; here we only pin the
+    // reported contract.
+  });
+
   test("branded login: icon, company copy, footer; favicon link injected", async ({ page }) => {
     await pinLocaleEn(page);
     await page.goto(`${BASE}/login`);

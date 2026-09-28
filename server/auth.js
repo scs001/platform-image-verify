@@ -120,8 +120,7 @@ export function mpUserFromToken(ctx, req) {
 
 // Install the HTTP auth gate. forward_auth trusts proxy-injected identity;
 // logto verifies the signed session cookie and ignores those headers.
-export function registerAuth(ctx) {
-  ctx.app.use((req, res, next) => {
+export function registerAuth(ctx) {  ctx.app.use((req, res, next) => {
     if (isInternalCronBridge(req)) {
       req.user = { email: "cron@internal", internal: true };
       return next();
@@ -166,8 +165,19 @@ export function registerAuth(ctx) {
 
   // Gate for mutating admin routes (LLM provider CRUD, catalog refresh).
   // Open to any client when auth is off.
+  // The admin group name(s). Logto deployments name their org role per-product
+  // (e.g. platform-admin) to avoid clashing with other services' roles on the
+  // same tenant; forward-auth proxies pass whatever group names they like.
+  // ADMIN_GROUPS is a comma-separated list; unset = the historical "admin".
+  ctx.adminGroups = (process.env.ADMIN_GROUPS || "admin")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  ctx.isAdminUser = (user) =>
+    Array.isArray(user?.groups) && ctx.adminGroups.some((g) => user.groups.includes(g));
+
   ctx.requireAdmin = (req, res) => {
-    if (ctx.authEnabled && !req.user?.groups?.includes("admin")) {
+    if (ctx.authEnabled && !ctx.isAdminUser(req.user)) {
       res.status(403).json({ error: "Admin group required" });
       return false;
     }
@@ -182,7 +192,7 @@ export function registerAuth(ctx) {
   ctx.cellUserEmail = cellUserEmail;
   ctx.requireMcpManage = (req, res) => {
     if (!ctx.authEnabled) return true;
-    if (req.user?.groups?.includes("admin")) return true;
+    if (ctx.isAdminUser(req.user)) return true;
     if (cellUserEmail && req.user?.email === cellUserEmail) return true;
     res.status(403).json({ error: "Admin group or cell ownership required" });
     return false;

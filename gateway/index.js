@@ -194,13 +194,22 @@ app.get("/healthz", (_req, res) => {
   res.json({ ok: true, uptimeMs: Date.now() - startedAt, cells: registry.cells.size });
 });
 
+// The admin group name(s) — see registerAuth's ADMIN_GROUPS for the rationale
+// (per-product Logto org-role names). The gateway runs its own process, so it
+// reads the same env directly.
+const ADMIN_GROUPS = (process.env.ADMIN_GROUPS || "admin")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+const isAdminUser = (user) => ADMIN_GROUPS.some((g) => (user.groups || []).includes(g));
+
 // Per-user cell status for operators. Same identity check as everything else,
 // plus the admin group: the list of users on this deployment is deployment
 // information, not something any signed-in user should be able to enumerate.
 app.get("/api/gateway/status", (req, res) => {
   const user = logtoAuth.userFromCookie(req.headers.cookie);
   if (!user) return rejectUnauthenticated(req, res);
-  if (!(user.groups || []).includes("admin")) return res.status(403).json({ error: "Admin group required" });
+  if (!isAdminUser(user)) return res.status(403).json({ error: "Admin group required" });
   const cellStatus = registry.status();
   res.json({
     cells: cellStatus,

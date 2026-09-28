@@ -34,18 +34,23 @@ export function SettingsDialog({ backgroundPath }: { backgroundPath: string }) {
 
   // Auth-on: admin-only sections (branding) are hidden from non-admins, and
   // deep links to them fall through to the first visible section. Auth-off:
-  // every section shows (the server routes are open then too).
+  // every section shows (the server routes are open then too). The group
+  // names are deployment-configured (ADMIN_GROUPS; e.g. a Logto org role
+  // named platform-admin), reported by /api/auth/me.
   const authOn = auth.mode !== null && auth.mode !== "none";
-  const isAdmin = Boolean(auth.groups?.includes("admin"));
+  const adminGroups = auth.adminGroups ?? ["admin"];
+  const isAdmin = Boolean(auth.groups?.some?.((g) => adminGroups.includes(g)));
   const sections = useMemo(
     () => SETTINGS_SECTIONS.filter((s) => !s.adminOnly || !authOn || isAdmin),
     [authOn, isAdmin],
   );
+  // The registry always contains at least the General section, so the chain
+  // resolves; the bang keeps TS from narrowing through two runtime fallbacks.
   const active = useMemo(
     () =>
       sections.find((s) => s.slug === slug) ??
       sections.find((s) => s.slug === DEFAULT_SECTION) ??
-      sections[0],
+      sections[0]!,
     [sections, slug],
   );
 

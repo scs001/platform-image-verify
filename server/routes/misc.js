@@ -106,9 +106,13 @@ export function registerMiscRoutes(ctx) {
   app.get("/api/config", (_req, res) => {
     res.json({
       documentsEnabled: db.isDbReady(),
+      // Pack marketplace surfaces (add-pack-marketplace): shown only on
+      // gateway-fronted deployments — the market/publish APIs live on the
+      // gateway, which a local single-process deployment does not have.
+      packMarketplace: process.env.PACK_MARKETPLACE === "1",
       // The deployment's name for the assistant, shown in the sidebar, the turn
       // header and the composer placeholder. Unset (or blank) ⇒ null, and the
-      // web keeps its own localized defaults.
+      // web keeps its own defaults.
       assistantName: brandingField("assistantName", "ASSISTANT_NAME"),
       companyName: brandingField("companyName", "COMPANY_NAME"),
       brandIconUrl: brandingField("brandIconUrl", "BRAND_ICON_URL"),

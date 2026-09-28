@@ -16,9 +16,12 @@ export interface AppConfig {
   companyName: string | null;
   brandIconUrl: string | null;
   loginFooterText: string | null;
+  // Pack marketplace surfaces exist only on gateway-fronted deployments
+  // (add-pack-marketplace, design D15): false = no pack UI anywhere.
+  packMarketplace: boolean;
 }
 
-let config: AppConfig = { documentsEnabled: true, assistantName: null, companyName: null, brandIconUrl: null, loginFooterText: null };
+let config: AppConfig = { documentsEnabled: true, assistantName: null, companyName: null, brandIconUrl: null, loginFooterText: null, packMarketplace: false };
 const listeners = new Set<() => void>();
 
 function emit(next: AppConfig) {
@@ -49,6 +52,7 @@ export async function loadAppConfig(timeoutMs = 1500): Promise<AppConfig> {
       companyName: str(body?.companyName),
       brandIconUrl: str(body?.brandIconUrl),
       loginFooterText: str(body?.loginFooterText),
+      packMarketplace: body?.packMarketplace === true,
     });
   } catch {
     /* keep defaults */

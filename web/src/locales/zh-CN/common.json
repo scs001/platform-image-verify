@@ -558,7 +558,8 @@
       "skills": "技能",
       "wechat-app": "微信小程序",
       "branding": "部署品牌",
-      "status": "系统状态"
+      "status": "系统状态",
+      "packs": "功能集"
     },
     "general": {
       "theme": "主题",
@@ -711,76 +712,76 @@
   },
   "resources": {
     "binding": {
-        "asOf": "截至 {{age}}",
-        "ageNow": "刚刚",
-        "ageMinutes": "{{count}} 分钟前",
-        "ageHours": "{{count}} 小时前",
-        "ageDays": "{{count}} 天前",
-        "stale": "数据可能已过期",
-        "notRefreshable": "当前部署不可刷新",
-        "refreshing": "刷新中…",
-        "refresh": "刷新",
-        "refreshed": "已更新 · 新增 {{added}}，变化 {{revised}}",
-        "refreshUnchanged": "数据已是最新",
-        "refreshFailed": "刷新失败",
-        "unbind": "解除绑定",
-        "unbindConfirm": "解除该图表与数据源的绑定？图表会保留当前数据作为静态快照。",
-        "series": "第 {{index}} 条序列",
-        "periodLabel": "数据区间",
-        "period": {
-          "6m": "近 6 月",
-          "1y": "近 1 年",
-          "all": "全部"
-        },
-        "periodCount": "已存 {{count}} 个周期",
+      "asOf": "截至 {{age}}",
+      "ageNow": "刚刚",
+      "ageMinutes": "{{count}} 分钟前",
+      "ageHours": "{{count}} 小时前",
+      "ageDays": "{{count}} 天前",
+      "stale": "数据可能已过期",
+      "notRefreshable": "当前部署不可刷新",
+      "refreshing": "刷新中…",
+      "refresh": "刷新",
+      "refreshed": "已更新 · 新增 {{added}}，变化 {{revised}}",
+      "refreshUnchanged": "数据已是最新",
+      "refreshFailed": "刷新失败",
+      "unbind": "解除绑定",
+      "unbindConfirm": "解除该图表与数据源的绑定？图表会保留当前数据作为静态快照。",
+      "series": "第 {{index}} 条序列",
+      "periodLabel": "数据区间",
+      "period": {
+        "6m": "近 6 月",
+        "1y": "近 1 年",
+        "all": "全部"
+      },
+      "periodCount": "已存 {{count}} 个周期",
       "periodShown": "显示 {{count}} 个",
-        "bindAction": "绑定数据源",
-        "pickTitle": "选择绘制该图表的数据调用",
-        "cancel": "取消",
-        "pickEmpty": "本轮没有可绑定的数据调用。",
-        "pickPoints": "{{count}} 个数据点",
-        "attach": "绑定",
-        "timeline": "观测历史",
-        "timelineTitle": "刷新记录",
-        "timelineEmpty": "还没有刷新记录。",
-        "window": {
-          "24h": "24 小时",
-          "7d": "7 天",
-          "30d": "30 天",
-          "all": "全部时间"
-        },
-        "backToCurrent": "返回当前",
-        "viewingAsOf": "正在查看 {{moment}} 的数据",
-        "viewAsOf": "查看该时刻",
-        "historical": "历史视图",
-        "trigger": {
-          "manual": "手动",
-          "scheduled": "定时",
-          "onOpen": "打开时"
-        },
-        "outcome": {
-          "ok": "已更新",
-          "unchanged": "无变化",
-          "skipped_fresh": "已跳过（数据新鲜）",
-          "error": "失败"
-        },
-        "count": {
-          "added": "新增 {{count}}",
-          "revised": "修正 {{count}}",
-          "resourced": "换源 {{count}}",
-          "unchanged": "未变 {{count}}",
-          "missing": "缺失 {{count}}",
-          "anomalies": "冲突 {{count}}"
-        },
-        "reason": {
-          "credential": "需要重新登录",
-          "unreachable": "数据源不可达",
-          "tool_error": "数据源返回错误",
-          "unit_mismatch": "单位已变化",
-          "map_violation": "响应结构已变化",
-          "allowlist": "该工具未开放刷新",
-          "fresh": "数据仍然新鲜"
-        }
+      "bindAction": "绑定数据源",
+      "pickTitle": "选择绘制该图表的数据调用",
+      "cancel": "取消",
+      "pickEmpty": "本轮没有可绑定的数据调用。",
+      "pickPoints": "{{count}} 个数据点",
+      "attach": "绑定",
+      "timeline": "观测历史",
+      "timelineTitle": "刷新记录",
+      "timelineEmpty": "还没有刷新记录。",
+      "window": {
+        "24h": "24 小时",
+        "7d": "7 天",
+        "30d": "30 天",
+        "all": "全部时间"
+      },
+      "backToCurrent": "返回当前",
+      "viewingAsOf": "正在查看 {{moment}} 的数据",
+      "viewAsOf": "查看该时刻",
+      "historical": "历史视图",
+      "trigger": {
+        "manual": "手动",
+        "scheduled": "定时",
+        "onOpen": "打开时"
+      },
+      "outcome": {
+        "ok": "已更新",
+        "unchanged": "无变化",
+        "skipped_fresh": "已跳过（数据新鲜）",
+        "error": "失败"
+      },
+      "count": {
+        "added": "新增 {{count}}",
+        "revised": "修正 {{count}}",
+        "resourced": "换源 {{count}}",
+        "unchanged": "未变 {{count}}",
+        "missing": "缺失 {{count}}",
+        "anomalies": "冲突 {{count}}"
+      },
+      "reason": {
+        "credential": "需要重新登录",
+        "unreachable": "数据源不可达",
+        "tool_error": "数据源返回错误",
+        "unit_mismatch": "单位已变化",
+        "map_violation": "响应结构已变化",
+        "allowlist": "该工具未开放刷新",
+        "fresh": "数据仍然新鲜"
+      }
     },
     "title": "资源",
     "search": "搜索资源",
@@ -820,6 +821,88 @@
         "db_unavailable": "资源库暂不可用。",
         "store_failed": "保存失败，请重试。"
       }
+    }
+  },
+  "packs": {
+    "tabs": {
+      "market": "功能集市场",
+      "mine": "我的功能集",
+      "drafts": "我的创作"
+    },
+    "market": {
+      "searchPlaceholder": "搜索功能集名称…",
+      "search": "搜索",
+      "empty": "市场暂无功能集。"
+    },
+    "detail": {
+      "notFound": "功能集不存在或已下架",
+      "skills": "技能",
+      "mcp": "MCP 服务",
+      "agents": "角色",
+      "requiresGroup": "需要组 {{group}}",
+      "subscribe": "订阅并安装",
+      "gotoMine": "查看我的功能集"
+    },
+    "report": {
+      "title": "「{{name}}」安装结果",
+      "hint": "逐项安装结果如下；被跳过或不可用的条目附有原因。",
+      "skill": "技能",
+      "mcp": "MCP",
+      "agent": "角色",
+      "status": {
+        "installed": "已安装",
+        "reused": "复用已有",
+        "replaced": "已更新",
+        "skipped": "已跳过",
+        "unavailable": "不可用"
+      }
+    },
+    "mine": {
+      "empty": "还没有订阅任何功能集。去市场看看。",
+      "updateAvailable": "可更新到 v{{version}}",
+      "upgrade": "升级",
+      "uninstall": "退订"
+    },
+    "uninstall": {
+      "title": "退订「{{name}}」",
+      "willRemove": "将移除以下技能和角色：",
+      "mcpKept": "MCP 服务配置会保留（共享组件）：{{servers}}",
+      "modifiedWarning": "这些技能在你安装后被修改过，退订将丢失修改：{{skills}}",
+      "confirm": "确认退订"
+    },
+    "drafts": {
+      "title": "我的创作",
+      "create": "新建功能集",
+      "empty": "还没有草稿。",
+      "defaultName": "未命名功能集",
+      "published": "已发布",
+      "draft": "草稿",
+      "partCounts": "{{skills}} 个技能 · {{mcp}} 个 MCP · {{agents}} 个角色"
+    },
+    "editor": {
+      "title": "编辑功能集",
+      "save": "保存草稿",
+      "publish": "发布",
+      "publishOk": "已发布 v{{version}}。",
+      "name": "名称",
+      "description": "描述",
+      "tags": "标签（逗号分隔）",
+      "tagsPlaceholder": "法律, 合同",
+      "skills": "技能",
+      "addSkill": "添加技能",
+      "skillName": "技能名（如 legal-contract-workflow）",
+      "skillDescription": "技能描述",
+      "skillContent": "SKILL.md 正文",
+      "remove": "移除",
+      "mcp": "MCP 服务引用",
+      "mcpHint": "只能从市场目录中选取 registry 服务；功能集不能自带端点。",
+      "mcpEmpty": "市场目录暂无 registry 服务。",
+      "agents": "角色",
+      "addAgent": "添加角色",
+      "agentHint": "角色是本地人设（persona），不含端点、模型或凭据。",
+      "agentId": "角色 id（如 pack-reviewer）",
+      "agentName": "角色名称",
+      "agentPersona": "人设文案（persona）"
     }
   }
 }

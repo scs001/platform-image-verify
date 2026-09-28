@@ -483,6 +483,37 @@ const MIGRATIONS = [
       )`,
     ],
   },
+  {
+    version: 20,
+    // Pack marketplace (add-pack-marketplace). All additive: pack ownership of
+    // custom skills (nullable — user-created and pre-migration rows have none),
+    // creator drafts, and the cell's installed-pack state (the operational
+    // truth for what a subscription materialized here, including the version
+    // snapshot that uninstall and upgrade diff against).
+    statements: [
+      `ALTER TABLE custom_skills ADD COLUMN origin_pack_id TEXT`,
+      `ALTER TABLE custom_skills ADD COLUMN origin_pack_version INTEGER`,
+      `CREATE TABLE IF NOT EXISTS pack_drafts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        tags TEXT NOT NULL DEFAULT '[]',
+        entries TEXT NOT NULL DEFAULT '{}',
+        published_pack_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE TABLE IF NOT EXISTS installed_packs (
+        pack_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        manifest TEXT NOT NULL,
+        report TEXT NOT NULL DEFAULT '[]',
+        installed_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+    ],
+  },
 ];
 
 function nowIso() {
@@ -1309,12 +1340,13 @@ export function setExtensionEnabled(name, enabled) {
 
 // ── Custom skills ────────────────────────────────────────────────────────────
 
+const CUSTOM_SKILL_COLS =
+  "id, name, description, content, enabled, origin_pack_id AS originPackId, origin_pack_version AS originPackVersion, created_at AS createdAt, updated_at AS updatedAt";
+
 export function listCustomSkills() {
   if (!dbReady) return [];
   return db
-    .prepare(
-      "SELECT id, name, description, content, enabled, created_at AS createdAt, updated_at AS updatedAt FROM custom_skills ORDER BY name"
-    )
+    .prepare(`SELECT ${CUSTOM_SKILL_COLS} FROM custom_skills ORDER BY name`)
     .all()
     .map((r) => ({ ...r, enabled: !!r.enabled }));
 }
@@ -1322,27 +1354,27 @@ export function listCustomSkills() {
 export function getCustomSkill(name) {
   if (!dbReady) return null;
   const row = db
-    .prepare(
-      "SELECT id, name, description, content, enabled, created_at AS createdAt, updated_at AS updatedAt FROM custom_skills WHERE name = ?"
-    )
+    .prepare(`SELECT ${CUSTOM_SKILL_COLS} FROM custom_skills WHERE name = ?`)
     .get(name);
   if (!row) return null;
   return { ...row, enabled: !!row.enabled };
 }
 
-export function addCustomSkill({ name, description, content, enabled = true }) {
+export function addCustomSkill({ name, description, content, enabled = true, originPackId = null, originPackVersion = null }) {
   if (!dbReady) return null;
   const id = crypto.randomUUID();
   const now = nowIso();
   stmt(
-    `INSERT INTO custom_skills (id, name, description, content, enabled, created_at, updated_at)
-     VALUES (@id, @name, @description, @content, @enabled, @created_at, @updated_at)`
+    `INSERT INTO custom_skills (id, name, description, content, enabled, origin_pack_id, origin_pack_version, created_at, updated_at)
+     VALUES (@id, @name, @description, @content, @enabled, @originPackId, @originPackVersion, @created_at, @updated_at)`
   ).run({
     id,
     name,
     description: description || null,
     content,
     enabled: enabled ? 1 : 0,
+    originPackId,
+    originPackVersion,
     created_at: now,
     updated_at: now,
   });
@@ -1371,6 +1403,19 @@ export function updateCustomSkill(name, { description, content, enabled }) {
   return getCustomSkill(name);
 }
 
+// Pack-internal: stamp the installed version onto rows a pack owns. Never
+// exposed through the user-edit path — updateCustomSkill deliberately cannot
+// touch ownership columns.
+export function stampSkillPackVersion(name, originPackVersion) {
+  if (!dbReady) return null;
+  stmt("UPDATE custom_skills SET origin_pack_version = ?, updated_at = ? WHERE name = ?").run(
+    originPackVersion,
+    nowIso(),
+    name,
+  );
+  return getCustomSkill(name);
+}
+
 export function deleteCustomSkill(name) {
   if (!dbReady) return false;
   const result = stmt("DELETE FROM custom_skills WHERE name = ?").run(name);
@@ -1385,6 +1430,159 @@ export function setCustomSkillEnabled(name, enabled) {
     name
   );
   return getCustomSkill(name);
+}
+
+// ── Pack drafts (add-pack-marketplace) ───────────────────────────────────────
+//
+// Creator-side authoring state: a draft carries the pack's display fields plus
+// its entries (skills bodies, MCP references, agent personas) as JSON, and —
+// after a first publish — the pack id it published to, so later publishes of
+// the same draft append versions to that pack. Private to the author's cell.
+
+const DRAFT_COLS =
+  "id, name, description, tags, entries, published_pack_id AS publishedPackId, created_at AS createdAt, updated_at AS updatedAt";
+
+function hydrateDraft(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    tags: JSON.parse(row.tags || "[]"),
+    entries: JSON.parse(row.entries || "{}"),
+  };
+}
+
+export function listPackDrafts() {
+  if (!dbReady) return [];
+  return db.prepare(`SELECT ${DRAFT_COLS} FROM pack_drafts ORDER BY updated_at DESC`).all().map(hydrateDraft);
+}
+
+export function getPackDraft(id) {
+  if (!dbReady) return null;
+  return hydrateDraft(db.prepare(`SELECT ${DRAFT_COLS} FROM pack_drafts WHERE id = ?`).get(id));
+}
+
+export function createPackDraft({ name, description = "", tags = [], entries = {} }) {
+  if (!dbReady) return null;
+  const id = crypto.randomUUID();
+  const now = nowIso();
+  stmt(
+    `INSERT INTO pack_drafts (id, name, description, tags, entries, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, name, description || "", JSON.stringify(tags ?? []), JSON.stringify(entries ?? {}), now, now);
+  return getPackDraft(id);
+}
+
+export function updatePackDraft(id, { name, description, tags, entries }) {
+  if (!dbReady) return null;
+  const updates = [];
+  const params = { id, updated_at: nowIso() };
+  if (name !== undefined) {
+    updates.push("name = @name");
+    params.name = name;
+  }
+  if (description !== undefined) {
+    updates.push("description = @description");
+    params.description = description;
+  }
+  if (tags !== undefined) {
+    updates.push("tags = @tags");
+    params.tags = JSON.stringify(tags ?? []);
+  }
+  if (entries !== undefined) {
+    updates.push("entries = @entries");
+    params.entries = JSON.stringify(entries ?? {});
+  }
+  if (updates.length === 0) return getPackDraft(id);
+  updates.push("updated_at = @updated_at");
+  stmt(`UPDATE pack_drafts SET ${updates.join(", ")} WHERE id = @id`).run(params);
+  return getPackDraft(id);
+}
+
+export function setDraftPublishedPack(id, packId) {
+  if (!dbReady) return null;
+  stmt("UPDATE pack_drafts SET published_pack_id = ?, updated_at = ? WHERE id = ?").run(packId, nowIso(), id);
+  return getPackDraft(id);
+}
+
+export function deletePackDraft(id) {
+  if (!dbReady) return false;
+  return stmt("DELETE FROM pack_drafts WHERE id = ?").run(id).changes > 0;
+}
+
+// ── Installed packs (add-pack-marketplace) ───────────────────────────────────
+//
+// The cell's operational truth for subscriptions: which packs are installed,
+// at which version, with the manifest snapshot that uninstall diffs against
+// and the last per-part report. Gateway subscription records are advisory —
+// this table is what materialization, updates, and uninstall act on.
+
+function hydrateInstalled(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    manifest: JSON.parse(row.manifest || "{}"),
+    report: JSON.parse(row.report || "{}"),
+  };
+}
+
+export function listInstalledPacks() {
+  if (!dbReady) return [];
+  return db
+    .prepare(
+      "SELECT pack_id AS packId, name, version, manifest, report, installed_at AS installedAt, updated_at FROM installed_packs ORDER BY installed_at DESC"
+    )
+    .all()
+    .map(hydrateInstalled);
+}
+
+export function getInstalledPack(packId) {
+  if (!dbReady) return null;
+  return hydrateInstalled(
+    db
+      .prepare(
+        "SELECT pack_id AS packId, name, version, manifest, report, installed_at AS installedAt, updated_at FROM installed_packs WHERE pack_id = ?"
+      )
+      .get(packId),
+  );
+}
+
+export function upsertInstalledPack({ packId, name, version, manifest, report }) {
+  if (!dbReady) return null;
+  const existing = getInstalledPack(packId);
+  const now = nowIso();
+  stmt(
+    `INSERT INTO installed_packs (pack_id, name, version, manifest, report, installed_at, updated_at)
+     VALUES (@packId, @name, @version, @manifest, @report, @now, @now)
+     ON CONFLICT (pack_id) DO UPDATE SET
+       name = @name, version = @version, manifest = @manifest, report = @report, updated_at = @now`
+  ).run({
+    packId,
+    name,
+    version,
+    manifest: JSON.stringify(manifest ?? {}),
+    report: JSON.stringify(report ?? {}),
+    now,
+  });
+  return { ...existing, packId, name, version, manifest, report, updatedAt: now };
+}
+
+export function deleteInstalledPack(packId) {
+  if (!dbReady) return false;
+  return stmt("DELETE FROM installed_packs WHERE pack_id = ?").run(packId).changes > 0;
+}
+
+// Skills owned by a pack (pack install/uninstall bookkeeping).
+export function listCustomSkillsByPack(packId) {
+  if (!dbReady) return [];
+  return db
+    .prepare(`SELECT ${CUSTOM_SKILL_COLS} FROM custom_skills WHERE origin_pack_id = ? ORDER BY name`)
+    .all(packId)
+    .map((r) => ({ ...r, enabled: !!r.enabled }));
+}
+
+export function deleteCustomSkillsByPack(packId) {
+  if (!dbReady) return 0;
+  return stmt("DELETE FROM custom_skills WHERE origin_pack_id = ?").run(packId).changes;
 }
 
 // ── Bots (social chat channels) ──────────────────────────────────────────────

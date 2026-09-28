@@ -24,6 +24,7 @@ import { forwardedHeaders, proxyHttp, proxyUpgrade } from "./proxy.js";
 import { createMpAuth } from "./mp-auth.js";
 import { createMpBindings } from "./mp-bindings.js";
 import { createShareRegistry, createRateLimiter } from "./share.js";
+import { createPackRegistry, registerPackRoutes } from "./packs.js";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = Number(process.env.GATEWAY_PORT || 3080);
@@ -341,6 +342,26 @@ app.get("/api/share/:token", async (req, res) => {
   res.json({ title: session.body.title ?? "", messages: session.body.messages ?? [] });
 });
 
+// ── Pack marketplace (openspec: add-pack-marketplace) ────────────────────────
+// Gateway-level registry + routes: identity-gated creators publish versioned,
+// immutable capability packs; every authenticated user browses and subscribes.
+// The registry file sits beside share-tokens.db; packs outlive and cross cells
+// by the same argument. Publishing needs the creator group (default
+// "creators", same org→groups machinery as ADMIN_GROUPS); browsing and
+// subscribing need only a verified identity. PACK_PUBLISH_RATE_MAX is a
+// test/ops knob; the shipped default is 10 publishes per author per hour.
+const packRegistry = createPackRegistry({ file: path.join(DATA_ROOT, "packs.db") });
+registerPackRoutes(app, {
+  registry: packRegistry,
+  resolveUser,
+  rejectUnauthenticated,
+  creatorGroups: (process.env.PACK_CREATOR_GROUPS || "creators")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+  rateMax: Number(process.env.PACK_PUBLISH_RATE_MAX || 10),
+});
+
 // Everything else belongs to a cell.
 app.use(async (req, res) => {
   const user = resolveUser(req);
@@ -407,6 +428,7 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, async () => {
     console.log(`[gateway] ${signal} — stopping ${registry.cells.size} cell(s)`);
     shareRegistry.close();
+    packRegistry.close();
     await registry.shutdown();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 3000).unref();

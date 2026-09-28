@@ -17,6 +17,7 @@ import {
   UserRound,
   Smartphone,
   Paintbrush,
+  Package,
   type LucideIcon,
 } from "lucide-react";
 
@@ -39,6 +40,7 @@ const ExtensionsPage = lazy(() =>
 const DashboardPage = lazy(() =>
   import("@/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })),
 );
+const PacksPage = lazy(() => import("@/pages/PacksPage").then((m) => ({ default: m.PacksPage })));
 
 export interface SettingsSection {
   slug: string;
@@ -52,6 +54,9 @@ export interface SettingsSection {
   // Admin-only when auth is on (the `admin` group); visible to everyone when
   // auth is off. Matches the server-side gate on the section's routes.
   adminOnly?: boolean;
+  // Pack marketplace (add-pack-marketplace): hidden unless /api/config
+  // reports packMarketplace (gateway-fronted deployments only — design D15).
+  requiresPackMarketplace?: boolean;
 }
 
 export const SETTINGS_SECTIONS: SettingsSection[] = [
@@ -91,6 +96,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: TerminalSquare,
     Component: ExtensionsPage as React.LazyExoticComponent<React.ComponentType<any>>,
     props: { type: "skills" },
+  },
+  {
+    slug: "packs",
+    labelKey: "settings.sections.packs",
+    testId: "settings-section-packs",
+    icon: Package,
+    Component: PacksPage as React.LazyExoticComponent<React.ComponentType<any>>,
+    requiresPackMarketplace: true,
   },
   {
     slug: "wechat-app",

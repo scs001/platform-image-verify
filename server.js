@@ -42,6 +42,8 @@ import { registerResourceRoutes } from "./server/routes/resources.js";
 import { registerBotRoutes, WEBHOOK_PREFIX } from "./server/routes/bots.js";
 import { registerBotRelayRoutes, RELAY_PREFIX } from "./server/routes/bot-relay.js";
 import { registerExternalServiceRoutes } from "./server/routes/external-services.js";
+import { registerPackRoutes as registerCellPackRoutes } from "./server/routes/packs.js";
+import { createPackRegistry, registerPackRoutes as registerMarketPackRoutes } from "./gateway/packs.js";
 import { attachDshEvents } from "./server/dsh-events.js";
 import { attachRuntimeBindings } from "./server/runtime-bindings.js";
 import { attachAgentSession } from "./server/agent-session.js";
@@ -198,6 +200,34 @@ registerBotRoutes(ctx);
 registerFileRoutes(ctx);
 // Resource library (charts + saved files) — same placement rule as /api/files.
 registerResourceRoutes(ctx);
+// Pack marketplace cell side (drafts + subscribe/upgrade/uninstall) — a plain
+// /api route family, before the static fallback.
+registerCellPackRoutes(ctx);
+// Pack marketplace MARKET plane (add-pack-marketplace): browse/publish/
+// subscribe records. In the multi-cell gateway topology gateway/index.js
+// serves these; a single-process deployment (fd-prod) has no gateway process,
+// so the same module mounts here behind the feature flag — the mp-auth reuse
+// pattern (gateway module imported verbatim). The auth gate above has already
+// resolved req.user or answered 401 by the time these routes run; with auth
+// off the requester is the machine owner (same semantics as requireAdmin and
+// market visibility).
+let packRegistry = null;
+if (process.env.PACK_MARKETPLACE === "1") {
+  packRegistry = createPackRegistry({ file: path.join(storeDir("data"), "packs.db") });
+  registerMarketPackRoutes(app, {
+    registry: packRegistry,
+    resolveUser: (req) =>
+      req.user ??
+      (ctx.authEnabled
+        ? null
+        : { email: ctx.cellUserEmail || "owner@local", groups: [] }),
+    rejectUnauthenticated: (_req, res) => res.status(401).json({ error: "Authentication required" }),
+    creatorGroups: (process.env.PACK_CREATOR_GROUPS || "creators")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  });
+}
 registerStaticAndFallback(ctx);
 registerExternalServiceRoutes(ctx);
 
@@ -626,6 +656,7 @@ async function shutdown() {
   bots.stopAll();
   catalog.stopCatalog();
   stopRegistryBridge();
+  packRegistry?.close();
   await trace.shutdownTrace();
   try {
     await ctx.dshBridge?.shutdown();

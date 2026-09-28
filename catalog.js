@@ -1,12 +1,15 @@
 // Agent & app catalog: multi-source (local agents.json + cloud
-// AGENTS_CONFIG_URL + registry agents via registry-bridge), merged by id with
-// later sources winning, refreshed on an interval; a content change broadcasts
-// `catalog_changed` so clients refetch GET /api/catalog. Mirrors
-// extension-store.js conventions: module state + accessors, no DB, absent
-// sources degrade to just the built-in local agent.
+// AGENTS_CONFIG_URL + registry agents via registry-bridge + pack agents from
+// the installed-pack state), merged by id with later sources winning, refreshed
+// on an interval; a content change broadcasts `catalog_changed` so clients
+// refetch GET /api/catalog. Mirrors extension-store.js conventions: module
+// state + accessors, absent sources degrade to just the built-in local agent.
+// The one DB-backed source is the pack source (installed_packs); the DB-less
+// convention holds for every other source and for the DB-off degradation path.
 import path from "node:path";
 import { readJsonOr } from "./lib/persistence.js";
 import { getAgentEntries } from "./registry-bridge.js";
+import * as db from "./db.js";
 
 const CATALOG_FILE = path.resolve("agents.json");
 const CLOUD_URL = process.env.AGENTS_CONFIG_URL?.trim() || null;
@@ -103,11 +106,50 @@ async function loadCloud() {
   }
 }
 
-// Merge by id: built-in → registry → agents.json → cloud (later wins, so the
-// cloud is the live control plane even for ids first defined elsewhere, and
-// local files override remote registry entries). Registry agents arrive
-// catalog-shaped from registry-bridge and pass the same validation as the
-// other sources.
+// Merge by id: built-in → registry → packs → agents.json → cloud (later wins,
+// so the cloud is the live control plane even for ids first defined elsewhere,
+// and local files override remote registry and pack entries). Registry agents
+// arrive catalog-shaped from registry-bridge and pass the same validation as
+// the other sources.
+//
+// The pack source (add-pack-marketplace) reads the cell's installed-pack state
+// directly — pack agents are persona-only entries (no baseUrl/model/credential
+// by design), so they bypass validateEntry's endpoint requirement and get a
+// light sanity filter instead; the rest of the chat-entry machinery (local
+// persona presets, picker, selection) treats them like any other chat entry.
+function packAgentDoc() {
+  if (!db.isDbReady()) return { agents: [], apps: [] };
+  const agents = [];
+  for (const installed of db.listInstalledPacks()) {
+    // Only agents that actually materialized: a skipped agent (id owned by
+    // another pack at install time) must not re-enter the catalog through
+    // this pack's manifest — the install report is the record of what the
+    // pack truly owns here.
+    const reportAgents = new Map(
+      (installed.report?.agents ?? []).map((r) => [r.id, r.status]),
+    );
+    for (const a of installed.manifest?.agents ?? []) {
+      if (!a?.id || !a.name) {
+        console.warn(`[catalog] pack '${installed.name}': agent entry missing id or name — dropped`);
+        continue;
+      }
+      if (reportAgents.get(a.id) !== "installed") continue;
+      agents.push({
+        id: a.id,
+        type: "agent-remote",
+        mode: "chat",
+        name: a.name,
+        description: a.description || `来自功能集「${installed.name}」的角色`,
+        persona: a.persona,
+        tags: Array.isArray(a.tags) ? a.tags : undefined,
+        icon: a.icon,
+        packId: installed.packId,
+      });
+    }
+  }
+  return { agents, apps: [] };
+}
+
 function merged() {
   const byId = new Map();
   const registryDoc = validateDoc(
@@ -117,6 +159,7 @@ function merged() {
   for (const doc of [
     { agents: [BUILT_IN], apps: [] },
     registryDoc,
+    packAgentDoc(),
     localEntries,
     cloudEntries,
   ]) {

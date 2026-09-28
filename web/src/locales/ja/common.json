@@ -558,7 +558,8 @@
       "skills": "スキル",
       "wechat-app": "WeChat ミニプログラム",
       "branding": "デプロイのブランド設定",
-      "status": "システム状態"
+      "status": "システム状態",
+      "packs": "パック"
     },
     "general": {
       "theme": "テーマ",
@@ -711,76 +712,76 @@
   },
   "resources": {
     "binding": {
-        "asOf": "{{age}}時点",
-        "ageNow": "たった今",
-        "ageMinutes": "{{count}} 分前",
-        "ageHours": "{{count}} 時間前",
-        "ageDays": "{{count}} 日前",
-        "stale": "データが古い可能性があります",
-        "notRefreshable": "この環境では更新できません",
-        "refreshing": "更新中…",
-        "refresh": "更新",
-        "refreshed": "更新しました · 新規 {{added}}、変更 {{revised}}",
-        "refreshUnchanged": "最新の状態です",
-        "refreshFailed": "更新に失敗しました",
-        "unbind": "バインド解除",
-        "unbindConfirm": "このグラフとデータソースのバインドを解除しますか？グラフは現在のデータを静的なスナップショットとして保持します。",
-        "series": "系列 {{index}}",
-        "periodLabel": "期間",
-        "period": {
-          "6m": "直近6か月",
-          "1y": "直近1年",
-          "all": "すべて"
-        },
-        "periodCount": "{{count}} 期間を保存",
+      "asOf": "{{age}}時点",
+      "ageNow": "たった今",
+      "ageMinutes": "{{count}} 分前",
+      "ageHours": "{{count}} 時間前",
+      "ageDays": "{{count}} 日前",
+      "stale": "データが古い可能性があります",
+      "notRefreshable": "この環境では更新できません",
+      "refreshing": "更新中…",
+      "refresh": "更新",
+      "refreshed": "更新しました · 新規 {{added}}、変更 {{revised}}",
+      "refreshUnchanged": "最新の状態です",
+      "refreshFailed": "更新に失敗しました",
+      "unbind": "バインド解除",
+      "unbindConfirm": "このグラフとデータソースのバインドを解除しますか？グラフは現在のデータを静的なスナップショットとして保持します。",
+      "series": "系列 {{index}}",
+      "periodLabel": "期間",
+      "period": {
+        "6m": "直近6か月",
+        "1y": "直近1年",
+        "all": "すべて"
+      },
+      "periodCount": "{{count}} 期間を保存",
       "periodShown": "{{count}} 件表示",
-        "bindAction": "データソースをバインド",
-        "pickTitle": "このグラフの元になった呼び出しを選択",
-        "cancel": "キャンセル",
-        "pickEmpty": "このターンにはバインド可能なデータ呼び出しがありません。",
-        "pickPoints": "{{count}} 点",
-        "attach": "バインド",
-        "timeline": "履歴",
-        "timelineTitle": "更新履歴",
-        "timelineEmpty": "更新の記録はまだありません。",
-        "window": {
-          "24h": "24時間",
-          "7d": "7日",
-          "30d": "30日",
-          "all": "全期間"
-        },
-        "backToCurrent": "現在に戻る",
-        "viewingAsOf": "{{moment}} 時点のグラフを表示中",
-        "viewAsOf": "この時点を表示",
-        "historical": "履歴表示",
-        "trigger": {
-          "manual": "手動",
-          "scheduled": "定期",
-          "onOpen": "開いたとき"
-        },
-        "outcome": {
-          "ok": "更新",
-          "unchanged": "変更なし",
-          "skipped_fresh": "スキップ（最新）",
-          "error": "失敗"
-        },
-        "count": {
-          "added": "{{count}} 追加",
-          "revised": "{{count}} 修正",
-          "resourced": "{{count}} 別ソース",
-          "unchanged": "{{count}} 変更なし",
-          "missing": "{{count}} 欠落",
-          "anomalies": "{{count}} 競合"
-        },
-        "reason": {
-          "credential": "再ログインが必要",
-          "unreachable": "データソースに到達できません",
-          "tool_error": "データソースがエラーを返しました",
-          "unit_mismatch": "単位が変わりました",
-          "map_violation": "レスポンス形状が変わりました",
-          "allowlist": "更新が許可されていません",
-          "fresh": "まだ最新です"
-        }
+      "bindAction": "データソースをバインド",
+      "pickTitle": "このグラフの元になった呼び出しを選択",
+      "cancel": "キャンセル",
+      "pickEmpty": "このターンにはバインド可能なデータ呼び出しがありません。",
+      "pickPoints": "{{count}} 点",
+      "attach": "バインド",
+      "timeline": "履歴",
+      "timelineTitle": "更新履歴",
+      "timelineEmpty": "更新の記録はまだありません。",
+      "window": {
+        "24h": "24時間",
+        "7d": "7日",
+        "30d": "30日",
+        "all": "全期間"
+      },
+      "backToCurrent": "現在に戻る",
+      "viewingAsOf": "{{moment}} 時点のグラフを表示中",
+      "viewAsOf": "この時点を表示",
+      "historical": "履歴表示",
+      "trigger": {
+        "manual": "手動",
+        "scheduled": "定期",
+        "onOpen": "開いたとき"
+      },
+      "outcome": {
+        "ok": "更新",
+        "unchanged": "変更なし",
+        "skipped_fresh": "スキップ（最新）",
+        "error": "失敗"
+      },
+      "count": {
+        "added": "{{count}} 追加",
+        "revised": "{{count}} 修正",
+        "resourced": "{{count}} 別ソース",
+        "unchanged": "{{count}} 変更なし",
+        "missing": "{{count}} 欠落",
+        "anomalies": "{{count}} 競合"
+      },
+      "reason": {
+        "credential": "再ログインが必要",
+        "unreachable": "データソースに到達できません",
+        "tool_error": "データソースがエラーを返しました",
+        "unit_mismatch": "単位が変わりました",
+        "map_violation": "レスポンス形状が変わりました",
+        "allowlist": "更新が許可されていません",
+        "fresh": "まだ最新です"
+      }
     },
     "title": "リソース",
     "search": "リソースを検索",
@@ -820,6 +821,88 @@
         "db_unavailable": "ライブラリは現在利用できません。",
         "store_failed": "保存に失敗しました。もう一度お試しください。"
       }
+    }
+  },
+  "packs": {
+    "tabs": {
+      "market": "パック市場",
+      "mine": "マイパック",
+      "drafts": "マイ作成"
+    },
+    "market": {
+      "searchPlaceholder": "パックを検索…",
+      "search": "検索",
+      "empty": "市場にパックがまだありません。"
+    },
+    "detail": {
+      "notFound": "パックが見つからないか公開終了しました",
+      "skills": "スキル",
+      "mcp": "MCP サーバー",
+      "agents": "エージェント",
+      "requiresGroup": "グループ {{group}} が必要",
+      "subscribe": "購読してインストール",
+      "gotoMine": "マイパックを見る"
+    },
+    "report": {
+      "title": "「{{name}}」のインストール結果",
+      "hint": "パーツごとの結果。スキップ・不可の項目には理由が付きます。",
+      "skill": "スキル",
+      "mcp": "MCP",
+      "agent": "エージェント",
+      "status": {
+        "installed": "インストール済み",
+        "reused": "既存を再利用",
+        "replaced": "更新",
+        "skipped": "スキップ",
+        "unavailable": "利用不可"
+      }
+    },
+    "mine": {
+      "empty": "まだ購読していません。市場をのぞいてみましょう。",
+      "updateAvailable": "v{{version}} に更新可能",
+      "upgrade": "更新",
+      "uninstall": "購読解除"
+    },
+    "uninstall": {
+      "title": "「{{name}}」を購読解除",
+      "willRemove": "次のスキルとエージェントが削除されます：",
+      "mcpKept": "MCP サーバー設定は保持されます（共有ユーティリティ）：{{servers}}",
+      "modifiedWarning": "これらのスキルはインストール後に編集済み。解除すると変更が失われます：{{skills}}",
+      "confirm": "購読解除"
+    },
+    "drafts": {
+      "title": "マイ作成",
+      "create": "新規パック",
+      "empty": "下書きはまだありません。",
+      "defaultName": "無題パック",
+      "published": "公開済み",
+      "draft": "下書き",
+      "partCounts": "スキル {{skills}} · MCP {{mcp}} · エージェント {{agents}}"
+    },
+    "editor": {
+      "title": "パックを編集",
+      "save": "下書きを保存",
+      "publish": "公開",
+      "publishOk": "v{{version}} を公開しました。",
+      "name": "名前",
+      "description": "説明",
+      "tags": "タグ（カンマ区切り）",
+      "tagsPlaceholder": "法律, 契約",
+      "skills": "スキル",
+      "addSkill": "スキルを追加",
+      "skillName": "スキル名（例: legal-contract-workflow）",
+      "skillDescription": "スキルの説明",
+      "skillContent": "SKILL.md 本文",
+      "remove": "削除",
+      "mcp": "MCP 参照",
+      "mcpHint": "カタログの registry サーバーからのみ選択できます。パックはエンドポイントを持ちません。",
+      "mcpEmpty": "カタログに registry サーバーがありません。",
+      "agents": "エージェント",
+      "addAgent": "エージェントを追加",
+      "agentHint": "エージェントはローカルのペルソナです。エンドポイント・モデル・資格情報は含みません。",
+      "agentId": "エージェント id（例: pack-reviewer）",
+      "agentName": "エージェント名",
+      "agentPersona": "ペルソナ文"
     }
   }
 }

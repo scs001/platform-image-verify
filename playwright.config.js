@@ -139,6 +139,10 @@ export default defineConfig({
             MARKET_REGISTRY_URL: process.env.MARKET_REGISTRY_URL || E2E_REGISTRY_URL,
             MARKET_REGISTRY_TOKEN: process.env.MARKET_REGISTRY_TOKEN || E2E_REGISTRY_TOKEN,
             MARKET_REGISTRY_TTL_SECS: process.env.MARKET_REGISTRY_TTL_SECS || "300",
+            // Pack marketplace surfaces (add-pack-marketplace): the gateway
+            // plane (/api/packs...) is route-mocked per spec; this flag turns
+            // the packs Settings section on for the specs that exercise it.
+            PACK_MARKETPLACE: process.env.PACK_MARKETPLACE || "1",
             // The chart-data-binding fake upstream: a streamable-http MCP whose
             // scenarios (data, failures, gate stats) a spec drives over its
             // control route. Fixed port so the seeded extension config can name

@@ -16,6 +16,7 @@ import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { DEFAULT_SECTION, SETTINGS_SECTIONS, settingsPath } from "./sections";
 import { useAuthStore } from "@/hooks/useAuth";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { cn } from "@/lib/utils";
 
 // Focusable descendants, for the focus trap.
@@ -31,18 +32,24 @@ export function SettingsDialog({ backgroundPath }: { backgroundPath: string }) {
   // The element focused before the modal opened, restored on close.
   const returnFocusRef = useRef<Element | null>(null);
   const auth = useAuthStore();
+  const { packMarketplace } = useAppConfig();
 
   // Auth-on: admin-only sections (branding) are hidden from non-admins, and
   // deep links to them fall through to the first visible section. Auth-off:
   // every section shows (the server routes are open then too). The group
   // names are deployment-configured (ADMIN_GROUPS; e.g. a Logto org role
   // named platform-admin), reported by /api/auth/me.
+  // Pack sections additionally require the gateway-fronted deployment flag
+  // (design D15): local deployments never show pack UI.
   const authOn = auth.mode !== null && auth.mode !== "none";
   const adminGroups = auth.adminGroups ?? ["admin"];
   const isAdmin = Boolean(auth.groups?.some?.((g) => adminGroups.includes(g)));
   const sections = useMemo(
-    () => SETTINGS_SECTIONS.filter((s) => !s.adminOnly || !authOn || isAdmin),
-    [authOn, isAdmin],
+    () =>
+      SETTINGS_SECTIONS.filter(
+        (s) => (!s.adminOnly || !authOn || isAdmin) && (!s.requiresPackMarketplace || packMarketplace),
+      ),
+    [authOn, isAdmin, packMarketplace],
   );
   // The registry always contains at least the General section, so the chain
   // resolves; the bang keeps TS from narrowing through two runtime fallbacks.

@@ -558,7 +558,8 @@
       "skills": "Habilidades",
       "wechat-app": "Mini programa de WeChat",
       "branding": "Marca del despliegue",
-      "status": "Estado del sistema"
+      "status": "Estado del sistema",
+      "packs": "Paquetes"
     },
     "general": {
       "theme": "Tema",
@@ -711,76 +712,76 @@
   },
   "resources": {
     "binding": {
-        "asOf": "hasta {{age}}",
-        "ageNow": "ahora mismo",
-        "ageMinutes": "hace {{count}} min",
-        "ageHours": "hace {{count}} h",
-        "ageDays": "hace {{count}} d",
-        "stale": "Los datos pueden estar desactualizados",
-        "notRefreshable": "Actualización no habilitada aquí",
-        "refreshing": "Actualizando…",
-        "refresh": "Actualizar",
-        "refreshed": "Actualizado · {{added}} nuevos, {{revised}} modificados",
-        "refreshUnchanged": "Ya está al día",
-        "refreshFailed": "Falló la actualización",
-        "unbind": "Desvincular",
-        "unbindConfirm": "¿Desvincular este gráfico de su fuente de datos? El gráfico conservará los datos actuales como instantánea estática.",
-        "series": "Serie {{index}}",
-        "periodLabel": "Periodos",
-        "period": {
-          "6m": "Últimos 6 meses",
-          "1y": "Último año",
-          "all": "Todo"
-        },
-        "periodCount": "{{count}} periodos guardados",
+      "asOf": "hasta {{age}}",
+      "ageNow": "ahora mismo",
+      "ageMinutes": "hace {{count}} min",
+      "ageHours": "hace {{count}} h",
+      "ageDays": "hace {{count}} d",
+      "stale": "Los datos pueden estar desactualizados",
+      "notRefreshable": "Actualización no habilitada aquí",
+      "refreshing": "Actualizando…",
+      "refresh": "Actualizar",
+      "refreshed": "Actualizado · {{added}} nuevos, {{revised}} modificados",
+      "refreshUnchanged": "Ya está al día",
+      "refreshFailed": "Falló la actualización",
+      "unbind": "Desvincular",
+      "unbindConfirm": "¿Desvincular este gráfico de su fuente de datos? El gráfico conservará los datos actuales como instantánea estática.",
+      "series": "Serie {{index}}",
+      "periodLabel": "Periodos",
+      "period": {
+        "6m": "Últimos 6 meses",
+        "1y": "Último año",
+        "all": "Todo"
+      },
+      "periodCount": "{{count}} periodos guardados",
       "periodShown": "{{count}} mostrados",
-        "bindAction": "Vincular una fuente de datos",
-        "pickTitle": "Elige la llamada que produjo este gráfico",
-        "cancel": "Cancelar",
-        "pickEmpty": "Este turno no ejecutó ninguna llamada de datos vinculable.",
-        "pickPoints": "{{count}} puntos",
-        "attach": "Vincular",
-        "timeline": "Historial",
-        "timelineTitle": "Historial de actualizaciones",
-        "timelineEmpty": "Aún no hay actualizaciones registradas.",
-        "window": {
-          "24h": "24 horas",
-          "7d": "7 días",
-          "30d": "30 días",
-          "all": "Todo el tiempo"
-        },
-        "backToCurrent": "Volver al actual",
-        "viewingAsOf": "Viendo el gráfico hasta {{moment}}",
-        "viewAsOf": "Ver en ese momento",
-        "historical": "Vista histórica",
-        "trigger": {
-          "manual": "Manual",
-          "scheduled": "Programada",
-          "onOpen": "Al abrir"
-        },
-        "outcome": {
-          "ok": "Actualizado",
-          "unchanged": "Sin cambios",
-          "skipped_fresh": "Omitida (datos frescos)",
-          "error": "Falló"
-        },
-        "count": {
-          "added": "{{count}} añadidos",
-          "revised": "{{count}} revisados",
-          "resourced": "{{count}} de otra fuente",
-          "unchanged": "{{count}} sin cambios",
-          "missing": "{{count}} ausentes",
-          "anomalies": "{{count}} conflictos"
-        },
-        "reason": {
-          "credential": "sesión necesaria",
-          "unreachable": "fuente inaccesible",
-          "tool_error": "la fuente devolvió un error",
-          "unit_mismatch": "la unidad cambió",
-          "map_violation": "la forma de la respuesta cambió",
-          "allowlist": "no habilitado para actualizar",
-          "fresh": "todavía fresco"
-        }
+      "bindAction": "Vincular una fuente de datos",
+      "pickTitle": "Elige la llamada que produjo este gráfico",
+      "cancel": "Cancelar",
+      "pickEmpty": "Este turno no ejecutó ninguna llamada de datos vinculable.",
+      "pickPoints": "{{count}} puntos",
+      "attach": "Vincular",
+      "timeline": "Historial",
+      "timelineTitle": "Historial de actualizaciones",
+      "timelineEmpty": "Aún no hay actualizaciones registradas.",
+      "window": {
+        "24h": "24 horas",
+        "7d": "7 días",
+        "30d": "30 días",
+        "all": "Todo el tiempo"
+      },
+      "backToCurrent": "Volver al actual",
+      "viewingAsOf": "Viendo el gráfico hasta {{moment}}",
+      "viewAsOf": "Ver en ese momento",
+      "historical": "Vista histórica",
+      "trigger": {
+        "manual": "Manual",
+        "scheduled": "Programada",
+        "onOpen": "Al abrir"
+      },
+      "outcome": {
+        "ok": "Actualizado",
+        "unchanged": "Sin cambios",
+        "skipped_fresh": "Omitida (datos frescos)",
+        "error": "Falló"
+      },
+      "count": {
+        "added": "{{count}} añadidos",
+        "revised": "{{count}} revisados",
+        "resourced": "{{count}} de otra fuente",
+        "unchanged": "{{count}} sin cambios",
+        "missing": "{{count}} ausentes",
+        "anomalies": "{{count}} conflictos"
+      },
+      "reason": {
+        "credential": "sesión necesaria",
+        "unreachable": "fuente inaccesible",
+        "tool_error": "la fuente devolvió un error",
+        "unit_mismatch": "la unidad cambió",
+        "map_violation": "la forma de la respuesta cambió",
+        "allowlist": "no habilitado para actualizar",
+        "fresh": "todavía fresco"
+      }
     },
     "title": "Recursos",
     "search": "Buscar recursos",
@@ -820,6 +821,88 @@
         "db_unavailable": "La biblioteca no está disponible ahora mismo.",
         "store_failed": "No se pudo guardar. Inténtalo de nuevo."
       }
+    }
+  },
+  "packs": {
+    "tabs": {
+      "market": "Mercado de paquetes",
+      "mine": "Mis paquetes",
+      "drafts": "Mis creaciones"
+    },
+    "market": {
+      "searchPlaceholder": "Buscar paquetes…",
+      "search": "Buscar",
+      "empty": "Aún no hay paquetes en el mercado."
+    },
+    "detail": {
+      "notFound": "Paquete no encontrado o retirado",
+      "skills": "Habilidades",
+      "mcp": "Servidores MCP",
+      "agents": "Agentes",
+      "requiresGroup": "requiere el grupo {{group}}",
+      "subscribe": "Suscribir e instalar",
+      "gotoMine": "Ver mis paquetes"
+    },
+    "report": {
+      "title": "Resultado de instalación de «{{name}}»",
+      "hint": "Resultados por elemento; los omitidos o no disponibles incluyen el motivo.",
+      "skill": "Habilidad",
+      "mcp": "MCP",
+      "agent": "Agente",
+      "status": {
+        "installed": "Instalado",
+        "reused": "Reutilizado",
+        "replaced": "Actualizado",
+        "skipped": "Omitido",
+        "unavailable": "No disponible"
+      }
+    },
+    "mine": {
+      "empty": "Aún no hay suscripciones. Explora el mercado.",
+      "updateAvailable": "actualizar a v{{version}}",
+      "upgrade": "Actualizar",
+      "uninstall": "Cancelar suscripción"
+    },
+    "uninstall": {
+      "title": "Cancelar suscripción de «{{name}}»",
+      "willRemove": "Se eliminarán las siguientes habilidades y agentes:",
+      "mcpKept": "Las configuraciones MCP se conservan (utilidades compartidas): {{servers}}",
+      "modifiedWarning": "Estas habilidades se modificaron tras la instalación; se perderán los cambios: {{skills}}",
+      "confirm": "Cancelar suscripción"
+    },
+    "drafts": {
+      "title": "Mis creaciones",
+      "create": "Nuevo paquete",
+      "empty": "Aún no hay borradores.",
+      "defaultName": "Paquete sin título",
+      "published": "Publicado",
+      "draft": "Borrador",
+      "partCounts": "{{skills}} habilidades · {{mcp}} MCP · {{agents}} agentes"
+    },
+    "editor": {
+      "title": "Editar paquete",
+      "save": "Guardar borrador",
+      "publish": "Publicar",
+      "publishOk": "Publicado v{{version}}.",
+      "name": "Nombre",
+      "description": "Descripción",
+      "tags": "Etiquetas (separadas por comas)",
+      "tagsPlaceholder": "legal, contratos",
+      "skills": "Habilidades",
+      "addSkill": "Añadir habilidad",
+      "skillName": "Nombre de la habilidad (p. ej. legal-contract-workflow)",
+      "skillDescription": "Descripción de la habilidad",
+      "skillContent": "Cuerpo del SKILL.md",
+      "remove": "Quitar",
+      "mcp": "Referencias MCP",
+      "mcpHint": "Elige solo servidores del registro del catálogo; los paquetes no llevan endpoints.",
+      "mcpEmpty": "No hay servidores del registro en el catálogo.",
+      "agents": "Agentes",
+      "addAgent": "Añadir agente",
+      "agentHint": "Los agentes son personas locales: sin endpoints, modelos ni credenciales.",
+      "agentId": "Id del agente (p. ej. pack-reviewer)",
+      "agentName": "Nombre del agente",
+      "agentPersona": "Texto de la persona"
     }
   }
 }

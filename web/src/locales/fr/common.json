@@ -558,7 +558,8 @@
       "skills": "Compétences",
       "wechat-app": "Mini-programme WeChat",
       "branding": "Image de marque du déploiement",
-      "status": "État du système"
+      "status": "État du système",
+      "packs": "Packs"
     },
     "general": {
       "theme": "Thème",
@@ -711,76 +712,76 @@
   },
   "resources": {
     "binding": {
-        "asOf": "arrêté à {{age}}",
-        "ageNow": "à l'instant",
-        "ageMinutes": "il y a {{count}} min",
-        "ageHours": "il y a {{count}} h",
-        "ageDays": "il y a {{count}} j",
-        "stale": "Les données peuvent être obsolètes",
-        "notRefreshable": "Actualisation non activée ici",
-        "refreshing": "Actualisation…",
-        "refresh": "Actualiser",
-        "refreshed": "Mis à jour · {{added}} ajoutés, {{revised}} modifiés",
-        "refreshUnchanged": "Déjà à jour",
-        "refreshFailed": "Échec de l'actualisation",
-        "unbind": "Délier",
-        "unbindConfirm": "Délier ce graphique de sa source de données ? Le graphique conserve les données actuelles comme instantané statique.",
-        "series": "Série {{index}}",
-        "periodLabel": "Périodes",
-        "period": {
-          "6m": "6 derniers mois",
-          "1y": "Dernière année",
-          "all": "Tout"
-        },
-        "periodCount": "{{count}} périodes stockées",
+      "asOf": "arrêté à {{age}}",
+      "ageNow": "à l'instant",
+      "ageMinutes": "il y a {{count}} min",
+      "ageHours": "il y a {{count}} h",
+      "ageDays": "il y a {{count}} j",
+      "stale": "Les données peuvent être obsolètes",
+      "notRefreshable": "Actualisation non activée ici",
+      "refreshing": "Actualisation…",
+      "refresh": "Actualiser",
+      "refreshed": "Mis à jour · {{added}} ajoutés, {{revised}} modifiés",
+      "refreshUnchanged": "Déjà à jour",
+      "refreshFailed": "Échec de l'actualisation",
+      "unbind": "Délier",
+      "unbindConfirm": "Délier ce graphique de sa source de données ? Le graphique conserve les données actuelles comme instantané statique.",
+      "series": "Série {{index}}",
+      "periodLabel": "Périodes",
+      "period": {
+        "6m": "6 derniers mois",
+        "1y": "Dernière année",
+        "all": "Tout"
+      },
+      "periodCount": "{{count}} périodes stockées",
       "periodShown": "{{count}} affichés",
-        "bindAction": "Lier une source de données",
-        "pickTitle": "Choisissez l'appel à l'origine de ce graphique",
-        "cancel": "Annuler",
-        "pickEmpty": "Ce tour n'a exécuté aucun appel de données liable.",
-        "pickPoints": "{{count}} points",
-        "attach": "Lier",
-        "timeline": "Historique",
-        "timelineTitle": "Historique des actualisations",
-        "timelineEmpty": "Aucune actualisation enregistrée.",
-        "window": {
-          "24h": "24 heures",
-          "7d": "7 jours",
-          "30d": "30 jours",
-          "all": "Tout l'historique"
-        },
-        "backToCurrent": "Revenir à l'actuel",
-        "viewingAsOf": "Affichage du graphique arrêté à {{moment}}",
-        "viewAsOf": "Voir à ce moment",
-        "historical": "Vue historique",
-        "trigger": {
-          "manual": "Manuelle",
-          "scheduled": "Planifiée",
-          "onOpen": "À l'ouverture"
-        },
-        "outcome": {
-          "ok": "Mis à jour",
-          "unchanged": "Inchangé",
-          "skipped_fresh": "Ignorée (données fraîches)",
-          "error": "Échec"
-        },
-        "count": {
-          "added": "{{count}} ajoutés",
-          "revised": "{{count}} révisés",
-          "resourced": "{{count}} d'une autre source",
-          "unchanged": "{{count}} inchangés",
-          "missing": "{{count}} manquants",
-          "anomalies": "{{count}} conflits"
-        },
-        "reason": {
-          "credential": "connexion requise",
-          "unreachable": "source injoignable",
-          "tool_error": "la source a renvoyé une erreur",
-          "unit_mismatch": "l'unité a changé",
-          "map_violation": "la forme de la réponse a changé",
-          "allowlist": "non activé pour l'actualisation",
-          "fresh": "encore frais"
-        }
+      "bindAction": "Lier une source de données",
+      "pickTitle": "Choisissez l'appel à l'origine de ce graphique",
+      "cancel": "Annuler",
+      "pickEmpty": "Ce tour n'a exécuté aucun appel de données liable.",
+      "pickPoints": "{{count}} points",
+      "attach": "Lier",
+      "timeline": "Historique",
+      "timelineTitle": "Historique des actualisations",
+      "timelineEmpty": "Aucune actualisation enregistrée.",
+      "window": {
+        "24h": "24 heures",
+        "7d": "7 jours",
+        "30d": "30 jours",
+        "all": "Tout l'historique"
+      },
+      "backToCurrent": "Revenir à l'actuel",
+      "viewingAsOf": "Affichage du graphique arrêté à {{moment}}",
+      "viewAsOf": "Voir à ce moment",
+      "historical": "Vue historique",
+      "trigger": {
+        "manual": "Manuelle",
+        "scheduled": "Planifiée",
+        "onOpen": "À l'ouverture"
+      },
+      "outcome": {
+        "ok": "Mis à jour",
+        "unchanged": "Inchangé",
+        "skipped_fresh": "Ignorée (données fraîches)",
+        "error": "Échec"
+      },
+      "count": {
+        "added": "{{count}} ajoutés",
+        "revised": "{{count}} révisés",
+        "resourced": "{{count}} d'une autre source",
+        "unchanged": "{{count}} inchangés",
+        "missing": "{{count}} manquants",
+        "anomalies": "{{count}} conflits"
+      },
+      "reason": {
+        "credential": "connexion requise",
+        "unreachable": "source injoignable",
+        "tool_error": "la source a renvoyé une erreur",
+        "unit_mismatch": "l'unité a changé",
+        "map_violation": "la forme de la réponse a changé",
+        "allowlist": "non activé pour l'actualisation",
+        "fresh": "encore frais"
+      }
     },
     "title": "Ressources",
     "search": "Rechercher des ressources",
@@ -820,6 +821,88 @@
         "db_unavailable": "La bibliothèque est indisponible pour le moment.",
         "store_failed": "Échec de l'enregistrement. Réessayez."
       }
+    }
+  },
+  "packs": {
+    "tabs": {
+      "market": "Marché des packs",
+      "mine": "Mes packs",
+      "drafts": "Mes créations"
+    },
+    "market": {
+      "searchPlaceholder": "Rechercher des packs…",
+      "search": "Rechercher",
+      "empty": "Aucun pack sur le marché pour l'instant."
+    },
+    "detail": {
+      "notFound": "Pack introuvable ou retiré",
+      "skills": "Compétences",
+      "mcp": "Serveurs MCP",
+      "agents": "Agents",
+      "requiresGroup": "nécessite le groupe {{group}}",
+      "subscribe": "S'abonner et installer",
+      "gotoMine": "Voir mes packs"
+    },
+    "report": {
+      "title": "Résultat d'installation de « {{name}} »",
+      "hint": "Résultats par élément ; les éléments ignorés ou indisponibles indiquent la raison.",
+      "skill": "Compétence",
+      "mcp": "MCP",
+      "agent": "Agent",
+      "status": {
+        "installed": "Installé",
+        "reused": "Réutilisé",
+        "replaced": "Mis à jour",
+        "skipped": "Ignoré",
+        "unavailable": "Indisponible"
+      }
+    },
+    "mine": {
+      "empty": "Aucun abonnement pour l'instant. Parcourez le marché.",
+      "updateAvailable": "mise à jour vers v{{version}}",
+      "upgrade": "Mettre à jour",
+      "uninstall": "Se désabonner"
+    },
+    "uninstall": {
+      "title": "Se désabonner de « {{name}} »",
+      "willRemove": "Cela supprimera les compétences et agents suivants :",
+      "mcpKept": "Les configurations MCP sont conservées (utilitaires partagés) : {{servers}}",
+      "modifiedWarning": "Ces compétences ont été modifiées après l'installation ; les changements seront perdus : {{skills}}",
+      "confirm": "Se désabonner"
+    },
+    "drafts": {
+      "title": "Mes créations",
+      "create": "Nouveau pack",
+      "empty": "Aucun brouillon pour l'instant.",
+      "defaultName": "Pack sans titre",
+      "published": "Publié",
+      "draft": "Brouillon",
+      "partCounts": "{{skills}} compétences · {{mcp}} MCP · {{agents}} agents"
+    },
+    "editor": {
+      "title": "Modifier le pack",
+      "save": "Enregistrer le brouillon",
+      "publish": "Publier",
+      "publishOk": "Publié en v{{version}}.",
+      "name": "Nom",
+      "description": "Description",
+      "tags": "Étiquettes (séparées par des virgules)",
+      "tagsPlaceholder": "juridique, contrats",
+      "skills": "Compétences",
+      "addSkill": "Ajouter une compétence",
+      "skillName": "Nom de la compétence (ex. legal-contract-workflow)",
+      "skillDescription": "Description de la compétence",
+      "skillContent": "Corps du SKILL.md",
+      "remove": "Retirer",
+      "mcp": "Références MCP",
+      "mcpHint": "Choisissez uniquement des serveurs du registre du catalogue ; les packs ne transportent pas d'endpoints.",
+      "mcpEmpty": "Aucun serveur du registre dans le catalogue.",
+      "agents": "Agents",
+      "addAgent": "Ajouter un agent",
+      "agentHint": "Les agents sont des personas locaux — sans endpoint, modèle ni identifiants.",
+      "agentId": "Id de l'agent (ex. pack-reviewer)",
+      "agentName": "Nom de l'agent",
+      "agentPersona": "Texte de la persona"
     }
   }
 }

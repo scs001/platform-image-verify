@@ -69,10 +69,13 @@ try {
   await anonPage.waitForURL(/craw\.finddatatech\.cloud/, { timeout: 30000 });
   await anonPage.waitForLoadState("domcontentloaded");
   const landed = anonPage.url();
-  // rd carry-through: skip-able because the fix for it is not yet on every
-  // deployment (pre-fix the server flattens an absolute rd to "/").
-  if (process.env.EXPECT_RD === "1") ok("landed back on the rd page (/settings/account)", landed.includes("/settings/account"), landed);
-  else console.log(`INFO landed after login: ${landed}  (EXPECT_RD=1 asserts rd carry-through)`);
+  // rd carry-through is not observable from the browser: App.tsx rewrites every
+  // anonymous deep link to /login before the login page renders, so the app
+  // always sends rd=/login, and an authenticated /login bounces straight to
+  // /chat. (The rd round-trip itself is pinned by scripts/test-logto-auth.mjs.)
+  // What is observable: the callback completed and left us in the app.
+  await anonPage.waitForURL(/craw\.finddatatech\.cloud\/(chat|settings)/, { timeout: 20000 }).catch(() => {});
+  ok("post-login lands in the app, off /login", !new URL(anonPage.url()).pathname.startsWith("/login"), `${landed} -> ${anonPage.url()}`);
 
   await anonPage.goto(`${BASE}/settings/account`, { waitUntil: "domcontentloaded" });
   await anonPage.waitForSelector('[data-testid="account-email"]', { timeout: 20000 });

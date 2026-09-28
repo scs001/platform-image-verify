@@ -37,7 +37,7 @@
 - **平台侧**（✅ 已配置，2026-09-19）：`logto-auth.js` 把 Logto ID token 的 `organizations`（组织 ID 列表）+ `organization_roles` 映射为平台 groups。由于平台只请求 `urn:logto:scope:organizations`（没有 organization_roles scope），**生效的是组织 ID**。已建两个组织（Logto 管理台 → Organizations）：
   - `legal` → 组织 ID **`hpe07qejcwk7`**（法律-合同/案件包）
   - `analysts` → 组织 ID **`sl63fy08ruh9`**（数据-股票/中国经济包）
-  - 演示成员：`aloadtree@gmail.com` 已加入两个组织（验证：登录后市场正确显示 law-bench/fd-*/四个入口技能，152 技能可见）。
+  - 演示成员：平台管理员账号（下同）已加入两个组织（验证：登录后市场正确显示 law-bench/fd-*/四个入口技能，152 技能可见）。
   - `registry-groups.json` 与云端 agents.json 的组列表都**同时含可读名和组织 ID**（交集语义，命中其一即可）——将来平台补请求 `urn:logto:scope:organization_roles` 并用角色名时无需改映射。
   - 新增演示用户：Logto 管理台把用户加入对应组织即可（无需改任何配置）。
 - **registry 侧**（已配置好，2026-09-19）：auth-server 已启用 `IDP_USER_GROUP_FALLBACK_ENABLED_PROVIDERS=pingfederate,logto`——Logto 全局 roles 为空的用户会从 `idp_user_groups` 集合取组。管理员可通过 API 给用户加组（无需 Logto 权限）：
@@ -151,7 +151,7 @@ FindData 商业数据 MCP（zihan 机 `100.64.0.4:30803`，Tailscale 可达）�
 - 安装 registry 来源的 MCP 时表单**不再出现 token 栏**：记录只存 `credentialRef: "registry"`，真实 token 在写入 dsh profile 时按用户解析注入（`mcp.patch.yml` 里的 `Authorization: Bearer …`）。
 - 凭据过期或被 registry 拒绝：首个 401 会把该凭据标记为 stale 并推 `registry_credential_stale`，Store 显示"重新连接"提示——**重新连接即可，无需重装 MCP**。
 - **法律-合同包额外一步**：law-bench 的后端凭据（`MCB_HTTP_TOKEN`）由 registry 侧 egress PAT 注入（§3.3），与用户凭据无关，演示账号无需操作。
-- 现场实测（2026-09-21，`aloadtree@gmail.com`）：连接 → 安装 registry MCP → profile 注入 → `initialize`/`tools/list` 成功（7 工具）→ 一轮对话 → 卸载，全程零凭据输入。复现脚本：`scripts/verify-live-connect-flow.mjs`。
+- 现场实测（2026-09-21，平台管理员账号）：连接 → 安装 registry MCP → profile 注入 → `initialize`/`tools/list` 成功（7 工具）→ 一轮对话 → 卸载，全程零凭据输入。复现脚本：`scripts/verify-live-connect-flow.mjs`。
 
 **V0（回退路径，registry 会话拿不到时用）**：
 - registry UI → 登录 → Get JWT Token（TTL 168h）→ 在 Store 的连接面板选"粘贴 token"。

@@ -105,3 +105,8 @@ connect-app/
 
 # websearch relay (services/search-relay) — operator-side, never commit
 services/search-relay/keys.json
+
+# Editor swap files and agent-collaboration working notes — not software, never pushed
+*.swp
+docs/agents/
+CLAUDE.md

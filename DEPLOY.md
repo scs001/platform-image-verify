@@ -490,7 +490,7 @@ await fetch("https://mcp.finddatatech.cloud/api/auth/csrf-token", { credentials:
 ```
 
 **Verified end-to-end on fd-prod (2026-09-21, `sha-cc148eb`, account
-`aloadtree@gmail.com`)** — `scripts/verify-live-connect-flow.mjs` (credentials
+平台管理员账号)** — `scripts/verify-live-connect-flow.mjs` (credentials
 from `LOGTO_EMAIL`/`LOGTO_PASSWORD`; it resets the connection, picks a registry
 entry the deployment does not already serve, and uninstalls it again, so running
 it leaves the environment as it found it):

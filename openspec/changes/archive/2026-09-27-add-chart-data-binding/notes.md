@@ -118,3 +118,60 @@ Two findings from that simulation worth keeping:
 
 A live credential minted during the registry-transport probe (a 168 h personal token) was written to `/tmp/chart-probe-registry-token` and deleted after the run.
 * Two things must be settled before a deploy: the working tree carries another workstream's uncommitted changes (`add-mp-scan-bind`: the `settings.wechat-app` locale rename in four locales, `WeChatAppSection.tsx`, `miniapp/src/lib/bind-qr.ts`), and `check:locales` currently fails on that drift — so `npm run web:build` (which the pipeline runs) would fail on the current tree. A commit limited to this change's files keeps the pushed state green (`en` and the other four locales carry the same `settings.*` keys at HEAD).
+## Release (task 6.4, 2026-09-28)
+
+**Shipped.** Commit `508c57a` (this change, 41 files, +8,569) then `5782aa7` (the allowlist fix below).
+Both fast-forwarded onto `gitee/deploy/prod-snapshot`. Jenkins **#33** (`sha-508c57a`) and **#34**
+(`sha-5782aa7`), both `SUCCESS`; `fd-infra-deploy` `0d04e18 → c9691b2 →` the fix tag; ArgoCD
+`Synced`, `deployment "platform" successfully rolled out`, pod 0 restarts.
+
+The commit needed no hunk surgery by the time it shipped: `add-mp-scan-bind` landed its `en` side first
+(commit `b600011`), so `check:locales` was green across the whole tree (618 keys × 5) and this change
+could ship as itself — exactly the "wait for the other workstream" branch of the earlier recipe. Gate
+before the push: `check:locales` OK, web + miniapp typecheck OK, unit 413 (412 pass — the
+`test-cell-gateway` reaper flake recorded above), and `playwright --project=fast` on
+`resources-binding` + `settings-wechat-app` together = **11/11**.
+
+Post-deploy verification on fd-prod (all read-only):
+
+| Claim | Evidence |
+| --- | --- |
+| Migrations 17/18 applied | read the production SQLite directly in the pod: `chart_bindings`, `chart_series_points`, `chart_point_revisions`, `chart_refreshes` all exist, and `resources` carries `binding_refs` + `binding_candidates` |
+| The bridge is wired into the running profile | `/opt/dsh-home/profiles/platform/` holds `chart-bind.patch.yml` + `platform-chart-bind-bridge.js`, both written at this pod's boot |
+| The REST surface is live and gated | `GET /api/resources/<id>/{observations,candidates,as-of,bindings}` → **401** anonymously (a missing route would 404, so the image really carries it); `/api/resources/bind-declared` → 404 `no_chart_in_turn` (the loopback bridge answering, see below) |
+| The UI shipped | the live main bundle references `ResourcesPage-DGF6L8Pp.js`; `GET /assets/ResourcesPage-DGF6L8Pp.js` → 200 (18 KB) |
+| Prod DB otherwise untouched by the rollout | no writes from this change beyond the two migrations; `chart_bindings` starts empty |
+
+### Finding 1 — the allowlist never reached the image (fixed in `5782aa7`)
+
+`Dockerfile:186` copies `/app/*.js`, and `chart-replay-allowlist.json` is JSON, so the image shipped
+`chart-source.js` and the bridge template but **not** the allowlist. The server's replay gate has a
+documented built-in default (`ALLOWLIST_FALLBACK` — `fd-open-data-mcp: [read_series]`) and stayed
+correctly closed, but the **plugin's** `allowlist()` returned `null` on an unreadable file and its
+caller's `if (servers && …)` guards then skipped both checks — the declaration-time gate was inert in
+production. Fixed by shipping the file *and* giving the plugin the same fallback as the server, with a
+regression test that runs the exact prod shape (plugin dir without the allowlist). Contract unchanged:
+task 1.5's default-deny.
+
+### Finding 2 — the loopback exemptions are reachable from the internet on fd-prod (NOT fixed)
+
+`server/auth.js` exempts three internal bridges on `isLoopback(req.socket.remoteAddress)`, with the
+comment that "a non-loopback caller still faces the gate". fd-prod's ingress is a **same-host** proxy
+(cheap-1 Caddy → `127.0.0.1:3000`), so *every* external request arrives with a loopback peer address and
+the exemption applies to all of them. Measured anonymously from the open internet:
+
+- `POST /api/resources/bind-declared` → 404 `no_chart_in_turn` (the handler ran; during a turn in which
+  the owner's session has just captured a chart it would instead accept a declaration and return the
+  binding view, i.e. an unauthenticated write plus a small info leak — the *refresh* that would call
+  upstream stays refused anonymously and is bounded by the replay allowlist)
+- `GET /api/cron` → **200** `{"jobs":[]}` — the same exemption, pre-dating this change
+- `POST /api/bots/relay/send` → 404 (inert without its token, as designed)
+
+This is a deployment-trust decision, not this change's bug: the fix is to stop treating a peer address as
+a credential on a deployment whose ingress is local — e.g. give the in-pod bridges a per-pod secret
+(injected into the dsh child the way the search-relay token already is) and require it, or gate the
+loopback exemptions off entirely on single-process deployments. Left to the owner deliberately.
+
+**MP handoff:** the 0.6.1 upload (2026-09-28) carries this change's client half as well (`charts.ts` +
+the resources-page binding UI), so the handoff this task asked for is done; console 提审 stays the
+user's step.

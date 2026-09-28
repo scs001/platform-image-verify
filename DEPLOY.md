@@ -219,6 +219,29 @@ PW_FILE=/tmp/paas-harbor-pw bash /tmp/paas-build.sh sha-<7>   # on china-cheap-1
 
 It pushes the same `sha-<7>` + `latest` tags, so step 2 above is unchanged.
 
+### Superseded: the GitHub-Actions packaging path (retired 2026-09-29)
+
+Web/image packaging belongs to Jenkins (and the fallback above). The old
+`.github/workflows/docker-deploy.yml` — GitHub runner → America Harbor → chengsi
+bridge → blue/green on cheap-2 — is deleted; its working notes are kept here
+because they are hard-won and nowhere else:
+
+- cheap-2 (`103.236.89.174:20400`) is reachable ONLY from Chinese IPs; GitHub
+  runners cannot SSH in, and cheap-2 has no usable cross-border egress (every
+  foreign registry times out), so images had to travel `docker save` over SSH
+  from China.
+- The chengsi box (`124.220.7.175`) was the delivery bridge: it reaches America
+  at ~5.7 MB/s and can SSH into cheap-2; GitHub↔chengsi is GFW-throttled to
+  ~27 KB/s, which is why the image went via America's Harbor and never across
+  the GFW leg.
+- That path's blue/green swap lived in cheap-2's `deploy-platform.sh` with a
+  health gate (failure kept the current container); `fetch-deploy.sh` pulled
+  from Harbor and piped `docker save` into `docker load`.
+
+If that topology ever returns, resurrect the workflow from git history
+(`.github/workflows/docker-deploy.yml` before this date) and re-create its
+secrets — all of them were deleted with it.
+
 ### Inspect the deployment
 
 ```bash

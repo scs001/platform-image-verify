@@ -295,6 +295,18 @@ test("login carries rd and ui_locales into the state cookie and the redirect", a
   assert.equal(statePayload.rd, "/chat/abc123");
 });
 
+// Regression: the roles scope is what makes a role NAME reach mapGroups().
+// Without it the ID token carries organization IDs only, and no ADMIN_GROUPS
+// entry can ever match.
+test("login requests both the organizations and the organization_roles scope", async () => {
+  const auth = await createLogtoAuth(config(), { fetchImpl: responseStub() });
+  const res = responseRecorder();
+  await registerHandlers(auth)["/auth/login"](loginRequest({}), res);
+  const scope = new URL(res.redirectUrl).searchParams.get("scope").split(" ");
+  assert.ok(scope.includes("urn:logto:scope:organizations"), res.redirectUrl);
+  assert.ok(scope.includes("urn:logto:scope:organization_roles"), res.redirectUrl);
+});
+
 test("invalid rd and ui_locales values are dropped, not rejected", async () => {
   const auth = await createLogtoAuth(config(), { fetchImpl: responseStub() });
   const res = responseRecorder();
@@ -304,6 +316,26 @@ test("invalid rd and ui_locales values are dropped, not rejected", async () => {
   const stateCookie = res.appendCalls.find((call) => call.name === "Set-Cookie" && call.value.startsWith("paas_oauth_state="))?.value;
   const statePayload = verifySignedCookie(stateCookie.split(";")[0].split("=").slice(1).join("="), secret);
   assert.equal(statePayload.rd, "/");
+});
+
+// The web client passes window.location.href, so rd arrives absolute. It must
+// survive as a path (regression: every post-login redirect landed on "/").
+test("same-origin absolute rd is reduced to its path, cross-origin is dropped", async () => {
+  const auth = await createLogtoAuth(config(), { fetchImpl: responseStub({ tokenBody: { id_token: idToken({ nonce: "nonce" }) } }) });
+  const handlers = registerHandlers(auth);
+  const cases = [
+    ["http://paas.test/settings/account?tab=1#x", "/settings/account?tab=1#x"],
+    ["https://paas.test/settings/account", "/"], // origin is scheme+host+port: proxy misconfig → safe fallback
+    ["https://evil.example/settings/account", "/"],
+    ["//evil.example/x", "/"],
+  ];
+  for (const [rd, expected] of cases) {
+    const req = request("/auth/callback?code=code&state=state");
+    req.headers.cookie = `paas_oauth_state=${signSession({ state: "state", nonce: "nonce", rd, exp: Math.floor(Date.now() / 1000) + 60 }, secret)}`;
+    const res = responseRecorder();
+    await handlers["/auth/callback"](req, res);
+    assert.equal(res.redirectUrl, expected, `rd=${rd}`);
+  }
 });
 
 test("callback redirects to the carried rd after a successful exchange", async () => {

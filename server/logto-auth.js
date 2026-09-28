@@ -15,7 +15,12 @@ import {
 
 const SESSION_COOKIE = "paas_session";
 const STATE_COOKIE = "paas_oauth_state";
+// Two independent Logto scopes: `organizations` yields the org IDs, while
+// `organization_roles` yields "<org_id>:<role_name>" — the only place a role's
+// NAME appears. Requesting just the first leaves mapGroups() with org IDs and
+// no group names, so an ADMIN_GROUPS entry can never match.
 const ORGANIZATION_SCOPE = "urn:logto:scope:organizations";
+const ORGANIZATION_ROLES_SCOPE = "urn:logto:scope:organization_roles";
 
 function base64url(value) {
   return Buffer.from(value).toString("base64url");
@@ -36,10 +41,20 @@ function requestBase(req, configured) {
 }
 
 // Same-origin return path for the post-login redirect: relative, one leading
-// "/", not "//" (protocol-relative = open redirect). Anything else → "/".
-function safeReturnPath(value) {
-  if (typeof value !== "string" || !/^\/(?!\/)/.test(value)) return "/";
-  return value;
+// "/", not "//" (protocol-relative = open redirect). An absolute URL counts
+// only when its origin IS this deployment's — the web client passes
+// window.location.href verbatim — and is reduced to its path. Anything else
+// (other hosts, non-URLs) → "/".
+function safeReturnPath(value, base) {
+  if (typeof value !== "string" || value === "") return "/";
+  if (/^\/(?!\/)/.test(value)) return value;
+  try {
+    const url = new URL(value);
+    if (base && url.origin === new URL(base).origin) return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    /* not an absolute URL */
+  }
+  return "/";
 }
 
 // ui_locales passthrough: any ≤10-char [a-zA-Z-] value; Logto ignores unknowns.
@@ -153,7 +168,7 @@ export async function createLogtoAuth(config, { fetchImpl = fetch } = {}) {
     const codeVerifier = publicClient ? base64url(randomBytes(32)) : null;
     const codeChallenge = codeVerifier ? base64url(createHash("sha256").update(codeVerifier).digest()) : null;
     const redirectUri = `${requestBase(req, config.PAAS_BASE_URL)}/auth/callback`;
-    const rd = safeReturnPath(req.query.rd);
+    const rd = safeReturnPath(req.query.rd, requestBase(req, config.PAAS_BASE_URL));
     const uiLocales = safeUiLocales(req.query.ui_locales);
     const statePayload = { state, nonce, codeVerifier, rd, exp: Math.floor(Date.now() / 1000) + STATE_TTL_MS / 1000 };
     res.append("Set-Cookie", sessionCookie(STATE_COOKIE, statePayload, sessionSecret, STATE_TTL_MS, secureCookie(req)));
@@ -161,7 +176,7 @@ export async function createLogtoAuth(config, { fetchImpl = fetch } = {}) {
       client_id: clientId,
       redirect_uri: redirectUri,
       response_type: "code",
-      scope: ["openid", "profile", "email", ORGANIZATION_SCOPE].join(" "),
+      scope: ["openid", "profile", "email", ORGANIZATION_SCOPE, ORGANIZATION_ROLES_SCOPE].join(" "),
       state,
       nonce,
       code_challenge: codeChallenge,
@@ -201,7 +216,7 @@ export async function createLogtoAuth(config, { fetchImpl = fetch } = {}) {
       if (!email) throw new Error("ID token has no email");
       const payload = { email, groups: mapGroups(claims), exp: Math.floor(Date.now() / 1000) + ttlMs / 1000 };
       res.append("Set-Cookie", sessionCookie(SESSION_COOKIE, payload, sessionSecret, ttlMs, secureCookie(req)));
-      res.redirect(safeReturnPath(statePayload.rd));
+      res.redirect(safeReturnPath(statePayload.rd, requestBase(req, config.PAAS_BASE_URL)));
     } catch (error) {
       console.error("[logto] callback failed:", error.message);
       tokenError(res);

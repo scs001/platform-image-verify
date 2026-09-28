@@ -14,6 +14,8 @@ import { E2E_PORT, baseURL, prepareTempStoreDirs } from "./e2e/helpers.js";
 const PW_LIVE = process.env.PW_LIVE === "1";
 // The hermetic registry stand-in (e2e/registry-stub.js) and its service token:
 // the fast/smoke projects' server talks to this instead of the live registry.
+// The fake open-data MCP's port (chart data binding e2e).
+const E2E_FAKE_MCP_PORT = Number(process.env.E2E_FAKE_MCP_PORT) || 3199;
 const E2E_REGISTRY_URL = process.env.E2E_REGISTRY_URL || "http://127.0.0.1:4599";
 const E2E_REGISTRY_TOKEN = process.env.E2E_REGISTRY_TOKEN || "e2e-registry-token";
 const LIVE_SERVICE_URL = process.env.LIVE_SERVICE_URL || "http://23.144.68.246:30950";
@@ -83,7 +85,7 @@ export default defineConfig({
           // (same process group, so Playwright's teardown kills it): the market
           // then carries registry entries and the connect popup can mint
           // against a hermetic stand-in instead of the live registry.
-          command: `node e2e/registry-stub.js & node e2e/seed-fixtures.js && node server.js`,
+          command: `node e2e/registry-stub.js & node e2e/fake-mcp.js & node e2e/seed-fixtures.js && node server.js`,
           // The server listens FIRST and initializes the agent in the
           // background (listen-first boot) — readiness must gate on the
           // agent, not the port, or tests would race a half-booted server.
@@ -137,6 +139,11 @@ export default defineConfig({
             MARKET_REGISTRY_URL: process.env.MARKET_REGISTRY_URL || E2E_REGISTRY_URL,
             MARKET_REGISTRY_TOKEN: process.env.MARKET_REGISTRY_TOKEN || E2E_REGISTRY_TOKEN,
             MARKET_REGISTRY_TTL_SECS: process.env.MARKET_REGISTRY_TTL_SECS || "300",
+            // The chart-data-binding fake upstream: a streamable-http MCP whose
+            // scenarios (data, failures, gate stats) a spec drives over its
+            // control route. Fixed port so the seeded extension config can name
+            // it; the specs that use it install the server themselves.
+            FAKE_MCP_PORT: String(E2E_FAKE_MCP_PORT),
             DSH_SHARED_HOME: process.env.DSH_SHARED_HOME || path.join(os.homedir(), ".dsh"),
           },
         },

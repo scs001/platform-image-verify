@@ -275,7 +275,7 @@ function seedStartupMcpConfigs(mcpJsonServers) {
 // now it only emits `done` on turn completion (the 1.5 round-trip placeholder).
 async function initDshAgent() {
   const { DshBridge } = await import("./dsh-bridge.js");
-  const { writeLlmProfile, writeMcpPatch, writeSkillsPatch, writePresetsPatch, writePermissionsPatch, writeToolSearchPatch, ensureCredentialsStore, ensureDshHome, buildScrubbedEnv, knownPresetIds, DEFAULT_AGENT_PRESET } = await import("./dsh-profile.js");
+  const { writeLlmProfile, writeMcpPatch, writeSkillsPatch, writePresetsPatch, writePermissionsPatch, writeToolSearchPatch, writeChartBindPatch, ensureCredentialsStore, ensureDshHome, buildScrubbedEnv, knownPresetIds, DEFAULT_AGENT_PRESET } = await import("./dsh-profile.js");
 
   // Scaffold $DSH_HOME if it is fresh — a hosted cell's per-user home always
   // is, and dsh refuses to boot a profile that was never materialized.
@@ -368,6 +368,10 @@ async function initDshAgent() {
   // (add-tool-discovery-layer). Static; always written — its absence merely
   // removes the search tool, never breaks the runtime.
   const toolSearchPatchPath = writeToolSearchPatch();
+  // The chart-bind overlay adds the read-only `chart_bind` row
+  // (add-chart-data-binding). Static and always written — its absence merely
+  // removes the declared channel, never the runtime.
+  const chartBindPatchPath = writeChartBindPatch();
   // The selected agent mode is a persisted user preference (agent.preset);
   // `standard` until a DB row exists. Validate it BEFORE the child spawns: dsh
   // resolves a session's preset at creation (and a vertical-pack agent IS one of
@@ -425,6 +429,7 @@ async function initDshAgent() {
     presetsPatchPath,
     permissionsPatchPath,
     toolSearchPatchPath,
+    chartBindPatchPath,
     agentPreset: ctx.currentPreset,
     env: dshChildEnv,
   });
@@ -602,6 +607,16 @@ await Promise.all([
 // import lands messages that must be seeded too, and the seeding marker is
 // one-shot, so seeding before the import would skip them forever.
 await resources.initStore({ broadcast: ctx.broadcast });
+// Chart data bindings (add-chart-data-binding): the per-binding refresh timers,
+// the freshness gate, the failure backoff and the retention sweeper. Started
+// after the library because it schedules only bindings that resource references
+// exist for, and after the dsh bridge because a refresh uses the same
+// per-user credential the runtime's MCP entries carry.
+const chartRefresh = await import("./chart-refresh.js");
+await chartRefresh.initChartRefresh({
+  broadcast: ctx.broadcast,
+  ownerEmail: () => ctx.runtimeOwnerEmail ?? null,
+});
 console.log("Platform fully initialized");
 
 // ── Graceful shutdown ────────────────────────────────────────────────────────

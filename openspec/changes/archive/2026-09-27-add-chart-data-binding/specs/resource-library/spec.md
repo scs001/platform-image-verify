@@ -1,10 +1,6 @@
-# resource-library Specification
+# resource-library Specification (delta)
 
-## Purpose
-
-A durable, typed library of artifacts produced in chat — charts and generated files today, further types by extension — captured from the conversation but owned by the user, independent of any session's lifecycle.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Resources are typed artifacts with provenance
 
@@ -65,28 +61,6 @@ Every complete assistant turn SHALL be examined for chart specifications, and ea
 - **THEN** the capture records that call's exact name, arguments, and result as a binding candidate for the chart
 - **AND** the candidate does not by itself attach any binding
 
-### Requirement: Files enter the library by explicit save, and saved bytes are durable copies
-
-A file SHALL become a resource only by explicit user action, and only files produced inside the agent workspace SHALL be savable (uploads and documents already have an owning library and SHALL NOT be duplicated here). Saving SHALL copy the file's bytes into the resources data directory under a path derived from the resource id, so the resource survives later changes to the workspace; the resource SHALL record the original workspace-relative path, the byte size, and a content hash. A same-content save SHALL NOT create a duplicate entry. A file exceeding the configured per-resource size cap SHALL be refused with a clear error and nothing SHALL be copied. Saving a file whose source no longer exists SHALL fail with a clear error. Deleting a file resource SHALL remove both the row and the stored bytes.
-
-#### Scenario: saving a generated file makes it durable
-
-- **WHEN** the user saves a workspace file as a resource
-- **THEN** the bytes are copied into the resources data directory
-- **AND** the resource can be previewed and downloaded even after the workspace file is modified or removed
-
-#### Scenario: saving the same file twice does not duplicate it
-
-- **WHEN** the user saves a file whose content hash already exists in the library
-- **THEN** no new resource is created
-- **AND** the user is told it is already in the library
-
-#### Scenario: oversize and missing sources are refused
-
-- **WHEN** the user saves a file larger than the size cap, or one that no longer exists in the workspace
-- **THEN** the save fails with a message naming the reason
-- **AND** no partial bytes are left in the resources directory
-
 ### Requirement: Resource management API
 
 The cell SHALL expose a REST surface for the library: list (with type filtering, text search over titles, and pagination), save a workspace file, rename, and delete. Chart payloads SHALL be included in list responses so a client can render charts without a second request. Every mutation SHALL be reflected to connected clients of that cell as a library-change event, so open lists and counts reconcile without a manual reload. For bound charts the surface SHALL additionally expose: attach a binding (from a retained candidate), detach a binding, trigger a refresh, set a binding's refresh rule (TTL and cron), and list a bound chart's observation timeline with its as-of reconstruction query — each mutation broadcast through the same library-change event mechanism. Requests that are not authenticated as the cell's user SHALL be rejected by the existing cell auth gate. All routes SHALL be accessible with the same credentials as the rest of the client API — no new auth mechanism is introduced.
@@ -118,32 +92,3 @@ The cell SHALL expose a REST surface for the library: list (with type filtering,
 
 - **WHEN** a request to any of the binding or refresh routes arrives without the cell's identity
 - **THEN** it is rejected by the existing auth gate, not by new logic
-
-### Requirement: Stored bytes are served through the existing rooted file route
-
-Stored file bytes SHALL be served by the existing read-only file route with a third configured root pointing at the resources data directory, so the route's existing guarantees — real-path containment, symlink escape rejection, absolute-path rejection, `404` for missing files, inline-versus-download disposition by type — apply unchanged. The resources root SHALL be write-protected in the sense that only the save path writes to it; the serving route SHALL remain strictly read-only.
-
-#### Scenario: a stored file is served like any other rooted file
-
-- **WHEN** a client requests a stored resource file through the file route with the resources root
-- **THEN** the bytes are returned with the same disposition rules as workspace and uploads files
-
-#### Scenario: traversal attempts against the resources root are rejected
-
-- **WHEN** a request against the resources root contains `..` segments, an absolute path, or a symlink escaping the root
-- **THEN** the request is rejected without reading anything outside the root
-
-### Requirement: Charts already in history can be seeded into the library
-
-A seeding path SHALL exist that scans previously recorded assistant messages and captures their chart fences by the same parse and dedupe rules, so charts produced before the library existed are not lost. Automatic seeding SHALL run at most once per cell, guarded by a completion marker; an explicit operator invocation may re-run it at any time (which may re-create entries a user had deleted — a documented consequence of the manual re-run, never of the automatic one).
-
-#### Scenario: upgrade seeds existing charts
-
-- **WHEN** a cell upgrades to a version with the library and the seeding has never run
-- **THEN** charts found in previously recorded assistant messages appear in the library
-
-#### Scenario: the automatic seeding never repeats
-
-- **WHEN** the cell restarts after a seeding run completed
-- **THEN** no second automatic seeding occurs
-- **AND** resources deleted in the meantime are not resurrected

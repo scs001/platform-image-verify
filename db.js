@@ -365,6 +365,112 @@ const MIGRATIONS = [
       `CREATE INDEX IF NOT EXISTS idx_resources_type ON resources(type, created_at DESC)`,
     ],
   },
+  {
+    // Chart data binding: the binding rows + the resource-side references
+    // (openspec: add-chart-data-binding). A binding is a data SOURCE, not a
+    // property of one chart: identity is the content-derived lineage key, so
+    // two charts over the same call share one row and one observation history.
+    //
+    // Additive on purpose — an older build ignores these columns entirely
+    // (SELECTs name their columns, the new columns are nullable), which is the
+    // rollback story: drop the routes, keep the tables, charts keep rendering
+    // their static payload.
+    //
+    //   binding_refs       JSON [{seriesIndex, bindingId}] — one per rendered
+    //                      series; a chart with no refs renders its own payload.
+    //   binding_candidates JSON [{name, args, result}] — the same-turn MCP
+    //                      calls that produced the chart, retained so the user
+    //                      can confirm one later. Results are capped at capture
+    //                      (200KB) because this column is per-chart, not global.
+    version: 17,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS chart_bindings (
+        id TEXT PRIMARY KEY,
+        lineage_key TEXT NOT NULL,
+        server TEXT NOT NULL,
+        tool TEXT NOT NULL,
+        args TEXT NOT NULL,
+        map TEXT NOT NULL,
+        concept TEXT,
+        frequency TEXT NOT NULL,
+        unit TEXT,
+        refresh_rule TEXT,
+        origin TEXT NOT NULL,
+        stale INTEGER NOT NULL DEFAULT 0,
+        stale_reason TEXT,
+        stale_since TEXT,
+        last_ok_at TEXT,
+        consecutive_failures INTEGER NOT NULL DEFAULT 0,
+        backoff_until TEXT,
+        gate_fingerprint TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE UNIQUE INDEX IF NOT EXISTS idx_chart_bindings_lineage ON chart_bindings(lineage_key)`,
+      `ALTER TABLE resources ADD COLUMN binding_refs TEXT`,
+      `ALTER TABLE resources ADD COLUMN binding_candidates TEXT`,
+    ],
+  },
+  {
+    // The bitemporal point store + the refresh log (openspec:
+    // add-chart-data-binding). Two time axes: `period` is the valid time the
+    // value is about, `observed_at` the record time we learned it.
+    //
+    //   chart_point_revisions — append-only truth. `kind` records what each
+    //     observation WAS (appended/revised/resourced/unchanged) because the
+    //     retention sweeper keeps changed rows forever and prunes unchanged
+    //     ones to their first+latest observation; without the kind the
+    //     distinction is unrecoverable.
+    //   chart_series_points — the materialized latest view every render reads,
+    //     written in the same transaction as the revision rows.
+    //   chart_refreshes — what we DID (log, not data): one row per refresh
+    //     attempt with per-classification counts, the gate fingerprint it
+    //     skipped on, and the anomaly detail (both conflicting values).
+    version: 18,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS chart_point_revisions (
+        binding_id TEXT NOT NULL,
+        series TEXT NOT NULL,
+        period TEXT NOT NULL,
+        value REAL,
+        source TEXT,
+        kind TEXT NOT NULL,
+        observed_at TEXT NOT NULL,
+        PRIMARY KEY (binding_id, series, period, observed_at)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_chart_point_revisions_seen ON chart_point_revisions(observed_at)`,
+      `CREATE TABLE IF NOT EXISTS chart_series_points (
+        binding_id TEXT NOT NULL,
+        series TEXT NOT NULL,
+        period TEXT NOT NULL,
+        value REAL,
+        source TEXT,
+        first_seen_at TEXT NOT NULL,
+        revision_count INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (binding_id, series, period)
+      )`,
+      `CREATE TABLE IF NOT EXISTS chart_refreshes (
+        id TEXT PRIMARY KEY,
+        binding_id TEXT NOT NULL,
+        fetched_at TEXT NOT NULL,
+        trigger TEXT NOT NULL,
+        outcome TEXT NOT NULL,
+        added INTEGER NOT NULL DEFAULT 0,
+        revised INTEGER NOT NULL DEFAULT 0,
+        resourced INTEGER NOT NULL DEFAULT 0,
+        unchanged INTEGER NOT NULL DEFAULT 0,
+        missing INTEGER NOT NULL DEFAULT 0,
+        anomalies INTEGER NOT NULL DEFAULT 0,
+        anomalies_detail TEXT,
+        gate TEXT,
+        error TEXT,
+        duration_ms INTEGER
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_chart_refreshes_binding ON chart_refreshes(binding_id, fetched_at DESC)`,
+      `CREATE INDEX IF NOT EXISTS idx_chart_refreshes_fetched ON chart_refreshes(fetched_at)`,
+    ],
+  },
 ];
 
 function nowIso() {
@@ -1425,7 +1531,8 @@ const RESOURCE_COLS = `id, type, title, source, session_id AS sessionId,
   session_title AS sessionTitle, message_id AS messageId, payload,
   file_path AS filePath, file_size AS fileSize, file_mime AS fileMime,
   content_hash AS contentHash, created_at AS createdAt,
-  updated_at AS updatedAt, last_seen_at AS lastSeenAt, seeded`;
+  updated_at AS updatedAt, last_seen_at AS lastSeenAt, seeded,
+  binding_refs AS bindingRefs`;
 
 // LIKE needs the query's own wildcards neutralized: a search for "50%" must
 // not turn into "match everything".
@@ -1552,4 +1659,438 @@ export function listMessagesWithChartFences() {
 export function runInTransaction(fn) {
   if (!dbReady) return null;
   return db.transaction(fn)();
+}
+
+// ── Chart data bindings (openspec: add-chart-data-binding) ───────────────────
+//
+// Storage contract only; chart-bindings.js owns identity/priority, chart-
+// refresh.js owns the diff and calls `applyChartRefresh` for the write half.
+// `binding_candidates` is deliberately NOT part of RESOURCE_COLS: it holds
+// capped tool results (up to 200KB each), and list responses must not carry it.
+
+const BINDING_COLS = `id, lineage_key AS lineageKey, server, tool, args, map,
+  concept, frequency, unit, refresh_rule AS refreshRule, origin,
+  stale, stale_reason AS staleReason, stale_since AS staleSince,
+  last_ok_at AS lastOkAt, consecutive_failures AS consecutiveFailures,
+  backoff_until AS backoffUntil, gate_fingerprint AS gateFingerprint,
+  created_at AS createdAt, updated_at AS updatedAt`;
+
+function serializeBinding(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    stale: !!row.stale,
+    refreshRule: row.refreshRule ? JSON.parse(row.refreshRule) : null,
+    args: safeJson(row.args) ?? row.args,
+    map: safeJson(row.map) ?? row.map,
+  };
+}
+
+function safeJson(value) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
+export function getChartBinding(id) {
+  if (!dbReady) return null;
+  return serializeBinding(stmt(`SELECT ${BINDING_COLS} FROM chart_bindings WHERE id = ?`).get(String(id)));
+}
+
+export function getChartBindingByLineage(lineageKey) {
+  if (!dbReady) return null;
+  return serializeBinding(
+    stmt(`SELECT ${BINDING_COLS} FROM chart_bindings WHERE lineage_key = ?`).get(String(lineageKey))
+  );
+}
+
+// Batch read for list responses: one query for the whole page's bindings.
+export function getChartBindings(ids = []) {
+  if (!dbReady || !ids.length) return [];
+  const placeholders = ids.map(() => "?").join(",");
+  return db
+    .prepare(`SELECT ${BINDING_COLS} FROM chart_bindings WHERE id IN (${placeholders})`)
+    .all(...ids.map(String))
+    .map(serializeBinding);
+}
+
+// Per-binding counts for the source line ("截至 X", the period count the
+// data-period filter slices). One aggregate for a whole page.
+export function seriesPointStats(bindingIds = []) {
+  if (!dbReady || !bindingIds.length) return new Map();
+  const placeholders = bindingIds.map(() => "?").join(",");
+  const rows = db
+    .prepare(
+      `SELECT binding_id AS bindingId, COUNT(*) AS periods, MAX(updated_at) AS lastObservedAt
+       FROM chart_series_points WHERE binding_id IN (${placeholders}) GROUP BY binding_id`
+    )
+    .all(...bindingIds.map(String));
+  return new Map(rows.map((r) => [r.bindingId, r]));
+}
+
+export function insertChartBinding(fields) {
+  if (!dbReady) return null;
+  stmt(
+    `INSERT INTO chart_bindings (id, lineage_key, server, tool, args, map, concept, frequency,
+       unit, refresh_rule, origin, stale, stale_reason, stale_since, last_ok_at,
+       consecutive_failures, backoff_until, gate_fingerprint, created_at, updated_at)
+     VALUES (@id, @lineage_key, @server, @tool, @args, @map, @concept, @frequency,
+       @unit, @refresh_rule, @origin, 0, NULL, NULL, @last_ok_at,
+       0, NULL, NULL, @created_at, @updated_at)`
+  ).run({
+    id: fields.id,
+    lineage_key: fields.lineageKey,
+    server: fields.server,
+    tool: fields.tool,
+    // Callers pass structures; the row stores canonical text. Accepting a
+    // string too keeps the helper usable from a migration/backfill context.
+    args: typeof fields.args === "string" ? fields.args : JSON.stringify(fields.args ?? {}),
+    map: typeof fields.map === "string" ? fields.map : JSON.stringify(fields.map ?? {}),
+    concept: fields.concept ?? null,
+    frequency: fields.frequency,
+    unit: fields.unit ?? null,
+    refresh_rule: fields.refreshRule ? JSON.stringify(fields.refreshRule) : null,
+    origin: fields.origin,
+    last_ok_at: fields.lastOkAt ?? null,
+    created_at: fields.createdAt,
+    updated_at: fields.updatedAt,
+  });
+  return getChartBinding(fields.id);
+}
+
+// Field-wise update. Undefined keys are left alone (an explicit null clears) —
+// the refresh path patches stale/backoff/gate incrementally and must not
+// resurrect fields it did not touch.
+const BINDING_PATCH_COLS = {
+  origin: "origin",
+  unit: "unit",
+  concept: "concept",
+  lastOkAt: "last_ok_at",
+  stale: "stale",
+  staleReason: "stale_reason",
+  staleSince: "stale_since",
+  consecutiveFailures: "consecutive_failures",
+  backoffUntil: "backoff_until",
+  gateFingerprint: "gate_fingerprint",
+  refreshRule: "refresh_rule",
+};
+
+export function updateChartBinding(id, patch = {}, updatedAt) {
+  if (!dbReady) return null;
+  const sets = [];
+  const params = { id: String(id), updated_at: updatedAt };
+  for (const [key, col] of Object.entries(BINDING_PATCH_COLS)) {
+    if (!(key in patch)) continue;
+    sets.push(`${col} = @${key}`);
+    let value = patch[key];
+    if (key === "stale") value = value ? 1 : 0;
+    if (key === "refreshRule") value = value ? JSON.stringify(value) : null;
+    params[key] = value ?? null;
+  }
+  if (!sets.length) return getChartBinding(id);
+  sets.push("updated_at = @updated_at");
+  stmt(`UPDATE chart_bindings SET ${sets.join(", ")} WHERE id = @id`).run(params);
+  return getChartBinding(id);
+}
+
+export function deleteChartBinding(id) {
+  if (!dbReady) return false;
+  return stmt("DELETE FROM chart_bindings WHERE id = ?").run(String(id)).changes > 0;
+}
+
+// Every binding, with the resource-reference count — the sweeper's input (a
+// binding nobody references is removed with its history) and the scheduler's
+// (only referenced bindings get timers). `binding_refs` is a JSON array
+// inside a JSON column, so the count is a scan, not a JOIN: bindings number in
+// the tens, and a JSON1 dependency for this would be worse than the scan.
+export function listChartBindingsWithRefs() {
+  if (!dbReady) return [];
+  const bindings = stmt(`SELECT ${BINDING_COLS} FROM chart_bindings`).all().map(serializeBinding);
+  const refs = new Map();
+  for (const row of db
+    .prepare("SELECT binding_refs AS refs FROM resources WHERE binding_refs IS NOT NULL")
+    .all()) {
+    for (const ref of safeJson(row.refs) ?? []) {
+      if (ref?.bindingId) refs.set(ref.bindingId, (refs.get(ref.bindingId) ?? 0) + 1);
+    }
+  }
+  return bindings.map((b) => ({ ...b, refCount: refs.get(b.id) ?? 0 }));
+}
+
+export function setResourceBindingRefs(id, refs, updatedAt) {
+  if (!dbReady) return null;
+  const json = Array.isArray(refs) && refs.length ? JSON.stringify(refs) : null;
+  const ok =
+    stmt("UPDATE resources SET binding_refs = ?, updated_at = ? WHERE id = ?").run(
+      json,
+      updatedAt,
+      String(id)
+    ).changes > 0;
+  return ok ? getResource(id) : null;
+}
+
+// Captured candidates are written once per capture (insert or refresh), so the
+// caller replaces the whole array — merging is chart-bindings' job.
+export function setResourceCandidates(id, candidates) {
+  if (!dbReady) return false;
+  const json = Array.isArray(candidates) && candidates.length ? JSON.stringify(candidates) : null;
+  return (
+    stmt("UPDATE resources SET binding_candidates = ? WHERE id = ?").run(json, String(id)).changes > 0
+  );
+}
+
+export function getResourceCandidates(id) {
+  if (!dbReady) return [];
+  const row = stmt("SELECT binding_candidates AS c FROM resources WHERE id = ?").get(String(id));
+  const parsed = safeJson(row?.c);
+  return Array.isArray(parsed) ? parsed : [];
+}
+
+// The chart captured in the current turn — the declared channel's target. The
+// session is the runtime's own, the timestamp is the turn's start, so a
+// declaration can only ever reach a chart this turn produced.
+export function latestChartForSession(sessionId, sinceIso = null) {
+  if (!dbReady) return null;
+  return (
+    stmt(
+      `SELECT ${RESOURCE_COLS} FROM resources
+       WHERE type = 'chart' AND session_id = @session_id
+         AND (@since IS NULL OR created_at >= @since)
+       ORDER BY created_at DESC, rowid DESC LIMIT 1`
+    ).get({ session_id: String(sessionId), since: sinceIso ?? null }) ?? null
+  );
+}
+
+// ── Point store ─────────────────────────────────────────────────────────────
+
+export function listSeriesPoints(bindingId) {
+  if (!dbReady) return [];
+  return stmt(
+    `SELECT binding_id AS bindingId, series, period, value, source,
+       first_seen_at AS firstSeenAt, revision_count AS revisionCount, updated_at AS updatedAt
+     FROM chart_series_points WHERE binding_id = ? ORDER BY series, period`
+  ).all(String(bindingId));
+}
+
+export function countSeriesPoints(bindingId) {
+  if (!dbReady) return 0;
+  return stmt("SELECT COUNT(*) AS n FROM chart_series_points WHERE binding_id = ?").get(String(bindingId)).n;
+}
+
+// As-of reconstruction: for every (series, period) the latest revision at or
+// before `at`. MAX(observed_at) per group, then the row carrying it — one pass
+// with a correlated lookup keeps it a single statement (the log is indexed by
+// (binding_id, series, period, observed_at), which is exactly this shape).
+export function asOfPoints(bindingId, atIso) {
+  if (!dbReady) return [];
+  return stmt(
+    `SELECT r.series, r.period, r.value, r.source, r.observed_at AS observedAt
+     FROM chart_point_revisions r
+     JOIN (
+       SELECT series, period, MAX(observed_at) AS observedAt
+       FROM chart_point_revisions
+       WHERE binding_id = ? AND observed_at <= ?
+       GROUP BY series, period
+     ) latest
+       ON latest.series = r.series AND latest.period = r.period AND latest.observedAt = r.observed_at
+     WHERE r.binding_id = ?
+     ORDER BY r.series, r.period`
+  ).all(String(bindingId), String(atIso), String(bindingId));
+}
+
+export function listPointRevisions(bindingId, { limit = 200 } = {}) {
+  if (!dbReady) return [];
+  return stmt(
+    `SELECT series, period, value, source, kind, observed_at AS observedAt
+     FROM chart_point_revisions WHERE binding_id = ?
+     ORDER BY observed_at DESC, rowid DESC LIMIT ?`
+  ).all(String(bindingId), Math.max(1, Number(limit) || 200));
+}
+
+// ── Refresh log ─────────────────────────────────────────────────────────────
+
+export function insertChartRefresh(row) {
+  if (!dbReady) return null;
+  stmt(
+    `INSERT INTO chart_refreshes (id, binding_id, fetched_at, trigger, outcome, added, revised,
+       resourced, unchanged, missing, anomalies, anomalies_detail, gate, error, duration_ms)
+     VALUES (@id, @binding_id, @fetched_at, @trigger, @outcome, @added, @revised,
+       @resourced, @unchanged, @missing, @anomalies, @anomalies_detail, @gate, @error, @duration_ms)`
+  ).run({
+    id: row.id,
+    binding_id: row.bindingId,
+    fetched_at: row.fetchedAt,
+    trigger: row.trigger,
+    outcome: row.outcome,
+    added: row.added ?? 0,
+    revised: row.revised ?? 0,
+    resourced: row.resourced ?? 0,
+    unchanged: row.unchanged ?? 0,
+    missing: row.missing ?? 0,
+    anomalies: row.anomalies ?? 0,
+    anomalies_detail: row.anomaliesDetail ? JSON.stringify(row.anomaliesDetail) : null,
+    gate: row.gate ?? null,
+    error: row.error ?? null,
+    duration_ms: row.durationMs ?? null,
+  });
+  return row.id;
+}
+
+export function listChartRefreshes(bindingId, { since = null, until = null, limit = 100, offset = 0 } = {}) {
+  if (!dbReady) return { items: [], total: 0 };
+  const params = {
+    bindingId: String(bindingId),
+    since,
+    until,
+    limit: Math.max(1, Number(limit) || 100),
+    offset: Math.max(0, Number(offset) || 0),
+  };
+  const where = `WHERE binding_id = @bindingId
+    AND (@since IS NULL OR fetched_at >= @since)
+    AND (@until IS NULL OR fetched_at <= @until)`;
+  const items = db
+    .prepare(
+      `SELECT id, binding_id AS bindingId, fetched_at AS fetchedAt, trigger, outcome,
+         added, revised, resourced, unchanged, missing, anomalies,
+         anomalies_detail AS anomaliesDetail, gate, error, duration_ms AS durationMs
+       FROM chart_refreshes ${where} ORDER BY fetched_at DESC, rowid DESC LIMIT @limit OFFSET @offset`
+    )
+    .all(params)
+    .map((r) => ({ ...r, anomaliesDetail: safeJson(r.anomaliesDetail) }));
+  const total = db.prepare(`SELECT COUNT(*) AS n FROM chart_refreshes ${where}`).get(params).n;
+  return { items, total, limit: params.limit, offset: params.offset };
+}
+
+export function lastChartRefresh(bindingId) {
+  if (!dbReady) return null;
+  const row = stmt(
+    `SELECT fetched_at AS fetchedAt, trigger, outcome, gate
+     FROM chart_refreshes WHERE binding_id = ? ORDER BY fetched_at DESC, rowid DESC LIMIT 1`
+  ).get(String(bindingId));
+  return row ?? null;
+}
+
+// ── The refresh write, one transaction ──────────────────────────────────────
+//
+// Points and the refresh row land together or not at all: a crash between the
+// two would otherwise leave the log disagreeing with the data it describes.
+// `points` are the classifier's decisions — each carries its `kind` and a
+// `bump` flag (the value in force changed) so the latest view's revision_count
+// stays a property of the write, not a second query.
+export function applyChartRefresh({
+  points = [],
+  bindingId,
+  refresh = null,
+  bindingPatch = null,
+  payloadUpdates = [],
+  updatedAt,
+}) {
+  if (!dbReady) return false;
+  const insertRevision = stmt(
+    `INSERT INTO chart_point_revisions (binding_id, series, period, value, source, kind, observed_at)
+     VALUES (@binding_id, @series, @period, @value, @source, @kind, @observed_at)
+     ON CONFLICT(binding_id, series, period, observed_at) DO NOTHING`
+  );
+  const upsertPoint = stmt(
+    `INSERT INTO chart_series_points (binding_id, series, period, value, source, first_seen_at, revision_count, updated_at)
+     VALUES (@binding_id, @series, @period, @value, @source, @observed_at, 1, @observed_at)
+     ON CONFLICT(binding_id, series, period) DO UPDATE SET
+       value = excluded.value,
+       source = excluded.source,
+       revision_count = chart_series_points.revision_count + @bump,
+       updated_at = excluded.updated_at`
+  );
+  const updatePayload = stmt(
+    "UPDATE resources SET payload = @payload, updated_at = @updated_at WHERE id = @id"
+  );
+  return db.transaction(() => {
+    for (const p of points) {
+      const row = {
+        binding_id: String(bindingId),
+        series: p.series ?? "",
+        period: String(p.period),
+        value: typeof p.value === "number" && Number.isFinite(p.value) ? p.value : null,
+        source: p.source ?? null,
+        kind: p.kind ?? "unchanged",
+        observed_at: p.observedAt,
+        bump: p.bump ? 1 : 0,
+      };
+      insertRevision.run(row);
+      // `missing` is a log-only classification: the stored value is retained,
+      // so nothing is written to the latest view for it.
+      if (p.kind !== "missing") upsertPoint.run(row);
+    }
+    // The payload write rides the same transaction as the points it renders: a
+    // chart must never display a value the store does not have (or vice versa).
+    for (const update of payloadUpdates) {
+      updatePayload.run({ id: String(update.resourceId), payload: update.payload, updated_at: updatedAt });
+    }
+    if (refresh) insertChartRefresh(refresh);
+    if (bindingPatch) updateChartBinding(bindingId, bindingPatch, updatedAt);
+    return true;
+  })();
+}
+
+// Drop the OLDEST periods from the materialized latest view (the point log is
+// untouched — as-of keeps working). Applied after a refresh that pushed the
+// view past the cap.
+export function trimSeriesPointsToCap(bindingId, cap) {
+  if (!dbReady) return 0;
+  const max = Math.max(1, Number(cap) || 0);
+  return stmt(
+    `DELETE FROM chart_series_points WHERE binding_id = @id AND period NOT IN (
+       SELECT period FROM chart_series_points WHERE binding_id = @id
+       ORDER BY period DESC LIMIT @max
+     )`
+  ).run({ id: String(bindingId), max }).changes;
+}
+
+// ── Retention ───────────────────────────────────────────────────────────────
+
+export function pruneRefreshLog(cutoffIso) {
+  if (!dbReady) return 0;
+  return stmt("DELETE FROM chart_refreshes WHERE fetched_at < ?").run(String(cutoffIso)).changes;
+}
+
+// Superseded unchanged observations age out; the first and latest observation
+// of every point survive, and any row that changed the value in force is kept
+// forever. An `unchanged` row is superseded when a later row for the same
+// (binding, series, period) exists.
+export function pruneUnchangedRevisions(cutoffIso) {
+  if (!dbReady) return 0;
+  return stmt(
+    `DELETE FROM chart_point_revisions
+     WHERE kind = 'unchanged' AND observed_at < @cutoff
+       AND EXISTS (
+         SELECT 1 FROM chart_point_revisions later
+         WHERE later.binding_id = chart_point_revisions.binding_id
+           AND later.series = chart_point_revisions.series
+           AND later.period = chart_point_revisions.period
+           AND (later.observed_at > chart_point_revisions.observed_at
+                OR (later.observed_at = chart_point_revisions.observed_at
+                    AND later.rowid > chart_point_revisions.rowid))
+       )
+       AND EXISTS (
+         SELECT 1 FROM chart_point_revisions earlier
+         WHERE earlier.binding_id = chart_point_revisions.binding_id
+           AND earlier.series = chart_point_revisions.series
+           AND earlier.period = chart_point_revisions.period
+           AND (earlier.observed_at < chart_point_revisions.observed_at
+                OR (earlier.observed_at = chart_point_revisions.observed_at
+                    AND earlier.rowid < chart_point_revisions.rowid))
+       )`
+  ).run({ cutoff: String(cutoffIso) }).changes;
+}
+
+export function deleteBindingHistory(bindingId) {
+  if (!dbReady) return false;
+  db.transaction(() => {
+    stmt("DELETE FROM chart_point_revisions WHERE binding_id = ?").run(String(bindingId));
+    stmt("DELETE FROM chart_series_points WHERE binding_id = ?").run(String(bindingId));
+    stmt("DELETE FROM chart_refreshes WHERE binding_id = ?").run(String(bindingId));
+    stmt("DELETE FROM chart_bindings WHERE id = ?").run(String(bindingId));
+  })();
+  return true;
 }

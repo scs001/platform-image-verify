@@ -881,6 +881,44 @@ export function writeToolSearchPatch() {
   return TOOL_SEARCH_PATCH_PATH;
 }
 
+// ── Chart-bind bridge patch (add-chart-data-binding) ────────────────────────
+// The read-only `chart_bind` tool (declare the MCP call that fed a chart) rides
+// its own overlay, exactly like tool_search: the plugin is copied into the
+// profile dir, plus the matcher it reuses for roster suggestions AND the
+// deployment's replay allowlist — the child must be able to refuse a
+// declaration for a tool this cell may never replay, and the file is the same
+// data the server reads. Purely additive: without the overlay the roster is
+// unchanged and chat works as before.
+const CHART_BIND_PATCH_PATH = join(DSH_HOME, "profiles", PROFILE_NAME, "chart-bind.patch.yml");
+const CHART_BIND_BRIDGE_SOURCE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "dsh-profile-template",
+  "platform-chart-bind-bridge.js",
+);
+const CHART_ALLOWLIST_SOURCE = join(dirname(fileURLToPath(import.meta.url)), "chart-replay-allowlist.json");
+
+export function writeChartBindPatch() {
+  mkdirSync(dirname(CHART_BIND_PATCH_PATH), { recursive: true });
+  const profileDir = dirname(CHART_BIND_PATCH_PATH);
+  atomicWriteTextSync(
+    join(profileDir, "platform-chart-bind-bridge.js"),
+    readFileSync(CHART_BIND_BRIDGE_SOURCE, "utf8"),
+  );
+  // Same matcher module the tool-search bridge uses (idempotent rewrite).
+  atomicWriteTextSync(join(profileDir, "tool-discovery.js"), readFileSync(TOOL_SEARCH_MATCHER_SOURCE, "utf8"));
+  try {
+    atomicWriteTextSync(join(profileDir, "chart-replay-allowlist.json"), readFileSync(CHART_ALLOWLIST_SOURCE, "utf8"));
+  } catch (err) {
+    // No allowlist file ships → the plugin's own default applies (deny
+    // everything but the probed cache-read tool), same as the server's.
+    console.warn(`[dsh-profile] no allowlist file to copy (${err.message}); the plugin falls back to its default`);
+  }
+  const patch = [{ insert: [{ id: "chart-bind-bridge", name: "./platform-chart-bind-bridge.js" }] }];
+  atomicWriteTextSync(CHART_BIND_PATCH_PATH, yaml.dump(patch));
+  console.log(`[dsh-profile] wrote chart-bind bridge patch → ${CHART_BIND_PATCH_PATH}`);
+  return CHART_BIND_PATCH_PATH;
+}
+
 // Self-check: load .env, build the section, print it + the model list. No file
 // write (read-only) — proves the generator emits valid YAML + the expected ids.
 // Usage: node dsh-profile.js

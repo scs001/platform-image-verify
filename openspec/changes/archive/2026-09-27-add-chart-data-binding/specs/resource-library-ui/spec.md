@@ -1,10 +1,6 @@
-# resource-library-ui Specification
+# resource-library-ui Specification (delta)
 
-## Purpose
-
-The client surfaces where users discover, inspect, and manage their resources: a browsing page in each client, save affordances inside the conversation, and live reflection of library changes.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Web resources page
 
@@ -45,21 +41,6 @@ The web client SHALL provide a resources page at `/resources`, reached from the 
 - **THEN** the entry shows a stale badge with the failure reason
 - **AND** the chart still renders its last good data with its source line reporting the data's age
 
-### Requirement: Saving a file from the web chat
-
-The web chat SHALL expose a save-to-resources action for files it already recognizes as workspace files — from the preview drawer at minimum — without requiring the user to leave the conversation. On success the user SHALL receive confirmation; when the library already holds the same content, the action SHALL report that instead of creating a duplicate. A failed save SHALL surface the reason (for example: too large, or the file no longer exists).
-
-#### Scenario: save from the preview drawer
-
-- **WHEN** the user opens a workspace file in the preview drawer and activates save-to-resources
-- **THEN** the file is stored and a confirmation appears
-- **AND** the resource is immediately visible on the resources page
-
-#### Scenario: already in the library
-
-- **WHEN** the user saves a file whose content is already stored
-- **THEN** no duplicate is created and the user is told it is already in the library
-
 ### Requirement: Miniprogram resources page
 
 The mini program SHALL provide a standalone resources page, entered from the history surface's resources group. It SHALL list the cell's resources (charts and files) and, for charts, re-render them through the client's existing canvas chart renderer. For stored files it SHALL offer the mini program's native preview for types the platform supports (`openDocument` for office and PDF documents, the image viewer for images) and a forward-to-chat action for sharing a file onwards; a type the platform cannot preview SHALL offer forward instead of a broken or empty preview. Rename, delete (with confirmation), and jump-to-source SHALL be available, with the same absent-when-gone rule as the web page. A bound chart entry SHALL show the same source line and offer the same refresh action and data-period filter as the web page; a stale binding SHALL show the stale badge. Against a cell older than this capability the bound-chart affordances SHALL hide themselves (the chart still renders, no error is surfaced) — the version-skew degradation the library already follows for its whole surface.
@@ -94,39 +75,7 @@ The mini program SHALL provide a standalone resources page, entered from the his
 - **WHEN** the mini program's cell does not yet support bound charts
 - **THEN** charts render as before with no source line, no refresh action, and no error
 
-### Requirement: Miniprogram in-chat file chip
-
-In a completed assistant message, a markdown link whose target resolves to a file inside the agent workspace SHALL render as a tappable file chip instead of the existing copy-to-clipboard link behavior. Tapping it SHALL offer preview and save-to-resources. Once saved, the chip SHALL reflect the saved state so a second save is not attempted. Links that are not workspace files — external URLs and non-file targets — SHALL keep the existing clipboard behavior unchanged.
-
-#### Scenario: a file link renders as a chip
-
-- **WHEN** a completed assistant message contains a link to a generated workspace file
-- **THEN** it renders as a file chip, not as a plain clipboard-copying link
-
-#### Scenario: preview and save from the chip
-
-- **WHEN** the user taps a file chip
-- **THEN** an action sheet offers preview and save-to-resources
-- **AND** after saving, the chip shows the saved state
-
-#### Scenario: ordinary links are unchanged
-
-- **WHEN** a completed assistant message contains an external URL
-- **THEN** tapping it keeps the existing clipboard-copy behavior
-
-### Requirement: Library changes appear live
-
-Both clients SHALL reflect library changes without a manual reload: when a resource is captured, saved, renamed, or deleted (including from the other client), an open resources list SHALL update, and count indicators on navigation surfaces (the mini program history group) SHALL stay current while that surface is on screen.
-
-#### Scenario: a chart captured mid-conversation appears
-
-- **WHEN** a chart is captured while the user has the resources page open
-- **THEN** the chart appears without the user reloading
-
-#### Scenario: the group count follows the library
-
-- **WHEN** the mini program history surface is open and a resource is added or removed
-- **THEN** the resources group's count reflects the change
+## ADDED Requirements
 
 ### Requirement: The observation timeline is visible on the web
 

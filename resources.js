@@ -21,6 +21,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, realpath, rename as renameFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import * as bindings from "./chart-bindings.js";
 import * as db from "./db.js";
 import { storeDir } from "./paths.js";
 
@@ -125,16 +126,52 @@ function chartTitle(option, sessionTitle, ordinal) {
   return `${base} · Chart ${ordinal}`;
 }
 
+// A candidate's recorded result is the turn's evidence, kept so the user can
+// confirm a binding later. It is text from a tool call, and a single call can
+// return a lot of it — capped here (per candidate, per chart) because the
+// column lives on the resource row that list responses read.
+const MAX_CANDIDATE_RESULT_BYTES =
+  Number(process.env.RESOURCE_MAX_CANDIDATE_BYTES) > 0
+    ? Number(process.env.RESOURCE_MAX_CANDIDATE_BYTES)
+    : 200 * 1024;
+
+// Same-turn MCP calls, in the shape binding-candidates are retained as. Only
+// MCP projections qualify (`mcp__<server>__<tool>`): a shell command or a web
+// fetch is not a data source for a chart, and offering it would be noise.
+export function bindingCandidatesFromBlocks(blocks) {
+  if (!Array.isArray(blocks)) return [];
+  const candidates = [];
+  for (const block of blocks) {
+    if (!block || block.kind !== "tool") continue;
+    const name = typeof block.name === "string" ? block.name : "";
+    if (!name.startsWith("mcp__")) continue;
+    if (block.result == null) continue;
+    const result = typeof block.result === "string" ? block.result : JSON.stringify(block.result);
+    candidates.push({
+      name,
+      args: block.args ?? {},
+      result: result.length > MAX_CANDIDATE_RESULT_BYTES ? result.slice(0, MAX_CANDIDATE_RESULT_BYTES) : result,
+    });
+  }
+  return candidates;
+}
+
 // ── Capture ─────────────────────────────────────────────────────────────────
 
 // Record every chart spec in one assistant turn. Returns the resources that
 // were CREATED (a repeat spec returns nothing — only its last_seen_at moves).
 // Called from chat-history.recordMessage; never throws into the mirror path.
-export function captureFromMessage({ sessionId, messageId, sessionTitle, text, createdAt } = {}) {
+//
+// `blocks` is the turn's evidence trail (assistant tool calls with their
+// results), passed through from the mirror funnel. Two things ride it:
+// binding candidates are retained on each captured chart, and a chart whose
+// data a single same-turn call demonstrably produced gets an inferred binding.
+export function captureFromMessage({ sessionId, messageId, sessionTitle, text, blocks = null, createdAt } = {}) {
   if (!db.isDbReady()) return [];
   const specs = extractChartSpecs(text);
   if (!specs.length) return [];
   const now = createdAt || new Date().toISOString();
+  const candidates = bindingCandidatesFromBlocks(blocks);
   const created = [];
   specs.forEach((option, index) => {
     const payload = JSON.stringify(option);
@@ -152,8 +189,21 @@ export function captureFromMessage({ sessionId, messageId, sessionTitle, text, c
       updatedAt: now,
       lastSeenAt: now,
     });
-    if (inserted && resource) created.push(resource);
-    else if (resource) db.touchResourceSeen(resource.id, now);
+    if (!resource) return;
+    const target = resource;
+    if (candidates.length) {
+      // Merged, not replaced: a regenerated chart brings the newest results for
+      // the calls it made, while candidates from an earlier turn stay offered.
+      const merged = bindings.mergeCandidates(db.getResourceCandidates(target.id), candidates);
+      db.setResourceCandidates(target.id, merged);
+      try {
+        bindings.inferBindings({ resourceId: target.id, option, candidates: merged });
+      } catch (err) {
+        console.warn(`[resources] inference failed for ${target.id}: ${err.message}`);
+      }
+    }
+    if (inserted) created.push(target);
+    else db.touchResourceSeen(target.id, now);
   });
   for (const resource of created) {
     broadcastChange("created", resource);
@@ -311,12 +361,148 @@ export async function saveFile({ sessionId = null, messageId = null, path: input
 
 // ── Management ──────────────────────────────────────────────────────────────
 
+// A binding as a CLIENT reads it: the identity fields a source line needs, the
+// stale state with its reason CODE (localized client-side — server text is not
+// translatable), and whether a refresh would even be attempted. `refreshable`
+// is computed from the deployment's allowlist rather than stored: the file is
+// the operator's control, so flipping it must not require a data migration.
+export function bindingView(binding, stats = null) {
+  const allowlisted = bindings.isReplayable(binding.server, binding.tool);
+  return {
+    id: binding.id,
+    server: binding.server,
+    tool: binding.tool,
+    args: binding.args,
+    map: binding.map,
+    concept: binding.concept,
+    frequency: binding.frequency,
+    unit: binding.unit,
+    origin: binding.origin,
+    stale: binding.stale,
+    staleReason: binding.stale ? binding.staleReason : null,
+    staleSince: binding.stale ? binding.staleSince : null,
+    lastOkAt: binding.lastOkAt,
+    consecutiveFailures: binding.consecutiveFailures,
+    refreshRule: binding.refreshRule,
+    refreshable: allowlisted,
+    refreshableReason: allowlisted ? null : "allowlist",
+    periods: stats?.periods ?? 0,
+    lastObservedAt: stats?.lastObservedAt ?? null,
+  };
+}
+
+// Attach the binding views + the parsed series→binding refs a client needs.
+// One batch read for the whole page (list responses are the hot path).
+function decorate(rows) {
+  const items = Array.isArray(rows) ? rows : [rows];
+  const ids = new Set();
+  for (const row of items) {
+    for (const ref of bindings.refsOf(row)) ids.add(ref.bindingId);
+  }
+  const bindingRows = db.getChartBindings([...ids]);
+  const stats = db.seriesPointStats([...ids]);
+  const views = new Map(bindingRows.map((b) => [b.id, bindingView(b, stats.get(b.id))]));
+  const decorateOne = (row) => {
+    if (!row) return row;
+    const refs = bindings.refsOf(row);
+    return {
+      ...row,
+      bindingRefs: refs,
+      bindings: refs.map((ref) => ({ seriesIndex: ref.seriesIndex, ...(views.get(ref.bindingId) ?? { id: ref.bindingId }) })),
+    };
+  };
+  return Array.isArray(rows) ? items.map(decorateOne) : decorateOne(items[0]);
+}
+
 export function list(params = {}) {
-  return db.listResources(params);
+  const page = db.listResources(params);
+  return { ...page, items: decorate(page.items) };
 }
 
 export function get(id) {
-  return db.getResource(id);
+  return decorate(db.getResource(id));
+}
+
+// ── Binding mutations (openspec: add-chart-data-binding) ────────────────────
+//
+// The confirmation path: the user picks one of the chart's retained same-turn
+// candidates. The candidate supplies the exact call — name, arguments and the
+// map proposed from its recorded result — so nothing is reconstructed here.
+
+export function attachFromCandidate(id, { candidateIndex = 0, seriesIndex = 0, map = null } = {}) {
+  const row = db.getResource(id);
+  if (!row) throw new ResourceError(404, "resource_not_found", "资源不存在");
+  const candidates = bindings.candidatesForResource(row);
+  const candidate = candidates[candidateIndex];
+  if (!candidate) throw new ResourceError(404, "candidate_not_found", "候选数据调用不存在");
+  const result = bindings.attachBinding({
+    resourceId: id,
+    seriesIndex: Number.isInteger(seriesIndex) ? seriesIndex : 0,
+    server: candidate.server,
+    tool: candidate.tool,
+    args: candidate.args,
+    map: map ?? candidate.map,
+    origin: "confirmed",
+    concept: candidate.args?.concept_id ?? null,
+    frequency: candidate.frequency,
+    unit: candidate.unit,
+  });
+  return { ...result, resource: get(result.resource.id) };
+}
+
+export function detach(id, bindingId) {
+  const result = bindings.detachBinding(id, bindingId);
+  return { ...result, resource: get(result.resource.id) };
+}
+
+// The refresh rule is validated for shape here; an unparseable cron is caught
+// by the scheduler, which warns and skips rather than scheduling garbage.
+export function setRefreshRule(id, bindingId, rule) {
+  const row = db.getResource(id);
+  if (!row) throw new ResourceError(404, "resource_not_found", "资源不存在");
+  if (!bindings.refsOf(row).some((r) => r.bindingId === bindingId)) {
+    throw new ResourceError(404, "binding_not_attached", "该资源未引用此绑定");
+  }
+  const cleaned = normalizeRefreshRule(rule);
+  const updated = db.updateChartBinding(bindingId, { refreshRule: cleaned }, new Date().toISOString());
+  bindings.notifyScheduleDirty();
+  broadcastChange("bound", row);
+  return { binding: bindingView(updated), resource: get(id) };
+}
+
+const CRON_SHAPE = /^\s*\S+(\s+\S+){4,5}\s*$/;
+
+function normalizeRefreshRule(rule) {
+  if (rule == null) return null;
+  if (typeof rule !== "object" || Array.isArray(rule)) {
+    throw new ResourceError(400, "invalid_rule", "刷新规则无效");
+  }
+  const out = {};
+  if (rule.cron != null) {
+    const cron = String(rule.cron).trim();
+    if (!CRON_SHAPE.test(cron)) throw new ResourceError(400, "invalid_rule", "cron 表达式需要 5–6 个字段");
+    out.cron = cron;
+    if (rule.tz != null) {
+      const tz = String(rule.tz).trim();
+      if (!tz) throw new ResourceError(400, "invalid_rule", "时区无效");
+      out.tz = tz;
+    }
+    return out;
+  }
+  if (rule.ttlSec != null) {
+    const ttl = Number(rule.ttlSec);
+    if (!Number.isFinite(ttl) || ttl <= 0) throw new ResourceError(400, "invalid_rule", "TTL 需要为正秒数");
+    out.ttlSec = Math.floor(ttl);
+    return out;
+  }
+  throw new ResourceError(400, "invalid_rule", "刷新规则需要 cron 或 ttlSec");
+}
+
+// The observation timeline of one binding, newest first — the refresh log as
+// the UI reads it. Time-filterable server-side so a long-lived binding does not
+// ship its whole history to render a week of it.
+export function observationsFor(bindingId, { since = null, until = null, limit = 100, offset = 0 } = {}) {
+  return db.listChartRefreshes(bindingId, { since, until, limit, offset });
 }
 
 export function rename(id, title) {
@@ -335,6 +521,9 @@ export async function remove(id) {
   if (resource.type === "file" && /^[A-Za-z0-9_-]{1,64}$/.test(resource.id)) {
     await rm(path.join(filesRoot(), resource.id), { recursive: true, force: true });
   }
+  // The row carried its binding references away with it; the scheduler and the
+  // sweeper reconcile from what is left.
+  if (bindings.refsOf(resource).length) bindings.notifyScheduleDirty();
   broadcastChange("deleted", resource);
   return resource;
 }
@@ -405,6 +594,9 @@ export function seedFromHistory({ force = false, dryRun = false } = {}) {
 // (and on the operator path there is no server at all).
 export async function initStore({ broadcast: broadcastFn } = {}) {
   if (broadcastFn) broadcast = broadcastFn;
+  // The binding module broadcasts its own mutations (bind/unbind) on the same
+  // event: one injection point for the library's whole surface.
+  bindings.setBroadcast(broadcast);
   await mkdir(filesRoot(), { recursive: true });
   const result = seedFromHistory();
   if (result.seeded > 0) {

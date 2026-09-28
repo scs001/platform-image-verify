@@ -209,6 +209,9 @@ export function attachDshEvents(ctx) {
         ctx.dshTurnError = null;
         ctx.dshToolNames.clear();
         ctx.dshTurnBlocks = [];
+        // The declared channel's scope: a `chart_bind` declaration may only
+        // reach a chart captured during THIS turn.
+        ctx.dshTurnStartedAt = new Date().toISOString();
         ctx.broadcast({ type: "agent_start" });
         break;
       case "assistant/chunk": {

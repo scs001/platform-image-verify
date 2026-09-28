@@ -38,6 +38,24 @@ const INIT_RETRIES = Number(process.env.DSH_INIT_RETRIES) || 20;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// The --patch flag list, in load order: an absent path (no MCP servers, no
+// skills dir, an unresolvable preset root) simply omits its flag, which is what
+// makes every overlay additive and individually optional. The permission overlay
+// MUST come after the preset overlay — it swaps the preset bridge's loader row —
+// and the two bridge rows come last: each inserts one fresh row and touches
+// nothing else.
+export function patchArgs(paths = {}) {
+  const order = [
+    paths.mcpPatchPath,
+    paths.skillsPatchPath,
+    paths.presetsPatchPath,
+    paths.permissionsPatchPath,
+    paths.toolSearchPatchPath,
+    paths.chartBindPatchPath,
+  ];
+  return order.filter(Boolean).flatMap((p) => ["--patch", p]);
+}
+
 export class DshBridge {
   #client = null;
   #subscription = null;
@@ -53,6 +71,7 @@ export class DshBridge {
   #presetsPatchPath;
   #permissionsPatchPath;
   #toolSearchPatchPath;
+  #chartBindPatchPath;
   #agentPreset;
   #env;
   // Preset roster cache, per child generation: null until the first successful
@@ -65,7 +84,7 @@ export class DshBridge {
   #restarting = false;
   #generation = 0;
 
-  constructor({ onEvent, provider, model, cwd, mcpPatchPath, skillsPatchPath, presetsPatchPath, permissionsPatchPath, toolSearchPatchPath, agentPreset, env } = {}) {
+  constructor({ onEvent, provider, model, cwd, mcpPatchPath, skillsPatchPath, presetsPatchPath, permissionsPatchPath, toolSearchPatchPath, chartBindPatchPath, agentPreset, env } = {}) {
     if (onEvent) this.#onEvent = onEvent;
     this.#provider = provider || "deepseek-official";
     this.#model = model || "deepseek-v4-flash";
@@ -75,6 +94,7 @@ export class DshBridge {
     this.#presetsPatchPath = presetsPatchPath || null;
     this.#permissionsPatchPath = permissionsPatchPath || null;
     this.#toolSearchPatchPath = toolSearchPatchPath || null;
+    this.#chartBindPatchPath = chartBindPatchPath || null;
     this.#agentPreset = agentPreset || null;
     // When provided, the dsh child is spawned with this env instead of the
     // inherited process env — used to scrub upstream API keys (LLM_API_KEY /
@@ -94,25 +114,13 @@ export class DshBridge {
 
   async #spawn() {
     // Build CLI args: profile + optional patch overlays (dsh-profile generators).
-    // --patch is repeatable and applied after the profile layer; an absent patch
-    // path (no MCP servers / no skills dir / unresolvable preset root) just
-    // omits the flag. The skills + presets + permissions patches are static
-    // (set at construction); the mcp patch can be swapped on restart. The
-    // permission overlay MUST come after the preset overlay — it swaps the
-    // preset bridge's loader row.
-    const args = ["--profile", PROFILE];
+    // The flag order is load-bearing (see patchArgs).
+    const args = ["--profile", PROFILE, ...patchArgs(this.#patchPaths())];
     // Which provider/model this generation was spawned with: a restart carries
     // the values current at spawn time, and a wrong one here is the difference
     // between a working turn and "no API key for provider route" — worth one
     // line in the log rather than a debugging session.
     console.log(`[dsh-bridge] spawn generation=${this.#generation} provider=${this.#provider} model=${this.#model} cwd=${this.#cwd}`);
-    if (this.#mcpPatchPath) args.push("--patch", this.#mcpPatchPath);
-    if (this.#skillsPatchPath) args.push("--patch", this.#skillsPatchPath);
-    if (this.#presetsPatchPath) args.push("--patch", this.#presetsPatchPath);
-    if (this.#permissionsPatchPath) args.push("--patch", this.#permissionsPatchPath);
-    // Purely additive tool row: order after the permission overlay (it inserts
-    // its own fresh row and touches nothing else).
-    if (this.#toolSearchPatchPath) args.push("--patch", this.#toolSearchPatchPath);
     const client = new HarnessClient({
       command: COMMAND,
       args,
@@ -304,6 +312,18 @@ export class DshBridge {
 
   getCwd() {
     return this.#cwd;
+  }
+
+  // The overlay paths this instance spawns with, as patchArgs expects them.
+  #patchPaths() {
+    return {
+      mcpPatchPath: this.#mcpPatchPath,
+      skillsPatchPath: this.#skillsPatchPath,
+      presetsPatchPath: this.#presetsPatchPath,
+      permissionsPatchPath: this.#permissionsPatchPath,
+      toolSearchPatchPath: this.#toolSearchPatchPath,
+      chartBindPatchPath: this.#chartBindPatchPath,
+    };
   }
 
   // The mcp.patch.yml this child was spawned watching (null when booted with

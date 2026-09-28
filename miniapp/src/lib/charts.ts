@@ -23,7 +23,16 @@ let version = 0;
 
 export function registerChart(id: string, option: Record<string, unknown>) {
   const existing = charts.get(id);
-  if (existing) return;
+  if (existing) {
+    // The same canvas can be handed NEW data: a refresh of a bound chart (the
+    // resources page) and a streaming fence upgraded in place (the chat) both
+    // re-register. Replace and mark pending, or the canvas keeps drawing the
+    // old series forever; an unchanged option is left alone so an ordinary
+    // re-render is not a redraw.
+    if (JSON.stringify(existing.option) === JSON.stringify(option)) return;
+    charts.set(id, { option, status: "pending" });
+    return;
+  }
   charts.set(id, { option, status: "pending" });
 }
 

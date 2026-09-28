@@ -69,6 +69,14 @@ const isInternalCronBridge = (req) =>
   (req.path === "/api/cron" || req.path.startsWith("/api/cron/")) &&
   isLoopback(req.socket?.remoteAddress);
 
+// The chart-bind bridge (`chart_bind`, openspec: add-chart-data-binding) is the
+// same shape: a dsh-plugin tool in the cell's own child declaring the data call
+// behind the chart this turn produced. Loopback is its credential, and the
+// route it reaches only ever acts on the platform's CURRENT turn — it cannot
+// name another session's chart, and a non-loopback caller still faces the gate.
+const isInternalChartBridge = (req) =>
+  req.path === "/api/resources/bind-declared" && isLoopback(req.socket?.remoteAddress);
+
 // The header the gateway injects alongside the identity headers in hosted mode.
 export const GATEWAY_SECRET_HEADER = "x-cloud-gateway-secret";
 
@@ -116,6 +124,10 @@ export function registerAuth(ctx) {
   ctx.app.use((req, res, next) => {
     if (isInternalCronBridge(req)) {
       req.user = { email: "cron@internal", internal: true };
+      return next();
+    }
+    if (isInternalChartBridge(req)) {
+      req.user = { email: "chart-bridge@internal", internal: true };
       return next();
     }
     const headerUser = userFromHeaders(req.headers, ctx.headerTrust);

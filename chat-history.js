@@ -170,6 +170,10 @@ export function recordMessage(sessionId, role, content, blocks) {
         messageId: inserted.id,
         sessionTitle: db.getSessionMeta(sessionId)?.title || null,
         text: content || "",
+        // The turn's own evidence trail: which MCP calls ran and what they
+        // returned. A chart captured here can be witnessed against it, and the
+        // calls are retained so the user can confirm one as its data source.
+        blocks,
         createdAt: now,
       });
     } catch (err) {

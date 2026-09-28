@@ -43,11 +43,18 @@ function bridgeOrigin() {
   return `http://${bracketed}:${process.env.PORT || 3000}`;
 }
 
+// A missing or unreadable allowlist file is NOT "allow everything": it is the
+// same documented default the server's own replay gate falls back to
+// (`ALLOWLIST_FALLBACK` in chart-bindings.js), so a deployment that somehow
+// lost the file refuses every other server and tool instead of accepting any
+// declaration. Default-deny is the contract (task 1.5).
+const ALLOWLIST_FALLBACK = { "fd-open-data-mcp": ["read_series"] };
+
 function allowlist() {
   try {
     return JSON.parse(readFileSync(ALLOWLIST_PATH, "utf8"))?.servers ?? {};
   } catch {
-    return null;
+    return ALLOWLIST_FALLBACK;
   }
 }
 

@@ -225,6 +225,40 @@ test("an off-allowlist tool is refused before anything is posted", async () => {
   }
 });
 
+test("a deployment with no allowlist file still refuses off-allowlist tools", async () => {
+  // The prod shape this test exists for (2026-09-28): the image shipped the
+  // plugin but not `chart-replay-allowlist.json`, so the file was unreadable at
+  // runtime. The contract stays default-deny — the fallback is the same
+  // documented default the server's replay gate uses, never "allow everything".
+  const bridge = fakeBridge();
+  const url = await bridge.listen();
+  const previous = process.env.CHART_BRIDGE_URL;
+  process.env.CHART_BRIDGE_URL = url;
+  const { mod, tmp } = await loadPlugin(); // nothing copied into the plugin's own dir
+  try {
+    const tool = register(mod, {
+      schemas: [...ROSTER, { name: "mcp__fd-open-data-mcp__read", description: "read-through", parameters: { type: "object", properties: {} } }],
+    });
+    const refused = await tool.execute({ tool: "mcp__fd-open-data-mcp__read", args: "{}" }, { agent: "agent-scope-1" });
+    assert.equal(refused.ok, false);
+    assert.match(refused.message, /replay allowlist/);
+    assert.equal(bridge.received.length, 0);
+
+    // The fallback's one listed tool still declares normally.
+    const allowed = await tool.execute(
+      { tool: "mcp__fd-open-data-mcp__read_series", args: '{"concept_id":228}' },
+      { agent: "agent-scope-1" },
+    );
+    assert.equal(allowed.ok, true, allowed.message);
+    assert.equal(bridge.received.length, 1);
+  } finally {
+    if (previous === undefined) delete process.env.CHART_BRIDGE_URL;
+    else process.env.CHART_BRIDGE_URL = previous;
+    await bridge.close();
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test("malformed declarations are refused with the reason, and an operator allowlist edit is honoured", async () => {
   const { mod, tmp } = await loadPlugin({ allowlist: path.join(REPO_ROOT, "chart-replay-allowlist.json") });
   try {

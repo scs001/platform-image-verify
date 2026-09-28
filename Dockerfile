@@ -183,6 +183,13 @@ COPY --chown=node:node --from=builder /app/web/dist ./web/dist
 # + the dirs the supervisor/launcher need at runtime.
 COPY --chown=node:node --from=builder /app/package.json /app/platform.bundle.json /app/mcp.example.json ./
 COPY --chown=node:node --from=builder /app/market-catalog.json /app/market-catalog-skills.json ./
+# The chart replay allowlist (openspec: add-chart-data-binding): read at boot by
+# dsh-profile.js, which copies it into $DSH_HOME/profiles/<name> for the
+# chart-bind bridge, and by chart-bindings.js as the replay gate. It is JSON, so
+# `/app/*.js` below does not carry it — without this line the image boots and the
+# feature works, but both allowlist readers silently fall back to their built-in
+# default (observed on prod 2026-09-28: the plugin's gate was inert).
+COPY --chown=node:node --from=builder /app/chart-replay-allowlist.json ./
 COPY --chown=node:node --from=builder /app/*.js ./
 COPY --chown=node:node --from=builder /app/server ./server
 # gateway/ is imported by server.js (the mini-program identity modules,

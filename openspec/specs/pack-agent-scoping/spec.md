@@ -8,7 +8,7 @@ Ties a pack persona to a focused resource set: selecting a pack role narrows the
 
 ### Requirement: Resource scope is derived from the selected preset
 
-The effective resource scope — which MCP servers and skills the runtime loads — SHALL be derived from the selected agent preset: a pack persona preset selects focused mode; the shipped presets and the built-in local agent select full mode (every installed server and skill, exactly today's behavior). The runtime SHALL re-derive the scope at every start, on every preset switch, and on every MCP or skill configuration change, so the composed runtime always matches the derivation; the scope SHALL NOT persist as independent state that can drift from the preset.
+The effective resource scope — which MCP servers and skills the runtime loads — SHALL be derived from the selected agent preset together with the overlay recorded for that preset: a pack persona preset selects focused mode; the shipped presets and the built-in local agent select full mode (every installed server and skill, exactly today's behavior). The runtime SHALL re-derive the scope at every start, on every preset switch, and on every MCP or skill configuration change, so the composed runtime always matches the derivation; the scope SHALL NOT persist as independent state that can drift — the overlay stores only per-role add/remove preferences, never a materialized resource set (spec: focus-overlay).
 
 #### Scenario: Boot under a focused selection
 
@@ -35,9 +35,14 @@ The effective resource scope — which MCP servers and skills the runtime loads 
 - **WHEN** the deployment upgrades to this change with packs already installed
 - **THEN** those packs' skills remain invocable in full mode and focusable in focused mode with no user action (materialization is rebuilt from the durable store)
 
+#### Scenario: Overlay adjustment recomposes the scope
+
+- **WHEN** a role's overlay is adjusted
+- **THEN** the next composition of that role's runtime reflects the preset's derivation plus the adjusted preferences
+
 ### Requirement: Focused mode loads the baseline plus the pack's resource set
 
-In focused mode the runtime SHALL load only the deployment baseline together with the selected persona's resource set — the subset of the pack's resources that the persona's declaration names, defaulting to the whole pack's set when the persona declares none. The baseline SHALL be: every server in the operator's mcp.json layer, every server named in `PACK_BASELINE_MCP` that is installed and visible, and the deployment's bundled skills; operators own the baseline and pack manifests cannot extend it. A pack's resources SHALL be its pack-owned skills (the rows the install recorded as owned by that pack) and its MCP references that are installed in the cell; a manifest entry skipped at install (name collision with foreign content) is NOT part of any persona's set — the install report, not the manifest, is the record of what the pack owns here, the same principle the catalog's pack source applies. A persona's declaration SHALL name only skills and MCP references within the pack's own lists, and each dimension (skills, MCP) SHALL scope independently: an absent dimension keeps the whole-pack set for that dimension, while a present-but-empty dimension yields none. The user's personal availability settings intersect with the scope: focusing can only remove servers from what the user has enabled and SHALL NOT re-enable a server the user disabled. A persona whose effective set is empty — a persona-only pack, or an empty declaration — focuses to the baseline alone.
+In focused mode the runtime SHALL load only the deployment baseline together with the selected persona's resource set — the subset of the pack's resources that the persona's declaration names, defaulting to the whole pack's set when the persona declares none — with the preset's overlay applied after the derivation: additions drawn from the enabled universe, removals of any member of the derived set (spec: focus-overlay). The baseline SHALL be: every server in the operator's mcp.json layer, every server named in `PACK_BASELINE_MCP` that is installed and visible, and the deployment's bundled skills; operators own the baseline and pack manifests cannot extend it (an overlay removal narrows the user's own runtime; it does not edit the baseline definition). A pack's resources SHALL be its pack-owned skills (the rows the install recorded as owned by that pack) and its MCP references that are installed in the cell; a manifest entry skipped at install (name collision with foreign content) is NOT part of any persona's set — the install report, not the manifest, is the record of what the pack owns here. A persona's declaration SHALL name only skills and MCP references within the pack's own lists, and each dimension (skills, MCP) SHALL scope independently: an absent dimension keeps the whole-pack set for that dimension, while a present-but-empty dimension yields none. The user's personal availability settings intersect with the scope: focusing can only remove servers from what the user has enabled, an overlay addition SHALL NOT re-enable a server the user disabled, and a persona whose effective set is empty focuses to the baseline alone.
 
 #### Scenario: Focused tool surface is the pack's plus the baseline
 
@@ -88,6 +93,17 @@ In focused mode the runtime SHALL load only the deployment baseline together wit
 
 - **WHEN** a focused pack is upgraded to a version whose persona declaration adds or drops skills or MCP references
 - **THEN** the focused runtime reflects the new declaration on its next composition
+
+#### Scenario: Overlay addition extends the focused surface
+
+- **WHEN** a role's overlay adds an enabled server and an available skill
+- **THEN** the focused runtime exposes the derived set plus those two additions and the baseline
+
+#### Scenario: Overlay removal may drop a baseline member
+
+- **WHEN** a role's overlay removes a baseline server
+- **THEN** that role's focused runtime omits it while every other role and full mode still load it
+
 ### Requirement: Focus is visible to the user
 
 The agent picker SHALL mark pack personas as focused roles, showing the pack identity (cross-referencing the `packId` the catalog serves for pack-sourced entries) together with the role's resource summary — the skill and MCP server counts of that persona's effective set, whether declared or defaulted. The persona text generated for a pack role SHALL state that the role's tools and skills focus on its own resource set, so a request for capability outside the set gets an honest "not enabled for this role" answer that suggests switching modes, never invented results. Focus switching follows the existing preset-switch contract: rejected while a turn streams, applied to the next session, broadcast to all clients.
@@ -108,12 +124,17 @@ The agent picker SHALL mark pack personas as focused roles, showing the pack ide
 - **THEN** the switch is rejected with an error, matching the existing `set_model` / `set_preset` guard
 ### Requirement: Focus is a property of the shared runtime
 
-Focused/full mode SHALL be deployment-global state of the shared runtime, consistent with the existing deployment-global preset preference and the v1 shared-session ceiling: every connected client (web, mini-program) sees the same mode, and a switch by any client follows the serialized runtime-mutation path. Per-client scoping is out of scope for v1 and is documented rather than silently discovered.
+Focused/full mode and each role's overlay SHALL be deployment-global state of the shared runtime, consistent with the existing deployment-global preset preference and the v1 shared-session ceiling: every connected client (web, mini-program) sees the same mode and the same adjustments, and a switch or adjustment by any client follows the serialized runtime-mutation path. Per-client scoping is out of scope for v1 and is documented rather than silently discovered.
 
 #### Scenario: Second client sees the same mode
 
 - **WHEN** a pack role is selected and another client connects
 - **THEN** that client's runtime view and picker reflect the same focused mode as every other client
+
+#### Scenario: Second client sees the same adjustments
+
+- **WHEN** one client adjusts a role's overlay and another client inspects the same role
+- **THEN** the other client's adjustment view shows the same effective set and preferences
 
 ### Requirement: Scope savings are measured
 

@@ -784,6 +784,25 @@ turn-trace 单 turn token 差噪声级（schema 按需加载），硬收益在 r
 MCP 行 credentialRef 化的运维实录见
 `openspec/changes/add-persona-resource-sets/measurements.md`。
 
+### 角色资源微调上线实录（add-focus-overlay，2026-09-29 sha-40a88aa）
+
+订阅方对聚焦角色的 add/remove 微调（`focus.overlay.<presetId>` 偏好差异）。
+**部署全局语义（v1 天花板，与 preset 选择一致）**：overlay 是共享运行时的
+部署级状态——任何客户端（web）的调整对全体客户端立即可见（`overlay_changed`
+广播），PUT 走 set_preset 同款串行变更路径（流式中 409、空闲时重写双 patch +
+重启、下一会话生效）；per-client 隔离是文档化的升级路径而非待发现行为。
+**MP 侧 fast-follow（本变更未含）**：小程序不提供微调面板，角色徽标保持
+add-persona-resource-sets 的只读形态；e2e 以静态断言锁住「MP 源码不引用
+/api/agent/overlay」。探针 `--overlay` 通道已验证：in-pod 对
+pack-industry-analyst-macro 存演示 diff 后，`focused-derived`（基线 only）
+与 `focused-overlay`（`+skills[stock-research-workflow]` → persona 组合根出
+现，跨根链接 `../../../stock-research-workflow`；悬空 remove 静默忽略）双块
+并排输出，演示后已清除。API：`GET/PUT /api/agent/overlay?preset=`（PUT 校验
+add∩remove 冲突 400 点名字段；overlay 适用于 pack persona，shipped preset
+保持可用性语义）。注：#43 构建曾因 cheap-3 上 builder 阶段镜像在构建中途被
+回收（`COPY --from=builder: No such image`）失败，重试 #44 即成——冷构建慢
+阶段与盘压 GC 的竞态，复发时先查节点 `docker system df`。
+
 ## Multi-tenant cloud deployment (gateway + cells)
 
 The single-process deployment above serves **one** shared runtime. The hosted

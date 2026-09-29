@@ -54,12 +54,20 @@ export function deleteDraft(id) {
 
 // ── Install (subscribe / upgrade) ────────────────────────────────────────────
 
-// Which OTHER installed pack owns an agent id (conflict check across packs).
+// Who owns an agent id besides the installing pack (conflict check). Returns
+// { kind: "pack", name } for another installed pack, { kind: "custom", name }
+// for a custom preset holding the id (add-custom-presets D6 — the market's
+// one-directional never-overwrite-foreign-content policy treats custom
+// presets as owners too), or null when the id is free.
 function agentOwner(agentId, excludePackId) {
   for (const installed of db.listInstalledPacks()) {
     if (installed.packId === excludePackId) continue;
-    if ((installed.manifest?.agents ?? []).some((a) => a?.id === agentId)) return installed;
+    if ((installed.manifest?.agents ?? []).some((a) => a?.id === agentId)) {
+      return { kind: "pack", name: installed.name };
+    }
   }
+  const preset = db.getUserPreset(agentId);
+  if (preset) return { kind: "custom", name: preset.name };
   return null;
 }
 
@@ -155,7 +163,9 @@ export async function installPack({ packId, version, manifest, user, hooks = {} 
         id: agent.id,
         name: agent.name,
         status: "skipped",
-        reason: `agent id is owned by installed pack "${owner.name}"`,
+        reason: owner.kind === "custom"
+          ? `agent id is held by custom preset "${owner.name}"`
+          : `agent id is owned by installed pack "${owner.name}"`,
       });
       continue;
     }

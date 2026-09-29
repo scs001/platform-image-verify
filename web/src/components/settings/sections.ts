@@ -15,6 +15,7 @@ import {
   TerminalSquare,
   Activity,
   UserRound,
+  UserRoundPlus,
   Smartphone,
   Paintbrush,
   Package,
@@ -41,6 +42,9 @@ const DashboardPage = lazy(() =>
   import("@/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })),
 );
 const PacksPage = lazy(() => import("@/pages/PacksPage").then((m) => ({ default: m.PacksPage })));
+const CustomPresetsPage = lazy(() =>
+  import("@/pages/CustomPresetsPage").then((m) => ({ default: m.CustomPresetsPage })),
+);
 
 export interface SettingsSection {
   slug: string;
@@ -104,6 +108,16 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Package,
     Component: PacksPage as React.LazyExoticComponent<React.ComponentType<any>>,
     requiresPackMarketplace: true,
+  },
+  {
+    // Custom presets (add-custom-presets): the cell's user-composed focused
+    // roles. Roster-level management — visible to every authenticated user
+    // (the roster is deployment-global), never gated on the pack marketplace.
+    slug: "presets",
+    labelKey: "settings.sections.presets",
+    testId: "settings-section-presets",
+    icon: UserRoundPlus,
+    Component: CustomPresetsPage as React.LazyExoticComponent<React.ComponentType<any>>,
   },
   {
     slug: "wechat-app",

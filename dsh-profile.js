@@ -483,16 +483,19 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
     }
   }
 
-  // Focus layer (add-pack-agent-scoping): a pack persona keeps only the
-  // deployment baseline — every mcp.json server plus PACK_BASELINE_MCP names
-  // resolved against the installed set — together with the pack's own MCP
-  // references. Subtractive and LAST, after the personal overlay, so focusing
-  // can only narrow what the user already enabled: a personal (or DB) disable
-  // always wins over a manifest reference. Pack refs naturally intersect with
-  // the installed set here — an unresolvable ref matches nothing and drops
-  // out (the install report already carries its unavailability).
+  // Focus layer (add-pack-agent-scoping; custom presets add a third family —
+  // add-custom-presets D3): a focused role (pack persona or custom preset)
+  // keeps only the deployment baseline — every mcp.json server plus
+  // PACK_BASELINE_MCP names resolved against the installed set — together
+  // with the role's own MCP references. Subtractive and LAST, after the
+  // personal overlay, so focusing can only narrow what the user already
+  // enabled: a personal (or DB) disable always wins over a manifest or
+  // preset reference. References naturally intersect with the installed set
+  // here — an unresolvable ref matches nothing and drops out (a custom
+  // preset's reference list resolving against the installed set IS the
+  // composition-time truth).
   const scope = await deriveScope(agentPreset, { noOverlay });
-  if (scope.packId) {
+  if (scope.packId || scope.source === "custom") {
     // The available-server map AFTER availability/group/credential filtering
     // but BEFORE the focus keep-set drops names — additions may only restore
     // from here, which makes "an addition can never resurrect a disabled,
@@ -543,11 +546,16 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
     const effective = [...new Set([...keep, ...(scope.overlay?.addMcp ?? [])])]
       .filter((n) => servers[n]);
     console.log(
-      `[dsh-profile] focused on pack "${scope.packName}" (${scope.packId})` +
-        (scope.persona ? ` persona "${scope.persona}"` : "") +
-        `: keeping [${effective.join(", ") || "(none)"}]` +
-        (dropped.length ? `, dropped [${dropped.join(", ")}]` : "") +
-        overlayLog,
+      scope.source === "custom"
+        ? `[dsh-profile] focused on custom preset "${scope.customPresetName}" (${scope.customPresetId})` +
+            `: keeping [${effective.join(", ") || "(none)"}]` +
+            (dropped.length ? `, dropped [${dropped.join(", ")}]` : "") +
+            overlayLog
+        : `[dsh-profile] focused on pack "${scope.packName}" (${scope.packId})` +
+            (scope.persona ? ` persona "${scope.persona}"` : "") +
+            `: keeping [${effective.join(", ") || "(none)"}]` +
+            (dropped.length ? `, dropped [${dropped.join(", ")}]` : "") +
+            overlayLog,
     );
   }
 
@@ -600,7 +608,31 @@ export async function writeSkillsPatch({ agentPreset = null, extraDirs = [], noO
   // deployment-specific roots after the derived set.
   const scope = await deriveScope(agentPreset, { noOverlay });
   const dirs = [resolve("skills")];
-  if (scope.packId) {
+  if (scope.source === "custom") {
+    // Custom preset (add-custom-presets D3): the compose root IS the scope —
+    // the row's whole reference list is the declaration (empty = baseline
+    // only, skillsDir null). Rebuilt here, idempotently from the DB rows
+    // (the availability truth), before it is listed; the overlay applies on
+    // top with the same add/remove rules as pack roles.
+    let skillsDir = null;
+    try {
+      const sm = await import("./skill-materialize.js");
+      const db = await import("./db.js");
+      const enabledRows = db.isDbReady()
+        ? db.listCustomSkills().filter((s) => s.enabled !== false)
+        : [];
+      skillsDir = sm.buildCustomPresetSkillsRoot(
+        scope.customPresetId,
+        scope.skillsDecl,
+        enabledRows,
+        scope.overlay,
+      );
+    } catch (e) {
+      console.warn(`[dsh-profile] custom preset compose root unavailable; skills patch is baseline-only: ${e?.message || e}`);
+      skillsDir = null;
+    }
+    if (skillsDir) dirs.push(skillsDir);
+  } else if (scope.packId) {
     // Focused: baseline + the persona's own skills scope. skillsDir is the
     // pack root for an undeclared persona (pre-change path, byte-identical);
     // a DECLARED persona scopes via its compose root (D3) — rebuilt here,
@@ -655,8 +687,13 @@ export async function writeSkillsPatch({ agentPreset = null, extraDirs = [], noO
     config: { customSkillDirs: dirs },
   };
   atomicWriteTextSync(SKILLS_PATCH_PATH, yaml.dump([entry]));
+  const focusLabel = scope.source === "custom"
+    ? `focused: ${scope.customPresetId}`
+    : scope.packId
+      ? `focused: ${scope.packId}`
+      : "full";
   console.log(
-    `[dsh-profile] wrote skills patch (${scope.packId ? `focused: ${scope.packId}` : "full"}${scope.overlay ? " +overlay" : ""}; customSkillDirs: ${dirs.join(", ")}) → ${SKILLS_PATCH_PATH}`,
+    `[dsh-profile] wrote skills patch (${focusLabel}${scope.overlay ? " +overlay" : ""}; customSkillDirs: ${dirs.join(", ")}) → ${SKILLS_PATCH_PATH}`,
   );
   return SKILLS_PATCH_PATH;
 }
@@ -678,26 +715,48 @@ function baselineMcpNames() {
 }
 
 // Stage 1 — preset id → persona: the merged-catalog entry's installed pack
-// plus the manifest's agent entry. Going through the MERGED catalog (not the
+// plus the manifest's agent entry, or (third family, add-custom-presets D3)
+// the entry's user_presets row. Going through the MERGED catalog (not the
 // installed-pack list) keeps derivation honest about shadowing: an id the
-// cloud or agents.json overrides is no longer a pack persona — its generated
-// preset composes the overriding entry's persona — so it resolves to no
-// persona and runs full. Requires the generated preset to exist for the id
-// (hasCatalogAgentPreset); a departed entry's preset is pruned, and its stale
-// selection self-heals. Returns null for every full-mode case; a persona
-// otherwise: { packId, packName, manifest, agent }. Exported for the
-// follow-up changes (overlay, custom presets) that feed the same derivation.
+// cloud or agents.json overrides is no longer a pack persona OR a custom
+// preset — its generated preset composes the overriding entry's persona — so
+// it resolves to no persona and runs full. Requires the generated preset to
+// exist for the id (hasCatalogAgentPreset); a departed entry's preset is
+// pruned, and its stale selection self-heals. Returns null for every
+// full-mode case; otherwise { source: "pack", packId, packName, manifest,
+// agent } or { source: "custom", row }. Exported for the follow-up changes
+// (overlay, custom presets) that feed the same derivation.
 export async function resolvePersona(presetId) {
   if (!presetId || SHIPPED_PRESET_IDS.includes(presetId)) return null;
   let entry = null;
   try {
     const catalog = await import("./catalog.js");
-    entry = catalog.getChatAgentEntries().find((e) => e.id === presetId && e.packId) || null;
+    // Match the catalog id in EITHER form: callers hold the catalog id (the
+    // picker, the overlay panel) or its roster/dash form (ctx.currentPreset,
+    // which is what a switch persisted into the runtime).
+    entry = catalog.getChatAgentEntries().find(
+      (e) => (e.packId || e.customPreset) && (e.id === presetId || rosterPresetId(e.id) === presetId),
+    ) || null;
   } catch (e) {
     console.warn(`[dsh-profile] scope derivation: catalog unavailable (${e?.message || e}); composing full`);
     return null;
   }
-  if (!entry || !hasCatalogAgentPreset(presetId)) return null;
+  if (!entry || !hasCatalogAgentPreset(entry.id)) return null;
+  // Third family — the custom preset's row IS the resource truth (its
+  // reference list resolves against the locally-available universe at
+  // composition time; nothing to repair when packs come and go).
+  if (entry.customPreset) {
+    let row = null;
+    try {
+      const db = await import("./db.js");
+      if (db.isDbReady()) row = db.getUserPreset(entry.id);
+    } catch { /* DB off ⇒ full */ }
+    if (!row) {
+      console.warn(`[dsh-profile] preset '${entry.id}' names a custom preset that no longer exists; composing full`);
+      return null;
+    }
+    return { source: "custom", catalogId: entry.id, row };
+  }
   // → the installed pack's manifest (the resource set's source of truth). A
   // pack that left composes full — derivation self-heals a stale selection.
   let installed = null;
@@ -706,21 +765,24 @@ export async function resolvePersona(presetId) {
     if (db.isDbReady()) installed = db.getInstalledPack(entry.packId);
   } catch { /* DB off ⇒ full */ }
   if (!installed?.manifest) {
-    console.warn(`[dsh-profile] preset '${presetId}' names pack '${entry.packId}' which is not installed; composing full`);
+    console.warn(`[dsh-profile] preset '${entry.id}' names pack '${entry.packId}' which is not installed; composing full`);
     return null;
   }
-  const agent = (installed.manifest.agents ?? []).find((a) => a?.id === presetId) ?? null;
-  return { packId: entry.packId, packName: installed.name ?? entry.packId, manifest: installed.manifest, agent };
+  const agent = (installed.manifest.agents ?? []).find((a) => a?.id === entry.id) ?? null;
+  return { source: "pack", catalogId: entry.id, packId: entry.packId, packName: installed.name ?? entry.packId, manifest: installed.manifest, agent };
 }
 
-// Stage 2 — persona → effective resource set. Returns
-// { packId: null } for full mode, or { packId, packName, persona, mcpKeep,
-// skillsDir, skillsDecl, overlay } for focused mode. Declaration semantics
-// (D2/D4): an absent dimension keeps the whole-pack set for it, a present one
-// narrows (present-but-empty ⇒ none for that dimension). Pure derivation (DB/
-// catalog reads only, no writes — the persona compose root is BUILT by
-// writeSkillsPatch, which is why skillsDir for a declared persona reports the
-// root only once it exists), so a stale patch self-heals on the next write.
+// Stage 2 — persona → effective resource set. Returns { source: null } for
+// full mode, { source: "pack", packId, packName, persona, mcpKeep, skillsDir,
+// skillsDecl, overlay } for a pack persona, or { source: "custom",
+// customPresetId, customPresetName, mcpKeep, skillsDir, skillsDecl, overlay }
+// for a custom preset. Declaration semantics (D2/D4): a pack persona's absent
+// dimension keeps the whole-pack set for it, a present one narrows
+// (present-but-empty ⇒ none for that dimension); a custom preset's reference
+// list is always the declaration (empty ⇒ baseline only). Pure derivation
+// (DB/catalog reads only, no writes — the compose roots are BUILT by
+// writeSkillsPatch, which is why skillsDir reports the root only once it
+// exists), so a stale patch self-heals on the next write.
 //
 // add-focus-overlay: the preset's stored preference diff rides along as an
 // additional derivation input (`overlay`, null when none is stored) — the
@@ -729,9 +791,39 @@ export async function resolvePersona(presetId) {
 // the input for callers that need the pre-overlay derivation (the probe's
 // derived-vs-derived±overlay report); it never affects full mode.
 export async function deriveScope(agentPreset, { noOverlay = false } = {}) {
-  const full = { packId: null, packName: null, persona: null, mcpKeep: null, skillsDir: null, skillsDecl: undefined, overlay: null };
+  const full = { source: null, packId: null, packName: null, persona: null, mcpKeep: null, skillsDir: null, skillsDecl: undefined, overlay: null };
   const persona = await resolvePersona(agentPreset);
   if (!persona) return full;
+  let overlay = null;
+  if (!noOverlay) {
+    try {
+      const db = await import("./db.js");
+      // The diff is stored under the CATALOG id (the form the panel PUTs);
+      // `agentPreset` may arrive as the roster/dash form.
+      if (db.isDbReady()) overlay = db.getFocusOverlay(persona.catalogId ?? agentPreset);
+    } catch { /* no overlay input ⇒ derived-only focus */ }
+  }
+  if (persona.source === "custom") {
+    const row = persona.row;
+    let skillsDir = null;
+    try {
+      const sm = await import("./skill-materialize.js");
+      const dir = sm.customPresetSkillsRoot(row.id);
+      if (existsSync(dir)) skillsDir = dir;
+    } catch { /* no compose root yet ⇒ baseline-only focus */ }
+    return {
+      source: "custom",
+      packId: null,
+      packName: null,
+      persona: null,
+      customPresetId: row.id,
+      customPresetName: row.name,
+      mcpKeep: [...new Set(row.mcpServers ?? [])],
+      skillsDir,
+      skillsDecl: [...new Set(row.skills ?? [])],
+      overlay,
+    };
+  }
   // D5 — the install report is the collision truth: a skill skipped at install
   // never materialized into the pack root, so the root itself already excludes
   // it; MCP refs intersect with the installed set at patch-write time.
@@ -758,14 +850,8 @@ export async function deriveScope(agentPreset, { noOverlay = false } = {}) {
       if (existsSync(dir)) skillsDir = dir;
     }
   } catch { /* no pack root ⇒ baseline-only focus */ }
-  let overlay = null;
-  if (!noOverlay) {
-    try {
-      const db = await import("./db.js");
-      if (db.isDbReady()) overlay = db.getFocusOverlay(agentPreset);
-    } catch { /* no overlay input ⇒ derived-only focus */ }
-  }
   return {
+    source: "pack",
     packId: persona.packId,
     packName: persona.packName,
     persona: persona.agent?.id ?? null,
@@ -899,6 +985,18 @@ function isSafePresetId(id) {
   return typeof id === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(id);
 }
 
+// Roster-facing preset id (add-custom-presets): dsh-agent-presets' id regex
+// (/^[a-z0-9][a-z0-9-]*$/ — a path-containment boundary, not a style rule)
+// forbids dots, so a catalog id containing dots — every custom preset's
+// `user.<slug>`, and any dotted pack agent id — maps to its dash form at the
+// one place ids become directory names: the generated preset roster. The
+// catalog keeps the dotted id; resolvePersona maps back. Collisions (a.b vs
+// a-b) are impossible inside the reserved `user.` namespace and otherwise
+// resolved first-wins at generation time (writeCatalogAgentPresets).
+export function rosterPresetId(catalogId) {
+  return typeof catalogId === "string" ? catalogId.replace(/\./g, "-") : catalogId;
+}
+
 // The persona text for one catalog entry: the entry's own `persona` when the
 // catalog author supplies one, else a composed brief from its display fields.
 // Bracket the role and the honesty rules — a pack agent that invents data is
@@ -911,6 +1009,12 @@ function isSafePresetId(id) {
 // note is static because every pack entry is focused by definition.
 const PACK_FOCUS_NOTE =
   "当前角色以聚焦模式运行：可用工具与技能仅限所属功能集与部署基线，不包含平台全部能力。用户要求使用未对当前角色启用的工具或数据源时，如实说明该能力未对当前角色启用，并建议切换回标准模式（standard）以获取完整能力；绝不虚构工具调用、数据或结论。";
+
+// The same honesty contract for a custom preset (add-custom-presets): the
+// focused set is the preset's own declared resources plus the baseline, not
+// the platform's full surface.
+const CUSTOM_FOCUS_NOTE =
+  "当前角色以聚焦模式运行：可用工具与技能仅限本自建预设声明的资源与部署基线，不包含平台全部能力。用户要求使用未对当前角色启用的工具或数据源时，如实说明该能力未对当前角色启用，并建议切换回标准模式（standard）以获取完整能力；绝不虚构工具调用、数据或结论。";
 
 export function catalogEntryPersona(entry) {
   const explicit = typeof entry?.persona === "string" ? entry.persona.trim() : "";
@@ -927,6 +1031,7 @@ export function catalogEntryPersona(entry) {
     lines.push("回答用中文（除非用户使用其他语言）：结论先行，结构清晰，给出可执行的下一步；引用数据时标注来源。");
   }
   if (entry?.packId) lines.push(PACK_FOCUS_NOTE);
+  else if (entry?.customPreset) lines.push(CUSTOM_FOCUS_NOTE);
   lines.push("You are powered by the {{model}} model; your working directory is {{cwd}}.");
   return lines.join("\n");
 }
@@ -991,13 +1096,15 @@ export function knownPresetIds() {
 // forked to its remote endpoint.
 export function hasCatalogAgentPreset(id) {
   if (!isSafePresetId(id)) return false;
-  return existsSync(join(CATALOG_PRESET_ROOT, id, "agent.cordis.yml"));
+  return existsSync(join(CATALOG_PRESET_ROOT, rosterPresetId(id), "agent.cordis.yml"));
 }
 
 // Generate/refresh/prune one preset dir per chat-mode catalog agent. Returns
 // { changed, ids }: `changed` drives the host's roster refresh (a child restart
 // is what makes `presets/list` see a new preset). Idempotent — files are only
 // rewritten when their content differs, so a catalog poll costs nothing.
+// Directory names are the ROSTER form of the entry id (dots → dashes — the
+// plugin's containment regex); the marker's entryId keeps the catalog form.
 export function writeCatalogAgentPresets(entries = []) {
   const template = shippedStandardComposition();
   const wanted = new Map();
@@ -1010,7 +1117,12 @@ export function writeCatalogAgentPresets(entries = []) {
       console.warn(`[dsh-profile] catalog agent '${entry.id}' cannot become a preset (unsafe or reserved id); it stays a remote chat`);
       continue;
     }
-    wanted.set(entry.id, entry);
+    const dirId = rosterPresetId(entry.id);
+    if (wanted.has(dirId)) {
+      console.warn(`[dsh-profile] catalog agents '${wanted.get(dirId).id}' and '${entry.id}' map to the same preset dir '${dirId}'; the latter stays a remote chat`);
+      continue;
+    }
+    wanted.set(dirId, entry);
   }
   if (!template) {
     if (wanted.size) console.warn("[dsh-profile] shipped `standard` composition unavailable; skipping catalog agent presets");
@@ -1034,11 +1146,11 @@ export function writeCatalogAgentPresets(entries = []) {
   }
 
   const ids = [];
-  wanted.forEach((entry, id) => {
-    const dir = join(CATALOG_PRESET_ROOT, id);
-    const name = entry.name || id;
+  wanted.forEach((entry, dirId) => {
+    const dir = join(CATALOG_PRESET_ROOT, dirId);
+    const name = entry.name || entry.id;
     const description = (entry.description || `Catalog agent ${name}`).trim();
-    const meta = { entryId: id, name, description, order: 50 + ids.length };
+    const meta = { entryId: entry.id, name, description, order: 50 + ids.length };
     const files = {
       "preset.yml": yaml.dump({ name, description, order: meta.order }),
       "agent.cordis.yml": composeAgentPreset(template, catalogEntryPersona(entry)),
@@ -1053,7 +1165,7 @@ export function writeCatalogAgentPresets(entries = []) {
       atomicWriteTextSync(target, content);
       changed = true;
     }
-    ids.push(id);
+    ids.push(dirId);
   });
   if (changed) {
     console.log(`[dsh-profile] wrote ${ids.length} catalog agent preset(s): ${ids.join(", ") || "(none)"} → ${CATALOG_PRESET_ROOT}`);

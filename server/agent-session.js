@@ -273,9 +273,13 @@ function remoteChatEntryFor(id) {
 
 // Which catalog agent is an agent preset's persona? Inverse of the switch below,
 // used at boot to report the agent that the persisted preset choice belongs to.
+// The preset id may be the roster/dash form of a dotted catalog id (custom
+// presets) — match through the same mapping the switch applies.
 function catalogAgentForPreset(presetId) {
   if (!presetId) return "local";
-  const entry = catalog.getChatAgentEntries().find((e) => e.id === presetId);
+  const entry = catalog.getChatAgentEntries().find(
+    (e) => e.id === presetId || dshProfile.rosterPresetId(e.id) === presetId,
+  );
   return entry && dshProfile.hasCatalogAgentPreset(entry.id) ? entry.id : "local";
 }
 
@@ -309,16 +313,19 @@ async function switchAgentToInner(id, ws) {
     ws.send(JSON.stringify({ type: "error", message: `Unknown agent: ${id}` }));
     return false;
   }
-  const isPack = id !== "local" && dshProfile.hasCatalogAgentPreset(id);
-  const isLocalAgent = id === "local" || isPack;
-  if (isLocalAgent) {
-    if (isPack) {
-      const persisted = ctx.db.getPreference("agent.preset");
-      if (persisted && persisted !== id && !dshProfile.hasCatalogAgentPreset(persisted)) {
-        ctx.db.setPreference(OWN_PRESET_KEY, persisted);
+    const isPack = id !== "local" && dshProfile.hasCatalogAgentPreset(id);
+    const isLocalAgent = id === "local" || isPack;
+    if (isLocalAgent) {
+      if (isPack) {
+        const persisted = ctx.db.getPreference("agent.preset");
+        if (persisted && persisted !== id && !dshProfile.hasCatalogAgentPreset(persisted)) {
+          ctx.db.setPreference(OWN_PRESET_KEY, persisted);
+        }
       }
-    }
-    const localPreset = isPack ? id : ownPreset();
+      // A locally-served catalog agent applies through the ROSTER form of its
+      // id (dotted catalog ids — custom presets — become dash dirs; the
+      // switch and the persisted preference speak the roster's language).
+      const localPreset = isPack ? dshProfile.rosterPresetId(id) : ownPreset();
     if (localPreset !== ctx.currentPreset) {
       const r = await switchPresetToInner(localPreset);
       if (!r.ok) {
@@ -362,8 +369,12 @@ async function syncCatalogAgentPresets() {
     const restart = () => ctx.dshBridge.restart({});
     try {
       // Serialized with model/workspace/preset switches: a restart here must not
-      // overlap one of those (both re-spawn the same child).
-      if (ctx.runExclusiveRuntimeMutation) await ctx.runExclusiveRuntimeMutation(restart);
+      // overlap one of those (both re-spawn the same child). Already INSIDE an
+      // exclusive mutation (e.g. a custom-preset CRUD route awaiting this sync
+      // from within its own serialized section)? Run directly — re-queuing on
+      // the chain would wait on ourselves forever (the dshUpdateSkills guard).
+      if (ctx.runtimeApplying?.()) await restart();
+      else if (ctx.runExclusiveRuntimeMutation) await ctx.runExclusiveRuntimeMutation(restart);
       else await restart();
       await getAgentPresets();
       console.log(`[dsh] runtime restarted for ${result.ids.length} catalog agent preset(s)`);

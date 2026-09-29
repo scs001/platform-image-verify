@@ -189,7 +189,9 @@ async function probePatches() {
   await db.initDb();
   const { writeMcpPatch, writeSkillsPatch, deriveScope } = await import("../dsh-profile.js");
 
-  // Focus targets: --preset, or the installed packs' agents (--pack narrows).
+  // Focus targets: --preset, the installed packs' agents (--pack narrows), or
+  // the cell's custom presets (add-custom-presets — one more focused-role
+  // family, reported per preset the same way).
   let targets = [];
   if (OPTS.preset) {
     targets = [{ packId: null, preset: OPTS.preset }];
@@ -201,8 +203,11 @@ async function probePatches() {
         if (report.get(a.id) === "installed") targets.push({ packId: installed.packId, packName: installed.name, preset: a.id });
       }
     }
+    for (const preset of db.listUserPresets()) {
+      targets.push({ packId: null, customPreset: preset.id, preset: preset.id });
+    }
   }
-  if (!targets.length) console.log("(no focus targets: no --preset, no --pack match, or no installed packs)");
+  if (!targets.length) console.log("(no focus targets: no --preset, no --pack match, no installed packs, no custom presets)");
 
   const fullPatch = await writeMcpPatch();
   const fullEntries = fullPatch ? parsePatch(fullPatch) : [];
@@ -212,8 +217,8 @@ async function probePatches() {
   const modes = [{ mode: "full", preset: null, counts: fullCounts }];
   for (const t of targets) {
     const scope = await deriveScope(t.preset);
-    if (!scope.packId) {
-      modes.push({ mode: "unfocused", preset: t.preset, counts: null, note: "deriveScope ⇒ full (preset not a pack persona here)" });
+    if (!scope.packId && scope.source !== "custom") {
+      modes.push({ mode: "unfocused", preset: t.preset, counts: null, note: "deriveScope ⇒ full (preset not a focused role here)" });
       continue;
     }
     // --overlay (add-focus-overlay): a role with a stored preference diff is
@@ -238,7 +243,8 @@ async function probePatches() {
         ? yaml.load(readFileSync(skillsPatch, "utf8"))[0].config.customSkillDirs.map((d) => path.resolve(d))
         : [];
       modes.push({
-        mode: modeLabel, preset: t.preset, packId: scope.packId, packName: scope.packName, counts,
+        mode: modeLabel, preset: t.preset, packId: scope.packId, packName: scope.packName,
+        customPresetId: scope.customPresetId ?? null, customPresetName: scope.customPresetName ?? null, counts,
         persona: scope.persona, mcpKeep: scope.mcpKeep, skillsDirs,
         skillsDecl: scope.skillsDecl ?? null, overlay: noOverlay ? null : stored,
       });
@@ -256,7 +262,7 @@ async function probePatches() {
     const servers = m.counts?.length ?? 0;
     const tools = totalOf(m.counts) ?? null;
     if (!OPTS.json) {
-      console.log(`\n== ${m.mode}${m.preset ? ` preset=${m.preset}` : ""}${m.packName ? ` pack=${m.packName}` : ""}${m.persona ? ` persona=${m.persona}` : ""} ==`);
+      console.log(`\n== ${m.mode}${m.preset ? ` preset=${m.preset}` : ""}${m.packName ? ` pack=${m.packName}` : ""}${m.customPresetName ? ` custom="${m.customPresetName}"` : ""}${m.persona ? ` persona=${m.persona}` : ""} ==`);
       if (m.note) console.log(`   ${m.note}`);
       if (m.skillsDecl !== undefined && m.mode.startsWith("focused")) {
         console.log(`   declaration: ${m.skillsDecl ? `${m.skillsDecl.length} skill(s) declared` : "no skill declaration (whole pack root)"}`);
@@ -271,7 +277,9 @@ async function probePatches() {
         if (m.skillsDirs.length === 1) console.log("   skills root: (baseline only — no pack/persona skills)");
       }
     }
-    out.modes.push({ mode: m.mode, preset: m.preset, packId: m.packId, persona: m.persona ?? null, servers, tools,
+    out.modes.push({ mode: m.mode, preset: m.preset, packId: m.packId, persona: m.persona ?? null,
+      customPresetId: m.customPresetId ?? null, customPresetName: m.customPresetName ?? null,
+      servers, tools,
       perServer: Object.fromEntries(m.counts ?? []), skillsDirs: m.skillsDirs ?? null, mcpKeep: m.mcpKeep ?? null,
       skillsDecl: m.skillsDecl ?? null, overlay: m.overlay ?? null });
   }
@@ -291,9 +299,10 @@ async function turnTrace() {
   const base = OPTS.url.replace(/\/+$/, "");
   const wsUrl = base.replace(/^http/, "ws") + "/probe";
 
-  // Focus targets (add-persona-resource-sets): --preset narrows to one;
-  // otherwise EVERY installed pack persona — one full-mode reference turn,
-  // then one turn per persona, same prompt, same model.
+  // Focus targets (add-persona-resource-sets; custom presets join the set —
+  // add-custom-presets): --preset narrows to one; otherwise EVERY installed
+  // pack persona plus every custom preset — one full-mode reference turn,
+  // then one turn per focused role, same prompt, same model.
   let targets = [];
   if (OPTS.preset) {
     targets = [OPTS.preset];
@@ -306,8 +315,9 @@ async function turnTrace() {
         if (report.get(a.id) === "installed") targets.push(a.id);
       }
     }
+    for (const preset of db.listUserPresets()) targets.push(preset.id);
   }
-  if (!targets.length) throw new Error("--turn-trace needs persona(s) (--preset) or installed packs in --db");
+  if (!targets.length) throw new Error("--turn-trace needs focused role(s) (--preset) or installed packs/custom presets in --db");
 
   // Authenticated deployments (fd-prod, AUTH_MODE=mp) gate the WS too —
   // --auth <token> (or PROBE_AUTH_TOKEN) rides along as a Bearer header.

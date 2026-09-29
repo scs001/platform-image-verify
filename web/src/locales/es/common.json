@@ -149,6 +149,7 @@
       "agent": "Agente",
       "agentUnset": "Predeterminado",
       "agentFocused": "Enfocado · {{pack}} · {{skills}} habilidades · {{mcp}} MCP",
+      "agentFocusedCustom": "Enfocado · propio · {{skills}} habilidades · {{mcp}} MCP",
       "permission": "Permisos",
       "permissionUnset": "Predeterminado",
       "permissionCustom": "Personalizado",
@@ -560,7 +561,8 @@
       "wechat-app": "Mini programa de WeChat",
       "branding": "Marca del despliegue",
       "status": "Estado del sistema",
-      "packs": "Paquetes"
+      "packs": "Paquetes",
+      "presets": "Preajustes propios"
     },
     "general": {
       "theme": "Tema",
@@ -930,5 +932,31 @@
     "streamBusy": "El agente está respondiendo; espera a que termine el turno antes de ajustar.",
     "loadError": "Error al cargar",
     "deploymentNote": "Los ajustes son compartidos por todos los clientes de este despliegue."
+  },
+  "customPresets": {
+    "title": "Preajustes propios",
+    "desc": "Compón un rol conversacional con las habilidades y servidores MCP de esta celda: se ejecuta en modo enfocado y solo existe aquí; no se publica.",
+    "create": "Nuevo preajuste",
+    "empty": "Aún no hay preajustes propios.",
+    "name": "Nombre",
+    "persona": "Persona",
+    "personaPlaceholder": "¿Quién es este rol y cómo debe responder? Indica su dominio, su tono y lo que jamás debe inventar…",
+    "tags": "Etiquetas",
+    "tagsPlaceholder": "separadas por comas",
+    "skills": "Referencias de habilidades",
+    "skillHint": "Se eligen entre las habilidades disponibles localmente (tuyas o de cualquier pack instalado). Las referencias no disponibles se omiten y vuelven a surtir efecto automáticamente.",
+    "mcp": "Referencias de servidores MCP",
+    "mcpHint": "Se eligen entre los servidores habilitados; una referencia nunca reactiva un servidor que hayas deshabilitado.",
+    "noSkills": "No hay habilidades disponibles en esta celda.",
+    "noMcp": "No hay servidores MCP habilitados.",
+    "save": "Guardar",
+    "edit": "Editar",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Eliminar este preajuste? Si está seleccionado, el runtime volverá al agente integrado.",
+    "streamBusy": "El agente está respondiendo; inténtalo de nuevo en un momento.",
+    "refs": "{{skills}} habilidades · {{mcp}} MCP",
+    "unavailable": "no disponible",
+    "shadowed": "sobrescrito",
+    "shadowedHint": "El archivo del operador o la nube define el mismo id; el rol se compone ahora con la entrada que lo sobrescribe."
   }
 }

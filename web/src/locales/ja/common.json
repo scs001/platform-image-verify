@@ -149,6 +149,7 @@
       "agent": "エージェント",
       "agentUnset": "デフォルト",
       "agentFocused": "フォーカス · {{pack}} · {{skills}} スキル · {{mcp}} MCP",
+      "agentFocusedCustom": "フォーカス · 自作 · {{skills}} スキル · {{mcp}} MCP",
       "permission": "権限",
       "permissionUnset": "デフォルト",
       "permissionCustom": "カスタム",
@@ -560,7 +561,8 @@
       "wechat-app": "WeChat ミニプログラム",
       "branding": "デプロイのブランド設定",
       "status": "システム状態",
-      "packs": "パック"
+      "packs": "パック",
+      "presets": "カスタムプリセット"
     },
     "general": {
       "theme": "テーマ",
@@ -930,5 +932,31 @@
     "streamBusy": "エージェントが応答中です。ターン終了後に調整してください。",
     "loadError": "読み込みに失敗しました",
     "deploymentNote": "調整はこのデプロイの全クライアントで共通です。"
+  },
+  "customPresets": {
+    "title": "カスタムプリセット",
+    "desc": "このセルのスキルと MCP サーバーから会話ロールを組み立てます。フォーカスモードで動作し、このセル内でのみ有効です。公開はできません。",
+    "create": "新規プリセット",
+    "empty": "カスタムプリセットはまだありません。",
+    "name": "名前",
+    "persona": "ペルソナ",
+    "personaPlaceholder": "このロールは誰で、どう答えるべきか？領域・口調・絶対に捏造してはならない内容を明記…",
+    "tags": "タグ",
+    "tagsPlaceholder": "カンマ区切り",
+    "skills": "スキル参照",
+    "skillHint": "ローカルで利用可能なスキル（自作または導入済みパック）から選択します。利用できない参照は実行時にスキップされ、復旧すると自動的に有効になります。",
+    "mcp": "MCP サーバー参照",
+    "mcpHint": "有効なサーバーから選択します。参照が無効化されたサーバーを再有効化することはありません。",
+    "noSkills": "利用可能なスキルがありません。",
+    "noMcp": "有効な MCP サーバーがありません。",
+    "save": "保存",
+    "edit": "編集",
+    "delete": "削除",
+    "deleteConfirm": "このプリセットを削除しますか？選択中の場合、ランタイムは内蔵エージェントへ戻ります。",
+    "streamBusy": "エージェントが応答中です。しばらくお待ちください。",
+    "refs": "{{skills}} スキル · {{mcp}} MCP",
+    "unavailable": "現在利用不可",
+    "shadowed": "上書き済み",
+    "shadowedHint": "同じ ID が agents.json またはクラウド設定により上書きされており、現在上書き側のロールで動作しています。"
   }
 }

@@ -149,6 +149,7 @@
       "agent": "Agent",
       "agentUnset": "Default",
       "agentFocused": "Focused · {{pack}} · {{skills}} skills · {{mcp}} MCP",
+      "agentFocusedCustom": "Focused · self-built · {{skills}} skills · {{mcp}} MCP",
       "permission": "Permissions",
       "permissionUnset": "Default",
       "permissionCustom": "Custom",
@@ -573,7 +574,8 @@
       "wechat-app": "WeChat App",
       "branding": "Deployment branding",
       "status": "System Status",
-      "packs": "Packs"
+      "packs": "Packs",
+      "presets": "Custom presets"
     },
     "general": {
       "theme": "Theme",
@@ -930,5 +932,31 @@
     "streamBusy": "The agent is responding; wait for the turn to finish before adjusting.",
     "loadError": "Failed to load",
     "deploymentNote": "Adjustments are shared by every client of this deployment."
+  },
+  "customPresets": {
+    "title": "Custom presets",
+    "desc": "Compose a conversational role from this cell's own skills and MCP servers — it runs focused and stays local to this cell; there is no publish.",
+    "create": "New preset",
+    "empty": "No custom presets yet.",
+    "name": "Name",
+    "persona": "Persona",
+    "personaPlaceholder": "Who is this role, and how should it answer? Name its domain, its tone, and what it must never invent…",
+    "tags": "Tags",
+    "tagsPlaceholder": "comma-separated",
+    "skills": "Skill references",
+    "skillHint": "Picked from locally-available skills (yours or any installed pack's). Unavailable references are skipped at runtime and take effect again automatically once available.",
+    "mcp": "MCP server references",
+    "mcpHint": "Picked from the enabled servers; a reference never re-enables a server you disabled.",
+    "noSkills": "No skills available in this cell.",
+    "noMcp": "No enabled MCP servers.",
+    "save": "Save",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirm": "Delete this preset? If it is currently selected, the runtime switches back to the built-in agent.",
+    "streamBusy": "The agent is responding — try again in a moment.",
+    "refs": "{{skills}} skills · {{mcp}} MCP",
+    "unavailable": "unavailable",
+    "shadowed": "overridden",
+    "shadowedHint": "An operators-file or cloud entry holds the same id; the role currently composes under the overriding entry's persona."
   }
 }

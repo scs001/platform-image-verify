@@ -668,22 +668,28 @@ export function ControlStrip({ send, onOpenCommands, onAttach, trailing }: Props
                           primary={a.name || a.id}
                           secondary={a.name ? a.id : undefined}
                           badge={
-                            a.packId ? (
-                              // Pack-sourced roles run focused on their OWN
-                              // resource set — mark them with the role-level
-                              // summary (skill/MCP counts of the effective set)
-                              // so the cost of the choice is visible before the
-                              // switch (add-persona-resource-sets D5).
+                            a.packId || a.customPreset ? (
+                              // Focused roles run on their OWN resource set —
+                              // pack personas (add-persona-resource-sets D5)
+                              // and custom presets (add-custom-presets D5)
+                              // alike — marked with the role-level summary
+                              // (skill/MCP counts of the effective set) so the
+                              // cost of the choice is visible before the switch.
                               <span
                                 data-testid="strip-agent-focus-badge"
-                                title={a.packId}
+                                title={a.packId ?? a.id}
                                 className="ml-auto shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-[9px] font-medium leading-tight text-primary"
                               >
-                                {t("composer.strip.agentFocused", {
-                                  pack: a.packName || a.packId,
-                                  skills: a.resourceSummary?.skillCount ?? 0,
-                                  mcp: a.resourceSummary?.mcpCount ?? 0,
-                                })}
+                                {a.customPreset
+                                  ? t("composer.strip.agentFocusedCustom", {
+                                      skills: a.resourceSummary?.skillCount ?? 0,
+                                      mcp: a.resourceSummary?.mcpCount ?? 0,
+                                    })
+                                  : t("composer.strip.agentFocused", {
+                                      pack: a.packName || a.packId,
+                                      skills: a.resourceSummary?.skillCount ?? 0,
+                                      mcp: a.resourceSummary?.mcpCount ?? 0,
+                                    })}
                               </span>
                             ) : undefined
                           }
@@ -701,7 +707,7 @@ export function ControlStrip({ send, onOpenCommands, onAttach, trailing }: Props
                           }}
                         />
                       </div>
-                      {a.packId && (
+                      {(a.packId || a.customPreset) && (
                         <button
                           type="button"
                           onClick={() => {

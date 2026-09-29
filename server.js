@@ -44,6 +44,7 @@ import { registerBotRelayRoutes, RELAY_PREFIX } from "./server/routes/bot-relay.
 import { registerExternalServiceRoutes } from "./server/routes/external-services.js";
 import { registerPackRoutes as registerCellPackRoutes } from "./server/routes/packs.js";
 import { registerOverlayRoutes } from "./server/routes/overlay.js";
+import { registerCustomPresetRoutes } from "./server/routes/custom-presets.js";
 import { createPackRegistry, registerPackRoutes as registerMarketPackRoutes } from "./gateway/packs.js";
 import { attachDshEvents } from "./server/dsh-events.js";
 import { attachRuntimeBindings } from "./server/runtime-bindings.js";
@@ -207,6 +208,9 @@ registerCellPackRoutes(ctx);
 // Focus overlay (add-focus-overlay): the 资源微调 panel's GET/PUT — same
 // placement rule as the pack routes.
 registerOverlayRoutes(ctx);
+// Custom presets (add-custom-presets): the 自建预设 roster CRUD — same
+// placement rule; rides the serialized runtime-mutation path like packs.
+registerCustomPresetRoutes(ctx);
 // Pack marketplace MARKET plane (add-pack-marketplace): browse/publish/
 // subscribe records. In the multi-cell gateway topology gateway/index.js
 // serves these; a single-process deployment (fd-prod) has no gateway process,

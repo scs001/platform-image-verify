@@ -149,6 +149,7 @@
       "agent": "智能体",
       "agentUnset": "默认",
       "agentFocused": "聚焦 · {{pack}} · {{skills}} 技能 · {{mcp}} MCP",
+      "agentFocusedCustom": "聚焦 · 自建 · {{skills}} 技能 · {{mcp}} MCP",
       "permission": "权限",
       "permissionUnset": "默认",
       "permissionCustom": "自定义",
@@ -560,7 +561,8 @@
       "wechat-app": "微信小程序",
       "branding": "部署品牌",
       "status": "系统状态",
-      "packs": "功能集"
+      "packs": "功能集",
+      "presets": "自建预设"
     },
     "general": {
       "theme": "主题",
@@ -930,5 +932,31 @@
     "streamBusy": "智能体正在回复，请等待本轮结束后再调整。",
     "loadError": "加载失败",
     "deploymentNote": "调整对本部署全体客户端一致。"
+  },
+  "customPresets": {
+    "title": "自建预设",
+    "desc": "用本单元格已有的技能与 MCP 服务组合一个对话角色——按聚焦模式运行，且仅在本地生效，不可发布。",
+    "create": "新建预设",
+    "empty": "还没有自建预设。",
+    "name": "名称",
+    "persona": "角色设定（Persona）",
+    "personaPlaceholder": "这个角色是谁、应当如何作答？写明领域、语气，以及绝不允许编造的内容…",
+    "tags": "标签",
+    "tagsPlaceholder": "逗号分隔",
+    "skills": "技能引用",
+    "skillHint": "从本地可用技能中选择（含已安装功能集的技能）。不可用的引用会被跳过，恢复可用后自动生效。",
+    "mcp": "MCP 服务引用",
+    "mcpHint": "从已启用的服务中选择；引用不会重新启用你已停用的服务。",
+    "noSkills": "本单元格暂无可用技能。",
+    "noMcp": "暂无已启用的 MCP 服务。",
+    "save": "保存",
+    "edit": "编辑",
+    "delete": "删除",
+    "deleteConfirm": "删除该预设？若它正被选中，运行时将自动切回内置智能体。",
+    "streamBusy": "智能体正在回复，请稍后再试。",
+    "refs": "{{skills}} 技能 · {{mcp}} MCP",
+    "unavailable": "当前不可用",
+    "shadowed": "被覆盖",
+    "shadowedHint": "同名条目由 agents.json 或云端配置覆盖，当前以覆盖方角色运行。"
   }
 }

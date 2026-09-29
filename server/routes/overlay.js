@@ -72,8 +72,9 @@ export function registerOverlayRoutes(ctx) {
   const { app, db, broadcast } = ctx;
 
   // Effective set + universes for one focused role. The overlay applies to
-  // pack personas only — a shipped preset keeps the availability semantics,
-  // so the route rejects one (the panel never offers it).
+  // pack personas and custom presets (add-custom-presets — a custom preset is
+  // a focused role like any other); a shipped preset keeps the availability
+  // semantics, so the route rejects one (the panel never offers it).
   app.get("/api/agent/overlay", async (req, res) => {
     if (!db.isDbReady()) {
       return res.status(503).json({ error: "Overlay management is disabled (database unavailable)" });
@@ -81,8 +82,8 @@ export function registerOverlayRoutes(ctx) {
     const preset = String(req.query.preset || "").trim();
     if (!preset) return res.status(400).json({ error: "preset is required" });
     const scope = await dshProfile.deriveScope(preset);
-    if (!scope.packId) {
-      return res.status(400).json({ error: `preset "${preset}" is not a focused pack role` });
+    if (!scope.packId && scope.source !== "custom") {
+      return res.status(400).json({ error: `preset "${preset}" is not a focused role` });
     }
     const overlay = db.getFocusOverlay(preset);
     const available = availableMcpNames(ctx);
@@ -100,11 +101,16 @@ export function registerOverlayRoutes(ctx) {
 
     // Effective skills — the deployment's baseline file skills (fixed for
     // every mode, never overlay-adjustable) shown separately, plus the role's
-    // set: declared ∩ owned, or the whole-pack owned set when undeclared,
-    // ± overlay — the same effective list the compose root builds (adds draw
-    // from every enabled materialized row, any pack or the user root).
+    // set: a pack persona's declared ∩ owned (or the whole-pack owned set
+    // when undeclared); a custom preset's references ∩ the whole enabled
+    // universe (composition-time truth); both ± overlay — the same effective
+    // list the compose root builds (adds draw from every enabled materialized
+    // row, any pack or the user root).
     const allSkillRows = db.listCustomSkills().filter((s) => s.enabled !== false);
-    const owned = new Set(allSkillRows.filter((s) => s.originPackId === scope.packId).map((s) => s.name));
+    const owned = new Set(
+      (scope.source === "custom" ? allSkillRows : allSkillRows.filter((s) => s.originPackId === scope.packId))
+        .map((s) => s.name),
+    );
     let roleSkills = Array.isArray(scope.skillsDecl)
       ? scope.skillsDecl.filter((n) => owned.has(n))
       : [...owned];
@@ -144,8 +150,8 @@ export function registerOverlayRoutes(ctx) {
       return res.status(400).json({ error: "preset is required" });
     }
     const scope = await dshProfile.deriveScope(preset);
-    if (!scope.packId) {
-      return res.status(400).json({ error: `preset "${preset}" is not a focused pack role` });
+    if (!scope.packId && scope.source !== "custom") {
+      return res.status(400).json({ error: `preset "${preset}" is not a focused role` });
     }
     const parsed = db.parseFocusOverlay(overlay);
     if (!parsed.ok) return res.status(400).json({ error: parsed.error });
@@ -161,8 +167,9 @@ export function registerOverlayRoutes(ctx) {
       // The adjusted preset composes with its overlay at its next switch/boot
       // regardless; when it is the LIVE preset the rewrite + idle restart
       // make the next session of THIS runtime compose adjusted (the preset
-      // switch's own sequence).
-      if (preset === ctx.currentPreset) {
+      // switch's own sequence). ctx.currentPreset holds the roster/dash form
+      // of a dotted id (custom presets) — compare through the mapping.
+      if (dshProfile.rosterPresetId(preset) === ctx.currentPreset) {
         await dshProfile.writeMcpPatch({
           mcpOverlay: ctx.runtimeMcpOverlay ?? null,
           userGroups: ctx.runtimeOwnerGroups ?? null,

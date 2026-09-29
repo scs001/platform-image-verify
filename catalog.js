@@ -1,17 +1,20 @@
 // Agent & app catalog: multi-source (local agents.json + cloud
 // AGENTS_CONFIG_URL + registry agents via registry-bridge + pack agents from
-// the installed-pack state), merged by id with later sources winning, refreshed
-// on an interval; a content change broadcasts `catalog_changed` so clients
-// refetch GET /api/catalog. Mirrors extension-store.js conventions: module
-// state + accessors, absent sources degrade to just the built-in local agent.
-// The one DB-backed source is the pack source (installed_packs); the DB-less
-// convention holds for every other source and for the DB-off degradation path.
+// the installed-pack state + the cell's custom presets), merged by id with
+// later sources winning, refreshed on an interval; a content change
+// broadcasts `catalog_changed` so clients refetch GET /api/catalog. Mirrors
+// extension-store.js conventions: module state + accessors, absent sources
+// degrade to just the built-in local agent. The DB-backed sources are the
+// pack source (installed_packs) and the user source (user_presets); the
+// DB-less convention holds for every other source and for the DB-off
+// degradation path.
 import path from "node:path";
 import { readJsonOr } from "./lib/persistence.js";
 import { getAgentEntries } from "./registry-bridge.js";
 import * as db from "./db.js";
 
 const CATALOG_FILE = path.resolve("agents.json");
+const MCP_CONFIG_PATH = path.resolve(process.env.MCP_CONFIG_PATH || "mcp.json");
 const CLOUD_URL = process.env.AGENTS_CONFIG_URL?.trim() || null;
 const REFRESH_SECS = Number(process.env.CATALOG_REFRESH_SECS || 60);
 
@@ -106,11 +109,14 @@ async function loadCloud() {
   }
 }
 
-// Merge by id: built-in → registry → packs → agents.json → cloud (later wins,
-// so the cloud is the live control plane even for ids first defined elsewhere,
-// and local files override remote registry and pack entries). Registry agents
-// arrive catalog-shaped from registry-bridge and pass the same validation as
-// the other sources.
+// Merge by id: built-in → registry → packs → user presets → agents.json →
+// cloud (later wins, so the cloud is the live control plane even for ids
+// first defined elsewhere, and local files override remote registry, pack,
+// and user-preset entries). End-user compositions outrank market packs but
+// stay beneath the operator's file and the cloud control plane — the same
+// "local overrides remote, cloud stays supreme" reading the pack source
+// established (add-custom-presets D2). Registry agents arrive catalog-shaped
+// from registry-bridge and pass the same validation as the other sources.
 //
 // The pack source (add-pack-marketplace) reads the cell's installed-pack state
 // directly — pack agents are persona-only entries (no baseUrl/model/credential
@@ -180,6 +186,46 @@ function packAgentDoc() {
   return { agents, apps: [] };
 }
 
+// The user-defined source (add-custom-presets D2): one persona-only chat
+// entry per user_presets row. Persona-only by construction (the CRUD route
+// rejects endpoint/model/credential-shaped fields), so like the pack source
+// these bypass validateEntry's chat-endpoint requirement. The resource
+// summary is composition-time truth: declared references intersected with
+// what the cell actually has — enabled skill rows and installed servers
+// (mcp.json operator layer plus enabled DB rows). An unavailable reference
+// counts zero here and is omitted at composition; it regains effect when it
+// becomes available again, with no stored state to repair.
+function customPresetDoc() {
+  if (!db.isDbReady()) return { agents: [], apps: [] };
+  const operatorServers = readJsonOr(MCP_CONFIG_PATH, {}, { label: "mcp-config" }).mcpServers || {};
+  const skillNames = new Set(
+    db.listCustomSkills().filter((s) => s.enabled !== false).map((s) => s.name),
+  );
+  const serverNames = new Set([
+    ...Object.keys(operatorServers),
+    ...db.listExtensionConfigs().filter((c) => c.type === "mcp" && c.enabled !== false).map((c) => c.name),
+  ]);
+  const agents = [];
+  for (const row of db.listUserPresets()) {
+    agents.push({
+      id: row.id,
+      type: "agent-remote",
+      mode: "chat",
+      name: row.name,
+      persona: row.persona,
+      tags: row.tags.length ? row.tags : undefined,
+      icon: row.icon,
+      customPreset: true,
+      resourceSummary: {
+        skillCount: row.skills.filter((n) => skillNames.has(n)).length,
+        mcpCount: row.mcpServers.filter((n) => serverNames.has(n)).length,
+        declared: true,
+      },
+    });
+  }
+  return { agents, apps: [] };
+}
+
 function merged() {
   const byId = new Map();
   const registryDoc = validateDoc(
@@ -190,6 +236,7 @@ function merged() {
     { agents: [BUILT_IN], apps: [] },
     registryDoc,
     packAgentDoc(),
+    customPresetDoc(),
     localEntries,
     cloudEntries,
   ]) {
@@ -203,7 +250,9 @@ function merged() {
 // Client-facing serializer: whitelists display fields only. Secrets (apiKey,
 // apiKeyEnv, resolved keys) never reach the browser (design D5). Pack-sourced
 // entries additionally carry their packId (+ display name) so picker surfaces
-// can badge them as focused roles (add-pack-agent-scoping).
+// can badge them as focused roles (add-pack-agent-scoping); custom-preset
+// entries carry their `customPreset` marker for the same purpose
+// (add-custom-presets D2).
 function serialize(entry) {
   const base = { id: entry.id, type: entry.type, name: entry.name || entry.id };
   // Optional display fields (all optional, all whitelisted — not secrets).
@@ -215,12 +264,14 @@ function serialize(entry) {
   if (entry.packId) {
     base.packId = entry.packId;
     if (entry.packName) base.packName = entry.packName;
-    // Role-level resource summary (add-persona-resource-sets D5) — additive
-    // serialization; older clients ignore the unknown field.
-    if (entry.resourceSummary) {
-      const { skillCount, mcpCount, declared } = entry.resourceSummary;
-      base.resourceSummary = { skillCount, mcpCount, declared };
-    }
+  }
+  if (entry.customPreset) base.customPreset = true;
+  // Role-level resource summary (add-persona-resource-sets D5; custom presets
+  // ride the same shape) — additive serialization; older clients ignore the
+  // unknown field.
+  if ((entry.packId || entry.customPreset) && entry.resourceSummary) {
+    const { skillCount, mcpCount, declared } = entry.resourceSummary;
+    base.resourceSummary = { skillCount, mcpCount, declared };
   }
   if (entry.type === "agent-remote") {
     base.mode = entry.mode;

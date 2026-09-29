@@ -149,6 +149,7 @@
       "agent": "Agent",
       "agentUnset": "Par défaut",
       "agentFocused": "Focalisé · {{pack}} · {{skills}} compétences · {{mcp}} MCP",
+      "agentFocusedCustom": "Focalisé · perso · {{skills}} compétences · {{mcp}} MCP",
       "permission": "Permissions",
       "permissionUnset": "Par défaut",
       "permissionCustom": "Personnalisé",
@@ -560,7 +561,8 @@
       "wechat-app": "Mini-programme WeChat",
       "branding": "Image de marque du déploiement",
       "status": "État du système",
-      "packs": "Packs"
+      "packs": "Packs",
+      "presets": "Préréglages perso"
     },
     "general": {
       "theme": "Thème",
@@ -930,5 +932,31 @@
     "streamBusy": "L'agent répond ; attendez la fin du tour avant d'ajuster.",
     "loadError": "Échec du chargement",
     "deploymentNote": "Les ajustements sont communs à tous les clients de ce déploiement."
+  },
+  "customPresets": {
+    "title": "Préréglages perso",
+    "desc": "Composez un rôle conversationnel à partir des compétences et serveurs MCP de cette cellule — il tourne en mode focalisé, reste local à cette cellule et ne se publie pas.",
+    "create": "Nouveau préréglage",
+    "empty": "Aucun préréglage perso pour l'instant.",
+    "name": "Nom",
+    "persona": "Persona",
+    "personaPlaceholder": "Qui est ce rôle et comment doit-il répondre ? Précisez son domaine, son ton et ce qu'il ne doit jamais inventer…",
+    "tags": "Étiquettes",
+    "tagsPlaceholder": "séparées par des virgules",
+    "skills": "Références de compétences",
+    "skillHint": "Choisies parmi les compétences disponibles localement (les vôtres ou celles d'un pack installé). Les références indisponibles sont ignorées et redeviennent actives automatiquement.",
+    "mcp": "Références de serveurs MCP",
+    "mcpHint": "Choisies parmi les serveurs activés ; une référence ne réactive jamais un serveur que vous avez désactivé.",
+    "noSkills": "Aucune compétence disponible dans cette cellule.",
+    "noMcp": "Aucun serveur MCP activé.",
+    "save": "Enregistrer",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "deleteConfirm": "Supprimer ce préréglage ? S'il est sélectionné, le runtime reviendra à l'agent intégré.",
+    "streamBusy": "L'agent répond — réessayez dans un instant.",
+    "refs": "{{skills}} compétences · {{mcp}} MCP",
+    "unavailable": "indisponible",
+    "shadowed": "surchargé",
+    "shadowedHint": "Le fichier opérateur ou le cloud définit le même id ; le rôle se compose actuellement sous l'entrée qui le surcharge."
   }
 }

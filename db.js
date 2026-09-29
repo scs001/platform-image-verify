@@ -514,6 +514,28 @@ const MIGRATIONS = [
       )`,
     ],
   },
+  {
+    version: 21,
+    // Custom presets (add-custom-presets, design D1): the cell's user-composed
+    // persona presets. One row per preset — indexed rows (not a preferences
+    // blob) because the catalog source and the management page list them; the
+    // installed_packs table is the working precedent. ids are server-assigned
+    // under the reserved `user.` prefix; the row IS the owner (no ownership
+    // bookkeeping columns).
+    statements: [
+      `CREATE TABLE IF NOT EXISTS user_presets (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        persona TEXT NOT NULL,
+        skills TEXT NOT NULL DEFAULT '[]',
+        mcp_servers TEXT NOT NULL DEFAULT '[]',
+        tags TEXT NOT NULL DEFAULT '[]',
+        icon TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+    ],
+  },
 ];
 
 function nowIso() {
@@ -1670,6 +1692,112 @@ export function listCustomSkillsByPack(packId) {
 export function deleteCustomSkillsByPack(packId) {
   if (!dbReady) return 0;
   return stmt("DELETE FROM custom_skills WHERE origin_pack_id = ?").run(packId).changes;
+}
+
+// ── Custom presets (add-custom-presets, design D1) ───────────────────────────
+//
+// The cell's user-composed persona presets: display name, persona text, and
+// resource REFERENCES (skill names + MCP server names) resolved against the
+// locally-available universe at composition time. Deployment-global roster
+// state — every client sees the same rows. Ids are SERVER-ASSIGNED under the
+// reserved `user.` prefix (authors choose names, never ids); a slug collision
+// appends a numeric suffix. The catalog's user source and the pack backstop
+// read these rows; nothing else keys off them.
+
+const USER_PRESET_COLS =
+  "id, name, persona, skills, mcp_servers AS mcpServers, tags, icon, created_at AS createdAt, updated_at AS updatedAt";
+
+function hydrateUserPreset(row) {
+  if (!row) return null;
+  const parseNames = (raw) => {
+    try {
+      const parsed = JSON.parse(raw || "[]");
+      return Array.isArray(parsed) ? parsed.filter((n) => typeof n === "string") : [];
+    } catch {
+      return []; // corrupt row reads as no references — inert, like overlays
+    }
+  };
+  return {
+    ...row,
+    skills: parseNames(row.skills),
+    mcpServers: parseNames(row.mcpServers),
+    tags: parseNames(row.tags),
+  };
+}
+
+export function listUserPresets() {
+  if (!dbReady) return [];
+  return db
+    .prepare(`SELECT ${USER_PRESET_COLS} FROM user_presets ORDER BY created_at, id`)
+    .all()
+    .map(hydrateUserPreset);
+}
+
+export function getUserPreset(id) {
+  if (!dbReady || !id) return null;
+  return hydrateUserPreset(db.prepare(`SELECT ${USER_PRESET_COLS} FROM user_presets WHERE id = ?`).get(id));
+}
+
+// Slug from a display name: fold non-alphanumerics to dashes (CJK names fold
+// to nothing — the fallback slug keeps the id well-formed), capped so the
+// `user.` prefix + a collision suffix stays inside the 64-char preset-id bound
+// dsh-profile's isSafePresetId enforces.
+function userPresetSlug(name) {
+  const slug = String(name)
+    .normalize("NFKD")
+    .replace(/[^A-Za-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .toLowerCase()
+    .slice(0, 48);
+  return slug || "preset";
+}
+
+function assignUserPresetId(name) {
+  const base = `user.${userPresetSlug(name)}`;
+  let id = base;
+  for (let n = 2; getUserPreset(id); n++) id = `${base}-${n}`;
+  return id;
+}
+
+export function createUserPreset({ name, persona, skills = [], mcpServers = [], tags = [], icon = null }) {
+  if (!dbReady) return null;
+  const id = assignUserPresetId(name);
+  const now = nowIso();
+  stmt(
+    `INSERT INTO user_presets (id, name, persona, skills, mcp_servers, tags, icon, created_at, updated_at)
+     VALUES (@id, @name, @persona, @skills, @mcpServers, @tags, @icon, @now, @now)`
+  ).run({
+    id,
+    name,
+    persona,
+    skills: JSON.stringify(skills ?? []),
+    mcpServers: JSON.stringify(mcpServers ?? []),
+    tags: JSON.stringify(tags ?? []),
+    icon,
+    now,
+  });
+  return getUserPreset(id);
+}
+
+export function updateUserPreset(id, { name, persona, skills, mcpServers, tags, icon }) {
+  if (!dbReady) return null;
+  const updates = [];
+  const params = { id, updated_at: nowIso() };
+  if (name !== undefined) { updates.push("name = @name"); params.name = name; }
+  if (persona !== undefined) { updates.push("persona = @persona"); params.persona = persona; }
+  if (skills !== undefined) { updates.push("skills = @skills"); params.skills = JSON.stringify(skills ?? []); }
+  if (mcpServers !== undefined) { updates.push("mcp_servers = @mcpServers"); params.mcpServers = JSON.stringify(mcpServers ?? []); }
+  if (tags !== undefined) { updates.push("tags = @tags"); params.tags = JSON.stringify(tags ?? []); }
+  if (icon !== undefined) { updates.push("icon = @icon"); params.icon = icon; }
+  if (updates.length === 0) return getUserPreset(id);
+  updates.push("updated_at = @updated_at");
+  stmt(`UPDATE user_presets SET ${updates.join(", ")} WHERE id = @id`).run(params);
+  return getUserPreset(id);
+}
+
+export function deleteUserPreset(id) {
+  if (!dbReady || !id) return false;
+  return stmt("DELETE FROM user_presets WHERE id = ?").run(id).changes > 0;
 }
 
 // ── Bots (social chat channels) ──────────────────────────────────────────────

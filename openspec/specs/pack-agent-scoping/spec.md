@@ -8,7 +8,7 @@ Ties a pack persona to a focused resource set: selecting a pack role narrows the
 
 ### Requirement: Resource scope is derived from the selected preset
 
-The effective resource scope — which MCP servers and skills the runtime loads — SHALL be derived from the selected agent preset together with the overlay recorded for that preset: a pack persona preset selects focused mode; the shipped presets and the built-in local agent select full mode (every installed server and skill, exactly today's behavior). The runtime SHALL re-derive the scope at every start, on every preset switch, and on every MCP or skill configuration change, so the composed runtime always matches the derivation; the scope SHALL NOT persist as independent state that can drift — the overlay stores only per-role add/remove preferences, never a materialized resource set (spec: focus-overlay).
+The effective resource scope — which MCP servers and skills the runtime loads — SHALL be derived from the selected agent preset together with the overlay recorded for that preset, over three preset families: a pack persona preset selects focused mode on its persona's resource set; a custom preset (openspec: custom-presets) selects focused mode on its declared resources intersected with what is locally available; and the shipped presets and the built-in local agent select full mode (every installed server and skill, exactly today's behavior). The runtime SHALL re-derive the scope at every start, on every preset switch, and on every MCP or skill configuration change, so the composed runtime always matches the derivation; the scope SHALL NOT persist as independent state that can drift — the overlay stores only per-role add/remove preferences, never a materialized resource set (spec: focus-overlay).
 
 #### Scenario: Boot under a focused selection
 
@@ -39,6 +39,11 @@ The effective resource scope — which MCP servers and skills the runtime loads 
 
 - **WHEN** a role's overlay is adjusted
 - **THEN** the next composition of that role's runtime reflects the preset's derivation plus the adjusted preferences
+
+#### Scenario: A custom preset focuses on its declared resources
+
+- **WHEN** the selected preset is a custom preset referencing two skills and one server, one of which is not available in the cell
+- **THEN** the runtime composes focused on the baseline plus the two available resources, and recomposes without user action when the unavailable reference becomes available again
 
 ### Requirement: Focused mode loads the baseline plus the pack's resource set
 

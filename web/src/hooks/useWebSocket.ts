@@ -8,6 +8,7 @@
 import { useEffect, useRef } from "react";
 import { WsClient, useChatStore, useCronStore, type ClientMessage, type ServerMessage } from "@platform/core";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
+import { useOverlayStore } from "@/hooks/useOverlayStore";
 import { useResourcesStore } from "@/hooks/useResourcesStore";
 import { browserSocketFactory } from "@/lib/browser-socket";
 
@@ -33,6 +34,7 @@ export function useWebSocket(enabled: boolean, identityKey = "") {
   const setStatus = useChatStore((s) => s.setStatus);
   const apply = useChatStore((s) => s.apply);
   const applyExtensions = useExtensionsStore((s) => s.applyEvent);
+  const applyOverlay = useOverlayStore((s) => s.applyEvent);
   const applyCron = useCronStore((s) => s.apply);
   const applyResources = useResourcesStore((s) => s.applyEvent);
 
@@ -52,6 +54,7 @@ export function useWebSocket(enabled: boolean, identityKey = "") {
       onMessage: (msg) => {
         apply(msg as ServerMessage);
         applyExtensions(msg as ServerMessage);
+        applyOverlay(msg as ServerMessage);
         applyCron(msg as ServerMessage);
         applyResources(msg as ServerMessage);
       },
@@ -97,7 +100,7 @@ export function useWebSocket(enabled: boolean, identityKey = "") {
       window.removeEventListener("platform:reconnect", onManualReconnect);
       client.close();
     };
-  }, [apply, applyCron, applyExtensions, applyResources, enabled, identityKey, setStatus]);
+  }, [apply, applyCron, applyExtensions, applyOverlay, applyResources, enabled, identityKey, setStatus]);
 
   return { send: (msg: ClientMessage) => sendRef.current(msg) };
 }

@@ -52,6 +52,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { OverlayPanel } from "@/components/OverlayPanel";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -302,6 +303,10 @@ export function ControlStrip({ send, onOpenCommands, onAttach, trailing }: Props
   const [bindingMsg, setBindingMsg] = useState<string | null>(null);
   const [bindingError, setBindingError] = useState<string | null>(null);
   const [confirmingFullAccess, setConfirmingFullAccess] = useState(false);
+  // The focused role whose 资源微调 dialog is open (add-focus-overlay). The
+  // panel is preset-scoped, not agent-scoped: the diff applies whenever that
+  // role is next selected, not only while it is live.
+  const [overlayRole, setOverlayRole] = useState<{ id: string; name: string; packName?: string } | null>(null);
 
   // Pinning the model currently in effect is a separate, explicit act — the
   // picker above stays a global operation and never writes a personal row.
@@ -650,45 +655,68 @@ export function ControlStrip({ send, onOpenCommands, onAttach, trailing }: Props
                     <span className="break-all font-mono">{agentLabel}</span>
                   </div>
                   {agents.map((a) => (
-                    <MenuItem
-                      key={a.id}
-                      active={a.id === currentAgent}
-                      disabled={isStreaming}
-                      primary={a.name || a.id}
-                      secondary={a.name ? a.id : undefined}
-                      badge={
-                        a.packId ? (
-                          // Pack-sourced roles run focused on their OWN
-                          // resource set — mark them with the role-level
-                          // summary (skill/MCP counts of the effective set)
-                          // so the cost of the choice is visible before the
-                          // switch (add-persona-resource-sets D5).
-                          <span
-                            data-testid="strip-agent-focus-badge"
-                            title={a.packId}
-                            className="ml-auto shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-[9px] font-medium leading-tight text-primary"
-                          >
-                            {t("composer.strip.agentFocused", {
-                              pack: a.packName || a.packId,
-                              skills: a.resourceSummary?.skillCount ?? 0,
-                              mcp: a.resourceSummary?.mcpCount ?? 0,
-                            })}
-                          </span>
-                        ) : undefined
-                      }
-                      testId="strip-agent-option"
-                      onClick={() => {
-                        close();
-                        if (a.id === currentAgent) return;
-                        // An agent the deployment serves locally (a vertical
-                        // pack) applies its persona through the preset switch,
-                        // which restarts the runtime — so this control waits for
-                        // `agent_changed` like the model/workspace ones do. A
-                        // remote-fork agent answers immediately.
-                        setPendingConfig("agent");
-                        send({ type: "set_agent", id: a.id });
-                      }}
-                    />
+                    // A pack role runs focused on its own resource set, so it
+                    // also carries the 资源微调 affordance — a sibling button,
+                    // never nested inside the select control (add-focus-
+                    // overlay D4). It opens the role's diff dialog; applying
+                    // follows the next-session contract.
+                    <div key={a.id} className="flex items-center gap-0.5">
+                      <div className="min-w-0 flex-1">
+                        <MenuItem
+                          active={a.id === currentAgent}
+                          disabled={isStreaming}
+                          primary={a.name || a.id}
+                          secondary={a.name ? a.id : undefined}
+                          badge={
+                            a.packId ? (
+                              // Pack-sourced roles run focused on their OWN
+                              // resource set — mark them with the role-level
+                              // summary (skill/MCP counts of the effective set)
+                              // so the cost of the choice is visible before the
+                              // switch (add-persona-resource-sets D5).
+                              <span
+                                data-testid="strip-agent-focus-badge"
+                                title={a.packId}
+                                className="ml-auto shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-[9px] font-medium leading-tight text-primary"
+                              >
+                                {t("composer.strip.agentFocused", {
+                                  pack: a.packName || a.packId,
+                                  skills: a.resourceSummary?.skillCount ?? 0,
+                                  mcp: a.resourceSummary?.mcpCount ?? 0,
+                                })}
+                              </span>
+                            ) : undefined
+                          }
+                          testId="strip-agent-option"
+                          onClick={() => {
+                            close();
+                            if (a.id === currentAgent) return;
+                            // An agent the deployment serves locally (a vertical
+                            // pack) applies its persona through the preset switch,
+                            // which restarts the runtime — so this control waits for
+                            // `agent_changed` like the model/workspace ones do. A
+                            // remote-fork agent answers immediately.
+                            setPendingConfig("agent");
+                            send({ type: "set_agent", id: a.id });
+                          }}
+                        />
+                      </div>
+                      {a.packId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            close();
+                            setOverlayRole({ id: a.id, name: a.name || a.id, packName: a.packName });
+                          }}
+                          aria-label={t("overlay.adjust")}
+                          title={t("overlay.adjust")}
+                          data-testid={`strip-agent-adjust-${a.id}`}
+                          className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                          <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}
@@ -705,6 +733,14 @@ export function ControlStrip({ send, onOpenCommands, onAttach, trailing }: Props
         onConfirm={() => {
           setConfirmingFullAccess(false);
           send({ type: "set_permission", name: "danger-full-access" });
+        }}
+      />
+
+      <OverlayPanel
+        role={overlayRole}
+        open={overlayRole !== null}
+        onOpenChange={(o) => {
+          if (!o) setOverlayRole(null);
         }}
       />
     </div>

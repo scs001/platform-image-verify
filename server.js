@@ -43,6 +43,7 @@ import { registerBotRoutes, WEBHOOK_PREFIX } from "./server/routes/bots.js";
 import { registerBotRelayRoutes, RELAY_PREFIX } from "./server/routes/bot-relay.js";
 import { registerExternalServiceRoutes } from "./server/routes/external-services.js";
 import { registerPackRoutes as registerCellPackRoutes } from "./server/routes/packs.js";
+import { registerOverlayRoutes } from "./server/routes/overlay.js";
 import { createPackRegistry, registerPackRoutes as registerMarketPackRoutes } from "./gateway/packs.js";
 import { attachDshEvents } from "./server/dsh-events.js";
 import { attachRuntimeBindings } from "./server/runtime-bindings.js";
@@ -203,6 +204,9 @@ registerResourceRoutes(ctx);
 // Pack marketplace cell side (drafts + subscribe/upgrade/uninstall) — a plain
 // /api route family, before the static fallback.
 registerCellPackRoutes(ctx);
+// Focus overlay (add-focus-overlay): the 资源微调 panel's GET/PUT — same
+// placement rule as the pack routes.
+registerOverlayRoutes(ctx);
 // Pack marketplace MARKET plane (add-pack-marketplace): browse/publish/
 // subscribe records. In the multi-cell gateway topology gateway/index.js
 // serves these; a single-process deployment (fd-prod) has no gateway process,

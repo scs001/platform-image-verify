@@ -111,20 +111,61 @@ export function removePackSkills(packId) {
 }
 
 // Build (or rebuild) one persona's compose root: a dir of relative symlinks
-// `packs/<packId>/personas/<agentId>/<skill>` → `../../<skill>` in the pack
-// root. Idempotent from the caller-supplied owned rows: only names that are
-// BOTH declared and owned-by-this-pack get a link (a declaration naming a
-// skill skipped at install — a foreign collision — never materialized, so it
+// `packs/<packId>/personas/<agentId>/<skill>` → the skill's materialized dir.
+// Idempotent from the caller-supplied owned rows: only names that are BOTH
+// declared and owned-by-this-pack get a link (a declaration naming a skill
+// skipped at install — a foreign collision — never materialized, so it
 // silently narrows; the install report is the truth, D5). An absent/empty
 // declaration yields no root at all (a stale root is removed). Returns the
 // root path, or null when nothing should exist.
-export function buildPersonaSkillsRoot(packId, agentId, declaredSkills, ownedRows) {
+//
+// add-focus-overlay: `declaredSkills` may be null with an `overlay` present —
+// the whole-pack owned set is then the base the diff applies over (the forced
+// compose-root path for an adjusted undeclared persona). The overlay's
+// removeSkills drops members; its addSkills draws from `addableRows` — the
+// locally-materialized universe the caller passes (every enabled custom-skill
+// row, any pack or the user root) — so a skill owned by ANOTHER pack composes
+// into the role through a cross-root link and stops when its pack leaves.
+// Adds that resolve to nothing (renamed away, pack uninstalled) are dangling:
+// ignored silently with one warn, like the MCP layer.
+export function buildPersonaSkillsRoot(packId, agentId, declaredSkills, ownedRows, overlay = null, addableRows = null) {
   const root = personaSkillsRoot(packId, agentId);
   const owned = new Set((ownedRows ?? []).map((r) => r?.name).filter(Boolean));
-  const wanted = [...new Set(declaredSkills ?? [])].filter((n) => owned.has(n));
+  const addable = new Map((addableRows ?? []).map((r) => [r?.name, r]).filter(([n]) => n));
+  // Declared set when declared; whole-pack ONLY when an overlay adjusts an
+  // undeclared persona (the forced compose-root path) — with no overlay the
+  // absent-declaration contract stands: no root at all.
+  const base = Array.isArray(declaredSkills)
+    ? declaredSkills
+    : overlay ? [...owned] : [];
+  let wanted = [...new Set(base)].filter((n) => owned.has(n));
+  let danglingAdds = [];
+  if (overlay) {
+    const removed = new Set(overlay.removeSkills ?? []);
+    wanted = wanted.filter((n) => !removed.has(n));
+    for (const name of overlay.addSkills ?? []) {
+      if (wanted.includes(name)) continue;
+      if (addable.has(name)) wanted.push(name);
+      else danglingAdds.push(name);
+    }
+  }
+  // One skill name → its symlink target, relative to the persona root:
+  // this pack's own root (`../../<skill>`), another pack's root
+  // (`../../../<pack>/<skill>`), or the flat user root (`../../../<skill>`).
+  const targetFor = (name) => {
+    if (owned.has(name)) return join("..", "..", safeDir(name));
+    const row = addable.get(name);
+    if (row?.originPackId && row.originPackId !== packId) {
+      return join("..", "..", "..", safeDir(row.originPackId), safeDir(name));
+    }
+    return join("..", "..", "..", safeDir(name));
+  };
   if (wanted.length === 0) {
     try { rmSync(root, { recursive: true, force: true }); } catch { /* already gone */ }
     return null;
+  }
+  if (danglingAdds.length) {
+    console.warn(`[skill-materialize] overlay dangling skill adds ignored: [${danglingAdds.join(", ")}]`);
   }
   mkdirSync(root, { recursive: true });
   const wantedDirs = new Set(wanted.map((n) => safeDir(n)));
@@ -138,7 +179,7 @@ export function buildPersonaSkillsRoot(packId, agentId, declaredSkills, ownedRow
   }
   for (const name of wanted) {
     const link = join(root, safeDir(name));
-    const target = join("..", "..", safeDir(name)); // relative to the persona root
+    const target = targetFor(name);
     let current = null;
     try { current = readlinkSync(link); } catch { /* absent or not a link */ }
     if (current === target) continue; // idempotent — already the right link

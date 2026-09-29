@@ -1086,6 +1086,93 @@ export function getAllPreferences() {
   return Object.fromEntries(rows.map((r) => [r.key, r.value]));
 }
 
+// ── Focus overlay preferences (add-focus-overlay, design D1) ─────────────────
+// A focused role's subscriber adjustments are ONE preference key per preset —
+// `focus.overlay.<presetId>` — holding a preference diff (add/remove name
+// lists per dimension), never a materialized set. Every composition point
+// re-reads the diff and recomposes over the derivation, so nothing can drift;
+// an all-empty diff deletes the key, and a corrupt row reads as absent
+// (inert, self-healing — no error state to repair).
+
+const OVERLAY_DIMENSIONS = ["addMcp", "removeMcp", "addSkills", "removeSkills"];
+
+export function focusOverlayKey(presetId) {
+  return `focus.overlay.${presetId}`;
+}
+
+// Read the stored diff (null when absent, empty, or corrupt). Dimension order
+// is normalized so callers and tests can compare shapes structurally.
+export function getFocusOverlay(presetId) {
+  if (!dbReady || !presetId) return null;
+  const raw = getPreference(focusOverlayKey(presetId));
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+    const out = {};
+    for (const dim of OVERLAY_DIMENSIONS) {
+      if (!Array.isArray(parsed[dim])) return null;
+      out[dim] = parsed[dim].filter((n) => typeof n === "string" && n);
+    }
+    // An all-empty stored diff is equivalent to no overlay at all.
+    return OVERLAY_DIMENSIONS.every((d) => out[d].length === 0) ? null : out;
+  } catch {
+    return null;
+  }
+}
+
+// Validate + normalize a client-submitted diff. Dedupes while preserving
+// order, and rejects a name present in both add and remove for the same
+// dimension (the client resolves the ambiguity, not the composer). Returns
+// { ok: true, overlay } or { ok: false, error } naming the offending field.
+export function parseFocusOverlay(input) {
+  if (input === null || input === undefined) {
+    return { ok: true, overlay: Object.fromEntries(OVERLAY_DIMENSIONS.map((d) => [d, []])) };
+  }
+  if (typeof input !== "object" || Array.isArray(input)) {
+    return { ok: false, error: "overlay must be an object with addMcp/removeMcp/addSkills/removeSkills arrays" };
+  }
+  const out = {};
+  for (const dim of OVERLAY_DIMENSIONS) {
+    const list = input[dim] ?? [];
+    if (!Array.isArray(list)) {
+      return { ok: false, error: `overlay.${dim} must be an array of strings` };
+    }
+    for (const n of list) {
+      if (typeof n !== "string" || !n.trim()) {
+        return { ok: false, error: `overlay.${dim} must contain non-empty strings` };
+      }
+    }
+    out[dim] = [...new Set(list.map((n) => n.trim()))];
+  }
+  for (const [add, remove, dim] of [
+    ["addMcp", "removeMcp", "mcpServers"],
+    ["addSkills", "removeSkills", "skills"],
+  ]) {
+    const clash = out[add].find((n) => out[remove].includes(n));
+    if (clash) {
+      return { ok: false, error: `"${clash}" appears in both add and remove of overlay ${dim}; resolve the conflict before applying` };
+    }
+  }
+  return { ok: true, overlay: out };
+}
+
+// Store a normalized diff; an all-empty diff deletes the key (no ceremony row).
+// Dedupes defensively so the stored shape is canonical whatever wrote it.
+export function setFocusOverlay(presetId, overlay) {
+  if (!dbReady || !presetId) return;
+  const key = focusOverlayKey(presetId);
+  const norm = Object.fromEntries(
+    OVERLAY_DIMENSIONS.map((d) => [d, [...new Set(overlay?.[d] ?? [])]]),
+  );
+  const isEmpty = OVERLAY_DIMENSIONS.every((d) => norm[d].length === 0);
+  if (isEmpty) {
+    stmt("DELETE FROM user_preferences WHERE key = ?").run(key);
+    return;
+  }
+  setPreference(key, JSON.stringify(norm));
+}
+
 // ── Deployment config (deployment-wide, key/value; branding etc.) ────────────
 
 export function setDeploymentConfig(key, value) {

@@ -912,5 +912,23 @@
       "resourceEmptySkills": "The draft declares no skills yet — add some above first.",
       "resourceEmptyMcp": "The draft picks no MCP references yet — pick some above first."
     }
+  },
+  "overlay": {
+    "title": "Resource adjustments",
+    "adjust": "Adjust resources",
+    "desc": "Adjust this role's MCP servers and skills. Changes are stored as a preference diff and apply to the next session; entries invalidated by upgrades are ignored automatically.",
+    "mcp": "MCP servers",
+    "skills": "Role skills",
+    "baseline": "Baseline skills (available in every mode)",
+    "noneAddable": "(nothing to add)",
+    "remove": "Remove",
+    "restore": "Restore",
+    "add": "Add",
+    "apply": "Apply",
+    "applying": "Applying…",
+    "appliedNote": "Saved — applies to the next session.",
+    "streamBusy": "The agent is responding; wait for the turn to finish before adjusting.",
+    "loadError": "Failed to load",
+    "deploymentNote": "Adjustments are shared by every client of this deployment."
   }
 }

@@ -912,5 +912,23 @@
       "resourceEmptySkills": "El borrador aún no declara habilidades — añade alguna arriba.",
       "resourceEmptyMcp": "El borrador aún no elige referencias MCP — elige alguna arriba."
     }
+  },
+  "overlay": {
+    "title": "Ajuste de recursos",
+    "adjust": "Ajustar recursos",
+    "desc": "Ajusta los servidores MCP y las habilidades de este rol. Los cambios se guardan como un diff de preferencias y se aplican en la próxima sesión; las entradas invalidadas por actualizaciones se ignoran automáticamente.",
+    "mcp": "Servidores MCP",
+    "skills": "Habilidades del rol",
+    "baseline": "Habilidades base (disponibles en todos los modos)",
+    "noneAddable": "(nada que añadir)",
+    "remove": "Quitar",
+    "restore": "Restaurar",
+    "add": "Añadir",
+    "apply": "Aplicar",
+    "applying": "Aplicando…",
+    "appliedNote": "Guardado: surte efecto en la próxima sesión.",
+    "streamBusy": "El agente está respondiendo; espera a que termine el turno antes de ajustar.",
+    "loadError": "Error al cargar",
+    "deploymentNote": "Los ajustes son compartidos por todos los clientes de este despliegue."
   }
 }

@@ -912,5 +912,23 @@
       "resourceEmptySkills": "草稿尚未声明技能——先在上方添加技能。",
       "resourceEmptyMcp": "草稿尚未选择 MCP 引用——先在上方选取。"
     }
+  },
+  "overlay": {
+    "title": "资源微调",
+    "adjust": "资源微调",
+    "desc": "调整该角色的可用 MCP 服务与技能。改动保存为偏好差异，于下个会话生效；升级或卸载后失效项会自动忽略。",
+    "mcp": "MCP 服务器",
+    "skills": "角色技能",
+    "baseline": "基线技能（所有模式可用）",
+    "noneAddable": "（暂无可添加项）",
+    "remove": "移除",
+    "restore": "恢复",
+    "add": "添加",
+    "apply": "应用",
+    "applying": "应用中…",
+    "appliedNote": "已保存，将于下个会话生效。",
+    "streamBusy": "智能体正在回复，请等待本轮结束后再调整。",
+    "loadError": "加载失败",
+    "deploymentNote": "调整对本部署全体客户端一致。"
   }
 }

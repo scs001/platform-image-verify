@@ -413,7 +413,10 @@ function toMcpClientEntry(name, config) {
 // agentPreset (add-pack-agent-scoping) selects the resource scope: a pack
 // persona preset applies the subtractive focus layer after the personal
 // overlay (see deriveScope); null / a shipped preset composes full.
-export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail = null, agentPreset = null } = {}) {
+// noOverlay (add-focus-overlay) suppresses the preset's stored preference
+// diff — the probe's derived-vs-derived±overlay report needs the pre-overlay
+// composition; every runtime path keeps the default (compose with overlay).
+export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail = null, agentPreset = null, noOverlay = false } = {}) {
   // 1. mcp.json (operator config, base layer).
   let mcpJsonServers = {};
   try {
@@ -488,8 +491,14 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
   // always wins over a manifest reference. Pack refs naturally intersect with
   // the installed set here — an unresolvable ref matches nothing and drops
   // out (the install report already carries its unavailability).
-  const scope = await deriveScope(agentPreset);
+  const scope = await deriveScope(agentPreset, { noOverlay });
   if (scope.packId) {
+    // The available-server map AFTER availability/group/credential filtering
+    // but BEFORE the focus keep-set drops names — additions may only restore
+    // from here, which makes "an addition can never resurrect a disabled,
+    // group-gated, or credential-less server" structural instead of a check
+    // (add-focus-overlay design D2).
+    const available = { ...servers };
     const keep = new Set(Object.keys(mcpJsonServers));
     for (const name of baselineMcpNames()) {
       if (servers[name]) keep.add(name);
@@ -503,12 +512,42 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
         dropped.push(name);
       }
     }
-    const effective = [...keep].filter((n) => servers[n]);
+    // Overlay layer (add-focus-overlay D2) — applied LAST, after focus, so
+    // removals may drop any member of the derived set (baseline included:
+    // user-level narrowing that edits no definition) and additions extend it
+    // from the enabled universe captured above. Dangling entries (the pack
+    // upgraded past them, a server uninstalled) resolve to nothing and are
+    // named once at warn level — inert by design, no error state to repair.
+    let overlayLog = "";
+    if (scope.overlay) {
+      const danglingAdd = [];
+      const danglingRemove = [];
+      for (const name of scope.overlay.addMcp ?? []) {
+        if (servers[name]) continue; // already derived in (baseline or pack ref)
+        if (available[name]) servers[name] = available[name];
+        else danglingAdd.push(name);
+      }
+      for (const name of scope.overlay.removeMcp ?? []) {
+        if (servers[name]) delete servers[name];
+        else danglingRemove.push(name);
+      }
+      overlayLog =
+        ` +overlay[add:${(scope.overlay.addMcp ?? []).join(",") || "-"};` +
+        `remove:${(scope.overlay.removeMcp ?? []).join(",") || "-"}]`;
+      if (danglingAdd.length || danglingRemove.length) {
+        console.warn(
+          `[dsh-profile] overlay dangling entries ignored: add [${danglingAdd.join(", ")}], remove [${danglingRemove.join(", ")}]`,
+        );
+      }
+    }
+    const effective = [...new Set([...keep, ...(scope.overlay?.addMcp ?? [])])]
+      .filter((n) => servers[n]);
     console.log(
       `[dsh-profile] focused on pack "${scope.packName}" (${scope.packId})` +
         (scope.persona ? ` persona "${scope.persona}"` : "") +
         `: keeping [${effective.join(", ") || "(none)"}]` +
-        (dropped.length ? `, dropped [${dropped.join(", ")}]` : ""),
+        (dropped.length ? `, dropped [${dropped.join(", ")}]` : "") +
+        overlayLog,
     );
   }
 
@@ -554,12 +593,12 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
 // the same invariant writeMcpPatch applies.
 const SKILLS_PATCH_PATH = join(DSH_HOME, "profiles", PROFILE_NAME, "skills.patch.yml");
 
-export async function writeSkillsPatch({ agentPreset = null, extraDirs = [] } = {}) {
+export async function writeSkillsPatch({ agentPreset = null, extraDirs = [], noOverlay = false } = {}) {
   // ponytail: single static entry; customSkillDirs is the only field that matters
   // (providerName/includeDefaultRoots/watch take schema defaults when config is
   // overridden, so the built-in discovery roots are preserved). extraDirs appends
   // deployment-specific roots after the derived set.
-  const scope = await deriveScope(agentPreset);
+  const scope = await deriveScope(agentPreset, { noOverlay });
   const dirs = [resolve("skills")];
   if (scope.packId) {
     // Focused: baseline + the persona's own skills scope. skillsDir is the
@@ -568,15 +607,29 @@ export async function writeSkillsPatch({ agentPreset = null, extraDirs = [] } = 
     // idempotently from the DB rows, before it is listed (deriveScope only
     // reports it once it exists). A present-but-empty declaration (or a
     // persona-only pack) focuses to the baseline alone (skillsDir null).
+    // An OVERLAY forces the compose root too (add-focus-overlay D2): even an
+    // undeclared persona needs per-role composition once its set is adjusted,
+    // with the whole-pack set as the base the diff applies over.
     let skillsDir = scope.skillsDir;
-    if (Array.isArray(scope.skillsDecl)) {
+    if (Array.isArray(scope.skillsDecl) || scope.overlay) {
       try {
         const sm = await import("./skill-materialize.js");
         const db = await import("./db.js");
-        const ownedRows = db.isDbReady()
-          ? db.listCustomSkills().filter((s) => s.originPackId === scope.packId && s.enabled !== false)
+        const enabledRows = db.isDbReady()
+          ? db.listCustomSkills().filter((s) => s.enabled !== false)
           : [];
-        skillsDir = sm.buildPersonaSkillsRoot(scope.packId, scope.persona ?? String(agentPreset), scope.skillsDecl, ownedRows);
+        const ownedRows = enabledRows.filter((s) => s.originPackId === scope.packId);
+        skillsDir = sm.buildPersonaSkillsRoot(
+          scope.packId,
+          scope.persona ?? String(agentPreset),
+          Array.isArray(scope.skillsDecl) ? scope.skillsDecl : null,
+          ownedRows,
+          scope.overlay,
+          // Additions draw from the whole materialized universe (any pack or
+          // the user root), not just this pack — a skill owned by another
+          // installed pack composes in through a cross-root link.
+          enabledRows,
+        );
       } catch (e) {
         console.warn(`[dsh-profile] persona compose root unavailable; skills patch is baseline-only: ${e?.message || e}`);
         skillsDir = null;
@@ -603,7 +656,7 @@ export async function writeSkillsPatch({ agentPreset = null, extraDirs = [] } = 
   };
   atomicWriteTextSync(SKILLS_PATCH_PATH, yaml.dump([entry]));
   console.log(
-    `[dsh-profile] wrote skills patch (${scope.packId ? `focused: ${scope.packId}` : "full"}; customSkillDirs: ${dirs.join(", ")}) → ${SKILLS_PATCH_PATH}`,
+    `[dsh-profile] wrote skills patch (${scope.packId ? `focused: ${scope.packId}` : "full"}${scope.overlay ? " +overlay" : ""}; customSkillDirs: ${dirs.join(", ")}) → ${SKILLS_PATCH_PATH}`,
   );
   return SKILLS_PATCH_PATH;
 }
@@ -662,14 +715,21 @@ export async function resolvePersona(presetId) {
 
 // Stage 2 — persona → effective resource set. Returns
 // { packId: null } for full mode, or { packId, packName, persona, mcpKeep,
-// skillsDir, skillsDecl } for focused mode. Declaration semantics (D2/D4):
-// an absent dimension keeps the whole-pack set for it, a present one narrows
-// (present-but-empty ⇒ none for that dimension). Pure derivation (DB/catalog
-// reads only, no writes — the persona compose root is BUILT by
+// skillsDir, skillsDecl, overlay } for focused mode. Declaration semantics
+// (D2/D4): an absent dimension keeps the whole-pack set for it, a present one
+// narrows (present-but-empty ⇒ none for that dimension). Pure derivation (DB/
+// catalog reads only, no writes — the persona compose root is BUILT by
 // writeSkillsPatch, which is why skillsDir for a declared persona reports the
 // root only once it exists), so a stale patch self-heals on the next write.
-export async function deriveScope(agentPreset) {
-  const full = { packId: null, packName: null, persona: null, mcpKeep: null, skillsDir: null, skillsDecl: undefined };
+//
+// add-focus-overlay: the preset's stored preference diff rides along as an
+// additional derivation input (`overlay`, null when none is stored) — the
+// effective scope stays f(selected preset, preset's overlay), still derived
+// at every composition with no independent scope state. `noOverlay` suppresses
+// the input for callers that need the pre-overlay derivation (the probe's
+// derived-vs-derived±overlay report); it never affects full mode.
+export async function deriveScope(agentPreset, { noOverlay = false } = {}) {
+  const full = { packId: null, packName: null, persona: null, mcpKeep: null, skillsDir: null, skillsDecl: undefined, overlay: null };
   const persona = await resolvePersona(agentPreset);
   if (!persona) return full;
   // D5 — the install report is the collision truth: a skill skipped at install
@@ -698,6 +758,13 @@ export async function deriveScope(agentPreset) {
       if (existsSync(dir)) skillsDir = dir;
     }
   } catch { /* no pack root ⇒ baseline-only focus */ }
+  let overlay = null;
+  if (!noOverlay) {
+    try {
+      const db = await import("./db.js");
+      if (db.isDbReady()) overlay = db.getFocusOverlay(agentPreset);
+    } catch { /* no overlay input ⇒ derived-only focus */ }
+  }
   return {
     packId: persona.packId,
     packName: persona.packName,
@@ -705,6 +772,7 @@ export async function deriveScope(agentPreset) {
     mcpKeep,
     skillsDir,
     skillsDecl: Array.isArray(skillsDecl) ? skillsDecl : undefined,
+    overlay,
   };
 }
 

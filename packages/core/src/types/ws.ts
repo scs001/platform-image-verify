@@ -62,12 +62,26 @@ export type ServerMessage =
   | { type: "dashboard_state"; state: unknown }
   | { type: "extensions_changed"; resource: string; action: string; name: string; enabled?: boolean }
   | { type: "market_changed" }
+  // A role's focus overlay was adjusted (deployment-global, add-focus-overlay):
+  // every client refetches the role's effective set from /api/agent/overlay.
+  // `overlay` is null when the adjustment cleared the diff.
+  | { type: "overlay_changed"; preset: string; overlay: FocusOverlay | null }
   // A 401 from a registry-origin MCP server marked the market credential
   // stale: the Store re-reads the connection and prompts to reconnect.
   | { type: "registry_credential_stale" }
   | { type: "user_bindings"; model: BindingModel | null; mcp: McpBindingState[] }
   | { type: "runtime_binding"; model: RuntimeModel | null; mcp: { name: string; enabled: boolean }[] }
   | { type: "runtime_binding_pending"; model: RuntimeModel | null; mcp: { name: string; enabled: boolean }[] };
+
+// A focused role's subscriber adjustment (add-focus-overlay): a preference
+// diff over the derived set, never a stored snapshot. Server source of truth
+// is the preferences row `focus.overlay.<presetId>`.
+export interface FocusOverlay {
+  addMcp: string[];
+  removeMcp: string[];
+  addSkills: string[];
+  removeSkills: string[];
+}
 
 // A personal model binding (source "personal") or the global fallback. Both
 // sources carry the same {id, provider} shape.

@@ -15,9 +15,13 @@
 //
 // Usage:
 //   node scripts/probe-pack-scope.mjs [--db PATH] [--mcp PATH] [--data-dir PATH] \
-//        [--dsh-home PATH] [--preset AGENT_ID | --pack PACK_ID]
+//        [--dsh-home PATH] [--preset AGENT_ID | --pack PACK_ID] [--overlay]
 //   node scripts/probe-pack-scope.mjs --turn-trace --url http://127.0.0.1:3000 \
 //        [--prompt "..."] [--db PATH] [--preset AGENT_ID] [--json]
+//
+// --overlay (add-focus-overlay): every persona WITH a stored preference diff
+// is reported twice — its derived surface (diff suppressed) beside the
+// derived±overlay surface the runtime composes — from the same read-only DB.
 //
 // Env fallbacks: DB_PATH / MCP_CONFIG_PATH / PLATFORM_DATA_DIR / DSH_HOME (the
 // deployment's own values work as-is).
@@ -43,6 +47,7 @@ const OPTS = {
   dshHome: flag("dsh-home") || process.env.DSH_HOME || path.join(homedir(), ".dsh"),
   preset: flag("preset") || null,
   pack: flag("pack") || null,
+  overlay: has("overlay"),
   turnTrace: has("turn-trace"),
   url: flag("url") || "http://127.0.0.1:3000",
   prompt: flag("prompt") || "请用中文简要说明你能访问哪些工具和数据源，并举一个使用场景。",
@@ -211,22 +216,38 @@ async function probePatches() {
       modes.push({ mode: "unfocused", preset: t.preset, counts: null, note: "deriveScope ⇒ full (preset not a pack persona here)" });
       continue;
     }
-    const patch = await writeMcpPatch({ agentPreset: t.preset });
-    const entries = patch ? parsePatch(patch) : [];
-    const counts = [];
-    for (const e of entries) counts.push([e.config.serverName, await countTools(e)]);
-    // Compose the skills patch too: it BUILDS the persona compose root when the
-    // persona declares skills (an ADR-0002 disposable artifact — identical to
-    // what the next focused boot writes), so the skills-root report below is
-    // the one a real focused session would load. The patch itself lands in the
-    // probe's temp DSH_HOME; the deployment's patch files stay untouched.
-    const skillsPatch = await writeSkillsPatch({ agentPreset: t.preset });
-    const skillsDirs = skillsPatch
-      ? yaml.load(readFileSync(skillsPatch, "utf8"))[0].config.customSkillDirs.map((d) => path.resolve(d))
-      : [];
-    modes.push({ mode: "focused", preset: t.preset, packId: scope.packId, packName: scope.packName, counts,
-      persona: scope.persona, mcpKeep: scope.mcpKeep, skillsDirs,
-      skillsDecl: scope.skillsDecl ?? null });
+    // --overlay (add-focus-overlay): a role with a stored preference diff is
+    // reported twice — the derived surface (diff suppressed) beside the
+    // derived±overlay surface the runtime actually composes — so the diff's
+    // effect on the role's surface is directly readable. The diff-suppressed
+    // pass reuses the same writers via noOverlay (read-only, no state churn).
+    const stored = db.isDbReady() ? db.getFocusOverlay(t.preset) : null;
+    const composeFocused = async (noOverlay, modeLabel) => {
+      const patch = await writeMcpPatch({ agentPreset: t.preset, noOverlay });
+      const entries = patch ? parsePatch(patch) : [];
+      const counts = [];
+      for (const e of entries) counts.push([e.config.serverName, await countTools(e)]);
+      // Compose the skills patch too: it BUILDS the persona compose root when
+      // the persona declares skills (an ADR-0002 disposable artifact —
+      // identical to what the next focused boot writes), so the skills-root
+      // report below is the one a real focused session would load. The patch
+      // itself lands in the probe's temp DSH_HOME; the deployment's patch
+      // files stay untouched.
+      const skillsPatch = await writeSkillsPatch({ agentPreset: t.preset, noOverlay });
+      const skillsDirs = skillsPatch
+        ? yaml.load(readFileSync(skillsPatch, "utf8"))[0].config.customSkillDirs.map((d) => path.resolve(d))
+        : [];
+      modes.push({
+        mode: modeLabel, preset: t.preset, packId: scope.packId, packName: scope.packName, counts,
+        persona: scope.persona, mcpKeep: scope.mcpKeep, skillsDirs,
+        skillsDecl: scope.skillsDecl ?? null, overlay: noOverlay ? null : stored,
+      });
+    };
+    if (OPTS.overlay && stored) await composeFocused(true, "focused-derived");
+    await composeFocused(false, OPTS.overlay ? "focused-overlay" : "focused");
+    if (OPTS.overlay && !stored) {
+      modes.push({ mode: "note", preset: t.preset, counts: null, note: "no stored overlay — derived surface only (identical with --overlay)" });
+    }
   }
 
   const totalOf = (counts) => counts?.reduce((n, [, c]) => n + (typeof c === "number" ? c : 0), 0);
@@ -237,8 +258,11 @@ async function probePatches() {
     if (!OPTS.json) {
       console.log(`\n== ${m.mode}${m.preset ? ` preset=${m.preset}` : ""}${m.packName ? ` pack=${m.packName}` : ""}${m.persona ? ` persona=${m.persona}` : ""} ==`);
       if (m.note) console.log(`   ${m.note}`);
-      if (m.skillsDecl !== undefined && m.mode === "focused") {
+      if (m.skillsDecl !== undefined && m.mode.startsWith("focused")) {
         console.log(`   declaration: ${m.skillsDecl ? `${m.skillsDecl.length} skill(s) declared` : "no skill declaration (whole pack root)"}`);
+      }
+      if (m.overlay) {
+        console.log(`   overlay: +mcp[${m.overlay.addMcp?.join(", ") || "-"}] -mcp[${m.overlay.removeMcp?.join(", ") || "-"}] +skills[${m.overlay.addSkills?.join(", ") || "-"}] -skills[${m.overlay.removeSkills?.join(", ") || "-"}]`);
       }
       console.log(`   effective MCP servers: ${servers}, total MCP tools: ${tools}`);
       for (const [name, c] of m.counts ?? []) console.log(`   - ${name}: ${typeof c === "number" ? `${c} tools` : c}`);
@@ -249,10 +273,10 @@ async function probePatches() {
     }
     out.modes.push({ mode: m.mode, preset: m.preset, packId: m.packId, persona: m.persona ?? null, servers, tools,
       perServer: Object.fromEntries(m.counts ?? []), skillsDirs: m.skillsDirs ?? null, mcpKeep: m.mcpKeep ?? null,
-      skillsDecl: m.skillsDecl ?? null });
+      skillsDecl: m.skillsDecl ?? null, overlay: m.overlay ?? null });
   }
   const full = out.modes.find((m) => m.mode === "full");
-  for (const m of out.modes.filter((x) => x.mode === "focused")) {
+  for (const m of out.modes.filter((x) => x.mode.startsWith("focused"))) {
     const delta = full.tools != null && m.tools != null ? m.tools - full.tools : null;
     m.toolDeltaVsFull = delta;
     if (!OPTS.json) console.log(`\ndelta ${m.preset}: ${delta != null ? `${delta >= 0 ? "+" : ""}${delta} MCP tools vs full` : "(unmeasurable — a server was unreachable)"}`);

@@ -912,5 +912,23 @@
       "resourceEmptySkills": "Le brouillon ne déclare pas encore de compétences — ajoutez-en ci-dessus.",
       "resourceEmptyMcp": "Le brouillon ne choisit pas encore de références MCP — choisissez-en ci-dessus."
     }
+  },
+  "overlay": {
+    "title": "Ajustement des ressources",
+    "adjust": "Ajuster les ressources",
+    "desc": "Ajustez les serveurs MCP et les compétences de ce rôle. Les modifications sont enregistrées comme un diff de préférence et s'appliquent à la prochaine session ; les entrées invalidées par une mise à niveau sont ignorées automatiquement.",
+    "mcp": "Serveurs MCP",
+    "skills": "Compétences du rôle",
+    "baseline": "Compétences de base (disponibles dans tous les modes)",
+    "noneAddable": "(rien à ajouter)",
+    "remove": "Retirer",
+    "restore": "Restaurer",
+    "add": "Ajouter",
+    "apply": "Appliquer",
+    "applying": "Application…",
+    "appliedNote": "Enregistré — prend effet à la prochaine session.",
+    "streamBusy": "L'agent répond ; attendez la fin du tour avant d'ajuster.",
+    "loadError": "Échec du chargement",
+    "deploymentNote": "Les ajustements sont communs à tous les clients de ce déploiement."
   }
 }

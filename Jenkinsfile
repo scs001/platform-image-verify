@@ -27,8 +27,9 @@ pipeline {
     // between runs (no BuildKit cache export here). Generous ceiling on purpose;
     // a false timeout throws away 40 minutes of work.
     timeout(time: 120, unit: 'MINUTES')
-    // Two builds would fight over the same `latest` tag AND over cheap-3's
-    // ~9 GB of free disk, which it shares with the running platform pod.
+    // Two builds would fight over the same `latest` tag AND over this node's
+    // 30 GB disk, which it shares with the running platform pod (the post
+    // prune below keeps the leftovers bounded).
     disableConcurrentBuilds()
     buildDiscarder(logRotator(numToKeepStr: '20'))
   }
@@ -128,6 +129,19 @@ pipeline {
       // cleaning up, and `docker run` would then refuse the next build's name.
       sh 'docker rm -f platform-smoke >/dev/null 2>&1 || true'
       sh 'docker logout "$REGISTRY" || true'
+      // Reclaim build leftovers — this node's 30 GB disk also hosts the running
+      // platform pod, and unused images accumulated to 20 GB on 2026-09-29,
+      // tripping DiskPressure and evicting production. The pushed image is the
+      // artifact of record in Harbor, so nothing here risks a rollback (a
+      // re-pull from the LAN registry is fast). 24 h retention keeps the base
+      // image warm for back-to-back builds while bounding growth to a day of
+      // builds; images of running containers (the ingress proxy) are never
+      // pruned. `|| true` so cleanup can never fail the build.
+      sh '''
+        docker image prune -a -f --filter until=24h || true
+        docker builder prune -a -f --filter until=24h || true
+        docker container prune -f || true
+      '''
     }
     // The tag is what the ArgoCD manifest needs to reference; it is deliberately
     // not bumped here (same as law-bench) — the platform manifest is committed by

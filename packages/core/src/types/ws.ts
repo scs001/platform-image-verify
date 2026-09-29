@@ -119,6 +119,10 @@ export interface AgentInfo {
   featured?: boolean;    // show on Agents dashboard first
   packId?: string;       // pack-sourced entry: its pack (focused role marker)
   packName?: string;     // pack-sourced entry: the pack's display name
+  // Role-level resource summary (add-persona-resource-sets): the skill/MCP
+  // counts of THIS role's effective set — declared, or the pack's own counts
+  // when the role declares none.
+  resourceSummary?: { skillCount: number; mcpCount: number; declared: boolean };
 }
 
 export interface AppInfo {

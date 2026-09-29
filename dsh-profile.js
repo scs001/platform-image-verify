@@ -505,7 +505,9 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
     }
     const effective = [...keep].filter((n) => servers[n]);
     console.log(
-      `[dsh-profile] focused on pack "${scope.packName}" (${scope.packId}): keeping [${effective.join(", ") || "(none)"}]` +
+      `[dsh-profile] focused on pack "${scope.packName}" (${scope.packId})` +
+        (scope.persona ? ` persona "${scope.persona}"` : "") +
+        `: keeping [${effective.join(", ") || "(none)"}]` +
         (dropped.length ? `, dropped [${dropped.join(", ")}]` : ""),
     );
   }
@@ -560,10 +562,27 @@ export async function writeSkillsPatch({ agentPreset = null, extraDirs = [] } = 
   const scope = await deriveScope(agentPreset);
   const dirs = [resolve("skills")];
   if (scope.packId) {
-    // Focused: baseline + the pack's own root. User skills and other packs'
-    // roots are outside the focused set. skillsDir is null for a pack with no
-    // materialized skills (persona-only pack focuses to the baseline alone).
-    if (scope.skillsDir) dirs.push(scope.skillsDir);
+    // Focused: baseline + the persona's own skills scope. skillsDir is the
+    // pack root for an undeclared persona (pre-change path, byte-identical);
+    // a DECLARED persona scopes via its compose root (D3) — rebuilt here,
+    // idempotently from the DB rows, before it is listed (deriveScope only
+    // reports it once it exists). A present-but-empty declaration (or a
+    // persona-only pack) focuses to the baseline alone (skillsDir null).
+    let skillsDir = scope.skillsDir;
+    if (Array.isArray(scope.skillsDecl)) {
+      try {
+        const sm = await import("./skill-materialize.js");
+        const db = await import("./db.js");
+        const ownedRows = db.isDbReady()
+          ? db.listCustomSkills().filter((s) => s.originPackId === scope.packId && s.enabled !== false)
+          : [];
+        skillsDir = sm.buildPersonaSkillsRoot(scope.packId, scope.persona ?? String(agentPreset), scope.skillsDecl, ownedRows);
+      } catch (e) {
+        console.warn(`[dsh-profile] persona compose root unavailable; skills patch is baseline-only: ${e?.message || e}`);
+        skillsDir = null;
+      }
+    }
+    if (skillsDir) dirs.push(skillsDir);
   } else {
     // Full: the user root plus every pack root (pack roots are nested under
     // custom-skills/packs/, invisible from the user root — no recursion).
@@ -605,28 +624,27 @@ function baselineMcpNames() {
   return (process.env.PACK_BASELINE_MCP || "").split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
 }
 
-// Derive the resource scope for a preset id. Returns
-// { packId: null } for full mode, or { packId, packName, mcpKeep, skillsDir }
-// for focused mode. Pure derivation (DB/catalog reads only, no writes), so a
-// stale patch self-heals on the next write.
-export async function deriveScope(agentPreset) {
-  const full = { packId: null, packName: null, mcpKeep: null, skillsDir: null };
-  if (!agentPreset || SHIPPED_PRESET_IDS.includes(agentPreset)) return full;
-  // preset id → catalog entry → packId. Going through the MERGED catalog (not
-  // the installed-pack list) keeps derivation honest about shadowing: an id
-  // the cloud or agents.json overrides is no longer a pack persona — its
-  // generated preset composes the overriding entry's persona — so it runs
-  // full. Requires the generated preset to exist for the id (hasCatalogAgentPreset);
-  // a departed entry's preset is pruned, and its stale selection self-heals.
+// Stage 1 — preset id → persona: the merged-catalog entry's installed pack
+// plus the manifest's agent entry. Going through the MERGED catalog (not the
+// installed-pack list) keeps derivation honest about shadowing: an id the
+// cloud or agents.json overrides is no longer a pack persona — its generated
+// preset composes the overriding entry's persona — so it resolves to no
+// persona and runs full. Requires the generated preset to exist for the id
+// (hasCatalogAgentPreset); a departed entry's preset is pruned, and its stale
+// selection self-heals. Returns null for every full-mode case; a persona
+// otherwise: { packId, packName, manifest, agent }. Exported for the
+// follow-up changes (overlay, custom presets) that feed the same derivation.
+export async function resolvePersona(presetId) {
+  if (!presetId || SHIPPED_PRESET_IDS.includes(presetId)) return null;
   let entry = null;
   try {
     const catalog = await import("./catalog.js");
-    entry = catalog.getChatAgentEntries().find((e) => e.id === agentPreset && e.packId) || null;
+    entry = catalog.getChatAgentEntries().find((e) => e.id === presetId && e.packId) || null;
   } catch (e) {
     console.warn(`[dsh-profile] scope derivation: catalog unavailable (${e?.message || e}); composing full`);
-    return full;
+    return null;
   }
-  if (!entry || !hasCatalogAgentPreset(agentPreset)) return full;
+  if (!entry || !hasCatalogAgentPreset(presetId)) return null;
   // → the installed pack's manifest (the resource set's source of truth). A
   // pack that left composes full — derivation self-heals a stale selection.
   let installed = null;
@@ -635,22 +653,59 @@ export async function deriveScope(agentPreset) {
     if (db.isDbReady()) installed = db.getInstalledPack(entry.packId);
   } catch { /* DB off ⇒ full */ }
   if (!installed?.manifest) {
-    console.warn(`[dsh-profile] preset '${agentPreset}' names pack '${entry.packId}' which is not installed; composing full`);
-    return full;
+    console.warn(`[dsh-profile] preset '${presetId}' names pack '${entry.packId}' which is not installed; composing full`);
+    return null;
   }
+  const agent = (installed.manifest.agents ?? []).find((a) => a?.id === presetId) ?? null;
+  return { packId: entry.packId, packName: installed.name ?? entry.packId, manifest: installed.manifest, agent };
+}
+
+// Stage 2 — persona → effective resource set. Returns
+// { packId: null } for full mode, or { packId, packName, persona, mcpKeep,
+// skillsDir, skillsDecl } for focused mode. Declaration semantics (D2/D4):
+// an absent dimension keeps the whole-pack set for it, a present one narrows
+// (present-but-empty ⇒ none for that dimension). Pure derivation (DB/catalog
+// reads only, no writes — the persona compose root is BUILT by
+// writeSkillsPatch, which is why skillsDir for a declared persona reports the
+// root only once it exists), so a stale patch self-heals on the next write.
+export async function deriveScope(agentPreset) {
+  const full = { packId: null, packName: null, persona: null, mcpKeep: null, skillsDir: null, skillsDecl: undefined };
+  const persona = await resolvePersona(agentPreset);
+  if (!persona) return full;
   // D5 — the install report is the collision truth: a skill skipped at install
   // never materialized into the pack root, so the root itself already excludes
   // it; MCP refs intersect with the installed set at patch-write time.
-  const mcpKeep = (installed.manifest.mcpServers ?? [])
+  const packRefs = (persona.manifest.mcpServers ?? [])
     .map((m) => (typeof m?.registryName === "string" ? m.registryName : null))
     .filter(Boolean);
+  const declaredMcp = persona.agent?.resources?.mcpServers;
+  const mcpKeep = Array.isArray(declaredMcp)
+    ? packRefs.filter((name) => declaredMcp.includes(name))
+    : packRefs;
+  const skillsDecl = persona.agent?.resources?.skills;
   let skillsDir = null;
   try {
     const sm = await import("./skill-materialize.js");
-    const dir = sm.packSkillsRoot(entry.packId);
-    if (existsSync(dir)) skillsDir = dir;
+    if (Array.isArray(skillsDecl)) {
+      // Declared skills dimension: the persona compose root is the scope
+      // (built by writeSkillsPatch; empty declaration ⇒ null = baseline only).
+      if (skillsDecl.length > 0) {
+        const dir = sm.personaSkillsRoot(persona.packId, persona.agent?.id ?? String(agentPreset));
+        if (existsSync(dir)) skillsDir = dir;
+      }
+    } else {
+      const dir = sm.packSkillsRoot(persona.packId);
+      if (existsSync(dir)) skillsDir = dir;
+    }
   } catch { /* no pack root ⇒ baseline-only focus */ }
-  return { packId: entry.packId, packName: installed.name ?? entry.packId, mcpKeep, skillsDir };
+  return {
+    packId: persona.packId,
+    packName: persona.packName,
+    persona: persona.agent?.id ?? null,
+    mcpKeep,
+    skillsDir,
+    skillsDecl: Array.isArray(skillsDecl) ? skillsDecl : undefined,
+  };
 }
 
 // ── Agent preset roster patch (dsh-agent-presets + preset bridge) ──────────────

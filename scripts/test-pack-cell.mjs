@@ -115,8 +115,9 @@ test("install materializes skills, reports MCP refs, and snapshots the pack", as
   assert.equal(db.getCustomSkill("shared-skill").content, "user content");
   assert.equal(db.getCustomSkill("shared-skill").originPackId, null);
 
-  // Materialization: the DB row is mirrored to a hot-loadable SKILL.md.
-  const skillMd = path.join(tmpRoot, "data", "custom-skills", "legal-contract-workflow", "SKILL.md");
+  // Materialization: the DB row is mirrored to a hot-loadable SKILL.md under
+  // the PACK root (add-pack-agent-scoping layout; the flat root is user-only).
+  const skillMd = path.join(tmpRoot, "data", "custom-skills", "packs", "pack-aaa", "legal-contract-workflow", "SKILL.md");
   assert.ok(existsSync(skillMd), "SKILL.md not materialized");
   assert.ok(readFileSync(skillMd, "utf8").includes("# v1"));
 
@@ -207,7 +208,10 @@ test("uninstall: modified-skill warning gates, force removes, MCP kept", async (
   assert.deepEqual(result.removedSkills, ["legal-contract-workflow"]);
   assert.equal(db.getCustomSkill("legal-contract-workflow"), null);
   assert.equal(db.getInstalledPack("pack-aaa"), null);
-  assert.ok(!existsSync(path.join(tmpRoot, "data", "custom-skills", "legal-contract-workflow")), "SKILL.md dir not pruned");
+  assert.ok(
+    !existsSync(path.join(tmpRoot, "data", "custom-skills", "packs", "pack-aaa")),
+    "pack root not pruned on uninstall",
+  );
 
   // The pack's agent left the catalog; other packs' entries remain.
   const cat = catalog.getCatalogFor({ email: "u@x.com", groups: [] });
@@ -218,4 +222,75 @@ test("uninstall: modified-skill warning gates, force removes, MCP kept", async (
 
 test("shared manifest validation stays importable for the editor path", () => {
   assert.deepEqual(validatePackManifest(MANIFEST_BASE), []);
+});
+
+// ── Resource declarations (add-persona-resource-sets, tasks 2.1–2.2) ─────────
+const withResources = (resources) => ({
+  ...MANIFEST_BASE,
+  agents: [{ ...MANIFEST_BASE.agents[0], ...(resources !== undefined ? { resources } : {}) }],
+});
+
+test("resource declarations: valid mixed-dimension subset passes", () => {
+  // One dimension each, both subsets of the pack's own lists.
+  assert.deepEqual(
+    validatePackManifest(withResources({ skills: ["legal-contract-workflow"], mcpServers: ["law-bench"] })),
+    [],
+    "a mixed skills+MCP declaration of own names is valid",
+  );
+});
+
+test("resource declarations: foreign names are rejected naming the role", () => {
+  const errs = validatePackManifest(withResources({ skills: ["not-a-pack-skill"] }));
+  assert.ok(errs.length === 1, `expected one error, got ${JSON.stringify(errs)}`);
+  assert.match(errs[0].error, /pack-contract-reviewer/);
+  assert.match(errs[0].error, /not-a-pack-skill/);
+  assert.equal(errs[0].entry, "agents[0]");
+
+  const mcpErrs = validatePackManifest(withResources({ mcpServers: ["foreign-server"] }));
+  assert.match(mcpErrs[0].error, /pack-contract-reviewer/);
+  assert.match(mcpErrs[0].error, /foreign-server/);
+});
+
+test("resource declarations: duplicates within one declaration are rejected", () => {
+  const errs = validatePackManifest(withResources({ skills: ["law-bench", "law-bench"] }));
+  // law-bench is an MCP name, not a skill — both the foreign-name and
+  // duplicate checks matter; assert the duplicate fires for a real skill name.
+  const dupe = validatePackManifest(withResources({ mcpServers: ["law-bench", "law-bench"] }));
+  assert.ok(dupe.some((e) => /twice/.test(e.error) && /law-bench/.test(e.error) && /pack-contract-reviewer/.test(e.error)));
+  assert.ok(errs.some((e) => /does not declare|twice/.test(e.error)));
+});
+
+test("resource declarations: dimensions scope independently (absent = whole-pack, empty = none)", () => {
+  // Absent MCP dimension: only skills narrowed — valid.
+  assert.deepEqual(validatePackManifest(withResources({ skills: ["legal-contract-workflow"] })), []);
+  // Absent skills dimension: only MCP narrowed — valid.
+  assert.deepEqual(validatePackManifest(withResources({ mcpServers: ["fetch"] })), []);
+  // Present-but-empty both dimensions: persona-only role — valid.
+  assert.deepEqual(validatePackManifest(withResources({ skills: [], mcpServers: [] })), []);
+  // Empty object: same as both-empty — valid.
+  assert.deepEqual(validatePackManifest(withResources({})), []);
+});
+
+test("resource declarations: malformed shapes are rejected", () => {
+  assert.ok(validatePackManifest(withResources(null)).length > 0, "resources must be an object");
+  assert.ok(validatePackManifest(withResources({ skills: "legal-contract-workflow" })).length > 0, "a dimension must be an array");
+  assert.ok(validatePackManifest(withResources({ skills: ["bad name!"] })).length > 0, "names must be well-formed");
+  assert.ok(validatePackManifest(withResources({ tools: [] })).length > 0, "unknown dimensions are rejected");
+});
+
+test("install path re-validates declarations with status 400", async () => {
+  await assert.rejects(
+    packStore.installPack({
+      packId: "pack-decl-invalid",
+      version: 1,
+      manifest: withResources({ skills: ["not-a-pack-skill"] }),
+      user: null,
+      hooks,
+    }),
+    (err) =>
+      err.status === 400 &&
+      /Invalid manifest/.test(err.message) &&
+      err.details.some((d) => /not-a-pack-skill/.test(d.error)),
+  );
+  assert.equal(db.getInstalledPack("pack-decl-invalid"), null, "nothing installed on refusal");
 });

@@ -31,9 +31,16 @@ const manifest = (version, extra = {}) => ({
   name: PACK_NAME,
   description: "pack-agent-scoping e2e",
   tags: ["e2e"],
-  skills: [{ name: SKILL_NAME, description: "聚焦技能", content: `# v${version}\n按聚焦模式审查。` }],
+  skills: extra.skills ?? [{ name: SKILL_NAME, description: "聚焦技能", content: `# v${version}\n按聚焦模式审查。` }],
   mcpServers: extra.mcpServers ?? [],
-  agents: [{ id: AGENT_ID, name: "聚焦审查官", persona: "你是聚焦审查官。" }],
+  agents: [
+    {
+      id: AGENT_ID,
+      name: "聚焦审查官",
+      persona: "你是聚焦审查官。",
+      ...(extra.resources !== undefined ? { resources: extra.resources } : {}),
+    },
+  ],
 });
 
 const dirs = tempStoreDirs();
@@ -149,6 +156,8 @@ test.afterEach(async ({ page }) => {
   await page.request.delete(`/api/mypacks/${PACK_ID}?force=1`).catch(() => {});
   await page.request.delete(`/api/extensions/mcp/${EXTRA_MCP}`).catch(() => {});
   await page.request.delete("/api/extensions/mcp/e2e-registry-mcp").catch(() => {});
+  await page.request.delete("/api/extensions/mcp/e2e-registry-mcp-2").catch(() => {});
+  await page.request.delete("/api/extensions/skills/scope-skill2-e2e").catch(() => {});
   await page.request.delete(`/api/extensions/skills/${SKILL_NAME}`).catch(() => {});
 });
 
@@ -175,11 +184,14 @@ test("selecting a pack role focuses both patches and badges the picker", async (
   expect(persona).toContain("聚焦模式");
   expect(persona).toContain("切换回标准模式");
 
-  // Picker: the pack agent renders with the focus badge naming its pack.
+  // Picker: the pack agent renders with the focus badge naming its pack and
+  // the role's resource summary (v1 manifest: 1 skill, 0 MCP refs).
   await page.getByTestId("strip-more").click();
   const option = page.getByTestId("strip-agent-option").filter({ hasText: "聚焦审查官" });
   await expect(option).toBeVisible({ timeout: 30_000 });
-  await expect(option.getByTestId("strip-agent-focus-badge")).toHaveText(`聚焦 · ${PACK_NAME}`);
+  await expect(option.getByTestId("strip-agent-focus-badge")).toHaveText(
+    `聚焦 · ${PACK_NAME} · 1 技能 · 0 MCP`,
+  );
 
   // Selecting the role is a preset switch → both patches rewrite focused,
   // then one restart carries the persona.
@@ -271,6 +283,133 @@ test("uninstall leaves no orphan pack root and the skills patch stops listing it
   await expect
     .poll(() => skillDirsOf(), { timeout: 30_000 })
     .not.toContain(packRoot);
+});
+
+// ── Resource declarations (add-persona-resource-sets) ────────────────────────
+// Three scenarios on top of the undeclared behavior covered above: a declared
+// subset narrows both patches (MCP counts visible in the patch, skills via the
+// persona compose root), an empty declaration focuses to the baseline alone,
+// and an upgrade that adds a declaration re-derives the focused patches.
+
+const SKILL2_NAME = "scope-skill2-e2e";
+const personaRoot = path.join(packRoot, "personas", AGENT_ID);
+
+async function connectRegistry(page) {
+  const connect = await page.request.post("/api/registry/credential", {
+    data: { token: "opaque-e2e-token", source: "paste" },
+  });
+  expect(connect.ok(), await connect.text()).toBeTruthy();
+}
+
+test("a declared subset narrows the focused MCP set and scopes skills to the persona root", async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.goto("/chat/");
+  await connectRegistry(page);
+  const { report } = await installPack(page, 1, {
+    skills: [
+      { name: SKILL_NAME, description: "聚焦技能", content: "# v1\n保留。" },
+      { name: SKILL2_NAME, description: "第二技能", content: "# v1\n排除。" },
+    ],
+    mcpServers: [{ registryName: "e2e-registry-mcp" }, { registryName: "e2e-registry-mcp-2" }],
+    resources: { skills: [SKILL_NAME], mcpServers: ["e2e-registry-mcp-2"] },
+  });
+  // Both registry refs really installed — the narrowing below is the
+  // declaration's doing, not an unresolvable ref.
+  expect(report.mcpServers.map((m) => [m.name, m.status])).toEqual([
+    ["e2e-registry-mcp", "installed"],
+    ["e2e-registry-mcp-2", "installed"],
+  ]);
+
+  await expect
+    .poll(() => fs.existsSync(path.join(dirs.dshHome, ".agent-presets", AGENT_ID, "agent.cordis.yml")))
+    .toBe(true);
+  await waitPresetInRoster(page, AGENT_ID);
+  await switchPreset(page, AGENT_ID);
+
+  // MCP patch: ONLY the declared ref of the two (plus the seeded baseline
+  // "memory"). The other installed pack ref is dropped by the declaration.
+  const servers = mcpServersOf();
+  expect(servers).toContain("memory");
+  expect(servers).toContain("e2e-registry-mcp-2");
+  expect(servers).not.toContain("e2e-registry-mcp");
+
+  // Skills patch: baseline + the PERSONA compose root — not the pack root.
+  const focusedDirs = skillDirsOf();
+  expect(focusedDirs).toContain(personaRoot);
+  expect(focusedDirs).not.toContain(packRoot);
+  expect(focusedDirs).not.toContain(path.join(dirs.root, "custom-skills"));
+  // The compose root links exactly the declared skill.
+  expect(fs.readdirSync(personaRoot).sort()).toEqual([SKILL_NAME]);
+
+  await switchPreset(page, "standard");
+});
+
+test("an empty declaration focuses both dimensions to the baseline alone", async ({ page }) => {
+  test.setTimeout(150_000);
+  await page.goto("/chat/");
+  await connectRegistry(page);
+  await installPack(page, 1, {
+    mcpServers: [{ registryName: "e2e-registry-mcp" }],
+    resources: { skills: [], mcpServers: [] },
+  });
+  await expect
+    .poll(() => fs.existsSync(path.join(dirs.dshHome, ".agent-presets", AGENT_ID, "agent.cordis.yml")))
+    .toBe(true);
+  await waitPresetInRoster(page, AGENT_ID);
+  await switchPreset(page, AGENT_ID);
+
+  // The pack's ref is installed, yet the empty declaration keeps it out: the
+  // focused MCP surface is the baseline ("memory") alone.
+  const servers = mcpServersOf();
+  expect(servers).toContain("memory");
+  expect(servers).not.toContain("e2e-registry-mcp");
+  // Skills patch: baseline only — no pack root, no persona root.
+  expect(skillDirsOf()).toHaveLength(1);
+
+  await switchPreset(page, "standard");
+});
+
+test("an upgrade that adds a declaration re-derives the focused patches", async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.goto("/chat/");
+  await connectRegistry(page);
+
+  // v1 undeclared: whole-pack focus (both refs once installed, pack root).
+  await installPack(page, 1, { mcpServers: [{ registryName: "e2e-registry-mcp" }] });
+  await expect
+    .poll(() => fs.existsSync(path.join(dirs.dshHome, ".agent-presets", AGENT_ID, "agent.cordis.yml")))
+    .toBe(true);
+  await waitPresetInRoster(page, AGENT_ID);
+  await switchPreset(page, AGENT_ID);
+  await expect
+    .poll(() => mcpServersOf(), { timeout: 20_000 })
+    .toContain("e2e-registry-mcp");
+  expect(skillDirsOf()).toContain(packRoot);
+
+  // v2 adds a second ref + a second skill AND declares a subset that keeps
+  // only the new ref and the original skill. The install's mcpChanged hook
+  // re-derives without any preset switch.
+  const { report } = await installPack(page, 2, {
+    skills: [
+      { name: SKILL_NAME, description: "聚焦技能", content: "# v2\n保留。" },
+      { name: SKILL2_NAME, description: "第二技能", content: "# v2\n排除。" },
+    ],
+    mcpServers: [{ registryName: "e2e-registry-mcp" }, { registryName: "e2e-registry-mcp-2" }],
+    resources: { skills: [SKILL_NAME], mcpServers: ["e2e-registry-mcp-2"] },
+  });
+  expect(report.mcpServers.find((m) => m.name === "e2e-registry-mcp-2")?.status).toBe("installed");
+
+  await expect
+    .poll(() => mcpServersOf(), { timeout: 20_000 })
+    .toContain("e2e-registry-mcp-2");
+  expect(mcpServersOf()).not.toContain("e2e-registry-mcp");
+  // Skills re-derive to the persona compose root with the declared skill.
+  const focusedDirs = skillDirsOf();
+  expect(focusedDirs).toContain(personaRoot);
+  expect(focusedDirs).not.toContain(packRoot);
+  expect(fs.readdirSync(personaRoot).sort()).toEqual([SKILL_NAME]);
+
+  await switchPreset(page, "standard");
 });
 
 // The honest-decline turn: a real model, the focused persona, a request for a

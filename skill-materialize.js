@@ -16,7 +16,7 @@
 // Atomic writes (temp+rename) match documents.js / writeMcpPatch. The dir is a
 // runtime artifact under PLATFORM_DATA_DIR (gitignored), rebuilt idempotently
 // from the DB on startup.
-import { mkdirSync, readdirSync, rmSync } from "node:fs";
+import { mkdirSync, readlinkSync, readdirSync, rmSync, symlinkSync } from "node:fs";
 import { basename, join } from "node:path";
 import { atomicWriteTextSync } from "./lib/persistence.js";
 import { storeDir } from "./paths.js";
@@ -26,6 +26,10 @@ const MATERIALIZE_DIR = storeDir("custom-skills");
 // skill literally named "packs" — see rebuildFromDb for how the two coexist.
 const PACKS_SEGMENT = "packs";
 const PACKS_DIR = join(MATERIALIZE_DIR, PACKS_SEGMENT);
+// The reserved per-persona subtree INSIDE a pack root (add-persona-resource-
+// sets D3). Same coexistence caveat: a pack skill literally named "personas"
+// would collide — accepted quirk, mirrored from PACKS_SEGMENT.
+export const PERSONAS_SEGMENT = "personas";
 
 // Sanitize a skill name into a safe filesystem segment. dsh-skill-filesystem
 // keys skills off the frontmatter `name`, not the dir, so the dir name only
@@ -49,6 +53,14 @@ export function listPackSkillsRoots() {
   } catch {
     return []; // no packs subtree yet — nothing installed
   }
+}
+
+// The per-persona compose root (add-persona-resource-sets D3):
+// packs/<packId>/personas/<agentId>/<skillName> → relative symlink into the
+// pack root. Disposable runtime artifact like every root here — rebuilt from
+// the durable store on every skills-patch write, never edited in place.
+export function personaSkillsRoot(packId, agentId) {
+  return join(packSkillsRoot(packId), PERSONAS_SEGMENT, safeDir(agentId));
 }
 
 // A row's root: pack-owned rows live under the pack root, user rows flat.
@@ -92,9 +104,48 @@ export function removeSkill(skillOrName) {
 
 // Remove a whole pack's root (uninstall). Skills skipped at install never
 // materialized here — foreign same-named skills live in other roots and are
-// untouched by design.
+// untouched by design. The personas/ subtree lives inside the pack root, so
+// it goes with it (add-persona-resource-sets D3).
 export function removePackSkills(packId) {
   try { rmSync(packSkillsRoot(packId), { recursive: true, force: true }); } catch { /* already gone */ }
+}
+
+// Build (or rebuild) one persona's compose root: a dir of relative symlinks
+// `packs/<packId>/personas/<agentId>/<skill>` → `../../<skill>` in the pack
+// root. Idempotent from the caller-supplied owned rows: only names that are
+// BOTH declared and owned-by-this-pack get a link (a declaration naming a
+// skill skipped at install — a foreign collision — never materialized, so it
+// silently narrows; the install report is the truth, D5). An absent/empty
+// declaration yields no root at all (a stale root is removed). Returns the
+// root path, or null when nothing should exist.
+export function buildPersonaSkillsRoot(packId, agentId, declaredSkills, ownedRows) {
+  const root = personaSkillsRoot(packId, agentId);
+  const owned = new Set((ownedRows ?? []).map((r) => r?.name).filter(Boolean));
+  const wanted = [...new Set(declaredSkills ?? [])].filter((n) => owned.has(n));
+  if (wanted.length === 0) {
+    try { rmSync(root, { recursive: true, force: true }); } catch { /* already gone */ }
+    return null;
+  }
+  mkdirSync(root, { recursive: true });
+  const wantedDirs = new Set(wanted.map((n) => safeDir(n)));
+  // Wipe stale entries (a name dropped from the declaration, or junk).
+  let entries = [];
+  try { entries = readdirSync(root); } catch { /* root absent */ }
+  for (const entry of entries) {
+    if (!wantedDirs.has(entry)) {
+      try { rmSync(join(root, entry), { recursive: true, force: true }); } catch { /* best-effort */ }
+    }
+  }
+  for (const name of wanted) {
+    const link = join(root, safeDir(name));
+    const target = join("..", "..", safeDir(name)); // relative to the persona root
+    let current = null;
+    try { current = readlinkSync(link); } catch { /* absent or not a link */ }
+    if (current === target) continue; // idempotent — already the right link
+    try { rmSync(link, { recursive: true, force: true }); } catch { /* best-effort */ }
+    symlinkSync(target, link, "dir");
+  }
+  return root;
 }
 
 // Rebuild both materialization roots from the DB: wipe stale entries, write
@@ -126,7 +177,8 @@ export function rebuildFromDb(listCustomSkills) {
 
   // Pack roots: a root with no current rows is stale (uninstalled pack, or
   // junk); inside a live root, skill dirs the pack no longer owns go too
-  // (an upgrade that dropped a skill).
+  // (an upgrade that dropped a skill). The reserved personas/ subtree is
+  // reconciled by buildPersonaSkillsRoot at patch-write time — skip it here.
   const byPack = new Map();
   for (const s of packRows) {
     const key = safeDir(s.originPackId);
@@ -143,6 +195,7 @@ export function rebuildFromDb(listCustomSkills) {
     let skillDirs = [];
     try { skillDirs = readdirSync(packRoot); } catch { /* root absent */ }
     for (const d of skillDirs) {
+      if (d === PERSONAS_SEGMENT) continue;
       if (!livePack.has(d)) {
         try { rmSync(join(packRoot, d), { recursive: true, force: true }); } catch { /* best-effort */ }
       }

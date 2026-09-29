@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "@/lib/packs-api";
-import type { PackDraft, PackManifest } from "@/lib/packs-api";
+import type { PackDraft, PackManifest, PackManifestAgent } from "@/lib/packs-api";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -348,6 +348,23 @@ function PackDraftEditor({
                 rows={3}
                 placeholder={t("packs.editor.agentPersona")}
               />
+              {/* Persona cost readout (D6): guidance, not a cap — a persona
+                  bills every turn, so its size is a per-turn cost decision. */}
+              <p className="text-xs text-muted-foreground" data-testid={`pack-agent-cost-${i}`}>
+                {t("packs.editor.personaCost", {
+                  chars: entry.value.persona.length,
+                  tokens: Math.ceil(entry.value.persona.length / 3),
+                })}
+              </p>
+              <AgentResourcesPicker
+                index={i}
+                value={entry.value}
+                ownSkillNames={skills.map((s) => s.value.name.trim()).filter(Boolean)}
+                ownMcpNames={mcpPicked}
+                onChange={(resources) =>
+                  setAgents(agents.map((x, j) => (j === i ? { ...x, value: { ...x.value, resources } } : x)))
+                }
+              />
               <Button size="sm" variant="ghost" onClick={() => setAgents(agents.filter((_, j) => j !== i))}>
                 {t("packs.editor.remove")}
               </Button>
@@ -356,5 +373,117 @@ function PackDraftEditor({
         </div>
       </section>
     </section>
+  );
+}
+
+// Per-role resource declaration picker (add-persona-resource-sets D6). Chip
+// sources are the draft's OWN entries only — no free-form name input exists,
+// so a declaration can never name a foreign resource (the server re-validates
+// anyway). Dimension semantics mirror the manifest: a dimension left
+// UNCHECKED is absent (= the role uses the whole pack's set for it); checked,
+// the chip selection is the set (none checked = none). Enabling a dimension
+// pre-selects everything — the equivalent of today's whole-pack behavior —
+// and dropping both dimensions removes `resources` entirely (undeclared).
+function AgentResourcesPicker({
+  index,
+  value,
+  ownSkillNames,
+  ownMcpNames,
+  onChange,
+}: {
+  index: number;
+  value: PackManifestAgent;
+  ownSkillNames: string[];
+  ownMcpNames: string[];
+  onChange: (resources: PackManifestAgent["resources"]) => void;
+}) {
+  const { t } = useTranslation();
+  const resources = value.resources;
+  const skillsOn = Array.isArray(resources?.skills);
+  const mcpOn = Array.isArray(resources?.mcpServers);
+  // Auto-expand once a declaration exists, but let the author collapse it —
+  // `open` must survive unrelated re-renders (typing in the persona textarea
+  // re-renders this entry on every keystroke).
+  const [open, setOpen] = useState(skillsOn || mcpOn);
+
+  const setDimension = (dim: "skills" | "mcpServers", on: boolean, all: string[]) => {
+    let next: PackManifestAgent["resources"] = { ...resources };
+    if (on) next[dim] = [...all];
+    else delete next[dim];
+    if (!next.skills && !next.mcpServers) next = undefined;
+    onChange(next);
+  };
+  const toggleChip = (dim: "skills" | "mcpServers", name: string) => {
+    const current = resources?.[dim] ?? [];
+    onChange({
+      ...resources,
+      [dim]: current.includes(name) ? current.filter((n) => n !== name) : [...current, name],
+    });
+  };
+
+  const chips = (dim: "skills" | "mcpServers", names: string[]) =>
+    names.length === 0 ? (
+      <p className="text-xs text-muted-foreground" data-testid={`pack-agent-resource-empty-${dim}`}>
+        {t(dim === "skills" ? "packs.editor.resourceEmptySkills" : "packs.editor.resourceEmptyMcp")}
+      </p>
+    ) : (
+      <div className="flex flex-wrap gap-1.5" data-testid={`pack-agent-resource-chips-${index}-${dim}`}>
+        {names.map((name) => {
+          const on = (resources?.[dim] ?? []).includes(name);
+          return (
+            <button
+              key={name}
+              type="button"
+              onClick={() => toggleChip(dim, name)}
+              className={`border rounded-full px-2 py-0.5 text-xs transition-colors ${
+                on ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground"
+              }`}
+              data-testid={`pack-agent-resource-chip-${name}`}
+            >
+              {name}
+            </button>
+          );
+        })}
+      </div>
+    );
+
+  return (
+    <details
+      className="border border-border rounded-md px-3 py-2"
+      data-testid={`pack-agent-resources-${index}`}
+      open={open}
+      onToggle={(e) => setOpen(e.currentTarget.open)}
+    >
+      <summary className="cursor-pointer text-sm text-muted-foreground select-none">
+        {t("packs.editor.resourceSet")}
+      </summary>
+      <p className="text-xs text-muted-foreground mt-1 mb-2">{t("packs.editor.resourceHint")}</p>
+      <div className="space-y-2">
+        <div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={skillsOn}
+              onChange={(e) => setDimension("skills", e.target.checked, ownSkillNames)}
+              data-testid={`pack-agent-resource-toggle-skills-${index}`}
+            />
+            {t("packs.editor.limitSkills")}
+          </label>
+          {skillsOn && chips("skills", ownSkillNames)}
+        </div>
+        <div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={mcpOn}
+              onChange={(e) => setDimension("mcpServers", e.target.checked, ownMcpNames)}
+              data-testid={`pack-agent-resource-toggle-mcp-${index}`}
+            />
+            {t("packs.editor.limitMcp")}
+          </label>
+          {mcpOn && chips("mcpServers", ownMcpNames)}
+        </div>
+      </div>
+    </details>
   );
 }

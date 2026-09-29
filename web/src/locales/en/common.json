@@ -148,7 +148,7 @@
       "effortDefault": "Default",
       "agent": "Agent",
       "agentUnset": "Default",
-      "agentFocused": "Focused · {{pack}}",
+      "agentFocused": "Focused · {{pack}} · {{skills}} skills · {{mcp}} MCP",
       "permission": "Permissions",
       "permissionUnset": "Default",
       "permissionCustom": "Custom",
@@ -903,7 +903,14 @@
       "agentHint": "Agents are local personas — no endpoints, models, or credentials.",
       "agentId": "Agent id (e.g. pack-reviewer)",
       "agentName": "Agent name",
-      "agentPersona": "Persona text"
+      "agentPersona": "Persona text",
+      "personaCost": "Persona {{chars}} chars ≈ {{tokens}} tokens/turn (~3 chars/token estimate; billed on every turn)",
+      "resourceSet": "Resource set (optional)",
+      "resourceHint": "Leave unchecked to use the whole pack's resources; checked, only the selected subset loads (none selected = baseline only). Only this pack's own skills and MCP references are offered.",
+      "limitSkills": "Limit skills",
+      "limitMcp": "Limit MCP servers",
+      "resourceEmptySkills": "The draft declares no skills yet — add some above first.",
+      "resourceEmptyMcp": "The draft picks no MCP references yet — pick some above first."
     }
   }
 }

@@ -148,7 +148,7 @@
       "effortDefault": "默认",
       "agent": "智能体",
       "agentUnset": "默认",
-      "agentFocused": "聚焦 · {{pack}}",
+      "agentFocused": "聚焦 · {{pack}} · {{skills}} 技能 · {{mcp}} MCP",
       "permission": "权限",
       "permissionUnset": "默认",
       "permissionCustom": "自定义",
@@ -903,7 +903,14 @@
       "agentHint": "角色是本地人设（persona），不含端点、模型或凭据。",
       "agentId": "角色 id（如 pack-reviewer）",
       "agentName": "角色名称",
-      "agentPersona": "人设文案（persona）"
+      "agentPersona": "人设文案（persona）",
+      "personaCost": "人设 {{chars}} 字符 ≈ {{tokens}} tokens/轮（约 3 字符/token 估算；每轮对话都会计入）",
+      "resourceSet": "资源集（可选）",
+      "resourceHint": "不勾选 = 该角色使用整包资源；勾选后仅装载所选子集（全不选 = 仅部署基线）。只能从本包的技能与 MCP 引用中选取。",
+      "limitSkills": "限定技能",
+      "limitMcp": "限定 MCP 服务",
+      "resourceEmptySkills": "草稿尚未声明技能——先在上方添加技能。",
+      "resourceEmptyMcp": "草稿尚未选择 MCP 引用——先在上方选取。"
     }
   }
 }

@@ -178,7 +178,7 @@ function parsePatch(patchPath) {
 async function probePatches() {
   const db = await import("../db.js");
   await db.initDb();
-  const { writeMcpPatch, deriveScope } = await import("../dsh-profile.js");
+  const { writeMcpPatch, writeSkillsPatch, deriveScope } = await import("../dsh-profile.js");
 
   // Focus targets: --preset, or the installed packs' agents (--pack narrows).
   let targets = [];
@@ -211,8 +211,18 @@ async function probePatches() {
     const entries = patch ? parsePatch(patch) : [];
     const counts = [];
     for (const e of entries) counts.push([e.config.serverName, await countTools(e)]);
+    // Compose the skills patch too: it BUILDS the persona compose root when the
+    // persona declares skills (an ADR-0002 disposable artifact — identical to
+    // what the next focused boot writes), so the skills-root report below is
+    // the one a real focused session would load. The patch itself lands in the
+    // probe's temp DSH_HOME; the deployment's patch files stay untouched.
+    const skillsPatch = await writeSkillsPatch({ agentPreset: t.preset });
+    const skillsDirs = skillsPatch
+      ? yaml.load(readFileSync(skillsPatch, "utf8"))[0].config.customSkillDirs.map((d) => path.resolve(d))
+      : [];
     modes.push({ mode: "focused", preset: t.preset, packId: scope.packId, packName: scope.packName, counts,
-      mcpKeep: scope.mcpKeep, skillsDir: scope.skillsDir });
+      persona: scope.persona, mcpKeep: scope.mcpKeep, skillsDirs,
+      skillsDecl: scope.skillsDecl ?? null });
   }
 
   const totalOf = (counts) => counts?.reduce((n, [, c]) => n + (typeof c === "number" ? c : 0), 0);
@@ -221,14 +231,21 @@ async function probePatches() {
     const servers = m.counts?.length ?? 0;
     const tools = totalOf(m.counts) ?? null;
     if (!OPTS.json) {
-      console.log(`\n== ${m.mode}${m.preset ? ` preset=${m.preset}` : ""}${m.packName ? ` pack=${m.packName}` : ""} ==`);
+      console.log(`\n== ${m.mode}${m.preset ? ` preset=${m.preset}` : ""}${m.packName ? ` pack=${m.packName}` : ""}${m.persona ? ` persona=${m.persona}` : ""} ==`);
       if (m.note) console.log(`   ${m.note}`);
+      if (m.skillsDecl !== undefined && m.mode === "focused") {
+        console.log(`   declaration: ${m.skillsDecl ? `${m.skillsDecl.length} skill(s) declared` : "no skill declaration (whole pack root)"}`);
+      }
       console.log(`   effective MCP servers: ${servers}, total MCP tools: ${tools}`);
       for (const [name, c] of m.counts ?? []) console.log(`   - ${name}: ${typeof c === "number" ? `${c} tools` : c}`);
-      if (m.skillsDir !== undefined) console.log(`   skills root: ${m.skillsDir ?? "(persona-only pack — baseline skills only)"}`);
+      if (m.skillsDirs) {
+        for (const d of m.skillsDirs.slice(1)) console.log(`   skills root: ${d}`);
+        if (m.skillsDirs.length === 1) console.log("   skills root: (baseline only — no pack/persona skills)");
+      }
     }
-    out.modes.push({ mode: m.mode, preset: m.preset, packId: m.packId, servers, tools,
-      perServer: Object.fromEntries(m.counts ?? []), skillsDir: m.skillsDir ?? null, mcpKeep: m.mcpKeep ?? null });
+    out.modes.push({ mode: m.mode, preset: m.preset, packId: m.packId, persona: m.persona ?? null, servers, tools,
+      perServer: Object.fromEntries(m.counts ?? []), skillsDirs: m.skillsDirs ?? null, mcpKeep: m.mcpKeep ?? null,
+      skillsDecl: m.skillsDecl ?? null });
   }
   const full = out.modes.find((m) => m.mode === "full");
   for (const m of out.modes.filter((x) => x.mode === "focused")) {
@@ -246,18 +263,23 @@ async function turnTrace() {
   const base = OPTS.url.replace(/\/+$/, "");
   const wsUrl = base.replace(/^http/, "ws") + "/probe";
 
-  // Which pack preset to focus? Auto: first installed pack agent (probe DB).
-  let preset = OPTS.preset;
-  if (!preset && OPTS.db) {
+  // Focus targets (add-persona-resource-sets): --preset narrows to one;
+  // otherwise EVERY installed pack persona — one full-mode reference turn,
+  // then one turn per persona, same prompt, same model.
+  let targets = [];
+  if (OPTS.preset) {
+    targets = [OPTS.preset];
+  } else if (OPTS.db) {
     const db = await import("../db.js");
     await db.initDb();
     for (const installed of db.listInstalledPacks()) {
       const report = new Map((installed.report?.agents ?? []).map((r) => [r.id, r.status]));
-      const a = (installed.manifest?.agents ?? []).find((x) => report.get(x.id) === "installed");
-      if (a) { preset = a.id; break; }
+      for (const a of installed.manifest?.agents ?? []) {
+        if (report.get(a.id) === "installed") targets.push(a.id);
+      }
     }
   }
-  if (!preset) throw new Error("--turn-trace needs a pack preset (--preset) or an installed pack in --db");
+  if (!targets.length) throw new Error("--turn-trace needs persona(s) (--preset) or installed packs in --db");
 
   const ws = new WebSocket(wsUrl);
   await new Promise((res, rej) => { ws.once("open", res); ws.once("error", rej); });
@@ -310,13 +332,14 @@ async function turnTrace() {
     await waitFor("done", 300_000);
   };
 
-  console.log(`turn-trace: full (standard) then focused (${preset}) — same prompt, same model`);
+  console.log(`turn-trace: full (standard) then focused (${targets.join(", ")}) — same prompt, same model`);
   await runTurn("standard");
-  await runTurn(preset);
+  for (const t of targets) await runTurn(t);
   ws.close();
 
   // Usage tokens from the trace viewer: newest turns first, matched by prompt.
-  const turns = (await (await fetch(`${base}/api/trace/turns?limit=8`)).json()).turns;
+  const needed = 1 + targets.length;
+  const turns = (await (await fetch(`${base}/api/trace/turns?limit=${Math.max(8, needed + 4)}`)).json()).turns;
   const usageOf = async (turnId) => {
     const doc = await (await fetch(`${base}/api/trace/turns/${turnId}`)).json();
     for (const e of doc.events ?? []) {
@@ -331,20 +354,29 @@ async function turnTrace() {
     const doc = await (await fetch(`${base}/api/trace/turns/${t.turnId}`)).json();
     const user = (doc.events ?? []).find((e) => e.eventType === "user/message");
     if (user && (user.summary || "").includes(OPTS.prompt.slice(0, 20))) matched.push(t);
-    if (matched.length >= 2) break;
+    if (matched.length >= needed) break;
   }
-  if (matched.length < 2) throw new Error(`expected 2 traced turns for the prompt, found ${matched.length}`);
-  const [focusedTurn, fullTurn] = matched; // newest first: focused ran second
-  const fullUsage = await usageOf(fullTurn.turnId);
-  const focusedUsage = await usageOf(focusedTurn.turnId);
+  if (matched.length < needed) throw new Error(`expected ${needed} traced turns for the prompt, found ${matched.length}`);
+  // Newest first → reverse to run order: the full reference, then per persona.
+  const ordered = matched.slice(0, needed).reverse();
+  const fullUsage = await usageOf(ordered[0].turnId);
+  const sum = (u) => (u.inputTokens ?? u.input_tokens ?? 0) + (u.outputTokens ?? u.output_tokens ?? 0) + (u.reasoningTokens ?? u.reasoning_tokens ?? 0);
   const result = {
     prompt: OPTS.prompt,
-    full: { turnId: fullTurn.turnId, model: fullTurn.model, provider: fullTurn.provider, usage: fullUsage },
-    focused: { turnId: focusedTurn.turnId, model: focusedTurn.model, provider: focusedTurn.provider, usage: focusedUsage, preset },
+    full: { turnId: ordered[0].turnId, model: ordered[0].model, provider: ordered[0].provider, usage: fullUsage },
+    personas: [],
   };
-  if (fullUsage && focusedUsage) {
-    const sum = (u) => (u.inputTokens ?? u.input_tokens ?? 0) + (u.outputTokens ?? u.output_tokens ?? 0) + (u.reasoningTokens ?? u.reasoning_tokens ?? 0);
-    result.delta = { total: sum(focusedUsage) - sum(fullUsage), fullTotal: sum(fullUsage), focusedTotal: sum(focusedUsage) };
+  for (let i = 0; i < targets.length; i++) {
+    const t = ordered[i + 1];
+    const usage = await usageOf(t.turnId);
+    result.personas.push({
+      preset: targets[i],
+      turnId: t.turnId,
+      model: t.model,
+      provider: t.provider,
+      usage,
+      deltaVsFull: fullUsage && usage ? sum(usage) - sum(fullUsage) : null,
+    });
   }
   console.log(JSON.stringify(result, null, 2));
   return result;

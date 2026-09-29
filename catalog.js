@@ -117,6 +117,34 @@ async function loadCloud() {
 // by design), so they bypass validateEntry's endpoint requirement and get a
 // light sanity filter instead; the rest of the chat-entry machinery (local
 // persona presets, picker, selection) treats them like any other chat entry.
+// The role-level resource summary (add-persona-resource-sets D5): the skill
+// and MCP counts of ONE persona's effective set, computed from the installed
+// manifest + install report (the same snapshot the derivation composes from).
+// Undeclared dimensions default to the pack-level counts; declared ones
+// intersect with what the pack owns here (a declaration naming a
+// collision-skipped skill narrows further — the report is the truth).
+function personaResourceSummary(installed, agent) {
+  const ownedSkills = new Set(
+    (installed.report?.skills ?? [])
+      .filter((r) => r.status === "installed" || r.status === "replaced")
+      .map((r) => r.name),
+  );
+  const packRefs = new Set(
+    (installed.manifest?.mcpServers ?? [])
+      .map((m) => (typeof m?.registryName === "string" ? m.registryName : null))
+      .filter(Boolean),
+  );
+  const decl = agent?.resources;
+  if (!decl || typeof decl !== "object") return { skillCount: ownedSkills.size, mcpCount: packRefs.size, declared: false };
+  const count = (declared, own) =>
+    Array.isArray(declared) ? declared.filter((n) => own.has(n)).length : own.size;
+  return {
+    skillCount: count(decl.skills, ownedSkills),
+    mcpCount: count(decl.mcpServers, packRefs),
+    declared: true,
+  };
+}
+
 function packAgentDoc() {
   if (!db.isDbReady()) return { agents: [], apps: [] };
   const agents = [];
@@ -145,6 +173,7 @@ function packAgentDoc() {
         icon: a.icon,
         packId: installed.packId,
         packName: installed.name,
+        resourceSummary: personaResourceSummary(installed, a),
       });
     }
   }
@@ -186,6 +215,12 @@ function serialize(entry) {
   if (entry.packId) {
     base.packId = entry.packId;
     if (entry.packName) base.packName = entry.packName;
+    // Role-level resource summary (add-persona-resource-sets D5) — additive
+    // serialization; older clients ignore the unknown field.
+    if (entry.resourceSummary) {
+      const { skillCount, mcpCount, declared } = entry.resourceSummary;
+      base.resourceSummary = { skillCount, mcpCount, declared };
+    }
   }
   if (entry.type === "agent-remote") {
     base.mode = entry.mode;

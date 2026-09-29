@@ -658,15 +658,21 @@ export function ControlStrip({ send, onOpenCommands, onAttach, trailing }: Props
                       secondary={a.name ? a.id : undefined}
                       badge={
                         a.packId ? (
-                          // Pack-sourced roles run focused on their pack's
-                          // resource set — mark them so the choice is visible
-                          // before the switch (add-pack-agent-scoping).
+                          // Pack-sourced roles run focused on their OWN
+                          // resource set — mark them with the role-level
+                          // summary (skill/MCP counts of the effective set)
+                          // so the cost of the choice is visible before the
+                          // switch (add-persona-resource-sets D5).
                           <span
                             data-testid="strip-agent-focus-badge"
                             title={a.packId}
                             className="ml-auto shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-[9px] font-medium leading-tight text-primary"
                           >
-                            {t("composer.strip.agentFocused", { pack: a.packName || a.packId })}
+                            {t("composer.strip.agentFocused", {
+                              pack: a.packName || a.packId,
+                              skills: a.resourceSummary?.skillCount ?? 0,
+                              mcp: a.resourceSummary?.mcpCount ?? 0,
+                            })}
                           </span>
                         ) : undefined
                       }

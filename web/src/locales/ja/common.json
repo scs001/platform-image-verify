@@ -148,7 +148,7 @@
       "effortDefault": "デフォルト",
       "agent": "エージェント",
       "agentUnset": "デフォルト",
-      "agentFocused": "フォーカス · {{pack}}",
+      "agentFocused": "フォーカス · {{pack}} · {{skills}} スキル · {{mcp}} MCP",
       "permission": "権限",
       "permissionUnset": "デフォルト",
       "permissionCustom": "カスタム",
@@ -903,7 +903,14 @@
       "agentHint": "エージェントはローカルのペルソナです。エンドポイント・モデル・資格情報は含みません。",
       "agentId": "エージェント id（例: pack-reviewer）",
       "agentName": "エージェント名",
-      "agentPersona": "ペルソナ文"
+      "agentPersona": "ペルソナ文",
+      "personaCost": "ペルソナ {{chars}} 文字 ≈ {{tokens}} tokens/ターン（約3文字/token の概算。毎ターン計上されます）",
+      "resourceSet": "リソースセット（任意）",
+      "resourceHint": "チェックなし = パック全体のリソースを使用。チェックすると選択したサブセットのみ（全選択解除 = 基線のみ）。本パックのスキルと MCP 参照のみ選択できます。",
+      "limitSkills": "スキルを限定",
+      "limitMcp": "MCP サーバーを限定",
+      "resourceEmptySkills": "ドラフトにスキルがまだありません。先に上で追加してください。",
+      "resourceEmptyMcp": "ドラフトで MCP 参照が未選択です。先に上で選択してください。"
     }
   }
 }

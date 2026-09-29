@@ -148,7 +148,7 @@
       "effortDefault": "Par défaut",
       "agent": "Agent",
       "agentUnset": "Par défaut",
-      "agentFocused": "Focalisé · {{pack}}",
+      "agentFocused": "Focalisé · {{pack}} · {{skills}} compétences · {{mcp}} MCP",
       "permission": "Permissions",
       "permissionUnset": "Par défaut",
       "permissionCustom": "Personnalisé",
@@ -903,7 +903,14 @@
       "agentHint": "Les agents sont des personas locaux — sans endpoint, modèle ni identifiants.",
       "agentId": "Id de l'agent (ex. pack-reviewer)",
       "agentName": "Nom de l'agent",
-      "agentPersona": "Texte de la persona"
+      "agentPersona": "Texte de la persona",
+      "personaCost": "Persona {{chars}} caractères ≈ {{tokens}} tokens/tour (~3 caractères/token, estimation ; facturé à chaque tour)",
+      "resourceSet": "Ressources (facultatif)",
+      "resourceHint": "Non coché = toutes les ressources du pack ; coché, seul le sous-ensemble sélectionné est chargé (aucun = référence seule). Seules les compétences et références MCP du pack sont proposées.",
+      "limitSkills": "Limiter les compétences",
+      "limitMcp": "Limiter les serveurs MCP",
+      "resourceEmptySkills": "Le brouillon ne déclare pas encore de compétences — ajoutez-en ci-dessus.",
+      "resourceEmptyMcp": "Le brouillon ne choisit pas encore de références MCP — choisissez-en ci-dessus."
     }
   }
 }

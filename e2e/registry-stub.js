@@ -94,8 +94,20 @@ const server = createServer((req, res) => {
             status: "active",
             tags: ["e2e"],
           },
+          // Second entry (add-persona-resource-sets): pack manifests need TWO
+          // installable registry references for the declared-subset e2e — one
+          // the declaration keeps, one it drops.
+          {
+            path: `/${MCP_NAME}-2`,
+            display_name: "E2E Registry MCP 2",
+            description: "Second registry entry served by the e2e stub",
+            is_enabled: true,
+            health_status: "healthy",
+            status: "active",
+            tags: ["e2e"],
+          },
         ],
-        total_count: 1,
+        total_count: 2,
       });
     }
     if (url.pathname.startsWith("/api/skills")) return json(res, 200, { skills: [], total_count: 0 });

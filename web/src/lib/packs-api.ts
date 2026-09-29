@@ -36,6 +36,10 @@ export interface PackManifestAgent {
   persona: string;
   tags?: string[];
   icon?: string;
+  // Optional per-role resource declaration (add-persona-resource-sets): a
+  // subset of the draft's OWN skills / MCP references. Absent dimension =
+  // whole-pack set for it; present-but-empty = none.
+  resources?: { skills?: string[]; mcpServers?: string[] };
 }
 
 export interface PackManifest {

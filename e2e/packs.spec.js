@@ -182,6 +182,65 @@ test("creator drafts, publishes v1, then republishes v2", async ({ page }) => {
   await expect(page.getByTestId("pack-card-pack-e2e-1")).toContainText("v2", { timeout: 10_000 });
 });
 
+// ── Creator: per-role resource declarations + persona cost (add-persona-
+//    resource-sets tasks 4.3–4.4) ─────────────────────────────────────────────
+test("per-role resource declarations round-trip through save/reload; cost readout is live", async ({ page }) => {
+  const gw = seedableGateway(page);
+  gw.install();
+  await gotoPacksTab(page, "drafts");
+  await page.getByTestId("pack-draft-create").click();
+  await page.locator("#pack-name").fill("资源集包");
+
+  // Two own skills + one registry MCP reference — the chip sources.
+  for (const [i, name] of ["resource-skill-a", "resource-skill-b"].entries()) {
+    await page.getByTestId("pack-skill-add").click();
+    await page.getByTestId(`pack-skill-entry-${i}`).locator("input").nth(0).fill(name);
+    await page.getByTestId(`pack-skill-entry-${i}`).locator("input").nth(1).fill("资源集技能");
+    await page.getByTestId(`pack-skill-entry-${i}`).locator("textarea").fill("# c");
+  }
+  const mcpChip = page.getByTestId("pack-mcp-option-e2e-registry-mcp");
+  if (await mcpChip.count()) await mcpChip.click();
+
+  await page.getByTestId("pack-agent-add").click();
+  await page.getByTestId("pack-agent-entry-0").locator("input").nth(0).fill("pack-resource-reviewer");
+  await page.getByTestId("pack-agent-entry-0").locator("input").nth(1).fill("资源审查官");
+  const persona = page.getByTestId("pack-agent-entry-0").locator("textarea");
+  await persona.fill("你是资源审查官。");
+
+  // Persona cost readout: current length, and it updates live while typing.
+  const cost = page.getByTestId("pack-agent-cost-0");
+  await expect(cost).toContainText("8 字符");
+  await persona.fill("你是资源审查官，只审查资源子集。");
+  await expect(cost).toContainText("16 字符");
+  await expect(cost).toContainText("tokens/轮");
+
+  // Mixed-dimension declaration: limit skills to A only (B unselected), keep
+  // the MCP dimension on with the single own reference.
+  const res = page.getByTestId("pack-agent-resources-0");
+  await res.locator("summary").click();
+  await page.getByTestId("pack-agent-resource-toggle-skills-0").check();
+  await page.getByTestId("pack-agent-resource-chip-resource-skill-b").click(); // deselect B
+  await expect(page.getByTestId("pack-agent-resource-chip-resource-skill-a")).toHaveClass(/bg-primary/);
+  if (await mcpChip.count()) {
+    await page.getByTestId("pack-agent-resource-toggle-mcp-0").check();
+    await expect(page.getByTestId("pack-agent-resource-chip-e2e-registry-mcp")).toHaveClass(/bg-primary/);
+  }
+
+  // Round-trip: save → close → reopen; the declaration survives intact.
+  const editor = page.getByTestId("pack-editor");
+  await editor.getByRole("button", { name: "保存草稿" }).click();
+  await editor.getByRole("button", { name: "关闭" }).click();
+  await page.locator('[data-testid^="pack-draft-item-"]').filter({ hasText: "资源集包" }).first().click();
+  await expect(page.getByTestId("pack-editor")).toBeVisible();
+  await expect(page.getByTestId("pack-agent-resource-toggle-skills-0")).toBeChecked();
+  await expect(page.getByTestId("pack-agent-resource-chip-resource-skill-a")).toHaveClass(/bg-primary/);
+  await expect(page.getByTestId("pack-agent-resource-chip-resource-skill-b")).not.toHaveClass(/bg-primary/);
+
+  // The declaration publishes with the manifest (mixed-dimension is legal).
+  await page.getByTestId("pack-draft-publish").click();
+  await expect(page.getByTestId("pack-card-pack-e2e-1")).toContainText("资源集包", { timeout: 10_000 });
+});
+
 // ── Subscriber: inspect → subscribe → materialize → report ──────────────────
 
 test("subscriber inspects, subscribes, and the pack materializes", async ({ page }) => {

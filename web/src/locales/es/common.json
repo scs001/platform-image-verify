@@ -148,7 +148,7 @@
       "effortDefault": "Predeterminado",
       "agent": "Agente",
       "agentUnset": "Predeterminado",
-      "agentFocused": "Enfocado · {{pack}}",
+      "agentFocused": "Enfocado · {{pack}} · {{skills}} habilidades · {{mcp}} MCP",
       "permission": "Permisos",
       "permissionUnset": "Predeterminado",
       "permissionCustom": "Personalizado",
@@ -903,7 +903,14 @@
       "agentHint": "Los agentes son personas locales: sin endpoints, modelos ni credenciales.",
       "agentId": "Id del agente (p. ej. pack-reviewer)",
       "agentName": "Nombre del agente",
-      "agentPersona": "Texto de la persona"
+      "agentPersona": "Texto de la persona",
+      "personaCost": "Persona {{chars}} caracteres ≈ {{tokens}} tokens/turno (~3 caracteres/token, estimación; se cobra en cada turno)",
+      "resourceSet": "Conjunto de recursos (opcional)",
+      "resourceHint": "Sin marcar = usa todos los recursos del pack; marcado, solo carga el subconjunto elegido (ninguno = solo línea base). Solo se ofrecen las habilidades y referencias MCP del propio pack.",
+      "limitSkills": "Limitar habilidades",
+      "limitMcp": "Limitar servidores MCP",
+      "resourceEmptySkills": "El borrador aún no declara habilidades — añade alguna arriba.",
+      "resourceEmptyMcp": "El borrador aún no elige referencias MCP — elige alguna arriba."
     }
   }
 }

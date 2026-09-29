@@ -25,5 +25,5 @@
 ## 5. Probe, e2e, deploy (D5)
 
 - [x] 5.1 Extend `scripts/probe-pack-scope.mjs` with a `--overlay` pass reporting per-persona derived vs derived±overlay surfaces; verify a local run prints both blocks for a role with a stored overlay
-- [ ] 5.2 New e2e `e2e/focus-overlay.spec.js`: adjustment applies next session, survives restart, upgrade with dangling entries converges silently, baseline removal is role-scoped, MP parity absent by design; verify the suite is green alongside the existing pack-agent-scoping suite
+- [x] 5.2 New e2e `e2e/focus-overlay.spec.js`: adjustment applies next session, survives restart, upgrade with dangling entries converges silently, baseline removal is role-scoped, MP parity absent by design; verify the suite is green alongside the existing pack-agent-scoping suite
 - [ ] 5.3 Deploy after add-persona-resource-sets is live; verify the probe on fd-prod and record deployment-global semantics + MP fast-follow note in the deploy notes

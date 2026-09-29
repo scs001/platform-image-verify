@@ -25,4 +25,4 @@
 
 - [x] 5.1 Extend `scripts/probe-pack-scope.mjs` to treat custom presets as focused roles (per-preset report); verify a local run prints a custom preset's server/tool counts and token delta
 - [x] 5.2 New e2e `e2e/custom-presets.spec.js`: create/select/focus/edit/delete-reset, cross-pack skill lifecycle (uninstall drops, reinstall returns), shadowed id runs full, pack-install backstop skip; verify green alongside the existing suites
-- [ ] 5.3 Deploy after ①② are live; verify probe on fd-prod, record deployment-global roster semantics + MP fast-follow note in the deploy notes
+- [x] 5.3 Deploy after ①② are live; verify probe on fd-prod, record deployment-global roster semantics + MP fast-follow note in the deploy notes

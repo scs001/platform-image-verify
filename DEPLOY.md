@@ -803,6 +803,25 @@ add∩remove 冲突 400 点名字段；overlay 适用于 pack persona，shipped 
 回收（`COPY --from=builder: No such image`）失败，重试 #44 即成——冷构建慢
 阶段与盘压 GC 的竞态，复发时先查节点 `docker system df`。
 
+### 自建预设上线实录（add-custom-presets，2026-09-29 sha-f3523de/Jenkins #45）
+
+「造」半边的用户侧决策落地：任何认证用户可在单元格内组合 persona 预设
+（`user_presets` 表 db v21；id 服务端分配于保留 `user.` 前缀，作者只起名）。
+**部署全局名册语义（v1 天花板，与 preset 选择、overlay 一致）**：自建预设
+是共享运行时的部署级状态——每个连接的客户端看到同一份名册，任何认证用户
+可增删改（`GET/POST/PUT/DELETE /api/agent/presets`，串行变更路径：流式中
+409、目录刷新、空闲重启、`catalog_changed` 广播）；per-user 名册是文档化的
+升级路径。**MP 侧 fast-follow（本变更未含）**：小程序保持
+add-persona-resource-sets 的只读角色徽标，不提供自建预设管理页。资源引用
+组合时解析（跨包技能随包生命周期进出、被禁用服务不可被引用复活、空引用
+聚焦到基线）；②号 overlay 对自建预设同样生效（存储于目录 id 键下）。
+**运维要点**：dsh-agent-presets 的目录名正则禁点——生成预设目录取
+`user.<slug>` 的 dash 形（`rosterPresetId`），resolvePersona 双向匹配（顺带
+修复点号 pack agent id 的同类潜在问题）；自建预设不可发布（共享走市场包草
+稿），包清单 `user.` 前缀 agent id 发布+安装双拒，安装撞已有预设 id 跳过并
+报告属主。探针已并入：自建预设作为聚焦角色逐预设输出（服务/工具数、
+token delta 走 `--turn-trace`）。
+
 ## Multi-tenant cloud deployment (gateway + cells)
 
 The single-process deployment above serves **one** shared runtime. The hosted

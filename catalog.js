@@ -144,6 +144,7 @@ function packAgentDoc() {
         tags: Array.isArray(a.tags) ? a.tags : undefined,
         icon: a.icon,
         packId: installed.packId,
+        packName: installed.name,
       });
     }
   }
@@ -171,7 +172,9 @@ function merged() {
 }
 
 // Client-facing serializer: whitelists display fields only. Secrets (apiKey,
-// apiKeyEnv, resolved keys) never reach the browser (design D5).
+// apiKeyEnv, resolved keys) never reach the browser (design D5). Pack-sourced
+// entries additionally carry their packId (+ display name) so picker surfaces
+// can badge them as focused roles (add-pack-agent-scoping).
 function serialize(entry) {
   const base = { id: entry.id, type: entry.type, name: entry.name || entry.id };
   // Optional display fields (all optional, all whitelisted — not secrets).
@@ -180,6 +183,10 @@ function serialize(entry) {
   if (Array.isArray(entry.tags)) base.tags = entry.tags;
   if (entry.version) base.version = entry.version;
   if (entry.featured === true) base.featured = true;
+  if (entry.packId) {
+    base.packId = entry.packId;
+    if (entry.packName) base.packName = entry.packName;
+  }
   if (entry.type === "agent-remote") {
     base.mode = entry.mode;
     if (entry.mode === "chat") base.model = entry.model;

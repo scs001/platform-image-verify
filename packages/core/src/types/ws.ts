@@ -117,6 +117,8 @@ export interface AgentInfo {
   tags?: string[];       // categorization badges
   version?: string;      // semver for changelog reference
   featured?: boolean;    // show on Agents dashboard first
+  packId?: string;       // pack-sourced entry: its pack (focused role marker)
+  packName?: string;     // pack-sourced entry: the pack's display name
 }
 
 export interface AppInfo {

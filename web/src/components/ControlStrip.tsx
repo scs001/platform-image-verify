@@ -150,6 +150,7 @@ function MenuItem({
   onClick,
   primary,
   secondary,
+  badge,
   testId = "strip-menu-item",
 }: {
   active?: boolean;
@@ -157,6 +158,7 @@ function MenuItem({
   onClick: () => void;
   primary: string;
   secondary?: string;
+  badge?: React.ReactNode;
   testId?: string;
 }) {
   return (
@@ -173,7 +175,10 @@ function MenuItem({
         active ? "bg-muted text-foreground" : "text-foreground hover:bg-muted/60",
       )}
     >
-      <span className="w-full truncate font-mono">{primary}</span>
+      <span className="flex w-full items-center gap-1.5">
+        <span className="min-w-0 truncate font-mono">{primary}</span>
+        {badge}
+      </span>
       {secondary && <span className="w-full truncate text-[10px] text-muted-foreground">{secondary}</span>}
     </button>
   );
@@ -651,6 +656,20 @@ export function ControlStrip({ send, onOpenCommands, onAttach, trailing }: Props
                       disabled={isStreaming}
                       primary={a.name || a.id}
                       secondary={a.name ? a.id : undefined}
+                      badge={
+                        a.packId ? (
+                          // Pack-sourced roles run focused on their pack's
+                          // resource set — mark them so the choice is visible
+                          // before the switch (add-pack-agent-scoping).
+                          <span
+                            data-testid="strip-agent-focus-badge"
+                            title={a.packId}
+                            className="ml-auto shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-[9px] font-medium leading-tight text-primary"
+                          >
+                            {t("composer.strip.agentFocused", { pack: a.packName || a.packId })}
+                          </span>
+                        ) : undefined
+                      }
                       testId="strip-agent-option"
                       onClick={() => {
                         close();

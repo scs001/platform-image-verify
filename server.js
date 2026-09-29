@@ -336,6 +336,30 @@ async function initDshAgent() {
   try { dshMcpJson = JSON.parse(await readFile(MCP_CONFIG_PATH, "utf8")).mcpServers || {}; } catch {}
   seedStartupMcpConfigs(dshMcpJson);
 
+  // The selected agent mode is a persisted user preference (agent.preset);
+  // `standard` until a DB row exists. Validate it BEFORE the child spawns AND
+  // before any patch is written: dsh resolves a session's preset at creation
+  // (and a vertical-pack agent IS one of these presets), so a stale id — a
+  // pack that left the catalog, a preset someone deleted — would fail every
+  // new session. The patch writers also derive the resource scope from this
+  // preset (add-pack-agent-scoping): a pack persona composes focused with no
+  // user action, so a crash-stale full patch cannot survive a restart. A
+  // correction is persisted so the picker agrees with the runtime.
+  const persistedPreset = ctx.db.getPreference("agent.preset") || DEFAULT_AGENT_PRESET;
+  const knownPresets = knownPresetIds();
+  ctx.currentPreset = knownPresets.has(persistedPreset)
+    ? persistedPreset
+    : knownPresets.has(DEFAULT_AGENT_PRESET)
+      ? DEFAULT_AGENT_PRESET
+      : [...knownPresets][0] || DEFAULT_AGENT_PRESET;
+  if (ctx.currentPreset !== persistedPreset) {
+    ctx.db.setPreference("agent.preset", ctx.currentPreset);
+    console.warn(`[dsh] persisted agent preset '${persistedPreset}' is not available; using '${ctx.currentPreset}'`);
+  }
+  // A pack agent selection is a preset choice, so the switcher's agent label
+  // follows the preset across restarts instead of resetting to `local`.
+  ctx.currentAgentId = ctx.catalogAgentForPreset?.(ctx.currentPreset) ?? "local";
+
   // Write the dsh-mcp-client patch overlay (one loader entry per MCP server
   // from mcp.json + DB). The bridge passes it via --patch;
   // null = no servers configured, flag omitted (Task 4.1/4.2).
@@ -352,16 +376,22 @@ async function initDshAgent() {
   // back to the machine owner key.
   ctx.runtimeOwnerEmail = cellUser || null;
   ctx.runtimeOwnerGroups = cellOwnerGroups;
-  const mcpPatchPath = await writeMcpPatch({ mcpOverlay: cellMcpOverlay, userGroups: cellOwnerGroups, ownerEmail: ctx.runtimeOwnerEmail });
+  // The effective availability the runtime composes with (truthful for the
+  // preset-switch patch rewrite, which reproduces the boot profile).
+  ctx.runtimeMcpOverlay = cellMcpOverlay || {};
+  const mcpPatchPath = await writeMcpPatch({ mcpOverlay: cellMcpOverlay, userGroups: cellOwnerGroups, ownerEmail: ctx.runtimeOwnerEmail, agentPreset: ctx.currentPreset });
 
-  // Write the skill-filesystem config override (customSkillDirs) so dsh
-  // discovers the project's skills/ dir AND the DB-custom-skill materialization
-  // dir. The materialization dir is rebuilt from the DB first (design D2): DB
-  // skills become <name>/SKILL.md files dsh-skill-filesystem Chokidar-watches,
-  // so they hot-reload at runtime on CRUD (no restart).
-  let skillMaterializeDir = null;
+  // Write the skill-filesystem config override (customSkillDirs). The dir
+  // list is the resource scope (add-pack-agent-scoping): the writer derives
+  // it from the selected preset — focused lists the skills/ baseline plus the
+  // pack root; full lists the user root plus every pack root. The
+  // materialization dir is rebuilt from the DB first (design D2): DB skills
+  // become <name>/SKILL.md files dsh-skill-filesystem Chokidar-watches, so
+  // they hot-reload at runtime on CRUD (no restart). Pack rows land in their
+  // per-pack root, which also migrates pre-scoping flat installs on this
+  // boot (the DB is the durable store — no user action).
   try {
-    const { rebuildFromDb, writeSkill, MATERIALIZE_DIR } = await import("./skill-materialize.js");
+    const { rebuildFromDb, writeSkill } = await import("./skill-materialize.js");
     if (db.isDbReady()) {
       const { failures } = rebuildFromDb(extensionStore.listCustomSkills);
       // Reconciliation pass: retry rows that failed the first write once,
@@ -377,13 +407,10 @@ async function initDshAgent() {
         if (stillDirty.length) console.warn(`[skills] materialization still dirty after retry: ${stillDirty.join(", ")}`);
       }
     }
-    skillMaterializeDir = MATERIALIZE_DIR;
   } catch (e) {
     console.warn(`[skills] materialization dir unavailable: ${e?.message || e}`);
   }
-  const skillsDirs = [path.resolve("skills")];
-  if (skillMaterializeDir) skillsDirs.push(skillMaterializeDir);
-  const skillsPatchPath = writeSkillsPatch(skillsDirs);
+  const skillsPatchPath = await writeSkillsPatch({ agentPreset: ctx.currentPreset });
 
   // Write the preset-roster patch overlay (agent-presets roster + preset
   // bridge plugin). Null = unresolvable shipped preset root; the bridge then
@@ -402,26 +429,6 @@ async function initDshAgent() {
   // (add-chart-data-binding). Static and always written — its absence merely
   // removes the declared channel, never the runtime.
   const chartBindPatchPath = writeChartBindPatch();
-  // The selected agent mode is a persisted user preference (agent.preset);
-  // `standard` until a DB row exists. Validate it BEFORE the child spawns: dsh
-  // resolves a session's preset at creation (and a vertical-pack agent IS one of
-  // these presets), so a stale id — a pack that left the catalog, a preset
-  // someone deleted — would fail every new session. A correction is persisted so
-  // the picker agrees with the runtime.
-  const persistedPreset = ctx.db.getPreference("agent.preset") || DEFAULT_AGENT_PRESET;
-  const knownPresets = knownPresetIds();
-  ctx.currentPreset = knownPresets.has(persistedPreset)
-    ? persistedPreset
-    : knownPresets.has(DEFAULT_AGENT_PRESET)
-      ? DEFAULT_AGENT_PRESET
-      : [...knownPresets][0] || DEFAULT_AGENT_PRESET;
-  if (ctx.currentPreset !== persistedPreset) {
-    ctx.db.setPreference("agent.preset", ctx.currentPreset);
-    console.warn(`[dsh] persisted agent preset '${persistedPreset}' is not available; using '${ctx.currentPreset}'`);
-  }
-  // A pack agent selection is a preset choice, so the switcher's agent label
-  // follows the preset across restarts instead of resetting to `local`.
-  ctx.currentAgentId = ctx.catalogAgentForPreset?.(ctx.currentPreset) ?? "local";
 
   // Default model: in a cell the user's saved binding wins (it IS this
   // runtime's configuration); otherwise the persisted Models-page pointer,
@@ -484,7 +491,11 @@ async function initDshAgent() {
       // routes that do not act for a specific identity); explicit null = the
       // machine owner (auth off).
       if (ownerEmail !== undefined) ctx.runtimeOwnerEmail = ownerEmail;
-      const patchPath = await writeMcpPatch({ mcpOverlay, userGroups, ownerEmail: ctx.runtimeOwnerEmail });
+      // The scope filter rides inside the writer keyed off the live preset,
+      // so CRUD while focused (add/disable a server, a pack upgrade adding an
+      // MCP ref) rewrites the patch focused — the focus survives every
+      // mutation without extra bookkeeping (add-pack-agent-scoping D1).
+      const patchPath = await writeMcpPatch({ mcpOverlay, userGroups, ownerEmail: ctx.runtimeOwnerEmail, agentPreset: ctx.currentPreset });
       // HMR only reaches the child if it was spawned WITH this --patch (cordis
       // watches the file it loaded). A child booted before the first MCP server
       // existed has no mcp patch on its command line — rewriting the file does
@@ -512,6 +523,25 @@ async function initDshAgent() {
     const run = ctx.runtimeMutationChain.then(update);
     ctx.runtimeMutationChain = run.then(() => {}, () => {});
     return run;
+  };
+  // Skills-patch rewrite for pack install/uninstall (add-pack-agent-scoping):
+  // a NEW or REMOVED pack root changes the watched-dir set (full mode lists
+  // every pack root), and dir-set changes through the skills patch are
+  // unverified dsh HMR behavior — so the rewrite rides a restart while the
+  // runtime is idle (the same contract syncCatalogAgentPresets applies). A
+  // focused runtime re-derives and keeps its own pack's root. Content changes
+  // inside an already-listed root (an upgrade) stay on plain Chokidar
+  // hot-reload; the idempotent rewrite costs nothing extra.
+  ctx.dshUpdateSkills = async () => {
+    const run = async () => {
+      await writeSkillsPatch({ agentPreset: ctx.currentPreset });
+      if (ctx.dshBridge?.isReady?.() && !ctx.isStreaming) {
+        await ctx.dshBridge.restart({});
+      }
+    };
+    if (ctx.runtimeApplying?.()) return run();
+    if (ctx.runExclusiveRuntimeMutation) return ctx.runExclusiveRuntimeMutation(run);
+    return run();
   };
   // Session shim: dsh prompt resolves immediately with the message id; the
   // turn plays out as notifications. isStreaming is set here synchronously

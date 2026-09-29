@@ -215,7 +215,10 @@ export function uninstallPack({ packId, force = false, hooks = {} }) {
   }
   const manifest = db.getInstalledPack(packId).manifest ?? {};
   db.deleteCustomSkillsByPack(packId);
-  for (const s of manifest.skills ?? []) skillMaterialize.removeSkill(s.name);
+  // Pack skills materialize under the pack's own root (add-pack-agent-
+  // scoping): remove the root wholesale. Names skipped at install (foreign
+  // owner) never materialized here, so their dirs in other roots survive.
+  skillMaterialize.removePackSkills(packId);
   const hadAgents = (manifest.agents ?? []).length > 0;
   db.deleteInstalledPack(packId);
   // The catalog's pack source drops the entries; syncing now prunes their

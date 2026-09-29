@@ -148,6 +148,7 @@
       "effortDefault": "Predeterminado",
       "agent": "Agente",
       "agentUnset": "Predeterminado",
+      "agentFocused": "Enfocado · {{pack}}",
       "permission": "Permisos",
       "permissionUnset": "Predeterminado",
       "permissionCustom": "Personalizado",

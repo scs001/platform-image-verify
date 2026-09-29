@@ -148,6 +148,7 @@
       "effortDefault": "默认",
       "agent": "智能体",
       "agentUnset": "默认",
+      "agentFocused": "聚焦 · {{pack}}",
       "permission": "权限",
       "permissionUnset": "默认",
       "permissionCustom": "自定义",

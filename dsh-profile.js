@@ -20,9 +20,9 @@
 // Writes atomically (temp+rename) and returns the declared model list so server.js
 // can source its model selector without a dsh listModels RPC (dsh has none stock;
 // the generator's declared list IS the dsh list — dsh loads exactly this file).
-import { readFileSync, mkdirSync, chmodSync, existsSync, statSync, copyFileSync, symlinkSync, readdirSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, chmodSync, existsSync, statSync, copyFileSync, symlinkSync, readdirSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
@@ -409,7 +409,11 @@ function toMcpClientEntry(name, config) {
 // write — never from the installed record — so a refreshed token takes effect
 // without reinstalling. No live credential ⇒ the server is omitted with a
 // warning (same shape as the requiredGroups filter), and its record survives.
-export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail = null } = {}) {
+//
+// agentPreset (add-pack-agent-scoping) selects the resource scope: a pack
+// persona preset applies the subtractive focus layer after the personal
+// overlay (see deriveScope); null / a shipped preset composes full.
+export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail = null, agentPreset = null } = {}) {
   // 1. mcp.json (operator config, base layer).
   let mcpJsonServers = {};
   try {
@@ -476,6 +480,36 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
     }
   }
 
+  // Focus layer (add-pack-agent-scoping): a pack persona keeps only the
+  // deployment baseline — every mcp.json server plus PACK_BASELINE_MCP names
+  // resolved against the installed set — together with the pack's own MCP
+  // references. Subtractive and LAST, after the personal overlay, so focusing
+  // can only narrow what the user already enabled: a personal (or DB) disable
+  // always wins over a manifest reference. Pack refs naturally intersect with
+  // the installed set here — an unresolvable ref matches nothing and drops
+  // out (the install report already carries its unavailability).
+  const scope = await deriveScope(agentPreset);
+  if (scope.packId) {
+    const keep = new Set(Object.keys(mcpJsonServers));
+    for (const name of baselineMcpNames()) {
+      if (servers[name]) keep.add(name);
+      else console.warn(`[dsh-profile] PACK_BASELINE_MCP entry "${name}" is not installed; skipping`);
+    }
+    for (const name of scope.mcpKeep ?? []) keep.add(name);
+    const dropped = [];
+    for (const name of Object.keys(servers)) {
+      if (!keep.has(name)) {
+        delete servers[name];
+        dropped.push(name);
+      }
+    }
+    const effective = [...keep].filter((n) => servers[n]);
+    console.log(
+      `[dsh-profile] focused on pack "${scope.packName}" (${scope.packId}): keeping [${effective.join(", ") || "(none)"}]` +
+        (dropped.length ? `, dropped [${dropped.join(", ")}]` : ""),
+    );
+  }
+
   const entries = [];
   for (const [name, config] of Object.entries(servers)) {
     const e = toMcpClientEntry(name, config);
@@ -509,23 +543,114 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
 // an override-by-id patch (skill-filesystem exists in the base bundle, so cordis
 // applies it — unlike the mcp entries, which are inserts). The dir is static, so
 // written once at startup; no live-reload (skills/ doesn't change at runtime).
+//
+// add-pack-agent-scoping: customSkillDirs is a flat root list with no nested
+// recursion, so the root list IS the scope. Full mode lists the deployment
+// skills/ root, the user materialization root, and every pack root; focused
+// mode (a pack persona preset) lists the skills/ baseline plus the focused
+// pack's root only. The writer derives the list from the preset (deriveScope),
+// the same invariant writeMcpPatch applies.
 const SKILLS_PATCH_PATH = join(DSH_HOME, "profiles", PROFILE_NAME, "skills.patch.yml");
 
-export function writeSkillsPatch(skillsDirs = [resolve("skills")]) {
+export async function writeSkillsPatch({ agentPreset = null, extraDirs = [] } = {}) {
   // ponytail: single static entry; customSkillDirs is the only field that matters
   // (providerName/includeDefaultRoots/watch take schema defaults when config is
-  // overridden, so the built-in discovery roots are preserved). skillsDirs may be
-  // a single path (legacy) or an array; the materialization dir (DB custom skills)
-  // is appended by server.js so dsh-skill-filesystem Chokidar-watches it too.
-  const dirs = Array.isArray(skillsDirs) ? skillsDirs : [skillsDirs];
+  // overridden, so the built-in discovery roots are preserved). extraDirs appends
+  // deployment-specific roots after the derived set.
+  const scope = await deriveScope(agentPreset);
+  const dirs = [resolve("skills")];
+  if (scope.packId) {
+    // Focused: baseline + the pack's own root. User skills and other packs'
+    // roots are outside the focused set. skillsDir is null for a pack with no
+    // materialized skills (persona-only pack focuses to the baseline alone).
+    if (scope.skillsDir) dirs.push(scope.skillsDir);
+  } else {
+    // Full: the user root plus every pack root (pack roots are nested under
+    // custom-skills/packs/, invisible from the user root — no recursion).
+    try {
+      const sm = await import("./skill-materialize.js");
+      dirs.push(sm.MATERIALIZE_DIR);
+      dirs.push(...sm.listPackSkillsRoots());
+    } catch (e) {
+      // Materialization unavailable ⇒ baseline only, the pre-scoping degrade.
+      console.warn(`[dsh-profile] skill materialization unavailable; skills patch is baseline-only: ${e?.message || e}`);
+    }
+  }
+  dirs.push(...(Array.isArray(extraDirs) ? extraDirs : [extraDirs]).filter(Boolean));
   const entry = {
     id: "skill-filesystem",
     name: "@deepseek-ai/dsh-skill-filesystem",
     config: { customSkillDirs: dirs },
   };
   atomicWriteTextSync(SKILLS_PATCH_PATH, yaml.dump([entry]));
-  console.log(`[dsh-profile] wrote skills patch (customSkillDirs: ${dirs.join(", ")}) → ${SKILLS_PATCH_PATH}`);
+  console.log(
+    `[dsh-profile] wrote skills patch (${scope.packId ? `focused: ${scope.packId}` : "full"}; customSkillDirs: ${dirs.join(", ")}) → ${SKILLS_PATCH_PATH}`,
+  );
   return SKILLS_PATCH_PATH;
+}
+
+// ── Pack agent resource scope (add-pack-agent-scoping) ───────────────────────
+// Selecting a pack persona focuses the runtime: only the deployment baseline
+// plus that pack's resource set loads (spec: pack-agent-scoping). The scope is
+// a DERIVED invariant — f(selected preset), evaluated inside both patch
+// writers on every write — so boot, MCP CRUD, preset switches and crash
+// respawns all compose consistently with no scope preference that can drift.
+// Shipped presets and every non-pack preset keep the full surface.
+
+// PACK_BASELINE_MCP: comma/space-separated server names that stay loaded in
+// EVERY mode on top of the mcp.json operator layer (operator-owned; fd-prod
+// lists e.g. websearch). Resolved against installed servers at write time —
+// an unresolvable name warns and skips, the envRefs convention.
+function baselineMcpNames() {
+  return (process.env.PACK_BASELINE_MCP || "").split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
+}
+
+// Derive the resource scope for a preset id. Returns
+// { packId: null } for full mode, or { packId, packName, mcpKeep, skillsDir }
+// for focused mode. Pure derivation (DB/catalog reads only, no writes), so a
+// stale patch self-heals on the next write.
+export async function deriveScope(agentPreset) {
+  const full = { packId: null, packName: null, mcpKeep: null, skillsDir: null };
+  if (!agentPreset || SHIPPED_PRESET_IDS.includes(agentPreset)) return full;
+  // preset id → catalog entry → packId. Going through the MERGED catalog (not
+  // the installed-pack list) keeps derivation honest about shadowing: an id
+  // the cloud or agents.json overrides is no longer a pack persona — its
+  // generated preset composes the overriding entry's persona — so it runs
+  // full. Requires the generated preset to exist for the id (hasCatalogAgentPreset);
+  // a departed entry's preset is pruned, and its stale selection self-heals.
+  let entry = null;
+  try {
+    const catalog = await import("./catalog.js");
+    entry = catalog.getChatAgentEntries().find((e) => e.id === agentPreset && e.packId) || null;
+  } catch (e) {
+    console.warn(`[dsh-profile] scope derivation: catalog unavailable (${e?.message || e}); composing full`);
+    return full;
+  }
+  if (!entry || !hasCatalogAgentPreset(agentPreset)) return full;
+  // → the installed pack's manifest (the resource set's source of truth). A
+  // pack that left composes full — derivation self-heals a stale selection.
+  let installed = null;
+  try {
+    const db = await import("./db.js");
+    if (db.isDbReady()) installed = db.getInstalledPack(entry.packId);
+  } catch { /* DB off ⇒ full */ }
+  if (!installed?.manifest) {
+    console.warn(`[dsh-profile] preset '${agentPreset}' names pack '${entry.packId}' which is not installed; composing full`);
+    return full;
+  }
+  // D5 — the install report is the collision truth: a skill skipped at install
+  // never materialized into the pack root, so the root itself already excludes
+  // it; MCP refs intersect with the installed set at patch-write time.
+  const mcpKeep = (installed.manifest.mcpServers ?? [])
+    .map((m) => (typeof m?.registryName === "string" ? m.registryName : null))
+    .filter(Boolean);
+  let skillsDir = null;
+  try {
+    const sm = await import("./skill-materialize.js");
+    const dir = sm.packSkillsRoot(entry.packId);
+    if (existsSync(dir)) skillsDir = dir;
+  } catch { /* no pack root ⇒ baseline-only focus */ }
+  return { packId: entry.packId, packName: installed.name ?? entry.packId, mcpKeep, skillsDir };
 }
 
 // ── Agent preset roster patch (dsh-agent-presets + preset bridge) ──────────────
@@ -655,6 +780,15 @@ function isSafePresetId(id) {
 // catalog author supplies one, else a composed brief from its display fields.
 // Bracket the role and the honesty rules — a pack agent that invents data is
 // worse than one that says the tool found nothing.
+//
+// Pack-sourced entries additionally carry the focus note (add-pack-agent-
+// scoping, design D6): the role's tools and skills focus on its pack, so a
+// request for capability outside the set gets an honest "not enabled for this
+// role" answer that points at switching back — never an invented result. The
+// note is static because every pack entry is focused by definition.
+const PACK_FOCUS_NOTE =
+  "当前角色以聚焦模式运行：可用工具与技能仅限所属功能集与部署基线，不包含平台全部能力。用户要求使用未对当前角色启用的工具或数据源时，如实说明该能力未对当前角色启用，并建议切换回标准模式（standard）以获取完整能力；绝不虚构工具调用、数据或结论。";
+
 export function catalogEntryPersona(entry) {
   const explicit = typeof entry?.persona === "string" ? entry.persona.trim() : "";
   const lines = [];
@@ -669,6 +803,7 @@ export function catalogEntryPersona(entry) {
     );
     lines.push("回答用中文（除非用户使用其他语言）：结论先行，结构清晰，给出可执行的下一步；引用数据时标注来源。");
   }
+  if (entry?.packId) lines.push(PACK_FOCUS_NOTE);
   lines.push("You are powered by the {{model}} model; your working directory is {{cwd}}.");
   return lines.join("\n");
 }
@@ -923,6 +1058,11 @@ export function writeChartBindPatch() {
 // write (read-only) — proves the generator emits valid YAML + the expected ids.
 // Usage: node dsh-profile.js
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  // Scoped self-check DB: set BEFORE dotenv and before anything imports
+  // db.js, so the pack-scope section below never touches the developer's
+  // real database even when .env points DB_PATH at it.
+  const selfCheckDb = join(tmpdir(), `dsh-profile-selfcheck-${process.pid}.db`);
+  process.env.DB_PATH = selfCheckDb;
   try { (await import("dotenv")).config(); } catch { /* .env optional for the self-check */ }
   const { providers, models } = await buildLlmProfile();
   console.log("--- llm-pi-ai settings section ---");
@@ -951,8 +1091,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     console.log(`--- mcp patch (${patchPath}) ---`);
     console.log(readFileSync(patchPath, "utf8"));
   }
-  // Skills patch self-check.
-  const skillsPatch = writeSkillsPatch();
+  // Skills patch self-check (full mode).
+  const skillsPatch = await writeSkillsPatch();
   console.log(`--- skills patch (${skillsPatch}) ---`);
   console.log(readFileSync(skillsPatch, "utf8"));
   // Preset roster patch self-check: proves the shipped-root resolution + shows
@@ -984,5 +1124,101 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     console.log("OK catalog agent preset composes (persona swapped, tool rows intact)");
   } else {
     console.log("catalog agent preset skipped (shipped composition unresolvable)");
+  }
+
+  // ── Pack agent scope self-check (add-pack-agent-scoping) ──────────────────
+  // Seeds a throwaway DB with an installed pack, then covers the three
+  // derivation cases (pack preset, shipped preset, uninstalled pack) and
+  // inspects both written patch files under each mode. Cleans up after itself
+  // (temp DB + materialized pack root) so no self-check state survives.
+  {
+    const db = await import("./db.js");
+    await db.initDb();
+    const extensionStore = await import("./extension-store.js");
+    const sm = await import("./skill-materialize.js");
+    const PACK_ID = "scope-selfcheck-pack";
+    const AGENT_ID = "scope-selfcheck-agent";
+    const manifest = {
+      name: "范围自检包",
+      skills: [{ name: "scope-skill", description: "自检技能", content: "# c" }],
+      mcpServers: [{ registryName: "scope-ref-server" }],
+      agents: [{ id: AGENT_ID, name: "自检官", persona: "你是自检官。" }],
+    };
+    const seedPack = () =>
+      db.upsertInstalledPack({
+        packId: PACK_ID, name: manifest.name, version: 1, manifest,
+        report: { skills: [], mcpServers: [], agents: [{ id: AGENT_ID, name: "自检官", status: "installed" }] },
+      });
+    // A non-baseline DB server the focused mode must drop.
+    extensionStore.addMcpServer({ name: "scope-extra", config: { command: "node", args: ["-e", "process.exit(0)"] }, enabled: true });
+    seedPack();
+    sm.writeSkill({ name: "scope-skill", description: "自检技能", content: "# c", originPackId: PACK_ID, enabled: true });
+    // deriveScope requires the generated preset to exist (a departed entry's
+    // preset is pruned, and its stale selection must self-heal to full) —
+    // create the marker dir the way writeCatalogAgentPresets would.
+    const presetDir = join(DSH_HOME, ".agent-presets", AGENT_ID);
+    mkdirSync(presetDir, { recursive: true });
+    writeFileSync(join(presetDir, "agent.cordis.yml"), "- id: persona\n  name: '@deepseek-ai/dsh-persona'\n  config:\n    text: \"self-check\"\n");
+
+    // 1) shipped preset ⇒ full; 2) pack preset ⇒ focused with the pack's set.
+    const shippedScope = await deriveScope("standard");
+    console.assert(shippedScope.packId === null, "shipped preset must derive full");
+    const focusedScope = await deriveScope(AGENT_ID);
+    console.assert(focusedScope.packId === PACK_ID, "pack preset must derive focused");
+    console.assert(focusedScope.packId && JSON.stringify(focusedScope.mcpKeep) === JSON.stringify(["scope-ref-server"]), "pack MCP refs carry into mcpKeep");
+    console.assert(focusedScope.skillsDir === sm.packSkillsRoot(PACK_ID), "pack skills root carries into the scope");
+    console.log("OK deriveScope: shipped=full, pack preset=focused");
+
+    // 3) uninstalled pack self-heals to full; re-seed for the patch writers.
+    db.deleteInstalledPack(PACK_ID);
+    const healedScope = await deriveScope(AGENT_ID);
+    console.assert(healedScope.packId === null, "a preset whose pack was uninstalled must derive full");
+    console.log("OK deriveScope: uninstalled pack self-heals to full");
+    seedPack();
+
+    // MCP patch under both modes (parse the written files back).
+    const serverNames = (p) => {
+      const doc = yaml.load(readFileSync(p, "utf8"));
+      return doc.flatMap((row) => row.insert ?? []).map((e) => e.config.serverName).sort();
+    };
+    const fullMcp = await writeMcpPatch();
+    const fullServers = fullMcp ? serverNames(fullMcp) : [];
+    console.assert(fullServers.includes("scope-extra"), "full mode lists the DB server");
+    const focusedMcp = await writeMcpPatch({ agentPreset: AGENT_ID });
+    const focusedServers = focusedMcp ? serverNames(focusedMcp) : [];
+    console.assert(!focusedServers.includes("scope-extra"), "focused mode drops the non-baseline DB server");
+    console.assert(!focusedServers.includes("scope-ref-server"), "an uninstalled pack ref intersects to nothing");
+    console.log(`OK mcp patch: full=[${fullServers.join(",")}] focused=[${focusedServers.join(",")}]`);
+
+    // Skills patch under both modes: focused = baseline + pack root (no user
+    // root); full = user root + every pack root.
+    const dirListOf = async (opts) => {
+      const p = await writeSkillsPatch(opts);
+      return yaml.load(readFileSync(p, "utf8"))[0].config.customSkillDirs.map((d) => resolve(d));
+    };
+    const focusedDirs = await dirListOf({ agentPreset: AGENT_ID });
+    console.assert(!focusedDirs.includes(resolve(sm.MATERIALIZE_DIR)), "focused mode omits the user skills root");
+    console.assert(focusedDirs.includes(resolve(sm.packSkillsRoot(PACK_ID))), "focused mode lists the pack root");
+    const fullDirs = await dirListOf({});
+    console.assert(fullDirs.includes(resolve(sm.MATERIALIZE_DIR)), "full mode lists the user skills root");
+    console.assert(fullDirs.includes(resolve(sm.packSkillsRoot(PACK_ID))), "full mode lists the pack root");
+    console.log(`OK skills patch: focused roots=${focusedDirs.length} full roots=${fullDirs.length}`);
+
+    // Pack persona carries the focus note; a non-pack persona does not.
+    console.assert(catalogEntryPersona({ id: AGENT_ID, name: "自检官", packId: PACK_ID }).includes("聚焦模式"), "pack persona must carry the focus note");
+    console.assert(!catalogEntryPersona({ id: AGENT_ID, name: "自检官" }).includes("聚焦模式"), "non-pack persona must not");
+    console.log("OK catalog persona focus note");
+
+    // Cleanup: no self-check pack root, preset dir, or DB survives.
+    sm.removePackSkills(PACK_ID);
+    rmSync(presetDir, { recursive: true, force: true });
+    extensionStore.removeMcpServer("scope-extra");
+    db.deleteInstalledPack(PACK_ID);
+    // Leave the conventional full-mode patches behind.
+    await writeMcpPatch();
+    await writeSkillsPatch({});
+    for (const suffix of ["", "-wal", "-shm"]) {
+      try { rmSync(selfCheckDb + suffix, { force: true }); } catch { /* best-effort */ }
+    }
   }
 }

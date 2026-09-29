@@ -584,6 +584,20 @@ async function switchPresetToInner(id) {
     return { ok: false, error: `Agent mode "${id}" is unavailable: ${target.broken}` };
   }
   try {
+    // Focus rewrite (add-pack-agent-scoping): the scope is derived from the
+    // TARGET preset, so both patches are rewritten through the scoped writers
+    // before the one restart that carries the persona — restart() takes no
+    // skillsPatchPath (constructor-only), and the child re-reads the file at
+    // spawn, so the same-path rewrite IS the delivery (design D2). The overlay/
+    // groups/owner reproduce the runtime's effective profile so nothing the
+    // current identity narrowed re-opens.
+    await dshProfile.writeMcpPatch({
+      mcpOverlay: ctx.runtimeMcpOverlay ?? null,
+      userGroups: ctx.runtimeOwnerGroups ?? null,
+      ownerEmail: ctx.runtimeOwnerEmail,
+      agentPreset: id,
+    });
+    await dshProfile.writeSkillsPatch({ agentPreset: id });
     await ctx.dshBridge.restart({ agentPreset: id });
     // Restart succeeded — the choice is now the deployment default. Persisted
     // AFTER the restart so a failed restart leaves the previous preference
@@ -594,6 +608,20 @@ async function switchPresetToInner(id) {
     return { ok: true };
   } catch (err) {
     console.error("[dsh] preset switch failed:", err.message);
+    // The patches may already carry the TARGET's scope while the child still
+    // runs the old preset — restore them to the live preset so a failed
+    // switch is not half-applied (the next boot re-derives regardless).
+    try {
+      await dshProfile.writeMcpPatch({
+        mcpOverlay: ctx.runtimeMcpOverlay ?? null,
+        userGroups: ctx.runtimeOwnerGroups ?? null,
+        ownerEmail: ctx.runtimeOwnerEmail,
+        agentPreset: ctx.currentPreset,
+      });
+      await dshProfile.writeSkillsPatch({ agentPreset: ctx.currentPreset });
+    } catch (restoreErr) {
+      console.warn(`[dsh] preset switch patch restore failed: ${restoreErr.message}`);
+    }
     return { ok: false, error: err.message };
   }
 }

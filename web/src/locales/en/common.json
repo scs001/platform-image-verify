@@ -148,6 +148,7 @@
       "effortDefault": "Default",
       "agent": "Agent",
       "agentUnset": "Default",
+      "agentFocused": "Focused · {{pack}}",
       "permission": "Permissions",
       "permissionUnset": "Default",
       "permissionCustom": "Custom",

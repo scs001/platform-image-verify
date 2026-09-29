@@ -148,6 +148,7 @@
       "effortDefault": "デフォルト",
       "agent": "エージェント",
       "agentUnset": "デフォルト",
+      "agentFocused": "フォーカス · {{pack}}",
       "permission": "権限",
       "permissionUnset": "デフォルト",
       "permissionCustom": "カスタム",

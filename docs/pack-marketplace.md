@@ -30,9 +30,12 @@ Logto 管理台 → Organizations → 新建 `creators` → 把可发布用户�
 ```yaml
 PACK_MARKETPLACE: "1"           # 总开关：注册市场路由 + 显示功能集 UI
 PACK_CREATOR_GROUPS: "creators" # 可选；默认 creators，可加组织 ID
+PACK_BASELINE_MCP: "websearch"  # 可选；聚焦模式仍加载的基线 MCP（逗号/空格分隔）
 ```
 
 改 ConfigMap 后需 rollout 生效；ArgoCD 有 ~3min 轮询滞后，先 annotate refresh 再等 rollout（DEPLOY.md §2）。**本地/dev 部署不加 `PACK_MARKETPLACE`**——功能集入口整体隐藏。
+
+`PACK_BASELINE_MCP`（pack-agent-scoping）：选中功能集角色时运行时进入聚焦模式——只装载基线 + 该包资源集。基线 = mcp.json 全部 server ∪ 此变量列出的 server 名（未安装的名字告警跳过，不阻断启动）。fd-prod 建议列出 `websearch` 这类注册市场装的全局可用服务；不配置时基线即 mcp.json 本身。量化对比用 `node scripts/probe-pack-scope.mjs`（见 openspec changes/add-pack-agent-scoping/measurements.md）。
 
 ### 2.3 重新发布四个 vertical packs（种子内容）
 

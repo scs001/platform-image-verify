@@ -106,6 +106,10 @@ export function registerPackRoutes(ctx) {
           },
         },
       });
+      // The pack's skills materialized under a per-pack root the skills patch
+      // must list (full mode) — rewrite it; an idle runtime restarts so the
+      // watched-dir set takes effect (add-pack-agent-scoping).
+      await ctx.dshUpdateSkills?.().catch((e) => console.warn(`[packs] skills patch update failed: ${e.message}`));
       res.json({ report, installed });
     } catch (err) {
       res.status(err.status || 500).json({
@@ -123,7 +127,7 @@ export function registerPackRoutes(ctx) {
   // Uninstall removes pack-owned skills and agent entries. A modified pack
   // skill forces an explicit ?force=1 (the server-side half of the warning
   // gate); MCP configurations are always kept.
-  app.delete("/api/mypacks/:packId", (req, res) => {
+  app.delete("/api/mypacks/:packId", async (req, res) => {
     if (!requireGate(req, res)) return;
     const force = req.query.force === "1" || req.query.force === "true";
     try {
@@ -137,6 +141,9 @@ export function registerPackRoutes(ctx) {
           },
         },
       });
+      // The pack root is gone: rewrite the skills patch so it stops listing
+      // the dead root (full mode) — same rewrite/restart contract as install.
+      await ctx.dshUpdateSkills?.().catch((e) => console.warn(`[packs] skills patch update failed: ${e.message}`));
       res.json(result);
     } catch (err) {
       res.status(err.status || 500).json({

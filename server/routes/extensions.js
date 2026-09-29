@@ -259,8 +259,9 @@ export function registerExtensionRoutes(ctx) {
       return res.status(404).json({ error: `Skill "${name}" not found` });
     }
     extensionStore.removeCustomSkill(name);
-    // Remove the materialized SKILL.md so the watcher hot-unloads it.
-    try { skillMaterialize.removeSkill(name); } catch (e) { console.warn(`[skills] materialize remove failed for "${name}": ${e.message}`); }
+    // Remove the materialized SKILL.md so the watcher hot-unloads it. The row
+    // (not just the name) routes pack-owned skills out of their pack root.
+    try { skillMaterialize.removeSkill(skill); } catch (e) { console.warn(`[skills] materialize remove failed for "${name}": ${e.message}`); }
     broadcast({ type: "extensions_changed", resource: "skill", action: "removed", name });
     res.json({ ok: true });
   });
@@ -288,8 +289,9 @@ export function registerExtensionRoutes(ctx) {
       return res.status(404).json({ error: `Skill "${name}" not found` });
     }
     const updated = extensionStore.toggleCustomSkill(name, enabled);
-    // enabled → write SKILL.md (hot-load); disabled → remove it (hot-unload).
-    try { enabled ? skillMaterialize.writeSkill(updated) : skillMaterialize.removeSkill(name); }
+    // enabled → write SKILL.md (hot-load); disabled → remove it (hot-unload,
+    // from the row's root — pack-owned skills disable out of the pack root).
+    try { enabled ? skillMaterialize.writeSkill(updated) : skillMaterialize.removeSkill(updated); }
     catch (e) { console.warn(`[skills] materialize toggle failed for "${name}": ${e.message}`); }
     broadcast({ type: "extensions_changed", resource: "skill", action: "toggled", name, enabled });
     res.json(updated);

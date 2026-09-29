@@ -773,6 +773,17 @@ npm run test:e2e:live:smoke
 
 ---
 
+### fd-prod 聚焦度量实录（add-persona-resource-sets，2026-09-29 sha-c1665d4）
+
+Per-persona 探针（`node scripts/probe-pack-scope.mjs --db /data/data/app.db
+--data-dir /data --dsh-home /opt/dsh-home [--auth <MP-JWT>]`，in-pod）：full
+5 服务 / 116 工具 → 声明子集 persona 2 服务 / **72 工具（Δ−44，−38%）**；
+turn-trace 单 turn token 差噪声级（schema 按需加载），硬收益在 roster 削减。
+种子包已按四种声明形态重发（法律-合同未声明 / 法律-案件 MCP-only /
+数据-股票空声明 / 数据-中国 mixed v3 已升级）。完整数字、M2M token 重铸与
+MCP 行 credentialRef 化的运维实录见
+`openspec/changes/add-persona-resource-sets/measurements.md`。
+
 ## Multi-tenant cloud deployment (gateway + cells)
 
 The single-process deployment above serves **one** shared runtime. The hosted

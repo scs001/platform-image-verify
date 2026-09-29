@@ -30,5 +30,5 @@
 ## 6. E2E + seed packs (D8)
 
 - [x] 6.1 Extend `e2e/pack-agent-scoping.spec.js`: declared-subset focus (MCP counts in the patch), undeclared default (patch bytes unchanged), empty declaration (baseline only), upgrade re-derives on declaration change; verify the suite passes 7/7 → new total green
-- [ ] 6.2 Republish the 4 gateway seed packs with declarations (at least one mixed-dimension, one empty) as next versions; verify each upgrade on the dev cell via the install report and probe output
-- [ ] 6.3 Deploy to fd-prod via the Jenkins `platform` job + GitOps tag bump; verify the probe on prod records per-persona numbers within the 20–40 tool band and the numbers land in the deploy notes
+- [x] 6.2 Republish the 4 gateway seed packs with declarations (at least one mixed-dimension, one empty) as next versions; verify each upgrade on the dev cell via the install report and probe output
+- [x] 6.3 Deploy to fd-prod via the Jenkins `platform` job + GitOps tag bump; verify the probe on prod records per-persona numbers within the 20–40 tool band and the numbers land in the deploy notes

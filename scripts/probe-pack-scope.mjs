@@ -47,6 +47,7 @@ const OPTS = {
   url: flag("url") || "http://127.0.0.1:3000",
   prompt: flag("prompt") || "请用中文简要说明你能访问哪些工具和数据源，并举一个使用场景。",
   json: has("json"),
+  auth: flag("auth") || process.env.PROBE_AUTH_TOKEN || null,
 };
 
 try { (await import("dotenv")).config(); } catch { /* .env optional — deployments carry real env */ }
@@ -67,7 +68,10 @@ if (OPTS.db) process.env.DB_PATH = OPTS.db;
 if (OPTS.dataDir) process.env.PLATFORM_DATA_DIR = OPTS.dataDir;
 
 // ── MCP live tool count (stdio + streamable-http) ────────────────────────────
-const PROTOCOL_VERSION = "2025-03-26";
+// 2025-06-18: the registry gateway (mcp.finddatatech.cloud) 406s tools/list
+// under the older revision — declare the newer one (accepted everywhere the
+// old one was, including the e2e stub).
+const PROTOCOL_VERSION = "2025-06-18";
 const CLIENT_INFO = { name: "pack-scope-probe", version: "1.0" };
 
 function parseMaybeSse(text) {
@@ -87,7 +91,7 @@ async function httpRpc(url, headers, body, timeoutMs = 12_000) {
   try {
     const r = await fetch(url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json, text-event-stream", ...headers },
+      headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream", ...headers },
       body: JSON.stringify(body),
       signal: ctrl.signal,
     });
@@ -281,7 +285,11 @@ async function turnTrace() {
   }
   if (!targets.length) throw new Error("--turn-trace needs persona(s) (--preset) or installed packs in --db");
 
-  const ws = new WebSocket(wsUrl);
+  // Authenticated deployments (fd-prod, AUTH_MODE=mp) gate the WS too —
+  // --auth <token> (or PROBE_AUTH_TOKEN) rides along as a Bearer header.
+  const ws = OPTS.auth
+    ? new WebSocket(wsUrl, { headers: { Authorization: `Bearer ${OPTS.auth}` } })
+    : new WebSocket(wsUrl);
   await new Promise((res, rej) => { ws.once("open", res); ws.once("error", rej); });
 
   // list_presets answers only once the agent is live; poll it as the
@@ -339,9 +347,10 @@ async function turnTrace() {
 
   // Usage tokens from the trace viewer: newest turns first, matched by prompt.
   const needed = 1 + targets.length;
-  const turns = (await (await fetch(`${base}/api/trace/turns?limit=${Math.max(8, needed + 4)}`)).json()).turns;
+  const traceHeaders = OPTS.auth ? { Authorization: `Bearer ${OPTS.auth}` } : {};
+  const turns = (await (await fetch(`${base}/api/trace/turns?limit=${Math.max(8, needed + 4)}`, { headers: traceHeaders })).json()).turns;
   const usageOf = async (turnId) => {
-    const doc = await (await fetch(`${base}/api/trace/turns/${turnId}`)).json();
+    const doc = await (await fetch(`${base}/api/trace/turns/${turnId}`, { headers: traceHeaders })).json();
     for (const e of doc.events ?? []) {
       const c = e.payload?.event?.data?.chunk ?? e.payload?.data?.chunk;
       // dsh emits token usage as its own chunk after the text blocks.
@@ -351,7 +360,7 @@ async function turnTrace() {
   };
   const matched = [];
   for (const t of turns) {
-    const doc = await (await fetch(`${base}/api/trace/turns/${t.turnId}`)).json();
+    const doc = await (await fetch(`${base}/api/trace/turns/${t.turnId}`, { headers: traceHeaders })).json();
     const user = (doc.events ?? []).find((e) => e.eventType === "user/message");
     if (user && (user.summary || "").includes(OPTS.prompt.slice(0, 20))) matched.push(t);
     if (matched.length >= needed) break;

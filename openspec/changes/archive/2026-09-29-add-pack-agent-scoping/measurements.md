@@ -38,17 +38,32 @@ focused persona enumerating a smaller surface in its answer.
 A first uncached run measured full at 18 274 input tokens, confirming the
 cache-read column is the same context replayed (gateway prompt cache).
 
-## fd-prod expectation (rollout measurement — pending)
+## fd-prod — measured at rollout, 2026-09-29 (sha-ed5a594)
 
-fd-prod's full roster was probed at 163+ MCP tool schemas; the focused band
-target is ~20–40 tools. Run at rollout:
+Ran in-pod (`kubectl -n fd-prod exec deploy/platform -- node
+/app/scripts/probe-pack-scope.mjs`); `PACK_BASELINE_MCP=websearch` active.
 
-```bash
-# roster comparison (server pod env: DB_PATH, MCP_CONFIG_PATH, DSH_HOME)
-node scripts/probe-pack-scope.mjs
-# token comparison (same prompt, same model, both modes)
-node scripts/probe-pack-scope.mjs --turn-trace --url http://<fd-prod>
-```
+| mode | servers | notes |
+| --- | --- | --- |
+| full | 5 | fd-cn-report, fd-find-data-business-mcp, fd-open-data-mcp, law-bench, websearch |
+| focused（数据-中国经济 / pack-industry-analyst-macro） | 3 | websearch (baseline env) + fd-open-data-mcp + fd-cn-report (pack refs); dropped law-bench + business-mcp |
+
+Per-server tool counts: websearch 2; the four registry HTTP servers answered
+401 to the probe's live handshake — the deployment's stored machine-owner
+registry credential is stale (pre-existing; fd-cn-report was already degraded
+before this change). Refresh the market credential to re-measure exact tool
+counts against the 163+ baseline and the ~20–40 focused band. fd-prod's packs
+are persona+MCP only (the five skills are user rows, not pack-owned), so the
+focused skills surface is the `/app/skills` baseline by construction.
+
+Bonus live confirmation: the pod BOOTED focused (persisted preset was the
+pack role from the last session) — boot-time focus composition held on
+production with no user action. Switching back to standard restores the
+5-server full surface.
+
+Token comparison on fd-prod needs an authenticated WS session (Logto); run
+`--turn-trace` against a session-bearing entry when convenient.
+
 
 `PACK_BASELINE_MCP` (e.g. websearch there) shapes the focused floor; record
 its value alongside the numbers when taken.

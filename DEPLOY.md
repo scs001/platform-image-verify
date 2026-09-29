@@ -160,12 +160,15 @@ Credentials and the job's SCM live in Jenkins; nothing to set up per build. A co
 queue behind the first.
 
 Trigger it — a push to `deploy/prod-snapshot` normally fires the Gitee webhook, and the
-job's own webhook endpoint works directly (token is the literal string `platform`):
+job's own webhook endpoint works directly (token is the literal string `platform`).
+⚠️ The old entry IP `103.236.89.212` no longer routes (the cluster moved to
+Tailscale-mesh node names — reach Jenkins via any node's mesh IP, e.g. cheap-6
+`100.64.0.13`):
 
 ```bash
-curl -X POST "http://103.236.89.212:31000/generic-webhook-trigger/invoke?token=platform"
-curl -s "http://103.236.89.212:31000/job/platform/api/json?tree=lastBuild[number,building,result]"
-curl -s "http://103.236.89.212:31000/job/platform/lastBuild/consoleText" | tail -40
+curl -X POST "http://100.64.0.13:31000/generic-webhook-trigger/invoke?token=platform"
+curl -sg "http://100.64.0.13:31000/job/platform/api/json?tree=lastBuild[number,building,result]"
+curl -sg "http://100.64.0.13:31000/job/platform/lastBuild/consoleText" | tail -40
 ```
 
 The build log's `Pushed 100.64.0.8:30880/paas_private/platform:sha-<7>` line names the tag

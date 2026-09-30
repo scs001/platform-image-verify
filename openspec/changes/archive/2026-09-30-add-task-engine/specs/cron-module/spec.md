@@ -1,8 +1,26 @@
-## Purpose
+## REMOVED Requirements
 
-Defines the in-cell scheduled-task engine: creating, persisting, and firing prompt jobs bound to a specific agent preset and session, with timezone-aware schedules and deterministic behavior around busy turns, runtime restarts, and downtime.
+### Requirement: Jobs are bound to an agent preset and a session
+**Reason**: Task identity (target, prompt, dedicated session) is engine-level and applies to every task, not only scheduled ones; keeping binding here would force every future trigger kind to restate it.
+**Migration**: Superseded by `task-engine`'s "A task is the unit of work given to a persona" — both scenarios (fires into the bound session; dedicated session in the session list) are preserved there in task terms.
 
-## Requirements
+### Requirement: Firing queues behind an active turn instead of skipping
+**Reason**: Queue-behind-turn is not a scheduling rule but the serial primary-slot execution policy, shared by all tasks regardless of trigger.
+**Migration**: Superseded by `task-engine`'s "Executions run on execution slots" (wait-for-streaming-turn and sequential-deterministic scenarios).
+
+### Requirement: Firing under a different active preset switches the runtime
+**Reason**: Persona switching before prompting is likewise engine-level execution policy; expressing it per trigger kind would duplicate the invariant.
+**Migration**: Superseded by `task-engine`'s "Executions run on execution slots" (persona-drift and no-switch scenarios, agent-change broadcast preserved).
+
+### Requirement: Execution history is tracked
+**Reason**: History is per execution of a task, must survive re-runs of the same task, and is engine state.
+**Migration**: Superseded by `task-engine`'s "Execution history is tracked per execution" (same bounded-100 and outcome-recording semantics, restated for re-run).
+
+### Requirement: Job events are broadcast
+**Reason**: Lifecycle events now belong to tasks; scheduled tasks are tasks, so the broadcast requirement generalizes.
+**Migration**: Superseded by `task-engine`'s "Task lifecycle changes are broadcast" — the `cron_*` event surface is preserved as the transport (see MODIFIED "Job scheduling API" for message-type continuity).
+
+## MODIFIED Requirements
 
 ### Requirement: Job scheduling API
 The system SHALL support creating one-shot tasks (run once at a specific time) and recurring tasks (run on a cron schedule) — tasks whose trigger is a schedule — each with a prompt and its target-persona/session binding carried by the task. Management operations — list, remove, pause, resume, and run-now — SHALL remain available over the existing cell WebSocket surface using the existing `cron_*` message and event types, operating on tasks with schedule triggers.
@@ -35,17 +53,6 @@ All tasks with schedule triggers SHALL be persisted atomically with the engine's
 #### Scenario: Atomic persistence
 - **WHEN** a task or schedule mutation is persisted
 - **THEN** the storage write SHALL be atomic, such that a crash mid-write cannot corrupt previously stored tasks
-
-### Requirement: Schedules are timezone-aware
-A job MAY carry an IANA timezone identifier. When present, its cron schedule SHALL be evaluated in that timezone. When absent, the schedule SHALL be evaluated in the cell's local timezone.
-
-#### Scenario: User timezone applies
-- **WHEN** a job is created with cron `0 9 * * *` and timezone `Asia/Shanghai` on a cell running in UTC
-- **THEN** the job SHALL fire at 09:00 Asia/Shanghai time
-
-#### Scenario: Legacy job falls back to cell timezone
-- **WHEN** a persisted job carries no timezone
-- **THEN** its schedule SHALL be evaluated in the cell's local timezone, matching pre-change behavior
 
 ### Requirement: Downtime and expiry lifecycle
 Recurring schedules whose occurrences passed entirely while the runtime was down SHALL NOT catch up; the gap SHALL be recorded on the task as a missed marker. One-shot schedules whose time passed while down SHALL mark their task expired at load.

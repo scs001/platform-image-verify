@@ -11,6 +11,22 @@ export interface LastTest {
   at?: string;
 }
 
+// Per-id status from the last model sync (add-llm-model-discovery).
+export type DiscoveryStatusKind =
+  | "serving"
+  | "unauthorized"
+  | "upstream_down"
+  | "rate_limited"
+  | "not_chat"
+  | "error";
+
+export interface DiscoveryStatus {
+  status: DiscoveryStatusKind;
+  // Sanitized probe message (no key material, bounded length).
+  error?: string;
+  probedAt?: string;
+}
+
 export interface LlmProvider {
   id: string;
   name: string;
@@ -22,6 +38,58 @@ export interface LlmProvider {
   // Thinking levels this provider's models accept (identity wire values).
   reasoningEfforts?: string[];
   lastTest: LastTest | null;
+  // Last sync's per-id status map; null before any sync.
+  discovery?: Record<string, DiscoveryStatus> | null;
+}
+
+// Result of POST /api/llm/providers/:id/sync. `dryRun` (reserved env route):
+// nothing was written; `wouldAdd` lists the serving ids that a real sync
+// would merge. Otherwise `added` lists the ids merged this run.
+export interface SyncResult {
+  dryRun?: boolean;
+  statuses: Record<string, DiscoveryStatus>;
+  added?: string[];
+  wouldAdd?: string[];
+  rosterSize: number;
+}
+
+// A roster entry in a PUT /api/llm/providers/:id models array. Absent fields
+// fall back to the server's family table, then conservative defaults.
+export interface ModelEntryInput {
+  id: string;
+  name?: string;
+  contextWindow?: number;
+  maxTokens?: number;
+}
+
+// Client-side mirror of the server family table (llm-providers.js) for editor
+// prefill only — the server is authoritative on save.
+const CLIENT_MODEL_FAMILIES: Array<{
+  prefix: string;
+  rank: number;
+  maxTokens?: number;
+  reasoningEfforts?: string[];
+}> = [
+  { prefix: "deepseek-v4", rank: 0, maxTokens: 32768, reasoningEfforts: ["low", "medium", "high"] },
+  { prefix: "deepseek", rank: 0, maxTokens: 32768 },
+  { prefix: "glm-5.3-flash", rank: 1, maxTokens: 32768 },
+  { prefix: "glm", rank: 1 },
+  { prefix: "mimo", rank: 2 },
+];
+
+export const CLIENT_MODEL_FAMILY_DEFAULTS = Object.freeze({
+  contextWindow: 128000,
+  maxTokens: 8192,
+});
+
+export function clientModelFamilyMeta(id: string) {
+  const bare = id.split("/").pop() ?? id;
+  const family = CLIENT_MODEL_FAMILIES.find((f) => bare.startsWith(f.prefix));
+  return {
+    contextWindow: CLIENT_MODEL_FAMILY_DEFAULTS.contextWindow,
+    maxTokens: family?.maxTokens ?? CLIENT_MODEL_FAMILY_DEFAULTS.maxTokens,
+    reasoningEfforts: family?.reasoningEfforts ?? [],
+  };
 }
 
 export interface LlmDefault {
@@ -67,7 +135,13 @@ export async function createProvider(input: {
 
 export async function updateProvider(
   id: string,
-  input: { name?: string; baseUrl?: string; apiKey?: string; reasoningEfforts?: string },
+  input: {
+    name?: string;
+    baseUrl?: string;
+    apiKey?: string;
+    reasoningEfforts?: string;
+    models?: ModelEntryInput[];
+  },
 ): Promise<LlmProvider> {
   const r = await http(`/api/llm/providers/${encodeURIComponent(id)}`, {
     method: "PUT",
@@ -76,6 +150,15 @@ export async function updateProvider(
   });
   const body = await jsonOrThrow(r);
   return body.provider;
+}
+
+// Reconcile a provider's roster against its gateway (admin). One long-lived
+// request (~25–60s for a 33-id gateway); the reserved env route is a dry run.
+export async function syncProvider(id: string): Promise<SyncResult> {
+  const r = await http(`/api/llm/providers/${encodeURIComponent(id)}/sync`, {
+    method: "POST",
+  });
+  return jsonOrThrow(r);
 }
 
 export async function deleteProvider(id: string): Promise<void> {

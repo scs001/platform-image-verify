@@ -84,6 +84,12 @@ function declaredEfforts(modelId) {
     : false;
 }
 
+// The env route's current roster ids — the baseline a "volces" model sync
+// dry-run diffs against (llm-providers.syncProvider, add-llm-model-discovery).
+export function volcesModelIds() {
+  return VOLCES_MODELS.map((m) => m.id);
+}
+
 // The selectable level names for a `reasoningEfforts` declaration (`false` =
 // non-reasoning model → no control).
 export function effortLevels(reasoningEfforts) {

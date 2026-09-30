@@ -103,7 +103,30 @@
     "fieldEfforts": "思考レベル（任意）",
     "effortsHint": "このプロバイダーが受け付けるレベルをカンマ区切りで指定します（例: low, medium, high）。空欄の場合はプロバイダーの既定値を使用します。",
     "thinkingLevel": "思考レベル",
-    "thinkingDefault": "既定"
+    "thinkingDefault": "既定",
+    "syncModels": "モデルを同期",
+    "syncDryRun": "モデルを同期（ドライラン）",
+    "syncSummary": "追加 {{added}} · 稼働中 {{serving}} · 要注意 {{flagged}}",
+    "wouldAdd": "追加対象：{{ids}}",
+    "wouldAddNone": "追加対象：新規に稼働中のモデルなし",
+    "discoveryStatus": {
+      "serving": "稼働中",
+      "unauthorized": "未承認",
+      "upstream_down": "上流ダウン",
+      "rate_limited": "レート制限",
+      "not_chat": "非チャットモデル",
+      "error": "エラー"
+    },
+    "editModels": "モデル一覧を編集",
+    "addModel": "追加",
+    "addModelPlaceholder": "モデル id（例: deepseek-v4.1-flash）",
+    "maxTokensLabel": "{{id}} の最大出力トークン",
+    "maxTokensLabelShort": "最大トークン",
+    "removeModel": "{{id}} を削除",
+    "saveModels": "モデル一覧を保存",
+    "duplicateModelId": "モデル id は一意かつ空でない必要があります。",
+    "otherDiscovered": "検出された他のモデル（ロースター外）",
+    "prefillHint": "既定値：コンテキスト {{context}} / 出力 {{maxTokens}}"
   },
   "status": {
     "connected": "接続済み",

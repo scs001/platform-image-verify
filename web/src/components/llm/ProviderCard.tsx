@@ -1,17 +1,23 @@
 // ProviderCard — one LLM provider on the Models page: name, type, truncated
 // base URL, hasKey indicator, last-test status, discovered models, and the
 // Edit / Test / Delete actions. Reserved providers (the env Volces route)
-// cannot be edited or deleted.
+// cannot be edited or deleted — their sync is a dry run (roster is code-owned).
+// Admin users additionally get the model sync action and, on user providers,
+// the runtime model-list editor (add-llm-model-discovery).
 
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pencil, Trash2, Lock, Unlock, Globe } from "lucide-react";
+import { Pencil, Trash2, Lock, Unlock, Globe, ListPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TestConnectionButton } from "./TestConnectionButton";
+import { SyncModelsButton } from "./SyncModelsButton";
 import { ModelList } from "./ModelList";
+import { ModelListEditor } from "./ModelListEditor";
 import type { LlmProvider } from "@platform/core";
 
 interface Props {
   provider: LlmProvider;
+  isAdmin: boolean;
   onEdit: (p: LlmProvider) => void;
   onDelete: (p: LlmProvider) => void;
   onModelsChanged: () => void;
@@ -29,9 +35,10 @@ function relativeTime(iso?: string) {
   return `${Math.round(hrs / 24)}d ago`;
 }
 
-export function ProviderCard({ provider, onEdit, onDelete, onModelsChanged }: Props) {
+export function ProviderCard({ provider, isAdmin, onEdit, onDelete, onModelsChanged }: Props) {
   const { t } = useTranslation();
   const reserved = Boolean(provider.reserved);
+  const [editingModels, setEditingModels] = useState(false);
 
   return (
     <section
@@ -61,6 +68,19 @@ export function ProviderCard({ provider, onEdit, onDelete, onModelsChanged }: Pr
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
+          {isAdmin && !reserved && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              aria-label={t("modelsPage.editModels")}
+              aria-pressed={editingModels}
+              onClick={() => setEditingModels((v) => !v)}
+              data-testid="llm-edit-models-btn"
+            >
+              <ListPlus className="h-4 w-4" />
+            </Button>
+          )}
           {!reserved && (
             <>
               <Button
@@ -95,9 +115,32 @@ export function ProviderCard({ provider, onEdit, onDelete, onModelsChanged }: Pr
             {relativeTime(provider.lastTest.at)}
           </span>
         )}
+        {isAdmin && (
+          <SyncModelsButton
+            providerId={provider.id}
+            reserved={reserved}
+            onDone={onModelsChanged}
+          />
+        )}
       </div>
 
-      <ModelList providerId={provider.id} models={provider.models} onChanged={onModelsChanged} />
+      {editingModels && isAdmin && !reserved ? (
+        <ModelListEditor
+          providerId={provider.id}
+          models={provider.models}
+          onSaved={() => {
+            setEditingModels(false);
+            onModelsChanged();
+          }}
+        />
+      ) : (
+        <ModelList
+          providerId={provider.id}
+          models={provider.models}
+          discovery={provider.discovery}
+          onChanged={onModelsChanged}
+        />
+      )}
     </section>
   );
 }

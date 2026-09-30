@@ -103,7 +103,30 @@
     "fieldEfforts": "Thinking levels (optional)",
     "effortsHint": "Comma-separated levels this provider accepts, e.g. low, medium, high. Leave blank for the provider default.",
     "thinkingLevel": "Thinking level",
-    "thinkingDefault": "Default"
+    "thinkingDefault": "Default",
+    "syncModels": "Sync models",
+    "syncDryRun": "Sync models (dry run)",
+    "syncSummary": "+{{added}} added · {{serving}} serving · {{flagged}} flagged",
+    "wouldAdd": "Would add: {{ids}}",
+    "wouldAddNone": "Would add: nothing new serving",
+    "discoveryStatus": {
+      "serving": "serving",
+      "unauthorized": "unauthorized",
+      "upstream_down": "upstream down",
+      "rate_limited": "rate limited",
+      "not_chat": "not a chat model",
+      "error": "error"
+    },
+    "editModels": "Edit models",
+    "addModel": "Add",
+    "addModelPlaceholder": "Model id, e.g. deepseek-v4.1-flash",
+    "maxTokensLabel": "Max output tokens for {{id}}",
+    "maxTokensLabelShort": "Max tokens",
+    "removeModel": "Remove {{id}}",
+    "saveModels": "Save models",
+    "duplicateModelId": "Model ids must be unique and non-empty.",
+    "otherDiscovered": "Other discovered models (not on the roster)",
+    "prefillHint": "defaults: {{context}} ctx / {{maxTokens}} out"
   },
   "status": {
     "connected": "Connected",

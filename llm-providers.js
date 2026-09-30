@@ -33,6 +33,75 @@ const DEFAULT_MODELS = [
   { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro", contextWindow: 128000, maxTokens: 8192 },
 ];
 
+// ── Model family metadata (add-llm-model-discovery, design D5) ───────────────
+//
+// The gateway publishes no metadata, so verified-per-family defaults live here
+// (2026-09-30 probe session). Sync merges ids with these values; entries the
+// operator already hand-tuned are never rewritten. `rank` drives post-sync
+// ordering: deepseek → glm → mimo → rest → `:free` last — the dropdown keeps
+// the agreed shape regardless of gateway listing order.
+
+const IDENTITY_EFFORTS = ["low", "medium", "high"];
+
+export const MODEL_FAMILY_DEFAULTS = Object.freeze({
+  contextWindow: 128000,
+  maxTokens: 8192,
+  reasoningEfforts: [], // no thinking control
+});
+
+// Ordered by specificity: first prefix hit wins. Prefixes match the id after
+// its final "/" (the gateway mixes bare `deepseek-v4.1-flash` with
+// OpenRouter-style `deepseek/deepseek-v4.1-flash`; both are the same family).
+// Efforts are scoped to the verified deepseek-v4 lane only (same rule as
+// dsh-profile's declaredEfforts: a wrong `false` hides a control, a wrong map
+// is a dispatch error).
+const MODEL_FAMILIES = [
+  { prefix: "deepseek-v4", rank: 0, maxTokens: 32768, reasoningEfforts: IDENTITY_EFFORTS },
+  { prefix: "deepseek", rank: 0, maxTokens: 32768 },
+  { prefix: "glm-5.3-flash", rank: 1, maxTokens: 32768 },
+  { prefix: "glm", rank: 1 },
+  { prefix: "mimo", rank: 2 },
+];
+
+function familyFor(id) {
+  const bare = String(id).split("/").pop();
+  return MODEL_FAMILIES.find((f) => bare.startsWith(f.prefix)) || null;
+}
+
+// Metadata for a model id: family-table values with conservative fallbacks.
+export function modelFamilyMeta(id) {
+  const f = familyFor(id);
+  return {
+    contextWindow: MODEL_FAMILY_DEFAULTS.contextWindow,
+    maxTokens: f?.maxTokens ?? MODEL_FAMILY_DEFAULTS.maxTokens,
+    reasoningEfforts: [...(f?.reasoningEfforts ?? MODEL_FAMILY_DEFAULTS.reasoningEfforts)],
+  };
+}
+
+// Ordering rank: `:free` ids are always last (free pool), else the family's
+// rank, else 3 ("rest").
+export function modelFamilyRank(id) {
+  if (String(id).endsWith(":free")) return 4;
+  return familyFor(id)?.rank ?? 3;
+}
+
+function compareModelIds(a, b) {
+  return modelFamilyRank(a) - modelFamilyRank(b) || String(a).localeCompare(String(b));
+}
+
+// Display name for a synced id (`deepseek-v4.1-flash` → `DeepSeek V4.1 Flash`).
+// Dots stay inside a token (version numbers); the few known brand spellings
+// are cased by hand.
+const BRAND_SPELLINGS = { deepseek: "DeepSeek", glm: "GLM", mimo: "MiMo", kimi: "Kimi" };
+function prettifyModelId(id) {
+  return String(id)
+    .split(/[/]+/).pop()
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((tok) => BRAND_SPELLINGS[tok.toLowerCase()] ?? tok.charAt(0).toUpperCase() + tok.slice(1))
+    .join(" ");
+}
+
 // ── Storage ──────────────────────────────────────────────────────────────────
 
 // All mutations run through this chain's non-blocking variant: a second
@@ -121,6 +190,7 @@ function normalizeEfforts(value) {
 // ── Public CRUD (returns the persisted, client-safe record) ──────────────────
 
 // List user providers. `hasKey` reflects whether a credential is stored.
+// `discovery` is the last sync's per-id status map (null before any sync).
 export function listUserProviders() {
   return readProvidersDoc().providers.map((p) => ({
     id: p.id,
@@ -131,6 +201,7 @@ export function listUserProviders() {
     models: (p.models || DEFAULT_MODELS).map((m) => m.id),
     reasoningEfforts: p.reasoningEfforts || [],
     lastTest: p.lastTest || null,
+    discovery: p.discovery || null,
   }));
 }
 
@@ -181,6 +252,11 @@ export function updateProvider(id, input) {
   };
   const clean = validateInput(merged, { requireKey: true });
 
+  // A `models` array replaces the whole roster (add-llm-model-discovery):
+  // ids must be unique non-empty strings; absent per-entry fields fall back
+  // to the family table, then conservative defaults.
+  const models = input.models !== undefined ? normalizeModelsInput(input.models) : current.models;
+
   // Uniqueness against siblings.
   if (
     doc.providers.some(
@@ -196,11 +272,50 @@ export function updateProvider(id, input) {
     baseUrl: clean.baseUrl,
     apiKey: clean.apiKey,
     reasoningEfforts: clean.reasoningEfforts,
+    ...(models !== undefined ? { models } : {}),
     updatedAt: new Date().toISOString(),
   };
   writeJsonAtomic(STORE_PATH, doc);
   console.log(`[llm-providers] updated "${clean.name}" (${id})`);
   return clientRecord(doc.providers[idx]);
+}
+
+// Validate + fill a replacement roster. Invalid shapes throw `invalid` with
+// the offending entry named, leaving the stored roster untouched.
+function normalizeModelsInput(models) {
+  if (!Array.isArray(models)) throw new ProviderError("invalid", "models must be an array");
+  const seen = new Set();
+  return models.map((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+      throw new ProviderError("invalid", "each model entry must be an object");
+    }
+    const id = String(entry.id || "").trim();
+    if (!id) throw new ProviderError("invalid", "model id is required");
+    if (seen.has(id)) throw new ProviderError("invalid", `duplicate model id: ${id}`);
+    seen.add(id);
+    const meta = modelFamilyMeta(id);
+    const positiveInt = (v, field) => {
+      if (v === undefined || v === null || v === "") return null;
+      const n = Number(v);
+      if (!Number.isInteger(n) || n <= 0) {
+        throw new ProviderError("invalid", `${field} must be a positive integer`);
+      }
+      return n;
+    };
+    const contextWindow = positiveInt(entry.contextWindow, "contextWindow") ?? meta.contextWindow;
+    const maxTokens = positiveInt(entry.maxTokens, "maxTokens") ?? meta.maxTokens;
+    const name =
+      entry.name !== undefined && String(entry.name).trim()
+        ? String(entry.name).trim()
+        : prettifyModelId(id);
+    let levels = [...meta.reasoningEfforts];
+    if (entry.reasoningEfforts !== undefined && entry.reasoningEfforts !== null && entry.reasoningEfforts !== "") {
+      const explicit = normalizeEfforts(entry.reasoningEfforts);
+      if (explicit === null) throw new ProviderError("invalid", "reasoningEfforts must be a list of level names");
+      levels = explicit;
+    }
+    return { id, name, contextWindow, maxTokens, ...(levels.length ? { reasoningEfforts: levels } : {}) };
+  });
 }
 
 export function deleteProvider(id) {
@@ -228,6 +343,7 @@ function clientRecord(p) {
     models: (p.models || DEFAULT_MODELS).map((m) => m.id),
     reasoningEfforts: p.reasoningEfforts || [],
     lastTest: p.lastTest || null,
+    discovery: p.discovery || null,
   };
 }
 
@@ -250,20 +366,35 @@ export function buildUserProviderEntries() {
   const models = [];
   for (const p of readProvidersDoc().providers) {
     // Identity wire values: the operator's level names are sent verbatim.
-    const levels = p.reasoningEfforts || [];
-    const effortMap = levels.length ? Object.fromEntries(levels.map((l) => [l, l])) : false;
+    // Per-model levels (family table via sync, or an explicit editor value)
+    // win over the provider-level default.
+    const routeModels = (p.models || DEFAULT_MODELS).map((m) => {
+      const levels =
+        Array.isArray(m.reasoningEfforts) && m.reasoningEfforts.length
+          ? m.reasoningEfforts
+          : p.reasoningEfforts || [];
+      const effortMap = levels.length ? Object.fromEntries(levels.map((l) => [l, l])) : false;
+      return { ...m, input: ["text"], reasoningEfforts: effortMap };
+    });
     providers[p.id] = {
       apiKeyEnv: envRefForProvider(p.id),
       displayName: p.name,
       api: "openai-completions",
       baseURL: p.baseUrl,
-      models: (p.models || DEFAULT_MODELS).map((m) => ({ ...m, input: ["text"], reasoningEfforts: effortMap })),
+      models: routeModels,
     };
-    for (const m of p.models || DEFAULT_MODELS) {
+    for (const m of routeModels) {
+      const levels = effortLevelsOf(m);
       models.push({ id: m.id, name: m.name, provider: p.id, ...(levels.length ? { reasoningEfforts: levels } : {}) });
     }
   }
   return { providers, models };
+}
+
+function effortLevelsOf(model) {
+  return model.reasoningEfforts && typeof model.reasoningEfforts === "object"
+    ? Object.keys(model.reasoningEfforts)
+    : [];
 }
 
 // The {refName: value} pairs to seed into .credentials.yaml so the per-provider
@@ -350,4 +481,232 @@ async function persistTestResult(id, lastTest) {
   if (idx < 0) return;
   doc.providers[idx].lastTest = lastTest;
   writeJsonAtomic(STORE_PATH, doc);
+}
+
+// ── Model discovery: fetch + probe + classify + merge (add-llm-model-discovery) ──
+
+// Gateway error substrings → status (2026-09-30 probe session, design D2).
+// Text matching is on lowercased, whitespace-collapsed bodies; the exact
+// gateway strings live here, one place to update when the gateway rewords.
+const ERROR_MATCHERS = [
+  // "Model X is not supported by any configured account in this group" (404/400)
+  { status: "unauthorized", substrings: ["not supported by any configured account"] },
+  // "Service temporarily unavailable" / "Upstream service temporarily unavailable" (503)
+  { status: "upstream_down", substrings: ["service temporarily unavailable"] },
+  // "Rate limit exceeded..." (429)
+  { status: "rate_limited", substrings: ["rate limit"] },
+];
+
+const PROBE_CONCURRENCY = 4;
+const PROBE_TIMEOUT_MS = 30_000;
+
+function normalizeText(s) {
+  return String(s || "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+// Fetch the full id list from GET <baseUrl>/models. The gateway treats this as
+// "recognized ids", not "serving ids" — that is exactly why sync probes.
+async function fetchModelIds(baseUrl, apiKey, { fetchImpl = global.fetch } = {}) {
+  const url = String(baseUrl).replace(/\/+$/, "") + "/models";
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+  try {
+    const res = await fetchImpl(url, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      let body = "";
+      try { body = await res.text(); } catch { /* ignore */ }
+      throw new ProviderError("invalid", sanitizeError(`model list unavailable — HTTP ${res.status}: ${body}`, apiKey));
+    }
+    const doc = await res.json();
+    const ids = Array.isArray(doc?.data)
+      ? doc.data.map((m) => m?.id).filter((id) => typeof id === "string" && id.trim())
+      : [];
+    return [...new Set(ids)];
+  } catch (err) {
+    if (err instanceof ProviderError) throw err;
+    const msg = err?.name === "AbortError" ? "model list request timed out" : err?.message || "request failed";
+    throw new ProviderError("invalid", sanitizeError(msg, apiKey));
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Classify one probe response per design D2: HTTP shape first, then
+// error-text matchers. Returns { status, error? }.
+function classifyResponse(status, body, apiKey) {
+  if (status >= 200 && status < 300) {
+    let data = null;
+    try { data = JSON.parse(body); } catch { /* fall through */ }
+    const choice = Array.isArray(data?.choices) ? data.choices[0] : null;
+    const content = choice?.message?.content;
+    const usable =
+      (typeof content === "string" && content.trim()) ||
+      (Array.isArray(content) && content.some((p) => typeof p?.text === "string" && p.text.trim()));
+    if (choice && usable) return { status: "serving" };
+    // 200 with empty/whitespace content (or no choices at all): the id answers
+    // but produces no usable assistant reply — a classifier lane.
+    return { status: "not_chat" };
+  }
+  const normalized = normalizeText(`HTTP ${status}: ${body}`);
+  for (const matcher of ERROR_MATCHERS) {
+    if (matcher.substrings.some((s) => normalized.includes(s))) return { status: matcher.status };
+  }
+  if (status === 429) return { status: "rate_limited" };
+  return { status: "error", error: sanitizeError(`HTTP ${status}: ${body}`, apiKey) };
+}
+
+// Probe one id with a single minimal chat completion (design D1: the list
+// endpoint cannot distinguish serving from recognized). One retry for
+// rate_limited / network failures only (D3).
+async function probeModel(baseUrl, apiKey, id, { fetchImpl, timeoutMs }) {
+  const url = String(baseUrl).replace(/\/+$/, "") + "/chat/completions";
+  const attempt = async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetchImpl(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          model: id,
+          messages: [{ role: "user", content: "只回复ok" }],
+          max_tokens: 1,
+          stream: false,
+        }),
+        signal: controller.signal,
+      });
+      let body = "";
+      try { body = await res.text(); } catch { /* ignore */ }
+      return classifyResponse(res.status, body, apiKey);
+    } catch (err) {
+      const msg = err?.name === "AbortError" ? `probe timed out after ${timeoutMs / 1000}s` : err?.message || "request failed";
+      return { status: "network_error", error: sanitizeError(msg, apiKey) };
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+
+  const first = await attempt();
+  if (first.status !== "network_error" && first.status !== "rate_limited") return first;
+  const second = await attempt();
+  if (second.status === "network_error") {
+    // The retry failed on the network too: a persistent network failure is a
+    // plain error; an original rate_limited signal wins over the retry noise.
+    return first.status === "rate_limited"
+      ? { status: "rate_limited" }
+      : { status: "error", error: second.error };
+  }
+  return second;
+}
+
+// Classify every id: bounded-concurrency probes (4), per-probe 30s timeout.
+// Returns { [id]: { status, error? } } covering every id.
+export async function classifyModels(baseUrl, apiKey, ids, { fetchImpl = global.fetch, timeoutMs = PROBE_TIMEOUT_MS } = {}) {
+  const results = {};
+  const queue = [...ids];
+  const workers = Array.from({ length: Math.min(PROBE_CONCURRENCY, Math.max(1, ids.length)) }, async () => {
+    for (;;) {
+      const id = queue.shift();
+      if (id === undefined) return;
+      results[id] = await probeModel(baseUrl, apiKey, id, { fetchImpl, timeoutMs });
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+// One sync at a time across all providers (spec: a second sync while any sync
+// runs is a 409). Covers the classification phase, which runs outside the
+// write lock; the merge itself additionally goes through tryWithWriteLock.
+let syncInFlight = false;
+
+// Reconcile a provider's roster against its own gateway (design D1–D8).
+// Classification happens BEFORE the write lock; inside it: merge `serving`
+// ids (append + family metadata, never touch existing entries' fields),
+// re-order by family rank, persist the `discovery` status map. The reserved
+// env route ("volces") is dry-run only: classification is returned, nothing
+// is written (its roster is code-owned — applying is a code change).
+export async function syncProvider(id, { fetchImpl = global.fetch, reload } = {}) {
+  if (syncInFlight) throw new ProviderError("busy", "a model sync is already running");
+  if (RESERVED_IDS.has(id)) {
+    const apiKey = process.env.LLM_API_KEY?.trim();
+    if (!apiKey) throw new ProviderError("invalid", "reserved route has no API key configured");
+    syncInFlight = true;
+    try {
+      const baseUrl = normalizeBaseUrl(process.env.LLM_BASE_URL || "https://ark.cn-beijing.volces.com/api/coding/v3");
+      const ids = await fetchModelIds(baseUrl, apiKey, { fetchImpl });
+      const classified = await classifyModels(baseUrl, apiKey, ids, { fetchImpl });
+      const dshProfile = await import("./dsh-profile.js");
+      const current = new Set(dshProfile.volcesModelIds());
+      const wouldAdd = ids
+        .filter((mid) => classified[mid]?.status === "serving" && !current.has(mid))
+        .sort(compareModelIds);
+      return {
+        dryRun: true,
+        statuses: toDiscoveryMap(classified, new Date().toISOString()),
+        wouldAdd,
+        rosterSize: current.size,
+      };
+    } finally {
+      syncInFlight = false;
+    }
+  }
+
+  const record = getProviderRecord(id);
+  if (!record) throw new ProviderError("not_found", `provider ${id} not found`);
+  if (!record.apiKey) throw new ProviderError("invalid", "provider has no API key configured");
+
+  syncInFlight = true;
+  let classified;
+  try {
+    const ids = await fetchModelIds(record.baseUrl, record.apiKey, { fetchImpl });
+    classified = await classifyModels(record.baseUrl, record.apiKey, ids, { fetchImpl });
+  } finally {
+    syncInFlight = false;
+  }
+
+  const probedAt = new Date().toISOString();
+  return tryWithWriteLock(async () => {
+    const doc = readProvidersDoc();
+    const idx = doc.providers.findIndex((p) => p.id === id);
+    if (idx < 0) throw new ProviderError("not_found", `provider ${id} not found`);
+    const current = doc.providers[idx];
+    const roster = current.models || [];
+    const existing = new Set(roster.map((m) => m.id));
+    const added = [];
+    for (const [mid, r] of Object.entries(classified)) {
+      if (r.status !== "serving" || existing.has(mid)) continue;
+      const meta = modelFamilyMeta(mid);
+      roster.push({ id: mid, name: prettifyModelId(mid), ...meta });
+      added.push(mid);
+    }
+    // Order is policy, policy lives in code (D5): family rank, then id.
+    roster.sort((a, b) => compareModelIds(a.id, b.id));
+    const discovery = toDiscoveryMap(classified, probedAt);
+    doc.providers[idx] = { ...current, models: roster, discovery, updatedAt: probedAt };
+    writeJsonAtomic(STORE_PATH, doc);
+    if (reload) await reload();
+    console.log(`[llm-providers] sync "${current.name}" (${id}): ${added.length} added, roster ${roster.length}`);
+    return { statuses: discovery, added, rosterSize: roster.length };
+  });
+}
+
+function toDiscoveryMap(classified, probedAt) {
+  const map = {};
+  for (const [id, r] of Object.entries(classified)) {
+    map[id] = {
+      status: r.status,
+      ...(r.error ? { error: r.error } : {}),
+      ...(probedAt ? { probedAt } : {}),
+    };
+  }
+  return map;
 }

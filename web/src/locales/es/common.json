@@ -103,7 +103,30 @@
     "fieldEfforts": "Niveles de razonamiento (opcional)",
     "effortsHint": "Niveles admitidos por este proveedor, separados por comas (p. ej. low, medium, high). Déjalo vacío para el valor predeterminado.",
     "thinkingLevel": "Nivel de razonamiento",
-    "thinkingDefault": "Predeterminado"
+    "thinkingDefault": "Predeterminado",
+    "syncModels": "Sincronizar modelos",
+    "syncDryRun": "Sincronizar modelos (simulación)",
+    "syncSummary": "+{{added}} añadidos · {{serving}} activos · {{flagged}} marcados",
+    "wouldAdd": "Se añadirían: {{ids}}",
+    "wouldAddNone": "Se añadirían: nada nuevo en servicio",
+    "discoveryStatus": {
+      "serving": "en servicio",
+      "unauthorized": "no autorizado",
+      "upstream_down": "proveedor caído",
+      "rate_limited": "limitado",
+      "not_chat": "no es de chat",
+      "error": "error"
+    },
+    "editModels": "Editar modelos",
+    "addModel": "Añadir",
+    "addModelPlaceholder": "Id del modelo, p. ej. deepseek-v4.1-flash",
+    "maxTokensLabel": "Tokens máximos de salida para {{id}}",
+    "maxTokensLabelShort": "Tokens máx.",
+    "removeModel": "Quitar {{id}}",
+    "saveModels": "Guardar modelos",
+    "duplicateModelId": "Los ids de modelo deben ser únicos y no vacíos.",
+    "otherDiscovered": "Otros modelos detectados (fuera de la lista)",
+    "prefillHint": "predeterminados: {{context}} ctx / {{maxTokens}} salida"
   },
   "status": {
     "connected": "Conectado",

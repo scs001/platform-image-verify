@@ -103,7 +103,30 @@
     "fieldEfforts": "Niveaux de réflexion (facultatif)",
     "effortsHint": "Niveaux acceptés par ce fournisseur, séparés par des virgules (par ex. low, medium, high). Laissez vide pour la valeur par défaut.",
     "thinkingLevel": "Niveau de réflexion",
-    "thinkingDefault": "Par défaut"
+    "thinkingDefault": "Par défaut",
+    "syncModels": "Synchroniser les modèles",
+    "syncDryRun": "Synchroniser les modèles (simulation)",
+    "syncSummary": "+{{added}} ajoutés · {{serving}} actifs · {{flagged}} signalés",
+    "wouldAdd": "Serait ajouté : {{ids}}",
+    "wouldAddNone": "Serait ajouté : rien de nouveau en service",
+    "discoveryStatus": {
+      "serving": "en service",
+      "unauthorized": "non autorisé",
+      "upstream_down": "amont indisponible",
+      "rate_limited": "limité",
+      "not_chat": "hors chat",
+      "error": "erreur"
+    },
+    "editModels": "Modifier les modèles",
+    "addModel": "Ajouter",
+    "addModelPlaceholder": "Id du modèle, ex. deepseek-v4.1-flash",
+    "maxTokensLabel": "Tokens maximaux de sortie pour {{id}}",
+    "maxTokensLabelShort": "Tokens max",
+    "removeModel": "Retirer {{id}}",
+    "saveModels": "Enregistrer les modèles",
+    "duplicateModelId": "Les ids de modèle doivent être uniques et non vides.",
+    "otherDiscovered": "Autres modèles détectés (hors liste)",
+    "prefillHint": "par défaut : {{context}} ctx / {{maxTokens}} sortie"
   },
   "status": {
     "connected": "Connecté",

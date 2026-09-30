@@ -22,6 +22,7 @@ import {
 import { ProviderCard } from "@/components/llm/ProviderCard";
 import { ProviderForm, type ProviderFormValue } from "@/components/llm/ProviderForm";
 import { showToast } from "@/components/Toast";
+import { useAuthStore } from "@/hooks/useAuth";
 import {
   listProviders,
   createProvider,
@@ -38,6 +39,13 @@ type FormState =
 
 export function ModelsPage() {
   const { t } = useTranslation();
+  // Admin-only actions (sync, model-list editing) mirror the server gate:
+  // hidden for non-admins when auth is on, shown to everyone when auth is off
+  // (the machine owner — the same semantics as ctx.requireAdmin).
+  const auth = useAuthStore();
+  const authOn = auth.mode !== null && auth.mode !== "none";
+  const adminGroups = auth.adminGroups ?? ["admin"];
+  const isAdmin = !authOn || Boolean(auth.groups?.some?.((g) => adminGroups.includes(g)));
   const [providers, setProviders] = useState<LlmProvider[]>([]);
   const [form, setForm] = useState<FormState>({ mode: "closed" });
   const [saving, setSaving] = useState(false);
@@ -150,6 +158,7 @@ export function ModelsPage() {
               <ProviderCard
                 key={p.id}
                 provider={p}
+                isAdmin={isAdmin}
                 onEdit={openEdit}
                 onDelete={setToDelete}
                 onModelsChanged={refresh}

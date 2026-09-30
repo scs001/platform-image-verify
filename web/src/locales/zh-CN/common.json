@@ -103,7 +103,30 @@
     "fieldEfforts": "思考级别（可选）",
     "effortsHint": "该提供方支持的级别，以逗号分隔，例如 low, medium, high。留空则使用提供方默认值。",
     "thinkingLevel": "思考级别",
-    "thinkingDefault": "默认"
+    "thinkingDefault": "默认",
+    "syncModels": "同步模型",
+    "syncDryRun": "同步模型（演练）",
+    "syncSummary": "新增 {{added}} · 服务中 {{serving}} · 异常 {{flagged}}",
+    "wouldAdd": "将新增：{{ids}}",
+    "wouldAddNone": "将新增：无新增服务中模型",
+    "discoveryStatus": {
+      "serving": "服务中",
+      "unauthorized": "未授权",
+      "upstream_down": "上游不可用",
+      "rate_limited": "限流",
+      "not_chat": "非对话模型",
+      "error": "错误"
+    },
+    "editModels": "编辑模型列表",
+    "addModel": "添加",
+    "addModelPlaceholder": "模型 id，如 deepseek-v4.1-flash",
+    "maxTokensLabel": "{{id}} 的最大输出 tokens",
+    "maxTokensLabelShort": "最大 tokens",
+    "removeModel": "移除 {{id}}",
+    "saveModels": "保存模型列表",
+    "duplicateModelId": "模型 id 必须唯一且非空。",
+    "otherDiscovered": "其他发现的模型（不在名册中）",
+    "prefillHint": "默认：上下文 {{context}} / 输出 {{maxTokens}}"
   },
   "status": {
     "connected": "已连接",

@@ -43,6 +43,7 @@ export function registerLlmRoutes(ctx) {
     try {
       const llmProviders = await import("../../llm-providers.js");
       // The env-generated Volces route is the reserved, always-present provider.
+      // Its discovery is never persisted (sync on it is dry-run only).
       const envProviders = process.env.LLM_API_KEY?.trim()
         ? [{
             id: "volces",
@@ -53,6 +54,7 @@ export function registerLlmRoutes(ctx) {
             reserved: true,
             models: ctx.dshModels.filter((m) => m.provider === "volces").map((m) => m.id),
             lastTest: null,
+            discovery: null,
           }]
         : [];
       res.json({ providers: [...envProviders, ...llmProviders.listUserProviders()] });
@@ -127,6 +129,28 @@ export function registerLlmRoutes(ctx) {
       res.json(result);
     } catch (err) {
       const status =
+        err?.code === "not_found" ? 404 :
+        err?.code === "invalid" ? 400 : 500;
+      res.status(status).json({ error: err.message, code: err?.code });
+    }
+  });
+
+  // Reconcile a provider's roster against its own gateway
+  // (add-llm-model-discovery). Classification runs before the write lock; the
+  // merge + the same hot-reload path run inside it, so a synced id reaches
+  // connected clients' pickers with no restart. The reserved env route
+  // ("volces") is a dry run: classification is returned, nothing is written.
+  // One long-lived request (33 ids ≈ 25–60s worst case) — an operator action,
+  // the UI shows a spinner.
+  app.post("/api/llm/providers/:id/sync", async (req, res) => {
+    if (!ctx.requireAdmin(req, res)) return;
+    try {
+      const llmProviders = await import("../../llm-providers.js");
+      const result = await llmProviders.syncProvider(req.params.id, { reload: reloadLlmProviders });
+      res.json(result);
+    } catch (err) {
+      const status =
+        err?.code === "busy" ? 409 :
         err?.code === "not_found" ? 404 :
         err?.code === "invalid" ? 400 : 500;
       res.status(status).json({ error: err.message, code: err?.code });

@@ -911,6 +911,34 @@ glm→免费池排序）、`getAvailableModels` 跨 provider 按 id 首现去重
 （本次只能 /data 直写 + 手动重投影）；id 形态双向漂移（前缀↔裸）证明静态名册
 必然腐烂，探针同步 + 名册可编辑是治本。
 
+### 模型发现同步上线实录（add-llm-model-discovery，2026-09-30 sha-6048f89/Jenkins #47）
+
+上次实录的「遗留」本次全部收口：`POST /api/llm/providers/:id/sync` 探活分类
+（并发4×1-token、六桶、限流/网络单重试）、serving 追加合并（家族元数据
+deepseek 32768+efforts / glm-5.3-flash 32768 / 默认 128k-8192）、死 id 只标记
+不驱逐、家族 rank 排序、`PUT …/providers/:id` 接 models 数组（运行时名册
+编辑，400 回滚）、Models 页同步按钮/编辑器/状态芯片（admin 门禁，五语言）。
+单测 18/18 + e2e 5/5（llm-model-sync.spec.js）。
+
+**部署管道**：TCR 主链路本次**断裂**——`yizuo/platform` 仓库未在个人版控制台
+建出（用集群 tcr-pull 凭证走 token dance 实测 `NAME_UNKNOWN`；GHA run 卡在
+Push image 近 1h 后手动取消；`default/platform` 存在但该凭证无权）。**下次
+走 TCR 前必须先在控制台建 `yizuo/platform`（广州）**。降级 Jenkins #47
+（Gitee `deploy/prod-snapshot` fast-forward 到 6048f89，generic-webhook
+token=`platform` 触发），冒烟过推 Harbor sha-6048f89；GitOps f3cd6e3（manifest
+维持 Harbor 路径未动）；ArgoCD refresh 后节点闪断（FailedScheduling + pod 重建），
+镜像经 mesh 拉取约 10 分钟，最终 1/1 Running。
+
+**生产同步（finddata-token）**：33 id 全分类，4 serving（全免费池：cohere/
+dots-studio/gemma-26b/ling-sante，后者自动合并 13→14，discovery 33 条落盘）。
+**deepseek 车道与 glm-5.3-flash 在 dev+prod 两把 token 上都 unauthorized**
+（"not supported by any configured account in this group"）——网关侧新挂的
+deepseek 账户没绑到平台 token 所在组，等绑定后一次 sync 即可回归（排序保
+deepseek 头部）；「≥13 serving」验收因此未达，属网关外部状态。**真实对话**：
+`PUT /api/llm/default` 只改指针不动运行中会话的活跃模型——首轮照打 dark
+deepseek（平台如实透传网关 404，错误路径端到端验证）；WS `set_model` 切
+cohere 车道后一轮回复「收到」；默认指针已恢复（恢复 PUT 偶发 503，重试即过）。
+
 ## Multi-tenant cloud deployment (gateway + cells)
 
 The single-process deployment above serves **one** shared runtime. The hosted

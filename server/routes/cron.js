@@ -46,7 +46,10 @@ export function registerCronRoutes(ctx) {
   });
 
   router.post("/:id/run", async (req, res) => {
-    res.json({ ok: await cron.runJobNow(req.params.id) });
+    // runJobNow returns the engine's enqueue result; ok=false with a message
+    // (paused/expired/queued-already) is a normal answer, not a server error.
+    const r = await cron.runJobNow(req.params.id);
+    res.json({ ok: r?.ok === true, ...(r?.state ? { state: r.state } : {}), ...(r?.error ? { message: r.error } : {}) });
   });
 
   router.delete("/:id", async (req, res) => {

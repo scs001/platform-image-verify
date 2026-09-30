@@ -58,7 +58,7 @@ export type Block =
   | { kind: "error"; message: string };
 
 export type Turn =
-  | { id: string; role: "user"; text: string }
+  | { id: string; role: "user"; text: string; taskSummary?: boolean }
   | {
       id: string;
       role: "assistant";
@@ -384,7 +384,14 @@ export const useChatStore = create<State>((set) => ({
       const turns = pre ? pre.turns : state.turns.slice();
       switch (m.type) {
         case "user":
-          turns.push({ id: nextId(), role: "user", text: m.text });
+          turns.push({
+            id: nextId(),
+            role: "user",
+            text: m.text,
+            // The delegation aggregator's summary turn arrives as a user echo
+            // with the taskSummary flag — clients style it task-authored.
+            ...(m.taskSummary ? { taskSummary: true } : {}),
+          });
           // A new prompt's echo ends any suppression from a prior stop, and
           // an accepted prompt proves the quota has recovered (fresh
           // connection or new budget) — carry the count when the server
@@ -594,7 +601,14 @@ export const useChatStore = create<State>((set) => ({
             currentSessionId: m.id,
             turns: (m.messages || []).map<Turn>((msg: ChatMessage) =>
               msg.role === "user"
-                ? { id: nextId(), role: "user", text: msg.content }
+                ? {
+                    id: nextId(),
+                    role: "user",
+                    text: msg.content,
+                    // The delegation aggregator's injected summaries carry a
+                    // leading task_summary block — keep the styling on reload.
+                    ...(msg.blocks?.[0]?.kind === "task_summary" ? { taskSummary: true } : {}),
+                  }
                 : {
                     id: nextId(),
                     role: "assistant",
@@ -616,7 +630,10 @@ export const useChatStore = create<State>((set) => ({
                                 state: b.state ?? ("done" as const),
                                 open: b.state === "error",
                               }
-                            : { kind: "text" as const, text: typeof b.text === "string" ? b.text : "" },
+                            : // task_summary markers (user-message injected turns)
+                              // and text blocks: keep the text, drop the marker —
+                              // the flag on the user turn carries the styling.
+                              { kind: "text" as const, text: b.kind === "text" ? b.text : "" },
                         )
                       : [{ kind: "text", text: msg.content }],
                     streaming: false,

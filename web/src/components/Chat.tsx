@@ -116,7 +116,8 @@ export function Chat({ send, onPrefill }: Props) {
                   {t.role === "user" ? (
                     <UserTurn
                       text={t.text}
-                      onEdit={isLastUser ? () => onPrefill(t.text) : undefined}
+                      taskSummary={t.taskSummary}
+                      onEdit={isLastUser && !t.taskSummary ? () => onPrefill(t.text) : undefined}
                     />
                   ) : (
                     <AssistantTurn

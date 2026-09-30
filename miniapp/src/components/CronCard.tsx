@@ -18,6 +18,7 @@ const STATUS_LABEL: Record<CronJob["status"], string> = {
   completed: "已完成",
   expired: "已过期",
   error: "错误",
+  manual: "委派",
 };
 
 export function CronCard({ block }: { block: Extract<Block, { kind: "tool" }> }) {

@@ -19,14 +19,30 @@ export interface TasksPageProps {
 type Freq = "daily" | "weekly" | "custom";
 type Mode = "recurring" | "once";
 
-const STATUS_STYLES: Record<CronJob["status"], string> = {
+const STATUS_STYLES: Record<string, string> = {
   scheduled: "bg-success/15 text-success",
   running: "bg-primary/15 text-primary",
   paused: "bg-muted text-muted-foreground",
   completed: "bg-muted text-muted-foreground",
   expired: "bg-warning/15 text-warning",
   error: "bg-destructive/15 text-destructive",
+  // Execution lifecycle (task-engine): live or needs-attention states win the
+  // badge over the schedule status; "done" falls back to the schedule badge.
+  queued: "bg-primary/15 text-primary",
+  failed: "bg-destructive/15 text-destructive",
+  interrupted: "bg-warning/15 text-warning",
 };
+
+// Badge precedence: paused is an explicit user action; a live or failed
+// execution outranks the schedule status; otherwise the schedule status
+// (scheduled/completed/expired) speaks.
+function badgeKey(job: CronJob): string {
+  if (job.paused) return "paused";
+  if (job.state === "queued" || job.state === "running" || job.state === "failed" || job.state === "interrupted") {
+    return job.state;
+  }
+  return job.status;
+}
 
 function TaskCard({
   job,
@@ -40,6 +56,8 @@ function TaskCard({
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
   const last = job.history.at(-1);
+  const badge = badgeKey(job);
+  const rerunnable = job.state === "failed" || job.state === "interrupted";
 
   return (
     <div
@@ -47,12 +65,19 @@ function TaskCard({
       data-testid="cron-job"
       data-job-id={job.id}
       data-job-status={job.status}
+      data-job-state={job.state ?? ""}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[job.status]}`}>
-              {job.paused ? t("tasks.status.paused") : t(`tasks.status.${job.status}`)}
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_STYLES[badge]}`}>
+              {t(`tasks.status.${badge}`)}
+            </span>
+            <span
+              className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+              data-testid="cron-job-trigger"
+            >
+              {t(`tasks.trigger.${job.trigger ?? "schedule"}`)}
             </span>
             <span className="text-sm font-medium" data-testid="cron-job-schedule">
               {describeJobSchedule(t, job, locale)}
@@ -61,8 +86,13 @@ function TaskCard({
           <p className="mt-2 line-clamp-2 text-sm text-foreground" data-testid="cron-job-prompt">
             {job.prompt}
           </p>
+          {(job.state === "failed" || job.state === "interrupted") && job.error ? (
+            <p className="mt-1 text-xs text-destructive" data-testid="cron-job-error">
+              {job.error}
+            </p>
+          ) : null}
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            {job.preset ? <span>{t("tasks.fields.agent")}: {job.preset}</span> : null}
+            {(job.target?.ref ?? job.preset) ? <span>{t("tasks.fields.agent")}: {job.target?.ref ?? job.preset}</span> : null}
             {job.nextRun ? (
               <span>
                 {t("tasks.fields.nextRun")}: {formatInJobTz(job.nextRun, job.tz, locale)}
@@ -94,9 +124,9 @@ function TaskCard({
           <button
             className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted"
             onClick={() => send({ type: "cron_run", jobId: job.id })}
-            data-testid="cron-job-run"
+            data-testid={rerunnable ? "cron-job-rerun" : "cron-job-run"}
           >
-            {t("tasks.actions.runNow")}
+            {rerunnable ? t("tasks.actions.rerun") : t("tasks.actions.runNow")}
           </button>
           <button
             className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted"

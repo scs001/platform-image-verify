@@ -4,6 +4,7 @@ import { WebSocketServer } from "ws";
 import http from "http";
 import path from "node:path";
 import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { randomUUID } from "node:crypto";
 import multer from "multer";
 import compression from "compression";
@@ -35,6 +36,10 @@ import { registerChatHistoryRoutes } from "./server/routes/chat-history.js";
 import { registerTraceRoutes } from "./server/routes/trace.js";
 import { registerUserBindingRoutes } from "./server/routes/user-bindings.js";
 import { registerCronRoutes } from "./server/routes/cron.js";
+import { registerDelegationRoutes } from "./server/routes/delegation.js";
+import { attachDelegationAggregator } from "./server/delegation-aggregator.js";
+import { attachWorkerPool } from "./server/worker-slots.js";
+import { attachMcBridge } from "./server/mc-bridge.js";
 import { registerMpRoutes } from "./server/routes/mp.js";
 import { registerRegistryRoutes } from "./server/routes/registry.js";
 import { registerFileRoutes } from "./server/routes/files.js";
@@ -50,6 +55,7 @@ import { attachDshEvents } from "./server/dsh-events.js";
 import { attachRuntimeBindings } from "./server/runtime-bindings.js";
 import { attachAgentSession, resolveBootWorkspace } from "./server/agent-session.js";
 import { attachWebSocket } from "./server/ws.js";
+import { matrixGate } from "./lib/dsh-matrix-verify.js";
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "localhost";
@@ -188,6 +194,8 @@ registerTraceRoutes(ctx);
 registerUserBindingRoutes(ctx);
 // Cron REST bridge (loopback MCP child; clients use the WS cron_* messages).
 registerCronRoutes(ctx);
+// Delegation REST bridge (loopback delegation MCP child; manual-trigger tasks).
+registerDelegationRoutes(ctx);
 // Mini-program identity endpoints (bindcode mint / login / login-bindcode /
 // unbind) — mounted with the other /api routes, before the static SPA fallback.
 registerMpRoutes(ctx);
@@ -490,6 +498,20 @@ async function initDshAgent() {
     agentPreset: ctx.currentPreset,
     env: dshChildEnv,
   });
+  // Worker-slot spawn inputs (worker-pool): workers are this exact construction
+  // with a different agentPreset and a worker-local event pump (design D1).
+  ctx.workerSpawnParams = {
+    provider,
+    model,
+    cwd: bootWorkspace.path,
+    mcpPatchPath,
+    skillsPatchPath,
+    presetsPatchPath,
+    permissionsPatchPath,
+    toolSearchPatchPath,
+    chartBindPatchPath,
+    env: dshChildEnv,
+  };
   await ctx.dshBridge.start();
   // Warm the preset roster cache so the ready sync can answer list_presets
   // without a second bridge round-trip (best-effort: empty roster on failure).
@@ -606,6 +628,31 @@ async function initDshAgent() {
 
 
 
+// ── dsh install-matrix boot gate (add-dsh-matrix-lock, ADR-0007) ─────────────
+// Runs BEFORE the port binds: a deployment whose installed dsh tree deviates
+// from the frozen matrix (dsh-matrix/package-lock.json) fails AT STARTUP with
+// a package-level diff, instead of mid-session with ERR_MODULE_NOT_FOUND. No
+// install root present (dev machines, e2e scratch homes) skips silently;
+// DSH_MATRIX_OVERRIDE=1 boots anyway with the report kept in the log.
+{
+  const matrixLock = process.env.DSH_MATRIX_LOCK
+    || path.resolve(path.dirname(fileURLToPath(import.meta.url)), "dsh-matrix/package-lock.json");
+  const matrixRoot = process.env.DSH_MATRIX_INSTALL_ROOT || "/opt/dsh";
+  const gate = matrixGate({ lockPath: matrixLock, installRoot: matrixRoot });
+  if (gate.action === "fail") {
+    console.error(gate.diff.report);
+    console.error(`[dsh-matrix] refusing to start — installed tree deviates from the frozen matrix (DSH_MATRIX_OVERRIDE=1 to force)`);
+    process.exit(1);
+  } else if (gate.action === "override") {
+    console.warn(`[dsh-matrix] DSH_MATRIX_OVERRIDE is set — booting despite deviations:`);
+    console.warn(gate.diff.report);
+  } else if (gate.action === "skip") {
+    console.log(`[dsh-matrix] no install root at ${matrixRoot} — skipping dsh tree verification`);
+  } else {
+    console.log(`[dsh-matrix] install tree matches frozen matrix (${matrixRoot})`);
+  }
+}
+
 // ── Start (listen-first) ─────────────────────────────────────────────────────
 // The port listens IMMEDIATELY: static assets, /api/ready and non-agent
 // endpoints answer while background init proceeds. Agent-dependent features
@@ -681,6 +728,17 @@ await Promise.all([
     isBusy: () => ctx.isStreaming,
   }),
 ]);
+// Delegation aggregator: hooks the engine AFTER initCron (init clears hook
+// subscribers) — finished manual fan-outs inject the summary turn back into
+// the initiating session; rearm covers groups a restart left pending.
+attachDelegationAggregator(ctx).rearm();
+// Worker pool (TASK_WORKER_MAX; 0 = inert, exactly today's serial semantics).
+// Attached after the engine so the slot dispatcher registers against the
+// initialized engine; ctx.workerPool feeds the aggregator's drain gate.
+ctx.workerPool = attachWorkerPool(ctx);
+// MC console bridge (mission-control-bridge): opt-in via env, outbound-only,
+// never boot-blocking. Inert without MC_BRIDGE=1 + MC_URL + MC_API_KEY.
+ctx.mcBridge = attachMcBridge(ctx);
 
 // Resource library: inject the WS broadcast and run the one-time chart seeding
 // pass. Deliberately AFTER runLegacyMigrations — on a fresh database the legacy
@@ -703,6 +761,7 @@ console.log("Platform fully initialized");
 
 async function shutdown() {
   cron.shutdown();
+  ctx.workerPool?.shutdown();
   bots.stopAll();
   catalog.stopCatalog();
   stopRegistryBridge();

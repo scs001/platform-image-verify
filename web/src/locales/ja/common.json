@@ -669,15 +669,20 @@
     "revoke": "取り消す"
   },
   "tasks": {
-    "title": "定期タスク",
-    "empty": "定期タスクはまだありません。スケジュールでプロンプトを実行するタスクを作成しましょう。",
+    "title": "タスク",
+    "empty": "タスクはまだありません。予定タスクを作成すると計画に従って実行されます。",
     "status": {
       "scheduled": "予約済み",
       "running": "実行中",
       "paused": "一時停止",
       "completed": "完了",
       "expired": "期限切れ",
-      "error": "エラー"
+      "error": "エラー",
+      "queued": "待機中",
+      "failed": "失敗",
+      "interrupted": "中断",
+      "manual": "委任",
+      "done": "完了"
     },
     "actions": {
       "pause": "一時停止",
@@ -685,7 +690,8 @@
       "runNow": "今すぐ実行",
       "delete": "削除",
       "deleteConfirm": "この定期タスクを削除しますか?",
-      "output": "出力"
+      "output": "出力",
+      "rerun": "再実行"
     },
     "fields": {
       "agent": "エージェント",
@@ -734,6 +740,17 @@
       "title": "定期タスク",
       "created": "チャットから作成されたタスク",
       "notFound": "タスク状態を取得できません。タスクページを開いてください。"
+    },
+    "trigger": {
+      "schedule": "定期",
+      "manual": "委任"
+    },
+    "card": {
+      "title": "タスクを委任",
+      "tokens": "{{count}} tokens"
+    },
+    "summary": {
+      "label": "タスク要約"
     }
   },
   "resources": {
@@ -867,7 +884,11 @@
       "agents": "エージェント",
       "requiresGroup": "グループ {{group}} が必要",
       "subscribe": "購読してインストール",
-      "gotoMine": "マイパックを見る"
+      "gotoMine": "マイパックを見る",
+      "deployTitle": "サービスとしてデプロイ",
+      "deployBtn": "デプロイ",
+      "deployOnline": "オンライン",
+      "deployEffective": "デプロイを送信しました。約 {{minutes}} 分で有効になります（runner のポーリング）。"
     },
     "report": {
       "title": "「{{name}}」のインストール結果",

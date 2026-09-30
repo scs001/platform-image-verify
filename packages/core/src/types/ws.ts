@@ -7,7 +7,7 @@
 // ── Server → client ─────────────────────────────────────────────────────────
 
 export type ServerMessage =
-  | { type: "user"; text: string; budgetLeft?: number }
+  | { type: "user"; text: string; budgetLeft?: number; taskSummary?: boolean }
   | { type: "agent_start" }
   | { type: "text"; delta: string }
   | { type: "thinking"; delta: string }
@@ -49,12 +49,12 @@ export type ServerMessage =
   | { type: "cron_jobs"; jobs: CronJob[] }
   | { type: "cron_status"; job: CronJob }
   | { type: "cron_removed"; id: string }
-  | { type: "cron_fired"; id: string; prompt: string }
-  | { type: "cron_completed"; id: string; success?: boolean; error?: string; completedAt?: string }
+  | { type: "cron_fired"; id: string; prompt: string; state?: string }
+  | { type: "cron_completed"; id: string; success?: boolean; state?: string; error?: string; completedAt?: string }
   | { type: "cron_added"; job: CronJob }
   | { type: "cron_paused"; jobId: string; success: boolean }
   | { type: "cron_resumed"; jobId: string; success: boolean }
-  | { type: "cron_run_started"; jobId: string; success: boolean }
+  | { type: "cron_run_started"; jobId: string; success: boolean; state?: string; already?: boolean; message?: string }
   // Rejected cron action (e.g. invalid cron expression in cron_add) — scoped
   // to the action so it can render in the owning view instead of a toast.
   | { type: "cron_error"; action: string; message: string }
@@ -125,7 +125,7 @@ export interface AgentInfo {
   name?: string;
   description?: string;  // purpose / capability summary
   icon?: string;         // lucide icon name (resolved via <Icon name={icon} />)
-  mode?: "chat" | "link";
+  mode?: "chat" | "link" | "a2a";
   model?: string;
   url?: string;
   tags?: string[];       // categorization badges
@@ -207,7 +207,9 @@ export interface SessionMeta {
 
 // Persisted block structure on assistant messages (chat history): the tool
 // evidence trail survives reload. Absent on rows written before this field
-// existed — clients fall back to plain content.
+// existed — clients fall back to plain content. On USER messages, a leading
+// `task_summary` block marks the delegation aggregator's injected summary
+// turn (task-authored, not a user bubble).
 export type PersistedBlock =
   | { kind: "text"; text: string }
   | {
@@ -217,6 +219,10 @@ export type PersistedBlock =
       args?: unknown;
       result?: unknown;
       state?: "done" | "error";
+    }
+  | {
+      kind: "task_summary";
+      tasks: { id: string; persona: string | null; state: string | null }[];
     };
 
 export interface ChatMessage {
@@ -262,16 +268,31 @@ export interface CronJobHistoryEntry {
   duration?: number;
   success: boolean | null;
   error?: string;
+  /** Execution outcome of this entry ("done" | "failed" | "interrupted"). */
+  state?: string;
+  /** Token usage the runtime reported on the finish chunk, when available. */
+  tokens?: { input?: number; output?: number; total?: number; [k: string]: unknown };
   /** Present on downtime markers: occurrences missed while the cell was down. */
   missed?: number;
 }
 
+/** Execution target of a task — "persona" today (the preset that runs it). */
+export interface CronJobTarget {
+  type: string;
+  /** Persona preset id (null = legacy record, runs under the live preset). */
+  ref: string | null;
+}
+
 export interface CronJob {
   id: string;
-  type: "recurring" | "once";
+  /** Trigger kind — "schedule" (cron/one-shot front-end) or "manual" (delegation). */
+  trigger: "schedule" | "manual";
+  type: "recurring" | "once" | "manual";
   cron: string | null;
   when: string | null;
   prompt: string;
+  /** Execution target. */
+  target: CronJobTarget;
   /** Persona preset the job runs under (null = legacy job, runs under the live preset). */
   preset: string | null;
   /** Dedicated session the job's output lands in. */
@@ -279,7 +300,15 @@ export interface CronJob {
   sessionTitle: string | null;
   /** IANA timezone the cron expression is evaluated in (null = cell-local). */
   tz: string | null;
-  status: "scheduled" | "running" | "paused" | "completed" | "expired" | "error";
+  status: "scheduled" | "running" | "paused" | "completed" | "expired" | "error" | "manual";
+  /** Execution lifecycle of the latest run (null = never ran). */
+  state: "queued" | "running" | "done" | "failed" | "interrupted" | null;
+  /** Error gist of the latest failed/interrupted execution. */
+  error: string | null;
+  /** Manual trigger: the session that delegated this task. */
+  initiator?: string | null;
+  /** Manual trigger: outcome already summarized into the initiator session. */
+  aggregated?: boolean;
   paused: boolean;
   createdAt: string;
   lastRun: string | null;

@@ -393,6 +393,50 @@ one turn at a time for the whole deployment (a second user prompting during
 another's turn gets the standard busy error), and the agent's filesystem view
 is still the shared workspace.
 
+### Task worker slots (TASK_WORKER_MAX) — worker-pool
+
+Persona-pinned on-demand runtimes that execute task-engine dispatches in
+parallel with the interactive chat (指挥层 phase ③). `0` (the default) is
+serial mode — exactly the pre-pool behavior, tasks queue on the interactive
+runtime behind live turns. `N>0` allows up to N worker runtimes; while a
+worker is available, tasks never touch the interactive runtime. Workers share
+the cell's composed profile (same home/patches/credentials), idle-reap after
+5 minutes, and pool-state changes broadcast as `worker_pool` events.
+
+fd-prod **keeps `TASK_WORKER_MAX=0`** until node capacity allows (the node's
+4GB OOM history — each worker is one more dsh child). The local/demo machine
+sets `TASK_WORKER_MAX=3` in `.env` for the parallel fan-out picture.
+
+### Mission Control console (MC bridge) — mission-control-bridge
+
+The 指挥层 operator console: a self-hosted [Mission Control](https://github.com/builderz-labs/mission-control)
+instance (alpha) that the operator's own and demo cells enroll into — **user
+cells never enroll** (needs user-consent semantics first). The cell-side
+bridge is outbound-only (register → poll queue → post results; no inbound
+port) and off unless `MC_BRIDGE=1` + `MC_URL` + `MC_API_KEY`.
+
+Instance placement (decision: tailnet-only, no public ingress):
+
+```bash
+# On a tailnet host (cheap-N), docker compose up Mission Control with a
+# persistent data dir and MC_ALLOWED_HOSTS set to the tailnet hostname.
+# Verify reachability from a cell: curl http://<tailnet-ip>:<port>/api/health
+```
+
+Console-task convention: `title` = target persona preset id, `description` =
+prompt. Unknown personas are reported failed with a structured error.
+
+**First-deployment checklist** (MC is alpha — re-verify the three pinned
+endpoints against the deployed version before enrolling cells):
+
+1. `POST /api/agents/register` accepts `{ name, role: "cell" }` with the
+   Bearer key from MC Settings.
+2. `GET /api/tasks/queue?agent=<name>` returns the pending tasks (shape:
+   `{ tasks: [...] }` or a bare array — the bridge accepts both).
+3. `POST /api/tasks/<id>/result` accepts `{ status, output, error, usage }`.
+4. Enroll one demo cell (`MC_BRIDGE=1 …`), dispatch one task from the
+   console, watch it run on the cell's /tasks and its result land in MC.
+
 ### Agent workspace (AGENT_WORKSPACE pin) — fix-agent-workspace
 
 The dsh runtime's `cwd` defaults to the process working directory (`/app`,

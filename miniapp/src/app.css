@@ -1928,6 +1928,37 @@ page {
   color: #dc2626;
 }
 
+/* 执行生命周期 chip(任务引擎):排队沿用主色,失败红,中断琥珀。 */
+.cron-chip-queued {
+  background: rgba(37, 99, 235, 0.12);
+  color: #2563eb;
+}
+
+.cron-chip-failed {
+  background: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+}
+
+.cron-chip-interrupted {
+  background: rgba(217, 119, 6, 0.14);
+  color: #b45309;
+}
+
+.cron-card-trigger {
+  padding: 2px 12px;
+  border-radius: 999px;
+  font-size: 20px;
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.cron-card-error {
+  display: block;
+  margin-top: 8px;
+  font-size: 22px;
+  color: #dc2626;
+}
+
 .cron-card-schedule {
   font-size: 26px;
   font-weight: 600;
@@ -2521,4 +2552,30 @@ page {
 .file-chip-saved {
   background: rgba(16, 185, 129, 0.12);
   color: #059669;
+}
+
+/* 委派任务卡片复用 blk-cron-card 形态(组件内同名类)。汇总注回 turn 的
+   任务署名样式(spec: agent-delegation-tools)——左对齐、描边,非用户气泡。 */
+.turn-task-summary {
+  align-self: stretch;
+  margin: 16px 0;
+  padding: 16px 20px;
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  background: #f3f4f6;
+}
+
+.turn-task-summary-label {
+  display: block;
+  font-size: 22px;
+  font-weight: 600;
+  color: #2563eb;
+  margin-bottom: 8px;
+}
+
+.turn-task-summary-text {
+  display: block;
+  font-size: 26px;
+  color: #374151;
+  white-space: pre-wrap;
 }

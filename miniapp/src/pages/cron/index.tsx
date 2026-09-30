@@ -28,7 +28,27 @@ const STATUS_LABEL: Record<CronJob["status"], string> = {
   completed: "已完成",
   expired: "已过期",
   error: "错误",
+  manual: "委派",
 };
+
+// 执行生命周期文案(任务引擎):排队中/运行中/失败/已中断优先于排程状态。
+const STATE_LABEL: Record<NonNullable<CronJob["state"]>, string> = {
+  queued: "排队中",
+  running: "运行中",
+  done: "成功",
+  failed: "失败",
+  interrupted: "已中断",
+};
+
+// 徽章优先级:暂停是显式动作;进行中/失败/中断的执行盖过排程状态;"成功"
+// 落回排程徽章(成功与否由"上次运行"一行表达)。
+function chipKey(job: CronJob): string {
+  if (job.paused) return "paused";
+  if (job.state === "queued" || job.state === "running" || job.state === "failed" || job.state === "interrupted") {
+    return job.state;
+  }
+  return job.status;
+}
 
 const WEEKDAY_LABELS = ["日", "一", "二", "三", "四", "五", "六"];
 
@@ -41,9 +61,14 @@ function lastRunText(job: CronJob): string {
 }
 
 function JobCard({ job, onView }: { job: CronJob; onView: (sessionId: string) => void }) {
+  const chip = chipKey(job);
+  const chipLabel =
+    chip === "paused" ? "已暂停" : STATE_LABEL[chip as NonNullable<CronJob["state"]>] ?? STATUS_LABEL[chip as CronJob["status"]];
+  const rerunnable = job.state === "failed" || job.state === "interrupted";
+
   const del = () => {
     Taro.showModal({
-      title: "删除定时任务",
+      title: "删除任务",
       content: "删除后不再运行,确定删除?",
       success: (r) => {
         if (r.confirm) wsSend({ type: "cron_remove", jobId: job.id });
@@ -52,16 +77,24 @@ function JobCard({ job, onView }: { job: CronJob; onView: (sessionId: string) =>
   };
 
   return (
-    <View className="cron-card" data-testid="mp-cron-job" data-job-id={job.id} data-job-status={job.status}>
+    <View
+      className="cron-card"
+      data-testid="mp-cron-job"
+      data-job-id={job.id}
+      data-job-status={job.status}
+      data-job-state={job.state ?? ""}
+    >
       <View className="cron-card-head">
-        <Text className={`cron-chip cron-chip-${job.paused ? "paused" : job.status}`}>
-          {job.paused ? "已暂停" : STATUS_LABEL[job.status]}
-        </Text>
+        <Text className={`cron-chip cron-chip-${chip}`}>{chipLabel}</Text>
+        <Text className="cron-card-trigger">定时</Text>
         <Text className="cron-card-schedule">{describeJobSchedule(job)}</Text>
       </View>
       <Text className="cron-card-prompt">{job.prompt}</Text>
+      {(job.state === "failed" || job.state === "interrupted") && job.error ? (
+        <Text className="cron-card-error">{job.error}</Text>
+      ) : null}
       <View className="cron-card-meta">
-        {job.preset ? <Text className="cron-card-meta-item">{job.preset}</Text> : null}
+        {(job.target?.ref ?? job.preset) ? <Text className="cron-card-meta-item">{job.target?.ref ?? job.preset}</Text> : null}
         {job.nextRun ? (
           <Text className="cron-card-meta-item">下次 {formatInJobTz(job.nextRun, job.tz)}</Text>
         ) : null}
@@ -76,9 +109,10 @@ function JobCard({ job, onView }: { job: CronJob; onView: (sessionId: string) =>
         ) : null}
         <Text
           className="cron-card-btn"
+          data-testid={rerunnable ? "mp-cron-job-rerun" : "mp-cron-job-run"}
           onClick={() => wsSend({ type: "cron_run", jobId: job.id })}
         >
-          立即运行
+          {rerunnable ? "重新运行" : "立即运行"}
         </Text>
         <Text
           className="cron-card-btn"

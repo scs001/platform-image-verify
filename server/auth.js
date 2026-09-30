@@ -77,6 +77,13 @@ const isInternalCronBridge = (req) =>
 const isInternalChartBridge = (req) =>
   req.path === "/api/resources/bind-declared" && isLoopback(req.socket?.remoteAddress);
 
+// The delegation bridge (openspec: add-agent-delegation-tools) — same
+// credential model as the cron bridge: the in-cell delegation MCP child drives
+// the task engine's manual path over /api/delegation. Loopback only; everyone
+// else still faces the full gate.
+const isInternalDelegationBridge = (req) =>
+  req.path.startsWith("/api/delegation/") && isLoopback(req.socket?.remoteAddress);
+
 // The header the gateway injects alongside the identity headers in hosted mode.
 export const GATEWAY_SECRET_HEADER = "x-cloud-gateway-secret";
 
@@ -127,6 +134,10 @@ export function registerAuth(ctx) {  ctx.app.use((req, res, next) => {
     }
     if (isInternalChartBridge(req)) {
       req.user = { email: "chart-bridge@internal", internal: true };
+      return next();
+    }
+    if (isInternalDelegationBridge(req)) {
+      req.user = { email: "delegation@internal", internal: true };
       return next();
     }
     const headerUser = userFromHeaders(req.headers, ctx.headerTrust);

@@ -50,15 +50,27 @@ export const useCronStore = create<CronState>((set) => ({
           const job = idx >= 0 ? state.jobs[idx] : null;
           if (!job) return {};
           const next = state.jobs.slice();
-          next[idx] = { ...job, status: "running" };
+          next[idx] = { ...job, status: "running", state: "running" };
           return { jobs: next };
         }
-        // Outcome transitions arrive as cron_status broadcasts; the ack
-        // variants only confirm the request was accepted.
+        case "cron_completed": {
+          // The execution outcome is authoritative here (state field); the
+          // full cron_status broadcast follows and reconciles everything else.
+          const idx = state.jobs.findIndex((j) => j.id === m.id);
+          const job = idx >= 0 ? state.jobs[idx] : null;
+          if (!job) return {};
+          const next = state.jobs.slice();
+          next[idx] = {
+            ...job,
+            state: (m.state as CronJob["state"]) ?? (m.success === false ? "failed" : job.state),
+          };
+          return { jobs: next };
+        }
+        // Acks that only confirm acceptance (pause/resume/run); state changes
+        // arrive as cron_status broadcasts.
         case "cron_paused":
         case "cron_resumed":
         case "cron_run_started":
-        case "cron_completed":
           return {};
         case "cron_error":
           return { lastError: { action: m.action, message: m.message } };

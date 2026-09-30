@@ -19,7 +19,9 @@ const PRESET_SWITCH_ATTEMPTS = 3;
 
 // Resolve when the live web turn finishes (ctx.isStreaming drops). The engine
 // queued this job; "skip because busy" is not an option, so busy means wait.
-function waitForIdle(ctx, timeoutMs) {
+// Exported for the delegation aggregator — the same never-overlap-a-live-turn
+// contract governs the summary injection.
+export function waitForIdle(ctx, timeoutMs) {
   return new Promise((resolve, reject) => {
     const deadline = Date.now() + timeoutMs;
     const tick = () => {
@@ -33,16 +35,19 @@ function waitForIdle(ctx, timeoutMs) {
 
 // Collect one turn's outcome for a non-live session, persisting it under that
 // session as it streams. Registered BEFORE prompt() so no early event is
-// missed; always unregistered. `activeTurns` is the runner's bridge-restart
-// abort registry (see attachCronRunner).
-function collectTurn(ctx, sessionId, timeoutMs, activeTurns) {
+// missed; always unregistered. `activeTurns` is the abort registry; the
+// optional `collectors` map defaults to the cell's shared registry — the
+// worker pool passes a worker-local map so worker events never reach the web
+// broadcast path. Exported for the delegation aggregator and the worker pool.
+export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors = ctx.sessionCollectors) {
   return new Promise((resolve, reject) => {
     let text = "";
     let error = null;
+    let usage = null;
     const toolBlocks = [];
     const settle = (fn, arg) => {
       clearTimeout(timer);
-      ctx.sessionCollectors.delete(sessionId);
+      collectors.delete(sessionId);
       activeTurns.delete(sessionId);
       fn(arg);
     };
@@ -50,12 +55,19 @@ function collectTurn(ctx, sessionId, timeoutMs, activeTurns) {
       () => settle(reject, new Error("turn timed out")),
       timeoutMs,
     );
-    activeTurns.set(sessionId, (reason) => settle(reject, new Error(reason)));
+    activeTurns.set(sessionId, (reason) => {
+      // A bridge abort (runtime restart mid-turn) is an interruption, not a
+      // failure: the engine marks the execution `interrupted` instead of
+      // `failed` so the UI offers re-run, not an error report.
+      const err = new Error(reason);
+      err.interrupted = true;
+      settle(reject, err);
+    });
 
-    ctx.sessionCollectors.set(sessionId, (notif) => {
+    collectors.set(sessionId, (notif) => {
       const { method, params } = notif;
       if (method === "session.status" && params.status === "idle") {
-        return settle(resolve, { text, error });
+        return settle(resolve, { text, error, usage });
       }
       if (method !== "session.event") return;
       const ev = params.event;
@@ -89,12 +101,13 @@ function collectTurn(ctx, sessionId, timeoutMs, activeTurns) {
             ? resultBlocks.filter((b) => b.type === "text").map((b) => b.text).join("") || null
             : null;
         }
-      } else if (
-        ev.type === "assistant/chunk" &&
-        ev.data?.chunk?.type === "finish" &&
-        ev.data.chunk.reason?.kind === "error"
-      ) {
-        error = ev.data.chunk.reason.failure?.message || "LLM request failed";
+      } else if (ev.type === "assistant/chunk" && ev.data?.chunk?.type === "finish") {
+        // Token spend when the runtime reports usage (absent on some
+        // providers); captured on every finish, error or not.
+        if (ev.data.chunk.usage) usage = ev.data.chunk.usage;
+        if (ev.data.chunk.reason?.kind === "error") {
+          error = ev.data.chunk.reason?.failure?.message || "LLM request failed";
+        }
       }
     });
   });
@@ -126,6 +139,10 @@ export function attachCronRunner(ctx) {
   // registry (the bridge captures the event handler by reference at
   // construction, so wrapping ctx.handleDshEvent here would never fire).
   const activeTurns = new Map(); // sessionId -> (reason) => void
+  // Exposed so the delegation aggregator's collector registers on the SAME
+  // abort registry — a bridge restart aborts every collected turn, not just
+  // scheduled ones.
+  ctx.taskTurnRegistry = activeTurns;
   ctx.abortCronTurns = (reason) => {
     for (const abort of activeTurns.values()) {
       try {
@@ -169,7 +186,7 @@ export function attachCronRunner(ctx) {
     } catch (e) {
       ctx.sessionCollectors.delete(sessionId);
       activeTurns.delete(sessionId);
-      return { ok: false, error: e.message };
+      return { ok: false, error: e.message, interrupted: e.interrupted === true };
     }
 
     // Refresh the sidebar/list so a returning client sees the job session's
@@ -186,6 +203,6 @@ export function attachCronRunner(ctx) {
       .catch((e) => console.error("[cron] sessions refresh failed:", e.message));
 
     if (result.error) return { ok: false, error: result.error };
-    return { ok: true };
+    return { ok: true, usage: result.usage ?? null };
   };
 }

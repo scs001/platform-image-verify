@@ -669,15 +669,20 @@
     "revoke": "Revoke"
   },
   "tasks": {
-    "title": "Scheduled Tasks",
-    "empty": "No scheduled tasks yet — create one to run a prompt on a schedule.",
+    "title": "Tasks",
+    "empty": "No tasks yet — create a scheduled task to run on a plan.",
     "status": {
       "scheduled": "Scheduled",
       "running": "Running",
       "paused": "Paused",
       "completed": "Completed",
       "expired": "Expired",
-      "error": "Error"
+      "error": "Error",
+      "queued": "Queued",
+      "failed": "Failed",
+      "interrupted": "Interrupted",
+      "manual": "Delegated",
+      "done": "Done"
     },
     "actions": {
       "pause": "Pause",
@@ -685,7 +690,8 @@
       "runNow": "Run now",
       "delete": "Delete",
       "deleteConfirm": "Delete this scheduled task?",
-      "output": "Output"
+      "output": "Output",
+      "rerun": "Re-run"
     },
     "fields": {
       "agent": "Agent",
@@ -734,6 +740,17 @@
       "title": "Scheduled task",
       "created": "Task created from chat",
       "notFound": "Job state unavailable — open the Tasks page."
+    },
+    "trigger": {
+      "schedule": "Scheduled",
+      "manual": "Delegated"
+    },
+    "card": {
+      "title": "Task delegated",
+      "tokens": "{{count}} tokens"
+    },
+    "summary": {
+      "label": "Task summary"
     }
   },
   "resources": {
@@ -867,7 +884,11 @@
       "agents": "Agents",
       "requiresGroup": "requires group {{group}}",
       "subscribe": "Subscribe & Install",
-      "gotoMine": "View my packs"
+      "gotoMine": "View my packs",
+      "deployTitle": "Deploy as service",
+      "deployBtn": "Deploy",
+      "deployOnline": "online",
+      "deployEffective": "Deployment submitted — effective within ~{{minutes}} min (runner polling)."
     },
     "report": {
       "title": "Install result for “{{name}}”",

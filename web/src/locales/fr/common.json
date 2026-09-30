@@ -669,15 +669,20 @@
     "revoke": "Révoquer"
   },
   "tasks": {
-    "title": "Tâches planifiées",
-    "empty": "Aucune tâche planifiée — créez-en une pour exécuter un message selon un horaire.",
+    "title": "Tâches",
+    "empty": "Aucune tâche pour l'instant — créez une tâche planifiée qui s'exécutera selon le plan.",
     "status": {
       "scheduled": "Planifiée",
       "running": "En cours",
       "paused": "En pause",
       "completed": "Terminée",
       "expired": "Expirée",
-      "error": "Erreur"
+      "error": "Erreur",
+      "queued": "En attente",
+      "failed": "Échec",
+      "interrupted": "Interrompue",
+      "manual": "Déléguée",
+      "done": "Terminée"
     },
     "actions": {
       "pause": "Pause",
@@ -685,7 +690,8 @@
       "runNow": "Exécuter",
       "delete": "Supprimer",
       "deleteConfirm": "Supprimer cette tâche planifiée ?",
-      "output": "Résultat"
+      "output": "Résultat",
+      "rerun": "Relancer"
     },
     "fields": {
       "agent": "Agent",
@@ -734,6 +740,17 @@
       "title": "Tâche planifiée",
       "created": "Tâche créée depuis le chat",
       "notFound": "État de la tâche indisponible — ouvrez la page Tâches."
+    },
+    "trigger": {
+      "schedule": "Planifiée",
+      "manual": "Déléguée"
+    },
+    "card": {
+      "title": "Tâche déléguée",
+      "tokens": "{{count}} tokens"
+    },
+    "summary": {
+      "label": "Résumé des tâches"
     }
   },
   "resources": {
@@ -867,7 +884,11 @@
       "agents": "Agents",
       "requiresGroup": "nécessite le groupe {{group}}",
       "subscribe": "S'abonner et installer",
-      "gotoMine": "Voir mes packs"
+      "gotoMine": "Voir mes packs",
+      "deployTitle": "Déployer en tant que service",
+      "deployBtn": "Déployer",
+      "deployOnline": "en ligne",
+      "deployEffective": "Déploiement envoyé — effectif sous ~{{minutes}} min (scrutation du runner)."
     },
     "report": {
       "title": "Résultat d'installation de « {{name}} »",

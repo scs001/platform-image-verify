@@ -669,15 +669,20 @@
     "revoke": "Revocar"
   },
   "tasks": {
-    "title": "Tareas programadas",
-    "empty": "Aún no hay tareas programadas: crea una para ejecutar un mensaje con horario.",
+    "title": "Tareas",
+    "empty": "Aún no hay tareas: crea una tarea programada y se ejecutará según el plan.",
     "status": {
       "scheduled": "Programada",
       "running": "Ejecutando",
       "paused": "En pausa",
       "completed": "Completada",
       "expired": "Caducada",
-      "error": "Error"
+      "error": "Error",
+      "queued": "En cola",
+      "failed": "Fallido",
+      "interrupted": "Interrumpido",
+      "manual": "Delegada",
+      "done": "Hecha"
     },
     "actions": {
       "pause": "Pausar",
@@ -685,7 +690,8 @@
       "runNow": "Ejecutar ahora",
       "delete": "Eliminar",
       "deleteConfirm": "¿Eliminar esta tarea programada?",
-      "output": "Resultado"
+      "output": "Resultado",
+      "rerun": "Reintentar"
     },
     "fields": {
       "agent": "Agente",
@@ -734,6 +740,17 @@
       "title": "Tarea programada",
       "created": "Tarea creada desde el chat",
       "notFound": "Estado de la tarea no disponible: abre la página de Tareas."
+    },
+    "trigger": {
+      "schedule": "Programada",
+      "manual": "Delegada"
+    },
+    "card": {
+      "title": "Tarea delegada",
+      "tokens": "{{count}} tokens"
+    },
+    "summary": {
+      "label": "Resumen de tareas"
     }
   },
   "resources": {
@@ -867,7 +884,11 @@
       "agents": "Agentes",
       "requiresGroup": "requiere el grupo {{group}}",
       "subscribe": "Suscribir e instalar",
-      "gotoMine": "Ver mis paquetes"
+      "gotoMine": "Ver mis paquetes",
+      "deployTitle": "Desplegar como servicio",
+      "deployBtn": "Desplegar",
+      "deployOnline": "en línea",
+      "deployEffective": "Despliegue enviado: surte efecto en ~{{minutes}} min (sondeo del runner)."
     },
     "report": {
       "title": "Resultado de instalación de «{{name}}»",

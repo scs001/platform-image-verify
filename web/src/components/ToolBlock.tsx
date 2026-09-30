@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { useChatStore, type Block } from "@platform/core";
 import { usePreviewStore } from "@/hooks/usePreviewStore";
 import { CronToolCard } from "@/components/CronToolCard";
+import { TaskCard } from "@/components/TaskCard";
 import { baseName, fileUrl, findFilePath, resolveRef } from "@/lib/file-preview";
 import { memo, useId } from "react";
 
@@ -45,6 +46,12 @@ function ToolBlockBase({ block, onToggle }: Props) {
   // list/pause/delete keep the generic block.
   if (name.endsWith("__cron_create")) {
     return <CronToolCard block={block} />;
+  }
+
+  // Delegated tasks render as live task cards (spec: agent-delegation-tools);
+  // progress/result keep the generic block.
+  if (name.endsWith("__delegate_task")) {
+    return <TaskCard block={block} />;
   }
 
   const openPreview = usePreviewStore((s) => s.open);

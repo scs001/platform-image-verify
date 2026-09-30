@@ -25,6 +25,7 @@ import {
 } from "@platform/core";
 import { Markdown } from "./Markdown";
 import { CronCard } from "./CronCard";
+import { DelegationCard } from "./DelegationCard";
 
 function ToolBlock({ block, onToggle }: { block: Extract<Block, { kind: "tool" }>; onToggle: () => void }) {
   const stateLabel = block.state === "running" ? "运行中" : block.state === "error" ? "失败" : "完成";
@@ -88,6 +89,10 @@ function BlockView({ block, streaming, onToggle }: { block: Block; streaming: bo
       // 其余工具保持通用折叠块。
       if (block.name.endsWith("__cron_create")) {
         return <CronCard block={block} />;
+      }
+      // 委派任务卡片(spec: agent-delegation-tools);progress/result 保持通用块。
+      if (block.name.endsWith("__delegate_task")) {
+        return <DelegationCard block={block} />;
       }
       return <ToolBlock block={block} onToggle={onToggle} />;
     case "skill":
@@ -181,6 +186,18 @@ export function TurnView({
   const toggleBlock = useChatStore((s) => s.toggleBlock);
 
   if (turn.role === "user") {
+    // 汇总注回(spec: agent-delegation-tools):任务系统注入的 turn,渲染为
+    // 任务署名样式,不是用户气泡。
+    if (turn.taskSummary) {
+      return (
+        <View className="turn turn-task-summary" data-testid="mp-task-summary">
+          <Text className="turn-task-summary-label">📋 任务汇总</Text>
+          <Text className="turn-task-summary-text" selectable userSelect>
+            {turn.text}
+          </Text>
+        </View>
+      );
+    }
     return (
       <View className="turn turn-user">
         <Text className="turn-user-text" selectable userSelect>

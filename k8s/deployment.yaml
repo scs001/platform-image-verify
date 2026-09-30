@@ -27,10 +27,14 @@
 # - Data lives on hostPath dirs (no PVC): /opt/platform → /data (SQLite +
 #   documents) and /opt/patch-dsh-home → /opt/dsh-home (dsh profile home).
 #
-# Image distribution: images are imported directly into cheap-5's containerd
-# (`k3s ctr images import`) — imagePullPolicy: IfNotPresent with a bare local
-# tag. The Harbor + ArgoCD pipeline will replace this flow; when it does,
-# switch the tag to harbor.local/... and restore imagePullSecrets.
+# Image distribution (documented design — the LIVE manifest lives in the
+# fd-infra-deploy GitOps repo, see DEPLOY.md): the canonical pipeline is
+# GitHub Actions → Tencent TCR personal registry
+# (.github/workflows/image-tcr.yml → ccr.ccs.tencentyun.com/default/platform),
+# pulled with the per-namespace tcr-pull imagePullSecret (the harbor-pull
+# pattern). The internal-Harbor path via Jenkins remains the fallback; both
+# pipelines tag images sha-<7> of the built revision, so the GitOps manifest
+# can reference either registry's tag interchangeably.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -57,11 +61,18 @@ spec:
       hostNetwork: true
       # Let hostNetwork pods still resolve cluster-internal names.
       dnsPolicy: ClusterFirstWithHostNet
+      # TCR pull credentials (see DEPLOY.md → Image pipeline):
+      #   kubectl -n <ns> create secret docker-registry tcr-pull \
+      #     --docker-server=ccr.ccs.tencentyun.com \
+      #     --docker-username=<acct> --docker-password=<tcr password>
+      imagePullSecrets:
+        - name: tcr-pull
       containers:
         - name: platform
-          # Bare local tag: imported into cheap-5 containerd, not pulled.
-          # Bump the tag on every image rebuild (import + set image).
-          image: platform:llm2
+          # Canonical pipeline tag (GitHub Actions → TCR). Bump on every
+          # rebuild; the Jenkins → internal-Harbor fallback's sha-<7> tags are
+          # interchangeable here.
+          image: ccr.ccs.tencentyun.com/default/platform:sha-0000000
           imagePullPolicy: IfNotPresent
           env:
             - name: NODE_ENV

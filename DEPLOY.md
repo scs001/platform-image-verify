@@ -1,14 +1,19 @@
-# Deployment — Docker, Harbor, ArgoCD
+# Deployment — Docker, TCR, ArgoCD
 
 Platform ships as a **single-process container**: the supervisor (`scripts/start.js` → `local-services.js`) spawns `server.js`, which in turn runs the dsh agent as its child — exactly like `npm start`. One image, one process tree, one data volume.
 
 ```
-GitHub push ──► docker-deploy.yml ──► build image ──► push to Harbor
-                                          │
-                                          └─► commit sha tag into k8s/deployment.yaml
+GitHub push ──► image-tcr.yml ──► build + smoke ──► push to TCR (ccr.ccs.tencentyun.com)
+                                       │
+                                       └─► run summary prints the sha-<7> tag ──► hand commit into
+                                              fd-infra-deploy/all-services/prod/platform.yaml
                                                   │
-                                                  └─► ArgoCD auto-sync ──► k3s rollout
+                                                  └─► ArgoCD all-services-prod ──► k3s rollout (pulls from TCR)
 ```
+
+Fallback pipeline (kept alive): Jenkins (`deploy/prod-snapshot` on Gitee) builds + pushes the
+same `sha-<7>` tag to the internal Harbor (`100.64.0.8:30880/paas_private/platform`) — a GitOps
+commit can point at either registry's image interchangeably.
 
 ---
 
@@ -20,7 +25,8 @@ GitHub push ──► docker-deploy.yml ──► build image ──► push to 
 | `.dockerignore` | repo root | Excludes the built `resources/node` payload and any leftover `resources/**/*.tar.*` archives so a host's mac/win binaries never leak into the Linux image — the image builds its own Linux payload. Also excludes secrets (`.env*`, `mcp.json`) and dev-only trees (`electron`, `openspec`, `e2e`, the local store dirs). |
 | `k8s/` | `service.yaml`, `deployment.yaml` | Plain manifests (no Helm). Deployment = 1 replica, Recreate strategy (single stateful agent). |
 | `argocd/application.yaml` | ArgoCD Application CR | Watches `k8s/` in this repo, auto-sync prune+selfHeal, `CreateNamespace=true`, in-cluster destination (`https://kubernetes.default.svc`). |
-| `.github/workflows/docker-deploy.yml` | CI | Builds + pushes to Harbor (insecure HTTP), then commit-backs the new `sha-<short>` tag into `k8s/deployment.yaml` (GitOps). |
+| `.github/workflows/image-tcr.yml` | CI (primary pipeline) | Builds the image on a GitHub runner, smoke-tests `/api/config`, pushes `sha-<7>` + `latest` to the Tencent personal registry `ccr.ccs.tencentyun.com/default/platform`. |
+| `Jenkinsfile` | CI (fallback pipeline) | Same build + smoke against the internal Harbor from the `deploy/prod-snapshot` branch on Gitee. |
 | `Makefile` | repo root | `make build/run/logs/k8s-apply/k8s-deploy/argocd-sync` shortcuts. |
 
 **Why a `harbor-pull` imagePullSecret?** The k3s containerd mirror (`/etc/rancher/k3s/registries.yaml` on the node) resolves `harbor.local` → `http://localhost:30880` (`insecure_skip_verify: true`) and *does* carry an `auth` block. **However, containerd does not honor the `auth` block for mirrored endpoints** — it keys credentials by endpoint host (`localhost:30880`), not the mirror name (`harbor.local`), so the auth is never sent and pulls return `401 Unauthorized`. Every other `harbor.local` deployment in this cluster (lawcraw, law-bench, review-agent) works around this with a per-namespace `kubernetes.io/dockerconfigjson` secret named `harbor-pull`. We follow the same pattern. CI pushes to the external `23.144.68.246:30880` address — same registry, two names.
@@ -29,7 +35,11 @@ GitHub push ──► docker-deploy.yml ──► build image ──► push to 
 
 ## Prerequisites (one-time)
 
-### 1. Harbor project + robot account (for the image push)
+### 1. Harbor project + robot account (for the FALLBACK image push via Jenkins)
+
+The canonical pipeline (GitHub Actions → TCR) needs no Harbor setup — its two
+GitHub Secrets are documented in step 1 of "Cluster deployment" below. Everything
+in this prerequisites section exists to keep the Jenkins/Harbor fallback alive.
 
 The registry actually used in production is the **internal** Harbor
 `100.64.0.8:30880` (the America Harbor `23.144.68.246:30880` this section originally
@@ -137,7 +147,60 @@ build + push the image, then commit its tag there. The `k8s/` and `argocd/` dire
 *this* repo are the pre-k3s Bootstrap layout and are no longer what `fd-prod` reconciles
 (section 3/4 below is kept for that older host only).
 
-### 1. Build + push the image — Jenkins (canonical)
+### 1. Build + push the image — GitHub Actions → TCR (canonical)
+
+`.github/workflows/image-tcr.yml` builds on a GitHub runner and pushes to the Tencent
+personal registry the cluster pulls from:
+
+- **Trigger**: push to `main` (auto), or Actions → image-tcr → Run workflow (manual).
+  A concurrency group cancels superseded runs.
+- **Build**: `docker/build-push-action@v6` with `type=gha` layer cache; the Dockerfile is
+  self-contained (`web/dist` is built inside; `.dockerignore` excludes any host copy) and
+  needs no build args on a runner — `BASE_IMAGE` stays at its docker.io default.
+- **Smoke gate**: the image is booted and probed (`/api/config`, 200s ceiling, early-exit
+  detection) BEFORE any push — an image that does not run never reaches the registry.
+- **Push**: `ccr.ccs.tencentyun.com/default/platform:sha-<7>` + `:latest`. The `sha-<7>`
+  rule is identical to the Jenkins pipeline's, so both registries' tags are
+  interchangeable in the GitOps manifest.
+- **Secrets** (Settings → Secrets → Actions, create once): `TCR_USER` = the personal
+  registry login username (`100035884308`), `TCR_PASS` = the password set in the TCR
+  console (容器镜像服务 → 个人版 → 访问凭证). If the first push fails with
+  *repository not found*, create the private repo `platform` under the `default`
+  namespace in the TCR console — personal edition does not auto-create repos from CI.
+
+**Cluster-side one-time wiring (pull from TCR)** — the `harbor-pull` per-namespace
+dockerconfigjson pattern, pointed at the public registry:
+
+```bash
+# 0. Verify a node can egress to the registry (expect HTTP 401 — reachable + auth-gated):
+kubectl --context cheap -n fd-prod run tcr-probe --rm -i --restart=Never --image=curlimages/curl -- \
+  curl -s -o /dev/null -w '%{http_code}\n' https://ccr.ccs.tencentyun.com/v2/
+# 1. Pull secret (same credentials as TCR_PASS):
+kubectl --context cheap -n fd-prod create secret docker-registry tcr-pull \
+  --docker-server=ccr.ccs.tencentyun.com \
+  --docker-username=100035884308 --docker-password='<TCR密码>'
+# 2. In fd-infra-deploy/all-services/prod/platform.yaml (once):
+#    image: ccr.ccs.tencentyun.com/default/platform:sha-<7>
+#    imagePullSecrets: [{ name: tcr-pull }]
+```
+
+**Every deploy after that** is the same two moves as always: copy the `sha-<7>` tag from
+the workflow run's summary, commit it into `fd-infra-deploy/all-services/prod/platform.yaml`,
+and let ArgoCD roll it:
+
+```bash
+kubectl --context cheap -n fd-prod rollout status deploy/platform
+```
+
+**Rollback**: revert the GitOps tag commit. The previous image is still on the node
+(`imagePullPolicy: IfNotPresent`) and every older tag remains in TCR — or point the
+manifest back at the internal Harbor image of the same sha (the fallback pipeline below).
+
+### 1b. Fallback: build + push via Jenkins (internal Harbor)
+
+The Jenkins path stays fully functional as the backup pipeline — use it when GitHub
+Actions or the Tencent registry is unavailable, or to ship a fix from a branch that is
+not on GitHub. Same smoke gate, same tag rule.
 
 The `platform` job on the in-cluster Jenkins (`http://103.236.89.212:31000`, NodePort
 `31000` in namespace `jenkins`) runs this repo's `Jenkinsfile`:
@@ -224,7 +287,12 @@ It pushes the same `sha-<7>` + `latest` tags, so step 2 above is unchanged.
 
 ### Superseded: the GitHub-Actions packaging path (retired 2026-09-29)
 
-Web/image packaging belongs to Jenkins (and the fallback above). The old
+> **2026-09-30 update**: GitHub Actions is back as the CANONICAL image pipeline —
+> but over the Tencent TCR personal registry (`image-tcr.yml`, see step 1 above),
+> not the unreachable America-Harbor topology described below. The notes stay
+> because they are hard-won and nowhere else.
+
+Web/image packaging belonged to Jenkins (and the fallback above). The old
 `.github/workflows/docker-deploy.yml` — GitHub runner → America Harbor → chengsi
 bridge → blue/green on cheap-2 — is deleted; its working notes are kept here
 because they are hard-won and nowhere else:

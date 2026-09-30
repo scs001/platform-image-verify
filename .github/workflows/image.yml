@@ -1,0 +1,119 @@
+# Container image publish — GitHub Actions → Tencent TCR personal edition.
+# Standard channel per openspec tcr-image-pipeline (2026-10-01 org directive):
+# GH(US) pushes to hkccr (Hong Kong, ~11.6MB/s), cheap-3's tcr-relay re-syncs
+# hkccr → ccr (Guangzhou) every 5 min (skopeo, digest-stable), nodes pull from
+# ccr.ccs.tencentyun.com with node-level registries.yaml auth (no
+# imagePullSecret needed). Replaces this repo's 2026-09-30 image-tcr.yml,
+# which pushed GH→ccr directly over the 0.14MB/s leg (30-90min uploads).
+# Jenkins→Harbor remains the fallback channel.
+#
+# Divergence from the org template (fd-proxy-service), kept deliberately:
+# the smoke gate — build (load, no push) → boot the image and probe
+# /api/config → only then push. It caught a real phantom dependency
+# (js-yaml, 2026-09-30) before the image ever reached the registry.
+#
+# Secrets: TCR_USERNAME / TCR_PASSWORD (org convention; NOT this repo's older
+# TCR_USER/TCR_PASS, which are now unused).
+#
+# ccr-side availability lags hkccr by ≤5 min (relay). GitOps rolls should
+# reference the ccr prefix and wait for the relay; hkccr references only from
+# hosts with direct hk reachability.
+name: image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  REGISTRY: hkccr.ccs.tencentyun.com
+  NAMESPACE: yizuo
+  IMAGE_NAME: platform
+  DOCKERFILE: Dockerfile
+  # The tag GitOps manifests reference (after the relay lands it on ccr).
+  CCR_IMAGE: ccr.ccs.tencentyun.com/yizuo/platform
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    # Cold builds exceeded 90m before the gha cache had its first success;
+    # 240m lets the first success break the cache deadlock.
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.TCR_USERNAME }}
+          password: ${{ secrets.TCR_PASSWORD }}
+
+      - id: tag
+        run: echo "tag=sha-$(echo "${{ github.sha }}" | cut -c1-7)" >> "$GITHUB_OUTPUT"
+
+      # Build WITHOUT pushing: the smoke gate below decides whether this
+      # image is allowed to exist in the registry.
+      - name: Build image (load, no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          platforms: linux/amd64
+          push: false
+          load: true
+          provenance: false
+          tags: ${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }},${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:main
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Boot the image before pushing (the Jenkins-era rule; see image-tcr
+      # history for the two build-ok-boot-dead incidents it exists for).
+      - name: Smoke test (/api/config)
+        run: |
+          set -e
+          TAG="${{ steps.tag.outputs.tag }}"
+          docker rm -f platform-smoke >/dev/null 2>&1 || true
+          docker run -d --name platform-smoke \
+            -e AUTH_MODE=none -e PORT=3000 -e HOST=0.0.0.0 \
+            -e PLATFORM_DATA_DIR=/data -e NODE_ENV=production \
+            "${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:$TAG" >/dev/null
+          ok=0
+          for i in $(seq 1 40); do
+            sleep 5
+            if docker exec platform-smoke curl -fsS -m 5 http://127.0.0.1:3000/api/config >/dev/null 2>&1; then
+              ok=1; echo "smoke: /api/config healthy after ~$((i*5))s"; break
+            fi
+            if [ "$(docker inspect -f '{{.State.Running}}' platform-smoke 2>/dev/null)" != "true" ]; then
+              echo "smoke: container exited after ~$((i*5))s"; break
+            fi
+          done
+          if [ "$ok" != "1" ]; then
+            echo "SMOKE TEST FAILED — image does not serve /api/config; logs follow"
+            docker logs platform-smoke 2>&1 | tail -40
+            exit 1
+          fi
+
+      - name: Push image
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          docker push "${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:$TAG"
+          docker push "${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:main"
+
+      - name: Summarize
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          {
+            echo "## image → hkccr"
+            echo "Pushed \`${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:${TAG}\` (+ :main)"
+            echo ""
+            echo "Deploy: relay lands it on ccr within ≤5 min; then set \`${{ env.CCR_IMAGE }}:${TAG}\` in fd-infra-deploy/all-services/prod/platform.yaml (see DEPLOY.md → Image pipeline)."
+          } >> "$GITHUB_STEP_SUMMARY"

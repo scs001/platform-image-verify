@@ -39,3 +39,19 @@ The server SHALL expose `POST /api/llm/providers/:id/sync` (admin-gated) which r
 - **THEN** the merged entry SHALL carry the table's contextWindow/maxTokens/reasoningEfforts
 - **AND** an unknown family SHALL get conservative defaults (128k context, 8192 maxTokens, no reasoning efforts)
 - **AND** sync SHALL NOT alter metadata fields of entries already present in the roster
+
+### Requirement: Provider model list is editable at runtime
+
+`PUT /api/llm/providers/:id` SHALL accept a `models` array replacing the provider's roster: entries carry `id` plus optional `name`/`contextWindow`/`maxTokens` (absent fields fall back to the family table, then conservative defaults). The mutation SHALL validate ids are unique non-empty strings, run through the same write lock + hot-reload path as other provider edits, and take effect without a restart or image rebuild. The Models page SHALL expose a per-provider model-list editor (add id, remove entry, set default pointer) restricted to admin users.
+
+#### Scenario: operator adds a model without a rebuild
+
+- **WHEN** an admin PUTs a provider record whose `models` array contains a new id
+- **THEN** the stored roster SHALL include it with family-table or provided metadata
+- **AND** the models WS broadcast SHALL refresh connected clients' pickers without a dsh restart
+- **AND** no image build, config-map change, or pod intervention SHALL be required
+
+#### Scenario: invalid models payload rejected
+
+- **WHEN** the `models` payload has duplicate ids, empty ids, or a non-array
+- **THEN** the server SHALL respond HTTP 400 and leave the stored roster unchanged

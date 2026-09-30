@@ -822,6 +822,27 @@ add-persona-resource-sets 的只读角色徽标，不提供自建预设管理页
 报告属主。探针已并入：自建预设作为聚焦角色逐预设输出（服务/工具数、
 token delta 走 `--turn-trace`）。
 
+### 模型名册探活刷新上线实录（refresh-llm-model-roster，2026-09-30 sha-8e235ce/Jenkins #46）
+
+背景：`GET /v1/models` 是「认识的 id」而非「能服务的 id」——33 个 id 逐一 1-token
+实测仅 13 个在服务，且当日网关把 deepseek 账户组从前缀 id
+（`deepseek/deepseek-v4.1-flash`，约定默认道）切回裸 id（`deepseek-v4.1-flash`），
+两个方向各复测 ×2 证实。**双轨落地**：①代码轨——VOLCES_MODELS 22→13（deepseek→
+glm→免费池排序）、`getAvailableModels` 跨 provider 按 id 首现去重（下拉 React key
+冲突）、e2e FROZEN/断言更新（6/6 绿），Jenkins #46 构建 + GitOps 48e0314 滚动
+（镜像 sha-8e235ce + `DEFAULT_MODEL` 改裸 id 一次提交）；②数据轨（等构建期间
+先行恢复服务）——pod 上备份 `/data/*.bak-2026-09-30` 后直写 13 条名册 + 裸 id
+默认指针，`kubectl exec` 内跑 `node --input-type=module -e 'import("/app/dsh-profile.js")'`
+调 `writeLlmProfile()` 重投影 settings.yaml（dsh Chokidar 热载，零停机）。
+**验证**：settings.yaml 26 模型裸 deepseek 头、活 ConfigMap 与 pod env `DEFAULT_MODEL`
+均为裸 id、32080 中继对裸 id 回 "ok"、站点 /api/ready 200；dev 隔离 boot 同代码
+同数据 WS 聊天回复「收到」。**坑**：`kubectl cp` 对该 pod 持续 NotFound 而 exec
+正常——用 `exec + base64 -d` 直写绕过；ArgoCD refresh 后 `rollout status` 会在旧
+状态上立刻返回成功，需轮询新 pod 名出现。**遗留（add-llm-model-discovery）**：
+`PUT /api/llm/providers/:id` 不接受 models 数组，后台 UI 无法改 provider 模型列表
+（本次只能 /data 直写 + 手动重投影）；id 形态双向漂移（前缀↔裸）证明静态名册
+必然腐烂，探针同步 + 名册可编辑是治本。
+
 ## Multi-tenant cloud deployment (gateway + cells)
 
 The single-process deployment above serves **one** shared runtime. The hosted

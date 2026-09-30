@@ -12,11 +12,13 @@ Design: see design.md (D1–D8). Tasks assume `refresh-llm-model-roster` has lan
 ## 2. REST route (server/routes/llm.js)
 
 - [ ] 2.1 Add `POST /api/llm/providers/:id/sync` — admin-gated (`ctx.requireAdmin`), calls `syncProvider`, then the existing `reloadLlmProviders()` hot-reload (models WS broadcast included), maps `busy`→409. Verify: dev server + curl with admin session; second concurrent sync gets 409; `GET /api/llm/providers` shows the `discovery` map and no apiKey.
-- [ ] 2.2 Extend `GET /api/llm/providers` + `clientRecord()` to include the `discovery` status map. Verify no key material leaks (grep the response).
+- [ ] 2.2 Extend `PUT /api/llm/providers/:id` to accept a `models` array (replace roster; unique non-empty ids; absent fields fall back to family table then defaults; 400 on invalid). `updateProvider` merges + validates, then the same hot-reload path — no restart. Verify: add/remove an id via curl, dropdown updates live; invalid payload → 400 with roster unchanged.
+- [ ] 2.3 Extend `GET /api/llm/providers` + `clientRecord()` to include the `discovery` status map. Verify no key material leaks (grep the response).
 
 ## 3. Models page UI (web/src/components/llm/*)
 
 - [ ] 3.1 Sync button on ProviderCard (admin only): spinner + result summary toast (`+N added · M serving · K flagged`), refreshes the provider list on completion. Verify by syncing against the live finddata provider in dev (expect: 13 serving + mimo upstream_down ×6 + glm-5.x unauthorized + others error per current gateway state).
+- [ ] 3.1b Per-provider model-list editor (admin only): rows of current models with remove buttons, an add-id input (metadata auto-filled from family table, editable maxTokens), save → PUT. Verify: add an id in the UI, chat picker shows it without restart; remove restores prior state.
 - [ ] 3.2 Status chips per model id in the provider card: serving (green), unauthorized/upstream_down/rate_limited/not_chat/error (muted with tooltip = sanitized message + probedAt). Roster entries whose status ≠ serving render flagged, non-serving suggestions render visible-but-not-selectable. Verify visual pass + WXML/React a11y labels.
 - [ ] 3.3 Reserved volces card: sync button labeled dry-run, result shown read-only ("would add: …"). Verify against dev env route.
 

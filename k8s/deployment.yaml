@@ -31,7 +31,7 @@
 # fd-infra-deploy GitOps repo, see DEPLOY.md): the canonical pipeline is
 # GitHub Actions → Tencent TCR personal registry
 # (.github/workflows/image-tcr.yml → ccr.ccs.tencentyun.com/yizuo/platform),
-# pulled with the per-namespace tcr-pull imagePullSecret (the harbor-pull
+# pulled with node-level registries.yaml auth (no TCR imagePullSecret; the harbor-pull
 # pattern). The internal-Harbor path via Jenkins remains the fallback; both
 # pipelines tag images sha-<7> of the built revision, so the GitOps manifest
 # can reference either registry's tag interchangeably.
@@ -61,12 +61,12 @@ spec:
       hostNetwork: true
       # Let hostNetwork pods still resolve cluster-internal names.
       dnsPolicy: ClusterFirstWithHostNet
-      # TCR pull credentials (see DEPLOY.md → Image pipeline):
-      #   kubectl -n <ns> create secret docker-registry tcr-pull \
-      #     --docker-server=ccr.ccs.tencentyun.com \
-      #     --docker-username=<acct> --docker-password=<tcr password>
+      # TCR pulls ride node-level registries.yaml auth (org rollout
+      # 2026-09-30) — no TCR imagePullSecret; harbor-finddata-pull below is
+      # the Harbor fallback channel's credential (see DEPLOY.md → Image
+      # pipeline).
       imagePullSecrets:
-        - name: tcr-pull
+        - name: harbor-finddata-pull
       containers:
         - name: platform
           # Canonical pipeline tag (GitHub Actions → TCR). Bump on every

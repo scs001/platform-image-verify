@@ -3,12 +3,13 @@
 Platform ships as a **single-process container**: the supervisor (`scripts/start.js` → `local-services.js`) spawns `server.js`, which in turn runs the dsh agent as its child — exactly like `npm start`. One image, one process tree, one data volume.
 
 ```
-GitHub push ──► image-tcr.yml ──► build + smoke ──► push to TCR (ccr.ccs.tencentyun.com)
+GitHub push ──► image.yml ──► build + smoke ──► push hkccr (HK, ~11.6MB/s)
                                        │
-                                       └─► run summary prints the sha-<7> tag ──► hand commit into
-                                              fd-infra-deploy/all-services/prod/platform.yaml
+                                       └─► cheap-3 tcr-relay (≤5min, skopeo) ──► ccr (Guangzhou)
                                                   │
-                                                  └─► ArgoCD all-services-prod ──► k3s rollout (pulls from TCR)
+                                                  └─► hand-commit the sha-<7> tag into fd-infra-deploy
+                                                         → ArgoCD all-services-prod ──► k3s rollout
+                                                           (nodes pull from ccr with node-level auth)
 ```
 
 Fallback pipeline (kept alive): Jenkins (`deploy/prod-snapshot` on Gitee) builds + pushes the
@@ -25,7 +26,7 @@ commit can point at either registry's image interchangeably.
 | `.dockerignore` | repo root | Excludes the built `resources/node` payload and any leftover `resources/**/*.tar.*` archives so a host's mac/win binaries never leak into the Linux image — the image builds its own Linux payload. Also excludes secrets (`.env*`, `mcp.json`) and dev-only trees (`electron`, `openspec`, `e2e`, the local store dirs). |
 | `k8s/` | `service.yaml`, `deployment.yaml` | Plain manifests (no Helm). Deployment = 1 replica, Recreate strategy (single stateful agent). |
 | `argocd/application.yaml` | ArgoCD Application CR | Watches `k8s/` in this repo, auto-sync prune+selfHeal, `CreateNamespace=true`, in-cluster destination (`https://kubernetes.default.svc`). |
-| `.github/workflows/image-tcr.yml` | CI (primary pipeline) | Builds the image on a GitHub runner, smoke-tests `/api/config`, pushes `sha-<7>` + `latest` to the Tencent personal registry `ccr.ccs.tencentyun.com/yizuo/platform`. |
+| `.github/workflows/image.yml` | CI (primary pipeline, org-standard tcr-image-pipeline) | Builds on a GitHub runner, smoke-tests `/api/config`, pushes `sha-<7>` + `main` to **hkccr** (Hong Kong TCR); cheap-3's tcr-relay cron re-syncs it to **ccr** (Guangzhou) ≤5 min, digest-stable. Nodes pull from ccr with node-level registries.yaml auth — no imagePullSecret. |
 | `Jenkinsfile` | CI (fallback pipeline) | Same build + smoke against the internal Harbor from the `deploy/prod-snapshot` branch on Gitee. |
 | `Makefile` | repo root | `make build/run/logs/k8s-apply/k8s-deploy/argocd-sync` shortcuts. |
 
@@ -147,54 +148,59 @@ build + push the image, then commit its tag there. The `k8s/` and `argocd/` dire
 *this* repo are the pre-k3s Bootstrap layout and are no longer what `fd-prod` reconciles
 (section 3/4 below is kept for that older host only).
 
-### 1. Build + push the image — GitHub Actions → TCR (canonical)
+### 1. Build + push the image — GitHub Actions → TCR (canonical, org-standard)
 
-`.github/workflows/image-tcr.yml` builds on a GitHub runner and pushes to the Tencent
-personal registry the cluster pulls from:
+`.github/workflows/image.yml` follows the org-standard tcr-image-pipeline
+(see the org ops manual / openspec tcr-image-pipeline): GitHub runners push to
+the **Hong Kong** personal registry, and cheap-3's tcr-relay cron (*/5 min,
+skopeo, digest-stable) re-syncs to **Guangzhou**, where the nodes pull:
 
-- **Trigger**: push to `main` (auto), or Actions → image-tcr → Run workflow (manual).
-  A concurrency group cancels superseded runs.
-- **Build**: `docker/build-push-action@v6` with `type=gha` layer cache; the Dockerfile is
-  self-contained (`web/dist` is built inside; `.dockerignore` excludes any host copy) and
-  needs no build args on a runner — `BASE_IMAGE` stays at its docker.io default.
-- **Smoke gate**: the image is booted and probed (`/api/config`, 200s ceiling, early-exit
-  detection) BEFORE any push — an image that does not run never reaches the registry.
-- **Push**: `ccr.ccs.tencentyun.com/yizuo/platform:sha-<7>` + `:latest`. The `sha-<7>`
-  rule is identical to the Jenkins pipeline's, so both registries' tags are
-  interchangeable in the GitOps manifest.
-- **Secrets** (Settings → Secrets → Actions, create once): `TCR_USER` = the personal
-  registry login username (`100035884308`), `TCR_PASS` = the password set in the TCR
-  console (容器镜像服务 → 个人版 → 访问凭证). If the first push fails with
-  *repository not found*, create the private repo `platform` under the `default`
-  namespace in the TCR console — personal edition does not auto-create repos from CI.
-
-**Cluster-side one-time wiring (pull from TCR)** — the `harbor-pull` per-namespace
-dockerconfigjson pattern, pointed at the public registry:
-
-```bash
-# 0. Verify a node can egress to the registry (expect HTTP 401 — reachable + auth-gated):
-kubectl --context cheap -n fd-prod run tcr-probe --rm -i --restart=Never --image=curlimages/curl -- \
-  curl -s -o /dev/null -w '%{http_code}\n' https://ccr.ccs.tencentyun.com/v2/
-# 1. Pull secret (same credentials as TCR_PASS):
-kubectl --context cheap -n fd-prod create secret docker-registry tcr-pull \
-  --docker-server=ccr.ccs.tencentyun.com \
-  --docker-username=100035884308 --docker-password='<TCR密码>'
-# 2. In fd-infra-deploy/all-services/prod/platform.yaml (once):
-#    image: ccr.ccs.tencentyun.com/yizuo/platform:sha-<7>
-#    imagePullSecrets: [{ name: tcr-pull }]
+```
+GH(US) ──11.6MB/s──► hkccr.ccs.tencentyun.com/yizuo/platform
+                          │ cheap-3 /etc/tcr-relay/repos.conf (yizuo/platform listed)
+                          └──≤5min──► ccr.ccs.tencentyun.com/yizuo/platform
+                                          │ node registries.yaml auth (all 12 nodes)
+                                          └─► k3s pulls, NO imagePullSecret
 ```
 
-**Every deploy after that** is the same two moves as always: copy the `sha-<7>` tag from
-the workflow run's summary, commit it into `fd-infra-deploy/all-services/prod/platform.yaml`,
-and let ArgoCD roll it:
+- **Trigger**: push to `main` (auto), or Actions → image → Run workflow.
+  Concurrency cancels superseded runs. A cache-warm run is ~2 minutes end to
+  end; a cold one can exceed an hour (the gha cache deadlock rule: the first
+  success must be allowed to finish — timeout 240m).
+- **Smoke gate** (kept from this repo's own pipeline; the org template lacks
+  it): the image is booted and probed (`/api/config`) BEFORE any push — it
+  caught the js-yaml phantom dependency on 2026-09-30.
+- **Tags**: `sha-<7>` + rolling `main` on hkccr; the relay mirrors both to
+  ccr with identical digests (`provenance: false`). The `sha-<7>` rule matches
+  the Jenkins pipeline's, so Harbor and TCR tags are interchangeable.
+- **Secrets**: `TCR_USERNAME` / `TCR_PASSWORD` (org convention; the older
+  `TCR_USER`/`TCR_PASS` on this repo are unused). Personal TCR regions are
+  independent stores — the `yizuo` namespace and `platform` repo exist on BOTH
+  hkccr and ccr.
+- **Timing rule**: a fresh hkccr tag reaches ccr within ≤5 min (relay cycle).
+  Do not point the GitOps manifest at a ccr tag that has not relayed yet
+  (check `https://ccr.ccs.tencentyun.com/v2/yizuo/platform/tags/list` with
+  registry credentials) or the roll hits ImagePullBackOff.
+
+**Cluster pull auth**: node-level. All k3s nodes carry TCR credentials in
+`/etc/rancher/k3s/registries.yaml` (org rollout 2026-09-30) — no per-namespace
+imagePullSecret is needed or used (the interim `tcr-pull` secret was removed
+2026-10-01 after a no-secret probe pod pulled successfully). The manifests
+keep only `harbor-finddata-pull` for the Harbor fallback channel below.
+
+**Every deploy** is the same two moves as always: after the relay lands the
+tag on ccr, commit it into `fd-infra-deploy/all-services/prod/platform.yaml`
+(and platform-demo.yaml — bump BOTH), then:
 
 ```bash
+kubectl --context cheap -n argocd annotate application all-services-prod \
+  argocd.argoproj.io/refresh=normal --overwrite
 kubectl --context cheap -n fd-prod rollout status deploy/platform
 ```
 
-**Rollback**: revert the GitOps tag commit. The previous image is still on the node
-(`imagePullPolicy: IfNotPresent`) and every older tag remains in TCR — or point the
-manifest back at the internal Harbor image of the same sha (the fallback pipeline below).
+**Rollback**: revert the GitOps tag commit. Older tags stay in TCR forever
+(immutable), or point the manifest back at the internal Harbor image of the
+same sha (the fallback pipeline below).
 
 ### 1b. Fallback: build + push via Jenkins (internal Harbor)
 
@@ -288,7 +294,7 @@ It pushes the same `sha-<7>` + `latest` tags, so step 2 above is unchanged.
 ### Superseded: the GitHub-Actions packaging path (retired 2026-09-29)
 
 > **2026-09-30 update**: GitHub Actions is back as the CANONICAL image pipeline —
-> but over the Tencent TCR personal registry (`image-tcr.yml`, see step 1 above),
+> but over the Tencent TCR personal registry (`image.yml`, see step 1 above),
 > not the unreachable America-Harbor topology described below. The notes stay
 > because they are hard-won and nowhere else.
 

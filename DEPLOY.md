@@ -426,16 +426,26 @@ Instance placement (decision: tailnet-only, no public ingress):
 Console-task convention: `title` = target persona preset id, `description` =
 prompt. Unknown personas are reported failed with a structured error.
 
-**First-deployment checklist** (MC is alpha — re-verify the three pinned
-endpoints against the deployed version before enrolling cells):
+**Deployed 2026-09-30** (cheap1 tailnet, `http://100.64.0.11:3333`, compose
+at `/opt/mission-control/`, data under `./data`, admin `fdadmin` — credentials
+with the operator). Live-verified facts the bridge is coded against:
 
-1. `POST /api/agents/register` accepts `{ name, role: "cell" }` with the
-   Bearer key from MC Settings.
-2. `GET /api/tasks/queue?agent=<name>` returns the pending tasks (shape:
-   `{ tasks: [...] }` or a bare array — the bridge accepts both).
-3. `POST /api/tasks/<id>/result` accepts `{ status, output, error, usage }`.
-4. Enroll one demo cell (`MC_BRIDGE=1 …`), dispatch one task from the
-   console, watch it run on the cell's /tasks and its result land in MC.
+1. Register takes the role ENUM (`"agent"` — there is no "cell") and answers
+   `{ agent: { id } }`; a per-agent key cannot re-register — the bridge treats
+   registration failure as non-fatal and polls as the key's agent.
+2. `GET /api/tasks/queue?agent=<name>` CLAIMS one task per call and answers
+   `{ task: {...} }` (docs say `{ tasks: [...] }` — the bridge accepts all
+   three shapes).
+3. There is no result endpoint and `"done"` is Aegis-gated: terminal outcomes
+   go to `PUT /api/tasks/<id>` with `status: "quality_review"` and the
+   bridge's facts in `metadata.paasBridge` (`state/output/error/usage`); an
+   operator reviews and closes in the UI.
+4. Queue polling needs an **operator-scoped agent key**: mint with
+   `POST /api/agents/<id>/keys {"scopes":["operator","agent:self"]}` (admin
+   session) — plain `viewer/agent:self` keys get "Requires operator role".
+5. Console-task convention: `title` = persona preset id, `description` =
+   prompt. Round trip verified live (task 1: claim → cell execution →
+   quality_review with the failure gist in metadata).
 
 ### Agent workspace (AGENT_WORKSPACE pin) — fix-agent-workspace
 
@@ -1381,3 +1391,15 @@ repo, re-embed into the ConfigMap, push, then
 `kubectl -n fd-prod rollout restart deploy/ops-console` — **subPath ConfigMap
 mounts do not hot-update running pods** (same for search-relay's code).
 Rollback is deleting the deployment; nothing else depends on the console.
+
+### 实录续 2：6.2 全链路 ALL GREEN（2026-09-30 深夜）
+
+`scripts/probe-agent-serving.mjs`（经 cheap1 `probe-wrapper.sh`：前置/后置扫删 probe 残留）对
+staging 全链路七步全绿：deploy v1 → runner 拾取 → 健康复检出块 → 三层鉴权（匿名 401 /
+仅网关凭证被 runner 401 / 双凭证 200 卡片）→ **真实 dsh 回合**（finddata/deepseek-v4.1-flash，
+9.4s 含冷启，技能指令被遵守）→ SSE 流式 → v2 原地升级（排水、条目不增殖）→ 下线（监听器停）。
+最终修形：**registry 技能按 name 全局键控**——部署库先按名查实际存储路径再 PUT（升级路径），
+`skill_md_url` 指向 pack 网关的公开 md 路由（`AGENT_SERVING_PACKS_URL`），注册后安全扫描会
+禁用 agent（库自动 toggle 回启用）。staging 栈：cheap1 容器 `agent-runner-dsh`
+（node:22-slim + 挂载代码 + npmmirror 钉版 dsh 运行时，端口段 8790-8850 只绑尾网；
+生产形态仍按 runbook 用平台镜像）。演练模型遵守用户规则 deepseek-v4.1-flash。

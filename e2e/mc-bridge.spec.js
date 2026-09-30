@@ -32,22 +32,24 @@ test.describe("mc bridge (self-booted cell + stub console)", () => {
         try { body = JSON.parse(raw); } catch { /* empty */ }
         if (req.method === "POST" && req.url === "/api/agents/register") {
           consoleState.registrations.push(body);
-          res.end(JSON.stringify({ ok: true }));
+          res.end(JSON.stringify({ registered: true, agent: { id: 1, name: body?.name } }));
           return;
         }
-        if (req.method === "POST" && req.url === "/api/agents/heartbeat") {
+        if (req.method === "POST" && /^\/api\/agents\/\d+\/heartbeat$/.test(req.url)) {
           res.end(JSON.stringify({ ok: true }));
           return;
         }
         if (req.method === "GET" && req.url.startsWith("/api/tasks/queue")) {
-          res.end(JSON.stringify({ tasks: consoleState.queue }));
+          // Real semantics: one claim per GET, answered as {task}.
+          const claimed = consoleState.queue.shift() ?? null;
+          res.end(JSON.stringify(claimed ? { task: claimed } : { tasks: [] }));
           return;
         }
-        const m = req.url.match(/^\/api\/tasks\/([^/]+)\/result$/);
-        if (req.method === "POST" && m) {
+        const m = req.url.match(/^\/api\/tasks\/([^/]+)$/);
+        if (req.method === "PUT" && m) {
           body.taskId = m[1];
           consoleState.results.push(body);
-          res.end(JSON.stringify({ ok: true }));
+          res.end(JSON.stringify({ task: { id: m[1] } }));
           return;
         }
         res.statusCode = 404;
@@ -133,7 +135,8 @@ test.describe("mc bridge (self-booted cell + stub console)", () => {
         .poll(async () => consoleState.results.some((r) => r.taskId === "mc-e2e-1"), { timeout: 120_000 })
         .toBe(true);
       const result = consoleState.results.find((r) => r.taskId === "mc-e2e-1");
-      expect(result.status).toBe("failed");
+      expect(result.status).toBe("quality_review");
+      expect(result.metadata?.paasBridge?.state).toBe("failed");
       expect((result.error || "").length).toBeGreaterThan(0);
     } finally {
       ws.close();

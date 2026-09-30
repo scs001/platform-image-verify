@@ -60,6 +60,7 @@ export function attachMcBridge(ctx) {
   let pollMs = POLL_MS;
   let ticks = 0;
   let registered = false;
+  let agentId = null;
   let polling = false;
   let handle = null;
   // Self-scheduling timer: one live handle at a time, re-armed each tick so
@@ -75,17 +76,32 @@ export function attachMcBridge(ctx) {
     return mcFetch(base, key, method, path, body);
   }
 
+  // Registration is idempotent and OPTIONAL: a per-agent mca_ key already
+  // implies the identity (agent:self scope) and cannot re-register — treat
+  // failure as non-fatal and poll anyway. (Verified live 2026-09-30: the
+  // role enum has no "cell" — use "agent"; the answer carries {agent:{id}}.)
   async function ensureRegistered() {
     if (registered) return true;
-    await call("POST", "/api/agents/register", { name: agentName, role: "cell" });
+    try {
+      const data = await call("POST", "/api/agents/register", {
+        name: agentName,
+        role: "agent",
+        framework: "paas-cell",
+        capabilities: ["task-execution"],
+      });
+      agentId = data?.agent?.id ?? null;
+      console.log("[mc-bridge] registered with the console");
+    } catch (err) {
+      console.warn(`[mc-bridge] registration skipped (${err.message}) — polling as the provided key's agent`);
+    }
     registered = true;
-    console.log("[mc-bridge] registered with the console");
     return true;
   }
 
   async function heartbeat() {
+    if (!agentId) return; // id-based endpoint; unavailable without registration
     try {
-      await call("POST", "/api/agents/heartbeat", { agent: agentName });
+      await call("POST", `/api/agents/${agentId}/heartbeat`, {});
     } catch {
       // Alpha-API shape drift on heartbeat is non-fatal: registration and
       // queue polling carry the integration.
@@ -105,14 +121,14 @@ export function attachMcBridge(ctx) {
     if (findExisting(mcId)) return; // already ours
 
     if (!persona || !prompt) {
-      await report(mcId, { status: "failed", error: "task must carry title=<persona> and description=<prompt>" });
+      await report(mcId, { state: "failed", error: "task must carry title=<persona> and description=<prompt>" });
       return;
     }
     // Persona must exist on this cell's roster (design D2).
     const roster = (await ctx.getAgentPresets?.()) ?? [];
     const known = roster.some((p) => p.id === persona);
     if (!known) {
-      await report(mcId, { status: "failed", error: `unknown persona on this cell: ${persona}` });
+      await report(mcId, { state: "failed", error: `unknown persona on this cell: ${persona}` });
       return;
     }
     engine.createManualTask({
@@ -125,9 +141,16 @@ export function attachMcBridge(ctx) {
   }
 
   // Post a terminal outcome (at-least-once: mcReportedAt marks done posts;
-  // failures retry on later ticks).
+  // failures retry on later ticks). Verified live 2026-09-30: outcomes go to
+  // PUT /api/tasks/{id} — "done" is gated behind Aegis approval, so terminal
+  // outcomes land in `quality_review` with the bridge's facts in metadata
+  // (state/output/error/usage) for the operator to review and close.
   async function report(mcId, payload) {
-    await call("POST", `/api/tasks/${encodeURIComponent(mcId)}/result`, payload);
+    await call("PUT", `/api/tasks/${encodeURIComponent(mcId)}`, {
+      status: "quality_review",
+      ...(payload.error ? { error: payload.error } : {}),
+      metadata: { paasBridge: payload },
+    });
   }
 
   async function postOutcomes() {
@@ -142,7 +165,7 @@ export function attachMcBridge(ctx) {
       } catch { /* session may not exist for spawn failures */ }
       const last = t.history?.[t.history.length - 1];
       await report(String(t.origin.mc), {
-        status: t.state,
+        state: t.state,
         output,
         error: t.error ?? null,
         usage: last?.tokens ?? null,
@@ -159,7 +182,15 @@ export function attachMcBridge(ctx) {
       await ensureRegistered();
       if (++ticks % HEARTBEAT_EVERY_TICKS === 0) await heartbeat();
       const data = await call("GET", `/api/tasks/queue?agent=${encodeURIComponent(agentName)}`);
-      const queued = Array.isArray(data.tasks) ? data.tasks : Array.isArray(data) ? data : [];
+      // Queue shapes seen in the wild: {tasks:[...]} (docs), {task:{...}}
+      // (live 2026-09-30 — a GET claims ONE task), bare array.
+      const queued = Array.isArray(data?.tasks)
+        ? data.tasks
+        : Array.isArray(data)
+          ? data
+          : data?.task
+            ? [data.task]
+            : [];
       for (const mcTask of queued) await claim(mcTask);
       await postOutcomes();
       pollMs = POLL_MS; // success resets the backoff

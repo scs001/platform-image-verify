@@ -33,25 +33,29 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // The stub console: the three pinned endpoints plus call recording.
 async function startStubConsole() {
   const state = { registrations: [], results: [], queue: [], failResults: 0 };
+  // Real semantics (verified live): register answers {agent:{id}}; queue GET
+  // CLAIMS one task at a time and answers {task:{...}}; outcomes go to
+  // PUT /tasks/{id} (done is Aegis-gated → bridge uses quality_review).
   const server = http.createServer((req, res) => {
     res.setHeader("content-type", "application/json");
     if (req.method === "POST" && req.url === "/api/agents/register") {
       collect(req, (body) => {
         state.registrations.push(body);
-        res.end(JSON.stringify({ ok: true, agent: { id: "agent-1", name: body.name } }));
+        res.end(JSON.stringify({ registered: true, agent: { id: 1, name: body?.name } }));
       });
       return;
     }
-    if (req.method === "POST" && req.url === "/api/agents/heartbeat") {
+    if (req.method === "POST" && /^\/api\/agents\/\d+\/heartbeat$/.test(req.url)) {
       collect(req, () => res.end(JSON.stringify({ ok: true })));
       return;
     }
     if (req.method === "GET" && req.url.startsWith("/api/tasks/queue")) {
-      res.end(JSON.stringify({ tasks: state.queue }));
+      const claimed = state.queue.shift() ?? null;
+      res.end(JSON.stringify(claimed ? { task: claimed } : { tasks: [] }));
       return;
     }
-    const m = req.url.match(/^\/api\/tasks\/([^/]+)\/result$/);
-    if (req.method === "POST" && m) {
+    const m = req.url.match(/^\/api\/tasks\/([^/]+)$/);
+    if (req.method === "PUT" && m) {
       if (state.failResults > 0) {
         state.failResults--;
         res.statusCode = 500;
@@ -61,7 +65,7 @@ async function startStubConsole() {
       collect(req, (body) => {
         body.taskId = m[1];
         state.results.push(body);
-        res.end(JSON.stringify({ ok: true }));
+        res.end(JSON.stringify({ task: { id: m[1], ...(body ?? {}) } }));
       });
       return;
     }
@@ -143,10 +147,12 @@ test("register → claim → execute → result round trip; unknown persona reje
     await sleep(700);
     const r1 = console_.state.results.find((r) => r.taskId === "mc-1");
     assert.ok(r1, "mc-1 result posted");
-    assert.equal(r1.status, "failed");
+    assert.equal(r1.status, "quality_review");
     assert.match(r1.error, /Connection error/);
+    assert.equal(r1.metadata?.paasBridge?.state, "failed");
     const r2 = console_.state.results.find((r) => r.taskId === "mc-2");
     assert.ok(r2 && /unknown persona/.test(r2.error), "mc-2 rejected with structured error");
+    assert.equal(r2.metadata?.paasBridge?.state, "failed");
 
     // Idempotent claim: the same mc id in the queue never creates a second task.
     await sleep(400);
@@ -185,7 +191,7 @@ test("failed result posts retry on a later tick", async () => {
       await sleep(150);
     }
     assert.ok(t.mcReportedAt, "result eventually delivered despite two 500s");
-    assert.ok(console_.state.results.some((r) => r.taskId === "mc-3" && r.status === "done"));
+    assert.ok(console_.state.results.some((r) => r.taskId === "mc-3" && r.metadata?.paasBridge?.state === "done"));
   } finally {
     handle.stop();
     console_.server.close();

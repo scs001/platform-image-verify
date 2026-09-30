@@ -30,7 +30,7 @@
 # Image distribution (documented design — the LIVE manifest lives in the
 # fd-infra-deploy GitOps repo, see DEPLOY.md): the canonical pipeline is
 # GitHub Actions → Tencent TCR personal registry
-# (.github/workflows/image-tcr.yml → ccr.ccs.tencentyun.com/default/platform),
+# (.github/workflows/image-tcr.yml → ccr.ccs.tencentyun.com/yizuo/platform),
 # pulled with the per-namespace tcr-pull imagePullSecret (the harbor-pull
 # pattern). The internal-Harbor path via Jenkins remains the fallback; both
 # pipelines tag images sha-<7> of the built revision, so the GitOps manifest
@@ -72,7 +72,7 @@ spec:
           # Canonical pipeline tag (GitHub Actions → TCR). Bump on every
           # rebuild; the Jenkins → internal-Harbor fallback's sha-<7> tags are
           # interchangeable here.
-          image: ccr.ccs.tencentyun.com/default/platform:sha-0000000
+          image: ccr.ccs.tencentyun.com/yizuo/platform:sha-0000000
           imagePullPolicy: IfNotPresent
           env:
             - name: NODE_ENV

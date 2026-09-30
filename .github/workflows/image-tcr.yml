@@ -7,7 +7,7 @@
 #   build  (GH runner): docker build (web/dist built inside the Dockerfile;
 #                       .dockerignore excludes any host copy) → boot the image
 #                       and probe /api/config → push ccr.ccs.tencentyun.com/
-#                       default/platform:sha-<7> + :latest
+#                       yizuo/platform:sha-<7> + :latest
 #   deploy (hand):     copy the tag from the run summary into
 #                       fd-infra-deploy/all-services/prod/platform.yaml — the
 #                       deliberate hand commit, same review gate the Jenkins
@@ -31,8 +31,8 @@
 #              (访问管理 → 容器镜像服务个人版 → 获取/重置密码)
 #
 # First push note: if the push fails with "repository not found", create the
-# private repo `platform` under the `default` namespace in the TCR console
-# (个人版 does not auto-create on push from CI).
+# private repo `platform` under the `yizuo` namespace in the TCR console
+# (个人版 does not auto-create repos on push from CI).
 
 name: image-tcr
 
@@ -47,9 +47,9 @@ concurrency:
 
 env:
   REGISTRY: ccr.ccs.tencentyun.com
-  # Personal-edition path: <registry>/<namespace>/<repo>. `default` is the
-  # personal edition's built-in namespace — no console setup beyond the repo.
-  IMAGE: ccr.ccs.tencentyun.com/default/platform
+  # Personal-edition path: <registry>/<namespace>/<repo>. `yizuo` is the
+  # console-created namespace; the private repo `platform` lives under it.
+  IMAGE: ccr.ccs.tencentyun.com/yizuo/platform
 
 permissions:
   contents: read

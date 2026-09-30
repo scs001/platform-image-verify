@@ -25,7 +25,7 @@ commit can point at either registry's image interchangeably.
 | `.dockerignore` | repo root | Excludes the built `resources/node` payload and any leftover `resources/**/*.tar.*` archives so a host's mac/win binaries never leak into the Linux image — the image builds its own Linux payload. Also excludes secrets (`.env*`, `mcp.json`) and dev-only trees (`electron`, `openspec`, `e2e`, the local store dirs). |
 | `k8s/` | `service.yaml`, `deployment.yaml` | Plain manifests (no Helm). Deployment = 1 replica, Recreate strategy (single stateful agent). |
 | `argocd/application.yaml` | ArgoCD Application CR | Watches `k8s/` in this repo, auto-sync prune+selfHeal, `CreateNamespace=true`, in-cluster destination (`https://kubernetes.default.svc`). |
-| `.github/workflows/image-tcr.yml` | CI (primary pipeline) | Builds the image on a GitHub runner, smoke-tests `/api/config`, pushes `sha-<7>` + `latest` to the Tencent personal registry `ccr.ccs.tencentyun.com/default/platform`. |
+| `.github/workflows/image-tcr.yml` | CI (primary pipeline) | Builds the image on a GitHub runner, smoke-tests `/api/config`, pushes `sha-<7>` + `latest` to the Tencent personal registry `ccr.ccs.tencentyun.com/yizuo/platform`. |
 | `Jenkinsfile` | CI (fallback pipeline) | Same build + smoke against the internal Harbor from the `deploy/prod-snapshot` branch on Gitee. |
 | `Makefile` | repo root | `make build/run/logs/k8s-apply/k8s-deploy/argocd-sync` shortcuts. |
 
@@ -159,7 +159,7 @@ personal registry the cluster pulls from:
   needs no build args on a runner — `BASE_IMAGE` stays at its docker.io default.
 - **Smoke gate**: the image is booted and probed (`/api/config`, 200s ceiling, early-exit
   detection) BEFORE any push — an image that does not run never reaches the registry.
-- **Push**: `ccr.ccs.tencentyun.com/default/platform:sha-<7>` + `:latest`. The `sha-<7>`
+- **Push**: `ccr.ccs.tencentyun.com/yizuo/platform:sha-<7>` + `:latest`. The `sha-<7>`
   rule is identical to the Jenkins pipeline's, so both registries' tags are
   interchangeable in the GitOps manifest.
 - **Secrets** (Settings → Secrets → Actions, create once): `TCR_USER` = the personal
@@ -180,7 +180,7 @@ kubectl --context cheap -n fd-prod create secret docker-registry tcr-pull \
   --docker-server=ccr.ccs.tencentyun.com \
   --docker-username=100035884308 --docker-password='<TCR密码>'
 # 2. In fd-infra-deploy/all-services/prod/platform.yaml (once):
-#    image: ccr.ccs.tencentyun.com/default/platform:sha-<7>
+#    image: ccr.ccs.tencentyun.com/yizuo/platform:sha-<7>
 #    imagePullSecrets: [{ name: tcr-pull }]
 ```
 

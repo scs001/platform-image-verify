@@ -118,14 +118,19 @@ test.describe("AUTH_MODE=logto", () => {
     child.stdout.on("data", (data) => { bootLog += data; });
     child.stderr.on("data", (data) => { bootLog += data; });
 
+    // Gate on /api/ready, not /api/auth/me: the server listens FIRST and
+    // initializes the agent in the background (listen-first boot), and this
+    // spec's stores are wiped + recomposed fresh each run — a cold profile
+    // composition can exceed a minute on a loaded machine (the main
+    // webServer's own timeout allows 180s for the same reason).
     await waitFor(async () => {
       try {
-        const response = await fetch(`${base}/api/auth/me`);
-        return response.status === 200;
+        const response = await fetch(`${base}/api/ready`);
+        return response.ok;
       } catch {
         return false;
       }
-    });
+    }, 180_000, `server ready\n${bootLog.slice(-2000)}`);
   });
 
   test.afterAll(async () => {

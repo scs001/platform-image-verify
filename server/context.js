@@ -188,6 +188,69 @@ export function createAppContext(config) {
     }
   };
 
+  // ── Per-viewer delivery (add-session-ownership) ───────────────────────────
+  // Each connection tracks the session its client is viewing (ws.viewedSession,
+  // maintained by server/ws.js). Turn events and session-scoped pushes go only
+  // to the connections viewing that session — another user's transcript never
+  // reaches a foreign client. Turn payloads carry the session id (additive
+  // field; older clients ignore it). With auth off there is one user and one
+  // view, so sendToViewers degenerates to today's broadcast semantics.
+  ctx.sendToViewers = (sessionId, data) => {
+    if (!sessionId) return;
+    const msg = JSON.stringify({ ...data, sessionId });
+    for (const ws of ctx.clients) {
+      if (ws.viewedSession !== sessionId) continue;
+      if (ws.readyState !== ws.OPEN) continue;
+      try {
+        ws.send(msg);
+      } catch {
+        /* a dying socket must not fail the fan-out */
+      }
+    }
+  };
+
+  // The session-list scope a connection is entitled to. Auth-off: undefined —
+  // no scoping (the deployment IS one user; dev/desktop/e2e contract).
+  // Auth-on: admin group sees everything, everyone else only their own rows.
+  ctx.sessionScopeFor = (ws) => {
+    if (!ctx.authEnabled) return undefined;
+    if (ctx.isAdminUser?.(ws?.user)) return { includeAll: true };
+    return { owner: ws?.user?.email ?? "" };
+  };
+
+  // Sessions-list refresh, computed per connection: each client gets its own
+  // scope's list, and `current` names THAT connection's viewed session — not
+  // the deployment-global live session, which may belong to another user.
+  // One listSessions query per distinct scope per refresh tick.
+  ctx.broadcastSessions = async () => {
+    const version = ctx.sessionVersion;
+    const scopeKey = (ws) => {
+      const scope = ctx.sessionScopeFor(ws);
+      return scope ? JSON.stringify(scope) : "*";
+    };
+    const lists = new Map();
+    for (const key of new Set([...ctx.clients].map(scopeKey))) {
+      try {
+        lists.set(key, await chatHistory.listSessions(key === "*" ? undefined : JSON.parse(key)));
+      } catch (e) {
+        console.error("[sessions] scoped list failed:", e.message);
+        lists.set(key, []);
+      }
+    }
+    if (version !== ctx.sessionVersion) return;
+    for (const ws of ctx.clients) {
+      if (ws.readyState !== ws.OPEN) continue;
+      const current = ws.viewedSession ?? (ctx.authEnabled ? null : chatHistory.currentSessionId());
+      ctx.send(ws, { type: "sessions", sessions: lists.get(scopeKey(ws)) ?? [], current });
+    }
+  };
+
+  // Turn origin (add-session-ownership design D2): the user + session a turn
+  // was dispatched for, set synchronously at prompt dispatch (web, remote,
+  // skill), consumed by the assistant-message mirror at turn completion. The
+  // dsh event pump has no request context of its own.
+  ctx.turnOrigin = null;
+
   ctx.send = (ws, data) => {
     if (ws?.readyState !== ws?.OPEN) return false;
     try {

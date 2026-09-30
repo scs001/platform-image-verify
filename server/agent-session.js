@@ -16,6 +16,11 @@ import fs, { constants as fsConstants } from "node:fs/promises";
 // Deliberately not an allowlist: the server already runs with the user's full
 // filesystem access and the agent's tools are unconstrained, so gating the
 // picker alone would be theatre. Real sandboxing belongs with tool permissions.
+//
+// Writable is a hard requirement, not a preference (fix-agent-workspace): the
+// file-serving root and the resource-library save both key off the runtime
+// cwd, so a read-only workspace silently breaks every produced-file consumer —
+// the switch must refuse it up front instead.
 export async function validateWorkspace(input) {
   if (typeof input !== "string" || !input.trim()) {
     return { ok: false, error: "Workspace path is required" };
@@ -40,7 +45,45 @@ export async function validateWorkspace(input) {
   } catch {
     return { ok: false, error: `Directory is not readable: ${raw}` };
   }
+  try {
+    await fs.access(resolved, fsConstants.W_OK);
+  } catch {
+    return { ok: false, error: `Directory is not writable: ${raw}` };
+  }
   return { ok: true, path: resolved };
+}
+
+// Module scope on purpose: resolveBootWorkspace (server boot) and the
+// switch-time persistence inside attachAgentSession share one key, and the
+// recents key below lives in the closure.
+export const WORKSPACE_CURRENT_KEY = "workspace.current";
+
+// Boot-time workspace resolution (fix-agent-workspace). Precedence:
+// AGENT_WORKSPACE pin > persisted current-workspace preference > process.cwd().
+// The pin outranks the preference on purpose — a stale or dev-path preference
+// is exactly how a deployment gets stranded in an unwritable root, and the env
+// exists to override drift. Each tier runs the same validator, so "writable"
+// is one rule, not two. The terminal cwd tier is always taken (there is no
+// fallback behind it); its rejections are logged by the caller, never fatal.
+// Rejections are returned, not logged here, so server.js emits them in its
+// own boot-log dialect ([workspace] ... naming value and reason).
+export async function resolveBootWorkspace({ env = process.env, getPreference = null } = {}) {
+  const rejected = [];
+  const pin = String(env.AGENT_WORKSPACE || "").trim();
+  if (pin) {
+    const v = await validateWorkspace(pin);
+    if (v.ok) return { path: v.path, source: "env", rejected };
+    rejected.push(`AGENT_WORKSPACE '${pin}' rejected: ${v.error}`);
+  }
+  if (getPreference) {
+    const saved = String(getPreference(WORKSPACE_CURRENT_KEY) || "").trim();
+    if (saved) {
+      const v = await validateWorkspace(saved);
+      if (v.ok) return { path: v.path, source: "preference", rejected };
+      rejected.push(`saved workspace '${saved}' rejected: ${v.error}`);
+    }
+  }
+  return { path: process.cwd(), source: "cwd", rejected };
 }
 
 export function attachAgentSession(ctx) {
@@ -429,11 +472,12 @@ async function streamRemoteChat(entry, text) {
   const abort = new AbortController();
   ctx.activeRemoteTurnAbort = abort;
   const timeout = setTimeout(() => abort.abort(), 300_000);
-  ctx.broadcast({ type: "agent_start" });
+  ctx.sendToViewers(sessionId, { type: "agent_start" });
   // Persist the user turn to the SQLite mirror (design D6) — closes the v1
   // ceiling where remote turns were broadcast-only and a browser close/reopen
-  // left a dangling user message with no reply.
-  chatHistory.recordMessage(sessionId, "user", text);
+  // left a dangling user message with no reply. Owner from the turn origin
+  // (beginTurnFor ran before dispatch; add-session-ownership).
+  chatHistory.recordMessage(sessionId, "user", text, undefined, ctx.turnOrigin?.user ?? null);
   // A fork has no system prompt of its own; give it the catalog entry's identity
   // so it answers as the named agent rather than as a bare model.
   const messages = [
@@ -475,7 +519,7 @@ async function streamRemoteChat(entry, text) {
         }
         if (delta) {
           assistantText += delta;
-          ctx.broadcast({ type: "text", delta });
+          ctx.sendToViewers(sessionId, { type: "text", delta });
         }
       }
     }
@@ -484,7 +528,7 @@ async function streamRemoteChat(entry, text) {
     // with `done`; a follow-up abort error would land in the NEW transcript.
     if (!abort.switchedAway) {
       console.error(`Remote agent '${entry.id}' error:`, err.message);
-      ctx.broadcast({ type: "error", message: err.message });
+      ctx.sendToViewers(sessionId, { type: "error", message: err.message });
     }
   } finally {
     clearTimeout(timeout);
@@ -494,7 +538,7 @@ async function streamRemoteChat(entry, text) {
     const ownsTurn = ctx.activeRemoteTurnAbort === abort;
     // Persist the assistant's final aggregated text (design D6), always to the
     // session that owns this turn.
-    if (assistantText) chatHistory.recordMessage(sessionId, "assistant", assistantText);
+    if (assistantText) chatHistory.recordMessage(sessionId, "assistant", assistantText, undefined, ctx.turnOrigin?.user ?? null);
     if (ctx.isStreaming && ownsTurn) ctx.finishTurn();
     if (ownsTurn) ctx.activeRemoteTurnAbort = null;
   }
@@ -534,20 +578,27 @@ async function handleModelCommand(args, ws) {
 // Create a new session and broadcast the session_changed/session_loaded/sessions
 // sequence. Shared by the `new_session` WS handler, the `/new` command, and the
 // REST new-session route. Errors propagate to the caller.
-async function startNewSession() {
+async function startNewSession(originWs = null) {
   const id = await createNewSession();
-  ctx.broadcast({ type: "session_changed", id });
-  ctx.broadcast({ type: "session_loaded", id, title: "New chat", messages: [] });
-  // A fresh session carries no plan: broadcast the empty list explicitly (the
-  // client also clears on session_loaded; this keeps every connected client in
-  // agreement). Any previous session's cached plan is deliberately KEPT — it is
-  // that session's state, restored when the user switches back to it.
-  ctx.broadcast(ctx.planMessage(id));
-  const version = ctx.sessionVersion;
-  const sessions = await chatHistory.listSessions();
-  if (version === ctx.sessionVersion) {
-    ctx.broadcast({ type: "sessions", sessions, current: id });
-  }
+  // Per-viewer delivery (add-session-ownership): the REQUESTING connection
+  // adopts the new session as its view and gets the load/changed/plan pushes;
+  // every other client keeps its own view and transcript. A fresh session
+  // carries no plan: the requester gets the empty list explicitly (the client
+  // also clears on session_loaded). Any previous session's cached plan is
+  // deliberately KEPT — it is that session's state, restored on switch-back.
+  if (originWs) originWs.viewedSession = id;
+  const toOrigin = (msg) => {
+    if (originWs?.readyState !== originWs?.OPEN) return;
+    try {
+      originWs.send(JSON.stringify({ ...msg, sessionId: id }));
+    } catch {
+      /* a dying requester must not fail the new-session flow */
+    }
+  };
+  toOrigin({ type: "session_changed", id });
+  toOrigin({ type: "session_loaded", id, title: "New chat", messages: [] });
+  toOrigin(ctx.planMessage(id));
+  void ctx.broadcastSessions();
   return id;
 }
 
@@ -555,8 +606,13 @@ async function startNewSession() {
 // session_loaded clear so the block renders in the fresh chat).
 async function handleNewCommand(ws) {
   try {
-    await startNewSession();
-    ctx.broadcast({ type: "command_use", name: "new", args: "", message: "Started a new chat" });
+    await startNewSession(ws);
+    // The /new block belongs to the transcript of the client that asked for
+    // it — a foreign client's transcript must not grow a block it never
+    // requested (add-session-ownership).
+    if (ws?.readyState === ws?.OPEN) {
+      ws.send(JSON.stringify({ type: "command_use", name: "new", args: "", message: "Started a new chat" }));
+    }
   } catch (err) {
     ws.send(JSON.stringify({ type: "error", message: err.message }));
   }
@@ -724,6 +780,18 @@ function pushRecent(dir) {
   return next;
 }
 
+// Persist the current workspace (fix-agent-workspace): recents alone never
+// restored anything — the switch was silently undone by the next restart.
+// Best-effort: an unwritable store logs nothing and the runtime keeps the
+// switched cwd either way.
+function persistCurrentWorkspace(dir) {
+  try {
+    ctx.db.setPreference(WORKSPACE_CURRENT_KEY, dir);
+  } catch {
+    /* preference store unavailable — the switch itself already succeeded */
+  }
+}
+
 function currentWorkspace() {
   return ctx.dshBridge?.getCwd?.() || process.cwd();
 }
@@ -739,7 +807,11 @@ async function switchWorkspaceToInner(input) {
   // A bad path must not cost a restart, and must not half-switch the runtime.
   if (!v.ok) return v;
   const previous = currentWorkspace();
-  if (v.path === previous) return { ok: true };
+  if (v.path === previous) {
+    // No restart to do, but heal a missing/stale current row (idempotent).
+    persistCurrentWorkspace(v.path);
+    return { ok: true };
+  }
   try {
     await ctx.dshBridge.restart({ cwd: v.path });
   } catch (err) {
@@ -748,12 +820,14 @@ async function switchWorkspaceToInner(input) {
     // fails the bridge's own backoff ladder owns recovery from here.
     try {
       await ctx.dshBridge.restart({ cwd: previous });
+      persistCurrentWorkspace(previous);
     } catch (restoreErr) {
       console.error("[dsh] workspace restore failed:", restoreErr.message);
     }
     return { ok: false, error: `Could not start the agent in ${v.path}: ${err.message}` };
   }
   pushRecent(v.path);
+  persistCurrentWorkspace(v.path);
   ctx.broadcast({ type: "workspace_changed", path: v.path });
   return { ok: true };
 }

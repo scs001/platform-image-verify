@@ -1,31 +1,5 @@
 import { test, expect } from "@playwright/test";
-import WebSocket from "ws";
 import { E2E_PORT, gotoChat } from "./helpers.js";
-
-async function openSocket() {
-  const ws = new WebSocket(`ws://127.0.0.1:${E2E_PORT}/`);
-  const messages = [];
-  ws.on("message", (raw) => {
-    try {
-      messages.push(JSON.parse(raw.toString()));
-    } catch {}
-  });
-  await new Promise((resolve, reject) => {
-    ws.once("open", resolve);
-    ws.once("error", reject);
-  });
-  return { ws, messages };
-}
-
-async function waitForMessage(messages, predicate, timeout = 10000) {
-  const deadline = Date.now() + timeout;
-  while (Date.now() < deadline) {
-    const match = messages.find(predicate);
-    if (match) return match;
-    await new Promise((resolve) => setTimeout(resolve, 25));
-  }
-  throw new Error("Timed out waiting for WebSocket message");
-}
 
 async function createSession(request) {
   const response = await request.post("/api/chat-history/sessions");
@@ -41,12 +15,6 @@ async function createSession(request) {
   }).toBe(true);
 
   return body.id;
-}
-
-async function switchSession(ws, messages, id) {
-  ws.send(JSON.stringify({ type: "switch_session", id }));
-  await waitForMessage(messages, (message) => message.type === "session_loaded" && message.id === id);
-  await waitForMessage(messages, (message) => message.type === "sessions" && message.current === id);
 }
 
 function sessionRow(page, id) {
@@ -71,12 +39,10 @@ test.describe("session right-click delete", () => {
     await expect(sessionRow(page, firstId)).toBeVisible({ timeout: 5000 });
     await expect(sessionRow(page, inactiveId)).toBeVisible({ timeout: 5000 });
 
-    const { ws, messages } = await openSocket();
-    try {
-      await switchSession(ws, messages, firstId);
-    } finally {
-      ws.close();
-    }
+    // Switch via the page's own row click: under per-viewer delivery
+    // (add-session-ownership) a switch flips the connection that navigated —
+    // a side socket switching no longer rewrites this page's view.
+    await sessionRow(page, firstId).click();
     await expect(currentRow(page)).toHaveAttribute("data-session-id", firstId);
 
     await currentRow(page).click({ button: "right" });
@@ -118,12 +84,8 @@ test.describe("session menu — clear", () => {
     await expect(sessionRow(page, firstId)).toBeVisible({ timeout: 5000 });
     await expect(sessionRow(page, inactiveId)).toBeVisible({ timeout: 5000 });
 
-    const { ws, messages } = await openSocket();
-    try {
-      await switchSession(ws, messages, firstId);
-    } finally {
-      ws.close();
-    }
+    // Switch via the page's own row click (per-viewer delivery — see above).
+    await sessionRow(page, firstId).click();
     await expect(currentRow(page)).toHaveAttribute("data-session-id", firstId);
 
     await currentRow(page).click({ button: "right" });

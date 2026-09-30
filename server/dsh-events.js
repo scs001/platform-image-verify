@@ -103,15 +103,12 @@ export function attachDshEvents(ctx) {
   ctx.finishTurn = () => {
     if (!ctx.isStreaming) return;
     ctx.isStreaming = false;
-    ctx.broadcast({ type: "done" });
-    const version = ctx.sessionVersion;
-    chatHistory
-      .listSessions()
-      .then((sessions) => {
-        if (version !== ctx.sessionVersion) return;
-        ctx.broadcast({ type: "sessions", sessions, current: chatHistory.currentSessionId() });
-      })
-      .catch((e) => console.error("[chat-history] list after done failed:", e.message));
+    // `done` closes the turn for exactly the clients viewing the session it
+    // ran in (add-session-ownership); a foreign viewer never saw the turn and
+    // must not see its close either.
+    ctx.sendToViewers(ctx.dshSessionId, { type: "done" });
+    ctx.turnOrigin = null;
+    void ctx.broadcastSessions();
   };
 
   // Per-turn tool-roster projection for UNKNOWN_TOOL candidate recovery
@@ -151,7 +148,7 @@ export function attachDshEvents(ctx) {
       // cron engine's serialized queue for the full turn timeout.
       ctx.abortCronTurns?.("the agent runtime restarted mid-turn");
       if (ctx.isStreaming) {
-        ctx.broadcast({ type: "error", message: "Agent runtime exited unexpectedly" });
+        ctx.sendToViewers(ctx.dshSessionId, { type: "error", message: "Agent runtime exited unexpectedly" });
         ctx.finishTurn();
       }
       return;
@@ -212,15 +209,15 @@ export function attachDshEvents(ctx) {
         // The declared channel's scope: a `chart_bind` declaration may only
         // reach a chart captured during THIS turn.
         ctx.dshTurnStartedAt = new Date().toISOString();
-        ctx.broadcast({ type: "agent_start" });
+        ctx.sendToViewers(ctx.dshSessionId, { type: "agent_start" });
         break;
       case "assistant/chunk": {
         const chunk = ev.data?.chunk;
         if (!chunk) break;
         if (chunk.type === "text-delta" && chunk.text) {
-          ctx.broadcast({ type: "text", delta: chunk.text });
+          ctx.sendToViewers(ctx.dshSessionId, { type: "text", delta: chunk.text });
         } else if (chunk.type === "reasoning-delta" && chunk.text) {
-          ctx.broadcast({ type: "thinking", delta: chunk.text });
+          ctx.sendToViewers(ctx.dshSessionId, { type: "thinking", delta: chunk.text });
         } else if (chunk.type === "finish" && chunk.reason?.kind === "error") {
           // Capture the LLM failure; broadcast on turn/end (the turn-completion
           // signal), then session.status idle → finishTurn → done.
@@ -243,11 +240,15 @@ export function attachDshEvents(ctx) {
           ...(text ? [{ kind: "text", text }] : []),
         ];
         if (text || ctx.dshTurnBlocks.length) {
+          // The assistant mirror attributes to the turn's origin session and
+          // carries its origin user — stamp-once, so this only fills an
+          // ownerless row (add-session-ownership).
           chatHistory.recordMessage(
-            chatHistory.currentSessionId(),
+            ctx.turnOrigin?.sessionId ?? chatHistory.currentSessionId(),
             "assistant",
             text,
-            persistBlocks
+            persistBlocks,
+            ctx.turnOrigin?.user ?? null
           );
         }
         break;
@@ -262,7 +263,7 @@ export function attachDshEvents(ctx) {
           // dsh carries raw JSON string arguments; parse to match the WS contract.
           args: (() => { try { return JSON.parse(ev.data.arguments); } catch { return ev.data.arguments; } })(),
         });
-        ctx.broadcast({
+        ctx.sendToViewers(ctx.dshSessionId, {
           type: "tool_start",
           toolCallId: ev.data.callId,
           name: ev.data.name,
@@ -307,7 +308,7 @@ export function attachDshEvents(ctx) {
           acc.result = resultText;
           acc.state = isError ? "error" : "done";
         }
-        ctx.broadcast({
+        ctx.sendToViewers(ctx.dshSessionId, {
           type: "tool_end",
           toolCallId: callId,
           name: ctx.dshToolNames.get(callId) ?? undefined,
@@ -326,7 +327,7 @@ export function attachDshEvents(ctx) {
         const reason = ev.data?.reason;
         if (reason?.kind === "error") {
           const message = ctx.dshTurnError || reason.error?.message || "The agent turn failed";
-          ctx.broadcast({ type: "error", message });
+          ctx.sendToViewers(ctx.dshSessionId, { type: "error", message });
         }
         ctx.dshTurnError = null;
         break;

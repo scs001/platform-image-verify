@@ -85,6 +85,16 @@ spec:
               value: "3100"
             - name: PLATFORM_DATA_DIR
               value: /data
+            # Writable workspace pin (fix-agent-workspace): produced files must
+            # land under the /api/files serving root. /data is a hostPath mount,
+            # so the node must pre-create /opt/platform/workspace with the image
+            # user's ownership (see DEPLOY.md → Agent workspace).
+            - name: AGENT_WORKSPACE
+              value: /data/workspace
+            # Task worker slots (worker-pool): fd-prod stays serial — the
+            # node's 4GB budget does not fit parallel dsh children yet.
+            - name: TASK_WORKER_MAX
+              value: "0"
             # sub2api gateway through the reverse tunnel loopback.
             - name: LLM_BASE_URL
               value: http://127.0.0.1:32080

@@ -48,7 +48,7 @@ import { registerCustomPresetRoutes } from "./server/routes/custom-presets.js";
 import { createPackRegistry, registerPackRoutes as registerMarketPackRoutes } from "./gateway/packs.js";
 import { attachDshEvents } from "./server/dsh-events.js";
 import { attachRuntimeBindings } from "./server/runtime-bindings.js";
-import { attachAgentSession } from "./server/agent-session.js";
+import { attachAgentSession, resolveBootWorkspace } from "./server/agent-session.js";
 import { attachWebSocket } from "./server/ws.js";
 
 const PORT = process.env.PORT || 3000;
@@ -465,9 +465,21 @@ async function initDshAgent() {
   }
 
   ctx.dshSessionId = "platform-" + randomUUID();
+  // Boot workspace (fix-agent-workspace): AGENT_WORKSPACE pin > persisted
+  // current > process.cwd(). fd-prod's /app is root-owned and unwritable —
+  // without a pin or a persisted switch every boot lands there and produced
+  // files become unservable (/api/files and the resource save both key off
+  // the runtime cwd). Rejections log loudly with the fallback actually used.
+  const bootWorkspace = await resolveBootWorkspace({
+    env: process.env,
+    getPreference: db.isDbReady() ? (k) => db.getPreference(k) : null,
+  });
+  for (const r of bootWorkspace.rejected) console.warn(`[workspace] ${r}; falling back`);
+  console.log(`[workspace] boot workspace: ${bootWorkspace.path} (source=${bootWorkspace.source})`);
   ctx.dshBridge = new DshBridge({
     provider,
     model,
+    cwd: bootWorkspace.path,
     onEvent: ctx.handleDshEvent,
     mcpPatchPath,
     skillsPatchPath,

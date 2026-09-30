@@ -134,7 +134,7 @@ export function createSession(sessionId) {
   }
 }
 
-export function recordMessage(sessionId, role, content, blocks) {
+export function recordMessage(sessionId, role, content, blocks, ownerUser = null) {
   if (!sessionId || deletingSessions.has(sessionId) || !db.isDbReady()) return;
   const now = new Date().toISOString();
   const path = sm?.getSessionFile?.() ?? null;
@@ -148,7 +148,13 @@ export function recordMessage(sessionId, role, content, blocks) {
     const agentPreset = presetSource?.() || null;
     const workspace = workspaceSource?.() || null;
     db.upsertSession(sessionId, title, now, now, path, agentPreset, workspace);
+    // Ownership is a creation fact too (add-session-ownership): the
+    // authenticated user of the connection that submitted this session's
+    // first mirrored message. Write-once at the store layer, so later turns
+    // from cron/bot/other connections cannot re-stamp it.
+    if (ownerUser) db.stampSessionOwner(sessionId, ownerUser);
   } else {
+    if (ownerUser) db.stampSessionOwner(sessionId, ownerUser);
     if (role === "user" && content?.trim()) {
       const meta = db.getSessionMeta(sessionId);
       if (meta?.title === "New chat" && db.getChatMessages(sessionId).length === 0) {
@@ -187,12 +193,18 @@ export function recordMessage(sessionId, role, content, blocks) {
 // Return session metadata (no message bodies), most-recently-updated first, with
 // the current session flagged. Sourced from SQLite, merged with the in-memory
 // current session so a brand-new (not-yet-mirrored) chat still appears.
-export async function listSessions() {
+//
+// Scope (add-session-ownership): undefined = unscoped (auth-off — the
+// deployment is one user); { owner } = that user's rows only; { includeAll }
+// = everything (admin). The in-memory current-session merge respects the
+// scope: a shared runtime's current session belongs to whoever prompted last,
+// and must not leak into another user's list.
+export async function listSessions(scope) {
   const currentId = sm?.getSessionId?.() ?? null;
 
   let sessions = [];
   if (db.isDbReady()) {
-    sessions = db.listChatSessions().map((s) => ({
+    sessions = db.listChatSessions(scope).map((s) => ({
       id: s.id,
       title: s.title || "Untitled",
       createdAt: s.createdAt,
@@ -205,8 +217,23 @@ export async function listSessions() {
   }
 
   // Merge the current in-memory session if it isn't in SQLite yet (brand-new
-  // chat before its first mirrored message).
-  if (currentId && !sessions.some((s) => s.id === currentId)) {
+  // chat before its first mirrored message) — but only when the scope is
+  // entitled to it. An unscoped list (auth-off) sees everything; an owner
+  // scope sees it when the row carries that owner, or when there is no row at
+  // all: the un-rowed live session is the deployment's blank canvas — it owns
+  // no content to leak, and accessSession admits every entitled connection
+  // (the first mirrored message stamps its owner).
+  // Truthiness, not === null: better-sqlite3's .get() returns UNDEFINED for a
+  // missing row, and a strict === null check silently skipped the blank-canvas
+  // merge (observed live: auth-on fresh boot pushed an empty list).
+  const currentMeta = currentId && db.isDbReady() ? db.getSessionMeta(currentId) : null;
+  const currentVisible =
+    currentId &&
+    (!scope?.owner ||
+      scope.includeAll ||
+      !currentMeta ||
+      currentMeta?.owner === scope.owner);
+  if (currentId && currentVisible && !sessions.some((s) => s.id === currentId)) {
     const ctx = sm?.buildSessionContext?.() ?? { messages: [] };
     sessions.push({
       id: currentId,
@@ -223,6 +250,29 @@ export async function listSessions() {
   for (const s of sessions) s.current = s.id === currentId;
   sessions.sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""));
   return sessions;
+}
+
+// Ownership access check (add-session-ownership) shared by the WS handlers and
+// the REST routes. `user` is the request's identity ({ email, groups } or
+// null). Returns { ok, meta, reason } where reason is "not_found" |
+// "forbidden". With auth off there is exactly one user (the machine owner):
+// everything is accessible, preserving the dev/desktop/e2e single-user
+// contract. With auth on: owner-or-admin, and NULL-owner rows (legacy,
+// un-stamped) are admin-only — never a guess.
+export function accessSession(user, id, { authEnabled, isAdmin }) {
+  const meta = db.isDbReady() && id ? db.getSessionMeta(id) : null;
+  // The live session can predate its first mirror (a brand-new chat has no
+  // row until its first message lands): it is the deployment's own current
+  // state and carries no foreign content, so viewing/prompting into it is
+  // allowed — the first mirrored message stamps the owner.
+  if (!meta) {
+    if (id && id === currentSessionId()) return { ok: true, meta: null };
+    return { ok: false, reason: "not_found", meta: null };
+  }
+  if (!authEnabled) return { ok: true, meta };
+  if (isAdmin) return { ok: true, meta };
+  if (meta.owner && user?.email && meta.owner === user.email) return { ok: true, meta };
+  return { ok: false, reason: "forbidden", meta };
 }
 
 export function currentSessionId() {

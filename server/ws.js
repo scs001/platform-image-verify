@@ -115,6 +115,35 @@ const syncPermissionState = async (ws) => {
   sendIfOpen(ws, { type: "permissions", options, current });
 };
 
+// Prompt-implies-switch (add-session-ownership design D2). Resolve the session
+// this connection's prompt belongs to, point the runtime at it (dsh persists
+// sessions by id, so the turn resumes that session's context), and record the
+// turn origin for the assistant mirror + event routing. A connection with no
+// entitled view (welcome state, or its viewed row vanished) mints a fresh
+// session of its own. The runtime still executes one turn at a time — this
+// fixes attribution, not concurrency.
+const beginTurnFor = async (ws) => {
+  let target = ws.viewedSession;
+  if (target) {
+    const access = chatHistory.accessSession(ws.user, target, {
+      authEnabled: ctx.authEnabled,
+      isAdmin: ctx.isAdminUser?.(ws.user),
+    });
+    if (!access.ok) target = null;
+  }
+  if (!target) target = await ctx.startNewSession(ws);
+  if (chatHistory.currentSessionId() !== target) {
+    ctx.session.sessionManager.setSessionId(target);
+    ctx.sessionVersion = (ctx.sessionVersion || 0) + 1;
+  }
+  ws.viewedSession = target;
+  ctx.turnOrigin = {
+    user: ctx.authEnabled ? ws.user?.email ?? null : null,
+    sessionId: target,
+  };
+  return target;
+};
+
 // Sync a client that connected mid-boot with everything the normal connect
 // path sends, once the dsh agent is live (the "ready" broadcast's payload).
 const syncReadyClient = async (ws) => {
@@ -135,19 +164,56 @@ const syncReadyClient = async (ws) => {
   if (ctx.currentPermission) sendIfOpen(ws, { type: "current_permission", name: ctx.currentPermission });
   await syncPermissionState(ws);
   if (ws.readyState !== ws.OPEN) return;
+  // A mid-boot connect initialized its view against a runtime that had no
+  // session yet; now that one exists, adopt it when entitled (auth-off always
+  // is) so turn routing includes this connection (add-session-ownership).
+  if (!ws.viewedSession) {
+    const liveId = chatHistory.currentSessionId();
+    if (
+      liveId &&
+      chatHistory.accessSession(ws.user, liveId, {
+        authEnabled: ctx.authEnabled,
+        isAdmin: ctx.isAdminUser?.(ws.user),
+      }).ok
+    ) {
+      ws.viewedSession = liveId;
+    }
+  }
   // The live plan (add-plan-progress-panel): pushed after a mid-boot connect
   // completes so the client agrees with the running session before any turn.
-  if (!sendIfOpen(ws, ctx.planMessage(ctx.dshSessionId))) return;
+  // Scoped like the connect path (add-session-ownership): the plan belongs to
+  // the session this connection is entitled to view.
+  if (!sendIfOpen(ws, ctx.planMessage(ws.viewedSession ?? ctx.dshSessionId))) return;
 
-  const sessions = await chatHistory.listSessions();
+  const sessions = await chatHistory.listSessions(ctx.sessionScopeFor(ws));
   if (version !== ctx.sessionVersion) return;
-  sendIfOpen(ws, { type: "sessions", sessions, current: chatHistory.currentSessionId() });
+  sendIfOpen(ws, {
+    type: "sessions",
+    sessions,
+    current: ws.viewedSession ?? (ctx.authEnabled ? null : chatHistory.currentSessionId()),
+  });
 };
 
 ctx.wss.on("connection", (ws, req) => {
   // Identity is fixed at upgrade time (v1 ceiling: no re-auth mid-connection).
   ws.user = userForConnection(ctx, req);
   ws.identity = ctx.authEnabled ? ws.user : (ctx.ssoEnabled ? userFromHeaders(req.headers, ctx.headerTrust) : null);
+  // Per-connection view (add-session-ownership): the session this client is
+  // viewing. Initialized to the deployment's live session when this user is
+  // entitled to it (auth-off is always entitled — single-user contract);
+  // otherwise null: the client renders the welcome state and its first prompt
+  // mints a session of its own (prompt-implies-switch below).
+  {
+    const liveId = chatHistory.currentSessionId();
+    ws.viewedSession =
+      !liveId ||
+      chatHistory.accessSession(ws.user, liveId, {
+        authEnabled: ctx.authEnabled,
+        isAdmin: ctx.isAdminUser?.(ws.user),
+      }).ok
+        ? liveId
+        : null;
+  }
   // Sandbox pod: this connection's own prompt allowance (fresh per reconnect).
   if (ctx.DEMO_SANDBOX) ws.sandboxBudget = createDemoBudget(demoLimit, { everyone: true });
   ctx.clients.add(ws);
@@ -167,21 +233,29 @@ ctx.wss.on("connection", (ws, req) => {
   ws.send(JSON.stringify({ type: "current_preset", id: ctx.currentPreset }));
   // The live plan for the current session (add-plan-progress-panel). Sent
   // unconditionally — a session with no plan sends the empty list, which the
-  // client treats as "hide the surface" rather than as a stale snapshot.
-  ws.send(JSON.stringify(ctx.planMessage(ctx.dshSessionId)));
+  // client treats as "hide the surface" rather than as a stale snapshot. A
+  // connection not entitled to the live session gets the empty plan of its own
+  // (null) view instead of another user's plan (add-session-ownership).
+  ws.send(JSON.stringify(ctx.planMessage(ws.viewedSession ?? ctx.dshSessionId)));
   if (ctx.ready.dsh) {
     void syncPermissionState(ws).catch((e) =>
       console.warn(`[chat-history] permission sync on connect failed: ${e.message}`)
     );
   }
-  // Send the chat session list + current session so the sidebar syncs on connect.
+  // Send the chat session list + current session so the sidebar syncs on
+  // connect — scoped to this connection's user, with `current` naming THIS
+  // connection's viewed session (add-session-ownership).
   if (ctx.session) {
     const version = ctx.sessionVersion;
     chatHistory
-      .listSessions()
+      .listSessions(ctx.sessionScopeFor(ws))
       .then((sessions) => {
         if (version !== ctx.sessionVersion) return;
-        sendIfOpen(ws, { type: "sessions", sessions, current: chatHistory.currentSessionId() });
+        sendIfOpen(ws, {
+          type: "sessions",
+          sessions,
+          current: ws.viewedSession ?? (ctx.authEnabled ? null : chatHistory.currentSessionId()),
+        });
       })
       .catch((e) => console.error("[chat-history] list on connect failed:", e.message));
   }
@@ -226,11 +300,12 @@ ctx.wss.on("connection", (ws, req) => {
           ctx.promptStoppedByNavigation = false;
           ctx.isStreaming = true;
           try {
+            const target = await beginTurnFor(ws);
             // Skill invocation: emit a skill_use block and suppress the raw
             // /skill:... text from being echoed as a normal user message.
-            ctx.broadcast({ type: "skill_use", name: cmd.name, args: cmd.args });
+            ctx.sendToViewers(target, { type: "skill_use", name: cmd.name, args: cmd.args });
             // Mirror the user's skill invocation into the SQLite project database.
-            chatHistory.recordMessage(chatHistory.currentSessionId(), "user", text);
+            chatHistory.recordMessage(target, "user", text, undefined, ctx.turnOrigin.user);
 
             // Manually expand the skill content and send that to the agent. This
             // does not rely on session.prompt() expanding slash commands.
@@ -293,7 +368,8 @@ ctx.wss.on("connection", (ws, req) => {
           ctx.promptStoppedByNavigation = false;
           ctx.isStreaming = true;
           try {
-            ctx.broadcast({ type: "user", text, ...budgetLeftField(ws) });
+            const target = await beginTurnFor(ws);
+            ctx.sendToViewers(target, { type: "user", text, ...budgetLeftField(ws) });
 
             if (entry) {
               // Remote-agent fork: expand refs before streaming from its
@@ -301,8 +377,9 @@ ctx.wss.on("connection", (ws, req) => {
               const promptText = await skills.expandDocRefs(ctx, text);
               await ctx.streamRemoteChat(entry, promptText);
             } else {
-              // Mirror the user prompt into the SQLite project database.
-              chatHistory.recordMessage(chatHistory.currentSessionId(), "user", text);
+              // Mirror the user prompt into the SQLite project database,
+              // stamped with the submitting connection's user.
+              chatHistory.recordMessage(target, "user", text, undefined, ctx.turnOrigin.user);
               // Expand @doc:<id> attachment references into the document content the
               // agent sees (design D4); the user message above keeps the raw refs.
               const promptWithDocs = await skills.expandDocRefs(ctx, text);
@@ -314,7 +391,10 @@ ctx.wss.on("connection", (ws, req) => {
             ctx.promptStoppedByNavigation = false;
             if (!stoppedByNavigation) {
               console.error("Agent error:", err.message);
-              ctx.broadcast({ type: "error", message: err.message });
+              ctx.sendToViewers(ctx.turnOrigin?.sessionId ?? ctx.dshSessionId, {
+                type: "error",
+                message: err.message,
+              });
             }
             // Finish the turn (reset streaming, emit done, refresh sessions) so a
             // failed turn does not wedge the UI or block model-switch/new-session.
@@ -507,8 +587,18 @@ ctx.wss.on("connection", (ws, req) => {
 
       case "cron_run": {
         try {
-          const ran = await cron.runJobNow(data.jobId);
-          ws.send(JSON.stringify({ type: "cron_run_started", jobId: data.jobId, success: ran }));
+          // runJobNow returns the engine's enqueue result: already-queued or
+          // running executions are a no-op carrying the current state (re-run
+          // never double-queues).
+          const r = await cron.runJobNow(data.jobId);
+          ws.send(JSON.stringify({
+            type: "cron_run_started",
+            jobId: data.jobId,
+            success: r?.ok === true,
+            ...(r?.state ? { state: r.state } : {}),
+            ...(r?.already ? { already: true } : {}),
+            ...(r?.error ? { message: r.error } : {}),
+          }));
         } catch (err) {
           ws.send(JSON.stringify({ type: "error", message: err.message }));
         }
@@ -522,10 +612,14 @@ ctx.wss.on("connection", (ws, req) => {
 
       case "list_sessions": {
         const version = ctx.sessionVersion;
-        const sessions = await chatHistory.listSessions();
+        const sessions = await chatHistory.listSessions(ctx.sessionScopeFor(ws));
         if (version === ctx.sessionVersion) {
           ws.send(
-            JSON.stringify({ type: "sessions", sessions, current: chatHistory.currentSessionId() })
+            JSON.stringify({
+              type: "sessions",
+              sessions,
+              current: ws.viewedSession ?? (ctx.authEnabled ? null : chatHistory.currentSessionId()),
+            })
           );
         }
         break;
@@ -537,7 +631,7 @@ ctx.wss.on("connection", (ws, req) => {
           break;
         }
         try {
-          await ctx.startNewSession();
+          await ctx.startNewSession(ws);
         } catch (err) {
           ws.send(JSON.stringify({ type: "error", message: err.message }));
         }
@@ -549,9 +643,32 @@ ctx.wss.on("connection", (ws, req) => {
           ws.send(JSON.stringify({ type: "error", message: "Agent is still initializing" }));
           break;
         }
+        // Ownership gate (add-session-ownership): a session owned by another
+        // non-admin user is refused before the runtime is touched — not just
+        // hidden from the list.
+        const access = chatHistory.accessSession(ws.user, data.id, {
+          authEnabled: ctx.authEnabled,
+          isAdmin: ctx.isAdminUser?.(ws.user),
+        });
+        if (!access.ok) {
+          ws.send(
+            JSON.stringify({
+              type: "error",
+              message:
+                access.reason === "forbidden"
+                  ? "You do not have access to this session"
+                  : `session ${data.id} not found`,
+            })
+          );
+          break;
+        }
         try {
           const result = await ctx.switchToSession(data.id);
-          ctx.broadcast({
+          ws.viewedSession = result.id;
+          // Per-viewer delivery: the requester (now viewing the target) plus
+          // any other connection already viewing it. Foreign clients keep
+          // their own view and their own transcript.
+          ctx.sendToViewers(result.id, {
             type: "session_loaded",
             id: result.id,
             title: result.title,
@@ -560,13 +677,9 @@ ctx.wss.on("connection", (ws, req) => {
           // The target session's own plan (or the empty list). The client clears
           // the plan on session_loaded; this push is what restores it when the
           // user switches back to a session that had one (add-plan-progress-panel).
-          ctx.broadcast(ctx.planMessage(result.id));
-          ctx.broadcast({ type: "session_changed", id: result.id });
-          const version = ctx.sessionVersion;
-          const sessions = await chatHistory.listSessions();
-          if (version === ctx.sessionVersion) {
-            ctx.broadcast({ type: "sessions", sessions, current: result.id });
-          }
+          ctx.sendToViewers(result.id, ctx.planMessage(result.id));
+          ctx.sendToViewers(result.id, { type: "session_changed", id: result.id });
+          void ctx.broadcastSessions();
         } catch (err) {
           ws.send(JSON.stringify({ type: "error", message: err.message }));
         }
@@ -574,9 +687,25 @@ ctx.wss.on("connection", (ws, req) => {
       }
 
       case "rename_session": {
+        const access = chatHistory.accessSession(ws.user, data.id, {
+          authEnabled: ctx.authEnabled,
+          isAdmin: ctx.isAdminUser?.(ws.user),
+        });
+        if (!access.ok) {
+          ws.send(
+            JSON.stringify({
+              type: "error",
+              message:
+                access.reason === "forbidden"
+                  ? "You do not have access to this session"
+                  : `session ${data.id} not found`,
+            })
+          );
+          break;
+        }
         try {
           const title = chatHistory.setTitle(data.id, data.title);
-          ctx.broadcast({ type: "session_renamed", id: data.id, title });
+          ctx.sendToViewers(data.id, { type: "session_renamed", id: data.id, title });
         } catch (err) {
           if (err?.code) {
             ws.send(JSON.stringify({ type: "rename_session_error", code: err.code, message: err.message }));

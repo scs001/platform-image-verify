@@ -362,6 +362,65 @@ ASSISTANT_NAME=Your Name Here
 kubectl -n fd-prod rollout restart deploy/platform
 ```
 
+### Session ownership (SESSION_LEGACY_OWNER) — add-session-ownership
+
+Chat sessions are private to the account that created them: each session
+records an owner (stamped from the first message's authenticated user), lists
+are scoped per user, open-by-id/rename/delete are owner-or-admin, and
+conversation events reach only that session's viewers. Auth stays off in
+dev/desktop (one user, everything visible, e2e unchanged).
+
+One decision before a shared deployment goes multi-user: **who owns the
+sessions that already exist?** Rows without an owner are admin-visible only
+under auth-on. Assign them once (idempotent — setting it later and restarting
+claims whatever is still ownerless):
+
+```bash
+kubectl --context cheap -n fd-prod patch configmap platform-config \
+  --type merge -p '{"data":{"SESSION_LEGACY_OWNER":"3106241601@qq.com"}}'
+kubectl --context cheap -n fd-prod rollout restart deploy/platform
+# boot log: [db] assigned N ownerless session(s) to the legacy owner
+```
+
+Known shared-runtime ceilings that remain (by design, until per-user cells):
+one turn at a time for the whole deployment (a second user prompting during
+another's turn gets the standard busy error), and the agent's filesystem view
+is still the shared workspace.
+
+### Agent workspace (AGENT_WORKSPACE pin) — fix-agent-workspace
+
+The dsh runtime's `cwd` defaults to the process working directory (`/app`,
+root-owned in the image). An agent booted there writes to `/tmp`, and produced
+files become unservable — `/api/files` and the resource-library save both key
+off the runtime cwd. The `AGENT_WORKSPACE` env pins a writable workspace at
+boot; user switches persist as a preference and survive restarts, but the pin
+outranks them (a stale switch can never strand the deployment). An invalid pin
+logs `[workspace] AGENT_WORKSPACE '<v>' rejected: …` and falls back down the
+chain — boot never fails.
+
+fd-prod applies it once (the `/data` mount is a hostPath, so the dir is
+created on the node, not by the image):
+
+```bash
+# 1. On the fd-prod node: create the workspace under the persistent volume,
+#    owned by the image's node user (UID 1000).
+mkdir -p /opt/platform/workspace && chown 1000:1000 /opt/platform/workspace
+# 2. Pin it (plain value → ConfigMap):
+kubectl --context cheap -n fd-prod patch configmap platform-config \
+  --type merge -p '{"data":{"AGENT_WORKSPACE":"/data/workspace"}}'
+# 3. Roll and verify:
+kubectl --context cheap -n fd-prod rollout restart deploy/platform
+kubectl --context cheap -n fd-prod rollout status deploy/platform
+kubectl --context cheap -n fd-prod logs deploy/platform | grep '\[workspace\]'
+# expect: [workspace] boot workspace: /data/workspace (source=env)
+```
+
+Post-deploy probe: ask the agent to write a small file into the workspace
+root, then fetch it through an authenticated browser session —
+`GET /api/files?root=workspace&path=<rel>` returns 200 and the resource-library
+保存到资源库 succeeds. Sessions whose files were written to `/tmp` under the
+old layout stay dead (accepted; nothing worth rescuing).
+
 ### Web search relay (operator-side service)
 
 The agent's web search ships **inside the app** — `platform.bundle.json` mounts

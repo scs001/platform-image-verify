@@ -536,6 +536,23 @@ const MIGRATIONS = [
       )`,
     ],
   },
+  {
+    version: 22,
+    // Session ownership (add-session-ownership): the email of the authenticated
+    // user whose connection submitted the session's first user message. Nullable
+    // by design — auth-off deployments never stamp (single-user semantics), and
+    // pre-existing rows are backfilled only when SESSION_LEGACY_OWNER names the
+    // account that owns them (unset ⇒ rows stay NULL, which under auth-on means
+    // admin-only visibility). The backfill itself is an idempotent boot step,
+    // not just this migration — see backfillSessionOwners.
+    apply: (db) => {
+      const cols = new Set(
+        db.prepare("PRAGMA table_info(chat_sessions)").all().map((c) => c.name)
+      );
+      if (!cols.has("owner")) db.exec(`ALTER TABLE chat_sessions ADD COLUMN owner TEXT`);
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_sessions_owner ON chat_sessions(owner)`);
+    },
+  },
 ];
 
 function nowIso() {
@@ -590,6 +607,14 @@ export async function initDb() {
     db.pragma("foreign_keys = ON");
     runMigrations();
     dbReady = true;
+    // Legacy-owner assignment (add-session-ownership): idempotent, runs on
+    // every boot so setting SESSION_LEGACY_OWNER later still claims the
+    // ownerless remainder on the next restart.
+    const legacyOwner = String(process.env.SESSION_LEGACY_OWNER || "").trim();
+    if (legacyOwner) {
+      const claimed = backfillSessionOwners(legacyOwner);
+      if (claimed) console.log(`[db] assigned ${claimed} ownerless session(s) to the legacy owner`);
+    }
     console.log(`[db] opened ${dbPath} (schema v${latestVersion()})`);
   } catch (err) {
     dbReady = false;
@@ -648,6 +673,28 @@ export function setSessionPath(id, path) {
   stmt("UPDATE chat_sessions SET path = ? WHERE id = ?").run(path, id);
 }
 
+// Stamp the owning user on first mirror (add-session-ownership). Write-once:
+// only a NULL owner is fillable, so cron/bot turns continuing another user's
+// session can never re-stamp it. Returns true when the row was stamped.
+export function stampSessionOwner(id, owner) {
+  if (!dbReady || !id || !owner) return false;
+  const result = stmt(
+    "UPDATE chat_sessions SET owner = ? WHERE id = ? AND owner IS NULL"
+  ).run(owner, id);
+  return result.changes > 0;
+}
+
+// Assign every still-ownerless row to the deploy-designated legacy owner
+// (add-session-ownership). Idempotent, and deliberately a boot STEP rather
+// than only a migration: a versioned migration runs exactly once, but the
+// operator story is "set SESSION_LEGACY_OWNER (now or later) and restart" —
+// this is what makes the later half true. Auth-off deployments leave the env
+// unset and never call it with a value.
+export function backfillSessionOwners(owner) {
+  if (!dbReady || !owner) return 0;
+  return stmt("UPDATE chat_sessions SET owner = ? WHERE owner IS NULL").run(owner).changes;
+}
+
 export function touchSession(id, updatedAt) {
   if (!dbReady) return;
   stmt("UPDATE chat_sessions SET updated_at = ? WHERE id = ?").run(updatedAt, id);
@@ -679,16 +726,20 @@ export function appendMessage(sessionId, role, content, createdAt, blocksJson) {
   return { seq, id: Number(info.lastInsertRowid) };
 }
 
-export function listChatSessions() {
+// List session rows, most-recently-updated first. Scope (add-session-ownership):
+//   undefined          — no scoping (auth-off: the deployment is one user)
+//   { owner: email }   — only that user's rows (NULL-owner rows excluded:
+//                        under auth-on they are admin-visible only)
+//   { includeAll: true } — every row (admin group / ops console)
+export function listChatSessions(scope) {
   if (!dbReady) return [];
-  return db
-    .prepare(
-      `SELECT s.id, s.title, s.created_at AS createdAt, s.updated_at AS updatedAt, s.path, s.agent_preset AS agentPreset, s.workspace,
+  const base = `SELECT s.id, s.title, s.created_at AS createdAt, s.updated_at AS updatedAt, s.path, s.agent_preset AS agentPreset, s.workspace, s.owner,
               (SELECT COUNT(*) FROM chat_messages m WHERE m.session_id = s.id) AS messageCount
-       FROM chat_sessions s
-       ORDER BY s.updated_at DESC`
-    )
-    .all();
+       FROM chat_sessions s`;
+  if (scope?.owner && !scope.includeAll) {
+    return db.prepare(`${base} WHERE s.owner = ? ORDER BY s.updated_at DESC`).all(scope.owner);
+  }
+  return db.prepare(`${base} ORDER BY s.updated_at DESC`).all();
 }
 
 export function getSessionPath(id) {
@@ -713,7 +764,7 @@ export function getSessionMeta(id) {
   if (!dbReady) return null;
   return db
     .prepare(
-      "SELECT id, title, created_at AS createdAt, updated_at AS updatedAt, path, agent_preset AS agentPreset, workspace FROM chat_sessions WHERE id = ?"
+      "SELECT id, title, created_at AS createdAt, updated_at AS updatedAt, path, agent_preset AS agentPreset, workspace, owner FROM chat_sessions WHERE id = ?"
     )
     .get(id);
 }

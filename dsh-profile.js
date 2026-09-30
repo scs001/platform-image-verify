@@ -33,38 +33,39 @@ const SETTINGS_PATH = join(DSH_HOME, "settings.yaml");
 const CREDENTIALS_PATH = join(DSH_HOME, ".credentials.yaml");
 const MCP_CONFIG_PATH = resolve(process.env.MCP_CONFIG_PATH || "mcp.json");
 
-// token.finddatatech.cloud gateway model catalog (IDs verified against
-// GET /v1/models 2026-09-02; date-suffixed ids are the gateway's real ids).
-// 2026-09-25: the gateway moved to OpenRouter-style ids — the old date-suffixed
-// ids now answer model_not_found. deepseek-v4.1-flash is the agreed rehearsal
-// lane (2026-09-24 user decision; tools verified, maxTokens 32768 — 8192
-// truncates full workflow reports) and sits FIRST because dshModels[0] is the
-// fallback default when no DEFAULT_MODEL binding applies. nex-n2.5-mini is the
-// verified-live free fallback; the rest of the old list is retained until
-// each id is re-verified.
+// token.finddatatech.cloud gateway model catalog. 2026-09-30 refresh: every id
+// on GET /v1/models (33) was probed with a real 1-token chat completion — that
+// endpoint lists *recognized* ids, not *serving* ones, and the gateway's
+// account groups authorize only a subset. Kept here: the ids that served.
+// Excluded, with probe evidence: all mimo ids (upstream "Service temporarily
+// unavailable", ×2 retries); glm-5.3/5.2/5.1 + kimi-k2.6 + date-suffixed
+// deepseek ("not supported by any configured account in this group"); nex
+// free tier (revoked, now paid); nemotron-3.5-content-safety (classifier —
+// 200 with empty content).
+// ID SHAPES DRIFT BOTH WAYS — trust probes, not history: the deepseek lane
+// served as the OpenRouter-style `deepseek/deepseek-v4.1-flash` 2026-09-24..30
+// morning, then the account group flipped to the bare `deepseek-v4.1-flash`
+// (prefixed → not supported, bare → serving, re-verified ×2 each direction
+// within one day). deepseek-v4-pro flapped the same day too. Removing/re-adding
+// on every flip is what the discovery change (add-llm-model-discovery) fixes.
+// Order is policy: deepseek → glm → free pool (`:free` last), deepseek first
+// because dshModels[0] is the fallback default when no DEFAULT_MODEL binding
+// applies. gemma-4-26b and laguna-xs were rate-limited (not down) at probe
+// time; they keep their seats.
 const VOLCES_MODELS = [
-  { id: "deepseek/deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash", contextWindow: 128000, maxTokens: 32768 },
-  { id: "nex-agi/nex-n2.5-mini:free", name: "Nex N2.5 Mini (free)", contextWindow: 128000, maxTokens: 8192 },
-  { id: "deepseek-v4-flash-0731", name: "DeepSeek V4 Flash", contextWindow: 128000, maxTokens: 8192 },
-  { id: "deepseek-v4-pro-0813", name: "DeepSeek V4 Pro", contextWindow: 128000, maxTokens: 8192 },
-  { id: "glm-5.3", name: "GLM 5.3", contextWindow: 128000, maxTokens: 8192 },
-  { id: "glm-5.3-flash", name: "GLM 5.3 Flash", contextWindow: 128000, maxTokens: 8192 },
-  { id: "glm-5.2", name: "GLM 5.2", contextWindow: 128000, maxTokens: 8192 },
-  { id: "glm-5.1", name: "GLM 5.1", contextWindow: 128000, maxTokens: 8192 },
-  { id: "glm-5", name: "GLM 5", contextWindow: 128000, maxTokens: 8192 },
-  { id: "kimi-k2.7-code", name: "Kimi K2.7 Code", contextWindow: 128000, maxTokens: 8192 },
-  { id: "kimi-k2.6", name: "Kimi K2.6", contextWindow: 128000, maxTokens: 8192 },
-  { id: "kimi-k2.5", name: "Kimi K2.5", contextWindow: 128000, maxTokens: 8192 },
-  { id: "minimax-m2.7", name: "MiniMax M2.7", contextWindow: 128000, maxTokens: 8192 },
-  { id: "minimax-m2.5", name: "MiniMax M2.5", contextWindow: 128000, maxTokens: 8192 },
-  { id: "qwen3.8-max", name: "Qwen 3.8 Max", contextWindow: 128000, maxTokens: 8192 },
-  { id: "qwen3.8-27b", name: "Qwen 3.8 27B", contextWindow: 128000, maxTokens: 8192 },
-  { id: "qwen3.7-max", name: "Qwen 3.7 Max", contextWindow: 128000, maxTokens: 8192 },
-  { id: "qwen3.7-flash", name: "Qwen 3.7 Flash", contextWindow: 128000, maxTokens: 8192 },
-  { id: "seed-2.1-pro", name: "Seed 2.1 Pro", contextWindow: 128000, maxTokens: 8192 },
-  { id: "seed-2.1-turbo", name: "Seed 2.1 Turbo", contextWindow: 128000, maxTokens: 8192 },
-  { id: "longcat-2.0", name: "LongCat 2.0", contextWindow: 128000, maxTokens: 8192 },
-  { id: "mimo-v2.5-pro", name: "MiMo V2.5 Pro", contextWindow: 128000, maxTokens: 8192 },
+  { id: "deepseek-v4.1-flash", name: "DeepSeek V4.1 Flash", contextWindow: 128000, maxTokens: 32768 },
+  { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro", contextWindow: 128000, maxTokens: 32768 },
+  { id: "glm-5.3-flash", name: "GLM 5.3 Flash", contextWindow: 128000, maxTokens: 32768 },
+  { id: "cohere/north-mini-code:free", name: "Cohere North Mini Code (free)", contextWindow: 128000, maxTokens: 8192 },
+  { id: "dots-studio/dots-3-note-preview:free", name: "Dots 3 Note Preview (free)", contextWindow: 128000, maxTokens: 8192 },
+  { id: "liquid/lfm-2.5-2.6b:free", name: "Liquid LFM 2.5 2.6B (free)", contextWindow: 128000, maxTokens: 8192 },
+  { id: "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free", name: "Nemotron 3 Nano Omni 30B (free)", contextWindow: 128000, maxTokens: 8192 },
+  { id: "nvidia/nemotron-3-super-120b-a12b:free", name: "Nemotron 3 Super 120B (free)", contextWindow: 128000, maxTokens: 8192 },
+  { id: "nvidia/nemotron-3-ultra-550b-a55b:free", name: "Nemotron 3 Ultra 550B (free)", contextWindow: 128000, maxTokens: 8192 },
+  { id: "nvidia/nemotron-3.5-lightning:free", name: "Nemotron 3.5 Lightning (free)", contextWindow: 128000, maxTokens: 8192 },
+  { id: "poolside/laguna-s-2.1:free", name: "Poolside Laguna S 2.1 (free)", contextWindow: 128000, maxTokens: 8192 },
+  { id: "google/gemma-4-26b-a4b-it:free", name: "Gemma 4 26B A4B (free)", contextWindow: 128000, maxTokens: 8192 },
+  { id: "poolside/laguna-xs-2.1:free", name: "Poolside Laguna XS 2.1 (free)", contextWindow: 128000, maxTokens: 8192 },
 ];
 
 // Thinking levels a model may be asked for. dsh-llm resolves an explicit effort
@@ -76,9 +77,8 @@ const VOLCES_MODELS = [
 const IDENTITY_EFFORTS = { low: "low", medium: "medium", high: "high" };
 
 function declaredEfforts(modelId) {
-  // `deepseek-v4*` (old date-suffixed ids) and `deepseek/deepseek-v4*`
-  // (2026-09-25 OpenRouter-style ids, reasoning field verified live) are the
-  // reasoning families.
+  // `deepseek-v4*` and `deepseek/deepseek-v4*` are the reasoning families
+  // (reasoning field verified live on both id shapes).
   return modelId.startsWith("deepseek-v4") || modelId.startsWith("deepseek/deepseek-v4")
     ? IDENTITY_EFFORTS
     : false;

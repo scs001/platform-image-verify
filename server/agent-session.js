@@ -110,14 +110,23 @@ async function switchToSession(id) {
 
 // The model list shown to clients. The profile generator's declared list IS the
 // model list (no stock listModels RPC). Sourced once at initDshAgent from
-// writeLlmProfile().
+// writeLlmProfile(). The env route and user providers can declare the same id
+// (both point at overlapping gateway rosters); first occurrence wins so client
+// pickers keyed by id never see duplicates.
 async function getAvailableModels() {
-  return ctx.dshModels.map((m) => ({
-    id: m.id,
-    name: m.name || m.id,
-    provider: m.provider,
-    ...(m.reasoningEfforts?.length ? { reasoningEfforts: m.reasoningEfforts } : {}),
-  }));
+  const seen = new Set();
+  const models = [];
+  for (const m of ctx.dshModels) {
+    if (seen.has(m.id)) continue;
+    seen.add(m.id);
+    models.push({
+      id: m.id,
+      name: m.name || m.id,
+      provider: m.provider,
+      ...(m.reasoningEfforts?.length ? { reasoningEfforts: m.reasoningEfforts } : {}),
+    });
+  }
+  return models;
 }
 
 // The thinking levels the given model declares (empty = no control for it).

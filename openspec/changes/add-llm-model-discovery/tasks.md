@@ -1,0 +1,27 @@
+# Tasks — add-llm-model-discovery
+
+Design: see design.md (D1–D8). Tasks assume `refresh-llm-model-roster` has landed (its 13-entry roster is the baseline sync will diff against).
+
+## 1. Probe + classification core (llm-providers.js)
+
+- [ ] 1.1 Add the family metadata table (id-prefix → contextWindow/maxTokens/reasoningEfforts + family rank for ordering) with the probe-verified 2026-09-30 values (deepseek family 32768+efforts; glm-5.3-flash 32768; default 128k/8192/none; gateway error-substring strings recorded next to the matcher). Verify with a unit check against known ids (deepseek/deepseek-v4.1-flash → 32768+efforts; mimo-v2.6-flash → defaults).
+- [ ] 1.2 Implement `classifyModels(baseUrl, apiKey, ids)` — bounded-concurrency (4) probes, one minimal chat completion per id, 30s timeout, single retry for rate_limited/network only; classification per D2; errors through `sanitizeError`. Verify against a local mock server (fixture: one serving, one 404-account, one 503-upstream, one 429, one empty-content) — each lands in its bucket.
+- [ ] 1.3 Implement `syncProvider(id)` — classify BEFORE the write lock; inside `tryWithWriteLock`: merge `serving` ids (append, family-table metadata, never touch existing entries' fields), persist `{ id → { status, error?, probedAt } }` in a `discovery` map on the record, return `{ statuses, added, rosterSize }`. Verify: provider fixture where a dead roster id survives flagged, a new serving id is appended.
+- [ ] 1.4 Guard rails: `syncProvider` throws `not_found`/`invalid` per existing conventions; reserved `volces` id runs classification only and returns a dry-run payload (no store write). Verify both paths with unit checks.
+
+## 2. REST route (server/routes/llm.js)
+
+- [ ] 2.1 Add `POST /api/llm/providers/:id/sync` — admin-gated (`ctx.requireAdmin`), calls `syncProvider`, then the existing `reloadLlmProviders()` hot-reload (models WS broadcast included), maps `busy`→409. Verify: dev server + curl with admin session; second concurrent sync gets 409; `GET /api/llm/providers` shows the `discovery` map and no apiKey.
+- [ ] 2.2 Extend `GET /api/llm/providers` + `clientRecord()` to include the `discovery` status map. Verify no key material leaks (grep the response).
+
+## 3. Models page UI (web/src/components/llm/*)
+
+- [ ] 3.1 Sync button on ProviderCard (admin only): spinner + result summary toast (`+N added · M serving · K flagged`), refreshes the provider list on completion. Verify by syncing against the live finddata provider in dev (expect: 13 serving + mimo upstream_down ×6 + glm-5.x unauthorized + others error per current gateway state).
+- [ ] 3.2 Status chips per model id in the provider card: serving (green), unauthorized/upstream_down/rate_limited/not_chat/error (muted with tooltip = sanitized message + probedAt). Roster entries whose status ≠ serving render flagged, non-serving suggestions render visible-but-not-selectable. Verify visual pass + WXML/React a11y labels.
+- [ ] 3.3 Reserved volces card: sync button labeled dry-run, result shown read-only ("would add: …"). Verify against dev env route.
+
+## 4. Tests + rollout
+
+- [ ] 4.1 Unit tests: classifier buckets, no-evict merge, dry-run, lock behavior (mock timers where needed). Run suite green.
+- [ ] 4.2 E2E (`e2e/`): admin sync flow against a mocked provider route (harness already stubs LLM e2e lanes); assert status map rendering + roster flag. Run spec green under the existing playwright harness.
+- [ ] 4.3 Deploy via Jenkins `platform` job; on prod run one real sync on `finddata-token`, confirm result matches expectations (≥13 serving incl. deepseek/deepseek-v4.1-flash first in the dropdown after ordering), models chip + one live chat turn on the default lane, and record sha/Jenkins# in the deploy doc. If mimo has recovered by then, expect its ids to return as serving and merge.

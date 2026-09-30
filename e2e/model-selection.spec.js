@@ -143,14 +143,15 @@ test.describe("model selection", () => {
   });
 
   test("switch model via /model command", async ({ page }) => {
-    // Pick deterministically from the frozen Volces ids, one that differs from
-    // the CURRENTLY ACTIVE model (not just the persisted default — the two can
-    // diverge because set-default persists without restarting). The active id
-    // comes from /api/llm/default's activeModelId.
+    // Pick deterministically from the current Volces roster (probe-verified
+    // 2026-09-30), one that differs from the CURRENTLY ACTIVE model (not just
+    // the persisted default — the two can diverge because set-default persists
+    // without restarting). The active id comes from /api/llm/default's
+    // activeModelId.
     const def = await page.request.get("/api/llm/default");
     const defBody = await def.json();
     const activeId = defBody.activeModelId;
-    const FROZEN = ["deepseek-v4-pro-0813", "deepseek-v4-flash-0731", "glm-5.2"];
+    const FROZEN = ["deepseek-v4-pro", "glm-5.3-flash", "cohere/north-mini-code:free"];
     const targetId = FROZEN.find((id) => id !== activeId);
     if (!targetId) {
       test.skip(true, "no alternate frozen model available");
@@ -186,7 +187,7 @@ test.describe("model selection", () => {
     });
   });
 
-  test("list_models returns the frozen Volces-gateway model ids", async ({ page }) => {
+  test("list_models returns the probe-verified Volces-gateway model ids", async ({ page }) => {
     const models = await page.evaluate(async () => {
       return await new Promise((resolve, reject) => {
         const wsUrl = window.location.origin.replace(/^http/, "ws") + "/";
@@ -212,10 +213,27 @@ test.describe("model selection", () => {
     });
 
     const volcesIds = models.filter((m) => m.provider === "volces").map((m) => m.id);
-    const frozenIds = ["deepseek-v4-pro-0813", "deepseek-v4-flash-0731", "glm-5.2"];
-    expect(
-      frozenIds.every((id) => volcesIds.includes(id)),
-      `expected frozen Volces ids ${frozenIds.join(", ")}; got ${JSON.stringify(volcesIds)}`
-    ).toBe(true);
+    // The 2026-09-30 roster refresh: 13 probe-verified ids, deepseek lane
+    // first; every dead id (unauthorized / upstream-down / revoked free tier)
+    // must be gone from the env route's roster.
+    expect(volcesIds.length, `expected 13 volces models; got ${JSON.stringify(volcesIds)}`).toBe(13);
+    expect(volcesIds[0]).toBe("deepseek-v4.1-flash");
+    const deadIds = [
+      "deepseek/deepseek-v4.1-flash",
+      "deepseek-v4-pro-0813",
+      "deepseek-v4-flash-0731",
+      "glm-5.2",
+      "kimi-k2.6",
+      "mimo-v2.5-pro",
+      "nex-agi/nex-n2.5-mini:free",
+    ];
+    const present = deadIds.filter((id) => volcesIds.includes(id));
+    expect(present, `dead ids still on the roster: ${present.join(", ")}`).toEqual([]);
+
+    // First-occurrence dedup across merged provider rosters (env route +
+    // user providers may declare the same id): no duplicates may reach the
+    // client, or pickers keyed by id collide.
+    const allIds = models.map((m) => m.id);
+    expect(new Set(allIds).size, `duplicate model ids across providers: ${JSON.stringify(allIds)}`).toBe(allIds.length);
   });
 });

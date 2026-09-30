@@ -920,10 +920,11 @@ deepseek 32768+efforts / glm-5.3-flash 32768 / 默认 128k-8192）、死 id 只�
 编辑，400 回滚）、Models 页同步按钮/编辑器/状态芯片（admin 门禁，五语言）。
 单测 18/18 + e2e 5/5（llm-model-sync.spec.js）。
 
-**部署管道**：TCR 主链路本次**断裂**——`yizuo/platform` 仓库未在个人版控制台
-建出（用集群 tcr-pull 凭证走 token dance 实测 `NAME_UNKNOWN`；GHA run 卡在
-Push image 近 1h 后手动取消；`default/platform` 存在但该凭证无权）。**下次
-走 TCR 前必须先在控制台建 `yizuo/platform`（广州）**。降级 Jenkins #47
+**部署管道**：走了 Jenkins #47 降级路径（TCR 主链路当日并行演进中——本
+变更的 GHA run 构建的是瘦身前胖镜像 ~2GB，1.3-2Mbps 推 TCR 需数小时，Push
+步 1h 后取消；其间用集群凭证 token dance 探到 `NAME_UNKNOWN`，实为**空仓
+库假阴性**——`yizuo/platform` 已建，同晚 22:22 并行会话的瘦身镜像 run 已全
+绿入库 sha-828a6df，勿重蹈覆辙）。Gitee `deploy/prod-snapshot` fast-forward
 （Gitee `deploy/prod-snapshot` fast-forward 到 6048f89，generic-webhook
 token=`platform` 触发），冒烟过推 Harbor sha-6048f89；GitOps f3cd6e3（manifest
 维持 Harbor 路径未动）；ArgoCD refresh 后节点闪断（FailedScheduling + pod 重建），

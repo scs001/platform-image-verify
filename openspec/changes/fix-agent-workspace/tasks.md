@@ -12,5 +12,5 @@
 
 ## 3. Deploy wiring + suite
 
-- [ ] 3.1 Add `AGENT_WORKSPACE` to .env.example and DEPLOY.md (fd-prod: `/data/workspace` under the persistent volume, owned by the app user); k8s/compose creates the dir in the image; verify the deployed pod boots with the pinned workspace and `/api/files` serves a file the agent wrote
+- [x] 3.1 Add `AGENT_WORKSPACE` to .env.example and DEPLOY.md (fd-prod: `/data/workspace` under the persistent volume, owned by the app user); k8s/compose creates the dir in the image; verify the deployed pod boots with the pinned workspace and `/api/files` serves a file the agent wrote
 - [x] 3.2 Run the full e2e suite (dev flow unchanged: no env, no preference → process.cwd()) and `openspec validate --strict` for this change

@@ -63,7 +63,13 @@ ENV NODE_OPTIONS=--max-old-space-size=1024 \
 # broken resource build that should fail the docker build.
 COPY package*.json ./
 COPY web/package*.json ./web/
-RUN npm ci --ignore-scripts \
+# --omit=dev on the ROOT tree only: the runtime (scripts/start.js → server.js)
+# never imports a devDependency, and they were ~330 MB of dead weight — the
+# electron binary alone is 299 MB in what is a server-only image. The WEB ci
+# below must keep devDeps: vite is one, and the image builds web/dist itself.
+# Native addons (better-sqlite3/tree-sitter) ship prebuilt binaries, so
+# --ignore-scripts + omit=dev compose safely.
+RUN npm ci --omit=dev --ignore-scripts \
     && npm --prefix web ci --ignore-scripts
 
 # dsh-profile-template/ is consumed by the dsh install layer below (cp →
@@ -220,7 +226,12 @@ ENV NODE_ENV=production \
 # Only /data is writable at runtime (PLATFORM_DATA_DIR); the app tree already
 # carries node ownership from the COPY --chown above, so there is no recursive
 # chown here — see the note on those COPY lines.
-RUN mkdir -p /data && chown node:node /data
+# /data/workspace is the AGENT_WORKSPACE default target (fix-agent-workspace):
+# produced files must land under the serving root or they can be neither
+# previewed, downloaded, nor saved to resources. A deployment mounting /data
+# from a hostPath masks this dir — its runbook step creates it on the host
+# (see DEPLOY.md → Agent workspace).
+RUN mkdir -p /data/workspace && chown -R node:node /data
 USER node
 
 EXPOSE 3000

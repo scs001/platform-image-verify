@@ -87,6 +87,13 @@ async function buildPlan() {
       }
       continue;
     }
+    if (entry.name === "mcp.json") {
+      // The spawner points MCP_CONFIG_PATH at <root>/mcp.json — beside data/,
+      // not inside it (live finding 2026-10-01: inside data/ the cell boots
+      // with an empty operator MCP layer).
+      plan.push({ from, to: path.join(userRoot, "mcp.json"), note: "cell MCP operator config (beside data/)" });
+      continue;
+    }
     plan.push({ from, to: path.join(userRoot, "data", entry.name), note: `cell state (${entry.name})` });
   }
   plan.push({ from: dshHome, to: path.join(userRoot, "dsh"), note: "dsh profile home" });

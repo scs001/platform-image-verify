@@ -243,7 +243,10 @@ test("deriveScope resolves the custom family; a focused boot lists baseline + it
   // (no user root, no pack roots); the root links the available references.
   const dirs = await dirListOf({ agentPreset: PRESET_ID });
   const root = sm.customPresetSkillsRoot(PRESET_ID);
-  assert.deepEqual(dirs, [path.resolve("skills"), root]);
+  // Baseline dir is repo-rooted, not cwd-rooted (migrate-fd-prod-cells): cells
+  // run from a per-user cwd; the shipped skills/ dir is an image asset.
+  const { repoRoot } = await import("../paths.js");
+  assert.deepEqual(dirs, [repoRoot("skills"), root]);
   assert.deepEqual(readdirSync(root).sort(), ["cp-pack-skill"]);
   // The cross-pack link points into the pack's root, relative to preset root.
   assert.equal(

@@ -27,6 +27,7 @@ import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { atomicWriteTextSync, normalizeBaseUrl } from "./lib/persistence.js";
+import { repoRoot } from "./paths.js";
 
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), ".dsh");
 const SETTINGS_PATH = join(DSH_HOME, "settings.yaml");
@@ -431,7 +432,10 @@ function toMcpClientEntry(name, config) {
     // mcp.json lives). The dsh child's cwd is the WORKSPACE and moves on
     // set_workspace, so pin the spawn cwd unless the config sets one — an
     // unpinned relative path breaks the moment the user switches folders.
-    entry.config.cwd = config.cwd || process.cwd();
+    // repoRoot, not process.cwd(): hosted cells run from a per-user runtime
+    // cwd, which would strand every relative arg (2026-10-01 cutover live
+    // finding: websearch-mcp MODULE_NOT_FOUND killed the dsh plugin tree).
+    entry.config.cwd = config.cwd || repoRoot(".");
   } else if (config.url) {
     entry.config.transport = "streamable-http";
     entry.config.url = config.url;
@@ -661,7 +665,8 @@ export async function writeSkillsPatch({ agentPreset = null, extraDirs = [], noO
   // overridden, so the built-in discovery roots are preserved). extraDirs appends
   // deployment-specific roots after the derived set.
   const scope = await deriveScope(agentPreset, { noOverlay });
-  const dirs = [resolve("skills")];
+  // repoRoot: cells sit in a per-user cwd; the baseline skills/ dir ships in the image.
+  const dirs = [repoRoot("skills")];
   if (scope.source === "custom") {
     // Custom preset (add-custom-presets D3): the compose root IS the scope —
     // the row's whole reference list is the declaration (empty = baseline

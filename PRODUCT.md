@@ -43,7 +43,7 @@ Confirmed constraints:
 
 ## Brand Commitments
 
-Product name: **Platform** (repo `fd-craw-private`, FindData Technology). The assistant persona's display name is configurable via `ASSISTANT_NAME` (default "Platform"; the hosted deployment runs "FD") and names the built-in agent's picker row and sidebar presence. README is Chinese-first with an English appendix; versioned releases ship via GitHub Actions. No logo, identity assets, or voice guide exist yet — none is binding.
+Product name: **Platform** (repo `fd-craw-private`, FindData Technology; belongs to the 寻数·壹座 Base product line). The assistant persona's display name is configurable via `ASSISTANT_NAME` (default "Platform"; the hosted deployment runs "FD") and names the built-in agent's picker row and sidebar presence. README follows the five-lines public-surface convention (decided 2026-10-01): `README.md` (English primary) + `README.zh-CN.md`, interlinked at the top, each opening with the Base-line banner linking to `www.finddatatech.cloud/products/base`; versioned releases ship via GitHub Actions. No logo, identity assets, or voice guide exist yet — none is binding.
 
 ## Evidence on Hand
 

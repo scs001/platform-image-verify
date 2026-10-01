@@ -113,3 +113,6 @@ CLAUDE.md
 
 # codegraph local index (tool data, not source)
 .codegraph/
+
+# Open-source snapshot build output (scripts/make-public-snapshot.mjs)
+dist-opensource/

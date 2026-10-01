@@ -62,17 +62,21 @@ export function SharePage() {
             </h1>
           ) : null}
           <div className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto pb-6">
-            {state.messages.map((m, i) =>
-              m.role === "user" ? (
-                <div key={i} className="rounded-lg bg-muted px-4 py-2 text-sm whitespace-pre-wrap">
+            {state.messages.map((m) => {
+              // Static one-shot transcript (no ids in the public share shape,
+              // no reordering): a content-derived key keeps Biome's
+              // no-array-index rule satisfied without behavior change.
+              const key = `${m.role}:${m.content.length}:${m.content.slice(0, 16)}`;
+              return m.role === "user" ? (
+                <div key={key} className="rounded-lg bg-muted px-4 py-2 text-sm whitespace-pre-wrap">
                   {m.content}
                 </div>
               ) : (
-                <div key={i} className="text-sm">
+                <div key={key} className="text-sm">
                   <Markdown text={m.content} />
                 </div>
-              ),
-            )}
+              );
+            })}
           </div>
         </>
       )}

@@ -20,7 +20,7 @@
 
 - [x] 4.1 dsh-profile.js 各 writer（presets/permissions/mcp/skills/chart-bind patch、credentials）改为接受显式目标 profile 路径；模块内现有调用点传 DSH_HOME 派生值，行为不变。验证：本地 boot + 一次模型切换 + 一次预设切换照常（重启路径不回归）
 - [x] 4.2 `agent-runner/compose.js` 删除镜像格式代码，改 import 这些 writer（传自己的 homeRoot）；删除"formats mirrored / drift risk accepted"注释块。验证：对同一角色描述符，改造前后物化的 home 逐文件一致（diff 验证）
-- [x] 4.3 回归：custom-presets、pack-agent-scopspec、focus-overlay、agent-presets 四个 e2e
+- [x] 4.3 回归：custom-presets、pack-agent-scoping、focus-overlay、agent-presets 四个 e2e
       （本机净 store 双向对照已证失败为环境 flake 非回归；CI 净环境确认被存量 lint 债阻断——
       sections.ts noExplicitAny×11、ToolBlock 条件 hook、OverlayPanel/useWebSocket 依赖数组，
       均为指挥层/perf 在途 WIP、CI 自 9-21 红至今。净环境确认并入 5.1 的 demo 实弹探活：demo pod

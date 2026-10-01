@@ -27,6 +27,7 @@ test.describe("default AUTH_MODE (auth off)", () => {
       email: null,
       groups: null,
       authenticated: false,
+      adminGroups: ["admin"],
       loginUrl: "/oauth2/start",
       logoutUrl: "/oauth2/sign_out",
       ssoConfigured: false,
@@ -256,6 +257,7 @@ test.describe("AUTH_MODE=forward_auth", () => {
       email: null,
       groups: null,
       authenticated: false,
+      adminGroups: ["admin"],
       loginUrl: "/oauth2/start",
       logoutUrl: "/oauth2/sign_out",
       // Optional SSO is a mode-none-only overlay; under forward_auth it stays off.

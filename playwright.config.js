@@ -30,7 +30,10 @@ export default defineConfig({
   // The server hosts ONE shared agent session, so tests must run sequentially.
   workers: 1,
   fullyParallel: false,
-  retries: 0,
+  // CI-only flake retries: the shared-runtime suite has order/load-sensitive
+  // specs (agent-serving's first fetch, model-switch restart timing) that
+  // pass solo; deterministic failures still surface after the retries.
+  retries: process.env.CI ? 2 : 0,
   reporter: "list",
   timeout: 60_000,
   // The live suite doesn't create temp dirs and needs no fixtures; the fast

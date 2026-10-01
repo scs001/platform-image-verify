@@ -110,6 +110,16 @@ export function secretMatches(provided, expected) {
 // When set, identity headers count only if the request also carries the gateway
 // secret — an unauthorised caller's headers are treated as absent entirely, so
 // the request proceeds as unauthenticated rather than as the spoofed identity.
+// Normalize an optional-SSO identity's email (trim + lowercase). The overlay
+// keys personal bindings by the normalized address — cross-case headers must
+// resolve to one row. Forward-auth identities (req.user, cell routing) are
+// deliberately NOT normalized: the gateway's canonical spelling is the
+// deployment's identity contract.
+export function normalizeSsoEmail(user) {
+  if (!user?.email) return user;
+  return { ...user, email: String(user.email).trim().toLowerCase() };
+}
+
 export function userFromHeaders(headers, trust) {
   if (trust && !secretMatches(headers[GATEWAY_SECRET_HEADER], trust.secret)) return null;
   const email = String(headers["x-forwarded-email"] || "").trim();
@@ -179,7 +189,10 @@ export function registerAuth(ctx) {  ctx.app.use((req, res, next) => {
     }
     // Optional SSO is an identity overlay only. It never turns auth off into
     // forward-auth, grants admin rights, or changes route authorization.
-    if (ctx.ssoEnabled && headerUser) req.ssoUser = headerUser;
+    // The overlay's email is normalized (trim + lowercase) at the trust
+    // boundary: personal bindings are keyed "by normalized SSO email" (the
+    // feature contract), so Alice@Corp.COM and alice@corp.com share one row.
+    if (ctx.ssoEnabled && headerUser) req.ssoUser = normalizeSsoEmail(headerUser);
     next();
   });
 

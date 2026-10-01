@@ -6,7 +6,7 @@ import * as chatHistory from "../chat-history.js";
 import * as cron from "../cron.js";
 import * as catalog from "../catalog.js";
 import * as skills from "./skills.js";
-import { userFromHeaders, mpUserFromToken } from "./auth.js";
+import { userFromHeaders, mpUserFromToken, normalizeSsoEmail } from "./auth.js";
 
 // Identity for a WS upgrade, logto mode: the browser's session cookie first,
 // then the mini program's platform Bearer token (openspec:
@@ -197,7 +197,13 @@ const syncReadyClient = async (ws) => {
 ctx.wss.on("connection", (ws, req) => {
   // Identity is fixed at upgrade time (v1 ceiling: no re-auth mid-connection).
   ws.user = userForConnection(ctx, req);
-  ws.identity = ctx.authEnabled ? ws.user : (ctx.ssoEnabled ? userFromHeaders(req.headers, ctx.headerTrust) : null);
+  // The optional-SSO overlay's identity is normalized like req.ssoUser (auth
+  // boundary, server/auth.js): personal bindings key on the lowercase form.
+  ws.identity = ctx.authEnabled
+    ? ws.user
+    : ctx.ssoEnabled
+      ? normalizeSsoEmail(userFromHeaders(req.headers, ctx.headerTrust))
+      : null;
   // Per-connection view (add-session-ownership): the session this client is
   // viewing. Initialized to the deployment's live session when this user is
   // entitled to it (auth-off is always entitled — single-user contract);

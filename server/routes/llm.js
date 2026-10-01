@@ -1,5 +1,7 @@
 // LLM provider management (Models page) + runtime model-list refresh.
 
+import { guardDefaultLane } from "../llm-guard.js";
+
 export function registerLlmRoutes(ctx) {
   const { app, broadcast } = ctx;
 
@@ -42,21 +44,32 @@ export function registerLlmRoutes(ctx) {
   app.get("/api/llm/providers", async (_req, res) => {
     try {
       const llmProviders = await import("../../llm-providers.js");
-      // The env-generated Volces route is the reserved, always-present provider.
-      // Its discovery is never persisted (sync on it is dry-run only).
-      const envProviders = process.env.LLM_API_KEY?.trim()
-        ? [{
-            id: "volces",
-            name: "Volces",
-            baseUrl: process.env.LLM_BASE_URL || "https://ark.cn-beijing.volces.com/api/coding/v3",
-            type: "openai-completions",
-            hasKey: true,
-            reserved: true,
-            models: ctx.dshModels.filter((m) => m.provider === "volces").map((m) => m.id),
-            lastTest: null,
-            discovery: null,
-          }]
-        : [];
+      // The env-generated Volces route is the reserved, always-present provider
+      // (add-editable-llm-route): its roster and base URL resolve override >
+      // env > baked constant, so the card shows the *effective* lane plus an
+      // override indicator. Discovery persists on the override after a sync.
+      const envProviders = [];
+      if (process.env.LLM_API_KEY?.trim()) {
+        const dshProfile = await import("../../dsh-profile.js");
+        const { baseURL, hasOverride } = await dshProfile.effectiveVolcesRoute();
+        const override = llmProviders.getVolcesOverride();
+        envProviders.push({
+          id: "volces",
+          name: "Volces",
+          baseUrl: baseURL,
+          type: "openai-completions",
+          hasKey: true,
+          reserved: true,
+          models: ctx.dshModels.filter((m) => m.provider === "volces").map((m) => m.id),
+          lastTest: null,
+          discovery: override?.discovery || null,
+          override: {
+            active: hasOverride,
+            ...(override?.baseUrl ? { baseUrl: override.baseUrl } : {}),
+            rosterSize: override?.models?.length ?? 0,
+          },
+        });
+      }
       res.json({ providers: [...envProviders, ...llmProviders.listUserProviders()] });
     } catch (err) {
       res.status(500).json({ error: err.message });
@@ -121,6 +134,30 @@ export function registerLlmRoutes(ctx) {
     }
   });
 
+  // Clear the reserved route's override (add-editable-llm-route): the rollback
+  // to the env/baked projection. A no-op returning ok when none is active, so
+  // the UI's clear button is idempotent.
+  app.post("/api/llm/providers/:id/clear-override", async (req, res) => {
+    if (!ctx.requireAdmin(req, res)) return;
+    try {
+      const llmProviders = await import("../../llm-providers.js");
+      if (req.params.id !== "volces") {
+        return res.status(404).json({ error: `provider ${req.params.id} not found` });
+      }
+      await llmProviders.tryWithWriteLock(async () => {
+        llmProviders.clearVolcesOverride();
+        await reloadLlmProviders();
+      });
+      res.json({ ok: true, cleared: true });
+    } catch (err) {
+      const status =
+        err?.code === "busy" ? 409 :
+        err?.code === "not_found" ? 404 :
+        err?.code === "invalid" ? 400 : 500;
+      res.status(status).json({ error: err.message, code: err?.code });
+    }
+  });
+
   app.post("/api/llm/providers/:id/test", async (req, res) => {
     if (!ctx.requireAdmin(req, res)) return;
     try {
@@ -147,6 +184,12 @@ export function registerLlmRoutes(ctx) {
     try {
       const llmProviders = await import("../../llm-providers.js");
       const result = await llmProviders.syncProvider(req.params.id, { reload: reloadLlmProviders });
+      // Default-lane guard (design D5): a fresh classification may have just
+      // marked the default dark — apply the boot fallback semantics and let
+      // the model_fallback broadcast carry the substitution to clients.
+      guardDefaultLane(ctx, { reason: "sync" }).catch((e) =>
+        console.warn(`[llm-guard] post-sync guard failed: ${e.message}`)
+      );
       res.json(result);
     } catch (err) {
       const status =
@@ -181,6 +224,12 @@ export function registerLlmRoutes(ctx) {
       const saved = llmProviders.setDefault({ modelId, providerId: providerId || target.provider });
       ctx.defaultModel = { id: target.id, provider: target.provider, name: target.name || target.id };
       broadcast({ type: "model_changed", id: target.id });
+      // Default-lane guard (design D5): verify the fresh pointer actually
+      // serves; a dark choice is corrected with the same fallback semantics as
+      // boot so the admin sees the substitution instead of a broken next turn.
+      guardDefaultLane(ctx, { reason: "default_set" }).catch((e) =>
+        console.warn(`[llm-guard] post-set guard failed: ${e.message}`)
+      );
       res.json({ providerId: saved.providerId, modelId: saved.modelId });
     } catch (err) {
       res.status(err?.code === "invalid" ? 400 : 500).json({ error: err.message, code: err?.code });

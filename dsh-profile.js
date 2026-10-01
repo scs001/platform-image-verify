@@ -120,6 +120,28 @@ async function persistedEffort(providerId) {
 // full path in LLM_BASE_URL.
 
 
+// Effective volces roster + base URL (add-editable-llm-route, design D2):
+// override > env > baked VOLCES_MODELS. The override store is read through
+// the same lazy import used for user providers below (cycle-safe — the two
+// modules only ever import each other lazily). Returns raw roster entries in
+// the normalized {id,name,contextWindow,maxTokens} shape.
+export async function effectiveVolcesRoute() {
+  let override = null;
+  try {
+    const userLlm = await import("./llm-providers.js");
+    override = userLlm.getVolcesOverride();
+  } catch {
+    // Store unavailable → seed projection (env + baked roster).
+  }
+  const models = override?.models?.length ? override.models : VOLCES_MODELS;
+  const baseURL = normalizeBaseUrl(
+    override?.baseUrl ||
+      process.env.LLM_BASE_URL ||
+      "https://ark.cn-beijing.volces.com/api/coding/v3"
+  );
+  return { models, baseURL, hasOverride: Boolean(override) };
+}
+
 // Build the llm-pi-ai providers dict + a flat {id,name,provider} model list from
 // host env. No Volces key → empty providers (dormant); chat stays non-functional
 // while static + REST still serve (graceful degrade, Task 3.6).
@@ -138,14 +160,19 @@ export async function buildLlmProfile({
 
   if (llmApiKey) {
     const route = "volces";
+    const effective = await effectiveVolcesRoute();
+    // An operator base-URL override outranks everything; without one the
+    // caller's parameter (the env seed) keeps its meaning (D2 precedence).
+    const override = effective.hasOverride;
+    const volcesModels = effective.models;
     providers[route] = {
       apiKeyEnv: "LLM_API_KEY",
       displayName: "Volces",
       api: "openai-completions",
-      baseURL: normalizeBaseUrl(llmBaseUrl),
-      models: VOLCES_MODELS.map((m) => ({ ...m, input: ["text"], reasoningEfforts: declaredEfforts(m.id) })),
+      baseURL: override ? effective.baseURL : normalizeBaseUrl(llmBaseUrl),
+      models: volcesModels.map((m) => ({ ...m, input: ["text"], reasoningEfforts: declaredEfforts(m.id) })),
     };
-    for (const m of VOLCES_MODELS) {
+    for (const m of volcesModels) {
       const levels = effortLevels(declaredEfforts(m.id));
       models.push({ id: m.id, name: m.name, provider: route, ...(levels.length ? { reasoningEfforts: levels } : {}) });
     }

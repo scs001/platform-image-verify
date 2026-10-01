@@ -105,10 +105,7 @@
     "thinkingLevel": "Nivel de razonamiento",
     "thinkingDefault": "Predeterminado",
     "syncModels": "Sincronizar modelos",
-    "syncDryRun": "Sincronizar modelos (simulación)",
     "syncSummary": "+{{added}} añadidos · {{serving}} activos · {{flagged}} marcados",
-    "wouldAdd": "Se añadirían: {{ids}}",
-    "wouldAddNone": "Se añadirían: nada nuevo en servicio",
     "discoveryStatus": {
       "serving": "en servicio",
       "unauthorized": "no autorizado",
@@ -126,7 +123,14 @@
     "saveModels": "Guardar modelos",
     "duplicateModelId": "Los ids de modelo deben ser únicos y no vacíos.",
     "otherDiscovered": "Otros modelos detectados (fuera de la lista)",
-    "prefillHint": "predeterminados: {{context}} ctx / {{maxTokens}} salida"
+    "prefillHint": "predeterminados: {{context}} ctx / {{maxTokens}} salida",
+    "contextWindowLabel": "Ventana de contexto (tokens máx. de entrada) para {{id}}",
+    "contextWindowLabelShort": "Contexto",
+    "overrideActive": "Anulado",
+    "overrideBaseUrlPlaceholder": "Anular base URL (vacío = ninguna)",
+    "overrideSave": "Guardar URL",
+    "overrideClear": "Quitar anulación",
+    "modelFallbackToast": "El modelo por defecto {{from}} no responde; cambiado a {{to}}"
   },
   "status": {
     "connected": "Conectado",

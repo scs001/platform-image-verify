@@ -456,11 +456,36 @@ async function initDshAgent() {
     const saved = llmProviders.getDefault();
     const bound = cellUser ? db.getUserModelBinding(cellUser) : null;
     const boundModel = bound && ctx.dshModels.find((m) => m.id === bound.id && m.provider === bound.provider);
-    const pick =
+    let pick =
       boundModel ||
       (saved.modelId && ctx.dshModels.find((m) => m.id === saved.modelId)) ||
       (ctx.DEFAULT_MODEL && ctx.dshModels.find((m) => m.id === ctx.DEFAULT_MODEL)) ||
       ctx.dshModels[0];
+    // Default-lane guard (add-editable-llm-route, design D5): probe the
+    // resolved default before the bridge bakes it into initialize — a dark
+    // lane here is the 2026-10-01 outage class (every new session fails its
+    // first turn after the re-anchor). Cell bindings are personal choices and
+    // stay unguarded in v1 (the open question in the design); every other
+    // resolution source passes through. Bounded 10s; inconclusive probes keep
+    // the configured default.
+    if (!boundModel) {
+      try {
+        const { guardDefaultLane } = await import("./server/llm-guard.js");
+        const guardOutcome = await guardDefaultLane(
+          {
+            dshModels: ctx.dshModels,
+            defaultModel: { id: pick.id, provider: pick.provider, name: pick.name },
+            broadcast: () => {},
+          },
+          { reason: "boot" }
+        );
+        if (guardOutcome.action === "fell_back") {
+          pick = ctx.dshModels.find((m) => m.id === guardOutcome.to) || pick;
+        }
+      } catch (err) {
+        console.warn(`[llm-guard] boot probe skipped: ${err.message}`);
+      }
+    }
     provider = pick.provider;
     model = pick.id;
     if (boundModel) console.log(`[dsh] cell binding: starting on ${provider}/${model}`);

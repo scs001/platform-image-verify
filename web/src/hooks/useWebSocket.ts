@@ -11,6 +11,8 @@ import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import { useOverlayStore } from "@/hooks/useOverlayStore";
 import { useResourcesStore } from "@/hooks/useResourcesStore";
 import { browserSocketFactory } from "@/lib/browser-socket";
+import i18n from "@/i18n";
+import { showToast } from "@/components/Toast";
 
 // In dev (Vite on :5173), Vite doesn't proxy the root WS path — connect
 // directly to the backend. In prod, use same-origin.
@@ -52,6 +54,13 @@ export function useWebSocket(enabled: boolean, identityKey = "") {
       factory: browserSocketFactory,
       onStatus: setStatus,
       onMessage: (msg) => {
+        // Default-lane guard (add-editable-llm-route): surface a dark-default
+        // substitution wherever the user is — the Models page shows the new
+        // pointer, everyone else gets the toast.
+        if ((msg as { type?: string }).type === "model_fallback") {
+          const fb = msg as { from: string; to: string };
+          showToast(i18n.t("modelsPage.modelFallbackToast", { from: fb.from, to: fb.to }));
+        }
         apply(msg as ServerMessage);
         applyExtensions(msg as ServerMessage);
         applyOverlay(msg as ServerMessage);

@@ -105,10 +105,7 @@
     "thinkingLevel": "Thinking level",
     "thinkingDefault": "Default",
     "syncModels": "Sync models",
-    "syncDryRun": "Sync models (dry run)",
     "syncSummary": "+{{added}} added · {{serving}} serving · {{flagged}} flagged",
-    "wouldAdd": "Would add: {{ids}}",
-    "wouldAddNone": "Would add: nothing new serving",
     "discoveryStatus": {
       "serving": "serving",
       "unauthorized": "unauthorized",
@@ -126,7 +123,14 @@
     "saveModels": "Save models",
     "duplicateModelId": "Model ids must be unique and non-empty.",
     "otherDiscovered": "Other discovered models (not on the roster)",
-    "prefillHint": "defaults: {{context}} ctx / {{maxTokens}} out"
+    "prefillHint": "defaults: {{context}} ctx / {{maxTokens}} out",
+    "contextWindowLabel": "Context window (max input tokens) for {{id}}",
+    "contextWindowLabelShort": "Context",
+    "overrideActive": "Overridden",
+    "overrideBaseUrlPlaceholder": "Base URL override (blank = none)",
+    "overrideSave": "Save URL",
+    "overrideClear": "Clear override",
+    "modelFallbackToast": "Default model {{from}} is dark; switched to {{to}}"
   },
   "status": {
     "connected": "Connected",

@@ -184,18 +184,19 @@ test.describe("Model sync", () => {
     expect(restored.models).not.toContain("editor-added-model");
   });
 
-  test("reserved volces card labels its sync as a dry run", async ({ page }) => {
-    // The harness's env Volces route points at an unreachable base URL, so
-    // actually running its dry sync would only exercise the error path —
-    // the dry-run semantics themselves are unit-tested. Here: the reserved
-    // card renders the dry-run-labeled sync button (and no editor/delete).
+  test("reserved volces card is editable but not deletable", async ({ page }) => {
+    // add-editable-llm-route: the reserved card offers the roster editor and
+    // the base-URL override bar, never Delete or a key field (the lane is
+    // env-owned). Roster-edit persistence itself is covered in
+    // llm-route-override.spec.js.
     await pinLocaleEn(page);
     await page.goto(PAGE_URL);
     await expect(page.getByTestId("models-page")).toBeVisible({ timeout: 15000 });
     const volces = page.locator('[data-testid="llm-provider-card"][data-provider-id="volces"]');
     await volces.first().waitFor({ state: "visible", timeout: 10000 }).catch(() => {});
     test.skip((await volces.count()) === 0, "no env Volces route in this run");
-    await expect(volces.getByTestId("llm-sync-btn")).toHaveText(/dry run/i);
-    await expect(volces.getByTestId("llm-edit-models-btn")).toHaveCount(0);
+    await expect(volces.getByTestId("llm-edit-models-btn")).toBeVisible();
+    await expect(volces.getByTestId("llm-override-input")).toBeVisible();
+    await expect(volces.getByTestId("llm-delete-btn")).toHaveCount(0);
   });
 });

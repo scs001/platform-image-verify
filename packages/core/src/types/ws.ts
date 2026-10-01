@@ -23,6 +23,9 @@ export type ServerMessage =
   | { type: "current_model"; id: string | null; effort?: string | null }
   | { type: "models"; models: ModelInfo[] }
   | { type: "model_changed"; id: string | null; effort?: string | null }
+  // Default-lane guard (add-editable-llm-route): the default model was dark at
+  // probe time and the pointer fell back to `to`.
+  | { type: "model_fallback"; from: string; to: string; reason?: string }
   | { type: "effort_changed"; effort: string | null }
   | { type: "workspaces"; current: string | null; recents: string[] }
   | { type: "workspace_changed"; path: string }

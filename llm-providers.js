@@ -128,6 +128,55 @@ function readProvidersDoc() {
   return Array.isArray(doc.providers) ? doc : { providers: [] };
 }
 
+// ── Reserved-route override (add-editable-llm-route, design D1) ─────────────
+// The env-generated volces route stays reserved (no user row, key stays in
+// env), but its roster and base URL gain a persisted operator override:
+// resolution is override > env > baked-in code constant, and clearing the
+// override restores the seed projection (the rollback path). The override is
+// a sibling key of `providers` in the same store file — one write chain, one
+// lock — and survives user-provider mutations because every writer round-trips
+// the whole doc.
+
+export function getVolcesOverride() {
+  const ov = readProvidersDoc().volcesOverride;
+  if (!ov || typeof ov !== "object") return null;
+  const out = {};
+  if (ov.baseUrl && String(ov.baseUrl).trim()) out.baseUrl = ov.baseUrl;
+  if (Array.isArray(ov.models)) out.models = ov.models;
+  if (ov.discovery && typeof ov.discovery === "object") out.discovery = ov.discovery;
+  if (ov.updatedAt) out.updatedAt = ov.updatedAt;
+  return Object.keys(out).length ? out : null;
+}
+
+// Merge-shaped write: only the keys present in `patch` change; the rest keep
+// their current values. `null`/"" clears a field. `models` must already be
+// normalized (normalizeModelsInput) — callers validate before writing.
+export function setVolcesOverride(patch) {
+  const doc = readProvidersDoc();
+  const current = doc.volcesOverride || {};
+  // baseUrl normalizes at the store boundary (adds /v1 to a pathless origin)
+  // so every reader — the route's override indicator included — sees the
+  // canonical form regardless of which writer set it.
+  const normalizeUrl = (v) => (v && String(v).trim() ? normalizeBaseUrl(String(v).trim()) : undefined);
+  const next = {
+    baseUrl: "baseUrl" in patch ? normalizeUrl(patch.baseUrl) : current.baseUrl,
+    models: "models" in patch ? patch.models : current.models,
+    discovery: "discovery" in patch ? patch.discovery : current.discovery,
+    updatedAt: new Date().toISOString(),
+  };
+  doc.volcesOverride = next;
+  writeJsonAtomic(STORE_PATH, doc);
+  return getVolcesOverride();
+}
+
+export function clearVolcesOverride() {
+  const doc = readProvidersDoc();
+  if (!doc.volcesOverride) return false;
+  delete doc.volcesOverride;
+  writeJsonAtomic(STORE_PATH, doc);
+  return true;
+}
+
 // ── Slug / id helpers ────────────────────────────────────────────────────────
 
 function slugify(name) {
@@ -205,7 +254,9 @@ export function listUserProviders() {
   }));
 }
 
-function getProviderRecord(id) {
+// Raw record (includes apiKey) — internal/server use (route credentials,
+// llm-guard probes). The client surface is clientRecord/listUserProviders.
+export function getProviderRecord(id) {
   return readProvidersDoc().providers.find((p) => p.id === id) || null;
 }
 
@@ -235,7 +286,7 @@ export function createProvider(input) {
 }
 
 export function updateProvider(id, input) {
-  if (RESERVED_IDS.has(id)) throw new ProviderError("invalid", "reserved provider id");
+  if (RESERVED_IDS.has(id)) return updateVolcesOverrideInput(input);
   const doc = readProvidersDoc();
   const idx = doc.providers.findIndex((p) => p.id === id);
   if (idx < 0) throw new ProviderError("not_found", `provider ${id} not found`);
@@ -316,6 +367,35 @@ function normalizeModelsInput(models) {
     }
     return { id, name, contextWindow, maxTokens, ...(levels.length ? { reasoningEfforts: levels } : {}) };
   });
+}
+
+// The reserved route accepts exactly { baseUrl?, models? } (design D3): the
+// roster and base URL become operator-owned through the override; everything
+// else — name, type, and above all apiKey — stays env-owned. Deletion is
+// deleteProvider's reserved guard, unchanged.
+function updateVolcesOverrideInput(input) {
+  const patch = input || {};
+  for (const key of Object.keys(patch)) {
+    if (key !== "baseUrl" && key !== "models") {
+      throw new ProviderError(
+        "invalid",
+        `reserved route field "${key}" is not editable (baseUrl and models only; the API key is env-owned)`
+      );
+    }
+  }
+  const next = {};
+  if (patch.baseUrl !== undefined) {
+    const raw = String(patch.baseUrl).trim();
+    if (!raw) throw new ProviderError("invalid", "baseUrl cannot be empty (use override clear to reset)");
+    next.baseUrl = normalizeBaseUrl(raw);
+  }
+  if (patch.models !== undefined) next.models = normalizeModelsInput(patch.models);
+  if (!Object.keys(next).length) {
+    throw new ProviderError("invalid", "nothing to update: baseUrl or models required");
+  }
+  const override = setVolcesOverride(next);
+  console.log(`[llm-providers] volces override updated (${Object.keys(next).join(", ")})`);
+  return { id: "volces", reserved: true, override };
 }
 
 export function deleteProvider(id) {
@@ -537,7 +617,9 @@ async function fetchModelIds(baseUrl, apiKey, { fetchImpl = global.fetch } = {})
 
 // Classify one probe response per design D2: HTTP shape first, then
 // error-text matchers. Returns { status, error? }.
-function classifyResponse(status, body, apiKey) {
+// Shared with server/llm-guard.js (the default-lane probe classifies with the
+// same taxonomy as sync so "dark" means the same thing everywhere).
+export function classifyResponse(status, body, apiKey) {
   if (status >= 200 && status < 300) {
     let data = null;
     try { data = JSON.parse(body); } catch { /* fall through */ }
@@ -632,32 +714,47 @@ let syncInFlight = false;
 // Classification happens BEFORE the write lock; inside it: merge `serving`
 // ids (append + family metadata, never touch existing entries' fields),
 // re-order by family rank, persist the `discovery` status map. The reserved
-// env route ("volces") is dry-run only: classification is returned, nothing
-// is written (its roster is code-owned — applying is a code change).
+// env route ("volces") runs the same pipeline targeting its override
+// (add-editable-llm-route): the built-in lane reconciles against gateway
+// drift through the same operator action, no image rebuild.
 export async function syncProvider(id, { fetchImpl = global.fetch, reload } = {}) {
   if (syncInFlight) throw new ProviderError("busy", "a model sync is already running");
   if (RESERVED_IDS.has(id)) {
     const apiKey = process.env.LLM_API_KEY?.trim();
     if (!apiKey) throw new ProviderError("invalid", "reserved route has no API key configured");
     syncInFlight = true;
+    let classified;
+    let baseUrl;
     try {
-      const baseUrl = normalizeBaseUrl(process.env.LLM_BASE_URL || "https://ark.cn-beijing.volces.com/api/coding/v3");
-      const ids = await fetchModelIds(baseUrl, apiKey, { fetchImpl });
-      const classified = await classifyModels(baseUrl, apiKey, ids, { fetchImpl });
       const dshProfile = await import("./dsh-profile.js");
-      const current = new Set(dshProfile.volcesModelIds());
-      const wouldAdd = ids
-        .filter((mid) => classified[mid]?.status === "serving" && !current.has(mid))
-        .sort(compareModelIds);
-      return {
-        dryRun: true,
-        statuses: toDiscoveryMap(classified, new Date().toISOString()),
-        wouldAdd,
-        rosterSize: current.size,
-      };
+      baseUrl = (await dshProfile.effectiveVolcesRoute()).baseURL;
+      const ids = await fetchModelIds(baseUrl, apiKey, { fetchImpl });
+      classified = await classifyModels(baseUrl, apiKey, ids, { fetchImpl });
     } finally {
       syncInFlight = false;
     }
+
+    const probedAt = new Date().toISOString();
+    return tryWithWriteLock(async () => {
+      const dshProfile = await import("./dsh-profile.js");
+      const roster = [...(await dshProfile.effectiveVolcesRoute()).models];
+      const existing = new Set(roster.map((m) => m.id));
+      const added = [];
+      for (const [mid, r] of Object.entries(classified)) {
+        if (r.status !== "serving" || existing.has(mid)) continue;
+        const meta = modelFamilyMeta(mid);
+        roster.push({ id: mid, name: prettifyModelId(mid), ...meta });
+        added.push(mid);
+      }
+      roster.sort((a, b) => compareModelIds(a.id, b.id));
+      const discovery = toDiscoveryMap(classified, probedAt);
+      setVolcesOverride({ models: roster, discovery });
+      if (reload) await reload();
+      console.log(
+        `[llm-providers] sync "Volces" (volces): ${added.length} added, override roster ${roster.length}`
+      );
+      return { statuses: discovery, added, rosterSize: roster.length };
+    });
   }
 
   const record = getProviderRecord(id);

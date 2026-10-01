@@ -8,7 +8,7 @@
 //     survive flagged (no evict), roster re-orders by family rank, discovery
 //     map persists, response shape { statuses, added, rosterSize }
 //   - guards: unknown id → not_found, keyless provider → invalid, reserved
-//     "volces" → dry-run only (nothing written)
+//     "volces" sync persists into the route override (dry run retired)
 //   - lock behavior: a second concurrent sync → busy; a sync whose merge
 //     collides with a held write lock → BusyError
 //   - updateProvider models array: replace + family fallbacks, invalid
@@ -260,23 +260,24 @@ test("syncProvider throws invalid for a provider without a key", async () => {
   await assert.rejects(() => llm.syncProvider("keyless"), (e) => e.code === "invalid");
 });
 
-test("reserved volces sync is a dry run: classification only, no store write", async () => {
-  const before = fs.readFileSync(process.env.LLM_PROVIDERS_STORE, "utf8");
+test("reserved volces sync persists into the override (add-editable-llm-route)", async () => {
   const prevKey = process.env.LLM_API_KEY;
   const prevBase = process.env.LLM_BASE_URL;
-  process.env.LLM_API_KEY = "sk-volces-dryrun";
+  process.env.LLM_API_KEY = "sk-volces-sync";
   process.env.LLM_BASE_URL = MOCK_BASE;
   try {
     setBehavior({ "deepseek-v4.1-flash": "ok", "never-seen-model": "ok", "dead-volces": "upstream_down" });
     const result = await llm.syncProvider("volces");
-    assert.equal(result.dryRun, true);
-    // wouldAdd = serving ids NOT already on the code-owned env roster.
-    assert.deepEqual(result.wouldAdd, ["never-seen-model"]);
+    assert.equal(result.dryRun, undefined, "the dry-run marker is gone");
+    assert.deepEqual(result.added, ["never-seen-model"]);
     assert.equal(result.statuses["dead-volces"].status, "upstream_down");
-    assert.equal(result.rosterSize, 13, "env roster untouched (VOLCES_MODELS size)");
-    // Nothing was written to the store.
-    assert.equal(fs.readFileSync(process.env.LLM_PROVIDERS_STORE, "utf8"), before);
+    // The override roster seeds from the baked VOLCES_MODELS (13) + the merge.
+    assert.equal(result.rosterSize, 14);
+    const override = llm.getVolcesOverride();
+    assert.ok(override.models.some((m) => m.id === "never-seen-model"), "serving id persisted");
+    assert.equal(override.discovery["dead-volces"].status, "upstream_down");
   } finally {
+    llm.clearVolcesOverride();
     process.env.LLM_API_KEY = prevKey;
     process.env.LLM_BASE_URL = prevBase;
     delete behavior["dead-volces"];

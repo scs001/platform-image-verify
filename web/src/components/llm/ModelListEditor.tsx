@@ -1,9 +1,11 @@
-// ModelListEditor — admin-only runtime roster editing (add-llm-model-discovery).
-// Rows of the provider's current models with remove buttons, an add-id input
-// whose metadata is pre-filled from the client family table (editable
-// maxTokens), and a Save that PUTs the whole `models` array — the same
-// hot-reload path as every provider edit, so the chat picker updates without
-// a restart.
+// ModelListEditor — admin-only runtime roster editing (add-llm-model-discovery;
+// contextWindow input added in add-editable-llm-route). Rows of the
+// provider's current models with remove buttons, an add-id input whose
+// metadata is pre-filled from the client family table (editable
+// contextWindow/maxTokens), and a Save that PUTs the whole `models` array —
+// the same hot-reload path as every provider edit, so the chat picker updates
+// without a restart. Works for the reserved env route too (persisted
+// override).
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -27,10 +29,11 @@ export function ModelListEditor({ providerId, models, onSaved }: Props) {
   const [rows, setRows] = useState<Row[]>(
     models.map((id) => {
       const meta = clientModelFamilyMeta(id);
-      return { id, maxTokens: meta.maxTokens };
+      return { id, contextWindow: meta.contextWindow, maxTokens: meta.maxTokens };
     }),
   );
   const [newId, setNewId] = useState("");
+  const [newContextWindow, setNewContextWindow] = useState<string>("");
   const [newMaxTokens, setNewMaxTokens] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,8 +46,16 @@ export function ModelListEditor({ providerId, models, onSaved }: Props) {
       return;
     }
     const meta = clientModelFamilyMeta(id);
-    setRows((rs) => [...rs, { id, maxTokens: newMaxTokens ? Number(newMaxTokens) : meta.maxTokens }]);
+    setRows((rs) => [
+      ...rs,
+      {
+        id,
+        contextWindow: newContextWindow ? Number(newContextWindow) : meta.contextWindow,
+        maxTokens: newMaxTokens ? Number(newMaxTokens) : meta.maxTokens,
+      },
+    ]);
     setNewId("");
+    setNewContextWindow("");
     setNewMaxTokens("");
     setError(null);
   };
@@ -60,7 +71,11 @@ export function ModelListEditor({ providerId, models, onSaved }: Props) {
     setError(null);
     try {
       await updateProvider(providerId, {
-        models: rows.map((r) => ({ id: r.id.trim(), ...(r.maxTokens ? { maxTokens: r.maxTokens } : {}) })),
+        models: rows.map((r) => ({
+          id: r.id.trim(),
+          ...(r.contextWindow ? { contextWindow: r.contextWindow } : {}),
+          ...(r.maxTokens ? { maxTokens: r.maxTokens } : {}),
+        })),
       });
       showToast(t("modelsPage.settingsUpdated"));
       onSaved();
@@ -79,6 +94,22 @@ export function ModelListEditor({ providerId, models, onSaved }: Props) {
             <span className="min-w-0 flex-1 truncate font-mono text-foreground" title={row.id}>
               {row.id}
             </span>
+            <label className="sr-only" htmlFor={`context-window-${providerId}-${i}`}>
+              {t("modelsPage.contextWindowLabel", { id: row.id })}
+            </label>
+            <input
+              id={`context-window-${providerId}-${i}`}
+              type="number"
+              min={1}
+              className="w-24 rounded-md border border-input bg-background px-2 py-1 text-xs"
+              value={row.contextWindow ?? ""}
+              onChange={(e) =>
+                setRows((rs) =>
+                  rs.map((r, j) => (j === i ? { ...r, contextWindow: e.target.value ? Number(e.target.value) : undefined } : r)),
+                )
+              }
+              data-testid="llm-model-context-window"
+            />
             <label className="sr-only" htmlFor={`max-tokens-${providerId}-${i}`}>
               {t("modelsPage.maxTokensLabel", { id: row.id })}
             </label>
@@ -116,6 +147,16 @@ export function ModelListEditor({ providerId, models, onSaved }: Props) {
           onChange={(e) => setNewId(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && add()}
           data-testid="llm-model-add-id"
+        />
+        <input
+          className="h-8 w-24 rounded-md border border-input bg-background px-2 text-xs"
+          placeholder={t("modelsPage.contextWindowLabelShort")}
+          aria-label={t("modelsPage.contextWindowLabelShort")}
+          type="number"
+          min={1}
+          value={newContextWindow}
+          onChange={(e) => setNewContextWindow(e.target.value)}
+          data-testid="llm-model-add-context-window"
         />
         <input
           className="h-8 w-24 rounded-md border border-input bg-background px-2 text-xs"

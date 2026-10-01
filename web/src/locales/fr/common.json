@@ -105,10 +105,7 @@
     "thinkingLevel": "Niveau de réflexion",
     "thinkingDefault": "Par défaut",
     "syncModels": "Synchroniser les modèles",
-    "syncDryRun": "Synchroniser les modèles (simulation)",
     "syncSummary": "+{{added}} ajoutés · {{serving}} actifs · {{flagged}} signalés",
-    "wouldAdd": "Serait ajouté : {{ids}}",
-    "wouldAddNone": "Serait ajouté : rien de nouveau en service",
     "discoveryStatus": {
       "serving": "en service",
       "unauthorized": "non autorisé",
@@ -126,7 +123,14 @@
     "saveModels": "Enregistrer les modèles",
     "duplicateModelId": "Les ids de modèle doivent être uniques et non vides.",
     "otherDiscovered": "Autres modèles détectés (hors liste)",
-    "prefillHint": "par défaut : {{context}} ctx / {{maxTokens}} sortie"
+    "prefillHint": "par défaut : {{context}} ctx / {{maxTokens}} sortie",
+    "contextWindowLabel": "Fenêtre de contexte (tokens d'entrée max) pour {{id}}",
+    "contextWindowLabelShort": "Contexte",
+    "overrideActive": "Surchargé",
+    "overrideBaseUrlPlaceholder": "Surcharge d'URL de base (vide = aucune)",
+    "overrideSave": "Enregistrer l'URL",
+    "overrideClear": "Effacer la surcharge",
+    "modelFallbackToast": "Le modèle par défaut {{from}} est éteint ; basculé sur {{to}}"
   },
   "status": {
     "connected": "Connecté",

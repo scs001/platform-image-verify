@@ -105,10 +105,7 @@
     "thinkingLevel": "思考レベル",
     "thinkingDefault": "既定",
     "syncModels": "モデルを同期",
-    "syncDryRun": "モデルを同期（ドライラン）",
     "syncSummary": "追加 {{added}} · 稼働中 {{serving}} · 要注意 {{flagged}}",
-    "wouldAdd": "追加対象：{{ids}}",
-    "wouldAddNone": "追加対象：新規に稼働中のモデルなし",
     "discoveryStatus": {
       "serving": "稼働中",
       "unauthorized": "未承認",
@@ -126,7 +123,14 @@
     "saveModels": "モデル一覧を保存",
     "duplicateModelId": "モデル id は一意かつ空でない必要があります。",
     "otherDiscovered": "検出された他のモデル（ロースター外）",
-    "prefillHint": "既定値：コンテキスト {{context}} / 出力 {{maxTokens}}"
+    "prefillHint": "既定値：コンテキスト {{context}} / 出力 {{maxTokens}}",
+    "contextWindowLabel": "{{id}} のコンテキストウィンドウ（最大入力トークン）",
+    "contextWindowLabelShort": "コンテキスト",
+    "overrideActive": "オーバーライド中",
+    "overrideBaseUrlPlaceholder": "ベース URL オーバーライド（空欄で無効）",
+    "overrideSave": "URL を保存",
+    "overrideClear": "オーバーライドを解除",
+    "modelFallbackToast": "既定モデル {{from}} が応答しないため {{to}} に切替えました"
   },
   "status": {
     "connected": "接続済み",

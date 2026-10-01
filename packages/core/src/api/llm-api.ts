@@ -40,16 +40,21 @@ export interface LlmProvider {
   lastTest: LastTest | null;
   // Last sync's per-id status map; null before any sync.
   discovery?: Record<string, DiscoveryStatus> | null;
+  // Reserved env route only (add-editable-llm-route): the persisted operator
+  // override state. `active` false = the env/baked projection is in effect.
+  override?: {
+    active: boolean;
+    baseUrl?: string;
+    rosterSize: number;
+  };
 }
 
-// Result of POST /api/llm/providers/:id/sync. `dryRun` (reserved env route):
-// nothing was written; `wouldAdd` lists the serving ids that a real sync
-// would merge. Otherwise `added` lists the ids merged this run.
+// Result of POST /api/llm/providers/:id/sync (add-editable-llm-route: the
+// reserved env route persists into its override, so one shape covers all
+// providers). `added` lists the ids merged this run.
 export interface SyncResult {
-  dryRun?: boolean;
   statuses: Record<string, DiscoveryStatus>;
   added?: string[];
-  wouldAdd?: string[];
   rosterSize: number;
 }
 
@@ -133,6 +138,8 @@ export async function createProvider(input: {
   return body.provider;
 }
 
+// On the reserved env route the server accepts only `baseUrl`/`models` (the
+// key is env-owned); other fields are rejected server-side.
 export async function updateProvider(
   id: string,
   input: {
@@ -153,12 +160,22 @@ export async function updateProvider(
 }
 
 // Reconcile a provider's roster against its gateway (admin). One long-lived
-// request (~25–60s for a 33-id gateway); the reserved env route is a dry run.
+// request (~25–60s for a 33-id gateway); the reserved env route persists into
+// its override (add-editable-llm-route).
 export async function syncProvider(id: string): Promise<SyncResult> {
   const r = await http(`/api/llm/providers/${encodeURIComponent(id)}/sync`, {
     method: "POST",
   });
   return jsonOrThrow(r);
+}
+
+// Clear the reserved route's override — the rollback to the env/baked
+// projection (add-editable-llm-route).
+export async function clearOverride(id: string): Promise<void> {
+  const r = await http(`/api/llm/providers/${encodeURIComponent(id)}/clear-override`, {
+    method: "POST",
+  });
+  await jsonOrThrow(r);
 }
 
 export async function deleteProvider(id: string): Promise<void> {

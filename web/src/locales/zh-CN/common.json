@@ -105,10 +105,7 @@
     "thinkingLevel": "思考级别",
     "thinkingDefault": "默认",
     "syncModels": "同步模型",
-    "syncDryRun": "同步模型（演练）",
     "syncSummary": "新增 {{added}} · 服务中 {{serving}} · 异常 {{flagged}}",
-    "wouldAdd": "将新增：{{ids}}",
-    "wouldAddNone": "将新增：无新增服务中模型",
     "discoveryStatus": {
       "serving": "服务中",
       "unauthorized": "未授权",
@@ -126,7 +123,14 @@
     "saveModels": "保存模型列表",
     "duplicateModelId": "模型 id 必须唯一且非空。",
     "otherDiscovered": "其他发现的模型（不在名册中）",
-    "prefillHint": "默认：上下文 {{context}} / 输出 {{maxTokens}}"
+    "prefillHint": "默认：上下文 {{context}} / 输出 {{maxTokens}}",
+    "contextWindowLabel": "{{id}} 的上下文窗口（最大输入 tokens）",
+    "contextWindowLabelShort": "上下文",
+    "overrideActive": "已覆盖",
+    "overrideBaseUrlPlaceholder": "Base URL 覆盖（留空不覆盖）",
+    "overrideSave": "保存 URL",
+    "overrideClear": "清除覆盖",
+    "modelFallbackToast": "默认模型 {{from}} 当前不可用，已自动切换到 {{to}}"
   },
   "status": {
     "connected": "已连接",

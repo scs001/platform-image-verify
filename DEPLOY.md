@@ -1064,6 +1064,28 @@ deepseek 头部）；「≥13 serving」验收因此未达，属网关外部状�
 deepseek（平台如实透传网关 404，错误路径端到端验证）；WS `set_model` 切
 cohere 车道后一轮回复「收到」；默认指针已恢复（恢复 PUT 偶发 503，重试即过）。
 
+### 内置车道后台可配 + 默认车道守卫（add-editable-llm-route）
+
+10-01 事故（暗默认 + 重启锚回 = 新会话全 404）之后，内置 Volces 车道不再
+是镜像常量的只读投影。**Models 页（admin）现在可以直接编辑它**，全程热载、
+零重启、零重打包：
+
+- **名册 + base URL 覆盖层**：持久化在 `llm-providers.json` 的
+  `volcesOverride` 键，优先级 **override > env（LLM_BASE_URL）> 镜像常量**。
+  sync 对 volces 不再干跑——serving id 落盘进 override；卡片上有「已覆盖」
+  徽标和**清除覆盖**按钮（一键回滚到 env/镜像态）。API key 永不出 env、
+  路由不可删（key 轮换照旧走 Secret patch）。
+- **每模型 contextWindow / maxTokens 均可编辑**（名册编辑器每行两个输入框，
+  全部 provider 通用）。
+- **默认车道守卫**：boot / sync 后 / 改默认后，对默认模型发一发 1-token
+  探活。明确 `model_not_found`/未授权类 4xx → 自动把默认切到最近一次 sync
+  分类里第一个 serving id，广播 `model_fallback`（客户端弹 toast）。网络
+  错误/超时**不回退**（网关抖动不得悄悄挪默认）；无 serving 已知时保持
+  原默认并打日志。boot 探测失败不影响启动（listen-first 窗口内完成）。
+
+网关再漂移时，处置从「改代码 → 建镜像 → 滚动」降级为「Models 页点同步 →
+必要时编辑名册」；默认车道暗了自愈，不再等人工发现。
+
 ## Multi-tenant cloud deployment (gateway + cells)
 
 The single-process deployment above serves **one** shared runtime. The hosted
@@ -1321,6 +1343,87 @@ client and PVC-per-user, at which point:
   replication or backup in this cut.
 - **Scaling**: the gateway is single-instance and in-memory, so cells are not
   HA either. That is a deliberate first-cut trade, not an oversight.
+
+---
+
+## fd-prod 多租户网关布局（migrate-fd-prod-cells）
+
+fd-prod 从单进程 platform 迁到网关+cells（ADR 0008：多租户隔离是 cell，不是进程内 ACL）。
+对外 origin 不变（craw ingress 原样；Logto 回调、MP 客户端、已注册 Agent Service、分享链接
+全部不动）。单进程模式（dev/桌面/demo pod）不受影响。
+
+### 启动命令与 env
+
+Deployment 的启动命令改为 `node gateway/index.js`（镜像不变；`GATEWAY_PORT` 默认 3080，
+ingress 指向它即可，或设 `GATEWAY_PORT=3000` 沿用旧探针）。env 分三层：
+
+```yaml
+# platform-config（ConfigMap）——网关本体 + baseEnv 继承进每个 cell
+GATEWAY_PORT: "3000"            # 沿用现有探针端口，或改 ingress 指 3080
+CELL_DATA_ROOT: /data/cells     # hostPath，节点预建并 chown 1000:1000
+CELL_GATEWAY_SECRET: <secret>   # 见 platform-secrets，随机 ≥32 字节
+CELL_IDLE_REAP_SECS: "3600"     # 账号 cell 闲时回收（有启用的 cron/bot 的 cell 豁免）
+AGENT_WORKSPACE: /data/workspace  # 保留：单进程回滚模式仍需要；网关路径下被
+                                  # spawner 的 per-cell 值权威覆盖，无害
+AGENT_SERVING_RUNNER_URL / AGENT_SERVING_PACKS_URL / AGENT_SERVING_BACKEND_TOKEN
+  # 不变——deploy 路由挂在网关进程上（gateway/packs.js），env 必须在网关层可见
+# LLM_BASE_URL / REGISTRY_URL / MARKET_REGISTRY_TOKEN 等经 baseEnv 流入每个 cell
+```
+
+**不要**把 `AGENT_WORKSPACE` 从 config 删掉：GitOps 回滚到单进程时它就是 workspace pin
+（fix-agent-workspace 的原始语义）。spawner 在 `...baseEnv` 之后注入
+`<CELL_DATA_ROOT>/<userId>/workspace`，网关级残留值永远不生效（有单测钉死）。
+
+### 节点预备（一次性）
+
+```bash
+# fd-prod 节点（cheap-5）：cells 根 + 属主（镜像 node 用户 uid 1000）
+mkdir -p /opt/platform/cells && chown 1000:1000 /opt/platform/cells
+df -h /opt    # 迁移是拷贝语义，磁盘要能容纳旧 /data 的一倍（当前 ~786M，宽裕）
+```
+
+### 资源包络
+
+网关 pod request 1Gi / limit 2Gi（实测：单进程 328Mi、网关空载 230Mi、活跃 cell ≈
+300–400Mi；≈4–5 并发活跃 cell + 网关本体）。burn-in 一周后按观测调整（见检查单第 8 步）。
+
+### 存量数据迁移（停机窗口内）
+
+```bash
+kubectl --context cheap -n fd-prod exec deploy/platform -- node scripts/migrate-single-to-cell.mjs \
+  --email 3106241601@qq.com \
+  --data-dir /data --dsh-home /opt/dsh-home --cell-root /data/cells --stamp-unowned
+```
+
+拷贝语义（旧 `/data` 原地保留 = 回滚路径）；`--stamp-unowned` 把无主会话盖给 owner
+（session-ownership 的范围列表按 owner 严格匹配，不盖章旧会话会从列表消失）；
+`--dry-run` 先看计划。已知遗留：`aloadtree@gmail.com` 名下 4 个会话会随全量落进 owner
+cell（对其 owner 不可见的孤儿行）——cutover 前决定：接受（4 条，无害）/ 拆分到第二 cell /
+让该账号自弃（见检查单第 1 步）。
+
+### Cutover 检查单
+
+1. **准入冻结（D7/Q11）**：Logto 控制台核对用户列表并处置第二账号（3106241601@qq.com =
+   owner；aloadtree@gmail.com 的 4 个会话去留在此定）；注册开关置关，burn-in 后再开。
+2. **取证**：registry 侧记下当前 Agent Service 注册 URL（cutover 后探活对照）。
+3. **停机**：`kubectl scale deploy/platform --replicas=0`（Recreate 语义下等 pod 退净）。
+4. **迁移**：跑上面的 migrate 命令；输出核对「landed N files」与计划一致。
+5. **换入口**：GitOps 提交（command 改 `node gateway/index.js`、env 增补如上、资源包络
+   1Gi/2Gi）→ ArgoCD sync → `kubectl logs | grep '\[gateway\]'` 确认 listening + 首个 cell。
+6. **回归（web）**：登录（旧会话失效一次，预期）；会话列表/文档库/资源库逐项可见；让
+   agent 写一个文件 → `/api/files?root=workspace` 200。
+7. **回归（a2a + MP）**：演示服务 `vtdpsNmtW6OQ9I99mBhbDw` 原址 message/send 一次；
+   MP 真机走查（含 401 静默重登分支）。
+8. **隔离冒烟**：Logto 手建第二个测试账号登录 → 断言看不到 owner 的文档/资源/workspace
+   文件；完成后删测试账号。
+9. **burn-in（一周）**：ops-console 内存灯 + `kubectl top pod` 记录 cell 形态，决定
+   `CELL_IDLE_REAP_SECS` 是否收紧；期满删旧 `/data` 原件（workspace 大文件先归档），
+   并在此记录清理日期——**清理后回滚条款作废**。
+
+### 回滚
+
+revert GitOps commit → 单进程以原 `/data` 起回（`AGENT_WORKSPACE` pin 仍在 config）。
+cutover 后 cell 侧新产生的数据不回流（公告口径）。旧 `/data` 删除前，回滚永远可用。
 
 ---
 

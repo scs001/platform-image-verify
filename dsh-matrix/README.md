@@ -28,3 +28,20 @@ cordis-plugin-hmr ≥1.0.17 删除了 `registerConfig`，而 dsh-app-boot 的 wa
   都会拿到最老的包。跟随上游必须显式读版本清单。
 - 上游 ~每日一个 lockstep rc 版本（monorepo 统一发版，三包发布时刻相差几分钟）。
   节奏政策见 ADR-0007：合同套件落地前钉死，落地后每 3-4 周跳最新绿 rc。
+
+## 升级步骤（每 3-4 周窗口，ADR-0007）
+
+1. 改 `package.json` 意图条目到目标 rc（`overrides` 里的 dsh-* 同步；hmr 的 1.0.16
+   override 除非上游修了 registerConfig，否则**不动**）。
+2. 重新生成 lock：在本目录 `npm install --package-lock-only`。lock 是机器产物，PR 的
+   评审对象是 `package.json`，lock diff 只作旁证。
+3. 跑合同套件：仓库根 `npm run dsh:contracts`。缺省对 scratch `npm ci` 树跑（首跑约几分钟，
+   之后按 lock hash 缓存复用；`--fresh` 强制重建）。候选模式可对任意安装试跑：
+   `npm run dsh:contracts -- --tree <安装根> [--bin <dsh 路径>]`。
+4. **六合同全绿 → 跟**：合并 PR 即完成升级。镜像冒烟与矩阵 PR CI 会各再跑一次同一套件兜底。
+5. 有 fail → 看逐条归因再决定：
+   - 公开面合同 fail（①②③④⑤）= 不能跟，先解决或等下一个 rc；
+   - 带 `internal-API` 标签的 fail（⑥）= 上游动了内部面（PermissionPresetService.set 一类），
+     评估替代实现或继续锁旧版，不是自动的"不能跟"；
+   - ③ fail 且报告指 cordis-plugin-hmr ≥1.0.17 = 检查 overrides 是否被放开——这是唯一
+     "fail 但改回 pin 即修复"的形态。

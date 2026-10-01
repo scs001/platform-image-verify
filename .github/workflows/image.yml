@@ -102,6 +102,15 @@ jobs:
             exit 1
           fi
 
+      # The dsh-contracts gate (add-dsh-contracts, ADR-0007): the six
+      # upstream-behavior contracts run IN the container against the image's
+      # own /opt/dsh install — materializing a throwaway profile home, never
+      # the baked /opt/dsh-home. Smoke passing now means boot probe + six
+      # contracts, not just /api/config; a red contract keeps the image out of
+      # the registry.
+      - name: Smoke test (dsh contracts on /opt/dsh)
+        run: docker exec platform-smoke node /app/scripts/dsh-contracts.mjs --tree /opt/dsh
+
       - name: Push image
         run: |
           TAG="${{ steps.tag.outputs.tag }}"

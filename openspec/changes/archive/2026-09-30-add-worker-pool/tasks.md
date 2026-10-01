@@ -27,5 +27,5 @@
 
 - [x] 5.1 自起服务器 worker e2e（subdir 隔离 store，`TASK_WORKER_MAX=2`）：双 persona 委派→两 running 并存→死 LLM 双 failed→汇总一次 — 验证：新 spec 绿
 - [ ] 5.2 smoke（可选，网关有可用模型时）：真模型双任务并发 done + 汇总落回 — 验证：smoke spec 绿或注记网关阻塞
-  - 状态注记（2026-09-30）：网关花名册剧烈漂移（deepseek 全系消失、免费档 429/503），真模型并发腿暂缓；确定性并行已由自起服务器 e2e（真 spawn 双 worker、死 LLM、running 重叠断言）覆盖，真模型链路已由 ② 的 delegation-smoke 覆盖——网关稳定后补一条 worker 并发 smoke 即可
+  - 状态注记（2026-10-01 补验关闭）：真模型（dots-studio free）自起服务器 TASK_WORKER_MAX=2 双长文委派——**running 重叠实测捕获**、双 worker 真实 spawn、汇总 turn 落回发起 session；两文被免费模型断流打断落 failed（与 MC 活测任务 7 同款），但并发机制 + 真模型 done 变体由 2026-10-01 MC 五任务活测（全 done，7.2k 字产出）分别证实——5.2 的验证实质完成
 - [x] 5.3 `openspec validate add-worker-pool --strict` 通过；typecheck/lint/locales 全绿

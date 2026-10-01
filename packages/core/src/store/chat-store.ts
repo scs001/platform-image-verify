@@ -119,6 +119,40 @@ interface State {
   sessions: SessionMeta[];
   currentSessionId: string | null;
   turns: Turn[];
+  // ── Optimistic session open (perf-session-open) ──────────────────────────
+  // Non-null between an optimistic switch and the `session_loaded` that
+  // resolves it (or the error/disconnect restore). The view renders the
+  // pending skeleton while turns are empty, or the cached transcript when one
+  // exists — the in-flight refresh reconciles via that same `session_loaded`.
+  pendingSession: string | null;
+  // True between sending `new_session` and its load. The new session's id is
+  // minted server-side, so its load is recognized structurally: empty
+  // messages for an id the client wasn't already viewing.
+  pendingNewSession: boolean;
+  // Latch flipped by the first activateSession/beginNewSession call. Clients
+  // that never adopt the optimistic switch (mini program) keep the legacy
+  // apply-every-load contract; adopted clients apply `session_loaded` only to
+  // the view it names — stale or foreign loads feed the cache instead.
+  optimisticSessions: boolean;
+  // View snapshot for restoring when a pending switch fails (server `error`,
+  // or the socket dropping mid-switch): what the user saw before the flip.
+  sessionSwitchBackup: { id: string | null; turns: Turn[] } | null;
+  // LRU of visited sessions' turns (cap SESSION_CACHE_CAP). Never rendered
+  // from directly — activateSession copies an entry into `turns`; entries
+  // refresh on applied loads and on `done` while viewing, and drop when the
+  // session leaves the `sessions` list. In state (not module scope) only so
+  // tests and the e2e seam can inspect it.
+  sessionCache: Map<string, Turn[]>;
+  // Optimistic activation: flip the view to the target immediately (pending
+  // skeleton, or the cached transcript on re-entry), stash the outgoing view
+  // for the failure restore, and fold the outgoing turns into the cache. The
+  // WS send itself stays with the caller — the web's send choke point calls
+  // this right before `switch_session` leaves.
+  activateSession: (id: string) => void;
+  // Arm the new-session handshake (see pendingNewSession). The view is NOT
+  // flipped — a new chat has no target id to flip to; the empty load renders
+  // the welcome when it lands, exactly as before.
+  beginNewSession: () => void;
   isStreaming: boolean;
   // The agent's plan: the latest `todo/write` snapshot (replaced wholesale on
   // every write). It outlives turn boundaries by design — cleared only by a
@@ -300,6 +334,44 @@ function finalizeOpenTurns(turns: Turn[]): Turn[] {
   );
 }
 
+// ── Session turn cache (perf-session-open) ───────────────────────────────────
+// Small LRU of visited sessions' rendered turns. Map order IS the recency
+// order: writes delete-then-set so the entry lands at the MRU end, and
+// eviction removes the first (least recently used) key over the cap.
+const SESSION_CACHE_CAP = 10;
+
+function cacheWrite(
+  cache: Map<string, Turn[]>,
+  id: string,
+  turns: Turn[],
+): Map<string, Turn[]> {
+  if (turns.length === 0) {
+    // An empty transcript is the welcome state — nothing to memoize, and
+    // keeping it would only push real sessions out of the LRU.
+    if (!cache.has(id)) return cache;
+    const next = new Map(cache);
+    next.delete(id);
+    return next;
+  }
+  const next = new Map(cache);
+  next.delete(id);
+  next.set(id, turns);
+  while (next.size > SESSION_CACHE_CAP) next.delete(next.keys().next().value as string);
+  return next;
+}
+
+// Snapshot a live view for stash (backup + cache): streaming turns close as
+// interrupted — the server stops the run on switch, so an unfinished answer
+// must never read as complete, here or on later cached re-entry.
+function snapshotTurns(turns: Turn[]): Turn[] {
+  const now = Date.now();
+  return turns.map((t) =>
+    t.role === "assistant" && t.streaming
+      ? { ...t, streaming: false, interrupted: true, activityEndedAt: t.activityEndedAt ?? now }
+      : t,
+  );
+}
+
 export const useChatStore = create<State>((set) => ({
   status: "connecting",
   models: [],
@@ -322,6 +394,65 @@ export const useChatStore = create<State>((set) => ({
   sessions: [],
   currentSessionId: null,
   turns: [],
+  pendingSession: null,
+  pendingNewSession: false,
+  optimisticSessions: false,
+  sessionSwitchBackup: null,
+  sessionCache: new Map(),
+
+  activateSession: (id) =>
+    set((state) => {
+      // The optimistic flip is only sound on a live socket — a switch whose
+      // load can't come back would strand the pending skeleton.
+      if (useChatStore.getState().status !== "connected") return {};
+      discardDeltas();
+      // The outgoing view feeds the cache (finalized — see snapshotTurns).
+      const cache =
+        state.currentSessionId && state.turns.length > 0
+          ? cacheWrite(
+              state.sessionCache,
+              state.currentSessionId,
+              snapshotTurns(state.turns),
+            )
+          : state.sessionCache;
+      const cached = cache.get(id);
+      // Only the FIRST snapshot of a rapid click chain survives: A→B→C before
+      // any load lands restores A — the last view the user actually had.
+      const backup =
+        state.sessionSwitchBackup ?? { id: state.currentSessionId, turns: snapshotTurns(state.turns) };
+      return {
+        optimisticSessions: true,
+        sessionSwitchBackup: backup,
+        currentSessionId: id,
+        pendingSession: id,
+        // A switch supersedes an in-flight +New, but pendingNewSession stays
+        // armed: if that new session's load is still behind this one in the
+        // socket's ordering, it must keep its structural apply path.
+        pendingNewSession: state.pendingNewSession,
+        // Cached re-entry renders instantly; a miss clears to the skeleton.
+        turns: cached ?? [],
+        isStreaming: false,
+        todos: [],
+        todoCounts: NO_TODOS,
+        // Re-entry is itself a use — bump recency.
+        sessionCache: cached ? cacheWrite(cache, id, cached) : cache,
+      };
+    }),
+
+  beginNewSession: () =>
+    set((state) => {
+      if (useChatStore.getState().status !== "connected") return {};
+      return {
+        optimisticSessions: true,
+        pendingNewSession: true,
+        pendingSession: null,
+        sessionSwitchBackup:
+          state.sessionSwitchBackup ?? {
+            id: state.currentSessionId,
+            turns: snapshotTurns(state.turns),
+          },
+      };
+    }),
   isStreaming: false,
   todos: [],
   todoCounts: NO_TODOS,
@@ -351,14 +482,25 @@ export const useChatStore = create<State>((set) => ({
       // the turn itself says the ANSWER was cut off (indistinguishable from
       // a finished one before this).
       discardDeltas();
-      const turns = state.turns.map((t) =>
-        t.role === "assistant" && t.streaming
-          ? { ...t, streaming: false, interrupted: true, activityEndedAt: t.activityEndedAt ?? Date.now() }
-          : t,
-      );
+      // A socket drop mid-switch is a failed switch (perf-session-open): put
+      // the displaced view back rather than leave a skeleton over a dead
+      // socket. The banner carries the story; the URL still names the target.
+      if (state.pendingSession || state.pendingNewSession) {
+        const b = state.sessionSwitchBackup;
+        return {
+          status: s,
+          currentSessionId: b ? b.id : state.currentSessionId,
+          turns: b ? b.turns : state.turns,
+          isStreaming: false,
+          suppressed: true,
+          pendingSession: null,
+          pendingNewSession: false,
+          sessionSwitchBackup: null,
+        };
+      }
       return {
         status: s,
-        turns,
+        turns: snapshotTurns(state.turns),
         isStreaming: false,
         suppressed: true,
       };
@@ -368,7 +510,15 @@ export const useChatStore = create<State>((set) => ({
     // A dismissed run's stream events are swallowed until the run's own
     // `done` (or the next prompt's `user` echo) clears the flag. Checked
     // before queueDelta so buffered text can't leak past the suppression.
-    if (useChatStore.getState().suppressed && RUN_EVENT_TYPES.has(m.type)) return;
+    // Exception: an error that arrives while a session switch is pending is
+    // the switch's own refusal, never the dismissed run's — it must reach
+    // the restore path (perf-session-open).
+    if (
+      useChatStore.getState().suppressed &&
+      RUN_EVENT_TYPES.has(m.type) &&
+      !(m.type === "error" && (useChatStore.getState().pendingSession || useChatStore.getState().pendingNewSession))
+    )
+      return;
     // Streamed deltas are buffered (see DELTA_FLUSH_MS above) — no commit
     // per token.
     if (m.type === "text" || m.type === "thinking") {
@@ -486,7 +636,18 @@ export const useChatStore = create<State>((set) => ({
             turns[turns.length - 1] = { ...tail, streaming: false };
           }
           // The dismissed run (if any) has ended; stop swallowing events.
-          return { turns, isStreaming: false, suppressed: false };
+          // Turn events carry no session id pre-targeted-delivery, so the
+          // conservative cache rule applies: a `done` while viewing S
+          // refreshes S's entry only — the completed turn is the final state
+          // a later cached re-entry of S should render (perf-session-open).
+          return state.currentSessionId && turns.length > 0
+            ? {
+                turns,
+                isStreaming: false,
+                suppressed: false,
+                sessionCache: cacheWrite(state.sessionCache, state.currentSessionId, turns),
+              }
+            : { turns, isStreaming: false, suppressed: false };
         }
 
         case "error": {
@@ -513,8 +674,23 @@ export const useChatStore = create<State>((set) => ({
           const tail = turns[turns.length - 1];
           if (!tail || tail.role !== "assistant" || !tail.streaming) {
             chatErrorSink(m.message);
+            // A failed session switch (unknown id, dsh busy, ownership
+            // refusal) reports as a sink-level error while its optimistic
+            // flip is still unresolved: restore the view the flip displaced
+            // (perf-session-open) — the toast carries the failure.
+            if (state.pendingSession || state.pendingNewSession) {
+              const b = state.sessionSwitchBackup;
+              return {
+                pendingConfig: null,
+                pendingSession: null,
+                pendingNewSession: false,
+                sessionSwitchBackup: null,
+                currentSessionId: b ? b.id : state.currentSessionId,
+                turns: b ? b.turns : turns,
+              };
+            }
             // A rejected config change (bad path, agent busy) never sends its
-            // *_changed broadcast, so the pending control would hang forever.
+            // confirming *_changed broadcast, so the pending control would hang forever.
             return { pendingConfig: null };
           }
           turns[turns.length - 1] = {
@@ -582,11 +758,24 @@ export const useChatStore = create<State>((set) => ({
         case "current_preset":
           return { currentPreset: m.id, pendingConfig: null };
 
-        case "sessions":
+        case "sessions": {
+          // Delete invalidation (perf-session-open): a session that left the
+          // list was deleted — its cached turns must not survive a re-click
+          // of a stale row. The list is the same user-scoped payload the
+          // sidebar groups, so every cache key is accountable to it.
+          let sessionCache = state.sessionCache;
+          for (const id of state.sessionCache.keys()) {
+            if (!m.sessions.some((s) => s.id === id)) {
+              if (sessionCache === state.sessionCache) sessionCache = new Map(sessionCache);
+              sessionCache.delete(id);
+            }
+          }
           return {
             sessions: m.sessions,
             currentSessionId: m.current ?? state.currentSessionId,
+            sessionCache,
           };
+        }
 
         case "session_changed":
           return { currentSessionId: m.id };
@@ -596,56 +785,82 @@ export const useChatStore = create<State>((set) => ({
             sessions: state.sessions.map((s) => (s.id === m.id ? { ...s, title: m.title } : s)),
           };
 
-        case "session_loaded":
+        case "session_loaded": {
+          const mapped = (m.messages || []).map<Turn>((msg: ChatMessage) =>
+            msg.role === "user"
+              ? {
+                  id: nextId(),
+                  role: "user",
+                  text: msg.content,
+                  // The delegation aggregator's injected summaries carry a
+                  // leading task_summary block — keep the styling on reload.
+                  ...(msg.blocks?.[0]?.kind === "task_summary" ? { taskSummary: true } : {}),
+                }
+              : {
+                  id: nextId(),
+                  role: "assistant",
+                  // Restore the persisted block structure when present (tool
+                  // calls intact, collapsed — an errored one stays open, as it
+                  // streamed); plain content is the legacy fallback for
+                  // pre-migration rows. Reasoning is deliberately NOT persisted
+                  // (see chat-history recordMessage), so a reloaded turn is the
+                  // answer plus the tools that produced it.
+                  blocks: msg.blocks?.length
+                    ? msg.blocks.map((b) =>
+                        b.kind === "tool"
+                          ? {
+                              kind: "tool" as const,
+                              id: b.id,
+                              name: b.name,
+                              args: b.args,
+                              result: b.result,
+                              state: b.state ?? ("done" as const),
+                              open: b.state === "error",
+                            }
+                          : // task_summary markers (user-message injected turns)
+                            // and text blocks: keep the text, drop the marker —
+                            // the flag on the user turn carries the styling.
+                            { kind: "text" as const, text: b.kind === "text" ? b.text : "" },
+                      )
+                    : [{ kind: "text", text: msg.content }],
+                  streaming: false,
+                },
+          );
+          // The new-session handshake resolves on structure, not id: the id
+          // was minted server-side, and the load that carries it is empty and
+          // for a session the client wasn't viewing.
+          const isNewChatArrival =
+            state.pendingNewSession && mapped.length === 0 && m.id !== state.currentSessionId;
+          // Stale/foreign load guard (perf-session-open): on a client that
+          // adopted the optimistic switch, `session_loaded` replaces the view
+          // only when it names the session the client views (or completes an
+          // armed +New). Everything else — a superseded switch racing a newer
+          // one, another viewer's load of a session this client still
+          // server-views — feeds the cache and leaves the view alone.
+          // Pessimistic clients keep the legacy apply-everything contract.
+          const applies =
+            !state.optimisticSessions || isNewChatArrival || m.id === state.currentSessionId;
+          if (!applies) {
+            return { sessionCache: cacheWrite(state.sessionCache, m.id, mapped) };
+          }
           return {
             currentSessionId: m.id,
-            turns: (m.messages || []).map<Turn>((msg: ChatMessage) =>
-              msg.role === "user"
-                ? {
-                    id: nextId(),
-                    role: "user",
-                    text: msg.content,
-                    // The delegation aggregator's injected summaries carry a
-                    // leading task_summary block — keep the styling on reload.
-                    ...(msg.blocks?.[0]?.kind === "task_summary" ? { taskSummary: true } : {}),
-                  }
-                : {
-                    id: nextId(),
-                    role: "assistant",
-                    // Restore the persisted block structure when present (tool
-                    // calls intact, collapsed — an errored one stays open, as it
-                    // streamed); plain content is the legacy fallback for
-                    // pre-migration rows. Reasoning is deliberately NOT persisted
-                    // (see chat-history recordMessage), so a reloaded turn is the
-                    // answer plus the tools that produced it.
-                    blocks: msg.blocks?.length
-                      ? msg.blocks.map((b) =>
-                          b.kind === "tool"
-                            ? {
-                                kind: "tool" as const,
-                                id: b.id,
-                                name: b.name,
-                                args: b.args,
-                                result: b.result,
-                                state: b.state ?? ("done" as const),
-                                open: b.state === "error",
-                              }
-                            : // task_summary markers (user-message injected turns)
-                              // and text blocks: keep the text, drop the marker —
-                              // the flag on the user turn carries the styling.
-                              { kind: "text" as const, text: b.kind === "text" ? b.text : "" },
-                        )
-                      : [{ kind: "text", text: msg.content }],
-                    streaming: false,
-                  },
-            ),
+            turns: mapped,
             isStreaming: false,
             suppressed: state.suppressed,
             // A plan belongs to its session: clear on load, then the server's
             // snapshot push (when the target session has one) repopulates it.
             todos: [],
             todoCounts: NO_TODOS,
+            pendingSession: null,
+            // Only the structural new-chat arrival consumes the handshake —
+            // an id-matched refresh must not disarm it while the real
+            // new-session load is still in flight behind this one.
+            pendingNewSession: isNewChatArrival ? false : state.pendingNewSession,
+            sessionSwitchBackup: null,
+            sessionCache: cacheWrite(state.sessionCache, m.id, mapped),
           };
+        }
 
         case "user_bindings":
           return { userBindings: { model: m.model, mcp: m.mcp } };

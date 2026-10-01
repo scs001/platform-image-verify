@@ -13,9 +13,9 @@
 // same download action. There is deliberately no "error" state: a file the
 // drawer cannot show is still a file the user can have.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Download, FolderPlus, X } from "lucide-react";
+import { Download, FolderPlus, Loader2, X } from "lucide-react";
 import { saveErrorKey, saveResource, useChatStore } from "@platform/core";
 import { Markdown } from "@/components/Markdown";
 import { showToast } from "@/components/Toast";
@@ -94,16 +94,15 @@ export default function PreviewDrawer() {
             <FolderPlus className="h-4 w-4" aria-hidden="true" />
           </button>
         ) : null}
-        <a
-          href={target.url}
-          download={target.name}
-          data-testid="preview-download"
-          aria-label={t("preview.download")}
-          title={t("preview.download")}
+        <DownloadAction
+          url={target.url}
+          name={target.name}
+          testId="preview-download"
+          label={t("preview.download")}
           className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           <Download className="h-4 w-4" aria-hidden="true" />
-        </a>
+        </DownloadAction>
         <button
           type="button"
           onClick={close}
@@ -125,23 +124,9 @@ export default function PreviewDrawer() {
 function Renderer({ target }: { target: PreviewTarget }) {
   switch (kindOf(target.name)) {
     case "image":
-      return (
-        <img
-          src={target.url}
-          alt={target.name}
-          data-testid="preview-image"
-          className="mx-auto max-w-full p-4"
-        />
-      );
+      return <ImagePreview target={target} />;
     case "pdf":
-      return (
-        <iframe
-          src={target.url}
-          title={target.name}
-          data-testid="preview-pdf"
-          className="h-full w-full"
-        />
-      );
+      return <PdfPreview target={target} />;
     case "text":
       return <TextPreview target={target} markdown={false} />;
     case "markdown":
@@ -155,6 +140,63 @@ function Renderer({ target }: { target: PreviewTarget }) {
     default:
       return <DownloadOnly target={target} />;
   }
+}
+
+// Image and PDF renderers hand the URL to the browser, which loads it with no
+// built-in feedback — a large file over a slow link used to read as a blank
+// pane (perf-session-open). Both now carry the drawer's busy state until the
+// element reports load; a failed image load is still a downloadable file.
+function ImagePreview({ target }: { target: PreviewTarget }) {
+  const [state, setState] = useState<"loading" | "ready" | "failed">("loading");
+  if (state === "failed") return <DownloadOnly target={target} />;
+  return (
+    <div className="relative">
+      <img
+        src={target.url}
+        alt={target.name}
+        onLoad={() => setState("ready")}
+        onError={() => setState("failed")}
+        data-testid="preview-image"
+        className="mx-auto max-w-full p-4"
+      />
+      {state === "loading" && (
+        <BusyOverlay />
+      )}
+    </div>
+  );
+}
+
+function PdfPreview({ target }: { target: PreviewTarget }) {
+  const [ready, setReady] = useState(false);
+  return (
+    <div className="relative h-full w-full">
+      <iframe
+        src={target.url}
+        title={target.name}
+        onLoad={() => setReady(true)}
+        data-testid="preview-pdf"
+        className="h-full w-full"
+      />
+      {!ready && <BusyOverlay />}
+    </div>
+  );
+}
+
+// The drawer's universal busy state (perf-session-open): centered spinner +
+// label, the same affordance the text fetch renderers already had. Rendered
+// as an overlay for element-driven renderers (image/pdf/external) so the
+// element can keep loading underneath it.
+function BusyOverlay() {
+  const { t } = useTranslation();
+  return (
+    <div
+      data-testid="preview-loading"
+      className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-background/80 text-sm text-muted-foreground"
+    >
+      <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
+      {t("preview.loading")}
+    </div>
+  );
 }
 
 // Shared fetch for the text-shaped renderers. A failed fetch is not an error
@@ -333,7 +375,96 @@ function Sandbox({ html, title, testId }: { html: string; title: string; testId:
 
 function Loading() {
   const { t } = useTranslation();
-  return <div className="p-4 text-sm text-muted-foreground">{t("preview.loading")}</div>;
+  return (
+    <div
+      data-testid="preview-loading"
+      className="flex items-center gap-2 p-4 text-sm text-muted-foreground"
+    >
+      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+      {t("preview.loading")}
+    </div>
+  );
+}
+
+// Fetched download with a busy state and a plain-anchor fallback
+// (perf-session-open): the anchor's own navigation is the pre-change
+// behavior, so a fetch that cannot complete degrades to exactly what worked
+// before — a busy download must never become a failed download.
+function DownloadAction({
+  url,
+  name,
+  testId,
+  label,
+  className,
+  children,
+}: {
+  url: string;
+  name: string;
+  testId: string;
+  label: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const onDownload = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (busyRef.current) {
+      e.preventDefault();
+      return;
+    }
+    e.preventDefault();
+    busyRef.current = true;
+    setBusy(true);
+    (async () => {
+      try {
+        // Same-origin fetch so the auth cookie rides; the blob+object-URL
+        // handoff gives the save a stable local source.
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(String(r.status));
+        const blob = await r.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objectUrl;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        // Chrome captures the blob synchronously; Safari's save dialog may
+        // not — hold the object URL briefly, then let it go.
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
+      } catch {
+        // Plain fallback: a handler-free anchor with the download attribute,
+        // i.e. the browser's own download path for this same URL.
+        const plain = document.createElement("a");
+        plain.href = url;
+        plain.download = name;
+        document.body.appendChild(plain);
+        plain.click();
+        plain.remove();
+      } finally {
+        busyRef.current = false;
+        setBusy(false);
+      }
+    })();
+  };
+  return (
+    <a
+      href={url}
+      download={name}
+      onClick={onDownload}
+      data-testid={testId}
+      aria-label={label}
+      title={label}
+      aria-busy={busy || undefined}
+      className={className}
+    >
+      {busy ? (
+        <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+      ) : (
+        children
+      )}
+    </a>
+  );
 }
 
 // The universal terminal state: no renderer (or a renderer that failed). Offers
@@ -341,8 +472,10 @@ function Loading() {
 function DownloadOnly({ target }: { target: PreviewTarget }) {
   const { t } = useTranslation();
   const [external, setExternal] = useState<string | null>(null);
+  const [externalReady, setExternalReady] = useState(false);
   useEffect(() => {
     let live = true;
+    setExternalReady(false);
     // A catalog external-service tagged for file preview can render long-tail
     // formats (legacy Office, media, archives) by fetching the file itself.
     // Absent or unreachable, the drawer simply stays on the download action.
@@ -365,27 +498,32 @@ function DownloadOnly({ target }: { target: PreviewTarget }) {
 
   if (external) {
     return (
-      <iframe
-        src={external}
-        title={target.name}
-        data-testid="preview-external"
-        className="h-full w-full"
-      />
+      <div className="relative h-full w-full">
+        <iframe
+          src={external}
+          title={target.name}
+          onLoad={() => setExternalReady(true)}
+          data-testid="preview-external"
+          className="h-full w-full"
+        />
+        {!externalReady && <BusyOverlay />}
+      </div>
     );
   }
 
   return (
     <div className="flex flex-col items-center gap-3 p-8 text-center">
       <p className="text-sm text-muted-foreground">{t("preview.noRenderer")}</p>
-      <a
-        href={target.url}
-        download={target.name}
-        data-testid="preview-fallback-download"
+      <DownloadAction
+        url={target.url}
+        name={target.name}
+        testId="preview-fallback-download"
+        label={t("preview.downloadName", { name: baseName(target.name) })}
         className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
       >
         <Download className="h-4 w-4" aria-hidden="true" />
         {t("preview.downloadName", { name: baseName(target.name) })}
-      </a>
+      </DownloadAction>
     </div>
   );
 }

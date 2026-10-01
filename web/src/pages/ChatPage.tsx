@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Menu } from "lucide-react";
@@ -32,9 +32,12 @@ interface Props {
 export function ChatPage({ send, onToggleNav }: Props) {
   const { t } = useTranslation();
   const { sessionId: urlSessionId } = useParams();
-  // Length-only subscription: this page branches on emptiness — subscribing
-  // to the whole turns array would re-render it per streamed token.
-  const isEmpty = useChatStore((s) => s.turns.length === 0);
+  // Length-and-pending subscription: this page branches on emptiness —
+  // subscribing to the whole turns array would re-render it per streamed
+  // token. An optimistic session switch clears turns the instant the request
+  // leaves (perf-session-open), and that pending view belongs to the
+  // transcript's skeleton, not the welcome.
+  const isEmpty = useChatStore((s) => s.turns.length === 0 && s.pendingSession === null);
   const status = useChatStore((s) => s.status);
   const currentSessionId = useChatStore((s) => s.currentSessionId);
 
@@ -63,11 +66,27 @@ export function ChatPage({ send, onToggleNav }: Props) {
   // explicitly; refresh keeps its place) — a reactive URL-follows-session
   // effect here would race this one and ping-pong switch_session between the
   // stale URL and the fresh session id.
+  //
+  // The serviced-url ref is what kills the ping-pong (perf-session-open): the
+  // optimistic flip moves `currentSessionId` synchronously while the router
+  // param lags a render, so an effect keyed on their (dis)agreement "corrects"
+  // a just-clicked switch back toward the stale URL. Service each URL change
+  // exactly once; a restore after a failed switch intentionally does not
+  // re-arm (the row re-click is the retry). A URL seen while the socket is
+  // still connecting is NOT serviced — the send would be lost and the ref
+  // would suppress the retry — so it waits for `status` to arm the effect.
+  const servicedUrlRef = useRef<string | null | undefined>(undefined);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `status` is a deliberate trigger — a URL first seen while connecting must re-arm once the socket opens (the send would have been dropped)
   useEffect(() => {
+    if (urlSessionId === servicedUrlRef.current) return;
     if (urlSessionId && urlSessionId !== currentSessionId) {
+      if (useChatStore.getState().status !== "connected") return;
+      servicedUrlRef.current = urlSessionId;
       send({ type: "switch_session", id: urlSessionId });
+      return;
     }
-  }, [urlSessionId, currentSessionId, send]);
+    servicedUrlRef.current = urlSessionId;
+  }, [urlSessionId, currentSessionId, status, send]);
 
   return (
     <main className="flex min-h-0 min-w-0 flex-1 flex-col">

@@ -77,7 +77,16 @@ export function useWebSocket(enabled: boolean, identityKey = "") {
     });
     clientRef.current = client;
 
-    sendRef.current = (msg) => client.send(JSON.stringify(msg));
+    sendRef.current = (msg) => {
+      // Optimistic session open (perf-session-open): the store flips the view
+      // the moment the request leaves, from the one choke point every send
+      // path shares (prop-threaded `send` and module `wsSend` alike). The
+      // store no-ops on a dead socket; the send itself proceeds regardless.
+      const chat = useChatStore.getState();
+      if (msg.type === "switch_session") chat.activateSession(msg.id);
+      else if (msg.type === "new_session") chat.beginNewSession();
+      client.send(JSON.stringify(msg));
+    };
     currentSend = sendRef.current;
 
     // Reconnect immediately when the network comes back (e.g. laptop wake),

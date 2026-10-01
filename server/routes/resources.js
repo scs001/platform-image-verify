@@ -62,6 +62,25 @@ export function registerResourceRoutes(ctx) {
     }
   });
 
+  // Delivery-status lookup (openspec: add-artifact-delivery): the chat's badge
+  // (is this chart captured?) and artifact strip (is this workspace file
+  // saved?) batch through here. Read-only; the workspace root is the same
+  // source every other resource route uses.
+  app.post("/api/resources/lookup", async (req, res) => {
+    const body = req.body ?? {};
+    try {
+      res.json(
+        await resources.lookupStatus({
+          workspaceRoot: ctx.dshBridge?.getCwd?.() || process.cwd(),
+          paths: Array.isArray(body.paths) ? body.paths : [],
+          hashes: Array.isArray(body.hashes) ? body.hashes : [],
+        }),
+      );
+    } catch (err) {
+      errorResponse(res, err);
+    }
+  });
+
   // The same-turn calls a chart was drawn from, with the map each would bind
   // with. A dedicated route rather than a field on the resource: candidate
   // results are capped but large, and list responses must stay small.

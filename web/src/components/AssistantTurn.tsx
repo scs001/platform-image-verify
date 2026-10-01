@@ -15,6 +15,7 @@ import { ActivityGroup } from "@/components/ActivityGroup";
 import { ThinkingBlock } from "@/components/ThinkingBlock";
 import { ToolBlock } from "@/components/ToolBlock";
 import { SkillBlock } from "@/components/SkillBlock";
+import { TurnArtifactStrip } from "@/components/TurnArtifactStrip";
 import { cn } from "@/lib/utils";
 
 function AssistantTurnBase({
@@ -178,6 +179,10 @@ function AssistantTurnBase({
         {turn.streaming && turn.blocks.length === 0 && (
           <div className="text-xs text-muted-foreground">{t("turn.thinkingStreaming")}</div>
         )}
+        {/* Turn artifact strip (add-artifact-delivery): render-time synthesis
+            of the files this turn's tool calls produced — the delivery
+            affordance that must not depend on the model remembering to link. */}
+        <TurnArtifactStrip turn={turn} />
         {/* Disconnect truncation marker: the answer was cut off mid-stream.
             A user stop is a choice, not a truncation — no marker there. */}
         {turn.interrupted && (

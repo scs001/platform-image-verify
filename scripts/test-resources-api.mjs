@@ -185,3 +185,53 @@ test("delete removes the row, its bytes, and broadcasts", async () => {
   const again = await call("DELETE", `/api/resources/${id}`);
   assert.equal(again.status, 404);
 });
+// ── Delivery-status lookup (openspec: add-artifact-delivery, task 4.2) ──────
+
+test("lookup answers hash questions for captured charts", async () => {
+  const hash = "a".repeat(64);
+  db.insertResource({
+    id: "lookup-chart-1",
+    type: "chart",
+    title: "t",
+    source: "auto",
+    sessionId: null,
+    sessionTitle: null,
+    messageId: null,
+    payload: "{}",
+    contentHash: hash,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    lastSeenAt: new Date().toISOString(),
+  });
+  const res = await call("POST", "/api/resources/lookup", {
+    hashes: [hash, "b".repeat(64)],
+  });
+  assert.equal(res.status, 200);
+  assert.equal(res.json.hashes[hash], true);
+  assert.equal(res.json.hashes["b".repeat(64)], false);
+});
+
+test("lookup answers path questions by content, with containment", async () => {
+  const target = path.join(WORKSPACE, "lookup-target.md");
+  await fsp.writeFile(target, "lookup-bytes-α", "utf8");
+  // Saved elsewhere in the conversation? No row yet → unsaved.
+  const before = await call("POST", "/api/resources/lookup", { paths: [target] });
+  assert.equal(before.status, 200);
+  assert.equal(before.json.paths[target], "unsaved");
+
+  // Save it through the real service, then the same path must read "saved".
+  await resources.saveFile({ path: target, workspaceRoot: WORKSPACE });
+  const after = await call("POST", "/api/resources/lookup", { paths: [target] });
+  assert.equal(after.json.paths[target], "saved");
+
+  // A deleted file reports missing; an escaping path is refused.
+  await fsp.rm(target);
+  const missing = await call("POST", "/api/resources/lookup", { paths: [target] });
+  assert.equal(missing.json.paths[target], "missing");
+  const escape = await call("POST", "/api/resources/lookup", { paths: ["../../etc/hosts"] });
+  assert.equal(escape.json.paths["../../etc/hosts"], "invalid");
+  // Non-hash strings are dropped rather than trusted.
+  const junk = await call("POST", "/api/resources/lookup", { hashes: ["not-a-hash"] });
+  assert.equal(junk.status, 200);
+  assert.deepEqual(junk.json.hashes, {});
+});

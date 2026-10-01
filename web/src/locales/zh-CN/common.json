@@ -272,7 +272,14 @@
     "retry": "重试",
     "outlineLabel": "会话大纲",
     "outlineCollapse": "收起大纲",
-    "outlineJump": "跳转到这一问"
+    "outlineJump": "跳转到这一问",
+    "chart": {
+      "inLibrary": "已入资源库"
+    },
+    "artifactStrip": {
+      "title": "本轮产物",
+      "saved": "已入资源库"
+    }
   },
   "turn": {
     "assistantName": "{{assistant}}",

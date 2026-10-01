@@ -272,7 +272,14 @@
     "retry": "Réessayer",
     "outlineLabel": "Plan de la conversation",
     "outlineCollapse": "Réduire le plan",
-    "outlineJump": "Aller à cette question"
+    "outlineJump": "Aller à cette question",
+    "chart": {
+      "inLibrary": "Dans la bibliothèque"
+    },
+    "artifactStrip": {
+      "title": "Fichiers de ce tour",
+      "saved": "Dans la bibliothèque"
+    }
   },
   "turn": {
     "assistantName": "{{assistant}}",

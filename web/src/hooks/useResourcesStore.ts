@@ -28,6 +28,11 @@ interface ResourcesState {
   error: string | null;
   typeFilter: ResourceTypeFilter;
   search: string;
+  // Bumped on every resources_changed, before the coalesced refetch settles —
+  // the chat's delivery affordances (chart badge, artifact strip) re-ask their
+  // status questions when this moves, without waiting for or depending on the
+  // list refetch (add-artifact-delivery).
+  eventSeq: number;
 
   setTypeFilter: (filter: ResourceTypeFilter) => void;
   setSearch: (search: string) => void;
@@ -48,6 +53,7 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
   error: null,
   typeFilter: "all",
   search: "",
+  eventSeq: 0,
 
   setTypeFilter: (typeFilter) => {
     set({ typeFilter });
@@ -109,6 +115,7 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
 
   applyEvent: (msg) => {
     if (msg.type !== "resources_changed") return;
+    set((s) => ({ eventSeq: s.eventSeq + 1 }));
     if (eventTimer) clearTimeout(eventTimer);
     eventTimer = setTimeout(() => {
       eventTimer = null;

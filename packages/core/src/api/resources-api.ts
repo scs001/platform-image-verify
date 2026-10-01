@@ -189,8 +189,7 @@ async function jsonOrThrow<T>(resPromise: ReturnType<typeof http>): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function listResources(query: ResourceListQuery = {}): Promise<ResourceList> {
-  const params = new URLSearchParams();
+export async function listResources(query: ResourceListQuery = {}): Promise<ResourceList> {  const params = new URLSearchParams();
   if (query.type) params.set("type", query.type);
   if (query.q) params.set("q", query.q);
   if (query.limit != null) params.set("limit", String(query.limit));
@@ -229,6 +228,30 @@ export async function saveResource(input: {
     throw new ResourceSaveError(code, message);
   }
   return (await res.json()) as { inserted: boolean; resource: Resource };
+}
+
+// Delivery-status lookup (openspec: add-artifact-delivery). `hashes` are
+// canonical chart-fence hashes (is this chart captured?); `paths` are
+// workspace paths (is this file's CONTENT already saved?). Batched so a turn
+// strip or a set of badges costs one request.
+export type WorkspacePathState = "saved" | "unsaved" | "missing" | "invalid" | "oversize";
+
+export interface ResourceStatusLookup {
+  hashes: Record<string, boolean>;
+  paths: Record<string, WorkspacePathState>;
+}
+
+export async function lookupResourceStatus(input: {
+  paths?: string[];
+  hashes?: string[];
+}): Promise<ResourceStatusLookup> {
+  const res = await http("/api/resources/lookup", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ paths: input.paths ?? [], hashes: input.hashes ?? [] }),
+  });
+  if (!res.ok) throw new Error(`resource status lookup failed: HTTP ${res.status}`);
+  return (await res.json()) as ResourceStatusLookup;
 }
 
 export async function renameResource(id: string, title: string): Promise<Resource> {

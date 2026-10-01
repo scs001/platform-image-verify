@@ -272,7 +272,14 @@
     "retry": "Retry",
     "outlineLabel": "Conversation outline",
     "outlineCollapse": "Collapse outline",
-    "outlineJump": "Jump to this question"
+    "outlineJump": "Jump to this question",
+    "chart": {
+      "inLibrary": "In library"
+    },
+    "artifactStrip": {
+      "title": "Files this turn",
+      "saved": "In library"
+    }
   },
   "turn": {
     "assistantName": "{{assistant}}",

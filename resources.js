@@ -414,6 +414,69 @@ function decorate(rows) {
   return Array.isArray(rows) ? items.map(decorateOne) : decorateOne(items[0]);
 }
 
+// ── Delivery-status lookup (openspec: add-artifact-delivery) ────────────────
+//
+// The chat's delivery affordances ask the library two read-only questions:
+//   - is a chart (identified by its canonical fence hash) already captured?
+//   - is a workspace file (identified by path) already saved — by CONTENT,
+//     not by name, matching how save dedupes?
+// Only the server can answer the second (it must read the bytes to hash
+// them), which is why this is an endpoint and not a client-side join.
+// Containment discipline is saveFile's; the answer for a file that has been
+// deleted from the workspace is "missing" so clients can drop the chip.
+
+const LOOKUP_MAX_PATHS = 20;
+const LOOKUP_MAX_HASHES = 50;
+const HASH_RE = /^[0-9a-f]{64}$/;
+
+export async function lookupStatus({ workspaceRoot, paths = [], hashes = [] }) {
+  if (!db.isDbReady()) {
+    throw new ResourceError(503, "db_unavailable", "资源库暂不可用");
+  }
+  const hashList = (Array.isArray(hashes) ? hashes : [])
+    .filter((h) => typeof h === "string" && HASH_RE.test(h))
+    .slice(0, LOOKUP_MAX_HASHES);
+  const pathList = (Array.isArray(paths) ? paths : [])
+    .filter((p) => typeof p === "string" && p.trim())
+    .slice(0, LOOKUP_MAX_PATHS);
+
+  const hashState = {};
+  for (const h of hashList) hashState[h] = Boolean(db.findResourceByHash(h));
+
+  const pathState = {};
+  const realRoot = workspaceRoot ? await realpath(path.resolve(workspaceRoot)).catch(() => null) : null;
+  for (const p of pathList) {
+    const resolved = resolveUnderRoot(workspaceRoot ?? "", p);
+    if (!resolved || !realRoot) {
+      pathState[p] = "invalid";
+      continue;
+    }
+    let real;
+    try {
+      real = await realpath(resolved.lexical);
+    } catch {
+      pathState[p] = "missing";
+      continue;
+    }
+    if (real !== realRoot && !real.startsWith(realRoot + path.sep)) {
+      pathState[p] = "invalid";
+      continue;
+    }
+    const info = await stat(real).catch(() => null);
+    if (!info?.isFile()) {
+      pathState[p] = "missing";
+      continue;
+    }
+    if (info.size > MAX_FILE_BYTES) {
+      pathState[p] = "oversize";
+      continue;
+    }
+    const hash = sha256(await readFile(real));
+    pathState[p] = db.findResourceByHash(hash) ? "saved" : "unsaved";
+  }
+  return { hashes: hashState, paths: pathState };
+}
+
 export function list(params = {}) {
   const page = db.listResources(params);
   return { ...page, items: decorate(page.items) };

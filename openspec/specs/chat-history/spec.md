@@ -7,6 +7,8 @@ Chat sessions as durable, user-facing history: every conversation is mirrored to
 ### Requirement: Chat sessions are mirrored to the project database as the conversation progresses
 The server SHALL mirror each chat session's user prompts and assistant responses into the project SQLite database (managed by `project-database`) as the conversation progresses - the user message on `prompt` and the assistant's final message on turn completion (`done`). This SHALL apply to **both local dsh agent turns and remote (catalog `agent-remote`) agent turns**: remote turns (streamed via `streamRemoteChat`) SHALL be persisted on stream completion via the same `recordMessage()` path as local turns, so a browser close/reopen does not leave a dangling user message with no reply. The project database SHALL be the store of record for the session list and read-only view APIs. The dsh runtime persists sessions by id to its own disk store; the server SHALL keep the SQLite mirror in sync as turns progress. The server SHALL track a current session in memory. Each session SHALL expose an id, a title (derived from the first user message), creation timestamp, and update timestamp. SQLite writes SHALL be atomic and crash-safe via transactions.
 
+Before persisting assistant text, the server SHALL normalize **functional references** only: a markdown link whose target is a `data:text/*` URI SHALL be replaced by a workspace file link when the decoded payload's bytes match a file under the session workspace, and SHALL be reduced to its link text otherwise; a markdown link whose absolute-path target resolves under the session workspace SHALL be rewritten to workspace-relative form. Narrative content — prose and inline code spans — SHALL NOT be altered by normalization.
+
 #### Scenario: user prompt is persisted
 - **WHEN** the server receives a `prompt` WebSocket message for the current session
 - **THEN** the server SHALL persist the user message to the project database for the current session
@@ -26,6 +28,22 @@ The server SHALL mirror each chat session's user prompts and assistant responses
 #### Scenario: session title derived from first message
 - **WHEN** a session receives its first user message
 - **THEN** the server SHALL set the session's display name to a truncated form of that message
+
+#### Scenario: data URI link matching a workspace file becomes a platform link
+- **WHEN** an assistant message contains a markdown link whose target is a `data:text/*` URI, and the decoded payload's bytes match a file under the session workspace
+- **THEN** the mirrored message stores the link with a workspace-relative path to that file instead of the `data:` URI
+
+#### Scenario: data URI link without a match is reduced to plain text
+- **WHEN** an assistant message contains a markdown link whose target is a `data:text/*` URI and no workspace file matches its payload
+- **THEN** the mirrored message stores the link's visible text without the `data:` URI target
+
+#### Scenario: absolute in-workspace link is rewritten relative
+- **WHEN** an assistant message contains a markdown link whose absolute-path target resolves under the session workspace
+- **THEN** the mirrored message stores that link with a workspace-relative target
+
+#### Scenario: narrative content is untouched
+- **WHEN** an assistant message contains absolute paths or `data:` URIs inside prose or inline code spans rather than markdown link targets
+- **THEN** the mirrored message stores them verbatim
 
 ### Requirement: Users can list past chat sessions
 The server SHALL expose an endpoint and a WebSocket message that return a list of persisted chat sessions with their id, title, creation timestamp, update timestamp, and message count, ordered most-recently-updated first, sourced from the project SQLite database. The list SHALL NOT include full message bodies. The list SHALL be scoped to the requesting user's visibility: only sessions that user owns, except admin-group users who receive all sessions (see `session-ownership`). The `sessions` WebSocket event SHALL be computed per connection from that connection's visibility — one broadcast never carries one user's session metadata to another user's client.

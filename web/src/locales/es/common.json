@@ -272,7 +272,14 @@
     "retry": "Reintentar",
     "outlineLabel": "Esquema de la conversación",
     "outlineCollapse": "Contraer esquema",
-    "outlineJump": "Saltar a esta pregunta"
+    "outlineJump": "Saltar a esta pregunta",
+    "chart": {
+      "inLibrary": "En la biblioteca"
+    },
+    "artifactStrip": {
+      "title": "Archivos de este turno",
+      "saved": "En la biblioteca"
+    }
   },
   "turn": {
     "assistantName": "{{assistant}}",

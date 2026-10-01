@@ -272,7 +272,14 @@
     "retry": "再試行",
     "outlineLabel": "会話アウトライン",
     "outlineCollapse": "アウトラインを折りたたむ",
-    "outlineJump": "この質問へ移動"
+    "outlineJump": "この質問へ移動",
+    "chart": {
+      "inLibrary": "ライブラリ済み"
+    },
+    "artifactStrip": {
+      "title": "このターンの成果物",
+      "saved": "ライブラリ済み"
+    }
   },
   "turn": {
     "assistantName": "{{assistant}}",

@@ -492,7 +492,7 @@ async function streamRemoteChat(entry, text) {
   // so it answers as the named agent rather than as a bare model.
   const messages = [
     ...(entry.description
-      ? [{ role: "system", content: `你是「${entry.name || entry.id}」——${entry.description}。回答用中文（除非用户使用其他语言），结论先行；没有工具可用时如实说明，不要编造数据或结论。` }]
+      ? [{ role: "system", content: `你是「${entry.name || entry.id}」——${entry.description}。回答用中文（除非用户使用其他语言），结论先行；没有工具可用时如实说明，不要编造数据或结论。平台产物契约：图表一律用 \`\`\`echarts 围栏输出 JSON option（不用 mermaid），平台会渲染并自动存入资源库；如引用产出文件，用工作区相对路径 markdown 链接；禁用 data: URI 链接；不要声称平台无法渲染或交付你的产物。` }]
       : []),
     ...(remoteForkMessages() || [{ role: "user", content: text }]),
   ];

@@ -490,6 +490,21 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
                           // keep place.
                           navigate(`/chat/${s.id}`);
                           if (s.id !== currentSessionId) send({ type: "switch_session", id: s.id });
+                          else {
+                            // Welcome-state trap (add-artifact-delivery): the
+                            // live session IS this one but this client's view
+                            // is empty (fresh tab, reload without the URL id).
+                            // The deep-link effect no-ops on an id equal to
+                            // current, and a bare no-op leaves the transcript
+                            // unreachable — the server's same-id switch is a
+                            // transcript re-request, so send it. Imperative
+                            // read: subscribing turns here would re-render the
+                            // sidebar per streamed token.
+                            const st = useChatStore.getState();
+                            if (st.turns.length === 0 && st.pendingSession === null) {
+                              send({ type: "switch_session", id: s.id });
+                            }
+                          }
                           setLastSeen(markSessionSeen(s.id));
                           onNavigate?.();
                         }}

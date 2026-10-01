@@ -8,11 +8,13 @@
 import { memo, useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, Library } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { showToast } from "@/components/Toast";
 import { EChart } from "@/components/EChart";
-import { useChatStore } from "@platform/core";
+import { canonicalChartHash, useChatStore } from "@platform/core";
+import { useChartCaptured } from "@/hooks/useResourceStatus";
 import { usePreviewStore } from "@/hooks/usePreviewStore";
 import { baseName, fileUrl, linkRef } from "@/lib/file-preview";
 
@@ -172,7 +174,32 @@ function CodeRenderer(props: any) {
 // object, and as the ordinary code block otherwise — which is also the streaming
 // case, since a half-arrived fence is simply unparseable and upgrades to a chart
 // once it completes. No error state, no streaming-aware branch.
+//
+// A chart whose canonical fence hash is in the library carries a persistent
+// "in library" badge (add-artifact-delivery): capture is invisible otherwise,
+// and the badge is the reviewable trace that it happened. The hash correlation
+// is the same canonicalization the server's capture applies, so live turns and
+// reopened historical sessions badge identically.
 function ChartBlock({ code }: { code: string }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const [hash, setHash] = useState<string | null>(null);
+  const captured = useChartCaptured(hash);
+
+  useEffect(() => {
+    let cancelled = false;
+    canonicalChartHash(code)
+      .then((h) => {
+        if (!cancelled) setHash(h);
+      })
+      .catch(() => {
+        if (!cancelled) setHash(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [code]);
+
   const option = useMemo(() => {
     try {
       const parsed: unknown = JSON.parse(code);
@@ -184,7 +211,23 @@ function ChartBlock({ code }: { code: string }) {
     }
   }, [code]);
   if (!option) return <HighlightedCode code={code} lang="echarts" />;
-  return <EChart option={option} />;
+  return (
+    <div className="relative">
+      <EChart option={option} />
+      {captured && (
+        <button
+          type="button"
+          data-testid="chart-library-badge"
+          onClick={() => navigate("/resources")}
+          className="absolute right-3 top-5 z-10 flex items-center gap-1 rounded-full border border-border bg-background/90 px-2 py-0.5 text-[11px] text-muted-foreground shadow-sm backdrop-blur transition-colors hover:text-foreground"
+          title={t("chat.chart.inLibrary")}
+        >
+          <Library className="h-3 w-3" />
+          {t("chat.chart.inLibrary")}
+        </button>
+      )}
+    </div>
+  );
 }
 
 function HighlightedCode({ code, lang }: { code: string; lang: string }) {

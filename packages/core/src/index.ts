@@ -17,6 +17,10 @@ export type { ConnStatus, Block, Turn } from "./store/chat-store";
 // Activity-group derivation for the master collapse (shared by web + MP).
 export { groupTurnBlocks, isGroupOpen, groupHasError } from "./store/activity-groups";
 export type { ActivityGroup, AssistantTurn } from "./store/activity-groups";
+// Chart-fence contract (capture ⇄ badge correlation, add-artifact-delivery).
+export { extractChartFences, canonicalChartHash, chartHashesInText } from "./lib/chart-fence";
+// Tool-call path extraction (preview affordance + turn artifact strip).
+export { findFilePath } from "./lib/file-tool-paths";
 // Scheduled-task store (owns the cron_* events; commands go out via the page's send).
 export { useCronStore } from "./store/cron-store";
 

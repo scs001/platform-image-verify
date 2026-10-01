@@ -22,6 +22,7 @@
 
 import { promises as fs } from "node:fs";
 import * as db from "./db.js";
+import { normalizeFunctionalRefs } from "./artifact-normalize.js";
 import * as resources from "./resources.js";
 import { storeDir } from "./paths.js";
 import { truncateTitle as truncateTitleShared } from "./lib/persistence.js";
@@ -167,7 +168,18 @@ export function recordMessage(sessionId, role, content, blocks, ownerUser = null
     db.touchSession(sessionId, now);
     if (path) db.setSessionPath(sessionId, path);
   }
-  const inserted = db.appendMessage(sessionId, role, content || "", now, blocks?.length ? JSON.stringify(blocks) : undefined);
+  // Functional-reference normalization (openspec: add-artifact-delivery,
+  // ADR-0009): assistant text may carry data: URI links or workspace-absolute
+  // links the model improvised. Only markdown link targets are touched —
+  // narrative (prose, inline code, fences) passes verbatim, and a failure
+  // here must never fail the mirror, hence the belt-and-braces try/catch in
+  // the helper itself plus this guard on the workspace root being known.
+  let mirrored = content || "";
+  if (role === "assistant" && mirrored) {
+    const workspaceRoot = dshBridge?.getCwd?.() || null;
+    if (workspaceRoot) mirrored = normalizeFunctionalRefs(mirrored, workspaceRoot);
+  }
+  const inserted = db.appendMessage(sessionId, role, mirrored, now, blocks?.length ? JSON.stringify(blocks) : undefined);
   // Charts ride the mirror funnel (openspec: add-resource-library): every
   // assistant turn that reaches SQLite — web, mini program, scheduled task — is
   // examined once, here. A parse failure is a skipped chart, never a failed
@@ -178,7 +190,7 @@ export function recordMessage(sessionId, role, content, blocks, ownerUser = null
         sessionId,
         messageId: inserted.id,
         sessionTitle: db.getSessionMeta(sessionId)?.title || null,
-        text: content || "",
+        text: mirrored,
         // The turn's own evidence trail: which MCP calls ran and what they
         // returned. A chart captured here can be witnessed against it, and the
         // calls are retained so the user can confirm one as its data source.

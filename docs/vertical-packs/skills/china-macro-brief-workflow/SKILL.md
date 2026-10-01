@@ -54,7 +54,7 @@ description: 中国宏观经济分析简报工作流（数据-中国经济包入
 
 ## 阶段 5：宏观简报交付
 
-输出结构（Markdown，图表用 Mermaid/表格/ASCII 折线）：
+输出结构（Markdown，图表一律用 echarts 围栏输出 JSON option——平台渲染并自动存入资源库；不要用任何其他图形语法或 ASCII 折线冒充图表）：
 
 ```
 # 宏观简报：<问题>

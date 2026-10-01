@@ -117,7 +117,6 @@ While the active agent is an `a2a`-mode `agent-remote` entry, a `prompt` SHALL b
 - **WHEN** the user switches from an `a2a` entry back to the built-in agent
 - **THEN** no preset switch or runtime restart occurs for the shared dsh runtime
 
-## ADDED Requirements
 ### Requirement: Periodic refresh with live propagation
 The server SHALL re-fetch the cloud document AND the registry agents every `CATALOG_REFRESH_SECS` seconds (default 60) and on `POST /api/catalog/refresh`. When the merged catalog changes, the server SHALL broadcast a `catalog_changed` event over WebSocket; clients react by refetching `GET /api/catalog`.
 

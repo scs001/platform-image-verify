@@ -66,7 +66,6 @@ export function createCellRegistry(config) {
     startTimeoutMs,
     idleReapSecs,
     serverEntry,
-    cwd,
     env: baseEnv,
     // Demo-cell bounds (openspec: mp-demo-mode). Demo cells are bounded in
     // both directions account cells are not: at most demoMaxCells running at
@@ -99,6 +98,16 @@ export function createCellRegistry(config) {
     return (async () => {
       const port = await freePort();
       await mkdir(root, { recursive: true });
+      // Per-user cwd and workspace (tenant-cell-runtime): the process cwd must
+      // sit inside the user's own root so the workspace boot chain's cwd
+      // fallback tier can never land on a cross-cell shared directory, and any
+      // accidental relative-path write stays contained. Bundled read-only
+      // assets resolve via repoRoot() (paths.js), not cwd, so the code is
+      // still found.
+      const runtimeDir = path.join(root, "runtime");
+      const workspaceDir = path.join(root, "workspace");
+      await mkdir(runtimeDir, { recursive: true });
+      await mkdir(workspaceDir, { recursive: true });
       const cell = {
         userId,
         email: user.email,
@@ -126,8 +135,13 @@ export function createCellRegistry(config) {
         // The cell's user, so bindings saved earlier apply at boot rather than
         // waiting for the first request (a cell has exactly one user).
         CELL_USER_EMAIL: user.email,
+        // Authoritative per-cell workspace: placed AFTER the baseEnv spread so
+        // an inherited gateway-level AGENT_WORKSPACE can never merge two cells
+        // onto one directory (spec: "inherited environment cannot merge
+        // workspaces").
+        AGENT_WORKSPACE: workspaceDir,
       };
-      const child = spawn(process.execPath, [serverEntry], { cwd, env, stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn(process.execPath, [serverEntry], { cwd: runtimeDir, env, stdio: ["ignore", "pipe", "pipe"] });
       cell.child = child;
       cell.pid = child.pid;
       child.stdout.on("data", (buf) => process.stdout.write(`[cell ${userId}] ${buf}`));

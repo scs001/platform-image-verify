@@ -2,13 +2,14 @@
 // Business logic layer for managing MCP server configs and custom skills.
 // Wraps the db.js CRUD operations and provides market catalog loading.
 
-import path from "node:path";
+import { bundledJson } from "./paths.js";
 import { readJsonOr } from "./lib/persistence.js";
 import * as db from "./db.js";
 import { getMarketEntries } from "./registry-bridge.js";
 
-const MARKET_CATALOG_PATH = path.resolve("market-catalog.json");
-const MARKET_CATALOG_SKILLS_PATH = path.resolve("market-catalog-skills.json");
+// Resolved at READ time — see catalog.js: a cwd overlay may land after boot.
+const marketCatalogFile = () => bundledJson("market-catalog.json");
+const marketCatalogSkillsFile = () => bundledJson("market-catalog-skills.json");
 
 // shared predicate for "this arg needs user input".
 // Matches /path/..., your_..., and <...> placeholders.
@@ -114,7 +115,7 @@ let marketCatalogSkillsCache = null;
 
 export async function loadMarketCatalog() {
   if (marketCatalogCache) return marketCatalogCache;
-  const doc = readJsonOr(MARKET_CATALOG_PATH, null, { label: "extensions" });
+  const doc = readJsonOr(marketCatalogFile(), null, { label: "extensions" });
   // readJsonOr warns on parse errors; a missing/invalid file degrades to the
   // empty catalog (fresh installs ship without market catalogs).
   marketCatalogCache = doc ?? { mcpServers: [] };
@@ -123,7 +124,7 @@ export async function loadMarketCatalog() {
 
 export async function loadMarketCatalogSkills() {
   if (marketCatalogSkillsCache) return marketCatalogSkillsCache;
-  const doc = readJsonOr(MARKET_CATALOG_SKILLS_PATH, null, { label: "extensions" });
+  const doc = readJsonOr(marketCatalogSkillsFile(), null, { label: "extensions" });
   marketCatalogSkillsCache = doc ?? { skills: [] };
   return marketCatalogSkillsCache;
 }

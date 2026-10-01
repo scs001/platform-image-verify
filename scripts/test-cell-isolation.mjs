@@ -40,7 +40,9 @@ function freePort() {
 async function startCell(label, identity) {
   const root = await mkdtemp(path.join(tmpdir(), `cell-${label}-`));
   const cwd = path.join(root, "cwd");
+  const workspace = path.join(root, "workspace");
   await mkdir(cwd, { recursive: true });
+  await mkdir(workspace, { recursive: true });
   const port = await freePort();
   const child = spawn(process.execPath, [path.join(REPO, "server.js")], {
     cwd,
@@ -54,6 +56,10 @@ async function startCell(label, identity) {
       CLOUD_MODE: "1",
       CELL_GATEWAY_SECRET: identity["x-cloud-gateway-secret"],
       AUTH_MODE: "forward_auth",
+      // Same shape the gateway spawner pins (migrate-fd-prod-cells): the
+      // agent's produced files live under the user's own root and are served
+      // from there.
+      AGENT_WORKSPACE: workspace,
       LLM_API_KEY: "",
     },
     stdio: ["ignore", "ignore", "pipe"],
@@ -153,6 +159,23 @@ async function main() {
     A.ws.send("not json");
     await sleep(800);
     if (B.frames.length !== bBefore) failures.push("cell B received frames from cell A's malformed input");
+
+    // ── Produced files stay inside the owning cell (migrate-fd-prod-cells 2.3)
+    // The agent's write lands in the pinned per-user workspace; the file route
+    // serves it from there for A, and the SAME relative path on B must 404 —
+    // B's workspace root is a different directory, so there is nothing to
+    // reach even though the route contract is identical.
+    const { writeFile: putFile } = await import("node:fs/promises");
+    await putFile(path.join(A.root, "workspace", "produced-report.md"), "# A 的产出\n");
+    const rel = "produced-report.md";
+    const aFetch = await fetch(`${A.base}/api/files?root=workspace&path=${encodeURIComponent(rel)}`, { headers: userA });
+    const bFetch = await fetch(`${B.base}/api/files?root=workspace&path=${encodeURIComponent(rel)}`, { headers: userB });
+    if (aFetch.status !== 200) failures.push(`A could not fetch its own workspace file: HTTP ${aFetch.status}`);
+    if (aFetch.status === 200 && (await aFetch.text()) !== "# A 的产出\n") failures.push("A's workspace file served wrong bytes");
+    if (bFetch.status !== 404) failures.push(`B reached A's workspace file over the same route: HTTP ${bFetch.status}`);
+    // And the on-disk truth: the file lives under A's per-user root only.
+    const bStray = await fetch(`${B.base}/api/files?root=workspace&path=${encodeURIComponent("../" + path.basename(A.root) + "/workspace/" + rel)}`, { headers: userB });
+    if (bStray.status !== 403 && bStray.status !== 404) failures.push(`B's traversal toward A's root was not refused: HTTP ${bStray.status}`);
 
     console.log(`cell A: ${aDocs.length} document(s), ${aSessions.length} session(s), ${A.frames.length} WS frame(s)`);
     console.log(`cell B: ${bDocs.length} document(s), ${bSessions.length} session(s), ${B.frames.length} WS frame(s)`);

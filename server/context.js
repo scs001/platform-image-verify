@@ -11,7 +11,7 @@
 //                    dsh-events.js and the route modules
 //   - clients:       connected WS sockets; broadcast() fans out to them
 
-import path from "node:path";
+import { repoRoot } from "../paths.js";
 import * as chatHistory from "../chat-history.js";
 import * as documents from "../documents.js";
 import * as collections from "../collections.js";
@@ -34,7 +34,8 @@ export function splitPolicy(policy) {
 }
 
 // The web SPA build served at the repo root (express.static + SPA fallback).
-export const WEB_DIST = path.resolve("web/dist");
+// repoRoot, not cwd: hosted cells sit in a per-user cwd (tenant-cell-runtime).
+export const WEB_DIST = repoRoot("web/dist");
 
 export function createAppContext(config) {
   const ctx = {

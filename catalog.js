@@ -9,11 +9,14 @@
 // DB-less convention holds for every other source and for the DB-off
 // degradation path.
 import path from "node:path";
+import { bundledJson } from "./paths.js";
 import { readJsonOr } from "./lib/persistence.js";
 import { getAgentEntries } from "./registry-bridge.js";
 import * as db from "./db.js";
 
-const CATALOG_FILE = path.resolve("agents.json");
+// Resolved at READ time: the operator override (cwd copy, if any) may appear
+// after boot, and the historical path.resolve bound the same way lazily.
+const catalogFile = () => bundledJson("agents.json");
 const MCP_CONFIG_PATH = path.resolve(process.env.MCP_CONFIG_PATH || "mcp.json");
 const CLOUD_URL = process.env.AGENTS_CONFIG_URL?.trim() || null;
 const REFRESH_SECS = Number(process.env.CATALOG_REFRESH_SECS || 60);
@@ -92,7 +95,7 @@ async function loadLocal() {
   // readJsonOr: missing file is silent (fresh installs); an unreadable or
   // unparsable file warns with the path and degrades to the empty catalog.
   localEntries = validateDoc(
-    readJsonOr(CATALOG_FILE, { agents: [], apps: [] }, { label: "catalog" }),
+    readJsonOr(catalogFile(), { agents: [], apps: [] }, { label: "catalog" }),
     "agents.json",
   );
 }

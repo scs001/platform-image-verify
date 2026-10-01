@@ -68,10 +68,10 @@ const registry = createCellRegistry({
   // CELL_SERVER_ENTRY defaults to the real cell; tests point it at a stub so
   // the identity/routing contract can be exercised without booting dsh.
   serverEntry: process.env.CELL_SERVER_ENTRY || path.join(REPO, "server.js"),
-  // Cells run from the repo so they share the read-only app code and the
-  // project's skills/ dir. Their writes are confined to their own data root
-  // (proven by scripts/test-cell-containment.mjs).
-  cwd: REPO,
+  // Cells run with a per-user cwd under their own data root; bundled read-only
+  // code and assets resolve from the image via repoRoot() (paths.js), and their
+  // writes are confined to their own data root (proven by
+  // scripts/test-cell-containment.mjs).
   env: process.env,
 });
 

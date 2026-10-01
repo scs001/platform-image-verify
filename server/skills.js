@@ -3,6 +3,7 @@
 // expandDocRefs, which reads the documents service through ctx.
 
 import path from "node:path";
+import { repoRoot } from "../paths.js";
 import { readFile } from "node:fs/promises";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 
@@ -103,7 +104,7 @@ export async function expandDocRefs(ctx, text) {
 // the same dir the skill-filesystem plugin's customSkillDirs points at (Task 5.3).
 // ponytail: regex frontmatter parse + no caching (4 files, called rarely); a
 // multi-line/quoted description or a hot list_skills path needs a real parser + cache.
-export function getFileSkills(dir = path.resolve("skills")) {
+export function getFileSkills(dir = repoRoot("skills")) {
   let entries;
   try { entries = readdirSync(dir); } catch { return []; }
   const skills = [];

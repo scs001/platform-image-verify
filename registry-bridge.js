@@ -17,7 +17,7 @@
 // URL — the client-facing MCP endpoint is derived as {REGISTRY_URL}/{path}/mcp.
 // Group metadata is absent from listings, so visibility groups come from the
 // optional local registry-groups.json mapping file.
-import path from "node:path";
+import { bundledJson } from "./paths.js";
 import { readJsonOr } from "./lib/persistence.js";
 
 const REGISTRY_URL = (
@@ -31,7 +31,8 @@ const FETCH_TIMEOUT_MS = 10_000;
 
 // Optional visibility mapping: {servers:{<name>:[groups]}, skills:{...},
 // agents:{...}}. Absent file ⇒ every entry is group-less (visible to all).
-const GROUPS_FILE = path.resolve("registry-groups.json");
+// Resolved at READ time — see catalog.js (cwd overlay may land after boot).
+const groupsFile = () => bundledJson("registry-groups.json");
 
 // ── state ────────────────────────────────────────────────────────────────────
 
@@ -49,7 +50,7 @@ let groupsDoc = null;
 // Re-read once per refresh (not per entry); also picks up operator edits to
 // the mapping file at the next TTL tick.
 function loadGroups() {
-  groupsDoc = readJsonOr(GROUPS_FILE, null, { label: "registry-groups" });
+  groupsDoc = readJsonOr(groupsFile(), null, { label: "registry-groups" });
 }
 
 function groupsFor(kind, name) {

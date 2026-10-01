@@ -198,6 +198,8 @@
   },
   "chat": {
     "empty": "メッセージを送信してチャットを開始してください。",
+    "loadingSession": "会話を読み込み中…",
+    "loadEarlier": "過去のメッセージを読み込む（残り{{count}}件）",
     "plan": {
       "title": "進捗",
       "ariaLabel": "エージェントの計画",
@@ -956,7 +958,9 @@
       "limitSkills": "スキルを限定",
       "limitMcp": "MCP サーバーを限定",
       "resourceEmptySkills": "ドラフトにスキルがまだありません。先に上で追加してください。",
-      "resourceEmptyMcp": "ドラフトで MCP 参照が未選択です。先に上で選択してください。"
+      "resourceEmptyMcp": "ドラフトで MCP 参照が未選択です。先に上で選択してください。",
+      "agentServing": "エージェントサービスとしてデプロイ（A2A）",
+      "agentServingHint": "公開後、パックページからワンクリックでデプロイ。レジストリゲートウェイ経由で A2A に応答します。"
     }
   },
   "overlay": {

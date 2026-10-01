@@ -198,6 +198,8 @@
   },
   "chat": {
     "empty": "Envoyez un message pour commencer à discuter.",
+    "loadingSession": "Chargement de la conversation…",
+    "loadEarlier": "Charger les messages précédents ({{count}} restants)",
     "plan": {
       "title": "Progression",
       "ariaLabel": "Plan de l’agent",
@@ -956,7 +958,9 @@
       "limitSkills": "Limiter les compétences",
       "limitMcp": "Limiter les serveurs MCP",
       "resourceEmptySkills": "Le brouillon ne déclare pas encore de compétences — ajoutez-en ci-dessus.",
-      "resourceEmptyMcp": "Le brouillon ne choisit pas encore de références MCP — choisissez-en ci-dessus."
+      "resourceEmptyMcp": "Le brouillon ne choisit pas encore de références MCP — choisissez-en ci-dessus.",
+      "agentServing": "Déployer en tant que service d'agent (A2A)",
+      "agentServingHint": "Après publication, déployez en un clic depuis la page du pack ; le service répond en A2A via la passerelle."
     }
   },
   "overlay": {

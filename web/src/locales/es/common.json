@@ -198,6 +198,8 @@
   },
   "chat": {
     "empty": "Envía un mensaje para empezar a chatear.",
+    "loadingSession": "Cargando conversación…",
+    "loadEarlier": "Cargar mensajes anteriores (quedan {{count}})",
     "plan": {
       "title": "Progreso",
       "ariaLabel": "Plan del agente",
@@ -956,7 +958,9 @@
       "limitSkills": "Limitar habilidades",
       "limitMcp": "Limitar servidores MCP",
       "resourceEmptySkills": "El borrador aún no declara habilidades — añade alguna arriba.",
-      "resourceEmptyMcp": "El borrador aún no elige referencias MCP — elige alguna arriba."
+      "resourceEmptyMcp": "El borrador aún no elige referencias MCP — elige alguna arriba.",
+      "agentServing": "Desplegar como servicio de agente (A2A)",
+      "agentServingHint": "Tras publicar, despliega en un clic desde la página del pack; el servicio responde por A2A a través del gateway."
     }
   },
   "overlay": {

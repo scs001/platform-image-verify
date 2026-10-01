@@ -356,6 +356,39 @@ function PackDraftEditor({
                   tokens: Math.ceil(entry.value.persona.length / 3),
                 })}
               </p>
+              {/* Serving contract (add-a2a-agent-serving): declaring the role
+                  deployable as an Agent Service. The contract carries no
+                  configuration (model/credentials are deployment concerns);
+                  absent card fields derive from name/description/tags at
+                  deploy time. */}
+              <label className="flex items-start gap-2 text-xs" data-testid={`pack-agent-serving-toggle-${i}`}>
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={!!entry.value.serving}
+                  onChange={(e) =>
+                    setAgents(
+                      agents.map((x, j) =>
+                        j === i
+                          ? {
+                              ...x,
+                              value: {
+                                ...x.value,
+                                ...(e.target.checked
+                                  ? { serving: { protocol: "a2a" } }
+                                  : { serving: undefined }),
+                              },
+                            }
+                          : x,
+                      ),
+                    )
+                  }
+                />
+                <span>
+                  {t("packs.editor.agentServing")}
+                  <span className="block text-muted-foreground">{t("packs.editor.agentServingHint")}</span>
+                </span>
+              </label>
               <AgentResourcesPicker
                 index={i}
                 value={entry.value}

@@ -198,6 +198,8 @@
   },
   "chat": {
     "empty": "Send a message to start chatting.",
+    "loadingSession": "Loading conversation…",
+    "loadEarlier": "Load earlier messages ({{count}} more)",
     "plan": {
       "title": "Progress",
       "ariaLabel": "Agent plan",
@@ -956,7 +958,9 @@
       "limitSkills": "Limit skills",
       "limitMcp": "Limit MCP servers",
       "resourceEmptySkills": "The draft declares no skills yet — add some above first.",
-      "resourceEmptyMcp": "The draft picks no MCP references yet — pick some above first."
+      "resourceEmptyMcp": "The draft picks no MCP references yet — pick some above first.",
+      "agentServing": "Deploy as an Agent Service (A2A)",
+      "agentServingHint": "After publishing, deploy in one click from the pack page; the service answers over A2A through the registry gateway."
     }
   },
   "overlay": {

@@ -18,17 +18,20 @@ The platform production deployment SHALL provide `REGISTRY_URL` (registry base U
 - **AND** registry-sourced entries SHALL be absent (or degrade to last-good) until a valid token is provided
 
 ### Requirement: Deployed market reflects registry content
-With the wired configuration and a valid token, after the first registry refresh the production deployment's `GET /api/extensions/market` SHALL include the registry's enabled MCP servers and skills merged with (and name-colliding entries dropped in favor of) the bundled catalog, per the `extension-marketplace` specification. The Agents page SHALL list registry-sourced link-mode agents per the `agent-catalog` specification.
+With the wired configuration and a valid token, after the first registry refresh the production deployment's `GET /api/extensions/market` SHALL include the registry's enabled MCP servers and skills merged with (and name-colliding entries dropped in favor of) the bundled catalog, per the `extension-marketplace` specification. The Agents page SHALL list registry-sourced agents per the `agent-catalog` specification: `supported_protocol: "a2a"` entries as `a2a`-mode Agent Services (gateway route URL), others as link-mode agents.
 
 #### Scenario: market API includes registry entries
 - **WHEN** the deployed platform has refreshed from the registry at least once
 - **THEN** `GET /api/extensions/market` SHALL return registry entries alongside bundled ones
 - **AND** registry MCP entries SHALL carry a `configTemplate` pointing at the gateway endpoint `https://mcp.finddatatech.cloud/<name>/mcp`
 
+#### Scenario: a2a agents surface as Agent Services
+- **WHEN** the registry lists an enabled agent with `supported_protocol: "a2a"`
+- **THEN** `GET /api/catalog` SHALL include it as an `a2a`-mode entry with the gateway route `https://mcp.finddatatech.cloud/agent/{path}/` as its `url`
+
 #### Scenario: registry outage keeps the store usable
 - **WHEN** the registry becomes unreachable after a successful refresh
 - **THEN** the deployed market SHALL keep serving the last-good registry entries with the bundled catalog, per the existing degradation requirement
-
 ### Requirement: Operator runbook documents token provisioning
 `DEPLOY.md` SHALL document how to obtain a registry service token (registry admin UI's token issuance), store it in the `platform-secrets` Secret as `market-registry-token`, restart the platform deployment, and verify the wiring by checking `GET /api/extensions/market` for registry entries and the boot log for the absence of the "registry source disabled" notice.
 

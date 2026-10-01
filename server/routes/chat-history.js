@@ -53,9 +53,13 @@ export function registerChatHistoryRoutes(ctx) {
     }
   });
 
-  app.post("/api/chat-history/sessions", async (_req, res) => {
+  app.post("/api/chat-history/sessions", async (req, res) => {
     try {
-      const id = await ctx.startNewSession();
+      // Stamp the requester as owner (add-session-ownership): an ownerless
+      // row is admin-only under auth-on, so an identity-less create would
+      // hand back a session its own requester can never open.
+      const owner = ctx.authEnabled ? req.user?.email ?? null : null;
+      const id = await ctx.startNewSession(null, owner);
       res.json({ id });
     } catch (err) {
       console.error("[chat-history] new error:", err.message);

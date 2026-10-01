@@ -45,11 +45,26 @@ test("unit: sandbox pod — each connection gets its own cap; refusal starts no 
         prompts.push(1);
         ctx.finishTurn();
       },
+      // beginTurnFor's no-live-session path (add-session-ownership) adopts a
+      // new session as this connection's view before prompting into it.
+      sessionManager: { setSessionId: () => {} },
     },
+    startNewSession: async (ws) => {
+      const id = "sandbox-test-session";
+      if (ws) ws.viewedSession = id;
+      return id;
+    },
+    getPermissionPresets: async () => ({ options: [], current: null }),
     switchableAgents: () => [],
+    // The connect-time session list is scoped per connection (add-session-
+    // ownership); AUTH_MODE=none ⇒ no scoping — undefined is the auth-off scope.
+    sessionScopeFor: () => undefined,
     planMessage: () => ({ type: "plan", steps: [] }),
     remoteChatEntryFor: () => null,
     broadcast: (m) => broadcasts.push(m),
+    // Turn fan-out is per-session now (add-session-ownership); this suite
+    // asserts on prompts and per-connection replies, not on the fan-out.
+    sendToViewers: () => {},
     finishTurn: () => {
       ctx.isStreaming = false;
     },

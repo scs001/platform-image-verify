@@ -17,18 +17,12 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const webDir = path.join(root, "web");
 const dist = path.join(webDir, "dist", "index.html");
 
-if (process.env.PLATFORM_SKIP_WEB_BUILD === "1") {
-  console.log("[postinstall] PLATFORM_SKIP_WEB_BUILD=1, skipping web build");
-  process.exit(0);
-}
-if (!existsSync(path.join(webDir, "package.json"))) {
-  console.log("[postinstall] web/package.json not found, skipping");
-  process.exit(0);
-}
-
 // packages/core (the shared protocol package consumed by web/ via file:) has
 // no deps of its own — its imports (zustand, react types) resolve through a
 // symlink onto web/node_modules so there is exactly ONE instance of each.
+// Runs BEFORE the skip guards: CI sets PLATFORM_SKIP_WEB_BUILD=1 yet its unit
+// suites import packages/core TS sources, whose zustand must not fall back to
+// the root node_modules (zustand without a sibling react → ERR_MODULE_NOT_FOUND).
 // Idempotent: recreate only when missing or pointing elsewhere.
 import { symlinkSync, readlinkSync, rmSync } from "node:fs";
 const coreModules = path.join(root, "packages", "core", "node_modules");
@@ -51,6 +45,15 @@ if (!linked) {
   } catch (err) {
     console.warn(`[postinstall] could not link packages/core/node_modules: ${err.message}`);
   }
+}
+
+if (process.env.PLATFORM_SKIP_WEB_BUILD === "1") {
+  console.log("[postinstall] PLATFORM_SKIP_WEB_BUILD=1, skipping web build");
+  process.exit(0);
+}
+if (!existsSync(path.join(webDir, "package.json"))) {
+  console.log("[postinstall] web/package.json not found, skipping");
+  process.exit(0);
 }
 
 if (existsSync(dist)) {

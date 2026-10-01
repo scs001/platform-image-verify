@@ -115,11 +115,11 @@ async function stopStreamingForSessionNavigation() {
 // Start a new chat session: create a fresh SDK session and reset the agent's
 // in-memory messages. A live response is stopped first — navigation must never
 // be hostage to a slow model.
-async function createNewSession() {
+async function createNewSession(ownerEmail = null) {
   await stopStreamingForSessionNavigation();
   ctx.session.sessionManager.newSession();
   const id = chatHistory.currentSessionId();
-  chatHistory.createSession(id);
+  chatHistory.createSession(id, ownerEmail);
   bumpSessionVersion();
   // ponytail: dsh has no in-memory message state to reset — newSession() (shim)
   // already minted a fresh dshSessionId; the next prompt carries it.
@@ -692,8 +692,8 @@ async function handleModelCommand(args, ws) {
 // Create a new session and broadcast the session_changed/session_loaded/sessions
 // sequence. Shared by the `new_session` WS handler, the `/new` command, and the
 // REST new-session route. Errors propagate to the caller.
-async function startNewSession(originWs = null) {
-  const id = await createNewSession();
+async function startNewSession(originWs = null, ownerEmail = null) {
+  const id = await createNewSession(ownerEmail);
   // Per-viewer delivery (add-session-ownership): the REQUESTING connection
   // adopts the new session as its view and gets the load/changed/plan pushes;
   // every other client keeps its own view and transcript. A fresh session

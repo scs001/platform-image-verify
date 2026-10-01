@@ -56,21 +56,8 @@ jobs:
       - name: Typecheck (web)
         run: npm run typecheck
 
-      - name: Unit tests
-        run: npm run test:unit
-
-      - name: Locale parity
-        run: npm run check:locales
-
-      # e2e serves web/dist via express.static; build with the e2e test seam
-      # (window.__chatStore) — release builds never set VITE_E2E_SEAM.
-      - name: Build web (e2e seam)
-        run: npm run web:build:e2e
-
-      - name: Install Playwright chromium
-        run: npx playwright install --with-deps chromium
-
-      # The e2e server spawns the dsh runtime child (dsh-bridge.js COMMAND);
+      # The unit suites AND the e2e server spawn the dsh runtime child
+      # (dsh-bridge.js COMMAND) — install it before unit, not only for e2e;
       # pinned to the same rc line the homebrew/dev installs use. The server
       # only patches an existing profile, so bootstrap it like a fresh machine
       # (dsh needs pnpm on PATH to manage profile plugins). The bundle version
@@ -108,6 +95,20 @@ jobs:
             '    - id: sdk-jsonrpc-server' \
             "      name: '@deepseek-ai/dsh-sdk-jsonrpc-server'" \
             > "$HOME/.dsh/profiles/platform/cordis.patch.yml"
+
+      - name: Unit tests
+        run: npm run test:unit
+
+      - name: Locale parity
+        run: npm run check:locales
+
+      # e2e serves web/dist via express.static; build with the e2e test seam
+      # (window.__chatStore) — release builds never set VITE_E2E_SEAM.
+      - name: Build web (e2e seam)
+        run: npm run web:build:e2e
+
+      - name: Install Playwright chromium
+        run: npx playwright install --with-deps chromium
 
       - name: E2E (fast project, offline)
         timeout-minutes: 15

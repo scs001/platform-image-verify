@@ -23,6 +23,11 @@ function buildCtx() {
     dshCurrentTurnId: "turn-1",
     clients: { size: 1 },
     broadcast: (m) => broadcasts.push(m),
+    // dsh-events now fans turn payloads out per-session (sendToViewers —
+    // tool_end lives there) and refreshes the session list after a turn;
+    // feed the fan-out into the same capture the assertions read.
+    sendToViewers: (_sid, m) => broadcasts.push(m),
+    broadcastSessions: async () => {},
     finishTurn: () => {},
     recordMessage: (sid, role, text, blocks) => persisted.push({ sid, role, text, blocks }),
   };

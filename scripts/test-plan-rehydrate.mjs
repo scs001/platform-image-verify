@@ -32,6 +32,7 @@ fs.mkdirSync(process.env.SESSIONS_STORE_DIR, { recursive: true });
 const { createAppContext } = await import("../server/context.js");
 const { attachDshEvents } = await import("../server/dsh-events.js");
 const { attachWebSocket } = await import("../server/ws.js");
+const { createSession } = await import("../chat-history.js");
 
 const WEB_SESSION = "platform-current";
 const PLAN_SESSION = "platform-has-plan";
@@ -68,6 +69,13 @@ before(async () => {
   ctx.sendUserBindings = () => {};
   ctx.switchToSession = async (id) => ({ id, title: `Session ${id}`, messages: [] });
   ctx.session = { model: { id: "test-model", provider: "test" } };
+  // The switch handler's ownership gate (add-session-ownership) checks the
+  // session row before ctx.switchToSession runs — auth-off still requires the
+  // row to exist, so bring the store up and seed the switch targets.
+  const { initDb } = await import("../db.js");
+  await initDb();
+  createSession(PLAN_SESSION);
+  createSession(EMPTY_SESSION);
 
   server = createServer();
   ctx.server = server;
@@ -131,7 +139,11 @@ test("switching to a session with a plan pushes that plan; one without clears", 
 
   c.ws.send(JSON.stringify({ type: "switch_session", id: PLAN_SESSION }));
   await c.waitFor((_ms) => c.todos().length === 2);
-  assert.deepEqual(c.todos().at(-1), { type: "todos", todos: PLAN.todos, counts: PLAN.counts });
+  assert.deepEqual(
+    c.todos().at(-1),
+    // Per-viewer payloads carry the session id (add-session-ownership additive field).
+    { type: "todos", sessionId: PLAN_SESSION, todos: PLAN.todos, counts: PLAN.counts },
+  );
 
   // The session swap itself still happened, ahead of the plan push.
   const types = c.messages.map((m) => m.type);
@@ -143,7 +155,10 @@ test("switching to a session with a plan pushes that plan; one without clears", 
 
   c.ws.send(JSON.stringify({ type: "switch_session", id: EMPTY_SESSION }));
   await c.waitFor((_ms) => c.todos().length === 3);
-  assert.deepEqual(c.todos().at(-1), { type: "todos", todos: [], counts: NO_COUNTS });
+  assert.deepEqual(
+    c.todos().at(-1),
+    { type: "todos", sessionId: EMPTY_SESSION, todos: [], counts: NO_COUNTS },
+  );
 
   // The cached plan belongs to its session and is not consumed by the switch.
   assert.deepEqual(ctx.planBySession.get(PLAN_SESSION), PLAN);

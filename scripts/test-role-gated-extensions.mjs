@@ -78,6 +78,18 @@ function makeLegacyDb() {
     id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, description TEXT,
     content TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1,
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`);
+  // v1's chat_sessions with the columns v9/v10 (also "applied") added: v22
+  // (session ownership) ALTERs and indexes this table, so a legacy DB that
+  // claims v1..12 must physically carry it or the migration chain dies with
+  // "no such table: chat_sessions" and initDb degrades the whole store.
+  legacy.exec(`CREATE TABLE chat_sessions (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL DEFAULT 'New chat',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    path TEXT,
+    agent_preset TEXT,
+    workspace TEXT)`);
   legacy.close();
 }
 

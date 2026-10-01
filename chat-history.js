@@ -118,7 +118,7 @@ function titleFromFirstUser(messages) {
 // message. `blocks` (optional, assistant turns) persists the block structure —
 // tool calls with results — so a reloaded session rebuilds the evidence trail.
 // No-op when the DB is unavailable (chat stays in-memory).
-export function createSession(sessionId) {
+export function createSession(sessionId, owner = null) {
   if (!sessionId || deletingSessions.has(sessionId) || !db.isDbReady()) return;
   const now = new Date().toISOString();
   if (!db.sessionExists(sessionId)) {
@@ -131,6 +131,9 @@ export function createSession(sessionId) {
       presetSource?.() || null,
       workspaceSource?.() || null,
     );
+    // A session minted on a known requester's behalf (REST create) is that
+    // user's from the first row — write-once, same as the first-message stamp.
+    if (owner) db.stampSessionOwner(sessionId, owner);
   }
 }
 

@@ -296,6 +296,10 @@ function eventsCtx(overrides = {}) {
   ctx.runtimeOwnerEmail = null;
   ctx.runtimeOwnerGroups = null;
   ctx.dshUpdateMcp = () => Promise.resolve();
+  // dsh-events fans tool_end out per-session and refreshes the session list
+  // after a turn — no-ops for the staleness assertions here.
+  ctx.sendToViewers = () => {};
+  ctx.broadcastSessions = async () => {};
   attachDshEvents(ctx);
   return ctx;
 }

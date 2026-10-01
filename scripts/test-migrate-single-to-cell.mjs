@@ -20,6 +20,11 @@ import { fileURLToPath } from "node:url";
 import { createPackRegistry } from "../gateway/packs.js";
 import { signSession } from "../server/session.js";
 
+if (!(await import("./lib/dsh-available.mjs")).dshRuntimeAvailable()) {
+  console.warn("[skip] shared dsh install unavailable — dsh runtime integration skipped (see scripts/lib/dsh-available.mjs)");
+  process.exit(0);
+}
+
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GW_SECRET = "migrate-test-gateway-secret";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

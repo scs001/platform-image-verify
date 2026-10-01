@@ -156,6 +156,11 @@ after(async () => {
   fs.rmSync(TMP, { recursive: true, force: true });
 });
 
+if (!(await import("./lib/dsh-available.mjs")).dshRuntimeAvailable()) {
+  console.warn("[skip] shared dsh install unavailable — dsh runtime integration skipped (see scripts/lib/dsh-available.mjs)");
+  process.exit(0);
+}
+
 test("A. the persistence probe separates persisted ids from unseen ones", async () => {
   delayMs = 150;
   const seen = `platform-resume-seen-${Date.now()}`;

@@ -70,6 +70,11 @@ async function startStubOidc() {
   return { port, close: () => new Promise((r) => server.close(r)) };
 }
 
+if (!(await import("./lib/dsh-available.mjs")).dshRuntimeAvailable()) {
+  console.warn("[skip] shared dsh install unavailable — dsh runtime integration skipped (see scripts/lib/dsh-available.mjs)");
+  process.exit(0);
+}
+
 test("cell-scoped bindings: surface intact, applied at cell start", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "cell-bindings-"));
   const oidc = await startStubOidc();

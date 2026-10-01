@@ -188,6 +188,11 @@ async function waitForCellReady(gw, cookie, timeoutMs = 120_000) {
   return false;
 }
 
+if (!(await import("./lib/dsh-available.mjs")).dshRuntimeAvailable()) {
+  console.warn("[skip] shared dsh install unavailable — dsh runtime integration skipped (see scripts/lib/dsh-available.mjs)");
+  process.exit(0);
+}
+
 test("gateway: auth, routing, sticky WebSocket, restart resume, idle reap", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "gateway-test-"));
   const oidc = await startStubOidc();

@@ -3,11 +3,19 @@
 // Run: node --test scripts/test-pack-skill-tool-names.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+// The sample pack skills live in docs/vertical-packs/skills/ — operator-side
+// content that ships with the private deployment, not the open-source tree.
+// Skip whole-file when the directory is absent (public-repo CI).
+const SKILLS_DIR = join(root, "docs", "vertical-packs", "skills");
+if (!existsSync(SKILLS_DIR)) {
+  console.warn("[skip] docs/vertical-packs/skills absent — pack-skill content guard skipped");
+  process.exit(0);
+}
 const skills = [
   "china-macro-brief-workflow",
   "legal-case-workflow",

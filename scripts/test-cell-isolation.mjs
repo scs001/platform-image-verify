@@ -22,6 +22,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
 
+if (!(await import("./lib/dsh-available.mjs")).dshRuntimeAvailable()) {
+  console.warn("[skip] shared dsh install unavailable — dsh runtime integration skipped (see scripts/lib/dsh-available.mjs)");
+  process.exit(0);
+}
+
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

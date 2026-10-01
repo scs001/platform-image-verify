@@ -1425,6 +1425,23 @@ cell（对其 owner 不可见的孤儿行）——cutover 前决定：接受（4
 revert GitOps commit → 单进程以原 `/data` 起回（`AGENT_WORKSPACE` pin 仍在 config）。
 cutover 后 cell 侧新产生的数据不回流（公告口径）。旧 `/data` 删除前，回滚永远可用。
 
+### 实录：fd-prod 网关化 cutover（2026-10-01 20:15–20:30，18/20）
+
+- 镜像 sha-c34b6f3（代码侧 20 文件，paas@c34b6f3）；GHA 构建 + 中继窗口 5min。
+- 停机窗口 ~15s（scale 0→迁移 pod 完成 3201 files/955.9MiB 对账一致、2 无主盖章、
+  aloadtree 4 会话弃置）→ GitOps 7e5e18f。**教训两发**：①ArgoCD 无 gitee webhook，
+  push 后 default reconciliation 不拉新——`kubectl -n argocd patch application
+  all-services-prod --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}'`
+  立即触发；②fd-infra-deploy 的 `origin` 不存在、`gitee` remote 的 push 段被改指 github——
+  ArgoCD 真源是 **gitee**，推 `git push git@gitee.com:FindDataTechnology/fd-infra-deploy.git main`。
+- selfHeal 在 push 卡壳的 2 分钟里复活过旧 pod（无人写入，无害）；探针改 /healthz、
+  资源 1Gi/1Gi Guaranteed（节点实为 liuliangjkiimypbdzxa 4Gi、与 Jenkins 同居——未上
+  design 初稿的 2Gi，等 burn-in 数据再调）。
+- 验证：craw /healthz 200；旧 session-secret 经 PLATFORM_DATA_DIR 回落 → **存量浏览器
+  cookie 免重登**；owner 会话列表/文档/资源库 8 条/workspace 文件 200（自迁移后 cell）；
+  pack 部署记录在册；隔离冒烟：第二身份 0 会话/0 文档/0 资源 + owner 文件 404。
+- 迁移时会话数比午后快照多：用户当日下午在用（owner 行 70→77），非异常。
+
 ---
 
 ## File map

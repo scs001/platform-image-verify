@@ -35,8 +35,8 @@
 
 ## 7. cutover 执行（生产，按 5.2 检查单）
 
-- [ ] 7.1 fd-prod 切换：GitOps 提交换入口 manifest → 停机跑 4.1 脚本 → 起网关 → 检查单逐项打勾（含 `[gateway]`/`[cell]` 日志、首个用户 cell 拉起、a2a 演示服务 `vtdpsNmtW6OQ9I99mBhbDw` 原址探活 200）
-- [ ] 7.2 隔离冒烟（生产）：用 Logto 手工创建的第二个测试账号登录（准入收口身份提供方，ADR 0008），断言看不到 owner 的文档/资源/workspace 文件；owner 侧功能回归（对话一轮 + 产出文件下载）
+- [x] 7.1 fd-prod 切换：GitOps 提交换入口 manifest → 停机跑 4.1 脚本 → 起网关 → 检查单逐项打勾（含 `[gateway]`/`[cell]` 日志、首个用户 cell 拉起、a2a 演示服务 `vtdpsNmtW6OQ9I99mBhbDw` 原址探活 200）
+- [x] 7.2 隔离冒烟（生产）：用 Logto 手工创建的第二个测试账号登录（准入收口身份提供方，ADR 0008），断言看不到 owner 的文档/资源/workspace 文件；owner 侧功能回归（对话一轮 + 产出文件下载）
 
 ## 8. burn-in 收尾
 

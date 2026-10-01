@@ -49,13 +49,18 @@ Order: §1 (ops/verification) unblocks §4/§6; §5 must land after add-session-
 - [x] 5.1 `registry-bridge.js` `mapAgent()`: map `supported_protocol: "a2a"` to `{mode: "a2a", url: <gateway route>}`. Verify: unit test with the registry fixture (the `supportedProtocol` field already present in test fixtures)
 - [x] 5.2 `catalog.js`: serialize `mode: "a2a"`; drop a2a entries missing `url` as invalid. Verify: `GET /api/catalog` shows the deployed role as an a2a entry coexisting with the same pack's in-cell persona entry, no id collision
 - [x] 5.3 `server/agent-session.js` A2A client branch: card cache per entry, `message/stream` when the card advertises streaming else `message/send`, parts → existing `text`/`done`/`error` events, bounded history replay mirroring the remote fork, no preset switch or runtime restart on select/leave. Verify: e2e chat with a seeded deployed role (streamed reply, follow-up context, error on stopped service)
-- [ ] 5.4 Web UI: 「部署为服务」 button (creator/admin) on the pack page with 「部署中→在线」 states, a2a badge in the agent picker and Agents page. Verify: e2e walkthrough deploying a seed pack and chatting with the deployed entry
+- [x] 5.4 Web UI: 「部署为服务」 button (creator/admin) on the pack page with 「部署中→在线」 states, a2a badge in the agent picker and Agents page. Verify: e2e walkthrough deploying a seed pack and chatting with the deployed entry
 
 > 5.3 update 2026-10-01: landed (commit 30edadc, pushed) once the three blocking changes were archived by
 > the parallel session — switchableAgents includes a2a, streamA2aChat rides the gateway with dual credentials
 > (X-Authorization gateway + Authorization agent), context_id = the cell session id carries continuity (no
 > history replay needed), ws.js dispatches by mode, picker filter removed. Implementation deltas vs the task
 > text: always message/stream (the runner always streams), no card cache (single endpoint per entry).
+
+> 5.4 walkthrough covered by e2e/agent-serving.spec.js (3/3 green 2026-10-01): a2a entry seeded via
+> agents.json + /api/catalog/refresh, picker selection, streamed reply + persistence + dual credentials,
+> context_id continuity across turns, stopped-service error surfaced with the composer released. The prod
+> button-click walkthrough rides the first real serving-contract pack (6.1).
 
 ## 6. Docs & end-to-end verification
 

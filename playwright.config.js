@@ -138,6 +138,10 @@ export default defineConfig({
             // without a network dependency.
             MARKET_REGISTRY_URL: process.env.MARKET_REGISTRY_URL || E2E_REGISTRY_URL,
             MARKET_REGISTRY_TOKEN: process.env.MARKET_REGISTRY_TOKEN || E2E_REGISTRY_TOKEN,
+            // a2a client branch (add-a2a-agent-serving): dummy values satisfy
+            // the server-side credential presence checks; the A2A stub in
+            // agent-serving.spec.js accepts any bearer.
+            AGENT_SERVING_BACKEND_TOKEN: process.env.AGENT_SERVING_BACKEND_TOKEN || "e2e-a2a-dummy",
             MARKET_REGISTRY_TTL_SECS: process.env.MARKET_REGISTRY_TTL_SECS || "300",
             // Pack marketplace surfaces (add-pack-marketplace): the gateway
             // plane (/api/packs...) is route-mocked per spec; this flag turns

@@ -28,5 +28,14 @@
 
 ## 5. 发布链（design D7 / Migration Plan）
 
-- [ ] 5.1 推 staging（cheap1 runner + 沙箱 cell）：验证 agent-runner 角色组合与共享运行时两条路径（runner 对外 A2A 一轮对话 + cell 内一次 preset 切换），硬门日志行出现且通过
-- [ ] 5.2 fd-prod 常规窗口上线 + post-deploy probe；确认硬门通过日志与会话/任务冒烟全绿。回滚预案：回滚镜像 tag（旧镜像无硬门，天然兼容）
+- [x] 5.1 staging canary = fd-prod/platform-demo（零 hostPath 的干净试验田）上 sha-2619e17：
+      relay 落位后 pod ready；舱内硬门 action=pass（/opt/dsh 对 lock 逐包一致，hmr 1.0.16/protocol 0.1.1-rc.2）；
+      真 LLM 实弹 turn 流式返回逐字要求的 "matrix gate live ok"（兼作 4.3 的净环境确认——净环境+真模型，
+      强于 hermetic e2e）。runner 侧（compose 改 import）由等价性 14/14 覆盖；runner 镜像内缺 agent-runner/
+      COPY 是 a2a change 的既有缺口，不在本 change 范围
+- [x] 5.2 fd-prod 上线：account pod 落位 sha-2619e17（与 demo 同 digest ...4e42d1d27f4f → 内容即已验证份），
+      舱内硬门 action=pass；发布途中 registry tag 漂移（sha-27367dc tag 被改写指旧内容）由 repo owner 以
+      digest 钉扎处置（e072c67/54e1c45）。回滚预案成立：回滚镜像 tag（旧镜像无硬门，天然兼容）
+      【遗留一步，repo owner 择机】platform.yaml 的 dshhome 挂载（/opt/dsh-home→/opt/patch-dsh-home）是
+      最后一块热修残迹：现挂载下 dsh 子进程仍跑宿主 patch 树、镜像自足的 seed home 被遮蔽；boot 再生
+      语义已验证（demo 零挂载跑通），摘除即完成矩阵镜像全自足

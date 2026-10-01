@@ -64,7 +64,7 @@ Order: §1 (ops/verification) unblocks §4/§6; §5 must land after add-session-
 
 ## 6. Docs & end-to-end verification
 
-- [ ] 6.1 DEPLOY.md: agent-runner runbook (compose layout, env inventory, weekly service-credential renewal, health/ops board pointers) + the deploy 实录 section. Verify: runbook steps match what was actually executed in §1/§4
+- [x] 6.1 DEPLOY.md: agent-runner runbook (compose layout, env inventory, weekly service-credential renewal, health/ops board pointers) + the deploy 实录 section. Verify: runbook steps match what was actually executed in §1/§4
 - [x] 6.2 Full-chain probe `scripts/probe-agent-serving.mjs`: deploy → poll-until-effective → card → `message/send` → `message/stream` → upgrade with drain → undeploy. Verify: one green run against the staging registry + runner before release
   <!-- Status 2026-09-30: steps 1–3 verified GREEN repeatedly on the staging stack (cheap1 runner `agent-runner-dsh`
        with a real dsh runtime + real registry): deploy library → skills/agent entries → runner pickup → health →

@@ -1424,3 +1424,20 @@ staging 全链路七步全绿：deploy v1 → runner 拾取 → 健康复检出�
   registry 桥 agents 拉取 200（a2a: 0 —— 尚无带契约 pack，预期）。
 - 注意：`kubectl rollout status` 在 pod 启动窗口可能超时报错——以 `get pods` +
   ArgoCD health 为准（本例即虚惊）。
+
+### 实录：首个 Agent 服务上线（2026-10-01，§6.1 收口 — 21/21 全勾）
+
+- **首部署**：pack「部署演示 · FingPt 分析师」v1（`vtdpsNmtW6OQ9I99mBhbDw`，一个技能 +
+  一个 serving 契约角色）在 fd-prod 容器内经真实部署库发布+部署（`kubectl exec` +
+  `createPackRegistry` + `deployToRegistry`，作者 ops-seed@finddatatech.cloud；
+  bookkeeping 已记，详情页显示已部署 v1 在线）。**首对话**：经生产网关
+  `/agent/packs/<id>/pack-demo-fingpt/` 一轮 message/send，runner（cheap1 staging）→
+  专用 dsh 子进程 → deepseek-v4.1-flash，人设与技能指令严格生效（复述→结论→不编数）。
+- **首部署三弹修复**（全部实弹暴露）：① registry 匿名抓取 skill_md_url 被 craw 会话门 401
+  → `/api/packs/**.md` GET 进两个公开谓词（`isPublicRequest` + `isLogtoPublicRequest`，
+  双谓词漏改一发）；② path-to-regexp 部分版本把 `.md` 留在路由参数 → 参数归一化；③
+  dsh preset 插件 id 正则仅小写，base64url pack id 大小写混合 → runner preset id 小写化。
+  伴生：staging runner 误写 `$PDD/packs.db`（正确是 `$PDD/data/packs.db`，已清）；
+  matrix 启动门在 staging 用 `DSH_MATRIX_OVERRIDE=1`（手装树 vs 冻结锁差一包，报告照记）。
+- **创作侧入口**：pack 编辑器新增「部署为 Agent 服务（A2A）」开关（sha-16cd264 起），
+  市场 · 详情页「部署为服务」按钮即用。

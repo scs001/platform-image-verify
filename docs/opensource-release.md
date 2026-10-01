@@ -27,13 +27,20 @@ gitleaks 于 2026-10-01 在私仓历史中确认过 3 处真实密钥（当前�
 ## 2. 生成快照
 
 ```bash
-# 默认取 HEAD；工作区未提交的改动中，只有 README*/LICENSE 会被覆盖进快照
+# 默认取 HEAD；工作区未提交的改动中，只有 README*/LICENSE/.gitleaks.toml 会被覆盖进快照
 node scripts/make-public-snapshot.mjs --init
 ```
 
 - 想把在途代码（如 cells 迁移）带进快照：先在私仓提交，再重跑脚本。
 - 脚本失败 = 验证不通过（清洗表失效/新泄漏/结构缺失），按输出修表或修文件后重跑；失败时输出目录会被删除。
-- `--init` 会在快照里 `git init` + 单条 release commit，直接可加 remote 推送。
+- `--init` 会在快照里 `git init` + 单条 release commit。**注意：每次 `--init` 都是新目录，remote 需重加**——重发完整命令：
+
+```bash
+node scripts/make-public-snapshot.mjs --init
+cd dist-opensource/platform
+git remote add origin https://github.com/FindDataTechnology/platform.git
+git push --force origin main   # 快照仓无共同历史，force 是常态
+```
 
 ## 3. 发布（人工）
 
@@ -48,6 +55,7 @@ node scripts/make-public-snapshot.mjs --init
 
 ## 4. 发布后维护
 
+- **CI 现状（2026-10-01）**：lint ✓（积压已清，见 de5eac9）、typecheck ✓、dsh-contracts job ✓；**unit ✗（24 个既有失败）**——分诊：① unit 步骤在 "Install dsh runtime CLI" 步骤之前跑，spawn dsh ENOENT 一族（修法=workflow 里把 dsh 安装挪到 unit 前）；② 根 node_modules 的 zustand→react 解析差异（CI 布局，涉 test-chat-store-session-open）；③ registry/extension-store/mp-demo 夹具失败（与私仓基线一致，属在途领域债）。**badge 未加**：CI 全绿前不加，避免红牌门面。全绿可作为独立任务（可立 openspec change）。
 - 私仓继续是开发主场；想同步公开仓时：私仓提交 → 重跑脚本 → 快照仓 `git pull` 不适用（无共同历史），用 `--init` 产出的单 commit 仓库可 `git remote add + git push --force` 或改为在公开仓上打 tag 重发。**建议节奏**：按版本 tag 发快照（v1.3.1、v1.4.0…），不发滚动 main。
 - five-lines-public-surface 战役的 3.x 任务（描述/topics/横幅映射表）补登这个仓（base 线）。
 - 新增文件若含内网信息，靠脚本验证兜底：禁忌模式扫描会 fail；清洗表要同步维护（scrub rot 会硬失败提示）。

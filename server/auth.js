@@ -53,6 +53,11 @@ const isLogtoPublicRequest = (req) => {
   const p = req.path;
   if (p === "/api/auth/logout") return true;
   if (!["GET", "HEAD"].includes(req.method)) return false;
+  // Pack skill raw-md (add-a2a-agent-serving): the registry fetches
+  // skill_md_url ANONYMOUSLY when validating a deploy, so the gateway's
+  // public md route must be reachable without a session — market skill
+  // bodies are public content, machine-shaped.
+  if (p.startsWith("/api/packs/") && p.endsWith(".md")) return true;
   return p === "/api/auth/me" || p === "/api/config" || p === "/api/ready" || p === "/login" || p === "/auth/login" || p === "/auth/callback" || p.startsWith("/assets/");
 };
 

@@ -1408,3 +1408,19 @@ staging 全链路七步全绿：deploy v1 → runner 拾取 → 健康复检出�
 禁用 agent（库自动 toggle 回启用）。staging 栈：cheap1 容器 `agent-runner-dsh`
 （node:22-slim + 挂载代码 + npmmirror 钉版 dsh 运行时，端口段 8790-8850 只绑尾网；
 生产形态仍按 runbook 用平台镜像）。演练模型遵守用户规则 deepseek-v4.1-flash。
+
+### 实录：agent-serving 全量上线 fd-prod（2026-10-01，sha-30edadc / GitOps 1108c15）
+
+- **流程**（现行 canonical）：push main → `image.yml` 自动构建（3m18s，smoke 过）→ hkccr
+  `sha-30edadc` → cheap-3 tcr-relay ≤5min 同步 ccr（**确认 RELAYED 后才 bump**，防
+  ImagePullBackOff）→ `fd-infra-deploy` platform.yaml + platform-demo.yaml 双 bump →
+  ArgoCD refresh → 新 pod Running，Synced/Healthy。
+- **env 接线**（platform-config / platform-secrets，随本次 rollout 生效）：
+  `AGENT_SERVING_RUNNER_URL=http://100.64.0.11`（staging runner 起步；正式迁移改新宿主
+  origin 即可，端口由 `agentPortFor` 派生）、`AGENT_SERVING_PACKS_URL=https://craw.finddatatech.cloud`
+  （技能 md 公开路由所在）、`AGENT_SERVING_BACKEND_TOKEN`（= runner 的
+  AGENT_RUNNER_BACKEND_TOKEN，cheap1 `/opt/agent-runner-stage/.backend-token`；**轮换需两侧同步**）。
+- **三验证**：`/api/ready` 200；`POST /api/packs/:id/versions/:v/deploy` 挂载（匿名 401）；
+  registry 桥 agents 拉取 200（a2a: 0 —— 尚无带契约 pack，预期）。
+- 注意：`kubectl rollout status` 在 pod 启动窗口可能超时报错——以 `get pods` +
+  ArgoCD health 为准（本例即虚惊）。

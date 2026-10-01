@@ -1,21 +1,14 @@
 name: CI
 
-# Runs on pull requests and on demand — NOT on every push to main.
-#
-# Why the push trigger is off (2026-09-21): the gate below is red for a reason
-# unrelated to any single push — the tree carries an outstanding lint backlog
-# (`biome check .`: 21 errors once vendored directories are excluded; `.pi/`
-# alone accounted for 191 more and is now in biome.json's ignore list). Every
-# push to main therefore produced a failed run and a failure notification. Run
-# `npm run lint` locally, and re-add:
-#
-#   push:
-#     branches: [main]
-#
-# once the remaining diagnostics are cleared (or wire the job to a runner that
-# can complete the e2e step).
+# Green since 2026-10-02 (run 36896622780): lint backlog cleared, unit suite
+# deterministic (serialized runner), CI dsh bootstrap pins cordis-plugin-hmr
+# @1.0.16, and the fresh-machine dsh/runtime suites gate on a probe. Push is
+# back on so every landing runs the full gate; workflow_dispatch stays for
+# on-demand reruns.
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 concurrency:

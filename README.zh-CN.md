@@ -1,5 +1,7 @@
 # Platform
 
+[![CI](https://github.com/FindDataTechnology/platform/actions/workflows/ci.yml/badge.svg)](https://github.com/FindDataTechnology/platform/actions/workflows/ci.yml)
+
 > **归属寻数 [壹座 Base 线](https://www.finddatatech.cloud/zh/products/base)** · [FindData](https://www.finddatatech.cloud) 产品矩阵的执行底座——所有寻数项目都跑在这套 AI harness 上。
 >
 > [English](README.md) · [简体中文](README.zh-CN.md)

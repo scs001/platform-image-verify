@@ -1,5 +1,7 @@
 # Platform
 
+[![CI](https://github.com/FindDataTechnology/platform/actions/workflows/ci.yml/badge.svg)](https://github.com/FindDataTechnology/platform/actions/workflows/ci.yml)
+
 > **Part of the [Base line (寻数·壹座)](https://www.finddatatech.cloud/products/base) of [FindData](https://www.finddatatech.cloud)** — the execution base of the FindData product matrix: every FindData project runs on this AI harness.
 >
 > [English](README.md) · [简体中文](README.zh-CN.md)

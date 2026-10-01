@@ -182,14 +182,34 @@ export async function buildLlmProfile({
   return { providers, models };
 }
 
+// ── Target-home parameterization (add-dsh-matrix-lock design D6) ─────────────
+// The writers below target the deployment's singleton DSH_HOME by default
+// (module-level constants). agent-runner/compose.js imports the SAME writers
+// and passes { dshHome, profileName } explicitly, so every one of these file
+// formats lives in exactly one place — the "formats mirrored in compose.js"
+// drift risk is gone (a format change here IS the change, everywhere).
+export function targetPaths(dirs) {
+  if (!dirs) {
+    return { settings: SETTINGS_PATH, credentials: CREDENTIALS_PATH, presetsPatch: PRESETS_PATCH_PATH };
+  }
+  const profileDir = join(dirs.dshHome, "profiles", dirs.profileName ?? PROFILE_NAME);
+  return {
+    settings: join(dirs.dshHome, "settings.yaml"),
+    credentials: join(dirs.dshHome, ".credentials.yaml"),
+    presetsPatch: join(profileDir, "presets.patch.yml"),
+  };
+}
+
 // Write the llm-pi-ai section to $DSH_HOME/settings.yaml, preserving any other
 // sections already in the document (data-loss safe). Atomic: temp+rename.
 // Returns { providers, models } so server.js can source its model selector.
 export async function writeLlmProfile(opts = {}) {
-  const { providers, models } = await buildLlmProfile(opts);
+  const { dirs, ...buildOpts } = opts;
+  const settingsPath = targetPaths(dirs).settings;
+  const { providers, models } = await buildLlmProfile(buildOpts);
   let doc = {};
   try {
-    const existing = readFileSync(SETTINGS_PATH, "utf8");
+    const existing = readFileSync(settingsPath, "utf8");
     const loaded = yaml.load(existing);
     // Only keep an object document; a scalar/array means the file isn't a settings
     // map, so don't merge into it — recreate as a fresh object.
@@ -199,13 +219,13 @@ export async function writeLlmProfile(opts = {}) {
     if (err.code !== "ENOENT") console.warn("[dsh-profile] settings.yaml unreadable, recreating:", err.message);
   }
   doc["llm-pi-ai"] = { providers };
-  atomicWriteTextSync(SETTINGS_PATH, yaml.dump(doc));
+  atomicWriteTextSync(settingsPath, yaml.dump(doc));
 
   if (Object.keys(providers).length === 0) {
     console.warn("[dsh] no LLM keys configured; chat non-functional (static + REST still served)");
   } else {
     console.log(
-      `[dsh-profile] wrote ${Object.keys(providers).join(", ")} route(s), ${models.length} model(s) → ${SETTINGS_PATH}`,
+      `[dsh-profile] wrote ${Object.keys(providers).join(", ")} route(s), ${models.length} model(s) → ${settingsPath}`,
     );
   }
   return { providers, models };
@@ -230,10 +250,11 @@ export async function writeLlmProfile(opts = {}) {
 // rotation via the Models page re-runs this and hot-reloads (Chokidar watch).
 const CREDENTIAL_REFS = ["LLM_API_KEY"];
 
-export async function ensureCredentialsStore() {
+export async function ensureCredentialsStore(opts = {}) {
+  const credentialsPath = targetPaths(opts.dirs).credentials;
   let doc;
   try {
-    const existing = readFileSync(CREDENTIALS_PATH, "utf8");
+    const existing = readFileSync(credentialsPath, "utf8");
     const loaded = yaml.load(existing);
     doc = loaded && typeof loaded === "object" && !Array.isArray(loaded) ? loaded : {};
   } catch (err) {
@@ -271,12 +292,12 @@ export async function ensureCredentialsStore() {
   }
   // Always (re)write on first run (file absent) so perms are set; otherwise
   // only write when a ref changed, to avoid needlessly tripping the watcher.
-  const absent = !existsSync(CREDENTIALS_PATH);
-  if (!changed && !absent) return { path: CREDENTIALS_PATH, changed: false };
-  atomicWriteTextSync(CREDENTIALS_PATH, yaml.dump(doc));
-  try { chmodSync(CREDENTIALS_PATH, 0o600); } catch { /* perms best-effort on some FS */ }
-  console.log(`[dsh-profile] wrote credentials store (${Object.keys(doc.refs).join(", ") || "empty"}) → ${CREDENTIALS_PATH}`);
-  return { path: CREDENTIALS_PATH, changed: true };
+  const absent = !existsSync(credentialsPath);
+  if (!changed && !absent) return { path: credentialsPath, changed: false };
+  atomicWriteTextSync(credentialsPath, yaml.dump(doc));
+  try { chmodSync(credentialsPath, 0o600); } catch { /* perms best-effort on some FS */ }
+  console.log(`[dsh-profile] wrote credentials store (${Object.keys(doc.refs).join(", ") || "empty"}) → ${credentialsPath}`);
+  return { path: credentialsPath, changed: true };
 }
 
 // Build a dsh child env that inherits the parent env MINUS the upstream API
@@ -922,9 +943,21 @@ export function resolveShippedPresetRoot() {
 
 // Write the bridge plugin file + presets.patch.yml into the profile dir.
 // Returns the patch path for the bridge's --patch args, or null when the
-// shipped preset root cannot be resolved (caller omits the flag).
-export async function writePresetsPatch() {
-  mkdirSync(dirname(PRESETS_PATCH_PATH), { recursive: true });
+// shipped preset root cannot be resolved AND no extra roots were given (the
+// platform's no-args call — caller omits the flag).
+//
+// Target-home + roster composition (add-dsh-matrix-lock design D6): agent-
+// runner/compose.js calls this with its own { dshHome } plus the role's
+// user-root roster, so the presets overlay format exists only here.
+//   - dirs        { dshHome, profileName } — default the deployment singleton
+//   - default     roster default preset id (platform: "standard")
+//   - extraRoots  additional { path, trust } roster roots (runner: user root)
+//   - requireRoster  false = write the overlay (bridge row) even when NO root
+//                 resolves at all — the runner's children need the platform
+//                 SDK server regardless of persona composition
+export async function writePresetsPatch({ dirs, default: defaultPreset = DEFAULT_AGENT_PRESET, extraRoots = [], requireRoster = true } = {}) {
+  const presetsPatchPath = targetPaths(dirs).presetsPatch;
+  mkdirSync(dirname(presetsPatchPath), { recursive: true });
   // The bridge source is copied into the profile dir because the loader
   // resolves a relative plugin name beside the profile's cordis.yml. Written
   // UNCONDITIONALLY, before the roster check: platform-permission-bridge.js
@@ -932,10 +965,11 @@ export async function writePresetsPatch() {
   // imports this file — skipping it here on an unresolvable preset root left
   // a dangling import that crashed dsh at boot (fresh baked /opt/dsh-home,
   // where no dsh self-install anchor exists yet).
-  const bridgeTarget = join(dirname(PRESETS_PATCH_PATH), PRESET_BRIDGE_FILE);
+  const bridgeTarget = join(dirname(presetsPatchPath), PRESET_BRIDGE_FILE);
   atomicWriteTextSync(bridgeTarget, readFileSync(BRIDGE_SOURCE, "utf8"));
   const presetRoot = resolveShippedPresetRoot();
-  if (!presetRoot) {
+  const roots = [...(presetRoot ? [{ path: presetRoot, trust: "system" }] : []), ...extraRoots];
+  if (roots.length === 0 && requireRoster) {
     console.warn(
       `[dsh-profile] @deepseek-ai/dsh config/agent-presets not resolvable; skipping the agent-preset roster (picker stays empty, chat unaffected)`,
     );
@@ -945,23 +979,18 @@ export async function writePresetsPatch() {
     { id: "sdk-jsonrpc-server", disabled: true },
     {
       insert: [
-        {
-          id: "agent-presets",
-          name: "@deepseek-ai/dsh-agent-presets",
-          config: {
-            default: DEFAULT_AGENT_PRESET,
-            roots: [{ path: presetRoot, trust: "system" }],
-          },
-        },
+        ...(roots.length
+          ? [{ id: "agent-presets", name: "@deepseek-ai/dsh-agent-presets", config: { default: defaultPreset, roots } }]
+          : []),
         { id: "platform-sdk-server", name: `./${PRESET_BRIDGE_FILE}` },
       ],
     },
   ];
-  atomicWriteTextSync(PRESETS_PATCH_PATH, yaml.dump(patch));
+  atomicWriteTextSync(presetsPatchPath, yaml.dump(patch));
   console.log(
-    `[dsh-profile] wrote preset bridge + roster patch (default: ${DEFAULT_AGENT_PRESET}, shipped root: ${presetRoot}) → ${PRESETS_PATCH_PATH}`,
+    `[dsh-profile] wrote preset bridge + roster patch (default: ${defaultPreset}, shipped root: ${presetRoot ?? "(none)"}) → ${presetsPatchPath}`,
   );
-  return PRESETS_PATCH_PATH;
+  return presetsPatchPath;
 }
 
 // ── Catalog agent presets (vertical-pack personas) ───────────────────────────

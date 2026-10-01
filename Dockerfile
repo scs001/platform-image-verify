@@ -74,73 +74,39 @@ RUN npm ci --omit=dev --ignore-scripts \
 
 # dsh-profile-template/ is consumed by the dsh install layer below (cp →
 # /opt/dsh-home), so it must exist in the builder BEFORE that RUN. Copying it
-# here keeps the slow dsh installs cacheable: these four tiny text files change
+# here keeps the slow dsh install cacheable: these tiny text files change
 # far less often than the source that arrives via `COPY . .` further down.
 COPY dsh-profile-template/ ./dsh-profile-template/
 
-# dsh CLI (the agent runtime server.js spawns by name) + the JSON-RPC plugin
-# profile scaffold comes from dsh-profile-template/ copied above. All
-# pinned to the rcs the profiles were developed against — see ci(quality-gates)
-# "pin dsh-base bundle version" for why rc tags must not float. These installs
-# are SLOW and flaky on CI, so they run BEFORE `COPY . .`: source edits then
-# never invalidate these layers. dsh-profile-template/ mirrors
-# ~/.dsh/profiles/platform; the base bundle is pre-installed because the
-# deployed runtime's network cannot reach npm. dsh-base must be 0.1.1-rc.2:
-# 0.0.1-rc.1 pulls dsh-tool-bash → dsh-bash-env, which is not published (404);
-# dsh-sdk-protocol is added because jsonrpc-server imports it undeclared
-# (same reason ci.yml adds it). legacy-peer-deps mirrors ci.yml's pnpm
-# profile (autoInstallPeers: false): jsonrpc-server@0.0.1-rc.5 sits on the
-# 0.0.1 peer line (dsh-invariants ^0.0.1-rc.5) while dsh-base/protocol
-# 0.1.1-rc.2 declare ^0.1.1-rc.2 — a mix pnpm tolerates and npm hard-fails
-# with ERESOLVE (verified both ways locally before pushing).
+# dsh-matrix/ — the single version truth for the dsh runtime (ADR-0007,
+# add-dsh-matrix-lock): intent pins in package.json, the full peer closure
+# frozen in package-lock.json. The historical hand-pinned 28-row install
+# (18 peer-only plugin rows, the two-generation sdk family split, the hmr
+# 1.0.16 pin) lived here; the "why" now lives in dsh-matrix/README.md.
+COPY dsh-matrix/package.json dsh-matrix/package-lock.json dsh-matrix/.npmrc ./dsh-matrix/
+
+# One npm ci from the frozen matrix into /opt/dsh — the ONLY real tree (the
+# old second install under /opt/dsh-home/profiles/platform is gone; that
+# profile keeps its scaffold files and gets a node_modules SYMLINK here — the
+# same seedHome pattern agent-runner/compose.js proves in staging, so the
+# hundreds-of-MB dsh-base closure is never duplicated per home).
 #
-# The explicit 0.1.1-rc.2 rows below exist because legacy-peer-deps disables
-# peer auto-installation for TRANSITIVE packages too: dsh's tree declares them
-# as peerDependencies only, so without them the runtime dies at boot with
-# ERR_MODULE_NOT_FOUND (first seen as @deepseek-ai/dsh-sandbox from
-# dsh-sandbox-policy). Enumerated by a peer-deps gap analysis over the
-# installed tree; validated by booting `dsh --profile platform` and completing
-# the sdk-client initialize handshake before this change was shipped.
-# cordis-plugin-hmr is pinned deliberately (BOTH prefixes — dsh-base's transitive
-# range floats to 1.0.17+ inside the profile tree otherwise): 1.0.17+ removed registerConfig,
-# which dsh-app-boot's watchUserPatches calls unconditionally — a build that
-# floats to >=1.0.17 crash-loops every dsh child at boot (2026-09-23 outage).
-RUN npm config set fetch-retries 5 fetch-retry-mintimeout 20000 fetch-retry-maxtimeout 120000 fetch-timeout 600000 legacy-peer-deps true \
-    && npm install --prefix /opt/dsh \
-         @deepseek-ai/dsh@0.1.1-rc.2 \
-         @deepseek-ai/dsh-sdk-jsonrpc-server@0.0.1-rc.5 \
-         @deepseek-ai/dsh-sdk-protocol@0.0.1-rc.5 \
-         @deepseek-ai/cordis-plugin-group@1.0.2 \
-         @deepseek-ai/cordis-plugin-hmr@1.0.16 \
-         @deepseek-ai/dsh-anonymous-user-id@0.1.1-rc.2 \
-         @deepseek-ai/dsh-atomic-write@0.1.1-rc.2 \
-         @deepseek-ai/dsh-authorization@0.1.1-rc.2 \
-         @deepseek-ai/dsh-bash-local@0.1.1-rc.2 \
-         @deepseek-ai/dsh-code-runtime@0.1.1-rc.2 \
-         @deepseek-ai/dsh-compaction@0.1.1-rc.2 \
-         @deepseek-ai/dsh-fs@0.1.1-rc.2 \
-         @deepseek-ai/dsh-invariants@0.1.1-rc.2 \
-         @deepseek-ai/dsh-output-retention@0.1.1-rc.2 \
-         @deepseek-ai/dsh-sandbox@0.1.1-rc.2 \
-         @deepseek-ai/dsh-scope@0.1.1-rc.2 \
-         @deepseek-ai/dsh-session-telemetry@0.1.1-rc.2 \
-         @deepseek-ai/dsh-session-title-llm@0.1.1-rc.2 \
-         @deepseek-ai/dsh-shell@0.1.1-rc.2 \
-         @deepseek-ai/dsh-spill@0.1.1-rc.2 \
-         @deepseek-ai/dsh-subagent-in-process-driver@0.1.1-rc.2 \
-         @deepseek-ai/dsh-timeout@0.1.1-rc.2 \
-         @deepseek-ai/dsh-workflow@0.1.1-rc.2 \
+# .npmrc deliberately does NOT set legacy-peer-deps (it disabled transitive
+# peer auto-installation and forced the old hand-pinned rows into existence);
+# npm's default peer resolution fills the closure, and the lock freezes it.
+# NODE_OPTIONS heap bump: npm's resolver exhausts the default 2GB heap on
+# this closure. Boot-time hard gate: server.js and agent-runner verify the
+# installed tree against the same lock at startup (lib/dsh-matrix-verify.js).
+RUN mkdir -p /opt/dsh \
+    && cp dsh-matrix/package.json dsh-matrix/package-lock.json dsh-matrix/.npmrc /opt/dsh/ \
+    && NODE_OPTIONS=--max-old-space-size=8192 npm ci --prefix /opt/dsh \
     && mkdir -p /opt/dsh-home/profiles/platform \
     && cp dsh-profile-template/package.json \
           dsh-profile-template/pnpm-workspace.yaml \
           dsh-profile-template/cordis.yml \
           dsh-profile-template/cordis.patch.yml \
           /opt/dsh-home/profiles/platform/ \
-    && npm install --prefix /opt/dsh-home/profiles/platform \
-         @deepseek-ai/dsh-base@0.1.1-rc.2 \
-         @deepseek-ai/dsh-sdk-jsonrpc-server@0.0.1-rc.5 \
-         @deepseek-ai/dsh-sdk-protocol@0.1.1-rc.2 \
-         @deepseek-ai/cordis-plugin-hmr@1.0.16
+    && ln -s /opt/dsh/node_modules /opt/dsh-home/profiles/platform/node_modules
 
 # Copy the rest of the source. resources/ is .dockerignored: it holds only the
 # platform-specific standalone Node that predist downloads, which this image does
@@ -196,6 +162,11 @@ COPY --chown=node:node --from=builder /app/market-catalog.json /app/market-catal
 # feature works, but both allowlist readers silently fall back to their built-in
 # default (observed on prod 2026-09-28: the plugin's gate was inert).
 COPY --chown=node:node --from=builder /app/chart-replay-allowlist.json ./
+# The frozen dsh install matrix (add-dsh-matrix-lock): the boot gate in
+# server.js and agent-runner reads package-lock.json from here to verify
+# /opt/dsh at startup. Missing lock + present install root would refuse to
+# boot — so this COPY is load-bearing for the gate, not documentation.
+COPY --chown=node:node --from=builder /app/dsh-matrix ./dsh-matrix
 COPY --chown=node:node --from=builder /app/*.js ./
 COPY --chown=node:node --from=builder /app/server ./server
 # gateway/ is imported by server.js (the mini-program identity modules,

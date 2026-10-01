@@ -17,7 +17,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
-import { gotoChat, tempStoreDirs, waitForIdle } from "./helpers.js";
+import { tempStoreDirs, waitForIdle } from "./helpers.js";
 
 const PACK_ID = "focus-overlay-e2e";
 const AGENT_ID = "overlay-tuner-e2e";

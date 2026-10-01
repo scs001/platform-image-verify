@@ -16,7 +16,7 @@ async function injectSessions(page, sessions, currentSessionId) {
   );
 }
 
-const DAY = 24 * 60 * 60 * 1000;
+const _DAY = 24 * 60 * 60 * 1000;
 const iso = (hoursAgo) => new Date(Date.now() - hoursAgo * 3600 * 1000).toISOString();
 
 function stampedSession(id, title, workspace, hoursAgo) {

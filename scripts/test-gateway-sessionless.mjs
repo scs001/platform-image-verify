@@ -12,7 +12,7 @@
 //   node scripts/test-gateway-sessionless.mjs
 
 import { spawn } from "node:child_process";
-import { mkdir, mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer as netServer } from "node:net";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";

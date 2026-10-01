@@ -130,7 +130,7 @@ test("switching to a session with a plan pushes that plan; one without clears", 
   await c.waitFor((ms) => ms.some((m) => m.type === "todos"));
 
   c.ws.send(JSON.stringify({ type: "switch_session", id: PLAN_SESSION }));
-  await c.waitFor((ms) => c.todos().length === 2);
+  await c.waitFor((_ms) => c.todos().length === 2);
   assert.deepEqual(c.todos().at(-1), { type: "todos", todos: PLAN.todos, counts: PLAN.counts });
 
   // The session swap itself still happened, ahead of the plan push.
@@ -142,7 +142,7 @@ test("switching to a session with a plan pushes that plan; one without clears", 
   );
 
   c.ws.send(JSON.stringify({ type: "switch_session", id: EMPTY_SESSION }));
-  await c.waitFor((ms) => c.todos().length === 3);
+  await c.waitFor((_ms) => c.todos().length === 3);
   assert.deepEqual(c.todos().at(-1), { type: "todos", todos: [], counts: NO_COUNTS });
 
   // The cached plan belongs to its session and is not consumed by the switch.

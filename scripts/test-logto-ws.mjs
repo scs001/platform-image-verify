@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { EventEmitter } from "node:events";
 import { test } from "node:test";
 import { authorizeUpgrade, userForConnection } from "../server/ws.js";
 import { signSession } from "../server/session.js";

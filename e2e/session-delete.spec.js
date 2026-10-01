@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { E2E_PORT, gotoChat } from "./helpers.js";
+import { gotoChat } from "./helpers.js";
 
 async function createSession(request) {
   const response = await request.post("/api/chat-history/sessions");

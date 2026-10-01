@@ -325,11 +325,13 @@ test("a stored overlay adjusts the custom role's set on the next composition", a
   const warns = [];
   const origWarn = console.warn;
   console.warn = (...a) => warns.push(a.join(" "));
+  let servers;
+  let rootEntries;
   try {
     await writeMcpPatch({ agentPreset: PRESET_ID, ownerEmail: null, userGroups: null });
-    const skillsDirs = await dirListOf({ agentPreset: PRESET_ID });
-    var servers = serversOf();
-    var rootEntries = readdirSync(sm.customPresetSkillsRoot(PRESET_ID)).sort();
+    const _skillsDirs = await dirListOf({ agentPreset: PRESET_ID });
+    servers = serversOf();
+    rootEntries = readdirSync(sm.customPresetSkillsRoot(PRESET_ID)).sort();
   } finally {
     console.warn = origWarn;
   }

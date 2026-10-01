@@ -40,6 +40,10 @@ function ToolBlockBase({ block, onToggle }: Props) {
   const { t } = useTranslation();
   const { name, args, state, result, partial, open } = block;
   const bodyId = useId();
+  const openPreview = usePreviewStore((s) => s.open);
+  // Subscribed (not read by getState) so a later workspace switch re-resolves
+  // the file reference against the root the server would now serve from.
+  const workspace = useChatStore((s) => s.currentWorkspace);
 
   // Agent-created scheduled tasks render as job cards, not raw tool output
   // (spec: agent-scheduling-tools). Only the creation call is card-worthy;
@@ -54,10 +58,6 @@ function ToolBlockBase({ block, onToggle }: Props) {
     return <TaskCard block={block} />;
   }
 
-  const openPreview = usePreviewStore((s) => s.open);
-  // Subscribed (not read by getState) so a later workspace switch re-resolves
-  // the file reference against the root the server would now serve from.
-  const workspace = useChatStore((s) => s.currentWorkspace);
   // Any file the call named — written, or just read — is offerable. A path that
   // does not resolve to a served root simply yields no action.
   const fileRef = state === "done" ? resolveRef(findFilePath(args, result) ?? "", workspace) : null;

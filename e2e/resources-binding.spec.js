@@ -24,7 +24,7 @@ const M0_POINTS = [
   { date: "2026-02-01", value: 6.6, unit: "%", source_used: "pboc" },
   { date: "2026-03-01", value: 6.9, unit: "%", source_used: "pboc" },
 ];
-const M0_PLUS_APRIL = [...M0_POINTS, { date: "2026-04-01", value: 7.4, unit: "%", source_used: "pboc" }];
+const _M0_PLUS_APRIL = [...M0_POINTS, { date: "2026-04-01", value: 7.4, unit: "%", source_used: "pboc" }];
 
 // The chart the model "drew" from the call: its values are NOT the call's, so
 // nothing is inferred and the binding comes from the user's confirmation.

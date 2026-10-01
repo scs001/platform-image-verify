@@ -451,7 +451,7 @@ test("a unit change is refused whole: nothing written, marked stale", async () =
 
 test("the first successful refresh records the unit a declared binding had none for", async () => {
   const { binding } = scaffold({ unit: null });
-  soft: {
+  {
     const result = await refresh.refreshBinding(binding.id, { trigger: "manual" });
     assert.equal(result.ok, true);
     assert.equal(db.getChartBinding(binding.id).unit, "%");

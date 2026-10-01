@@ -21,7 +21,7 @@ const db = await import("../db.js");
 const bindings = await import("../chart-bindings.js");
 const resources = await import("../resources.js");
 const refresh = await import("../chart-refresh.js");
-const source = await import("../chart-source.js");
+const _source = await import("../chart-source.js");
 const { registerResourceRoutes } = await import("../server/routes/resources.js");
 
 await db.initDb();

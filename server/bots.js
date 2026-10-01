@@ -230,7 +230,7 @@ function recordChat(bot, botId, chatKey, senderName) {
 export async function handleMessage(botId, { chatKey, senderName, text }) {
   const entry = state.bots.get(botId);
   if (!entry || !entry.bot.enabled) return;
-  const { bot, adapter } = entry;
+  const { bot } = entry;
 
   if (!text || text.length > MAX_MESSAGE_CHARS) {
     console.warn(`[bots] "${bot.name}" dropped an oversized/empty message from a chat`);

@@ -81,10 +81,6 @@ function storeLatest(source) {
   if (!row) return null;
   try { return { ts: row.ts, data: JSON.parse(row.json) }; } catch { return null; }
 }
-function storeHistory(source, windowMs) {
-  const rows = db.prepare("SELECT ts, json FROM snapshots WHERE source = ? AND ts > ? ORDER BY ts ASC").all(source, Date.now() - windowMs);
-  return rows.map((r) => { try { return { ts: r.ts, data: JSON.parse(r.json) }; } catch { return null; } }).filter(Boolean);
-}
 function pruneOld() {
   db.prepare("DELETE FROM snapshots WHERE ts < ?").run(Date.now() - RETENTION_MS);
 }

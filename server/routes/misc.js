@@ -136,7 +136,7 @@ export function registerMiscRoutes(ctx) {
     const body = req.body || {};
     const updates = {};
     for (const key of BRANDING_KEYS) {
-      if (!Object.prototype.hasOwnProperty.call(body, key)) continue;
+      if (!Object.hasOwn(body, key)) continue;
       const value = body[key];
       if (typeof value !== "string") {
         return res.status(400).json({ error: `Field '${key}' must be a string` });

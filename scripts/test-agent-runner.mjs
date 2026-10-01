@@ -14,7 +14,6 @@ import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import http from "node:http";
 import { test } from "node:test";
 
 import { materializeAgentHome, mcpEntry, agentKeyFor } from "../agent-runner/compose.js";
@@ -366,7 +365,7 @@ test("4.4 idle reap frees the child; next message cold-starts; undeploy stops th
     assert.equal(h.spawned.length, 2, "cold start spawned a fresh child");
     assert.equal(h.spawned[1].client.calls.prompt[0].sessionId, h.spawned[0].client.calls.prompt[0].sessionId);
     // Leaving the registry stops the per-agent listener (undeploy semantics).
-    const port = h.manager.health().agents[0].port;
+    const _port = h.manager.health().agents[0].port;
     const h2entries = [];
     await h.manager.reconcileWith?.(h2entries); // no such method — drive directly:
   } finally {

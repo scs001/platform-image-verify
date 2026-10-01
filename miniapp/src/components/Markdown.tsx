@@ -29,6 +29,7 @@ function Inlines({ parts }: { parts: Inline[] }) {
       {parts.map((p, i) => {
         if (p.type === "code") {
           return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: parsed markdown segments are static per input; duplicate content rules out content keys
             <Text key={i} className="md-code-inline">
               {p.text}
             </Text>
@@ -36,6 +37,7 @@ function Inlines({ parts }: { parts: Inline[] }) {
         }
         if (p.type === "strong") {
           return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: parsed markdown segments are static per input; duplicate content rules out content keys
             <Text key={i} className="md-strong">
               {p.text}
             </Text>
@@ -43,6 +45,7 @@ function Inlines({ parts }: { parts: Inline[] }) {
         }
         if (p.type === "em") {
           return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: parsed markdown segments are static per input; duplicate content rules out content keys
             <Text key={i} className="md-em">
               {p.text}
             </Text>
@@ -53,10 +56,12 @@ function Inlines({ parts }: { parts: Inline[] }) {
           // 其余链接保持"复制链接"——小程序打不开任意外部地址。
           const ref = fileLinkRef(p.href, useChatStore.getState().currentWorkspace);
           if (ref) {
+            // biome-ignore lint/suspicious/noArrayIndexKey: parsed markdown segments are static per input; duplicate content rules out content keys
             return <FileChip key={i} name={p.text || baseName(ref.rel)} fileRef={ref} />;
           }
           return (
             <Text
+              // biome-ignore lint/suspicious/noArrayIndexKey: parsed markdown segments are static per input; duplicate content rules out content keys
               key={i}
               className="md-link"
               onClick={() => {
@@ -71,6 +76,7 @@ function Inlines({ parts }: { parts: Inline[] }) {
             </Text>
           );
         }
+        // biome-ignore lint/suspicious/noArrayIndexKey: parsed markdown segments are static per input; duplicate content rules out content keys
         return <Text key={i}>{p.text}</Text>;
       })}
     </>
@@ -135,6 +141,7 @@ function Block({ node }: { node: MdNode }) {
       return (
         <View className="md-list">
           {node.items.map((item, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: parsed markdown segments are static per input; duplicate content rules out content keys
             <View key={i} className="md-li">
               <Text className="md-li-marker">{node.ordered ? `${i + 1}.` : "•"}</Text>
               <Text className="md-li-text" selectable userSelect>
@@ -157,6 +164,7 @@ function Block({ node }: { node: MdNode }) {
         <View className="md-table">
           <View className="md-tr md-tr-header">
             {node.header.map((cell, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: parsed markdown segments are static per input; duplicate content rules out content keys
               <View key={i} className="md-td">
                 <Text className="md-th-text">
                   <Inlines parts={cell} />
@@ -165,8 +173,10 @@ function Block({ node }: { node: MdNode }) {
             ))}
           </View>
           {node.rows.map((row, r) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: parsed markdown segments are static per input; duplicate content rules out content keys
             <View key={r} className="md-tr">
               {row.map((cell, c) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: parsed markdown segments are static per input; duplicate content rules out content keys
                 <View key={c} className="md-td">
                   <Text>
                     <Inlines parts={cell} />
@@ -189,6 +199,7 @@ export function Markdown({ text }: { text: string }) {
   return (
     <View className="md">
       {nodes.map((node, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: parsed markdown segments are static per input; duplicate content rules out content keys
         <Block key={i} node={node} />
       ))}
     </View>

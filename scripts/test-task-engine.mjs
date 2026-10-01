@@ -283,10 +283,10 @@ test("slot dispatcher: a claimed execution skips the primary chain until the poo
     primaryRuns++;
     return { ok: true };
   });
-  let claimed = null;
+  let _claimed = null;
   engine.setSlotDispatcher((task) => {
     if (task?.id === "job_1") {
-      claimed = task.id;
+      _claimed = task.id;
       return true;
     }
     return false;

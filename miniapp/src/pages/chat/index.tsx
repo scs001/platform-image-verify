@@ -300,6 +300,7 @@ export default function ChatPage() {
 
   // Charts live in `echarts` fences of COMPLETED assistant turns; draw any
   // freshly registered canvases once layout has settled.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `turns` is the deliberate trigger — canvases register during render, this redraws once layout settles
   useEffect(() => {
     const timer = setTimeout(() => drawAllCharts(), 50);
     return () => clearTimeout(timer);

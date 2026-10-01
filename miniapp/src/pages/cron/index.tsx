@@ -261,12 +261,14 @@ export default function CronPage() {
         <ScrollView scrollY className="sessions-detail">
           {viewing.messages.map((m, i) =>
             m.role === "user" ? (
+              // biome-ignore lint/suspicious/noArrayIndexKey: task output history is append-only and never reorders
               <View key={i} className="turn turn-user">
                 <Text className="turn-user-text" selectable userSelect>
                   {m.content}
                 </Text>
               </View>
             ) : (
+              // biome-ignore lint/suspicious/noArrayIndexKey: task output history is append-only and never reorders
               <View key={i} className="turn turn-assistant">
                 <View className="blk blk-text">
                   <Markdown text={m.content} />

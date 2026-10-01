@@ -2,11 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   generateKeyPairSync,
-  randomBytes,
   sign as signJwt,
 } from "node:crypto";
 import { createLogtoAuth, mapGroups } from "../server/logto-auth.js";
-import { parseCookies, signSession, verifySessionCookie, verifySignedCookie } from "../server/session.js";
+import { signSession, verifySessionCookie, verifySignedCookie } from "../server/session.js";
 
 const issuer = "https://logto.test/oidc";
 const secret = "test-secret";

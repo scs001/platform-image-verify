@@ -131,6 +131,7 @@ export function OverlayPanel({ role, open, onOpenChange }: Props) {
   // listing the guards as deps would refetch on every doc update.
   const liveRef = useRef({ open: false, load: null as null | (() => Promise<void>) });
   liveRef.current = { open, load };
+  // biome-ignore lint/correctness/useExhaustiveDependencies: pulse is the sole trigger by design; open/load are read through liveRef exactly so doc updates do not refetch
   useEffect(() => {
     if (liveRef.current.open) void liveRef.current.load?.();
   }, [pulse]);

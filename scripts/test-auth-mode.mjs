@@ -36,7 +36,7 @@ function expressApp(ctx) {
   app.get("/api/private", echo);
   // An exempt route, the machine-caller convention: no identity required
   // because it carries its own authentication (the bot relay's bearer token).
-  app.post("/api/bots/relay/send", (req, res) => res.json({ reached: true }));
+  app.post("/api/bots/relay/send", (_req, res) => res.json({ reached: true }));
   return app;
 }
 

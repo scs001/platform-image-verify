@@ -21,7 +21,7 @@
 //     --data-dir /data --dsh-home /opt/dsh-home --cell-root /data/cells [--dry-run]
 
 import { parseArgs } from "node:util";
-import { cp, mkdir, readdir, stat, readFile, access } from "node:fs/promises";
+import { cp, mkdir, readdir, stat, access } from "node:fs/promises";
 import path from "node:path";
 import { userIdFor } from "../gateway/spawner.js";
 

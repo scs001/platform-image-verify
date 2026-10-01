@@ -40,6 +40,7 @@ export function useWebSocket(enabled: boolean, identityKey = "") {
   const applyCron = useCronStore((s) => s.apply);
   const applyResources = useResourcesStore((s) => s.applyEvent);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: identityKey is a deliberate reconnect trigger — an identity change must tear down and rebuild the socket even though the effect body reads it only via this dep; wsUrl is a stable module function.
   useEffect(() => {
     let cancelled = false;
     if (!enabled) {

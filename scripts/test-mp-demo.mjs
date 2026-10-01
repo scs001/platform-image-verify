@@ -259,7 +259,7 @@ test.after(async () => {
 // ── Demo login (identity only — no cell spawned) ─────────────────────────────
 
 let demoAToken = "";
-const demoAEmail = "";
+const _demoAEmail = "";
 
 test("demo gateway: an unbound openid gets a demo-scoped token, deterministically", async () => {
   const r = await login("demo-a1");

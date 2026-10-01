@@ -446,6 +446,11 @@ with the operator). Live-verified facts the bridge is coded against:
 5. Console-task convention: `title` = persona preset id, `description` =
    prompt. Round trip verified live (task 1: claim → cell execution →
    quality_review with the failure gist in metadata).
+6. MC rate-limits agent polling — 2s cadence trips "Agent task polling rate
+   limit exceeded" (the bridge's backoff absorbs it; keep `MC_POLL_MS` at the
+   5s default). Live batch 2026-10-01: five tasks round-tripped end to end on
+   the worker pool (essays up to 7.2k chars returned in metadata); a
+   mid-stream model drop was faithfully reported as a failed outcome.
 
 ### Agent workspace (AGENT_WORKSPACE pin) — fix-agent-workspace
 

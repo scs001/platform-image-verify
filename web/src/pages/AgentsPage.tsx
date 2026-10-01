@@ -173,9 +173,9 @@ export function AgentsPage() {
 
 function AgentCard({ agent, onOpenLink }: { agent: AgentInfo; onOpenLink: () => void }) {
   const isExternalLink = agent.type === "agent-remote" && agent.mode === "link" && agent.url;
-  // Deployed Agent Service (add-a2a-agent-serving): reachable over the A2A
-  // protocol through the registry gateway — chat wiring lands with task 5.3,
-  // so v1 shows it as an informational card, never as an openable link.
+  // Deployed Agent Service (add-a2a-agent-serving): chat through the A2A
+  // gateway from the agent picker (5.3); on this page it is informational —
+  // never an openable external link.
   const isA2aService = agent.type === "agent-remote" && agent.mode === "a2a";
   return (
     <div

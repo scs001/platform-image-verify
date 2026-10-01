@@ -305,7 +305,13 @@ const REMOTE_FORK_HISTORY_MAX = Number(process.env.REMOTE_FORK_HISTORY_MAX || 24
 function switchableAgents(user) {
   return catalog
     .getCatalogFor(user ?? null)
-    .agents.filter((a) => a.type === "agent-local" || (a.type === "agent-remote" && a.mode === "chat"));
+    .agents.filter(
+      (a) =>
+        a.type === "agent-local" ||
+        // chat-mode remote agents (preset or fork) and deployed Agent Services
+        // (a2a — served over the registry gateway, task 5.3).
+        (a.type === "agent-remote" && (a.mode === "chat" || a.mode === "a2a")),
+    );
 }
 
 // The remote chat fork applies to a chat-mode entry ONLY while the deployment
@@ -318,7 +324,11 @@ function switchableAgents(user) {
 function remoteChatEntryFor(id) {
   if (!id || id === "local") return null;
   const entry = catalog.getAgentEntry(id);
-  if (!entry || entry.type !== "agent-remote" || entry.mode !== "chat") return null;
+  if (!entry || entry.type !== "agent-remote") return null;
+  // A deployed Agent Service is always remote — it runs on the agent-runner,
+  // never as a local persona preset (add-a2a-agent-serving 5.3).
+  if (entry.mode === "a2a") return entry;
+  if (entry.mode !== "chat") return null;
   if (entry.local === false) return entry;
   return dshProfile.hasCatalogAgentPreset(id) ? null : entry;
 }
@@ -546,6 +556,110 @@ async function streamRemoteChat(entry, text) {
 
 // Handle `/model [id]`: with no id, report the current model + available models;
 // with an id, switch (via switchModelTo) and emit a command_use block describing the result.
+// Fork a prompt to a deployed Agent Service (a2a mode, add-a2a-agent-serving
+// 5.3): the platform is the A2A CLIENT. The turn goes to the entry's registry
+// gateway route via message/stream, with the caller's gateway credential on
+// X-Authorization (stripped by the gateway after /validate) and the
+// deployment's agent credential on Authorization (end-to-end, per upstream's
+// egress trust model). Conversation continuity rides context_id = OUR session
+// id — the runner keeps its own per-context session, so no history replay is
+// needed (unlike the OpenAI-compatible fork above). SSE events from the runner
+// map onto the existing text/done/error contract.
+async function streamA2aChat(entry, text) {
+  ctx.isStreaming = true;
+  const sessionId = chatHistory.currentSessionId();
+  const abort = new AbortController();
+  ctx.activeRemoteTurnAbort = abort;
+  const timeout = setTimeout(() => abort.abort(), 300_000);
+  ctx.sendToViewers(sessionId, { type: "agent_start" });
+  chatHistory.recordMessage(sessionId, "user", text, undefined, ctx.turnOrigin?.user ?? null);
+
+  const gatewayToken = process.env.MARKET_REGISTRY_TOKEN || process.env.AGENT_SERVING_REGISTRY_TOKEN || "";
+  const agentToken = process.env.AGENT_SERVING_BACKEND_TOKEN || "";
+  let assistantText = "";
+  try {
+    if (!gatewayToken) throw new Error("no registry token configured (MARKET_REGISTRY_TOKEN) — cannot call the A2A gateway");
+    if (!agentToken) throw new Error("A2A agent credential not configured (AGENT_SERVING_BACKEND_TOKEN)");
+    const r = await fetch(entry.url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Authorization": `Bearer ${gatewayToken}`,
+        Authorization: `Bearer ${agentToken}`,
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "message/stream",
+        params: { message: { role: "user", parts: [{ kind: "text", text }], context_id: sessionId } },
+      }),
+      signal: abort.signal,
+    });
+    if (!r.ok) throw new Error(`${entry.id} HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
+    const ctype = r.headers.get("content-type") || "";
+    if (!ctype.includes("text/event-stream")) {
+      // A JSON body answers with a JSON-RPC error object (auth/agent failures).
+      const doc = await r.json().catch(() => null);
+      const msg = doc?.error?.message || `unexpected content-type ${ctype || "(none)"}`;
+      throw new Error(`${entry.id}: ${msg}`);
+    }
+    const decoder = new TextDecoder();
+    let buf = "";
+    let sent = 0;
+    for await (const chunk of r.body) {
+      if (abort.switchedAway) break;
+      buf += decoder.decode(chunk, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop();
+      let event = null;
+      for (const line of lines) {
+        const l = line.trim();
+        if (l.startsWith("event:")) {
+          event = l.slice(6).trim();
+          continue;
+        }
+        if (!l.startsWith("data:")) continue;
+        let doc;
+        try {
+          doc = JSON.parse(l.slice(5).trim());
+        } catch {
+          continue; // skip malformed SSE frames
+        }
+        if (event === "error") throw new Error(doc?.message || "A2A stream error");
+        if (event === "done") break;
+        // `delta` frames carry the ACCUMULATED text (the runner's wire shape);
+        // broadcast only the new suffix. `message` is the authoritative final.
+        const acc = (event === "delta" || event === "message") ? doc?.parts?.[0]?.text : null;
+        if (typeof acc === "string") {
+          if (event === "message") {
+            if (acc.length > sent) {
+              ctx.sendToViewers(sessionId, { type: "text", delta: acc.slice(sent) });
+              sent = acc.length;
+            }
+            assistantText = acc;
+          } else if (acc.length > sent) {
+            ctx.sendToViewers(sessionId, { type: "text", delta: acc.slice(sent) });
+            sent = acc.length;
+            assistantText = acc;
+          }
+        }
+        event = null;
+      }
+    }
+  } catch (err) {
+    if (!abort.switchedAway) {
+      console.error(`A2A agent '${entry.id}' error:`, err.message);
+      ctx.sendToViewers(sessionId, { type: "error", message: err.message });
+    }
+  } finally {
+    clearTimeout(timeout);
+    const ownsTurn = ctx.activeRemoteTurnAbort === abort;
+    if (assistantText) chatHistory.recordMessage(sessionId, "assistant", assistantText, undefined, ctx.turnOrigin?.user ?? null);
+    if (ctx.isStreaming && ownsTurn) ctx.finishTurn();
+    if (ownsTurn) ctx.activeRemoteTurnAbort = null;
+  }
+}
+
 async function handleModelCommand(args, ws) {
   const id = (args || "").trim();
   const current = ctx.session?.model?.id || "(none)";
@@ -857,6 +971,7 @@ function listWorkspaces() {
   ctx.catalogAgentForPreset = catalogAgentForPreset;
   ctx.syncCatalogAgentPresets = syncCatalogAgentPresets;
   ctx.streamRemoteChat = streamRemoteChat;
+  ctx.streamA2aChat = streamA2aChat;
   ctx.handleModelCommand = handleModelCommand;
   ctx.startNewSession = startNewSession;
   ctx.handleNewCommand = handleNewCommand;

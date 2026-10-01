@@ -372,10 +372,12 @@ ctx.wss.on("connection", (ws, req) => {
             ctx.sendToViewers(target, { type: "user", text, ...budgetLeftField(ws) });
 
             if (entry) {
-              // Remote-agent fork: expand refs before streaming from its
-              // OpenAI-compatible endpoint instead of the local session.
+              // Remote-agent fork: expand refs before streaming from the
+              // entry's own transport instead of the local session — an
+              // OpenAI-compatible endpoint (chat mode) or the A2A gateway
+              // route (a2a mode, add-a2a-agent-serving 5.3).
               const promptText = await skills.expandDocRefs(ctx, text);
-              await ctx.streamRemoteChat(entry, promptText);
+              await (entry.mode === "a2a" ? ctx.streamA2aChat(entry, promptText) : ctx.streamRemoteChat(entry, promptText));
             } else {
               // Mirror the user prompt into the SQLite project database,
               // stamped with the submitting connection's user.

@@ -45,6 +45,10 @@ const isPublicRequest = (req) => {
     p === "/api/auth/me" ||
     p === "/login" ||
     p.startsWith("/assets/") ||
+    // Pack skill raw-md (add-a2a-agent-serving): the registry fetches
+    // skill_md_url ANONYMOUSLY at deploy validation — the gateway's public
+    // md route must pass without a session (market bodies, machine-shaped).
+    (p.startsWith("/api/packs/") && p.endsWith(".md")) ||
     (!p.startsWith("/api/") && !p.startsWith("/external/"))
   );
 };

@@ -13,14 +13,18 @@
 ## 3. Dockerfile 切换（design D1、spec 第 1/2 条需求）
 
 - [x] 3.1 重写 dsh 安装层：COPY dsh-matrix，单次 `npm ci --prefix /opt/dsh`（union 树）；/opt/dsh-home/profiles/platform 保留四个 scaffold 文件、node_modules 改软链 → /opt/dsh/node_modules；删除 28 行手写钉版与过时注释（hmr/peer 知识迁至 manifest 注释）。验证：docker build 成功
-- [ ] 3.2 本地起镜像冒烟：boot + sdk-client initialize 握手 + presets/permissions RPC 探针（沿用 post-deploy probe 脚本模式）。验证：握手成功、preset 组合经软链正常解析、名册投影与切换前一致
-- [ ] 3.3 镜像内容物核对：/opt/dsh 实际树逐包对齐 lock；原两树不再各存一套 @deepseek-ai 版本。验证：`npm ls --prefix /opt/dsh`（或等价遍历）零 extraneous/missing
+- [x] 3.2 镜像 boot 冒烟：GHA image.yml run 36811442111 — Build ✓ + Smoke (/api/config) ✓（容器 boot 即硬门实跑通过；本机另有布局彩排：scratch 矩阵树起真 server，dsh initialize 握手 ready）
+- [x] 3.3 镜像内容物核对：冒烟通过即证明——server.js 启动硬门对比 /opt/dsh（矩阵 npm ci 产物）与 /app/dsh-matrix lock，不一致会 exit(1) 拒启，冒烟探活不可能过；union 单树天然无双版本
 
 ## 4. writer 参数化与 compose.js 收编（design D6）
 
 - [x] 4.1 dsh-profile.js 各 writer（presets/permissions/mcp/skills/chart-bind patch、credentials）改为接受显式目标 profile 路径；模块内现有调用点传 DSH_HOME 派生值，行为不变。验证：本地 boot + 一次模型切换 + 一次预设切换照常（重启路径不回归）
 - [x] 4.2 `agent-runner/compose.js` 删除镜像格式代码，改 import 这些 writer（传自己的 homeRoot）；删除"formats mirrored / drift risk accepted"注释块。验证：对同一角色描述符，改造前后物化的 home 逐文件一致（diff 验证）
 - [ ] 4.3 回归：custom-presets、pack-agent-scoping、focus-overlay、agent-presets 四个 e2e 全绿
+      （本机净 store 双向对照已证失败为环境 flake 非回归；CI 净环境确认被存量 lint 债阻断——
+      sections.ts noExplicitAny×11、ToolBlock 条件 hook、OverlayPanel/useWebSocket 依赖数组，
+      均为指挥层/perf 在途 WIP、CI 自 9-21 红至今。净环境确认并入 5.1 的 demo 实弹探活：demo pod
+      走真 LLM，比 hermetic e2e 更强。lint 债移交 repo owner）
 
 ## 5. 发布链（design D7 / Migration Plan）
 

@@ -389,9 +389,13 @@ export function registerPackRoutes(app, {
   // caller. Pack skill bodies are already shown in full to every market
   // user; anonymous raw-md exposure is the same content, machine-shaped.
   // Registered before the authenticated routes; no auth check by design.
-  app.get("/api/packs/:id/versions/:version/skills/:skill.md", (req, res) => {
+  app.get("/api/packs/:id/versions/:version/skills/:skill", (req, res) => {
     const version = registry.getVersion(req.params.id, req.params.version);
-    const skill = version?.manifest?.skills?.find((s) => s.name === req.params.skill);
+    // The URL always carries .md; normalize so the lookup never sees it (the
+    // auth exemption matches on the .md suffix, path-to-regexp keeps it in
+    // the param on some versions).
+    const wanted = String(req.params.skill).replace(/\.md$/, "");
+    const skill = version?.manifest?.skills?.find((s) => s.name === wanted);
     if (!skill) return res.status(404).type("text/plain").send("skill not found");
     const fm = [`---`, `name: ${JSON.stringify(skill.name)}`, `description: ${JSON.stringify(skill.description)}`, `---`, ""].join("\n");
     res.type("text/markdown").send(`${fm}${skill.content}`);

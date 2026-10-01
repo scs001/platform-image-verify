@@ -141,9 +141,10 @@ test("mapping: servers/skills/agents → market + catalog shapes", async () => {
   const agents = bridge.getAgentEntries();
   assert.equal(agents.length, 1, "url-less agent dropped");
   assert.equal(agents[0].id, "registry-agents-weather");
+  assert.equal(agents[0].mode, "a2a", "supported_protocol a2a maps to a2a mode");
+  assert.match(agents[0].url, /\/agent\/agents\/weather\/$/, "url is the gateway route, not the entry backend url");
   assert.equal(agents[0].type, "agent-remote");
-  assert.equal(agents[0].mode, "link");
-  assert.equal(agents[0].url, "https://registry.example.test/agent/weather");
+  assert.equal(agents[0].url.endsWith("/agent/agents/weather/"), true, "a2a agent url is the gateway route");
 
   assert.equal(fetchImpl.calls[0].headers.Authorization, "Bearer test-token");
   assert.equal(events.filter((e) => e.type === "market_changed").length, 1, "first fill broadcasts");

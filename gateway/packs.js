@@ -26,6 +26,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import express from "express";
 import { PACK_LIMITS, validatePackManifest as validateManifest } from "../lib/pack-manifest.js";
+import { deployToRegistry } from "../lib/agent-serving.js";
 
 // Re-exported for the gateway's own consumers (tests import from here).
 export { PACK_LIMITS, validateManifest };
@@ -58,6 +59,20 @@ export function createPackRegistry({ file }) {
     subscribed_at INTEGER NOT NULL,
     unsubscribed_at INTEGER,
     PRIMARY KEY (pack_id, email)
+  )`);
+  // Agent-service deployments (add-a2a-agent-serving 3.3): bookkeeping only —
+  // the runner pulls the bundle from the registry; this table answers "which
+  // of this pack's roles are deployed" for the unpublish warning and the
+  // deploy button's status. One row per (pack, agent); upgrades upsert.
+  db.exec(`CREATE TABLE IF NOT EXISTS pack_deployments (
+    pack_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    agent_path TEXT NOT NULL,
+    skill_paths TEXT NOT NULL DEFAULT '[]',
+    deployed_by TEXT NOT NULL,
+    deployed_at INTEGER NOT NULL,
+    PRIMARY KEY (pack_id, agent_id)
   )`);
 
   const now = () => Date.now();
@@ -218,6 +233,34 @@ export function createPackRegistry({ file }) {
       return packRow(id)?.author_email ?? null;
     },
 
+    // ── Agent-service deployments (add-a2a-agent-serving 3.3) ────────────────
+    // Bookkeeping only: the registry holds the deployed truth (agent entries);
+    // these rows answer "which roles of this pack are deployed" for the
+    // unpublish warning and the deploy button's status. Upsert keeps one row
+    // per (pack, agent) across in-place upgrades.
+    recordDeployment({ packId, agentId, version, agentPath, skillPaths, email }) {
+      db.prepare(
+        `INSERT INTO pack_deployments (pack_id, agent_id, version, agent_path, skill_paths, deployed_by, deployed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (pack_id, agent_id) DO UPDATE SET
+           version = excluded.version, agent_path = excluded.agent_path,
+           skill_paths = excluded.skill_paths, deployed_by = excluded.deployed_by,
+           deployed_at = excluded.deployed_at`,
+      ).run(packId, agentId, Number(version), agentPath, JSON.stringify(skillPaths ?? []), email, now());
+    },
+
+    deployments(id) {
+      return db.prepare(`SELECT * FROM pack_deployments WHERE pack_id = ? ORDER BY agent_id`).all(id)
+        .map((r) => ({
+          agentId: r.agent_id,
+          version: r.version,
+          agentPath: r.agent_path,
+          skills: JSON.parse(r.skill_paths || "[]"),
+          deployedBy: r.deployed_by,
+          deployedAt: r.deployed_at,
+        }));
+    },
+
     close() {
       db.close();
     },
@@ -259,7 +302,21 @@ export function registerPackRoutes(app, {
   rateMax = 10,
   rateWindowMs = 60 * 60_000,
   jsonLimit = "1mb",
+  deployConfig: deployConfigOpt = null,
 }) {
+  // Agent-serving wiring (3.2): injected config wins (tests), env falls back
+  // to the dedicated AGENT_SERVING_* names, then the market-bridge vars —
+  // on single-process deployments the registry is the same host either way.
+  const deployConfig = () => {
+    if (typeof deployConfigOpt === "function") return deployConfigOpt();
+    if (deployConfigOpt && typeof deployConfigOpt === "object") return deployConfigOpt;
+    return {
+      registryUrl: process.env.AGENT_SERVING_REGISTRY_URL || process.env.REGISTRY_URL || "",
+      token: process.env.AGENT_SERVING_REGISTRY_TOKEN || process.env.MARKET_REGISTRY_TOKEN || "",
+      runnerBaseUrl: process.env.AGENT_SERVING_RUNNER_URL || "",
+      packsPublicBase: process.env.AGENT_SERVING_PACKS_URL || process.env.PAAS_BASE_URL || "",
+    };
+  };
   const publishAllowed = createPublishRateLimiter({ windowMs: rateWindowMs, max: rateMax });
   const isCreator = (user) => creatorGroups.some((g) => (user.groups || []).includes(g));
   const auth = (req, res) => {
@@ -325,15 +382,90 @@ export function registerPackRoutes(app, {
     res.json(v);
   });
 
+  // PUBLIC raw SKILL.md per pack skill (add-a2a-agent-serving D3): the
+  // registry's skill registration fetches skill_md_url ANONYMOUSLY to
+  // validate, so this route serves the body with synthesized frontmatter
+  // (name/description from the manifest — pack skills are body-only) to any
+  // caller. Pack skill bodies are already shown in full to every market
+  // user; anonymous raw-md exposure is the same content, machine-shaped.
+  // Registered before the authenticated routes; no auth check by design.
+  app.get("/api/packs/:id/versions/:version/skills/:skill.md", (req, res) => {
+    const version = registry.getVersion(req.params.id, req.params.version);
+    const skill = version?.manifest?.skills?.find((s) => s.name === req.params.skill);
+    if (!skill) return res.status(404).type("text/plain").send("skill not found");
+    const fm = [`---`, `name: ${JSON.stringify(skill.name)}`, `description: ${JSON.stringify(skill.description)}`, `---`, ""].join("\n");
+    res.type("text/markdown").send(`${fm}${skill.content}`);
+  });
+
+  // Deploy a stored version's serving-contract roles as Agent Services
+  // (add-a2a-agent-serving 3.2). Idempotent per (pack, agent): the registry
+  // entry is upserted in place and the bookkeeping row follows. Gate: the
+  // pack's author or a creator-group member (the same population that may
+  // publish). Env (`AGENT_SERVING_*`, falling back to the market vars) or an
+  // injected `deployConfig` supplies the registry wiring; a missing runner
+  // URL answers 503, not a silent success.
+  app.post("/api/packs/:id/versions/:version/deploy", express.json({ limit: "64kb" }), async (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    const id = req.params.id;
+    const isAuthor = registry.authorEmail(id) === user.email;
+    if (!isAuthor && !isCreator(user)) return res.status(403).json({ error: "Pack author or creator group required" });
+
+    const version = registry.getVersion(id, req.params.version);
+    if (!version) return res.status(404).json({ error: "Pack version not found" });
+
+    const cfg = deployConfig();
+    if (!cfg.runnerBaseUrl) {
+      return res.status(503).json({ error: "Agent serving is not configured on this deployment (AGENT_SERVING_RUNNER_URL)" });
+    }
+    let out;
+    try {
+      out = await deployToRegistry({
+        packId: id,
+        version: version.version,
+        manifest: version.manifest,
+        ...cfg,
+      });
+    } catch (err) {
+      const status = Number.isInteger(err?.status) && err.status >= 400 ? err.status : 502;
+      return res.status(status).json({ error: err.message });
+    }
+    for (const d of out.deployed) {
+      registry.recordDeployment({
+        packId: id,
+        agentId: d.agentId,
+        version: version.version,
+        agentPath: d.agentPath,
+        skillPaths: d.skills,
+        email: user.email,
+      });
+    }
+    res.json({
+      deployed: out.deployed.map((d) => ({ agentId: d.agentId, agentPath: d.agentPath, skills: d.skills, card: d.card })),
+      effectiveWithinSecs: out.effectiveWithinSecs,
+    });
+  });
+
+  // Deployed roles of a pack (3.3): the unpublish warning's and the deploy
+  // button's data. Online/offline health itself comes from the registry via
+  // the catalog's a2a entries — this list is the "deployed" fact.
+  app.get("/api/packs/:id/deployments", (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    res.json({ deployments: registry.deployments(req.params.id) });
+  });
+
   // Unpublish: author-checked unlist. Unknown pack and foreign pack answer
-  // identically (the revoke pattern — probing teaches nothing).
+  // identically (the revoke pattern — probing teaches nothing). Deployed
+  // Agent Services are NOT cascaded (spec: undeploy is independent) — the
+  // response names them so the UI can warn.
   app.post("/api/packs/:id/unpublish", (req, res) => {
     const user = auth(req, res);
     if (!user) return;
     if (!registry.setUnlisted({ email: user.email, id: req.params.id })) {
       return res.status(404).json({ error: "Pack not found" });
     }
-    res.json({ ok: true });
+    res.json({ ok: true, deployments: registry.deployments(req.params.id) });
   });
 
   // Subscribe: records the subscription and hands back the full manifest of

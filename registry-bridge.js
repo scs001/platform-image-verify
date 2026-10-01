@@ -133,12 +133,17 @@ function mapAgent(a) {
   if (!a?.path || a.is_enabled === false) return null;
   const name = pathToName(a.path);
   const id = `registry-${name}`;
+  // A2A agents (add-a2a-agent-serving 5.1): the registry's reverse proxy
+  // exposes them at {REGISTRY_URL}/agent{path}/ behind caller auth — they are
+  // chat-able Agent Services, not external links, and whatever url the entry
+  // carries (a private backend) is irrelevant to callers.
+  const isA2a = String(a.supported_protocol ?? a.supportedProtocol ?? "").toLowerCase() === "a2a";
   const entry = {
     id,
     type: "agent-remote",
-    mode: "link",
+    mode: isA2a ? "a2a" : "link",
     name: a.name || id,
-    url: a.url,
+    url: isA2a ? `${REGISTRY_URL.replace(/\/+$/, "")}/agent${a.path}/` : a.url,
     icon: "bot",
     tags: Array.isArray(a.externalTags)
       ? a.externalTags

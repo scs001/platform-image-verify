@@ -654,7 +654,9 @@ export function ControlStrip({ send, onOpenCommands, onAttach, trailing }: Props
                   >
                     <span className="break-all font-mono">{agentLabel}</span>
                   </div>
-                  {agents.map((a) => (
+                  {agents
+                    .filter((a) => a.type !== "agent-remote" || a.mode !== "a2a")
+                    .map((a) => (
                     // A pack role runs focused on its own resource set, so it
                     // also carries the 资源微调 affordance — a sibling button,
                     // never nested inside the select control (add-focus-

@@ -50,11 +50,11 @@ function validateEntry(entry, source) {
       console.warn(`${where} '${entry.id}': chat-mode agent-remote needs baseUrl + model — dropped`);
       return null;
     }
-    if (entry.mode === "link" && !entry.url) {
-      console.warn(`${where} '${entry.id}': link-mode agent-remote needs url — dropped`);
+    if ((entry.mode === "link" || entry.mode === "a2a") && !entry.url) {
+      console.warn(`${where} '${entry.id}': ${entry.mode}-mode agent-remote needs url — dropped`);
       return null;
     }
-    if (entry.mode !== "chat" && entry.mode !== "link") {
+    if (entry.mode !== "chat" && entry.mode !== "link" && entry.mode !== "a2a") {
       console.warn(`${where} '${entry.id}': unknown mode '${entry.mode}' — dropped`);
       return null;
     }
@@ -276,7 +276,7 @@ function serialize(entry) {
   if (entry.type === "agent-remote") {
     base.mode = entry.mode;
     if (entry.mode === "chat") base.model = entry.model;
-    if (entry.mode === "link") base.url = entry.url;
+    if (entry.mode === "link" || entry.mode === "a2a") base.url = entry.url;
   } else if (entry.type === "app") {
     base.kind = entry.kind;
     if (entry.kind === "link") base.url = entry.url;

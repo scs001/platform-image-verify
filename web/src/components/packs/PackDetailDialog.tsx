@@ -7,7 +7,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "@/lib/packs-api";
-import type { PackDetail, PackReport } from "@/lib/packs-api";
+import type { PackDetail, PackDeployment, PackReport } from "@/lib/packs-api";
 import {
   Dialog,
   DialogContent,
@@ -30,15 +30,24 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
   const [pack, setPack] = useState<PackDetail | null>(null);
   const [subscribing, setSubscribing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deployments, setDeployments] = useState<PackDeployment[]>([]);
+  const [deploying, setDeploying] = useState(false);
+  const [deployNote, setDeployNote] = useState<string | null>(null);
 
   useEffect(() => {
     setPack(null);
     setError(null);
+    setDeployments([]);
+    setDeployNote(null);
     if (!packId) return;
     api
       .getPack(packId)
       .then(setPack)
       .catch((err) => setError((err as Error).message));
+    api
+      .getPackDeployments(packId)
+      .then((d) => setDeployments(d.deployments ?? []))
+      .catch(() => setDeployments([])); // deployments route absent = nothing deployed
   }, [packId]);
 
   const subscribe = async () => {
@@ -53,6 +62,25 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
       setError((err as Error).message);
     } finally {
       setSubscribing(false);
+    }
+  };
+
+  const servingAgents = (pack?.manifest?.agents ?? []).filter((a) => a.serving);
+
+  const deploy = async () => {
+    if (!packId || !pack) return;
+    setDeploying(true);
+    setError(null);
+    setDeployNote(null);
+    try {
+      const out = await api.deployPack(packId, pack.version);
+      const d = await api.getPackDeployments(packId);
+      setDeployments(d.deployments ?? []);
+      setDeployNote(t("packs.detail.deployEffective", { minutes: Math.ceil(out.effectiveWithinSecs / 60) }));
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setDeploying(false);
     }
   };
 
@@ -120,12 +148,48 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                 <div className="space-y-2">
                   {m.agents!.map((a) => (
                     <div key={a.id} className="border border-border rounded-md p-3">
-                      <div className="text-foreground">{a.name}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="text-foreground">{a.name}</div>
+                        {a.serving && (
+                          <span
+                            data-testid={`pack-agent-serving-${a.id}`}
+                            className="rounded-md border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+                          >
+                            A2A
+                          </span>
+                        )}
+                      </div>
                       <div className="font-mono text-xs text-muted-foreground">{a.id}</div>
                       <p className="text-xs whitespace-pre-wrap mt-1">{a.persona}</p>
                     </div>
                   ))}
                 </div>
+              </section>
+            )}
+
+            {servingAgents.length > 0 && (
+              <section className="border border-border rounded-md p-3" data-testid="pack-deploy-section">
+                <h4 className="font-medium mb-2">{t("packs.detail.deployTitle")}</h4>
+                {deployments.length > 0 && (
+                  <ul className="space-y-1 mb-2">
+                    {deployments.map((d) => (
+                      <li key={d.agentId} className="flex items-center gap-2 text-xs" data-testid="pack-deployment-row">
+                        <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono">{d.agentId}</span>
+                        <span className="text-muted-foreground">v{d.version}</span>
+                        <span className="ml-auto text-primary">{t("packs.detail.deployOnline")}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {deployNote && <p className="text-xs text-primary mb-2">{deployNote}</p>}
+                <Button
+                  variant="outline"
+                  onClick={() => void deploy()}
+                  disabled={deploying}
+                  data-testid="pack-deploy-btn"
+                >
+                  {deploying ? t("common.loading") : t("packs.detail.deployBtn")}
+                </Button>
               </section>
             )}
 

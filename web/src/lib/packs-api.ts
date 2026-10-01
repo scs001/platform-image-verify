@@ -34,6 +34,9 @@ export interface PackManifestAgent {
   id: string;
   name: string;
   persona: string;
+  // Optional serving contract (add-a2a-agent-serving): present ⇒ the role is
+  // deployable as an Agent Service over A2A.
+  serving?: { protocol: string; card?: Record<string, unknown> };
   tags?: string[];
   icon?: string;
   // Optional per-role resource declaration (add-persona-resource-sets): a
@@ -117,6 +120,37 @@ export function listPacks(params: { search?: string; tag?: string; page?: number
 
 export function getPack(id: string) {
   return fetch(`/api/packs/${encodeURIComponent(id)}`).then(json) as Promise<PackDetail>;
+}
+
+// Deploy the version's serving-contract roles as Agent Services
+// (add-a2a-agent-serving 3.2): skills + one a2a agent entry land in the
+// registry; the runner picks the bundle up by polling (≤ effectiveWithinSecs).
+export interface DeployResult {
+  deployed: { agentId: string; agentPath: string; skills: string[] }[];
+  effectiveWithinSecs: number;
+}
+
+export interface PackDeployment {
+  agentId: string;
+  version: number;
+  agentPath: string;
+  skills: string[];
+  deployedBy: string;
+  deployedAt: number;
+}
+
+export function deployPack(id: string, version: number) {
+  return fetch(`/api/packs/${encodeURIComponent(id)}/versions/${version}/deploy`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: "{}",
+  }).then(json) as Promise<DeployResult>;
+}
+
+export function getPackDeployments(id: string) {
+  return fetch(`/api/packs/${encodeURIComponent(id)}/deployments`).then(json) as Promise<{
+    deployments: PackDeployment[];
+  }>;
 }
 
 export function publishPack(body: { packId?: string | null; manifest: PackManifest }) {

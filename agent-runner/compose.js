@@ -96,7 +96,10 @@ export async function materializeAgentHome({ homeRoot, agentKey, entry, skillCon
   const tpl = template ?? shippedStandardTemplate();
   let presetId = null;
   if (tpl) {
-    presetId = rosterPresetId(`srv-${descriptor.packId}-${descriptor.agentId}`);
+    // The dsh preset plugin's id regex is lowercase-only (path containment);
+    // marketplace pack ids are case-mixed base64url — normalize, or the
+    // roster silently drops the preset and every turn fails to mount it.
+    presetId = rosterPresetId(`srv-${descriptor.packId}-${descriptor.agentId}`).toLowerCase();
     const presetDir = path.join(home, ".agent-presets", presetId);
     mkdirSync(presetDir, { recursive: true });
     const name = entry.name || descriptor.agentName || presetId;

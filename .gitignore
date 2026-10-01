@@ -110,3 +110,6 @@ services/search-relay/keys.json
 *.swp
 docs/agents/
 CLAUDE.md
+
+# codegraph local index (tool data, not source)
+.codegraph/

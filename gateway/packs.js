@@ -394,9 +394,11 @@ export function registerPackRoutes(app, {
       token: process.env.AGENT_SERVING_REGISTRY_TOKEN || process.env.MARKET_REGISTRY_TOKEN || "",
       runnerBaseUrl: process.env.AGENT_SERVING_RUNNER_URL || "",
       packsPublicBase: process.env.AGENT_SERVING_PACKS_URL || process.env.PAAS_BASE_URL || "",
-      // Platform billing (add-agent-platform-ops D1): absent admin key ⇒ the
-      // billing linkage degrades to the pre-③ behavior (no gate, no keys).
-      sub2api: null,
+      // Platform billing (add-agent-platform-ops D1): the admin key rides the
+      // platform secret; absent ⇒ the linkage degrades (no gate, no keys).
+      ...(process.env.SUB2API_ADMIN_KEY
+        ? { sub2api: { baseUrl: process.env.SUB2API_BASE_URL || "http://127.0.0.1:32080", adminKey: process.env.SUB2API_ADMIN_KEY } }
+        : { sub2api: null }),
     };
   };
   const publishAllowed = createPublishRateLimiter({ windowMs: rateWindowMs, max: rateMax });

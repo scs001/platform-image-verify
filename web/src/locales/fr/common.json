@@ -910,7 +910,21 @@
       "private": "Privé",
       "balance": "Solde : {{balance}}",
       "balanceUnknown": "Solde inconnu (établi au premier déploiement)",
-      "balanceLow": "Solde bas — les déploiements seront refusés ; contactez l'opérateur pour recharger."
+      "balanceLow": "Solde bas — les déploiements seront refusés ; contactez l'opérateur pour recharger.",
+      "noAccountHintNew": "Pas encore de compte de facturation — un clic sur « Connecter sub2api » vous connecte (SSO Logto) et crée votre compte automatiquement ; créez une clé dans le panneau, puis collez-la ci-dessous.",
+      "noAccountHintExisting": "Déjà utilisateur de la passerelle ? Le SSO lie votre compte existant — le panneau demande une seule fois votre mot de passe d'origine.",
+      "connectPanel": "Connecter sub2api",
+      "keyPasteLabel": "Clé mesurée pour @{{id}} — créez-la dans le panneau, puis collez-la ici",
+      "keyPastePlaceholder": "sk-…",
+      "keyBoundBadge": "clé liée",
+      "keyRequired": "Ce pack sert des agents — chacun nécessite une clé mesurée créée dans votre panneau de facturation (connexion Logto), collée ci-dessus.",
+      "keyInvalid": {
+        "shape": "Ceci ne ressemble pas à une clé sub2api (elle doit commencer par sk-).",
+        "unknown-agent": "Une clé a été collée pour un rôle qui n'est pas un agent de service de ce pack.",
+        "duplicate": "Une clé ne peut pas servir deux agents du même pack — créez-en une par agent dans le panneau.",
+        "liveness": "Le panneau de facturation a refusé cette clé (supprimée, désactivée ou quota épuisé) — recréez-en une dans le panneau.",
+        "ownership": "Cette clé appartient à un autre compte sub2api — collez une clé créée sous votre propre compte."
+      }
     },
     "report": {
       "title": "Résultat d'installation de « {{name}} »",

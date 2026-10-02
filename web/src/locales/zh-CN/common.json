@@ -910,7 +910,21 @@
       "private": "私有",
       "balance": "余额：{{balance}}",
       "balanceUnknown": "余额未知（首次部署时建立）",
-      "balanceLow": "余额不足——部署会被拒绝，请联系运营充值。"
+      "balanceLow": "余额不足——部署会被拒绝，请联系运营充值。",
+      "noAccountHintNew": "还没有计费账户——点「连接 sub2api」一键 Logto 登录即自动建号；在面板里创建 key 后粘贴到下方。",
+      "noAccountHintExisting": "早就是网关用户？SSO 会绑定你的原账户——面板会要求输入一次原面板密码。",
+      "connectPanel": "连接 sub2api",
+      "keyPasteLabel": "@{{id}} 的计量 key——在面板创建后粘贴到这里",
+      "keyPastePlaceholder": "sk-…",
+      "keyBoundBadge": "已绑定",
+      "keyRequired": "本包含服务化 Agent——每个都需要一把你面板里创建的计量 key（Logto 登录），粘贴到上方。",
+      "keyInvalid": {
+        "shape": "这不像 sub2api 的 key（应以 sk- 开头）。",
+        "unknown-agent": "有 key 粘给了不属于本包服务化 Agent 的角色。",
+        "duplicate": "一把 key 不能同时服务同包的两个 Agent——请在面板里为每个 Agent 各建一把。",
+        "liveness": "计费面板拒绝了这把 key（已删除、停用或额度耗尽）——请在面板重新创建。",
+        "ownership": "这把 key 属于别的 sub2api 账户——请粘贴你自己账户下创建的 key。"
+      }
     },
     "report": {
       "title": "「{{name}}」安装结果",

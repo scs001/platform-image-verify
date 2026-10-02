@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-// ── Platform billing tests (add-agent-platform-ops, tasks 2.1–2.3, 5.1) ──────
+// ── Platform billing tests (add-agent-platform-ops; revised by
+// revise-billing-key-acquisition) ────────────────────────────────────────────
 //
 // Module-level tests against injected sub2api stubs and the real deploy
-// integration paths: client shapes (envelope unwrap, degraded mode, user-flow
-// key minting), deployment-key bookkeeping + balance gate, and the internal
-// key-distribution route's auth.
+// integration paths: client shapes (email resolution, key-ownership lookup,
+// liveness probe, degraded mode), the paste-flow deploy gate (no-account 402,
+// balance gate, four-layer key validation, binding lifecycle), and the
+// internal key-distribution route's auth.
 //
 //   node --test scripts/test-platform-billing.mjs
 
@@ -26,11 +28,10 @@ test.after(() => {
   rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-// ── client against a stub sub2api (envelope + admin-key + user-flow) ────────
+// ── stub sub2api (paste-flow surface: directory, key store, liveness) ───────
 
 function stubSub2api() {
-  const users = new Map(); // email → {id, email, balance}
-  const keys = [];
+  const users = new Map(); // id → {id, email, username, balance, status, keys: [{key, dead}]}
   const seen = [];
   let nextId = 100;
   const app = express();
@@ -43,80 +44,103 @@ function stubSub2api() {
     next();
   });
   const ok = (res, data) => res.json({ code: 0, message: "success", data });
-  app.post("/api/v1/auth/login", (req, res) => {
-    const u = users.get(req.body?.email);
-    if (!u) return res.status(401).json({ code: 401, message: "bad credentials" });
-    ok(res, { access_token: `jwt-${u.id}`, user: u });
-  });
+  const byId = (id) => [...users.values()].find((x) => String(x.id) === String(id));
+
+  // Paste flow: the TEST mints keys by creating a user + key directly.
+  const addUser = (email, { balance = 0 } = {}) => {
+    const id = ++nextId;
+    const u = { id, email, username: email.split("@")[0], balance, status: "active", keys: [] };
+    users.set(id, u);
+    return u;
+  };
+  const addKey = (u, { dead = false } = {}) => {
+    const key = `sk-stub-${u.id}-${++nextId}`;
+    u.keys.push({ key, dead });
+    return key;
+  };
+
+  // Directory search: email/username substring + API-key VALUE substring
+  // (the upstream behavior the ownership check leans on).
   app.get("/api/v1/admin/users", (req, res) => {
-    const items = [...users.values()].filter((u) => !req.query.search || u.email.includes(req.query.search));
+    const s = req.query.search ?? "";
+    const items = [...users.values()].filter(
+      (u) => u.email.includes(s) || u.username.includes(s) || u.keys.some((k) => k.key.includes(s)),
+    );
     ok(res, { items, total: items.length });
   });
   app.post("/api/v1/admin/users", (req, res) => {
-    const id = ++nextId;
-    const u = { id, email: req.body.email, username: req.body.username, balance: 0, status: "active" };
-    users.set(u.email, u);
+    ok(res, addUser(req.body.email));
+  });
+  app.put("/api/v1/admin/users/:id", (req, res) => {
+    const u = byId(req.params.id);
+    if (!u) return res.status(404).json({ code: 404, message: "not found" });
     ok(res, u);
   });
   app.get("/api/v1/admin/users/:id", (req, res) => {
-    const u = [...users.values()].find((x) => String(x.id) === req.params.id);
+    const u = byId(req.params.id);
     if (!u) return res.status(404).json({ code: 404, message: "not found" });
     ok(res, u);
   });
   app.post("/api/v1/admin/users/:id/balance", (req, res) => {
-    const u = [...users.values()].find((x) => String(x.id) === req.params.id);
+    const u = byId(req.params.id);
     if (!u) return res.status(404).json({ code: 404, message: "not found" });
     if (!req.headers["idempotency-key"]) return res.status(400).json({ code: 400, message: "idempotency key required" });
     u.balance += Number(req.body.balance || 0);
     ok(res, { balance: u.balance });
   });
-  app.post("/api/v1/keys", (req, res) => {
-    if (!String(req.headers.authorization).startsWith("Bearer jwt-")) {
-      return res.status(401).json({ code: 401, message: "user auth required" });
-    }
-    const k = { id: ++nextId, key: `sk-agent-${nextId}`, ...req.body };
-    keys.push(k);
-    ok(res, k);
+  // Liveness: full billing gate over the sk- key (balance>0, alive, found).
+  app.get("/v1/models", (req, res) => {
+    const key = String(req.headers.authorization || "").replace(/^Bearer /, "");
+    const owner = [...users.values()].find((u) => u.keys.some((k) => k.key === key));
+    if (!owner) return res.status(401).json({ code: "INVALID_KEY", message: "bad key" });
+    const rec = owner.keys.find((k) => k.key === key);
+    if (rec.dead) return res.status(403).json({ code: "KEY_DISABLED", message: "key disabled" });
+    if (owner.balance <= 0) return res.status(403).json({ code: "INSUFFICIENT_BALANCE", message: "Insufficient account balance" });
+    ok(res, { data: [{ id: "gpt-x" }] });
   });
+
   const server = http.createServer(app);
   return new Promise((resolve) => {
     server.listen(0, "127.0.0.1", () =>
-      resolve({ server, users, keys, seen, port: server.address().port })
+      resolve({ server, users, seen, addUser, addKey, byId, port: server.address().port })
     );
   });
 }
 
-test("client: ensure/mint/read/adjust over the stub; degraded without key", async () => {
+const wireTo = (stub) => (p, i) => fetch(`http://127.0.0.1:${stub.port}${p}`, i);
+
+test("client: email resolution, key ownership, liveness probe; degraded without key", async () => {
   const stub = await stubSub2api();
   try {
-    const c = createSub2apiClient({
-      baseUrl: `http://127.0.0.1:${stub.port}`,
-      adminKey: "admin-k",
-      fetchImpl: (p, i) => fetch(`http://127.0.0.1:${stub.port}${p}`, i),
-    });
+    const c = createSub2apiClient({ baseUrl: `http://127.0.0.1:${stub.port}`, adminKey: "admin-k", fetchImpl: wireTo(stub) });
     assert.deepEqual(await c.selfCheck(), { ok: true });
 
-    const first = await c.ensureDeployerUser("alice@x.test");
-    assert.equal(first.existed, false);
-    assert.match(first.username, /^paas-alice-x-test$/);
-    // Dedicated derivation: never the user's own email (collision guard).
-    assert.match(first.sub2apiEmail, /^paas-deployer\+alice-x-test@/);
-    const again = await c.ensureDeployerUser("alice@x.test");
-    assert.equal(again.existed, true);
-    assert.equal(again.userId, first.userId);
-    assert.equal(again.password, null, "existing accounts return no password");
+    // Resolution is by email and exact — a substring neighbor must not match.
+    const alice = stub.addUser("alice@x.test");
+    stub.addUser("alice@x.test.example.org");
+    const found = await c.findUserByEmail("alice@x.test");
+    assert.equal(found.userId, alice.id);
+    assert.equal(await c.findUserByEmail("nobody@x.test"), null);
 
-    const minted = await c.mintAgentKey({
-      email: first.sub2apiEmail, password: first.password, name: "pack-agent-x",
-      quotaUsd: 5, rl5hUsd: 1, rl1dUsd: 3, rl7dUsd: 10,
-    });
-    assert.ok(minted.key.startsWith("sk-agent-"));
-    assert.equal(stub.keys[0].quota, 5);
-    assert.equal(stub.keys[0].rate_limit_7d, 10);
+    // Ownership: a full key value resolves to exactly its holder.
+    const key = stub.addKey(alice);
+    const holder = await c.findUserByKey(key);
+    assert.equal(holder.userId, alice.id);
+    assert.equal(await c.findUserByKey("sk-not-a-real-key"), null);
 
-    await c.adjustBalance({ userId: first.userId, amountUsd: 2, idempotencyKey: "idem-1" });
-    const u = await c.readUser(first.userId);
-    assert.equal(u.balance, 2);
+    // Liveness mirrors the real gate: dead → code, broke → code, funded → ok.
+    stub.addKey(alice, { dead: true });
+    const deadKey = alice.keys.at(-1).key;
+    const dead = await c.probeKeyLiveness(deadKey);
+    assert.equal(dead.ok, false);
+    assert.equal(dead.code, "KEY_DISABLED");
+    const broke = await c.probeKeyLiveness(key);
+    assert.equal(broke.code, "INSUFFICIENT_BALANCE");
+    alice.balance = 5;
+    assert.deepEqual(
+      { ok: (await c.probeKeyLiveness(key)).ok },
+      { ok: true },
+    );
 
     // Degraded mode: no key → selfCheck explains, admin calls not attempted.
     const d = createSub2apiClient({ baseUrl: `http://127.0.0.1:${stub.port}`, adminKey: "" });
@@ -127,10 +151,9 @@ test("client: ensure/mint/read/adjust over the stub; degraded without key", asyn
   }
 });
 
-// ── deploy integration (tasks 2.2/2.3): gate, mint, reference, distribution ──
+// ── deploy integration: gate, paste, reference, distribution, lifecycle ─────
 
 import { createPackRegistry, registerPackRoutes } from "../gateway/packs.js";
-import { listServingAgents } from "../lib/agent-serving.js";
 
 function stubRegistryWire() {
   const skills = new Map();
@@ -182,10 +205,10 @@ const MANIFEST = {
   agents: [{ id: "bill-agent", name: "B", persona: "p", serving: { protocol: "a2a" } }],
 };
 
-async function harness({ user, sub2api, getUser }) {
+async function harness({ user, sub2api, getUser, manifest = MANIFEST }) {
   const file = path.join(tmpRoot, `packs-${Math.random().toString(36).slice(2)}.db`);
   const registry = createPackRegistry({ file });
-  const { id } = registry.publish({ email: "author@x", manifest: MANIFEST });
+  const { id } = registry.publish({ email: "author@x", manifest });
   const app = express();
   const wire = stubRegistryWire();
   registerPackRoutes(app, {
@@ -213,11 +236,13 @@ async function harness({ user, sub2api, getUser }) {
   };
 }
 
-test("deploy: no sub2api config degrades to keyless (pre-③ behavior)", async () => {
+test("deploy: no sub2api config degrades to keyless; pasted keys are ignored", async () => {
   const h = await harness({ user: { email: "author@x", groups: [] } });
   try {
-    const res = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`);
-    assert.equal(res.status, 200);
+    const res = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, {
+      body: { billingKeys: { "bill-agent": "sk-whatever" } },
+    });
+    assert.equal(res.status, 200, JSON.stringify(res.body));
     assert.equal(res.body.billing.linked, false);
     assert.equal(res.body.deployed[0].billingKeyRef, undefined);
     assert.equal(h.wire.calls.agents[0].body.metadata.billing_key_ref, undefined);
@@ -226,41 +251,188 @@ test("deploy: no sub2api config degrades to keyless (pre-③ behavior)", async (
   }
 });
 
-test("deploy: balance gate 402; linked deploy mints, references, and distributes", async () => {
-  // One harness (one registry), one stub sub2api; the deployer starts broke,
-  // gets recharged, and redeploys — the account's stored password persists in
-  // the SAME registry, exactly like the real flow.
+test("deploy paste flow: no-account 402, key gate, four-layer validation, happy path, distribution", async () => {
   const stub = await stubSub2api();
-  let user = { email: "broke@x", groups: ["creators"] };
-  const h = await harness({ user, sub2api: { baseUrl: `http://127.0.0.1:${stub.port}`, fetchImpl: (p, i) => fetch(`http://127.0.0.1:${stub.port}${p}`, i) }, getUser: () => user });
+  const user = { email: "deployer@x", groups: ["creators"] };
+  const h = await harness({
+    user,
+    sub2api: { baseUrl: `http://127.0.0.1:${stub.port}`, fetchImpl: wireTo(stub) },
+  });
   try {
-    const refused = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`);
-    assert.equal(refused.status, 402, JSON.stringify(refused.body));
-    assert.ok(refused.body.error.includes("balance"));
+    const deploy = (body) => h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, { body });
 
-    const funded = await (await import("../lib/sub2api-admin.js")).createSub2apiClient({
-      baseUrl: `http://127.0.0.1:${stub.port}`, adminKey: "admin-k",
-      fetchImpl: (p, i) => fetch(`http://127.0.0.1:${stub.port}${p}`, i),
-    });
-    // The platform created the DEDICATED account under the derived email.
-    const derivedRow = [...stub.users.values()].find((u) => u.email.startsWith("paas-deployer+broke-x@"));
-    await funded.adjustBalance({ userId: derivedRow.id, amountUsd: 10, idempotencyKey: "fund-1" });
+    // No sub2api account for the deployer's email → structured 402 + panel.
+    const noAccount = await deploy({});
+    assert.equal(noAccount.status, 402, JSON.stringify(noAccount.body));
+    assert.equal(noAccount.body.code, "NO_SUB2API_ACCOUNT");
+    assert.ok(noAccount.body.panelUrl, "panel URL present");
+    // billing/me agrees before any account exists: three-state contract.
+    const preReadout = await h.call("GET", "/api/packs/billing/me");
+    assert.equal(preReadout.body.linked, true);
+    assert.equal(preReadout.body.accountState, "none");
+    assert.equal(preReadout.body.balance, null);
 
-    const res = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`);
+    // Create the deployer's REAL account (as a panel SSO would) + fund it.
+    const me = stub.addUser("deployer@x");
+    const admin = createSub2apiClient({ baseUrl: `http://127.0.0.1:${stub.port}`, adminKey: "admin-k", fetchImpl: wireTo(stub) });
+    await admin.adjustBalance({ userId: me.id, amountUsd: 10, idempotencyKey: "fund-1" });
+
+    // Funded but keyless serving deploy → refused, no shared-quota fallback.
+    const required = await deploy({});
+    assert.equal(required.status, 400, JSON.stringify(required.body));
+    assert.equal(required.body.code, "BILLING_KEY_REQUIRED");
+
+    // Validation matrix, cheap layers first.
+    const badShape = await deploy({ billingKeys: { "bill-agent": "not-a-key" } });
+    assert.equal(badShape.body.code, "BILLING_KEY_INVALID");
+    assert.equal(badShape.body.reason, "shape");
+    const unknownAgent = await deploy({ billingKeys: { "no-such-agent": "sk-x-1" } });
+    assert.equal(unknownAgent.body.reason, "unknown-agent");
+
+    const myKey = stub.addKey(me);
+    // A dead key (mine) fails liveness.
+    stub.addKey(me, { dead: true });
+    const deadKey = me.keys.at(-1).key;
+    const dead = await deploy({ billingKeys: { "bill-agent": deadKey } });
+    assert.equal(dead.body.reason, "liveness");
+    // A live key owned by SOMEONE ELSE fails ownership.
+    const stranger = stub.addUser("stranger@x");
+    stranger.balance = 9;
+    const foreignKey = stub.addKey(stranger);
+    const foreign = await deploy({ billingKeys: { "bill-agent": foreignKey } });
+    assert.equal(foreign.body.reason, "ownership");
+
+    // Happy path: funded + my live key → bound, referenced, distributed.
+    const res = await deploy({ billingKeys: { "bill-agent": myKey } });
     assert.equal(res.status, 200, JSON.stringify(res.body));
     assert.equal(res.body.billing.linked, true);
     const ref = res.body.deployed[0].billingKeyRef;
-    assert.ok(ref != null, "key reference returned");
-    const meta = JSON.stringify(h.wire.calls.agents[0].body.metadata);
+    assert.match(ref, /^pk_/);
+    const meta = JSON.stringify(h.wire.calls.agents.at(-1).body.metadata);
     assert.ok(meta.includes("billing_key_ref"));
-    assert.ok(!meta.includes("sk-agent-"), "no key value on the registry");
+    assert.ok(!meta.includes(myKey), "no key value on the registry");
 
     const noauth = await h.call("GET", `/api/packs/internal/llm-key/${ref}`);
     assert.equal(noauth.status, 401);
     const ok = await h.call("GET", `/api/packs/internal/llm-key/${ref}`, { headers: { Authorization: "Bearer runner-svc-token" } });
     assert.equal(ok.status, 200);
-    assert.ok(ok.body.keyValue.startsWith("sk-agent-"));
+    assert.equal(ok.body.keyValue, myKey);
     assert.equal(ok.body.agentId, "bill-agent");
+
+    // billing/me reflects the resolved account; bindings report bound=true.
+    const meReadout = await h.call("GET", "/api/packs/billing/me");
+    assert.equal(meReadout.body.linked, true);
+    assert.equal(meReadout.body.accountState, "ok");
+    assert.equal(meReadout.body.balance, 10);
+    const bindings = await h.call("GET", `/api/packs/${h.packId}/billing-bindings`);
+    assert.equal(bindings.status, 200);
+    assert.deepEqual(bindings.body, { "bill-agent": true });
+
+    // Redeploy WITHOUT keys keeps the binding (revalidated) and reuses the ref.
+    const keep = await deploy({});
+    assert.equal(keep.status, 200, JSON.stringify(keep.body));
+    assert.equal(keep.body.deployed[0].billingKeyRef, ref, "same opaque reference rides");
+
+    // The kept key dies → the NEXT redeploy refuses with replace guidance.
+    me.keys.find((k) => k.key === myKey).dead = true;
+    const keptDead = await deploy({});
+    assert.equal(keptDead.status, 400, JSON.stringify(keptDead.body));
+    assert.equal(keptDead.body.code, "BILLING_KEY_INVALID");
+    assert.equal(keptDead.body.reason, "liveness");
+
+    // Replace with a fresh key → bound again under a NEW reference.
+    me.balance += 5;
+    const fresh = stub.addKey(me);
+    const replace = await deploy({ billingKeys: { "bill-agent": fresh } });
+    assert.equal(replace.status, 200, JSON.stringify(replace.body));
+    assert.notEqual(replace.body.deployed[0].billingKeyRef, ref);
+    const ok2 = await h.call("GET", `/api/packs/internal/llm-key/${replace.body.deployed[0].billingKeyRef}`, { headers: { Authorization: "Bearer runner-svc-token" } });
+    assert.equal(ok2.body.keyValue, fresh);
+
+    // Explicit null on a serving agent is refused — keys are replaced, not removed.
+    const nullRefusal = await deploy({ billingKeys: { "bill-agent": null } });
+    assert.equal(nullRefusal.status, 400);
+    assert.equal(nullRefusal.body.code, "BILLING_KEY_REQUIRED");
+  } finally {
+    await h.close();
+    stub.server.close();
+  }
+});
+
+test("deploy paste flow: one key cannot bind two agents of the same pack", async () => {
+  const stub = await stubSub2api();
+  const TWO = {
+    ...MANIFEST,
+    agents: [
+      { id: "a1", name: "A1", persona: "p", serving: { protocol: "a2a" } },
+      { id: "a2", name: "A2", persona: "p", serving: { protocol: "a2a" } },
+    ],
+  };
+  const user = { email: "multi@x", groups: ["creators"] };
+  const h = await harness({
+    user, manifest: TWO,
+    sub2api: { baseUrl: `http://127.0.0.1:${stub.port}`, fetchImpl: wireTo(stub) },
+  });
+  try {
+    const me = stub.addUser("multi@x");
+    me.balance = 10;
+    const k1 = stub.addKey(me);
+    const k2 = stub.addKey(me);
+    // Same value twice → duplicate, refused before any probe/binding.
+    const dup = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, {
+      body: { billingKeys: { a1: k1, a2: k1 } },
+    });
+    assert.equal(dup.status, 400, JSON.stringify(dup.body));
+    assert.equal(dup.body.reason, "duplicate");
+    // Distinct keys → both agents bound.
+    const ok = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, {
+      body: { billingKeys: { a1: k1, a2: k2 } },
+    });
+    assert.equal(ok.status, 200, JSON.stringify(ok.body));
+    assert.match(ok.body.deployed[0].billingKeyRef, /^pk_/);
+    assert.match(ok.body.deployed[1].billingKeyRef, /^pk_/);
+    assert.notEqual(ok.body.deployed[0].billingKeyRef, ok.body.deployed[1].billingKeyRef);
+  } finally {
+    await h.close();
+    stub.server.close();
+  }
+});
+
+test("binding lifecycle: an agent that stops serving drops its stale binding", async () => {
+  const stub = await stubSub2api();
+  const user = { email: "stale@x", groups: ["creators"] };
+  const TWO = {
+    ...MANIFEST,
+    agents: [
+      { id: "a1", name: "A1", persona: "p", serving: { protocol: "a2a" } },
+      { id: "a2", name: "A2", persona: "p", serving: { protocol: "a2a" } },
+    ],
+  };
+  const h = await harness({ user, manifest: TWO, sub2api: { baseUrl: `http://127.0.0.1:${stub.port}`, fetchImpl: wireTo(stub) } });
+  try {
+    const me = stub.addUser("stale@x");
+    me.balance = 10;
+    const k1 = stub.addKey(me);
+    const k2 = stub.addKey(me);
+    // v1: both serving agents bound (distinct keys).
+    const v1 = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, { body: { billingKeys: { a1: k1, a2: k2 } } });
+    assert.equal(v1.status, 200, JSON.stringify(v1.body));
+    assert.equal(h.registry.deploymentKeysForPack(h.packId).length, 2);
+    // v2: a2's serving contract is gone; a1 keeps serving.
+    h.registry.publishVersion({
+      email: "author@x", id: h.packId,
+      manifest: { ...MANIFEST, agents: [TWO.agents[0], { id: "a2", name: "A2", persona: "p" }] },
+    });
+    // Redeploy with no keys: a1's binding is kept, a2's stale binding dropped.
+    const v2 = await h.call("POST", `/api/packs/${h.packId}/versions/2/deploy`, { body: {} });
+    assert.equal(v2.status, 200, JSON.stringify(v2.body));
+    const after = h.registry.deploymentKeysForPack(h.packId);
+    assert.equal(after.length, 1, "stale binding dropped, kept one survives");
+    assert.equal(after[0].agentId, "a1");
+    // Null for the now-non-serving agent with nothing left to clear is refused.
+    const nullClear = await h.call("POST", `/api/packs/${h.packId}/versions/2/deploy`, { body: { billingKeys: { a2: null } } });
+    assert.equal(nullClear.status, 400, JSON.stringify(nullClear.body));
+    assert.equal(nullClear.body.reason, "unknown-agent");
   } finally {
     await h.close();
     stub.server.close();
@@ -320,6 +492,7 @@ test("private pack: owner sees and deploys; strangers 404 everywhere; admin sees
     }
     assert.equal((await call("POST", `/api/packs/${privId}/subscribe`)).status, 404);
     assert.equal((await call("POST", `/api/packs/${privId}/versions/1/deploy`)).status, 404);
+    assert.equal((await call("GET", `/api/packs/${privId}/billing-bindings`)).status, 404, "bindings hidden too");
     assert.equal((await call("POST", `/api/packs/${pubId}/subscribe`)).status, 200, "public still subscribable");
 
     // Admin: sees the private pack and can deploy it.

@@ -910,7 +910,21 @@
       "private": "非公開",
       "balance": "残高：{{balance}}",
       "balanceUnknown": "残高不明（初回デプロイ時に確立）",
-      "balanceLow": "残高不足 — デプロイは拒否されます。運営に連絡してチャージしてください。"
+      "balanceLow": "残高不足 — デプロイは拒否されます。運営に連絡してチャージしてください。",
+      "noAccountHintNew": "課金アカウントがまだありません —「sub2api に接続」で Logto SSO ログインするだけで自動作成されます。パネルでキーを作成し、下に貼り付けてください。",
+      "noAccountHintExisting": "以前からゲートウェイのユーザーですか？SSO が既存アカウントと紐付けます — パネルが元のパネル用パスワードを一度だけ求めます。",
+      "connectPanel": "sub2api に接続",
+      "keyPasteLabel": "@{{id}} の従量キー — パネルで作成してここに貼り付け",
+      "keyPastePlaceholder": "sk-…",
+      "keyBoundBadge": "キー設定済み",
+      "keyRequired": "このパックは Agent を提供中です — 各 Agent に課金パネル（Logto ログイン）で作成した従量キーを上に貼り付けてください。",
+      "keyInvalid": {
+        "shape": "sub2api のキーではないようです（sk- で始まる必要があります）。",
+        "unknown-agent": "このパックの提供 Agent ではないロールにキーが貼り付けられました。",
+        "duplicate": "1 つのキーを同じパックの 2 つの Agent に使うことはできません — パネルで Agent ごとに作成してください。",
+        "liveness": "課金パネルがそのキーを拒否しました（削除・無効化・残高切れ）— パネルで再作成してください。",
+        "ownership": "そのキーは別の sub2api アカウントのものです — 自分のアカウントで作成したキーを貼り付けてください。"
+      }
     },
     "report": {
       "title": "「{{name}}」のインストール結果",

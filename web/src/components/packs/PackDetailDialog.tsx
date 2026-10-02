@@ -38,15 +38,23 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
   // Deployer rhythm overrides (add-agent-residency D7): agentId → entries.
   const [overrides, setOverrides] = useState<Record<string, RhythmEntry[]>>({});
   const [pauseBusy, setPauseBusy] = useState<string | null>(null);
-  // Billing readout (add-agent-platform-ops D3): linked ⇒ show the balance
-  // with a low-balance warning; unlinked ⇒ no readout, no gate.
-  const [billing, setBilling] = useState<{ linked: boolean; balance: number | null } | null>(null);
+  // Billing readout (add-agent-platform-ops D3; revised by
+  // revise-billing-key-acquisition): linked + accountState drives the deploy
+  // surface — "none" shows the SSO connect guidance, "ok" shows the balance
+  // and the per-agent key paste inputs; unlinked shows no readout, no gate.
+  const [billing, setBilling] = useState<api.MyBillingState | null>(null);
+  // Serving agentId → whether a key is already bound (booleans only).
+  const [bindings, setBindings] = useState<Record<string, boolean> | null>(null);
+  // Paste inputs, serving agentId → drafted key (never echoed back).
+  const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setPack(null);
     setError(null);
     setDeployments([]);
     setDeployNote(null);
+    setBindings(null);
+    setKeyDrafts({});
     if (!packId) return;
     api
       .getPack(packId)
@@ -57,9 +65,13 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
       .then((d) => setDeployments(d.deployments ?? []))
       .catch(() => setDeployments([])); // deployments route absent = nothing deployed
     api
-      .myBillingBalance()
+      .myBillingState()
       .then(setBilling)
       .catch(() => setBilling(null));
+    api
+      .getBillingBindings(packId)
+      .then(setBindings)
+      .catch(() => setBindings(null)); // bindings route absent = pre-revise gateway
   }, [packId]);
 
   const subscribe = async () => {
@@ -92,12 +104,38 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
         const valid = (entries ?? []).filter(rhythmEntryValid);
         if (valid.length > 0) rhythms[agentId] = valid;
       }
-      const out = await api.deployPack(packId, pack.version, Object.keys(rhythms).length > 0 ? rhythms : undefined);
+      // Pasted keys (revise-billing-key-acquisition): non-empty drafts only —
+      // omitted agents keep their existing binding (absent=keep).
+      const billingKeys: Record<string, string> = {};
+      for (const a of servingAgents) {
+        const draft = (keyDrafts[a.id] ?? "").trim();
+        if (draft) billingKeys[a.id] = draft;
+      }
+      const out = await api.deployPack(
+        packId,
+        pack.version,
+        Object.keys(rhythms).length > 0 ? rhythms : undefined,
+        Object.keys(billingKeys).length > 0 ? billingKeys : undefined,
+      );
       const d = await api.getPackDeployments(packId);
       setDeployments(d.deployments ?? []);
+      setKeyDrafts({});
+      api.getBillingBindings(packId).then(setBindings).catch(() => {});
       setDeployNote(t("packs.detail.deployEffective", { minutes: Math.ceil(out.effectiveWithinSecs / 60) }));
     } catch (err) {
-      setError((err as Error).message);
+      const e = err as Error & { body?: { code?: string; reason?: string } };
+      const code = e.body?.code;
+      if (code === "BILLING_KEY_INVALID") {
+        setError(t(`packs.detail.keyInvalid.${e.body?.reason ?? "liveness"}`, { defaultValue: e.message }));
+      } else if (code === "BILLING_KEY_REQUIRED") {
+        setError(t("packs.detail.keyRequired", { defaultValue: e.message }));
+      } else {
+        setError(e.message);
+      }
+      // A 402 no-account answer may race the open-time readout: refresh.
+      if (code === "NO_SUB2API_ACCOUNT" || code === "INSUFFICIENT_BALANCE") {
+        api.myBillingState().then(setBilling).catch(() => {});
+      }
     } finally {
       setDeploying(false);
     }
@@ -221,7 +259,22 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
             {servingAgents.length > 0 && (
               <section className="border border-border rounded-md p-3" data-testid="pack-deploy-section">
                 <h4 className="font-medium mb-2">{t("packs.detail.deployTitle")}</h4>
-                {billing?.linked && (
+                {billing?.linked && billing.accountState === "none" && (
+                  <div className="text-xs mb-2 rounded-md px-2 py-2 bg-amber-500/10 text-amber-700" data-testid="pack-billing-no-account">
+                    <p>{t("packs.detail.noAccountHintNew")}</p>
+                    <p className="mt-1 text-muted-foreground">{t("packs.detail.noAccountHintExisting")}</p>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mt-2 h-7 px-2 text-xs"
+                      onClick={() => billing.panelUrl && window.open(billing.panelUrl, "_blank", "noopener")}
+                      data-testid="pack-billing-connect"
+                    >
+                      {t("packs.detail.connectPanel")}
+                    </Button>
+                  </div>
+                )}
+                {billing?.linked && billing.accountState === "ok" && (
                   <div
                     data-testid="pack-billing-readout"
                     className={`text-xs mb-2 rounded-md px-2 py-1 ${billing.balance != null && billing.balance <= 1 ? "bg-amber-500/10 text-amber-700" : "text-muted-foreground"}`}
@@ -232,6 +285,37 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                     {billing.balance != null && billing.balance <= 1 && (
                       <span className="block">{t("packs.detail.balanceLow")}</span>
                     )}
+                  </div>
+                )}
+                {billing?.linked && billing.accountState === "ok" && (
+                  <div className="mb-2 space-y-2">
+                    {servingAgents.map((a) => (
+                      <div key={a.id} data-testid={`pack-billing-key-${a.id}`}>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-muted-foreground">
+                            {t("packs.detail.keyPasteLabel", { id: a.id })}
+                          </p>
+                          {bindings?.[a.id] && (
+                            <span
+                              className="rounded-md border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"
+                              data-testid={`pack-billing-bound-${a.id}`}
+                            >
+                              {t("packs.detail.keyBoundBadge")}
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          type="text"
+                          className="mt-1 w-full rounded-md border border-border bg-transparent px-2 py-1 font-mono text-xs"
+                          placeholder={t("packs.detail.keyPastePlaceholder")}
+                          value={keyDrafts[a.id] ?? ""}
+                          onChange={(e) => setKeyDrafts((d) => ({ ...d, [a.id]: e.target.value }))}
+                          autoComplete="off"
+                          spellCheck={false}
+                          data-testid={`pack-billing-key-input-${a.id}`}
+                        />
+                      </div>
+                    ))}
                   </div>
                 )}
                 {servingAgents.map((a) => (

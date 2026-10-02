@@ -910,7 +910,21 @@
       "private": "Private",
       "balance": "Balance: {{balance}}",
       "balanceUnknown": "Balance unknown (established at first deploy)",
-      "balanceLow": "Balance low — deploys will be refused; contact the operator to recharge."
+      "balanceLow": "Balance low — deploys will be refused; contact the operator to recharge.",
+      "noAccountHintNew": "No billing account yet — one click on \"Connect sub2api\" signs you in (Logto SSO) and creates your account automatically; create a key in the panel, then paste it below.",
+      "noAccountHintExisting": "Had a gateway account before? SSO links it — the panel asks for your original panel password once.",
+      "connectPanel": "Connect sub2api",
+      "keyPasteLabel": "Metered key for @{{id}} — create it in the panel, paste here",
+      "keyPastePlaceholder": "sk-…",
+      "keyBoundBadge": "key bound",
+      "keyRequired": "This pack serves agents — each needs a metered key from your billing panel (Logto sign-in), pasted above.",
+      "keyInvalid": {
+        "shape": "That key doesn't look like a sub2api key (must start with sk-).",
+        "unknown-agent": "A key was pasted for an agent that isn't a serving agent of this pack.",
+        "duplicate": "One key can't serve two agents of the same pack — create one per agent in the panel.",
+        "liveness": "The billing panel refused that key (dead, disabled, or out of quota) — create a fresh one in the panel.",
+        "ownership": "That key belongs to a different sub2api account — paste a key created under your own account."
+      }
     },
     "report": {
       "title": "Install result for “{{name}}”",

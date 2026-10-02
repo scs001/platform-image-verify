@@ -910,7 +910,21 @@
       "private": "Privado",
       "balance": "Saldo: {{balance}}",
       "balanceUnknown": "Saldo desconocido (se establece al primer despliegue)",
-      "balanceLow": "Saldo bajo — los despliegues se rechazarán; contacta al operador para recargar."
+      "balanceLow": "Saldo bajo — los despliegues se rechazarán; contacta al operador para recargar.",
+      "noAccountHintNew": "Aún no tienes cuenta de facturación — un clic en «Conectar sub2api» inicia sesión (SSO Logto) y crea tu cuenta automáticamente; crea una clave en el panel y pégala abajo.",
+      "noAccountHintExisting": "¿Ya eras usuario de la pasarela? El SSO vincula tu cuenta existente — el panel pedirá una sola vez tu contraseña original.",
+      "connectPanel": "Conectar sub2api",
+      "keyPasteLabel": "Clave de medición para @{{id}} — créala en el panel y pégala aquí",
+      "keyPastePlaceholder": "sk-…",
+      "keyBoundBadge": "clave vinculada",
+      "keyRequired": "Este paquete sirve agentes — cada uno necesita una clave de medición creada en tu panel de facturación (inicio Logto), pegada arriba.",
+      "keyInvalid": {
+        "shape": "Eso no parece una clave de sub2api (debe empezar por sk-).",
+        "unknown-agent": "Se pegó una clave para un rol que no es agente de servicio de este paquete.",
+        "duplicate": "Una clave no puede servir a dos agentes del mismo paquete — crea una por agente en el panel.",
+        "liveness": "El panel de facturación rechazó esa clave (eliminada, deshabilitada o sin cuota) — créala de nuevo en el panel.",
+        "ownership": "Esa clave pertenece a otra cuenta de sub2api — pega una clave creada en tu propia cuenta."
+      }
     },
     "report": {
       "title": "Resultado de instalación de «{{name}}»",

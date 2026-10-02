@@ -81,21 +81,18 @@ export function createPackRegistry({ file }) {
     PRIMARY KEY (pack_id, agent_id)
   )`);
 
-  // Platform billing (add-agent-platform-ops D1/D2): the deployer→sub2api
-  // account mapping (the platform-held password exists only for accounts the
-  // platform created), and the per-agent metered keys (value stored ONCE —
-  // sub2api keeps only a hash; the runner fetches values by reference).
+  // Platform billing (add-agent-platform-ops D1/D2; revised by
+  // revise-billing-key-acquisition): the deployer→sub2api account mapping is
+  // identity + account id only — the legacy password column is kept for
+  // schema compatibility but never written or read. Per-agent metered keys
+  // store the value ONCE (sub2api keeps only a hash); the runner fetches
+  // values by reference.
   db.exec(`CREATE TABLE IF NOT EXISTS sub2api_accounts (
     email TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL,
     password TEXT,
     created_at INTEGER NOT NULL
   )`);
-  // add-agent-platform-ops fix: the platform-side mint login needs the
-  // DEDICATED sub2api email (paas-deployer+…), stored beside the identity.
-  try {
-    db.exec(`ALTER TABLE sub2api_accounts ADD COLUMN sub2api_email TEXT`);
-  } catch { /* column already present */ }
   db.exec(`CREATE TABLE IF NOT EXISTS deployment_keys (
     pack_id TEXT NOT NULL,
     agent_id TEXT NOT NULL,
@@ -318,13 +315,11 @@ export function createPackRegistry({ file }) {
     billingAccount(email) {
       return db.prepare(`SELECT * FROM sub2api_accounts WHERE email = ?`).get(email) ?? null;
     },
-    saveBillingAccount({ email, userId, password, sub2apiEmail }) {
+    saveBillingAccount({ email, userId }) {
       db.prepare(
-        `INSERT INTO sub2api_accounts (email, user_id, password, created_at, sub2api_email) VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(email) DO UPDATE SET user_id = excluded.user_id,
-           password = COALESCE(excluded.password, sub2api_accounts.password),
-           sub2api_email = COALESCE(excluded.sub2api_email, sub2api_accounts.sub2api_email)`,
-      ).run(email, userId, password, Date.now(), sub2apiEmail ?? null);
+        `INSERT INTO sub2api_accounts (email, user_id, created_at) VALUES (?, ?, ?)
+         ON CONFLICT(email) DO UPDATE SET user_id = excluded.user_id`,
+      ).run(email, userId, Date.now());
     },
     recordDeploymentKey({ packId, agentId, keyRef, keyValue, deployer }) {
       // keyRef normalizes to string: sub2api ids arrive as numbers, route
@@ -339,6 +334,15 @@ export function createPackRegistry({ file }) {
     deploymentKeyByRef(keyRef) {
       const r = db.prepare(`SELECT * FROM deployment_keys WHERE key_ref = ?`).get(String(keyRef));
       return r ? { agentId: r.agent_id, packId: r.pack_id, keyValue: r.key_value, deployer: r.deployer } : null;
+    },
+    // The pack's full binding set (paste-flow lifecycle bookkeeping): the
+    // deploy route keeps, replaces, and drops entries against this snapshot.
+    deploymentKeysForPack(packId) {
+      return db.prepare(`SELECT pack_id, agent_id, key_ref, key_value, deployer FROM deployment_keys WHERE pack_id = ?`).all(packId)
+        .map((r) => ({ packId: r.pack_id, agentId: r.agent_id, keyRef: r.key_ref, keyValue: r.key_value, deployer: r.deployer }));
+    },
+    deleteDeploymentKey(packId, agentId) {
+      db.prepare(`DELETE FROM deployment_keys WHERE pack_id = ? AND agent_id = ?`).run(packId, agentId);
     },
     listDeploymentKeys() {
       return db.prepare(`SELECT pack_id, agent_id, key_ref, deployer, created_at FROM deployment_keys`).all()
@@ -543,75 +547,163 @@ export function registerPackRoutes(app, {
         }
       }
     }
-    // ── Platform billing linkage (add-agent-platform-ops D1–D3) ──────────
+    // ── Platform billing linkage (add-agent-platform-ops D1–D3; revised by
+    // revise-billing-key-acquisition) ─────────────────────────────────────
     // Degrades to the pre-③ behavior when no admin key is wired: no gate,
-    // no per-agent keys — deploy proceeds on the runner's shared quota.
-    const sub2api = cfg.sub2api
-      ? createSub2apiClient(cfg.sub2api)
-      : null;
+    // no keys — any pasted billingKeys are IGNORED (logged, never silent)
+    // and the deploy proceeds on the runner's shared quota.
+    // Linked, keys arrive FROM the deployer (paste flow): body.billingKeys
+    // maps agentId → "sk-…" (minted by the deployer in their own panel
+    // session via Logto SSO) or null (unbind — non-serving agents only).
+    // Every serving agent MUST end up bound: no shared-quota fallback. The
+    // platform never holds a sub2api password.
+    const sub2api = cfg.sub2api ? createSub2apiClient(cfg.sub2api) : null;
+    const panelUrl = process.env.SUB2API_PANEL_URL || "https://token.finddatatech.cloud";
     let billing = { linked: false };
-    let billingKeys = {};
+    let billingKeys = {}; // agentId → pk_ reference (descriptor carries these)
     const billingKeyValues = new Map(); // keyRef → plaintext (never logged)
+    const servingIds = new Set((version.manifest.agents ?? []).filter((a) => a?.serving).map((a) => a.id));
+    const providedKeys = req.body?.billingKeys;
+    const keyInvalid = (reason, detail) =>
+      res.status(400).json({
+        error: `billing key rejected (${reason})${detail ? `: ${detail}` : ""}`,
+        code: "BILLING_KEY_INVALID",
+        reason,
+      });
+    if (providedKeys !== undefined && (!providedKeys || typeof providedKeys !== "object" || Array.isArray(providedKeys))) {
+      return res.status(400).json({ error: "billingKeys must map agentId to an sk-… key or null" });
+    }
     if (sub2api && !sub2api.degraded()) {
       const check = await sub2api.selfCheck();
       if (!check.ok) {
         console.warn(`[packs] sub2api self-check failed — billing degraded: ${check.reason}`);
+        if (providedKeys && Object.keys(providedKeys).length > 0) {
+          console.warn("[packs] billing degraded — ignoring pasted billingKeys for this deploy");
+        }
       } else {
-        let account = registry.billingAccount(user.email);
-        let ensured;
+        let account = null;
         try {
-          ensured = await sub2api.ensureDeployerUser(user.email);
+          account = await sub2api.findUserByEmail(user.email);
         } catch (err) {
           return res.status(502).json({ error: `billing account check failed: ${err.message}` });
         }
-        const sub2apiEmail = account?.sub2api_email ?? ensured.sub2apiEmail ?? null;
-        if (!account || account.user_id !== ensured.userId || (ensured.password && !account.password) || (sub2apiEmail && account.sub2api_email !== sub2apiEmail)) {
-          registry.saveBillingAccount({ email: user.email, userId: ensured.userId, password: ensured.password ?? null, sub2apiEmail });
-          account = registry.billingAccount(user.email);
+        if (!account) {
+          return res.status(402).json({
+            error: "no sub2api account for your email yet — sign in once via Logto at the billing panel to create it, then retry",
+            code: "NO_SUB2API_ACCOUNT",
+            panelUrl,
+          });
         }
+        registry.saveBillingAccount({ email: user.email, userId: account.userId });
         const floor = Number(process.env.DEPLOY_BALANCE_FLOOR ?? 0.5);
         let balance;
         try {
-          balance = (await sub2api.readUser(ensured.userId)).balance;
+          balance = (await sub2api.readUser(account.userId)).balance;
         } catch (err) {
           return res.status(502).json({ error: `billing balance read failed: ${err.message}` });
         }
         if (balance <= floor) {
           return res.status(402).json({
             error: `insufficient balance (${balance.toFixed(2)}) — the deploy gate needs more than ${floor}. Recharge path: contact the operator.`,
+            code: "INSUFFICIENT_BALANCE",
             balance,
             floor,
           });
         }
-        // Mint one metered key per serving agent (before the registry push so
-        // the descriptor can carry the reference). The plaintext lands ONLY
-        // in the platform's deployment_keys store.
-        const quota = Number(process.env.AGENT_KEY_QUOTA_USD ?? 5);
-        const rl5h = Number(process.env.AGENT_KEY_RL_5H_USD ?? 1);
-        const rl1d = Number(process.env.AGENT_KEY_RL_1D_USD ?? 3);
-        const rl7d = Number(process.env.AGENT_KEY_RL_7D_USD ?? 10);
-        if (account.password && account.sub2api_email) {
-          for (const agent of version.manifest.agents ?? []) {
-            if (!agent?.serving) continue;
-            try {
-              const m = await sub2api.mintAgentKey({
-                email: account.sub2api_email,
-                password: account.password,
-                name: `${id}/${agent.id}`,
-                quotaUsd: quota, rl5hUsd: rl5h, rl1dUsd: rl1d, rl7dUsd: rl7d,
-              });
-              const ref = m.keyId ?? m.key;
-              billingKeys[agent.id] = ref;
-              billingKeyValues.set(ref, m.key);
-            } catch (err) {
-              return res.status(502).json({ error: `billing key mint failed for ${agent.id}: ${err.message}` });
-            }
-          }
-        } else {
-          console.warn(`[packs] no stored password for ${user.email}'s sub2api account — deploying without per-agent keys`);
-        }
         billing = { linked: true, balance, floor };
+
+        // Binding lifecycle (design D3): explicit null unbinds — non-serving
+        // agents only, a serving key can only be replaced; omission keeps the
+        // existing binding (revalidated below); bindings for agents that no
+        // longer serve are dropped with the redeploy.
+        const existing = new Map(registry.deploymentKeysForPack(id).map((k) => [k.agentId, k]));
+        for (const [agentId, value] of Object.entries(providedKeys ?? {})) {
+          if (!servingIds.has(agentId)) {
+            if (value === null && existing.has(agentId)) {
+              registry.deleteDeploymentKey(id, agentId);
+              continue;
+            }
+            return keyInvalid("unknown-agent", agentId);
+          }
+          if (value === null) {
+            return res.status(400).json({
+              error: `billingKeys.${agentId}: a serving agent's key can only be replaced, not removed`,
+              code: "BILLING_KEY_REQUIRED",
+            });
+          }
+        }
+        for (const agentId of existing.keys()) {
+          if (!servingIds.has(agentId)) registry.deleteDeploymentKey(id, agentId);
+        }
+
+        // Kept bindings: serving agents absent from this request ride their
+        // existing reference into the new descriptor — after a liveness
+        // revalidation (below, once the cheap layers passed). A dead kept key
+        // refuses the deploy with replace guidance (the paste flow cannot
+        // re-deliver an old value: the platform never echoes key values back).
+        const kept = new Map();
+        for (const agentId of servingIds) {
+          if (providedKeys && Object.prototype.hasOwnProperty.call(providedKeys, agentId)) continue;
+          const k = existing.get(agentId);
+          if (k?.keyValue) kept.set(agentId, k);
+        }
+
+        // Pasted keys: shape first (cheap), then duplicates — the network
+        // layers (liveness → ownership) run last, each a short-circuit
+        // (design D2).
+        const pasted = new Map();
+        for (const [agentId, key] of Object.entries(providedKeys ?? {})) {
+          if (!servingIds.has(agentId) || key === null) continue;
+          if (typeof key !== "string" || !/^sk-/.test(key) || key.length > 256) {
+            return keyInvalid("shape", `billingKeys.${agentId} must be a sub2api key (sk-…)`);
+          }
+          pasted.set(agentId, key);
+        }
+        const seenValues = [...kept.values()].map((k) => k.keyValue);
+        for (const key of pasted.values()) {
+          if (seenValues.includes(key)) {
+            return keyInvalid("duplicate", "one key cannot serve two agents of this pack — create one per agent in the panel");
+          }
+          seenValues.push(key);
+        }
+
+        for (const [agentId, k] of kept) {
+          const live = await sub2api.probeKeyLiveness(k.keyValue);
+          if (!live.ok) {
+            return keyInvalid("liveness", `the bound key for ${agentId} is no longer usable (${live.code ?? live.message}) — paste a fresh key from the billing panel to replace it`);
+          }
+          billingKeys[agentId] = k.keyRef;
+        }
+        for (const [agentId, key] of pasted) {
+          const live = await sub2api.probeKeyLiveness(key);
+          if (!live.ok) {
+            return keyInvalid("liveness", `the key for ${agentId} was refused by the billing panel (${live.code ?? live.message})`);
+          }
+          const holder = await sub2api.findUserByKey(key);
+          if (!holder || holder.userId !== account.userId) {
+            return keyInvalid("ownership", `the key for ${agentId} does not belong to your sub2api account`);
+          }
+        }
+        for (const [agentId, key] of pasted) {
+          const ref = `pk_${randomBytes(12).toString("hex")}`;
+          billingKeys[agentId] = ref;
+          billingKeyValues.set(ref, key);
+        }
+
+        // Every serving agent must end up with a key — the paste flow's
+        // admission rule, aligned with "the deployer pays for what serves".
+        for (const agentId of servingIds) {
+          if (billingKeys[agentId] == null) {
+            return res.status(400).json({
+              error: `agent '${agentId}' is a serving agent and needs a sub2api key — create one in your billing panel (Logto sign-in) and paste it here`,
+              code: "BILLING_KEY_REQUIRED",
+              panelUrl,
+            });
+          }
+        }
       }
+    } else if (providedKeys && Object.keys(providedKeys).length > 0) {
+      console.warn("[packs] billing not linked — ignoring pasted billingKeys for this deploy");
     }
 
     let out;
@@ -640,12 +732,10 @@ export function registerPackRoutes(app, {
       // Persist the minted key value once the registry push succeeded. The
       // map was built keyed by agent id; missing entry = degraded minting.
       const keyRef = billingKeys[d.agentId];
-      if (keyRef != null) {
-        const stored = registry.deploymentKeyByRef(keyRef);
-        // keyId is the reference; the VALUE rides in a side map from minting.
+      if (keyRef != null && billingKeyValues.has(keyRef)) {
         registry.recordDeploymentKey({
           packId: id, agentId: d.agentId, keyRef,
-          keyValue: billingKeyValues.get(keyRef) ?? stored?.keyValue ?? "",
+          keyValue: billingKeyValues.get(keyRef),
           deployer: user.email,
         });
       }
@@ -660,23 +750,55 @@ export function registerPackRoutes(app, {
     });
   });
 
-  // The deployer's own balance (add-agent-platform-ops D3): one read for the
-  // deploy surface. Unlinked billing answers { linked: false } — the surface
-  // hides the readout instead of guessing.
+  // The deployer's own billing state (add-agent-platform-ops D3; revised by
+  // revise-billing-key-acquisition): the deploy surface's three-state readout
+  // — account unresolved ("none"), resolved with balance ("ok"), or billing
+  // unlinked (degraded). The mapping row is a cache: with no row, the
+  // directory is consulted live and a hit is persisted for the deploy gate.
   app.get("/api/packs/billing/me", async (req, res) => {
     const user = auth(req, res);
     if (!user) return;
     const cfg = deployConfig();
+    const panelUrl = process.env.SUB2API_PANEL_URL || "https://token.finddatatech.cloud";
     const sub2api = cfg.sub2api ? createSub2apiClient(cfg.sub2api) : null;
-    if (!sub2api || sub2api.degraded()) return res.json({ linked: false, balance: null });
-    const account = registry.billingAccount(user.email);
-    if (!account) return res.json({ linked: true, balance: null, known: false });
+    if (!sub2api || sub2api.degraded()) return res.json({ linked: false, balance: null, accountState: null, panelUrl });
+    let account = registry.billingAccount(user.email);
+    if (!account) {
+      try {
+        const found = await sub2api.findUserByEmail(user.email);
+        if (found) {
+          registry.saveBillingAccount({ email: user.email, userId: found.userId });
+          account = registry.billingAccount(user.email);
+        }
+      } catch (e) {
+        return res.status(502).json({ error: e.message });
+      }
+    }
+    if (!account) return res.json({ linked: true, balance: null, accountState: "none", panelUrl });
     try {
       const u = await sub2api.readUser(account.user_id);
-      res.json({ linked: true, balance: u.balance, known: true });
+      res.json({ linked: true, balance: u.balance, accountState: "ok", panelUrl });
     } catch (e) {
       res.status(502).json({ error: e.message });
     }
+  });
+
+  // Per-pack key binding state for the deploy surface: which of the pack's
+  // currently-serving agents have a bound key. Booleans only — key values
+  // and references never leave the platform.
+  app.get("/api/packs/:id/billing-bindings", (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    const pack = registry.get(req.params.id, { includeUnlisted: true });
+    if (!pack || !registry.visibleTo({ visibility: pack.visibility, author_email: pack.authorEmail }, user, { admin: isAdmin(user) })) {
+      return res.status(404).json({ error: "Pack not found" });
+    }
+    const bound = new Set(registry.deploymentKeysForPack(req.params.id).map((k) => k.agentId));
+    const out = {};
+    for (const a of pack.manifest.agents ?? []) {
+      if (a?.serving) out[a.id] = bound.has(a.id);
+    }
+    res.json(out);
   });
 
   // Billing board (add-agent-platform-ops D5): one read for the ops console —

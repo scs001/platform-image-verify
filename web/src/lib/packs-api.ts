@@ -142,20 +142,45 @@ export interface PackDeployment {
   paused?: boolean;
 }
 
-// Billing reads (add-agent-platform-ops D3): the deployer's balance for the
-// deploy surface's readout and warning banner.
-export function myBillingBalance(): Promise<{ linked: boolean; balance: number | null; known?: boolean }> {
-  return fetch("/api/packs/billing/me").then(json);
+// Billing reads (add-agent-platform-ops D3; revised by
+// revise-billing-key-acquisition): the deploy surface's three-state readout —
+// accountState "none" = no sub2api account yet (SSO at panelUrl creates it),
+// "ok" = resolved (balance meaningful), null = billing unlinked (degraded).
+export interface MyBillingState {
+  linked: boolean;
+  balance: number | null;
+  accountState: "none" | "ok" | null;
+  panelUrl?: string;
+}
+
+export function myBillingState(): Promise<MyBillingState> {
+  return fetch("/api/packs/billing/me").then(json) as Promise<MyBillingState>;
+}
+
+// Per-pack key binding state: serving agentId → whether a key is bound.
+// Booleans only — key values never leave the platform.
+export function getBillingBindings(id: string): Promise<Record<string, boolean>> {
+  return fetch(`/api/packs/${encodeURIComponent(id)}/billing-bindings`).then(json) as Promise<Record<string, boolean>>;
 }
 
 // Deploy with optional per-agent rhythm overrides (add-agent-residency D7):
 // rhythms maps agentId → entry list; the descriptor records the override as
-// the effective rhythm, the manifest default otherwise.
-export function deployPack(id: string, version: number, rhythms?: Record<string, unknown>) {
+// the effective rhythm, the manifest default otherwise. billingKeys maps
+// serving agentId → a pasted panel key ("sk-…"); omitting the field keeps
+// existing bindings (the platform never echoes key values back).
+export function deployPack(
+  id: string,
+  version: number,
+  rhythms?: Record<string, unknown>,
+  billingKeys?: Record<string, string | null>,
+) {
+  const body: Record<string, unknown> = {};
+  if (rhythms && Object.keys(rhythms).length > 0) body.rhythms = rhythms;
+  if (billingKeys && Object.keys(billingKeys).length > 0) body.billingKeys = billingKeys;
   return fetch(`/api/packs/${encodeURIComponent(id)}/versions/${version}/deploy`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(rhythms && Object.keys(rhythms).length > 0 ? { rhythms } : {}),
+    body: JSON.stringify(body),
   }).then(json) as Promise<DeployResult>;
 }
 

@@ -96,7 +96,12 @@ export function registerBotRoutes(ctx) {
           console.warn(`[bots] "${entry.bot.name}" turn failed: ${e.message}`),
         );
       } else {
-        console.log(`[bots] "${entry.bot.name}" non-text payload ignored`);
+        // Forensics (fd-prod lesson): the canonical text XML parsed locally but
+        // not in prod — the length, content-type and first bytes name the
+        // culprit (empty body vs gzip magic vs unexpected shape).
+        console.log(
+          `[bots] "${entry.bot.name}" non-text payload ignored (len=${raw.length} ct=${req.headers["content-type"] ?? "?"} head=${JSON.stringify(raw.slice(0, 40))})`,
+        );
       }
     },
   );

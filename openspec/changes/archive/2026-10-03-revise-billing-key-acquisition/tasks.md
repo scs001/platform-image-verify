@@ -38,7 +38,7 @@
 - [x] 6.1 提交（含 cf6c311 撤销清理）→ 构建滚动一轮平台镜像；sub2api 零动作确认 —— 9d8d4f6 推 GitHub → GHA image.yml 绿（~3.5min）→ ccr 中继 → GitOps **8cbc389** 双 yaml bump（gitee 为 ArgoCD 真源，github 仅镜像；首轮误推 github 已修正）→ ArgoCD refresh → platform + platform-demo 双 rollout 完成，pod Running
 - [x] 6.2 上线冒烟：billing/me 三态、billing-bindings、真实粘贴部署一个 serving agent、runner 侧真实 turn 计量落账 —— 服务端侧已验（pod 内 billing-bindings 回网关鉴权 JSON=新路由活，非 404；board 带 runner token 200 degraded:false）；**真实粘贴部署 + runner turn 于 2026-10-03 深夜闭环**：ref `pk_8920c39cf2d899c2a762f1c3` → aloadtree key 26，runner 日志 `running on its own billing key`、meter `ok:true`、sub2api `quota_used 0.00030125` / 余额 `$2→1.99969875`（途中修复 registry invoke 门、caller-group 形状、runner 取钥同步、测试 key 组绑定四处，见 DEPLOY.md「③ 计费链闭环」节）
 - [x] 6.3 D8 存量清理执行：按 1.4 名单逐户改密移交（choice 屏自绑后自行改回）；失联户删号+转账；`UPDATE sub2api_accounts SET password=NULL` —— 实际工作量缩水：平台侧无密码行（名单为空）；sub2api 侧唯一残留 id 45 探针账户已删（200）
-- [ ] 6.4 遗留部署补 key：现存 keyless serving 部署（aloadtree 场景）通知补粘，或等其下次重部署被 BILLING_KEY_REQUIRED 拦截后引导
+- [x] 6.4 遗留部署补 key：现存 keyless serving 部署（aloadtree 场景）通知补粘，或等其下次重部署被 BILLING_KEY_REQUIRED 拦截后引导 —— 2026-10-03 深夜盘点归零：board 上唯一在跑的 serving 部署（演示包 pack-demo-fingpt）已带 key（lawbench 验收重部署 pk_e1505d…，key30 组已放行、20:33 有真实消费），registry descriptor 同步、runner 正常 serving；原 aloadtree keyless 部署已被两轮粘贴部署取代，无存量
 
 ## 7. 归档前置
 

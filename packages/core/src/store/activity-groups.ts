@@ -54,3 +54,23 @@ export function isGroupOpen(turn: AssistantTurn, group: ActivityGroup): boolean 
 export function groupHasError(group: ActivityGroup): boolean {
   return group.blocks.some((b) => b.kind === "tool" && b.state === "error");
 }
+
+// A group holding the LIVE ask must not hide the question card behind a
+// collapsed header: while the ask waits for the human, the group renders
+// expanded (the same never-fold-it-away rule errored activity already
+// follows). The pending ask lives in store state, not in the blocks, so
+// surfaces composite this onto isGroupOpen — that function stays pure over
+// turn/group.
+export function groupHasPendingAsk(
+  group: ActivityGroup,
+  pending: { toolCallId?: string } | null,
+): boolean {
+  if (pending === null) return false;
+  return group.blocks.some(
+    (b) =>
+      b.kind === "tool" &&
+      b.name === "ask_user_question" &&
+      b.state === "running" &&
+      (pending.toolCallId === undefined || pending.toolCallId === b.id),
+  );
+}

@@ -36,9 +36,9 @@ async function injectPendingAsk(page) {
       questions,
     });
   }, QUESTIONS);
-  // Tool blocks render inside collapsed activity groups — expand first
-  // (same seam the cron/plan specs use).
-  await page.evaluate(() => window.__chatStore.getState().toggleAllGroups());
+  // NOTE: NO toggleAllGroups — the group holding the live ask must
+  // AUTO-EXPAND (the fd-prod smoke caught the card hiding behind the
+  // collapsed header; groupHasPendingAsk now forces it open).
 }
 
 test.describe("Question card (store seam)", () => {
@@ -85,8 +85,10 @@ test.describe("Question card (store seam)", () => {
       });
       s.getState().apply({ type: "done" });
     });
-    // No second toggleAllGroups — it toggles (flips), and the groups opened
-    // by the injection helper must stay open through the resolution.
+    // After resolution the ask group folds back to collapsed-by-default (the
+    // answered summary follows the platform's fold-away idiom) — open the
+    // group by clicking its header before asserting the summary.
+    await page.getByTestId("activity-group").first().click();
 
     const card = page.getByTestId("question-card");
     await expect(card).toHaveAttribute("data-pending", "false");

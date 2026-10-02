@@ -132,7 +132,7 @@ function QuestionCardBase({ block }: Props) {
             {block.state === "error" ? t("question.cancelled") : t("question.answered")}
           </span>
           {block.state === "error" && (
-            <span className="min-w-0 truncate text-muted-foreground">{block.result}</span>
+            <span className="min-w-0 truncate text-muted-foreground">{String(block.result)}</span>
           )}
         </div>
         {rows && rows.length > 0 && (

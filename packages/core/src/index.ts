@@ -15,7 +15,7 @@ export type { WsStatus, SocketFactory, SocketHandle, WsClientOptions } from "./w
 export { useChatStore, setChatErrorSink, setStoreExposer } from "./store/chat-store";
 export type { ConnStatus, Block, Turn } from "./store/chat-store";
 // Activity-group derivation for the master collapse (shared by web + MP).
-export { groupTurnBlocks, isGroupOpen, groupHasError } from "./store/activity-groups";
+export { groupTurnBlocks, isGroupOpen, groupHasError, groupHasPendingAsk } from "./store/activity-groups";
 export type { ActivityGroup, AssistantTurn } from "./store/activity-groups";
 // Chart-fence contract (capture ⇄ badge correlation, add-artifact-delivery).
 export { extractChartFences, canonicalChartHash, chartHashesInText } from "./lib/chart-fence";

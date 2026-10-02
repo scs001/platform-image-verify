@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import {
   groupHasError,
+  groupHasPendingAsk,
   isGroupOpen,
   useChatStore,
   type ActivityGroup as ActivityGroupModel,
@@ -50,7 +51,11 @@ function ActivityGroupBase({ turn, group, renderBlock }: Props) {
   const { t } = useTranslation();
   const bodyId = useId();
   const toggleGroup = useChatStore((s) => s.toggleGroup);
-  const open = isGroupOpen(turn, group);
+  const pendingQuestion = useChatStore((s) => s.pendingQuestion);
+  // A waiting question card must never sit folded away behind the collapsed
+  // header — the ask group renders expanded while it holds the live ask
+  // (same never-fold rule as errored activity).
+  const open = isGroupOpen(turn, group) || groupHasPendingAsk(group, pendingQuestion);
   const errored = groupHasError(group);
   const info = headerInfo(turn, group);
   const params = {

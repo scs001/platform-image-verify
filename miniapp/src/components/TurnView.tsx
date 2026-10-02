@@ -15,6 +15,7 @@ import Taro from "@tarojs/taro";
 import { Text, View } from "@tarojs/components";
 import {
   groupHasError,
+  groupHasPendingAsk,
   groupTurnBlocks,
   isGroupOpen,
   useChatStore,
@@ -159,7 +160,10 @@ function ActivityGroupView({
   renderInner: (b: Block, i: number) => JSX.Element | null;
 }) {
   const toggleGroup = useChatStore((s) => s.toggleGroup);
-  const open = isGroupOpen(turn, group);
+  const pendingQuestion = useChatStore((s) => s.pendingQuestion);
+  // 等待中的问询卡片不得折在收起的组头后：挂起 ask 的组展开渲染
+  // （与错误活动"永不折叠"同规则）。
+  const open = isGroupOpen(turn, group) || groupHasPendingAsk(group, pendingQuestion);
   const label = groupLabel(turn, group);
   return (
     <View className={`blk-group${label.errored ? " blk-group-error" : ""}${open ? " blk-group-open" : ""}`}>

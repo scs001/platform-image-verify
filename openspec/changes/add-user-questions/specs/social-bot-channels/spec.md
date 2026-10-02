@@ -55,3 +55,19 @@ UNDER the default no-tools posture, `ask_user_question` SHALL remain callable in
 
 - **WHEN** the agent asks and the user answers under the default no-tools posture
 - **THEN** the ask is delivered, the answer resolves it, and the final reply is delivered to the chat
+
+## ADDED Requirements
+
+### Requirement: The multi-tenant gateway routes machine webhooks to the owning cell
+
+On a gateway-fronted multi-tenant deployment, a chat platform's webhook call carries no platform identity; the gateway SHALL route `/api/bots/webhook/<botId>/<secret>` to the cell owning that bot (booting it if stopped) instead of rejecting it as unauthenticated. The webhook's authentication remains the per-bot path secret plus the platform's own signature, verified inside the cell.
+
+#### Scenario: the WeChat handshake passes through the gateway
+
+- **WHEN** WeChat's URL-verification GET (signed with the bot's callback token) arrives at the public webhook URL
+- **THEN** the gateway forwards it to the owning cell and the caller receives the echostr verbatim, without any platform session
+
+#### Scenario: an unknown bot is not routed
+
+- **WHEN** the webhook path names a bot id no cell owns
+- **THEN** the gateway answers 404 and no cell is started

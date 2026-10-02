@@ -71,7 +71,13 @@ export function registerBotRoutes(ctx) {
         return res.sendStatus(403);
       }
       // The platform's URL-verification handshake wants its literal echo.
-      if (challenge !== null) return res.type("text/plain").send(challenge);
+      // Logged: a SILENT success is indistinguishable from "the platform
+      // never called" when debugging why a saved console config delivers
+      // nothing (fd-prod lesson, add-user-questions).
+      if (challenge !== null) {
+        console.log(`[bots] "${entry.bot.name}" handshake verified and echoed`);
+        return res.type("text/plain").send(challenge);
+      }
 
       let message;
       try {
@@ -85,9 +91,12 @@ export function registerBotRoutes(ctx) {
       // and an agent turn takes far longer than their timeout.
       res.type("text/plain").send("success");
       if (message) {
+        console.log(`[bots] "${entry.bot.name}" inbound from ${message.chatKey}: "${String(message.text).slice(0, 60)}"`);
         bots.handleMessage(entry.bot.id, message).catch((e) =>
           console.warn(`[bots] "${entry.bot.name}" turn failed: ${e.message}`),
         );
+      } else {
+        console.log(`[bots] "${entry.bot.name}" non-text payload ignored`);
       }
     },
   );

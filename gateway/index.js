@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
 import { createLogtoAuth } from "../server/logto-auth.js";
 import { resolveSessionSecret } from "../server/session.js";
 import { createCellRegistry, userIdFor } from "./spawner.js";
-import { forwardedHeaders, proxyHttp, proxyUpgrade } from "./proxy.js";
+import { forwardedHeaders, machineHeaders, proxyHttp, proxyUpgrade } from "./proxy.js";
 import { createMpAuth } from "./mp-auth.js";
 import { createMpBindings } from "./mp-bindings.js";
 import { createShareRegistry, createRateLimiter } from "./share.js";
@@ -392,9 +392,11 @@ app.all("/api/bots/webhook/:botId/:secret", async (req, res) => {
     proxyHttp(req, res, {
       host: "127.0.0.1",
       port: cell.port,
-      // No identity headers — the webhook path is exempt in the cell. The
-      // gateway secret is still presented so the cell can attribute origin.
-      headers: { "x-cloud-gateway-secret": SECRET },
+      // The caller's own headers pass through (minus hop-by-hop and identity):
+      // content-type/content-length are load-bearing for the cell's body
+      // parsers. No identity headers — the webhook path is exempt in the cell;
+      // the gateway secret still attributes origin.
+      headers: machineHeaders(req, SECRET),
     });
   } catch (err) {
     console.error(`[gateway] webhook cell start failed for ${target.email}: ${err.message}`);

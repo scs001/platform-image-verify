@@ -24,6 +24,23 @@ const HOP_BY_HOP = [
 
 const IDENTITY_HEADERS = ["x-forwarded-email", "x-forwarded-groups", GATEWAY_SECRET_HEADER];
 
+// Machine-caller headers (no platform identity): the ORIGINAL request headers
+// pass through minus hop-by-hop and identity — a webhook's content-type and
+// content-length are load-bearing (the cell's body parsers skip a request with
+// no content-type; forwarding only a synthetic header set silently empties the
+// body — the fd-prod lesson that cost a day).
+export function machineHeaders(req, secret) {
+  const headers = {};
+  for (const [key, value] of Object.entries(req.headers)) {
+    const name = key.toLowerCase();
+    if (IDENTITY_HEADERS.includes(name)) continue;
+    if (HOP_BY_HOP.includes(name)) continue;
+    headers[name] = value;
+  }
+  headers[GATEWAY_SECRET_HEADER] = secret;
+  return headers;
+}
+
 export function forwardedHeaders(req, user, secret, { keepUpgrade = false } = {}) {
   const headers = {};
   for (const [key, value] of Object.entries(req.headers)) {

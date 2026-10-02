@@ -40,7 +40,9 @@ const RELAY_SEND_TIMEOUT_MS = 15_000;
 // tool allowlist; the reply-side check is what makes it observable.
 const NO_TOOLS_PREFIX =
   "You are answering a message from an external chat platform. Answer directly from " +
-  "your own knowledge. Do not call any tools.\n\n";
+  "your own knowledge. Do not call any tools — the ONE exception is ask_user_question: " +
+  "when you need the user's confirmation, a choice, or missing information before you " +
+  "can answer, call it (it pauses until the user replies in chat).\n\n";
 
 // ── User questions (add-user-questions, ADR-0012) ───────────────────────────
 // A bot turn that calls ask_user_question parks on the platform's provider

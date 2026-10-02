@@ -95,9 +95,16 @@ export function createAgentApp({ entry, manager, config, log = console }) {
     if (manager.isPaused?.(entry)) {
       return res.status(200).json(jsonRpcError(id, -32010, "agent paused"));
     }
+    // Delegation bound (add-agent-delegation-a2a): a chained call at or past
+    // the depth cap is refused BEFORE any spawn — the cross-request cycle
+    // breaker (ADR-0013).
+    const depth = Math.max(0, Number(req.headers["x-delegation-depth"]) || 0);
+    if (depth >= (config.delegationDepthMax ?? 3)) {
+      return res.status(200).json(jsonRpcError(id, -32011, `delegation depth bound (${config.delegationDepthMax ?? 3}) reached`));
+    }
     try {
       if (method === "message/send") {
-        const out = await manager.turn(entry, sessionId, text, { kind: "message" });
+        const out = await manager.turn(entry, sessionId, text, { kind: "message", delegationDepth: depth });
         return res.json({ jsonrpc: "2.0", id, result: assistantMessage(contextId ?? sessionId, out.text) });
       }
       res.writeHead(200, {
@@ -108,6 +115,7 @@ export function createAgentApp({ entry, manager, config, log = console }) {
       const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       let acc = "";
       const out = await manager.turn(entry, sessionId, text, {
+        delegationDepth: depth,
         onDelta: (delta) => {
           acc += delta;
           send("delta", { context_id: contextId ?? sessionId, kind: "message", parts: [{ kind: "text", text: acc }] });

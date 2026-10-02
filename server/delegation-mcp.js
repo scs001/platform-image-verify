@@ -41,42 +41,73 @@ async function call(method, path, body) {
   return data;
 }
 
-const TOOLS = [
-  {
-    name: "delegate_task",
-    description:
-      "Delegate a self-contained task to ANOTHER agent persona in this cell — it runs in its own dedicated session, " +
-      "executed immediately (serially with other work). Use for fan-out: call once per persona per subtask, e.g. one to the " +
-      "stock analyst and one to the legal reviewer. Returns the task id right away (it does NOT wait for the result); when " +
-      "every delegated task has finished, a summary turn with all outcomes is delivered back into THIS conversation " +
-      "automatically — do not promise the results inline. The prompt must be self-contained: no conversation context carries over.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        persona: { type: "string", description: "Target persona preset id (NOT the current persona). Pick from the known persona roster." },
-        prompt: { type: "string", description: "The self-contained prompt the target persona will run." },
-        name: { type: "string", description: "Short human label; becomes the task session's title." },
+// Tool list, parameterized by the live market summary (two-level discovery,
+// spec: agent-delegation-a2a): the delegate description carries CATEGORY
+// COUNTS, never the roster; search_agents fetches candidates on demand.
+function toolsFor(market) {
+  const marketLine = market
+    ? ` Market Agent Services (remote experts) are also valid targets — ${market.total} online${
+        Object.entries(market.categories || {})
+          .map(([c, n]) => `, ${c} x${n}`)
+          .join("")
+      }. Call search_agents with a keyword to list candidate ids.`
+    : " Market Agent Services may also be targets — call search_agents with a keyword to discover candidates.";
+  return [
+    {
+      name: "delegate_task",
+      description:
+        "Delegate a self-contained task to ANOTHER agent — a persona in this cell (persona parameter) or a market Agent " +
+        "Service (agent parameter). It runs in its own dedicated session, executed immediately (serially with other work). " +
+        "Use for fan-out: call once per target per subtask, e.g. one to the stock analyst and one to the legal reviewer." +
+        marketLine +
+        " Returns the task id right away (it does NOT wait for the result); when every delegated task has finished, a " +
+        "summary turn with all outcomes is delivered back into THIS conversation automatically — do not promise the " +
+        "results inline. The prompt must be self-contained: no conversation context carries over.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          persona: { type: "string", description: "Target persona preset id (NOT the current persona). Pick from the known persona roster." },
+          agent: { type: "string", description: "Target market agent id (from search_agents). Mutually exclusive with persona." },
+          prompt: { type: "string", description: "The self-contained prompt the target will run." },
+          name: { type: "string", description: "Short human label; becomes the task session's title." },
+        },
+        required: ["prompt"],
       },
-      required: ["persona", "prompt"],
     },
-  },
-  {
-    name: "task_progress",
-    description:
-      "Report the live status of the tasks delegated in this conversation: persona, state (queued/running/done/failed/interrupted), elapsed time, and token spend when available.",
-    inputSchema: { type: "object", properties: {} },
-  },
-  {
-    name: "task_result",
-    description:
-      "Fetch the recorded output of a FINISHED delegated task (or its error gist on failure). Use after task_progress shows a terminal state.",
-    inputSchema: {
-      type: "object",
-      properties: { id: { type: "string", description: "Task id from delegate_task or task_progress." } },
-      required: ["id"],
+    {
+      name: "search_agents",
+      description:
+        "Search the ONLINE market Agent Services by keyword. Returns up to 8 candidates (id, name, description, category). " +
+        "Pick an id and pass it as delegate_task's agent parameter. An empty keyword lists the first candidates.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          keyword: { type: "string", description: "Free-text keyword matched against id, name, description, category, tags." },
+        },
+        required: [],
+      },
     },
-  },
-];
+    {
+      name: "task_progress",
+      description:
+        "Report the live status of the tasks delegated in this conversation: target, state (queued/running/done/failed/interrupted), elapsed time, and token spend when available.",
+      inputSchema: { type: "object", properties: {} },
+    },
+    {
+      name: "task_result",
+      description:
+        "Fetch the recorded output of a FINISHED delegated task (or its error gist on failure). Use after task_progress shows a terminal state.",
+      inputSchema: {
+        type: "object",
+        properties: { id: { type: "string", description: "Task id from delegate_task or task_progress." } },
+        required: ["id"],
+      },
+    },
+  ];
+}
+
+// Static fallback when the bridge is unreachable at list time.
+const TOOLS = toolsFor(null);
 
 function textOut(text) {
   return { content: [{ type: "text", text }] };
@@ -85,18 +116,29 @@ function errOut(message) {
   return { content: [{ type: "text", text: `Error: ${message}` }], isError: true };
 }
 
-async function toolDelegate({ persona, prompt, name }) {
-  const { task } = await call("POST", "/api/delegation/tasks", { persona, prompt, name });
+async function toolDelegate({ persona, agent, prompt, name }) {
+  const body = persona ? { persona, prompt, name } : { agent, prompt, name };
+  const { task } = await call("POST", "/api/delegation/tasks", body);
   // Stable format — the chat TaskCard parses the "- id:" line (CronToolCard
   // pattern) to bind the live record.
+  const kind = task.target?.type === "a2a" ? "market agent" : "persona";
   return textOut(
     `Task delegated.\n` +
       `- id: ${task.id}\n` +
-      `- persona: ${task.target.ref}\n` +
+      `- ${kind}: ${task.target.ref}${kind === "market agent" ? " (remote)" : ""}\n` +
       `- state: ${task.state}\n` +
       `- output session: ${task.sessionTitle || task.sessionId}\n` +
       `Tell the user it is queued; the summary arrives in this conversation when all delegated tasks finish.`,
   );
+}
+
+async function toolSearchAgents({ keyword }) {
+  const { agents } = await call("GET", `/api/delegation/agents?search=${encodeURIComponent(keyword ?? "")}`);
+  if (!agents?.length) {
+    return textOut("No online market agents match — try another keyword, or drop the agent target.");
+  }
+  const lines = agents.map((a) => `- ${a.id} — ${a.name} (${a.category || "uncategorized"}): ${(a.description || "").slice(0, 120)}`);
+  return textOut(`Online market agents (${agents.length}):\n${lines.join("\n")}\nPass an id as delegate_task's agent parameter.`);
 }
 
 function describeTask(t) {
@@ -126,13 +168,23 @@ async function toolResult({ id }) {
 
 const server = new Server({ name: "delegation", version: "1.0.0" }, { capabilities: { tools: {} } });
 
-server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  // The delegate description rides the live category summary (two-level
+  // discovery); an unreachable bridge falls back to the static hint.
+  try {
+    const market = await call("GET", "/api/delegation/agents?summary=1");
+    return { tools: toolsFor(market) };
+  } catch {
+    return { tools: TOOLS };
+  }
+});
 
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const { name, arguments: args = {} } = req.params ?? {};
   try {
     switch (name) {
       case "delegate_task": return await toolDelegate(args);
+      case "search_agents": return await toolSearchAgents(args);
       case "task_progress": return await toolProgress(args);
       case "task_result": return await toolResult(args);
       default: return errOut(`unknown tool: ${name}`);

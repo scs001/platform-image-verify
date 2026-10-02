@@ -58,6 +58,24 @@ export class ChildManager {
     this.pending = new Map(); // agentKey → promise chain while a slot is awaited
     this.waiting = 0; // queued turn requests at capacity
     this.pausedKeys = new Set(); // registry-marked paused (agent-residency D5)
+    this.delegationInFlight = new Map(); // agentKey → live depth≥1 turns (a2a delegation D4)
+  }
+
+  // Delegation-originated (depth ≥ 1) concurrency bound per agent
+  // (add-agent-delegation-a2a): acquire a delegation slot; resolves when one
+  // frees. Over-cap callers queue — never fail, never preempt.
+  async #acquireDelegationSlot(key) {
+    for (;;) {
+      const live = this.delegationInFlight.get(key) ?? 0;
+      if (live < this.config.delegationMax) {
+        this.delegationInFlight.set(key, live + 1);
+        return () => {
+          const n = this.delegationInFlight.get(key) ?? 1;
+          this.delegationInFlight.set(key, Math.max(0, n - 1));
+        };
+      }
+      await new Promise((r) => setTimeout(r, 250));
+    }
   }
 
   isPaused(entry) {
@@ -277,20 +295,30 @@ export class ChildManager {
   // ONE queueing discipline for every turn source: messages (A2A), self-turns
   // (rhythm), and digests (day rollover) all acquire through here, and every
   // completed/failed turn lands one jsonl meter line (the ③ settlement input).
-  async turn(entry, sessionId, text, { kind = "message", onDelta } = {}) {
+  async turn(entry, sessionId, text, { kind = "message", onDelta, delegationDepth = 0 } = {}) {
     const key = agentKeyFor(entry);
     if (this.pausedKeys.has(key)) {
       throw Object.assign(new Error("agent paused"), { code: -32010 });
     }
+    const release = delegationDepth >= 1 ? await this.#acquireDelegationSlot(key) : null;
     const startedAt = this.now();
-    const child = await this.acquire(entry);
     try {
-      const out = await child.turn(sessionId, text, { onDelta });
-      this.#meterLine(key, kind, { ok: true, tokens: tokensOf(out?.usage), durationMs: this.now() - startedAt });
-      return out;
-    } catch (e) {
-      this.#meterLine(key, kind, { ok: false, error: String(e?.message || e), durationMs: this.now() - startedAt });
-      throw e;
+      const child = await this.acquire(entry);
+      try {
+        const out = await child.turn(sessionId, text, { onDelta });
+        this.#meterLine(key, kind, {
+          ok: true,
+          tokens: tokensOf(out?.usage),
+          durationMs: this.now() - startedAt,
+          depth: delegationDepth || undefined,
+        });
+        return out;
+      } catch (e) {
+        this.#meterLine(key, kind, { ok: false, error: String(e?.message || e), durationMs: this.now() - startedAt });
+        throw e;
+      }
+    } finally {
+      release?.();
     }
   }
 

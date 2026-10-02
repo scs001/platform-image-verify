@@ -64,6 +64,12 @@ export function loadConfig(env = process.env) {
     // target (NFS/object volume mounts here).
     digestMaxChars: num(env.AGENT_RUNNER_DIGEST_MAX_CHARS, 512),
     archiveDir: env.AGENT_RUNNER_ARCHIVE_DIR || path.join(env.AGENT_RUNNER_HOME || path.join(repoRoot, "runner-home"), "agent-archive"),
+    // Delegation bounds (add-agent-delegation-a2a D4): the depth at which the
+    // adapter refuses chained calls, and the per-agent cap on concurrent
+    // delegation-originated turns (over-cap queues, never fails).
+    delegationDepthMax: num(env.AGENT_RUNNER_DELEGATION_DEPTH_MAX, 3),
+    delegationMax: num(env.AGENT_RUNNER_DELEGATION_MAX, 2),
+
     // Per-turn metering (design D6): jsonl {agent, kind, tokens, ms, at} —
     // the settlement input for platform-ops (slice ③).
     meterFile: env.AGENT_RUNNER_METER_FILE || path.join(env.AGENT_RUNNER_HOME || path.join(repoRoot, "runner-home"), "meter.jsonl"),

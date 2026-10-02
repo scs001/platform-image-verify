@@ -13,6 +13,8 @@
 // recording it under the job's session for later reading.
 
 import * as chatHistory from "../chat-history.js";
+import * as catalog from "../catalog.js";
+import { runA2aTurn, a2aCredentials } from "./a2a-client.js";
 
 const IDLE_POLL_MS = 250;
 const PRESET_SWITCH_ATTEMPTS = 3;
@@ -166,6 +168,48 @@ export function attachCronRunner(ctx) {
   // `job` is the live engine record (cron.js). Returns { ok, error? }.
   ctx.runCronJobTurn = async (job, { turnTimeoutMs } = {}) => {
     const timeoutMs = turnTimeoutMs || 10 * 60 * 1000;
+
+    // a2a targets (add-agent-delegation-a2a D2): a REMOTE turn — no runtime
+    // readiness, no preset switch, no dsh prompt. The streamed reply lands in
+    // the task's dedicated session exactly like a persona execution's output;
+    // outbound depth is 1 (human-originated delegation baseline — chains get
+    // +1 only when in-cell turns are themselves delegated, a future state).
+    if (job.targetType === "a2a") {
+      const entry = catalog.getAgentEntry(job.preset);
+      if (!entry || entry.mode !== "a2a") {
+        return { ok: false, error: `market agent '${job.preset}' is not in the catalog (or not a2a)` };
+      }
+      const sessionId = job.sessionId || `task-${job.id}`;
+      chatHistory.recordMessage(sessionId, "user", job.prompt);
+      if (job.sessionTitle) {
+        try { chatHistory.setTitle(sessionId, job.sessionTitle); } catch { /* prompt-derived title stays */ }
+      }
+      try {
+        const { gatewayToken, agentToken } = a2aCredentials();
+        const out = await runA2aTurn(entry.url, job.prompt, {
+          contextId: sessionId,
+          depth: 1,
+          gatewayToken,
+          agentToken,
+          timeoutMs,
+        });
+        if (out.text) chatHistory.recordMessage(sessionId, "assistant", out.text);
+        ctx.sessionCollectors.delete(sessionId);
+        const version = ctx.sessionVersion;
+        chatHistory
+          .listSessions()
+          .then((sessions) => {
+            if (version === ctx.sessionVersion) {
+              ctx.broadcast({ type: "sessions", sessions, current: chatHistory.currentSessionId() });
+            }
+          })
+          .catch(() => {});
+        return { ok: true, usage: null };
+      } catch (e) {
+        ctx.sessionCollectors.delete(sessionId);
+        return { ok: false, error: e.message };
+      }
+    }
 
     if (!ctx.dshBridge?.isReady()) {
       return { ok: false, error: "the agent runtime is not ready" };

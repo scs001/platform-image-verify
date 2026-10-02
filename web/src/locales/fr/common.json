@@ -760,7 +760,8 @@
     },
     "card": {
       "title": "Tâche déléguée",
-      "tokens": "{{count}} tokens"
+      "tokens": "{{count}} tokens",
+      "remote": "Marché"
     },
     "summary": {
       "label": "Résumé des tâches"

@@ -1588,3 +1588,33 @@ home/会话留盘，下次触达秒级热起）；冷却 10 分钟内的 child �
 暂停 = registry 条目 `paused` 标记（deployer 按钮或平台急停端点写同一标记）；
 runner 轮询生效（≤5min），对来话回显式 `-32010 agent paused`，恢复一键。回滚 =
 旧镜像（idle-reap 行为回归，盘上状态无 schema 变更）。
+
+### ② 跨 agent 委派 ops 前置（add-agent-delegation-a2a，2026-10-02 已执行）
+
+invoke 门=scope 规则（非 allowed_groups）。本机 registry 的 scope **无公开 CRUD API**（仅
+`/api/export/scopes` 导出）——真相在 mongo `mcp_registry.mcp_scopes_default`（`_id` 即
+scope 名），auth-server 有缓存（`/internal/reload-scopes` 需内部签名 JWT，实操用容器重启清）。
+
+已执行步骤（复用配方）：
+
+1. 插 scope：`docker exec mcp-mongodb mongosh -u $U -p $P --authenticationDatabase admin
+   mcp_registry` → `insertOne({_id:"paas-agent-callers", group_mappings:["paas-agent-callers"],
+   server_access:[{agent:"*",actions:["invoke_agent"]}], ui_permissions:{}, is_idp_managed:false,
+   updated_at:new Date()})`（凭据取自 registry 容器 env `DOCUMENTDB_USERNAME/PASSWORD`）；
+2. `docker restart mcp-gateway-registry-auth-server-1` 清 scope 缓存；
+3. 复核：`GET /api/export/scopes`（admin Bearer）应见 paas-agent-callers 且 invoke 规则仅一条。
+
+cell 调用身份=M2M 账户（`POST /api/management/iam/users/m2m`，组 `paas-agent-callers`），
+平台侧惰性开通（server/agent-caller-identity.js）。撤销整条授权=删该 scope 文档+重启 auth-server。
+
+### ② 跨 agent 委派 staging 冒烟（add-agent-delegation-a2a，2026-10-02）
+
+runner 断环代码已同步 staging（a2a/config/manager 三文件 + ① 全套）并重启。零 LLM 成本探针
+（直打 runner 尾网 100.64.0.11:8793，Authorization=容器 env `AGENT_RUNNER_BACKEND_TOKEN`——
+注意 `/opt/agent-runner-stage/.backend-token` 是模板占位，真值在容器 env）：
+
+- `X-Delegation-Depth: 3` → `-32011 delegation depth bound (3) reached`（拒绝先于 spawn）✓
+- `X-Delegation-Depth: 2` + 非法方法 → `-32601`（鉴权与深度双过，仅方法不存在）✓
+
+cell 侧全链（发现→创建→远端执行→落会话→卡片徽标）由 e2e `delegation-a2a.spec.js` 覆盖
+（2/2）。cell→真 registry→真 runner 的端到端委派随 ② 平台侧部署后由用户演练一回。

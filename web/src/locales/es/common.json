@@ -760,7 +760,8 @@
     },
     "card": {
       "title": "Tarea delegada",
-      "tokens": "{{count}} tokens"
+      "tokens": "{{count}} tokens",
+      "remote": "Mercado"
     },
     "summary": {
       "label": "Resumen de tareas"

@@ -4,6 +4,7 @@
 // chat-history routes consume them through ctx.
 
 import * as chatHistory from "../chat-history.js";
+import { runA2aTurn, a2aCredentials } from "./a2a-client.js";
 import * as catalog from "../catalog.js";
 import * as dshProfile from "../dsh-profile.js";
 import path from "node:path";
@@ -574,78 +575,25 @@ async function streamA2aChat(entry, text) {
   ctx.sendToViewers(sessionId, { type: "agent_start" });
   chatHistory.recordMessage(sessionId, "user", text, undefined, ctx.turnOrigin?.user ?? null);
 
-  const gatewayToken = process.env.MARKET_REGISTRY_TOKEN || process.env.AGENT_SERVING_REGISTRY_TOKEN || "";
-  const agentToken = process.env.AGENT_SERVING_BACKEND_TOKEN || "";
+  const { gatewayToken, agentToken } = a2aCredentials();
   let assistantText = "";
   try {
-    if (!gatewayToken) throw new Error("no registry token configured (MARKET_REGISTRY_TOKEN) — cannot call the A2A gateway");
-    if (!agentToken) throw new Error("A2A agent credential not configured (AGENT_SERVING_BACKEND_TOKEN)");
-    const r = await fetch(entry.url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Authorization": `Bearer ${gatewayToken}`,
-        Authorization: `Bearer ${agentToken}`,
-      },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "message/stream",
-        params: { message: { role: "user", parts: [{ kind: "text", text }], context_id: sessionId } },
-      }),
-      signal: abort.signal,
-    });
-    if (!r.ok) throw new Error(`${entry.id} HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
-    const ctype = r.headers.get("content-type") || "";
-    if (!ctype.includes("text/event-stream")) {
-      // A JSON body answers with a JSON-RPC error object (auth/agent failures).
-      const doc = await r.json().catch(() => null);
-      const msg = doc?.error?.message || `unexpected content-type ${ctype || "(none)"}`;
-      throw new Error(`${entry.id}: ${msg}`);
-    }
-    const decoder = new TextDecoder();
-    let buf = "";
     let sent = 0;
-    for await (const chunk of r.body) {
-      if (abort.switchedAway) break;
-      buf += decoder.decode(chunk, { stream: true });
-      const lines = buf.split("\n");
-      buf = lines.pop();
-      let event = null;
-      for (const line of lines) {
-        const l = line.trim();
-        if (l.startsWith("event:")) {
-          event = l.slice(6).trim();
-          continue;
-        }
-        if (!l.startsWith("data:")) continue;
-        let doc;
-        try {
-          doc = JSON.parse(l.slice(5).trim());
-        } catch {
-          continue; // skip malformed SSE frames
-        }
-        if (event === "error") throw new Error(doc?.message || "A2A stream error");
-        if (event === "done") break;
-        // `delta` frames carry the ACCUMULATED text (the runner's wire shape);
-        // broadcast only the new suffix. `message` is the authoritative final.
-        const acc = (event === "delta" || event === "message") ? doc?.parts?.[0]?.text : null;
-        if (typeof acc === "string") {
-          if (event === "message") {
-            if (acc.length > sent) {
-              ctx.sendToViewers(sessionId, { type: "text", delta: acc.slice(sent) });
-              sent = acc.length;
-            }
-            assistantText = acc;
-          } else if (acc.length > sent) {
-            ctx.sendToViewers(sessionId, { type: "text", delta: acc.slice(sent) });
-            sent = acc.length;
-            assistantText = acc;
-          }
-        }
-        event = null;
-      }
+    const out = await runA2aTurn(entry.url, text, {
+      contextId: sessionId,
+      gatewayToken,
+      agentToken,
+      signal: abort.signal,
+      onDelta: (delta) => {
+        sent += delta.length;
+        assistantText += delta;
+        ctx.sendToViewers(sessionId, { type: "text", delta });
+      },
+    });
+    if (out.text && out.text.length > sent) {
+      ctx.sendToViewers(sessionId, { type: "text", delta: out.text.slice(sent) });
     }
+    assistantText = out.text || assistantText;
   } catch (err) {
     if (!abort.switchedAway) {
       console.error(`A2A agent '${entry.id}' error:`, err.message);

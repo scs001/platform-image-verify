@@ -760,7 +760,8 @@
     },
     "card": {
       "title": "タスクを委任",
-      "tokens": "{{count}} tokens"
+      "tokens": "{{count}} tokens",
+      "remote": "マーケット"
     },
     "summary": {
       "label": "タスク要約"

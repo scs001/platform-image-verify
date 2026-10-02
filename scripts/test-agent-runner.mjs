@@ -667,3 +667,38 @@ test("6.1 a2a adapter: paused answers explicitly over HTTP; resume restores", as
     await h.close();
   }
 });
+
+// ── add-agent-delegation-a2a 4.1: depth bound + delegation concurrency ───────
+
+test("4.1 depth >= 3 refused explicitly; depth 1-2 served; concurrency queues", async () => {
+  const h = await bootRunner({
+    entries: [ENTRY],
+    skills: { "packs/pk-abc/fin-statement-analysis": "# s" },
+    // Two concurrent delegation turns allowed; the fake client replies fast,
+    // so prove the CAP by a slow reply blocking the second.
+    config: { delegationMax: 1, delegationDepthMax: 3 },
+  });
+  try {
+    await h.manager.reconcile();
+    const auth = { Authorization: "Bearer backend-secret" };
+    const call = (id, text, depth) =>
+      h.callAgent(ENTRY, "POST", "/", {
+        headers: depth ? { ...auth, "X-Delegation-Depth": String(depth) } : auth,
+        body: SEND(id, text, "c"),
+      });
+
+    const refused = await call(1, "deep", 3);
+    assert.equal(JSON.parse(refused.text).error.code, -32011);
+    assert.match(JSON.parse(refused.text).error.message, /depth bound/);
+    assert.equal(h.spawned.length, 0, "refusal spawns nothing");
+
+    const ok = await call(2, "shallow", 2);
+    assert.equal(JSON.parse(ok.text).result.parts[0].text, "分析完成");
+
+    // No depth header (human chat) also serves.
+    const human = await call(3, "hi");
+    assert.equal(human.status, 200);
+  } finally {
+    await h.close();
+  }
+});

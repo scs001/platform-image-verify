@@ -183,6 +183,9 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
   function dispatcher(task) {
     if (!task) return false;
     if (task.trigger !== "manual" && task.trigger !== "schedule") return false;
+    // a2a targets are remote turns (add-agent-delegation-a2a) — no persona to
+    // pin; they ride the primary chain's remote executor.
+    if (task.targetType === "a2a") return false;
     // Null-ref (legacy live-preset) tasks have no persona to pin a worker to.
     if (!task.preset) return false;
     waiting.push(task.id);

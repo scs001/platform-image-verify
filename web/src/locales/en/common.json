@@ -760,7 +760,8 @@
     },
     "card": {
       "title": "Task delegated",
-      "tokens": "{{count}} tokens"
+      "tokens": "{{count}} tokens",
+      "remote": "Market"
     },
     "summary": {
       "label": "Task summary"

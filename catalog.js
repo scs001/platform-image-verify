@@ -325,6 +325,13 @@ export function getAgentEntry(id) {
 // each one into a local persona preset (dsh-profile.writeCatalogAgentPresets),
 // so identity here is a persona's authority — a role-gated entry must still have
 // its preset ready for the groups allowed to select it.
+// All merged agent entries (every type/mode). Discovery surfaces slice what
+// they need (add-agent-delegation-a2a: the a2a family); humans keep
+// getChatAgentEntries.
+export function listAgents() {
+  return merged().agents;
+}
+
 export function getChatAgentEntries() {
   return merged().agents.filter((a) => a.type === "agent-remote" && a.mode === "chat");
 }

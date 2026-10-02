@@ -30,7 +30,13 @@ export function TaskCard({ block }: { block: Extract<Block, { kind: "tool" }> })
   const resultText = typeof result === "string" ? result : "";
   const taskId = TASK_ID_FROM_RESULT.exec(resultText)?.[1] ?? null;
   const task = taskId ? jobs.find((j) => j.id === taskId) ?? null : null;
-  const persona = task?.target?.ref ?? ((args as { persona?: string } | undefined)?.persona ?? null);
+  const persona = task?.target?.ref
+    ?? ((args as { persona?: string; agent?: string } | undefined)?.persona
+      ?? (args as { agent?: string } | undefined)?.agent
+      ?? null);
+  // Cross-agent delegation (add-agent-delegation-a2a): a market-agent target
+  // badges as remote, distinguishing it from a cell persona.
+  const remote = task?.target?.type === "a2a" || ((args as { agent?: string } | undefined)?.agent ?? null) !== null;
   const prompt = task?.prompt ?? ((args as { prompt?: string } | undefined)?.prompt ?? "");
   const badge = task
     ? task.state === "queued" || task.state === "running" || task.state === "failed" || task.state === "interrupted"
@@ -60,6 +66,14 @@ export function TaskCard({ block }: { block: Extract<Block, { kind: "tool" }> })
         {persona ? (
           <span className="min-w-0 truncate text-muted-foreground" data-testid="task-card-persona">
             {persona}
+          </span>
+        ) : null}
+        {remote && persona ? (
+          <span
+            data-testid="task-card-remote"
+            className="rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-[10px] text-primary shrink-0"
+          >
+            {t("tasks.card.remote")}
           </span>
         ) : null}
         <span className="ml-auto shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary" data-testid="task-card-state">

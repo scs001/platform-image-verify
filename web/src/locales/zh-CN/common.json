@@ -760,7 +760,8 @@
     },
     "card": {
       "title": "已委派任务",
-      "tokens": "{{count}} tokens"
+      "tokens": "{{count}} tokens",
+      "remote": "市场"
     },
     "summary": {
       "label": "任务汇总"

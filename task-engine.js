@@ -23,7 +23,9 @@ const JOBS_FILE = path.join(TASK_STORAGE_DIR, "jobs.json");
 // nothing moves (design D1: one store, extended in place).
 const TURN_TIMEOUT_MS = 10 * 60 * 1000;
 const HISTORY_LIMIT = 100;
-const SUPPORTED_TARGET_TYPES = ["persona"];
+// a2a targets (market Agent Services) are supported when the cell's catalog
+// holds online a2a entries — executed as remote turns (add-agent-delegation-a2a).
+const SUPPORTED_TARGET_TYPES = ["persona", "a2a"];
 const SUPPORTED_TRIGGERS = ["schedule", "manual"];
 
 let tasks = new Map(); // id -> task record (loaded from disk + live schedule
@@ -204,9 +206,12 @@ function insertTask(record) {
 // immediately enqueue — no schedule is attached, so no schedule-side
 // lifecycle ever applies. `origin` tags the creating front-end (e.g.
 // { mc: <consoleTaskId> }) and persists with the record.
-function createManualTask({ prompt, persona, sessionTitle, initiator, initiatorPreset, origin }) {
+function createManualTask({ prompt, persona, agent, sessionTitle, initiator, initiatorPreset, origin }) {
   if (!prompt || typeof prompt !== "string") throw new Error("prompt is required");
   const id = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  // Exactly one target flavor: a cell persona, or a market a2a agent. The
+  // delegation front-end validates the ref against its universe beforehand.
+  if (persona && agent) throw new Error("a task targets a persona OR a market agent, not both");
   insertTask({
     id,
     trigger: "manual",
@@ -214,8 +219,8 @@ function createManualTask({ prompt, persona, sessionTitle, initiator, initiatorP
     cron: null,
     when: null,
     prompt,
-    preset: persona ?? null,
-    targetType: "persona",
+    preset: persona ?? agent ?? null,
+    targetType: agent ? "a2a" : "persona",
     sessionId: `task-${id}`,
     sessionTitle: sessionTitle || null,
     tz: null,

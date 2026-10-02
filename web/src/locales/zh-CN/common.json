@@ -972,6 +972,16 @@
       "resourceEmptyMcp": "草稿尚未选择 MCP 引用——先在上方选取。",
       "agentServing": "部署为 Agent 服务（A2A）",
       "agentServingHint": "发布后可在详情页一键部署，经 registry 网关以 A2A 协议对外提供服务。"
+    },
+    "bridge": {
+      "title": "已从预设转入 {{skills}} 个技能、{{servers}} 个服务器；以下引用未迁移：",
+      "reason": {
+        "pack": "来自功能集 {{pack}}，内容非你所有",
+        "unavailable": "当前不可用",
+        "operator": "部署级运维服务器，无市场对应",
+        "local": "本地配置的服务器，无市场对应"
+      },
+      "replaceHint": "请在下方补齐或替换后再发布。"
     }
   },
   "overlay": {
@@ -1016,6 +1026,8 @@
     "refs": "{{skills}} 技能 · {{mcp}} MCP",
     "unavailable": "当前不可用",
     "shadowed": "被覆盖",
-    "shadowedHint": "同名条目由 agents.json 或云端配置覆盖，当前以覆盖方角色运行。"
+    "shadowedHint": "同名条目由 agents.json 或云端配置覆盖，当前以覆盖方角色运行。",
+    "toPackDraft": "转为功能集草稿",
+    "bridgeDenied": "转换需要部署管理权限（管理员或 cell 所有者）——可先在功能集草稿中手工创作"
   }
 }

@@ -10,6 +10,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "@/lib/packs-api";
 import type { PackDraft, PackManifest, PackManifestAgent } from "@/lib/packs-api";
+import { takeBridgeHandoff } from "@/lib/pack-draft-bridge";
+import type { BridgeReport } from "@/lib/pack-draft-bridge";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +31,8 @@ export function PackDraftsView({ onPublished }: { onPublished?: () => void }) {
   const { t } = useTranslation();
   const [drafts, setDrafts] = useState<PackDraft[]>([]);
   const [editing, setEditing] = useState<PackDraft | null>(null);
+  const [bridgeReport, setBridgeReport] = useState<BridgeReport | null>(null);
+  const [openDraftId, setOpenDraftId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +51,26 @@ export function PackDraftsView({ onPublished }: { onPublished?: () => void }) {
     void refresh();
   }, [refresh]);
 
+  // A preset-conversion handoff (add-preset-to-pack-bridge): open the converted
+  // draft directly and surface the migratability report once. The handoff is
+  // consumed here — a later plain visit shows no banner.
+  useEffect(() => {
+    const handoff = takeBridgeHandoff();
+    if (handoff) {
+      setBridgeReport(handoff.report);
+      setOpenDraftId(handoff.draftId);
+    }
+  }, []);
+  // The open lands when the list refresh delivers the converted draft.
+  useEffect(() => {
+    if (!openDraftId || editing) return;
+    const found = drafts.find((d) => d.id === openDraftId);
+    if (found) {
+      setEditing(found);
+      setOpenDraftId(null);
+    }
+  }, [drafts, openDraftId, editing]);
+
   const createDraft = async () => {
     try {
       const { draft } = await api.createPackDraft({ name: t("packs.drafts.defaultName"), entries: emptyEntries });
@@ -61,8 +85,10 @@ export function PackDraftsView({ onPublished }: { onPublished?: () => void }) {
     return (
       <PackDraftEditor
         draft={editing}
+        bridgeReport={bridgeReport}
         onClose={() => {
           setEditing(null);
+          setBridgeReport(null);
           void refresh();
         }}
         onPublished={(d) => {
@@ -118,10 +144,12 @@ export function PackDraftsView({ onPublished }: { onPublished?: () => void }) {
 
 function PackDraftEditor({
   draft,
+  bridgeReport,
   onClose,
   onPublished,
 }: {
   draft: PackDraft;
+  bridgeReport?: BridgeReport | null;
   onClose: () => void;
   onPublished: (updated: PackDraft) => void;
 }) {
@@ -201,6 +229,40 @@ function PackDraftEditor({
 
   return (
     <section data-testid="pack-editor" className="space-y-4">
+      {/* Conversion report (add-preset-to-pack-bridge): what came over from the
+          preset and what the author must replace — shown once, never stored. */}
+      {bridgeReport && (bridgeReport.pendingSkills.length > 0 || bridgeReport.pendingServers.length > 0) && (
+        <div
+          data-testid="pack-bridge-report"
+          className="border border-amber-500/40 bg-amber-500/5 rounded-md p-3 space-y-1"
+        >
+          <p className="text-xs font-medium text-foreground">
+            {t("packs.bridge.title", {
+              skills: bridgeReport.inlinedSkills.length,
+              servers: bridgeReport.mcpServers.length,
+            })}
+          </p>
+          {bridgeReport.pendingSkills.length > 0 && (
+            <ul className="text-xs text-muted-foreground list-disc pl-4">
+              {bridgeReport.pendingSkills.map((s) => (
+                <li key={`sk-${s.name}`} data-testid={`pack-bridge-pending-skill-${s.name}`}>
+                  {s.name} — {s.pack ? t("packs.bridge.reason.pack", { pack: s.pack }) : t("packs.bridge.reason.unavailable")}
+                </li>
+              ))}
+            </ul>
+          )}
+          {bridgeReport.pendingServers.length > 0 && (
+            <ul className="text-xs text-muted-foreground list-disc pl-4">
+              {bridgeReport.pendingServers.map((s) => (
+                <li key={`mc-${s.name}`} data-testid={`pack-bridge-pending-server-${s.name}`}>
+                  {s.name} — {t(`packs.bridge.reason.${s.reason}`)}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs text-muted-foreground">{t("packs.bridge.replaceHint")}</p>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-foreground">{t("packs.editor.title")}</h2>
         <div className="flex gap-2">

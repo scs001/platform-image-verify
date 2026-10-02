@@ -972,6 +972,16 @@
       "resourceEmptyMcp": "El borrador aún no elige referencias MCP — elige alguna arriba.",
       "agentServing": "Desplegar como servicio de agente (A2A)",
       "agentServingHint": "Tras publicar, despliega en un clic desde la página del pack; el servicio responde por A2A a través del gateway."
+    },
+    "bridge": {
+      "title": "Traído del preset: {{skills}} habilidades, {{servers}} servidores. No migrado:",
+      "reason": {
+        "pack": "pertenece al paquete {{pack}}, no es tu contenido",
+        "unavailable": "no disponible actualmente",
+        "operator": "servidor de nivel de despliegue, sin contraparte en el mercado",
+        "local": "servidor configurado localmente, sin contraparte en el mercado"
+      },
+      "replaceHint": "Sustituye o completa los elementos antes de publicar."
     }
   },
   "overlay": {
@@ -1016,6 +1026,8 @@
     "refs": "{{skills}} habilidades · {{mcp}} MCP",
     "unavailable": "no disponible",
     "shadowed": "sobrescrito",
-    "shadowedHint": "El archivo del operador o la nube define el mismo id; el rol se compone ahora con la entrada que lo sobrescribe."
+    "shadowedHint": "El archivo del operador o la nube define el mismo id; el rol se compone ahora con la entrada que lo sobrescribe.",
+    "toPackDraft": "Convertir en borrador de paquete",
+    "bridgeDenied": "La conversión requiere permisos de gestión del despliegue (admin o propietario del cell); también puedes crear el borrador a mano"
   }
 }

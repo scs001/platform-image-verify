@@ -972,6 +972,16 @@
       "resourceEmptyMcp": "Le brouillon ne choisit pas encore de références MCP — choisissez-en ci-dessus.",
       "agentServing": "Déployer en tant que service d'agent (A2A)",
       "agentServingHint": "Après publication, déployez en un clic depuis la page du pack ; le service répond en A2A via la passerelle."
+    },
+    "bridge": {
+      "title": "Importé depuis le preset : {{skills}} compétences, {{servers}} serveurs. Non migré :",
+      "reason": {
+        "pack": "appartient au pack {{pack}}, ce n'est pas ton contenu",
+        "unavailable": "actuellement indisponible",
+        "operator": "serveur opérateur du déploiement, sans équivalent marché",
+        "local": "serveur configuré localement, sans équivalent marché"
+      },
+      "replaceHint": "Remplace ou complète les éléments ci-dessous avant de publier."
     }
   },
   "overlay": {
@@ -1016,6 +1026,8 @@
     "refs": "{{skills}} compétences · {{mcp}} MCP",
     "unavailable": "indisponible",
     "shadowed": "surchargé",
-    "shadowedHint": "Le fichier opérateur ou le cloud définit le même id ; le rôle se compose actuellement sous l'entrée qui le surcharge."
+    "shadowedHint": "Le fichier opérateur ou le cloud définit le même id ; le rôle se compose actuellement sous l'entrée qui le surcharge.",
+    "toPackDraft": "Convertir en brouillon de pack",
+    "bridgeDenied": "La conversion nécessite les droits de gestion du déploiement (admin ou propriétaire du cell) ; tu peux aussi créer le brouillon à la main"
   }
 }

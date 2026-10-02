@@ -13,10 +13,13 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pencil, Plus, TriangleAlert, Trash2 } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { PackagePlus, Pencil, Plus, TriangleAlert, Trash2 } from "lucide-react";
 import { useChatStore } from "@platform/core";
 import * as api from "@/lib/presets-api";
 import type { CustomPreset, CustomPresetInput } from "@/lib/presets-api";
+import { stashBridgeHandoff } from "@/lib/pack-draft-bridge";
+import { settingsPath } from "@/components/settings/sections";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -247,6 +250,8 @@ function PresetEditor({
 
 export function CustomPresetsPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const location = useLocation();
   // catalog_changed pulses when a mutation lands (ours or another client's) —
   // the roster is deployment-global, so the list refetches with it.
   const catalogVersion = useChatStore((s) => s.catalogVersion);
@@ -255,6 +260,7 @@ export function CustomPresetsPage() {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<CustomPreset | null>(null);
   const [creating, setCreating] = useState(false);
+  const [bridging, setBridging] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -281,6 +287,25 @@ export function CustomPresetsPage() {
     } catch (e) {
       const err = e as Error & { status?: number };
       setError(err.status === 409 ? t("customPresets.streamBusy") : err.message);
+    }
+  };
+
+  // The one-way bridge into pack authoring (add-preset-to-pack-bridge): the
+  // server resolves migratability, we stash the report for the editor to show
+  // once, and jump to the packs section with the new draft open. The preset
+  // itself is never touched.
+  const convert = async (preset: CustomPreset) => {
+    setBridging(preset.id);
+    setError(null);
+    try {
+      const { draft, report } = await api.convertPresetToPackDraft(preset.id);
+      stashBridgeHandoff(draft.id, report);
+      navigate(settingsPath("packs"), { state: location.state });
+    } catch (e) {
+      const err = e as Error & { status?: number };
+      setError(err.status === 403 ? t("customPresets.bridgeDenied") : err.message);
+    } finally {
+      setBridging(null);
     }
   };
 
@@ -374,6 +399,17 @@ export function CustomPresetsPage() {
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => void convert(p)}
+                    disabled={bridging === p.id}
+                    aria-label={t("customPresets.toPackDraft")}
+                    title={t("customPresets.toPackDraft")}
+                    data-testid={`preset-to-pack-${p.id}`}
+                  >
+                    <PackagePlus className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Button>
                   <Button
                     size="sm"
                     variant="ghost"

@@ -7,17 +7,25 @@
 // Mounted only when config.packMarketplace is true, so no code path here
 // needs a local-deployment fallback.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PackMarketView } from "@/components/packs/PackMarketView";
 import { MyPacksView } from "@/components/packs/MyPacksView";
 import { PackDraftsView } from "@/components/packs/PackDraftsView";
+import { hasBridgeHandoff } from "@/lib/pack-draft-bridge";
 
 type Tab = "market" | "mine" | "drafts";
 
 export function PacksPage() {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<Tab>("market");
+
+  // A preset conversion handoff lands with this page already targeted — go
+  // straight to the drafts tab where PackDraftsView consumes it (opens the
+  // converted draft, shows the report once).
+  useEffect(() => {
+    if (hasBridgeHandoff()) setActiveTab("drafts");
+  }, []);
 
   return (
     <div className="flex flex-col h-full bg-background" data-testid="packs-page">

@@ -65,3 +65,20 @@ export function updateCustomPreset(id: string, patch: Partial<CustomPresetInput>
 export function deleteCustomPreset(id: string): Promise<{ ok: boolean }> {
   return fetch(`/api/agent/presets/${encodeURIComponent(id)}`, { method: "DELETE" }).then(json);
 }
+
+// The one-way bridge (add-preset-to-pack-bridge): server-side conversion into
+// an ordinary pack draft plus the migratability report. Gate parity with draft
+// creation — a 403 here means the MCP manage gate, not the preset surface.
+export function convertPresetToPackDraft(id: string): Promise<{
+  draft: { id: string; name: string; [k: string]: unknown };
+  report: {
+    inlinedSkills: string[];
+    mcpServers: string[];
+    pendingSkills: { name: string; reason: string; pack?: string }[];
+    pendingServers: { name: string; reason: string }[];
+  };
+}> {
+  return fetch(`/api/agent/presets/${encodeURIComponent(id)}/pack-draft`, {
+    method: "POST",
+  }).then(json);
+}

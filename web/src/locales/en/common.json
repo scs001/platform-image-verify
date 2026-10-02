@@ -972,6 +972,16 @@
       "resourceEmptyMcp": "The draft picks no MCP references yet — pick some above first.",
       "agentServing": "Deploy as an Agent Service (A2A)",
       "agentServingHint": "After publishing, deploy in one click from the pack page; the service answers over A2A through the registry gateway."
+    },
+    "bridge": {
+      "title": "Carried over from the preset: {{skills}} skills, {{servers}} servers. Not migrated:",
+      "reason": {
+        "pack": "belongs to pack {{pack}} — not your content",
+        "unavailable": "currently unavailable",
+        "operator": "deployment-level operator server, no market counterpart",
+        "local": "locally configured server, no market counterpart"
+      },
+      "replaceHint": "Replace or complete the items below before publishing."
     }
   },
   "overlay": {
@@ -1016,6 +1026,8 @@
     "refs": "{{skills}} skills · {{mcp}} MCP",
     "unavailable": "unavailable",
     "shadowed": "overridden",
-    "shadowedHint": "An operators-file or cloud entry holds the same id; the role currently composes under the overriding entry's persona."
+    "shadowedHint": "An operators-file or cloud entry holds the same id; the role currently composes under the overriding entry's persona.",
+    "toPackDraft": "Convert to pack draft",
+    "bridgeDenied": "Conversion requires deployment manage rights (admin or cell owner) — you can still hand-author a pack draft"
   }
 }

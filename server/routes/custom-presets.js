@@ -27,6 +27,8 @@ import * as db from "../../db.js";
 import * as catalog from "../../catalog.js";
 import * as skillMaterialize from "../../skill-materialize.js";
 import * as dshProfile from "../../dsh-profile.js";
+import * as extensionStore from "../../extension-store.js";
+import { composePackDraftFromPreset } from "../../preset-pack-bridge.js";
 
 const MCP_CONFIG_PATH = path.resolve(process.env.MCP_CONFIG_PATH || "mcp.json");
 
@@ -270,5 +272,32 @@ export function registerCustomPresetRoutes(ctx) {
     };
     if (ctx.runExclusiveRuntimeMutation) await ctx.runExclusiveRuntimeMutation(apply);
     else await apply();
+  });
+
+  // ── Preset → pack-draft bridge (add-preset-to-pack-bridge) ────────────────
+  //
+  // The one export-shaped affordance the preset surface offers (spec:
+  // custom-presets — "stay cell-local" amended). Gate parity with
+  // POST /api/pack-drafts: creating a draft through the preset surface must
+  // not bypass the MCP manage gate hand-authoring rides; a rejection leaves
+  // nothing behind. The preset itself is untouched and no runtime state is
+  // involved, so neither the streaming guard nor roster mutation applies.
+  app.post("/api/agent/presets/:id/pack-draft", async (req, res) => {
+    if (!dbGate(req, res)) return;
+    if (!ctx.requireMcpManage(req, res)) return;
+    const row = db.getUserPreset(req.params.id);
+    if (!row) return res.status(404).json({ error: "Preset not found" });
+    try {
+      const { draft, report } = await composePackDraftFromPreset(row, {
+        skills: db.listCustomSkills(),
+        extensions: db.listExtensionConfigs(),
+        operatorNames: operatorMcpNames(),
+        findMarketEntry: (name) => extensionStore.findMarketMcpEntry(name),
+      });
+      const created = db.createPackDraft(draft);
+      res.status(201).json({ draft: created, report });
+    } catch (err) {
+      res.status(err.status || 500).json({ error: err.message });
+    }
   });
 }

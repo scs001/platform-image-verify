@@ -40,7 +40,7 @@ function tokensOf(usage) {
   const t = usage.total_tokens ?? usage.totalTokens ?? usage.tokens;
   return Number.isFinite(Number(t)) ? Number(t) : null;
 }
-import { agentKeyFor, materializeAgentHome, mcpEntry } from "./compose.js";
+import { agentKeyFor, materializeAgentHome, mcpEntry, applyBillingKey } from "./compose.js";
 import { createAgentApp, agentPortFor } from "./a2a.js";
 
 export class ChildManager {
@@ -358,6 +358,25 @@ export class ChildManager {
       mcpServers,
       seedHome: config.seedHome,
     });
+    // Per-agent billing key (add-agent-platform-ops D2): fetch by reference
+    // from the pack gateway (runner service credential) and pin it into the
+    // private home's credential store — this child's turns bill the deployer.
+    // A fetch failure keeps the runner-level key but is never silent.
+    const keyRef = descriptor.billing_key_ref;
+    if (keyRef != null && config.packsBaseUrl) {
+      try {
+        const r = await fetch(`${config.packsBaseUrl}/api/packs/internal/llm-key/${encodeURIComponent(keyRef)}`, {
+          headers: { Authorization: `Bearer ${config.registryToken}` },
+          signal: AbortSignal.timeout(10_000),
+        });
+        const doc = await r.json().catch(() => ({}));
+        if (!r.ok || !doc?.keyValue) throw new Error(doc?.error || `HTTP ${r.status}`);
+        await applyBillingKey(spec.home, doc.keyValue);
+        this.log.log(`[agent-runner] ${key} running on its own billing key (ref ${keyRef})`);
+      } catch (e) {
+        this.log.warn(`[agent-runner] billing key fetch failed for ${key} — falling back to the runner-level key: ${e.message}`);
+      }
+    }
     const child = new AgentChild({
       key,
       version: descriptor.packVersion ?? null,

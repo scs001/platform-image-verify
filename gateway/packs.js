@@ -27,6 +27,7 @@ import path from "node:path";
 import express from "express";
 import { PACK_LIMITS, validatePackManifest as validateManifest, validateRhythm } from "../lib/pack-manifest.js";
 import { deployToRegistry, setAgentPaused } from "../lib/agent-serving.js";
+import { createSub2apiClient } from "../lib/sub2api-admin.js";
 
 // Re-exported for the gateway's own consumers (tests import from here).
 export { PACK_LIMITS, validateManifest };
@@ -39,8 +40,13 @@ export function createPackRegistry({ file }) {
     id TEXT PRIMARY KEY,
     author_email TEXT NOT NULL,
     created_at INTEGER NOT NULL,
-    unlisted INTEGER NOT NULL DEFAULT 0
+    unlisted INTEGER NOT NULL DEFAULT 0,
+    visibility TEXT NOT NULL DEFAULT 'public'
   )`);
+  // add-agent-platform-ops: visibility on pre-existing databases.
+  try {
+    db.exec(`ALTER TABLE packs ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public'`);
+  } catch { /* column already present */ }
   db.exec(`CREATE TABLE IF NOT EXISTS pack_versions (
     pack_id TEXT NOT NULL,
     version INTEGER NOT NULL,
@@ -75,6 +81,26 @@ export function createPackRegistry({ file }) {
     PRIMARY KEY (pack_id, agent_id)
   )`);
 
+  // Platform billing (add-agent-platform-ops D1/D2): the deployer→sub2api
+  // account mapping (the platform-held password exists only for accounts the
+  // platform created), and the per-agent metered keys (value stored ONCE —
+  // sub2api keeps only a hash; the runner fetches values by reference).
+  db.exec(`CREATE TABLE IF NOT EXISTS sub2api_accounts (
+    email TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    password TEXT,
+    created_at INTEGER NOT NULL
+  )`);
+  db.exec(`CREATE TABLE IF NOT EXISTS deployment_keys (
+    pack_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    key_ref TEXT NOT NULL,
+    key_value TEXT NOT NULL,
+    deployer TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (pack_id, agent_id)
+  )`);
+
   const now = () => Date.now();
   const mintId = () => randomBytes(16).toString("base64url");
 
@@ -97,14 +123,27 @@ export function createPackRegistry({ file }) {
       tags: JSON.parse(version.tags || "[]"),
       publishedAt: version.published_at,
       unlisted: Boolean(pack.unlisted),
+      visibility: pack.visibility === "private" ? "private" : "public",
     };
   }
 
+  // Private packs are owner-scoped (openspec: pack-visibility): invisible to
+  // everyone but the author and admins, with the same not-found answer a
+  // nonexistent pack gives — probing teaches nothing.
   return {
+    packRowPublic: packRow,
+
+    visibleTo(pack, user, { admin = false } = {}) {
+      if (!pack) return false;
+      if (pack.visibility !== "private") return true;
+      return !!user && (pack.author_email === user.email || admin === true);
+    },
+
     // First publish: mint an id and store version 1.
     publish({ email, manifest }) {
       const id = mintId();
-      db.prepare(`INSERT INTO packs (id, author_email, created_at) VALUES (?, ?, ?)`).run(id, email, now());
+      const visibility = manifest.visibility === "private" ? "private" : "public";
+      db.prepare(`INSERT INTO packs (id, author_email, created_at, visibility) VALUES (?, ?, ?, ?)`).run(id, email, now(), visibility);
       db.prepare(
         `INSERT INTO pack_versions (pack_id, version, name, description, tags, manifest, author_email, published_at)
          VALUES (?, 1, ?, ?, ?, ?, ?, ?)`,
@@ -118,6 +157,8 @@ export function createPackRegistry({ file }) {
       const pack = packRow(id);
       if (!pack) return { error: "not_found" };
       if (pack.author_email !== email) return { error: "forbidden" };
+      // Visibility is a PACK-level attribute (owner-scoped everywhere); a
+      // version cannot flip it — publish a new pack to change exposure.
       const latest = latestVersionRow(id);
       const version = (latest?.version ?? 0) + 1;
       db.prepare(
@@ -152,11 +193,19 @@ export function createPackRegistry({ file }) {
     // Paginated listing of live (not unlisted) packs, newest publish first.
     // `search` matches name/description substrings; `tag` matches a tag
     // exactly (stored as a JSON array, matched textually for v1 volumes).
-    list({ search = "", tag = "", page = 1, pageSize = 50 } = {}) {
+    list({ search = "", tag = "", page = 1, pageSize = 50, viewer = null } = {}) {
       const size = Math.min(Math.max(1, Number(pageSize) || 50), 100);
       const pageNum = Math.max(1, Number(page) || 1);
       const where = ["p.unlisted = 0"];
       const params = [];
+      // Private packs: owner sees their own; nobody else's (admin listing goes
+      // through the same clause — pass viewer with admin flag from the route).
+      if (viewer?.admin) {
+        where.push("1 = 1");
+      } else {
+        where.push("(p.visibility IS NULL OR p.visibility != 'private' OR p.author_email = ?)");
+        params.push(String(viewer?.email ?? ""));
+      }
       if (search) {
         where.push(`(v.name LIKE ? ESCAPE '\\' OR v.description LIKE ? ESCAPE '\\')`);
         const pat = `%${search.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -260,6 +309,35 @@ export function createPackRegistry({ file }) {
           deployedAt: r.deployed_at,
         }));
     },
+    // ── Platform billing bookkeeping (add-agent-platform-ops) ─────────────
+    billingAccount(email) {
+      return db.prepare(`SELECT * FROM sub2api_accounts WHERE email = ?`).get(email) ?? null;
+    },
+    saveBillingAccount({ email, userId, password }) {
+      db.prepare(
+        `INSERT INTO sub2api_accounts (email, user_id, password, created_at) VALUES (?, ?, ?, ?)
+         ON CONFLICT(email) DO UPDATE SET user_id = excluded.user_id,
+           password = COALESCE(excluded.password, sub2api_accounts.password)`,
+      ).run(email, userId, password, Date.now());
+    },
+    recordDeploymentKey({ packId, agentId, keyRef, keyValue, deployer }) {
+      // keyRef normalizes to string: sub2api ids arrive as numbers, route
+      // params as strings — one canonical form or lookups miss.
+      db.prepare(
+        `INSERT INTO deployment_keys (pack_id, agent_id, key_ref, key_value, deployer, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)
+         ON CONFLICT(pack_id, agent_id) DO UPDATE SET key_ref = excluded.key_ref,
+           key_value = excluded.key_value, deployer = excluded.deployer`,
+      ).run(packId, agentId, String(keyRef), keyValue, deployer, Date.now());
+    },
+    deploymentKeyByRef(keyRef) {
+      const r = db.prepare(`SELECT * FROM deployment_keys WHERE key_ref = ?`).get(String(keyRef));
+      return r ? { agentId: r.agent_id, packId: r.pack_id, keyValue: r.key_value, deployer: r.deployer } : null;
+    },
+    listDeploymentKeys() {
+      return db.prepare(`SELECT pack_id, agent_id, key_ref, deployer, created_at FROM deployment_keys`).all()
+        .map((r) => ({ packId: r.pack_id, agentId: r.agent_id, keyRef: r.key_ref, deployer: r.deployer, createdAt: r.created_at }));
+    },
 
     close() {
       db.close();
@@ -316,6 +394,9 @@ export function registerPackRoutes(app, {
       token: process.env.AGENT_SERVING_REGISTRY_TOKEN || process.env.MARKET_REGISTRY_TOKEN || "",
       runnerBaseUrl: process.env.AGENT_SERVING_RUNNER_URL || "",
       packsPublicBase: process.env.AGENT_SERVING_PACKS_URL || process.env.PAAS_BASE_URL || "",
+      // Platform billing (add-agent-platform-ops D1): absent admin key ⇒ the
+      // billing linkage degrades to the pre-③ behavior (no gate, no keys).
+      sub2api: null,
     };
   };
   const publishAllowed = createPublishRateLimiter({ windowMs: rateWindowMs, max: rateMax });
@@ -360,7 +441,7 @@ export function registerPackRoutes(app, {
     const user = auth(req, res);
     if (!user) return;
     const { search = "", tag = "", page, pageSize } = req.query;
-    res.json(registry.list({ search: String(search), tag: String(tag), page, pageSize }));
+    res.json(registry.list({ search: String(search), tag: String(tag), page, pageSize, viewer: { email: user.email, admin: isAdmin(user) } }));
   });
 
   // Latest-version detail. An unlisted pack stays visible to its author and
@@ -372,7 +453,11 @@ export function registerPackRoutes(app, {
     const isAuthor = registry.authorEmail(id) === user.email;
     const isSubscriber = Boolean(registry.subscription(user.email, id));
     const pack = registry.get(id, { includeUnlisted: isAuthor || isSubscriber });
-    if (!pack) return res.status(404).json({ error: "Pack not found" });
+    // Private packs answer not-found to everyone but the owner and admins —
+    // indistinguishable from a nonexistent pack (openspec: pack-visibility).
+    if (!pack || !registry.visibleTo({ visibility: pack.visibility, author_email: pack.authorEmail }, user, { admin: isAdmin(user) })) {
+      return res.status(404).json({ error: "Pack not found" });
+    }
     if (isAuthor) pack.subscriberCount = registry.subscriberCount(id);
     res.json(pack);
   });
@@ -381,8 +466,10 @@ export function registerPackRoutes(app, {
   app.get("/api/packs/:id/versions/:version", (req, res) => {
     const user = auth(req, res);
     if (!user) return;
+    const pack = registry.packRowPublic?.(req.params.id);
     const v = registry.getVersion(req.params.id, req.params.version);
-    if (!v) return res.status(404).json({ error: "Pack version not found" });
+    const visible = v && registry.visibleTo(pack, user, { admin: isAdmin(user) });
+    if (!visible) return res.status(404).json({ error: "Pack version not found" });
     res.json(v);
   });
 
@@ -417,6 +504,12 @@ export function registerPackRoutes(app, {
     if (!user) return;
     const id = req.params.id;
     const isAuthor = registry.authorEmail(id) === user.email;
+    // Private packs deploy for their owner (and admins) only — creators-group
+    // strangers get the same not-found a nonexistent pack gives.
+    const packRowRec = registry.packRowPublic(id);
+    if (packRowRec?.visibility === "private" && !registry.visibleTo(packRowRec, user, { admin: isAdmin(user) })) {
+      return res.status(404).json({ error: "Pack not found" });
+    }
     if (!isAuthor && !isCreator(user)) return res.status(403).json({ error: "Pack author or creator group required" });
 
     const version = registry.getVersion(id, req.params.version);
@@ -442,6 +535,76 @@ export function registerPackRoutes(app, {
         }
       }
     }
+    // ── Platform billing linkage (add-agent-platform-ops D1–D3) ──────────
+    // Degrades to the pre-③ behavior when no admin key is wired: no gate,
+    // no per-agent keys — deploy proceeds on the runner's shared quota.
+    const sub2api = cfg.sub2api
+      ? createSub2apiClient(cfg.sub2api)
+      : null;
+    let billing = { linked: false };
+    let billingKeys = {};
+    const billingKeyValues = new Map(); // keyRef → plaintext (never logged)
+    if (sub2api && !sub2api.degraded()) {
+      const check = await sub2api.selfCheck();
+      if (!check.ok) {
+        console.warn(`[packs] sub2api self-check failed — billing degraded: ${check.reason}`);
+      } else {
+        let account = registry.billingAccount(user.email);
+        let ensured;
+        try {
+          ensured = await sub2api.ensureDeployerUser(user.email);
+        } catch (err) {
+          return res.status(502).json({ error: `billing account check failed: ${err.message}` });
+        }
+        if (!account || account.user_id !== ensured.userId || (ensured.password && !account.password)) {
+          registry.saveBillingAccount({ email: user.email, userId: ensured.userId, password: ensured.password });
+          account = registry.billingAccount(user.email);
+        }
+        const floor = Number(process.env.DEPLOY_BALANCE_FLOOR ?? 0.5);
+        let balance;
+        try {
+          balance = (await sub2api.readUser(ensured.userId)).balance;
+        } catch (err) {
+          return res.status(502).json({ error: `billing balance read failed: ${err.message}` });
+        }
+        if (balance <= floor) {
+          return res.status(402).json({
+            error: `insufficient balance (${balance.toFixed(2)}) — the deploy gate needs more than ${floor}. Recharge path: contact the operator.`,
+            balance,
+            floor,
+          });
+        }
+        // Mint one metered key per serving agent (before the registry push so
+        // the descriptor can carry the reference). The plaintext lands ONLY
+        // in the platform's deployment_keys store.
+        const quota = Number(process.env.AGENT_KEY_QUOTA_USD ?? 5);
+        const rl5h = Number(process.env.AGENT_KEY_RL_5H_USD ?? 1);
+        const rl1d = Number(process.env.AGENT_KEY_RL_1D_USD ?? 3);
+        const rl7d = Number(process.env.AGENT_KEY_RL_7D_USD ?? 10);
+        if (account.password) {
+          for (const agent of version.manifest.agents ?? []) {
+            if (!agent?.serving) continue;
+            try {
+              const m = await sub2api.mintAgentKey({
+                email: user.email,
+                password: account.password,
+                name: `${id}/${agent.id}`,
+                quotaUsd: quota, rl5hUsd: rl5h, rl1dUsd: rl1d, rl7dUsd: rl7d,
+              });
+              const ref = m.keyId ?? m.key;
+              billingKeys[agent.id] = ref;
+              billingKeyValues.set(ref, m.key);
+            } catch (err) {
+              return res.status(502).json({ error: `billing key mint failed for ${agent.id}: ${err.message}` });
+            }
+          }
+        } else {
+          console.warn(`[packs] no stored password for ${user.email}'s sub2api account — deploying without per-agent keys`);
+        }
+        billing = { linked: true, balance, floor };
+      }
+    }
+
     let out;
     try {
       out = await deployToRegistry({
@@ -449,6 +612,7 @@ export function registerPackRoutes(app, {
         version: version.version,
         manifest: version.manifest,
         rhythmOverrides: rhythms ?? {},
+        billingKeys,
         ...cfg,
       });
     } catch (err) {
@@ -464,11 +628,99 @@ export function registerPackRoutes(app, {
         skillPaths: d.skills,
         email: user.email,
       });
+      // Persist the minted key value once the registry push succeeded. The
+      // map was built keyed by agent id; missing entry = degraded minting.
+      const keyRef = billingKeys[d.agentId];
+      if (keyRef != null) {
+        const stored = registry.deploymentKeyByRef(keyRef);
+        // keyId is the reference; the VALUE rides in a side map from minting.
+        registry.recordDeploymentKey({
+          packId: id, agentId: d.agentId, keyRef,
+          keyValue: billingKeyValues.get(keyRef) ?? stored?.keyValue ?? "",
+          deployer: user.email,
+        });
+      }
     }
     res.json({
-      deployed: out.deployed.map((d) => ({ agentId: d.agentId, agentPath: d.agentPath, skills: d.skills, card: d.card })),
+      deployed: out.deployed.map((d) => ({
+        agentId: d.agentId, agentPath: d.agentPath, skills: d.skills, card: d.card,
+        ...(billingKeys[d.agentId] != null ? { billingKeyRef: billingKeys[d.agentId] } : {}),
+      })),
+      billing,
       effectiveWithinSecs: out.effectiveWithinSecs,
     });
+  });
+
+  // The deployer's own balance (add-agent-platform-ops D3): one read for the
+  // deploy surface. Unlinked billing answers { linked: false } — the surface
+  // hides the readout instead of guessing.
+  app.get("/api/packs/billing/me", async (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    const cfg = deployConfig();
+    const sub2api = cfg.sub2api ? createSub2apiClient(cfg.sub2api) : null;
+    if (!sub2api || sub2api.degraded()) return res.json({ linked: false, balance: null });
+    const account = registry.billingAccount(user.email);
+    if (!account) return res.json({ linked: true, balance: null, known: false });
+    try {
+      const u = await sub2api.readUser(account.user_id);
+      res.json({ linked: true, balance: u.balance, known: true });
+    } catch (e) {
+      res.status(502).json({ error: e.message });
+    }
+  });
+
+  // Billing board (add-agent-platform-ops D5): one read for the ops console —
+  // deployed agents with their key refs, per-deployer balances, and the
+  // linkage state. Authenticated like the internal key route (runner service
+  // credential) or by an admin user.
+  app.get("/api/packs/billing/board", async (req, res) => {
+    const cfg = deployConfig();
+    const token = cfg?.token || "";
+    const asAdmin = (() => {
+      const user = resolveUser(req);
+      return user && adminGroups.some((g) => (user.groups || []).includes(g));
+    })();
+    if (!asAdmin && (!token || req.headers.authorization !== `Bearer ${token}`)) {
+      return res.status(401).json({ error: "admin or runner service credential required" });
+    }
+    const keys = registry.listDeploymentKeys();
+    let balances = [];
+    let degraded = true;
+    const sub2api = cfg.sub2api ? createSub2apiClient(cfg.sub2api) : null;
+    if (sub2api && !sub2api.degraded()) {
+      try {
+        const emails = [...new Set(keys.map((k) => k.deployer))];
+        balances = await Promise.all(
+          emails.map(async (email) => {
+            const acct = registry.billingAccount(email);
+            if (!acct) return { email, balance: null };
+            const u = await sub2api.readUser(acct.user_id);
+            return { email, balance: u.balance, status: u.status };
+          }),
+        );
+        degraded = false;
+      } catch (e) {
+        console.warn(`[packs] billing board balance read failed: ${e.message}`);
+      }
+    }
+    res.json({ degraded, keys, balances });
+  });
+
+  // Internal: the runner fetches a deployed agent's billing key by reference
+  // (add-agent-platform-ops D2). Authenticated by the runner's REGISTRY
+  // service credential — the same trust plane the runner already uses for
+  // packs data; NOT a public predicate. Every fetch is audit-logged.
+  app.get("/api/packs/internal/llm-key/:keyRef", (req, res) => {
+    const expected = (cfg) => `Bearer ${cfg?.token || ""}`;
+    const token = deployConfig()?.token || "";
+    if (!token || req.headers.authorization !== `Bearer ${token}`) {
+      return res.status(401).json({ error: "runner service credential required" });
+    }
+    const rec = registry.deploymentKeyByRef(req.params.keyRef);
+    if (!rec || !rec.keyValue) return res.status(404).json({ error: "unknown or unkeyed deployment" });
+    console.log(`[packs] llm-key fetched by runner (ref ${req.params.keyRef}, agent ${rec.agentId})`);
+    res.json({ keyRef: req.params.keyRef, agentId: rec.agentId, keyValue: rec.keyValue });
   });
 
   // Deployed roles of a pack (3.3): the unpublish warning's and the deploy
@@ -562,6 +814,12 @@ export function registerPackRoutes(app, {
   app.post("/api/packs/:id/subscribe", (req, res) => {
     const user = auth(req, res);
     if (!user) return;
+    // Private packs install for their owner (and admins) only — everyone
+    // else gets the not-found answer (openspec: pack-visibility).
+    const pack = registry.packRowPublic(req.params.id);
+    if (!registry.visibleTo(pack, user, { admin: isAdmin(user) })) {
+      return res.status(404).json({ error: "Pack not found" });
+    }
     const sub = registry.subscribe({ email: user.email, id: req.params.id });
     if (!sub) return res.status(404).json({ error: "Pack not found" });
     res.json({ packId: req.params.id, version: sub.version, manifest: sub.manifest });

@@ -38,6 +38,9 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
   // Deployer rhythm overrides (add-agent-residency D7): agentId → entries.
   const [overrides, setOverrides] = useState<Record<string, RhythmEntry[]>>({});
   const [pauseBusy, setPauseBusy] = useState<string | null>(null);
+  // Billing readout (add-agent-platform-ops D3): linked ⇒ show the balance
+  // with a low-balance warning; unlinked ⇒ no readout, no gate.
+  const [billing, setBilling] = useState<{ linked: boolean; balance: number | null } | null>(null);
 
   useEffect(() => {
     setPack(null);
@@ -53,6 +56,10 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
       .getPackDeployments(packId)
       .then((d) => setDeployments(d.deployments ?? []))
       .catch(() => setDeployments([])); // deployments route absent = nothing deployed
+    api
+      .myBillingBalance()
+      .then(setBilling)
+      .catch(() => setBilling(null));
   }, [packId]);
 
   const subscribe = async () => {
@@ -117,7 +124,14 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
     <Dialog open={!!packId} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-auto" data-testid="pack-detail">
         <DialogHeader>
-          <DialogTitle>{pack?.name ?? (error ? t("packs.detail.notFound") : "")}</DialogTitle>
+          <DialogTitle>
+            {pack?.name ?? (error ? t("packs.detail.notFound") : "")}
+            {pack?.visibility === "private" && (
+              <span data-testid="pack-private-badge" className="ml-2 rounded-sm border border-amber-500/50 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 align-middle">
+                {t("packs.detail.private")}
+              </span>
+            )}
+          </DialogTitle>
           <DialogDescription>
             {pack ? `${pack.authorEmail} · v${pack.version}` : ""}
           </DialogDescription>
@@ -207,6 +221,19 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
             {servingAgents.length > 0 && (
               <section className="border border-border rounded-md p-3" data-testid="pack-deploy-section">
                 <h4 className="font-medium mb-2">{t("packs.detail.deployTitle")}</h4>
+                {billing?.linked && (
+                  <div
+                    data-testid="pack-billing-readout"
+                    className={`text-xs mb-2 rounded-md px-2 py-1 ${billing.balance != null && billing.balance <= 1 ? "bg-amber-500/10 text-amber-700" : "text-muted-foreground"}`}
+                  >
+                    {billing.balance != null
+                      ? t("packs.detail.balance", { balance: billing.balance.toFixed(2) })
+                      : t("packs.detail.balanceUnknown")}
+                    {billing.balance != null && billing.balance <= 1 && (
+                      <span className="block">{t("packs.detail.balanceLow")}</span>
+                    )}
+                  </div>
+                )}
                 {servingAgents.map((a) => (
                   <div key={a.id} className="mb-2" data-testid={`pack-deploy-override-${a.id}`}>
                     <p className="text-xs text-muted-foreground">{t("packs.detail.rhythmOverride", { id: a.id })}</p>

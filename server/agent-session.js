@@ -4,7 +4,7 @@
 // chat-history routes consume them through ctx.
 
 import * as chatHistory from "../chat-history.js";
-import { runA2aTurn, a2aCredentials } from "./a2a-client.js";
+import { runA2aTurn, resolveGatewayCredential } from "./a2a-client.js";
 import * as catalog from "../catalog.js";
 import * as dshProfile from "../dsh-profile.js";
 import path from "node:path";
@@ -575,7 +575,9 @@ async function streamA2aChat(entry, text) {
   ctx.sendToViewers(sessionId, { type: "agent_start" });
   chatHistory.recordMessage(sessionId, "user", text, undefined, ctx.turnOrigin?.user ?? null);
 
-  const { gatewayToken, agentToken } = a2aCredentials();
+  const ownerEmail = ctx.cellUserEmail || ctx.turnOrigin?.user?.email || null;
+  const { gatewayToken } = resolveGatewayCredential({ ownerEmail, cloudMode: !!ctx.CLOUD_MODE });
+  const agentToken = process.env.AGENT_SERVING_BACKEND_TOKEN || "";
   let assistantText = "";
   try {
     let sent = 0;

@@ -7,6 +7,7 @@
 
 import { getRegistryUrl, getRegistryLoginPath, getRegistryMint } from "../../registry-bridge.js";
 import * as registryCredentials from "../../registry-credentials.js";
+import * as callerGroup from "../../caller-group.js";
 
 function identity(req) {
   return req.ssoUser || req.user || null;
@@ -85,6 +86,19 @@ export function registerRegistryRoutes(ctx) {
     }
     res.json(status);
     reapplyProfile(ctx, user?.email ?? null, user?.groups ?? null);
+    // C-lite (add-agent-platform-ops D5): fire-and-forget — the stored
+    // personal credential gains agent-invoke attribution on the registry.
+    // Failure never blocks the connect (market MCP keeps working).
+    {
+      const { assignCallerGroup, marketAdminFetch } = callerGroup;
+      void assignCallerGroup({
+        email: user?.email ?? null,
+        adminFetch: marketAdminFetch({
+          registryUrl: process.env.MARKET_REGISTRY_URL || "",
+          token: process.env.MARKET_REGISTRY_TOKEN || process.env.AGENT_SERVING_REGISTRY_TOKEN || "",
+        }),
+      }).catch(() => {});
+    }
   });
 
   // Disconnect: the row goes away, so the next profile write omits

@@ -271,6 +271,27 @@ async function pollRelay() {
   return getJson(`${RELAY_URL}/v1/stats`, { headers: { authorization: `Bearer ${RELAY_TOKEN}` } });
 }
 
+// ── agent fleet (add-agent-platform-ops 5.1) ────────────────────────────────
+// Two pollers: the runner's health surface (five live states) and the
+// platform's billing board (key refs + per-deployer balances). Both degrade
+// visibly — a failed read renders stale/failed, never omits the section.
+const RUNNER_HEALTH_URL = process.env.RUNNER_HEALTH_URL || "";
+const PLATFORM_BOARD_URL = process.env.PLATFORM_BOARD_URL || "";
+const PLATFORM_BOARD_TOKEN = process.env.PLATFORM_BOARD_TOKEN || "";
+
+async function pollRunnerHealth() {
+  if (!RUNNER_HEALTH_URL) throw new Error("RUNNER_HEALTH_URL not configured");
+  return getJson(RUNNER_HEALTH_URL, { timeoutMs: 8000 });
+}
+
+async function pollBillingBoard() {
+  if (!PLATFORM_BOARD_URL) throw new Error("PLATFORM_BOARD_URL not configured");
+  return getJson(PLATFORM_BOARD_URL, {
+    headers: { Authorization: `Bearer ${PLATFORM_BOARD_TOKEN}` },
+    timeoutMs: 8000,
+  });
+}
+
 // ── version drift ────────────────────────────────────────────────────────────
 // Three observable facts: the running pod image tag, the latest successful
 // build's pushed tag, and the ArgoCD sync state. The GitOps manifest tag is
@@ -299,6 +320,8 @@ const SOURCES = [
   ["harbor", pollHarbor],
   ["probes", pollProbes],
   ["relay", pollRelay],
+  ["runnerHealth", pollRunnerHealth],
+  ["billingBoard", pollBillingBoard],
 ];
 let pollBusy = false;
 async function pollOnce() {
@@ -554,9 +577,46 @@ function renderBoard() {
     </div>
   </header>
   ${vitals}
+  ${renderFleet()}
   <div class="grid">${cards}${jenkinsCard}${harborCard}${relayBody}</div>
 </div>
 </body></html>`;
+}
+
+// ── agent fleet section (add-agent-platform-ops 5.1) ───────────────────────
+// runnerHealth gives the five live states; billingBoard gives key refs and
+// balances. Failed reads render failed with age — rows are never omitted.
+function renderFleet() {
+  const h = storeLatest("runnerHealth")?.data ?? null;
+  const b = storeLatest("billingBoard")?.data ?? null;
+  const hErr = h?.__error ?? null;
+  const bErr = b?.__error ?? null;
+  const agents = Array.isArray(h?.agents) ? h.agents : [];
+  const balances = new Map((b?.balances ?? []).map((x) => [x.email, x]));
+  const rows = agents.map((a) => {
+    const stateCls = a.state === "serving" || a.state === "resident" ? "ok" : a.state === "paused" ? "warn" : "";
+    return `<tr><td class="mono">${esc(a.key ?? "?")}</td><td><span class="pill ${stateCls}">${esc(a.state ?? "?")}</span></td><td>v${esc(String(a.version ?? "?"))}</td><td class="mono">${esc(a.port ?? "")}</td></tr>`;
+  });
+  const keyRows = (b?.keys ?? []).map((k) => {
+    const bal = balances.get(k.deployer);
+    const low = bal?.balance != null && bal.balance <= 1;
+    return `<tr><td class="mono">${esc(k.agentId)}</td><td class="mono">${esc(String(k.keyRef).slice(0, 12))}</td><td>${esc(k.deployer)}</td><td class="${low ? "warn" : ""}">${bal?.balance == null ? "n/a" : "$" + Number(bal.balance).toFixed(2)}</td></tr>`;
+  });
+  const poolLine = b?.degraded === false ? "billing linked" : bErr ? "billing read failed" : "billing degraded";
+  return `<section class="fleet" aria-label="agent fleet">
+  <h2>agent fleet</h2>
+  <div class="fleetgrid">
+    <div>
+      <h3>runner: ${hErr ? `<span class="warn">health failed (${esc(hErr)})</span>` : `${agents.length} agent(s) · budget ${Math.round(h?.budget ?? 0)}/${h?.budgetMb ?? "?"}MB`}</h3>
+      ${rows.length ? `<table><thead><tr><th>agent</th><th>state</th><th>v</th><th>port</th></tr></thead><tbody>${rows.join("")}</tbody></table>` : `<p class="dim">no deployed agents</p>`}
+    </div>
+    <div>
+      <h3>billing: <span class="${bErr || b?.degraded ? "warn" : "ok"}">${esc(poolLine)}</span></h3>
+      ${keyRows.length ? `<table><thead><tr><th>agent</th><th>key</th><th>deployer</th><th>balance</th></tr></thead><tbody>${keyRows.join("")}</tbody></table>` : `<p class="dim">no metered keys${bErr ? ` — ${esc(bErr)}` : ""}</p>`}
+      <p class="dim">upstream isolation: see runbook (pool group 7)</p>
+    </div>
+  </div>
+</section>`;
 }
 // ── server (token OR session cookie; read-only surface) ─────────────────────
 const server = http.createServer((req, res) => {

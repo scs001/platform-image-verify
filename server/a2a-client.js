@@ -12,10 +12,33 @@
 
 export const DELEGATION_DEPTH_BOUND = 3;
 
+import * as registryCredentials from "../registry-credentials.js";
+
 export function a2aCredentials() {
   const gatewayToken = process.env.AGENT_SERVING_REGISTRY_TOKEN || process.env.MARKET_REGISTRY_TOKEN || "";
   const agentToken = process.env.AGENT_SERVING_BACKEND_TOKEN || "";
   return { gatewayToken, agentToken };
+}
+
+// C-lite credential selection (add-agent-platform-ops D5, ADR-0013): on a
+// HOSTED cell the owner's PERSONAL registry credential carries a2a traffic
+// (per-user attribution; the connect flow assigns the invoke-only group). A
+// local single-owner machine rides the deployment service credential. A
+// hosted cell with no stored credential fails with connect guidance — never
+// a silent substitution.
+export function resolveGatewayCredential({ ownerEmail, cloudMode }) {
+  const service = process.env.AGENT_SERVING_REGISTRY_TOKEN || process.env.MARKET_REGISTRY_TOKEN || "";
+  if (!cloudMode || !ownerEmail) {
+    return { gatewayToken: service, fallback: !cloudMode && !ownerEmail ? "service" : "service" };
+  }
+  const { liveToken } = registryCredentials;
+  const personal = liveToken(ownerEmail);
+  if (personal) return { gatewayToken: personal, fallback: null };
+  const err = new Error(
+    "connect the MCP market first — delegated and a2a calls need your personal registry credential (Settings → MCP 市场 → 连接)",
+  );
+  err.code = -32012;
+  throw err;
 }
 
 // One message/stream turn against `url`. Returns { text } (the accumulated

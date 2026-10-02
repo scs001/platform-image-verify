@@ -1618,3 +1618,27 @@ runner 断环代码已同步 staging（a2a/config/manager 三文件 + ① 全套
 
 cell 侧全链（发现→创建→远端执行→落会话→卡片徽标）由 e2e `delegation-a2a.spec.js` 覆盖
 （2/2）。cell→真 registry→真 runner 的端到端委派随 ② 平台侧部署后由用户演练一回。
+
+### ③ 平台运营 ops 前置（add-agent-platform-ops，2026-10-02 已执行）
+
+- **管理员/API Key**：管理员凭证（用户持有）→ `POST /api/v1/auth/login` 换 JWT →
+  `POST /api/v1/admin/settings/admin-api-key/regenerate` 生成 Admin API Key（`x-api-key`
+  头鉴权）→ 已入 fd-prod Secret `platform-secrets` 键 `sub2api-admin-key`。找回路径：
+  面板登录 admin@finddatatech.cloud → 管理设置重新生成（旧 key 即失效）。密码不落任何仓文件。
+- **平台池组**：id=7 `paas-platform-pool`（composite/active）。**上游账号加入组前 key 不得绑组**
+  （组内无账号=推理断）——运营加独立上游账号后，部署铸 key 时带 `group_id:7` 完成隔离。
+- **充值（day-one）**：0.2.7 无充值码端点（实测 404）→ 手工调额：
+  `POST /api/v1/admin/users/:id/balance`（x-api-key + `Idempotency-Key` 头 + body 按面板
+  校验形状）；内置支付未配置，接入是运营后置决策。
+- **实测在位的管理 API**：`GET/POST /api/v1/admin/users`、`GET /api/v1/admin/users/:id`、
+  `GET /api/v1/admin/users/:id/api-keys`、`GET /api/v1/admin/groups`、`POST /api/v1/admin/groups`。
+
+### ③ 计费链真机冒烟（add-agent-platform-ops，2026-10-02 已执行）
+
+对真 sub2api（port-forward svc/sub2api）以 Admin API Key 跑通 `lib/sub2api-admin.js` 全链：
+ensureDeployerUser（probe4 → userId 45）→ mintAgentKey（`POST /api/v1/keys`，keyId 24，
+quota $1 + 三窗）→ adjustBalance（`{balance, operation:"add"}` + Idempotency-Key）→ readUser
+（balance 1.00）。**实测形状修正两处**：建 key 用户面板路由是 `/api/v1/keys`（非上游文档的
+`/api/v1/user/keys`）；余额调整 body 为 UpdateBalanceRequest `{balance, operation}`（amount
+不被接受）。探针账户 paas-ops-probe{1..4}@finddatatech.cloud 留存（$0-1 余额，无 key 在用，
+可运营侧清理）。runner 侧 key 注入的真回合记账随 ③ 平台部署后演练。

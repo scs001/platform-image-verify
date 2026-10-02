@@ -17,6 +17,7 @@ export interface PackSummary {
   tags: string[];
   publishedAt: number;
   subscriberCount?: number;
+  visibility?: "public" | "private";
 }
 
 export interface PackManifestSkill {
@@ -47,6 +48,7 @@ export interface PackManifestAgent {
 
 export interface PackManifest {
   name: string;
+  visibility?: "public" | "private";
   description?: string;
   tags?: string[];
   skills?: PackManifestSkill[];
@@ -140,9 +142,12 @@ export interface PackDeployment {
   paused?: boolean;
 }
 
-// Deploy with optional per-agent rhythm overrides (add-agent-residency D7):
-// rhythms maps agentId → entry list; the descriptor records the override as
-// the effective rhythm, the manifest default otherwise.
+// Billing reads (add-agent-platform-ops D3): the deployer's balance for the
+// deploy surface's readout and warning banner.
+export function myBillingBalance(): Promise<{ linked: boolean; balance: number | null; known?: boolean }> {
+  return fetch("/api/packs/billing/me").then(json);
+}
+
 // Deploy with optional per-agent rhythm overrides (add-agent-residency D7):
 // rhythms maps agentId → entry list; the descriptor records the override as
 // the effective rhythm, the manifest default otherwise.

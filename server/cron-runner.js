@@ -14,7 +14,7 @@
 
 import * as chatHistory from "../chat-history.js";
 import * as catalog from "../catalog.js";
-import { runA2aTurn, a2aCredentials } from "./a2a-client.js";
+import { runA2aTurn, resolveGatewayCredential } from "./a2a-client.js";
 
 const IDLE_POLL_MS = 250;
 const PRESET_SWITCH_ATTEMPTS = 3;
@@ -185,7 +185,11 @@ export function attachCronRunner(ctx) {
         try { chatHistory.setTitle(sessionId, job.sessionTitle); } catch { /* prompt-derived title stays */ }
       }
       try {
-        const { gatewayToken, agentToken } = a2aCredentials();
+        const { gatewayToken } = resolveGatewayCredential({
+          ownerEmail: ctx.cellUserEmail || null,
+          cloudMode: !!ctx.CLOUD_MODE,
+        });
+        const agentToken = process.env.AGENT_SERVING_BACKEND_TOKEN || "";
         const out = await runA2aTurn(entry.url, job.prompt, {
           contextId: sessionId,
           depth: 1,

@@ -157,6 +157,22 @@ export async function materializeAgentHome({ homeRoot, agentKey, entry, skillCon
   return { home, presetId, patchPaths, skillsRoot };
 }
 
+// Overwrite the private home's LLM_API_KEY credential ref with the agent's
+// own billing key (add-agent-platform-ops D2). The child's env is scrubbed,
+// so the credentials FILE is the only channel that reaches it; everything
+// else in the doc (user-provider refs) stays intact.
+export async function applyBillingKey(home, keyValue) {
+  const credentialsPath = path.join(home, ".credentials.yaml");
+  let doc = {};
+  try {
+    doc = yaml.load(readFileSync(credentialsPath, "utf8")) ?? {};
+  } catch { /* absent/malformed → recreate */ }
+  doc.version = 1;
+  doc.refs = doc.refs && typeof doc.refs === "object" ? doc.refs : {};
+  doc.refs.LLM_API_KEY = keyValue;
+  writeFileSync(credentialsPath, yaml.dump(doc), { mode: 0o600 });
+}
+
 // One dsh-mcp-client loader entry per registry server — the http branch of
 // dsh-profile's toMcpClientEntry, verbatim shape.
 export function mcpEntry(name, { url, token }) {

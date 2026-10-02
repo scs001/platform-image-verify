@@ -906,7 +906,11 @@
       "rhythmOverride": "Anular ritmo (opcional, @{{id}})",
       "paused": "Pausado",
       "pauseBtn": "Pausar",
-      "resumeBtn": "Reanudar"
+      "resumeBtn": "Reanudar",
+      "private": "Privado",
+      "balance": "Saldo: {{balance}}",
+      "balanceUnknown": "Saldo desconocido (se establece al primer despliegue)",
+      "balanceLow": "Saldo bajo — los despliegues se rechazarán; contacta al operador para recargar."
     },
     "report": {
       "title": "Resultado de instalación de «{{name}}»",
@@ -976,7 +980,10 @@
       "resourceEmptySkills": "El borrador aún no declara habilidades — añade alguna arriba.",
       "resourceEmptyMcp": "El borrador aún no elige referencias MCP — elige alguna arriba.",
       "agentServing": "Desplegar como servicio de agente (A2A)",
-      "agentServingHint": "Tras publicar, despliega en un clic desde la página del pack; el servicio responde por A2A a través del gateway."
+      "agentServingHint": "Tras publicar, despliega en un clic desde la página del pack; el servicio responde por A2A a través del gateway.",
+      "visibility": "Visibilidad",
+      "visibilityPublic": "Público (listado)",
+      "visibilityPrivate": "Privado (solo propietario)"
     },
     "bridge": {
       "title": "Traído del preset: {{skills}} habilidades, {{servers}} servidores. No migrado:",

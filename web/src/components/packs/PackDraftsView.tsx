@@ -159,6 +159,11 @@ function PackDraftEditor({
   const { marketCatalog, refreshMarketCatalog } = useExtensionsStore();
   const [name, setName] = useState(draft.name);
   const [description, setDescription] = useState(draft.description);
+  // Visibility (add-agent-platform-ops): pack-level exposure, author-picked
+  // at publish; remembered across editing sessions.
+  const [visibility, setVisibility] = useState<"public" | "private">(
+    (draft as { visibility?: "public" | "private" }).visibility === "private" ? "private" : "public",
+  );
   const [tags, setTags] = useState(draft.tags.join(", "));
   const [skills, setSkills] = useState(() => withKeys(draft.entries.skills ?? []));
   const [mcpPicked, setMcpPicked] = useState<string[]>((draft.entries.mcpServers ?? []).map((m) => m.registryName));
@@ -210,6 +215,7 @@ function PackDraftEditor({
       const manifest: PackManifest = {
         name: updated.name,
         description: updated.description,
+        visibility,
         tags: updated.tags,
         skills: updated.entries.skills ?? [],
         mcpServers: updated.entries.mcpServers ?? [],
@@ -305,6 +311,19 @@ function PackDraftEditor({
       <div>
         <Label htmlFor="pack-desc">{t("packs.editor.description")}</Label>
         <Textarea id="pack-desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
+        <div className="flex items-center gap-2 mt-2">
+          <Label htmlFor="pack-visibility">{t("packs.editor.visibility")}</Label>
+          <select
+            id="pack-visibility"
+            value={visibility}
+            onChange={(e) => setVisibility(e.target.value === "private" ? "private" : "public")}
+            className="border border-border rounded px-1.5 py-1 text-xs bg-background"
+            data-testid="pack-visibility"
+          >
+            <option value="public">{t("packs.editor.visibilityPublic")}</option>
+            <option value="private">{t("packs.editor.visibilityPrivate")}</option>
+          </select>
+        </div>
       </div>
 
       {/* Skills */}

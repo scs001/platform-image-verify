@@ -906,7 +906,11 @@
       "rhythmOverride": "覆盖节奏（可选，@{{id}}）",
       "paused": "已暂停",
       "pauseBtn": "暂停",
-      "resumeBtn": "恢复"
+      "resumeBtn": "恢复",
+      "private": "私有",
+      "balance": "余额：{{balance}}",
+      "balanceUnknown": "余额未知（首次部署时建立）",
+      "balanceLow": "余额不足——部署会被拒绝，请联系运营充值。"
     },
     "report": {
       "title": "「{{name}}」安装结果",
@@ -976,7 +980,10 @@
       "resourceEmptySkills": "草稿尚未声明技能——先在上方添加技能。",
       "resourceEmptyMcp": "草稿尚未选择 MCP 引用——先在上方选取。",
       "agentServing": "部署为 Agent 服务（A2A）",
-      "agentServingHint": "发布后可在详情页一键部署，经 registry 网关以 A2A 协议对外提供服务。"
+      "agentServingHint": "发布后可在详情页一键部署，经 registry 网关以 A2A 协议对外提供服务。",
+      "visibility": "可见性",
+      "visibilityPublic": "公开（市场列出）",
+      "visibilityPrivate": "私有（仅自己）"
     },
     "bridge": {
       "title": "已从预设转入 {{skills}} 个技能、{{servers}} 个服务器；以下引用未迁移：",

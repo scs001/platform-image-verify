@@ -906,7 +906,11 @@
       "rhythmOverride": "Rhythm override (optional, @{{id}})",
       "paused": "Paused",
       "pauseBtn": "Pause",
-      "resumeBtn": "Resume"
+      "resumeBtn": "Resume",
+      "private": "Private",
+      "balance": "Balance: {{balance}}",
+      "balanceUnknown": "Balance unknown (established at first deploy)",
+      "balanceLow": "Balance low — deploys will be refused; contact the operator to recharge."
     },
     "report": {
       "title": "Install result for “{{name}}”",
@@ -976,7 +980,10 @@
       "resourceEmptySkills": "The draft declares no skills yet — add some above first.",
       "resourceEmptyMcp": "The draft picks no MCP references yet — pick some above first.",
       "agentServing": "Deploy as an Agent Service (A2A)",
-      "agentServingHint": "After publishing, deploy in one click from the pack page; the service answers over A2A through the registry gateway."
+      "agentServingHint": "After publishing, deploy in one click from the pack page; the service answers over A2A through the registry gateway.",
+      "visibility": "Visibility",
+      "visibilityPublic": "Public (listed)",
+      "visibilityPrivate": "Private (owner only)"
     },
     "bridge": {
       "title": "Carried over from the preset: {{skills}} skills, {{servers}} servers. Not migrated:",

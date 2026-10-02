@@ -906,7 +906,11 @@
       "rhythmOverride": "Remplacer le rythme (optionnel, @{{id}})",
       "paused": "En pause",
       "pauseBtn": "Pause",
-      "resumeBtn": "Reprendre"
+      "resumeBtn": "Reprendre",
+      "private": "Privé",
+      "balance": "Solde : {{balance}}",
+      "balanceUnknown": "Solde inconnu (établi au premier déploiement)",
+      "balanceLow": "Solde bas — les déploiements seront refusés ; contactez l'opérateur pour recharger."
     },
     "report": {
       "title": "Résultat d'installation de « {{name}} »",
@@ -976,7 +980,10 @@
       "resourceEmptySkills": "Le brouillon ne déclare pas encore de compétences — ajoutez-en ci-dessus.",
       "resourceEmptyMcp": "Le brouillon ne choisit pas encore de références MCP — choisissez-en ci-dessus.",
       "agentServing": "Déployer en tant que service d'agent (A2A)",
-      "agentServingHint": "Après publication, déployez en un clic depuis la page du pack ; le service répond en A2A via la passerelle."
+      "agentServingHint": "Après publication, déployez en un clic depuis la page du pack ; le service répond en A2A via la passerelle.",
+      "visibility": "Visibilité",
+      "visibilityPublic": "Public (listé)",
+      "visibilityPrivate": "Privé (propriétaire seul)"
     },
     "bridge": {
       "title": "Importé depuis le preset : {{skills}} compétences, {{servers}} serveurs. Non migré :",

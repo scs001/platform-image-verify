@@ -64,6 +64,11 @@ export function loadConfig(env = process.env) {
     // target (NFS/object volume mounts here).
     digestMaxChars: num(env.AGENT_RUNNER_DIGEST_MAX_CHARS, 512),
     archiveDir: env.AGENT_RUNNER_ARCHIVE_DIR || path.join(env.AGENT_RUNNER_HOME || path.join(repoRoot, "runner-home"), "agent-archive"),
+    // Platform billing (add-agent-platform-ops D2): where the runner fetches
+    // per-agent LLM keys by reference — the pack gateway's internal route,
+    // authenticated by the registry service credential both sides share.
+    packsBaseUrl: (env.AGENT_RUNNER_PACKS_URL || env.AGENT_SERVING_PACKS_URL || "").replace(/\/+$/, ""),
+
     // Delegation bounds (add-agent-delegation-a2a D4): the depth at which the
     // adapter refuses chained calls, and the per-agent cap on concurrent
     // delegation-originated turns (over-cap queues, never fails).

@@ -906,7 +906,11 @@
       "rhythmOverride": "リズム上書き（任意, @{{id}}）",
       "paused": "一時停止中",
       "pauseBtn": "一時停止",
-      "resumeBtn": "再開"
+      "resumeBtn": "再開",
+      "private": "非公開",
+      "balance": "残高：{{balance}}",
+      "balanceUnknown": "残高不明（初回デプロイ時に確立）",
+      "balanceLow": "残高不足 — デプロイは拒否されます。運営に連絡してチャージしてください。"
     },
     "report": {
       "title": "「{{name}}」のインストール結果",
@@ -976,7 +980,10 @@
       "resourceEmptySkills": "ドラフトにスキルがまだありません。先に上で追加してください。",
       "resourceEmptyMcp": "ドラフトで MCP 参照が未選択です。先に上で選択してください。",
       "agentServing": "エージェントサービスとしてデプロイ（A2A）",
-      "agentServingHint": "公開後、パックページからワンクリックでデプロイ。レジストリゲートウェイ経由で A2A に応答します。"
+      "agentServingHint": "公開後、パックページからワンクリックでデプロイ。レジストリゲートウェイ経由で A2A に応答します。",
+      "visibility": "公開範囲",
+      "visibilityPublic": "公開（一覧表示）",
+      "visibilityPrivate": "非公開（所有者のみ）"
     },
     "bridge": {
       "title": "プリセットから移行：スキル {{skills}} 件、サーバー {{servers}} 件。移行されなかった項目：",

@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "./Badge";
+import { RhythmEditor, rhythmEntryValid } from "./RhythmEditor";
+import type { RhythmEntry } from "./RhythmEditor";
 
 interface Props {
   packId: string | null;
@@ -33,6 +35,9 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
   const [deployments, setDeployments] = useState<PackDeployment[]>([]);
   const [deploying, setDeploying] = useState(false);
   const [deployNote, setDeployNote] = useState<string | null>(null);
+  // Deployer rhythm overrides (add-agent-residency D7): agentId → entries.
+  const [overrides, setOverrides] = useState<Record<string, RhythmEntry[]>>({});
+  const [pauseBusy, setPauseBusy] = useState<string | null>(null);
 
   useEffect(() => {
     setPack(null);
@@ -73,7 +78,14 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
     setError(null);
     setDeployNote(null);
     try {
-      const out = await api.deployPack(packId, pack.version);
+      // Only VALID filled override entries ride the deploy request; untouched
+      // agents (and the empty map) mean "manifest default".
+      const rhythms: Record<string, RhythmEntry[]> = {};
+      for (const [agentId, entries] of Object.entries(overrides)) {
+        const valid = (entries ?? []).filter(rhythmEntryValid);
+        if (valid.length > 0) rhythms[agentId] = valid;
+      }
+      const out = await api.deployPack(packId, pack.version, Object.keys(rhythms).length > 0 ? rhythms : undefined);
       const d = await api.getPackDeployments(packId);
       setDeployments(d.deployments ?? []);
       setDeployNote(t("packs.detail.deployEffective", { minutes: Math.ceil(out.effectiveWithinSecs / 60) }));
@@ -81,6 +93,21 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
       setError((err as Error).message);
     } finally {
       setDeploying(false);
+    }
+  };
+
+  const togglePause = async (agentId: string, paused: boolean) => {
+    if (!packId) return;
+    setPauseBusy(agentId);
+    setError(null);
+    try {
+      await api.pauseDeployment(packId, agentId, paused);
+      const d = await api.getPackDeployments(packId);
+      setDeployments(d.deployments ?? []);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setPauseBusy(null);
     }
   };
 
@@ -160,6 +187,16 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                         )}
                       </div>
                       <div className="font-mono text-xs text-muted-foreground">{a.id}</div>
+                      {!!a.serving?.rhythm?.length && (
+                        <div className="flex flex-wrap gap-1 mt-1" data-testid={`pack-agent-rhythm-default-${a.id}`}>
+                          {a.serving.rhythm.map((r, j) => (
+                            <span key={j} className="rounded-full border border-border px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+                              {r.daily ?? r.every}
+                              {r.do ? ` · ${r.do.slice(0, 18)}${r.do.length > 18 ? "…" : ""}` : ""}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       <p className="text-xs whitespace-pre-wrap mt-1">{a.persona}</p>
                     </div>
                   ))}
@@ -170,13 +207,35 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
             {servingAgents.length > 0 && (
               <section className="border border-border rounded-md p-3" data-testid="pack-deploy-section">
                 <h4 className="font-medium mb-2">{t("packs.detail.deployTitle")}</h4>
+                {servingAgents.map((a) => (
+                  <div key={a.id} className="mb-2" data-testid={`pack-deploy-override-${a.id}`}>
+                    <p className="text-xs text-muted-foreground">{t("packs.detail.rhythmOverride", { id: a.id })}</p>
+                    <RhythmEditor
+                      value={overrides[a.id] ?? []}
+                      onChange={(entries) => setOverrides((o) => ({ ...o, [a.id]: entries }))}
+                      testIdPrefix={`pack-deploy-override-editor-${a.id}`}
+                    />
+                  </div>
+                ))}
                 {deployments.length > 0 && (
                   <ul className="space-y-1 mb-2">
                     {deployments.map((d) => (
                       <li key={d.agentId} className="flex items-center gap-2 text-xs" data-testid="pack-deployment-row">
                         <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono">{d.agentId}</span>
                         <span className="text-muted-foreground">v{d.version}</span>
-                        <span className="ml-auto text-primary">{t("packs.detail.deployOnline")}</span>
+                        <span className={d.paused ? "text-amber-600" : "text-primary"} data-testid={`pack-deployment-state-${d.agentId}`}>
+                          {d.paused ? t("packs.detail.paused") : t("packs.detail.deployOnline")}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="ml-auto h-6 px-2 text-xs"
+                          disabled={pauseBusy === d.agentId}
+                          onClick={() => void togglePause(d.agentId, !d.paused)}
+                          data-testid={`pack-deployment-pause-${d.agentId}`}
+                        >
+                          {d.paused ? t("packs.detail.resumeBtn") : t("packs.detail.pauseBtn")}
+                        </Button>
                       </li>
                     ))}
                   </ul>

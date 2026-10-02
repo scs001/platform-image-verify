@@ -901,7 +901,11 @@
       "deployTitle": "Deploy as service",
       "deployBtn": "Deploy",
       "deployOnline": "online",
-      "deployEffective": "Deployment submitted — effective within ~{{minutes}} min (runner polling)."
+      "deployEffective": "Deployment submitted — effective within ~{{minutes}} min (runner polling).",
+      "rhythmOverride": "Rhythm override (optional, @{{id}})",
+      "paused": "Paused",
+      "pauseBtn": "Pause",
+      "resumeBtn": "Resume"
     },
     "report": {
       "title": "Install result for “{{name}}”",
@@ -982,6 +986,16 @@
         "local": "locally configured server, no market counterpart"
       },
       "replaceHint": "Replace or complete the items below before publishing."
+    },
+    "rhythm": {
+      "title": "Work rhythm (autonomy grant)",
+      "add": "Add rhythm entry",
+      "remove": "Remove",
+      "every": "Interval",
+      "daily": "Daily",
+      "doPlaceholder": "What to do when it fires (optional, e.g. patrol sources)",
+      "invalid": "Invalid entry: every needs Nm/Nh (≥5m), daily needs HH:MM",
+      "hint": "A rhythm grants autonomy — the platform injects self-turns on cadence; none means answering-only."
     }
   },
   "overlay": {
@@ -1029,5 +1043,15 @@
     "shadowedHint": "An operators-file or cloud entry holds the same id; the role currently composes under the overriding entry's persona.",
     "toPackDraft": "Convert to pack draft",
     "bridgeDenied": "Conversion requires deployment manage rights (admin or cell owner) — you can still hand-author a pack draft"
+  },
+  "question": {
+    "title": "Your input is needed",
+    "waitingHint": "the conversation continues once you answer",
+    "customPlaceholder": "or type a custom answer…",
+    "cancel": "Cancel question",
+    "submit": "Submit answer",
+    "answered": "Question answered",
+    "cancelled": "Question cancelled",
+    "customAnswer": "Custom answer"
   }
 }

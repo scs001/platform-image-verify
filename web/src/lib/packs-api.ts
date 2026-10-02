@@ -36,7 +36,7 @@ export interface PackManifestAgent {
   persona: string;
   // Optional serving contract (add-a2a-agent-serving): present ⇒ the role is
   // deployable as an Agent Service over A2A.
-  serving?: { protocol: string; card?: Record<string, unknown> };
+  serving?: { protocol: string; card?: Record<string, unknown>; rhythm?: { every?: string; daily?: string; do?: string }[] };
   tags?: string[];
   icon?: string;
   // Optional per-role resource declaration (add-persona-resource-sets): a
@@ -137,14 +137,30 @@ export interface PackDeployment {
   skills: string[];
   deployedBy: string;
   deployedAt: number;
+  paused?: boolean;
 }
 
-export function deployPack(id: string, version: number) {
+// Deploy with optional per-agent rhythm overrides (add-agent-residency D7):
+// rhythms maps agentId → entry list; the descriptor records the override as
+// the effective rhythm, the manifest default otherwise.
+// Deploy with optional per-agent rhythm overrides (add-agent-residency D7):
+// rhythms maps agentId → entry list; the descriptor records the override as
+// the effective rhythm, the manifest default otherwise.
+export function deployPack(id: string, version: number, rhythms?: Record<string, unknown>) {
   return fetch(`/api/packs/${encodeURIComponent(id)}/versions/${version}/deploy`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: "{}",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(rhythms && Object.keys(rhythms).length > 0 ? { rhythms } : {}),
   }).then(json) as Promise<DeployResult>;
+}
+
+// Pause/resume a deployed agent (add-agent-residency D5): the registry flag
+// the runner polls; effective within the same five-minute window as deploy.
+export function pauseDeployment(packId: string, agentId: string, paused: boolean) {
+  return fetch(
+    `/api/packs/${encodeURIComponent(packId)}/deployments/${encodeURIComponent(agentId)}/${paused ? "pause" : "resume"}`,
+    { method: "POST" },
+  ).then(json) as Promise<{ agentPath: string; paused: boolean; effectiveWithinSecs: number }>;
 }
 
 export function getPackDeployments(id: string) {

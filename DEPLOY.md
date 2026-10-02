@@ -1561,3 +1561,30 @@ staging 全链路七步全绿：deploy v1 → runner 拾取 → 健康复检出�
   matrix 启动门在 staging 用 `DSH_MATRIX_OVERRIDE=1`（手装树 vs 冻结锁差一包，报告照记）。
 - **创作侧入口**：pack 编辑器新增「部署为 Agent 服务（A2A）」开关（sha-16cd264 起），
   市场 · 详情页「部署为服务」按钮即用。
+
+### 驻留运行时（add-agent-residency，2026-10-02）
+
+**行为变化**：runner 不再按 30min 闲置回收——已部署 agent 默认驻留（ADR-0010）。
+温区是唯一降级路径：host 内存预算超限时逐出最久未活动的驻留 child（进程停、
+home/会话留盘，下次触达秒级热起）；冷却 10 分钟内的 child 不逐（硬超 120% 除外）。
+
+**旋钮**（agent-runner env）：
+
+- `AGENT_RUNNER_RESIDENT_BUDGET_MB`（默认 3072）——host 内存预算（采样 RSS +
+  每 agent 固定成本取大者计账）；
+- `AGENT_RUNNER_AGENT_COST_MB`（默认 96）——**RSS 复调常数**。实测记档（2026-10-02）：
+  cheap1 staging 长闲置 child Linux RSS 仅 4.9MB（换页回收后）、macOS 新起空闲
+  18–54MB（活跃带载增长）；活跃稳态 Linux 未实测——保持 96MB 保守值，首次真实
+  带载驻留后按 `docker top agent-runner-dsh -o rss` 复调（实测 ×1.3）；
+- `AGENT_RUNNER_TZ`（默认 Asia/Shanghai）——每日节奏与日界的时区；
+- `AGENT_RUNNER_ARCHIVE_DIR`（默认 `<home>/agent-archive`）——每日纪要归档目标，
+  NFS/对象卷直接挂此路径；
+- `AGENT_RUNNER_METER_FILE`（默认 `<home>/meter.jsonl`）——每回合计量
+  `{agent, kind: message|self|digest, tokens?, durationMs, at}`，③ 计费结算的输入。
+
+**节奏与暂停**：`serving.rhythm`（pack 契约，作者默认）→ 部署时 `rhythms` 覆盖
+（descriptor 记生效值）→ runner 调度器按节奏注入自主回合（错过即跳过不补跑）。
+日界滚动：旧日会话由 digest 自主回合总结 → 归档 + 次日会话头部注入「昨日纪要」。
+暂停 = registry 条目 `paused` 标记（deployer 按钮或平台急停端点写同一标记）；
+runner 轮询生效（≤5min），对来话回显式 `-32010 agent paused`，恢复一键。回滚 =
+旧镜像（idle-reap 行为回归，盘上状态无 schema 变更）。

@@ -214,6 +214,10 @@ function stubRegistry() {
         return { ok: true, status: 200, json: async () => ({ message: "Agent enabled successfully", path: m[1], is_enabled: true }) };
       }
       m = url.match(/^\/api\/agents\/(.+)$/);
+      if (m && !init.method) {
+        if (agents.has(m[1])) return { ok: true, status: 200, json: async () => agents.get(m[1]) };
+        return { ok: false, status: 404, json: async () => ({ detail: "not found" }) };
+      }
       if (m && (init.method === "PUT" || init.method === "POST")) {
         calls.agents.push({ path: m[1], body });
         agents.set(m[1], body);
@@ -347,6 +351,7 @@ async function routeHarness({ user, deployConfig, manifest }) {
     resolveUser: () => user,
     rejectUnauthenticated: (_req, res) => res.status(401).json({ error: "auth required" }),
     creatorGroups: ["creators"],
+    adminGroups: ["admin"],
     deployConfig,
   });
   const server = http.createServer(app);
@@ -456,5 +461,117 @@ test("3.3 unpublish warns about deployments and does not cascade", async () => {
     assert.equal(list.body.deployments.length, 1);
   } finally {
     await h.close();
+  }
+});
+
+// ── add-agent-residency: effective rhythm + pause writes ─────────────────────
+
+test("rhythm override lands in the descriptor; absent override carries the manifest default", async () => {
+  const manifest = withServing({ protocol: "a2a", rhythm: [{ every: "1h" }] });
+  const base = { packId: "pk-abc", version: 3, runnerBaseUrl: "http://runner.tailnet", packsPublicBase: "https://packs.example.test", registryUrl: "https://mcp.example.test", manifest };
+  const def = stubRegistry();
+  await servingLib.deployToRegistry({ ...base, fetchImpl: def.fetch });
+  assert.deepEqual(def.calls.agents[0].body.metadata.effective_rhythm, [{ every: "1h" }]);
+
+  const over = stubRegistry();
+  await servingLib.deployToRegistry({
+    ...base,
+    rhythmOverrides: { "pack-fingpt": [{ daily: "09:30", do: "开市巡检" }] },
+    fetchImpl: over.fetch,
+  });
+  assert.deepEqual(over.calls.agents[0].body.metadata.effective_rhythm, [{ daily: "09:30", do: "开市巡检" }]);
+
+  // null = explicit clear: no effective rhythm at all, manifest default ignored.
+  const cleared = stubRegistry();
+  await servingLib.deployToRegistry({ ...base, rhythmOverrides: { "pack-fingpt": null }, fetchImpl: cleared.fetch });
+  assert.equal(cleared.calls.agents[0].body.metadata.effective_rhythm, undefined);
+});
+
+test("setAgentPaused GET-merge-PUTs the flag and clears it on resume", async () => {
+  const manifest = withServing({ protocol: "a2a" });
+  const stub = stubRegistry();
+  await servingLib.deployToRegistry({
+    packId: "pk-abc", version: 3, runnerBaseUrl: "http://runner.tailnet",
+    packsPublicBase: "https://packs.example.test", registryUrl: "https://mcp.example.test",
+    manifest, fetchImpl: stub.fetch,
+  });
+  const out = await servingLib.setAgentPaused({
+    registryUrl: "https://mcp.example.test", fetchImpl: stub.fetch,
+    agentPath: "/packs/pk-abc/pack-fingpt", paused: true,
+  });
+  assert.equal(out.paused, true);
+  // The last written entry (what the runner's poll reads) carries the flag
+  // while keeping the descriptor fields intact.
+  const pausedDoc = stub.calls.agents.at(-1).body;
+  assert.equal(pausedDoc.metadata.paused, true);
+  assert.equal(pausedDoc.metadata.packId, "pk-abc");
+
+  await servingLib.setAgentPaused({
+    registryUrl: "https://mcp.example.test", fetchImpl: stub.fetch,
+    agentPath: "/packs/pk-abc/pack-fingpt", paused: false,
+  });
+  assert.equal(stub.calls.agents.at(-1).body.metadata.paused, undefined);
+});
+
+// ── add-agent-residency: pause/resume/kill route gates ────────────────────────
+
+test("pause/resume are deployer-gated and write the registry flag", async () => {
+  const stub = stubRegistry();
+  const manifest = withServing({ protocol: "a2a" });
+  const cfg = { registryUrl: "https://mcp.example.test", token: "t", runnerBaseUrl: "http://runner:8790", packsPublicBase: "https://packs.example.test", fetchImpl: stub.fetch };
+  const stranger = await routeHarness({ user: { email: "stranger@x", groups: [] }, deployConfig: cfg, manifest });
+  try {
+    const dep = await stranger.call("POST", `/api/packs/${stranger.packId}/versions/1/deploy`);
+    assert.equal(dep.status, 403, "stranger cannot deploy, so nothing exists for them to pause");
+    const noRow = await stranger.call("POST", `/api/packs/${stranger.packId}/deployments/pack-fingpt/pause`);
+    assert.equal(noRow.status, 403);
+  } finally {
+    await stranger.close();
+  }
+  const author = await routeHarness({ user: { email: "author@x", groups: [] }, deployConfig: cfg, manifest });
+  try {
+    const dep = await author.call("POST", `/api/packs/${author.packId}/versions/1/deploy`);
+    assert.equal(dep.status, 200);
+    const pause = await author.call("POST", `/api/packs/${author.packId}/deployments/pack-fingpt/pause`);
+    assert.equal(pause.status, 200);
+    assert.equal(pause.body.paused, true);
+    assert.equal(stub.calls.agents.at(-1).body.metadata.paused, true);
+    const resume = await author.call("POST", `/api/packs/${author.packId}/deployments/pack-fingpt/resume`);
+    assert.equal(resume.status, 200);
+    assert.equal(resume.body.paused, false);
+    assert.equal(stub.calls.agents.at(-1).body.metadata.paused, undefined);
+    const unknown = await author.call("POST", `/api/packs/${author.packId}/deployments/nope/pause`);
+    assert.equal(unknown.status, 404);
+  } finally {
+    await author.close();
+  }
+});
+
+test("kill is admin-gated and writes the same flag; deployments list reports paused", async () => {
+  const stub = stubRegistry();
+  const manifest = withServing({ protocol: "a2a" });
+  const cfg = { registryUrl: "https://mcp.example.test", token: "t", runnerBaseUrl: "http://runner:8790", packsPublicBase: "https://packs.example.test", fetchImpl: stub.fetch };
+  const h = await routeHarness({ user: { email: "author@x", groups: [] }, deployConfig: cfg, manifest });
+  try {
+    await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`);
+    // The author may deploy but NOT kill — platform emergency stop is admin-only.
+    const denied = await h.call("POST", `/api/packs/${h.packId}/deployments/pack-fingpt/kill`);
+    assert.equal(denied.status, 403);
+  } finally {
+    await h.close();
+  }
+  // The admin harness is its own registry — give the admin the creator hat so
+  // the deployment row exists in THIS harness before the kill.
+  const admin = await routeHarness({ user: { email: "ops@x", groups: ["admin", "creators"] }, deployConfig: cfg, manifest });
+  try {
+    await admin.call("POST", `/api/packs/${admin.packId}/versions/1/deploy`);
+    const kill = await admin.call("POST", `/api/packs/${admin.packId}/deployments/pack-fingpt/kill`);
+    assert.equal(kill.status, 200);
+    assert.equal(kill.body.by, "platform");
+    assert.equal(stub.calls.agents.at(-1).body.metadata.paused, true);
+    const list = await admin.call("GET", `/api/packs/${admin.packId}/deployments`);
+    assert.equal(list.body.deployments[0].paused, true);
+  } finally {
+    await admin.close();
   }
 });

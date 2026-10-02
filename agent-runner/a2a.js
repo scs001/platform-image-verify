@@ -90,10 +90,14 @@ export function createAgentApp({ entry, manager, config, log = console }) {
     const contextId = message?.context_id ?? message?.contextId ?? null;
     const sessionId = sessionKeyFor(contextId ?? `${entry.path}`);
 
+    // Paused agents answer explicitly (add-agent-residency: never a timeout,
+    // never a cold start) — the check precedes acquire on purpose.
+    if (manager.isPaused?.(entry)) {
+      return res.status(200).json(jsonRpcError(id, -32010, "agent paused"));
+    }
     try {
-      const child = await manager.acquire(entry);
       if (method === "message/send") {
-        const out = await child.turn(sessionId, text);
+        const out = await manager.turn(entry, sessionId, text, { kind: "message" });
         return res.json({ jsonrpc: "2.0", id, result: assistantMessage(contextId ?? sessionId, out.text) });
       }
       res.writeHead(200, {
@@ -103,7 +107,7 @@ export function createAgentApp({ entry, manager, config, log = console }) {
       });
       const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       let acc = "";
-      const out = await child.turn(sessionId, text, {
+      const out = await manager.turn(entry, sessionId, text, {
         onDelta: (delta) => {
           acc += delta;
           send("delta", { context_id: contextId ?? sessionId, kind: "message", parts: [{ kind: "text", text: acc }] });

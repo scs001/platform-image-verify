@@ -12,6 +12,8 @@ import * as api from "@/lib/packs-api";
 import type { PackDraft, PackManifest, PackManifestAgent } from "@/lib/packs-api";
 import { takeBridgeHandoff } from "@/lib/pack-draft-bridge";
 import type { BridgeReport } from "@/lib/pack-draft-bridge";
+import { RhythmEditor } from "./RhythmEditor";
+import type { RhythmEntry } from "./RhythmEditor";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -451,6 +453,30 @@ function PackDraftEditor({
                   <span className="block text-muted-foreground">{t("packs.editor.agentServingHint")}</span>
                 </span>
               </label>
+              {entry.value.serving && (
+                <div className="border border-border rounded-md p-2 space-y-1.5" data-testid={`pack-agent-rhythm-${i}`}>
+                  <p className="text-xs font-medium">{t("packs.rhythm.title")}</p>
+                  <RhythmEditor
+                    value={(entry.value.serving.rhythm ?? []) as RhythmEntry[]}
+                    onChange={(rhythm) =>
+                      setAgents(
+                        agents.map((x, j) =>
+                          j === i
+                            ? {
+                                ...x,
+                                value: {
+                                  ...x.value,
+                                  serving: { ...x.value.serving!, rhythm: rhythm.length > 0 ? rhythm : undefined },
+                                },
+                              }
+                            : x,
+                        ),
+                      )
+                    }
+                    testIdPrefix={`pack-agent-rhythm-editor-${i}`}
+                  />
+                </div>
+              )}
               <AgentResourcesPicker
                 index={i}
                 value={entry.value}

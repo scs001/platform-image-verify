@@ -359,6 +359,7 @@ registerPackRoutes(app, {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean),
+  adminGroups: ADMIN_GROUPS,
   rateMax: Number(process.env.PACK_PUBLISH_RATE_MAX || 10),
 });
 

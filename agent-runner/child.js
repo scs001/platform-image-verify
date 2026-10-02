@@ -40,8 +40,16 @@ export class AgentChild {
     this.ready = false;
     this.draining = false; // no NEW sessions/turns; in-flight ones finish
     this.lastActivityAt = Date.now();
+    this.spawnedAt = Date.now(); // warm-zone hysteresis anchor (manager)
     this.activeTurns = 0;
     this.version = spawnSpec.version ?? null;
+  }
+
+  // Best-effort process id for RSS sampling (the warm-zone budget). The
+  // harness client owns the spawn; whatever shape it exposes is accepted,
+  // null means "use the fixed per-agent cost instead".
+  get pid() {
+    return this.client?.pid?.() ?? this.client?.pid ?? this.client?.proc?.pid ?? this.client?.child?.pid ?? null;
   }
 
   get state() {
@@ -134,10 +142,14 @@ export class AgentChild {
       settle = (ok, arg) => done(ok ? resolve : reject, arg);
       const timer = setTimeout(() => settle(false, Object.assign(new Error("turn timed out"), { code: -32001 })), this.turnTimeoutMs);
       let finalText = "";
+      let lastUsage = null;
       this.#collectors.set(sessionId, (notif) => {
         const { method, params } = notif;
+        const ev0 = params?.event;
+        const usage0 = ev0?.data?.usage ?? ev0?.usage ?? params?.usage;
+        if (usage0 && typeof usage0 === "object") lastUsage = usage0;
         if (method === "session.status" && params?.status === "idle") {
-          return settle(true, { text: finalText });
+          return settle(true, { text: finalText, usage: lastUsage });
         }
         if (method === "_child_exit") {
           return settle(false, Object.assign(new Error("agent runtime exited mid-turn"), { code: -32002 }));

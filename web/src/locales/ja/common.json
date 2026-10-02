@@ -901,7 +901,11 @@
       "deployTitle": "サービスとしてデプロイ",
       "deployBtn": "デプロイ",
       "deployOnline": "オンライン",
-      "deployEffective": "デプロイを送信しました。約 {{minutes}} 分で有効になります（runner のポーリング）。"
+      "deployEffective": "デプロイを送信しました。約 {{minutes}} 分で有効になります（runner のポーリング）。",
+      "rhythmOverride": "リズム上書き（任意, @{{id}}）",
+      "paused": "一時停止中",
+      "pauseBtn": "一時停止",
+      "resumeBtn": "再開"
     },
     "report": {
       "title": "「{{name}}」のインストール結果",
@@ -982,6 +986,16 @@
         "local": "ローカル設定のサーバー（市場に対応なし）"
       },
       "replaceHint": "公開前に下記の項目を置き換えるか補ってください。"
+    },
+    "rhythm": {
+      "title": "ワークリズム（自律の付与）",
+      "add": "リズム追加",
+      "remove": "削除",
+      "every": "間隔",
+      "daily": "毎日",
+      "doPlaceholder": "発火時の作業（任意）",
+      "invalid": "無効: every は Nm/Nh（≥5m）, daily は HH:MM",
+      "hint": "リズムの宣言は自律の付与 — プラットフォームが周期で自己ターンを注入。無ければ応答のみ。"
     }
   },
   "overlay": {
@@ -1029,5 +1043,15 @@
     "shadowedHint": "同じ ID が agents.json またはクラウド設定により上書きされており、現在上書き側のロールで動作しています。",
     "toPackDraft": "パック下書きに変換",
     "bridgeDenied": "変換にはデプロイ管理権限（管理者または cell オーナー）が必要です。パック下書きを手動で作成することもできます"
+  },
+  "question": {
+    "title": "確認が必要です",
+    "waitingHint": "回答すると会話が続行します",
+    "customPlaceholder": "または自由入力で回答…",
+    "cancel": "質問をキャンセル",
+    "submit": "回答を送信",
+    "answered": "質問に回答済み",
+    "cancelled": "質問をキャンセルしました",
+    "customAnswer": "自由回答"
   }
 }

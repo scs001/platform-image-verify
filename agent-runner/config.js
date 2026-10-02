@@ -36,13 +36,37 @@ export function loadConfig(env = process.env) {
     // Empty = dev mode (warn once, accept) — production sets it.
     backendToken: env.AGENT_RUNNER_BACKEND_TOKEN || "",
 
-    // Child lifecycle (spec: agent-runner "Child lifecycle is bounded and
-    // queued"): reap after idle, bound concurrency with queueing, drain
-    // in-flight turns on upgrade/undeploy.
-    idleMs: num(env.AGENT_RUNNER_IDLE_SECS, 30 * 60) * 1000,
+    // Child lifecycle (add-agent-residency): residency is the default — there
+    // is NO idle reap timer anymore. The warm zone governs: when the host
+    // memory budget would be exceeded, the idle-most resident is demoted
+    // (process stopped, home/state on disk, next touch re-warms in seconds).
+    // Concurrency stays bounded with queueing; upgrade/undeploy drain as before.
     maxChildren: num(env.AGENT_RUNNER_MAX_CHILDREN, 4),
     drainMs: num(env.AGENT_RUNNER_DRAIN_SECS, 300) * 1000,
     turnTimeoutMs: num(env.AGENT_RUNNER_TURN_TIMEOUT_MS, 180_000),
+
+    // Warm-zone budget (design D1). Footprint = sampled RSS when the harness
+    // exposes a pid, else the fixed per-agent cost (the planning number from
+    // the residency probe: 96MB; recalibrate on Linux hosts — DEPLOY.md).
+    budgetMb: num(env.AGENT_RUNNER_RESIDENT_BUDGET_MB, 3072),
+    agentCostMb: num(env.AGENT_RUNNER_AGENT_COST_MB, 96),
+    sampleSecs: num(env.AGENT_RUNNER_SAMPLE_SECS, 30),
+    // Hysteresis: a child spawned within this window is not a demotion
+    // candidate unless the budget is hard-exceeded (x hardBudgetFactor).
+    demoteCooldownMs: num(env.AGENT_RUNNER_DEMOTE_COOLDOWN_SECS, 600) * 1000,
+    hardBudgetFactor: Number(env.AGENT_RUNNER_HARD_BUDGET_FACTOR) > 1 ? Number(env.AGENT_RUNNER_HARD_BUDGET_FACTOR) : 1.2,
+
+    // Work rhythm (design D2/D3): the scheduler tick and the timezone daily
+    // entries fire in.
+    rhythmTickMs: num(env.AGENT_RUNNER_RHYTHM_TICK_SECS, 30) * 1000,
+    tz: env.AGENT_RUNNER_TZ || "Asia/Shanghai",
+    // Day rollover (design D4): digest prompt cap and the external archive
+    // target (NFS/object volume mounts here).
+    digestMaxChars: num(env.AGENT_RUNNER_DIGEST_MAX_CHARS, 512),
+    archiveDir: env.AGENT_RUNNER_ARCHIVE_DIR || path.join(env.AGENT_RUNNER_HOME || path.join(repoRoot, "runner-home"), "agent-archive"),
+    // Per-turn metering (design D6): jsonl {agent, kind, tokens, ms, at} —
+    // the settlement input for platform-ops (slice ③).
+    meterFile: env.AGENT_RUNNER_METER_FILE || path.join(env.AGENT_RUNNER_HOME || path.join(repoRoot, "runner-home"), "meter.jsonl"),
 
     // dsh spawn knobs (mirror dsh-bridge.js).
     dshBin: env.DSH_BIN || "dsh",

@@ -1,11 +1,45 @@
-// ── Child manager (add-a2a-agent-serving 4.4) ───────────────────────────────
+// ── Child manager (add-a2a-agent-serving 4.4; add-agent-residency 3.x) ──────
 //
 // Reconciles the runner's children with the registry's served-agent list
-// (poll-driven, design D4), bounds concurrency by queueing (never evicting a
-// busy child), reaps idle children, and drains on upgrade/undeploy.
+// (poll-driven), bounds concurrency by queueing (never evicting a busy child),
+// and drains on upgrade/undeploy. Residency (add-agent-residency, ADR-0010):
+// idle children are NOT reaped on a timer — they stay resident until the host
+// memory budget demotes the idle-most into the warm zone (process stopped,
+// home/state on disk, next touch re-warms in seconds). Paused agents (the
+// registry's metadata flag) sit in the warm zone by definition and answer
+// callers with an explicit error.
 
 import http from "node:http";
+import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { execSync } from "node:child_process";
+import path from "node:path";
 import { AgentChild } from "./child.js";
+
+// Best-effort RSS of a pid in bytes (Linux /proc first — the runner's
+// container home; macOS ps for local runs). null when unknown: the caller
+// falls back to the fixed per-agent planning cost.
+function sampleRssBytes(pid) {
+  if (!pid || !Number.isFinite(pid)) return null;
+  try {
+    const status = readFileSync(`/proc/${pid}/status`, "utf8");
+    const m = /VmRSS:\s+(\d+)\s+kB/.exec(status);
+    if (m) return Number(m[1]) * 1024;
+  } catch { /* not linux, or the process is gone */ }
+  try {
+    const out = execSync(`ps -o rss= -p ${pid}`, { encoding: "utf8" });
+    const kb = Number(String(out).trim());
+    if (Number.isFinite(kb) && kb > 0) return kb * 1024;
+  } catch { /* gone */ }
+  return null;
+}
+
+// Flatten a dsh usage payload to a token count; null when absent (metering
+// records the turn without tokens rather than guessing).
+function tokensOf(usage) {
+  if (!usage || typeof usage !== "object") return null;
+  const t = usage.total_tokens ?? usage.totalTokens ?? usage.tokens;
+  return Number.isFinite(Number(t)) ? Number(t) : null;
+}
 import { agentKeyFor, materializeAgentHome, mcpEntry } from "./compose.js";
 import { createAgentApp, agentPortFor } from "./a2a.js";
 
@@ -18,11 +52,16 @@ export class ChildManager {
     this.clientFactory = clientFactory;
     this.log = log;
     this.now = now;
-    this.children = new Map(); // agentKey → AgentChild
+    this.children = new Map(); // agentKey → AgentChild (live processes)
     this.entries = new Map(); // agentKey → registry entry (card source)
     this.versions = new Map(); // agentKey → descriptor version identity
     this.pending = new Map(); // agentKey → promise chain while a slot is awaited
     this.waiting = 0; // queued turn requests at capacity
+    this.pausedKeys = new Set(); // registry-marked paused (agent-residency D5)
+  }
+
+  isPaused(entry) {
+    return this.pausedKeys.has(agentKeyFor(entry));
   }
 
   health() {
@@ -33,11 +72,29 @@ export class ChildManager {
         key,
         path: entry?.path ?? null,
         port: agentPortFor(entry.path, { base: this.config.portBase ?? 8791, span: this.config.portSpan ?? 32 }),
-        state: child ? child.state : "idle",
+        // Five states (spec: agent-runner health): paused > draining >
+        // starting > serving (a turn in flight) > resident (warm and idle);
+        // no live process = warm (never touched, or demoted by budget/pause).
+        state: this.pausedKeys.has(key)
+          ? "paused"
+          : child
+            ? child.draining
+              ? "draining"
+              : child.ready
+                ? child.activeTurns > 0 ? "serving" : "resident"
+                : "starting"
+            : "warm",
         version: child?.version ?? entry?.metadata?.packVersion ?? null,
       });
     }
-    return { ok: true, agents, children: this.children.size, queued: this.waiting };
+    return {
+      ok: true,
+      agents,
+      children: this.children.size,
+      queued: this.waiting,
+      budget: this.#footprintMb(),
+      budgetMb: this.config.budgetMb,
+    };
   }
 
   // One HTTP listener per hosted agent (the registry proxy maps /agent/{path}
@@ -100,6 +157,22 @@ export class ChildManager {
       const existing = this.children.get(key);
       this.entries.set(key, entry);
       this.#ensureListener(key, entry);
+      // Pause/resume (agent-residency D5): the registry flag is the single
+      // source of truth. Pausing demotes a live child (state on disk) and the
+      // A2A adapter answers explicit -32010s; resuming just clears the flag —
+      // the next event re-warms, and the scheduler resumes from the NEXT due
+      // (missed dues are never caught up).
+      if (entry.metadata?.paused === true) {
+        this.pausedKeys.add(key);
+        if (existing && !existing.draining) {
+          this.log.log(`[agent-runner] ${key} paused; demoting to warm zone`);
+          this.children.delete(key);
+          existing.stop().catch(() => {});
+        }
+      } else {
+        this.pausedKeys.delete(key);
+      }
+      if (existing && this.pausedKeys.has(key)) continue;
       if (existing && this.versions.get(key) !== identity) {
         this.log.log(`[agent-runner] ${key} descriptor changed; draining old child for in-place upgrade`);
         this.versions.set(key, identity);
@@ -112,12 +185,12 @@ export class ChildManager {
     return served.length;
   }
 
-  // Acquire the child for a key, materializing + spawning on demand (cold
-  // start after reap or first touch). At capacity: first try to evict an
-  // IDLE child (least-recently-active — the same semantics as an idle reap,
-  // which the next message pays back as a cold start); if every child is
-  // busy, the request QUEUES — it never fails and never evicts a busy child
-  // (spec: "without evicting a busy child").
+  // Acquire the child for a key, materializing + spawning on demand (a warm
+  // re-warm after budget/pause demotion, or a first touch). At capacity:
+  // first demote an IDLE child to the warm zone (least-recently-active — the
+  // next message re-warms it); if every child is busy, the request QUEUES —
+  // it never fails and never demotes a busy child (spec: "without evicting a
+  // busy child").
   async acquire(entry) {
     const key = agentKeyFor(entry);
     for (;;) {
@@ -147,8 +220,8 @@ export class ChildManager {
     }
   }
 
-  // Best candidate for a capacity eviction: idle, not draining, least
-  // recently active. Returns true when one was evicted.
+  // Best candidate for a capacity demotion: idle, not draining, least
+  // recently active. Returns true when one was demoted to the warm zone.
   #evictIdleChild() {
     let victim = null;
     for (const [key, child] of this.children) {
@@ -157,9 +230,86 @@ export class ChildManager {
     }
     if (!victim) return false;
     this.children.delete(victim.key);
-    this.log.log(`[agent-runner] capacity: evicting idle ${victim.key} (next message cold-starts it)`);
+    this.log.log(`[agent-runner] capacity: demoting idle ${victim.key} to warm zone (next message re-warms it)`);
     victim.child.stop().catch(() => {});
     return true;
+  }
+
+  // ── Warm-zone budget (add-agent-residency D1) ─────────────────────────────
+  // Footprint in MB: sampled RSS per child when a pid is exposed, else the
+  // fixed per-agent planning cost. The floor keeps budgeting honest even
+  // before a spawn reports its RSS.
+  #footprintMb(extraChildren = 0) {
+    let bytes = 0;
+    for (const child of this.children.values()) {
+      const rss = sampleRssBytes(child.pid);
+      bytes += Math.max(rss ?? 0, this.config.agentCostMb * 1024 * 1024);
+    }
+    return (bytes + extraChildren * this.config.agentCostMb * 1024 * 1024) / (1024 * 1024);
+  }
+
+  // Demote idle residents until the footprint fits the budget. Cooldown
+  // hysteresis (design D1): a child spawned within demoteCooldownMs is not a
+  // candidate unless the budget is HARD-exceeded (× hardBudgetFactor) — no
+  // promote/demote thrash at a boundary-hovering load.
+  enforceBudget() {
+    const limit = this.config.budgetMb * 1024 * 1024;
+    for (;;) {
+      const footprint = this.#footprintMb() * 1024 * 1024;
+      if (footprint <= limit) return;
+      const hard = footprint > limit * this.config.hardBudgetFactor;
+      let victim = null;
+      for (const [key, child] of this.children) {
+        if (child.draining || child.activeTurns > 0) continue;
+        if (!hard && this.now() - child.spawnedAt < this.config.demoteCooldownMs) continue;
+        if (!victim || child.lastActivityAt < victim.child.lastActivityAt) victim = { key, child };
+      }
+      if (!victim) return; // nothing demotable; over budget until a turn ends
+      this.children.delete(victim.key);
+      this.log.log(
+        `[agent-runner] budget: demoting idle ${victim.key} to warm zone (footprint ${Math.round(footprint / 1024 / 1024)}MB > ${this.config.budgetMb}MB${hard ? ", hard" : ""})`,
+      );
+      victim.child.stop().catch(() => {});
+    }
+  }
+
+  // ── Metered turns (add-agent-residency D3/D6) ─────────────────────────────
+  // ONE queueing discipline for every turn source: messages (A2A), self-turns
+  // (rhythm), and digests (day rollover) all acquire through here, and every
+  // completed/failed turn lands one jsonl meter line (the ③ settlement input).
+  async turn(entry, sessionId, text, { kind = "message", onDelta } = {}) {
+    const key = agentKeyFor(entry);
+    if (this.pausedKeys.has(key)) {
+      throw Object.assign(new Error("agent paused"), { code: -32010 });
+    }
+    const startedAt = this.now();
+    const child = await this.acquire(entry);
+    try {
+      const out = await child.turn(sessionId, text, { onDelta });
+      this.#meterLine(key, kind, { ok: true, tokens: tokensOf(out?.usage), durationMs: this.now() - startedAt });
+      return out;
+    } catch (e) {
+      this.#meterLine(key, kind, { ok: false, error: String(e?.message || e), durationMs: this.now() - startedAt });
+      throw e;
+    }
+  }
+
+  // A rhythm self-turn (the scheduler calls this): the platform-injected turn
+  // whose initiator is the agent itself. Rides the same acquire/queue face.
+  async selfTurn(entry, prompt, sessionId) {
+    return this.turn(entry, sessionId, prompt, { kind: "self" });
+  }
+
+  #meterLine(key, kind, info) {
+    try {
+      mkdirSync(path.dirname(this.config.meterFile), { recursive: true });
+      appendFileSync(
+        this.config.meterFile,
+        `${JSON.stringify({ agent: key, kind, at: new Date(this.now()).toISOString(), ...info })}\n`,
+      );
+    } catch (e) {
+      this.log.warn(`[agent-runner] meter write failed: ${e.message}`);
+    }
   }
 
   async #spawnChild(key, entry) {
@@ -199,21 +349,14 @@ export class ChildManager {
     this.children.set(key, child);
     this.log.log(`[agent-runner] cold-starting ${key} (v${child.version ?? "?"}, ${mcpServers.length} MCP, ${(descriptor.skills ?? []).length} skills)`);
     await child.start();
+    // Residency hooks (add-agent-residency): the rollover's deferred day roll
+    // rides a warm agent's re-warm. Fire-and-forget — never blocks serving.
+    this.onSpawnHook?.(key, entry);
     return child;
   }
 
-  // Spec: idle children are reaped (default 30 min); the next message cold
-  // starts. Never reaps a draining child mid-drain or one with active turns.
-  reapIdle() {
-    for (const [key, child] of this.children) {
-      if (child.draining || child.activeTurns > 0) continue;
-      if (this.now() - child.lastActivityAt >= this.config.idleMs) {
-        this.children.delete(key);
-        this.log.log(`[agent-runner] reaping idle ${key}`);
-        child.stop().catch(() => {});
-      }
-    }
-  }
+  // (reapIdle removed — residency is the default since add-agent-residency;
+  // the warm-zone budget's enforceBudget() is the only demotion path.)
 
   async stopAll() {
     for (const timer of this.#slotWaiters ?? []) clearInterval(timer);

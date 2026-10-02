@@ -901,7 +901,11 @@
       "deployTitle": "部署为服务",
       "deployBtn": "部署为服务",
       "deployOnline": "已上线",
-      "deployEffective": "已提交部署，约 {{minutes}} 分钟内生效（runner 轮询）。"
+      "deployEffective": "已提交部署，约 {{minutes}} 分钟内生效（runner 轮询）。",
+      "rhythmOverride": "覆盖节奏（可选，@{{id}}）",
+      "paused": "已暂停",
+      "pauseBtn": "暂停",
+      "resumeBtn": "恢复"
     },
     "report": {
       "title": "「{{name}}」安装结果",
@@ -982,6 +986,16 @@
         "local": "本地配置的服务器，无市场对应"
       },
       "replaceHint": "请在下方补齐或替换后再发布。"
+    },
+    "rhythm": {
+      "title": "工作节奏（自主授权）",
+      "add": "加节奏条目",
+      "remove": "移除",
+      "every": "间隔",
+      "daily": "每日",
+      "doPlaceholder": "到点要做什么（可选，如：巡检数据源并汇总异常）",
+      "invalid": "无效条目：every 需 Nm/Nh（≥5m），daily 需 HH:MM",
+      "hint": "声明节奏即授予自主——平台按节奏注入自主回合；不声明则只应答。"
     }
   },
   "overlay": {
@@ -1029,5 +1043,15 @@
     "shadowedHint": "同名条目由 agents.json 或云端配置覆盖，当前以覆盖方角色运行。",
     "toPackDraft": "转为功能集草稿",
     "bridgeDenied": "转换需要部署管理权限（管理员或 cell 所有者）——可先在功能集草稿中手工创作"
+  },
+  "question": {
+    "title": "需要你的确认",
+    "waitingHint": "回答后对话继续",
+    "customPlaceholder": "或输入自定义回答…",
+    "cancel": "取消问询",
+    "submit": "提交回答",
+    "answered": "问询已作答",
+    "cancelled": "问询已取消",
+    "customAnswer": "自定义回答"
   }
 }

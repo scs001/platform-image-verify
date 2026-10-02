@@ -13,6 +13,8 @@ import { fileURLToPath } from "node:url";
 import { loadConfig } from "./config.js";
 import { createRegistryClient } from "./registry.js";
 import { ChildManager } from "./manager.js";
+import { Rollover } from "./rollover.js";
+import { RhythmScheduler } from "./scheduler.js";
 import { createOpsApp } from "./a2a.js";
 import { HarnessClient } from "@deepseek-ai/dsh-sdk-client";
 import { matrixGate } from "../lib/dsh-matrix-verify.js";
@@ -78,6 +80,11 @@ const clientFactory = (spec) => ({ args, cwd, env }) => {
 const wrappedFactory = (spec) => (specArg) => clientFactory(spec)(specArg);
 
 const manager = new ChildManager({ config, registryClient: createRegistryClient(config), clientFactory: wrappedFactory });
+// Residency wiring (add-agent-residency): rollover owns the day boundary,
+// the scheduler consumes its pending digest at the day's head.
+const rollover = new Rollover({ manager, config });
+manager.onSpawnHook = (key, entry) => void rollover.onSpawn(key, entry).catch(() => {});
+const scheduler = new RhythmScheduler({ manager, rollover, config });
 const app = createOpsApp({ manager });
 const server = http.createServer(app);
 
@@ -96,8 +103,14 @@ server.listen(config.port, "0.0.0.0", () => {
   poll();
   const pollTimer = setInterval(poll, config.pollSecs * 1000);
   pollTimer.unref?.();
-  const reapTimer = setInterval(() => manager.reapIdle(), 60_000);
-  reapTimer.unref?.();
+  // Residency cadences (add-agent-residency): warm-zone budget enforcement,
+  // rhythm self-turns, and the day rollover — no idle reap exists anymore.
+  const budgetTimer = setInterval(() => manager.enforceBudget(), config.sampleSecs * 1000);
+  budgetTimer.unref?.();
+  const rhythmTimer = setInterval(() => void scheduler.tick(), config.rhythmTickMs);
+  rhythmTimer.unref?.();
+  const rolloverTimer = setInterval(() => void rollover.check(), 60_000);
+  rolloverTimer.unref?.();
 });
 
 for (const sig of ["SIGTERM", "SIGINT"]) {

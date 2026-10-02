@@ -901,7 +901,11 @@
       "deployTitle": "Déployer en tant que service",
       "deployBtn": "Déployer",
       "deployOnline": "en ligne",
-      "deployEffective": "Déploiement envoyé — effectif sous ~{{minutes}} min (scrutation du runner)."
+      "deployEffective": "Déploiement envoyé — effectif sous ~{{minutes}} min (scrutation du runner).",
+      "rhythmOverride": "Remplacer le rythme (optionnel, @{{id}})",
+      "paused": "En pause",
+      "pauseBtn": "Pause",
+      "resumeBtn": "Reprendre"
     },
     "report": {
       "title": "Résultat d'installation de « {{name}} »",
@@ -982,6 +986,16 @@
         "local": "serveur configuré localement, sans équivalent marché"
       },
       "replaceHint": "Remplace ou complète les éléments ci-dessous avant de publier."
+    },
+    "rhythm": {
+      "title": "Rythme de travail (octroi d'autonomie)",
+      "add": "Ajouter une entrée",
+      "remove": "Retirer",
+      "every": "Intervalle",
+      "daily": "Quotidien",
+      "doPlaceholder": "Que faire au déclenchement (optionnel)",
+      "invalid": "Invalide : every exige Nm/Nh (≥5m), daily exige HH:MM",
+      "hint": "Déclarer un rythme accorde l'autonomie ; sans rythme, réponse seule."
     }
   },
   "overlay": {
@@ -1029,5 +1043,15 @@
     "shadowedHint": "Le fichier opérateur ou le cloud définit le même id ; le rôle se compose actuellement sous l'entrée qui le surcharge.",
     "toPackDraft": "Convertir en brouillon de pack",
     "bridgeDenied": "La conversion nécessite les droits de gestion du déploiement (admin ou propriétaire du cell) ; tu peux aussi créer le brouillon à la main"
+  },
+  "question": {
+    "title": "Votre réponse est attendue",
+    "waitingHint": "la conversation reprend après votre réponse",
+    "customPlaceholder": "ou saisissez une réponse libre…",
+    "cancel": "Annuler la question",
+    "submit": "Envoyer la réponse",
+    "answered": "Question répondue",
+    "cancelled": "Question annulée",
+    "customAnswer": "Réponse libre"
   }
 }

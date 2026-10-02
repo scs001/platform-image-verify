@@ -21,6 +21,8 @@ import { AgentChild, sessionKeyFor } from "../agent-runner/child.js";
 import { ChildManager } from "../agent-runner/manager.js";
 import { createOpsApp } from "../agent-runner/a2a.js";
 import { createRegistryClient } from "../agent-runner/registry.js";
+import { RhythmScheduler, DEFAULT_SELF_PROMPT } from "../agent-runner/scheduler.js";
+import { Rollover, DIGEST_PROMPT } from "../agent-runner/rollover.js";
 
 const tmpRoot = mkdtempSync(path.join(tmpdir(), "agent-runner-"));
 test.after(() => rmSync(tmpRoot, { recursive: true, force: true }));
@@ -186,6 +188,18 @@ async function bootRunner({ entries, skills = {}, config: cfgOverrides = {}, rep
     cwd: tmpRoot,
     portBase: 20000 + Math.floor(Math.random() * 20000),
     portSpan: 512,
+    // Warm-zone / rhythm / rollover knobs (add-agent-residency); metering and
+    // archive land under the run's homeRoot.
+    budgetMb: 3072,
+    agentCostMb: 96,
+    sampleSecs: 30,
+    demoteCooldownMs: 600_000,
+    hardBudgetFactor: 1.2,
+    rhythmTickMs: 30_000,
+    tz: "UTC",
+    digestMaxChars: 512,
+    archiveDir: path.join(homeRoot, "agent-archive"),
+    meterFile: path.join(homeRoot, "meter.jsonl"),
   };
   Object.assign(config, cfgOverrides);
   const registryClient = createRegistryClient({ registryUrl: config.registryUrl, registryToken: config.registryToken, fetchImpl: stubRegistryFetch(entries, skills) });
@@ -346,28 +360,35 @@ test("4.4 capacity queues instead of failing or evicting", async () => {
   }
 });
 
-test("4.4 idle reap frees the child; next message cold-starts; undeploy stops the listener", async () => {
+test("4.4 residency (add-agent-residency): idle child stays; budget demotes; re-warm keeps the session", async () => {
   const h = await bootRunner({
     entries: [ENTRY],
     skills: { "packs/pk-abc/fin-statement-analysis": "# s" },
-    config: { idleMs: 10 },
+    config: {
+      budgetMb: 1, // tiny budget: one child (96MB floor) already exceeds it
+      agentCostMb: 96,
+      demoteCooldownMs: 0, // no hysteresis in this test
+      sampleSecs: 1,
+    },
   });
   try {
     await h.manager.reconcile();
     const auth = { Authorization: "Bearer backend-secret" };
     await h.callAgent(ENTRY, "POST", "/", { headers: auth, body: SEND(1, "q", "c") });
     assert.equal(h.spawned.length, 1);
+    // The former idle reap is GONE: an idle resident past any interval stays.
     await new Promise((r) => setTimeout(r, 30));
-    h.manager.reapIdle();
-    assert.equal(h.manager.children.size, 0, "idle child reaped");
+    assert.equal(h.manager.children.size, 1, "idle resident is NOT reaped");
+    assert.equal(h.manager.health().agents[0].state, "resident");
+    // The warm-zone budget demotes it (cooldown 0, over budget).
+    h.manager.enforceBudget();
+    assert.equal(h.manager.children.size, 0, "over-budget resident demoted to warm");
+    assert.equal(h.manager.health().agents[0].state, "warm");
+    // Next message re-warms: same session id (state survived on disk), fresh process.
     const again = await h.callAgent(ENTRY, "POST", "/", { headers: auth, body: SEND(2, "again", "c") });
     assert.equal(again.status, 200);
-    assert.equal(h.spawned.length, 2, "cold start spawned a fresh child");
+    assert.equal(h.spawned.length, 2, "re-warm spawned a fresh child");
     assert.equal(h.spawned[1].client.calls.prompt[0].sessionId, h.spawned[0].client.calls.prompt[0].sessionId);
-    // Leaving the registry stops the per-agent listener (undeploy semantics).
-    const _port = h.manager.health().agents[0].port;
-    const h2entries = [];
-    await h.manager.reconcileWith?.(h2entries); // no such method — drive directly:
   } finally {
     await h.close();
   }
@@ -436,4 +457,213 @@ test("4.4 prompt rejection settles the turn (no counter leak, drain unwedged)", 
   assert.equal(child.activeTurns, 0);
   await child.drainAndStop(100); // would wedge forever if the counter leaked
   assert.equal(client.calls.stopped, 1);
+});
+
+// ── add-agent-residency: pause, budget hysteresis, scheduler, metering, rollover ──
+
+function directManager({ entries = [ENTRY], config: overrides = {} } = {}) {
+  const homeRoot = path.join(tmpRoot, `res-${Math.random().toString(36).slice(2)}`);
+  const spawned = [];
+  const config = {
+    homeRoot,
+    registryUrl: "https://mcp.example.test", registryToken: "t",
+    backendToken: "bt", maxChildren: 2, drainMs: 1_000, turnTimeoutMs: 5_000,
+    dshProfile: "platform", cwd: tmpRoot, provider: "p", model: "m",
+    portBase: 46000 + Math.floor(Math.random() * 2000), portSpan: 512,
+    budgetMb: 3072, agentCostMb: 96, sampleSecs: 30, demoteCooldownMs: 600_000,
+    hardBudgetFactor: 1.2, rhythmTickMs: 30_000, tz: "UTC", digestMaxChars: 512,
+    archiveDir: path.join(homeRoot, "agent-archive"),
+    meterFile: path.join(homeRoot, "meter.jsonl"),
+    ...overrides,
+  };
+  const registryClient = {
+    listServedAgents: async () => entriesRef.current,
+    fetchSkillContent: async () => "# s",
+    mcpUrlFor: (n) => `https://mcp.example.test/${n}/mcp`,
+  };
+  const entriesRef = { current: entries };
+  const clientFactory = () => () => { const c = fakeHarnessClient({ reply: "答复" }); spawned.push({ client: c }); return c; };
+  const manager = new ChildManager({
+    config, registryClient, clientFactory,
+    log: { log() {}, warn() {}, error() {} },
+  });
+  return { manager, spawned, config, entriesRef };
+}
+
+test("residency: paused entry demotes, answers explicit -32010, resumes on flag clear", async () => {
+  const pausedEntry = { ...ENTRY, metadata: { ...ENTRY.metadata, paused: true } };
+  const { manager, spawned } = directManager({ entries: [pausedEntry] });
+  try {
+    await manager.reconcile();
+    assert.equal(manager.health().agents[0].state, "paused");
+    // Message a paused agent directly through the turn face: explicit error,
+    // never a cold start (no spawn happens at all).
+    await assert.rejects(() => manager.turn(pausedEntry, "s1", "hi"), (e) => e.code === -32010);
+    assert.equal(spawned.length, 0);
+    // Clear the flag (registry truth) → resume re-warms on the next event.
+    const resumed = { ...ENTRY, metadata: { ...ENTRY.metadata } };
+    const entries2 = [resumed];
+    manager.registryClient.listServedAgents = async () => entries2;
+    await manager.reconcile();
+    assert.equal(manager.health().agents[0].state, "warm");
+    const out = await manager.turn(resumed, "s1", "hi");
+    assert.equal(out.text, "答复");
+    assert.equal(spawned.length, 1);
+  } finally {
+    await manager.stopAll();
+  }
+});
+
+test("residency: cooldown hysteresis protects a fresh child until the budget is hard-exceeded", async () => {
+  // 96MB cost × 2 children = 192MB; soft budget 100MB (over), hard ×1.2 = 120MB.
+  const { manager, spawned } = directManager({
+    config: { budgetMb: 100, agentCostMb: 96, demoteCooldownMs: 600_000, hardBudgetFactor: 1.2 },
+  });
+  try {
+    await manager.reconcile();
+    await manager.turn(ENTRY, "s1", "hi"); // child A (fresh: within cooldown)
+    await manager.turn(ENTRY, "s2", "hi"); // child A again (same key — one child)
+    // One child = 96MB ≤ 100MB soft — nothing to demote.
+    manager.enforceBudget();
+    assert.equal(manager.children.size, 1);
+    // Hard-exceed: a second child pushes 192MB > 120MB hard — the fresh child
+    // becomes eligible despite the cooldown.
+    const ENTRY2 = { ...ENTRY, path: "/packs/pk-abc/pack-other", metadata: { ...ENTRY.metadata, agentId: "pack-other" } };
+    manager.entries.set(agentKeyFor(ENTRY2), ENTRY2);
+    await manager.turn(ENTRY2, "s1", "hi");
+    manager.enforceBudget();
+    assert.equal(manager.children.size, 1, "hard budget demoted one of the two");
+  } finally {
+    await manager.stopAll();
+  }
+});
+
+test("scheduler: fires at due, honors do-prompt, skips missed, ignores rhythm-less", async () => {
+  let clock = Date.parse("2026-10-02T00:00:00Z");
+  const { manager, spawned } = directManager({
+    config: { tz: "UTC", rhythmTickMs: 1000 },
+  });
+  manager.now = () => clock; // deterministic clock
+  const withRhythm = { ...ENTRY, metadata: { ...ENTRY.metadata, effective_rhythm: [{ every: "5m", do: "巡检数据源" }] } };
+  const quiet = { ...ENTRY, path: "/packs/pk-abc/quiet", metadata: { ...ENTRY.metadata, agentId: "quiet" } };
+  manager.entries.set(agentKeyFor(withRhythm), withRhythm);
+  manager.entries.set(agentKeyFor(quiet), quiet);
+  const scheduler = new RhythmScheduler({ manager, config: manager.config, log: { log() {}, warn() {}, error() {} }, now: () => clock });
+
+  await scheduler.tick(); // anchors
+  clock += 4 * 60_000;
+  await scheduler.tick();
+  assert.equal(spawned.length, 0, "not due yet");
+
+  clock += 2 * 60_000; // 6m: the 5m due passed within one period
+  await scheduler.tick();
+  await new Promise((r) => setTimeout(r, 20));
+  assert.equal(spawned.length, 1, "fired at due");
+  const promptCall = spawned[0].client.calls.prompt[0];
+  assert.equal(promptCall.blocks[0].text, "巡检数据源");
+  assert.match(promptCall.sessionId, /^srv-day-20261002/);
+  assert.equal(manager.metered, undefined); // (metering asserted below via file)
+
+  // A huge jump = missed dues: skipped now, resumes one period later. Count
+  // PROMPTS (a resumed fire reuses the resident child — no new spawn).
+  const promptCount = () => spawned.reduce((n, s) => n + s.client.calls.prompt.length, 0);
+  const fired = promptCount();
+  clock += 60 * 60_000; // 1h over a 5m schedule
+  await scheduler.tick();
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(promptCount(), fired, "missed dues skipped — no catch-up burst");
+  clock += 5 * 60_000 + 1000; // re-anchored at the skip: next due is 5m out
+  await scheduler.tick();
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(promptCount(), fired + 1, "schedule resumed from the next due");
+
+  // The rhythm-less agent never fired anything of its own.
+  assert.ok(spawned.every((s) => s.client.calls.prompt.every((c) => c.sessionId.startsWith("srv-day-20261002"))));
+  assert.equal(spawned.filter((s) => s.client.calls.prompt.some((c) => c.blocks[0].text === DEFAULT_SELF_PROMPT)).length, 0, "no default prompt fired (entry had do)");
+  await manager.stopAll();
+});
+
+test("metering: every turn kind lands one jsonl line", async () => {
+  const { manager, config } = directManager({});
+  try {
+    await manager.reconcile();
+    await manager.turn(ENTRY, "s1", "hello", { kind: "message" });
+    await manager.selfTurn(ENTRY, "自主工作", "srv-day-x");
+    const lines = readFileSync(config.meterFile, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    assert.equal(lines.length, 2);
+    assert.equal(lines[0].kind, "message");
+    assert.equal(lines[1].kind, "self");
+    assert.equal(typeof lines[0].at, "string");
+    assert.ok(lines[0].durationMs >= 0);
+  } finally {
+    await manager.stopAll();
+  }
+});
+
+test("rollover: first sighting opens the marker; the next day digests, archives, and queues the head", async () => {
+  let clock = Date.parse("2026-10-02T12:00:00Z");
+  const { manager, config } = directManager({});
+  manager.now = () => clock;
+  const rollover = new Rollover({ manager, config, log: { log() {}, warn() {}, error() {} }, now: () => clock });
+  try {
+    await manager.reconcile();
+    await manager.turn(ENTRY, "srv-day-20261002", "白天的工作"); // today's session exists
+    // First check on the same day: marker opens, no digest turn.
+    await rollover.check();
+    const marker = JSON.parse(readFileSync(path.join(config.homeRoot, agentKeyFor(ENTRY), "last-roll.json"), "utf8"));
+    assert.equal(marker.day, "2026-10-02");
+
+    clock = Date.parse("2026-10-03T00:05:00Z"); // next day
+    await rollover.check();
+    // The digest turn ran on YESTERDAY's session with the digest prompt.
+    const lines = readFileSync(config.meterFile, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    assert.ok(lines.some((l) => l.kind === "digest"), "digest turn metered");
+    // The archive carries the digest; the pending head is queued exactly once.
+    assert.ok(existsSync(path.join(config.archiveDir, agentKeyFor(ENTRY), "20261002.md")));
+    assert.ok(rollover.takePendingDigest(agentKeyFor(ENTRY)).length > 0, "pending digest served");
+    assert.equal(rollover.takePendingDigest(agentKeyFor(ENTRY)), null, "pending digest consumed exactly once");
+  } finally {
+    await manager.stopAll();
+  }
+});
+
+// ── add-agent-residency 6.1: the paused flow through the REAL a2a adapter ────
+// (HTTP seam: explicit -32010 to callers, no cold start, resume restores
+// serving — complements the manager-level residency tests above.)
+
+test("6.1 a2a adapter: paused answers explicitly over HTTP; resume restores", async () => {
+  const pausedEntry = { ...ENTRY, metadata: { ...ENTRY.metadata, paused: true } };
+  const h = await bootRunner({
+    entries: [pausedEntry],
+    skills: { "packs/pk-abc/fin-statement-analysis": "# s" },
+    config: {},
+  });
+  try {
+    await h.manager.reconcile();
+    assert.equal(h.manager.health().agents[0].state, "paused");
+    // A caller through the agent's own HTTP port gets an explicit paused
+    // error — never a timeout, never a cold start (nothing spawned).
+    const res = await h.callAgent(pausedEntry, "POST", "/", {
+      headers: { Authorization: "Bearer backend-secret" },
+      body: SEND(7, "hi", "ctx"),
+    });
+    assert.equal(res.status, 200);
+    const doc = JSON.parse(res.text);
+    assert.equal(doc.error.code, -32010);
+    assert.match(doc.error.message, /paused/);
+    assert.equal(h.spawned.length, 0, "paused never cold-starts");
+
+    // The registry flag clears (resume) → the same caller is served again.
+    const resumed = { ...ENTRY, metadata: { ...ENTRY.metadata } };
+    h.manager.registryClient.listServedAgents = async () => [resumed];
+    await h.manager.reconcile();
+    const ok = await h.callAgent(resumed, "POST", "/", {
+      headers: { Authorization: "Bearer backend-secret" },
+      body: SEND(8, "hi", "ctx"),
+    });
+    assert.equal(JSON.parse(ok.text).result.parts[0].text, "分析完成");
+    assert.equal(h.manager.health().agents[0].state, "resident");
+  } finally {
+    await h.close();
+  }
 });

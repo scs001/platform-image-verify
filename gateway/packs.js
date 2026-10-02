@@ -25,8 +25,8 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import express from "express";
-import { PACK_LIMITS, validatePackManifest as validateManifest } from "../lib/pack-manifest.js";
-import { deployToRegistry } from "../lib/agent-serving.js";
+import { PACK_LIMITS, validatePackManifest as validateManifest, validateRhythm } from "../lib/pack-manifest.js";
+import { deployToRegistry, setAgentPaused } from "../lib/agent-serving.js";
 
 // Re-exported for the gateway's own consumers (tests import from here).
 export { PACK_LIMITS, validateManifest };
@@ -299,6 +299,7 @@ export function registerPackRoutes(app, {
   resolveUser,
   rejectUnauthenticated,
   creatorGroups,
+  adminGroups = [],
   rateMax = 10,
   rateWindowMs = 60 * 60_000,
   jsonLimit = "1mb",
@@ -319,6 +320,9 @@ export function registerPackRoutes(app, {
   };
   const publishAllowed = createPublishRateLimiter({ windowMs: rateWindowMs, max: rateMax });
   const isCreator = (user) => creatorGroups.some((g) => (user.groups || []).includes(g));
+  // The platform emergency stop's gate (add-agent-residency D5): admin groups
+  // only — the deployer-facing pause/resume ride the author-or-creator gate.
+  const isAdmin = (user) => adminGroups.some((g) => (user.groups || []).includes(g));
   const auth = (req, res) => {
     const user = resolveUser(req);
     if (!user) {
@@ -422,12 +426,29 @@ export function registerPackRoutes(app, {
     if (!cfg.runnerBaseUrl) {
       return res.status(503).json({ error: "Agent serving is not configured on this deployment (AGENT_SERVING_RUNNER_URL)" });
     }
+    // Rhythm overrides (add-agent-residency D7): { "<agentId>": entries | null }
+    // — deployer-set effective rhythm, validated under the same rules the
+    // manifest enforces (one shape definition, two enforcement points).
+    const rhythms = req.body?.rhythms;
+    if (rhythms !== undefined) {
+      if (!rhythms || typeof rhythms !== "object" || Array.isArray(rhythms)) {
+        return res.status(400).json({ error: "rhythms must be an object of { agentId: rhythm entries }" });
+      }
+      for (const [agentId, entries] of Object.entries(rhythms)) {
+        if (entries === null) continue; // explicit clear back to none
+        const errs = validateRhythm(entries);
+        if (errs.length > 0) {
+          return res.status(400).json({ error: `rhythm override for '${agentId}' is invalid: ${errs[0].error}` });
+        }
+      }
+    }
     let out;
     try {
       out = await deployToRegistry({
         packId: id,
         version: version.version,
         manifest: version.manifest,
+        rhythmOverrides: rhythms ?? {},
         ...cfg,
       });
     } catch (err) {
@@ -452,11 +473,74 @@ export function registerPackRoutes(app, {
 
   // Deployed roles of a pack (3.3): the unpublish warning's and the deploy
   // button's data. Online/offline health itself comes from the registry via
-  // the catalog's a2a entries — this list is the "deployed" fact.
-  app.get("/api/packs/:id/deployments", (req, res) => {
+  // the catalog's a2a entries — this list is the "deployed" fact. The paused
+  // flag (add-agent-residency) is a best-effort live read of each entry's
+  // metadata; unreachable registry ⇒ flags omitted, never an error.
+  app.get("/api/packs/:id/deployments", async (req, res) => {
     const user = auth(req, res);
     if (!user) return;
-    res.json({ deployments: registry.deployments(req.params.id) });
+    const rows = registry.deployments(req.params.id);
+    const cfg = deployConfig();
+    const paused = {};
+    if (cfg.registryUrl) {
+      for (const r of rows) {
+        try {
+          // cfg.fetchImpl (tests) wins; prod builds the real registry call.
+          const doFetch =
+            cfg.fetchImpl ??
+            ((p, init = {}) =>
+              fetch(`${cfg.registryUrl.replace(/\/+$/, "")}${p}`, {
+                ...init,
+                headers: { ...(cfg.token ? { Authorization: `Bearer ${cfg.token}` } : {}), ...(init.headers ?? {}) },
+              }));
+          const entry = await (await doFetch(`/api/agents${r.agentPath}`)).json();
+          paused[r.agentId] = entry?.metadata?.paused === true;
+        } catch { /* flag omitted */ }
+      }
+    }
+    res.json({ deployments: rows.map((r) => ({ ...r, paused: paused[r.agentId] ?? false })) });
+  });
+
+  // Pause/resume (add-agent-residency D5): deployer-facing, reversible — the
+  // registry entry's metadata flag is the truth the runner polls. Kill = the
+  // platform emergency stop writing the SAME flag through an admin gate; the
+  // resume path is identical regardless of who paused. Undeploy is untouched.
+  const pauseAction = (paused) => async (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    const id = req.params.id;
+    const isAuthor = registry.authorEmail(id) === user.email;
+    if (!isAuthor && !isCreator(user)) return res.status(403).json({ error: "Pack author or creator group required" });
+    const row = registry.deployments(id).find((d) => d.agentId === req.params.agentId);
+    if (!row) return res.status(404).json({ error: "Deployment not found" });
+    const cfg = deployConfig();
+    if (!cfg.registryUrl) return res.status(503).json({ error: "Agent serving is not configured on this deployment" });
+    try {
+      const out = await setAgentPaused({ ...cfg, agentPath: row.agentPath, paused });
+      res.json({ ...out, effectiveWithinSecs: 300 });
+    } catch (err) {
+      res.status(Number.isInteger(err?.status) ? err.status : 502).json({ error: err.message });
+    }
+  };
+  app.post("/api/packs/:id/deployments/:agentId/pause", pauseAction(true));
+  app.post("/api/packs/:id/deployments/:agentId/resume", pauseAction(false));
+
+  // The platform emergency stop (add-agent-residency D5): admin-gated, writes
+  // the same paused flag — a deployer resume restores.
+  app.post("/api/packs/:id/deployments/:agentId/kill", async (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    if (!isAdmin(user)) return res.status(403).json({ error: "Admin group required" });
+    const row = registry.deployments(req.params.id).find((d) => d.agentId === req.params.agentId);
+    if (!row) return res.status(404).json({ error: "Deployment not found" });
+    const cfg = deployConfig();
+    if (!cfg.registryUrl) return res.status(503).json({ error: "Agent serving is not configured on this deployment" });
+    try {
+      const out = await setAgentPaused({ ...cfg, agentPath: row.agentPath, paused: true });
+      res.json({ ...out, by: "platform", effectiveWithinSecs: 300 });
+    } catch (err) {
+      res.status(Number.isInteger(err?.status) ? err.status : 502).json({ error: err.message });
+    }
   });
 
   // Unpublish: author-checked unlist. Unknown pack and foreign pack answer

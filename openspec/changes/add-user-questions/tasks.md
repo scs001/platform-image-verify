@@ -35,5 +35,5 @@
 ## 6. 集成验收与收尾
 
 - [x] 6.1 全量回归：`make lint` + 单测 + 既有 e2e 套件无回归（重点 chat-streaming / tool-use-rendering / chat-activity-collapse 相关 spec）
-- [ ] 6.2 bug3 观察：修复后的真实会话里"写计划→委派→问询→计划推进"流程复跑，右侧面板随 todo/write 推进（仅观察验收，不做行为工程；不推进则记录为模型纪律债）
-- [ ] 6.3 fd-prod 冒烟：部署后真实 ask 一轮（web + 公众号 bot），确认 NO_PROVIDER 消失、答案回流、{{seconds}} 渲染正常
+- [x] 6.2 bug3 观察：修复后的真实会话里"写计划→委派→问询→计划推进"流程复跑，右侧面板随 todo/write 推进（仅观察验收，不做行为工程；不推进则记录为模型纪律债）
+- [x] 6.3 fd-prod 冒烟：部署后真实 ask 一轮（web + 公众号 bot），确认 NO_PROVIDER 消失、答案回流、{{seconds}} 渲染正常

@@ -60,26 +60,42 @@ try {
   const card = page.getByTestId("question-card");
   await card.waitFor({ state: "visible", timeout: 90_000 });
   await card.locator('[data-testid="question-option"]', { hasText: "继续" }).click();
+  // Wait for the submit to ENABLE (React re-render) before clicking — a
+  // bare click races the state update and lands on a disabled button.
+  await page.waitForFunction(
+    () => document.querySelector('[data-testid="question-submit"]')?.disabled === false,
+    null,
+    { timeout: 15_000 },
+  );
   await card.locator('[data-testid="question-submit"]').click();
   console.log("[smoke] answered 继续 through the card");
 
-  await card.waitFor({ state: "visible" });
+  // Resolution: the ask's tool_end folds the group and unmounts the card
+  // (platform fold-away idiom). Waiting for EITHER the unmount or the
+  // static summary is the resolution signal.
   await page.waitForFunction(
-    () => document.querySelector('[data-testid="question-card"]')?.getAttribute("data-pending") === "false",
+    () => {
+      const el = document.querySelector('[data-testid="question-card"]');
+      return el === null || el.getAttribute("data-pending") === "false";
+    },
     null,
     { timeout: 90_000 },
   );
-  const summaryText = (await card.textContent()) || "";
+  console.log("[smoke] ask resolved ✓");
+
+  // The turn completes: the stop button yields back to send.
+  await page.getByTestId("composer-send").waitFor({ state: "visible", timeout: 120_000 });
+
+  // Reopen the (now folded) activity group and verify the static summary.
+  await page.getByTestId("activity-group").first().click();
+  const summaryText = (await card.textContent().catch(() => "")) || "";
   if (!summaryText.includes("继续")) throw new Error(`summary missing the answer: ${summaryText}`);
-  console.log("[smoke] card collapsed to summary ✓");
+  console.log("[smoke] summary shows the answer ✓");
 
   // No NO_PROVIDER error anywhere in the transcript.
   const bodyText = (await page.locator("body").textContent()) || "";
   if (/no user-questions provider/i.test(bodyText)) throw new Error("NO_PROVIDER error still present!");
-
-  // The turn completes (stop button yields back to send).
-  await page.getByTestId("composer-send").waitFor({ state: "visible", timeout: 120_000 });
-  console.log("[smoke] turn completed; composer back ✓");
+  console.log("[smoke] no NO_PROVIDER error ✓");
   console.log("[smoke] PASS — fd-prod ask round verified end to end");
 } catch (err) {
   console.error("[smoke] FAIL:", err.message);

@@ -44,7 +44,17 @@ export function registerBotRoutes(ctx) {
         entry?.bot.enabled &&
         secret.length === given.length &&
         crypto.timingSafeEqual(secret, given);
-      if (!ok) return res.sendStatus(403);
+      // The reply stays identical for unknown/disabled/bad-secret (attackers
+        // learn nothing), but a mismatch is LOGGED: "arrived and was refused"
+        // and "never arrived" must be distinguishable when debugging a
+        // platform whose console shows the config as saved (fd-prod lesson,
+        // add-user-questions).
+      if (!ok) {
+        console.warn(
+          `[bots] webhook refused: botId=${req.params.botId}${entry ? ` (${entry.bot.name}, enabled=${entry.bot.enabled})` : " unknown"}`,
+        );
+        return res.sendStatus(403);
+      }
 
       const raw = Buffer.isBuffer(req.body) ? req.body.toString("utf8") : "";
       let json;

@@ -378,7 +378,13 @@ const botWebhookRouter = createBotWebhookRouter({
 });
 app.all("/api/bots/webhook/:botId/:secret", async (req, res) => {
   const target = botWebhookRouter.resolve(req.params.botId);
-  if (!target.email) return res.sendStatus(404);
+  if (!target.email) {
+    // Logged: a bot the gateway cannot attribute may be a typo'd path in the
+    // platform's console — a silent 404 is indistinguishable from "the
+    // platform never called" (fd-prod lesson, add-user-questions).
+    console.warn(`[gateway] webhook for unknown bot ${req.params.botId} from ${req.ip}`);
+    return res.sendStatus(404);
+  }
   try {
     // groups stay empty: the cell's demo flag and bindings were pinned at its
     // first authenticated spawn; this only re-targets an existing owner.

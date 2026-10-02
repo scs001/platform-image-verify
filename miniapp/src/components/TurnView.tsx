@@ -26,6 +26,7 @@ import {
 import { Markdown } from "./Markdown";
 import { CronCard } from "./CronCard";
 import { DelegationCard } from "./DelegationCard";
+import { QuestionCard } from "./QuestionCard";
 
 function ToolBlock({ block, onToggle }: { block: Extract<Block, { kind: "tool" }>; onToggle: () => void }) {
   const stateLabel = block.state === "running" ? "运行中" : block.state === "error" ? "失败" : "完成";
@@ -93,6 +94,11 @@ function BlockView({ block, streaming, onToggle }: { block: Block; streaming: bo
       // 委派任务卡片(spec: agent-delegation-tools);progress/result 保持通用块。
       if (block.name.endsWith("__delegate_task")) {
         return <DelegationCard block={block} />;
+      }
+      // 问询卡片(spec: miniprogram-client, add-user-questions):挂起=交互
+      // 卡(选项/自定义/取消),解决=静态摘要,与 web 端交互对齐。
+      if (block.name === "ask_user_question") {
+        return <QuestionCard block={block} />;
       }
       return <ToolBlock block={block} onToggle={onToggle} />;
     case "skill":

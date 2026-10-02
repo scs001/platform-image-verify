@@ -103,7 +103,12 @@ export function Composer({ send, value, onChange, focusTick = 0 }: Props) {
   // with its document half-ingested (the exact "did my file reach the agent?"
   // failure this state makes visible).
   const isUploading = attachments.some((a) => a.state === "uploading");
-  const canSend = !!trimmed && !disabled && !isUploading && pendingConfig === null;
+  // A pending user question owns the floor (add-user-questions): the composer
+  // stays closed until the card is answered or cancelled, so the ask's answer
+  // never competes with a parallel prompt in the same turn.
+  const pendingQuestion = useChatStore((s) => s.pendingQuestion);
+  const canSend =
+    !!trimmed && !disabled && !isUploading && pendingConfig === null && pendingQuestion === null;
 
   // Built-in commands (Commands section). Skills come from the store and are
   // rendered as the Skills section inside <SlashCommandPicker>. Memoized on

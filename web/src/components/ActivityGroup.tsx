@@ -53,14 +53,11 @@ function ActivityGroupBase({ turn, group, renderBlock }: Props) {
   const open = isGroupOpen(turn, group);
   const errored = groupHasError(group);
   const info = headerInfo(turn, group);
-  const params =
-    "step" in info
-      ? { step: info.step }
-      : "count" in info
-        ? { count: info.count }
-        : "seconds" in info
-          ? { seconds: info.seconds }
-          : {};
+  const params = {
+    ...("step" in info ? { step: info.step } : {}),
+    ...("count" in info ? { count: info.count } : {}),
+    ...("seconds" in info ? { seconds: info.seconds } : {}),
+  };
 
   return (
     <div

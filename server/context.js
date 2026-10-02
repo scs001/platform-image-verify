@@ -155,6 +155,13 @@ export function createAppContext(config) {
     // starts with no plan, the same honesty class as the permission pin
     // reverting to the deployment default.
     planBySession: new Map(),
+    // Pending user-question ask per dsh session (add-user-questions, ADR-0012):
+    // {askId, questions, toolCallId?} from the child's `userQuestion/ask`
+    // notification, held until the tool call resolves (its answer / cancel /
+    // failure lands as the tool/result) or the runtime exits. Web sessions
+    // only — bot-session asks route to their collectors and never land here.
+    // This map is what rehydrates a card after a reload/reconnect.
+    pendingQuestionBySession: new Map(),
 
     // ── Bot session collectors (design D2) ────────────────────────────────────
     // Per-session notification handlers for non-web chat sessions, keyed by

@@ -42,12 +42,32 @@ const NO_TOOLS_PREFIX =
   "You are answering a message from an external chat platform. Answer directly from " +
   "your own knowledge. Do not call any tools.\n\n";
 
+// ── User questions (add-user-questions, ADR-0012) ───────────────────────────
+// A bot turn that calls ask_user_question parks on the platform's provider
+// bridge: the ask arrives as a `userQuestion/ask` notification on the turn's
+// collector, is rendered as numbered-option text into the chat, and the chat's
+// NEXT inbound message is intercepted as the answer attempt — never a new
+// turn. The wait window (BOTS_ASK_WAIT_MS, default 10 min) bounds the pause;
+// while an ask is pending the turn hard timeout is PAUSED, and on expiry the
+// ask is cancelled automatically with the turn continuing to its normal
+// conclusion. Matching failures re-prompt the options; after ASK_MAX_ATTEMPTS
+// unrecognized replies the ask is cancelled. The no-tools posture exempts the
+// ask tool itself: the answer is the user's own words, not tool output.
+const ASK_WAIT_MS = Number(process.env.BOTS_ASK_WAIT_MS) || 600_000;
+const ASK_MAX_ATTEMPTS = 3;
+const ASK_CANCEL_WORDS = new Set(["取消", "cancel"]);
+
 const state = {
   ctx: null,
   bots: new Map(), // id → { bot, adapter, stopPoll }
   queues: new Map(), // sessionId → tail promise (serializes turns within a chat)
   buckets: new Map(), // `${botId}:${chatKey}` → { tokens, refilledAt }
   relayBuckets: new Map(), // channel name → { tokens, refilledAt }
+  // sessionId → the chat's pending ask: {bot, adapter, chatKey, askId,
+  // questions, attempts, timer, resolve}. `resolve(cancelled, answers)` is the
+  // collectTurn closure that submits to the runtime and resumes the paused
+  // turn timeout. Present only while a question waits in that chat.
+  pendingAsks: new Map(),
 };
 
 const allowTools = () => process.env.BOTS_ALLOW_TOOLS === "1";
@@ -169,24 +189,188 @@ function takeRelayToken(channel, botId, chatKey) {
 
 // ── Turn runner ──────────────────────────────────────────────────────────────
 
+// Render one ask's questions as chat text: numbered options with descriptions,
+// multi-select guidance, and the reply contract. Presentation intents
+// (plan-review) render as the generic list — the answer encoding is identical.
+export function renderQuestionText(questions) {
+  const lines = [];
+  questions.forEach((q, i) => {
+    if (questions.length > 1) lines.push(i === 0 ? "" : "", `问题 ${i + 1}：`);
+    if (q.header) lines.push(`【${q.header}】`);
+    if (q.detail) lines.push(String(q.detail));
+    lines.push(String(q.question ?? ""));
+    const options = Array.isArray(q.options) ? q.options : [];
+    options.forEach((o, j) => {
+      lines.push(`${j + 1}. ${o.label}${o.description ? ` — ${o.description}` : ""}`);
+    });
+  });
+  const first = questions[0] ?? {};
+  const hasOptions = (Array.isArray(first.options) ? first.options.length : 0) > 0;
+  lines.push(
+    hasOptions
+      ? `回复数字${first.multiSelect ? "（多选用逗号分隔）" : ""}或选项原文；回复“取消”结束问询`
+      : "直接回复文字作答；回复“取消”结束问询",
+  );
+  return lines.filter((l) => l !== "").join("\n");
+}
+
+// Map one inbound reply onto the pending ask. Outcomes:
+//   {kind:"cancel"}            — the user said the cancel word
+//   {kind:"answers", answers}  — numbers/labels matched, or the text is the
+//                                custom answer of free-text questions
+//   {kind:"reprompt"}          — matched nothing answerable; re-prompt
+// A pure-number list maps onto options (multi-number only on multiSelect);
+// a leading "1. "/"1、" strip lets a copied render line match its label.
+export function parseAnswer(text, questions) {
+  const trimmed = String(text ?? "").trim();
+  if (ASK_CANCEL_WORDS.has(trimmed.toLowerCase())) return { kind: "cancel" };
+  const stripped = trimmed.replace(/^\d+\s*[.、)．]\s*/, "");
+  const answers = [];
+  for (const q of Array.isArray(questions) ? questions : []) {
+    const options = Array.isArray(q.options) ? q.options : [];
+    if (options.length === 0) continue;
+    const nums = trimmed.split(/[\s,，、]+/).filter(Boolean);
+    if (nums.length > 0 && nums.every((n) => /^\d+$/.test(n))) {
+      const indexes = nums.map((n) => Number(n) - 1);
+      if (indexes.every((i) => i >= 0 && i < options.length)) {
+        const selected = indexes.map((i) => options[i].label);
+        if (q.multiSelect === true || selected.length === 1) {
+          answers.push({ id: q.id, selected });
+          continue;
+        }
+      }
+    }
+    const byLabel = options.find((o) => o.label === stripped);
+    if (byLabel) answers.push({ id: q.id, selected: [byLabel.label] });
+  }
+  if (answers.length > 0) return { kind: "answers", answers };
+  // No option matched: free-text questions take the reply as the custom
+  // answer (ALL of them — one reply answers one ask, not one question each).
+  const freeText = (Array.isArray(questions) ? questions : []).filter(
+    (q) => !Array.isArray(q.options) || q.options.length === 0,
+  );
+  if (freeText.length > 0 && trimmed) {
+    return { kind: "answers", answers: freeText.map((q) => ({ id: q.id, selected: [], custom: trimmed })) };
+  }
+  return { kind: "reprompt" };
+}
+
+// Submit one intercepted reply against the chat's pending ask: resolve,
+// re-prompt (bounded), or cancel. Failure-isolated sends, same as turn replies.
+async function deliverAskAttempt(entry, text) {
+  const { bot, adapter, chatKey } = entry;
+  const reply = (body) =>
+    adapter.sendText(bot.credentials, chatKey, body).catch((e) => {
+      console.warn(`[bots] "${bot.name}" send failed: ${e.message}`);
+    });
+  const outcome = parseAnswer(text, entry.questions);
+  if (outcome.kind === "cancel") {
+    entry.resolve(true);
+    await reply("已取消本次问询。");
+    return;
+  }
+  if (outcome.kind === "answers") {
+    entry.resolve(false, outcome.answers);
+    return;
+  }
+  entry.attempts += 1;
+  if (entry.attempts >= ASK_MAX_ATTEMPTS) {
+    entry.resolve(true);
+    await reply(`未能识别回答（${ASK_MAX_ATTEMPTS} 次尝试），已取消本次问询。`);
+    return;
+  }
+  await reply(
+    `未识别的回答，请回复数字或选项原文（还可尝试 ${ASK_MAX_ATTEMPTS - entry.attempts} 次）。\n${renderQuestionText(entry.questions)}`,
+  );
+}
+
 // Collect one turn's outcome off the session's notification stream. Registered
-// BEFORE prompt() so no early event is missed; always unregistered.
-function collectTurn(ctx, sessionId) {
+// BEFORE prompt() so no early event is missed; always unregistered. With
+// {bot, adapter, chatKey} the collector also serves as this turn's ask
+// surface (add-user-questions): a `userQuestion/ask` notification renders the
+// question into the chat and registers the interception entry; the turn's
+// hard timeout PAUSES while the human holds the floor and resumes with its
+// remaining budget when the ask resolves.
+function collectTurn(ctx, sessionId, { bot = null, adapter = null, chatKey = null } = {}) {
   return new Promise((resolve, reject) => {
     let text = "";
     let error = null;
     let usedTools = false;
+    let askEntry = null; // live while a question waits in this chat
+    let deadlineAt = 0; // turn-timeout bookkeeping across ask pauses
+    let timer = null;
     const settle = (fn, arg) => {
       clearTimeout(timer);
+      // A turn ending with a question still waiting cannot happen in-child
+      // (the ask parks the tool call), but a crashed child or a lost collector
+      // can produce it — never leave an interception entry behind a dead turn.
+      if (askEntry) {
+        clearTimeout(askEntry.timer);
+        state.pendingAsks.delete(sessionId);
+        askEntry = null;
+      }
       ctx.sessionCollectors.delete(sessionId);
       fn(arg);
     };
-    const timer = setTimeout(() => settle(reject, new Error("turn timed out")), TURN_TIMEOUT_MS);
+    const armTimeout = (ms) => {
+      clearTimeout(timer);
+      if (ms <= 0) return;
+      deadlineAt = Date.now() + ms;
+      timer = setTimeout(() => settle(reject, new Error("turn timed out")), ms);
+    };
+    armTimeout(TURN_TIMEOUT_MS);
+
+    // Resolve the live ask (answer or cancel): unregister the interception
+    // entry, resume the paused turn timeout with its remaining budget, and
+    // submit to the runtime — the turn then continues to its own idle.
+    const resolveAsk = (cancelled, answers = []) => {
+      if (!askEntry) return;
+      const entry = askEntry;
+      askEntry = null;
+      state.pendingAsks.delete(sessionId);
+      clearTimeout(entry.timer);
+      armTimeout(Math.max(0, deadlineAt - Date.now()));
+      ctx.dshBridge?.answerUserQuestion
+        ?.({ sessionId, askId: entry.askId, ...(cancelled ? { cancelled: true } : { answers }) })
+        ?.catch((e) => console.warn(`[bots] "${bot?.name}" ask submit failed: ${e.message}`));
+    };
 
     ctx.sessionCollectors.set(sessionId, (notif) => {
       const { method, params } = notif;
       if (method === "session.status" && params.status === "idle") {
         return settle(resolve, { text, error, usedTools });
+      }
+      if (method === "userQuestion/ask") {
+        const askId = typeof params?.askId === "string" ? params.askId : null;
+        const questions = Array.isArray(params?.questions) ? params.questions : [];
+        if (!askId || !adapter || questions.length === 0) return;
+        // Pause the hard timeout while the human holds the floor.
+        clearTimeout(timer);
+        askEntry = {
+          bot,
+          adapter,
+          chatKey,
+          askId,
+          questions,
+          attempts: 0,
+          timer: null,
+          resolve: resolveAsk,
+        };
+        state.pendingAsks.set(sessionId, askEntry);
+        askEntry.timer = setTimeout(() => {
+          // Wait window expired: cancel the ask; the turn continues normally.
+          if (askEntry) {
+            const notice = "等待超时，已取消本次问询。";
+            resolveAsk(true);
+            adapter
+              .sendText(bot.credentials, chatKey, notice)
+              .catch((e) => console.warn(`[bots] "${bot.name}" send failed: ${e.message}`));
+          }
+        }, ASK_WAIT_MS);
+        adapter
+          .sendText(bot.credentials, chatKey, renderQuestionText(questions))
+          .catch((e) => console.warn(`[bots] "${bot.name}" send failed: ${e.message}`));
+        return;
       }
       if (method !== "session.event") return;
       const ev = params.event;
@@ -197,7 +381,10 @@ function collectTurn(ctx, sessionId) {
           if (t) text = t;
         }
       } else if (ev?.type === "tool/call") {
-        usedTools = true;
+        // The ask tool is the whitelisted exception (add-user-questions): a
+        // turn that only asked must not count as tool-derived — its reply is
+        // the user's own answer carried back.
+        if (ev.data?.name !== "ask_user_question") usedTools = true;
       } else if (
         ev?.type === "assistant/chunk" &&
         ev.data?.chunk?.type === "finish" &&
@@ -243,6 +430,14 @@ export async function handleMessage(botId, { chatKey, senderName, text }) {
   }
 
   const sessionId = sessionIdFor(botId, chatKey);
+  // A question waiting in this chat? The message is its answer attempt, not a
+  // new turn (add-user-questions). The guards above still applied — answering
+  // an ask enjoys no size/rate exemption.
+  const pendingAsk = state.pendingAsks.get(sessionId);
+  if (pendingAsk) {
+    void deliverAskAttempt(pendingAsk, text);
+    return;
+  }
   const tail = state.queues.get(sessionId) ?? Promise.resolve();
   const run = tail.then(() => runTurn(entry, sessionId, chatKey, text));
   // Keep the chain alive past a failed turn, and drop the entry once idle so
@@ -265,7 +460,7 @@ async function runTurn({ bot, adapter }, sessionId, chatKey, text) {
   };
   if (!ctx?.dshBridge?.isReady()) return reply("The assistant is starting up. Please try again shortly.");
 
-  const collected = collectTurn(ctx, sessionId);
+  const collected = collectTurn(ctx, sessionId, { bot, adapter, chatKey });
   const prompt = allowTools() ? text : NO_TOOLS_PREFIX + text;
   let result;
   try {

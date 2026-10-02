@@ -5,6 +5,7 @@ import { useChatStore, type Block } from "@platform/core";
 import { usePreviewStore } from "@/hooks/usePreviewStore";
 import { CronToolCard } from "@/components/CronToolCard";
 import { TaskCard } from "@/components/TaskCard";
+import { QuestionCard } from "@/components/QuestionCard";
 import { baseName, fileUrl, findFilePath, resolveRef } from "@/lib/file-preview";
 import { memo, useId } from "react";
 
@@ -56,6 +57,12 @@ function ToolBlockBase({ block, onToggle }: Props) {
   // progress/result keep the generic block.
   if (name.endsWith("__delegate_task")) {
     return <TaskCard block={block} />;
+  }
+
+  // A user question renders as the interactive card while pending and a
+  // static summary once resolved (spec: web-chat-ui, add-user-questions).
+  if (name === "ask_user_question") {
+    return <QuestionCard block={block} />;
   }
 
   // Any file the call named — written, or just read — is offerable. A path that

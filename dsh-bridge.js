@@ -52,6 +52,7 @@ export function patchArgs(paths = {}) {
     paths.permissionsPatchPath,
     paths.toolSearchPatchPath,
     paths.chartBindPatchPath,
+    paths.userQuestionsPatchPath,
   ];
   return order.filter(Boolean).flatMap((p) => ["--patch", p]);
 }
@@ -72,6 +73,7 @@ export class DshBridge {
   #permissionsPatchPath;
   #toolSearchPatchPath;
   #chartBindPatchPath;
+  #userQuestionsPatchPath;
   #agentPreset;
   #env;
   // Preset roster cache, per child generation: null until the first successful
@@ -84,7 +86,7 @@ export class DshBridge {
   #restarting = false;
   #generation = 0;
 
-  constructor({ onEvent, provider, model, cwd, mcpPatchPath, skillsPatchPath, presetsPatchPath, permissionsPatchPath, toolSearchPatchPath, chartBindPatchPath, agentPreset, env } = {}) {
+  constructor({ onEvent, provider, model, cwd, mcpPatchPath, skillsPatchPath, presetsPatchPath, permissionsPatchPath, toolSearchPatchPath, chartBindPatchPath, userQuestionsPatchPath, agentPreset, env } = {}) {
     if (onEvent) this.#onEvent = onEvent;
     this.#provider = provider || "deepseek-official";
     this.#model = model || "deepseek-v4-flash";
@@ -95,6 +97,7 @@ export class DshBridge {
     this.#permissionsPatchPath = permissionsPatchPath || null;
     this.#toolSearchPatchPath = toolSearchPatchPath || null;
     this.#chartBindPatchPath = chartBindPatchPath || null;
+    this.#userQuestionsPatchPath = userQuestionsPatchPath || null;
     this.#agentPreset = agentPreset || null;
     // When provided, the dsh child is spawned with this env instead of the
     // inherited process env — used to scrub upstream API keys (LLM_API_KEY /
@@ -279,6 +282,19 @@ export class DshBridge {
     }
   }
 
+  // Resolve or cancel a pending user-questions ask in the child
+  // (add-user-questions). Returns the child's receipt — {accepted:true} or
+  // {accepted:false, reason} for an unknown/already-resolved ask (that IS the
+  // first-wins semantics). Throws only on transport/timeout failures.
+  async answerUserQuestion({ sessionId, askId, answers = null, cancelled = false }) {
+    this.#requireReady();
+    return this.#client.request("userQuestions/answer", {
+      sessionId,
+      askId,
+      ...(cancelled ? { cancelled: true } : { answers: answers ?? [] }),
+    });
+  }
+
   // Re-initialize the child with a new provider/model/cwd/preset/patch. dsh
   // bakes all of these into the `initialize` handshake and exposes no stock
   // `setModel`/`setCwd`/reload RPC, so a live model switch, a workspace
@@ -323,6 +339,7 @@ export class DshBridge {
       permissionsPatchPath: this.#permissionsPatchPath,
       toolSearchPatchPath: this.#toolSearchPatchPath,
       chartBindPatchPath: this.#chartBindPatchPath,
+      userQuestionsPatchPath: this.#userQuestionsPatchPath,
     };
   }
 

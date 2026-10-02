@@ -2579,3 +2579,146 @@ page {
   color: #374151;
   white-space: pre-wrap;
 }
+
+/* ── 问询卡片（add-user-questions）——挂起=交互卡，解决=静态摘要 ── */
+.blk-qc {
+  margin: 12px 0;
+  border: 1px solid #e5e7eb;
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.blk-qc-error {
+  border-left-color: #dc2626;
+}
+
+.blk-qc-done {
+  border-left-color: #16a34a;
+}
+
+.blk-qc-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 16px 20px 8px;
+}
+
+.blk-qc-title {
+  font-size: 26px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.blk-qc-sub {
+  font-size: 22px;
+  color: #6b7280;
+}
+
+.blk-qc-rows {
+  padding: 4px 20px 12px;
+}
+
+.blk-qc-row {
+  margin-top: 8px;
+}
+
+.blk-qc-row-q {
+  display: block;
+  font-size: 22px;
+  color: #6b7280;
+}
+
+.blk-qc-row-a {
+  display: block;
+  font-size: 26px;
+  font-weight: 500;
+  color: #111827;
+}
+
+.blk-qc-item {
+  padding: 8px 20px;
+}
+
+.blk-qc-item-header {
+  display: block;
+  font-size: 20px;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 4px;
+}
+
+.blk-qc-item-q {
+  display: block;
+  font-size: 28px;
+  font-weight: 500;
+  color: #111827;
+}
+
+.blk-qc-item-detail {
+  display: block;
+  font-size: 22px;
+  color: #6b7280;
+  margin-top: 4px;
+  white-space: pre-wrap;
+}
+
+.blk-qc-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.blk-qc-option {
+  font-size: 24px;
+  color: #111827;
+  padding: 10px 24px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.blk-qc-option-on {
+  border-color: #2563eb;
+  background: #dbeafe;
+  font-weight: 600;
+}
+
+.blk-qc-input {
+  margin-top: 12px;
+  font-size: 24px;
+  padding: 10px 16px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.blk-qc-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 24px;
+  padding: 8px 20px 16px;
+}
+
+.blk-qc-cancel {
+  font-size: 24px;
+  color: #6b7280;
+  padding: 8px 12px;
+}
+
+.blk-qc-submit {
+  font-size: 24px;
+  font-weight: 600;
+  color: #ffffff;
+  background: #2563eb;
+  border-radius: 8px;
+  padding: 10px 28px;
+}
+
+.blk-qc-submit-off {
+  opacity: 0.4;
+}

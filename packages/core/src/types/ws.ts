@@ -37,6 +37,20 @@ export type ServerMessage =
   | { type: "permissions"; options: PermissionOption[]; current: string | null }
   | { type: "current_permission"; name: string }
   | { type: "todos"; todos: TodoItem[]; counts: TodoCounts }
+  // A pending user-question ask (add-user-questions): broadcast when the
+  // runtime parks on ask_user_question, re-pushed on reconnect/session sync
+  // while it waits. `toolCallId` anchors the interactive card to its
+  // transcript block. The ask resolves through its own tool_end (answer,
+  // cancellation, or failure — that block's result is the summary), which is
+  // also what clears the pending state client-side.
+  | {
+      type: "agent_question";
+      askId: string;
+      toolCallId?: string;
+      questions: AskQuestionItem[];
+      sessionId?: string;
+    }
+  | { type: "answer_question_error"; message: string }
   | { type: "catalog_changed" }
   | { type: "skills"; skills: SkillInfo[] }
   | { type: "documents_status"; [k: string]: unknown }
@@ -196,6 +210,32 @@ export interface TodoCounts {
   completed: number;
 }
 
+// ── User questions (add-user-questions) ─────────────────────────────────────
+// Mirrors the dsh user-questions seam's wire shape verbatim (camelCase, as
+// the runtime emits it) so raw payloads pass through.
+
+export interface AskQuestionOption {
+  label: string;
+  description?: string;
+}
+
+export interface AskQuestionItem {
+  id: string;
+  question: string;
+  header?: string;
+  detail?: string;
+  options?: AskQuestionOption[];
+  multiSelect?: boolean;
+  /** Presentation intent (e.g. plan-review); rendering it generically is legal. */
+  intent?: { kind: "plan-review"; approve: string } | Record<string, unknown>;
+}
+
+export interface AskAnswerItem {
+  id: string;
+  selected: string[];
+  custom?: string;
+}
+
 export interface SessionMeta {
   id: string;
   title: string;
@@ -262,7 +302,11 @@ export type ClientMessage =
   | { type: "cron_remove"; jobId: string }
   | { type: "cron_pause"; jobId: string }
   | { type: "cron_resume"; jobId: string }
-  | { type: "cron_run"; jobId: string };
+  | { type: "cron_run"; jobId: string }
+  // Answer or cancel the session's pending ask (add-user-questions).
+  // First-wins: a late second submission is refused server-side and the
+  // client converges on the ask's own tool_end.
+  | { type: "answer_question"; askId: string; answers?: AskAnswerItem[]; cancelled?: boolean };
 
 // ── Scheduled tasks ─────────────────────────────────────────────────────────
 

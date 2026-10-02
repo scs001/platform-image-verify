@@ -184,6 +184,15 @@ const syncReadyClient = async (ws) => {
   // Scoped like the connect path (add-session-ownership): the plan belongs to
   // the session this connection is entitled to view.
   if (!sendIfOpen(ws, ctx.planMessage(ws.viewedSession ?? ctx.dshSessionId))) return;
+  // A pending user-question ask (add-user-questions): rehydrates the card for
+  // a client that connected/reconnected while the ask waits. No empty form —
+  // nothing is sent when no ask is pending.
+  {
+    // Optional chaining: contexts that predate the question sync (minimal
+    // unit fakes) simply skip it.
+    const question = ctx.questionMessage?.(ws.viewedSession ?? ctx.dshSessionId);
+    if (question && !sendIfOpen(ws, question)) return;
+  }
 
   const sessions = await chatHistory.listSessions(ctx.sessionScopeFor(ws));
   if (version !== ctx.sessionVersion) return;
@@ -243,6 +252,12 @@ ctx.wss.on("connection", (ws, req) => {
   // connection not entitled to the live session gets the empty plan of its own
   // (null) view instead of another user's plan (add-session-ownership).
   ws.send(JSON.stringify(ctx.planMessage(ws.viewedSession ?? ctx.dshSessionId)));
+  // A pending user-question ask for the viewed session (add-user-questions):
+  // sent only when one is waiting — a reconnect mid-ask must restore the card.
+  {
+    const question = ctx.questionMessage?.(ws.viewedSession ?? ctx.dshSessionId);
+    if (question) ws.send(JSON.stringify(question));
+  }
   if (ctx.ready.dsh) {
     void syncPermissionState(ws).catch((e) =>
       console.warn(`[chat-history] permission sync on connect failed: ${e.message}`)
@@ -279,6 +294,46 @@ ctx.wss.on("connection", (ws, req) => {
     }
 
     switch (data.type) {
+      case "answer_question": {
+        // Answer or cancel the session's pending user-question ask
+        // (add-user-questions). Only a viewer of the owning session may
+        // answer; first-wins is enforced by the runtime (an ask already
+        // resolved there answers {accepted:false} and this client converges on
+        // the ask's own tool_end). Bot asks never appear here — they answer in
+        // their own channel (server/bots.js).
+        if (!ctx.ready.dsh) {
+          ws.send(JSON.stringify({ type: "error", message: "Agent is still initializing" }));
+          break;
+        }
+        const target = ws.viewedSession ?? ctx.dshSessionId;
+        const pending = target ? ctx.pendingQuestionBySession.get(target) : null;
+        if (!pending || data.askId !== pending.askId) {
+          ws.send(
+            JSON.stringify({ type: "answer_question_error", message: "No pending question for this session" })
+          );
+          break;
+        }
+        try {
+          const receipt =
+            data.cancelled === true
+              ? await ctx.dshBridge.answerUserQuestion({ sessionId: target, askId: data.askId, cancelled: true })
+              : await ctx.dshBridge.answerUserQuestion({
+                  sessionId: target,
+                  askId: data.askId,
+                  answers: Array.isArray(data.answers) ? data.answers : [],
+                });
+          // accepted:false = another surface answered first; the tool_end
+          // broadcast resolves this client's card — nothing to report.
+          if (receipt?.accepted === false && process.env.DSH_DEBUG) {
+            console.debug("[dsh] answer_question raced a resolved ask; ignored");
+          }
+        } catch (err) {
+          console.error(`[ws] answer_question failed: ${err.message}`);
+          ws.send(JSON.stringify({ type: "error", message: `Answer failed: ${err.message}` }));
+        }
+        break;
+      }
+
       case "prompt": {
         if (!ctx.ready.dsh) {
           ws.send(JSON.stringify({ type: "error", message: "Agent is still initializing" }));
@@ -686,6 +741,13 @@ ctx.wss.on("connection", (ws, req) => {
           // the plan on session_loaded; this push is what restores it when the
           // user switches back to a session that had one (add-plan-progress-panel).
           ctx.sendToViewers(result.id, ctx.planMessage(result.id));
+          // Same restore for a pending ask (add-user-questions): the client
+          // drops its card on session_loaded, so a session whose ask is still
+          // waiting needs the card re-pushed to its viewers.
+          {
+            const question = ctx.questionMessage?.(result.id);
+            if (question) ctx.sendToViewers(result.id, question);
+          }
           ctx.sendToViewers(result.id, { type: "session_changed", id: result.id });
           void ctx.broadcastSessions();
         } catch (err) {

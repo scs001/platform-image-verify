@@ -1356,6 +1356,54 @@ export function writeChartBindPatch() {
   return CHART_BIND_PATCH_PATH;
 }
 
+// ── User-questions bridge patch (add-user-questions) ────────────────────────
+// The ask_user_question tool (standard preset) needs a host-side
+// ctx.userQuestions provider — the seam's single slot is empty in the platform
+// composition, so every call died NO_PROVIDER. This overlay swaps the server
+// row one level further: disables `platform-permission-server` and inserts
+// `platform-user-questions-server`, a subclass that registers the provider,
+// forwards asks as `userQuestion/ask` notifications (the existing child→host
+// lane, never entering the session log) and resolves them through a
+// `userQuestions/answer` request (the existing host→child lane). Layer order:
+// AFTER permissions.patch.yml — it swaps the row that overlay inserted.
+// Unconditional like its predecessors: without it the tool errors at call
+// time; with it, surfaces that never answer fall back to the child's
+// 15-minute ask window.
+const USER_QUESTIONS_PATCH_PATH = join(DSH_HOME, "profiles", PROFILE_NAME, "user-questions.patch.yml");
+const USER_QUESTIONS_BRIDGE_SOURCE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "dsh-profile-template",
+  "platform-user-questions-bridge.js",
+);
+const USER_QUESTIONS_BRIDGE_FILE = "platform-user-questions-bridge.js";
+
+// Write the user-questions bridge file + user-questions.patch.yml into the
+// profile dir. The bridge imports the permission bridge (its subclass parent),
+// so that file is (re)written beside it — same idempotent-copy shape the
+// tool-search/chart-bind pair uses for tool-discovery.js. Returns the patch
+// path for the --patch args.
+export function writeUserQuestionsPatch() {
+  mkdirSync(dirname(USER_QUESTIONS_PATCH_PATH), { recursive: true });
+  const profileDir = dirname(USER_QUESTIONS_PATCH_PATH);
+  atomicWriteTextSync(
+    join(profileDir, PERMISSION_BRIDGE_FILE),
+    readFileSync(PERMISSION_BRIDGE_SOURCE, "utf8"),
+  );
+  atomicWriteTextSync(
+    join(profileDir, USER_QUESTIONS_BRIDGE_FILE),
+    readFileSync(USER_QUESTIONS_BRIDGE_SOURCE, "utf8"),
+  );
+  const patch = [
+    { id: "platform-permission-server", disabled: true },
+    {
+      insert: [{ id: "platform-user-questions-server", name: `./${USER_QUESTIONS_BRIDGE_FILE}` }],
+    },
+  ];
+  atomicWriteTextSync(USER_QUESTIONS_PATCH_PATH, yaml.dump(patch));
+  console.log(`[dsh-profile] wrote user-questions bridge patch → ${USER_QUESTIONS_PATCH_PATH}`);
+  return USER_QUESTIONS_PATCH_PATH;
+}
+
 // Self-check: load .env, build the section, print it + the model list. No file
 // write (read-only) — proves the generator emits valid YAML + the expected ids.
 // Usage: node dsh-profile.js

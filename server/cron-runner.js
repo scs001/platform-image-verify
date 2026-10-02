@@ -69,6 +69,17 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
       if (method === "session.status" && params.status === "idle") {
         return settle(resolve, { text, error, usage });
       }
+      // A user-questions ask in an unattended session (scheduled task or
+      // worker slot — both use this collector) has no human to answer it:
+      // cancel immediately so the model continues with a cancelled result
+      // instead of parking on the child's fallback window. The serialized
+      // task queue must not wait 15 minutes for a timeout nobody will answer.
+      if (method === "userQuestion/ask" && params?.askId) {
+        ctx.dshBridge?.answerUserQuestion
+          ?.({ sessionId: params.sessionId, askId: params.askId, cancelled: true })
+          ?.catch(() => {});
+        return;
+      }
       if (method !== "session.event") return;
       const ev = params.event;
       if (!ev) return;

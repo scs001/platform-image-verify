@@ -26,6 +26,7 @@ import type {
   SkillInfo,
   TodoCounts,
   TodoItem,
+  AskQuestionItem,
 } from "../types/ws";
 
 const NO_TODOS: TodoCounts = { pending: 0, inProgress: 0, completed: 0 };
@@ -160,6 +161,12 @@ interface State {
   // the plan surface renders nothing at all.
   todos: TodoItem[];
   todoCounts: TodoCounts;
+  // The session's pending user-question ask (add-user-questions): non-null
+  // from the agent_question broadcast until the ask's own tool_end (answer /
+  // cancel / failure), a `done` with the ask still open (it can never resolve
+  // then), or a session switch (the server re-pushes if it is still pending).
+  // Drives the interactive card and the composer gate.
+  pendingQuestion: { askId: string; toolCallId?: string; questions: AskQuestionItem[] } | null;
   // True while the remainder of a dismissed run (user stop, or a socket drop
   // mid-stream) must be ignored. dsh has no interrupt RPC, so "stop" is a
   // view-level finalize; without this flag the orphaned run's late events
@@ -434,6 +441,7 @@ export const useChatStore = create<State>((set) => ({
         isStreaming: false,
         todos: [],
         todoCounts: NO_TODOS,
+        pendingQuestion: null,
         // Re-entry is itself a use — bump recency.
         sessionCache: cached ? cacheWrite(cache, id, cached) : cache,
       };
@@ -456,6 +464,7 @@ export const useChatStore = create<State>((set) => ({
   isStreaming: false,
   todos: [],
   todoCounts: NO_TODOS,
+  pendingQuestion: null,
   suppressed: false,
   demoExhausted: null,
   demoBudgetLeft: null,
@@ -603,7 +612,15 @@ export const useChatStore = create<State>((set) => ({
               if (containing) a.groupState = { ...a.groupState, [containing.startIndex]: true };
             }
           }
-          return { turns };
+          // A resolved ask closes the pending card (add-user-questions): its
+          // own tool result — answer, cancellation, or failure — is the card's
+          // summary. This is also the first-wins convergence point for every
+          // surface viewing the session.
+          const pendingQ = state.pendingQuestion;
+          const closesAsk =
+            pendingQ !== null &&
+            (m.toolCallId === pendingQ.toolCallId || m.name === "ask_user_question");
+          return closesAsk ? { turns, pendingQuestion: null } : { turns };
         }
 
         case "skill_use": {
@@ -640,14 +657,17 @@ export const useChatStore = create<State>((set) => ({
           // conservative cache rule applies: a `done` while viewing S
           // refreshes S's entry only — the completed turn is the final state
           // a later cached re-entry of S should render (perf-session-open).
+          // An ask cannot outlive its turn (the tool call parks the loop), so
+          // a `done` with a pending ask means it will never resolve — clear it.
           return state.currentSessionId && turns.length > 0
             ? {
                 turns,
                 isStreaming: false,
                 suppressed: false,
+                pendingQuestion: null,
                 sessionCache: cacheWrite(state.sessionCache, state.currentSessionId, turns),
               }
-            : { turns, isStreaming: false, suppressed: false };
+            : { turns, isStreaming: false, suppressed: false, pendingQuestion: null };
         }
 
         case "error": {
@@ -755,6 +775,24 @@ export const useChatStore = create<State>((set) => ({
           // Counts come from the server so header rendering needs no recount.
           return { todos: m.todos, todoCounts: m.counts };
 
+        case "agent_question":
+          // The runtime parked on ask_user_question (add-user-questions): hold
+          // the ask for the interactive card + composer gate. Broadcast live
+          // and re-pushed on reconnect/session sync — this one case covers
+          // both, exactly like `todos`.
+          return {
+            pendingQuestion: {
+              askId: m.askId,
+              ...(m.toolCallId ? { toolCallId: m.toolCallId } : {}),
+              questions: m.questions,
+            },
+          };
+
+        case "answer_question_error":
+          // A refused submission (no pending ask / foreign session). Nothing
+          // local to fix — the card state already reflects the server's truth.
+          return {};
+
         case "current_preset":
           return { currentPreset: m.id, pendingConfig: null };
 
@@ -852,6 +890,7 @@ export const useChatStore = create<State>((set) => ({
             // snapshot push (when the target session has one) repopulates it.
             todos: [],
             todoCounts: NO_TODOS,
+            pendingQuestion: null,
             pendingSession: null,
             // Only the structural new-chat arrival consumes the handshake —
             // an id-matched refresh must not disarm it while the real
@@ -925,6 +964,7 @@ export const useChatStore = create<State>((set) => ({
       suppressed: state.suppressed || state.isStreaming,
       todos: [],
       todoCounts: NO_TODOS,
+      pendingQuestion: null,
     }));
   },
 

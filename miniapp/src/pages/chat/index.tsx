@@ -306,7 +306,11 @@ export default function ChatPage() {
     return () => clearTimeout(timer);
   }, [turns]);
 
-  const sendDisabled = isStreaming || pendingConfig !== null;
+  // A pending question owns the floor (add-user-questions): the composer
+  // stays closed until its card is answered or cancelled — the ask's answer
+  // never competes with a parallel prompt in the same turn.
+  const pendingQuestion = useChatStore((s) => s.pendingQuestion);
+  const sendDisabled = isStreaming || pendingConfig !== null || pendingQuestion !== null;
 
   // Double-submit guard: both taps can pass the isStreaming check before the
   // server echo flips it, so the composer owns a short local in-flight window.

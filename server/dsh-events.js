@@ -93,6 +93,21 @@ export function attachDshEvents(ctx) {
       : { type: "todos", todos: [], counts: { pending: 0, inProgress: 0, completed: 0 } };
   };
 
+  // The pending-question message for a session, or null when none is pending
+  // (add-user-questions). Unlike planMessage there is NO empty form: an absent
+  // question pushes nothing — the client clears its card on session_loaded and
+  // on the ask's own tool_end, so a null here never strands a stale card.
+  ctx.questionMessage = (sessionId) => {
+    const pending = sessionId ? ctx.pendingQuestionBySession.get(sessionId) : null;
+    if (!pending) return null;
+    return {
+      type: "agent_question",
+      askId: pending.askId,
+      ...(pending.toolCallId ? { toolCallId: pending.toolCallId } : {}),
+      questions: pending.questions,
+    };
+  };
+
   // Mark the current agent turn finished: reset the streaming flag, broadcast
   // `done` (which re-enables the UI / model selector and finalizes tool
   // blocks), and refresh the sidebar session list. Idempotent per turn — it
@@ -143,6 +158,9 @@ export function attachDshEvents(ctx) {
     // web turn when the child exits before it can emit session.status idle.
     if (method === "bridge.exit" || method === "_bridge_crash") {
       ctx.ready.dsh = false;
+      // A dead child releases every pending ask (the provider rejects them
+      // in-child); the host's pending cards must not outlive the runtime.
+      ctx.pendingQuestionBySession.clear();
       // A restart kills any in-flight scheduled-task turn too: its collector
       // sits on a session that will never report idle, which would wedge the
       // cron engine's serialized queue for the full turn timeout.
@@ -172,6 +190,35 @@ export function attachDshEvents(ctx) {
       return;
     }
     const { params } = notif || {};
+    // A user-questions ask surfaced by the child's provider bridge
+    // (add-user-questions, ADR-0012). The session routing above already sent
+    // bot sessions to their collectors — reaching here means the WEB session
+    // asked: hold the pending ask for reconnect syncs and hand it to every
+    // viewer. The ask never enters the session log (the child emits it as a
+    // dedicated notification, not a session event).
+    if (method === "userQuestion/ask") {
+      const askId = typeof params?.askId === "string" ? params.askId : null;
+      const questions = Array.isArray(params?.questions) ? params.questions : [];
+      if (!askId || questions.length === 0) {
+        if (process.env.DSH_DEBUG) console.debug("[dsh] malformed userQuestion/ask; ignored");
+        return;
+      }
+      // Anchor the card to this turn's ask_user_question tool call so the
+      // client binds the interactive card to its transcript block. Tool calls
+      // run serially within a turn, so the last call of that name is the ask.
+      let toolCallId = null;
+      for (const [callId, name] of ctx.dshToolNames) {
+        if (name === "ask_user_question") toolCallId = callId;
+      }
+      ctx.pendingQuestionBySession.set(ctx.dshSessionId, { askId, questions, toolCallId });
+      ctx.sendToViewers(ctx.dshSessionId, {
+        type: "agent_question",
+        askId,
+        ...(toolCallId ? { toolCallId } : {}),
+        questions,
+      });
+      return;
+    }
     if (method === "session.status") {
       if (params?.status === "idle") ctx.finishTurn();
       return;
@@ -315,6 +362,18 @@ export function attachDshEvents(ctx) {
           result: resultText,
           isError,
         });
+        // A resolved ask_user_question closes the pending card — answered,
+        // cancelled, or failed, the tool result IS the card's summary
+        // (add-user-questions). Every viewer converges on this tool_end.
+        // Optional chaining: minimal/legacy contexts (e.g. unit-test fakes)
+        // may predate the pending map — the ask path then no-ops.
+        if (
+          ctx.dshSessionId &&
+          (ctx.dshToolNames.get(callId) === "ask_user_question" ||
+            ctx.pendingQuestionBySession?.get(ctx.dshSessionId)?.toolCallId === callId)
+        ) {
+          ctx.pendingQuestionBySession?.delete(ctx.dshSessionId);
+        }
         if (isError) markRegistryCredentialStaleOn401(ctx, ctx.dshToolNames.get(callId), resultText);
         break;
       }

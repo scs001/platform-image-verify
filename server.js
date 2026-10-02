@@ -321,7 +321,7 @@ function seedStartupMcpConfigs(mcpJsonServers) {
 // now it only emits `done` on turn completion (the 1.5 round-trip placeholder).
 async function initDshAgent() {
   const { DshBridge } = await import("./dsh-bridge.js");
-  const { writeLlmProfile, writeMcpPatch, writeSkillsPatch, writePresetsPatch, writePermissionsPatch, writeToolSearchPatch, writeChartBindPatch, ensureCredentialsStore, ensureDshHome, buildScrubbedEnv, knownPresetIds, DEFAULT_AGENT_PRESET } = await import("./dsh-profile.js");
+  const { writeLlmProfile, writeMcpPatch, writeSkillsPatch, writePresetsPatch, writePermissionsPatch, writeToolSearchPatch, writeChartBindPatch, writeUserQuestionsPatch, ensureCredentialsStore, ensureDshHome, buildScrubbedEnv, knownPresetIds, DEFAULT_AGENT_PRESET } = await import("./dsh-profile.js");
 
   // Scaffold $DSH_HOME if it is fresh — a hosted cell's per-user home always
   // is, and dsh refuses to boot a profile that was never materialized.
@@ -445,6 +445,10 @@ async function initDshAgent() {
   // (add-chart-data-binding). Static and always written — its absence merely
   // removes the declared channel, never the runtime.
   const chartBindPatchPath = writeChartBindPatch();
+  // The user-questions overlay swaps the server row to the subclass that also
+  // registers the ctx.userQuestions provider (add-user-questions, ADR-0012).
+  // Static; always written — without it ask_user_question errors NO_PROVIDER.
+  const userQuestionsPatchPath = writeUserQuestionsPatch();
 
   // Default model: in a cell the user's saved binding wins (it IS this
   // runtime's configuration); otherwise the persisted Models-page pointer,
@@ -520,6 +524,7 @@ async function initDshAgent() {
     permissionsPatchPath,
     toolSearchPatchPath,
     chartBindPatchPath,
+    userQuestionsPatchPath,
     agentPreset: ctx.currentPreset,
     env: dshChildEnv,
   });
@@ -535,6 +540,7 @@ async function initDshAgent() {
     permissionsPatchPath,
     toolSearchPatchPath,
     chartBindPatchPath,
+    userQuestionsPatchPath,
     env: dshChildEnv,
   };
   await ctx.dshBridge.start();

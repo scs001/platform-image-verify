@@ -48,14 +48,15 @@ Each publish SHALL create a new immutable version of the pack with a monotonical
 - **THEN** the pack disappears from browse and detail for users who had not installed it
 - **AND** subscribers' installed skills, MCP connections, and agents keep working unchanged
 
+
 ### Requirement: Browse, search, and inspect
 
-Every authenticated user SHALL be able to list published packs (name, description, tags, author identity, latest version, last publish time), search them by name or tag, and open a detail view. The detail view SHALL return the full manifest of the latest version, including the complete body of every skill, so a subscriber can inspect exactly what will be installed before subscribing.
+Every authenticated user SHALL be able to list published packs (name, description, tags, author identity, latest version, last publish time), search them by name or tag, and open a detail view — excluding private packs the requester does not own (openspec: pack-visibility; admins see all). The detail view SHALL return the full manifest of the latest version, including the complete body of every skill, so a subscriber can inspect exactly what will be installed before subscribing.
 
 #### Scenario: Search by tag
 
 - **WHEN** a user searches the marketplace for the tag `法律`
-- **THEN** the listing contains exactly the published packs tagged `法律`
+- **THEN** the listing contains exactly the published packs tagged `法律` visible to that user
 
 #### Scenario: Skill bodies are inspectable before subscribe
 

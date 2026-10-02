@@ -99,14 +99,15 @@ test("client: ensure/mint/read/adjust over the stub; degraded without key", asyn
     const first = await c.ensureDeployerUser("alice@x.test");
     assert.equal(first.existed, false);
     assert.match(first.username, /^paas-alice-x-test$/);
-    assert.ok(first.password);
+    // Dedicated derivation: never the user's own email (collision guard).
+    assert.match(first.sub2apiEmail, /^paas-deployer\+alice-x-test@/);
     const again = await c.ensureDeployerUser("alice@x.test");
     assert.equal(again.existed, true);
     assert.equal(again.userId, first.userId);
     assert.equal(again.password, null, "existing accounts return no password");
 
     const minted = await c.mintAgentKey({
-      email: "alice@x.test", password: first.password, name: "pack-agent-x",
+      email: first.sub2apiEmail, password: first.password, name: "pack-agent-x",
       quotaUsd: 5, rl5hUsd: 1, rl1dUsd: 3, rl7dUsd: 10,
     });
     assert.ok(minted.key.startsWith("sk-agent-"));
@@ -241,7 +242,9 @@ test("deploy: balance gate 402; linked deploy mints, references, and distributes
       baseUrl: `http://127.0.0.1:${stub.port}`, adminKey: "admin-k",
       fetchImpl: (p, i) => fetch(`http://127.0.0.1:${stub.port}${p}`, i),
     });
-    await funded.adjustBalance({ userId: stub.users.get("broke@x").id, amountUsd: 10, idempotencyKey: "fund-1" });
+    // The platform created the DEDICATED account under the derived email.
+    const derivedRow = [...stub.users.values()].find((u) => u.email.startsWith("paas-deployer+broke-x@"));
+    await funded.adjustBalance({ userId: derivedRow.id, amountUsd: 10, idempotencyKey: "fund-1" });
 
     const res = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`);
     assert.equal(res.status, 200, JSON.stringify(res.body));

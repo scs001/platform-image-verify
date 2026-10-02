@@ -91,6 +91,11 @@ export function createPackRegistry({ file }) {
     password TEXT,
     created_at INTEGER NOT NULL
   )`);
+  // add-agent-platform-ops fix: the platform-side mint login needs the
+  // DEDICATED sub2api email (paas-deployer+…), stored beside the identity.
+  try {
+    db.exec(`ALTER TABLE sub2api_accounts ADD COLUMN sub2api_email TEXT`);
+  } catch { /* column already present */ }
   db.exec(`CREATE TABLE IF NOT EXISTS deployment_keys (
     pack_id TEXT NOT NULL,
     agent_id TEXT NOT NULL,
@@ -313,12 +318,13 @@ export function createPackRegistry({ file }) {
     billingAccount(email) {
       return db.prepare(`SELECT * FROM sub2api_accounts WHERE email = ?`).get(email) ?? null;
     },
-    saveBillingAccount({ email, userId, password }) {
+    saveBillingAccount({ email, userId, password, sub2apiEmail }) {
       db.prepare(
-        `INSERT INTO sub2api_accounts (email, user_id, password, created_at) VALUES (?, ?, ?, ?)
+        `INSERT INTO sub2api_accounts (email, user_id, password, created_at, sub2api_email) VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(email) DO UPDATE SET user_id = excluded.user_id,
-           password = COALESCE(excluded.password, sub2api_accounts.password)`,
-      ).run(email, userId, password, Date.now());
+           password = COALESCE(excluded.password, sub2api_accounts.password),
+           sub2api_email = COALESCE(excluded.sub2api_email, sub2api_accounts.sub2api_email)`,
+      ).run(email, userId, password, Date.now(), sub2apiEmail ?? null);
     },
     recordDeploymentKey({ packId, agentId, keyRef, keyValue, deployer }) {
       // keyRef normalizes to string: sub2api ids arrive as numbers, route
@@ -558,8 +564,9 @@ export function registerPackRoutes(app, {
         } catch (err) {
           return res.status(502).json({ error: `billing account check failed: ${err.message}` });
         }
-        if (!account || account.user_id !== ensured.userId || (ensured.password && !account.password)) {
-          registry.saveBillingAccount({ email: user.email, userId: ensured.userId, password: ensured.password });
+        const sub2apiEmail = account?.sub2api_email ?? ensured.sub2apiEmail ?? null;
+        if (!account || account.user_id !== ensured.userId || (ensured.password && !account.password) || (sub2apiEmail && account.sub2api_email !== sub2apiEmail)) {
+          registry.saveBillingAccount({ email: user.email, userId: ensured.userId, password: ensured.password ?? null, sub2apiEmail });
           account = registry.billingAccount(user.email);
         }
         const floor = Number(process.env.DEPLOY_BALANCE_FLOOR ?? 0.5);
@@ -583,12 +590,12 @@ export function registerPackRoutes(app, {
         const rl5h = Number(process.env.AGENT_KEY_RL_5H_USD ?? 1);
         const rl1d = Number(process.env.AGENT_KEY_RL_1D_USD ?? 3);
         const rl7d = Number(process.env.AGENT_KEY_RL_7D_USD ?? 10);
-        if (account.password) {
+        if (account.password && account.sub2api_email) {
           for (const agent of version.manifest.agents ?? []) {
             if (!agent?.serving) continue;
             try {
               const m = await sub2api.mintAgentKey({
-                email: user.email,
+                email: account.sub2api_email,
                 password: account.password,
                 name: `${id}/${agent.id}`,
                 quotaUsd: quota, rl5hUsd: rl5h, rl1dUsd: rl1d, rl7dUsd: rl7d,

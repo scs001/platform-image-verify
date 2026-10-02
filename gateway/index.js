@@ -25,6 +25,8 @@ import { createMpAuth } from "./mp-auth.js";
 import { createMpBindings } from "./mp-bindings.js";
 import { createShareRegistry, createRateLimiter } from "./share.js";
 import { createPackRegistry, registerPackRoutes } from "./packs.js";
+import { createBotWebhookRouter } from "./bot-webhooks.js";
+import Database from "better-sqlite3";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const PORT = Number(process.env.GATEWAY_PORT || 3080);
@@ -361,6 +363,37 @@ registerPackRoutes(app, {
     .filter(Boolean),
   adminGroups: ADMIN_GROUPS,
   rateMax: Number(process.env.PACK_PUBLISH_RATE_MAX || 10),
+});
+
+// ── Bot webhooks: machine callers with no platform identity ────────────────
+// Chat-platform servers (WeChat OA / WeCom / Feishu / Telegram) sign their own
+// requests and cannot hold a Logto session; the catch-all below would 401 them
+// before any cell sees the traffic. The webhook's auth domain is the per-bot
+// path secret plus the adapter's signature check INSIDE the cell (the route is
+// identity-exempt there by design) — the gateway's only job is routing the
+// request to the owning cell, booting it if the bot's owner is idle.
+const botWebhookRouter = createBotWebhookRouter({
+  dataRoot: DATA_ROOT,
+  openDb: (p) => new Database(p, { readonly: true }),
+});
+app.all("/api/bots/webhook/:botId/:secret", async (req, res) => {
+  const target = botWebhookRouter.resolve(req.params.botId);
+  if (!target.email) return res.sendStatus(404);
+  try {
+    // groups stay empty: the cell's demo flag and bindings were pinned at its
+    // first authenticated spawn; this only re-targets an existing owner.
+    const cell = await registry.ensure({ email: target.email, groups: [] });
+    proxyHttp(req, res, {
+      host: "127.0.0.1",
+      port: cell.port,
+      // No identity headers — the webhook path is exempt in the cell. The
+      // gateway secret is still presented so the cell can attribute origin.
+      headers: { "x-cloud-gateway-secret": SECRET },
+    });
+  } catch (err) {
+    console.error(`[gateway] webhook cell start failed for ${target.email}: ${err.message}`);
+    res.status(503).json({ error: "Your workspace failed to start" });
+  }
 });
 
 // Everything else belongs to a cell.

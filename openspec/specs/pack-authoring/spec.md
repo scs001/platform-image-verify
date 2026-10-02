@@ -76,11 +76,12 @@ The author SHALL select MCP entries from the registry-sourced entries of the cel
 - **WHEN** the author composes the MCP list of a draft
 - **THEN** no field accepts a URL or command configuration
 
+
 ### Requirement: Agents are persona entries
 
 Each draft agent entry SHALL carry a display name, persona text, and optional tags and icon. An agent entry MAY carry a resource declaration naming, per role, a subset of the draft's own skill entries and MCP references; each dimension (skills, MCP) is optional, and an absent dimension means the role uses the whole pack's set for that dimension. The editor SHALL offer per-role resource pickers listing only the draft's own skill entries and MCP references, and SHALL surface a persona cost readout (approximate tokens per turn) alongside the persona text while editing. The editor SHALL NOT accept endpoint, model, or credential fields for agent entries — pack agents run as local personas on the platform's currently selected model.
 
-An agent entry MAY additionally carry a serving contract (`serving`): a declaration that the role is deployable as an Agent Service over the A2A protocol (openspec: a2a-agent-serving). The contract SHALL contain a protocol identifier and an optional manual card declaration; absent card fields SHALL be derived at deploy time from the role's name/description/tags. The contract's card capability declarations live under the contract's own namespace and are distinct from the pack's skill files — same word, different meaning — and validation SHALL reject contract fields that name endpoints, models, or credentials. When no contract is present, every pre-existing rule of this requirement applies verbatim.
+An agent entry MAY additionally carry a serving contract (`serving`): a declaration that the role is deployable as an Agent Service over the A2A protocol (openspec: a2a-agent-serving). The contract SHALL contain a protocol identifier and an optional manual card declaration; absent card fields SHALL be derived at deploy time from the role's name/description/tags. The contract MAY additionally carry a work rhythm (`serving.rhythm`): a declarative list of schedules (and, in later versions, event sources) the deployed agent works by — a rhythm is the autonomy grant, and a contract without one deploys an agent that only answers (openspec: agent-residency). Rhythm entries SHALL be schedule declarations only; validation SHALL reject rhythm fields that name models, endpoints, or credentials. The contract's card capability declarations live under the contract's own namespace and are distinct from the pack's skill files — same word, different meaning — and validation SHALL reject contract fields that name endpoints, models, or credentials. When no contract is present, every pre-existing rule of this requirement applies verbatim.
 
 #### Scenario: Persona-only agent entry
 
@@ -121,6 +122,17 @@ An agent entry MAY additionally carry a serving contract (`serving`): a declarat
 
 - **WHEN** a serving contract declares card capabilities and the pack also ships skill files
 - **THEN** the two coexist without collision — the capability declarations never reference or consume the skill files' contents
+
+#### Scenario: Rhythm declares cadence declaratively
+
+- **WHEN** the author adds a serving contract carrying a rhythm of schedule entries and saves
+- **THEN** the draft validates and the rhythm travels with the contract as the role's declared work cadence; a contract without a rhythm declares an answering-only agent
+
+#### Scenario: Rhythm cannot smuggle runtime configuration
+
+- **WHEN** a rhythm entry carries a model, endpoint, or credential field
+- **THEN** validation rejects the draft naming the forbidden field
+
 ### Requirement: Publish action freezes the next version
 
 Publishing a draft SHALL submit it to the gateway publish endpoint with the author's identity. A successful first publish SHALL return a new pack identifier and version 1; subsequent publishes of the same draft SHALL return the next version number. The draft SHALL remain editable after publishing so the author can prepare the next version. Publish rejections (validation, gate, throttling) SHALL surface in the editor with the returned reason.

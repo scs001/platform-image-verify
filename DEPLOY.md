@@ -1642,3 +1642,50 @@ quota $1 + 三窗）→ adjustBalance（`{balance, operation:"add"}` + Idempoten
 `/api/v1/user/keys`）；余额调整 body 为 UpdateBalanceRequest `{balance, operation}`（amount
 不被接受）。探针账户 paas-ops-probe{1..4}@finddatatech.cloud 留存（$0-1 余额，无 key 在用，
 可运营侧清理）。runner 侧 key 注入的真回合记账随 ③ 平台部署后演练。
+
+### ③ 计费链闭环 + A2A invoke 门修复（revise-billing-key-acquisition 复测，2026-10-03 深夜）
+
+**结论：粘贴 key 的真实回合全链闭环**——平台（lawbench cell）→ registry 网关（修复后的 invoke 门）
+→ staging runner（cheap1）→ 子进程按**部署者自己的 key**（ref `pk_8920c39cf2d899c2a762f1c3` →
+aloadtree 的 sub2api key 26）推理 → SSE 回流。sub2api 记账实锤：该 key `quota_used 0.00030125`、
+所属用户余额 `$2 → 1.99969875`；runner `meter.jsonl` 同回合 `ok:true`。
+
+复测发现并修复四处（都在「连接流 / 分发链」上，非归档代码的语法问题）：
+
+1. **registry fork（auth-server）**：`IDP_USER_GROUP_FALLBACK` 富化出来的组不会重映射为 scope
+   （上游重映射分支只认 pingfederate），个人 minted 凭证永远拿不到 `invoke_agent` → A2A chat
+   恒 403「missing invoke scope」。补丁与构建/回滚配方见 `docs/registry-fork-patches/`
+   （fork 本地提交 01a25cb；cheap1 已重建 `mcp-auth-server:logto`，回滚 tag `:logto-prev-20261003`）。
+   实例化证据：同一 token 修复前 403 / 修复后 200；无组用户 403 不变（不越权）。
+   （与「secret 轮换后旧 pod 持旧令牌致 403」是两条独立的 403 根因，排查时先分流。）
+2. **平台 caller-group.js**：挂组调用三处形状错——PATCH 打不存在的记录（应为 POST 创建）、
+   body `{add:[…]}` 非模型字段（应为 `{groups:[全量合并]}`）、`marketAdminFetch` 未
+   `JSON.stringify`（fetch 把对象强转 `"[object Object]"`）；且 username 应取 token `sub`
+   声明（auth-server 富化按同一值回查）。已重写 + 7 单测（`scripts/test-caller-group.mjs`）；
+   另 `routes/registry.js` 的 URL 兜底 `MARKET_REGISTRY_URL || REGISTRY_URL`（fd-prod
+   configmap 只有后者——这是线上挂组静默失败的直接原因，旧日志为
+   `[caller-group] assignment error … Failed to parse URL from /api/iam/user-groups`）。
+3. **staging runner（cheap1 `agent-runner-dsh`）**：挂载代码里没有 D2 取钥实现
+   （manager/compose/config 三文件落后），且缺 `AGENT_RUNNER_PACKS_URL`——子进程一律回落
+   runner 级 key 且无任何日志。已同步三文件（旧版备份 `agent-runner.bak-20261003`）、env 补
+   `AGENT_RUNNER_PACKS_URL=https://platform.finddatatech.cloud` 并重建容器（重建命令：
+   `docker run --name agent-runner-dsh --restart unless-stopped --env-file agent-runner.env
+   -v /opt/agent-runner-stage:/app -v .../opt/dsh:/opt/dsh -v .../opt/dsh-home:/opt/dsh-home
+   -v agent-runner-data:/data -p 100.64.0.11:8790-8850:8790-8850 -w /app
+   public.ecr.aws/docker/library/node:22-slim node agent-runner/index.js`）。另 `applyBillingKey`
+   修正为写 provider 实际读的 ref（settings.yaml `apiKeyEnv`，如
+   `LLM_PROVIDER_KEY_FINDDATA`；原先只写 `LLM_API_KEY` 是死 ref）。
+4. **sub2api 测试 key 的可推理性（运营侧）**：aloadtree 的测试 key 26 绑在 group 1（default，
+   无上游账号）→ 推理 `503 No available accounts`；绑 exclusive 组还需 `user_allowed_groups`
+   放行（否则 403 `GROUP_NOT_ALLOWED`）。复测处置（SQL）：`api_keys.id=26 → group_id=3` +
+   `user_allowed_groups (2,3)`，实测 `/v1/chat/completions` 200。**公开多租户前必须补的运营件**：
+   group 7 `paas-platform-pool` 加独立上游账号；且部署期活性探针只打 `/v1/models`，测不到
+   「组内无账号 / 组未放行」这类不可推理态——建议活性探针加一记最小 chat 往返，或把上游
+   code 透出到部署 UI（现状：403/503 的 code 只在运行期暴露）。
+
+**回归**：`npm run test:unit` 712/712（含新增 billing 两测 + caller-group 七测）。
+
+**遗留**：①平台侧本轮修复尚未部署（需新镜像 + GitOps；configmap 的 `MARKET_REGISTRY_URL`
+可有可无——代码已兜底 `REGISTRY_URL`）；②registry fork 补丁未推 gitee/上游（上游 issue 候选，
+见 `docs/registry-fork-patches/README.md`）；③chat 会话在 cell 运行时重启后会丢「Agent 绑定」
+（strip 变回 FD local，回合静默走本地执行）——复测时应重选 Agent 或先核对 strip 徽标。

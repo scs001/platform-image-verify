@@ -157,10 +157,13 @@ export async function materializeAgentHome({ homeRoot, agentKey, entry, skillCon
   return { home, presetId, patchPaths, skillsRoot };
 }
 
-// Overwrite the private home's LLM_API_KEY credential ref with the agent's
-// own billing key (add-agent-platform-ops D2). The child's env is scrubbed,
-// so the credentials FILE is the only channel that reaches it; everything
-// else in the doc (user-provider refs) stays intact.
+// Overwrite the private home's LLM credential refs with the agent's own
+// billing key (add-agent-platform-ops D2). The child's env is scrubbed, so
+// the credentials FILE is the only channel that reaches it; everything else
+// in the doc (user-provider refs) stays intact. Providers read the ref named
+// by their route (`settings.yaml` `apiKeyEnv`, e.g.
+// LLM_PROVIDER_KEY_FINDDATA) — pinning only a generic LLM_API_KEY left the
+// deployer's key inert — so every named ref is overwritten too.
 export async function applyBillingKey(home, keyValue) {
   const credentialsPath = path.join(home, ".credentials.yaml");
   let doc = {};
@@ -170,7 +173,26 @@ export async function applyBillingKey(home, keyValue) {
   doc.version = 1;
   doc.refs = doc.refs && typeof doc.refs === "object" ? doc.refs : {};
   doc.refs.LLM_API_KEY = keyValue;
+  for (const ref of apiKeyEnvRefs(home)) doc.refs[ref] = keyValue;
   writeFileSync(credentialsPath, yaml.dump(doc), { mode: 0o600 });
+}
+
+// Every `apiKeyEnv` string in the private home's settings.yaml — the env-var
+// names the provider routes resolve through the credentials store.
+function apiKeyEnvRefs(home) {
+  const refs = new Set();
+  try {
+    const settings = yaml.load(readFileSync(path.join(home, "settings.yaml"), "utf8")) ?? {};
+    const walk = (node) => {
+      if (!node || typeof node !== "object") return;
+      for (const [k, v] of Object.entries(node)) {
+        if (k === "apiKeyEnv" && typeof v === "string" && v) refs.add(v);
+        else walk(v);
+      }
+    };
+    walk(settings);
+  } catch { /* no settings → LLM_API_KEY alone */ }
+  return refs;
 }
 
 // One dsh-mcp-client loader entry per registry server — the http branch of

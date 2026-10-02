@@ -93,8 +93,9 @@ export function registerRegistryRoutes(ctx) {
       const { assignCallerGroup, marketAdminFetch } = callerGroup;
       void assignCallerGroup({
         email: user?.email ?? null,
+        token: value,
         adminFetch: marketAdminFetch({
-          registryUrl: process.env.MARKET_REGISTRY_URL || "",
+          registryUrl: process.env.MARKET_REGISTRY_URL || process.env.REGISTRY_URL || "",
           token: process.env.MARKET_REGISTRY_TOKEN || process.env.AGENT_SERVING_REGISTRY_TOKEN || "",
         }),
       }).catch(() => {});

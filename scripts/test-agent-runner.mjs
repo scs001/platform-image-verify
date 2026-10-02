@@ -11,12 +11,13 @@
 //   node --test scripts/test-agent-runner.mjs
 
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
+import yaml from "js-yaml";
 
-import { materializeAgentHome, mcpEntry, agentKeyFor } from "../agent-runner/compose.js";
+import { materializeAgentHome, mcpEntry, agentKeyFor, applyBillingKey } from "../agent-runner/compose.js";
 import { AgentChild, sessionKeyFor } from "../agent-runner/child.js";
 import { ChildManager } from "../agent-runner/manager.js";
 import { createOpsApp } from "../agent-runner/a2a.js";
@@ -701,4 +702,41 @@ test("4.1 depth >= 3 refused explicitly; depth 1-2 served; concurrency queues", 
   } finally {
     await h.close();
   }
+});
+
+// ── D2 billing pinning: the deployer's key must land on the ref the provider
+// route actually reads (settings.yaml apiKeyEnv), not only the generic
+// LLM_API_KEY, or the pinned key stays inert at inference time. ────────────
+test("billing key pins every provider apiKeyEnv ref", async () => {
+  const home = path.join(tmpRoot, "billing-home");
+  mkdirSync(home, { recursive: true });
+  writeFileSync(
+    path.join(home, "settings.yaml"),
+    yaml.dump({
+      "llm-pi-ai": {
+        providers: {
+          finddata: { apiKeyEnv: "LLM_PROVIDER_KEY_FINDDATA", api: "openai-completions" },
+          volces: { apiKeyEnv: "LLM_PROVIDER_KEY_VOLCES" },
+        },
+      },
+    }),
+  );
+  writeFileSync(
+    path.join(home, ".credentials.yaml"),
+    yaml.dump({ version: 1, refs: { LLM_PROVIDER_KEY_FINDDATA: "runner-level", KEEP: "untouched" } }),
+  );
+  await applyBillingKey(home, "sk-deployer");
+  const doc = yaml.load(readFileSync(path.join(home, ".credentials.yaml"), "utf8"));
+  assert.equal(doc.refs.LLM_API_KEY, "sk-deployer");
+  assert.equal(doc.refs.LLM_PROVIDER_KEY_FINDDATA, "sk-deployer");
+  assert.equal(doc.refs.LLM_PROVIDER_KEY_VOLCES, "sk-deployer");
+  assert.equal(doc.refs.KEEP, "untouched");
+});
+
+test("billing pinning survives a missing settings.yaml", async () => {
+  const home = path.join(tmpRoot, "billing-home-bare");
+  mkdirSync(home, { recursive: true });
+  await applyBillingKey(home, "sk-deployer");
+  const doc = yaml.load(readFileSync(path.join(home, ".credentials.yaml"), "utf8"));
+  assert.equal(doc.refs.LLM_API_KEY, "sk-deployer");
 });

@@ -261,6 +261,14 @@ test("subscriber inspects, subscribes, and the pack materializes", async ({ page
   await expect(detail.getByTestId("pack-skill-sub-skill")).toContainText("五阶段");
   await expect(detail).toContainText("law-bench");
 
+  // Raw download surface (add-facet-platform 4.4): the skill-md route and the
+  // version manifest stay linkable — editors/scripts consume exactly these.
+  await expect(detail.getByTestId("pack-skill-download-sub-skill")).toHaveAttribute(
+    "href",
+    "/api/packs/pack-sub/versions/1/skills/sub-skill.md",
+  );
+  await expect(detail.getByTestId("pack-manifest-link")).toHaveAttribute("href", "/api/packs/pack-sub/versions/1");
+
   await detail.getByTestId("pack-subscribe").click();
   const report = page.getByTestId("pack-install-report");
   await expect(report).toContainText("sub-skill");

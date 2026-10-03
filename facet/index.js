@@ -21,6 +21,7 @@ import { createPackRegistry, registerPackRoutes } from "../gateway/packs.js";
 import { createLogtoAuth } from "../server/logto-auth.js";
 import { resolveSessionSecret } from "../server/session.js";
 import { createResolveUser } from "./identity.js";
+import { initFacetMcpCatalog } from "./mcp-catalog.js";
 
 const PORT = Number(process.env.PORT || 8080);
 const DATA_ROOT = process.env.FACET_DATA_ROOT || process.env.DATA_ROOT || path.resolve("data");
@@ -96,6 +97,11 @@ registerPackRoutes(app, {
   adminGroups: splitGroups(process.env.ADMIN_GROUPS, ""),
   anonymousRead: true,
 });
+
+// MCP catalog cards (S2, design D6): read-only aggregation from the registry
+// via registry-bridge — same env (REGISTRY_URL + MARKET_REGISTRY_TOKEN), same
+// registry-groups visibility mapping, no registry writes ever.
+await initFacetMcpCatalog(app, { resolveUser });
 
 // Static thin SPA + fallback (non-API, non-auth GETs land in the app shell).
 app.use(express.static(WEB_DIST, { index: "index.html" }));

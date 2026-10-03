@@ -924,7 +924,9 @@
         "duplicate": "Una clave no puede servir a dos agentes del mismo paquete — crea una por agente en el panel.",
         "liveness": "El panel de facturación rechazó esa clave (eliminada, deshabilitada o sin cuota) — créala de nuevo en el panel.",
         "ownership": "Esa clave pertenece a otra cuenta de sub2api — pega una clave creada en tu propia cuenta."
-      }
+      },
+      "downloadSkill": "Descargar SKILL.md",
+      "manifestJson": "Manifiesto JSON"
     },
     "report": {
       "title": "Resultado de instalación de «{{name}}»",
@@ -1065,6 +1067,32 @@
     "shadowedHint": "El archivo del operador o la nube define el mismo id; el rol se compone ahora con la entrada que lo sobrescribe.",
     "toPackDraft": "Convertir en borrador de paquete",
     "bridgeDenied": "La conversión requiere permisos de gestión del despliegue (admin o propietario del cell); también puedes crear el borrador a mano"
+  },
+  "presetPublish": {
+    "action": "Publicar y desplegar",
+    "title": "Publicar y desplegar — {{name}}",
+    "compose": "Componiendo el borrador del pack…",
+    "confirmHint": "Revisa el pack compuesto antes de publicar. El nombre y la descripción son editables; las skills, las referencias MCP y el agente se incluyen tal como se convirtieron.",
+    "name": "Nombre del pack",
+    "description": "Descripción",
+    "parts": "{{skills}} skill(s) · {{mcp}} MCP · {{agents}} agente(s)",
+    "reportTitle": "No se transfirió — completa o sustituye en el editor de borradores tras publicar si hace falta:",
+    "publish": "Publicar",
+    "step": {
+      "compose": "Componer borrador",
+      "publish": "Publicar",
+      "deploy": "Desplegar"
+    },
+    "stepFailed": "{{step}} falló: {{message}}",
+    "publishDenied": "la publicación fue rechazada — se requiere membresía de creador (403)",
+    "publishedBadge": "Publicado",
+    "published": "Publicado v{{version}} — visible en el mercado.",
+    "noServing": "Este pack no tiene un agente con contrato de servicio — nada que desplegar.",
+    "deployTitle": "Desplegar como Agent Service",
+    "deployHint": "El agente tiene contrato de servicio — despliega para hacerlo invocable por A2A.",
+    "deploy": "Desplegar ahora",
+    "viewMarket": "Ver en el mercado",
+    "done": "Listo"
   },
   "question": {
     "title": "Se necesita tu respuesta",

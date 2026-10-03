@@ -924,7 +924,9 @@
         "duplicate": "1 つのキーを同じパックの 2 つの Agent に使うことはできません — パネルで Agent ごとに作成してください。",
         "liveness": "課金パネルがそのキーを拒否しました（削除・無効化・残高切れ）— パネルで再作成してください。",
         "ownership": "そのキーは別の sub2api アカウントのものです — 自分のアカウントで作成したキーを貼り付けてください。"
-      }
+      },
+      "downloadSkill": "SKILL.md をダウンロード",
+      "manifestJson": "マニフェスト JSON"
     },
     "report": {
       "title": "「{{name}}」のインストール結果",
@@ -1065,6 +1067,32 @@
     "shadowedHint": "同じ ID が agents.json またはクラウド設定により上書きされており、現在上書き側のロールで動作しています。",
     "toPackDraft": "パック下書きに変換",
     "bridgeDenied": "変換にはデプロイ管理権限（管理者または cell オーナー）が必要です。パック下書きを手動で作成することもできます"
+  },
+  "presetPublish": {
+    "action": "パブリッシュしてデプロイ",
+    "title": "パブリッシュしてデプロイ — {{name}}",
+    "compose": "パックの下書きを構成しています…",
+    "confirmHint": "構成されたパックを確認してください。名前と説明は編集できます。スキル・MCP 参照・エージェントは変換結果のまま取り込まれます。",
+    "name": "パック名",
+    "description": "説明",
+    "parts": "スキル {{skills}} 件 · MCP {{mcp}} 件 · エージェント {{agents}} 件",
+    "reportTitle": "引き継がれなかった項目 — 必要ならパブリッシュ後にドラフトエディターで補完できます:",
+    "publish": "パブリッシュ",
+    "step": {
+      "compose": "下書きの構成",
+      "publish": "パブリッシュ",
+      "deploy": "デプロイ"
+    },
+    "stepFailed": "{{step}}に失敗しました: {{message}}",
+    "publishDenied": "パブリッシュが拒否されました — クリエイター（creator）権限が必要です（403）",
+    "publishedBadge": "公開済み",
+    "published": "v{{version}} を公開しました — マーケットプレイスに表示されます。",
+    "noServing": "このパックにはサービス契約付きのエージェントがないため、デプロイは不要です。",
+    "deployTitle": "Agent サービスとしてデプロイ",
+    "deployHint": "エージェントにサービス契約があります — デプロイすると A2A で呼び出せるようになります。",
+    "deploy": "今すぐデプロイ",
+    "viewMarket": "マーケットで見る",
+    "done": "完了"
   },
   "question": {
     "title": "確認が必要です",

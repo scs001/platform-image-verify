@@ -14,11 +14,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
-import { PackagePlus, Pencil, Plus, TriangleAlert, Trash2 } from "lucide-react";
+import { PackagePlus, Pencil, Plus, Rocket, TriangleAlert, Trash2 } from "lucide-react";
 import { useChatStore } from "@platform/core";
 import * as api from "@/lib/presets-api";
 import type { CustomPreset, CustomPresetInput } from "@/lib/presets-api";
 import { stashBridgeHandoff } from "@/lib/pack-draft-bridge";
+import { PresetPublishFlow } from "@/components/packs/PresetPublishFlow";
 import { settingsPath } from "@/components/settings/sections";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import { Button } from "@/components/ui/button";
@@ -261,6 +262,9 @@ export function CustomPresetsPage() {
   const [editing, setEditing] = useState<CustomPreset | null>(null);
   const [creating, setCreating] = useState(false);
   const [bridging, setBridging] = useState<string | null>(null);
+  // The one-click "发布并部署" flow (add-facet-platform S4.1): compose → confirm
+  // → publish → offer deploy, all inside one dialog bound to this preset.
+  const [flowPreset, setFlowPreset] = useState<CustomPreset | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -402,6 +406,16 @@ export function CustomPresetsPage() {
                   <Button
                     size="sm"
                     variant="ghost"
+                    onClick={() => setFlowPreset(p)}
+                    aria-label={t("presetPublish.action")}
+                    title={t("presetPublish.action")}
+                    data-testid={`preset-publish-${p.id}`}
+                  >
+                    <Rocket className="h-3.5 w-3.5" aria-hidden="true" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
                     onClick={() => void convert(p)}
                     disabled={bridging === p.id}
                     aria-label={t("customPresets.toPackDraft")}
@@ -434,6 +448,15 @@ export function CustomPresetsPage() {
           );
         })}
       </div>
+
+      {flowPreset && (
+        <PresetPublishFlow
+          preset={flowPreset}
+          onOpenChange={(open) => {
+            if (!open) setFlowPreset(null);
+          }}
+        />
+      )}
     </div>
   );
 }

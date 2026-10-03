@@ -924,7 +924,9 @@
         "duplicate": "一把 key 不能同时服务同包的两个 Agent——请在面板里为每个 Agent 各建一把。",
         "liveness": "计费面板拒绝了这把 key（已删除、停用或额度耗尽）——请在面板重新创建。",
         "ownership": "这把 key 属于别的 sub2api 账户——请粘贴你自己账户下创建的 key。"
-      }
+      },
+      "downloadSkill": "下载 SKILL.md",
+      "manifestJson": "清单 JSON"
     },
     "report": {
       "title": "「{{name}}」安装结果",
@@ -1065,6 +1067,32 @@
     "shadowedHint": "同名条目由 agents.json 或云端配置覆盖，当前以覆盖方角色运行。",
     "toPackDraft": "转为功能集草稿",
     "bridgeDenied": "转换需要部署管理权限（管理员或 cell 所有者）——可先在功能集草稿中手工创作"
+  },
+  "presetPublish": {
+    "action": "发布并部署",
+    "title": "发布并部署 — {{name}}",
+    "compose": "正在组装功能集草稿…",
+    "confirmHint": "确认组装好的功能集：名称与描述可直接修改；技能、MCP 引用与角色按转换结果带入。",
+    "name": "功能集名称",
+    "description": "描述",
+    "parts": "{{skills}} 个技能 · {{mcp}} 个 MCP · {{agents}} 个角色",
+    "reportTitle": "以下内容未随转换带入——如需补齐，发布后可到草稿编辑器中处理：",
+    "publish": "发布",
+    "step": {
+      "compose": "组装草稿",
+      "publish": "发布",
+      "deploy": "部署"
+    },
+    "stepFailed": "{{step}}失败：{{message}}",
+    "publishDenied": "发布被拒绝——需要创作者（creator）成员资格（403）",
+    "publishedBadge": "已发布",
+    "published": "已发布 v{{version}}——市场可见。",
+    "noServing": "该功能集没有带服务契约的角色，无需部署。",
+    "deployTitle": "部署为 Agent 服务",
+    "deployHint": "角色带服务契约——部署后即可经 A2A 调用。",
+    "deploy": "立即部署",
+    "viewMarket": "去市场查看",
+    "done": "完成"
   },
   "question": {
     "title": "需要你的确认",

@@ -749,6 +749,40 @@ injection (`Authorization` resolved at profile-write time, servers omitted with 
 warning when the credential is missing/stale/expired — see the
 `registry-credentials` and `dsh-runtime-bridge` specs for the profile side).
 
+### Registry 是谦面的组件（add-facet-platform S2；ADR-0015）
+
+**归属**：自部署的 mcp-gateway-registry（`mcp.finddatatech.cloud`）是谦面（facet）的组件——
+谦面负责其用户面聚合与运营归属；**软件不重写、域名不迁、GitOps 位置不动**（轻归屋，v2 再议域名
+迁移与重组）。运行时分发关系不变（ADR-0004）：runner 从注册处取活，萬星门面经其 A2A 反代。
+facet 面的 MCP 卡片是**只读聚合**：`/api/mcp-catalog` 经 registry-bridge 读目录（同
+`REGISTRY_URL`/`MARKET_REGISTRY_TOKEN` env + 300s TTL），可见性按 `registry-groups.json`
+同一映射过滤（匿名只见无组项），**不经 facet 写任何注册处状态**。
+
+**facet 服务本体**（S1 抽身结果）：独立 Deployment（`all-services/prod/facet.yaml`），同镜像
+第二入口 `node facet/index.js`，hostNetwork:3200 于 cheap-3，域
+`facet.finddatatech.cloud`（cheap-1 Caddy → autossh 隧道 3001→3200 → 雷池站 22 三 SAN 证书）。
+store 独立：`FACET_DATA_ROOT=/data/facet` ← hostPath `/opt/platform/facet`。壹座的
+`/api/packs` 全前缀由网关代理到 facet（`FACET_BASE_URL` 设时），回滚 = 摘除该 env（平台自有
+冻结库接回，cutover 后写入会"消失"——D9 已接受）。
+
+**k8s 陷阱：envFrom 静默跳过带 `-`/`.` 的 secret 键**（实锤 2026-10-03）：
+`platform-secrets` 的 `sub2api-admin-key` 经 envFrom 到不了 pod（事件里才有 warning），
+平台一直靠 inline `valueFrom.secretKeyRef` 拿它；facet 首版只写了 envFrom → 部署路由
+"billing not linked"：粘贴键被忽略、**重复部署静默抹掉 serving agent 的 `billingKeyRef`**
+（GitOps `aa60f6f` 修）。**纪律**：凡 secret 键名含 `-`/`.`（必然如此，k8s 键名规范允许而 env 名
+不允许），消费方一律 inline `valueFrom`；新增 secret 键时自查全部消费 deployment。
+
+**数据迁移纪律：停写 + 全表 diff，别信路径**（实锤 2026-10-03）：cutover 曾拷错文件
+（`/opt/platform/data/packs.db` 是单进程时代孪生，5 包；网关活库是 **`/opt/platform/cells/packs.db`**，
+7 包+deployment_keys）——后果是私有包/计费簿记缺失，靠按表回填修复。**规程**：拷前先验内容
+（7 表计数：packs / pack_versions / subscriptions / pack_deployments / deployment_keys /
+deployment_secrets / sub2api_accounts），停写窗口内拷，迁移后跑**包含性检查**（cells 每行按主键
+必在 facet；`sub2api_accounts` 允许少——部署路由会懒重建）。命令骨架（pod 内）：
+
+```bash
+node -e '…better-sqlite3 逐表 SELECT COUNT(*)/按 id 交集比对…'
+```
+
 ### Bot relay (machine callers → chat-platform bots)
 
 Lets a cloud service on a trusted network push text through a configured bot

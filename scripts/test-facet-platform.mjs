@@ -196,3 +196,40 @@ test("2.5 facet proxy: forwards method/body with identity stamp; 502 when facet 
     await new Promise((r) => downServer.close(r));
   }
 });
+
+// ── S2.1 MCP catalog cards ───────────────────────────────────────────────────
+
+test("S2 mcp-catalog: anonymous sees group-less servers only; grouped visible to members; shape is card-ready", async () => {
+  const { registerFacetMcpRoutes } = await import("../facet/mcp-catalog.js");
+  const entries = [
+    { name: "websearch", displayName: "Web Search", description: "search", configTemplate: { url: "https://mcp.x/websearch/mcp" }, groups: [] },
+    { name: "law-bench", displayName: "LawBench", description: "legal", configTemplate: { url: "https://mcp.x/law-bench/mcp" }, groups: ["legal", "org123"] },
+  ];
+  const app = express();
+  registerFacetMcpRoutes(app, {
+    resolveUser: (req) => (req.headers["x-viewer"] ? { email: "u@x", groups: String(req.headers["x-viewer"]).split(",") } : null),
+    entriesFn: () => entries,
+  });
+  const server = http.createServer(app);
+  server.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const anon = await (await fetch(`${base}/api/mcp-catalog`)).json();
+    assert.equal(anon.servers.length, 1);
+    assert.equal(anon.servers[0].name, "websearch");
+    assert.equal(anon.servers[0].endpoint, "https://mcp.x/websearch/mcp");
+    assert.deepEqual(anon.servers[0].requiredGroups, []);
+
+    const member = await (await fetch(`${base}/api/mcp-catalog`, { headers: { "x-viewer": "org123" } })).json();
+    assert.equal(member.servers.length, 2);
+    const law = member.servers.find((s) => s.name === "law-bench");
+    assert.equal(law.displayName, "LawBench");
+    assert.deepEqual(law.requiredGroups, ["legal", "org123"]);
+
+    // A logged-in user without the group stays in the anonymous view.
+    const outsider = await (await fetch(`${base}/api/mcp-catalog`, { headers: { "x-viewer": "other-org" } })).json();
+    assert.equal(outsider.servers.length, 1);
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});

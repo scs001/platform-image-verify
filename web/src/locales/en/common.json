@@ -924,7 +924,9 @@
         "duplicate": "One key can't serve two agents of the same pack — create one per agent in the panel.",
         "liveness": "The billing panel refused that key (dead, disabled, or out of quota) — create a fresh one in the panel.",
         "ownership": "That key belongs to a different sub2api account — paste a key created under your own account."
-      }
+      },
+      "downloadSkill": "Download SKILL.md",
+      "manifestJson": "Manifest JSON"
     },
     "report": {
       "title": "Install result for “{{name}}”",
@@ -1065,6 +1067,32 @@
     "shadowedHint": "An operators-file or cloud entry holds the same id; the role currently composes under the overriding entry's persona.",
     "toPackDraft": "Convert to pack draft",
     "bridgeDenied": "Conversion requires deployment manage rights (admin or cell owner) — you can still hand-author a pack draft"
+  },
+  "presetPublish": {
+    "action": "Publish & deploy",
+    "title": "Publish & deploy — {{name}}",
+    "compose": "Composing the pack draft…",
+    "confirmHint": "Review the composed pack before publishing. Name and description are editable; skills, MCP references, and the agent ride as converted.",
+    "name": "Pack name",
+    "description": "Description",
+    "parts": "{{skills}} skill(s) · {{mcp}} MCP · {{agents}} agent(s)",
+    "reportTitle": "Not carried over — complete or replace in the draft editor after publishing if needed:",
+    "publish": "Publish",
+    "step": {
+      "compose": "Compose draft",
+      "publish": "Publish",
+      "deploy": "Deploy"
+    },
+    "stepFailed": "{{step}} failed: {{message}}",
+    "publishDenied": "publishing was refused — creator membership is required (403)",
+    "publishedBadge": "Published",
+    "published": "Published v{{version}} — visible in the marketplace.",
+    "noServing": "This pack has no serving-contract agent — nothing to deploy.",
+    "deployTitle": "Deploy as Agent Service",
+    "deployHint": "The agent entry carries a serving contract — deploy to make it callable over A2A.",
+    "deploy": "Deploy now",
+    "viewMarket": "View in marketplace",
+    "done": "Done"
   },
   "question": {
     "title": "Your input is needed",

@@ -181,7 +181,21 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
 
         {pack && m && (
           <div className="space-y-4 text-sm">
-            <p className="text-muted-foreground">{pack.description}</p>
+            <div className="flex items-start justify-between gap-2">
+              <p className="text-muted-foreground">{pack.description}</p>
+              {/* Raw download surface (add-facet-platform 4.4): the anonymous
+                  skill-md route and the version manifest stay linkable from
+                  the SPA — editors and scripts consume exactly these. */}
+              <a
+                href={`/api/packs/${pack.id}/versions/${pack.version}`}
+                target="_blank"
+                rel="noreferrer"
+                className="shrink-0 text-xs text-primary hover:underline"
+                data-testid="pack-manifest-link"
+              >
+                {t("packs.detail.manifestJson")}
+              </a>
+            </div>
             {!!pack.tags?.length && (
               <div className="flex gap-1.5 flex-wrap">
                 {pack.tags.map((tag) => (
@@ -196,7 +210,17 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                 <div className="space-y-2">
                   {m.skills!.map((s) => (
                     <div key={s.name} className="border border-border rounded-md p-3" data-testid={`pack-skill-${s.name}`}>
-                      <div className="font-mono text-xs text-foreground">{s.name}</div>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="font-mono text-xs text-foreground">{s.name}</div>
+                        <a
+                          href={`/api/packs/${pack.id}/versions/${pack.version}/skills/${encodeURIComponent(s.name)}.md`}
+                          download
+                          className="shrink-0 text-xs text-primary hover:underline"
+                          data-testid={`pack-skill-download-${s.name}`}
+                        >
+                          {t("packs.detail.downloadSkill")}
+                        </a>
+                      </div>
                       <div className="text-xs text-muted-foreground mb-1">{s.description}</div>
                       <pre className="text-xs whitespace-pre-wrap bg-muted/50 rounded p-2 max-h-48 overflow-auto">
                         {s.content}

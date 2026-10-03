@@ -918,6 +918,22 @@ export function registerPackRoutes(app, {
       }
     }
 
+    // Billing unlinked (or degraded): existing bindings cannot be revalidated,
+    // so the descriptors pushed below carry no billing_key_ref for agents that
+    // held one — the child silently stops running on its own key. The store
+    // rows survive, but nothing else in this request surfaces the loss.
+    if (!billing.linked) {
+      const orphaned = registry
+        .deploymentKeysForPack(id)
+        .filter((k) => servingIds.has(k.agentId))
+        .map((k) => k.agentId);
+      if (orphaned.length > 0) {
+        console.warn(
+          `[packs] billing unlinked — cannot revalidate key binding(s) for ${orphaned.join(", ")}; this deploy's descriptors carry no billing_key_ref`,
+        );
+      }
+    }
+
     let out;
     try {
       out = await deployToRegistry({

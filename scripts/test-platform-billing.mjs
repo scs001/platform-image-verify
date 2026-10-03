@@ -211,17 +211,23 @@ async function harness({ user, sub2api, getUser, manifest = MANIFEST }) {
   const { id } = registry.publish({ email: "author@x", manifest });
   const app = express();
   const wire = stubRegistryWire();
+  // A function-valued `sub2api` is re-read per request — tests flip the
+  // wiring at runtime (cutover regression: degraded window between deploys).
+  const currentSub2api = () => (typeof sub2api === "function" ? sub2api() : sub2api);
   registerPackRoutes(app, {
     registry,
     resolveUser: getUser ?? (() => user),
     rejectUnauthenticated: (_q, r) => r.status(401).json({ error: "auth" }),
     creatorGroups: ["creators"],
     adminGroups: ["admin"],
-    deployConfig: {
-      registryUrl: "https://mcp.example.test", token: "runner-svc-token",
-      runnerBaseUrl: "http://runner:8790", packsPublicBase: "https://packs.example.test",
-      fetchImpl: wire.fetch,
-      sub2api: sub2api ? { baseUrl: sub2api.baseUrl, adminKey: "admin-k", fetchImpl: sub2api.fetchImpl } : null,
+    deployConfig: () => {
+      const s = currentSub2api();
+      return {
+        registryUrl: "https://mcp.example.test", token: "runner-svc-token",
+        runnerBaseUrl: "http://runner:8790", packsPublicBase: "https://packs.example.test",
+        fetchImpl: wire.fetch,
+        sub2api: s ? { baseUrl: s.baseUrl, adminKey: "admin-k", fetchImpl: s.fetchImpl } : null,
+      };
     },
   });
   const server = http.createServer(app);
@@ -353,6 +359,78 @@ test("deploy paste flow: no-account 402, key gate, four-layer validation, happy 
     const nullRefusal = await deploy({ billingKeys: { "bill-agent": null } });
     assert.equal(nullRefusal.status, 400);
     assert.equal(nullRefusal.body.code, "BILLING_KEY_REQUIRED");
+  } finally {
+    await h.close();
+    stub.server.close();
+  }
+});
+
+test("cutover regression: registry descriptor keeps billing_key_ref across repeated deploys", async () => {
+  // The facet cutover incident as a test: facet ran without SUB2API_ADMIN_KEY,
+  // so a redeploy through it pushed a descriptor with no billing_key_ref and
+  // the serving agent silently fell off its own key. Lock the healthy shape
+  // (same ref rides repeated deploys), assert the degraded window is loud,
+  // and prove the binding resumes untouched once the wiring returns.
+  const stub = await stubSub2api();
+  const wired = { baseUrl: `http://127.0.0.1:${stub.port}`, fetchImpl: wireTo(stub) };
+  let current = wired;
+  const h = await harness({ user: { email: "deployer@x", groups: ["creators"] }, sub2api: () => current });
+  try {
+    const deploy = (body) => h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, { body });
+    const me = stub.addUser("deployer@x", { balance: 10 });
+    const myKey = stub.addKey(me);
+
+    const first = await deploy({ billingKeys: { "bill-agent": myKey } });
+    assert.equal(first.status, 200, JSON.stringify(first.body));
+    const ref = first.body.deployed[0].billingKeyRef;
+    assert.match(ref, /^pk_/);
+    assert.equal(h.wire.calls.agents.at(-1).body.metadata.billing_key_ref, ref);
+
+    // Repeated same-version redeploys: the registry descriptor's reference is
+    // unchanged, and the bookkeeping row still holds the same reference.
+    const again = await deploy({});
+    assert.equal(again.status, 200, JSON.stringify(again.body));
+    assert.equal(again.body.deployed[0].billingKeyRef, ref);
+    assert.equal(
+      h.wire.calls.agents.at(-1).body.metadata.billing_key_ref, ref,
+      "descriptor keeps the same billing_key_ref across redeploys",
+    );
+    assert.deepEqual(h.registry.deploymentKeysForPack(h.packId).map((k) => k.keyRef), [ref]);
+
+    // Degraded window (the incident shape): billing unlinked. The deploy still
+    // succeeds keyless — now with a warning naming the binding it cannot
+    // revalidate — and the pushed descriptor drops the reference.
+    current = null;
+    const warns = [];
+    const origWarn = console.warn;
+    console.warn = (...a) => warns.push(a.join(" "));
+    let degraded;
+    try {
+      degraded = await deploy({});
+    } finally {
+      console.warn = origWarn;
+    }
+    assert.equal(degraded.status, 200, JSON.stringify(degraded.body));
+    assert.equal(degraded.body.deployed[0].billingKeyRef, undefined);
+    assert.equal(h.wire.calls.agents.at(-1).body.metadata.billing_key_ref, undefined);
+    assert.ok(
+      warns.some((w) => w.includes("billing unlinked") && w.includes("bill-agent")),
+      `degraded redeploy names the stripped binding (warns: ${JSON.stringify(warns)})`,
+    );
+
+    // The store row survives the degraded window...
+    assert.deepEqual(h.registry.deploymentKeysForPack(h.packId).map((k) => k.keyRef), [ref]);
+
+    // ...and when the wiring returns (facet.yaml aa60f6f), the SAME reference
+    // rides again — no re-paste needed.
+    current = wired;
+    const restored = await deploy({});
+    assert.equal(restored.status, 200, JSON.stringify(restored.body));
+    assert.equal(restored.body.deployed[0].billingKeyRef, ref);
+    assert.equal(
+      h.wire.calls.agents.at(-1).body.metadata.billing_key_ref, ref,
+      "same reference rides after the wiring returns",
+    );
   } finally {
     await h.close();
     stub.server.close();

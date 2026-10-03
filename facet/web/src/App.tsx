@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PackMarketView } from "@/components/packs/PackMarketView";
 import { Button } from "@/components/ui/button";
+import { McpCatalog } from "./McpCatalog";
 
 function Whoami({ onUser }: { onUser: (u: { email: string; groups: string[] } | null) => void }) {
   useEffect(() => {
@@ -22,6 +23,7 @@ function Whoami({ onUser }: { onUser: (u: { email: string; groups: string[] } | 
 export function App() {
   const { t } = useTranslation();
   const [user, setUser] = useState<{ email: string; groups: string[] } | null>(null);
+  const [tab, setTab] = useState<"packs" | "mcp">("packs");
 
   return (
     <div className="flex flex-col h-full min-h-screen bg-background text-foreground">
@@ -29,7 +31,24 @@ export function App() {
       <header className="border-b border-border px-6 py-3 flex items-center justify-between">
         <div className="flex items-baseline gap-3">
           <span className="text-lg font-semibold">谦面 Facet</span>
-          <span className="text-sm text-muted-foreground">{t("packs.title", "功能集")}</span>
+          <nav className="flex gap-2" data-testid="facet-tabs">
+            {(
+              [
+                ["packs", t("packs.title", "功能集")],
+                ["mcp", "MCP 服务"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                onClick={() => setTab(id)}
+                className={`px-3 py-1.5 text-sm font-medium border-b-2 transition-colors ${
+                  tab === id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
         </div>
         <div className="flex items-center gap-3">
           {user ? (
@@ -47,7 +66,16 @@ export function App() {
         </div>
       </header>
       <main className="flex-1 overflow-auto p-6">
-        <PackMarketView onSubscribed={() => {}} />
+        {tab === "packs" && (
+          <div className="space-y-4">
+            <PackMarketView onSubscribed={() => {}} />
+            <p className="text-xs text-muted-foreground">
+              编辑器安装（Claude Code / Cursor）：npx @finddata/facet install &lt;包 id&gt; —— 明细见 npx
+              @finddata/facet help；匿名可浏览，登录后可发布订阅。
+            </p>
+          </div>
+        )}
+        {tab === "mcp" && <McpCatalog />}
       </main>
     </div>
   );

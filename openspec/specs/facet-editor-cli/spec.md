@@ -7,7 +7,7 @@
 
 ### Requirement: Skills install into editor targets
 
-The `@finddata/facet` CLI SHALL install a published pack's skills from the facet service into supported editor targets, v1 concretely Claude Code and Cursor, each target using its native skill layout (user-level by default, project-level where the target supports it). Installing SHALL write each skill's content with its name and description metadata, taken from the referenced pack version's snapshot.
+The `@finddatatechonology/facet` CLI SHALL install a published pack's skills from the facet service into supported editor targets, v1 concretely Claude Code and Cursor, each target using its native skill layout (user-level by default, project-level where the target supports it). Installing SHALL write each skill's content with its name and description metadata, taken from the referenced pack version's snapshot.
 
 #### Scenario: Claude Code user-level install
 

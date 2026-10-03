@@ -1,5 +1,5 @@
 {
-  "name": "@finddata/facet",
+  "name": "@finddatatechonology/facet",
   "version": "0.1.0",
   "description": "谦面 Facet CLI — install packs (skills) from the facet marketplace into editor targets (Claude Code, Cursor).",
   "type": "module",

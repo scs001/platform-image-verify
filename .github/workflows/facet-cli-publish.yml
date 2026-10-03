@@ -1,15 +1,18 @@
 # Facet CLI publish — npm OIDC trusted publishing (add-facet-platform 4.5).
 #
 # Publishing happens from GitHub Actions with --provenance; no long-lived npm
-# token lives anywhere. One-time bootstrap (package does not exist on npm yet,
-# and trusted-publisher settings live on the package's npmjs.com page):
-#   1. (once, by the org owner) ensure the `@finddata` org exists on npmjs.com;
-#   2. bootstrap first publish from a logged-in maintainer machine:
+# token lives anywhere. The package lives under the personal scope of the
+# maintainer account (`@finddatatechonology`, matching the account's npm
+# username — an org with that name is not creatable; creating a differently
+# named org would change the package scope). One-time bootstrap (package does
+# not exist on npm yet, and trusted-publisher settings live on the package's
+# npmjs.com page):
+#   1. bootstrap first publish from a logged-in maintainer machine:
 #        cd facet/cli && npm publish --access public
-#   3. on the package's npmjs.com settings → Trusted Publisher, register:
+#   2. on the package's npmjs.com settings → Trusted Publisher, register:
 #        GitHub org FindDataTechnology, repo platform, workflow
 #        facet-cli-publish.yml;
-#   4. from then on, tag `facet-cli-v<version>` publishes via this workflow.
+#   3. from then on, tag `facet-cli-v<version>` publishes via this workflow.
 name: facet-cli-publish
 
 on:
@@ -30,6 +33,6 @@ jobs:
         with:
           node-version: 22
           registry-url: "https://registry.npmjs.org"
-      - name: Publish @finddata/facet
+      - name: Publish @finddatatechonology/facet
         working-directory: facet/cli
         run: npm publish --provenance --access public

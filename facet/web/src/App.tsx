@@ -70,8 +70,8 @@ export function App() {
           <div className="space-y-4">
             <PackMarketView onSubscribed={() => {}} />
             <p className="text-xs text-muted-foreground">
-              编辑器安装（Claude Code / Cursor）：npx @finddata/facet install &lt;包 id&gt; —— 明细见 npx
-              @finddata/facet help；匿名可浏览，登录后可发布订阅。
+              编辑器安装（Claude Code / Cursor）：npx @finddatatechonology/facet install &lt;包 id&gt; —— 明细见 npx
+              @finddatatechonology/facet help；匿名可浏览，登录后可发布订阅。
             </p>
           </div>
         )}

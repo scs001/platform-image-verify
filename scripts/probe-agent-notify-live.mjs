@@ -102,7 +102,9 @@ const manifest = () => ({
   ],
 });
 
-const PACK_ID = `probe-notify-${Date.now().toString(36)}`;
+// PROBE_PACK_ID pins the id (the cheap1 wrapper pre-stages the skill md under
+// the acme public dir for a KNOWN id — same recipe as probe-agent-serving).
+const PACK_ID = process.env.PROBE_PACK_ID || `probe-notify-${Date.now().toString(36)}`;
 const AGENT_PATH = `/packs/${PACK_ID}/probe-agent`;
 const AGENT_KEY = agentKeyFor({ path: AGENT_PATH });
 const PORT = agentPortFor(AGENT_PATH);

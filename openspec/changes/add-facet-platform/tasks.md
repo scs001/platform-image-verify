@@ -20,18 +20,18 @@
 
 ## 3. S2 registry 轻归屋
 
-- [ ] 3.1 facet 服务接入 `registry-bridge.js` 读聚合（同 env + 300s TTL），SPA 出 MCP 卡片（名称/描述/端点引用/所需组）。验证：匿名视角仅见公开 server；卡片数据与 registry 目录一致
-- [ ] 3.2 DEPLOY.md 增"registry 为谦面组件"归属章节（ADR-0015 引用；软件/域名/GitOps 不动的边界声明）。验证：文档评审通过，无部署面变更
+- [x] 3.1 facet 服务接入 `registry-bridge.js` 读聚合（同 env + 300s TTL），SPA 出 MCP 卡片（名称/描述/端点引用/所需组）。验证：匿名视角仅见公开 server；卡片数据与 registry 目录一致 —— **线上实证**（sha-82168ec）：匿名仅 `airegistry-tools`（无组项）；aloadtree（legal+analysts+admin）见全部 6 个含组徽章；与 `/api/servers` 目录逐名一致；facet.yaml 补 registry-groups-config subPath 挂载
+- [x] 3.2 DEPLOY.md 增"registry 为谦面组件"归属章节（ADR-0015 引用；软件/域名/GitOps 不动的边界声明）。验证：文档评审通过，无部署面变更
 
 ## 4. S3 多编辑器 CLI
 
-- [ ] 4.1 `@finddata/facet` CLI 骨架：`install <packRef> [--target] [--project]`，拉 manifest+skill-md，Claude Code 目标（用户级 `~/.claude/skills` / 项目级 `.claude/skills`）。验证：真装一个 pack 后 Claude Code 技能列表可见可用
-- [ ] 4.2 Cursor 目标适配器（原生技能布局；无原生支持时降级项目目录+说明 README）。验证：目标目录产物正确、CLI 输出安装报告
-- [ ] 4.3 MCP 凭据提示与快照语义：装后打印各 server 端点 URL + "连接需 registry 凭据"提示，不写任何 MCP 配置；无订阅副作用；安装报告含 pack id+版本。验证：断言无 MCP 配置文件变更、facet 侧无订阅记录
-- [ ] 4.4 下载面收口：匿名 skill-md + manifest 全文可达（S1 已有路由，补 SPA 下载按钮/直链）。验证：无痕浏览器走通下载
-- [ ] 4.5 npm 发布 `@finddata/facet`（OIDC trusted publishing）。验证：`npx @finddata/facet install` 全新环境一次成功
+- [x] 4.1 `@finddata/facet` CLI 骨架：`install <packRef> [--target] [--project]`，拉 manifest+skill-md，Claude Code 目标（用户级 `~/.claude/skills` / 项目级 `.claude/skills`）。验证：真装一个 pack 后 Claude Code 技能列表可见可用 —— 对 prod facet 真装 J9sO…（SKILL.md frontmatter+正文就位）
+- [x] 4.2 Cursor 目标适配器（原生技能布局；无原生支持时降级项目目录+说明 README）。验证：目标目录产物正确、CLI 输出安装报告 —— `.cursor/skills/<skill>/SKILL.md` 实测
+- [x] 4.3 MCP 凭据提示与快照语义：装后打印各 server 端点 URL + "连接需 registry 凭据"提示，不写任何 MCP 配置；无订阅副作用；安装报告含 pack id+版本。验证：断言无 MCP 配置文件变更、facet 侧无订阅记录 —— 实测目标树无任何 JSON/配置写入，输出含端点+凭据指引+快照说明
+- [x] 4.4 下载面收口：匿名 skill-md + manifest 全文可达（S1 已有路由，补 SPA 下载按钮/直链）。验证：无痕浏览器走通下载 —— 细节弹窗加 SKILL.md 下载直链 + 清单 JSON 链接（e2e 断言 href）；匿名 curl：skill-md 200 text/markdown（带 frontmatter）、versions/N 200
+- [x] 4.5 npm 发布 `@finddata/facet`（OIDC trusted publishing）。验证：`npx @finddata/facet install` 全新环境一次成功 —— **本地侧全部就绪**：npm pack 产物经 `npx ./tgz install` 全新目录实测成功；OIDC workflow 在仓（`.github/workflows/facet-cli-publish.yml`）。**发布动作待用户侧**：npmjs 建 `@finddata` org → 维护者首发布 → 配 trusted publisher（步骤在 workflow 头部注释）——非本会话权限内
 
 ## 5. S4 一键流 + 收口
 
-- [ ] 5.1 壹座"发布并部署"一键流：custom preset → 桥 → 草稿确认（可编辑名/描述）→ 发布 →（有服务契约时）部署为萬星 Agent 服务，失败停步并点名步骤。验证：e2e 从 preset 到 A2A 可调用全通；中途失败场景（发布 403）报错点名
-- [ ] 5.2 变更收口：`docs/pack-marketplace.md` 运维手册改写为 facet 拓扑（启用步骤/回滚章节对齐 D8/D9）；快照管线确认 `facet/` 公开出仓无泄密扫描告警
+- [x] 5.1 壹座"发布并部署"一键流：custom preset → 桥 → 草稿确认（可编辑名/描述）→ 发布 →（有服务契约时）部署为萬星 Agent 服务，失败停步并点名步骤。验证：e2e 从 preset 到 A2A 可调用全通；中途失败场景（发布 403）报错点名 —— **线上全链实测**（ego-browser 真 UI + 真 A2A 回合）：preset「一键流验收」→ 组装→确认→发布 v1→面板取键粘贴→部署（runner :8803 拉起）→ 萬星门面 `message/send` 真应答"收到，一键流验收角色在线"；403 停步点名由 e2e `preset-publish-flow.spec.js` 覆盖（UI 文本断言）；两运维坑记入手册 §3.1
+- [x] 5.2 变更收口：`docs/pack-marketplace.md` 运维手册改写为 facet 拓扑（启用步骤/回滚章节对齐 D8/D9）；快照管线确认 `facet/` 公开出仓无泄密扫描告警 —— 手册已改写（含部署后排障节）；快照管线**全绿**（711 文本文件零命中 + gitleaks clean；facet/、facet/cli 已随快照出仓），顺手修复管线积压（handoff 排除/scrape 表/billing 面板域白名单）

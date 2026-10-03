@@ -62,6 +62,11 @@ Logto 管理台（auth-admin.finddatatech.cloud）→ Organizations → `creator
 - CLI：`npx @finddata/facet install <packId>`（或仓内 `node facet/cli/facet.js`）落盘技能、打印 MCP 凭据提示。
 - 作者发新版：订阅者「我的功能集」出更新徽标；退订：技能/角色消失，MCP 配置保留。
 
+### 3.1 部署后 A2A 转不动的两个已知坑（2026-10-03 一键流实测）
+
+- **405 "agent route refused the turn"**：registry 对健康探测未通过的 agent **不生成 nginx 代理块**，请求落到前端兜底路由。注册/启用时的探测会与 runner 绑定监听端口竞态——新部署首探常被判 unhealthy，且不会自动复探。修复：带 `MARKET_REGISTRY_TOKEN` 调 `POST /api/agents/{path}/health` 重探（HEAD 收到 401 也算可达→healthy），下一次 nginx 重载后即通。
+- **503 "No available accounts"**：child 跑在部署键上，该键的**分组**必须有可用上游账户；面板新建键默认落 `default` 组（无上游）。部署前在面板把键的分组切到有上游的工程组。
+
 ## 4. 升级与数据
 
 - 镜像升级走当日 canonical 路径（GHA → TCR → relay → GitOps bump → ArgoCD rollout），涉及 facet 的清单：`all-services/prod/{platform,platform-demo,facet}.yaml` 三处镜像同步。

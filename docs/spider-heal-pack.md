@@ -26,11 +26,12 @@ QUEUE
 - **verify**：声明的验证链命令（平台技能会先 `--help`/dry-run 探测再实跑；缺省走基线校验）
 - golden/口径文件路径（契约类工单时点名）
 
-## git 凭据（finddata 待办 ①）
+## git 凭据（finddata 待办 ① —— ✅ 已绑定 2026-10-03）
 
-签发 GitHub **fine-grained PAT**：仅 `FindDataTechnology/fd-industry-data` 一仓，权限仅
-`contents:write` + `pull_requests:write`（无 admin/无 workflow/无 secret 读）。
-交付后运营经重部署绑定（secret 名固定 `git_pat`；可选 `gh_actor`=commit 邮箱）：
+**PAT 已绑定**：运营经 v2 重部署入库（secret 名固定 `git_pat`，平台侧仅存 `ws_` 引用，
+全链日志至多尾四位；child 凭据文件 `/data/packs-KkCie…-spider-heal/.credentials.yaml`
+中 `git_pat` + `gh_actor=56543689+scs001@users.noreply.github.com` 已就位）。
+轮换 / 换仓同下配方：
 
 ```bash
 PACK_ID=KkCie7NlrHluo4LiKPnn0w \
@@ -54,7 +55,7 @@ PLATFORM_URL=… TOKEN=<运营 JWT> node scripts/spider-heal-pack.mjs --deploy
 
 ## finddata 侧待办清单
 
-1. 签发 PAT（上述最小权限）并交付运营绑定。
+1. ~~签发 PAT 并交付运营绑定~~ ✅ 2026-10-03（v2 部署绑定，见上节）。
 2. 内容仓 `reports/health-tickets/` 工单流就位（五类分诊+verify 声明）。
 3. （可选）中央库限流/总闸注册为 MCP server → 运营重部署追加 `mcpServers` 引用（总闸变更通知才生效）。
 4. 首批真实工单试运行：SUBMIT → 观察 STATUS/pr-open → 人审 merge。
@@ -64,3 +65,15 @@ PLATFORM_URL=… TOKEN=<运营 JWT> node scripts/spider-heal-pack.mjs --deploy
 GitHub 出海（cheap1：github.com/api/ls-remote 200/ok）· 发布+部署+起服（:8799）·
 门面 SUBMIT（凭据缺失→按协议终态 manual+结构化回执）· 重放去重 · STATUS 跨回合读盘 ·
 允许清单放行。rhythm 自回合 burn-in 见 runner `meter.jsonl`（kind=self，部署后 ≤30m 首巡）。
+
+### v2 实跑（2026-10-03 晚，绑定 PAT 后）
+
+- v2 发布+部署（secretRefs：`git_pat`/`gh_actor`；notify `test-channel`）；runner 原地 drain
+  换新 child，日志实证「running on its own billing key (pk_e19083b4…)」+「pinned 2
+  deployment secret(s)」，旧计费键引用未断。
+- 门面合成工单实跑：`SUBMIT FindDataTechnology/fd-industry-data reports/health-tickets/<不存在>.yaml`
+  → 真回合 110s（外部上下文 `wx:`，按调用键结算 2 分钟、已 settled）→ 终态 `manual`（工单不可读，
+  四路核实 0 命中）→ 同 `Idempotency-Key` 重放返回首答、无第二回合/第二笔账（重放语义实证）。
+- 注意：**平台滚动窗口内 `bot_notify` 会 503（单次纪律=不重试，通知即丢）**——本单终态通知恰逢
+  pod 滚动未送达，rolling 结束后直发 relay 复测 `{ok:true}`。重要工单建议避开部署窗口。
+- 另：该仓当前没有 `reports/health-tickets/` 树（四路核实），真实工单流就位后即可试跑。

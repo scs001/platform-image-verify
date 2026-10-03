@@ -15,3 +15,10 @@
 
 - [x] 3.1 `docs/spider-heal-pack.md`：finddata 契约（SUBMIT/STATUS 协议、PAT 最小权限、secret 名约定 git_pat/gh_actor、部署/升级/回滚、rhythm 与外部触发关系、四类事件）。验证：文段与技能实文一致 验证：docs/spider-heal-pack.md 与技能实文一致
 - [x] 3.2 finddata 侧待办清单落档（PAT 签发/工单目录就位/中央库 MCP 注册后追加引用）。验证：文档含清单 ——PAT 签发/工单流/中央库 MCP/试运行四项
+
+## 4. 追记（2026-10-03 晚 —— PAT 绑定与 v2 实跑，随 facet cutover 修复）
+
+- [x] 4.1 v2 发布+部署：`git_pat`/`gh_actor` 入库（finddata 待办① 完成）；runner drain 换新 child 实证计费键引用保留（pk_e19083b4…）+ 2 secret 落 child `.credentials.yaml`
+- [x] 4.2 门面合成工单实跑：真回合 110s → 终态 `manual`（工单不可读，四路核实）→ 同 Idempotency-Key 重放返回首答（仅 1 笔记账：2 分钟 settled）
+- [x] 4.3 cutover 缺口修复（阻塞本任务的根因）：facet store 迁移漏 2 个私有包 + 全部 deployment_keys（已按表回填，两库全表对齐）；facet 部署缺 `SUB2API_ADMIN_KEY`（k8s envFrom 跳过含破折号的键名，GitOps aa60f6f 补 inline secretKeyRef）——否则 facet 侧部署会静默丢弃计费键绑定
+- [x] 4.4 通知链路备注：平台滚动窗口内 `bot_notify` 会 503（单次纪律=即丢）；rolling 后 relay 直发复测 `{ok:true}`

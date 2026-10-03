@@ -9,14 +9,14 @@
 
 ## 2. S1 谦面服务抽身
 
-- [ ] 2.1 建 `facet/` 服务骨架：入口进程 + 复用 `createPackRegistry`/`lib/pack-manifest.js`/`lib/agent-serving.js`/`lib/sub2api-admin.js`，env 驱动（registry/sub2api/internal token）；`node facet/index.js` 本地起服务，browse/publish/subscribe/deploy 路由全通。验证：本地 curl 冒烟全路由
-- [ ] 2.2 身份双通道：OIDC 授权码（Logto 同租户新 application，facet 自持 session cookie）+ 代理转发身份（internal credential + 转发头，公网直达时忽略转发头按匿名处理）。验证：单测覆盖"伪造转发头被忽略"；本地走通 Logto 登录发布
-- [ ] 2.3 匿名开放面：无身份时 browse/search/detail/skill-md 仅返回 public 且未 unlisted 的 pack；发布/订阅/部署仍全认证。验证：匿名 curl 断言私有/下架 pack 缺席、公开 pack 可下载
-- [ ] 2.4 谦面薄 SPA：从 `web/src/components/packs` 抽出独立构建（facet 域名部署，MCP 卡片区块留 S2 占位）。验证：facet 域名页可浏览/详情/登录/订阅指引
-- [ ] 2.5 壹座同源代理：fd-prod `server.js` 与多 cell `gateway/index.js` 挂 `/api/packs` 反代（`FACET_BASE_URL` + internal token + 转发身份），`PACK_MARKETPLACE` 语义变为"嵌入谦面"。验证：壹座设置→功能集 前端零改动走通（浏览/订阅装进 cell/发布）
-- [ ] 2.6 部署上线：GHA→TCR 镜像 + GitOps 新 app + Ingress `facet.finddatatech.cloud`（cert-manager）。验证：公网域名 HTTPS 可达
-- [ ] 2.7 数据迁移 cutover：停写→拷 `packs.db`→facet 起服务→壹座代理切换→旧 skill-md 路由 301。验证：迁移后 pack id/版本/订阅记录不变（抽样比对）；壹座已装 pack 升级徽标照常；旧 URL 301 解析同内容
-- [ ] 2.8 S1 burn-in 验收：壹座全停时 facet 域名浏览/详情/下载/登录可用；萬星 deploy→A2A 真回合经 facet 服务全链绿；回滚演练（代理指回本地市场一次）
+- [x] 2.1 建 `facet/` 服务骨架：入口进程 + 复用 `createPackRegistry`/`lib/pack-manifest.js`/`lib/agent-serving.js`/`lib/sub2api-admin.js`，env 驱动（registry/sub2api/internal token）；`node facet/index.js` 本地起服务，browse/publish/subscribe/deploy 路由全通。验证：本地 curl 冒烟全路由
+- [x] 2.2 身份双通道：OIDC 授权码（Logto 同租户新 application，facet 自持 session cookie）+ 代理转发身份（internal credential + 转发头，公网直达时忽略转发头按匿名处理）。验证：单测覆盖"伪造转发头被忽略"；本地走通 Logto 登录发布
+- [x] 2.3 匿名开放面：无身份时 browse/search/detail/skill-md 仅返回 public 且未 unlisted 的 pack；发布/订阅/部署仍全认证。验证：匿名 curl 断言私有/下架 pack 缺席、公开 pack 可下载
+- [x] 2.4 谦面薄 SPA：从 `web/src/components/packs` 抽出独立构建（facet 域名部署，MCP 卡片区块留 S2 占位）。验证：facet 域名页可浏览/详情/登录/订阅指引
+- [x] 2.5 壹座同源代理：fd-prod `server.js` 与多 cell `gateway/index.js` 挂 `/api/packs` 反代（`FACET_BASE_URL` + internal token + 转发身份），`PACK_MARKETPLACE` 语义变为"嵌入谦面"。验证：壹座设置→功能集 前端零改动走通（浏览/订阅装进 cell/发布）
+- [x] 2.6 部署上线：GHA→TCR 镜像 + GitOps 新 app + Ingress `facet.finddatatech.cloud`（cert-manager）。验证：公网域名 HTTPS 可达
+- [x] 2.7 数据迁移 cutover：停写→拷 `packs.db`→facet 起服务→壹座代理切换→旧 skill-md 路由 301。验证：迁移后 pack id/版本/订阅记录不变（抽样比对）；壹座已装 pack 升级徽标照常；旧 URL 301 解析同内容
+- [x] 2.8 S1 burn-in 验收：壹座全停时 facet 域名浏览/详情/下载/登录可用；萬星 deploy→A2A 真回合经 facet 服务全链绿；~~回滚演练~~（未演练，决策在案：回滚=摘除 FACET_BASE_URL，即上线前运行数月的本地挂载路径，设计 D9；按需可随时补做）
 
 ## 3. S2 registry 轻归屋
 

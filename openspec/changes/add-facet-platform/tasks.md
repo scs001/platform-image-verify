@@ -4,8 +4,8 @@
 
 - [x] 1.1 在 gateway pack 路由上新增 internal 只读三接口（部署列表 / 包作者 email / 单包部署行），internal token 门控；无 token 请求 401。验证：curl 带/不带 token 对比，带 token 返回与进程内调用同构数据
 - [x] 1.2 `gateway/wanxing/index.js` 的 4 处 `packRegistry` 调用点（:69/:71/:98/:103）换成 HTTP 客户端，base URL 进 env（默认 loopback）。验证：单测 mock 三接口覆盖 slug 解析/作者判定/部署行三条路径
-- [ ] 1.3 S0 全链回归：萬星 A2A 真回合探针（调用键进门→message/send→边界结算记账）在 S0 部署后全绿，行为与改前一致
-- [ ] 1.4 S0 上线 fd-prod（Jenkins/GHA + GitOps，按当日 canonical 路径），live 探针复验通过
+- [x] 1.3 S0 全链回归：萬星 A2A 真回合探针（调用键进门→message/send→边界结算记账）在 S0 部署后全绿，行为与改前一致
+- [x] 1.4 S0 上线 fd-prod（Jenkins/GHA + GitOps，按当日 canonical 路径），live 探针复验通过
 
 ## 2. S1 谦面服务抽身
 

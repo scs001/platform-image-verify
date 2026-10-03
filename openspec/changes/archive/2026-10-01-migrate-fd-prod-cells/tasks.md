@@ -41,4 +41,6 @@
 ## 8. burn-in 收尾
 
 - [ ] 8.1 一周观察（ops-console 内存灯 + `kubectl top` 记录），确认 cell 内存形态与 reap 行为，决定 `CELL_IDLE_REAP_SECS` 是否收紧（design 开放问题）
+
+  **D2 基线（2026-10-03 深夜，从 facet sha-6a32874 滚动后起算）**：`CELL_IDLE_REAP_SECS=3600`（未动）；gateway `cells:1` 驻留（uptime 7.4min）。内存形态（pod 内 /proc 实测）：网关 92MB；server.js 监督+子 183+171MB；驻留 cell = dsh×2 ≈231MB + websearch MCP 63MB；平台 pod working set **449Mi**（demo 215Mi）。节点 cheap-3：**2,431Mi/3.82GiB ≈62%**，CPU 8%；`/data` 22G/30G（73% 用）。`/data/cells` 磁盘 2.8GB/6 个历史 cell 目录。**口径警告**：当日 4 次镜像滚动每次清空驻留并重置 reap 时钟——3600s 空闲回收在 prod 尚未被观察到过一次；干净一周观测须自**最后一次**重启起算，且期间避免滚动。结论（收紧到 1800？）待窗口走完。
 - [ ] 8.2 burn-in 通过后清理旧 `/data` 单进程原件（workspace 大文件先归档再删），在 DEPLOY.md 记录清理日期与回滚条款失效声明

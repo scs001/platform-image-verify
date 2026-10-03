@@ -160,6 +160,20 @@ export function createWanxingCore({ store, sub2api, config = {} }) {
     return flight;
   }
 
+  // Admission triage for the protocol face: a finished request replays from
+  // the ledger (no slot, no RPM — it is a read), a running flight is JOINED
+  // (the turn is already admitted; spec: concurrent duplicates both receive
+  // its outcome), and only a genuinely new turn goes through rate + slot.
+  function idempotencyState({ callerId, slug, idemKey }) {
+    if (!idemKey) return "new";
+    if (flights.has(`${callerId}|${slug}|${idemKey}`)) return "running";
+    const row = store.requestGet(callerId, slug, idemKey);
+    if (row && Date.now() - row.created_at < cfg.idemWindowMs) {
+      return row.state === "running" ? "running" : "done";
+    }
+    return "new";
+  }
+
   // ── Boundary settlement (spec: platform-billing) ─────────────────────────
   // Minutes round UP — a 5-second turn bills one minute unit (the rate table
   // is per started minute). outcome=error rows are recorded but waived: the
@@ -236,6 +250,7 @@ export function createWanxingCore({ store, sub2api, config = {} }) {
     releaseSlot,
     admit,
     idempotentSend,
+    idempotencyState,
     recordUsage,
     trySettle,
     settlePending,

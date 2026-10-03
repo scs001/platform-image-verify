@@ -586,3 +586,91 @@ test("2.5/5.1 registerWanxingRoutes: allowlist add makes a private agent callabl
     await new Promise((r) => server.close(r));
   }
 });
+
+// ── Live-probe regression (2026-10-03 fd-prod): replay must not leak the
+// (caller, agent) slot; concurrent same-key duplicates join the flight at the
+// ROUTE level, not just in the kernel.
+
+test("regression: replay frees the slot — a fresh-key turn afterwards is not 409", async () => {
+  const upstreamCalls = [];
+  const store = freshStore();
+  const sub = stubSub2api();
+  const core = createWanxingCore({ store, sub2api: sub, config: { ratePerMin: 0.1, rpmMax: 100 } });
+  const face = createA2aFace({
+    core,
+    resolveDeployment: (slug) => (slug === "packs-p1-heal" ? { agentPath: "/packs/p1/heal" } : null),
+    listDeployments: () => [{ slug: "packs-p1-heal", agentPath: "/packs/p1/heal" }],
+    forwardHeaders: () => ({ "X-Authorization": "Bearer svc", Authorization: "Bearer backend" }),
+    registryFetch: async () => new Response(JSON.stringify({ name: "S", visibility: "public", metadata: {} }), { headers: { "Content-Type": "application/json" } }),
+    config: { agentUrlFor: (p) => `https://registry.internal/agent${p}/` },
+    upstreamFetch: async () => {
+      upstreamCalls.push(1);
+      return jsonReply();
+    },
+  });
+  const app = express();
+  face.register(app);
+  const server = http.createServer(app).listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const post = (key) =>
+    fetch(`${base}/api/wanxing/v1/a2a/packs-p1-heal`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer sk-good", ...(key ? { "Idempotency-Key": key } : {}) },
+      body: JSON.stringify(sendBody("hi")),
+    });
+  try {
+    assert.equal((await post("k1")).status, 200);
+    assert.equal((await post("k1")).status, 200, "replay");
+    // Before the fix this was 409 forever: the replay had leaked the slot.
+    assert.equal((await post("k2")).status, 200, "fresh key after a replay must run, not 409");
+    assert.equal(upstreamCalls.length, 2, "k1 once + k2 once");
+    assert.equal(store.usageBoard().byCaller[0].turns, 2, "two billable turns, replay records none");
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
+test("regression: concurrent same-key duplicates join the flight through the route", async () => {
+  const upstreamCalls = [];
+  const store = freshStore();
+  const sub = stubSub2api();
+  const core = createWanxingCore({ store, sub2api: sub, config: { ratePerMin: 0.1, rpmMax: 100 } });
+  const face = createA2aFace({
+    core,
+    resolveDeployment: (slug) => (slug === "packs-p1-heal" ? { agentPath: "/packs/p1/heal" } : null),
+    listDeployments: () => [{ slug: "packs-p1-heal", agentPath: "/packs/p1/heal" }],
+    forwardHeaders: () => ({ "X-Authorization": "Bearer svc", Authorization: "Bearer backend" }),
+    registryFetch: async () => new Response(JSON.stringify({ name: "S", visibility: "public", metadata: {} }), { headers: { "Content-Type": "application/json" } }),
+    config: { agentUrlFor: (p) => `https://registry.internal/agent${p}/` },
+    upstreamFetch: async () => {
+      upstreamCalls.push(1);
+      await new Promise((r) => setTimeout(r, 40));
+      return jsonReply();
+    },
+  });
+  const app = express();
+  face.register(app);
+  const server = http.createServer(app).listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const post = () =>
+    fetch(`${base}/api/wanxing/v1/a2a/packs-p1-heal`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer sk-good", "Idempotency-Key": "race" },
+      body: JSON.stringify(sendBody("hi")),
+    });
+  try {
+    const first = post();
+    await new Promise((r) => setTimeout(r, 15)); // flight registered, still running
+    const second = await post();
+    const a = await first;
+    assert.equal(second.status, 200, "duplicate joins the flight instead of 409");
+    assert.equal(a.status, 200);
+    const d1 = await second.json();
+    const d2 = await a.json();
+    assert.deepEqual(d1, d2, "both callers receive the same outcome");
+    assert.equal(upstreamCalls.length, 1, "exactly one turn ran");
+    assert.equal(store.usageBoard().byCaller[0].turns, 1, "one billable turn");
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});

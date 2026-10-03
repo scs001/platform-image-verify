@@ -165,24 +165,40 @@ export function createA2aFace({
       if (!core.checkRpm(caller.userId)) {
         return res.status(429).json({ error: { code: "RATE_LIMITED", message: "caller rate limit exceeded" } });
       }
-      if (!core.acquireSlot(caller.userId, slug)) {
-        res.set("Retry-After", "5");
-        return res.status(409).json({ error: { code: "TURN_IN_FLIGHT", message: "a turn for this caller and agent is already running; retry after the hint" } });
-      }
 
       const idemKey = (() => {
         const h = req.headers["idempotency-key"];
         return typeof h === "string" && h.trim() ? h.trim().slice(0, 200) : null;
       })();
+      // Idempotency triage BEFORE the slot (send only — streams never replay):
+      // a finished request replays from the ledger (a read), a running flight
+      // is JOINED (the turn is already admitted; concurrent duplicates both
+      // receive its outcome), and only a genuinely new turn takes the
+      // (caller, agent) concurrency slot. Replays and joins never hold the
+      // slot, so they cannot leak it, and they record no usage of their own.
+      const prior = method === "message/send" ? core.idempotencyState({ callerId: caller.userId, slug, idemKey }) : "new";
+      let holdsSlot = false;
+      if (prior === "new") {
+        if (!core.acquireSlot(caller.userId, slug)) {
+          res.set("Retry-After", "5");
+          return res.status(409).json({ error: { code: "TURN_IN_FLIGHT", message: "a turn for this caller and agent is already running; retry after the hint" } });
+        }
+        holdsSlot = true;
+      }
+
       const contextId = contextIdFor(message, idemKey);
       const startedAt = Date.now();
 
-      // Slot released and ledger row written on every exit path; settlement
-      // is fire-and-forget (the pending sweep retries, idempotently).
+      // finish = THIS request's turn ended (slot-holder only): ledger row +
+      // fire-and-forget settlement (the pending sweep retries, idempotently).
+      // exitReadonly = a replay/join leaves without recording anything.
       const finish = (outcome) => {
         core.releaseSlot(caller.userId, slug);
         const row = core.recordUsage({ caller, slug, idemKey, startedAt, endedAt: Date.now(), outcome });
         if (row.settlementStatus === "pending") void core.trySettle(row).catch(() => {});
+      };
+      const exitReadonly = () => {
+        if (holdsSlot) core.releaseSlot(caller.userId, slug);
       };
 
       const rpcBody = (m) => JSON.stringify({
@@ -248,10 +264,14 @@ export function createA2aFace({
             return { response: doc ?? { jsonrpc: "2.0", id: id ?? null, result: { message: { parts: [] } } } };
           },
         });
+        // message/send: replay/join land here without a slot of their own —
+        // no usage row, no settle; the flight's owner did (or will) record.
         if (!out.replayed) finish("ok");
+        else exitReadonly();
         res.status(200).json(out.response);
       } catch (e) {
-        finish("error");
+        if (holdsSlot) finish("error");
+        else exitReadonly();
         res.status(200).json(jsonRpcError(id, Number.isInteger(e?.code) ? e.code : -32032, String(e?.message || e)));
       }
     });

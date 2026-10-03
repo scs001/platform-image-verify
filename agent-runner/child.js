@@ -57,6 +57,12 @@ export class AgentChild {
     return this.ready ? "serving" : "starting";
   }
 
+  // Whether a session on this child has a turn in flight (the external-
+  // context reap pass skips active sessions; add-wanxing-serving-api D10).
+  isActive(sessionKey) {
+    return this.#collectors.has(sessionKey);
+  }
+
   async start() {
     if (this.ready) return;
     const { profile, patchPaths, cwd, env, provider, model, presetId } = this.spawnSpec;

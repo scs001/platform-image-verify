@@ -111,6 +111,10 @@ server.listen(config.port, "0.0.0.0", () => {
   rhythmTimer.unref?.();
   const rolloverTimer = setInterval(() => void rollover.check(), 60_000);
   rolloverTimer.unref?.();
+  // External-context reap (add-wanxing-serving-api D10): idle wx sessions are
+  // short-lived by contract; internal and rhythm sessions are untouched.
+  const reapTimer = setInterval(() => manager.reapExternalContexts(), 60_000);
+  reapTimer.unref?.();
 });
 
 for (const sig of ["SIGTERM", "SIGINT"]) {

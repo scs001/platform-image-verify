@@ -25,6 +25,7 @@ import { createMpAuth } from "./mp-auth.js";
 import { createMpBindings } from "./mp-bindings.js";
 import { createShareRegistry, createRateLimiter } from "./share.js";
 import { createPackRegistry, registerPackRoutes } from "./packs.js";
+import { registerWanxingRoutes } from "./wanxing/index.js";
 import { createBotWebhookRouter } from "./bot-webhooks.js";
 import Database from "better-sqlite3";
 
@@ -363,6 +364,25 @@ registerPackRoutes(app, {
     .filter(Boolean),
   adminGroups: ADMIN_GROUPS,
   rateMax: Number(process.env.PACK_PUBLISH_RATE_MAX || 10),
+});
+
+// ── Wanxing facade (openspec: add-wanxing-serving-api; ADR-0014) ────────────
+// The external front door: callers authenticate with their own sub2api key,
+// agents are admitted by visibility/allowlist, turns are metered and settled
+// at the boundary. Registered before the cell-proxy catch-all so these
+// routes never fall into Logto identity; its own SQLite file sits beside
+// packs.db (ledger + allowlist + idempotency).
+registerWanxingRoutes(app, {
+  dataRoot: DATA_ROOT,
+  packRegistry,
+  resolveUser,
+  rejectUnauthenticated,
+  creatorGroups: (process.env.PACK_CREATOR_GROUPS || "creators")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
+  adminGroups: ADMIN_GROUPS,
+  env: process.env,
 });
 
 // ── Bot webhooks: machine callers with no platform identity ────────────────

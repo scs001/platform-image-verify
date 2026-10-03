@@ -10,7 +10,7 @@
 // callers with an explicit error.
 
 import http from "node:http";
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, existsSync } from "node:fs";
 import { execSync } from "node:child_process";
 import path from "node:path";
 import { AgentChild } from "./child.js";
@@ -289,6 +289,72 @@ export class ChildManager {
       );
       victim.child.stop().catch(() => {});
     }
+  }
+
+  // ── External-context reap (add-wanxing-serving-api D10) ────────────────────
+  // Facade-derived `wx:` contexts are single-interaction by contract: their
+  // sessions (storage name srv-wx-*) reap after the idle TTL, freeing the
+  // private home's session storage. Walks homeRoot directly — the homes of
+  // warm (demoted) and undeployed agents persist, and their stale external
+  // sessions should not outlive the agent's own residency. Rhythm day-
+  // sessions (srv-day-*) and internal contexts are name-spaced away and never
+  // touched. A session with a turn in flight on a live child is skipped.
+  reapExternalContexts() {
+    const ttlMs = this.config.externalContextTtlSecs * 1000;
+    let reaped = 0;
+    let agentKeys;
+    try {
+      agentKeys = readdirSync(this.config.homeRoot);
+    } catch {
+      return 0;
+    }
+    for (const agentKey of agentKeys) {
+      for (const dir of ["sessions", "projects", ".sessions"]) {
+        const dirPath = path.join(this.config.homeRoot, agentKey, dir);
+        if (!existsSync(dirPath)) continue;
+        let entries;
+        try {
+          entries = readdirSync(dirPath, { withFileTypes: true });
+        } catch {
+          continue;
+        }
+        for (const ent of entries) {
+          if (!ent.name.startsWith("srv-wx-")) continue;
+          const sessionPath = path.join(dirPath, ent.name);
+          if (this.#sessionActive(agentKey, ent.name)) continue;
+          if (Date.now() - this.#lastTouched(sessionPath) < ttlMs) continue;
+          try {
+            rmSync(sessionPath, { recursive: true, force: true });
+            reaped += 1;
+          } catch (e) {
+            this.log.warn(`[agent-runner] external-context reap failed (${agentKey}/${ent.name}): ${e.message}`);
+          }
+        }
+      }
+    }
+    if (reaped > 0) this.log.log(`[agent-runner] external-context reap: removed ${reaped} idle wx session(s)`);
+    return reaped;
+  }
+
+  // A live child's collector for this session means a turn is running on it.
+  #sessionActive(agentKey, sessionName) {
+    return this.children.get(agentKey)?.isActive(sessionName) === true;
+  }
+
+  // Latest mtime within one level of the session dir — dsh writes transcripts
+  // as turns happen, so the newest file is the honest idle timestamp.
+  #lastTouched(sessionPath) {
+    let latest = 0;
+    try {
+      latest = statSync(sessionPath).mtimeMs;
+      for (const ent of readdirSync(sessionPath)) {
+        try {
+          const m = statSync(path.join(sessionPath, ent)).mtimeMs;
+          if (m > latest) latest = m;
+        } catch { /* raced away */ }
+      }
+    } catch { /* raced away */ }
+    return latest;
   }
 
   // ── Metered turns (add-agent-residency D3/D6) ─────────────────────────────

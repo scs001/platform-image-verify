@@ -311,6 +311,21 @@ export function createPackRegistry({ file }) {
           deployedAt: r.deployed_at,
         }));
     },
+    // Every deployment across packs (add-wanxing-serving-api): the facade's
+    // agent-slug lookup scans the full set — slug resolution is global, not
+    // per-pack.
+    allDeployments() {
+      return db.prepare(`SELECT * FROM pack_deployments ORDER BY pack_id, agent_id`).all()
+        .map((r) => ({
+          packId: r.pack_id,
+          agentId: r.agent_id,
+          version: r.version,
+          agentPath: r.agent_path,
+          skills: JSON.parse(r.skill_paths || "[]"),
+          deployedBy: r.deployed_by,
+          deployedAt: r.deployed_at,
+        }));
+    },
     // ── Platform billing bookkeeping (add-agent-platform-ops) ─────────────
     billingAccount(email) {
       return db.prepare(`SELECT * FROM sub2api_accounts WHERE email = ?`).get(email) ?? null;

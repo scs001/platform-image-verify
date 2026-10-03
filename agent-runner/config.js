@@ -44,6 +44,10 @@ export function loadConfig(env = process.env) {
     maxChildren: num(env.AGENT_RUNNER_MAX_CHILDREN, 4),
     drainMs: num(env.AGENT_RUNNER_DRAIN_SECS, 300) * 1000,
     turnTimeoutMs: num(env.AGENT_RUNNER_TURN_TIMEOUT_MS, 180_000),
+    // External contexts (facade-derived `wx:` ids) are short-lived by
+    // contract (add-wanxing-serving-api): their sessions reap after this much
+    // idle. Rhythm day-sessions and internal contexts never reap.
+    externalContextTtlSecs: num(env.AGENT_RUNNER_EXTERNAL_CONTEXT_TTL_SECS, 86_400),
 
     // Warm-zone budget (design D1). Footprint = sampled RSS when the harness
     // exposes a pid, else the fixed per-agent cost (the planning number from

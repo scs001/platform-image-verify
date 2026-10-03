@@ -62,6 +62,22 @@ _Avoid_: 部署 agent、standalone agent、bundle、对外角色
 将 pack 部署为 Agent 服务并为其消耗付费的账户主体，以预充值余额支付。
 _Avoid_: 订阅者（把包装进 cell 的人）、创作者（发布 pack 的人）
 
+**调用者（Caller）**:
+经萬星门面调用 Agent 服务的外部账户主体，以自有调用键进门、按量付费。与部署者相对：部署者出钱让服务驻留（自主回合与实际模型消耗），调用者出钱让服务干活（被叫回合，经边界结算回收）。
+_Avoid_: 客户（口语）、外部用户、registry 用户（调用不经 registry）
+
+**调用键（Caller Key）**:
+调用者的 sub2api API key，在萬星门面同时充当身份凭证、余额钱包与套餐载体；止步门面，永不下发到 runner。
+_Avoid_: 计费键（现歧义）、API key（泛指）、部署键
+
+**部署键（Deployer Key）**:
+部署者为某 Agent 服务绑定的 sub2api key，实际承载该服务全部模型消耗（含被叫回合），其成本经边界结算向调用者回收。
+_Avoid_: 计费键（现歧义）、paste key
+
+**套餐（Plan）**:
+以 sub2api group 策划出的对外档位：时长单价、运行预算与（后续）模型车道的组合，经调用键生效。财务硬顶在 key 窗口与余额，体验软顶在回合预算。
+_Avoid_: 订阅、会员、配额（指 key 消耗窗时用其本名）
+
 **驻留（Residency）**:
 Agent 服务在平台上的默认生命周期：进程不因闲置回收、上下文跨天连续；内存超预算时退入温区（状态落盘、下次秒级热起）而非驱逐。与「常驻可用」（standing，随时可应答）相对。
 _Avoid_: 常驻（歧义词）、常开、保活
@@ -125,3 +141,11 @@ _Avoid_: agent（指 dsh 内部概念时除外）、运行时本体
 **适配层（Adapter Layer）**:
 平台中唯一允许了解 dsh 内部的边界：dsh-bridge、dsh-profile、profile 模板 bridge、agent-runner 组合器与 dsh-matrix。上游发版的跟随工作只应发生在这层；其余平台代码经平台自有接口使用 dsh。
 _Avoid_: dsh 封装层、runtime 层
+
+**萬星（Wanxing）**:
+独立长期运作的 agent 对外服务平台：以萬星门面对外售卖 Agent 服务调用，sub2api 为其计费与降费引擎，壹座为其底座。
+_Avoid_: 与壹座混称（壹座是底座平台）、paas（仅作工程代号）
+
+**萬星门面（Wanxing Facade）**:
+萬星对外的唯一服务入口：调用键认证、agent 可见性/允许清单鉴权、限流、计量与边界结算皆在此完成；对外说 A2A 等开放协议，对内经既有 registry 通道抵达 runner。registry 不参与对外。
+_Avoid_: API 网关（与 registry gateway 混）、代理层、ingress

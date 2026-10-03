@@ -363,3 +363,24 @@ test("callback falls back to / for invalid, protocol-relative, or missing rd", a
     assert.equal(res.redirectUrl, "/", `rd=${rd}`);
   }
 });
+
+test("logout clears the cookie and returns through Logto with client_id (post-logout redirect honored)", async () => {
+  const auth = await createLogtoAuth(config({ LOGTO_END_SESSION: "true" }), { fetchImpl: responseStub() });
+  const res = responseRecorder();
+  await registerHandlers(auth)["/api/auth/logout"](request("/api/auth/logout"), res);
+  assert.ok(res.appendCalls.some((c) => c.name === "Set-Cookie" && c.value.startsWith("paas_session=;")), "session cookie cleared");
+  const url = new URL(res.redirectUrl);
+  assert.equal(`${url.origin}${url.pathname}`, `${issuer}/logout`);
+  // Without client_id Logto dead-ends on its sign-out success page (probed
+  // live 2026-10-03) — the parameter is the difference between "back to the
+  // app, signed out" and "stuck on auth.example".
+  assert.equal(url.searchParams.get("client_id"), "client");
+  assert.equal(url.searchParams.get("post_logout_redirect_uri"), "http://paas.test/");
+});
+
+test("logout without end-session support just goes home", async () => {
+  const auth = await createLogtoAuth(config({ LOGTO_END_SESSION: "false" }), { fetchImpl: responseStub() });
+  const res = responseRecorder();
+  await registerHandlers(auth)["/api/auth/logout"](request("/api/auth/logout"), res);
+  assert.equal(res.redirectUrl, "/");
+});

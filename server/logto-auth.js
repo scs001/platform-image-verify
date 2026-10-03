@@ -227,6 +227,10 @@ export async function createLogtoAuth(config, { fetchImpl = fetch } = {}) {
     res.append("Set-Cookie", clearCookie(SESSION_COOKIE, secureCookie(req)));
     if (!endSessionEnabled || !discovery.end_session_endpoint) return res.redirect("/");
     const url = new URL(discovery.end_session_endpoint);
+    // Logto honors post_logout_redirect_uri only when the request names the
+    // client: without client_id the flow dead-ends on its sign-out success
+    // page instead of returning here (live-probed 2026-10-03).
+    url.searchParams.set("client_id", clientId);
     url.searchParams.set("post_logout_redirect_uri", `${requestBase(req, config.PAAS_BASE_URL)}/`);
     res.redirect(url.toString());
   }

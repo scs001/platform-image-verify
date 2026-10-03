@@ -9,8 +9,14 @@ title = "platform gitleaks config"
 useDefault = true
 
 [allowlist]
-  description = "Non-secrets: e2e fixtures and kubectl placeholder docs"
+  description = "Non-secrets: e2e fixtures, kubectl placeholder docs, docker rollback tags"
   paths = [
     '''e2e/branding\.spec\.js''',
     '''k8s/deployment\.yaml''',
+  ]
+  # Docker rollback tag in the registry-fork patch README — tag-shaped, not a
+  # credential (its entropy trips the generic-api-key rule).
+  regexTarget = "line"
+  regexes = [
+    '''mcp-auth-server:logto-prev-\d{8}''',
   ]

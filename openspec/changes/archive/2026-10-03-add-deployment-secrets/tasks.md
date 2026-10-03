@@ -12,5 +12,5 @@
 
 ## 3. 端到端与文档
 
-- [ ] 3.1 staging e2e：部署带假 secret 的 pack → child home 凭据文件键值在位；registry 条目/描述符/卡片 grep 无值；删 ref 再部署 → 组合失败文案。验证：探针脚本留档 scripts/
+- [x] 3.1 staging e2e（fd-prod+cheap1 runner 实跑，scripts/probe-deployment-secrets.mjs ALL GREEN）：录入/脱敏(ws_…last4)/secret-bindings 面板/公共面与 registry 零值/child .credentials.yaml 值在位/悬空 ref 组合大声失败(ref 指名)
 - [x] 3.2 文档：DEPLOY.md 密钥段（录入形状/生命周期/最小权限示例：GitHub fine-grained PAT contents:write+pull_requests:write）。验证：文段与 spec 一致

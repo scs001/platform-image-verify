@@ -11,5 +11,5 @@
 
 ## 3. 端到端与文档
 
-- [ ] 3.1 staging e2e：绑 `test-channel` 部署 → 回合内 bot_notify → relay 审计行 + child 成功回执；未绑定与超限两路径。验证：探针脚本留档 scripts/（`scripts/probe-agent-notify-live.mjs` 已留档；本地已用真实 dsh child + 真模型排演三路径全绿；**staging 实跑待前置**：平台 `BOTS_RELAY_TOKEN` 当前未配置（relay 惰性 404）+ `test-channel` 未绑 + runner 需同步本批文件并重启）
+- [x] 3.1 staging e2e（fd-prod+cheap1 runner 实跑，scripts/probe-agent-notify-live.mjs 全绿）：绑定回合投递（child 收据+runner 审计 sent+平台 relay 审计 sent 三方实锤）/7 次超限 runner 侧拒发零外发/v2 解绑后拒绝指名缺绑定；前置全通——gateway relay 机器路由(14c76d4)+BOTS_RELAY_TOKEN/OWNER 入 GitOps+test-channel 绑定+runner 容器重建(env-file 只在创建时生效的坑)
 - [x] 3.2 文档：DEPLOY.md 通知段（绑定形状/relay env/四类事件为 pack 作者示例）。验证：文段与 spec 一致

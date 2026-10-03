@@ -169,6 +169,8 @@ test("2.5 facet proxy: forwards method/body with identity stamp; 502 when facet 
     assert.equal(post.status, 201);
     assert.equal(seen[1].init.method, "POST");
     assert.equal(seen[1].init.headers["x-facet-token"], "tok");
+    // Service credentials ride verbatim (the runner's internal-route path).
+    assert.equal(seen[1].init.headers.Authorization, "Bearer u1");
     const stamped = JSON.parse(Buffer.from(seen[1].init.headers["x-facet-user"], "base64url").toString("utf8"));
     assert.equal(stamped.email, "u@x");
     assert.deepEqual(stamped.groups, ["g1"]);

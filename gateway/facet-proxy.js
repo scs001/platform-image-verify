@@ -32,6 +32,9 @@ export function registerFacetProxy(app, {
             "x-facet-token": token,
           }
         : {}),
+      // Service credentials (the runner's / the facade's Bearer) ride
+      // verbatim — the internal routes authenticate on the facet side.
+      ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
       ...(req.headers["content-type"] ? { "Content-Type": req.headers["content-type"] } : {}),
       ...(req.headers["idempotency-key"] ? { "Idempotency-Key": req.headers["idempotency-key"] } : {}),
     };

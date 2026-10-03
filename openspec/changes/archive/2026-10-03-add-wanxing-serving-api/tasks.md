@@ -27,5 +27,5 @@
 ## 5. 运营面与端到端
 
 - [x] 5.1 billing board 增调用者维度：按 caller/按 agent 两视图 + pending settlement 高亮。验证：ops 冒烟——造两条 usage 后视图出数 ——GET /api/wanxing/v1/ops/usage（byCaller/byAgent/pending），board 冒烟有测
-- [ ] 5.2 端到端联调（staging）【探针就绪：scripts/probe-wanxing-live.mjs（目录/卡片/键门/send/重放/结算余额核销/ops 视图全覆盖）；待部署 staging 后一键执行】：部署演示 pack→公开卡/目录→运营签发调用键→send/stream 真回合→账本落账+sub2api 余额实减→幂等重放→死键/挂起/限流四类拒绝→24h 回收（短 TTL）。验证：探针脚本全绿并留档 scripts/
+- [x] 5.2 端到端联调（fd-prod 实战，sha-e5f4f0c）：probe-wanxing-live **9/9 全绿**——目录/卡片公开、键门 401、-32601、真回合应答、幂等重放同果、调用者余额实扣 $0.10（边界结算真机闭环）、ops 视图 1 caller 行。首探针抓到真 bug（重放泄漏并发槽→永久 409）已修+回归测试+二次部署复验：部署演示 pack→公开卡/目录→运营签发调用键→send/stream 真回合→账本落账+sub2api 余额实减→幂等重放→死键/挂起/限流四类拒绝→24h 回收（短 TTL）。验证：探针脚本全绿并留档 scripts/
 - [x] 5.3 对接文档：finddata 集成面一页纸（endpoint/鉴权/幂等头/context 语义/错误码表/工单 SUBMIT-STATUS 约定留给 spider pack 引用）。验证：文档落在 docs/ 且契约与实现一致 ——docs/wanxing-serving-api.md

@@ -759,7 +759,7 @@ export function registerPackRoutes(app, {
         // re-deliver an old value: the platform never echoes key values back).
         const kept = new Map();
         for (const agentId of servingIds) {
-          if (providedKeys && Object.prototype.hasOwnProperty.call(providedKeys, agentId)) continue;
+          if (providedKeys && Object.hasOwn(providedKeys, agentId)) continue;
           const k = existing.get(agentId);
           if (k?.keyValue) kept.set(agentId, k);
         }
@@ -1109,7 +1109,6 @@ export function registerPackRoutes(app, {
   // service credential — the same trust plane the runner already uses for
   // packs data; NOT a public predicate. Every fetch is audit-logged.
   app.get("/api/packs/internal/llm-key/:keyRef", (req, res) => {
-    const expected = (cfg) => `Bearer ${cfg?.token || ""}`;
     const token = deployConfig()?.token || "";
     if (!token || req.headers.authorization !== `Bearer ${token}`) {
       return res.status(401).json({ error: "runner service credential required" });

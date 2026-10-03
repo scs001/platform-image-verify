@@ -16,7 +16,7 @@
 //                                [--project <dir>] [--base <facet-url>]
 //                                [--registry <registry-url>]
 
-import { access, mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
 
@@ -47,6 +47,10 @@ function parseArgs(argv) {
   const out = { command: null, packRef: null, target: "claude-code", project: null, base: DEFAULT_BASE, registry: DEFAULT_REGISTRY };
   const rest = [...argv];
   out.command = rest.shift() ?? null;
+  // A bare flag in command position (`facet --version`, `facet -h`) is the
+  // flag, not an unknown command.
+  if (out.command === "--version" || out.command === "-v") out.command = "version";
+  else if (out.command === "--help" || out.command === "-h") out.command = "help";
   while (rest.length > 0) {
     const a = rest.shift();
     if (a === "--target") out.target = rest.shift();

@@ -1100,6 +1100,34 @@ export function registerPackRoutes(app, {
     res.json({ secretRef: rec.secretRef, agentId: rec.agentId, name: rec.name, secretValue: rec.secretValue });
   });
 
+  // Internal: serving-plane deployment lookups (add-facet-platform S0). The
+  // 万星 facade reads deployment bookkeeping over these read-only routes
+  // instead of process-local registry access — extracting the marketplace
+  // into the facet service (S1) repoints the facade's base-URL env and
+  // nothing else. Same service-credential gate and shape as llm-key/secret
+  // above. Registered BEFORE /api/packs/:id/deployments so the literal
+  // "internal" path never falls into the :id capture.
+  const internalAuth = (req, res) => {
+    const token = deployConfig()?.token || "";
+    if (!token || req.headers.authorization !== `Bearer ${token}`) {
+      res.status(401).json({ error: "runner service credential required" });
+      return false;
+    }
+    return true;
+  };
+  app.get("/api/packs/internal/deployments", (req, res) => {
+    if (!internalAuth(req, res)) return;
+    res.json({ deployments: registry.allDeployments() });
+  });
+  app.get("/api/packs/internal/deployments/:id", (req, res) => {
+    if (!internalAuth(req, res)) return;
+    res.json({ deployments: registry.deployments(req.params.id) });
+  });
+  app.get("/api/packs/internal/author/:id", (req, res) => {
+    if (!internalAuth(req, res)) return;
+    res.json({ authorEmail: registry.authorEmail(req.params.id) });
+  });
+
   // Deployed roles of a pack (3.3): the unpublish warning's and the deploy
   // button's data. Online/offline health itself comes from the registry via
   // the catalog's a2a entries — this list is the "deployed" fact. The paused

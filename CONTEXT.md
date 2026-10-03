@@ -23,7 +23,7 @@ _Avoid_: 文档库、知识库
 _Avoid_: 文件库、产物库、资料库（歧义）
 
 **功能集（Pack）**:
-运营者发布到市场、订阅者一键装进 cell 的技能+MCP+角色的版本化捆绑包。
+创作者发布到谦面市场、订阅者一键装进 cell 的技能+MCP+角色的版本化捆绑包。
 _Avoid_: 扩展包、bundle、插件包
 
 **角色（Persona）**:
@@ -141,6 +141,14 @@ _Avoid_: agent（指 dsh 内部概念时除外）、运行时本体
 **适配层（Adapter Layer）**:
 平台中唯一允许了解 dsh 内部的边界：dsh-bridge、dsh-profile、profile 模板 bridge、agent-runner 组合器与 dsh-matrix。上游发版的跟随工作只应发生在这层；其余平台代码经平台自有接口使用 dsh。
 _Avoid_: dsh 封装层、runtime 层
+
+**谦面（Facet）**:
+独立部署的分享面平台：功能集与 MCP 服务经它发布、流转到壹座与其他编辑器；壹座与其深度打通、互不隶属。
+_Avoid_: 资源平台（"资源"已被资源库/资源集占用）、pack 平台、谦面平台（口语可，词条统一用"谦面"）
+
+**注册处（Registry）**:
+谦面的组件：MCP 服务目录与运行时分发面——Agent 服务的技能与条目经它下发，萬星运行时从它取活。不直接对外，对外调用走萬星门面。
+_Avoid_: 市场（谦面的用户面才是市场）、mcp-gateway-registry（实现软件名）
 
 **萬星（Wanxing）**:
 独立长期运作的 agent 对外服务平台：以萬星门面对外售卖 Agent 服务调用，sub2api 为其计费与降费引擎，壹座为其底座。

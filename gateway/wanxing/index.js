@@ -5,7 +5,9 @@
 // allowlist management (packs-surface auth), and the ops usage view. The
 // registry stays internal — the facade reaches runtime routes through the
 // registry proxy with the platform's own credentials, exactly like the
-// platform's internal a2a client.
+// platform's internal a2a client. Deployment bookkeeping is likewise read
+// over HTTP (add-facet-platform S0): the packs surface's internal API, so
+// the facet extraction (S1) repoints one env and no code.
 
 import path from "node:path";
 import express from "express";
@@ -16,7 +18,6 @@ import { createSub2apiClient } from "../../lib/sub2api-admin.js";
 
 export function registerWanxingRoutes(app, {
   dataRoot,
-  packRegistry,
   resolveUser,
   rejectUnauthenticated,
   creatorGroups = [],
@@ -62,13 +63,39 @@ export function registerWanxingRoutes(app, {
     Authorization: `Bearer ${backendToken()}`,
   });
 
+  // ── Deployment bookkeeping over the packs internal API (S0) ────────────────
+  // Read-only, service-credential gated (the same registry token the runner
+  // rides). Base URL is env-driven and read per call so S1's extraction (and
+  // tests) repoint it without touching this module; the loopback default is
+  // the marketplace mounted in this same process.
+  const packsInternalBase = () =>
+    (env.PACKS_INTERNAL_BASE_URL || `http://127.0.0.1:${env.GATEWAY_PORT || 3080}`).replace(/\/+$/, "");
+  const packsInternalFetch = async (p) => {
+    let r;
+    try {
+      r = await (fetchImpl ?? fetch)(`${packsInternalBase()}${p}`, {
+        headers: { Authorization: `Bearer ${registryToken()}` },
+      });
+    } catch {
+      throw Object.assign(new Error(`packs internal API unreachable (${p})`), { code: "PACKS_INTERNAL_UNAVAILABLE" });
+    }
+    if (!r.ok) {
+      throw Object.assign(new Error(`packs internal API ${p} -> ${r.status}`), { code: "PACKS_INTERNAL_UNAVAILABLE" });
+    }
+    return r.json();
+  };
+
   // Slug resolution scans the full deployment bookkeeping; the registry entry
   // (visibility/paused/card) is the live truth the face layers on top.
-  const resolveDeployment = (slug) => {
+  const resolveDeployment = async (slug) => {
     if (!slug) return null;
-    return packRegistry.allDeployments().find((d) => slugFor(d.agentPath) === slug) ?? null;
+    const deployments = (await packsInternalFetch("/api/packs/internal/deployments")).deployments ?? [];
+    return deployments.find((d) => slugFor(d.agentPath) === slug) ?? null;
   };
-  const listDeployments = () => packRegistry.allDeployments().map((d) => ({ slug: slugFor(d.agentPath), agentPath: d.agentPath }));
+  const listDeployments = async () => {
+    const deployments = (await packsInternalFetch("/api/packs/internal/deployments")).deployments ?? [];
+    return deployments.map((d) => ({ slug: slugFor(d.agentPath), agentPath: d.agentPath }));
+  };
 
   const face = createA2aFace({
     core,
@@ -89,18 +116,27 @@ export function registerWanxingRoutes(app, {
   // Pack author or creator group — the same gate as deploy. Emails resolve
   // to sub2api user ids at add time (an account must exist before it can be
   // allowlisted); the stored id is what admission checks.
-  const packAuth = (req, res) => {
+  const packAuth = async (req, res) => {
     const user = resolveUser(req);
     if (!user) {
       rejectUnauthenticated(req, res);
       return null;
     }
-    const isAuthor = packRegistry.authorEmail(req.params.id) === user.email;
+    let isAuthor = false;
+    let rows = [];
+    try {
+      const author = (await packsInternalFetch(`/api/packs/internal/author/${encodeURIComponent(req.params.id)}`)).authorEmail ?? null;
+      isAuthor = author === user.email;
+      rows = (await packsInternalFetch(`/api/packs/internal/deployments/${encodeURIComponent(req.params.id)}`)).deployments ?? [];
+    } catch {
+      res.status(503).json({ error: "deployment source unreachable" });
+      return null;
+    }
     if (!isAuthor && !creatorGroups.some((g) => (user.groups || []).includes(g))) {
       res.status(403).json({ error: "Pack author or creator group required" });
       return null;
     }
-    const row = packRegistry.deployments(req.params.id).find((d) => d.agentId === req.params.agentId);
+    const row = rows.find((d) => d.agentId === req.params.agentId);
     if (!row) {
       res.status(404).json({ error: "Deployment not found" });
       return null;
@@ -108,14 +144,14 @@ export function registerWanxingRoutes(app, {
     return { user, row };
   };
 
-  app.get("/api/packs/:id/deployments/:agentId/callers", (req, res) => {
-    const ctx = packAuth(req, res);
+  app.get("/api/packs/:id/deployments/:agentId/callers", async (req, res) => {
+    const ctx = await packAuth(req, res);
     if (!ctx) return;
     res.json({ callers: store.allowlistList(slugFor(ctx.row.agentPath)) });
   });
 
   app.post("/api/packs/:id/deployments/:agentId/callers", express.json({ limit: "16kb" }), async (req, res) => {
-    const ctx = packAuth(req, res);
+    const ctx = await packAuth(req, res);
     if (!ctx) return;
     const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
     if (!email || !/^[^@\s]+@[^@\s]+$/.test(email)) return res.status(400).json({ error: "email required" });
@@ -138,7 +174,7 @@ export function registerWanxingRoutes(app, {
   });
 
   app.delete("/api/packs/:id/deployments/:agentId/callers", express.json({ limit: "16kb" }), async (req, res) => {
-    const ctx = packAuth(req, res);
+    const ctx = await packAuth(req, res);
     if (!ctx) return;
     const userId = Number(req.body?.userId ?? req.query?.userId);
     if (!Number.isInteger(userId)) return res.status(400).json({ error: "userId required" });

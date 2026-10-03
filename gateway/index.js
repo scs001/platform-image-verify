@@ -371,10 +371,11 @@ registerPackRoutes(app, {
 // agents are admitted by visibility/allowlist, turns are metered and settled
 // at the boundary. Registered before the cell-proxy catch-all so these
 // routes never fall into Logto identity; its own SQLite file sits beside
-// packs.db (ledger + allowlist + idempotency).
+// packs.db (ledger + allowlist + idempotency). Deployment bookkeeping is
+// read over the packs internal API (add-facet-platform S0) — loopback to
+// this process by default, PACKS_INTERNAL_BASE_URL repoints it.
 registerWanxingRoutes(app, {
   dataRoot: DATA_ROOT,
-  packRegistry,
   resolveUser,
   rejectUnauthenticated,
   creatorGroups: (process.env.PACK_CREATOR_GROUPS || "creators")

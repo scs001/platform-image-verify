@@ -36,8 +36,8 @@ export function contextIdFor(message, idemKey) {
 
 export function createA2aFace({
   core,
-  resolveDeployment, // (slug) → { agentPath } | null
-  listDeployments,   // () → [{ slug, agentPath }]
+  resolveDeployment, // async (slug) → { agentPath } | null
+  listDeployments,   // async () → [{ slug, agentPath }]
   forwardHeaders,    // () → the platform's internal dual-credential headers
   registryFetch,     // (path, init?) → fetch Response against the registry
   config,            // { agentUrlFor(agentPath) }
@@ -50,14 +50,20 @@ export function createA2aFace({
   const pausedTtlMs = 15_000;
   const entryCache = new Map(); // slug → { at, entry }
 
-  async function entryFor(slug) {
+  // The deployment source (packs internal API, add-facet-platform S0) being
+  // unreachable is a 503, never a hang and never a silent "no agents": the
+  // resolvers throw and the routes translate.
+  const sourceUnavailable = (res, note) =>
+    res.status(503).json({ error: { code: "DEPLOYMENT_SOURCE_UNAVAILABLE", message: `deployment source unreachable (${note})` } });
+
+  async function entryFor(slug, dep = null) {
     const cached = entryCache.get(slug);
     if (cached && Date.now() - cached.at < entryTtlMs) return cached.entry;
-    const dep = resolveDeployment(slug);
-    if (!dep) return null;
+    const d = dep ?? (await resolveDeployment(slug));
+    if (!d) return null;
     let entry = null;
     try {
-      const r = await registryFetch(`/api/agents${dep.agentPath}`);
+      const r = await registryFetch(`/api/agents${d.agentPath}`);
       if (r.ok) entry = await r.json();
     } catch { /* registry unreachable: fall through to the cached view */ }
     if (!entry) return cached?.entry ?? null;
@@ -66,9 +72,9 @@ export function createA2aFace({
   }
 
   async function agentState(slug) {
-    const dep = resolveDeployment(slug);
+    const dep = await resolveDeployment(slug);
     if (!dep) return { exists: false, slug };
-    let entry = await entryFor(slug);
+    let entry = await entryFor(slug, dep);
     const cached = entryCache.get(slug);
     if (entry && (!cached || Date.now() - cached.at >= pausedTtlMs)) {
       // A stale-enough view re-reads once so the paused flag is current; on
@@ -114,8 +120,14 @@ export function createA2aFace({
     // are public). Private agents are simply absent from both.
     app.get("/api/wanxing/v1/agents", async (_req, res) => {
       const out = [];
-      for (const dep of listDeployments()) {
-        const entry = await entryFor(dep.slug);
+      let deps;
+      try {
+        deps = await listDeployments();
+      } catch (e) {
+        return sourceUnavailable(res, String(e?.message || e));
+      }
+      for (const dep of deps) {
+        const entry = await entryFor(dep.slug, dep);
         if (!entry || entry.visibility === "private") continue;
         out.push({
           slug: dep.slug,
@@ -131,7 +143,12 @@ export function createA2aFace({
     });
 
     app.get("/api/wanxing/v1/a2a/:agentSlug/.well-known/agent-card.json", async (req, res) => {
-      const state = await agentState(req.params.agentSlug);
+      let state;
+      try {
+        state = await agentState(req.params.agentSlug);
+      } catch (e) {
+        return sourceUnavailable(res, String(e?.message || e));
+      }
       if (!state.exists || state.visibility === "private") {
         return res.status(404).json({ error: { code: "AGENT_NOT_FOUND", message: "no public agent at this route" } });
       }
@@ -158,7 +175,12 @@ export function createA2aFace({
       if (!text) return res.status(200).json(jsonRpcError(id, -32604, "empty message"));
 
       const slug = req.params.agentSlug;
-      const state = await agentState(slug);
+      let state;
+      try {
+        state = await agentState(slug);
+      } catch (e) {
+        return sourceUnavailable(res, String(e?.message || e));
+      }
       const admitted = core.admit(caller, state);
       if (!admitted.ok) return res.status(admitted.status).json({ error: { code: admitted.code, message: admitted.message } });
 

@@ -507,17 +507,45 @@ test("4.1 reap removes idle wx sessions, keeps fresh ones and non-wx namespaces"
 });
 
 // ── Task 2.5 + 5.1: the wiring module's own routes (allowlist mgmt, ops view) ─
+//
+// Since add-facet-platform S0 the facade reads deployment bookkeeping over
+// the packs internal HTTP API (no process-local registry injection), so this
+// test mounts BOTH surfaces on one app: the real registerPackRoutes with a
+// seeded SQLite registry, and registerWanxingRoutes pointed at it by env —
+// the loopback roundtrip is itself under test (auth gate included).
 
 test("2.5/5.1 registerWanxingRoutes: allowlist add makes a private agent callable; ops usage answers on the service credential", async () => {
   const { registerWanxingRoutes } = await import("../gateway/wanxing/index.js");
+  const { createPackRegistry, registerPackRoutes } = await import("../gateway/packs.js");
   const sub = stubSub2api();
   const store = freshStore();
   const upstreamCalls = [];
-  const packRegistry = {
-    authorEmail: (id) => (id === "p1" ? "author@x" : "other@x"),
-    deployments: (id) => (id === "p1" ? [{ agentId: "heal", agentPath: "/packs/p1/heal" }] : []),
-    allDeployments: () => [{ packId: "p1", agentId: "heal", agentPath: "/packs/p1/heal" }],
-  };
+
+  const packsReg = createPackRegistry({ file: path.join(mkdtempSync(path.join(tmp, "pk-")), "packs.db") });
+  const pub = packsReg.publish({
+    email: "author@x",
+    manifest: {
+      name: "P1",
+      description: "seed",
+      visibility: "private",
+      tags: [],
+      skills: [],
+      mcpServers: [],
+      agents: [{ id: "heal", name: "Heal", persona: "heals" }],
+    },
+  });
+  packsReg.recordDeployment({
+    packId: pub.id,
+    agentId: "heal",
+    version: 1,
+    agentPath: `/packs/${pub.id}/heal`,
+    skillPaths: [],
+    email: "author@x",
+  });
+  // slugFor lowercases and dash-normalizes — the minted id's case must pass
+  // through it, not through string interpolation.
+  const slug = slugFor(`/packs/${pub.id}/heal`);
+
   const env = {
     AGENT_SERVING_REGISTRY_URL: "https://reg.internal",
     AGENT_SERVING_REGISTRY_TOKEN: "svc-tok",
@@ -525,6 +553,7 @@ test("2.5/5.1 registerWanxingRoutes: allowlist add makes a private agent callabl
     SUB2API_PANEL_URL: "https://panel.example",
   };
   const fetchImpl = async (url, init = {}) => {
+    if (url.startsWith("http://127.0.0.1:")) return fetch(url, init);
     if (url.startsWith("https://reg.internal/api/agents")) {
       return new Response(JSON.stringify({ name: "S", visibility: "private", metadata: {} }), { headers: { "Content-Type": "application/json" } });
     }
@@ -535,10 +564,16 @@ test("2.5/5.1 registerWanxingRoutes: allowlist add makes a private agent callabl
     return new Response("{}", { status: 404 });
   };
   const app = express();
+  registerPackRoutes(app, {
+    registry: packsReg,
+    resolveUser: () => ({ email: "author@x", groups: ["creators"] }),
+    rejectUnauthenticated: (_req, res) => res.status(401).json({ error: "auth required" }),
+    creatorGroups: ["creators"],
+    deployConfig: { token: "svc-tok" },
+  });
   const wired = registerWanxingRoutes(app, {
     dataRoot: tmp,
-    packRegistry,
-    resolveUser: (req) => ({ email: "author@x", groups: ["creators"] }),
+    resolveUser: () => ({ email: "author@x", groups: ["creators"] }),
     rejectUnauthenticated: (_req, res) => res.status(401).json({ error: "auth required" }),
     creatorGroups: ["creators"],
     adminGroups: ["admin"],
@@ -549,24 +584,38 @@ test("2.5/5.1 registerWanxingRoutes: allowlist add makes a private agent callabl
   });
   const server = http.createServer(app).listen(0);
   const base = `http://127.0.0.1:${server.address().port}`;
+  env.PACKS_INTERNAL_BASE_URL = base;
   try {
+    // Internal deployments API: token-gated (S0 task 1.1).
+    assert.equal((await fetch(`${base}/api/packs/internal/deployments`)).status, 401);
+    assert.equal((await fetch(`${base}/api/packs/internal/author/${pub.id}`)).status, 401);
+    const authed = { Authorization: "Bearer svc-tok" };
+    const all = await (await fetch(`${base}/api/packs/internal/deployments`, { headers: authed })).json();
+    assert.equal(all.deployments.length, 1);
+    assert.equal(all.deployments[0].agentPath, `/packs/${pub.id}/heal`);
+    const one = await (await fetch(`${base}/api/packs/internal/deployments/${pub.id}`, { headers: authed })).json();
+    assert.equal(one.deployments[0].agentId, "heal");
+    const author = await (await fetch(`${base}/api/packs/internal/author/${pub.id}`, { headers: authed })).json();
+    assert.equal(author.authorEmail, "author@x");
+
     // Private agent: refused before allowlisting.
     const send = () =>
-      fetch(`${base}/api/wanxing/v1/a2a/packs-p1-heal`, {
+      fetch(`${base}/api/wanxing/v1/a2a/${slug}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer sk-good" },
         body: JSON.stringify(sendBody("hi")),
       });
     assert.equal((await send()).status, 403);
 
-    // Add the caller to the allowlist (pack author auth + email → sub2api user).
-    const add = await fetch(`${base}/api/packs/p1/deployments/heal/callers`, {
+    // Add the caller to the allowlist (pack author auth via the internal
+    // author/deployments lookups + email → sub2api user).
+    const add = await fetch(`${base}/api/packs/${pub.id}/deployments/heal/callers`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: "caller@finddata.tech" }),
     });
     assert.equal(add.status, 200);
-    const listed = await (await fetch(`${base}/api/packs/p1/deployments/heal/callers`)).json();
+    const listed = await (await fetch(`${base}/api/packs/${pub.id}/deployments/heal/callers`)).json();
     assert.equal(listed.callers.length, 1);
 
     // Now the same key is admitted and forwarded on the internal credentials.
@@ -581,6 +630,54 @@ test("2.5/5.1 registerWanxingRoutes: allowlist add makes a private agent callabl
     const board = await ops.json();
     assert.equal(board.byCaller.length, 1);
     assert.equal(board.byCaller[0].turns, 1);
+  } finally {
+    wired.close();
+    packsReg.close();
+    await new Promise((r) => server.close(r));
+  }
+});
+
+// ── S0: the deployment source being unreachable is a 503, never a hang and
+// never a silent "no agents" — the catalog, the card, and the turn surface
+// all say DEPLOYMENT_SOURCE_UNAVAILABLE.
+
+test("S0 deployment source unreachable ⇒ 503 DEPLOYMENT_SOURCE_UNAVAILABLE on catalog, card, and turn", async () => {
+  const { registerWanxingRoutes } = await import("../gateway/wanxing/index.js");
+  const store = freshStore();
+  const env = {
+    // Point at a port nothing listens on.
+    PACKS_INTERNAL_BASE_URL: "http://127.0.0.1:9",
+  };
+  const app = express();
+  const wired = registerWanxingRoutes(app, {
+    dataRoot: tmp,
+    resolveUser: () => null,
+    rejectUnauthenticated: (_req, res) => res.status(401).json({ error: "auth required" }),
+    creatorGroups: [],
+    adminGroups: [],
+    env,
+    store,
+    // The turn surface authenticates the caller BEFORE agent resolution, so
+    // the 503 only surfaces with a key that passes the billing gate.
+    sub2api: stubSub2api(),
+  });
+  const server = http.createServer(app).listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const cat = await fetch(`${base}/api/wanxing/v1/agents`);
+    assert.equal(cat.status, 503);
+    assert.equal((await cat.json()).error.code, "DEPLOYMENT_SOURCE_UNAVAILABLE");
+
+    const card = await fetch(`${base}/api/wanxing/v1/a2a/whatever/.well-known/agent-card.json`);
+    assert.equal(card.status, 503);
+
+    const turn = await fetch(`${base}/api/wanxing/v1/a2a/whatever`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: "Bearer sk-good" },
+      body: JSON.stringify(sendBody("hi")),
+    });
+    assert.equal(turn.status, 503);
+    assert.equal((await turn.json()).error.code, "DEPLOYMENT_SOURCE_UNAVAILABLE");
   } finally {
     wired.close();
     await new Promise((r) => server.close(r));

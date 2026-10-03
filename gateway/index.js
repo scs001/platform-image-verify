@@ -424,6 +424,32 @@ app.all("/api/bots/webhook/:botId/:secret", async (req, res) => {
   }
 });
 
+// ── Bot relay: machine callers reach the bots owner's cell ──────────────────
+// The relay route authenticates by deployment token INSIDE the cell (bot-relay
+// spec: exempt from interactive identity), but the catch-all below would 401 a
+// token-bearing caller before any cell sees it — machine callers (the
+// agent-runner's notifier) hold no Logto session. Route the prefix to the
+// configured bots-owner cell with machine headers, exactly like the webhook
+// path. Without an owner configured the prefix answers 404 — the relay's own
+// inert semantics, preserved at the gateway layer (add-agent-notifications 3.1
+// 前置: cells 拓扑下 runner→relay 的可达性).
+app.all(/^\/api\/bots\/relay\//, async (req, res) => {
+  const ownerEmail = process.env.BOTS_RELAY_OWNER_EMAIL || "";
+  if (!ownerEmail) return res.status(404).json({ error: "relay not configured" });
+  try {
+    // groups stay empty: this only re-targets an existing owner (webhook rule).
+    const cell = await registry.ensure({ email: ownerEmail, groups: [] });
+    proxyHttp(req, res, {
+      host: "127.0.0.1",
+      port: cell.port,
+      headers: machineHeaders(req, SECRET),
+    });
+  } catch (err) {
+    console.error(`[gateway] relay cell start failed for ${ownerEmail}: ${err.message}`);
+    res.status(503).json({ error: "relay owner workspace failed to start" });
+  }
+});
+
 // Everything else belongs to a cell.
 app.use(async (req, res) => {
   const user = resolveUser(req);

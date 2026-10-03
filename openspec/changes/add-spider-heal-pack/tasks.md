@@ -9,7 +9,7 @@
 
 - [x] 2.1 fd-prod 发布 v1 并部署（萬星运营号，private，无 PAT 降级形态）。验证：registry 条目+runner 起服（cheap1 日志 serving packs-*-spider-heal） ——pack KkCie7NlrHluo4LiKPnn0w v1，runner :8799 起服，健康刷新 healthy
 - [x] 2.2 门面冒烟：调用键 SUBMIT 假工单→回执入队（凭据未配置→转人工）；同单重放去重；STATUS 查询。验证：探针/ curl 留档 ——SUBMIT→凭据缺失按协议终态 manual+结构化回执；重放同果；STATUS 跨回合读 inbox（state=manual/retry=0/note 完整）
-- [ ] 2.3 rhythm burn-in：≥30m 后 `meter.jsonl` 出现 kind=self 行且空巡检一句话收工。验证：cheap1 查 meter 文件
+- [x] 2.3 rhythm burn-in：meter.jsonl 落 `kind:self` 行（12:04:52Z，13.8s 空巡检，ok:true）——部署+30m 首巡如期
 
 ## 3. 文档与交接
 

@@ -68,7 +68,7 @@ export function loadConfig(env = process.env) {
 
     // Warm-zone budget (design D1). Footprint = sampled RSS when the harness
     // exposes a pid, else the fixed per-agent cost (the planning number from
-    // the residency probe: 96MB; recalibrate on Linux hosts — DEPLOY.md).
+    // the residency probe: 96MB; recalibrate on Linux hosts — see the ops runbook).
     budgetMb: num(env.AGENT_RUNNER_RESIDENT_BUDGET_MB, 3072),
     agentCostMb: num(env.AGENT_RUNNER_AGENT_COST_MB, 96),
     sampleSecs: num(env.AGENT_RUNNER_SAMPLE_SECS, 30),

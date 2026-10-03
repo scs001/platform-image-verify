@@ -13,7 +13,7 @@
                  草稿 + 已装 + 物化）                    └─ 匿名开放面：public 且未 unlisted 的 browse/详情/skill-md 下载
 ```
 
-- **归属**：市场数据面（注册处 = registry 软件 + packs 库）归谦面；壹座只嵌 UI（同源代理，前端零改动）。软件/域名/GitOps 不动的边界与 k8s/迁移纪律见 DEPLOY.md「Registry 是谦面的组件」章节与 `docs/facet-cutover-repair-handoff.md`。
+- **归属**：市场数据面（注册处 = registry 软件 + packs 库）归谦面；壹座只嵌 UI（同源代理，前端零改动）。k8s envFrom 破折号键陷阱与数据迁移全表 diff 纪律见内部部署手册（本文档已内联结论）。
 - **身份双通道**：壹座走代理转发身份（`FACET_INTERNAL_TOKEN` + 转发头）；facet 域名直连走 Logto OIDC（同租户 SSO，静默过）。伪造转发头被忽略（无 internal credential 即匿名）。
 - **发布门控**：平台 groups 含 `creators`（Logto 组织）。两通道同构（`PACK_CREATOR_GROUPS` ∩ groups）。
 - **版本不可变**：发布即追加 vN+1；下架 = unlisted（浏览隐藏，已装快照不受影响）。
@@ -24,9 +24,9 @@
 
 ### 2.1 facet 服务（`all-services/prod/facet.yaml`）
 
-- 镜像：同平台镜像第二入口 `node facet/index.js`（`PORT=3200`，hostNetwork，cheap-3 `liuliangjkiimypbdzxa`）。
+- 镜像：同平台镜像第二入口 `node facet/index.js`（`PORT=3200`，hostNetwork，专用生产节点）。
 - 环境：`envFrom` platform-config + platform-secrets + facet-secrets，另显式 `LOGTO_APP_ID/PORT/PAAS_BASE_URL/FACET_DATA_ROOT/FACET_WEB_DIST`；**`SUB2API_ADMIN_KEY` 必须 inline `valueFrom.secretKeyRef`**（envFrom 会静默跳过带 `-` 的键 —— 缺它会让部署路由 "billing not linked"：粘贴键被忽略、重复部署静默抹掉 `billingKeyRef`；回归断言见 `scripts/test-platform-billing.mjs` "cutover regression"）。
-- 域：`facet.finddatatech.cloud`（cheap-1 Caddy site → autossh 隧道 3001→3200 → 雷池站 22 三 SAN 证书）。
+- 域：`facet.finddatatech.cloud`（边缘 Caddy → autossh 隧道 3001→3200 → WAF 三 SAN 证书）。
 - store：`FACET_DATA_ROOT=/data/facet` ← hostPath `/opt/platform/facet`（与平台同节点）。
 
 ### 2.2 壹座侧（platform-config ConfigMap）
@@ -65,7 +65,7 @@ Logto 管理台（auth-admin.finddatatech.cloud）→ Organizations → `creator
 ## 4. 升级与数据
 
 - 镜像升级走当日 canonical 路径（GHA → TCR → relay → GitOps bump → ArgoCD rollout），涉及 facet 的清单：`all-services/prod/{platform,platform-demo,facet}.yaml` 三处镜像同步。
-- **数据迁移/校验纪律：停写 + 全表 diff**（2026-10-03 实锤：cutover 拷错 `data/packs.db` 孪生文件，丢了私有包与 `deployment_keys` 全表）。规程：拷前 7 表计数比对（packs / pack_versions / subscriptions / pack_deployments / deployment_keys / deployment_secrets / sub2api_accounts），迁移后跑包含性检查（cells 每行按主键必在 facet；`sub2api_accounts` 允许少——懒重建）。命令骨架见 DEPLOY.md 同节。
+- **数据迁移/校验纪律：停写 + 全表 diff**（实锤：cutover 曾拷错 packs.db 孪生文件，丢了私有包与 `deployment_keys` 全表）。规程：拷前 7 表计数比对（packs / pack_versions / subscriptions / pack_deployments / deployment_keys / deployment_secrets / sub2api_accounts），迁移后跑包含性检查（每行按主键必在目标库；`sub2api_accounts` 允许少——懒重建）。
 - facet 侧只读聚合 registry（`/api/mcp-catalog`），不写注册处状态；registry 自身运维照旧（mcp.finddatatech.cloud）。
 
 ## 5. 回滚（对齐 add-facet-platform 设计 D8/D9）

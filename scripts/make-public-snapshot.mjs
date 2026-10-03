@@ -79,6 +79,7 @@ const EXCLUDE_PATHS = new Set([
   "demands.md", // scratch demand notes
   "lawcraw-architecture.md", // legacy pre-rename product notes
   "docs/opensource-release.md", // this feature's private runbook
+  "docs/facet-cutover-repair-handoff.md", // cross-session repair handoff: live host facts, paths, incident log
   // internal deploy plumbing
   "Makefile", // k8s/argocd deploy wrapper + prod live-service URL
   "Jenkinsfile",
@@ -182,6 +183,18 @@ const SCRUBS = [
     1,
   ],
   ["docs/pack-marketplace.md", "（DEPLOY\\.md §2）", "（运维手册）", 1],
+  [
+    "gateway/packs.js",
+    "https://token\\.finddatatech\\.cloud",
+    "https://your-billing-panel.example",
+    2,
+  ],
+  [
+    "gateway/wanxing/index.js",
+    "https://token\\.finddatatech\\.cloud",
+    "https://your-billing-panel.example",
+    1,
+  ],
   ["e2e/live-helpers.js", "http://23\\.144\\.68\\.246:30950", "http://127.0.0.1:3000", 2],
   ["e2e/live.spec.js", "http://23\\.144\\.68\\.246:30950", "http://127.0.0.1:3000", 1],
   ["playwright.config.js", "http://23\\.144\\.68\\.246:30950", "http://127.0.0.1:3000", 2],

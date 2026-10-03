@@ -4,7 +4,7 @@ The MCP-registry stack we run is a fork of `mcp-gateway-registry`; two things
 live outside this repo and must stay discoverable:
 
 - **Deploy dir**: cheap1 `/opt/mcp-gateway-registry` (docker compose, tagged
-  images, env files — see `DEPLOY.md` "registry" sections).
+  images, env files — see the ops runbook's "registry" sections).
 - **Fork checkout**: same dir is a git checkout on `main` tracking gitee, with
   local commits for our patches. `docker build` uses this tree.
 

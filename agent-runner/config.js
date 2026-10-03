@@ -11,6 +11,19 @@ import { fileURLToPath } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const num = (v, d) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d);
 
+// The platform bot relay's default address: the pack gateway's origin plus the
+// relay route (add-agent-notifications D3). Empty when no pack gateway is
+// configured — the notify face then declines not-configured.
+function relayFromPacks(env) {
+  const base = String(env.AGENT_RUNNER_PACKS_URL || env.AGENT_SERVING_PACKS_URL || "");
+  if (!base) return "";
+  try {
+    return new URL("/api/bots/relay/send", base).toString();
+  } catch {
+    return "";
+  }
+}
+
 export function loadConfig(env = process.env) {
   return {
     repoRoot,
@@ -43,6 +56,10 @@ export function loadConfig(env = process.env) {
     // Concurrency stays bounded with queueing; upgrade/undeploy drain as before.
     maxChildren: num(env.AGENT_RUNNER_MAX_CHILDREN, 4),
     drainMs: num(env.AGENT_RUNNER_DRAIN_SECS, 300) * 1000,
+    // Deployment default turn budget (add-serving-budgets): the per-turn
+    // ceiling for roles whose descriptor carries no effective_budget_minutes.
+    // Over it the turn is hard-stopped either way — the env value is the
+    // default bound, not a separate timeout regime.
     turnTimeoutMs: num(env.AGENT_RUNNER_TURN_TIMEOUT_MS, 180_000),
     // External contexts (facade-derived `wx:` ids) are short-lived by
     // contract (add-wanxing-serving-api): their sessions reap after this much
@@ -72,6 +89,22 @@ export function loadConfig(env = process.env) {
     // per-agent LLM keys by reference — the pack gateway's internal route,
     // authenticated by the registry service credential both sides share.
     packsBaseUrl: (env.AGENT_RUNNER_PACKS_URL || env.AGENT_SERVING_PACKS_URL || "").replace(/\/+$/, ""),
+
+    // Bot relay (add-agent-notifications D3): where a child's bot_notify call
+    // is forwarded. The URL defaults to the pack gateway's own origin (the
+    // same host the runner already talks to for billing keys); the TOKEN is
+    // the platform's BOTS_RELAY_TOKEN value and lives in runner configuration
+    // ONLY — the child's environment is scrubbed of it at spawn. No token =
+    // the notify face declines structurally (matching the relay's own lazy
+    // 404), never a silent drop.
+    relayUrl: (env.AGENT_RUNNER_RELAY_URL || relayFromPacks(env)).replace(/\/+$/, ""),
+    relayToken: env.AGENT_RUNNER_RELAY_TOKEN || "",
+    // Per-agent notification rate bound (D3): token bucket, capacity per
+    // minute. Per agent, so a respawned child inherits the same budget.
+    notifyRatePerMin: num(env.AGENT_RUNNER_NOTIFY_RATE_PER_MIN, 6),
+    // Runner-side notify audit (D5): one jsonl line per decision
+    // ({agent, channel, outcome, reason, textLen} — never the text).
+    notifyLogFile: env.AGENT_RUNNER_NOTIFY_LOG || path.join(env.AGENT_RUNNER_HOME || path.join(repoRoot, "runner-home"), "notify.jsonl"),
 
     // Delegation bounds (add-agent-delegation-a2a D4): the depth at which the
     // adapter refuses chained calls, and the per-agent cap on concurrent

@@ -61,7 +61,10 @@ const clientFactory = (spec) => ({ args, cwd, env }) => {
     args,
     cwd,
     env: { ...env, DSH_HOME: spec.home },
-    requestTimeoutMs: config.turnTimeoutMs + 30_000,
+    // The child's request timeout rides its effective turn budget
+    // (add-serving-budgets D3): the manager resolves descriptor-minutes vs
+    // the deployment default and passes the ms on the spawn spec.
+    requestTimeoutMs: (spec.turnBudgetMs ?? config.turnTimeoutMs) + 30_000,
     shutdownTimeoutMs: 5000,
   });
   // AgentChild calls start() itself — one lifecycle owner.

@@ -81,7 +81,7 @@ The author SHALL select MCP entries from the registry-sourced entries of the cel
 
 Each draft agent entry SHALL carry a display name, persona text, and optional tags and icon. An agent entry MAY carry a resource declaration naming, per role, a subset of the draft's own skill entries and MCP references; each dimension (skills, MCP) is optional, and an absent dimension means the role uses the whole pack's set for that dimension. The editor SHALL offer per-role resource pickers listing only the draft's own skill entries and MCP references, and SHALL surface a persona cost readout (approximate tokens per turn) alongside the persona text while editing. The editor SHALL NOT accept endpoint, model, or credential fields for agent entries — pack agents run as local personas on the platform's currently selected model.
 
-An agent entry MAY additionally carry a serving contract (`serving`): a declaration that the role is deployable as an Agent Service over the A2A protocol (openspec: a2a-agent-serving). The contract SHALL contain a protocol identifier and an optional manual card declaration; absent card fields SHALL be derived at deploy time from the role's name/description/tags. The contract MAY additionally carry a work rhythm (`serving.rhythm`): a declarative list of schedules (and, in later versions, event sources) the deployed agent works by — a rhythm is the autonomy grant, and a contract without one deploys an agent that only answers (openspec: agent-residency). Rhythm entries SHALL be schedule declarations only; validation SHALL reject rhythm fields that name models, endpoints, or credentials. The contract's card capability declarations live under the contract's own namespace and are distinct from the pack's skill files — same word, different meaning — and validation SHALL reject contract fields that name endpoints, models, or credentials. When no contract is present, every pre-existing rule of this requirement applies verbatim.
+An agent entry MAY additionally carry a serving contract (`serving`): a declaration that the role is deployable as an Agent Service over the A2A protocol (openspec: a2a-agent-serving). The contract SHALL contain a protocol identifier and an optional manual card declaration; absent card fields SHALL be derived at deploy time from the role's name/description/tags. The contract MAY additionally carry a work rhythm (`serving.rhythm`): a declarative list of schedules (and, in later versions, event sources) the deployed agent works by — a rhythm is the autonomy grant, and a contract without one deploys an agent that only answers (openspec: agent-residency). Rhythm entries SHALL be schedule declarations only; validation SHALL reject rhythm fields that name models, endpoints, or credentials. The contract MAY additionally carry a turn budget (`serving.budget.turnMinutes`): a whole-number ceiling in minutes on any single turn of the deployed agent — the budget is a duration declaration, and validation SHALL reject budget shapes that are not a positive whole number within the platform cap. The contract's card capability declarations live under the contract's own namespace and are distinct from the pack's skill files — same word, different meaning — and validation SHALL reject contract fields that name endpoints, models, or credentials. When no contract is present, every pre-existing rule of this requirement applies verbatim.
 
 #### Scenario: Persona-only agent entry
 
@@ -132,6 +132,16 @@ An agent entry MAY additionally carry a serving contract (`serving`): a declarat
 
 - **WHEN** a rhythm entry carries a model, endpoint, or credential field
 - **THEN** validation rejects the draft naming the forbidden field
+
+#### Scenario: Budget declares a turn ceiling declaratively
+
+- **WHEN** the author adds a serving contract carrying `budget.turnMinutes` of a positive whole number within the platform cap and saves
+- **THEN** the draft validates and the budget travels with the contract as the role's declared turn ceiling; a contract without a budget declares no ceiling of its own and the deployment default applies
+
+#### Scenario: Budget rejects non-duration shapes
+
+- **WHEN** `budget.turnMinutes` is not a whole number, is not positive, or exceeds the platform cap
+- **THEN** validation rejects the draft naming the offending value
 
 ### Requirement: Publish action freezes the next version
 

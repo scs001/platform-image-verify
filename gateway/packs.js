@@ -25,8 +25,8 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import express from "express";
-import { PACK_LIMITS, validatePackManifest as validateManifest, validateRhythm } from "../lib/pack-manifest.js";
-import { deployToRegistry, setAgentPaused } from "../lib/agent-serving.js";
+import { PACK_LIMITS, validatePackManifest as validateManifest, validateRhythm, budgetMinutesError } from "../lib/pack-manifest.js";
+import { deployToRegistry, setAgentPaused, NOTIFY_CHANNEL_RE, SECRET_NAME_RE, SECRET_LIMITS, maskSecretRef } from "../lib/agent-serving.js";
 import { createSub2apiClient } from "../lib/sub2api-admin.js";
 
 // Re-exported for the gateway's own consumers (tests import from here).
@@ -101,6 +101,21 @@ export function createPackRegistry({ file }) {
     deployer TEXT NOT NULL,
     created_at INTEGER NOT NULL,
     PRIMARY KEY (pack_id, agent_id)
+  )`);
+  // Deployment secrets (add-deployment-secrets D2): the deployment_keys trust
+  // model generalized to arbitrary named values — the value is stored once,
+  // the descriptor carries only the opaque ws_ reference, and the runner
+  // fetches values over the authenticated internal route. One row per
+  // (pack, agent, name); a re-paste replaces the row under a fresh reference.
+  db.exec(`CREATE TABLE IF NOT EXISTS deployment_secrets (
+    pack_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    secret_ref TEXT NOT NULL,
+    secret_value TEXT NOT NULL,
+    deployer TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (pack_id, agent_id, name)
   )`);
 
   const now = () => Date.now();
@@ -364,6 +379,34 @@ export function createPackRegistry({ file }) {
         .map((r) => ({ packId: r.pack_id, agentId: r.agent_id, keyRef: r.key_ref, deployer: r.deployer, createdAt: r.created_at }));
     },
 
+    // ── Deployment secrets (add-deployment-secrets D2/D5) ────────────────────
+    // Same discipline as deployment_keys: the value is written once, the
+    // descriptor carries only the reference, the runner fetches the value
+    // over the authenticated internal route. Re-pasting a name mints a fresh
+    // reference (rotating the old one out of the descriptor on redeploy).
+    recordDeploymentSecret({ packId, agentId, name, secretRef, secretValue, deployer }) {
+      db.prepare(
+        `INSERT INTO deployment_secrets (pack_id, agent_id, name, secret_ref, secret_value, deployer, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(pack_id, agent_id, name) DO UPDATE SET secret_ref = excluded.secret_ref,
+           secret_value = excluded.secret_value, deployer = excluded.deployer`,
+      ).run(packId, agentId, name, secretRef, secretValue, deployer, Date.now());
+    },
+    deleteDeploymentSecret(packId, agentId, name) {
+      db.prepare(`DELETE FROM deployment_secrets WHERE pack_id = ? AND agent_id = ? AND name = ?`).run(packId, agentId, name);
+    },
+    // The pack's full binding set (lifecycle bookkeeping): the deploy route
+    // keeps, replaces, and drops entries against this snapshot. Values stay
+    // on this side — callers only ever surface names (or design-D6 masks).
+    deploymentSecretsForPack(packId) {
+      return db.prepare(`SELECT pack_id, agent_id, name, secret_ref, secret_value, deployer FROM deployment_secrets WHERE pack_id = ?`).all(packId)
+        .map((r) => ({ packId: r.pack_id, agentId: r.agent_id, name: r.name, secretRef: r.secret_ref, secretValue: r.secret_value, deployer: r.deployer }));
+    },
+    deploymentSecretByRef(secretRef) {
+      const r = db.prepare(`SELECT * FROM deployment_secrets WHERE secret_ref = ?`).get(String(secretRef));
+      return r ? { packId: r.pack_id, agentId: r.agent_id, name: r.name, secretRef: r.secret_ref, secretValue: r.secret_value } : null;
+    },
+
     close() {
       db.close();
     },
@@ -562,6 +605,44 @@ export function registerPackRoutes(app, {
         }
       }
     }
+    // Turn-budget overrides (add-serving-budgets D2): { "<agentId>": minutes }
+    // — the deployer's per-agent ceiling, validated under the same rule the
+    // contract declares with. null = clear back to the contract declaration
+    // (else absent → the runner's deployment default).
+    const budgets = req.body?.budgets;
+    if (budgets !== undefined) {
+      if (!budgets || typeof budgets !== "object" || Array.isArray(budgets)) {
+        return res.status(400).json({ error: "budgets must be an object of { agentId: minutes }" });
+      }
+      for (const [agentId, minutes] of Object.entries(budgets)) {
+        if (minutes === null) continue; // explicit clear back to the contract
+        const err = budgetMinutesError(minutes);
+        if (err) {
+          return res.status(400).json({ error: `budget override for '${agentId}' is invalid: ${err}` });
+        }
+      }
+    }
+    // Notification channel bindings (add-agent-notifications D2): { "<agentId>":
+    // channel | null } — one admin-pre-bound channel name per serving agent.
+    // Shape-validated here (a name the channel table can hold); existence is
+    // NOT checked at deploy time — the channel table is live platform data and
+    // an unknown/removed channel is refused structurally at send time by the
+    // relay. null unbinds explicitly; an omitted agent keeps its live binding
+    // (resolved against the registry entry inside deployToRegistry).
+    const notifyChannel = req.body?.notifyChannel;
+    if (notifyChannel !== undefined) {
+      if (!notifyChannel || typeof notifyChannel !== "object" || Array.isArray(notifyChannel)) {
+        return res.status(400).json({ error: "notifyChannel must be an object of { agentId: channel | null }" });
+      }
+      for (const [agentId, channel] of Object.entries(notifyChannel)) {
+        if (channel === null) continue; // explicit unbind
+        if (typeof channel !== "string" || !NOTIFY_CHANNEL_RE.test(channel)) {
+          return res.status(400).json({
+            error: `notifyChannel for '${agentId}' is invalid: a channel name matches [a-z0-9][a-z0-9._-]{0,63}`,
+          });
+        }
+      }
+    }
     // ── Platform billing linkage (add-agent-platform-ops D1–D3; revised by
     // revise-billing-key-acquisition) ─────────────────────────────────────
     // Degrades to the pre-③ behavior when no admin key is wired: no gate,
@@ -721,6 +802,102 @@ export function registerPackRoutes(app, {
       console.warn("[packs] billing not linked — ignoring pasted billingKeys for this deploy");
     }
 
+    // ── Deployment secrets (add-deployment-secrets D1/D2/D5/D6) ─────────────
+    // body.secrets maps agentId → { name: value | null }: arbitrary named
+    // values the deployed agent needs at runtime (e.g. a content-repo token).
+    // Same pipeline as billing keys — stored ONCE platform-side, an opaque ws_
+    // reference rides the descriptor, the runner fetches by reference. Works
+    // with or without the billing linkage. Lifecycle: omission keeps, null
+    // unbinds one name, non-serving agents' bindings drop with the redeploy.
+    const providedSecrets = req.body?.secrets;
+    if (providedSecrets !== undefined && (!providedSecrets || typeof providedSecrets !== "object" || Array.isArray(providedSecrets))) {
+      return res.status(400).json({ error: "secrets must map agentId to an object of { name: value | null }" });
+    }
+    const secretInvalid = (reason, detail) =>
+      res.status(400).json({
+        error: `deployment secret rejected (${reason})${detail ? `: ${detail}` : ""}`,
+        code: "SECRET_INVALID",
+        reason,
+      });
+    const secretRefs = {}; // agentId → { name: ref } (descriptor input)
+    const secretMinted = []; // rows persisted once the registry push succeeded
+    const secretDisplay = {}; // agentId → { name: design-D6 mask } (deploy surface)
+    {
+      const existing = new Map(); // "agentId\u0000name" → row
+      for (const r of registry.deploymentSecretsForPack(id)) existing.set(`${r.agentId}\u0000${r.name}`, r);
+      const requested = Object.entries(providedSecrets ?? {});
+      for (const [agentId, names] of requested) {
+        if (!names || typeof names !== "object" || Array.isArray(names)) {
+          return secretInvalid("shape", `secrets.${agentId} must be an object of { name: value | null }`);
+        }
+        for (const [name, value] of Object.entries(names)) {
+          const where = `secrets.${agentId}.${name}`;
+          if (!SECRET_NAME_RE.test(name)) return secretInvalid("name", `${where}: a secret name is [a-z0-9_]{1,32}`);
+          if (value === null) {
+            // A null aimed at a non-serving agent is cleanup only when a
+            // binding exists; anything else aimed at a non-serving agent
+            // refuses (the same rule billing keys follow).
+            if (!servingIds.has(agentId) && !existing.has(`${agentId}\u0000${name}`)) {
+              return secretInvalid("unknown-agent", `${where}: '${agentId}' is not a serving agent and has no such binding`);
+            }
+            continue;
+          }
+          if (typeof value !== "string" || value.length === 0) {
+            return secretInvalid("shape", `${where} must be a non-empty string or null`);
+          }
+          if (Buffer.byteLength(value, "utf8") > SECRET_LIMITS.valueBytes) {
+            return secretInvalid("size", `${where} exceeds the ${SECRET_LIMITS.valueBytes}-byte bound`);
+          }
+          if (!servingIds.has(agentId)) return secretInvalid("unknown-agent", `${where}: '${agentId}' is not a serving agent of this pack`);
+        }
+      }
+
+      // Resulting bindings: kept (serving agents only) − nulled, then values
+      // (a re-paste replaces under a fresh reference).
+      const bound = new Map(); // agentId → Map(name → { ref, value, minted? })
+      const unbound = []; // rows an explicit null takes out of the store
+      for (const r of existing.values()) {
+        if (!servingIds.has(r.agentId)) continue; // dropped below
+        if (!bound.has(r.agentId)) bound.set(r.agentId, new Map());
+        bound.get(r.agentId).set(r.name, { ref: r.secretRef, value: r.secretValue });
+      }
+      for (const [agentId, names] of requested) {
+        for (const [name, value] of Object.entries(names)) {
+          if (value === null) {
+            if (bound.get(agentId)?.delete(name)) unbound.push({ agentId, name });
+            continue;
+          }
+          const ref = `ws_${randomBytes(12).toString("hex")}`;
+          if (!bound.has(agentId)) bound.set(agentId, new Map());
+          bound.get(agentId).set(name, { ref, value, minted: true });
+        }
+      }
+      // The count bound applies to the RESULTING per-agent set, not the
+      // request: four names now and four more later would otherwise slip past.
+      for (const [agentId, names] of bound) {
+        if (names.size > SECRET_LIMITS.perAgent) {
+          return secretInvalid("count", `'${agentId}' would hold ${names.size} secrets — the per-agent bound is ${SECRET_LIMITS.perAgent}`);
+        }
+      }
+      // Store mutations run only once every validation passed. Explicit nulls
+      // unbind their names; stale bindings drop with the redeploy (an agent
+      // that left the serving set carries no secrets into the new descriptor).
+      for (const { agentId, name } of unbound) registry.deleteDeploymentSecret(id, agentId, name);
+      for (const r of existing.values()) {
+        if (!servingIds.has(r.agentId)) registry.deleteDeploymentSecret(id, r.agentId, r.name);
+      }
+      for (const [agentId, names] of bound) {
+        if (names.size === 0) continue;
+        secretRefs[agentId] = {};
+        secretDisplay[agentId] = {};
+        for (const [name, entry] of names) {
+          secretRefs[agentId][name] = entry.ref;
+          secretDisplay[agentId][name] = maskSecretRef(entry.ref, entry.value);
+          if (entry.minted) secretMinted.push({ agentId, name, ref: entry.ref, value: entry.value });
+        }
+      }
+    }
+
     let out;
     try {
       out = await deployToRegistry({
@@ -728,7 +905,10 @@ export function registerPackRoutes(app, {
         version: version.version,
         manifest: version.manifest,
         rhythmOverrides: rhythms ?? {},
+        budgetOverrides: budgets ?? {},
+        notifyChannels: notifyChannel ?? {},
         billingKeys,
+        secretRefs,
         ...cfg,
       });
     } catch (err) {
@@ -755,10 +935,24 @@ export function registerPackRoutes(app, {
         });
       }
     }
+    // Minted secret values persist only after the registry push succeeded —
+    // the same rule deployment_keys follow. Kept bindings are already rows.
+    const deployedIds = new Set(out.deployed.map((d) => d.agentId));
+    for (const s of secretMinted) {
+      if (!deployedIds.has(s.agentId)) continue;
+      registry.recordDeploymentSecret({
+        packId: id, agentId: s.agentId, name: s.name,
+        secretRef: s.ref, secretValue: s.value,
+        deployer: user.email,
+      });
+    }
     res.json({
       deployed: out.deployed.map((d) => ({
         agentId: d.agentId, agentPath: d.agentPath, skills: d.skills, card: d.card,
         ...(billingKeys[d.agentId] != null ? { billingKeyRef: billingKeys[d.agentId] } : {}),
+        // Which secret names are bound rides the deploy surface; the value
+        // and the plain reference never do (design D6 masks at most).
+        ...(secretDisplay[d.agentId] ? { secretRefs: secretDisplay[d.agentId] } : {}),
       })),
       billing,
       effectiveWithinSecs: out.effectiveWithinSecs,
@@ -816,6 +1010,27 @@ export function registerPackRoutes(app, {
     res.json(out);
   });
 
+  // Per-pack secret binding state for the deploy surface (spec: bindings are
+  // visible, values are not): which names are bound per serving agent. Names
+  // ONLY — references, values, and masks never leave this route.
+  app.get("/api/packs/:id/secret-bindings", (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    const pack = registry.get(req.params.id, { includeUnlisted: true });
+    if (!pack || !registry.visibleTo({ visibility: pack.visibility, author_email: pack.authorEmail }, user, { admin: isAdmin(user) })) {
+      return res.status(404).json({ error: "Pack not found" });
+    }
+    const out = {};
+    for (const a of pack.manifest.agents ?? []) {
+      if (a?.serving) out[a.id] = [];
+    }
+    for (const r of registry.deploymentSecretsForPack(req.params.id)) {
+      if (out[r.agentId]) out[r.agentId].push(r.name);
+    }
+    for (const names of Object.values(out)) names.sort();
+    res.json(out);
+  });
+
   // Billing board (add-agent-platform-ops D5): one read for the ops console —
   // deployed agents with their key refs, per-deployer balances, and the
   // linkage state. Authenticated like the internal key route (runner service
@@ -867,6 +1082,22 @@ export function registerPackRoutes(app, {
     if (!rec || !rec.keyValue) return res.status(404).json({ error: "unknown or unkeyed deployment" });
     console.log(`[packs] llm-key fetched by runner (ref ${req.params.keyRef}, agent ${rec.agentId})`);
     res.json({ keyRef: req.params.keyRef, agentId: rec.agentId, keyValue: rec.keyValue });
+  });
+
+  // Internal: the runner fetches ONE deployment secret by reference
+  // (add-deployment-secrets D3) — the same service-credential gate and audit
+  // shape as the llm-key route above, one request per secret (simple, and the
+  // audit stays per-secret). The audit line and every log use the D6 mask;
+  // the value exists only in this response body.
+  app.get("/api/packs/internal/secret/:ref", (req, res) => {
+    const token = deployConfig()?.token || "";
+    if (!token || req.headers.authorization !== `Bearer ${token}`) {
+      return res.status(401).json({ error: "runner service credential required" });
+    }
+    const rec = registry.deploymentSecretByRef(req.params.ref);
+    if (!rec) return res.status(404).json({ error: "unknown secret reference" });
+    console.log(`[packs] deployment secret fetched by runner (ref ${maskSecretRef(rec.secretRef, rec.secretValue)}, agent ${rec.agentId}, name ${rec.name})`);
+    res.json({ secretRef: rec.secretRef, agentId: rec.agentId, name: rec.name, secretValue: rec.secretValue });
   });
 
   // Deployed roles of a pack (3.3): the unpublish warning's and the deploy

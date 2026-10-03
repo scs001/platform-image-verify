@@ -335,6 +335,50 @@ test("3.1 descriptor uses only the role's declared resources", async () => {
   assert.deepEqual(agent.metadata.skills, ["packs/pk-abc/fin-statement-analysis"], "only the declared subset");
 });
 
+// ── add-serving-budgets 1.1: budget validation ──────────────────────────────
+
+test("budget: a positive whole number within the cap validates", () => {
+  for (const turnMinutes of [1, 20, 120]) {
+    assert.deepEqual(validatePackManifest(withServing({ protocol: "a2a", budget: { turnMinutes } })), []);
+  }
+  // Budget alongside card/rhythm — the contract keys coexist.
+  assert.deepEqual(
+    validatePackManifest(withServing({ protocol: "a2a", rhythm: [{ every: "1h" }], budget: { turnMinutes: 10 } })),
+    [],
+  );
+});
+
+test("budget: non-duration shapes are rejected naming the offending value", () => {
+  for (const turnMinutes of [0, -5, 1.5, 121, "10", null, undefined, true]) {
+    const errs = validatePackManifest(withServing({ protocol: "a2a", budget: { turnMinutes } }));
+    assert.ok(
+      errs.some((e) => /budget\.turnMinutes must be a positive whole number of minutes at most 120/.test(e.error)),
+      `turnMinutes ${JSON.stringify(turnMinutes)} should be rejected`,
+    );
+  }
+});
+
+test("budget: unknown keys and non-object shapes are rejected", () => {
+  for (const budget of [5, "10m", [], null]) {
+    const errs = validatePackManifest(withServing({ protocol: "a2a", budget }));
+    assert.ok(errs.some((e) => /budget must be an object of \{ turnMinutes \}/.test(e.error)), `budget ${JSON.stringify(budget)} should be rejected`);
+  }
+  // Extra keys — a duration declaration may not smuggle anything alongside
+  // (model/endpoint/credential shapes die on this rule too).
+  const extra = validatePackManifest(withServing({ protocol: "a2a", budget: { turnMinutes: 10, model: "gpt-4", minutes: 5 } }));
+  assert.ok(extra.some((e) => /budget has unknown key 'model'/.test(e.error) && e.entry === "agents[0].serving.budget"));
+  assert.ok(extra.some((e) => /budget has unknown key 'minutes'/.test(e.error)));
+  // An empty budget declares nothing — rejected, not defaulted silently.
+  const empty = validatePackManifest(withServing({ protocol: "a2a", budget: {} }));
+  assert.ok(empty.some((e) => /budget\.turnMinutes must be a positive whole number/.test(e.error)));
+});
+
+test("budget: absent budget leaves the contract exactly as before", () => {
+  // No budget key — the pre-budget contract validates verbatim (compat).
+  assert.deepEqual(validatePackManifest(withServing({ protocol: "a2a", rhythm: [{ daily: "09:30" }] })), []);
+  assert.deepEqual(validatePackManifest(withServing({ protocol: "a2a" })), []);
+});
+
 // ── Tasks 3.2/3.3: deploy routes on the pack gateway ────────────────────────
 
 const { createPackRegistry, registerPackRoutes } = await import("../gateway/packs.js");
@@ -485,6 +529,114 @@ test("rhythm override lands in the descriptor; absent override carries the manif
   const cleared = stubRegistry();
   await servingLib.deployToRegistry({ ...base, rhythmOverrides: { "pack-fingpt": null }, fetchImpl: cleared.fetch });
   assert.equal(cleared.calls.agents[0].body.metadata.effective_rhythm, undefined);
+});
+
+// ── add-serving-budgets 1.2: effective budget in the descriptor ─────────────
+
+test("budget: override wins, then declaration, then the field is absent", async () => {
+  const base = { packId: "pk-abc", version: 3, runnerBaseUrl: "http://runner.tailnet", packsPublicBase: "https://packs.example.test", registryUrl: "https://mcp.example.test" };
+
+  // Declared only: the contract's ceiling rides the descriptor.
+  const declared = stubRegistry();
+  await servingLib.deployToRegistry({ ...base, manifest: withServing({ protocol: "a2a", budget: { turnMinutes: 20 } }), fetchImpl: declared.fetch });
+  assert.equal(declared.calls.agents[0].body.metadata.effective_budget_minutes, 20);
+
+  // Deployer override wins over the declaration.
+  const over = stubRegistry();
+  await servingLib.deployToRegistry({ ...base, manifest: withServing({ protocol: "a2a", budget: { turnMinutes: 20 } }), budgetOverrides: { "pack-fingpt": 5 }, fetchImpl: over.fetch });
+  assert.equal(over.calls.agents[0].body.metadata.effective_budget_minutes, 5);
+
+  // null clears the override back to the contract's declaration.
+  const cleared = stubRegistry();
+  await servingLib.deployToRegistry({ ...base, manifest: withServing({ protocol: "a2a", budget: { turnMinutes: 20 } }), budgetOverrides: { "pack-fingpt": null }, fetchImpl: cleared.fetch });
+  assert.equal(cleared.calls.agents[0].body.metadata.effective_budget_minutes, 20);
+
+  // Neither declaration nor override: no budget field (runner default applies).
+  const none = stubRegistry();
+  await servingLib.deployToRegistry({ ...base, manifest: withServing({ protocol: "a2a" }), fetchImpl: none.fetch });
+  assert.equal(none.calls.agents[0].body.metadata.effective_budget_minutes, undefined);
+});
+
+test("budget: the deploy route validates the override; the descriptor carries it", async () => {
+  const stub = stubRegistry();
+  const manifest = withServing({ protocol: "a2a", budget: { turnMinutes: 10 } });
+  const h = await routeHarness({
+    user: { email: "author@x", groups: [] },
+    deployConfig: { registryUrl: "https://mcp.example.test", token: "t", runnerBaseUrl: "http://runner:8790", packsPublicBase: "https://packs.example.test", fetchImpl: stub.fetch },
+    manifest,
+  });
+  try {
+    for (const budgets of [[10], { "pack-fingpt": 0 }, { "pack-fingpt": 1.5 }, { "pack-fingpt": 121 }, { "pack-fingpt": "10" }]) {
+      const bad = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, { budgets });
+      assert.equal(bad.status, 400, `budgets ${JSON.stringify(budgets)} must be rejected`);
+    }
+    assert.equal(stub.calls.agents.length, 0, "no registry write on a refused override");
+
+    const ok = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, { budgets: { "pack-fingpt": 30 } });
+    assert.equal(ok.status, 200);
+    assert.equal(stub.calls.agents.at(-1).body.metadata.effective_budget_minutes, 30);
+
+    // null on the wire: clear back to the contract's declaration.
+    const clear = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, { budgets: { "pack-fingpt": null } });
+    assert.equal(clear.status, 200);
+    assert.equal(stub.calls.agents.at(-1).body.metadata.effective_budget_minutes, 10);
+  } finally {
+    await h.close();
+  }
+});
+
+// ── add-agent-notifications 1.1: notification channel binding ────────────────
+
+test("notify: explicit channel binds; null unbinds; omitted keeps the live binding", async () => {
+  const base = { packId: "pk-abc", version: 3, runnerBaseUrl: "http://runner.tailnet", packsPublicBase: "https://packs.example.test", registryUrl: "https://mcp.example.test" };
+  const manifest = withServing({ protocol: "a2a" });
+
+  // Explicit string: the descriptor carries the channel name.
+  const bound = stubRegistry();
+  await servingLib.deployToRegistry({ ...base, manifest, notifyChannels: { "pack-fingpt": "ops-feishu" }, fetchImpl: bound.fetch });
+  assert.equal(bound.calls.agents.at(-1).body.metadata.notify_channel, "ops-feishu");
+
+  // Fresh deploy with the agent omitted: nothing live to keep → unbound.
+  const fresh = stubRegistry();
+  await servingLib.deployToRegistry({ ...base, manifest, notifyChannels: {}, fetchImpl: fresh.fetch });
+  assert.equal(fresh.calls.agents.at(-1).body.metadata.notify_channel, undefined);
+
+  // Omitted against a registry where the entry already carries a binding:
+  // kept — the live entry is the descriptor-is-the-binding's-only-store.
+  await servingLib.deployToRegistry({ ...base, manifest, notifyChannels: {}, fetchImpl: bound.fetch });
+  assert.equal(bound.calls.agents.at(-1).body.metadata.notify_channel, "ops-feishu");
+
+  // Explicit null: unbinds even though the live entry carries one.
+  await servingLib.deployToRegistry({ ...base, manifest, notifyChannels: { "pack-fingpt": null }, fetchImpl: bound.fetch });
+  assert.equal(bound.calls.agents.at(-1).body.metadata.notify_channel, undefined);
+});
+
+test("notify: the deploy route validates the binding shape; the descriptor carries it", async () => {
+  const stub = stubRegistry();
+  const manifest = withServing({ protocol: "a2a" });
+  const h = await routeHarness({
+    user: { email: "author@x", groups: [] },
+    deployConfig: { registryUrl: "https://mcp.example.test", token: "t", runnerBaseUrl: "http://runner:8790", packsPublicBase: "https://packs.example.test", fetchImpl: stub.fetch },
+    manifest,
+  });
+  try {
+    for (const bad of [["ops-feishu"], { a: "" }, { a: "OPS-FEISHU" }, { a: 42 }, { a: "x".repeat(65) }]) {
+      const refused = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, { notifyChannel: bad });
+      assert.equal(refused.status, 400, `notifyChannel ${JSON.stringify(bad)} must be rejected`);
+    }
+    assert.equal(stub.calls.agents.length, 0, "no registry write on a refused binding");
+
+    const ok = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, { notifyChannel: { "pack-fingpt": "ops-feishu" } });
+    assert.equal(ok.status, 200);
+    assert.equal(stub.calls.agents.at(-1).body.metadata.notify_channel, "ops-feishu");
+
+    // null on the wire: unbind.
+    const clear = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, { notifyChannel: { "pack-fingpt": null } });
+    assert.equal(clear.status, 200);
+    assert.equal(stub.calls.agents.at(-1).body.metadata.notify_channel, undefined);
+  } finally {
+    await h.close();
+  }
 });
 
 test("setAgentPaused GET-merge-PUTs the flag and clears it on resume", async () => {

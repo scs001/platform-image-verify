@@ -9,7 +9,7 @@ Defines the serving contract on pack roles and the lifecycle of Agent Services d
 
 ### Requirement: Deploy action composes registry-native assets
 
-The platform SHALL offer a deploy action (「部署为服务」) on published pack versions whose agents carry a serving contract, gated to pack creators and admins for public packs and to the pack's owner for private packs (openspec: pack-visibility), idempotent per (pack version, agent id), and admitted only when the deployer's billing balance passes the platform-billing gate. The action SHALL: publish each of the pack's skills as a registry skill entry under a pack-scoped path with restricted visibility; register one registry agent entry per serving-contract agent with `supported_protocol: "a2a"`, the runner's backend URL as the proxy backend, and a `metadata` deployment descriptor limited to small fields (persona, MCP references, skill paths, serving contract, effective work rhythm, billing key reference); compose the AgentCard from the serving contract's manual card fields, defaulting to values derived from the agent's name/description/tags when absent; and mint the per-agent billing key per platform-billing. The effective work rhythm SHALL be the deployer's override when the deploy request carries one, else the manifest's declared rhythm; the descriptor records the effective value (openspec: agent-residency). The action SHALL NOT embed the full manifest, skill bodies, or any key secret in the agent entry.
+The platform SHALL offer a deploy action (「部署为服务」) on published pack versions whose agents carry a serving contract, gated to pack creators and admins for public packs and to the pack's owner for private packs (openspec: pack-visibility), idempotent per (pack version, agent id), and admitted only when the deployer's billing balance passes the platform-billing gate. The action SHALL: publish each of the pack's skills as a registry skill entry under a pack-scoped path with restricted visibility; register one registry agent entry per serving-contract agent with `supported_protocol: "a2a"`, the runner's backend URL as the proxy backend, and a `metadata` deployment descriptor limited to small fields (persona, MCP references, skill paths, serving contract, effective work rhythm, effective turn budget, billing key reference); compose the AgentCard from the serving contract's manual card fields, defaulting to values derived from the agent's name/description/tags when absent; and mint the per-agent billing key per platform-billing. The effective work rhythm SHALL be the deployer's override when the deploy request carries one, else the manifest's declared rhythm; the descriptor records the effective value (openspec: agent-residency). The effective turn budget SHALL likewise be the deployer's per-agent override when the deploy request carries one, else the contract's declared `budget.turnMinutes`, else absent (the runner's deployment default applies); the descriptor records the effective value. The action SHALL NOT embed the full manifest, skill bodies, or any key secret in the agent entry.
 
 #### Scenario: Deploying a serving-contract role
 
@@ -35,6 +35,11 @@ The platform SHALL offer a deploy action (「部署为服务」) on published pa
 
 - **WHEN** a deploy request carries a rhythm override differing from the manifest default, or carries none
 - **THEN** the descriptor records the override as the effective rhythm in the first case and the manifest default in the second
+
+#### Scenario: The deployer budget override lands in the descriptor
+
+- **WHEN** a deploy request carries a per-agent budget override, or the contract declares `budget.turnMinutes`, or neither
+- **THEN** the descriptor records the override in the first case, the declared ceiling in the second, and no budget field in the third — the runner's deployment default applying instead
 
 #### Scenario: The descriptor carries a key reference, never the key
 

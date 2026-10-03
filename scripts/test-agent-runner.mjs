@@ -11,13 +11,13 @@
 //   node --test scripts/test-agent-runner.mjs
 
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import yaml from "js-yaml";
 
-import { materializeAgentHome, mcpEntry, agentKeyFor, applyBillingKey } from "../agent-runner/compose.js";
+import { materializeAgentHome, mcpEntry, agentKeyFor, applyBillingKey, applyDeploymentSecrets } from "../agent-runner/compose.js";
 import { AgentChild, sessionKeyFor } from "../agent-runner/child.js";
 import { ChildManager } from "../agent-runner/manager.js";
 import { createOpsApp } from "../agent-runner/a2a.js";
@@ -31,7 +31,7 @@ test.after(() => rmSync(tmpRoot, { recursive: true, force: true }));
 // ── Fake harness client: records calls, replies to prompt with a scripted ──
 // turn (text deltas + final message + idle), per the dsh notification shapes.
 function fakeHarnessClient({ reply = "ok", delayMs = 0, failPrompt = false } = {}) {
-  const calls = { initialize: [], prompt: [], started: 0, stopped: 0 };
+  const calls = { initialize: [], prompt: [], requests: [], started: 0, stopped: 0 };
   const client = {
     calls,
     start() {
@@ -40,6 +40,12 @@ function fakeHarnessClient({ reply = "ok", delayMs = 0, failPrompt = false } = {
     async initialize(params) {
       calls.initialize.push(params);
       return { ok: true };
+    },
+    // Host→child requests (add-agent-notifications: the runner answers a
+    // bot_notify call with `botNotify/result` on this lane).
+    async request(method, params) {
+      calls.requests.push({ method, params });
+      return { accepted: true };
     },
     subscribe() {
       // A real subscription QUEUES notifications; a naive "resolve the waiter
@@ -136,7 +142,19 @@ test("4.2 home layout: preset, skills root, three patch formats", async () => {
   assert.match(mcp, /- insert/);
   assert.match(mcp, /serverName: fd-open-data-mcp/);
   assert.match(mcp, /streamable-http/);
-  assert.equal(spec.patchPaths.length, 3);
+  // Notify overlay (add-agent-notifications D1): the preset bridge row is
+  // swapped for its notify subclass, and both bridge files land beside it.
+  const notify = readFileSync(path.join(spec.home, "profiles", "platform", "notify.patch.yml"), "utf8");
+  assert.match(notify, /id: platform-sdk-server[\s\S]*?disabled: true/);
+  assert.match(notify, /platform-notify-server/);
+  assert.match(notify, /platform-notify-bridge\.js/);
+  assert.ok(existsSync(path.join(spec.home, "profiles", "platform", "platform-notify-bridge.js")));
+  assert.ok(existsSync(path.join(spec.home, "profiles", "platform", "bot-notify.js")));
+  assert.equal(spec.patchPaths.length, 4);
+  // Layer order: the notify overlay must apply AFTER the presets overlay that
+  // inserted the row it disables.
+  assert.equal(spec.patchPaths[0], path.join(spec.home, "profiles", "platform", "presets.patch.yml"));
+  assert.equal(spec.patchPaths.at(-1), path.join(spec.home, "profiles", "platform", "notify.patch.yml"));
 });
 
 test("4.2 missing skill content refuses to compose (never a silent half-bundle)", async () => {
@@ -462,7 +480,7 @@ test("4.4 prompt rejection settles the turn (no counter leak, drain unwedged)", 
 
 // ── add-agent-residency: pause, budget hysteresis, scheduler, metering, rollover ──
 
-function directManager({ entries = [ENTRY], config: overrides = {} } = {}) {
+function directManager({ entries = [ENTRY], config: overrides = {}, harness = {}, notifyFetch } = {}) {
   const homeRoot = path.join(tmpRoot, `res-${Math.random().toString(36).slice(2)}`);
   const spawned = [];
   const config = {
@@ -475,6 +493,10 @@ function directManager({ entries = [ENTRY], config: overrides = {} } = {}) {
     hardBudgetFactor: 1.2, rhythmTickMs: 30_000, tz: "UTC", digestMaxChars: 512,
     archiveDir: path.join(homeRoot, "agent-archive"),
     meterFile: path.join(homeRoot, "meter.jsonl"),
+    // Notification egress (add-agent-notifications): unconfigured by default —
+    // tests that exercise the face override these.
+    relayUrl: "", relayToken: "", notifyRatePerMin: 6,
+    notifyLogFile: path.join(homeRoot, "notify.jsonl"),
     ...overrides,
   };
   const registryClient = {
@@ -483,10 +505,13 @@ function directManager({ entries = [ENTRY], config: overrides = {} } = {}) {
     mcpUrlFor: (n) => `https://mcp.example.test/${n}/mcp`,
   };
   const entriesRef = { current: entries };
-  const clientFactory = () => () => { const c = fakeHarnessClient({ reply: "答复" }); spawned.push({ client: c }); return c; };
+  // `harness` is spread at spawn time so tests can flip per-spawn behavior
+  // (e.g. a slow first turn, fast after the budget kill).
+  const clientFactory = (spec) => (spawn = {}) => { const c = fakeHarnessClient({ reply: "答复", ...harness }); spawned.push({ client: c, spec, spawn }); return c; };
   const manager = new ChildManager({
     config, registryClient, clientFactory,
     log: { log() {}, warn() {}, error() {} },
+    notifyFetchImpl: notifyFetch,
   });
   return { manager, spawned, config, entriesRef };
 }
@@ -596,6 +621,92 @@ test("metering: every turn kind lands one jsonl line", async () => {
     assert.equal(lines[1].kind, "self");
     assert.equal(typeof lines[0].at, "string");
     assert.ok(lines[0].durationMs >= 0);
+  } finally {
+    await manager.stopAll();
+  }
+});
+
+// ── add-serving-budgets 2.1/2.2: per-child budget + over-budget hard stop ───
+
+test("budget: the descriptor's minutes drive the child's timeout and label", async () => {
+  const budgeted = { ...ENTRY, metadata: { ...ENTRY.metadata, effective_budget_minutes: 20 } };
+  const { manager, spawned } = directManager({ entries: [budgeted], config: { turnTimeoutMs: 999_000 } });
+  try {
+    await manager.reconcile();
+    await manager.turn(budgeted, "s1", "hi");
+    const child = manager.children.get(agentKeyFor(budgeted));
+    assert.equal(child.turnTimeoutMs, 20 * 60_000, "descriptor minutes beat the deployment default");
+    assert.equal(child.budgetLabel, "20m");
+    assert.equal(spawned[0].spec.turnBudgetMs, 20 * 60_000, "the harness request timeout rides the budget");
+  } finally {
+    await manager.stopAll();
+  }
+});
+
+test("budget: no descriptor budget falls back to the deployment default", async () => {
+  const { manager, spawned } = directManager({ entries: [ENTRY], config: { turnTimeoutMs: 120_000 } });
+  try {
+    await manager.reconcile();
+    await manager.turn(ENTRY, "s1", "hi");
+    const child = manager.children.get(agentKeyFor(ENTRY));
+    assert.equal(child.turnTimeoutMs, 120_000, "the runner default is the effective budget");
+    assert.equal(child.budgetLabel, "2m");
+    assert.equal(spawned[0].spec.turnBudgetMs, 120_000);
+  } finally {
+    await manager.stopAll();
+  }
+});
+
+test("budget: an over-budget turn hard-stops the child, meters the kill, next touch re-warms", async () => {
+  // First spawn replies far beyond the 60ms budget; the re-warm replies fast.
+  const harness = { delayMs: 300 };
+  const { manager, spawned, config } = directManager({ entries: [ENTRY], config: { turnTimeoutMs: 60 }, harness });
+  try {
+    await manager.reconcile();
+    await assert.rejects(
+      () => manager.turn(ENTRY, "s1", "slow"),
+      (e) => e.code === -32001 && /turn budget \(1m\) exceeded/.test(e.message),
+      "the structured error names the bound",
+    );
+    // Hard stop: removed from the pool and the process stopped.
+    assert.equal(manager.children.size, 0, "killed child removed");
+    assert.equal(manager.health().agents[0].state, "warm");
+    assert.equal(spawned[0].client.calls.stopped, 1, "the child process was stopped");
+    // Meter: one line, flagged as a budget kill, error naming the bound.
+    const lines = readFileSync(config.meterFile, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    assert.equal(lines.length, 1);
+    assert.equal(lines[0].ok, false);
+    assert.equal(lines[0].budgetKill, true);
+    assert.match(lines[0].error, /turn budget \(1m\) exceeded/);
+    // Next touch re-warms: fresh child, same session id (state on disk).
+    harness.delayMs = 0;
+    const out = await manager.turn(ENTRY, "s1", "again");
+    assert.equal(out.text, "答复");
+    assert.equal(spawned.length, 2, "cold start on the next touch");
+    assert.equal(
+      spawned[1].client.calls.prompt[0].sessionId,
+      spawned[0].client.calls.prompt[0].sessionId,
+      "the conversation continues by session id",
+    );
+  } finally {
+    await manager.stopAll();
+  }
+});
+
+test("budget: self-turns share the same hard-stop discipline", async () => {
+  const harness = { delayMs: 300 };
+  const { manager, spawned, config } = directManager({ entries: [ENTRY], config: { turnTimeoutMs: 60 }, harness });
+  try {
+    await manager.reconcile();
+    await assert.rejects(
+      () => manager.selfTurn(ENTRY, "自主工作", "srv-day-20261003"),
+      (e) => e.code === -32001 && /turn budget \(1m\) exceeded/.test(e.message),
+    );
+    assert.equal(manager.children.size, 0);
+    const lines = readFileSync(config.meterFile, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    assert.equal(lines.length, 1);
+    assert.equal(lines[0].kind, "self");
+    assert.equal(lines[0].budgetKill, true);
   } finally {
     await manager.stopAll();
   }
@@ -739,4 +850,431 @@ test("billing pinning survives a missing settings.yaml", async () => {
   await applyBillingKey(home, "sk-deployer");
   const doc = yaml.load(readFileSync(path.join(home, ".credentials.yaml"), "utf8"));
   assert.equal(doc.refs.LLM_API_KEY, "sk-deployer");
+});
+
+// ── add-deployment-secrets 2.1: fetch by reference, pin the complete set ────
+// A stub of the pack gateway's internal fetch route (the real one is tested
+// in scripts/test-deployment-secrets.mjs); these tests prove the RUNNER's
+// half: every declared ref is fetched with the service credential, the whole
+// set lands in the private credentials file, and a missing value fails
+// composition loudly with nothing partially installed.
+
+const SECRET_REF_A = "ws_111111111111111111111111";
+const SECRET_REF_B = "ws_222222222222222222222222";
+
+const SECRET_ENTRY = {
+  ...ENTRY,
+  path: "/packs/pk-abc/pack-secret",
+  metadata: {
+    ...ENTRY.metadata,
+    agentId: "pack-secret",
+    secret_refs: { repo_token: SECRET_REF_A, mirror_key: SECRET_REF_B },
+  },
+};
+
+async function stubPacksGateway(byRef) {
+  const seen = [];
+  const server = OPS.createServer((req, res) => {
+    seen.push({ path: req.url, authorization: req.headers.authorization ?? null });
+    const m = String(req.url).match(/^\/api\/packs\/internal\/secret\/(.+)$/);
+    const doc = m ? byRef[decodeURIComponent(m[1])] : null;
+    res.writeHead(doc ? 200 : 404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(doc ?? { error: "unknown secret reference" }));
+  });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  return { server, seen, base: `http://127.0.0.1:${server.address().port}` };
+}
+
+const SECRET_SKILLS = { "packs/pk-abc/fin-statement-analysis": "# s" };
+
+test("2.1 declared secrets: every ref is fetched with the service credential and pinned into the child home", async () => {
+  const packs = await stubPacksGateway({
+    [SECRET_REF_A]: { secretRef: SECRET_REF_A, agentId: "pack-secret", name: "repo_token", secretValue: "ghp_PINNED_repo_token_VALUE" },
+    [SECRET_REF_B]: { secretRef: SECRET_REF_B, agentId: "pack-secret", name: "mirror_key", secretValue: "mk-mirror-9876543210" },
+  });
+  const h = await bootRunner({ entries: [SECRET_ENTRY], skills: SECRET_SKILLS, config: { packsBaseUrl: packs.base } });
+  try {
+    await h.manager.reconcile();
+    const out = await h.manager.turn(SECRET_ENTRY, "s1", "hi");
+    assert.equal(out.text, "分析完成");
+    assert.equal(h.spawned.length, 1, "the child composed");
+
+    // Both values land in the private credentials file under declared names.
+    const doc = yaml.load(readFileSync(path.join(h.spawned[0].spec.home, ".credentials.yaml"), "utf8"));
+    assert.equal(doc.refs.repo_token, "ghp_PINNED_repo_token_VALUE");
+    assert.equal(doc.refs.mirror_key, "mk-mirror-9876543210");
+
+    // One fetch per ref, over the internal route, with the runner's service
+    // credential (the same trust plane as the llm-key route).
+    assert.equal(packs.seen.length, 2);
+    assert.deepEqual(
+      packs.seen.map((s) => s.path).sort(),
+      [`/api/packs/internal/secret/${SECRET_REF_A}`, `/api/packs/internal/secret/${SECRET_REF_B}`].sort(),
+    );
+    for (const s of packs.seen) assert.equal(s.authorization, "Bearer tok", "service credential on every fetch");
+  } finally {
+    await h.close();
+    packs.server.close();
+  }
+});
+
+test("2.1 a missing secret fails composition loudly; no partial set, no fallback, no child", async () => {
+  // The FIRST ref resolves, the second 404s — the resolved value must still
+  // not land (all-or-nothing), and the error must name the missing secret.
+  const packs = await stubPacksGateway({
+    [SECRET_REF_A]: { secretRef: SECRET_REF_A, agentId: "pack-secret", name: "repo_token", secretValue: "ghp_GOOD_VALUE_never_installed" },
+  });
+  const h = await bootRunner({ entries: [SECRET_ENTRY], skills: SECRET_SKILLS, config: { packsBaseUrl: packs.base } });
+  try {
+    await h.manager.reconcile();
+    let err = null;
+    await assert.rejects(
+      () => h.manager.turn(SECRET_ENTRY, "s1", "hi"),
+      (e) => {
+        err = e;
+        return true;
+      },
+    );
+    assert.match(err.message, /mirror_key/, "the missing secret's name is in the error");
+    assert.match(err.message, /ws_22222/, "the missing reference is in the error (masked)");
+    assert.match(err.message, /could not be fetched/);
+    assert.equal(h.manager.children.size, 0, "no child composed");
+    assert.equal(h.spawned.length, 0);
+
+    // Neither value was installed — the resolved one included.
+    const credPath = path.join(h.config.homeRoot, agentKeyFor(SECRET_ENTRY), ".credentials.yaml");
+    if (existsSync(credPath)) {
+      const doc = yaml.load(readFileSync(credPath, "utf8")) ?? {};
+      assert.equal(doc.refs?.repo_token, undefined, "no partial secret set installed");
+      assert.equal(doc.refs?.mirror_key, undefined);
+    }
+  } finally {
+    await h.close();
+    packs.server.close();
+  }
+});
+
+test("2.1 no secret_refs: the pack gateway is never contacted and composition is unchanged", async () => {
+  const packs = await stubPacksGateway({});
+  const h = await bootRunner({ entries: [ENTRY], skills: SECRET_SKILLS, config: { packsBaseUrl: packs.base } });
+  try {
+    await h.manager.reconcile();
+    const out = await h.manager.turn(ENTRY, "s1", "hi");
+    assert.equal(out.text, "分析完成");
+    assert.equal(h.spawned.length, 1);
+    assert.equal(packs.seen.length, 0, "no descriptor secrets → zero fetch calls");
+  } finally {
+    await h.close();
+    packs.server.close();
+  }
+});
+
+test("2.1 a rebound descriptor reaches composition through the live listener (in-place redeploy pins the NEW ref)", async () => {
+  const packs = await stubPacksGateway({
+    [SECRET_REF_A]: { secretRef: SECRET_REF_A, agentId: "pack-secret", name: "repo_token", secretValue: "ghp_value_ONE_aaaaaaaa" },
+    [SECRET_REF_B]: { secretRef: SECRET_REF_B, agentId: "pack-secret", name: "repo_token", secretValue: "ghp_value_TWO_bbbbbbbb" },
+  });
+  const h = await bootRunner({ entries: [SECRET_ENTRY], skills: SECRET_SKILLS, config: { packsBaseUrl: packs.base } });
+  try {
+    await h.manager.reconcile();
+    const auth = { Authorization: "Bearer backend-secret" };
+    const first = await h.callAgent(SECRET_ENTRY, "POST", "/", { headers: auth, body: SEND(1, "hi", "ctx-rebind") });
+    assert.equal(first.status, 200, first.text);
+    const credPath = path.join(h.config.homeRoot, agentKeyFor(SECRET_ENTRY), ".credentials.yaml");
+    assert.equal(yaml.load(readFileSync(credPath, "utf8")).refs.repo_token, "ghp_value_ONE_aaaaaaaa");
+
+    // The entry is rebound in place (same path, fresh reference): the poll
+    // drains the old child, and the NEXT request through the SAME listener
+    // must compose from the NEW descriptor — a listener that kept serving its
+    // first-captured entry would re-pin the old ref here.
+    const rebound = {
+      ...SECRET_ENTRY,
+      version: "2",
+      metadata: { ...SECRET_ENTRY.metadata, packVersion: 2, secret_refs: { repo_token: SECRET_REF_B } },
+    };
+    h.manager.registryClient.listServedAgents = async () => [rebound];
+    await h.manager.reconcile();
+    const second = await h.callAgent(rebound, "POST", "/", { headers: auth, body: SEND(2, "hi", "ctx-rebind") });
+    assert.equal(second.status, 200, second.text);
+    assert.equal(yaml.load(readFileSync(credPath, "utf8")).refs.repo_token, "ghp_value_TWO_bbbbbbbb", "the new reference drove the new composition");
+    assert.ok(packs.seen.some((s) => s.path === `/api/packs/internal/secret/${SECRET_REF_B}`), "the rebound ref was fetched");
+    assert.equal(h.spawned.length, 2, "a fresh child composed after the drain");
+  } finally {
+    await h.close();
+    packs.server.close();
+  }
+});
+
+test("2.1 applyDeploymentSecrets re-checks names before pinning; bad name refuses with nothing written", () => {
+  const home = path.join(tmpRoot, `secret-home-${Math.random().toString(36).slice(2)}`);
+  mkdirSync(home, { recursive: true });
+  assert.throws(() => applyDeploymentSecrets(home, { "Not-A-Name": "v" }), /not a valid name/);
+  assert.ok(!existsSync(path.join(home, ".credentials.yaml")), "refusal writes nothing");
+  applyDeploymentSecrets(home, { repo_token: "a", mirror_key: "b" });
+  const doc = yaml.load(readFileSync(path.join(home, ".credentials.yaml"), "utf8"));
+  assert.equal(doc.refs.repo_token, "a");
+  assert.equal(doc.refs.mirror_key, "b");
+  // Existing refs (e.g. the pinned LLM key) survive the read-modify-write.
+  applyDeploymentSecrets(home, { another: "c" });
+  const again = yaml.load(readFileSync(path.join(home, ".credentials.yaml"), "utf8"));
+  assert.equal(again.refs.repo_token, "a");
+  assert.equal(again.refs.another, "c");
+});
+
+// ── add-agent-notifications 2.1/2.2: the notify face ─────────────────────────
+
+const NOTIFY_ENTRY = { ...ENTRY, metadata: { ...ENTRY.metadata, notify_channel: "ops-feishu" } };
+const RELAY_URL = "https://packs.example.test/api/bots/relay/send";
+
+// A recording stand-in for the platform bot relay.
+function relayStub({ status = 200, error = null } = {}) {
+  const calls = [];
+  const fetchImpl = async (url, init = {}) => {
+    calls.push({ url, method: init.method, headers: init.headers, body: JSON.parse(init.body || "{}") });
+    return {
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => (status >= 200 && status < 300 ? { ok: true } : { error }),
+    };
+  };
+  return { calls, fetchImpl };
+}
+
+// One `bot_notify` call as the child's tool makes it: the notification goes up,
+// the host's `botNotify/result` request comes back (async — poll for it).
+async function emitNotify(spawned, params, { expect = 1, child = 0 } = {}) {
+  const client = spawned[child].client;
+  const before = client.calls.requests.length;
+  client.__emit({ method: "botNotify/send", params });
+  const deadline = Date.now() + 2_000;
+  while (client.calls.requests.length < before + expect && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 5));
+  }
+  return client.calls.requests.slice(before);
+}
+
+function notifyAuditLines(config) {
+  try {
+    return readFileSync(config.notifyLogFile, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
+  } catch {
+    return [];
+  }
+}
+
+function readTree(dir) {
+  // Regular files only: the home's node_modules entries are symlinks into the
+  // seed home and are deliberately not walked.
+  const out = [];
+  for (const ent of readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, ent.name);
+    if (ent.isDirectory()) out.push(...readTree(p));
+    else if (ent.isFile()) out.push(p);
+  }
+  return out;
+}
+
+test("notify: a bound deployment forwards to the relay and answers the child", async () => {
+  const relay = relayStub();
+  const { manager, spawned, config } = directManager({
+    entries: [NOTIFY_ENTRY],
+    config: { relayUrl: RELAY_URL, relayToken: "relay-secret" },
+    notifyFetch: relay.fetchImpl,
+  });
+  try {
+    await manager.reconcile();
+    await manager.turn(NOTIFY_ENTRY, "s1", "hi");
+    const results = await emitNotify(spawned, { notifyId: "n-1", event: "ticket_done", text: "工单已关闭" });
+    assert.equal(results.length, 1, "the child got its answer");
+    assert.equal(results[0].method, "botNotify/result");
+    assert.deepEqual(results[0].params, { notifyId: "n-1", ok: true });
+    // Exactly one addressed, host-credentialed POST — the [event] prefix rides.
+    assert.equal(relay.calls.length, 1);
+    assert.equal(relay.calls[0].url, RELAY_URL);
+    assert.equal(relay.calls[0].headers.Authorization, "Bearer relay-secret");
+    assert.deepEqual(relay.calls[0].body, { channel: "ops-feishu", text: "[ticket_done] 工单已关闭" });
+    // Runner audit: one line, the outcome and the length — never the text.
+    const lines = notifyAuditLines(config);
+    assert.equal(lines.length, 1);
+    assert.equal(lines[0].agent, agentKeyFor(NOTIFY_ENTRY));
+    assert.equal(lines[0].channel, "ops-feishu");
+    assert.equal(lines[0].outcome, "sent");
+    assert.equal(lines[0].textLen, "工单已关闭".length);
+    assert.ok(!JSON.stringify(lines[0]).includes("工单已关闭"), "audit never carries the text");
+    // An explicit channel equal to the binding is accepted.
+    const same = await emitNotify(spawned, { notifyId: "n-2", event: "e", text: "t", channel: "ops-feishu" });
+    assert.equal(same[0].params.ok, true);
+    assert.equal(relay.calls.length, 2);
+  } finally {
+    await manager.stopAll();
+  }
+});
+
+test("notify: unbound, channel-mismatch and unconfigured decline structurally, nothing sent", async () => {
+  const relay = relayStub();
+  // (a) Unbound deployment (no descriptor binding): declined naming the
+  // missing binding; nothing reaches the relay.
+  const unbound = directManager({
+    entries: [ENTRY],
+    config: { relayUrl: RELAY_URL, relayToken: "relay-secret" },
+    notifyFetch: relay.fetchImpl,
+  });
+  try {
+    await unbound.manager.reconcile();
+    await unbound.manager.turn(ENTRY, "s1", "hi");
+    const out = await emitNotify(unbound.spawned, { notifyId: "u-1", event: "e", text: "t" });
+    assert.equal(out[0].params.ok, false);
+    assert.equal(out[0].params.reason, "unbound");
+    assert.match(out[0].params.message, /channel/);
+    assert.equal(relay.calls.length, 0, "an unbound call never egresses");
+    assert.equal(notifyAuditLines(unbound.config)[0].outcome, "rejected");
+  } finally {
+    await unbound.manager.stopAll();
+  }
+
+  // (b) Explicit channel ≠ the bound one: declined before any egress.
+  const mismatch = directManager({
+    entries: [NOTIFY_ENTRY],
+    config: { relayUrl: RELAY_URL, relayToken: "relay-secret" },
+    notifyFetch: relay.fetchImpl,
+  });
+  try {
+    await mismatch.manager.reconcile();
+    await mismatch.manager.turn(NOTIFY_ENTRY, "s1", "hi");
+    const out = await emitNotify(mismatch.spawned, { notifyId: "m-1", event: "e", text: "t", channel: "someone-else" });
+    assert.equal(out[0].params.ok, false);
+    assert.equal(out[0].params.reason, "channel-mismatch");
+    assert.equal(relay.calls.length, 0);
+  } finally {
+    await mismatch.manager.stopAll();
+  }
+
+  // (c) No relay token configured (the relay's own lazy semantics): declined,
+  // nothing sent — the binding is irrelevant when the lane is off.
+  const unconfigured = directManager({
+    entries: [NOTIFY_ENTRY],
+    config: { relayUrl: RELAY_URL, relayToken: "" },
+    notifyFetch: relay.fetchImpl,
+  });
+  try {
+    await unconfigured.manager.reconcile();
+    await unconfigured.manager.turn(NOTIFY_ENTRY, "s1", "hi");
+    const out = await emitNotify(unconfigured.spawned, { notifyId: "c-1", event: "e", text: "t" });
+    assert.equal(out[0].params.ok, false);
+    assert.equal(out[0].params.reason, "not-configured");
+    assert.equal(relay.calls.length, 0);
+  } finally {
+    await unconfigured.manager.stopAll();
+  }
+});
+
+test("notify: a relay refusal surfaces to the turn and the runner keeps serving", async () => {
+  const relay = relayStub({ status: 404, error: "Unknown channel" });
+  const { manager, spawned, config } = directManager({
+    entries: [NOTIFY_ENTRY],
+    config: { relayUrl: RELAY_URL, relayToken: "relay-secret" },
+    notifyFetch: relay.fetchImpl,
+  });
+  try {
+    await manager.reconcile();
+    await manager.turn(NOTIFY_ENTRY, "s1", "hi");
+    const out = await emitNotify(spawned, { notifyId: "f-1", event: "e", text: "t" });
+    assert.equal(out[0].params.ok, false);
+    assert.equal(out[0].params.reason, "relay");
+    assert.equal(out[0].params.status, 404);
+    assert.equal(out[0].params.message, "Unknown channel");
+    assert.equal(notifyAuditLines(config)[0].outcome, "failed");
+    // The runner keeps serving: the next turn answers normally.
+    const again = await manager.turn(NOTIFY_ENTRY, "s2", "hi");
+    assert.equal(again.text, "答复");
+  } finally {
+    await manager.stopAll();
+  }
+});
+
+test("notify: the 7th call inside a minute is refused with no egress (per agent)", async () => {
+  const relay = relayStub();
+  // A second agent on the same runner: the bound is per AGENT, so exhausting
+  // one must not spend the other's budget.
+  const OTHER_ENTRY = {
+    ...NOTIFY_ENTRY,
+    path: "/packs/pk-abc/pack-other",
+    metadata: { ...NOTIFY_ENTRY.metadata, agentId: "pack-other" },
+  };
+  const { manager, spawned, config } = directManager({
+    entries: [NOTIFY_ENTRY, OTHER_ENTRY],
+    config: { relayUrl: RELAY_URL, relayToken: "relay-secret", notifyRatePerMin: 6 },
+    notifyFetch: relay.fetchImpl,
+  });
+  try {
+    await manager.reconcile();
+    await manager.turn(NOTIFY_ENTRY, "s1", "hi");
+    for (let i = 0; i < 6; i++) {
+      const out = await emitNotify(spawned, { notifyId: `n-${i}`, event: "e", text: "t" });
+      assert.equal(out[0].params.ok, true, `call ${i + 1} must pass`);
+    }
+    const seventh = await emitNotify(spawned, { notifyId: "n-7", event: "e", text: "t" });
+    assert.equal(seventh[0].params.ok, false);
+    assert.equal(seventh[0].params.reason, "rate-limited");
+    assert.equal(relay.calls.length, 6, "the over-rate call never reached the relay");
+    const lines = notifyAuditLines(config);
+    assert.equal(lines.filter((l) => l.outcome === "sent").length, 6);
+    assert.equal(lines.filter((l) => l.reason === "rate-limited").length, 1);
+    // Per agent, not per runner: the second agent (its own child) still has
+    // its own budget.
+    await manager.turn(OTHER_ENTRY, "s2", "hi");
+    assert.equal(spawned.length, 2, "the second agent runs its own child");
+    const other = await emitNotify(spawned, { notifyId: "o-1", event: "e", text: "t" }, { child: 1 });
+    assert.equal(other[0].params.ok, true, "another agent's budget is untouched");
+    assert.equal(relay.calls.length, 7);
+  } finally {
+    await manager.stopAll();
+  }
+});
+
+test("notify: the relay token never reaches the child's spawn spec or composed home", async () => {
+  const prevToken = process.env.AGENT_RUNNER_RELAY_TOKEN;
+  const prevBots = process.env.BOTS_RELAY_TOKEN;
+  process.env.AGENT_RUNNER_RELAY_TOKEN = "relay-secret-sentinel";
+  process.env.BOTS_RELAY_TOKEN = "platform-relay-sentinel";
+  let manager;
+  try {
+    const h = directManager({ entries: [NOTIFY_ENTRY] });
+    manager = h.manager;
+    const { spawned } = h;
+    await manager.reconcile();
+    await manager.turn(NOTIFY_ENTRY, "s1", "hi");
+    assert.equal(spawned[0].spawn.env.AGENT_RUNNER_RELAY_TOKEN, undefined, "the runner-held token is stripped from the child env");
+    assert.equal(spawned[0].spawn.env.BOTS_RELAY_TOKEN, undefined, "the platform relay token is stripped too");
+    // And nothing on disk in the child's home carries either value.
+    for (const file of readTree(spawned[0].spec.home)) {
+      const body = readFileSync(file, "utf8");
+      assert.ok(!body.includes("relay-secret-sentinel"), `${file} must not carry the runner relay token`);
+      assert.ok(!body.includes("platform-relay-sentinel"), `${file} must not carry the platform relay token`);
+    }
+  } finally {
+    await manager.stopAll();
+    if (prevToken === undefined) delete process.env.AGENT_RUNNER_RELAY_TOKEN;
+    else process.env.AGENT_RUNNER_RELAY_TOKEN = prevToken;
+    if (prevBots === undefined) delete process.env.BOTS_RELAY_TOKEN;
+    else process.env.BOTS_RELAY_TOKEN = prevBots;
+  }
+});
+
+test("notify: a rebind drains the old child so the new binding takes effect", async () => {
+  const { manager, spawned, entriesRef } = directManager({ entries: [NOTIFY_ENTRY] });
+  try {
+    await manager.reconcile();
+    await manager.turn(NOTIFY_ENTRY, "s1", "hi");
+    const key = agentKeyFor(NOTIFY_ENTRY);
+    const first = manager.children.get(key);
+    assert.ok(first, "child spawned");
+    entriesRef.current = [{ ...NOTIFY_ENTRY, metadata: { ...NOTIFY_ENTRY.metadata, notify_channel: "other-channel" } }];
+    await manager.reconcile();
+    assert.equal(manager.children.has(key), false, "binding change drains the child");
+    assert.equal(first.draining, true);
+    await manager.turn(entriesRef.current[0], "s2", "hi");
+    assert.equal(spawned.length, 2, "the next touch re-spawns on the new binding");
+  } finally {
+    await manager.stopAll();
+  }
 });

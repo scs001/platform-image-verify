@@ -27,18 +27,41 @@ export function sessionKeyFor(contextId) {
   return `srv-${slug || "ctx"}`;
 }
 
+// The environment a spawned child may see (add-agent-notifications D2): the
+// runner's own, minus every relay credential. The token's only owner is the
+// runner's process configuration; the child reaches notifications exclusively
+// through the bridge, executed host-side. Stripped here — where the spawn
+// spec is BUILT — so the spec, not just the wire, is credential-free.
+export function scrubbedChildEnv(env = process.env) {
+  const out = { ...env };
+  delete out.AGENT_RUNNER_RELAY_TOKEN;
+  delete out.BOTS_RELAY_TOKEN;
+  return out;
+}
+
 export class AgentChild {
   #collectors = new Map(); // dsh session id → turn collector
-
-  constructor({ key, spawnSpec, turnTimeoutMs = 180_000, clientFactory, log = console }) {
+  // `turnTimeoutMs` IS this child's effective turn budget (add-serving-budgets
+  // D3: the descriptor's minutes, else the runner default); `budgetLabel` is
+  // the human bound the over-budget error names ("20m").
+  // `notifyHandler` (add-agent-notifications D1): the host-side executor for
+  // this child's `botNotify/send` notifications — the manager supplies it with
+  // the deployment's bound channel. Absent → the call is declined
+  // not-configured, never silently dropped.
+  constructor({ key, spawnSpec, turnTimeoutMs = 180_000, budgetLabel, clientFactory, log = console, notifyHandler }) {
     this.key = key;
     this.spawnSpec = spawnSpec; // { dshBin, profile, patchPaths, cwd, env, provider, model, presetId }
     this.turnTimeoutMs = turnTimeoutMs;
+    this.budgetLabel = budgetLabel ?? `${Math.max(1, Math.ceil(turnTimeoutMs / 60_000))}m`;
     this.clientFactory = clientFactory;
     this.log = log;
+    this.notifyHandler = notifyHandler ?? null;
     this.client = null;
     this.ready = false;
     this.draining = false; // no NEW sessions/turns; in-flight ones finish
+    // Set when a turn settles by budget timeout (never reset: a killed child
+    // is discarded — the manager removes it and the next touch re-spawns).
+    this.budgetKilled = false;
     this.lastActivityAt = Date.now();
     this.spawnedAt = Date.now(); // warm-zone hysteresis anchor (manager)
     this.activeTurns = 0;
@@ -113,6 +136,15 @@ export class AgentChild {
         this.log.warn(`[agent-runner:${this.key}] child exited unexpectedly`);
         return;
       }
+      // bot_notify (add-agent-notifications D1): the child's tool sends
+      // `botNotify/send` up; the host executes it (binding/rate/relay) and the
+      // answer travels back as a `botNotify/result` REQUEST — the two
+      // directions the transport carries (the ask precedent). Fire-and-forget
+      // so a slow relay never blocks the notification pump.
+      if (notif?.method === "botNotify/send") {
+        this.#handleNotify(notif.params ?? {});
+        continue;
+      }
       const sid = notif?.params?.sessionId;
       const collector = sid ? this.#collectors.get(sid) : null;
       if (collector) {
@@ -122,6 +154,28 @@ export class AgentChild {
           this.log.error(`[agent-runner:${this.key}] collector failed: ${e?.message || e}`);
         }
       }
+    }
+  }
+
+  // Execute one bot_notify call with host authority and hand the result back
+  // to the child's parked tool call. Every path answers (a declined call must
+  // reach the turn, never hang it); a failed answer write only logs — the
+  // child's own wait ceiling covers a lost reply.
+  async #handleNotify(params) {
+    let result;
+    try {
+      result = this.notifyHandler
+        ? await this.notifyHandler({ event: params.event, text: params.text, channel: params.channel })
+        : { ok: false, reason: "not-configured", message: "notifications are not configured on this deployment" };
+    } catch (e) {
+      result = { ok: false, reason: "forward-failed", message: `the notification could not be forwarded: ${e?.message || e}` };
+    }
+    const notifyId = typeof params.notifyId === "string" ? params.notifyId : null;
+    if (!notifyId) return;
+    try {
+      await this.client?.request?.("botNotify/result", { notifyId, ...result });
+    } catch (e) {
+      this.log.warn(`[agent-runner:${this.key}] notify result could not reach the child: ${e?.message || e}`);
     }
   }
 
@@ -146,7 +200,15 @@ export class AgentChild {
         fn(arg);
       };
       settle = (ok, arg) => done(ok ? resolve : reject, arg);
-      const timer = setTimeout(() => settle(false, Object.assign(new Error("turn timed out"), { code: -32001 })), this.turnTimeoutMs);
+      const timer = setTimeout(() => {
+        // Over-budget (add-serving-budgets D3): settle with a structured
+        // error naming the bound and mark the child — the manager stops it
+        // on this marker (ADR-0014 ④ hard stop: dsh has no interrupt RPC,
+        // so the turn dies with the process; durable state is on disk and
+        // the next touch re-spawns a fresh child).
+        this.budgetKilled = true;
+        settle(false, Object.assign(new Error(`turn budget (${this.budgetLabel}) exceeded`), { code: -32001 }));
+      }, this.turnTimeoutMs);
       let finalText = "";
       let lastUsage = null;
       this.#collectors.set(sessionId, (notif) => {

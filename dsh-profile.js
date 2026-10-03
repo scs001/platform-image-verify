@@ -1404,6 +1404,51 @@ export function writeUserQuestionsPatch() {
   return USER_QUESTIONS_PATCH_PATH;
 }
 
+// ── Notify bridge patch (add-agent-notifications D1/D3) ─────────────────────
+// The `bot_notify` tool a deployed child calls rides its own overlay, exactly
+// like the chart-bind face: platform-notify-bridge.js (plus the pure
+// bot-notify.js module it imports) is copied into the profile dir, and a
+// fresh-insert row disables the row it subclasses — a cordis patch cannot
+// rewrite an inserted row's plugin name, so the chain always grows by
+// disable + insert. Composed into agent-runner children only (compose.js
+// calls this writer with the child's PRIVATE home); the platform's own web
+// children never see the row.
+//
+// Swap chain in a runner child: presets.patch.yml inserts `platform-sdk-server`
+// (the preset bridge) → notify.patch.yml disables it and inserts
+// `platform-notify-server`, a subclass. Layer order matters and is fixed by
+// compose.js's patchPaths (notify AFTER presets).
+const NOTIFY_BRIDGE_SOURCE = join(dirname(fileURLToPath(import.meta.url)), "dsh-profile-template", "platform-notify-bridge.js");
+const NOTIFY_MODULE_SOURCE = join(dirname(fileURLToPath(import.meta.url)), "dsh-profile-template", "bot-notify.js");
+const PRESET_BRIDGE_SOURCE_FILE = "platform-preset-bridge.js"; // re-copied: the notify bridge imports it (its subclass parent)
+export const NOTIFY_BRIDGE_FILE = "platform-notify-bridge.js";
+export const NOTIFY_MODULE_FILE = "bot-notify.js";
+export const NOTIFY_PATCH_FILE = "notify.patch.yml";
+
+// Write the notify bridge files + notify.patch.yml into the profile dir.
+// `dirs` is the same { dshHome, profileName } target every runner-facing
+// writer takes (the platform's no-args form would aim at the deployment
+// singleton, where this row must NOT land). Returns the patch path for the
+// child's --patch args.
+export function writeNotifyPatch({ dirs } = {}) {
+  const profileDir = dirname(targetPaths(dirs).presetsPatch);
+  mkdirSync(profileDir, { recursive: true });
+  // The subclass parent, re-written idempotently (the user-questions overlay's
+  // own discipline): the notify bridge's relative import must resolve even if
+  // a caller ever writes this overlay ahead of the presets one.
+  atomicWriteTextSync(join(profileDir, PRESET_BRIDGE_SOURCE_FILE), readFileSync(BRIDGE_SOURCE, "utf8"));
+  atomicWriteTextSync(join(profileDir, NOTIFY_BRIDGE_FILE), readFileSync(NOTIFY_BRIDGE_SOURCE, "utf8"));
+  atomicWriteTextSync(join(profileDir, NOTIFY_MODULE_FILE), readFileSync(NOTIFY_MODULE_SOURCE, "utf8"));
+  const patchPath = join(profileDir, NOTIFY_PATCH_FILE);
+  const patch = [
+    { id: "platform-sdk-server", disabled: true },
+    { insert: [{ id: "platform-notify-server", name: `./${NOTIFY_BRIDGE_FILE}` }] },
+  ];
+  atomicWriteTextSync(patchPath, yaml.dump(patch));
+  console.log(`[dsh-profile] wrote notify bridge patch → ${patchPath}`);
+  return patchPath;
+}
+
 // Self-check: load .env, build the section, print it + the model list. No file
 // write (read-only) — proves the generator emits valid YAML + the expected ids.
 // Usage: node dsh-profile.js

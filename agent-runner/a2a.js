@@ -42,10 +42,17 @@ function assistantMessage(contextId, text) {
 }
 
 // One express app per hosted agent, bound by the manager to agentPortFor(key).
-export function createAgentApp({ entry, manager, config, log = console }) {
+// `getEntry` (optional) resolves the agent's CURRENT registry entry per
+// request: the listener outlives in-place upgrades while the manager refreshes
+// entries on every poll, so a captured object would keep serving the stale
+// descriptor (and stale card) after a redeploy — an upgrade, a secret rebind,
+// or a notify-channel change would never reach composition. Falls back to the
+// captured `entry` for direct/test callers.
+export function createAgentApp({ entry, getEntry, manager, config, log = console }) {
   const app = express();
   app.disable("x-powered-by");
   app.use(express.json({ limit: "1mb" }));
+  const currentEntry = () => (typeof getEntry === "function" ? getEntry() : entry);
 
   let warnedOpen = false;
   app.use((req, res, next) => {
@@ -61,6 +68,7 @@ export function createAgentApp({ entry, manager, config, log = console }) {
   });
 
   app.get("/.well-known/agent-card.json", (_req, res) => {
+    const entry = currentEntry();
     res.json({
       name: entry.name,
       description: entry.description,
@@ -77,6 +85,7 @@ export function createAgentApp({ entry, manager, config, log = console }) {
   });
 
   app.post("/", async (req, res) => {
+    const entry = currentEntry();
     const { id, method, params } = req.body ?? {};
     if (req.body?.jsonrpc !== "2.0" || typeof method !== "string") {
       return res.status(200).json(jsonRpcError(id, -32600, "Invalid Request"));

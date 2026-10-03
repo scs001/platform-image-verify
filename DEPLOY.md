@@ -1576,11 +1576,14 @@ home/会话留盘，下次触达秒级热起）；冷却 10 分钟内的 child �
   cheap1 staging 长闲置 child Linux RSS 仅 4.9MB（换页回收后）、macOS 新起空闲
   18–54MB（活跃带载增长）；活跃稳态 Linux 未实测——保持 96MB 保守值，首次真实
   带载驻留后按 `docker top agent-runner-dsh -o rss` 复调（实测 ×1.3）；
+- `AGENT_RUNNER_TURN_TIMEOUT_MS`（默认 180000，即 3m）——**部署默认回合预算**：无
+  `effective_budget_minutes` 描述符的 agent 以此值为硬停上限（语义收窄，见「回合预算」）；
 - `AGENT_RUNNER_TZ`（默认 Asia/Shanghai）——每日节奏与日界的时区；
 - `AGENT_RUNNER_ARCHIVE_DIR`（默认 `<home>/agent-archive`）——每日纪要归档目标，
   NFS/对象卷直接挂此路径；
 - `AGENT_RUNNER_METER_FILE`（默认 `<home>/meter.jsonl`）——每回合计量
-  `{agent, kind: message|self|digest, tokens?, durationMs, at}`，③ 计费结算的输入。
+  `{agent, kind: message|self|digest, tokens?, durationMs, at, budgetKill?}`，③ 计费结算的输入
+  （`budgetKill:true` = 该回合超预算被硬停）。
 
 **节奏与暂停**：`serving.rhythm`（pack 契约，作者默认）→ 部署时 `rhythms` 覆盖
 （descriptor 记生效值）→ runner 调度器按节奏注入自主回合（错过即跳过不补跑）。
@@ -1588,6 +1591,87 @@ home/会话留盘，下次触达秒级热起）；冷却 10 分钟内的 child �
 暂停 = registry 条目 `paused` 标记（deployer 按钮或平台急停端点写同一标记）；
 runner 轮询生效（≤5min），对来话回显式 `-32010 agent paused`，恢复一键。回滚 =
 旧镜像（idle-reap 行为回归，盘上状态无 schema 变更）。
+
+### 回合预算（add-serving-budgets，2026-10-03）
+
+**契约字段**：serving 契约可声明 `budget.turnMinutes`（正整数、≤120 平台上限；纯时长
+声明，多余键与非时长形状一律拒绝——与 rhythm 同纪律，见 `lib/pack-manifest.js`）。
+
+**部署覆盖**：deploy 请求体 `budgets: { "<agentId>": minutes | null }`（与 `rhythms`
+同验证点）；`null` = 清除覆盖回契约声明。有效值 = 覆盖 → 契约声明 → 缺省，落描述符
+`effective_budget_minutes`（纯数值；改预算的重新部署会排水旧 child，下次触达按新预算重生）。
+
+**执行语义（硬停，ADR-0014 ④）**：runner 按每 agent 有效预算执行**所有回合来源**
+（message / 节奏自主回合 / 日界纪要同一预算）；超限即硬停——child 进程被杀、下次触达
+冷启重生（私有 home、会话存储、agent 写的文件全部留盘），调用方收到指名上限的结构化
+错误（`-32001 turn budget (Nm) exceeded`），计量行带 `budgetKill: true`。无描述符预算的
+agent 走部署默认 `AGENT_RUNNER_TURN_TIMEOUT_MS`（默认 180s）——env 语义收窄为「无声明时的
+全局默认」，超时同样硬停（旧「仅放弃等待、child 照跑」的软预算已被 ADR-0014 否决）。
+**展望**：dsh 提供中断 RPC 后，硬停降级为优雅停（发中断、等回合收敛再杀，ADR-0014 原文）。
+
+**验证**：`scripts/probe-serving-budgets.mjs`（cheap1 `probe-budget-wrapper.sh` 驱动，
+2026-10-03 staging ALL GREEN）：部署 budget=1m agent → 慢回合 63.8s 硬停、错误指名 1m
+→ runner 报 warm（child 已移除）→ 同上下文快回合 4.8s 冷启重生作答 → `meter.jsonl`
+有 `budgetKill` 行与重生 ok 行。同批把 staging 的 dsh-profile 链同步到 repo HEAD
+（`dsh-profile.js` / `paths.js` / `llm-providers.js` + 模板缺失的 user-questions bridge；
+旧版备份 `budget-bak-20261003`）——修复 ③ 计费同步后「新 compose.js × 旧 dsh-profile.js」
+配对致新 agent 私有 home 缺 presets 桥文件的既存问题（表现为 child 启动即崩、
+`-32003 JSON-RPC input closed`）。
+
+### 事件通知（add-agent-notifications，2026-10-03）
+
+**契约面（pack 作者视角）**：每个部署的 child 组合经桥行获得一个 `bot_notify` 工具
+——`bot_notify(event, text[, channel])`。`event` 是短事件键（萬星爬虫自愈四类示例：
+`ticket_done` 工单终态 / `pr_opened` PR 开出 / `gate_changed` 总闸变更 /
+`handoff_needed` 超限转人工；pack 可自定义），`text` 是正文（投递时平台加
+`[event] ` 前缀），`channel` 可选且必须等于本部署绑定通道。工具返回平台真实回执
+（`ok` / `reason` / `message` / `status`），拒绝进入回合、可写进 agent 状态；事件文案
+与时机是 pack skill 的职责（平台只提供通道），失败不要盲目重试。
+
+**部署绑定**：deploy 请求体 `notifyChannel: { "<agentId>": "<channel>" | null }`
+（与 `rhythms` / `budgets` 同验证点；通道名形状 `[a-z0-9][a-z0-9._-]{0,63}` = 管理员
+预绑的命名通道）。三态：**省略=保留**既有绑定（从 registry 条目描述符读回，同一版本
+重部署不丢绑定）、`null`=解绑、字符串=绑定。通道存在性不在部署时校验——绑定表是平台侧
+活数据，未知通道在发送时被 relay 结构化拒绝（404 Unknown channel）。描述符记
+`notify_channel`；改绑会排水旧 child，下次触达按新绑定重生。
+
+**runner 接线（env）**：
+
+- `AGENT_RUNNER_RELAY_URL`——默认从 `AGENT_RUNNER_PACKS_URL` 同 origin 推导
+  `/api/bots/relay/send`；
+- `AGENT_RUNNER_RELAY_TOKEN`（=平台 `BOTS_RELAY_TOKEN` 的值）——**只在 runner 配置里**；
+  child 的 spawn 环境在组合前被排干该键（含 `BOTS_RELAY_TOKEN`），spec 有专场景
+  「令牌永不下发 child」；
+- `AGENT_RUNNER_NOTIFY_RATE_PER_MIN`（默认 6）——每 agent 令牌桶（重生的 child 继承
+  同一预算）；relay 侧 per-channel 10/min 仍是兜底，单 agent 先在 6/min 处被拦；
+- `AGENT_RUNNER_NOTIFY_LOG`（默认 `<home>/notify.jsonl`）——runner 侧审计：每决策一行
+  `{agent, channel, outcome: sent|rejected|failed, reason, textLen, at}`，**不落正文**；
+  与 relay 侧 `bot_relay_log`（同样不落正文）双层。
+
+**四类结构化拒绝（回传回合，绝不静默丢弃）**：`not-configured`（未设 relay token）、
+`unbound`（本部署未绑通道，错误指名该缺失）、`channel-mismatch`（显式通道 ≠ 绑定）、
+`rate-limited`（超 per-agent 上限，**未外发**）；relay 自身拒绝（401/404/429/5xx）以
+`reason: relay` + `status` + `message` 原样回传。
+
+**启用前置**：平台侧 `BOTS_RELAY_TOKEN` 未配置时 relay 路由整体 404（惰性，见
+「Bot relay」节）。启用 = 生成 token → patch `platform-secrets` → rollout → 管理员绑
+一个命名通道（`POST /api/bots/channels`，需一个 bot 已见过的 chat 对）；runner 侧补
+`AGENT_RUNNER_RELAY_TOKEN` 后重建容器。**当前 prod 未启用**（secret 中无该键），
+启用后无需任何代码改动。
+
+**验证**（本批 2026-10-03）：
+
+- 单测：`scripts/test-agent-runner.mjs`（绑定投递/三拒绝形状/第 7 次每分钟被拒且
+  无外发/token 不入 spawn spec 与私有 home）、`scripts/test-agent-notify-bridge.mjs`
+  （wire 帧与桥类：`botNotify/send` 上行 + `botNotify/result` 下行、超时/关机兜底、
+  工具注册与渲染、notify.patch.yml 置换行）；
+- 本地排演（真实 dsh child + 真模型 deepseek-v4.1-flash，stub relay）：绑通道回合
+  → relay POST（`Bearer` 宿主令牌、`[event]` 前缀）+ runner 审计 + child 回执
+  `NOTIFY-OK`；[RATE] 回合 → 超限拒绝无外发；未绑 agent → 结构化拒绝零外发；
+- staging 探针 `scripts/probe-agent-notify-live.mjs`（复用 `probe-budget-wrapper.sh`
+  的 cheap1 驱动形态：容器内 `docker exec agent-runner-dsh node scripts/…`，skill md
+  放 ACME 公共路径；**待平台 relay 启用后实跑**）：绑 `test-channel` 部署 → 回合内
+  bot_notify → relay/runner 审计行 + child 回执；未绑定与超限两路径。
 
 ### ② 跨 agent 委派 ops 前置（add-agent-delegation-a2a，2026-10-02 已执行）
 
@@ -1689,3 +1773,81 @@ aloadtree 的 sub2api key 26）推理 → SSE 回流。sub2api 记账实锤：�
 可有可无——代码已兜底 `REGISTRY_URL`）；②registry fork 补丁未推 gitee/上游（上游 issue 候选，
 见 `docs/registry-fork-patches/README.md`）；③chat 会话在 cell 运行时重启后会丢「Agent 绑定」
 （strip 变回 FD local，回合静默走本地执行）——复测时应重选 Agent 或先核对 strip 徽标。
+
+### 部署密钥（deployment secrets）— add-deployment-secrets
+
+为被部署 agent 注入任意命名密钥（如内容仓 git PAT）的通道：录入在部署请求里，
+值只在平台侧存一次，描述符只带不透明引用 `ws_<24hex>`，子进程经认证的内部路由
+按引用取值并 pin 进自己的凭据文件。与 billing key 同一信任模型、同一通道形状。
+
+**1. 录入形状**（`POST /api/packs/:id/versions/:v/deploy` 请求体）：
+
+```json
+{
+  "billingKeys": { "<agentId>": "sk-…" },
+  "secrets": {
+    "<agentId>": {
+      "repo_token": "<value>",
+      "old_name": null
+    }
+  }
+}
+```
+
+- 名称 `[a-z0-9_]{1,32}`（小写标识符——YAML 安全，且与凭据文件里大写的 provider ref
+  天然不同命名空间）；**每 agent 结果集 ≤4 条**（按合并后的绑定集计，非按请求计）；
+  值非空字符串且 ≤8KB；目标 agent 必须是该 pack 的 serving agent。
+- 违规即整单拒绝，`400` + `code:"SECRET_INVALID"` + `reason`
+  （`name` / `shape` / `size` / `count` / `unknown-agent`）；拒绝时不落任何行。
+- 密钥通道与 billing 判据无关：billing 未接（或未绑定）也照常生效。
+
+**2. 生命周期**（对齐 billing key 三态）：
+
+- 重部署**省略** `secrets` → 既有绑定保留，**同一引用**随新描述符下发；
+- 显式 **`null`** 逐名解绑（服务面即消失，runner 下次组合不再 pin 该名）；
+- **重粘贴=轮换**：同名新值铸新引用，旧引用立刻失效；
+- agent **停服**（serving 契约移除）时随该次重部署清退其全部绑定；
+- 没有 liveness 概念（任意凭据无从探活）——存在即用，停用靠解绑/轮换。
+
+**3. 存储 · 通道 · 注入**：
+
+- 表 `deployment_secrets(pack_id, agent_id, name, secret_ref, secret_value, deployer,
+  created_at)`，与 `deployment_keys` **同库同信任面**（明文静态存储，不加密——与 billing
+  key 现状一致，加密升级统一后置）。
+- 描述符字段 `secret_refs: { "<name>": "ws_…" }`——registry 条目 / 市场 / 卡片**零值**。
+- runner 逐 secret 调 `GET /api/packs/internal/secret/:ref`（registry 服务凭据 Bearer，
+  与 llm-key 路由同门）；**逐次审计**（ref 掩码 + agent + name，无值）。
+- 组合时先取全量值、再一次性写入 child 私有 `.credentials.yaml` 的 `refs`（环境已被洗刷，
+  凭据文件是唯一到达 child 的通道）；**任一失败=该 agent 组合失败**（错误带缺失的
+  name/ref，无部分集、无兜底值）。
+
+**4. 脱敏与可见面**：
+
+- 日志/审计/部署面统一 `ws_xxxx…last4`（引用头 + 值尾四位）；**API 永不回值**；
+- 绑定可见（`GET /api/packs/:id/secret-bindings` → 每 serving agent 的**名称列表**），
+  引用/掩码/值均不出该路由；部署响应 `deployed[].secretRefs` 为掩码面。
+
+**5. 最小权限示例**（GitHub fine-grained PAT）：仅勾
+`Contents: Read and write` + `Pull requests: Read and write`，**不勾** Administration；
+scopes 选目标仓。child 内密钥对其全部工具可见（无 per-secret 作用域语义），
+权限收敛靠凭据本身的最小授权（签发侧解决），不要粘贴经典 PAT（classic 无法细粒度）。
+
+**6. staging 全链探针**（前端平台 + registry + staging runner，含负例）：
+
+```bash
+# 需要：creators 组的平台 Bearer（小程序 token）、该账号的 sub2api key（平台接了 billing 时）、
+# registry 管理员 JWT、runner 凭据。runner 宿主机上跑（或给 PROBE_READ_CMD 读容器内文件）。
+PLATFORM_URL=https://platform.finddatatech.cloud \
+PROBE_TOKEN=<platform Bearer> PROBE_BILLING_KEY=<sk-…> \
+REGISTRY_URL=https://mcp.finddatatech.cloud \
+REGISTRY_TOKEN=<admin JWT> \
+RUNNER_BASE=http://100.64.0.11:8790 BACKEND_TOKEN=<runner credential> \
+RUNNER_HOME=/data \
+PROBE_READ_CMD='ssh cheap1 docker exec agent-runner-dsh cat {path}' \
+node scripts/probe-deployment-secrets.mjs
+```
+
+探针发布私有 pack → 部署带假 secret → 断言部署面掩码/公开面零值/registry 描述符仅引用 →
+触发组合并读 child home 凭据文件断言键值在位 → 再用一个 store 无法解析的引用重部署，
+断言组合失败文案带缺失名 → 清理 registry 条目并下架 pack。**旧平台**（未含本变更）上探针
+会在部署面检查处明确报「platform does not run add-deployment-secrets yet」。

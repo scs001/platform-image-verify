@@ -40,18 +40,25 @@ function tokensOf(usage) {
   const t = usage.total_tokens ?? usage.totalTokens ?? usage.tokens;
   return Number.isFinite(Number(t)) ? Number(t) : null;
 }
-import { agentKeyFor, materializeAgentHome, mcpEntry, applyBillingKey } from "./compose.js";
+import { agentKeyFor, materializeAgentHome, mcpEntry, applyBillingKey, applyDeploymentSecrets } from "./compose.js";
+import { scrubbedChildEnv } from "./child.js";
+import { createNotifier } from "./notify.js";
+import { maskSecretRef } from "../lib/agent-serving.js";
 import { createAgentApp, agentPortFor } from "./a2a.js";
 
 export class ChildManager {
   #slotWaiters = new Set(); // capacity-queue interval timers, cleared on shutdown
   #listeners = new Map(); // agentKey → http server (per-agent port, upstream #1734)
-  constructor({ config, registryClient, clientFactory, log = console, now = () => Date.now() }) {
+  constructor({ config, registryClient, clientFactory, log = console, now = () => Date.now(), notifyFetchImpl }) {
     this.config = config;
     this.registryClient = registryClient;
     this.clientFactory = clientFactory;
     this.log = log;
     this.now = now;
+    // Notification egress (add-agent-notifications D3/D5): one forwarder for
+    // every child — the relay credential and the per-agent rate bound live
+    // here, never in a child's environment.
+    this.notifier = createNotifier({ config, log, fetchImpl: notifyFetchImpl, now });
     this.children = new Map(); // agentKey → AgentChild (live processes)
     this.entries = new Map(); // agentKey → registry entry (card source)
     this.versions = new Map(); // agentKey → descriptor version identity
@@ -123,7 +130,18 @@ export class ChildManager {
     // Port derives from the REGISTRY path — the same input the deploy side
     // hashes when it registers the URL (lib/agent-serving agentPortFor).
     const port = agentPortFor(entry.path, { base: this.config.portBase ?? 8791, span: this.config.portSpan ?? 32 });
-    const server = http.createServer(createAgentApp({ entry, manager: this, config: this.config, log: this.log }));
+    const server = http.createServer(
+      createAgentApp({
+        entry,
+        // Resolve the LIVE entry per request: this listener survives in-place
+        // upgrades, so a captured object would keep serving the stale
+        // descriptor to composition (upgrades/rebinds must reach the child).
+        getEntry: () => this.entries.get(key) ?? entry,
+        manager: this,
+        config: this.config,
+        log: this.log,
+      }),
+    );
     server.listen(port, "0.0.0.0");
     this.#listeners.set(key, server);
     this.log.log(`[agent-runner] serving ${key} on :${port} (registry path ${entry.path})`);
@@ -171,6 +189,19 @@ export class ChildManager {
         skills: entry.metadata?.skills,
         mcp: entry.metadata?.mcpServers,
         name: entry.name,
+        // The effective turn budget materializes at spawn (the child's
+        // timeout); a redeploy that changes it drains the old child so the
+        // new bound takes effect on the next touch.
+        budget: entry.metadata?.effective_budget_minutes,
+        // Deployment-secret refs (add-deployment-secrets): a rebind mints a
+        // fresh reference, and the pinned values live in the home — the
+        // descriptor change must drain the old child so the next spawn
+        // re-fetches and re-pins.
+        secretRefs: entry.metadata?.secret_refs,
+        // The notification binding (add-agent-notifications D2) is captured by
+        // the spawn's notify handler; a rebind must drain the old child or it
+        // would keep notifying the previous channel.
+        notify: entry.metadata?.notify_channel,
       });
       const existing = this.children.get(key);
       this.entries.set(key, entry);
@@ -380,12 +411,34 @@ export class ChildManager {
         });
         return out;
       } catch (e) {
-        this.#meterLine(key, kind, { ok: false, error: String(e?.message || e), durationMs: this.now() - startedAt });
+        // Budget kill (add-serving-budgets D3): the child's timeout marker
+        // plus the timeout code — this turn (message/self/digest alike) is
+        // recorded as a budget kill and the child is hard-stopped. A
+        // concurrent turn settling via _child_exit (-32002) is never
+        // mislabeled: only the marker+codes pair matches.
+        const budgetKilled = e?.code === -32001 && child.budgetKilled === true;
+        this.#meterLine(key, kind, {
+          ok: false,
+          error: String(e?.message || e),
+          durationMs: this.now() - startedAt,
+          budgetKill: budgetKilled || undefined,
+        });
+        if (budgetKilled) this.#hardStopOnBudget(key, child);
         throw e;
       }
     } finally {
       release?.();
     }
+  }
+
+  // Over-budget hard stop (add-serving-budgets D3, ADR-0014 ④): the child is
+  // dead to the manager — it re-spawns on the role's next touch (private
+  // home, session storage, and written files survive on disk). The delete is
+  // guarded so a concurrently replaced child is never evicted by a stale kill.
+  #hardStopOnBudget(key, child) {
+    if (this.children.get(key) === child) this.children.delete(key);
+    this.log.warn(`[agent-runner] ${key} over turn budget (${child.budgetLabel}) — hard stop; next touch re-warms`);
+    child.stop().catch(() => {});
   }
 
   // A rhythm self-turn (the scheduler calls this): the platform-injected turn
@@ -443,17 +496,65 @@ export class ChildManager {
         this.log.warn(`[agent-runner] billing key fetch failed for ${key} — falling back to the runner-level key: ${e.message}`);
       }
     }
+    // Deployment secrets (add-deployment-secrets D4): fetch EVERY declared
+    // secret by reference first, then pin the complete set in one write. A
+    // fetch that cannot resolve fails composition loudly with the reference
+    // named — no partial set, no fallback value; the child is never
+    // half-credentialed and never runs on a substitute.
+    const secretRefs = descriptor.secret_refs ?? {};
+    if (Object.keys(secretRefs).length > 0) {
+      if (!config.packsBaseUrl) {
+        throw new Error(`deployment secrets declared (${Object.keys(secretRefs).join(", ")}) but the pack gateway URL is not configured (AGENT_RUNNER_PACKS_URL)`);
+      }
+      const values = {};
+      for (const [name, ref] of Object.entries(secretRefs)) {
+        try {
+          const r = await fetch(`${config.packsBaseUrl}/api/packs/internal/secret/${encodeURIComponent(ref)}`, {
+            headers: { Authorization: `Bearer ${config.registryToken}` },
+            signal: AbortSignal.timeout(10_000),
+          });
+          const doc = await r.json().catch(() => ({}));
+          if (!r.ok || typeof doc?.secretValue !== "string" || doc.secretValue.length === 0) {
+            throw new Error(doc?.error || `HTTP ${r.status}`);
+          }
+          values[name] = doc.secretValue;
+        } catch (e) {
+          throw new Error(`deployment secret '${name}' (ref ${maskSecretRef(ref)}) could not be fetched — refusing to compose ${key}: ${e.message}`);
+        }
+      }
+      applyDeploymentSecrets(spec.home, values);
+      this.log.log(`[agent-runner] ${key} pinned ${Object.keys(values).length} deployment secret(s): ${Object.entries(secretRefs).map(([n, ref]) => `${n} ${maskSecretRef(ref, values[n])}`).join(", ")}`);
+    }
+    // Effective turn budget (add-serving-budgets D3): the descriptor's
+    // declared minutes take precedence; otherwise the runner's deployment
+    // default. Over it the turn is hard-stopped (see turn()). The spawn
+    // spec carries the resolved ms so the harness client's own request
+    // timeout rides just past the budget instead of past the default.
+    const budgetMinutes = Number(descriptor.effective_budget_minutes);
+    const hasBudget = Number.isFinite(budgetMinutes) && budgetMinutes > 0;
+    const turnBudgetMs = hasBudget ? budgetMinutes * 60_000 : config.turnTimeoutMs;
+    const budgetLabel = hasBudget ? `${budgetMinutes}m` : `${Math.max(1, Math.ceil(config.turnTimeoutMs / 60_000))}m`;
+    // Notification binding (add-agent-notifications D2/D3): captured at spawn;
+    // a binding change is part of the identity hash, so a rebind re-spawns
+    // instead of talking to the previous channel. The handler runs host-side
+    // with the runner-held relay credential — the child never holds either.
+    const notifyChannel = typeof descriptor.notify_channel === "string" && descriptor.notify_channel ? descriptor.notify_channel : null;
     const child = new AgentChild({
       key,
       version: descriptor.packVersion ?? null,
-      turnTimeoutMs: config.turnTimeoutMs,
-      clientFactory: this.clientFactory(spec),
+      turnTimeoutMs: turnBudgetMs,
+      budgetLabel,
+      clientFactory: this.clientFactory({ ...spec, turnBudgetMs }),
       log: this.log,
+      notifyHandler: (payload) => this.notifier.send({ agent: key, boundChannel: notifyChannel, ...payload }),
       spawnSpec: {
         profile: config.dshProfile,
         patchPaths: spec.patchPaths,
         cwd: config.cwd,
-        env: process.env,
+        // The child sees the runner's environment minus every relay
+        // credential (add-agent-notifications D2): the token's sole owner is
+        // this process's configuration.
+        env: scrubbedChildEnv(process.env),
         provider: config.provider,
         model: config.model,
         presetId: spec.presetId,

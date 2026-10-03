@@ -7,7 +7,9 @@
 // targets, zero format drift — a dsh-profile format change IS the change.
 // What remains local: the skills root layout, the override-by-id skills
 // patch and the insert-only MCP patch (cordis loader contract, not mirrors
-// of platform writers), and the seeded scaffold copy.
+// of platform writers), and the seeded scaffold copy. The notify overlay
+// (writeNotifyPatch) is a dsh-profile writer again — it swaps the preset
+// bridge row for its bot_notify subclass (add-agent-notifications D1).
 
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -18,8 +20,14 @@ import {
   resolveShippedPresetRoot,
   rosterPresetId,
   writeLlmProfile,
+  writeNotifyPatch,
   writePresetsPatch,
 } from "../dsh-profile.js";
+// The deploy gate's shape definition, re-checked here before pinning
+// (add-deployment-secrets: one definition, two enforcement points — the
+// descriptor arrives from the registry, so the runner never assumes it was
+// validated).
+import { SECRET_NAME_RE } from "../lib/agent-serving.js";
 
 function writeIfChanged(file, content) {
   let current = null;
@@ -141,6 +149,14 @@ export async function materializeAgentHome({ homeRoot, agentKey, entry, skillCon
     patchPaths.push(path.join(profileDir, "mcp.patch.yml"));
   }
 
+  // 3b. Notify overlay (add-agent-notifications D1/D3): swaps the preset
+  //     bridge row for its notify subclass, so this child's roster gains the
+  //     `bot_notify` tool. LAST in patch order — it disables the row the
+  //     presets overlay inserted. The relay credential and the bound channel
+  //     stay on the runner; nothing here reads them.
+  const notifyPatchPath = writeNotifyPatch({ dirs: { dshHome: home, profileName: "platform" } });
+  if (notifyPatchPath) patchPaths.push(notifyPatchPath);
+
   // LLM wiring — the deployment composer's writers into the PRIVATE home:
   // settings.yaml carries the llm-pi-ai provider routes (env route + the
   // Models page's user providers), .credentials.yaml carries their keys (the
@@ -193,6 +209,33 @@ function apiKeyEnvRefs(home) {
     walk(settings);
   } catch { /* no settings → LLM_API_KEY alone */ }
   return refs;
+}
+
+// Pin the agent's deployment secrets into the private credentials file
+// (add-deployment-secrets D4). Same read-modify-write shape as applyBillingKey:
+// the child's environment is scrubbed, so this file is the only channel that
+// reaches it. Declared names are lowercase identifiers (validated at deploy
+// time; re-checked here before ANY write), so they namespace cleanly beside
+// the uppercase provider refs. The whole set lands in one write — callers
+// fetch every value first and composition fails before this is reached when
+// one is missing, so a partial secret set is never installed.
+export function applyDeploymentSecrets(home, secrets) {
+  const entries = Object.entries(secrets ?? {});
+  if (entries.length === 0) return;
+  for (const [name] of entries) {
+    if (!SECRET_NAME_RE.test(name)) {
+      throw new Error(`deployment secret name '${name}' is not a valid name ([a-z0-9_]{1,32})`);
+    }
+  }
+  const credentialsPath = path.join(home, ".credentials.yaml");
+  let doc = {};
+  try {
+    doc = yaml.load(readFileSync(credentialsPath, "utf8")) ?? {};
+  } catch { /* absent/malformed → recreate */ }
+  doc.version = 1;
+  doc.refs = doc.refs && typeof doc.refs === "object" ? doc.refs : {};
+  for (const [name, value] of entries) doc.refs[name] = String(value);
+  writeFileSync(credentialsPath, yaml.dump(doc), { mode: 0o600 });
 }
 
 // One dsh-mcp-client loader entry per registry server — the http branch of

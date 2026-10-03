@@ -35,3 +35,4 @@ resources/node
 resources/**/*.tar.gz
 resources/**/*.tgz
 resources/**/*.tar.xz
+facet/web/dist

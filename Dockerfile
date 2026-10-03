@@ -63,6 +63,9 @@ ENV NODE_OPTIONS=--max-old-space-size=1024 \
 # broken resource build that should fail the docker build.
 COPY package*.json ./
 COPY web/package*.json ./web/
+# The facet thin SPA (add-facet-platform) has its own dep tree; same pattern —
+# install early for cache, build after `COPY . .`.
+COPY facet/web/package*.json ./facet/web/
 # --omit=dev on the ROOT tree only: the runtime (scripts/start.js → server.js)
 # never imports a devDependency, and they were ~330 MB of dead weight — the
 # electron binary alone is 299 MB in what is a server-only image. The WEB ci
@@ -70,7 +73,8 @@ COPY web/package*.json ./web/
 # Native addons (better-sqlite3/tree-sitter) ship prebuilt binaries, so
 # --ignore-scripts + omit=dev compose safely.
 RUN npm ci --omit=dev --ignore-scripts \
-    && npm --prefix web ci --ignore-scripts
+    && npm --prefix web ci --ignore-scripts \
+    && npm --prefix facet/web ci --ignore-scripts
 
 # dsh-profile-template/ is consumed by the dsh install layer below (cp →
 # /opt/dsh-home), so it must exist in the builder BEFORE that RUN. Copying it
@@ -125,6 +129,12 @@ COPY . .
 # web/node_modules and are never copied to the runtime stage.
 RUN npm run web:build
 
+# The facet thin SPA (add-facet-platform): the same image serves two roles —
+# the platform (default CMD) and the standalone facet service
+# (`node facet/index.js`, per-deployment command override). One image keeps
+# the build/relay/GitOps pipelines single-tracked; the SPA is ~500KB.
+RUN npm --prefix facet/web run build
+
 # ── Runtime ──────────────────────────────────────────────────────────────────
 FROM ${BASE_IMAGE} AS runtime
 
@@ -148,6 +158,9 @@ COPY --chown=node:node --from=builder /opt/dsh-home /opt/dsh-home
 ENV PATH="/opt/dsh/node_modules/.bin:${PATH}" \
     DSH_HOME="/opt/dsh-home"
 COPY --chown=node:node --from=builder /app/web/dist ./web/dist
+# Facet service + its built thin SPA (same-image second role; see builder note).
+COPY --chown=node:node --from=builder /app/facet/index.js /app/facet/identity.js ./facet/
+COPY --chown=node:node --from=builder /app/facet/web/dist ./facet/web/dist
 
 # Application source: all root .js (server.js, paths.js, local-services.js,
 # bundle-manifest.js, chat-history.js, documents.js, mcp-bridge.js, …) + the

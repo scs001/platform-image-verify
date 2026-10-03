@@ -25,6 +25,7 @@ import { createMpAuth } from "./mp-auth.js";
 import { createMpBindings } from "./mp-bindings.js";
 import { createShareRegistry, createRateLimiter } from "./share.js";
 import { createPackRegistry, registerPackRoutes } from "./packs.js";
+import { registerFacetProxy } from "./facet-proxy.js";
 import { registerWanxingRoutes } from "./wanxing/index.js";
 import { createBotWebhookRouter } from "./bot-webhooks.js";
 import Database from "better-sqlite3";
@@ -345,26 +346,41 @@ app.get("/api/share/:token", async (req, res) => {
   res.json({ title: session.body.title ?? "", messages: session.body.messages ?? [] });
 });
 
-// ── Pack marketplace (openspec: add-pack-marketplace) ────────────────────────
-// Gateway-level registry + routes: identity-gated creators publish versioned,
-// immutable capability packs; every authenticated user browses and subscribes.
-// The registry file sits beside share-tokens.db; packs outlive and cross cells
-// by the same argument. Publishing needs the creator group (default
-// "creators", same org→groups machinery as ADMIN_GROUPS); browsing and
-// subscribing need only a verified identity. PACK_PUBLISH_RATE_MAX is a
-// test/ops knob; the shipped default is 10 publishes per author per hour.
-const packRegistry = createPackRegistry({ file: path.join(DATA_ROOT, "packs.db") });
-registerPackRoutes(app, {
-  registry: packRegistry,
-  resolveUser,
-  rejectUnauthenticated,
-  creatorGroups: (process.env.PACK_CREATOR_GROUPS || "creators")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean),
-  adminGroups: ADMIN_GROUPS,
-  rateMax: Number(process.env.PACK_PUBLISH_RATE_MAX || 10),
-});
+// ── Pack marketplace (openspec: add-pack-marketplace; add-facet-platform) ────
+// With FACET_BASE_URL set the marketplace lives in the independently
+// deployed facet service and this gateway proxies the whole /api/packs
+// prefix onto it (gateway/facet-proxy.js) — same-origin for the browser, the
+// verified identity rides along under the internal credential. Unset = the
+// local mount (pre-facet posture; the rollback path — flip the env back).
+const facetBase = (process.env.FACET_BASE_URL || "").replace(/\/+$/, "");
+if (facetBase) {
+  registerFacetProxy(app, {
+    base: facetBase,
+    resolveUser,
+    token: process.env.FACET_INTERNAL_TOKEN || "",
+  });
+} else {
+  // Gateway-level registry + routes: identity-gated creators publish
+  // versioned, immutable capability packs; every authenticated user browses
+  // and subscribes. The registry file sits beside share-tokens.db; packs
+  // outlive and cross cells by the same argument. Publishing needs the
+  // creator group (default "creators", same org→groups machinery as
+  // ADMIN_GROUPS); browsing and subscribing need only a verified identity.
+  // PACK_PUBLISH_RATE_MAX is a test/ops knob; the shipped default is 10
+  // publishes per author per hour.
+  const packRegistry = createPackRegistry({ file: path.join(DATA_ROOT, "packs.db") });
+  registerPackRoutes(app, {
+    registry: packRegistry,
+    resolveUser,
+    rejectUnauthenticated,
+    creatorGroups: (process.env.PACK_CREATOR_GROUPS || "creators")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+    adminGroups: ADMIN_GROUPS,
+    rateMax: Number(process.env.PACK_PUBLISH_RATE_MAX || 10),
+  });
+}
 
 // ── Wanxing facade (openspec: add-wanxing-serving-api; ADR-0014) ────────────
 // The external front door: callers authenticate with their own sub2api key,
@@ -517,7 +533,8 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, async () => {
     console.log(`[gateway] ${signal} — stopping ${registry.cells.size} cell(s)`);
     shareRegistry.close();
-    packRegistry.close();
+  const facetBase = (process.env.FACET_BASE_URL || "").replace(/\/+$/, "");
+  if (!facetBase && packRegistry) packRegistry.close();
     await registry.shutdown();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 3000).unref();

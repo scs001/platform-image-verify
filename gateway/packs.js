@@ -450,6 +450,14 @@ export function registerPackRoutes(app, {
   rateWindowMs = 60 * 60_000,
   jsonLimit = "1mb",
   deployConfig: deployConfigOpt = null,
+  // Facet-open read face (add-facet-platform): when true, the three read
+  // routes (browse / detail / stored version) answer anonymous callers with
+  // a null-identity viewer — public live packs only; private and unlisted
+  // stay invisible (visibleTo/get already enforce exactly that). Write
+  // routes (publish/subscribe/deploy/unpublish) keep the hard auth gate.
+  // The 壹座-embedded mount leaves this off: behind the Logto session the
+  // wall costs nothing and the pre-facet spec posture holds there.
+  anonymousRead = false,
 }) {
   // Agent-serving wiring (3.2): injected config wins (tests), env falls back
   // to the dedicated AGENT_SERVING_* names, then the market-bridge vars —
@@ -483,6 +491,18 @@ export function registerPackRoutes(app, {
     return user;
   };
 
+  // Read-face auth: identity when present, else the anonymous viewer when
+  // the facet-open mount allows it. The viewer shape mirrors what the
+  // visibility filters expect from a signed-out browser: no email, no
+  // groups — visibleTo() shows such a caller public packs only, and the
+  // unlisted guard in get() stays shut (includeUnlisted requires author or
+  // subscriber, neither of which an empty email can match).
+  const authRead = (req) => {
+    const user = resolveUser(req);
+    if (user) return user;
+    return anonymousRead ? { email: "", groups: [] } : null;
+  };
+
   // Publish (first version or next). Body: { packId?, manifest } — packId
   // targets an existing pack (author-checked); omitting it mints a new one.
   app.post("/api/packs", express.json({ limit: jsonLimit }), (req, res) => {
@@ -508,8 +528,8 @@ export function registerPackRoutes(app, {
 
   // Browse: paginated, searchable listing of live packs.
   app.get("/api/packs", (req, res) => {
-    const user = auth(req, res);
-    if (!user) return;
+    const user = authRead(req);
+    if (!user) return rejectUnauthenticated(req, res);
     const { search = "", tag = "", page, pageSize } = req.query;
     res.json(registry.list({ search: String(search), tag: String(tag), page, pageSize, viewer: { email: user.email, admin: isAdmin(user) } }));
   });
@@ -517,8 +537,8 @@ export function registerPackRoutes(app, {
   // Latest-version detail. An unlisted pack stays visible to its author and
   // active subscribers; the author additionally sees the subscriber count.
   app.get("/api/packs/:id", (req, res) => {
-    const user = auth(req, res);
-    if (!user) return;
+    const user = authRead(req);
+    if (!user) return rejectUnauthenticated(req, res);
     const id = req.params.id;
     const isAuthor = registry.authorEmail(id) === user.email;
     const isSubscriber = Boolean(registry.subscription(user.email, id));
@@ -534,8 +554,8 @@ export function registerPackRoutes(app, {
 
   // A stored version is always retrievable, listed or not.
   app.get("/api/packs/:id/versions/:version", (req, res) => {
-    const user = auth(req, res);
-    if (!user) return;
+    const user = authRead(req);
+    if (!user) return rejectUnauthenticated(req, res);
     const pack = registry.packRowPublic?.(req.params.id);
     const v = registry.getVersion(req.params.id, req.params.version);
     const visible = v && registry.visibleTo(pack, user, { admin: isAdmin(user) });

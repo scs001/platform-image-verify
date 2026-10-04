@@ -122,6 +122,7 @@ export function registerWanxingRoutes(app, {
     resolveDeployment,
     listDeployments,
     hardStale: () => bookkeeping.hardStale(),
+    ensureFresh: () => bookkeeping.poke(),
     report: (ev) => fleetReporter.report(ev),
     forwardHeaders,
     registryFetch: doFetch,

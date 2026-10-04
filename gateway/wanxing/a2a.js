@@ -39,6 +39,7 @@ export function createA2aFace({
   resolveDeployment, // async (slug) → { agentPath } | null
   listDeployments,   // async () → [{ slug, agentPath }]
   hardStale = () => false, // enumeration faces 503 when the bookkeeping snapshot is past its hard window
+  ensureFresh = async () => {}, // awaited before that guard: a blocking best-effort refresh (idle-facade self-heal)
   report = null,     // optional ({kind, agent, payload, id?}) → fleet-observer (add-fleet-event-backbone 6.3)
   forwardHeaders,    // () → the platform's internal dual-credential headers
   registryFetch,     // (path, init?) → fetch Response against the registry
@@ -128,6 +129,7 @@ export function createA2aFace({
     // hard-degrade on a hard-stale snapshot (design D2.1); the A2A turn
     // path never does.
     app.get("/api/wanxing/v1/agents", async (req, res) => {
+      await ensureFresh().catch(() => {});
       if (hardStale()) return sourceUnavailable(res, "snapshot hard-stale");
       const out = [];
       let deps;
@@ -171,6 +173,7 @@ export function createA2aFace({
     });
 
     app.get("/api/wanxing/v1/a2a/:agentSlug/.well-known/agent-card.json", async (req, res) => {
+      await ensureFresh().catch(() => {});
       if (hardStale()) return sourceUnavailable(res, "snapshot hard-stale");
       let state;
       try {

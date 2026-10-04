@@ -100,6 +100,14 @@ export function createBookkeepingCache({
       return snap?.bySlug.get(slug) ?? null;
     },
 
+    // Blocking best-effort refresh for the enumeration guard (fd-prod
+    // finding #2, mirrored in fd-wanxing): once past the hard window the
+    // guard would otherwise block the only path that ever triggers a
+    // refresh — an idle facade deadlocks its own catalog.
+    async poke() {
+      if (!snap || now() - snap.at >= ttlMs) await refresh();
+      return true;
+    },
     stalenessMs() {
       return snap ? now() - snap.at : Infinity;
     },

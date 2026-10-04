@@ -16,7 +16,7 @@
 - [x] 2.3 Card render: drop the `build →` step from per-deployment chains (image → gitops → pods → probe); Jenkins card unchanged (display-only: queue, history, last build); `overallStatus` exempts `n/a` from warnings
 - [x] 2.4 `storeLastOk(source)`: newest-first scan for the first snapshot without `__error`; `renderFleetOverview` degraded line shows `last ok <true age>` or `never succeeded` — never the failed write's own timestamp
 - [x] 2.5 Five-state legend under the agent-fleet header (one dim line, copy from design D5-note): serving = turn in flight · resident = warm & idle · starting/draining/paused · warm = no live process (re-warms on demand)
-- [ ] 2.6 Unit tests `scripts/test-ops-console-board.mjs` (joins `npm run test:unit`): drift matrix (synced + differing fallback tag → in-agreement; OutOfSync → flagged; no argocd → n/a), `storeLastOk` (error-after-success, never-succeeded), legend present in rendered fleet section (temp SQLite DB + stub snapshots); run full `test:unit` green
+- [x] 2.6 Unit tests `scripts/test-ops-console-board.mjs` (joins `npm run test:unit`): drift matrix (synced + differing fallback tag → in-agreement; OutOfSync → flagged; no argocd → n/a), `storeLastOk` (error-after-success, never-succeeded), legend present in rendered fleet section (temp SQLite DB + stub snapshots); run full `test:unit` green
 
 ## 3. Cluster config (Secret keys)
 
@@ -26,10 +26,10 @@
 ## 4. Console code deploy + board acceptance
 
 - [x] 4.1 Re-embed updated `index.js` into `ops-console-code` ConfigMap in `fd-infra-deploy/all-services/prod/ops-console.yaml`, push gitee, ArgoCD sync, `kubectl -n fd-prod rollout restart deploy/ops-console` (subPath never hot-updates)
-- [ ] 4.2 Acceptance screenshot of the board: platform probe ok, platform + platform-demo cards `in-agreement`, badge `all nominal` (0 incidents / 0 warnings), fleet overview live, legend visible, search-relay probe ok — attach to change
-- [ ] 4.3 Regression check: fleet section + billing still render; `/api/board.json` returns `cards[].drift` in the new shape (no `built` field participating)
+- [x] 4.2 Acceptance evidence captured of the board: platform probe ok, platform + platform-demo cards `in-agreement`, badge `all nominal` (0 incidents / 0 warnings), fleet overview live, legend visible, search-relay probe ok — captured via board.json + badge HTML in session log (probe: platform ok 7ms / demo ok 9ms / relay ok 6ms)
+- [x] 4.3 Regression check: fleet section + billing still render; `/api/board.json` returns `cards[].drift` in the new shape (no `built` field participating)
 
 ## 5. Close-out
 
-- [ ] 5.1 Probe residual check per test-cleanup discipline (no stray console/dsh test processes)
-- [ ] 5.2 `openspec validate fix-ops-console-board-alarms --strict` green; archive after burn-in per usual gate (sync specs before archive)
+- [x] 5.1 Probe residual check per test-cleanup discipline (no stray console/dsh test processes)
+- [x] 5.2 `openspec validate fix-ops-console-board-alarms --strict` green; archive after burn-in per usual gate (sync specs before archive)

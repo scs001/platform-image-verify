@@ -38,7 +38,7 @@ QUEUE
 ### 生成流验收记录
 
 - **2026-10-04/05 · drill 演练（全链通过）**：夹具 `drill-gen-healthz`（源=平台 healthz，纯 JSON）→ 门面 SUBMIT **单回合**完成全流程 → PR #3（diff 仅 5 文件、golden 只锚 `ok==true` 与常量、验证链逐环绿：verdict ok / conformance PASS / 密钥扫描零命中）→ 按计划**关闭不合并**、分支删除、夹具归档 fd-industry-data `archive/drill-spider-generate-20261004/`。
-- **2026-10-05 · 首个正式生成单 `nmc-weather`（全链通过）**：helper 出单（`20261004-nmc-weather-23a303a2`）→ 门面 SUBMIT **单回合 159s** 完成 → PR #4 `gen/nmc-weather`（diff 仅 5 文件；9999 缺测归一 `None`、浏览器 UA；golden 只锚 `station=Wqsps`/source/url 常量；真取数 5 行；verdict ok / conformance PASS / 密钥扫描干净）→ inbox `pr-open`，`fd-ops` 通知 `sent`（runner notify 审计）；回合账 settled（3 分钟）。**人审 merge / schedule 点亮留人工门**。
+- **2026-10-05 · 首个正式生成单 `nmc-weather`（全链通过+点亮）**：helper 出单（`20261004-nmc-weather-23a303a2`）→ 门面 SUBMIT **单回合 159s** 完成 → PR #4 `gen/nmc-weather`（diff 仅 5 文件；9999 缺测归一 `None`、浏览器 UA；golden 只锚 `station=Wqsps`/source/url 常量；真取数 5 行；verdict ok / conformance PASS / 密钥扫描干净）→ inbox `pr-open`，`fd-ops` 通知 `sent`（runner notify 审计）；回合账 settled（3 分钟）。**人审 merge 完成（`ccd4f3a`）+ 合并后复核 verdict=ok；点亮已完成（2026-10-05）**：manifest `schedule: "27 * * * *"`（`fef15d9`，**首个 hourly 源**）→ AppSet（git 源=gitee）~3 分钟渲染 ArgoCD app+CronJob（Synced/Healthy）→ 立即试跑 `fd-runner: nmc-weather -> success rows=100 in 35.7s` → dispatcher 清单同步 50 源。
 - 运营备注：agent 沙箱缺 `scrapling/lxml`（存量单元 IMPORT_FAIL 属环境噪声）；生成单元优先标准库实现可保验证链在沙箱内全绿，生产运行镜像依赖不变。TLS 中间代理环境需 `SSL_CERT_FILE`（仅沙箱，单元代码走默认证书路径）。
 
 ## git 凭据（finddata 待办 ① —— ✅ 已绑定 2026-10-03）

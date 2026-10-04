@@ -5,6 +5,7 @@ import { Menu } from "lucide-react";
 import { useChatStore } from "@platform/core";
 import { Chat } from "@/components/Chat";
 import { ChatHeader } from "@/components/ChatHeader";
+import { useBranding } from "@/hooks/useAppConfig";
 import { ChatWelcome } from "@/components/ChatWelcome";
 import { Composer } from "@/components/Composer";
 import { PlanPanel } from "@/components/PlanPanel";
@@ -31,6 +32,7 @@ interface Props {
 
 export function ChatPage({ send, onToggleNav }: Props) {
   const { t } = useTranslation();
+  const { brand } = useBranding();
   const { sessionId: urlSessionId } = useParams();
   // Length-and-pending subscription: this page branches on emptiness —
   // subscribing to the whole turns array would re-render it per streamed
@@ -105,7 +107,7 @@ export function ChatPage({ send, onToggleNav }: Props) {
             <Menu className="h-4 w-4" aria-hidden="true" />
           </button>
           <span className="ml-1 truncate text-xs text-muted-foreground">
-            {t("sidebar.brand")}
+            {t("sidebar.brand", { brand })}
           </span>
         </div>
       )}

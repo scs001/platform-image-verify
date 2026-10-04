@@ -449,6 +449,7 @@ export function Composer({ send, value, onChange, focusTick = 0 }: Props) {
           placeholder={t("composer.placeholder", { assistant })}
           className={cn(
             "min-h-[24px] w-full resize-none bg-transparent text-sm text-foreground outline-none",
+            "max-md:text-base",
             "placeholder:text-muted-foreground",
           )}
         />

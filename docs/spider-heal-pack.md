@@ -95,21 +95,22 @@ GitHub 出海（cheap1：github.com/api/ls-remote 200/ok）· 发布+部署+起�
   2. 重部署：`PACK_ID=KkCie… NOTIFY_CHANNEL=fd-ops PLATFORM_URL=… TOKEN=… node scripts/spider-heal-pack.mjs --deploy`
      （billing/secrets 省略=保留现绑）。
 
-### ② 限流/总闸注册为 MCP server + 重部署 —— 萬星侧机制就绪，缺「数据源坐标」
+### ② 限流/总闸注册为 MCP server + 重部署 —— ✅ 完成（2026-10-04，含全链实证）
 
-- 现状（实测）：registry 现存 6 台 MCP（airegistry-tools / fd-cn-report / fd-daas-mcp /
-  fd-find-data-business-mcp / fd-open-data-mcp / law-bench），**无任何总闸/限流 MCP**。
-- 「中央库」语义已核：finddata 中央库 = 遥测库（`crawl_runs`）+ 配置表；**配置表 + Console 设置页
-  = finddata 任务 2.1（尚未落地）**；当前 总闸/限流值 = `fd_industry_data/health/config.py`
-  的 `master_switch` / `max_daily_tickets` 默认值（仓库文件可读）+ `FD_HEALTH_CONFIG` JSON 覆盖
-  （**线上覆盖值不可见**）。
-- 萬星侧已就绪：registry 注册 + SSRF allowlist + pack `mcpServers` 引用 + 重部署（配方在案，
-  拿到坐标即一次跑通）。
-- 需要给出的：总闸/限流的**可读坐标** —— 最顺路径 = 中央库读接口（HTTP/DB 只读皆可），萬星用
-  平台既有 MCP shim 模式（`server/cron-mcp.js` 等先例）包一层注册；若 finddata 直接给 MCP 端点，
-  则仅剩注册+挂载+重部署。
-- 过渡选项：agent 已持 git_pat，可在巡检里直接对比读仓库 `config.py` 默认值（但测不到
-  `FD_HEALTH_CONFIG`/中央库的线上覆盖，只能覆盖「默认值变更」场景）。
+- **坐标**（使用方 2026-10-04 交付）：中央库 `fd_open_data.public.health_config`（key/value
+  jsonb 六键 + updated_at）；只读账号 `fd_health_ro`（mesh `100.64.0.3:30432`，DSN 经安全渠道，不进 git）。
+- **萬星侧落地**：只读 MCP shim `servers/fd-health-mcp/`（单文件 Node + pg，Streamable HTTP）→
+  部署于 cheap1（容器 `fd-health-mcp`，`/opt/fd-health-mcp`，compose 网络 + tailnet `:8090`）→
+  registry 注册条目 `fd-health-config`（上游 `http://100.64.0.11:8090`）→ pack **v3** 追加
+  `mcpServers: ["fd-health-config"]` 并重部署（计费键/密钥/通道全保留）。
+- **全链实证**：公网 `mcp.finddatatech.cloud/fd-health-config/mcp` 三流程
+  （initialize/tools/list/tools/call）实测通过、返回真库值；runner 日志
+  `cold-starting … (1 MCP, 3 skills)`；shim 日志见子进程握手 + **真回合内
+  `tools/call:health_config_get`**。
+- **技能升级**：`spider-heal-notify` 增「总闸核对」流程——每巡检 `health_config_get` 对比
+  `$DSH_HOME/spider-heal/gate-state.json`，键值变化发一条 gate_change，首次只落盘；MCP 不可达
+  记一句不重试。rhythm 巡检文案同步（v3 起生效）。
+- 运维配方（重建/轮换/注册侧三坑）见 `servers/fd-health-mcp/README.md`。
 
 ### ③ runner 默认模型 / 计费核验 —— ✅ 完成（证据在案）
 

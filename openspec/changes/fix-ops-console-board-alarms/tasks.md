@@ -1,11 +1,13 @@
 # Tasks — fix-ops-console-board-alarms
 
-## 1. Gateway: anonymous /api/ready
+## 1. platform probe re-point (D1' — gateway stays off /api/ready)
 
-- [x] 1.1 `gateway/index.js`: register `GET /api/ready` next to `/healthz` with the identical payload (`{ok, uptimeMs, cells}`); no identity resolution, no cell routing — must answer during an IdP outage
-- [x] 1.2 Local check: boot the gateway module (or route table stub) and assert anonymous `/api/ready` → 200 JSON, `/healthz` unchanged
-- [ ] 1.3 Commit + release via GHA→TCR, then GitOps double bump (`fd-infra-deploy` `platform.yaml` + `platform-demo.yaml` → new sha tag), wait for ArgoCD Synced
-- [ ] 1.4 Verify live: `curl http://100.64.0.12:31870/api/ready` → 200 (was 401); `:31871/api/ready` still 200
+> Apply-time correction: the grilled "gateway adds anonymous /api/ready" plan (original 1.1–1.4) was falsified — `/api/ready` through the gateway is proxied to the caller's cell and carries dsh-agent boot depth (503 while booting); a shallow gateway route shadows that contract (deterministic `test-cell-gateway` failure in isolated worktree, `waitForCellReady` → premature 200 → sessions POST 500 `ctx.session null`). The interim alias commit was reverted; no image rollout is needed.
+
+- [x] 1.1 Patch `ops-console-secrets`: `PROBE_PLATFORM_URL` → `http://100.64.0.12:31870/healthz`; rollout restart console
+- [x] 1.2 Revert the interim gateway `/api/ready` alias (commit on main); confirm `git diff` clean vs pre-change gateway
+- [x] 1.3 Verify live: platform probe ok on the board (was `HTTP 401`); `curl 100.64.0.12:31870/healthz` → 200; gateway `/api/ready` anonymous behavior unchanged (401 via catch-all — the per-user deep contract intact)
+- [x] 1.4 Regression evidence archived in design.md: isolated-worktree A/B (HEAD green / HEAD+alias red), main-tree flake attributed to the parallel session's `server/*` churn
 
 ## 2. Console: drift de-Jenkinsed + truthful ages + legend
 
@@ -18,12 +20,12 @@
 
 ## 3. Cluster config (Secret keys)
 
-- [ ] 3.1 Patch `ops-console-secrets`: `FLEET_BOARD_URL` `http://fleet-observer:3200` → `http://100.64.0.12:31881` (NodePort, not Service port 3200); add `PROBE_SEARCH_RELAY_URL` = `http://10.43.104.254:4597/healthz`; `kubectl -n fd-prod rollout restart deploy/ops-console`
-- [ ] 3.2 Verify: fleet overview renders live observer data (states/turns/wake rows populated, no `board read failed`); search-relay card probe ok · ms
+- [x] 3.1 Patch `ops-console-secrets`: `FLEET_BOARD_URL` `http://fleet-observer:3200` → `http://100.64.0.12:31881` (NodePort, not Service port 3200); add `PROBE_SEARCH_RELAY_URL` = `http://10.43.104.254:4597/healthz`; `kubectl -n fd-prod rollout restart deploy/ops-console`
+- [x] 3.2 Verify: fleet overview renders live observer data (states/turns/wake rows populated, no `board read failed`); search-relay card probe ok · ms
 
 ## 4. Console code deploy + board acceptance
 
-- [ ] 4.1 Re-embed updated `index.js` into `ops-console-code` ConfigMap in `fd-infra-deploy/all-services/prod/ops-console.yaml`, push gitee, ArgoCD sync, `kubectl -n fd-prod rollout restart deploy/ops-console` (subPath never hot-updates)
+- [x] 4.1 Re-embed updated `index.js` into `ops-console-code` ConfigMap in `fd-infra-deploy/all-services/prod/ops-console.yaml`, push gitee, ArgoCD sync, `kubectl -n fd-prod rollout restart deploy/ops-console` (subPath never hot-updates)
 - [ ] 4.2 Acceptance screenshot of the board: platform probe ok, platform + platform-demo cards `in-agreement`, badge `all nominal` (0 incidents / 0 warnings), fleet overview live, legend visible, search-relay probe ok — attach to change
 - [ ] 4.3 Regression check: fleet section + billing still render; `/api/board.json` returns `cards[].drift` in the new shape (no `built` field participating)
 

@@ -10,7 +10,7 @@
 
 ## Decisions (settled in grill, 2026-10-04)
 
-- **D1 — Gateway `/api/ready` as healthz alias** (option a over "just re-point the probe Secret"): keeps the console's uniform "every watched deployment answers `/api/ready`" contract; one route, `{ok, uptimeMs, cells}` payload identical to `/healthz`; nobody else ever trips the 401 again. Secret `PROBE_PLATFORM_URL` stays unchanged.
+- **D1 — platform probe re-points at `/healthz`; the gateway stays off `/api/ready`** *(supersedes the grilled option "gateway adds an anonymous /api/ready alias" — falsified during apply)*. Evidence: `/api/ready` through the gateway is load-bearing — the catch-all proxies it to the caller's cell, and the cell's `/api/ready` reports **dsh-agent boot depth** (503 while booting, `server/routes/misc.js`: "used by the e2e webServer and suitable for deploy probes that must not route traffic to a half-booted instance"). A shallow gateway route shadows that per-user deep contract for every cookie'd caller — proven live by `test-cell-gateway`'s `waitForCellReady` (polls the gateway path with a session cookie and relies on reaching the cell): with the alias route it returns 200 before the agent initializes, the subsequent chat-history POST hits `ctx.session === null` and 500s, deterministically (isolated-worktree A/B: HEAD green, HEAD+route red). The console probes anonymously, and the gateway deployment's own readiness IS process-level — `/healthz` (`{ok, uptimeMs, cells}`, anonymous) is the honest depth for it. So: `PROBE_PLATFORM_URL` → `http://100.64.0.12:31870/healthz` (Secret-only change), gateway code untouched, no image rollout (the console isn't in the platform image — it runs from a ConfigMap on a stock node image).
 - **D2 — Jenkins exits drift judgment** (option a over TCR/GHA fact source or softer wording): the ArgoCD OutOfSync state already covers "GitOps has a newer tag not yet rolled"; the "image built but manifest not bumped" window would need a new registry/GitHub credential on a deliberately credential-light console — not worth it. Honest removal of an unknowable state beats a permanent guess. The `newer-build-not-rolled` status is deleted; `computeDrift` inputs become (runningTag, argocd) only.
 - **D3 — build step leaves the per-deployment card** (chain: image → gitops → pods → probe): leaving a stale Jenkins tag next to the running tag would keep suggesting a mismatch to a tired operator even without the alarm — the exact confusion this change cures. Jenkins keeps its own card (queue, history, last build) as display-only.
 - **D4 — search-relay drift renders n/a**: it is not covered by the ArgoCD application (current code already passes `null` argocd for it); with Jenkins out of the verdict there is nothing left to derive, so the field says n/a instead of forcing a state.
@@ -20,23 +20,23 @@
 
 ## Implementation notes
 
-- **Console stays single-file** (deploy discipline: ConfigMap-embedded). Make it import-safe with a main-guard (`import.meta.url === pathToFileURL(process.argv[1]).href` around poll-loop boot + `server.listen`), then `export { computeDrift, storeLastOk }`-style named exports so `node --test` can exercise them without a server. No dependency additions.
+- **Console stays single-file** (deploy discipline: ConfigMap-embedded). Make it import-safe with a main-guard (`import.meta.url === pathToFileURL(process.argv[1]).href` around poll-loop boot + `server.listen`), then named exports so `node --test` can exercise pure helpers without a server. No dependency additions.
 - **Drift render states** after D2/D3: `in-agreement` ("in sync at sha-xxx"), `cluster-out-of-sync`, `unknown`, and `n/a` for search-relay. `overallStatus` warning rule unchanged — it already only warns on non-`in-agreement`/`unknown` statuses; n/a joins the exempt set.
-- **Gateway route**: register `/api/ready` immediately next to `/healthz` (gateway/index.js), same handler payload. No cell routing, no identity resolution — it must answer during a Logto outage (that is when probes matter).
+- **No gateway code change ships** (see D1'): the probe depth question is settled at the config layer (`PROBE_PLATFORM_URL` → `/healthz`), leaving the gateway's transparent per-user `/api/ready` proxying untouched.
 - **Legend copy** (one dim line under the fleet header): `states: serving turn in flight · resident warm & idle · starting booting · draining stopping · paused held · warm no live process (re-warms on demand)`.
 
-## Release paths (three legs)
+## Release paths (two legs — no image rollout)
 
-1. **Gateway** (D1): paas repo → GHA → TCR → GitOps double bump (`platform.yaml` + `platform-demo.yaml`) → ArgoCD sync.
-2. **Console code** (D2–D6): paas repo `services/ops-console/index.js` → re-embed into `ops-console-code` ConfigMap inside `fd-infra-deploy/all-services/prod/ops-console.yaml` → push gitee → ArgoCD sync + `kubectl -n fd-prod rollout restart deploy/ops-console` (subPath ConfigMaps never hot-update; a bare kubectl ConfigMap edit would be reverted by ArgoCD).
-3. **Secret keys** (D7): patch `ops-console-secrets` (`FLEET_BOARD_URL`, `PROBE_SEARCH_RELAY_URL`) → rollout restart console.
+1. **Console code** (D2–D6): paas repo `services/ops-console/index.js` → re-embed into `ops-console-code` ConfigMap inside `fd-infra-deploy/all-services/prod/ops-console.yaml` → push gitee → ArgoCD sync + `kubectl -n fd-prod rollout restart deploy/ops-console` (subPath ConfigMaps never hot-update; a bare kubectl ConfigMap edit would be reverted by ArgoCD).
+2. **Secret keys** (D1/D7): patch `ops-console-secrets` (`FLEET_BOARD_URL` → `http://100.64.0.12:31881`, `PROBE_PLATFORM_URL` → `http://100.64.0.12:31870/healthz`, `PROBE_SEARCH_RELAY_URL` = `http://10.43.104.254:4597/healthz`) → rollout restart console.
 
-Order: legs are independent; land console code + Secret first (instant, fixes 4 of 6 board faults), gateway leg takes the build pipeline.
+The platform image never changes in this fix: the gateway needs no code change (D1'), and the console is not part of the platform image. An interim commit (1a78a43) briefly carried the gateway alias and built image `sha-1a78a43`; the alias was reverted in the follow-up commit and that image is never rolled.
 
 ## Testing
 
-- **Unit** (`scripts/test-ops-console-board.mjs`, joins the `test:unit` glob): drift matrix (synced+differring-jenkins-tag → in-agreement; OutOfSync → flagged; no argocd → n/a; missing deployment → no data); `storeLastOk` (error-after-success, never-succeeded); legend string present in the rendered fleet section (render function exercised with stub snapshots via a temp SQLite DB).
-- **Live acceptance**: board screenshot — platform probe ok, both platform cards in-agreement, badge `all nominal`, fleet overview rendering observer data, legend visible, search-relay probe ok. Plus `curl 100.64.0.12:31870/api/ready` → 200 post-rollout.
+- **Unit** (`scripts/test-ops-console-board.mjs`, joins the `test:unit` glob): drift matrix (synced+differring-jenkins-tag → in-agreement; OutOfSync → flagged; no argocd → n/a; missing deployment → no data); `storeLastOk` (error-after-success, never-succeeded); legend string present in the rendered fleet section (render function exercised with stub snapshots via a temp SQLite DB). 10/10 green.
+- **Gateway regression (the falsification record)**: `test-cell-gateway` at clean HEAD passes in an isolated worktree (2/2, incl. the full auth/routing/WS/restart subtest); HEAD + the since-reverted `/api/ready` alias fails deterministically at the sessions-POST step (`ctx.session null` in the cell). This is what drove D1'. Note the same subtest is flaky in the main working tree while the parallel reconnect-resync change edits `server/*` — cells boot `server.js` from the shared tree — so gateway-test verdicts are only meaningful in an isolated worktree.
+- **Live acceptance**: board pass — platform probe ok (via `/healthz`), platform + platform-demo cards `in-agreement`, badge `all nominal`, fleet overview rendering observer data, legend visible, search-relay probe ok. Plus `curl 100.64.0.12:31870/healthz` → 200 (unchanged public surface).
 
 ## Risks
 

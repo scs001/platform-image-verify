@@ -38,11 +38,18 @@ export function createA2aFace({
   core,
   resolveDeployment, // async (slug) → { agentPath } | null
   listDeployments,   // async () → [{ slug, agentPath }]
+  hardStale = () => false, // enumeration faces 503 when the bookkeeping snapshot is past its hard window
+  report = null,     // optional ({kind, agent, payload, id?}) → fleet-observer (add-fleet-event-backbone 6.3)
   forwardHeaders,    // () → the platform's internal dual-credential headers
   registryFetch,     // (path, init?) → fetch Response against the registry
   config,            // { agentUrlFor(agentPath) }
   upstreamFetch = fetch, // injection seam for tests
 }) {
+  const note = (kind, agent, payload = {}, id = null) => {
+    try {
+      report?.({ kind, agent, payload, id });
+    } catch { /* observability never breaks a turn */ }
+  };
   // Registry-entry cache: catalog/visibility on a 60s TTL; the paused flag
   // re-reads when older than 15s so an operator's pause reflects promptly
   // (the runner itself lags up to its poll interval anyway).
@@ -117,8 +124,11 @@ export function createA2aFace({
 
   function register(app) {
     // ── Public discovery: no credential by design (spec: card and catalog
-    // are public). Private agents are simply absent from both.
-    app.get("/api/wanxing/v1/agents", async (_req, res) => {
+    // are public). Private agents are simply absent from both. Both faces
+    // hard-degrade on a hard-stale snapshot (design D2.1); the A2A turn
+    // path never does.
+    app.get("/api/wanxing/v1/agents", async (req, res) => {
+      if (hardStale()) return sourceUnavailable(res, "snapshot hard-stale");
       const out = [];
       let deps;
       try {
@@ -139,10 +149,29 @@ export function createA2aFace({
           skills: entry.skills ?? [],
         });
       }
-      res.json({ agents: out });
+      // Pagination (add-wanxing-deployments-cache): explicit page/page_size
+      // pages the public list with a total; no params keeps the legacy full
+      // shape so existing callers (finddata) are untouched.
+      const q = req.query ?? {};
+      if (q.page === undefined && q.page_size === undefined) {
+        return res.json({ agents: out });
+      }
+      const clamp = (v, def) => {
+        const n = Number.parseInt(String(v), 10);
+        return Number.isFinite(n) && n > 0 ? n : def;
+      };
+      const pageSize = Math.min(clamp(q.page_size, 50), 200);
+      const page = clamp(q.page, 1);
+      res.json({
+        agents: out.slice((page - 1) * pageSize, page * pageSize),
+        page,
+        page_size: pageSize,
+        total: out.length,
+      });
     });
 
     app.get("/api/wanxing/v1/a2a/:agentSlug/.well-known/agent-card.json", async (req, res) => {
+      if (hardStale()) return sourceUnavailable(res, "snapshot hard-stale");
       let state;
       try {
         state = await agentState(req.params.agentSlug);
@@ -160,7 +189,10 @@ export function createA2aFace({
     app.post("/api/wanxing/v1/a2a/:agentSlug", express.json({ limit: "1mb" }), async (req, res) => {
       const bearer = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
       const auth = await core.authenticate(bearer);
-      if (!auth.ok) return res.status(auth.status).json({ error: { code: auth.code, message: auth.message } });
+      if (!auth.ok) {
+        note("refused", req.params.agentSlug, { stage: "key", code: auth.code });
+        return res.status(auth.status).json({ error: { code: auth.code, message: auth.message } });
+      }
       const caller = auth.caller;
 
       const { id, method, params } = req.body ?? {};
@@ -179,12 +211,17 @@ export function createA2aFace({
       try {
         state = await agentState(slug);
       } catch (e) {
+        note("refused", slug, { stage: "source", code: "DEPLOYMENT_SOURCE_UNAVAILABLE" });
         return sourceUnavailable(res, String(e?.message || e));
       }
       const admitted = core.admit(caller, state);
-      if (!admitted.ok) return res.status(admitted.status).json({ error: { code: admitted.code, message: admitted.message } });
+      if (!admitted.ok) {
+        note("refused", slug, { stage: "admission", code: admitted.code, caller: caller.email || caller.userId });
+        return res.status(admitted.status).json({ error: { code: admitted.code, message: admitted.message } });
+      }
 
       if (!core.checkRpm(caller.userId)) {
+        note("refused", slug, { stage: "rate", code: "RATE_LIMITED", caller: caller.email || caller.userId });
         return res.status(429).json({ error: { code: "RATE_LIMITED", message: "caller rate limit exceeded" } });
       }
 
@@ -202,6 +239,7 @@ export function createA2aFace({
       let holdsSlot = false;
       if (prior === "new") {
         if (!core.acquireSlot(caller.userId, slug)) {
+          note("refused", slug, { stage: "slot", code: "TURN_IN_FLIGHT", caller: caller.email || caller.userId });
           res.set("Retry-After", "5");
           return res.status(409).json({ error: { code: "TURN_IN_FLIGHT", message: "a turn for this caller and agent is already running; retry after the hint" } });
         }
@@ -210,6 +248,7 @@ export function createA2aFace({
 
       const contextId = contextIdFor(message, idemKey);
       const startedAt = Date.now();
+      if (prior !== "done") note("admitted", slug, { caller: caller.email || caller.userId, idem_key: idemKey || "", transport: method });
 
       // finish = THIS request's turn ended (slot-holder only): ledger row +
       // fire-and-forget settlement (the pending sweep retries, idempotently).
@@ -217,7 +256,20 @@ export function createA2aFace({
       const finish = (outcome) => {
         core.releaseSlot(caller.userId, slug);
         const row = core.recordUsage({ caller, slug, idemKey, startedAt, endedAt: Date.now(), outcome });
-        if (row.settlementStatus === "pending") void core.trySettle(row).catch(() => {});
+        // Deterministic event id (the usage row id): inline settle and the
+        // pending sweep can both report this row — exactly once on the observer.
+        if (row.settlementStatus === "waived") {
+          note("settled", slug, { minutes_billed: 0, usd: 0, settlement_status: "waived", outcome }, `facade-${row.id}`);
+        } else {
+          void core.trySettle(row)
+            .then((ok) => note("settled", slug, {
+              minutes_billed: row.minutesBilled,
+              usd: Number((row.minutesBilled * row.rateUsd).toFixed(4)),
+              settlement_status: ok ? "settled" : "pending",
+              outcome,
+            }, `facade-${row.id}`))
+            .catch(() => note("settled", slug, { minutes_billed: row.minutesBilled, usd: Number((row.minutesBilled * row.rateUsd).toFixed(4)), settlement_status: "pending", outcome }, `facade-${row.id}`));
+        }
       };
       const exitReadonly = () => {
         if (holdsSlot) core.releaseSlot(caller.userId, slug);

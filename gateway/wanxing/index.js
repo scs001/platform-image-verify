@@ -14,6 +14,8 @@ import express from "express";
 import { createWanxingStore } from "./store.js";
 import { createWanxingCore, slugFor } from "./core.js";
 import { createA2aFace } from "./a2a.js";
+import { createBookkeepingCache, diffDeployments } from "./bookkeeping.js";
+import { createFleetReporter } from "./fleet-report.js";
 import { createSub2apiClient } from "../../lib/sub2api-admin.js";
 
 export function registerWanxingRoutes(app, {
@@ -85,22 +87,42 @@ export function registerWanxingRoutes(app, {
     return r.json();
   };
 
-  // Slug resolution scans the full deployment bookkeeping; the registry entry
-  // (visibility/paused/card) is the live truth the face layers on top.
-  const resolveDeployment = async (slug) => {
-    if (!slug) return null;
-    const deployments = (await packsInternalFetch("/api/packs/internal/deployments")).deployments ?? [];
-    return deployments.find((d) => slugFor(d.agentPath) === slug) ?? null;
-  };
-  const listDeployments = async () => {
-    const deployments = (await packsInternalFetch("/api/packs/internal/deployments")).deployments ?? [];
-    return deployments.map((d) => ({ slug: slugFor(d.agentPath), agentPath: d.agentPath }));
-  };
+  // Slug resolution and the catalog read the bookkeeping snapshot cache
+  // (add-wanxing-deployments-cache): TTL refresh + single-flight, slug Map
+  // for O(1) turns, stale-on-hiccup with a hard window for enumeration
+  // faces. diffDeployments is re-exported for the fleet observer (fd-wanxing
+  // slice ③ reuses it by minimal copy until slice ② converges the two).
+  const bookkeeping = createBookkeepingCache({
+    fetchRows: async () => (await packsInternalFetch("/api/packs/internal/deployments")).deployments ?? [],
+    ttlMs: 15_000,
+    hardStaleMs: 300_000,
+    onRefresh: (diff) => {
+      const n = diff.added.length + diff.removed.length + diff.changed.length;
+      if (n) console.log(`[wanxing] bookkeeping diff: +${diff.added.length} -${diff.removed.length} ~${diff.changed.length}`);
+    },
+  });
+  const resolveDeployment = (slug) => (slug ? bookkeeping.resolve(slug) : Promise.resolve(null));
+  const listDeployments = async () =>
+    (await bookkeeping.rows()).map((d) => ({ slug: slugFor(d.agentPath), agentPath: d.agentPath }));
+
+  // Cross-process fleet reporting (add-fleet-event-backbone 6.3): the facade
+  // reports admission/settlement toward the Wanxing observer while it still
+  // lives here — slice ② replaces this with the in-process store write.
+  const fleetReporter = createFleetReporter({
+    url: env.FLEET_OBSERVER_URL || "",
+    token: env.FLEET_OBSERVER_TOKEN || "",
+    source: "facade",
+    fetchImpl: fetchImpl ?? undefined,
+    log: (m) => console.warn(`[wanxing:fleet] ${m}`),
+  });
+  fleetReporter.start();
 
   const face = createA2aFace({
     core,
     resolveDeployment,
     listDeployments,
+    hardStale: () => bookkeeping.hardStale(),
+    report: (ev) => fleetReporter.report(ev),
     forwardHeaders,
     registryFetch: doFetch,
     config: {
@@ -199,8 +221,29 @@ export function registerWanxingRoutes(app, {
 
   // Pending-settlement sweep: retries everything the turn path could not
   // settle inline (sub2api hiccup, process restart). Row ids are the
-  // deduction idempotency keys, so a sweep is always safe to re-run.
-  const sweep = setInterval(() => void core.settlePending().catch(() => {}), 60_000);
+  // deduction idempotency keys, so a sweep is always safe to re-run. Rows the
+  // sweep settles report to the fleet observer with the same deterministic
+  // event id the inline path used — at most one lands either way.
+  const sweepOnce = async () => {
+    const before = store.usagePending(); // { id, agent_slug, minutes_billed, rate_usd, … }
+    await core.settlePending();
+    const stillPending = new Set(store.usagePending().map((r) => r.id));
+    for (const row of before) {
+      if (stillPending.has(row.id)) continue;
+      fleetReporter.report({
+        kind: "settled",
+        agent: row.agent_slug,
+        payload: {
+          minutes_billed: row.minutes_billed,
+          usd: Number((row.minutes_billed * row.rate_usd).toFixed(4)),
+          settlement_status: "settled",
+          swept: true,
+        },
+        id: `facade-${row.id}`,
+      });
+    }
+  };
+  const sweep = setInterval(() => void sweepOnce().catch(() => {}), 60_000);
   sweep.unref?.();
   void core.settlePending().catch(() => {});
 
@@ -208,8 +251,11 @@ export function registerWanxingRoutes(app, {
     core,
     store,
     face,
+    bookkeeping,
+    diffDeployments,
     close() {
       clearInterval(sweep);
+      fleetReporter.stop();
       if (!storeOpt) store.close();
     },
   };

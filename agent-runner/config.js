@@ -129,5 +129,13 @@ export function loadConfig(env = process.env) {
     // The image's baked dsh home (Dockerfile /opt/dsh-home) — profile
     // scaffold source for each private home (node_modules shared by symlink).
     seedHome: env.AGENT_RUNNER_SEED_HOME ?? "/opt/dsh-home",
+
+    // Fleet observability (add-fleet-event-backbone 3.1): direct-post toward
+    // the Wanxing observer. Empty URL = fully inert (no spool, no timer);
+    // the token is the observer's ingest credential.
+    fleetUrl: (env.AGENT_RUNNER_FLEET_URL || "").replace(/\/+$/, ""),
+    fleetToken: env.AGENT_RUNNER_FLEET_TOKEN || "",
+    fleetRunnerId: env.AGENT_RUNNER_FLEET_ID || "runner-1",
+    fleetSampleSecs: num(env.AGENT_RUNNER_FLEET_SAMPLE_SECS, 30),
   };
 }

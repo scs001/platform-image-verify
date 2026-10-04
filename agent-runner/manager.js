@@ -49,12 +49,16 @@ import { createAgentApp, agentPortFor } from "./a2a.js";
 export class ChildManager {
   #slotWaiters = new Set(); // capacity-queue interval timers, cleared on shutdown
   #listeners = new Map(); // agentKey → http server (per-agent port, upstream #1734)
-  constructor({ config, registryClient, clientFactory, log = console, now = () => Date.now(), notifyFetchImpl }) {
+  constructor({ config, registryClient, clientFactory, log = console, now = () => Date.now(), notifyFetchImpl, events = null }) {
     this.config = config;
     this.registryClient = registryClient;
     this.clientFactory = clientFactory;
     this.log = log;
     this.now = now;
+    // Fleet observability sink (add-fleet-event-backbone 3.1): optional
+    // {kind, agent, payload} callback; null = fully inert.
+    this.events = events;
+    this.everSpawned = new Set(); // agentKey → ever had a child (woken reason: first-touch vs warm)
     // Notification egress (add-agent-notifications D3/D5): one forwarder for
     // every child — the relay credential and the per-agent rate bound live
     // here, never in a child's environment.
@@ -247,7 +251,11 @@ export class ChildManager {
       if (live && !live.draining) return live;
       if (this.children.size < this.config.maxChildren || this.#evictIdleChild()) {
         const child = await this.#spawnChild(key, entry);
-        if (!child.draining) return child;
+        if (!child.draining) {
+          this.#fleetEmit("woken", entry, { reason: this.everSpawned.has(key) ? "warm" : "first-touch" });
+          this.everSpawned.add(key);
+          return child;
+        }
         continue; // lost a race with a concurrent upgrade drain
       }
       // All slots busy: wait for a turn to finish (drain/reap frees entries).
@@ -279,6 +287,7 @@ export class ChildManager {
     }
     if (!victim) return false;
     this.children.delete(victim.key);
+    this.#fleetEmit("reaped", victim.key, { reason: "capacity" });
     this.log.log(`[agent-runner] capacity: demoting idle ${victim.key} to warm zone (next message re-warms it)`);
     victim.child.stop().catch(() => {});
     return true;
@@ -315,6 +324,7 @@ export class ChildManager {
       }
       if (!victim) return; // nothing demotable; over budget until a turn ends
       this.children.delete(victim.key);
+      this.#fleetEmit("reaped", victim.key, { reason: "budget" });
       this.log.log(
         `[agent-runner] budget: demoting idle ${victim.key} to warm zone (footprint ${Math.round(footprint / 1024 / 1024)}MB > ${this.config.budgetMb}MB${hard ? ", hard" : ""})`,
       );
@@ -399,6 +409,7 @@ export class ChildManager {
     }
     const release = delegationDepth >= 1 ? await this.#acquireDelegationSlot(key) : null;
     const startedAt = this.now();
+    this.#fleetEmit("turn_started", entry, { turn_kind: kind });
     try {
       const child = await this.acquire(entry);
       try {
@@ -408,6 +419,11 @@ export class ChildManager {
           tokens: tokensOf(out?.usage),
           durationMs: this.now() - startedAt,
           depth: delegationDepth || undefined,
+        });
+        this.#fleetEmit("turn_ended", entry, {
+          turn_kind: kind,
+          duration_ms: this.now() - startedAt,
+          outcome: "ok",
         });
         return out;
       } catch (e) {
@@ -423,7 +439,16 @@ export class ChildManager {
           durationMs: this.now() - startedAt,
           budgetKill: budgetKilled || undefined,
         });
-        if (budgetKilled) this.#hardStopOnBudget(key, child);
+        this.#fleetEmit("turn_ended", entry, {
+          turn_kind: kind,
+          duration_ms: this.now() - startedAt,
+          outcome: "error",
+          budget_killed: budgetKilled || undefined,
+        });
+        if (budgetKilled) {
+          this.#fleetEmit("budget_killed", entry, { turn_kind: kind, duration_ms: this.now() - startedAt });
+          this.#hardStopOnBudget(key, child);
+        }
         throw e;
       }
     } finally {
@@ -457,6 +482,16 @@ export class ChildManager {
     } catch (e) {
       this.log.warn(`[agent-runner] meter write failed: ${e.message}`);
     }
+  }
+
+  // Fleet event emit (add-fleet-event-backbone): the reporter slugifies the
+  // agent identity; a broken sink never breaks serving.
+  #fleetEmit(kind, entryOrKey, payload = {}) {
+    if (!this.events) return;
+    try {
+      const entry = typeof entryOrKey === "string" ? this.entries.get(entryOrKey) : entryOrKey;
+      this.events({ kind, agent: entry?.path ?? String(entryOrKey), payload });
+    } catch { /* observability must never break a turn */ }
   }
 
   async #spawnChild(key, entry) {

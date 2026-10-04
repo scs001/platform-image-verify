@@ -83,6 +83,25 @@ const clientFactory = (spec) => ({ args, cwd, env }) => {
 const wrappedFactory = (spec) => (specArg) => clientFactory(spec)(specArg);
 
 const manager = new ChildManager({ config, registryClient: createRegistryClient(config), clientFactory: wrappedFactory });
+
+// Fleet observability (add-fleet-event-backbone 3.1): direct-post reporter +
+// state sampler, fully inert without AGENT_RUNNER_FLEET_URL.
+let fleetReporter = null;
+let fleetSampler = null;
+if (config.fleetUrl) {
+  const { createFleetReporter, createFleetSampler } = await import("./fleet.js");
+  fleetReporter = createFleetReporter({
+    url: config.fleetUrl,
+    token: config.fleetToken,
+    runnerId: config.fleetRunnerId,
+    spoolFile: path.join(config.homeRoot, ".fleet-spool.jsonl"),
+    log: (m) => console.warn(`[agent-runner:fleet] ${m}`),
+  });
+  fleetReporter.start();
+  fleetSampler = createFleetSampler({ manager, reporter: fleetReporter, runnerId: config.fleetRunnerId });
+  manager.events = (ev) => fleetReporter.emit(ev);
+  console.log(`[agent-runner:fleet] reporting to ${config.fleetUrl} as ${config.fleetRunnerId}`);
+}
 // Residency wiring (add-agent-residency): rollover owns the day boundary,
 // the scheduler consumes its pending digest at the day's head.
 const rollover = new Rollover({ manager, config });
@@ -118,6 +137,10 @@ server.listen(config.port, "0.0.0.0", () => {
   // short-lived by contract; internal and rhythm sessions are untouched.
   const reapTimer = setInterval(() => manager.reapExternalContexts(), 60_000);
   reapTimer.unref?.();
+  if (fleetSampler) {
+    const fleetTimer = setInterval(() => fleetSampler.sample(), config.fleetSampleSecs * 1000);
+    fleetTimer.unref?.();
+  }
 });
 
 for (const sig of ["SIGTERM", "SIGINT"]) {
@@ -127,6 +150,7 @@ for (const sig of ["SIGTERM", "SIGINT"]) {
     console.log(`[agent-runner] ${sig}: draining children`);
     server.close();
     await manager.stopAll();
+    fleetReporter?.stop();
     process.exit(0);
   });
 }

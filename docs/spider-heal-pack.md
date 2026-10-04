@@ -1,7 +1,7 @@
 # 爬虫自愈修复 Agent · finddata 对接一页纸
 
 > pack：`KkCie7NlrHluo4LiKPnn0w`（private，萬星运营号自营）· agent：`spider-heal` ·
-> 部署：fd-prod（runner cheap1）· 变更：add-spider-heal-pack · 2026-10-03
+> 部署：fd-prod（runner cheap1）· 变更：add-spider-heal-pack（v1–v5）→ add-spider-heal-generate（**v6 起，+生成流**）· 2026-10-03 / 2026-10-05
 
 ## 调用（经萬星门面）
 
@@ -25,6 +25,21 @@ QUEUE
 - 分诊类别（network/structure/contract/source-dead/fallback）+ 诊断备注 + 目标单元 `spiders/<slug>/`
 - **verify**：声明的验证链命令（平台技能会先 `--help`/dry-run 探测再实跑；缺省走基线校验）
 - golden/口径文件路径（契约类工单时点名）
+
+## 生成流（kind=generate，v6 起 · 第 4 技能 `spider-heal-generate`）
+
+按 finddata 生成单**从零新建**爬虫单元（greenfield），与修复流共用同一套工单/验证/PR/人工门。工单契约见 fd-industry-data `docs/health-loop.md`「生成流」与 `openspec/changes/source-generation-flow`；agent 侧要点：
+
+- **分诊互斥**：`kind=generate` → 生成技能；缺省/`repair` → 修复技能。生成单 `category` 必空、`brief{source_urls/expectations/cadence?/notes?}` 必备；`unit` 允许尚不存在（**仓内已存在 = 转人工**，非 greenfield）。
+- **流程**：模板起接（`templates/new-source/` → `spider.py/manifest.yaml/README/CHECKLIST`）→ 入口 `run_<slug_snake>(limit) -> list[dict]` 且 manifest `functions[].command` 同名 → 实现取数对齐 `expectations`/处理 `notes` 坑位 → **交付 ≥1 个 golden 样本**（断言跨期稳定：只锚结构字段/url/站点名/常量标签；**绝不锚日期或波动数值**、缺测占位不进断言；缺样本验证链判红——验收硬条件）→ 按工单 `verify.commands` 跑 `health_verify` 至 `verdict: ok`（**回合内 ≤3 轮**，仍红转人工）→ 分支 `gen/<slug>` 开 PR（描述附逐环证据）。
+- **硬边界**：不写 `schedule`（静默合入）、不点亮、不 merge；改动仅限 `spiders/<slug>/`；不逆向反爬；验证全绿才见 PR。
+- **回合预算 40 分钟**（v6 起；greenfield 回合面宽于修复，硬停=兜底）。陈旧 `working` 单由协议自愈规则回收（距 `at` >2×节奏 → 按失败回退 retry+1）。
+
+### 生成流验收记录
+
+- **2026-10-04/05 · drill 演练（全链通过）**：夹具 `drill-gen-healthz`（源=平台 healthz，纯 JSON）→ 门面 SUBMIT **单回合**完成全流程 → PR #3（diff 仅 5 文件、golden 只锚 `ok==true` 与常量、验证链逐环绿：verdict ok / conformance PASS / 密钥扫描零命中）→ 按计划**关闭不合并**、分支删除、夹具归档 fd-industry-data `archive/drill-spider-generate-20261004/`。
+- **2026-10-05 · 首个正式生成单 `nmc-weather`（全链通过）**：helper 出单（`20261004-nmc-weather-23a303a2`）→ 门面 SUBMIT **单回合 159s** 完成 → PR #4 `gen/nmc-weather`（diff 仅 5 文件；9999 缺测归一 `None`、浏览器 UA；golden 只锚 `station=Wqsps`/source/url 常量；真取数 5 行；verdict ok / conformance PASS / 密钥扫描干净）→ inbox `pr-open`，`fd-ops` 通知 `sent`（runner notify 审计）；回合账 settled（3 分钟）。**人审 merge / schedule 点亮留人工门**。
+- 运营备注：agent 沙箱缺 `scrapling/lxml`（存量单元 IMPORT_FAIL 属环境噪声）；生成单元优先标准库实现可保验证链在沙箱内全绿，生产运行镜像依赖不变。TLS 中间代理环境需 `SSL_CERT_FILE`（仅沙箱，单元代码走默认证书路径）。
 
 ## git 凭据（finddata 待办 ① —— ✅ 已绑定 2026-10-03）
 
@@ -54,7 +69,7 @@ PLATFORM_URL=… TOKEN=<运营 JWT> node scripts/spider-heal-pack.mjs --deploy
 
 ## 部署 / 升级 / 回滚（运营配方）
 
-- 升级：改 `scripts/spider-heal-pack.mjs` 内的 manifest 内容 → 带 `PACK_ID` 重跑（自动下一版本）→ runner 原地 drain 换新。
+- 升级：改 `scripts/spider-heal-pack.mjs` 内的 manifest 内容 → 带 `PACK_ID` 重跑（自动下一版本）→ runner 原地 drain 换新。v6 起：`BILLING_KEY` 可省略（**省略=保留现绑**，平台侧走 kept-key 探活路径）；缺省预算 40min（`BUDGET_MINUTES` 可覆盖）。
 - 回滚：`POST /api/packs/KkCie7NlrHluo4LiKPnn0w/versions/<旧版本>/deploy`。
 - 暂停/恢复：`POST /api/packs/KkCie7NlrHluo4LiKPnn0w/deployments/spider-heal/pause|resume`。
 

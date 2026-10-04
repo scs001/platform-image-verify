@@ -20,7 +20,7 @@ import https from "node:https";
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -80,6 +80,13 @@ function storeLatest(source) {
   const row = db.prepare("SELECT ts, json FROM snapshots WHERE source = ? ORDER BY ts DESC LIMIT 1").get(source);
   if (!row) return null;
   try { return { ts: row.ts, data: JSON.parse(row.json) }; } catch { return null; }
+}
+// Last SUCCESSFUL poll for a source — failed polls also store a snapshot (with
+// __error), so "age of newest row" would report the failure's own timestamp
+// as recovery age (fix-ops-console-board-alarms: that lie is what this fixes).
+function storeLastOk(source) {
+  const row = db.prepare("SELECT ts FROM snapshots WHERE source = ? AND json NOT LIKE '%__error%' ORDER BY ts DESC LIMIT 1").get(source);
+  return row ? row.ts : null;
 }
 function pruneOld() {
   db.prepare("DELETE FROM snapshots WHERE ts < ?").run(Date.now() - RETENTION_MS);
@@ -306,23 +313,20 @@ async function pollBillingBoard() {
 }
 
 // ── version drift ────────────────────────────────────────────────────────────
-// Three observable facts: the running pod image tag, the latest successful
-// build's pushed tag, and the ArgoCD sync state. The GitOps manifest tag is
-// derived rather than fetched (an ArgoCD-API token would be a whole new
-// credential for one string): when sync=Synced the manifest equals the live
-// cluster, so running tag == manifest tag; OutOfSync means they differ.
-function computeDrift(runningTag, builtTag, argocd) {
+// Cluster-internal facts only: the running pod image tag and the ArgoCD sync
+// state. Build-pipeline tags deliberately do NOT participate: the canonical
+// image pipeline (GHA→TCR) is not observable from the cluster, so comparing
+// against the fallback build system's last tag asserted a direction the
+// console cannot know and produced a permanent false "newer build not rolled"
+// on every canonical-path deploy (fix-ops-console-board-alarms). "Manifest
+// lags the build" visibility belongs to ArgoCD's OutOfSync, which IS a fact.
+// A Synced application means manifest == cluster, so a parsed running tag is
+// shown as in-agreement.
+function computeDrift(runningTag, argocd) {
   const run = runningTag?.match(/(sha-\w+)$/)?.[1] || null;
-  const drift = { running: run, built: builtTag, status: "unknown" };
-  if (!run && !builtTag) { drift.status = "unknown"; return drift; }
-  const synced = argocd?.sync === "Synced";
-  if (run && builtTag && run !== builtTag) {
-    drift.status = synced ? "newer-build-not-rolled" : "cluster-out-of-sync-and-stale";
-  } else if (argocd && !synced) {
-    drift.status = "cluster-out-of-sync";
-  } else {
-    drift.status = "in-agreement";
-  }
+  const drift = { running: run, status: "unknown" };
+  if (!argocd) { return drift; }
+  drift.status = argocd.sync === "Synced" ? "in-agreement" : "cluster-out-of-sync";
   return drift;
 }
 
@@ -353,8 +357,14 @@ async function pollOnce() {
   try { pruneOld(); } catch { /* prune is best-effort */ }
   pollBusy = false;
 }
-pollOnce();
-setInterval(pollOnce, POLL_SECS * 1000);
+// Test seam: importing this module (node:test) must not boot the poller or
+// the listener — both are main-guarded, so the exported helpers can be
+// exercised against a throwaway DB without a server.
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  pollOnce();
+  setInterval(pollOnce, POLL_SECS * 1000);
+}
 
 // ── board model + render (server-side string template, zero frontend build) ─
 function boardModel() {
@@ -367,7 +377,13 @@ function boardModel() {
 
   const cards = WATCHED_DEPLOYS.map((name) => {
     const dep = k8s?.deployments?.find((d) => d.name === name) || null;
-    const drift = dep ? computeDrift(dep.image, jenkins?.builtTag || null, name === "search-relay" ? null : k8s?.argocd) : null;
+    // search-relay sits outside the ArgoCD application: no GitOps fact applies,
+    // so its drift field renders n/a instead of forcing a derived verdict.
+    const drift = dep
+      ? (name === "search-relay"
+          ? { running: dep.image?.split(":").pop() || null, status: "n/a" }
+          : computeDrift(dep.image, k8s?.argocd))
+      : null;
     return {
       name,
       replicas: dep ? `${dep.ready}/${dep.replicas}` : null,
@@ -407,7 +423,7 @@ function overallStatus(m) {
   for (const c of m.cards) {
     if (c.replicas && c.replicas.startsWith("0")) bad += 1;
     if (c.probe?.configured && c.probe.ok === false) bad += 1;
-    if (c.drift && !["in-agreement", "unknown"].includes(c.drift.status)) warn += 1;
+    if (c.drift && !["in-agreement", "unknown", "n/a"].includes(c.drift.status)) warn += 1;
   }
   if (m.harbor && m.harbor.reachable === false) bad += 1;
   if (m.banner.jenkinsQueue > 0) warn += 1;
@@ -455,12 +471,11 @@ function renderBoard() {
   const arrow = `<span class="sarrow" aria-hidden="true">→</span>`;
 
   const cards = m.cards.map((c) => {
-    const driftCls = !c.drift ? "" : { "in-agreement": "ok", unknown: "" }[c.drift.status] ?? "warn";
+    const driftCls = !c.drift ? "" : { "in-agreement": "ok", unknown: "", "n/a": "" }[c.drift.status] ?? "warn";
     const driftTxt = !c.drift ? "no data" : {
       "in-agreement": `in sync at ${c.drift.running || "?"}`,
-      "newer-build-not-rolled": `newer build ${c.drift.built} not rolled (running ${c.drift.running})`,
       "cluster-out-of-sync": "cluster diverges from GitOps",
-      "cluster-out-of-sync-and-stale": `pod stale (${c.drift.running}) & cluster out of sync`,
+      "n/a": "n/a — not GitOps-managed",
       unknown: "no drift data",
     }[c.drift.status] || "no drift data";
     const probe = c.probe?.configured
@@ -475,8 +490,6 @@ function renderBoard() {
         <span class="drift ${driftCls}"><span class="dot"></span>${esc(driftTxt)}</span>
       </header>
       <div class="chain">
-        ${chain("build", m.jenkins?.builtTag ?? null, m.jenkins ? "ok" : "", m.jenkins ? `Jenkins #${m.jenkins.lastSuccessful?.number ?? "?"}` : "")}
-        ${arrow}
         ${chain("image", c.runningTag)}
         ${arrow}
         ${synced ? chain("gitops", m.banner.argocd?.sync ?? null, m.banner.argocd?.sync === "Synced" ? "ok" : "warn") : chain("gitops", "n/a")}
@@ -614,9 +627,14 @@ function renderFleetOverview() {
 </section>`;
   }
   if (!f || f.__error) {
+    // True recovery age: failed polls store snapshots too, so the last-ok age
+    // must come from the most recent SUCCESSFUL poll — never the failed
+    // write's own timestamp (which would claim "last ok 31s ago" while the
+    // source has been failing since boot).
+    const okTs = storeLastOk("fleetBoard");
     return `<section class="fleet" aria-label="fleet overview">
   <h2>fleet overview</h2>
-  <p class="warn">board read failed${err ? ` (${esc(err)})` : ""}${age ? ` — last ok ${esc(age)}` : ""}</p>
+  <p class="warn">board read failed${err ? ` (${esc(err)})` : ""}${okTs ? ` — last ok ${esc(ago(okTs))}` : " — never succeeded"}</p>
 </section>`;
   }
   const states = f.states ?? {};
@@ -680,6 +698,7 @@ function renderFleet() {
   const poolLine = b?.degraded === false ? "billing linked" : bErr ? "billing read failed" : "billing degraded";
   return `<section class="fleet" aria-label="agent fleet">
   <h2>agent fleet</h2>
+  <p class="dim">states: serving turn in flight · resident warm &amp; idle · starting booting · draining stopping · paused held · warm no live process (never touched or budget-demoted; re-warms on demand)</p>
   <div class="fleetgrid">
     <div>
       <h3>runner: ${hErr ? `<span class="warn">health failed (${esc(hErr)})</span>` : `${agents.length} agent(s) · budget ${Math.round(h?.budget ?? 0)}/${h?.budgetMb ?? "?"}MB`}</h3>
@@ -794,4 +813,7 @@ const server = http.createServer((req, res) => {
   res.writeHead(404, { "content-type": "text/plain" });
   res.end("not found");
 });
-server.listen(PORT, HOST, () => console.log(`[ops-console] listening on ${HOST}:${PORT} | ns=${NAMESPACE} deploys=[${WATCHED_DEPLOYS}] poll=${POLL_SECS}s`));
+if (isMain) {
+  server.listen(PORT, HOST, () => console.log(`[ops-console] listening on ${HOST}:${PORT} | ns=${NAMESPACE} deploys=[${WATCHED_DEPLOYS}] poll=${POLL_SECS}s`));
+}
+export { computeDrift, storeWrite, storeLatest, storeLastOk, renderFleetOverview, renderFleet };

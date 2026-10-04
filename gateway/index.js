@@ -194,10 +194,15 @@ app.delete("/api/mp/bind", async (req, res) => {
 });
 
 // Liveness. Public by design — a probe has no session cookie — and it reports
-// no per-user information.
-app.get("/healthz", (_req, res) => {
-  res.json({ ok: true, uptimeMs: Date.now() - startedAt, cells: registry.cells.size });
-});
+// no per-user information. /api/ready is the same payload under the platform's
+// readiness path: deployment-level probes (ops-console) target /api/ready on
+// every watched deployment, and since the cells cutover the gateway IS the
+// platform deployment — a 401 from the catch-all here read as a prod outage
+// (fix-ops-console-board-alarms). Must answer during an IdP outage: no
+// identity resolution, no cell involved.
+const healthPayload = () => ({ ok: true, uptimeMs: Date.now() - startedAt, cells: registry.cells.size });
+app.get("/healthz", (_req, res) => res.json(healthPayload()));
+app.get("/api/ready", (_req, res) => res.json(healthPayload()));
 
 // The admin group name(s) — see registerAuth's ADMIN_GROUPS for the rationale
 // (per-product Logto org-role names). The gateway runs its own process, so it

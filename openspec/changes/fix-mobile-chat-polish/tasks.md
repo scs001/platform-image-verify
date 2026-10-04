@@ -12,4 +12,4 @@
 
 - [x] 3.1 跑 web 既有构建/测试基线（`vite build` + 相关单测），确认零回归
 - [x] 3.2 Playwright 冒烟：移动视口走一遍「打开抽屉→选会话→聚焦输入→发送」，截图核对顶栏与输入区
-- [ ] 3.3 走 canonical 上线路径（GHA→TCR）部署 fd-prod，真机复验两项症状消失
+- [x] 3.3 走 canonical 上线路径（GHA→TCR）部署 fd-prod，真机复验两项症状消失

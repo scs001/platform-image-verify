@@ -121,10 +121,26 @@ const SKILL_NOTIFY = `# 事件通知（bot_notify，四类）
 |---|---|---|
 | ticket_terminal | 工单进终态（done/manual） | [工单终态] <repo>#<ticket> → <state>：<note一行> |
 | pr_opened | PR 开出 | [PR待审] <repo> heal/<branch>：<标题> <url> |
-| gate_change | 总闸/限流配置变化（中央库 MCP 可读时对比巡检） | [总闸变更] <key>: <old>→<new>（来源：巡检） |
+| gate_change | 总闸/限流配置变化（每巡检核对，见下节） | [总闸变更] <key>: <old>→<new>（来源：巡检） |
 | escalate_manual | 超限/超预算/凭据缺失转人工 | [转人工] <repo>#<ticket>：<原因>（需人工介入） |
 
+## 总闸核对（每巡检执行一次）
+
+调用 MCP 工具 \`health_config_get\`（fd-health-config 服务 = finddata 中央库
+fd_open_data.public.health_config 的只读面，返回全量键值 + updated_at）。与
+\`$DSH_HOME/spider-heal/gate-state.json\` 上次快照对比：
+
+- 首次（无快照）：只落盘快照，不发通知；
+- 有键值变化：发一条 gate_change（逐键 <key>: <old>→<new>，多键合并一条、≤500 字），随后落盘新快照；
+- 无变化：不动（空巡检不发通知）。
+
+工具不可达时：巡检小结里记一句「总闸配置未核对（MCP 不可达）」，**不重试、不猜值**。
+
 纪律：每事件至多发一次（终态落盘后发）；text ≤500 字；密钥尾四位规则不变。rhythm 空巡检（无新单、无变化）不发通知。`;
+
+// 巡检节奏文案单源：buildManifest 与 --deploy 覆盖共用。
+const RHYTHM_DO =
+  "巡检工单：按 spider-heal-protocol 的 QUEUE 视角检查队列，并核对总闸配置（spider-heal-notify 的「总闸核对」：health_config_get 对比 gate-state.json）；无 state=queued 的单、无新入件且总闸无变化则只回一句「巡检：空」；有工单则按 spider-heal-repair 处理至多一单";
 
 export function buildManifest() {
   return ({
@@ -135,19 +151,19 @@ export function buildManifest() {
   skills: [
     { name: "spider-heal-protocol", description: "对外工单协议（SUBMIT/STATUS/QUEUE）、inbox 状态文件、去重与单写者规则", content: SKILL_PROTOCOL },
     { name: "spider-heal-repair", description: "修复执行：浅检出、读工单分诊、定向修复、验证链、curl 开 PR、凭据脱敏纪律", content: SKILL_REPAIR },
-    { name: "spider-heal-notify", description: "四类事件通知（工单终态/PR开出/总闸变更/转人工）的 bot_notify 用法", content: SKILL_NOTIFY },
+    { name: "spider-heal-notify", description: "四类事件通知（工单终态/PR开出/总闸变更/转人工）的 bot_notify 用法 + 总闸核对流程", content: SKILL_NOTIFY },
   ],
-  mcpServers: [],
+  mcpServers: [{ registryName: "fd-health-config" }],
   agents: [
     {
       id: AGENT_ID,
       name: "爬虫自愈修复 Agent",
       persona: PERSONA,
       tags: ["运维", "自愈"],
-      resources: { skills: ["spider-heal-protocol", "spider-heal-repair", "spider-heal-notify"] },
+      resources: { skills: ["spider-heal-protocol", "spider-heal-repair", "spider-heal-notify"], mcpServers: ["fd-health-config"] },
       serving: {
         protocol: "a2a",
-        rhythm: [{ every: process.env.RHYTHM_EVERY || "30m", do: "巡检工单：按 spider-heal-protocol 的 QUEUE 视角检查队列，无 state=queued 的单且无新入件则只回一句「巡检：空」；有则按 spider-heal-repair 处理至多一单" }],
+        rhythm: [{ every: process.env.RHYTHM_EVERY || "30m", do: RHYTHM_DO }],
         budget: { turnMinutes: Number(process.env.BUDGET_MINUTES || 20) },
       },
     },
@@ -197,7 +213,7 @@ if (process.env.SECRET_GH_ACTOR) secrets.gh_actor = process.env.SECRET_GH_ACTOR;
 if (Object.keys(secrets).length) body.secrets = { [AGENT_ID]: secrets };
 if (process.env.NOTIFY_CHANNEL) body.notifyChannel = { [AGENT_ID]: process.env.NOTIFY_CHANNEL };
 if (process.env.BUDGET_MINUTES) body.budgets = { [AGENT_ID]: Number(process.env.BUDGET_MINUTES) };
-if (process.env.RHYTHM_EVERY) body.rhythms = { [AGENT_ID]: [{ every: process.env.RHYTHM_EVERY, do: "巡检工单：无 queued 单则只回「巡检：空」；有则按 spider-heal-repair 处理至多一单" }] };
+if (process.env.RHYTHM_EVERY) body.rhythms = { [AGENT_ID]: [{ every: process.env.RHYTHM_EVERY, do: RHYTHM_DO }] };
 
 const dep = await platform("POST", `/api/packs/${packId}/versions/${version}/deploy`, body);
 const depDoc = await dep.json().catch(() => ({}));

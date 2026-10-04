@@ -278,10 +278,23 @@ async function pollRelay() {
 const RUNNER_HEALTH_URL = process.env.RUNNER_HEALTH_URL || "";
 const PLATFORM_BOARD_URL = process.env.PLATFORM_BOARD_URL || "";
 const PLATFORM_BOARD_TOKEN = process.env.PLATFORM_BOARD_TOKEN || "";
+// Fleet overview (add-fleet-board, program slice ④): the Wanxing observer's
+// board is the data plane — the console renders it, it does not re-derive
+// fleet state from direct runner polls.
+const FLEET_BOARD_URL = process.env.FLEET_BOARD_URL || "";
+const FLEET_BOARD_TOKEN = process.env.FLEET_BOARD_TOKEN || "";
 
 async function pollRunnerHealth() {
   if (!RUNNER_HEALTH_URL) throw new Error("RUNNER_HEALTH_URL not configured");
   return getJson(RUNNER_HEALTH_URL, { timeoutMs: 8000 });
+}
+
+async function pollFleetBoard() {
+  if (!FLEET_BOARD_URL) throw new Error("FLEET_BOARD_URL not configured");
+  return getJson(`${FLEET_BOARD_URL.replace(/\/+$/, "")}/api/fleet/v1/board`, {
+    headers: { Authorization: `Bearer ${FLEET_BOARD_TOKEN}` },
+    timeoutMs: 8000,
+  });
 }
 
 async function pollBillingBoard() {
@@ -322,6 +335,7 @@ const SOURCES = [
   ["relay", pollRelay],
   ["runnerHealth", pollRunnerHealth],
   ["billingBoard", pollBillingBoard],
+  ["fleetBoard", pollFleetBoard],
 ];
 let pollBusy = false;
 async function pollOnce() {
@@ -577,10 +591,71 @@ function renderBoard() {
     </div>
   </header>
   ${vitals}
+  ${renderFleetOverview()}
   ${renderFleet()}
   <div class="grid">${cards}${jenkinsCard}${harborCard}${relayBody}</div>
 </div>
 </body></html>`;
+}
+
+// ── fleet overview (add-fleet-board, program slice ④) ───────────────────────
+// The Wanxing observer's board is the data plane; this render is a straight
+// projection. Degradation follows the console's discipline: unconfigured and
+// failed states render explicitly, the section never disappears.
+function renderFleetOverview() {
+  const snap = storeLatest("fleetBoard");
+  const f = snap?.data ?? null;
+  const err = f?.__error ?? null;
+  const age = snap ? ago(snap.ts) : null;
+  if (!FLEET_BOARD_URL) {
+    return `<section class="fleet" aria-label="fleet overview">
+  <h2>fleet overview</h2>
+  <p class="dim">not configured — set FLEET_BOARD_URL/FLEET_BOARD_TOKEN (Wanxing observer board)</p>
+</section>`;
+  }
+  if (!f || f.__error) {
+    return `<section class="fleet" aria-label="fleet overview">
+  <h2>fleet overview</h2>
+  <p class="warn">board read failed${err ? ` (${esc(err)})` : ""}${age ? ` — last ok ${esc(age)}` : ""}</p>
+</section>`;
+  }
+  const states = f.states ?? {};
+  const statePills = Object.entries(states)
+    .map(([k, v]) => `<span class="pill ${k === "serving" || k === "resident" ? "ok" : k === "paused" ? "warn" : ""}">${esc(k)} ${Number(v)}</span>`)
+    .join(" ");
+  const runners = Object.entries(f.runners ?? {})
+    .map(([id, s]) => `<tr><td class="mono">${esc(id)}</td><td>${Number(s.children ?? 0)}</td><td>${Number(s.queued ?? 0)}</td><td>${Math.round(Number(s.budget_mb ?? 0))}/${Number(s.budget_mb_limit ?? "?")}MB</td><td>${Number(s.agents ?? 0)}</td></tr>`)
+    .join("");
+  const lagRows = (f.ingest_lag ?? [])
+    .map((l) => {
+      const slow = Number(l.event_age_ms) > 5 * 60_000;
+      return `<tr><td class="mono">${esc(l.source)}</td><td class="${slow ? "warn" : ""}">${l.event_age_ms == null ? "?" : Math.round(l.event_age_ms / 1000) + "s"}</td><td>${l.arrival_age_ms == null ? "?" : Math.round(l.arrival_age_ms / 1000) + "s"}</td></tr>`;
+    })
+    .join("");
+  const pending = f.settled_pending ?? {};
+  const wake = f.wake_ms ?? {};
+  return `<section class="fleet" aria-label="fleet overview">
+  <h2>fleet overview <span class="dim">(${esc(String(f.window ?? "24h"))} · updated ${esc(age ?? "?")})</span></h2>
+  <div class="fleetgrid">
+    <div>
+      <h3>${Number(f.agents_total ?? 0)} agent(s)</h3>
+      <p>${statePills || '<span class="dim">no state events in window</span>'}</p>
+      <table><tbody>
+        <tr><td>turns / errors</td><td>${Number(f.turns ?? 0)} / ${Number(f.errors ?? 0)}</td></tr>
+        <tr><td>wake p50/p95</td><td>${wake.p50 == null ? "n/a" : wake.p50 + "ms"} / ${wake.p95 == null ? "n/a" : wake.p95 + "ms"}</td></tr>
+        <tr><td>budget kills / reaped</td><td>${Number(f.budget_kills ?? 0)} / ${Number(f.reaped ?? 0)}</td></tr>
+        <tr><td>settled pending</td><td class="${pending.count ? "warn" : ""}">${Number(pending.count ?? 0)}${pending.usd ? ` ($${Number(pending.usd).toFixed(2)})` : ""}</td></tr>
+        <tr><td>billed</td><td>${Number(f.minutes_billed ?? 0)}min · $${Number(f.usd ?? 0).toFixed(2)}</td></tr>
+      </tbody></table>
+    </div>
+    <div>
+      <h3>runners</h3>
+      ${runners ? `<table><thead><tr><th>runner</th><th>children</th><th>queued</th><th>budget</th><th>agents</th></tr></thead><tbody>${runners}</tbody></table>` : `<p class="dim">no runner_stats in window</p>`}
+      <h3>ingest lag</h3>
+      ${lagRows ? `<table><thead><tr><th>source</th><th>event age</th><th>arrival age</th></tr></thead><tbody>${lagRows}</tbody></table>` : `<p class="dim">no recent events</p>`}
+    </div>
+  </div>
+</section>`;
 }
 
 // ── agent fleet section (add-agent-platform-ops 5.1) ───────────────────────

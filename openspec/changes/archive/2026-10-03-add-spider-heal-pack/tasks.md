@@ -22,3 +22,11 @@
 - [x] 4.2 门面合成工单实跑：真回合 110s → 终态 `manual`（工单不可读，四路核实）→ 同 Idempotency-Key 重放返回首答（仅 1 笔记账：2 分钟 settled）
 - [x] 4.3 cutover 缺口修复（阻塞本任务的根因）：facet store 迁移漏 2 个私有包 + 全部 deployment_keys（已按表回填，两库全表对齐）；facet 部署缺 `SUB2API_ADMIN_KEY`（k8s envFrom 跳过含破折号的键名，GitOps aa60f6f 补 inline secretKeyRef）——否则 facet 侧部署会静默丢弃计费键绑定
 - [x] 4.4 通知链路备注：平台滚动窗口内 `bot_notify` 会 503（单次纪律=即丢）；rolling 后 relay 直发复测 `{ok:true}`
+
+## 5. 追记（2026-10-04 —— 运营四项收口 + PAT 轮换，闭环完结）
+
+- [x] 5.1 ① 通道换正式：`fd-ops` 绑在实际在用的会话（平台 bot 名 `test` = 微信里的 qinfa 号，命名坑在册）→ v4 重部署 → relay 审计 `fd-ops|sent` 送达实证
+- [x] 5.2 ② 总闸/限流 MCP：自研 shim `servers/fd-health-config` 部署 cheap1 + registry 注册 + pack v3 挂载 `mcpServers:["fd-health-config"]`；全链实证（公网三流程 + runner `1 MCP` + 真回合 `tools/call`，详见 `servers/fd-health-mcp/README.md`）
+- [x] 5.3 ③ 模型/计费核验：runner 默认 + child 路由 = `deepseek-v4.1-flash`；部署键（sub2api id 31）183 条用量逐请求实付，与门面调用键结算双账闭环
+- [x] 5.4 ④ PAT 轮换：FindDataOfficial 窄授权 v5 上线（gh_actor 同步换官方号）；旧 scs001 宽 PAT 待用户吊销；真修复全链已由结构层演练单实战闭环（PR #1 人审 merge）
+- 全程证据与运维配方：`docs/spider-heal-pack.md` 末节 + `servers/fd-health-mcp/README.md`；提交 9b21393/1f8b1c8/bb179e0/6aad212

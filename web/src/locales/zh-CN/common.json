@@ -305,7 +305,9 @@
     "editResend": "编辑后重发",
     "retryWaiting": "网关限流，重试中 ({{retry}}/{{budget}})…",
     "retryWaitingNoBudget": "网关限流，重试中 ({{retry}})…",
-    "retryStarted": "正在重试…"
+    "retryStarted": "正在重试…",
+    "connectionLost": "连接中断，恢复中…",
+    "resumedLag": "已重连，内容可能滞后"
   },
   "markdown": {
     "copy": "复制",

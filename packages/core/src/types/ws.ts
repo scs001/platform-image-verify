@@ -6,17 +6,46 @@
 
 // ── Server → client ─────────────────────────────────────────────────────────
 
+// A replayable in-flight turn event (add-reconnect-resync): one wire message
+// from the run-scoped subset the server buffers for reconnect replay. Same
+// shapes the live stream delivers; replayed through the same store fold.
+export type TurnEvent = Extract<
+  ServerMessage,
+  {
+    type:
+      | "agent_start"
+      | "text"
+      | "thinking"
+      | "tool_start"
+      | "tool_update"
+      | "tool_end"
+      | "skill_use"
+      | "command_use"
+      | "retry_scheduled"
+      | "retry_started";
+  }
+>;
+
+// Run-scoped messages carry the emitting session as an additive `sessionId`
+// field (stamped by the server's per-viewer delivery). Clients use it to drop
+// events for a session they are not viewing; older payloads without it still
+// apply (field presence gates the check).
+export type RunScopedMessage = Extract<
+  ServerMessage,
+  { type: TurnEvent["type"] | "user" | "done" }
+> & { sessionId?: string };
+
 export type ServerMessage =
-  | { type: "user"; text: string; budgetLeft?: number; taskSummary?: boolean }
-  | { type: "agent_start" }
-  | { type: "text"; delta: string }
-  | { type: "thinking"; delta: string }
-  | { type: "tool_start"; toolCallId: string; name: string; args: unknown }
-  | { type: "tool_update"; toolCallId: string; name: string; partialResult: unknown }
-  | { type: "tool_end"; toolCallId: string; name: string; result: unknown; isError?: boolean }
-  | { type: "skill_use"; name: string; args?: string }
-  | { type: "command_use"; name: string; args?: string; message?: string }
-  | { type: "done" }
+  | { type: "user"; text: string; budgetLeft?: number; taskSummary?: boolean; sessionId?: string }
+  | ({ type: "agent_start" } & { sessionId?: string })
+  | ({ type: "text"; delta: string } & { sessionId?: string })
+  | ({ type: "thinking"; delta: string } & { sessionId?: string })
+  | ({ type: "tool_start"; toolCallId: string; name: string; args: unknown } & { sessionId?: string })
+  | ({ type: "tool_update"; toolCallId: string; name: string; partialResult: unknown } & { sessionId?: string })
+  | ({ type: "tool_end"; toolCallId: string; name?: string; result: unknown; isError?: boolean } & { sessionId?: string })
+  | ({ type: "skill_use"; name: string; args?: string } & { sessionId?: string })
+  | ({ type: "command_use"; name: string; args?: string; message?: string } & { sessionId?: string })
+  | ({ type: "done" } & { sessionId?: string })
   // Bounded model-request retry progress (add-llm-retry-resilience): a
   // transient failure was scheduled for retry (normal mode carries the finite
   // budget), and the wait elapsed with the next attempt starting. Status
@@ -76,7 +105,20 @@ export type ServerMessage =
   | { type: "resources_changed"; action: "created" | "renamed" | "deleted"; id: string; resourceType: string }
   | { type: "sessions"; sessions: SessionMeta[]; current?: string }
   | { type: "session_changed"; id: string }
-  | { type: "session_loaded"; id: string; title?: string; messages: ChatMessage[] }
+  | {
+      type: "session_loaded";
+      id: string;
+      title?: string;
+      messages: ChatMessage[];
+      // Reconnect resync (add-reconnect-resync): a turn is in flight for this
+      // session. With `turnEvents` the client rebuilds the open turn by
+      // folding the server's replay log; without it (buffer miss — overflow
+      // or process restart) it keeps its local partial and continues live.
+      // Absent on older servers — the transcript replace then applies as
+      // before.
+      running?: boolean;
+      turnEvents?: TurnEvent[];
+    }
   | { type: "session_renamed"; id: string; title: string }
   | { type: "cron_jobs"; jobs: CronJob[] }
   | { type: "cron_status"; job: CronJob }
@@ -308,7 +350,7 @@ export type ClientMessage =
   | { type: "list_skills" }
   | { type: "list_sessions" }
   | { type: "new_session" }
-  | { type: "switch_session"; id: string }
+  | { type: "switch_session"; id: string; resync?: boolean }
   | { type: "rename_session"; id: string; title: string }
   // Scheduled tasks (spec: cron-module). The client-facing job shape mirrors
   // cron.js clientShape().

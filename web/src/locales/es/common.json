@@ -305,7 +305,9 @@
     "editResend": "Editar y reenviar",
     "retryWaiting": "Gateway limitado, reintentando ({{retry}}/{{budget}})…",
     "retryWaitingNoBudget": "Gateway limitado, reintentando ({{retry}})…",
-    "retryStarted": "Reintentando…"
+    "retryStarted": "Reintentando…",
+    "connectionLost": "Conexión perdida, reanudando…",
+    "resumedLag": "Reconectado; el contenido puede retrasarse"
   },
   "markdown": {
     "copy": "Copiar",

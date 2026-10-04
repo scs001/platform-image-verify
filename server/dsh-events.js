@@ -123,6 +123,9 @@ export function attachDshEvents(ctx) {
     // must not see its close either.
     ctx.sendToViewers(ctx.dshSessionId, { type: "done" });
     ctx.turnOrigin = null;
+    // The replay log is only for an in-flight turn (add-reconnect-resync) —
+    // post-done the persisted transcript is the truth a sync serves.
+    ctx.resetTurnBuffer?.();
     void ctx.broadcastSessions();
   };
 
@@ -308,6 +311,9 @@ export function attachDshEvents(ctx) {
         ctx.dshTurnError = null;
         ctx.dshToolNames.clear();
         ctx.dshTurnBlocks = [];
+        // A fresh turn starts a fresh replay log (add-reconnect-resync) —
+        // this agent_start below is the log's first event.
+        ctx.resetTurnBuffer?.();
         // The declared channel's scope: a `chart_bind` declaration may only
         // reach a chart captured during THIS turn.
         ctx.dshTurnStartedAt = new Date().toISOString();

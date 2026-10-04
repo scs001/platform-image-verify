@@ -66,6 +66,14 @@ export type Turn =
       blocks: Block[];
       streaming: boolean;
       interrupted?: boolean;
+      // Transient socket-drop marker (add-reconnect-resync): the turn is NOT
+      // dead — the server keeps running it — but this client's view went
+      // stale when the socket dropped. Set on disconnect while streaming,
+      // cleared by the first live event (currentAssistant strips it on the
+      // clone), the sync answer, or `done`. Rendered as "connection lost,
+      // resuming…" while the WS status is disconnected, and "resumed, content
+      // may lag" after a buffer-miss re-sync. Never persisted.
+      connectionLost?: boolean;
       // Transient model-request retry status (add-llm-retry-resilience): set
       // while a failed request waits in bounded backoff, cleared when the
       // retried attempt produces text or the turn ends. Never persisted —
@@ -232,7 +240,10 @@ const nextId = () => `t${++uid}`;
 function currentAssistant(turns: Turn[]): Turn & { role: "assistant" } {
   const tail = turns[turns.length - 1];
   if (tail && tail.role === "assistant" && tail.streaming) {
+    // A live event on the tail means the view is receiving the run again —
+    // drop the transient drop-marker (add-reconnect-resync).
     const clone = { ...tail, blocks: tail.blocks.slice() };
+    if (clone.connectionLost) clone.connectionLost = undefined;
     turns[turns.length - 1] = clone;
     return clone;
   }
@@ -349,16 +360,16 @@ const RUN_EVENT_TYPES = new Set([
   "error",
 ]);
 
-// Close every open assistant turn. Returns a NEW array (no in-place mutation —
-// callers run inside set()).
-function finalizeOpenTurns(turns: Turn[]): Turn[] {
-  const now = Date.now();
-  return turns.map((t) =>
-    t.role === "assistant" && t.streaming
-      ? { ...t, streaming: false, activityEndedAt: t.activityEndedAt ?? now }
-      : t,
-  );
-}
+// Run-scoped messages the server stamps with the emitting session. A client
+// viewing a different session drops them (add-reconnect-resync): a
+// reconnecting socket is server-adopted into the deployment's live session,
+// and without this guard another session's stream would fold phantom turns
+// into whatever this client happens to view. `user` echoes are deliberately
+// NOT guarded: the prompt-implies-switch handshake races (the runtime may
+// still run the turn in the connection's previous session), and a dropped
+// echo blanks the very turn the user just submitted — the phantom-stream
+// risk the guard exists for is assistant-side anyway.
+const SESSION_SCOPED_TYPES = new Set([...RUN_EVENT_TYPES, "done"]);
 
 // ── Session turn cache (perf-session-open) ───────────────────────────────────
 // Small LRU of visited sessions' rendered turns. Map order IS the recency
@@ -389,6 +400,9 @@ function cacheWrite(
 // Snapshot a live view for stash (backup + cache): streaming turns close as
 // interrupted — the server stops the run on switch, so an unfinished answer
 // must never read as complete, here or on later cached re-entry.
+// stopStreaming shares this: with socket drops no longer finalizing
+// (add-reconnect-resync), the user's explicit stop is the one honest source
+// of the interrupted marker.
 function snapshotTurns(turns: Turn[]): Turn[] {
   const now = Date.now();
   return turns.map((t) =>
@@ -496,19 +510,17 @@ export const useChatStore = create<State>((set) => ({
   setStatus: (s) =>
     set((state) => {
       if (s !== "disconnected") return { status: s };
-      // Only a live socket can strand a run. A socket that never connected —
-      // gated off while the auth check runs, so every page load passes through
-      // here — has no in-flight turn to finalize, and must not arm `suppressed`
-      // (that would swallow the next server-initiated run: a cron-fired prompt
-      // has no `user` echo to clear it).
-      if (state.status !== "connected") return { status: s };
-      // A dropped socket used to strand `isStreaming` forever (only
-      // done/session_loaded/clearView reset it) — the composer bricked until
-      // the view was wiped. Finalize the open turn and suppress the orphaned
-      // run's remaining events instead; the connection banner explains the
-      // socket while the WS hook reconnects, and the interrupted marker on
-      // the turn itself says the ANSWER was cut off (indistinguishable from
-      // a finished one before this).
+      // Server-authoritative turns (add-reconnect-resync): a dropped socket
+      // does NOT finalize the open turn as interrupted and does NOT arm event
+      // suppression — the run keeps executing server-side, per-viewer delivery
+      // re-delivers its events to the reconnected socket, and the WS hook's
+      // onOpen re-syncs the session. The turn carries a transient
+      // connectionLost marker instead (rendered "connection lost, resuming…");
+      // isStreaming stays true so the stop control remains the one honest
+      // interruption source. No was-connected guard: the marker is cheap and
+      // transient, and a connecting→disconnected hop (a replaced socket whose
+      // first attempt fails) must mark just as well — with nothing streaming
+      // (page load) the map is a no-op.
       discardDeltas();
       // A socket drop mid-switch is a failed switch (perf-session-open): put
       // the displaced view back rather than leave a skeleton over a dead
@@ -519,8 +531,6 @@ export const useChatStore = create<State>((set) => ({
           status: s,
           currentSessionId: b ? b.id : state.currentSessionId,
           turns: b ? b.turns : state.turns,
-          isStreaming: false,
-          suppressed: true,
           pendingSession: null,
           pendingNewSession: false,
           sessionSwitchBackup: null,
@@ -528,13 +538,24 @@ export const useChatStore = create<State>((set) => ({
       }
       return {
         status: s,
-        turns: snapshotTurns(state.turns),
-        isStreaming: false,
-        suppressed: true,
+        turns: state.turns.map((t) =>
+          t.role === "assistant" && t.streaming && !t.connectionLost ? { ...t, connectionLost: true } : t,
+        ),
       };
     }),
 
   apply: (m) => {
+    // Session-scoped view guard (add-reconnect-resync): run events, user
+    // echoes and `done` carry the emitting session (server-stamped). One for
+    // a session this client is not viewing is dropped — most notably the
+    // stream of the deployment's live session that a freshly reconnected
+    // socket is server-adopted into while this client views another one.
+    // Pre-stamp payloads (older servers) have no field and still apply.
+    if (SESSION_SCOPED_TYPES.has(m.type)) {
+      const scoped = m as { sessionId?: string };
+      if (typeof scoped.sessionId === "string" && scoped.sessionId !== useChatStore.getState().currentSessionId)
+        return;
+    }
     // A dismissed run's stream events are swallowed until the run's own
     // `done` (or the next prompt's `user` echo) clears the flag. Checked
     // before queueDelta so buffered text can't leak past the suppression.
@@ -696,7 +717,7 @@ export const useChatStore = create<State>((set) => ({
           // that closes had no unresolved retry; strip the chip either way.
           if (tail && tail.role === "assistant" && tail.streaming) {
             markActivityEnd(tail);
-            turns[turns.length - 1] = { ...tail, streaming: false, retry: undefined };
+            turns[turns.length - 1] = { ...tail, streaming: false, retry: undefined, connectionLost: undefined };
           }
           // The dismissed run (if any) has ended; stop swallowing events.
           // Turn events carry no session id pre-targeted-delivery, so the
@@ -927,10 +948,42 @@ export const useChatStore = create<State>((set) => ({
           if (!applies) {
             return { sessionCache: cacheWrite(state.sessionCache, m.id, mapped) };
           }
+          // Reconnect resync (add-reconnect-resync): branch on the server's
+          // running flag. A dismissed run resists the resync — the user
+          // stopped this run, so its replay and live tail stay swallowed
+          // until its own `done` (running is forced false for this view).
+          const running = m.running === true && !state.suppressed;
+          const replay = running && Array.isArray(m.turnEvents) && m.turnEvents.length > 0 ? m.turnEvents : null;
+          // Buffer miss with a live local partial (the drop happened mid-run
+          // and the server could not replay): the transcript lacks the
+          // in-flight text, so replacing the view would visibly shrink it.
+          // Keep the local open turn — its connectionLost marker now reads
+          // "resumed, content may lag" — and let live events continue it.
+          if (running && !replay) {
+            const tail = state.turns[state.turns.length - 1];
+            if (tail && tail.role === "assistant" && tail.streaming) {
+              return {
+                currentSessionId: m.id,
+                isStreaming: true,
+                todos: [],
+                todoCounts: NO_TODOS,
+                pendingQuestion: null,
+                pendingSession: null,
+                pendingNewSession: isNewChatArrival ? false : state.pendingNewSession,
+                sessionSwitchBackup: null,
+              };
+            }
+          }
+          // Base path — replay hit, a fresh switch onto a running session
+          // (no local partial exists; live events open the turn), or the
+          // turn is not running (today's full replace). While running, the
+          // mapped view is NOT cached: it lacks the in-flight turn that the
+          // replay/live stream is about to (re)build; `done` caches the
+          // final state.
           return {
             currentSessionId: m.id,
             turns: mapped,
-            isStreaming: false,
+            isStreaming: running,
             suppressed: state.suppressed,
             // A plan belongs to its session: clear on load, then the server's
             // snapshot push (when the target session has one) repopulates it.
@@ -943,7 +996,7 @@ export const useChatStore = create<State>((set) => ({
             // new-session load is still in flight behind this one.
             pendingNewSession: isNewChatArrival ? false : state.pendingNewSession,
             sessionSwitchBackup: null,
-            sessionCache: cacheWrite(state.sessionCache, m.id, mapped),
+            sessionCache: running ? state.sessionCache : cacheWrite(state.sessionCache, m.id, mapped),
           };
         }
 
@@ -983,6 +1036,16 @@ export const useChatStore = create<State>((set) => ({
           return {};
       }
     });
+
+    // Reconnect resync replay (add-reconnect-resync): the sync answer's
+    // turnEvents rebuild the open turn through the SAME fold as the live
+    // stream — every guard (suppression, session scoping) and every block
+    // case applies unchanged. Runs after the session_loaded commit above,
+    // so agent_start opens the fresh turn the replay then fills; streamed
+    // text re-uses the delta batching.
+    if (m.type === "session_loaded" && m.running === true && Array.isArray(m.turnEvents) && m.turnEvents.length > 0) {
+      for (const ev of m.turnEvents) useChatStore.getState().apply(ev);
+    }
   },
 
   addUserTurnOptimistic: (text) => {
@@ -1018,10 +1081,13 @@ export const useChatStore = create<State>((set) => ({
     // dsh's wire protocol has no interrupt RPC (initialize / session/prompt /
     // shutdown only), so stop is local: close the turn where it stands, hand
     // the composer back, and swallow the run's remaining events until `done`.
+    // The finalized turns carry the interrupted marker (add-reconnect-resync:
+    // with socket drops no longer finalizing, the user's explicit stop is the
+    // one honest source of that marker).
     set((state) => {
       discardDeltas();
       return {
-        turns: finalizeOpenTurns(state.turns),
+        turns: snapshotTurns(state.turns),
         isStreaming: false,
         suppressed: true,
       };

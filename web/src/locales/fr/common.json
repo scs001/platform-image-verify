@@ -305,7 +305,9 @@
     "editResend": "Modifier et renvoyer",
     "retryWaiting": "Passerelle saturée, nouvelle tentative ({{retry}}/{{budget}})…",
     "retryWaitingNoBudget": "Passerelle saturée, nouvelle tentative ({{retry}})…",
-    "retryStarted": "Nouvelle tentative…"
+    "retryStarted": "Nouvelle tentative…",
+    "connectionLost": "Connexion perdue, reprise…",
+    "resumedLag": "Reconnecté ; le contenu peut être en retard"
   },
   "markdown": {
     "copy": "Copier",

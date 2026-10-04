@@ -7,7 +7,7 @@ import { memo, useState } from "react";
 // tool/thinking block labels resolve through the i18n bundle. Icons are
 // lucide throughout — no emoji as an icon system (DESIGN.md).
 import { useTranslation } from "react-i18next";
-import { Check, Copy, RefreshCw, Terminal, TriangleAlert } from "lucide-react";
+import { Check, Copy, Loader2, RefreshCw, Terminal, TriangleAlert } from "lucide-react";
 import { groupTurnBlocks, useChatStore, type Turn } from "@platform/core";
 import { useBranding } from "@/hooks/useAppConfig";
 import { Markdown } from "@/components/Markdown";
@@ -30,6 +30,10 @@ function AssistantTurnBase({
   const { t } = useTranslation();
   const { assistant } = useBranding();
   const toggleBlock = useChatStore((s) => s.toggleBlock);
+  // Transient drop marker's wording depends on the socket state
+  // (add-reconnect-resync): "resuming" while the WS hook is reconnecting,
+  // "may lag" once reconnected after a buffer-miss sync.
+  const connStatus = useChatStore((s) => s.status);
   const [copied, setCopied] = useState(false);
 
   // Copy carries the answer's prose (text blocks), not the machinery.
@@ -211,6 +215,19 @@ function AssistantTurnBase({
           >
             <TriangleAlert className="h-3 w-3 shrink-0" />
             {t("turn.interrupted")}
+          </div>
+        )}
+        {/* Transient socket-drop state (add-reconnect-resync): the run is NOT
+            dead — the server keeps executing it — this view just went stale
+            until the reconnect's session re-sync lands. Informational, never
+            terminal: the first live event clears the marker. */}
+        {turn.streaming && turn.connectionLost && (
+          <div
+            data-testid="turn-connection-lost"
+            className="inline-flex items-center gap-1 self-start rounded-md border border-border bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+          >
+            <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+            {connStatus === "disconnected" ? t("turn.connectionLost") : t("turn.resumedLag")}
           </div>
         )}
       </div>

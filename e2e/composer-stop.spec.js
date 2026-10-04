@@ -2,8 +2,9 @@
 //   - Enter during IME composition must not submit (pinyin confirm)
 //   - the stop button releases a stuck stream and swallows the orphaned
 //     run's late events until its `done` clears the suppression
-//   - a simulated socket drop finalizes the open turn, shows the reconnect
-//     banner, and reconnect clears it
+//   - a simulated socket drop leaves the run in a transient reconnect
+//     state (server-authoritative, add-reconnect-resync): no false
+//     interrupted marker, late events keep applying, reconnect recovers
 //
 // All three drive the window.__chatStore seam (e2e build only) — no real LLM
 // call is required.
@@ -95,8 +96,9 @@ test.describe("composer hardening: IME, stop, disconnect", () => {
       turnCount: 1,
       tailStreaming: false,
     });
-    // A user stop is a choice — the turn is NOT marked interrupted.
-    await expect(page.getByTestId("turn-interrupted")).toBeHidden();
+    // A user stop is the one honest interruption source
+    // (add-reconnect-resync): the dismissed turn is marked interrupted.
+    await expect(page.getByTestId("turn-interrupted")).toBeVisible();
 
     // The orphaned run keeps streaming server-side — those events must not
     // re-open a turn or re-disable the composer (deltas flush at 50ms).
@@ -128,13 +130,13 @@ test.describe("composer hardening: IME, stop, disconnect", () => {
     expect(next).toEqual({ suppressed: false, turnCount: 2 });
   });
 
-  test("disconnect finalizes the stream and the banner explains it", async ({ page }) => {
+  test("disconnect leaves the run transient and reconnect recovers it", async ({ page }) => {
     await page.evaluate(() => {
       const s = window.__chatStore;
       s.getState().apply({ type: "agent_start" });
       s.getState().apply({ type: "text", delta: "mid-stream" });
     });
-    // Flush the delta first so the finalized turn keeps visible text.
+    // Flush the delta first so the turn keeps visible text.
     await page.waitForFunction(() => {
       const s = window.__chatStore.getState();
       const tail = s.turns[s.turns.length - 1];
@@ -150,30 +152,41 @@ test.describe("composer hardening: IME, stop, disconnect", () => {
     await expect(page.getByTestId("connection-retry")).toBeVisible();
     // Typing survives the outage — only send is gated by the connection.
     await page.getByTestId("composer-input").fill("draft while offline");
-    // The stranded run finalized: stop is gone even though no `done` arrived.
-    await expect(page.getByTestId("composer-stop")).toBeHidden();
+    // The run is server-authoritative (add-reconnect-resync): a dropped
+    // socket must NOT finalize it. The stop control remains the one honest
+    // interruption source, and the turn carries the transient marker
+    // instead of the interrupted one.
+    await expect(page.getByTestId("composer-stop")).toBeVisible();
+    await expect(page.getByTestId("turn-connection-lost")).toBeVisible();
+    await expect(page.getByTestId("turn-interrupted")).toBeHidden();
     const state = await page.evaluate(() => {
       const s = window.__chatStore.getState();
       const tail = s.turns[s.turns.length - 1];
-      return { isStreaming: s.isStreaming, tailStreaming: tail?.streaming };
+      return {
+        isStreaming: s.isStreaming,
+        suppressed: s.suppressed,
+        tailStreaming: tail?.streaming,
+        connectionLost: tail?.connectionLost === true,
+      };
     });
-    expect(state).toEqual({ isStreaming: false, tailStreaming: false });
+    expect(state).toEqual({ isStreaming: true, suppressed: false, tailStreaming: true, connectionLost: true });
 
-    // The cut-off answer is marked in the transcript — a truncation used to
-    // be indistinguishable from a finished answer.
-    await expect(page.getByTestId("turn-interrupted")).toBeVisible();
-
-    // Late events from the orphaned run stay swallowed after reconnect.
+    // Late events from the still-running turn keep applying (no swallow) and
+    // the first one clears the transient marker.
     await page.evaluate(() => {
-      window.__chatStore.getState().apply({ type: "text", delta: " LATE" });
+      window.__chatStore.getState().apply({ type: "text", delta: " CONTINUED" });
     });
     await page.waitForTimeout(200);
-    const swallowed = await page.evaluate(() => {
+    const continued = await page.evaluate(() => {
       const s = window.__chatStore.getState();
       const tail = s.turns[s.turns.length - 1];
-      return s.turns.length === 1 && !tail.blocks.some((b) => b.kind === "text" && b.text.includes("LATE"));
+      return {
+        text: tail.blocks.filter((b) => b.kind === "text").map((b) => b.text).join(""),
+        marker: tail.connectionLost === true,
+      };
     });
-    expect(swallowed).toBe(true);
+    expect(continued).toEqual({ text: "mid-stream CONTINUED", marker: false });
+    await expect(page.getByTestId("turn-connection-lost")).toBeHidden();
 
     // The offline draft survived the reconnect cycle.
     await expect(page.getByTestId("composer-input")).toHaveValue("draft while offline");

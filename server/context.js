@@ -203,7 +203,7 @@ export function createAppContext(config) {
   // reaches a foreign client. Turn payloads carry the session id (additive
   // field; older clients ignore it). With auth off there is one user and one
   // view, so sendToViewers degenerates to today's broadcast semantics.
-  ctx.sendToViewers = (sessionId, data) => {
+  const baseSendToViewers = (sessionId, data) => {
     if (!sessionId) return;
     const msg = JSON.stringify({ ...data, sessionId });
     for (const ws of ctx.clients) {
@@ -215,6 +215,60 @@ export function createAppContext(config) {
         /* a dying socket must not fail the fan-out */
       }
     }
+  };
+
+  // ── In-flight turn replay buffer (add-reconnect-resync) ───────────────────
+  // A turn's client view is a live event stream; the transcript persists only
+  // at turn end, so a client that drops mid-run can never re-fetch the partial
+  // from history. The server instead mirrors every run event it delivers (the
+  // SAME choke point, so the log can never drift from what viewers saw) into a
+  // bounded in-memory log, and switch_session's session_loaded answer carries
+  // it (with running:true) so a reconnecting client rebuilds the turn and
+  // continues live. Deliberately ephemeral: cleared when the turn ends, dropped
+  // whole on overflow, never persisted — a miss just degrades the client to
+  // keep-its-partial (converging at `done`).
+  const TURN_BUFFER_MAX_EVENTS = 2000;
+  const TURN_BUFFER_MAX_BYTES = 1_000_000;
+  const TURN_BUFFERED_TYPES = new Set([
+    "agent_start",
+    "text",
+    "thinking",
+    "tool_start",
+    "tool_update",
+    "tool_end",
+    "skill_use",
+    "command_use",
+    "retry_scheduled",
+    "retry_started",
+  ]);
+  ctx.turnBuffer = null;
+  // A fresh turn's log must not inherit the previous turn's events (a done
+  // that raced a crash could leave one behind).
+  ctx.resetTurnBuffer = () => {
+    ctx.turnBuffer = null;
+  };
+  const appendTurnBuffer = (data) => {
+    if (!ctx.turnBuffer) ctx.turnBuffer = { events: [], bytes: 0, overflow: false };
+    const buf = ctx.turnBuffer;
+    if (buf.overflow) return;
+    let size = 64;
+    try {
+      size += JSON.stringify(data).length;
+    } catch {
+      /* size estimate only */
+    }
+    if (buf.events.length >= TURN_BUFFER_MAX_EVENTS || buf.bytes + size > TURN_BUFFER_MAX_BYTES) {
+      buf.overflow = true;
+      buf.events = [];
+      buf.bytes = 0;
+      return;
+    }
+    buf.events.push(data);
+    buf.bytes += size;
+  };
+  ctx.sendToViewers = (sessionId, data) => {
+    if (ctx.isStreaming && TURN_BUFFERED_TYPES.has(data?.type)) appendTurnBuffer(data);
+    baseSendToViewers(sessionId, data);
   };
 
   // The session-list scope a connection is entitled to. Auth-off: undefined —

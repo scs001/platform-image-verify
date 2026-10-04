@@ -305,7 +305,9 @@
     "editResend": "編集して再送",
     "retryWaiting": "ゲートウェイ制限中、再試行中 ({{retry}}/{{budget}})…",
     "retryWaitingNoBudget": "ゲートウェイ制限中、再試行中 ({{retry}})…",
-    "retryStarted": "再試行中…"
+    "retryStarted": "再試行中…",
+    "connectionLost": "接続が切断されました。復元中…",
+    "resumedLag": "再接続済み。内容が遅れる可能性があります"
   },
   "markdown": {
     "copy": "コピー",

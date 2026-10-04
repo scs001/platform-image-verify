@@ -83,6 +83,18 @@ export function useWebSocket(enabled: boolean, identityKey = "") {
         ] as const) {
           client.send(JSON.stringify({ type } satisfies ClientMessage));
         }
+        // Reconnect resync (add-reconnect-resync): a resumed socket must also
+        // re-sync the session the client is viewing — the in-flight turn's
+        // events (and its replay log) flow only to connections the server
+        // has viewing that session, and the drop left the local view stale.
+        // Sent via client.send, NOT the store-aware choke point below: this
+        // is a machine re-sync, and the optimistic-switch skeleton would
+        // flash on every reconnect. The server treats resync:true as
+        // never-navigate — an unrelated session's live run is untouched.
+        const current = useChatStore.getState().currentSessionId;
+        if (current) {
+          client.send(JSON.stringify({ type: "switch_session", id: current, resync: true } satisfies ClientMessage));
+        }
       },
     });
     clientRef.current = client;

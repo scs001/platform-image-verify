@@ -160,6 +160,14 @@ async function start(): Promise<void> {
     },
     onOpen: () => {
       for (const type of INITIAL_QUERIES) rawSend({ type } as ClientMessage);
+      // Reconnect resync (add-reconnect-resync): a resumed socket must also
+      // re-sync the viewed session so an in-flight turn's events (and its
+      // replay log) reach this client again; rawSend is the fire-and-forget
+      // path, so no optimistic switch fires. Mirrors the web hook's onOpen.
+      const current = useChatStore.getState().currentSessionId;
+      if (current) {
+        rawSend({ type: "switch_session", id: current, resync: true } as ClientMessage);
+      }
     },
   });
   client.connect();

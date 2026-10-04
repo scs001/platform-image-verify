@@ -725,9 +725,78 @@ ctx.wss.on("connection", (ws, req) => {
           );
           break;
         }
+        // Reconnect resync guard (add-reconnect-resync): a machine-initiated
+        // re-sync (resync:true, sent by the WS hook's onOpen) must never
+        // NAVIGATE the runtime. When a turn is in flight on a session other
+        // than the one being re-synced, a normal switch would stop that run
+        // (stopStreamingForSessionNavigation) — correct for a user's explicit
+        // choice, destructive as a reconnect side effect. Serve the
+        // transcript-only answer instead: nothing runs for the target, so
+        // running is false and the client takes the plain replace branch.
+        // Resync answers go to the REQUESTER only (ws.send): a resync is a
+        // machine refresh of one connection — rebroadcasting to every viewer
+        // of the session would clobber co-viewing pages' live state, and
+        // refreshes carry no list-wide change worth a sessions broadcast.
+        if (
+          data.resync === true &&
+          ctx.isStreaming &&
+          (ctx.turnOrigin?.sessionId ?? ctx.dshSessionId) !== data.id
+        ) {
+          const sess = await chatHistory.getSession(data.id).catch(() => null);
+          ws.viewedSession = data.id;
+          sendIfOpen(ws, {
+            type: "session_loaded",
+            id: data.id,
+            title: sess?.title || "Chat",
+            messages: sess?.messages || [],
+            running: false,
+          });
+          sendIfOpen(ws, ctx.planMessage(data.id));
+          {
+            const question = ctx.questionMessage?.(data.id);
+            if (question) sendIfOpen(ws, question);
+          }
+          break;
+        }
         try {
           const result = await ctx.switchToSession(data.id);
           ws.viewedSession = result.id;
+          if (data.resync === true) {
+            // Same-session fast path (the common reconnect case): reply to
+            // the requester only, with the turn-in-flight status and replay
+            // log when one exists (add-reconnect-resync). No list broadcast —
+            // a resync changes no session state the roster could observe.
+            const running =
+              !!ctx.isStreaming && (ctx.turnOrigin?.sessionId ?? ctx.dshSessionId) === result.id;
+            const turnEvents =
+              running && ctx.turnBuffer && !ctx.turnBuffer.overflow && ctx.turnBuffer.events.length > 0
+                ? ctx.turnBuffer.events.map((e) => ({ ...e }))
+                : undefined;
+            sendIfOpen(ws, {
+              type: "session_loaded",
+              id: result.id,
+              title: result.title,
+              messages: result.messages,
+              running,
+              ...(turnEvents ? { turnEvents } : {}),
+            });
+            sendIfOpen(ws, ctx.planMessage(result.id));
+            {
+              const question = ctx.questionMessage?.(result.id);
+              if (question) sendIfOpen(ws, question);
+            }
+            break;
+          }
+          // Reconnect resync payload (add-reconnect-resync): report whether a
+          // turn is in flight for THIS session, and when it is, the replayable
+          // event log so the client rebuilds the open turn. Fields are
+          // additive — older clients ignore them and keep today's behavior.
+          const running =
+            !!ctx.isStreaming && (ctx.turnOrigin?.sessionId ?? ctx.dshSessionId) === result.id;
+          const turnEvents =
+            running && ctx.turnBuffer && !ctx.turnBuffer.overflow && ctx.turnBuffer.events.length > 0
+              ? ctx.turnBuffer.events.map((e) => ({ ...e }))
+              : undefined;
           // Per-viewer delivery: the requester (now viewing the target) plus
           // any other connection already viewing it. Foreign clients keep
           // their own view and their own transcript.
@@ -736,6 +805,8 @@ ctx.wss.on("connection", (ws, req) => {
             id: result.id,
             title: result.title,
             messages: result.messages,
+            running,
+            ...(turnEvents ? { turnEvents } : {}),
           });
           // The target session's own plan (or the empty list). The client clears
           // the plan on session_loaded; this push is what restores it when the

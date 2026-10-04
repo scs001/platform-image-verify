@@ -305,7 +305,9 @@
     "editResend": "Edit and resend",
     "retryWaiting": "Gateway throttled, retrying ({{retry}}/{{budget}})…",
     "retryWaitingNoBudget": "Gateway throttled, retrying ({{retry}})…",
-    "retryStarted": "Retrying…"
+    "retryStarted": "Retrying…",
+    "connectionLost": "Connection lost, resuming…",
+    "resumedLag": "Reconnected; content may lag"
   },
   "markdown": {
     "copy": "Copy",

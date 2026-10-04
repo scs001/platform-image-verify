@@ -44,12 +44,13 @@ PLATFORM_URL=… TOKEN=<运营 JWT> node scripts/spider-heal-pack.mjs --deploy
 
 ## 通知（四类事件）
 
-工单终态 / PR 开出 / 总闸变更 / 超限转人工 → 部署绑定的通道（当前 `test-channel`，正式通道
-换绑即全量切换）。事件文案模板见技能 `spider-heal-notify`。
+工单终态 / PR 开出 / 总闸变更 / 超限转人工 → 部署绑定的通道（当前 **`fd-ops`**，
+2026-10-04 换绑完成；旧 `test-channel` 保留为备用绑定）。事件文案模板见技能 `spider-heal-notify`。
 
-> 换正式通道有一道硬前置（2026-10-04 核）：**channel 只能绑「bot 见过」的会话**——当前系统里
-> 唯一已录会话就是 test bot 的那条聊天（两个 OA bot：`qinfa`/`test`，`qinfa` 尚无任何会话）。
-> 正式接收方先向目标 bot 发一条任意消息，之后绑定+重部署共一条命令级操作（见文末①）。
+> **bot 命名备注（2026-10-04 实测）**：微信里实际在用的公众号（使用方称 qinfa）在平台里登记的
+> bot 名是 `test`（appId `wx655b465a5f91bff1`）；平台里另一个叫 `qinfa` 的 bot
+> （appId `wx29831ffdb4796ab1`）是另一只**未被使用**的号。`fd-ops` 通道绑在 `test` 号上——
+> 排障时别被名字带偏。
 
 ## 部署 / 升级 / 回滚（运营配方）
 
@@ -84,16 +85,14 @@ GitHub 出海（cheap1：github.com/api/ls-remote 200/ok）· 发布+部署+起�
 
 ## 运营侧四项处理（2026-10-04，使用方提出）
 
-### ① 通知通道从 test-channel 换正式 —— 半就绪，卡「官方会话先给 bot 发一条消息」
+### ① 通知通道从 test-channel 换正式 —— ✅ 完成（2026-10-04）
 
-- 现状（实测）：bots `qinfa`/`test` 在 aloadtree 的 cell；`bot_channels` 仅 `test-channel`，
-  `bot_chats` 仅 1 行（test bot 的聊天）——**没有任何官方会话被 bot 见过**，暂无可绑定目标。
-- 缺的一步（物理侧）：正式接收方（群里或微信里）先向 `qinfa`（或选定 bot）发一条任意消息。
-- 之后（萬星侧，一条命令级）：
-  1. 绑定：admin 会话 `POST /api/bots/channels {name:"fd-ops", botId, chatKey}`（chatKey 从
-     `GET /api/bots/chats` 取）；萬星侧可代操作。
-  2. 重部署：`PACK_ID=KkCie… NOTIFY_CHANNEL=fd-ops PLATFORM_URL=… TOKEN=… node scripts/spider-heal-pack.mjs --deploy`
-     （billing/secrets 省略=保留现绑）。
+- **通道 `fd-ops`** 已绑定 =（平台 bot `test`（=微信里的 qinfa 号），chat `oi_bc3J…`）——即使用方
+  实际在用的那个微信会话；`POST /api/bots/channels` 一次建绑定。
+- **重部署 v4**：`NOTIFY_CHANNEL=fd-ops`（计费键/密钥保留）；runner 日志确认
+  「descriptor changed; draining old child for in-place upgrade」。
+- **送达实证**：relay 审计 `fd-ops | sent | 73 chars`（05:46Z 验证消息已进微信会话）。
+- `test-channel` 保留未删（同会话的备用绑名；要清时说一声即可）。
 
 ### ② 限流/总闸注册为 MCP server + 重部署 —— ✅ 完成（2026-10-04，含全链实证）
 

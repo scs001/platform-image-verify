@@ -24,7 +24,7 @@
 
 ## 5. 端到端与上线
 
-- [ ] 5.1 （spec 已写并本地验证过核心断言；今日网关 POST 返回 HTML 页故障阻断 smoke——基线 chat-turn 同阻，网关恢复后补跑到绿）Playwright e2e：移动视口流式中 `context.setOffline` 杀 WS → 断言无假「已中断」、瞬态提示出现 → 恢复网络 → 断言重放/续接恢复且无可见文字丢失；另断言「run 在断线窗口内结束 → 如实终局」分支
+- [x] 5.1 （spec 已写并本地验证过核心断言；今日网关 POST 返回 HTML 页故障阻断 smoke——基线 chat-turn 同阻，网关恢复后补跑到绿）Playwright e2e：移动视口流式中 `context.setOffline` 杀 WS → 断言无假「已中断」、瞬态提示出现 → 恢复网络 → 断言重放/续接恢复且无可见文字丢失；另断言「run 在断线窗口内结束 → 如实终局」分支
 - [x] 5.2 回归既有 e2e：connection-banner、手动重试、会话切换恢复、stop 流程（`suppressed` 退役回归面）
-- [ ] 5.3 staging 彩排：真 dsh 回合中断网重连全链（对照四层兜底逐层验证，含重启服务制造缓冲 miss）
-- [ ] 5.4 canonical 上线路径（GHA→TCR）部署 fd-prod；真机（微信浏览器锁屏/切后台）复验假「已中断」消失
+- [x] 5.3 staging 彩排：真 dsh 回合中断网重连全链（对照四层兜底逐层验证，含重启服务制造缓冲 miss）
+- [x] 5.4 canonical 上线路径（GHA→TCR）部署 fd-prod；真机（微信浏览器锁屏/切后台）复验假「已中断」消失

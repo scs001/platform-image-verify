@@ -17,6 +17,21 @@ export type ServerMessage =
   | { type: "skill_use"; name: string; args?: string }
   | { type: "command_use"; name: string; args?: string; message?: string }
   | { type: "done" }
+  // Bounded model-request retry progress (add-llm-retry-resilience): a
+  // transient failure was scheduled for retry (normal mode carries the finite
+  // budget), and the wait elapsed with the next attempt starting. Status
+  // indications for the open turn — never assistant content.
+  | {
+      type: "retry_scheduled";
+      retryId: string | null;
+      provider: string | null;
+      mode: string;
+      retry: number | null;
+      maxRetries?: number;
+      delayMs: number | null;
+      failure: { code: string | null; message: string | null };
+    }
+  | { type: "retry_started"; retryId: string | null; retry: number | null }
   // `code` carries the machine-readable shape when the error is a designed
   // terminal condition (demo_limit / sandbox_limit — add-mp-demo-quota-end).
   | { type: "error"; message: string; code?: string }

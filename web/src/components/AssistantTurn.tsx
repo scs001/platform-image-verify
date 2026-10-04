@@ -129,6 +129,25 @@ function AssistantTurnBase({
           <span className="h-2 w-2 rounded-full bg-primary" />
         </span>
         <span>{t("turn.assistantName", { assistant })}</span>
+        {/* Retry status (add-llm-retry-resilience): the open turn's model
+            request is waiting in bounded backoff after a transient gateway
+            rejection. Resolves on the retried attempt's first text delta or
+            at turn end — never persists. */}
+        {turn.retry && (
+          <span
+            data-testid="turn-retry"
+            data-retry={String(turn.retry.retry)}
+            className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] text-amber-600 dark:text-amber-400"
+            title={turn.retry.message ?? undefined}
+          >
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-500" aria-hidden="true" />
+            {turn.retry.started
+              ? t("turn.retryStarted")
+              : turn.retry.maxRetries !== null
+                ? t("turn.retryWaiting", { retry: turn.retry.retry, budget: turn.retry.maxRetries })
+                : t("turn.retryWaitingNoBudget", { retry: turn.retry.retry })}
+          </span>
+        )}
         {/* Turn actions: revealed on hover, keyboard-accessible always. */}
         <div className="ml-auto flex items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
           {answerText && (

@@ -302,7 +302,10 @@
     "copy": "コピー",
     "copied": "コピーしました",
     "regenerate": "再生成",
-    "editResend": "編集して再送"
+    "editResend": "編集して再送",
+    "retryWaiting": "ゲートウェイ制限中、再試行中 ({{retry}}/{{budget}})…",
+    "retryWaitingNoBudget": "ゲートウェイ制限中、再試行中 ({{retry}})…",
+    "retryStarted": "再試行中…"
   },
   "markdown": {
     "copy": "コピー",

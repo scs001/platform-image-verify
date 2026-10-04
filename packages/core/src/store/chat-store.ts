@@ -66,6 +66,19 @@ export type Turn =
       blocks: Block[];
       streaming: boolean;
       interrupted?: boolean;
+      // Transient model-request retry status (add-llm-retry-resilience): set
+      // while a failed request waits in bounded backoff, cleared when the
+      // retried attempt produces text or the turn ends. Never persisted —
+      // like `streaming`, it is live-run state only.
+      retry?: {
+        retryId: string | null;
+        provider: string | null;
+        retry: number;
+        maxRetries: number | null;
+        code: string | null;
+        message: string | null;
+        started: boolean;
+      };
       // User overrides per activity group (key = the group's start block
       // index; see activity-groups.ts). Absent = the derived default
       // (collapsed, except a group holding an errored tool). Ephemeral UI
@@ -244,6 +257,10 @@ function markActivityEnd(a: { activityEndedAt?: number }) {
 // segments broken by tool calls).
 function appendText(turns: Turn[], delta: string) {
   const a = currentAssistant(turns);
+  // A text delta on a started retry resolves it — the retried attempt is
+  // producing content (add-llm-retry-resilience). A still-waiting retry
+  // (started=false) has no concurrent text by construction.
+  if (a.retry?.started) a.retry = undefined;
   const last = a.blocks[a.blocks.length - 1];
   if (last?.kind === "text") {
     last.text += delta;
@@ -327,6 +344,8 @@ const RUN_EVENT_TYPES = new Set([
   "tool_end",
   "skill_use",
   "command_use",
+  "retry_scheduled",
+  "retry_started",
   "error",
 ]);
 
@@ -644,13 +663,40 @@ export const useChatStore = create<State>((set) => ({
           return { turns };
         }
 
+        case "retry_scheduled": {
+          // Transient model-request failure waiting in bounded backoff
+          // (add-llm-retry-resilience): show "retrying (n/N)" on the open
+          // turn. A later scheduled retry for the same chain overwrites; a
+          // different chain replaces it (the prior one resolved or died).
+          const a = currentAssistant(turns);
+          a.retry = {
+            retryId: m.retryId,
+            provider: m.provider,
+            retry: m.retry ?? 0,
+            maxRetries: typeof m.maxRetries === "number" ? m.maxRetries : null,
+            code: m.failure?.code ?? null,
+            message: m.failure?.message ?? null,
+            started: false,
+          };
+          return { turns };
+        }
+
+        case "retry_started": {
+          const a = currentAssistant(turns);
+          if (a.retry && m.retryId !== null && a.retry.retryId === m.retryId) {
+            a.retry = { ...a.retry, retry: m.retry ?? a.retry.retry, started: true };
+          }
+          return { turns };
+        }
+
         case "done": {
           const tail = turns[turns.length - 1];
           // Clone (not mutate): the finalized turn needs a new reference so
-          // the memoized <AssistantTurn> re-renders its closed state.
+          // the memoized <AssistantTurn> re-renders its closed state. A turn
+          // that closes had no unresolved retry; strip the chip either way.
           if (tail && tail.role === "assistant" && tail.streaming) {
             markActivityEnd(tail);
-            turns[turns.length - 1] = { ...tail, streaming: false };
+            turns[turns.length - 1] = { ...tail, streaming: false, retry: undefined };
           }
           // The dismissed run (if any) has ended; stop swallowing events.
           // Turn events carry no session id pre-targeted-delivery, so the

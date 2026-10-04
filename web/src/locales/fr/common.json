@@ -302,7 +302,10 @@
     "copy": "Copier",
     "copied": "Copié",
     "regenerate": "Régénérer",
-    "editResend": "Modifier et renvoyer"
+    "editResend": "Modifier et renvoyer",
+    "retryWaiting": "Passerelle saturée, nouvelle tentative ({{retry}}/{{budget}})…",
+    "retryWaitingNoBudget": "Passerelle saturée, nouvelle tentative ({{retry}})…",
+    "retryStarted": "Nouvelle tentative…"
   },
   "markdown": {
     "copy": "Copier",

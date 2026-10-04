@@ -18,6 +18,12 @@
 
 import { storeDir } from "./paths.js";
 import { readJsonOr, atomicWriteJsonSync, createWriteChain, normalizeBaseUrl } from "./lib/persistence.js";
+// RETRY_POLICY is the single resilience source (add-llm-retry-resilience):
+// user routes carry the same bounded transient-error retry as the env route.
+// This edge is safe against the module cycle this header guards against —
+// dsh-profile imports THIS module only lazily (inside buildLlmProfile), so
+// however the load order starts, the other side is never mid-evaluation.
+import { RETRY_POLICY } from "./dsh-profile.js";
 
 const STORE_PATH = storeDir("llm-providers.json", process.env.LLM_PROVIDERS_STORE);
 const DEFAULT_PATH = storeDir("llm-default.json", process.env.LLM_DEFAULT_STORE);
@@ -457,6 +463,7 @@ export function buildUserProviderEntries() {
       return { ...m, input: ["text"], reasoningEfforts: effortMap };
     });
     providers[p.id] = {
+      retryPolicy: { ...RETRY_POLICY, backoff: { ...RETRY_POLICY.backoff } },
       apiKeyEnv: envRefForProvider(p.id),
       displayName: p.name,
       api: "openai-completions",

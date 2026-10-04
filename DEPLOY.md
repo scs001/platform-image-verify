@@ -1751,6 +1751,30 @@ cell 侧全链（发现→创建→远端执行→落会话→卡片徽标）由
 - **实测在位的管理 API**：`GET/POST /api/v1/admin/users`、`GET /api/v1/admin/users/:id`、
   `GET /api/v1/admin/users/:id/api-keys`、`GET /api/v1/admin/groups`、`POST /api/v1/admin/groups`。
 
+### ③ 并发准入治理（add-llm-retry-resilience，2026-10-04 已执行）
+
+**事故根因（2026-10-04）**：平台全部内部 LLM 流量（cell 聊天 / bot / cron / MP / 并行子代理）
+共用部署者账号 `admin@finddatatech.cloud`（user 1）的 key，而 sub2api 用户级并发默认 **5**。
+并行委派 + 标题生成即可瞬时限流（`Concurrency limit exceeded for user`），且该文案在 dsh 适配器
+按消息正则分类下落入不可重试兜底桶 → 回合死亡。修复为双层（ADR-0016）：客户端有界重试
+（`dsh-profile.js` 生成的 retryPolicy，兜底码纳入）+ 本节预算治理。
+
+- **探查配方**（key 不落日志）：
+  `kubectl --context cheap -n sub2api port-forward svc/sub2api 18080:8080`，然后以
+  `x-api-key: <sub2api-admin-key>`（fd-prod secret `platform-secrets/sub2api-admin-key`）
+  `GET /api/v1/admin/users?search=<LLM_API_KEY>`（search 同时匹配 key 值）反查持有者，
+  读 `concurrency` / `current_concurrency` / `rpm_limit`。
+- **调整配方（已执行）**：`PUT /api/v1/admin/users/1`，body `{"concurrency": 30}` ——
+  2026-10-04 从默认 5 调至 **30** 并复测生效（面板同路径：用户管理 → 编辑 → 并发数）。
+- **容量账**：用户并发须 ≤ 上游账号池真实并行度。当前池 9 个活跃账号 × 各自并发 10 ≈ 90；
+  30 ≈ 池容量 1/3、旧值 6 倍。加账号后可同步上调；反过来调账号池时先看这里。
+- **上游语义**（Wei-Shaw/sub2api）：用户级 `concurrency`（本节）与账号级并发是两层
+  （后者报 `Concurrency limit exceeded for account`）；key 级并发与弹性配额尚是
+  feature request（issues [#5071](https://github.com/Wei-Shaw/sub2api/issues/5071)、
+  [#4100](https://github.com/Wei-Shaw/sub2api/issues/4100)）。按租户拆并发域
+  （每租户独立 sub2api user/key）推迟到套餐层（ADR-0016 ④）。
+- **复测**：调整后跑 `node scripts/probe-llm-retry.mjs`（chaos 探针，无需真实限流配合）。
+
 ### ③ 计费链真机冒烟（add-agent-platform-ops，2026-10-02 已执行）
 
 对真 sub2api（port-forward svc/sub2api）以 Admin API Key 跑通 `lib/sub2api-admin.js` 全链：

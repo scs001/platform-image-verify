@@ -302,7 +302,10 @@
     "copy": "Copy",
     "copied": "Copied",
     "regenerate": "Regenerate",
-    "editResend": "Edit and resend"
+    "editResend": "Edit and resend",
+    "retryWaiting": "Gateway throttled, retrying ({{retry}}/{{budget}})…",
+    "retryWaitingNoBudget": "Gateway throttled, retrying ({{retry}})…",
+    "retryStarted": "Retrying…"
   },
   "markdown": {
     "copy": "Copy",

@@ -23,6 +23,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import yaml from "js-yaml";
 import { HarnessClient } from "@deepseek-ai/dsh-sdk-client";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -59,6 +60,17 @@ process.env.LLM_BASE_URL = FAKE_LLM_URL;
 const profile = await import("../dsh-profile.js");
 profile.ensureDshHome();
 const { models } = await profile.writeLlmProfile();
+// These tests exercise session-resume mechanics and want the fake 500 to fail
+// a turn FAST. The generated profile now carries the platform retry policy
+// (add-llm-retry-resilience), whose 1s→15s backoff would stretch every
+// failure into a ~30s retry chain — strip it here; retry behavior has its own
+// suite (scripts/test-llm-retry.mjs + scripts/probe-llm-retry.mjs).
+{
+  const settingsPath = path.join(process.env.DSH_HOME, "settings.yaml");
+  const doc = yaml.load(fs.readFileSync(settingsPath, "utf8"));
+  for (const p of Object.values(doc?.["llm-pi-ai"]?.providers ?? {})) delete p.retryPolicy;
+  fs.writeFileSync(settingsPath, yaml.dump(doc));
+}
 const presetsPatch = await profile.writePresetsPatch();
 const permissionsPatch = await profile.writePermissionsPatch();
 profile.ensureCredentialsStore();

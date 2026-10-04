@@ -143,6 +143,29 @@ export async function effectiveVolcesRoute() {
   return { models, baseURL, hasOverride: Boolean(override) };
 }
 
+// Resilience contract baseline (add-llm-retry-resilience, ADR-0016): every
+// generated route retries transient model-request failures with bounded
+// backoff. The fallback bucket (PI_AI_ERROR) must be in the set because the
+// adapter classifies by failure-text patterns — a gateway whose rejection
+// wording defeats the patterns (sub2api's "Concurrency limit exceeded for
+// user" carries neither "429" nor "rate limit") lands there, and an
+// unrecognized error that produced no durable content is still transient.
+// Bound: 5 attempts, 1s→15s exponential, 20% jitter. Shared with
+// llm-providers.js (single source, no copies).
+export const RETRY_POLICY = Object.freeze({
+  mode: "normal",
+  maxRetries: 5,
+  retryableCodes: [
+    "EMPTY_RESPONSE",
+    "RATE_LIMIT",
+    "SERVER",
+    "TIMEOUT",
+    "TRANSPORT",
+    "PI_AI_ERROR",
+  ],
+  backoff: { initialDelayMs: 1000, maxDelayMs: 15000, jitterRatio: 0.2 },
+});
+
 // Build the llm-pi-ai providers dict + a flat {id,name,provider} model list from
 // host env. No Volces key → empty providers (dormant); chat stays non-functional
 // while static + REST still serve (graceful degrade, Task 3.6).
@@ -167,6 +190,7 @@ export async function buildLlmProfile({
     const override = effective.hasOverride;
     const volcesModels = effective.models;
     providers[route] = {
+      retryPolicy: { ...RETRY_POLICY, backoff: { ...RETRY_POLICY.backoff } },
       apiKeyEnv: "LLM_API_KEY",
       displayName: "Volces",
       api: "openai-completions",

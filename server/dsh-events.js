@@ -180,6 +180,30 @@ export function attachDshEvents(ctx) {
     // Bridge lifecycle notifications carry no sessionId and stay on the web path.
     const sid = notif?.params?.sessionId;
     if (sid && sid !== ctx.dshSessionId) {
+      // En-route capture (add-llm-retry-resilience): a subagent child session
+      // has no collector, but its terminal turn/end reason is the ONLY place
+      // the child's real failure (e.g. a gateway concurrency rejection) is
+      // stated — the subagent tool maps it to a bare "subagent run failed".
+      // Record it before the drop so the parent's tool_end can attach it as a
+      // Diagnostic. Pruned by age: entries only need to outlive the seconds
+      // between a child's death and its parent's tool result.
+      if (
+        method === "session.event" &&
+        notif.params.event?.type === "turn/end" &&
+        notif.params.event?.data?.reason?.kind === "error"
+      ) {
+        const err = notif.params.event.data.reason.error ?? {};
+        ctx.childTurnErrors ??= new Map();
+        ctx.childTurnErrors.set(sid, {
+          message: typeof err.message === "string" ? err.message : null,
+          code: typeof err.code === "string" ? err.code : null,
+          ts: Date.now(),
+        });
+        const staleBefore = Date.now() - 15 * 60_000;
+        for (const [k, v] of ctx.childTurnErrors) {
+          if (v.ts < staleBefore) ctx.childTurnErrors.delete(k);
+        }
+      }
       const collector = ctx.sessionCollectors.get(sid);
       if (collector) {
         try { collector(notif); }
@@ -242,6 +266,37 @@ export function attachDshEvents(ctx) {
           turnToolRecords = parseToolSchemas(ev.data?.header?.tools);
         } catch {
           turnToolRecords = [];
+        }
+        break;
+      }
+      case "llm/retry":
+      case "llm/retry-started": {
+        // Bounded model-request retry (add-llm-retry-resilience): transient
+        // failure scheduled for retry / retry wait elapsed, attempt starting.
+        // Forwarded as turn progress only — the durable history is untouched
+        // (the event is non-surface by design; the retried request re-enters
+        // as a fresh numbered turn the client never mistakes for content).
+        if (ev.type === "llm/retry") {
+          const failure = ev.data?.failure ?? {};
+          ctx.sendToViewers(ctx.dshSessionId, {
+            type: "retry_scheduled",
+            retryId: ev.data?.retryId ?? null,
+            provider: ev.data?.provider ?? null,
+            mode: ev.data?.mode ?? "normal",
+            retry: ev.data?.retry ?? null,
+            ...(typeof ev.data?.maxRetries === "number" ? { maxRetries: ev.data.maxRetries } : {}),
+            delayMs: ev.data?.delayMs ?? null,
+            failure: {
+              code: typeof failure.code === "string" ? failure.code : null,
+              message: typeof failure.message === "string" ? failure.message : null,
+            },
+          });
+        } else {
+          ctx.sendToViewers(ctx.dshSessionId, {
+            type: "retry_started",
+            retryId: ev.data?.retryId ?? null,
+            retry: ev.data?.retry ?? null,
+          });
         }
         break;
       }
@@ -345,6 +400,31 @@ export function attachDshEvents(ctx) {
               : `${resultText}\nNo similar effective tool exists. Use tool_search to list what IS available — do not guess another name. Nothing was executed.`;
             // Rewrite the wire text so model-visible transcript, WS event and
             // persistence all carry the same enriched guidance.
+            const firstText = resultBlocks?.find?.((b) => b.type === "text");
+            if (firstText) firstText.text = resultText;
+          }
+        }
+        // Resilience contract visibility (add-llm-retry-resilience): the
+        // subagent tool maps an error stop to the bare headline "subagent run
+        // failed" — a child killed by a transient gateway rejection carries no
+        // diagnostic of its own, leaving the user and the parent model with
+        // nothing actionable. The child's turn/end reason was captured en route
+        // (session routing above); append it as a Diagnostic line so the WS
+        // event, the persisted block, and the parent's next-turn view all carry
+        // the real cause. Already-diagnostic results and non-subagent failures
+        // pass through untouched.
+        if (
+          isError &&
+          resultText &&
+          /^(?:Error:\s*)?subagent run failed\b/.test(resultText) &&
+          !resultText.includes("Diagnostic:")
+        ) {
+          let latest = null;
+          for (const v of ctx.childTurnErrors?.values() ?? []) {
+            if (!latest || v.ts > latest.ts) latest = v;
+          }
+          if (latest && (latest.message || latest.code)) {
+            resultText += `\nDiagnostic: ${latest.code ? `[${latest.code}] ` : ""}${latest.message ?? ""}`;
             const firstText = resultBlocks?.find?.((b) => b.type === "text");
             if (firstText) firstText.text = resultText;
           }

@@ -32,5 +32,5 @@
 
 ## 6. 上线与收口
 
-- [ ] 6.1 fd-prod 滚动 + 演示 cell 并行委派实测：子代理存活、重试 Chip 可见 —— 已滚动 sha-f221a40（GitOps 510b053，platform+platform-demo 双滚）且静态回测全绿：pod image 实证、真 cell settings.yaml 带 retryPolicy（含 PI_AI_ERROR）、web dist 含 turn-retry Chip、sub2api 并发 30 生效；**真模型并行委派回合待用户 web 端复测**（MP demo 模式 fd-prod 未开，headless 无门）
-- [ ] 6.2 `openspec validate --specs` 全绿后按归档门规程收口（sync-before-archive）—— validate --specs 已绿（112/112），归档待 6.1 用户复测回执
+- [x] 6.1 fd-prod 滚动 + 演示 cell 并行委派实测 —— 全部完成：sha-f221a40 双滚（GitOps 510b053）+ 静态回测全绿 + **用户授权真回合 PASS**（2026-10-04，公网全链 WAF→网关→cell→sub2api→上游：2 并行子代理 isError=false 返 "one"/"two"，0 error，助手正常汇报；无需重试=并发 30 下无争用，符合预期）
+- [x] 6.2 `openspec validate --specs` 全绿后按归档门规程收口（sync-before-archive）—— validate --specs 112/112 绿；随归档执行 delta 同步

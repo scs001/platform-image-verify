@@ -122,14 +122,15 @@ GitHub 出海（cheap1：github.com/api/ls-remote 200/ok）· 发布+部署+起�
 - 如需改默认模型：runner env `AGENT_RUNNER_MODEL`（影响该 runner 全部 children）；per-agent 差异化
   需走描述符扩展（提需求）。
 
-### ④ git PAT 权限范围 —— 实测**超范围**，建议收窄或书面接受
+### ④ git PAT 权限范围 —— ✅ 已轮换为窄授权（2026-10-04）
 
-- 实测：该 PAT 可见 **12 个 FindDataTechnology 仓**且 push；单仓权限位报
-  `{admin:true, maintain:true, push:true, triage:true, pull:true}`。契约承诺的最小范围 =
-  仅 `fd-industry-data` 一仓、`contents:write` + `pull_requests:write`。
-- 两条路：
-  - (a) **收窄（建议）**：重新签发仅 `fd-industry-data` 的 fine-grained PAT（Contents RW +
-    Pull requests RW，无 admin/workflow/secrets），萬星一条命令轮换：
-    `PACK_ID=KkCie… SECRET_GIT_PAT=<新> PLATFORM_URL=… TOKEN=… node scripts/spider-heal-pack.mjs --deploy`
-    （gh_actor/通道/计费 省略=保留）。
-  - (b) 接受现状：以本文档记档（PAT 具备全组织仓 admin 能力，泄漏面远大于必要）。
+- **新 PAT**（身份 `FindDataOfficial` id 295187081 = finddata 运营官方账号），finddata 侧独立核验：
+  目标仓 Contents 写 ✅（probe 分支+提交）、PR 写 ✅（草稿 PR #2）、**非目标仓全拒 403**
+  （fd-cn-report/platform/fd-daas-mcp/fd-vertical-packs）、私有仓不可见（404）——窄授权坐实；
+  探针物已清（PR 关、分支删）。早前「可见 12 仓」疑点已排除：都是公开仓，读可见 ≠ 授权。
+- **萬星侧轮换已执行**（v5 重部署）：`secretRefs` 换新（git_pat → `ws_756…`、
+  gh_actor → `ws_67acd…`）+ **gh_actor 同步换为官方账号**（`295187081+FindDataOfficial@…`，
+  避免署名与推送者不一致）；runner 日志实证「pinned 2 deployment secret(s) … git_pat ws_75617…n0uG」
+  （新尾四位）+ 新 child 起服 + QUEUE 验收健康。
+- **待办（用户侧）**：轮换生效后**吊销旧 PAT**（scs001 那把宽授权）——
+  GitHub → Settings → Developer settings → Fine-grained tokens → Revoke。

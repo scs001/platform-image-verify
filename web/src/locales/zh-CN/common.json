@@ -885,6 +885,13 @@
       }
     }
   },
+  "facetHero": {
+    "title": "AI 编辑器的功能集与工具分发市场",
+    "factPacks": "浏览 · 订阅 · 发布功能集",
+    "factMcp": "MCP 服务目录",
+    "factCli": "一行安装：",
+    "lineLink": "寻数官网 · 谦面线页 →"
+  },
   "packs": {
     "tabs": {
       "market": "功能集市场",

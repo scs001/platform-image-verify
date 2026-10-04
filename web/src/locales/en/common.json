@@ -885,6 +885,13 @@
       }
     }
   },
+  "facetHero": {
+    "title": "The pack-and-tool marketplace for AI editors",
+    "factPacks": "Browse · subscribe · publish packs",
+    "factMcp": "MCP service catalog",
+    "factCli": "Install in one line:",
+    "lineLink": "FindData official — Facet line →"
+  },
   "packs": {
     "tabs": {
       "market": "Pack Market",

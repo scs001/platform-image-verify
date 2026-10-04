@@ -885,6 +885,13 @@
       }
     }
   },
+  "facetHero": {
+    "title": "AI エディターのための機能集とツールのマーケット",
+    "factPacks": "機能集の閲覧 · 購読 · 公開",
+    "factMcp": "MCP サービスカタログ",
+    "factCli": "1 行でインストール：",
+    "lineLink": "FindData 公式サイト — Facet ライン →"
+  },
   "packs": {
     "tabs": {
       "market": "パック市場",

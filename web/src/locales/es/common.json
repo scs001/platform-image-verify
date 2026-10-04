@@ -885,6 +885,13 @@
       }
     }
   },
+  "facetHero": {
+    "title": "El mercado de packs y herramientas para editores de IA",
+    "factPacks": "Explora · suscríbete · publica packs",
+    "factMcp": "Catálogo de servicios MCP",
+    "factCli": "Instala en una línea:",
+    "lineLink": "Sitio oficial de FindData — línea Facet →"
+  },
   "packs": {
     "tabs": {
       "market": "Mercado de paquetes",

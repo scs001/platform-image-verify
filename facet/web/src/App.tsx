@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PackMarketView } from "@/components/packs/PackMarketView";
 import { Button } from "@/components/ui/button";
+import { IntroBand } from "./IntroBand";
 import { McpCatalog } from "./McpCatalog";
 
 function Whoami({ onUser }: { onUser: (u: { email: string; groups: string[] } | null) => void }) {
@@ -66,12 +67,12 @@ export function App() {
         </div>
       </header>
       <main className="flex-1 overflow-auto p-6">
+        <IntroBand />
         {tab === "packs" && (
           <div className="space-y-4">
             <PackMarketView onSubscribed={() => {}} />
             <p className="text-xs text-muted-foreground">
-              编辑器安装（Claude Code / Cursor）：npx @finddatatechonology/facet install &lt;包 id&gt; —— 明细见 npx
-              @finddatatechonology/facet help；匿名可浏览，登录后可发布订阅。
+              匿名可浏览，登录后可发布订阅；CLI 安装与用法明细见 npx @finddatatechonology/facet help。
             </p>
           </div>
         )}

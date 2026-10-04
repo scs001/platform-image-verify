@@ -12,6 +12,13 @@ const WEB_SRC = path.resolve(import.meta.dirname, "../../web/src");
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
+    // Both trees ship their own node_modules copies of these (facet/web deps
+    // and web deps, installed separately): without dedupe each runtime lands
+    // in the bundle twice. Two react-i18next copies silently break the
+    // instance registry the shell relies on (useTranslation returns raw
+    // keys), and two React copies would break hooks outright. Force one copy
+    // — resolved from facet/web's root, which owns this build.
+    dedupe: ["react", "react-dom", "i18next", "react-i18next"],
     alias: {
       "@": WEB_SRC,
     },

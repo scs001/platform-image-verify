@@ -22,5 +22,11 @@
   vite.config.ts `resolve.dedupe: [react, react-dom, i18next, react-i18next]`
   （兑现该文件注释里「single-sourced」承诺）；修复后 bundle 内 react-i18next
   警告串 2→1，EN/zh 双态渲染均过
-- [ ] 5. 部署验收：随主镜像滚 fd-prod 后探针——壳 title 不变 + 构建产物 JS
-  关键词断言（facetHero 文案串）
+- [x] 5. 部署验收（2026-10-05）：commit `f367ca6` → GHA image run
+  37228717040 绿 → relay 03:39:39 回灌 → GitOps `eca22fa`（platform.yaml
+  sha-f367ca6）+ `8f285ce`（**facet.yaml 同镜像同滚——谦面域供页者是独立
+  facet deployment，仅滚 platform 不够**）→ ArgoCD hard refresh →
+  platform/facet 两 rollout 成功 → 探针：platform healthz 200；facet 域新
+  bundle `index-816yqvhO.js` 含 hero 中英文案与线页链接——hero 带 LIVE。
+  另：滚动前按 2026-09-24 配方清理了 platform pod 内 1 个 stale 真实目录
+  （`dsh-sdk-jsonrpc-server`，dsh 首启 healer 隐患），滚动未触发 crashloop

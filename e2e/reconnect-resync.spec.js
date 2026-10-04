@@ -15,7 +15,7 @@ import { gotoChat } from "./helpers.js";
 //   2. Run completing while offline → reconnect replaces the view with the
 //      persisted full answer (running:false truthful finalization).
 
-const LONG_PROMPT = "Count from 1 to 40, one number per line, no other words.";
+const LONG_PROMPT = "Count from 1 to 100, one number per line, no other words.";
 
 // Kill the page's live WS deterministically. Chromium's offline emulation
 // does NOT tear down an ESTABLISHED WebSocket, so setOffline alone leaves the
@@ -27,6 +27,21 @@ const LONG_PROMPT = "Count from 1 to 40, one number per line, no other words.";
 async function dropSocket(page) {
   await page.context().setOffline(true);
   await page.evaluate(() => window.dispatchEvent(new Event("platform:reconnect")));
+}
+
+// Drop the moment the run is demonstrably mid-stream (first text on the last
+// turn). The transient marker only renders on a streaming turn, so dropping
+// after completion would vacuously fail; the long prompt keeps the run alive
+// through the offline assertions that follow.
+async function waitForMidStream(page) {
+  await page.waitForFunction(() => {
+    const els = document.querySelectorAll('[data-testid="turn-assistant"]');
+    const el = els[els.length - 1];
+    if (!el || el.getAttribute("data-streaming") !== "true") return false;
+    const clone = el.cloneNode(true);
+    clone.querySelectorAll('[data-testid="thinking-block"]').forEach((n) => n.remove());
+    return (clone.textContent || "").trim().length > 3;
+  }, { timeout: 30000 });
 }
 
 async function restoreNetwork(page) {
@@ -54,9 +69,7 @@ test("@smoke drop mid-run shows a transient state and recovers on reconnect", as
   const turn = page.getByTestId("turn-assistant").last();
   await expect(turn).toBeVisible({ timeout: 30000 });
   await expect(turn).toHaveAttribute("data-streaming", "true", { timeout: 10000 });
-  await expect
-    .poll(async () => (await streamingTurnText(page)).length, { timeout: 15000 })
-    .toBeGreaterThan(10);
+  await waitForMidStream(page);
 
   // Kill the network + socket mid-stream. The page-level banner and the
   // turn-level transient marker appear — and the false interrupted marker
@@ -89,7 +102,7 @@ test("@smoke drop mid-run shows a transient state and recovers on reconnect", as
   const finalText = await streamingTurnText(page);
   const finalNums = numbersIn(finalText);
   expect(Math.max(0, ...finalNums), `at-drop=${textAtDrop} final=${finalText}`).toBeGreaterThanOrEqual(dropMax);
-  expect(finalNums, "the converged view carries the full answer").toContain(40);
+  expect(finalNums, "the converged view carries the full answer").toContain(100);
   expect(finalText.length).toBeGreaterThan(10);
 });
 
@@ -100,6 +113,7 @@ test("@smoke run finishing during the blackout finalizes truthfully on reconnect
   const turn = page.getByTestId("turn-assistant").last();
   await expect(turn).toBeVisible({ timeout: 30000 });
   await expect(turn).toHaveAttribute("data-streaming", "true", { timeout: 10000 });
+  await waitForMidStream(page);
 
   // Drop and let the server finish the run while the client is offline. The
   // API request context is NOT tied to the page's offline emulation, so it

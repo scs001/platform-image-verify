@@ -96,6 +96,22 @@ test("socket drop leaves the turn transient, not finalized", async () => {
   assert.equal(t2.connectionLost, undefined, "first live event clears the marker");
 });
 
+test("disconnect with a leaked pendingNewSession still marks the live turn", () => {
+  // The empty new-session load can resolve via the id-equality path (the
+  // sessions frame adopted the minted id first), leaving pendingNewSession
+  // armed. The drop must not take the switch-restore exit and swallow the
+  // transient marker for the run the user is watching.
+  reset();
+  openStreamingTurn();
+  useChatStore.setState({ pendingNewSession: true, sessionSwitchBackup: null });
+  useChatStore.getState().setStatus("disconnected");
+  const t = tailTurn();
+  assert.equal(t.role, "assistant");
+  assert.equal(t.streaming, true);
+  assert.equal(t.connectionLost, true, "marker set despite the leaked handshake flag");
+  assert.equal(useChatStore.getState().pendingNewSession, false, "the drop still consumes the handshake");
+});
+
 test("done after a drop closes the turn and clears the transient marker", async () => {
   reset();
   openStreamingTurn();

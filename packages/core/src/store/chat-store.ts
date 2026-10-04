@@ -522,15 +522,20 @@ export const useChatStore = create<State>((set) => ({
       // first attempt fails) must mark just as well — with nothing streaming
       // (page load) the map is a no-op.
       discardDeltas();
+      let patch: Partial<State> = {};
+      let base = state.turns;
       // A socket drop mid-switch is a failed switch (perf-session-open): put
       // the displaced view back rather than leave a skeleton over a dead
       // socket. The banner carries the story; the URL still names the target.
+      // The transient marker applies to WHATEVER turns the restore lands on —
+      // a leaked pendingNewSession (the empty load resolving via the
+      // id-equality path instead of the structural one) must not silently
+      // eat the marker for the run the user is actually watching.
       if (state.pendingSession || state.pendingNewSession) {
         const b = state.sessionSwitchBackup;
-        return {
-          status: s,
+        base = b ? b.turns : state.turns;
+        patch = {
           currentSessionId: b ? b.id : state.currentSessionId,
-          turns: b ? b.turns : state.turns,
           pendingSession: null,
           pendingNewSession: false,
           sessionSwitchBackup: null,
@@ -538,7 +543,8 @@ export const useChatStore = create<State>((set) => ({
       }
       return {
         status: s,
-        turns: state.turns.map((t) =>
+        ...patch,
+        turns: base.map((t) =>
           t.role === "assistant" && t.streaming && !t.connectionLost ? { ...t, connectionLost: true } : t,
         ),
       };

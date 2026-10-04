@@ -1,6 +1,6 @@
 # mcp-gateway-registry 维护文档（谦面组件）
 
-> 归属：**谦面（facet）**的自有组件（paas ADR-0015「registry 是谦面组件而非外部依赖」）。
+> 归属：**谦面（facet）**的自有组件（paas ADR-0015「registry 是谦面组件而非外部依赖」；**ADR-0017「独立谱系 + 上游安全单行道」**——fd-1.0.0 起功能上不再追平上游）。
 > 萬星（constellation）运行面从它取活（runtime-source 关系，ADR-0015）；壹座 MCP 市场与 pack deploy 消费它；柏讯（wire）只经 HTTP 契约使用它、不拥有它。
 > 上游：[agentic-community/mcp-gateway-registry](https://github.com/agentic-community/mcp-gateway-registry)（OSS）。
 > 我们的 fork：gitee `FindDataTechnology/mcp-gateway-registry`（本地副本 `~/code/mcp-gateway-registry`）。
@@ -16,9 +16,9 @@
 
 | 容器 | 镜像 | 代码来源 | 职责 |
 |---|---|---|---|
-| registry-1 | `public.ecr.aws/p3v1o3c6/registry:1.30.0` | **上游预构建** | 控制台 SPA + `/api/*` 路由（服务注册/目录/审计面） |
-| auth-server-1 | `mcp-auth-server:wire-20261005` | **本地 fork 构建**（`docker/Dockerfile.auth`） | `/validate` 鉴权、自签 JWT、Logto IAM、egress PAT 注入、wire 双 patch |
-| mcpgw-server-1 | `public.ecr.aws/p3v1o3c6/mcpgw:latest` | 上游预构建 | nginx 转发 hop（`/mcp-proxy/{server}`） |
+| registry-1 | `ccr.ccs.tencentyun.com/yizuo/mcp-registry:sha-7fbc2d6` | **fd fork 构建**（标准 TCR 线） | 控制台 SPA + `/api/*` 路由（服务注册/目录/审计面）+ patch-key 铸造面 |
+| auth-server-1 | `ccr.ccs.tencentyun.com/yizuo/mcp-auth-server:sha-7fbc2d6` | **fd fork 构建**（标准 TCR 线） | `/validate` 鉴权、自签 JWT、Logto IAM、egress PAT 注入、wire 双 patch |
+| mcpgw-server-1 | `public.ecr.aws/p3v1o3c6/mcpgw:1.32.0` | 上游预构建（已钉版） | nginx 转发 hop（`/mcp-proxy/{server}`） |
 | mcp-mongodb / mcp-openbao | — | 官方镜像 | 审计流（`audit_events`，逐工具调用记录）/ 密钥 |
 
 - **流量链**：公网 443（雷池 WAF safeline-tengine）→ 宿主 Caddy（:8080 每域一块）→ 各后端；mcp 域经 auth-server 的 mcp-proxy hop 进各 MCP server
@@ -31,20 +31,25 @@
 3. **萬星门面**：A2A 对外服务的内部侧依赖
 4. **柏讯 wire 门面**（新增，wire-platform-v1）：`wire.finddatatech.cloud/mcp` 反代 registry 的 business-mcp 条目；audit 流=按行计量的数据源（`rows_returned`，2026-10-05 起 business-mcp 每响应带戳）
 
-## 3. fork 谱系现状（2026-10-05 清理后）
+## 3. 谱系现状与去向（2026-10-05 定案：独立迭代，ADR-0017）
+
+生产实际是**三条漂移线**，收敛去向已定（openspec change `hard-fork-registry`）：
 
 ```
-gitee main（=部署谱系，权威）
-  01a25cb  10-03 Logto groups/scope 重映射补丁（曾只在 cheap-1 本地，已推回）
-  80babe54 wire patch ①：per-user 长命 key（wgk-）
-  d7c9f4b0 wire patch ②：转发前 sub2api 额度预检
-  ef16fbeb ①+② 接线（惰性默认）
-  f1d8caf  测试适配到 main 裁剪谱系
-logto-support（旧 Logto 集成线，已被 main 方案取代——勿再发展，仅存档）
+upstream  1.29.0 ──── 1.30.0 ──── 1.31.0 ──── 1.32.0 ─── 1.33+（只读参照，仅摘安全修复）
+                        │                        │
+部署：      auth-server=1.29+补丁   registry-1=1.30.0   mcpgw=:latest（未钉）
+                        └────────┬───────────────┘
+                    最后收敛一次（cherry-pick 14 提交，剔裁剪提交 8ad0239f）
+                                 │
+                     fd-1.0.0 独立谱系（gitee 权威，自此永不再追功能）
 ```
 
-- cheap-1 `/opt/mcp-gateway-registry` = main 检出 + **未提交的本地部署定制**（compose env、nginx conf——这是常态，升级时 `git stash → pull → stash pop`）
-- main 是**裁剪快照**：`registry/secrets/` 包被删、`registry.main` 不可 import、tests 仅 5 文件——在 main 上跑完整 app 前需回补（追平上游时一并处理）
+**已落地（2026-10-05）**：fd-1.0.0 已发布（tag + 双仓）并经**标准 TCR 线**上线——`push github main → GHA 构建 → hkccr → cheap-3 relay → ccr`，三容器统一钉 `sha-7fbc2d6`，控制台横幅 `fd-1.0.0`。gitee main 的裁剪快照叙事自此归档为历史。cheap-1 `/opt/mcp-gateway-registry` = 部署检出 + 未提交本地部署定制（常态）。
+
+- 上游关系收敛为**安全单行道**：功能永不并入；发版 notes 一周内评估，仅安全提交摘取（cherry-pick + 全量 pytest + 钉版换镜像），台账在本仓 `docs/registry-fork-patches/`
+- `logto-support` 分支：收敛落地后删除存档
+- 对冲：patch ①（wgk-key）PR 上游；PR #1791（logto）继续养
 
 ## 4. wire 双 patch（为什么、是什么）
 
@@ -57,24 +62,18 @@ logto-support（旧 Logto 集成线，已被 main 方案取代——勿再发展
 
 开关/配置见 patch 头注与 `paas/docs/registry-fork-patches/README.md` 登记条目。
 
-## 5. 债：registry-1 容器没带我们的代码
+## 5. 债已清偿（change `hard-fork-registry`，2026-10-05 上线）
 
-- registry-1 跑**上游 1.30.0 预构建镜像**；fork 基线是 v1.29.0+96 → 用 fork 重建该容器=生产降级，已明确不做
-- 后果：patch ① 的**铸造 API 不在生产**→ 客户 wgk-key 通道无法激活（auth-server 已认识 wgk-，但无处铸造）
-- 受阻的下游：wire-platform-v1 仅剩两项收口——3.2 尾巴（wire 入口最小 scope，需客户 key）+ 4.4（预检 402 开启联调）
+原债（registry-1 不带我们的代码 → 铸造面不可达 → wire 3.2/4.4 被堵）**已清**：fd-1.0.0 经标准 TCR 线三容器上线，铸造 API 随 registry-1 部署可达（默认开启；无 key 时行为与旧版逐字节一致，已探针验证）。换版验收实录：auth 探针 200/401/401 全过；registry 首启健康、`/api/version=fd-1.0.0`、**市场快照 diff 零丢失**（7 servers/152 skills/5 agents 前后一致）。
 
-**计划（建议作为独立 change，在 paas 立项）**：
-1. fork 追平上游 **1.32.0**（2026-10-04 发布：generic gateway、backend identity、tool-level security、forward-proxy egress——1.30→1.32 变化大，追平时评估 Logto 集成与裁剪面的回归）
-2. 重放 wire 双 patch（cherry-pick，冲突预期在 auth_server/server.py）
-3. 重建 registry 容器镜像（fork `Dockerfile`），与 auth-server 同法灰度换镜像
-4. 开 `PATCH_KEY_AUTH_ENABLED` 铸造面 + 配 `SUB2API_CALLER_MAP` → 开 `PREFLIGHT_ENABLED` 灰度
-5. 回收：wire-platform-v1 的 3.2/4.4 勾选 → 该 change 可归档
+剩余（组 5/6）：`SUB2API_CALLER_MAP` + `PREFLIGHT_ENABLED` 灰度（5.2/5.3）、客户 wgk- key 真回合（5.4）、跨根勾 wire-platform-v1 3.2/4.4 归档（6.1）。
 
 ## 6. 运维速查
 
-- **版本**：registry 1.30.0（控制台横幅提示 1.32.0 可用）；auth-server=fork `wire-20261005`
-- **回滚**：compose 里 auth-server 镜像行换回 `mcp-auth-server:logto`（备份 `docker-compose.prebuilt.yml.bak-wire-img`）；`docker compose -f docker-compose.prebuilt.yml -p mcp-gateway-registry up --no-deps --no-build -d auth-server`（**必须带 `--no-deps --no-build`**，否则 compose 会试图拉 alpine/python 基础镜像超时）
-- **构建 auth-server**：cheap-1 上 `cd /opt/mcp-gateway-registry && docker build -f docker/Dockerfile.auth -t mcp-auth-server:<tag> .`
+- **版本（2026-10-05 起）**：三容器统一 `sha-7fbc2d6`（fd-1.0.0 线）：registry/auth-server=`ccr.ccs.tencentyun.com/yizuo/*:sha-7fbc2d6`，mcpgw=`public.ecr.aws/p3v1o3c6/mcpgw:1.32.0`；控制台横幅 `fd-1.0.0`
+- **CI 门槛**：GitHub Actions @ **FindDataTechnology/mcp-gateway-registry**（私有仓，默认分支 fd-1.0.0；`fd-*` 分支 push 自动跑 auth-server-test + registry-test 两套）——换镜像前须两套绿，本地全量为可选；上游发版一周内过 release notes 安全节（安全单行道，ADR-0017）
+- **回滚（4.4 成文）**：换版时已留两份备份——`docker-compose.prebuilt.yml.bak-fd-20261005` 与 `.env.bak-fd-20261005`（cheap-1 `/opt/mcp-gateway-registry/`）。回滚 = 恢复备份（或仅把对应镜像行改回）→ `docker compose -f docker-compose.prebuilt.yml -p mcp-gateway-registry up -d --no-deps --no-build <service>`（**必须带 `--no-deps --no-build`**）。单服务回退目标：auth-server→`mcp-auth-server:wire-20261005`（旧镜像仍在本地）、registry→`public.ecr.aws/p3v1o3c6/registry:1.30.0`（仍在本地）、mcpgw→`MCPGW_VERSION=latest`（旧镜像仍在本地）。不可变 `sha-` 标签 = 任何历史版本永远可拉可切
+- **发布/构建（标准 TCR 线）**：`push github main → GHA image workflow（matrix：mcp-registry + mcp-auth-server）→ hkccr → cheap-3 tcr-relay（每 5 分钟）→ ccr`；**不再在 cheap-1 本地构建**（torch 镜像 2.7GB 曾把该机 export 层撞满，标准线亦规避此风险）。操作手册：finddata 工作区 `docs/IMAGE-RELEASE.md`；relay 清单 `/etc/tcr-relay/repos.conf`（cheap-3）
 - **令牌**：控制台「Get JWT Token」= 自签 JWT，`MCP_TOKEN_MAX_TTL_HOURS=168` 硬上限；**过期=四个 server 全 401 的头号误报源**（先查 token 年龄）；只读诊断可在 cheap-1 用 `.env` 的 SECRET_KEY 现场签 10 分钟 token
 - **鉴权矩阵**：`/api/servers` 吃 Bearer JWT；`/api/tools/*`、`POST /api/servers/register|remove`、`PATCH /api/servers/{path}` 要控制台会话 cookie + `X-CSRF-Token`（`GET /api/auth/csrf-token` 取）；**PATCH /api/servers/{path} 是 JSON Merge Patch，改描述等单字段的安全通道**
 - **审计**：`mcp-mongodb` 的 `audit_events`（MCPServerAccessRecord：identity/server/tool/response/IP）——柏讯计量的数据源

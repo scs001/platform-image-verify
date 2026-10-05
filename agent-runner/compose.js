@@ -170,7 +170,34 @@ export async function materializeAgentHome({ homeRoot, agentKey, entry, skillCon
     console.warn(`[agent-runner] LLM profile unavailable for ${agentKey}; the child may boot without chat: ${e?.message || e}`);
   }
 
-  return { home, presetId, patchPaths, skillsRoot };
+  // 4. Data workspace (facet-mcp-foundation-v1 3.1): when the descriptor
+  //    declares one, `<home>/data/` is CREATED here and never removed — the
+  //    upgrade path above rmSync's ONLY skillsRoot, undeploy leaves the whole
+  //    home on disk, so workspace data is durable exactly like the rest of
+  //    the DSH_HOME. Zero declaration ⇒ zero change: no dir, no env, no keys.
+  let dataDir = null;
+  let dataQuotaMb = null;
+  if (descriptor.workspace?.enabled === true) {
+    dataDir = path.join(home, "data");
+    mkdirSync(dataDir, { recursive: true });
+    const quotaMb = Number(descriptor.workspace.quotaMb);
+    if (Number.isInteger(quotaMb) && quotaMb > 0) dataQuotaMb = quotaMb;
+  }
+
+  return { home, presetId, patchPaths, skillsRoot, dataDir, dataQuotaMb };
+}
+
+// The child-visible workspace env (facet-mcp-foundation-v1 3.1): AGENT_DATA_DIR
+// points at the private data workspace, and a declared quota rides along for
+// tools that want to self-limit. No dataDir (legacy deployment) → the env
+// passes through untouched — not even an empty marker key.
+export function workspaceChildEnv(spec, env = {}) {
+  if (!spec?.dataDir) return env;
+  return {
+    ...env,
+    AGENT_DATA_DIR: spec.dataDir,
+    ...(spec.dataQuotaMb != null ? { AGENT_DATA_QUOTA_MB: String(spec.dataQuotaMb) } : {}),
+  };
 }
 
 // Overwrite the private home's LLM credential refs with the agent's own

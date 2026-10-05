@@ -137,6 +137,11 @@ server.listen(config.port, "0.0.0.0", () => {
   // short-lived by contract; internal and rhythm sessions are untouched.
   const reapTimer = setInterval(() => manager.reapExternalContexts(), 60_000);
   reapTimer.unref?.();
+  // Data-workspace quota guard (facet-mcp-foundation-v1 3.1): slow cadence —
+  // a du over GB-scale dirs is IO, and a guardrail that only speaks needs no
+  // urgency.
+  const quotaTimer = setInterval(() => manager.checkWorkspaceQuotas(), 60_000);
+  quotaTimer.unref?.();
   if (fleetSampler) {
     const fleetTimer = setInterval(() => fleetSampler.sample(), config.fleetSampleSecs * 1000);
     fleetTimer.unref?.();

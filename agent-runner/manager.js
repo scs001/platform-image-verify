@@ -11,7 +11,7 @@
 
 import http from "node:http";
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, existsSync } from "node:fs";
-import { execSync } from "node:child_process";
+import { execFileSync, execSync } from "node:child_process";
 import path from "node:path";
 import { AgentChild } from "./child.js";
 
@@ -40,7 +40,7 @@ function tokensOf(usage) {
   const t = usage.total_tokens ?? usage.totalTokens ?? usage.tokens;
   return Number.isFinite(Number(t)) ? Number(t) : null;
 }
-import { agentKeyFor, materializeAgentHome, mcpEntry, applyBillingKey, applyDeploymentSecrets } from "./compose.js";
+import { agentKeyFor, materializeAgentHome, mcpEntry, applyBillingKey, applyDeploymentSecrets, workspaceChildEnv } from "./compose.js";
 import { scrubbedChildEnv } from "./child.js";
 import { createNotifier } from "./notify.js";
 import { maskSecretRef } from "../lib/agent-serving.js";
@@ -49,6 +49,7 @@ import { createAgentApp, agentPortFor } from "./a2a.js";
 export class ChildManager {
   #slotWaiters = new Set(); // capacity-queue interval timers, cleared on shutdown
   #listeners = new Map(); // agentKey → http server (per-agent port, upstream #1734)
+  #quotaAlerted = new Set(); // workspace over-quota episodes already reported
   constructor({ config, registryClient, clientFactory, log = console, now = () => Date.now(), notifyFetchImpl, events = null }) {
     this.config = config;
     this.registryClient = registryClient;
@@ -206,6 +207,11 @@ export class ChildManager {
         // the spawn's notify handler; a rebind must drain the old child or it
         // would keep notifying the previous channel.
         notify: entry.metadata?.notify_channel,
+        // The data workspace (facet-mcp-foundation-v1 3.1) is captured by the
+        // spawn's env (AGENT_DATA_DIR / AGENT_DATA_QUOTA_MB); a declaration
+        // change must drain so the next spawn materializes and exports it.
+        // Draining never touches the home — data/ persists verbatim.
+        workspace: entry.metadata?.workspace,
       });
       const existing = this.children.get(key);
       this.entries.set(key, entry);
@@ -398,6 +404,36 @@ export class ChildManager {
     return latest;
   }
 
+  // ── Data-workspace quota guard (facet-mcp-foundation-v1 3.1) ───────────────
+  // A light `du -sk` estimate per enabled, quota-declared workspace. Over the
+  // bound it logs and lands ONE meter line + fleet event per over-limit
+  // episode — never deletes, never blocks a turn: the workspace is durable
+  // customer data and this guardrail only speaks.
+  checkWorkspaceQuotas() {
+    for (const [key, entry] of this.entries) {
+      const ws = entry?.metadata?.workspace;
+      const quotaMb = Number(ws?.quotaMb);
+      if (ws?.enabled !== true || !Number.isInteger(quotaMb) || quotaMb <= 0) continue;
+      const dataDir = path.join(this.config.homeRoot, key, "data");
+      let usageMb = null;
+      try {
+        const out = execFileSync("du", ["-sk", dataDir], { encoding: "utf8" });
+        usageMb = Math.ceil(Number(String(out).split(/\s+/)[0]) / 1024);
+      } catch {
+        continue; // no workspace dir yet (or du unavailable) — nothing to guard
+      }
+      if (!(usageMb > quotaMb)) {
+        this.#quotaAlerted.delete(key); // back under — the next breach alerts anew
+        continue;
+      }
+      if (this.#quotaAlerted.has(key)) continue; // episode already reported
+      this.#quotaAlerted.add(key);
+      this.#meterLine(key, "workspace_quota", { ok: true, usageMb, quotaMb });
+      this.#fleetEmit("workspace_quota_exceeded", entry, { usage_mb: usageMb, quota_mb: quotaMb });
+      this.log.warn(`[agent-runner] ${key} data workspace over quota: ~${usageMb}MB > ${quotaMb}MB (guardrail only — nothing deleted)`);
+    }
+  }
+
   // ── Metered turns (add-agent-residency D3/D6) ─────────────────────────────
   // ONE queueing discipline for every turn source: messages (A2A), self-turns
   // (rhythm), and digests (day rollover) all acquire through here, and every
@@ -588,8 +624,10 @@ export class ChildManager {
         cwd: config.cwd,
         // The child sees the runner's environment minus every relay
         // credential (add-agent-notifications D2): the token's sole owner is
-        // this process's configuration.
-        env: scrubbedChildEnv(process.env),
+        // this process's configuration. A declared data workspace adds
+        // AGENT_DATA_DIR (+ AGENT_DATA_QUOTA_MB) on top — no declaration,
+        // no keys (facet-mcp-foundation-v1 3.1).
+        env: workspaceChildEnv(spec, scrubbedChildEnv(process.env)),
         provider: config.provider,
         model: config.model,
         presetId: spec.presetId,

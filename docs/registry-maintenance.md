@@ -16,8 +16,8 @@
 
 | 容器 | 镜像 | 代码来源 | 职责 |
 |---|---|---|---|
-| registry-1 | `ccr.ccs.tencentyun.com/yizuo/mcp-registry:sha-7fbc2d6` | **fd fork 构建**（标准 TCR 线） | 控制台 SPA + `/api/*` 路由（服务注册/目录/审计面）+ patch-key 铸造面 |
-| auth-server-1 | `ccr.ccs.tencentyun.com/yizuo/mcp-auth-server:sha-7fbc2d6` | **fd fork 构建**（标准 TCR 线） | `/validate` 鉴权、自签 JWT、Logto IAM、egress PAT 注入、wire 双 patch |
+| registry-1 | `ccr.ccs.tencentyun.com/yizuo/mcp-registry:sha-c4b0994`（fd-1.1.1，中英双语控制台） | **fd fork 构建**（标准 TCR 线） | 控制台 SPA + `/api/*` 路由（服务注册/目录/审计面）+ patch-key 铸造面 |
+| auth-server-1 | `ccr.ccs.tencentyun.com/yizuo/mcp-auth-server:sha-676a245` | **fd fork 构建**（标准 TCR 线） | `/validate` 鉴权、自签 JWT、Logto IAM、egress PAT 注入、wire 双 patch |
 | mcpgw-server-1 | `public.ecr.aws/p3v1o3c6/mcpgw:1.32.0` | 上游预构建（已钉版） | nginx 转发 hop（`/mcp-proxy/{server}`） |
 | mcp-mongodb / mcp-openbao | — | 官方镜像 | 审计流（`audit_events`，逐工具调用记录）/ 密钥 |
 
@@ -71,10 +71,10 @@ upstream  1.29.0 ──── 1.30.0 ──── 1.31.0 ──── 1.32.0 ─
 ## 6. 运维速查
 
 - **版本（2026-10-05 起）**：三容器统一 `sha-7fbc2d6`（fd-1.0.0 线）：registry/auth-server=`ccr.ccs.tencentyun.com/yizuo/*:sha-7fbc2d6`，mcpgw=`public.ecr.aws/p3v1o3c6/mcpgw:1.32.0`；控制台横幅 `fd-1.0.0`
-- **CI 门槛**：GitHub Actions @ **FindDataTechnology/mcp-gateway-registry**（私有仓，默认分支 fd-1.0.0；`fd-*` 分支 push 自动跑 auth-server-test + registry-test 两套）——换镜像前须两套绿，本地全量为可选；上游发版一周内过 release notes 安全节（安全单行道，ADR-0017）
-- **回滚（4.4 成文）**：换版时已留两份备份——`docker-compose.prebuilt.yml.bak-fd-20261005` 与 `.env.bak-fd-20261005`（cheap-1 `/opt/mcp-gateway-registry/`）。回滚 = 恢复备份（或仅把对应镜像行改回）→ `docker compose -f docker-compose.prebuilt.yml -p mcp-gateway-registry up -d --no-deps --no-build <service>`（**必须带 `--no-deps --no-build`**）。单服务回退目标：auth-server→`mcp-auth-server:wire-20261005`（旧镜像仍在本地）、registry→`public.ecr.aws/p3v1o3c6/registry:1.30.0`（仍在本地）、mcpgw→`MCPGW_VERSION=latest`（旧镜像仍在本地）。不可变 `sha-` 标签 = 任何历史版本永远可拉可切
+- **CI 门槛**：GitHub Actions @ **FindDataTechnology/mcp-gateway-registry**（私有仓，发布分支 `main`；**`fd-*` 分支 push 自动跑 auth-server-test + registry-test 两套——注意 GitHub 的 `*` 不匹配 `/`，分支名必须用连字符（`fd-i18n-ui`），斜杠形式（`fd/x`）两个套件都不会触发**；另加 `frontend-test`（lint/build/i18n 套件/覆盖扫描，2026-10-05 起））——换镜像前须两套绿，本地全量为可选；上游发版一周内过 release notes 安全节（安全单行道，ADR-0017）
+- **回滚（4.4 成文）**：换版时已留两份备份——`docker-compose.prebuilt.yml.bak-fd-20261005` 与 `.env.bak-fd-20261005`（cheap-1 `/opt/mcp-gateway-registry/`）。回滚 = 恢复备份（或仅把对应镜像行改回）→ `docker compose -f docker-compose.prebuilt.yml -p mcp-gateway-registry up -d --no-deps --no-build <service>`（**必须带 `--no-deps --no-build`**）。单服务回退目标：auth-server→`ccr.../mcp-auth-server:sha-676a245`（当前在用）、registry→`ccr.../mcp-registry:sha-6a3acf6`（fd-1.1.0；`sha-5518840` 再退一级，均可回拉）、mcpgw→`MCPGW_VERSION=latest`（旧镜像仍在本地）。**单服务 `up` 必须带 `--no-deps` 的另一个原因（2026-10-05 实测）**：compose 会为 `mongodb-init`/`mongodb-keyfile-init` 等一次性服务解析 `python:3.14-slim`/`alpine:3.21`，而 cheap-1 直连 Docker Hub 超时、这两镜像本地又不在（曾被清理）——全量 `up` 会中止；只重建单服务时加 `--no-deps` 即绕开。换版前先 `df -h /`（30G 盘，2026-10-05 换版时仅剩 1.5G，清掉 `sha-564592f`/`sha-eb26cee` 等废弃镜像后回到 6.3G）不可变 `sha-` 标签 = 任何历史版本永远可拉可切
 - **发布/构建（标准 TCR 线）**：`push github main → GHA image workflow（matrix：mcp-registry + mcp-auth-server）→ hkccr → cheap-3 tcr-relay（每 5 分钟）→ ccr`；**不再在 cheap-1 本地构建**（torch 镜像 2.7GB 曾把该机 export 层撞满，标准线亦规避此风险）。操作手册：finddata 工作区 `docs/IMAGE-RELEASE.md`；relay 清单 `/etc/tcr-relay/repos.conf`（cheap-3）
-- **令牌**：控制台「Get JWT Token」= 自签 JWT，`MCP_TOKEN_MAX_TTL_HOURS=168` 硬上限；**过期=四个 server 全 401 的头号误报源**（先查 token 年龄）；只读诊断可在 cheap-1 用 `.env` 的 SECRET_KEY 现场签 10 分钟 token
+- **令牌**：控制台「Get JWT Token」= 自签 JWT，`MCP_TOKEN_MAX_TTL_HOURS=168` 硬上限；**过期=四个 server 全 401 的头号误报源**（先查 token 年龄）；只读诊断可在 cheap-1 用 `.env` 的 SECRET_KEY 现场签 10 分钟 token——**但必须带 `token_kind: "user"` claim（断言 `aud=mcp-registry`、`iss=mcp-auth-server`、`groups/scope` 照抄旧 `.admin-jwt`），否则 `/validate` 边缘守卫直接 403「Token is missing the required token_kind claim」（2026-10-05 实测；表现为 nginx 403 而非后端错误体）**
 - **鉴权矩阵**：`/api/servers` 吃 Bearer JWT；`/api/tools/*`、`POST /api/servers/register|remove`、`PATCH /api/servers/{path}` 要控制台会话 cookie + `X-CSRF-Token`（`GET /api/auth/csrf-token` 取）；**PATCH /api/servers/{path} 是 JSON Merge Patch，改描述等单字段的安全通道**
 - **审计**：`mcp-mongodb` 的 `audit_events`（MCPServerAccessRecord：identity/server/tool/response/IP）——柏讯计量的数据源
 - **已知问题（2026-10-05）**：公网 `/fd-open-data-mcp` 条目路由坏（405 + upstream `chengsi.mesh...:30899` mesh 502 + unhealthy）——开放 open-data 入口自身故障，待修；chengsi 权威 pod 会话撞顶已 restart（复发需查 reaping 与网关健康探测漏会话）

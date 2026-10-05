@@ -18,6 +18,11 @@
 | 版本/tag | 镜像 | 基线 | 内容 | 验收 |
 |---|---|---|---|---|
 | `fd-1.0.0`（tag，双仓） | `ccr.ccs.tencentyun.com/yizuo/mcp-{registry,auth-server}:sha-7fbc2d6` | 上游 **1.32.0** + cherry-pick 14 提交（Logto 线 + wire 双 patch；剔裁剪提交 `8ad0239f`/`2b36f87c`） | 独立谱系首发；保守瘦身（-16 万行：6 IdP、多云面、metrics-service、docs 大部）；CI=两套测试套 + image.yml 标准发布线 | pytest 全绿（CI 两套）+ 上线探针（鉴权 200/401/401、`/api/version=fd-1.0.0`、市场快照 diff 零丢失）+ 铸造面 e2e |
+| `fd-1.1.0`（2026-10-05） | `ccr.ccs.tencentyun.com/yizuo/mcp-registry:sha-6a3acf6`（auth-server 不动，仍 `sha-676a245`） | fd-1.0.0 谱系内功能增量 | **控制台中英双语**（客户可达面：登录/壳/发现/卡片/详情连接/发布/令牌/账户；零依赖源串 key + 缺译回退英文；`localizeError` 24 处；`i18n:scan` 覆盖门禁 + 新 `frontend-test` workflow；管理面按设计保持英文） | 本地 eslint/tsc/build/scan 全绿（scan 1301/1301、0% 缺译）+ CI 双绿 + 上线探针（鉴权 200/401/401、`/api/version=fd-1.1.0`、市场快照 8/5/152 不缩水、线上产物含中文字典、真浏览器中文渲染/?lang= 覆盖与刷新持久化实证） |
+
+| `fd-1.1.1`（2026-10-05） | `ccr.ccs.tencentyun.com/yizuo/mcp-registry:sha-c4b0994`（auth-server 不动） | fd-1.1.0 增量 | 修复 `ui_title` 渲染不一致：页头/运行时长提示/登录页品牌串统一走 `t()`（标签页已译、页头未译的割裂）；`PLAYWRIGHT_BASE_URL` 可把 e2e 指向部署（未登录用例可对生产跑） | 生产实跑：登录页冒烟绿（真 Chromium，含切换器点击 + 刷新持久化）+ 标题/页内均为「AI 网关与注册处」+ `/api/version=fd-1.1.1`；CI 三套绿 |
+
+**版本进位惯例（本行起成文）**：`fd-x.y.z` 中 **minor = 客户可感知的功能新增**，patch = 其余（修复/内部）；每次发布在本表登记镜像 sha 与验收口径。
 
 ## 三、安全单行道登记簿（SECURITY-LANE）
 

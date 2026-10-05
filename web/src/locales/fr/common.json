@@ -885,12 +885,68 @@
       }
     }
   },
-  "facetHero": {
-    "title": "Le marché de packs et d'outils pour les éditeurs d'IA",
-    "factPacks": "Parcourir · s'abonner · publier des packs",
-    "factMcp": "Catalogue de services MCP",
-    "factCli": "Installez en une ligne :",
+  "facetShell": {
+    "tabs": {
+      "intro": "Présentation",
+      "packs": "Packs",
+      "mcp": "Services MCP"
+    },
+    "langLabel": "Langue",
+    "packsFootnote": "Navigation anonyme ; connectez-vous pour publier et vous abonner. Usage de la CLI :"
+  },
+  "facetIntro": {
+    "title": "Mille facettes — le marché de packs et d'outils pour les éditeurs d'IA",
+    "subtitle": "Les packs réunissent compétences, références MCP et personas d'agents — parcourir, s'abonner, publier, et installer dans Claude Code / Cursor en une ligne",
+    "factRow": "Navigation anonyme ; connectez-vous pour publier et vous abonner (même identité que Platform)",
+    "ctaPacks": "Parcourir les packs",
+    "ctaMcp": "Voir les services MCP",
+    "card": {
+      "contents": {
+        "title": "Ce que contient un pack",
+        "body": "Compétences, références MCP et personas d'agents, plus la version, les étiquettes et l'auteur. La vue détaillée expose le texte intégral de chaque compétence et l'historique des versions."
+      },
+      "install": {
+        "title": "S'abonner et installer sont deux actes",
+        "body": "L'abonnement est enregistré dans le marché — le même marché et la même identité que la Store intégrée à Platform. Installer met le contenu sur votre poste de travail ; il existe trois chemins."
+      },
+      "version": {
+        "title": "Instantanés de version",
+        "body": "L'installation prend une version précise ; relancer install prend un nouvel instantané. La CLI n'écrit aucune configuration MCP et ne détient aucun identifiant — ils sont raccordés dans Platform."
+      }
+    },
+    "pathTitle": "Fonctionnement",
+    "path": {
+      "line1": "créateur --publier--> marché Facet --s'abonner--> Platform · installation en un clic dans l'environnement de conversation",
+      "line1Note": "(identifiants MCP déjà raccordés dans Platform)",
+      "line2": "marché Facet --installation CLI--> répertoires de compétences Claude Code / Cursor",
+      "line2Note": "(instantané des compétences sur disque ; références MCP imprimées)"
+    },
+    "quickTitle": "Démarrage rapide",
+    "quickArg": "<id du pack ou une URL contenant l'id>",
+    "quickNote": "Installe dans Claude Code par défaut ; --target cursor et --project <dir> sont optionnels.",
+    "quickHelpPrefix": "Autres usages :",
     "lineLink": "Site officiel FindData — ligne Facet →"
+  },
+  "facetFooter": {
+    "tagline": "Le marché de packs et d'outils pour les éditeurs d'IA",
+    "contactLabel": "Contact",
+    "linesLabel": "Lignes de produits FindData",
+    "lines": {
+      "base": "Base",
+      "lex": "Lex",
+      "wire": "Wire",
+      "facet": "Facet",
+      "constellation": "Constellation"
+    },
+    "current": "Site actuel",
+    "entriesLabel": "Accès",
+    "entries": {
+      "packs": "Marché des packs",
+      "mcp": "Catalogue des services MCP",
+      "line": "Page de la ligne Facet"
+    },
+    "mission": "FindData construit une infrastructure de traitement de texte et de données pour l'ère de l'IA, en promouvant l'égalité d'accès à l'information et, à terme, l'équité sociale.",
+    "copyright": "© 2026 FindData · Facet"
   },
   "packs": {
     "tabs": {
@@ -1115,5 +1171,9 @@
     "answered": "Question répondue",
     "cancelled": "Question annulée",
     "customAnswer": "Réponse libre"
+  },
+  "auth": {
+    "login": "Se connecter",
+    "logout": "Se déconnecter"
   }
 }

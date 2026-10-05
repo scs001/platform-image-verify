@@ -885,12 +885,68 @@
       }
     }
   },
-  "facetHero": {
-    "title": "AI 编辑器的功能集与工具分发市场",
-    "factPacks": "浏览 · 订阅 · 发布功能集",
-    "factMcp": "MCP 服务目录",
-    "factCli": "一行安装：",
+  "facetShell": {
+    "tabs": {
+      "intro": "介绍",
+      "packs": "功能集",
+      "mcp": "MCP 服务"
+    },
+    "langLabel": "语言",
+    "packsFootnote": "匿名可浏览，登录后可发布订阅；CLI 安装与用法明细见"
+  },
+  "facetIntro": {
+    "title": "千人千面 —— AI 编辑器的功能集与工具分发市场",
+    "subtitle": "功能集把技能、MCP 引用与 Agent 人格打包上架——浏览、订阅、发布；一行命令装进 Claude Code / Cursor",
+    "factRow": "匿名可浏览，登录后可发布与订阅（与壹座同一套身份）",
+    "ctaPacks": "浏览功能集",
+    "ctaMcp": "查看 MCP 服务",
+    "card": {
+      "contents": {
+        "title": "功能集里有什么",
+        "body": "技能原文、MCP 引用、Agent 人格，外加版本、标签与作者；详情页可读每个技能的全文与历史版本。"
+      },
+      "install": {
+        "title": "订阅与安装是两件事",
+        "body": "订阅是在册——与壹座 Store 同市场、同身份；安装才把内容落到你的工作面，有三条路径。"
+      },
+      "version": {
+        "title": "版本快照",
+        "body": "安装取的是确定版本，重跑 install 即取新快照；CLI 不写 MCP 配置、不代持凭据——凭据在壹座内打通。"
+      }
+    },
+    "pathTitle": "工作原理",
+    "path": {
+      "line1": "创作者 --发布--> 谦面市场 --订阅--> 壹座 · 一键安装到对话运行时",
+      "line1Note": "（MCP 凭据已在壹座打通）",
+      "line2": "谦面市场 --CLI 安装--> Claude Code / Cursor 技能目录",
+      "line2Note": "（技能快照落盘；MCP 引用照打）"
+    },
+    "quickTitle": "快速开始",
+    "quickArg": "<功能集 id 或含 id 的 URL>",
+    "quickNote": "默认装到 Claude Code；--target cursor、--project <dir> 可选。",
+    "quickHelpPrefix": "更多用法：",
     "lineLink": "寻数官网 · 谦面线页 →"
+  },
+  "facetFooter": {
+    "tagline": "AI 编辑器的功能集与工具分发市场",
+    "contactLabel": "联系",
+    "linesLabel": "寻数产品线",
+    "lines": {
+      "base": "寻数·壹座",
+      "lex": "寻数·识律",
+      "wire": "寻数·柏讯",
+      "facet": "寻数·谦面",
+      "constellation": "寻数·萬星"
+    },
+    "current": "当前站点",
+    "entriesLabel": "入口",
+    "entries": {
+      "packs": "功能集市场",
+      "mcp": "MCP 服务目录",
+      "line": "谦面线页"
+    },
+    "mission": "寻数科技聚焦AI时代下的文本和数据处理的基础设施建设，致力于推动信息平权，最终促进社会公平。",
+    "copyright": "© 2026 寻数（FindData）· 谦面 Facet"
   },
   "packs": {
     "tabs": {
@@ -1115,5 +1171,9 @@
     "answered": "问询已作答",
     "cancelled": "问询已取消",
     "customAnswer": "自定义回答"
+  },
+  "auth": {
+    "login": "登录",
+    "logout": "退出登录"
   }
 }

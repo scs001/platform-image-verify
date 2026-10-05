@@ -885,12 +885,68 @@
       }
     }
   },
-  "facetHero": {
-    "title": "AI エディターのための機能集とツールのマーケット",
-    "factPacks": "機能集の閲覧 · 購読 · 公開",
-    "factMcp": "MCP サービスカタログ",
-    "factCli": "1 行でインストール：",
-    "lineLink": "FindData 公式サイト — Facet ライン →"
+  "facetShell": {
+    "tabs": {
+      "intro": "紹介",
+      "packs": "機能セット",
+      "mcp": "MCP サービス"
+    },
+    "langLabel": "言語",
+    "packsFootnote": "匿名で閲覧可能、ログイン後に公開と購読。CLI の使い方："
+  },
+  "facetIntro": {
+    "title": "千の面 — AI エディターの機能セットとツールの配布マーケット",
+    "subtitle": "機能セットはスキル・MCP 参照・エージェントのペルソナをまとめて出品——閲覧、購読、公開、そして Claude Code / Cursor へワンラインでインストール",
+    "factRow": "匿名で閲覧可能、ログイン後に公開と購読（壹座と同じ身元）",
+    "ctaPacks": "機能セットを閲覧",
+    "ctaMcp": "MCP サービスを見る",
+    "card": {
+      "contents": {
+        "title": "機能セットの中身",
+        "body": "スキル原文、MCP 参照、エージェントのペルソナ、さらにバージョン・タグ・作者。詳細ページでは各スキルの全文とバージョン履歴を読めます。"
+      },
+      "install": {
+        "title": "購読とインストールは別の行為",
+        "body": "購読は市場への登録——壹座 Store と同じ市場・同じ身元。インストールは内容をワークスペースに置く行為で、三つの経路があります。"
+      },
+      "version": {
+        "title": "バージョンのスナップショット",
+        "body": "インストールは確定したバージョンを取り、再実行すると新しいスナップショットを取得。CLI は MCP 設定を書かず、資格情報も保持しません——資格情報は壹座内で接続済みです。"
+      }
+    },
+    "pathTitle": "仕組み",
+    "path": {
+      "line1": "作成者 --公開--> 謙面マーケット --購読--> 壹座 · 会話ランタイムへワンクリックでインストール",
+      "line1Note": "（MCP 資格情報は壹座内で接続済み）",
+      "line2": "謙面マーケット --CLI インストール--> Claude Code / Cursor のスキルディレクトリ",
+      "line2Note": "（スキルのスナップショットを配置、MCP 参照を表示）"
+    },
+    "quickTitle": "クイックスタート",
+    "quickArg": "<機能セット id または id を含む URL>",
+    "quickNote": "既定では Claude Code にインストール。--target cursor、--project <dir> は任意です。",
+    "quickHelpPrefix": "その他の使い方：",
+    "lineLink": "寻数公式サイト · 謙面ライン →"
+  },
+  "facetFooter": {
+    "tagline": "AI エディターの機能セットとツールの配布マーケット",
+    "contactLabel": "連絡先",
+    "linesLabel": "寻数プロダクトライン",
+    "lines": {
+      "base": "Base",
+      "lex": "Lex",
+      "wire": "Wire",
+      "facet": "Facet",
+      "constellation": "Constellation"
+    },
+    "current": "現在のサイト",
+    "entriesLabel": "入口",
+    "entries": {
+      "packs": "機能セット市場",
+      "mcp": "MCP サービスカタログ",
+      "line": "謙面ラインのページ"
+    },
+    "mission": "寻数科技は AI 時代のテキストとデータ処理の基盤を築き、情報への平等なアクセスを推し進め、最終的に社会の公正に貢献します。",
+    "copyright": "© 2026 寻数（FindData）· 謙面 Facet"
   },
   "packs": {
     "tabs": {
@@ -1115,5 +1171,9 @@
     "answered": "質問に回答済み",
     "cancelled": "質問をキャンセルしました",
     "customAnswer": "自由回答"
+  },
+  "auth": {
+    "login": "ログイン",
+    "logout": "ログアウト"
   }
 }

@@ -885,12 +885,68 @@
       }
     }
   },
-  "facetHero": {
-    "title": "The pack-and-tool marketplace for AI editors",
-    "factPacks": "Browse · subscribe · publish packs",
-    "factMcp": "MCP service catalog",
-    "factCli": "Install in one line:",
+  "facetShell": {
+    "tabs": {
+      "intro": "Intro",
+      "packs": "Packs",
+      "mcp": "MCP services"
+    },
+    "langLabel": "Language",
+    "packsFootnote": "Anonymous browsing; sign in to publish and subscribe. CLI usage:"
+  },
+  "facetIntro": {
+    "title": "A thousand facets — the pack-and-tool marketplace for AI editors",
+    "subtitle": "Packs bundle skills, MCP references, and agent personas — browse, subscribe, publish, and install into Claude Code / Cursor in one line",
+    "factRow": "Anonymous browsing; sign in to publish and subscribe (same identity as Platform)",
+    "ctaPacks": "Browse packs",
+    "ctaMcp": "View MCP services",
+    "card": {
+      "contents": {
+        "title": "What a pack holds",
+        "body": "Skill sources, MCP references, and agent personas, plus version, tags, and author. The detail view exposes every skill's full text and the version history."
+      },
+      "install": {
+        "title": "Subscribing and installing are two acts",
+        "body": "A subscription is a record in the market — the same market and identity as the Store embedded in Platform. Installing is what puts content on your work surface; there are three paths."
+      },
+      "version": {
+        "title": "Version snapshots",
+        "body": "An install takes a definite version; re-running install takes a new snapshot. The CLI writes no MCP configuration and holds no credentials — credentials are wired inside Platform."
+      }
+    },
+    "pathTitle": "How it works",
+    "path": {
+      "line1": "creator --publish--> Facet market --subscribe--> Platform · one-click install into the conversation runtime",
+      "line1Note": "(MCP credentials already wired in Platform)",
+      "line2": "Facet market --CLI install--> Claude Code / Cursor skill directories",
+      "line2Note": "(skill snapshot on disk; MCP references printed)"
+    },
+    "quickTitle": "Quick start",
+    "quickArg": "<pack id or a URL containing the id>",
+    "quickNote": "Installs to Claude Code by default; --target cursor and --project <dir> are optional.",
+    "quickHelpPrefix": "More usage:",
     "lineLink": "FindData official — Facet line →"
+  },
+  "facetFooter": {
+    "tagline": "The pack-and-tool marketplace for AI editors",
+    "contactLabel": "Contact",
+    "linesLabel": "FindData product lines",
+    "lines": {
+      "base": "Base",
+      "lex": "Lex",
+      "wire": "Wire",
+      "facet": "Facet",
+      "constellation": "Constellation"
+    },
+    "current": "This site",
+    "entriesLabel": "Entries",
+    "entries": {
+      "packs": "Pack market",
+      "mcp": "MCP service catalog",
+      "line": "Facet line page"
+    },
+    "mission": "FindData builds text- and data-processing infrastructure for the AI era, advancing equal access to information and, ultimately, social equity.",
+    "copyright": "© 2026 FindData · Facet"
   },
   "packs": {
     "tabs": {
@@ -1115,5 +1171,9 @@
     "answered": "Question answered",
     "cancelled": "Question cancelled",
     "customAnswer": "Custom answer"
+  },
+  "auth": {
+    "login": "Sign in",
+    "logout": "Sign out"
   }
 }

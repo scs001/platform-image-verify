@@ -52,7 +52,7 @@
   绿 + 浏览器实机走查（落地即介绍 / 三 hash 深链与刷新 / hero 带已移除而 CLI 单源 / 页脚全项 /
   header 方章与五语种切换 / 非中文语种线名英文概念名 / 窄屏；证据截图落
   `gui-test-screenshots/`）
-- [ ] 5.2 部署验收：commit → GHA 镜像绿 → tcr-relay 回灌 → GitOps `platform.yaml` **与**
+- [x] 5.2 部署验收：commit → GHA 镜像绿 → tcr-relay 回灌 → GitOps `platform.yaml` **与**
   `facet.yaml` 两清单同滚（仅滚 platform 不更新谦面域供页者）→ ArgoCD hard refresh →
   rollout 成功 → 探针：facet 域新 bundle 含介绍视图关键词、阶梯字符与使命句，壳 title 不变
 

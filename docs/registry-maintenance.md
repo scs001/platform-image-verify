@@ -66,7 +66,7 @@ upstream  1.29.0 ──── 1.30.0 ──── 1.31.0 ──── 1.32.0 ─
 
 原债（registry-1 不带我们的代码 → 铸造面不可达 → wire 3.2/4.4 被堵）**已清**：fd-1.0.0 经标准 TCR 线三容器上线，铸造 API 随 registry-1 部署可达（默认开启；无 key 时行为与旧版逐字节一致，已探针验证）。换版验收实录：auth 探针 200/401/401 全过；registry 首启健康、`/api/version=fd-1.0.0`、**市场快照 diff 零丢失**（7 servers/152 skills/5 agents 前后一致）。
 
-灰度已开（2026-10-05）：`PREFLIGHT_ENABLED=true` + **`PREFLIGHT_MODE=strict`** + 空 MAP（未映射者跳过=生产零影响，待 5.4 客户映射）。活链三态实证：充足放行／不足 402（上游零触达）／计费断连 503 fail-closed。剩余：客户 wgk- key 真回合（5.4）、跨根勾 wire-platform-v1 3.2/4.4 归档（6.1）。
+全部验收完成（2026-10-05）：预检 **strict + 空表**灰度生效（活链三态实证：充足放行／不足 402 上游零触达／计费断连 503 fail-closed）；**客户 wgk- 真回合经 wire 门面全链通**（演示口径：Logto 角色 `wire-customers` → 最小 scope `mcp-business-wire-execute`；真数据 law_search/yearbook_read；audit_events 落行；`rows_returned` 戳在观察读取族实证）。演示期间修复四个集成接缝（已随 fd 线发布，见谱系账本 fd 发布记录）：列表门卫认 `accessible_servers`、egress vend 白名单收 `patch-key`、canonical `oauth2` vault 桶归一、egress claim 信任门放行 patch-key。余下（wire 线侧）：sub2api 入账管道、wire-platform-v1 4.4 账本硬停联调。
 
 ## 6. 运维速查
 
@@ -79,6 +79,7 @@ upstream  1.29.0 ──── 1.30.0 ──── 1.31.0 ──── 1.32.0 ─
 - **审计**：`mcp-mongodb` 的 `audit_events`（MCPServerAccessRecord：identity/server/tool/response/IP）——柏讯计量的数据源
 - **已知问题（2026-10-05）**：公网 `/fd-open-data-mcp` 条目路由坏（405 + upstream `chengsi.mesh...:30899` mesh 502 + unhealthy）——开放 open-data 入口自身故障，待修；chengsi 权威 pod 会话撞顶已 restart（复发需查 reaping 与网关健康探测漏会话）
 - **预检（preflight）事实（2026-10-05）**：`SUB2API_BASE=http://103.236.89.212:32080`（sub2api 落在本机 NodePort，容器内可达）；admin key 取自 k8s `wanxing-fleet.sub2api_admin_key`；**MAP 键 = 控制台登录名**（/validate 响应头 `x-user` 的口径，非 Logto sub）；审计 `/tmp/preflight_quota.jsonl`（容器内，STDOUT 镜像在 docker logs）；重启容器后首次探测偶发 401，复打即愈
+- **egress 凭据链事实（2026-10-05）**：vault 键路径 `enc(auth)/enc(user_id)/enc(provider)/enc(server)`，桶恒 canon=`oauth2`；user_id=**Logto 用户 id**（非 sub/username）；wgk- 客户链路全通（canonical egress_user 铸造时捕获）。**连接受限=上游令牌有效期**（演示用 M2M JWT 1 小时，过期后到 Connected Accounts 重贴即可）
 - **Jenkins 旁路**：cheap-3 Jenkins 若构建相关镜像 401，查 `/var/jenkins_home/.docker/config.json`（uid 1000、无 passwd 条目；hkccr+Harbor 双 auth 需以 root config 拷入）
 
 ## 7. 维护归属（为什么在 paas）

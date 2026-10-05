@@ -211,7 +211,11 @@ async function pollK8s() {
     warningEvents: (events.items || [])
       .filter((e) => e.type === "Warning" && Date.now() - Date.parse(e.lastTimestamp || 0) < 24 * 3600 * 1000)
       .map((e) => ({ reason: e.reason, count: e.count || 1, involved: e.involvedObject?.name || "" })),
-    argocd: app ? { sync: app.status?.sync?.status || "Unknown", health: app.status?.health?.status || "Unknown" } : null,
+    argocd: app ? {
+      sync: app.status?.sync?.status || "Unknown",
+      health: app.status?.health?.status || "Unknown",
+      resources: (app.status?.resources || []).map((r) => ({ kind: r.kind, name: r.name, status: r.status || "" })),
+    } : null,
   };
 }
 
@@ -330,6 +334,16 @@ function computeDrift(runningTag, argocd) {
   return drift;
 }
 
+// Drift fact granularity: the deployment's OWN status in the ArgoCD app's
+// resource list — an app-wide OutOfSync caused by an unwatched deployment
+// must not flag an individually-synced card. Unlisted deployments fall back
+// to the app-level status (listing may lag) (fix-ops-console-drift-granularity).
+function argocdStatusFor(name, argocd) {
+  if (!argocd) return null;
+  const own = (argocd.resources || []).find((r) => r.kind === "Deployment" && r.name === name);
+  return { sync: own?.status || argocd.sync };
+}
+
 // ── poll loop ────────────────────────────────────────────────────────────────
 const SOURCES = [
   ["k8s", pollK8s],
@@ -382,7 +396,7 @@ function boardModel() {
     const drift = dep
       ? (name === "search-relay"
           ? { running: dep.image?.split(":").pop() || null, status: "n/a" }
-          : computeDrift(dep.image, k8s?.argocd))
+          : computeDrift(dep.image, argocdStatusFor(name, k8s?.argocd)))
       : null;
     return {
       name,
@@ -429,6 +443,10 @@ function overallStatus(m) {
   if (m.banner.jenkinsQueue > 0) warn += 1;
   if (m.banner.oomEvictions > 0) warn += 1;
   if (m.stale.k8s || m.stale.jenkins) warn += 1;
+  // Application-level divergence counts exactly once: with per-deployment
+  // verdicts the watched cards can all be clean while an unwatched deployment
+  // drifts the app — the one-dot summary must not go green over that.
+  if (m.banner.argocd && m.banner.argocd.sync !== "Synced") warn += 1;
   if (bad) return { cls: "bad", label: `${bad} incident${bad > 1 ? "s" : ""}`, count: bad };
   if (warn) return { cls: "warn", label: `${warn} warning${warn > 1 ? "s" : ""}`, count: warn };
   return { cls: "ok", label: "all nominal", count: 0 };
@@ -816,4 +834,4 @@ const server = http.createServer((req, res) => {
 if (isMain) {
   server.listen(PORT, HOST, () => console.log(`[ops-console] listening on ${HOST}:${PORT} | ns=${NAMESPACE} deploys=[${WATCHED_DEPLOYS}] poll=${POLL_SECS}s`));
 }
-export { computeDrift, storeWrite, storeLatest, storeLastOk, renderFleetOverview, renderFleet };
+export { computeDrift, argocdStatusFor, overallStatus, storeWrite, storeLatest, storeLastOk, renderFleetOverview, renderFleet };

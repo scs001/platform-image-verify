@@ -28,7 +28,7 @@ process.env.OPS_CONSOLE_TOKEN = "test-token";
 process.env.DB_PATH = path.join(tmpDir, "test.db");
 process.env.FLEET_BOARD_URL = "http://100.64.0.12:31881";
 
-const { computeDrift, storeWrite, storeLatest, storeLastOk, renderFleetOverview, renderFleet } =
+const { computeDrift, argocdStatusFor, overallStatus, storeWrite, storeLatest, storeLastOk, renderFleetOverview, renderFleet } =
   await import("../services/ops-console/index.js");
 
 test("computeDrift: synced ⇒ in-agreement even when the fallback build tag would differ", () => {
@@ -107,6 +107,46 @@ test("renderFleet: five-state legend present, warm explained as no live process"
   assert.match(html, /warm no live process/);
   assert.match(html, /re-warms on demand/);
   assert.match(html, /resident warm &amp; idle/);
+});
+
+// ── fix-ops-console-drift-granularity: per-deployment drift fact ─────────────
+
+test("argocdStatusFor: own Synced entry wins over an app-wide OutOfSync", () => {
+  const app = { sync: "OutOfSync", resources: [{ kind: "Deployment", name: "lawcraw", status: "OutOfSync" }, { kind: "Deployment", name: "platform", status: "Synced" }] };
+  assert.equal(argocdStatusFor("platform", app).sync, "Synced");
+});
+
+test("argocdStatusFor: own OutOfSync entry flags the deployment", () => {
+  const app = { sync: "Synced", resources: [{ kind: "Deployment", name: "platform", status: "OutOfSync" }] };
+  assert.equal(argocdStatusFor("platform", app).sync, "OutOfSync");
+});
+
+test("argocdStatusFor: unlisted deployment falls back to the app-level status", () => {
+  const app = { sync: "OutOfSync", resources: [{ kind: "Deployment", name: "lawcraw", status: "OutOfSync" }] };
+  assert.equal(argocdStatusFor("platform", app).sync, "OutOfSync");
+});
+
+test("argocdStatusFor: no ArgoCD fact at all stays null", () => {
+  assert.equal(argocdStatusFor("platform", null), null);
+});
+
+const cleanModel = (argocd) => ({
+  cards: [],
+  banner: { nodes: [], oomEvictions: 0, jenkinsQueue: 0, argocd },
+  jenkins: null, harbor: { reachable: true }, relay: null,
+  stale: { k8s: false, jenkins: false },
+});
+
+test("overallStatus: app-level OutOfSync counts exactly one warning with clean cards", () => {
+  const s = overallStatus(cleanModel({ sync: "OutOfSync", resources: [] }));
+  assert.equal(s.cls, "warn");
+  assert.equal(s.label, "1 warning");
+});
+
+test("overallStatus: fully synced app with clean cards is all nominal", () => {
+  const s = overallStatus(cleanModel({ sync: "Synced", resources: [] }));
+  assert.equal(s.cls, "ok");
+  assert.equal(s.label, "all nominal");
 });
 
 test.after(() => rmSync(tmpDir, { recursive: true, force: true }));

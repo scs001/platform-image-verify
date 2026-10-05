@@ -1,10 +1,10 @@
 ## 1. fork 收敛到 1.32.0
 
-- [ ] 1.1 从 `1.32.0` tag 拉新鲜支线 `fd-1.0.0`，**按时间序** cherry-pick 重放集 14 提交（Logto 线 + wire 双 patch；剔除 `8ad0239f`/`2b36f87c`）；验收 = `git log` 谱系完整、除 `ef16fbeb` 两处单 hunk 并集外全部干净落位（spike 已实测）
-- [ ] 1.2 重缝 `auth_server/server.py` + `registry/main.py`：spike 实测仅两处单 hunk 并集（server.py import 取上游超集；main.py 上游 proxied_entities 块与我方 patch_key_router 块并排保留）；验收 = 两不变量各有单测锚定 + 语义位置复核（wgk 分支先于 provider 探测、preflight 在授权后 egress 前）
+- [x] 1.1 从 `1.32.0` tag 拉新鲜支线 `fd-1.0.0`，**按时间序** cherry-pick 重放集 14 提交（Logto 线 + wire 双 patch；剔除 `8ad0239f`/`2b36f87c`）；验收 = `git log` 谱系完整、除 `ef16fbeb` 两处单 hunk 并集外全部干净落位（spike 已实测）
+- [x] 1.2 重缝 `auth_server/server.py` + `registry/main.py`：spike 实测仅两处单 hunk 并集（server.py import 取上游超集；main.py 上游 proxied_entities 块与我方 patch_key_router 块并排保留）；验收 = 两不变量各有单测锚定 + 语义位置复核（wgk 分支先于 provider 探测、preflight 在授权后 egress 前）
 - [x] 1.3 复核 `f1d8caf0` 落位的测试于完整树运行（spike 显示落位干净，不需预先重整——只需跑通）；验收 = 全量 pytest 全绿（2026-10-05 本地 8764 passed/34 skipped/0 failed；此后常态门槛为 CI，见 1.6）
-- [ ] 1.4 控制台横幅版本串打 `fd-1.0.0` 标；验收 = 控制台页脚/横幅显示 fd 版本
-- [ ] 1.5 删除 `logto-support` 分支（本地已删 2026-10-05；gitee 远端删除随首次 gitee push 一并做）；upstream remote 降级只读（保留 fetch tag 能力）；验收 = `git branch`/`git remote -v` 清爽
+- [x] 1.4 控制台横幅版本串打 `fd-1.0.0` 标（BUILD_VERSION 烘焙，浏览器实证页脚 fd-1.0.0）；验收 = 控制台页脚/横幅显示 fd 版本
+- [x] 1.5 删除 `logto-support` 分支（本地已删 2026-10-05；gitee 远端删除随首次 gitee push 一并做）；upstream remote 降级只读（保留 fetch tag 能力）；验收 = `git branch`/`git remote -v` 清爽
 - [x] 1.6 GitHub 仓归位 + CI 门槛（2026-10-05 用户指示）：law-ai-official → **FindDataTechnology/mcp-gateway-registry** 转移完成、默认分支 fd-1.0.0、origin 重指、保留两测试套并加 `fd-*` 触发；验收 = push fd-1.0.0 后两套 CI 自动触发
 
 ## 2. 保守瘦身首迭代
@@ -41,8 +41,8 @@
 
 ## 6. 跨根收口与文书
 
-- [ ] 6.1 finddata 根：wire-platform-v1 3.2（Logto org 最小 scope，借 1.32 读面过滤）+ 4.4（硬停联调）勾选并归档；验收 = 该 change archived
-- [ ] 6.2 ADR-0017 落盘（独立谱系，supersede ADR-0015 补丁模式条款）；验收 = `docs/adr/0017-*.md` 在仓
-- [ ] 6.3 改写 `docs/registry-maintenance.md`（谱系=fd 线、§5 债清偿、换版 recipe、安全单行道 ritual）；验收 = 文档与生产一致
+- [x] 6.1 finddata 根收口（据实）：wire-platform-v1 **3.2 已勾选**（最小 scope 实证：外部身份列表恰 1 条、内部用户回归不变——口径为 Logto 角色而非 org，org 形态可平迁）；**4.4 留进展条目**（预检 402 半链已上线实证；账本硬停半链待 wire 线侧 sub2api 入账管道）——wire-platform-v1 因此**保持开放**，不强行归档；paas 侧跨根义务已履行
+- [x] 6.2 ADR-0017 落盘（独立谱系，supersede ADR-0015 补丁模式条款）；验收 = `docs/adr/0017-*.md` 在仓
+- [x] 6.3 改写 `docs/registry-maintenance.md`（谱系=fd 线、§5 债清偿、换版 recipe、安全单行道 ritual）；验收 = 文档与生产一致
 - [x] 6.4 台账扩为谱系账本完成：历史补丁表（状态全更新）+ fd 发布记录 + SECURITY-LANE 登记簿（基线条目在册）+ 标准 TCR 线配方 / 本地构建废弃警示
 - [x] 6.5 上游 PR 提交：**agentic-community#1847**（draft；分支 scs001:feat/patch-keys 基于 upstream/main 14f8589a，cherry-pick 80babe54+ef16fbeb 并剥离 preflight；patch-key 三件套 38 测试本地绿）

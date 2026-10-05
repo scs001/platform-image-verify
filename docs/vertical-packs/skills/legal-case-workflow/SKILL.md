@@ -33,7 +33,7 @@ description: 民商事案件全流程分析工作流（法律-案件包入口技
 
 **类案检索（已上线，走识律法律检索服务）**：若已连接法律检索工具（服务器名 `fd-legal-search-mcp`），**用精确完整工具名调用**（服务器未连接时先用 `tool_search` 查询确认；仍无则按下段降级）：
 
-1. 对每个法律争点，调 `mcp__fd-legal-search-mcp__case_search`（参数 `title_query` 案由/当事人/关键词，可加 `doc_type`、`province`、`start_year`、`end_year` 过滤，`limit` 默认 50）检索裁判文书标题库（千万篇级，案号内嵌于标题，直接搜案号亦可）。命中结果逐条携带 provenance（来源库/稳定 doc_id/口径时间）。
+1. 对每个法律争点，调 `mcp__fd-legal-search-mcp__wenshu_search`（参数 `title_query` 案由/当事人/关键词，可加 `doc_type`、`province`、`start_year`、`end_year` 过滤，`limit` 默认 50）检索裁判文书标题库（千万篇级，案号内嵌于标题，直接搜案号亦可）。命中结果逐条携带 provenance（来源库/稳定 doc_id/口径时间）。
 2. 对要深读的命中项，调 `mcp__fd-legal-search-mcp__wenshu_read`（参数取 `doc_id`）读取裁判文书全文；正文缺失时工具会如实标注，不得编造。
 3. 引用格式：案号 + 法院 + 裁判要旨。**案号与裁判结果必须来自检索返回，禁止编造；检索为标题匹配，语义相近但标题不含关键词的类案可能漏检，重要场景应多换几组关键词。**
 

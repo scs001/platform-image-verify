@@ -31,7 +31,7 @@
 
 ## 5. 验收与发布
 
-- [x] 5.1 三条 zh e2e 冒烟：首屏、登录页、连接弹层（Playwright 固定 zh）——**登录页一条已对生产实跑绿**（真 Chromium：中文渲染 + 切换器点击 + 刷新持久化；`PLAYWRIGHT_BASE_URL` 指向部署）；首屏/连接弹层两条依赖本地 compose 栈（登录态），留待起栈补跑
+- [x] 5.1 三条 zh e2e 冒烟：首屏、登录页、连接弹层（Playwright 固定 zh）——**登录页一条已对生产实跑绿**（真 Chromium：中文渲染 + 切换器点击 + 刷新持久化；`PLAYWRIGHT_BASE_URL` 指向部署）；首屏/连接弹层两条依赖本地 compose 栈（登录态），留待起栈补跑。**追记（同日）**：i18n spec 已改自足式——页面路由层 fulfil 全部 console API（鉴权 shim + 确定性 fixtures，浏览器层拦截不触达部署），**三条已对生产全绿（19.6s，registry 仓 `0cecdef0`）**，无需栈、无需凭据：`PLAYWRIGHT_BASE_URL=<部署> npx playwright test e2e/i18n.spec.ts`；fixture 修为后端行格式（display_name/is_enabled/health_status）
 - [x] 5.2 新增 `frontend-test` workflow（`npm ci → lint → build → jest → i18n:scan`，报告存 artifact，触发 `main, develop, fd-*`）；在 `fd/i18n-ui` 分支推送后该 workflow 绿
 - [x] 5.3 更新仓内约定：`AGENTS.md` 前端改动命令并列 `i18n:scan`；`npm run lint && npm run build && npm run i18n:scan` 本地一次通过
 - [x] 5.4 Logto 零代码验证：在 Logto 管理台确认/开启简体中文，清会话后人工走一遍登录（浏览器语言 zh），记录托管页是否跟随；不跟随则触发 5.5

@@ -282,6 +282,7 @@ test.describe("AUTH_MODE=forward_auth", () => {
       email: "admin@corp.com",
       groups: ["admin"],
       authenticated: true,
+      adminGroups: ["admin"],
       loginUrl: "/oauth2/start",
       logoutUrl: "/oauth2/sign_out",
       ssoConfigured: false,

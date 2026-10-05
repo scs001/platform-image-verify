@@ -132,6 +132,12 @@ export function createCellRegistry(config) {
         AUTH_MODE: "forward_auth",
         CLOUD_MODE: "1",
         CELL_GATEWAY_SECRET: secret,
+        // Cells live behind the gateway, which owns the auth entry/exit routes
+        // (sole Logto client; no /oauth2/* edge exists in this topology). Cells
+        // must advertise these in /api/auth/me so the UI never targets a dead
+        // route — revisit if an oauth2-proxy edge ever returns.
+        AUTH_LOGIN_PATH: "/auth/login",
+        AUTH_LOGOUT_PATH: "/api/auth/logout",
         // The cell's user, so bindings saved earlier apply at boot rather than
         // waiting for the first request (a cell has exactly one user).
         CELL_USER_EMAIL: user.email,

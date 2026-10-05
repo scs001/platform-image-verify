@@ -44,5 +44,5 @@
 - [ ] 6.1 finddata 根：wire-platform-v1 3.2（Logto org 最小 scope，借 1.32 读面过滤）+ 4.4（硬停联调）勾选并归档；验收 = 该 change archived
 - [ ] 6.2 ADR-0017 落盘（独立谱系，supersede ADR-0015 补丁模式条款）；验收 = `docs/adr/0017-*.md` 在仓
 - [ ] 6.3 改写 `docs/registry-maintenance.md`（谱系=fd 线、§5 债清偿、换版 recipe、安全单行道 ritual）；验收 = 文档与生产一致
-- [ ] 6.4 `docs/registry-fork-patches/` 台账扩为谱系账本（含 SECURITY-LANE 登记格式）；验收 = README 更新
-- [ ] 6.5 patch ① 上游 PR 分支准备并提交（独立分支，不含 sub2api 预检）；验收 = PR 链接登记入台账
+- [x] 6.4 台账扩为谱系账本完成：历史补丁表（状态全更新）+ fd 发布记录 + SECURITY-LANE 登记簿（基线条目在册）+ 标准 TCR 线配方 / 本地构建废弃警示
+- [x] 6.5 上游 PR 提交：**agentic-community#1847**（draft；分支 scs001:feat/patch-keys 基于 upstream/main 14f8589a，cherry-pick 80babe54+ef16fbeb 并剥离 preflight；patch-key 三件套 38 测试本地绿）

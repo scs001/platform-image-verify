@@ -22,7 +22,7 @@
 | mcp-mongodb / mcp-openbao | — | 官方镜像 | 审计流（`audit_events`，逐工具调用记录）/ 密钥 |
 
 - **流量链**：公网 443（雷池 WAF safeline-tengine）→ 宿主 Caddy（:8080 每域一块）→ 各后端；mcp 域经 auth-server 的 mcp-proxy hop 进各 MCP server
-- **注册的 server（6）**：fd-open-data-mcp(62 工具)/fd-daas-mcp(161)/**fd-find-data-business-mcp(24)**/fd-cn-report(44)/law-bench(52)/AI Registry tools
+- **注册的 server（8，2026-10-06 网关 Mongo 实测；全量台账见 finddata 工作区 `MCP-REGISTRY.md`）**：fd-open-data-mcp(71)/fd-daas-mcp(161)/**fd-find-data-business-mcp(24)**（实数；网关快照 9 为 2026-09-19 注册时旧工具面，滞后待刷新）/fd-cn-report(44)/law-bench(52)/fd-legal-search-mcp(10)/fd-health-config(0)/AI Registry tools(7)
 
 ## 2. 消费方（谁离不开它）
 
@@ -88,3 +88,14 @@ upstream  1.29.0 ──── 1.30.0 ──── 1.31.0 ──── 1.32.0 ─
 - patch 台账（`paas/docs/registry-fork-patches/`）+ 本文档随 paas 仓走；fork 源码在 gitee 独立仓（软件不重写，继续 OSS+fork 补丁模式）
 - 萬星：不改其「运行面从 registry 取活」关系；萬星门面对 registry 的依赖不变
 - 柏讯：只经 env 可重指的 HTTP 契约消费（`REGISTRY_URL` 等），registry 的任何变更对 wire 是外部依赖版本变化
+
+## 8. 上牌契约（2026-10-06 起）
+
+MCP server 接入系统供给层的统一上牌契约，出自 openspec change **`facet-mcp-foundation-v1`**（spec：finddata 工作区 `openspec/changes/facet-mcp-foundation-v1/specs/mcp-surface-contract/spec.md`）。目标是对抗 server 增殖带来的 N×M 集成债——任何新 server 按同一套动作上牌后，即可被 pack 引用、被 agent 驱动、按宿主形态实例化，无需逐宿主定制接线。四个支点：
+
+- **tool-surface manifest（server 仓自持）**：每个对外服务的 MCP server 仓内维护一份 manifest，声明：工具组级（可细化到工具级）暴露级别 `commercial`（可进商业供给面）/ `internal`（仅内部/本地）、可进 pack 的技能清单、支持的宿主形态（共享实例 / 按部署实例）；随代码变更同步维护。首实例 = DAAS 仓（9 组 161 工具分级 + 13 产品技能 + 宿主形态声明，change task 2.1）。
+- **selfcheck 双向断言**：① manifest ↔ 工具注册表一致——注册表新增/删除工具而 manifest 未同步即失败并列出差异工具；② 商业集闭合——任何消费侧暴露的工具集 ⊆ manifest 的 commercial 集，消费侧（如 business-mcp 的 daas 域）CI 反向引用对应 server 的 manifest 做同样校验。
+- **台账对账**：finddata 工作区根仓 `MCP-REGISTRY.md` 为网关在册 server 的唯一台账（照 PORTS.md 范式，含入口 path/上游/实际工具数/surface 状态/宿主形态），与本节 registry Mongo `mcp_registry.mcp_servers_default` 对账；**文档数 ≠ 实数即为缺陷**。首例已判（2026-10-06）：business-mcp「文档 24 / 网关快照 9」——运行时实测实数 24，9 是注册快照滞后，修网关条目（task 4.4）而非改文档。
+- **v1 只登记不强制**：registry 不因 manifest 做强制校验或代码改动——注册条目不要求携带 manifest 引用，鉴权、审计（MCPServerAccessRecord）、scope→group 映射、patch-key/preflight 行为保持现状。未上牌 server 可照常注册入网关，台账标「未上牌」，但不得进入商业供给面 / pack 分发；manifest 强制校验留待 v1.x 评估。
+
+现状（2026-10-06）：8 个在册 server 全部「未上牌」；DAAS 走 change 后首个上牌实例。

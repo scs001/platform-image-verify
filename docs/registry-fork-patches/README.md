@@ -11,7 +11,7 @@
 |---|---|---|
 | `2026-10-03-logto-enriched-groups-scope-remap.patch` | auth-server `/validate`：DB 富化 groups 的 scope 重映射（上游 #1127 只修 PingFederate；我们泛化到 logto）。没有它，平台 `paas-agent-callers` 组拿不到 `invoke_agent` → A2A 403 | **LIVE**（fd-1.0.0 内，sha-7fbc2d6）；曾以 `mcp-auth-server:logto` 单独部署（回滚锚已随 fd 切换退役） |
 | `2026-10-04-per-user-longlived-keys.patch` | patch ①：控制台自助铸/列/吊销不设过期的 `wgk-` key（SHA-256 入 `patch_keys`，明文仅铸时一次；scope 随用户组映射现算）。`PATCH_KEY_AUTH_ENABLED`（默认开）+ `PATCH_KEY_MAX_ACTIVE_PER_USER`（默认 20） | **LIVE + e2e 实测**（2026-10-05：铸 201/明文仅一次 → 无 cookie Bearer 200+7 servers → 列表无明文 → 吊销 → 立即 401；惰性回归过） |
-| `2026-10-04-preflight-quota-probe.patch` | patch ②：mcp-proxy 转发前 sub2api 额度预检（充足放行 / 不足 402 / 计费面断连 strict 503 或 postpaid 放行；`SUB2API_CALLER_MAP` 未映射者整体跳过）。`PREFLIGHT_ENABLED` 默认 **false** | **随 fd-1.0.0 发布、灰度未开**（5.2/5.3：待 CALLER_MAP 口径 + postpaid→strict 节奏） |
+| `2026-10-04-preflight-quota-probe.patch` | patch ②：mcp-proxy 转发前 sub2api 额度预检（充足放行 / 不足 402 / 计费面断连 strict 503 或 postpaid 放行；`SUB2API_CALLER_MAP` 未映射者整体跳过）。`PREFLIGHT_ENABLED` 默认 **false** | **LIVE（2026-10-05）：strict + 空 MAP**（未映射跳过；活链三态实证——充足放行/不足 402 上游零触达/断连 503 fail-closed；客户映射随 5.4 接入） |
 
 ## 二、fd 发布记录
 

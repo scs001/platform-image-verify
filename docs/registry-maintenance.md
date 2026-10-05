@@ -66,7 +66,7 @@ upstream  1.29.0 ──── 1.30.0 ──── 1.31.0 ──── 1.32.0 ─
 
 原债（registry-1 不带我们的代码 → 铸造面不可达 → wire 3.2/4.4 被堵）**已清**：fd-1.0.0 经标准 TCR 线三容器上线，铸造 API 随 registry-1 部署可达（默认开启；无 key 时行为与旧版逐字节一致，已探针验证）。换版验收实录：auth 探针 200/401/401 全过；registry 首启健康、`/api/version=fd-1.0.0`、**市场快照 diff 零丢失**（7 servers/152 skills/5 agents 前后一致）。
 
-剩余（组 5/6）：`SUB2API_CALLER_MAP` + `PREFLIGHT_ENABLED` 灰度（5.2/5.3）、客户 wgk- key 真回合（5.4）、跨根勾 wire-platform-v1 3.2/4.4 归档（6.1）。
+灰度已开（2026-10-05）：`PREFLIGHT_ENABLED=true` + **`PREFLIGHT_MODE=strict`** + 空 MAP（未映射者跳过=生产零影响，待 5.4 客户映射）。活链三态实证：充足放行／不足 402（上游零触达）／计费断连 503 fail-closed。剩余：客户 wgk- key 真回合（5.4）、跨根勾 wire-platform-v1 3.2/4.4 归档（6.1）。
 
 ## 6. 运维速查
 
@@ -78,6 +78,7 @@ upstream  1.29.0 ──── 1.30.0 ──── 1.31.0 ──── 1.32.0 ─
 - **鉴权矩阵**：`/api/servers` 吃 Bearer JWT；`/api/tools/*`、`POST /api/servers/register|remove`、`PATCH /api/servers/{path}` 要控制台会话 cookie + `X-CSRF-Token`（`GET /api/auth/csrf-token` 取）；**PATCH /api/servers/{path} 是 JSON Merge Patch，改描述等单字段的安全通道**
 - **审计**：`mcp-mongodb` 的 `audit_events`（MCPServerAccessRecord：identity/server/tool/response/IP）——柏讯计量的数据源
 - **已知问题（2026-10-05）**：公网 `/fd-open-data-mcp` 条目路由坏（405 + upstream `chengsi.mesh...:30899` mesh 502 + unhealthy）——开放 open-data 入口自身故障，待修；chengsi 权威 pod 会话撞顶已 restart（复发需查 reaping 与网关健康探测漏会话）
+- **预检（preflight）事实（2026-10-05）**：`SUB2API_BASE=http://103.236.89.212:32080`（sub2api 落在本机 NodePort，容器内可达）；admin key 取自 k8s `wanxing-fleet.sub2api_admin_key`；**MAP 键 = 控制台登录名**（/validate 响应头 `x-user` 的口径，非 Logto sub）；审计 `/tmp/preflight_quota.jsonl`（容器内，STDOUT 镜像在 docker logs）；重启容器后首次探测偶发 401，复打即愈
 - **Jenkins 旁路**：cheap-3 Jenkins 若构建相关镜像 401，查 `/var/jenkins_home/.docker/config.json`（uid 1000、无 passwd 条目；hkccr+Harbor 双 auth 需以 root config 拷入）
 
 ## 7. 维护归属（为什么在 paas）

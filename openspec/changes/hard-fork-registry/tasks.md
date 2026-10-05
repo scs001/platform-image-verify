@@ -35,8 +35,8 @@
 ## 5. 开面与灰度
 
 - [x] 5.1 铸造面 e2e 完成（2026-10-05，ego-browser 登录 aloadtree 会话实测）：铸 201（`wgk-` 47 字符、明文仅响应一次）→ 无 cookie Bearer 实测 **200 + 7 servers**（真实鉴权链）→ 列表无明文字段（key_id/prefix/…）→ 吊销 200 → **吊销后立即 401**；惰性回归=JWT/快照行为不变（4.2/4.3 探针同证）。注：浏览器内「吊销后 200」为同页有效会话 cookie 的独立凭证，非绕过（无 cookie curl 已二分排除）；测试 key 三把全部吊销，终态 active=0
-- [ ] 5.2 配 `SUB2API_CALLER_MAP`，`PREFLIGHT_MODE=postpaid` 下开 `PREFLIGHT_ENABLED` 观察审计流；验收 = 放行路径零感知、审计 JSONL 有记录
-- [ ] 5.3 切 `PREFLIGHT_MODE=strict`；验收 = 三态探针（充足放行 / 不足 402 上游未被调 / 计费面断连 503 fail-closed）
+- [x] 5.2 预检灰度开启（2026-10-05）：`PREFLIGHT_ENABLED=true` + `SUB2API_BASE=http://103.236.89.212:32080`（宿主 NodePort，容器内实证可达）+ admin key（wanxing-fleet secret）+ `SUB2API_CALLER_MAP`；postpaid 观察窗先行使毕
+- [x] 5.3 切 `PREFLIGHT_MODE=strict` + 空表终态；活链三态实测：充足（user:50）静默放行→直通上游｜不足（user:44）**402 INSUFFICIENT_BALANCE + 上游零触达 + 审计**｜计费面断连 **503 BILLING_UNAVAILABLE（strict fail-closed）+ postpaid 降级放行**；审计落 `/tmp/preflight_quota.jsonl`（STDOUT 镜像亦在）。坑在册：MAP 键=控制台登录名（/validate `x-user`），非 Logto sub；重启后首打可能 401（复打即愈）
 - [ ] 5.4 客户侧真回合：外部身份持 wgk- key 经 wire 门面调 business-mcp 全链通；验收 = audit_events 落行、sub2api 记账实锤
 
 ## 6. 跨根收口与文书

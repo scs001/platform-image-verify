@@ -353,6 +353,10 @@ app.get("/api/share/:token", async (req, res) => {
 // verified identity rides along under the internal credential. Unset = the
 // local mount (pre-facet posture; the rollback path — flip the env back).
 const facetBase = (process.env.FACET_BASE_URL || "").replace(/\/+$/, "");
+// Module scope: the shutdown handler closes it in pack mode; facet-proxy mode
+// leaves it null (guarded call there). A block-scoped const here is what made
+// SIGTERM throw ReferenceError in pack mode and skip cell shutdown entirely.
+let packRegistry = null;
 if (facetBase) {
   registerFacetProxy(app, {
     base: facetBase,
@@ -368,7 +372,7 @@ if (facetBase) {
   // ADMIN_GROUPS); browsing and subscribing need only a verified identity.
   // PACK_PUBLISH_RATE_MAX is a test/ops knob; the shipped default is 10
   // publishes per author per hour.
-  const packRegistry = createPackRegistry({ file: path.join(DATA_ROOT, "packs.db") });
+  packRegistry = createPackRegistry({ file: path.join(DATA_ROOT, "packs.db") });
   registerPackRoutes(app, {
     registry: packRegistry,
     resolveUser,
@@ -528,13 +532,15 @@ server.listen(PORT, HOST, () => {
 });
 
 // No cell outlives the gateway: a redeploy would otherwise leak one process
-// per user on the host.
+// per user on the host. Auxiliary closes are failure-isolated on purpose: a
+// throw anywhere in this chain skips everything after it (the pack-mode
+// ReferenceError did exactly that — cells then died with the pod instead of
+// gracefully), and cell shutdown must not depend on any of them.
 for (const signal of ["SIGINT", "SIGTERM"]) {
   process.on(signal, async () => {
     console.log(`[gateway] ${signal} — stopping ${registry.cells.size} cell(s)`);
-    shareRegistry.close();
-  const facetBase = (process.env.FACET_BASE_URL || "").replace(/\/+$/, "");
-  if (!facetBase && packRegistry) packRegistry.close();
+    try { shareRegistry.close(); } catch (e) { console.error(`[gateway] share registry close failed: ${e.message}`); }
+    try { if (packRegistry) packRegistry.close(); } catch (e) { console.error(`[gateway] pack registry close failed: ${e.message}`); }
     await registry.shutdown();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 3000).unref();

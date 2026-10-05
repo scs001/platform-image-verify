@@ -117,6 +117,7 @@ async function startGateway(oidcPort, dataRoot, extraEnv = {}) {
     port,
     base,
     logs,
+    proc,
     async call(route, { method = "GET", cookie, headers = {}, body } = {}) {
       const res = await fetch(base + route, {
         method,
@@ -312,6 +313,32 @@ test("gateway: idle reaping is off by default", async () => {
     assert.ok(cell && cell.state === "running", "with reaping disabled a cell must stay resident");
   } finally {
     await gw?.stop();
+    await rm(root, { recursive: true, force: true }).catch(() => {});
+    await oidc.close();
+  }
+});
+
+// fix-gateway-sigterm-graceful-shutdown: the facet-cutover handler referenced a
+// block-scoped packRegistry, so SIGTERM in pack mode (the harness default — no
+// FACET_BASE_URL) threw ReferenceError as an unhandled rejection and the
+// process died before registry.shutdown(). Cells must outlive nothing, but the
+// gateway must not die by accident either: exit 0, stop log, no crash text.
+test("gateway: SIGTERM shuts down gracefully in pack mode", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "gateway-sigterm-"));
+  const oidc = await startStubOidc();
+  let gw;
+  try {
+    gw = await startGateway(oidc.port, path.join(root, "cells"));
+    const exited = new Promise((resolve) => gw.proc.once("exit", (code) => resolve(code)));
+    gw.proc.kill("SIGTERM");
+    const code = await Promise.race([exited, sleep(10_000).then(() => "timeout")]);
+    assert.equal(code, 0, "gateway must exit 0 on SIGTERM, not crash on the shutdown path");
+    await sleep(150); // let the last stdout chunks land in logs
+    const allLogs = gw.logs.join("");
+    assert.match(allLogs, /SIGTERM — stopping \d+ cell\(s\)/, "the graceful stop must be logged");
+    assert.doesNotMatch(allLogs, /ReferenceError|UnhandledPromiseRejection/, "no crash may appear on the shutdown path");
+  } finally {
+    await gw?.stop().catch(() => {});
     await rm(root, { recursive: true, force: true }).catch(() => {});
     await oidc.close();
   }

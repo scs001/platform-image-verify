@@ -1067,3 +1067,43 @@ test("config internal door: service credential + console-verified actor; same en
     await h.close();
   }
 });
+
+test("config write falls back to register when the registry PUT rejects the merged entry", async () => {
+  // Live finding 2026-10-07: the registry's PUT validates a narrower payload
+  // than its GET returns (422 model_attributes_type on GET-expanded proxy
+  // fields). The write ladder is PUT → register (setAgentPaused's recipe) —
+  // locked here by a stub that 422s any PUT carrying the merged overrides.
+  const sub2api = stubSub2api();
+  const base = stubRegistry();
+  const calls = [];
+  const stubFetch = async (url, init = {}) => {
+    const p = String(url);
+    if (/^\/api\/agents\/packs\//.test(p) && init.method === "PUT") {
+      const body = JSON.parse(init.body ?? "{}");
+      if (body.metadata?.config_overrides) {
+        calls.push("PUT-422");
+        return { ok: false, status: 422, json: async () => ({ detail: [{ type: "model_attributes_type" }] }) };
+      }
+    }
+    return base.fetch(url, init);
+  };
+  const cfg = {
+    registryUrl: "https://mcp.example.test", token: "t",
+    runnerBaseUrl: "http://runner:8790", packsPublicBase: "https://packs.example.test",
+    fetchImpl: stubFetch,
+    sub2api: { adminKey: sub2api.adminKey, fetchImpl: sub2api.fetchImpl },
+  };
+  const h = await routeHarness({ user: { email: "author@x", groups: [] }, deployConfig: cfg, manifest: MODEL_MANIFEST });
+  try {
+    const dep = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, { billingKeys: { "pack-fingpt": sub2api.key } });
+    assert.equal(dep.status, 200);
+    const put = await h.call("PUT", `/api/packs/${h.packId}/deployments/pack-fingpt/config`, { budgetMinutes: 7 });
+    assert.equal(put.status, 200);
+    assert.ok(calls.includes("PUT-422"), "the PUT was attempted and rejected");
+    const stored = base.calls.agents.at(-1).body;
+    assert.equal(stored.metadata.effective_budget_minutes, 7, "the register fallback stored the merged entry");
+    assert.deepEqual(stored.metadata.config_overrides, { budgetMinutes: 7 });
+  } finally {
+    await h.close();
+  }
+});

@@ -1457,8 +1457,16 @@ export function registerPackRoutes(app, {
       else delete entry.metadata.effective_model;
       const put = await doFetch(`/api/agents${row.agentPath}`, { method: "PUT", body: JSON.stringify(entry) });
       if (!put.ok) {
-        const detail = await put.json().catch(() => ({}));
-        throw Object.assign(new Error(`registry PUT ${row.agentPath} failed (${put.status}): ${JSON.stringify(detail).slice(0, 200)}`), { status: 502 });
+        // The register route is the create-side twin of the upsert: the
+        // registry's PUT validates a narrower payload shape than its own GET
+        // returns (live finding 2026-10-07, 422 model_attributes_type — the
+        // GET-expanded entry carries proxy fields PUT rejects), so a failed
+        // PUT falls back to register — the exact ladder setAgentPaused rides.
+        const reg = await doFetch("/api/agents/register", { method: "POST", body: JSON.stringify(entry) });
+        if (!reg.ok) {
+          const detail = await reg.json().catch(() => ({}));
+          throw Object.assign(new Error(`registry write failed (${put.status}/${reg.status}): ${JSON.stringify(detail).slice(0, 200)}`), { status: 502 });
+        }
       }
       console.log(`[packs] service config updated: ${row.agentPath} (${Object.keys(body).join(", ") || "no-op"}) by ${actor.email}`);
       res.json({ ok: true, config: overrides, effectiveWithinSecs: 300 });

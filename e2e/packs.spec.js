@@ -10,9 +10,21 @@
 // The gateway's own HTTP contract is covered for real by
 // scripts/test-pack-marketplace.mjs against the booted gateway. Everything on
 // the cell plane (/api/mypacks, /api/pack-drafts, /api/extensions/*) is real.
+//
+// Since pack-install-server-side-manifest the install fetch is SERVER-side:
+// the browser mock covers browse/detail/subscribe, while the manifest the
+// cell retrieves comes from the facet stand-in (e2e/facet-stub.js, reached
+// over FACET_BASE_URL). seedPackBoth seeds the two planes in one call so the
+// pack a user sees is the pack the server can retrieve.
 
 import { expect, test } from "@playwright/test";
-import { openSettings } from "./helpers.js";
+import {
+  facetSeen,
+  lastFacetViewer,
+  openSettings,
+  resetFacetStub,
+  seedFacetPack,
+} from "./helpers.js";
 
 // The stateful gateway stand-in. Route handlers below read/write this.
 function makeGatewayState() {
@@ -111,6 +123,8 @@ function packManifest({ name, skillName, agentId, mcpName = "law-bench" }) {
 test.beforeEach(async ({ page }) => {
   // Chinese-first product: pin the locale so copy assertions are stable.
   await page.addInitScript(() => localStorage.setItem("platform.locale", "zh-CN"));
+  // The facet stand-in is shared state across specs: start every test clean.
+  await resetFacetStub();
 });
 
 // Install the gateway mock and return its state, so a test can seed the
@@ -130,6 +144,15 @@ function seedPack(state, manifest, id = "pack-e2e-1") {
     version: 1,
     manifest,
   });
+}
+
+// Seed BOTH market planes for one pack: the browser mock (browse/detail/
+// subscribe) and the facet stub (the server-side manifest fetch). Everything
+// a UI install needs.
+async function seedPackBoth(gw, manifest, id = "pack-e2e-1", facet = {}) {
+  seedPack(gw.state, manifest, id);
+  const version = gw.state.packs.find((p) => p.id === id).version;
+  await seedFacetPack(id, version, manifest, facet);
 }
 
 async function gotoPacksTab(page, tab) {
@@ -245,8 +268,8 @@ test("per-role resource declarations round-trip through save/reload; cost readou
 
 test("subscriber inspects, subscribes, and the pack materializes", async ({ page }) => {
   const gw = seedableGateway(page);
-  seedPack(
-    gw.state,
+  await seedPackBoth(
+    gw,
     packManifest({ name: "订阅包", skillName: "sub-skill", agentId: "pack-sub-reviewer" }),
     "pack-sub",
   );
@@ -292,8 +315,8 @@ test("name collision with a user skill is skipped and reported, not overwritten"
     data: { name: "clash-skill", description: "user's own", content: "user content" },
   });
   const gw = seedableGateway(page);
-  seedPack(
-    gw.state,
+  await seedPackBoth(
+    gw,
     packManifest({ name: "冲突包", skillName: "clash-skill", agentId: "pack-clash-reviewer" }),
     "pack-clash",
   );
@@ -317,19 +340,17 @@ test("name collision with a user skill is skipped and reported, not overwritten"
 
 test("update badge appears and upgrade is explicit", async ({ page }) => {
   const gw = seedableGateway(page);
-  seedPack(
-    gw.state,
-    packManifest({ name: "升级包", skillName: "upgrade-skill", agentId: "pack-upgrade-reviewer" }),
-    "pack-upgrade",
-  );
+  const manifest = packManifest({ name: "升级包", skillName: "upgrade-skill", agentId: "pack-upgrade-reviewer" });
+  await seedPackBoth(gw, manifest, "pack-upgrade");
   gw.install();
   await gotoPacksTab(page, "market");
   await page.getByTestId("pack-card-pack-upgrade").click();
   await page.getByTestId("pack-detail").getByTestId("pack-subscribe").click();
   await page.getByTestId("pack-install-report").getByRole("button").last().click();
 
-  // The author publishes v2 with a changed skill.
+  // The author publishes v2 with a changed skill — both planes.
   gw.state.packs[0].version = 2;
+  await seedFacetPack("pack-upgrade", 2, manifest);
 
   await gotoPacksTab(page, "mine");
   await expect(page.getByTestId("pack-update-badge-pack-upgrade")).toContainText("v2");
@@ -342,8 +363,8 @@ test("update badge appears and upgrade is explicit", async ({ page }) => {
 
 test("uninstall warns on modified skills and keeps MCP configs", async ({ page }) => {
   const gw = seedableGateway(page);
-  seedPack(
-    gw.state,
+  await seedPackBoth(
+    gw,
     packManifest({ name: "退订包", skillName: "uninstall-skill", agentId: "pack-uninstall-reviewer" }),
     "pack-uninstall",
   );
@@ -381,8 +402,8 @@ test("registry MCP reference installs under the subscriber's own credential", as
   expect(connect.ok()).toBeTruthy();
 
   const gw = seedableGateway(page);
-  seedPack(
-    gw.state,
+  await seedPackBoth(
+    gw,
     packManifest({ name: "凭据包", skillName: "cred-skill", agentId: "pack-cred-reviewer", mcpName: "e2e-registry-mcp" }),
     "pack-cred",
   );
@@ -436,4 +457,166 @@ test("pack surfaces disappear when the deployment is not gateway-fronted", async
   await page.goto("/settings/packs");
   await expect(page.getByTestId("packs-page")).not.toBeVisible();
   await expect(page.getByTestId("settings-section-packs")).toHaveCount(0);
+});
+
+// ── Server-side manifest fetch (pack-install-server-side-manifest) ──────────
+//
+// The install POST carries {packId, version} and the CELL retrieves the
+// manifest over the facet channel (e2e/facet-stub.js). These tests pin the
+// four acceptance properties: short-form install, caller-scoped private
+// visibility, retrieval failure installing nothing, and dual-form
+// equivalence with the rolling compatibility body.
+
+test("UI install posts only {packId, version}; the server fetches the manifest", async ({ page }) => {
+  const gw = seedableGateway(page);
+  await seedPackBoth(
+    gw,
+    packManifest({ name: "服务端取包", skillName: "serverfetch-skill", agentId: "pack-serverfetch-reviewer" }),
+    "pack-sf",
+  );
+  gw.install();
+
+  // Capture what the browser actually POSTs to the cell.
+  const installBodies = [];
+  page.on("request", (req) => {
+    if (req.url().includes("/api/mypacks/install")) installBodies.push(req.postDataJSON());
+  });
+
+  await gotoPacksTab(page, "market");
+  await page.getByTestId("pack-card-pack-sf").click();
+  await page.getByTestId("pack-detail").getByTestId("pack-subscribe").click();
+  await expect(page.getByTestId("pack-install-report")).toContainText("serverfetch-skill");
+  await page.getByTestId("pack-install-report").getByRole("button").last().click();
+
+  // The browser carried the reference only — no manifest body (the edge WAF
+  // resets manifest-sized bodies containing code/SQL).
+  expect(installBodies).toHaveLength(1);
+  expect(Object.keys(installBodies[0]).sort()).toEqual(["packId", "version"]);
+  expect(installBodies[0]).toEqual({ packId: "pack-sf", version: 1 });
+
+  // The server fetched that version under the caller's identity.
+  expect(await lastFacetViewer("pack-sf", 1)).toEqual({ email: "owner@local", groups: [] });
+
+  // Materialized exactly like the previous flow.
+  const skills = await getSkills(page);
+  expect(skills.find((s) => s.name === "serverfetch-skill")?.source).toBe("database");
+  await gotoPacksTab(page, "mine");
+  await expect(page.getByTestId("my-pack-pack-sf")).toContainText("v1");
+});
+
+test("private pack visibility follows the caller; a stranger gets the market's not-found", async ({ page }) => {
+  const gw = seedableGateway(page);
+  // Owned by this deployment's own identity (auth off ⇒ the machine owner).
+  const mine = packManifest({ name: "我的私有包", skillName: "private-mine", agentId: "pack-priv-mine-reviewer" });
+  seedPack(gw.state, mine, "pack-priv-mine");
+  await seedFacetPack("pack-priv-mine", 1, mine, { visibility: "private", authorEmail: "owner@local" });
+  // Someone else's private pack: the market never shows it to this caller.
+  const foreign = packManifest({ name: "他人私有包", skillName: "private-foreign", agentId: "pack-priv-foreign-reviewer" });
+  seedPack(gw.state, foreign, "pack-priv-foreign");
+  await seedFacetPack("pack-priv-foreign", 1, foreign, { visibility: "private", authorEmail: "someone-else@x" });
+  gw.install();
+
+  await gotoPacksTab(page, "market");
+
+  // Owner: the retrieval succeeds and the pack materializes.
+  await page.getByTestId("pack-card-pack-priv-mine").click();
+  await page.getByTestId("pack-detail").getByTestId("pack-subscribe").click();
+  await expect(page.getByTestId("pack-install-report")).toContainText("private-mine");
+  await page.getByTestId("pack-install-report").getByRole("button").last().click();
+  await gotoPacksTab(page, "mine");
+  await expect(page.getByTestId("my-pack-pack-priv-mine")).toBeVisible();
+
+  // Stranger (same cell identity, a pack they do not own): the market's
+  // not-found — and nothing written. page.request carries no manifest and no
+  // special identity, exactly like the browser's fetch.
+  const denied = await page.request.post("/api/mypacks/install", {
+    data: { packId: "pack-priv-foreign", version: 1 },
+  });
+  expect(denied.status()).toBe(404);
+  expect((await denied.json()).error).toMatch(/not found/i);
+
+  const skills = await getSkills(page);
+  expect(skills.find((s) => s.name === "private-mine")).toBeTruthy();
+  expect(skills.find((s) => s.name === "private-foreign")).toBeUndefined();
+  const minePacks = await page.request.get("/api/mypacks").then((r) => r.json());
+  expect(minePacks.packs.find((p) => p.packId === "pack-priv-foreign")).toBeUndefined();
+});
+
+test("a failed manifest retrieval reports the error and writes nothing", async ({ page }) => {
+  const gw = seedableGateway(page);
+  const manifest = packManifest({ name: "取包失败", skillName: "fetchfail-skill", agentId: "pack-fetchfail-reviewer" });
+  seedPack(gw.state, manifest, "pack-fetchfail"); // the mock market lists it…
+  await seedFacetPack("pack-fetchfail", 1, manifest, { mode: "500" }); // …but the fetch fails
+
+  const boom = await page.request.post("/api/mypacks/install", { data: { packId: "pack-fetchfail", version: 1 } });
+  expect(boom.status()).toBe(502);
+  expect((await boom.json()).error).toMatch(/pack marketplace/i);
+
+  // A version the market does not have answers the market's not-found.
+  const missing = await page.request.post("/api/mypacks/install", { data: { packId: "pack-ghost", version: 3 } });
+  expect(missing.status()).toBe(404);
+  expect((await missing.json()).error).toMatch(/not found/i);
+
+  // A 200 without a usable manifest is a retrieval failure too.
+  await seedFacetPack("pack-emptyish", 1, manifest, { mode: "no-manifest" });
+  const empty = await page.request.post("/api/mypacks/install", { data: { packId: "pack-emptyish", version: 1 } });
+  expect(empty.status()).toBe(502);
+
+  // Zero writes across all three.
+  expect((await getSkills(page)).find((s) => s.name === "fetchfail-skill")).toBeUndefined();
+  const installed = await page.request.get("/api/mypacks").then((r) => r.json());
+  for (const id of ["pack-fetchfail", "pack-ghost", "pack-emptyish"]) {
+    expect(installed.packs.find((p) => p.packId === id)).toBeUndefined();
+  }
+});
+
+test("body-form installs ride the identical pipeline (rolling compatibility)", async ({ page }) => {
+  // Fetched form: the same manifest content served by the facet stub.
+  const manifestA = {
+    name: "等价包-取回",
+    description: "同一管线的两种形态",
+    tags: ["兼容"],
+    skills: [{ name: "dual-fetch-skill", description: "取回形态", content: "# fetched\nSELECT 1;" }],
+    mcpServers: [],
+    agents: [],
+  };
+  await seedFacetPack("pack-dual-fetch", 1, manifestA);
+
+  const fetched = await page.request.post("/api/mypacks/install", { data: { packId: "pack-dual-fetch", version: 1 } });
+  expect(fetched.ok()).toBeTruthy();
+  expect((await fetched.json()).report.skills.map((s) => [s.name, s.status])).toEqual([
+    ["dual-fetch-skill", "installed"],
+  ]);
+
+  // Body form: an equivalent manifest supplied inline, no facet traffic.
+  const manifestB = {
+    ...manifestA,
+    name: "等价包-携带",
+    skills: [{ name: "dual-body-skill", description: "携带形态", content: "# body\nSELECT 2;" }],
+  };
+  const viaBody = await page.request.post("/api/mypacks/install", {
+    data: { packId: "pack-dual-body", version: 1, manifest: manifestB },
+  });
+  expect(viaBody.ok()).toBeTruthy();
+  expect((await viaBody.json()).report.skills.map((s) => [s.name, s.status])).toEqual([
+    ["dual-body-skill", "installed"],
+  ]);
+
+  const seen = await facetSeen();
+  expect(seen.some((s) => s.path === "/api/packs/pack-dual-fetch/versions/1")).toBe(true);
+  expect(seen.some((s) => s.path === "/api/packs/pack-dual-body/versions/1")).toBe(false);
+
+  // Both rows carry exactly the manifest each form supplied; reinstalling the
+  // fetched pack through the body form takes the ordinary replace path.
+  const installed = await page.request.get("/api/mypacks").then((r) => r.json());
+  expect(installed.packs.find((p) => p.packId === "pack-dual-fetch").manifest).toEqual(manifestA);
+  expect(installed.packs.find((p) => p.packId === "pack-dual-body").manifest).toEqual(manifestB);
+
+  const reinstall = await page.request.post("/api/mypacks/install", {
+    data: { packId: "pack-dual-fetch", version: 1, manifest: manifestA },
+  });
+  expect(reinstall.ok()).toBeTruthy();
+  expect((await reinstall.json()).report.skills.map((s) => [s.name, s.status])).toEqual([
+    ["dual-fetch-skill", "replaced"],
+  ]);
 });

@@ -243,6 +243,19 @@ if (process.env.PACK_MARKETPLACE === "1") {
       .map((s) => s.trim())
       .filter(Boolean),
   });
+  // Manifest source for the cell-side install fetch when NO facet is
+  // configured (pack-install-server-side-manifest): the market plane is
+  // mounted in THIS process, so the install route resolves the version
+  // through the registry's own visibility read — the same function the
+  // /api/packs/:id/versions/:version route above serves. `admin: false` is
+  // deliberate: this mount registers no admin group (the route above has the
+  // same posture), so the fetch admits exactly who the listing admits. With
+  // FACET_BASE_URL set (gateway topology) the install fetch goes to facet
+  // over the shared proxy channel instead, and this injection stays unused.
+  ctx.localPackMarket = {
+    getVersion: (packId, version, viewer) =>
+      packRegistry.getVersionVisible(packId, version, viewer, { admin: false }),
+  };
 }
 registerStaticAndFallback(ctx);
 registerExternalServiceRoutes(ctx);

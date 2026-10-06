@@ -4,8 +4,10 @@
 //     subscribe records — same-origin through the deployment's ingress;
 //   - the CELL's local state (/api/mypacks..., /api/pack-drafts...): installed
 //     packs, materialization, and creator drafts.
-// The subscribe flow is browser-mediated (design D8): subscribe on the gateway
-// returns the version manifest, which is then posted to the cell to install.
+// The subscribe flow records on the market, then hands {packId, version} to
+// the cell; the cell fetches the manifest server-side
+// (pack-install-server-side-manifest — the browser never carries manifest
+// bodies, which the edge WAF rejects).
 
 export interface PackSummary {
   id: string;
@@ -223,11 +225,16 @@ export function listInstalledPacks() {
   return fetch("/api/mypacks").then(json) as Promise<{ packs: InstalledPack[] }>;
 }
 
-export function installPack(packId: string, version: number, manifest: PackManifest) {
+// Install = materialize the version into this cell. Only {packId, version}
+// crosses the wire (pack-install-server-side-manifest): the server retrieves
+// the manifest from the market under the caller's identity. Manifest bodies
+// must not ride browser POSTs — pack skills legally embed code/SQL and the
+// deployment edge WAF resets such requests.
+export function installPack(packId: string, version: number) {
   return fetch("/api/mypacks/install", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ packId, version, manifest }),
+    body: JSON.stringify({ packId, version }),
   }).then(json) as Promise<{ report: PackReport; installed: InstalledPack }>;
 }
 

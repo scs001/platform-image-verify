@@ -18,6 +18,7 @@
 - **发布门控**：平台 groups 含 `creators`（Logto 组织）。两通道同构（`PACK_CREATOR_GROUPS` ∩ groups）。
 - **版本不可变**：发布即追加 vN+1；下架 = unlisted（浏览隐藏，已装快照不受影响）。
 - **订阅** = 安装当前版本快照 + 订阅记录（记录在 facet）；新版仅显示更新徽标，手动升级。cell 的已装状态是物化真相，facet 订阅记录是账目面。
+- **安装取包在服务端**（`pack-install-server-side-manifest`）：浏览器只送 `{packId, version}`，cell 以调用者身份（`x-facet-user`/`x-facet-token`，与 `/api/packs` 代理同一套请求构造）从 facet 取回该版本 manifest 再物化——manifest 正文合法内嵌 SQL/Python 片段，经浏览器直送会被边缘 WAF（雷池内容规则）重置/403。滚动期带 manifest 的请求体照旧受理（同一校验管线）。
 - **安全边界（v1）**：MCP 条目只能引用 registry 已注册 server；角色条目 persona-only；skill 内容内联；无公开上传（creators 白名单）。
 
 ## 2. 开通步骤

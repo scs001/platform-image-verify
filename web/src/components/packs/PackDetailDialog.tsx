@@ -1,8 +1,9 @@
 // PackDetailDialog — inspect a pack in full before subscribing: every skill's
 // complete body, MCP references (with required groups), agent personas, and
 // author identity (spec: pack-marketplace). Subscribe is one action that
-// records the subscription on the gateway and materializes the snapshot in
-// this cell (design D8 browser-mediated flow).
+// records the subscription on the market and materializes the snapshot in
+// this cell; the cell fetches the manifest server-side from the pack id +
+// version (pack-install-server-side-manifest).
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -80,7 +81,9 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
     setError(null);
     try {
       const sub = await api.subscribePack(packId);
-      const { report } = await api.installPack(sub.packId, sub.version, sub.manifest);
+      // Only the reference crosses the wire: the cell fetches the manifest
+      // server-side (pack-install-server-side-manifest).
+      const { report } = await api.installPack(sub.packId, sub.version);
       onSubscribed(report, pack.name);
     } catch (err) {
       setError((err as Error).message);
@@ -266,6 +269,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                       {!!a.serving?.rhythm?.length && (
                         <div className="flex flex-wrap gap-1 mt-1" data-testid={`pack-agent-rhythm-default-${a.id}`}>
                           {a.serving.rhythm.map((r, j) => (
+                            /* biome-ignore lint/suspicious/noArrayIndexKey: read-only chips from an immutable manifest snapshot — never reordered */
                             <span key={j} className="rounded-full border border-border px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
                               {r.daily ?? r.every}
                               {r.do ? ` · ${r.do.slice(0, 18)}${r.do.length > 18 ? "…" : ""}` : ""}

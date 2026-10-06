@@ -221,3 +221,53 @@ export async function gotoExtensions(page) {
   await expect(page).toHaveURL(/\/settings\/mcp$/);
   await expect(page.getByTestId("extensions-page")).toBeVisible({ timeout: 15000 });
 }
+
+// ── Hermetic facet stand-in (pack-install-server-side-manifest) ─────────────
+//
+// The install endpoint fetches the manifest SERVER-side over the facet
+// channel; e2e/facet-stub.js answers that route. Specs seed it directly (the
+// browser route-mock and the stub are two planes: browse/detail for the SPA,
+// the version GET for the server).
+
+// 4601: 4597 is the search-relay reference service's loopback default and
+// 4599 the registry stub — a dev machine may be running the former.
+export const E2E_FACET_PORT = Number(process.env.E2E_FACET_PORT) || 4601;
+export const E2E_FACET_URL = `http://127.0.0.1:${E2E_FACET_PORT}`;
+
+async function facetControl(path, body) {
+  const res = await fetch(`${E2E_FACET_URL}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body ?? {}),
+  });
+  return res.json();
+}
+
+// Seed one pack version the server-side fetch will serve.
+export function seedFacetPack(id, version, manifest, { visibility = "public", authorEmail = "creator@e2e.test", mode = "ok" } = {}) {
+  return facetControl("/__seed", { id, version, manifest, visibility, authorEmail, mode });
+}
+
+// Change an already-seeded version's answer: "ok" | "500" | "no-manifest".
+export async function setFacetMode(id, version, mode) {
+  const out = await facetControl("/__mode", { id, version, mode });
+  if (!out?.ok) throw new Error(`facet stub does not know ${id}@${version}`);
+}
+
+export function resetFacetStub() {
+  return facetControl("/__reset");
+}
+
+// Every data request the stub answered, newest last: { path, headers }.
+export async function facetSeen() {
+  const res = await fetch(`${E2E_FACET_URL}/__seen`);
+  return (await res.json()).seen;
+}
+
+// The forwarded identity of the last fetch for a version (decoded), or null.
+export async function lastFacetViewer(id, version) {
+  const seen = await facetSeen();
+  const call = [...seen].reverse().find((s) => s.path === `/api/packs/${id}/versions/${version}`);
+  if (!call?.headers?.["x-facet-user"]) return null;
+  return JSON.parse(Buffer.from(call.headers["x-facet-user"], "base64url").toString("utf8"));
+}

@@ -1,7 +1,7 @@
 import path from "node:path";
 import os from "node:os";
 import { defineConfig, devices } from "@playwright/test";
-import { E2E_PORT, baseURL, prepareTempStoreDirs } from "./e2e/helpers.js";
+import { E2E_FACET_PORT, E2E_PORT, baseURL, prepareTempStoreDirs } from "./e2e/helpers.js";
 
 // Live service testing: target the deployed k3s NodePort. The live project has
 // NO webServer - it connects to an already-running external URL. Read-only checks
@@ -18,6 +18,14 @@ const PW_LIVE = process.env.PW_LIVE === "1";
 const E2E_FAKE_MCP_PORT = Number(process.env.E2E_FAKE_MCP_PORT) || 3199;
 const E2E_REGISTRY_URL = process.env.E2E_REGISTRY_URL || "http://127.0.0.1:4599";
 const E2E_REGISTRY_TOKEN = process.env.E2E_REGISTRY_TOKEN || "e2e-registry-token";
+// The hermetic facet stand-in (e2e/facet-stub.js): the cell's install endpoint
+// fetches pack manifests server-side over the facet channel, so the suite
+// needs a facet that answers GET /api/packs/:id/versions/:version under the
+// same internal credential + forwarded identity the live service expects.
+// Port/URL come from e2e/helpers.js — the specs talk to the stub too, and the
+// two sides must not drift.
+const E2E_FACET_URL = process.env.E2E_FACET_URL || `http://127.0.0.1:${E2E_FACET_PORT}`;
+const E2E_FACET_TOKEN = process.env.E2E_FACET_TOKEN || "e2e-facet-token";
 const LIVE_SERVICE_URL = process.env.LIVE_SERVICE_URL || "http://23.144.68.246:30950";
 
 // Create throwaway store directories before the server boots so the suite never
@@ -88,7 +96,7 @@ export default defineConfig({
           // (same process group, so Playwright's teardown kills it): the market
           // then carries registry entries and the connect popup can mint
           // against a hermetic stand-in instead of the live registry.
-          command: `node e2e/registry-stub.js & node e2e/fake-mcp.js & node e2e/seed-fixtures.js && node server.js`,
+          command: `node e2e/registry-stub.js & node e2e/facet-stub.js & node e2e/fake-mcp.js & node e2e/seed-fixtures.js && node server.js`,
           // The server listens FIRST and initializes the agent in the
           // background (listen-first boot) — readiness must gate on the
           // agent, not the port, or tests would race a half-booted server.
@@ -150,6 +158,13 @@ export default defineConfig({
             // plane (/api/packs...) is route-mocked per spec; this flag turns
             // the packs Settings section on for the specs that exercise it.
             PACK_MARKETPLACE: process.env.PACK_MARKETPLACE || "1",
+            // Pack manifests are fetched SERVER-side from the market
+            // (pack-install-server-side-manifest): the stub above is the
+            // facet the cell's install fetch addresses. Its data route only
+            // answers under this internal credential, mirroring facet.
+            FACET_BASE_URL: process.env.FACET_BASE_URL || E2E_FACET_URL,
+            FACET_INTERNAL_TOKEN: process.env.FACET_INTERNAL_TOKEN || E2E_FACET_TOKEN,
+            E2E_FACET_PORT: String(E2E_FACET_PORT),
             // The chart-data-binding fake upstream: a streamable-http MCP whose
             // scenarios (data, failures, gate stats) a spec drives over its
             // control route. Fixed port so the seeded extension config can name

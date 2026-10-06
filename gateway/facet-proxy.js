@@ -12,6 +12,56 @@
 //
 // Rollback = unset FACET_BASE_URL (the local-market mount below the proxy
 // branch in gateway/index.js is the fallback) and restart.
+//
+// The header construction and the request shape are exported because the
+// cell-side install fetch (server/pack-manifest-source.js,
+// pack-install-server-side-manifest) addresses the same channel: the browser
+// sends {packId, version} and the SERVER retrieves the manifest over exactly
+// this credential + identity route — one definition, no second channel.
+
+// Forwarded-identity + service-credential headers for one facet call. Identity
+// travels only when verified; facet's proxy channel requires the token, so an
+// anonymous caller lands as facet-anonymous (public read face answers, write
+// routes 401 — same wall as before cutover).
+export function facetForwardHeaders({ user, token, contentType, authorization, idempotencyKey } = {}) {
+  return {
+    ...(user
+      ? {
+          "x-facet-user": Buffer.from(JSON.stringify({ email: user.email, groups: user.groups ?? [] })).toString("base64url"),
+          "x-facet-token": token,
+        }
+      : {}),
+    // Service credentials (the runner's / the facade's Bearer) ride verbatim —
+    // the internal routes authenticate on the facet side.
+    ...(authorization ? { Authorization: authorization } : {}),
+    ...(contentType ? { "Content-Type": contentType } : {}),
+    ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
+  };
+}
+
+// One request shape for every facet call: the prefix proxy (verbatim method,
+// body and caller headers) and the install fetch's version GET. Network
+// failures and timeouts throw; HTTP status handling stays with the caller.
+export function facetRequest({
+  base,
+  user,
+  token,
+  path,
+  method = "GET",
+  body,
+  contentType,
+  authorization,
+  idempotencyKey,
+  fetchImpl = fetch,
+  timeoutMs = 30_000,
+}) {
+  return fetchImpl(`${base}${path}`, {
+    method,
+    headers: facetForwardHeaders({ user, token, contentType, authorization, idempotencyKey }),
+    ...(body !== undefined ? { body } : {}),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+}
 
 export function registerFacetProxy(app, {
   base, // facet origin, no trailing slash
@@ -22,22 +72,6 @@ export function registerFacetProxy(app, {
 }) {
   const forward = async (req, res) => {
     const user = resolveUser(req);
-    const headers = {
-      // Identity travels only when verified; facet's proxy channel requires
-      // the token, so an anonymous browser lands as facet-anonymous (public
-      // read face answers, write routes 401 — same wall as before cutover).
-      ...(user
-        ? {
-            "x-facet-user": Buffer.from(JSON.stringify({ email: user.email, groups: user.groups ?? [] })).toString("base64url"),
-            "x-facet-token": token,
-          }
-        : {}),
-      // Service credentials (the runner's / the facade's Bearer) ride
-      // verbatim — the internal routes authenticate on the facet side.
-      ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),
-      ...(req.headers["content-type"] ? { "Content-Type": req.headers["content-type"] } : {}),
-      ...(req.headers["idempotency-key"] ? { "Idempotency-Key": req.headers["idempotency-key"] } : {}),
-    };
 
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
@@ -45,11 +79,18 @@ export function registerFacetProxy(app, {
 
     let upstream;
     try {
-      upstream = await fetchImpl(`${base}${req.originalUrl}`, {
+      upstream = await facetRequest({
+        base,
+        token,
+        user,
+        path: req.originalUrl,
         method: req.method,
-        headers,
-        ...(body !== undefined ? { body } : {}),
-        signal: AbortSignal.timeout(timeoutMs),
+        body,
+        contentType: req.headers["content-type"],
+        authorization: req.headers.authorization,
+        idempotencyKey: req.headers["idempotency-key"],
+        fetchImpl,
+        timeoutMs,
       });
     } catch (e) {
       return res.status(502).json({ error: `facet service unreachable: ${e?.message || e}` });

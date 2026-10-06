@@ -146,15 +146,29 @@ export function createPackRegistry({ file }) {
 
   // Private packs are owner-scoped (openspec: pack-visibility): invisible to
   // everyone but the author and admins, with the same not-found answer a
-  // nonexistent pack gives — probing teaches nothing.
+  // nonexistent pack gives — probing teaches nothing. Closure-level so the
+  // composite read below uses the same definition as everything else.
+  function visibleTo(pack, user, { admin = false } = {}) {
+    if (!pack) return false;
+    if (pack.visibility !== "private") return true;
+    return !!user && (pack.author_email === user.email || admin === true);
+  }
+
+  // Stored versions are always retrievable — "immutable" includes the unlisted
+  // state (spec: every stored version SHALL remain retrievable). Only the
+  // listing and latest-version detail hide unlisted packs.
+  function getVersion(id, version) {
+    const pack = packRow(id);
+    if (!pack) return null;
+    const row = versionRow(id, Number(version));
+    if (!row) return null;
+    return { id, version: row.version, manifest: JSON.parse(row.manifest) };
+  }
+
   return {
     packRowPublic: packRow,
 
-    visibleTo(pack, user, { admin = false } = {}) {
-      if (!pack) return false;
-      if (pack.visibility !== "private") return true;
-      return !!user && (pack.author_email === user.email || admin === true);
-    },
+    visibleTo,
 
     // First publish: mint an id and store version 1.
     publish({ email, manifest }) {
@@ -199,12 +213,18 @@ export function createPackRegistry({ file }) {
     // Stored versions are always retrievable — "immutable" includes the
     // unlisted state (spec: every stored version SHALL remain retrievable).
     // Only the listing and latest-version detail hide unlisted packs.
-    getVersion(id, version) {
-      const pack = packRow(id);
-      if (!pack) return null;
-      const row = versionRow(id, Number(version));
+    getVersion,
+
+    // Visibility-filtered stored-version read: the facet/HTTP route below and
+    // the cell-side install fetch (pack-install-server-side-manifest, single-
+    // process deployments) both resolve through this — one definition, so the
+    // server-side install answers exactly like the market surface (private
+    // packs are not-found to everyone but the author and admins).
+    getVersionVisible(id, version, user, { admin = false } = {}) {
+      const row = getVersion(id, version);
       if (!row) return null;
-      return { id, version: row.version, manifest: JSON.parse(row.manifest) };
+      if (!visibleTo(packRow(id), user, { admin })) return null;
+      return row;
     },
 
     // Paginated listing of live (not unlisted) packs, newest publish first.
@@ -552,14 +572,14 @@ export function registerPackRoutes(app, {
     res.json(pack);
   });
 
-  // A stored version is always retrievable, listed or not.
+  // A stored version is always retrievable, listed or not — but only under
+  // the same visibility the listing applies (private ⇒ author/admin only,
+  // otherwise not-found).
   app.get("/api/packs/:id/versions/:version", (req, res) => {
     const user = authRead(req);
     if (!user) return rejectUnauthenticated(req, res);
-    const pack = registry.packRowPublic?.(req.params.id);
-    const v = registry.getVersion(req.params.id, req.params.version);
-    const visible = v && registry.visibleTo(pack, user, { admin: isAdmin(user) });
-    if (!visible) return res.status(404).json({ error: "Pack version not found" });
+    const v = registry.getVersionVisible(req.params.id, req.params.version, user, { admin: isAdmin(user) });
+    if (!v) return res.status(404).json({ error: "Pack version not found" });
     res.json(v);
   });
 

@@ -51,7 +51,9 @@ export function MyPacksView() {
     setError(null);
     try {
       const sub = await api.subscribePack(pack.packId);
-      await api.installPack(sub.packId, sub.version, sub.manifest);
+      // {packId, version} only — the cell retrieves the manifest server-side
+      // (pack-install-server-side-manifest).
+      await api.installPack(sub.packId, sub.version);
       await refresh();
     } catch (err) {
       setError((err as Error).message);

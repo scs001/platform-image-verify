@@ -27,20 +27,17 @@
    `facet/web/src/cliFacts.ts`（网页命令的唯一来源）、`docs/pack-marketplace.md`、工作流注释与步骤名；
    临时 bootstrap token 已删，本机 `~/.npmrc` 已清理。
 
-## 遗留（唯一一条，已定性）
+## 遗留（唯一一条，最终定性：npm 2026 安全政策阻断）
 
-**老包 `@finddatatechonology/facet` 的 deprecate 标记：设计性暂不可达，挂起。**
+**老包 `@finddatatechonology/facet` 的 deprecate 标记**。2026-10-06 全路径实测后的最终结论：
 
-2026-10-06 全路径核查的结论：
-
-| 路径 | 结论 |
+| 路径 | 实测结论 |
 |---|---|
-| `npm deprecate` CLI | 需要 OTP；账号 2FA 是**纯安全密钥**（npm 当前界面只提供 Security Key + Recovery Codes，不再提供认证器 App 注册），拿不到 TOTP |
-| 网页 Deprecate 控件 | npm 不存在（版本页/设置页均无） |
-| `npm stage deprecate` | 不存在（stage 只有 publish/list/view/approve/reject/download） |
-| bypass-2FA 粒度 token | npm 已收紧：新建时勾选不落库（实证） |
-| **恢复码当 OTP** | 语义是账号找回——**用掉可能使账号 2FA 失效需重登记**，为一行弃用提示动摇安全姿态，不采用 |
+| `npm deprecate` CLI（GAT + 恢复码当 OTP） | **403**——npm 2026-08 安全政策限制 GAT 的变更类操作（恢复码语义是账号找回，不解决此路） |
+| `npm deprecate` CLI（bypass-2FA token） | bypass token 已停发（新建勾选不落库，实证） |
+| 网页 Deprecate 控件 | npm 不存在 |
+| `npm stage deprecate` | 不存在 |
+| OIDC trusted publishing | 只许可 publish/stage-publish，不含 deprecate |
 
-影响评估：**无用户影响**。老包仍可安装、功能正常；官网 `/products/facet-market`、CLI README、平台文档、包页描述
-均已指向新包；新包带 SLSA provenance。
-重新可达的条件：npm 提供网页 deprecate，或该账号追加 TOTP 因子（届时一条命令即可）。
+**影响评估：零用户影响。** 老包可装可用，官网 `/products/facet-market`、CLI README、包页 README、平台文档均已指向 `@finddatatechnology/facet`。
+**重新可达的唯一现实路径**：npm 官方提供网页端 deprecate，或向 npm support 提交工单。属 npm 产品限制，不再跟进。

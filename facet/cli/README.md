@@ -1,9 +1,9 @@
-# @finddatatechonology/facet — 谦面 CLI
+# @finddatatechnology/facet — 谦面 CLI
 
 把[谦面](https://facet.finddatatech.cloud)功能集里的**技能**装进你正在用的编辑器。
 
 ```bash
-npx @finddatatechonology/facet install <packRef>
+npx @finddatatechnology/facet install <packRef>
 ```
 
 - `<packRef>`：功能集 id（市场详情页可见），或任何含 id 的 URL。

@@ -59,7 +59,7 @@ Logto 管理台（auth-admin.finddatatech.cloud）→ Organizations → `creator
 - 非 creators 登录用户：能浏览/订阅；发布报 403 且一键流在「发布」步停步点名。
 - 订阅后：技能进 设置→技能；MCP 进 设置→MCP（registry 凭据未连接时报告标注）；角色进对话 agent 选择器。
 - 部署（serving 契约）：功能集详情 → 部署为服务 → 描述符含 `billing_key_ref`（有计费绑定）+ `secret_refs`；runner ≤5min 拉起；`scripts/probe-wanxing-live.mjs` 或 A2A 直呼真回合。
-- CLI：`npx @finddatatechonology/facet install <packId>`（或仓内 `node facet/cli/facet.js`）落盘技能、打印 MCP 凭据提示。
+- CLI：`npx @finddatatechnology/facet install <packId>`（或仓内 `node facet/cli/facet.js`）落盘技能、打印 MCP 凭据提示。
 - 作者发新版：订阅者「我的功能集」出更新徽标；退订：技能/角色消失，MCP 配置保留。
 
 ### 3.1 部署后 A2A 转不动的两个已知坑（2026-10-03 一键流实测）

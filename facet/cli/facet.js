@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// ── @finddatatechonology/facet — 谦面 CLI (add-facet-platform S3) ───────────
+// ── @finddatatechnology/facet — 谦面 CLI (add-facet-platform S3) ───────────
 //
 // Installs a published pack's skills from the facet marketplace into editor
 // targets (Claude Code, Cursor). Marketplace fetches are the same anonymous
@@ -12,7 +12,7 @@
 // any editor — connecting needs a per-user registry credential that this CLI
 // does not hold (spec: MCP references are honest about credentials).
 //
-//   npx @finddatatechonology/facet install <packRef> [--target claude-code|cursor]
+//   npx @finddatatechnology/facet install <packRef> [--target claude-code|cursor]
 //                                [--project <dir>] [--base <facet-url>]
 //                                [--registry <registry-url>]
 

@@ -233,3 +233,42 @@ test("S2 mcp-catalog: anonymous sees group-less servers only; grouped visible to
     await new Promise((r) => server.close(r));
   }
 });
+
+// ── agent-service-config: the proxy's actor-header pass-through ──────────────
+
+test("2.5 facet proxy forwards the config channel's actor headers (agent-service-config)", async () => {
+  const { facetForwardHeaders } = await import("../gateway/facet-proxy.js");
+  // The actor pair rides when present, is omitted when absent (inert without
+  // the internal credential — trust is transitive).
+  const h = facetForwardHeaders({ token: "t", actingUser: "u@x", actingGroups: "creators,admin" });
+  assert.equal(h["x-acting-user"], "u@x");
+  assert.equal(h["x-acting-groups"], "creators,admin");
+  assert.equal(facetForwardHeaders({ token: "t" })["x-acting-user"], undefined);
+  // End-to-end through the registered proxy: the upstream (facet stand-in)
+  // sees the headers, and the service credential rides alongside.
+  let seen = null;
+  const upstream = http.createServer((req, res) => {
+    seen = { actor: req.headers["x-acting-user"], groups: req.headers["x-acting-groups"], auth: req.headers.authorization };
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true }));
+  });
+  await new Promise((r) => upstream.listen(0, "127.0.0.1", r));
+  const app = express();
+  registerFacetProxy(app, {
+    base: `http://127.0.0.1:${upstream.address().port}`,
+    resolveUser: () => null,
+    token: "facet-tok",
+  });
+  const server = http.createServer(app);
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  try {
+    const res = await fetch(`http://127.0.0.1:${server.address().port}/api/packs/internal/deployments/P1/a1/config`, {
+      headers: { Authorization: "Bearer svc", "x-acting-user": "deployer@x", "x-acting-groups": "creators" },
+    });
+    assert.equal(res.status, 200);
+    assert.deepEqual(seen, { actor: "deployer@x", groups: "creators", auth: "Bearer svc" });
+  } finally {
+    await new Promise((r) => server.close(r));
+    await new Promise((r) => upstream.close(r));
+  }
+});

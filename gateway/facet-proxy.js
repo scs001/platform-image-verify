@@ -23,7 +23,7 @@
 // travels only when verified; facet's proxy channel requires the token, so an
 // anonymous caller lands as facet-anonymous (public read face answers, write
 // routes 401 — same wall as before cutover).
-export function facetForwardHeaders({ user, token, contentType, authorization, idempotencyKey } = {}) {
+export function facetForwardHeaders({ user, token, contentType, authorization, idempotencyKey, actingUser, actingGroups } = {}) {
   return {
     ...(user
       ? {
@@ -34,6 +34,13 @@ export function facetForwardHeaders({ user, token, contentType, authorization, i
     // Service credentials (the runner's / the facade's Bearer) ride verbatim —
     // the internal routes authenticate on the facet side.
     ...(authorization ? { Authorization: authorization } : {}),
+    // The console's service-config channel (agent-service-config): the ACTOR
+    // the wanxing facade verified rides through to the packs internal twin,
+    // which enforces deployer-or-admin against it. Trust is transitive: a
+    // caller can only use these alongside the internal service credential the
+    // twin requires — without it they are inert.
+    ...(actingUser ? { "x-acting-user": actingUser } : {}),
+    ...(actingGroups ? { "x-acting-groups": actingGroups } : {}),
     ...(contentType ? { "Content-Type": contentType } : {}),
     ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}),
   };
@@ -52,12 +59,14 @@ export function facetRequest({
   contentType,
   authorization,
   idempotencyKey,
+  actingUser,
+  actingGroups,
   fetchImpl = fetch,
   timeoutMs = 30_000,
 }) {
   return fetchImpl(`${base}${path}`, {
     method,
-    headers: facetForwardHeaders({ user, token, contentType, authorization, idempotencyKey }),
+    headers: facetForwardHeaders({ user, token, contentType, authorization, idempotencyKey, actingUser, actingGroups }),
     ...(body !== undefined ? { body } : {}),
     signal: AbortSignal.timeout(timeoutMs),
   });
@@ -89,6 +98,12 @@ export function registerFacetProxy(app, {
         contentType: req.headers["content-type"],
         authorization: req.headers.authorization,
         idempotencyKey: req.headers["idempotency-key"],
+        // The console config channel's actor headers (agent-service-config) —
+        // enumerated like the rest (this proxy rebuilds the header set rather
+        // than passing caller headers verbatim; a live probe caught the strip
+        // on 2026-10-07: the facet twin answered "x-acting-user required").
+        actingUser: req.headers["x-acting-user"],
+        actingGroups: req.headers["x-acting-groups"],
         fetchImpl,
         timeoutMs,
       });

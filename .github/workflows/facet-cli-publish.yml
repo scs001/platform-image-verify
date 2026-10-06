@@ -43,6 +43,10 @@ jobs:
       # image ships npm 11 by default.
       - name: Ensure npm supports trusted publishing
         run: npm install -g npm@^11
+      # No --provenance: the registry rejects provenance bundles whose source
+      # repository is private (E422, observed 2026-10-06). Trusted publishing
+      # still authenticates the publish. To regain provenance, mirror facet/cli
+      # into a public repository and repoint the trusted publisher at it.
       - name: Publish @finddatatechnology/facet
         working-directory: facet/cli
-        run: npm publish --provenance --access public
+        run: npm publish --access public

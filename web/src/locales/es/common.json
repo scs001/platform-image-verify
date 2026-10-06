@@ -971,6 +971,7 @@
       "deployBtn": "Desplegar",
       "deployOnline": "en línea",
       "deployEffective": "Despliegue enviado: surte efecto en ~{{minutes}} min (sondeo del runner).",
+      "gotoConfig": "Configurar",
       "rhythmOverride": "Anular ritmo (opcional, @{{id}})",
       "paused": "Pausado",
       "pauseBtn": "Pausar",

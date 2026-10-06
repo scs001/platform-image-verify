@@ -25,8 +25,8 @@ import { randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import express from "express";
-import { PACK_LIMITS, validatePackManifest as validateManifest, validateRhythm, budgetMinutesError } from "../lib/pack-manifest.js";
-import { deployToRegistry, setAgentPaused, NOTIFY_CHANNEL_RE, SECRET_NAME_RE, SECRET_LIMITS, maskSecretRef } from "../lib/agent-serving.js";
+import { PACK_LIMITS, validatePackManifest as validateManifest, validateRhythm, budgetMinutesError, modelIdError } from "../lib/pack-manifest.js";
+import { deployToRegistry, setAgentPaused, modelChoiceError, resolveServiceConfig, NOTIFY_CHANNEL_RE, SECRET_NAME_RE, SECRET_LIMITS, maskSecretRef } from "../lib/agent-serving.js";
 import { createSub2apiClient } from "../lib/sub2api-admin.js";
 
 // Re-exported for the gateway's own consumers (tests import from here).
@@ -683,6 +683,28 @@ export function registerPackRoutes(app, {
         }
       }
     }
+    // Model choices (agent-service-config / ADR-0019): { "<agentId>": model |
+    // null } — a deploy-time model rides the SAME write-time validation as a
+    // later config write (shape here; whitelist + billing lanes below, once
+    // the deployment keys resolved). null clears back to the declaration.
+    const servingIds = new Set((version.manifest.agents ?? []).filter((a) => a?.serving).map((a) => a.id));
+    const models = req.body?.models;
+    if (models !== undefined) {
+      if (!models || typeof models !== "object" || Array.isArray(models)) {
+        return res.status(400).json({ error: "models must map agentId to a model identifier or null" });
+      }
+      for (const [agentId, model] of Object.entries(models)) {
+        if (model === null) continue;
+        if (!servingIds.has(agentId)) {
+          return res.status(400).json({ error: `models.${agentId}: '${agentId}' is not a serving agent of this pack` });
+        }
+        const err = modelIdError(model);
+        if (err) return res.status(400).json({ error: `models.${agentId}: ${err}` });
+        const whitelist = (version.manifest.agents ?? []).find((a) => a.id === agentId)?.serving?.modelWhitelist;
+        const wlErr = modelChoiceError({ model, whitelist, lanes: null });
+        if (wlErr) return res.status(400).json({ error: `models.${agentId}: ${wlErr}` });
+      }
+    }
     // ── Platform billing linkage (add-agent-platform-ops D1–D3; revised by
     // revise-billing-key-acquisition) ─────────────────────────────────────
     // Degrades to the pre-③ behavior when no admin key is wired: no gate,
@@ -698,7 +720,7 @@ export function registerPackRoutes(app, {
     let billing = { linked: false };
     let billingKeys = {}; // agentId → pk_ reference (descriptor carries these)
     const billingKeyValues = new Map(); // keyRef → plaintext (never logged)
-    const servingIds = new Set((version.manifest.agents ?? []).filter((a) => a?.serving).map((a) => a.id));
+    const agentKeyValues = new Map(); // agentId → plaintext deployment key (lane checks only)
     const providedKeys = req.body?.billingKeys;
     const keyInvalid = (reason, detail) =>
       res.status(400).json({
@@ -809,6 +831,7 @@ export function registerPackRoutes(app, {
             return keyInvalid("liveness", `the bound key for ${agentId} is no longer usable (${live.code ?? live.message}) — paste a fresh key from the billing panel to replace it`);
           }
           billingKeys[agentId] = k.keyRef;
+          agentKeyValues.set(agentId, k.keyValue);
         }
         for (const [agentId, key] of pasted) {
           const live = await sub2api.probeKeyLiveness(key);
@@ -824,6 +847,7 @@ export function registerPackRoutes(app, {
           const ref = `pk_${randomBytes(12).toString("hex")}`;
           billingKeys[agentId] = ref;
           billingKeyValues.set(ref, key);
+          agentKeyValues.set(agentId, key);
         }
 
         // Every serving agent must end up with a key — the paste flow's
@@ -837,9 +861,39 @@ export function registerPackRoutes(app, {
             });
           }
         }
+
+        // Deploy-time model choices ride the SAME lane validation as a later
+        // config write (agent-service-config D2): the deployment key's live
+        // sub2api group lanes ∩ the contract whitelist — a refusal here means
+        // no agent entry ever carries an unauthorized lane (no boot-then-404).
+        const requestedModels = Object.entries(models ?? {}).filter(([, m]) => m != null);
+        if (requestedModels.length > 0) {
+          const lanesByAgent = new Map();
+          for (const [agentId, model] of requestedModels) {
+            if (!lanesByAgent.has(agentId)) {
+              let lanes;
+              try {
+                lanes = await sub2api.listKeyModels(agentKeyValues.get(agentId));
+              } catch (err) {
+                return res.status(502).json({ error: `billing lane check failed for '${agentId}': ${err.message}` });
+              }
+              lanesByAgent.set(agentId, lanes);
+            }
+            const whitelist = (version.manifest.agents ?? []).find((a) => a.id === agentId)?.serving?.modelWhitelist;
+            const err = modelChoiceError({ model, whitelist, lanes: lanesByAgent.get(agentId) });
+            if (err) return res.status(400).json({ error: `models.${agentId}: ${err}`, code: "MODEL_LANE_REJECTED" });
+          }
+        }
       }
     } else if (providedKeys && Object.keys(providedKeys).length > 0) {
       console.warn("[packs] billing not linked — ignoring pasted billingKeys for this deploy");
+    }
+    // No billing linkage (unlinked, degraded, or failed self-check) = no
+    // deployment key = no lanes to validate model choices against — the
+    // allowlist route's stance: the inactive plane refuses, never silently
+    // passes unvalidated.
+    if (!billing.linked && models && Object.values(models).some((m) => m != null)) {
+      return res.status(503).json({ error: "billing plane not configured — model lanes cannot be validated" });
     }
 
     // ── Deployment secrets (add-deployment-secrets D1/D2/D5/D6) ─────────────
@@ -962,6 +1016,7 @@ export function registerPackRoutes(app, {
         manifest: version.manifest,
         rhythmOverrides: rhythms ?? {},
         budgetOverrides: budgets ?? {},
+        modelOverrides: models ?? {},
         notifyChannels: notifyChannel ?? {},
         billingKeys,
         secretRefs,
@@ -1253,6 +1308,203 @@ export function registerPackRoutes(app, {
     } catch (err) {
       res.status(Number.isInteger(err?.status) ? err.status : 502).json({ error: err.message });
     }
+  });
+
+  // ── Service config (agent-service-config): the deployment's rewriteable
+  // run-parameter surface. Gated to the deployment's OWN deployer (the row's
+  // deployed_by) or a platform admin — an author who never deployed cannot
+  // rewrite someone else's service. The registry entry's metadata is the
+  // store; writes merge three-state into config_overrides and re-resolve the
+  // effective fields through the ONE precedence function the descriptor
+  // compose uses.
+  //
+  // One core, two doors: the user-facing route (session identity) and an
+  // internal twin under the packs-internal service credential carrying the
+  // console-verified actor in x-acting-user/x-acting-groups. The 万星 console
+  // proxies through the internal door so lane/whitelist enforcement exists
+  // exactly once — the console cannot read the deployed manifest anyway.
+  const configRow = (id, agentId, actor) => {
+    const row = registry.deployments(id).find((d) => d.agentId === agentId);
+    if (!row) return { error: [404, "Deployment not found"] };
+    const admin = adminGroups.some((g) => (actor.groups || []).includes(g));
+    if (row.deployedBy !== actor.email && !admin) {
+      return { error: [403, "The deployment's deployer or an admin is required"] };
+    }
+    const cfg = deployConfig();
+    if (!cfg.registryUrl) return { error: [503, "Agent serving is not configured on this deployment"] };
+    return { row, cfg };
+  };
+  const registryFetchFor = (cfg) =>
+    cfg.fetchImpl ??
+    ((p, init = {}) =>
+      fetch(`${cfg.registryUrl.replace(/\/+$/, "")}${p}`, {
+        ...init,
+        headers: { ...(cfg.token ? { Authorization: `Bearer ${cfg.token}` } : {}), ...(init.headers ?? {}) },
+      }));
+
+  // The manifest + serving block of the DEPLOYED version (overrides resolve
+  // against the declaration the deployment actually carries, not latest).
+  const deployedServing = (id, row) => {
+    const version = registry.getVersion(id, row.version);
+    const agent = (version?.manifest?.agents ?? []).find((a) => a.id === row.agentId);
+    return { serving: agent?.serving ?? {}, manifest: version?.manifest ?? null };
+  };
+
+  const configReadCore = async ({ id, agentId, actor, res }) => {
+    const found = configRow(id, agentId, actor);
+    if (found.error) return res.status(found.error[0]).json({ error: found.error[1] });
+    const { row, cfg } = found;
+    try {
+      const doFetch = registryFetchFor(cfg);
+      const entry = await (await doFetch(`/api/agents${row.agentPath}`)).json();
+      const overrides = entry?.metadata?.config_overrides ?? {};
+      const { serving } = deployedServing(id, row);
+      const resolved = resolveServiceConfig({ serving, overrides });
+      const dimension = (pinned, declared, effective) => ({
+        effective,
+        source: pinned !== undefined ? "override" : declared !== undefined && declared !== null ? "declared" : "default",
+        declared: declared ?? null,
+        override: pinned ?? null,
+      });
+      // The model picker's option set (design D5): the deployment key's live
+      // lanes, best-effort — an unavailable billing plane omits them rather
+      // than failing the read (the write path still refuses unvalidated models).
+      let lanes = null;
+      try {
+        const sub2api = cfg.sub2api ? createSub2apiClient(cfg.sub2api) : null;
+        const key = registry.deploymentKeysForPack(id).find((k) => k.agentId === row.agentId)?.keyValue;
+        if (sub2api && !sub2api.degraded() && key) lanes = await sub2api.listKeyModels(key);
+      } catch { /* advisory only */ }
+      res.json({
+        config: {
+          rhythm: dimension(overrides.rhythm, serving.rhythm, resolved.rhythm),
+          budgetMinutes: dimension(overrides.budgetMinutes, serving.budget?.turnMinutes, resolved.budgetMinutes),
+          model: dimension(overrides.model, serving.model, resolved.model),
+        },
+        lanes,
+        packVersion: row.version,
+        effectiveWithinSecs: 300,
+      });
+    } catch (err) {
+      res.status(Number.isInteger(err?.status) ? err.status : 502).json({ error: err.message });
+    }
+  };
+
+  const configWriteCore = async ({ id, agentId, actor, body, res }) => {
+    const found = configRow(id, agentId, actor);
+    if (found.error) return res.status(found.error[0]).json({ error: found.error[1] });
+    const { row, cfg } = found;
+    const unknown = Object.keys(body).filter((k) => !["rhythm", "budgetMinutes", "model"].includes(k));
+    if (unknown.length > 0) {
+      return res.status(400).json({ error: `unknown config key(s): ${unknown.join(", ")} (only rhythm, budgetMinutes, model)` });
+    }
+    // Shape layer (cheap): the same validators the manifest and the deploy
+    // route enforce — one shape definition, three enforcement points.
+    if (body.rhythm !== undefined && body.rhythm !== null) {
+      const errs = validateRhythm(body.rhythm);
+      if (errs.length > 0) return res.status(400).json({ error: `rhythm is invalid: ${errs[0].error}` });
+    }
+    if (body.budgetMinutes !== undefined && body.budgetMinutes !== null) {
+      const err = budgetMinutesError(body.budgetMinutes);
+      if (err) return res.status(400).json({ error: `budgetMinutes is invalid: ${err}` });
+    }
+    const { serving, manifest } = deployedServing(id, row);
+    if (body.model !== undefined && body.model !== null) {
+      const err = modelIdError(body.model);
+      if (err) return res.status(400).json({ error: `model is invalid: ${err}` });
+      if (!manifest) return res.status(404).json({ error: "Deployed pack version no longer readable" });
+      // Lane layer (the same one the deploy route runs): deployment key's
+      // live sub2api group lanes ∩ the contract whitelist. The inactive
+      // plane refuses — an unvalidatable model never lands on a live agent.
+      const sub2api = cfg.sub2api ? createSub2apiClient(cfg.sub2api) : null;
+      if (!sub2api || sub2api.degraded()) {
+        return res.status(503).json({ error: "billing plane not configured — model lanes cannot be validated" });
+      }
+      const key = registry.deploymentKeysForPack(id).find((k) => k.agentId === row.agentId)?.keyValue;
+      if (!key) return res.status(503).json({ error: "the deployment has no billing key bound — model lanes cannot be validated" });
+      let lanes;
+      try {
+        lanes = await sub2api.listKeyModels(key);
+      } catch (err) {
+        return res.status(502).json({ error: `billing lane check failed: ${err.message}` });
+      }
+      const laneErr = modelChoiceError({ model: body.model, whitelist: serving.modelWhitelist, lanes });
+      if (laneErr) return res.status(400).json({ error: laneErr, code: "MODEL_LANE_REJECTED" });
+    }
+    try {
+      const doFetch = registryFetchFor(cfg);
+      // GET-merge-PUT (setAgentPaused's discipline): the entry carries
+      // whatever else the registry holds; config_overrides merge three-state
+      // — a present key writes (null included: an explicit reset), an
+      // omitted key keeps what the deployment already carries.
+      const g = await doFetch(`/api/agents${row.agentPath}`);
+      if (!g.ok) throw Object.assign(new Error(`registry GET ${row.agentPath} failed (${g.status})`), { status: 502 });
+      const entry = await g.json();
+      const overrides = { ...(entry?.metadata?.config_overrides ?? {}) };
+      for (const key of ["rhythm", "budgetMinutes", "model"]) {
+        if (Object.prototype.hasOwnProperty.call(body, key)) overrides[key] = body[key];
+      }
+      for (const key of Object.keys(overrides)) {
+        if (overrides[key] === undefined) delete overrides[key];
+      }
+      entry.metadata = { ...(entry.metadata ?? {}), config_overrides: overrides };
+      const resolved = resolveServiceConfig({ serving, overrides });
+      if (resolved.rhythm) entry.metadata.effective_rhythm = resolved.rhythm;
+      else delete entry.metadata.effective_rhythm;
+      if (resolved.budgetMinutes != null) entry.metadata.effective_budget_minutes = resolved.budgetMinutes;
+      else delete entry.metadata.effective_budget_minutes;
+      if (resolved.model) entry.metadata.effective_model = resolved.model;
+      else delete entry.metadata.effective_model;
+      const put = await doFetch(`/api/agents${row.agentPath}`, { method: "PUT", body: JSON.stringify(entry) });
+      if (!put.ok) {
+        const detail = await put.json().catch(() => ({}));
+        throw Object.assign(new Error(`registry PUT ${row.agentPath} failed (${put.status}): ${JSON.stringify(detail).slice(0, 200)}`), { status: 502 });
+      }
+      console.log(`[packs] service config updated: ${row.agentPath} (${Object.keys(body).join(", ") || "no-op"}) by ${actor.email}`);
+      res.json({ ok: true, config: overrides, effectiveWithinSecs: 300 });
+    } catch (err) {
+      res.status(Number.isInteger(err?.status) ? err.status : 502).json({ error: err.message });
+    }
+  };
+
+  app.get("/api/packs/:id/deployments/:agentId/config", async (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    return configReadCore({ id: req.params.id, agentId: req.params.agentId, actor: user, res });
+  });
+
+  app.put("/api/packs/:id/deployments/:agentId/config", express.json({ limit: "64kb" }), async (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    return configWriteCore({ id: req.params.id, agentId: req.params.agentId, actor: user, body: req.body ?? {}, res });
+  });
+
+  // Internal twin (the 万星 console's door): the packs-internal service
+  // credential plus the actor the console already verified (its Logto
+  // identity — email + groups). The actor headers are trustworthy BECAUSE the
+  // service credential is: only the platform's own units hold it.
+  const internalActor = (req, res) => {
+    if (!internalAuth(req, res)) return null;
+    const email = String(req.headers["x-acting-user"] || "").trim();
+    if (!email) {
+      res.status(400).json({ error: "x-acting-user required" });
+      return null;
+    }
+    const groups = String(req.headers["x-acting-groups"] || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    return { email, groups };
+  };
+  app.get("/api/packs/internal/deployments/:id/:agentId/config", async (req, res) => {
+    const actor = internalActor(req, res);
+    if (!actor) return;
+    return configReadCore({ id: req.params.id, agentId: req.params.agentId, actor, res });
+  });
+  app.put("/api/packs/internal/deployments/:id/:agentId/config", express.json({ limit: "64kb" }), async (req, res) => {
+    const actor = internalActor(req, res);
+    if (!actor) return;
+    return configWriteCore({ id: req.params.id, agentId: req.params.agentId, actor, body: req.body ?? {}, res });
   });
 
   // Unpublish: author-checked unlist. Unknown pack and foreign pack answer

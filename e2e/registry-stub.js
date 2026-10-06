@@ -40,6 +40,26 @@ function mintJwt(expiresInHours) {
   })}.e2e-signature`;
 }
 
+// Agent ENTRY store (agent-service-config e2e): the deploy/config surfaces
+// upsert registry agent entries and read them back (GET-merge-PUT). The
+// snapshot list below stays empty — entries live here keyed by their path
+// WITHOUT the leading slash (the deploy lib registers "/packs/…" while URL
+// routing yields "packs/…" — one normalization for both).
+const agentEntries = new Map();
+const normPath = (p) => String(p ?? "").replace(/^\/+/, "");
+const readBody = (req) =>
+  new Promise((resolve) => {
+    let body = "";
+    req.on("data", (c) => { body += c; });
+    req.on("end", () => {
+      try {
+        resolve(JSON.parse(body || "{}"));
+      } catch {
+        resolve({});
+      }
+    });
+  });
+
 function cors(req, res) {
   const origin = req.headers.origin;
   if (origin) {
@@ -100,7 +120,7 @@ const server = createServer((req, res) => {
           {
             path: `/${MCP_NAME}-2`,
             display_name: "E2E Registry MCP 2",
-            description: "Second registry entry served by the e2e stub",
+            description: "Registry entry served by the e2e stub",
             is_enabled: true,
             health_status: "healthy",
             status: "active",
@@ -111,6 +131,32 @@ const server = createServer((req, res) => {
       });
     }
     if (url.pathname.startsWith("/api/skills")) return json(res, 200, { skills: [], total_count: 0 });
+    // Agent entries (agent-service-config): the deploy surface registers one
+    // per serving role and the config write is a GET-merge-PUT onto it.
+    if (url.pathname === "/api/agents/register" && req.method === "POST") {
+      return void readBody(req).then((body) => {
+        agentEntries.set(normPath(body.path), body);
+        json(res, 201, { path: body.path, ...body });
+      });
+    }
+    const toggle = url.pathname.match(/^\/api\/agents\/(.+)\/toggle$/);
+    if (toggle && req.method === "POST") {
+      return json(res, 200, { path: toggle[1], is_enabled: true });
+    }
+    const entry = url.pathname.match(/^\/api\/agents\/(.+)$/);
+    if (entry) {
+      const key = normPath(entry[1]);
+      if (req.method === "GET") {
+        if (!agentEntries.has(key)) return json(res, 404, { detail: "not found" });
+        return json(res, 200, agentEntries.get(key));
+      }
+      if (req.method === "PUT") {
+        return void readBody(req).then((body) => {
+          agentEntries.set(normPath(body.path ?? key), body);
+          json(res, 200, { path: body.path ?? key, ...body });
+        });
+      }
+    }
     return json(res, 200, { agents: [], total_count: 0 });
   }
 

@@ -84,7 +84,9 @@ test("2.1 wrong or missing protocol is rejected", () => {
 });
 
 test("2.1 contract cannot smuggle runtime configuration", () => {
-  for (const key of ["url", "baseUrl", "endpoint", "model", "apiKey", "apiKeyEnv", "token", "credentials", "auth"]) {
+  // `model` left this list in agent-service-config (ADR-0019): the contract
+  // declares a default + narrowing whitelist; it stays forbidden nested.
+  for (const key of ["url", "baseUrl", "endpoint", "apiKey", "apiKeyEnv", "token", "credentials", "auth"]) {
     const errs = validatePackManifest(withServing({ protocol: "a2a", [key]: "x" }));
     assert.ok(
       errs.some((e) => e.error.includes(key) && /forbidden key/.test(e.error)),
@@ -95,6 +97,41 @@ test("2.1 contract cannot smuggle runtime configuration", () => {
     withServing({ protocol: "a2a", card: { name: "n", model: "gpt-4" } }),
   );
   assert.ok(cardErrs.some((e) => /serving\.card may not carry runtime configuration/.test(e.error)));
+});
+
+test("agent-service-config serving.model / modelWhitelist validate", () => {
+  // Legal forms.
+  assert.deepEqual(validatePackManifest(withServing({ protocol: "a2a", model: "deepseek-v4-flash" })), []);
+  assert.deepEqual(
+    validatePackManifest(
+      withServing({ protocol: "a2a", model: "deepseek-v4-flash", modelWhitelist: ["deepseek-v4-flash", "vendor/model-x"] }),
+    ),
+    [],
+  );
+  // Model identifier shape.
+  for (const bad of ["", " deepseek", "deepseek v4", "-lead", null, 42, "x".repeat(129)]) {
+    const errs = validatePackManifest(withServing({ protocol: "a2a", model: bad }));
+    assert.ok(errs.some((e) => /serving\.model must be a model identifier/.test(e.error)), `model ${JSON.stringify(String(bad).slice(0, 12))} should be rejected`);
+  }
+  // Whitelist shape: non-empty, bounded, identifiers, unique.
+  const wl = (list) => validatePackManifest(withServing({ protocol: "a2a", modelWhitelist: list }));
+  assert.ok(wl([]).some((e) => /modelWhitelist must be a non-empty array/.test(e.error)));
+  assert.ok(wl(["a".repeat(129)]).some((e) => /must be model identifiers/.test(e.error)));
+  assert.ok(wl(["dup", "dup"]).some((e) => /declares 'dup' twice/.test(e.error)));
+  assert.ok(
+    wl(Array.from({ length: 9 }, (_, i) => `m-${i}`)).some((e) => /at most 8 model identifiers/.test(e.error)),
+  );
+  // Cross-check: a declared default outside the declared whitelist is an
+  // author contradiction the deploy surface could never honor.
+  const cross = validatePackManifest(
+    withServing({ protocol: "a2a", model: "m-out", modelWhitelist: ["m-in"] }),
+  );
+  assert.ok(cross.some((e) => /serving\.model must be within serving\.modelWhitelist/.test(e.error)));
+  // The nested ban on `model` survives (card keeps the old boundary).
+  assert.ok(
+    validatePackManifest(withServing({ protocol: "a2a", rhythm: [{ every: "30m", model: "x" }] }))
+      .some((e) => /forbidden key\(s\): model/.test(e.error)),
+  );
 });
 
 test("2.1 unknown keys in serving/card/capability are rejected", () => {
@@ -404,6 +441,7 @@ async function routeHarness({ user, deployConfig, manifest }) {
   return {
     registry,
     packId: id,
+    base,
     close: () => new Promise((r) => server.close(r)),
     call: (method, p, body) =>
       fetch(base + p, {
@@ -759,5 +797,273 @@ test("kill is admin-gated and writes the same flag; deployments list reports pau
     assert.equal(list.body.deployments[0].paused, true);
   } finally {
     await admin.close();
+  }
+});
+
+// ── agent-service-config: config_overrides + effective_model + routes ───────
+
+test("config: deploy records config_overrides + effective_model; redeploy keeps them", async () => {
+  const manifest = withServing({ protocol: "a2a", rhythm: [{ every: "1h" }], model: "m-declared" });
+  const base = { packId: "pk-abc", version: 3, runnerBaseUrl: "http://runner.tailnet", packsPublicBase: "https://packs.example.test", registryUrl: "https://mcp.example.test", manifest };
+  const stub = stubRegistry();
+  await servingLib.deployToRegistry({
+    ...base,
+    rhythmOverrides: { "pack-fingpt": [{ daily: "09:30" }] },
+    modelOverrides: { "pack-fingpt": "m-in" },
+    fetchImpl: stub.fetch,
+  });
+  let meta = stub.calls.agents.at(-1).body.metadata;
+  assert.deepEqual(meta.effective_rhythm, [{ daily: "09:30" }], "override wins");
+  assert.equal(meta.effective_model, "m-in");
+  assert.deepEqual(meta.config_overrides, { rhythm: [{ daily: "09:30" }], model: "m-in" });
+
+  // Upgrade-shaped redeploy (SAME stub = the live entry is read back): the
+  // request carries NO overrides — the pins survive verbatim.
+  await servingLib.deployToRegistry({ ...base, fetchImpl: stub.fetch });
+  meta = stub.calls.agents.at(-1).body.metadata;
+  assert.deepEqual(meta.effective_rhythm, [{ daily: "09:30" }], "rhythm pin survives a redeploy");
+  assert.equal(meta.effective_model, "m-in", "model pin survives a redeploy");
+  assert.deepEqual(meta.config_overrides, { rhythm: [{ daily: "09:30" }], model: "m-in" });
+});
+
+test("config: upgrade re-resolves — pins hold, uncovered dimensions follow the NEW manifest", async () => {
+  const v3 = withServing({ protocol: "a2a", rhythm: [{ every: "1h" }], budget: { turnMinutes: 3 } });
+  const v4 = withServing({ protocol: "a2a", rhythm: [{ every: "2h" }], budget: { turnMinutes: 9 } });
+  const base = { packId: "pk-abc", runnerBaseUrl: "http://runner.tailnet", packsPublicBase: "https://packs.example.test", registryUrl: "https://mcp.example.test" };
+  const stub = stubRegistry();
+  await servingLib.deployToRegistry({
+    ...base, version: 3, manifest: v3,
+    rhythmOverrides: { "pack-fingpt": [{ daily: "09:30" }] },
+    fetchImpl: stub.fetch,
+  });
+  await servingLib.deployToRegistry({ ...base, version: 4, manifest: v4, fetchImpl: stub.fetch });
+  const meta = stub.calls.agents.at(-1).body.metadata;
+  assert.deepEqual(meta.effective_rhythm, [{ daily: "09:30" }], "covered rhythm keeps the pin across the upgrade");
+  assert.equal(meta.effective_budget_minutes, 9, "uncovered budget follows the new version's declaration");
+  assert.equal(meta.packVersion, 4);
+  assert.deepEqual(meta.config_overrides, { rhythm: [{ daily: "09:30" }] });
+});
+
+test("config: resolveServiceConfig precedence — request > preserved override > declaration", () => {
+  const serving = { rhythm: [{ every: "1h" }], budget: { turnMinutes: 5 }, model: "m-decl" };
+  // Request-level override wins over everything.
+  assert.equal(
+    servingLib.resolveServiceConfig({ serving, overrides: { model: "m-pin" }, modelOverride: "m-req" }).model,
+    "m-req",
+  );
+  // Preserved override wins over the declaration.
+  assert.equal(servingLib.resolveServiceConfig({ serving, overrides: { model: "m-pin" } }).model, "m-pin");
+  // Declaration when nothing pinned.
+  assert.equal(servingLib.resolveServiceConfig({ serving, overrides: {} }).model, "m-decl");
+  // null pin clears back to the declaration (and rhythm null clears to none).
+  assert.equal(servingLib.resolveServiceConfig({ serving, overrides: { model: null } }).model, "m-decl");
+  assert.equal(servingLib.resolveServiceConfig({ serving, overrides: { rhythm: null } }).rhythm, null);
+  assert.equal(servingLib.resolveServiceConfig({ serving, overrides: { rhythm: null } }).model, "m-decl");
+  // modelChoiceError: whitelist ∩ lanes, refusal names the violated constraint.
+  assert.match(servingLib.modelChoiceError({ model: "m-x", whitelist: ["m-in"], lanes: ["m-in"] }), /modelWhitelist/);
+  assert.match(servingLib.modelChoiceError({ model: "m-x", whitelist: null, lanes: ["m-in"] }), /billing lanes/);
+  assert.equal(servingLib.modelChoiceError({ model: "m-in", whitelist: ["m-in"], lanes: ["m-in", "m-x"] }), null);
+});
+
+// ── agent-service-config: deploy-time model lanes + the config routes ───────
+
+function stubSub2api({ email = "author@x", key = "sk-stub-1", models = ["m-in", "m-extra"] } = {}) {
+  const seen = [];
+  const fetchImpl = async (rawUrl, init = {}) => {
+    const url = String(rawUrl);
+    seen.push({ path: url.split("?")[0], method: init.method ?? "GET" });
+    if (url.startsWith("/v1/models")) {
+      const got = String(init.headers?.Authorization ?? "").replace(/^Bearer /, "");
+      if (got !== key) return { ok: false, status: 401, json: async () => ({ code: "INVALID_KEY" }) };
+      return { ok: true, status: 200, json: async () => ({ code: 0, data: models.map((id) => ({ id })) }) };
+    }
+    if (url.startsWith("/api/v1/admin/users?")) {
+      const s = decodeURIComponent(url.split("search=")[1]?.split("&")[0] ?? "");
+      const match = email.includes(s) || key.includes(s);
+      return {
+        ok: true, status: 200,
+        json: async () => ({ code: 0, data: { items: match ? [{ id: 7, email, username: "u", balance: 5, status: "active" }] : [], total: match ? 1 : 0 } }),
+      };
+    }
+    if (url.startsWith("/api/v1/admin/users/")) {
+      return { ok: true, status: 200, json: async () => ({ code: 0, data: { balance: 5, status: "active", email } }) };
+    }
+    return { ok: false, status: 404, json: async () => ({ code: 404 }) };
+  };
+  return { fetchImpl, seen, key, adminKey: "admin-k" };
+}
+
+const MODEL_MANIFEST = withServing({
+  protocol: "a2a",
+  model: "m-in",
+  modelWhitelist: ["m-in", "m-alt"],
+  budget: { turnMinutes: 5 },
+});
+
+test("deploy: model choice passes lane validation or refuses the deploy", async () => {
+  const sub2api = stubSub2api();
+  const cfg = {
+    registryUrl: "https://mcp.example.test", token: "t",
+    runnerBaseUrl: "http://runner:8790", packsPublicBase: "https://packs.example.test",
+    sub2api: { adminKey: sub2api.adminKey, fetchImpl: sub2api.fetchImpl },
+  };
+  const mk = async (extra = {}) => {
+    const stub = stubRegistry();
+    const h = await routeHarness({
+      user: { email: "author@x", groups: [] },
+      deployConfig: { ...cfg, fetchImpl: stub.fetch, ...extra },
+      manifest: MODEL_MANIFEST,
+    });
+    return { stub, h };
+  };
+  const deployBody = {
+    billingKeys: { "pack-fingpt": sub2api.key },
+    models: { "pack-fingpt": "m-alt" },
+  };
+
+  // Whitelisted but NOT on the deployment key's lanes → refused.
+  {
+    const { stub, h } = await mk();
+    try {
+      const res = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, deployBody);
+      assert.equal(res.status, 400);
+      assert.equal(res.body.code, "MODEL_LANE_REJECTED");
+      assert.match(res.body.error, /billing lanes/);
+      assert.equal(stub.calls.agents.length, 0, "no agent entry carries an unauthorized lane");
+    } finally { await h.close(); }
+  }
+  // On lanes but OUTSIDE the whitelist → refused naming the constraint.
+  {
+    const { h } = await mk();
+    try {
+      const res = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, {
+        ...deployBody,
+        models: { "pack-fingpt": "m-extra" },
+      });
+      assert.equal(res.status, 400);
+      assert.match(res.body.error, /modelWhitelist/);
+    } finally { await h.close(); }
+  }
+  // Inside both → the deploy lands and the descriptor carries it as the
+  // initial config.
+  {
+    const { stub, h } = await mk();
+    try {
+      const res = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, {
+        ...deployBody,
+        models: { "pack-fingpt": "m-in" },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(stub.calls.agents.at(-1).body.metadata.effective_model, "m-in");
+      assert.equal(stub.calls.agents.at(-1).body.metadata.config_overrides.model, "m-in");
+    } finally { await h.close(); }
+  }
+});
+
+test("config routes: deployer/admin gate, three-state merge, live effective fields", async () => {
+  const sub2api = stubSub2api();
+  const stub = stubRegistry();
+  const cfg = {
+    registryUrl: "https://mcp.example.test", token: "t",
+    runnerBaseUrl: "http://runner:8790", packsPublicBase: "https://packs.example.test",
+    fetchImpl: stub.fetch,
+    sub2api: { adminKey: sub2api.adminKey, fetchImpl: sub2api.fetchImpl },
+  };
+  const h = await routeHarness({ user: { email: "author@x", groups: [] }, deployConfig: cfg, manifest: MODEL_MANIFEST });
+  try {
+    const dep = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, {
+      billingKeys: { "pack-fingpt": sub2api.key },
+    });
+    assert.equal(dep.status, 200);
+
+    // Reads: effective value + source per dimension.
+    const read = await h.call("GET", `/api/packs/${h.packId}/deployments/pack-fingpt/config`);
+    assert.equal(read.status, 200);
+    assert.equal(read.body.config.rhythm.source, "default");
+    assert.equal(read.body.config.budgetMinutes.effective, 5);
+    assert.equal(read.body.config.budgetMinutes.source, "declared");
+    assert.equal(read.body.config.model.effective, "m-in");
+    assert.equal(read.body.config.model.source, "declared");
+
+    // Gate: the deployment's deployer writes; the author-who-never-deployed
+    // and strangers do not (covered at unit level by the gate rule in
+    // configRow — the route asserts the happy path here).
+    const put = await h.call("PUT", `/api/packs/${h.packId}/deployments/pack-fingpt/config`, {
+      rhythm: [{ daily: "09:30" }],
+      budgetMinutes: 20,
+    });
+    assert.equal(put.status, 200);
+    const after = stub.calls.agents.at(-1).body.metadata;
+    assert.deepEqual(after.effective_rhythm, [{ daily: "09:30" }]);
+    assert.equal(after.effective_budget_minutes, 20);
+    assert.deepEqual(after.config_overrides, { rhythm: [{ daily: "09:30" }], budgetMinutes: 20 });
+    const read2 = await h.call("GET", `/api/packs/${h.packId}/deployments/pack-fingpt/config`);
+    assert.equal(read2.body.config.rhythm.source, "override");
+    assert.equal(read2.body.config.budgetMinutes.source, "override");
+
+    // Model write: lane-validated against the deployment key's live lanes.
+    const badModel = await h.call("PUT", `/api/packs/${h.packId}/deployments/pack-fingpt/config`, { model: "m-extra" });
+    assert.equal(badModel.status, 400);
+    assert.equal(badModel.body.code, "MODEL_LANE_REJECTED");
+    const okModel = await h.call("PUT", `/api/packs/${h.packId}/deployments/pack-fingpt/config`, { model: "m-in" });
+    assert.equal(okModel.status, 200);
+    assert.equal(stub.calls.agents.at(-1).body.metadata.effective_model, "m-in");
+
+    // Omitted keys keep; explicit null clears back to the declaration.
+    const clear = await h.call("PUT", `/api/packs/${h.packId}/deployments/pack-fingpt/config`, { budgetMinutes: null });
+    assert.equal(clear.status, 200);
+    assert.equal(stub.calls.agents.at(-1).body.metadata.effective_budget_minutes, 5, "cleared budget follows the declaration");
+    assert.deepEqual(stub.calls.agents.at(-1).body.metadata.effective_rhythm, [{ daily: "09:30" }], "the rhythm pin survives an unrelated clear");
+
+    // Unknown dimensions refuse.
+    const junk = await h.call("PUT", `/api/packs/${h.packId}/deployments/pack-fingpt/config`, { persona: "x" });
+    assert.equal(junk.status, 400);
+    assert.match(junk.body.error, /unknown config key/);
+  } finally {
+    await h.close();
+  }
+});
+
+test("config internal door: service credential + console-verified actor; same enforcement", async () => {
+  const sub2api = stubSub2api();
+  const stub = stubRegistry();
+  const cfg = {
+    registryUrl: "https://mcp.example.test", token: "t",
+    runnerBaseUrl: "http://runner:8790", packsPublicBase: "https://packs.example.test",
+    fetchImpl: stub.fetch,
+    sub2api: { adminKey: sub2api.adminKey, fetchImpl: sub2api.fetchImpl },
+  };
+  const h = await routeHarness({ user: { email: "author@x", groups: [] }, deployConfig: cfg, manifest: MODEL_MANIFEST });
+  try {
+    await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, { billingKeys: { "pack-fingpt": sub2api.key } });
+    const url = `/api/packs/internal/deployments/${h.packId}/pack-fingpt/config`;
+    const raw = (method, p, headers, body) =>
+      fetch(`${h.base}${p}`, {
+        method,
+        headers: { "Content-Type": "application/json", ...headers },
+        body: body ? JSON.stringify(body) : undefined,
+      }).then(async (res) => ({ status: res.status, body: await res.json().catch(() => ({})) }));
+
+    // No service credential → 401 regardless of actor headers.
+    const noCred = await raw("GET", url, { "x-acting-user": "author@x" });
+    assert.equal(noCred.status, 401);
+    // Credential but no actor → 400 (the console must say who it verified).
+    const noActor = await raw("GET", url, { Authorization: "Bearer t" });
+    assert.equal(noActor.status, 400);
+    // Wrong actor → the deployer/admin rule answers 403.
+    const stranger = await raw("GET", url, { Authorization: "Bearer t", "x-acting-user": "stranger@x" });
+    assert.equal(stranger.status, 403);
+    // The deployer reads and writes through the internal door.
+    const read = await raw("GET", url, { Authorization: "Bearer t", "x-acting-user": "author@x" });
+    assert.equal(read.status, 200);
+    assert.equal(read.body.config.model.effective, "m-in");
+    const write = await raw("PUT", url, { Authorization: "Bearer t", "x-acting-user": "author@x", "x-acting-groups": "creators" }, { model: "m-in", budgetMinutes: 12 });
+    assert.equal(write.status, 200);
+    assert.equal(stub.calls.agents.at(-1).body.metadata.effective_budget_minutes, 12);
+    // An admin-group actor passes the same way.
+    const admin = await raw("GET", url, { Authorization: "Bearer t", "x-acting-user": "mod@x", "x-acting-groups": "admin" });
+    assert.equal(admin.status, 200);
+  } finally {
+    await h.close();
   }
 });

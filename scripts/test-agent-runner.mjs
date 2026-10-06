@@ -1278,3 +1278,49 @@ test("notify: a rebind drains the old child so the new binding takes effect", as
     await manager.stopAll();
   }
 });
+
+// ── agent-service-config / ADR-0019: per-deployment model ───────────────────
+
+test("model: the descriptor's effective_model rides the spawn; absent falls back to the runner default", async () => {
+  const withModel = { ...ENTRY, metadata: { ...ENTRY.metadata, effective_model: "m-per" } };
+  const { manager, spawned } = directManager({ entries: [withModel] });
+  try {
+    await manager.reconcile();
+    await manager.turn(withModel, "s1", "hi");
+    assert.equal(spawned.length, 1);
+    const init = spawned[0].client.calls.initialize[0];
+    assert.equal(init.model, "m-per", "the spawn initializes on the deployment's model");
+    assert.equal(init.provider, "p", "provider family stays the runner's");
+  } finally {
+    await manager.stopAll();
+  }
+  const plain = directManager({ entries: [ENTRY] });
+  try {
+    await plain.manager.reconcile();
+    await plain.manager.turn(ENTRY, "s1", "hi");
+    assert.equal(plain.spawned[0].client.calls.initialize[0].model, "m", "no descriptor model → the runner's deployment default");
+  } finally {
+    await plain.manager.stopAll();
+  }
+});
+
+test("model: a model change drains the old child; the next touch re-spawns on the new model", async () => {
+  const entry = { ...ENTRY, metadata: { ...ENTRY.metadata, effective_model: "m-1" } };
+  const { manager, spawned, entriesRef } = directManager({ entries: [entry] });
+  try {
+    await manager.reconcile();
+    await manager.turn(entry, "s1", "hi");
+    const key = agentKeyFor(entry);
+    const first = manager.children.get(key);
+    assert.ok(first, "child spawned on m-1");
+    entriesRef.current = [{ ...entry, metadata: { ...entry.metadata, effective_model: "m-2" } }];
+    await manager.reconcile();
+    assert.equal(manager.children.has(key), false, "model change drains the child (upgrade-grade channel)");
+    assert.equal(first.draining, true);
+    await manager.turn(entriesRef.current[0], "s2", "hi");
+    assert.equal(spawned.length, 2, "the next touch re-spawns");
+    assert.equal(spawned[1].client.calls.initialize[0].model, "m-2", "the reborn child runs the new model");
+  } finally {
+    await manager.stopAll();
+  }
+});

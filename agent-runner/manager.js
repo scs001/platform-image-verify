@@ -212,6 +212,10 @@ export class ChildManager {
         // change must drain so the next spawn materializes and exports it.
         // Draining never touches the home — data/ persists verbatim.
         workspace: entry.metadata?.workspace,
+        // Per-deployment model (agent-service-config / ADR-0019): the spawn's
+        // LLM is derived from this field, so a model change must drain the
+        // old child — the upgrade-grade channel, no third restart path.
+        model: entry.metadata?.effective_model,
       });
       const existing = this.children.get(key);
       this.entries.set(key, entry);
@@ -635,7 +639,13 @@ export class ChildManager {
         // no keys (facet-mcp-foundation-v1 3.1).
         env: workspaceChildEnv(spec, scrubbedChildEnv(process.env)),
         provider: config.provider,
-        model: config.model,
+        // Per-deployment model (ADR-0019): the descriptor's effective model
+        // wins; absent falls back to the runner's deployment-level default.
+        // The provider family stays the runner's — the model string resolves
+        // through the routing store (LLM_PROVIDERS_STORE).
+        model: typeof descriptor.effective_model === "string" && descriptor.effective_model
+          ? descriptor.effective_model
+          : config.model,
         presetId: spec.presetId,
       },
     });

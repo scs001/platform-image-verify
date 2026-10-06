@@ -971,6 +971,7 @@
       "deployBtn": "部署为服务",
       "deployOnline": "已上线",
       "deployEffective": "已提交部署，约 {{minutes}} 分钟内生效（runner 轮询）。",
+      "gotoConfig": "去配置",
       "rhythmOverride": "覆盖节奏（可选，@{{id}}）",
       "paused": "已暂停",
       "pauseBtn": "暂停",

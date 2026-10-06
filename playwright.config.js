@@ -153,11 +153,22 @@ export default defineConfig({
             // the server-side credential presence checks; the A2A stub in
             // agent-serving.spec.js accepts any bearer.
             AGENT_SERVING_BACKEND_TOKEN: process.env.AGENT_SERVING_BACKEND_TOKEN || "e2e-a2a-dummy",
+            // Serving deploy/config plane (agent-service-config): the packs
+            // deploy + service-config routes need a registry (the stub above),
+            // a runner base (never contacted by the config path — the runner
+            // itself is out of the fast lane), and a public packs origin.
+            AGENT_SERVING_REGISTRY_URL: process.env.AGENT_SERVING_REGISTRY_URL || E2E_REGISTRY_URL,
+            AGENT_SERVING_RUNNER_URL: process.env.AGENT_SERVING_RUNNER_URL || "http://127.0.0.1:8790",
+            AGENT_SERVING_PACKS_URL: process.env.AGENT_SERVING_PACKS_URL || `http://127.0.0.1:${E2E_PORT}`,
             MARKET_REGISTRY_TTL_SECS: process.env.MARKET_REGISTRY_TTL_SECS || "300",
             // Pack marketplace surfaces (add-pack-marketplace): the gateway
             // plane (/api/packs...) is route-mocked per spec; this flag turns
             // the packs Settings section on for the specs that exercise it.
             PACK_MARKETPLACE: process.env.PACK_MARKETPLACE || "1",
+            // The auth-off machine owner's groups (agent-service-config e2e):
+            // lets the real publish route pass its creator gate. Other specs
+            // mock the gateway plane and never observe the difference.
+            E2E_USER_GROUPS: process.env.E2E_USER_GROUPS || "creators",
             // Pack manifests are fetched SERVER-side from the market
             // (pack-install-server-side-manifest): the stub above is the
             // facet the cell's install fetch addresses. Its data route only

@@ -236,7 +236,11 @@ if (process.env.PACK_MARKETPLACE === "1") {
       req.user ??
       (ctx.authEnabled
         ? null
-        : { email: ctx.cellUserEmail || "owner@local", groups: [] }),
+        : // E2E_USER_GROUPS is a test seam (agent-service-config e2e): the
+          // auth-off machine owner can carry groups so creator-gated real
+          // routes (publish) are reachable. Empty by default — production
+          // identity never comes from here.
+          { email: ctx.cellUserEmail || "owner@local", groups: String(process.env.E2E_USER_GROUPS || "").split(",").map((s) => s.trim()).filter(Boolean) }),
     rejectUnauthenticated: (_req, res) => res.status(401).json({ error: "Authentication required" }),
     creatorGroups: (process.env.PACK_CREATOR_GROUPS || "creators")
       .split(",")

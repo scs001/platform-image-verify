@@ -971,6 +971,7 @@
       "deployBtn": "Deploy",
       "deployOnline": "online",
       "deployEffective": "Deployment submitted — effective within ~{{minutes}} min (runner polling).",
+      "gotoConfig": "Configure",
       "rhythmOverride": "Rhythm override (optional, @{{id}})",
       "paused": "Paused",
       "pauseBtn": "Pause",

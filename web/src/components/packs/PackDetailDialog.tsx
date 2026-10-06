@@ -28,6 +28,14 @@ interface Props {
   onGotoMine?: () => void;
 }
 
+// The 万星 console deep link (agent-service-config): the deployment's slug and
+// the console origin. The slug rule mirrors the serving side's slugFor
+// (fd-wanxing wanxing-facade core.js) — a minimal copy, keep the two in
+// lockstep (the same discipline the console's setPaused copy follows).
+const wanxingConsoleBase = () => import.meta.env.VITE_WANXING_CONSOLE_URL || "https://wanxing.finddatatech.cloud";
+const wanxingSlugFor = (agentPath: string) =>
+  String(agentPath).replace(/^\/+/, "").replace(/[^A-Za-z0-9._-]+/g, "-").toLowerCase();
+
 export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMine }: Props) {
   const { t } = useTranslation();
   const [pack, setPack] = useState<PackDetail | null>(null);
@@ -374,6 +382,17 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                           data-testid={`pack-deployment-pause-${d.agentId}`}
                         >
                           {d.paused ? t("packs.detail.resumeBtn") : t("packs.detail.pauseBtn")}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-6 px-2 text-xs"
+                          onClick={() =>
+                            window.open(`${wanxingConsoleBase()}/#/console/${wanxingSlugFor(d.agentPath)}`, "_blank", "noopener")
+                          }
+                          data-testid={`pack-deployment-config-${d.agentId}`}
+                        >
+                          {t("packs.detail.gotoConfig")}
                         </Button>
                       </li>
                     ))}

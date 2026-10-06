@@ -38,8 +38,11 @@ export function loadConfig(env = process.env) {
     // Poll cadence; spec bound is "effective within five minutes".
     pollSecs: num(env.AGENT_RUNNER_POLL_SECS, 60),
 
-    // The LLM every child uses — runner-level by design (design D8): model
-    // choice is a deployment concern, never a serving-contract field.
+    // LLM defaults (ADR-0019, superseding design D8's runner-level single
+    // model): the runner's deployment-level DEFAULT model — a deployment
+    // whose descriptor records `effective_model` (per-agent service config)
+    // runs on that instead; provider stays runner-level, the model string
+    // resolves through the routing store.
     provider: env.AGENT_RUNNER_PROVIDER || "deepseek-official",
     model: env.AGENT_RUNNER_MODEL || "deepseek-v4-flash",
 

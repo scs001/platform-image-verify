@@ -971,6 +971,7 @@
       "deployBtn": "デプロイ",
       "deployOnline": "オンライン",
       "deployEffective": "デプロイを送信しました。約 {{minutes}} 分で有効になります（runner のポーリング）。",
+      "gotoConfig": "設定する",
       "rhythmOverride": "リズム上書き（任意, @{{id}}）",
       "paused": "一時停止中",
       "pauseBtn": "一時停止",

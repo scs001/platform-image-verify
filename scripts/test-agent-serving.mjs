@@ -639,6 +639,40 @@ test("notify: the deploy route validates the binding shape; the descriptor carri
   }
 });
 
+// ── fix-deploy-toggle-probe-race: deploy reassurance re-toggle ladder ────────
+// The registry's toggle POST is a state no-op when already enabled, but every
+// call re-probes the backend and persists health_status (the only automatic
+// heal — its periodic loop covers MCP servers only). A fresh deploy therefore
+// re-fires the toggle across the runner's ≤5min pickup window.
+
+test("deploy fires the reassurance ladder for the deployed agent (immediate + rungs)", async () => {
+  const stub = stubRegistry();
+  const toggles = [];
+  const baseFetch = stub.fetch;
+  const fetchImpl = async (url, init) => {
+    if (String(url).includes("/toggle?")) toggles.push(String(url));
+    return baseFetch(url, init);
+  };
+  await servingLib.deployToRegistry({ ...PACK, fetchImpl, reassuranceDelays: [10, 20] });
+  assert.equal(toggles.length, 1, "the immediate toggle still fires first");
+  assert.match(toggles[0], /^\/api\/agents\/packs\/pk-abc\/pack-fingpt\/toggle\?enabled=true$/);
+  await new Promise((r) => setTimeout(r, 80));
+  assert.equal(toggles.length, 3, "one immediate + two ladder re-fires");
+});
+
+test("reassurance failures are logged, never thrown (deploy response unaffected)", async () => {
+  const warned = [];
+  servingLib.scheduleDeployReassurance({
+    doFetch: async () => { throw new Error("boom"); },
+    path: "/packs/pk-abc/x",
+    delays: [10],
+    log: { log: () => {}, warn: (m) => warned.push(m) },
+  });
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(warned.length, 1);
+  assert.match(warned[0], /re-toggle failed \(\+0s\): boom/);
+});
+
 test("setAgentPaused GET-merge-PUTs the flag and clears it on resume", async () => {
   const manifest = withServing({ protocol: "a2a" });
   const stub = stubRegistry();

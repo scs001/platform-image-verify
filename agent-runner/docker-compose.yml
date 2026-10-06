@@ -23,6 +23,12 @@ services:
   agent-runner:
     image: ${REGISTRY_IMAGE:-ccr.ccs.tencentyun.com/yizuo/platform:latest}
     command: node agent-runner/index.js
+    # Volume state (homes/meter/fleet spool) is root-owned from the root-run
+    # generations; the image default (node) cannot write any of it — meter
+    # and child spawns fail with EACCES (live incident 2026-10-07). Pin the
+    # proven identity; migrating the volume to uid 1000 is a separate
+    # least-privilege decision, not a rollout default.
+    user: "0:0"
     restart: unless-stopped
     ports:
       - "${AGENT_RUNNER_BIND_IP:-127.0.0.1}:8790-8850:8790-8850" # ops port + per-agent span (8791+), never the public internet

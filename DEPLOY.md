@@ -1672,8 +1672,11 @@ agent 走部署默认 `AGENT_RUNNER_TURN_TIMEOUT_MS`（默认 180s）——env �
 - **运行时状态显式外置**：`LLM_PROVIDERS_STORE=/data/llm-providers.json`（旧 `/app` bind
   里的用户路由真件迁入卷；漏迁的症状 = child 初始化 `no adapter registered for
   provider "finddata"`）；
-- 端口段 8790-8850 绑尾网 IP、`--user root`（卷属主 root）、`--no-healthcheck`（镜像
-  HEALTHCHECK 面向前台 server 角色）、`-m 1572864000` 与旧容器一致；
+- 端口段 8790-8850 绑尾网 IP、`--user root`（卷属主 root；compose 亦钉 `user: "0:0"`，
+  漏带 = 镜像默认 node 对 root 卷全线 EACCES）、`-m 1572864000` 与旧容器一致；
+  healthcheck 带 compose 形态探针 `node -e "fetch('http://127.0.0.1:8790/health')…"`
+  （镜像自 2026-10-07 起不再烘焙 HEALTHCHECK——角色错配曾让 runner 恒显 unhealthy；
+  漏带只是没有健康信号，不再有假 unhealthy）。
 - 回滚 = `docker start agent-runner-dsh-old`（child 再重启一回，home 完好）。
 
 **验收实录**：4 在役 agent 全部重新监听；对 daas-analyst 直连 a2a 写/读回任务——agent

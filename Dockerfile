@@ -138,9 +138,9 @@ RUN npm --prefix facet/web run build
 # ── Runtime ──────────────────────────────────────────────────────────────────
 FROM ${BASE_IMAGE} AS runtime
 
-# ca-certificates for outbound HTTPS (Volces upstreams); curl for the
-# Docker HEALTHCHECK. Everything else is bundled in node_modules / web/dist and
-# needs no system packages.
+# ca-certificates for outbound HTTPS (Volces upstreams); curl for the CI image
+# smoke probe (docker exec) and ops debugging. Everything else is bundled in
+# node_modules / web/dist and needs no system packages.
 RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources \
     && apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
@@ -230,11 +230,11 @@ USER node
 
 EXPOSE 3000
 
-# Docker-level healthcheck for local `docker run`. k8s uses its own probes (see
-# k8s/deployment.yaml). start-period must exceed server.js cold-start (~50s) +
-# sidecar warmup; the supervisor's own START_TIMEOUT is 120s.
-HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
-    CMD curl -fsS http://localhost:3000/api/config || exit 1
+# No baked HEALTHCHECK: this image carries three roles (cell/facet on 3000,
+# runner on 8790) and a role-specific probe mislabels the others unhealthy
+# (the cheap-1 runner lived "unhealthy" for a generation — 2026-10-07). Each
+# role defines its own: k8s roles use k8s probes; the runner's compose and the
+# DEPLOY.md runbook carry the 8790 /health probe.
 
 # start.js → local-services.js → Supervisor spawns server.js, then keeps running.
 CMD ["node", "scripts/start.js"]

@@ -113,26 +113,28 @@ const PERSONA = `你是「数据-分析师」——谦面的数据分析工作�
 
 // ── 三包 manifest（严格照 lib/pack-manifest.js 的 validatePackManifest/PACK_LIMITS）──
 
-export function buildAnalysisPack() {
+export function buildAnalysisPack(opts = {}) {
   return {
     name: "数据-自助分析",
     description: "谦面自助分析消费八件套：取数（工作流清单/AkShare）、实体与集合管理、指标查询、看板检视、PDF 语义检索、头脑风暴与一键研究——业务人自助完成数据消费全流程",
     tags: ["数据", "自助分析", "取数", "看板", "DAAS"],
     visibility: "public",
     skills: loadSkills(CONSUME_SKILLS),
-    mcpServers: [],
+    // MCP 引用（10-06 补）：技能正文依赖 daas_* 工具，不挂 fd-daas-mcp 的包是半成品。
+    // registryName 可被 --registry-name 覆盖（per-customer 工作区实例）。
+    mcpServers: [{ registryName: opts.registryName || "fd-daas-mcp" }],
     agents: [],
   };
 }
 
-export function buildWorkshopPack() {
+export function buildWorkshopPack(opts = {}) {
   return {
     name: "数据-指标工坊",
     description: "谦面指标工坊创作五件套：规则驱动实体集、指标持久化、指标集策展、统一规则（json/script/position/llm）与单文件 HTML 看板——把业务口径沉淀为可复用的数据资产",
     tags: ["数据", "指标", "创作", "规则", "DAAS"],
     visibility: "public",
     skills: loadSkills(CREATE_SKILLS),
-    mcpServers: [],
+    mcpServers: [{ registryName: opts.registryName || "fd-daas-mcp" }],
     agents: [],
   };
 }
@@ -179,11 +181,15 @@ export function buildAnalystPack({ registryName = "fd-daas-mcp", requiredGroup, 
 // ── 构建与本地校验（超限如实报告，绝不静默截断）──────────────────────────────
 
 function buildAll(opts) {
-  const packs = [
-    { key: "ANALYSIS", label: "数据-自助分析", envId: "PACK_ID_ANALYSIS", manifest: buildAnalysisPack() },
-    { key: "WORKSHOP", label: "数据-指标工坊", envId: "PACK_ID_WORKSHOP", manifest: buildWorkshopPack() },
+  let packs = [
+    { key: "ANALYSIS", label: "数据-自助分析", envId: "PACK_ID_ANALYSIS", manifest: buildAnalysisPack(opts) },
+    { key: "WORKSHOP", label: "数据-指标工坊", envId: "PACK_ID_WORKSHOP", manifest: buildWorkshopPack(opts) },
     { key: "ANALYST", label: "数据-分析师", envId: "PACK_ID_ANALYST", manifest: buildAnalystPack(opts) },
   ];
+
+  // --only KEY1,KEY2（或包名）：选择性发布，避免为未变更的包追加无谓版本。
+  const only = (argValue("--only") || process.env.ONLY || "").split(",").map((x) => x.trim()).filter(Boolean);
+  if (only.length) packs = packs.filter((p) => only.includes(p.key) || only.includes(p.label));
 
   // 技能正文限额预检（content.length 为字符数，限额即按字符计）。
   const oversize = [];

@@ -62,6 +62,7 @@ git push --force origin main   # 快照仓无共同历史，force 是常态
 
 ## 5. 已知边界
 
+- **2026-10-06 表维护**：新增排除 `docs/registry-maintenance.md`、`docs/spider-heal-pack.md`（内网运维手册）、`docs/adr/` 与 `docs/registry-fork-patches/`（内部决策/补丁记录）、`scripts/test-ops-console-board.mjs`（fleet board 测试）、`servers/fd-health-mcp/`（tailnet 运维 README）；新增 SCRUB（spider-heal-pack 的模型网关域名）；新增 ALLOW 豁免（谦面页脚联系方式 = facet-platform 规格强制的公开面，扫描豁免）。同日 facet/cli + facet/web 首次进入快照（npm scope 修正后）。
 - 快照排除了：DEPLOY.md、PRODUCT.md、Makefile、Jenkinsfile、k8s/、argocd/、image.yml、openspec/changes/、三个内部能力规格（ops-console / live-service-testing / registry-market-deployment）、services/ops-console/、docs/vertical-packs*、.claude/.pi/.impeccable/、probe 与 live 验证脚本、本脚本与本 runbook。
 - 快照清洗了：Dockerfile/agent-runner compose/.env.example/playwright live 配置等文件里的内网域名、tailnet/公网 IP、集群名、Jenkins/Harbor 引用、DEPLOY.md 指针（完整表见脚本 `SCRUBS`）。
 - 公开面有意保留：www./craw./demo./mcp.finddatatech.cloud（公开域名）、微信 appid（公开标识符）、官网/产品线链接。

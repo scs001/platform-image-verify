@@ -79,6 +79,9 @@ const EXCLUDE_PATHS = new Set([
   "demands.md", // scratch demand notes
   "lawcraw-architecture.md", // legacy pre-rename product notes
   "docs/opensource-release.md", // this feature's private runbook
+  "docs/registry-maintenance.md", // internal registry ops runbook (tailnet/jenkins/ips)
+  "docs/spider-heal-pack.md", // spider-heal pack ops manual (sub2api keys, mesh dsn)
+  "facet/cli/NPM-SCOPE-FIX.md", // npm scope ops runbook: account/org internals
   "docs/facet-cutover-repair-handoff.md", // cross-session repair handoff: live host facts, paths, incident log
   // internal deploy plumbing
   "Makefile", // k8s/argocd deploy wrapper + prod live-service URL
@@ -88,7 +91,12 @@ const EXCLUDE_PATHS = new Set([
   "docs/vertical-packs.md", // market-registration runbook (internal registry)
   // this tool itself
   "scripts/make-public-snapshot.mjs",
+  // internal ops test: fleet board URL (tailnet) + jenkins/harbor/argocd state
+  "scripts/test-ops-console-board.mjs",
 ]);
+// internal health MCP: README is operator-facing (tailnet mesh IPs, SSRF
+// allowlists, DSN handling) — not curated for the public drop (2026-10-06).
+const EXCLUDE_PREFIXES_EXTRA = ["servers/fd-health-mcp/"];
 
 const EXCLUDE_PREFIXES = [
   "k8s/",
@@ -102,6 +110,8 @@ const EXCLUDE_PREFIXES = [
   ".claude/",
   ".pi/",
   ".impeccable/",
+  "docs/adr/", // internal decision records: cluster names, registries, ops
+  "docs/registry-fork-patches/", // mcp-gateway fork patch notes (internal)
 ];
 
 const EXCLUDE_GLOBS = [
@@ -194,11 +204,28 @@ const SCRUBS = [
   ["playwright.config.js", "http://23\\.144\\.68\\.246:30950", "http://127.0.0.1:3000", 2],
   ["playwright.config.js", "targets deployed k3s NodePort at", "targets a deployed instance at", 1],
   [
+    "docs/spider-heal-pack.md",
+    "baseURL \`token\.finddatatech\.cloud/v1\`",
+    "baseURL（模型网关，内网）",
+    1,
+  ],
+  [
     "openspec/specs/vertical-packs/spec.md",
     "the OpenAI-compatible endpoint `token\\.finddatatech\\.cloud/v1` \\(model `deepseek-v4-pro`\\)",
     "an OpenAI-compatible endpoint (model `deepseek-v4-pro`)",
     1,
   ],
+];
+
+// Deliberate exceptions: content that matches a forbidden pattern but is
+// itself spec-mandated public surface. A hit is skipped when the offending
+// file lives under one of the listed paths.
+const ALLOWED = [
+  {
+    label: "personal identifier",
+    paths: ["facet/web/src/PageFooter.tsx", "openspec/specs/facet-platform/spec.md"],
+    why: "facet footer contact (email/phone) is mandated by the facet-platform spec and already live on facet.finddatatech.cloud",
+  },
 ];
 
 // Any match in any snapshot text file fails the build. Patterns are
@@ -244,6 +271,7 @@ const GLOB_RES = EXCLUDE_GLOBS.map(globToRegExp);
 function isExcluded(relPath) {
   if (EXCLUDE_PATHS.has(relPath)) return true;
   if (EXCLUDE_PREFIXES.some((p) => relPath === p.slice(0, -1) || relPath.startsWith(p))) return true;
+  if (EXCLUDE_PREFIXES_EXTRA.some((p) => relPath.startsWith(p))) return true;
   if (GLOB_RES.some((re) => re.test(relPath))) return true;
   return false;
 }
@@ -380,7 +408,10 @@ try {
     const lines = readFileSync(full, "utf8").split("\n");
     lines.forEach((line, i) => {
       for (const [re, label] of FORBIDDEN) {
-        if (re.test(line)) hits.push(`${rel}:${i + 1} [${label}] ${line.trim().slice(0, 100)}`);
+        if (!re.test(line)) continue;
+        const allow = ALLOWED.find((a) => a.label === label && a.paths.some((p) => rel === p || rel.startsWith(p)));
+        if (allow) continue;
+        hits.push(`${rel}:${i + 1} [${label}] ${line.trim().slice(0, 100)}`);
       }
     });
   }

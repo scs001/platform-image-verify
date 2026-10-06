@@ -48,7 +48,7 @@ The platform SHALL offer a deploy action (「部署为服务」) on published pa
 
 ### Requirement: Deployment propagates by polling within five minutes
 
-The runner SHALL discover deployed Agent Services by polling the registry, and a deployment SHALL become callable within five minutes of the deploy action completing, without any push dependency. The deploy API response SHALL state the expected effective window, and the marketplace UI SHALL show a two-state status (「部署中」→「在线」) per deployed agent, derived from the registry entry's health.
+The runner SHALL discover deployed Agent Services by polling the registry, and a deployment SHALL become callable within five minutes of the deploy action completing, without any push dependency and without any manual intervention: within the propagation window the platform SHALL keep re-probing the entry's health until it turns healthy, so the registry's routing surface becomes generatable without a manual toggle. The deploy API response SHALL state the expected effective window, and the marketplace UI SHALL show a two-state status (「部署中」→「在线」) per deployed agent, derived from the registry entry's health.
 
 #### Scenario: Deploy-to-callable latency
 
@@ -59,6 +59,11 @@ The runner SHALL discover deployed Agent Services by polling the registry, and a
 
 - **WHEN** a deployed agent's registry health check turns unhealthy
 - **THEN** the marketplace UI shows the agent as not 在线
+
+#### Scenario: Fresh deployment needs no manual re-toggle
+
+- **WHEN** a newly deployed agent's first health probe fails because the runner has not yet picked the entry up
+- **THEN** the platform re-probes automatically within the propagation window, and the entry reaches healthy — and facade calls stop failing with -32033 — with no operator action
 
 
 ### Requirement: Upgrade swaps in place with drain

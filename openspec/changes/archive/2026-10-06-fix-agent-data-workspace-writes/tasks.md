@@ -19,6 +19,6 @@
 
 ## 4. 收口
 
-- [ ] 4.1 finddata `MCP-REGISTRY.md` §3 销「daas 工作区沙箱」挂账行；归档件 closeout report 追记销账记录
-- [ ] 4.2 DEPLOY.md：runner 实录节更名生产 runner（弃 staging 旧称）+ 本次重锚实录；ADR-0018「runner 随平台镜像发布」落盘 `docs/adr/`
-- [ ] 4.3 归档：`openspec validate` 过 → sync 前置门 → archive
+- [x] 4.1 finddata `MCP-REGISTRY.md` §3「daas 工作区沙箱」挂账行已销（新文本含修复口径与活链验收）；归档件 closeout report 追记「销账追记」节已落盘 ✓
+- [x] 4.2 DEPLOY.md 新增「生产 runner 重锚平台镜像」实录节（含重放清单/回滚/验收与 .backend-token 漂移注记）+ 6.2 节历史形态注改；`docs/adr/0018-production-runner-ships-in-the-platform-image.md` 已落盘 ✓
+- [x] 4.3 归档（本提交）：spec 增量并入 `openspec/specs/agent-runner`，change 移入 archive/2026-10-06-

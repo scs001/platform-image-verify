@@ -11,4 +11,4 @@
 
 - [x] 3.1 上线（sha-b5f920f）：platform/platform-demo 先滚；**验收途中发现漏滚 facet**——facet-proxy 模式下 /api/packs 全前缀在 facet 进程侧，部署路由的代码载体是 facet 而非 platform，遂补滚 facet.yaml → b5f920f。三清单同 sha 后 B 才真 LIVE
 - [x] 3.2 活链验收（PASS，2026-10-06）：新 facet 进程内长命后台部署 `probe-b4-a`（新入口）——入场即 unhealthy（竞态复现）；**+90s 档梯子自动重探实锤**（facet 日志 `deploy reassurance re-toggle ok (+90s)`）→ health=healthy；随后门面路径 `POST /api/../agent/packs/probe-b4-a/probe-agent/` 200，agent 回「探针正常。」——全程零人工干预。-32033 不复现。对照组另证：一次性 exec 进程（梯子随进程亡）与旧 facet（无该代码）的两个入口均钉死 unhealthy、路由缺席（SPA 回落）。验收后 4 个 probe 条目全删（204）、探针包 unpublish（200，按设计包行只撤不删）
-- [ ] 3.3 finddata `MCP-REGISTRY.md` §3 销账 + closeout 追记；归档（validate → sync 门 → archive）——收口中
+- [x] 3.3 finddata `MCP-REGISTRY.md` §3 新增「agent 部署 toggle 探针竞态」销账行（含验收时间线与 facet 漏滚实录）；归档（本提交）：MODIFIED requirement 并入 `openspec/specs/a2a-agent-serving`，change 移入 archive/2026-10-06-

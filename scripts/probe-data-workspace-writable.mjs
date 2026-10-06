@@ -27,13 +27,11 @@ import http from "node:http";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { HarnessClient } from "@deepseek-ai/dsh-sdk-client";
 import { composeDescriptor } from "../lib/agent-serving.js";
 import { ChildManager } from "../agent-runner/manager.js";
 
-const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const root = path.join(homedir(), `.agent-runner-rehearsal-${process.pid}`);
 const appTree = path.join(root, "apptree"); // stands in for the /app the runner used to cd into
 const homeRoot = path.join(root, "homes");

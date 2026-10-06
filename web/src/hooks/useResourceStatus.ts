@@ -18,6 +18,7 @@ export function useChartCaptured(hash: string | null): boolean | undefined {
   const eventSeq = useResourcesStore((s) => s.eventSeq);
   const [captured, setCaptured] = useState<boolean | undefined>(undefined);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: eventSeq is the deliberate trigger — a capture just landed, re-ask so the badge updates without a reload
   useEffect(() => {
     if (!hash) {
       setCaptured(undefined);
@@ -46,6 +47,7 @@ export function usePathSaveStates(paths: string[]): Record<string, WorkspacePath
   const key = paths.join("\n");
   const [states, setStates] = useState<Record<string, WorkspacePathState>>({});
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: eventSeq is the deliberate trigger — a save just landed, re-ask so the strip updates without a reload
   useEffect(() => {
     const list = key ? key.split("\n") : [];
     if (!list.length) {

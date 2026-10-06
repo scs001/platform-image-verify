@@ -1,10 +1,13 @@
 # Facet CLI publish — npm OIDC trusted publishing (add-facet-platform 4.5).
 #
 # Publishing happens from GitHub Actions with --provenance; no long-lived npm
-# token lives anywhere. The package lives under the personal scope of the
-# maintainer account (`@finddatatechonology`, matching the account's npm
-# username — an org with that name is not creatable; creating a differently
-# named org would change the package scope). One-time bootstrap (package does
+# token lives anywhere. The package currently lives under the personal scope of
+# the maintainer account (`@finddatatechonology`), which inherits the account
+# username — a name that is misspelled and cannot be renamed on npm.
+# NOTE (2026-10-06): the intended fix is an org-scoped republish to
+# `@finddatatechnology/facet`; runbook in facet/cli/NPM-SCOPE-FIX.md.
+# Until that lands this workflow keeps publishing under the current scope.
+# One-time bootstrap (package does
 # not exist on npm yet, and trusted-publisher settings live on the package's
 # npmjs.com page):
 #   1. bootstrap first publish from a logged-in maintainer machine:

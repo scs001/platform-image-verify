@@ -1339,7 +1339,15 @@ export function registerPackRoutes(app, {
     ((p, init = {}) =>
       fetch(`${cfg.registryUrl.replace(/\/+$/, "")}${p}`, {
         ...init,
-        headers: { ...(cfg.token ? { Authorization: `Bearer ${cfg.token}` } : {}), ...(init.headers ?? {}) },
+        headers: {
+          // Body-bearing calls (config write GET-merge-PUT) hit the real
+          // registry's strict parser: without this the PUT arrives as
+          // text/plain and pydantic 422s the whole entry (live probe
+          // 2026-10-07). Same default the deploy client (pick) carries.
+          "Content-Type": "application/json",
+          ...(cfg.token ? { Authorization: `Bearer ${cfg.token}` } : {}),
+          ...(init.headers ?? {}),
+        },
       }));
 
   // The manifest + serving block of the DEPLOYED version (overrides resolve

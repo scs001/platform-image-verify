@@ -151,6 +151,15 @@ const server = createServer((req, res) => {
         return json(res, 200, agentEntries.get(key));
       }
       if (req.method === "PUT") {
+        // The real registry (FastAPI) parses strictly: a body without an
+        // application/json content-type arrives as text and 422s. Mirror
+        // that so the config write's GET-merge-PUT header discipline is
+        // exercised end to end (live probe 2026-10-07 — headerless 422).
+        if (!String(req.headers["content-type"] || "").includes("application/json")) {
+          return json(res, 422, {
+            detail: [{ type: "model_attributes_type", loc: ["body"], msg: "Input should be a valid dictionary or object to extract fields from" }],
+          });
+        }
         return void readBody(req).then((body) => {
           agentEntries.set(normPath(body.path ?? key), body);
           json(res, 200, { path: body.path ?? key, ...body });

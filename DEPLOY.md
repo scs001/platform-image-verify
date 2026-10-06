@@ -1562,6 +1562,8 @@ staging 全链路七步全绿：deploy v1 → runner 拾取 → 健康复检出�
 禁用 agent（库自动 toggle 回启用）。staging 栈：cheap1 容器 `agent-runner-dsh`
 （node:22-slim + 挂载代码 + npmmirror 钉版 dsh 运行时，端口段 8790-8850 只绑尾网；
 生产形态仍按 runbook 用平台镜像）。演练模型遵守用户规则 deepseek-v4.1-flash。
+（2026-10-06 注：本行所记为其历史形态——容器已重锚为平台镜像第三角色，「staging
+runner」称谓废弃，见「生产 runner 重锚平台镜像」一节。）
 
 ### 实录：agent-serving 全量上线 fd-prod（2026-10-01，sha-30edadc / GitOps 1108c15）
 
@@ -1651,6 +1653,34 @@ agent 走部署默认 `AGENT_RUNNER_TURN_TIMEOUT_MS`（默认 180s）——env �
 旧版备份 `budget-bak-20261003`）——修复 ③ 计费同步后「新 compose.js × 旧 dsh-profile.js」
 配对致新 agent 私有 home 缺 presets 桥文件的既存问题（表现为 child 启动即崩、
 `-32003 JSON-RPC input closed`）。
+
+### 生产 runner 重锚平台镜像（fix-agent-data-workspace-writes，2026-10-06）
+
+**形态变化**（ADR-0018）：「staging runner」称谓废弃——cheap-1 容器 `agent-runner-dsh`
+自 2026-10-01 起即承载 fd-prod 生产流量；2026-10-06 从 node:22-slim + 挂载代码重锚为
+**平台镜像第三角色**（`REGISTRY_IMAGE=<sha>` + `command: node agent-runner/index.js`），
+代码只经 GHA→hkccr→tcr-relay→ccr 镜像通道落地。`/opt/agent-runner-stage` 退役（代码入
+镜像、dsh 树入镜像冻结 matrix、env 迁 `agent-runner.prod.env`）；`DSH_MATRIX_OVERRIDE=1`
+遗留豁免关断（启动门 pass 实测）。
+
+**迁移要点（重放清单）**：
+
+- 保留同名卷 `agent-runner-data` → `/data`（homes/meter/fleet spool 零搬迁）；旧容器
+  stop + rename `agent-runner-dsh-old` 留回滚位；
+- env 从旧容器 inspect 生成（去掉 `DSH_MATRIX_OVERRIDE` 与 `AGENT_RUNNER_SEED_HOME`，
+  后者由镜像默认 `/opt/dsh-home` 接）——值不落文档；
+- **运行时状态显式外置**：`LLM_PROVIDERS_STORE=/data/llm-providers.json`（旧 `/app` bind
+  里的用户路由真件迁入卷；漏迁的症状 = child 初始化 `no adapter registered for
+  provider "finddata"`）；
+- 端口段 8790-8850 绑尾网 IP、`--user root`（卷属主 root）、`--no-healthcheck`（镜像
+  HEALTHCHECK 面向前台 server 角色）、`-m 1572864000` 与旧容器一致；
+- 回滚 = `docker start agent-runner-dsh-old`（child 再重启一回，home 完好）。
+
+**验收实录**：4 在役 agent 全部重新监听；对 daas-analyst 直连 a2a 写/读回任务——agent
+自报「workspace-write 未拒写 `$AGENT_DATA_DIR`」，`/data/packs-…-daas-analyst/data/
+write-probe.txt` 独立复核 22 字节，meter 记录该回合。注意 `/opt/agent-runner-stage/
+.backend-token` 文件值与容器 env 已漂移（「轮换需两侧同步」预警的现实版）——直连验收
+取容器 env 值，不取文件。
 
 ### 事件通知（add-agent-notifications，2026-10-03）
 

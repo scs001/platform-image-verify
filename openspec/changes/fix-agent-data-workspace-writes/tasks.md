@@ -13,8 +13,8 @@
 ## 3. cheap-1 重锚（单窗）
 
 - [x] 3.1 窗口前（ALL GREEN，2026-10-06）：GHA 构建 sha-4626911（含 A+B 全码）+ sha-b5f920f（lint 收尾）双双 success；tcr-relay 回灌 ccr 经 `skopeo list-tags` 实查两 tag 均在位（cheap-3 用 `/etc/tcr-relay/env` 的 TCR_USER/TCR_PASS）；cheap-1 一次性容器验证：**matrix gate = pass**（镜像 /opt/dsh 与冻结锁一致，无需 OVERRIDE）、`/app/agent-runner/{index,compose}.js` 在位（2.1 缓验补齐）、dsh bin 在位；镜像已在 cheap-1 预拉（窗口提速）；在役清单=4（spider-heal 8799 r/v6、fingpt 8793 w/v1、vz-agent 8803 w/v1、daas-analyst 8808 r/v2，children=2 budget 192/3072MB）；**spider-heal 节奏=30m 自我回合**（runner 日志实数），窗口避开其回合在途即可（health 显示 resident=空闲）
-- [ ] 3.2 窗口内：stop 旧容器并 rename `agent-runner-dsh-old`（保留）→ 按 2.3 compose 起新容器（4 token 值从 `/opt/agent-runner-stage/agent-runner.env` 与 `.backend-token` 照抄，不落任何文档）→ 起服后确认 poll 拉齐 4 个在役 agent、`/health` 200、meter.jsonl 续写
-- [ ] 3.3 活链验收：对 `packs-yopqIgU6vZhFNGpGWvUWbw-daas-analyst` 发 a2a 任务「把测试文本写入我工作区 data 目录并回读」——产物出现在 `/data/packs-yopqIgU6vZhFNGpGWvUWbw-daas-analyst/data/` 且回复含回读内容；失败则执行回滚（start agent-runner-dsh-old）
+- [x] 3.2 窗口内（2026-10-06 18:2x，全绿）：stop 旧容器并 rename `agent-runner-dsh-old`（保留）→ 按 2.3 compose 起新容器（4 token 值从 `/opt/agent-runner-stage/agent-runner.env` 与 `.backend-token` 照抄，不落任何文档）→ 起服后确认 poll 拉齐 4 个在役 agent、`/health` 200、meter.jsonl 续写。实况：matrix 门 pass、4 agent 监听、fleet 上报活；**途中修一坑**：旧 /app bind 持久着 llm-providers.json（finddata 路由真件），新镜像 /app 无此运行时状态——已迁入 volume 并以 LLM_PROVIDERS_STORE 指认；另发现 `.backend-token` 文件与容器 env 值哈希不一致（陈旧漂移，文档早有预警），验收改从容器 env 取值
+- [x] 3.3 活链验收（PASS）：对 `packs-yopqIgU6vZhFNGpGWvUWbw-daas-analyst` 发 a2a 任务「把测试文本写入我工作区 data 目录并回读」——产物出现在 `/data/packs-yopqIgU6vZhFNGpGWvUWbw-daas-analyst/data/` 且回复含回读内容；失败则执行回滚（start agent-runner-dsh-old）。实况 PASS：agent 回执「沙箱 workspace-write 下 $AGENT_DATA_DIR 写入未被拒」+ `printf 22 字节 / od -c 回读一致`；独立复核落盘 `/data/.../data/write-probe.txt`=DATA-WS-PROBE-20261006；meter 记到该回合（15.2s ok）；回滚位 agent-runner-dsh-old 保留（Exited 0）
 - [ ] 3.4 善后：验收 24h 后清 `/opt/agent-runner-stage` 代码目录（.bak 系列再留一个周期）；旧容器删除
 
 ## 4. 收口

@@ -48,3 +48,12 @@
 **探针实证（daas-analyst，全走生产链）**：读面 200（budget 40 声明值、lanes=部署键真车道 33 条）；模型写 200（车道校验通过）→ 20s 轮询日志 `descriptor changed; draining old child` → 触碰重生（cold-starting）→ 新模型行为可见 → 还原（model null）→ 再排水重生 → 回复正常（"还原"）；真回合双凭据 A2A 全程可用。节奏写向由并行会话同链实证（2h→3h 写入成功）。**升级保留覆盖**留在 CI 单测面（live 升级需部署者会话，未在 CLI 通道可达）。
 
 遗留：daas-analyst 上留有并行会话探针的 rhythm 覆盖 `[{every:"3h"}]` 与 model null 标记——rhythm 属其探针沉淀，交由收尾会话/用户决定清零。
+
+## 收尾补录（2026-10-07 凌晨，收尾会话）
+
+- **升级保留覆盖补上 live 实证**（原记「留在 CI 单测面」）：在 platform pod 内以镜像自带 `resolveServiceConfig` 对**真生产 entry**（config_overrides=`{rhythm:[{every:"3h"}],model:null}`，含显式 null pin 形状）做升级形重解析——模拟新版本声明 `budget.turnMinutes:55 + model:"glm-5.3-flash"`，结果 rhythm 钉住、未覆盖两维跟新声明，断言全过。注册表半侧的 overrides 合并保留由 deployToRegistry `readExistingDeploymentState` 构造保证（单测锁定）。
+- **节奏无感的干净隔离证据**：rhythm 单维写（2h→3h，ed35a84 链路）后跑满一个 manager 轮询窗——child 全程 `resident`、docker logs 零 drain 行；与模型写触发的 `descriptor changed; draining`（同一窗口两轮：设钉、清钉各一）形成对照。
+- **遗留清零**：rhythm 钉子已显式置 null（D1 语义：明确清除回声明），最终回读三维度全落 declared/default（budget 40）。
+- **runner 舰队对齐**：cheap-1 runner 容器自 f37ab11 换版 ed35a84（沿用已验证的运行身份 `--user root` + compose 形态 healthcheck override `node fetch :8790/health`），healthy、EACCES 清零、meter 记账正常；旧容器保留 `agent-runner-dsh-f37ab11-20261007` 作回滚位。上一条「恒 unhealthy」已由运行时 override 消除（健康探针现为 runner 面）；镜像内烘焙的 HEALTHCHECK（cell 3000）仍在，后续发版可改 Dockerfile 或 runner compose 钉 `--no-healthcheck`。
+- **两处跟进（不阻塞归档）**：① `agent-runner/docker-compose.yml` 未钉 `user:`——compose 驱动换版会落到镜像默认 node 再踩 EACCES（卷存量 root 属主），需钉 `user: "0:0"` 或刻意做卷属主迁移；② 镜像 HEALTHCHECK 角色错配同源。
+- 复验门：`openspec validate add-agent-service-config --strict` 绿、`validate --specs` 116/116（归档前）；ed35a84 CI 全绿（fast e2e 含严格 stub 下两用例）。

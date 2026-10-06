@@ -37,6 +37,12 @@ jobs:
         with:
           node-version: 22
           registry-url: "https://registry.npmjs.org"
+      # Trusted publishing needs npm >= 11.5.1; the runner's bundled npm 10
+      # signs provenance but cannot do the OIDC exchange (observed 2026-10-06:
+      # PUT 404 with a signed statement). Keep this step until the runner
+      # image ships npm 11 by default.
+      - name: Ensure npm supports trusted publishing
+        run: npm install -g npm@^11
       - name: Publish @finddatatechnology/facet
         working-directory: facet/cli
         run: npm publish --provenance --access public

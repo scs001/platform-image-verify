@@ -23,7 +23,7 @@ import { ChildManager } from "../agent-runner/manager.js";
 import { createOpsApp } from "../agent-runner/a2a.js";
 import { createRegistryClient } from "../agent-runner/registry.js";
 import { RhythmScheduler, DEFAULT_SELF_PROMPT } from "../agent-runner/scheduler.js";
-import { Rollover, DIGEST_PROMPT } from "../agent-runner/rollover.js";
+import { Rollover } from "../agent-runner/rollover.js";
 
 const tmpRoot = mkdtempSync(path.join(tmpdir(), "agent-runner-"));
 test.after(() => rmSync(tmpRoot, { recursive: true, force: true }));
@@ -542,7 +542,7 @@ test("residency: paused entry demotes, answers explicit -32010, resumes on flag 
 
 test("residency: cooldown hysteresis protects a fresh child until the budget is hard-exceeded", async () => {
   // 96MB cost × 2 children = 192MB; soft budget 100MB (over), hard ×1.2 = 120MB.
-  const { manager, spawned } = directManager({
+  const { manager } = directManager({
     config: { budgetMb: 100, agentCostMb: 96, demoteCooldownMs: 600_000, hardBudgetFactor: 1.2 },
   });
   try {
@@ -695,7 +695,7 @@ test("budget: an over-budget turn hard-stops the child, meters the kill, next to
 
 test("budget: self-turns share the same hard-stop discipline", async () => {
   const harness = { delayMs: 300 };
-  const { manager, spawned, config } = directManager({ entries: [ENTRY], config: { turnTimeoutMs: 60 }, harness });
+  const { manager, config } = directManager({ entries: [ENTRY], config: { turnTimeoutMs: 60 }, harness });
   try {
     await manager.reconcile();
     await assert.rejects(

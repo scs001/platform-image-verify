@@ -39,7 +39,9 @@ async function waitForMidStream(page) {
     const el = els[els.length - 1];
     if (!el || el.getAttribute("data-streaming") !== "true") return false;
     const clone = el.cloneNode(true);
-    clone.querySelectorAll('[data-testid="thinking-block"]').forEach((n) => n.remove());
+    clone.querySelectorAll('[data-testid="thinking-block"]').forEach((n) => {
+      n.remove();
+    });
     return (clone.textContent || "").trim().length > 3;
   }, { timeout: 30000 });
 }
@@ -57,7 +59,9 @@ async function sendPrompt(page, text) {
 async function streamingTurnText(page) {
   return page.getByTestId("turn-assistant").last().evaluate((el) => {
     const clone = el.cloneNode(true);
-    clone.querySelectorAll('[data-testid="thinking-block"]').forEach((n) => n.remove());
+    clone.querySelectorAll('[data-testid="thinking-block"]').forEach((n) => {
+      n.remove();
+    });
     return (clone.textContent || "").trim();
   });
 }

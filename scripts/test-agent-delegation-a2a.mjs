@@ -161,7 +161,6 @@ function request(app, { method = "GET", path: p = "/api/delegation/tasks", body 
     server.listen(0, "127.0.0.1", () => {
       const { port } = server.address();
       const payload = body === undefined ? undefined : JSON.stringify(body);
-      const req = createServer.__request ?? null;
       import("node:http").then(({ request: httpRequest }) => {
         const r = httpRequest(
           {

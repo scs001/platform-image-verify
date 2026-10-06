@@ -228,8 +228,8 @@ test("lookup answers path questions by content, with containment", async () => {
   await fsp.rm(target);
   const missing = await call("POST", "/api/resources/lookup", { paths: [target] });
   assert.equal(missing.json.paths[target], "missing");
-  const escape = await call("POST", "/api/resources/lookup", { paths: ["../../etc/hosts"] });
-  assert.equal(escape.json.paths["../../etc/hosts"], "invalid");
+  const escapeTry = await call("POST", "/api/resources/lookup", { paths: ["../../etc/hosts"] });
+  assert.equal(escapeTry.json.paths["../../etc/hosts"], "invalid");
   // Non-hash strings are dropped rather than trusted.
   const junk = await call("POST", "/api/resources/lookup", { hashes: ["not-a-hash"] });
   assert.equal(junk.status, 200);

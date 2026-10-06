@@ -69,7 +69,7 @@ test("no pack skill relies on wildcard-only tool patterns", () => {
     // server names) is the live failure shape — never acceptable in guidance.
     assert.doesNotMatch(
       text,
-      /mcp__(?!fd-open-data-mcp__|fd-cn-report__|law-bench__|fd-find-data-business-mcp__)[a-z0-9_-]+__/,
+      /mcp__(?!fd-open-data-mcp__|fd-cn-report__|law-bench__|fd-find-data-business-mcp__|fd-legal-search-mcp__)[a-z0-9_-]+__/,
       `${name} references an unknown/malformed MCP server name`,
     );
   }

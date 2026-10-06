@@ -27,7 +27,7 @@
 // Run: node scripts/probe-llm-retry.mjs [--fresh]
 
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
-import { chmodSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -163,10 +163,9 @@ async function main() {
   })();
 
   const deadline = Date.now() + HANDSHAKE_BUDGET_MS;
-  let init;
   for (let attempt = 0; ; attempt++) {
     try {
-      init = await withTimeout(
+      await withTimeout(
         client.initialize({ cwd: workspace, provider, model, agentPreset: AGENT_PRESET }),
         Math.max(1_000, deadline - Date.now()),
         "initialize",

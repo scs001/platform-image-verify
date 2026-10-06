@@ -44,6 +44,7 @@ export function SiteMark({
       }}
     >
       {Array.from(chars).map((ch, i) => (
+        /* biome-ignore lint/suspicious/noArrayIndexKey: a static text mark — the characters never reorder, the index is the identity */
         <span key={i}>{ch}</span>
       ))}
     </span>

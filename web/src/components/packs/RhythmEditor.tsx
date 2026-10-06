@@ -57,8 +57,8 @@ export function RhythmEditor({
       {entries.map((e, i) => {
         const invalid = !rhythmEntryValid(e);
         return (
-          <div
-            key={i}
+          /* biome-ignore lint/suspicious/noArrayIndexKey: rows are fully controlled by the parent array and entries carry no identity field */
+          <div key={i}
             className={cn(
               "border rounded-md p-2 space-y-1.5",
               invalid ? "border-destructive/50" : "border-border",

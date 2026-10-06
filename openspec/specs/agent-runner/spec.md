@@ -7,7 +7,7 @@ Defines the multi-tenant runtime that hosts deployed Agent Services: per-role ds
 
 ### Requirement: One dedicated runtime child per deployed role
 
-The runner SHALL host each deployed Agent Service as a dedicated runtime child with its own private runtime home, composed from the deployment descriptor: the role's persona, its declared skills (fetched from the registry's skill entries), and its declared MCP references. The child SHALL use the runner's deployment-level default model, and its inference SHALL consume the runner's service quota — never a user's. The child's MCP outbound calls SHALL authenticate with the runner's service credential.
+The runner SHALL host each deployed Agent Service as a dedicated runtime child with its own private runtime home, composed from the deployment descriptor: the role's persona, its declared skills (fetched from the registry's skill entries), and its declared MCP references. The child's inference model SHALL be the descriptor's effective model when it records one, else the runner's deployment-level default model (ADR-0019); and its inference SHALL consume the runner's service quota — never a user's. A change of the descriptor's effective model SHALL take effect by the upgrade-grade drain-and-respawn: in-flight turns drain, the child respawns on the new model within the five-minute window, and no other restart channel is introduced. The child's MCP outbound calls SHALL authenticate with the runner's service credential.
 
 #### Scenario: Composition from the descriptor
 
@@ -17,8 +17,12 @@ The runner SHALL host each deployed Agent Service as a dedicated runtime child w
 #### Scenario: Model is a runner concern
 
 - **WHEN** a deployed role serves a turn
-- **THEN** the turn runs on the runner's configured default model, regardless of any cell's model selection
+- **THEN** the turn runs on the descriptor's effective model, or the runner's deployment default when the descriptor records none — regardless of any cell's model selection
 
+#### Scenario: A model change drains and respawns
+
+- **WHEN** the descriptor's effective model changes
+- **THEN** in-flight turns drain (new turns during drain get the explicit drain error, not a hang), the child respawns on the new model, and the change is live within the five-minute window
 
 ### Requirement: A2A adapter surface
 
@@ -44,7 +48,6 @@ Each hosted Agent Service SHALL serve its AgentCard at `/.well-known/agent-card.
 - **WHEN** a caller invokes an A2A method the adapter does not implement
 - **THEN** a JSON-RPC method-not-found error is returned and the child keeps serving
 
-
 ### Requirement: Context maps one-to-one to a runtime session
 
 Each A2A `contextId` SHALL map to exactly one runtime session on the role's child, so a conversation continues across messages within the same context. When a child is reaped or drained, its sessions end; a caller continuing afterwards SHALL get a fresh session (or an error during drain), never a session that silently mixes histories.
@@ -58,8 +61,6 @@ Each A2A `contextId` SHALL map to exactly one runtime session on the role's chil
 
 - **WHEN** a child is idle-reaped and the caller sends a message with a new `contextId`
 - **THEN** the runner cold-starts a child and the conversation starts fresh
-
-
 
 ### Requirement: Child lifecycle is bounded and queued
 
@@ -98,7 +99,6 @@ The runner SHALL accept A2A traffic only through the registry's reverse proxy: c
 
 - **WHEN** a caller authorized by the gateway (`X-Authorization` validated at `/validate`) presents the deployment credential in `Authorization`
 - **THEN** the runner serves the request, with no caller account existing on the runner
-
 
 ### Requirement: Delegation depth and concurrency are bounded
 

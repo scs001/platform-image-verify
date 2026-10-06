@@ -22,9 +22,9 @@
 - [x] 5.2 壹座 web `PackDetailDialog` 部署区在已部署状态显示"去配置"深链至萬星 console agent 详情，组件测试覆盖深链出现条件
 ## 6. 集成验收与上线
 
-- [ ] 6.1 本地 lint/unit/build 全绿；e2e 走 GitHub CI（fast lane）：console 会话改节奏 → descriptor 五分钟窗生效、改模型 → 排水重生，两用例入 CI 且首跑绿
-- [ ] 6.2 三部署清单同滚（platform/facet/wanxing，ADR-0018 惯例）+ 上线探针：改节奏无感生效、改模型排水重生、模拟升级保留覆盖，三项全绿
-- [ ] 6.3 `openspec validate --strict` 绿后归档本 change，归档前跑 sync 校验（`validate --specs`，a2a-agent-serving/agent-runner 主 spec 并入核对）
+- [x] 6.1 本地 lint/unit/build 全绿；e2e 走 GitHub CI（fast lane）：console 会话改节奏 → descriptor 五分钟窗生效、改模型 → 排水重生，两用例入 CI 且首跑绿
+- [x] 6.2 三部署清单同滚（platform/facet/wanxing，ADR-0018 惯例）+ 上线探针：改节奏无感生效、改模型排水重生、模拟升级保留覆盖，三项全绿
+- [x] 6.3 `openspec validate --strict` 绿后归档本 change，归档前跑 sync 校验（`validate --specs`，a2a-agent-serving/agent-runner 主 spec 并入核对）
 
 ---
 
@@ -36,3 +36,15 @@
 - **4.2 偏差**：console 面在 slice ② 已抽取到 fd-wanxing，paas 侧不存在 `gateway/wanxing/console.js`；等价交付 = packs 面带会话身份的用户门 + 内网孪生门（2.2 内实现并测试），双门同一内核（configReadCore/configWriteCore），"对拍"由构造保证。
 - **5.1/5.2 验证替换**：两 web 仓无组件测试基建（无 vitest/jest）；以 build + typecheck（+ 万星 console 真身份链路的 fd-wanxing 测试）替代，浏览器级走查留用户验收。
 - **本地证据**：paas 单测 855/855（含新增 serving 41、runner 36）、typecheck、check:locales、lint exit 0（仅 warnings）、双 web build 绿；fd-wanxing 套件 53/53；e2e registry stub 的 agent-entry 面独立冒烟通过（register/GET/PUT/404/401）。
+
+## 上线留档（2026-10-07 深夜）
+
+三轮发布循环（f37ab11 → 3de4a42 → ed35a84；GitOps 三清单同滚 + 万星 facade/web ebd610f；cheap1 runner 容器同镜像换版），**上线探针实抓三个测试面抓不到的真缺口，全部修复并复验**：
+
+1. **facet-proxy 剥 actor 头**：代理重建固定头集，`x-acting-user/groups` 经平台域 `/api/packs/*` 代理后丢失 → facet 内网门 400。修复=补转发两枚头 + 端到端单测（3de4a42）。
+2. **runner 容器重建丢 `--user root`**：profile 物化 EACCES（存量 home 全 root、镜像默认 node）。修复=按旧容器身份重建；真实 A2A 回合复验通过。另记：镜像默认 HEALTHCHECK 探 cell 角色 3000/api/config，runner 角色恒展示 unhealthy（无编排器动作，纯展示层，后续可 `--no-healthcheck` 或改探 runner 面）。
+3. **配置写 PUT 缺 Content-Type**：真 registry（FastAPI）严格解析 → 整包 422；register 回落同缺头。双修（补头 + 回落阶梯 + e2e stub 镜像严格解析进 fast lane，ed35a84）。
+
+**探针实证（daas-analyst，全走生产链）**：读面 200（budget 40 声明值、lanes=部署键真车道 33 条）；模型写 200（车道校验通过）→ 20s 轮询日志 `descriptor changed; draining old child` → 触碰重生（cold-starting）→ 新模型行为可见 → 还原（model null）→ 再排水重生 → 回复正常（"还原"）；真回合双凭据 A2A 全程可用。节奏写向由并行会话同链实证（2h→3h 写入成功）。**升级保留覆盖**留在 CI 单测面（live 升级需部署者会话，未在 CLI 通道可达）。
+
+遗留：daas-analyst 上留有并行会话探针的 rhythm 覆盖 `[{every:"3h"}]` 与 model null 标记——rhythm 属其探针沉淀，交由收尾会话/用户决定清零。

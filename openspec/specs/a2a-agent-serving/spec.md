@@ -5,11 +5,9 @@ Defines the serving contract on pack roles and the lifecycle of Agent Services d
 
 ## Requirements
 
-
-
 ### Requirement: Deploy action composes registry-native assets
 
-The platform SHALL offer a deploy action (「部署为服务」) on published pack versions whose agents carry a serving contract, gated to pack creators and admins for public packs and to the pack's owner for private packs (openspec: pack-visibility), idempotent per (pack version, agent id), and admitted only when the deployer's billing balance passes the platform-billing gate. The action SHALL: publish each of the pack's skills as a registry skill entry under a pack-scoped path with restricted visibility; register one registry agent entry per serving-contract agent with `supported_protocol: "a2a"`, the runner's backend URL as the proxy backend, and a `metadata` deployment descriptor limited to small fields (persona, MCP references, skill paths, serving contract, effective work rhythm, effective turn budget, billing key reference); compose the AgentCard from the serving contract's manual card fields, defaulting to values derived from the agent's name/description/tags when absent; and mint the per-agent billing key per platform-billing. The effective work rhythm SHALL be the deployer's override when the deploy request carries one, else the manifest's declared rhythm; the descriptor records the effective value (openspec: agent-residency). The effective turn budget SHALL likewise be the deployer's per-agent override when the deploy request carries one, else the contract's declared `budget.turnMinutes`, else absent (the runner's deployment default applies); the descriptor records the effective value. The action SHALL NOT embed the full manifest, skill bodies, or any key secret in the agent entry.
+The platform SHALL offer a deploy action (「部署为服务」) on published pack versions whose agents carry a serving contract, gated to pack creators and admins for public packs and to the pack's owner for private packs (openspec: pack-visibility), idempotent per (pack version, agent id), and admitted only when the deployer's billing balance passes the platform-billing gate. The action SHALL: publish each of the pack's skills as a registry skill entry under a pack-scoped path with restricted visibility; register one registry agent entry per serving-contract agent with `supported_protocol: "a2a"`, the runner's backend URL as the proxy backend, and a `metadata` deployment descriptor limited to small fields (persona, MCP references, skill paths, serving contract, effective work rhythm, effective turn budget, effective model, billing key reference); compose the AgentCard from the serving contract's manual card fields, defaulting to values derived from the agent's name/description/tags when absent; and mint the per-agent billing key per platform-billing. The deployer's rhythm and budget overrides, and any deploy-time model choice, SHALL be recorded as the deployment's initial service config (openspec: agent-service-config) — rewritable afterwards on the serving config surface — not as one-shot request parameters; the descriptor records the resulting effective values. A deploy-time model choice SHALL pass the same write-time lane validation as any later config write. The action SHALL NOT embed the full manifest, skill bodies, or any key secret in the agent entry.
 
 #### Scenario: Deploying a serving-contract role
 
@@ -34,17 +32,22 @@ The platform SHALL offer a deploy action (「部署为服务」) on published pa
 #### Scenario: The deployer rhythm override lands in the descriptor
 
 - **WHEN** a deploy request carries a rhythm override differing from the manifest default, or carries none
-- **THEN** the descriptor records the override as the effective rhythm in the first case and the manifest default in the second
+- **THEN** the descriptor records the override as the effective rhythm in the first case and the manifest default in the second, and the override persists as the deployment's initial service config
 
 #### Scenario: The deployer budget override lands in the descriptor
 
 - **WHEN** a deploy request carries a per-agent budget override, or the contract declares `budget.turnMinutes`, or neither
-- **THEN** the descriptor records the override in the first case, the declared ceiling in the second, and no budget field in the third — the runner's deployment default applying instead
+- **THEN** the descriptor records the override in the first case, the declared ceiling in the second, and no budget field in the third (the runner's deployment default applying instead), and any override persists as the deployment's initial service config
 
 #### Scenario: The descriptor carries a key reference, never the key
 
 - **WHEN** a deploy mints the per-agent billing key
 - **THEN** the descriptor records the key's reference only, and no secret value reaches the registry
+
+#### Scenario: A deploy-time model rides the same lane validation
+
+- **WHEN** a deploy request carries a model choice that is not authorized on the deployer key's sub2api lanes, or violates the serving contract's model whitelist
+- **THEN** the deploy is refused with the write-time lane validation error, and no agent entry is registered
 
 ### Requirement: Deployment propagates by polling within five minutes
 
@@ -65,7 +68,6 @@ The runner SHALL discover deployed Agent Services by polling the registry, and a
 - **WHEN** a newly deployed agent's first health probe fails because the runner has not yet picked the entry up
 - **THEN** the platform re-probes automatically within the propagation window, and the entry reaches healthy — and facade calls stop failing with -32033 — with no operator action
 
-
 ### Requirement: Upgrade swaps in place with drain
 
 Redeploying a new pack version for an already-deployed agent SHALL update the same registry agent entry and descriptor in place. The runner SHALL drain the old child: existing conversations continue on the old child until their in-flight turns complete or five minutes elapse, and new messages route to a child composed from the new version. No second registry entry SHALL be created for the upgrade.
@@ -85,7 +87,6 @@ Redeploying a new pack version for an already-deployed agent SHALL update the sa
 - **WHEN** a pack is redeployed three times at successive versions
 - **THEN** the registry holds exactly one agent entry for that (pack, agent)
 
-
 ### Requirement: Undeploy is independent and unpublish does not cascade
 
 Undeploying an Agent Service SHALL be an explicit action that stops the runner's child and delists the registry agent entry (and the pack-scoped skill entries). Unpublishing a pack version SHALL NOT undeploy its deployed Agent Services; the marketplace SHALL surface that the pack has deployed services when unpublish is attempted.
@@ -100,7 +101,6 @@ Undeploying an Agent Service SHALL be an explicit action that stops the runner's
 - **WHEN** a creator unpublishes a pack that has a deployed Agent Service
 - **THEN** the service keeps running and the UI warns that a deployed service exists
 
-
 ### Requirement: Rollback is redeploy of an old version
 
 Rolling back an Agent Service SHALL be performed by deploying a previously published pack version, which follows the in-place upgrade semantics. No separate rollback mechanism SHALL exist, and immutability of published versions SHALL guarantee the old behavior is reproducible.
@@ -109,7 +109,6 @@ Rolling back an Agent Service SHALL be performed by deploying a previously publi
 
 - **WHEN** v3 misbehaves and an admin deploys v2 for the same (pack, agent)
 - **THEN** the registry entry is updated in place and the service serves v2's composition after drain
-
 
 ### Requirement: Pause and resume are first-class lifecycle actions
 

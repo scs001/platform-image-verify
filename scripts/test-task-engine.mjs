@@ -269,11 +269,21 @@ test("insertTask rejects unknown triggers; addOnFinished subscribers fire", asyn
   engine.addOnFinished((t) => {
     seen = t.id;
   });
-  engine.enqueueExecution("job_1");
+  // A no-op enqueue (state already terminal) would leave `seen` null and fail
+  // far from the cause — assert the accept explicitly.
+  const enq = engine.enqueueExecution("job_1");
+  assert.equal(enq.ok, true);
   await engine.idle();
   // finishExecution's persistence is fire-and-forget; drain the write chain so
   // it cannot race this file's teardown.
   await engine.saveTasks();
+  // Subscribers fire inside the finish chain, but that chain's ordering
+  // against idle() is not a contract — poll bounded instead of assuming
+  // (CI-load flake 2026-10-07: same family as the reload test f37ab11 fixed).
+  const deadline = Date.now() + 5000;
+  while (seen !== "job_1" && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 25));
+  }
   assert.equal(seen, "job_1");
 });
 

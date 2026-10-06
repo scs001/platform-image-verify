@@ -142,6 +142,10 @@ _Avoid_: 工作区（裸用）、workspace（歧义）
 角色运行时读写文件的工作目录，属运行时事实，与侧栏工作区无关。
 _Avoid_: 工作区（裸用）、workspace（歧义）
 
+**数据工作区（Data Workspace）**:
+服务契约里可声明的每 Agent 服务私有耐久数据根（私有 home 下的 data 目录）：GB 级耐久数据（SQLite 等）的归宿，配额护栏只说不拦；升级、排水、会话清扫皆不动它。与代理工作目录是两个概念——前者是服务的数据耐久层，后者是角色读写文件的运行时事实。
+_Avoid_: 数据卷（口语）、workspace（裸用）、代理工作目录（混称）
+
 **控制台（MC）**:
 运营者层的外部指挥面（Mission Control）：cell 主动外连注册为其中的受控单位，任务经它派发与观测。其 "agent" 一律映射为 cell，不映射为角色。
 _Avoid_: 指挥中心、调度中心
@@ -153,6 +157,10 @@ _Avoid_: agent（指 dsh 内部概念时除外）、运行时本体
 **适配层（Adapter Layer）**:
 平台中唯一允许了解 dsh 内部的边界：dsh-bridge、dsh-profile、profile 模板 bridge、agent-runner 组合器与 dsh-matrix。上游发版的跟随工作只应发生在这层；其余平台代码经平台自有接口使用 dsh。
 _Avoid_: dsh 封装层、runtime 层
+
+**生产 runner（Production Runner）**:
+承载已部署 Agent 服务的常驻多租户宿主：以平台镜像第三角色形态部署于专用主机，代码只经镜像通道落地，SFTP 热修不在其列。历史的「staging runner」称谓废弃——该实例自 2026-10-01 起承载 fd-prod 生产流量。
+_Avoid_: staging runner（旧称）、执行槽（Task 的承载抽象）、agent-runner（实现软件名）
 
 **谦面（Facet）**:
 独立部署的分享面平台：功能集与 MCP 服务经它发布、流转到壹座与其他编辑器；壹座与其深度打通、互不隶属。

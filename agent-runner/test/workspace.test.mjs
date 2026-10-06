@@ -161,6 +161,51 @@ await test("workspaceChildEnv: enabled → AGENT_DATA_DIR (+ AGENT_DATA_QUOTA_MB
   assert.equal(workspaceChildEnv({ dataDir: null }, legacy), legacy, "legacy env passes through untouched");
 });
 
+// ── Sandbox writable root (spawn cwd = data dir) ────────────────────────────
+// fix-agent-data-workspace-writes: dsh derives the workspace-write boundary
+// from the session cwd (initialize cwd, else the spawn process cwd), so a
+// workspace-declared child must be spawned WITH the data dir as cwd. Driven
+// through the real spawn path (ChildManager.acquire → #spawnChild → AgentChild)
+// with a stub harness client, capturing the launch spec.
+
+const spawnedWith = async (workspace) => {
+  const homeRoot = tmpDir("spawn");
+  let spawned = null;
+  const manager = new ChildManager({
+    config: { homeRoot, cwd: "/srv/app", maxChildren: 4, turnTimeoutMs: 180_000 },
+    registryClient: {},
+    clientFactory: (spec) => (inner) => {
+      spawned = { spec, inner };
+      return {
+        start: () => {},
+        initialize: async () => ({ serverInfo: { name: "stub", version: "0" } }),
+        subscribe: () => ({ next: () => new Promise(() => {}) }),
+        stop: () => {},
+      };
+    },
+    log: { log: () => {}, warn: () => {}, error: () => {} },
+  });
+  const entry = { path: "/packs/p/analyst", name: "分析师", metadata: descriptorOf(workspace) };
+  await manager.acquire(entry);
+  return { spawned, homeRoot };
+};
+
+await test("spawn cwd: declared workspace → child cwd is the data dir (the writable root), AGENT_DATA_DIR rides the env", async () => {
+  const { spawned, homeRoot } = await spawnedWith({ enabled: true, quotaMb: 2048 });
+  const dataDir = path.join(homeRoot, "packs-p-analyst", "data");
+  assert.equal(spawned.spec.dataDir, dataDir);
+  assert.equal(spawned.inner.cwd, dataDir, "child spawns/initializes in its data workspace");
+  assert.equal(spawned.inner.env.AGENT_DATA_DIR, dataDir);
+  assert.ok(existsSync(dataDir));
+});
+
+await test("spawn cwd: no declaration → deployment default cwd (legacy launch byte-identical)", async () => {
+  const { spawned } = await spawnedWith(undefined);
+  assert.equal(spawned.spec.dataDir, null);
+  assert.equal(spawned.inner.cwd, "/srv/app");
+  assert.equal(spawned.inner.env.AGENT_DATA_DIR, undefined);
+});
+
 // ── Quota guardrail (manager.checkWorkspaceQuotas) ──────────────────────────
 
 const managerFor = (homeRoot, entries, { meterFile, log, events }) => {

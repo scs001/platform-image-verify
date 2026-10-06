@@ -621,7 +621,13 @@ export class ChildManager {
       spawnSpec: {
         profile: config.dshProfile,
         patchPaths: spec.patchPaths,
-        cwd: config.cwd,
+        // Sandbox writable root (fix-agent-data-workspace-writes): dsh derives
+        // the workspace-write boundary from the session cwd (initialize cwd,
+        // else the spawn process cwd), so a declared data workspace becomes
+        // the child's cwd — the data dir turns writable, nothing else widens
+        // (home stays out: it holds credentials and the persona preset).
+        // No declaration → config.cwd exactly as before.
+        cwd: spec.dataDir ?? config.cwd,
         // The child sees the runner's environment minus every relay
         // credential (add-agent-notifications D2): the token's sole owner is
         // this process's configuration. A declared data workspace adds

@@ -199,6 +199,13 @@ COPY --chown=node:node --from=builder /app/skills ./skills
 # into $DSH_HOME/profiles/<name>), so the builder copy above is not enough — an
 # image without this dir boots, binds the port, then dies on ENOENT.
 COPY --chown=node:node --from=builder /app/dsh-profile-template ./dsh-profile-template
+# Same-image third role (fix-agent-data-workspace-writes): the agent-runner
+# (`node agent-runner/index.js`, ADR-0004) rides this image with a different
+# entrypoint. Without this COPY the image boots and the platform serves
+# normally — only the runner role cannot start, which is how the runner
+# deployment drifted into bind-mounted code + SFTP hotfixes. Its deps
+# (dsh-sdk-client, express, js-yaml) are already in the root node_modules.
+COPY --chown=node:node --from=builder /app/agent-runner ./agent-runner
 
 # Persistent state lives under /data: SQLite, sessions, chat-history, cron,
 # dev-settings.json. PLATFORM_DATA_DIR points the supervisor (local-services.js)

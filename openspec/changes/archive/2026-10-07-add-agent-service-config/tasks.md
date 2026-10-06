@@ -55,5 +55,5 @@
 - **节奏无感的干净隔离证据**：rhythm 单维写（2h→3h，ed35a84 链路）后跑满一个 manager 轮询窗——child 全程 `resident`、docker logs 零 drain 行；与模型写触发的 `descriptor changed; draining`（同一窗口两轮：设钉、清钉各一）形成对照。
 - **遗留清零**：rhythm 钉子已显式置 null（D1 语义：明确清除回声明），最终回读三维度全落 declared/default（budget 40）。
 - **runner 舰队对齐**：cheap-1 runner 容器自 f37ab11 换版 ed35a84（沿用已验证的运行身份 `--user root` + compose 形态 healthcheck override `node fetch :8790/health`），healthy、EACCES 清零、meter 记账正常；旧容器保留 `agent-runner-dsh-f37ab11-20261007` 作回滚位。上一条「恒 unhealthy」已由运行时 override 消除（健康探针现为 runner 面）；镜像内烘焙的 HEALTHCHECK（cell 3000）仍在，后续发版可改 Dockerfile 或 runner compose 钉 `--no-healthcheck`。
-- **两处跟进（不阻塞归档）**：① `agent-runner/docker-compose.yml` 未钉 `user:`——compose 驱动换版会落到镜像默认 node 再踩 EACCES（卷存量 root 属主），需钉 `user: "0:0"` 或刻意做卷属主迁移；② 镜像 HEALTHCHECK 角色错配同源。
+- **两处跟进（不阻塞归档）——同日已收口（f97dcbd/1046110，CI 绿、新镜像构建绿）**：① compose 已钉 `user: "0:0"`（compose 驱动换版不再落镜像默认 node 踩 EACCES；卷 uid 1000 迁移属独立 least-privilege 议题，未做）；② 镜像不再烘焙 HEALTHCHECK（角色错配根源拔除，各角色自带探针：compose/runbook 载 8790 /health，k8s 用自有探针，CI 冒烟自探），DEPLOY.md runbook 顺线更新；③ 同批加固 task-engine `insertTask/addOnFinished` 测试时序（入队受理显式断言 + 5s 有界轮询，CI 负载 flake 家族清零）。
 - 复验门：`openspec validate add-agent-service-config --strict` 绿、`validate --specs` 116/116（归档前）；ed35a84 CI 全绿（fast e2e 含严格 stub 下两用例）。

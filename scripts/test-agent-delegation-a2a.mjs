@@ -130,9 +130,17 @@ test("engine: agent-targeted manual tasks carry targetType a2a into the executor
 test("engine: persisted reload keeps the a2a target type", async () => {
   await engine.initTaskEngine({ broadcast: () => {}, isBusy: () => false, runTurn: async () => ({ ok: true }) });
   engine.createManualTask({ prompt: "again", agent: "a2a-demo" });
-  await new Promise((r) => setTimeout(r, 50));
-  await engine.initTaskEngine({ broadcast: () => {}, isBusy: () => false, runTurn: async () => ({ ok: true }) });
-  const t = engine.listTasks().find((x) => x.target?.type === "a2a");
+  // The tasks file is written by a fire-and-forget atomic write chain
+  // (enqueueExecution → void saveTasks()), so a fixed sleep IS the race:
+  // under CI load the write can exceed it and the reload reads a stale file
+  // (observed 2026-10-07, add-agent-service-config run). Poll the reload
+  // instead — deterministic, still bounded.
+  let t = null;
+  for (let i = 0; i < 40 && !t; i++) {
+    await new Promise((r) => setTimeout(r, 25));
+    await engine.initTaskEngine({ broadcast: () => {}, isBusy: () => false, runTurn: async () => ({ ok: true }) });
+    t = engine.listTasks().find((x) => x.target?.type === "a2a");
+  }
   assert.ok(t, "a2a task survives the engine reload");
 });
 

@@ -16,7 +16,8 @@
    - 走通的是 npm 官方推荐的 **staged publish**：`npx npm@11 stage publish --access public` → 网页
      Settings → Staged Packages → Approve（一次安全密钥触控）。
 3. **OIDC Trusted Publisher**：在包设置页登记 `FindDataTechnology/fd-craw-private` · `facet-cli-publish.yml`
-   （权限 npm publish + stage publish）。**注意**：早期登记指向 `platform` 仓是错的（该仓没有这个工作流），已建正确连接并删除错配。
+   （权限 npm publish + stage publish），tag 实测通过。**注意**：早期登记指向 `platform` 仓是错的（该仓没有这个工作流）——
+   正确连接已建成；那条错配是**无害死配置**（该仓无此工作流，无法通过认证），因删除需额外密钥触控暂未清，可随手在包设置页 Delete。
 4. **tag 实测（两个坑，均已修）**：
    - runner 自带 npm 10 无法完成 OIDC 交换 → 工作流加 `npm install -g npm@^11`；
    - registry 拒收**私有源仓**的 provenance 包（E422）→ 工作流去掉 `--provenance`（TP 认证保留）。

@@ -26,3 +26,4 @@
 ## 6. 寻数云端上线配置（部署侧，非本仓代码）
 
 - [ ] 6.1 fd-prod k8s env `LOGIN_HERO`（zh-CN + en 双写终稿）随 GitOps 滚动。验证：`curl https://platform.finddatatech.cloud/api/config` 见 loginHero、登录页双栏、降级路径在 staging 先验。
+- [ ] 6.2 云端生效收尾（notes/cloud-topology-findings.md）：env 已同步+pod 已滚 ✓、/api/config 入口桥已上 ✓；剩网关代码两件（匿名 GET /api/config、放行 SPA /login）待 GitHub 账单恢复后随镜像变更上线——云端 /login 现落在 Logto 托管页（拓扑事实，split hero 云端无显示面，自部署/桌面不受影响）。

@@ -151,11 +151,9 @@ async function main() {
   const dlRoot = process.env.DL_ROOT || "/srv/dl";
   const dlBase = process.env.DL_BASE || "https://dl.finddatatech.cloud";
 
-  // 1. Release + assets via gh api.
+  // 1. Release + assets via gh api (assets ride on the release object).
   const release = JSON.parse(run("gh", ["api", `repos/${repo}/releases/tags/${tag}`]));
-  const assets = JSON.parse(run("gh", ["api", `repos/${repo}/releases/tags/${tag}/assets`]));
-  release.assets = assets;
-  console.log(`[1/4] ${tag}: ${assets.length} assets, published ${release.published_at}`);
+  console.log(`[1/4] ${tag}: ${release.assets.length} assets, published ${release.published_at}`);
 
   // 2. Map + validate BEFORE any write (a snapshot that would fail the site's
   // build validation never reaches the repo).

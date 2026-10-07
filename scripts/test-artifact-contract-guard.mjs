@@ -16,7 +16,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -48,9 +48,13 @@ test("remote-fork system message carries the contract line", () => {
   }
 });
 
-test("sample pack skills no longer steer toward Mermaid", () => {
+test("sample pack skills no longer steer toward Mermaid", (t) => {
+  // The open-source snapshot omits the internal demo packs — the guard is a
+  // no-op there (explicit skip, not a vacuous pass).
+  const packsRoot = path.join(repo, "docs", "vertical-packs", "skills");
+  if (!existsSync(packsRoot)) return t.skip("vertical-packs demo material not present (open-source snapshot)");
   for (const skill of ["china-macro-brief-workflow", "legal-case-workflow"]) {
-    const p = path.join(repo, "docs", "vertical-packs", "skills", skill, "SKILL.md");
+    const p = path.join(packsRoot, skill, "SKILL.md");
     const text = readFileSync(p, "utf8");
     assert.ok(!/[Mm]ermaid/.test(text), `${skill} must not mention Mermaid`);
     assert.ok(text.includes("echarts"), `${skill} must reference the echarts contract`);

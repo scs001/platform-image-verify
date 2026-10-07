@@ -98,8 +98,8 @@ test("插件树：plugin.json / SKILL.md（带 frontmatter）/ README（MCP 指�
     assert.match(readme, /wgk- 调用键/);
     assert.doesNotMatch(readme, /"mcpServers"/); // MCP 是指引，不是插件内 server 配置
 
-    const noMcp = await fetch(`${base}/api/marketplace/packs/${a.id}/v1/README.md`);
-    assert.ok(noMcp.ok);
+    const readmeNoMcp = await fetch(`${base}/api/marketplace/packs/${a.id}/v1/README.md`);
+    assert.ok(readmeNoMcp.ok);
   } finally { await cleanup(); }
 });
 
@@ -123,7 +123,7 @@ test("版本不可变：v2 发布后清单指 v2，v1 插件文件仍可取", as
 test("unlisted 包的插件树整体缺席", async () => {
   const { registry, base, cleanup } = await boot();
   try {
-    const { a, b } = await seed(registry); // b 已 unlisted
+    const { b } = await seed(registry); // b 已 unlisted（a 未用，不解构）
     const pj = await fetch(`${base}/api/marketplace/packs/${b.id}/v1/.claude-plugin/plugin.json`);
     assert.equal(pj.status, 404);
     const sk = await fetch(`${base}/api/marketplace/packs/${b.id}/v1/skills/skill-B/SKILL.md`);

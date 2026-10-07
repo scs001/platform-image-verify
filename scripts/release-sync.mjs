@@ -82,11 +82,13 @@ export function mapAssetsToEntry(release, opts = {}) {
   const version = release.tag_name.replace(/^v/, "");
   if (!SEMVER.test(version)) throw new Error(`tag "${release.tag_name}" is not a v<semver> tag`);
   const asset = (name) => release.assets.find((a) => a.name === name);
+  // NSIS names the exe with dots on this electron-builder version
+  // (Platform.Setup.1.3.0.exe); older docs say spaces. Accept both.
+  const exeAsset = asset(`Platform Setup ${version}.exe`) ?? asset(`Platform.Setup.${version}.exe`);
   const arm64 = asset(`Platform-${version}-arm64.dmg`);
-  const exe = asset(`Platform Setup ${version}.exe`);
   const missing = [
     [!arm64, `Platform-${version}-arm64.dmg`],
-    [!exe, `Platform Setup ${version}.exe`],
+    [!exeAsset, `Platform Setup ${version}.exe (or Platform.Setup.${version}.exe)`],
   ]
     .filter(([m]) => m)
     .map(([, n]) => n);
@@ -99,7 +101,7 @@ export function mapAssetsToEntry(release, opts = {}) {
       // macos: the arm64 dmg is the direct artifact; the Release page is the
       // GitHub source (x64 users pick -x64.dmg there).
       macos: { beta: beta.has("macos"), filename: arm64.name, official_url: dl(arm64.name), github_url: release.html_url },
-      windows: { beta: beta.has("windows"), filename: exe.name, official_url: dl(exe.name), github_url: exe.browser_download_url },
+      windows: { beta: beta.has("windows"), filename: exeAsset.name, official_url: dl(exeAsset.name), github_url: exeAsset.browser_download_url },
     },
     // x64 dmg rides along to the dl host (not linked — page visitors get it
     // from the Release page), so official_url stays constructible later.

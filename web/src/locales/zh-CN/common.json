@@ -646,6 +646,17 @@
       "brandIconUrlHint": "显示在登录卡片和浏览器标签图标上，必须是 http(s):// 链接。",
       "loginFooterText": "登录页脚文字",
       "loginFooterTextHint": "登录卡片下方的一行文字，留空则不显示。",
+      "loginHero": "登录页 Hero",
+      "loginHeroHint": "登录卡片旁的可选产品介绍面板；不配置则保持中性单列登录页（开源自部署默认形态）。语言解析：当前语言 → 英文 → 不显示。",
+      "loginHeroLocale": "语言",
+      "loginHeroTitle": "主标题",
+      "loginHeroSubtitle": "副标题",
+      "loginHeroImageUrl": "图片 URL（可选）",
+      "loginHeroPoints": "要点列表",
+      "loginHeroPointsHint": "每行一条，至多 4 条。",
+      "loginHeroLinks": "链接行",
+      "loginHeroLinksHint": "每行一条“名称 | https://链接”，至多 4 条。",
+      "loginHeroLineError": "第 {{line}} 行格式有误：应为“名称 | https://链接”。",
       "saved": "已保存 — 刷新后即可看到新的品牌信息。",
       "saveFailed": "保存失败：{{error}}"
     }

@@ -646,6 +646,17 @@
       "brandIconUrlHint": "Se muestra en la tarjeta de inicio de sesión y como icono de la pestaña. Debe ser una URL http(s)://.",
       "loginFooterText": "Texto del pie de inicio de sesión",
       "loginFooterTextHint": "Una línea bajo la tarjeta de inicio de sesión. Vacío = sin pie.",
+      "loginHero": "Hero de la página de inicio de sesión",
+      "loginHeroHint": "Panel de marketing opcional junto a la tarjeta de inicio de sesión. Sin configurar se mantiene la tarjeta neutra (el valor por defecto). Resolución: idioma actual, si no inglés, si no nada.",
+      "loginHeroLocale": "Idioma",
+      "loginHeroTitle": "Titular",
+      "loginHeroSubtitle": "Subtítulo",
+      "loginHeroImageUrl": "URL de imagen (opcional)",
+      "loginHeroPoints": "Puntos",
+      "loginHeroPointsHint": "Uno por línea, hasta 4.",
+      "loginHeroLinks": "Enlaces",
+      "loginHeroLinksHint": "Una \u201cetiqueta | https://url\u201d por línea, hasta 4.",
+      "loginHeroLineError": "Línea {{line}} no válida: usa \u201cetiqueta | https://url\u201d.",
       "saved": "Guardado: actualiza para ver la nueva marca en todas partes.",
       "saveFailed": "No se pudo guardar: {{error}}"
     }

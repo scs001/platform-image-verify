@@ -646,6 +646,17 @@
       "brandIconUrlHint": "Affichée sur la carte de connexion et comme icône d'onglet. Doit être une URL http(s)://.",
       "loginFooterText": "Texte du pied de page de connexion",
       "loginFooterTextHint": "Une ligne sous la carte de connexion. Vide = aucun pied de page.",
+      "loginHero": "Hero de la page de connexion",
+      "loginHeroHint": "Panneau marketing facultatif à côté de la carte de connexion. Non configuré, la carte neutre reste (forme par défaut). Résolution : langue actuelle, sinon anglais, sinon rien.",
+      "loginHeroLocale": "Langue",
+      "loginHeroTitle": "Titre",
+      "loginHeroSubtitle": "Sous-titre",
+      "loginHeroImageUrl": "URL de l'image (facultatif)",
+      "loginHeroPoints": "Points",
+      "loginHeroPointsHint": "Un par ligne, jusqu'à 4.",
+      "loginHeroLinks": "Liens",
+      "loginHeroLinksHint": "Une \u00ab libellé | https://url \u00bb par ligne, jusqu'à 4.",
+      "loginHeroLineError": "Ligne {{line}} invalide : format \u00ab libellé | https://url \u00bb.",
       "saved": "Enregistré — actualisez pour voir la nouvelle marque partout.",
       "saveFailed": "Échec de l'enregistrement : {{error}}"
     }

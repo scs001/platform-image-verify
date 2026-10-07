@@ -103,6 +103,113 @@ export function registerMiscRoutes(ctx) {
     return (process.env[envName] || "").trim() || null;
   };
 
+  // loginHero (openspec: add-login-hero) — the one structured branding field.
+  // Locale keys are the closed set of supported UI locales; kept in lockstep
+  // with web/src/i18n/config.ts (SUPPORTED_LOCALES) — scripts/test-login-hero.mjs
+  // asserts the two sets match.
+  const LOGIN_HERO_LOCALES = ["en", "zh-CN", "es", "fr", "ja"];
+  const loginHeroBounds = { title: 120, subtitle: 200, point: 120, points: 4, linkLabel: 40, url: 500, links: 4 };
+
+  // Structural validation → { ok, error } | { ok, normalized }. Normalized
+  // output trims strings and drops absent sub-fields so the stored JSON is
+  // canonical for both the store and the env fallback.
+  const validateLoginHero = (value) => {
+    const fail = (error) => ({ ok: false, error });
+    if (typeof value !== "object" || value === null || Array.isArray(value)) {
+      return fail("Field 'loginHero' must be an object keyed by locale");
+    }
+    const locales = Object.keys(value);
+    if (!locales.length) return fail("Field 'loginHero' must carry at least one locale entry");
+    const normalized = {};
+    for (const locale of locales) {
+      if (!LOGIN_HERO_LOCALES.includes(locale)) {
+        return fail(`Field 'loginHero' has an unsupported locale key '${locale}'`);
+      }
+      const entry = value[locale];
+      if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+        return fail(`Field 'loginHero.${locale}' must be an object`);
+      }
+      const out = {};
+      for (const field of ["title", "subtitle", "imageUrl"]) {
+        if (!Object.hasOwn(entry, field)) continue;
+        const v = entry[field];
+        const bound = field === "title" ? loginHeroBounds.title : field === "subtitle" ? loginHeroBounds.subtitle : loginHeroBounds.url;
+        if (typeof v !== "string") return fail(`Field 'loginHero.${locale}.${field}' must be a string`);
+        const s = v.trim();
+        if (s.length > bound) return fail(`Field 'loginHero.${locale}.${field}' exceeds ${bound} characters`);
+        if (s) {
+          if (field === "imageUrl" && !/^https?:\/\//.test(s)) {
+            return fail(`Field 'loginHero.${locale}.${field}' must be an http(s):// URL`);
+          }
+          out[field] = s;
+        }
+      }
+      if (Array.isArray(entry.points)) {
+        if (entry.points.length > loginHeroBounds.points) {
+          return fail(`Field 'loginHero.${locale}.points' exceeds ${loginHeroBounds.points} items`);
+        }
+        const points = [];
+        for (const p of entry.points) {
+          if (typeof p !== "string") return fail(`Field 'loginHero.${locale}.points' items must be strings`);
+          const s = p.trim();
+          if (s.length > loginHeroBounds.point) {
+            return fail(`Field 'loginHero.${locale}.points' items exceed ${loginHeroBounds.point} characters`);
+          }
+          if (s) points.push(s);
+        }
+        if (points.length) out.points = points;
+      }
+      if (Array.isArray(entry.links)) {
+        if (entry.links.length > loginHeroBounds.links) {
+          return fail(`Field 'loginHero.${locale}.links' exceeds ${loginHeroBounds.links} items`);
+        }
+        const links = [];
+        for (const l of entry.links) {
+          if (typeof l !== "object" || l === null || Array.isArray(l)) {
+            return fail(`Field 'loginHero.${locale}.links' items must be {label, url} objects`);
+          }
+          const label = typeof l.label === "string" ? l.label.trim() : "";
+          const url = typeof l.url === "string" ? l.url.trim() : "";
+          if (!label || label.length > loginHeroBounds.linkLabel) {
+            return fail(`Field 'loginHero.${locale}.links[].label' must be a non-empty string of at most ${loginHeroBounds.linkLabel} characters`);
+          }
+          if (!/^https?:\/\//.test(url) || url.length > loginHeroBounds.url) {
+            return fail(`Field 'loginHero.${locale}.links[].url' must be an http(s):// URL of at most ${loginHeroBounds.url} characters`);
+          }
+          links.push({ label, url });
+        }
+        if (links.length) out.links = links;
+      }
+      if (!Object.keys(out).length) {
+        return fail(`Field 'loginHero.${locale}' carries no content (need at least one of title/subtitle/points/imageUrl/links)`);
+      }
+      normalized[locale] = out;
+    }
+    return { ok: true, normalized };
+  };
+
+  // Stored JSON → env JSON → null. An unparseable or invalid source degrades
+  // to null with a warning: a bad hand-written LOGIN_HERO must never take the
+  // login page (or the server) down.
+  const loginHeroField = () => {
+    const raw = db.isDbReady() ? db.getDeploymentConfig("loginHero") : null;
+    const source = raw !== null && raw !== undefined && String(raw).trim() ? String(raw) : (process.env.LOGIN_HERO || "").trim() || null;
+    if (!source) return null;
+    let parsed;
+    try {
+      parsed = JSON.parse(source);
+    } catch {
+      console.warn("[branding] loginHero source is not valid JSON; ignoring");
+      return null;
+    }
+    const result = validateLoginHero(parsed);
+    if (!result.ok) {
+      console.warn(`[branding] loginHero source failed validation (${result.error}); ignoring`);
+      return null;
+    }
+    return result.normalized;
+  };
+
   app.get("/api/config", (_req, res) => {
     res.json({
       documentsEnabled: db.isDbReady(),
@@ -117,13 +224,15 @@ export function registerMiscRoutes(ctx) {
       companyName: brandingField("companyName", "COMPANY_NAME"),
       brandIconUrl: brandingField("brandIconUrl", "BRAND_ICON_URL"),
       loginFooterText: brandingField("loginFooterText", "LOGIN_FOOTER_TEXT"),
+      loginHero: loginHeroField(),
     });
   });
 
   // ── Branding write (admin-gated; open when auth off) ──────────────────────
   // Full-replace of provided fields: omitted = unchanged, empty string = clear
   // back to the env fallback. All strings capped at 200 chars; brandIconUrl
-  // must be http(s):// when non-empty.
+  // must be http(s):// when non-empty. loginHero (structured) validates as a
+  // whole before anything is persisted; null / "" / {} clear it.
   const BRANDING_KEYS = ["companyName", "assistantName", "brandIconUrl", "loginFooterText"];
 
   app.put("/api/config/branding", (req, res) => {
@@ -149,9 +258,25 @@ export function registerMiscRoutes(ctx) {
       }
       updates[key] = value;
     }
+    let heroUpdate; // undefined = absent (untouched), null = clear, object = set
+    if (Object.hasOwn(body, "loginHero")) {
+      const value = body.loginHero;
+      if (value === null || value === "" || (typeof value === "object" && value !== null && !Array.isArray(value) && Object.keys(value).length === 0)) {
+        heroUpdate = null;
+      } else {
+        const result = validateLoginHero(value);
+        if (!result.ok) return res.status(400).json({ error: result.error });
+        heroUpdate = result.normalized;
+      }
+    }
     for (const [key, value] of Object.entries(updates)) {
       if (value === "") db.clearDeploymentConfig(key);
       else db.setDeploymentConfig(key, value);
+    }
+    if (heroUpdate !== undefined) {
+      // heroUpdate: null = clear (back to env fallback), object = store.
+      if (heroUpdate === null) db.clearDeploymentConfig("loginHero");
+      else db.setDeploymentConfig("loginHero", JSON.stringify(heroUpdate));
     }
     res.json({ ok: true });
   });

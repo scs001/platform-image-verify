@@ -646,6 +646,17 @@
       "brandIconUrlHint": "ログインカードとタブのアイコンに表示されます。http(s):// の URL である必要があります。",
       "loginFooterText": "ログインページのフッター文言",
       "loginFooterTextHint": "ログインカードの下に 1 行表示されます。空なら表示されません。",
+      "loginHero": "ログインページのヒーロー",
+      "loginHeroHint": "ログインカードの横に表示する任意の紹介パネル。未設定なら中立的な単 カラムのまま（既定動作）。解決順序：現在の言語 → 英語 → 非表示。",
+      "loginHeroLocale": "言語",
+      "loginHeroTitle": "見出し",
+      "loginHeroSubtitle": "サブタイトル",
+      "loginHeroImageUrl": "画像 URL（任意）",
+      "loginHeroPoints": "要点",
+      "loginHeroPointsHint": "1 行に 1 件、最大 4 件。",
+      "loginHeroLinks": "リンク",
+      "loginHeroLinksHint": "1 行に 1 件「ラベル | https://url」、最大 4 件。",
+      "loginHeroLineError": "{{line}} 行目の形式が不正：「ラベル | https://url」にしてください。",
       "saved": "保存しました。更新すると新しいブランドが全体に反映されます。",
       "saveFailed": "保存できませんでした: {{error}}"
     }

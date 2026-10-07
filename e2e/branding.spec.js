@@ -259,4 +259,101 @@ test.describe("deployment branding (logto mode)", () => {
     expect(cfg.json.companyName).toBeNull();
     expect(cfg.json.brandIconUrl).toBe("https://cdn.example/icon.png");
   });
+
+  // ── loginHero (add-login-hero) ────────────────────────────────────────────
+
+  test("loginHero: split layout renders, locale resolution follows current → en", async ({ page }) => {
+    const put = await api("/api/config/branding", {
+      method: "PUT",
+      cookie: adminCookie,
+      body: {
+        loginHero: {
+          "zh-CN": {
+            title: "壹座 · 开源 AI 平台",
+            subtitle: "云端与本地，双轨可用",
+            points: ["全平台覆盖", "数据可留在本地"],
+            links: [{ label: "官网", url: "https://www.finddatatech.cloud" }],
+          },
+          en: { title: "The open AI platform", links: [{ label: "Site", url: "https://www.finddatatech.cloud" }] },
+        },
+      },
+    });
+    expect(put.status).toBe(200);
+
+    await pinLocaleEn(page);
+    await page.goto(`${BASE}/login`);
+    await expect(page.getByTestId("login-hero")).toBeVisible();
+    await expect(page.getByTestId("login-hero-title")).toHaveText("The open AI platform");
+    await expect(page.getByTestId("sso-login")).toBeVisible(); // the card keeps its behavior in split layout
+    await expect(page.getByTestId("login-hero-links")).toBeVisible();
+
+    // zh-CN direct: the zh entry wins as a whole.
+    await page.getByTestId("login-locale-select").selectOption("zh-CN");
+    await expect(page.getByTestId("login-hero-title")).toHaveText("壹座 · 开源 AI 平台");
+
+    // ja falls back to the en entry (not a field mix with zh-CN).
+    await page.getByTestId("login-locale-select").selectOption("ja");
+    await expect(page.getByTestId("login-hero-title")).toHaveText("The open AI platform");
+  });
+
+  test("loginHero: invalid structure rejected whole-write; links-only renders row without panel; null clears", async ({ page }) => {
+    const bad = await api("/api/config/branding", {
+      method: "PUT",
+      cookie: adminCookie,
+      body: { loginHero: { "zh-TW": { title: "x" } } },
+    });
+    expect(bad.status).toBe(400);
+    expect(bad.json.error).toContain("loginHero");
+    const cfg = await api("/api/config");
+    expect(cfg.json.loginHero).not.toBeNull(); // untouched by the rejected write
+
+    // Links-only entry: no hero panel, standalone row under the card.
+    const linksOnly = await api("/api/config/branding", {
+      method: "PUT",
+      cookie: adminCookie,
+      body: { loginHero: { en: { links: [{ label: "Docs", url: "https://docs.example" }] } } },
+    });
+    expect(linksOnly.status).toBe(200);
+    await pinLocaleEn(page);
+    await page.goto(`${BASE}/login`);
+    await expect(page.getByTestId("login-hero")).toHaveCount(0);
+    await expect(page.getByTestId("login-hero-links")).toBeVisible();
+    await expect(page.getByTestId("login-hero-links")).toContainText("Docs");
+
+    // Clear → the neutral single-column page again.
+    expect((await api("/api/config/branding", { method: "PUT", cookie: adminCookie, body: { loginHero: null } })).status).toBe(200);
+    await page.reload();
+    await expect(page.getByTestId("login-hero")).toHaveCount(0);
+    await expect(page.getByTestId("login-hero-links")).toHaveCount(0);
+  });
+
+  test("settings hero editor: editing one locale preserves the others", async ({ page, context }) => {
+    await api("/api/config/branding", {
+      method: "PUT",
+      cookie: adminCookie,
+      body: { loginHero: { en: { title: "Stored hero" } } },
+    });
+    await context.addCookies([{ name: "paas_session", value: adminCookie, url: BASE, httpOnly: true, sameSite: "Lax" }]);
+    await pinLocaleEn(page);
+    await page.goto(`${BASE}/settings/branding`);
+    await expect(page.getByTestId("settings-branding")).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByTestId("branding-hero-title")).toHaveValue("Stored hero");
+
+    // Edit the zh-CN slot; the en slot must survive the merged PUT.
+    await page.getByTestId("branding-hero-locale").selectOption("zh-CN");
+    await page.getByTestId("branding-hero-title").fill("壹座登录页");
+    await page.getByTestId("branding-hero-links").fill("官网 | https://www.finddatatech.cloud");
+    await page.getByTestId("branding-save").click();
+    await expect(page.getByTestId("settings-branding")).toContainText("Saved");
+    const cfg = await api("/api/config");
+    expect(cfg.json.loginHero).toEqual({
+      en: { title: "Stored hero" },
+      "zh-CN": { title: "壹座登录页", links: [{ label: "官网", url: "https://www.finddatatech.cloud" }] },
+    });
+
+    // A malformed link line is caught client-side and never sent.
+    await page.getByTestId("branding-hero-links").fill("not a link line");
+    await page.getByTestId("branding-save").click();
+    await expect(page.getByTestId("settings-branding")).toContainText("Could not save");
+  });
 });

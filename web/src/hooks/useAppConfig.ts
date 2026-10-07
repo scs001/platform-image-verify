@@ -4,6 +4,7 @@
 // localized default, and cached for every later read.
 import { useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
+import { parseLoginHero, type LoginHeroConfig } from "@/lib/login-hero";
 
 export interface AppConfig {
   documentsEnabled: boolean;
@@ -12,16 +13,18 @@ export interface AppConfig {
   assistantName: string | null;
   // Deployment branding (branding store → env → null). companyName feeds the
   // login copy; brandIconUrl the login card + favicon; loginFooterText the
-  // login footer. Null = current unbranded behavior.
+  // login footer; loginHero the login page hero slots (add-login-hero). Null
+  // = current unbranded behavior.
   companyName: string | null;
   brandIconUrl: string | null;
   loginFooterText: string | null;
+  loginHero: LoginHeroConfig | null;
   // Pack marketplace surfaces exist only on gateway-fronted deployments
   // (add-pack-marketplace, design D15): false = no pack UI anywhere.
   packMarketplace: boolean;
 }
 
-let config: AppConfig = { documentsEnabled: true, assistantName: null, companyName: null, brandIconUrl: null, loginFooterText: null, packMarketplace: false };
+let config: AppConfig = { documentsEnabled: true, assistantName: null, companyName: null, brandIconUrl: null, loginFooterText: null, loginHero: null, packMarketplace: false };
 const listeners = new Set<() => void>();
 
 function emit(next: AppConfig) {
@@ -52,6 +55,7 @@ export async function loadAppConfig(timeoutMs = 1500): Promise<AppConfig> {
       companyName: str(body?.companyName),
       brandIconUrl: str(body?.brandIconUrl),
       loginFooterText: str(body?.loginFooterText),
+      loginHero: parseLoginHero(body?.loginHero),
       packMarketplace: body?.packMarketplace === true,
     });
   } catch {

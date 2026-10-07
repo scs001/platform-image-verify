@@ -659,6 +659,17 @@
       "brandIconUrlHint": "Shown on the login card and as the tab favicon. Must be an http(s):// URL.",
       "loginFooterText": "Login footer text",
       "loginFooterTextHint": "One line shown under the login card. Leave empty for no footer.",
+      "loginHero": "Login page hero",
+      "loginHeroHint": "Optional marketing panel beside the login card. Unset keeps the neutral single-column login (the open-source default). Resolution: current language, else English, else none.",
+      "loginHeroLocale": "Language",
+      "loginHeroTitle": "Headline",
+      "loginHeroSubtitle": "Subtitle",
+      "loginHeroImageUrl": "Image URL (optional)",
+      "loginHeroPoints": "Bullet points",
+      "loginHeroPointsHint": "One per line, up to 4.",
+      "loginHeroLinks": "Links",
+      "loginHeroLinksHint": "One \u201clabel | https://url\u201d per line, up to 4.",
+      "loginHeroLineError": "Invalid line {{line}}: use \u201clabel | https://url\u201d.",
       "saved": "Saved — refresh to see the new branding everywhere.",
       "saveFailed": "Could not save: {{error}}"
     }

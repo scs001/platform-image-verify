@@ -17,3 +17,11 @@ ADR-0015 把自部署 mcp-gateway-registry 归屋为谦面组件时，采用了�
 - **对冲**：patch ①（per-user 长命 key）PR 上游以缩小分歧面、降低未来安全摘取成本；PR #1791（logto）继续养。
 - **supersede**：取代 ADR-0015「继续 OSS + fork 补丁模式」条款；归屋结论与 runtime-source / 消费契约不变。wire-platform-v1 的 3.2/4.4 随收敛落地解堵。
 - **CI 门槛（2026-10-05 修订原「不建 CI」决定）**：GitHub 侧归 **FindDataTechnology/mcp-gateway-registry**（私有仓，自 law-ai-official 转移而来，默认分支 fd-1.0.0）；GitHub Actions 保留两个测试套 workflow（auth-server / registry，`fd-*` 分支 push 自动触发），换镜像前以两套绿为门槛，本地全量运行为可选项。上游其余 CI（release/build/helm/terraform/metrics/docs/dependabot）随瘦身删除。
+
+## 修订（2026-10-07）：「生态互操作收紧」条款首次触发，复核通过
+
+add-ecosystem-bridge 入向开源 MCP server 首次触发本 ADR 的重估条款。复核结论（证据链见 `docs/registry-fork-patches/2026-10-07-ecosystem-bridge-compat-audit.md`）：
+
+- 「MCP 语义冻结在 1.32 时代」比当初假设的**窄**：冻结的是注册处自身 API 代码；传输栈依赖 `mcp>=1.9.3` 浮动下限，随镜像构建前进（fd-1.0.0 的 SDK 已支持 2025-06-18 协议族）。线上实证：wire 客户真回合（2026-10-05）与 401 探针（2026-10-07）均过。
+- **决定：谱系不变。** 精选开源 server 按现有接入机器进注册处（注册→探测→代理），stdio-only server 由托管层包 HTTP 壳（1.4 决议），**不为生态兼容在注册处侧写定制协议代码**——上游 server 要求注册处不支持的传输扩展时该 server 出局（出局规则原文见台账）。
+- 已知缺口随 5.1 修：401 双 WWW-Authenticate 头；探测-注册竞态写进 1.4 操作步骤。

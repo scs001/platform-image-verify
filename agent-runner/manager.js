@@ -46,6 +46,18 @@ import { createNotifier } from "./notify.js";
 import { maskSecretRef } from "../lib/agent-serving.js";
 import { createAgentApp, agentPortFor } from "./a2a.js";
 
+// Per-session reap window (add-caller-preferences): minimal copy of the
+// facade's parseReapWindow (fd-wanxing wanxing-facade a2a.js) — one
+// definition, two repos, keep the two in lockstep (the slugFor discipline).
+// Accepts a context id ("wx:…") or a session name ("srv-wx-…"); returns
+// minutes or null (null = the runner's platform default). The `x` suffix
+// cannot occur inside the hex digest, so an unencoded hash never matches.
+export function parseReapWindow(value) {
+  const body = String(value ?? "").replace(/^wx:/, "").replace(/^srv-wx-/, "");
+  const m = body.match(/^(\d{1,6})x(?:-|$)/);
+  return m ? Number(m[1]) : null;
+}
+
 export class ChildManager {
   #slotWaiters = new Set(); // capacity-queue interval timers, cleared on shutdown
   #listeners = new Map(); // agentKey → http server (per-agent port, upstream #1734)
@@ -342,7 +354,8 @@ export class ChildManager {
     }
   }
 
-  // ── External-context reap (add-wanxing-serving-api D10) ────────────────────
+  // ── External-context reap (add-wanxing-serving-api D10; per-caller window:
+  // add-caller-preferences) ───────────────────────────────────────────────────
   // Facade-derived `wx:` contexts are single-interaction by contract: their
   // sessions (storage name srv-wx-*) reap after the idle TTL, freeing the
   // private home's session storage. Walks homeRoot directly — the homes of
@@ -350,8 +363,15 @@ export class ChildManager {
   // sessions should not outlive the agent's own residency. Rhythm day-
   // sessions (srv-day-*) and internal contexts are name-spaced away and never
   // touched. A session with a turn in flight on a live child is skipped.
+  //
+  // The TTL is PER SESSION (add-caller-preferences): a caller's reap-window
+  // preference rides encoded in the context id — the facade derives
+  // `wx:<minutes>x-<hash>`, the session lands as `srv-wx-<minutes>x-<hash>`,
+  // and parseReapWindow (minimal copy of the facade's, keep the two in
+  // lockstep — the slugFor discipline) resolves it here. No segment (legacy
+  // ids, caller-supplied contexts) → the runner's platform default.
   reapExternalContexts() {
-    const ttlMs = this.config.externalContextTtlSecs * 1000;
+    const defaultTtlMs = this.config.externalContextTtlSecs * 1000;
     let reaped = 0;
     let agentKeys;
     try {
@@ -373,6 +393,8 @@ export class ChildManager {
           if (!ent.name.startsWith("srv-wx-")) continue;
           const sessionPath = path.join(dirPath, ent.name);
           if (this.#sessionActive(agentKey, ent.name)) continue;
+          const minutes = parseReapWindow(ent.name);
+          const ttlMs = minutes == null ? defaultTtlMs : minutes * 60_000;
           if (Date.now() - this.#lastTouched(sessionPath) < ttlMs) continue;
           try {
             rmSync(sessionPath, { recursive: true, force: true });

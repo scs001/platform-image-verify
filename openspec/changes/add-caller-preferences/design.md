@@ -22,7 +22,7 @@
 
 **D2 — 回调派发挂在 settle 同点。** `core.js` 回合完成（settle 成功或失败）后 fire-and-forget 派发：`POST callback_url`，体 `{agent, caller_id(masked), trace_id, outcome, started_at, ended_at, minutes_billed}`，头 `X-Facet-Signature: t=<unix>,v1=<hmac-sha256(t.body, secret)>`（时间戳防重放）。退避序列（1m/4m/10m 内三次重试，总窗 ≤15m），窗尽记录一条 `callback_failed` 行（jsonl，含 url 脱敏与原因，无密钥）。派发器独立于请求路径——回调慢/挂不影响回合响应。
 
-**D3 — 收割窗编码。** `contextIdFor` 升级：`wx:<reapmin16>-<hash|rand>`，reapmin16 = 生效分钟数的 36 进制（默认值编 `d`）。共享解析函数 `parseReapWindow(sessionName)`（门面 `a2a.js` 导出；runner 最小拷贝锁步，slugFor 纪律）→ runner `reapExternalContexts` 对 `srv-wx-<reapmin>-*` 逐会话取 TTL。**编码只用于门面派生的 id**；调用者自带 context_id 原样过（默认 TTL）。前缀解析不可识别 → 回落默认（向后兼容：旧 `wx:` 无窗段）。
+**D3 — 收割窗编码。** `contextIdFor` 升级：设了收割窗偏好的（调用者,agent）派生 id 编为 `wx:<minutes>x-<hash|rand>`（`x` 后缀把窗段与十六进制哈希首段彻底区分——哈希字符集不含 `x`）；**未设偏好不编码**（保持既有 `wx:<hash>` 形态，runner 天然回落平台默认——门面因此无需知晓平台默认值，默认仍归 runner 的 env）。共享解析：`parseReapWindow(contextIdOrSessionName)` 返回分钟数或 null（`\d{1,6}x` 前段才作数，其余一律 null）；门面 `a2a.js` 导出，runner 最小拷贝锁步（slugFor 纪律）。**编码只用于门面派生的 id**；调用者自带 context_id 原样过（默认 TTL）。向后兼容：旧 `wx:` 无窗段 → 默认。
 
 **D4 — CLI 形状。** `facet prefs <agent-slug> [--key sk-…] [--set-callback URL SECRET | --set-reap MINUTES | --clear callback|reap | --show]`；`--key` 缺省读 `FACET_KEY` 环境变量。命令直连门面 `PUT /api/wanxing/v1/prefs/<slug>`（调用键 Bearer）。子命令实现入 facet.js 既有结构（USAGE 同步）；npm 发布走既有 facet-cli-publish 流。
 

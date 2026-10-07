@@ -29,11 +29,14 @@ const VERSION = JSON.parse(
 const DEFAULT_BASE = process.env.FACET_BASE || "https://facet.finddatatech.cloud";
 const DEFAULT_REGISTRY = process.env.FACET_REGISTRY || "https://mcp.finddatatech.cloud";
 
-const USAGE = `facet v${VERSION} — 谦面功能集安装器
+const USAGE = `facet v${VERSION} — 谦面功能集安装器 / 萬星调用者偏好
 
 用法：
   facet install <packRef> [--target claude-code|cursor] [--project <dir>]
                           [--base <url>] [--registry <url>]
+  facet prefs <agent-slug> [--key sk-…] [--wanxing <url>]
+                          [--set-callback <url> <secret>] [--set-reap <minutes>]
+                          [--clear callback|reap|all] [--show]
   facet help | --version
 
   <packRef>  功能集 id（市场详情页可见）或含 id 的 URL
@@ -42,6 +45,13 @@ const USAGE = `facet v${VERSION} — 谦面功能集安装器
   --base     谦面地址（默认 ${DEFAULT_BASE}）
   --registry 注册处地址——只用于打印 MCP 连接端点，不写任何配置
 
+  prefs 子命令（萬星调用者偏好，调用键即凭证）：
+  <agent-slug>   目录页的 agent 标识（如 packs-xxxx-agent）
+  --key          sub2api 调用键（sk-…）；缺省读环境变量 FACET_CALLER_KEY
+  --wanxing      萬星门面地址（默认 https://wanxing.finddatatech.cloud）
+  --set-callback 回合完成回调：URL 与 HMAC 签名密钥（两者同设同清）
+  --set-reap     上下文收割窗（分钟）；--clear 显式清除即回落平台默认
+
 目标布局：
   claude-code 用户级 ~/.claude/skills/<skill>/SKILL.md ／ 项目级 <dir>/.claude/skills/…
   cursor      用户级 ~/.cursor/skills/<skill>/SKILL.md ／ 项目级 <dir>/.cursor/skills/…
@@ -49,7 +59,7 @@ const USAGE = `facet v${VERSION} — 谦面功能集安装器
 说明：安装即版本快照（不产生订阅）；MCP 需 registry 账号凭据，端点仅打印。`;
 
 function parseArgs(argv) {
-  const out = { command: null, packRef: null, target: "claude-code", project: null, base: DEFAULT_BASE, registry: DEFAULT_REGISTRY };
+  const out = { command: null, packRef: null, target: "claude-code", project: null, base: DEFAULT_BASE, registry: DEFAULT_REGISTRY, key: null, wanxing: process.env.FACET_WANXING || "https://wanxing.finddatatech.cloud", setCallback: null, setReap: undefined, clear: null };
   const rest = [...argv];
   out.command = rest.shift() ?? null;
   // A bare flag in command position (`facet --version`, `facet -h`) is the
@@ -62,6 +72,17 @@ function parseArgs(argv) {
     else if (a === "--project") out.project = rest.shift();
     else if (a === "--base") out.base = rest.shift();
     else if (a === "--registry") out.registry = rest.shift();
+    else if (a === "--key") out.key = rest.shift();
+    else if (a === "--wanxing") out.wanxing = rest.shift();
+    else if (a === "--set-callback") {
+      const url = rest.shift();
+      const secret = rest.shift();
+      if (!url || !secret) throw new Error("--set-callback 需要两个值：<url> <secret>");
+      out.setCallback = [url, secret];
+    }
+    else if (a === "--set-reap") out.setReap = rest.shift();
+    else if (a === "--clear") out.clear = rest.shift();
+    else if (a === "--show") { /* read-only is the default when no set/clear flag is given */ }
     else if (a === "--help" || a === "-h") out.command = "help";
     else if (a === "--version" || a === "-v") out.command = "version";
     else if (!a.startsWith("-") && !out.packRef) out.packRef = a;
@@ -149,11 +170,65 @@ async function install(opts) {
   console.log(`把功能集装进运行时（对话/Agent 服务）请到壹座：设置 → 功能集 → 我的功能集（订阅后一键安装）。`);
 }
 
+// ── prefs: 萬星调用者偏好（add-caller-preferences） ─────────────────────────
+// The caller's own surface for their per-agent preferences: the sub2api
+// caller key is the credential (no login, matching the A2A door's rule).
+async function prefs(opts) {
+  const base = String(opts.wanxing).replace(/\/+$/, "");
+  const slug = opts.packRef;
+  if (!slug) throw new Error("缺少 agent slug——用法见 facet help");
+  const key = opts.key || process.env.FACET_CALLER_KEY || "";
+  if (!key) throw new Error("需要调用键：--key sk-… 或环境变量 FACET_CALLER_KEY");
+
+  const call = async (method, body) => {
+    const r = await fetch(`${base}/api/wanxing/v1/prefs/${encodeURIComponent(slug)}`, {
+      method,
+      headers: { Authorization: `Bearer ${key}`, ...(body ? { "Content-Type": "application/json" } : {}) },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const doc = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(doc?.error?.message || doc?.error || `HTTP ${r.status}`);
+    return doc;
+  };
+
+  const patch = {};
+  if (opts.setCallback) {
+    patch.callbackUrl = opts.setCallback[0];
+    patch.callbackSecret = opts.setCallback[1];
+  }
+  if (opts.setReap !== undefined) {
+    const n = Number(opts.setReap);
+    if (!Number.isInteger(n) || n < 1) throw new Error("--set-reap 需要正整数分钟数");
+    patch.reapMinutes = n;
+  }
+  if (opts.clear !== null) {
+    if (!["callback", "reap", "all"].includes(opts.clear)) throw new Error("--clear 只接受 callback | reap | all");
+    if (opts.clear === "callback" || opts.clear === "all") {
+      patch.callbackUrl = null;
+      patch.callbackSecret = null;
+    }
+    if (opts.clear === "reap" || opts.clear === "all") patch.reapMinutes = null;
+  }
+
+  const show = (p) => {
+    console.log(`调用者偏好 · ${slug}`);
+    console.log(`  回合完成回调：${p.callbackUrl ?? "（未设）"}${p.callbackSecretSet ? "（签名密钥已设）" : ""}`);
+    console.log(`  上下文收割窗：${p.reapMinutes != null ? `${p.reapMinutes} 分钟` : "（平台默认）"}`);
+  };
+  if (Object.keys(patch).length > 0) {
+    show((await call("PUT", patch)).prefs);
+    console.log("已保存。");
+  } else {
+    show((await call("GET")).prefs);
+  }
+}
+
 try {
   const opts = parseArgs(process.argv.slice(2));
   if (opts.command === "help" || opts.command === null) console.log(USAGE);
   else if (opts.command === "version") console.log(VERSION);
   else if (opts.command === "install") await install(opts);
+  else if (opts.command === "prefs") await prefs(opts);
   else {
     console.error(`未知命令：${opts.command}\n\n${USAGE}`);
     process.exit(2);

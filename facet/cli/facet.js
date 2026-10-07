@@ -169,7 +169,8 @@ function readJsonFile(file) {
 async function upsertJsonMcp(file, container, key, name, entry) {
   const doc = await readJsonFile(file);
   const box = container(doc);
-  (box[key] ??= {})[name] = entry;
+  box[key] ??= {};
+  box[key][name] = entry;
   const existed = await stat(file).then(() => true).catch(() => false);
   await mkdir(path.dirname(file), { recursive: true });
   await writeFile(file, JSON.stringify(doc, null, 2) + "\n", "utf8");
@@ -319,7 +320,7 @@ export async function discoverDeviceAuth(registry) {
   return doc?.device_authorization_endpoint && doc?.token_endpoint ? doc : null;
 }
 
-export async function deviceFlow(registry, meta, { noOpen = false, onCode = () => {} } = {}) {
+export async function deviceFlow(_registry, meta, { noOpen = false, onCode = () => {} } = {}) {
   const da = await fetch(meta.device_authorization_endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },

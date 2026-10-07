@@ -142,6 +142,19 @@ const SCRUBS = [
   ["Dockerfile", "The China build host \\(Jenkins on cheap-3\\)", "The China build host", 1],
   [
     "Dockerfile",
+    'the cheap-1 runner lived "unhealthy" for a generation — 2026-10-07',
+    'one runner lived "unhealthy" for a generation',
+    1,
+  ],
+  ["Dockerfile", "DEPLOY\\.md runbook carry the 8790", "ops runbook carries the 8790", 1],
+  [
+    "agent-runner/manager.js",
+    "accumulated evidence on cheap-1: three stale wx dirs",
+    "observed in production: three stale wx dirs",
+    1,
+  ],
+  [
+    "Dockerfile",
     "is a 4GB machine that ALSO runs the production pod:",
     "is memory-constrained and shares the node with other workloads:",
     1,

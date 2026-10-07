@@ -362,7 +362,8 @@ export class ChildManager {
   // warm (demoted) and undeployed agents persist, and their stale external
   // sessions should not outlive the agent's own residency. Rhythm day-
   // sessions (srv-day-*) and internal contexts are name-spaced away and never
-  // touched. A session with a turn in flight on a live child is skipped.
+  // touched. A session with a turn in flight on a live child is skipped;
+  // both the flat and the workspace-nested dsh storage layouts are scanned.
   //
   // The TTL is PER SESSION (add-caller-preferences): a caller's reap-window
   // preference rides encoded in the context id — the facade derives
@@ -389,18 +390,40 @@ export class ChildManager {
         } catch {
           continue;
         }
+        // Two dsh storage generations (live finding 2026-10-07): older homes
+        // keep sessions FLAT (`sessions/srv-wx-…`); current dsh nests them
+        // under a workspace-group dir (`sessions/--data-…--/srv-wx-…`). Scan
+        // both — a one-level walk left every nested wx session unreaped
+        // (accumulated evidence on cheap-1: three stale wx dirs from probes).
+        const candidates = [];
         for (const ent of entries) {
-          if (!ent.name.startsWith("srv-wx-")) continue;
-          const sessionPath = path.join(dirPath, ent.name);
-          if (this.#sessionActive(agentKey, ent.name)) continue;
-          const minutes = parseReapWindow(ent.name);
+          if (ent.name.startsWith("srv-wx-")) {
+            candidates.push({ name: ent.name, sessionPath: path.join(dirPath, ent.name) });
+            continue;
+          }
+          if (!ent.isDirectory()) continue;
+          let inner;
+          try {
+            inner = readdirSync(path.join(dirPath, ent.name), { withFileTypes: true });
+          } catch {
+            continue;
+          }
+          for (const child of inner) {
+            if (child.name.startsWith("srv-wx-")) {
+              candidates.push({ name: child.name, sessionPath: path.join(dirPath, ent.name, child.name) });
+            }
+          }
+        }
+        for (const { name, sessionPath } of candidates) {
+          if (this.#sessionActive(agentKey, name)) continue;
+          const minutes = parseReapWindow(name);
           const ttlMs = minutes == null ? defaultTtlMs : minutes * 60_000;
           if (Date.now() - this.#lastTouched(sessionPath) < ttlMs) continue;
           try {
             rmSync(sessionPath, { recursive: true, force: true });
             reaped += 1;
           } catch (e) {
-            this.log.warn(`[agent-runner] external-context reap failed (${agentKey}/${ent.name}): ${e.message}`);
+            this.log.warn(`[agent-runner] external-context reap failed (${agentKey}/${name}): ${e.message}`);
           }
         }
       }

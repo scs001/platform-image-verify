@@ -1339,23 +1339,30 @@ test("reap: the encoded session name sets the per-session TTL; unencoded falls b
   assert.equal(parseReapWindow(""), null);
 
   const { manager, config } = directManager({ entries: [], config: { externalContextTtlSecs: 60 } });
-  const mkSession = (name, ageMs) => {
-    const dir = path.join(config.homeRoot, "packs-p1-heal", "sessions", name);
+  const mkSession = (name, ageMs, group = null) => {
+    // group=null → the FLAT legacy layout; a group name → the current dsh
+    // workspace-nested layout (sessions/<group>/srv-wx-…, live finding).
+    const dir = group
+      ? path.join(config.homeRoot, "packs-p1-heal", "sessions", group, name)
+      : path.join(config.homeRoot, "packs-p1-heal", "sessions", name);
     mkdirSync(dir, { recursive: true });
     writeFileSync(path.join(dir, "log"), "x");
     const t = (Date.now() - ageMs) / 1000;
     utimesSync(path.join(dir, "log"), t, t);
     utimesSync(dir, t, t); // #lastTouched takes the MAX of dir + children
+    return dir;
   };
   mkdirSync(path.join(config.homeRoot, "packs-p1-heal", "sessions"), { recursive: true });
-  mkSession("srv-wx-1x-old", 3 * 60_000);    // window 1m, idle 3m → reaped
-  mkSession("srv-wx-600x-old", 3 * 60_000);  // window 600m → kept
-  mkSession("srv-wx-legacy", 3 * 60_000);    // default 1m, idle 3m → reaped
-  mkSession("srv-wx-1x-fresh", 10_000);      // window 1m, idle 10s → kept
-  assert.equal(manager.reapExternalContexts(), 2);
-  assert.ok(existsSync(path.join(config.homeRoot, "packs-p1-heal", "sessions", "srv-wx-600x-old")));
-  assert.ok(existsSync(path.join(config.homeRoot, "packs-p1-heal", "sessions", "srv-wx-1x-fresh")));
-  assert.ok(!existsSync(path.join(config.homeRoot, "packs-p1-heal", "sessions", "srv-wx-1x-old")));
-  assert.ok(!existsSync(path.join(config.homeRoot, "packs-p1-heal", "sessions", "srv-wx-legacy")));
+  const flatOld = mkSession("srv-wx-1x-old", 3 * 60_000);          // flat, window 1m → reaped
+  const nestedOld = mkSession("srv-wx-1x-nested", 3 * 60_000, "--data-x--"); // nested, window 1m → reaped
+  const nestedKeep = mkSession("srv-wx-600x-keep", 3 * 60_000, "--data-x--"); // nested, window 600m → kept
+  const flatLegacy = mkSession("srv-wx-legacy", 3 * 60_000);       // flat, default 1m → reaped
+  const nestedFresh = mkSession("srv-wx-1x-fresh", 10_000, "--data-x--"); // nested, fresh → kept
+  assert.equal(manager.reapExternalContexts(), 3, "both layouts scanned: 2 nested-stale + 1 flat-stale");
+  assert.ok(existsSync(nestedKeep));
+  assert.ok(existsSync(nestedFresh));
+  assert.ok(!existsSync(flatOld));
+  assert.ok(!existsSync(nestedOld));
+  assert.ok(!existsSync(flatLegacy));
   await manager.stopAll();
 });

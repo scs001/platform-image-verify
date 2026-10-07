@@ -20,12 +20,38 @@ import yaml from "js-yaml";
 import { materializeAgentHome, mcpEntry, agentKeyFor, applyBillingKey, applyDeploymentSecrets } from "../agent-runner/compose.js";
 import { AgentChild, sessionKeyFor } from "../agent-runner/child.js";
 import { ChildManager } from "../agent-runner/manager.js";
-import { createOpsApp } from "../agent-runner/a2a.js";
+import { createOpsApp, agentPortFor } from "../agent-runner/a2a.js";
+import net from "node:net";
 import { createRegistryClient } from "../agent-runner/registry.js";
 import { RhythmScheduler, DEFAULT_SELF_PROMPT } from "../agent-runner/scheduler.js";
 import { Rollover } from "../agent-runner/rollover.js";
 
 const tmpRoot = mkdtempSync(path.join(tmpdir(), "agent-runner-"));
+
+// File-wide port allocator, PROBE-BASED: managers must not bind a port some
+// other process already listens on. Blind random bases shipped a CI flake
+// (EADDRINUSE 0.0.0.0:46460) and reproduced locally — dev machines run real
+// listeners all over the 20k-60k band. Allocation probes the EXACT port this
+// manager will bind (base + the agent path's deterministic offset, the same
+// hash the manager uses) and advances the cursor until it is free. Sequential
+// stride 768 > portSpan 512 additionally keeps this file's own windows
+// disjoint, so one test's leaked listener can never collide with another's.
+const portTaken = (port) =>
+  new Promise((resolve) => {
+    const s = net.createServer();
+    s.once("error", () => resolve(true));
+    s.listen(port, "0.0.0.0", () => s.close(() => resolve(false)));
+  });
+let portCursor = 20000 + Math.floor(Math.random() * 20000);
+async function nextPortBaseFor(agentPath) {
+  for (let i = 0; i < 300; i++) {
+    const base = portCursor;
+    portCursor = base + 768 > 58_000 ? 20_000 : base + 768;
+    const port = agentPortFor(agentPath, { base, span: 512 });
+    if (!(await portTaken(port))) return base;
+  }
+  throw new Error(`test port allocator: no free window found for ${agentPath}`);
+}
 test.after(() => rmSync(tmpRoot, { recursive: true, force: true }));
 
 // ── Fake harness client: records calls, replies to prompt with a scripted ──
@@ -205,8 +231,7 @@ async function bootRunner({ entries, skills = {}, config: cfgOverrides = {}, rep
     turnTimeoutMs: 5_000,
     dshProfile: "platform",
     cwd: tmpRoot,
-    portBase: 20000 + Math.floor(Math.random() * 20000),
-    portSpan: 512,
+    portBase: await nextPortBaseFor(ENTRY.path), portSpan: 512,
     // Warm-zone / rhythm / rollover knobs (add-agent-residency); metering and
     // archive land under the run's homeRoot.
     budgetMb: 3072,
@@ -419,7 +444,7 @@ test("4.4 undeploy: entry leaving the registry stops its listener", async () => 
     homeRoot, registryUrl: "https://mcp.example.test", registryToken: "t",
     backendToken: "bt", idleMs: 60_000, maxChildren: 2, drainMs: 1_000, turnTimeoutMs: 5_000,
     dshProfile: "platform", cwd: tmpRoot, provider: "p", model: "m",
-    portBase: 45000 + Math.floor(Math.random() * 5000), portSpan: 512,
+    portBase: await nextPortBaseFor(ENTRY.path), portSpan: 512,
   };
   let current = [ENTRY];
   const registryClient = {
@@ -480,7 +505,7 @@ test("4.4 prompt rejection settles the turn (no counter leak, drain unwedged)", 
 
 // ── add-agent-residency: pause, budget hysteresis, scheduler, metering, rollover ──
 
-function directManager({ entries = [ENTRY], config: overrides = {}, harness = {}, notifyFetch } = {}) {
+async function directManager({ entries = [ENTRY], config: overrides = {}, harness = {}, notifyFetch } = {}) {
   const homeRoot = path.join(tmpRoot, `res-${Math.random().toString(36).slice(2)}`);
   const spawned = [];
   const config = {
@@ -488,7 +513,7 @@ function directManager({ entries = [ENTRY], config: overrides = {}, harness = {}
     registryUrl: "https://mcp.example.test", registryToken: "t",
     backendToken: "bt", maxChildren: 2, drainMs: 1_000, turnTimeoutMs: 5_000,
     dshProfile: "platform", cwd: tmpRoot, provider: "p", model: "m",
-    portBase: 46000 + Math.floor(Math.random() * 2000), portSpan: 512,
+    portBase: await nextPortBaseFor(entries[0]?.path ?? ENTRY.path), portSpan: 512,
     budgetMb: 3072, agentCostMb: 96, sampleSecs: 30, demoteCooldownMs: 600_000,
     hardBudgetFactor: 1.2, rhythmTickMs: 30_000, tz: "UTC", digestMaxChars: 512,
     archiveDir: path.join(homeRoot, "agent-archive"),
@@ -518,7 +543,7 @@ function directManager({ entries = [ENTRY], config: overrides = {}, harness = {}
 
 test("residency: paused entry demotes, answers explicit -32010, resumes on flag clear", async () => {
   const pausedEntry = { ...ENTRY, metadata: { ...ENTRY.metadata, paused: true } };
-  const { manager, spawned } = directManager({ entries: [pausedEntry] });
+  const { manager, spawned } = await directManager({ entries: [pausedEntry] });
   try {
     await manager.reconcile();
     assert.equal(manager.health().agents[0].state, "paused");
@@ -542,7 +567,7 @@ test("residency: paused entry demotes, answers explicit -32010, resumes on flag 
 
 test("residency: cooldown hysteresis protects a fresh child until the budget is hard-exceeded", async () => {
   // 96MB cost × 2 children = 192MB; soft budget 100MB (over), hard ×1.2 = 120MB.
-  const { manager } = directManager({
+  const { manager } = await directManager({
     config: { budgetMb: 100, agentCostMb: 96, demoteCooldownMs: 600_000, hardBudgetFactor: 1.2 },
   });
   try {
@@ -566,7 +591,7 @@ test("residency: cooldown hysteresis protects a fresh child until the budget is 
 
 test("scheduler: fires at due, honors do-prompt, skips missed, ignores rhythm-less", async () => {
   let clock = Date.parse("2026-10-02T00:00:00Z");
-  const { manager, spawned } = directManager({
+  const { manager, spawned } = await directManager({
     config: { tz: "UTC", rhythmTickMs: 1000 },
   });
   manager.now = () => clock; // deterministic clock
@@ -610,7 +635,7 @@ test("scheduler: fires at due, honors do-prompt, skips missed, ignores rhythm-le
 });
 
 test("metering: every turn kind lands one jsonl line", async () => {
-  const { manager, config } = directManager({});
+  const { manager, config } = await directManager({});
   try {
     await manager.reconcile();
     await manager.turn(ENTRY, "s1", "hello", { kind: "message" });
@@ -630,7 +655,7 @@ test("metering: every turn kind lands one jsonl line", async () => {
 
 test("budget: the descriptor's minutes drive the child's timeout and label", async () => {
   const budgeted = { ...ENTRY, metadata: { ...ENTRY.metadata, effective_budget_minutes: 20 } };
-  const { manager, spawned } = directManager({ entries: [budgeted], config: { turnTimeoutMs: 999_000 } });
+  const { manager, spawned } = await directManager({ entries: [budgeted], config: { turnTimeoutMs: 999_000 } });
   try {
     await manager.reconcile();
     await manager.turn(budgeted, "s1", "hi");
@@ -644,7 +669,7 @@ test("budget: the descriptor's minutes drive the child's timeout and label", asy
 });
 
 test("budget: no descriptor budget falls back to the deployment default", async () => {
-  const { manager, spawned } = directManager({ entries: [ENTRY], config: { turnTimeoutMs: 120_000 } });
+  const { manager, spawned } = await directManager({ entries: [ENTRY], config: { turnTimeoutMs: 120_000 } });
   try {
     await manager.reconcile();
     await manager.turn(ENTRY, "s1", "hi");
@@ -660,7 +685,7 @@ test("budget: no descriptor budget falls back to the deployment default", async 
 test("budget: an over-budget turn hard-stops the child, meters the kill, next touch re-warms", async () => {
   // First spawn replies far beyond the 60ms budget; the re-warm replies fast.
   const harness = { delayMs: 300 };
-  const { manager, spawned, config } = directManager({ entries: [ENTRY], config: { turnTimeoutMs: 60 }, harness });
+  const { manager, spawned, config } = await directManager({ entries: [ENTRY], config: { turnTimeoutMs: 60 }, harness });
   try {
     await manager.reconcile();
     await assert.rejects(
@@ -695,7 +720,7 @@ test("budget: an over-budget turn hard-stops the child, meters the kill, next to
 
 test("budget: self-turns share the same hard-stop discipline", async () => {
   const harness = { delayMs: 300 };
-  const { manager, config } = directManager({ entries: [ENTRY], config: { turnTimeoutMs: 60 }, harness });
+  const { manager, config } = await directManager({ entries: [ENTRY], config: { turnTimeoutMs: 60 }, harness });
   try {
     await manager.reconcile();
     await assert.rejects(
@@ -714,7 +739,7 @@ test("budget: self-turns share the same hard-stop discipline", async () => {
 
 test("rollover: first sighting opens the marker; the next day digests, archives, and queues the head", async () => {
   let clock = Date.parse("2026-10-02T12:00:00Z");
-  const { manager, config } = directManager({});
+  const { manager, config } = await directManager({});
   manager.now = () => clock;
   const rollover = new Rollover({ manager, config, log: { log() {}, warn() {}, error() {} }, now: () => clock });
   try {
@@ -1075,7 +1100,7 @@ function readTree(dir) {
 
 test("notify: a bound deployment forwards to the relay and answers the child", async () => {
   const relay = relayStub();
-  const { manager, spawned, config } = directManager({
+  const { manager, spawned, config } = await directManager({
     entries: [NOTIFY_ENTRY],
     config: { relayUrl: RELAY_URL, relayToken: "relay-secret" },
     notifyFetch: relay.fetchImpl,
@@ -1113,7 +1138,7 @@ test("notify: unbound, channel-mismatch and unconfigured decline structurally, n
   const relay = relayStub();
   // (a) Unbound deployment (no descriptor binding): declined naming the
   // missing binding; nothing reaches the relay.
-  const unbound = directManager({
+  const unbound = await directManager({
     entries: [ENTRY],
     config: { relayUrl: RELAY_URL, relayToken: "relay-secret" },
     notifyFetch: relay.fetchImpl,
@@ -1132,7 +1157,7 @@ test("notify: unbound, channel-mismatch and unconfigured decline structurally, n
   }
 
   // (b) Explicit channel ≠ the bound one: declined before any egress.
-  const mismatch = directManager({
+  const mismatch = await directManager({
     entries: [NOTIFY_ENTRY],
     config: { relayUrl: RELAY_URL, relayToken: "relay-secret" },
     notifyFetch: relay.fetchImpl,
@@ -1150,7 +1175,7 @@ test("notify: unbound, channel-mismatch and unconfigured decline structurally, n
 
   // (c) No relay token configured (the relay's own lazy semantics): declined,
   // nothing sent — the binding is irrelevant when the lane is off.
-  const unconfigured = directManager({
+  const unconfigured = await directManager({
     entries: [NOTIFY_ENTRY],
     config: { relayUrl: RELAY_URL, relayToken: "" },
     notifyFetch: relay.fetchImpl,
@@ -1169,7 +1194,7 @@ test("notify: unbound, channel-mismatch and unconfigured decline structurally, n
 
 test("notify: a relay refusal surfaces to the turn and the runner keeps serving", async () => {
   const relay = relayStub({ status: 404, error: "Unknown channel" });
-  const { manager, spawned, config } = directManager({
+  const { manager, spawned, config } = await directManager({
     entries: [NOTIFY_ENTRY],
     config: { relayUrl: RELAY_URL, relayToken: "relay-secret" },
     notifyFetch: relay.fetchImpl,
@@ -1200,7 +1225,7 @@ test("notify: the 7th call inside a minute is refused with no egress (per agent)
     path: "/packs/pk-abc/pack-other",
     metadata: { ...NOTIFY_ENTRY.metadata, agentId: "pack-other" },
   };
-  const { manager, spawned, config } = directManager({
+  const { manager, spawned, config } = await directManager({
     entries: [NOTIFY_ENTRY, OTHER_ENTRY],
     config: { relayUrl: RELAY_URL, relayToken: "relay-secret", notifyRatePerMin: 6 },
     notifyFetch: relay.fetchImpl,
@@ -1238,7 +1263,7 @@ test("notify: the relay token never reaches the child's spawn spec or composed h
   process.env.BOTS_RELAY_TOKEN = "platform-relay-sentinel";
   let manager;
   try {
-    const h = directManager({ entries: [NOTIFY_ENTRY] });
+    const h = await directManager({ entries: [NOTIFY_ENTRY] });
     manager = h.manager;
     const { spawned } = h;
     await manager.reconcile();
@@ -1261,7 +1286,7 @@ test("notify: the relay token never reaches the child's spawn spec or composed h
 });
 
 test("notify: a rebind drains the old child so the new binding takes effect", async () => {
-  const { manager, spawned, entriesRef } = directManager({ entries: [NOTIFY_ENTRY] });
+  const { manager, spawned, entriesRef } = await directManager({ entries: [NOTIFY_ENTRY] });
   try {
     await manager.reconcile();
     await manager.turn(NOTIFY_ENTRY, "s1", "hi");
@@ -1283,7 +1308,7 @@ test("notify: a rebind drains the old child so the new binding takes effect", as
 
 test("model: the descriptor's effective_model rides the spawn; absent falls back to the runner default", async () => {
   const withModel = { ...ENTRY, metadata: { ...ENTRY.metadata, effective_model: "m-per" } };
-  const { manager, spawned } = directManager({ entries: [withModel] });
+  const { manager, spawned } = await directManager({ entries: [withModel] });
   try {
     await manager.reconcile();
     await manager.turn(withModel, "s1", "hi");
@@ -1294,7 +1319,7 @@ test("model: the descriptor's effective_model rides the spawn; absent falls back
   } finally {
     await manager.stopAll();
   }
-  const plain = directManager({ entries: [ENTRY] });
+  const plain = await directManager({ entries: [ENTRY] });
   try {
     await plain.manager.reconcile();
     await plain.manager.turn(ENTRY, "s1", "hi");
@@ -1306,7 +1331,7 @@ test("model: the descriptor's effective_model rides the spawn; absent falls back
 
 test("model: a model change drains the old child; the next touch re-spawns on the new model", async () => {
   const entry = { ...ENTRY, metadata: { ...ENTRY.metadata, effective_model: "m-1" } };
-  const { manager, spawned, entriesRef } = directManager({ entries: [entry] });
+  const { manager, spawned, entriesRef } = await directManager({ entries: [entry] });
   try {
     await manager.reconcile();
     await manager.turn(entry, "s1", "hi");
@@ -1338,7 +1363,7 @@ test("reap: the encoded session name sets the per-session TTL; unencoded falls b
   assert.equal(parseReapWindow("srv-day-2026-10-07"), null);
   assert.equal(parseReapWindow(""), null);
 
-  const { manager, config } = directManager({ entries: [], config: { externalContextTtlSecs: 60 } });
+  const { manager, config } = await directManager({ entries: [], config: { externalContextTtlSecs: 60 } });
   const mkSession = (name, ageMs, group = null) => {
     // group=null → the FLAT legacy layout; a group name → the current dsh
     // workspace-nested layout (sessions/<group>/srv-wx-…, live finding).

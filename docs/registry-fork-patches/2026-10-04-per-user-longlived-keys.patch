@@ -1,0 +1,1738 @@
+diff --git a/.env.example b/.env.example
+index 833315f5..9453e748 100644
+--- a/.env.example
++++ b/.env.example
+@@ -425,6 +425,31 @@ FEDERATION_ENCRYPTION_KEY=
+ # Default: true (feature is on; set to false to disable the router entirely)
+ M2M_DIRECT_REGISTRATION_ENABLED=true
+ 
++# =============================================================================
++# PER-USER LONG-LIVED API KEYS ("PATCH KEYS") - wire-platform-v1 task 2.1
++# =============================================================================
++#
++# Console users mint non-expiring `wgk-` Bearer keys for machine clients via
++# POST /api/patch-keys. Only a SHA-256 hash is stored (MongoDB `patch_keys`
++# collection); the plaintext is shown once at mint. The auth server's
++# /validate accepts these keys on MCP proxy paths AND registry /api/ paths
++# and continues the request as the owning user (their groups -> their
++# scopes). Users list/revoke their own keys (DELETE /api/patch-keys/{id});
++# revocation is immediate and irreversible.
++#
++# Endpoints gated by this flag:
++#   POST   /api/patch-keys          (any authenticated user; CSRF-gated)
++#   GET    /api/patch-keys          (any authenticated user)
++#   DELETE /api/patch-keys/{key_id} (any authenticated user; CSRF-gated)
++#
++# Default: true (acceptance path is inert until a key is minted; JWT and
++# REGISTRY_API_KEYS static-token behavior are unchanged either way)
++PATCH_KEY_AUTH_ENABLED=true
++
++# Max active (non-revoked) keys one user may hold; further mints get 429.
++# Default: 20
++PATCH_KEY_MAX_ACTIVE_PER_USER=20
++
+ # =============================================================================
+ # AUTHENTICATION PROVIDER CONFIGURATION
+ # =============================================================================
+diff --git a/auth_server/server.py b/auth_server/server.py
+index f3c78410..de7b02c2 100644
+--- a/auth_server/server.py
++++ b/auth_server/server.py
+@@ -121,6 +121,7 @@ from registry.core.config import settings
+ # Configure logging using shared module (RotatingFileHandler + optional MongoDB)
+ from registry.exceptions import UrlValidationError
+ from registry.repositories.factory import get_scope_repository, get_server_repository
++from registry.services.patch_key_service import PATCH_KEY_PREFIX
+ from registry.utils.logging_setup import setup_logging as _setup_logging
+ from registry.utils.request_utils import get_client_ip
+ from registry.utils.url_guard import PROXY_PROFILE, guarded_async_client
+@@ -1072,6 +1073,17 @@ else:
+     REGISTRY_STATIC_TOKEN_AUTH_ENABLED = _registry_static_token_requested
+ 
+ 
++# Per-user long-lived API keys ("patch keys", wire-platform-v1 task 2.1).
++# Console users mint non-expiring `wgk-` keys (SHA-256-hash stored in the
++# patch_keys collection) via the registry's /api/patch-keys. /validate accepts
++# them as Bearer credentials on BOTH MCP proxy paths and registry /api/ paths
++# and continues the request as the owning user (their groups -> their scopes).
++# The acceptance path is keyed on the `wgk-` prefix, so every other credential
++# (IdP JWT, self-signed JWT, REGISTRY_API_KEYS static token) skips this branch
++# entirely -- those mechanisms are bit-for-bit unchanged.
++PATCH_KEY_AUTH_ENABLED: bool = bool(getattr(settings, "patch_key_auth_enabled", True))
++
++
+ # ---------------------------------------------------------------------------
+ # Multi-key static token config model and parser (Issue #779)
+ # ---------------------------------------------------------------------------
+@@ -2756,6 +2768,21 @@ async def lifespan(app: FastAPI):
+     # Runs after scopes are loaded so map_groups_to_scopes can resolve groups.
+     await _build_static_token_map()
+ 
++    # Ensure patch_keys indexes for the per-user long-lived API key feature
++    # (wire-platform-v1 task 2.1). Best-effort: verification works without the
++    # index (it only backs lookup speed); a failure here disables nothing.
++    if PATCH_KEY_AUTH_ENABLED:
++        try:
++            from registry.services.patch_key_service import get_patch_key_service
++
++            await (await get_patch_key_service()).ensure_indexes()
++        except Exception as e:  # noqa: BLE001 - non-fatal, verification still works
++            logger.warning(
++                "Failed to ensure patch_keys index during startup (%s); "
++                "patch-key verification continues without it",
++                type(e).__name__,
++            )
++
+     # Run the legacy-scope audit. This used to be registered via the
+     # deprecated @app.on_event("startup") API, but FastAPI/Starlette never
+     # invokes on_event handlers once a custom `lifespan` is passed to
+@@ -3518,6 +3545,89 @@ def _check_registry_static_token(
+     }
+ 
+ 
++async def _validate_patch_key_token(access_token: str) -> dict:
++    """Validate a per-user long-lived API key ("patch key", `wgk-` prefix).
++
++    Resolves the SHA-256 hash against the ``patch_keys`` collection with the
++    ``status == active`` filter INSIDE the query, so a revoke is visible to
++    the very next request (no cache). On success, returns a
++    ``validation_result`` shaped like the self-signed JWT validator's so the
++    caller continues through the standard downstream chain (per-server scope
++    validation, MCP audit, mcp-proxy/registry token mints) exactly as the
++    owning user would with a JWT. On any miss -- unknown, revoked, feature
++    disabled, datastore error -- raises ValueError, which the /validate JWT
++    block maps to a 401 with WWW-Authenticate (fail closed).
++
++    SECURITY: neither the plaintext nor any prefix/hash of it is ever
++    logged; the rejection log line carries no key material at all.
++
++    Args:
++        access_token: The bearer value (already known to start with "wgk-").
++
++    Returns:
++        Validation-result dict with method "patch-key".
++
++    Raises:
++        ValueError: If the key is unknown, revoked, or verification failed.
++    """
++    from registry.services.patch_key_service import get_patch_key_service
++
++    try:
++        service = await get_patch_key_service()
++        record = await service.verify_key(access_token)
++    except Exception as exc:  # noqa: BLE001 - any failure fails closed
++        logger.error(
++            "Patch key verification error (%s); rejecting",
++            type(exc).__name__,
++        )
++        raise ValueError("Invalid or revoked API key") from exc
++
++    if record is None:
++        # No key material in the log line -- not even a hash prefix.
++        logger.warning("Patch key rejected: unknown, revoked, or disabled")
++        raise ValueError("Invalid or revoked API key")
++
++    # Resolve scope NAMES from the current mappings on every use (the stored
++    # document snapshots only the owner's groups): a scope-mapping change in
++    # the registry takes effect for existing keys immediately.
++    scopes = await map_groups_to_scopes(list(record.groups))
++
++    # Best-effort metadata refresh; never blocks or fails the request.
++    await service.touch_last_used(record.key_id)
++
++    logger.info(
++        "Validated patch key key_id=%s for user %s (%d group(s) -> %d scope(s))",
++        record.key_id,
++        hash_username(record.username),
++        len(record.groups),
++        len(scopes),
++    )
++
++    return {
++        "valid": True,
++        "method": "patch-key",
++        # `data` mirrors the shape other validators return; `sub`/`username`
++        # keep the audit identity resolution working, `provider` preserves
++        # the IdP the owner authenticated with at mint time.
++        "data": {
++            "sub": record.username,
++            "username": record.username,
++            "provider": record.provider or "patch-key",
++            "email": record.email or "",
++        },
++        "client_id": "patch-key",
++        "username": record.username,
++        "email": record.email or "",
++        # Non-expiring by design: no expires_at claim.
++        "scopes": scopes,
++        "groups": list(record.groups),
++        # Marks the caller as a per-USER credential so the M2M group
++        # enrichment fallback never treats it as a service account
++        # (mirrors the self-signed validator's marker).
++        "token_type": "user_generated",
++    }
++
++
+ def _is_federation_api_request(
+     original_url: str,
+ ) -> bool:
+@@ -4122,17 +4232,30 @@ async def validate_request(request: Request):
+ 
+             # Get authentication provider based on AUTH_PROVIDER environment variable
+             try:
++                # Per-user long-lived API key ("patch key", wire-platform-v1
++                # task 2.1). The `wgk-` prefix gates this branch: every other
++                # credential falls straight through to the self-signed /
++                # provider checks below, unchanged. Runs BEFORE the self-signed
++                # check so a patch key is never handed to the JWT decoder.
++                # _validate_patch_key_token raises ValueError on unknown /
++                # revoked / disabled keys, which maps to the 401 below (a
++                # revoked key must 401 on the very next call).
++                if PATCH_KEY_AUTH_ENABLED and access_token.startswith(PATCH_KEY_PREFIX):
++                    validation_result = await _validate_patch_key_token(access_token)
++                    logger.info("Token validated as patch key (prefix=wgk-)")
++
+                 # Try self-signed token first (tokens minted by this auth server).
+                 # This must run before provider-specific validation because the
+                 # Connect button generates locally-signed JWTs with iss=mcp-auth-server
+                 # regardless of the configured auth provider (Entra, Okta, etc.).
+-                try:
+-                    unverified = jwt.decode(access_token, options={"verify_signature": False})
+-                    if unverified.get("iss") == JWT_ISSUER:
+-                        validation_result = validator.validate_self_signed_token(access_token)
+-                        logger.info("Token validated as self-signed (iss=mcp-auth-server)")
+-                except Exception as e:
+-                    logger.debug(f"Self-signed check failed, continuing to provider: {e}")
++                if not validation_result:
++                    try:
++                        unverified = jwt.decode(access_token, options={"verify_signature": False})
++                        if unverified.get("iss") == JWT_ISSUER:
++                            validation_result = validator.validate_self_signed_token(access_token)
++                            logger.info("Token validated as self-signed (iss=mcp-auth-server)")
++                    except Exception as e:
++                        logger.debug(f"Self-signed check failed, continuing to provider: {e}")
+ 
+                 if not validation_result:
+                     auth_provider = get_auth_provider()
+diff --git a/registry/api/patch_key_routes.py b/registry/api/patch_key_routes.py
+new file mode 100644
+index 00000000..a0bffc5a
+--- /dev/null
++++ b/registry/api/patch_key_routes.py
+@@ -0,0 +1,140 @@
++"""Console API for per-user long-lived API keys ("patch keys").
++
++Endpoints (all scoped to the CALLER's own keys -- a user can only mint, list,
++and revoke keys for the identity the console session authenticated):
++
++- ``POST   /api/patch-keys``        mint a key; plaintext returned once
++- ``GET    /api/patch-keys``        list the caller's keys (metadata only)
++- ``DELETE /api/patch-keys/{id}``   revoke a key (irreversible, next call 401)
++
++Authentication follows the console convention: ``nginx_proxied_auth`` (cookie
++session in the browser, signed internal token behind nginx) plus the CSRF
++gate on mutating verbs, exactly like ``/api/iam/user-groups``.
++
++The minted key carries the caller's mint-time groups; the auth server's
++/validate then resolves scope names per request, so the key behaves like the
++user holding a JWT that never expires. See ``registry.services.patch_key_service``.
++
++Tracked by the wire-platform-v1 fork (task 2.1).
++"""
++
++import logging
++from typing import Annotated
++
++from fastapi import APIRouter, Depends, HTTPException, Request, status
++
++from registry.audit.context import set_audit_action
++from registry.auth.csrf import verify_csrf_token_flexible
++from registry.auth.dependencies import nginx_proxied_auth
++from registry.schemas.patch_key import (
++    PatchKeyCreate,
++    PatchKeyCreated,
++    PatchKeyInfo,
++    PatchKeyListResponse,
++)
++from registry.services.patch_key_service import (
++    PatchKeyAlreadyRevoked,
++    PatchKeyNotFound,
++    PatchKeyQuotaExceeded,
++    get_patch_key_service,
++)
++
++logger = logging.getLogger(__name__)
++
++
++router = APIRouter(prefix="/api/patch-keys", tags=["Patch Keys"])
++
++_RESOURCE_TYPE: str = "patch_key"
++
++
++def _require_user(user_context: dict | None) -> dict:
++    """Any authenticated console user may manage their OWN keys (no admin gate)."""
++    if not user_context or not user_context.get("username"):
++        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
++    return user_context
++
++
++async def _get_service():
++    """Indirection so tests can patch the service lookup (mirrors iam routes)."""
++    return await get_patch_key_service()
++
++
++@router.post("", response_model=PatchKeyCreated, status_code=status.HTTP_201_CREATED)
++async def mint_patch_key(
++    payload: PatchKeyCreate,
++    request: Request,
++    user_context: Annotated[dict | None, Depends(nginx_proxied_auth)] = None,
++    _csrf: Annotated[None, Depends(verify_csrf_token_flexible)] = None,
++) -> PatchKeyCreated:
++    """Mint a non-expiring API key for the authenticated user.
++
++    The response body contains the plaintext key exactly once; it is not
++    stored server-side (only its SHA-256 hash) and cannot be retrieved again.
++    """
++    ctx = _require_user(user_context)
++    service = await _get_service()
++    try:
++        created = await service.mint_key(
++            username=ctx["username"],
++            groups=list(ctx.get("groups") or []),
++            name=payload.name,
++            email=ctx.get("email") or None,
++            provider=ctx.get("auth_method") or None,
++        )
++    except PatchKeyQuotaExceeded as exc:
++        raise HTTPException(
++            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
++            detail=str(exc),
++        )
++    set_audit_action(
++        request,
++        "create",
++        _RESOURCE_TYPE,
++        resource_id=created.info.key_id,
++        description=f"Minted patch key '{payload.name}' (hash-stored, shown once)",
++    )
++    # SECURITY: never log `created.key` -- plaintext appears only in the response.
++    return created
++
++
++@router.get("", response_model=PatchKeyListResponse)
++async def list_patch_keys(
++    user_context: Annotated[dict | None, Depends(nginx_proxied_auth)] = None,
++) -> PatchKeyListResponse:
++    """List the caller's keys. Metadata only: no plaintext, no hash."""
++    ctx = _require_user(user_context)
++    service = await _get_service()
++    items = await service.list_keys_for_user(ctx["username"])
++    return PatchKeyListResponse(total=len(items), items=items)
++
++
++@router.delete("/{key_id}", response_model=PatchKeyInfo)
++async def revoke_patch_key(
++    key_id: str,
++    request: Request,
++    user_context: Annotated[dict | None, Depends(nginx_proxied_auth)] = None,
++    _csrf: Annotated[None, Depends(verify_csrf_token_flexible)] = None,
++) -> PatchKeyInfo:
++    """Revoke one of the caller's keys. Effective immediately (next call 401).
++
++    Revocation is one-way: there is no re-activate. A key that belongs to a
++    different user is reported as 404 (no cross-user existence oracle).
++    """
++    ctx = _require_user(user_context)
++    service = await _get_service()
++    try:
++        info = await service.revoke_key(key_id=key_id, username=ctx["username"])
++    except PatchKeyNotFound:
++        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patch key not found")
++    except PatchKeyAlreadyRevoked:
++        raise HTTPException(
++            status_code=status.HTTP_409_CONFLICT, detail="Patch key already revoked"
++        )
++    set_audit_action(
++        request,
++        "delete",
++        _RESOURCE_TYPE,
++        resource_id=key_id,
++        description=f"Revoked patch key '{info.name}' (irreversible)",
++    )
++    return info
+diff --git a/registry/core/config.py b/registry/core/config.py
+index 8706796e..02e9a256 100644
+--- a/registry/core/config.py
++++ b/registry/core/config.py
+@@ -998,6 +998,32 @@ class Settings(BaseSettings):
+         ),
+     )
+ 
++    # Per-user long-lived API keys ("patch keys", wire-platform-v1 task 2.1).
++    # Console users mint non-expiring `wgk-` Bearer keys stored as SHA-256
++    # hashes in the patch_keys collection; the auth server's /validate accepts
++    # them on MCP and registry API paths and continues as the owning user.
++    # The path only activates for `wgk-` prefixed bearers, so with no minted
++    # keys the auth flow is byte-for-byte the previous one (JWT / static keys
++    # unchanged). Set PATCH_KEY_AUTH_ENABLED=false to disable both the
++    # /validate acceptance and the mint API.
++    patch_key_auth_enabled: bool = Field(
++        default=True,
++        description=(
++            "Accept per-user long-lived `wgk-` API keys on /validate and expose "
++            "the /api/patch-keys mint/list/revoke console API. Default true; the "
++            "acceptance path is inert until a key is minted."
++        ),
++    )
++    patch_key_max_active_per_user: int = Field(
++        default=20,
++        ge=1,
++        le=1000,
++        description=(
++            "Maximum number of active (non-revoked) patch keys one user may "
++            "hold. Further mints are rejected with 429 until one is revoked."
++        ),
++    )
++
+     # User-to-group fallback for IdPs that don't carry groups in JWTs (issue #1127).
+     # Auth server consults the idp_user_groups collection only when the JWT's
+     # groups claim is empty AND the token's provider name appears in this list.
+diff --git a/registry/main.py b/registry/main.py
+index 3d74ee92..f103225e 100644
+--- a/registry/main.py
++++ b/registry/main.py
+@@ -43,6 +43,7 @@ from registry.api.log_routes import router as log_router
+ from registry.api.m2m_management_routes import router as m2m_management_router
+ from registry.api.management_routes import router as management_router
+ from registry.api.okta_m2m_routes import router as okta_m2m_router
++from registry.api.patch_key_routes import router as patch_key_router
+ from registry.api.peer_management_routes import router as peer_management_router
+ from registry.api.public_record_routes import router as public_record_router
+ from registry.api.rate_limit_routes import router as rate_limit_router
+@@ -830,6 +831,20 @@ async def lifespan(app: FastAPI):
+                     f"Failed to ensure idp_m2m_clients index (continuing with startup): {e}",
+                 )
+ 
++        # Ensure patch_keys indexes (unique key_hash + username) for the
++        # per-user long-lived API key feature (wire-platform-v1 task 2.1).
++        # Non-fatal on error: verification still works without the index (it
++        # only backs lookup speed and mint-time collision safety).
++        if settings.patch_key_auth_enabled:
++            try:
++                from registry.services.patch_key_service import get_patch_key_service
++
++                await (await get_patch_key_service()).ensure_indexes()
++            except Exception as e:
++                logger.warning(
++                    f"Failed to ensure patch_keys index (continuing with startup): {e}",
++                )
++
+         # Initialize built-in demo servers (airegistry-tools)
+         # Skipped when DISABLE_AI_REGISTRY_TOOLS_SERVER=true (e.g. GitOps/production deployments)
+         if not settings.disable_ai_registry_tools_server:
+@@ -1222,6 +1237,14 @@ app.include_router(rate_limit_router, prefix="/api", tags=["Rate Limiting"])
+ # it without an additional prefix override.
+ app.include_router(iam_user_groups_router)
+ 
++# Per-user long-lived API keys ("patch keys", wire-platform-v1 task 2.1). The
++# router declares its own /api/patch-keys prefix and tag. Gated by the same
++# feature flag the auth server's /validate acceptance uses, so minting and
++# verification switch on/off together.
++if settings.patch_key_auth_enabled:
++    app.include_router(patch_key_router)
++
++
+ # Proxied-entity listing for the IAM scope editor (gateway-proxy feature). Router
+ # declares its own /api/iam/proxied-entities prefix.
+ from registry.api.proxied_entities_routes import router as proxied_entities_router
+diff --git a/registry/schemas/patch_key.py b/registry/schemas/patch_key.py
+new file mode 100644
+index 00000000..3f8c928b
+--- /dev/null
++++ b/registry/schemas/patch_key.py
+@@ -0,0 +1,98 @@
++"""Per-user long-lived API key ("patch key") schemas for MongoDB storage.
++
++A patch key is a non-expiring Bearer credential that a logged-in (console
++session) user mints for machine clients. The plaintext key is shown exactly
++once in the mint response; the database stores only a SHA-256 hash plus
++metadata. The auth server's /validate resolves an ``wgk-`` prefixed Bearer
++token by hash and continues the request as the owning user (same
++groups/scope chain the user gets with a JWT).
++
++The stored snapshot of the owner's groups is taken at mint time: revoking the
++owner's session does not revoke the key (use the revoke endpoint), but scope
++mappings are resolved per request so scope changes take effect immediately.
++"""
++
++from datetime import datetime
++
++from pydantic import BaseModel, Field, field_validator
++
++# Key lifecycle states. Revocation is one-way: there is no transition back to
++# active (the API exposes no un-revoke).
++PATCH_KEY_STATUS_ACTIVE: str = "active"
++PATCH_KEY_STATUS_REVOKED: str = "revoked"
++
++_KEY_NAME_PATTERN_MAX: int = 128
++
++
++class PatchKeyCreate(BaseModel):
++    """Request body for POST /api/patch-keys."""
++
++    name: str = Field(
++        ...,
++        min_length=1,
++        max_length=_KEY_NAME_PATTERN_MAX,
++        description="Human-readable label for the key (e.g. 'ci-runner')",
++    )
++
++    @field_validator("name")
++    @classmethod
++    def _strip_name(cls, v: str) -> str:
++        v = v.strip()
++        if not v:
++            raise ValueError("name must not be blank")
++        return v
++
++
++class PatchKeyInfo(BaseModel):
++    """Metadata view of a patch key. Never contains the plaintext or its hash."""
++
++    key_id: str = Field(..., description="Server-generated opaque key identifier")
++    name: str = Field(..., description="Human-readable label chosen at mint time")
++    key_prefix: str = Field(
++        ...,
++        description=(
++            "First characters of the plaintext key (e.g. 'wgk-ab12cd34'), safe "
++            "for display/correlation; not sufficient to reconstruct the key"
++        ),
++    )
++    username: str = Field(..., description="Owning user (login username / OIDC sub)")
++    email: str | None = Field(None, description="Owning user's email captured at mint time")
++    provider: str | None = Field(
++        None,
++        description=(
++            "Auth method / IdP the owner's console session used at mint time "
++            "(audit labeling only; not used for authorization)"
++        ),
++    )
++    groups: list[str] = Field(
++        default_factory=list,
++        description="Snapshot of the owner's groups taken at mint time",
++    )
++    status: str = Field(
++        ..., description=f"'{PATCH_KEY_STATUS_ACTIVE}' or '{PATCH_KEY_STATUS_REVOKED}'"
++    )
++    created_at: datetime = Field(..., description="When the key was minted")
++    last_used_at: datetime | None = Field(
++        None, description="When the key last authenticated a request (None if never used)"
++    )
++    revoked_at: datetime | None = Field(
++        None, description="When the key was revoked (None while active)"
++    )
++
++
++class PatchKeyCreated(BaseModel):
++    """Response for POST /api/patch-keys.
++
++    ``key`` is the plaintext Bearer value. It is returned exactly once and is
++    not recoverable afterwards; the database stores only its SHA-256 hash.
++    """
++
++    key: str = Field(..., description="Plaintext API key (shown once, store it now)")
++    info: PatchKeyInfo = Field(..., description="Persisted key metadata")
++
++
++class PatchKeyListResponse(BaseModel):
++    """Response envelope for GET /api/patch-keys (caller's keys only)."""
++
++    total: int = Field(..., description="Total number of the caller's keys")
++    items: list[PatchKeyInfo] = Field(default_factory=list)
+diff --git a/registry/services/patch_key_service.py b/registry/services/patch_key_service.py
+new file mode 100644
+index 00000000..736ffadf
+--- /dev/null
++++ b/registry/services/patch_key_service.py
+@@ -0,0 +1,288 @@
++"""Per-user long-lived API key ("patch key") service.
++
++Stores user-minted, non-expiring Bearer credentials in the shared
++``patch_keys`` MongoDB collection. Only a SHA-256 hash of each key is
++persisted; the plaintext is returned by :meth:`PatchKeyService.mint_key`
++exactly once and never logged.
++
++Two consumers share this module:
++
++- the registry's console API (``registry.api.patch_key_routes``) for
++  mint/list/revoke, authenticated as the logged-in console user;
++- the auth server's ``/validate`` for verification, which resolves an
++  ``wgk-`` prefixed Bearer token by hash and continues the request as the
++  owning user (see ``auth_server/server.py::_validate_patch_key_token``).
++
++Verification reads the database on every request with ``status == "active"``
++in the query itself, so revocation takes effect on the very next call and
++there is no cache to invalidate. Revocation is one-way: no code path flips a
++revoked key back to active.
++
++Tracked by the wire-platform-v1 fork (task 2.1).
++"""
++
++import hashlib
++import logging
++import secrets
++import uuid
++from datetime import datetime
++
++from motor.motor_asyncio import AsyncIOMotorDatabase
++from pymongo.errors import DuplicateKeyError
++
++from registry.core.config import settings
++from registry.schemas.patch_key import (
++    PATCH_KEY_STATUS_ACTIVE,
++    PATCH_KEY_STATUS_REVOKED,
++    PatchKeyCreated,
++    PatchKeyInfo,
++)
++
++logger = logging.getLogger(__name__)
++
++
++COLLECTION_NAME: str = "patch_keys"
++
++# Bearer tokens with this prefix are patch keys. The prefix is what keeps the
++# /validate insertion cheap and non-interfering: any other token (JWT,
++# REGISTRY_API_KEYS static key) fails the prefix test and the new code path is
++# never entered, so the JWT and static-key mechanisms are bit-for-bit
++# unchanged.
++PATCH_KEY_PREFIX: str = "wgk-"
++
++# 32 bytes of entropy (>= the 32-char minimum required of REGISTRY_API_KEYS
++# values), URL-safe base64 => 43 chars after the prefix.
++PATCH_KEY_ENTROPY_BYTES: int = 32
++
++# Display prefix length INCLUDING the "wgk-" marker (enough for a human to
++# tell two keys apart, far too little to brute-force the remainder).
++_KEY_PREFIX_DISPLAY_LEN: int = 12
++
++
++def hash_patch_key(plaintext: str) -> str:
++    """Return the hex SHA-256 digest of a patch key plaintext.
++
++    SHA-256 is appropriate here (not a password KDF): the key is a high-entropy
++    random token, so offline brute-force of the hash is infeasible and a fast
++    digest keeps the per-request /validate lookup cheap.
++    """
++    return hashlib.sha256(plaintext.encode("utf-8")).hexdigest()
++
++
++def generate_patch_key() -> str:
++    """Generate a new plaintext patch key (``wgk-`` + 43 url-safe chars)."""
++    return f"{PATCH_KEY_PREFIX}{secrets.token_urlsafe(PATCH_KEY_ENTROPY_BYTES)}"
++
++
++class PatchKeyQuotaExceeded(Exception):
++    """Raised when the user already holds the configured max active keys."""
++
++    def __init__(self, username: str, max_active: int) -> None:
++        super().__init__(
++            f"User already holds the maximum of {max_active} active patch keys; "
++            "revoke one before minting another"
++        )
++        self.username = username
++        self.max_active = max_active
++
++
++class PatchKeyNotFound(Exception):
++    """Raised when the requested key_id does not exist for the user."""
++
++
++class PatchKeyAlreadyRevoked(Exception):
++    """Raised when revoking a key that is already revoked."""
++
++
++def _doc_to_info(doc: dict) -> PatchKeyInfo:
++    """Build the metadata view from a stored document (drops hash/_id)."""
++    return PatchKeyInfo(
++        key_id=doc["key_id"],
++        name=doc.get("name") or "",
++        key_prefix=doc.get("key_prefix") or "",
++        username=doc["username"],
++        email=doc.get("email"),
++        provider=doc.get("provider"),
++        groups=list(doc.get("groups") or []),
++        status=doc.get("status") or PATCH_KEY_STATUS_REVOKED,
++        created_at=doc.get("created_at") or datetime.utcnow(),
++        last_used_at=doc.get("last_used_at"),
++        revoked_at=doc.get("revoked_at"),
++    )
++
++
++class PatchKeyService:
++    """CRUD + verification for per-user long-lived API keys."""
++
++    def __init__(self, db: AsyncIOMotorDatabase) -> None:
++        self._collection = db[COLLECTION_NAME]
++
++    async def ensure_indexes(self) -> None:
++        """Create required indexes (idempotent).
++
++        ``key_hash`` unique: two mints can never collide (cosmetic today --
++        256-bit randomness -- but the index also backs the /validate lookup).
++        ``username``: the per-user list/quota queries.
++        """
++        await self._collection.create_index("key_hash", unique=True)
++        await self._collection.create_index("username")
++        logger.info("Ensured indexes on %s (key_hash unique, username)", COLLECTION_NAME)
++
++    async def count_active_keys(self, username: str) -> int:
++        """Number of the user's keys currently in the active state."""
++        return await self._collection.count_documents(
++            {"username": username, "status": PATCH_KEY_STATUS_ACTIVE}
++        )
++
++    async def mint_key(
++        self,
++        *,
++        username: str,
++        groups: list[str],
++        name: str,
++        email: str | None = None,
++        provider: str | None = None,
++    ) -> PatchKeyCreated:
++        """Mint a new patch key for ``username``.
++
++        The plaintext appears only in the returned :class:`PatchKeyCreated`;
++        the persisted document carries its hash. SECURITY: never log the
++        return value's ``key`` -- callers must treat it as display-once.
++
++        Raises:
++            PatchKeyQuotaExceeded: if the user already holds
++                ``patch_key_max_active_per_user`` active keys.
++        """
++        max_active = getattr(settings, "patch_key_max_active_per_user", 20)
++        active = await self.count_active_keys(username)
++        if active >= max_active:
++            raise PatchKeyQuotaExceeded(username, max_active)
++
++        plaintext = generate_patch_key()
++        now = datetime.utcnow()
++        doc = {
++            "key_id": uuid.uuid4().hex,
++            "key_hash": hash_patch_key(plaintext),
++            "key_prefix": plaintext[:_KEY_PREFIX_DISPLAY_LEN],
++            "name": name,
++            "username": username,
++            "email": email,
++            # Snapshot: authorization follows the owner's mint-time groups.
++            # Scope NAMES are re-resolved per request, so scope-mapping edits
++            # apply immediately; group-membership edits need a fresh key.
++            "groups": list(groups),
++            "provider": provider,
++            "status": PATCH_KEY_STATUS_ACTIVE,
++            "created_at": now,
++            "last_used_at": None,
++            "revoked_at": None,
++        }
++        try:
++            await self._collection.insert_one(dict(doc))
++        except DuplicateKeyError as exc:  # pragma: no cover - 256-bit collision
++            raise RuntimeError("patch key hash collision; retry the mint") from exc
++
++        # Log identifiers only: key_id + username. The plaintext and its hash
++        # never appear in any log line.
++        logger.info(
++            "Minted patch key key_id=%s for username=%s (active=%d)",
++            doc["key_id"],
++            username,
++            active + 1,
++        )
++        return PatchKeyCreated(key=plaintext, info=_doc_to_info(doc))
++
++    async def verify_key(self, plaintext: str) -> PatchKeyInfo | None:
++        """Resolve an active key by plaintext, else ``None``.
++
++        This is the auth-server /validate read path. The ``status == active``
++        filter is part of the query, so a revoke is visible to the very next
++        request with no cache layer. Database errors are caught here and
++        treated as a miss (fail closed -> the caller 401s) so a datastore
++        outage can never degrade into accept.
++        """
++        try:
++            doc = await self._collection.find_one(
++                {"key_hash": hash_patch_key(plaintext), "status": PATCH_KEY_STATUS_ACTIVE}
++            )
++        except Exception as exc:  # noqa: BLE001 - fail closed on any datastore error
++            logger.error(
++                "Patch key verification failed (%s); failing closed",
++                type(exc).__name__,
++            )
++            return None
++        if doc is None:
++            return None
++        return _doc_to_info(doc)
++
++    async def touch_last_used(self, key_id: str) -> None:
++        """Best-effort update of ``last_used_at`` (never fails the request)."""
++        try:
++            await self._collection.update_one(
++                {"key_id": key_id},
++                {"$set": {"last_used_at": datetime.utcnow()}},
++            )
++        except Exception as exc:  # noqa: BLE001 - metadata update is best-effort
++            logger.warning(
++                "Failed to update last_used_at for patch key key_id=%s (%s)",
++                key_id,
++                type(exc).__name__,
++            )
++
++    async def list_keys_for_user(self, username: str) -> list[PatchKeyInfo]:
++        """All of the user's keys (active and revoked), newest first."""
++        cursor = self._collection.find({"username": username}).sort("created_at", -1)
++        docs = await cursor.to_list(length=None)
++        return [_doc_to_info(d) for d in docs]
++
++    async def revoke_key(self, *, key_id: str, username: str) -> PatchKeyInfo:
++        """Revoke one of the user's keys. One-way: no un-revoke exists.
++
++        Raises:
++            PatchKeyNotFound: no key with this key_id belongs to this user.
++            PatchKeyAlreadyRevoked: the key was already revoked.
++        """
++        doc = await self._collection.find_one({"key_id": key_id, "username": username})
++        if doc is None:
++            raise PatchKeyNotFound(key_id)
++        if doc.get("status") != PATCH_KEY_STATUS_ACTIVE:
++            raise PatchKeyAlreadyRevoked(key_id)
++
++        now = datetime.utcnow()
++        await self._collection.update_one(
++            {"key_id": key_id, "username": username, "status": PATCH_KEY_STATUS_ACTIVE},
++            {"$set": {"status": PATCH_KEY_STATUS_REVOKED, "revoked_at": now}},
++        )
++        logger.info(
++            "Revoked patch key key_id=%s for username=%s (irreversible)",
++            key_id,
++            username,
++        )
++        updated = await self._collection.find_one({"key_id": key_id})
++        return _doc_to_info(updated if updated is not None else doc)
++
++
++_singleton: PatchKeyService | None = None
++
++
++async def get_patch_key_service() -> PatchKeyService:
++    """Module-level singleton getter bound to the active DocumentDB client.
++
++    Mirrors ``get_user_group_management_service`` so the registry routes and
++    the auth server's /validate share one service/collection instance.
++    """
++    global _singleton
++    if _singleton is None:
++        # Imported lazily: the auth server also reaches this module and must
++        # not pay the documentdb import at module import time.
++        from registry.repositories.documentdb.client import get_documentdb_client
++
++        db = await get_documentdb_client()
++        _singleton = PatchKeyService(db)
++    return _singleton
++
++
++def reset_patch_key_service_singleton() -> None:
++    """Test hook: drop the singleton so the next getter re-binds to a new db."""
++    global _singleton
++    _singleton = None
+diff --git a/tests/auth_server/unit/test_patch_key_validate.py b/tests/auth_server/unit/test_patch_key_validate.py
+new file mode 100644
+index 00000000..f3b698c5
+--- /dev/null
++++ b/tests/auth_server/unit/test_patch_key_validate.py
+@@ -0,0 +1,416 @@
++"""Unit tests for the patch-key path in auth_server /validate (wire-platform-v1 2.1).
++
++Covers the acceptance flow mint -> authenticate -> revoke -> 401 at the
++/validate boundary, plus the two non-interference guarantees:
++
++- a `wgk-` bearer NEVER reaches the self-signed JWT decoder or the IdP
++  provider validator;
++- JWT / static REGISTRY_API_KEYS credentials behave exactly as before with
++  the patch-key branch compiled in.
++
++The patch_keys collection is faked via a dict-backed service mock; the scope
++repository is the shared in-memory fixture so group->scope mapping works.
++"""
++
++import logging
++from datetime import datetime
++from unittest.mock import AsyncMock, MagicMock, patch
++
++import pytest
++from fastapi.testclient import TestClient
++
++from registry.schemas.patch_key import (
++    PATCH_KEY_STATUS_ACTIVE,
++    PATCH_KEY_STATUS_REVOKED,
++    PatchKeyInfo,
++)
++
++logger = logging.getLogger(__name__)
++
++pytestmark = [pytest.mark.unit, pytest.mark.auth]
++
++# A representative minted key (shape: "wgk-" + token_urlsafe(32) == 43 chars).
++_PLAINTEXT_KEY = "wgk-A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p5Q6r7S8t9U0v"
++
++
++def _key_info(status: str = PATCH_KEY_STATUS_ACTIVE) -> PatchKeyInfo:
++    return PatchKeyInfo(
++        key_id="keyid001",
++        name="ci-runner",
++        key_prefix=_PLAINTEXT_KEY[:12],
++        username="alice",
++        email="alice@example.com",
++        provider="oauth2",
++        groups=["developers", "users"],
++        status=status,
++        created_at=datetime.utcnow(),
++        last_used_at=None,
++        revoked_at=None,
++    )
++
++
++class _FakePatchKeyService:
++    """Dict-backed stand-in for PatchKeyService: one active key."""
++
++    def __init__(self, info: PatchKeyInfo | None, plaintext: str) -> None:
++        self._info = info
++        self._plaintext = plaintext
++        self.last_used_calls: list[str] = []
++
++    async def verify_key(self, plaintext: str) -> PatchKeyInfo | None:
++        # mirrors the real service: only ACTIVE keys verify
++        if (
++            self._info is not None
++            and plaintext == self._plaintext
++            and self._info.status == PATCH_KEY_STATUS_ACTIVE
++        ):
++            return self._info
++        return None
++
++    async def touch_last_used(self, key_id: str) -> None:
++        self.last_used_calls.append(key_id)
++
++
++def _patched_service(service: _FakePatchKeyService):
++    """Patch the lazily-imported service getter used inside _validate_patch_key_token."""
++    return patch(
++        "registry.services.patch_key_service.get_patch_key_service",
++        new=AsyncMock(return_value=service),
++    )
++
++
++@pytest.fixture
++def scope_repo(mock_scope_repository_with_data):
++    with patch(
++        "auth_server.server.get_scope_repository",
++        return_value=mock_scope_repository_with_data,
++    ):
++        yield mock_scope_repository_with_data
++
++
++class TestPatchKeyHappyPath:
++    """/validate accepts an active key on both registry API and MCP paths."""
++
++    def test_registry_api_path_accepted(self, scope_repo, auth_env_vars):
++        import auth_server.server as server_module
++
++        service = _FakePatchKeyService(_key_info(), _PLAINTEXT_KEY)
++        with _patched_service(service):
++            client = TestClient(server_module.app)
++            response = client.get(
++                "/validate",
++                headers={
++                    "Authorization": f"Bearer {_PLAINTEXT_KEY}",
++                    "X-Original-URL": "https://example.com/api/servers",
++                },
++            )
++
++        assert response.status_code == 200
++        data = response.json()
++        assert data["valid"] is True
++        assert data["method"] == "patch-key"
++        assert data["username"] == "alice"
++        assert data["groups"] == ["developers", "users"]
++        # scopes are resolved from the CURRENT group mappings at call time
++        assert "read:servers" in data["scopes"]
++        assert "write:servers" in data["scopes"]
++        assert response.headers["X-Auth-Method"] == "patch-key"
++        assert response.headers["X-Username"] == "alice"
++        assert "developers users" == response.headers["X-Groups"]
++        # last-used metadata refresh fired
++        assert service.last_used_calls == ["keyid001"]
++
++    def test_mcp_server_path_accepted_and_scope_checked(self, scope_repo, auth_env_vars):
++        """MCP proxy path: the key authenticates AND per-server scope
++        validation still runs (the key holder is treated like the user
++        holding a JWT, not like a blanket-bypass static token)."""
++        import auth_server.server as server_module
++
++        service = _FakePatchKeyService(_key_info(), _PLAINTEXT_KEY)
++        with _patched_service(service):
++            client = TestClient(server_module.app)
++            response = client.get(
++                "/validate",
++                headers={
++                    "Authorization": f"Bearer {_PLAINTEXT_KEY}",
++                    "X-Original-URL": "https://example.com/test-server/mcp",
++                },
++            )
++
++        assert response.status_code == 200
++        assert response.json()["method"] == "patch-key"
++        assert response.json()["server_name"] == "test-server"
++
++    def test_mcp_server_path_denied_without_scope(self, scope_repo, auth_env_vars):
++        """A key whose owner lacks the server scope gets 403 -- same as a JWT."""
++        import auth_server.server as server_module
++
++        info = _key_info()
++        # "users" group maps only to read scopes for test-server; the
++        # unknown-server is covered by no scope -> fail closed.
++        info = info.model_copy(update={"groups": ["users"]})
++        service = _FakePatchKeyService(info, _PLAINTEXT_KEY)
++        with _patched_service(service):
++            client = TestClient(server_module.app)
++            response = client.get(
++                "/validate",
++                headers={
++                    "Authorization": f"Bearer {_PLAINTEXT_KEY}",
++                    "X-Original-URL": "https://example.com/unknown-server/mcp",
++                },
++            )
++
++        assert response.status_code == 403
++
++    def test_registry_ui_token_minted_for_api_hop(self, scope_repo, auth_env_vars):
++        """With nginx's registry-API marker present, /validate also mints the
++        X-Internal-Token-Registry hop token so /api/ requests work behind nginx."""
++        import auth_server.server as server_module
++
++        service = _FakePatchKeyService(_key_info(), _PLAINTEXT_KEY)
++        with _patched_service(service):
++            client = TestClient(server_module.app)
++            response = client.get(
++                "/validate",
++                headers={
++                    "Authorization": f"Bearer {_PLAINTEXT_KEY}",
++                    "X-Original-URL": "https://example.com/api/servers",
++                    "X-Registry-Api-Auth": "1",
++                },
++            )
++
++        assert response.status_code == 200
++        assert response.headers.get("X-Internal-Token-Registry")
++
++
++class TestPatchKeyRejection:
++    """Unknown / revoked keys 401 immediately (revocation is next-call)."""
++
++    def test_unknown_key_401(self, scope_repo, auth_env_vars):
++        import auth_server.server as server_module
++
++        service = _FakePatchKeyService(None, _PLAINTEXT_KEY)
++        with _patched_service(service):
++            client = TestClient(server_module.app)
++            response = client.get(
++                "/validate",
++                headers={
++                    "Authorization": "Bearer wgk-not-a-real-key-value-0000000000000",
++                    "X-Original-URL": "https://example.com/api/servers",
++                },
++            )
++
++        assert response.status_code == 401
++        assert response.headers.get("WWW-Authenticate") == "Bearer"
++
++    def test_revoked_key_401_immediately(self, scope_repo, auth_env_vars):
++        """mint -> 200, revoke (status flip in the store) -> next call 401."""
++        import auth_server.server as server_module
++
++        service = _FakePatchKeyService(_key_info(), _PLAINTEXT_KEY)
++        with _patched_service(service):
++            client = TestClient(server_module.app)
++            ok = client.get(
++                "/validate",
++                headers={
++                    "Authorization": f"Bearer {_PLAINTEXT_KEY}",
++                    "X-Original-URL": "https://example.com/api/servers",
++                },
++            )
++            assert ok.status_code == 200
++
++            # Revoke: the store now reports the key as revoked/absent.
++            service._info = _key_info(PATCH_KEY_STATUS_REVOKED)
++
++            denied = client.get(
++                "/validate",
++                headers={
++                    "Authorization": f"Bearer {_PLAINTEXT_KEY}",
++                    "X-Original-URL": "https://example.com/api/servers",
++                },
++            )
++        assert denied.status_code == 401
++
++    def test_disabled_feature_falls_through_to_jwt_and_401s(self, scope_repo, auth_env_vars):
++        import auth_server.server as server_module
++
++        service = _FakePatchKeyService(_key_info(), _PLAINTEXT_KEY)
++        mock_provider = MagicMock()
++        mock_provider.validate_token = MagicMock(side_effect=ValueError("Invalid token"))
++        with (
++            _patched_service(service),
++            patch.object(server_module, "PATCH_KEY_AUTH_ENABLED", False),
++            patch("auth_server.server.get_auth_provider", return_value=mock_provider),
++        ):
++            client = TestClient(server_module.app)
++            response = client.get(
++                "/validate",
++                headers={
++                    "Authorization": f"Bearer {_PLAINTEXT_KEY}",
++                    "X-Original-URL": "https://example.com/api/servers",
++                },
++            )
++        assert response.status_code == 401
++        # the service was never consulted
++        assert service.last_used_calls == []
++
++    def test_datastore_error_fails_closed(self, scope_repo, auth_env_vars):
++        import auth_server.server as server_module
++
++        broken = MagicMock()
++        broken.verify_key = AsyncMock(side_effect=RuntimeError("db down"))
++        with patch(
++            "registry.services.patch_key_service.get_patch_key_service",
++            new=AsyncMock(return_value=broken),
++        ):
++            client = TestClient(server_module.app)
++            response = client.get(
++                "/validate",
++                headers={
++                    "Authorization": f"Bearer {_PLAINTEXT_KEY}",
++                    "X-Original-URL": "https://example.com/api/servers",
++                },
++            )
++        assert response.status_code == 401
++
++
++class TestPatchKeyLogSafety:
++    """The plaintext never reaches any log line (DEBUG included)."""
++
++    def test_success_path_never_logs_plaintext(self, scope_repo, auth_env_vars, caplog):
++        import auth_server.server as server_module
++
++        service = _FakePatchKeyService(_key_info(), _PLAINTEXT_KEY)
++        with _patched_service(service):
++            client = TestClient(server_module.app)
++            with caplog.at_level(logging.DEBUG):
++                response = client.get(
++                    "/validate",
++                    headers={
++                        "Authorization": f"Bearer {_PLAINTEXT_KEY}",
++                        "X-Original-URL": "https://example.com/api/servers",
++                    },
++                )
++        assert response.status_code == 200
++        assert _PLAINTEXT_KEY not in caplog.text
++        # not even a fragment of the body after the prefix
++        assert _PLAINTEXT_KEY[4:20] not in caplog.text
++
++    def test_rejection_path_never_logs_plaintext(self, scope_repo, auth_env_vars, caplog):
++        import auth_server.server as server_module
++
++        bad_key = "wgk-RejectedKeyValueThatMustNotAppearAnywhere0000"
++        service = _FakePatchKeyService(None, bad_key)
++        with _patched_service(service):
++            client = TestClient(server_module.app)
++            with caplog.at_level(logging.DEBUG):
++                response = client.get(
++                    "/validate",
++                    headers={
++                        "Authorization": f"Bearer {bad_key}",
++                        "X-Original-URL": "https://example.com/api/servers",
++                    },
++                )
++        assert response.status_code == 401
++        assert bad_key not in caplog.text
++        assert bad_key[4:20] not in caplog.text
++
++
++class TestPatchKeyNonInterference:
++    """JWT and static-key credentials behave exactly as before."""
++
++    def test_self_signed_jwt_still_validated(self, scope_repo, auth_env_vars):
++        import time as _time
++
++        # Mint a self-signed token with the module's ACTUAL signing key (the
++        # shared fixture signs with a different env key than the one the
++        # module bound at import time).
++        import jwt as pyjwt
++
++        import auth_server.server as server_module
++
++        now = int(_time.time())
++        token = pyjwt.encode(
++            {
++                "iss": server_module.JWT_ISSUER,
++                "aud": server_module._USER_JWT_AUDIENCE,
++                "sub": "alice",
++                "scope": "read:servers",
++                "groups": ["developers"],
++                "exp": now + 3600,
++                "iat": now,
++                "token_use": "access",
++                "client_id": "user-generated",
++                # required by the self-signed edge guard on every gateway JWT
++                "token_kind": "user",
++            },
++            server_module.SECRET_KEY,
++            algorithm="HS256",
++        )
++
++        service = _FakePatchKeyService(_key_info(), _PLAINTEXT_KEY)
++        with _patched_service(service):
++            client = TestClient(server_module.app)
++            response = client.get(
++                "/validate",
++                headers={
++                    "Authorization": f"Bearer {token}",
++                    "X-Original-URL": "https://example.com/api/servers",
++                },
++            )
++        assert response.status_code == 200
++        assert response.json()["method"] == "self_signed"
++        # the patch-key service was never consulted for a JWT bearer
++        assert service.last_used_calls == []
++
++    def test_static_registry_key_still_validated(self, scope_repo, auth_env_vars):
++        """The REGISTRY_API_TOKEN / REGISTRY_API_KEYS mechanism is untouched."""
++        import auth_server.server as server_module
++
++        service = _FakePatchKeyService(_key_info(), _PLAINTEXT_KEY)
++        token_map = {
++            "legacy": {
++                "key_bytes": b"test-api-key-static-32-chars-minimum",
++                "groups": ["mcp-registry-admin"],
++                "scopes": ["mcp-registry-admin"],
++            }
++        }
++        with (
++            _patched_service(service),
++            patch.object(server_module, "REGISTRY_STATIC_TOKEN_AUTH_ENABLED", True),
++            patch.object(server_module, "_STATIC_TOKEN_MAP", token_map),
++        ):
++            client = TestClient(server_module.app)
++            response = client.get(
++                "/validate",
++                headers={
++                    "Authorization": "Bearer test-api-key-static-32-chars-minimum",
++                    "X-Original-URL": "https://example.com/api/servers",
++                },
++            )
++        assert response.status_code == 200
++        assert response.json()["method"] == "network-trusted"
++        assert service.last_used_calls == []
++
++    def test_non_wgk_garbage_bearer_reaches_provider_as_before(self, scope_repo, auth_env_vars):
++        """A non-wgk, non-JWT bearer still falls through to the provider
++        validator (pre-existing behavior) and 401s there."""
++        import auth_server.server as server_module
++
++        mock_provider = MagicMock()
++        mock_provider.validate_token = MagicMock(side_effect=ValueError("Invalid token"))
++        service = _FakePatchKeyService(_key_info(), _PLAINTEXT_KEY)
++        with (
++            _patched_service(service),
++            patch("auth_server.server.get_auth_provider", return_value=mock_provider),
++        ):
++            client = TestClient(server_module.app)
++            response = client.get(
++                "/validate",
++                headers={
++                    "Authorization": "Bearer not-a-jwt-not-a-wgk-key",
++                    "X-Original-URL": "https://example.com/api/servers",
++                },
++            )
++        assert response.status_code == 401
++        mock_provider.validate_token.assert_called()
+diff --git a/tests/unit/api/test_patch_key_routes.py b/tests/unit/api/test_patch_key_routes.py
+new file mode 100644
+index 00000000..e5630c0a
+--- /dev/null
++++ b/tests/unit/api/test_patch_key_routes.py
+@@ -0,0 +1,210 @@
++"""Unit tests for registry/api/patch_key_routes.py (wire-platform-v1 2.1).
++
++Covers the console API surface:
++- POST   /api/patch-keys        (mint; plaintext returned once)
++- GET    /api/patch-keys        (list own keys; metadata only)
++- DELETE /api/patch-keys/{id}   (revoke own key; 404 for other users' keys)
++
++The service layer is mocked (its logic has its own suite); auth is faked via
++the nginx_proxied_auth dependency override, mirroring the m2m routes tests.
++"""
++
++import logging
++from datetime import datetime
++from typing import Any
++from unittest.mock import AsyncMock, MagicMock, patch
++
++import pytest
++from fastapi.testclient import TestClient
++
++from registry.schemas.patch_key import (
++    PATCH_KEY_STATUS_ACTIVE,
++    PATCH_KEY_STATUS_REVOKED,
++    PatchKeyCreated,
++    PatchKeyInfo,
++)
++from registry.services.patch_key_service import (
++    PatchKeyAlreadyRevoked,
++    PatchKeyNotFound,
++    PatchKeyQuotaExceeded,
++)
++
++logger = logging.getLogger(__name__)
++
++
++@pytest.fixture
++def console_user_context() -> dict[str, Any]:
++    return {
++        "username": "alice",
++        "email": "alice@example.com",
++        "groups": ["developers"],
++        "scopes": ["read:servers"],
++        "auth_method": "oauth2",
++        "is_admin": False,
++    }
++
++
++@pytest.fixture
++def mock_service() -> MagicMock:
++    service = MagicMock()
++    service.mint_key = AsyncMock()
++    service.list_keys_for_user = AsyncMock(return_value=[])
++    service.revoke_key = AsyncMock()
++    return service
++
++
++def _override_auth(user_context: dict | None) -> None:
++    from registry.auth.dependencies import nginx_proxied_auth
++    from registry.main import app
++
++    app.dependency_overrides[nginx_proxied_auth] = lambda: user_context
++
++
++@pytest.fixture
++def client(console_user_context, mock_settings, mock_service):
++    from registry.main import app
++
++    _override_auth(console_user_context)
++    with patch(
++        "registry.api.patch_key_routes._get_service",
++        new=AsyncMock(return_value=mock_service),
++    ):
++        client = TestClient(app, cookies={"mcp_gateway_session": "test-session"})
++        yield client, mock_service
++    app.dependency_overrides.clear()
++
++
++@pytest.fixture
++def anon_client(mock_settings, mock_service):
++    from registry.main import app
++
++    _override_auth(None)
++    with patch(
++        "registry.api.patch_key_routes._get_service",
++        new=AsyncMock(return_value=mock_service),
++    ):
++        client = TestClient(app, cookies={"mcp_gateway_session": "test-session"})
++        yield client, mock_service
++    app.dependency_overrides.clear()
++
++
++def _info(status: str = PATCH_KEY_STATUS_ACTIVE) -> PatchKeyInfo:
++    return PatchKeyInfo(
++        key_id="k1",
++        name="ci-runner",
++        key_prefix="wgk-ab12cd34",
++        username="alice",
++        email="alice@example.com",
++        groups=["developers"],
++        status=status,
++        created_at=datetime.utcnow(),
++        last_used_at=None,
++        revoked_at=datetime.utcnow() if status == PATCH_KEY_STATUS_REVOKED else None,
++    )
++
++
++@pytest.mark.unit
++@pytest.mark.api
++class TestMintPatchKey:
++    def test_unauthenticated_401(self, anon_client):
++        client, service = anon_client
++        response = client.post("/api/patch-keys", json={"name": "ci"})
++        assert response.status_code == 401
++        service.mint_key.assert_not_awaited()
++
++    def test_mint_returns_plaintext_once(self, client):
++        client, service = client
++        created = PatchKeyCreated(key="wgk-" + "x" * 43, info=_info())
++        service.mint_key.return_value = created
++
++        response = client.post("/api/patch-keys", json={"name": "ci-runner"})
++
++        assert response.status_code == 201
++        body = response.json()
++        assert body["key"] == created.key
++        assert body["info"]["key_id"] == "k1"
++        assert body["info"]["status"] == PATCH_KEY_STATUS_ACTIVE
++        # the stored hash never appears in the response
++        assert "key_hash" not in body["info"]
++        # mint captured the console user's identity/groups snapshot
++        service.mint_key.assert_awaited_once()
++        kwargs = service.mint_key.call_args.kwargs
++        assert kwargs["username"] == "alice"
++        assert kwargs["groups"] == ["developers"]
++        assert kwargs["name"] == "ci-runner"
++
++    def test_mint_quota_429(self, client):
++        client, service = client
++        service.mint_key.side_effect = PatchKeyQuotaExceeded("alice", 20)
++        response = client.post("/api/patch-keys", json={"name": "ci"})
++        assert response.status_code == 429
++
++    def test_blank_name_rejected(self, client):
++        client, _ = client
++        response = client.post("/api/patch-keys", json={"name": "   "})
++        assert response.status_code == 422
++
++
++@pytest.mark.unit
++@pytest.mark.api
++class TestListPatchKeys:
++    def test_list_returns_own_keys_metadata_only(self, client):
++        client, service = client
++        service.list_keys_for_user.return_value = [_info(), _info(PATCH_KEY_STATUS_REVOKED)]
++        response = client.get("/api/patch-keys")
++        assert response.status_code == 200
++        body = response.json()
++        assert body["total"] == 2
++        assert all("key" not in item and "key_hash" not in item for item in body["items"])
++        service.list_keys_for_user.assert_awaited_once_with("alice")
++
++    def test_unauthenticated_401(self, anon_client):
++        client, service = anon_client
++        response = client.get("/api/patch-keys")
++        assert response.status_code == 401
++
++
++@pytest.mark.unit
++@pytest.mark.api
++class TestRevokePatchKey:
++    def test_revoke_own_key(self, client):
++        client, service = client
++        service.revoke_key.return_value = _info(PATCH_KEY_STATUS_REVOKED)
++        response = client.delete("/api/patch-keys/k1")
++        assert response.status_code == 200
++        assert response.json()["status"] == PATCH_KEY_STATUS_REVOKED
++        service.revoke_key.assert_awaited_once_with(key_id="k1", username="alice")
++
++    def test_revoke_unknown_or_foreign_key_404(self, client):
++        client, service = client
++        service.revoke_key.side_effect = PatchKeyNotFound("k9")
++        response = client.delete("/api/patch-keys/k9")
++        assert response.status_code == 404
++
++    def test_revoke_twice_409(self, client):
++        client, service = client
++        service.revoke_key.side_effect = PatchKeyAlreadyRevoked("k1")
++        response = client.delete("/api/patch-keys/k1")
++        assert response.status_code == 409
++
++    def test_unauthenticated_401(self, anon_client):
++        client, _ = anon_client
++        response = client.delete("/api/patch-keys/k1")
++        assert response.status_code == 401
++
++
++@pytest.mark.unit
++@pytest.mark.api
++class TestPlaintextLogSafety:
++    """The mint plaintext must not reach the application log."""
++
++    def test_mint_does_not_log_plaintext(self, client, caplog):
++        client, service = client
++        plaintext = "wgk-SUPERSECRETplaintextvalue-do-not-log-123"
++        service.mint_key.return_value = PatchKeyCreated(key=plaintext, info=_info())
++
++        with caplog.at_level(logging.DEBUG):
++            response = client.post("/api/patch-keys", json={"name": "ci"})
++        assert response.status_code == 201
++        assert plaintext not in caplog.text
++        assert plaintext not in response.headers.get("X-Audit-Action", "")
+diff --git a/tests/unit/services/test_patch_key_service.py b/tests/unit/services/test_patch_key_service.py
+new file mode 100644
+index 00000000..4730dfb6
+--- /dev/null
++++ b/tests/unit/services/test_patch_key_service.py
+@@ -0,0 +1,249 @@
++"""Unit tests for registry.services.patch_key_service (wire-platform-v1 2.1).
++
++The Motor collection is mocked, so the service logic (hash storage, one-time
++plaintext, active-filter query shape, revoke irreversibility, quota) is
++exercised without a live MongoDB.
++"""
++
++import logging
++from datetime import datetime
++from unittest.mock import AsyncMock, MagicMock
++
++import pytest
++
++from registry.schemas.patch_key import (
++    PATCH_KEY_STATUS_ACTIVE,
++    PATCH_KEY_STATUS_REVOKED,
++    PatchKeyCreated,
++)
++from registry.services.patch_key_service import (
++    PATCH_KEY_ENTROPY_BYTES,
++    PATCH_KEY_PREFIX,
++    PatchKeyAlreadyRevoked,
++    PatchKeyNotFound,
++    PatchKeyQuotaExceeded,
++    PatchKeyService,
++    generate_patch_key,
++    hash_patch_key,
++)
++
++logger = logging.getLogger(__name__)
++
++
++def _make_collection_mock() -> MagicMock:
++    """Return a MagicMock that mimics an AsyncIOMotorCollection."""
++    collection = MagicMock()
++    collection.insert_one = AsyncMock()
++    collection.find_one = AsyncMock()
++    collection.update_one = AsyncMock()
++    collection.count_documents = AsyncMock(return_value=0)
++    collection.create_index = AsyncMock()
++    cursor = MagicMock()
++    cursor.sort = MagicMock(return_value=cursor)
++    cursor.to_list = AsyncMock(return_value=[])
++    collection.find = MagicMock(return_value=cursor)
++    return collection
++
++
++@pytest.fixture
++def mock_collection() -> MagicMock:
++    return _make_collection_mock()
++
++
++@pytest.fixture
++def mock_db(mock_collection: MagicMock) -> MagicMock:
++    db = MagicMock()
++    db.__getitem__ = MagicMock(return_value=mock_collection)
++    return db
++
++
++@pytest.fixture
++def service(mock_db: MagicMock) -> PatchKeyService:
++    return PatchKeyService(mock_db)
++
++
++@pytest.mark.unit
++class TestKeyShape:
++    """Plaintext key shape and hashing."""
++
++    def test_prefix_and_entropy(self):
++        key = generate_patch_key()
++        assert key.startswith(PATCH_KEY_PREFIX)
++        # token_urlsafe(32) -> 43 chars after the prefix; >= 32 bytes entropy.
++        assert len(key) == len(PATCH_KEY_PREFIX) + 43
++        assert PATCH_KEY_ENTROPY_BYTES >= 32
++
++    def test_keys_are_unique(self):
++        assert len({generate_patch_key() for _ in range(100)}) == 100
++
++    def test_hash_is_sha256_hex(self):
++        key = generate_patch_key()
++        digest = hash_patch_key(key)
++        assert len(digest) == 64
++        int(digest, 16)  # parses as hex
++        import hashlib
++
++        assert digest == hashlib.sha256(key.encode()).hexdigest()
++
++
++@pytest.mark.unit
++class TestMintKey:
++    """Mint behavior: quota, storage shape, one-time plaintext."""
++
++    @pytest.mark.asyncio
++    async def test_mint_stores_hash_not_plaintext(self, service, mock_collection):
++        created = await service.mint_key(username="alice", groups=["devs"], name="ci-runner")
++
++        assert isinstance(created, PatchKeyCreated)
++        assert created.key.startswith(PATCH_KEY_PREFIX)
++        stored = mock_collection.insert_one.call_args[0][0]
++        assert stored["key_hash"] == hash_patch_key(created.key)
++        assert created.key not in stored.values()
++        assert created.key not in str(stored)
++        assert stored["status"] == PATCH_KEY_STATUS_ACTIVE
++        assert stored["username"] == "alice"
++        assert stored["groups"] == ["devs"]
++        assert stored["last_used_at"] is None
++        assert stored["revoked_at"] is None
++        # display prefix is short and does not reveal the key body
++        assert stored["key_prefix"] == created.key[:12]
++        assert len(stored["key_prefix"]) < len(created.key) - 8
++
++    @pytest.mark.asyncio
++    async def test_mint_enforces_active_quota(self, service, mock_collection):
++        mock_collection.count_documents.return_value = 20
++        with pytest.raises(PatchKeyQuotaExceeded):
++            await service.mint_key(username="alice", groups=[], name="one-too-many")
++        mock_collection.insert_one.assert_not_awaited()
++
++    @pytest.mark.asyncio
++    async def test_quota_counts_only_active(self, service, mock_collection):
++        # count_documents is queried with the active-status filter, so revoked
++        # keys do not consume quota.
++        mock_collection.count_documents.return_value = 19
++        await service.mint_key(username="alice", groups=[], name="ok")
++        query = mock_collection.count_documents.call_args[0][0]
++        assert query == {"username": "alice", "status": PATCH_KEY_STATUS_ACTIVE}
++
++
++@pytest.mark.unit
++class TestVerifyKey:
++    """Verification: active filter inside the query, fail-closed on DB error."""
++
++    @pytest.mark.asyncio
++    async def test_verify_hits_db_with_hash_and_active_filter(self, service, mock_collection):
++        doc = {
++            "key_id": "k1",
++            "key_hash": "h" * 64,
++            "key_prefix": "wgk-abc",
++            "name": "ci",
++            "username": "alice",
++            "email": "a@example.com",
++            "groups": ["devs"],
++            "provider": "oauth2",
++            "status": PATCH_KEY_STATUS_ACTIVE,
++            "created_at": datetime.utcnow(),
++            "last_used_at": None,
++            "revoked_at": None,
++        }
++        mock_collection.find_one.return_value = doc
++        info = await service.verify_key("wgk-real-key-value")
++        query = mock_collection.find_one.call_args[0][0]
++        assert query["key_hash"] == hash_patch_key("wgk-real-key-value")
++        assert query["status"] == PATCH_KEY_STATUS_ACTIVE
++        assert info is not None
++        assert info.key_id == "k1"
++        assert info.username == "alice"
++        assert info.groups == ["devs"]
++
++    @pytest.mark.asyncio
++    async def test_verify_miss_returns_none(self, service, mock_collection):
++        mock_collection.find_one.return_value = None
++        assert await service.verify_key("wgk-nope") is None
++
++    @pytest.mark.asyncio
++    async def test_verify_db_error_fails_closed(self, service, mock_collection):
++        mock_collection.find_one.side_effect = RuntimeError("db down")
++        assert await service.verify_key("wgk-anything") is None
++
++    @pytest.mark.asyncio
++    async def test_touch_last_used_best_effort(self, service, mock_collection):
++        mock_collection.update_one.side_effect = RuntimeError("db down")
++        # must not raise
++        await service.touch_last_used("k1")
++
++
++@pytest.mark.unit
++class TestRevokeKey:
++    """Revocation: ownership-scoped, one-way, immediate."""
++
++    def _active_doc(self, username: str = "alice") -> dict:
++        return {
++            "key_id": "k1",
++            "key_hash": "h" * 64,
++            "key_prefix": "wgk-abc",
++            "name": "ci",
++            "username": username,
++            "groups": ["devs"],
++            "status": PATCH_KEY_STATUS_ACTIVE,
++            "created_at": datetime.utcnow(),
++        }
++
++    @pytest.mark.asyncio
++    async def test_revoke_updates_status_via_filtered_update(self, service, mock_collection):
++        doc = self._active_doc()
++        mock_collection.find_one.side_effect = [
++            doc,
++            {**doc, "status": PATCH_KEY_STATUS_REVOKED, "revoked_at": datetime.utcnow()},
++        ]
++        info = await service.revoke_key(key_id="k1", username="alice")
++        assert info.status == PATCH_KEY_STATUS_REVOKED
++        assert info.revoked_at is not None
++        update_args = mock_collection.update_one.call_args[0]
++        # the update itself re-checks active status -> a concurrent double
++        # revoke cannot resurrect anything
++        assert update_args[0]["status"] == PATCH_KEY_STATUS_ACTIVE
++        assert update_args[1]["$set"]["status"] == PATCH_KEY_STATUS_REVOKED
++
++    @pytest.mark.asyncio
++    async def test_revoke_other_users_key_is_not_found(self, service, mock_collection):
++        # ownership filter is part of the lookup query
++        mock_collection.find_one.return_value = None
++        with pytest.raises(PatchKeyNotFound):
++            await service.revoke_key(key_id="k1", username="mallory")
++        query = mock_collection.find_one.call_args[0][0]
++        assert query == {"key_id": "k1", "username": "mallory"}
++
++    @pytest.mark.asyncio
++    async def test_revoke_already_revoked_conflicts(self, service, mock_collection):
++        mock_collection.find_one.return_value = {
++            **self._active_doc(),
++            "status": PATCH_KEY_STATUS_REVOKED,
++        }
++        with pytest.raises(PatchKeyAlreadyRevoked):
++            await service.revoke_key(key_id="k1", username="alice")
++        mock_collection.update_one.assert_not_awaited()
++
++
++@pytest.mark.unit
++class TestListKeys:
++    """Listing is scoped to the calling user and drops the hash."""
++
++    @pytest.mark.asyncio
++    async def test_list_scopes_to_user_and_strips_hash(self, service, mock_collection):
++        doc = {
++            "key_id": "k1",
++            "key_hash": "secret-hash-value",
++            "key_prefix": "wgk-abc",
++            "name": "ci",
++            "username": "alice",
++            "groups": [],
++            "status": PATCH_KEY_STATUS_ACTIVE,
++            "created_at": datetime.utcnow(),
++        }
++        mock_collection.find.return_value.to_list.return_value = [doc]
++        items = await service.list_keys_for_user("alice")
++        query = mock_collection.find.call_args[0][0]
++        assert query == {"username": "alice"}
++        assert len(items) == 1
++        assert "secret-hash-value" not in items[0].model_dump()

@@ -176,6 +176,15 @@ Outputs: `dist/Platform-<version>-arm64.dmg` (mac), `Platform Setup <version>.ex
 - **On-demand:** Actions → "Run workflow".
 - **Signing:** gated on GitHub secrets; unsigned builds still succeed.
 
+### Installers are unsigned — how to open them
+
+Releases currently ship **unsigned** installers (code signing is not configured). Your OS will warn on first launch; the installers are the exact artifacts CI built from this repository's tag:
+
+- **macOS Gatekeeper:** right-click the app → *Open* → *Open* in the dialog; or System Settings → *Privacy & Security* → *Open Anyway*; or remove the quarantine bit before first launch: `xattr -dr com.apple.quarantine /Applications/Platform.app`.
+- **Windows SmartScreen:** click *More info* → *Run anyway* in the blue dialog.
+
+Download installers from the [download band on the product page](https://www.finddatatech.cloud/products/base) (official direct link + GitHub Releases mirror), which carries the same guidance.
+
 ## DeepSeek Harness (dsh)
 
 Platform runs on **DeepSeek Harness (dsh)**, a subprocess runtime that executes the dsh CLI via stdio JSON-RPC.

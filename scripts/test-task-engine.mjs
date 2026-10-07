@@ -34,6 +34,13 @@ test.after(() => {
 // Boot the singleton against a fresh fixture file; returns the collected
 // broadcast events. Each initTaskEngine resets the in-memory map.
 async function boot(records, runTurn = async () => ({ ok: true })) {
+  // Drain the persistence write chain FIRST: mutations persist fire-and-forget
+  // (void saveTasks()), so a save still in flight from the previous test can
+  // land AFTER the seed write below and clobber it — initTaskEngine then
+  // loads a file without the seeded record (CI-load flake 2026-10-07: the
+  // enqueue guard refused job_1 far from the cause). Awaiting saveTasks()
+  // queues behind every earlier write; the seed then wins.
+  await engine.saveTasks();
   fs.writeFileSync(JOBS_FILE, JSON.stringify(records));
   const events = [];
   await engine.initTaskEngine({

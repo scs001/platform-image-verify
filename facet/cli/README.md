@@ -13,6 +13,22 @@ npx @finddatatechnology/facet install <packRef>
 - `--base <url>`：换谦面部署地址（默认 `https://facet.finddatatech.cloud`）。
 - `--registry <url>`：注册处地址，仅用于打印 MCP 端点（默认 `https://mcp.finddatatech.cloud`）。
 
+## 调用者偏好（萬星）
+
+调用 Agent 服务的程序可以用**调用键**（sub2api 的 `sk-…`）管理自己对该服务的偏好：
+
+```bash
+npx @finddatatechnology/facet prefs <agent-slug> --key sk-…
+npx @finddatatechnology/facet prefs <agent-slug> --key sk-… --set-callback https://your.host/hook <signing-secret>
+npx @finddatatechnology/facet prefs <agent-slug> --key sk-… --set-reap 30
+npx @finddatatechnology/facet prefs <agent-slug> --key sk-… --clear all
+```
+
+- **回合完成回调**：被叫回合结束时萬星门面向该 URL 发签名 POST（`X-Facet-Signature: t=<unix>,v1=<HMAC-SHA256("<t>.<body>")>`），尽力送达、有界重试；体带 `trace_id`，接收方可幂等去重。
+- **上下文收割窗**：外部会话空闲多久被回收的分钟数；不设即随平台默认。
+- `--key` 缺省读环境变量 `FACET_CALLER_KEY`；`--wanxing <url>` 换萬星门面地址。
+- 密钥只入平台存储用于签名，永不回显。
+
 ## 它做什么、不做什么
 
 **做**：拉取功能集最新版本的技能原文（快照），按目标编辑器的布局落盘；打印功能集声明的

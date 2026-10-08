@@ -21,9 +21,33 @@
 // migrate-pi-to-dsh change (no AGENT_RUNTIME branch left to roll back to).
 
 import { HarnessClient, TransportClosedError } from "@deepseek-ai/dsh-sdk-client";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const COMMAND = process.env.DSH_BIN || "dsh";
+// Resolve the dsh runtime command (win-install-smoke 2026-10-08: a packaged
+// install ships no global `dsh` on PATH — spawn dsh ENOENT crash-looped the
+// backend until the binary entered the dependency closure). Resolution order:
+//   1. DSH_BIN env — explicit override, highest precedence.
+//   2. Bundled runtime: this file lives at <app>/dsh-bridge.js in ALL layouts
+//      (repo tree, asar:false resources/app/), so the sibling
+//      node_modules/@deepseek-ai/dsh/lib/bin.js is the packaged binary entry.
+//      Run it with process.execPath — under Electron's bundled-Node children
+//      that IS the bundled node (server.js is its child), keeping the
+//      native-addon ABI story intact and dodging Windows .bin shim issues
+//      (no-extension `dsh` is not spawnable there; .cmd shims would be).
+//   3. Bare `dsh` — dev machines with the global install.
+const BRIDGE_ROOT = path.dirname(fileURLToPath(import.meta.url));
+const BUNDLED_DSH_ENTRY = path.join(BRIDGE_ROOT, "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js");
+
+let COMMAND = process.env.DSH_BIN || null;
+let COMMAND_ARGS = [];
+if (!COMMAND && existsSync(BUNDLED_DSH_ENTRY)) {
+  COMMAND = process.execPath;
+  COMMAND_ARGS = [BUNDLED_DSH_ENTRY];
+} else if (!COMMAND) {
+  COMMAND = "dsh";
+}
 const PROFILE = process.env.DSH_PROFILE || "platform";
 const REQUEST_TIMEOUT_MS = Number(process.env.DSH_REQUEST_TIMEOUT_MS) || 60_000;
 const SHUTDOWN_TIMEOUT_MS = 5000;
@@ -118,7 +142,7 @@ export class DshBridge {
   async #spawn() {
     // Build CLI args: profile + optional patch overlays (dsh-profile generators).
     // The flag order is load-bearing (see patchArgs).
-    const args = ["--profile", PROFILE, ...patchArgs(this.#patchPaths())];
+    const args = [...COMMAND_ARGS, "--profile", PROFILE, ...patchArgs(this.#patchPaths())];
     // Which provider/model this generation was spawned with: a restart carries
     // the values current at spawn time, and a wrong one here is the difference
     // between a working turn and "no API key for provider route" — worth one

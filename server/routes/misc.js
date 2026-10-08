@@ -91,7 +91,13 @@ export function registerMiscRoutes(ctx) {
   // than a TCP check — used by the e2e webServer and suitable for deploy
   // probes that must not route traffic to a half-booted instance.
   app.get("/api/ready", (_req, res) => {
-    res.status(ctx.ready.dsh ? 200 : 503).json({ ready: ctx.ready.dsh });
+    res.status(ctx.ready.dsh ? 200 : 503).json({
+      ready: ctx.ready.dsh,
+      // Set when agent init failed but the server degraded instead of dying
+      // (win-install-smoke 2026-10-08) — lets probes distinguish "booting"
+      // from "agent runtime unavailable".
+      dshInitError: ctx.dshInitError ?? null,
+    });
   });
 
   // ── Server config (documents state, deployment branding) ──────────────────

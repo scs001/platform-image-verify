@@ -734,11 +734,22 @@ const documentsInit = (async () => {
   if (!db.isDbReady()) return;
   await documents.initStore({ broadcast: ctx.broadcast });
 })();
-const dshInit = initDshAgent();
+// Degrade, don't die: a failed agent init (e.g. the dsh binary missing in a
+// packaged install) must not take down the listen-first server — static,
+// auth, REST, and documents keep serving, and the status panel shows the
+// runtime as not-ready with the init error (win-install-smoke 2026-10-08:
+// `await Promise.all` used to crash the whole process on spawn dsh ENOENT).
+const dshInit = initDshAgent().catch((err) => {
+  ctx.dshInitError = err?.message || String(err);
+  console.error(`[dsh] agent init failed — server continues without the agent runtime: ${ctx.dshInitError}`);
+});
 await Promise.all([documentsInit, dshInit]);
 await trace.initTrace();
 
 // Agent is live: flip readiness and sync any client that connected mid-boot.
+// Only reached when initDshAgent resolved without throwing (the catch above
+// swallows the failure but leaves ready.dsh false — /api/ready stays 503 and
+// the chat surfaces report the runtime as unavailable).
 ctx.ready.dsh = true;
 ctx.onDshReady?.();
 

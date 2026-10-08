@@ -12,8 +12,8 @@
 
 ## 3. dl 平面
 
-- [ ] 3.1 cheap 机 Caddy 静态站：目录 `/platform/<version>/`、DNS `dl.finddatatech.cloud`、TLS。验证：curl 直链 200 且 sha256 与 GitHub 资产一致。
-- [ ] 3.2 保留策略 runbook：prune 步骤、盘余记录。验证：prune 后旧版 404、最近两版双源在。
+- [x] 3.1 dl 平面（形态已定，非原设想的独立子域）：资产在 cheap-3 `/srv/dl/platform/<version>/`（ghfast 拉取、sha256 与 GitHub 全等）+ dl-caddy 容器；cheap-1（Safeline 443 入口）Caddy `handle_path /dl/*` → tailnet 100.64.0.12:80，`header_up Host` 改写必须；公网 `https://platform.finddatatech.cloud/dl/...` 206 实证。独立 `dl.finddatatech.cloud` 子域留作后置（DNSPod 记录 + cheap-3 无公网 443）。
+- [x] 3.2 保留策略：release-sync `--prune` 保最近 2 版；当前 v1.3.0+v1.3.1 双版并存（206 实证）；cheap-3 盘 9.9G 余量足够。
 
 ## 4. 未签名文档 + beta 纪律
 
@@ -22,4 +22,4 @@
 
 ## 5. 官网回写联动
 
-- [ ] 5.1 release-sync 真跑回写 v1.3.0：首条目 GitHub-only 过渡（dl 未就绪）或含 dl 直链（dl 已就绪），官网 roll 后下载带渲染新版本。验证：官网 band 显示 v1.3.0 + 双源/beta 语义正确 + dl 直链下载可完成。
+- [x] 5.1 release-sync 真跑两轮：v1.3.0 GitHub-only 过渡上线，v1.3.1 含 dl 直链（官网 band 显示 v1.3.1 + dl 直链 206 实证 + GitHub 源并存 + windows beta 标）。

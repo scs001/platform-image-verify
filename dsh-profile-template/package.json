@@ -1,6 +1,7 @@
 {
   "name": "dsh-profile-platform",
   "private": true,
+  "type": "module",
   "dependencies": {},
   "dsh": {
     "profile": {

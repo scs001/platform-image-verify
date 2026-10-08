@@ -414,6 +414,56 @@ export function ensureDshHome() {
       console.warn(`[dsh-profile] could not link shared dsh modules at ${dir}: ${err.message}`);
     }
   }
+  linkProfilePinnedModules();
+}
+
+// The dsh loader resolves the profile's bare-specifier plugins ONLY from the
+// profile's own node_modules (profiles/<name>/node_modules) — never from the
+// app's top-level tree. Deployments provision that dir out-of-band (shared
+// homes, Dockerfile installs, hand-made symlinks on dev machines); a packaged
+// desktop install ships none of that, so the child died on the first bare
+// import (win-install-smoke v1.3.2–v1.3.4: @deepseek-ai/dsh-sdk-jsonrpc-
+// server unresolvable). Link the app's OWN copy in — the same package.json
+// dependency that puts it in the installer also serves as the resolution
+// source. junction on Windows (no admin rights needed); no-op when the
+// deployment already provides one.
+// The dsh loader imports profile bridge plugins with PLAIN module resolution
+// anchored at the profile dir, so their bare-specifier imports resolve up the
+// profile's own node_modules chain — never the app's tree, and never the dsh
+// nested runtime. Deployments provision that dir out-of-band (shared homes,
+// Dockerfile installs, hand-made symlinks on dev machines); a packaged desktop
+// install ships none of it, so the child died on the first bare import
+// (win-install-smoke v1.3.2–v1.3.4). Link EXACTLY the packages the bridges
+// import, all pinned in the app's top-level tree at the server generation
+// (rc.5) the bridges are built against. Deliberately NOT a scope blanket:
+// the child runtime's own plugin names (dsh-llm-*, cordis-plugin-*, …) must
+// keep resolving from the dsh nested tree — a top-level shadow there mixes
+// the rc.2 runtime generation with the rc.5 server generation and explodes
+// on first import (missing rc.2-only exports). No-op where a link exists.
+const PROFILE_BRIDGE_PACKAGES = [
+  "@deepseek-ai/schemastery",
+  "@deepseek-ai/dsh-session",
+  "@deepseek-ai/dsh-tools",
+  "@deepseek-ai/dsh-sdk-jsonrpc-server",
+];
+const PROFILE_MODULE_DIR = join("profiles", PROFILE_NAME, "node_modules");
+const APP_NODE_MODULES = join(dirname(fileURLToPath(import.meta.url)), "node_modules");
+
+function linkProfilePinnedModules() {
+  const moduleDir = join(DSH_HOME, PROFILE_MODULE_DIR);
+  for (const pkg of PROFILE_BRIDGE_PACKAGES) {
+    const link = join(moduleDir, pkg);
+    if (existsSync(link)) continue;
+    const source = join(APP_NODE_MODULES, pkg);
+    if (!existsSync(source)) continue;
+    try {
+      mkdirSync(dirname(link), { recursive: true });
+      symlinkSync(source, link, process.platform === "win32" ? "junction" : "dir");
+      console.log(`[dsh-profile] linked ${pkg} into the profile node_modules (packaged resolution)`);
+    } catch (err) {
+      console.warn(`[dsh-profile] could not link ${pkg}: ${err.message}`);
+    }
+  }
 }
 
 // Map one host MCP config ({command,args,env,cwd} stdio | {url,headers} http) to

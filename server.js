@@ -739,19 +739,27 @@ const documentsInit = (async () => {
 // auth, REST, and documents keep serving, and the status panel shows the
 // runtime as not-ready with the init error (win-install-smoke 2026-10-08:
 // `await Promise.all` used to crash the whole process on spawn dsh ENOENT).
-const dshInit = initDshAgent().catch((err) => {
-  ctx.dshInitError = err?.message || String(err);
-  console.error(`[dsh] agent init failed — server continues without the agent runtime: ${ctx.dshInitError}`);
-});
+// dshReadyOk gates the readiness flip below: the catch swallows the error so
+// boot continues, but /api/ready must stay 503 for a degraded agent — an
+// unconditional flip reported a dead runtime as ready (the deploy probes and
+// win-install-smoke Phase B both key off that 200).
+let dshReadyOk = false;
+const dshInit = initDshAgent()
+  .then(() => { dshReadyOk = true; })
+  .catch((err) => {
+    ctx.dshInitError = err?.message || String(err);
+    console.error(`[dsh] agent init failed — server continues without the agent runtime: ${ctx.dshInitError}`);
+  });
 await Promise.all([documentsInit, dshInit]);
 await trace.initTrace();
 
 // Agent is live: flip readiness and sync any client that connected mid-boot.
-// Only reached when initDshAgent resolved without throwing (the catch above
-// swallows the failure but leaves ready.dsh false — /api/ready stays 503 and
-// the chat surfaces report the runtime as unavailable).
-ctx.ready.dsh = true;
-ctx.onDshReady?.();
+// Only flipped when initDshAgent resolved — a degraded agent stays 503 and
+// the chat surfaces report the runtime as unavailable.
+if (dshReadyOk) {
+  ctx.ready.dsh = true;
+  ctx.onDshReady?.();
+}
 
 // Chat-platform bots. Starts after the bridge so a polled message never
 // arrives before there is an agent to answer it; inert with no bots configured.

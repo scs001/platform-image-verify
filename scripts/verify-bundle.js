@@ -55,6 +55,22 @@ if (fs.existsSync(nestedRuntimeProbe)) {
   allGood = false;
 }
 
+// The profile bridge plugins import these by bare specifier, and the dsh
+// loader resolves them ONLY up the profile dir's own node_modules (dsh-profile
+// links them from here on packaged installs). npm auto-installed them as
+// peers in dev trees, but legacy-peer-deps installs prune them — a missing
+// one resurfaces as a packaged-only bridge boot failure (v1.3.5 round).
+const bridgePackages = ["schemastery", "dsh-session", "dsh-tools", "dsh-sdk-jsonrpc-server", "dsh-llm-deepseek"];
+for (const pkg of bridgePackages) {
+  const pkgDir = path.join(PROJECT_ROOT, "node_modules", "@deepseek-ai", pkg);
+  if (fs.existsSync(path.join(pkgDir, "package.json"))) {
+    console.log(`✅ Bridge dependency @deepseek-ai/${pkg}: OK`);
+  } else {
+    console.error(`❌ Bridge dependency @deepseek-ai/${pkg} missing from node_modules — pin it in package.json dependencies.`);
+    allGood = false;
+  }
+}
+
 // Warn about signing if no credentials set
 if (!process.env.CSC_LINK && process.platform === "darwin") {
   console.log("\n⚠️  CSC_LINK / CSC_KEY_PASSWORD not set in environment.");

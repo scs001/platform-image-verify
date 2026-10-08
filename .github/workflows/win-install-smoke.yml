@@ -85,7 +85,15 @@ jobs:
       - name: Probe packaged server.js directly (Phase B)
         shell: pwsh
         run: |
-          $env:DESKTOP_SERVER_PORT = "47611"
+          # PORT + HOST, NOT DESKTOP_SERVER_PORT: a directly-run server.js reads
+          # process.env.PORT (the supervisor injects DESKTOP_SERVER_PORT→PORT
+          # only for app-spawned children). v1.3.2/v1.3.3 smoke rounds: the
+          # server listened on 3000 while this probe knocked on 47611 for the
+          # full 6-minute deadline — a guaranteed-false-negative harness bug.
+          # HOST=127.0.0.1 pins the bind address (the default "localhost" can
+          # resolve to ::1 on Windows runners while the probe hits 127.0.0.1).
+          $env:PORT = "47611"
+          $env:HOST = "127.0.0.1"
           $env:PLATFORM_DATA_DIR = "$env:RUNNER_TEMP\smoke-data"
           New-Item -ItemType Directory -Force -Path $env:PLATFORM_DATA_DIR | Out-Null
           $node = "$env:APP_DIR\resources\node\node.exe"

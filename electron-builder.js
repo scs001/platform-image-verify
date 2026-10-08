@@ -29,6 +29,20 @@ const extraResources = [
     to: "node/",
     filter: ["**/*", "!*.tar.gz"],
   },
+  {
+    // dsh's runtime components live in its NESTED node_modules (172 packages:
+    // dsh-* / cordis-plugin-* / dsh-sdk-jsonrpc-server, loaded dynamically by
+    // the profile boot and the platform bridge plugins). The builder's node-
+    // modules collector only walks DECLARED dependency edges (npm list prod
+    // graph), so peer-only and dynamically-inserted components never reach
+    // the packed tree — v1.3.2/v1.3.3/v1.3.4 win-install-smoke all died on
+    // the first missing component (cordis-plugin-group). extraResources
+    // copies LITERALLY, bypassing the collector: ship the nested tree intact
+    // so the packaged dsh resolves components exactly like a dev tree.
+    from: "node_modules/@deepseek-ai/dsh/node_modules/",
+    to: "app/node_modules/@deepseek-ai/dsh/node_modules/",
+    filter: ["**/*", "!**/.bin/**", "!**/.DS_Store"],
+  },
 ];
 
 /** @type {import('electron-builder').Configuration} */

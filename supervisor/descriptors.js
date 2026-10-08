@@ -42,7 +42,11 @@ export function getDescriptors({ serverPort, projectRoot, nodeBin, dataDir, agen
         cwd: projectRoot,
         env: childEnv,
       },
-      url: `http://localhost:${serverPort}`,
+      // Probe the address the backend actually BOUND (childEnv.HOST — agentEnv
+      // may pin it to 127.0.0.1 on desktop): a hardcoded "localhost" probe
+      // stayed green while the window's 127.0.0.1 load hit a closed IPv4
+      // socket on hosts where localhost resolves ::1-only (v1.3.5 black screen).
+      url: `http://${childEnv.HOST}:${serverPort}`,
       healthPath: "/api/config",
       dependsOn: [],
     },

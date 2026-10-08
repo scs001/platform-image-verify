@@ -8,6 +8,7 @@
 // Run in dev with:  npm start:electron   (npm run dist builds a distributable)
 
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import "dotenv/config"; // read .env for dev config
@@ -20,6 +21,25 @@ import { setSupervisor } from "./preferences/ipc.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
+
+// Packaged GUI processes have no console — every console.* line (boot order,
+// supervisor failures, the very reason a window stays black) vanished into
+// nowhere, making field reports undebuggable (v1.3.5 black-screen round).
+// Mirror them to userData/main.log so "Open Logs Folder" answers everything.
+export const MAIN_LOG_PATH = app.isPackaged
+  ? path.join(app.getPath("userData"), "main.log")
+  : null;
+if (MAIN_LOG_PATH) {
+  const raw = console.log.bind(console);
+  const stamp = (level) => `[${new Date().toISOString()}] [${level}]`;
+  const write = (level, args) => {
+    try { fs.appendFileSync(MAIN_LOG_PATH, `${stamp(level)} ${args.join(" ")}\n`); } catch { /* disk full etc. — never crash the shell for a log */ }
+  };
+  console.log = (...a) => { raw(...a); write("info", a); };
+  console.warn = (...a) => { write("warn", a); };
+  console.error = (...a) => { write("error", a); };
+  write("info", [`=== Platform ${app.getVersion()} starting (pid ${process.pid}) ===`]);
+}
 
 let supervisor = null;
 let mainWindow = null;
@@ -79,6 +99,14 @@ async function boot() {
     LOGTO_CLIENT_TYPE: "public",
     SESSION_TTL_HRS: "720",
     DESKTOP_SERVER_PORT: "47600",
+    // Pin the backend to IPv4 loopback (v1.3.5 black screen): with the
+    // "localhost" default, Node on Windows/macOS resolves it to ::1 ONLY —
+    // the health probe (same host string) stays green while the window's
+    // http://127.0.0.1:<port> hits a closed IPv4 socket, leaving the dark
+    // backgroundColor window forever unpainted. agentEnv spreads into the
+    // child env AFTER the HOST default, so this wins for the desktop path
+    // only; dev (`npm start`) and containers set HOST themselves.
+    HOST: "127.0.0.1",
   } : {};
   const boostedSettings = runFirstRun({
     userDataDir: dataDir,
@@ -132,6 +160,15 @@ async function boot() {
           click: () => openPreferencesWindow(),
         },
         { type: "separator" },
+        // Field-debugging escape hatch (v1.3.5 black-screen round): the log
+        // mirror above makes the main process observable on user machines.
+        ...(MAIN_LOG_PATH
+          ? [{
+              label: "Open Logs Folder",
+              click: () => { shell.showItemInFolder(MAIN_LOG_PATH); },
+            }]
+          : []),
+        { type: "separator" },
         { role: "hide" },
         { role: "hideOthers" },
         { role: "unhide" },
@@ -163,11 +200,32 @@ function openWindow(url) {
     width: 1280,
     height: 840,
     backgroundColor: "#0d1117",
+    show: false,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
       preload: path.join(__dirname, "main-preload.js"),
     },
+  });
+  // Paint-once-then-show: a dark backgroundColor window shown before the page
+  // paints reads as a BLACK screen (v1.3.5 field report). Show on first
+  // successful paint; a bounded retry loop covers a load racing the backend
+  // (first boot can take seconds between listen and full serve).
+  let retries = 0;
+  mainWindow.webContents.on("did-finish-load", () => {
+    if (!mainWindow.isVisible()) mainWindow.show();
+  });
+  // Safety net: never leave the app windowless — if neither finish nor fail
+  // fires within 10s (a hung load), show whatever is there.
+  setTimeout(() => { if (!mainWindow.isDestroyed() && !mainWindow.isVisible()) mainWindow.show(); }, 10_000);
+  mainWindow.webContents.on("did-fail-load", (_event, code, desc, failedUrl) => {
+    if (code === -3) return; // ERR_ABORTED — a navigation superseded this one
+    retries += 1;
+    if (retries > 20) {
+      console.error(`[electron] window load failed 20× (last: ${code} ${desc} ${failedUrl}) — giving up`);
+      return;
+    }
+    setTimeout(() => { if (!mainWindow.isDestroyed()) mainWindow.loadURL(url); }, 1000);
   });
   mainWindow.loadURL(url);
   mainWindow.on("closed", () => { mainWindow = null; });

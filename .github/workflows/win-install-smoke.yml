@@ -78,6 +78,35 @@ jobs:
             throw "app did not spawn the bundled node.exe backend within 3 minutes"
           }
 
+          # ── Phase A+: the WINDOW's target answers ──────────────────────────
+          # The renderer loads http://127.0.0.1:47600 (DESKTOP_SERVER_PORT the
+          # first-run seeds). A backend bound to ::1-only (v1.3.5: HOST defaulted
+          # to "localhost", Node resolved it IPv6) passes every localhost probe
+          # while the window hits a closed IPv4 socket — the user sees a black
+          # window, the process checks above stay green. Probe exactly what the
+          # window loads.
+          $deadline = (Get-Date).AddMinutes(2)
+          $ok = $false
+          while ((Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 5
+            try {
+              $r = Invoke-WebRequest -Uri "http://127.0.0.1:47600/api/config" -UseBasicParsing -TimeoutSec 5
+              if ($r.StatusCode -eq 200) { Write-Host "window target http://127.0.0.1:47600/api/config -> 200"; $ok = $true; break }
+            } catch { Write-Host "waiting for window target: $($_.Exception.Message)" }
+          }
+          if (-not $ok) { throw "backend not reachable at the window URL http://127.0.0.1:47600 (bind-family mismatch?)" }
+
+          # Stop the app before Phase B: the two instances share ~/.dsh and the
+          # app instance holds settings.yaml open — on Windows that makes the
+          # Phase B boot's atomic rename fail with EPERM (v1.3.5 smoke: agent
+          # init degraded, ready stuck 503 for the full probe window). Phase A
+          # has proven its point (the shell spawns the bundled backend).
+          Get-Process Platform -ErrorAction SilentlyContinue | Stop-Process -Force
+          Get-Process node -ErrorAction SilentlyContinue |
+            Where-Object { $_.Path -like "$env:APP_DIR*" } | Stop-Process -Force
+          Start-Sleep -Seconds 3
+          Write-Host "Phase A instance stopped — Phase B gets exclusive ~/.dsh"
+
       # ── Phase B: the packaged backend boots and serves, no Electron involved ──
       # This is the real "does the installed app work" evidence: the same
       # server.js + bundled node.exe the app runs, with its own data dir so the

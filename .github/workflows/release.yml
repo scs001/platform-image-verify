@@ -81,8 +81,14 @@ jobs:
       # postinstall installs web/ deps + builds web/dist AND builds the bundled
       # resources (when not cached). predist then ensures the bundled Node is
       # built and verifies all resources. No skip flags - idempotency handles it.
+      #
+      # --legacy-peer-deps: the pinned rc.2 dsh runtime components declare
+      # mutually-conflicting peer ranges (dsh-brand wants invariants rc.2 while
+      # the rc.5 chain wants rc.1) that strict npm refuses but resolve fine —
+      # the lockfile is the truth here, npm ci just needs to stop re-litigating
+      # peers (v1.3.5 release run: three matrices ERESOLVE at this step).
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Build bundled resources + verify
         run: npm run predist

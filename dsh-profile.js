@@ -20,7 +20,7 @@
 // Writes atomically (temp+rename) and returns the declared model list so server.js
 // can source its model selector without a dsh listModels RPC (dsh has none stock;
 // the generator's declared list IS the dsh list — dsh loads exactly this file).
-import { readFileSync, writeFileSync, mkdirSync, chmodSync, existsSync, statSync, copyFileSync, symlinkSync, readdirSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, chmodSync, existsSync, statSync, lstatSync, copyFileSync, symlinkSync, readdirSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
@@ -453,7 +453,21 @@ function linkProfilePinnedModules() {
   const moduleDir = join(DSH_HOME, PROFILE_MODULE_DIR);
   for (const pkg of PROFILE_BRIDGE_PACKAGES) {
     const link = join(moduleDir, pkg);
-    if (existsSync(link)) continue;
+    // The dsh CLI's boot healer OWNS profiles/node_modules/<pkg>: it requires
+    // that path to be a symlink it manages and aborts the boot otherwise
+    // (v1.3.6 smoke: "dsh-tools exists and is not a symlink" killed the child,
+    // leaving /api/ready 503 for the full probe window). An earlier build's
+    // real directory or file here must be removed before we link — and a
+    // symlink pointing anywhere else must be replaced with the app's copy.
+    if (existsSync(link)) {
+      try {
+        if (lstatSync(link).isSymbolicLink()) rmSync(link);
+        else rmSync(link, { recursive: true, force: true });
+      } catch (err) {
+        console.warn(`[dsh-profile] could not clear stale ${pkg} at ${link}: ${err.message}`);
+        continue;
+      }
+    }
     const source = join(APP_NODE_MODULES, pkg);
     if (!existsSync(source)) continue;
     try {

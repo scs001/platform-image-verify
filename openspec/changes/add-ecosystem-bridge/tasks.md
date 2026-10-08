@@ -16,7 +16,7 @@
 - [x] 2.3 持键写 MCP 配置：install 时对 MCP 引用征得同意写各 target 原生 MCP 配置（端点+Authorization 头），输出所写文件清单；无键时行为与 v1 完全一致（回归）
 - [x] 2.4 device flow 升级位：CLI connect 命令保留设备授权分支（谱系侧未暴露时自动回落粘贴流），含回落路径单测
 - [x] 2.5 marketplace.json 端点：facet 生成 Claude 插件市场格式清单（仅公开精选、MCP 只做连接指引、≤1h 缓存头）；生产探针全绿 2026-10-07（200/8 packs/plugin.json+README 可取/缓存头/max-age=3600），真机 `/plugin marketplace add` 走查留使用侧验收
-- [ ] 2.6 CLI 发版：`@finddatatechnology/facet` 新版本发布 npm，五 target + connect 冒烟（tags 一次发齐）
+- [x] 2.6 CLI 发版：**0.2.1 LIVE 2026-10-08**（公开仓 tag 线发布，带 SLSA provenance；0.2.0 发布后冒烟抓出 npx 符号链接静默回归——isMain 原样比较 argv[1]，npx 形态全坏，realpathSync 修复+符号链接回归测试后补发）；npx 端到端复验通过（--version/help/五 target）
 
 ## 3. 切片 C：计费收口与社区准入
 

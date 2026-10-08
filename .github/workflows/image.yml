@@ -77,6 +77,14 @@ jobs:
 
       # Boot the image before pushing (the Jenkins-era rule; see image-tcr
       # history for the two build-ok-boot-dead incidents it exists for).
+      # Image size on record for every build (add-doc-studio 1.3: the office
+      # execution layer's footprint is tracked per build, not measured once).
+      - name: Record image size
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          SIZE="$(docker images --format '{{.Size}}' "${{ env.REGISTRY }}/${{ env.NAMESPACE }}/${{ env.IMAGE_NAME }}:$TAG" | head -1)"
+          echo "image size: $SIZE (${TAG})" | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Smoke test (/api/config)
         run: |
           set -e

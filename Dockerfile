@@ -240,10 +240,24 @@ RUN pip3 install --no-cache-dir --break-system-packages \
 # dev-settings.json. PLATFORM_DATA_DIR points the supervisor (local-services.js)
 # + paths.js here. HOST=0.0.0.0 so k8s probes + docker port-forward reach
 # server.js inside the container.
+#
+# DSH_BIN pins the agent runtime to the frozen matrix tree. dsh-bridge's
+# resolution prefers the APP tree's node_modules/@deepseek-ai/dsh/lib/bin.js
+# when present (the packaged-desktop case), but in this image the app tree is
+# the two-generation root closure (rc.2 runtime + rc.5 server rows) whose
+# hoisting split breaks that binary: @deepseek-ai/cordis-plugin-group sits at
+# the app tree's top level with its peer cordis-plugin-loader only nested, so
+# the nested dsh-app-boot's `import Group from "@deepseek-ai/cordis-plugin-
+# group"` lands on the top-level copy and dies with ERR_MODULE_NOT_FOUND
+# (2026-10-09 prod roll sha-f2af032: every cell's agent init failed — chat
+# showed "No model"; reproduced locally with the same command). /opt/dsh is
+# the tree the boot hard gate + dsh-contracts verify (6/6), so the image must
+# spawn THAT one.
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
-    PLATFORM_DATA_DIR=/data
+    PLATFORM_DATA_DIR=/data \
+    DSH_BIN=/opt/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js
 
 # Run as the image's non-root `node` user (UID/GID 1000 in the official node image).
 # Only /data is writable at runtime (PLATFORM_DATA_DIR); the app tree already

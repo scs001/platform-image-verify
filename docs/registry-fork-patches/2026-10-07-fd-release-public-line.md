@@ -28,6 +28,6 @@
 ## 余项
 
 - fork `/api/version` 仍是 fd-1.1.2（孤儿发布未 bump 版本号——下次发布批一并 bump fd-1.2.0）
-- npm `@finddatatechnology/facet@0.2.0`：私仓 facet-cli-publish 亦被计费阻断；待 billing 修复 rerun 或 NPM_TOKEN 配到公开仓
+- npm `@finddatatechnology/facet`：0.2.0 私仓 facet-cli-publish 被计费阻断（billing），**2026-10-08 改由公开仓 `platform` 打 tag `facet-cli-v0.2.0` 发布成功**（带 SLSA provenance，公开仓 Actions 免费额度不受 billing 影响）。⚠️ 但 0.2.0 带一个 CLI 回归：`isMain` 守卫比较符号链接路径，`npx` 调用下整条 CLI 静默退出（--version 无输出）——已修并随 **0.2.1** 补发（tag `facet-cli-v0.2.1`，含符号链接形态回归测试）。
 - v1.3.0 tag 的 release 工作流（桌面安装器）被 main force-push 误触发失败——Yizuo 线处理
 - 回滚锚：registry/auth=旧 compose 备份 `.env.bak-eco-bridge-20261007-2228` + `docker-compose.prebuilt.yml.bak-eco-*`；镜像层 sha-5f816cd 前的 tag 已删（ccr 侧永远可拉）

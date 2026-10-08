@@ -166,6 +166,90 @@ jobs:
           }
           Write-Host "::notice::Phase B PASS — packaged backend serves /api/ready 200"
 
+      # ── Phase C: the window actually PAINTS (the black-screen gate) ────────
+      # A/B prove the backend is alive and answers on the port the window uses.
+      # They proved that for v1.3.5 too — on the user's machine the window was
+      # still a black rectangle. The runner's windows-latest image ships a real
+      # interactive desktop session, so the app can be started as a GUI and the
+      # pixels can be inspected: this is the only check that can catch black.
+      #   title          → the renderer reached first paint (SPA title escaped)
+      #   pixel analysis → the framebuffer is not a single flat backdrop colour
+      # A screenshot artifact is uploaded either way, so a human can eyeball it.
+      - name: Launch the GUI, assert the window paints (Phase C)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "$env:RUNNER_TEMP\shots" | Out-Null
+          Start-Process -FilePath "$env:APP_DIR\Platform.exe"
+          $proc = Get-Process Platform -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $proc) { throw "app process did not start for Phase C" }
+
+          $deadline = (Get-Date).AddMinutes(3)
+          $hwnd = 0
+          while ((Get-Date) -lt $deadline) {
+            $hwnd = $proc.MainWindowHandle
+            if ($hwnd -ne 0 -and $proc.MainWindowTitle) {
+              Write-Host "window visible: hwnd=$hwnd title='$($proc.MainWindowTitle)'"
+              break
+            }
+            Start-Sleep -Seconds 5
+            $proc.Refresh()
+          }
+          if ($hwnd -eq 0) { throw "app window never appeared (MainWindowHandle 0) within 3 minutes" }
+
+          # Give the renderer time for first paint after the window exists.
+          $paintDeadline = (Get-Date).AddMinutes(2)
+          $title = ""
+          while ((Get-Date) -lt $paintDeadline) {
+            Start-Sleep -Seconds 5
+            $proc.Refresh()
+            if ($proc.MainWindowTitle -and $proc.MainWindowTitle.Length -gt 0) { $title = $proc.MainWindowTitle; break }
+          }
+          if (-not $title) { throw "window title stayed empty — renderer never painted" }
+          Write-Host "rendered title: $title"
+
+          Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+          $r = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+          $bmp = New-Object System.Drawing.Bitmap $r.Width, $r.Height
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.CopyFromScreen($r.Location, [System.Drawing.Point]::Empty, $r.Size)
+          $shot = "$env:RUNNER_TEMP\shots\phase-c.png"
+          $bmp.Save($shot, [System.Drawing.Imaging.ImageFormat]::Png)
+          $g.Dispose(); $bmp.Dispose()
+          Write-Host "screenshot: $shot ($($r.Width)x$($r.Height))"
+
+          # Black-screen detector: count non-background pixels. A painted SPA is
+          # text/icons spread over ~all of the viewport, so 1% will jump by orders
+          # of magnitude; a hung/unpainted window shows one flat backdrop colour.
+          Add-Type -AssemblyName System.Drawing
+          $img = [System.Drawing.Bitmap]::FromFile($shot)
+          $w = $img.Width; $h = $img.Height
+          $target = [System.Drawing.Color]::FromArgb(13, 17, 23)  # window backgroundColor #0d1117
+          $samples = 0; $painted = 0
+          for ($y = 0; $y -lt $h; $y += 4) {
+            for ($x = 0; $x -lt $w; $x += 4) {
+              $samples++
+              $px = $img.GetPixel($x, $y)
+              if ([Math]::Abs($px.R - $target.R) -gt 12 -or
+                  [Math]::Abs($px.G - $target.G) -gt 12 -or
+                  [Math]::Abs($px.B - $target.B) -gt 12) { $painted++ }
+            }
+          }
+          $img.Dispose()
+          $pct = [Math]::Round(100.0 * $painted / $samples, 2)
+          Write-Host "non-background pixels: $painted/$samples ($pct%)"
+          if ($pct -lt 1.0) {
+            throw "BLACK SCREEN: only $pct% of the frame differs from the backdrop — the window did not paint content"
+          }
+          Write-Host "::notice::Phase C PASS — window painted ($pct% non-backdrop pixels)"
+
+      - name: Upload window screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase-c-window
+          path: ${{ runner.temp }}\shots\phase-c.png
+          if-no-files-found: warn
+
       - name: Stop processes
         if: always()
         shell: pwsh

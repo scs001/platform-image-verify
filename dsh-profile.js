@@ -20,7 +20,7 @@
 // Writes atomically (temp+rename) and returns the declared model list so server.js
 // can source its model selector without a dsh listModels RPC (dsh has none stock;
 // the generator's declared list IS the dsh list — dsh loads exactly this file).
-import { readFileSync, writeFileSync, mkdirSync, chmodSync, existsSync, statSync, lstatSync, copyFileSync, symlinkSync, readdirSync, rmSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, chmodSync, existsSync, statSync, lstatSync, copyFileSync, symlinkSync, readdirSync, realpathSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
@@ -451,25 +451,54 @@ const APP_NODE_MODULES = join(dirname(fileURLToPath(import.meta.url)), "node_mod
 
 function linkProfilePinnedModules() {
   const moduleDir = join(DSH_HOME, PROFILE_MODULE_DIR);
+  // The deployment may hand the profile its WHOLE tree as one symlink — the
+  // image layout ($DSH_HOME/profiles/<name>/node_modules → /opt/dsh/node_modules,
+  // the frozen matrix install). Every entry seen through it then belongs to
+  // the deployment, and "clearing" one rms THROUGH the symlink: the real
+  // package leaves the frozen tree, the app's copy takes its place, and the
+  // generations mix (rc.2 runtime + rc.5 server). Observed on image-publish
+  // 37847464206: the boot smoke passed, the platform's own boot mutated
+  // /opt/dsh, and the contracts step then reported four packages "resolving
+  // outside the candidate tree" with the child dead at handshake. So: when
+  // the module dir is itself a symlink, an existing entry is the deployment's
+  // answer — leave it (only an ABSENT entry gets linked, the pre-v1.3.6
+  // behavior). A real module dir is ours to manage: stale leftovers there
+  // (the desktop v1.3.6 "exists and is not a symlink" child death) are
+  // cleared and re-pointed at the app copy.
+  let moduleDirIsLink = false;
+  try {
+    moduleDirIsLink = lstatSync(moduleDir).isSymbolicLink();
+  } catch {
+    /* absent — the link loop below creates it */
+  }
   for (const pkg of PROFILE_BRIDGE_PACKAGES) {
     const link = join(moduleDir, pkg);
-    // The dsh CLI's boot healer OWNS profiles/node_modules/<pkg>: it requires
-    // that path to be a symlink it manages and aborts the boot otherwise
-    // (v1.3.6 smoke: "dsh-tools exists and is not a symlink" killed the child,
-    // leaving /api/ready 503 for the full probe window). An earlier build's
-    // real directory or file here must be removed before we link — and a
-    // symlink pointing anywhere else must be replaced with the app's copy.
-    if (existsSync(link)) {
+    const source = join(APP_NODE_MODULES, pkg);
+    if (!existsSync(source)) continue;
+    let existing = null;
+    try {
+      existing = lstatSync(link);
+    } catch {
+      existing = null;
+    }
+    if (existing) {
+      if (moduleDirIsLink) continue; // deployment-provisioned frozen tree
+      if (existing.isSymbolicLink()) {
+        let same = false;
+        try {
+          same = realpathSync(link) === realpathSync(source);
+        } catch {
+          same = false; // dangling link — relink below
+        }
+        if (same) continue;
+      }
       try {
-        if (lstatSync(link).isSymbolicLink()) rmSync(link);
-        else rmSync(link, { recursive: true, force: true });
+        rmSync(link, { recursive: true, force: true });
       } catch (err) {
         console.warn(`[dsh-profile] could not clear stale ${pkg} at ${link}: ${err.message}`);
         continue;
       }
     }
-    const source = join(APP_NODE_MODULES, pkg);
-    if (!existsSync(source)) continue;
     try {
       mkdirSync(dirname(link), { recursive: true });
       symlinkSync(source, link, process.platform === "win32" ? "junction" : "dir");

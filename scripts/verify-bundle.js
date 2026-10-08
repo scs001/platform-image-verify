@@ -30,6 +30,31 @@ if (fs.existsSync(nodePath)) {
   allGood = false;
 }
 
+// The dsh runtime binary and its nested component tree must be present in the
+// dependency tree the installer will pack — a packaged install cannot fall
+// back to a global `dsh` (win-install-smoke 2026-10-08: spawn dsh ENOENT on a
+// clean machine, then cordis-plugin-group missing from the nested closure).
+// The bundled bin.js is exactly the path dsh-bridge.js resolves at runtime.
+const bundledDshBin = path.join(PROJECT_ROOT, "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js");
+const nestedRuntimeProbe = path.join(
+  PROJECT_ROOT, "node_modules", "@deepseek-ai", "dsh", "node_modules",
+  "@deepseek-ai", "dsh-app-boot", "package.json",
+);
+if (fs.existsSync(bundledDshBin)) {
+  console.log("✅ Bundled dsh runtime bin: OK");
+} else {
+  console.error(`❌ Bundled dsh runtime missing at: ${bundledDshBin}`);
+  console.error("   @deepseek-ai/dsh must be a dependency — a packaged install has no global dsh.");
+  allGood = false;
+}
+if (fs.existsSync(nestedRuntimeProbe)) {
+  console.log("✅ dsh nested runtime tree: OK");
+} else {
+  console.error(`❌ dsh nested runtime tree missing at: ${path.dirname(path.dirname(path.dirname(path.dirname(path.dirname(nestedRuntimeProbe)))))}`);
+  console.error("   dsh loads its components dynamically from its nested node_modules — without them the packaged agent dies on first boot.");
+  allGood = false;
+}
+
 // Warn about signing if no credentials set
 if (!process.env.CSC_LINK && process.platform === "darwin") {
   console.log("\n⚠️  CSC_LINK / CSC_KEY_PASSWORD not set in environment.");

@@ -72,6 +72,16 @@ const config = {
     "mcp.example.json",
     "package.json",
     "node_modules/**",
+    // dsh ships its runtime components as NESTED dependencies inside its own
+    // node_modules (170+ dsh-* / cordis-plugin-* packages, loaded dynamically
+    // by the profile boot — not statically importable, so the builder's
+    // production-closure walk misses them; win-install-smoke 2026-10-08:
+    // packaged dsh died on the first missing cordis-plugin-group). The glob
+    // above should already match them (negations below do not exclude them),
+    // but nested scopes have historically been dropped by builder versions —
+    // keep this explicit restatement so the dsh runtime can never silently
+    // half-ship.
+    "node_modules/@deepseek-ai/dsh/node_modules/**",
     // trim node_modules fat (keep native .node binaries + prebuilds)
     "!node_modules/**/{*.md,*.markdown,LICENSE,LICENCE,*.ts,*.map,*.coffee,*.flow}",
     "!node_modules/**/.bin/**",

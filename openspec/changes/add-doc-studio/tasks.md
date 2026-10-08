@@ -26,8 +26,10 @@
 
 ## 4. 切片③ 发布与三面验证
 
-- [ ] 4.1 组装官方功能集 `fd-doc-studio`（名「文档工坊」：技能=切片②产物；无 MCP 引用、无 pip 依赖声明），走创作者线发布 v1，谦面商店卡片显示唯一名
+- [x] 4.1 组装官方功能集 `fd-doc-studio`（名「文档工坊」：技能=切片②产物；无 MCP 引用、无 pip 依赖声明），走创作者线发布 v1，谦面商店卡片显示唯一名
+  - **已上线（2026-10-08）**：pack id `qnhd7B3J1-HKDDKzZQ_fUQ` v1，作者 doc-studio@finddatatech.com（Logto 专建发布账号、creators 组）；卡片/详情/技能体端点三验全绿。发布通道=facet 代理通道（x-facet-token + x-facet-user，因公网壹座 lawcraw 未开 PACK_MARKETPLACE、facet 直登会话无 groups 声明——两坑在案）
 - [ ] 4.2 壹座 dogfood：cell 安装 → 三场景各跑一轮真实生成 → 产物条带出现、docx 预览可开、显式存入资源库成功；postcheck 失败注入一轮验证修复可见
+  - **前置=新镜像进 prod**（python 执行层随镜像走；公网壹座 lawcraw 还需开 PACK_MARKETPLACE）。镜像链=lock 修复（桌面线）→ Jenkins→Harbor 构建（私仓 GHA 无额度）→ GitOps 滚动
 - [ ] 4.3 萬星部署演示：引用文档工坊的服务部署 → 外部调用者回合拿到文本回复+文件引用（无文件字节外发），账单无 office 独立计量条目
 - [ ] 4.4 收尾：`openspec validate add-doc-studio --specs` 过；样张与 VERIFICATION.md 归档入仓；镜像体积与发布备注留档
 

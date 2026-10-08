@@ -21,15 +21,22 @@ test.describe("library index + tools", () => {
   let db;
   let search;
   let documents;
+  let files;
   let docId;
+  let fileDocId;
 
   test.beforeAll(async () => {
     dbDir = mkdtempSync(path.join(os.tmpdir(), "paas-lib-tools-"));
     process.env.DB_PATH = path.join(dbDir, "app.db");
+    // UPLOADS_DIR resolves through paths.js at import time; pointing
+    // PLATFORM_DATA_DIR at the same temp root keeps upload originals inside
+    // the sandbox (fetch_document_file reads them from there).
+    process.env.PLATFORM_DATA_DIR = dbDir;
     db = await import("../db.js");
     await db.initDb();
     search = await import("../documents-search.js");
     documents = await import("../documents.js");
+    files = await import("../server/routes/files.js");
     await documents.initStore({ broadcast: () => {} });
 
     // Real ingest through the production path: local extraction + chunking.
@@ -40,6 +47,18 @@ test.describe("library index + tools", () => {
     });
     expect(r.status).toBe("ready");
     docId = r.id;
+
+    // A document WITH a retained original (composer-attachment shape): the
+    // extraction pipeline plus saveUploadFile storing the bytes the way the
+    // POST /api/documents route does.
+    const r2 = await documents.addDocument({
+      type: "markdown",
+      name: "with-original.md",
+      content: "# Has Original\n\nplain body",
+    });
+    fileDocId = r2.id;
+    const stored = await files.saveUploadFile(Buffer.from("PK-ORIGINAL-BYTES-0xA"), "合同终稿.docx", fileDocId);
+    expect(stored.rel).toContain(fileDocId);
   });
 
   test.afterAll(() => {
@@ -53,6 +72,7 @@ test.describe("library index + tools", () => {
       "list_library",
       "search_library",
       "read_document",
+      "fetch_document_file",
     ]);
 
     const list = await mcp.call("tools/call", { name: "list_library", arguments: {} });
@@ -85,6 +105,44 @@ test.describe("library index + tools", () => {
     });
     expect(bad.result.isError).toBe(true);
     await mcp.stop();
+  });
+
+  test("fetch_document_file lands the retained original in the workspace", async () => {
+    const ws = mkdtempSync(path.join(os.tmpdir(), "paas-lib-ws-"));
+    const mcp = await McpChild.start(dbDir, { AGENT_WORKSPACE: ws });
+
+    const got = await mcp.call("tools/call", {
+      name: "fetch_document_file",
+      arguments: { doc_id: fileDocId },
+    });
+    expect(got.result.isError).toBeFalsy();
+    expect(got.result.content[0].text).toContain("Saved original");
+    // The retained bytes reach the workspace under the sanitized doc name
+    // (CJK collapses per the files.js rule); content must be byte-identical.
+    const { readdirSync, readFileSync } = await import("node:fs");
+    const names = readdirSync(ws);
+    expect(names).toHaveLength(1);
+    expect(readFileSync(path.join(ws, names[0])).toString()).toBe("PK-ORIGINAL-BYTES-0xA");
+
+    // A doc without a retained original errors explicitly and never falls
+    // back to writing extracted text as a fake file.
+    const none = await mcp.call("tools/call", {
+      name: "fetch_document_file",
+      arguments: { doc_id: docId },
+    });
+    expect(none.result.isError).toBe(true);
+    expect(none.result.content[0].text).toContain("was not retained");
+    expect(none.result.content[0].text).toContain("read_document");
+    expect(readdirSync(ws)).toHaveLength(1);
+
+    const unknown = await mcp.call("tools/call", {
+      name: "fetch_document_file",
+      arguments: { doc_id: "does-not-exist" },
+    });
+    expect(unknown.result.isError).toBe(true);
+
+    await mcp.stop();
+    rmSync(ws, { recursive: true, force: true });
   });
 
   test("deleting the document removes its chunks from search", async () => {
@@ -136,9 +194,9 @@ test.describe("library index + tools", () => {
 // Minimal MCP stdio client for the spec: newline-delimited JSON-RPC, one
 // pending promise per id. Mirrors what dsh-mcp-client does on the real path.
 class McpChild {
-  static async start(dbDir) {
+  static async start(dbDir, extraEnv = {}) {
     const child = spawn("node", ["server/library-mcp.js"], {
-      env: { ...process.env, DB_PATH: path.join(dbDir, "app.db") },
+      env: { ...process.env, DB_PATH: path.join(dbDir, "app.db"), ...extraEnv },
       stdio: ["pipe", "pipe", "pipe"],
     });
     const mcp = new McpChild(child);

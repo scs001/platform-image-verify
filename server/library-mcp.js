@@ -1,16 +1,19 @@
 // ── Library MCP server (stdio) ───────────────────────────────────────────────
 //
-// Exposes the document library to the dsh agent as three MCP tools —
-// list_library, search_library, read_document — so a conversation retrieves
-// library content on demand instead of having it injected wholesale (design
-// D3/D4). Declared in mcp.json; dsh-profile.js mounts it through
-// dsh-mcp-client as mcp__library__<tool>.
+// Exposes the document library to the dsh agent as four MCP tools —
+// list_library, search_library, read_document, fetch_document_file — so a
+// conversation retrieves library content on demand instead of having it
+// injected wholesale (design D3/D4). Declared in mcp.json; dsh-profile.js
+// mounts it through dsh-mcp-client as mcp__library__<tool>.
 //
-// Read-only by construction: it goes through the shared search module
-// (documents-search.js) and never writes. It opens the same SQLite file the
-// platform server writes — safe under WAL because reads here are short
-// statements, and a crashed or killed child costs at most one tool call
-// (dsh-mcp-client reconnects; the platform server never depends on it).
+// Read-only on the library side by construction: it goes through the shared
+// search module (documents-search.js) and never writes the database or the
+// uploads root. The one write it performs is fetch_document_file copying a
+// retained original INTO the agent workspace (add-doc-studio) — workspace
+// writes are the agent's home turf, not library state. It opens the same
+// SQLite file the platform server writes — safe under WAL because reads here
+// are short statements, and a crashed or killed child costs at most one tool
+// call (dsh-mcp-client reconnects; the platform server never depends on it).
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -20,6 +23,12 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import * as db from "../db.js";
 import * as search from "../documents-search.js";
+import { storeDir } from "../paths.js";
+import {
+  OriginalNotRetainedError,
+  resolveWorkspaceDir,
+  storeOriginalInWorkspace,
+} from "./library-fetch.js";
 
 // The stdio channel IS the protocol: stdout must carry JSON-RPC and nothing
 // else. db.js logs its open line via console.log — reroute logging to stderr
@@ -85,6 +94,23 @@ const TOOLS = [
       required: ["doc_id"],
     },
   },
+  {
+    name: "fetch_document_file",
+    description:
+      "Copy a document's ORIGINAL uploaded file (docx, xlsx, pdf, …) from the library " +
+      "into the agent workspace under its filename, and return the workspace-relative " +
+      "path. Use it when the task needs the real file — editing an uploaded document, " +
+      "reformatting, extracting tables — rather than the extracted text from " +
+      "read_document. Fails explicitly when the original was not retained (e.g. a " +
+      "URL-ingested source).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        doc_id: { type: "string", description: "Document id from list_library or a search hit." },
+      },
+      required: ["doc_id"],
+    },
+  },
 ];
 
 // ── Tool implementations (plain strings — the model reads text) ─────────────
@@ -142,6 +168,25 @@ function toolReadDocument({ doc_id, cursor } = {}) {
   return textOut(`${header}\n${page.text}${next}`);
 }
 
+// Not gated on db.isDbReady the way the readers are: the DB tiers in only as
+// the workspace-preference lookup, and an unavailable database degrades to the
+// cwd tier rather than disabling the tool.
+async function toolFetchDocumentFile({ doc_id } = {}) {
+  const id = String(doc_id ?? "").trim();
+  if (!id) return errOut("fetch_document_file requires doc_id");
+  if (!db.isDbReady()) return errOut("library unavailable (database not open)");
+  const doc = db.getDocument(id);
+  if (!doc) return errOut(`document ${JSON.stringify(id)} does not exist`);
+  try {
+    const ws = await resolveWorkspaceDir({ getPreference: (k) => db.getPreference(k) });
+    const rel = await storeOriginalInWorkspace({ doc, uploadsRoot: storeDir("uploads"), workspaceDir: ws.path });
+    return textOut(`Saved original (${doc.name}) into the workspace: ${rel} (workspace source=${ws.source})`);
+  } catch (err) {
+    if (err instanceof OriginalNotRetainedError) return errOut(err.message);
+    throw err;
+  }
+}
+
 function textOut(text) {
   return { content: [{ type: "text", text }] };
 }
@@ -172,6 +217,8 @@ function buildServer() {
           return toolSearchLibrary(args);
         case "read_document":
           return toolReadDocument(args);
+        case "fetch_document_file":
+          return await toolFetchDocumentFile(args);
         default:
           return errOut(`unknown tool: ${name}`);
       }

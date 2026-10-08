@@ -139,11 +139,14 @@ RUN npm --prefix facet/web run build
 FROM ${BASE_IMAGE} AS runtime
 
 # ca-certificates for outbound HTTPS (Volces upstreams); curl for the CI image
-# smoke probe (docker exec) and ops debugging. Everything else is bundled in
+# smoke probe (docker exec) and ops debugging; python3 + pip for the office
+# execution layer (add-doc-studio: workspace-side docx/xlsx/pptx generation and
+# ingestion, pinned in requirements-office.txt — see that file for why
+# markitdown is NOT in the list). Everything else is bundled in
 # node_modules / web/dist and needs no system packages.
 RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources \
     && apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && apt-get install -y --no-install-recommends ca-certificates curl python3 python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -206,6 +209,18 @@ COPY --chown=node:node --from=builder /app/dsh-profile-template ./dsh-profile-te
 # deployment drifted into bind-mounted code + SFTP hotfixes. Its deps
 # (dsh-sdk-client, express, js-yaml) are already in the root node_modules.
 COPY --chown=node:node --from=builder /app/agent-runner ./agent-runner
+
+# Office execution layer (add-doc-studio): pinned pure-python + wheel deps only
+# (~60MB site-packages; markitdown deliberately absent — see requirements-office.txt).
+# This layer sits AFTER the source COPYs on purpose: a requirements bump
+# cache-busts only this layer, not the node_modules / dist layers above, and a
+# source change does not re-run pip. aliyun pypi mirror pairs with the aliyun
+# apt mirror above (China build host).
+COPY --chown=node:node --from=builder /app/requirements-office.txt ./
+RUN pip3 install --no-cache-dir --break-system-packages \
+        -i https://mirrors.aliyun.com/pypi/simple/ \
+        -r requirements-office.txt \
+    && rm requirements-office.txt
 
 # Persistent state lives under /data: SQLite, sessions, chat-history, cron,
 # dev-settings.json. PLATFORM_DATA_DIR points the supervisor (local-services.js)

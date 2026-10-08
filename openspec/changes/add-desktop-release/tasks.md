@@ -18,7 +18,7 @@
 ## 4. 未签名文档 + beta 纪律
 
 - [x] 4.1 公开仓 README 增未签名章：macOS Gatekeeper / Windows SmartScreen 绕过步骤 + 官网下载带脚注链接。验证：README 渲染可见两平台绕过说明。
-- [ ] 4.2 v1.3.0 首条目：macos `beta:false`（1.2 冒烟后）、windows `beta:true`；Windows 实机冒烟完成后翻转（spec 场景）。验证：官网下载带 beta 标记与实际冒烟状态一致。
+- [x] 4.2 beta 纪律全程成立并在冒烟后翻转：v1.3.0/v1.3.1 windows `beta:true`（未冒烟）→ Windows 安装冒烟通道建立（公开仓免费 runner 两阶段 win-install-smoke）→ v1.3.2–v1.3.5 四轮冒烟挖出并修复打包闭包四缺陷 → v1.3.5 冒烟绿（`/api/ready` 200，run 37775592610）→ release-sync 翻转（macos/windows 双 `beta:false`）+ 官网上线实证（en/zh 无 Beta 标、dl 直链 206、GitHub 源并存）。验证：官网下载带 beta 标记与实际冒烟状态一致 ✓
 
 ## 5. 官网回写联动
 

@@ -119,3 +119,7 @@ dist-opensource/
 
 # npm pack artifacts (facet CLI)
 *.tgz
+
+# Python build artifacts (doc-studio sample generator)
+__pycache__/
+*.pyc

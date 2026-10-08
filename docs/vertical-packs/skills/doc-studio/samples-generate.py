@@ -243,9 +243,9 @@ def build_workbook_sample(path):
     wb = openpyxl.Workbook()
     ws = wb.active; ws.title = "月度数据"
     ws.append(["月份", "营收（万）", "成本（万）", "毛利率"])
-    for m, rev, cost in ((1, 860, 512), (2, 905, 530), (3, 1020, 570), (4, 1105, 601),
-                         (5, 1180, 628), (6, 1240, 650)):
-        ws.append([f"2026-{m:02d}", rev, cost, f"=(B{ws.max_row}-C{ws.max_row})/B{ws.max_row}"])
+    for i, (m, rev, cost) in enumerate(((1, 860, 512), (2, 905, 530), (3, 1020, 570), (4, 1105, 601),
+                         (5, 1180, 628), (6, 1240, 650)), start=2):
+        ws.append([f"2026-{m:02d}", rev, cost, f"=(B{i}-C{i})/B{i}"])
     for c in ws[1]:
         c.font = Font(bold=True); c.fill = PatternFill("solid", fgColor="DEEBF7")
     ws.column_dimensions["A"].width = 12
@@ -255,7 +255,7 @@ def build_workbook_sample(path):
     chart = BarChart(); chart.title = "月度营收"
     chart.add_data(Reference(ws, min_col=2, min_row=1, max_row=ws.max_row), titles_from_data=True)
     chart.set_categories(Reference(ws, min_col=1, min_row=2, max_row=ws.max_row))
-    ws.add_chart(chart, "F2")
+    ws.add_chart(chart, "A9")  # 数据下方：右侧锚位被打印分页从中间切开（真机渲染实证）
     wb.save(path)
 
 def build_deck_sample(path):

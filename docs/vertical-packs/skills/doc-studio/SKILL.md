@@ -216,7 +216,7 @@ def add_toc(doc):
 
 ## 数据工作簿（xlsx）
 
-结构骨架：每簿一个主题；数据表名实义（禁止 Sheet1）；第一行表头加粗 + light 底；指标列写公式（`=(B2-C2)/B2`）而非硬编码值；超阈值条件格式（红 `FFC7CE`）标异常；配一张图表（openpyxl.chart，色序按设计系统）。数字列固定小数位，日期用 `YYYY-MM` 文本或日期格式，不混排。
+结构骨架：每簿一个主题；数据表名实义（禁止 Sheet1）；第一行表头加粗 + light 底；指标列写公式（`=(B2-C2)/B2`）而非硬编码值，**公式行号用显式循环变量（`f"=(B{i}-C{i})/B{i}"`），禁止拿 `ws.max_row` 当行号——它在 append 前求值，永远差一行**；超阈值条件格式（红 `FFC7CE`）标异常；配一张图表，**锚在数据块下方（如 `ws.add_chart(chart, "A9")`）而非右侧——右侧锚位会被打印分页从中间切开**。数字列固定小数位，日期用 `YYYY-MM` 文本或日期格式，不混排。
 
 ```python
 from openpyxl.formatting.rule import CellIsRule

@@ -20,10 +20,10 @@
 
 ## 3. 切片 C：计费收口与社区准入
 
-- [ ] 3.1 wire 线 sub2api 入账管道：**代码+测试+演练+部署 2026-10-07（fd-wire api/web sha-4bd707c 上线）**（归属修正：改动落 fd-wire 而非 fork——`fd_wire_api/metering/driver.py` 周期 poll→settle 驱动挂 lifespan，8/8 单测 + 495 全量回归绿；闭月语义修正：settle 只结已关闭月，月内靠预检+预警，防整月幂等键固化吞增量）；**余部署+真回合记账实证**（fd-wire 部署配 REGISTRY_MONGO_URI + SUB2API_ADMIN_KEY 后首月 rollover 观察）
+- [ ] 3.1 wire 线 sub2api 入账管道：**部署+推送接线完成 2026-10-08**——fd-wire sha-4bd707c 上线（驱动活）；审计流走 cheap-1 cron 推送器（`push_audit_to_wire.py`，*/5 分钟，Mongo 保持 loopback 零暴露，Bearer 令牌 fail-closed），真推送 500 条实证通道通（全部落 anomaly=握手类流量本就无 rows_returned 戳，行为正确）；**余首笔带戳真回合记账观察（次月 rollover 结算验证）**
 - [x] 3.2 账本硬停：账本路径降级时按硬停上限拒入（fail-closed），演练脚本实证「降级不放行无计量调用」（`fd-wire/scripts/drill_metering_hardstop.py` 四轮全绿：闭月入账恰一次/当月只计量/降级零丢失零落账/恢复幂等重放；预检侧 402/503 已活链实证 2026-10-05）
-- [ ] 3.3 key 月度免费额度：**代码+测试完成 2026-10-07（fork 分支 fd-call-grant，两 commit）**——每**属主**月度池（名下全键共享，防 20 键×5k 滥用乘法；spec 措辞已按此理解）、仅 tools/call 计数、402 GRANT_EXHAUSTED/503 GRANT_UNAVAILABLE fail-closed、`GET /api/patch-keys` 带 {month,used,limit}、CALL_GRANT_* env 默认惰性；23/23 单测绿、auth-server 套零回归（基线 8F/13E 预存在）；**余部署开闸（env）+ 活链实测**
-- [ ] 3.4 community 组与付费档：**代码+IAM 落产 2026-10-07**——fork：IDP_USER_GROUP_DEFAULTS（干净 miss 才发默认组、显式空记录抑制、库故障 fail-closed）+ CALL_GRANT_TIER_SERVERS 档位门（402 TIER_REQUIRED 先于 scope 403）；prod IAM：`mcp-community-read` scope 已插（fd-open-data-mcp+fd-cn-report，groups=[community]，备份在 cheap-1 /tmp）、law-bench 维持 legal 组=付费档；**余部署 env（DEFAULTS=community、TIER_SERVERS=law-bench:paid）+ community 键实测（升降档=组分配免重铸）**
+- [x] 3.3 key 月度免费额度：**生产活链实证 2026-10-08**（CALL_GRANT_ENABLED=true 开闸+sha-63126fe 上线）；真链实测=community 键 tools/call → `call_grant_usage` 计数落库（eco_walkthrough_01/2026-10/1）；发布过程修三处接缝：patch-key 空快照组回退、proxy token 携带 resolved groups、canonical auth_method 抹平 patch-key 标记的判据兼容；8444 全量回归绿
+- [x] 3.4 community 组与付费档：**生产活链实证 2026-10-08**——community 键真回合读 fd-open-data-mcp（真实数据 2105 指标/636 万行）；law-bench → **402 TIER_REQUIRED**（「该服务属付费档…升级后即可调用」）；升降档=组分配免重铸（组解析每次 validate 现算）。实现全链=组回退（JWT+patch-key 两路）+ /validate 与 mcp_proxy 双层档位门 + nginx 403 标记→402 重写（auth_request 只转发 401/403 的边界约束）
 - [x] 3.5 Logto 公开注册开放 + 自助铸键面走通：**生产全链实证 2026-10-07**——①`createAccountEnabled=true`（本就开）+ 登录页「Create account」真浏览器可达（注册页/建号/Link email/验证码已发，Aliyun Direct Mail 连接器在配）；②无组用户 → `IDP_USER_GROUP_DEFAULTS` 解析出 `['community']`（生产容器内实测）；③组映射三条精确落位：community→mcp-community-read / wire-customers→mcp-business-wire-execute（客户线未扰）/ legal→law-bench+data（付费档）。**余**：验证码收件箱在阿里云企业邮（走查止步于收码，用户侧一步可完成端到端）
 
 ## 4. 切片 D：出向文档与收尾

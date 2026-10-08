@@ -155,6 +155,12 @@ const SCRUBS = [
     1,
   ],
   [
+    "scripts/release-sync.mjs",
+    "production serves /dl/\\* from the platform host via cheap-1 Caddy\\.",
+    "production serves /dl/* from the platform host via its edge proxy.",
+    1,
+  ],
+  [
     "Dockerfile",
     "is a 4GB machine that ALSO runs the production pod:",
     "is memory-constrained and shares the node with other workloads:",

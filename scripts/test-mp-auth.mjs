@@ -251,15 +251,24 @@ test("Bearer token routes to the ACCOUNT's cell with verified identity + groups"
   assert.equal(body.hasGatewaySecret, true);
 });
 
-test("forged token → 401, cell never contacted", async () => {
+test("forged token → not authenticated, cell never contacted", async () => {
   const forged = `${token.slice(0, -4)}AAAA`;
-  assert.equal((await gw("/api/config", { headers: { authorization: `Bearer ${forged}` } })).status, 401);
+  // add-login-hero 6.2: /api/config is anonymous (login-page branding), so the
+  // proof is no longer a 401 — it is that the forged token buys no identity and
+  // never reaches a cell.
+  const r = await gw("/api/config", { headers: { authorization: `Bearer ${forged}` } });
+  const body = await r.json();
+  assert.equal(body.stub, undefined, "a forged token must not reach a cell");
+  assert.equal(body.email, undefined, "a forged token must not produce an identity");
 });
 
-test("expired token → 401", async () => {
+test("expired token → not authenticated", async () => {
   const { signMpJwt } = await import("../gateway/mp-auth.js");
   const expired = signMpJwt({ sub: "o-ALPHA-111", email: aliceEmail, iat: 1, exp: 2 }, TOKEN_SECRET);
-  assert.equal((await gw("/api/config", { headers: { authorization: `Bearer ${expired}` } })).status, 401);
+  const r = await gw("/api/config", { headers: { authorization: `Bearer ${expired}` } });
+  const body = await r.json();
+  assert.equal(body.stub, undefined, "an expired token must not reach a cell");
+  assert.equal(body.email, undefined, "an expired token must not produce an identity");
 });
 
 test("client-supplied identity headers are stripped alongside a valid token", async () => {
@@ -278,8 +287,15 @@ test("client-supplied identity headers are stripped alongside a valid token", as
   assert.equal(body.hasGatewaySecret, true, "real gateway secret, not the spoof");
 });
 
-test("anonymous programmatic request → 401 (no login redirect)", async () => {
-  assert.equal((await gw("/api/config")).status, 401);
+test("anonymous request is served the public config (no identity)", async () => {
+  // add-login-hero 6.2: the pre-login page needs /api/config before it has any
+  // identity, so it answers anonymously with deployment-level branding — and
+  // deliberately with no identity fields.
+  const r = await gw("/api/config");
+  assert.equal(r.status, 200);
+  const body = await r.json();
+  assert.equal(body.stub, undefined, "an anonymous request must not reach a cell");
+  assert.equal(body.email, undefined, "an anonymous request must not produce an identity");
 });
 
 test("WebSocket upgrade authenticates with the Bearer token", async () => {

@@ -205,11 +205,24 @@ test("gateway: auth, routing, sticky WebSocket, restart resume, idle reap", asyn
     gw = await startGateway(oidc.port, path.join(root, "cells"));
 
     // ── 2.2 Anonymous, and forged identity, never reach a cell ──────────────
+    // add-login-hero 6.2: the pre-login SPA shell is served to anonymous
+    // browsers so the product's own login page can render (it reads the
+    // anonymous /api/config + /api/auth/me below and routes itself to /login).
+    // The identity boundary moved from "redirect every page" to "never reach a
+    // cell": the SPA is a static shell, and every cell-backed call still
+    // requires a session.
     const anonymousPage = await gw.call("/", { headers: { accept: "text/html" } });
-    assert.equal(anonymousPage.status, 302, "browser navigation must redirect to login");
-    assert.equal(anonymousPage.location, "/auth/login");
+    assert.equal(anonymousPage.status, 200, "anonymous browsers get the SPA shell (which shows the login page)");
+    assert.ok(anonymousPage.text.includes("<!doctype html"), "the shell is the SPA's index.html");
 
-    assert.equal((await gw.call("/api/config")).status, 401, "anonymous API access must be rejected");
+    // Anonymous config/identity reads are public deployment-level facts — the
+    // login page needs them before it has any identity.
+    const anonConfig = await gw.call("/api/config");
+    assert.equal(anonConfig.status, 200, "anonymous /api/config serves the login-page branding");
+    const anonMe = await gw.call("/api/auth/me");
+    assert.equal(anonMe.status, 200, "anonymous /api/auth/me tells the SPA to render the login page");
+    assert.equal(anonMe.json.authenticated, false);
+    assert.equal(anonMe.json.mode, "logto");
 
     const anonymousWs = await new Promise((resolve) => {
       const ws = new WebSocket(`ws://127.0.0.1:${gw.port}/`);
@@ -219,10 +232,20 @@ test("gateway: auth, routing, sticky WebSocket, restart resume, idle reap", asyn
     });
     assert.equal(anonymousWs, 401, "anonymous WebSocket upgrade must be rejected");
 
+    // Forged headers must not create an identity. /api/config is anonymous by
+    // design (login-page branding), so the proof is that the forged request
+    // gets the ANONYMOUS answer and never a cell-backed one.
     const forged = await gw.call("/api/config", {
       headers: { "x-forwarded-email": "root@cell.test", "x-forwarded-groups": "admin" },
     });
-    assert.equal(forged.status, 401, "client-supplied identity headers must not authenticate");
+    assert.equal(forged.status, 200, "anonymous config is public");
+    assert.equal(forged.json.assistantName, process.env.ASSISTANT_NAME?.trim() || null, "forged headers must not reach a cell (env answer only)");
+    // And the identity-shaped route still refuses to invent one.
+    const forgedMe = await gw.call("/api/auth/me", {
+      headers: { "x-forwarded-email": "root@cell.test", "x-forwarded-groups": "admin" },
+    });
+    assert.equal(forgedMe.status, 200);
+    assert.equal(forgedMe.json.authenticated, false, "client-supplied identity headers must not authenticate");
 
     // ── 2.1 First traffic starts the cell; the identity reaches it ──────────
     const me = await gw.call("/api/auth/me", { cookie: alice });

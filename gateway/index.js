@@ -136,6 +136,82 @@ function resolveUser(req) {
   return null;
 }
 
+// Anonymous deployment config (add-login-hero 6.2). The pre-login page reads
+// GET /api/config to render branding (company name, icon, footer, and the
+// loginHero slots) BEFORE it has any identity — that is the whole point of
+// the branding surface. The catch-all below would 401 this route, so the
+// gateway answers it directly from env, mirroring the cell's stored→env→null
+// resolution for the env half. Deployment-level values only: nothing here is
+// per-user, which is why it is safe to serve anonymously.
+//
+// Authenticated requests fall through to the cell (next()), which owns the
+// stored branding — and whose boot-on-first-request behavior the routing
+// contract depends on.
+function brandingEnv(envName) {
+  return (process.env[envName] || "").trim() || null;
+}
+function loginHeroEnv() {
+  const raw = (process.env.LOGIN_HERO || "").trim();
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    console.warn("[gateway] LOGIN_HERO is not valid JSON; ignoring");
+    return null;
+  }
+}
+app.get("/api/config", (req, res, next) => {
+  if (resolveUser(req)?.email) return next();
+  res.json({
+    documentsEnabled: true,
+    packMarketplace: process.env.PACK_MARKETPLACE === "1",
+    assistantName: brandingEnv("ASSISTANT_NAME"),
+    companyName: brandingEnv("COMPANY_NAME"),
+    brandIconUrl: brandingEnv("BRAND_ICON_URL"),
+    loginFooterText: brandingEnv("LOGIN_FOOTER_TEXT"),
+    loginHero: loginHeroEnv(),
+  });
+});
+
+// Anonymous identity introspection. The SPA calls this before it has a
+// session to decide between the login page and the app; a 401 here reads as
+// "auth is not configured", which would send visitors straight into the chat
+// shell. Answers the anonymous shape (mode "logto", authenticated false) so
+// the login page renders with its SSO entry. A request that DOES carry a
+// session falls through to the cell: the first authenticated request is what
+// boots a user's cell, so short-circuiting here would leave it unstarted.
+app.get("/api/auth/me", (req, res, next) => {
+  if (resolveUser(req)?.email) return next();
+  res.json({
+    mode: "logto",
+    email: null,
+    groups: null,
+    authenticated: false,
+    adminGroups: ADMIN_GROUPS,
+    loginUrl: "/auth/login",
+    logoutUrl: "/api/auth/logout",
+    ssoConfigured: false,
+    ssoAuthenticated: false,
+    ssoEmail: null,
+    ssoGroups: null,
+  });
+});
+
+// ── Pre-login SPA shell (add-login-hero 6.2) ───────────────────────────────
+// Registered just before the identity catch-all (below), after every concrete
+// route — /healthz and the /api/* routes must not be swallowed by the SPA
+// fallback. The React app decides for itself whether to show the login page
+// (it reads /api/auth/me and /api/config, both reachable anonymously) — but
+// only if it can load. Without these routes the catch-all redirects every
+// request, including the bundle itself, straight to the hosted Logto page, so
+// the product's own login surface is unreachable on a hosted deployment.
+const WEB_DIST = path.join(REPO, "web", "dist");
+app.use(express.static(WEB_DIST));
+app.get(/^\/(?!api\/|external\/|auth\/|healthz$|assets\/).*/, (_req, res) => {
+  res.sendFile(path.join(WEB_DIST, "index.html"));
+});
+
 // Bind-code minting for the web side: an authenticated BROWSER session (the
 // Logto cookie) gets a 6-digit, single-use, 5-minute code to type into the
 // mini program once. Browsers get a small human-readable page; programmatic

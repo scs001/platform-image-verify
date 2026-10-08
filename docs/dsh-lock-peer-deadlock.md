@@ -78,6 +78,34 @@ missing → 拒启（崩溃环）。prod 现镜像（sha-9f41c5a）早于 c34957
 `scripts/test-dsh-profile-links.mjs` 4 案 + 隔离复验（ensureDshHome 后矩阵四包
 仍是真目录；同布局 dsh-contracts 6/6）。
 
+## 第三缺陷：应用树 dsh 二进制不可 boot（2026-10-09，f2af032 prod 事故，镜像侧已修）
+
+prod 滚上 sha-f2af032 后**每 cell 的 dsh 子进程**死在：
+`ERR_MODULE_NOT_FOUND: @deepseek-ai/cordis-plugin-loader imported from
+/app/node_modules/@deepseek-ai/cordis-plugin-group/lib/index.js` → agent init 失败
+（chat 显示 No model）；`/api/config` 仍 200（浅路由），已回滚到 9f41c5a。
+
+链路：4e348c3 把 `@deepseek-ai/cordis-plugin-group` 提为根依赖 → npm 提升到应用树
+顶层并**删掉嵌套副本**，但其 peer `cordis-plugin-loader` 仍只在 dsh 嵌套树 →
+嵌套 `dsh-app-boot` 的 `import Group from "@deepseek-ai/cordis-plugin-group"`
+落到顶层副本，group 再导入 loader 即炸。同轮 dsh-bridge 改为**优先 spawn 应用树
+dsh 二进制**（桌面打包场景），镜像里于是必撞。本地逐字复现：
+`node node_modules/@deepseek-ai/dsh/lib/bin.js --help` 同错。
+
+**镜像侧修法（已合入）**：`ENV DSH_BIN=/opt/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js`
+——把运行时钉回冻结矩阵树（boot 硬门 + dsh-contracts 6/6 验证的正是它；旧镜像
+本就走 PATH→/opt/dsh，无 bundled 优先，此钉=恢复既有行为）。实证：钉后
+`/api/ready {"ready":true}`，不钉 503（同错）。
+
+**盲点修复（已合入）**：两管线冒烟补 `/api/ready` 门——`/api/config` 是浅路由，
+agent 死了也 200；`/api/ready` 仅在 dsh 握手完成后翻 200。
+
+**应用树侧（桌面线，未修，建议一行）**：把 `@deepseek-ai/cordis-plugin-loader`
+也声明为根依赖（`"1.0.5"`，紧邻 group 行）。已实证：临时 symlink 后应用树
+dsh 二进制即 boot 成功（`--help` exit 0）。不改则 dev `npm start`、快照 CI 的
+dsh 单测、桌面打包树都带着这颗雷。lock 重生成预期 delta=loader 从嵌套移到顶层
+（1 增 1 删，无版本变化）。
+
 ## 根树缺口（未修，桌面线相关）
 
 根树（`/app/node_modules`）的 flag 必须保留，但它漏装 rc.5 侧 peer：`@deepseek-ai/dsh-llm-deepseek@0.0.1-rc.5` 的 `lib/index.js` 第 3 行 `import { credentialRef } from "@deepseek-ai/dsh-credentials"` 在根树解析不到（该包只存在于 dsh 嵌套树 `node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/`）。本地不炸是因为 `scripts/test-agent-notify-bridge.mjs` 的 anchor 探测先命中 homebrew 全局 dsh；快照 CI（干净机器）命中根树 → 单测 `bridge: subclasses the preset bridge…` 红。

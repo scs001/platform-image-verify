@@ -110,5 +110,37 @@ assert.equal(
   "sibling real entry untouched",
 );
 
+// ── case 5: app-tree poison in the deployment dir is healed ────────────────
+// The pre-fix revision linked the absent bridge packages INTO the
+// deployment's module dir, pointing at the app tree. Two copies of dsh-tools
+// then existed (app rc.1 + matrix rc.2): two TOOL_RUNTIME_SCHEDULER Symbols,
+// and every tool call died with "Cannot read properties of undefined (reading
+// 'prepare')" (prod roll sha-e956091). The heal removes exactly those links —
+// links elsewhere and real dirs stay.
+rmSync(path.join(home, "profiles"), { recursive: true, force: true });
+mkdirSync(profileDir, { recursive: true });
+// rebuild the shared tree cleanly, then plant the poison
+for (const pkg of PKGS) {
+  const dir = path.join(shared, "node_modules", pkg);
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: pkg, version: "0.1.1-rc.2-matrix" }));
+}
+symlinkSync(path.join(shared, "node_modules"), moduleDir, "dir");
+rmSync(path.join(shared, "node_modules", PKGS[0]), { recursive: true, force: true });
+symlinkSync(path.join(APP_NODE_MODULES, PKGS[0]), path.join(shared, "node_modules", PKGS[0]), "dir");
+const notOurs = path.join(root, "not-ours");
+mkdirSync(notOurs, { recursive: true });
+rmSync(path.join(shared, "node_modules", PKGS[2]), { recursive: true, force: true });
+symlinkSync(notOurs, path.join(shared, "node_modules", PKGS[2]), "dir");
+profile.ensureDshHome();
+assert.equal(existsSync(path.join(shared, "node_modules", PKGS[0])), false, "app-tree poison link removed");
+assert.equal(realpathSync(path.join(shared, "node_modules", PKGS[2])), realpathSync(notOurs), "non-app symlink kept");
+assert.equal(
+  lstatSync(path.join(shared, "node_modules", PKGS[1])).isSymbolicLink(),
+  false,
+  "deployment's real entry kept",
+);
+
 rmSync(root, { recursive: true, force: true });
-console.log("dsh-profile links: 4/4 cases pass");
+console.log("dsh-profile links: 5/5 cases pass");

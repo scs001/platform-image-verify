@@ -23,7 +23,7 @@
 import { readFileSync, writeFileSync, mkdirSync, chmodSync, existsSync, statSync, lstatSync, copyFileSync, symlinkSync, readdirSync, realpathSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
-import { join, dirname, resolve } from "node:path";
+import { join, dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { atomicWriteTextSync, normalizeBaseUrl } from "./lib/persistence.js";
@@ -459,17 +459,64 @@ function linkProfilePinnedModules() {
   // generations mix (rc.2 runtime + rc.5 server). Observed on image-publish
   // 37847464206: the boot smoke passed, the platform's own boot mutated
   // /opt/dsh, and the contracts step then reported four packages "resolving
-  // outside the candidate tree" with the child dead at handshake. So: when
-  // the module dir is itself a symlink, an existing entry is the deployment's
-  // answer — leave it (only an ABSENT entry gets linked, the pre-v1.3.6
-  // behavior). A real module dir is ours to manage: stale leftovers there
-  // (the desktop v1.3.6 "exists and is not a symlink" child death) are
-  // cleared and re-pointed at the app copy.
+  // outside the candidate tree" with the child dead at handshake.
+  //
+  // So when the module dir is itself a symlink, it is ENTIRELY the
+  // deployment's: never write an entry into it, not even a missing one. An
+  // earlier revision linked the absent packages there and that was worse than
+  // the mutation it replaced: the links pointed at the APP tree's copies
+  // (dsh-tools rc.1 / dsh-session rc.5) while the runtime boots from the
+  // matrix tree (rc.2), so the child loaded TWO instances of dsh-tools — two
+  // TOOL_RUNTIME_SCHEDULER Symbols — and every tool call died with
+  // "Cannot read properties of undefined (reading 'prepare')" (2026-10-09
+  // prod roll sha-e956091, reproduced in-browser; chat turns without tools
+  // worked, which is what made it look like a skill problem). Absence is the
+  // deployment's business too: the matrix closure is complete, and dsh's own
+  // boot healer fills the flat profiles/node_modules fallback. A real module
+  // dir is ours to manage: stale leftovers there (the desktop v1.3.6 "exists
+  // and is not a symlink" child death) are cleared and re-pointed at the app
+  // copy.
   let moduleDirIsLink = false;
   try {
     moduleDirIsLink = lstatSync(moduleDir).isSymbolicLink();
   } catch {
     /* absent — the link loop below creates it */
+  }
+  if (moduleDirIsLink) {
+    // Deployment-provisioned: touch nothing of the deployment's — except our
+    // OWN earlier poison. A revision before this one linked the absent
+    // packages here, pointing at the app tree; those links split the module
+    // identity (see the note above) and must go. Only links whose target sits
+    // under APP_NODE_MODULES are ours to remove; real dirs (the deployment's
+    // own install) and links elsewhere are left alone. The runtime then
+    // resolves through the flat profiles/node_modules fallback that dsh's
+    // boot healer maintains from the matrix install.
+    for (const pkg of PROFILE_BRIDGE_PACKAGES) {
+      const link = join(moduleDir, pkg);
+      let st = null;
+      try {
+        st = lstatSync(link);
+      } catch {
+        continue;
+      }
+      if (!st.isSymbolicLink()) continue;
+      let target = "";
+      try {
+        target = realpathSync(link);
+      } catch {
+        continue; // dangling — not ours to judge
+      }
+      const appRoot = realpathSync(APP_NODE_MODULES);
+      if (target === appRoot || target.startsWith(appRoot + sep)) {
+        try {
+          rmSync(link);
+          console.log(`[dsh-profile] removed app-tree ${pkg} link from the deployment module dir (module-identity poison)`);
+        } catch (err) {
+          console.warn(`[dsh-profile] could not remove poisoned ${pkg} link at ${link}: ${err.message}`);
+        }
+      }
+    }
+    return;
   }
   for (const pkg of PROFILE_BRIDGE_PACKAGES) {
     const link = join(moduleDir, pkg);
@@ -482,7 +529,6 @@ function linkProfilePinnedModules() {
       existing = null;
     }
     if (existing) {
-      if (moduleDirIsLink) continue; // deployment-provisioned frozen tree
       if (existing.isSymbolicLink()) {
         let same = false;
         try {

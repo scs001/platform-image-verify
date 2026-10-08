@@ -106,6 +106,31 @@ dsh 二进制即 boot 成功（`--help` exit 0）。不改则 dev `npm start`、
 dsh 单测、桌面打包树都带着这颗雷。lock 重生成预期 delta=loader 从嵌套移到顶层
 （1 增 1 删，无版本变化）。
 
+## 第四缺陷：模块身份双实例——全工具调用挂（2026-10-09，已修 e504ffd）
+
+镜像侧 `DSH_BIN` 钉好后（sha-e956091）agent 起得来、纯文本回合正常，但**任何
+工具调用**都死在 `Cannot read properties of undefined (reading 'prepare')`。
+浏览器实测复现（bash echo 必挂、无工具对话正常，极易误判为"技能问题"）。
+
+根因=**上一版修复自己引入**：328b42b 的「部署供给的树只补缺项」把
+`dsh-tools`/`dsh-session`/`schemastery` 链进 cell 的 profile 模块目录，
+目标是**应用树**副本（dsh-tools rc.1 / dsh-session rc.5），而运行时从矩阵树
+（rc.2）boot → 同一包两份实例 → `TOOL_RUNTIME_SCHEDULER` 是两个不同的
+Symbol → `ctx.tools[SYMBOL]` 取不到 → `undefined.prepare`。
+
+修法（e504ffd）：moduleDir 是符号链 ⇒ 部署供给，**一个条目都不写**（缺项也
+不补——矩阵闭包完整，dsh boot healer 自会维护 `profiles/node_modules` 扁平
+回退）；并清除**自身旧版注入**的应用树链（只删目标在 APP_NODE_MODULES 下的
+符号链）。回归测试扩到 5 案（新增第 5 案：毒链被清、部署真目录与第三方链不动）。
+
+**宿主状态需手工疗一次**（旧镜像不含修复代码，回滚也不会清）：
+```bash
+kubectl -n fd-prod exec deploy/platform -- sh -c \
+  'rm -f /opt/dsh-home/profiles/platform/node_modules/@deepseek-ai/{dsh-session,dsh-tools,schemastery}'
+kubectl -n fd-prod rollout restart deploy/platform
+```
+疗后实证：`echo hello-healed` 真回合返回输出（exit 0）。
+
 ## 根树缺口（未修，桌面线相关）
 
 根树（`/app/node_modules`）的 flag 必须保留，但它漏装 rc.5 侧 peer：`@deepseek-ai/dsh-llm-deepseek@0.0.1-rc.5` 的 `lib/index.js` 第 3 行 `import { credentialRef } from "@deepseek-ai/dsh-credentials"` 在根树解析不到（该包只存在于 dsh 嵌套树 `node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/`）。本地不炸是因为 `scripts/test-agent-notify-bridge.mjs` 的 anchor 探测先命中 homebrew 全局 dsh；快照 CI（干净机器）命中根树 → 单测 `bridge: subclasses the preset bridge…` 红。

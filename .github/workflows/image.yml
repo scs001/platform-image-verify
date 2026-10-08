@@ -146,6 +146,35 @@ jobs:
       - name: Smoke test (dsh contracts on /opt/dsh)
         run: docker exec platform-smoke node /app/scripts/dsh-contracts.mjs --tree /opt/dsh
 
+      # Module-identity gate: the child resolves its plugins through the
+      # PROFILE dir, not /opt/dsh directly — if anything shadows the runtime's
+      # packages with the app tree's copies, the child loads two instances of
+      # a package and its Symbols stop matching (2026-10-09 sha-e956091: every
+      # tool call died on undefined.prepare; contracts on /opt/dsh cannot see
+      # this). This probe resolves from the profile path and requires every
+      # bridge package to land inside the matrix tree.
+      - name: Smoke test (module identity — profile resolution)
+        run: |
+          docker exec platform-smoke node --input-type=module -e '
+            import { createRequire } from "node:module";
+            import { realpathSync } from "node:fs";
+            const anchor = "/opt/dsh-home/profiles/platform/package.json";
+            const req = createRequire(anchor);
+            const pkgs = ["@deepseek-ai/schemastery", "@deepseek-ai/dsh-session", "@deepseek-ai/dsh-tools", "@deepseek-ai/dsh-sdk-jsonrpc-server"];
+            const bad = [];
+            for (const p of pkgs) {
+              let real;
+              try { real = realpathSync(req.resolve(p + "/package.json")); }
+              catch { real = realpathSync(req.resolve(p)); }
+              if (!real.startsWith("/opt/dsh/")) bad.push(`${p} -> ${real}`);
+            }
+            if (bad.length) {
+              console.error("MODULE IDENTITY FAILED — profile resolution escapes the matrix tree:\n  " + bad.join("\n  "));
+              process.exit(1);
+            }
+            console.log("module identity ok: all bridge packages resolve inside /opt/dsh");
+          '
+
       - name: Push image
         run: |
           TAG="${{ steps.tag.outputs.tag }}"

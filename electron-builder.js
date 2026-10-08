@@ -136,6 +136,22 @@ const config = {
     target: [{ target: "nsis", arch: ["x64"] }],
     legalTrademarks: companyName,
   },
+
+  // Assisted installer (win-install-smoke 2026-10-08 real-device round): the
+  // electron-builder NSIS default is oneClick=true — a silent flow with NO
+  // directory chooser, NO progress/finish page, and NO cancel button, which
+  // read as "stuck on installing" for a ~300MB unpack (asar:false + bundled
+  // Node). This is a TOP-LEVEL key (not under `win`: the schema has no `nsis`
+  // inside `win`, a misplaced block is silently ignored). assisted installer
+  // = the standard wizard: directory picker, progress, finish page.
+  // perMachine:false keeps it per-user (no UAC prompt for an unsigned exe).
+  nsis: {
+    oneClick: false,
+    perMachine: false,
+    allowToChangeInstallationDirectory: true,
+    allowElevation: true,
+    deleteAppDataOnUninstall: false,
+  },
 };
 
 export default config;

@@ -149,7 +149,9 @@ async function boot() {
     await supervisor.start();
     const port = supervisor.serverPort;
     if (!port) throw new Error("no server port assigned");
-    openWindow(`http://localhost:${port}`);
+    // 127.0.0.1, not localhost: on Windows the localhost resolution can
+    // prefer IPv6 and fall back slowly, stretching the blank-window wait.
+    openWindow(`http://127.0.0.1:${port}`);
   } catch (err) {
     console.error("[electron] supervisor start failed:", err);
     openErrorWindow(`Backend failed to start: ${err && err.message ? err.message : err}`);

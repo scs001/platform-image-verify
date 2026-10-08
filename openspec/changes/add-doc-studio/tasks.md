@@ -3,8 +3,10 @@
 ## 1. 切片① 执行层（runtime 镜像）
 
 - [x] 1.1 仓根新建 `requirements-office.txt`（钉版：python-docx / openpyxl / python-pptx / mammoth；markitdown 实测出局——185MB 重依赖零质量加成，用户定案 B 瘦身），干净 venv 验证可装、无重依赖、三格式写读回环全绿（site-packages 58MB 实测留档）
-- [ ] 1.2 Dockerfile runtime 阶段加 `python3 python3-pip`（沿用 aliyun apt 源惯例）+ pip 国内镜像装 requirements-office.txt；`docker build` 过，容器内 `python3 -c "import docx, openpyxl, pptx, markitdown"` 全通
-- [ ] 1.3 实测镜像体积增幅并与构建前对比（预期 +80–120MB），结果记入本 change 备注；超 150MB 触发瘦身复查（extras/缓存层）
+- [x] 1.2 Dockerfile runtime 阶段加 `python3 python3-pip`（沿用 aliyun apt 源惯例）+ pip 国内镜像装 requirements-office.txt；`docker build` 过，容器内 `python3 -c "import docx, openpyxl, pptx, markitdown"` 全通
+  - **CI 实证（scs001/platform-image-verify image-build-check run 37784214791）**：build ✓（冷 20min/缓存 3min）+ 镜像内 office 冒烟 ✓（python3 + 四库 import + docx round-trip；markitdown 已出局故实际为 mammoth）。注：/api/config boot 冒烟红=dsh lock 与 package.json 不同步+peer 两代互斥（桌面线修，missing 清单已交底），与 python 层无关——office 冒烟已置于 boot 前，独立闭环
+- [x] 1.3 实测镜像体积增幅并与构建前对比（预期 +80–120MB），结果记入本 change 备注；超 150MB 触发瘦身复查（extras/缓存层）
+  - **实测：镜像 1.17GB（未压缩口径，docker images），pip 层 42.9MB + apt python3 ≈ +103MB，低于估算带**；image-build-check 每次 push 自动记 size+docker history 到 step summary，逐次留档
 
 ## 2. 切片① fetch_document_file（读轨地基）
 

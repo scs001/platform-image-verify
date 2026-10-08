@@ -35,7 +35,7 @@ jobs:
         env:
           PLATFORM_SKIP_WEB_BUILD: "1"
           PLATFORM_SKIP_BUNDLE: "1"
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Lint (Biome)
         run: npm run lint
@@ -175,7 +175,7 @@ jobs:
         env:
           PLATFORM_SKIP_WEB_BUILD: "1"
           PLATFORM_SKIP_BUNDLE: "1"
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       # The scratch npm ci (~450 packages) is the slow leg; cache it keyed on
       # the matrix lock. MUST come after `npm ci` above — that step removes

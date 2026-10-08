@@ -20,6 +20,13 @@ commit can point at either registry's image interchangeably.
 
 ## Architecture
 
+> **两个壹座域名指向不同部署（2026-10-08 实测，别搞混）**：
+> `platform.finddatatech.cloud` → **fd-prod/platform**（TCR 镜像、网关拓扑、`/healthz` 返回
+> `{"cells":1,…}`、挂 `platform-config`，**功能集市场在这里**）；
+> `paas.finddatatech.cloud` → **law-craw-web/lawcraw**（Harbor 内网镜像、单机拓扑、`/healthz`
+> 返回 `{"uptime":…}`、**没有市场，也架构上不支持**——facet 代理只在 gateway/index.js 拓扑挂载，
+> 给 lawcraw 加 `PACK_MARKETPLACE`/`FACET_BASE_URL` 无效）。要验市场/装包一律用 platform 域。
+
 | Piece | Where | What |
 |---|---|---|
 | `Dockerfile` | repo root | Multi-stage build: compiles native addons + installs the pinned dsh CLI/profile into `/opt/dsh` + builds `web/dist` + runs `npm run predist` (`build-node` → the standalone Node in `resources/node`, then `verify-bundle`), then copies into a slim runtime. Entrypoint `node scripts/start.js`. |
@@ -28,6 +35,7 @@ commit can point at either registry's image interchangeably.
 | `argocd/application.yaml` | ArgoCD Application CR | Watches `k8s/` in this repo, auto-sync prune+selfHeal, `CreateNamespace=true`, in-cluster destination (`https://kubernetes.default.svc`). |
 | `.github/workflows/image.yml` | CI (primary pipeline, org-standard tcr-image-pipeline) | Builds on a GitHub runner, smoke-tests `/api/config`, pushes `sha-<7>` + `main` to **hkccr** (Hong Kong TCR); cheap-3's tcr-relay cron re-syncs it to **ccr** (Guangzhou) ≤5 min, digest-stable. Nodes pull from ccr with node-level registries.yaml auth — no imagePullSecret. |
 | `Jenkinsfile` | CI (fallback pipeline) | Same build + smoke against the internal Harbor from the `deploy/prod-snapshot` branch on Gitee. |
+| public mirror `platform-image-verify` (`image-publish` workflow) | CI (quota-free alternative, 2026-10-08) | When the private repo has no GitHub Actions quota, the **open-source snapshot is force-pushed to a public clone repo** (one commit, no history) whose `image-publish` workflow builds on free public runners and pushes to hkccr with the same `TCR_USERNAME`/`TCR_PASSWORD` secrets — identical result to `image.yml`, no quota spent. Recipe: `node scripts/make-public-snapshot.mjs --init` → `git remote add <mirror> …` → `git push --force <mirror> main` (the snapshot's `--init` wipes remotes, so re-add them every time). The mirror's `image-build-check` workflow is the build-only variant (no registry) for verifying Dockerfile changes without publishing — its office-layer smoke runs before the boot probe so a boot regression cannot mask it. |
 | `Makefile` | repo root | `make build/run/logs/k8s-apply/k8s-deploy/argocd-sync` shortcuts. |
 
 **Why a `harbor-pull` imagePullSecret?** The k3s containerd mirror (`/etc/rancher/k3s/registries.yaml` on the node) resolves `harbor.local` → `http://localhost:30880` (`insecure_skip_verify: true`) and *does* carry an `auth` block. **However, containerd does not honor the `auth` block for mirrored endpoints** — it keys credentials by endpoint host (`localhost:30880`), not the mirror name (`harbor.local`), so the auth is never sent and pulls return `401 Unauthorized`. Every other `harbor.local` deployment in this cluster (lawcraw, law-bench, review-agent) works around this with a per-namespace `kubernetes.io/dockerconfigjson` secret named `harbor-pull`. We follow the same pattern. CI pushes to the external `23.144.68.246:30880` address — same registry, two names.

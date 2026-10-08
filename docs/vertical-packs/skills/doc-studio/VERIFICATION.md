@@ -3,6 +3,7 @@
 入库门（design D4）：每个封面配方必须在**真实 Office 或 WPS** 中打开验证通过才算发布；本台账是发布 checklist 的一部分。
 
 - **代码面验证（已过，2026-10-08）**：四配方 + postcheck 从 SKILL.md fenced 块**逐字提取**执行——R1–R4 全部生成成功；postcheck 对完整成稿 PASS（S1/S2/S3）、对坏样本 FAIL（死目录文本 / 空表+默认表名 / 越界形状，三类全抓）。钉版环境：python-docx 1.2.0 / openpyxl 3.1.5 / python-pptx 1.0.2 / mammoth 1.13.0（requirements-office.txt）。
+- **线上壹座真机验证（已过，2026-10-08，强信号层）**：四份 docx 样张（S1 完整报告 + R1/R2/R3 封面）上传到 platform.finddatatech.cloud 的资料库，**全部 ready、零 error**，Content 区渲染出完整中文内容（封面三行文案 + 摘要 + 正文结构）。这是真实浏览器/服务端对 docx 的解析路径，比 LibreOffice 更贴近用户实际打开体验。xlsx/pptx 不在壹座 ingest 白名单内（.pdf/.md/.docx/.csv/.html/.json/.txt），由 LibreOffice 层覆盖。
 - **LibreOffice 渲染验证（已过，2026-10-08，弱信号层）**：7 份样张 headless 转 PDF 全部可开、版式正确（封面底色/行高/中文渲染/KPI 卡/16:9 深底/图表）；S1 多页结构正确（封面→摘要+目录→正文）。**抓到并修复两个真缺陷**：①S2 毛利率公式 `ws.max_row` 当行号（append 前求值差一行，首行引用表头文本出 #VALUE!，postcheck 盲区——openpyxl 不求值；修复后 CSV 强制求值六个月全对）；②图表锚 F2 被打印分页从中间切开（修复为锚数据下方 A9，单页完整）。两条经验已回灌 SKILL.md §数据工作簿。注意：LibreOffice 通过 ≠ Office/WPS 通过（渲染更宽容），兼容门仍以下面真机行为准。
 - **样张目录**：`samples/`（S1 完整报告 / S2 数据工作簿 / S3 汇报演示 + R1–R4 配方原型）。R1–R4 原型是封面页单页，postcheck 对它们 FAIL 属预期（成稿门规则）；真机验证看的是打开后的版式。
 - **canonical 源**：SKILL.md 内嵌代码即唯一事实；`samples-generate.py` 是开发侧样张生成器（其配方段与技能体等价，改配方先改技能体再同步）。

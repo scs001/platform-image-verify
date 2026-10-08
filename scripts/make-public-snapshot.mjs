@@ -112,6 +112,7 @@ const EXCLUDE_PREFIXES = [
   ".impeccable/",
   "docs/adr/", // internal decision records: cluster names, registries, ops
   "docs/registry-fork-patches/", // mcp-gateway fork patch notes (internal)
+  "docs/dsh-lock-peer-deadlock.md", // internal handoff: private CI runner repo + TCR secrets
 ];
 
 const EXCLUDE_GLOBS = [

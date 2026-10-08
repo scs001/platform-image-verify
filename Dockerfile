@@ -72,9 +72,12 @@ COPY facet/web/package*.json ./facet/web/
 # below must keep devDeps: vite is one, and the image builds web/dist itself.
 # Native addons (better-sqlite3/tree-sitter) ship prebuilt binaries, so
 # --ignore-scripts + omit=dev compose safely.
-RUN npm ci --omit=dev --ignore-scripts \
-    && npm --prefix web ci --ignore-scripts \
-    && npm --prefix facet/web ci --ignore-scripts
+# --legacy-peer-deps: the dsh rc-line mixes two peer generations whose ranges
+# are mutually exclusive (see 1ac86e7 — release/ci carry the same flag); the
+# lock is the resolved truth, clean installs must not re-litigate peers.
+RUN npm ci --omit=dev --ignore-scripts --legacy-peer-deps \
+    && npm --prefix web ci --ignore-scripts --legacy-peer-deps \
+    && npm --prefix facet/web ci --ignore-scripts --legacy-peer-deps
 
 # dsh-profile-template/ is consumed by the dsh install layer below (cp →
 # /opt/dsh-home), so it must exist in the builder BEFORE that RUN. Copying it
@@ -103,7 +106,7 @@ COPY dsh-matrix/package.json dsh-matrix/package-lock.json dsh-matrix/.npmrc ./ds
 # installed tree against the same lock at startup (lib/dsh-matrix-verify.js).
 RUN mkdir -p /opt/dsh \
     && cp dsh-matrix/package.json dsh-matrix/package-lock.json dsh-matrix/.npmrc /opt/dsh/ \
-    && NODE_OPTIONS=--max-old-space-size=8192 npm ci --prefix /opt/dsh \
+    && NODE_OPTIONS=--max-old-space-size=8192 npm ci --prefix /opt/dsh --legacy-peer-deps \
     && mkdir -p /opt/dsh-home/profiles/platform \
     && cp dsh-profile-template/package.json \
           dsh-profile-template/pnpm-workspace.yaml \

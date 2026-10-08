@@ -63,3 +63,41 @@ spawn error: spawn dsh ENOENT
 spec 场景（installer-distribution / Beta promotion discipline）：Windows 保持
 `beta: true`，官网下载带 Beta 标记保持不动 —— 现状即正确，无需任何 snapshot
 动作。macOS 已冒烟（beta:false）维持。
+
+---
+
+## 修复轮（2026-10-08 晚，d4cc41d → v1.3.2）
+
+### 修复内容（全部验证过）
+
+1. **dsh 入闭包**：`@deepseek-ai/dsh@0.1.1-rc.2` 进 dependencies（bin.js 是纯 JS
+   `#!/usr/bin/env node` 脚本，无原生件）。
+2. **bridge 打包感知解析**：`DSH_BIN` > bundle 内 bin.js（`process.execPath`
+   直跑——打包态 execPath 即 bundled node，ABI 一致；绕开 Windows .bin 无扩展名
+   不可 spawn）> PATH 的 `dsh`（dev）。
+3. **overrides 钉 `cordis-plugin-hmr@1.0.16`**：`^1.0.16` 在新装环境解析到
+   1.0.19，`registerConfig` API 已移除 → profile boot 即 TypeError（dev 冒烟
+   第二轮抓到；全局旧装嵌套 1.0.16 所以一直没炸）。
+4. **降级**：`initDshAgent` 失败 → WARN + `ctx.dshInitError`，server 照常服务；
+   `/api/ready` 带 `dshInitError`。`scripts/test-dsh-degrade.mjs` 4 用例。
+
+### dev 冒烟证据
+
+- 新解析实跑：ps 实证子进程 = `node .../node_modules/@deepseek-ai/dsh/lib/bin.js --profile platform`
+- hmr 断裂轮（修复前）：server **活着**、ready 503、dshInitError 带 TypeError
+  栈——降级语义实证。
+- 修复后：`runtime ready (volces/deepseek-v4.1-flash)`、`/api/ready 200`。
+
+### 发布事故（已恢复，教训入 memory）
+
+在 dist-opensource/platform（无 .git 的文件树）裸跑 git → 命令全部落到主私仓 →
+快照树提交进私仓 + `remote set-url` 把主仓 origin 改指 platform → 双向远端
+污染。已按 `git ls-remote` 核对四远端全部回正（私仓 d4cc41d / 公开仓 b0b1c98
+快照提交）。发快照自此只用 `--git-dir=/tmp/pub-snap/.git --work-tree=<dist>`
+的一次性临时仓。
+
+### v1.3.2
+
+tag 打在公开仓快照提交 b0b1c98 上，release workflow 三矩阵构建中；绿后重跑
+win-install-smoke（workflow 已在公开仓），绿 → `release-sync v1.3.2 --dl-live
+--prune`（不带 --beta=windows）翻转 beta。

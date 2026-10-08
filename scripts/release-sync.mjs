@@ -149,7 +149,9 @@ async function main() {
   const webDir = process.env.FD_WEB_DIR || path.join(homedir(), "finddata", "fd-official-web");
   const dlHost = process.env.DL_HOST;
   const dlRoot = process.env.DL_ROOT || "/srv/dl";
-  const dlBase = process.env.DL_BASE || "https://dl.finddatatech.cloud";
+  // The dl subdomain has no DNS (dl-host-findings: NAT fleet can't own it);
+  // production serves /dl/* from the platform host via cheap-1 Caddy.
+  const dlBase = process.env.DL_BASE || "https://platform.finddatatech.cloud/dl";
 
   // 1. Release + assets via gh api (assets ride on the release object).
   const release = JSON.parse(run("gh", ["api", `repos/${repo}/releases/tags/${tag}`]));

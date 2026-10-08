@@ -101,12 +101,23 @@ COPY dsh-matrix/package.json dsh-matrix/package-lock.json dsh-matrix/.npmrc ./ds
 # .npmrc deliberately does NOT set legacy-peer-deps (it disabled transitive
 # peer auto-installation and forced the old hand-pinned rows into existence);
 # npm's default peer resolution fills the closure, and the lock freezes it.
+# NO --legacy-peer-deps on this line either (design D3): under npm 11 (the npm
+# node:25 ships) the flag makes npm ci SKIP every lock entry marked "peer":
+# true — the 24-package dsh rc.2 plugin closure vanishes from /opt/dsh and the
+# boot gate refuses to start (image-publish runs 37784214791 / 37836417702:
+# "missing: @deepseek-ai/dsh-scope (lock: 0.1.1-rc.2) …"). The matrix tree is
+# its own resolution universe — the overrides in dsh-matrix/package.json unify
+# the rc.2/rc.5 generations — so npm's default peer resolution succeeds on the
+# frozen lock; verified under npm 10.9 / 11.6 / 11.12 with diffMatrixTree
+# (0 missing). The ROOT tree (above) is the opposite case: it declares both
+# generations side by side, so its clean install is genuinely ERESOLVE and the
+# flag is required there.
 # NODE_OPTIONS heap bump: npm's resolver exhausts the default 2GB heap on
 # this closure. Boot-time hard gate: server.js and agent-runner verify the
 # installed tree against the same lock at startup (lib/dsh-matrix-verify.js).
 RUN mkdir -p /opt/dsh \
     && cp dsh-matrix/package.json dsh-matrix/package-lock.json dsh-matrix/.npmrc /opt/dsh/ \
-    && NODE_OPTIONS=--max-old-space-size=8192 npm ci --prefix /opt/dsh --legacy-peer-deps \
+    && NODE_OPTIONS=--max-old-space-size=8192 npm ci --prefix /opt/dsh \
     && mkdir -p /opt/dsh-home/profiles/platform \
     && cp dsh-profile-template/package.json \
           dsh-profile-template/pnpm-workspace.yaml \

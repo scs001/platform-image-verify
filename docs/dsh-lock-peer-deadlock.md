@@ -2,6 +2,8 @@
 
 2026-10-08 由 add-doc-studio 的镜像构建链撞到并定位。本文件是**诊断与交接**，不是修复记录。
 
+> **2026-10-09 更新（镜像线修复）**：`/opt/dsh` 矩阵安装行的 `--legacy-peer-deps`（59da7fd 加）已**撤除**并实证——见文末「矩阵行修复实录」。根树（`/app/node_modules`）的 flag 仍必须保留，且根树还剩一个独立缺口（llm-deepseek 的 rc.5 peer 闭包），详见下文。
+
 ## 现象（三处同一病根）
 
 | 位置 | 症状 |
@@ -33,5 +35,28 @@ dsh-llm@0.1.1-rc.2     peer → dsh-brand@^0.1.1-rc.2
 ## 修好后请做
 
 - 撤掉三处 `--legacy-peer-deps`（`.github/workflows/release.yml`、`.github/workflows/ci.yml` 两处、`Dockerfile` builder 与 /opt/dsh 两处），它们是症状级缝合，留着会掩盖未来的真依赖问题。
+  - **更新（2026-10-09）**：Dockerfile 的 **/opt/dsh 行已撤**（见下）。根树行（`npm ci --omit=dev … --legacy-peer-deps`）**必须保留**——根树同时声明两代（dsh rc.2 运行时 + llm/sdk rc.5 服务），干净安装是必然 ERESOLVE，撤了构建就红。release.yml / ci.yml 的根树同此理。剩下的**真**缺口是根树 rc.5 peer 闭包（见「根树缺口」）。
 - 验证标准：`npm ci`（无 flag）绿 + CI 全绿 + 镜像 boot 冒烟绿（`/api/config` + dsh-contracts）。
 - 镜像构建可走 `scs001/platform-image-verify` 的 `image-publish` 工作流（公开仓免费 runner，TCR 凭据已配 Secrets，推 hkccr → relay 回灌 ccr）；私仓无 GHA 额度期间它就是构建通道。
+
+## 矩阵行修复实录（2026-10-09，add-doc-studio 镜像线）
+
+**根因修正**：矩阵树（`dsh-matrix/`）与根树是**两个不同的解析宇宙**。矩阵 `package.json` 的 `overrides` 把 rc.2/rc.5 统一成一代，所以矩阵锁**不需要** flag 就能解；59da7fd 把 flag 抄到矩阵行反而制造了缺陷——**npm 11（node:25 自带）在 `--legacy-peer-deps` 下会跳过 lock 里所有 `"peer": true` 条目**，24 个 dsh rc.2 插件闭包（dsh-scope/dsh-session-telemetry/dsh-shell/dsh-spill/dsh-timeout/dsh-workflow… + loose-envify/scheduler）全部不落盘，boot 硬门随即拒绝启动（image-publish run 37784214791 / 37836417702 的 `missing:` 清单就是这 24 个的子集）。
+
+**实证矩阵**（`lib/dsh-matrix-verify.js#diffMatrixTree` 对每个树跑一遍）：
+
+| 安装方式 | 门结果 | missing |
+|---|---|---|
+| npm 10.9.9 + flag | pass | 0 |
+| npm 11.6.1 / 11.12.1 + flag | **fail** | 24（= 镜像 boot 失败清单） |
+| npm 10.9.9 / 11.6.1 / 11.12.1 **无 flag** | **pass** | 0 |
+
+即：flag 是缺陷，且只在 npm 11 下发作（本地 npm 10 试验因此假绿——这也是当初 59da7fd「与 release/ci 同款」类推失效的原因）。修复=撤 flag（Dockerfile 矩阵行），已合入。
+
+**残留 2 个可选条目**：`@emnapi/runtime` / `@img/sharp-wasm32` 在 darwin 树里 missing——它们是 sharp 的 wasm 回退，父链（freebsd/wasm32 门）在本平台全不适用；linux/x64（镜像目标平台）下父条目不装，故 gate 的 `platformMatches` 之外这两个仍会记 missing。**但**：镜像构建在 linux/x64 下 sharp-linux-x64 父链成立、两者随闭包落盘（我的 linux 模拟里 wasm32 未装是因为该模拟的父条目也门掉了）——真实镜像 boot 冒烟已过（见 CI），故不是缺陷。
+
+## 根树缺口（未修，桌面线相关）
+
+根树（`/app/node_modules`）的 flag 必须保留，但它漏装 rc.5 侧 peer：`@deepseek-ai/dsh-llm-deepseek@0.0.1-rc.5` 的 `lib/index.js` 第 3 行 `import { credentialRef } from "@deepseek-ai/dsh-credentials"` 在根树解析不到（该包只存在于 dsh 嵌套树 `node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/`）。本地不炸是因为 `scripts/test-agent-notify-bridge.mjs` 的 anchor 探测先命中 homebrew 全局 dsh；快照 CI（干净机器）命中根树 → 单测 `bridge: subclasses the preset bridge…` 红。
+
+影响面：只在这个「根树被当作 dsh 安装根」的路径（快照 CI 的单测 + 潜在根树直用）；prod 镜像的 boot 走 `/opt/dsh` 矩阵树，不受影响。修法选项：①把 `dsh-credentials`/`dsh-credentials-local` 显式加进根 `dependencies`（与 4e348c3「运行时 peer 进 dependencies」同款）；②测试 anchor 加根树回退；③根树不再当 dsh 锚。归属：桌面/dsh-matrix 车道。

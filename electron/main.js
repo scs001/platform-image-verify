@@ -18,6 +18,7 @@ import { resolveEnv } from "./config/settings.js";
 import { runFirstRun } from "./bootstrap/first-run.js";
 import { openPreferencesWindow, registerPreferencesIpc } from "./preferences/window.js";
 import { setSupervisor } from "./preferences/ipc.js";
+import { runSmokeSelftest, selftestEnabled } from "./smoke-selftest.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
@@ -229,6 +230,16 @@ function openWindow(url) {
   });
   mainWindow.loadURL(url);
   mainWindow.on("closed", () => { mainWindow = null; });
+  // CI self-test (PLATFORM_SMOKE_SELFTEST): the app testifies about its own
+  // rendering — the only check that can catch a black screen (see
+  // smoke-selftest.js for why external screenshots cannot).
+  if (selftestEnabled()) {
+    mainWindow.webContents.once("did-finish-load", async () => {
+      const report = await runSmokeSelftest(mainWindow);
+      console.log(`[smoke-selftest] ${JSON.stringify(report)}`);
+      setTimeout(() => app.exit(report.ok ? 0 : 1), 500);
+    });
+  }
   // Open external http(s) links (e.g. the LiteLLM management dashboard at
   // http://localhost:<port>/ui) in the user's default browser instead of a new
   // Electron window, so target="_blank" links work in the packaged app.

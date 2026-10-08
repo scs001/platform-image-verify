@@ -55,6 +55,29 @@ dsh-llm@0.1.1-rc.2     peer → dsh-brand@^0.1.1-rc.2
 
 **残留 2 个可选条目**：`@emnapi/runtime` / `@img/sharp-wasm32` 在 darwin 树里 missing——它们是 sharp 的 wasm 回退，父链（freebsd/wasm32 门）在本平台全不适用；linux/x64（镜像目标平台）下父条目不装，故 gate 的 `platformMatches` 之外这两个仍会记 missing。**但**：镜像构建在 linux/x64 下 sharp-linux-x64 父链成立、两者随闭包落盘（我的 linux 模拟里 wasm32 未装是因为该模拟的父条目也门掉了）——真实镜像 boot 冒烟已过（见 CI），故不是缺陷。
 
+## 第二缺陷：boot 就地改写冻结树（2026-10-09 修复，328b42b）
+
+矩阵行撤 flag 后 boot 冒烟转绿，**首个把 dsh-contracts 跑通的构建**随即暴露下一层：
+`dsh-contracts: 1/6 PASS`，② 报 4 包 "resolves outside the candidate tree
+(/app/node_modules/...)"，其余五条 "JSON-RPC input closed"（子进程握手即死）。
+
+根因不在矩阵锁而在**平台自己的 boot**：镜像里 `profiles/platform/node_modules`
+是指向 `/opt/dsh/node_modules` 的符号链，而 c349578（桌面 v1.3.6 修「healer
+残留」）给 `linkProfilePinnedModules` 加了「先清后链」——`rmSync(link)` 穿过
+符号链删掉的是**矩阵真包**，再链上 `/app/node_modules` 的 rc.5 副本：冻结树
+被就地改写、两代混装。契约②（设计如此）把它抓为 "ancestor install shadowing"。
+
+本地复现链：变异树（按上述方式替换 4 包）→ `dsh-contracts --tree` = **1/6，
+同一批 4 包，同一 JSON-RPC closed**，与镜像日志逐字对齐。
+
+更深的隐患：同一容器**第二次** boot 时矩阵硬门会把这 4 条符号链读成
+missing → 拒启（崩溃环）。prod 现镜像（sha-9f41c5a）早于 c349578，尚未中招。
+
+修法（328b42b）：moduleDir 自身是符号链 ⇒ 部署供给的树，既有条目一律不动
+（缺项仍补链）；真实目录 ⇒ 我方管辖，残留照清（桌面语义不变）。回归
+`scripts/test-dsh-profile-links.mjs` 4 案 + 隔离复验（ensureDshHome 后矩阵四包
+仍是真目录；同布局 dsh-contracts 6/6）。
+
 ## 根树缺口（未修，桌面线相关）
 
 根树（`/app/node_modules`）的 flag 必须保留，但它漏装 rc.5 侧 peer：`@deepseek-ai/dsh-llm-deepseek@0.0.1-rc.5` 的 `lib/index.js` 第 3 行 `import { credentialRef } from "@deepseek-ai/dsh-credentials"` 在根树解析不到（该包只存在于 dsh 嵌套树 `node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/`）。本地不炸是因为 `scripts/test-agent-notify-bridge.mjs` 的 anchor 探测先命中 homebrew 全局 dsh；快照 CI（干净机器）命中根树 → 单测 `bridge: subclasses the preset bridge…` 红。

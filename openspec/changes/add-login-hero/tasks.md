@@ -26,4 +26,6 @@
 ## 6. 寻数云端上线配置（部署侧，非本仓代码）
 
 - [ ] 6.1 fd-prod k8s env `LOGIN_HERO`（zh-CN + en 双写终稿）随 GitOps 滚动。验证：`curl https://platform.finddatatech.cloud/api/config` 见 loginHero、登录页双栏、降级路径在 staging 先验。
-- [ ] 6.2 云端生效收尾（notes/cloud-topology-findings.md）：env 已同步+pod 已滚 ✓、/api/config 入口桥已上 ✓；剩网关代码两件（匿名 GET /api/config、放行 SPA /login）待 GitHub 账单恢复后随镜像变更上线——云端 /login 现落在 Logto 托管页（拓扑事实，split hero 云端无显示面，自部署/桌面不受影响）。
+- [x] 6.2 云端生效收尾（notes/cloud-topology-findings.md）：env 已同步+pod 已滚 ✓、/api/config 入口桥已上 ✓；剩网关代码两件（匿名 GET /api/config、放行 SPA /login）待 GitHub 账单恢复后随镜像变更上线——云端 /login 现落在 Logto 托管页（拓扑事实，split hero 云端无显示面，自部署/桌面不受影响）。
+
+- [x] 6.3 网关代码版上线并撤临时桥（2026-10-08）：be083e4 三块（匿名 /api/config+/api/auth/me 带 next() 落 cell、SPA 静态壳）→ 公开仓 image.yml 构建 sha-9f41c5a（2m48s，GHA 缓存热）→ relay 同步 ccr → platform/platform-demo manifest bump（fd-infra-deploy e3fa7cb）→ ArgoCD hard refresh 滚动 → 公网三路由验证 + Playwright 实锤（hero 面板/SSO/locale 全渲染，Logto 卡片消失）→ cheap-1 Caddy 桥已删。测试纪律记录：cell 冷启动依赖首个带身份请求——匿名路由必须 next() 放行带身份流量（test-cell-gateway 抓获的真 bug）；测试断言随身份边界更新（匿名读公开、伪造头买不到身份）。全量 898/898。

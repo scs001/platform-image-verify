@@ -117,6 +117,7 @@ const EXCLUDE_PREFIXES = [
 const EXCLUDE_GLOBS = [
   "scripts/probe-*.mjs", // live probes against company deployments
   "scripts/verify-*live*.mjs", // live verification against company deployments
+  "scripts/push_audit_to_wire.py", // internal metering bridge (tailnet fd-wire endpoint)
 ];
 
 // [file, regex source, replacement, expected count] — applied with flags "g".

@@ -7,7 +7,7 @@
 
 ### Requirement: Skills install into editor targets
 
-The `@finddatatechonology/facet` CLI SHALL install a published pack's skills from the facet service into supported editor targets, v1 concretely Claude Code and Cursor, each target using its native skill layout (user-level by default, project-level where the target supports it). Installing SHALL write each skill's content with its name and description metadata, taken from the referenced pack version's snapshot.
+The `@finddatatechnology/facet` CLI SHALL install a published pack's skills from the facet service into supported editor targets — Claude Code, Cursor, ZCode, Codex, and Gemini CLI — each target using its native skill layout (user-level by default, project-level where the target supports it). Installing SHALL write each skill's content with its name and description metadata, taken from the referenced pack version's snapshot.
 
 #### Scenario: Claude Code user-level install
 
@@ -31,13 +31,19 @@ The `@finddatatechonology/facet` CLI SHALL install a published pack's skills fro
 
 ### Requirement: MCP references are honest about credentials
 
-The CLI and the download face SHALL present a pack's MCP references with their real connection endpoint and an explicit notice that connecting requires a per-user registry credential. v1 SHALL NOT write MCP connection configuration into any editor target.
+The CLI and the download face SHALL present a pack's MCP references with their real connection endpoint and an explicit notice of the credential requirement. Without a caller key on file, the CLI SHALL NOT write MCP connection configuration into any editor target. With a caller key established through the connect flow, the CLI SHALL offer to write each target's native MCP configuration — endpoint plus Authorization header carrying that key — for the pack's MCP references, and SHALL say exactly which files it wrote.
 
 #### Scenario: MCP reference prints endpoint and notice
 
-- **WHEN** an installed pack declares MCP references
-- **THEN** the CLI output lists each server's connection endpoint with a notice that connecting requires a registry credential
+- **WHEN** an installed pack declares MCP references and no caller key is on file
+- **THEN** the CLI output lists each server's connection endpoint with a notice that connecting requires a caller key
 - **AND** no editor MCP configuration file is created or modified
+
+#### Scenario: Connected install writes MCP configuration
+
+- **WHEN** a pack with MCP references is installed while a verified caller key is on file and the user accepts the write
+- **THEN** the target's native MCP configuration gains an entry per referenced server with the gateway endpoint and the key-bearing Authorization header
+- **AND** the CLI reports every file it wrote
 
 ### Requirement: Download face serves editor-neutral content
 
@@ -66,3 +72,22 @@ A CLI install SHALL take the referenced pack's version snapshot at install time:
 
 - **WHEN** an editor user installs a pack via the CLI
 - **THEN** no subscription record is created at the facet service
+
+### Requirement: Connect walkthrough mints and verifies a caller key
+
+The CLI SHALL provide a `connect` flow that establishes a caller key: it guides the user to the web mint surface (opening the browser), accepts the pasted key in the v1 form, and progresses to a device-authorization form (CLI polls, no paste) when the registry exposes it. The flow SHALL verify the key's liveness against the gateway before storing it locally for CLI use, refuse invalid or revoked keys with the reason, and support clearing the stored key.
+
+#### Scenario: Pasted key is verified and remembered
+
+- **WHEN** a user completes connect by pasting a freshly minted key and the key authenticates on the gateway
+- **THEN** the CLI stores it locally, reports the owning identity's visible servers, and subsequent installs use it for MCP configuration writes
+
+#### Scenario: Dead key is refused at connect
+
+- **WHEN** the pasted key fails liveness (revoked, malformed, or gateway-rejected)
+- **THEN** connect fails with the reason and nothing is stored
+
+#### Scenario: Device flow replaces the paste
+
+- **WHEN** the registry exposes device authorization and the user runs connect
+- **THEN** the CLI completes the mint without any manual paste and the stored key behaves identically

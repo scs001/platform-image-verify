@@ -67,9 +67,13 @@ jobs:
       # ubuntu-latest ships the Android SDK; pin the pieces gradle will ask
       # for and accept the licenses non-interactively.
       - name: Android SDK components
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME || '/usr/local/lib/android/sdk' }}
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" > /dev/null
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SDKMANAGER" ] || SDKMANAGER=$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager | head -1)
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-34" "build-tools;34.0.0" > /dev/null
 
       - name: Prebuild native project
         run: npx --prefix app expo prebuild --platform android --no-install

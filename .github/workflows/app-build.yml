@@ -31,13 +31,16 @@ jobs:
         with:
           node-version: 25
           cache: npm
-          cache-dependency-path: app/package-lock.json
+          cache-dependency-path: |
+            app/package-lock.json
+            package-lock.json
+
+      - name: Install root dependencies (the integration smoke boots server.js)
+        run: npm ci --legacy-peer-deps
 
       - name: Install app dependencies (+ linked core)
         run: |
           npm --prefix app ci
-          # The file: dep on ../packages/core resolves through app's own
-          # node_modules symlink; ensure the shared core is present as declared.
           npm --prefix app install --no-audit --no-fund
 
       - name: Link core's runtime deps (repo convention)

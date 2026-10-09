@@ -26,6 +26,7 @@ import { registerAuth, normalizeAuthPath } from "./server/auth.js";
 import { createLogtoAuth } from "./server/logto-auth.js";
 import { resolveSessionSecret } from "./server/session.js";
 import { createMpAuth } from "./gateway/mp-auth.js";
+import { createAppAuth } from "./gateway/app-auth.js";
 import { createMpBindings } from "./gateway/mp-bindings.js";
 import { storeDir } from "./paths.js";
 import { registerDocumentRoutes } from "./server/routes/documents.js";
@@ -41,6 +42,7 @@ import { attachDelegationAggregator } from "./server/delegation-aggregator.js";
 import { attachWorkerPool } from "./server/worker-slots.js";
 import { attachMcBridge } from "./server/mc-bridge.js";
 import { registerMpRoutes } from "./server/routes/mp.js";
+import { registerAppRoutes } from "./server/routes/app.js";
 import { registerRegistryRoutes } from "./server/routes/registry.js";
 import { registerConnectorRoutes } from "./server/routes/connector.js";
 import { registerFileRoutes } from "./server/routes/files.js";
@@ -180,6 +182,16 @@ ctx.mpAuth = createMpAuth({
   // self-hosted deployments never serve anonymous WeChat users).
   demoMode: false,
 });
+// App device pairing (openspec: add-device-pairing-auth) — the universal
+// client's identity path, same shared module as the gateway. Shares the
+// binding store, bind-code pool and token secret with the mini program; an
+// app Bearer token verifies exactly like an MP token. Inert until
+// MP_TOKEN_SECRET is set.
+ctx.appAuth = createAppAuth({
+  tokenSecret: process.env.MP_TOKEN_SECRET || "",
+  ttlHours: Number(process.env.MP_TOKEN_TTL_HOURS || 12),
+  bindings: ctx.mpBindings,
+});
 ctx.logtoAuth = await createLogtoAuth(ctx);
 ctx.logtoAuth?.register(app);
 registerAuth(ctx);
@@ -200,6 +212,8 @@ registerDelegationRoutes(ctx);
 // Mini-program identity endpoints (bindcode mint / login / login-bindcode /
 // unbind) — mounted with the other /api routes, before the static SPA fallback.
 registerMpRoutes(ctx);
+// App device-pairing endpoints (pair / challenge / login / devices / revoke).
+registerAppRoutes(ctx);
 registerRegistryRoutes(ctx);
 // 萬星 connector PAT (connector-credentials) — same route family as the
 // registry credential endpoints.

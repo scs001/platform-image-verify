@@ -23,6 +23,7 @@ import { createCellRegistry, userIdFor } from "./spawner.js";
 import { forwardedHeaders, machineHeaders, proxyHttp, proxyUpgrade } from "./proxy.js";
 import { createMpAuth } from "./mp-auth.js";
 import { createMpBindings } from "./mp-bindings.js";
+import { createAppAuth } from "./app-auth.js";
 import { createShareRegistry, createRateLimiter } from "./share.js";
 import { createPackRegistry, registerPackRoutes } from "./packs.js";
 import { registerFacetProxy } from "./facet-proxy.js";
@@ -103,6 +104,18 @@ const mpAuth = createMpAuth({
   demoMode: ["1", "true", "yes"].includes(String(process.env.MP_DEMO_MODE || "").toLowerCase()),
 });
 
+// App device pairing (openspec: add-device-pairing-auth): the universal
+// client's identity path. Shares the binding store, the bind-code pool and
+// the token secret with the mini program above — an app token verifies
+// through mpAuth.verifyToken in resolveUser exactly like an MP token, so
+// cell routing is untouched. Inert (503s, capabilities omit the flag) until
+// MP_TOKEN_SECRET is set.
+const appAuth = createAppAuth({
+  tokenSecret: process.env.MP_TOKEN_SECRET || "",
+  ttlHours: Number(process.env.MP_TOKEN_TTL_HOURS || 12),
+  bindings: mpBindings,
+});
+
 const app = express();
 const server = http.createServer(app);
 
@@ -171,6 +184,11 @@ app.get("/api/config", (req, res, next) => {
     brandIconUrl: brandingEnv("BRAND_ICON_URL"),
     loginFooterText: brandingEnv("LOGIN_FOOTER_TEXT"),
     loginHero: loginHeroEnv(),
+    // Capability probe for non-browser clients (add-device-pairing-auth):
+    // absent on older deployments, which clients read as "unsupported" and
+    // degrade. devicePairing rides the same MP_TOKEN_SECRET gate as the
+    // mini-program path — one secret, two client kinds.
+    capabilities: { devicePairing: Boolean(process.env.MP_TOKEN_SECRET) },
   });
 });
 
@@ -266,6 +284,44 @@ app.delete("/api/mp/bind", async (req, res) => {
   const token = typeof auth === "string" && auth.startsWith("Bearer ") ? auth.slice(7) : "";
   const r = await mpAuth.unbind(token);
   if (!r.ok) return res.status(r.status).json({ error: "Invalid token" });
+  res.json({ ok: true });
+});
+
+// ── App device pairing (openspec: add-device-pairing-auth) ──────────────────
+// The universal client's five doors. pair/challenge/login authenticate
+// themselves (bind code / device key) and need no session. devices/revoke
+// take any resolveUser identity — a browser cookie OR an app Bearer token
+// (which carries the account email), so the app's Settings can list and
+// unbind its own device without a browser nearby.
+app.post("/api/app/pair", express.json(), async (req, res) => {
+  const r = await appAuth.pair(req.body ?? {});
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  res.json({ token: r.token, email: r.email });
+});
+
+app.post("/api/app/challenge", express.json(), (req, res) => {
+  const r = appAuth.challenge(req.body ?? {});
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  res.json({ nonce: r.nonce, ttlMs: r.ttlMs });
+});
+
+app.post("/api/app/login", express.json(), (req, res) => {
+  const r = appAuth.login(req.body ?? {});
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
+  res.json({ token: r.token, email: r.email });
+});
+
+app.get("/api/app/devices", (req, res) => {
+  const user = resolveUser(req);
+  if (!user) return rejectUnauthenticated(req, res);
+  res.json(appAuth.devicesFor(user.email));
+});
+
+app.delete("/api/app/bind/:deviceId", async (req, res) => {
+  const user = resolveUser(req);
+  if (!user) return rejectUnauthenticated(req, res);
+  const r = await appAuth.revoke(user.email, String(req.params?.deviceId ?? ""));
+  if (!r.ok) return res.status(r.status).json({ error: r.error });
   res.json({ ok: true });
 });
 

@@ -17,6 +17,7 @@ import {
   UserRound,
   UserRoundPlus,
   Smartphone,
+  MonitorSmartphone,
   Paintbrush,
   Package,
   type LucideIcon,
@@ -30,6 +31,9 @@ const AccountSection = lazy(() =>
 );
 const WeChatAppSection = lazy(() =>
   import("@/components/settings/WeChatAppSection").then((m) => ({ default: m.WeChatAppSection })),
+);
+const DevicesSection = lazy(() =>
+  import("@/components/settings/DevicesSection").then((m) => ({ default: m.DevicesSection })),
 );
 const BrandingSection = lazy(() =>
   import("@/components/settings/BrandingSection").then((m) => ({ default: m.BrandingSection })),
@@ -125,6 +129,15 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     testId: "settings-section-wechat-app",
     icon: Smartphone,
     Component: WeChatAppSection as React.LazyExoticComponent<React.ComponentType<any>>,
+  },
+  {
+    // Paired app devices (add-device-pairing-auth): pairing mint (digits +
+    // QR carrying the instance origin) and the revocable device list.
+    slug: "devices",
+    labelKey: "settings.sections.devices",
+    testId: "settings-section-devices",
+    icon: MonitorSmartphone,
+    Component: DevicesSection as React.LazyExoticComponent<React.ComponentType<any>>,
   },
   {
     slug: "branding",

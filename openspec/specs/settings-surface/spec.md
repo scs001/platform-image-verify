@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the in-app Settings modal: a single overlay surface that hosts the application's configuration sections (General, Account, Models, MCP Servers, Skills, Packs, WeChat App, Deployment branding, System Status), its `/settings/:section` routing and deep-link behavior, its open and dismiss affordances, and the redirects that retire the former standalone configuration pages.
+Defines the in-app Settings modal: a single overlay surface that hosts the application's configuration sections (General, Account, Models, MCP Servers, Skills, Packs, Custom presets, WeChat App, Paired devices, Deployment branding, System Status), its `/settings/:section` routing and deep-link behavior, its open and dismiss affordances, and the redirects that retire the former standalone configuration pages.
 
 ## Requirements
 

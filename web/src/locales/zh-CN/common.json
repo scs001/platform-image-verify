@@ -621,7 +621,8 @@
       "branding": "部署品牌",
       "status": "系统状态",
       "packs": "功能集",
-      "presets": "自建预设"
+      "presets": "自建预设",
+      "devices": "已配对设备"
     },
     "general": {
       "theme": "主题",
@@ -677,6 +678,29 @@
       "loginHeroLineError": "第 {{line}} 行格式有误：应为“名称 | https://链接”。",
       "saved": "已保存 — 刷新后即可看到新的品牌信息。",
       "saveFailed": "保存失败：{{error}}"
+    },
+    "devices": {
+      "title": "已配对设备",
+      "scanHint": "在壹座 App 的配对页点击「扫码」，用相机扫描右侧二维码，即可同时完成服务器地址与账号绑定。",
+      "typeHint": "没有相机？也可以在 App 配对页手动输入服务器地址和同样的 6 位数字。",
+      "validity": "单次使用，5 分钟内有效。",
+      "expiresIn": "{{time}} 后失效",
+      "expired": "绑定码已失效。",
+      "refresh": "刷新",
+      "retry": "重试",
+      "loading": "获取中…",
+      "signedOut": "登录后即可把这个账号与 App 绑定。",
+      "signIn": "登录",
+      "openInstance": "此实例开放访问、没有账号体系，无需配对。",
+      "unavailable": "当前服务器版本较旧，尚未提供设备配对，升级后即可使用。",
+      "error": "获取绑定码失败。",
+      "listTitle": "已配对设备",
+      "listError": "设备列表加载失败。",
+      "empty": "还没有已配对的设备。用上方绑定码配对第一台。",
+      "boundAt": "配对于 {{time}}",
+      "revokeConfirm": "撤销这台设备？",
+      "revoke": "撤销",
+      "cancel": "取消"
     }
   },
   "bindings": {

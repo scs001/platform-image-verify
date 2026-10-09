@@ -31,8 +31,9 @@ const BIND_LABEL = "WeChat App";
 // The canonical section order the settings-surface delta declares, relative to
 // each other. The surface also carries the Account section, which that delta
 // does not enumerate — so this asserts the order of the declared ones rather
-// than the whole list.
-const CANONICAL = ["general", "models", "mcp", "skills", "wechat-app", "status"];
+// than the whole list. (add-device-pairing-auth: devices sits between
+// wechat-app and status.)
+const CANONICAL = ["general", "models", "mcp", "skills", "wechat-app", "devices", "status"];
 
 function freePort() {
   return new Promise((resolve) => {

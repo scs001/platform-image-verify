@@ -231,6 +231,11 @@ export function registerMiscRoutes(ctx) {
       brandIconUrl: brandingField("brandIconUrl", "BRAND_ICON_URL"),
       loginFooterText: brandingField("loginFooterText", "LOGIN_FOOTER_TEXT"),
       loginHero: loginHeroField(),
+      // Capability probe for non-browser clients (add-device-pairing-auth):
+      // absent on older deployments, which clients read as "unsupported".
+      // devicePairing rides the same MP_TOKEN_SECRET gate as the
+      // mini-program path.
+      capabilities: { devicePairing: Boolean(process.env.MP_TOKEN_SECRET) },
     });
   });
 

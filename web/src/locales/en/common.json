@@ -634,7 +634,8 @@
       "branding": "Deployment branding",
       "status": "System Status",
       "packs": "Packs",
-      "presets": "Custom presets"
+      "presets": "Custom presets",
+      "devices": "Paired devices"
     },
     "general": {
       "theme": "Theme",
@@ -690,6 +691,29 @@
       "loginHeroLineError": "Invalid line {{line}}: use “label | https://url”.",
       "saved": "Saved — refresh to see the new branding everywhere.",
       "saveFailed": "Could not save: {{error}}"
+    },
+    "devices": {
+      "title": "Paired devices",
+      "scanHint": "In the mobile app's pairing screen, tap Scan and point the camera at the QR — it carries both this instance's address and the pairing code.",
+      "typeHint": "No camera handy? Type the server address and the same 6 digits into the app's pairing screen.",
+      "validity": "Single use, valid for 5 minutes.",
+      "expiresIn": "{{time}} left",
+      "expired": "Pairing code expired.",
+      "refresh": "Refresh",
+      "retry": "Retry",
+      "loading": "Loading…",
+      "signedOut": "Sign in to pair this account with the app.",
+      "signIn": "Sign in",
+      "openInstance": "This instance is open access with no accounts — there is nothing to pair.",
+      "unavailable": "This server predates device pairing; upgrade it to pair the app.",
+      "error": "Failed to get a pairing code.",
+      "listTitle": "Paired devices",
+      "listError": "The device list failed to load.",
+      "empty": "No devices paired yet. Pair the first one with the code above.",
+      "boundAt": "Paired {{time}}",
+      "revokeConfirm": "Revoke this device?",
+      "revoke": "Revoke",
+      "cancel": "Cancel"
     }
   },
   "preview": {

@@ -26,11 +26,18 @@ import { noteOwnerGroups } from "./owner-groups.js";
 //     has no browser session to authenticate with; each call authenticates
 //     through its own wx.login code2Session exchange (plus the bind code on
 //     the -bindcode path). Inert (503 not-configured) without MP credentials.
+//   /api/app/pair, /api/app/challenge, /api/app/login — the universal
+//     client's device pairing (add-device-pairing-auth), same situation: no
+//     browser session; each call authenticates through the bind code or the
+//     device key's challenge signature. Inert (503) without MP_TOKEN_SECRET.
 const AUTH_EXEMPT_PREFIXES = [
   "/api/bots/webhook/",
   "/api/bots/relay/",
   "/api/mp/login",
   "/api/mp/login-bindcode",
+  "/api/app/pair",
+  "/api/app/challenge",
+  "/api/app/login",
 ];
 
 export function normalizeAuthPath(value, fallback) {

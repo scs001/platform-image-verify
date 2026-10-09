@@ -621,7 +621,8 @@
       "branding": "Marca del despliegue",
       "status": "Estado del sistema",
       "packs": "Paquetes",
-      "presets": "Preajustes propios"
+      "presets": "Preajustes propios",
+      "devices": "Dispositivos vinculados"
     },
     "general": {
       "theme": "Tema",
@@ -677,6 +678,29 @@
       "loginHeroLineError": "Línea {{line}} no válida: usa “etiqueta | https://url”.",
       "saved": "Guardado: actualiza para ver la nueva marca en todas partes.",
       "saveFailed": "No se pudo guardar: {{error}}"
+    },
+    "devices": {
+      "title": "Dispositivos vinculados",
+      "scanHint": "En la pantalla de emparejamiento de la app móvil, toca Escanear y apunta la cámara al código QR: lleva tanto la dirección de esta instancia como el código.",
+      "typeHint": "¿Sin cámara a mano? Escribe la dirección del servidor y los mismos 6 dígitos en la pantalla de emparejamiento.",
+      "validity": "De un solo uso, válido 5 minutos.",
+      "expiresIn": "Caduca en {{time}}",
+      "expired": "El código de emparejamiento ha caducado.",
+      "refresh": "Actualizar",
+      "retry": "Reintentar",
+      "loading": "Cargando…",
+      "signedOut": "Inicia sesión para vincular esta cuenta con la app.",
+      "signIn": "Iniciar sesión",
+      "openInstance": "Esta instancia es de acceso abierto y sin cuentas: no hay nada que emparejar.",
+      "unavailable": "Este servidor es anterior al emparejamiento de dispositivos; actualízalo para emparejar la app.",
+      "error": "No se pudo obtener el código de emparejamiento.",
+      "listTitle": "Dispositivos vinculados",
+      "listError": "No se pudo cargar la lista de dispositivos.",
+      "empty": "Aún no hay dispositivos vinculados. Vincula el primero con el código de arriba.",
+      "boundAt": "Vinculado {{time}}",
+      "revokeConfirm": "¿Revocar este dispositivo?",
+      "revoke": "Revocar",
+      "cancel": "Cancelar"
     }
   },
   "bindings": {

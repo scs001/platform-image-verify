@@ -621,7 +621,8 @@
       "branding": "Image de marque du déploiement",
       "status": "État du système",
       "packs": "Packs",
-      "presets": "Préréglages perso"
+      "presets": "Préréglages perso",
+      "devices": "Appareils appariés"
     },
     "general": {
       "theme": "Thème",
@@ -677,6 +678,29 @@
       "loginHeroLineError": "Ligne {{line}} invalide : format « libellé | https://url ».",
       "saved": "Enregistré — actualisez pour voir la nouvelle marque partout.",
       "saveFailed": "Échec de l'enregistrement : {{error}}"
+    },
+    "devices": {
+      "title": "Appareils appariés",
+      "scanHint": "Dans l'écran d'appairage de l'app mobile, touchez Scanner et visez le code QR : il porte à la fois l'adresse de cette instance et le code.",
+      "typeHint": "Pas d'appareil photo sous la main ? Saisissez l'adresse du serveur et les mêmes 6 chiffres dans l'écran d'appairage.",
+      "validity": "À usage unique, valable 5 minutes.",
+      "expiresIn": "Expire dans {{time}}",
+      "expired": "Le code d'appairage a expiré.",
+      "refresh": "Actualiser",
+      "retry": "Réessayer",
+      "loading": "Chargement…",
+      "signedOut": "Connectez-vous pour appairer ce compte avec l'app.",
+      "signIn": "Se connecter",
+      "openInstance": "Cette instance est en accès libre sans comptes — rien à appairer.",
+      "unavailable": "Ce serveur est antérieur à l'appairage d'appareils ; mettez-le à jour pour appairer l'app.",
+      "error": "Échec de récupération du code d'appairage.",
+      "listTitle": "Appareils appariés",
+      "listError": "Échec du chargement de la liste des appareils.",
+      "empty": "Aucun appareil apparié pour l'instant. Appariez le premier avec le code ci-dessus.",
+      "boundAt": "Apparié {{time}}",
+      "revokeConfirm": "Révoquer cet appareil ?",
+      "revoke": "Révoquer",
+      "cancel": "Annuler"
     }
   },
   "bindings": {

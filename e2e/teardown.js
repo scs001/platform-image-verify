@@ -22,7 +22,7 @@ const DSH_CMD = /(dsh\/lib\/bin\.js|bin\/dsh)\b.*--profile/;
 // which ride the dsh child's --patch argv. A concurrently-running e2e process
 // with a LIVE parent is never an orphan, so the PPID=1 gate keeps a parallel
 // run's processes untouched.
-const E2E_MARKER = /\.e2e-store-\d+\/|paas-[a-z0-9-]*-e2e-|migrate-rehearsal-/;
+const E2E_MARKER = /\.e2e-store-\d+\/|paas-[a-z0-9-]*-e2e-|migrate-rehearsal-|app-pair-smoke-/;
 
 function processTable() {
   const out = execFileSync("ps", ["-axo", "pid=,ppid=,command="], {

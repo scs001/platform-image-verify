@@ -508,6 +508,24 @@
       "disconnect": "Déconnecter",
       "unconfigured": "Aucun marché MCP n'est configuré sur ce déploiement — collez un jeton.",
       "staleHint": "Le marché a rejeté le jeton enregistré. Reconnectez-vous pour restaurer les serveurs du registre."
+    },
+    "connector": {
+      "title": "Connexions SaaS (connecteur)",
+      "state": {
+        "connected": "Connecté",
+        "disconnected": "Non connecté",
+        "stale": "Recolle requise"
+      },
+      "pasteToggle": "Coller le PAT",
+      "repasteToggle": "Recoller le PAT",
+      "tokenLabel": "PAT du connecteur",
+      "tokenPlaceholder": "oct_…",
+      "updated": "Mis à jour {{date}}",
+      "disconnect": "Déconnecter",
+      "staleHint": "Le connecteur a rejeté ce PAT. Génère-en un nouveau et recolle-le.",
+      "pasteHint": "Génère un jeton d'accès personnel (oct_…) sur la page « Mes connexions » du connecteur et colle-le ici.",
+      "meLink": "Ouvrir Mes connexions",
+      "pasteHintNoLink": "Génère un jeton d'accès personnel (oct_…) sur la page « Mes connexions » du connecteur et colle-le ici."
     }
   },
   "help": {
@@ -655,8 +673,8 @@
       "loginHeroPoints": "Points",
       "loginHeroPointsHint": "Un par ligne, jusqu'à 4.",
       "loginHeroLinks": "Liens",
-      "loginHeroLinksHint": "Une \u00ab libellé | https://url \u00bb par ligne, jusqu'à 4.",
-      "loginHeroLineError": "Ligne {{line}} invalide : format \u00ab libellé | https://url \u00bb.",
+      "loginHeroLinksHint": "Une « libellé | https://url » par ligne, jusqu'à 4.",
+      "loginHeroLineError": "Ligne {{line}} invalide : format « libellé | https://url ».",
       "saved": "Enregistré — actualisez pour voir la nouvelle marque partout.",
       "saveFailed": "Échec de l'enregistrement : {{error}}"
     }

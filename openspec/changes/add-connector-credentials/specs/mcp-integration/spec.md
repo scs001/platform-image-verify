@@ -33,7 +33,7 @@ The server SHALL read `mcp.json` from the project root at startup and pass the M
 - **AND** the configuration row is unchanged, so the server returns once a PAT is stored
 
 #### Scenario: unresolvable ref never passes unauthenticated
-- **WHEN** credential resolution for a server's `credentialRef` fails for an unexpected reason (store error, unavailable module)
+- **WHEN** credential resolution for a server's `credentialRef` fails — an unknown ref name, a store error, or an unavailable module
 - **THEN** every server carrying a `credentialRef` is omitted from the effective profile and a warning is logged
 - **AND** no server is passed downstream with a placeholder or empty Authorization header
 

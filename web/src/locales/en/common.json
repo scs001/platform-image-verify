@@ -508,6 +508,24 @@
       "disconnect": "Disconnect",
       "unconfigured": "No MCP market is configured on this deployment — paste a token instead.",
       "staleHint": "The market rejected the stored token. Re-connect to restore registry servers."
+    },
+    "connector": {
+      "title": "SaaS connections (Connector)",
+      "state": {
+        "connected": "Connected",
+        "disconnected": "Not connected",
+        "stale": "Re-paste needed"
+      },
+      "pasteToggle": "Paste PAT",
+      "repasteToggle": "Re-paste PAT",
+      "tokenLabel": "Connector PAT",
+      "tokenPlaceholder": "oct_…",
+      "updated": "Updated {{date}}",
+      "disconnect": "Disconnect",
+      "staleHint": "The connector rejected this PAT. Mint a fresh one and re-paste it.",
+      "pasteHint": "Mint a personal access token (oct_…) on the connector's “My connections” page and paste it here.",
+      "meLink": "Open My connections",
+      "pasteHintNoLink": "Mint a personal access token (oct_…) on the connector's “My connections” page and paste it here."
     }
   },
   "help": {
@@ -668,8 +686,8 @@
       "loginHeroPoints": "Bullet points",
       "loginHeroPointsHint": "One per line, up to 4.",
       "loginHeroLinks": "Links",
-      "loginHeroLinksHint": "One \u201clabel | https://url\u201d per line, up to 4.",
-      "loginHeroLineError": "Invalid line {{line}}: use \u201clabel | https://url\u201d.",
+      "loginHeroLinksHint": "One “label | https://url” per line, up to 4.",
+      "loginHeroLineError": "Invalid line {{line}}: use “label | https://url”.",
       "saved": "Saved — refresh to see the new branding everywhere.",
       "saveFailed": "Could not save: {{error}}"
     }

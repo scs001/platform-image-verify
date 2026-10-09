@@ -10,6 +10,7 @@ import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import { McpMarketCard } from "./McpMarketCard";
 import { McpServerForm } from "./McpServerForm";
 import { RegistryConnectPanel } from "./RegistryConnectPanel";
+import { ConnectorConnectPanel } from "./ConnectorConnectPanel";
 import type { MarketMcpServer } from "@platform/core";
 
 interface McpMarketViewProps {
@@ -43,6 +44,10 @@ export function McpMarketView({ onInstalled }: McpMarketViewProps = {}) {
         {/* The MCP market account (registry-sso-credentials): registry installs
             authenticate with this credential, so its state lives here. */}
         <RegistryConnectPanel className="mb-4" />
+        {/* The connector PAT (connector-credentials): the baseline connector
+            server appears once this credential is live — same credential slot
+            mental model, next to the market account. */}
+        <ConnectorConnectPanel className="mb-4" />
         {mcpServers.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("extensions.market.empty")}</p>
         ) : (

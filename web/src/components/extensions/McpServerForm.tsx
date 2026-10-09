@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import type { McpServer, MarketMcpServer } from "@platform/core";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import { RegistryConnectPanel } from "./RegistryConnectPanel";
+import { ConnectorConnectPanel } from "./ConnectorConnectPanel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -323,6 +324,11 @@ export function McpServerForm({ open, onOpenChange, server, initialConfig, setup
               {isRegistrySetup && (
                 <RegistryConnectPanel compact className="rounded-md border border-border p-3" />
               )}
+
+              {/* The connector PAT lives in its own credential slot; offered in
+                  the same dialog so both MCP credential surfaces are one place
+                  apart (design D5). */}
+              <ConnectorConnectPanel compact className="rounded-md border border-border p-3" />
 
               {/* Placeholder headers: one labeled field per fillable header. */}
               {Object.entries(setupServer!.configTemplate.headers || {}).map(([k, v]) =>

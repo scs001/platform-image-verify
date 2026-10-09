@@ -508,6 +508,24 @@
       "disconnect": "断开连接",
       "unconfigured": "本部署未配置 MCP 市场，请改为粘贴令牌。",
       "staleHint": "市场已拒绝当前令牌，重新连接后即可恢复 registry 服务。"
+    },
+    "connector": {
+      "title": "SaaS 连接（连接器）",
+      "state": {
+        "connected": "已连接",
+        "disconnected": "未连接",
+        "stale": "需重新粘贴"
+      },
+      "pasteToggle": "粘贴 PAT",
+      "repasteToggle": "重新粘贴 PAT",
+      "tokenLabel": "连接器 PAT",
+      "tokenPlaceholder": "oct_…",
+      "updated": "更新于 {{date}}",
+      "disconnect": "断开",
+      "staleHint": "连接器已拒绝该 PAT，请重新铸造并粘贴。",
+      "pasteHint": "在连接器的「我的连接」页面铸造个人访问令牌（oct_… 开头）并粘贴到这里。",
+      "meLink": "打开我的连接",
+      "pasteHintNoLink": "在连接器的「我的连接」页面铸造个人访问令牌（oct_… 开头）并粘贴到这里。"
     }
   },
   "help": {

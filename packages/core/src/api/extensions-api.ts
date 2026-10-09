@@ -126,6 +126,50 @@ export async function disconnectRegistry(): Promise<RegistryConnection> {
   return res.json();
 }
 
+// ── Connector connection (萬星 connector PAT) ────────────────────────────────
+//
+// Same write-only contract: the PAT never appears in any response. The paste
+// endpoint validates shape (oct_ prefix) and probes the connector once — a 401
+// is rejected server-side, so a stored credential here is live or best-effort.
+
+export interface ConnectorConnection {
+  connected: boolean;
+  stale: boolean;
+  updatedAt: string | null;
+  // Where the "get a PAT" hint sends the user (deployment config, not a
+  // secret; null when this deployment's baseline has no connector row).
+  connectorUrl: string | null;
+  mePath: string;
+}
+
+export async function fetchConnectorConnection(): Promise<ConnectorConnection> {
+  const res = await http("/api/connector/connection");
+  if (!res.ok) throw new Error(`Failed to fetch connector connection: ${res.statusText}`);
+  return res.json();
+}
+
+export async function saveConnectorCredential(token: string): Promise<ConnectorConnection> {
+  const res = await http("/api/connector/credential", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to save the credential: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function disconnectConnector(): Promise<ConnectorConnection> {
+  const res = await http("/api/connector/connection", { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to disconnect: ${res.statusText}`);
+  }
+  return res.json();
+}
+
 // ── MCP Servers ──────────────────────────────────────────────────────────────
 
 export async function fetchMcpServers(): Promise<McpServer[]> {

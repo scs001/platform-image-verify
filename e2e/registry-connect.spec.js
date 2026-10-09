@@ -186,8 +186,11 @@ test.describe("MCP market credential", () => {
 
   test("disconnect removes the credential and the row drops out of the profile", async ({ page, request }) => {
     await request.post(`${baseURL}/api/registry/credential`, { data: { token: "opaque-e2e-token", source: "paste" } });
+    // No credentialRef in the submitted config — the field is system-managed
+    // (add-connector-credentials D8); the server stamps it for this
+    // registry-origin catalog entry after the credential check.
     await request.post(`${baseURL}/api/extensions/mcp`, {
-      data: { name: REGISTRY_MCP, config: { url: `${REGISTRY_STUB}/${REGISTRY_MCP}/mcp`, credentialRef: "registry" } },
+      data: { name: REGISTRY_MCP, config: { url: `${REGISTRY_STUB}/${REGISTRY_MCP}/mcp` } },
     });
     await expect.poll(() => readPatch().includes(REGISTRY_MCP), { timeout: 15000 }).toBe(true);
 

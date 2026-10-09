@@ -46,38 +46,49 @@ function normalizePlan(raw) {
   return { todos, counts };
 }
 
-// A 401 from a registry-origin MCP endpoint means the stored market credential
-// is no longer accepted (expiry, revocation, registry restart). Mark it stale —
+// A 401 from a ref-carrying MCP endpoint means the stored credential for that
+// ref is no longer accepted (expiry, revocation, restart). Mark it invalid —
 // profile generation then treats it as absent — and ping the clients so the
-// Store can prompt for a one-click re-connect (registry-sso-credentials).
-// dsh names MCP tools `mcp__<serverName>__<toolName>` (dsh-profile), so the
-// failing tool identifies the installed record to check for a credential ref.
+// Store can prompt for a re-connect/re-paste (registry: registry-credentials;
+// connector: connector-credentials, design D7). Dispatch is by ref name through
+// the credential-refs table. dsh names MCP tools `mcp__<serverName>__<toolName>`
+// (dsh-profile), so the failing tool identifies the server whose config to
+// check for a credential ref.
 const UNAUTHORIZED_RE = /\b401\b|unauthoriz/i;
 
-function markRegistryCredentialStaleOn401(ctx, toolName, resultText) {
+function markCredentialStaleOn401(ctx, toolName, resultText) {
   if (!toolName || !resultText || !UNAUTHORIZED_RE.test(resultText)) return;
   const serverName = /^mcp__(.+?)__/.exec(toolName)?.[1];
   if (!serverName) return;
-  Promise.all([import("../extension-store.js"), import("../registry-credentials.js")])
-    .then(([extensionStore, credentials]) => {
-      const server = extensionStore.getMcpServer(serverName);
-      if (!credentials.isRegistryRef(server?.config)) return;
+  Promise.all([import("../extension-store.js"), import("../credential-refs.js"), import("node:fs"), import("node:path")])
+    .then(([extensionStore, credentialRefs, fs, nodePath]) => {
+      // The failing server may be a DB record (market installs) or a baseline
+      // mcp.json row (the connector row) — resolve the config from either.
+      let config = extensionStore.getMcpServer(serverName)?.config;
+      if (!config) {
+        try {
+          const mcpPath = nodePath.resolve(process.env.MCP_CONFIG_PATH || "mcp.json");
+          config = JSON.parse(fs.readFileSync(mcpPath, "utf8")).mcpServers?.[serverName];
+        } catch { /* no mcp.json / unreadable — nothing more to look up */ }
+      }
+      const entry = credentialRefs.refFor(config);
+      if (!entry) return;
       const owner = ctx.runtimeOwnerEmail;
       // false ⇒ already stale: the profile was re-applied then, so a run of
       // 401s costs exactly one re-apply.
-      if (!credentials.markStale(owner)) return;
+      if (!entry.markInvalid(owner)) return;
       console.warn(
-        `[registry] 401 from MCP server "${serverName}" — credential for ${owner || "the machine owner"} marked stale`,
+        `[${entry.refName}] 401 from MCP server "${serverName}" — credential for ${owner || "the machine owner"} marked invalid`,
       );
-      ctx.broadcast?.({ type: "registry_credential_stale" });
+      ctx.broadcast?.({ type: entry.staleEvent });
       // The server cannot authenticate any more; drop it from the effective
       // profile now rather than leaving a call that fails every time. Groups
       // are the last-applied owner's, so the role filter is preserved.
       ctx
         .dshUpdateMcp?.(ctx.runtimeMcpOverlay ?? null, ctx.runtimeOwnerGroups ?? null, owner)
-        ?.catch((e) => console.warn(`[registry] profile update after stale mark failed: ${e.message}`));
+        ?.catch((e) => console.warn(`[${entry.refName}] profile update after stale mark failed: ${e.message}`));
     })
-    .catch((e) => console.warn(`[registry] stale detection failed: ${e.message}`));
+    .catch((e) => console.warn(`[credential-refs] stale detection failed: ${e.message}`));
 }
 
 export function attachDshEvents(ctx) {
@@ -460,7 +471,7 @@ export function attachDshEvents(ctx) {
         ) {
           ctx.pendingQuestionBySession?.delete(ctx.dshSessionId);
         }
-        if (isError) markRegistryCredentialStaleOn401(ctx, ctx.dshToolNames.get(callId), resultText);
+        if (isError) markCredentialStaleOn401(ctx, ctx.dshToolNames.get(callId), resultText);
         break;
       }
       case "turn/end": {

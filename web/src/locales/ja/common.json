@@ -508,6 +508,24 @@
       "disconnect": "切断",
       "unconfigured": "このデプロイには MCP マーケットが設定されていません。トークンを貼り付けてください。",
       "staleHint": "保存済みトークンがマーケットに拒否されました。再接続するとレジストリのサーバーが復帰します。"
+    },
+    "connector": {
+      "title": "SaaS 接続（コネクタ）",
+      "state": {
+        "connected": "接続済み",
+        "disconnected": "未接続",
+        "stale": "再貼付が必要"
+      },
+      "pasteToggle": "PAT を貼り付け",
+      "repasteToggle": "PAT を再貼付",
+      "tokenLabel": "コネクタ PAT",
+      "tokenPlaceholder": "oct_…",
+      "updated": "更新：{{date}}",
+      "disconnect": "切断",
+      "staleHint": "コネクタがこの PAT を拒否しました。新しく発行して貼り直してください。",
+      "pasteHint": "コネクタの「マイ接続」ページで個人アクセストークン（oct_…）を発行し、ここに貼り付けてください。",
+      "meLink": "マイ接続を開く",
+      "pasteHintNoLink": "コネクタの「マイ接続」ページで個人アクセストークン（oct_…）を発行し、ここに貼り付けてください。"
     }
   },
   "help": {

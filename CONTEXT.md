@@ -54,6 +54,10 @@ _Avoid_: 默认集、default set、基础集
 用户对某预设有效资源集的增删偏好：加只能选已启用的资源，减总是合法。是偏好差异而非快照，包升级后对新集合重新解析。
 _Avoid_: 自定义资源集、scope 状态、快照
 
+**凭据引用（Credential Ref）**:
+MCP 服务配置上按名指向一类 per-user 凭据的标记：Authorization 头在每次有效 profile 写入时按 ref 解析，解析失败即省略该服务（记录保留）。ref 由系统管理，不经用户手输。
+_Avoid_: 凭据标记、token 引用、凭据字段
+
 **自建预设（Custom Preset）**:
 用户在 cell 本地拼装的对话入口：自选人设文本与本地可用资源，聚焦运行，不经市场发布。
 _Avoid_: 用户包、自定义智能体、local pack
@@ -185,6 +189,10 @@ _Avoid_: 资源平台（"资源"已被资源库/资源集占用）、pack 平台
 **注册处（Registry）**:
 谦面的组件：MCP 服务目录与运行时分发面——Agent 服务的技能与条目经它下发，萬星运行时从它取活。不直接对外，对外调用走萬星门面。
 _Avoid_: 市场（谦面的用户面才是市场）、mcp-gateway-registry（实现软件名）
+
+**连接器（Connector）**:
+萬星生态的 SaaS 连接服务（open-connector-mt）：用户以统一登录托管各类 SaaS 凭据、铸造 PAT 交给 agent 使用；壹座经凭据引用把用户 PAT 注入 connector MCP 服务行。
+_Avoid_: connector 平台、Nango（实现前身）、open-connector（实现软件名）
 
 **萬星（Wanxing）**:
 独立长期运作的 agent 对外服务平台：以萬星门面对外售卖 Agent 服务调用，sub2api 为其计费与降费引擎，壹座为其底座。

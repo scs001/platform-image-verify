@@ -143,6 +143,9 @@ export type ServerMessage =
   // A 401 from a registry-origin MCP server marked the market credential
   // stale: the Store re-reads the connection and prompts to reconnect.
   | { type: "registry_credential_stale" }
+  // A 401 from the connector MCP server invalidated the connector PAT: the
+  // Store re-reads the connection and the card flips to re-paste.
+  | { type: "connector_credential_stale" }
   | { type: "user_bindings"; model: BindingModel | null; mcp: McpBindingState[] }
   | { type: "runtime_binding"; model: RuntimeModel | null; mcp: { name: string; enabled: boolean }[] }
   | { type: "runtime_binding_pending"; model: RuntimeModel | null; mcp: { name: string; enabled: boolean }[] };

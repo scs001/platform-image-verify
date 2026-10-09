@@ -21,16 +21,16 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { getFileSkills } from "../skills.js";
 import * as dshProfile from "../../dsh-profile.js";
-import * as registryCredentials from "../../registry-credentials.js";
+import * as credentialRefs from "../../credential-refs.js";
 
 const MCP_CONFIG_PATH = path.resolve(process.env.MCP_CONFIG_PATH || "mcp.json");
 
 // The operator's mcp.json server names (the baseline's operator layer).
-function mcpJsonNames() {
+function mcpJsonServers() {
   try {
-    return Object.keys(JSON.parse(readFileSync(MCP_CONFIG_PATH, "utf8")).mcpServers ?? {});
+    return JSON.parse(readFileSync(MCP_CONFIG_PATH, "utf8")).mcpServers ?? {};
   } catch {
-    return [];
+    return {};
   }
 }
 
@@ -39,30 +39,47 @@ function baselineNames() {
   return (process.env.PACK_BASELINE_MCP || "").split(/[\s,]+/).map((s) => s.trim()).filter(Boolean);
 }
 
+// Credential-liveness gate for one server config: non-ref configs always pass;
+// a ref-carrying config passes only while the composing identity holds a live
+// credential for that ref. Unknown ref names resolve to nothing (the patch
+// writer omits them, so both the addable universe and the effective-set mirror
+// must not offer them either).
+function resolvableConfig(config, ownerEmail) {
+  if (!credentialRefs.isCredentialRef(config)) return true;
+  const entry = credentialRefs.refFor(config);
+  if (!entry) return false;
+  try {
+    return Boolean(entry.liveToken(ownerEmail));
+  } catch {
+    return false;
+  }
+}
+
 // The addable-server universe: every server the composing identity could
 // already use — mcp.json (operator layer) plus DB rows that are enabled,
 // visible to the runtime owner's groups, and credential-resolvable. This is
 // the availability/group/credential-filtered map writeMcpPatch captures
 // before focus, computed name-only here (no patch write for a GET).
-function availableMcpNames(ctx) {
-  const names = new Set(mcpJsonNames());
+// Credential filtering applies to ANY ref-carrying row, mcp.json included —
+// the connector row is a baseline entry a user without a PAT must not be
+// offered (it would silently drop out at composition time).
+// Exported for unit tests (the addable-universe contract is credential-ref
+// semantics, not route wiring).
+export function availableMcpNames(ctx) {
+  const names = new Set();
   // The composing identity's inputs — same semantics the patch writer applies
   // (null = no snapshot yet / auth off ⇒ no group filtering).
   const groups = ctx.runtimeOwnerGroups ?? null;
+  const ownerEmail = ctx.runtimeOwnerEmail ?? null;
+  for (const [name, config] of Object.entries(mcpJsonServers())) {
+    if (resolvableConfig(config, ownerEmail)) names.add(name);
+  }
   if (ctx.db.isDbReady()) {
-    let liveToken = null;
-    try {
-      liveToken = registryCredentials.liveToken(ctx.runtimeOwnerEmail ?? null);
-    } catch { liveToken = null; }
     for (const row of ctx.extensionStore.listMcpServers()) {
       if (row.enabled === false) continue;
       if (row.requiredGroups?.length && groups !== null &&
           !groups.some((g) => row.requiredGroups.includes(g))) continue;
-      let resolvable = true;
-      try {
-        resolvable = !registryCredentials.isRegistryRef(row.config) || !!liveToken;
-      } catch { /* an unknown ref shape composes as-is — the writer decides */ }
-      if (resolvable) names.add(row.name);
+      if (resolvableConfig(row.config, ownerEmail)) names.add(row.name);
     }
   }
   return names;
@@ -91,7 +108,14 @@ export function registerOverlayRoutes(ctx) {
     // Effective MCP names — the same composition writeMcpPatch performs:
     // operator baseline ∪ resolvable PACK_BASELINE_MCP ∪ pack refs, then the
     // overlay's add (from available) and remove.
-    const effectiveMcp = new Set(mcpJsonNames());
+    // Operator baseline names, credential-filtered to mirror what writeMcpPatch
+    // actually keeps (a ref-carrying baseline row drops without a credential).
+    const ownerEmail = ctx.runtimeOwnerEmail ?? null;
+    const effectiveMcp = new Set(
+      Object.entries(mcpJsonServers())
+        .filter(([, config]) => resolvableConfig(config, ownerEmail))
+        .map(([name]) => name),
+    );
     for (const name of baselineNames()) if (available.has(name)) effectiveMcp.add(name);
     for (const name of scope.mcpKeep ?? []) if (available.has(name)) effectiveMcp.add(name);
     if (overlay) {

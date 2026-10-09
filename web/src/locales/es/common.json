@@ -508,6 +508,24 @@
       "disconnect": "Desconectar",
       "unconfigured": "Esta instalación no tiene mercado MCP configurado: pega un token.",
       "staleHint": "El mercado rechazó el token guardado. Reconecta para restaurar los servidores del registro."
+    },
+    "connector": {
+      "title": "Conexiones SaaS (conector)",
+      "state": {
+        "connected": "Conectado",
+        "disconnected": "Sin conectar",
+        "stale": "Repegar necesario"
+      },
+      "pasteToggle": "Pegar PAT",
+      "repasteToggle": "Repegar PAT",
+      "tokenLabel": "PAT del conector",
+      "tokenPlaceholder": "oct_…",
+      "updated": "Actualizado {{date}}",
+      "disconnect": "Desconectar",
+      "staleHint": "El conector rechazó este PAT. Genera uno nuevo y vuelve a pegarlo.",
+      "pasteHint": "Genera un token de acceso personal (oct_…) en la página «Mis conexiones» del conector y pégalo aquí.",
+      "meLink": "Abrir Mis conexiones",
+      "pasteHintNoLink": "Genera un token de acceso personal (oct_…) en la página «Mis conexiones» del conector y pégalo aquí."
     }
   },
   "help": {
@@ -655,8 +673,8 @@
       "loginHeroPoints": "Puntos",
       "loginHeroPointsHint": "Uno por línea, hasta 4.",
       "loginHeroLinks": "Enlaces",
-      "loginHeroLinksHint": "Una \u201cetiqueta | https://url\u201d por línea, hasta 4.",
-      "loginHeroLineError": "Línea {{line}} no válida: usa \u201cetiqueta | https://url\u201d.",
+      "loginHeroLinksHint": "Una “etiqueta | https://url” por línea, hasta 4.",
+      "loginHeroLineError": "Línea {{line}} no válida: usa “etiqueta | https://url”.",
       "saved": "Guardado: actualiza para ver la nueva marca en todas partes.",
       "saveFailed": "No se pudo guardar: {{error}}"
     }

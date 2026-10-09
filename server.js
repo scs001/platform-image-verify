@@ -42,6 +42,7 @@ import { attachWorkerPool } from "./server/worker-slots.js";
 import { attachMcBridge } from "./server/mc-bridge.js";
 import { registerMpRoutes } from "./server/routes/mp.js";
 import { registerRegistryRoutes } from "./server/routes/registry.js";
+import { registerConnectorRoutes } from "./server/routes/connector.js";
 import { registerFileRoutes } from "./server/routes/files.js";
 import { registerResourceRoutes } from "./server/routes/resources.js";
 import { registerBotRoutes, WEBHOOK_PREFIX } from "./server/routes/bots.js";
@@ -200,6 +201,9 @@ registerDelegationRoutes(ctx);
 // unbind) — mounted with the other /api routes, before the static SPA fallback.
 registerMpRoutes(ctx);
 registerRegistryRoutes(ctx);
+// 萬星 connector PAT (connector-credentials) — same route family as the
+// registry credential endpoints.
+registerConnectorRoutes(ctx);
 // The relay must register BEFORE the bots routes: POST /api/bots/relay/send
 // would otherwise match POST /api/bots/:id/send with id = "relay", and the
 // admin-gated handler there would answer a machine caller.

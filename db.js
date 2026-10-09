@@ -553,6 +553,24 @@ const MIGRATIONS = [
       db.exec(`CREATE INDEX IF NOT EXISTS idx_chat_sessions_owner ON chat_sessions(owner)`);
     },
   },
+  {
+    version: 23,
+    // connector-credentials (add-connector-credentials, design D2): the 萬星
+    // connector's per-user PAT (oct_…, no expiry — revocation is user-driven).
+    // Same shape as user_registry_credentials but a separate table: the two
+    // credentials have independent lifecycles (connecting one side must never
+    // disturb the other), and merging them would force a data migration for
+    // zero behavioral gain. Referenced from mcp.json's connector server row as
+    // `credentialRef: "connector"` — the token never lands in any server config.
+    statements: [
+      `CREATE TABLE IF NOT EXISTS user_connector_credentials (
+        email TEXT PRIMARY KEY,
+        token TEXT NOT NULL,
+        stale INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+      )`,
+    ],
+  },
 ];
 
 function nowIso() {
@@ -1381,6 +1399,50 @@ export function deleteRegistryCredential(email) {
 export function markRegistryCredentialStale(email) {
   if (!dbReady) return false;
   return stmt("UPDATE user_registry_credentials SET stale = 1, updated_at = ? WHERE email = ? AND stale = 0")
+    .run(nowIso(), normalizeIdentityEmail(email)).changes > 0;
+}
+
+// ── Connector credentials (萬星 connector PAT, one row per user) ─────────────
+//
+// Same contract as the registry accessors above; the PAT is opaque (no expiry
+// column) and 401-driven staleness is the only "not live" state besides absence.
+
+export function getConnectorCredential(email) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return null;
+  const row = stmt(
+    "SELECT token, stale, updated_at AS updatedAt FROM user_connector_credentials WHERE email = ?"
+  ).get(key);
+  return row ? { ...row, stale: !!row.stale } : null;
+}
+
+export function setConnectorCredential({ email, token }) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  if (!key || !token) return null;
+  // A fresh paste clears the stale flag, exactly like the registry row: the
+  // user just replaced the credential, so the next profile write may use it.
+  stmt(
+    `INSERT INTO user_connector_credentials (email, token, stale, updated_at)
+     VALUES (@email, @token, 0, @updatedAt)
+     ON CONFLICT(email) DO UPDATE SET
+       token = excluded.token,
+       stale = 0,
+       updated_at = excluded.updated_at`
+  ).run({ email: key, token, updatedAt: nowIso() });
+  return getConnectorCredential(key);
+}
+
+export function deleteConnectorCredential(email) {
+  if (!dbReady) return false;
+  return stmt("DELETE FROM user_connector_credentials WHERE email = ?")
+    .run(normalizeIdentityEmail(email)).changes > 0;
+}
+
+export function markConnectorCredentialStale(email) {
+  if (!dbReady) return false;
+  return stmt("UPDATE user_connector_credentials SET stale = 1, updated_at = ? WHERE email = ? AND stale = 0")
     .run(nowIso(), normalizeIdentityEmail(email)).changes > 0;
 }
 

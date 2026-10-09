@@ -1,6 +1,7 @@
 // Extensions state (MCP servers + custom skills + market catalog + the MCP
-// market credential). Fetches REST on mount; subscribes to the
-// `extensions_changed` / `market_changed` / `registry_credential_stale` WS events.
+// market credential + the connector PAT). Fetches REST on mount; subscribes to
+// the `extensions_changed` / `market_changed` / `registry_credential_stale` /
+// `connector_credential_stale` WS events.
 import { create } from "zustand";
 import * as api from "@platform/core";
 import type {
@@ -8,6 +9,7 @@ import type {
   Skill,
   MarketCatalog,
   RegistryConnection,
+  ConnectorConnection,
 } from "@platform/core";
 import type { ServerMessage } from "@platform/core";
 import { mintConfigFrom, mintRegistryToken, registrySessionLive } from "@/lib/registry-mint";
@@ -22,6 +24,9 @@ interface ExtensionsState {
   // Market credential (registry-sso-credentials). null = not fetched yet.
   registryConnection: RegistryConnection | null;
   connecting: boolean;
+
+  // Connector PAT (connector-credentials). null = not fetched yet.
+  connectorConnection: ConnectorConnection | null;
 
   load: () => Promise<void>;
   refreshMcpServers: () => Promise<void>;
@@ -44,6 +49,10 @@ interface ExtensionsState {
   saveMarketCredential: (token: string, source?: "sso" | "paste") => Promise<void>;
   disconnectMarket: () => Promise<void>;
 
+  refreshConnectorConnection: () => Promise<void>;
+  saveConnectorCredential: (token: string) => Promise<void>;
+  disconnectConnector: () => Promise<void>;
+
   applyEvent: (msg: ServerMessage) => void;
 }
 
@@ -63,6 +72,7 @@ export const useExtensionsStore = create<ExtensionsState>((set, get) => ({
   error: null,
   registryConnection: null,
   connecting: false,
+  connectorConnection: null,
 
   load: async () => {
     set({ loading: true, error: null });
@@ -204,6 +214,26 @@ export const useExtensionsStore = create<ExtensionsState>((set, get) => ({
     set({ registryConnection });
   },
 
+  refreshConnectorConnection: async () => {
+    try {
+      const connectorConnection = await api.fetchConnectorConnection();
+      set({ connectorConnection });
+    } catch (err) {
+      // Unknown state, not "disconnected" — same rule as the registry read.
+      set({ error: (err as Error).message });
+    }
+  },
+
+  saveConnectorCredential: async (token) => {
+    const connectorConnection = await api.saveConnectorCredential(token);
+    set({ connectorConnection });
+  },
+
+  disconnectConnector: async () => {
+    const connectorConnection = await api.disconnectConnector();
+    set({ connectorConnection });
+  },
+
   applyEvent: (msg) => {
     if (msg.type === "market_changed") {
       get().refreshMarketCatalog();
@@ -213,6 +243,12 @@ export const useExtensionsStore = create<ExtensionsState>((set, get) => ({
       // A 401 from a registry MCP server: re-read the state so the Store shows
       // the re-connect prompt.
       get().refreshRegistryConnection();
+      return;
+    }
+    if (msg.type === "connector_credential_stale") {
+      // A 401 from the connector MCP server: re-read so the card flips to
+      // "invalidated — re-paste".
+      get().refreshConnectorConnection();
       return;
     }
     if (msg.type !== "extensions_changed") return;

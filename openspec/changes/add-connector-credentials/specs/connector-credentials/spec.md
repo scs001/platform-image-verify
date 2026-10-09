@@ -31,7 +31,7 @@
 #### Scenario: 状态响应不含 token
 
 - **WHEN** 客户端读取 connector 凭据状态
-- **THEN** 响应体只含 connected / updatedAt 等投影字段，不含 token
+- **THEN** 响应体只含 connected / updatedAt / stale 等投影字段，不含 token
 
 #### Scenario: 错误路径不回显
 
@@ -79,3 +79,37 @@
 
 - **WHEN** 用户已连接
 - **THEN** 卡片显示已连接与更新时间，并提供断开操作
+
+### Requirement: Paste-time validation rejects malformed or dead PATs
+
+粘贴端点 SHALL 校验 PAT 形状与存活：非 `oct_` 前缀的提交 SHALL 被拒收（400，指明不是 connector PAT）；形状合法的 PAT SHALL 对 connector MCP 入口做一次探活（Authorization 头携带该 PAT），探活返回 401 时 SHALL 拒收（400，指明 token 已失效或错误），网络错误或服务端 5xx 时 SHALL 照常存储。探活目标 SHALL 取自部署基线中 connector 服务行的 url，不另行硬编码；基线无该行时 SHALL 跳过探活仅做形状校验。
+
+#### Scenario: 非法前缀当场拒收
+
+- **WHEN** 用户粘贴一个不以 `oct_` 开头的字符串
+- **THEN** 返回 400 且指明不是 connector PAT，不产生凭据行
+
+#### Scenario: 已撤销 PAT 当场拒收
+
+- **WHEN** 用户粘贴一个形状合法但已被撤销的 PAT，且探活返回 401
+- **THEN** 返回 400 且指明 token 已失效或错误，不产生凭据行
+
+#### Scenario: connector 不可达不阻断录入
+
+- **WHEN** 探活因网络错误或服务端 5xx 失败
+- **THEN** PAT 照常存储，凭据行建立
+
+### Requirement: Revoked PAT is surfaced and the server is dropped
+
+当已存储 PAT 失效（用户在 connector 侧撤销）而会话中的 connector 工具调用返回 401 时，平台 SHALL 把该用户的 connector 凭据标记为失效（不删除行）、从有效 profile 省略 connector 服务并重新应用，且一轮连续 401 只触发一次重新应用。失效状态 SHALL 投影到凭据状态面并广播给已连接的客户端；用户重新粘贴有效 PAT 即恢复，无需重装服务。
+
+#### Scenario: 401 翻面恰好一次重应用
+
+- **WHEN** 已连接用户的 connector 工具调用连续返回 401
+- **THEN** 凭据被标记失效，connector 服务从有效 profile 省略并重新应用一次（后续 401 不再重复触发）
+- **AND** 状态投影报告已失效，客户端收到凭据失效广播
+
+#### Scenario: 重粘即恢复
+
+- **WHEN** 失效用户重新粘贴一个有效 PAT
+- **THEN** 失效标记随存储清除，下一次 profile 写入重新注入 connector 服务，无需重装

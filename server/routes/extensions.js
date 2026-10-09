@@ -32,6 +32,13 @@ export function registerExtensionRoutes(ctx) {
     if (!name || !submitted) {
       return res.status(400).json({ error: "Missing name or config" });
     }
+    // `credentialRef` is system-managed (add-connector-credentials D8): a
+    // client-stamped ref could route the requester's own stored credential to
+    // an arbitrary URL or wedge resolution on an unknown name. Only the
+    // platform stamps it (market installs); operators declare refs in mcp.json.
+    if (submitted.credentialRef !== undefined) {
+      return res.status(400).json({ error: "credentialRef is system-managed; remove it from the submitted config" });
+    }
     // Market install admission (design D3): resolve the merged catalog entry
     // by the submitted name. A gated entry requires the requester's groups to
     // intersect and stamps requiredGroups onto the record for runtime
@@ -96,6 +103,11 @@ export function registerExtensionRoutes(ctx) {
       }
       if (oldServer.locked) {
         return res.status(400).json({ error: `MCP server "${name}" is locked (bundled) and cannot be updated` });
+      }
+      // Same system-managed-field gate as the add path (D8): an update is just
+      // a slower way to stamp a ref the client must not control.
+      if (config?.credentialRef !== undefined) {
+        return res.status(400).json({ error: "credentialRef is system-managed; remove it from the submitted config" });
       }
       const server = extensionStore.updateMcpServer(name, { config, enabled });
       // Hot-reload: disconnect old, connect new if config changed or enabled changed.

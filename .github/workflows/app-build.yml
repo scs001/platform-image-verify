@@ -1,0 +1,78 @@
+name: app-build
+
+# Builds the installable Android APK on every landing (add-mobile-app 6.3's
+# CI path — EAS remains the signed/release lane). The Expo template signs the
+# release build with the debug keystore, so the artifact installs directly on
+# any Android device (unknown-sources sideload) and bundles the JS — no
+# Metro needed. Gates (typecheck + unit incl. the integration smoke and the
+# i18n CJK lint) run first: a red gate never ships a package.
+
+on:
+  push:
+    branches: [main]
+    paths: ["app/**", "packages/core/**", ".github/workflows/app-build.yml"]
+  pull_request:
+    paths: ["app/**", "packages/core/**", ".github/workflows/app-build.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: app-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    name: gates → android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 25
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install app dependencies (+ linked core)
+        run: |
+          npm --prefix app ci
+          # The file: dep on ../packages/core resolves through app's own
+          # node_modules symlink; ensure the shared core is present as declared.
+          npm --prefix app install --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm --prefix app run typecheck
+
+      - name: Unit tests (integration smoke + i18n gate)
+        run: npm --prefix app run test:unit
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # ubuntu-latest ships the Android SDK; pin the pieces gradle will ask
+      # for and accept the licenses non-interactively.
+      - name: Android SDK components
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" > /dev/null
+
+      - name: Prebuild native project
+        run: npx --prefix app expo prebuild --platform android --no-install
+
+      - name: Gradle assembleRelease
+        working-directory: app/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Rename artifact
+        run: |
+          mkdir -p app/artifacts
+          cp app/android/app/build/outputs/apk/release/app-release.apk \
+             app/artifacts/yizuo-${{ github.sha }}.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yizuo-android-apk
+          path: app/artifacts/*.apk
+          retention-days: 30

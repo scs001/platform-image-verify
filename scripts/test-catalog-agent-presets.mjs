@@ -88,6 +88,23 @@ assert.ok(!profile.hasCatalogAgentPreset("pack-link"), "a link entry has no pres
 const presetYml = fs.readFileSync(path.join(presetDir("pack-contract-reviewer"), "preset.yml"), "utf8");
 assert.ok(presetYml.includes("合同审查官"), "preset.yml carries the display name (the picker's label)");
 
+// Fold (live defect 2026-10-09): dsh-agent-presets discovery accepts only
+// /^[a-z0-9][a-z0-9-]*$/ and SKIPS any directory outside it. Marketplace pack
+// ids are case-mixed base64url and may carry `_`; an unfolded id produces a
+// preset the child can never mount ("preset not found (available: standard,
+// code, minimal, cordis)"). Every id that reaches a directory must fold.
+assert.equal(profile.rosterPresetId("qnhd7B3J1-HKDDKzZQ_fUQ"), "qnhd7b3j1-hkddkzzq-fuq", "case-mixed base64url ids fold to the roster alphabet");
+assert.equal(profile.rosterPresetId("user.Legal-Helper"), "user-legal-helper", "dots and case fold together");
+assert.match(profile.rosterPresetId("A_b.C-D"), /^[a-z0-9][a-z0-9-]*$/, "the fold always lands inside the plugin's regex");
+const wild = profile.writeCatalogAgentPresets([
+  { id: "qnhd7B3J1-HKDDKzZQ_fUQ.doc-report-writer", type: "agent-remote", mode: "chat", name: "文档工坊", baseUrl: "https://x/v1", model: "m" },
+]);
+assert.deepEqual(wild.ids, ["qnhd7b3j1-hkddkzzq-fuq-doc-report-writer"], "a case-mixed/underscore catalog id becomes a mountable preset dir");
+assert.ok(fs.existsSync(path.join(home, ".agent-presets", "qnhd7b3j1-hkddkzzq-fuq-doc-report-writer", "agent.cordis.yml")), "the folded dir is what discovery will find");
+// Restore the original catalog so the idempotence assertion below sees the
+// same wanted set it left behind.
+profile.writeCatalogAgentPresets(entries);
+
 // Idempotent: the catalog is polled every minute, so a second pass must be free.
 const second = profile.writeCatalogAgentPresets(entries);
 assert.equal(second.changed, false, "an unchanged catalog rewrites nothing");

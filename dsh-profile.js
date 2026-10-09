@@ -1237,15 +1237,18 @@ function isSafePresetId(id) {
 }
 
 // Roster-facing preset id (add-custom-presets): dsh-agent-presets' id regex
-// (/^[a-z0-9][a-z0-9-]*$/ — a path-containment boundary, not a style rule)
-// forbids dots, so a catalog id containing dots — every custom preset's
-// `user.<slug>`, and any dotted pack agent id — maps to its dash form at the
-// one place ids become directory names: the generated preset roster. The
-// catalog keeps the dotted id; resolvePersona maps back. Collisions (a.b vs
-// a-b) are impossible inside the reserved `user.` namespace and otherwise
-// resolved first-wins at generation time (writeCatalogAgentPresets).
+// (/^[a-z0-9][a-z0-9-]*$/ — a path-containment boundary, not a style rule) is
+// the roster alphabet, so this is the ONE place a catalog id becomes a
+// directory name: every character outside it folds to a dash (dots in every
+// custom preset's `user.<slug>`, and case-mixed base64url pack ids carrying
+// `_` — the runner's `srv-<packId>-<agentId>` form). Discovery SILENTLY skips
+// a directory whose name fails that regex, so a missed character here reads
+// as "preset not found (available: standard, code, minimal, cordis)" at turn
+// time — the pack-agent outage of 2026-10-09. The catalog keeps the original
+// id; resolvePersona maps back. Collisions (a.b vs a-b) are resolved
+// first-wins at generation time (writeCatalogAgentPresets).
 export function rosterPresetId(catalogId) {
-  return typeof catalogId === "string" ? catalogId.replace(/\./g, "-") : catalogId;
+  return typeof catalogId === "string" ? catalogId.toLowerCase().replace(/[^a-z0-9-]+/g, "-") : catalogId;
 }
 
 // The persona text for one catalog entry: the entry's own `persona` when the

@@ -198,6 +198,33 @@ test("4.2 missing skill content refuses to compose (never a silent half-bundle)"
   );
 });
 
+// Live defect 2026-10-09: marketplace pack ids are case-mixed base64url and
+// may carry `_` (the first doc-studio deploy was qnhd7B3J1-HKDDKzZQ_fUQ).
+// dsh-agent-presets discovery only accepts /^[a-z0-9][a-z0-9-]*$/ and SKIPS
+// any directory outside it, so an unfolded id composes a preset the child can
+// never mount — every turn dies with "preset ... not found (available:
+// standard, code, minimal, cordis)". The composed id must always be inside
+// the roster alphabet.
+test("4.2 case-mixed pack ids fold into the preset roster alphabet", async () => {
+  const WILD = {
+    ...ENTRY,
+    path: "/packs/qnhd7B3J1-HKDDKzZQ_fUQ/doc-report-writer",
+    metadata: { ...ENTRY.metadata, packId: "qnhd7B3J1-HKDDKzZQ_fUQ", agentId: "doc-report-writer", skills: [] },
+  };
+  const spec = await materializeAgentHome({
+    homeRoot: path.join(tmpRoot, "compose-wild"),
+    agentKey: agentKeyFor(WILD),
+    entry: WILD,
+    skillContents: {},
+    mcpServers: [],
+    template: TEMPLATE,
+  });
+  assert.match(spec.presetId, /^[a-z0-9][a-z0-9-]*$/, "the composed preset id stays inside the plugin's roster alphabet");
+  assert.ok(existsSync(path.join(spec.home, ".agent-presets", spec.presetId, "agent.cordis.yml")), "the preset directory carries the composed id");
+  const presets = readFileSync(path.join(spec.home, "profiles", "platform", "presets.patch.yml"), "utf8");
+  assert.ok(presets.includes(`default: ${spec.presetId}`), "the patch's default names the same id discovery will see");
+});
+
 // ── Stub registry + manager/adapter harness ────────────────────────────────
 
 function stubRegistryFetch(entries, skills) {

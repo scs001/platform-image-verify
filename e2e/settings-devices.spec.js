@@ -219,6 +219,9 @@ test.describe("settings → Paired devices", () => {
   });
 
   test("revoking from the UI removes the device and kills its silent path", async ({ page }) => {
+    // device-1 from the previous test is still bound (tests share the server
+    // and account); this test pairs a second device, revokes IT, and expects
+    // the list to fall back to exactly the untouched sibling.
     await pairDeviceOverApi("e2e-device-2", "iPhone 17 (e2e)");
     await pinLocaleEn(page);
     await page.goto(`${BASE}/settings/devices`);
@@ -227,9 +230,8 @@ test.describe("settings → Paired devices", () => {
     await row.getByTestId("device-revoke").click();
     await row.getByTestId("device-revoke-confirm").click();
 
-    // The empty state takes the row's place…
-    await expect(page.getByTestId("device-row")).toHaveCount(0, { timeout: 15_000 });
-    await expect(page.getByTestId("devices-empty")).toBeVisible();
+    await expect(page.getByTestId("device-row")).toHaveCount(1, { timeout: 15_000 });
+    await expect(page.getByTestId("device-row").first()).toHaveAttribute("data-device", "e2e-device-1");
 
     // …and the server agrees: the device is told to re-pair, indistinguishable
     // from never having paired.
@@ -243,7 +245,10 @@ test.describe("settings → Paired devices", () => {
   });
 
   test("capabilities are advertised for the app's probe", async () => {
-    const cfg = await fetch(`${BASE}/api/config`).then((r) => r.json());
+    // forward_auth deployments answer anonymous /api/config with 401 (the
+    // public-path list is a logto-shape concept) — probe with the same
+    // identity the rest of this spec uses.
+    const cfg = await fetch(`${BASE}/api/config`, { headers: IDENTITY }).then((r) => r.json());
     expect(cfg.capabilities?.devicePairing).toBe(true);
   });
 });

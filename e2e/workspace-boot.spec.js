@@ -3,7 +3,8 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+
+import { spawnTestServer } from "./helpers.js";
 
 // Workspace boot resolution + persistence (fix-agent-workspace), driven over
 // one private server restarted across the matrix (the branding.spec.js
@@ -48,8 +49,7 @@ test.afterAll(() => {
 async function startServer(extraEnv = {}) {
   const port = await freePort();
   const base = `http://127.0.0.1:${port}`;
-  const child = spawn(process.execPath, ["server.js"], {
-    cwd: process.cwd(),
+  const server = spawnTestServer({
     env: {
       ...process.env,
       PORT: String(port),
@@ -70,8 +70,8 @@ async function startServer(extraEnv = {}) {
       DSH_SHARED_HOME: process.env.DSH_SHARED_HOME || path.join(os.homedir(), ".dsh"),
       ...extraEnv,
     },
-    stdio: ["ignore", "pipe", "pipe"],
   });
+  const child = server.child;
   let log = "";
   child.stdout.on("data", (d) => (log += d));
   child.stderr.on("data", (d) => (log += d));
@@ -86,7 +86,7 @@ async function startServer(extraEnv = {}) {
     150_000,
     `server ready\n${log.slice(-2000)}`,
   );
-  return { child, base, log: () => log, stop: () => child.kill("SIGKILL") };
+  return { child, base, log: () => log, stop: (opts) => server.stop(opts) };
 }
 
 // Raw WS request/reply against the spawned server (Node's global WebSocket).
@@ -143,7 +143,7 @@ test.describe("workspace boot resolution + persistence", () => {
       expect(listed.current).toBe(wsA);
       expect(listed.recents).toContain(wsA);
     } finally {
-      srv.stop();
+      await srv.stop();
     }
   });
 
@@ -153,7 +153,7 @@ test.describe("workspace boot resolution + persistence", () => {
       const listed = await wsRoundtrip(srv.base, { type: "list_workspaces" }, "workspaces");
       expect(listed.current).toBe(wsA);
     } finally {
-      srv.stop();
+      await srv.stop();
     }
   });
 
@@ -165,7 +165,7 @@ test.describe("workspace boot resolution + persistence", () => {
       // The boot log names the resolution source.
       expect(srv.log()).toMatch(new RegExp(`\\[workspace\\] boot workspace: .* \\(source=env\\)`));
     } finally {
-      srv.stop();
+      await srv.stop();
     }
   });
 
@@ -177,7 +177,7 @@ test.describe("workspace boot resolution + persistence", () => {
       expect(listed.current).toBe(wsA);
       expect(srv.log()).toMatch(/\[workspace\] AGENT_WORKSPACE .* not writable/);
     } finally {
-      srv.stop();
+      await srv.stop();
     }
   });
 });

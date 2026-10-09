@@ -4,8 +4,7 @@ import http from "node:http";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
-import { pinLocaleEn } from "./helpers.js";
+import { pinLocaleEn, spawnTestServer } from "./helpers.js";
 import { signSession } from "../server/session.js";
 
 // Deployment branding (openspec: add-deployment-branding). A second `node
@@ -41,6 +40,7 @@ const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "paas-branding-e2e-"));
 const SECRET = "branding-e2e-secret";
 
 let child;
+let server;
 let fixtureServer;
 let BASE;
 let bootLog = "";
@@ -94,8 +94,7 @@ test.describe("deployment branding (logto mode)", () => {
     adminCookie = signSession({ email: "admin@example.com", groups: ["users", "admin"], exp }, SECRET);
     userCookie = signSession({ email: "user@example.com", groups: ["users"], exp }, SECRET);
 
-    child = spawn(process.execPath, ["server.js"], {
-      cwd: process.cwd(),
+    server = spawnTestServer({
       env: {
         ...process.env,
         PORT: String(port),
@@ -126,8 +125,8 @@ test.describe("deployment branding (logto mode)", () => {
         DSH_HOME: path.join(tmpRoot, "dsh-home"),
         DSH_SHARED_HOME: process.env.DSH_SHARED_HOME || path.join(os.homedir(), ".dsh"),
       },
-      stdio: ["ignore", "pipe", "pipe"],
     });
+    child = server.child;
     child.stdout.on("data", (d) => (bootLog += d));
     child.stderr.on("data", (d) => (bootLog += d));
     await waitFor(
@@ -145,10 +144,8 @@ test.describe("deployment branding (logto mode)", () => {
   });
 
   test.afterAll(async () => {
-    if (child) {
-      child.kill("SIGKILL");
-      child = null;
-    }
+    if (server) await server.stop();
+    child = null;
     if (fixtureServer) await new Promise((resolve) => fixtureServer.close(resolve));
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });

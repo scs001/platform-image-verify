@@ -3,7 +3,8 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+
+import { spawnTestServer } from "./helpers.js";
 
 // dsh install-matrix boot gate (add-dsh-matrix-lock): the gate contract is
 // spec-level process behavior, so this spec spawns the real server.js with a
@@ -58,8 +59,7 @@ makeTree(badTree, { hmrVersion: "1.0.17" });
 
 // ── Server spawn helper ──────────────────────────────────────────────────────
 function spawnServer({ port, matrixRoot, matrixLock = lockPath, override } = {}) {
-  const child = spawn(process.execPath, ["server.js"], {
-    cwd: process.cwd(),
+  const server = spawnTestServer({
     env: {
       ...process.env,
       PORT: String(port),
@@ -80,8 +80,8 @@ function spawnServer({ port, matrixRoot, matrixLock = lockPath, override } = {})
       DSH_MATRIX_INSTALL_ROOT: matrixRoot,
       ...(override ? { DSH_MATRIX_OVERRIDE: "1" } : {}),
     },
-    stdio: ["ignore", "pipe", "pipe"],
   });
+  const child = server.child;
   const out = [];
   const err = [];
   child.stdout.on("data", (d) => out.push(String(d)));
@@ -109,9 +109,7 @@ function spawnServer({ port, matrixRoot, matrixLock = lockPath, override } = {})
         child.on("exit", (code) => resolve(code ?? null));
         child.on("error", reject);
       }),
-    kill: () => {
-      try { child.kill("SIGTERM"); } catch { /* already gone */ }
-    },
+    kill: (opts) => server.stop(opts),
   };
 }
 
@@ -121,7 +119,7 @@ test.describe("dsh install-matrix boot gate", () => {
   test("tree deviating from the lock refuses to start with a package diff", async () => {
     const srv = spawnServer({ port: await freePort(), matrixRoot: badTree });
     const result = await srv.settled();
-    srv.kill();
+    await srv.kill();
     expect(result).not.toBe("listening");
     expect(result.exited).toBe(1);
     const stderr = srv.stderr();
@@ -138,7 +136,7 @@ test.describe("dsh install-matrix boot gate", () => {
     // the override report goes to stderr (console.warn), the boot log to stdout
     expect(srv.stderr()).toContain("DSH_MATRIX_OVERRIDE");
     expect(srv.stderr()).toContain("mismatch");
-    srv.kill();
+    await srv.kill();
   });
 
   test("no install root (dev machine) skips verification and boots", async () => {
@@ -146,7 +144,7 @@ test.describe("dsh install-matrix boot gate", () => {
     const result = await srv.settled();
     expect(result).toBe("listening");
     expect(srv.stdout()).toContain("skipping dsh tree verification");
-    srv.kill();
+    await srv.kill();
   });
 
   test("tree matching the lock boots with the match note", async () => {
@@ -154,6 +152,6 @@ test.describe("dsh install-matrix boot gate", () => {
     const result = await srv.settled();
     expect(result).toBe("listening");
     expect(srv.stdout()).toContain("matches frozen matrix");
-    srv.kill();
+    await srv.kill();
   });
 });

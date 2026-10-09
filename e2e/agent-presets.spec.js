@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { execSync } from "node:child_process";
-import { gotoChat, waitForIdle } from "./helpers.js";
+import { E2E_PORT, gotoChat, waitForIdle } from "./helpers.js";
 
 // Agent presets (agent modes): the dsh runtime composes each session's
 // capabilities from one of four shipped presets (standard/code/minimal/cordis)
@@ -246,7 +246,12 @@ test.describe("agent presets", () => {
     // broadcasts error+done (streaming resets) and respawns a fresh child
     // with backoff. Poll `list_presets` (read-only, side-effect-free) until
     // the respawned child answers again.
-    execSync('pkill -f "dsh --profile platform" || true');
+    // The real cmdline is "node …/@deepseek-ai/dsh/lib/bin.js --profile
+    // platform --patch <store>/dsh-home/…", so the old "dsh --profile
+    // platform" pattern matched nothing and this kill was a silent no-op.
+    // Scope to this run's store root so a developer's concurrently-running
+    // dsh (profile platform too) is never hit.
+    execSync(`pkill -f "dsh.*--profile platform.*e2e-store-${E2E_PORT}/dsh-home" || true`);
     await expect(async () => {
       const r = await page.evaluate(
         () =>

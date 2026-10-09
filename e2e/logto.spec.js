@@ -4,9 +4,8 @@ import http from "node:http";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
 import WebSocket from "ws";
-import { pinLocaleEn, prepareTempStoreDirs } from "./helpers.js";
+import { pinLocaleEn, prepareTempStoreDirs, spawnTestServer } from "./helpers.js";
 import { signSession } from "../server/session.js";
 
 function freePort() {
@@ -42,6 +41,7 @@ test.describe("AUTH_MODE=logto", () => {
 
   let base;
   let child;
+  let server;
   let fixtureServer;
   let bootLog;
   let secret;
@@ -83,8 +83,7 @@ test.describe("AUTH_MODE=logto", () => {
       exp: Math.floor(Date.now() / 1000) + 60 * 60,
     }, secret);
     bootLog = "";
-    child = spawn(process.execPath, ["server.js"], {
-      cwd: process.cwd(),
+    server = spawnTestServer({
       env: {
         ...process.env,
         PORT: String(port),
@@ -113,8 +112,8 @@ test.describe("AUTH_MODE=logto", () => {
         DSH_HOME: stores.dshHome,
         DSH_SHARED_HOME: process.env.DSH_SHARED_HOME || path.join(os.homedir(), ".dsh"),
       },
-      stdio: ["ignore", "pipe", "pipe"],
     });
+    child = server.child;
     child.stdout.on("data", (data) => { bootLog += data; });
     child.stderr.on("data", (data) => { bootLog += data; });
 
@@ -134,19 +133,8 @@ test.describe("AUTH_MODE=logto", () => {
   });
 
   test.afterAll(async () => {
-    if (child) {
-      await new Promise((resolve) => {
-        const timer = setTimeout(() => {
-          child.kill("SIGKILL");
-          resolve();
-        }, 5000);
-        child.once("exit", () => {
-          clearTimeout(timer);
-          resolve();
-        });
-        child.kill("SIGTERM");
-      });
-    }
+    if (server) await server.stop();
+    child = null;
     if (fixtureServer) await new Promise((resolve) => fixtureServer.close(resolve));
     fs.rmSync(stores.root, { recursive: true, force: true });
   });

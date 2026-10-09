@@ -1,8 +1,7 @@
 import { test, expect } from "@playwright/test";
-import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { prepareTempStoreDirs } from "./helpers.js";
+import { prepareTempStoreDirs, spawnTestServer } from "./helpers.js";
 
 // Worker pool on a self-booted server (spec: worker-pool). The fast
 // webServer runs cap 0 (serial default), so this spec boots its OWN server
@@ -24,6 +23,7 @@ test.describe("worker pool (self-booted server, TASK_WORKER_MAX=2, dead LLM)", (
   const port = 3310;
   const base = `http://127.0.0.1:${port}`;
   let child = null;
+  let server = null;
   let log = "";
 
   test.beforeAll(() => {
@@ -45,13 +45,15 @@ test.describe("worker pool (self-booted server, TASK_WORKER_MAX=2, dead LLM)", (
     fs.writeFileSync(env.MCP_CONFIG_PATH, JSON.stringify({
       mcpServers: { memory: { command: "node", args: ["-e", "process.exit(0)"] } },
     }));
-    child = spawn(process.execPath, ["server.js"], { cwd: process.cwd(), env, stdio: ["ignore", "pipe", "pipe"] });
+    server = spawnTestServer({ env });
+    child = server.child;
     child.stdout.on("data", (d) => { log += d; });
     child.stderr.on("data", (d) => { log += d; });
   });
 
-  test.afterAll(() => {
-    child?.kill("SIGKILL");
+  test.afterAll(async () => {
+    await server?.stop();
+    child = null;
   });
 
   test("two personas execute in parallel; primary stays interactive; one summary", async () => {

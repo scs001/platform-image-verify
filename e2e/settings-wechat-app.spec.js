@@ -18,8 +18,7 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
-import { pinLocaleEn, prepareTempStoreDirs } from "./helpers.js";
+import { pinLocaleEn, prepareTempStoreDirs, spawnTestServer } from "./helpers.js";
 
 const require = createRequire(import.meta.url);
 const JSQR = require.resolve("jsqr/dist/jsQR.js");
@@ -48,6 +47,7 @@ function freePort() {
 let PORT;
 let BASE;
 let child;
+let server;
 let bootLog = "";
 // Its own tree: this spec boots a second server, so it must not share the
 // webServer's stores (see prepareTempStoreDirs).
@@ -95,8 +95,7 @@ test.describe("settings → WeChat App", () => {
   test.beforeAll(async () => {
     PORT = await freePort();
     BASE = `http://127.0.0.1:${PORT}`;
-    child = spawn(process.execPath, ["server.js"], {
-      cwd: process.cwd(),
+    server = spawnTestServer({
       env: {
         ...process.env,
         PORT: String(PORT),
@@ -111,8 +110,8 @@ test.describe("settings → WeChat App", () => {
         DSH_HOME: stores.dshHome,
         DSH_SHARED_HOME: process.env.DSH_SHARED_HOME || path.join(os.homedir(), ".dsh"),
       },
-      stdio: ["ignore", "pipe", "pipe"],
     });
+    child = server.child;
     child.stdout.on("data", (d) => (bootLog += d));
     child.stderr.on("data", (d) => (bootLog += d));
 
@@ -136,19 +135,8 @@ test.describe("settings → WeChat App", () => {
   });
 
   test.afterAll(async () => {
-    if (child) {
-      await new Promise((resolve) => {
-        const t = setTimeout(() => {
-          child.kill("SIGKILL");
-          resolve();
-        }, 5000);
-        child.once("exit", () => {
-          clearTimeout(t);
-          resolve();
-        });
-        child.kill("SIGTERM");
-      });
-    }
+    if (server) await server.stop();
+    child = null;
     fs.rmSync(stores.root, { recursive: true, force: true });
   });
 

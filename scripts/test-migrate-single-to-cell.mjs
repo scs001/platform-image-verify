@@ -29,6 +29,24 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GW_SECRET = "migrate-test-gateway-secret";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Full-tree teardown for the rehearsal children. They are spawned detached
+// (own process group) so every descendant — the dsh child of the single
+// server, and for the gateway every cell server plus ITS dsh children — dies
+// with one group kill. The old "SIGTERM + 500ms + SIGKILL" raced the bridge's
+// ~14s shutdown ladder and orphaned dsh processes under launchd (PPID=1).
+async function stopTree(child, graceMs = 15_000) {
+  if (!child || child.exitCode !== null || child.signalCode !== null) return;
+  const killGroup = (signal) => {
+    try { process.kill(-child.pid, signal); } catch { /* group already gone */ }
+  };
+  killGroup("SIGTERM");
+  const deadline = Date.now() + graceMs;
+  while (child.exitCode === null && child.signalCode === null && Date.now() < deadline) {
+    await sleep(200);
+  }
+  killGroup("SIGKILL");
+}
+
 function freePort() {
   return new Promise((resolve, reject) => {
     const probe = netServer();
@@ -112,6 +130,7 @@ async function main() {
   const p1 = await freePort();
   const single = spawn(process.execPath, [path.join(REPO, "server.js")], {
     cwd: neutralCwd,
+    detached: true,
     env: {
       ...process.env,
       PORT: String(p1),
@@ -155,9 +174,7 @@ async function main() {
     // A workspace file, as the agent would leave one.
     await writeFile(path.join(srcData, "workspace", "handoff.md"), "# handoff\n");
   } finally {
-    single.kill("SIGTERM");
-    await sleep(500);
-    if (single.exitCode === null) single.kill("SIGKILL");
+    await stopTree(single);
   }
 
   // ── Phase 2: the migration script (real child process, real args) ────────
@@ -188,6 +205,7 @@ async function main() {
   const gwPort = await freePort();
   const gw = spawn(process.execPath, [path.join(REPO, "gateway/index.js")], {
     cwd: REPO,
+    detached: true,
     env: {
       ...process.env,
       GATEWAY_PORT: String(gwPort),
@@ -246,9 +264,7 @@ async function main() {
     console.log(`packs: ${packIds.join(", ")}`);
     console.log(`workspace handoff.md: HTTP ${ws.status}`);
   } finally {
-    gw.kill("SIGTERM");
-    await sleep(400);
-    if (gw.exitCode === null) gw.kill("SIGKILL");
+    await stopTree(gw);
     await oidc.close();
     if (process.env.REHEARSAL_KEEP_SCRATCH) {
       console.log(`(scratch kept: ${scratch})`);
@@ -268,8 +284,12 @@ async function main() {
 }
 
 function pkillDsh() {
+  // The dsh entry in this repo is node …/@deepseek-ai/dsh/lib/bin.js, so the
+  // old "bin/dsh --profile" pattern never matched anything. Scope to this
+  // rehearsal's scratch tree (the mkdtemp prefix rides the dsh --patch argv)
+  // so a developer's concurrently-running dsh is never hit.
   try {
-    spawn("pkill", ["-9", "-f", "bin/dsh --profile"], { stdio: "ignore" });
+    spawn("pkill", ["-9", "-f", "dsh.*--profile.*migrate-rehearsal-"], { stdio: "ignore" });
   } catch { /* best effort */ }
 }
 

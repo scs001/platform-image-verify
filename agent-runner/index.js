@@ -74,7 +74,12 @@ const clientFactory = (spec) => ({ args, cwd, env }) => {
     subscribe: () => client.subscribe(),
     prompt: (sid, blocks) => client.prompt(sid, blocks),
     request: (m, p) => client.request(m, p),
-    stop: () => client.stop?.(),
+    // HarnessClient's lifecycle end is close() (the EOF→SIGTERM→SIGKILL
+    // ladder); it has no stop(). The old `client.stop?.()` was a silent no-op
+    // that orphaned the dsh child on manager.stopAll().
+    stop: async () => {
+      await client.close?.();
+    },
   };
 };
 

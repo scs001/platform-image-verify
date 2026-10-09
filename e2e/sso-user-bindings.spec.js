@@ -3,10 +3,9 @@ import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
 import WebSocket from "ws";
 import Database from "better-sqlite3";
-import { baseURL } from "./helpers.js";
+import { baseURL, spawnTestServer } from "./helpers.js";
 
 // Optional SSO (SSO_ENABLED=true) layered on AUTH_MODE=none.
 //
@@ -40,6 +39,7 @@ const ALICE = { "x-forwarded-email": "Alice@Corp.COM" };
 const BOB = { "x-forwarded-email": "bob@corp.com" };
 
 let child;
+let server;
 let BASE;
 let bootLog = "";
 
@@ -96,8 +96,7 @@ test.describe("SSO_ENABLED optional identity + user runtime bindings", () => {
       }),
     );
 
-    child = spawn(process.execPath, ["server.js"], {
-      cwd: process.cwd(),
+    server = spawnTestServer({
       env: {
         ...process.env,
         PORT: String(port),
@@ -119,8 +118,8 @@ test.describe("SSO_ENABLED optional identity + user runtime bindings", () => {
         DSH_HOME: path.join(tmpRoot, "dsh-home"),
         DSH_SHARED_HOME: process.env.DSH_SHARED_HOME || path.join(os.homedir(), ".dsh"),
       },
-      stdio: ["ignore", "pipe", "pipe"],
     });
+    child = server.child;
     child.stdout.on("data", (d) => (bootLog += d));
     child.stderr.on("data", (d) => (bootLog += d));
 
@@ -147,10 +146,8 @@ test.describe("SSO_ENABLED optional identity + user runtime bindings", () => {
 
   test.afterAll(async () => {
     try {
-      if (child) {
-        child.kill("SIGKILL");
-        child = null;
-      }
+      if (server) await server.stop();
+      child = null;
       // Legacy cleanup from when this spec shared the webServer's dsh home:
       // re-enable the memory MCP on the shared server. Harmless no-op now
       // that the spawned server writes only to its own isolated home.

@@ -4,8 +4,8 @@ import http from "node:http";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
 import WebSocket from "ws";
+import { spawnTestServer } from "./helpers.js";
 
 
 // Forward-auth + agent/app catalog e2e. Two targets:
@@ -83,6 +83,7 @@ async function waitFor(predicate, ms = 10_000) {
 let AUTH_PORT;
 let BASE;
 let child;
+let server;
 let fixtureServer;
 let fixtureDoc;
 const mock = { lastChat: null, lastConnect: null };
@@ -164,8 +165,7 @@ test.describe("AUTH_MODE=forward_auth", () => {
     // Second server.js with forward auth on; isolated stores; no OC.
     AUTH_PORT = await freePort();
     BASE = `http://127.0.0.1:${AUTH_PORT}`;
-    child = spawn(process.execPath, ["server.js"], {
-      cwd: process.cwd(),
+    server = spawnTestServer({
       env: {
         ...process.env,
         PORT: String(AUTH_PORT),
@@ -187,8 +187,8 @@ test.describe("AUTH_MODE=forward_auth", () => {
         DSH_HOME: path.join(tmpRoot, "dsh-home"),
         DSH_SHARED_HOME: process.env.DSH_SHARED_HOME || path.join(os.homedir(), ".dsh"),
       },
-      stdio: ["ignore", "pipe", "pipe"],
     });
+    child = server.child;
     child.stdout.on("data", (d) => (bootLog += d));
     child.stderr.on("data", (d) => (bootLog += d));
 
@@ -232,19 +232,8 @@ test.describe("AUTH_MODE=forward_auth", () => {
   });
 
   test.afterAll(async () => {
-    if (child) {
-      await new Promise((resolve) => {
-        const t = setTimeout(() => {
-          child.kill("SIGKILL");
-          resolve();
-        }, 5000);
-        child.once("exit", () => {
-          clearTimeout(t);
-          resolve();
-        });
-        child.kill("SIGTERM");
-      });
-    }
+    if (server) await server.stop();
+    child = null;
     if (fixtureServer) await new Promise((r) => fixtureServer.close(r));
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });

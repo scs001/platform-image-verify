@@ -4,8 +4,7 @@ import http from "node:http";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
-import { pinLocaleEn } from "./helpers.js";
+import { pinLocaleEn, spawnTestServer } from "./helpers.js";
 import { signSession } from "../server/session.js";
 
 // Session ownership (add-session-ownership): a private AUTH_MODE=logto server
@@ -44,6 +43,7 @@ const BOB = { email: "bob@example.com", groups: ["users"] };
 const ADMIN = { email: "root@example.com", groups: ["users", "admin"] };
 
 let child;
+let server;
 let fixtureServer;
 let BASE;
 let bootLog = "";
@@ -91,8 +91,7 @@ test.describe("session ownership (two users, auth on)", () => {
 
     const port = await freePort();
     BASE = `http://127.0.0.1:${port}`;
-    child = spawn(process.execPath, ["server.js"], {
-      cwd: process.cwd(),
+    server = spawnTestServer({
       env: {
         ...process.env,
         PORT: String(port),
@@ -121,8 +120,8 @@ test.describe("session ownership (two users, auth on)", () => {
         DSH_HOME: path.join(tmpRoot, "dsh-home"),
         DSH_SHARED_HOME: process.env.DSH_SHARED_HOME || path.join(os.homedir(), ".dsh"),
       },
-      stdio: ["ignore", "pipe", "pipe"],
     });
+    child = server.child;
     child.stdout.on("data", (d) => (bootLog += d));
     child.stderr.on("data", (d) => (bootLog += d));
     await waitFor(
@@ -139,10 +138,8 @@ test.describe("session ownership (two users, auth on)", () => {
   });
 
   test.afterAll(async () => {
-    if (child) {
-      child.kill("SIGKILL");
-      child = null;
-    }
+    if (server) await server.stop();
+    child = null;
     if (fixtureServer) await new Promise((resolve) => fixtureServer.close(resolve));
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   });

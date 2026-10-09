@@ -23,6 +23,19 @@ import { collectTurn } from "./cron-runner.js";
 const REAP_SCAN_MS = 60_000;
 const IDLE_REAP_MS = 5 * 60_000;
 
+// DshBridge's lifecycle end is the async shutdown() (the SDK's EOF→SIGTERM→
+// SIGKILL ladder); test fakes expose a sync close(). Calling close?.() on a
+// real bridge was a silent no-op that leaked the worker's dsh child.
+function stopBridge(bridge) {
+  try {
+    if (typeof bridge?.shutdown === "function") {
+      bridge.shutdown()?.catch?.(() => {});
+    } else {
+      bridge?.close?.();
+    }
+  } catch { /* best-effort */ }
+}
+
 function readCap() {
   const raw = process.env.TASK_WORKER_MAX;
   const n = Number(raw);
@@ -200,9 +213,7 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
       if (Date.now() - w.lastUsedAt > idleReapMs) {
         workers.delete(w);
         changed = true;
-        try {
-          w.bridge.close?.();
-        } catch { /* best-effort */ }
+        stopBridge(w.bridge);
         console.log(`[worker-pool] reaped ${w.id} (persona ${w.persona}, idle)`);
       }
     }
@@ -222,11 +233,7 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
     },
     shutdown: () => {
       if (reapTimer) clearInterval(reapTimer);
-      for (const w of workers) {
-        try {
-          w.bridge.close?.();
-        } catch { /* best-effort */ }
-      }
+      for (const w of workers) stopBridge(w.bridge);
       workers.clear();
     },
   };

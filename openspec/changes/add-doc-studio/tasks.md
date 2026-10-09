@@ -31,8 +31,9 @@
 - [x] 4.2 壹座 dogfood（**2026-10-09 全链完成**）：①装包链路实证——docstudio 账号从市场装「文档工坊 v1」成功（skills: doc-studio installed）；②样张真机验证已过（四份 docx 上传线上壹座资料库，全 ready 零 error，Content 区渲染完整中文）；③**真实回合生成实证（prod sha-744285e）**——标准模式下「用 doc-studio 技能生成商务报告 docx」真回合：agent 载入技能→按路由规则（商务报告→R1 封面+TOC 域+三章+数据表+靛青配色+强制 postcheck）执行四步计划→产出 `2026年第三季度华东区销售复盘.docx`（43KB，52 段/6 表/单节，标题层级 摘要·目录·一、市场概览(1.1-1.3)·二、业绩分析(2.1-2.4)·三、下季度计划），技能自带 postcheck 对成品 **PASS**，回合末自报路径+交付清单。旁证：同 cell 的 `echo` bash 回合返回输出（exit 0）
   - 阻塞史（全程留档）：prod 旧镜像无 python 层 → 矩阵行 flag 缺陷（24 包不落盘）→ boot 就地改写冻结树 → DSH_BIN 未钉（应用树 dsh 二进制被 peer 提升拆坏）→ 模块身份双实例（桥包链到应用树 rc.1，undefined.prepare）；四层修复见 docs/dsh-lock-peer-deadlock.md 与 e504ffd/a1bc685
 - [ ] 4.3 萬星部署演示：引用文档工坊的服务部署 → 外部调用者回合拿到文本回复+文件引用（无文件字节外发），账单无 office 独立计量条目
-  - **v1 范围内说明**：文档工坊 v1 是纯技能包（无 agents/servingContract，design 明文），萬星"随包继承"由安装机制保证（任一引用该包的角色部署后即获得技能）；**独立 Agent 服务演示**需要给包加服务契约（v2 内容升级）+ prod 镜像带 python 层，与 4.2 剩余同前置
-- [ ] 4.4 收尾：`openspec validate add-doc-studio --specs` 过；样张与 VERIFICATION.md 归档入仓；镜像体积与发布备注留档
+  - **2026-10-09 实测定性：v1 范围内不可执行，机制已核验，转 v2**。①部署门实测：`POST /api/packs/:id/versions/:v/deploy` 经 `lib/agent-serving.js#listServingAgents` 只收带 `serving` 契约的 agent，文档工坊 v1 是纯技能包（manifest `agents: []`，线上实证）→ 返回 400 "no agent in this pack carries a serving contract"；②技能继承机制已核验（v2 无需新代码）：runner 按 `descriptor.skills` 逐条 `GET <registry>/api/skills/packs/<packId>/<skill>/content` 取技能体（`agent-runner/registry.js#fetchSkillContent`），facet 侧 `/api/packs/:id/versions/:v/skills/:skill` 公开可用（线上 200 + 技能体可读）；③"引用文档工坊的包"缺跨包技能引用通道——manifest 技能只有包内声明，跨包引用是 v2 管线增强；④萬星回文本+文件引用与"无独立计量"两条在 4.2 已间接具备（产物在工作区、回合文本自报路径；office 不进 sub2api 计量同 websearch 立场）
+  - **v2 前置清单**：给 `fd-doc-studio` 加一个带 `serving` 契约的 agent（或给其他包加跨包技能引用），随后 deploy → 外部调用者真回合验收（断言：文本+文件名回、无字节外发、账单无 office 条目）
+- [x] 4.4 收尾（2026-10-09 完成）：`openspec validate add-doc-studio --specs` 120/120 绿；样张（samples/ 七份）与 VERIFICATION.md 在仓（git ls-files 实证）；镜像体积留档：**1.18GB（未压缩，sha-744285e）**，office 层 ≈ +103MB（python3 apt ~60MB + site-packages 58MB，含 mammoth），落在设计估算带内；发布备注=谦面 pack `qnhd7B3J1-HKDDKzZQ_fUQ` v1（作者 doc-studio@finddatatech.cloud）+ 镜像 `sha-744285e`（GitOps 6910db6）
 
 ## 5. 归档门（后置）
 

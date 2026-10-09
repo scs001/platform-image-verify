@@ -19,10 +19,10 @@
 
 - [x] 4.1 Settings 模态十节化：slug `devices` 排 `wechat-app` 后；铸码卡（数字码+倒计时+QR，URL `<web-origin>/settings/devices?bindcode=<code>`，复用现有 qrcode 依赖与微信小程序节交互骨架）；组件级验证节可达、码可刷
 - [x] 4.2 设备列表（label+boundAt）与单设备撤销（确认弹层）；i18n 键补齐六语言；验证列表实时反映 pair/revoke
-- [ ] 4.3 Playwright e2e（走 CI）：devices 节深链 `/settings/devices`、铸码出码出 QR、列表展示、撤销后设备消失——四断言绿
+- [x] 4.3 Playwright e2e（走 CI）：devices 节深链 `/settings/devices`、铸码出码出 QR、列表展示、撤销后设备消失——四断言绿
 
 ## 5. 回归与验收
 
 - [x] 5.1 小程序路径零回归：`mp-auth`/`mp-bindings` 全量单测绿 + 既有 MP 登录 e2e 绿（共享文件改动的硬边界）
 - [x] 5.2 全链真配对冒烟（脚本留档 docs/ 或 scripts/）：真 web 会话铸码 → curl 模拟 App（@noble 签名）pair 拿 JWT → challenge→login 静默换发 → 再 login（nonce 重放）401 → web 撤销 → 该设备 login 401；七步全过
-- [ ] 5.3 `openspec validate add-device-pairing-auth --strict` 通过 + 全仓 lint/typecheck/单测绿（既有基线不倒退）
+- [x] 5.3 `openspec validate add-device-pairing-auth --strict` 通过 + 全仓 lint/typecheck/单测绿（既有基线不倒退）

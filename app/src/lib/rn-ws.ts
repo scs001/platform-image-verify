@@ -1,10 +1,19 @@
-// RN global WebSocket → core's SocketHandle. RN's WebSocket emits events;
-// the handle adapts them into the callbacks WsClient drives.
+// RN global WebSocket → core's SocketHandle, with the Authorization header
+// riding the upgrade request. The token provider is read on every connect so
+// a silent re-login before a reconnect rides along (same contract as the
+// mini program's taro-socket factory).
 
-import type { SocketFactory } from "@platform/core";
+import type { SocketFactory, SocketHandle } from "@platform/core";
 
-export const rnSocketFactory: SocketFactory = (url) => {
-  const ws = new WebSocket(url);
+export function rnSocketFactory(url: string, tokenProvider: () => string) {
+  // RN's WebSocket third argument carries headers on the upgrade; the DOM
+  // lib typing only knows two — cast to the RN constructor shape.
+  const Ctor = WebSocket as unknown as new (
+    url: string,
+    protocols?: string,
+    init?: WebSocketInit,
+  ) => WebSocket;
+  const ws = new Ctor(url, undefined, { headers: { authorization: tokenProvider() } });
   let handlers: {
     onOpen(): void;
     onMessage(data: string): void;
@@ -16,10 +25,15 @@ export const rnSocketFactory: SocketFactory = (url) => {
   ws.onclose = () => handlers?.onClose();
   ws.onerror = () => handlers?.onError();
   return {
-    send: (data) => ws.send(data),
+    send: (data: string) => ws.send(data),
     close: () => ws.close(),
-    setHandlers: (h) => {
+    setHandlers: (h: Parameters<SocketHandle['setHandlers']>[0]) => {
       handlers = h;
     },
   };
-};
+}
+
+// The RN WebSocket constructor's init shape (headers only — the part we use).
+interface WebSocketInit {
+  headers?: Record<string, string>;
+}

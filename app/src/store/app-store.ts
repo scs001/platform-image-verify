@@ -14,9 +14,13 @@ interface AppState {
   token: string | null;
   email: string | null;
   locale: Locale | null;
+  // The chat error sink's landing field (core's setChatErrorSink) — the chat
+  // page renders and clears it.
+  lastChatError: string | null;
   connect: (baseUrl: string, token: string, email: string) => void;
   setToken: (token: string) => void;
   setLocale: (locale: Locale) => void;
+  clearChatError: () => void;
   disconnect: () => void;
 }
 
@@ -27,11 +31,13 @@ export const useAppStore = create<AppState>()(
       token: null,
       email: null,
       locale: null,
+      lastChatError: null,
       connect: (baseUrl, token, email) => set({ baseUrl, token, email }),
       setToken: (token) => set({ token }),
       setLocale: (locale) => set({ locale }),
-      disconnect: () => set({ baseUrl: null, token: null, email: null }),
+      clearChatError: () => set({ lastChatError: null }),
+      disconnect: () => set({ baseUrl: null, token: null, email: null, lastChatError: null }),
     }),
-    { name: "yizuo.app", storage: createJSONStorage(() => AsyncStorage) },
+    { name: "yizuo.app", storage: createJSONStorage(() => AsyncStorage), partialize: (s) => ({ baseUrl: s.baseUrl, token: s.token, email: s.email, locale: s.locale }) },
   ),
 );

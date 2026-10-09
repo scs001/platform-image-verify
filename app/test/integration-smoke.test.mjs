@@ -20,6 +20,9 @@ const dataDir = path.join(scratch, "data");
 const PORT = 9400 + Math.floor(Math.random() * 90);
 const child = spawn(process.execPath, [path.join(REPO, "server.js")], {
   cwd: REPO,
+  // Own process group so teardown can kill the server AND its dsh child in
+  // one shot (see e2e/helpers.js spawnTestServer for the full rationale).
+  detached: true,
   env: {
     ...process.env,
     PORT: String(PORT),
@@ -50,7 +53,20 @@ async function waitForServer() {
 }
 
 test.after(async () => {
-  if (child.exitCode === null) child.kill("SIGKILL");
+  // Group teardown: SIGKILL on the direct pid orphans the dsh child (PPID=1,
+  // spinning under launchd). SIGTERM the group, wait out the bridge's
+  // shutdown ladder, then group-SIGKILL any straggler.
+  if (child.pid) {
+    const killGroup = (signal) => {
+      try { process.kill(-child.pid, signal); } catch { /* group gone */ }
+    };
+    killGroup("SIGTERM");
+    const deadline = Date.now() + 15_000;
+    while (child.exitCode === null && child.signalCode === null && Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    killGroup("SIGKILL");
+  }
   await new Promise((r) => setTimeout(r, 300));
   rmSync(scratch, { recursive: true, force: true });
 });

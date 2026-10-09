@@ -76,7 +76,8 @@ jobs:
           "$SDKMANAGER" "platform-tools" "platforms;android-34" "build-tools;34.0.0" > /dev/null
 
       - name: Prebuild native project
-        run: npx --prefix app expo prebuild --platform android --no-install
+        working-directory: app
+        run: npx expo prebuild --platform android --no-install
 
       - name: Gradle assembleRelease
         working-directory: app/android

@@ -25,7 +25,7 @@
 // signatures across node:crypto and @noble/ed25519.
 
 import crypto from "node:crypto";
-import { signMpJwt } from "./mp-auth.js";
+import { signMpJwt, verifyMpJwt } from "./mp-auth.js";
 import { APP_KEY_PREFIX } from "./mp-bindings.js";
 
 // A challenge is worthless minutes after issue; 60s is plenty for one
@@ -185,5 +185,19 @@ export function createAppAuth(config) {
     return { ok: true };
   }
 
-  return { pair, challenge, login, revoke, devicesFor: bindings.devicesFor, configured };
+  // Identity behind an app Bearer token (the single-process routes use this
+  // where the gateway's resolveUser does the same job): null for anything
+  // that is not a valid kind=app token.
+  function accountFromToken(token) {
+    const payload = verifyToken(token);
+    if (!payload || payload.kind !== "app" || typeof payload.did !== "string") return null;
+    return { email: payload.email, groups: payload.groups ?? [], did: payload.did };
+  }
+
+  function verifyToken(token) {
+    if (!configured) return null;
+    return verifyMpJwt(token, tokenSecret);
+  }
+
+  return { pair, challenge, login, revoke, devicesFor: bindings.devicesFor, accountFromToken, configured };
 }

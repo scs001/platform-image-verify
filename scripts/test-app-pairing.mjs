@@ -518,11 +518,25 @@ test("single-process: pair/challenge/login work sessionless; devices via session
   assert.equal(list.status, 200);
   assert.equal((await list.json()).some((d) => d.deviceId === deviceId), true);
 
+  // App-Bearer parity (found by the mobile app's integration smoke): the app
+  // lists and unbinds ITSELF with its own token — the gateway's resolveUser
+  // accepts it, and the single-process routes must too.
+  const viaBearer = await fetch(`http://127.0.0.1:${SP_PORT}/api/app/devices`, {
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(viaBearer.status, 200);
+  assert.equal((await viaBearer.json()).some((d) => d.deviceId === deviceId), true);
+  const selfRevoke = await fetch(`http://127.0.0.1:${SP_PORT}/api/app/bind/${encodeURIComponent(deviceId)}`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  assert.equal(selfRevoke.status, 200);
+
   const revoke = await fetch(`http://127.0.0.1:${SP_PORT}/api/app/bind/${encodeURIComponent(deviceId)}`, {
     method: "DELETE",
     headers: { cookie },
   });
-  assert.equal(revoke.status, 200);
+  assert.equal(revoke.status, 404, "already revoked by self — cookie path sees 404, not the other account's data");
   const after = await post(SP_PORT, "/api/app/challenge", { deviceId });
   assert.equal(after.status, 401);
 });

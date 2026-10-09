@@ -117,6 +117,10 @@ jobs:
       - name: Prebuild native iOS project
         working-directory: app
         run: npx expo prebuild --platform ios --no-install
+      - name: Pod install (creates the workspace)
+        working-directory: app/ios
+        run: pod install
+
       - name: Build for the simulator (no codesigning)
         working-directory: app/ios
         run: |

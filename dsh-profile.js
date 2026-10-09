@@ -448,6 +448,24 @@ const PROFILE_BRIDGE_PACKAGES = [
 ];
 const PROFILE_MODULE_DIR = join("profiles", PROFILE_NAME, "node_modules");
 const APP_NODE_MODULES = join(dirname(fileURLToPath(import.meta.url)), "node_modules");
+// The tree the dsh binary actually runs from — DSH_BIN's own node_modules
+// (the image pins it to /opt/dsh; the desktop has no DSH_BIN and the app tree
+// IS the runtime). Bridge-package links must come from THIS tree: linking the
+// app tree's copies into a cell whose runtime is the matrix install gives the
+// bridge a second instance of dsh-tools at a different realpath, and the two
+// TOOL_RUNTIME_SCHEDULER Symbols stop matching (every tool call dies on
+// undefined.prepare — 2026-10-09 sha-e956091). Same realpath as the flat
+// profiles/node_modules fallback keeps the identity single.
+const RUNTIME_NODE_MODULES = (() => {
+  const bin = process.env.DSH_BIN || "";
+  const marker = `${sep}node_modules${sep}`;
+  const idx = bin.lastIndexOf(marker);
+  if (idx !== -1) {
+    const candidate = bin.slice(0, idx + marker.length - 1);
+    if (existsSync(join(candidate, "@deepseek-ai", "dsh-tools", "package.json"))) return candidate;
+  }
+  return APP_NODE_MODULES;
+})();
 
 function linkProfilePinnedModules() {
   const moduleDir = join(DSH_HOME, PROFILE_MODULE_DIR);
@@ -487,10 +505,14 @@ function linkProfilePinnedModules() {
     // OWN earlier poison. A revision before this one linked the absent
     // packages here, pointing at the app tree; those links split the module
     // identity (see the note above) and must go. Only links whose target sits
-    // under APP_NODE_MODULES are ours to remove; real dirs (the deployment's
-    // own install) and links elsewhere are left alone. The runtime then
-    // resolves through the flat profiles/node_modules fallback that dsh's
-    // boot healer maintains from the matrix install.
+    // under the APP tree (and NOT under the runtime tree — the desktop has no
+    // DSH_BIN, so there they are the same place) are ours to remove; real
+    // dirs (the deployment's own install) and links elsewhere are left alone.
+    // The runtime then resolves through the flat profiles/node_modules
+    // fallback that dsh's boot healer maintains from the matrix install.
+    const appRoot = realpathSync(APP_NODE_MODULES);
+    const runtimeRoot = realpathSync(RUNTIME_NODE_MODULES);
+    if (appRoot === runtimeRoot) return; // desktop layout: nothing of ours can be poison here
     for (const pkg of PROFILE_BRIDGE_PACKAGES) {
       const link = join(moduleDir, pkg);
       let st = null;
@@ -506,7 +528,6 @@ function linkProfilePinnedModules() {
       } catch {
         continue; // dangling — not ours to judge
       }
-      const appRoot = realpathSync(APP_NODE_MODULES);
       if (target === appRoot || target.startsWith(appRoot + sep)) {
         try {
           rmSync(link);
@@ -520,7 +541,7 @@ function linkProfilePinnedModules() {
   }
   for (const pkg of PROFILE_BRIDGE_PACKAGES) {
     const link = join(moduleDir, pkg);
-    const source = join(APP_NODE_MODULES, pkg);
+    const source = join(RUNTIME_NODE_MODULES, pkg);
     if (!existsSync(source)) continue;
     let existing = null;
     try {

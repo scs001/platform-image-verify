@@ -13,7 +13,7 @@
 
 ## 3. core 注入与聊天主链
 
-- [ ] 3.1 `lib/platform.ts` 注入层：configureHttp（tokenProvider）+ WsClient（RN WebSocket factory）+ AppState→重连+resync；单测：token 过期先静默换发一次再报错
+- [x] 3.1 `lib/platform.ts` 注入层：configureHttp（tokenProvider）+ WsClient（RN WebSocket factory）+ AppState→重连+resync；单测：token 过期先静默换发一次再报错
 - [ ] 3.2 聊天页（对齐 MP chat）：流式渲染、composer（含附件上传走文档摄入）、会话历史抽屉、模型/角色选择（流式守卫）、复制/重新生成、断线提示与重连；真机验证一轮完整对话（dead-LLM 也无死 UI）
 - [ ] 3.3 对齐卡片族：问询卡（gate composer）、产物条带、折叠活动组、大纲栏；逐项与 MP 行为对照验收
 

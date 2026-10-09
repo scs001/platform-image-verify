@@ -7,6 +7,7 @@
 import { useState } from "react";
 import { Text, View, TextInput, Pressable, StyleSheet, ScrollView } from "react-native";
 import { palette } from "./palette";
+import { useTranslation } from "react-i18next";
 
 interface QuestionItem {
   id: string;
@@ -26,6 +27,7 @@ export function QuestionCard({
   questions: QuestionItem[];
   onSubmit: (msg: { type: "answer_question"; askId: string; answers?: { id: string; selected: string[]; custom?: string }[]; cancelled?: boolean }) => void;
 }) {
+  const { t } = useTranslation();
   const [selected, setSelected] = useState<Record<string, string[]>>({});
   const [customs, setCustoms] = useState<Record<string, string>>({});
 
@@ -71,7 +73,7 @@ export function QuestionCard({
             style={styles.custom}
             value={customs[q.id] ?? ""}
             onChangeText={(v) => setCustoms((p) => ({ ...p, [q.id]: v }))}
-            placeholder={q.options?.length ? "补充说明（可选）" : "输入你的回答"}
+            placeholder={q.options?.length ? t("ask.optional") : t("ask.answerHere")}
             placeholderTextColor={palette.muted}
             multiline
           />
@@ -79,10 +81,10 @@ export function QuestionCard({
       ))}
       <View style={styles.actions}>
         <Pressable style={styles.cancel} onPress={() => onSubmit({ type: "answer_question", askId, cancelled: true })}>
-          <Text style={styles.cancelText}>跳过</Text>
+          <Text style={styles.cancelText}>{t("ask.skip")}</Text>
         </Pressable>
         <Pressable style={styles.submit} onPress={submit}>
-          <Text style={styles.submitText}>提交回答</Text>
+          <Text style={styles.submitText}>{t("ask.submit")}</Text>
         </Pressable>
       </View>
     </View>

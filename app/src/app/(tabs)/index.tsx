@@ -17,7 +17,8 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { useChatStore, type Turn } from "@platform/core";
+import { http, useChatStore, type Turn } from "@platform/core";
+import * as DocumentPicker from "expo-document-picker";
 import { TurnView } from "@/components/TurnView";
 import { QuestionCard } from "@/components/QuestionCard";
 import { HistoryDrawer } from "@/components/HistoryDrawer";
@@ -27,10 +28,11 @@ import { runtime, bindRouter } from "@/lib/session";
 import { useAppStore } from "@/store/app-store";
 import { useTranslation } from "react-i18next";
 
+// Welcome prompts resolve through i18n so both locales carry them.
 const PROMPTS = [
-  { title: "发现技能", text: "列出当前可用的技能，并说明各自的用途" },
-  { title: "查证问题", text: "帮我查证一个技术问题，并给出信息来源" },
-  { title: "整理写作", text: "帮我把下面的要点整理成一份简洁的周报：\n- 要点一\n- 要点二" },
+  { title: "welcome.skills", text: "welcome.skillsText" },
+  { title: "welcome.verify", text: "welcome.verifyText" },
+  { title: "welcome.write", text: "welcome.writeText" },
 ];
 
 export default function ChatScreen() {
@@ -48,6 +50,8 @@ export default function ChatScreen() {
   const clearChatError = useAppStore((s) => s.clearChatError);
 
   const [draft, setDraft] = useState("");
+  const [attachments, setAttachments] = useState<{ key: number; id: string; name: string; state: "uploading" | "attached" | "error" }[]>([]);
+  const attachSeq = useRef(0);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
   const listRef = useRef<FlatList<Turn>>(null);
@@ -63,10 +67,40 @@ export default function ChatScreen() {
   }, [turns.length, turns[turns.length - 1]]);
 
   const send = useCallback(() => {
+    const attached = attachments.filter((a) => a.state === "attached");
     const text = draft.trim();
-    if (!text || isStreaming || pendingQuestion) return;
-    if (runtime.send({ type: "prompt", text })) setDraft("");
-  }, [draft, isStreaming, pendingQuestion]);
+    if ((!text && attached.length === 0) || isStreaming || pendingQuestion) return;
+    // @doc references ride the prompt text — the server's ingestion contract.
+    const refs = attached.map((a) => `@doc:${a.id}`).join(" ");
+    const full = [text, refs].filter(Boolean).join(" ");
+    if (runtime.send({ type: "prompt", text: full })) {
+      setDraft("");
+      setAttachments([]);
+    }
+  }, [draft, attachments, isStreaming, pendingQuestion]);
+
+  // Attach: pick → upload through the documents endpoint → chip until sent.
+  const attach = useCallback(async () => {
+    const picked = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
+    if (picked.canceled) return;
+    const file = picked.assets?.[0];
+    if (!file) return;
+    const key = ++attachSeq.current;
+    setAttachments((a) => [...a, { key, id: "", name: file.name ?? t("chat.fileDefault"), state: "uploading" }]);
+    try {
+      const fd = new FormData();
+      fd.append("file", { uri: file.uri, name: file.name ?? "file", type: file.mimeType ?? "application/octet-stream" } as unknown as Blob);
+      const res = await http("/api/documents", { method: "POST", body: fd });
+      const body = (await res.json().catch(() => ({}))) as { id?: string; name?: string; error?: string };
+      if (res.ok && body.id) {
+        setAttachments((a) => a.map((x) => (x.key === key ? { ...x, id: body.id!, name: body.name || x.name, state: "attached" } : x)));
+      } else {
+        setAttachments((a) => a.map((x) => (x.key === key ? { ...x, state: "error" } : x)));
+      }
+    } catch {
+      setAttachments((a) => a.map((x) => (x.key === key ? { ...x, state: "error" } : x)));
+    }
+  }, []);
 
   const stop = useCallback(() => {
     useChatStore.getState().stopStreaming();
@@ -87,7 +121,7 @@ export default function ChatScreen() {
       {/* Regenerate rides under the LAST assistant turn while idle. */}
       {index === turns.length - 1 && item.role === "assistant" && !isStreaming && !pendingQuestion && turns.some((x) => x.role === "user") && (
         <Pressable style={styles.regenButton} onPress={regenerate}>
-          <Text style={styles.regenText}>↻ 重新生成</Text>
+          <Text style={styles.regenText}>↻ {t("chat.regenerate")}</Text>
         </Pressable>
       )}
     </View>
@@ -111,6 +145,9 @@ export default function ChatScreen() {
           onPress={() => runtime.send({ type: "new_session" })}
         >
           <Text style={styles.headerGlyph}>＋</Text>
+        </Pressable>
+        <Pressable style={styles.headerButton} testID="settings-entry" onPress={() => router.push("/settings")}>
+          <Text style={styles.headerGlyph}>⚙</Text>
         </Pressable>
       </View>
 
@@ -138,10 +175,10 @@ export default function ChatScreen() {
         <View style={styles.welcome}>
           <Text style={styles.welcomeTitle}>{t("chat.placeholderTitle")}</Text>
           {PROMPTS.map((p) => (
-            <Pressable key={p.title} style={styles.promptCard} onPress={() => setDraft(p.text)}>
-              <Text style={styles.promptTitle}>{p.title}</Text>
+            <Pressable key={p.title} style={styles.promptCard} onPress={() => setDraft(t(p.text))}>
+              <Text style={styles.promptTitle}>{t(p.title)}</Text>
               <Text style={styles.promptBody} numberOfLines={2}>
-                {p.text}
+                {t(p.text)}
               </Text>
             </Pressable>
           ))}
@@ -168,23 +205,44 @@ export default function ChatScreen() {
       {/* Composer */}
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} keyboardVerticalOffset={0}>
         <View style={[styles.composer, { marginBottom: insets.bottom }]}>
+          {attachments.length > 0 && (
+            <View style={styles.attachRow}>
+              {attachments.map((a) => (
+                <Pressable
+                  key={a.key}
+                  style={[styles.attachChip, a.state === "error" && { borderColor: palette.danger }]}
+                  onPress={() => setAttachments((x) => x.filter((y) => y.key !== a.key))}
+                >
+                  <Text style={styles.attachText} numberOfLines={1}>
+                    {a.state === "uploading" ? "⏳ " : a.state === "error" ? "✕ " : "📎 "}
+                    {a.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          )}
+          <Pressable style={styles.attachButton} onPress={() => void attach()} accessibilityLabel={t("chat.attach")} disabled={isStreaming || Boolean(pendingQuestion)}>
+            <Text style={styles.attachGlyph}>📎</Text>
+          </Pressable>
           <TextInput
             style={styles.input}
+            testID="composer-input"
             value={draft}
             onChangeText={setDraft}
             multiline
-            placeholder={pendingQuestion ? "回答上方的问题后继续…" : "输入消息…"}
+            placeholder={pendingQuestion ? t("chat.gatedPlaceholder") : t("chat.placeholder")}
             placeholderTextColor={palette.muted}
             editable={!isStreaming && !pendingQuestion}
           />
           {isStreaming ? (
-            <Pressable style={styles.stopButton} onPress={stop} accessibilityLabel="停止">
+            <Pressable style={styles.stopButton} onPress={stop} accessibilityLabel={t("chat.stop")}>
               <Text style={styles.stopGlyph}>■</Text>
             </Pressable>
           ) : (
             <Pressable
-              style={[styles.sendButton, (!draft.trim() || pendingQuestion) && styles.disabled]}
-              disabled={!draft.trim() || Boolean(pendingQuestion)}
+              testID="send-button"
+              style={[styles.sendButton, (!draft.trim() && attachments.every((a) => a.state !== "attached")) || pendingQuestion ? styles.disabled : null]}
+              disabled={(!draft.trim() && attachments.every((a) => a.state !== "attached")) || Boolean(pendingQuestion)}
               onPress={send}
             >
               <Text style={styles.sendGlyph}>↑</Text>
@@ -274,6 +332,11 @@ const styles = StyleSheet.create({
     borderTopColor: palette.line,
     backgroundColor: palette.card,
   },
+  attachRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginBottom: 6 },
+  attachChip: { borderWidth: 1, borderColor: palette.line, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: palette.paper },
+  attachText: { fontSize: 12, color: palette.ink, maxWidth: 140 },
+  attachButton: { width: 38, height: 40, alignItems: "center", justifyContent: "center" },
+  attachGlyph: { fontSize: 17 },
   input: {
     flex: 1,
     minHeight: 40,

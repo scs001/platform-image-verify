@@ -31,10 +31,29 @@ function renderLine(line: string, key: string) {
       </Text>
     );
   }
+  if (/^\s*\|.*\|\s*$/.test(line)) {
+    // Table rows (spec: scrollable content): monospace keeps columns legible
+    // in v1 — a native grid lands with the full renderer pass.
+    return (
+      <Text key={key} style={styles.tableRow} selectable>
+        {line.trim()}
+      </Text>
+    );
+  }
   if (!line.trim()) return <View key={key} style={styles.gap} />;
+  // Inline code: split on backticks; even runs plain, odd runs monospace.
+  const runs = line.split(/`([^`]+)`/);
   return (
     <Text key={key} style={styles.base}>
-      {line}
+      {runs.map((run, ri) =>
+        ri % 2 === 1 ? (
+          <Text key={ri} style={styles.inlineCode}>
+            {run}
+          </Text>
+        ) : (
+          <Text key={ri}>{run}</Text>
+        ),
+      )}
     </Text>
   );
 }
@@ -63,6 +82,8 @@ const styles = StyleSheet.create({
   wrap: { gap: 0 },
   base: { fontSize: 15, lineHeight: 23, color: palette.ink },
   listItem: { paddingLeft: 12, paddingVertical: 1 },
+  tableRow: { fontSize: 12.5, lineHeight: 18, color: palette.ink, fontFamily: "Menlo" },
+  inlineCode: { fontFamily: "Menlo", fontSize: 13.5, backgroundColor: palette.codeBg },
   gap: { height: 6 },
   codeBlock: {
     backgroundColor: palette.codeBg,

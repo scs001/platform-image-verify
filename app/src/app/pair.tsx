@@ -126,6 +126,7 @@ export default function PairScreen() {
             <Text style={styles.label}>{t("pair.serverLabel")}</Text>
             <TextInput
               style={styles.input}
+              testID="server-input"
               value={server}
               onChangeText={setServer}
               placeholder={t("pair.serverPlaceholder")}
@@ -137,6 +138,7 @@ export default function PairScreen() {
             <Text style={styles.label}>{t("pair.codeLabel")}</Text>
             <TextInput
               style={[styles.input, styles.codeInput]}
+              testID="code-input"
               value={code}
               onChangeText={(v) => setCode(v.replace(/\D/g, "").slice(0, 6))}
               placeholder={t("pair.codePlaceholder")}

@@ -1,56 +1,40 @@
-# Welcome to your Expo app 👋
+# 壹座 · Yizuo — Universal Client (Android / iOS)
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+壹座官方通用客户端：连接任意自建壹座实例。首次使用在网页端 **设置 → 已配对设备** 生成绑定码，App 扫码（或输入地址 + 6 位码）完成设备配对。
 
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## 开发
 
 ```bash
-npm run reset-project
+npm install
+npm run start        # Expo dev server（真机用 Expo Go / 开发构建）
+npm run typecheck    # tsc
+npm run test:unit    # 单测 + 真实例集成冒烟 + i18n CJK 门
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+`@platform/core` 通过 `file:../packages/core` 引用（与 web/miniapp 同模式），仓库根目录下开发。
 
-### Other setup steps
+## 自编译（开源自足路径）
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+无需 EAS：本地出原生工程并构建。
 
-## Learn more
+```bash
+npm install
+npx expo prebuild --platform android   # 生成 app/android/
+cd android && ./gradlew assembleDebug  # → app/build/outputs/apk/debug/
+npx expo prebuild --platform ios       # 需 macOS + Xcode；生成 app/ios/
+# iOS: cd ios && pod install && xcodebuild …（或 xed ios 打开工程）
+```
 
-To learn more about developing your project with Expo, look at the following resources:
+包标识 `com.finddata.platform`（iOS bundle 同名）；签名用自己的开发者证书即可。
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## 官方构建（维护者）
 
-## Join the community
+EAS Build（`eas.json` 的 `release` profile）：`eas build --profile release --platform all`；Android 产物为 signed APK 挂 GitHub Releases，iOS 走 `eas submit` 上 TestFlight。
 
-Join our community of developers creating universal apps.
+## Maestro e2e
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+`.maestro/` 四条流（配对/聊天/Tab/语言切换），CI 见 `.github/workflows/app-e2e.yml`；本地 `maestro test .maestro/tabs.yaml`。
+
+## 范围（v1）
+
+对齐小程序主链（聊天/定时/资源/分享）+ 设置页；不做离线推送、OTA、深链、双主题（见 openspec `add-mobile-app`）。

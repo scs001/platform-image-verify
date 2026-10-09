@@ -4,6 +4,7 @@
 
 import { Modal, Text, View, Pressable, FlatList, StyleSheet } from "react-native";
 import { useChatStore, type SessionMeta } from "@platform/core";
+import { useTranslation } from "react-i18next";
 import { palette } from "./palette";
 
 export function HistoryDrawer({
@@ -17,6 +18,7 @@ export function HistoryDrawer({
   onSwitch(id: string): void;
   onNewSession(): void;
 }) {
+  const { t } = useTranslation();
   const sessions = useChatStore((s) => s.sessions);
   const currentSessionId = useChatStore((s) => s.currentSessionId);
 
@@ -26,9 +28,9 @@ export function HistoryDrawer({
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.grab} />
           <View style={styles.headerRow}>
-            <Text style={styles.title}>历史会话</Text>
+            <Text style={styles.title}>{t("history.title")}</Text>
             <Pressable style={styles.newButton} onPress={onNewSession}>
-              <Text style={styles.newButtonText}>＋ 新会话</Text>
+              <Text style={styles.newButtonText}>{t("history.newSession")}</Text>
             </Pressable>
           </View>
           <FlatList
@@ -40,13 +42,13 @@ export function HistoryDrawer({
               return (
                 <Pressable style={[styles.row, on && styles.rowOn]} onPress={() => onSwitch(item.id)}>
                   <Text style={[styles.rowTitle, on && { color: palette.primary }]} numberOfLines={1}>
-                    {item.title || "未命名会话"}
+                    {item.title || t("history.untitled")}
                   </Text>
                   <Text style={styles.rowTime}>{item.updatedAt ? new Date(item.updatedAt).toLocaleString() : ""}</Text>
                 </Pressable>
               );
             }}
-            ListEmptyComponent={<Text style={styles.empty}>还没有会话</Text>}
+            ListEmptyComponent={<Text style={styles.empty}>{t("history.empty")}</Text>}
           />
         </Pressable>
       </Pressable>

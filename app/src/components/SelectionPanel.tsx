@@ -6,6 +6,7 @@
 
 import { Modal, Text, View, Pressable, SectionList, StyleSheet } from "react-native";
 import { useChatStore, type ModelInfo, type AgentInfo } from "@platform/core";
+import { useTranslation } from "react-i18next";
 import { palette } from "./palette";
 
 export function SelectionPanel({
@@ -19,6 +20,7 @@ export function SelectionPanel({
   onSetModel(id: string): void;
   onSetAgent(id: string): void;
 }) {
+  const { t } = useTranslation();
   const models = useChatStore((s) => s.models);
   const currentModel = useChatStore((s) => s.currentModel);
   const agents = useChatStore((s) => s.agents);
@@ -28,14 +30,14 @@ export function SelectionPanel({
   const locked = Boolean(pendingConfig) || isStreaming;
 
   const sections: { title: string; data: (ModelInfo | AgentInfo)[] }[] = [
-    { title: "模型", data: models },
-    { title: "角色", data: agents },
+    { title: t("panel.models"), data: models },
+    { title: t("panel.agents"), data: agents },
   ];
 
   const pick = (row: ModelInfo | AgentInfo, sectionTitle: string) => {
     if (locked) return;
-    if (sectionTitle === "模型" && "provider" in row) onSetModel(row.id);
-    if (sectionTitle === "角色") onSetAgent(row.id);
+    if (sectionTitle === t("panel.models") && "provider" in row) onSetModel(row.id);
+    if (sectionTitle === t("panel.agents")) onSetAgent(row.id);
     onClose();
   };
 
@@ -45,7 +47,7 @@ export function SelectionPanel({
         <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
           <View style={styles.grab} />
           {locked && (
-            <Text style={styles.locked}>回合进行中，选择将在回合结束后生效…</Text>
+            <Text style={styles.locked}>{t("panel.locked")}</Text>
           )}
           <SectionList
             sections={sections}
@@ -53,8 +55,8 @@ export function SelectionPanel({
             renderSectionHeader={({ section }) => <Text style={styles.sectionTitle}>{section.title}</Text>}
             renderItem={({ item, section }) => {
               const on =
-                (section.title === "模型" && (item as ModelInfo).id === currentModel) ||
-                (section.title === "角色" && (item as AgentInfo).id === currentAgent);
+                (section.title === t("panel.models") && (item as ModelInfo).id === currentModel) ||
+                (section.title === t("panel.agents") && (item as AgentInfo).id === currentAgent);
               const name = (item as { name?: string }).name ?? (item as ModelInfo).id;
               const desc = (item as { description?: string }).description;
               return (
@@ -71,7 +73,7 @@ export function SelectionPanel({
                 </Pressable>
               );
             }}
-            ListEmptyComponent={<Text style={styles.empty}>列表为空</Text>}
+            ListEmptyComponent={<Text style={styles.empty}>{t("panel.empty")}</Text>}
             style={{ flex: 1 }}
           />
         </Pressable>

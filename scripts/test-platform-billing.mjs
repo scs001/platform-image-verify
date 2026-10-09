@@ -81,11 +81,16 @@ function stubSub2api() {
     if (!u) return res.status(404).json({ code: 404, message: "not found" });
     ok(res, u);
   });
+  const seenIdem = new Set();
   app.post("/api/v1/admin/users/:id/balance", (req, res) => {
     const u = byId(req.params.id);
     if (!u) return res.status(404).json({ code: 404, message: "not found" });
     if (!req.headers["idempotency-key"]) return res.status(400).json({ code: 400, message: "idempotency key required" });
-    u.balance += Number(req.body.balance || 0);
+    if (seenIdem.has(req.headers["idempotency-key"])) {
+      return res.status(409).json({ code: 409, message: "duplicate idempotency key" });
+    }
+    seenIdem.add(req.headers["idempotency-key"]);
+    u.balance += Number(req.body.balance || 0) * (req.body.operation === "subtract" ? -1 : 1);
     ok(res, { balance: u.balance });
   });
   // Liveness: full billing gate over the sk- key (balance>0, alive, found).
@@ -596,6 +601,91 @@ test("billing board: token-or-admin auth; degraded shape without sub2api", async
     assert.equal(authed.status, 200);
     assert.equal(authed.body.degraded, true, "no sub2api config ⇒ degraded board");
     assert.ok(Array.isArray(authed.body.keys));
+  } finally {
+    await h.close();
+  }
+});
+
+// ── host-settle internal route (wanxing add-agent-chat-lane 1.1) ─────────────
+// The chat lane's host-settlement contract: credential gate, shape bounds,
+// per-deployment addressing, one deduction per usage_id (local row + upstream
+// idempotency key), and the degraded/unkeyed failure paths.
+
+test("host-settle: gate, shape, happy path, idempotent replay, degraded 503, unkeyed 404", async () => {
+  const stub = await stubSub2api();
+  const deployer = stub.addUser("host@x");
+  deployer.balance = 100;
+  const hostKey = stub.addKey(deployer);
+  let wiring = { baseUrl: `http://127.0.0.1:${stub.port}`, fetchImpl: wireTo(stub) };
+  const h = await harness({
+    user: { email: "host@x", groups: ["creators"] },
+    sub2api: () => wiring, // per-request re-read — flipped mid-test below
+  });
+  try {
+    const deploy = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, {
+      body: { billingKeys: { "bill-agent": hostKey } },
+    });
+    assert.equal(deploy.status, 200, JSON.stringify(deploy.body));
+    const base = `/api/packs/internal/deployments/${encodeURIComponent(h.packId)}/bill-agent/host-settle`;
+    const settle = (body, headers = { Authorization: "Bearer runner-svc-token" }) =>
+      h.call("POST", base, { body, headers });
+
+    // Credential gate: the internal service token is the only door.
+    assert.equal((await h.call("POST", base, { body: { usage_id: "wu_1", minutes: 1 } })).status, 401);
+    // Shape bounds.
+    assert.equal((await settle({ usage_id: "wu_1", minutes: 0 })).status, 400);
+    assert.equal((await settle({ usage_id: "wu_1", minutes: 2.5 })).status, 400);
+    assert.equal((await settle({ usage_id: "bad id!", minutes: 2 })).status, 400);
+    assert.equal((await settle({ usage_id: "wu_1", minutes: 2, rate_usd_per_min: 99 })).status, 400);
+    // Unknown deployment (wrong agent) → 404, no deduction.
+    const wrongAgent = await h.call("POST",
+      `/api/packs/internal/deployments/${encodeURIComponent(h.packId)}/no-such-agent/host-settle`,
+      { body: { usage_id: "wu_1", minutes: 1 }, headers: { Authorization: "Bearer runner-svc-token" } });
+    assert.equal(wrongAgent.status, 404);
+    assert.equal(deployer.balance, 100);
+
+    // Happy path: one deduction of minutes × rate from the deployer.
+    const r1 = await settle({ usage_id: "wu_chat_1", minutes: 3, rate_usd_per_min: 0.2 });
+    assert.equal(r1.status, 200, JSON.stringify(r1.body));
+    assert.equal(r1.body.duplicate, false);
+    assert.equal(r1.body.amountUsd, 0.6);
+    assert.equal(deployer.balance, 99.4);
+    assert.ok(h.registry.hostSettlement("wu_chat_1"), "settlement row recorded");
+
+    // Replay of the same usage_id: duplicate, never a second deduction.
+    const r2 = await settle({ usage_id: "wu_chat_1", minutes: 3, rate_usd_per_min: 0.2 });
+    assert.equal(r2.status, 200);
+    assert.equal(r2.body.duplicate, true);
+    assert.equal(deployer.balance, 99.4);
+
+    // Default rate mirrors the facade's env default (0.1/min).
+    const r3 = await settle({ usage_id: "wu_chat_2", minutes: 1 });
+    assert.equal(r3.body.amountUsd, 0.1);
+
+    // Billing plane offline mid-flight: 503, nothing recorded — and the same
+    // usage_id still settles once the plane returns.
+    wiring = null;
+    const down = await settle({ usage_id: "wu_chat_3", minutes: 1 });
+    assert.equal(down.status, 503);
+    wiring = { baseUrl: `http://127.0.0.1:${stub.port}`, fetchImpl: wireTo(stub) };
+    const back = await settle({ usage_id: "wu_chat_3", minutes: 1 });
+    assert.equal(back.status, 200, JSON.stringify(back.body));
+    assert.equal(back.body.duplicate, false);
+  } finally {
+    await h.close();
+    stub.server.close();
+  }
+});
+
+test("host-settle: a keyless deployment answers 404, not a deduction", async () => {
+  const h = await harness({ user: { email: "author@x", groups: [] } });
+  try {
+    const deploy = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, { body: {} });
+    assert.equal(deploy.status, 200, JSON.stringify(deploy.body.body ?? deploy.body));
+    const res = await h.call("POST",
+      `/api/packs/internal/deployments/${encodeURIComponent(h.packId)}/bill-agent/host-settle`,
+      { body: { usage_id: "wu_k", minutes: 1 }, headers: { Authorization: "Bearer runner-svc-token" } });
+    assert.equal(res.status, 404);
   } finally {
     await h.close();
   }

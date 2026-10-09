@@ -117,6 +117,19 @@ export function createPackRegistry({ file }) {
     created_at INTEGER NOT NULL,
     PRIMARY KEY (pack_id, agent_id, name)
   )`);
+  // Host-allowance settlements (wanxing add-agent-chat-lane D5): one row per
+  // settled chat usage id — the packs-side idempotency record so a replayed
+  // host-settle call never deducts twice. The deduction itself is also
+  // idempotency-keyed upstream (sub2api); this row is the local fast-path
+  // check and the audit of what was charged for whom.
+  db.exec(`CREATE TABLE IF NOT EXISTS pack_host_settlements (
+    usage_id TEXT PRIMARY KEY,
+    agent_path TEXT NOT NULL,
+    minutes INTEGER NOT NULL,
+    amount_usd REAL NOT NULL,
+    deployer TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  )`);
 
   const now = () => Date.now();
   const mintId = () => randomBytes(16).toString("base64url");
@@ -397,6 +410,19 @@ export function createPackRegistry({ file }) {
     listDeploymentKeys() {
       return db.prepare(`SELECT pack_id, agent_id, key_ref, deployer, created_at FROM deployment_keys`).all()
         .map((r) => ({ packId: r.pack_id, agentId: r.agent_id, keyRef: r.key_ref, deployer: r.deployer, createdAt: r.created_at }));
+    },
+    deploymentKeyForAgent(packId, agentId) {
+      const r = db.prepare(`SELECT * FROM deployment_keys WHERE pack_id = ? AND agent_id = ?`).get(packId, agentId);
+      return r ? { keyRef: r.key_ref, keyValue: r.key_value, deployer: r.deployer } : null;
+    },
+    hostSettlement(usageId) {
+      return db.prepare(`SELECT * FROM pack_host_settlements WHERE usage_id = ?`).get(String(usageId)) ?? null;
+    },
+    recordHostSettlement({ usageId, agentPath, minutes, amountUsd, deployer }) {
+      db.prepare(
+        `INSERT INTO pack_host_settlements (usage_id, agent_path, minutes, amount_usd, deployer, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      ).run(String(usageId), agentPath, minutes, amountUsd, deployer, Date.now());
     },
 
     // ── Deployment secrets (add-deployment-secrets D2/D5) ────────────────────
@@ -1236,6 +1262,74 @@ export function registerPackRoutes(app, {
   app.get("/api/packs/internal/author/:id", (req, res) => {
     if (!internalAuth(req, res)) return;
     res.json({ authorEmail: registry.authorEmail(req.params.id) });
+  });
+
+  // Internal: deployment-level host settlement (wanxing add-agent-chat-lane
+  // D5). The wanxing facade settles chat-lane turns whose settler is the
+  // host's allowance here — the deployment's billing key never travels to
+  // the facade. Same per-deployment addressing convention as the config
+  // twin (packId + agentId, both URL-encoded single segments). Body
+  // {usage_id, minutes, rate_usd_per_min?}: minutes are the facade's
+  // minute-rounded billable duration; the rate defaults to the facade's own
+  // default so both planes stay one env apart. Idempotent by usage_id: a
+  // replay answers duplicate without deducting (the upstream deduction is
+  // idempotency-keyed the same way, so a crash between the upstream success
+  // and the local insert still lands once).
+  app.post("/api/packs/internal/deployments/:packId/:agentId/host-settle", express.json({ limit: "4kb" }), async (req, res) => {
+    if (!internalAuth(req, res)) return;
+    const { usage_id, minutes, rate_usd_per_min } = req.body ?? {};
+    if (typeof usage_id !== "string" || !/^[A-Za-z0-9_-]{1,128}$/.test(usage_id)) {
+      return res.status(400).json({ error: "usage_id must be a short identifier string" });
+    }
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
+      return res.status(400).json({ error: "minutes must be an integer in [1, 1440]" });
+    }
+    const rate = rate_usd_per_min === undefined
+      ? Number(process.env.WANXING_RATE_PER_MIN ?? 0.1)
+      : Number(rate_usd_per_min);
+    if (!Number.isFinite(rate) || rate <= 0 || rate > 10) {
+      return res.status(400).json({ error: "rate_usd_per_min must be a positive number ≤ 10" });
+    }
+    if (registry.hostSettlement(usage_id)) {
+      return res.json({ settled: true, duplicate: true });
+    }
+    const key = registry.deploymentKeyForAgent(decodeURIComponent(req.params.packId), decodeURIComponent(req.params.agentId));
+    if (!key) return res.status(404).json({ error: "no such deployment" });
+    const sub2api = deployConfig().sub2api ? createSub2apiClient(deployConfig().sub2api) : null;
+    if (!sub2api || sub2api.degraded()) {
+      return res.status(503).json({ error: "billing plane not configured" });
+    }
+    const amount = Number((minutes * rate).toFixed(4));
+    let holder;
+    try {
+      holder = await sub2api.findUserByKey(key.keyValue);
+    } catch (err) {
+      return res.status(502).json({ error: `key holder resolution failed: ${err.message}` });
+    }
+    if (!holder) return res.status(404).json({ error: "billing key no longer resolves to an account" });
+    try {
+      await sub2api.adjustBalance({
+        userId: holder.userId,
+        amountUsd: amount,
+        operation: "subtract",
+        idempotencyKey: usage_id,
+      });
+    } catch (err) {
+      // A retry whose deduction already landed upstream surfaces as a
+      // duplicate refusal — that IS settled, matching the facade's own
+      // trySettle semantics; anything else is a retryable failure.
+      if (!/duplicate|idempoten/i.test(String(err?.message || ""))) {
+        return res.status(502).json({ error: `deduction failed: ${err.message}` });
+      }
+    }
+    try {
+      registry.recordHostSettlement({
+        usageId: usage_id, agentPath: `/${decodeURIComponent(req.params.packId)}/${decodeURIComponent(req.params.agentId)}`,
+        minutes, amountUsd: amount, deployer: key.deployer,
+      });
+    } catch { /* concurrent twin already inserted — still exactly one deduction */ }
+    console.log(`[packs] host-settle ${usage_id}: ${minutes}min $${amount} on ${req.params.packId}/${req.params.agentId} (deployer ${key.deployer})`);
+    res.json({ settled: true, duplicate: false, amountUsd: amount });
   });
 
   // Deployed roles of a pack (3.3): the unpublish warning's and the deploy

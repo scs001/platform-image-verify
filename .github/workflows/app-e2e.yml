@@ -33,6 +33,11 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - name: Install app dependencies
         run: npm --prefix app ci
+      - name: Link core's runtime deps (repo convention)
+        run: |
+          mkdir -p packages/core/node_modules
+          ln -sfn ../../../app/node_modules/zustand packages/core/node_modules/zustand
+
       - name: Typecheck
         run: npm --prefix app run typecheck
       - name: Unit tests (incl. integration smoke + i18n CJK gate)

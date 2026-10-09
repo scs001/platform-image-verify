@@ -40,6 +40,15 @@ jobs:
           # node_modules symlink; ensure the shared core is present as declared.
           npm --prefix app install --no-audit --no-fund
 
+      - name: Link core's runtime deps (repo convention)
+        run: |
+          # @platform/core resolves zustand through packages/core/node_modules
+          # (the consumer provides it — see core's package.json note). Local
+          # dev gets it from the repo root's node_modules; CI only installs
+          # app/, so link app's copy into core's lookup path.
+          mkdir -p packages/core/node_modules
+          ln -sfn ../../../app/node_modules/zustand packages/core/node_modules/zustand
+
       - name: Typecheck
         run: npm --prefix app run typecheck
 

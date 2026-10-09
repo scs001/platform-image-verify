@@ -56,7 +56,8 @@ jobs:
         run: npm --prefix app run typecheck
 
       - name: Unit tests (integration smoke + i18n gate)
-        run: npm --prefix app run test:unit
+        working-directory: app
+        run: npm run test:unit
 
       - uses: actions/setup-java@v4
         with:

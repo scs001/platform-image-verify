@@ -42,7 +42,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
-    "test:unit": "node --test test/"
+    "test:unit": "node --test \"test/*.test.mjs\""
   },
   "private": true
 }

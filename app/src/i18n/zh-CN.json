@@ -1,0 +1,49 @@
+{
+  "tabs": { "chat": "对话", "cron": "定时任务", "resources": "资源库" },
+  "pair": {
+    "title": "连接你的壹座",
+    "subtitle": "在网页端 设置 → 已配对设备 生成绑定码，扫码或输入即可把这台设备与账号绑定。",
+    "scan": "扫码绑定",
+    "scanHint": "二维码同时携带服务器地址与绑定码，无需手填。",
+    "cameraDenied": "相机权限未开启，可手动输入服务器地址与 6 位绑定码。",
+    "serverLabel": "服务器地址",
+    "serverPlaceholder": "https://your-yizuo.example.com",
+    "codeLabel": "6 位绑定码",
+    "codePlaceholder": "000000",
+    "submit": "绑定",
+    "submitting": "绑定中…",
+    "errCode": "绑定码无效或已过期，请刷新后重试。",
+    "errNetwork": "连不上服务器，请检查地址与网络。",
+    "errOldServer": "该服务器版本较旧，尚不支持设备配对，升级壹座后即可使用。",
+    "errUnknown": "配对失败，请稍后重试。"
+  },
+  "gate": { "connecting": "正在连接…", "rebind": "此设备的绑定已被撤销，请重新配对。" },
+  "chat": {
+    "placeholderTitle": "对话",
+    "placeholderBody": "聊天主链随 3.x 任务就位。",
+    "disconnected": "未连接",
+    "reconnect": "重连"
+  },
+  "cron": { "placeholderTitle": "定时任务", "placeholderBody": "任务列表随 4.3 任务就位。" },
+  "resources": { "placeholderTitle": "资源库", "placeholderBody": "资源列表随 4.3 任务就位。" },
+  "settings": {
+    "title": "设置",
+    "instance": "服务器",
+    "reachability": "可达",
+    "unreachable": "不可达",
+    "language": "语言",
+    "unbind": "解绑此设备",
+    "unbindConfirm": "解绑后将清除本机配对并回到配对页，确定？",
+    "confirm": "确定",
+    "cancel": "取消",
+    "about": "关于",
+    "version": "版本"
+  },
+  "share": {
+    "title": "分享会话",
+    "tokenLabel": "分享令牌",
+    "open": "打开",
+    "unavailable": "分享不存在或已失效。"
+  },
+  "common": { "loading": "加载中…", "retry": "重试", "error": "出错了" }
+}

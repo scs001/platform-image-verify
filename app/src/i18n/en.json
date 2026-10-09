@@ -1,0 +1,49 @@
+{
+  "tabs": { "chat": "Chat", "cron": "Scheduled", "resources": "Library" },
+  "pair": {
+    "title": "Connect to your Yizuo",
+    "subtitle": "Mint a pairing code on the web (Settings → Paired devices), then scan or type it to bind this device to your account.",
+    "scan": "Scan to pair",
+    "scanHint": "The QR carries both the server address and the code — nothing to type.",
+    "cameraDenied": "Camera unavailable — type the server address and the 6-digit code instead.",
+    "serverLabel": "Server address",
+    "serverPlaceholder": "https://your-yizuo.example.com",
+    "codeLabel": "6-digit pairing code",
+    "codePlaceholder": "000000",
+    "submit": "Pair",
+    "submitting": "Pairing…",
+    "errCode": "Invalid or expired code — mint a fresh one and retry.",
+    "errNetwork": "Cannot reach the server — check the address and your network.",
+    "errOldServer": "This server predates device pairing; upgrade Yizuo to use it.",
+    "errUnknown": "Pairing failed — please retry."
+  },
+  "gate": { "connecting": "Connecting…", "rebind": "This device's binding was revoked — pair again." },
+  "chat": {
+    "placeholderTitle": "Chat",
+    "placeholderBody": "The full chat lane lands with tasks 3.x.",
+    "disconnected": "Disconnected",
+    "reconnect": "Reconnect"
+  },
+  "cron": { "placeholderTitle": "Scheduled tasks", "placeholderBody": "The task list lands with task 4.3." },
+  "resources": { "placeholderTitle": "Resource library", "placeholderBody": "The library lands with task 4.3." },
+  "settings": {
+    "title": "Settings",
+    "instance": "Server",
+    "reachability": "reachable",
+    "unreachable": "unreachable",
+    "language": "Language",
+    "unbind": "Unbind this device",
+    "unbindConfirm": "Unbinding clears local pairing and returns to the pairing screen. Continue?",
+    "confirm": "Unbind",
+    "cancel": "Cancel",
+    "about": "About",
+    "version": "Version"
+  },
+  "share": {
+    "title": "Shared session",
+    "tokenLabel": "Share token",
+    "open": "Open",
+    "unavailable": "The share is gone or was revoked."
+  },
+  "common": { "loading": "Loading…", "retry": "Retry", "error": "Something went wrong" }
+}

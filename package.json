@@ -30,7 +30,9 @@
     "miniapp:install": "npm --prefix miniapp install",
     "miniapp:build": "npm --prefix miniapp run build:weapp",
     "miniapp:typecheck": "npm --prefix miniapp run typecheck",
-    "postinstall": "node scripts/postinstall-web.js"
+    "postinstall": "node scripts/postinstall-web.js",
+    "app:install": "npm --prefix app install",
+    "app:typecheck": "npm --prefix app run typecheck"
   },
   "dependencies": {
     "@deepseek-ai/cordis": "4.0.4",

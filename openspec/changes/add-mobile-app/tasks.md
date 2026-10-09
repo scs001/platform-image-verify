@@ -32,6 +32,6 @@
 ## 6. 管线与发布
 
 - [ ] 6.1 Maestro flows（android）：配对（mock 实例）、聊天流（真服务器+dead-LLM）、Tab 导航、语言切换；本地 `maestro test` 四流全绿
-- [ ] 6.2 GHA `app-e2e.yml`（android 门禁 + iOS nightly 结构）+ 根 CI 增 `app lint/typecheck/unit` 步骤；公开仓通道首跑绿
+- [x] 6.2 GHA `app-e2e.yml`（android 门禁 + iOS nightly 结构）+ 根 CI 增 `app lint/typecheck/unit` 步骤；公开仓通道首跑绿
 - [ ] 6.3 EAS 配置（release profile、APK 签名托管、iOS archive）+ `expo prebuild` 自编译 README 段；首出 APK + TestFlight 构建成功
 - [ ] 6.4 真机收官冒烟（iOS+Android 各一）：配对→聊天（含图表/问询卡）→cron/资源→设置解绑全链；`openspec validate add-mobile-app --strict` 通过 + 全仓既有门禁不倒退

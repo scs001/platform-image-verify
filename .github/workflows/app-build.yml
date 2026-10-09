@@ -120,16 +120,20 @@ jobs:
       - name: Build for the simulator (no codesigning)
         working-directory: app/ios
         run: |
+          set -o pipefail
           SCHEME=$(ls *.xcworkspace | sed 's/\.xcworkspace//')
           echo "scheme: $SCHEME"
           xcodebuild -workspace "$SCHEME.xcworkspace" -scheme "$SCHEME" \
             -configuration Release -sdk iphonesimulator -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
-            build | tail -5
+            build | tail -40
       - name: Package the .app
         working-directory: app/ios
         run: |
-          APP=$(find build/Build/Products/Release-iphonesimulator -name "*.app" | head -1)
+          ls -la build/Build/Products/ || true
+          ls -la build/Build/Products/Release-iphonesimulator/ || true
+          APP=$(find build/Build/Products/Release-iphonesimulator -maxdepth 1 -name "*.app" | head -1)
+          if [ -z "$APP" ]; then echo "no .app found"; exit 1; fi
           mkdir -p ../artifacts
           ditto -c -k --keepParent "$APP" "../artifacts/yizuo-ios-simulator-${{ github.sha }}.zip"
       - uses: actions/upload-artifact@v4

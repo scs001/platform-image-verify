@@ -94,3 +94,46 @@ jobs:
           name: yizuo-android-apk
           path: app/artifacts/*.apk
           retention-days: 30
+
+  ios-simulator:
+    name: iOS simulator app (unsigned)
+    # macOS runners are free on public repos. Unsigned = simulator-only: a
+    # device/TestFlight build needs the Apple Developer Program (certs), which
+    # is the standing action item — this lane proves the app compiles and runs
+    # in the simulator meanwhile.
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 25
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install app dependencies
+        run: |
+          npm --prefix app ci
+          npm --prefix app install --no-audit --no-fund
+      - name: Prebuild native iOS project
+        working-directory: app
+        run: npx expo prebuild --platform ios --no-install
+      - name: Build for the simulator (no codesigning)
+        working-directory: app/ios
+        run: |
+          SCHEME=$(ls *.xcworkspace | sed 's/\.xcworkspace//')
+          echo "scheme: $SCHEME"
+          xcodebuild -workspace "$SCHEME.xcworkspace" -scheme "$SCHEME" \
+            -configuration Release -sdk iphonesimulator -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build | tail -5
+      - name: Package the .app
+        working-directory: app/ios
+        run: |
+          APP=$(find build/Build/Products/Release-iphonesimulator -name "*.app" | head -1)
+          mkdir -p ../artifacts
+          ditto -c -k --keepParent "$APP" "../artifacts/yizuo-ios-simulator-${{ github.sha }}.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yizuo-ios-simulator
+          path: app/artifacts/*.zip
+          retention-days: 30

@@ -28,8 +28,8 @@
 
 - [x] 4.1 组装官方功能集 `fd-doc-studio`（名「文档工坊」：技能=切片②产物；无 MCP 引用、无 pip 依赖声明），走创作者线发布 v1，谦面商店卡片显示唯一名
   - **已上线（2026-10-08）**：pack id `qnhd7B3J1-HKDDKzZQ_fUQ` v1，作者 doc-studio@finddatatech.com（Logto 专建发布账号、creators 组）；卡片/详情/技能体端点三验全绿。发布通道=facet 代理通道（x-facet-token + x-facet-user，因公网壹座 lawcraw 未开 PACK_MARKETPLACE、facet 直登会话无 groups 声明——两坑在案）
-- [x] 4.2 壹座 dogfood（**部分完成 2026-10-08**）：**装包链路已实证**——docstudio 账号从市场装「文档工坊 v1」成功（skills: doc-studio installed，与官方生态包并列出现在 /api/mypacks）；**样张真机验证已过**（四份 docx 上传线上壹座资料库，全 ready 零 error，Content 区渲染出完整中文内容）
-  - **剩余=真实回合生成**：需 python 执行层进 prod 镜像。prod 现跑 `sha-9f41c5a`（旧，无 python 层）；镜像链=lock 修复（桌面线，见 docs/dsh-lock-peer-deadlock.md）→ 公开镜像仓 `image-publish` 构建推 hkccr → relay 回灌 ccr → GitOps 滚动。届时补跑：三场景各一轮真实生成 + 产物条带 + postcheck 失败注入
+- [x] 4.2 壹座 dogfood（**2026-10-09 全链完成**）：①装包链路实证——docstudio 账号从市场装「文档工坊 v1」成功（skills: doc-studio installed）；②样张真机验证已过（四份 docx 上传线上壹座资料库，全 ready 零 error，Content 区渲染完整中文）；③**真实回合生成实证（prod sha-744285e）**——标准模式下「用 doc-studio 技能生成商务报告 docx」真回合：agent 载入技能→按路由规则（商务报告→R1 封面+TOC 域+三章+数据表+靛青配色+强制 postcheck）执行四步计划→产出 `2026年第三季度华东区销售复盘.docx`（43KB，52 段/6 表/单节，标题层级 摘要·目录·一、市场概览(1.1-1.3)·二、业绩分析(2.1-2.4)·三、下季度计划），技能自带 postcheck 对成品 **PASS**，回合末自报路径+交付清单。旁证：同 cell 的 `echo` bash 回合返回输出（exit 0）
+  - 阻塞史（全程留档）：prod 旧镜像无 python 层 → 矩阵行 flag 缺陷（24 包不落盘）→ boot 就地改写冻结树 → DSH_BIN 未钉（应用树 dsh 二进制被 peer 提升拆坏）→ 模块身份双实例（桥包链到应用树 rc.1，undefined.prepare）；四层修复见 docs/dsh-lock-peer-deadlock.md 与 e504ffd/a1bc685
 - [ ] 4.3 萬星部署演示：引用文档工坊的服务部署 → 外部调用者回合拿到文本回复+文件引用（无文件字节外发），账单无 office 独立计量条目
   - **v1 范围内说明**：文档工坊 v1 是纯技能包（无 agents/servingContract，design 明文），萬星"随包继承"由安装机制保证（任一引用该包的角色部署后即获得技能）；**独立 Agent 服务演示**需要给包加服务契约（v2 内容升级）+ prod 镜像带 python 层，与 4.2 剩余同前置
 - [ ] 4.4 收尾：`openspec validate add-doc-studio --specs` 过；样张与 VERIFICATION.md 归档入仓；镜像体积与发布备注留档

@@ -131,6 +131,28 @@ kubectl -n fd-prod rollout restart deploy/platform
 ```
 疗后实证：`echo hello-healed` 真回合返回输出（exit 0）。
 
+### 续修：链接源必须是运行时树（a1bc685）
+
+上面那条修完，prod 仍有一枚**老 cell**（`2b043ce050ca134c`，profile 模块目录是真
+目录而非符号链）起不来：它的 `linkProfilePinnedModules` 走真实目录分支，从
+**应用树**取源，于是同样双实例。修法：新增 `RUNTIME_NODE_MODULES`——从
+`DSH_BIN` 解析其 node_modules（镜像= `/opt/dsh/node_modules`；桌面无 DSH_BIN
+时回退应用树，语义不变），真实目录分支一律从运行时树取源；毒链清理只在
+appRoot≠runtimeRoot 时执行。`sha-744285e` 上线后老 cell 自动治愈（日志
+`linked … into the profile node_modules`，链接指向 `/opt/dsh`），**两个 cell
+的 dsh 全部 ready，doc-studio 真回合出稿**（见下）。
+
+## 事故全程的最终状态（2026-10-09）
+
+- prod 镜像：`ccr.ccs.tencentyun.com/yizuo/platform:sha-744285e`（GitOps 6910db6）
+- 镜像 CI 三门全绿：`/api/ready {"ready":true}` + dsh-contracts 6/6 + module identity ok
+- 两个 cell 的 dsh 子进程 ready；`echo` 工具回合 exit 0
+- **doc-studio 真回合实证**：标准模式生成《2026年第三季度华东区销售复盘》docx
+  （43KB / 52 段 / 6 表 / R1 封面 / TOC 域 / 三章 / 数据表），技能自带 postcheck
+  PASS，回合末自报路径与交付清单
+- 残留（桌面线，未修）：根树 `dsh-credentials` 缺口（见下）；`package.json`
+  建议把 `cordis-plugin-loader` 也声明为根依赖（第三缺陷一行的正解）
+
 ## 根树缺口（未修，桌面线相关）
 
 根树（`/app/node_modules`）的 flag 必须保留，但它漏装 rc.5 侧 peer：`@deepseek-ai/dsh-llm-deepseek@0.0.1-rc.5` 的 `lib/index.js` 第 3 行 `import { credentialRef } from "@deepseek-ai/dsh-credentials"` 在根树解析不到（该包只存在于 dsh 嵌套树 `node_modules/@deepseek-ai/dsh/node_modules/@deepseek-ai/`）。本地不炸是因为 `scripts/test-agent-notify-bridge.mjs` 的 anchor 探测先命中 homebrew 全局 dsh；快照 CI（干净机器）命中根树 → 单测 `bridge: subclasses the preset bridge…` 红。

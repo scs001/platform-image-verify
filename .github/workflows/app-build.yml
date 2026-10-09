@@ -114,6 +114,13 @@ jobs:
         run: |
           npm --prefix app ci
           npm --prefix app install --no-audit --no-fund
+      - name: Link core's runtime deps (repo convention)
+        run: |
+          # Metro resolves core's imports from the REALPATH
+          # (packages/core), so zustand must sit in core's lookup path —
+          # same fix the gates job applies for tsc.
+          mkdir -p packages/core/node_modules
+          ln -sfn ../../../app/node_modules/zustand packages/core/node_modules/zustand
       - name: Prebuild native iOS project
         working-directory: app
         run: npx expo prebuild --platform ios --no-install

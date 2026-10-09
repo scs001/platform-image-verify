@@ -119,14 +119,18 @@ jobs:
         run: npx expo prebuild --platform ios --no-install
       - name: Pod install (creates the workspace)
         working-directory: app/ios
-        run: pod install
+        run: |
+          ls -la
+          pod install
+          ls -la *.xcworkspace *.xcodeproj 2>/dev/null || true
 
       - name: Build for the simulator (no codesigning)
         working-directory: app/ios
         run: |
           set -o pipefail
-          SCHEME=$(ls *.xcworkspace | sed 's/\.xcworkspace//')
-          echo "scheme: $SCHEME"
+          WS=$(find . -maxdepth 1 -name "*.xcworkspace" | head -1)
+          SCHEME=$(basename "$WS" .xcworkspace)
+          echo "workspace: $WS | scheme: $SCHEME"
           xcodebuild -workspace "$SCHEME.xcworkspace" -scheme "$SCHEME" \
             -configuration Release -sdk iphonesimulator -derivedDataPath build \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \

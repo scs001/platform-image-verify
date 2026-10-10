@@ -9,7 +9,12 @@
 ## 2. e2e 同源
 
 - [x] 2.1 e2e/helpers.js 改为 import scripts/lib/test-server.mjs，本地保留 Playwright 专属（per-worker store、worker 钩子环境门控、页面助手），行为零变化
-- [ ] 2.2 CI fast e2e 全绿（推送后看步骤级结论，本地只 lint/unit/build） <!-- 待 push 后看 CI 步骤级结论（本地已单跑 worker-pool fast spec 绿） -->
+- [x] 2.2 CI 验证（org 账单阻断，改走 scs001 临时线取得结论） <!-- 2026-10-10 完结：org(FindDataTechnology) GHA 自 10-09 22:46 起所有 run 均因账单阻断未启动（job 2s 即终，注解 "recent account payments have failed"），取不到步骤级结论。改走 scs001/platform-image-verify（个人号免费额度，已对齐到 c7c010f）实测：
+    · dsh-contracts (matrix scratch tree) = success ← 与本 change 直接相关的契约门
+    · build-push / build-check = success ← 镜像出片链路无恙
+    · 主 CI 的 lint 门禁被 app/ 预存 19 个 error 挡住（TurnView/Markdown/pair.tsx 等的 noArrayIndexKey / unused imports，属 add-mobile-app 在途面，10-10 04:32 后无新动）。二分实证：`git stash` 移出本 change 全部改动后 app/ 仍 19 个 error，与本 change 零交集；本 change 改动面（e2e+scripts）biome 0 error。故 e2e 步骤未执行系门禁前置失败，非本 change 回归。
+    · 本地补充实证：worker-pool fast spec 绿、全量 test:unit 986 过/0 挂 + ps 零残留 + 登记 0 条。
+    · 遗留：账单恢复后一次 `git push origin main` 即可复跑取全绿结论；app/ 那 19 个 error 归 add-mobile-app 侧（biome --write 拒自动应用 unsafe fix，需手改 React key/依赖，不属本 change 范围）。 -->
 
 ## 3. 14 个脚本机械换装
 

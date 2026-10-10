@@ -5,7 +5,7 @@
 // store field).
 
 import { useState } from "react";
-import { Text, View, TextInput, Pressable, StyleSheet, ScrollView } from "react-native";
+import { Text, View, TextInput, Pressable, StyleSheet } from "react-native";
 import { palette } from "./palette";
 import { useTranslation } from "react-i18next";
 

@@ -45,12 +45,17 @@ function renderLine(line: string, key: string) {
   const runs = line.split(/`([^`]+)`/);
   return (
     <Text key={key} style={styles.base}>
+      {/* The runs are positional by construction — alternating plain/code
+          spans of one line, never reordered — so the run index is the
+          identity. */}
       {runs.map((run, ri) =>
         ri % 2 === 1 ? (
+          // biome-ignore lint/suspicious/noArrayIndexKey: positional split runs, never reordered
           <Text key={ri} style={styles.inlineCode}>
             {run}
           </Text>
         ) : (
+          // biome-ignore lint/suspicious/noArrayIndexKey: positional split runs, never reordered
           <Text key={ri}>{run}</Text>
         ),
       )}
@@ -65,6 +70,7 @@ export function Markdown({ text }: { text: string }) {
   segments.forEach((segment, i) => {
     if (i % 2 === 1) {
       parts.push(
+        // biome-ignore lint/suspicious/noArrayIndexKey: fenced segment index is the stable identity of a code block
         <View key={`code-${i}`} style={styles.codeBlock}>
           <Text style={styles.code} selectable>
             {segment.replace(/\n$/, "")}
@@ -72,7 +78,9 @@ export function Markdown({ text }: { text: string }) {
         </View>,
       );
     } else {
-      segment.split("\n").forEach((line, j) => parts.push(renderLine(line, `${i}-${j}`)));
+      segment.split("\n").forEach((line, j) => {
+        parts.push(renderLine(line, `${i}-${j}`));
+      });
     }
   });
   return <View style={styles.wrap}>{parts}</View>;

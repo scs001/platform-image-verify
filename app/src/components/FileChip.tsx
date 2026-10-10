@@ -4,7 +4,7 @@
 // session so a second tap never re-attempts a doomed duplicate save.
 
 import { useState } from "react";
-import { Text, View, Pressable, StyleSheet, Alert } from "react-native";
+import { Text, Pressable, StyleSheet, Alert } from "react-native";
 import { saveResource, type FileRef } from "@platform/core";
 import { palette } from "./palette";
 import { useTranslation } from "react-i18next";

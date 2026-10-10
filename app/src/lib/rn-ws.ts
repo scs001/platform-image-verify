@@ -3,7 +3,7 @@
 // a silent re-login before a reconnect rides along (same contract as the
 // mini program's taro-socket factory).
 
-import type { SocketFactory, SocketHandle } from "@platform/core";
+import type { SocketHandle } from "@platform/core";
 
 export function rnSocketFactory(url: string, tokenProvider: () => string) {
   // RN's WebSocket third argument carries headers on the upgrade; the DOM

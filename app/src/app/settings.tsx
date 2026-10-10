@@ -6,7 +6,6 @@ import { useCallback, useEffect, useState } from "react";
 import { View, Text, Pressable, ScrollView, ActivityIndicator, StyleSheet, Alert } from "react-native";
 import Constants from "expo-constants";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 import { useTranslation } from "react-i18next";
 import { palette } from "@/components/palette";
 import { changeLocale } from "@/i18n";
@@ -16,7 +15,6 @@ import { useAppStore } from "@/store/app-store";
 export default function SettingsScreen() {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
-  const router = useRouter();
   const baseUrl = useAppStore((s) => s.baseUrl);
   const email = useAppStore((s) => s.email);
   const [reachable, setReachable] = useState<"checking" | "up" | "down">("checking");

@@ -25,7 +25,6 @@ import { FileChip } from "./FileChip";
 import { palette } from "./palette";
 
 function ToolCard({ name, title, args }: { name: string; title: string; args: unknown }) {
-  const { t } = useTranslation();
   return (
     <View style={styles.toolCard}>
       <Text style={styles.toolCardTitle}>{title}</Text>
@@ -63,6 +62,7 @@ function ToolGroupRow({ turn, group }: { turn: AssistantTurn; group: ActivityGro
       {open && (
         <View style={styles.groupBody}>
           {group.blocks.map((b, i) => (
+            // biome-ignore lint/suspicious/noArrayIndexKey: append-only transcript blocks, never reordered; identical calls recur
             <Text key={i} style={styles.groupLine} numberOfLines={3}>
               {b.kind === "tool" && `${b.state === "error" ? "✕ " : ""}${b.name}(${JSON.stringify(b.args).slice(0, 120)})`}
               {b.kind === "skill" && `✦ ${b.name}`}
@@ -92,6 +92,7 @@ function ArtifactStrip({ text }: { text: string }) {
   return (
     <View style={styles.strip}>
       {chips.map((c, i) => (
+        // biome-ignore lint/suspicious/noArrayIndexKey: rel path is the key; index only disambiguates repeats
         <FileChip key={`${c.fileRef.rel}-${i}`} name={c.name} fileRef={c.fileRef} />
       ))}
     </View>
@@ -124,11 +125,15 @@ export function TurnView({ turn }: { turn: Turn }) {
     <View style={styles.assistantRow}>
       {groups.map((g, i) => {
         const first = g.blocks[0];
+        // Groups derive from the turn's fixed block stream (append-only,
+        // never reordered) — the position is the identity for every branch.
         if (g.blocks.length === 1 && first.kind === "text") {
+          // biome-ignore lint/suspicious/noArrayIndexKey: append-only groups, never reordered
           return <Markdown key={i} text={first.text} />;
         }
         if (g.blocks.length === 1 && first.kind === "error") {
           return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: append-only groups, never reordered
             <Text key={i} style={styles.errorText}>
               {first.message}
             </Text>
@@ -136,6 +141,7 @@ export function TurnView({ turn }: { turn: Turn }) {
         }
         if (g.blocks.length === 1 && first.kind === "thinking") {
           return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: append-only groups, never reordered
             <Text key={i} style={styles.thinking} numberOfLines={first.open ? undefined : 1}>
               {first.open ? first.text : t("turn.thinking", { text: first.text.slice(0, 60) })}
             </Text>
@@ -144,12 +150,21 @@ export function TurnView({ turn }: { turn: Turn }) {
         // Agent-created scheduled task / delegation: labeled cards (the
         // generic collapse would bury their identity).
         if (g.blocks.length === 1 && first.kind === "tool" && first.name.endsWith("__cron_create")) {
-          return <ToolCard key={i} name={first.name} title={t("turn.cronCard")} args={first.args} />;
+          return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: append-only groups, never reordered
+            <ToolCard key={i} name={first.name} title={t("turn.cronCard")} args={first.args} />
+          );
         }
         if (g.blocks.length === 1 && first.kind === "tool" && first.name.endsWith("__delegate_task")) {
-          return <ToolCard key={i} name={first.name} title={t("turn.delegationCard")} args={first.args} />;
+          return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: append-only groups, never reordered
+            <ToolCard key={i} name={first.name} title={t("turn.delegationCard")} args={first.args} />
+          );
         }
-        return <ToolGroupRow key={i} turn={turn} group={g} />;
+        return (
+          // biome-ignore lint/suspicious/noArrayIndexKey: append-only groups, never reordered
+          <ToolGroupRow key={i} turn={turn} group={g} />
+        );
       })}
       <ArtifactStrip text={textAll} />
       {turn.streaming && <Text style={styles.cursor}>▍</Text>}

@@ -100,7 +100,7 @@ export default function ChatScreen() {
     } catch {
       setAttachments((a) => a.map((x) => (x.key === key ? { ...x, state: "error" } : x)));
     }
-  }, []);
+  }, [t]);
 
   const stop = useCallback(() => {
     useChatStore.getState().stopStreaming();

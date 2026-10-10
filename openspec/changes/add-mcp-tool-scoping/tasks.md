@@ -33,9 +33,9 @@
 
 ## 7. e2e 验收（CI fast 车道）
 
-- [ ] 7.1 聚焦收窄：装带 allowTools 的 pack → 选 persona → 会话 `tool_search` 断言该 server roster 恰为声明叶名；直接调未声明工具被拒且理由可读，验证 e2e 双断言过
-- [ ] 7.2 兼容回归：存量 pack（无 allowTools）全量 roster 不变 + 全模式（切回内置 agent）全量不变，验证 e2e
-- [ ] 7.3 漂移降级：单测级已覆盖 restrict 降级；e2e 补 server 加工具后新工具对角色不可调（guard 兜底），验证 e2e 过
+- [x] 7.1 聚焦收窄：装带 allowTools 的 pack → 选 persona → 会话 `tool_search` 断言该 server roster 恰为声明叶名；直接调未声明工具被拒且理由可读，验证 e2e 双断言过
+- [x] 7.2 兼容回归：存量 pack（无 allowTools）全量 roster 不变 + 全模式（切回内置 agent）全量不变，验证 e2e
+- [x] 7.3 漂移降级：单测级已覆盖 restrict 降级；e2e 补 server 加工具后新工具对角色不可调（guard 兜底），验证 e2e 过
 
 ## 8. 收尾
 

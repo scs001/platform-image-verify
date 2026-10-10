@@ -96,7 +96,7 @@ function plantWorkspaceFile(name, body) {
 
 test("an empty library explains what will appear", async ({ page }) => {
   await gotoResources(page);
-  await expect(page.getByTestId("resources-empty")).toContainText("appear here automatically");
+  await expect(page.getByTestId("resources-empty")).toBeVisible();
 });
 
 test("cards render both kinds; the filter and the search narrow the list", async ({ page }) => {

@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useChatStore, useCronStore, type ClientMessage, type CronJob } from "@platform/core";
 import { describeJobSchedule, formatInJobTz, weekdayLabel } from "@/lib/cron-text";
+import { parseSchedule, zhWeekdayName, type ParsedSchedule } from "@/lib/scheduleParse";
 
 export interface TasksPageProps {
   send: (msg: ClientMessage) => void;
@@ -18,6 +19,15 @@ export interface TasksPageProps {
 
 type Freq = "daily" | "weekly" | "custom";
 type Mode = "recurring" | "once";
+
+// Automation templates (add-projects-automation-flow): one-click prefills of
+// name + prompt + schedule. Copy is locale content; the schedule values here
+// are the product's own defaults.
+const TEMPLATES: { key: string; freq: Freq; time?: string; weekdays?: number[]; cron?: string }[] = [
+  { key: "briefing", freq: "daily", time: "09:00" },
+  { key: "weekly", freq: "weekly", weekdays: [5], time: "17:00" },
+  { key: "inspection", freq: "custom", cron: "5 * * * *" },
+];
 
 const STATUS_STYLES: Record<string, string> = {
   scheduled: "bg-success/15 text-success",
@@ -178,6 +188,47 @@ export function TasksPage({ send }: TasksPageProps) {
   const [agent, setAgent] = useState<string>("");
   const [tz, setTz] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [localError, setLocalError] = useState<string | null>(null);
+  // Natural-language schedule input (add-projects-automation-flow): debounced
+  // client-side parse with a live preview; apply fills the fields, a miss
+  // points at the manual controls and changes nothing.
+  const [nlText, setNlText] = useState("");
+  const [nlParsed, setNlParsed] = useState<ParsedSchedule | null>(null);
+  useEffect(() => {
+    const id = setTimeout(() => setNlParsed(parseSchedule(nlText, zhWeekdayName)), 300);
+    return () => clearTimeout(id);
+  }, [nlText]);
+
+  const applyParsed = (parsed: ParsedSchedule) => {
+    if (parsed.freq === "daily") {
+      setMode("recurring");
+      setFreq("daily");
+      setTime(parsed.time || "09:00");
+    } else if (parsed.freq === "weekly") {
+      setMode("recurring");
+      setFreq("weekly");
+      setTime(parsed.time || "09:00");
+      setWeekdays(parsed.weekdays || []);
+    } else if (parsed.freq === "weekdays") {
+      setMode("recurring");
+      setFreq("weekly");
+      setTime(parsed.time || "09:00");
+      setWeekdays([1, 2, 3, 4, 5]);
+    } else {
+      setMode("recurring");
+      setFreq("custom");
+      setCronExpr(parsed.cron);
+    }
+  };
+
+  const applyTemplate = (tpl: (typeof TEMPLATES)[number]) => {
+    setName(t(`tasks.templates.${tpl.key}.name`));
+    setPrompt(t(`tasks.templates.${tpl.key}.prompt`));
+    setMode("recurring");
+    setFreq(tpl.freq);
+    if (tpl.time) setTime(tpl.time);
+    if (tpl.weekdays) setWeekdays(tpl.weekdays);
+    if (tpl.cron) setCronExpr(tpl.cron);
+  };
 
   const usablePresets = useMemo(() => presets.filter((p) => !p.broken), [presets]);
   const effectiveAgent = agent || currentPreset || usablePresets[0]?.id || "";
@@ -263,6 +314,53 @@ export function TasksPage({ send }: TasksPageProps) {
       <div className="flex-1 space-y-4 overflow-auto p-6">
         {formOpen && (
           <div className="rounded-md border border-border bg-card p-4" data-testid="cron-form">
+            {/* Templates: one-click prefills (spec: scheduled-tasks-ui). */}
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-muted-foreground">{t("tasks.templates.label")}</span>
+              {TEMPLATES.map((tpl) => (
+                <button
+                  key={tpl.key}
+                  type="button"
+                  onClick={() => applyTemplate(tpl)}
+                  data-testid={`cron-template-${tpl.key}`}
+                  className="rounded-full border border-border px-2.5 py-0.5 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                >
+                  {t(`tasks.templates.${tpl.key}.name`)}
+                </button>
+              ))}
+            </div>
+            {/* Natural-language schedule: parse → preview → apply; a miss
+                leaves every field untouched (spec: scheduled-tasks-ui). */}
+            <div className="mb-3">
+              <input
+                type="text"
+                value={nlText}
+                onChange={(e) => setNlText(e.target.value)}
+                placeholder={t("tasks.nl.placeholder")}
+                aria-label={t("tasks.nl.label")}
+                data-testid="cron-nl-input"
+                className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-sm"
+              />
+              {nlText.trim() && (nlParsed ? (
+                <div className="mt-1.5 flex flex-wrap items-center gap-2" data-testid="cron-nl-preview">
+                  <span className="text-xs text-muted-foreground">
+                    {t("tasks.nl.preview", { summary: nlParsed.summary, cron: nlParsed.cron })}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => applyParsed(nlParsed)}
+                    data-testid="cron-nl-apply"
+                    className="rounded-md border border-primary/40 px-2 py-0.5 text-xs text-primary hover:bg-primary/10"
+                  >
+                    {t("tasks.nl.apply")}
+                  </button>
+                </div>
+              ) : (
+                <p className="mt-1.5 text-xs text-muted-foreground" data-testid="cron-nl-fallback">
+                  {t("tasks.nl.fallback")}
+                </p>
+              ))}
+            </div>
             <div className="flex gap-2">
               {(["recurring", "once"] as Mode[]).map((m) => (
                 <button
@@ -391,8 +489,25 @@ export function TasksPage({ send }: TasksPageProps) {
         )}
 
         {jobs.length === 0 && !formOpen ? (
-          <div className="flex h-40 items-center justify-center text-sm text-muted-foreground" data-testid="cron-empty">
+          <div className="flex h-40 flex-col items-center justify-center gap-3 text-sm text-muted-foreground" data-testid="cron-empty">
             {t("tasks.empty")}
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <span className="text-xs">{t("tasks.templates.label")}</span>
+              {TEMPLATES.map((tpl) => (
+                <button
+                  key={tpl.key}
+                  type="button"
+                  onClick={() => {
+                    applyTemplate(tpl);
+                    setFormOpen(true);
+                  }}
+                  data-testid={`cron-empty-template-${tpl.key}`}
+                  className="rounded-full border border-border px-2.5 py-0.5 text-xs hover:border-primary/40 hover:text-foreground"
+                >
+                  {t(`tasks.templates.${tpl.key}.name`)}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           jobs.map((job) => <TaskCard key={job.id} job={job} send={send} onOpenSession={openSession} />)

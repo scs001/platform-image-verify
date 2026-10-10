@@ -35,6 +35,9 @@ test.describe("workspace browse buttons (Electron bridge)", () => {
 
   test("sidebar new-workspace popover offers browse and sends the pick", async ({ page }) => {
     await page.getByTestId("workspace-new").click();
+    // The popover is name-first now (add-projects-automation-flow); browse
+    // lives in the advanced (existing-folder) mode.
+    await page.getByTestId("workspace-new-advanced").click();
     const browse = page.getByTestId("workspace-new-browse");
     await expect(browse).toBeVisible();
     await browse.click();

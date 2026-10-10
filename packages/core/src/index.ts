@@ -21,7 +21,7 @@ export type { ActivityGroup, AssistantTurn } from "./store/activity-groups";
 export { extractChartFences, canonicalChartHash, chartHashesInText } from "./lib/chart-fence";
 // Tool-call path extraction (preview affordance + turn artifact strip).
 export { findFilePath } from "./lib/file-tool-paths";
-export { fileLinkRef } from "./lib/file-ref";
+export { fileLinkRef, fileRefPath } from "./lib/file-ref";
 export type { FileRef } from "./lib/file-ref";
 // Scheduled-task store (owns the cron_* events; commands go out via the page's send).
 export { useCronStore } from "./store/cron-store";

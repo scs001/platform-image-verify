@@ -60,14 +60,18 @@
     "language": "Language",
     "collapse": "Collapse sidebar",
     "expand": "Expand sidebar",
-    "workspaces": "Workspaces",
+    "workspaces": "Projects",
     "searchChats": "Search chats…",
     "ungrouped": "Ungrouped",
     "showMore": "Show {{count}} more",
     "showLess": "Show less",
-    "newWorkspace": "New workspace",
+    "newWorkspace": "New project",
     "closeSearch": "Close search",
-    "unread": "New activity"
+    "unread": "New activity",
+    "projectNamePlaceholder": "e.g. Quarterly report",
+    "useExistingFolder": "Pick an existing folder…",
+    "createProject": "Create project",
+    "backToNewProject": "← New project"
   },
   "modelsPage": {
     "title": "Models",
@@ -188,7 +192,7 @@
         "desc": "The agent can read the workspace but not change it."
       },
       "permissionWrite": {
-        "label": "Workspace write",
+        "label": "Project writes",
         "desc": "The agent can make changes inside the workspace."
       },
       "permissionFull": {
@@ -872,6 +876,28 @@
     },
     "summary": {
       "label": "Task summary"
+    },
+    "nl": {
+      "label": "When should it run?",
+      "placeholder": "e.g. Mondays at 8am / daily at 9 / every 30 minutes",
+      "preview": "Will run {{summary}} ({{cron}})",
+      "apply": "Apply to form",
+      "fallback": "Didn’t catch that — use the schedule controls below."
+    },
+    "templates": {
+      "label": "Start from a template",
+      "briefing": {
+        "name": "Daily data briefing",
+        "prompt": "Compile today’s key developments in your domain into a one-page briefing: sources first, then conclusions, then what to watch tomorrow."
+      },
+      "weekly": {
+        "name": "Weekly report",
+        "prompt": "Turn this week’s conversations into a one-page report: what was done, key numbers, next week’s plan. Formal tone."
+      },
+      "inspection": {
+        "name": "Hourly check",
+        "prompt": "Run a routine check on the metrics or pages you watch. One sentence if all is well; details if anything is off."
+      }
     }
   },
   "resources": {
@@ -985,7 +1011,10 @@
         "db_unavailable": "The library is unavailable right now.",
         "store_failed": "Saving failed. Please try again."
       }
-    }
+    },
+    "export": "Export selected ({{count}})",
+    "exporting": "Packaging…",
+    "selectHint": "Tick files to export them together"
   },
   "facetShell": {
     "tabs": {

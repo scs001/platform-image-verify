@@ -16,6 +16,7 @@ import {
   chartOption,
   chartPeriods,
   defaultPeriodWindow,
+  fileRefPath,
   filterChartOption,
   formatFileSize,
   refreshBinding,
@@ -29,6 +30,7 @@ import {
 import { showToast } from "@/components/Toast";
 import { EChart } from "@/components/EChart";
 import { ChartBindingBar, ChartBindPicker, ChartTimeline } from "@/components/resources/ChartBinding";
+import JSZip from "jszip";
 import { useResourcesStore, type ResourceTypeFilter } from "@/hooks/useResourcesStore";
 import { usePreviewStore } from "@/hooks/usePreviewStore";
 
@@ -42,10 +44,14 @@ function ResourceCard({
   resource,
   sessionExists,
   send,
+  selected,
+  onToggleSelect,
 }: {
   resource: Resource;
   sessionExists: boolean;
   send: ResourcesPageProps["send"];
+  selected?: boolean;
+  onToggleSelect?: () => void;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -177,6 +183,19 @@ function ResourceCard({
       data-resource-id={resource.id}
       data-resource-type={resource.type}
     >
+      {/* Batch-export selection: file entries only (charts don't participate —
+          spec: resource-library-ui). */}
+      {resource.type === "file" && onToggleSelect ? (
+        <label className="mb-1 flex w-fit cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={Boolean(selected)}
+            onChange={onToggleSelect}
+            data-testid="resource-select"
+            className="h-3.5 w-3.5"
+          />
+        </label>
+      ) : null}
       <div className="flex items-start gap-2">
         {editing ? (
           <>
@@ -353,6 +372,59 @@ export function ResourcesPage({ send }: ResourcesPageProps) {
   const sessions = useChatStore((s) => s.sessions);
 
   const [searchInput, setSearchInput] = useState("");
+  // Batch export (add-projects-automation-flow): file ids selected for the
+  // client-side zip. Charts never enter the set; deselect-all hides the bar.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const exportSelected = async () => {
+    const chosen = items.filter((r) => selectedIds.has(r.id) && r.type === "file");
+    if (!chosen.length) return;
+    setExporting(true);
+    try {
+      const zip = new JSZip();
+      const used = new Set<string>();
+      for (const r of chosen) {
+        const ref = resourceFileRef(r);
+        if (!ref) continue;
+        const res = await fetch(fileRefPath(ref));
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const bytes = await res.blob();
+        // Displayed name wins; a repeat gets a numeric suffix, not a clobber.
+        let name = r.title || ref.rel;
+        let n = 2;
+        while (used.has(name)) {
+          const dot = name.lastIndexOf(".");
+          name = dot > 0 ? `${name.slice(0, dot)}-${n}${name.slice(dot)}` : `${name}-${n}`;
+          n += 1;
+        }
+        used.add(name);
+        zip.file(name, bytes);
+      }
+      const blob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+      a.href = url;
+      a.download = `outputs-${date}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setSelectedIds(new Set());
+    } catch (e) {
+      showToast((e as Error).message);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     void load();
@@ -420,6 +492,19 @@ export function ResourcesPage({ send }: ResourcesPageProps) {
           </div>
         ) : (
           <>
+            {selectedIds.size > 0 && (
+              <div className="mb-3 flex flex-wrap items-center gap-2" data-testid="resources-export-bar">
+                <button
+                  className="rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                  onClick={() => void exportSelected()}
+                  disabled={exporting}
+                  data-testid="resources-export"
+                >
+                  {exporting ? t("resources.exporting") : t("resources.export", { count: selectedIds.size })}
+                </button>
+                <span className="text-xs text-muted-foreground">{t("resources.selectHint")}</span>
+              </div>
+            )}
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {items.map((resource) => (
                 <ResourceCard
@@ -427,6 +512,8 @@ export function ResourcesPage({ send }: ResourcesPageProps) {
                   resource={resource}
                   sessionExists={resource.sessionId ? sessionIds.has(resource.sessionId) : false}
                   send={send}
+                  selected={selectedIds.has(resource.id)}
+                  onToggleSelect={resource.type === "file" ? () => toggleSelect(resource.id) : undefined}
                 />
               ))}
             </div>

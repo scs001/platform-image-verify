@@ -4,8 +4,10 @@
 // composition root can place it after the app's /api routes.
 
 import path from "node:path";
+import fs from "node:fs";
 import express from "express";
 import { WEB_DIST } from "../context.js";
+import { storeDir } from "../../paths.js";
 
 export function registerMiscRoutes(ctx) {
   const { app, catalog, db, cron } = ctx;
@@ -345,6 +347,39 @@ export function registerMiscRoutes(ctx) {
     }
     db.setPreference(key, value);
     res.json({ ok: true });
+  });
+
+  // ── Projects (add-projects-automation-flow) ───────────────────────────────
+  // Name-based project creation: the client sends a display name, the server
+  // materializes a directory under the projects root and returns its absolute
+  // path for the EXISTING set_workspace switch — the runtime is never touched
+  // here. PROJECTS_ROOT overrides the default (<dataDir>/projects).
+  app.post("/api/projects", (req, res) => {
+    const raw = typeof req.body?.name === "string" ? req.body.name : "";
+    const sanitized = raw
+      .trim()
+      .replace(/\s+/g, "-")
+      .replace(/[^\p{Script=Han}\p{L}\p{N}_-]/gu, "")
+      .replace(/^[.\-]+/, "")
+      .slice(0, 64);
+    if (!sanitized) {
+      return res.status(400).json({ error: "项目名不能为空（仅支持中英文、数字、- 和 _）" });
+    }
+    if (raw.includes("..") || raw.includes("/") || raw.includes("\\")) {
+      return res.status(400).json({ error: "项目名不能包含路径符号" });
+    }
+    const root = storeDir("projects", process.env.PROJECTS_ROOT);
+    const dir = path.join(root, sanitized);
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      const stat = fs.statSync(dir);
+      if (!stat.isDirectory()) {
+        return res.status(400).json({ error: "同名文件已存在，请换一个项目名" });
+      }
+    } catch (err) {
+      return res.status(500).json({ error: `创建项目目录失败：${err.message}` });
+    }
+    res.json({ path: dir, name: sanitized });
   });
 }
 

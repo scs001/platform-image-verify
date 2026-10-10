@@ -60,14 +60,18 @@
     "language": "Idioma",
     "collapse": "Contraer barra lateral",
     "expand": "Expandir barra lateral",
-    "workspaces": "Espacios de trabajo",
+    "workspaces": "Proyectos",
     "searchChats": "Buscar chats…",
     "ungrouped": "Sin agrupar",
     "showMore": "Mostrar {{count}} más",
     "showLess": "Mostrar menos",
-    "newWorkspace": "Nuevo espacio",
+    "newWorkspace": "Nuevo proyecto",
     "closeSearch": "Cerrar búsqueda",
-    "unread": "Novedades"
+    "unread": "Novedades",
+    "projectNamePlaceholder": "p. ej. Informe trimestral",
+    "useExistingFolder": "Elegir una carpeta existente…",
+    "createProject": "Crear proyecto",
+    "backToNewProject": "← Nuevo proyecto"
   },
   "modelsPage": {
     "title": "Modelos",
@@ -188,7 +192,7 @@
         "desc": "El agente puede leer el espacio de trabajo pero no modificarlo."
       },
       "permissionWrite": {
-        "label": "Escritura del espacio",
+        "label": "Escrituras del proyecto",
         "desc": "El agente puede hacer cambios dentro del espacio de trabajo."
       },
       "permissionFull": {
@@ -872,6 +876,28 @@
     },
     "summary": {
       "label": "Resumen de tareas"
+    },
+    "nl": {
+      "label": "¿Cuándo debe ejecutarse?",
+      "placeholder": "p. ej. los lunes a las 8 / a diario a las 9 / cada 30 minutos",
+      "preview": "Se ejecutará {{summary}} ({{cron}})",
+      "apply": "Aplicar al formulario",
+      "fallback": "No lo he entendido: usa los controles de frecuencia de abajo."
+    },
+    "templates": {
+      "label": "Empezar desde una plantilla",
+      "briefing": {
+        "name": "Informe diario de datos",
+        "prompt": "Resume lo clave de hoy de tu ámbito en un informe de una página: fuentes, conclusiones y qué vigilar mañana."
+      },
+      "weekly": {
+        "name": "Informe semanal",
+        "prompt": "Convierte las conversaciones de esta semana en un informe de una página: qué se hizo, cifras clave y plan de la próxima semana. Tono formal."
+      },
+      "inspection": {
+        "name": "Revisión cada hora",
+        "prompt": "Haz una comprobación rutinaria de tus métricas o páginas. Una frase si todo va bien; detalles si algo falla."
+      }
     }
   },
   "resources": {
@@ -985,7 +1011,10 @@
         "db_unavailable": "La biblioteca no está disponible ahora mismo.",
         "store_failed": "No se pudo guardar. Inténtalo de nuevo."
       }
-    }
+    },
+    "export": "Exportar seleccionados ({{count}})",
+    "exporting": "Empaquetando…",
+    "selectHint": "Marca archivos para exportarlos juntos"
   },
   "facetShell": {
     "tabs": {

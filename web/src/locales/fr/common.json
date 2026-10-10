@@ -60,14 +60,18 @@
     "language": "Langue",
     "collapse": "Replier la barre latérale",
     "expand": "Déplier la barre latérale",
-    "workspaces": "Espaces de travail",
+    "workspaces": "Projets",
     "searchChats": "Rechercher des conversations…",
     "ungrouped": "Non groupées",
     "showMore": "Afficher {{count}} de plus",
     "showLess": "Afficher moins",
-    "newWorkspace": "Nouvel espace",
+    "newWorkspace": "Nouveau projet",
     "closeSearch": "Fermer la recherche",
-    "unread": "Nouveautés"
+    "unread": "Nouveautés",
+    "projectNamePlaceholder": "ex. Rapport trimestriel",
+    "useExistingFolder": "Choisir un dossier existant…",
+    "createProject": "Créer le projet",
+    "backToNewProject": "← Nouveau projet"
   },
   "modelsPage": {
     "title": "Modèles",
@@ -188,7 +192,7 @@
         "desc": "L'agent peut lire l'espace de travail sans le modifier."
       },
       "permissionWrite": {
-        "label": "Écriture espace de travail",
+        "label": "Écritures du projet",
         "desc": "L'agent peut modifier des fichiers dans l'espace de travail."
       },
       "permissionFull": {
@@ -872,6 +876,28 @@
     },
     "summary": {
       "label": "Résumé des tâches"
+    },
+    "nl": {
+      "label": "Quand exécuter ?",
+      "placeholder": "ex. les lundis à 8 h / tous les jours à 9 / toutes les 30 minutes",
+      "preview": "Exécution {{summary}} ({{cron}})",
+      "apply": "Appliquer au formulaire",
+      "fallback": "Non reconnu — utilisez les contrôles de fréquence ci-dessous."
+    },
+    "templates": {
+      "label": "Partir d’un modèle",
+      "briefing": {
+        "name": "Briefing quotidien",
+        "prompt": "Compile les points clés du jour de ton domaine en un briefing d’une page : sources, conclusions, veille de demain."
+      },
+      "weekly": {
+        "name": "Rapport hebdomadaire",
+        "prompt": "Transforme les conversations de la semaine en un rapport d’une page : réalisé, chiffres clés, plan de la semaine prochaine. Ton formel."
+      },
+      "inspection": {
+        "name": "Vérification horaire",
+        "prompt": "Fais une vérification de routine de tes métriques ou pages. Une phrase si tout va bien ; détails sinon."
+      }
     }
   },
   "resources": {
@@ -985,7 +1011,10 @@
         "db_unavailable": "La bibliothèque est indisponible pour le moment.",
         "store_failed": "Échec de l'enregistrement. Réessayez."
       }
-    }
+    },
+    "export": "Exporter la sélection ({{count}})",
+    "exporting": "Empaquetage…",
+    "selectHint": "Cochez des fichiers pour les exporter ensemble"
   },
   "facetShell": {
     "tabs": {

@@ -108,10 +108,15 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
   const [userCollapsed, setUserCollapsed] = useState<Set<string>>(new Set());
   // Per-group "Show N more" — independent of the collapse state above.
   const [showAllGroups, setShowAllGroups] = useState<Set<string>>(new Set());
-  // New-workspace popover (reuses the set_workspace contract).
+  // New-project popover (reuses the set_workspace contract). The primary
+  // input is a project NAME — the server materializes the directory
+  // (add-projects-automation-flow) and the switch chain does the rest;
+  // advanced mode keeps the raw absolute-path input for existing folders.
   const [wsPopoverOpen, setWsPopoverOpen] = useState(false);
+  const [wsMode, setWsMode] = useState<"name" | "path">("name");
   const [wsDraft, setWsDraft] = useState("");
   const [wsError, setWsError] = useState<string | null>(null);
+  const [wsBusy, setWsBusy] = useState(false);
   const wsPopoverRef = useRef<HTMLDivElement>(null);
 
   // The server bumps catalogVersion via `catalog_changed`; refetch the
@@ -256,6 +261,30 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
 
   const submitWorkspace = (close: () => void) => submitWorkspacePath(wsDraft, close);
 
+  // Create-by-name: the server materializes the directory, then the SAME
+  // switch chain takes over (validation no-ops — the path is server-issued —
+  // confirm still fires mid-conversation, restart and broadcast as usual).
+  const submitProjectName = async (close: () => void) => {
+    const name = wsDraft.trim();
+    if (!name) return;
+    setWsBusy(true);
+    setWsError(null);
+    try {
+      const r = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+      setWsBusy(false);
+      submitWorkspacePath(data.path, close);
+    } catch (e) {
+      setWsError((e as Error).message);
+      setWsBusy(false);
+    }
+  };
+
   // Electron only: hand the picked folder to the same path as a typed one. A
   // cancelled dialog resolves null — the popover simply stays open.
   const browseWorkspace = async (close: () => void) => {
@@ -395,42 +424,122 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
                   data-testid="workspace-new-menu"
                   className="absolute inset-x-0 top-full z-50 mt-1 overflow-hidden rounded-md border border-border bg-popover p-2 shadow-lg"
                 >
-                  <input
-                    type="text"
-                    value={wsDraft}
-                    onChange={(e) => {
-                      setWsDraft(e.target.value);
-                      if (wsError) setWsError(null);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        submitWorkspace(() => setWsPopoverOpen(false));
-                      }
-                    }}
-                    placeholder={t("composer.strip.workspacePlaceholder")}
-                    aria-label={t("sidebar.newWorkspace")}
-                    data-testid="workspace-new-input"
-                    className={cn(
-                      "w-full rounded-md border bg-background px-2 py-1 font-mono text-xs outline-none",
-                      wsError ? "border-destructive" : "border-border focus:border-primary",
-                    )}
-                  />
-                  {wsError && (
-                    <p data-testid="workspace-new-error" className="mt-1 text-[10px] text-destructive">
-                      {wsError}
-                    </p>
-                  )}
-                  {CAN_PICK_NATIVE && (
-                    <button
-                      type="button"
-                      onClick={() => void browseWorkspace(() => setWsPopoverOpen(false))}
-                      data-testid="workspace-new-browse"
-                      className="mt-1 flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-                    >
-                      <FolderOpen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                      {t("composer.strip.workspaceBrowse")}
-                    </button>
+                  {wsMode === "name" ? (
+                    <>
+                      <input
+                        autoFocus
+                        type="text"
+                        value={wsDraft}
+                        onChange={(e) => {
+                          setWsDraft(e.target.value);
+                          if (wsError) setWsError(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            void submitProjectName(() => {
+                              setWsPopoverOpen(false);
+                              setWsMode("name");
+                            });
+                          }
+                        }}
+                        placeholder={t("sidebar.projectNamePlaceholder")}
+                        aria-label={t("sidebar.newWorkspace")}
+                        data-testid="workspace-new-input"
+                        className={cn(
+                          "w-full rounded-md border bg-background px-2 py-1 text-xs outline-none",
+                          wsError ? "border-destructive" : "border-border focus:border-primary",
+                        )}
+                      />
+                      {wsError && (
+                        <p data-testid="workspace-new-error" className="mt-1 text-[10px] text-destructive">
+                          {wsError}
+                        </p>
+                      )}
+                      <div className="mt-1.5 flex items-center justify-between gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setWsMode("path");
+                            setWsError(null);
+                          }}
+                          data-testid="workspace-new-advanced"
+                          className="text-left text-[10px] text-muted-foreground hover:text-foreground"
+                        >
+                          {t("sidebar.useExistingFolder")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void submitProjectName(() => {
+                            setWsPopoverOpen(false);
+                            setWsMode("name");
+                          })}
+                          disabled={wsBusy || !wsDraft.trim()}
+                          data-testid="workspace-new-create"
+                          className="rounded-md bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+                        >
+                          {t("sidebar.createProject")}
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <input
+                        autoFocus
+                        type="text"
+                        value={wsDraft}
+                        onChange={(e) => {
+                          setWsDraft(e.target.value);
+                          if (wsError) setWsError(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            submitWorkspace(() => {
+                              setWsPopoverOpen(false);
+                              setWsMode("name");
+                            });
+                          }
+                        }}
+                        placeholder={t("composer.strip.workspacePlaceholder")}
+                        aria-label={t("sidebar.newWorkspace")}
+                        data-testid="workspace-new-input"
+                        className={cn(
+                          "w-full rounded-md border bg-background px-2 py-1 font-mono text-xs outline-none",
+                          wsError ? "border-destructive" : "border-border focus:border-primary",
+                        )}
+                      />
+                      {wsError && (
+                        <p data-testid="workspace-new-error" className="mt-1 text-[10px] text-destructive">
+                          {wsError}
+                        </p>
+                      )}
+                      {CAN_PICK_NATIVE && (
+                        <button
+                          type="button"
+                          onClick={() => void browseWorkspace(() => {
+                            setWsPopoverOpen(false);
+                            setWsMode("name");
+                          })}
+                          data-testid="workspace-new-browse"
+                          className="mt-1 flex w-full items-center gap-1.5 rounded-md px-1 py-1 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                        >
+                          <FolderOpen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          {t("composer.strip.workspaceBrowse")}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWsMode("name");
+                          setWsError(null);
+                        }}
+                        data-testid="workspace-new-back-to-name"
+                        className="mt-1 text-left text-[10px] text-muted-foreground hover:text-foreground"
+                      >
+                        {t("sidebar.backToNewProject")}
+                      </button>
+                    </>
                   )}
                 </div>
               )}

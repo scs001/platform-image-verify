@@ -60,14 +60,18 @@
     "language": "言語",
     "collapse": "サイドバーを折りたたむ",
     "expand": "サイドバーを展開",
-    "workspaces": "ワークスペース",
+    "workspaces": "プロジェクト",
     "searchChats": "チャットを検索…",
     "ungrouped": "未分類",
     "showMore": "さらに {{count}} 件表示",
     "showLess": "折りたたむ",
-    "newWorkspace": "新しいワークスペース",
+    "newWorkspace": "プロジェクトを新規作成",
     "closeSearch": "検索を閉じる",
-    "unread": "新着あり"
+    "unread": "新着あり",
+    "projectNamePlaceholder": "例：四半期レポート",
+    "useExistingFolder": "既存フォルダーを指定…",
+    "createProject": "作成",
+    "backToNewProject": "← プロジェクトを新規作成"
   },
   "modelsPage": {
     "title": "モデル",
@@ -188,7 +192,7 @@
         "desc": "エージェントはワークスペースの閲覧のみ行えます。"
       },
       "permissionWrite": {
-        "label": "ワークスペース書き込み",
+        "label": "プロジェクト書き込み",
         "desc": "エージェントはワークスペース内で変更を行えます。"
       },
       "permissionFull": {
@@ -872,6 +876,28 @@
     },
     "summary": {
       "label": "タスク要約"
+    },
+    "nl": {
+      "label": "いつ実行？",
+      "placeholder": "例：毎週月曜の朝8時 / 毎日9時 / 30分ごと",
+      "preview": "{{summary}} に実行（{{cron}}）",
+      "apply": "フォームに反映",
+      "fallback": "認識できませんでした。下の頻度コントロールを使ってください。"
+    },
+    "templates": {
+      "label": "テンプレートで始める",
+      "briefing": {
+        "name": "毎日のデータ簡報",
+        "prompt": "今日の重要トピックを1ページのブリーフィングに：出典、結論、明日の注目点の順で。"
+      },
+      "weekly": {
+        "name": "週次報告",
+        "prompt": "今週のやり取りを1ページの週報に：実施内容、主要数値、来週の計画。フォーマルな文体で。"
+      },
+      "inspection": {
+        "name": "毎時チェック",
+        "prompt": "担当する指標やページを定点チェック。問題なければ一言で、あれば詳しく報告。"
+      }
     }
   },
   "resources": {
@@ -985,7 +1011,10 @@
         "db_unavailable": "ライブラリは現在利用できません。",
         "store_failed": "保存に失敗しました。もう一度お試しください。"
       }
-    }
+    },
+    "export": "選択したものを書き出す（{{count}}）",
+    "exporting": "パッキング中…",
+    "selectHint": "ファイルにチェックするとまとめて書き出せます"
   },
   "facetShell": {
     "tabs": {

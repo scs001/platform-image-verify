@@ -60,14 +60,18 @@
     "language": "语言",
     "collapse": "折叠侧边栏",
     "expand": "展开侧边栏",
-    "workspaces": "工作区",
+    "workspaces": "项目",
     "searchChats": "搜索对话…",
     "ungrouped": "未分组",
     "showMore": "显示更多 {{count}} 条",
     "showLess": "收起",
-    "newWorkspace": "新建工作区",
+    "newWorkspace": "新建项目",
     "closeSearch": "关闭搜索",
-    "unread": "有新内容"
+    "unread": "有新内容",
+    "projectNamePlaceholder": "比如：季度报告",
+    "useExistingFolder": "指定已有文件夹…",
+    "createProject": "创建项目",
+    "backToNewProject": "← 新建项目"
   },
   "modelsPage": {
     "title": "模型",
@@ -185,17 +189,17 @@
       "permissionCustom": "自定义",
       "permissionReadonly": {
         "label": "只读",
-        "desc": "智能体只能读取工作区，不能修改。"
+        "desc": "智能体只能读取项目，不能修改。"
       },
       "permissionWrite": {
-        "label": "工作区写入",
+        "label": "项目写入",
         "desc": "智能体可以在工作区内进行修改。"
       },
       "permissionFull": {
         "label": "完全访问",
         "desc": "智能体可以修改任何内容，且没有审批门槛。",
         "confirmTitle": "启用完全访问？",
-        "confirmBody": "完全访问会移除沙箱与审批确认：智能体可以读写你能访问的任何位置，包括工作区之外。",
+        "confirmBody": "完全访问会移除沙箱与审批确认：智能体可以读写你能访问的任何位置，包括项目之外。",
         "acknowledge": "我已了解风险",
         "confirm": "启用完全访问"
       },
@@ -872,6 +876,28 @@
     },
     "summary": {
       "label": "任务汇总"
+    },
+    "nl": {
+      "label": "什么时候做？",
+      "placeholder": "比如：每周一早上 8 点 / 每天 9 点 / 每 30 分钟",
+      "preview": "将按 {{summary}} 运行（{{cron}}）",
+      "apply": "应用到表单",
+      "fallback": "没认出来——直接用下面的频次控件吧。"
+    },
+    "templates": {
+      "label": "从模板开始",
+      "briefing": {
+        "name": "每日数据简报",
+        "prompt": "整理今天与你领域相关的要点成一页简报：先列数据来源，再给结论，最后附明日关注。"
+      },
+      "weekly": {
+        "name": "每周周报",
+        "prompt": "把本周的对话成果整理成一页周报：做了什么、关键数字、下周计划，语气正式。"
+      },
+      "inspection": {
+        "name": "每小时巡检",
+        "prompt": "做一轮例行检查：核对你负责的指标或页面状态，一切正常就一句话汇报，有异常详细说明。"
+      }
     }
   },
   "resources": {
@@ -979,13 +1005,16 @@
       "exists": "资源库中已存在",
       "failed": "保存失败：{{message}}",
       "errors": {
-        "invalid_path": "该文件不在工作区内。",
-        "file_not_found": "该文件已不在工作区中。",
+        "invalid_path": "该文件不在项目内。",
+        "file_not_found": "该文件已不在项目中。",
         "file_too_large": "文件过大，无法存入资源。",
         "db_unavailable": "资源库暂不可用。",
         "store_failed": "保存失败，请重试。"
       }
-    }
+    },
+    "export": "导出所选（{{count}}）",
+    "exporting": "打包中…",
+    "selectHint": "勾选文件可批量导出"
   },
   "facetShell": {
     "tabs": {

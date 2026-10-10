@@ -112,7 +112,10 @@ test.describe("sidebar workspaces", () => {
     await gotoChat(page);
     const original = await page.evaluate(() => window.__chatStore.getState().currentWorkspace);
     await page.getByTestId("workspace-new").click();
-    // A fresh chat has no turns, so the mid-conversation confirm is skipped.
+    // The popover is name-first (add-projects-automation-flow); raw paths are
+    // the advanced mode. A fresh chat has no turns, so the mid-conversation
+    // confirm is skipped.
+    await page.getByTestId("workspace-new-advanced").click();
     await page.getByTestId("workspace-new-input").fill("/tmp");
     await page.getByTestId("workspace-new-input").press("Enter");
     // The restart-carrying switch: pending blocks the composer, then the
@@ -126,6 +129,7 @@ test.describe("sidebar workspaces", () => {
       .toMatch(/^\/(private\/)?tmp$/);
     // Put the runtime back so later specs see the default workspace.
     await page.getByTestId("workspace-new").click();
+    await page.getByTestId("workspace-new-advanced").click();
     await page.getByTestId("workspace-new-input").fill(original);
     await page.getByTestId("workspace-new-input").press("Enter");
     await expect

@@ -16,6 +16,7 @@ import "dotenv/config";
 import express from "express";
 import http from "node:http";
 import path from "node:path";
+import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createLogtoAuth } from "../server/logto-auth.js";
 import { resolveSessionSecret } from "../server/session.js";
@@ -592,6 +593,67 @@ app.all("/api/bots/webhook/:botId/:secret", async (req, res) => {
 // path. Without an owner configured the prefix answers 404 — the relay's own
 // inert semantics, preserved at the gateway layer (add-agent-notifications 3.1
 // 前置: cells 拓扑下 runner→relay 的可达性).
+// Cell dirs under DATA_ROOT/cells — hex id dirs only; anything else (dotfiles,
+// staging) is not a cell.
+function listCellDirs() {
+  try {
+    return readdirSync(path.join(DATA_ROOT, "cells"), { withFileTypes: true })
+      .filter((d) => d.isDirectory() && /^[0-9a-f]{16}$/.test(d.name))
+      .map((d) => d.name);
+  } catch {
+    return [];
+  }
+}
+
+// ── Ops reads (add-pack-usage-telemetry): the aggregate lives at the plane ──
+// The usage ledger is per-cell SQLite under DATA_ROOT, and the gateway is the
+// only process that sees every cell — so the aggregate reads HERE (read-only
+// opens of each cell's app.db, own bearer credential). In the per-user-cell
+// topology a user exists in exactly one cell, so summing per-cell DISTINCT
+// users is exact, not an approximation. The cell-level twin route
+// (server/routes/pack-usage.js) serves single-cell dev/e2e shapes.
+app.get("/api/ops/pack-usage", async (req, res) => {
+  const token = process.env.PACK_USAGE_TOKEN?.trim();
+  if (!token) return res.status(503).json({ error: "pack usage surface not configured on this deployment" });
+  if (req.headers.authorization !== `Bearer ${token}`) return res.status(401).json({ error: "ops credential required" });
+  const windowDays = Math.min(Math.max(Number(req.query.days) || 7, 1), 365);
+  const since = Date.now() - windowDays * 86_400_000;
+  const merged = new Map(); // packId(null=packless) → {turns, activeUsers, lastUsedAt}
+  let cellsSeen = 0;
+  for (const dir of listCellDirs()) {
+    const file = path.join(DATA_ROOT, "cells", dir, "data", "data", "app.db");
+    let db = null;
+    try {
+      db = new Database(file, { readonly: true });
+      const rows = db.prepare(
+        `SELECT pack_id AS packId, COUNT(*) AS turns, COUNT(DISTINCT user_email) AS activeUsers, MAX(ts) AS lastUsedAt
+         FROM pack_usage_events WHERE ts >= ? GROUP BY pack_id`,
+      ).all(since);
+      for (const r of rows) {
+        const key = r.packId ?? "";
+        const cur = merged.get(key) ?? { packId: r.packId, turns: 0, activeUsers: 0, lastUsedAt: 0 };
+        cur.turns += r.turns;
+        cur.activeUsers += r.activeUsers;
+        cur.lastUsedAt = Math.max(cur.lastUsedAt, r.lastUsedAt ?? 0);
+        merged.set(key, cur);
+      }
+      cellsSeen += 1;
+    } catch {
+      // A cell without the table yet (pre-telemetry image) or a locked db
+      // contributes nothing — the aggregate is best-effort per cell.
+    } finally {
+      try { db?.close(); } catch { /* already closed */ }
+    }
+  }
+  const rows = [...merged.values()].sort((a, b) => b.turns - a.turns);
+  res.json({
+    windowDays,
+    cells: cellsSeen,
+    weeklyActivePacks: rows.filter((r) => r.packId && r.activeUsers >= 1).length,
+    rows,
+  });
+});
+
 app.all(/^\/api\/bots\/relay\//, async (req, res) => {
   const ownerEmail = process.env.BOTS_RELAY_OWNER_EMAIL || "";
   if (!ownerEmail) return res.status(404).json({ error: "relay not configured" });

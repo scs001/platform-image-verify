@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import * as api from "@/lib/packs-api";
 import type { PackSummary, PackReport } from "@/lib/packs-api";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import { PackDetailDialog } from "./PackDetailDialog";
 
 export function PackMarketView({ onSubscribed }: { onSubscribed?: () => void }) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [packs, setPacks] = useState<PackSummary[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -141,6 +143,25 @@ export function PackMarketView({ onSubscribed }: { onSubscribed?: () => void }) 
               <Button size="sm" onClick={() => setReport(null)}>
                 {t("common.close")}
               </Button>
+            </div>
+            {/* Next-steps wizard footer (add-pack-tutorials-and-wizard): the
+                report ends with what to do next — open the conversation and
+                pick the pack's expert. The report itself is unchanged. */}
+            <div
+              className="mt-3 flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2"
+              data-testid="pack-install-next"
+            >
+              <span className="text-xs text-muted-foreground">{t("packs.report.nextHint")}</span>
+              <button
+                className="shrink-0 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                onClick={() => {
+                  setReport(null);
+                  navigate("/chat");
+                }}
+                data-testid="pack-install-open-chat"
+              >
+                {t("packs.report.openChat")}
+              </button>
             </div>
           </div>
         </div>

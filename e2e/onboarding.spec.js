@@ -181,7 +181,9 @@ test.describe("pack guide card", () => {
     await page.getByTestId("pack-card-J9sO_wRCgUVjbYVEqD4Pog").click();
     const guide = page.getByTestId("pack-guide-card");
     await expect(guide).toBeVisible();
-    await expect(guide.getByRole("listitem")).toHaveCount(3);
+    // The steps list only — example questions (when present) are a separate
+    // block and do not count toward the three steps.
+    await expect(page.getByTestId("pack-guide-steps").getByRole("listitem")).toHaveCount(3);
   });
 
   test("uncovered pack renders no guide card", async ({ page }) => {

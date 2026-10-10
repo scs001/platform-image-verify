@@ -2,7 +2,7 @@
 //
 // 判定规则来自 @platform/core 的 fileLinkRef:与 web 的预览抽屉共用同一条
 // "这是不是一个文件"的规则,两个客户端不会各说各话。小程序不能打开任意链接,
-// 所以点击不开网页,而是弹原生操作单:预览 / 转发到聊天 / 存入资源。
+// 所以点击不开网页,而是弹原生操作单:预览 / 转发到聊天 / 存入成果。
 //
 // 存入后 chip 记住状态(本次会话内),不会引导用户做第二次注定"已存在"的保存。
 
@@ -46,14 +46,14 @@ export function FileChip({ name, fileRef }: { name: string; fileRef: FileRef }) 
 
   const save = () => {
     if (fileRef.root !== "workspace") {
-      Taro.showToast({ title: "该文件不在工作区,无法存入资源", icon: "none" });
+      Taro.showToast({ title: "该文件不在项目内，无法存入成果", icon: "none" });
       return;
     }
     setBusy(true);
     saveResource({ path: fileRef.rel, sessionId: useChatStore.getState().currentSessionId })
       .then(({ inserted }) => {
         setSaved(true);
-        Taro.showToast({ title: inserted ? "已存入资源" : "资源库中已存在", icon: "none" });
+        Taro.showToast({ title: inserted ? "已存入成果" : "成果中已存在", icon: "none" });
       })
       .catch((e) => Taro.showToast({ title: saveErrorText(e), icon: "none" }))
       .finally(() => setBusy(false));
@@ -64,7 +64,7 @@ export function FileChip({ name, fileRef }: { name: string; fileRef: FileRef }) 
     const actions: Array<{ label: string; run: () => void }> = [];
     if (canPreviewFile(name)) actions.push({ label: "预览", run: preview });
     if (canShareFile()) actions.push({ label: "转发到聊天", run: share });
-    if (!saved && fileRef.root === "workspace") actions.push({ label: "存入资源", run: save });
+    if (!saved && fileRef.root === "workspace") actions.push({ label: "存入成果", run: save });
     if (actions.length === 0) {
       Taro.showToast({ title: "当前环境无法打开该文件", icon: "none" });
       return;

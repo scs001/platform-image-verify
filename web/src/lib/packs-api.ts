@@ -51,11 +51,23 @@ export interface PackManifestAgent {
   resources?: { skills?: string[]; mcpServers?: string[] };
 }
 
+// Usage guide (add-pack-tutorials-and-wizard): exactly three authored steps
+// in the creator's own language; publish validates the shape server-side.
+export interface PackGuideStep {
+  title: string;
+  body: string;
+}
+
+export interface PackGuide {
+  steps: [PackGuideStep, PackGuideStep, PackGuideStep];
+}
+
 export interface PackManifest {
   name: string;
   visibility?: "public" | "private";
   description?: string;
   tags?: string[];
+  guide?: PackGuide;
   skills?: PackManifestSkill[];
   mcpServers?: PackManifestMcp[];
   agents?: PackManifestAgent[];
@@ -102,6 +114,11 @@ export interface PackDraft {
     skills?: PackManifestSkill[];
     mcpServers?: PackManifestMcp[];
     agents?: PackManifestAgent[];
+    // Usage guide draft (add-pack-tutorials-and-wizard): rides the entries
+    // JSON. Loose shape pre-validation (steps as authored, partial allowed);
+    // the publish path lifts only a COMPLETE guide into the manifest, where
+    // the strict three-tuple applies.
+    guide?: { steps: { title: string; body: string }[] };
   };
   publishedPackId: string | null;
   createdAt: string;

@@ -277,7 +277,7 @@ export default function HistoryDrawer({
                     data-testid="mp-resources-entry"
                     onClick={() => Taro.navigateTo({ url: "/pages/resources/index" })}
                   >
-                    <Text>打开资源库 ›</Text>
+                    <Text>打开成果 ›</Text>
                   </View>
                 </Group>
               ) : null}

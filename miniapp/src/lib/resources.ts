@@ -79,13 +79,13 @@ export function saveErrorText(err: unknown): string {
   const code = (err as { code?: string })?.code;
   switch (code) {
     case "invalid_path":
-      return "该文件不在工作区内";
+      return "该文件不在项目内";
     case "file_not_found":
-      return "文件已不在工作区中";
+      return "文件已不在项目中";
     case "file_too_large":
-      return "文件过大,无法存入资源";
+      return "文件过大,无法存入成果";
     case "db_unavailable":
-      return "资源库暂不可用";
+      return "成果暂不可用";
     default:
       return (err as Error)?.message || "保存失败";
   }

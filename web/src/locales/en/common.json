@@ -1142,7 +1142,9 @@
         "unavailable": "Unavailable",
         "bound": "Bound to local",
         "awaiting-local-binding": "Awaiting local server"
-      }
+      },
+      "nextHint": "Installed. Next: open the conversation and pick this expert in the picker above.",
+      "openChat": "Open chat"
     },
     "mine": {
       "empty": "No packs subscribed yet. Browse the market.",
@@ -1207,7 +1209,13 @@
       "toolsEdit": "Select tools",
       "toolsCollapse": "Collapse",
       "toolsClear": "Full surface",
-      "toolsNoSnapshot": "No tool list from the registry yet — no tool-level checks at publish"
+      "toolsNoSnapshot": "No tool list from the registry yet — no tool-level checks at publish",
+      "guide": {
+        "title": "Usage guide (three steps)",
+        "hint": "Write “what to prepare → what to say → what you get”; it shows on the detail page. All three steps are required to publish with the pack.",
+        "stepTitle": "Step {{n}} title",
+        "stepBody": "Step {{n}} description"
+      }
     },
     "bridge": {
       "title": "Carried over from the preset: {{skills}} skills, {{servers}} servers. Not migrated:",
@@ -1232,7 +1240,8 @@
     "guide": {
       "title": "How to use this pack",
       "step": "Step {{n}}",
-      "hint": "Once installed, go back to Chat and pick this expert in the picker above."
+      "hint": "Once installed, go back to Chat and pick this expert in the picker above.",
+      "examples": "Try asking"
     }
   },
   "overlay": {

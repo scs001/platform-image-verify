@@ -1142,7 +1142,9 @@
         "unavailable": "不可用",
         "bound": "已绑定本地",
         "awaiting-local-binding": "待绑定本地服务"
-      }
+      },
+      "nextHint": "装好了。下一步：打开对话，在上方选择框选上这位专家。",
+      "openChat": "打开对话"
     },
     "mine": {
       "empty": "还没有订阅任何功能集。去市场看看。",
@@ -1207,7 +1209,13 @@
       "toolsEdit": "选择工具",
       "toolsCollapse": "收起",
       "toolsClear": "恢复全量",
-      "toolsNoSnapshot": "注册处暂无该服务的工具清单——发布时不做工具级校验"
+      "toolsNoSnapshot": "注册处暂无该服务的工具清单——发布时不做工具级校验",
+      "guide": {
+        "title": "使用指南（三步）",
+        "hint": "写清“准备什么→说什么→拿到什么”，会随包展示在详情页。三步都填才会随包发布。",
+        "stepTitle": "第 {{n}} 步标题",
+        "stepBody": "第 {{n}} 步说明"
+      }
     },
     "bridge": {
       "title": "已从预设转入 {{skills}} 个技能、{{servers}} 个服务器；以下引用未迁移：",
@@ -1232,7 +1240,8 @@
     "guide": {
       "title": "使用指南",
       "step": "第 {{n}} 步",
-      "hint": "装好后回到「对话」，在上方选择框选这位专家即可开始。"
+      "hint": "装好后回到「对话」，在上方选择框选这位专家即可开始。",
+      "examples": "试试这样问"
     }
   },
   "overlay": {

@@ -159,6 +159,13 @@ function PackDraftEditor({
   const { marketCatalog, refreshMarketCatalog } = useExtensionsStore();
   const [name, setName] = useState(draft.name);
   const [description, setDescription] = useState(draft.description);
+  // Usage guide draft (add-pack-tutorials-and-wizard): three authored steps
+  // riding the entries JSON; publish lifts a COMPLETE guide into the manifest.
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [guideSteps, setGuideSteps] = useState<{ title: string; body: string }[]>(() => {
+    const g = (draft.entries as { guide?: { steps?: { title: string; body: string }[] } }).guide;
+    return [0, 1, 2].map((i) => ({ title: g?.steps?.[i]?.title ?? "", body: g?.steps?.[i]?.body ?? "" }));
+  });
   // Visibility (add-agent-platform-ops): pack-level exposure, author-picked
   // at publish; remembered across editing sessions.
   const [visibility, setVisibility] = useState<"public" | "private">(
@@ -207,6 +214,15 @@ function PackDraftEditor({
             ...(mcpTools[registryName]?.length ? { allowTools: mcpTools[registryName] } : {}),
           })),
           agents: agents.map((e) => e.value),
+          // Guide rides the entries JSON. SAVE keeps steps as authored (even
+          // partial — authors lose nothing across sessions); PUBLISH lifts a
+          // guide only when all three steps are complete (see publish()).
+          ...((steps: { title: string; body: string }[]) =>
+            steps.some((st) => st.title || st.body)
+              ? { guide: { steps } as { steps: { title: string; body: string }[] } }
+              : {})(
+            guideSteps.map((st) => ({ title: st.title.trim(), body: st.body.trim() })),
+          ),
         },
       });
       Object.assign(draft, updated);
@@ -226,11 +242,23 @@ function PackDraftEditor({
     try {
       const updated = await save();
       if (!updated) return;
+      const entriesWithGuide = updated.entries as typeof updated.entries & {
+        guide?: { steps: { title: string; body: string }[] };
+      };
+      // Publish carries the guide ONLY when all three steps are complete —
+      // the server validator would reject a malformed one outright.
+      const draftSteps = entriesWithGuide.guide?.steps ?? [];
+      const [s0, s1, s2] = draftSteps;
+      const completeGuide =
+        s0 && s1 && s2 && s0.title && s1.title && s2.title && s0.body && s1.body && s2.body
+          ? { guide: { steps: [s0, s1, s2] as [ { title: string; body: string }, { title: string; body: string }, { title: string; body: string } ] } }
+          : {};
       const manifest: PackManifest = {
         name: updated.name,
         description: updated.description,
         visibility,
         tags: updated.tags,
+        ...completeGuide,
         skills: updated.entries.skills ?? [],
         mcpServers: updated.entries.mcpServers ?? [],
         agents: updated.entries.agents ?? [],
@@ -325,6 +353,52 @@ function PackDraftEditor({
       <div>
         <Label htmlFor="pack-desc">{t("packs.editor.description")}</Label>
         <Textarea id="pack-desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
+
+        {/* Usage guide (add-pack-tutorials-and-wizard): three authored steps,
+            carried into the published manifest verbatim. */}
+        <div>
+          <button
+            type="button"
+            onClick={() => setGuideOpen((v) => !v)}
+            aria-expanded={guideOpen}
+            data-testid="pack-guide-editor-toggle"
+            className="text-sm font-medium text-foreground hover:underline"
+          >
+            {t("packs.editor.guide.title")} {guideOpen ? "▾" : "▸"}
+          </button>
+          {guideOpen && (
+            <div className="mt-2 space-y-3" data-testid="pack-guide-editor">
+              <p className="text-xs text-muted-foreground">{t("packs.editor.guide.hint")}</p>
+              {guideSteps.map((st, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: three fixed positional slots — the index is the step number
+                <div key={`step-${i + 1}`} className="space-y-1 rounded-md border border-border p-2">
+                  <Input
+                    value={st.title}
+                    maxLength={60}
+                    onChange={(e) =>
+                      setGuideSteps((gs) => gs.map((g, j) => (j === i ? { ...g, title: e.target.value } : g)))
+                    }
+                    placeholder={t("packs.editor.guide.stepTitle", { n: i + 1 })}
+                    data-testid={`pack-guide-title-${i}`}
+                  />
+                  <Textarea
+                    value={st.body}
+                    maxLength={500}
+                    rows={2}
+                    onChange={(e) =>
+                      setGuideSteps((gs) => gs.map((g, j) => (j === i ? { ...g, body: e.target.value } : g)))
+                    }
+                    placeholder={t("packs.editor.guide.stepBody", { n: i + 1 })}
+                    data-testid={`pack-guide-body-${i}`}
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    {st.title.length}/60 · {st.body.length}/500
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="flex items-center gap-2 mt-2">
           <Label htmlFor="pack-visibility">{t("packs.editor.visibility")}</Label>
           <select

@@ -356,7 +356,7 @@ export default function ResourcesPage() {
       <ScrollView scrollY className="res-list">
         {!supported ? (
           <View className="res-empty" data-testid="mp-resources-unsupported">
-            <Text>当前部署尚未提供资源库,升级服务器后即可使用。</Text>
+            <Text>当前部署尚未提供成果，升级服务器后即可使用。</Text>
           </View>
         ) : null}
         {supported && loading && items.length === 0 ? (
@@ -366,7 +366,7 @@ export default function ResourcesPage() {
         ) : null}
         {supported && !loading && items.length === 0 ? (
           <View className="res-empty" data-testid="mp-resources-empty">
-            <Text>{error ? error : "还没有资源。对话中生成的图表会自动收进这里;文件可在聊天里点“存入资源”。"}</Text>
+            <Text>{error ? error : "还没有资源。对话中生成的图表会自动收进这里;文件可在聊天里点“存入成果”。"}</Text>
           </View>
         ) : null}
 

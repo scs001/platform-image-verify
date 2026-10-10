@@ -1142,7 +1142,9 @@
         "unavailable": "No disponible",
         "bound": "Vinculado a local",
         "awaiting-local-binding": "Esperando servidor local"
-      }
+      },
+      "nextHint": "Instalado. Siguiente paso: abre Conversación y elige este experto en el selector.",
+      "openChat": "Abrir conversación"
     },
     "mine": {
       "empty": "Aún no hay suscripciones. Explora el mercado.",
@@ -1207,7 +1209,13 @@
       "toolsEdit": "Seleccionar herramientas",
       "toolsCollapse": "Contraer",
       "toolsClear": "Superficie completa",
-      "toolsNoSnapshot": "El registro aún no tiene lista de herramientas para este servidor: sin verificación por herramienta al publicar"
+      "toolsNoSnapshot": "El registro aún no tiene lista de herramientas para este servidor: sin verificación por herramienta al publicar",
+      "guide": {
+        "title": "Guía de uso (tres pasos)",
+        "hint": "Escribe “qué preparar → qué decir → qué obtienes”; se muestra en la página de detalle. Los tres pasos son obligatorios para publicarla con el pack.",
+        "stepTitle": "Título del paso {{n}}",
+        "stepBody": "Descripción del paso {{n}}"
+      }
     },
     "bridge": {
       "title": "Traído del preset: {{skills}} habilidades, {{servers}} servidores. No migrado:",
@@ -1232,7 +1240,8 @@
     "guide": {
       "title": "Cómo usar este pack",
       "step": "Paso {{n}}",
-      "hint": "Tras instalarlo, vuelve a Conversación y elige este experto en el selector."
+      "hint": "Tras instalarlo, vuelve a Conversación y elige este experto en el selector.",
+      "examples": "Prueba a preguntar"
     }
   },
   "overlay": {

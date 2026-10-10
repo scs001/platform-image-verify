@@ -1142,7 +1142,9 @@
         "unavailable": "Indisponible",
         "bound": "Lié à au local",
         "awaiting-local-binding": "En attente du serveur local"
-      }
+      },
+      "nextHint": "Installé. Ensuite : ouvrez Discussion et choisissez cet expert dans le sélecteur.",
+      "openChat": "Ouvrir Discussion"
     },
     "mine": {
       "empty": "Aucun abonnement pour l'instant. Parcourez le marché.",
@@ -1207,7 +1209,13 @@
       "toolsEdit": "Sélectionner des outils",
       "toolsCollapse": "Replier",
       "toolsClear": "Surface complète",
-      "toolsNoSnapshot": "Le registre n'a pas encore de liste d'outils pour ce serveur — pas de vérification par outil à la publication"
+      "toolsNoSnapshot": "Le registre n'a pas encore de liste d'outils pour ce serveur — pas de vérification par outil à la publication",
+      "guide": {
+        "title": "Guide d’utilisation (trois étapes)",
+        "hint": "Écrivez « quoi préparer → quoi dire → ce qu’on obtient » ; affiché sur la page de détail. Les trois étapes sont requises pour publier avec le pack.",
+        "stepTitle": "Titre de l’étape {{n}}",
+        "stepBody": "Description de l’étape {{n}}"
+      }
     },
     "bridge": {
       "title": "Importé depuis le preset : {{skills}} compétences, {{servers}} serveurs. Non migré :",
@@ -1232,7 +1240,8 @@
     "guide": {
       "title": "Comment utiliser ce pack",
       "step": "Étape {{n}}",
-      "hint": "Une fois installé, revenez dans Discussion et choisissez cet expert dans le sélecteur."
+      "hint": "Une fois installé, revenez dans Discussion et choisissez cet expert dans le sélecteur.",
+      "examples": "Essayez de demander"
     }
   },
   "overlay": {

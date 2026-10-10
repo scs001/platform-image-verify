@@ -19,7 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "./Badge";
 import { RhythmEditor, rhythmEntryValid } from "./RhythmEditor";
-import { guideFor } from "@/lib/packGuides";
+import { guideFor, promptsFor, type PackGuide } from "@/lib/packGuides";
 import type { RhythmEntry } from "./RhythmEditor";
 
 interface Props {
@@ -169,9 +169,16 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
   };
 
   const m = pack?.manifest;
-  // Guide content for this pack (client module) — null when uncovered, which
-  // renders no guide section at all.
-  const guide = guideFor(packId);
+  // Guide resolution chain (add-pack-tutorials-and-wizard): the creator's own
+  // manifest.guide wins; the client content module covers launch packs; no
+  // content renders no card at all.
+  const manifestGuide = (m as { guide?: { steps: { title: string; body: string }[] } } | undefined)?.guide;
+  const guide: PackGuide | null = manifestGuide
+    ? { name: pack?.name ?? "", steps: manifestGuide.steps as PackGuide["steps"] }
+    : guideFor(packId);
+  // Example questions are platform-curated (client module), never creator
+  // content — shown beneath the steps as read-only decision help.
+  const examples = promptsFor(packId) ?? [];
 
   return (
     <Dialog open={!!packId} onOpenChange={onOpenChange}>
@@ -229,7 +236,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                 data-testid="pack-guide-card"
               >
                 <h4 className="mb-2 font-medium">{t("packs.guide.title")}</h4>
-                <ol className="space-y-2">
+                <ol className="space-y-2" data-testid="pack-guide-steps">
                   {guide.steps.map((s, i) => (
                     <li key={s.title} className="text-xs">
                       <span className="font-medium text-foreground">
@@ -239,6 +246,18 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                     </li>
                   ))}
                 </ol>
+                {examples.length > 0 && (
+                  <div className="mt-2 border-t border-primary/20 pt-2" data-testid="pack-guide-examples">
+                    <p className="text-[11px] font-medium text-muted-foreground">{t("packs.guide.examples")}</p>
+                    <ul className="mt-1 space-y-0.5">
+                      {examples.slice(0, 4).map((ex) => (
+                        <li key={ex.title} className="text-[11px] leading-5 text-muted-foreground">
+                          · {ex.title}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
                 <p className="mt-2 text-[11px] text-muted-foreground">{t("packs.guide.hint")}</p>
               </section>
             )}

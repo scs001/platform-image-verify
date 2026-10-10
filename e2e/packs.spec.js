@@ -669,3 +669,94 @@ test("tool allowlists round-trip through save/reload, clear to full, and publish
   await page.getByTestId("pack-draft-publish").click();
   await expect(page.getByTestId("pack-card-pack-e2e-1")).toContainText("工具白名单包", { timeout: 10_000 });
 });
+
+// ── R4 (add-pack-tutorials-and-wizard): manifest guides, examples, wizard ────
+
+test("detail renders the manifest guide over client content, with examples", async ({ page }) => {
+  const gw = seedableGateway(page);
+  // A creator-authored guide on a covered id: manifest wins over the module.
+  const manifestWithGuide = packManifest({ name: "自带指南包", skillName: "guide-skill", agentId: "pack-guide-reviewer" });
+  manifestWithGuide.guide = {
+    steps: [
+      { title: "创作者第一步", body: "创作者说明一" },
+      { title: "创作者第二步", body: "创作者说明二" },
+      { title: "创作者第三步", body: "创作者说明三" },
+    ],
+  };
+  await seedPack(gw.state, manifestWithGuide, "pack-with-guide");
+  // A covered id WITHOUT a manifest guide: the client module serves content.
+  await seedPack(gw.state, packManifest({ name: "模块指南包", skillName: "module-skill", agentId: "pack-module-reviewer" }), "J9sO_wRCgUVjbYVEqD4Pog");
+  gw.install();
+  await gotoPacksTab(page, "market");
+
+  await page.getByTestId("pack-card-pack-with-guide").click();
+  const detail = page.getByTestId("pack-detail");
+  await expect(detail.getByTestId("pack-guide-card")).toContainText("创作者第一步");
+  await page.keyboard.press("Escape");
+
+  await page.getByTestId("pack-card-J9sO_wRCgUVjbYVEqD4Pog").click();
+  await expect(detail.getByTestId("pack-guide-card")).toContainText("准备合同文本");
+  // Example questions from the client module, read-only beneath the steps.
+  await expect(detail.getByTestId("pack-guide-examples")).toBeVisible();
+  await expect(detail.getByTestId("pack-guide-examples").getByRole("listitem")).toHaveCount(4);
+});
+
+test("subscribe report ends with the next-steps wizard", async ({ page }) => {
+  const gw = seedableGateway(page);
+  await seedPackBoth(
+    gw,
+    packManifest({ name: "向导包", skillName: "wizard-skill", agentId: "pack-wizard-reviewer" }),
+    "pack-wizard",
+  );
+  gw.install();
+  await gotoPacksTab(page, "market");
+  await page.getByTestId("pack-card-pack-wizard").click();
+  const detail = page.getByTestId("pack-detail");
+  await detail.getByTestId("pack-subscribe").click();
+
+  const report = page.getByTestId("pack-install-report");
+  await expect(report).toBeVisible();
+  await expect(page.getByTestId("pack-install-next")).toBeVisible();
+  await page.getByTestId("pack-install-open-chat").click();
+  await expect(page).toHaveURL(/\/chat/);
+  await expect(page.getByTestId("pack-install-report")).toHaveCount(0);
+});
+
+test("creator guide: complete guide publishes into the manifest, partial does not", async ({ page }) => {
+  const gw = seedableGateway(page);
+  gw.install();
+  await gotoPacksTab(page, "drafts");
+  await page.getByTestId("pack-draft-create").click();
+  await expect(page.getByTestId("pack-editor")).toBeVisible();
+
+  await page.locator("#pack-name").fill("指南包");
+  await page.getByTestId("pack-skill-add").click();
+  await page.getByTestId("pack-skill-entry-0").locator("input").nth(0).fill("guide-e2e-skill");
+  await page.getByTestId("pack-skill-entry-0").locator("input").nth(1).fill("指南技能");
+  await page.getByTestId("pack-skill-entry-0").locator("textarea").fill(SKILL_V1);
+
+  // Partial guide (two steps) → publish carries NO guide.
+  await page.getByTestId("pack-guide-editor-toggle").click();
+  await page.getByTestId("pack-guide-title-0").fill("准备合同");
+  await page.getByTestId("pack-guide-body-0").fill("把合同粘贴进来");
+  await page.getByTestId("pack-guide-title-1").fill("提出审查");
+  await page.getByTestId("pack-guide-body-1").fill("说：审查这份合同");
+  await page.getByTestId("pack-draft-publish").click();
+  await expect(page.getByTestId("pack-card-pack-e2e-1")).toBeVisible({ timeout: 10_000 });
+  const v1 = gw.state.packs.find((p) => p.id === "pack-e2e-1");
+  expect(v1.manifest.guide).toBeUndefined();
+
+  // Complete the third step → republish carries the full guide.
+  await gotoPacksTab(page, "drafts");
+  await page.locator('[data-testid^="pack-draft-item-"]').first().click();
+  await expect(page.getByTestId("pack-editor")).toBeVisible();
+  await page.getByTestId("pack-guide-editor-toggle").click();
+  await page.getByTestId("pack-guide-title-2").fill("取走成果");
+  await page.getByTestId("pack-guide-body-2").fill("成果自动保存");
+  await page.getByTestId("pack-draft-publish").click();
+  await expect(page.getByTestId("pack-card-pack-e2e-1")).toContainText("v2", { timeout: 10_000 });
+  const v2 = gw.state.packs.find((p) => p.id === "pack-e2e-1");
+  expect(v2.version).toBe(2);
+  expect(v2.manifest.guide?.steps?.[0]?.title).toBe("准备合同");
+  expect(v2.manifest.guide?.steps?.[2]?.title).toBe("取走成果");
+});

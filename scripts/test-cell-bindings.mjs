@@ -16,7 +16,6 @@
 //   node scripts/test-cell-bindings.mjs
 
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { createServer as netServer } from "node:net";
@@ -26,6 +25,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import WebSocket from "ws";
 import { signSession } from "../server/session.js";
+import { spawnTestServer } from "./lib/test-server.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SECRET = "bindings-test-secret";
@@ -79,12 +79,15 @@ test("cell-scoped bindings: surface intact, applied at cell start", async () => 
   const root = await mkdtemp(path.join(tmpdir(), "cell-bindings-"));
   const oidc = await startStubOidc();
   const port = await freePort();
+  let server;
   let proc;
 
   const logs = [];
   try {
-    proc = spawn(process.execPath, [path.join(REPO, "gateway/index.js")], {
+    server = spawnTestServer({
       cwd: REPO,
+      args: [path.join(REPO, "gateway/index.js")],
+      storeRoot: root,
       env: {
         ...process.env,
         GATEWAY_PORT: String(port),
@@ -104,8 +107,8 @@ test("cell-scoped bindings: surface intact, applied at cell start", async () => 
         LLM_API_KEY: "dummy-key-for-model-declaration",
         LLM_BASE_URL: "http://127.0.0.1:1/v1",
       },
-      stdio: ["ignore", "pipe", "pipe"],
     });
+    proc = server.child;
     proc.stdout.on("data", (b) => logs.push(`[out] ${b}`));
     proc.stderr.on("data", (b) => logs.push(`[err] ${b}`));
 
@@ -210,9 +213,7 @@ test("cell-scoped bindings: surface intact, applied at cell start", async () => 
     );
     resumedWs.close();
   } finally {
-    proc?.kill("SIGTERM");
-    await sleep(600);
-    if (proc && proc.exitCode === null) proc.kill("SIGKILL");
+    await server?.stop();
     await rm(root, { recursive: true, force: true }).catch(() => {});
     await oidc.close();
   }

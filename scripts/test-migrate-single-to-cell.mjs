@@ -19,6 +19,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPackRegistry } from "../gateway/packs.js";
 import { signSession } from "../server/session.js";
+import { spawnTestServer } from "./lib/test-server.mjs";
 
 if (!(await import("./lib/dsh-available.mjs")).dshRuntimeAvailable()) {
   console.warn("[skip] shared dsh install unavailable — dsh runtime integration skipped (see scripts/lib/dsh-available.mjs)");
@@ -28,24 +29,6 @@ if (!(await import("./lib/dsh-available.mjs")).dshRuntimeAvailable()) {
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const GW_SECRET = "migrate-test-gateway-secret";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-// Full-tree teardown for the rehearsal children. They are spawned detached
-// (own process group) so every descendant — the dsh child of the single
-// server, and for the gateway every cell server plus ITS dsh children — dies
-// with one group kill. The old "SIGTERM + 500ms + SIGKILL" raced the bridge's
-// ~14s shutdown ladder and orphaned dsh processes under launchd (PPID=1).
-async function stopTree(child, graceMs = 15_000) {
-  if (!child || child.exitCode !== null || child.signalCode !== null) return;
-  const killGroup = (signal) => {
-    try { process.kill(-child.pid, signal); } catch { /* group already gone */ }
-  };
-  killGroup("SIGTERM");
-  const deadline = Date.now() + graceMs;
-  while (child.exitCode === null && child.signalCode === null && Date.now() < deadline) {
-    await sleep(200);
-  }
-  killGroup("SIGKILL");
-}
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -128,9 +111,11 @@ async function main() {
   const neutralCwd = path.join(scratch, "neutral-cwd");
   await mkdir(neutralCwd, { recursive: true });
   const p1 = await freePort();
-  const single = spawn(process.execPath, [path.join(REPO, "server.js")], {
+  const singleServer = spawnTestServer({
     cwd: neutralCwd,
-    detached: true,
+    args: [path.join(REPO, "server.js")],
+    storeRoot: scratch,
+    stdio: ["ignore", "ignore", "pipe"],
     env: {
       ...process.env,
       PORT: String(p1),
@@ -142,8 +127,8 @@ async function main() {
       AUTH_MODE: "none",
       LLM_API_KEY: "",
     },
-    stdio: ["ignore", "ignore", "pipe"],
   });
+  const single = singleServer.child;
   const singleErr = [];
   single.stderr.on("data", (b) => singleErr.push(b.toString()));
   const base1 = `http://127.0.0.1:${p1}`;
@@ -174,7 +159,7 @@ async function main() {
     // A workspace file, as the agent would leave one.
     await writeFile(path.join(srcData, "workspace", "handoff.md"), "# handoff\n");
   } finally {
-    await stopTree(single);
+    await singleServer.stop();
   }
 
   // ── Phase 2: the migration script (real child process, real args) ────────
@@ -203,9 +188,11 @@ async function main() {
   // ── Phase 3: the gateway era, against the migrated tree ───────────────────
   const oidc = await startOidcStub();
   const gwPort = await freePort();
-  const gw = spawn(process.execPath, [path.join(REPO, "gateway/index.js")], {
+  const gwServer = spawnTestServer({
     cwd: REPO,
-    detached: true,
+    args: [path.join(REPO, "gateway/index.js")],
+    storeRoot: scratch,
+    stdio: ["ignore", "ignore", "pipe"],
     env: {
       ...process.env,
       GATEWAY_PORT: String(gwPort),
@@ -225,8 +212,8 @@ async function main() {
       CLOUD_MODE: "",
       LLM_API_KEY: "",
     },
-    stdio: ["ignore", "ignore", "pipe"],
   });
+  const gw = gwServer.child;
   const gwErr = [];
   gw.stderr.on("data", (b) => gwErr.push(b.toString()));
   const base3 = `http://127.0.0.1:${gwPort}`;
@@ -264,7 +251,7 @@ async function main() {
     console.log(`packs: ${packIds.join(", ")}`);
     console.log(`workspace handoff.md: HTTP ${ws.status}`);
   } finally {
-    await stopTree(gw);
+    await gwServer.stop();
     await oidc.close();
     if (process.env.REHEARSAL_KEEP_SCRATCH) {
       console.log(`(scratch kept: ${scratch})`);

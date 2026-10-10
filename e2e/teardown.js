@@ -2,10 +2,12 @@
 // throwaway store directories created at config load time (see e2e/helpers.js).
 //
 // The sweep is the last line of defense against dsh orphans. Specs kill their
-// spawned servers via spawnTestServer()'s group kill, and the worker-exit hook
-// in helpers.js force-kills on worker death — but a worker that is itself
-// SIGKILLed (Ctrl-C abort, crash) skips those. Anything left at global teardown
-// with an e2e marker in its command line is garbage by definition.
+// spawned servers via spawnTestServer()'s group kill (now shared with the unit
+// lane in scripts/lib/test-server.mjs, which also owns-registers and
+// self-heals stale entries), and the worker-exit hooks force-kill on worker
+// death — but a worker that is itself SIGKILLed (Ctrl-C abort, crash) skips
+// those. Anything left at global teardown with an e2e marker in its command
+// line is garbage by definition.
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

@@ -14,12 +14,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { sessionCookie } from "../server/session.js";
+import { spawnTestServer } from "./lib/test-server.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -106,8 +106,10 @@ const dataRoot = mkdtempSync(path.join(tmpdir(), "share-cells-"));
 const rateRoot = mkdtempSync(path.join(tmpdir(), "share-rate-"));
 
 function bootGateway(port, root, extraEnv = {}) {
-  const proc = spawn(process.execPath, ["gateway/index.js"], {
+  const server = spawnTestServer({
     cwd: REPO,
+    args: ["gateway/index.js"],
+    storeRoot: root,
     env: {
       ...process.env,
       GATEWAY_PORT: String(port),
@@ -130,12 +132,12 @@ function bootGateway(port, root, extraEnv = {}) {
       // The main instance must not rate-limit the other tests' reads.
       SHARE_RATE_MAX: extraEnv.SHARE_RATE_MAX ?? "1000000",
     },
-    stdio: ["ignore", "pipe", "pipe"],
   });
+  const proc = server.child;
   let log = "";
   proc.stdout.on("data", (b) => (log += b));
   proc.stderr.on("data", (b) => (log += b));
-  proc.waitHealthy = async () => {
+  server.waitHealthy = async () => {
     for (let i = 0; i < 100; i++) {
       try {
         const r = await fetch(`http://127.0.0.1:${port}/healthz`);
@@ -147,7 +149,7 @@ function bootGateway(port, root, extraEnv = {}) {
     }
     throw new Error(`gateway on ${port} never became healthy:\n${log}`);
   };
-  return proc;
+  return server;
 }
 
 const gateway = bootGateway(GATEWAY_PORT, dataRoot);
@@ -165,10 +167,9 @@ const cookieFor = (email, groups) =>
   ).split(";")[0];
 
 test.after(async () => {
-  gateway.kill("SIGTERM");
-  rateGateway.kill("SIGTERM");
+  await gateway.stop();
+  await rateGateway.stop();
   mockOidc.close();
-  await new Promise((r) => setTimeout(r, 500));
   rmSync(dataRoot, { recursive: true, force: true });
   rmSync(rateRoot, { recursive: true, force: true });
 });

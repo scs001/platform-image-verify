@@ -8,7 +8,6 @@
 
 import path from "node:path";
 import fs from "node:fs";
-import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { expect } from "@playwright/test";
 
@@ -97,73 +96,14 @@ export function tempDbPath() {
 
 // ── Test-server process management ─────────────────────────────────────────
 //
-// Every dsh-orphan incident has the same shape: a spec SIGKILLs the `node
-// server.js` it spawned. SIGKILL is untrappable, so server.js's SIGTERM
-// handler — the only code that shuts the dsh child down via the bridge — never
-// runs, and the dsh child is reparented to launchd (PPID=1) where it spins
-// forever burning CPU. Specs must spawn servers through THIS helper so that a
-// full-tree kill is the only teardown path that exists:
-//
-//   - the server is spawned `detached`, making it its own process-group
-//     leader; every descendant it will ever spawn (dsh children, worker-pool
-//     bridges, stub servers) inherits that group;
-//   - stop() SIGTERMs the whole group (server.js runs its graceful ladder and
-//     the dsh children get the signal directly too), waits for the server to
-//     actually exit, then group-SIGKILLs any straggler;
-//   - the worker-exit / SIGINT / SIGTERM hooks below force-kill every group
-//     still registered, covering runs that die before afterAll (worker crash,
-//     Ctrl-C aborting the worker mid-spec).
-const liveServerGroups = new Set();
-
-function killServerGroup(pid, signal) {
-  // Negative pid = the process group. ESRCH once the group is fully gone.
-  try {
-    process.kill(-pid, signal);
-  } catch { /* already gone */ }
-}
-
-if (process.env.PLAYWRIGHT_TEST_WORKER_INDEX !== undefined || process.env.TEST_WORKER_INDEX !== undefined) {
-  // 'exit' does not fire when the worker is terminated by a signal it doesn't
-  // handle, so hook the signals too and exit explicitly after the sweep.
-  for (const ev of ["exit", "SIGINT", "SIGTERM"]) {
-    process.on(ev, () => {
-      for (const pid of liveServerGroups) killServerGroup(pid, "SIGKILL");
-      if (ev !== "exit") process.exit(ev === "SIGINT" ? 130 : 143);
-    });
-  }
-}
-
-export function spawnTestServer({ env, cwd = process.cwd(), args = ["server.js"], execPath = process.execPath } = {}) {
-  const child = spawn(execPath, args, {
-    cwd,
-    env,
-    stdio: ["ignore", "pipe", "pipe"],
-    detached: true,
-  });
-  liveServerGroups.add(child.pid);
-  const isDown = () => child.exitCode !== null || child.signalCode !== null;
-
-  return {
-    child,
-    // Graceful-then-forced teardown of the whole tree. The 20s grace exceeds
-    // the bridge's worst-case shutdown ladder (5s RPC + 6s EOF + 3s SIGTERM
-    // ≈ 14s), so the SIGKILL only ever lands on a genuinely wedged process.
-    stop: async ({ graceMs = 20_000 } = {}) => {
-      if (child.pid) {
-        killServerGroup(child.pid, "SIGTERM");
-        const deadline = Date.now() + graceMs;
-        while (!isDown() && Date.now() < deadline) {
-          await new Promise((r) => setTimeout(r, 200));
-        }
-        killServerGroup(child.pid, "SIGKILL");
-        liveServerGroups.delete(child.pid);
-        // A reaped-a-beat-late dsh can still hold store files for an instant;
-        // give spec teardowns that rmSync their temp roots a moment to win.
-        await new Promise((r) => setTimeout(r, 250));
-      }
-    },
-  };
-}
+// The implementation lives in scripts/lib/test-server.mjs and is shared with
+// the node --test unit lane (fix-unit-lane-process-hygiene): detached
+// process-group spawn, the SIGTERM → grace → group-SIGKILL ladder, owner
+// exit / SIGINT / SIGTERM hooks, and a $TMPDIR ownership registry whose stale
+// entries (owner dead) self-heal on the next run. Keep e2e and scripts on
+// this one implementation — the two lanes drifted once and leaked orphans
+// for it.
+export { spawnTestServer } from "../scripts/lib/test-server.mjs";
 
 // ── Chat-page helpers (React app under /chat/) ────────────────────────────────
 //

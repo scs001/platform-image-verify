@@ -17,12 +17,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { EventEmitter } from "node:events";
-import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { sessionCookie } from "../server/session.js";
+import { spawnTestServer } from "./lib/test-server.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -194,8 +194,10 @@ const GATEWAY_PORT = 5000 + Math.floor(Math.random() * 2000);
 const TOKEN_SECRET = "test-mp-demo-token-secret";
 const SESSION_SECRET = "test-mp-demo-session-secret";
 const dataRoot = mkdtempSync(path.join(tmpdir(), "mp-demo-cells-"));
-const gateway = spawn(process.execPath, ["gateway/index.js"], {
+const gatewayServer = spawnTestServer({
   cwd: REPO,
+  args: ["gateway/index.js"],
+  storeRoot: dataRoot,
   env: {
     ...process.env,
     GATEWAY_PORT: String(GATEWAY_PORT),
@@ -220,8 +222,8 @@ const gateway = spawn(process.execPath, ["gateway/index.js"], {
     LOGTO_APP_SECRET: "test-logto-secret",
     PAAS_BASE_URL: "",
   },
-  stdio: ["ignore", "pipe", "pipe"],
 });
+const gateway = gatewayServer.child;
 let gatewayLog = "";
 gateway.stdout.on("data", (b) => (gatewayLog += b));
 gateway.stderr.on("data", (b) => (gatewayLog += b));
@@ -261,14 +263,7 @@ function webSessionCookie(email, groups) {
 test.after(async () => {
   mockUpstream.closeAllConnections?.();
   mockUpstream.close();
-  if (gateway.exitCode !== null) return;
-  const exited = new Promise((r) => gateway.once("exit", r));
-  gateway.kill("SIGTERM");
-  const timed = await Promise.race([
-    exited.then(() => true),
-    new Promise((r) => setTimeout(() => r(false), 2000).unref()),
-  ]);
-  if (!timed) gateway.kill("SIGKILL");
+  await gatewayServer.stop();
 });
 
 // ── Demo login (identity only — no cell spawned) ─────────────────────────────

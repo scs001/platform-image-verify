@@ -12,7 +12,6 @@
 //   node scripts/test-cell-gateway.mjs
 
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { createServer as netServer } from "node:net";
@@ -22,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import WebSocket from "ws";
 import { signSession } from "../server/session.js";
+import { spawnTestServer } from "./lib/test-server.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SECRET = "gateway-test-secret";
@@ -73,10 +73,12 @@ async function startStubOidc() {
   return { port, close: () => new Promise((r) => server.close(r)) };
 }
 
-async function startGateway(oidcPort, dataRoot, extraEnv = {}) {
+async function startGateway(oidcPort, dataRoot, extraEnv = {}, storeRoot = null) {
   const port = await freePort();
-  const proc = spawn(process.execPath, [path.join(REPO, "gateway/index.js")], {
+  const server = spawnTestServer({
     cwd: REPO,
+    args: [path.join(REPO, "gateway/index.js")],
+    storeRoot,
     env: {
       ...process.env,
       GATEWAY_PORT: String(port),
@@ -97,8 +99,8 @@ async function startGateway(oidcPort, dataRoot, extraEnv = {}) {
       LLM_API_KEY: "",
       ...extraEnv,
     },
-    stdio: ["ignore", "pipe", "pipe"],
   });
+  const proc = server.child;
   const logs = [];
   proc.stdout.on("data", (b) => logs.push(`[out] ${b}`));
   proc.stderr.on("data", (b) => logs.push(`[err] ${b}`));
@@ -149,9 +151,7 @@ async function startGateway(oidcPort, dataRoot, extraEnv = {}) {
       throw new Error(`cell for ${email} never reached ${want.join("/")}`);
     },
     async stop() {
-      proc.kill("SIGTERM");
-      await sleep(600);
-      if (proc.exitCode === null) proc.kill("SIGKILL");
+      await server.stop();
     },
   };
 }
@@ -202,7 +202,7 @@ test("gateway: auth, routing, sticky WebSocket, restart resume, idle reap", asyn
   const bob = cookieFor("bob@cell.test", ["users"]);
   let gw;
   try {
-    gw = await startGateway(oidc.port, path.join(root, "cells"));
+    gw = await startGateway(oidc.port, path.join(root, "cells"), {}, root);
 
     // ── 2.2 Anonymous, and forged identity, never reach a cell ──────────────
     // add-login-hero 6.2: the pre-login SPA shell is served to anonymous
@@ -326,7 +326,7 @@ test("gateway: idle reaping is off by default", async () => {
   const carol = cookieFor("carol@cell.test", ["users"]);
   let gw;
   try {
-    gw = await startGateway(oidc.port, path.join(root, "cells"), { CELL_IDLE_REAP_SECS: "" });
+    gw = await startGateway(oidc.port, path.join(root, "cells"), { CELL_IDLE_REAP_SECS: "" }, root);
     assert.equal((await gw.call("/api/auth/me", { cookie: carol })).status, 200);
     await gw.waitForCell("carol@cell.test", "running");
 
@@ -351,7 +351,7 @@ test("gateway: SIGTERM shuts down gracefully in pack mode", async () => {
   const oidc = await startStubOidc();
   let gw;
   try {
-    gw = await startGateway(oidc.port, path.join(root, "cells"));
+    gw = await startGateway(oidc.port, path.join(root, "cells"), {}, root);
     const exited = new Promise((resolve) => gw.proc.once("exit", (code) => resolve(code)));
     gw.proc.kill("SIGTERM");
     const code = await Promise.race([exited, sleep(10_000).then(() => "timeout")]);

@@ -14,13 +14,13 @@
 //
 //   node scripts/test-cell-isolation.mjs
 
-import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
+import { spawnTestServer } from "./lib/test-server.mjs";
 
 if (!(await import("./lib/dsh-available.mjs")).dshRuntimeAvailable()) {
   console.warn("[skip] shared dsh install unavailable — dsh runtime integration skipped (see scripts/lib/dsh-available.mjs)");
@@ -49,8 +49,11 @@ async function startCell(label, identity) {
   await mkdir(cwd, { recursive: true });
   await mkdir(workspace, { recursive: true });
   const port = await freePort();
-  const child = spawn(process.execPath, [path.join(REPO, "server.js")], {
+  const server = spawnTestServer({
     cwd,
+    args: [path.join(REPO, "server.js")],
+    storeRoot: root,
+    stdio: ["ignore", "ignore", "pipe"],
     env: {
       ...process.env,
       PORT: String(port),
@@ -67,8 +70,8 @@ async function startCell(label, identity) {
       AGENT_WORKSPACE: workspace,
       LLM_API_KEY: "",
     },
-    stdio: ["ignore", "ignore", "pipe"],
   });
+  const child = server.child;
   const errors = [];
   child.stderr.on("data", (c) => errors.push(c.toString()));
 
@@ -103,7 +106,7 @@ async function startCell(label, identity) {
     ws.on("error", reject);
   });
 
-  return { label, root, child, base, call, ws, frames };
+  return { label, root, server, child, base, call, ws, frames };
 }
 
 async function main() {
@@ -190,9 +193,7 @@ async function main() {
     for (const cell of [A, B]) {
       if (!cell) continue;
       cell.ws?.close();
-      cell.child.kill("SIGTERM");
-      await sleep(400);
-      if (cell.child.exitCode === null) cell.child.kill("SIGKILL");
+      await cell.server.stop();
       await rm(cell.root, { recursive: true, force: true }).catch(() => {});
     }
   }

@@ -10,7 +10,6 @@
 //   node --test scripts/test-pack-marketplace.mjs
 
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer } from "node:http";
 import { createServer as netServer } from "node:net";
@@ -19,6 +18,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { signSession } from "../server/session.js";
+import { spawnTestServer } from "./lib/test-server.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SESSION_SECRET = "pack-marketplace-test-secret";
@@ -63,6 +63,7 @@ async function startStubOidc() {
   return { port, close: () => new Promise((r) => server.close(r)) };
 }
 
+let gatewayServer;
 let gateway;
 let gwPort;
 let dataRoot;
@@ -101,8 +102,10 @@ test.before(async () => {
   oidc = await startStubOidc();
   dataRoot = await mkdtemp(path.join(tmpdir(), "pack-gateway-"));
   gwPort = await freePort();
-  gateway = spawn(process.execPath, [path.join(REPO, "gateway/index.js")], {
+  gatewayServer = spawnTestServer({
     cwd: REPO,
+    args: [path.join(REPO, "gateway/index.js")],
+    storeRoot: dataRoot,
     env: {
       ...process.env,
       GATEWAY_PORT: String(gwPort),
@@ -121,8 +124,8 @@ test.before(async () => {
       LLM_API_KEY: "",
       PACK_PUBLISH_RATE_MAX: "2",
     },
-    stdio: ["ignore", "pipe", "pipe"],
   });
+  gateway = gatewayServer.child;
   gateway.stderr.on("data", (c) => process.env.PACK_TEST_VERBOSE && process.stderr.write(c));
   await new Promise((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("gateway boot timeout")), 20_000);
@@ -137,8 +140,7 @@ test.before(async () => {
 });
 
 test.after(async () => {
-  gateway?.kill("SIGTERM");
-  await new Promise((r) => gateway?.on("exit", r));
+  await gatewayServer?.stop();
   await oidc?.close();
   if (dataRoot) await rm(dataRoot, { recursive: true, force: true });
 });

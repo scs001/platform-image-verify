@@ -20,7 +20,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { spawn } from "node:child_process";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -30,6 +29,7 @@ import { createMpBindings, APP_KEY_PREFIX } from "../gateway/mp-bindings.js";
 import { createAppAuth } from "../gateway/app-auth.js";
 import { verifyMpJwt } from "../gateway/mp-auth.js";
 import { sessionCookie } from "../server/session.js";
+import { spawnTestServer } from "./lib/test-server.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -307,14 +307,17 @@ const mockPort = mockPortSelf;
 const GATEWAY_PORT = 3000 + Math.floor(Math.random() * 2000);
 const TOKEN_SECRET = "test-mp-token-secret";
 const SESSION_SECRET = "test-session-secret";
-const gateway = spawn(process.execPath, ["gateway/index.js"], {
+const gwCellsRoot = mkdtempSync(path.join(tmpdir(), "app-pairing-cells-"));
+const gatewayServer = spawnTestServer({
   cwd: REPO,
+  args: ["gateway/index.js"],
+  storeRoot: gwCellsRoot,
   env: {
     ...process.env,
     GATEWAY_PORT: String(GATEWAY_PORT),
     GATEWAY_HOST: "127.0.0.1",
     CELL_GATEWAY_SECRET: "test-cell-gateway-secret",
-    CELL_DATA_ROOT: mkdtempSync(path.join(tmpdir(), "app-pairing-cells-")),
+    CELL_DATA_ROOT: gwCellsRoot,
     SESSION_SECRET,
     AUTH_MODE: "logto",
     LOGTO_ENDPOINT: `http://127.0.0.1:${mockPort}`,
@@ -327,8 +330,8 @@ const gateway = spawn(process.execPath, ["gateway/index.js"], {
     MP_TOKEN_TTL_HOURS: "12",
     MP_JS_CODE_URL: `http://127.0.0.1:${mockPort}/sns/jscode2session`,
   },
-  stdio: ["ignore", "pipe", "pipe"],
 });
+const gateway = gatewayServer.child;
 let gatewayLog = "";
 gateway.stdout.on("data", (b) => (gatewayLog += b));
 gateway.stderr.on("data", (b) => (gatewayLog += b));
@@ -440,22 +443,17 @@ test("gateway: self-unbind endpoint accepts the device's own token", async () =>
 test.after(async () => {
   mockUpstream.closeAllConnections?.();
   mockUpstream.close();
-  if (gateway.exitCode !== null) return;
-  const exited = new Promise((r) => gateway.once("exit", r));
-  gateway.kill("SIGTERM");
-  const timed = await Promise.race([
-    exited.then(() => true),
-    new Promise((r) => setTimeout(() => r(false), 2000).unref()),
-  ]);
-  if (!timed) gateway.kill("SIGKILL");
+  await gatewayServer.stop();
 });
 
 // ── 5. HTTP on the single-process server ─────────────────────────────────────
 
 const SP_PORT = 3000 + Math.floor(Math.random() * 2000);
 const spScratch = mkdtempSync(path.join(tmpdir(), "app-pairing-sp-"));
-const single = spawn(process.execPath, [path.join(REPO, "server.js")], {
+const singleServer = spawnTestServer({
   cwd: REPO,
+  args: [path.join(REPO, "server.js")],
+  storeRoot: spScratch,
   env: {
     ...process.env,
     PORT: String(SP_PORT),
@@ -476,8 +474,8 @@ const single = spawn(process.execPath, [path.join(REPO, "server.js")], {
     MP_TOKEN_TTL_HOURS: "12",
     MP_JS_CODE_URL: `http://127.0.0.1:${mockPort}/sns/jscode2session`,
   },
-  stdio: ["ignore", "pipe", "pipe"],
 });
+const single = singleServer.child;
 let singleLog = "";
 single.stdout.on("data", (b) => (singleLog += b));
 single.stderr.on("data", (b) => (singleLog += b));
@@ -542,12 +540,5 @@ test("single-process: pair/challenge/login work sessionless; devices via session
 });
 
 test.after(async () => {
-  if (single.exitCode !== null) return;
-  const exited = new Promise((r) => single.once("exit", r));
-  single.kill("SIGTERM");
-  const timed = await Promise.race([
-    exited.then(() => true),
-    new Promise((r) => setTimeout(() => r(false), 3000).unref()),
-  ]);
-  if (!timed) single.kill("SIGKILL");
+  await singleServer.stop();
 });

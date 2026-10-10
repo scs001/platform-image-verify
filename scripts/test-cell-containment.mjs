@@ -12,7 +12,6 @@
 //
 //   node scripts/test-cell-containment.mjs
 
-import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, mkdir, readdir, rm, symlink, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
@@ -20,6 +19,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
+import { spawnTestServer } from "./lib/test-server.mjs";
 
 if (!(await import("./lib/dsh-available.mjs")).dshRuntimeAvailable()) {
   console.warn("[skip] shared dsh install unavailable — dsh runtime integration skipped (see scripts/lib/dsh-available.mjs)");
@@ -107,11 +107,13 @@ async function main() {
     LLM_API_KEY: "",
   };
 
-  const child = spawn(process.execPath, [path.join(REPO, "server.js")], {
+  const server = spawnTestServer({
     cwd,
+    args: [path.join(REPO, "server.js")],
+    storeRoot: scratch,
     env,
-    stdio: ["ignore", "pipe", "pipe"],
   });
+  const child = server.child;
   const log = [];
   child.stdout.on("data", (c) => log.push(`[out] ${c}`));
   child.stderr.on("data", (c) => log.push(`[err] ${c}`));
@@ -239,9 +241,7 @@ async function main() {
     console.error(`✗ containment audit failed: ${err.message}`);
     process.exitCode = 1;
   } finally {
-    child.kill("SIGTERM");
-    await sleep(500);
-    if (child.exitCode === null) child.kill("SIGKILL");
+    await server.stop();
     await rm(scratch, { recursive: true, force: true });
   }
 }

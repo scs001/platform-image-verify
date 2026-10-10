@@ -11,7 +11,6 @@
 //
 //   node scripts/test-gateway-sessionless.mjs
 
-import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createServer as netServer } from "node:net";
 import { existsSync } from "node:fs";
@@ -19,6 +18,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPackRegistry } from "../gateway/packs.js";
+import { spawnTestServer } from "./lib/test-server.mjs";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SECRET = "sessionless-test-secret";
@@ -104,8 +104,10 @@ async function main() {
   const oidc = await startOidcStub();
 
   const gwPort = await freePort();
-  const gw = spawn(process.execPath, [path.join(REPO, "gateway/index.js")], {
+  const gwServer = spawnTestServer({
     cwd: REPO,
+    args: [path.join(REPO, "gateway/index.js")],
+    storeRoot: root,
     env: {
       ...process.env,
       GATEWAY_PORT: String(gwPort),
@@ -129,8 +131,8 @@ async function main() {
       AGENT_SERVING_PACKS_URL: "http://127.0.0.1:1",
       AGENT_SERVING_BACKEND_TOKEN: "dummy",
     },
-    stdio: ["ignore", "pipe", "pipe"],
   });
+  const gw = gwServer.child;
   const logs = [];
   gw.stdout.on("data", (b) => logs.push(`[out] ${b}`));
   gw.stderr.on("data", (b) => logs.push(`[err] ${b}`));
@@ -177,9 +179,7 @@ async function main() {
     console.log(`unknown pack: HTTP ${ghost.status}`);
     console.log(`anonymous deploy: HTTP ${deploy.status}`);
   } finally {
-    gw.kill("SIGTERM");
-    await sleep(300);
-    if (gw.exitCode === null) gw.kill("SIGKILL");
+    await gwServer.stop();
     await oidc.close();
     await rm(root, { recursive: true, force: true }).catch(() => {});
   }

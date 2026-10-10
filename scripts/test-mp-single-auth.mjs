@@ -14,12 +14,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { spawn } from "node:child_process";
 import { mkdtempSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
+import { spawnTestServer } from "./lib/test-server.mjs";
 import { sessionCookie } from "../server/session.js";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -80,8 +80,10 @@ const dshHome = path.join(scratch, "dsh");
 const PORT = 3000 + Math.floor(Math.random() * 2000);
 
 function bootServer() {
-  const child = spawn(process.execPath, [path.join(REPO, "server.js")], {
+  const server = spawnTestServer({
     cwd: REPO,
+    args: [path.join(REPO, "server.js")],
+    storeRoot: scratch,
     env: {
       ...process.env,
       PORT: String(PORT),
@@ -104,22 +106,14 @@ function bootServer() {
       MP_TOKEN_TTL_HOURS: "12",
       MP_JS_CODE_URL: `http://127.0.0.1:${mockPort}/sns/jscode2session`,
     },
-    stdio: ["ignore", "pipe", "pipe"],
   });
+  const child = server.child;
   let log = "";
   child.stdout.on("data", (b) => (log += b));
   child.stderr.on("data", (b) => (log += b));
 
   async function stop() {
-    if (child.exitCode !== null) return;
-    const exited = new Promise((r) => child.once("exit", r));
-    child.kill("SIGTERM");
-    const timed = await Promise.race([
-      exited.then(() => true),
-      new Promise((r) => setTimeout(() => r(false), 3000).unref()),
-    ]);
-    if (!timed) child.kill("SIGKILL");
-    await exited;
+    await server.stop();
   }
 
   return { child, log, stop };
@@ -358,8 +352,10 @@ test("restart with the same data dir: silent login still works; logout unbinds",
 
 test("MP-unset boot: login endpoints report not-configured, browser paths unchanged", async () => {
   const PORT2 = 3000 + Math.floor(Math.random() * 2000);
-  const child = spawn(process.execPath, [path.join(REPO, "server.js")], {
+  const unsetServer = spawnTestServer({
     cwd: REPO,
+    args: [path.join(REPO, "server.js")],
+    storeRoot: scratch,
     env: {
       ...process.env,
       PORT: String(PORT2),
@@ -376,8 +372,8 @@ test("MP-unset boot: login endpoints report not-configured, browser paths unchan
       PAAS_BASE_URL: "",
       // No MP_APPID / MP_SECRET / MP_TOKEN_SECRET.
     },
-    stdio: ["ignore", "pipe", "pipe"],
   });
+  const child = unsetServer.child;
   let log2 = "";
   child.stdout.on("data", (b) => (log2 += b));
   child.stderr.on("data", (b) => (log2 += b));
@@ -416,9 +412,7 @@ test("MP-unset boot: login endpoints report not-configured, browser paths unchan
     // And no token could have verified anyway: a protected route stays 401.
     assert.equal((await api2("/api/catalog")).status, 401);
   } finally {
-    const exited = new Promise((r) => child.once("exit", r));
-    child.kill("SIGKILL");
-    await Promise.race([exited, new Promise((r) => setTimeout(r, 1500).unref())]);
+    await unsetServer.stop();
   }
 });
 

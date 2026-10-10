@@ -194,3 +194,75 @@ test.describe("pack guide card", () => {
     await expect(page.getByTestId("pack-guide-card")).toHaveCount(0);
   });
 });
+
+test.describe("welcome prompt dispatch", () => {
+  // The dispatch chain (spec: chat-welcome-state): a pack agent whose content
+  // module ships prompts → that zh set; a covered pack WITHOUT prompts, or a
+  // custom preset → the focused chrome set; anything else → the default four.
+  // The roster is injected through the e2e store seam, so no server state is
+  // touched and nothing survives this page.
+  const ROSTER = [
+    { id: "agent-pack-e2e", name: "Pack Expert", packId: "J9sO_wRCgUVjbYVEqD4Pog" },
+    { id: "agent-guide-only-e2e", name: "Guide Only Expert", packId: "qnhd7B3J1-HKDDKzZQ_fUQ" },
+    { id: "agent-custom-e2e", name: "Custom Preset Expert", customPreset: "user.demo" },
+  ];
+
+  async function selectAgent(page, id) {
+    await page.evaluate(
+      ([agents, agentId]) => window.__chatStore.setState({ agents, currentAgent: agentId }),
+      [ROSTER, id],
+    );
+  }
+
+  // The card element carries its branch on data-prompt-key, so assertions do
+  // not depend on locale copy.
+  function promptKeys(page) {
+    return page
+      .getByTestId("welcome-prompt-card")
+      .evaluateAll((cards) => cards.map((c) => c.dataset.promptKey));
+  }
+
+  test("a pack agent renders the content module's prompt set", async ({ page }) => {
+    await pinLocaleEn(page);
+    await page.goto("/chat/");
+    await expect(page.getByTestId("status-text")).toHaveText("Connected", { timeout: 15000 });
+    await selectAgent(page, "agent-pack-e2e");
+    await expect
+      .poll(() => promptKeys(page))
+      .toEqual(["pack-0", "pack-1", "pack-2", "pack-3"]);
+    // The copy itself is the module's zh content, independent of the pinned locale.
+    await expect(page.getByTestId("welcome-prompt-card").nth(0)).toContainText("审查一份合同");
+    await expect(page.getByTestId("welcome-prompt-card").nth(1)).toContainText("比对两个版本");
+  });
+
+  test("packs without module prompts fall to the focused set; switching experts refreshes in place", async ({ page }) => {
+    await pinLocaleEn(page);
+    await page.goto("/chat/");
+    await expect(page.getByTestId("status-text")).toHaveText("Connected", { timeout: 15000 });
+
+    // A covered pack with a guide but no prompt set → focused chrome (en copy).
+    await selectAgent(page, "agent-guide-only-e2e");
+    await expect
+      .poll(() => promptKeys(page))
+      .toEqual(["focused-1", "focused-2", "focused-3", "focused-4"]);
+    await expect(page.getByTestId("welcome-prompt-card").nth(0)).toContainText(
+      "See what this expert does",
+    );
+
+    // A custom preset takes the same focused set.
+    await selectAgent(page, "agent-custom-e2e");
+    await expect
+      .poll(() => promptKeys(page))
+      .toEqual(["focused-1", "focused-2", "focused-3", "focused-4"]);
+
+    // Switching straight to a pack agent swaps the set with no reload.
+    await selectAgent(page, "agent-pack-e2e");
+    await expect
+      .poll(() => promptKeys(page))
+      .toEqual(["pack-0", "pack-1", "pack-2", "pack-3"]);
+
+    // Leaving the roster entirely restores the default four.
+    await page.evaluate(() => window.__chatStore.setState({ currentAgent: "local" }));
+    await expect.poll(() => promptKeys(page)).toEqual(["docs", "skills", "tools", "write"]);
+  });
+});

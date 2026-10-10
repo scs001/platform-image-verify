@@ -64,15 +64,21 @@ test("snapshot staleness falls back to a live probe; probe-missed names still fa
   assert.ok(notes.some((n) => /confirmed by live probe/.test(n)));
 });
 
-test("probe failure keeps the snapshot as the verdict", async () => {
+test("an unavailable probe leaves the name unresolved, not absent (actionable refusal)", async () => {
+  // A billing-gated / unreachable server must not be reported as "the tool
+  // does not exist" — the author can act on a refresh instruction.
   const probe = async () => null;
-  const { errors } = await toolGateErrors(
+  const { errors, notes } = await toolGateErrors(
     manifestWith([{ registryName: "srv-a", allowTools: ["fresh_tool"] }]),
     () => info(["read"]),
     { probe },
   );
-  assert.equal(errors.length, 1);
-  assert.match(errors[0].error, /live probe unavailable/);
+  assert.equal(errors.length, 1, "an unverifiable declaration still refuses");
+  assert.match(errors[0].error, /fresh_tool/);
+  assert.match(errors[0].error, /unresolved rather than absent/);
+  assert.match(errors[0].error, /refresh the registry entry's tool_list snapshot/);
+  assert.ok(!/does not expose/.test(errors[0].error), "never asserts the tool is gone");
+  assert.ok(notes.some((n) => /unavailable/.test(n)));
 });
 
 test("commercial closure fails declared-but-existing internal tools", async () => {

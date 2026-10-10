@@ -10,9 +10,11 @@
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import { createServer, connect } from "node:net";
 import path from "node:path";
+import { bundledJson } from "../paths.js";
 
 // A stable, filesystem-safe per-user directory name. Derived by hashing rather
 // than by sanitizing the email so a hostile address can never contribute a path
@@ -178,13 +180,23 @@ export function createCellRegistry(config) {
       }
       cells.set(userId, cell);
 
+      // The operator MCP baseline (mcp.json) is read-only deployment config,
+      // not per-cell state: a cell-private file would have to be seeded and
+      // kept in sync by someone, and nobody does. Point cells at the shared
+      // image copy (the spawner runs cells from the repo, so the same file the
+      // gateway sees), while still honoring a per-cell override when an
+      // operator drops one in for a specific user. Without this fallback the
+      // baseline is invisible to cells: writeMcpPatch read <cell>/mcp.json,
+      // which never exists, so operator servers (the connector row) silently
+      // never reached any dsh profile (2026-10-10 fd-prod gap).
+      const cellMcpJson = path.join(root, "mcp.json");
       const env = {
         ...baseEnv,
         PORT: String(port),
         HOST: "127.0.0.1",
         PLATFORM_DATA_DIR: path.join(root, "data"),
         DSH_HOME: path.join(root, "dsh"),
-        MCP_CONFIG_PATH: path.join(root, "mcp.json"),
+        MCP_CONFIG_PATH: existsSync(cellMcpJson) ? cellMcpJson : bundledJson("mcp.json"),
         AUTH_MODE: "forward_auth",
         CLOUD_MODE: "1",
         CELL_GATEWAY_SECRET: secret,

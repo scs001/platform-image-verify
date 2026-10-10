@@ -15,11 +15,13 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, readFile, writeFile } from "node:fs/promises";
 import { realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createCellRegistry, userIdFor } from "../gateway/spawner.js";
+
+const REPO = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 
 // The stub listens (so waitForPort accepts) and dumps the spawn facts under its
 // own per-user root, derived from PLATFORM_DATA_DIR — no shared file to race on.
@@ -33,6 +35,7 @@ await writeFile(path.join(dir, "spawn-dump.json"), JSON.stringify({
   cwd: process.cwd(),
   agentWorkspace: process.env.AGENT_WORKSPACE || null,
   platformDataDir: process.env.PLATFORM_DATA_DIR,
+  mcpConfigPath: process.env.MCP_CONFIG_PATH || null,
 }));
 http.createServer((req, res) => res.end("ok")).listen(process.env.PORT, "127.0.0.1");
 `;
@@ -107,6 +110,56 @@ test("cells get a per-user workspace, per-user cwd, and ignore an inherited pin"
     assert.equal(b.platformDataDir, path.join(rootB, "data"));
   } finally {
     await registry.shutdown();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+// ── The operator MCP baseline must reach cells (2026-10-10 fd-prod gap) ─────
+//
+// spawner used to point every cell at <cell root>/mcp.json, which nothing
+// creates — so the operator baseline (mcp.json: the connector row) was
+// invisible to writeMcpPatch and never landed in any dsh profile. The cell
+// path now falls back to the shared baseline; a cell-private override, when
+// an operator drops one in, still wins.
+test("cells read the shared operator mcp.json unless a cell-private override exists", async () => {
+  const root = await realpath(await mkdtemp(path.join(tmpdir(), "cell-mcp-path-")));
+  const stub = path.join(root, "stub-cell.mjs");
+  await writeFile(stub, STUB);
+
+  const dataRoot = path.join(root, "cells");
+  const registry = createCellRegistry({
+    dataRoot,
+    secret: "test-secret",
+    startTimeoutMs: 15_000,
+    idleReapSecs: 0,
+    serverEntry: stub,
+    env: { ...process.env },
+  });
+
+  try {
+    const A = "carol@cell-mcp.test";
+    const B = "dave@cell-mcp.test";
+    await registry.ensure({ email: A, groups: [] });
+    await registry.ensure({ email: B, groups: [] });
+
+    // B carries a cell-private override placed before its spawn.
+    const bRoot = path.join(dataRoot, userIdFor(B));
+    await mkdir(bRoot, { recursive: true });
+    await writeFile(path.join(bRoot, "mcp.json"), JSON.stringify({ mcpServers: { override: { command: "true" } } }));
+    registry.stop(userIdFor(B));
+    await sleep(300);
+    await registry.ensure({ email: B, groups: [] });
+
+    const a = await readDump(dataRoot, A);
+    const b = await readDump(dataRoot, B);
+
+    // A: no cell-private file ⇒ the shared baseline (the repo/image mcp.json).
+    assert.ok(a.mcpConfigPath, "cell A got an MCP_CONFIG_PATH");
+    assert.equal(a.mcpConfigPath, path.join(REPO, "mcp.json"), "cell A reads the shared operator baseline");
+    // B: private file present ⇒ it wins.
+    assert.equal(b.mcpConfigPath, path.join(bRoot, "mcp.json"), "cell-private mcp.json overrides the baseline");
+  } finally {
+    await registry.shutdown().catch(() => undefined);
     await rm(root, { recursive: true, force: true });
   }
 });

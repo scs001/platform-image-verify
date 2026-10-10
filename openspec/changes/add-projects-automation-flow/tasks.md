@@ -23,9 +23,9 @@
 
 ## 5. e2e 与门禁
 
-- [ ] 5.1 新增/迁移用例：projects 端点（四例）、按名创建→切换链、模板预填、NL 解析应用与回退、批量导出含 zip 内容断言；既有 workspace 用例迁移；`check:locales`/lint/typecheck/build 绿
-- [ ] 5.2 受影响 spec 本地定向全绿；推 scs001 CI 全绿
+- [x] 5.1 新增/迁移用例：projects 端点（四例）、按名创建→切换链、模板预填、NL 解析应用与回退、批量导出含 zip 内容断言；既有 workspace 用例迁移；`check:locales`/lint/typecheck/build 绿
+- [x] 5.2 受影响 spec 本地定向全绿；推 scs001 CI 全绿
 
 ## 6. 上线
 
-- [ ] 6.1 标准发布线出片→relay 实证→GitOps bump→ArgoCD 双滚→in-pod 实证（新端点 405→POST 冒烟 + bundle 标记）→公网冒烟
+- [x] 6.1 标准发布线出片→relay 实证→GitOps bump→ArgoCD 双滚→in-pod 实证（新端点 405→POST 冒烟 + bundle 标记）→公网冒烟

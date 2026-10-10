@@ -13,5 +13,5 @@
 
 - [x] 3.1 本地门：biome（触碰文件净）/ web tsc --noEmit / check:locales 五语言 958 键一致全绿。验证：本地门输出（e2e 走 GitHub CI，既定偏好）
 - [x] 3.2 探针复验（payload 断言上 change 已在位：test:545-546、probe:126）：`scripts/probe-connector-credentials.mjs` 扩展一断言（状态端点含 consoleUrl），staging/本地跑通。验证：PROBE PASS
-- [ ] 3.3 上线 fd-prod（GHA→镜像→GitOps；排序在 connector `revamp-user-panel` 之后）。验证：线上设置面卡片出现入口，点击新标签打开新版 `/me`
-- [ ] 3.4 用户闭环验收：卡片入口 → connector 铸 PAT → 回壹座粘贴 → 会话 connector 工具可用。验证：用户确认
+- [x] 3.3 上线 fd-prod（2026-10-10）：并行会话镜像捎带 9cd9de9（platform sha-61e44f7 已 Running）；后随 spawner 修复滚 sha-fcb891b。验证：线上卡片入口可见、点击新标签打开新版 `/me`
+- [x] 3.4 闭环验收（2026-10-11 生产 UI 全流程实证）：深链按钮 → 新标签 connector /me → 铸 PAT → 壹座粘贴 Connected → 真回合 agent 调 `mcp__connector__list_connections` 返回 24 连接 → 撤销 PAT 后再调用 401 → 卡片翻「Re-paste needed」→ 断开复位。深链两态均渲染。

@@ -97,9 +97,9 @@ export function SettingsDialog({ backgroundPath }: { backgroundPath: string }) {
   // under the nested dialog. Radix portals dialogs to document.body, so the
   // lookup is document-wide; this panel itself carries no data-state, so it
   // can never match.
-  const nestedDialogOpen = () =>
-    Boolean(document.querySelector('[role="dialog"][data-state="open"]'));
   useEffect(() => {
+    const nestedDialogOpen = () =>
+      Boolean(document.querySelector('[role="dialog"][data-state="open"]'));
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         if (nestedDialogOpen()) return;

@@ -21,7 +21,7 @@ import { expect, test } from "@playwright/test";
 import {
   facetSeen,
   lastFacetViewer,
-  openSettings,
+  pinLocaleEn,
   resetFacetStub,
   seedFacetPack,
 } from "./helpers.js";
@@ -156,8 +156,11 @@ async function seedPackBoth(gw, manifest, id = "pack-e2e-1", facet = {}) {
 }
 
 async function gotoPacksTab(page, tab) {
-  await openSettings(page, "packs");
-  await expect(page.getByTestId("packs-page")).toBeVisible();
+  // simplify-ia-non-technical moved the packs surface out of Settings into
+  // the agents page's Market tab (/settings/packs only redirects there).
+  await pinLocaleEn(page);
+  await page.goto("/agents?tab=market");
+  await expect(page.getByTestId("packs-page")).toBeVisible({ timeout: 15_000 });
   await page.getByTestId(`packs-tab-${tab}`).click();
 }
 
@@ -638,7 +641,6 @@ test("tool allowlists round-trip through save/reload, clear to full, and publish
 
   // The picked reference offers its tool surface from the catalog snapshot —
   // picker-only names, defaulting to the full surface.
-  const row = page.getByTestId("pack-mcp-tools-row-e2e-registry-mcp");
   await expect(page.getByTestId("pack-mcp-tools-count-e2e-registry-mcp")).toHaveText("全部工具");
   await page.getByTestId("pack-mcp-tools-toggle-e2e-registry-mcp").click();
   await page.getByTestId("pack-mcp-tool-e2e-registry-mcp-read").click();

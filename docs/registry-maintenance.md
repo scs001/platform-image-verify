@@ -16,7 +16,7 @@
 
 | 容器 | 镜像 | 代码来源 | 职责 |
 |---|---|---|---|
-| registry-1 | `ccr.ccs.tencentyun.com/yizuo/mcp-registry:sha-c4b0994`（fd-1.1.1，中英双语控制台） | **fd fork 构建**（标准 TCR 线） | 控制台 SPA + `/api/*` 路由（服务注册/目录/审计面）+ patch-key 铸造面 |
+| registry-1 | `ccr.ccs.tencentyun.com/yizuo/mcp-registry:sha-2c2ad48`（fd-1.2.0，torch-free 瘦身 843MB） | **fd fork 构建**（org Actions 阻断期经 scs001 临时线，标准 hkccr→relay→ccr 通道） | 控制台 SPA + `/api/*` 路由（服务注册/目录/审计面）+ patch-key 铸造面；本地 embedding 推理=fastembed ONNX（`~/mcp-gateway/models/all-MiniLM-L6-v2-onnx/`） |
 | auth-server-1 | `ccr.ccs.tencentyun.com/yizuo/mcp-auth-server:sha-676a245` | **fd fork 构建**（标准 TCR 线） | `/validate` 鉴权、自签 JWT、Logto IAM、egress PAT 注入、wire 双 patch |
 | mcpgw-server-1 | `public.ecr.aws/p3v1o3c6/mcpgw:1.32.0` | 上游预构建（已钉版） | nginx 转发 hop（`/mcp-proxy/{server}`） |
 | mcp-mongodb / mcp-openbao | — | 官方镜像 | 审计流（`audit_events`，逐工具调用记录）/ 密钥 |
@@ -99,3 +99,18 @@ MCP server 接入系统供给层的统一上牌契约，出自 openspec change *
 - **v1 只登记不强制**：registry 不因 manifest 做强制校验或代码改动——注册条目不要求携带 manifest 引用，鉴权、审计（MCPServerAccessRecord）、scope→group 映射、patch-key/preflight 行为保持现状。未上牌 server 可照常注册入网关，台账标「未上牌」，但不得进入商业供给面 / pack 分发；manifest 强制校验留待 v1.x 评估。
 
 现状（2026-10-06）：8 个在册 server 全部「未上牌」；DAAS 走 change 后首个上牌实例。
+
+## 9. fd-1.2.0 发布记录（slim-registry-image，2026-10-11 上线）
+
+**镜像依赖瘦身**：2.72GB → **843MB（-69%）**。剔除 base 依赖 torch/sentence-transformers/matplotlib/scikit-learn/awscli（torch 系移入 `local-torch` extra 留逃生门；sympy 因 strands-agents-tools 传递保留）；本地 embedding 推理换 fastembed+ONNX。
+
+| 项 | 值 |
+|---|---|
+| 生产镜像 | `yizuo/mcp-registry:sha-2c2ad48`（BUILD_VERSION=fd-1.2.0） |
+| 构建线 | org Actions 账单阻断期 → scs001 fork workflow_dispatch（临时线）；hkccr → cheap-3 tcr-relay → ccr 标准通道不变 |
+| CI | scs001 三测试套件绿 + image 预算门绿（843MB ≤1600MB、fastembed import OK、torch import 拒绝） |
+| 引擎等价 | 切换前实证：同文本跨引擎余弦 0.999999、语义邻居 top-3 重合 8/8（evidence 在 paas change 目录） |
+| 切换验证 | entrypoint「ONNX found」+「fastembed loaded Dimension: 384」、容器内 encode (N,384) 归一化、health healthy、向量集合 190 条原封未动、公网 200/401 正常 |
+| ONNX 权重 | `cheap-1 ~/mcp-gateway/models/all-MiniLM-L6-v2-onnx/`（model.onnx md5 9efe4122ed…，五文件；与 torch 权重目录并存不覆盖） |
+| 回滚 | compose 行回 `sha-65139f8` + `.env` 回 `sentence-transformers`（备份：`docker-compose.prebuilt.yml.bak-slim` / `.env.bak-slim`）；`up -d --no-deps registry` |
+| 待办 | ① `/reindex`（admin，用户侧保险性重建）② 用户浏览器语义搜索一眼验收 ③ mcpgw 镜像源转存（占位 change）④ registry ArgoCD 入驻（占位 change，用户 2026-10-10 定案） ⑤ gitee 线全线同步归 wire-onboarding 会话收尾（其 compose 曾预指 sha-68e95e2 品牌线，本发布改指 sha-2c2ad48，品牌线合流后另行滚动） |

@@ -108,11 +108,23 @@ function mapServer(s) {
     // Tool surface snapshot (add-mcp-tool-scoping 5.3): the registry entry's
     // stored tool_list rides the catalog so the pack editor's tool picker can
     // offer real names; null when the entry predates a snapshot refresh.
-    toolList: Array.isArray(s.tool_list) ? s.tool_list.map((t) => String(t)) : null,
+    toolList: toolListNames(s.tool_list),
   };
 }
 
-// ── Server index for the publish tool gate (add-mcp-tool-scoping 5.1/5.2) ────
+// `tool_list` entries are tool OBJECTS ({name, description, schema, …}), not
+// name strings — observed on every production entry. Names-only is what the
+// catalog and the publish gate compare against, so normalize once here rather
+// than at each consumer (a String(t) coercion silently yields "[object Object]").
+export function toolListNames(toolList) {
+  if (!Array.isArray(toolList)) return null;
+  const names = [];
+  for (const t of toolList) {
+    if (typeof t === "string") names.push(t);
+    else if (t && typeof t === "object" && typeof t.name === "string") names.push(t.name);
+  }
+  return names.length ? names : null;
+}
 // One bounded fetch of /api/servers distilled to what the gate needs: the
 // tool_list snapshot, the commercial surface (a NAME list from
 // metadata.surface.commercial_tools — the pre-enrichment shape carries only
@@ -139,7 +151,7 @@ export async function registryServerIndex({ maxAgeMs = 60_000, fetchImpl: overri
       surfaceCountsOnly = true;
     }
     map.set(name, {
-      toolList: Array.isArray(s.tool_list) ? s.tool_list.map((t) => String(t)) : null,
+      toolList: toolListNames(s.tool_list),
       commercialTools,
       surfaceCountsOnly,
       endpoint:

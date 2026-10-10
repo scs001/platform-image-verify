@@ -168,40 +168,59 @@ test("probe tolerates SSE-framed replies and fails soft", async () => {
 });
 
 // ── registryServerIndex mapping (override fetch) ─────────────────────────────
+test("registry tool_list entries are tool objects; the index maps them to names", async () => {
+  // Production shape: tool_list carries {name, description, schema} objects —
+  // a String() coercion would yield "[object Object]" and break every name
+  // comparison downstream.
+  const { toolListNames } = await import("../registry-bridge.js");
+  const objects = [
+    { name: "read", description: "d", schema: { type: "object" } },
+    { name: "search", description: "d" },
+  ];
+  assert.deepEqual(toolListNames(objects), ["read", "search"]);
+  assert.equal(toolListNames(null), null);
+  assert.equal(toolListNames([]), null);
+  assert.deepEqual(toolListNames(["plain_name"]), ["plain_name"], "tolerate the legacy string shape");
+
+  const idx = await registryServerIndex({
+    fetchImpl: async () => ({ servers: [{ path: "/obj-srv-a", tool_list: objects }] }),
+  });
+  assert.deepEqual(idx.get("obj-srv-a").toolList, ["read", "search"]);
+});
 test("registryServerIndex maps snapshots, surfaces, and endpoints; caches", async () => {
   let fetches = 0;
   const doc = {
     servers: [
       {
-        path: "/srv-a",
+        path: "/idx-srv-a",
         tool_list: ["read", "search"],
         metadata: { surface: { commercial_tools: ["read"], tools_commercial: 1, tools_total: 2 } },
       },
-      { path: "/srv-b", tool_list: ["x"], metadata: { surface: { tools_commercial: 1, tools_total: 1 } } },
-      { path: "/srv-c", is_enabled: false },
-      { path: "/srv-d" },
+      { path: "/idx-srv-b", tool_list: ["x"], metadata: { surface: { tools_commercial: 1, tools_total: 1 } } },
+      { path: "/idx-srv-c", is_enabled: false },
+      { path: "/idx-srv-d" },
     ],
   };
   const fetchImpl = async () => {
     fetches += 1;
     return doc;
   };
+  // The cache is module-level, so force a fresh fetch for a deterministic start.
+  await registryServerIndex({ fetchImpl, maxAgeMs: 0 });
+  const fetchesAfterWarm = fetches;
   const idx = await registryServerIndex({ fetchImpl });
-  assert.equal(fetches, 1);
-  const a = idx.get("srv-a");
+  assert.equal(fetches, fetchesAfterWarm, "within the TTL the index is served without a refetch");
+  const a = idx.get("idx-srv-a");
   assert.deepEqual(a.toolList, ["read", "search"]);
   assert.deepEqual(a.commercialTools, ["read"]);
   assert.equal(a.surfaceCountsOnly, false);
-  assert.match(a.endpoint, /\/srv-a\/mcp$/);
-  const b = idx.get("srv-b");
+  assert.match(a.endpoint, /\/idx-srv-a\/mcp$/);
+  const b = idx.get("idx-srv-b");
   assert.equal(b.commercialTools, null);
   assert.equal(b.surfaceCountsOnly, true, "counts-only shape is marked, not guessed");
-  assert.ok(!idx.has("srv-c"), "disabled entries are skipped");
-  assert.equal(idx.get("srv-d").toolList, null, "no snapshot → null, gate probes");
-  // Within the cache age the index is served without a refetch.
-  await registryServerIndex({ fetchImpl });
-  assert.equal(fetches, 1);
+  assert.ok(!idx.has("idx-srv-c"), "disabled entries are skipped");
+  assert.equal(idx.get("idx-srv-d").toolList, null, "no snapshot → null, gate probes");
   const fresh = await registryServerIndex({ fetchImpl, maxAgeMs: 0 });
-  assert.equal(fetches, 2);
-  assert.ok(fresh.get("srv-a"));
+  assert.equal(fetches, fetchesAfterWarm + 1, "maxAgeMs: 0 forces a refetch");
+  assert.ok(fresh.get("idx-srv-a"));
 });

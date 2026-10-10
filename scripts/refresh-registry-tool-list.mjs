@@ -111,7 +111,10 @@ const res = await fetch(`${REGISTRY.replace(/\/+$/, "")}/api/servers${entryPath}
     "X-CSRF-Token": csrf,
     Cookie: cookie,
   },
-  body: JSON.stringify({ tool_list: names, num_tools: names.length }),
+  // Registry entries store tool_list as tool OBJECTS (name/description/schema),
+  // not name strings — writing bare strings would corrupt the snapshot shape
+  // every other consumer (console UI, semantic search) reads.
+  body: JSON.stringify({ tool_list: names.map((n) => ({ name: n })), num_tools: names.length }),
 });
 if (!res.ok) {
   console.error(`✗ PATCH failed: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);

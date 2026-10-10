@@ -525,6 +525,7 @@
       "staleHint": "El conector rechazó este PAT. Genera uno nuevo y vuelve a pegarlo.",
       "pasteHint": "Genera un token de acceso personal (oct_…) en la página «Mis conexiones» del conector y pégalo aquí.",
       "meLink": "Abrir Mis conexiones",
+      "openConsole": "Abrir la consola del conector",
       "pasteHintNoLink": "Genera un token de acceso personal (oct_…) en la página «Mis conexiones» del conector y pégalo aquí."
     }
   },

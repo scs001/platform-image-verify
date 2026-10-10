@@ -1,10 +1,12 @@
 // ConnectorConnectPanel.tsx
 // The 萬星 connector credential control (connector-credentials): paste a PAT
 // minted on the connector's 我的连接 page, see connected / invalidated state,
-// disconnect. No silent-connect flow — the connector's login is a browser
-// redirect on its own app, so v1 is paste-only. Rendered beside
-// RegistryConnectPanel (McpMarketView header + the add-server dialog) so both
-// MCP credential surfaces share one mental model.
+// disconnect. The "open connector console" entry stays visible in BOTH states
+// (disconnected = go mint; connected = manage/revoke) and hides only when the
+// baseline has no connector row. No silent-connect flow — the connector's
+// login is a browser redirect on its own app, so v1 is paste-only. Rendered
+// beside RegistryConnectPanel (McpMarketView header + the add-server dialog)
+// so both MCP credential surfaces share one mental model.
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -107,6 +109,18 @@ export function ConnectorConnectPanel({ compact = false, className = "" }: Conne
           >
             {t(state === "stale" ? "extensions.connector.repasteToggle" : "extensions.connector.pasteToggle")}
           </Button>
+        )}
+        {meUrl && (
+          <a
+            href={meUrl}
+            target="_blank"
+            rel="noreferrer"
+            data-testid="connector-console-link"
+            className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground"
+          >
+            <Icon name="external-link" size={14} className="mr-1.5" />
+            {t("extensions.connector.openConsole")}
+          </a>
         )}
         {state === "connected" && !compact && (
           <Button

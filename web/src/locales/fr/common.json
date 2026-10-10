@@ -525,6 +525,7 @@
       "staleHint": "Le connecteur a rejeté ce PAT. Génère-en un nouveau et recolle-le.",
       "pasteHint": "Génère un jeton d'accès personnel (oct_…) sur la page « Mes connexions » du connecteur et colle-le ici.",
       "meLink": "Ouvrir Mes connexions",
+      "openConsole": "Ouvrir la console du connecteur",
       "pasteHintNoLink": "Génère un jeton d'accès personnel (oct_…) sur la page « Mes connexions » du connecteur et colle-le ici."
     }
   },

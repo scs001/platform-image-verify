@@ -525,6 +525,7 @@
       "staleHint": "The connector rejected this PAT. Mint a fresh one and re-paste it.",
       "pasteHint": "Mint a personal access token (oct_…) on the connector's “My connections” page and paste it here.",
       "meLink": "Open My connections",
+      "openConsole": "Open connector console",
       "pasteHintNoLink": "Mint a personal access token (oct_…) on the connector's “My connections” page and paste it here."
     }
   },

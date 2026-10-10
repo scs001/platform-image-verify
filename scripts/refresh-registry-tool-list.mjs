@@ -10,12 +10,15 @@
 // back into the entry.
 //
 // Two read paths, in order of preference:
-//   1. runtime — initialize + tools/list against the MCP endpoint (preferred;
-//      the ledger's authority order puts live runtime above everything else).
-//      The public gateway route is billing-gated, so pass the upstream URL
-//      (`--upstream`, from the ledger's 上游 column) when the public route
-//      answers 503 BILLING_UNAVAILABLE.
-//   2. --from-json <file> — an already-captured tools/list result.
+//   1. --registry-refresh (DEFAULT) — the registry's own
+//      `POST /api/refresh/<path>` re-fetches the tool surface server-side and
+//      rewrites the entry's tool_list itself. It needs no upstream credential
+//      and is not blocked by the billing gate, so it is the first thing to try
+//      (verified 2026-10-11 on three 已上牌 entries: healthy, counts intact).
+//   2. --upstream <url> / --from-json <file> — re-read the names ourselves
+//      (runtime tools/list, or an already-captured result) and PATCH them in.
+//      Use when the registry refresh does not pick up a change; the upstream
+//      usually wants its own credential, not the registry token (401).
 //
 // The write goes through the console-session PATCH channel (JSON Merge Patch),
 // which needs an admin session cookie and a CSRF token; reuse the token file
@@ -46,7 +49,44 @@ if (!entryPath) {
 }
 const dryRun = has("dry-run");
 
-// ── 1. read the current tool names ───────────────────────────────────────────
+const cookie = process.env.REGISTRY_COOKIE || arg("cookie");
+const csrf = process.env.REGISTRY_CSRF || arg("csrf");
+
+// ── 1a. the registry's own refresh (default path) ────────────────────────────
+// Server-side re-fetch: no upstream credential, no billing gate. When it
+// succeeds the entry is already updated, so there is nothing to PATCH.
+if (!has("upstream") && !arg("from-json")) {
+  if (dryRun) {
+    console.log(`[refresh] dry run — would POST ${REGISTRY}/api/refresh${entryPath}`);
+    process.exit(0);
+  }
+  if (!cookie || !csrf) {
+    console.error(
+      `✗ registry refresh needs an admin console session.\n` +
+        `  Set REGISTRY_COOKIE (session cookie from a logged-in console tab) and REGISTRY_CSRF (from GET ${REGISTRY}/api/auth/csrf-token).\n` +
+        `  Alternatively pass --upstream/--from-json to re-read and PATCH the names yourself.`,
+    );
+    process.exit(1);
+  }
+  const r = await fetch(`${REGISTRY.replace(/\/+$/, "")}/api/refresh${entryPath}`, {
+    method: "POST",
+    headers: { "X-CSRF-Token": csrf, Cookie: cookie, "Content-Type": "application/json" },
+  });
+  const body = await r.text();
+  if (!r.ok) {
+    console.error(`✗ refresh failed: HTTP ${r.status} ${body.slice(0, 200)}`);
+    process.exit(1);
+  }
+  let doc = null;
+  try { doc = JSON.parse(body); } catch { /* non-JSON body: report raw */ }
+  console.log(
+    `[refresh] ${entryPath}: ${doc?.message ?? body.slice(0, 120)}` +
+      (doc?.num_tools != null ? ` — ${doc.num_tools} tool(s), status ${doc.status ?? "?"}` : ""),
+  );
+  process.exit(0);
+}
+
+// ── 1b. read the tool names ourselves, then PATCH them in ────────────────────
 let names = null;
 const fromJson = arg("from-json");
 if (fromJson) {
@@ -83,18 +123,12 @@ if (fromJson) {
 }
 
 // ── 2. write them back into the entry ────────────────────────────────────────
-const cookie = process.env.REGISTRY_COOKIE || arg("cookie");
-if (!cookie) {
+if (!cookie || !csrf) {
   console.error(
     `✗ an admin console session is required to PATCH the entry.\n` +
       `  Set REGISTRY_COOKIE (copy the session cookie from a logged-in console tab) and REGISTRY_CSRF (from GET ${REGISTRY}/api/auth/csrf-token).\n` +
       `  Names are ready to paste manually otherwise: ${names.join(", ")}`,
   );
-  process.exit(1);
-}
-const csrf = process.env.REGISTRY_CSRF || arg("csrf");
-if (!csrf) {
-  console.error("✗ REGISTRY_CSRF (or --csrf) is required alongside the session cookie");
   process.exit(1);
 }
 

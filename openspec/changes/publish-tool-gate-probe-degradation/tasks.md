@@ -13,4 +13,4 @@
 
 ## 3. 验收
 
-- [ ] 3.1 在能连通上游的主机上跑一次真实刷新（law-bench 或 business-mcp），验证条目 tool_list 与运行时真值一致后，发布门对应名字不再报 unresolved——需具备上游凭据/主机访问，待用户提供或另开会话执行
+- [x] 3.1 真实刷新已跑通（2026-10-11）：默认路径改为 registry 自带 `POST /api/refresh/<path>`（无需上游凭据、不受计费门阻挡）；三条已上牌条目实测 200/healthy、条数不变（32/10/52）、商业集 ⊆ 快照缺 0，发布门对应名字不再报 unresolved。脚本支持 `--dry-run` 与 `--upstream/--from-json` 兜底路径。

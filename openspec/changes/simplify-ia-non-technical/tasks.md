@@ -26,8 +26,8 @@
 ## 5. e2e 迁移与回归
 
 - [x] 5.1 grep 清单清扫：nav-bots/nav-trace、settings-section-presets/packs、`?tab=agents` 两 tab 断言、/bots /trace 整页断言的用例全部改写到新面；本地 `npm run lint && npm run build` 绿
-- [ ] 5.2 新增/迁移重定向与入口用例（五组重定向、channels/diagnostics 分节、专家 tab 管理面、market 门控）；CI e2e 全绿（e2e 走 GitHub CI，看步骤级结论）
+- [x] 5.2 新增/迁移重定向与入口用例（五组重定向、channels/diagnostics 分节、专家 tab 管理面、market 门控）；CI e2e 全绿（e2e 走 GitHub CI，看步骤级结论）
 
 ## 6. 上线
 
-- [ ] 6.1 标准发布线（源码 push→CI 绿→镜像→GitOps tag→ArgoCD 滚动），上线后冒烟：五 tab、三组设置、三 tab 智能体页、五组重定向、模型只读视图（生产非 admin 账号）
+- [x] 6.1 标准发布线（源码 push→CI 绿→镜像→GitOps tag→ArgoCD 滚动），上线后冒烟：五 tab、三组设置、三 tab 智能体页、五组重定向、模型只读视图（生产非 admin 账号）

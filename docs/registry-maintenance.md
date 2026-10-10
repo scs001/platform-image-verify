@@ -114,3 +114,15 @@ MCP server 接入系统供给层的统一上牌契约，出自 openspec change *
 | ONNX 权重 | `cheap-1 ~/mcp-gateway/models/all-MiniLM-L6-v2-onnx/`（model.onnx md5 9efe4122ed…，五文件；与 torch 权重目录并存不覆盖） |
 | 回滚 | compose 行回 `sha-65139f8` + `.env` 回 `sentence-transformers`（备份：`docker-compose.prebuilt.yml.bak-slim` / `.env.bak-slim`）；`up -d --no-deps registry` |
 | 待办（2026-10-11 收尾后） | ① `/reindex` **降级为可选**：语义搜索实证优秀（weather→eco-mcp-time、法律检索→fd-legal-search-mcp、database query→daas/cell、网页抓取→研究类 workflow，头名全中、跨 servers/skills/tools/virtual_servers 实体类型），既有 190 条向量被新引擎正确召回，等价实测 0.999999 → 不重建亦完全可用；需要时 admin `POST /admin/embeddings/reindex`（按 paths，无全量模式） ② **仅余用户浏览器一眼验收**（UI 层无法代劳） ③ mcpgw 转存 **已完成并归档**（`ccr.../yizuo/mcpgw:1.32.0` + `.env` ECR_REGISTRY 覆盖，容器 healthy、真流量 `POST /mcp 200`） ④ registry ArgoCD 入驻（占位 change `onboard-registry-argocd`） ⑤ gitee 线全线同步归 wire-onboarding 会话收尾（其 compose 曾预指 sha-68e95e2 品牌线，本发布改指 sha-2c2ad48，品牌线合流后另行滚动） |
+
+### 9.1 交接说明（给 wire-onboarding 会话 ff 时注意）
+
+本发布在 cheap-1 部署树上留了三处改动，ff gitee 线时请勿覆盖：
+
+| 文件 | 行 | 内容 |
+|---|---|---|
+| `docker-compose.prebuilt.yml` | 51 | `image: ccr.../yizuo/mcp-registry:sha-2c2ad48`（fd-1.2.0；你线曾预指 sha-68e95e2 品牌线，待其发布后由你决定何时再改指并滚动） |
+| `.env` | 988 | `EMBEDDINGS_PROVIDER=fastembed`（代码默认同值；留 `sentence-transformers` 会静默降级为纯关键词搜索） |
+| `.env` | 1152 | `ECR_REGISTRY=ccr.ccs.tencentyun.com/yizuo`（mcpgw 转存，原 public.ecr.aws 海外源） |
+
+第 410 行 auth-server `sha-0aad2b5` 未动（你的版本）。备份在 `.bak-slim`。

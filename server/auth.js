@@ -38,6 +38,10 @@ const AUTH_EXEMPT_PREFIXES = [
   "/api/app/pair",
   "/api/app/challenge",
   "/api/app/login",
+  // Ops reads (add-pack-usage-telemetry): the pack-usage aggregate is an
+  // ops-console data source on the internal network — same convention as the
+  // bot prefixes above, the route carries its own bearer credential.
+  "/api/ops/",
 ];
 
 export function normalizeAuthPath(value, fallback) {

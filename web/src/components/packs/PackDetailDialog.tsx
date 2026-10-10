@@ -231,7 +231,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                 <h4 className="mb-2 font-medium">{t("packs.guide.title")}</h4>
                 <ol className="space-y-2">
                   {guide.steps.map((s, i) => (
-                    <li key={i} className="text-xs">
+                    <li key={s.title} className="text-xs">
                       <span className="font-medium text-foreground">
                         {t("packs.guide.step", { n: i + 1 })} · {s.title}
                       </span>

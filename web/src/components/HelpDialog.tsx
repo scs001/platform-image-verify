@@ -162,7 +162,7 @@ export function HelpDialog({ open, onOpenChange }: Props) {
                   {open && (
                     <ol className="flex flex-col gap-2 border-t border-border px-3 py-2">
                       {guide.steps.map((s, i) => (
-                        <li key={i} className="text-xs">
+                        <li key={s.title} className="text-xs">
                           <span className="font-medium text-foreground">
                             {t("packs.guide.step", { n: i + 1 })} · {s.title}
                           </span>

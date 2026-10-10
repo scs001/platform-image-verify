@@ -192,10 +192,10 @@ export function OnboardingTour({ onFinish }: { onFinish: () => void }) {
         </p>
         <div className="mt-3 flex items-center justify-between">
           <div className="flex gap-1" aria-hidden="true">
-            {STEPS.map((_, i) => (
+            {STEPS.map((st) => (
               <span
-                key={i}
-                className={cn("h-1.5 w-1.5 rounded-full", i === step ? "bg-primary" : "bg-muted-foreground/30")}
+                key={st.anchor}
+                className={cn("h-1.5 w-1.5 rounded-full", st.anchor === STEPS[step]?.anchor ? "bg-primary" : "bg-muted-foreground/30")}
               />
             ))}
           </div>

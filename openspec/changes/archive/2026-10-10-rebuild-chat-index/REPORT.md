@@ -73,3 +73,41 @@
 - `normalizeFunctionalRefs` 重跑可复原链接改写（有单测钉死）；
 - UNKNOWN_TOOL 候选附注不可复原（保留原始错误文本）；
 - 子代理会话不入索引（与实时镜像一致）。
+
+---
+
+## 生产执行记录（2026-10-10 22:38–22:47 CST）
+
+**发布链**：GHA 被 billing 阻断（`gh run view` 明确报 "recent account payments have failed"）、
+Jenkins 已于 10-10 退役 → 走 **cheap-3 docker 直建**（该机有 docker + TCR 凭据 + 双区网络）：
+`git archive HEAD` → scp → `docker build`（46/46）→ 冒烟 → push hkccr → tcr-relay 自动同步 ccr
+（digest 双侧一致 `sha256:643b31d4…`）→ fd-infra-deploy 提 tag `sha-61e44f7` → ArgoCD 同步。
+
+**生产 dry-run**（cell 已停，单写者）：
+
+```
+[rebuild] owner: 3106241601@qq.com
+[rebuild] sessions: 125 (transcript 108, legacy 1, legacy-only 16)
+[rebuild] messages: 5104
+[rebuild] content bytes: 233178.5 KiB
+[rebuild] skipped foreign-owner sessions: 4
+```
+
+**apply**：
+
+```
+[rebuild] mode: apply (backup: /data/cells/2b043ce050ca134c/data/data/app.db.bak-2026-10-10T14-43-50-315Z)
+[rebuild] wrote 125 sessions / 5104 messages
+```
+
+**写后核对**（直读库）：sessions=125（owner 全部为 3106241601@qq.com）、messages=5104、
+其中 **4,717 条带 blocks**（抽样 tool 块字段 `kind,id,name,args,result,state` 完整、`state=done`、
+`result` 非空）、13 条空 "New chat"（恢复原状）。最大会话 364 条消息（《加密朋克史 前传》细纲）。
+
+**用户面验收**（以 spawner 的 per-user env 起临时 cell，用网关注入的同款身份头查其 API）：
+
+- `GET /api/chat-history/sessions` → **126 条**（125 重建 + 1 当前活动会话），标题与消息数真实；
+- 打开最大会话 → title 正确、364 条消息、role 分布 user 4 / assistant 360；
+- 临时 cell 已停，临时文件已清。
+
+**体积**：索引 8GB（被删前）→ **349MB**（重建后），其中 trace 部分已分离到 `trace.db`。

@@ -4,6 +4,7 @@
 Chat sessions as durable, user-facing history: every conversation is mirrored to the project database as it runs, and users can list, start, resume, switch, rename, and delete sessions — the list refreshes after each turn ends, and each session records the workspace it ran in.
 
 ## Requirements
+
 ### Requirement: Chat sessions are mirrored to the project database as the conversation progresses
 The server SHALL mirror each chat session's user prompts and assistant responses into the project SQLite database (managed by `project-database`) as the conversation progresses - the user message on `prompt` and the assistant's final message on turn completion (`done`). This SHALL apply to **both local dsh agent turns and remote (catalog `agent-remote`) agent turns**: remote turns (streamed via `streamRemoteChat`) SHALL be persisted on stream completion via the same `recordMessage()` path as local turns, so a browser close/reopen does not leave a dangling user message with no reply. The project database SHALL be the store of record for the session list and read-only view APIs. The dsh runtime persists sessions by id to its own disk store; the server SHALL keep the SQLite mirror in sync as turns progress. The server SHALL track a current session in memory. Each session SHALL expose an id, a title (derived from the first user message), creation timestamp, and update timestamp. SQLite writes SHALL be atomic and crash-safe via transactions.
 
@@ -174,7 +175,6 @@ Each session SHALL have a `title` field that defaults to the first user message 
 - **THEN** the server SHALL return HTTP 400 with `{ error: "title must be 200 characters or fewer" }`
 - **AND** no change SHALL be made
 
-
 ### Requirement: Sessions record their owner
 The session mirror SHALL stamp the authenticated owner (see `session-ownership`) on a session when its first turn is mirrored and SHALL NOT change it afterwards. The underlying storage change SHALL be an additive migration; sessions created before this capability are assigned to the deploy-designated owner account by that migration.
 
@@ -209,3 +209,42 @@ change SHALL be an additive migration.
 - **WHEN** the sessions payload includes rows created before this capability
 - **THEN** those rows carry no workspace value and clients render them under
   the Ungrouped group
+
+### Requirement: The session index is a rebuildable projection of the dsh transcripts
+
+The SQLite session index (`chat_sessions` / `chat_messages`) SHALL be treated as a projection that can be rebuilt from the dsh runtime's per-session transcripts (`<DSH_HOME>/sessions/<scope>/<sessionId>/session.jsonl.zstd`), which are the store of record for conversation content. The server SHALL ship a rebuild tool that reconstructs the index from transcripts alone, or by merging transcripts with a pre-migration single-process database when one is supplied. The tool SHALL default to a dry run that reports the plan without writing, SHALL back up the existing index before any write, SHALL be idempotent (upsert by session id, safe to re-run), and SHALL reproduce the live mirror's row semantics exactly: one `user` row per genuine user event (events whose `source.kind` is `user`, deduplicated by event id), one `assistant` row per `assistant/message` event that carries text or tool blocks, and an assistant row's `blocks` synthesized from that turn's `tool/call` and `tool/result` events. Only top-level sessions (`delegationDepth` 0) SHALL be indexed, matching the live mirror; session metadata (`title`, `agent_preset`, `workspace`, timestamps) SHALL be derived from the transcript header and first user message. Sessions present only in the supplied legacy database SHALL be imported as-is, and rows belonging to a different owner than the cell's user SHALL NOT be imported.
+
+#### Scenario: dry run reports without writing
+
+- **WHEN** the rebuild tool runs against a cell's transcripts without `--apply`
+- **THEN** it prints the planned session and message counts (with per-session provenance: transcript, legacy database, or both) and SHALL NOT modify the index
+
+#### Scenario: rebuild reproduces the live mirror byte-for-byte
+
+- **WHEN** the tool rebuilds a session whose transcript was also mirrored live
+- **THEN** the resulting rows match the live mirror's role, content, and `blocks` for every message, in order
+
+#### Scenario: tool evidence survives rebuild
+
+- **WHEN** a rebuilt assistant row's turn contained tool calls
+- **THEN** its `blocks` carry each call's id, name, parsed `args`, result text, and `done`/`error` state, reconstructed from the transcript's `tool/call` and `tool/result` events
+
+#### Scenario: subagent sessions are not indexed
+
+- **WHEN** a transcript belongs to a delegated subagent session (`delegationDepth` > 0)
+- **THEN** the rebuild creates no session row for it
+
+#### Scenario: merge prefers the more complete side per session
+
+- **WHEN** a session exists both in the transcripts and in the supplied legacy database
+- **THEN** the rebuild uses the side with more messages, keeping the other side's extra sessions intact
+
+#### Scenario: foreign-owner sessions are not imported
+
+- **WHEN** the supplied legacy database contains session rows whose owner is not the cell's user
+- **THEN** those rows are skipped and no session or message row is created for them
+
+#### Scenario: write is guarded and idempotent
+
+- **WHEN** the tool runs with `--apply` against an index that already holds rows
+- **THEN** it first writes a backup copy of the index, then upserts, and a second run produces the same result

@@ -14,8 +14,8 @@
 
 ## 3. 生产处置与验证（fd-prod / cheap-3）
 
-- [ ] 3.1 滚动前确认 fd-prod `compute-quota` 余量（10-07 满配额坑）——`kubectl -n fd-prod describe quota` 有 ≥2Gi 余量
-- [ ] 3.2 镜像滚动上线；网关日志无异常；各 cell 按需重生——`/api/gateway/status` 行数合理、无 error 记录
-- [ ] 3.3 清理现存孤儿：kill 宿主 pid 86793（`2b043ce050ca134c` 的孤儿 cell），确认该用户与 `1da519d4c1c0bf89` 各只剩一个 cell 进程——`ps` + `/proc/<pid>/fd` 核对，记录到 change 报告
-- [ ] 3.4 复现性验证：对目标 cell 制造一次并发首访（同时发两个请求）→ 断言只产生一个进程（日志只有一条 `running on`）——证据入报告
+- [x] 3.1 滚动前确认 fd-prod `compute-quota` 余量（10-07 满配额坑）——`kubectl -n fd-prod describe quota` 有 ≥2Gi 余量
+- [x] 3.2 镜像滚动上线；网关日志无异常；各 cell 按需重生——`/api/gateway/status` 行数合理、无 error 记录
+- [x] 3.3 清理现存孤儿：kill 宿主 pid 86793（`2b043ce050ca134c` 的孤儿 cell），确认该用户与 `1da519d4c1c0bf89` 各只剩一个 cell 进程——`ps` + `/proc/<pid>/fd` 核对，记录到 change 报告
+- [x] 3.4 复现性验证：对目标 cell 制造一次并发首访（同时发两个请求）→ 断言只产生一个进程（日志只有一条 `running on`）——证据入报告
 - [x] 3.5 归档前 `openspec validate fix-cell-spawn-inflight-dedup --strict` 全绿

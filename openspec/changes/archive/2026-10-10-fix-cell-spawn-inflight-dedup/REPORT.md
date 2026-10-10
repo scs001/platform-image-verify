@@ -68,3 +68,23 @@ cheap-3 实测：`2b043ce050ca134c` 在 09:43 两秒内 spawn 两次，15:56 的
 
 本 change 是 `rebuild-chat-index` 生产执行的前置：重建要求目标库是单写者，而修复前的 spawner
 仍会制造孤儿进程去并发写新建的库。发布顺序：**本 change 先行** → 滚部署 → 再执行重建。
+
+---
+
+## 生产执行记录（2026-10-10 22:38 起，镜像 sha-61e44f7）
+
+**滚动方式**：deployment 是 `strategy: Recreate`（无 surge），所以换镜像 = 旧 pod 整体销毁重建。
+这同时**顺带清掉了历史孤儿**：旧 pod 里的孤儿 cell 进程（宿主 pid 86793）随 pod 一起消失。
+
+**清后核对**（cheap-3 宿主 `ps` + `/proc/<pid>/environ`）：
+
+- 平台 pod 内只有一个 gateway 进程（22:38 起）+ 一个 cell 进程（`0f483a072f22ae37`，22:38 起）；
+- 小说 cell `2b043ce050ca134c` **未被自动 spawn**（无流量即不 spawn），因此重建期间它是停的
+  —— 单写者前提天然满足；
+- 重建完成后按需起了一次临时 cell 做验收，验收后已 SIGTERM 停掉并确认进程消失。
+
+**部署前配额检查**：`fd-prod/compute-quota` = limits.memory 16352Mi/20Gi（余 ~3.6Gi）、
+limits.cpu 9700m/12 —— 健康，Recreate 不额外占 surge 配额。
+
+**留档**：本次未人为制造并发首访（生产不宜），并发去重由单测在修复前/后两版上的对照证明
+（修复前 3 条失败 + 收尾挂死 180s；修复后 7/7 绿），见上文"反证"节。

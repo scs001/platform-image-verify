@@ -20,11 +20,11 @@
 
 ## 4. 生产重建与验收（cheap-3 / novel cell）
 
-- [ ] 4.1 前置：`fix-cell-spawn-inflight-dedup` 已上线；确认 `2b043ce050ca134c` 只剩一个 cell 进程（`ps` + gateway 日志）——无孤儿进程
-- [ ] 4.2 停 cell → pod 内 dry-run（`--cell-root /data/cells/2b043ce050ca134c --legacy <拷入的老库>`）→ 核对报告：125 会话（109 转录侧 + 16 legacy-only）、5,104 消息、他人行 4 跳过、`errors: []`、~228 MiB
-- [ ] 4.3 `--apply` 执行 + 确认备份文件生成；重启后侧边栏 125 行（用户本人浏览器确认）
-- [ ] 4.4 抽查三个时代各一会话（`--app--` / `--data-workspace--` / 当前 workspace）打开正常、工具块与结果完整；最大会话（307 条 user 消息）打开正常；含交付文件链接的会话点得开（归一函数生效）
-- [ ] 4.5 用户点名验收会话（如有）逐条打开确认；记录验收证据到 change 报告
+- [x] 4.1 前置：`fix-cell-spawn-inflight-dedup` 已上线；确认 `2b043ce050ca134c` 只剩一个 cell 进程（`ps` + gateway 日志）——无孤儿进程
+- [x] 4.2 停 cell → pod 内 dry-run（`--cell-root /data/cells/2b043ce050ca134c --legacy <拷入的老库>`）→ 核对报告：125 会话（109 转录侧 + 16 legacy-only）、5,104 消息、他人行 4 跳过、`errors: []`、~228 MiB
+- [x] 4.3 `--apply` 执行 + 确认备份文件生成；重启后侧边栏 125 行（用户本人浏览器确认）
+- [x] 4.4 抽查三个时代各一会话（`--app--` / `--data-workspace--` / 当前 workspace）打开正常、工具块与结果完整；最大会话（307 条 user 消息）打开正常；含交付文件链接的会话点得开（归一函数生效）
+- [x] 4.5 用户点名验收会话（如有）逐条打开确认；记录验收证据到 change 报告
 
 ## 5. 收口
 

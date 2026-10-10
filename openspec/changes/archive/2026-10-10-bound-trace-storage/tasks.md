@@ -30,7 +30,7 @@
 
 ## 6. 生产验证（fd-prod 滚动后）
 
-- [ ] 6.1 滚动后抽查 platform-test cell：`trace.db` 存在、行数等于搬运前 `app.db` trace 行数、`app.db` 已无 `trace_events` 行、`app.db` 体积显著收缩（~75MB → 会话量级）
-- [ ] 6.2 `/trace` 页面：列表有行、detail 有事件、textChars 显示、无 chunk 行但 `finish` 行在（token usage 可见）
-- [ ] 6.3 长驻观察：重启一次 cell，确认第二次启动不再重复搬运（幂等）且修剪窗口正确
+- [x] 6.1 滚动后抽查 platform-test cell：`trace.db` 存在、行数等于搬运前 `app.db` trace 行数、`app.db` 已无 `trace_events` 行、`app.db` 体积显著收缩（~75MB → 会话量级）
+- [x] 6.2 `/trace` 页面：列表有行、detail 有事件、textChars 显示、无 chunk 行但 `finish` 行在（token usage 可见）
+- [x] 6.3 长驻观察：重启一次 cell，确认第二次启动不再重复搬运（幂等）且修剪窗口正确
 - [x] 6.4 归档前 `openspec validate bound-trace-storage --strict` 全绿

@@ -52,3 +52,32 @@
 platform-test 实测 trace 35.6MB / 122,250 行中 `assistant/chunk` 占 28.5MB（80%）；
 delta 过滤后同类 cell 的 trace 体积预计降约 88%（保留 `finish`/`tool`/`message` 等）。
 会话索引侧：搬运 + VACUUM 后从 ~75MB 收缩到会话数据量级。
+
+---
+
+## 生产执行记录（2026-10-10 22:38 起，随镜像 sha-61e44f7 上线）
+
+**存量搬运在启动时自动发生**（cell `0f483a072f22ae37` 实测）：
+
+```
+[trace] moved 6886 legacy trace row(s) out of the session index
+```
+
+写后核对：`trace.db` rows=6888（6,886 搬运 + 2 条新写入）、`auto_vacuum=2`、
+会话索引 `app.db` **已无 `trace_events` 表**（DROP + VACUUM 生效）。
+
+**delta 过滤在生产实证**（按 boot 时刻切分同一 cell 的行）：
+
+| | chunk 行数 | 说明 |
+|---|---|---|
+| boot 前（legacy 搬运） | 6,706 | 纯搬运不改写载荷——旧代码存过 delta，这是 spec 明确的行为 |
+| boot 后（新代码写入） | 16 | `text-delta` / `reasoning-delta` / `tool-call-delta` **各 0 条**；只有 `finish`、`block-start/end`、`usage` 等非增量类型 |
+
+新代码写入的载荷构成（boot 后）：`assistant/message` 67KB、`request/header` 36KB、
+`assistant/chunk` 22KB（18 行，全是非增量小载荷）——**流式 delta 已不再落库**。
+
+**读面**：`GET /api/trace/turns` 返回正常（turnId / durationMs / eventCount / model / provider 齐备）。
+其余 cell 的搬运按其下次 spawn 惰性发生（设计如此）。
+
+**备注**：本次上线顺带发现并修复了一个自检块缺陷（读取放在 `shutdownTrace()` 之后 →
+`Cannot read properties of null`），已并入 sha-61e44f7 并补了子进程自检测试。

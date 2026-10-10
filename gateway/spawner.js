@@ -75,6 +75,13 @@ export function createCellRegistry(config) {
     demoIdleReapSecs = 900,
   } = config;
   const cells = new Map();
+  // In-flight spawns, keyed by userId. Registered BEFORE spawnCell() is called
+  // — the cell record only exists once spawnCell has awaited a free port and
+  // its mkdirs, so a guard reading cells.get(userId).starting cannot collapse
+  // two requests that both arrive during that window. (That was the
+  // 2026-10-10 duplicate-spawn defect: two cells for one user, the older one
+  // orphaned and never reaped.)
+  const inflight = new Map();
   let shuttingDown = false;
   let reaper = null;
 
@@ -89,6 +96,43 @@ export function createCellRegistry(config) {
       if (c.demo && (c.state === "running" || c.state === "starting")) n++;
     }
     return n;
+  }
+
+  // Terminate a cell process and wait for it to actually exit: SIGTERM first,
+  // escalating to SIGKILL once the grace period lapses. A cell that ignores
+  // SIGTERM (wedged dsh child) must not keep the host's memory — or the cell's
+  // SQLite stores — forever, and a replacement must never leave two live
+  // processes writing the same data root.
+  const KILL_GRACE_MS = 5000;
+  async function terminateChild(child, userId) {
+    if (!child || child.exitCode !== null) return;
+    await new Promise((resolve) => {
+      let settled = false;
+      let escalate = null;
+      let cap = null;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        if (escalate) clearTimeout(escalate);
+        if (cap) clearTimeout(cap);
+        resolve();
+      };
+      child.once("exit", done);
+      // Re-check after subscribing: an exit between the caller's check and the
+      // listener attach would otherwise only be caught by the backstop timer.
+      if (child.exitCode !== null) return done();
+      child.kill("SIGTERM");
+      escalate = setTimeout(() => {
+        if (child.exitCode === null) {
+          console.warn(`[gateway] cell ${userId} ignored SIGTERM for ${KILL_GRACE_MS}ms — SIGKILL`);
+          child.kill("SIGKILL");
+        }
+      }, KILL_GRACE_MS);
+      escalate.unref?.();
+      // SIGKILL is not ignorable, so this is a backstop, not an expected path.
+      cap = setTimeout(done, KILL_GRACE_MS + 1000);
+      cap.unref?.();
+    });
   }
 
   function spawnCell(user) {
@@ -120,6 +164,18 @@ export function createCellRegistry(config) {
         lastTraffic: Date.now(),
         error: null,
       };
+      // A record is replaced only by terminating its process first. Writing
+      // over a live record orphans the process: it keeps running with no
+      // record, so nothing routes to it and nothing reaps it — and it keeps
+      // holding the cell's SQLite stores. That is the 2026-10-10 defect.
+      const previous = cells.get(userId);
+      if (previous?.child && previous.child.exitCode === null) {
+        console.warn(`[gateway] cell ${userId} record replaced while its process was alive — terminating pid ${previous.pid}`);
+        // Mark it stopping so its exit handler treats the death as deliberate
+        // (no "exited unexpectedly" line for a process we just killed).
+        previous.state = "stopping";
+        await terminateChild(previous.child, userId);
+      }
       cells.set(userId, cell);
 
       const env = {
@@ -176,16 +232,30 @@ export function createCellRegistry(config) {
         console.error(`[gateway] cell ${userId} exited unexpectedly: ${cell.error}`);
       });
 
-      await waitForPort(port, startTimeoutMs, () => child.exitCode !== null);
+      try {
+        await waitForPort(port, startTimeoutMs, () => child.exitCode !== null);
+      } catch (err) {
+        // A cell that never came up must not leave a "starting" record behind:
+        // the next ensure() would see a non-running record, spawn again, and
+        // this dead process would still be holding the port's listener slot.
+        // Terminate it, and drop the record when it is still ours.
+        cell.state = "error";
+        cell.error = err.message;
+        await terminateChild(child, userId);
+        if (cells.get(userId) === cell) cells.delete(userId);
+        throw err;
+      }
       cell.state = "running";
       console.log(`[gateway] cell ${userId} running on 127.0.0.1:${port} (pid ${cell.pid})`);
       return cell;
     })();
   }
 
-  // `inflight` collapses concurrent first requests for the same user onto one
-  // spawn — the "starting" state two parallel requests would otherwise both
-  // observe, each launching its own cell.
+  // Concurrent first requests for the same user collapse onto one spawn. The
+  // in-flight promise is registered BEFORE spawnCell() runs: spawnCell awaits a
+  // free port and three mkdirs before it writes the cell record, so any guard
+  // reading the record (cells.get(userId).starting) misses exactly the window
+  // two parallel requests would both observe.
   function ensure(user) {
     const userId = userIdFor(user.email);
     const existing = cells.get(userId);
@@ -193,7 +263,8 @@ export function createCellRegistry(config) {
       existing.lastTraffic = Date.now();
       return Promise.resolve(existing);
     }
-    if (existing?.starting) return existing.starting;
+    const pending = inflight.get(userId);
+    if (pending) return pending;
     // Demo pool bound (openspec: mp-demo-mode): a full pool is an expected,
     // friendly condition, so the error carries a machine-readable code and a
     // user-facing message rather than a raw spawn failure.
@@ -204,11 +275,9 @@ export function createCellRegistry(config) {
       return Promise.reject(err);
     }
     const started = spawnCell(user).finally(() => {
-      const cell = cells.get(userId);
-      if (cell) delete cell.starting;
+      inflight.delete(userId);
     });
-    const cell = cells.get(userId);
-    if (cell) cell.starting = started;
+    inflight.set(userId, started);
     return started;
   }
 
@@ -301,11 +370,21 @@ export function createCellRegistry(config) {
     }
   }
 
-  // Forget a cell record without stopping anything: for a process that died
-  // out from under the gateway (crash, SIGKILL), where the stale "running"
-  // record would otherwise send every future ensure() to a dead port. The
-  // next ensure() spawns fresh. A no-op when the user has no record.
+  // Forget a cell record. Intended for a process that died out from under the
+  // gateway (crash, SIGKILL), where the stale "running" record would otherwise
+  // send every future ensure() to a dead port. A record is never removed while
+  // its process is alive: that would orphan the process — running, unrouted,
+  // unreapable, and still holding the cell's SQLite stores (2026-10-10
+  // defect). A live process is routed through stop() instead, so the record
+  // disappears in the exit handler once the process is actually gone. A no-op
+  // when the user has no record.
   function drop(userId) {
+    const cell = cells.get(userId);
+    if (!cell) return false;
+    if (cell.child && cell.child.exitCode === null) {
+      console.warn(`[gateway] drop(${userId}) called with a live process — stopping pid ${cell.pid} instead`);
+      return stop(userId, "drop with live process");
+    }
     return cells.delete(userId);
   }
 

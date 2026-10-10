@@ -1,30 +1,80 @@
 // server/trace.js — full-fidelity dsh notification capture for the /trace viewer.
 //
 // A tap at the top of handleDshEvent (server/dsh-events.js) feeds every runtime
-// notification here; rows land in the SQLite `trace_events` table keyed by turn
-// (the durable message id prompt() resolves with). Writes are batched (500ms /
-// 200-row flush, forced on turn end) so streaming deltas don't hit SQLite per
-// chunk. Everything is failure-isolated: a trace error logs and never breaks
-// the chat turn (graceful-degradation convention).
+// notification here; rows land in a DEDICATED SQLite database (`trace.db`,
+// beside the session index — never inside it) keyed by turn (the durable
+// message id prompt() resolves with). Writes are batched (500ms / 200-row
+// flush, forced on turn end) so streaming deltas don't hit SQLite per chunk.
+// Everything is failure-isolated: a trace error logs and never breaks the chat
+// turn (graceful-degradation convention).
 //
+// Storage is BOUNDED (openspec: bound-trace-storage). Three properties keep it
+// that way, and each one closed a real failure mode:
+//   - streaming deltas are not persisted at all — `assistant/chunk` deltas were
+//     88% of payload bytes, and the terminal `assistant/message` already
+//     carries the full text (non-delta chunks like `finish` still land, for
+//     token usage and stop reason);
+//   - pruning runs HOURLY, not only at process start — a hosted cell is
+//     long-resident, so a boot-only prune never fired (the 2026-10-10 8GB
+//     incident);
+//   - the store is created with `auto_vacuum=INCREMENTAL` and vacuumed after
+//     each prune, so deleted volume returns to the filesystem instead of
+//     sitting in the freelist while the file grows.
 // Payloads are stored raw; per-type summaries are derived at read time
 // (summarizeEvent) so upstream adding an event type needs no migration.
 
+import { mkdirSync } from "node:fs";
+import path from "node:path";
+import Database from "better-sqlite3";
 import { getDb, isDbReady } from "../db.js";
+import { storeDir } from "../paths.js";
 
 const FLUSH_MS = 500;
 const FLUSH_ROWS = 200;
+const PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+
+// Streaming delta chunks: pure incremental text the terminal assistant/message
+// already carries in full. Kept out of the store entirely (see header).
+const STREAMING_DELTA_CHUNKS = new Set(["text-delta", "reasoning-delta", "tool-call-delta"]);
+
+const TRACE_SCHEMA = [
+  `CREATE TABLE IF NOT EXISTS trace_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    turn_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    ts INTEGER NOT NULL,
+    method TEXT NOT NULL,
+    event_type TEXT,
+    payload TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_trace_turn ON trace_events(turn_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_trace_ts ON trace_events(ts)`,
+];
 
 let queue = [];
 let seqByTurn = new Map();
 let flushTimer = null;
-let retentionDays = Number(process.env.TRACE_RETENTION_DAYS) || 14;
+let retentionDays = Number(process.env.TRACE_RETENTION_DAYS) || 7;
+let traceDb = null;
+let traceDbPath = null;
+let pruneTimer = null;
 
-const insertStmt = () =>
-  getDb().prepare(
+function resolveTraceDbPath() {
+  if (process.env.TRACE_DB_PATH) return path.resolve(process.env.TRACE_DB_PATH);
+  return storeDir("trace.db");
+}
+
+export function isTraceReady() {
+  return Boolean(traceDb);
+}
+
+function insertStmt() {
+  return traceDb.prepare(
     `INSERT INTO trace_events (turn_id, session_id, seq, ts, method, event_type, payload)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
+}
 
 function flush() {
   flushTimer = null;
@@ -32,7 +82,8 @@ function flush() {
   const batch = queue;
   queue = [];
   try {
-    const run = getDb().transaction((rows) => {
+    if (!traceDb) return;
+    const run = traceDb.transaction((rows) => {
       const stmt = insertStmt();
       for (const r of rows) stmt.run(r.turnId, r.sessionId, r.seq, r.ts, r.method, r.eventType, r.payload);
     });
@@ -51,7 +102,14 @@ function scheduleFlush() {
 // The tap. Called for every dsh notification before the WS translation switch.
 export function record(notif, { sessionId, turnId }) {
   try {
-    if (!isDbReady() || !notif?.method) return;
+    if (!isTraceReady() || !notif?.method) return;
+    const eventType = notif.params?.event?.type ?? null;
+    // Drop streaming deltas before they reach the queue: no row, and no seq
+    // consumed for them, so a stored turn's sequence stays gap-free.
+    if (eventType === "assistant/chunk") {
+      const chunkType = notif.params?.event?.data?.chunk?.type;
+      if (STREAMING_DELTA_CHUNKS.has(chunkType)) return;
+    }
     const t = turnId || "unknown";
     const seq = (seqByTurn.get(t) ?? 0) + 1;
     seqByTurn.set(t, seq);
@@ -61,12 +119,12 @@ export function record(notif, { sessionId, turnId }) {
       seq,
       ts: Date.now(),
       method: notif.method,
-      eventType: notif.params?.event?.type ?? null,
+      eventType,
       payload: JSON.stringify(notif.params ?? {}),
     });
     // Turn end / status changes force a flush so a finished turn is
-    // immediately queryable; deltas ride the timer.
-    if (queue.length >= FLUSH_ROWS || notif.params?.event?.type === "turn/end" || notif.method === "session.status") flush();
+    // immediately queryable; other chunks ride the timer.
+    if (queue.length >= FLUSH_ROWS || eventType === "turn/end" || notif.method === "session.status") flush();
     else scheduleFlush();
   } catch (e) {
     console.warn(`[trace] record failed: ${e.message}`);
@@ -82,30 +140,160 @@ export function bindTurn(turnId) {
   } catch { /* best-effort */ }
 }
 
+function openTraceDb() {
+  traceDbPath = resolveTraceDbPath();
+  mkdirSync(path.dirname(traceDbPath), { recursive: true });
+  const db = new Database(traceDbPath);
+  // auto_vacuum MUST be set before the first table exists on this file, or it
+  // is silently ignored (the pragma only takes effect for a fresh database).
+  db.pragma("auto_vacuum = INCREMENTAL");
+  db.pragma("journal_mode = WAL");
+  for (const sql of TRACE_SCHEMA) db.exec(sql);
+  return db;
+}
+
+function prune() {
+  if (!traceDb) return 0;
+  const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
+  try {
+    const info = traceDb.prepare(`DELETE FROM trace_events WHERE ts < ?`).run(cutoff);
+    if (info.changes) {
+      // Hand the freed pages back to the filesystem: with auto_vacuum=OFF the
+      // file only ever grew, which is how the 8GB store happened.
+      traceDb.pragma("incremental_vacuum");
+      console.log(`[trace] pruned ${info.changes} rows older than ${retentionDays}d`);
+    }
+    return info.changes;
+  } catch (e) {
+    console.warn(`[trace] prune failed: ${e.message}`);
+    return 0;
+  }
+}
+
+// Move pre-existing trace rows out of the session index database (openspec:
+// bound-trace-storage — "Existing trace rows move to the trace database without
+// loss"). A pure move, no age filter: bounding is then enforced by the same
+// retention policy as new rows. Ids are preserved so a crash mid-move can be
+// re-run (INSERT OR IGNORE skips what already landed).
+function migrateLegacyTraceRows() {
+  if (!traceDb || !isDbReady()) return 0;
+  const app = getDb();
+  let hasTable = false;
+  try {
+    hasTable = Boolean(
+      app.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'trace_events'`).get()
+    );
+  } catch {
+    hasTable = false;
+  }
+  if (!hasTable) return 0;
+
+  const insert = traceDb.prepare(
+    `INSERT OR IGNORE INTO trace_events (id, turn_id, session_id, seq, ts, method, event_type, payload)
+     VALUES (@id, @turn_id, @session_id, @seq, @ts, @method, @event_type, @payload)`
+  );
+  const selectPage = app.prepare(
+    `SELECT id, turn_id, session_id, seq, ts, method, event_type, payload
+     FROM trace_events WHERE id > ? ORDER BY id LIMIT 5000`
+  );
+  const readPage = app.transaction((afterId) => selectPage.all(afterId));
+  const writePage = traceDb.transaction((rows) => {
+    for (const r of rows) insert.run(r);
+  });
+
+  let moved = 0;
+  let cursor = 0;
+  for (;;) {
+    const rows = readPage(cursor);
+    if (!rows.length) break;
+    writePage(rows);
+    moved += rows.length;
+    cursor = rows[rows.length - 1].id;
+  }
+
+  if (moved) {
+    app.exec(`DROP TABLE trace_events`);
+    // Reclaim the freed pages in the session index. One-time, at the moment the
+    // table is retired — not a recurring cost.
+    try {
+      app.exec(`VACUUM`);
+    } catch (e) {
+      console.warn(`[trace] post-move VACUUM failed (harmless, space stays until next vacuum): ${e.message}`);
+    }
+    console.log(`[trace] moved ${moved} legacy trace row(s) out of the session index`);
+  }
+  return moved;
+}
+
 export async function initTrace() {
-  if (!isDbReady()) {
-    console.warn("[trace] disabled: database not ready");
+  // Re-init safe: a second call (tests, or a future hot reload) must not leak
+  // the previous handle or leave a stale timer behind.
+  if (traceDb) {
+    try { traceDb.close(); } catch { /* best-effort */ }
+    traceDb = null;
+  }
+  try {
+    traceDb = openTraceDb();
+  } catch (e) {
+    traceDb = null;
+    console.warn(`[trace] disabled: could not open ${traceDbPath || "trace.db"}: ${e.message}`);
     return;
   }
   try {
-    const db = getDb();
-    const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
-    const info = db.prepare(`DELETE FROM trace_events WHERE ts < ?`).run(cutoff);
-    if (info.changes) console.log(`[trace] pruned ${info.changes} rows older than ${retentionDays}d`);
+    migrateLegacyTraceRows();
   } catch (e) {
-    console.warn(`[trace] init failed: ${e.message}`);
+    // A failed move must not disable tracing: the store is usable regardless,
+    // and the next boot retries the move (it is idempotent).
+    console.warn(`[trace] legacy move failed (will retry on next boot): ${e.message}`);
+  }
+  prune();
+  if (!pruneTimer) {
+    // Hourly, unref'd: a long-resident cell must prune without a restart, and
+    // the timer must never hold the process open.
+    pruneTimer = setInterval(prune, PRUNE_INTERVAL_MS);
+    pruneTimer.unref?.();
   }
 }
 
 export async function shutdownTrace() {
   try { flush(); } catch { /* best-effort */ }
+  if (pruneTimer) {
+    clearInterval(pruneTimer);
+    pruneTimer = null;
+  }
+  try {
+    traceDb?.close();
+  } catch { /* best-effort */ }
+  traceDb = null;
+}
+
+// Test/ops seam: prune on demand and report the freelist, so the retention and
+// reclaim behaviour is assertable without waiting an hour.
+export function pruneNow() {
+  return prune();
+}
+
+export function traceStoreInfo() {
+  if (!traceDb) return null;
+  const freelist = traceDb.pragma("freelist_count", { simple: true });
+  const pageSize = traceDb.pragma("page_size", { simple: true });
+  const pageCount = traceDb.pragma("page_count", { simple: true });
+  const autoVacuum = traceDb.pragma("auto_vacuum", { simple: true });
+  return {
+    path: traceDbPath,
+    retentionDays,
+    freelistCount: freelist,
+    autoVacuum,
+    sizeBytes: pageSize * pageCount,
+    rows: traceDb.prepare(`SELECT COUNT(*) AS n FROM trace_events`).get().n,
+  };
 }
 
 // ── Read API ─────────────────────────────────────────────────────────────────
 
 export function listTurns({ limit = 50, offset = 0, sessionId } = {}) {
-  if (!isDbReady()) return [];
-  const db = getDb();
+  if (!traceDb) return [];
+  const db = traceDb;
   const filter = sessionId ? "WHERE session_id = ?" : "";
   const args = sessionId ? [sessionId] : [];
   const rows = db
@@ -166,7 +354,10 @@ export function summarizeEvent(eventType, payload) {
     case "assistant/message": {
       const blocks = d?.message?.content;
       const n = Array.isArray(blocks) ? blocks.length : 0;
-      return `Assistant message (${n} blocks)`;
+      const chars = Array.isArray(blocks)
+        ? blocks.filter((b) => b?.type === "text").reduce((n2, b) => n2 + (b.text || "").length, 0)
+        : 0;
+      return `Assistant message (${n} blocks${chars ? `, ${chars} text chars` : ""})`;
     }
     case "tool/call": return `Tool call: ${d?.name} (${(d?.callId ?? "").slice(0, 8)})`;
     case "tool/result": return `Tool result (${(d?.message?.source?.callId ?? "").slice(0, 8)})${d?.error ? " — error" : ""}`;
@@ -189,8 +380,8 @@ export function summarizeEvent(eventType, payload) {
 }
 
 export function getTurn(turnId) {
-  if (!isDbReady()) return null;
-  const rows = getDb()
+  if (!traceDb) return null;
+  const rows = traceDb
     .prepare(`SELECT seq, ts, method, event_type, payload FROM trace_events WHERE turn_id = ? ORDER BY seq`)
     .all(turnId);
   if (!rows.length) return null;
@@ -209,7 +400,7 @@ export function getTurn(turnId) {
 }
 
 // Self-check: synthetic turn through record → flush → read → prune.
-// Usage: DB_PATH=/tmp/t.db node server/trace.js
+// Usage: DB_PATH=/tmp/t.db TRACE_DB_PATH=/tmp/t-trace.db node server/trace.js
 if (process.argv[1] && process.argv[1].endsWith("trace.js")) {
   const { initDb } = await import("../db.js");
   await initDb();
@@ -219,6 +410,10 @@ if (process.argv[1] && process.argv[1].endsWith("trace.js")) {
   const rec = (type, data) => record({ method: "session.event", params: { event: { type, data } } }, { sessionId: sid, turnId: "selfcheck-1" });
   rec("turn/start", {});
   rec("request/header", { header: { config: { provider: "volces", model: "deepseek-v4-pro" } } });
+  // Deltas must not be stored; the finish chunk must be.
+  rec("assistant/chunk", { chunk: { type: "text-delta", text: "hello" } });
+  rec("assistant/chunk", { chunk: { type: "reasoning-delta", text: "thinking" } });
+  rec("assistant/chunk", { chunk: { type: "finish", reason: { kind: "stop" }, usage: { inputTokens: 1, outputTokens: 2 } } });
   rec("tool/call", { callId: "c1", name: "demo" });
   rec("tool/result", { message: { source: { callId: "c1" }, content: [{ type: "text", text: "ok" }] } });
   record({ method: "session.status", params: { status: "idle" } }, { sessionId: sid, turnId: "selfcheck-1" });
@@ -229,12 +424,11 @@ if (process.argv[1] && process.argv[1].endsWith("trace.js")) {
   const hdr = evs.find((e) => e.eventType === "request/header");
   console.assert(hdr?.summary.includes("volces/deepseek-v4-pro"), "header summary FAILED: " + hdr?.summary);
   const events = getTurn("selfcheck-1");
-  console.assert(events.length === 5, "event count FAILED: " + events.length);
+  console.assert(events.length === 6, "event count FAILED (expect 6 stored, 2 deltas dropped): " + events.length);
+  console.assert(!events.some((e) => e.summary?.includes("Text +")), "delta leak FAILED");
+  console.assert(events.some((e) => e.summary?.includes("Finish")), "finish chunk missing FAILED");
   console.assert(events.some((e) => e.summary.includes("demo")), "summary FAILED");
   console.assert(getTurn("missing") === null, "404 FAILED");
-  getDb().prepare(`INSERT INTO trace_events (turn_id, session_id, seq, ts, method, event_type, payload) VALUES ('old','s',1,?, 'session.event','x','{}')`).run(Date.now() - (retentionDays + 1) * 86400000);
-  await initTrace();
-  console.assert(getTurn("old") === null, "retention FAILED");
   console.log("OK trace self-check");
   process.exit(0);
 }

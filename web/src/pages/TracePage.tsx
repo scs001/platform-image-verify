@@ -160,11 +160,17 @@ function TurnDetail() {
   // Derived aggregates over the raw stream (counts only — no replay).
   const toolCalls = events.filter((e) => e.eventType === "tool/call").length;
   const retries = events.filter((e) => e.eventType === "llm/retry").length;
+  // Text volume comes from the terminal assistant/message blocks: streaming
+  // deltas are no longer stored (openspec: bound-trace-storage), and the
+  // terminal message carries the same text in full.
   const textChars = events
-    .filter((e) => e.eventType === "assistant/chunk")
+    .filter((e) => e.eventType === "assistant/message")
     .reduce((n, e) => {
-      const c = (e.payload as { event?: { data?: { chunk?: { type?: string; text?: string } } } })?.event?.data?.chunk;
-      return n + (c?.type === "text-delta" ? (c.text ?? "").length : 0);
+      const blocks = (
+        e.payload as { event?: { data?: { message?: { content?: Array<{ type?: string; text?: string }> } } } }
+      )?.event?.data?.message?.content;
+      if (!Array.isArray(blocks)) return n;
+      return n + blocks.filter((b) => b?.type === "text").reduce((m, b) => m + (b.text ?? "").length, 0);
     }, 0);
 
   return (

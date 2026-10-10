@@ -157,24 +157,14 @@ const MIGRATIONS = [
   },
   {
     version: 7,
-    // Full-fidelity dsh notification log for the /trace viewer. One row per
-    // runtime notification, keyed by turn (the durable message id returned by
-    // prompt()). Payload is raw JSON; per-type summaries are derived at read
-    // time so new event types never need a migration.
-    statements: [
-      `CREATE TABLE IF NOT EXISTS trace_events (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        turn_id TEXT NOT NULL,
-        session_id TEXT NOT NULL,
-        seq INTEGER NOT NULL,
-        ts INTEGER NOT NULL,
-        method TEXT NOT NULL,
-        event_type TEXT,
-        payload TEXT NOT NULL
-      )`,
-      `CREATE INDEX IF NOT EXISTS idx_trace_turn ON trace_events(turn_id)`,
-      `CREATE INDEX IF NOT EXISTS idx_trace_ts ON trace_events(ts)`,
-    ],
+    // Full-fidelity dsh notification log for the /trace viewer. The table moved
+    // OUT of this database (openspec: bound-trace-storage): trace is
+    // observational data and now lives in its own `trace.db`, so a session
+    // index can never be inflated — or a rebuild entangled — by trace volume.
+    // This migration is retained as a version marker only; databases created
+    // before the move still carry the table, and `server/trace.js` moves its
+    // rows into `trace.db` and drops it on first boot.
+    statements: [],
   },
   {
     version: 8,

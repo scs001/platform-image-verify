@@ -137,6 +137,11 @@ test("llm/retry-started forwards as retry_started", () => {
 
 test("retry events land in the trace store", async () => {
   await db.initDb();
+  // Trace lives in its own database now (openspec: bound-trace-storage), so the
+  // tap needs its store opened before the event is recorded.
+  const trace = await import("../server/trace.js");
+  process.env.TRACE_DB_PATH = path.join(tmpRoot, "trace.db");
+  await trace.initTrace();
   ctx.handleDshEvent(
     sessionEvent("llm/retry", {
       retryId: "r2",
@@ -148,14 +153,14 @@ test("retry events land in the trace store", async () => {
       failure: { code: "PI_AI_ERROR", message: "boom" },
     }),
   );
-  // Batched flush is 500ms; give it room, then read raw.
+  // Batched flush is 500ms; give it room, then read through the read API
+  // (before shutdown — closing the store nulls it).
   await new Promise((r) => setTimeout(r, 800));
-  const rows = db
-    .getDb()
-    .prepare(`SELECT event_type, payload FROM trace_events WHERE event_type = 'llm/retry'`)
-    .all();
-  assert.ok(rows.length >= 1, "llm/retry not captured by the trace tap");
-  assert.match(rows[0].payload, /Concurrency|boom/);
+  const events = trace.getTurn("unknown") ?? [];
+  const retries = events.filter((e) => e.eventType === "llm/retry");
+  assert.ok(retries.length >= 1, "llm/retry not captured by the trace tap");
+  assert.match(JSON.stringify(retries[0].payload), /Concurrency|boom/);
+  await trace.shutdownTrace();
 });
 
 // ── 4. Subagent terminal-reason enrichment ───────────────────────────────────

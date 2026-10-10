@@ -1,7 +1,8 @@
 # turn-tracing Specification
 
 ## Purpose
-TBD - created by archiving change trace-viewer. Update Purpose after archive.
+
+Defines the platform's per-turn observability: every dsh runtime notification for every turn is captured into a dedicated, bounded trace store, exposed over REST, and rendered as a per-turn timeline so a slow or failing turn can be diagnosed from the UI rather than from server logs. Trace data is observational — bounded by a retention window and independent of the session index, so its absence never affects chat readability.
 ## Requirements
 ### Requirement: The server captures the full dsh event stream for every turn
 

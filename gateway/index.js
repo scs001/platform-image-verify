@@ -425,7 +425,13 @@ async function readSessionFromCell(user, sessionId) {
     if (r.status !== 0 || attempt > 0) return r;
     attempt += 1;
     console.log(`[share] cell for ${userIdFor(user.email)} unreachable (${r.error}) — respawning`);
-    registry.drop(userIdFor(user.email));
+    // Stop the recorded process, not merely forget it: drop() alone would
+    // leave a live (possibly wedged) cell holding the data root while the
+    // re-ensure below spawns a second one for the same user. stop() signals
+    // it, and its exit handler removes the record once the process is really
+    // gone — so the retry's ensure() either finds a fresh record or replaces
+    // it under the spawner's one-process-per-user rule.
+    registry.stop(userIdFor(user.email), "share respawn");
   }
 }
 

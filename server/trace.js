@@ -417,7 +417,9 @@ if (process.argv[1] && process.argv[1].endsWith("trace.js")) {
   rec("tool/call", { callId: "c1", name: "demo" });
   rec("tool/result", { message: { source: { callId: "c1" }, content: [{ type: "text", text: "ok" }] } });
   record({ method: "session.status", params: { status: "idle" } }, { sessionId: sid, turnId: "selfcheck-1" });
-  await shutdownTrace();
+  // Read BEFORE shutting down: shutdownTrace() closes this store's own handle
+  // (unlike the pre-bound-trace-storage shape, where the handle belonged to
+  // db.js and stayed open), so reads after it would see an empty store.
   const [turn] = listTurns({});
   console.assert(turn?.turnId === "selfcheck-1" && turn.model === "deepseek-v4-pro" && turn.provider === "volces", "listTurns FAILED", JSON.stringify(turn));
   const evs = getTurn("selfcheck-1");
@@ -429,6 +431,7 @@ if (process.argv[1] && process.argv[1].endsWith("trace.js")) {
   console.assert(events.some((e) => e.summary?.includes("Finish")), "finish chunk missing FAILED");
   console.assert(events.some((e) => e.summary.includes("demo")), "summary FAILED");
   console.assert(getTurn("missing") === null, "404 FAILED");
+  await shutdownTrace();
   console.log("OK trace self-check");
   process.exit(0);
 }

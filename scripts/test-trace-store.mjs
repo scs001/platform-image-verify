@@ -16,8 +16,11 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import Database from "better-sqlite3";
+
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 // Shared module instances, exactly as the server runs them: db.js and trace.js
 // hold module state (the open handle, the queue), and trace.js must see the
@@ -283,6 +286,31 @@ test("the store survives a write failure without breaking the caller", async () 
     assert.doesNotThrow(() => trace.record(ev("turn/start"), { sessionId: "s1", turnId: "t" }));
     assert.deepEqual(trace.listTurns({}), [], "reads degrade to empty when the store is closed");
     assert.equal(trace.getTurn("t"), null);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("the module self-check passes as a subprocess", async () => {
+  // `node server/trace.js` is the documented way to verify a store by hand
+  // (its header comment names it). It exercises the real record → flush → read
+  // path end to end, which the in-process tests above do not cover — and it
+  // caught a real ordering bug (reads placed after shutdownTrace, which closes
+  // this module's own handle) during the image smoke test on 2026-10-10.
+  const root = await mkdtemp(path.join(tmpdir(), "trace-selfcheck-"));
+  try {
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const run = promisify(execFile);
+    const { stdout } = await run(
+      process.execPath,
+      [path.join(REPO, "server", "trace.js")],
+      {
+        env: { ...process.env, DB_PATH: path.join(root, "app.db"), TRACE_DB_PATH: path.join(root, "trace.db") },
+        timeout: 60_000,
+      }
+    );
+    assert.match(stdout, /OK trace self-check/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

@@ -593,11 +593,11 @@ app.all("/api/bots/webhook/:botId/:secret", async (req, res) => {
 // path. Without an owner configured the prefix answers 404 — the relay's own
 // inert semantics, preserved at the gateway layer (add-agent-notifications 3.1
 // 前置: cells 拓扑下 runner→relay 的可达性).
-// Cell dirs under DATA_ROOT/cells — hex id dirs only; anything else (dotfiles,
-// staging) is not a cell.
+// Cell dirs under DATA_ROOT (CELL_DATA_ROOT already ends in /cells) — hex id
+// dirs only; anything else (dotfiles, staging) is not a cell.
 function listCellDirs() {
   try {
-    return readdirSync(path.join(DATA_ROOT, "cells"), { withFileTypes: true })
+    return readdirSync(DATA_ROOT, { withFileTypes: true })
       .filter((d) => d.isDirectory() && /^[0-9a-f]{16}$/.test(d.name))
       .map((d) => d.name);
   } catch {
@@ -621,7 +621,7 @@ app.get("/api/ops/pack-usage", async (req, res) => {
   const merged = new Map(); // packId(null=packless) → {turns, activeUsers, lastUsedAt}
   let cellsSeen = 0;
   for (const dir of listCellDirs()) {
-    const file = path.join(DATA_ROOT, "cells", dir, "data", "data", "app.db");
+    const file = path.join(DATA_ROOT, dir, "data", "data", "app.db");
     let db = null;
     try {
       db = new Database(file, { readonly: true });

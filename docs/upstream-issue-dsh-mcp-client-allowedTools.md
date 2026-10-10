@@ -1,7 +1,11 @@
 # 上游提案：`dsh-mcp-client` 增加 `allowedTools`（工具级过滤面）
 
-> 递交对象：@deepseek-ai/dsh（dsh-mcp-client）。本文件是可直接递交的 issue 草稿（英文正文），随
-> `add-mcp-tool-scoping` 设计 D1/附录产出。递交渠道由维护者定（GitHub issue 或内部）。
+> **已递交 2026-10-11**：https://github.com/deepseek-ai/deepseek-harness/discussions/9385
+> （Ideas 分类——该仓库关闭了 Issues，Discussions 是唯一公开反馈通道；正文即下文的英文部分，
+> 内部备注段未随发。）
+>
+> 递交对象：@deepseek-ai/dsh（dsh-mcp-client），仓库 `deepseek-ai/deepseek-harness`
+> （MIT，包位于 `packages/mcp/mcp-client`）。随 `add-mcp-tool-scoping` 设计 D1/附录产出。
 
 ---
 
@@ -75,7 +79,7 @@ Semantics we'd propose (and would be happy to contribute):
 
 ---
 
-## 维护者备注（递交前删除）
+## 维护者备注（内部，未随递交发布）
 
 - 我们的替身实现（桥：guard 硬闸 + restrict 尽力收窄）已上线于
   paas `add-mcp-tool-scoping`（`dsh-profile-template/platform-tool-scope.js`）。

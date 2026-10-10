@@ -242,7 +242,25 @@
           "text": "Turn these bullet points into a concise weekly report:\n- point one\n- point two"
         }
       },
-      "viewLess": "Show less"
+      "viewLess": "Show less",
+      "promptsFocused": {
+        "1": {
+          "title": "See what this expert does",
+          "text": "In three sentences, tell me what you can help me with, one example each."
+        },
+        "2": {
+          "title": "Work on my file",
+          "text": "Please work on the file I am sending: extract key points, flag problems, give results.\n(drop the file into the input)"
+        },
+        "3": {
+          "title": "Run it as a workflow",
+          "text": "Handle the following task using your professional workflow — list the steps first:\n(describe the task)"
+        },
+        "4": {
+          "title": "Turn results into a document",
+          "text": "Turn the results above into a formal document and save it to Outputs."
+        }
+      }
     },
     "preset": {
       "label": "Agent mode",
@@ -388,7 +406,7 @@
     "list": {
       "count": "Documents ({{count}})",
       "refresh": "Refresh",
-      "empty": "No documents yet. Add one above."
+      "empty": "Drop in contracts, spreadsheets, or minutes — the agent cites them when answering."
     },
     "content": {
       "title": "Content"
@@ -553,7 +571,27 @@
       "knowledge": "The Knowledge page manages your document collection; files attached in chat land in the same collection.",
       "sessions": "Sessions are stored in the local database; switch from the sidebar list, bookmark via URL (/chat/<id>).",
       "tools": "Tool blocks show the agent's actual calls: blue = running, green = done, red = failed; click to expand input and output."
-    }
+    },
+    "tabs": {
+      "start": "Quick start",
+      "guides": "Scenario guides",
+      "reference": "Commands & shortcuts"
+    },
+    "start": {
+      "title": "Three steps to start",
+      "s1": "Pick an expert: use the picker at the top of Chat, or install an Industry Pack on the Agents page.",
+      "s2": "State the request: brief it like a colleague and drop files into the input.",
+      "s3": "Collect the outputs: charts and files the agent makes are saved to Outputs automatically.",
+      "replay": "Replay the tour",
+      "glossaryTitle": "What things are called",
+      "glossary": {
+        "library": "Library — the materials you give the agent; answers cite them.",
+        "outputs": "Outputs — charts and files the agent produces for you, saved automatically.",
+        "experts": "Experts — conversational roles that know a trade; pick or create them on the Agents page.",
+        "packs": "Industry Packs — one-click bundles of an expert plus tools."
+      }
+    },
+    "guidesEmpty": "No scenario guides yet."
   },
   "botsPage": {
     "title": "Bots",
@@ -915,7 +953,7 @@
     "loading": "Loading resources…",
     "loadMore": "Load more",
     "error": "Could not load the library: {{message}}",
-    "empty": "Charts you generate appear here automatically. Files you save from the chat land here too.",
+    "empty": "Ask the agent for a chart or a document and the result lands here; saving from a chat works too.",
     "emptyFiltered": "No resources match this filter.",
     "chartUnrenderable": "This chart could not be rendered.",
     "kind": {
@@ -1161,6 +1199,11 @@
       "doPlaceholder": "What to do when it fires (optional, e.g. patrol sources)",
       "invalid": "Invalid entry: every needs Nm/Nh (≥5m), daily needs HH:MM",
       "hint": "A rhythm grants autonomy — the platform injects self-turns on cadence; none means answering-only."
+    },
+    "guide": {
+      "title": "How to use this pack",
+      "step": "Step {{n}}",
+      "hint": "Once installed, go back to Chat and pick this expert in the picker above."
     }
   },
   "overlay": {
@@ -1248,5 +1291,25 @@
   "auth": {
     "login": "Sign in",
     "logout": "Sign out"
+  },
+  "onboarding": {
+    "tour": {
+      "step1": {
+        "title": "Pick an expert",
+        "body": "Open the picker above and choose a role that knows your work. More experts live on the Agents page and inside Industry Packs."
+      },
+      "step2": {
+        "title": "State the request",
+        "body": "Type your request like you would brief a colleague; drop files straight into the input."
+      },
+      "step3": {
+        "title": "Collect the outputs",
+        "body": "Charts and files the agent produces land in Outputs in the sidebar — come back for them anytime."
+      },
+      "next": "Next",
+      "finish": "Done",
+      "skip": "Skip tour",
+      "stepLabel": "Step {{n}} of 3"
+    }
   }
 }

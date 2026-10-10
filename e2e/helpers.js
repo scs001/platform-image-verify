@@ -121,6 +121,10 @@ export async function pinLocaleEn(page) {
   await page.addInitScript(() => {
     try {
       if (!localStorage.getItem("platform.locale")) localStorage.setItem("platform.locale", "en");
+      // The first-run tour (add-onboarding-tutorial) is exercised by
+      // e2e/onboarding.spec.js with a bare context; every other spec opts out
+      // so the coach-mark card never floats over the surface it asserts on.
+      localStorage.setItem("onboarding.tour.done", "1");
     } catch { /* ignore */ }
   });
 }

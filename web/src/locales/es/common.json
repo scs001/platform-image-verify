@@ -242,7 +242,25 @@
           "text": "Convierte estos puntos en un informe semanal conciso:\n- punto uno\n- punto dos"
         }
       },
-      "viewLess": "Mostrar menos"
+      "viewLess": "Mostrar menos",
+      "promptsFocused": {
+        "1": {
+          "title": "Qué sabe hacer este experto",
+          "text": "En tres frases, dime en qué puedes ayudarme, con un ejemplo de cada."
+        },
+        "2": {
+          "title": "Trabaja con mi archivo",
+          "text": "Trabaja con el archivo que te envío: extrae puntos clave, señala problemas, da resultados.\n(arrástralo al cuadro de entrada)"
+        },
+        "3": {
+          "title": "Sigue tu flujo profesional",
+          "text": "Resuelve la siguiente tarea con tu flujo profesional; enumera los pasos primero:\n(describe la tarea)"
+        },
+        "4": {
+          "title": "Pásalo a un documento",
+          "text": "Convierte los resultados de arriba en un documento formal y guárdalo en Resultados."
+        }
+      }
     },
     "preset": {
       "label": "Modo del agente",
@@ -388,7 +406,7 @@
     "list": {
       "count": "Documentos ({{count}})",
       "refresh": "Actualizar",
-      "empty": "Aún no hay documentos. Añade uno arriba."
+      "empty": "Suelta contratos, hojas de cálculo o actas: el agente los citará al responder."
     },
     "content": {
       "title": "Contenido"
@@ -553,7 +571,27 @@
       "knowledge": "La página Conocimiento gestiona tu colección de documentos; los archivos adjuntos en el chat van a la misma colección.",
       "sessions": "Las sesiones se guardan en la base de datos local; cambia desde la lista lateral o marca la URL (/chat/<id>).",
       "tools": "Los bloques de herramienta muestran las llamadas reales: azul = en curso, verde = hecho, rojo = fallido; clic para expandir."
-    }
+    },
+    "tabs": {
+      "start": "Inicio rápido",
+      "guides": "Guías por escenario",
+      "reference": "Comandos y atajos"
+    },
+    "start": {
+      "title": "Tres pasos para empezar",
+      "s1": "Elige un experto: con el selector de arriba en Conversación, o instala un pack sectorial en Agentes.",
+      "s2": "Di lo que necesitas: pídelo como a un colega y suelta los archivos en el cuadro de entrada.",
+      "s3": "Recoge los resultados: lo que produzca el agente se guarda automáticamente en Resultados.",
+      "replay": "Ver la guía de nuevo",
+      "glossaryTitle": "Cómo se llaman las cosas",
+      "glossary": {
+        "library": "Biblioteca — los materiales que le das al agente; las respuestas los citan.",
+        "outputs": "Resultados — gráficos y archivos que el agente produce para ti, guardados automáticamente.",
+        "experts": "Expertos — roles de conversación que conocen un oficio; elígelos o créalos en Agentes.",
+        "packs": "Packs sectoriales — conjuntos de experto y herramientas en un clic."
+      }
+    },
+    "guidesEmpty": "Aún no hay guías por escenario."
   },
   "botsPage": {
     "title": "Bots",
@@ -915,7 +953,7 @@
     "loading": "Cargando recursos…",
     "loadMore": "Cargar más",
     "error": "No se pudo cargar la biblioteca: {{message}}",
-    "empty": "Los gráficos que generas aparecen aquí automáticamente. Los archivos que guardas desde el chat también.",
+    "empty": "Pide al agente un gráfico o un documento y el resultado aparece aquí; también puedes guardar desde la conversación.",
     "emptyFiltered": "Ningún recurso coincide con este filtro.",
     "chartUnrenderable": "No se pudo representar este gráfico.",
     "kind": {
@@ -1161,6 +1199,11 @@
       "doPlaceholder": "Qué hacer al dispararse (opcional)",
       "invalid": "Inválido: every exige Nm/Nh (≥5m), daily exige HH:MM",
       "hint": "Declarar ritmo concede autonomía; sin ritmo solo responde."
+    },
+    "guide": {
+      "title": "Cómo usar este pack",
+      "step": "Paso {{n}}",
+      "hint": "Tras instalarlo, vuelve a Conversación y elige este experto en el selector."
     }
   },
   "overlay": {
@@ -1248,5 +1291,25 @@
   "auth": {
     "login": "Iniciar sesión",
     "logout": "Cerrar sesión"
+  },
+  "onboarding": {
+    "tour": {
+      "step1": {
+        "title": "Elige un experto",
+        "body": "Abre el selector de arriba y elige un rol que conozca tu trabajo. Hay más expertos en la página Agentes y dentro de los Packs sectoriales."
+      },
+      "step2": {
+        "title": "Di lo que necesitas",
+        "body": "Escribe la petición como a un colega; arrastra los archivos directamente al cuadro de entrada."
+      },
+      "step3": {
+        "title": "Recoge los resultados",
+        "body": "Los gráficos y archivos que produzca el agente quedan en Resultados, en la barra lateral."
+      },
+      "next": "Siguiente",
+      "finish": "Hecho",
+      "skip": "Omitir guía",
+      "stepLabel": "Paso {{n}} de 3"
+    }
   }
 }

@@ -9,6 +9,7 @@ import { useBranding } from "@/hooks/useAppConfig";
 import { ChatWelcome } from "@/components/ChatWelcome";
 import { Composer } from "@/components/Composer";
 import { PlanPanel } from "@/components/PlanPanel";
+import { OnboardingTour, tourDone } from "@/components/OnboardingTour";
 import type { ClientMessage } from "@platform/core";
 
 // Chat page: the empty state (ChatWelcome) and the in-session state
@@ -62,6 +63,17 @@ export function ChatPage({ send, onToggleNav }: Props) {
       setFocusTick((n) => n + 1);
     }
   }, []);
+
+  // First-run tour (add-onboarding-tutorial): present on the welcome state
+  // when this browser hasn't finished it, or when the help center's replay
+  // affordance clears the marker and fires the replay event.
+  const [tourOpen, setTourOpen] = useState(false);
+  useEffect(() => {
+    if (isEmpty && !tourDone()) setTourOpen(true);
+    const onReplay = () => setTourOpen(true);
+    window.addEventListener("onboarding:replay", onReplay);
+    return () => window.removeEventListener("onboarding:replay", onReplay);
+  }, [isEmpty]);
 
   // Deep link in: a session id in the URL that isn't current loads it. The URL
   // changes ONLY through user navigation (sidebar rows / new chat navigate
@@ -142,6 +154,7 @@ export function ChatPage({ send, onToggleNav }: Props) {
             <>
               <ChatWelcome onPrefill={prefillComposer} send={send} />
               <Composer send={send} value={draft} onChange={setDraft} focusTick={focusTick} />
+              {tourOpen && <OnboardingTour onFinish={() => setTourOpen(false)} />}
             </>
           ) : (
             <>

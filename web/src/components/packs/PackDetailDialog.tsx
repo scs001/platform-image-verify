@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "./Badge";
 import { RhythmEditor, rhythmEntryValid } from "./RhythmEditor";
+import { guideFor } from "@/lib/packGuides";
 import type { RhythmEntry } from "./RhythmEditor";
 
 interface Props {
@@ -168,6 +169,9 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
   };
 
   const m = pack?.manifest;
+  // Guide content for this pack (client module) — null when uncovered, which
+  // renders no guide section at all.
+  const guide = guideFor(packId);
 
   return (
     <Dialog open={!!packId} onOpenChange={onOpenChange}>
@@ -213,6 +217,30 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                   <Badge key={tag}>{tag}</Badge>
                 ))}
               </div>
+            )}
+
+            {/* Usage guide (add-onboarding-tutorial): three steps from the
+                client content module — informational only, purely absent when
+                the module has no entry for this pack id. Guide bodies are the
+                pack's own-language content (zh); the chrome labels are i18n. */}
+            {guide && (
+              <section
+                className="rounded-md border border-primary/30 bg-primary/5 p-3"
+                data-testid="pack-guide-card"
+              >
+                <h4 className="mb-2 font-medium">{t("packs.guide.title")}</h4>
+                <ol className="space-y-2">
+                  {guide.steps.map((s, i) => (
+                    <li key={i} className="text-xs">
+                      <span className="font-medium text-foreground">
+                        {t("packs.guide.step", { n: i + 1 })} · {s.title}
+                      </span>
+                      <p className="mt-0.5 leading-5 text-muted-foreground">{s.body}</p>
+                    </li>
+                  ))}
+                </ol>
+                <p className="mt-2 text-[11px] text-muted-foreground">{t("packs.guide.hint")}</p>
+              </section>
             )}
 
             {(m.skills?.length ?? 0) > 0 && (

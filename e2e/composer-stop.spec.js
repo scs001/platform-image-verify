@@ -348,8 +348,8 @@ test.describe("composer hardening: IME, stop, disconnect", () => {
     // The drawer instance (fixed overlay), not the md+ rail also in the DOM.
     const drawer = page.locator("div.fixed.inset-y-0.left-0 [data-testid=sidebar]");
     await expect(drawer).toBeVisible();
-    await drawer.getByTestId("nav-trace").click();
-    await expect(page).toHaveURL(/\/trace$/);
+    await drawer.getByTestId("nav-knowledge").click();
+    await expect(page).toHaveURL(/\/knowledge$/);
     await page.goBack();
     await expect(drawer).toBeHidden();
   });

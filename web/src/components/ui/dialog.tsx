@@ -70,7 +70,17 @@ function Dialog({ open, onOpenChange, children }: DialogProps) {
   if (!open) return null
 
   return (
-    <div ref={rootRef} className="fixed inset-0 z-50">
+    // role="dialog" + data-state are the standard modal semantics; the
+    // Settings modal's Escape/Tab guard also keys off
+    // [role="dialog"][data-state="open"] to yield the keyboard to a nested
+    // dialog opened inside a section pane (simplify-ia-non-technical).
+    <div
+      ref={rootRef}
+      role="dialog"
+      aria-modal="true"
+      data-state="open"
+      className="fixed inset-0 z-50"
+    >
       {/* backdrop; clicking it closes the modal */}
       <div
         className="fixed inset-0 bg-scrim backdrop-blur-sm animate-in fade-in-0"

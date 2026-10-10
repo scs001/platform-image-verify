@@ -23,11 +23,12 @@ test.describe("app shell", () => {
 
   test("sidebar shows the React nav entries", async ({ page }) => {
     await gotoChat(page);
-    for (const id of ["nav-chat", "nav-knowledge", "nav-agents", "nav-bots", "nav-trace"]) {
+    for (const id of ["nav-chat", "nav-knowledge", "nav-resources", "nav-agents", "nav-tasks"]) {
       await expect(page.getByTestId(id)).toBeVisible();
     }
-    // Configuration is not nav any more — it lives behind the gear.
-    for (const id of ["nav-mcp", "nav-skills", "nav-models"]) {
+    // Configuration is not nav any more — it lives behind the gear; bots and
+    // trace were demoted to Settings sections (simplify-ia-non-technical).
+    for (const id of ["nav-mcp", "nav-skills", "nav-models", "nav-bots", "nav-trace"]) {
       await expect(page.getByTestId(id)).toHaveCount(0);
     }
     await expect(page.getByTestId("settings-btn")).toBeVisible();

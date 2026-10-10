@@ -467,7 +467,7 @@ test("a tool allowlist materializes the filter config; role narrowing clips; ful
   // Pack-level allowlist of three tools; the role's declaration keeps two.
   const { report } = await installPack(page, 1, {
     mcpServers: [{ registryName: "e2e-registry-mcp", allowTools: ["read", "search", "purge"] }],
-    resources: { mcpTools: { "e2e-registry-mcp": ["read", "search", "purge_not"] } },
+    resources: { mcpTools: { "e2e-registry-mcp": ["read", "search"] } },
   });
   expect(report.mcpServers.find((m) => m.name === "e2e-registry-mcp")?.status).toBe("installed");
 
@@ -477,9 +477,9 @@ test("a tool allowlist materializes the filter config; role narrowing clips; ful
   await waitPresetInRoster(page, AGENT_ID);
   await switchPreset(page, AGENT_ID);
 
-  // The reference is mounted AND narrowed: the filter carries the effective
-  // per-role set (the widening name clipped by the shared derivation), and
-  // the scope module ships beside it for the child's preset bridge.
+  // The reference is mounted AND narrowed: the filter carries the role's
+  // effective set (pack three minus the role's two), and the scope module
+  // ships beside it for the child's preset bridge.
   await expect.poll(() => mcpServersOf(), { timeout: 20_000 }).toContain("e2e-registry-mcp");
   await expect
     .poll(() => toolFilterOf(), { timeout: 20_000 })

@@ -11,13 +11,13 @@
   },
   "nav": {
     "chat": "Discussion",
-    "knowledge": "Connaissance",
-    "resources": "Ressources",
+    "knowledge": "Bibliothèque",
+    "resources": "Résultats",
     "agents": "Agents",
     "bots": "Bots",
     "trace": "Traçage",
     "openMenu": "Ouvrir le menu de navigation",
-    "tasks": "Tâches"
+    "tasks": "Automatisation"
   },
   "trace": {
     "title": "Traçage",
@@ -41,9 +41,12 @@
     }
   },
   "agentsPage": {
-    "title": "Agents et applications",
-    "agents": "Agents",
+    "title": "Agents",
+    "agents": "Experts",
+    "market": "Packs sectoriels",
     "apps": "Applications",
+    "create": "Nouvel expert",
+    "myExperts": "Mes experts",
     "connect": "Connecter",
     "connecting": "Connexion…",
     "loadFailed": "Échec du chargement du catalogue : {{error}}"
@@ -372,7 +375,7 @@
     "cannotClearInactive": "Basculez d'abord sur cette discussion"
   },
   "documents": {
-    "title": "Documents",
+    "title": "Bibliothèque",
     "loading": "Chargement…",
     "disabledMessage": "Les documents sont indisponibles (la collection de documents est désactivée ou la base de données est inaccessible).",
     "remove": "Retirer",
@@ -616,14 +619,21 @@
       "general": "Général",
       "account": "Compte",
       "models": "Modèles",
-      "mcp": "Serveurs MCP",
-      "skills": "Compétences",
+      "mcp": "Outils et compétences",
+      "skills": "Outils et compétences",
+      "channels": "Canaux",
+      "diagnostics": "Diagnostic",
       "wechat-app": "Mini-programme WeChat",
       "branding": "Image de marque du déploiement",
       "status": "État du système",
       "packs": "Packs",
       "presets": "Préréglages perso",
       "devices": "Appareils appariés"
+    },
+    "groups": {
+      "basics": "Général",
+      "capabilities": "Capacités",
+      "management": "Gestion"
     },
     "general": {
       "theme": "Thème",
@@ -741,7 +751,7 @@
     "revoke": "Révoquer"
   },
   "tasks": {
-    "title": "Tâches",
+    "title": "Automatisation",
     "empty": "Aucune tâche pour l'instant — créez une tâche planifiée qui s'exécutera selon le plan.",
     "status": {
       "scheduled": "Planifiée",
@@ -899,7 +909,7 @@
         "fresh": "encore frais"
       }
     },
-    "title": "Ressources",
+    "title": "Résultats",
     "search": "Rechercher des ressources",
     "count": "{{count}} éléments",
     "loading": "Chargement des ressources…",
@@ -1062,7 +1072,9 @@
         "reused": "Réutilisé",
         "replaced": "Mis à jour",
         "skipped": "Ignoré",
-        "unavailable": "Indisponible"
+        "unavailable": "Indisponible",
+        "bound": "Lié à au local",
+        "awaiting-local-binding": "En attente du serveur local"
       }
     },
     "mine": {
@@ -1122,7 +1134,13 @@
       "agentServingHint": "Après publication, déployez en un clic depuis la page du pack ; le service répond en A2A via la passerelle.",
       "visibility": "Visibilité",
       "visibilityPublic": "Public (listé)",
-      "visibilityPrivate": "Privé (propriétaire seul)"
+      "visibilityPrivate": "Privé (propriétaire seul)",
+      "toolsAll": "Tous les outils",
+      "toolsN": "{{n}} outils",
+      "toolsEdit": "Sélectionner des outils",
+      "toolsCollapse": "Replier",
+      "toolsClear": "Surface complète",
+      "toolsNoSnapshot": "Le registre n'a pas encore de liste d'outils pour ce serveur — pas de vérification par outil à la publication"
     },
     "bridge": {
       "title": "Importé depuis le preset : {{skills}} compétences, {{servers}} serveurs. Non migré :",
@@ -1164,7 +1182,7 @@
     "deploymentNote": "Les ajustements sont communs à tous les clients de ce déploiement."
   },
   "customPresets": {
-    "title": "Préréglages perso",
+    "title": "Mes experts",
     "desc": "Composez un rôle conversationnel à partir des compétences et serveurs MCP de cette cellule — il tourne en mode focalisé, reste local à cette cellule et ne se publie pas.",
     "create": "Nouveau préréglage",
     "empty": "Aucun préréglage perso pour l'instant.",

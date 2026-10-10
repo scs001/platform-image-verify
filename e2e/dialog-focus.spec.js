@@ -14,9 +14,9 @@ import { pinLocaleEn } from "./helpers.js";
 // "the whole string landed in the field the user was typing into".
 
 test.describe("dialog focus trap", () => {
-  test("typing into a non-first field keeps the caret there (/bots)", async ({ page }) => {
+  test("typing into a non-first field keeps the caret there (channels section)", async ({ page }) => {
     await pinLocaleEn(page);
-    await page.goto("/bots");
+    await page.goto("/settings/channels");
     await expect(page.getByTestId("bots-page")).toBeVisible({ timeout: 15000 });
 
     await page.getByTestId("bots-add").click();
@@ -34,9 +34,9 @@ test.describe("dialog focus trap", () => {
     await expect(name).toHaveValue("regression");
   });
 
-  test("typing into a credential field keeps the caret there (/bots)", async ({ page }) => {
+  test("typing into a credential field keeps the caret there (channels section)", async ({ page }) => {
     await pinLocaleEn(page);
-    await page.goto("/bots");
+    await page.goto("/settings/channels");
     await expect(page.getByTestId("bots-page")).toBeVisible({ timeout: 15000 });
 
     await page.getByTestId("bots-add").click();
@@ -51,7 +51,7 @@ test.describe("dialog focus trap", () => {
 
   test("Escape still closes the dialog", async ({ page }) => {
     await pinLocaleEn(page);
-    await page.goto("/bots");
+    await page.goto("/settings/channels");
     await expect(page.getByTestId("bots-page")).toBeVisible({ timeout: 15000 });
 
     await page.getByTestId("bots-add").click();

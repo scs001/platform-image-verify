@@ -31,8 +31,6 @@ const DocumentsPage = lazy(() =>
   import("@/pages/DocumentsPage").then((m) => ({ default: m.DocumentsPage })),
 );
 const AgentsPage = lazy(() => import("@/pages/AgentsPage").then((m) => ({ default: m.AgentsPage })));
-const BotsPage = lazy(() => import("@/pages/BotsPage").then((m) => ({ default: m.BotsPage })));
-const TracePage = lazy(() => import("@/pages/TracePage").then((m) => ({ default: m.TracePage })));
 const TraceDetailPage = lazy(() =>
   import("@/pages/TracePage").then((m) => ({ default: m.TraceDetailPage })),
 );
@@ -239,12 +237,15 @@ export default function App() {
               element={<ChatPage send={send} onToggleNav={() => setNavOpen((v) => !v)} />}
             />
 
-            {/* Work surfaces — the nav tabs. */}
+            {/* Work surfaces — the nav tabs. Bots and Trace were demoted to
+                Settings sections (channels / diagnostics); the former page
+                routes redirect so bookmarks keep resolving. /trace/:turnId
+                stays a top-level page — chat turn deep links land on it. */}
             <Route path="/knowledge" element={<DocumentsPage send={send} />} />
             <Route path="/resources" element={<ResourcesPage send={send} />} />
             <Route path="/agents" element={<AgentsPage />} />
-            <Route path="/bots" element={<BotsPage />} />
-            <Route path="/trace" element={<TracePage />} />
+            <Route path="/bots" element={<Navigate to={settingsPath("channels")} replace />} />
+            <Route path="/trace" element={<Navigate to={settingsPath("diagnostics")} replace />} />
             <Route path="/trace/:turnId" element={<TraceDetailPage />} />
             <Route path="/tasks" element={<TasksPage send={send} />} />
 
@@ -283,6 +284,16 @@ export default function App() {
           <Route
             path="/settings"
             element={<Navigate to={settingsPath("general")} replace state={location.state} />}
+          />
+          {/* Retired sections redirect into the agents page (their surfaces
+              moved there): presets → the Experts tab, packs → the Market tab. */}
+          <Route
+            path="/settings/presets"
+            element={<Navigate to="/agents?tab=agents" replace state={location.state} />}
+          />
+          <Route
+            path="/settings/packs"
+            element={<Navigate to="/agents?tab=market" replace state={location.state} />}
           />
           <Route
             path="/settings/:section"

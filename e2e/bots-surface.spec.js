@@ -52,7 +52,7 @@ async function stubBotList(page) {
 test.describe("bots platform grid", () => {
   test("renders four platform tiles and the empty guidance", async ({ page }) => {
     await pinLocaleEn(page);
-    await page.goto("/bots");
+    await page.goto("/settings/channels");
     await expect(page.getByTestId("bots-page")).toBeVisible({ timeout: 15000 });
 
     await expect(page.getByTestId("bot-platform-tile")).toHaveCount(4);
@@ -67,7 +67,7 @@ test.describe("bots platform grid", () => {
 
   test("clicking a tile opens the add dialog with that type fixed", async ({ page }) => {
     await pinLocaleEn(page);
-    await page.goto("/bots");
+    await page.goto("/settings/channels");
     await expect(page.getByTestId("bot-platform-tile")).toHaveCount(4, { timeout: 15000 });
 
     await page.locator('[data-testid="bot-platform-tile"][data-platform="telegram"]').click();
@@ -92,7 +92,7 @@ test.describe("bot dialog QR panel", () => {
     await stubBotList(page);
     await page.route("**/api/bots/bot-e2e-1/qr", (route) => route.fulfill({ json: QR_STATES.resolved }));
 
-    await page.goto("/bots");
+    await page.goto("/settings/channels");
     await expect(page.getByTestId("bot-card")).toBeVisible({ timeout: 15000 });
     // The configured card carries its platform's brand icon.
     await expect(page.getByTestId("bot-card-icon").locator("svg")).toBeVisible();
@@ -114,7 +114,7 @@ test.describe("bot dialog QR panel", () => {
       route.fulfill({ json: qrCalls === 1 ? QR_STATES.manual : QR_STATES.resolved });
     });
 
-    await page.goto("/bots");
+    await page.goto("/settings/channels");
     await expect(page.getByTestId("bot-card")).toBeVisible({ timeout: 15000 });
     await page.getByTestId("bot-qr-open").click();
 
@@ -133,7 +133,7 @@ test.describe("bot dialog QR panel", () => {
     await stubBotList(page);
     await page.route("**/api/bots/bot-e2e-1/qr", (route) => route.fulfill({ json: QR_STATES.failed }));
 
-    await page.goto("/bots");
+    await page.goto("/settings/channels");
     await expect(page.getByTestId("bot-card")).toBeVisible({ timeout: 15000 });
     await page.getByTestId("bot-qr-open").click();
 
@@ -179,7 +179,7 @@ test.describe("bots management API", () => {
 
       // The real card renders with its platform icon, then cleanup restores empty.
       await pinLocaleEn(page);
-      await page.goto("/bots");
+      await page.goto("/settings/channels");
       await expect(page.getByTestId("bot-card")).toHaveCount(1, { timeout: 15000 });
       await expect(page.getByTestId("bot-card")).toContainText("e2e-oa");
       await expect(page.getByTestId("bot-card-icon").locator("svg")).toBeVisible();

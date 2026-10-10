@@ -11,13 +11,13 @@
   },
   "nav": {
     "chat": "チャット",
-    "knowledge": "ナレッジ",
-    "resources": "リソース",
+    "knowledge": "ライブラリ",
+    "resources": "成果",
     "agents": "エージェント",
     "bots": "ボット",
     "trace": "トレース",
     "openMenu": "ナビゲーションメニューを開く",
-    "tasks": "タスク"
+    "tasks": "自動化"
   },
   "trace": {
     "title": "トレース",
@@ -41,9 +41,12 @@
     }
   },
   "agentsPage": {
-    "title": "エージェントとアプリ",
-    "agents": "エージェント",
+    "title": "エージェント",
+    "agents": "エキスパート",
+    "market": "業界パック",
     "apps": "アプリ",
+    "create": "エキスパートを作成",
+    "myExperts": "マイエキスパート",
     "connect": "接続",
     "connecting": "接続中…",
     "loadFailed": "カタログの読み込みに失敗しました: {{error}}"
@@ -372,7 +375,7 @@
     "cannotClearInactive": "先にこのチャットに切り替えてください"
   },
   "documents": {
-    "title": "ドキュメント",
+    "title": "ライブラリ",
     "loading": "読み込み中…",
     "disabledMessage": "ドキュメントは利用できません（ドキュメントコレクションが無効か、データベースに接続できません）。",
     "remove": "削除",
@@ -616,14 +619,21 @@
       "general": "一般",
       "account": "アカウント",
       "models": "モデル",
-      "mcp": "MCP サーバー",
-      "skills": "スキル",
+      "mcp": "ツールとスキル",
+      "skills": "ツールとスキル",
+      "channels": "チャネル",
+      "diagnostics": "診断",
       "wechat-app": "WeChat ミニプログラム",
       "branding": "デプロイのブランド設定",
       "status": "システム状態",
       "packs": "パック",
       "presets": "カスタムプリセット",
       "devices": "ペア設定済みデバイス"
+    },
+    "groups": {
+      "basics": "基本",
+      "capabilities": "機能",
+      "management": "管理"
     },
     "general": {
       "theme": "テーマ",
@@ -741,7 +751,7 @@
     "revoke": "取り消す"
   },
   "tasks": {
-    "title": "タスク",
+    "title": "自動化",
     "empty": "タスクはまだありません。予定タスクを作成すると計画に従って実行されます。",
     "status": {
       "scheduled": "予約済み",
@@ -899,7 +909,7 @@
         "fresh": "まだ最新です"
       }
     },
-    "title": "リソース",
+    "title": "成果",
     "search": "リソースを検索",
     "count": "{{count}} 件",
     "loading": "リソースを読み込み中…",
@@ -1062,7 +1072,9 @@
         "reused": "既存を再利用",
         "replaced": "更新",
         "skipped": "スキップ",
-        "unavailable": "利用不可"
+        "unavailable": "利用不可",
+        "bound": "ローカルにバインド済み",
+        "awaiting-local-binding": "ローカルサーバー待ち"
       }
     },
     "mine": {
@@ -1122,7 +1134,13 @@
       "agentServingHint": "公開後、パックページからワンクリックでデプロイ。レジストリゲートウェイ経由で A2A に応答します。",
       "visibility": "公開範囲",
       "visibilityPublic": "公開（一覧表示）",
-      "visibilityPrivate": "非公開（所有者のみ）"
+      "visibilityPrivate": "非公開（所有者のみ）",
+      "toolsAll": "すべてのツール",
+      "toolsN": "{{n}} 個のツール",
+      "toolsEdit": "ツールを選択",
+      "toolsCollapse": "折りたたむ",
+      "toolsClear": "全量に戻す",
+      "toolsNoSnapshot": "レジストリにこのサーバーのツール一覧がまだありません — 公開時にツール単位の検証は行いません"
     },
     "bridge": {
       "title": "プリセットから移行：スキル {{skills}} 件、サーバー {{servers}} 件。移行されなかった項目：",
@@ -1164,7 +1182,7 @@
     "deploymentNote": "調整はこのデプロイの全クライアントで共通です。"
   },
   "customPresets": {
-    "title": "カスタムプリセット",
+    "title": "マイエキスパート",
     "desc": "このセルのスキルと MCP サーバーから会話ロールを組み立てます。フォーカスモードで動作し、このセル内でのみ有効です。公開はできません。",
     "create": "新規プリセット",
     "empty": "カスタムプリセットはまだありません。",

@@ -38,7 +38,7 @@ test.describe("live service @live", () => {
 
   test("deployed sidebar shows all nav entries", async ({ page }) => {
     await gotoChat(page);
-    for (const id of ["nav-chat", "nav-knowledge", "nav-agents", "nav-bots", "nav-trace"]) {
+    for (const id of ["nav-chat", "nav-knowledge", "nav-resources", "nav-agents", "nav-tasks"]) {
       await expect(page.getByTestId(id)).toBeVisible();
     }
   });

@@ -194,9 +194,10 @@ test("create→select→focus: the page's form, the badge, and both patches", as
   });
   expect(extra.ok(), await extra.text()).toBeTruthy();
 
-  // Create through the actual management page (Settings → 自建预设): name +
+  // Create through the actual management surface (Agents → Experts →
+  // 我的专家): name +
   // persona + two reference chips, no free-form name entry anywhere.
-  await page.goto("/settings/presets");
+  await page.goto("/agents?tab=agents");
   await expect(page.getByTestId("custom-presets-page")).toBeVisible({ timeout: 15_000 });
   await page.getByTestId("preset-create").click();
   await page.getByTestId("preset-name-input").fill("Counsel E2E");
@@ -228,7 +229,7 @@ test("create→select→focus: the page's form, the badge, and both patches", as
   await page.getByTestId("strip-more").click();
   const option = page.getByTestId("strip-agent-option").filter({ hasText: "Counsel E2E" });
   await expect(option).toBeVisible({ timeout: 30_000 });
-  await expect(option.getByTestId("strip-agent-focus-badge")).toHaveText("聚焦 · 自建 · 2 技能 · 0 MCP");
+  await expect(option.getByTestId("strip-agent-focus-badge")).toHaveText("聚焦 · 自建 · 2 技能 · 0 工具");
 
   // Selecting focuses both patches: MCP = baseline only (the DB server drops),
   // skills = baseline + the presets/<id>/ compose root only.
@@ -289,7 +290,7 @@ test("editing through the page regenerates the persona and the focused set", asy
   await idleSwitch(page, rosterId(preset.id));
 
   // Edit through the page: new persona text + swap the skill reference.
-  await page.goto("/settings/presets");
+  await page.goto("/agents?tab=agents");
   await expect(page.getByTestId(`preset-item-${preset.id}`)).toBeVisible({ timeout: 15_000 });
   await page.getByTestId(`preset-edit-${preset.id}`).click();
   await page.getByTestId("preset-persona-input").fill("改版人设：覆盖原文。");
@@ -335,7 +336,7 @@ test("deleting the selected preset resets to the built-in agent and prunes", asy
 
   // Delete through the page (confirm dialog test-double: accept).
   page.once("dialog", (d) => d.accept());
-  await page.goto("/settings/presets");
+  await page.goto("/agents?tab=agents");
   await page.getByTestId(`preset-delete-${preset.id}`).click();
   await expect(page.getByTestId(`preset-item-${preset.id}`)).toHaveCount(0, { timeout: 30_000 });
 

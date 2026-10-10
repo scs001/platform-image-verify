@@ -198,11 +198,18 @@ export async function gotoAgents(page, tab) {
 // the modal chrome moves. Specs that test the modal's OWN behavior (gear click,
 // keyboard shortcut, dismissal) drive it directly instead; that is the point of
 // those specs.
+//
+// Alias slugs (simplify-ia-non-technical): `skills` addresses the merged
+// Tools & Skills section, whose canonical slug is `mcp` — the URL keeps the
+// alias, the pane reports the canonical section, and the sub-view follows
+// the alias.
+const SECTION_ALIASES = { skills: "mcp" };
 export async function openSettings(page, section = "general") {
   await pinLocaleEn(page);
   await page.goto(`/settings/${section}`);
+  const canonical = SECTION_ALIASES[section] ?? section;
   await expect(page.getByTestId("settings-panel")).toBeVisible({ timeout: 15000 });
-  await expect(page.getByTestId("settings-panel")).toHaveAttribute("data-section", section);
+  await expect(page.getByTestId("settings-panel")).toHaveAttribute("data-section", canonical);
 }
 
 // Navigate to the React MCP Servers page — now Settings → MCP.
@@ -212,7 +219,7 @@ export async function gotoMcp(page) {
   await expect(page.getByTestId("extensions-page")).toHaveAttribute("data-extensions-type", "mcp");
 }
 
-// Navigate to the React Skills page — now Settings → Skills.
+// Navigate to the React Skills page — Settings → Tools & Skills (skills view).
 export async function gotoSkills(page) {
   await openSettings(page, "skills");
   await expect(page.getByTestId("extensions-page")).toBeVisible({ timeout: 15000 });

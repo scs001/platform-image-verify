@@ -11,13 +11,13 @@
   },
   "nav": {
     "chat": "Chat",
-    "knowledge": "Conocimiento",
-    "resources": "Recursos",
+    "knowledge": "Biblioteca",
+    "resources": "Resultados",
     "agents": "Agentes",
     "bots": "Bots",
     "trace": "Traza",
     "openMenu": "Abrir menú de navegación",
-    "tasks": "Tareas"
+    "tasks": "Automatización"
   },
   "trace": {
     "title": "Traza",
@@ -41,9 +41,12 @@
     }
   },
   "agentsPage": {
-    "title": "Agentes y aplicaciones",
-    "agents": "Agentes",
+    "title": "Agentes",
+    "agents": "Expertos",
+    "market": "Packs sectoriales",
     "apps": "Aplicaciones",
+    "create": "Nuevo experto",
+    "myExperts": "Mis expertos",
     "connect": "Conectar",
     "connecting": "Conectando…",
     "loadFailed": "Error al cargar el catálogo: {{error}}"
@@ -372,7 +375,7 @@
     "cannotClearInactive": "Cambia primero a este chat"
   },
   "documents": {
-    "title": "Documentos",
+    "title": "Biblioteca",
     "loading": "Cargando…",
     "disabledMessage": "Los documentos no están disponibles (la colección de documentos está deshabilitada o la base de datos es inaccesible).",
     "remove": "Quitar",
@@ -616,14 +619,21 @@
       "general": "General",
       "account": "Cuenta",
       "models": "Modelos",
-      "mcp": "Servidores MCP",
-      "skills": "Habilidades",
+      "mcp": "Herramientas y habilidades",
+      "skills": "Herramientas y habilidades",
+      "channels": "Canales",
+      "diagnostics": "Diagnóstico",
       "wechat-app": "Mini programa de WeChat",
       "branding": "Marca del despliegue",
       "status": "Estado del sistema",
       "packs": "Paquetes",
       "presets": "Preajustes propios",
       "devices": "Dispositivos vinculados"
+    },
+    "groups": {
+      "basics": "Básico",
+      "capabilities": "Capacidades",
+      "management": "Gestión"
     },
     "general": {
       "theme": "Tema",
@@ -741,7 +751,7 @@
     "revoke": "Revocar"
   },
   "tasks": {
-    "title": "Tareas",
+    "title": "Automatización",
     "empty": "Aún no hay tareas: crea una tarea programada y se ejecutará según el plan.",
     "status": {
       "scheduled": "Programada",
@@ -899,7 +909,7 @@
         "fresh": "todavía fresco"
       }
     },
-    "title": "Recursos",
+    "title": "Resultados",
     "search": "Buscar recursos",
     "count": "{{count}} elementos",
     "loading": "Cargando recursos…",
@@ -1062,7 +1072,9 @@
         "reused": "Reutilizado",
         "replaced": "Actualizado",
         "skipped": "Omitido",
-        "unavailable": "No disponible"
+        "unavailable": "No disponible",
+        "bound": "Vinculado a local",
+        "awaiting-local-binding": "Esperando servidor local"
       }
     },
     "mine": {
@@ -1122,7 +1134,13 @@
       "agentServingHint": "Tras publicar, despliega en un clic desde la página del pack; el servicio responde por A2A a través del gateway.",
       "visibility": "Visibilidad",
       "visibilityPublic": "Público (listado)",
-      "visibilityPrivate": "Privado (solo propietario)"
+      "visibilityPrivate": "Privado (solo propietario)",
+      "toolsAll": "Todas las herramientas",
+      "toolsN": "{{n}} herramientas",
+      "toolsEdit": "Seleccionar herramientas",
+      "toolsCollapse": "Contraer",
+      "toolsClear": "Superficie completa",
+      "toolsNoSnapshot": "El registro aún no tiene lista de herramientas para este servidor: sin verificación por herramienta al publicar"
     },
     "bridge": {
       "title": "Traído del preset: {{skills}} habilidades, {{servers}} servidores. No migrado:",
@@ -1164,7 +1182,7 @@
     "deploymentNote": "Los ajustes son compartidos por todos los clientes de este despliegue."
   },
   "customPresets": {
-    "title": "Preajustes propios",
+    "title": "Mis expertos",
     "desc": "Compón un rol conversacional con las habilidades y servidores MCP de esta celda: se ejecuta en modo enfocado y solo existe aquí; no se publica.",
     "create": "Nuevo preajuste",
     "empty": "Aún no hay preajustes propios.",

@@ -11,13 +11,13 @@
   },
   "nav": {
     "chat": "Chat",
-    "knowledge": "Knowledge",
-    "resources": "Resources",
+    "knowledge": "Library",
+    "resources": "Outputs",
     "agents": "Agents",
     "bots": "Bots",
     "trace": "Trace",
     "openMenu": "Open navigation menu",
-    "tasks": "Tasks"
+    "tasks": "Automation"
   },
   "trace": {
     "title": "Trace",
@@ -41,9 +41,12 @@
     }
   },
   "agentsPage": {
-    "title": "Agents & Apps",
-    "agents": "Agents",
+    "title": "Agents",
+    "agents": "Experts",
+    "market": "Industry Packs",
     "apps": "Apps",
+    "create": "New expert",
+    "myExperts": "My experts",
     "connect": "Connect",
     "connecting": "Connecting…",
     "loadFailed": "Failed to load catalog: {{error}}"
@@ -372,7 +375,7 @@
     "cannotClearInactive": "Switch to this chat first"
   },
   "documents": {
-    "title": "Documents",
+    "title": "Library",
     "loading": "Loading…",
     "disabledMessage": "Documents are unavailable (document collection is disabled or the database is unreachable).",
     "remove": "Remove",
@@ -629,14 +632,21 @@
       "general": "General",
       "account": "Account",
       "models": "Models",
-      "mcp": "MCP Servers",
-      "skills": "Skills",
+      "mcp": "Tools & Skills",
+      "skills": "Tools & Skills",
+      "channels": "Channels",
+      "diagnostics": "Diagnostics",
       "wechat-app": "WeChat App",
       "branding": "Deployment branding",
       "status": "System Status",
       "packs": "Packs",
       "presets": "Custom presets",
       "devices": "Paired devices"
+    },
+    "groups": {
+      "basics": "Basics",
+      "capabilities": "Capabilities",
+      "management": "Management"
     },
     "general": {
       "theme": "Theme",
@@ -741,7 +751,7 @@
     "revoke": "Revoke"
   },
   "tasks": {
-    "title": "Tasks",
+    "title": "Automation",
     "empty": "No tasks yet — create a scheduled task to run on a plan.",
     "status": {
       "scheduled": "Scheduled",
@@ -899,7 +909,7 @@
         "fresh": "still fresh"
       }
     },
-    "title": "Resources",
+    "title": "Outputs",
     "search": "Search resources",
     "count": "{{count}} items",
     "loading": "Loading resources…",
@@ -1172,7 +1182,7 @@
     "deploymentNote": "Adjustments are shared by every client of this deployment."
   },
   "customPresets": {
-    "title": "Custom presets",
+    "title": "My experts",
     "desc": "Compose a conversational role from this cell's own skills and MCP servers — it runs focused and stays local to this cell; there is no publish.",
     "create": "New preset",
     "empty": "No custom presets yet.",

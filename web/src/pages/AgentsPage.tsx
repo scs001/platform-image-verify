@@ -3,23 +3,32 @@
 // mint a connect session via the server-side broker then redirect, and
 // external-service entries (NEW API) embed via /external/:appId iframe proxy.
 //
-// Layout: tabbed view with two sub-tabs (Agents | Apps) selected via
-// ?tab=apps|agents query parameter for deep-linking. Featured items appear
-// first; entries sort by id within their tier.
+// Layout: tabbed view with three sub-tabs (Experts | Market | Apps) selected
+// via ?tab=agents|market|apps for deep-linking (simplify-ia-non-technical).
+// Experts unifies the catalog roster with the cell's custom presets — the
+// preset management surface (add-custom-presets) is embedded below the
+// catalog grid, so composing, managing, and picking an expert happen in one
+// place. Market hosts the pack marketplace (moved out of Settings) on
+// deployments that report it. The legacy ?tab=agents|apps values keep their
+// meaning. Featured items appear first; entries sort by id within their tier.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useChatStore } from "@platform/core";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
+import { CustomPresetsPage } from "@/pages/CustomPresetsPage";
+import { PacksPage } from "@/pages/PacksPage";
 import type { AgentInfo, AppInfo } from "@platform/core";
 
-type Tab = "agents" | "apps";
+type Tab = "agents" | "market" | "apps";
 
 export function AgentsPage() {
   const { t } = useTranslation();
   const catalogVersion = useChatStore((s) => s.catalogVersion);
+  const { packMarketplace } = useAppConfig();
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [apps, setApps] = useState<AppInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -27,9 +36,16 @@ export function AgentsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // ?tab=apps|agents; default to "agents" when missing or unknown.
+  // ?tab=apps|market|agents; default to "agents" when missing or unknown.
+  // The Market tab only exists on marketplace deployments — a deep link to
+  // ?tab=market elsewhere falls back to Experts.
   const tabParam = searchParams.get("tab");
-  const activeTab: Tab = tabParam === "apps" ? "apps" : "agents";
+  const activeTab: Tab =
+    tabParam === "apps"
+      ? "apps"
+      : tabParam === "market" && packMarketplace
+        ? "market"
+        : "agents";
 
   // catalogVersion bumps on `catalog_changed` — refetch so cloud edits show up live.
   const refresh = useCallback(async () => {
@@ -66,8 +82,8 @@ export function AgentsPage() {
 
   const switchTab = (next: Tab) => {
     const sp = new URLSearchParams(searchParams);
-    if (next === "apps") sp.set("tab", "apps");
-    else sp.delete("tab");
+    if (next === "agents") sp.delete("tab");
+    else sp.set("tab", next);
     setSearchParams(sp, { replace: true });
   };
 
@@ -78,6 +94,12 @@ export function AgentsPage() {
       return a.id.localeCompare(b.id);
     }),
     [agents],
+  );
+  // Custom-preset entries are represented (and managed) in the 我的专家
+  // section below — exclude them from the catalog grid to avoid double rows.
+  const sortedCatalogExperts = useMemo(
+    () => sortedAgents.filter((a) => !a.customPreset),
+    [sortedAgents],
   );
   const sortedApps = useMemo(
     () => [...apps].sort((a, b) => {
@@ -99,7 +121,7 @@ export function AgentsPage() {
 
       {/* Sub-tabs */}
       <div className="mt-4 border-b border-border">
-        <nav className="flex gap-4" role="tablist" aria-label="Agents / Apps">
+        <nav className="flex gap-4" role="tablist" aria-label={t("agentsPage.title")}>
           <button
             type="button"
             role="tab"
@@ -115,6 +137,23 @@ export function AgentsPage() {
           >
             {t("agentsPage.agents")}
           </button>
+          {packMarketplace && (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "market"}
+              data-testid="agents-tab-market"
+              onClick={() => switchTab("market")}
+              className={cn(
+                "border-b-2 px-3 py-2 text-sm font-medium transition-colors",
+                activeTab === "market"
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t("agentsPage.market")}
+            </button>
+          )}
           <button
             type="button"
             role="tab"
@@ -135,9 +174,9 @@ export function AgentsPage() {
 
       <div className="mt-4">
         {activeTab === "agents" && (
-          <section data-testid="agents-section">
+          <section data-testid="agents-section" className="flex flex-col gap-6">
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {sortedAgents.map((a) => (
+              {sortedCatalogExperts.map((a) => (
                 <AgentCard
                   key={a.id}
                   agent={a}
@@ -145,6 +184,17 @@ export function AgentsPage() {
                 />
               ))}
             </div>
+            {/* 我的专家 — the cell's composed experts with their full
+                management surface (create / edit / delete / convert), moved
+                here from the retired Settings section. It refetches on the
+                same catalog_changed pulse as the grid above. */}
+            <CustomPresetsPage />
+          </section>
+        )}
+
+        {activeTab === "market" && packMarketplace && (
+          <section data-testid="market-section">
+            <PacksPage />
           </section>
         )}
 

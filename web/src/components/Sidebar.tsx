@@ -20,7 +20,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
-  Bot,
   BookOpen,
   ChevronDown,
   ChevronRight,
@@ -33,7 +32,6 @@ import {
   Search,
   Settings,
   Sparkles,
-  Waypoints,
   X,
 } from "lucide-react";
 import { useChatStore } from "@platform/core";
@@ -55,14 +53,13 @@ interface Props {
 }
 
 // Icon is part of a tab's identity and stays fixed across locales — the label
-// translates, the glyph does not.
+// translates, the glyph does not. Bots and Trace were demoted from the nav to
+// Settings sections (channels / diagnostics) — simplify-ia-non-technical.
 const NAV_BASE = [
   { to: "/chat", key: "nav.chat", testId: "nav-chat", icon: MessageSquare },
   { to: "/knowledge", key: "nav.knowledge", testId: "nav-knowledge", icon: BookOpen },
   { to: "/resources", key: "nav.resources", testId: "nav-resources", icon: FolderOpen },
   { to: "/agents", key: "nav.agents", testId: "nav-agents", icon: Sparkles },
-  { to: "/bots", key: "nav.bots", testId: "nav-bots", icon: Bot },
-  { to: "/trace", key: "nav.trace", testId: "nav-trace", icon: Waypoints },
   { to: "/tasks", key: "nav.tasks", testId: "nav-tasks", icon: Clock },
 ];
 

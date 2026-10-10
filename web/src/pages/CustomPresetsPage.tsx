@@ -20,7 +20,6 @@ import * as api from "@/lib/presets-api";
 import type { CustomPreset, CustomPresetInput } from "@/lib/presets-api";
 import { stashBridgeHandoff } from "@/lib/pack-draft-bridge";
 import { PresetPublishFlow } from "@/components/packs/PresetPublishFlow";
-import { settingsPath } from "@/components/settings/sections";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -296,15 +295,16 @@ export function CustomPresetsPage() {
 
   // The one-way bridge into pack authoring (add-preset-to-pack-bridge): the
   // server resolves migratability, we stash the report for the editor to show
-  // once, and jump to the packs section with the new draft open. The preset
-  // itself is never touched.
+  // once, and jump to the packs surface (the agents page's Market tab, where
+  // the marketplace UI now lives) with the new draft open. The preset itself
+  // is never touched.
   const convert = async (preset: CustomPreset) => {
     setBridging(preset.id);
     setError(null);
     try {
       const { draft, report } = await api.convertPresetToPackDraft(preset.id);
       stashBridgeHandoff(draft.id, report);
-      navigate(settingsPath("packs"), { state: location.state });
+      navigate("/agents?tab=market", { state: location.state });
     } catch (e) {
       const err = e as Error & { status?: number };
       setError(err.status === 403 ? t("customPresets.bridgeDenied") : err.message);

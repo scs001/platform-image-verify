@@ -89,7 +89,7 @@ test("all-migratable preset converts clean through the page action", async ({ pa
     tags: ["桥接"],
   });
 
-  await page.goto("/settings/presets");
+  await page.goto("/agents?tab=agents");
   await expect(page.getByTestId("custom-presets-page")).toBeVisible({ timeout: 15_000 });
   await page.getByTestId("preset-to-pack-user.bridge-clean").click();
 
@@ -140,7 +140,7 @@ test("a mixed preset converts with the pending-replacement report", async ({ pag
     mcpServers: [LOCAL_SERVER],
   });
 
-  await page.goto("/settings/presets");
+  await page.goto("/agents?tab=agents");
   await expect(page.getByTestId("custom-presets-page")).toBeVisible({ timeout: 15_000 });
   await page.getByTestId("preset-to-pack-user.bridge-mixed").click();
 
@@ -161,7 +161,7 @@ test("a mixed preset converts with the pending-replacement report", async ({ pag
   // A plain revisit of the editor shows no banner — the report is one-shot
   // (leave the section entirely so the page state remounts).
   await page.goto("/chat/");
-  await page.goto("/settings/packs");
+  await page.goto("/agents?tab=market");
   await page.getByTestId("packs-tab-drafts").click();
   await page.getByTestId(`pack-draft-item-${draft.id}`).click();
   await expect(page.getByTestId("pack-editor")).toBeVisible();

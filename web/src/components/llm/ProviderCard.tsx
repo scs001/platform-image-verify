@@ -121,7 +121,9 @@ export function ProviderCard({ provider, isAdmin, onEdit, onDelete, onModelsChan
               <ListPlus className="h-4 w-4" />
             </Button>
           )}
-          {!reserved && (
+          {/* Read-only roster for non-admins: no management controls at all —
+              no add/edit/delete/test/sync (simplify-ia-non-technical). */}
+          {isAdmin && !reserved && (
             <>
               <Button
                 variant="ghost"
@@ -149,7 +151,9 @@ export function ProviderCard({ provider, isAdmin, onEdit, onDelete, onModelsChan
       </header>
 
       <div className="flex flex-wrap items-center gap-3">
-        {!reserved && <TestConnectionButton providerId={provider.id} lastTest={provider.lastTest} />}
+        {isAdmin && !reserved && (
+          <TestConnectionButton providerId={provider.id} lastTest={provider.lastTest} />
+        )}
         {provider.lastTest?.at && (
           <span className="text-xs text-muted-foreground">
             {relativeTime(provider.lastTest.at)}

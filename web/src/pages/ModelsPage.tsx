@@ -142,10 +142,14 @@ export function ModelsPage() {
               </p>
             )}
           </div>
-          <Button onClick={openAdd} data-testid="llm-add-provider">
-            <Plus className="mr-1 h-4 w-4" />
-            {t("modelsPage.addProvider")}
-          </Button>
+          {/* Non-admins get the read-only roster — provider management is an
+              admin surface (simplify-ia-non-technical). */}
+          {isAdmin && (
+            <Button onClick={openAdd} data-testid="llm-add-provider">
+              <Plus className="mr-1 h-4 w-4" />
+              {t("modelsPage.addProvider")}
+            </Button>
+          )}
         </header>
 
         {providers.length === 0 ? (

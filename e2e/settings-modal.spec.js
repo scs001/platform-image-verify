@@ -66,17 +66,17 @@ test.describe("settings modal", () => {
 
   test("dismissing restores the view it was opened from", async ({ page }) => {
     await gotoChat(page);
-    await page.goto("/trace");
-    await expect(page.getByTestId("trace-page")).toBeVisible({ timeout: 15000 });
+    await page.goto("/knowledge");
+    await expect(page.getByTestId("documents-page")).toBeVisible({ timeout: 15000 });
 
     await page.getByTestId("settings-btn").click();
     await expect(page.getByTestId("settings-panel")).toBeVisible();
     // The underlying view stays mounted — that is the point of a modal.
-    await expect(page.getByTestId("trace-page")).toBeAttached();
+    await expect(page.getByTestId("documents-page")).toBeAttached();
 
     await page.keyboard.press("Escape");
-    await expect(page).toHaveURL(/\/trace$/);
-    await expect(page.getByTestId("trace-page")).toBeVisible();
+    await expect(page).toHaveURL(/\/knowledge$/);
+    await expect(page.getByTestId("documents-page")).toBeVisible();
   });
 
   test("deep link opens a section over the chat view", async ({ page }) => {
@@ -116,16 +116,26 @@ test.describe("settings modal", () => {
     const cases = [
       ["/models", "models"],
       ["/mcp", "mcp"],
-      ["/skills", "skills"],
+      // `skills` is an alias of the merged Tools & Skills section: the URL
+      // stays /settings/skills (each alias carries its own sub-view state),
+      // the canonical section is mcp, and the skills view is what renders.
+      ["/skills", "skills", "skills"],
       ["/extensions", "mcp"],
       ["/extensions/mcp", "mcp"],
-      ["/extensions/skills", "skills"],
+      ["/extensions/skills", "skills", "skills"],
       ["/dashboard", "status"],
+      // Demoted work surfaces (simplify-ia-non-technical): the former /bots
+      // and /trace pages are Settings sections now.
+      ["/bots", "channels"],
+      ["/trace", "diagnostics"],
     ];
-    for (const [legacy, section] of cases) {
+    for (const [legacy, section, extensionType] of cases) {
       await page.goto(legacy);
       await expect(page).toHaveURL(new RegExp(`/settings/${section}$`));
-      await expect(page.getByTestId("settings-panel")).toHaveAttribute("data-section", section);
+      await expect(page.getByTestId("settings-panel")).toHaveAttribute("data-section", extensionType ? "mcp" : section);
+      if (extensionType) {
+        await expect(page.getByTestId("extensions-page")).toHaveAttribute("data-extensions-type", extensionType);
+      }
     }
   });
 
@@ -155,18 +165,18 @@ test.describe("settings modal", () => {
 
   test("a section Manage link preserves what the modal was covering", async ({ page }) => {
     await gotoChat(page);
-    await page.goto("/trace");
-    await expect(page.getByTestId("trace-page")).toBeVisible({ timeout: 15000 });
+    await page.goto("/knowledge");
+    await expect(page.getByTestId("documents-page")).toBeVisible({ timeout: 15000 });
 
     await page.getByTestId("settings-btn").click();
     await page.getByTestId("settings-section-status").click();
     await page.getByTestId("mcp-manage-link").click();
     await expect(page.getByTestId("settings-panel")).toHaveAttribute("data-section", "mcp");
 
-    // Closing must still return to Trace — the Manage link has to carry the
-    // background location forward or this lands on /chat.
+    // Closing must still return to the Library — the Manage link has to carry
+    // the background location forward or this lands on /chat.
     await page.keyboard.press("Escape");
-    await expect(page).toHaveURL(/\/trace$/);
+    await expect(page).toHaveURL(/\/knowledge$/);
   });
 
   test("only the active section is mounted", async ({ page }) => {

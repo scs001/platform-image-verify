@@ -14,6 +14,7 @@
 
 import * as chatHistory from "../chat-history.js";
 import * as trace from "./trace.js";
+import { recordPackUsage } from "./usage-telemetry.js";
 import {
   parseToolSchemas,
   candidateToolNames,
@@ -126,9 +127,20 @@ export function attachDshEvents(ctx) {
   // the session-status idle handler and the prompt() catch on failure, without
   // risking a double `done`. This is what unblocks model-switching /
   // new-session creation after a failed turn and keeps the sidebar in sync.
-  ctx.finishTurn = () => {
+  ctx.finishTurn = (outcome) => {
     if (!ctx.isStreaming) return;
     ctx.isStreaming = false;
+    // Usage telemetry (add-pack-usage-telemetry): one row per completed turn,
+    // failure-isolated inside. Captured BEFORE the origin resets below; the
+    // outcome falls back to the turn's own error flag when the caller (the
+    // idle path) doesn't name one.
+    recordPackUsage({
+      userEmail: ctx.turnOrigin?.user ?? null,
+      sessionId: ctx.turnOrigin?.sessionId ?? ctx.dshSessionId,
+      agentId: ctx.currentAgentId ?? "local",
+      outcome: outcome ?? (ctx.dshTurnError ? "error" : "ok"),
+      startedAt: ctx.turnStartedAt,
+    });
     // `done` closes the turn for exactly the clients viewing the session it
     // ran in (add-session-ownership); a foreign viewer never saw the turn and
     // must not see its close either.
@@ -181,7 +193,7 @@ export function attachDshEvents(ctx) {
       ctx.abortCronTurns?.("the agent runtime restarted mid-turn");
       if (ctx.isStreaming) {
         ctx.sendToViewers(ctx.dshSessionId, { type: "error", message: "Agent runtime exited unexpectedly" });
-        ctx.finishTurn();
+        ctx.finishTurn("error");
       }
       return;
     }

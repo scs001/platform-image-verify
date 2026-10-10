@@ -137,11 +137,11 @@ const beginTurnFor = async (ws) => {
     ctx.sessionVersion = (ctx.sessionVersion || 0) + 1;
   }
   ws.viewedSession = target;
+  ctx.turnStartedAt = Date.now(); // usage telemetry's duration anchor (set at dispatch truth)
   ctx.turnOrigin = {
     user: ctx.authEnabled ? ws.user?.email ?? null : null,
     sessionId: target,
-  };
-  return target;
+  };  return target;
 };
 
 // Sync a client that connected mid-boot with everything the normal connect
@@ -360,6 +360,7 @@ ctx.wss.on("connection", (ws, req) => {
           // this new turn must own its own errors.
           ctx.promptStoppedByNavigation = false;
           ctx.isStreaming = true;
+          ctx.turnStartedAt = Date.now();
           try {
             const target = await beginTurnFor(ws);
             // Skill invocation: emit a skill_use block and suppress the raw
@@ -428,6 +429,7 @@ ctx.wss.on("connection", (ws, req) => {
           // Same stale-marker contract as the skill branch above.
           ctx.promptStoppedByNavigation = false;
           ctx.isStreaming = true;
+          ctx.turnStartedAt = Date.now();
           try {
             const target = await beginTurnFor(ws);
             ctx.sendToViewers(target, { type: "user", text, ...budgetLeftField(ws) });

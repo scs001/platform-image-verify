@@ -294,6 +294,10 @@ const PLATFORM_BOARD_TOKEN = process.env.PLATFORM_BOARD_TOKEN || "";
 // fleet state from direct runner polls.
 const FLEET_BOARD_URL = process.env.FLEET_BOARD_URL || "";
 const FLEET_BOARD_TOKEN = process.env.FLEET_BOARD_TOKEN || "";
+// Internal pack usage (add-pack-usage-telemetry): the platform's own
+// /api/ops/pack-usage aggregate — the M1 weekly-active-pack gate reads here.
+const PACK_USAGE_URL = process.env.PACK_USAGE_URL || "";
+const PACK_USAGE_TOKEN = process.env.PACK_USAGE_TOKEN || "";
 
 async function pollRunnerHealth() {
   if (!RUNNER_HEALTH_URL) throw new Error("RUNNER_HEALTH_URL not configured");
@@ -312,6 +316,14 @@ async function pollBillingBoard() {
   if (!PLATFORM_BOARD_URL) throw new Error("PLATFORM_BOARD_URL not configured");
   return getJson(PLATFORM_BOARD_URL, {
     headers: { Authorization: `Bearer ${PLATFORM_BOARD_TOKEN}` },
+    timeoutMs: 8000,
+  });
+}
+
+async function pollPackUsage() {
+  if (!PACK_USAGE_URL) throw new Error("PACK_USAGE_URL not configured");
+  return getJson(`${PACK_USAGE_URL.replace(/\/+$/, "")}/api/ops/pack-usage?days=7`, {
+    headers: { Authorization: `Bearer ${PACK_USAGE_TOKEN}` },
     timeoutMs: 8000,
   });
 }
@@ -354,6 +366,7 @@ const SOURCES = [
   ["runnerHealth", pollRunnerHealth],
   ["billingBoard", pollBillingBoard],
   ["fleetBoard", pollFleetBoard],
+  ["packUsage", pollPackUsage],
 ];
 let pollBusy = false;
 async function pollOnce() {
@@ -624,6 +637,7 @@ function renderBoard() {
   ${vitals}
   ${renderFleetOverview()}
   ${renderFleet()}
+  ${renderPackUsage()}
   <div class="grid">${cards}${jenkinsCard}${harborCard}${relayBody}</div>
 </div>
 </body></html>`;
@@ -834,4 +848,36 @@ const server = http.createServer((req, res) => {
 if (isMain) {
   server.listen(PORT, HOST, () => console.log(`[ops-console] listening on ${HOST}:${PORT} | ns=${NAMESPACE} deploys=[${WATCHED_DEPLOYS}] poll=${POLL_SECS}s`));
 }
-export { computeDrift, argocdStatusFor, overallStatus, storeWrite, storeLatest, storeLastOk, renderFleetOverview, renderFleet };
+// ── internal pack usage (add-pack-usage-telemetry) ───────────────────────────
+// Straight projection of the platform's pack-usage aggregate: the weekly-
+// active-pack number up front, then one line per origin. Same degradation
+// discipline as the fleet sections — unconfigured/failed render explicitly.
+function renderPackUsage() {
+  const snap = storeLatest("packUsage");
+  const d = snap?.data ?? null;
+  const err = d?.__error ?? null;
+  const age = snap ? ago(snap.ts) : null;
+  if (!PACK_USAGE_URL) {
+    return `<section class="fleet" aria-label="pack usage">
+  <h2>internal pack usage</h2>
+  <p class="dim">not configured — set PACK_USAGE_URL/PACK_USAGE_TOKEN (platform /api/ops/pack-usage)</p>
+</section>`;
+  }
+  if (!d || err) {
+    return `<section class="fleet" aria-label="pack usage">
+  <h2>internal pack usage</h2>
+  <p class="dim">${err ? `read failed: ${esc(err)}` : "no data yet"}${age ? ` · ${esc(age)}` : ""}</p>
+</section>`;
+  }
+  const rows = (d.rows || []).map((r) => {
+    const label = r.packId ? esc(r.packId) : "<i>非 pack（本地/自建）</i>";
+    return `<div class="dim" style="display:flex;gap:12px"><span style="min-width:240px;overflow:hidden;text-overflow:ellipsis">${label}</span><span>${r.turns} turns · ${r.activeUsers} users · ${ago(r.lastUsedAt)}</span></div>`;
+  });
+  return `<section class="fleet" aria-label="pack usage">
+  <h2>internal pack usage</h2>
+  <p><b>${d.weeklyActivePacks ?? 0}</b> weekly-active packs (7d)${age ? ` · ${esc(age)}` : ""}</p>
+  ${rows.length ? rows.join("\n  ") : '<p class="dim">window empty — no turns recorded yet</p>'}
+</section>`;
+}
+
+export { computeDrift, argocdStatusFor, overallStatus, storeWrite, storeLatest, storeLastOk, renderFleetOverview, renderFleet, renderPackUsage };

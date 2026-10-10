@@ -13,6 +13,7 @@ import * as documents from "./documents.js";
 import * as resources from "./resources.js";
 import * as db from "./db.js";
 import * as trace from "./server/trace.js";
+import { startUsagePruneTimer } from "./server/usage-telemetry.js";
 import * as bots from "./server/bots.js";
 import { attachCronRunner } from "./server/cron-runner.js";
 import * as migrate from "./migrate.js";
@@ -45,6 +46,7 @@ import { registerMpRoutes } from "./server/routes/mp.js";
 import { registerAppRoutes } from "./server/routes/app.js";
 import { registerRegistryRoutes } from "./server/routes/registry.js";
 import { registerConnectorRoutes } from "./server/routes/connector.js";
+import { registerPackUsageRoutes } from "./server/routes/pack-usage.js";
 import { registerFileRoutes } from "./server/routes/files.js";
 import { registerResourceRoutes } from "./server/routes/resources.js";
 import { registerBotRoutes, WEBHOOK_PREFIX } from "./server/routes/bots.js";
@@ -215,6 +217,7 @@ registerMpRoutes(ctx);
 // App device-pairing endpoints (pair / challenge / login / devices / revoke).
 registerAppRoutes(ctx);
 registerRegistryRoutes(ctx);
+registerPackUsageRoutes(ctx);
 // 萬星 connector PAT (connector-credentials) — same route family as the
 // registry credential endpoints.
 registerConnectorRoutes(ctx);
@@ -770,6 +773,7 @@ const dshInit = initDshAgent()
   });
 await Promise.all([documentsInit, dshInit]);
 await trace.initTrace();
+startUsagePruneTimer();
 
 // Agent is live: flip readiness and sync any client that connected mid-boot.
 // Only flipped when initDshAgent resolved — a degraded agent stays 503 and

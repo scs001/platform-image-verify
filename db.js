@@ -561,6 +561,27 @@ const MIGRATIONS = [
       )`,
     ],
   },
+  {
+    version: 24,
+    // pack-usage telemetry (add-pack-usage-telemetry, design D1): one row per
+    // completed chat turn, for the marketplace's supply feedback (weekly-active
+    // packs). pack_id is NULL for local personas / custom presets — those turns
+    // aggregate into their own bucket, never inflating a pack. Kept in the main
+    // app db (NOT trace.db): 180-day aggregate surface, not a 7-day debug tap.
+    statements: [
+      `CREATE TABLE IF NOT EXISTS pack_usage_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ts INTEGER NOT NULL,
+        user_email TEXT,
+        session_id TEXT NOT NULL,
+        agent_id TEXT NOT NULL,
+        pack_id TEXT,
+        outcome TEXT NOT NULL,
+        duration_ms INTEGER NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_pack_usage_ts ON pack_usage_events(ts)`,
+    ],
+  },
 ];
 
 function nowIso() {

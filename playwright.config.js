@@ -122,6 +122,9 @@ export default defineConfig({
             SEARCH_RELAY_URL: process.env.SEARCH_RELAY_URL || "http://127.0.0.1:4598",
             SEARCH_RELAY_TOKEN: process.env.SEARCH_RELAY_TOKEN || "e2e-relay-dummy-token",
             AGENTS_CONFIG_URL: "",
+            // Ops credential for the pack-usage aggregate read (add-pack-usage-telemetry
+            // e2e): the fast suite asserts the endpoint against the local server.
+            PACK_USAGE_TOKEN: process.env.PACK_USAGE_TOKEN || "e2e-pack-usage-token",
             CHAT_HISTORY_STORE_DIR: storeDirs.chat,
             DOCUMENTS_STORE_DIR: storeDirs.docs,
             SESSIONS_STORE_DIR: storeDirs.sessions,

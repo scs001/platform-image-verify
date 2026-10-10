@@ -102,7 +102,7 @@ function bumpSessionVersion() {
 async function stopStreamingForSessionNavigation() {
   if (!ctx.isStreaming) return;
   const remoteAbort = ctx.activeRemoteTurnAbort;
-  ctx.finishTurn();
+  ctx.finishTurn("aborted");
   if (remoteAbort) {
     remoteAbort.switchedAway = true;
     if (ctx.activeRemoteTurnAbort === remoteAbort) ctx.activeRemoteTurnAbort = null;
@@ -476,6 +476,7 @@ function remoteForkMessages() {
 // for (ctx.remoteChatEntryFor); an entry that has one runs on the local agent.
 async function streamRemoteChat(entry, text) {
   ctx.isStreaming = true; // set synchronously (same contract as the local prompt path)
+  ctx.turnStartedAt = Date.now();
   // The session is captured BEFORE the fetch: navigation may switch the live
   // chat while this request is still open, and the partial reply belongs to the
   // session that asked, never to whichever session is on screen when it lands.
@@ -568,6 +569,7 @@ async function streamRemoteChat(entry, text) {
 // map onto the existing text/done/error contract.
 async function streamA2aChat(entry, text) {
   ctx.isStreaming = true;
+  ctx.turnStartedAt = Date.now();
   const sessionId = chatHistory.currentSessionId();
   const abort = new AbortController();
   ctx.activeRemoteTurnAbort = abort;

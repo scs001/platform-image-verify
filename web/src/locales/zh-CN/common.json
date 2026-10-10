@@ -1055,14 +1055,16 @@
       "title": "「{{name}}」安装结果",
       "hint": "逐项安装结果如下；被跳过或不可用的条目附有原因。",
       "skill": "技能",
-      "mcp": "MCP",
+      "mcp": "工具",
       "agent": "角色",
       "status": {
         "installed": "已安装",
         "reused": "复用已有",
         "replaced": "已更新",
         "skipped": "已跳过",
-        "unavailable": "不可用"
+        "unavailable": "不可用",
+        "bound": "已绑定本地",
+        "awaiting-local-binding": "待绑定本地服务"
       }
     },
     "mine": {
@@ -1115,14 +1117,20 @@
       "resourceSet": "资源集（可选）",
       "resourceHint": "不勾选 = 该角色使用整包资源；勾选后仅装载所选子集（全不选 = 仅部署基线）。只能从本包的技能与 MCP 引用中选取。",
       "limitSkills": "限定技能",
-      "limitMcp": "限定 MCP 服务",
+      "limitMcp": "限定外部工具",
       "resourceEmptySkills": "草稿尚未声明技能——先在上方添加技能。",
       "resourceEmptyMcp": "草稿尚未选择 MCP 引用——先在上方选取。",
       "agentServing": "部署为 Agent 服务（A2A）",
       "agentServingHint": "发布后可在详情页一键部署，经 registry 网关以 A2A 协议对外提供服务。",
       "visibility": "可见性",
       "visibilityPublic": "公开（市场列出）",
-      "visibilityPrivate": "私有（仅自己）"
+      "visibilityPrivate": "私有（仅自己）",
+      "toolsAll": "全部工具",
+      "toolsN": "{{n}} 个工具",
+      "toolsEdit": "选择工具",
+      "toolsCollapse": "收起",
+      "toolsClear": "恢复全量",
+      "toolsNoSnapshot": "注册处暂无该服务的工具清单——发布时不做工具级校验"
     },
     "bridge": {
       "title": "已从预设转入 {{skills}} 个技能、{{servers}} 个服务器；以下引用未迁移：",

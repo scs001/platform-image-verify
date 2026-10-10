@@ -29,6 +29,7 @@ import { pathToFileURL } from "node:url";
 import Schema from "@deepseek-ai/schemastery";
 import { SessionId } from "@deepseek-ai/dsh-session";
 import { HarnessSdkJsonRpcServer } from "@deepseek-ai/dsh-sdk-jsonrpc-server";
+import { applyMcpToolRestrict, installMcpToolGuard } from "./platform-tool-scope.js";
 
 // JsonRpcLineTransport lives in the SDK server package's own dependency
 // closure. Re-anchor resolution at the server package's entry file (its real
@@ -46,7 +47,7 @@ const transport = await (async () => {
 const { JsonRpcLineTransport } = transport;
 
 const name = "platform-sdk-server";
-const inject = ["agents"];
+const inject = ["agents", "tools"];
 const Config = Schema.object({ maxTokensAsSuccess: Schema.boolean().default(false) });
 
 class PlatformSdkServer extends HarnessSdkJsonRpcServer {
@@ -114,9 +115,13 @@ class PlatformSdkServer extends HarnessSdkJsonRpcServer {
     // Resolve before creation so an unknown id fails before any session or
     // agent state exists; mount in setup so a broken composition rolls the
     // whole creation back instead of publishing a half-composed agent.
+    // After the mount, the focused role's MCP tool allowlist narrows the
+    // agent's roster (add-mcp-tool-scoping D2) — best-effort; the global
+    // guard installed in apply() carries the hard interception regardless.
     const preset = await presets.resolve(this.agentPresetId ?? undefined);
     const setup = async (agentCtx) => {
       await presets.mount(agentCtx, preset.id);
+      applyMcpToolRestrict(agentCtx);
     };
     const handle = persisted
       ? await this.ctx.agents.resume({
@@ -158,6 +163,10 @@ class PlatformSdkServer extends HarnessSdkJsonRpcServer {
 function apply(ctx, config) {
   const resolvedConfig = config;
   const rootFiber = ctx.root.fiber;
+  // Global tool-allowlist guard (add-mcp-tool-scoping D2): plain-context, so
+  // it covers the session agent AND every delegated child in this process.
+  // No-ops when no filter is materialized (full mode / legacy packs).
+  installMcpToolGuard(ctx);
   const input = config.input ?? process.stdin;
   const output = config.output ?? process.stdout;
   const exit = config.exit ?? ((code) => process.exit(code));

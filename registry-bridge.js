@@ -105,7 +105,51 @@ function mapServer(s) {
       "Served through your MCP gateway. Fill in your gateway access token.",
     origin: "registry",
     groups: groupsFor("servers", name),
+    // Tool surface snapshot (add-mcp-tool-scoping 5.3): the registry entry's
+    // stored tool_list rides the catalog so the pack editor's tool picker can
+    // offer real names; null when the entry predates a snapshot refresh.
+    toolList: Array.isArray(s.tool_list) ? s.tool_list.map((t) => String(t)) : null,
   };
+}
+
+// ── Server index for the publish tool gate (add-mcp-tool-scoping 5.1/5.2) ────
+// One bounded fetch of /api/servers distilled to what the gate needs: the
+// tool_list snapshot, the commercial surface (a NAME list from
+// metadata.surface.commercial_tools — the pre-enrichment shape carries only
+// counts, surfaced as surfaceCountsOnly so the gate can skip closure with an
+// observable note instead of guessing), and the probe endpoint.
+let serverIndexCache = { at: 0, map: null };
+export async function registryServerIndex({ maxAgeMs = 60_000, fetchImpl: overrideFetch = null } = {}) {
+  if (serverIndexCache.map && Date.now() - serverIndexCache.at < maxAgeMs) return serverIndexCache.map;
+  // Same authenticated REGISTRY_URL-relative channel as doRefresh; tests
+  // override with a bare (path → doc) fetch.
+  const impl = overrideFetch || ((endpoint) => fetchJson(endpoint));
+  const doc = await impl("/api/servers?limit=500");
+  const rows = Array.isArray(doc?.servers) ? doc.servers : [];
+  const map = new Map();
+  for (const s of rows) {
+    if (!s?.path || s.is_enabled === false) continue;
+    const name = pathToName(s.path);
+    const surface = s.metadata?.surface;
+    let commercialTools = null;
+    let surfaceCountsOnly = false;
+    if (Array.isArray(surface?.commercial_tools)) {
+      commercialTools = surface.commercial_tools.map((t) => String(t));
+    } else if (surface && Number.isFinite(Number(surface.tools_commercial))) {
+      surfaceCountsOnly = true;
+    }
+    map.set(name, {
+      toolList: Array.isArray(s.tool_list) ? s.tool_list.map((t) => String(t)) : null,
+      commercialTools,
+      surfaceCountsOnly,
+      endpoint:
+        typeof s.mcp_endpoint === "string" && s.mcp_endpoint
+          ? s.mcp_endpoint
+          : `${REGISTRY_URL}/${name}/mcp`,
+    });
+  }
+  serverIndexCache = { at: Date.now(), map };
+  return map;
 }
 
 // Skill card → market skill entry (metadata only; content is fetched lazily at

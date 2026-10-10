@@ -27,6 +27,7 @@ import { join, dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { atomicWriteTextSync, normalizeBaseUrl } from "./lib/persistence.js";
+import { effectiveMcpTools } from "./lib/pack-manifest.js";
 import { repoRoot } from "./paths.js";
 
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), ".dsh");
@@ -807,6 +808,11 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
     else console.warn(`[dsh-profile] skipping MCP server "${name}": unknown config shape`);
   }
 
+  // The filter config refreshes at the same composition moments as the MCP
+  // patch (server cells, desktop, and the runner all converge here or on the
+  // parameterized writer below) — a stale filter cannot outlive its patch.
+  writeToolFilterPatch(scope.source === "pack" ? scope.mcpTools : null);
+
   if (entries.length === 0) {
     console.log("[dsh-profile] no MCP servers configured; skipping --patch");
     return null;
@@ -823,6 +829,41 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
     `[dsh-profile] wrote ${entries.length} MCP server(s): ${entries.map((e) => e.config.serverName).join(", ")} → ${MCP_PATCH_PATH}`,
   );
   return MCP_PATCH_PATH;
+}
+
+// ── MCP tool allowlist filter (add-mcp-tool-scoping D1/D2) ────────────────────
+// Materializes the focused role's per-server tool allowlists as the config the
+// preset bridge's scope module reads: tool-filter.json beside the copied
+// bridge files (the chart-bind allowlist precedent — a plain data file, not a
+// loader entry, so no patch row is consumed). The scope module itself ships
+// beside the preset bridge (its relative import target) and is refreshed on
+// every materialization, idempotently.
+//
+// `mcpTools` is the derived map ({server: [leaf...]}), null/empty = no
+// filtering (full mode, legacy packs, a persona without allowlists) — the
+// bridge no-ops on an empty mapping, which is what keeps every pre-change
+// composition byte-identical in behavior.
+// `dirs` ({dshHome, profileName}) re-aims the writer at a private home — the
+// same parameterization writePresetsPatch takes, so agent-runner's per-role
+// homes carry the filter through the one shared writer (zero format drift).
+const TOOL_SCOPE_BRIDGE_SOURCE = join(dirname(fileURLToPath(import.meta.url)), "dsh-profile-template", "platform-tool-scope.js");
+const TOOL_FILTER_FILE = "tool-filter.json";
+
+export function writeToolFilterPatch(mcpTools, { dirs = null } = {}) {
+  const profileDir = dirs
+    ? join(dirs.dshHome, "profiles", dirs.profileName || "platform")
+    : dirname(MCP_PATCH_PATH);
+  mkdirSync(profileDir, { recursive: true });
+  const doc = { mcpTools: mcpTools && typeof mcpTools === "object" ? mcpTools : {} };
+  atomicWriteTextSync(join(profileDir, TOOL_FILTER_FILE), JSON.stringify(doc, null, 2) + "\n");
+  try {
+    atomicWriteTextSync(join(profileDir, "platform-tool-scope.js"), readFileSync(TOOL_SCOPE_BRIDGE_SOURCE, "utf8"));
+  } catch (err) {
+    // A stale copy from an earlier materialization keeps the guard alive; the
+    // warning names the degraded window instead of failing composition.
+    console.warn(`[dsh-profile] could not refresh platform-tool-scope.js (${err.message}); the existing copy (if any) keeps serving`);
+  }
+  return join(profileDir, TOOL_FILTER_FILE);
 }
 
 // ── Skills discovery patch (dsh-skill-filesystem) ──────────────────────────────
@@ -1015,8 +1056,8 @@ export async function resolvePersona(presetId) {
 }
 
 // Stage 2 — persona → effective resource set. Returns { source: null } for
-// full mode, { source: "pack", packId, packName, persona, mcpKeep, skillsDir,
-// skillsDecl, overlay } for a pack persona, or { source: "custom",
+// full mode, { source: "pack", packId, packName, persona, mcpKeep, mcpTools,
+// skillsDir, skillsDecl, overlay } for a pack persona, or { source: "custom",
 // customPresetId, customPresetName, mcpKeep, skillsDir, skillsDecl, overlay }
 // for a custom preset. Declaration semantics (D2/D4): a pack persona's absent
 // dimension keeps the whole-pack set for it, a present one narrows
@@ -1032,8 +1073,15 @@ export async function resolvePersona(presetId) {
 // at every composition with no independent scope state. `noOverlay` suppresses
 // the input for callers that need the pre-overlay derivation (the probe's
 // derived-vs-derived±overlay report); it never affects full mode.
+//
+// add-mcp-tool-scoping D6: `mcpTools` carries the per-server tool allowlists —
+// for each KEPT reference, the role's resources.mcpTools list when declared
+// (intersected with the pack-level allowTools for defense — the validator
+// already enforces subset at publish), else the pack-level allowTools, else
+// the server is absent from the map = full surface. null for full mode and
+// custom presets (v1 declares tools on packs only).
 export async function deriveScope(agentPreset, { noOverlay = false } = {}) {
-  const full = { source: null, packId: null, packName: null, persona: null, mcpKeep: null, skillsDir: null, skillsDecl: undefined, overlay: null };
+  const full = { source: null, packId: null, packName: null, persona: null, mcpKeep: null, mcpTools: null, skillsDir: null, skillsDecl: undefined, overlay: null };
   const persona = await resolvePersona(agentPreset);
   if (!persona) return full;
   let overlay = null;
@@ -1061,6 +1109,7 @@ export async function deriveScope(agentPreset, { noOverlay = false } = {}) {
       customPresetId: row.id,
       customPresetName: row.name,
       mcpKeep: [...new Set(row.mcpServers ?? [])],
+      mcpTools: null,
       skillsDir,
       skillsDecl: [...new Set(row.skills ?? [])],
       overlay,
@@ -1076,6 +1125,10 @@ export async function deriveScope(agentPreset, { noOverlay = false } = {}) {
   const mcpKeep = Array.isArray(declaredMcp)
     ? packRefs.filter((name) => declaredMcp.includes(name))
     : packRefs;
+  // Tool allowlists (add-mcp-tool-scoping D6) — one shared definition with the
+  // serving descriptor (lib/pack-manifest.js effectiveMcpTools); only kept
+  // servers appear, a dropped server's allowlist is moot (not loaded).
+  const mcpTools = effectiveMcpTools(persona.manifest, persona.agent);
   const skillsDecl = persona.agent?.resources?.skills;
   let skillsDir = null;
   try {
@@ -1098,6 +1151,7 @@ export async function deriveScope(agentPreset, { noOverlay = false } = {}) {
     packName: persona.packName,
     persona: persona.agent?.id ?? null,
     mcpKeep,
+    mcpTools,
     skillsDir,
     skillsDecl: Array.isArray(skillsDecl) ? skillsDecl : undefined,
     overlay,
@@ -1182,6 +1236,15 @@ export async function writePresetsPatch({ dirs, default: defaultPreset = DEFAULT
   // where no dsh self-install anchor exists yet).
   const bridgeTarget = join(dirname(presetsPatchPath), PRESET_BRIDGE_FILE);
   atomicWriteTextSync(bridgeTarget, readFileSync(BRIDGE_SOURCE, "utf8"));
+  // The preset bridge imports the tool-scope module (add-mcp-tool-scoping
+  // D2) — same unconditional-copy discipline as the bridge itself: every
+  // profile that can load the bridge can resolve its dependency, whatever
+  // writer materialized it (writeToolFilterPatch refreshes it alongside the
+  // filter config; this copy covers preset-only compositions).
+  atomicWriteTextSync(
+    join(dirname(presetsPatchPath), "platform-tool-scope.js"),
+    readFileSync(TOOL_SCOPE_BRIDGE_SOURCE, "utf8"),
+  );
   const presetRoot = resolveShippedPresetRoot();
   const roots = [...(presetRoot ? [{ path: presetRoot, trust: "system" }] : []), ...extraRoots];
   if (roots.length === 0 && requireRoster) {
@@ -1621,8 +1684,10 @@ export function writeNotifyPatch({ dirs } = {}) {
   mkdirSync(profileDir, { recursive: true });
   // The subclass parent, re-written idempotently (the user-questions overlay's
   // own discipline): the notify bridge's relative import must resolve even if
-  // a caller ever writes this overlay ahead of the presets one.
+  // a caller ever writes this overlay ahead of the presets one. The parent's
+  // own dependency (platform-tool-scope.js) rides along for the same reason.
   atomicWriteTextSync(join(profileDir, PRESET_BRIDGE_SOURCE_FILE), readFileSync(BRIDGE_SOURCE, "utf8"));
+  atomicWriteTextSync(join(profileDir, "platform-tool-scope.js"), readFileSync(TOOL_SCOPE_BRIDGE_SOURCE, "utf8"));
   atomicWriteTextSync(join(profileDir, NOTIFY_BRIDGE_FILE), readFileSync(NOTIFY_BRIDGE_SOURCE, "utf8"));
   atomicWriteTextSync(join(profileDir, NOTIFY_MODULE_FILE), readFileSync(NOTIFY_MODULE_SOURCE, "utf8"));
   const patchPath = join(profileDir, NOTIFY_PATCH_FILE);

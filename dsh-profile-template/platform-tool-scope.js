@@ -1,0 +1,132 @@
+// platform-tool-scope.js — per-role MCP tool allowlist enforcement
+// (add-mcp-tool-scoping, design D2).
+//
+// Config arrives as tool-filter.json beside this file, materialized by the
+// host (dsh-profile.js writeToolFilterPatch) from the selected preset's
+// derived scope: { "mcpTools": { "<serverName>": ["leaf", ...] } }. An absent
+// file, unparsable content, or an empty mapping means no filtering — full
+// mode and legacy packs compose exactly as before.
+//
+// Two layers, deliberately asymmetric:
+//   - GUARD (hard, drift-proof): a plain-context guard applies to EVERY agent
+//     in this child process — the session agent and every delegated child —
+//     and denies any mcp__<server>__<leaf> call whose leaf is not allowlisted
+//     for that server. It only ever string-matches the called name, so it
+//     never throws and never depends on registry state: server drift (new
+//     tools, removed tools) cannot widen callability.
+//   - RESTRICT (best-effort, context economy): applied per agent scope at
+//     session composition (the preset bridge's setup hook) so out-of-allowlist
+//     tools leave the model-facing roster entirely. tools.restrict() throws
+//     on names unknown to the scope, so the deny set is computed from the
+//     tools actually registered at composition time and any failure is
+//     swallowed — the guard still enforces; only the context saving degrades.
+//
+// The deny form (never allow) is load-bearing: an allow-list deny-complement
+// stale in either direction would throw, while deny computed against live
+// registrations stays valid, and tools that appear later are covered by the
+// guard until the next composition narrows them too.
+
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
+// tool-filter.json lives beside this module by default (the profile dir once
+// copied). TOOL_FILTER_PATH re-anchors it — the same seam dsh-profile's
+// MCP_CONFIG_PATH provides, used by tests to point at a tmp fixture instead
+// of writing into the repo's template dir.
+const FILTER_FILE = process.env.TOOL_FILTER_PATH
+  || join(dirname(fileURLToPath(import.meta.url)), "tool-filter.json");
+
+// mcp__<serverName>__<rawName> — the dsh-mcp-client public naming convention.
+const MCP_NAME_PREFIX = "mcp__";
+
+function mcpNameParts(name) {
+  if (typeof name !== "string" || !name.startsWith(MCP_NAME_PREFIX)) return null;
+  const rest = name.slice(MCP_NAME_PREFIX.length);
+  const sep = rest.indexOf("__");
+  if (sep <= 0) return null;
+  const server = rest.slice(0, sep);
+  const leaf = rest.slice(sep + 2);
+  if (!server || !leaf) return null;
+  return { server, leaf };
+}
+
+// Read the materialized filter (per invocation — a tool call is LLM-paced, a
+// tiny JSON read is noise, and per-read keeps an HMR'd patch file from serving
+// a stale allowlist to the guard). Shape-tolerant: anything unexpected reads
+// as "no filtering" rather than breaking composition.
+export function readMcpToolFilter() {
+  try {
+    const doc = JSON.parse(readFileSync(FILTER_FILE, "utf8"));
+    const mcpTools = doc?.mcpTools;
+    if (!mcpTools || typeof mcpTools !== "object" || Array.isArray(mcpTools)) return null;
+    const normalized = {};
+    for (const [server, tools] of Object.entries(mcpTools)) {
+      if (!Array.isArray(tools)) continue;
+      normalized[server] = new Set(tools.filter((t) => typeof t === "string"));
+    }
+    return Object.keys(normalized).length ? normalized : null;
+  } catch {
+    return null;
+  }
+}
+
+// The guard body: undefined leaves the call unchanged; a string denies it.
+// Names outside every mapped server are never denied — only servers WITH an
+// allowlist are narrowed.
+export function mcpToolGuardReason(name) {
+  const filter = readMcpToolFilter();
+  if (!filter) return undefined;
+  const parts = mcpNameParts(name);
+  if (!parts) return undefined;
+  const allow = filter[parts.server];
+  if (allow === undefined || allow.has(parts.leaf)) return undefined;
+  return (
+    `tool '${parts.leaf}' is outside this role's tool allowlist for MCP server '${parts.server}' ` +
+    "(focused mode) — use an allowlisted tool, or switch to a full mode for the whole surface"
+  );
+}
+
+// Install the global guard on a plain (non-agent) context. Registered through
+// ctx.effect so the guard's own disposer lifts it on plugin disposal/HMR.
+export function installMcpToolGuard(ctx) {
+  ctx.effect(() => ctx.tools.guard((execution) => mcpToolGuardReason(execution?.name)), "platform.tool-scope.guard");
+}
+
+// Best-effort roster narrowing on one agent scope, called from the preset
+// bridge's setup hook AFTER presets.mount. Deny is computed from the tools the
+// scope can actually see at composition time; unknown-name throws (MCP not
+// synced yet, drifted list) degrade silently to guard-only enforcement.
+export function applyMcpToolRestrict(agentCtx) {
+  let filter;
+  try {
+    filter = readMcpToolFilter();
+  } catch {
+    return;
+  }
+  if (!filter) return;
+  let visible;
+  try {
+    visible = agentCtx.tools.schemas().map((s) => s?.name).filter((n) => typeof n === "string");
+  } catch {
+    return; // roster unreadable at composition time — guard still enforces
+  }
+  const deny = [];
+  for (const name of visible) {
+    const parts = mcpNameParts(name);
+    if (!parts) continue;
+    const allow = filter[parts.server];
+    if (allow !== undefined && !allow.has(parts.leaf)) deny.push(name);
+  }
+  if (deny.length === 0) return;
+  try {
+    agentCtx.tools.restrict({ deny });
+  } catch (err) {
+    // Unknown-name (list drifted between schemas() and restrict()) or a
+    // reserved-name collision — context narrowing degrades, interception does
+    // not (the global guard denies every out-of-allowlist call regardless).
+    agentCtx.logger?.warn?.(`platform.tool-scope: roster narrowing degraded to guard-only (${err?.message || err})`);
+  }
+}
+
+export { FILTER_FILE };

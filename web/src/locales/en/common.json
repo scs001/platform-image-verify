@@ -1062,7 +1062,9 @@
         "reused": "Reused",
         "replaced": "Updated",
         "skipped": "Skipped",
-        "unavailable": "Unavailable"
+        "unavailable": "Unavailable",
+        "bound": "Bound to local",
+        "awaiting-local-binding": "Awaiting local server"
       }
     },
     "mine": {
@@ -1122,7 +1124,13 @@
       "agentServingHint": "After publishing, deploy in one click from the pack page; the service answers over A2A through the registry gateway.",
       "visibility": "Visibility",
       "visibilityPublic": "Public (listed)",
-      "visibilityPrivate": "Private (owner only)"
+      "visibilityPrivate": "Private (owner only)",
+      "toolsAll": "All tools",
+      "toolsN": "{{n}} tools",
+      "toolsEdit": "Select tools",
+      "toolsCollapse": "Collapse",
+      "toolsClear": "Full surface",
+      "toolsNoSnapshot": "No tool list from the registry yet — no tool-level checks at publish"
     },
     "bridge": {
       "title": "Carried over from the preset: {{skills}} skills, {{servers}} servers. Not migrated:",

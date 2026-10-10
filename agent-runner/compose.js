@@ -22,6 +22,7 @@ import {
   writeLlmProfile,
   writeNotifyPatch,
   writePresetsPatch,
+  writeToolFilterPatch,
 } from "../dsh-profile.js";
 // The deploy gate's shape definition, re-checked here before pinning
 // (add-deployment-secrets: one definition, two enforcement points — the
@@ -53,7 +54,7 @@ function shippedStandardTemplate() {
 // registry agent entry; the descriptor is entry.metadata. `skillContents`
 // maps descriptor.skills paths → SKILL.md bodies (fetched by the caller).
 // Returns { home, presetId, patchPaths } — the spawn inputs for the child.
-export async function materializeAgentHome({ homeRoot, agentKey, entry, skillContents, mcpServers, template, seedHome }) {
+export async function materializeAgentHome({ homeRoot, agentKey, entry, skillContents, mcpServers, mcpTools = null, template, seedHome }) {
   const descriptor = entry.metadata;
   const home = path.join(homeRoot, agentKey);
   const profileDir = path.join(home, "profiles", "platform");
@@ -148,6 +149,13 @@ export async function materializeAgentHome({ homeRoot, agentKey, entry, skillCon
     );
     patchPaths.push(path.join(profileDir, "mcp.patch.yml"));
   }
+
+  // Tool allowlists (add-mcp-tool-scoping D1/D6): the shared writer aims at
+  // this private home — tool-filter.json + the scope module land beside the
+  // preset bridge the presets overlay already copied, so the deployed role
+  // filters tools with the cell's exact mechanism (one composition pipeline,
+  // two execution targets). Empty/null = no filtering, legacy deployments.
+  writeToolFilterPatch(mcpTools ?? descriptor.mcpTools ?? null, { dirs: { dshHome: home, profileName: "platform" } });
 
   // 3b. Notify overlay (add-agent-notifications D1/D3): swaps the preset
   //     bridge row for its notify subclass, so this child's roster gains the

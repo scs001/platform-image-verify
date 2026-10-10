@@ -31,6 +31,9 @@ export interface PackManifestSkill {
 export interface PackManifestMcp {
   registryName: string;
   requiredGroup?: string;
+  // Tool allowlist (add-mcp-tool-scoping): leaf names narrowing this
+  // reference; absent = the server's full tool surface.
+  allowTools?: string[];
 }
 
 export interface PackManifestAgent {
@@ -62,7 +65,17 @@ export interface PackDetail extends PackSummary {
   manifest: PackManifest;
 }
 
-export type PackPartStatus = "installed" | "reused" | "replaced" | "skipped" | "unavailable";
+export type PackPartStatus =
+  | "installed"
+  | "reused"
+  | "replaced"
+  | "skipped"
+  | "unavailable"
+  // Local MCP binding (add-mcp-tool-scoping): the reference resolved to a
+  // user-deployed server of the same name, or awaits one — neither is a
+  // failure and neither blocks the rest of the pack.
+  | "bound"
+  | "awaiting-local-binding";
 
 export interface PackReport {
   skills: { name: string; status: PackPartStatus; reason?: string }[];

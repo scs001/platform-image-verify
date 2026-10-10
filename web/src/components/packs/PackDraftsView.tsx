@@ -167,6 +167,17 @@ function PackDraftEditor({
   const [tags, setTags] = useState(draft.tags.join(", "));
   const [skills, setSkills] = useState(() => withKeys(draft.entries.skills ?? []));
   const [mcpPicked, setMcpPicked] = useState<string[]>((draft.entries.mcpServers ?? []).map((m) => m.registryName));
+  // Tool allowlists (add-mcp-tool-scoping): server name → selected tool leaf
+  // names; a server absent from the map (or an empty array cleared by the
+  // author) publishes WITHOUT an allowlist = the full tool surface.
+  const [mcpTools, setMcpTools] = useState<Record<string, string[]>>(() => {
+    const init: Record<string, string[]> = {};
+    for (const m of draft.entries.mcpServers ?? []) {
+      if (m.registryName && Array.isArray(m.allowTools) && m.allowTools.length > 0) init[m.registryName] = [...m.allowTools];
+    }
+    return init;
+  });
+  const [toolsOpenFor, setToolsOpenFor] = useState<string | null>(null);
   const [agents, setAgents] = useState(() => withKeys(draft.entries.agents ?? []));
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -191,7 +202,10 @@ function PackDraftEditor({
         tags: tags.split(",").map((s) => s.trim()).filter(Boolean),
         entries: {
           skills: skills.map((e) => e.value),
-          mcpServers: mcpPicked.map((registryName) => ({ registryName })),
+          mcpServers: mcpPicked.map((registryName) => ({
+            registryName,
+            ...(mcpTools[registryName]?.length ? { allowTools: mcpTools[registryName] } : {}),
+          })),
           agents: agents.map((e) => e.value),
         },
       });
@@ -382,7 +396,9 @@ function PackDraftEditor({
               return (
                 <button
                   key={s.name}
-                  onClick={() => setMcpPicked(on ? mcpPicked.filter((n) => n !== s.name) : [...mcpPicked, s.name])}
+                  onClick={() =>
+                    setMcpPicked(on ? mcpPicked.filter((n) => n !== s.name) : [...mcpPicked, s.name])
+                  }
                   className={`border rounded-full px-3 py-1 text-xs transition-colors ${
                     on ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground"
                   }`}
@@ -390,6 +406,88 @@ function PackDraftEditor({
                 >
                   {s.displayName || s.name}
                 </button>
+              );
+            })}
+          </div>
+        )}
+        {/* Tool allowlists per picked reference (add-mcp-tool-scoping): names
+            come from the catalog's tool-surface snapshot — picker-only, no
+            free-form entry; an empty selection = the full tool surface. */}
+        {mcpPicked.length > 0 && (
+          <div className="space-y-2 mt-3" data-testid="pack-mcp-tools">
+            {mcpPicked.map((name) => {
+              const entry = registryMcp.find((s) => s.name === name);
+              const toolList = entry?.toolList ?? [];
+              const selected = mcpTools[name] ?? [];
+              const open = toolsOpenFor === name;
+              return (
+                <div key={`tools-${name}`} className="border border-border rounded-md p-2" data-testid={`pack-mcp-tools-row-${name}`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-foreground">{entry?.displayName || name}</span>
+                    <span className="text-xs text-muted-foreground" data-testid={`pack-mcp-tools-count-${name}`}>
+                      {selected.length > 0
+                        ? t("packs.editor.toolsN", { n: selected.length })
+                        : t("packs.editor.toolsAll")}
+                    </span>
+                    {toolList.length > 0 && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="ml-auto h-6 px-2 text-xs"
+                          onClick={() => setToolsOpenFor(open ? null : name)}
+                          data-testid={`pack-mcp-tools-toggle-${name}`}
+                        >
+                          {open ? t("packs.editor.toolsCollapse") : t("packs.editor.toolsEdit")}
+                        </Button>
+                        {selected.length > 0 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-xs"
+                            onClick={() =>
+                              setMcpTools((prev) => {
+                                const next = { ...prev };
+                                delete next[name];
+                                return next;
+                              })
+                            }
+                            data-testid={`pack-mcp-tools-clear-${name}`}
+                          >
+                            {t("packs.editor.toolsClear")}
+                          </Button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  {open && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {toolList.map((tool) => {
+                        const on = selected.includes(tool);
+                        return (
+                          <button
+                            key={tool}
+                            onClick={() =>
+                              setMcpTools((prev) => ({
+                                ...prev,
+                                [name]: on ? (prev[name] ?? []).filter((t2) => t2 !== tool) : [...(prev[name] ?? []), tool],
+                              }))
+                            }
+                            className={`border rounded-full px-2 py-0.5 text-[11px] font-mono transition-colors ${
+                              on ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground"
+                            }`}
+                            data-testid={`pack-mcp-tool-${name}-${tool}`}
+                          >
+                            {tool}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {toolList.length === 0 && (
+                    <p className="text-[11px] text-muted-foreground mt-1">{t("packs.editor.toolsNoSnapshot")}</p>
+                  )}
+                </div>
               );
             })}
           </div>

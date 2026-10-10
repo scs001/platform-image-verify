@@ -26,11 +26,27 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import express from "express";
 import { PACK_LIMITS, validatePackManifest as validateManifest, validateRhythm, budgetMinutesError, modelIdError } from "../lib/pack-manifest.js";
+import { declaredToolsByServer, toolGateErrors, probeMcpToolNames } from "../lib/publish-tool-gate.js";
+import { registryServerIndex } from "../registry-bridge.js";
 import { deployToRegistry, setAgentPaused, modelChoiceError, resolveServiceConfig, NOTIFY_CHANNEL_RE, SECRET_NAME_RE, SECRET_LIMITS, maskSecretRef } from "../lib/agent-serving.js";
 import { createSub2apiClient } from "../lib/sub2api-admin.js";
 
 // Re-exported for the gateway's own consumers (tests import from here).
 export { PACK_LIMITS, validateManifest };
+
+// True when the manifest declares any tool leaf names (pack-level allowTools
+// or per-role mcpTools) — the publish tool gate's consultation predicate.
+const declaresTools = (manifest) => declaredToolsByServer(manifest).size > 0;
+
+// The gate's data plumbing: the registry server index (one cached fetch) as
+// serverInfo, the minimal streamable-http probe as the staleness fallback.
+async function runPublishToolGate(manifest) {
+  const index = await registryServerIndex();
+  return toolGateErrors(manifest, (name) => index.get(name) ?? null, {
+    probe: (endpoint) => probeMcpToolNames(endpoint),
+    logger: console,
+  });
+}
 
 export function createPackRegistry({ file }) {
   mkdirSync(path.dirname(file), { recursive: true });
@@ -551,7 +567,7 @@ export function registerPackRoutes(app, {
 
   // Publish (first version or next). Body: { packId?, manifest } — packId
   // targets an existing pack (author-checked); omitting it mints a new one.
-  app.post("/api/packs", express.json({ limit: jsonLimit }), (req, res) => {
+  app.post("/api/packs", express.json({ limit: jsonLimit }), async (req, res) => {
     const user = auth(req, res);
     if (!user) return;
     if (!isCreator(user)) return res.status(403).json({ error: "Creator group required" });
@@ -560,6 +576,23 @@ export function registerPackRoutes(app, {
     if (!manifest) return res.status(400).json({ error: "manifest required" });
     const errors = validateManifest(manifest);
     if (errors.length > 0) return res.status(400).json({ error: "Invalid manifest", errors });
+    // Tool-declaration gate (add-mcp-tool-scoping D5): registry tool_list
+    // cross-check with one live-probe fallback per server, plus commercial
+    // closure for surface-registered entries. Consulted ONLY when the
+    // manifest declares tool names — a pack without declarations publishes
+    // exactly as before (no registry round-trip at all).
+    if (declaresTools(manifest)) {
+      let gate;
+      try {
+        gate = await runPublishToolGate(manifest);
+      } catch (err) {
+        // The registry index itself is unreachable: for a DECLARING manifest
+        // that is a fail-closed verdict (the names cannot be verified), never
+        // a silent pass — with the registry back, the publish retried.
+        return res.status(503).json({ error: `Tool declarations could not be verified against the registry (${err?.message || err}); retry shortly` });
+      }
+      if (gate.errors.length > 0) return res.status(400).json({ error: "Invalid manifest", errors: gate.errors, toolGate: true });
+    }
     // Only publishes that pass validation count against the author's budget —
     // iterating on a manifest must not exhaust it. Invalid attempts store
     // nothing and cost only a pure-function validation.

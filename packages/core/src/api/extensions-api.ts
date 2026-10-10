@@ -52,6 +52,10 @@ export interface MarketMcpServer {
   installInstructions: string;
   requiresConfig?: boolean;
   origin?: "bundled" | "registry";
+  // Tool surface snapshot (add-mcp-tool-scoping): the registry entry's stored
+  // tool_list, served so the pack editor's tool picker offers real names;
+  // null when the entry predates a snapshot refresh.
+  toolList?: string[] | null;
 }
 
 export interface MarketSkill {

@@ -454,9 +454,12 @@ test("pack surfaces disappear when the deployment is not gateway-fronted", async
       body: JSON.stringify({ ...config, packMarketplace: false }),
     });
   });
-  await page.goto("/settings/packs");
+  await page.goto("/agents?tab=market");
   await expect(page.getByTestId("packs-page")).not.toBeVisible();
-  await expect(page.getByTestId("settings-section-packs")).toHaveCount(0);
+  // The market tab is absent on non-marketplace deployments (it moved out of
+  // Settings into the agents page) and the deep link falls back to Experts.
+  await expect(page.getByTestId("agents-tab-market")).toHaveCount(0);
+  await expect(page.getByTestId("agents-tab-agents")).toBeVisible();
 });
 
 // ── Server-side manifest fetch (pack-install-server-side-manifest) ──────────
@@ -619,4 +622,48 @@ test("body-form installs ride the identical pipeline (rolling compatibility)", a
   expect((await reinstall.json()).report.skills.map((s) => [s.name, s.status])).toEqual([
     ["dual-fetch-skill", "replaced"],
   ]);
+});
+
+// ── Tool allowlists in the editor (add-mcp-tool-scoping 6.1) ─────────────────
+test("tool allowlists round-trip through save/reload, clear to full, and publish", async ({ page }) => {
+  const gw = seedableGateway(page);
+  gw.install();
+  await gotoPacksTab(page, "drafts");
+  await page.getByTestId("pack-draft-create").click();
+  await page.locator("#pack-name").fill("工具白名单包");
+
+  const mcpChip = page.getByTestId("pack-mcp-option-e2e-registry-mcp");
+  if (!(await mcpChip.count())) test.skip(true, "registry stub not serving the market catalog");
+  await mcpChip.click();
+
+  // The picked reference offers its tool surface from the catalog snapshot —
+  // picker-only names, defaulting to the full surface.
+  const row = page.getByTestId("pack-mcp-tools-row-e2e-registry-mcp");
+  await expect(page.getByTestId("pack-mcp-tools-count-e2e-registry-mcp")).toHaveText("全部工具");
+  await page.getByTestId("pack-mcp-tools-toggle-e2e-registry-mcp").click();
+  await page.getByTestId("pack-mcp-tool-e2e-registry-mcp-read").click();
+  await page.getByTestId("pack-mcp-tool-e2e-registry-mcp-search").click();
+  await expect(page.getByTestId("pack-mcp-tools-count-e2e-registry-mcp")).toHaveText("2 个工具");
+  await expect(page.getByTestId("pack-mcp-tool-e2e-registry-mcp-purge")).not.toHaveClass(/bg-primary/);
+
+  // Round-trip: save → close → reopen — the selection survives verbatim.
+  const editor = page.getByTestId("pack-editor");
+  await editor.getByRole("button", { name: "保存草稿" }).click();
+  await editor.getByRole("button", { name: "关闭" }).click();
+  await page.locator('[data-testid^="pack-draft-item-"]').filter({ hasText: "工具白名单包" }).first().click();
+  await expect(page.getByTestId("pack-editor")).toBeVisible();
+  await expect(page.getByTestId("pack-mcp-tools-count-e2e-registry-mcp")).toHaveText("2 个工具");
+  await page.getByTestId("pack-mcp-tools-toggle-e2e-registry-mcp").click();
+  await expect(page.getByTestId("pack-mcp-tool-e2e-registry-mcp-read")).toHaveClass(/bg-primary/);
+  await expect(page.getByTestId("pack-mcp-tool-e2e-registry-mcp-purge")).not.toHaveClass(/bg-primary/);
+
+  // Clear restores the full-surface declaration (no allowTools at all).
+  await page.getByTestId("pack-mcp-tools-clear-e2e-registry-mcp").click();
+  await expect(page.getByTestId("pack-mcp-tools-count-e2e-registry-mcp")).toHaveText("全部工具");
+
+  // Re-narrow, then publish: the manifest carries the allowlist verbatim.
+  await page.getByTestId("pack-mcp-tool-e2e-registry-mcp-read").click();
+  await expect(page.getByTestId("pack-mcp-tools-count-e2e-registry-mcp")).toHaveText("1 个工具");
+  await page.getByTestId("pack-draft-publish").click();
+  await expect(page.getByTestId("pack-card-pack-e2e-1")).toContainText("工具白名单包", { timeout: 10_000 });
 });

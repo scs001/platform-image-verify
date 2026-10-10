@@ -113,6 +113,11 @@ const server = createServer((req, res) => {
             health_status: "healthy",
             status: "active",
             tags: ["e2e"],
+            // Tool surface (add-mcp-tool-scoping): the snapshot the pack
+            // editor's tool picker and the publish gate cross-check against;
+            // the commercial NAME list keeps every stub tool pack-eligible.
+            tool_list: ["read", "search", "purge"],
+            metadata: { surface: { commercial_tools: ["read", "search", "purge"], tools_commercial: 3, tools_total: 3 } },
           },
           // Second entry (add-persona-resource-sets): pack manifests need TWO
           // installable registry references for the declared-subset e2e — one
@@ -125,6 +130,8 @@ const server = createServer((req, res) => {
             health_status: "healthy",
             status: "active",
             tags: ["e2e"],
+            tool_list: ["query"],
+            metadata: { surface: { commercial_tools: ["query"], tools_commercial: 1, tools_total: 1 } },
           },
         ],
         total_count: 2,

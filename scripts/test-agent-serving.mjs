@@ -313,6 +313,36 @@ test("3.1 deploy registers skills + one a2a agent with a small descriptor", asyn
   assert.ok(out.agentPath);
 });
 
+// ── Tool allowlists in the deploy descriptor (add-mcp-tool-scoping D6) ───────
+test("descriptor carries the role's effective tool allowlists; absent when none", async () => {
+  const stub = stubRegistry();
+  const manifest = {
+    ...PACK.manifest,
+    mcpServers: [
+      { registryName: "fd-open-data-mcp", allowTools: ["read", "search", "purge"] },
+      { registryName: "law-bench" },
+    ],
+    agents: [
+      {
+        ...PACK.manifest.agents[0],
+        resources: {
+          mcpServers: ["fd-open-data-mcp"],
+          mcpTools: { "fd-open-data-mcp": ["read", "search", "not-in-pack"] },
+        },
+      },
+    ],
+  };
+  await servingLib.deployToRegistry({ ...PACK, manifest, fetchImpl: stub.fetch });
+  const meta = stub.calls.agents[0].body.metadata;
+  assert.deepEqual(meta.mcpServers, ["fd-open-data-mcp"], "role keeps only its declared ref");
+  assert.deepEqual(meta.mcpTools, { "fd-open-data-mcp": ["read", "search"] }, "narrowed, pack-level widening clipped");
+
+  // No allowlists anywhere → the field stays absent (legacy descriptor shape).
+  const stub2 = stubRegistry();
+  await servingLib.deployToRegistry({ ...PACK, fetchImpl: stub2.fetch });
+  assert.equal(stub2.calls.agents[0].body.metadata.mcpTools, undefined);
+});
+
 test("3.1 card composition: manual fields override, absent fields derive", async () => {
   const stub = stubRegistry();
   await servingLib.deployToRegistry({ ...PACK, fetchImpl: stub.fetch });

@@ -39,11 +39,15 @@ Pack 中声明的对话入口，在订阅者运行时以本地人设运行——
 _Avoid_: 智能体、agent（除非指 dsh 内部概念）、机器人、bot
 
 **资源集（Resource Set）**:
-一个角色关联的技能与 MCP server 清单。推导视图：从已装包版本快照与覆盖偏好推导，不是被存储的声明。
+一个角色关联的技能、MCP server 与工具白名单清单；工具维度可选，缺省为该 server 全量。推导视图：从已装包版本快照与覆盖偏好推导，不是被存储的声明。
 _Avoid_: 裁剪集、focus set、关联集
 
+**工具白名单（Tool Allowlist）**:
+pack 对一个 MCP server 引用声明的可见工具叶名清单；声明即收窄——未列出的工具对该 pack 的角色不可见、不可调。
+_Avoid_: 工具面（server 侧契约用语）、工具过滤、tool scope
+
 **聚焦模式（Focused Mode）**:
-运行时组合状态——只装载基线与所选角色资源集的技能与 MCP server。
+运行时组合状态——只装载基线与所选角色资源集的技能、MCP server 与工具白名单。
 _Avoid_: 裁剪模式、trim mode、瘦身模式
 
 **基线（Baseline）**:

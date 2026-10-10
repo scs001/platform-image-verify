@@ -121,11 +121,13 @@ test("install materializes skills, reports MCP refs, and snapshots the pack", as
   assert.ok(existsSync(skillMd), "SKILL.md not materialized");
   assert.ok(readFileSync(skillMd, "utf8").includes("# v1"));
 
-  // MCP refs: law-bench is not in the (bundled, registry-less) catalog;
-  // fetch is bundled but not registry-origin. Both reported, neither fatal.
+  // MCP refs: law-bench is not in the (bundled, registry-less) catalog and no
+  // local row of that name exists — awaiting a local binding (the reference
+  // activates once one is installed); fetch is bundled but not
+  // registry-origin — unavailable. Both reported, neither fatal.
   assert.equal(report.mcpServers[0].name, "law-bench");
-  assert.equal(report.mcpServers[0].status, "unavailable");
-  assert.match(report.mcpServers[0].reason, /market catalog/);
+  assert.equal(report.mcpServers[0].status, "awaiting-local-binding");
+  assert.match(report.mcpServers[0].reason, /install or connect one/);
   assert.equal(report.mcpServers[1].status, "unavailable");
   assert.match(report.mcpServers[1].reason, /not a registry server/);
 
@@ -276,6 +278,121 @@ test("resource declarations: malformed shapes are rejected", () => {
   assert.ok(validatePackManifest(withResources({ skills: "legal-contract-workflow" })).length > 0, "a dimension must be an array");
   assert.ok(validatePackManifest(withResources({ skills: ["bad name!"] })).length > 0, "names must be well-formed");
   assert.ok(validatePackManifest(withResources({ tools: [] })).length > 0, "unknown dimensions are rejected");
+});
+
+// ── Tool allowlists (add-mcp-tool-scoping, tasks 1.1–1.2) ────────────────────
+const withAllowTools = (registryName, allowTools) => ({
+  ...MANIFEST_BASE,
+  mcpServers: MANIFEST_BASE.mcpServers.map((m) => (m.registryName === registryName ? { ...m, allowTools } : m)),
+});
+
+test("tool allowlists: a valid pack-level declaration passes and absence stays valid", () => {
+  assert.deepEqual(validatePackManifest(withAllowTools("law-bench", ["read", "search.legal", "verify_1"])), []);
+  assert.deepEqual(validatePackManifest(MANIFEST_BASE), [], "absent allowTools keeps the pre-change validity");
+});
+
+test("tool allowlists: shape, duplicates, and limit are enforced", () => {
+  const errs = (m) => validatePackManifest(m).map((e) => e.error).join("; ");
+  assert.match(errs(withAllowTools("law-bench", [])), /non-empty/, "empty allowlist is a no-op declaration");
+  assert.match(errs(withAllowTools("law-bench", ["ok", "bad name!"])), /leaf names/, "free-form names rejected");
+  assert.match(errs(withAllowTools("law-bench", ["read", "read"])), /twice/, "duplicate names rejected");
+  assert.match(
+    errs(withAllowTools("law-bench", Array.from({ length: 65 }, (_, i) => `t${i}`))),
+    /at most 64/,
+    "the per-server cap is enforced",
+  );
+});
+
+test("tool allowlists: role mcpTools narrows within the pack-level declaration", () => {
+  const manifest = {
+    ...withAllowTools("law-bench", ["read", "search.legal", "verify_1"]),
+    agents: [
+      {
+        ...MANIFEST_BASE.agents[0],
+        resources: { mcpTools: { "law-bench": ["read", "search.legal"] } },
+      },
+    ],
+  };
+  assert.deepEqual(validatePackManifest(manifest), [], "a subset of the pack-level allowlist is valid");
+  // Narrowing to an empty array = zero tools of that server for the role.
+  assert.deepEqual(
+    validatePackManifest({ ...manifest, agents: [{ ...manifest.agents[0], resources: { mcpTools: { "law-bench": [] } } }] }),
+    [],
+    "empty array means no tools, not an error",
+  );
+});
+
+test("tool allowlists: role widening beyond the pack level is rejected", () => {
+  const manifest = {
+    ...withAllowTools("law-bench", ["read"]),
+    agents: [{ ...MANIFEST_BASE.agents[0], resources: { mcpTools: { "law-bench": ["read", "search.legal"] } } }],
+  };
+  const errs = validatePackManifest(manifest);
+  assert.ok(errs.length === 1, `expected one error, got ${JSON.stringify(errs)}`);
+  assert.match(errs[0].error, /search\.legal/);
+  assert.match(errs[0].error, /only narrow/);
+});
+
+test("tool allowlists: foreign server keys and malformed values are rejected", () => {
+  const errs = (resources) =>
+    validatePackManifest({ ...MANIFEST_BASE, agents: [{ ...MANIFEST_BASE.agents[0], resources }] });
+  assert.match(errs({ mcpTools: { "foreign-server": ["read"] } })[0].error, /foreign-server.*does not declare/);
+  assert.match(errs({ mcpTools: { "law-bench": "read" } })[0].error, /must be an array/);
+  assert.match(errs({ mcpTools: { "law-bench": ["read", "read"] } })[0].error, /twice/);
+  assert.match(errs({ mcpTools: [] })[0].error, /must be an object/);
+  // No pack-level allowlist on the server: any well-formed leaf name is
+  // acceptable at manifest level (the catalog cross-check is publish-time).
+  assert.deepEqual(errs({ mcpTools: { fetch: ["any_tool.name"] } }), []);
+});
+
+// ── Local MCP binding (add-mcp-tool-scoping, tasks 4.1–4.2) ──────────────────
+const LOCAL_BIND_MANIFEST = {
+  ...MANIFEST_BASE,
+  name: "本地绑定包",
+  mcpServers: [{ registryName: "my-private-mcp", allowTools: ["read"] }],
+  skills: [],
+  agents: [{ id: "pack-local-binder", name: "本地绑定官", persona: "你是本地绑定官。" }],
+};
+
+test("local binding: same-name row binds untouched; no row awaits; neither blocks the pack", async () => {
+  // No market entry for this name and no local row: awaiting, pack completes.
+  const awaiting = await packStore.installPack({
+    packId: "pack-local-bind",
+    version: 1,
+    manifest: LOCAL_BIND_MANIFEST,
+    user: { email: "user@example.com", groups: [] },
+    hooks,
+  });
+  assert.equal(awaiting.report.mcpServers[0].status, "awaiting-local-binding");
+  assert.match(awaiting.report.mcpServers[0].reason, /install or connect one/);
+  assert.equal(awaiting.report.agents[0].status, "installed", "the pack completes regardless");
+
+  // The user installs a local server of that name; upgrading the pack binds.
+  const { addMcpServer, getMcpServer } = await import("../extension-store.js");
+  addMcpServer({
+    name: "my-private-mcp",
+    config: { url: "http://internal.example.test/mcp", headers: { Authorization: "Bearer local-secret" } },
+    enabled: true,
+  });
+  const bound = await packStore.installPack({
+    packId: "pack-local-bind",
+    version: 2,
+    manifest: LOCAL_BIND_MANIFEST,
+    user: { email: "user@example.com", groups: [] },
+    hooks,
+  });
+  assert.equal(bound.report.mcpServers[0].status, "bound");
+  // The local row is untouched by the binding: same config, no group gate,
+  // no credential-ref rewrite — nothing was written through the pack path.
+  const row = getMcpServer("my-private-mcp");
+  assert.deepEqual(row.config.headers, { Authorization: "Bearer local-secret" });
+  assert.equal(row.config.credentialRef, undefined);
+  assert.equal(row.requiredGroups, null);
+  // The pack's stored manifest carries the allowlist for the focused compose.
+  assert.deepEqual(
+    db.getInstalledPack("pack-local-bind").manifest.mcpServers,
+    [{ registryName: "my-private-mcp", allowTools: ["read"] }],
+  );
 });
 
 test("install path re-validates declarations with status 400", async () => {

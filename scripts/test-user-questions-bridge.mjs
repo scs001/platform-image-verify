@@ -50,6 +50,7 @@ async function loadBridge({ fallbackMs } = {}) {
   const tmp = mkdtempSync(path.join(tmpdir(), "user-questions-bridge-"));
   for (const file of [
     "platform-preset-bridge.js",
+    "platform-tool-scope.js",
     "platform-permission-bridge.js",
     "platform-user-questions-bridge.js",
   ]) {

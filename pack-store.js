@@ -74,37 +74,55 @@ function agentOwner(agentId, excludePackId) {
 // Materialize one MCP reference through the market install path. Returns a
 // report item; never throws (an unresolvable reference must not block the
 // rest of the pack — spec: pack-installation).
+//
+// Local binding (add-mcp-tool-scoping D4): a reference whose name has no
+// registry-market entry may bind to a locally installed server of that name
+// (the user's own deployment). The binding records NOTHING — no extension
+// row is written, the local row's configuration is untouched, no group gate
+// or market credential applies (the row carries its own). The allowlist
+// travels with the pack's stored manifest, so the focused composition picks
+// the binding up purely by name intersection — and a reference that matches
+// neither surface awaits one instead of failing the pack.
 async function installMcpRef(ref, { user }) {
   const name = ref.registryName;
   const item = { name, status: "unavailable" };
   const entry = await extensionStore.findMarketMcpEntry(name);
-  if (!entry) {
-    return { ...item, reason: "not in the market catalog (renamed or removed on the registry)" };
+  if (entry && entry.origin === "registry") {
+    if (!extensionStore.visibleToUser(entry, user)) {
+      return { ...item, reason: `requires group: ${(entry.groups ?? []).join(", ")}` };
+    }
+    if (extensionStore.getMcpServer(name)) {
+      return { name, status: "reused" };
+    }
+    const cred = registryCredentials.status(user?.email ?? null);
+    if (!cred.connected) {
+      return { ...item, reason: "connect the MCP market first — no live registry credential", code: "credential-required" };
+    }
+    // Registry-origin installs are credential-shaped (registry-sso-credentials):
+    // strip the template's placeholder auth and reference the stored credential.
+    const { headers: _placeholderHeaders, ...rest } = entry.configTemplate ?? {};
+    const config = { ...rest, credentialRef: registryCredentials.REGISTRY_CREDENTIAL_REF };
+    extensionStore.addMcpServer({
+      name,
+      config,
+      enabled: true,
+      requiredGroups: entry.groups?.length ? entry.groups : null,
+    });
+    return { name, status: "installed" };
   }
-  if (entry.origin !== "registry") {
-    return { ...item, reason: "not a registry server (packs may only reference registry entries)" };
+  if (entry) {
+    return { ...item, reason: "not a registry server (packs may only reference registry entries or bind a local server of the same name)" };
   }
-  if (!extensionStore.visibleToUser(entry, user)) {
-    return { ...item, reason: `requires group: ${(entry.groups ?? []).join(", ")}` };
-  }
+  // No market entry: a local row of this name is a binding (registry entries
+  // take precedence when both exist — the branch above).
   if (extensionStore.getMcpServer(name)) {
-    return { name, status: "reused" };
+    return { name, status: "bound", reason: "bound to the local server of this name (its configuration is untouched)" };
   }
-  const cred = registryCredentials.status(user?.email ?? null);
-  if (!cred.connected) {
-    return { ...item, reason: "connect the MCP market first — no live registry credential", code: "credential-required" };
-  }
-  // Registry-origin installs are credential-shaped (registry-sso-credentials):
-  // strip the template's placeholder auth and reference the stored credential.
-  const { headers: _placeholderHeaders, ...rest } = entry.configTemplate ?? {};
-  const config = { ...rest, credentialRef: registryCredentials.REGISTRY_CREDENTIAL_REF };
-  extensionStore.addMcpServer({
+  return {
     name,
-    config,
-    enabled: true,
-    requiredGroups: entry.groups?.length ? entry.groups : null,
-  });
-  return { name, status: "installed" };
+    status: "awaiting-local-binding",
+    reason: "no registry entry and no local server of this name yet — install or connect one to activate this reference",
+  };
 }
 
 // Install (or upgrade to) a pack version snapshot. `manifest` arrives via the

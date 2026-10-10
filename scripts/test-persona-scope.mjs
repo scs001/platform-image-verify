@@ -55,7 +55,7 @@ const db = await import("../db.js");
 await db.initDb();
 const catalog = await import("../catalog.js");
 const sm = await import("../skill-materialize.js");
-const { resolvePersona, deriveScope, writeSkillsPatch } = await import("../dsh-profile.js");
+const { resolvePersona, deriveScope, writeSkillsPatch, writeToolFilterPatch, writeMcpPatch } = await import("../dsh-profile.js");
 
 const PACK_ID = "persona-scope-pack";
 const manifest = {
@@ -198,8 +198,94 @@ test("undeclared persona keeps the pack root and the whole ref list", async () =
   assert.ok(dirs.includes(sm.packSkillsRoot(PACK_ID)), "undeclared focus lists the pack root");
 });
 
+// ── Tool allowlist derivation (add-mcp-tool-scoping, tasks 2.1–2.2) ──────────
+const resetRefs = () => {
+  manifest.mcpServers = [{ registryName: "persona-scope-ref" }, { registryName: "persona-scope-other-ref" }];
+};
+
+test("scope derives per-server tool allowlists: pack-level, role-narrowed, absent", async () => {
+  manifest.mcpServers = [
+    { registryName: "persona-scope-ref", allowTools: ["read", "search", "purge"] },
+    { registryName: "persona-scope-other-ref" }, // no allowlist = full surface
+  ];
+  manifest.agents[0].resources = { skills: ["persona-scope-skill"], mcpServers: ["persona-scope-ref"] };
+  seedPack();
+  const scope = await deriveScope("persona-alpha");
+  assert.deepEqual(scope.mcpKeep, ["persona-scope-ref"]);
+  // Pack-level allowlist, only for the kept server; the dropped server is moot.
+  assert.deepEqual(scope.mcpTools, { "persona-scope-ref": ["read", "search", "purge"] });
+
+  // Role-level narrowing (mcpTools) intersects the pack-level list.
+  manifest.agents[0].resources = {
+    skills: ["persona-scope-skill"],
+    mcpServers: ["persona-scope-ref"],
+    mcpTools: { "persona-scope-ref": ["read", "search", "not-in-pack"] },
+  };
+  seedPack();
+  const narrowed = await deriveScope("persona-alpha");
+  assert.deepEqual(narrowed.mcpTools, { "persona-scope-ref": ["read", "search"] }, "narrowing only, never widening");
+
+  // Undeclared role + undeclared pack: no allowlists at all.
+  resetRefs();
+  delete manifest.agents[0].resources;
+  seedPack();
+  const full2 = await deriveScope("persona-alpha");
+  assert.deepEqual(full2.mcpTools, {});
+  // Full mode and custom presets carry null (v1 declares tools on packs only).
+  assert.equal((await deriveScope("standard")).mcpTools, null);
+});
+
+test("writeToolFilterPatch materializes the bridge config; empty = no filtering", async () => {
+  resetRefs();
+  manifest.mcpServers = [{ registryName: "persona-scope-ref", allowTools: ["read"] }];
+  delete manifest.agents[0].resources;
+  seedPack();
+  const scope = await deriveScope("persona-alpha");
+  const filterPath = writeToolFilterPatch(scope.source === "pack" ? scope.mcpTools : null);
+  const doc = JSON.parse(readFileSync(filterPath, "utf8"));
+  assert.deepEqual(doc, { mcpTools: { "persona-scope-ref": ["read"] } });
+  // The scope module ships beside the filter (the preset bridge imports it).
+  assert.ok(readdirSync(path.dirname(filterPath)).includes("platform-tool-scope.js"));
+  // Full mode / no allowlists: an empty mapping — the bridge no-ops on it.
+  const emptyPath = writeToolFilterPatch(null);
+  assert.deepEqual(JSON.parse(readFileSync(emptyPath, "utf8")), { mcpTools: {} });
+  // Parameterized dirs (the runner's private homes) aim the same writer.
+  const runnerHome = path.join(tmpRoot, "runner-home");
+  const aimed = writeToolFilterPatch({ "persona-scope-ref": ["read"] }, { dirs: { dshHome: runnerHome, profileName: "platform" } });
+  assert.ok(aimed.startsWith(runnerHome));
+  assert.deepEqual(JSON.parse(readFileSync(aimed, "utf8")), { mcpTools: { "persona-scope-ref": ["read"] } });
+});
+
+test("a later local install activates an awaiting reference (task 4.2)", async () => {
+  // The pack references a name with no market entry and no local row — the
+  // install reported awaiting-local-binding; the focused compose drops the
+  // name for now, but the allowlist is already materialized.
+  resetRefs();
+  manifest.mcpServers = [{ registryName: "persona-scope-await", allowTools: ["read"] }];
+  delete manifest.agents[0].resources;
+  seedPack();
+  const before = await writeMcpPatch({ agentPreset: "persona-alpha" });
+  assert.equal(before, null, "no servers at all — patch skipped");
+  const filterBefore = JSON.parse(readFileSync(path.join(process.env.DSH_HOME, "profiles", "platform", "tool-filter.json"), "utf8"));
+  assert.deepEqual(filterBefore, { mcpTools: { "persona-scope-await": ["read"] } }, "the allowlist waits with the reference");
+
+  // The user installs a local server of that name — the NEXT composition
+  // picks the binding up with no reinstall of the pack.
+  const { addMcpServer } = await import("../extension-store.js");
+  addMcpServer({
+    name: "persona-scope-await",
+    config: { url: "http://await.example.test/mcp", headers: {} },
+    enabled: true,
+  });
+  const after = await writeMcpPatch({ agentPreset: "persona-alpha" });
+  assert.ok(after, "the composition now carries the server");
+  const patch = yaml.load(readFileSync(after, "utf8"));
+  const names = patch[0].insert.map((e) => e.config.serverName);
+  assert.deepEqual(names, ["persona-scope-await"], "the awaiting reference is live, no reinstall needed");
+});
+
 test("catalog serializes the role-level resourceSummary (D5)", async () => {
-  // Declared: per-role counts (1 of 2 skills, 1 of 2 refs).
+  resetRefs();  // Declared: per-role counts (1 of 2 skills, 1 of 2 refs).
   manifest.agents[0].resources = { skills: ["persona-scope-skill"], mcpServers: ["persona-scope-ref"] };
   seedPack();
   const declared = catalog.getCatalogFor(null).agents.find((x) => x.id === "persona-alpha");

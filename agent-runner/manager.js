@@ -205,6 +205,11 @@ export class ChildManager {
         persona: entry.metadata?.persona,
         skills: entry.metadata?.skills,
         mcp: entry.metadata?.mcpServers,
+        // Tool allowlists (add-mcp-tool-scoping): a redeploy that narrows or
+        // widens a reference's tools must drain the old child so the next
+        // spawn composes the new filter — the filter is materialized into the
+        // home, so an unchanged identity would keep serving the old allowlist.
+        mcpTools: entry.metadata?.mcpTools ?? null,
         name: entry.name,
         // The effective turn budget materializes at spawn (the child's
         // timeout); a redeploy that changes it drains the old child so the
@@ -595,6 +600,7 @@ export class ChildManager {
       entry,
       skillContents,
       mcpServers,
+      mcpTools: descriptor.mcpTools ?? null,
       seedHome: config.seedHome,
     });
     // Per-agent billing key (add-agent-platform-ops D2): fetch by reference

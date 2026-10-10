@@ -157,6 +157,7 @@ test.afterEach(async ({ page }) => {
   await page.request.delete(`/api/extensions/mcp/${EXTRA_MCP}`).catch(() => {});
   await page.request.delete("/api/extensions/mcp/e2e-registry-mcp").catch(() => {});
   await page.request.delete("/api/extensions/mcp/e2e-registry-mcp-2").catch(() => {});
+  await page.request.delete("/api/extensions/mcp/scope-local-bind-e2e").catch(() => {});
   await page.request.delete("/api/extensions/skills/scope-skill2-e2e").catch(() => {});
   await page.request.delete(`/api/extensions/skills/${SKILL_NAME}`).catch(() => {});
 });
@@ -190,7 +191,7 @@ test("selecting a pack role focuses both patches and badges the picker", async (
   const option = page.getByTestId("strip-agent-option").filter({ hasText: "聚焦审查官" });
   await expect(option).toBeVisible({ timeout: 30_000 });
   await expect(option.getByTestId("strip-agent-focus-badge")).toHaveText(
-    `聚焦 · ${PACK_NAME} · 1 技能 · 0 MCP`,
+    `聚焦 · ${PACK_NAME} · 1 技能 · 0 工具`,
   );
 
   // Selecting the role is a preset switch → both patches rewrite focused,
@@ -443,4 +444,107 @@ test("@smoke focused role declines an out-of-scope tool honestly", async ({ page
   // Honest decline: names the limitation and points at switching — never a
   // fabricated tool result.
   expect(text, `assistant said: ${text}`).toMatch(/未启用|未对|无法|不能|不可用|切换|聚焦|standard/i);
+});
+
+// ── Tool allowlists (add-mcp-tool-scoping, tasks 7.1–7.3) ────────────────────
+// File-level truth at the same seam the suite already probes: the filter
+// patch (tool-filter.json + the scope module) is what the child's preset
+// bridge consumes, and its exact shape under focus/role-narrowing/full-mode
+// is the composition contract. The guard/restrict runtime behavior against a
+// live roster is the bridge's unit suite (test-tool-scope-bridge.mjs); the
+// model-facing roster assertion rides @smoke with the honest-decline turn.
+
+const toolFilterOf = () => JSON.parse(fs.readFileSync(patchPath("tool-filter.json"), "utf8"));
+const LOCAL_BIND_MCP = "scope-local-bind-e2e";
+
+test("a tool allowlist materializes the filter config; role narrowing clips; full mode clears", async ({ page }) => {
+  test.setTimeout(150_000);
+  await page.goto("/chat/");
+  const connect = await page.request.post("/api/registry/credential", {
+    data: { token: "opaque-e2e-token", source: "paste" },
+  });
+  expect(connect.ok()).toBeTruthy();
+  // Pack-level allowlist of three tools; the role's declaration keeps two.
+  const { report } = await installPack(page, 1, {
+    mcpServers: [{ registryName: "e2e-registry-mcp", allowTools: ["read", "search", "purge"] }],
+    resources: { mcpTools: { "e2e-registry-mcp": ["read", "search", "purge_not"] } },
+  });
+  expect(report.mcpServers.find((m) => m.name === "e2e-registry-mcp")?.status).toBe("installed");
+
+  await expect
+    .poll(() => fs.existsSync(path.join(dirs.dshHome, ".agent-presets", AGENT_ID, "agent.cordis.yml")))
+    .toBe(true);
+  await waitPresetInRoster(page, AGENT_ID);
+  await switchPreset(page, AGENT_ID);
+
+  // The reference is mounted AND narrowed: the filter carries the effective
+  // per-role set (the widening name clipped by the shared derivation), and
+  // the scope module ships beside it for the child's preset bridge.
+  await expect.poll(() => mcpServersOf(), { timeout: 20_000 }).toContain("e2e-registry-mcp");
+  await expect
+    .poll(() => toolFilterOf(), { timeout: 20_000 })
+    .toEqual({ mcpTools: { "e2e-registry-mcp": ["read", "search"] } });
+  expect(fs.existsSync(patchPath("platform-tool-scope.js"))).toBe(true);
+
+  // Full mode composes with NO filtering — the empty mapping is what the
+  // bridge no-ops on, byte-identical to the pre-change surface.
+  await switchPreset(page, "standard");
+  await expect.poll(() => toolFilterOf(), { timeout: 20_000 }).toEqual({ mcpTools: {} });
+  expect(mcpServersOf()).toContain("e2e-registry-mcp");
+});
+
+test("a legacy pack without allowlists focuses with an empty filter (7.2)", async ({ page }) => {
+  test.setTimeout(150_000);
+  await page.goto("/chat/");
+  const connect = await page.request.post("/api/registry/credential", {
+    data: { token: "opaque-e2e-token", source: "paste" },
+  });
+  expect(connect.ok()).toBeTruthy();
+  await installPack(page, 1, { mcpServers: [{ registryName: "e2e-registry-mcp-2" }] });
+  await expect
+    .poll(() => fs.existsSync(path.join(dirs.dshHome, ".agent-presets", AGENT_ID, "agent.cordis.yml")))
+    .toBe(true);
+  await waitPresetInRoster(page, AGENT_ID);
+  await switchPreset(page, AGENT_ID);
+  await expect.poll(() => mcpServersOf(), { timeout: 20_000 }).toContain("e2e-registry-mcp-2");
+  // No declarations anywhere: the filter is the empty mapping, never stale
+  // residue from an earlier focused session (self-healing composition).
+  await expect.poll(() => toolFilterOf(), { timeout: 20_000 }).toEqual({ mcpTools: {} });
+  await switchPreset(page, "standard");
+});
+
+test("an awaiting-local-binding reference activates on later install, no reinstall", async ({ page }) => {
+  test.setTimeout(150_000);
+  await page.goto("/chat/");
+  // No registry entry and no local row of this name: the pack completes with
+  // the reference awaiting a local binding — and its allowlist is already
+  // materialized, waiting with it.
+  const { report } = await installPack(page, 1, {
+    mcpServers: [{ registryName: LOCAL_BIND_MCP, allowTools: ["local_read"] }],
+  });
+  const part = report.mcpServers.find((m) => m.name === LOCAL_BIND_MCP);
+  expect(part?.status).toBe("awaiting-local-binding");
+  expect(part?.reason).toContain("install or connect one");
+
+  await expect
+    .poll(() => fs.existsSync(path.join(dirs.dshHome, ".agent-presets", AGENT_ID, "agent.cordis.yml")))
+    .toBe(true);
+  await waitPresetInRoster(page, AGENT_ID);
+  await switchPreset(page, AGENT_ID);
+  await expect.poll(() => toolFilterOf(), { timeout: 20_000 }).toEqual({
+    mcpTools: { [LOCAL_BIND_MCP]: ["local_read"] },
+  });
+  expect(mcpServersOf()).not.toContain(LOCAL_BIND_MCP);
+
+  // The user installs a local server of that name: the MCP CRUD rewrite
+  // re-derives the focused composition and the reference goes live — no
+  // reinstall of the pack, the binding is compose-time by name.
+  const r = await page.request.post("/api/extensions/mcp", {
+    data: { name: LOCAL_BIND_MCP, config: { url: "http://127.0.0.1:9/mcp" }, enabled: true },
+  });
+  expect(r.ok(), await r.text()).toBeTruthy();
+  await expect.poll(() => mcpServersOf(), { timeout: 20_000 }).toContain(LOCAL_BIND_MCP);
+  expect(toolFilterOf()).toEqual({ mcpTools: { [LOCAL_BIND_MCP]: ["local_read"] } });
+
+  await switchPreset(page, "standard");
 });

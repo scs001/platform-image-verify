@@ -63,11 +63,58 @@ async function startStubOidc() {
   return { port, close: () => new Promise((r) => server.close(r)) };
 }
 
+// Stub registry for the publish tool gate (add-mcp-tool-scoping): one server
+// entry with a tool_list snapshot and a commercial NAME list, plus an MCP
+// endpoint answering initialize/tools/list for the staleness probe.
+async function startStubRegistry() {
+  const port = await freePort();
+  const server = createServer((req, res) => {
+    res.setHeader("content-type", "application/json");
+    if (req.url.startsWith("/api/servers")) {
+      return res.end(JSON.stringify({
+        servers: [
+          {
+            path: "/stub-srv",
+            is_enabled: true,
+            tool_list: ["read", "search"],
+            metadata: { surface: { commercial_tools: ["read", "fresh_tool"], tools_commercial: 2, tools_total: 2 } },
+          },
+        ],
+      }));
+    }
+    if (req.url.startsWith("/stub-srv/mcp")) {
+      // The streamable-http MCP face the probe walks; body frames are ignored
+      // — every POST answers a generic JSON-RPC result the client accepts.
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", () => {
+        let method = "";
+        try { method = JSON.parse(body).method; } catch { /* probe failures are verdicts too */ }
+        if (method === "initialize") {
+          res.setHeader("mcp-session-id", "stub-session");
+          return res.end(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { serverInfo: { name: "stub-srv" } } }));
+        }
+        if (method === "tools/list") {
+          return res.end(JSON.stringify({ jsonrpc: "2.0", id: 2, result: { tools: [{ name: "read" }, { name: "search" }, { name: "fresh_tool" }] } }));
+        }
+        res.statusCode = 202;
+        res.end("");
+      });
+      return;
+    }
+    res.statusCode = 404;
+    res.end("{}");
+  });
+  await new Promise((resolve) => server.listen(port, "127.0.0.1", resolve));
+  return { port, close: () => new Promise((r) => server.close(r)) };
+}
+
 let gatewayServer;
 let gateway;
 let gwPort;
 let dataRoot;
 let oidc;
+let stubRegistry;
 
 function api(method, p, { email, groups, body } = {}) {
   const headers = {};
@@ -100,6 +147,7 @@ function manifest(overrides = {}) {
 
 test.before(async () => {
   oidc = await startStubOidc();
+  stubRegistry = await startStubRegistry();
   dataRoot = await mkdtemp(path.join(tmpdir(), "pack-gateway-"));
   gwPort = await freePort();
   gatewayServer = spawnTestServer({
@@ -108,6 +156,7 @@ test.before(async () => {
     storeRoot: dataRoot,
     env: {
       ...process.env,
+      REGISTRY_URL: `http://127.0.0.1:${stubRegistry.port}`,
       GATEWAY_PORT: String(gwPort),
       GATEWAY_HOST: "127.0.0.1",
       CELL_DATA_ROOT: dataRoot,
@@ -142,6 +191,7 @@ test.before(async () => {
 test.after(async () => {
   await gatewayServer?.stop();
   await oidc?.close();
+  await stubRegistry?.close();
   if (dataRoot) await rm(dataRoot, { recursive: true, force: true });
 });
 
@@ -298,4 +348,34 @@ test("publish rate limit throttles per author", async () => {
   assert.equal(second.status, 200);
   const third = await api("POST", "/api/packs", { ...OTHER_CREATOR, body: { manifest: manifest({ name: "限流第三包" }) } });
   assert.equal(third.status, 429);
+});
+
+// ── Publish tool gate over the real route (add-mcp-tool-scoping 5.1/5.2) ────
+test("tool declarations are gated: unknown fails, stale passes via probe, commercial fails", async () => {
+  const author = { email: "toolgate@example.com", groups: ["creators"] };
+  const withTools = (allowTools) =>
+    manifest({
+      name: "工具门包",
+      mcpServers: [{ registryName: "stub-srv", allowTools }],
+    });
+
+  // Unknown to snapshot AND live probe → 400 naming the tool.
+  const ghost = await api("POST", "/api/packs", { ...author, body: { manifest: withTools(["read", "ghost_tool"]) } });
+  assert.equal(ghost.status, 400);
+  assert.equal(ghost.body.toolGate, true);
+  assert.match(ghost.body.errors[0].error, /ghost_tool/);
+
+  // In the live tool list but not the snapshot → probe fallback passes.
+  const stale = await api("POST", "/api/packs", { ...author, body: { manifest: withTools(["read", "fresh_tool"]) } });
+  assert.equal(stale.status, 200, JSON.stringify(stale.body));
+
+  // Exists everywhere but outside the commercial NAME list → 400.
+  const internal = await api("POST", "/api/packs", { ...author, body: { manifest: withTools(["read", "search"]) } });
+  assert.equal(internal.status, 400);
+  assert.match(internal.body.errors[0].error, /commercial/);
+  assert.match(internal.body.errors[0].error, /search/);
+
+  // A non-registry name is a local-binding reference → exempt, publishes.
+  const local = await api("POST", "/api/packs", { ...author, body: { manifest: manifest({ name: "本地绑定发布包", mcpServers: [{ registryName: "my-private-mcp", allowTools: ["anything"] }] }) } });
+  assert.equal(local.status, 200, JSON.stringify(local.body));
 });

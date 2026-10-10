@@ -107,7 +107,19 @@ curl -s -o /dev/null -w "%{http_code}\n" https://mcp.finddatatech.cloud/     # 2
 curl -s -o /dev/null -w "%{http_code}\n" "https://mcp.finddatatech.cloud/api/v1/servers?limit=1"  # 401（无凭据正确拒）
 ```
 
-**换 embedding 引擎时追加：向量级等价对比**（替代需鉴权的 API 查询对比）——切换前在生产旧容器内用旧引擎、本地/新容器用新引擎，对同一组中英混合文本出向量：同文本跨引擎余弦 ≥0.999 且语义邻居 top-3 排序全重合 = 索引免重建实证（fd-1.2.0 实测 0.999999、8/8）。
+**换 embedding 引擎时追加：向量级等价对比**（换 embedding 引擎时的权威方法）
+
+**日常换版更便宜的一招——仓库层语义抽检**（无鉴权，容器内直接跑，不经过 HTTP 网关）：
+写个 .py 用 scp 传进容器再 `docker exec ... /app/.venv/bin/python`（**不要 ssh 内联多层引号的 python -c**，转义必崩）：
+```
+from registry.repositories.factory import get_search_repository
+repo = get_search_repository()
+r = await repo.search(query="weather", max_results=3)   # 注意：签名是 max_results，不是 limit
+# 结果 dict：实体类型 -> 文档列表；名字字段是 server_name / skill_name（不是 name），另有 relevance_score
+```
+中英混合词各一发，看跨 servers/skills/tools/virtual_servers 是否命中且头名语义合理（fd-1.2.0 实测：weather→eco-mcp-time、法律检索→fd-legal-search-mcp、database query→daas/cell、网页抓取→研究类 workflow）。**这比 admin `/reindex` 更能证明索引可用**——reindex 端点按 paths 重建且要 admin+CSRF，非必需别触发。
+
+（替代需鉴权的 API 查询对比）——切换前在生产旧容器内用旧引擎、本地/新容器用新引擎，对同一组中英混合文本出向量：同文本跨引擎余弦 ≥0.999 且语义邻居 top-3 排序全重合 = 索引免重建实证（fd-1.2.0 实测 0.999999、8/8）。
 
 ## 5. 新主机/新模型的权重预置（bind mount 侧）
 
@@ -157,4 +169,6 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/python scripts/test.py unit -n 8
 | relay 日志 SKIP | 上一轮循环还没跑完（tag 多） | 等或手动补单 |
 | 推新 tag 失败但 main tag 更新成功 | TCR 个人版 tag 上限 | 控制台删旧 tag（API 删不回收） |
 | scp/ssh 莫名 Connection closed | 主机别名写错（cheap-1 ≠ cheap1） | 用 `cheap1`/`cheap3` |
+| 容器内 python 报 SyntaxError 反斜杠 | ssh 内联多层引号转义崩溃 | 本地写 .py → scp → docker cp → docker exec |
+| `search() got unexpected kwarg 'limit'` | 仓库层签名是 `max_results` | 换参数名；结果名字字段是 `server_name`/`skill_name` |
 | compose 文件里的 sha 和运行容器不一致 | 并行会话预指了待发布镜像 | §3.0 先查归属再动 |

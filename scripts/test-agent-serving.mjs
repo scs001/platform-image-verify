@@ -1137,3 +1137,32 @@ test("config write falls back to register when the registry PUT rejects the merg
     await h.close();
   }
 });
+
+// ── add-agent-card-examples: shape validation + verbatim passthrough ────────
+
+test("card examples: valid shapes pass and ride the composed card verbatim", async () => {
+  const { validatePackManifest: v } = await import("../lib/pack-manifest.js");
+  const { composeAgentCard } = await import("../lib/agent-serving.js");
+  const base = {
+    name: "p", description: "d", skills: [], mcpServers: [],
+    agents: [{ id: "a1", name: "A", persona: "x", serving: { protocol: "a2a", card: { examples: ["帮我总结这份报告", "把这组数据做成图表"] } } }],
+  };
+  assert.deepEqual(v(base), []);
+  const card = composeAgentCard(base, base.agents[0]);
+  assert.deepEqual(card.examples, ["帮我总结这份报告", "把这组数据做成图表"]);
+
+  const none = { ...base, agents: [{ ...base.agents[0], serving: { protocol: "a2a" } }] };
+  assert.equal("examples" in composeAgentCard(none, none.agents[0]), false);
+});
+
+test("card examples: malformed declarations fail naming the entry", async () => {
+  const { validatePackManifest: v } = await import("../lib/pack-manifest.js");
+  const mk = (examples) => ({
+    name: "p", description: "d", skills: [], mcpServers: [],
+    agents: [{ id: "a1", name: "A", persona: "x", serving: { protocol: "a2a", card: { examples } } }],
+  });
+  for (const bad of [["a", "b", "c", "d"], [""], ["x".repeat(201)], []]) {
+    const errs = v(mk(bad));
+    assert.ok(errs.length > 0 && JSON.stringify(errs).includes("examples"), `expected examples error for ${JSON.stringify(bad).slice(0, 40)}`);
+  }
+});

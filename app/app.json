@@ -20,7 +20,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.finddata.platform"
+      "package": "com.finddata.platform",
+      "usesCleartextTraffic": true
     },
     "web": {
       "output": "static",

@@ -31,7 +31,7 @@
 
 ## 6. 管线与发布
 
-- [ ] 6.1 Maestro flows（android）：配对（mock 实例）、聊天流（真服务器+dead-LLM）、Tab 导航、语言切换；本地 `maestro test` 四流全绿
+- [~] 6.1 Maestro flows（android）：配对（mock 实例）、聊天流（真服务器+dead-LLM）、Tab 导航、语言切换；**通道改为 GitHub CI 执行**（用户 2026-10-11 明令：构建与测试一律走 GitHub，不再本地跑模拟器；本地安卓工具链已清除）。app-e2e.yml 四轮迭代定形：①gates 补根仓依赖（smoke 起 server.js 的前提，此前 30s 超时红的根因）；②只编 x86_64 + 释放 runner 空间（首跑死于 NDK 全 ABI 满盘）；③脚本逐行自包含（emulator-runner 按行 `sh -c` 执行，续行符/跨行状态都是语法错）；④**apk/android 拆两个 job**——gradle 与模拟器不能共 runner（38134202330 实锤：42m assembleDebug 跑完，emulator-5554 已被挤死，adb install 报 device not found）。现架构：apk job 出 release 包（JS 内嵌、Expo 模板 debug 签名、只编 x86_64、gradle 缓存，17m46s 暖缓存实证），android job 只装包+起 mock+按依赖序跑四流（pairing 先行、bind code 临流前铸）——无 Metro、无 adb reverse；app.json 增 `android.usesCleartextTraffic`（release 清单否则拦 http mock 与自托管 http 实例）；maestro `timeout` 归位命令级（选择器子键会 Unknown Property 拒载）。**当前状态：镜像仓实跑已到四流执行段（38139087155：装机✓/mock✓/bindcode✓，maestro 因 timeout 语法拒载已修）；镜像仓 scs001 遭 spending-limit 断供，验证转公开仓（免费 CI 分钟）继续。**
 - [x] 6.2 GHA `app-e2e.yml`（android 门禁 + iOS nightly 结构）+ 根 CI 增 `app lint/typecheck/unit` 步骤；公开仓通道首跑绿
 - [ ] 6.3 EAS 配置（release profile、APK 签名托管、iOS archive）+ `expo prebuild` 自编译 README 段；首出 APK + TestFlight 构建成功
 - [ ] 6.4 真机收官冒烟（iOS+Android 各一）：配对→聊天（含图表/问询卡）→cron/资源→设置解绑全链；`openspec validate add-mobile-app --strict` 通过 + 全仓既有门禁不倒退

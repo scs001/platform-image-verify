@@ -93,3 +93,9 @@ test("2.1 v2 disciplines: wake-window check, bounded investigation, terminal-bef
   // Every step reaches a terminal state before the report.
   assert.ok(/report 之前逐步核过|绝不带着 running 状态交付/.test(exec), "terminal-before-report");
 });
+
+test("2.1 the planner card declares example prompts (add-agent-card-examples)", () => {
+  const card = manifest.agents[0].serving.card ?? {};
+  assert.ok(Array.isArray(card.examples) && card.examples.length >= 1 && card.examples.length <= 3);
+  for (const ex of card.examples) assert.ok(typeof ex === "string" && ex.trim() && ex.length <= 200);
+});

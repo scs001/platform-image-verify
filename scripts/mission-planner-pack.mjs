@@ -175,6 +175,12 @@ export function buildManifest() {
         resources: { skills: ["mission-protocol", "mission-planning", "mission-execution", "mission-reporting"], mcpServers: [] },
         serving: {
           protocol: "a2a",
+          card: {
+            examples: [
+              "帮我盘点平台现在有哪些对外服务的 agent",
+              "把这份季度数据整理成一份带来源的简报",
+            ],
+          },
           rhythm: [{ every: process.env.RHYTHM_EVERY || "15m", do: RHYTHM_DO }],
           budget: { turnMinutes: Number(process.env.BUDGET_MINUTES || 30) },
         },

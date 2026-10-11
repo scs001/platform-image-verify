@@ -204,7 +204,9 @@ export function buildManifest() {
     { name: "spider-heal-notify", description: "四类事件通知（工单终态/PR开出/总闸变更/转人工）的 bot_notify 用法 + 总闸核对流程", content: SKILL_NOTIFY },
     { name: "spider-heal-generate", description: "生成执行：kind=generate greenfield 新建单元——模板起接、实现取数、golden 样本跨期稳定纪律、health_verify 循环 ≤3 轮、gen/<slug> 分支开 PR", content: SKILL_GENERATE },
   ],
-  mcpServers: [{ registryName: "fd-health-config" }],
+  // allowTools（add-mcp-tool-scoping M1 迁移 2026-10-11）：该 server 单工具
+  // （health_config_get，总闸核对唯一入口），白名单显式收窄到它。
+  mcpServers: [{ registryName: "fd-health-config", allowTools: ["health_config_get"] }],
   agents: [
     {
       id: AGENT_ID,

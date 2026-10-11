@@ -111,6 +111,38 @@ const PERSONA = `你是「数据-分析师」——谦面的数据分析工作�
 - 产物可追溯：每个看板/指标/实体集都注册进对应目录，报得出名字与路径。
 - 对外回答用中文，简短、结构化：先结论，再关键依据（来源/口径/产物路径）。`;
 
+// ── 工具白名单（add-mcp-tool-scoping M1 迁移，2026-10-11）─────────────────────
+// 集合 = 技能正文直接点名的工具 + 点名操作隐含的只读发现/家族面。fd-daas-mcp 全量
+// 161 工具里大量 admin/告警/复合面板与本两包无关——收窄即上下文经济学。技能正文
+// 明写 "NO MCP tools" 的（dashboard/看板类）不贡献条目；改技能清单时同步核对这里。
+
+// 消费八件套实际用面：工作流/research 管线 + 实体指标查询 + PDF 抽取 + 集合同步。
+export const ANALYSIS_ALLOW_TOOLS = [
+  "daas_calculate_indicator", "daas_create_indicator", "daas_extract_file",
+  "daas_extract_text", "daas_get_entity", "daas_get_entity_coverage",
+  "daas_get_indicator", "daas_list_indicator_ops", "daas_list_indicators",
+  "daas_run_indicator", "daas_search_entities", "daas_sync_entity_collection",
+  "gateway_call_data_mcp", "gateway_list_data_mcp_tools", "gateway_list_data_mcps",
+  "research_create", "research_generate_report", "research_get", "research_list",
+  "research_refresh", "workflow_get", "workflow_inspect", "workflow_list",
+  "workflow_resume", "workflow_run",
+];
+
+// 创作五件套实际用面：规则四型创作/试跑 + 实体集与指标集 CRUD + 工作流建指标。
+export const WORKSHOP_ALLOW_TOOLS = [
+  "daas_calculate_indicator", "daas_create_entity_collection",
+  "daas_create_indicator_collection", "daas_create_rule", "daas_get_entity",
+  "daas_get_entity_collection", "daas_get_indicator",
+  "daas_get_indicator_collection", "daas_get_rule",
+  "daas_list_entity_collection_changes", "daas_list_entity_collections",
+  "daas_list_indicator_collection_changes", "daas_list_indicator_collections",
+  "daas_list_indicator_ops", "daas_list_indicators", "daas_list_rules",
+  "daas_run_indicator", "daas_run_rule", "daas_search_entities",
+  "daas_sync_entity_collection", "daas_sync_indicator_collection",
+  "daas_test_rule", "workflow_get", "workflow_inspect", "workflow_list",
+  "workflow_resume", "workflow_run",
+];
+
 // ── 三包 manifest（严格照 lib/pack-manifest.js 的 validatePackManifest/PACK_LIMITS）──
 
 export function buildAnalysisPack(opts = {}) {
@@ -122,7 +154,8 @@ export function buildAnalysisPack(opts = {}) {
     skills: loadSkills(CONSUME_SKILLS),
     // MCP 引用（10-06 补）：技能正文依赖 daas_* 工具，不挂 fd-daas-mcp 的包是半成品。
     // registryName 可被 --registry-name 覆盖（per-customer 工作区实例）。
-    mcpServers: [{ registryName: opts.registryName || "fd-daas-mcp" }],
+    // allowTools（10-11 补）：消费面白名单，见上 ANALYSIS_ALLOW_TOOLS 注。
+    mcpServers: [{ registryName: opts.registryName || "fd-daas-mcp", allowTools: ANALYSIS_ALLOW_TOOLS }],
     agents: [],
   };
 }
@@ -134,7 +167,7 @@ export function buildWorkshopPack(opts = {}) {
     tags: ["数据", "指标", "创作", "规则", "DAAS"],
     visibility: "public",
     skills: loadSkills(CREATE_SKILLS),
-    mcpServers: [{ registryName: opts.registryName || "fd-daas-mcp" }],
+    mcpServers: [{ registryName: opts.registryName || "fd-daas-mcp", allowTools: WORKSHOP_ALLOW_TOOLS }],
     agents: [],
   };
 }

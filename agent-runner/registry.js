@@ -24,9 +24,12 @@ function client(registryUrl, token, fetchImpl) {
 }
 
 // Hosted subset: enabled a2a agents that carry a paas deployment descriptor
-// (metadata.packId). v1 is a single runner, so every such entry is hosted;
-// multi-runner sharding needs a runner id in the descriptor (future).
-export function createRegistryClient({ registryUrl, token: tokenOpt, registryToken, fetchImpl }) {
+// (metadata.packId), sharded by runner assignment (add-runner-fleet-sharding
+// D1): an entry tagged metadata.runner_id belongs to that runner; untagged
+// entries belong to the default runner (config default = the runner's own
+// fleet id, so the legacy single-runner deployment keeps the whole untagged
+// fleet with zero migration).
+export function createRegistryClient({ registryUrl, token: tokenOpt, registryToken, fetchImpl, runnerId = null, defaultRunnerId = null }) {
   const token = tokenOpt ?? registryToken;
   const get = client(registryUrl, token, fetchImpl);
   return {
@@ -40,7 +43,10 @@ export function createRegistryClient({ registryUrl, token: tokenOpt, registryTok
           String(a.supported_protocol || "").toLowerCase() === "a2a" &&
           a.metadata &&
           typeof a.metadata === "object" &&
-          a.metadata.packId,
+          a.metadata.packId &&
+          // Sharding filter: no runnerId configured = the pre-fleet hosting
+          // behavior (every qualifying entry), matching the v1 contract.
+          (runnerId == null || (a.metadata.runner_id ?? defaultRunnerId ?? runnerId) === runnerId),
       );
     },
 

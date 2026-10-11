@@ -1182,3 +1182,33 @@ test("card examples: deployToRegistry payload rides examples on the entry", asyn
   await servingLib.deployToRegistry({ ...PACK, fetchImpl: bare.fetch });
   assert.equal("examples" in bare.calls.agents[0].body, false);
 });
+
+// ── add-runner-fleet-sharding: fleet placement stamps the descriptor ────────
+
+test("sharding: an assigned deploy stamps runner_id and uses that runner's port geometry", async () => {
+  const stub = stubRegistry();
+  await servingLib.deployToRegistry({
+    ...PACK,
+    fetchImpl: stub.fetch,
+    runnerId: "runner-b",
+    runnerPortBase: 8851,
+    runnerPortSpan: 32,
+  });
+  const agent = stub.calls.agents[0].body;
+  assert.equal(agent.metadata.runner_id, "runner-b", "descriptor carries the fleet assignment");
+  const { agentPortFor } = servingLib;
+  assert.equal(
+    agent.url,
+    `http://runner.tailnet:${agentPortFor("/packs/pk-abc/pack-fingpt", { base: 8851, span: 32 })}`,
+    "serving URL lands in the assigned runner's port span",
+  );
+});
+
+test("sharding: a default deploy stays byte-identical — untagged, default span", async () => {
+  const stub = stubRegistry();
+  await servingLib.deployToRegistry({ ...PACK, fetchImpl: stub.fetch });
+  const agent = stub.calls.agents[0].body;
+  assert.equal("runner_id" in agent.metadata, false, "no runnerId passed = untagged descriptor");
+  const { agentPortFor } = servingLib;
+  assert.equal(agent.url, `http://runner.tailnet:${agentPortFor("/packs/pk-abc/pack-fingpt")}`, "default base/span");
+});

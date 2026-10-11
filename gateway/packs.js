@@ -109,6 +109,27 @@ export function createPackRegistry({ file }) {
     password TEXT,
     created_at INTEGER NOT NULL
   )`);
+  // Fleet runners (add-runner-fleet-sharding D2): the machines serving agents.
+  // The legacy single runner is SEEDED from env at boot (id aligned with its
+  // FLEET_ID) so the default deploy target and its URLs hold byte-for-byte;
+  // more rows = more shards, each deploy naming its runner by id.
+  db.exec(`CREATE TABLE IF NOT EXISTS agent_runners (
+    id TEXT PRIMARY KEY,
+    base_url TEXT NOT NULL,
+    port_base INTEGER NOT NULL DEFAULT 8791,
+    port_span INTEGER NOT NULL DEFAULT 32,
+    note TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL
+  )`);
+  if (!db.prepare(`SELECT 1 FROM agent_runners LIMIT 1`).get() && process.env.AGENT_SERVING_RUNNER_URL) {
+    db.prepare(`INSERT INTO agent_runners (id, base_url, port_base, port_span, note, created_at) VALUES (?, ?, 8791, 32, ?, ?)`)
+      .run(
+        process.env.AGENT_SERVING_DEFAULT_RUNNER_ID || "cheap-1",
+        process.env.AGENT_SERVING_RUNNER_URL,
+        "seeded from AGENT_SERVING_RUNNER_URL (legacy single runner)",
+        Date.now(),
+      );
+  }
   db.exec(`CREATE TABLE IF NOT EXISTS deployment_keys (
     pack_id TEXT NOT NULL,
     agent_id TEXT NOT NULL,
@@ -393,6 +414,22 @@ export function createPackRegistry({ file }) {
     // ── Platform billing bookkeeping (add-agent-platform-ops) ─────────────
     billingAccount(email) {
       return db.prepare(`SELECT * FROM sub2api_accounts WHERE email = ?`).get(email) ?? null;
+    },
+    // ── Fleet runners (add-runner-fleet-sharding D2) ────────────────────────
+    runnerList() {
+      return db.prepare(`SELECT id, base_url, port_base, port_span, note, created_at FROM agent_runners ORDER BY created_at, id`).all()
+        .map((r) => ({ id: r.id, baseUrl: r.base_url, portBase: r.port_base, portSpan: r.port_span, note: r.note, createdAt: r.created_at }));
+    },
+    runnerUpsert({ id, baseUrl, portBase, portSpan, note = "" }) {
+      if (typeof id !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(id)) throw new Error("runner id must match [a-z0-9][a-z0-9._-]{0,63}");
+      if (typeof baseUrl !== "string" || !/^https?:\/\//.test(baseUrl)) throw new Error("baseUrl must be an http(s) URL");
+      const base = Number.isInteger(portBase) && portBase > 0 ? portBase : 8791;
+      const span = Number.isInteger(portSpan) && portSpan > 0 ? portSpan : 32;
+      db.prepare(`INSERT INTO agent_runners (id, base_url, port_base, port_span, note, created_at) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET base_url = excluded.base_url, port_base = excluded.port_base,
+          port_span = excluded.port_span, note = excluded.note`)
+        .run(id, baseUrl.replace(/\/+$/, ""), base, span, String(note || ""), Date.now());
+      return { id, baseUrl: baseUrl.replace(/\/+$/, ""), portBase: base, portSpan: span };
     },
     saveBillingAccount({ email, userId }) {
       db.prepare(
@@ -687,6 +724,27 @@ export function registerPackRoutes(app, {
     const cfg = deployConfig();
     if (!cfg.runnerBaseUrl) {
       return res.status(503).json({ error: "Agent serving is not configured on this deployment (AGENT_SERVING_RUNNER_URL)" });
+    }
+    // Fleet placement (add-runner-fleet-sharding D2): an explicit runnerId
+    // resolves against the fleet table (URL from THAT runner's base + port
+    // geometry, descriptor tagged with its id); absent = the seeded default
+    // row's geometry with an UNTAGGED descriptor — the legacy single-runner
+    // contract, byte for byte. An unknown id is a 400 naming the fleet.
+    let runnerPlacement = {};
+    const runnerIdBody = req.body?.runnerId;
+    if (runnerIdBody !== undefined && (typeof runnerIdBody !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(runnerIdBody))) {
+      return res.status(400).json({ error: "runnerId must be a runner id from the fleet list" });
+    }
+    const fleetRows = registry.runnerList();
+    if (runnerIdBody != null) {
+      const row = fleetRows.find((r) => r.id === runnerIdBody);
+      if (!row) {
+        return res.status(400).json({ error: `unknown runnerId '${runnerIdBody}' — the fleet holds: ${fleetRows.map((r) => r.id).join(", ") || "(none)"}` });
+      }
+      runnerPlacement = { runnerId: row.id, runnerBaseUrl: row.baseUrl, runnerPortBase: row.portBase, runnerPortSpan: row.portSpan };
+    } else if (fleetRows.length > 0) {
+      const row = fleetRows[0];
+      runnerPlacement = { runnerBaseUrl: row.baseUrl, runnerPortBase: row.portBase, runnerPortSpan: row.portSpan };
     }
     // Rhythm overrides (add-agent-residency D7): { "<agentId>": entries | null }
     // — deployer-set effective rhythm, validated under the same rules the
@@ -1080,6 +1138,7 @@ export function registerPackRoutes(app, {
         billingKeys,
         secretRefs,
         ...cfg,
+        ...runnerPlacement, // fleet row wins over the env default (sharding D2)
       });
     } catch (err) {
       const status = Number.isInteger(err?.status) && err.status >= 400 ? err.status : 502;
@@ -1295,6 +1354,14 @@ export function registerPackRoutes(app, {
   app.get("/api/packs/internal/author/:id", (req, res) => {
     if (!internalAuth(req, res)) return;
     res.json({ authorEmail: registry.authorEmail(req.params.id) });
+  });
+
+  // Internal: the runner fleet (add-runner-fleet-sharding D2) — placement
+  // surfaces (console deploy picker, facade) read the machines and their
+  // port geometry over the same service-credential gate as the deployments.
+  app.get("/api/packs/internal/runners", (req, res) => {
+    if (!internalAuth(req, res)) return;
+    res.json({ runners: registry.runnerList() });
   });
 
   // Internal: deployment-level host settlement (wanxing add-agent-chat-lane

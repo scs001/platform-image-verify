@@ -93,7 +93,19 @@ const clientFactory = (spec) => ({ args, cwd, env }) => {
 // child; the inner ({args,cwd,env}) shape matches what AgentChild builds.
 const wrappedFactory = (spec) => (specArg) => clientFactory(spec)(specArg);
 
-const manager = new ChildManager({ config, registryClient: createRegistryClient(config), clientFactory: wrappedFactory });
+const manager = new ChildManager({
+  config,
+  registryClient: createRegistryClient({
+    registryUrl: config.registryUrl,
+    registryToken: config.registryToken,
+    // Sharding (add-runner-fleet-sharding D1): the fleet id hosts only its
+    // assigned slice; untagged entries default to this runner when it is the
+    // fleet's default (AGENT_RUNNER_DEFAULT_ID, itself by default).
+    runnerId: config.fleetRunnerId,
+    defaultRunnerId: config.defaultRunnerId,
+  }),
+  clientFactory: wrappedFactory,
+});
 
 // Fleet observability (add-fleet-event-backbone 3.1): direct-post reporter +
 // state sampler, fully inert without AGENT_RUNNER_FLEET_URL.

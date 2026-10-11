@@ -140,5 +140,11 @@ export function loadConfig(env = process.env) {
     fleetToken: env.AGENT_RUNNER_FLEET_TOKEN || "",
     fleetRunnerId: env.AGENT_RUNNER_FLEET_ID || "runner-1",
     fleetSampleSecs: num(env.AGENT_RUNNER_FLEET_SAMPLE_SECS, 30),
+    // Sharding (add-runner-fleet-sharding D1): unassigned entries belong to
+    // the default runner. Defaulting to the runner's own fleet id keeps a
+    // legacy runner (no new env) hosting everything unassigned — zero
+    // migration; a new runner with a distinct fleet id hosts only entries
+    // explicitly tagged with it.
+    defaultRunnerId: env.AGENT_RUNNER_DEFAULT_ID || env.AGENT_RUNNER_FLEET_ID || "runner-1",
   };
 }

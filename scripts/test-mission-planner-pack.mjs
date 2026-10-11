@@ -21,7 +21,9 @@ const all = manifest.skills.map((s) => s.content).join("\n") + "\n" + manifest.a
 test("2.1 the manifest validates and is persona+skills only (no MCP refs)", () => {
   const errors = validatePackManifest(manifest);
   assert.deepEqual(errors, []);
-  assert.equal(manifest.visibility, "private");
+  // v4: catalog-visible — the planner is the wanxing plane's own operational
+  // agent and the M3② example-showcase (add-agent-card-examples).
+  assert.equal(manifest.visibility, "public");
   assert.deepEqual(manifest.mcpServers, []);
   assert.equal(manifest.skills.length, 4);
 });

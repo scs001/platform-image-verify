@@ -158,7 +158,7 @@ export function buildManifest() {
     name: "萬星 Planner · Mission Planner",
     description: "M2 任务拆解执行体：消费任务定义面的派发契约——一句话目标 → 拆解计划（search_agents 实查步骤 agent）→ 按状态机串行驱动步骤 → 终态报告与通知。节奏自巡检驱动多回合推进。",
     tags: ["萬星", "planner", "任务", "M2"],
-    visibility: "private",
+    visibility: "public",
     skills: [
       { name: "mission-protocol", description: "brief 解析、GET 轮询/POST 回写五 kind、幂等键纪律、状态机地图与每回合动作表", content: SKILL_PROTOCOL },
       { name: "mission-planning", description: "目标→≤8 步计划；步骤 agent 必须 search_agents 实查，查无自行执行；计划即承诺不再增删", content: SKILL_PLANNING },

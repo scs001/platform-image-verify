@@ -1166,3 +1166,19 @@ test("card examples: malformed declarations fail naming the entry", async () => 
     assert.ok(errs.length > 0 && JSON.stringify(errs).includes("examples"), `expected examples error for ${JSON.stringify(bad).slice(0, 40)}`);
   }
 });
+
+test("card examples: deployToRegistry payload rides examples on the entry", async () => {
+  const stub = stubRegistry();
+  await servingLib.deployToRegistry({
+    ...PACK,
+    manifest: withServing({ protocol: "a2a", card: { examples: ["帮我盘点平台现在有哪些对外服务的 agent"] } }),
+    fetchImpl: stub.fetch,
+  });
+  assert.equal(stub.calls.agents.length, 1);
+  assert.deepEqual(stub.calls.agents[0].body.examples, ["帮我盘点平台现在有哪些对外服务的 agent"]);
+
+  // Absent declaration keeps the payload shape unchanged (no examples key).
+  const bare = stubRegistry();
+  await servingLib.deployToRegistry({ ...PACK, fetchImpl: bare.fetch });
+  assert.equal("examples" in bare.calls.agents[0].body, false);
+});

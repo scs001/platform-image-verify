@@ -4,6 +4,16 @@
 > （Ideas 分类——该仓库关闭了 Issues，Discussions 是唯一公开反馈通道；正文即下文的英文部分，
 > 内部备注段未随发。）
 >
+> **跟进 2026-10-11（同日两进展）**：① 社区 argszero 发布 `@argszero/dsh-mcp-tool-filter`
+> （register-instance-shadow 插件，达成 semantics 1「根本不注册」）并给出三条源码事实
+> （注册无条件/公开名形态/restrict 三重距离）；② 我们已把同一接缝**内嵌进平台桥**落地
+> （`add-tool-scope-register-shadow`：guard+shadow+restrict 三层），并在讨论区回帖
+> （discussioncomment-18860857）：接缝在 0.1.1-rc.2（生产矩阵锁）与 0.0.1-rc.1（开发混代树）
+> 双代实证 14 断言，含 **receiver/scope 归属保留**（cordis 以调用方 view 为 receiver 转发，
+> `protoRegister.call(this,…)` 不破 scoped 注册）；raw-leaf 匹配论点我们同样撞到并附发布门
+> fail-safe 事实。上游落地 allowedTools 后影子整体删除换原生字段（哨兵测试
+> scripts/test-tool-scope-register-seam.mjs 同时是接缝失效哨兵）。
+>
 > 递交对象：@deepseek-ai/dsh（dsh-mcp-client），仓库 `deepseek-ai/deepseek-harness`
 > （MIT，包位于 `packages/mcp/mcp-client`）。随 `add-mcp-tool-scoping` 设计 D1/附录产出。
 

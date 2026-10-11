@@ -22,8 +22,8 @@
 
 ## 4. 上线与验证
 
-- [ ] 4.1 提交 main → law-ai-official/platform-images 快照出片 → relay → ccr 实证（skopeo 带凭据）。
-- [ ] 4.2 fd-infra-deploy：platform.yaml + facet.yaml 滚 tag；facet.yaml 增两 env（PACK_USAGE_TOKEN 经 secret）。验证：ArgoCD hard-refresh + 双 rollout status。
-- [ ] 4.3 线上验证：#/mine（真创作者登录）列表+动作；#/curate admin 改类/精选后市场反映；用量板块读数或诚实降级；#/packs 垂类过滤+精选 rail；哨兵场景线上抽查。
-- [ ] 4.4 首轮垂类归类（admin 手工：法律/legal、文档工坊/doc-studio、自助分析+指标工坊/daas、spider-heal/spider-heal、演示包归 misc 或留空）。
-- [ ] 4.5 docs/facet-wanxing-roadmap.md M1 决策修订注记 + openspec 归档（validate --specs 先行）。
+- [x] 4.1 提交 main → law-ai-official/platform-images 快照出片 → relay → ccr 实证（skopeo 带凭据）。
+- [x] 4.2 fd-infra-deploy：platform.yaml + facet.yaml 滚 tag；facet.yaml 增两 env（PACK_USAGE_TOKEN 经 secret）。验证：ArgoCD hard-refresh + 双 rollout status。
+- [x] 4.3 线上验证：#/mine（真创作者登录）列表+动作；#/curate admin 改类/精选后市场反映；用量板块读数或诚实降级；#/packs 垂类过滤+精选 rail；哨兵场景线上抽查。
+- [x] 4.4 首轮垂类归类（admin 手工：法律/legal、文档工坊/doc-studio、自助分析+指标工坊/daas、spider-heal/spider-heal、演示包归 misc 或留空）。
+- [x] 4.5 docs/facet-wanxing-roadmap.md M1 决策修订注记 + openspec 归档（validate --specs 先行）。

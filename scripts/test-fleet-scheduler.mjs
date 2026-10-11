@@ -59,12 +59,14 @@ const harness = ({ board, entries, rows = ROWS }) => {
 };
 
 test("failover: a stale runner's entry re-points to the emptiest healthy runner", async () => {
-  const entries = [{ path: "/packs/p1/a", metadata: { packId: "p1", runner_id: "runner-b" } }];
+  const entries = [{ path: "/packs/p1/a", name: "A", provider: "paas-pack", metadata: { packId: "p1", runner_id: "runner-b" } }];
   const board = mk({ "runner-b": { seen_at: NOW - 300_000, children: 1, budget_mb: 150, budget_mb_limit: 768 } });
   const { sched, reg } = harness({ board, entries });
   const out = await sched.tick();
   assert.equal(out.moved, 1);
   const body = reg.puts[0].body;
+  assert.equal(body.provider.organization, "paas-pack", "the GET display string is rebuilt into the PUT dict shape (both fields required)");
+  assert.equal(typeof body.provider.url, "string");
   assert.equal(body.metadata.runner_id, "runner-c", "most headroom wins");
   assert.equal(body.url, `http://100.64.0.14:${agentPortFor("/packs/p1/a", { base: 8891, span: 32 })}`, "URL = target base + collision-aware port");
   assert.equal("port_override" in body.metadata, false, "no displacement on an empty slice");

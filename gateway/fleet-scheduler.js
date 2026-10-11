@@ -160,6 +160,10 @@ export function createFleetScheduler({
         const body = {
           ...entry,
           url: `http://${hostname}:${plan.port}`,
+          // GET answers provider as a display STRING; the PUT model demands
+          // {organization, url} with both required — rebuild the write shape
+          // (live 422 finding in the drain drill).
+          provider: { organization: "paas-pack", url: row.baseUrl },
           metadata: {
             ...(entry.metadata ?? {}),
             runner_id: target.id,

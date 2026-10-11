@@ -18,6 +18,6 @@
 
 ## 4. 上线与验证
 
-- [ ] 4.1 提交 main → GHA→TCR 出片 → fd-prod facet deployment 滚动（壹座与谦面壳同滚）。验证：rollout 完成、新镜像 sha 生效。
-- [ ] 4.2 线上复验：`https://facet.finddatatech.cloud/#/packs` 出现功能集卡片、控制台无 `useNavigate` PAGEERROR、#/ 与 #/mcp 不回归。验证：无头探测脚本三断言全过。
-- [ ] 4.3 openspec 归档（validate --specs 先行，spec 同步并入 facet-platform / pack-marketplace）。
+- [x] 4.1 提交 main → GHA→TCR 出片 → fd-prod facet deployment 滚动（壹座与谦面壳同滚）。验证：rollout 完成、新镜像 sha 生效。
+- [x] 4.2 线上复验：`https://facet.finddatatech.cloud/#/packs` 出现功能集卡片、控制台无 `useNavigate` PAGEERROR、#/ 与 #/mcp 不回归。验证：无头探测脚本三断言全过。
+- [x] 4.3 openspec 归档（validate --specs 先行，spec 同步并入 facet-platform / pack-marketplace）。

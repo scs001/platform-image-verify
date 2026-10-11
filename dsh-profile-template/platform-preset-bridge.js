@@ -29,7 +29,7 @@ import { pathToFileURL } from "node:url";
 import Schema from "@deepseek-ai/schemastery";
 import { SessionId } from "@deepseek-ai/dsh-session";
 import { HarnessSdkJsonRpcServer } from "@deepseek-ai/dsh-sdk-jsonrpc-server";
-import { applyMcpToolRestrict, installMcpToolGuard } from "./platform-tool-scope.js";
+import { applyMcpToolRestrict, installMcpToolGuard, installMcpToolRegisterShadow } from "./platform-tool-scope.js";
 
 // JsonRpcLineTransport lives in the SDK server package's own dependency
 // closure. Re-anchor resolution at the server package's entry file (its real
@@ -167,6 +167,12 @@ function apply(ctx, config) {
   // it covers the session agent AND every delegated child in this process.
   // No-ops when no filter is materialized (full mode / legacy packs).
   installMcpToolGuard(ctx);
+  // Registration-time dropping (add-tool-scope-register-shadow D2): must run
+  // at plugin start, BEFORE dsh-mcp-client's rows register their first
+  // generation — the presets patch is ordered ahead of mcp.patch.yml for
+  // exactly this reason (a late shadow misses the first generation and only
+  // the guard/restrict layers would remain).
+  installMcpToolRegisterShadow(ctx);
   const input = config.input ?? process.stdin;
   const output = config.output ?? process.stdout;
   const exit = config.exit ?? ((code) => process.exit(code));

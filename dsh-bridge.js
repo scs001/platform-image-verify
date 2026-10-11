@@ -64,15 +64,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // The --patch flag list, in load order: an absent path (no MCP servers, no
 // skills dir, an unresolvable preset root) simply omits its flag, which is what
-// makes every overlay additive and individually optional. The permission overlay
-// MUST come after the preset overlay — it swaps the preset bridge's loader row —
-// and the two bridge rows come last: each inserts one fresh row and touches
-// nothing else.
+// makes every overlay additive and individually optional. The preset overlay
+// MUST come before the MCP overlay — the preset bridge's plugin start installs
+// the registration-time tool-scope shadow (add-tool-scope-register-shadow),
+// which misses dsh-mcp-client's first generation if it loads first — and the
+// permission overlay MUST come after the preset overlay (it swaps the preset
+// bridge's loader row); the remaining bridge rows insert one fresh row each
+// and touch nothing else. Mirrors agent-runner/compose.js's ordering.
 export function patchArgs(paths = {}) {
   const order = [
+    paths.presetsPatchPath,
     paths.mcpPatchPath,
     paths.skillsPatchPath,
-    paths.presetsPatchPath,
     paths.permissionsPatchPath,
     paths.toolSearchPatchPath,
     paths.chartBindPatchPath,

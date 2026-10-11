@@ -7,13 +7,19 @@
 // file, unparsable content, or an empty mapping means no filtering — full
 // mode and legacy packs compose exactly as before.
 //
-// Two layers, deliberately asymmetric:
+// Three layers, deliberately asymmetric:
 //   - GUARD (hard, drift-proof): a plain-context guard applies to EVERY agent
 //     in this child process — the session agent and every delegated child —
 //     and denies any mcp__<server>__<leaf> call whose leaf is not allowlisted
 //     for that server. It only ever string-matches the called name, so it
 //     never throws and never depends on registry state: server drift (new
 //     tools, removed tools) cannot widen callability.
+//   - SHADOW (registration-time, add-tool-scope-register-shadow): an
+//     instance-level wrapper on the shared tool registry drops an
+//     out-of-allowlist MCP registration before it enters the registry, for
+//     every generation (initial mount + resyncs). Never-registered beats
+//     masked: the schema never reaches the model and introspection cannot
+//     surface it. Any seam surprise degrades silently to the layers below.
 //   - RESTRICT (best-effort, context economy): applied per agent scope at
 //     session composition (the preset bridge's setup hook) so out-of-allowlist
 //     tools leave the model-facing roster entirely. tools.restrict() throws
@@ -91,6 +97,51 @@ export function mcpToolGuardReason(name) {
 // ctx.effect so the guard's own disposer lifts it on plugin disposal/HMR.
 export function installMcpToolGuard(ctx) {
   ctx.effect(() => ctx.tools.guard((execution) => mcpToolGuardReason(execution?.name)), "platform.tool-scope.guard");
+}
+
+// Registration-time dropping (add-tool-scope-register-shadow): shadow the
+// shared ToolRuntime's `register` with an own property, so out-of-allowlist
+// MCP tools never enter the registry — every generation (initial mount and
+// every resync), not just at composition. The seam is the cordis service
+// proxy: registrations from any view dispatch to the raw instance's method,
+// with the CALLING view as receiver, so `protoRegister.call(this, …)` below
+// preserves scoped-vs-global attribution (verified on dsh-tools 0.1.1-rc.2 +
+// cordis 4.0.4 — scripts/test-tool-scope-register-seam.mjs keeps watch).
+// Anything unexpected — missing `cordis.original`, a non-function prototype
+// method, an error inside the wrapper — leaves the original behavior exactly
+// in place; the guard and composition-time restrict keep covering that case.
+export function installMcpToolRegisterShadow(ctx) {
+  let inst;
+  try {
+    inst = Reflect.get(ctx.get("tools"), Symbol.for("cordis.original"));
+  } catch {
+    return;
+  }
+  if (!inst || typeof inst.register !== "function" || Object.hasOwn(inst, "register")) return;
+  const protoRegister = Object.getPrototypeOf(inst).register;
+  if (typeof protoRegister !== "function") return;
+  const shadow = function register(definition, ...rest) {
+    let drop = false;
+    try {
+      const name = definition?.name;
+      const filter = readMcpToolFilter();
+      if (filter) {
+        const parts = mcpNameParts(name);
+        const allow = parts ? filter[parts.server] : undefined;
+        drop = allow !== undefined && !allow.has(parts.leaf);
+      }
+    } catch {
+      drop = false; // the wrapper must never cost a healthy registration
+    }
+    if (drop) return () => {};
+    return protoRegister.call(this, definition, ...rest);
+  };
+  ctx.effect(() => {
+    inst.register = shadow;
+    return () => {
+      if (inst.register === shadow) delete inst.register;
+    };
+  }, "platform.tool-scope.register-shadow");
 }
 
 // Best-effort roster narrowing on one agent scope, called from the preset

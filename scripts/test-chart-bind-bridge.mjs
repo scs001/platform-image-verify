@@ -388,8 +388,10 @@ test("the bridge omits the chart-bind flag when no patch exists (a profile witho
     "--patch",
     "/tmp/chart-bind.patch.yml",
   ]);
-  // The load order that matters: permissions after presets (it swaps the preset
-  // bridge's row), both bridges last.
+  // The load order that matters: presets before MCP (the bridge's
+  // registration-time tool-scope shadow must start ahead of dsh-mcp-client's
+  // rows — add-tool-scope-register-shadow), permissions after presets (it
+  // swaps the preset bridge's row), both bridges last.
   const ordered = patchArgs({
     mcpPatchPath: "m",
     skillsPatchPath: "s",
@@ -398,5 +400,5 @@ test("the bridge omits the chart-bind flag when no patch exists (a profile witho
     toolSearchPatchPath: "ts",
     chartBindPatchPath: "cb",
   });
-  assert.deepEqual(ordered.filter((v) => v.startsWith("/") === false), ["--patch", "m", "--patch", "s", "--patch", "p", "--patch", "perm", "--patch", "ts", "--patch", "cb"]);
+  assert.deepEqual(ordered.filter((v) => v.startsWith("/") === false), ["--patch", "p", "--patch", "m", "--patch", "s", "--patch", "perm", "--patch", "ts", "--patch", "cb"]);
 });

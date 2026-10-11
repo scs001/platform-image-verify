@@ -60,12 +60,16 @@ export default function PairScreen() {
         label: `${Platform.OS === "ios" ? "iOS" : "Android"} device`,
       });
       if (!result.ok) {
+        // Logcat-visible: e2e failure forensics (release builds swallow
+        // nothing into logcat unless explicitly printed).
+        console.error(`[pair] rejected: HTTP ${result.status} ${result.error}`);
         setError(result.status === 401 ? "code" : result.status === 503 ? "older-server" : "unknown");
         return;
       }
       connect(base, result.token, result.email);
       router.replace("/");
-    } catch {
+    } catch (err) {
+      console.error("[pair] network failure:", err);
       setError("network");
     } finally {
       setBusy(false);

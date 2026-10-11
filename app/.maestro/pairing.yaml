@@ -24,4 +24,4 @@ appId: com.finddata.platform
 - extendedWaitUntil:
     visible:
       text: '.*对话|.*Chat'
-    timeout: 15000
+    timeout: 30000

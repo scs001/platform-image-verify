@@ -539,7 +539,7 @@
       "state": {
         "connected": "已连接",
         "disconnected": "未连接",
-        "stale": "需重新粘贴"
+        "stale": "已失效"
       },
       "pasteToggle": "粘贴 PAT",
       "repasteToggle": "重新粘贴 PAT",
@@ -551,7 +551,16 @@
       "pasteHint": "在连接器的「我的连接」页面铸造个人访问令牌（oct_… 开头）并粘贴到这里。",
       "meLink": "打开我的连接",
       "openConsole": "打开连接器控制台",
-      "pasteHintNoLink": "在连接器的「我的连接」页面铸造个人访问令牌（oct_… 开头）并粘贴到这里。"
+      "pasteHintNoLink": "在连接器的「我的连接」页面铸造个人访问令牌（oct_… 开头）并粘贴到这里。",
+      "connectNew": "连接新账号",
+      "connecting": "正在连接…",
+      "activeBadge": "使用中",
+      "setActive": "设为使用",
+      "reconnect": "重连",
+      "noActiveHint": "当前没有使用的账号：选择一个账号以恢复连接器的工具调用。",
+      "emptyHintZeroPaste": "尚未连接任何连接器账号。点「连接新账号」一键完成，无需粘贴令牌；也可以粘贴 PAT。",
+      "emptyHintPasteOnly": "尚未连接任何连接器账号。在连接器铸造 PAT 后粘贴到这里。",
+      "slotPlaceholder": "账号名（可选）"
     }
   },
   "help": {

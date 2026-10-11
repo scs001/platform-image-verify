@@ -139,11 +139,23 @@ export async function disconnectRegistry(): Promise<RegistryConnection> {
 export interface ConnectorConnection {
   connected: boolean;
   stale: boolean;
+  active?: boolean;
+  slot?: string;
   updatedAt: string | null;
   // Where the "get a PAT" hint sends the user (deployment config, not a
   // secret; null when this deployment's baseline has no connector row).
   connectorUrl: string | null;
   mePath: string;
+}
+
+// One connector account row (add-connector-account-picker): token-free and
+// patId-free — the browser never sees either.
+export interface ConnectorAccount {
+  slot: string;
+  connected: boolean;
+  stale: boolean;
+  active: boolean;
+  updatedAt: string | null;
 }
 
 export async function fetchConnectorConnection(): Promise<ConnectorConnection> {
@@ -152,11 +164,20 @@ export async function fetchConnectorConnection(): Promise<ConnectorConnection> {
   return res.json();
 }
 
-export async function saveConnectorCredential(token: string): Promise<ConnectorConnection> {
+export async function fetchConnectorAccounts(): Promise<{ accounts: ConnectorAccount[]; connectorUrl: string | null; mePath: string }> {
+  const res = await http("/api/connector/connections");
+  if (!res.ok) throw new Error(`Failed to fetch connector accounts: ${res.statusText}`);
+  return res.json();
+}
+
+export async function saveConnectorCredential(
+  token: string,
+  opts: { slot?: string; patId?: string } = {},
+): Promise<ConnectorConnection> {
   const res = await http("/api/connector/credential", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token }),
+    body: JSON.stringify({ token, slot: opts.slot, patId: opts.patId }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -165,8 +186,23 @@ export async function saveConnectorCredential(token: string): Promise<ConnectorC
   return res.json();
 }
 
-export async function disconnectConnector(): Promise<ConnectorConnection> {
-  const res = await http("/api/connector/connection", { method: "DELETE" });
+export async function setConnectorActive(slot: string): Promise<ConnectorConnection> {
+  const res = await http("/api/connector/connection/active", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ slot }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to switch the active account: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function disconnectConnector(slot?: string): Promise<ConnectorConnection> {
+  const res = await http(`/api/connector/connection${slot ? `?slot=${encodeURIComponent(slot)}` : ""}`, {
+    method: "DELETE",
+  });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `Failed to disconnect: ${res.statusText}`);

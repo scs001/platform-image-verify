@@ -539,7 +539,7 @@
       "state": {
         "connected": "Conectado",
         "disconnected": "Sin conectar",
-        "stale": "Repegar necesario"
+        "stale": "Invalidada"
       },
       "pasteToggle": "Pegar PAT",
       "repasteToggle": "Repegar PAT",
@@ -551,7 +551,16 @@
       "pasteHint": "Genera un token de acceso personal (oct_…) en la página «Mis conexiones» del conector y pégalo aquí.",
       "meLink": "Abrir Mis conexiones",
       "openConsole": "Abrir la consola del conector",
-      "pasteHintNoLink": "Genera un token de acceso personal (oct_…) en la página «Mis conexiones» del conector y pégalo aquí."
+      "pasteHintNoLink": "Genera un token de acceso personal (oct_…) en la página «Mis conexiones» del conector y pégalo aquí.",
+      "connectNew": "Conectar cuenta",
+      "connecting": "Conectando…",
+      "activeBadge": "Activa",
+      "setActive": "Activar",
+      "reconnect": "Reconectar",
+      "noActiveHint": "Ahora no hay cuenta activa: elige una para restablecer las llamadas de herramientas del conector.",
+      "emptyHintZeroPaste": "Aún no hay cuentas del conector. Pulsa «Conectar cuenta» para hacerlo en un clic, sin pegar tokens; también puedes pegar un PAT.",
+      "emptyHintPasteOnly": "Aún no hay cuentas del conector. Crea un PAT en el conector y pégalo aquí.",
+      "slotPlaceholder": "Nombre de cuenta (opcional)"
     }
   },
   "help": {

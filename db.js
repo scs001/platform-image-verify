@@ -582,6 +582,37 @@ const MIGRATIONS = [
       `CREATE INDEX IF NOT EXISTS idx_pack_usage_ts ON pack_usage_events(ts)`,
     ],
   },
+  {
+    version: 25,
+    // add-connector-account-picker D1/D6: one email may hold several connector
+    // accounts. (email, slot) is the key — slot is the user-readable account
+    // name (zero-paste names it after the connector identity; paste defaults
+    // to 'default'). pat_id keeps the connector-side PAT id from the mint
+    // response so disconnect/replace can best-effort revoke (D7); paste rows
+    // have none. active marks the one account injected into profiles; exactly
+    // one per email, maintained transactionally by the store. Old single rows
+    // migrate to slot='default', active=1 so connected users don't drop.
+    apply: (db) => {
+      const cols = new Set(
+        db.prepare("PRAGMA table_info(user_connector_credentials)").all().map((c) => c.name)
+      );
+      if (cols.has("slot")) return; // already rebuilt
+      db.exec(`CREATE TABLE user_connector_credentials_v25 (
+        email TEXT NOT NULL,
+        slot TEXT NOT NULL,
+        token TEXT NOT NULL,
+        pat_id TEXT,
+        stale INTEGER NOT NULL DEFAULT 0,
+        active INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (email, slot)
+      )`);
+      db.exec(`INSERT INTO user_connector_credentials_v25 (email, slot, token, pat_id, stale, active, updated_at)
+        SELECT email, 'default', token, NULL, stale, 1, updated_at FROM user_connector_credentials`);
+      db.exec(`DROP TABLE user_connector_credentials`);
+      db.exec(`ALTER TABLE user_connector_credentials_v25 RENAME TO user_connector_credentials`);
+    },
+  },
 ];
 
 function nowIso() {
@@ -1413,48 +1444,130 @@ export function markRegistryCredentialStale(email) {
     .run(nowIso(), normalizeIdentityEmail(email)).changes > 0;
 }
 
-// ── Connector credentials (萬星 connector PAT, one row per user) ─────────────
+// ── Connector credentials (萬星 connector PAT, rows per (email, slot)) ───────
 //
-// Same contract as the registry accessors above; the PAT is opaque (no expiry
-// column) and 401-driven staleness is the only "not live" state besides absence.
+// add-connector-account-picker: one email may hold several connector accounts.
+// slot is the user-readable account name (zero-paste names it after the
+// connector identity; paste defaults to 'default'). pat_id carries the
+// connector-side PAT id for best-effort revocation on disconnect/replace.
+// Exactly one row per email has active=1 — maintained transactionally here.
+// Legacy single-row accessors keep working by targeting the 'default' slot.
 
-export function getConnectorCredential(email) {
+function normalizeSlot(slot) {
+  const name = String(slot ?? "").trim();
+  if (!name || name.length > 64) return null;
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f]/.test(name)) return null;
+  return name;
+}
+
+export function getConnectorCredential(email, slot = "default") {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  const name = normalizeSlot(slot);
+  if (!key || !name) return null;
+  const row = stmt(
+    "SELECT slot, token, pat_id AS patId, stale, active, updated_at AS updatedAt FROM user_connector_credentials WHERE email = ? AND slot = ?"
+  ).get(key, name);
+  return row ? { ...row, stale: !!row.stale, active: !!row.active } : null;
+}
+
+export function listConnectorCredentials(email) {
+  if (!dbReady) return [];
+  const key = normalizeIdentityEmail(email);
+  if (!key) return [];
+  return stmt(
+    "SELECT slot, pat_id AS patId, stale, active, updated_at AS updatedAt FROM user_connector_credentials WHERE email = ? ORDER BY slot"
+  )
+    .all(key)
+    .map((row) => ({ ...row, stale: !!row.stale, active: !!row.active }));
+}
+
+export function getActiveConnectorCredential(email) {
   if (!dbReady) return null;
   const key = normalizeIdentityEmail(email);
   if (!key) return null;
   const row = stmt(
-    "SELECT token, stale, updated_at AS updatedAt FROM user_connector_credentials WHERE email = ?"
+    "SELECT slot, token, pat_id AS patId, stale, active, updated_at AS updatedAt FROM user_connector_credentials WHERE email = ? AND active = 1"
   ).get(key);
-  return row ? { ...row, stale: !!row.stale } : null;
+  return row ? { ...row, stale: !!row.stale, active: !!row.active } : null;
 }
 
-export function setConnectorCredential({ email, token }) {
+export function setConnectorCredential({ email, slot = "default", token, patId = null }) {
   if (!dbReady) return null;
   const key = normalizeIdentityEmail(email);
-  if (!key || !token) return null;
-  // A fresh paste clears the stale flag, exactly like the registry row: the
-  // user just replaced the credential, so the next profile write may use it.
+  // An empty/whitespace slot means "the default account" (paste path), not an
+  // invalid name — normalize before the null check.
+  const name = slot != null && String(slot).trim() === "" ? "default" : normalizeSlot(slot);
+  if (!key || !name || !token) return null;
+  const wasActive = !!stmt(
+    "SELECT 1 FROM user_connector_credentials WHERE email = ? AND slot = ? AND active = 1"
+  ).get(key, name);
+  const hasAnyActive = !!stmt("SELECT 1 FROM user_connector_credentials WHERE email = ? AND active = 1").get(key);
+  // A fresh store clears the stale flag: the user just replaced the credential,
+  // so the next profile write may use it. A brand-new account becomes active
+  // when the user has no active account yet (first connect); an existing
+  // account keeps its previous active flag so connecting a second account
+  // never silently flips injection.
+  const active = wasActive || !hasAnyActive ? 1 : 0;
   stmt(
-    `INSERT INTO user_connector_credentials (email, token, stale, updated_at)
-     VALUES (@email, @token, 0, @updatedAt)
-     ON CONFLICT(email) DO UPDATE SET
+    `INSERT INTO user_connector_credentials (email, slot, token, pat_id, stale, active, updated_at)
+     VALUES (@email, @slot, @token, @patId, 0, @active, @updatedAt)
+     ON CONFLICT(email, slot) DO UPDATE SET
        token = excluded.token,
+       pat_id = excluded.pat_id,
        stale = 0,
+       active = excluded.active,
        updated_at = excluded.updated_at`
-  ).run({ email: key, token, updatedAt: nowIso() });
-  return getConnectorCredential(key);
+  ).run({ email: key, slot: name, token, patId, active, updatedAt: nowIso() });
+  return getConnectorCredential(key, name);
 }
 
-export function deleteConnectorCredential(email) {
+export function setConnectorCredentialActive(email, slot) {
   if (!dbReady) return false;
-  return stmt("DELETE FROM user_connector_credentials WHERE email = ?")
-    .run(normalizeIdentityEmail(email)).changes > 0;
+  const key = normalizeIdentityEmail(email);
+  const name = normalizeSlot(slot);
+  if (!key || !name) return false;
+  const target = stmt(
+    "SELECT stale FROM user_connector_credentials WHERE email = ? AND slot = ?"
+  ).get(key, name);
+  if (!target || target.stale) return false;
+  db.transaction(() => {
+    stmt("UPDATE user_connector_credentials SET active = 0 WHERE email = ? AND active = 1").run(key);
+    stmt("UPDATE user_connector_credentials SET active = 1 WHERE email = ? AND slot = ?").run(key, name);
+  })();
+  return true;
 }
 
-export function markConnectorCredentialStale(email) {
+export function deleteConnectorCredential(email, slot = "default") {
   if (!dbReady) return false;
-  return stmt("UPDATE user_connector_credentials SET stale = 1, updated_at = ? WHERE email = ? AND stale = 0")
-    .run(nowIso(), normalizeIdentityEmail(email)).changes > 0;
+  const key = normalizeIdentityEmail(email);
+  const name = normalizeSlot(slot);
+  if (!key || !name) return false;
+  const wasActive = !!stmt(
+    "SELECT 1 FROM user_connector_credentials WHERE email = ? AND slot = ? AND active = 1"
+  ).get(key, name);
+  const changes = stmt("DELETE FROM user_connector_credentials WHERE email = ? AND slot = ?")
+    .run(key, name).changes;
+  // No auto-reselect (design D2): deleting the active account intentionally
+  // leaves the user with no active account; they pick the next one explicitly.
+  return changes > 0 && wasActive ? true : changes > 0;
+}
+
+export function markConnectorCredentialStale(email, slot) {
+  if (!dbReady) return false;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return false;
+  if (slot === undefined) {
+    // Legacy single-row call sites (agent-session 401 handler): flip whichever
+    // row is active.
+    return stmt("UPDATE user_connector_credentials SET stale = 1, updated_at = ? WHERE email = ? AND stale = 0 AND active = 1")
+      .run(nowIso(), key).changes > 0;
+  }
+  const name = normalizeSlot(slot);
+  if (!name) return false;
+  return stmt("UPDATE user_connector_credentials SET stale = 1, updated_at = ? WHERE email = ? AND slot = ? AND stale = 0")
+    .run(nowIso(), key, name).changes > 0;
 }
 
 // ── Extension configs (MCP servers) ──────────────────────────────────────────

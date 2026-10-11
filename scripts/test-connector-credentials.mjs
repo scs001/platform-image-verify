@@ -67,8 +67,9 @@ fs.writeFileSync(path.join(TMP, "market-catalog.json"), JSON.stringify({ mcpServ
 fs.writeFileSync(path.join(TMP, "market-catalog-skills.json"), JSON.stringify({ skills: [] }));
 
 test.after(() => {
-  fs.rmSync(TMP, { recursive: true, force: true });
+  probeServer.closeAllConnections?.();
   probeServer.close();
+  fs.rmSync(TMP, { recursive: true, force: true });
 });
 
 const db = await import("../db.js");
@@ -684,4 +685,217 @@ test("4.4 a client-submitted credentialRef is rejected on POST and PUT", async (
   assert.equal(extensionStore.getMcpServer("hand-ok").config.credentialRef, undefined, "row not rewritten");
 
   extensionStore.removeMcpServer("hand-ok");
+});
+
+// ── 5.x Multi-account (add-connector-account-picker) ─────────────────────────
+
+test("5.1 migration 25 reshapes legacy single rows to slot=default/active=1", () => {
+  const d = db.getDb();
+  // Simulate the pre-25 shape and row, then re-run migrations from scratch.
+  d.exec(`DROP TABLE user_connector_credentials`);
+  d.exec(`CREATE TABLE user_connector_credentials (
+    email TEXT PRIMARY KEY,
+    token TEXT NOT NULL,
+    stale INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+  )`);
+  d.prepare(`INSERT INTO user_connector_credentials (email, token, stale, updated_at) VALUES (?, ?, 0, ?)`)
+    .run("legacy@x.test", PAT, "2026-10-10T00:00:00.000Z");
+  d.exec(`DELETE FROM schema_migrations WHERE version = 25`);
+  return db.initDb().then(() => {
+    const row = d
+      .prepare(`SELECT slot, token, active, stale FROM user_connector_credentials WHERE email = ?`)
+      .get("legacy@x.test");
+    assert.deepEqual(row, { slot: "default", token: PAT, active: 1, stale: 0 });
+    // Re-running is idempotent (slot column present → apply early-returns).
+    const before = d.prepare(`SELECT COUNT(*) AS n FROM user_connector_credentials`).get().n;
+    return db.initDb().then(() => {
+      assert.equal(d.prepare(`SELECT COUNT(*) AS n FROM user_connector_credentials`).get().n, before);
+    });
+  });
+});
+
+test("5.2 multi-account CRUD: two accounts coexist, first becomes active, injection follows active", () => {
+  const email = "multi@x.test";
+  const PAT2 = `oct_${"d".repeat(32)}`;
+
+  // First connect: no active row yet → the new account becomes active.
+  const first = connectorCredentials.store({ email, slot: "a@example.com", token: PAT, patId: "pat-a" });
+  assert.equal(first.active, true);
+  assert.equal(connectorCredentials.liveToken(email), PAT, "active account injected");
+
+  // Second account joins without flipping injection.
+  const second = connectorCredentials.store({ email, slot: "b@example.com", token: PAT2, patId: "pat-b" });
+  assert.equal(second.active, false);
+  assert.equal(connectorCredentials.liveToken(email), PAT);
+
+  // The list is token-free and complete.
+  const accounts = connectorCredentials.list(email);
+  assert.deepEqual(
+    accounts.map((a) => [a.slot, a.connected, a.active, a.patId]),
+    [["a@example.com", true, true, "pat-a"], ["b@example.com", true, false, "pat-b"]],
+  );
+  assert.ok(accounts.every((a) => !("token" in a)), "list never carries tokens");
+
+  // Explicit switch flips injection; delete of the active account leaves NO
+  // active account (no auto-reselect).
+  assert.equal(connectorCredentials.setActive(email, "b@example.com"), true);
+  assert.equal(connectorCredentials.liveToken(email), PAT2);
+  connectorCredentials.disconnect(email, "b@example.com");
+  assert.equal(connectorCredentials.liveToken(email), null, "no active account after deleting it");
+  assert.equal(connectorCredentials.status(email).connected, false);
+  assert.equal(connectorCredentials.list(email).length, 1, "the other account survives");
+
+  // Reconnecting a remaining account (fresh store) re-activates it — the only
+  // path back to an active state besides an explicit setActive.
+  connectorCredentials.store({ email, slot: "a@example.com", token: `oct_${"e".repeat(32)}`, patId: "pat-a2" });
+  assert.equal(connectorCredentials.liveToken(email), `oct_${"e".repeat(32)}`);
+  connectorCredentials.disconnect(email, "a@example.com");
+});
+
+test("5.3 stale accounts: row survives, active flips off, explicit switch refuses stale targets", () => {
+  const email = "stale@x.test";
+  connectorCredentials.store({ email, slot: "one", token: PAT });
+  connectorCredentials.store({ email, slot: "two", token: `oct_${"f".repeat(32)}` });
+  connectorCredentials.setActive(email, "one");
+
+  assert.equal(connectorCredentials.setActive(email, "one"), true);
+  // Invalidate "one" (the active account): row survives, injection stops.
+  assert.equal(connectorCredentials.markInvalid(email), true, "state actually changed");
+  assert.equal(connectorCredentials.list(email).find((a) => a.slot === "one").stale, true);
+  assert.equal(connectorCredentials.liveToken(email), null);
+
+  // markInvalid is once-per-state; the stale account can't be made active.
+  assert.equal(connectorCredentials.markInvalid(email), false);
+  assert.equal(connectorCredentials.setActive(email, "one"), false, "stale refused as active");
+
+  // The healthy account can still be picked explicitly.
+  assert.equal(connectorCredentials.setActive(email, "two"), true);
+  assert.equal(connectorCredentials.liveToken(email), `oct_${"f".repeat(32)}`);
+  connectorCredentials.disconnect(email, "one");
+  connectorCredentials.disconnect(email, "two");
+});
+
+test("5.4 slot normalization: whitespace trimmed, control chars and oversize rejected", () => {
+  const email = "slots@x.test";
+  assert.equal(connectorCredentials.store({ email, slot: "  work  ", token: PAT }).slot, "work");
+  assert.equal(connectorCredentials.store({ email, slot: "bad\nname", token: PAT }), null);
+  assert.equal(connectorCredentials.store({ email, slot: "x".repeat(65), token: PAT }), null);
+  assert.equal(connectorCredentials.store({ email, slot: "", token: PAT }).slot, "default");
+  connectorCredentials.disconnect(email, "work");
+  connectorCredentials.disconnect(email);
+});
+
+test("5.5 routes: list/active endpoints, slot-scoped disconnect, stale switch refused", async () => {
+  const ctx = connectorCtx();
+  const headers = { "x-forwarded-email": "routes@x.test", "x-forwarded-groups": "user" };
+  const PAT2 = `oct_${"9".repeat(32)}`;
+
+  // Paste two accounts through the API.
+  const first = await request(ctx.app, "POST", "/api/connector/credential", {
+    headers, body: { token: PAT, slot: "alpha" },
+  });
+  assert.equal(first.status, 200);
+  assert.equal(first.body.active, true);
+  const second = await request(ctx.app, "POST", "/api/connector/credential", {
+    headers, body: { token: PAT2, slot: "beta" },
+  });
+  assert.equal(second.status, 200);
+  assert.equal(second.body.active, false, "second account does not steal active");
+
+  // List endpoint: token-free, both rows present.
+  const list = await request(ctx.app, "GET", "/api/connector/connections", { headers });
+  assert.equal(list.status, 200);
+  assert.deepEqual(
+    list.body.accounts.map((a) => a.slot).sort(),
+    ["alpha", "beta"],
+  );
+  assert.ok(list.body.accounts.every((a) => !("token" in a) && !("patId" in a)), "client list is token- and patId-free");
+  assert.equal(list.body.connectorUrl, new URL(PROBE_URL).origin);
+
+  // Explicit switch to beta.
+  const sw = await request(ctx.app, "PUT", "/api/connector/connection/active", {
+    headers, body: { slot: "beta" },
+  });
+  assert.equal(sw.status, 200);
+  assert.equal(!!db.getConnectorCredential("routes@x.test", "beta").active, true);
+
+  // Switching to a missing slot 404s; invalid slot name 400s.
+  assert.equal((await request(ctx.app, "PUT", "/api/connector/connection/active", { headers, body: { slot: "nope" } })).status, 404);
+  assert.equal((await request(ctx.app, "PUT", "/api/connector/connection/active", { headers, body: {} })).status, 400);
+
+  // Scoped disconnect: alpha goes, beta survives.
+  const del = await request(ctx.app, "DELETE", "/api/connector/connection?slot=alpha", { headers });
+  assert.equal(del.status, 200);
+  assert.equal(db.getConnectorCredential("routes@x.test", "alpha"), null);
+  assert.ok(db.getConnectorCredential("routes@x.test", "beta"));
+
+  // Owner scoping: another identity's list is empty, its delete doesn't touch beta.
+  const other = await request(ctx.app, "GET", "/api/connector/connections", {
+    headers: { "x-forwarded-email": "someoneelse@x.test", "x-forwarded-groups": "user" },
+  });
+  assert.deepEqual(other.body.accounts, []);
+  await request(ctx.app, "DELETE", "/api/connector/connection?slot=beta", {
+    headers: { "x-forwarded-email": "someoneelse@x.test", "x-forwarded-groups": "user" },
+  });
+  assert.ok(db.getConnectorCredential("routes@x.test", "beta"), "other identity's delete is scoped");
+  await request(ctx.app, "DELETE", "/api/connector/connection?slot=beta", { headers });
+});
+
+test("5.6 zero-paste replace revokes the old PAT best-effort; failure never blocks the store", async () => {
+  const revocations = [];
+  const revokeServer = createServer((req, res) => {
+    if (req.method === "DELETE" && req.url.startsWith("/api/tenant/pats/")) {
+      revocations.push({ url: req.url, auth: req.headers.authorization });
+      res.statusCode = 200;
+      res.end(JSON.stringify({ revoked: true }));
+      return;
+    }
+    res.statusCode = 404;
+    res.end("{}");
+  });
+  await new Promise((resolve) => revokeServer.listen(0, "127.0.0.1", resolve));
+  const revokeUrl = `http://127.0.0.1:${revokeServer.address().port}/mcp`;
+  fs.writeFileSync(process.env.MCP_CONFIG_PATH, JSON.stringify({
+    mcpServers: { connector: { url: revokeUrl, credentialRef: "connector" } },
+  }));
+
+  const ctx = connectorCtx();
+  const headers = { "x-forwarded-email": "revoke@x.test", "x-forwarded-groups": "user" };
+
+  // Zero-paste store (with patId), then replace the same slot: old PAT revoked.
+  await request(ctx.app, "POST", "/api/connector/credential", {
+    headers, body: { token: PAT, slot: "revoke@conn.test", patId: "pat-old" },
+  });
+  assert.equal(revocations.length, 0, "initial store revokes nothing");
+  await request(ctx.app, "POST", "/api/connector/credential", {
+    headers, body: { token: `oct_${"7".repeat(32)}`, slot: "revoke@conn.test", patId: "pat-new" },
+  });
+  assert.equal(revocations.length, 1, "replace revoked the old PAT");
+  assert.match(revocations[0].url, /\/api\/tenant\/pats\/pat-old$/);
+  assert.match(revocations[0].auth, /^Bearer oct_[a-z]+$/, "bearer is a connector PAT, never the platform identity");
+
+  // Disconnect revokes too.
+  await request(ctx.app, "DELETE", `/api/connector/connection?slot=${encodeURIComponent("revoke@conn.test")}`, { headers });
+  assert.equal(revocations.length, 2);
+
+  // A revoke endpoint that's down must not block the store (best-effort D7):
+  // the same store with the revoke stub dead must still succeed.
+  revokeServer.closeAllConnections?.();
+  revokeServer.close();
+  await new Promise((resolve) => revokeServer.close(resolve));
+  const deadPort = new URL(revokeUrl).port;
+  fs.writeFileSync(process.env.MCP_CONFIG_PATH, JSON.stringify({
+    mcpServers: { connector: { url: `http://127.0.0.1:${deadPort}/mcp`, credentialRef: "connector" } },
+  }));
+  const res = await request(ctx.app, "POST", "/api/connector/credential", {
+    headers, body: { token: PAT, slot: "revoke@conn.test", patId: "pat-x" },
+  });
+  assert.equal(res.status, 200);
+  fs.writeFileSync(process.env.MCP_CONFIG_PATH, JSON.stringify({
+    mcpServers: { connector: { url: PROBE_URL, credentialRef: "connector" } },
+  }));
+  fs.writeFileSync(process.env.MCP_CONFIG_PATH, JSON.stringify({
+    mcpServers: { connector: { url: PROBE_URL, credentialRef: "connector" } },
+  }));
 });

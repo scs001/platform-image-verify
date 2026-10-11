@@ -9,8 +9,10 @@ import type {
   Skill,
   MarketCatalog,
   RegistryConnection,
+  ConnectorAccount,
   ConnectorConnection,
 } from "@platform/core";
+import { connectorSessionLive, mintConnectorToken, suggestSlot } from "@/lib/connector-mint";
 import type { ServerMessage } from "@platform/core";
 import { mintConfigFrom, mintRegistryToken, registrySessionLive } from "@/lib/registry-mint";
 
@@ -25,8 +27,9 @@ interface ExtensionsState {
   registryConnection: RegistryConnection | null;
   connecting: boolean;
 
-  // Connector PAT (connector-credentials). null = not fetched yet.
+  // Connector accounts (add-connector-account-picker). null = not fetched yet.
   connectorConnection: ConnectorConnection | null;
+  connectorAccounts: ConnectorAccount[] | null;
 
   load: () => Promise<void>;
   refreshMcpServers: () => Promise<void>;
@@ -50,8 +53,10 @@ interface ExtensionsState {
   disconnectMarket: () => Promise<void>;
 
   refreshConnectorConnection: () => Promise<void>;
-  saveConnectorCredential: (token: string) => Promise<void>;
-  disconnectConnector: () => Promise<void>;
+  connectConnectorAccount: () => Promise<void>;
+  saveConnectorCredential: (token: string, slot?: string) => Promise<void>;
+  setActiveConnectorAccount: (slot: string) => Promise<void>;
+  disconnectConnector: (slot?: string) => Promise<void>;
 
   applyEvent: (msg: ServerMessage) => void;
 }
@@ -73,6 +78,7 @@ export const useExtensionsStore = create<ExtensionsState>((set, get) => ({
   registryConnection: null,
   connecting: false,
   connectorConnection: null,
+  connectorAccounts: null,
 
   load: async () => {
     set({ loading: true, error: null });
@@ -216,22 +222,70 @@ export const useExtensionsStore = create<ExtensionsState>((set, get) => ({
 
   refreshConnectorConnection: async () => {
     try {
-      const connectorConnection = await api.fetchConnectorConnection();
-      set({ connectorConnection });
+      const [connectorConnection, accountsDoc] = await Promise.all([
+        api.fetchConnectorConnection(),
+        api.fetchConnectorAccounts(),
+      ]);
+      const connectorAccounts = accountsDoc.accounts;
+      set({ connectorConnection, connectorAccounts });
     } catch (err) {
       // Unknown state, not "disconnected" — same rule as the registry read.
       set({ error: (err as Error).message });
     }
   },
 
-  saveConnectorCredential: async (token) => {
-    const connectorConnection = await api.saveConnectorCredential(token);
-    set({ connectorConnection });
+  // Zero-paste connect (add-connector-account-picker): probe → (login popup on
+  // the OIDC authorize URL — its callback re-issues the session cookie, so a
+  // legacy SameSite=Lax cookie unblocks itself) → mint → store under the login
+  // identity's slot → refresh. The token passes through memory only.
+  connectConnectorAccount: async () => {
+    const conn = get().connectorConnection;
+    if (!conn?.connectorUrl) throw new Error("The connector is not configured on this deployment");
+    set({ connecting: true });
+    const connectorUrl = conn.connectorUrl;
+    try {
+      let identity = await connectorSessionLive(connectorUrl);
+      if (!identity) {
+        const loginWindow = window.open(
+          `${connectorUrl}/api/tenant/oidc/authorize`,
+          "connector-connect",
+          LOGIN_WINDOW_FEATURES,
+        );
+        if (!loginWindow) throw new Error("The connect window was blocked — allow popups for this site");
+        const deadline = Date.now() + SESSION_WAIT_MS;
+        let live: Awaited<ReturnType<typeof connectorSessionLive>> = null;
+        while (Date.now() < deadline) {
+          if (loginWindow.closed) return; // user closed it — stay silent, no error
+          await new Promise((r) => setTimeout(r, SESSION_POLL_MS));
+          live = await connectorSessionLive(connectorUrl);
+          if (live) break;
+        }
+        if (!live) throw new Error("Timed out waiting for the connector sign-in");
+        identity = live;
+        loginWindow.close();
+      }
+      const slot = suggestSlot(identity, get().connectorAccounts?.map((a) => a.slot) ?? []);
+      const mint = await mintConnectorToken(connectorUrl, slot);
+      await api.saveConnectorCredential(mint.token, { slot, patId: mint.patId });
+      await get().refreshConnectorConnection();
+    } finally {
+      set({ connecting: false });
+    }
   },
 
-  disconnectConnector: async () => {
-    const connectorConnection = await api.disconnectConnector();
-    set({ connectorConnection });
+  saveConnectorCredential: async (token, slot = "default") => {
+    await api.saveConnectorCredential(token, { slot });
+    await get().refreshConnectorConnection();
+  },
+
+  setActiveConnectorAccount: async (slot) => {
+    await api.setConnectorActive(slot);
+    await get().refreshConnectorConnection();
+  },
+
+  disconnectConnector: async (slot = "default") => {
+    await api.disconnectConnector(slot);
+    await get().refreshConnectorConnection();
   },
 
   applyEvent: (msg) => {

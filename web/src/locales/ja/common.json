@@ -539,7 +539,7 @@
       "state": {
         "connected": "接続済み",
         "disconnected": "未接続",
-        "stale": "再貼付が必要"
+        "stale": "無効化済み"
       },
       "pasteToggle": "PAT を貼り付け",
       "repasteToggle": "PAT を再貼付",
@@ -551,7 +551,16 @@
       "pasteHint": "コネクタの「マイ接続」ページで個人アクセストークン（oct_…）を発行し、ここに貼り付けてください。",
       "meLink": "マイ接続を開く",
       "openConsole": "コンソールを開く",
-      "pasteHintNoLink": "コネクタの「マイ接続」ページで個人アクセストークン（oct_…）を発行し、ここに貼り付けてください。"
+      "pasteHintNoLink": "コネクタの「マイ接続」ページで個人アクセストークン（oct_…）を発行し、ここに貼り付けてください。",
+      "connectNew": "アカウントを接続",
+      "connecting": "接続中…",
+      "activeBadge": "使用中",
+      "setActive": "使用に設定",
+      "reconnect": "再接続",
+      "noActiveHint": "現在使用中のアカウントがありません。コネクタのツール呼び出しを再開するにはアカウントを選択してください。",
+      "emptyHintZeroPaste": "まだコネクタアカウントがありません。「アカウントを接続」ならワンクリックで完了し、トークンの貼り付けは不要です。PAT の貼り付けでも接続できます。",
+      "emptyHintPasteOnly": "まだコネクタアカウントがありません。コネクタで PAT を発行してここに貼り付けてください。",
+      "slotPlaceholder": "アカウント名（任意）"
     }
   },
   "help": {

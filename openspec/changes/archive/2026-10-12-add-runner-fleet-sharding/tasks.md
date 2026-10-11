@@ -14,11 +14,11 @@
 
 ## 3. 第二台 runner
 
-- [ ] 3.1 节点余量核查（≥2.5G），fd-infra-deploy 新 `agent-runner-b`（hostNetwork、8851/32、FLEET_ID=runner-b、mem 2G、env Secret 平移 cheap-1 runner env）。
-- [ ] 3.2 上线后 board `runners` 出现 `runner-b`（心跳/预算字段真实）。
+- [x] 3.1 节点余量核查（≥2.5G），fd-infra-deploy 新 `agent-runner-b`（hostNetwork、8851/32、FLEET_ID=runner-b、mem 2G、env Secret 平移 cheap-1 runner env）。
+- [x] 3.2 上线后 board `runners` 出现 `runner-b`（心跳/预算字段真实）。
 
 ## 4. 实证与收口
 
 - [x] 4.1 全量测试门：runner+serving+packs 相关套件绿。
-- [ ] 4.2 跨机协同实证：一个 agent 部署到 runner-b（board 双 runner）；经 facade 真回合调通 runner-b 的 agent；cheap-1 的 planner 可发现/调用它（协同跨机不变式）。**PROBE PASS**。
-- [ ] 4.3 归档+路线图「已定决策」表补记（2026-10-11 用户拍板：多机部署+协同=蓝图硬前提）。
+- [x] 4.2 跨机协同实证（2026-10-11 双面 PASS）：demo-fingpt 指派 runner-b（board 双 runner：runner-b agents=1 budget 143/768 真采样+cheap-1 agents=5）；注册处双凭据路径真回合答「跨机成功」+facade 调用者键路径真回合答「facade 通了」。实证抓取并修复：冷启动失败半成品 child 驱逐（1eb2ae8，镜像 sha-68a30f9 双 runner 同滚）+ 新 runner 需种子 llm-providers.json（已手工平移，新节点接入配方在 memory）。
+- [x] 4.3 归档+路线图「已定决策」表补记（2026-10-11 用户拍板：多机部署+协同=蓝图硬前提）。

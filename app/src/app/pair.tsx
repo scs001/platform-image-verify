@@ -155,6 +155,7 @@ export default function PairScreen() {
             <Pressable
               style={[styles.submit, (busy || code.length !== 6 || !server.trim()) && styles.disabled]}
               disabled={busy || code.length !== 6 || !server.trim()}
+              testID="bind-button"
               onPress={() => void submit(server, code)}
             >
               <Text style={styles.submitText}>{busy ? t("pair.submitting") : t("pair.submit")}</Text>

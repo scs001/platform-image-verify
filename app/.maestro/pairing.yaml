@@ -19,8 +19,11 @@ appId: com.finddata.platform
     id: 'code-input'
 - inputText: ${PAIRING_CODE}
 - hideKeyboard
+# By id, never by text: the text form matched the subtitle ("Mint a *Pair*ing
+# code…") while the real button sat below the fold (38157370263 — submit
+# never even ran, no [pair] log line).
 - tapOn:
-    text: '.*绑定|.*Pair'
+    id: 'bind-button'
 - extendedWaitUntil:
     visible:
       text: '.*对话|.*Chat'

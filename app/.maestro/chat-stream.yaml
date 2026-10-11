@@ -6,6 +6,9 @@ appId: com.finddata.platform
 - tapOn:
     id: 'composer-input'
 - inputText: '你好'
+# The open keyboard pushes/hides the send button (38161606047: send-button
+# not found mid-keyboard) — same trap the pairing flow already fixed.
+- hideKeyboard
 - tapOn:
     id: 'send-button'
 - extendedWaitUntil:

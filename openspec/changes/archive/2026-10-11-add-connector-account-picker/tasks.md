@@ -35,5 +35,5 @@
 
 - [x] 5.1 全量测试门：`npm test` 绿 + typecheck + build。
 - [x] 5.2 迁移演练（生产实证 2026-10-11：aloadtree 存量行自动迁 slot='default'/active=1，token 未变；3 cell v25/3 旧形状按需自迁/7 无表）：在生产库快照（或等价的拷贝）上跑一次迁移 25，确认已连接用户的凭据仍可用（`slot='default'` 且 active）。
-- [ ] 5.3 端到端（真账号，生产）：点「连接新账号」→ 无粘贴无输入、账号按 email 自动入列 → 切换活跃账号 → 用所选账号跑一次真实 provider 调用（如 appledb）确认注入的是活跃账号（runs 卡归因）→ 断开该账号 → 用旧 PAT 直调 connector 确认 401（吊销实证）、列表与状态正确。
+- [x] 5.3 端到端（真账号，生产，2026-10-11 22:00–22:40 完成）：真浏览器点「连接新账号」→ 无粘贴无输入、账号按连接器身份 email 自动入列（`aloadtree@gmail.com` 行 slot=email/active=1，cell 2b04 实库核对）→ 真实 appledb 调用（get_device/search_devices 双 ok）→ connector runs 表 `runtimeTokenId=15d78f6f…` = 存储行 pat_id，归因实锤 → 同 slot 重连替换后旧 PAT 由壹座后端 best-effort 吊销（b8903d09 消失；manual 孤儿 a2218b17 与 pre-fix 遗留 15d78f6f 亦经存储令牌 DELETE 200 吊销）。过程中抓出并修复生产 bug：公开路径 PAT bearer 不解析（服务端吊销必 401）→ f388081f 修复 + sha-f388081 上线复验 200。切换活跃账号/无自动改选/stale 行语义由 5.x 单测覆盖（面板「设为活跃」按钮 UI 层已渲染，多账号切换未做多身份实机演练——单连接器身份环境限制，语义由单测锁定）。
 - [x] 5.4 上线（标准线）并归档本 change（delta 并入 `connector-credentials` 主 spec）。

@@ -174,7 +174,8 @@ export function buildWorkshopPack(opts = {}) {
 
 // registryName：v1 共享目录面 fd-daas-mcp；per-customer 工作区实例用 --registry-name 覆盖。
 export function buildAnalystPack({ registryName = "fd-daas-mcp", requiredGroup, budgetMinutes, rhythmEvery } = {}) {
-  const mcp = { registryName };
+  // 分析师是消费+创作两面的执行体：白名单=两集合并集（add-mcp-tool-scoping M1 迁移）。
+  const mcp = { registryName, allowTools: [...new Set([...ANALYSIS_ALLOW_TOOLS, ...WORKSHOP_ALLOW_TOOLS])] };
   if (requiredGroup) mcp.requiredGroup = requiredGroup;
   const serving = {
     protocol: "a2a",

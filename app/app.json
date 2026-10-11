@@ -38,7 +38,8 @@
         }
       ],
       "expo-secure-store",
-      "expo-status-bar"
+      "expo-status-bar",
+      "./plugins/allow-http"
     ],
     "experiments": {
       "typedRoutes": true,

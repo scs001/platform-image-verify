@@ -137,7 +137,7 @@ GitHub 出海（cheap1：github.com/api/ls-remote 200/ok）· 发布+部署+起�
 - 如需改默认模型：runner env `AGENT_RUNNER_MODEL`（影响该 runner 全部 children）；per-agent 差异化
   需走描述符扩展（提需求）。
 
-### ④ git PAT 权限范围 —— ✅ 已轮换为窄授权（2026-10-04）
+### ④ git PAT 权限范围 —— ✅ 已轮换为窄授权（2026-10-04；旧 PAT 吊销 2026-10-11）
 
 - **新 PAT**（身份 `FindDataOfficial` id 295187081 = finddata 运营官方账号），finddata 侧独立核验：
   目标仓 Contents 写 ✅（probe 分支+提交）、PR 写 ✅（草稿 PR #2）、**非目标仓全拒 403**
@@ -147,5 +147,12 @@ GitHub 出海（cheap1：github.com/api/ls-remote 200/ok）· 发布+部署+起�
   gh_actor → `ws_67acd…`）+ **gh_actor 同步换为官方账号**（`295187081+FindDataOfficial@…`，
   避免署名与推送者不一致）；runner 日志实证「pinned 2 deployment secret(s) … git_pat ws_75617…n0uG」
   （新尾四位）+ 新 child 起服 + QUEUE 验收健康。
-- **待办（用户侧）**：轮换生效后**吊销旧 PAT**（scs001 那把宽授权）——
-  GitHub → Settings → Developer settings → Fine-grained tokens → Revoke。
+- **旧 PAT 吊销 ✅ 完成（2026-10-11）**：旧 token 实名 **`spider-heal-agent`**（token id 20545960，
+  2026-10-03 创建、11-02 到期、10-04 轮换后停用）——**在 FindDataOfficial 账号下**（非 scs001；
+  旧文档「scs001 宽 PAT」是把提交署名 gh_actor 与 token 归属搞混）。GitHub 安全日志实锤
+  `personal_access_token.destroy / access_revoked`；账号内现仅剩 `fd-industry-data` 一把。
+- **到期风险处置 ✅（2026-10-11）**：`fd-industry-data` 原定 2026-11-03 到期（静默失效风险）→
+  经 Regenerate 选 366 天，新到期 **2027-10-12**；新值核验（身份/目标仓 200/非目标仓写 403/
+  私有仓 404）后 v8 重部署（`git_pat ws_b8c21…VFRl`），runner drain→cold-start 实证。
+  ⚠️ **Regenerate 是值轮换**（旧值即刻失效）——必须紧跟重部署压窗口。
+

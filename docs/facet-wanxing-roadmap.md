@@ -164,8 +164,17 @@ reporter 重试梯在 observer 升级后自动补放积压）。**M2 出口判�
 - **成本感知调度**（③）：夜间车道 = sub2api 降费引擎（模型车道 × 时间窗）+ 长程 checkpoint
   续跑（dsh resume 已有）+ 早晨报告（通知 C3 已有）+ runner 侧计量挂 mission 维度。
 - 观测（④）：fleet board 加 mission 视图（目标→计划→成本→产物一屏）。
-- 容量实测：child 密度（64-96MB 规划数）、500 agent 闸门、OOM 前科——夜间批量执行
-  正好撞容量规划，留实测任务。
+- 容量实测：**已实测收口（2026-10-11，观测式零压测）**——pod 硬顶 1536Mi 本代峰值
+  **1530/1536MB（99.6%）**；dsh child 实测 RSS 新鲜 117-136MB、长会话重上下文
+  480-540MB（规划数 64-96MB 仅 idle 成立，重载低估 1.4-5.6×），每 active child 另带
+  ~55-60MB MCP sidecar；基座（gateway+cell servers）~770-870MB 与用户会话同 cgroup。
+  **500 agent 闸门远非约束，内存才是**：现 pod 实际并发上限 ≈2-3 个新鲜 child 或
+  1 重会话+1 新鲜，夜间批量并发=1。两缺陷已修：runner 记账幽灵（自发退出 child 无
+  exit 钩子按 96MB 地板永计——记账点存活性自愈，paas 9f7e1e4）+ 限额错配
+  （AGENT_RUNNER_RESIDENT_BUDGET_MB 3072>pod 1536Mi——GitOps 已改 512 对齐）。
+  **规模化前置（结构决策待拍板）**：serving runner 独立 deployment（独立内存上限、
+  不与用户 cell 同 cgroup）= 夜间车道真正的容量使能器；registry 多 runner 路由与
+  runner 自报名标签已为此预留。
 - 出口判据：一个真实内部 mission 从「一句话目标」到「夜间执行+晨报+成本对账」全链。
 - **依赖 M1**：planner 派发的每一步都是 pack，pack 上下文经济性直接决定自主成功率。
 
@@ -216,7 +225,8 @@ allowedTools 上游 #9385 跟进+harness 适配按需。
 
 1. **tool-scoping 是全局闸**（M0 必须定案，两星共同地基）。
 2. **C5 是「成本上限」语义的闸**（只有硬停没有对账，场景A 不成立）。
-3. **容量**：夜跑规模化前必须实测 child 密度与闸门（xinru OOM 前科在册）。
+3. **容量**：已实测（2026-10-11，见 M2 容量实测行）——内存是硬约束不是 500 闸门；
+   夜跑规模化前置 = serving runner 独立 deployment（结构决策待拍板）。
 4. **场景B 信任面**：跨用户 agent 通信的 consent、数据边界（柏讯侧）是产品语义问题，
    M3 前想清楚，不是纯技术。
 5. **竞争时钟**：见 M1 重心决策。

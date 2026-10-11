@@ -192,12 +192,13 @@ open-connector-mt 六 change 全归档：multi-tenancy/service-PAT/deployment+�
 sha-b20f029 健康（401 租户鉴权墙实证）→ **④结算 v2 ADR ✅ 已落**
 （ADR-0022：收入分成（非毛利）×（1−抽成 30% 旋钮）入 deployer_earnings 收益账、
 adjustBalance add 幂等入账、闭环抵扣不提现、host/share 互斥、租金留 500 闸门后
-（耗尽转 paused 不删））。**实施 `add-deployer-revenue-share` 代码全链完结
-2026-10-11**（fd-wanxing 2f19599：earnings 账本+trySettle 同回合分成+纪元补账+
-console my/earnings+deploy-panel 收益区；facade 47/47+selfservice 6/6+全套件
-118/118 绿）——**部署卡 GitHub 私有仓 Actions 账单阻断**（org 线与 scs001 绕行线
-双双 4s 失败；公开仓 platform 13:34 仍正常跑=旁证），待用户修复 billing 后走
-标准线（mirror 快照 23ba9e0 已就位→构建→relay→GitOps 滚 facade+web→生产探针）。
+（耗尽转 paused 不删））。**实施 `add-deployer-revenue-share` 全链上线+归档
+2026-10-11**（fd-wanxing 2f19599+a95d94d；镜像 sha-23ba9e0=law-ai-official org
+出片线——org+scs001 GHA 私有仓账单双阻断期用户定案的三级绕行）。**生产实证三证**：
+admin（user1）→ aloadtree（user2）agent 真回合 earnings 0.07 落账（收入 0.1×70%，
+settled，share: 幂等键入账）；自调零分成（earnings 无孪生行）；console
+my/earnings 401/403 身份门。earnings 账本+纪元补账+deploy-panel 收益区全在产；
+facade 47/47+全套件 118/118 绿。**M3 四切片至此全部完结且全上线**。
 谦面多 harness 线：
 allowedTools 上游 #9385 跟进+harness 适配按需。
 

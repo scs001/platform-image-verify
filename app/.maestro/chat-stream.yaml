@@ -8,6 +8,7 @@ appId: com.finddata.platform
 - inputText: '你好'
 - tapOn:
     id: 'send-button'
-- assertVisible:
-    id: 'composer-input'
-  timeout: 30000
+- extendedWaitUntil:
+    visible:
+      id: 'composer-input'
+    timeout: 30000

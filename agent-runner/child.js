@@ -48,7 +48,7 @@ export class AgentChild {
   // this child's `botNotify/send` notifications — the manager supplies it with
   // the deployment's bound channel. Absent → the call is declined
   // not-configured, never silently dropped.
-  constructor({ key, spawnSpec, turnTimeoutMs = 180_000, budgetLabel, clientFactory, log = console, notifyHandler }) {
+  constructor({ key, spawnSpec, turnTimeoutMs = 180_000, budgetLabel, clientFactory, log = console, notifyHandler, onExit = null }) {
     this.key = key;
     this.spawnSpec = spawnSpec; // { dshBin, profile, patchPaths, cwd, env, provider, model, presetId }
     this.turnTimeoutMs = turnTimeoutMs;
@@ -56,6 +56,11 @@ export class AgentChild {
     this.clientFactory = clientFactory;
     this.log = log;
     this.notifyHandler = notifyHandler ?? null;
+    // Spontaneous-exit hook (M2 容量实测 2026-10-11): the manager drops this
+    // child from its map the moment the runtime dies on its own — before this,
+    // a dead entry kept its 96MB planning floor in the warm-zone budget
+    // forever (nothing else hooks the process exit).
+    this.onExit = onExit;
     this.client = null;
     this.ready = false;
     this.draining = false; // no NEW sessions/turns; in-flight ones finish
@@ -134,6 +139,9 @@ export class AgentChild {
           } catch { /* collector settles itself */ }
         }
         this.log.warn(`[agent-runner:${this.key}] child exited unexpectedly`);
+        try {
+          this.onExit?.();
+        } catch { /* a broken hook must never break the pump */ }
         return;
       }
       // bot_notify (add-agent-notifications D1): the child's tool sends

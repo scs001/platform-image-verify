@@ -74,6 +74,12 @@ const clientFactory = (spec) => ({ args, cwd, env }) => {
     subscribe: () => client.subscribe(),
     prompt: (sid, blocks) => client.prompt(sid, blocks),
     request: (m, p) => client.request(m, p),
+    // The warm-zone budget samples the child's RSS through this pid
+    // (manager.js sampleRssBytes); the SDK keeps the spawned dsh process at
+    // `child`. Without this forwarder the budget saw the 96MB planning floor
+    // for every live child (measured live 2026-10-11: three real children at
+    // 141-200MB counted as 3×96).
+    pid: () => client.child?.pid ?? null,
     // HarnessClient's lifecycle end is close() (the EOF→SIGTERM→SIGKILL
     // ladder); it has no stop(). The old `client.stop?.()` was a silent no-op
     // that orphaned the dsh child on manager.stopAll().

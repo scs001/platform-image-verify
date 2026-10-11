@@ -701,6 +701,12 @@ export class ChildManager {
       clientFactory: this.clientFactory({ ...spec, turnBudgetMs }),
       log: this.log,
       notifyHandler: (payload) => this.notifier.send({ agent: key, boundChannel: notifyChannel, ...payload }),
+      // Spontaneous-exit prune (M2 容量实测): drops the map entry the moment
+      // the runtime dies on its own — identity-guarded so a concurrently
+      // replaced child is never evicted by a stale exit.
+      onExit: () => {
+        if (this.children.get(key) === child) this.children.delete(key);
+      },
       spawnSpec: {
         profile: config.dshProfile,
         patchPaths: spec.patchPaths,

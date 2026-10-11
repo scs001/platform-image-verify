@@ -79,8 +79,17 @@ function fakeHarnessClient({ reply = "ok", delayMs = 0, failPrompt = false } = {
       // pump re-awaits. Wake-without-value + shared queue is the honest shape.
       const queue = [];
       let listeners = [];
+      let died = false;
       client.__emit = (notif) => {
         queue.push(notif);
+        const waiting = listeners;
+        listeners = [];
+        for (const r of waiting) r();
+      };
+      // Spontaneous death (M2 容量实测): the process is gone, the transport
+      // fails the waiter — the pump's catch path.
+      client.__die = () => {
+        died = true;
         const waiting = listeners;
         listeners = [];
         for (const r of waiting) r();
@@ -88,6 +97,7 @@ function fakeHarnessClient({ reply = "ok", delayMs = 0, failPrompt = false } = {
       return {
         next: async () => {
           for (;;) {
+            if (died) throw new Error("child gone");
             const notif = queue.shift();
             if (notif) return notif;
             await new Promise((r) => listeners.push(r));
@@ -1466,6 +1476,25 @@ test("residency: a dead child's entry is pruned at the budget accounting point; 
     assert.equal(manager.children.has("packs/pk-abc/ghost"), false, "dead pid pruned, never counted");
     assert.equal(manager.children.has("packs/pk-abc/pre-start"), true, "pre-start entry (no pid yet) keeps the floor's protection");
     manager.children.clear(); // plain test doubles cannot drain — stopAll is for real children
+  } finally {
+    await manager.stopAll();
+  }
+});
+
+test("residency: a spontaneously-exiting child drops its entry via the exit hook — no ghost floor", async () => {
+  const { manager, spawned } = await directManager({
+    config: { budgetMb: 3072, agentCostMb: 96, demoteCooldownMs: 600_000 },
+  });
+  try {
+    await manager.turn(ENTRY, "s1", "hi");
+    assert.equal(manager.children.size, 1);
+    // The runtime dies on its own (the pump's transport-failure path).
+    spawned[0].client.__die();
+    await new Promise((r) => setTimeout(r, 30));
+    assert.equal(manager.children.size, 0, "dead child evicted by onExit — never a 96MB ghost");
+    // The accounting point agrees: nothing left to count.
+    manager.enforceBudget();
+    assert.equal(manager.children.size, 0);
   } finally {
     await manager.stopAll();
   }

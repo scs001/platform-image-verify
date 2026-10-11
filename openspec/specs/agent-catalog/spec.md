@@ -18,6 +18,7 @@ The catalog SHALL accept entries of three types: `agent-local` (the built-in age
 
 - **WHEN** a catalog source contains an entry with an unknown `type`, a duplicate `id`, a `chat`-mode `agent-remote` missing `baseUrl` or `model`, or an `a2a`-mode `agent-remote` missing `url`
 - **THEN** the server logs a warning, drops that entry, and serves the rest of the catalog
+
 ### Requirement: Dual-source configuration with cloud precedence
 
 The catalog SHALL merge five optional sources: a local `agents.json` file (sibling of `mcp.json`, gitignored), a cloud JSON document fetched from `AGENTS_CONFIG_URL` (same schema, top-level `agents` and `apps` arrays), agent entries from the configured mcp-gateway-registry (`GET /api/agents`, using the market registry env vars), agent entries from packs installed in the cell (openspec: pack-installation), and agent entries from the cell's user-defined presets (openspec: custom-presets). Registry agent entries SHALL be adapted to `agent-remote` entries in `link` mode (external URL) unless the registry entry declares an OpenAI-compatible endpoint, in which case `chat` mode applies with `baseUrl` and `model` mapped and the key resolved from an env var reference; a registry entry whose `supported_protocol` is `a2a` SHALL instead map to an `a2a`-mode entry whose `url` is the gateway route (`{registry}/agent/{path}/`), regardless of any external URL it carries. Registry group membership SHALL map to the catalog entry's `roles` (no groups ⇒ visible to everyone). Pack-sourced entries SHALL be `agent-remote` `chat` entries carrying the pack's display fields and persona, with no endpoint or credential fields, and follow the same local persona-preset serving as other `chat` entries; the client-facing payload for pack-sourced entries SHALL additionally carry their `packId`, so picker surfaces can mark them as focused roles (openspec: pack-agent-scoping). Custom-preset entries SHALL be persona-only `chat` entries carrying their display fields and a `customPreset` marker with a resource summary, following the same local persona-preset serving and focus marking. On `id` collision the later source SHALL win, in the order built-in → registry → packs → user presets → `agents.json` → cloud: local overrides remote, and the cloud remains the live control plane even for ids first defined elsewhere. When the registry or cloud fetch fails, the server SHALL keep serving the last successfully fetched entries and log a warning; pack-sourced and custom-preset entries are local state and need no fetch.
@@ -243,22 +244,40 @@ In v1 the local agent remains one shared session for all clients — now a singl
 - **THEN** both clients see the streamed `text` events, consistent with the existing shared-session broadcast model
 
 ### Requirement: Agents & Apps page is a top-level route with sub-tabs
-The `/agents` route SHALL be a top-level page (replacing the legacy location; no parent shell). The page SHALL render two sub-tabs: **Agents** and **Apps**, with a stable `?tab=apps|agents` query parameter for deep-linking. The Agents sub-tab SHALL list `agent-local` and `agent-remote` entries. The Apps sub-tab SHALL list `app` entries (link, nango-connect, external-service). Sub-tab selection SHALL persist in the URL. On initial load with no query parameter, the Agents sub-tab SHALL be active.
+The `/agents` route SHALL be a top-level page (replacing the legacy location; no parent shell). The page SHALL render three sub-tabs — **Experts（专家）**, **Market（行业方案）**, **Apps（应用）** — with a stable `?tab=` query parameter for deep-linking whose values SHALL be `agents` (Experts), `market` (Market), and `apps` (Apps); the legacy `agents` and `apps` values SHALL keep resolving to their tabs.
+
+The Experts sub-tab SHALL present the unified expert roster: `agent-local` and `agent-remote` entries from all catalog sources (built-in, cloud, registry, installed packs) alongside the cell's custom presets, with custom-preset entries offering inline management affordances (create, edit, delete, and the one-way pack-draft conversion) as governed by the `custom-presets` capability — so a user composes, manages, and picks experts in one place.
+
+The Market sub-tab SHALL host the pack marketplace surfaces (browse/search, subscribed/我的, creator drafts) migrated from the retired Settings packs section, preserving subscription, upgrade, uninstall, and report behavior as governed by `pack-marketplace` and `pack-installation`. The Market sub-tab SHALL render only on deployments that report the pack marketplace (the same gating the retired Settings section applied); on deployments without it the tab SHALL be absent and the page SHALL fall back to Experts and Apps.
+
+The Apps sub-tab SHALL list `app` entries (link, nango-connect, external-service), unchanged. Sub-tab selection SHALL persist in the URL. On initial load with no query parameter, the Experts sub-tab SHALL be active. The retired Settings section routes SHALL redirect: `/settings/packs` to `/agents?tab=market` and `/settings/presets` to `/agents?tab=agents`, so existing deep links keep resolving.
 
 #### Scenario: default to Agents sub-tab
 - **WHEN** the user navigates to `/agents` with no query parameter
-- **THEN** the Agents sub-tab SHALL be active and the Agents section SHALL be visible
+- **THEN** the Experts sub-tab SHALL be active and the unified expert roster SHALL be visible
 
 #### Scenario: deep-link to Apps
 - **WHEN** the user navigates to `/agents?tab=apps`
 - **THEN** the Apps sub-tab SHALL be active and only app entries SHALL be visible
 - **AND** the URL SHALL retain the query parameter after switching tabs
 
+#### Scenario: deep-link to Market
+- **WHEN** the user navigates to `/agents?tab=market` on a deployment with the pack marketplace
+- **THEN** the Market sub-tab SHALL be active and the marketplace browse surface SHALL be visible
+
+#### Scenario: Market tab is absent without a marketplace
+- **WHEN** the deployment does not report the pack marketplace
+- **THEN** the page SHALL render only the Experts and Apps sub-tabs
+- **AND** `/agents?tab=market` SHALL fall back to the Experts sub-tab
+
+#### Scenario: retired Settings sections redirect into the page
+- **WHEN** the user navigates to `/settings/packs` or `/settings/presets`
+- **THEN** the router SHALL redirect to `/agents?tab=market` or `/agents?tab=agents` respectively
+- **AND** no Settings section SHALL render for packs or presets
+
 ### Requirement: Catalog schema is unchanged by the agents page relocation
-The agents page relocation to `/agents` (with Agents + Apps sub-tabs) SHALL only change the rendering surface; the entry schema, fetching, merge, role filter, and Nango broker SHALL be preserved unchanged.
+The agents page restructure (Experts / Market / Apps sub-tabs and the migration of the preset and pack management surfaces into the page) SHALL only change rendering surfaces; the entry schema, fetching, merge, role filter, and Nango broker SHALL be preserved unchanged.
 
 #### Scenario: catalog behavior is preserved
 - **WHEN** the catalog is served
 - **THEN** all three entry types SHALL be returned in `GET /api/catalog` exactly as before
-- **AND** the Agents sub-tab SHALL show `agent-local` and `agent-remote` entries
-- **AND** the Apps sub-tab SHALL show `app` entries

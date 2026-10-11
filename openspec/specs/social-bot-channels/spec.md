@@ -4,6 +4,7 @@
 The inbound and outbound bridge between external chat platforms (企业微信 self-built apps, 飞书 custom apps, Telegram, 微信公众号) and the platform's agent: verified platform messages run agent turns on per-(bot, chat) persistent sessions under untrusted-input guards, bots are administered through an admin REST/UI surface, and each chat that messages a bot is recorded server-side so it can be addressed later — including through the machine-caller relay (see `bot-relay`).
 
 ## Requirements
+
 ### Requirement: The server accepts inbound bot messages from configured chat platforms
 The server SHALL expose per-bot webhook endpoints (`/api/bots/webhook/:botId/:secret`) for 企业微信 (WeCom self-built app), 飞书 (Feishu custom app), Telegram, and 微信公众号 (WeChat official account), each authenticating the request via the platform's own verification mechanism (signature check or payload decryption) plus a per-bot secret in the path BEFORE any payload content reaches the agent. Unauthenticated or unverified requests SHALL be rejected with 403 and their content SHALL NOT be logged.
 
@@ -42,7 +43,7 @@ The inbound pipeline SHALL enforce a message length cap and a per-chat rate limi
 - **THEN** excess messages SHALL be dropped with a log entry (no agent turn)
 
 ### Requirement: Bots are configured through a management UI and REST API
-The server SHALL provide CRUD REST routes for bot configurations (type, name, per-platform credential fields, enabled) with credentials stored server-side only and masked in all API responses, and the web app SHALL provide a `/bots` page whose primary entry is the platform icon grid, from which the operator creates, edits, enables/disables, and deletes bots, copies each bot's webhook URL, and opens its onboarding QR panel. Configuration changes SHALL take effect without a server restart.
+The server SHALL provide CRUD REST routes for bot configurations (type, name, per-platform credential fields, enabled) with credentials stored server-side only and masked in all API responses, and the web app SHALL provide a bots management surface whose primary entry is the platform icon grid, from which the operator creates, edits, enables/disables, and deletes bots, copies each bot's webhook URL, and opens its onboarding QR panel. The surface SHALL render as the Settings 渠道接入 (`channels`) section at `/settings/channels` rather than as a sidebar-navigated page, and the legacy `/bots` route SHALL redirect to `/settings/channels` so existing links keep resolving. Configuration changes SHALL take effect without a server restart.
 
 #### Scenario: credential masking
 - **WHEN** any bot configuration is read through the API
@@ -52,8 +53,13 @@ The server SHALL provide CRUD REST routes for bot configurations (type, name, pe
 - **WHEN** a bot is disabled
 - **THEN** its webhook SHALL reject new messages (404/403) and any polling loop SHALL stop, without affecting the other bots
 
+#### Scenario: bots management lives in Settings
+- **WHEN** the user opens Settings and selects the 渠道接入 (channels) section
+- **THEN** the bots management surface SHALL render inside the Settings modal
+- **AND** navigating to `/bots` SHALL redirect to `/settings/channels`
+
 ### Requirement: The bots page presents platforms as an icon grid
-The `/bots` page SHALL render a grid of the supported chat platforms (Telegram, 飞书, 企业微信, 微信公众号) as tiles carrying a per-platform brand icon and display name (`data-testid="bot-platform-tile"`). Activating a tile SHALL open the add-bot dialog with that platform preselected. Bots already configured SHALL be listed below the grid as cards carrying their platform's brand icon, the enable toggle, edit/delete actions, and the existing webhook URL copy control. Existing bot CRUD, credential masking, and enable/disable behavior SHALL remain unchanged.
+The bots management surface (Settings 渠道接入 section) SHALL render a grid of the supported chat platforms (Telegram, 飞书, 企业微信, 微信公众号) as tiles carrying a per-platform brand icon and display name (`data-testid="bot-platform-tile"`). Activating a tile SHALL open the add-bot dialog with that platform preselected. Bots already configured SHALL be listed below the grid as cards carrying their platform's brand icon, the enable toggle, edit/delete actions, and the existing webhook URL copy control. Existing bot CRUD, credential masking, and enable/disable behavior SHALL remain unchanged.
 
 #### Scenario: tile opens a typed add dialog
 - **WHEN** the user clicks the Telegram tile

@@ -4,30 +4,32 @@
 The application's left sidebar navigation shell: a canonical tab set (including the Bots entry) with exactly one visible panel per selected tab, the chat session list, the label-free drag-drop overlay, a single status-and-settings footer row, and the collapsible desktop navigation rail.
 
 ## Requirements
+
 ### Requirement: Left sidebar navigation shell with a canonical tab set
-The web UI SHALL provide a persistent left sidebar navigation containing, in order, the view tabs: **Chat, Knowledge, Resources, Agents, Bots, Trace, Tasks**. These seven tabs are the application's *work surfaces* — views the user visits to read or produce content. Configuration surfaces SHALL NOT appear as view tabs: **MCP Servers**, **Skills**, and **Models** are sections of the Settings modal (see `settings-surface`), reached at `/settings/mcp`, `/settings/skills`, and `/settings/models` respectively. The legacy "Dashboard", "Documents", and "Extensions" top-level entries SHALL remain absent; System Status is likewise a Settings section at `/settings/status`. The legacy `/extensions` parent route SHALL NOT be registered. Each view tab SHALL correspond to exactly one main-content panel; the Resources tab's panel is the resources page at `/resources`. On initial load the UI SHALL activate the Chat tab. The sidebar session-list region SHALL remain visible regardless of which view tab is active. The displayed label of each view tab SHALL be resolved from the internationalization (`i18n`) resource bundle, keyed by a stable identifier, so that the label follows the active locale while the tab's identity, ordering, and icon remain stable.
+The web UI SHALL provide a persistent left sidebar navigation containing, in order, the view tabs: **Chat, Knowledge, Resources, Agents, Tasks**. These five tabs are the application's *work surfaces* — views the user visits to read or produce content. Operational surfaces SHALL NOT appear as view tabs either: **MCP Servers**, **Skills**, and **Models** are sections of the Settings modal (see `settings-surface`), reached at `/settings/mcp`, `/settings/skills`, and `/settings/models` respectively, and the former **Bots** and **Trace** work-surface tabs are likewise demoted to Settings sections (渠道接入 `channels` and 诊断 `diagnostics`, per `settings-surface`). The legacy "Dashboard", "Documents", and "Extensions" top-level entries SHALL remain absent; System Status is likewise a Settings section at `/settings/status`. The legacy `/extensions` parent route SHALL NOT be registered. Each view tab SHALL correspond to exactly one main-content panel; the Resources tab's panel is the resources page at `/resources`. On initial load the UI SHALL activate the Chat tab. The sidebar session-list region SHALL remain visible regardless of which view tab is active. The displayed label of each view tab SHALL be resolved from the internationalization (`i18n`) resource bundle, keyed by a stable identifier, so that the label follows the active locale while the tab's identity, ordering, and icon remain stable. The zh-CN display names SHALL be user-language rather than developer-language — Chat 对话, Knowledge 资料库, Resources 成果, Agents 智能体, Tasks 自动化 — while the underlying routes (`/chat`, `/knowledge`, `/resources`, `/agents`, `/tasks`) SHALL NOT change.
 
 #### Scenario: initial load shows the Chat tab
 - **WHEN** the page loads
-- **THEN** the sidebar SHALL render the view tabs Chat, Knowledge, Resources, Agents, Bots, Trace, and Tasks
+- **THEN** the sidebar SHALL render the view tabs Chat, Knowledge, Resources, Agents, and Tasks
 - **AND** the Chat tab SHALL be the active tab
 - **AND** the Chat panel SHALL be visible and all other panels SHALL be hidden
-- **AND** no Extensions, Dashboard, or Documents top-level entry SHALL be present
+- **AND** no Extensions, Dashboard, Documents, Bots, or Trace top-level entry SHALL be present
 
 #### Scenario: canonical tab ordering and labels
 - **WHEN** the sidebar renders
-- **THEN** the view tabs SHALL appear in the order Chat, Knowledge, Resources, Agents, Bots, Trace, Tasks
+- **THEN** the view tabs SHALL appear in the order Chat, Knowledge, Resources, Agents, Tasks
 - **AND** each tab SHALL display a label resolved from the `common` i18n bundle under a stable key, alongside a stable icon
 - **AND** the tab's stable identifier and ordering SHALL NOT change when the active locale changes
+- **AND** the zh-CN labels SHALL read 对话, 资料库, 成果, 智能体, 自动化
 
 #### Scenario: configuration surfaces are absent from the nav
 - **WHEN** the sidebar renders
-- **THEN** no nav tab SHALL be present for MCP Servers, Skills, Models, or System Status
+- **THEN** no nav tab SHALL be present for MCP Servers, Skills, Models, System Status, Bots, or Trace
 - **AND** those surfaces SHALL be reachable only as Settings sections (per `settings-surface`)
 
 #### Scenario: Documents tab renamed to Knowledge
 - **WHEN** the user views the sidebar in any locale
-- **THEN** the tab previously labelled "Documents" SHALL be labelled "Knowledge"
+- **THEN** the tab previously labelled "Documents" SHALL be labelled "Knowledge" (zh-CN: 资料库)
 - **AND** the underlying route SHALL be `/knowledge`
 - **AND** the existing `/documents` route SHALL redirect to `/knowledge` (301 or in-app Navigate) so legacy deep-links do not 404
 
@@ -116,13 +118,6 @@ The sidebar footer SHALL contain exactly one row holding two elements: a connect
 - **WHEN** the WebSocket connection state changes between `connecting`, `connected`, and `disconnected`
 - **THEN** the footer status indicator SHALL update its dot colour and its localized label to match the new state
 
-### Requirement: Sidebar navigation includes a Bots entry
-The sidebar SHALL include a "Bots" navigation entry linking to the `/bots` route, localized in all supported languages.
-
-#### Scenario: navigation to bots management
-- **WHEN** the user clicks the Bots entry in the sidebar
-- **THEN** the app SHALL navigate to `/bots` without a page reload, keeping the WebSocket connected
-
 ### Requirement: The desktop navigation rail is collapsible
 On md+ viewports the sidebar rail SHALL be collapsible: a toggle in the
 sidebar header collapses the rail, a re-expand affordance SHALL remain
@@ -154,4 +149,3 @@ SHALL behave exactly as before.
 - **WHEN** the viewport is below md
 - **THEN** the collapse toggle is not shown and the off-canvas drawer works
   as before
-

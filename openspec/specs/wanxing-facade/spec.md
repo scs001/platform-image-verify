@@ -46,7 +46,7 @@ The facade SHALL admit an authenticated caller to an agent according to the depl
 
 ### Requirement: The facade speaks A2A natively at per-agent routes
 
-The facade SHALL expose each deployed agent at a stable external route derived from the agent's deployment identity, accepting JSON-RPC `message/send` (synchronous final response) and `message/stream` (SSE passthrough) at the agent's base path, serving its AgentCard at the well-known card path without authentication, and listing public agents with card summaries in a public catalog. Unsupported A2A methods SHALL return the protocol's method-not-found error. The facade SHALL forward admitted requests to the agent's runtime route over the platform's internal credentials without altering A2A protocol semantics. Unless the caller supplies a `context_id`, the facade SHALL derive a fresh external context per idempotency key — and the derived identifier SHALL encode the caller's effective context-reap window for that agent (openspec: caller-preferences), so the runner's existing reap pass resolves the per-session TTL from the identifier itself.
+The facade SHALL expose each deployed agent at a stable external route derived from the agent's deployment identity, accepting JSON-RPC `message/send` (synchronous final response) and `message/stream` (SSE passthrough) at the agent's base path, serving its AgentCard at the well-known card path without authentication, and listing public agents with card summaries in a public catalog. Route resolution and the catalog SHALL be served from the cached deployment-bookkeeping snapshot rather than a per-request full fetch. The catalog SHALL support `page`/`page_size` pagination; a request without pagination parameters SHALL return the full list (backward compatible). Unsupported A2A methods SHALL return the protocol's method-not-found error. The facade SHALL forward admitted requests to the agent's runtime route over the platform's internal credentials without altering A2A protocol semantics. Unless the caller supplies a `context_id`, the facade SHALL derive a fresh external context per idempotency key.
 
 #### Scenario: Send returns the agent's completed reply
 
@@ -63,6 +63,16 @@ The facade SHALL expose each deployed agent at a stable external route derived f
 - **WHEN** an unauthenticated party fetches an agent's well-known card path or the agent catalog
 - **THEN** public agents' cards and summaries are returned without any credential
 
+#### Scenario: Route resolution reads the snapshot
+
+- **WHEN** an external turn arrives for an agent slug
+- **THEN** the slug resolves against the cached snapshot in constant time, without a per-request full bookkeeping fetch
+
+#### Scenario: Catalog paginates on request
+
+- **WHEN** the catalog is requested with `page` and `page_size`
+- **THEN** the response contains that page of public agents plus a `total` count, and a request without pagination parameters returns the full list
+
 #### Scenario: A caller-supplied context continues
 
 - **WHEN** an admitted caller reuses a `context_id` it previously used
@@ -72,11 +82,6 @@ The facade SHALL expose each deployed agent at a stable external route derived f
 
 - **WHEN** an admitted caller invokes an A2A method the facade does not implement
 - **THEN** a JSON-RPC method-not-found error is returned and no turn runs
-
-#### Scenario: A derived context carries the caller's reap window
-
-- **WHEN** the facade derives an external context for a caller without a supplied `context_id`
-- **THEN** the derived identifier encodes that (caller, agent)'s effective reap window — the caller's preference when set, else the platform default — and a caller-supplied `context_id` passes through unencoded
 
 ### Requirement: Idempotency-Key deduplicates turns
 
@@ -134,3 +139,22 @@ For every admitted external turn the facade SHALL record caller, agent, idempote
 
 - **WHEN** an admitted turn for a (caller, agent) without a callback preference completes
 - **THEN** no callback is fired and the settlement behaves exactly as before this change
+
+### Requirement: Deployment bookkeeping snapshot serves resolution and change detection
+
+The facade SHALL maintain an in-process cached snapshot of the deployment bookkeeping (the packs internal API), refreshed on a TTL with single-flight merging, indexed by slug for O(1) resolution. When the source is unreachable the last snapshot SHALL be served stale (matching the registry-entry cache's semantics); staleness beyond a hard window (5 minutes) SHALL degrade to the explicit source-unavailable error rather than serving an indefinitely stale catalog. Snapshot refreshes SHALL compute the deployment diff (added/removed/changed) via an exported pure function, so the fleet observer's bookkeeping-change detector (fd-wanxing program slice ③) reuses the same logic by minimal copy until the facade extraction converges it.
+
+#### Scenario: Source hiccup serves stale
+
+- **WHEN** a refresh attempt fails within the hard staleness window
+- **THEN** resolution and the catalog continue serving the last snapshot without error
+
+#### Scenario: Hard staleness degrades explicitly
+
+- **WHEN** the snapshot has been unreachable for longer than the hard window
+- **THEN** catalog and card routes respond with the explicit source-unavailable error instead of a stale list
+
+#### Scenario: Diff detects bookkeeping changes
+
+- **WHEN** a refresh observes deployments added, removed, or changed versus the previous snapshot
+- **THEN** the exported diff function reports exactly those three buckets, and an unchanged refresh reports all three empty

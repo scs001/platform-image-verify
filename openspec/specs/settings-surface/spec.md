@@ -8,7 +8,13 @@ Defines the in-app Settings modal: a single overlay surface that hosts the appli
 
 ### Requirement: Settings modal surface
 
-The web UI SHALL provide a Settings modal that overlays the current view rather than replacing it. The modal SHALL contain exactly eleven sections, in order: **General**, **Account**, **Models**, **MCP Servers**, **Skills**, **Packs**, **Custom presets**, **WeChat App**, **Paired devices**, **Deployment branding**, **System Status**. Each section SHALL be identified by a stable slug — `general`, `account`, `models`, `mcp`, `skills`, `packs`, `presets`, `wechat-app`, `devices`, `branding`, `status` — which forms part of its URL and SHALL NOT change. Section labels SHALL resolve from the internationalization resource bundle keyed by that stable slug, so the label follows the active locale while the slug, ordering, and icon remain stable.
+The web UI SHALL provide a Settings modal that overlays the current view rather than replacing it. The modal SHALL organize its sections into three stable groups, in order — **Basics（常规）**, **Capabilities（能力）**, **Management（管理）** — holding the sections:
+
+- Basics: **General**, **Account**, **WeChat App**, **Paired devices**
+- Capabilities: **Tools & Skills（技能与工具）**, **Models**
+- Management: **Channels（渠道接入）**, **Diagnostics（诊断）**, **System Status**, **Deployment branding**
+
+Each section SHALL be identified by a stable slug which forms part of its URL and SHALL NOT change: `general`, `account`, `wechat-app`, `devices`, `mcp`, `models`, `channels`, `diagnostics`, `status`, `branding`. The merged Tools & Skills section SHALL additionally remain addressable at the legacy `skills` slug, with each of the two slugs (`mcp`, `skills`) opening the section with its corresponding sub-view active (tools vs skills), so existing deep links keep resolving. The former `packs` and `presets` sections are retired from Settings; their `/settings/packs` and `/settings/presets` URLs redirect to the corresponding `/agents` sub-tabs (per `agent-catalog`). Section labels SHALL resolve from the internationalization resource bundle keyed by the stable slug, so the label follows the active locale while the slug, ordering, and icon remain stable; user-facing zh-CN copy SHALL use user-language terms (技能与工具, 渠道接入, 诊断) and SHALL NOT surface developer vocabulary such as "MCP" in section labels.
 
 The modal SHALL be dismissible and SHALL restore the user to the view they opened it from, with that view's scroll position preserved.
 
@@ -22,9 +28,10 @@ The modal SHALL be dismissible and SHALL restore the user to the view they opene
 #### Scenario: canonical section set and ordering
 
 - **WHEN** the Settings modal renders
-- **THEN** it SHALL present the sections General, Account, Models, MCP Servers, Skills, Packs, Custom presets, WeChat App, Paired devices, Deployment branding, and System Status in that order
+- **THEN** it SHALL present the three groups Basics, Capabilities, and Management in that order, holding General, Account, WeChat App, Paired devices; Tools & Skills, Models; Channels, Diagnostics, System Status, Deployment branding
 - **AND** each section label SHALL be resolved from the i18n bundle under a stable key
-- **AND** the section slugs and ordering SHALL NOT change when the active locale changes
+- **AND** the section slugs, grouping, and ordering SHALL NOT change when the active locale changes
+- **AND** no Packs or Custom presets section SHALL be present
 
 #### Scenario: dismissing restores the underlying view
 
@@ -115,6 +122,8 @@ The standalone routes that previously hosted configuration pages SHALL redirect 
 | `/extensions/mcp` | `/settings/mcp` |
 | `/extensions/skills` | `/settings/skills` |
 | `/dashboard` | `/settings/status` |
+| `/bots` | `/settings/channels` |
+| `/trace` | `/settings/diagnostics` |
 
 #### Scenario: legacy model route redirects
 
@@ -135,6 +144,15 @@ The standalone routes that previously hosted configuration pages SHALL redirect 
 - **THEN** the router SHALL redirect to `/settings/status`
 - **AND** the Settings modal SHALL open with the System Status section active
 
+#### Scenario: demoted surface routes redirect
+
+- **WHEN** the user navigates to `/bots`
+- **THEN** the router SHALL redirect to `/settings/channels`
+- **AND** the Settings modal SHALL open with the Channels section active
+- **WHEN** the user navigates to `/trace`
+- **THEN** the router SHALL redirect to `/settings/diagnostics`
+- **AND** the Settings modal SHALL open with the Diagnostics section active
+
 #### Scenario: no legacy path renders a pane at its old URL
 
 - **WHEN** the user navigates to any legacy configuration route
@@ -143,21 +161,23 @@ The standalone routes that previously hosted configuration pages SHALL redirect 
 
 ### Requirement: Settings sections reuse existing page components unchanged
 
-The Models, MCP, Skills, and System Status sections SHALL render the existing page components for those surfaces. Their internal controls, behavior, REST calls, and `data-testid` attributes SHALL be unchanged — only the container changes from a full-width page to a modal section pane.
+The Models, Tools & Skills, and System Status sections SHALL render the existing page components for those surfaces; the Channels section SHALL render the existing bots management page component, and the Diagnostics section SHALL render the existing trace list page component. Their internal controls, behavior, REST calls, and `data-testid` attributes SHALL be unchanged — only the container changes from a full-width page to a modal section pane.
 
-Section content SHALL be loaded lazily, so opening the modal mounts only the active section and not all five.
+Section content SHALL be loaded lazily, so opening the modal mounts only the active section and not all of them.
 
 #### Scenario: section content is unchanged from the standalone page
 
 - **WHEN** the user opens the Models section in the Settings modal
 - **THEN** the section SHALL render the same controls and `data-testid` attributes the standalone `/models` page rendered
 - **AND** the controls SHALL behave identically
+- **WHEN** the user opens the Channels section
+- **THEN** the section SHALL render the same platform icon grid, bot cards, and `data-testid` attributes the standalone `/bots` page rendered
 
 #### Scenario: only the active section mounts
 
 - **WHEN** the Settings modal opens with one section active
 - **THEN** only that section's component SHALL be mounted
-- **AND** the other four sections SHALL NOT be mounted until selected
+- **AND** the other sections SHALL NOT be mounted until selected
 
 ### Requirement: General section hosts appearance and language preferences
 

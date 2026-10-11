@@ -18,5 +18,5 @@
 
 - [x] 4.1（本地 unit 1053/1053、touched-files biome 净、typecheck+web build 绿；e2e 三件随 push 走 CI——见 4.2 前置）
 - [x] 4.1 全量本地门（lint/unit/build）+ e2e 三件走 CI（聚焦收窄/兼容回归/漂移兜底不倒退）。
-- [ ] 4.2 镜像走标准线（GHA→hkccr→relay→ccr→GitOps 滚 platform），fd-prod 抽一台 cell 冒烟：scoped pack 会话 roster 无越权工具 + resync（mcp.patch.yml 触碰）后仍无；guard 拒绝文案不变。
-- [ ] 4.3 上游回帖 #9385：0.1.1-rc.2 实证数据（14 断言/两端版本）+ 我们以桥内影子接入的形态 + raw-leaf 论点呼应；docs/upstream-issue-dsh-mcp-client-allowedTools.md 追记状态。
+- [x] 4.2 镜像走标准线（org 阻断→scs001 公开镜像仓 sha-d986a12，五门全绿）→ relay OK 行+skopeo ccr 实证 → GitOps b0e7925 双清单滚 → ArgoCD hard-refresh。冒烟：pod 内对**真矩阵树 /opt/dsh（0.1.1-rc.2）跑哨兵 3/3 绿**；两生产 cell 子进程 argv 已是新序（presets 先于 mcp）+ cell 桥拷贝带影子；**runner 同滚**（cheap-1 agent-runner-dsh 重建：6 agents 复役、registry 200、planner 8801=401 活）；guard 拒绝文案代码零改动。顺带修 cheap-1 盘满（prune 8.73G）与盘满期 docker 端口簿记残留。
+- [x] 4.3 上游回帖已发（discussioncomment-18860857）：双代实证 14 断言、receiver/scope 归属保留、raw-leaf 同感+发布门 fail-safe 事实、桥内嵌形态；docs/upstream-issue-dsh-mcp-client-allowedTools.md 追记（00fc925）。

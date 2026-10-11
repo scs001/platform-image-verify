@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Ties a pack persona to a focused resource set: selecting a pack role narrows the runtime to that pack's skills and MCP references plus a deployment baseline, so per-turn context cost and tool-choice quality follow the selected role. Selecting any non-pack mode restores today's full surface.
+Strengthens focused mode's tool narrowing from composition-time masking to registration-time dropping: an out-of-allowlist tool of an allowlisted server is intercepted before it ever enters the tool registry, so resync-registered tools cannot re-widen the model-facing roster mid-session and registry introspection cannot surface them. The existing guard and mask layers remain as fallbacks; degradation never falls below the previous semantics.
 
 ## Requirements
 
@@ -111,7 +111,9 @@ In focused mode the runtime SHALL load only the deployment baseline together wit
 
 ### Requirement: Focused mode narrows tools within a kept server
 
-When a focused role's effective resource set includes an MCP reference that carries a tool allowlist — the pack-level allowlist narrowed by the role's own `mcpTools` declaration when present — the role's session SHALL expose only the allowlisted tools of that server: tools outside the allowlist SHALL NOT appear in the role's visible tool roster, and a call to such a tool SHALL be denied with a readable reason naming the tool and the role's focused scope, never a silent failure. Baseline servers and references without allowlists SHALL keep their full tool surface exactly as before this change. Interception SHALL be hard — no runtime condition (server drift, tool-set change, restart) may leave an out-of-allowlist tool callable by the role — while roster narrowing SHALL be best-effort: a drifted tool set may briefly widen what the roster lists, but a call to any out-of-allowlist tool is still denied. The effective tool set SHALL be re-derived at every composition from the installed version snapshot, following the same derivation rules as the server and skill dimensions.
+When a focused role's effective resource set includes an MCP reference that carries a tool allowlist — the pack-level allowlist narrowed by the role's own `mcpTools` declaration when present — the role's session SHALL expose only the allowlisted tools of that server: tools outside the allowlist SHALL NOT appear in the role's visible tool roster, and a call to such a tool SHALL be denied with a readable reason naming the tool and the role's focused scope, never a silent failure. Baseline servers and references without allowlists SHALL keep their full tool surface exactly as before this change. Interception SHALL be hard — no runtime condition (server drift, tool-set change, restart) may leave an out-of-allowlist tool callable by the role.
+
+Narrowing SHALL operate primarily at registration time: when the runtime's tool registry admits a tool whose name carries an MCP server that has an allowlist in the role's materialized filter and whose leaf is outside it, the registration SHALL be dropped before the tool enters the registry, and this SHALL hold for every registration generation (initial mount and every resync) for the lifetime of the composed runtime. Registration-time dropping is implemented over a runtime-internal seam (an instance-level wrapper on the registry's registration entry point) and SHALL degrade gracefully: when the seam is unavailable, shape-unexpected, or raises, the wrapper SHALL pass the registration through to the original method unchanged, falling back to the previous two-layer semantics — composition-time roster masking plus call-time guard denial — under which a drifted tool set may briefly widen what the roster lists while every out-of-allowlist call is still denied. The effective tool set SHALL be re-derived at every composition from the installed version snapshot, following the same derivation rules as the server and skill dimensions, and the registration-time filter SHALL re-read the materialized allowlist per registration so a hot-reloaded filter governs subsequent generations without a restart.
 
 #### Scenario: Allowlisted tools only in the roster
 
@@ -138,11 +140,15 @@ When a focused role's effective resource set includes an MCP reference that carr
 - **WHEN** the server adds tools after the pack version was published, or removes an allowlisted tool
 - **THEN** the new tools remain uncallable by the role, and a call to the removed allowlisted tool fails with a readable error instead of a silent or hung call
 
+#### Scenario: Resync registration stays dropped
+
+- **WHEN** an allowlisted server re-registers its tool generation mid-session (config HMR or reconnect) after the role composed
+- **THEN** the out-of-allowlist tools of that generation do not re-enter the registry, so the model-facing roster does not widen
+
 #### Scenario: Full mode is unaffected
 
 - **WHEN** the user switches from the role to a shipped mode or the built-in agent
 - **THEN** every installed server exposes its full tool surface exactly as before this change
-
 ### Requirement: Focus is visible to the user
 
 The agent picker SHALL mark pack personas as focused roles, showing the pack identity (cross-referencing the `packId` the catalog serves for pack-sourced entries) together with the role's resource summary — the skill and MCP server counts of that persona's effective set, whether declared or defaulted. The persona text generated for a pack role SHALL state that the role's tools and skills focus on its own resource set, so a request for capability outside the set gets an honest "not enabled for this role" answer that suggests switching modes, never invented results. Focus switching follows the existing preset-switch contract: rejected while a turn streams, applied to the next session, broadcast to all clients.
@@ -161,6 +167,7 @@ The agent picker SHALL mark pack personas as focused roles, showing the pack ide
 
 - **WHEN** a mode switch is requested while a turn is streaming
 - **THEN** the switch is rejected with an error, matching the existing `set_model` / `set_preset` guard
+
 ### Requirement: Focus is a property of the shared runtime
 
 Focused/full mode and each role's overlay SHALL be deployment-global state of the shared runtime, consistent with the existing deployment-global preset preference and the v1 shared-session ceiling: every connected client (web, mini-program) sees the same mode and the same adjustments, and a switch or adjustment by any client follows the serialized runtime-mutation path. Per-client scoping is out of scope for v1 and is documented rather than silently discovered.

@@ -159,6 +159,17 @@ jobs:
         with:
           name: yizuo-e2e-apk
           path: e2e-apk
+      # THE load-bearing step: the runner user is not in the kvm group, so
+      # the emulator silently ran `-accel off` — pure software emulation,
+      # 6-minute boots, 4-minute installs, and system_server ANR dialogs over
+      # the app (38152561602's ProbeKVM line is the smoking gun). This udev
+      # rule (the android-emulator-runner README's own recipe) opens /dev/kvm.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
       - name: Install APK, boot mock, run flows
         uses: reactivecircus/android-emulator-runner@v2
         with:

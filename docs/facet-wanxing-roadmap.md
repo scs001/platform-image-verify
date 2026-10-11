@@ -79,6 +79,7 @@
 | 内部范围 | M1 的内部 = finddata 自己人（含 creators org）；伙伴侧（柏讯/zihan）为第二波，触发 = 伙伴侧真实 pack/对话车道需求出现；M1 目录与权限形状预留伙伴可见性（设计约束），不建伙伴功能 |
 | tool-scoping 五决策 | 2026-10-11 代拍：① 执行层做全（pack persona/自定义预设/用户级裁剪一处 bridge 实现，裁剪 UI 后置）② 未声明 tools = 兼容全量（guard 只拦声明者，发布门对未声明者警告，commercial surface 上限独立生效）③ 自部署 MCP 同名绑定正式化（对拍降级 warn）④ 上游 allowedTools 已递交（#9385）不阻塞，本地 bridge 先行 ⑤ virtual MCP 保留仅限产品级 SKU 窄用途，不做 pack 创作粒度——全部已随 add-mcp-tool-scoping 落地归档（2026-10-11，18/18） |
 | M2 planner 形态 | 2026-10-11 立项定案：**agent 路线**——planner = 营运自营 pack agent（spider-heal 同型：persona+rhythm+预算+通知，部署在 runner），消费 MC 四期工具族（search_agents/delegate·progress·result/scheduling/bot_notify）拆解派发；**不建独立规划服务，不建外部 MC console**（mission-control-bridge 的外部控制台方向与 runner 部署模型相悖，console 侧从未成产品；四期的真身=工具族，消费即演进）。平台侧新增=任务定义面（facade 四元组+成本闸+console） |
+| 多机 runner | 2026-10-11 用户拍板：**多机部署 agents + 相互协同 = 萬星蓝图硬前提**（不再是"等需求触发"）。落地=add-runner-fleet-sharding：descriptor `runner_id`+托管过滤（缺省归 cheap-1，存量零迁移）+机群表（agent_runners，env 种子）+deploy API 选址+第二台 runner（agent-runner-b@cheap-6，hostNetwork 8851+32）；协同面本就经 facade HTTP 中介（mission 派发/委派/A2A），跨机不变式=分片只改代理落点。扩容路径自此=加机器+机群表加行 |
 
 ## 待定决策（挂账，定案即并入上表）
 

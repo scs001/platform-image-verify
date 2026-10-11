@@ -125,7 +125,9 @@ export function createWanxingCore({ store, sub2api, config = {} }) {
 
   // Idempotency for message/send (fix-agent-serving-stability D1/D2):
   //   - replay ONLY successful outcomes, and only when the request body's
-  //     fingerprint matches the one recorded with the key;
+  //     fingerprint matches the one recorded with the key — a recording with
+  //     no fingerprint (predating fingerprinting) cannot match anything, so
+  //     it re-executes once and the backfill binds it from then on;
   //   - a key reused with a different body is refused (IDEMPOTENCY_KEY_REUSE)
   //     — never a silent replay of the old answer (the reset-ticket trap);
   //   - a recorded error is NEVER replayed: the same key re-executes and the
@@ -143,7 +145,11 @@ export function createWanxingCore({ store, sub2api, config = {} }) {
         { code: "IDEMPOTENCY_KEY_REUSE", status: 409 },
       );
     }
-    if (inWindow && existing.state === "done") {
+    // Replay a recorded success — EXCEPT the heal case: a recording with no
+    // fingerprint meeting a fingerprint-bearing retry cannot be trusted to
+    // match (the reset-ticket hole); it re-executes and the backfill binds
+    // it. Both-sides-fingerprintless callers keep plain replay semantics.
+    if (inWindow && existing.state === "done" && !(existing.request_hash == null && requestHash != null)) {
       return { replayed: true, response: JSON.parse(existing.response) };
     }
     const flightKey = `${callerId}|${slug}|${idemKey}`;
@@ -177,14 +183,16 @@ export function createWanxingCore({ store, sub2api, config = {} }) {
   // the ledger (no slot, no RPM — it is a read), a running flight is JOINED
   // (the turn is already admitted; spec: concurrent duplicates both receive
   // its outcome), and only a genuinely new turn goes through rate + slot.
-  // An error row is `new` — its retry is a real turn and pays full admission.
+  // An error row — or a done row with no recorded fingerprint (legacy, pre-
+  // fingerprinting) — is `new`: its retry is a real turn and pays full
+  // admission; the retry's backfill binds the key from then on.
   function idempotencyState({ callerId, slug, idemKey }) {
     if (!idemKey) return "new";
     if (flights.has(`${callerId}|${slug}|${idemKey}`)) return "running";
     const row = store.requestGet(callerId, slug, idemKey);
     if (row && Date.now() - row.created_at < cfg.idemWindowMs) {
       if (row.state === "running") return "running";
-      return row.state === "done" ? "done" : "new";
+      return row.state === "done" && row.request_hash ? "done" : "new";
     }
     return "new";
   }

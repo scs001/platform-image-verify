@@ -4,7 +4,8 @@
 
 - [x] 1.1 store 迁移：`wanxing_requests` 增 `request_hash TEXT` 列（PRAGMA table_info 幂等守卫 + ALTER TABLE），`requestStart`/`requestFinish` 增带指纹的签名重载（旧签名兼容）。验证：`node scripts/test-wanxing-bookkeeping.mjs` 全绿 + 旧库文件直开二启不崩。
 - [x] 1.2 core.js `idempotentSend`：error 行视同不存在（跳过重放直进 flight，覆写台账行）；done 行重放前比对请求指纹，不符抛结构化 `IDEMPOTENCY_KEY_REUSE` 错误；`idempotencyState` 把 error 行报 `new`。验证：`scripts/test-wanxing-facade.mjs` 新增三断言（错误答重执行覆写 / 同键同体重放 / 同键异体 409）全绿。
-- [x] 1.3 a2a.js send 路径：计算 rpcBody 指纹传入 `idempotentSend`；`IDEMPOTENCY_KEY_REUSE` 分支返回 HTTP 409 结构化错误（与 TURN_IN_FLIGHT 同层同款，不走 JSON-RPC 200 包装）。验证：facade 测试补 409 状态码断言。
+- [x] 1.3
+- [x] 1.4 遗留行收口：重放要求已绑定指纹——NULL 指纹行遇带指纹重试=重执行一次并回填绑定（双无指纹调用方保留纯重放）；验证：facade 测试新增「legacy 行首触自愈」断言 34/34。 a2a.js send 路径：计算 rpcBody 指纹传入 `idempotentSend`；`IDEMPOTENCY_KEY_REUSE` 分支返回 HTTP 409 结构化错误（与 TURN_IN_FLIGHT 同层同款，不走 JSON-RPC 200 包装）。验证：facade 测试补 409 状态码断言。
 
 ## 2. runner 冷启动残余（② agent-runner）
 

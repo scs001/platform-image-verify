@@ -216,6 +216,29 @@ test("2.3 a reused key with a different body is refused, never silently replayed
   assert.equal(r3.response.result.at, "13:37");
 });
 
+test("2.3 a legacy fingerprint-less recording re-executes once, then is bound", async () => {
+  const store = freshStore();
+  const core = createWanxingCore({ store, sub2api: stubSub2api() });
+  // The pre-fingerprinting shape: a done row with no request_hash (written
+  // directly, exactly what the 2026-10-12 production migration left behind).
+  store.requestStart(7, "a", "legacy-k");
+  store.requestFinish(7, "a", "legacy-k", "done", JSON.stringify({ jsonrpc: "2.0", result: { stale: true } }));
+  // A same-body retry cannot match a fingerprint that was never recorded —
+  // it re-executes a real turn (no silent replay of the stale answer).
+  assert.equal(core.idempotencyState({ callerId: 7, slug: "a", idemKey: "legacy-k" }), "new");
+  let execs = 0;
+  const heal = async () => { execs += 1; return { response: { jsonrpc: "2.0", result: { fresh: true } } }; };
+  const r1 = await core.idempotentSend({ callerId: 7, slug: "a", idemKey: "legacy-k", requestHash: "h1", exec: heal });
+  assert.equal(execs, 1, "the legacy row was NOT replayed — a real turn ran");
+  assert.equal(r1.replayed, false);
+  assert.deepEqual(r1.response.result, { fresh: true }, "the stale recorded answer never reached the caller");
+  // The retry's backfill bound the key: from now on it replays properly.
+  assert.equal(store.requestGet(7, "a", "legacy-k").request_hash, "h1");
+  const r2 = await core.idempotentSend({ callerId: 7, slug: "a", idemKey: "legacy-k", requestHash: "h1", exec: heal });
+  assert.equal(execs, 1);
+  assert.equal(r2.replayed, true);
+});
+
 // ── Task 2.4: metering and boundary settlement ───────────────────────────────
 
 test("2.4 minutes round up, ok turns settle once via subtract, and the row id is the idempotency key", async () => {

@@ -180,11 +180,13 @@ jobs:
             # 3) Flows in dependency order: pairing FIRST (the tab shell gates
             #    on a connected instance), then the three that need it. The
             #    pairing token persists in AsyncStorage, so each flow's
-            #    launchApp lands already paired.
-            (cd app && $HOME/.maestro/bin/maestro test -e OUTPUT_INSTANCE=http://10.0.2.2:9411 -e PAIRING_CODE=$(python3 -c 'import json;print(json.load(open("/tmp/app-mock/code.json"))["code"])') .maestro/pairing.yaml)
-            (cd app && $HOME/.maestro/bin/maestro test .maestro/tabs.yaml)
-            (cd app && $HOME/.maestro/bin/maestro test .maestro/language-switch.yaml)
-            (cd app && $HOME/.maestro/bin/maestro test .maestro/chat-stream.yaml)
+            #    launchApp lands already paired. MAESTRO_DRIVER_STARTUP_TIMEOUT:
+            #    the software-rendered emulator boots its uiautomator driver
+            #    slowly — the 2-minute default died (38146016215).
+            (cd app && MAESTRO_DRIVER_STARTUP_TIMEOUT=300000 $HOME/.maestro/bin/maestro test -e OUTPUT_INSTANCE=http://10.0.2.2:9411 -e PAIRING_CODE=$(python3 -c 'import json;print(json.load(open("/tmp/app-mock/code.json"))["code"])') .maestro/pairing.yaml)
+            (cd app && MAESTRO_DRIVER_STARTUP_TIMEOUT=300000 $HOME/.maestro/bin/maestro test .maestro/tabs.yaml)
+            (cd app && MAESTRO_DRIVER_STARTUP_TIMEOUT=300000 $HOME/.maestro/bin/maestro test .maestro/language-switch.yaml)
+            (cd app && MAESTRO_DRIVER_STARTUP_TIMEOUT=300000 $HOME/.maestro/bin/maestro test .maestro/chat-stream.yaml)
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4

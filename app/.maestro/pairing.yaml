@@ -3,7 +3,12 @@
 appId: com.finddata.platform
 ---
 - launchApp
-- assertVisible: '连接你的壹座|Connect to your Yizuo'
+# 90s: a release cold start on the software-rendered CI emulator can take
+# well over the default assert window before the first JS frame renders.
+- extendedWaitUntil:
+    visible:
+      text: '连接你的壹座|Connect to your Yizuo'
+    timeout: 90000
 - tapOn:
     id: 'server-input'
 - inputText: ${OUTPUT_INSTANCE}

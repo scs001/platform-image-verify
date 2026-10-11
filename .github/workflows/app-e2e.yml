@@ -139,7 +139,7 @@ jobs:
     name: Maestro (android emulator)
     needs: apk
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -183,10 +183,10 @@ jobs:
             #    launchApp lands already paired. MAESTRO_DRIVER_STARTUP_TIMEOUT:
             #    the software-rendered emulator boots its uiautomator driver
             #    slowly — the 2-minute default died (38146016215).
-            (cd app && MAESTRO_DRIVER_STARTUP_TIMEOUT=300000 $HOME/.maestro/bin/maestro test -e OUTPUT_INSTANCE=http://10.0.2.2:9411 -e PAIRING_CODE=$(python3 -c 'import json;print(json.load(open("/tmp/app-mock/code.json"))["code"])') .maestro/pairing.yaml)
-            (cd app && MAESTRO_DRIVER_STARTUP_TIMEOUT=300000 $HOME/.maestro/bin/maestro test .maestro/tabs.yaml)
-            (cd app && MAESTRO_DRIVER_STARTUP_TIMEOUT=300000 $HOME/.maestro/bin/maestro test .maestro/language-switch.yaml)
-            (cd app && MAESTRO_DRIVER_STARTUP_TIMEOUT=300000 $HOME/.maestro/bin/maestro test .maestro/chat-stream.yaml)
+            (cd app && MAESTRO_DRIVER_STARTUP_TIMEOUT=300000 $HOME/.maestro/bin/maestro test -e OUTPUT_INSTANCE=http://10.0.2.2:9411 -e PAIRING_CODE=$(python3 -c 'import json;print(json.load(open("/tmp/app-mock/code.json"))["code"])') .maestro/pairing.yaml) || { adb logcat -d > /tmp/app-mock/logcat.txt; exit 1; }
+            (cd app && MAESTRO_DRIVER_STARTUP_TIMEOUT=300000 $HOME/.maestro/bin/maestro test .maestro/tabs.yaml) || { adb logcat -d > /tmp/app-mock/logcat.txt; exit 1; }
+            (cd app && MAESTRO_DRIVER_STARTUP_TIMEOUT=300000 $HOME/.maestro/bin/maestro test .maestro/language-switch.yaml) || { adb logcat -d > /tmp/app-mock/logcat.txt; exit 1; }
+            (cd app && MAESTRO_DRIVER_STARTUP_TIMEOUT=300000 $HOME/.maestro/bin/maestro test .maestro/chat-stream.yaml) || { adb logcat -d > /tmp/app-mock/logcat.txt; exit 1; }
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -195,6 +195,8 @@ jobs:
           path: |
             /tmp/app-mock/server.log
             /tmp/app-mock/code.json
+            /tmp/app-mock/logcat.txt
+            /home/runner/.maestro/tests/
           retention-days: 7
           if-no-files-found: ignore
 

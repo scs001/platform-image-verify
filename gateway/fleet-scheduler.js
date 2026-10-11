@@ -90,7 +90,7 @@ export function createFleetScheduler({
     const rowsById = new Map(rows.map((r) => [r.id, r]));
     const defaultRunnerId = rows[0]?.id ?? null;
     const dead = stale(board);
-    if (dead.length === 0) return { moved: 0 };
+    if (dead.length === 0 && healthy(board).length === 0) return { moved: 0 };
 
     let entries;
     try {
@@ -100,6 +100,27 @@ export function createFleetScheduler({
       return { moved: 0 };
     }
 
+    // ORPHAN detection (live drill finding): the observer PRUNES long-dead
+    // runners from the board entirely, so staleness alone never fires for
+    // them. An entry assigned (explicitly, or untagged→default) to a fleet
+    // row whose runner is ABSENT from the board is orphaned when that row is
+    // past the provisioning grace (a brand-new runner being booted up keeps
+    // its pre-assigned entries for the grace window).
+    const boardIds = new Set(Object.keys(board.runners ?? {}));
+    const graceMs = config.orphanGraceMs ?? 600_000;
+    const orphaned = new Map(); // runnerId → true
+    for (const e of entries) {
+      const rid = e?.metadata?.runner_id ?? defaultRunnerId;
+      if (rid == null || boardIds.has(rid) || orphaned.has(rid)) continue;
+      const row = rowsById.get(rid);
+      if (!row || (Number.isFinite(row.createdAt) && now() - row.createdAt < graceMs)) continue;
+      orphaned.set(rid, true);
+    }
+    for (const id of orphaned.keys()) {
+      if (!dead.some((d) => d.id === id)) dead.push({ id, seen_at: 0, pruned: true });
+    }
+    if (dead.length === 0) return { moved: 0 };
+
     let moved = 0;
     for (const deadRunner of dead) {
       const isDefault = deadRunner.id === defaultRunnerId;
@@ -108,7 +129,7 @@ export function createFleetScheduler({
         return rid === deadRunner.id || (isDefault && rid === null);
       });
       if (mine.length === 0) continue;
-      log.warn(`[fleet-scheduler] runner '${deadRunner.id}' stale (${Math.round((now() - deadRunner.seen_at) / 1000)}s) — re-pointing ${mine.length} entr(y/ies)`);
+      log.warn(`[fleet-scheduler] runner '${deadRunner.id}' ${deadRunner.pruned ? "absent from the board (pruned)" : `stale (${Math.round((now() - deadRunner.seen_at) / 1000)}s)`} — re-pointing ${mine.length} entr(y/ies)`);
 
       // Occupancy per target slice, maintained across this wave.
       const occupiedByTarget = new Map(); // runnerId → Map(port → path)

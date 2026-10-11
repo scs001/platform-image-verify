@@ -32,9 +32,9 @@ function fakeRegistry(entries) {
 }
 
 const ROWS = [
-  { id: "cheap-1", baseUrl: "http://100.64.0.11", portBase: 8791, portSpan: 32 },
-  { id: "runner-b", baseUrl: "http://100.64.0.13", portBase: 8851, portSpan: 32 },
-  { id: "runner-c", baseUrl: "http://100.64.0.14", portBase: 8891, portSpan: 32 },
+  { id: "cheap-1", baseUrl: "http://100.64.0.11", portBase: 8791, portSpan: 32, createdAt: NOW - 86_400_000 },
+  { id: "runner-b", baseUrl: "http://100.64.0.13", portBase: 8851, portSpan: 32, createdAt: NOW - 86_400_000 },
+  { id: "runner-c", baseUrl: "http://100.64.0.14", portBase: 8891, portSpan: 32, createdAt: NOW - 86_400_000 },
 ];
 
 const mk = (over = {}) => ({
@@ -176,4 +176,39 @@ test("failover: board or registry outage skips the pass (never a blind move)", a
     const out = await sched.tick();
     assert.equal(out.moved, 0);
   }
+});
+
+
+test("failover: a runner PRUNED from the board entirely still loses its entries (orphan detection)", async () => {
+  // The observer drops long-dead runners from the board — staleness alone
+  // would never fire (live drill finding). Absent + past the provisioning
+  // grace = orphaned.
+  const entries = [
+    { path: "/packs/p1/a", name: "A", provider: "paas-pack", version: 1, metadata: { packId: "p1", runner_id: "runner-b" } },
+  ];
+  const board = { runners: {
+    "cheap-1": { seen_at: NOW, children: 2, budget_mb: 400, budget_mb_limit: 768 },
+    "runner-c": { seen_at: NOW, children: 0, budget_mb: 0, budget_mb_limit: 768 },
+    // runner-b NOT on the board at all
+  } };
+  const { sched, reg } = harness({ board, entries });
+  const out = await sched.tick();
+  assert.equal(out.moved, 1, "the pruned runner's orphaned entry still fails over");
+  assert.equal(reg.puts[0].body.metadata.runner_id, "runner-c");
+});
+
+test("failover: a brand-new fleet row keeps its pre-assigned entries for the grace window", async () => {
+  const entries = [
+    { path: "/packs/p1/a", name: "A", provider: "paas-pack", version: 1, metadata: { packId: "p1", runner_id: "runner-d" } },
+  ];
+  const rows = [...ROWS, { id: "runner-d", baseUrl: "http://100.64.0.15", portBase: 8931, portSpan: 32, createdAt: NOW - 60_000 }];
+  const board = { runners: {
+    "cheap-1": { seen_at: NOW, children: 2, budget_mb: 400, budget_mb_limit: 768 },
+    "runner-c": { seen_at: NOW, children: 0, budget_mb: 0, budget_mb_limit: 768 },
+  } };
+  const reg = fakeRegistry(entries);
+  const sched = createFleetScheduler({ registry: reg, boardFetch: async () => board, fleetRows: () => rows, log: { log() {}, warn() {} }, now: () => NOW });
+  const out = await sched.tick();
+  assert.equal(out.moved, 0, "provisioning runner (row < grace) is not treated as dead");
+  assert.equal(reg.puts.length, 0);
 });

@@ -162,8 +162,10 @@ export function createFleetScheduler({
           url: `http://${hostname}:${plan.port}`,
           // GET answers provider as a display STRING; the PUT model demands
           // {organization, url} with both required — rebuild the write shape
-          // (live 422 finding in the drain drill).
+          // (live 422 finding in the drain drill). Same for version: stored
+          // numerically, the card model wants its string.
           provider: { organization: "paas-pack", url: row.baseUrl },
+          version: String(entry.version ?? "1"),
           metadata: {
             ...(entry.metadata ?? {}),
             runner_id: target.id,

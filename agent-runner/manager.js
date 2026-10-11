@@ -518,7 +518,7 @@ export class ChildManager {
           session: sessionId,
           duration_ms: this.now() - startedAt,
           outcome: "ok",
-          ...(out?.usage ? { tokens: tokensOf(out.usage) } : {}),
+          ...(() => { const t = tokensOf(out?.usage); return t == null ? {} : { tokens: t }; })(),
         });
         return out;
       } catch (e) {

@@ -33,6 +33,19 @@ function sampleRssBytes(pid) {
   return null;
 }
 
+// Liveness probe by signal 0: throws ESRCH for a dead pid, succeeds (or EPERM)
+// for a live one. Entries whose pid is not a number yet (pre-start) are the
+// floor's original domain and stay out of this check.
+function pidAlive(pid) {
+  if (!pid || !Number.isFinite(pid)) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (e) {
+    return e?.code === "EPERM";
+  }
+}
+
 // Flatten a dsh usage payload to a token count; null when absent (metering
 // records the turn without tokens rather than guessing).
 function tokensOf(usage) {
@@ -323,11 +336,20 @@ export class ChildManager {
   // ── Warm-zone budget (add-agent-residency D1) ─────────────────────────────
   // Footprint in MB: sampled RSS per child when a pid is exposed, else the
   // fixed per-agent planning cost. The floor keeps budgeting honest even
-  // before a spawn reports its RSS.
+  // before a spawn reports its RSS. A child that exited on its own (crash,
+  // idle reaper — nothing hooks the process exit) leaves its entry behind;
+  // its floor would ghost-count forever (measured live 2026-10-11: three dead
+  // entries × 96MB while the pod's real dsh footprint lived elsewhere), so
+  // the accounting point re-verifies liveness and prunes the ghosts it finds.
   #footprintMb(extraChildren = 0) {
     let bytes = 0;
-    for (const child of this.children.values()) {
+    for (const [key, child] of this.children) {
       const rss = sampleRssBytes(child.pid);
+      if (rss == null && Number.isFinite(child?.pid) && !pidAlive(child.pid)) {
+        if (this.children.get(key) === child) this.children.delete(key);
+        this.log.warn(`[agent-runner] ${key} child pid ${child.pid} is gone — pruned ghost entry from the warm-zone budget`);
+        continue;
+      }
       bytes += Math.max(rss ?? 0, this.config.agentCostMb * 1024 * 1024);
     }
     return (bytes + extraChildren * this.config.agentCostMb * 1024 * 1024) / (1024 * 1024);

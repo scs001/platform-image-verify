@@ -1440,3 +1440,33 @@ test("attribution: turn_started/turn_ended carry session; ok turns carry tokens"
     await manager.stopAll?.() ?? manager.stop?.();
   }
 });
+
+// ── M2 容量实测 follow-up: ghost-entry pruning at the accounting point ──────
+// Live finding 2026-10-11: nothing hooks a child's spontaneous exit, so the
+// warm-zone budget counted dead entries at the 96MB planning floor forever
+// (three ghosts = 288 "MB" while the pod's real dsh footprint sat elsewhere,
+// peak 1530/1536MB). The footprint now re-verifies liveness and prunes.
+
+test("residency: a dead child's entry is pruned at the budget accounting point; a pre-start entry keeps the floor", async () => {
+  const { manager } = await directManager({
+    config: { budgetMb: 3072, agentCostMb: 96, demoteCooldownMs: 600_000 },
+  });
+  try {
+    // A pid that is certainly dead: spawn a real process and let it exit.
+    const { spawn } = await import("node:child_process");
+    const dead = spawn("sleep", ["0"]);
+    const deadPid = dead.pid;
+    await new Promise((r) => dead.once("exit", r));
+    // A never-started entry: pid null (children.set happens pre-start).
+    manager.children.set("packs/pk-abc/pre-start", { pid: null, spawnedAt: Date.now(), lastActivityAt: Date.now(), activeTurns: 0, draining: false });
+    // The ghost: shape of a resident whose process exited on its own.
+    manager.children.set("packs/pk-abc/ghost", { pid: deadPid, spawnedAt: Date.now() - 60_000, lastActivityAt: Date.now() - 60_000, activeTurns: 0, draining: false });
+    assert.equal(manager.children.size, 2);
+    manager.enforceBudget(); // accounting point runs inside
+    assert.equal(manager.children.has("packs/pk-abc/ghost"), false, "dead pid pruned, never counted");
+    assert.equal(manager.children.has("packs/pk-abc/pre-start"), true, "pre-start entry (no pid yet) keeps the floor's protection");
+    manager.children.clear(); // plain test doubles cannot drain — stopAll is for real children
+  } finally {
+    await manager.stopAll();
+  }
+});

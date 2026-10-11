@@ -96,7 +96,7 @@ export default defineConfig({
           // (same process group, so Playwright's teardown kills it): the market
           // then carries registry entries and the connect popup can mint
           // against a hermetic stand-in instead of the live registry.
-          command: `node e2e/registry-stub.js & node e2e/facet-stub.js & node e2e/fake-mcp.js & node e2e/seed-fixtures.js && node server.js`,
+          command: `node e2e/registry-stub.js & node e2e/facet-stub.js & node e2e/fake-mcp.js & node e2e/facet-shell-server.mjs & node e2e/seed-fixtures.js && node server.js`,
           // The server listens FIRST and initializes the agent in the
           // background (listen-first boot) — readiness must gate on the
           // agent, not the port, or tests would race a half-booted server.

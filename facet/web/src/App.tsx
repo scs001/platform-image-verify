@@ -11,6 +11,7 @@ import { PackMarketView } from "@/components/packs/PackMarketView";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/i18n/useLanguage";
 import { FACET_HELP_COMMAND } from "./cliFacts";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { IntroView } from "./IntroView";
 import { McpCatalog } from "./McpCatalog";
 import { PageFooter } from "./PageFooter";
@@ -122,16 +123,25 @@ export function App() {
         </div>
       </header>
       <main className="flex-1 overflow-auto p-6">
-        {view === "intro" && <IntroView />}
-        {view === "packs" && (
-          <div className="space-y-4">
-            <PackMarketView onSubscribed={() => {}} />
-            <p className="text-xs text-muted-foreground">
-              {t("facetShell.packsFootnote")} <code className="font-mono">{FACET_HELP_COMMAND}</code>
-            </p>
-          </div>
-        )}
-        {view === "mcp" && <McpCatalog />}
+        {/* key={view} resets the boundary when tabs switch: a contained
+            failure never leaks into the next view (spec: facet-platform,
+            tabs still work after a contained failure). */}
+        <ErrorBoundary key={view}>
+          {view === "intro" && <IntroView />}
+          {view === "packs" && (
+            <div className="space-y-4">
+              {/* onOpenChat={null}: the next-steps wizard footer points at a
+                  conversation view this shell doesn't have (installing stays a
+                  壹座 surface), so the footer is suppressed — the report panel
+                  itself renders unchanged (spec: pack-marketplace). */}
+              <PackMarketView onSubscribed={() => {}} onOpenChat={null} />
+              <p className="text-xs text-muted-foreground">
+                {t("facetShell.packsFootnote")} <code className="font-mono">{FACET_HELP_COMMAND}</code>
+              </p>
+            </div>
+          )}
+          {view === "mcp" && <McpCatalog />}
+        </ErrorBoundary>
         <PageFooter />
       </main>
     </div>

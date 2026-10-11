@@ -13,9 +13,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/packs/Badge";
 import { PackDetailDialog } from "./PackDetailDialog";
 
-export function PackMarketView({ onSubscribed }: { onSubscribed?: () => void }) {
+export function PackMarketView({
+  onSubscribed,
+  onOpenChat,
+}: {
+  onSubscribed?: () => void;
+  // The report footer's open-chat hook. Hosts without a conversation view
+  // (the facet shell) pass null to drop the footer entirely; the default
+  // navigates 壹座's chat route. See NextStepsFooter for why the routing
+  // call lives there and not here.
+  onOpenChat?: (() => void) | null;
+}) {
   const { t } = useTranslation();
-  const navigate = useNavigate();
   const [packs, setPacks] = useState<PackSummary[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -147,26 +156,41 @@ export function PackMarketView({ onSubscribed }: { onSubscribed?: () => void }) 
             {/* Next-steps wizard footer (add-pack-tutorials-and-wizard): the
                 report ends with what to do next — open the conversation and
                 pick the pack's expert. The report itself is unchanged. */}
-            <div
-              className="mt-3 flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2"
-              data-testid="pack-install-next"
-            >
-              <span className="text-xs text-muted-foreground">{t("packs.report.nextHint")}</span>
-              <button
-                className="shrink-0 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
-                onClick={() => {
-                  setReport(null);
-                  navigate("/chat");
-                }}
-                data-testid="pack-install-open-chat"
-              >
-                {t("packs.report.openChat")}
-              </button>
-            </div>
+            <NextStepsFooter onOpenChat={onOpenChat} onDismiss={() => setReport(null)} />
           </div>
         </div>
       )}
     </section>
+  );
+}
+
+// The report's next-steps footer — the only routing-dependent piece of this
+// view, and therefore its own component: useNavigate runs only when the
+// footer actually renders. Hosts that pass onOpenChat={null} never mount it,
+// so this view stays borrowable by router-less shells (facet-platform: the
+// facet shell adds no router dependency — a top-level useNavigate here is
+// exactly what blanked #/packs in production).
+function NextStepsFooter({ onOpenChat, onDismiss }: { onOpenChat?: (() => void) | null; onDismiss: () => void }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  if (onOpenChat === null) return null;
+  return (
+    <div
+      className="mt-3 flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2"
+      data-testid="pack-install-next"
+    >
+      <span className="text-xs text-muted-foreground">{t("packs.report.nextHint")}</span>
+      <button
+        className="shrink-0 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+        onClick={() => {
+          onDismiss();
+          onOpenChat ? onOpenChat() : navigate("/chat");
+        }}
+        data-testid="pack-install-open-chat"
+      >
+        {t("packs.report.openChat")}
+      </button>
+    </div>
   );
 }
 

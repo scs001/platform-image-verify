@@ -1029,7 +1029,9 @@
     "tabs": {
       "intro": "Intro",
       "packs": "Packs",
-      "mcp": "MCP services"
+      "mcp": "MCP services",
+      "mine": "My packs",
+      "curate": "Curation"
     },
     "langLabel": "Language",
     "packsFootnote": "Anonymous browsing; sign in to publish and subscribe. CLI usage:"
@@ -1097,7 +1099,9 @@
     "market": {
       "searchPlaceholder": "Search packs…",
       "search": "Search",
-      "empty": "No packs in the market yet."
+      "empty": "No packs in the market yet.",
+      "allCategories": "All",
+      "featured": "Featured"
     },
     "detail": {
       "notFound": "Pack not found or unlisted",

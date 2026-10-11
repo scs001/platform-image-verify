@@ -10,6 +10,7 @@
 
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
@@ -178,4 +179,87 @@ test("publish rate limiter is per-author and windowed", () => {
   assert.ok(allow("a@example.com"));
   assert.equal(allow("a@example.com"), false);
   assert.ok(allow("b@example.com")); // independent bucket
+});
+
+// ── Curation (add-facet-content-management) ─────────────────────────────────
+//
+// Category rides publish (author-declared, admin-retargetable), featured is
+// admin-only, the listing filters by category and author-widens unlisted, and
+// the manifest validator shapes the optional category slug.
+
+test("category rides publish and curation writes follow their permission split", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "pack-curation-"));
+  try {
+    const reg = createPackRegistry({ file: path.join(dir, "packs.db") });
+    const author = "author@example.com";
+    const { id } = reg.publish({ email: author, manifest: validManifest({ category: "legal" }) });
+
+    // Author-declared category is visible on summary surfaces.
+    assert.equal(reg.get(id).category, "legal");
+    assert.equal(reg.get(id).featured, false);
+
+    // Author may retarget their own category but never feature.
+    const byAuthor = reg.setCuration({ id, actor: { email: author, admin: false }, category: "lex" });
+    assert.equal(byAuthor.category, "lex");
+    assert.equal(reg.setCuration({ id, actor: { email: author, admin: false }, featured: true }).error, "forbidden");
+
+    // Stranger may neither; admin may both.
+    assert.equal(reg.setCuration({ id, actor: { email: "x@example.com", admin: false }, category: "nope" }).error, "forbidden");
+    const byAdmin = reg.setCuration({ id, actor: { email: "ops@example.com", admin: true }, category: "daas", featured: true });
+    assert.deepEqual(byAdmin, { id, category: "daas", featured: true });
+    assert.equal(reg.get(id).featured, true);
+
+    // Curation never touches visibility or listing state.
+    assert.equal(reg.get(id).visibility, "public");
+
+    // A redeclared category on a new version updates; absence keeps curated.
+    reg.publishVersion({ email: author, id, manifest: validManifest({ category: "doc-studio" }) });
+    assert.equal(reg.get(id).category, "doc-studio");
+    reg.publishVersion({ email: author, id, manifest: validManifest() });
+    assert.equal(reg.get(id).category, "doc-studio");
+
+    assert.equal(reg.setCuration({ id: "missing", actor: { email: "ops@example.com", admin: true }, category: "x" }).error, "not_found");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("listing filters by category and author-widens the unlisted clause", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "pack-curation-list-"));
+  try {
+    const reg = createPackRegistry({ file: path.join(dir, "packs.db") });
+    const author = "author@example.com";
+    const a = reg.publish({ email: author, manifest: validManifest({ category: "legal" }) });
+    const b = reg.publish({ email: author, manifest: validManifest({ name: "数据研究" }) });
+    const c = reg.publish({ email: "other@example.com", manifest: validManifest({ name: "他家", category: "legal" }) });
+    reg.setUnlisted({ email: author, id: b.id });
+
+    const asAuthor = { email: author, admin: false };
+    // Category filter is not identity-scoped: every visible legal pack lists,
+    // newest first (the other author's legal pack is public).
+    const legalIds = reg.list({ category: "legal", viewer: asAuthor }).packs.map((p) => p.id);
+    assert.deepEqual(new Set(legalIds), new Set([a.id, c.id]));
+
+    // author filter includes the author's unlisted pack; strangers never see it.
+    const mine = reg.list({ author: author, viewer: asAuthor });
+    assert.deepEqual(new Set(mine.packs.map((p) => p.id)), new Set([a.id, b.id]));
+    assert.equal(
+      reg.list({ author: author, viewer: { email: "stranger@example.com", admin: false } }).packs.some((p) => p.id === b.id),
+      false,
+    );
+
+    // The summary carries curation state.
+    assert.equal(mine.packs.find((p) => p.id === a.id).category, "legal");
+    assert.equal(Boolean(mine.packs.find((p) => p.id === a.id).featured), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("manifest validator shapes the optional category slug", () => {
+  assert.equal(validateManifest(validManifest({ category: "spider-heal" })).length, 0);
+  assert.ok(validateManifest(validManifest({ category: "Not A Slug" })).length > 0);
+  assert.ok(validateManifest(validManifest({ category: "x".repeat(33) })).length > 0);
+  assert.ok(validateManifest(validManifest({ category: 42 })).length > 0);
+  assert.equal(validateManifest(validManifest()).length, 0); // absent = fine
 });

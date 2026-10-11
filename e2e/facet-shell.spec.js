@@ -38,3 +38,117 @@ test("all three shell views render without a routing provider", async ({ page })
 
   expect(pageErrors, `page errors: ${pageErrors.join(" | ")}`).toEqual([]);
 });
+
+// ── Conditional views + data plane (add-facet-content-management) ────────────
+// The shell layer is exercised with a whoami route-injection (the browser
+// cannot present the proxy identity — that channel is server-to-server by
+// design); the data plane below drives the REAL facet service with real
+// forwarded identities over the internal token.
+
+const INTERNAL_TOKEN = process.env.E2E_FACET_TOKEN || "e2e-facet-token";
+const forwarded = (email, groups) => ({
+  "x-facet-token": INTERNAL_TOKEN,
+  "x-facet-user": Buffer.from(JSON.stringify({ email, groups })).toString("base64url"),
+});
+
+test("conditional tabs and views follow identity", async ({ page }) => {
+  await page.route("**/api/whoami", (route) =>
+    route.fulfill({
+      json: { email: "ops@e2e.local", groups: ["creators", "admin"], creator: true, admin: true },
+    }),
+  );
+  const pageErrors = [];
+  page.on("pageerror", (e) => pageErrors.push(String(e)));
+
+  await page.goto(`${base}/#/`);
+  // anonymous regression already covered above; here the creator+admin sees
+  // all five tabs.
+  await expect(page.getByRole("button", { name: "My packs" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Curation" })).toBeVisible();
+
+  // #/mine renders the creator console.
+  await page.goto(`${base}/#/mine`);
+  await expect(page.getByTestId("facet-mine-view")).toBeVisible();
+  await expect(page.getByTestId("facet-mine-publish")).toBeVisible();
+
+  // #/curate renders the board with the honest usage degradation (no
+  // usage-source env on the shell server).
+  await page.goto(`${base}/#/curate`);
+  await expect(page.getByTestId("facet-curate-view")).toBeVisible();
+  await expect(page.getByTestId("facet-curate-usage-degraded")).toBeVisible();
+
+  expect(pageErrors, pageErrors.join(" | ")).toEqual([]);
+});
+
+test("unauthorized deep links fall back to the intro landing", async ({ page }) => {
+  await page.route("**/api/whoami", (route) => route.fulfill({ json: { email: null, groups: [] } }));
+  await page.goto(`${base}/#/curate`);
+  await expect(page.getByTestId("intro-cta-packs")).toBeVisible();
+  await expect(page.getByRole("button", { name: "My packs" })).toHaveCount(0);
+});
+
+test("data plane: publish, curate, versions, visibility, unpublish with real forwarded identity", async ({ request }) => {
+  const creator = forwarded("creator@e2e.local", ["creators"]);
+  const admin = forwarded("ops@e2e.local", ["admin"]);
+
+  // Publish from manifest (creator identity).
+  const manifest = {
+    name: "策展数据面冒烟",
+    description: "add-facet-content-management sentinel",
+    tags: ["shell-smoke"],
+    category: "legal",
+    skills: [{ name: "curate-smoke", description: "d", content: "# x" }],
+    mcpServers: [],
+    agents: [],
+  };
+  const pub = await request.post(`${base}/api/packs`, { headers: creator, data: { manifest } });
+  expect(pub.ok()).toBeTruthy();
+  const { id } = await pub.json();
+
+  // Author-declared category rides the publish; stranger cannot feature.
+  const listed = await request.get(`${base}/api/packs?category=legal`, { headers: creator });
+  const cat = await listed.json();
+  expect(cat.packs.some((p) => p.id === id && p.category === "legal")).toBeTruthy();
+  const denied = await request.put(`${base}/api/packs/${id}/curation`, {
+    headers: creator,
+    data: { featured: true },
+  });
+  expect(denied.status()).toBe(403);
+
+  // Admin curates: category + featured; the market listing reflects both.
+  const cur = await request.put(`${base}/api/packs/${id}/curation`, {
+    headers: admin,
+    data: { category: "daas", featured: true },
+  });
+  expect(cur.ok()).toBeTruthy();
+  const after = await request.get(`${base}/api/packs`, { headers: admin });
+  const row = (await after.json()).packs.find((p) => p.id === id);
+  expect(row.category).toBe("daas");
+  expect(row.featured).toBe(true);
+
+  // Author-only surfaces: version history and visibility flip.
+  const versions = await request.get(`${base}/api/packs/${id}/versions`, { headers: creator });
+  expect(versions.ok()).toBeTruthy();
+  expect((await versions.json()).versions.length).toBe(1);
+  const vis = await request.put(`${base}/api/packs/${id}/visibility`, {
+    headers: creator,
+    data: { visibility: "private" },
+  });
+  expect(vis.ok()).toBeTruthy();
+
+  // Private: gone for a stranger, present for the author (author=me filter).
+  const stranger = await request.get(`${base}/api/packs?author=me`, { headers: forwarded("x@e2e.local", []) });
+  expect((await stranger.json()).packs.some((p) => p.id === id)).toBeFalsy();
+  const mine = await request.get(`${base}/api/packs?author=me`, { headers: creator });
+  expect((await mine.json()).packs.some((p) => p.id === id)).toBeTruthy();
+
+  // Usage proxy: admin session required; anonymous gets 401.
+  const usage = await request.get(`${base}/api/ops/pack-usage`);
+  expect(usage.status()).toBe(401);
+
+  // Unpublish (author) hides it from the anonymous market.
+  const un = await request.post(`${base}/api/packs/${id}/unpublish`, { headers: creator });
+  expect(un.ok()).toBeTruthy();
+  const anonList = await request.get(`${base}/api/packs`);
+  expect((await anonList.json()).packs.some((p) => p.id === id)).toBeFalsy();
+});

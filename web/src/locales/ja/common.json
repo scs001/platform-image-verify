@@ -1029,7 +1029,9 @@
     "tabs": {
       "intro": "紹介",
       "packs": "機能セット",
-      "mcp": "MCP サービス"
+      "mcp": "MCP サービス",
+      "mine": "マイ機能集",
+      "curate": "キュレーション"
     },
     "langLabel": "言語",
     "packsFootnote": "匿名で閲覧可能、ログイン後に公開と購読。CLI の使い方："
@@ -1097,7 +1099,9 @@
     "market": {
       "searchPlaceholder": "パックを検索…",
       "search": "検索",
-      "empty": "市場にパックがまだありません。"
+      "empty": "市場にパックがまだありません。",
+      "allCategories": "すべて",
+      "featured": "注目"
     },
     "detail": {
       "notFound": "パックが見つからないか公開終了しました",

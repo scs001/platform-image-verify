@@ -58,11 +58,20 @@ export function createPackRegistry({ file }) {
     author_email TEXT NOT NULL,
     created_at INTEGER NOT NULL,
     unlisted INTEGER NOT NULL DEFAULT 0,
-    visibility TEXT NOT NULL DEFAULT 'public'
+    visibility TEXT NOT NULL DEFAULT 'public',
+    category TEXT NOT NULL DEFAULT '',
+    featured INTEGER NOT NULL DEFAULT 0
   )`);
   // add-agent-platform-ops: visibility on pre-existing databases.
   try {
     db.exec(`ALTER TABLE packs ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public'`);
+  } catch { /* column already present */ }
+  // add-facet-content-management: curation columns on pre-existing databases.
+  try {
+    db.exec(`ALTER TABLE packs ADD COLUMN category TEXT NOT NULL DEFAULT ''`);
+  } catch { /* column already present */ }
+  try {
+    db.exec(`ALTER TABLE packs ADD COLUMN featured INTEGER NOT NULL DEFAULT 0`);
   } catch { /* column already present */ }
   db.exec(`CREATE TABLE IF NOT EXISTS pack_versions (
     pack_id TEXT NOT NULL,
@@ -192,6 +201,9 @@ export function createPackRegistry({ file }) {
       publishedAt: version.published_at,
       unlisted: Boolean(pack.unlisted),
       visibility: pack.visibility === "private" ? "private" : "public",
+      // Curation state (add-facet-content-management): presentation-level.
+      category: pack.category ?? "",
+      featured: Boolean(pack.featured),
     };
   }
 
@@ -225,7 +237,10 @@ export function createPackRegistry({ file }) {
     publish({ email, manifest }) {
       const id = mintId();
       const visibility = manifest.visibility === "private" ? "private" : "public";
-      db.prepare(`INSERT INTO packs (id, author_email, created_at, visibility) VALUES (?, ?, ?, ?)`).run(id, email, now(), visibility);
+      // Author-declared category (add-facet-content-management) rides the
+      // pack row; admins retarget it later via setCuration.
+      const category = typeof manifest.category === "string" ? manifest.category : "";
+      db.prepare(`INSERT INTO packs (id, author_email, created_at, visibility, category) VALUES (?, ?, ?, ?, ?)`).run(id, email, now(), visibility, category);
       db.prepare(
         `INSERT INTO pack_versions (pack_id, version, name, description, tags, manifest, author_email, published_at)
          VALUES (?, 1, ?, ?, ?, ?, ?, ?)`,
@@ -247,7 +262,53 @@ export function createPackRegistry({ file }) {
         `INSERT INTO pack_versions (pack_id, version, name, description, tags, manifest, author_email, published_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       ).run(id, version, manifest.name, manifest.description || "", JSON.stringify(manifest.tags ?? []), JSON.stringify(manifest), email, now());
+      // A redeclared category updates the pack row; absence keeps the
+      // curated value (admin retargets survive version bumps).
+      if (typeof manifest.category === "string" && manifest.category) {
+        db.prepare(`UPDATE packs SET category = ? WHERE id = ?`).run(manifest.category, id);
+      }
       return { id, version };
+    },
+
+    // Curation write (add-facet-content-management): featured is admin-only;
+    // category is author-or-admin. Returns the fresh curation state or an
+    // error the route maps. Presentation-level only — visibility, versions,
+    // and installability are never touched.
+    setCuration({ id, actor, category, featured }) {
+      const pack = packRow(id);
+      if (!pack) return { error: "not_found" };
+      const isAuthor = pack.author_email === actor.email;
+      const isAdmin = actor.admin === true;
+      if (featured !== undefined && !isAdmin) return { error: "forbidden" };
+      if (category !== undefined && !isAuthor && !isAdmin) return { error: "forbidden" };
+      const nextCategory = category !== undefined ? String(category) : pack.category;
+      const nextFeatured = featured !== undefined ? (featured ? 1 : 0) : pack.featured;
+      db.prepare(`UPDATE packs SET category = ?, featured = ? WHERE id = ?`).run(nextCategory, nextFeatured, id);
+      return { id, category: nextCategory, featured: Boolean(nextFeatured) };
+    },
+
+    // Author-or-admin visibility flip (add-facet-content-management): the
+    // creator console's public/private toggle. Pack-level exposure stays a
+    // pack attribute (owner-scoped everywhere, openspec: pack-visibility);
+    // versions are untouched.
+    setVisibility({ id, actor, visibility }) {
+      const pack = packRow(id);
+      if (!pack) return { error: "not_found" };
+      if (pack.author_email !== actor.email && actor.admin !== true) return { error: "forbidden" };
+      const next = visibility === "private" ? "private" : "public";
+      db.prepare(`UPDATE packs SET visibility = ? WHERE id = ?`).run(next, id);
+      return { id, visibility: next };
+    },
+
+    // Version history for the creator console: every stored version's number
+    // and publish time (manifests stay retrievable via the per-version read).
+    versions(id, { actor }) {
+      const pack = packRow(id);
+      if (!pack) return { error: "not_found" };
+      if (pack.author_email !== actor.email && actor.admin !== true) return { error: "forbidden" };
+      return db.prepare(
+        `SELECT version, published_at AS publishedAt, author_email AS authorEmail FROM pack_versions WHERE pack_id = ? ORDER BY version DESC`,
+      ).all(id);
     },
 
     // Latest-version detail. `includeUnlisted` is the route's call: an
@@ -281,10 +342,18 @@ export function createPackRegistry({ file }) {
     // Paginated listing of live (not unlisted) packs, newest publish first.
     // `search` matches name/description substrings; `tag` matches a tag
     // exactly (stored as a JSON array, matched textually for v1 volumes).
-    list({ search = "", tag = "", page = 1, pageSize = 50, viewer = null } = {}) {
+    // `category` filters the curation column; `author` (the viewer's own
+    // email, enforced by the route) widens the unlisted clause so the creator
+    // console sees their unpublished packs too.
+    list({ search = "", tag = "", category = "", author = "", page = 1, pageSize = 50, viewer = null } = {}) {
       const size = Math.min(Math.max(1, Number(pageSize) || 50), 100);
       const pageNum = Math.max(1, Number(page) || 1);
-      const where = ["p.unlisted = 0"];
+      // The unlisted-widening is author-self only (or admin): the route
+      // coerces author to the viewer's email, but the registry defends the
+      // invariant on its own — a stranger's author filter still hides
+      // unlisted packs.
+      const widenUnlisted = Boolean(author) && (author === viewer?.email || viewer?.admin === true);
+      const where = [widenUnlisted ? "1 = 1" : "p.unlisted = 0"];
       const params = [];
       // Private packs: owner sees their own; nobody else's (admin listing goes
       // through the same clause — pass viewer with admin flag from the route).
@@ -302,6 +371,14 @@ export function createPackRegistry({ file }) {
       if (tag) {
         where.push(`v.tags LIKE ? ESCAPE '\\'`);
         params.push(`%"${tag.replace(/[\\%_"]/g, (c) => `\\${c}`)}"%`);
+      }
+      if (category) {
+        where.push("p.category = ?");
+        params.push(String(category));
+      }
+      if (author) {
+        where.push("p.author_email = ?");
+        params.push(String(author));
       }
       const whereSql = where.join(" AND ");
       const total = db.prepare(
@@ -705,8 +782,68 @@ export function registerPackRoutes(app, {
   app.get("/api/packs", (req, res) => {
     const user = authRead(req);
     if (!user) return rejectUnauthenticated(req, res);
-    const { search = "", tag = "", page, pageSize } = req.query;
-    res.json(registry.list({ search: String(search), tag: String(tag), page, pageSize, viewer: { email: user.email, admin: isAdmin(user) } }));
+    const { search = "", tag = "", category = "", author = "", page, pageSize } = req.query;
+    res.json(registry.list({
+      search: String(search),
+      tag: String(tag),
+      category: String(category),
+      // `author=me` is the creator console's own-packs listing; any other
+      // value is coerced to the viewer's email — you can only ever list
+      // your own authorship, and the route's identity is the only source.
+      author: author === "" ? "" : user.email,
+      page, pageSize,
+      viewer: { email: user.email, admin: isAdmin(user) },
+    }));
+  });
+
+  // Curation write (add-facet-content-management): featured is admin-only,
+  // category is author-or-admin. Presentation-level — never visibility,
+  // versions, or installability.
+  app.put("/api/packs/:id/curation", express.json({ limit: "4kb" }), (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    const { category, featured } = req.body ?? {};
+    if (category !== undefined && (typeof category !== "string" || !/^[a-z0-9-]{0,32}$/.test(category))) {
+      return res.status(400).json({ error: "category must be a slug of 0-32 chars [a-z0-9-]" });
+    }
+    if (featured !== undefined && typeof featured !== "boolean") {
+      return res.status(400).json({ error: "featured must be a boolean" });
+    }
+    const result = registry.setCuration({
+      id: req.params.id,
+      actor: { email: user.email, admin: isAdmin(user) },
+      category,
+      featured,
+    });
+    if (result.error === "not_found") return res.status(404).json({ error: "Pack not found" });
+    if (result.error === "forbidden") {
+      return res.status(403).json({ error: "Only the pack author may set the category; only admins set featured" });
+    }
+    res.json(result);
+  });
+
+  // Visibility flip (add-facet-content-management): author-or-admin.
+  app.put("/api/packs/:id/visibility", express.json({ limit: "1kb" }), (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    const visibility = req.body?.visibility;
+    if (visibility !== "public" && visibility !== "private") {
+      return res.status(400).json({ error: 'visibility must be "public" or "private"' });
+    }
+    const result = registry.setVisibility({ id: req.params.id, actor: { email: user.email, admin: isAdmin(user) }, visibility });
+    if (result.error === "not_found") return res.status(404).json({ error: "Pack not found" });
+    if (result.error === "forbidden") return res.status(403).json({ error: "The pack author or an admin is required" });
+    res.json(result);
+  });
+
+  // Version history (add-facet-content-management): author-or-admin.
+  app.get("/api/packs/:id/versions", (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    const result = registry.versions(req.params.id, { actor: { email: user.email, admin: isAdmin(user) } });
+    if (result.error === "not_found") return res.status(404).json({ error: "Pack not found" });
+    if (result.error === "forbidden") return res.status(403).json({ error: "The pack author or an admin is required" });
+    res.json({ versions: result });
   });
 
   // Latest-version detail. An unlisted pack stays visible to its author and

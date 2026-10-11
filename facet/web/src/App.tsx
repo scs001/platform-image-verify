@@ -12,23 +12,38 @@ import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/i18n/useLanguage";
 import { FACET_HELP_COMMAND } from "./cliFacts";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { CurateView } from "./CurateView";
 import { IntroView } from "./IntroView";
 import { McpCatalog } from "./McpCatalog";
+import { MineView } from "./MineView";
 import { PageFooter } from "./PageFooter";
 import { SiteMark } from "./SiteMark";
 
-type View = "intro" | "packs" | "mcp";
+// Conditional views (add-facet-content-management): #/mine needs a signed-in
+// viewer, #/curate needs an admin — an unauthorized deep link falls back to
+// the intro landing (the data plane rejects those calls anyway).
+type View = "intro" | "packs" | "mcp" | "mine" | "curate";
 
-const VIEW_HASH: Record<View, string> = { intro: "#/", packs: "#/packs", mcp: "#/mcp" };
+type WhoamiUser = { email: string; groups: string[]; creator?: boolean; admin?: boolean } | null;
 
-/** Hash → view; unknown or empty hashes fall back to the intro landing. */
-function viewFromHash(hash: string): View {
+const VIEW_HASH: Record<View, string> = {
+  intro: "#/",
+  packs: "#/packs",
+  mcp: "#/mcp",
+  mine: "#/mine",
+  curate: "#/curate",
+};
+
+/** Hash → view, gated by identity; unknown/empty/unauthorized fall back to intro. */
+function viewFromHash(hash: string, user: WhoamiUser): View {
   if (hash === "#/packs") return "packs";
   if (hash === "#/mcp") return "mcp";
+  if (hash === "#/mine") return user ? "mine" : "intro";
+  if (hash === "#/curate") return user?.admin ? "curate" : "intro";
   return "intro";
 }
 
-function Whoami({ onUser }: { onUser: (u: { email: string; groups: string[] } | null) => void }) {
+function Whoami({ onUser }: { onUser: (u: WhoamiUser) => void }) {
   useEffect(() => {
     fetch("/api/whoami")
       .then((r) => r.json())
@@ -61,14 +76,20 @@ function LocaleSwitcher() {
 
 export function App() {
   const { t } = useTranslation();
-  const [user, setUser] = useState<{ email: string; groups: string[] } | null>(null);
-  const [view, setView] = useState<View>(() => viewFromHash(window.location.hash));
+  const [user, setUser] = useState<WhoamiUser>(null);
+  const [view, setView] = useState<View>(() => viewFromHash(window.location.hash, null));
+
+  // Whoami resolves after first paint: re-derive the view once identity is in,
+  // so an authorized deep link to #/mine or #/curate lands after the probe.
+  useEffect(() => {
+    setView(viewFromHash(window.location.hash, user));
+  }, [user]);
 
   useEffect(() => {
-    const onHash = () => setView(viewFromHash(window.location.hash));
+    const onHash = () => setView(viewFromHash(window.location.hash, user));
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
-  }, []);
+  }, [user]);
 
   // Tabs write the hash (deep-linkable, reload-stable); the hashchange listener
   // above is the single place that moves the view.
@@ -81,6 +102,8 @@ export function App() {
     ["intro", t("facetShell.tabs.intro")],
     ["packs", t("facetShell.tabs.packs")],
     ["mcp", t("facetShell.tabs.mcp")],
+    ...(user ? ([["mine", t("facetShell.tabs.mine")]] as [View, string][]) : []),
+    ...(user?.admin ? ([["curate", t("facetShell.tabs.curate")]] as [View, string][]) : []),
   ];
 
   return (
@@ -141,6 +164,8 @@ export function App() {
             </div>
           )}
           {view === "mcp" && <McpCatalog />}
+          {view === "mine" && <MineView />}
+          {view === "curate" && <CurateView />}
         </ErrorBoundary>
         <PageFooter />
       </main>

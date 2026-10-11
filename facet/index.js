@@ -62,6 +62,8 @@ function rejectUnauthenticated(_req, res) {
 }
 
 const registry = createPackRegistry({ file: path.join(DATA_ROOT, "packs.db") });
+const creatorGroups = splitGroups(process.env.PACK_CREATOR_GROUPS, "creators");
+const adminGroups = splitGroups(process.env.ADMIN_GROUPS, "");
 
 const app = express();
 app.set("trust proxy", 1);
@@ -70,10 +72,19 @@ app.use(express.json({ limit: "1mb" }));
 
 app.get("/api/health", (_req, res) => res.json({ ok: true, service: "facet" }));
 
-// Identity probe for the SPA header.
+// Identity probe for the SPA header. `creator`/`admin` are computed HERE —
+// the group-name envs (PACK_CREATOR_GROUPS / ADMIN_GROUPS) are server
+// config the client must not duplicate (add-facet-content-management).
 app.get("/api/whoami", (req, res) => {
   const user = resolveUser(req);
-  res.json(user ? { email: user.email, groups: user.groups ?? [] } : { email: null, groups: [] });
+  if (!user) return res.json({ email: null, groups: [], creator: false, admin: false });
+  const groups = user.groups ?? [];
+  res.json({
+    email: user.email,
+    groups,
+    creator: creatorGroups.some((g) => groups.includes(g)),
+    admin: adminGroups.some((g) => groups.includes(g)),
+  });
 });
 
 // Cell-side install surface: subscribing records at the market (works here),
@@ -94,9 +105,34 @@ registerPackRoutes(app, {
   registry,
   resolveUser,
   rejectUnauthenticated,
-  creatorGroups: splitGroups(process.env.PACK_CREATOR_GROUPS, "creators"),
-  adminGroups: splitGroups(process.env.ADMIN_GROUPS, ""),
+  creatorGroups,
+  adminGroups,
   anonymousRead: true,
+});
+
+// Pack usage aggregate (add-facet-content-management): read-only proxy to the
+// platform gateway's ops aggregate over an in-cluster service credential —
+// the curation board reads supply-side numbers (weekly actives, turns) next
+// to the packs they belong to. Admin-session-gated here, bearer-gated there.
+// An unconfigured or unreachable source degrades honestly (503); curation
+// itself never depends on it, and this surface never writes.
+app.get("/api/ops/pack-usage", async (req, res) => {
+  const user = resolveUser(req);
+  if (!user || !adminGroups.some((g) => (user.groups ?? []).includes(g))) {
+    return res.status(401).json({ error: "admin session required" });
+  }
+  const base = (process.env.PLATFORM_INTERNAL_URL || "").replace(/\/+$/, "");
+  const token = process.env.PACK_USAGE_TOKEN?.trim() || "";
+  if (!base || !token) return res.status(503).json({ error: "usage source not configured" });
+  const days = Math.min(Math.max(Number(req.query.days) || 7, 1), 365);
+  try {
+    const r = await fetch(`${base}/api/ops/pack-usage?days=${days}`, {
+      headers: { authorization: `Bearer ${token}` },
+    });
+    res.status(r.status).type("json").send(await r.text());
+  } catch (err) {
+    res.status(503).json({ error: `usage source unreachable (${err?.message || err})` });
+  }
 });
 
 // Claude plugin-marketplace face (add-ecosystem-bridge 2.5): the same public

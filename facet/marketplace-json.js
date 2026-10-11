@@ -51,6 +51,11 @@ export function registerMarketplaceJson(app, { registry, resolveUser }) {
       description: p.description || p.name,
       version: String(p.version),
       author: { name: "FindData · 谦面" },
+      // Curation metadata (add-facet-content-management): consumers may
+      // group by vertical or promote featured entries; plain Claude Code
+      // ignores unknown keys harmlessly.
+      category: p.category || "",
+      featured: Boolean(p.featured),
     }));
     res.set("Cache-Control", CACHE);
     res.json({

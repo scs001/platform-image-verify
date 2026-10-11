@@ -58,6 +58,14 @@ test("marketplace.json：公开在列、unlisted/private 缺席、缓存头 ≤1
     assert.equal(ids.includes(a.id) && ids.includes(c.id) ? ids.length : 0, 2); // 恰两个
     const entry = doc.plugins.find((p) => p.name === a.id);
     assert.equal(entry.source, `./packs/${a.id}/v1`);
+    // Curation metadata (add-facet-content-management) rides the plugin face.
+    assert.equal(entry.category, "");
+    assert.equal(entry.featured, false);
+    registry.setCuration({ id: a.id, actor: { email: "op@finddata.cloud", admin: true }, category: "legal", featured: true });
+    const doc2 = await (await fetch(`${base}/api/marketplace/marketplace.json`)).json();
+    const e2 = doc2.plugins.find((p) => p.name === a.id);
+    assert.equal(e2.category, "legal");
+    assert.equal(e2.featured, true);
   } finally { await cleanup(); }
 });
 

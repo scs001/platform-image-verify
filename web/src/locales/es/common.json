@@ -1029,7 +1029,9 @@
     "tabs": {
       "intro": "Introducción",
       "packs": "Packs",
-      "mcp": "Servicios MCP"
+      "mcp": "Servicios MCP",
+      "mine": "Mis packs",
+      "curate": "Curaduría"
     },
     "langLabel": "Idioma",
     "packsFootnote": "Navegación anónima; inicia sesión para publicar y suscribirte. Uso de la CLI:"
@@ -1097,7 +1099,9 @@
     "market": {
       "searchPlaceholder": "Buscar paquetes…",
       "search": "Buscar",
-      "empty": "Aún no hay paquetes en el mercado."
+      "empty": "Aún no hay paquetes en el mercado.",
+      "allCategories": "Todas",
+      "featured": "Destacados"
     },
     "detail": {
       "notFound": "Paquete no encontrado o retirado",

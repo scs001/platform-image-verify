@@ -40,7 +40,14 @@ const service = spawn("node", ["facet/index.js"], {
     FACET_DATA_ROOT: dataRoot,
     FACET_WEB_DIST: path.join(webDir, "dist"),
     // Deliberately no Logto/registry env: anonymous face + empty MCP catalog
-    // are both supported degradations of the real service.
+    // are both supported degradations of the real service. The internal
+    // token arms the proxy identity channel (add-facet-content-management
+    // e2e drives the data plane with real forwarded identities); groups line
+    // up so creator/admin authorization is exercisable. No usage-source env:
+    // the curation board's honest degradation is part of what the spec sees.
+    FACET_INTERNAL_TOKEN: process.env.E2E_FACET_TOKEN || "e2e-facet-token",
+    PACK_CREATOR_GROUPS: "creators,admin",
+    ADMIN_GROUPS: "admin",
   },
 });
 service.on("exit", (code) => {

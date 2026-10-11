@@ -1029,7 +1029,9 @@
     "tabs": {
       "intro": "Présentation",
       "packs": "Packs",
-      "mcp": "Services MCP"
+      "mcp": "Services MCP",
+      "mine": "Mes packs",
+      "curate": "Curation"
     },
     "langLabel": "Langue",
     "packsFootnote": "Navigation anonyme ; connectez-vous pour publier et vous abonner. Usage de la CLI :"
@@ -1097,7 +1099,9 @@
     "market": {
       "searchPlaceholder": "Rechercher des packs…",
       "search": "Rechercher",
-      "empty": "Aucun pack sur le marché pour l'instant."
+      "empty": "Aucun pack sur le marché pour l'instant.",
+      "allCategories": "Toutes",
+      "featured": "En vedette"
     },
     "detail": {
       "notFound": "Pack introuvable ou retiré",

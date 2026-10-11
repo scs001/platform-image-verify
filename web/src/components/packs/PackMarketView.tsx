@@ -27,26 +27,43 @@ export function PackMarketView({
   const { t } = useTranslation();
   const [packs, setPacks] = useState<PackSummary[]>([]);
   const [search, setSearch] = useState("");
+  // Curation (add-facet-content-management): a category filter chips row
+  // (from the distinct live categories) and a featured rail. Both render
+  // only when curation data exists — an uncatalogued market looks exactly
+  // as before.
+  const [category, setCategory] = useState("");
+  const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
 
-  const refresh = useCallback(async (q: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const r = await api.listPacks(q ? { search: q } : {});
-      setPacks(r.packs);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const refresh = useCallback(
+    async (q: string, cat = category) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const r = await api.listPacks({ ...(q ? { search: q } : {}), ...(cat ? { category: cat } : {}) });
+        setPacks(r.packs);
+      } catch (err) {
+        setError((err as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [category],
+  );
 
   useEffect(() => {
     void refresh("");
   }, [refresh]);
+
+  // Chip set from the live catalog (v1 volumes: one page is the catalog).
+  useEffect(() => {
+    api
+      .listPacks({ pageSize: 100 })
+      .then((r) => setCategories([...new Set(r.packs.map((p) => p.category).filter((c): c is string => Boolean(c)))].sort()))
+      .catch(() => {});
+  }, []);
 
   const [report, setReport] = useState<PackReport | null>(null);
   const [reportPack, setReportPack] = useState<string>("");
@@ -67,6 +84,58 @@ export function PackMarketView({
         </Button>
       </div>
 
+      {categories.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-3" data-testid="pack-category-chips">
+          <button
+            onClick={() => {
+              setCategory("");
+              void refresh(search, "");
+            }}
+            className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+              category === "" ? "border-primary text-primary" : "border-border text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t("packs.market.allCategories")}
+          </button>
+          {categories.map((c) => (
+            <button
+              key={c}
+              onClick={() => {
+                setCategory(c);
+                void refresh(search, c);
+              }}
+              className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                category === c ? "border-primary text-primary" : "border-border text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      )}
+      {!category && !search &&
+        packs.filter((p) => p.featured).length > 0 && (
+          <div className="mb-4" data-testid="pack-featured-rail">
+            <p className="text-xs font-medium text-muted-foreground mb-1.5">{t("packs.market.featured")}</p>
+            <div className="grid gap-3">
+              {packs
+                .filter((p) => p.featured)
+                .map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => setDetailId(p.id)}
+                    className="text-left border border-primary/40 rounded-lg p-4 hover:border-primary/70 transition-colors bg-primary/5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-foreground">{p.name}</span>
+                      <span className="text-xs text-muted-foreground">v{p.version}</span>
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{p.description}</p>
+                  </button>
+                ))}
+            </div>
+          </div>
+        )}
       {loading && <p className="text-sm text-muted-foreground">{t("common.loading")}</p>}
       {error && (
         <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md mb-4">{error}</div>

@@ -1029,7 +1029,9 @@
     "tabs": {
       "intro": "介绍",
       "packs": "功能集",
-      "mcp": "MCP 服务"
+      "mcp": "MCP 服务",
+      "mine": "我的功能集",
+      "curate": "策展"
     },
     "langLabel": "语言",
     "packsFootnote": "匿名可浏览，登录后可发布订阅；CLI 安装与用法明细见"
@@ -1097,7 +1099,9 @@
     "market": {
       "searchPlaceholder": "搜索功能集名称…",
       "search": "搜索",
-      "empty": "市场暂无功能集。"
+      "empty": "市场暂无功能集。",
+      "allCategories": "全部垂类",
+      "featured": "精选"
     },
     "detail": {
       "notFound": "功能集不存在或已下架",

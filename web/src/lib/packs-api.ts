@@ -20,6 +20,9 @@ export interface PackSummary {
   publishedAt: number;
   subscriberCount?: number;
   visibility?: "public" | "private";
+  unlisted?: boolean;
+  category?: string;
+  featured?: boolean;
 }
 
 export interface PackManifestSkill {
@@ -139,11 +142,16 @@ async function json(res: Response) {
 
 // ── Gateway (marketplace) ────────────────────────────────────────────────────
 
-export function listPacks(params: { search?: string; tag?: string; page?: number } = {}) {
+export function listPacks(
+  params: { search?: string; tag?: string; category?: string; author?: "me"; page?: number; pageSize?: number } = {},
+) {
   const q = new URLSearchParams();
   if (params.search) q.set("search", params.search);
   if (params.tag) q.set("tag", params.tag);
+  if (params.category) q.set("category", params.category);
+  if (params.author) q.set("author", params.author);
   if (params.page) q.set("page", String(params.page));
+  if (params.pageSize) q.set("pageSize", String(params.pageSize));
   return fetch(`/api/packs?${q}`).then(json) as Promise<{
     total: number;
     page: number;
@@ -237,6 +245,42 @@ export function publishPack(body: { packId?: string | null; manifest: PackManife
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   }).then(json) as Promise<{ id: string; version: number }>;
+}
+
+// ── Creator console + curation (add-facet-content-management) ────────────────
+
+export function unpublishPack(id: string) {
+  return fetch(`/api/packs/${encodeURIComponent(id)}/unpublish`, { method: "POST" }).then(json);
+}
+
+export function setPackVisibility(id: string, visibility: "public" | "private") {
+  return fetch(`/api/packs/${encodeURIComponent(id)}/visibility`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ visibility }),
+  }).then(json);
+}
+
+export function setPackCuration(id: string, body: { category?: string; featured?: boolean }) {
+  return fetch(`/api/packs/${encodeURIComponent(id)}/curation`, {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  }).then(json);
+}
+
+export function listPackVersions(id: string) {
+  return fetch(`/api/packs/${encodeURIComponent(id)}/versions`).then(json) as Promise<{
+    versions: { version: number; publishedAt: number; authorEmail: string }[];
+  }>;
+}
+
+export function getPackUsageBoard(days = 7) {
+  return fetch(`/api/ops/pack-usage?days=${days}`).then(json) as Promise<{
+    windowDays: number;
+    cellsSeen: number;
+    rows: { packId: string | null; turns: number; activeUsers: number; lastUsedAt: number }[];
+  }>;
 }
 
 export function subscribePack(id: string) {

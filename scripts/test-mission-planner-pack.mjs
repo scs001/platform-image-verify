@@ -79,3 +79,17 @@ test("2.1 the serving contract is a2a with rhythm and a turn budget", () => {
   assert.equal(typeof agent.serving.budget.turnMinutes, "number");
   assert.ok(agent.serving.budget.turnMinutes >= 15);
 });
+
+
+test("2.1 v2 disciplines: wake-window check, bounded investigation, terminal-before-report", () => {
+  const proto = skill("mission-protocol");
+  const exec = skill("mission-execution");
+  // Window check fires on EVERY wake, before any action.
+  assert.ok(/GET 之后、做任何事之前先核/.test(all) || /醒来先 GET → 核窗/.test(proto), "wake-order window check");
+  assert.ok(/窗口已尽/.test(proto), "expired-window action row");
+  // Bounded investigation (context hygiene).
+  assert.ok(/至多 8 次|调查有界/.test(all), "bounded investigation");
+  assert.ok(/三行状态小结/.test(all), "wake summary");
+  // Every step reaches a terminal state before the report.
+  assert.ok(/report 之前逐步核过|绝不带着 running 状态交付/.test(exec), "terminal-before-report");
+});

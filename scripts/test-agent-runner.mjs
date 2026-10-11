@@ -1418,3 +1418,25 @@ test("reap: the encoded session name sets the per-session TTL; unencoded falls b
   assert.ok(!existsSync(flatLegacy));
   await manager.stopAll();
 });
+
+// ── add-mission-runner-attribution: turn events carry session + tokens ──────
+
+test("attribution: turn_started/turn_ended carry session; ok turns carry tokens", async () => {
+  const collected = [];
+  const base = await directManager({});
+  const manager = base.manager;
+  // Wire the events collector post-construction (the hook is a public field).
+  manager.events = (ev) => collected.push(ev);
+  try {
+    await manager.reconcile();
+    await manager.turn(ENTRY, "srv-mission-msn_x1", "hi");
+    const started = collected.find((e) => e.kind === "turn_started");
+    const ended = collected.find((e) => e.kind === "turn_ended" && e.payload.outcome === "ok");
+    assert.equal(started.payload.session, "srv-mission-msn_x1");
+    assert.equal(ended.payload.session, "srv-mission-msn_x1");
+    // The fake harness reports no usage — the spec says absent, not blank.
+    assert.ok(!("tokens" in ended.payload));
+  } finally {
+    await manager.stopAll?.() ?? manager.stop?.();
+  }
+});

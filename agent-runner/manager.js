@@ -499,7 +499,10 @@ export class ChildManager {
     }
     const release = delegationDepth >= 1 ? await this.#acquireDelegationSlot(key) : null;
     const startedAt = this.now();
-    this.#fleetEmit("turn_started", entry, { turn_kind: kind });
+    // Session attribution (add-mission-runner-attribution D1): the session
+    // name rides both turn events so the observer can attribute turns to
+    // their origin (mission dispatches arrive as srv-mission-<id>).
+    this.#fleetEmit("turn_started", entry, { turn_kind: kind, session: sessionId });
     try {
       const child = await this.acquire(entry);
       try {
@@ -512,8 +515,10 @@ export class ChildManager {
         });
         this.#fleetEmit("turn_ended", entry, {
           turn_kind: kind,
+          session: sessionId,
           duration_ms: this.now() - startedAt,
           outcome: "ok",
+          ...(out?.usage ? { tokens: tokensOf(out.usage) } : {}),
         });
         return out;
       } catch (e) {
@@ -531,6 +536,7 @@ export class ChildManager {
         });
         this.#fleetEmit("turn_ended", entry, {
           turn_kind: kind,
+          session: sessionId,
           duration_ms: this.now() - startedAt,
           outcome: "error",
           budget_killed: budgetKilled || undefined,

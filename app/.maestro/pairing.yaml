@@ -12,9 +12,13 @@ appId: com.finddata.platform
 - tapOn:
     id: 'server-input'
 - inputText: ${OUTPUT_INSTANCE}
+# The soft keyboard covers the next field (and the bind button) — drop it
+# between inputs (38154792952: tap code-input FAILED behind the keyboard).
+- hideKeyboard
 - tapOn:
     id: 'code-input'
 - inputText: ${PAIRING_CODE}
+- hideKeyboard
 - tapOn:
     text: '.*绑定|.*Pair'
 - extendedWaitUntil:

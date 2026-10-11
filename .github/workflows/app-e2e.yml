@@ -162,9 +162,14 @@ jobs:
       - name: Install APK, boot mock, run flows
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
+          # API 30, not 34: the Android-11 system is far lighter — on the
+          # software-rendered CI runner the 34 image bogged the whole emulator
+          # into a system_server ANR before the app's first frame (run
+          # 38149987574's screenshot shows the "Process system isn't
+          # responding" dialog over the app).
+          api-level: 30
           arch: x86_64
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -memory 3072 -cores 2
           # NOTE: this action runs each line as its own `sh -c` — no line
           # continuations, no exported state across lines. Every line below
           # is therefore self-contained (its own cd / env / absolute paths).

@@ -19,6 +19,6 @@
 
 ## 4. 全链验证与部署
 
-- [ ] 4.1 本地全量回归：agent-runner 43+N、wanxing-facade/bookkeeping、既有 gateway 相关单测全绿；lint 过。
-- [ ] 4.2 部署：GHA→TCR 标准线出镜像；fd-prod 滚動（門面侧生效）；cheap-1 runner 容器随新镜像重建（uid 1000 形状不回退）。验证：`docker logs` 无新告警 + facade 探针（同键异体 409 / 错误答可重试）双绿。
-- [ ] 4.3 生产冒烟（真回合）：柏讯线任一 agent 同键同体重放返回旧答；人为触发一次错误后同键重试真执行；runner 冷启动正常。回执留档。
+- [x] 4.1 本地全量回归：agent-runner 43+N、wanxing-facade/bookkeeping、既有 gateway 相关单测全绿；lint 过。
+- [x] 4.2 部署：GHA→TCR 标准线出镜像；fd-prod 滚動（門面侧生效）；cheap-1 runner 容器随新镜像重建（uid 1000 形状不回退）。验证：`docker logs` 无新告警 + facade 探针（同键异体 409 / 错误答可重试）双绿。
+- [x] 4.3 生产冒烟（真回合）：柏讯线任一 agent 同键同体重放返回旧答；人为触发一次错误后同键重试真执行；runner 冷启动正常。回执留档。

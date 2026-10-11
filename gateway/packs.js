@@ -29,6 +29,7 @@ import { PACK_LIMITS, validatePackManifest as validateManifest, validateRhythm, 
 import { declaredToolsByServer, toolGateErrors, probeMcpToolNames } from "../lib/publish-tool-gate.js";
 import { registryServerIndex } from "../registry-bridge.js";
 import { deployToRegistry, setAgentPaused, modelChoiceError, resolveServiceConfig, NOTIFY_CHANNEL_RE, SECRET_NAME_RE, SECRET_LIMITS, maskSecretRef } from "../lib/agent-serving.js";
+import { createFleetScheduler } from "./fleet-scheduler.js";
 import { createSub2apiClient } from "../lib/sub2api-admin.js";
 
 // Re-exported for the gateway's own consumers (tests import from here).
@@ -577,6 +578,64 @@ export function registerPackRoutes(app, {
     };
   };
   const publishAllowed = createPublishRateLimiter({ windowMs: rateWindowMs, max: rateMax });
+
+  // ── Fleet scheduler (add-fleet-scheduler) ─────────────────────────────────
+  // Env-gated control loop: failover for stale runners + the placement hint
+  // the deploy route's auto-placement reads. Lives here (the facet's packs
+  // service) because it is already the fleet's single writer (deploy + fleet
+  // table). The board is the fleet observer's runner heartbeats.
+  let scheduler = null;
+  if (process.env.FLEET_SCHEDULER_ENABLED === "1") {
+    const cfg0 = deployConfig();
+    const doRegFetch = async (p, init = {}) => {
+      const base = String(cfg0.registryUrl || "").replace(/\/+$/, "");
+      const r = await fetch(base + p, {
+        ...init,
+        headers: { Accept: "application/json", ...(cfg0.token ? { Authorization: `Bearer ${cfg0.token}` } : {}), ...(init.headers ?? {}) },
+      });
+      return r;
+    };
+    let boardCache = { at: 0, board: null };
+    const boardFetch = async () => {
+      const url = String(process.env.FLEET_BOARD_URL || "").replace(/\/+$/, "");
+      const token = process.env.FLEET_BOARD_TOKEN || "";
+      if (!url) throw new Error("FLEET_BOARD_URL not configured");
+      const r = await fetch(`${url}/api/fleet/v1/board`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!r.ok) throw new Error(`board HTTP ${r.status}`);
+      const board = await r.json();
+      boardCache = { at: Date.now(), board };
+      return board;
+    };
+    scheduler = createFleetScheduler({
+      config: {
+        staleMs: Number(process.env.FLEET_SCHEDULER_STALE_MS) || 90_000,
+        intervalMs: Number(process.env.FLEET_SCHEDULER_INTERVAL_MS) || 30_000,
+      },
+      registry: {
+        listAgents: async () => {
+          const r = await doRegFetch("/api/agents?limit=500");
+          if (!r.ok) throw new Error(`registry list HTTP ${r.status}`);
+          return r.json();
+        },
+        putAgent: async (path, body) => {
+          const r = await doRegFetch(`/api/agents${path}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+          if (!r.ok) throw new Error(`registry put ${path} HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 120)}`);
+          return r.json().catch(() => ({}));
+        },
+      },
+      boardFetch,
+      fleetRows: () => registry.runnerList(),
+      log: { log: (m) => console.log(`[fleet] ${m}`), warn: (m) => console.warn(`[fleet] ${m}`) },
+    });
+    // Cached board for the deploy route's auto-placement (≤10s stale beats a
+    // per-deploy fetch; failover never reads this — it always takes a pass).
+    scheduler.boardNow = async () => {
+      if (boardCache.board && Date.now() - boardCache.at < 10_000) return boardCache.board;
+      return boardFetch();
+    };
+    scheduler.start();
+    console.log("[fleet] scheduler armed (failover + auto-placement)");
+  }
   const isCreator = (user) => creatorGroups.some((g) => (user.groups || []).includes(g));
   // The platform emergency stop's gate (add-agent-residency D5): admin groups
   // only — the deployer-facing pause/resume ride the author-or-creator gate.
@@ -730,6 +789,9 @@ export function registerPackRoutes(app, {
     // geometry, descriptor tagged with its id); absent = the seeded default
     // row's geometry with an UNTAGGED descriptor — the legacy single-runner
     // contract, byte for byte. An unknown id is a 400 naming the fleet.
+    // Multi-runner fleets AUTO-PLACE (add-fleet-scheduler): the untagged
+    // default becomes the least-loaded healthy runner, stamped explicitly;
+    // health blindness (single row, board unreachable) degrades to legacy.
     let runnerPlacement = {};
     const runnerIdBody = req.body?.runnerId;
     if (runnerIdBody !== undefined && (typeof runnerIdBody !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(runnerIdBody))) {
@@ -742,7 +804,17 @@ export function registerPackRoutes(app, {
         return res.status(400).json({ error: `unknown runnerId '${runnerIdBody}' — the fleet holds: ${fleetRows.map((r) => r.id).join(", ") || "(none)"}` });
       }
       runnerPlacement = { runnerId: row.id, runnerBaseUrl: row.baseUrl, runnerPortBase: row.portBase, runnerPortSpan: row.portSpan };
-    } else if (fleetRows.length > 0) {
+    } else if (fleetRows.length > 1 && scheduler) {
+      try {
+        const board = await scheduler.boardNow();
+        const target = scheduler.pickPlacement(board);
+        if (target) {
+          const row = fleetRows.find((r) => r.id === target.id);
+          if (row) runnerPlacement = { runnerId: row.id, runnerBaseUrl: row.baseUrl, runnerPortBase: row.portBase, runnerPortSpan: row.portSpan };
+        }
+      } catch { /* health blindness → legacy default below */ }
+    }
+    if (runnerIdBody == null && Object.keys(runnerPlacement).length === 0 && fleetRows.length > 0) {
       const row = fleetRows[0];
       runnerPlacement = { runnerBaseUrl: row.baseUrl, runnerPortBase: row.portBase, runnerPortSpan: row.portSpan };
     }

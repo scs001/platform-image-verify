@@ -1563,3 +1563,25 @@ test("spawn: a failed cold-start leaves no half-built child behind", async () =>
     await manager.stopAll();
   }
 });
+
+// ── add-port-collision-avoidance: the runner honors the stamped override ────
+
+test("ports: health and bind resolve a valid port_override, junk falls back to the hash", async () => {
+  const { manager } = await directManager({ config: { budgetMb: 3072, agentCostMb: 96 } });
+  try {
+    await manager.reconcile();
+    const { resolveAgentPort, agentPortFor } = await import("../lib/agent-serving.js");
+    const base = manager.config.portBase, span = manager.config.portSpan;
+    const entry = manager.entries.get(agentKeyFor(ENTRY));
+    const hashPort = agentPortFor(ENTRY.path, { base, span });
+    const override = base + ((hashPort - base + 7) % span); // in-span, off the hash slot
+    entry.metadata.port_override = override;
+    assert.equal(resolveAgentPort(entry, { base, span }), override, "shared definition takes the override");
+    const h = manager.health().agents.find((a) => a.key === agentKeyFor(ENTRY));
+    assert.equal(h.port, override, "health reports the overridden port");
+    entry.metadata.port_override = 99999; // out of span → hash
+    assert.equal(manager.health().agents.find((a) => a.key === agentKeyFor(ENTRY)).port, hashPort, "junk override falls back to the hash");
+  } finally {
+    await manager.stopAll();
+  }
+});

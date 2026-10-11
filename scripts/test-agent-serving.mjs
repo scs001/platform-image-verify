@@ -223,7 +223,8 @@ function stubRegistry() {
   const calls = { skills: [], agents: [] };
   const skills = new Map();
   const agents = new Map();
-  return {
+  const stub = {
+    agents, // seeding seam for same-slice occupancy tests
     calls,
     async fetch(rawUrl, init = {}) {
       const url = String(rawUrl).split("?")[0];
@@ -250,6 +251,9 @@ function stubRegistry() {
       if (m && init.method === "POST") {
         return { ok: true, status: 200, json: async () => ({ message: "Agent enabled successfully", path: m[1], is_enabled: true }) };
       }
+      if (url === "/api/agents" && !init.method) {
+        return { ok: true, status: 200, json: async () => ({ agents: Array.from(agents.values()) }) };
+      }
       m = url.match(/^\/api\/agents\/(.+)$/);
       if (m && !init.method) {
         if (agents.has(m[1])) return { ok: true, status: 200, json: async () => agents.get(m[1]) };
@@ -268,6 +272,7 @@ function stubRegistry() {
       return { ok: false, status: 404, json: async () => ({ detail: `no stub route for ${init.method} ${url}` }) };
     },
   };
+  return stub;
 }
 
 const PACK = {
@@ -1211,4 +1216,69 @@ test("sharding: a default deploy stays byte-identical — untagged, default span
   assert.equal("runner_id" in agent.metadata, false, "no runnerId passed = untagged descriptor");
   const { agentPortFor } = servingLib;
   assert.equal(agent.url, `http://runner.tailnet:${agentPortFor("/packs/pk-abc/pack-fingpt")}`, "default base/span");
+});
+
+// ── add-port-collision-avoidance ─────────────────────────────────────────────
+
+test("ports: resolveAgentPort honors a valid override and falls back on junk", async () => {
+  const { resolveAgentPort, agentPortFor } = servingLib;
+  const path = "/packs/pk-abc/pack-fingpt";
+  assert.equal(resolveAgentPort({ path, metadata: { port_override: 8852 } }, { base: 8851, span: 32 }), 8852, "in-span override wins");
+  assert.equal(resolveAgentPort({ path, metadata: { port_override: 8851 + 32 } }, { base: 8851, span: 32 }), agentPortFor(path, { base: 8851, span: 32 }), "out-of-span falls back to the hash");
+  assert.equal(resolveAgentPort({ path, metadata: { port_override: "junk" } }, { base: 8851, span: 32 }), agentPortFor(path, { base: 8851, span: 32 }), "junk falls back");
+  assert.equal(resolveAgentPort({ path, metadata: {} }, { base: 8851, span: 32 }), agentPortFor(path, { base: 8851, span: 32 }), "absent = hash");
+});
+
+test("ports: a colliding deploy moves to the next free slot on BOTH ends", async () => {
+  const stub = stubRegistry();
+  const { agentPortFor } = servingLib;
+  const hashPort = agentPortFor("/packs/pk-abc/pack-fingpt");
+  // A squatter pinned exactly on the hash slot of the same (untagged) slice.
+  stub.agents.set("/packs/pk-squatter/agent-x", {
+    path: "/packs/pk-squatter/agent-x",
+    metadata: { packId: "pk-squatter", port_override: hashPort },
+  });
+  await servingLib.deployToRegistry({ ...PACK, fetchImpl: stub.fetch });
+  const agent = stub.calls.agents.at(-1).body;
+  assert.equal(agent.metadata.port_override > hashPort || agent.metadata.port_override < hashPort, true, "override displaces off the squatted slot");
+  assert.equal(agent.url, `http://runner.tailnet:${agent.metadata.port_override}`, "URL serves from exactly the stamped port");
+  assert.notEqual(agent.metadata.port_override, hashPort);
+});
+
+test("ports: a redeploy keeps its own override and self-slots never block", async () => {
+  const stub = stubRegistry();
+  const { agentPortFor } = servingLib;
+  const hashPort = agentPortFor("/packs/pk-abc/pack-fingpt");
+  stub.agents.set("/packs/pk-abc/pack-fingpt", {
+    path: "/packs/pk-abc/pack-fingpt",
+    metadata: { packId: "pk-abc", port_override: hashPort + 5 },
+  });
+  await servingLib.deployToRegistry({ ...PACK, fetchImpl: stub.fetch });
+  const agent = stub.calls.agents.at(-1).body;
+  assert.equal(agent.metadata.port_override, hashPort + 5, "existing override stays put");
+  assert.equal(agent.url, `http://runner.tailnet:${hashPort + 5}`);
+});
+
+test("ports: a full span fails the deploy loudly", async () => {
+  const stub = stubRegistry();
+  const { agentPortFor } = servingLib;
+  const hashPort = agentPortFor("/packs/pk-abc/pack-fingpt");
+  for (let i = 0; i < 32; i += 1) {
+    const p = 8791 + i;
+    if (p === hashPort) continue; // leave the hash slot free but block all others
+    stub.agents.set(`/packs/pk-fill-${i}/a`, { path: `/packs/pk-fill-${i}/a`, metadata: { packId: "pk-fill", port_override: p } });
+  }
+  // hash slot free → no error; now block it too and expect the 400
+  stub.agents.set("/packs/pk-block/a", { path: "/packs/pk-block/a", metadata: { packId: "pk-block", port_override: hashPort } });
+  await assert.rejects(
+    () => servingLib.deployToRegistry({ ...PACK, fetchImpl: stub.fetch }),
+    (e) => /span exhausted/.test(e.message) && e.status === 400,
+  );
+});
+
+test("ports: a clean deploy still adds no port field (byte-compat)", async () => {
+  const stub = stubRegistry();
+  await servingLib.deployToRegistry({ ...PACK, fetchImpl: stub.fetch });
+  const agent = stub.calls.agents.at(-1).body;
+  assert.equal("port_override" in agent.metadata, false);
 });

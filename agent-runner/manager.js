@@ -56,7 +56,7 @@ function tokensOf(usage) {
 import { agentKeyFor, materializeAgentHome, mcpEntry, applyBillingKey, applyDeploymentSecrets, workspaceChildEnv } from "./compose.js";
 import { scrubbedChildEnv } from "./child.js";
 import { createNotifier } from "./notify.js";
-import { maskSecretRef } from "../lib/agent-serving.js";
+import { maskSecretRef, resolveAgentPort } from "../lib/agent-serving.js";
 import { createAgentApp, agentPortFor } from "./a2a.js";
 
 // Per-session reap window (add-caller-preferences): minimal copy of the
@@ -126,7 +126,7 @@ export class ChildManager {
       agents.push({
         key,
         path: entry?.path ?? null,
-        port: agentPortFor(entry.path, { base: this.config.portBase ?? 8791, span: this.config.portSpan ?? 32 }),
+        port: resolveAgentPort(entry, { base: this.config.portBase ?? 8791, span: this.config.portSpan ?? 32 }),
         // Five states (spec: agent-runner health): paused > draining >
         // starting > serving (a turn in flight) > resident (warm and idle);
         // no live process = warm (never touched, or demoted by budget/pause).
@@ -158,8 +158,10 @@ export class ChildManager {
   #ensureListener(key, entry) {
     if (this.#listeners.has(key)) return;
     // Port derives from the REGISTRY path — the same input the deploy side
-    // hashes when it registers the URL (lib/agent-serving agentPortFor).
-    const port = agentPortFor(entry.path, { base: this.config.portBase ?? 8791, span: this.config.portSpan ?? 32 });
+    // hashes — with a valid descriptor port_override (collision avoidance)
+    // winning. One shared definition (lib/agent-serving resolveAgentPort) so
+    // the registered URL and this bind can never disagree.
+    const port = resolveAgentPort(entry, { base: this.config.portBase ?? 8791, span: this.config.portSpan ?? 32 });
     const server = http.createServer(
       createAgentApp({
         entry,

@@ -323,11 +323,18 @@ export function createA2aFace({
           return;
         }
 
-        // message/send, with replay semantics on the idempotency key.
+        // message/send, with replay semantics on the idempotency key. The
+        // fingerprint binds the key to its request body (fix-agent-serving-
+        // stability D2): method + params only — the JSON-RPC `id` is transport
+        // (a network retry regenerates it) and carries no request identity.
+        const requestHash = idemKey
+          ? sha256(JSON.stringify({ method, params: { message: { role: "user", parts: [{ kind: "text", text }] }, context_id: contextId } }))
+          : null;
         const out = await core.idempotentSend({
           callerId: caller.userId,
           slug,
           idemKey,
+          requestHash,
           exec: async () => {
             const upstream = await upstreamFetch(config.agentUrlFor(state.agentPath), {
               method: "POST",
@@ -347,6 +354,13 @@ export function createA2aFace({
         else exitReadonly();
         res.status(200).json(out.response);
       } catch (e) {
+        // Key reuse is an admission refusal, not a turn outcome (design D2):
+        // HTTP 409 like TURN_IN_FLIGHT, no usage row, slot simply released.
+        if (e?.code === "IDEMPOTENCY_KEY_REUSE") {
+          exitReadonly();
+          note("refused", slug, { stage: "idempotency", code: "IDEMPOTENCY_KEY_REUSE", caller: caller.email || caller.userId, idem_key: idemKey || "" });
+          return res.status(409).json({ error: { code: "IDEMPOTENCY_KEY_REUSE", message: String(e?.message || e) } });
+        }
         if (holdsSlot) finish("error");
         else exitReadonly();
         res.status(200).json(jsonRpcError(id, Number.isInteger(e?.code) ? e.code : -32032, String(e?.message || e)));

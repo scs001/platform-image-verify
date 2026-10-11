@@ -11,7 +11,8 @@
 // (writeNotifyPatch) is a dsh-profile writer again — it swaps the preset
 // bridge row for its bot_notify subclass (add-agent-notifications D1).
 
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import yaml from "js-yaml";
 import {
@@ -50,6 +51,50 @@ function shippedStandardTemplate() {
   }
 }
 
+// ── Home ownership guard (fix-agent-serving-stability 3.1) ───────────────────
+// The home tree must be owned by the identity the child runtime runs as: a
+// root-context write into a uid-1000 volume (or a root-era volume meeting a
+// uid-1000 runner) leaves restrictive files (0600 credentials, 0700 dirs)
+// that the child hits with EACCES on its own skills — the agent bricks on
+// every pack update until someone chowns by hand. The verdict on the home
+// ROOT is the tripwire: ours by construction or by target → proceed; a
+// foreign owner → a privileged runner repairs the whole tree, an
+// unprivileged one refuses loudly with the fix in hand.
+export function homeOwnershipVerdict({ exists, uid, euid, targetUid }) {
+  if (!exists) return "ours"; // fresh home — this process owns what it writes
+  if (uid === euid || uid === targetUid) return "ours";
+  return euid === 0 ? "repair" : "refuse";
+}
+
+function ensureHomeOwnership(home, log) {
+  if (process.platform !== "linux") return; // dev hosts carry no uid discipline
+  const targetUid = Number(process.env.AGENT_RUNNER_HOME_UID ?? 1000);
+  const targetGid = Number(process.env.AGENT_RUNNER_HOME_GID ?? targetUid);
+  let st;
+  try {
+    st = statSync(home);
+  } catch {
+    return; // absent home — the guard below materializes under our own uid
+  }
+  const euid = typeof process.geteuid === "function" ? process.geteuid() : 0;
+  const verdict = homeOwnershipVerdict({ exists: true, uid: st.uid, euid, targetUid });
+  if (verdict === "ours") return;
+  if (verdict === "repair") {
+    // chown -R does not follow the node_modules symlink (it chowns the link
+    // itself at most), so the shared dsh bundle is never touched.
+    execFileSync("chown", ["-R", `${targetUid}:${targetGid}`, home], { stdio: "ignore" });
+    (log ?? console).log(`[agent-runner] home ownership repaired to ${targetUid}:${targetGid} — ${home} was uid ${st.uid} (a differently-privileged generation)`);
+    return;
+  }
+  throw Object.assign(
+    new Error(
+      `refusing to compose into ${home}: the home is owned by uid ${st.uid} but the runner runs as ${euid} and cannot repair it. ` +
+      `Run once as root: chown -R ${targetUid}:${targetGid} ${home} (or the whole ${path.dirname(home)} volume), or start the runner under the volume's identity.`,
+    ),
+    { code: "FOREIGN_HOME_OWNERSHIP" },
+  );
+}
+
 // Materialize `<homeRoot>/<agentKey>/` for one deployed role. `bundle` is the
 // registry agent entry; the descriptor is entry.metadata. `skillContents`
 // maps descriptor.skills paths → SKILL.md bodies (fetched by the caller).
@@ -58,6 +103,7 @@ export async function materializeAgentHome({ homeRoot, agentKey, entry, skillCon
   const descriptor = entry.metadata;
   const home = path.join(homeRoot, agentKey);
   const profileDir = path.join(home, "profiles", "platform");
+  ensureHomeOwnership(home);
 
   // 0. Seed the profile scaffold from the image's baked home (Dockerfile's
   //    /opt/dsh-home): scaffold files copied, node_modules SYMLINKED — the

@@ -101,20 +101,32 @@ export class AgentChild {
     if (!client) throw new Error("AgentChild requires a clientFactory (real spawn factory wired in index.js)");
     client.start();
     let res;
-    for (let attempt = 0; ; attempt++) {
-      try {
-        res = await client.initialize({
-          cwd,
-          provider,
-          model,
-          ...(presetId ? { agentPreset: presetId } : {}),
-        });
-        break;
-      } catch (e) {
-        if (!/no adapter registered for provider/.test(e?.message || "") || attempt >= INIT_RETRIES) throw e;
-        if (attempt === 0) this.log.warn(`[agent-runner:${this.key}] initialize racing adapter registration; retrying...`);
-        await sleep(500);
+    try {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          res = await client.initialize({
+            cwd,
+            provider,
+            model,
+            ...(presetId ? { agentPreset: presetId } : {}),
+          });
+          break;
+        } catch (e) {
+          if (!/no adapter registered for provider/.test(e?.message || "") || attempt >= INIT_RETRIES) throw e;
+          if (attempt === 0) this.log.warn(`[agent-runner:${this.key}] initialize racing adapter registration; retrying...`);
+          await sleep(500);
+        }
       }
+    } catch (e) {
+      // The spawn is already live (client.start() ran) — closing it here is
+      // the difference between a failed cold start and an orphaned dsh
+      // holding 100-200MB until the container dies (fix-agent-serving-
+      // stability 2.1: `this.client` is only assigned on success, so without
+      // this the only reference to the live process goes out of scope).
+      try {
+        await client.stop?.();
+      } catch { /* best-effort — the original failure is what surfaces */ }
+      throw e;
     }
     this.client = client;
     this.ready = true;

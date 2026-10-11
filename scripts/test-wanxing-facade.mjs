@@ -185,15 +185,35 @@ test("2.3 concurrent duplicates join one flight", async () => {
   assert.deepEqual(a.response, b.response);
 });
 
-test("2.3 a failed exec records the error and replays it", async () => {
+test("2.3 a failed exec is re-executed on retry — the error is never replayed", async () => {
   const core = createWanxingCore({ store: freshStore(), sub2api: stubSub2api() });
   const boom = async () => {
     throw Object.assign(new Error("agent route refused"), { code: -32033 });
   };
-  await assert.rejects(() => core.idempotentSend({ callerId: 7, slug: "a", idemKey: "k", exec: boom }));
-  const r2 = await core.idempotentSend({ callerId: 7, slug: "a", idemKey: "k", exec: boom });
-  assert.equal(r2.replayed, true);
-  assert.equal(r2.response.error.code, -32033);
+  await assert.rejects(() => core.idempotentSend({ callerId: 7, slug: "a", idemKey: "k", requestHash: "h1", exec: boom }));
+  // The error row exists but reports as `new` — the retry pays full admission.
+  assert.equal(core.idempotencyState({ callerId: 7, slug: "a", idemKey: "k" }), "new");
+  let execs = 0;
+  const heal = async () => { execs += 1; return { response: { jsonrpc: "2.0", result: { healed: true } } }; };
+  const r2 = await core.idempotentSend({ callerId: 7, slug: "a", idemKey: "k", requestHash: "h1", exec: heal });
+  assert.equal(execs, 1, "the retry re-executed a real turn");
+  assert.equal(r2.replayed, false);
+  assert.deepEqual(r2.response.result, { healed: true }, "the new outcome replaced the recorded error");
+});
+
+test("2.3 a reused key with a different body is refused, never silently replayed", async () => {
+  const core = createWanxingCore({ store: freshStore(), sub2api: stubSub2api() });
+  const first = async () => ({ response: { jsonrpc: "2.0", result: { submitted: true, at: "13:37" } } });
+  await core.idempotentSend({ callerId: 7, slug: "a", idemKey: "ticket-1-try1", requestHash: "hA", exec: first });
+  // The ticket was reset; attempt numbering restarted and the body changed.
+  await assert.rejects(
+    () => core.idempotentSend({ callerId: 7, slug: "a", idemKey: "ticket-1-try1", requestHash: "hB", exec: first }),
+    (e) => e.code === "IDEMPOTENCY_KEY_REUSE" && e.status === 409,
+  );
+  // Same key + same body still replays the recorded success.
+  const r3 = await core.idempotentSend({ callerId: 7, slug: "a", idemKey: "ticket-1-try1", requestHash: "hA", exec: first });
+  assert.equal(r3.replayed, true);
+  assert.equal(r3.response.result.at, "13:37");
 });
 
 // ── Task 2.4: metering and boundary settlement ───────────────────────────────
@@ -376,6 +396,16 @@ test("3.1 send: auth → forward on dual internal credentials → wx context →
   });
   assert.equal(replay.status, 200);
   assert.equal(upstreamCalls.length, 1);
+  // Key reuse with a different body: 409, the recorded outcome is NOT
+  // returned, and no turn runs (the reset-ticket trap).
+  const reuse = await fetch(base + "/api/wanxing/v1/a2a/packs-p1-heal", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer sk-good", "Idempotency-Key": "fd-001" },
+    body: JSON.stringify(sendBody("SUBMIT repo ticket.yaml --after-reset")),
+  });
+  assert.equal(reuse.status, 409);
+  assert.equal((await reuse.json()).error.code, "IDEMPOTENCY_KEY_REUSE");
+  assert.equal(upstreamCalls.length, 1, "no turn ran for the mismatched body");
   const board = store.usageBoard();
   assert.equal(board.byCaller[0].turns, 1);
   assert.equal(board.byCaller[0].pending, 0, "settled inline");

@@ -1083,6 +1083,23 @@ test("2.1 applyDeploymentSecrets re-checks names before pinning; bad name refuse
   assert.equal(again.refs.another, "c");
 });
 
+// ── fix-agent-serving-stability 3.1: the home ownership guard ───────────────
+
+test("3.1 homeOwnershipVerdict: ours / repair / refuse across the uid matrix", async () => {
+  const { homeOwnershipVerdict } = await import("../agent-runner/compose.js");
+  // Fresh home — whatever this process writes is consistent by construction.
+  assert.equal(homeOwnershipVerdict({ exists: false, uid: 0, euid: 1000, targetUid: 1000 }), "ours");
+  // The runner's own generations (uid == euid) and the target identity both pass.
+  assert.equal(homeOwnershipVerdict({ exists: true, uid: 1000, euid: 1000, targetUid: 1000 }), "ours", "uid-1000 runner over a uid-1000 volume");
+  assert.equal(homeOwnershipVerdict({ exists: true, uid: 1000, euid: 0, targetUid: 1000 }), "ours", "a root runner reads any ownership without EACCES");
+  assert.equal(homeOwnershipVerdict({ exists: true, uid: 0, euid: 0, targetUid: 1000 }), "ours", "root-era volume under a root runner — internally consistent");
+  // The mixed-ownership trap: foreign owner (neither ours nor the target),
+  // privileged runner → recursive repair; unprivileged → loud refusal.
+  assert.equal(homeOwnershipVerdict({ exists: true, uid: 1001, euid: 0, targetUid: 1000 }), "repair", "a root runner repairs a foreign-owned tree");
+  assert.equal(homeOwnershipVerdict({ exists: true, uid: 0, euid: 1000, targetUid: 1000 }), "refuse", "uid-1000 runner over a root-era volume — the wire EACCES shape, refused loudly");
+  assert.equal(homeOwnershipVerdict({ exists: true, uid: 1001, euid: 1000, targetUid: 1000 }), "refuse", "unprivileged runners never repair silently");
+});
+
 // ── add-agent-notifications 2.1/2.2: the notify face ─────────────────────────
 
 const NOTIFY_ENTRY = { ...ENTRY, metadata: { ...ENTRY.metadata, notify_channel: "ops-feishu" } };
@@ -1530,7 +1547,7 @@ test("sharding: listServedAgents hosts only the assigned slice", async () => {
   assert.equal((await unsharded.listServedAgents()).length, 3);
 });
 
-test("spawn: a failed cold-start leaves no half-built child behind", async () => {
+test("spawn: a failed cold-start retries whole, then surfaces -32004 with no half-built child and no orphan", async () => {
   const homeRoot = path.join(tmpRoot, `spawnfail-${Math.random().toString(36).slice(2)}`);
   const config = {
     homeRoot, registryUrl: "https://mcp.example.test", registryToken: "t",
@@ -1538,7 +1555,9 @@ test("spawn: a failed cold-start leaves no half-built child behind", async () =>
     dshProfile: "platform", cwd: tmpRoot, provider: "p", model: "m",
     portBase: await nextPortBaseFor(ENTRY.path), portSpan: 512,
     budgetMb: 3072, agentCostMb: 96,
+    respawnAttempts: 1, respawnBackoffMs: [1], // fast backoff — the shape, not the wall clock
   };
+  const madeClients = [];
   const manager = new ChildManager({
     config,
     registryClient: {
@@ -1552,13 +1571,60 @@ test("spawn: a failed cold-start leaves no half-built child behind", async () =>
     clientFactory: () => () => {
       const fake = fakeHarnessClient({ reply: "r" });
       fake.initialize = async () => { throw new Error("no adapter registered for provider"); };
+      madeClients.push(fake);
       return fake;
     },
     log: { log() {}, warn() {}, error() {} },
   });
   try {
-    await manager.turn(ENTRY, "s1", "hi").catch(() => {}); // the turn reports the failure in-band
+    const err = await manager.turn(ENTRY, "s1", "hi").then(() => null, (e) => e);
+    assert.ok(err, "the failure surfaces to the caller");
+    assert.equal(err.code, -32004, "exhausted cold start is the structured -32004, not a raw transport error");
     assert.equal(manager.children.size, 0, "the failed spawn is evicted — the next turn cold-starts clean");
+    assert.equal(madeClients.length, 2, "initial attempt + one whole respawn (fresh process each)");
+    assert.equal(madeClients[0].calls.stopped, 1, "each failed spawn closes its live client — no orphaned dsh");
+    assert.equal(madeClients[1].calls.stopped, 1, "the respawn's client is closed too");
+    // The next message still attempts a fresh spawn — the runner never wedges.
+    const err2 = await manager.turn(ENTRY, "s1", "hi").then(() => null, (e) => e);
+    assert.equal(err2.code, -32004);
+    assert.equal(madeClients.length, 4, "the second message attempted fresh spawns again");
+  } finally {
+    await manager.stopAll();
+  }
+});
+
+test("spawn: a transient boot failure self-heals on the respawn without a restart", async () => {
+  const homeRoot = path.join(tmpRoot, `spawnheal-${Math.random().toString(36).slice(2)}`);
+  const config = {
+    homeRoot, registryUrl: "https://mcp.example.test", registryToken: "t",
+    backendToken: "bt", idleMs: 60_000, maxChildren: 2, drainMs: 1_000, turnTimeoutMs: 5_000,
+    dshProfile: "platform", cwd: tmpRoot, provider: "p", model: "m",
+    portBase: await nextPortBaseFor(ENTRY.path), portSpan: 512,
+    budgetMb: 3072, agentCostMb: 96,
+    respawnAttempts: 3, respawnBackoffMs: [1],
+  };
+  let boots = 0;
+  const manager = new ChildManager({
+    config,
+    registryClient: {
+      listServedAgents: async () => [ENTRY],
+      fetchSkillContent: async () => "# s",
+      mcpUrlFor: (n) => `https://mcp.example.test/${n}/mcp`,
+    },
+    // First boot loses the race, the respawn serves — no container restart.
+    clientFactory: () => () => {
+      const fake = fakeHarnessClient({ reply: "healed" });
+      const boot = ++boots;
+      if (boot === 1) fake.initialize = async () => { throw new Error("no adapter registered for provider"); };
+      return fake;
+    },
+    log: { log() {}, warn() {}, error() {} },
+  });
+  try {
+    const out = await manager.turn(ENTRY, "s1", "hi");
+    assert.equal(out.text, "healed", "the respawn served the turn without any restart");
+    assert.equal(boots, 2);
+    assert.equal(manager.children.size, 1);
   } finally {
     await manager.stopAll();
   }

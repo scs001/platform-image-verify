@@ -54,6 +54,18 @@ function tokensOf(usage) {
   return Number.isFinite(Number(t)) ? Number(t) : null;
 }
 import { agentKeyFor, materializeAgentHome, mcpEntry, applyBillingKey, applyDeploymentSecrets, workspaceChildEnv } from "./compose.js";
+
+// Cold-start respawn escalation (fix-agent-serving-stability 2.2): after the
+// child's own initialize retries are exhausted, the manager retries the
+// WHOLE spawn this many extra times — fresh dsh process each — with this
+// backoff between attempts. The in-process window covers the adapter-
+// registration race; this loop covers a boot that lost it anyway or came up
+// broken. Error code -32004: below the child's -32000..-32003 turn codes
+// and the facade's -32032/-32033; it means "this agent could not start",
+// never "this turn failed".
+const RESPAWN_ATTEMPTS = 3;
+const RESPAWN_BACKOFF_MS = [2_000, 4_000, 8_000];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 import { scrubbedChildEnv } from "./child.js";
 import { createNotifier } from "./notify.js";
 import { maskSecretRef, resolveAgentPort } from "../lib/agent-serving.js";
@@ -75,6 +87,7 @@ export class ChildManager {
   #slotWaiters = new Set(); // capacity-queue interval timers, cleared on shutdown
   #listeners = new Map(); // agentKey → http server (per-agent port, upstream #1734)
   #quotaAlerted = new Set(); // workspace over-quota episodes already reported
+  #spawnFailures = new Map(); // agentKey → consecutive exhausted cold-start cycles (2.2)
   constructor({ config, registryClient, clientFactory, log = console, now = () => Date.now(), notifyFetchImpl, events = null }) {
     this.config = config;
     this.registryClient = registryClient;
@@ -292,7 +305,40 @@ export class ChildManager {
       const live = this.children.get(key);
       if (live && !live.draining) return live;
       if (this.children.size < this.config.maxChildren || this.#evictIdleChild()) {
-        const child = await this.#spawnChild(key, entry);
+        // Respawn escalation (fix-agent-serving-stability 2.2): a failed
+        // cold start is retried WHOLE — a fresh spawn (fresh dsh process)
+        // per attempt with backoff between. The child's in-process
+        // initialize retries only cover the adapter-registration race; a
+        // race lost at the end of that window, or a runtime that failed to
+        // boot cleanly, deserves a fresh process before the caller ever
+        // sees an error. Exhausted: a structured cold-start error (code
+        // -32004) distinct from turn errors; the NEXT message attempts a
+        // fresh spawn — the runner never wedges until restart.
+        const attempts = this.config.respawnAttempts ?? RESPAWN_ATTEMPTS;
+        const backoff = this.config.respawnBackoffMs ?? RESPAWN_BACKOFF_MS;
+        let child = null;
+        let lastErr = null;
+        for (let attempt = 0; attempt <= attempts; attempt++) {
+          if (attempt > 0) await sleep(backoff[Math.min(attempt - 1, backoff.length - 1)]);
+          const raced = this.children.get(key);
+          if (raced && !raced.draining && raced !== child) { child = raced; lastErr = null; break; }
+          try {
+            child = await this.#spawnChild(key, entry);
+            lastErr = null;
+            break;
+          } catch (e) {
+            lastErr = e;
+            this.log.warn(`[agent-runner] cold-start attempt ${attempt + 1}/${RESPAWN_ATTEMPTS + 1} for ${key} failed: ${e?.message || e}`);
+          }
+        }
+        if (!child) {
+          this.#spawnFailures.set(key, (this.#spawnFailures.get(key) ?? 0) + 1);
+          throw Object.assign(
+            new Error(`cold start failed after ${RESPAWN_ATTEMPTS + 1} attempts (${lastErr?.message || lastErr})`),
+            { code: -32004, cause: lastErr },
+          );
+        }
+        this.#spawnFailures.delete(key);
         if (!child.draining) {
           this.#fleetEmit("woken", entry, { reason: this.everSpawned.has(key) ? "warm" : "first-touch" });
           this.everSpawned.add(key);

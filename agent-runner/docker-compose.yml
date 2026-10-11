@@ -23,12 +23,16 @@ services:
   agent-runner:
     image: ${REGISTRY_IMAGE:-ccr.ccs.tencentyun.com/yizuo/platform:latest}
     command: node agent-runner/index.js
-    # Volume state (homes/meter/fleet spool) is root-owned from the root-run
-    # generations; the image default (node) cannot write any of it — meter
-    # and child spawns fail with EACCES (live incident 2026-10-07). Pin the
-    # proven identity; migrating the volume to uid 1000 is a separate
-    # least-privilege decision, not a rollout default.
-    user: "0:0"
+    # Run as the image's non-root `node` user (uid/gid 1000) — the shape
+    # production has run since 2026-10-12 (fix-agent-serving-stability 3.2).
+    # Runner and dsh children share the identity by construction, so a pack
+    # update's rewritten home files never brick the child with EACCES.
+    # MIGRATING an existing root-run volume: before the first start on this
+    # shape, run once as root —
+    #   docker run --rm -v agent-runner-data:/data alpine chown -R 1000:1000 /data
+    # (compose.js's ownership guard also repairs a foreign-owned HOME tree
+    # when the runner is privileged, and refuses loudly when it is not).
+    user: "1000:1000"
     restart: unless-stopped
     ports:
       - "${AGENT_RUNNER_BIND_IP:-127.0.0.1}:8790-8850:8790-8850" # ops port + per-agent span (8791+), never the public internet

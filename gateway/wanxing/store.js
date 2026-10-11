@@ -30,7 +30,9 @@ export function createWanxingStore({ file }) {
 
   // Idempotency-Key replay window (scoped caller+agent+key): one row per
   // deduplicated message/send; `response` is the exact JSON-RPC doc replayed
-  // verbatim. Rows age out of the window lazily on read.
+  // verbatim; `request_hash` binds the key to the request body (fix-agent-
+  // serving-stability D2: same key + different body is key reuse, refused —
+  // never a silent replay). Rows age out of the window lazily on read.
   db.exec(`CREATE TABLE IF NOT EXISTS wanxing_requests (
     caller_id INTEGER NOT NULL,
     agent_slug TEXT NOT NULL,
@@ -38,8 +40,15 @@ export function createWanxingStore({ file }) {
     state TEXT NOT NULL,
     response TEXT,
     created_at INTEGER NOT NULL,
+    request_hash TEXT,
     PRIMARY KEY (caller_id, agent_slug, idem_key)
   )`);
+  // Pre-existing files lack the column (added 2026-10-12); CREATE IF NOT
+  // EXISTS does not extend them. Idempotent guard + ALTER — a second boot
+  // must not crash on the already-added column.
+  if (!db.prepare(`SELECT 1 FROM pragma_table_info('wanxing_requests') WHERE name = 'request_hash'`).get()) {
+    db.exec(`ALTER TABLE wanxing_requests ADD COLUMN request_hash TEXT`);
+  }
 
   // The external usage ledger — v1's authoritative record (spec:
   // platform-billing "external turns settle against the caller's key"). `id`
@@ -99,15 +108,21 @@ export function createWanxingStore({ file }) {
     requestGet(callerId, agentSlug, idemKey) {
       return db.prepare(`SELECT * FROM wanxing_requests WHERE caller_id = ? AND agent_slug = ? AND idem_key = ?`).get(callerId, agentSlug, idemKey) ?? null;
     },
-    requestStart(callerId, agentSlug, idemKey) {
+    requestStart(callerId, agentSlug, idemKey, requestHash = null) {
       // Returns false when a row already exists (single-flight race loser).
-      const res = db.prepare(`INSERT INTO wanxing_requests (caller_id, agent_slug, idem_key, state, created_at) VALUES (?, ?, ?, 'running', ?)
-        ON CONFLICT DO NOTHING`).run(callerId, agentSlug, idemKey, now());
+      // A lost race still backfills the hash when the winner predates
+      // fingerprinting (NULL = "first modern touch", treated as a match).
+      const res = db.prepare(`INSERT INTO wanxing_requests (caller_id, agent_slug, idem_key, state, created_at, request_hash) VALUES (?, ?, ?, 'running', ?, ?)
+        ON CONFLICT DO NOTHING`).run(callerId, agentSlug, idemKey, now(), requestHash);
+      if (res.changes === 0 && requestHash) {
+        db.prepare(`UPDATE wanxing_requests SET request_hash = ? WHERE caller_id = ? AND agent_slug = ? AND idem_key = ? AND request_hash IS NULL`)
+          .run(requestHash, callerId, agentSlug, idemKey);
+      }
       return res.changes === 1;
     },
-    requestFinish(callerId, agentSlug, idemKey, state, response) {
-      db.prepare(`UPDATE wanxing_requests SET state = ?, response = ? WHERE caller_id = ? AND agent_slug = ? AND idem_key = ?`)
-        .run(state, response == null ? null : String(response).slice(0, 256 * 1024), callerId, agentSlug, idemKey);
+    requestFinish(callerId, agentSlug, idemKey, state, response, requestHash = null) {
+      db.prepare(`UPDATE wanxing_requests SET state = ?, response = ?, request_hash = COALESCE(?, request_hash) WHERE caller_id = ? AND agent_slug = ? AND idem_key = ?`)
+        .run(state, response == null ? null : String(response).slice(0, 256 * 1024), requestHash, callerId, agentSlug, idemKey);
     },
 
     // ── Usage ledger ────────────────────────────────────────────────────────

@@ -123,14 +123,27 @@ export function createWanxingCore({ store, sub2api, config = {} }) {
     return { ok: true };
   }
 
-  // Idempotency for message/send: replay the recorded outcome inside the
-  // window; concurrent duplicates join the single in-process flight. The
-  // ledger row is written before execution, so a crash mid-turn still leaves
-  // `running` — treated as absent after the window, never replayed half-done.
-  async function idempotentSend({ callerId, slug, idemKey, exec }) {
+  // Idempotency for message/send (fix-agent-serving-stability D1/D2):
+  //   - replay ONLY successful outcomes, and only when the request body's
+  //     fingerprint matches the one recorded with the key;
+  //   - a key reused with a different body is refused (IDEMPOTENCY_KEY_REUSE)
+  //     — never a silent replay of the old answer (the reset-ticket trap);
+  //   - a recorded error is NEVER replayed: the same key re-executes and the
+  //     new outcome overwrites the row — retried failures are real retries.
+  // Concurrent duplicates join the single in-process flight. The ledger row
+  // is written before execution, so a crash mid-turn still leaves `running` —
+  // treated as absent after the window, never replayed half-done.
+  async function idempotentSend({ callerId, slug, idemKey, requestHash = null, exec }) {
     if (!idemKey) return { replayed: false, ...(await exec()) };
     const existing = store.requestGet(callerId, slug, idemKey);
-    if (existing && existing.state !== "running" && Date.now() - existing.created_at < cfg.idemWindowMs) {
+    const inWindow = existing && Date.now() - existing.created_at < cfg.idemWindowMs;
+    if (inWindow && existing.request_hash && requestHash && existing.request_hash !== requestHash) {
+      throw Object.assign(
+        new Error("this Idempotency-Key is bound to a different request body; mint a new key"),
+        { code: "IDEMPOTENCY_KEY_REUSE", status: 409 },
+      );
+    }
+    if (inWindow && existing.state === "done") {
       return { replayed: true, response: JSON.parse(existing.response) };
     }
     const flightKey = `${callerId}|${slug}|${idemKey}`;
@@ -140,17 +153,17 @@ export function createWanxingCore({ store, sub2api, config = {} }) {
       const row = store.requestGet(callerId, slug, idemKey);
       return { replayed: true, response: row?.response ? JSON.parse(row.response) : null };
     }
-    if (!store.requestStart(callerId, slug, idemKey)) {
+    if (!store.requestStart(callerId, slug, idemKey, requestHash)) {
       // Lost an insert race (only possible across processes; keep symmetric).
       await Promise.resolve();
     }
     const flight = (async () => {
       try {
         const out = await exec();
-        store.requestFinish(callerId, slug, idemKey, "done", JSON.stringify(out.response ?? out));
+        store.requestFinish(callerId, slug, idemKey, "done", JSON.stringify(out.response ?? out), requestHash);
         return { replayed: false, ...out };
       } catch (e) {
-        store.requestFinish(callerId, slug, idemKey, "error", JSON.stringify({ error: { code: e.code ?? -32032, message: String(e?.message || e) } }));
+        store.requestFinish(callerId, slug, idemKey, "error", JSON.stringify({ error: { code: e.code ?? -32032, message: String(e?.message || e) } }), requestHash);
         throw e;
       } finally {
         flights.delete(flightKey);
@@ -164,12 +177,14 @@ export function createWanxingCore({ store, sub2api, config = {} }) {
   // the ledger (no slot, no RPM — it is a read), a running flight is JOINED
   // (the turn is already admitted; spec: concurrent duplicates both receive
   // its outcome), and only a genuinely new turn goes through rate + slot.
+  // An error row is `new` — its retry is a real turn and pays full admission.
   function idempotencyState({ callerId, slug, idemKey }) {
     if (!idemKey) return "new";
     if (flights.has(`${callerId}|${slug}|${idemKey}`)) return "running";
     const row = store.requestGet(callerId, slug, idemKey);
     if (row && Date.now() - row.created_at < cfg.idemWindowMs) {
-      return row.state === "running" ? "running" : "done";
+      if (row.state === "running") return "running";
+      return row.state === "done" ? "done" : "new";
     }
     return "new";
   }

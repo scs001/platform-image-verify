@@ -736,7 +736,17 @@ export class ChildManager {
     });
     this.children.set(key, child);
     this.log.log(`[agent-runner] cold-starting ${key} (v${child.version ?? "?"}, ${mcpServers.length} MCP, ${(descriptor.skills ?? []).length} skills)`);
-    await child.start();
+    try {
+      await child.start();
+    } catch (e) {
+      // A failed cold-start must not leave a half-built child in the map —
+      // the next turn would reuse it and crash on its null client (live
+      // finding 2026-10-11: an adapter-miss start left "reading 'prompt'"
+      // for every later turn until restart). Identity-guarded so a
+      // concurrently replaced child is never evicted.
+      if (this.children.get(key) === child) this.children.delete(key);
+      throw e;
+    }
     // Residency hooks (add-agent-residency): the rollover's deferred day roll
     // rides a warm agent's re-warm. Fire-and-forget — never blocks serving.
     this.onSpawnHook?.(key, entry);

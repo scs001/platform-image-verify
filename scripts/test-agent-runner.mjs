@@ -1529,3 +1529,37 @@ test("sharding: listServedAgents hosts only the assigned slice", async () => {
   const unsharded = createRegistryClient({ registryUrl: "https://r", registryToken: "t", fetchImpl });
   assert.equal((await unsharded.listServedAgents()).length, 3);
 });
+
+test("spawn: a failed cold-start leaves no half-built child behind", async () => {
+  const homeRoot = path.join(tmpRoot, `spawnfail-${Math.random().toString(36).slice(2)}`);
+  const config = {
+    homeRoot, registryUrl: "https://mcp.example.test", registryToken: "t",
+    backendToken: "bt", idleMs: 60_000, maxChildren: 2, drainMs: 1_000, turnTimeoutMs: 5_000,
+    dshProfile: "platform", cwd: tmpRoot, provider: "p", model: "m",
+    portBase: await nextPortBaseFor(ENTRY.path), portSpan: 512,
+    budgetMb: 3072, agentCostMb: 96,
+  };
+  const manager = new ChildManager({
+    config,
+    registryClient: {
+      listServedAgents: async () => [ENTRY],
+      fetchSkillContent: async () => "# s",
+      mcpUrlFor: (n) => `https://mcp.example.test/${n}/mcp`,
+    },
+    // Every child fails to initialize — the adapter-miss shape seen live on
+    // runner-b (a runner missing its provider store): without eviction, the
+    // half-built child poisoned every later turn with "reading 'prompt'".
+    clientFactory: () => () => {
+      const fake = fakeHarnessClient({ reply: "r" });
+      fake.initialize = async () => { throw new Error("no adapter registered for provider"); };
+      return fake;
+    },
+    log: { log() {}, warn() {}, error() {} },
+  });
+  try {
+    await manager.turn(ENTRY, "s1", "hi").catch(() => {}); // the turn reports the failure in-band
+    assert.equal(manager.children.size, 0, "the failed spawn is evicted — the next turn cold-starts clean");
+  } finally {
+    await manager.stopAll();
+  }
+});

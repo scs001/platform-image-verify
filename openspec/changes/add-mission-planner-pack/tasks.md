@@ -12,8 +12,8 @@
 
 - [x] 3.1 fd-wanxing 镜像出片（scs001 线：snapshot 8d819f3）→ GitOps 滚 facade+web + env；坑：writeback 基址必须指萬星域（platform 网关未路由 console/missions，已修 dd0ff04），验证：plannerConfigured=true 实证
 - [x] 3.2 planner pack 发布+部署（i262i0TUwtF9WSLeX12COw v1，billing=运营键；deploy 需 billingKeys——复用 deployment_keys 里运营号真 sub2api 键），验证：runner serving packs-i262i0tuwtf9wslex12cow-mission-planner :8801
-- [ ] 3.3 生产真 mission e2e（auto 模式：一句话目标→计划→执行→报告），验证：状态链全绿 + spent 记账 + 面板可见报告
+- [x] 3.3 生产真 mission e2e（auto 模式：一句话目标→计划→执行→报告），验证：状态链全绿 + spent 记账 + 面板可见报告（实测两程：msn_7bed… reported 全链+真报告+writeback 台账 10 笔；msn_1ea3… spent=5/20 记账+跨回合续跑+C1 硬停存活，超窗 ops abort 收口=生产 abort 路径实证。v2 修正候选三则在册：窗口检查节奏/report 前标 done/长会话膨胀）
 
 ## 4. 收尾
 
-- [ ] 4.1 路线图/记忆回写，验证：文档在册
+- [x] 4.1 路线图/记忆回写，验证：文档在册（roadmap M2 段+两条 memory）

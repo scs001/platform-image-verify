@@ -10,6 +10,10 @@
 - **wx-alpha 现患清零**：经配置面把其 model 覆盖清 null（回落 runner 默认 deepseek-v4.1-flash，在册）——用产品路径自身完成，兼作正路径生产实证。
 - 零 schema 变化（runner 归属读 registry entry 现场值，不落 pack_deployments 缓存——entry 即唯一事实源）。
 
+## 生产连带（实施中发现，同批根治）
+
+配置写 GET-merge-PUT 存在独立真缺陷：registry GET 返回公网显示 URL，回写（PUT 422→register 兜底）把它存成自环代理目标——生产 4 条目 A2A 因此断路（含本片验证写触发的 2 条）。同批修复：PUT 前按宿主 fleet 几何重建 origin+provider/version 归一；数据侧 4 条目已 PUT 回正确 origin。
+
 ## Capability
 
 `a2a-agent-serving`（MODIFY「A deploy-time model choice must resolve on the hosting runner's roster」——补配置面场景，需求文其余不动）。

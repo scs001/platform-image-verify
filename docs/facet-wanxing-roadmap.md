@@ -232,7 +232,7 @@ allowedTools 上游 #9385 跟进+harness 适配按需。
   结算 v2（跨用户分成/租金，ADR 延迟项）。访客档位维持登录（见已定决策表）。
 - 出口判据：两个不同用户的 agent 互相调用、引用各自数据、完成结算。
 
-### M4 — 萬星用户舰队：挑得准、配得好、看得清（供给就绪后 ~2-3 个月）**2026-10-12 `/opsx:explore` 定案（未立项）**
+### M4 — 萬星用户舰队：挑得准、配得好、看得清（供给就绪后 ~2-3 个月）**2026-10-12 `/opsx:explore` 定案；同日 ① 上线开工（①已完成）**
 
 定位：M2（mission 引擎）+ M3（部署引擎/计费/分成）交付的是运营者视角的机器，M4 把
 它们包成**用户视角的产品**——不懂运维的人从「发现 agent」到「看着它干活」全程自助。
@@ -249,11 +249,14 @@ M4 是漏斗落地端的体验面；F3.3 全旅程验收若早于 M4① 落地�
   试驾预调(可选)     部署者挑货面         mission,不另建)      自主+mission 双视图  开放身份门
 ```
 
-- **① 部署向导（配得好）**：部署从 4 裸字段（packId/版本/计费键/通知通道）升级为
+- **① 部署向导（配得好）✅ 2026-10-12 全链上线**：部署从 4 裸字段（packId/版本/计费键/通知通道）升级为
   分步交互，每个 knob 都有现成地基，纯前移 + deploy 载荷扩展、无新引擎——agent 勾选
-  （my/packs 已返 deployableAgents，缺 API 载荷选择，今天全量部署）、模型
-  （agent-service-config 前移到部署时）、预算（C1 硬停+C5 对账）、节奏（resident
-  rhythm 声明式）、可见性（allowlist 面前移为部署时选项）；计费键/通知保持引导式。
+  （前置半边 paas `add-deploy-agent-selection`：facet deploy 端点 `agents` 子集载荷+选中集
+  计费语义，镜像 sha-770e402 三面滚；fd-wanxing `add-deploy-wizard`：facade 载荷转发扩展+
+  my/packs modelWhitelist 富化+console 四步向导【选包→勾 agent→配置（模型/预算/节奏）→
+  计费通知】+结果步可见性收尾【额度一键设置+allowlist caller 前移】，镜像 sha-b25f05a 双滚）。
+  生产实证：双 agent pack 勾 1 部署（wx-alpha 上线、wx-beta 未动、记账 1 行、描述符
+  model/budget/rhythm 全落）；模型车道拒收 verbatim 且配置保持；收尾面额度+caller 落账。
   试驾预调（部署前临时实例聊几轮调 persona）后置可选。
 - **② 目录筛选与挑货面（挑得准）**：catalog API 服务端 facets（今天只有分页+当前页
   客户端搜索）；谦面策展信号（category/featured）消费为目录分组——双星合流具体形态；

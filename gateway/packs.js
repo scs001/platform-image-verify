@@ -939,7 +939,17 @@ export function registerPackRoutes(app, {
   // publish). Env (`AGENT_SERVING_*`, falling back to the market vars) or an
   // injected `deployConfig` supplies the registry wiring; a missing runner
   // URL answers 503, not a silent success.
-  app.post("/api/packs/:id/versions/:version/deploy", express.json({ limit: "64kb" }), async (req, res) => {
+  //
+  // Deploy-lock (add-funnel-acceptance): the whole write sequence — mint key
+  // refs, push the registry descriptor, persist the key rows — must run
+  // serialized per pack. Two concurrent deploys of the same pack interleave
+  // the registry push and the table write in opposite orders and can leave
+  // the registry entry pointing at a rotated-out billing key ref: the runner
+  // fetches a dead ref, falls back to the shared key, and the deployer's key
+  // silently stops billing (found live in production, hop ④ of the funnel
+  // acceptance). A per-pack promise chain closes the window; different packs
+  // still deploy in parallel.
+  const deployHandler = async (req, res) => {
     const user = auth(req, res);
     if (!user) return;
     const id = req.params.id;
@@ -1474,6 +1484,20 @@ export function registerPackRoutes(app, {
       billing,
       effectiveWithinSecs: out.effectiveWithinSecs,
     });
+  };
+
+  const deployLocks = new Map(); // packId → tail promise of the pack's deploy chain
+  const withDeployLock = (packId, run) => {
+    const prev = deployLocks.get(packId) ?? Promise.resolve();
+    const next = prev.then(run, run);
+    const settled = next.catch(() => {}).then(() => {
+      if (deployLocks.get(packId) === settled) deployLocks.delete(packId);
+    });
+    deployLocks.set(packId, settled);
+    return next;
+  };
+  app.post("/api/packs/:id/versions/:version/deploy", express.json({ limit: "64kb" }), (req, res) => {
+    void withDeployLock(String(req.params.id), () => deployHandler(req, res));
   });
 
   // The deployer's own billing state (add-agent-platform-ops D3; revised by

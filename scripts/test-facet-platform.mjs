@@ -91,6 +91,43 @@ test("2.3 anonymousRead: public packs browsable, downloadable; private invisible
   }
 });
 
+// ── version history visibility + notes (add-facet-version-history) ──────────
+
+test("version history follows detail visibility and carries notes", async () => {
+  const reg = createPackRegistry({ file: path.join(mkdtempSync(path.join(tmp, "reg-")), "packs.db") });
+  const pub = reg.publish({ email: "creator@x", manifest: MANIFEST({ notes: "初版：检索骨架。" }) });
+  reg.publishVersion({ email: "creator@x", id: pub.id, manifest: MANIFEST({ notes: "v2：修复超时。" }) });
+  const unlisted = reg.publish({ email: "creator@x", manifest: MANIFEST({ name: "Unl" }) });
+  reg.setUnlisted({ email: "creator@x", id: unlisted.id });
+  const priv = reg.publish({ email: "creator@x", manifest: MANIFEST({ name: "Priv", visibility: "private", notes: "私有版注。" }) });
+
+  const server = mountApp(reg, { anonymousRead: true });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    // Public pack: the anonymous viewer lists versions newest-first, notes inline.
+    const r = await fetch(`${base}/api/packs/${pub.id}/versions`);
+    assert.equal(r.status, 200);
+    const { versions } = await r.json();
+    assert.deepEqual(
+      versions.map((v) => [v.version, v.notes]),
+      [
+        [2, "v2：修复超时。"],
+        [1, "初版：检索骨架。"],
+      ],
+    );
+    assert.equal(typeof versions[0].publishedAt, "number");
+    assert.equal(versions[0].authorEmail, "creator@x");
+
+    // Private and unlisted: not-found for the anonymous caller — same
+    // posture as the detail route (probing teaches nothing).
+    assert.equal((await fetch(`${base}/api/packs/${priv.id}/versions`)).status, 404);
+    assert.equal((await fetch(`${base}/api/packs/${unlisted.id}/versions`)).status, 404);
+  } finally {
+    reg.close();
+    await new Promise((r) => server.close(r));
+  }
+});
+
 test("2.3 default mount (anonymousRead off) keeps the login wall", async () => {
   const { reg } = seedRegistry();
   const server = mountApp(reg, { anonymousRead: false });

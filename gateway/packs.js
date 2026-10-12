@@ -300,15 +300,33 @@ export function createPackRegistry({ file }) {
       return { id, visibility: next };
     },
 
-    // Version history for the creator console: every stored version's number
-    // and publish time (manifests stay retrievable via the per-version read).
-    versions(id, { actor }) {
+    // Version history (add-facet-content-management; widened by
+    // add-facet-version-history): every stored version's number, publish
+    // time, publisher, and the version's note when its manifest carries one
+    // (manifests stay retrievable via the per-version read). Visibility is
+    // the route layer's call — the list itself is pure data.
+    versions(id) {
       const pack = packRow(id);
       if (!pack) return { error: "not_found" };
-      if (pack.author_email !== actor.email && actor.admin !== true) return { error: "forbidden" };
-      return db.prepare(
-        `SELECT version, published_at AS publishedAt, author_email AS authorEmail FROM pack_versions WHERE pack_id = ? ORDER BY version DESC`,
-      ).all(id);
+      return db
+        .prepare(
+          `SELECT version, published_at AS publishedAt, author_email AS authorEmail, manifest FROM pack_versions WHERE pack_id = ? ORDER BY version DESC`,
+        )
+        .all(id)
+        .map((row) => {
+          let notes;
+          try {
+            notes = JSON.parse(row.manifest)?.notes;
+          } catch {
+            notes = undefined;
+          }
+          return {
+            version: row.version,
+            publishedAt: row.publishedAt,
+            authorEmail: row.authorEmail,
+            ...(typeof notes === "string" ? { notes } : {}),
+          };
+        });
     },
 
     // Latest-version detail. `includeUnlisted` is the route's call: an
@@ -836,13 +854,23 @@ export function registerPackRoutes(app, {
     res.json(result);
   });
 
-  // Version history (add-facet-content-management): author-or-admin.
+  // Version history (add-facet-content-management; widened by
+  // add-facet-version-history): follows the detail view's visibility — public
+  // packs answer anyone (the anonymous viewer on the facet mount included),
+  // private and unlisted packs stay author-or-admin, answering not-found so
+  // probing teaches nothing (openspec: pack-visibility posture).
   app.get("/api/packs/:id/versions", (req, res) => {
-    const user = auth(req, res);
-    if (!user) return;
-    const result = registry.versions(req.params.id, { actor: { email: user.email, admin: isAdmin(user) } });
+    const user = authRead(req);
+    if (!user) return rejectUnauthenticated(req, res);
+    const pack = registry.packRowPublic(req.params.id);
+    if (!pack) return res.status(404).json({ error: "Pack not found" });
+    const author = pack.author_email === user.email;
+    const admin = isAdmin(user);
+    if (!registry.visibleTo(pack, user, { admin }) || (pack.unlisted && !author && !admin)) {
+      return res.status(404).json({ error: "Pack not found" });
+    }
+    const result = registry.versions(req.params.id);
     if (result.error === "not_found") return res.status(404).json({ error: "Pack not found" });
-    if (result.error === "forbidden") return res.status(403).json({ error: "The pack author or an admin is required" });
     res.json({ versions: result });
   });
 

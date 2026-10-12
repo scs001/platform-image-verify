@@ -19,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "./Badge";
 import { RhythmEditor, rhythmEntryValid } from "./RhythmEditor";
+import { PackVersionList } from "./PackVersionList";
 import { guideFor, promptsFor, type PackGuide } from "@/lib/packGuides";
 import type { RhythmEntry } from "./RhythmEditor";
 
@@ -261,6 +262,12 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                 <p className="mt-2 text-[11px] text-muted-foreground">{t("packs.guide.hint")}</p>
               </section>
             )}
+
+            {/* Version history (add-facet-version-history): lazy disclosure —
+                the list fetches only when opened, never riding the default
+                detail payload; rows are inspect-only (manifest + skill
+                links, notes when present). */}
+            <PackVersionList packId={pack.id} />
 
             {(m.skills?.length ?? 0) > 0 && (
               <section>

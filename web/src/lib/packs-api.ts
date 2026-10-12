@@ -69,6 +69,9 @@ export interface PackManifest {
   name: string;
   visibility?: "public" | "private";
   description?: string;
+  // Version note (add-facet-version-history): optional human-readable note,
+  // ≤500 chars, immutable with the published version that carries it.
+  notes?: string;
   tags?: string[];
   guide?: PackGuide;
   skills?: PackManifestSkill[];
@@ -269,10 +272,27 @@ export function setPackCuration(id: string, body: { category?: string; featured?
   }).then(json);
 }
 
+export interface PackVersionRow {
+  version: number;
+  publishedAt: number;
+  authorEmail: string;
+  // The version's note when its manifest carries one (the backend extracts
+  // it inline so the list stays one round trip — add-facet-version-history).
+  notes?: string;
+}
+
 export function listPackVersions(id: string) {
   return fetch(`/api/packs/${encodeURIComponent(id)}/versions`).then(json) as Promise<{
-    versions: { version: number; publishedAt: number; authorEmail: string }[];
+    versions: PackVersionRow[];
   }>;
+}
+
+// A stored version is always retrievable under the listing's visibility —
+// the row-expansion fetch for that version's skill bodies.
+export function getPackVersion(id: string, version: number | string) {
+  return fetch(
+    `/api/packs/${encodeURIComponent(id)}/versions/${encodeURIComponent(String(version))}`,
+  ).then(json) as Promise<{ version: number; manifest: PackManifest }>;
 }
 
 export function getPackUsageBoard(days = 7) {

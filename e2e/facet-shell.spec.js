@@ -25,6 +25,15 @@ test("all three shell views render without a routing provider", async ({ page })
   await expect(page.locator('[data-testid^="pack-card-"]')).toHaveCount(1);
   await expect(page.getByTestId("pack-search-input")).toBeVisible();
 
+  // Version history on the borrowed detail (add-facet-version-history): the
+  // anonymous face reaches the seeded pack's version list — the route serves
+  // public packs without a credential, and the shared disclosure lazy-loads.
+  await page.locator('[data-testid^="pack-card-"]').first().click();
+  const detail = page.getByTestId("pack-detail");
+  await expect(detail.getByTestId("pack-version-list")).toBeVisible();
+  await detail.getByTestId("pack-version-list-toggle").click();
+  await expect(detail.getByTestId("pack-version-list-row-1")).toBeVisible();
+
   // mcp: the catalog must mount. In the playwright chain the facet service
   // inherits MARKET_REGISTRY_URL (the e2e stub), so cards render; standalone
   // (no registry) the honest empty state shows. Either branch proves the
@@ -71,6 +80,49 @@ test("conditional tabs and views follow identity", async ({ page }) => {
   await expect(page.getByTestId("facet-mine-view")).toBeVisible();
   await expect(page.getByTestId("facet-mine-publish")).toBeVisible();
 
+  // …and its version history renders through the SHARED presentation
+  // (add-facet-version-history): the mine route-injection stands in for the
+  // identity-gated list; expanding the shared disclosure shows the row with
+  // its note — the same component the public detail mounts.
+  await page.route(/\/api\/packs\?author=me/, (route) =>
+    route.fulfill({
+      json: {
+        total: 1,
+        page: 1,
+        pageSize: 100,
+        packs: [
+          {
+            id: "mine-shared-ver",
+            authorEmail: "ops@e2e.local",
+            createdAt: Date.now(),
+            version: 2,
+            name: "作者面共享版本组件",
+            description: "d",
+            tags: [],
+            publishedAt: Date.now(),
+            visibility: "public",
+            unlisted: false,
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("**/api/packs/mine-shared-ver/versions", (route) =>
+    route.fulfill({
+      json: {
+        versions: [
+          { version: 2, publishedAt: Date.now(), authorEmail: "ops@e2e.local", notes: "v2 说明。" },
+          { version: 1, publishedAt: Date.now() - 1000, authorEmail: "ops@e2e.local" },
+        ],
+      },
+    }),
+  );
+  await page.reload();
+  const shared = page.getByTestId("facet-mine-versions-mine-shared-ver");
+  await expect(shared).toBeVisible();
+  await shared.getByTestId("facet-mine-versions-mine-shared-ver-toggle").click();
+  await expect(page.getByTestId("facet-mine-versions-mine-shared-ver-row-2")).toContainText("v2 说明。");
+
   // #/curate renders the board with the honest usage degradation (no
   // usage-source env on the shell server).
   await page.goto(`${base}/#/curate`);
@@ -95,6 +147,7 @@ test("data plane: publish, curate, versions, visibility, unpublish with real for
   const manifest = {
     name: "策展数据面冒烟",
     description: "add-facet-content-management sentinel",
+    notes: "初版：数据面冒烟版本说明。",
     tags: ["shell-smoke"],
     category: "legal",
     skills: [{ name: "curate-smoke", description: "d", content: "# x" }],
@@ -126,10 +179,16 @@ test("data plane: publish, curate, versions, visibility, unpublish with real for
   expect(row.category).toBe("daas");
   expect(row.featured).toBe(true);
 
-  // Author-only surfaces: version history and visibility flip.
+  // Author-only surfaces: version history and visibility flip. The version
+  // note rides the immutable manifest and surfaces inline in the list
+  // (add-facet-version-history, task 1.3's data-plane leg).
   const versions = await request.get(`${base}/api/packs/${id}/versions`, { headers: creator });
   expect(versions.ok()).toBeTruthy();
-  expect((await versions.json()).versions.length).toBe(1);
+  const vrows = (await versions.json()).versions;
+  expect(vrows.length).toBe(1);
+  expect(vrows[0].notes).toBe("初版：数据面冒烟版本说明。");
+  const vdoc = await request.get(`${base}/api/packs/${id}/versions/1`, { headers: creator });
+  expect((await vdoc.json()).manifest.notes).toBe("初版：数据面冒烟版本说明。");
   const vis = await request.put(`${base}/api/packs/${id}/visibility`, {
     headers: creator,
     data: { visibility: "private" },

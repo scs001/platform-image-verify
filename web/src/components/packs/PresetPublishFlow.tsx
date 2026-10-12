@@ -48,6 +48,9 @@ export function PresetPublishFlow({
   const [report, setReport] = useState<BridgeReport | null>(null);
   const [name, setName] = useState(preset.name);
   const [description, setDescription] = useState("");
+  // Optional version note (add-facet-version-history): rides the published
+  // manifest under the notes contract; empty = the manifest omits the field.
+  const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState<FlowStep | null>("compose");
   const [failed, setFailed] = useState<{ step: FlowStep; message: string } | null>(null);
   const [published, setPublished] = useState<{ packId: string; version: number; manifest: PackManifest } | null>(null);
@@ -99,6 +102,7 @@ export function PresetPublishFlow({
         name: updated.name,
         description: updated.description,
         visibility: "public",
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
         tags: updated.tags,
         skills: updated.entries.skills ?? [],
         mcpServers: updated.entries.mcpServers ?? [],
@@ -201,6 +205,17 @@ export function PresetPublishFlow({
                   onChange={(e) => setDescription(e.target.value)}
                   rows={2}
                   data-testid="preset-publish-desc"
+                />
+              </div>
+              <div>
+                <Label htmlFor="preset-publish-notes">{t("presetPublish.notes")}</Label>
+                <Textarea
+                  id="preset-publish-notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value.slice(0, 500))}
+                  rows={2}
+                  maxLength={500}
+                  data-testid="preset-publish-notes"
                 />
               </div>
             </div>

@@ -1255,6 +1255,14 @@
       "step": "第 {{n}} 步",
       "hint": "装好后回到「对话」，在上方选择框选这位专家即可开始。",
       "examples": "试试这样问"
+    },
+    "versions": {
+      "title": "版本历史",
+      "current": "当前",
+      "empty": "暂无版本",
+      "failed": "版本历史加载失败：{{message}}",
+      "skillsToggle": "技能正文",
+      "noSkills": "该版本未声明技能"
     }
   },
   "overlay": {
@@ -1310,6 +1318,7 @@
     "confirmHint": "确认组装好的功能集：名称与描述可直接修改；技能、MCP 引用与角色按转换结果带入。",
     "name": "功能集名称",
     "description": "描述",
+    "notes": "版本说明（可选，≤500 字）",
     "parts": "{{skills}} 个技能 · {{mcp}} 个 MCP · {{agents}} 个角色",
     "reportTitle": "以下内容未随转换带入——如需补齐，发布后可到草稿编辑器中处理：",
     "publish": "发布",

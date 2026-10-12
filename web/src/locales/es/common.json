@@ -1255,6 +1255,14 @@
       "step": "Paso {{n}}",
       "hint": "Tras instalarlo, vuelve a Conversación y elige este experto en el selector.",
       "examples": "Prueba a preguntar"
+    },
+    "versions": {
+      "title": "Historial de versiones",
+      "current": "actual",
+      "empty": "Sin versiones todavía",
+      "failed": "No se pudo cargar el historial de versiones: {{message}}",
+      "skillsToggle": "Cuerpos de las skills",
+      "noSkills": "Esta versión no declara skills"
     }
   },
   "overlay": {
@@ -1310,6 +1318,7 @@
     "confirmHint": "Revisa el pack compuesto antes de publicar. El nombre y la descripción son editables; las skills, las referencias MCP y el agente se incluyen tal como se convirtieron.",
     "name": "Nombre del pack",
     "description": "Descripción",
+    "notes": "Nota de versión (opcional, ≤500 caracteres)",
     "parts": "{{skills}} skill(s) · {{mcp}} MCP · {{agents}} agente(s)",
     "reportTitle": "No se transfirió — completa o sustituye en el editor de borradores tras publicar si hace falta:",
     "publish": "Publicar",

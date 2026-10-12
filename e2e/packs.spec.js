@@ -69,16 +69,19 @@ function installGatewayMock(page, state) {
         p.version += 1;
         p.manifest = body.manifest;
         p.publishedAt = Date.now();
+        p.versionHistory.push({ version: p.version, publishedAt: p.publishedAt, manifest: body.manifest });
         return route.fulfill(json({ id: p.id, version: p.version }));
       }
       const id = `pack-e2e-${state.packs.length + 1}`;
+      const publishedAt = Date.now();
       state.packs.push({
         id,
         authorEmail: "creator@e2e.test",
-        createdAt: Date.now(),
-        publishedAt: Date.now(),
+        createdAt: publishedAt,
+        publishedAt,
         version: 1,
         manifest: body.manifest,
+        versionHistory: [{ version: 1, publishedAt, manifest: body.manifest }],
       });
       return route.fulfill(json({ id, version: 1 }));
     }
@@ -87,6 +90,32 @@ function installGatewayMock(page, state) {
       const p = state.packs.find((x) => x.id === detail[1]);
       if (!p) return route.fulfill(json({ error: "Pack not found" }, 404));
       return route.fulfill(json({ ...summary(p), manifest: p.manifest }));
+    }
+    // Version history (add-facet-version-history): the gateway extracts each
+    // version's note inline from its stored manifest — the mock mirrors that.
+    const versions = path.match(/^\/api\/packs\/([^/]+)\/versions$/);
+    if (method === "GET" && versions) {
+      const p = state.packs.find((x) => x.id === versions[1]);
+      if (!p) return route.fulfill(json({ error: "Pack not found" }, 404));
+      const rows = (p.versionHistory ?? [])
+        .slice()
+        .sort((a, b) => b.version - a.version)
+        .map((v) => ({
+          version: v.version,
+          publishedAt: v.publishedAt,
+          authorEmail: p.authorEmail,
+          ...(typeof v.manifest?.notes === "string" ? { notes: v.manifest.notes } : {}),
+        }));
+      return route.fulfill(json({ versions: rows }));
+    }
+    const versionDoc = path.match(/^\/api\/packs\/([^/]+)\/versions\/(\d+)$/);
+    if (method === "GET" && versionDoc) {
+      const p = state.packs.find((x) => x.id === versionDoc[1]);
+      if (!p) return route.fulfill(json({ error: "Pack not found" }, 404));
+      const wanted = Number(versionDoc[2]);
+      const row = (p.versionHistory ?? []).find((v) => v.version === wanted);
+      if (!row) return route.fulfill(json({ error: "Pack version not found" }, 404));
+      return route.fulfill(json({ id: p.id, version: wanted, manifest: row.manifest }));
     }
     const sub = path.match(/^\/api\/packs\/([^/]+)\/subscribe$/);
     if (sub) {
@@ -136,13 +165,15 @@ function seedableGateway(page) {
 }
 
 function seedPack(state, manifest, id = "pack-e2e-1") {
+  const publishedAt = Date.now();
   state.packs.push({
     id,
     authorEmail: "creator@e2e.test",
-    createdAt: Date.now(),
-    publishedAt: Date.now(),
+    createdAt: publishedAt,
+    publishedAt,
     version: 1,
     manifest,
+    versionHistory: [{ version: 1, publishedAt, manifest }],
   });
 }
 
@@ -310,6 +341,56 @@ test("subscriber inspects, subscribes, and the pack materializes", async ({ page
   const mine = page.getByTestId("my-pack-pack-sub");
   await expect(mine).toContainText("v1");
   await expect(mine).toContainText("订阅包审查官");
+});
+
+test("version history disclosure is lazy, carries notes, and links each version", async ({ page }) => {
+  const gw = seedableGateway(page);
+  await seedPackBoth(
+    gw,
+    packManifest({ name: "版本包", skillName: "ver-skill", agentId: "pack-ver-reviewer" }),
+    "pack-ver",
+  );
+  // Two-version history: v1 carries a note, v2 is current with its own note.
+  const p = gw.state.packs.find((x) => x.id === "pack-ver");
+  const v1At = p.publishedAt;
+  p.version = 2;
+  p.publishedAt = v1At + 1000;
+  p.manifest = { ...p.manifest, notes: "v2：新增检索示例。" };
+  p.versionHistory = [
+    { version: 1, publishedAt: v1At, manifest: { ...p.manifest, notes: "初版：审查骨架。" } },
+    { version: 2, publishedAt: p.publishedAt, manifest: p.manifest },
+  ];
+  gw.install();
+
+  const versionFetches = [];
+  page.on("request", (req) => {
+    if (/\/api\/packs\/pack-ver\/versions(\?|$)/.test(new URL(req.url()).pathname)) versionFetches.push(req.url());
+  });
+
+  await gotoPacksTab(page, "market");
+  await page.getByTestId("pack-card-pack-ver").click();
+  const detail = page.getByTestId("pack-detail");
+  const list = detail.getByTestId("pack-version-list");
+  await expect(list).toBeVisible();
+
+  // Lazy by contract: the list has not fetched before the disclosure opens.
+  await expect(detail.getByTestId("pack-version-list-body")).toHaveCount(0);
+  expect(versionFetches.length).toBe(0);
+
+  await detail.getByTestId("pack-version-list-toggle").click();
+  await expect(detail.getByTestId("pack-version-list-row-2")).toBeVisible();
+  await expect(detail.getByTestId("pack-version-list-row-1")).toBeVisible();
+  await expect(detail.getByTestId("pack-version-list-notes-2")).toContainText("v2：新增检索示例。");
+  await expect(detail.getByTestId("pack-version-list-notes-1")).toContainText("初版：审查骨架。");
+  await expect(detail.getByTestId("pack-version-list-row-2")).toContainText("当前");
+
+  // Per-version inspect links (read-only; no install action in the list).
+  await expect(detail.getByTestId("pack-version-list-manifest-1")).toHaveAttribute(
+    "href",
+    "/api/packs/pack-ver/versions/1",
+  );
+  await detail.getByTestId("pack-version-list-skills-1").click();
+  await expect(detail.getByTestId("pack-version-list-skill-links-1")).toContainText("ver-skill.md");
 });
 
 test("name collision with a user skill is skipped and reported, not overwritten", async ({ page }) => {

@@ -1,22 +1,23 @@
 // 我的功集 — the facet creator console (add-facet-content-management):
 // the author surface for packs published from this viewer's identity —
 // list, version history, unpublish, visibility, and publish-from-manifest.
-// Cell-side authoring (drafts assembled from installed content) stays a
-// 壹座 surface by design; cell install stays refused (INSTALL_IS_A_BASE_
-// SURFACE). Strings are bilingual inline (the McpCatalog precedent — the
-// shell's five-locale parity file stays untouched by view internals).
+// Version history renders through the shared PackVersionList (add-facet-
+// version-history) — the same presentation the public detail view uses, so
+// the two surfaces cannot drift. Cell-side authoring (drafts assembled from
+// installed content) stays a 壹座 surface by design; cell install stays
+// refused (INSTALL_IS_A_BASE_SURFACE). Strings are bilingual inline (the
+// McpCatalog precedent — the shell's five-locale parity file stays untouched
+// by view internals).
 import { useCallback, useEffect, useState } from "react";
 import * as api from "@/lib/packs-api";
 import type { PackSummary } from "@/lib/packs-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-
-type VersionRow = { version: number; publishedAt: number; authorEmail: string };
+import { PackVersionList } from "@/components/packs/PackVersionList";
 
 export function MineView() {
   const [packs, setPacks] = useState<PackSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [openVersions, setOpenVersions] = useState<Record<string, VersionRow[]>>({});
   const [notice, setNotice] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
@@ -32,20 +33,6 @@ export function MineView() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  const toggleVersions = async (id: string) => {
-    if (openVersions[id]) {
-      const { [id]: _drop, ...rest } = openVersions;
-      setOpenVersions(rest);
-      return;
-    }
-    try {
-      const r = await api.listPackVersions(id);
-      setOpenVersions((v) => ({ ...v, [id]: r.versions }));
-    } catch (err) {
-      setNotice(`版本历史加载失败 / version history failed: ${(err as Error).message}`);
-    }
-  };
 
   const act = async (label: string, fn: () => Promise<unknown>) => {
     try {
@@ -94,9 +81,6 @@ export function MineView() {
             </div>
             <p className="text-xs text-muted-foreground break-all">{p.id}</p>
             <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => void toggleVersions(p.id)} data-testid={`facet-mine-versions-${p.id}`}>
-                版本历史 / Versions
-              </Button>
               <Button
                 variant="outline"
                 size="sm"
@@ -117,15 +101,7 @@ export function MineView() {
                 {p.visibility === "private" ? "转为公开 / Make public" : "转为私有 / Make private"}
               </Button>
             </div>
-            {openVersions[p.id] && (
-              <ul className="text-xs text-muted-foreground space-y-1 border-t border-border pt-2" data-testid={`facet-mine-versions-list-${p.id}`}>
-                {openVersions[p.id].map((v) => (
-                  <li key={v.version}>
-                    v{v.version} · {new Date(v.publishedAt).toLocaleString()} · {v.authorEmail}
-                  </li>
-                ))}
-              </ul>
-            )}
+            <PackVersionList packId={p.id} testId={`facet-mine-versions-${p.id}`} />
           </div>
         ))}
       </div>

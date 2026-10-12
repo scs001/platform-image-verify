@@ -1255,6 +1255,14 @@
       "step": "Étape {{n}}",
       "hint": "Une fois installé, revenez dans Discussion et choisissez cet expert dans le sélecteur.",
       "examples": "Essayez de demander"
+    },
+    "versions": {
+      "title": "Historique des versions",
+      "current": "actuelle",
+      "empty": "Aucune version pour l'instant",
+      "failed": "Échec du chargement de l'historique des versions : {{message}}",
+      "skillsToggle": "Corps des skills",
+      "noSkills": "Cette version ne déclare aucune skill"
     }
   },
   "overlay": {
@@ -1310,6 +1318,7 @@
     "confirmHint": "Vérifiez le pack composé avant publication. Le nom et la description sont modifiables ; les skills, les références MCP et l'agent sont repris tels quels.",
     "name": "Nom du pack",
     "description": "Description",
+    "notes": "Note de version (facultatif, ≤500 caractères)",
     "parts": "{{skills}} skill(s) · {{mcp}} MCP · {{agents}} agent(s)",
     "reportTitle": "Non repris — à compléter ou remplacer dans l'éditeur de brouillons après publication si besoin :",
     "publish": "Publier",

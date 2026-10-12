@@ -1951,7 +1951,9 @@ export function registerPackRoutes(app, {
       if (err) return res.status(400).json({ error: `budgetMinutes is invalid: ${err}` });
     }
     const { serving, manifest } = deployedServing(id, row);
+    let modelRequested = false;
     if (body.model !== undefined && body.model !== null) {
+      modelRequested = true;
       const err = modelIdError(body.model);
       if (err) return res.status(400).json({ error: `model is invalid: ${err}` });
       if (!manifest) return res.status(404).json({ error: "Deployed pack version no longer readable" });
@@ -1982,6 +1984,24 @@ export function registerPackRoutes(app, {
       const g = await doFetch(`/api/agents${row.agentPath}`);
       if (!g.ok) throw Object.assign(new Error(`registry GET ${row.agentPath} failed (${g.status})`), { status: 502 });
       const entry = await g.json();
+      // Roster layer (add-config-roster-gate): the same third gate the deploy
+      // route runs, resolved against the LIVE entry's hosting runner (the
+      // entry's assignment is what the runner itself polls — the steady-state
+      // truth). A lane-passing, roster-absent model pinned here would fail
+      // silently in the child on every turn. Degrades open on the same three
+      // observability-blind states as the deploy gate; a null clear is not a
+      // model choice and never hits this.
+      if (modelRequested && scheduler) {
+        try {
+          const board = await scheduler.boardNow();
+          const rosterRunnerId = entry?.metadata?.runner_id ?? registry.runnerList()[0]?.id ?? null;
+          const roster = rosterRunnerId ? board?.runners?.[rosterRunnerId]?.models : null;
+          if (Array.isArray(roster)) {
+            const err = modelChoiceError({ model: body.model, roster });
+            if (err) return res.status(400).json({ error: err, code: "MODEL_NOT_IN_ROSTER" });
+          }
+        } catch { /* board unreachable → degrade open */ }
+      }
       const overrides = { ...(entry?.metadata?.config_overrides ?? {}) };
       for (const key of ["rhythm", "budgetMinutes", "model"]) {
         if (Object.prototype.hasOwnProperty.call(body, key)) overrides[key] = body[key];

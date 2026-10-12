@@ -1450,3 +1450,81 @@ test("ports: a clean deploy still adds no port field (byte-compat)", async () =>
   const agent = stub.calls.agents.at(-1).body;
   assert.equal("port_override" in agent.metadata, false);
 });
+
+// ── add-config-roster-gate: the third gate on LIVE config writes ─────────────
+test("config write: roster layer refuses a lane-passing roster-absent model; null clear and board-blind degrade open", async () => {
+  const prev = {
+    sched: process.env.FLEET_SCHEDULER_ENABLED, board: process.env.FLEET_BOARD_URL,
+    run: process.env.AGENT_SERVING_RUNNER_URL, rid: process.env.AGENT_SERVING_DEFAULT_RUNNER_ID,
+  };
+  process.env.FLEET_SCHEDULER_ENABLED = "1";
+  process.env.FLEET_BOARD_URL = "http://board.test";
+  process.env.AGENT_SERVING_RUNNER_URL = "http://runner:8790"; // seeds the fleet's default row
+  process.env.AGENT_SERVING_DEFAULT_RUNNER_ID = "runner-x";
+  let boardDown = false;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    const u = String(url);
+    if (u.startsWith("http://board.test")) {
+      if (boardDown) return { ok: false, status: 503, json: async () => ({}) };
+      return { ok: true, status: 200, json: async () => ({ runners: { "runner-x": { seen_at: Date.now(), models: ["m-in"] } } }) };
+    }
+    if (u.startsWith("https://mcp.example.test/api/agents")) {
+      return { ok: true, status: 200, json: async () => ({ agents: [] }) }; // scheduler tick listing
+    }
+    return originalFetch(url, init);
+  };
+  // Lanes authorize both models; the roster only knows m-in — m-alt is the
+  // lane-passing/roster-absent shape (whitelisted by MODEL_MANIFEST).
+  const sub2api = stubSub2api({ models: ["m-in", "m-alt"] });
+  const stub = stubRegistry();
+  try {
+    const h = await routeHarness({
+      user: { email: "author@x", groups: [] },
+      deployConfig: {
+        registryUrl: "https://mcp.example.test", token: "t",
+        runnerBaseUrl: "http://runner:8790", packsPublicBase: "https://packs.example.test",
+        fetchImpl: stub.fetch,
+        sub2api: { adminKey: sub2api.adminKey, fetchImpl: sub2api.fetchImpl },
+      },
+      manifest: MODEL_MANIFEST,
+    });
+    try {
+      const dep = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, { billingKeys: { "pack-fingpt": sub2api.key } });
+      assert.equal(dep.status, 200, JSON.stringify(dep.body));
+      const putsBefore = stub.calls.agents.length;
+
+      const bad = await h.call("PUT", `/api/packs/${h.packId}/deployments/pack-fingpt/config`, { model: "m-alt" });
+      assert.equal(bad.status, 400, JSON.stringify(bad.body));
+      assert.equal(bad.body.code, "MODEL_NOT_IN_ROSTER");
+      assert.match(bad.body.error, /model roster \(available: m-in\)/);
+      assert.equal(stub.calls.agents.length, putsBefore, "no registry PUT landed for the refused write");
+
+      const ok = await h.call("PUT", `/api/packs/${h.packId}/deployments/pack-fingpt/config`, { model: "m-in" });
+      assert.equal(ok.status, 200, JSON.stringify(ok.body));
+      assert.equal(stub.calls.agents.at(-1).body.metadata.effective_model, "m-in");
+
+      // Null clear: not a model choice — never roster-checked (also the
+      // wx-alpha remediation shape).
+      const clear = await h.call("PUT", `/api/packs/${h.packId}/deployments/pack-fingpt/config`, { model: null });
+      assert.equal(clear.status, 200, JSON.stringify(clear.body));
+      assert.equal(stub.calls.agents.at(-1).body.metadata.effective_model, "m-in", "cleared pin follows the DECLARATION (the manifest carries model: m-in)");
+
+      // Board blind → degrade open: the previously refused model now writes.
+      // boardNow serves a ≤10s last-good cache — the outage only surfaces
+      // (and degrades open) once the cache expires; last-good beats blind.
+      boardDown = true;
+      await new Promise((r) => setTimeout(r, 10_300));
+      const blind = await h.call("PUT", `/api/packs/${h.packId}/deployments/pack-fingpt/config`, { model: "m-alt" });
+      assert.equal(blind.status, 200, JSON.stringify(blind.body));
+    } finally {
+      await h.close();
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+    for (const [k, v] of Object.entries(prev)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});

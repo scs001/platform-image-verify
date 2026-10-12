@@ -3,6 +3,7 @@
 import { getFileSkills } from "../skills.js";
 import { getMarketEntries, getSkillContent } from "../../registry-bridge.js";
 import * as registryCredentials from "../../registry-credentials.js";
+import { getPreflightStatus } from "../../mcp-preflight.js";
 
 export function registerExtensionRoutes(ctx) {
   const { app, db, extensionStore, skillMaterialize, broadcast } = ctx;
@@ -20,6 +21,14 @@ export function registerExtensionRoutes(ctx) {
     }
     const servers = extensionStore.listMcpServers();
     res.json({ servers });
+  });
+
+  // MCP preflight health signal (add-mcp-credential-hygiene): the per-server
+  // ok/auth-rejected/server-error/unreachable/unknown verdict from the last
+  // patch composition. Read-only, same auth gate as the config list — the
+  // "installed + enabled but zero tools" state stops being undiagnosable.
+  app.get("/api/diagnostics/mcp", (_req, res) => {
+    res.json({ servers: getPreflightStatus() });
   });
 
   // Add a new MCP server configuration.

@@ -28,6 +28,8 @@ import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { atomicWriteTextSync, normalizeBaseUrl } from "./lib/persistence.js";
 import { effectiveMcpTools } from "./lib/pack-manifest.js";
+import { deriveScopedToken, scopeIdForEmail } from "./lib/scoped-relay-token.js";
+import { probeHttpServers } from "./mcp-preflight.js";
 import { repoRoot } from "./paths.js";
 
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), ".dsh");
@@ -586,7 +588,9 @@ function linkProfilePinnedModules() {
 
 // Map one host MCP config ({command,args,env,cwd} stdio | {url,headers} http) to
 // a dsh-mcp-client cordis loader entry. Unknown shape → null (skipped, warned).
-function toMcpClientEntry(name, config) {
+// `scopedEnv` (optional name→value map) overrides process.env for envRefs
+// resolution — the per-cell scoped-credential injection point (below).
+function toMcpClientEntry(name, config, scopedEnv = null) {
   if (!config || typeof config !== "object") return null;
   const entry = {
     id: `mcp-${name}`,
@@ -606,10 +610,13 @@ function toMcpClientEntry(name, config) {
     // process.env at every patch write, so a rotated token lands on the next
     // restart/HMR swap. An unset ref is warned and omitted — the server
     // degrades to its own "not configured" behavior.
+    // `scopedEnv` wins per NAME (add-mcp-credential-hygiene D3): a platform-
+    // wide secret is substituted with the per-cell derived value so a patch
+    // never carries the shared one while scoped derivation is configured.
     if (Array.isArray(config.envRefs)) {
       const resolved = {};
       for (const ref of config.envRefs) {
-        const v = process.env[ref];
+        const v = scopedEnv?.[ref] ?? process.env[ref];
         if (v == null || v === "") {
           console.warn(`[dsh-profile] MCP "${name}" envRef ${ref} is not set; the server may run degraded`);
           continue;
@@ -668,6 +675,40 @@ function toMcpClientEntry(name, config) {
 // noOverlay (add-focus-overlay) suppresses the preset's stored preference
 // diff — the probe's derived-vs-derived±overlay report needs the pre-overlay
 // composition; every runtime path keeps the default (compose with overlay).
+
+// Per-cell scoped-credential overrides for envRefs resolution
+// (add-mcp-credential-hygiene D3). While SEARCH_RELAY_SCOPED_MASTER is set,
+// the SEARCH_RELAY_TOKEN injected into a cell's patch is derived for THAT
+// cell (scope = SEARCH_RELAY_SCOPE_ID, else the owner email's stable cell
+// id) instead of the platform-wide shared value — a leaked patch value is
+// attributable and revocable for one cell alone. Returns null (shared-value
+// fallback, today's behavior) when derivation isn't configured or can't
+// resolve a scope; each miss warns ONCE per process to keep logs sane.
+let scopedEnvWarned = false;
+function scopedRelayEnvOverrides(ownerEmail) {
+  const master = process.env.SEARCH_RELAY_SCOPED_MASTER;
+  if (!master) return null;
+  const scope = process.env.SEARCH_RELAY_SCOPE_ID || (ownerEmail ? scopeIdForEmail(ownerEmail) : "");
+  if (!scope) {
+    if (!scopedEnvWarned) {
+      scopedEnvWarned = true;
+      console.warn("[dsh-profile] SEARCH_RELAY_SCOPED_MASTER set but no scope (no ownerEmail / SEARCH_RELAY_SCOPE_ID); falling back to the shared token");
+    }
+    return null;
+  }
+  try {
+    const token = deriveScopedToken(master, scope);
+    console.log(`[dsh-profile] SEARCH_RELAY_TOKEN derived per cell (scope=${scope})`);
+    return { SEARCH_RELAY_TOKEN: token };
+  } catch (e) {
+    if (!scopedEnvWarned) {
+      scopedEnvWarned = true;
+      console.warn(`[dsh-profile] scoped token derivation failed (${e?.message || e}); falling back to the shared token`);
+    }
+    return null;
+  }
+}
+
 export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail = null, agentPreset = null, noOverlay = false } = {}) {
   // 1. mcp.json (operator config, base layer).
   let mcpJsonServers = {};
@@ -808,9 +849,10 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
     );
   }
 
+  const scopedEnv = scopedRelayEnvOverrides(ownerEmail);
   const entries = [];
   for (const [name, config] of Object.entries(servers)) {
-    const e = toMcpClientEntry(name, config);
+    const e = toMcpClientEntry(name, config, scopedEnv);
     if (e) entries.push(e);
     else console.warn(`[dsh-profile] skipping MCP server "${name}": unknown config shape`);
   }
@@ -819,6 +861,16 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
   // patch (server cells, desktop, and the runner all converge here or on the
   // parameterized writer below) — a stale filter cannot outlive its patch.
   writeToolFilterPatch(scope.source === "pack" ? scope.mcpTools : null);
+
+  // Preflight health signal (add-mcp-credential-hygiene D5): fire-and-forget
+  // probe of every http entry with the exact URL+headers the patch carries —
+  // a 401'd server must be VISIBLE instead of silently tool-less. Async on
+  // purpose: observation never becomes a new failure mode for the write.
+  if (entries.length > 0) {
+    void probeHttpServers(entries).catch((e) => {
+      console.warn(`[dsh-profile] MCP preflight failed wholesale: ${e?.message || e}`);
+    });
+  }
 
   if (entries.length === 0) {
     console.log("[dsh-profile] no MCP servers configured; skipping --patch");
@@ -831,6 +883,9 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
   // skipped ("patch: entry "mcp-x" not found"). `insert` tells cordis to add
   // them as new loader entries. (The skills patch differs: skill-filesystem
   // DOES exist in the base bundle, so its override-by-id shape is correct.)
+  // Mode 0600 is the atomic-write default now — the patch carries resolved
+  // credential values (Authorization headers, per-cell env) and is readable
+  // by the cell owner alone (add-mcp-credential-hygiene D4).
   atomicWriteTextSync(MCP_PATCH_PATH, yaml.dump([{ insert: entries }]));
   console.log(
     `[dsh-profile] wrote ${entries.length} MCP server(s): ${entries.map((e) => e.config.serverName).join(", ")} → ${MCP_PATCH_PATH}`,

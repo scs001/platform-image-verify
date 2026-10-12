@@ -213,6 +213,11 @@ COPY --chown=node:node --from=builder /app/scripts ./scripts
 COPY --chown=node:node --from=builder /app/supervisor ./supervisor
 COPY --chown=node:node --from=builder /app/bootstrap ./bootstrap
 COPY --chown=node:node --from=builder /app/skills ./skills
+# Canonical scoped-token implementation re-exported by lib/scoped-relay-token.js
+# (add-mcp-credential-hygiene). Narrow copy on purpose: services/search-relay/
+# also holds the gitignored keys.json with REAL credential material — that must
+# never ride along into an image.
+COPY --chown=node:node --from=builder /app/services/search-relay/scoped-token.js ./services/search-relay/scoped-token.js
 # Read at RUNTIME by dsh-profile.js (it copies the two bridge plugins out of here
 # into $DSH_HOME/profiles/<name>), so the builder copy above is not enough — an
 # image without this dir boots, binds the port, then dies on ENOENT.

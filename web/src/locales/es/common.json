@@ -1036,7 +1036,15 @@
       "docs": "Docs"
     },
     "langLabel": "Idioma",
-    "packsFootnote": "Navegación anónima; inicia sesión para publicar y suscribirte. Uso de la CLI:"
+    "packsFootnote": "Navegación anónima; inicia sesión para publicar y suscribirte. Uso de la CLI:",
+    "loginBanner": {
+      "state": "El inicio de sesión no se completó: falló la verificación de sesión. Inténtalo de nuevo.",
+      "token": "El inicio de sesión no se completó: falló el intercambio de tokens. Inténtalo de nuevo.",
+      "generic": "El inicio de sesión no se completó. Inténtalo de nuevo.",
+      "retry": "Reintentar el inicio de sesión",
+      "dismiss": "Cerrar"
+    },
+    "loggedInAs": "Sesión iniciada como {{email}}"
   },
   "facetDocs": {
     "title": "Documentación",

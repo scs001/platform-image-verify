@@ -1036,7 +1036,15 @@
       "docs": "Docs"
     },
     "langLabel": "Language",
-    "packsFootnote": "Anonymous browsing; sign in to publish and subscribe. CLI usage:"
+    "packsFootnote": "Anonymous browsing; sign in to publish and subscribe. CLI usage:",
+    "loginBanner": {
+      "state": "Sign-in did not complete: session check failed. Please try again.",
+      "token": "Sign-in did not complete: token exchange failed. Please try again.",
+      "generic": "Sign-in did not complete. Please try again.",
+      "retry": "Retry sign-in",
+      "dismiss": "Dismiss"
+    },
+    "loggedInAs": "Signed in as {{email}}"
   },
   "facetDocs": {
     "title": "Documentation",

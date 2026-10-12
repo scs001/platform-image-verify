@@ -179,6 +179,49 @@ test("unauthorized deep links fall back to the intro landing", async ({ page }) 
   await expect(page.getByRole("button", { name: "My packs" })).toHaveCount(0);
 });
 
+// ── Sign-in honesty (polish-fusion-details follow-up) ────────────────────────
+// A failed OIDC return lands on /?auth_error=…: the shell must SAY so instead
+// of silently showing the anonymous face (the user reported "logged in but no
+// signed-in indicator" — an invisible failure reads as a missing indicator).
+
+test("a failed sign-in return surfaces a banner and scrubs the param", async ({ page }) => {
+  await page.route("**/api/whoami", (route) => route.fulfill({ json: { email: null, groups: [] } }));
+  const pageErrors = [];
+  page.on("pageerror", (e) => pageErrors.push(String(e)));
+  await page.addInitScript(() => localStorage.setItem("platform.locale", "zh-CN"));
+
+  await page.goto(`${base}/?auth_error=state#/`);
+  const banner = page.getByTestId("facet-auth-error");
+  await expect(banner).toBeVisible();
+  await expect(banner).toContainText("登录未完成：会话校验失败，请重试。");
+  await expect(banner.getByRole("button", { name: "重试登录" })).toBeVisible();
+  // The param is scrubbed so a refresh does not re-raise the failure.
+  await expect(page).toHaveURL(/\/#\//);
+  expect(page.url()).not.toContain("auth_error");
+
+  // Dismiss drops the banner without touching the view.
+  await banner.getByRole("button", { name: "关闭" }).click();
+  await expect(page.getByTestId("facet-auth-error")).toHaveCount(0);
+
+  // Unknown codes degrade to the generic line, not a raw key.
+  await page.goto(`${base}/?auth_error=weird#/`);
+  await expect(page.getByTestId("facet-auth-error")).toContainText("登录未完成，请重试。");
+
+  expect(pageErrors, pageErrors.join(" | ")).toEqual([]);
+});
+
+test("a signed-in viewer gets an explicit logged-in chip", async ({ page }) => {
+  await page.route("**/api/whoami", (route) =>
+    route.fulfill({ json: { email: "ops@e2e.local", groups: ["creators"], creator: true } }),
+  );
+  await page.addInitScript(() => localStorage.setItem("platform.locale", "zh-CN"));
+  await page.goto(`${base}/#/`);
+  const chip = page.getByTestId("facet-user-chip");
+  await expect(chip).toBeVisible();
+  await expect(chip).toContainText("ops@e2e.local");
+  await expect(chip).toHaveAttribute("title", "已登录：ops@e2e.local");
+});
+
 test("data plane: publish, curate, versions, visibility, unpublish with real forwarded identity", async ({ request }) => {
   const creator = forwarded("creator@e2e.local", ["creators"]);
   const admin = forwarded("ops@e2e.local", ["admin"]);

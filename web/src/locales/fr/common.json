@@ -1036,7 +1036,15 @@
       "docs": "Docs"
     },
     "langLabel": "Langue",
-    "packsFootnote": "Navigation anonyme ; connectez-vous pour publier et vous abonner. Usage de la CLI :"
+    "packsFootnote": "Navigation anonyme ; connectez-vous pour publier et vous abonner. Usage de la CLI :",
+    "loginBanner": {
+      "state": "La connexion ne s'est pas terminée : échec de la vérification de session. Veuillez réessayer.",
+      "token": "La connexion ne s'est pas terminée : échec de l'échange de jetons. Veuillez réessayer.",
+      "generic": "La connexion ne s'est pas terminée. Veuillez réessayer.",
+      "retry": "Réessayer la connexion",
+      "dismiss": "Fermer"
+    },
+    "loggedInAs": "Connecté en tant que {{email}}"
   },
   "facetDocs": {
     "title": "Documentation",

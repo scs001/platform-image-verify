@@ -1036,7 +1036,15 @@
       "docs": "文档"
     },
     "langLabel": "语言",
-    "packsFootnote": "匿名可浏览，登录后可发布订阅；CLI 安装与用法明细见"
+    "packsFootnote": "匿名可浏览，登录后可发布订阅；CLI 安装与用法明细见",
+    "loginBanner": {
+      "state": "登录未完成：会话校验失败，请重试。",
+      "token": "登录未完成：登录令牌交换失败，请重试。",
+      "generic": "登录未完成，请重试。",
+      "retry": "重试登录",
+      "dismiss": "关闭"
+    },
+    "loggedInAs": "已登录：{{email}}"
   },
   "facetDocs": {
     "title": "使用文档",

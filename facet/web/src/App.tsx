@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PackMarketView } from "@/components/packs/PackMarketView";
 import { Button } from "@/components/ui/button";
+import { Icon } from "@/components/ui/icon";
 import { useLanguage } from "@/i18n/useLanguage";
 import { FACET_HELP_COMMAND } from "./cliFacts";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -81,6 +82,20 @@ export function App() {
   const { t } = useTranslation();
   const [user, setUser] = useState<WhoamiUser>(null);
   const [view, setView] = useState<View>(() => viewFromHash(window.location.hash, null));
+  // A failed OIDC return lands on /?auth_error=state|token. Without this the
+  // shell silently shows the anonymous face — the user believes the sign-in
+  // happened and wonders why the header still says "登录". Surface it once,
+  // then scrub the param so a refresh does not re-raise it.
+  const [authError, setAuthError] = useState<string | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const kind = params.get("auth_error");
+    if (!kind) return;
+    params.delete("auth_error");
+    const rest = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`);
+    setAuthError(kind);
+  }, []);
 
   // Whoami resolves after first paint: re-derive the view once identity is in,
   // so an authorized deep link to #/mine or #/curate lands after the probe.
@@ -137,7 +152,14 @@ export function App() {
           <LocaleSwitcher />
           {user ? (
             <>
-              <span className="text-sm text-muted-foreground">{user.email}</span>
+              <span
+                className="flex items-center gap-1.5 text-sm text-muted-foreground"
+                data-testid="facet-user-chip"
+                title={t("facetShell.loggedInAs", { email: user.email })}
+              >
+                <span className="inline-block h-2 w-2 rounded-full bg-success" aria-hidden />
+                {user.email}
+              </span>
               <Button variant="outline" size="sm" onClick={() => (window.location.href = "/api/auth/logout")}>
                 {t("auth.logout")}
               </Button>
@@ -149,6 +171,24 @@ export function App() {
           )}
         </div>
       </header>
+      {authError && (
+        <div
+          className="border-b border-border bg-warning/10 px-6 py-2 flex flex-wrap items-center gap-3"
+          data-testid="facet-auth-error"
+          role="alert"
+        >
+          <Icon name="alert-circle" size={16} className="text-warning shrink-0" />
+          <span className="flex-1 text-sm text-warning">
+            {t(`facetShell.loginBanner.${authError === "state" || authError === "token" ? authError : "generic"}`)}
+          </span>
+          <Button size="sm" onClick={() => (window.location.href = "/auth/login")}>
+            {t("facetShell.loginBanner.retry")}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setAuthError(null)}>
+            {t("facetShell.loginBanner.dismiss")}
+          </Button>
+        </div>
+      )}
       <main className="flex-1 overflow-auto p-6">
         {/* key={view} resets the boundary when tabs switch: a contained
             failure never leaks into the next view (spec: facet-platform,

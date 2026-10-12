@@ -2,7 +2,8 @@
 
 > 来源：finddata 侧 2026-10-12 凭据轮换与链路体检
 > 对象：萬星（paas）侧
-> 状态：三项待办，其中 P0 阻断修复链真工单
+> 状态：**P0 / P1 已收口上线（2026-10-12 晚）**；P2 为纪律类，仍挂账待排期。
+> 更新记录见文末「收口状态」。
 
 ## 背景（一段话）
 
@@ -154,18 +155,44 @@ col.update_one({"name": n}, {"$set": {
 
 ---
 
-## P2 · 凭据读取纪律（防复发，建议写进技能/平台约定）
+## ✅ 收口状态（2026-10-12 晚更新）
 
-本次泄露的机理：`$DSH_HOME/.credentials.yaml` 里 `git_pat` 是**块标量**
-（`git_pat: >-`，值在下一行），单行 `grep+sed` 取到空串，agent 为排查**打印了文件原文**，
-完整值落入会话日志。
+### P0 · 已收口并实证（finddata 侧 2026-10-12 复测）
 
-finddata 侧已在技能文本里加固（`cred()` 覆盖行内/块标量/空值续行三形态 + 明令
-**绝不为「看清楚」打印凭据文件**）。建议萬星侧：
+```
+agent-runner-b: api.github=200 | platform=200
+agent-runner-c: api.github=200 | platform=200
+```
 
-- 平台侧考虑对 child 的凭据文件做**读取审计/告警**（或提供官方读取工具），
-  让技能不必自己解析 YAML；
-- 若保留文件形态，建议把块标量写法改为**单行引号值**，从源头消除解析歧义。
+两台 runner 现已能访问 GitHub（`api.github.com` 200，此前 TCP 超时）；内网
+`platform.finddatatech.cloud` 仍 200，说明 `NO_PROXY` 生效、未被代理绕远。
+**P0 闭合**——spider-heal 落在这两台时，取件/推送链路可用。
+
+（对照：交接文档写就时两台均为 `000`/TCP 超时；补丁方案当时只在 runner-b pod 内
+以临时导出 env 的方式验证有效，现已落到实际部署。）
+
+### P1 · 已收口（change `fix-skill-content-propagation`，12/12 归档）
+
+- 规格：新 capability **`skill-content-propagation`** 已 sync 入主 specs（129/129），
+  三条要求：内联正文随版本更新 / 未带正文的编辑不清空存量 / `raw_url` 随
+  `skill_md_url` 派生刷新（并维持「未改展示 URL 不动取值 URL」）。
+- 生产实证（最关键一条）：在 wanxing-facade pod 内用 `AGENT_SERVING_REGISTRY_TOKEN`
+  ——即**部署侧 go 的同款鉴权**——注册一次性技能 201 → PUT 带内联正文 200 且卡片回显
+  → `GET .../content` 200 `source:inline` 直取到探针正文 → DELETE 204 清场。
+- 发布过程的一条重要更正：原 design D4 打算「cherry-pick 切 fd-1.1.2」，但其前提
+  （生产是 fd-1.1.1、那三笔提交未发布）**已被证伪**——生产实为 fd-1.2.1（`sha-c9a2015`），
+  三笔提交早已并列进 origin/main（PR #4/#5）。若按过期基点打包，会把 virtual-router
+  作用域修复与 fastembed 瘦身一起倒退。实际做法=rebase 到真 origin/main（`ad118d4a`）
+  后发 patch **fd-1.2.2**。
+
+### 剩余自然验收点
+
+修复的下次**真传播**发生在 spider-heal 升级 **v11** 时——届时用 mongosh 三查作为最终实证：
+正文 = v11 正文、`skill_md_raw_url` 指向 v11、`content_updated_at` 滚动。
+
+### P2 · 仍挂账（纪律类，待排期）
+
+凭据块标量改单行引号、代理凭据对 agent 可见。非阻断项，可择机做纪律收口。
 
 ---
 

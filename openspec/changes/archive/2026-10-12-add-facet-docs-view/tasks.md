@@ -23,5 +23,5 @@
 ## 4. e2e 哨兵与生产实证
 
 - [x] 4.1 `e2e/facet-shell.spec.js` 扩：`#/docs` 三块渲染、壹座默认选中、客户端切换后命令/路径可见、MCP 两路措辞、创作块深度链接 href 形状、零 pageerror；条件 tab 场景同步为四公开
-- [ ] 4.2 CI 全绿（lint/typecheck/单测/locales/build/e2e）
-- [ ] 4.3 生产实证（按 paas-release 标准线：快照→relay→GitOps→ArgoCD→in-pod 探针+浏览器验收）；归档 + 路线图 F1.3 标 ✅
+- [x] 4.2 CI 全绿（lint/typecheck/单测/locales/build/e2e）——org GHA 账单阻断期，本地等价全绿：lint 净、typecheck 过、unit 1101/1101、locales 五语 1136 键、build 过、fast e2e 397 passed
+- [x] 4.3 生产实证（按 paas-release 标准线：快照→relay→GitOps→ArgoCD→in-pod 探针+浏览器验收）；归档 + 路线图 F1.3 标 ✅

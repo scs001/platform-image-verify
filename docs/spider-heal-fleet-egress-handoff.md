@@ -2,7 +2,8 @@
 
 > 来源：finddata 侧 2026-10-12 凭据轮换与链路体检
 > 对象：萬星（paas）侧
-> 状态：**P0 / P1 已收口上线（2026-10-12 晚）**；P2 为纪律类，仍挂账待排期。
+> 状态：**P0 / P1 已收口上线并实证（2026-10-12 晚）**；
+> **P2 第一项代码已就位、生效待下次镜像构建；第二项已落地实证。**
 > 更新记录见文末「收口状态」。
 
 ## 背景（一段话）
@@ -185,14 +186,37 @@ agent-runner-c: api.github=200 | platform=200
   作用域修复与 fastembed 瘦身一起倒退。实际做法=rebase 到真 origin/main（`ad118d4a`）
   后发 patch **fd-1.2.2**。
 
-### 剩余自然验收点
+### 剩余自然验收点 —— ✅ 已完成（2026-10-12，spider-heal v11）
 
-修复的下次**真传播**发生在 spider-heal 升级 **v11** 时——届时用 mongosh 三查作为最终实证：
-正文 = v11 正文、`skill_md_raw_url` 指向 v11、`content_updated_at` 滚动。
+修复的**真传播**已在 spider-heal 升 **v11** 时实证，mongosh 三查全中：
 
-### P2 · 仍挂账（纪律类，待排期）
+```
+--- spider-heal-repair（本次唯一改动项）
+  正文: 2331 → 2437（含 v11 新增标记）      ✅ 正文 = 新版本
+  raw_url: .../versions/11/skills/...        ✅ 指 v11
+  content_updated_at: 2026-10-12T15:45:52Z  ✅ 滚动
+--- 其余三条（protocol/notify/generate）
+  raw_url 全部 v10 → v11；content_updated_at 同步滚动 ✅
+```
 
-凭据块标量改单行引号、代理凭据对 agent 可见。非阻断项，可择机做纪律收口。
+对比：v10 那次是 finddata **手工补库**（正文长度不变、raw_url 靠硬写）；
+v11 是**部署链路自动传播**——P1 根治确认生效，此后无需再手工补数据。
+
+### P2 · 已部分收口（代码就位，生效待下次镜像构建）
+
+**第一项（凭据块标量改单行）——代码已修，待发镜像**：
+根因是 `js-yaml` 默认把长密钥折成块标量（`git_pat: >-`），技能单行 grep/sed 取到空串
+→ agent 打印原文 → 完整值落会话日志。修法=写 `.credentials.yaml` 时统一
+`yaml.dump(doc, { lineWidth: -1 })`，长密钥恒为单行值（`compose.js` 两处写入点）。
+回归测试 `agent-runner/test/credentials-scalar.test.mjs`（3 例）钉死该性质。
+
+> ⚠️ 本改动在 **runner 二进制**里，**需下次镜像构建才落到生产**。当前生产 child home
+> 仍为块标量形态（已核）——技能侧已做块标量兼容，期间不受影响。
+> 验收动作：下次发镜像后，用「不打印值、只看行长」的方式确认 `git_pat:` 行自带值。
+
+**第二项（代理凭据对 agent 可见）——已落地并实证**：
+child 进程环境实测已继承 `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY`
+（mihomo `100.64.0.7:30081`），这正是 P0 复测 `api.github=200` 的原因。本项闭合。
 
 ---
 

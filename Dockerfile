@@ -176,10 +176,11 @@ ENV PATH="/opt/dsh/node_modules/.bin:${PATH}" \
     DSH_HOME="/opt/dsh-home"
 COPY --chown=node:node --from=builder /app/web/dist ./web/dist
 # Facet service + its built thin SPA (same-image second role; see builder note).
-# mcp-catalog.js is imported by facet/index.js (S2 registry 聚合读面); cli/ is
-# deliberately NOT shipped — it is the npm-published @finddata/facet package,
-# not part of the runtime.
-COPY --chown=node:node --from=builder /app/facet/index.js /app/facet/identity.js /app/facet/mcp-catalog.js /app/facet/marketplace-json.js ./facet/
+# mcp-catalog.js is imported by facet/index.js (S2 registry 聚合读面); pairing.js
+# mounts the device-pairing doors (F3.2 publish bridge); cli/ is deliberately
+# NOT shipped — it is the npm-published @finddata/facet package, not part of
+# the runtime.
+COPY --chown=node:node --from=builder /app/facet/index.js /app/facet/identity.js /app/facet/mcp-catalog.js /app/facet/marketplace-json.js /app/facet/pairing.js ./facet/
 COPY --chown=node:node --from=builder /app/facet/web/dist ./facet/web/dist
 
 # Application source: all root .js (server.js, paths.js, local-services.js,

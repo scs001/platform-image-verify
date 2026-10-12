@@ -1293,6 +1293,26 @@ export function registerPackRoutes(app, {
             if (err) return res.status(400).json({ error: `models.${agentId}: ${err}`, code: "MODEL_LANE_REJECTED" });
           }
         }
+        // Runner roster gate (add-deploy-roster-gate): lanes authorize the
+        // KEY; the roster is what the PLACED runner's dsh tree can resolve —
+        // a lane-passing, roster-absent model fails silently in the child
+        // (empty answer, billed as a turn). Degrades open when the roster is
+        // unknowable (scheduler unarmed, board unreachable, older runner
+        // image without the heartbeat field) — observability gaps never
+        // block a deploy.
+        if (requestedModels.length > 0 && scheduler) {
+          try {
+            const board = await scheduler.boardNow();
+            const rosterRunnerId = runnerPlacement.runnerId ?? registry.runnerList()[0]?.id ?? null;
+            const roster = rosterRunnerId ? board?.runners?.[rosterRunnerId]?.models : null;
+            if (Array.isArray(roster)) {
+              for (const [agentId, model] of requestedModels) {
+                const err = modelChoiceError({ model, roster });
+                if (err) return res.status(400).json({ error: `models.${agentId}: ${err}`, code: "MODEL_NOT_IN_ROSTER" });
+              }
+            }
+          } catch { /* board unreachable → degrade open */ }
+        }
       }
     } else if (providedKeys && Object.keys(providedKeys).length > 0) {
       console.warn("[packs] billing not linked — ignoring pasted billingKeys for this deploy");

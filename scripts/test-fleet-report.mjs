@@ -116,3 +116,32 @@ test("facade reporter: queued, flushed, inert without url; deterministic settled
   await inert.flush();
   assert.equal(obs.calls.length, 1); // nothing new — inert
 });
+
+// ── add-deploy-roster-gate: the heartbeat carries the model roster ───────────
+test("runner sampler: roster rides runner_stats; failures omit the field", async () => {
+  const emitted = [];
+  const reporter = { emit: (e) => emitted.push(e) };
+  const manager = { health: () => ({ agents: [], children: 0, queued: 0, budget: 0, budgetMb: 3328 }) };
+  // Sync provider (the test seam): available on the very first tick.
+  const sampler = createFleetSampler({ manager, reporter, runnerId: "r1", rosterProvider: () => ["deepseek-v4.1-flash", "m2"] });
+  sampler.sample();
+  let stats = emitted.filter((e) => e.kind === "runner_stats");
+  assert.deepEqual(stats[0].payload.models, ["deepseek-v4.1-flash", "m2"], "roster rides the heartbeat verbatim");
+  // Async provider: lands on the tick AFTER the background refresh resolves.
+  const emitted2 = [];
+  const reporter2 = { emit: (e) => emitted2.push(e) };
+  const sampler2 = createFleetSampler({ manager, reporter: reporter2, runnerId: "r2", rosterProvider: async () => ["m-a"] });
+  sampler2.sample();
+  assert.equal(emitted2.find((e) => e.kind === "runner_stats").payload.models, undefined, "async roster not yet landed on first tick");
+  await new Promise((r) => setTimeout(r, 10));
+  sampler2.sample();
+  assert.deepEqual(emitted2.filter((e) => e.kind === "runner_stats").at(-1).payload.models, ["m-a"], "landed after refresh");
+  // Failing provider: the field is OMITTED (degrade open), never an empty list.
+  const emitted3 = [];
+  const reporter3 = { emit: (e) => emitted3.push(e) };
+  const sampler3 = createFleetSampler({ manager, reporter: reporter3, runnerId: "r3", rosterProvider: async () => { throw new Error("store unreadable"); } });
+  sampler3.sample();
+  await new Promise((r) => setTimeout(r, 10));
+  sampler3.sample();
+  assert.equal(emitted3.filter((e) => e.kind === "runner_stats").at(-1).payload.models, undefined, "failure omits the field");
+});

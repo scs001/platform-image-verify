@@ -926,10 +926,16 @@ test("config: resolveServiceConfig precedence — request > preserved override >
   assert.equal(servingLib.resolveServiceConfig({ serving, overrides: { model: null } }).model, "m-decl");
   assert.equal(servingLib.resolveServiceConfig({ serving, overrides: { rhythm: null } }).rhythm, null);
   assert.equal(servingLib.resolveServiceConfig({ serving, overrides: { rhythm: null } }).model, "m-decl");
-  // modelChoiceError: whitelist ∩ lanes, refusal names the violated constraint.
+  // modelChoiceError: whitelist ∩ lanes ∩ roster, refusal names the violated constraint.
   assert.match(servingLib.modelChoiceError({ model: "m-x", whitelist: ["m-in"], lanes: ["m-in"] }), /modelWhitelist/);
   assert.match(servingLib.modelChoiceError({ model: "m-x", whitelist: null, lanes: ["m-in"] }), /billing lanes/);
   assert.equal(servingLib.modelChoiceError({ model: "m-in", whitelist: ["m-in"], lanes: ["m-in", "m-x"] }), null);
+  // Roster layer (add-deploy-roster-gate): null = unknowable → open; a known
+  // roster refuses an absent model naming the available list (the F3.3
+  // lane-passing/roster-absent silent-empty shape).
+  assert.equal(servingLib.modelChoiceError({ model: "m-in", whitelist: null, lanes: null, roster: null }), null, "unknown roster degrades open");
+  assert.match(servingLib.modelChoiceError({ model: "m-x", whitelist: null, lanes: null, roster: ["m-in"] }), /model roster \(available: m-in\)/);
+  assert.equal(servingLib.modelChoiceError({ model: "m-in", whitelist: null, lanes: ["m-in"], roster: ["m-in", "m-x"] }), null);
 });
 
 // ── agent-service-config: deploy-time model lanes + the config routes ───────

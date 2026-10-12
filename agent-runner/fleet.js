@@ -131,10 +131,48 @@ export function createFleetReporter({
 // Periodic sampler: per-agent five-state transitions + one runner_stats row
 // per tick. Riding the manager's health() view keeps hooks out of the
 // manager's hot paths entirely.
-export function createFleetSampler({ manager, reporter, runnerId }) {
+//
+// `rosterProvider` (add-deploy-roster-gate): the model ids this runner's
+// composed child profiles can resolve — the same buildLlmProfile() source the
+// child settings.yaml is written from, so the heartbeat can never disagree
+// with what children actually run. The value rides runner_stats as `models`;
+// the deploy gate reads it off the observer board. sample() stays synchronous
+// (its consumers call it fire-and-forget): the roster is cached and refreshed
+// in the background each tick — a provider failure OMITS the field (a missing
+// roster degrades the deploy gate open; an empty array would refuse every
+// model choice, and a read failure is not "no models").
+export function createFleetSampler({ manager, reporter, runnerId, rosterProvider = null }) {
   let last = new Map(); // agentKey → state
+  let rosterCache = null; // string[] | null — null until the first refresh lands
+  const defaultRosterProvider = async () => {
+    const { buildLlmProfile } = await import("../dsh-profile.js");
+    const { models } = await buildLlmProfile();
+    return models.map((m) => m.id);
+  };
+  const resolveRoster = rosterProvider ?? defaultRosterProvider;
+  const refreshRoster = () => {
+    try {
+      const v = resolveRoster();
+      if (Array.isArray(v)) {
+        // Synchronous provider (tests): available on this very tick.
+        rosterCache = v.map(String);
+        return;
+      }
+      Promise.resolve(v)
+        .then((ids) => {
+          if (Array.isArray(ids)) rosterCache = ids.map(String);
+          else rosterCache = null;
+        })
+        .catch(() => {
+          rosterCache = null;
+        });
+    } catch {
+      rosterCache = null;
+    }
+  };
   return {
     sample() {
+      refreshRoster();
       const h = manager.health();
       for (const a of h.agents) {
         const prev = last.get(a.key);
@@ -156,6 +194,7 @@ export function createFleetSampler({ manager, reporter, runnerId }) {
           budget_mb: Math.round(h.budget),
           budget_mb_limit: h.budgetMb,
           agents: h.agents.length,
+          ...(Array.isArray(rosterCache) ? { models: rosterCache } : {}),
         },
       });
     },

@@ -688,6 +688,49 @@ test("metering: every turn kind lands one jsonl line", async () => {
   }
 });
 
+// ── fix-empty-turn-billing: 零输出 idle 回合按失败结算（免单收口） ───────────
+
+test("empty turn: idle with zero assistant text settles as -32005 and meters ok:false", async () => {
+  // reply:"" — the fake emits no text (deltas and message blocks all falsy),
+  // then flips the session to idle: the silent model-failure shape. Usage is
+  // never a signal (live: 700/700 ok:true rows carry tokens:null).
+  const { manager, config } = await directManager({ harness: { reply: "" } });
+  try {
+    await manager.reconcile();
+    await assert.rejects(
+      () => manager.turn(ENTRY, "s1", "hi"),
+      (e) => e.code === -32005 && /without any assistant output/.test(e.message),
+    );
+    const lines = readFileSync(config.meterFile, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    assert.equal(lines.length, 1);
+    assert.equal(lines[0].ok, false, "the empty turn is metered as a failed turn");
+    assert.match(lines[0].error, /without any assistant output/);
+    // Text-bearing turns keep their ok settlement — pinned by the metering
+    // test above and the whole residency suite (same settle path, non-empty
+    // finalText); the verdict is a per-turn local, never sticky.
+  } finally {
+    await manager.stopAll();
+  }
+});
+
+test("empty turn: message/send answers a JSON-RPC error on HTTP 200 (the facade-waiver premise)", async () => {
+  const h = await bootRunner({ entries: [ENTRY], skills: { "packs/pk-abc/fin-statement-analysis": "# s" }, reply: "" });
+  try {
+    await h.manager.reconcile();
+    const res = await h.callAgent(ENTRY, "POST", "/", {
+      headers: { Authorization: "Bearer backend-secret" },
+      body: SEND(1, "hi", "ctx-e"),
+    });
+    assert.equal(res.status, 200, "JSON-RPC errors ride HTTP 200 — the A2A transport contract");
+    const doc = JSON.parse(res.text);
+    assert.equal(doc.error?.code, -32005, "empty turn reaches the caller as an error, not a silent empty result");
+    assert.match(doc.error?.message, /without any assistant output/);
+    assert.equal(doc.result, undefined, "no empty-text result shape — billing reads outcome from the error object");
+  } finally {
+    await h.close();
+  }
+});
+
 // ── add-serving-budgets 2.1/2.2: per-child budget + over-budget hard stop ───
 
 test("budget: the descriptor's minutes drive the child's timeout and label", async () => {

@@ -237,6 +237,22 @@ export class AgentChild {
         const usage0 = ev0?.data?.usage ?? ev0?.usage ?? params?.usage;
         if (usage0 && typeof usage0 === "object") lastUsage = usage0;
         if (method === "session.status" && params?.status === "idle") {
+          // Empty-turn recognition (fix-empty-turn-billing): a turn that ends
+          // without any assistant text is the silent shape of model failure —
+          // dsh goes idle without ever emitting a finish-error chunk
+          // (UNKNOWN_MODEL-class resolution failures). Settled as a failed
+          // turn so the meter, the fleet events, and the A2A reply all carry
+          // an error and billing waives it. Text is the only honest signal:
+          // usage never arrives on this dsh line (live finding 2026-10-14 —
+          // 700/700 ok:true meter rows carry tokens:null), so a null usage
+          // proves nothing. -32005 stays distinct from -32003 (a failure the
+          // LLM request itself reported) for triage attribution.
+          if (!finalText.trim()) {
+            return settle(false, Object.assign(
+              new Error("turn ended without any assistant output (model unavailable or refused)"),
+              { code: -32005 },
+            ));
+          }
           return settle(true, { text: finalText, usage: lastUsage });
         }
         if (method === "_child_exit") {

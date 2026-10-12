@@ -1693,6 +1693,35 @@ write-probe.txt` 独立复核 22 字节，meter 记录该回合。注意 `/opt/a
 .backend-token` 文件值与容器 env 已漂移（「轮换需两侧同步」预警的现实版）——直连验收
 取容器 env 值，不取文件。
 
+### serving runner 独立 deployment（add-serving-runner-split，2026-10-13）
+
+**形态变化**：上面「cheap-1 容器」形态退役——serving 车道迁入 k8s 独立 Deployment
+`agent-runner-serving`（GitOps `all-services/prod/agent-runner-serving.yaml`）：专用节点
+cheap-4（100.64.0.8）、hostNetwork、hostPath `/data/agent-runner-serving`、4Gi Guaranteed
+（QoS armor）、常驻预算 3328MB / MAX_CHILDREN 8（M2 实测 ≈540-600MB/child → 真并发 5-6，
+对比旧形态 2-3）、标准端口几何 ops 8790 + 8791/32（专用节点无撞口）。镜像与 runner-b/c
+同源平台镜像（滚镜像 = 三清单同滚）。secret `agent-runner-serving-env` 带外（四 token
+值自旧容器 env 原样拷：registry/backend/relay/fleet——**backend token 与 facade 共享，
+轮换需两侧同步**）。cheap-1 侧 `agent-runner-dsh` 容器已 stop（卷 `agent-runner-data`
+留回滚位后清）。
+
+**切换配方（接管波，零手工改点）**：① rsync 旧卷数据（llm-providers.json 必带——漏迁
+= child 初始化 `no adapter registered for provider "finddata"`）；② 新 Deployment 先带
+`AGENT_RUNNER_DEFAULT_ID=cheap-1` 惰性启动（防与旧 runner 双宿主未打标条目——residency
+无闲置回收，双宿主=白耗 1-2GB 常驻）；③ facet packs.db `agent_runners` 插新行（upsert
+语义）；④ 停旧容器 → fleet-scheduler 90s stale 判死 → 条目自动改点余量最大 runner（新
+runner 预算 3328 必胜）+ 打 `runner_id` 标签 + 端口环探防撞；⑤ 卫生步：fleet 表删旧行、
+新行回填 created_at 成默认行 rows[0]、Deployment 去 DEFAULT_ID 滚一次、platform-config
+`AGENT_SERVING_RUNNER_URL` 种子改新地址（ConfigMap 改动不动 pod template——facet/platform
+需手动 rollout restart 吃新值）。回滚 = 重启旧容器 + 按本节语义手工 PUT 条目回旧几何
+（滞回保证调度器不会自动搬回）。
+
+**切换实录**：101s 判死、8 条目（6 pack 代理 + 2 legacy 无 packId 条目）一次改点、撞口
+环探真触发一次（override 8807）、rsync 的 home 让 spider-heal 直接 warm。计费全链经新
+runner 复核：usage settled + 部署者分成 $0.07/回合落账。切换日 openrouter 上游大面故障
+（deepseek 502/全线 free 车道限流），内容成功回合回执由链路验证+计费行+错回合 waived
+管道代证；错回合误计 outcome:ok = F3.3 挂账缺陷②的活体再现（已退演练号 $0.20）。
+
 ### 事件通知（add-agent-notifications，2026-10-03）
 
 **契约面（pack 作者视角）**：每个部署的 child 组合经桥行获得一个 `bot_notify` 工具

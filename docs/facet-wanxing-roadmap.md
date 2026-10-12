@@ -183,9 +183,9 @@ reporter 重试梯在 observer 升级后自动补放积压）。**M2 出口判�
   1 重会话+1 新鲜，夜间批量并发=1。两缺陷已修：runner 记账幽灵（自发退出 child 无
   exit 钩子按 96MB 地板永计——记账点存活性自愈，paas 9f7e1e4）+ 限额错配
   （AGENT_RUNNER_RESIDENT_BUDGET_MB 3072>pod 1536Mi——GitOps 已改 512 对齐）。
-  **规模化前置（结构决策待拍板）**：serving runner 独立 deployment（独立内存上限、
-  不与用户 cell 同 cgroup）= 夜间车道真正的容量使能器；registry 多 runner 路由与
-  runner 自报名标签已为此预留。
+  **规模化前置（结构决策）✅ 2026-10-13 已落**：serving runner 独立 deployment
+  `agent-runner-serving`（4Gi/预算 3328，M4⑤ 行）——夜间车道容量使能器就位；registry
+  多 runner 路由与 runner 自报名标签按预留直用（add-serving-runner-split）。
 - 出口判据：一个真实内部 mission 从「一句话目标」到「夜间执行+晨报+成本对账」全链。
 - **依赖 M1**：planner 派发的每一步都是 pack，pack 上下文经济性直接决定自主成功率。
 
@@ -293,9 +293,12 @@ M4 是漏斗落地端的体验面；F3.3 全旅程验收若早于 M4① 落地�
   成本水位条+详情步骤进度/成本双条+窗口剩余。生产实证：10 卡全渲染、高流量卡真实
   信号（doc-studio 18回合/17分/$1.70 与目录 turns7d 一致）、草稿任务条全出。
   **M4④ 驾驶舱整片完结**——体验标准达成：不读手册答「在干活吗/离目标多远/花了多少钱」。
-- **⑤ 开放前置**：serving runner 独立 deployment（M2 挂账结构决策，内存实测
-  ≈2-3 fresh child/pod——**M4 开工前拍板**）；开放身份门沿用「内部范围」触发器纪律，
-  开放时连带容量水位线（机群余量作部署闸）与合规项。
+- **⑤ 开放前置**：serving runner 独立 deployment ✅ 2026-10-13（add-serving-runner-split
+  已上线归档）：cheap-1 裸 docker 形态退役 → k8s 专用 Deployment `agent-runner-serving`
+  @cheap-4（4Gi Guaranteed/预算 3328MB/并发 5-6 vs 旧 2-3；GitOps 生命周期；与任务车道
+  b/c 异故障域），接管波 101s 零手工迁 8 条目，计费+分成链经新 runner 复核 settled；
+  **M2「规模化前置」结构决策就此闭环**。余开放前置 = 开放身份门（沿用「内部范围」
+  触发器纪律）+ 容量水位线（机群余量作部署闸）+ 合规项——开放动作时连带。
 
 闸：供给前提（M1 出口前不动工——没货的货架不做挑选面）；执行面唯一性（见③硬约束）；
 IA 先行（可视化在重构之后，不在旧骨架上堆）；容量物理闸（⑤不拍板只能内部小规模）。
@@ -309,7 +312,7 @@ IA 先行（可视化在重构之后，不在旧骨架上堆）；容量物理�
 1. **tool-scoping 是全局闸**（M0 必须定案，两星共同地基）。
 2. **C5 是「成本上限」语义的闸**（只有硬停没有对账，场景A 不成立）。
 3. **容量**：已实测（2026-10-11，见 M2 容量实测行）——内存是硬约束不是 500 闸门；
-   夜跑规模化前置 = serving runner 独立 deployment（结构决策待拍板）。
+   夜跑规模化前置 = serving runner 独立 deployment ✅ 2026-10-13 已上线（M4⑤ 行）。
 4. **场景B 信任面**：跨用户 agent 通信的 consent、数据边界（柏讯侧）是产品语义问题，
    M3 前想清楚，不是纯技术。
 5. **竞争时钟**：见 M1 重心决策。

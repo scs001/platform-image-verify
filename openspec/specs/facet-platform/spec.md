@@ -24,20 +24,6 @@ The facet service SHALL be a standalone deployable — own process, own data sto
 - **WHEN** a request reaches the facet service on its public domain carrying a forwarded-identity header without the internal proxy credential
 - **THEN** the header is ignored and the request is treated as anonymous
 
-### Requirement: One identity provider, two arrival channels
-
-The facet service SHALL authenticate direct visitors via OIDC authorization-code flow against the same identity tenant 壹座 uses — same users, same organizations, same creator groups — issuing its own session cookie scoped to the facet domain; and SHALL accept proxy-forwarded verified identity from 壹座 as the second channel. A user SHALL be one identity across both channels: publishing, subscriptions, and deployment ownership are recorded under one key regardless of arrival surface.
-
-#### Scenario: Same user publishes from either surface
-
-- **WHEN** a creator publishes a pack on the facet domain and later subscribes to another pack through 壹座's embedded surface (or vice versa)
-- **THEN** both actions are recorded against the same identity, and creator gating applies identically on both surfaces
-
-#### Scenario: Silent sign-in on the facet domain
-
-- **WHEN** an already-authenticated 壹座 user initiates login on the facet domain
-- **THEN** the OIDC flow completes via the shared tenant without a credential prompt
-
 ### Requirement: The serving plane reads deployments from the facet service
 
 The facet service SHALL expose an internal read-only deployments API for the serving plane (萬星 facade): listing all deployments, resolving a pack's author identity, and listing a pack's deployment rows. The API SHALL be authenticated by an internal shared credential and SHALL NOT be reachable through the public surface without it. The facade SHALL resolve deployed agents through this API rather than any process-local access to the marketplace store.
@@ -428,3 +414,22 @@ The pack deploy surface on any instance SHALL probe the instance's serving capab
 
 - **WHEN** a deploy click slips through before the probe answers and the server refuses with its not-configured status
 - **THEN** the panel appears in place of the raw error message
+
+### Requirement: One identity provider, three arrival channels
+
+The facet service SHALL authenticate direct visitors via OIDC authorization-code flow against the same identity tenant 壹座 uses — same users, same organizations, same creator groups — issuing its own session cookie scoped to the facet domain; SHALL accept proxy-forwarded verified identity from 壹座 as the second channel; and SHALL accept a paired device's verified app token (the device-pairing surface mounted on the facet service) as the third. A user SHALL be one identity across all channels: publishing, subscriptions, and deployment ownership are recorded under one key regardless of arrival surface.
+
+#### Scenario: Same user publishes from either surface
+
+- **WHEN** a creator publishes a pack on the facet domain and later subscribes to another pack through 壹座's embedded surface (or vice versa)
+- **THEN** both actions are recorded against the same identity, and creator gating applies identically on both surfaces
+
+#### Scenario: Silent sign-in on the facet domain
+
+- **WHEN** an already-authenticated 壹座 user initiates login on the facet domain
+- **THEN** the OIDC flow completes via the shared tenant without a credential prompt
+
+#### Scenario: A paired device token publishes on the facet domain
+
+- **WHEN** a CLI publishes through the facet domain with an app token whose account identity is in a creator group
+- **THEN** the publish is recorded under that account identity and passes exactly the same creator gating, manifest validation, and rate limiting as a web-session publish

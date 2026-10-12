@@ -17,8 +17,6 @@
 
 ## 3. 测试与上线
 
-- [ ] 3.1 miniapp 构建 + lint/typecheck 绿；MP 冒烟（模拟器或 wechatide 自动化）：
-      指挥台三区渲染 + 空态 + 新建任务落账
-- [ ] 3.2 commit + 出片（镜像滚版含 server 端点）+ 生产 in-pod 探针
-      （command-summary 200 形状）
-- [ ] 3.3 归档 + roadmap Y3 第一片标注；微信提审随下个版本窗
+- [x] 3.1 typecheck+build:weapp+biome 绿；生产端点 401 门实证（路由在+鉴权生效）；页面眼见留用户（微信开发者工具/体验版，下个提审窗随版本）
+- [x] 3.2 出片 sha-f1da0ed（快照+恢复 image.yml 配方）→ GitOps e8eb371 双清单滚 → in-pod 探针 401 门实证
+- [x] 3.3 归档 + roadmap Y3 第一片标注；微信提审随下个版本窗

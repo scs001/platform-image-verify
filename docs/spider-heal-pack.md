@@ -155,4 +155,27 @@ GitHub 出海（cheap1：github.com/api/ls-remote 200/ok）· 发布+部署+起�
   经 Regenerate 选 366 天，新到期 **2027-10-12**；新值核验（身份/目标仓 200/非目标仓写 403/
   私有仓 404）后 v8 重部署（`git_pat ws_b8c21…VFRl`），runner drain→cold-start 实证。
   ⚠️ **Regenerate 是值轮换**（旧值即刻失效）——必须紧跟重部署压窗口。
+- **泄露轮换 ✅（2026-10-12，两次连做）**：agent 自报脱敏事故——它用 `sed` 处理
+  `$DSH_HOME/.credentials.yaml` 时，`git_pat` 是**块标量**（`git_pat: >-`，值在下一行），
+  单行 grep+sed 取到空串后 agent 改看原文，**完整值落入会话日志**（未进回复/PR/通知/仓内文件；
+  finddata 侧 grep 复核仓内零命中）。当日两次 Regenerate + v9/v10 重部署：
+  - 轮换 #1（v9）：`git_pat ws_ff3b8…yVgv`；轮换 #2（v10）：`git_pat ws_a6f56…7zNX`（在用）。
+  - 窄授权每次复验：身份 FindDataOfficial ✅ / 目标仓写 201 ✅ / 非目标仓写 403 ✅ / 私有仓 404 ✅。
+  - 取证：runner 会话轨迹（`/tmp/prior.jsonl`、`/tmp/s1-3.jsonl`）已删；全盘 grep 新值零残留；
+    zstd 会话存档逐帧解码扫——**新值 0 命中**，历史存档仅剩已失效的旧值。
+  - **根因②（技能正文不传播）**：registry 技能条目的 `skill_md_content` 为 null，内容端点回退到
+    `skill_md_raw_url`——而该字段**冻在 10-03 创建时的 v1 坐标**（`craw.…/versions/1/…`），
+    于是子机冷启动永远拉到 v1 旧技能文本（含缺陷的单行读凭据法），今日的加固文本根本没到执行体。
+    **修法**：部署后把当前版本技能正文写入 registry（`skill_md_content` + 修正 `skill_md_raw_url`），
+    已按 v10 落库并验证子机拿到（`cred()` 在场、旧 sed 消失）。
+  - **技能侧加固**（`scripts/spider-heal-pack.mjs`）：①凭据读取改 `cred()` 函数，覆盖行内/块标量/
+    空值续行三形态，并明令**绝不为「看清楚」打印凭据文件**；②状态目录不可写时降级到
+    `./.spider-heal/inbox.json`（不再申请提权——无审批通道必然失败关闭），协议语义不变。
+  - **fleet 调度旁证**：本次 v9/v10 部署被调度器自动落到 **runner-b / runner-c**（cheap-6/cheap-7
+    k8s pod），非原 cheap-1 `agent-runner-dsh`；两处均已实证 pin 新值。
+  - ⚠️ **遗留（待萬星侧）**：runner-b/c 所在节点 **cheap-6/cheap-7 无 GitHub 出口**
+    （`github.com:443` TCP 超时；对照 cheap-1 主机 200）。修复/生成链依赖 GitHub 出口（当前实现
+    走 API+tarball，会话实证 ghApi/tarball 引用），**这两台节点需补出口或把 spider-heal 固定调度回
+    cheap-1**（部署时显式传 runnerId，或调度器排除）。另外 runner 镜像**不含 git**（历版皆无，
+    非本次回归）——技能按 API 路径工作，不依赖系统 git。
 

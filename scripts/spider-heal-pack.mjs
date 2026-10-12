@@ -68,6 +68,7 @@ const SKILL_PROTOCOL = `# 工单协议与状态（spider-heal 对外面的唯一
 
 ## 状态文件 $DSH_HOME/spider-heal/inbox.json
 { "tickets": { "<repo>#<path>": { "state": "queued|working|pr-open|done|manual|invalid", "retry": 0|1, "prUrl": "...", "note": "一行结论/失败原因", "at": "ISO" } } }
+- **目录不可写时的降级（2026-10-12 实测）**：沙箱 workspace-write 的可写根只有会话 cwd 与 /tmp，$DSH_HOME/spider-heal/ 可能被拒。此时**不要停摆、不要申请提权**（无审批通道，必然失败关闭）：状态文件落到可写位置的同构路径 ./.spider-heal/inbox.json（cwd 下），并在回执里注明「状态文件降级至 <path>」；协议语义（去重/重试/终态）完全不变。
 - 每次状态变更先写文件再回复；重试计数只在 "working"→失败回退时 +1，达 1 即终态 manual。
 - **陈旧 working 自愈**：巡检开始时，state=working 且 at 距今 > 2×巡检节奏（默认 60 分钟）→ 视为该回合已被硬停/回收，按失败回退：未达重试上限 → retry+1 回 queued（note「回合中断，待重试」）；已达上限 → manual（note「回合中断且重试已尽」）。
 - "manual" 的 note 必须写清转人工原因（凭据未配置/验证不过/反爬墙/预算不足/工单不可读）。
@@ -79,9 +80,14 @@ const SKILL_REPAIR = `# 修复执行流程（每回合处理至多一单；从�
 
 ## 0. 凭据（每回合开始先检查）
 PAT 从凭据文件读，值不回显、不落任何输出：
-  PAT=$(grep -E '^\\s+git_pat:' "$DSH_HOME/.credentials.yaml" | head -1 | sed 's/.*git_pat:\\s*//' | tr -d '"' | tr -d "'")
-  ACTOR=$(grep -E '^\\s+gh_actor:' "$DSH_HOME/.credentials.yaml" | head -1 | sed 's/.*gh_actor:\\s*//' | tr -d '"' | tr -d "'")
-- PAT 为空 → 该单终态 manual，note「凭据未配置（git_pat）」→ 通知技能第 4 类。不要尝试匿名 clone 私有仓。
+  cred() { sed -n "/^[[:space:]]*$1:[[:space:]]*$/{n;s/^[[:space:]]*//;p;q;};/^[[:space:]]*$1:[[:space:]]*[>|]/{n;s/^[[:space:]]*//;p;q;};/^[[:space:]]*$1:[[:space:]]*/{s/^[[:space:]]*$1:[[:space:]]*//;p;q;}" "$DSH_HOME/.credentials.yaml" | tr -d '"' | tr -d "'"; }
+  PAT=$(cred git_pat)
+  ACTOR=$(cred gh_actor)
+- 三种取值形态都要覆盖：行内（key: value）、块标量标记（key: >- 或 key: |，值在下一行）、
+  空值续行（key: 后下一行缩进值）。**绝不为了「看清楚」去 cat/head/打印凭据文件整行或整文件**
+  ——2026-10-12 泄露事故就是单行 grep+sed 对块标量取到空串后改看原文导致的。
+- PAT 为空（读取失败）→ 该单终态 manual，note「凭据未配置/读取失败（git_pat）」→ 通知技能第 4 类。
+  不要尝试匿名 clone 私有仓，也不要打印文件排查。
 - 脱敏纪律：任何输出里 PAT 至多出现末 4 位（echo "…\${PAT: -4}"）。
 
 ## 1. 取件与浅检出

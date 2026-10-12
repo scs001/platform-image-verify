@@ -14,6 +14,8 @@
 //
 // JSON bodies arrive pre-parsed by server.js's global express.json().
 
+import * as cron from "../../cron.js";
+
 export function registerMpRoutes(ctx) {
   const { app, mpAuth } = ctx;
 
@@ -51,6 +53,65 @@ export function registerMpRoutes(ctx) {
     if (!r.ok) return res.status(r.status).json({ error: r.error });
     res.json({ token: r.token, email: r.email });
   });
+
+  // ── Command summary (openspec: add-mp-command-center) ────────────────────
+  // One request for the mini program's command surface: what is waiting for
+  // the user (pending agent questions, runtime snapshot) and how the
+  // scheduled fleet is doing. Store-local by design (the M4④ summary
+  // precedent — no cross-line joins here). Pending questions live in memory
+  // BY SEMANTICS (a dead turn's ask is moot), so an empty state after a
+  // restart is the honest truth, not a bug. The session-title join is
+  // best-effort: a chat-history failure degrades titles to null, it never
+  // fails the summary.
+  app.get("/api/mp/command-summary", async (req, res) => {
+    try {
+      const pending = [];
+      for (const [sessionId, p] of ctx.pendingQuestionBySession ?? new Map()) {
+        pending.push({ sessionId, askId: p.askId, toolCallId: p.toolCallId, questions: p.questions ?? [] });
+      }
+      let sessions = [];
+      try {
+        sessions = await ctx.chatHistory.listSessions();
+      } catch { /* degraded join, not a failed summary */ }
+      const titles = new Map(sessions.map((s) => [s.id, s.title ?? null]));
+      for (const p of pending) p.sessionTitle = titles.get(p.sessionId) ?? null;
+
+      const jobs = (ctx.cronList ?? cron.listJobs)();
+      const attention = [];
+      const counts = { total: jobs.length, active: 0, paused: 0, failed: 0, interrupted: 0, other: 0 };
+      for (const job of jobs) {
+        const last = job.history?.[job.history.length - 1];
+        // Same bucket logic the MP cron page chips use, so the two surfaces
+        // can never disagree about a job's state.
+        let bucket;
+        if (job.paused) bucket = "paused";
+        else if (job.state === "queued" || job.state === "running") bucket = "active";
+        else if (job.state === "failed") bucket = "failed";
+        else if (job.state === "interrupted") bucket = "interrupted";
+        else if (job.state === "error" || last?.success === false) bucket = "failed";
+        else bucket = "active";
+        counts[bucket === "paused" || bucket === "active" || bucket === "failed" || bucket === "interrupted" ? bucket : "other"]++;
+        if (bucket === "failed" || bucket === "interrupted") {
+          attention.push({
+            id: job.id,
+            title: job.sessionTitle ?? job.prompt?.slice(0, 60) ?? job.id,
+            state: bucket,
+            lastRun: job.lastRun ?? last?.time ?? null,
+            error: last?.error ?? null,
+          });
+        }
+      }
+      const recentDone = jobs
+        .flatMap((job) => (job.history ?? []).filter((h) => h.success).map((h) => ({ jobId: job.id, title: job.sessionTitle ?? job.prompt?.slice(0, 60) ?? job.id, time: h.time, duration: h.duration })))
+        .sort((a, b) => String(b.time).localeCompare(String(a.time)))
+        .slice(0, 5);
+
+      res.json({ pendingQuestions: pending, jobs: { counts, attention, recentDone } });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
 
   // First sign-in: a fresh wx.login code + a bind code minted from the
   // account's web session. Redeems the code, binds the openid to the

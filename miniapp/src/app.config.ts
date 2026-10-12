@@ -6,6 +6,7 @@ export default defineAppConfig({
     "pages/share/index",
     "pages/cron/index",
     "pages/resources/index",
+    "pages/command/index",
   ],
   window: {
     backgroundTextStyle: "light",

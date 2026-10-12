@@ -282,6 +282,16 @@ export default function HistoryDrawer({
                 </Group>
               ) : null}
 
+              <Group title="🧭 指挥台">
+                <View
+                  className="grp-sec-link"
+                  data-testid="mp-command-entry"
+                  onClick={() => Taro.navigateTo({ url: "/pages/command/index" })}
+                >
+                  <Text>待答问询 · 任务异常 ›</Text>
+                </View>
+              </Group>
+
               <Group title="⏰ 定时任务" count={cronJobs.length} badge={unseenCount > 0}>
                 <View className="grp-sec-link" onClick={() => Taro.navigateTo({ url: "/pages/cron/index" })}>
                   <Text>打开定时任务 ›</Text>

@@ -2722,3 +2722,80 @@ page {
 .blk-qc-submit-off {
   opacity: 0.4;
 }
+
+/* ── 指挥台(openspec: add-mp-command-center) ─────────────────────────────
+   复用 cron 卡片/chip 家法;三区段标题+诚实空态。 */
+.command-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: #f3f4f6;
+}
+
+.command-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 32px 8px;
+}
+
+.command-list {
+  flex: 1;
+  min-height: 0;
+  padding: 0 24px;
+}
+
+.command-section {
+  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.command-section-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.command-empty {
+  padding: 24px;
+  border-radius: 16px;
+  background: #fff;
+  font-size: 24px;
+  color: #9ca3af;
+  text-align: center;
+}
+
+.command-card {
+  margin-bottom: 4px;
+  padding: 20px;
+  border-radius: 16px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.command-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.command-card-title {
+  font-size: 26px;
+  font-weight: 500;
+  color: #111827;
+  flex: 1;
+  min-width: 0;
+}
+
+.command-card-line {
+  font-size: 24px;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

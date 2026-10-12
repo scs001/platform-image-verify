@@ -1118,6 +1118,18 @@
       "subscribe": "S'abonner et installer sont deux actes : l'abonnement est enregistré sur le marché ; l'installation prend un instantané de version précis.",
       "gate": "Seuls les serveurs MCP enregistrés au registre peuvent être référencés ; les entrées d'agent sont limitées au persona.",
       "deepGuide": "Guide détaillé de création (dépôt public)"
+    },
+    "matrix": {
+      "title": "Matrice de capacités",
+      "capability": "Capacité",
+      "skillsUser": "Compétences · niveau utilisateur",
+      "skillsProject": "Compétences · niveau projet",
+      "mcpUser": "Config MCP · niveau utilisateur",
+      "mcpProject": "Config MCP · niveau projet",
+      "marketplace": "Forme marketplace de plugins",
+      "verified": "Vérification réelle",
+      "note": "Chaque cellule renvoie à un fait de code ou à un enregistrement vérifié.",
+      "deepDoc": "Matrice complète avec sources →"
     }
   },
   "facetIntro": {

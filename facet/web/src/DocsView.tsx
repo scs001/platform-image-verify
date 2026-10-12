@@ -11,6 +11,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  FACET_CAPABILITIES,
   FACET_CLI_PACKAGE,
   FACET_CLIENT_GUIDE_URL,
   FACET_CONNECT_COMMAND,
@@ -123,6 +124,66 @@ function InstallSection() {
         {t("facetDocs.install.marketNote")}{" "}
         <code className="rounded bg-muted px-1 py-0.5 font-mono">{FACET_MARKET_URL}</code>
       </p>
+
+      <div className="mt-5 overflow-x-auto" data-testid="docs-capability-matrix">
+        <h3 className="text-sm font-semibold">{t("facetDocs.matrix.title")}</h3>
+        <table className="mt-2 w-full text-xs">
+          <thead>
+            <tr className="text-left border-b border-border">
+              <th className="py-1.5 pr-3 font-medium">{t("facetDocs.matrix.capability")}</th>
+              {FACET_CAPABILITIES.map((c) => (
+                <th key={c.id} className="px-2 font-medium whitespace-nowrap">{t(`facetDocs.clients.${c.id}.label`)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-border/50">
+              <td className="py-1.5 pr-3">{t("facetDocs.matrix.skillsUser")}</td>
+              {FACET_CAPABILITIES.map((c) => (
+                <td key={c.id} className="px-2">✅</td>
+              ))}
+            </tr>
+            <tr className="border-b border-border/50">
+              <td className="py-1.5 pr-3">{t("facetDocs.matrix.skillsProject")}</td>
+              {FACET_CAPABILITIES.map((c) => (
+                <td key={c.id} className="px-2">✅</td>
+              ))}
+            </tr>
+            <tr className="border-b border-border/50">
+              <td className="py-1.5 pr-3">{t("facetDocs.matrix.mcpUser")}</td>
+              {FACET_CAPABILITIES.map((c) => (
+                <td key={c.id} className="px-2">✅</td>
+              ))}
+            </tr>
+            <tr className="border-b border-border/50">
+              <td className="py-1.5 pr-3">{t("facetDocs.matrix.mcpProject")}</td>
+              {FACET_CAPABILITIES.map((c) => (
+                <td key={c.id} className="px-2">{c.mcpProjectFile ? "✅" : "—"}</td>
+              ))}
+            </tr>
+            <tr className="border-b border-border/50">
+              <td className="py-1.5 pr-3">{t("facetDocs.matrix.marketplace")}</td>
+              {FACET_CAPABILITIES.map((c) => (
+                <td key={c.id} className="px-2">{c.marketplace ? "✅" : "—"}</td>
+              ))}
+            </tr>
+            <tr>
+              <td className="py-1.5 pr-3">{t("facetDocs.matrix.verified")}</td>
+              {FACET_CAPABILITIES.map((c) => (
+                <td key={c.id} className="px-2" data-testid={`matrix-verified-${c.id}`}>
+                  {c.verified === "full" ? "✅" : c.verified === "config-only" ? "◐" : "—"}
+                </td>
+              ))}
+            </tr>
+          </tbody>
+        </table>
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          {t("facetDocs.matrix.note")}{" "}
+          <a className="underline hover:text-foreground" href={FACET_CLIENT_GUIDE_URL("client-matrix").replace(/client-matrix\.md$/, "client-matrix.md")} target="_blank" rel="noopener noreferrer" data-testid="matrix-deep-link">
+            {t("facetDocs.matrix.deepDoc")}
+          </a>
+        </p>
+      </div>
     </section>
   );
 }

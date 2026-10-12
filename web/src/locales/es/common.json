@@ -1118,6 +1118,18 @@
       "subscribe": "Suscribirse e instalar son dos actos: la suscripción se registra en el mercado; la instalación toma una instantánea de versión concreta.",
       "gate": "Solo pueden referenciarse servidores MCP registrados en el registro; las entradas de agente son solo persona.",
       "deepGuide": "Guía detallada de creación (repositorio público)"
+    },
+    "matrix": {
+      "title": "Matriz de capacidades",
+      "capability": "Capacidad",
+      "skillsUser": "Habilidades · nivel usuario",
+      "skillsProject": "Habilidades · nivel proyecto",
+      "mcpUser": "Config MCP · nivel usuario",
+      "mcpProject": "Config MCP · nivel proyecto",
+      "marketplace": "Formulario de mercado de plugins",
+      "verified": "Verificación real",
+      "note": "Cada celda se remite a un hecho del código o a un registro verificado.",
+      "deepDoc": "Matriz completa con fuentes →"
     }
   },
   "facetIntro": {

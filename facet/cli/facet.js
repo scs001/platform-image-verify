@@ -34,6 +34,7 @@ const USAGE = `facet v${VERSION} — 谦面功能集安装器 / 萬星调用者�
 用法：
   facet install <packRef> [--target claude-code|cursor|zcode|codex|gemini-cli]
                           [--project <dir>] [--base <url>] [--registry <url>]
+  facet update [packRef] [--target <t>] [--base <url>]   # 重取最新版快照（无订阅副作用）
   facet connect [--key wgk-…] [--registry <url>] [--clear] [--show] [--no-open]
   facet prefs <agent-slug> [--key sk-…] [--wanxing <url>]
                           [--set-callback <url> <secret>] [--set-reap <minutes>]
@@ -62,6 +63,9 @@ const USAGE = `facet v${VERSION} — 谦面功能集安装器 / 萬星调用者�
   zcode       ~/.zcode/skills/…    codex   ~/.codex/skills/…
   gemini-cli  ~/.gemini/skills/…   （项目级均为 <dir>/.<target>/skills/…）
 
+  update 子命令（F2.3）：按 ~/.facet/installed.json 的记录重取各包最新版——已最新
+  即 no-op，升级打印 v旧 → v新；零订阅副作用（快照模型）。
+
 说明：安装即版本快照（不产生订阅）；MCP 需 registry 账号凭据，端点仅打印。`;
 
 function parseArgs(argv) {
@@ -74,7 +78,10 @@ function parseArgs(argv) {
   else if (out.command === "--help" || out.command === "-h") out.command = "help";
   while (rest.length > 0) {
     const a = rest.shift();
-    if (a === "--target") out.target = rest.shift();
+    if (a === "--target") {
+      out.target = rest.shift();
+      out.targetExplicit = true; // update filters only on an explicit target
+    }
     else if (a === "--project") out.project = rest.shift();
     else if (a === "--base") out.base = rest.shift();
     else if (a === "--registry") out.registry = rest.shift();
@@ -246,6 +253,61 @@ async function fetchJson(url) {
 
 export function credentialsPath() {
   return process.env.FACET_CREDENTIALS_PATH || path.join(HOME(), ".facet", "credentials.json");
+}
+
+// ── Install records (add-facet-cli-update, F2.3) ───────────────────────────────
+// The update path's single source of truth: which packs are installed where,
+// at which snapshot version. Skill frontmatter carries no version, so a
+// local record is the only reliable map; re-running install re-enrolls.
+export function installedPath() {
+  return process.env.FACET_INSTALLED_PATH || path.join(HOME(), ".facet", "installed.json");
+}
+
+async function loadInstalled() {
+  try {
+    const doc = JSON.parse(await readFile(installedPath(), "utf8"));
+    return Array.isArray(doc?.installs) ? doc.installs : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveInstalled(installs) {
+  await mkdir(path.dirname(installedPath()), { recursive: true });
+  await writeFile(installedPath(), JSON.stringify({ installs }, null, 2) + "\n", "utf8");
+}
+
+const installKey = (r) => `${r.packId}\u0000${r.target}\u0000${r.scope}\u0000${r.project ?? ""}`;
+
+async function recordInstall(rec) {
+  const installs = await loadInstalled();
+  const key = installKey(rec);
+  const next = installs.filter((r) => installKey(r) !== key);
+  next.push(rec);
+  await saveInstalled(next);
+}
+
+// The snapshot write path shared by install and update — an update's bytes
+// are a fresh install's bytes by construction.
+async function writeSkillSnapshot(base, detail, dir, { quiet = false } = {}) {
+  const version = detail.version;
+  const skills = detail.manifest?.skills ?? [];
+  let ok = 0;
+  for (const skill of skills) {
+    const mdUrl = `${base}/api/packs/${encodeURIComponent(detail.id)}/versions/${version}/skills/${encodeURIComponent(skill.name)}.md`;
+    const r = await fetch(mdUrl, { headers: { Accept: "text/markdown" } });
+    if (!r.ok) {
+      console.log(`  ✗ ${skill.name} — 下载失败 HTTP ${r.status}`);
+      continue;
+    }
+    const body = await r.text();
+    const skillDir = path.join(dir, skill.name);
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(path.join(skillDir, "SKILL.md"), body, "utf8");
+    if (!quiet) console.log(`  ✓ ${path.join(skillDir, "SKILL.md")}`);
+    ok += 1;
+  }
+  return ok;
 }
 
 export async function loadCredentials() {
@@ -422,19 +484,8 @@ async function install(opts) {
 
   console.log(`谦面 Facet · 安装 ${detail.name}（${detail.id}）v${version} → ${opts.target}（${scope}）`);
   if (skills.length === 0) console.log("  （该功能集没有技能条目）");
-  for (const skill of skills) {
-    const mdUrl = `${base}/api/packs/${encodeURIComponent(detail.id)}/versions/${version}/skills/${encodeURIComponent(skill.name)}.md`;
-    const r = await fetch(mdUrl, { headers: { Accept: "text/markdown" } });
-    if (!r.ok) {
-      console.log(`  ✗ ${skill.name} — 下载失败 HTTP ${r.status}`);
-      continue;
-    }
-    const body = await r.text();
-    const skillDir = path.join(dir, skill.name);
-    await mkdir(skillDir, { recursive: true });
-    await writeFile(path.join(skillDir, "SKILL.md"), body, "utf8");
-    console.log(`  ✓ ${path.join(skillDir, "SKILL.md")}`);
-  }
+  await writeSkillSnapshot(base, detail, dir);
+  await recordInstall({ packId: detail.id, name: detail.name, target: opts.target, scope, project: opts.project ? path.resolve(opts.project) : null, version, installedAt: new Date().toISOString() });
 
   const mcp = detail.manifest?.mcpServers ?? [];
   if (mcp.length > 0) {
@@ -553,6 +604,47 @@ const realOrSelf = (p) => {
     return p;
   }
 };
+// ── update (add-facet-cli-update, F2.3): re-fetch the latest snapshot ─────────
+// No-arg refreshes every recorded install; a pack reference narrows to it
+// (--target further). Same write path as install — an update's bytes are a
+// fresh install's bytes; zero subscription semantics by construction.
+async function update(opts) {
+  const base = String(opts.base).replace(/\/+$/, "");
+  const installs = await loadInstalled();
+  const wantRef = opts.packRef ? extractPackId(opts.packRef) : null;
+  const targets = installs.filter(
+    (r) => (!wantRef || r.packId === wantRef) && (!opts.targetExplicit || r.target === opts.target),
+  );
+  if (installs.length === 0) {
+    console.log("本地无安装记录——facet install 会落记录（旧安装重跑一次 install 即入册）。");
+    return;
+  }
+  if (wantRef && targets.length === 0) {
+    console.log(`记录里没有 ${wantRef}${opts.targetExplicit ? `（target=${opts.target}）` : ""} 的安装——先 facet install。`);
+    return;
+  }
+  let upgraded = 0;
+  for (const rec of targets) {
+    const label = `${rec.name ?? rec.packId}（${rec.target}${rec.scope === "项目级" ? " · 项目级" : ""}）`;
+    const detail = await fetchJson(`${base}/api/packs/${encodeURIComponent(rec.packId)}`).catch(() => null);
+    if (!detail?.id) {
+      console.log(`✗ ${label} — 功能集已不可解析（下架/私有/网络），记录保持 v${rec.version}`);
+      continue;
+    }
+    if (detail.version === rec.version) {
+      console.log(`✓ ${label} 已最新 v${rec.version}`);
+      continue;
+    }
+    const root = rec.scope === "项目级" && rec.project ? rec.project : HOME();
+    const dir = path.join(root, SKILLS_SUBDIR[rec.target], "skills");
+    console.log(`↻ ${label} v${rec.version} → v${detail.version}（重取快照）`);
+    await writeSkillSnapshot(base, detail, dir);
+    await recordInstall({ ...rec, version: detail.version, installedAt: new Date().toISOString() });
+    upgraded += 1;
+  }
+  console.log(upgraded > 0 ? `完成：${upgraded} 笔更新（无订阅副作用——快照模型）。` : "没有需要更新的安装。");
+}
+
 const isMain =
   process.argv[1] &&
   realOrSelf(fileURLToPath(import.meta.url)) === realOrSelf(path.resolve(process.argv[1]));
@@ -564,6 +656,7 @@ if (isMain) {
     else if (opts.command === "install") await install(opts);
     else if (opts.command === "connect") await connectRun(opts);
     else if (opts.command === "prefs") await prefs(opts);
+    else if (opts.command === "update") await update(opts);
     else {
       console.error(`未知命令：${opts.command}\n\n${USAGE}`);
       process.exit(2);

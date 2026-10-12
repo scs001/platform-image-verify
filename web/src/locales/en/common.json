@@ -1118,6 +1118,18 @@
       "subscribe": "Subscribe and install are two acts: a subscription is recorded in the market; installing takes a definite version snapshot.",
       "gate": "Only registry-registered MCP servers can be referenced; agent entries are persona-only.",
       "deepGuide": "Deep authoring guide (public repository)"
+    },
+    "matrix": {
+      "title": "Capability matrix",
+      "capability": "Capability",
+      "skillsUser": "Skills · user level",
+      "skillsProject": "Skills · project level",
+      "mcpUser": "MCP config · user level",
+      "mcpProject": "MCP config · project level",
+      "marketplace": "Plugin marketplace form",
+      "verified": "Real-env verification",
+      "note": "Every cell traces to a code fact or a recorded walkthrough.",
+      "deepDoc": "Full matrix with per-cell sources →"
     }
   },
   "facetIntro": {

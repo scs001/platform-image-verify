@@ -73,3 +73,20 @@ test("deep-guide URLs point into the public repository docs tree", () => {
     assert.ok(url.endsWith(`/docs/ecosystem/${row.id}.md`), `guide URL shape for ${row.id}`);
   }
 });
+
+// ── Capability matrix mirror (add-facet-client-matrix, F2.2) ────────────────
+test("capability table mirrors MCP_TARGETS project-file presence", async () => {
+  const { MCP_TARGETS } = await import("../facet/cli/facet.js");
+  const fsp = await import("node:fs/promises");
+  const pathMod = await import("node:path");
+  const repoRoot = pathMod.resolve(new URL("..", import.meta.url).pathname);
+  const ts = await fsp.readFile(pathMod.join(repoRoot, "facet/web/src/cliFacts.ts"), "utf8");
+  const capBlock = ts.slice(ts.indexOf("FACET_CAPABILITIES"));
+  for (const [id, def] of Object.entries(MCP_TARGETS)) {
+    const hasProject = typeof def.projectFile === "function";
+    const row = capBlock.slice(capBlock.indexOf(`id: "${id}"`));
+    const cell = row.split("\n")[0];
+    const claimsProject = !cell.includes("mcpProjectFile: null");
+    assert.equal(claimsProject, hasProject, `${id}: matrix says project MCP=${claimsProject}, CLI has projectFile=${hasProject}`);
+  }
+});

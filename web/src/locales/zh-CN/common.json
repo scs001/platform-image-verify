@@ -1118,6 +1118,18 @@
       "subscribe": "订阅与安装是两个动作：订阅记录在市场；安装取的是确定的版本快照。",
       "gate": "MCP 只能引用注册处已注册的 server；角色条目仅限 persona。",
       "deepGuide": "创作深度指南（公开仓库）"
+    },
+    "matrix": {
+      "title": "能力矩阵",
+      "capability": "能力",
+      "skillsUser": "技能安装 · 用户级",
+      "skillsProject": "技能安装 · 项目级",
+      "mcpUser": "MCP 配置写 · 用户级",
+      "mcpProject": "MCP 配置写 · 项目级",
+      "marketplace": "插件市场形态",
+      "verified": "真环境实证",
+      "note": "每一格都有出处：CLI 代码事实或真环境实证记录。",
+      "deepDoc": "完整矩阵与逐格出处 →"
     }
   },
   "facetIntro": {

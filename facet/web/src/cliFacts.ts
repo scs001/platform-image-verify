@@ -44,3 +44,28 @@ export const FACET_TARGETS: FacetTargetFacts[] = [
   { id: "codex", skillsDir: "~/.codex/skills", mcpFile: "~/.codex/config.toml" },
   { id: "gemini-cli", skillsDir: "~/.gemini/skills", mcpFile: "~/.gemini/settings.json" },
 ];
+
+// ── Capability matrix (add-facet-client-matrix, F2.2) ─────────────────────────
+// The docs view's matrix rows derive from the same facts table — one source,
+// drift fails the unit test. Cells state the CLI's write surface (code fact)
+// plus the client's proven acceptance tier from the 2026-10-12 walkthroughs.
+
+export type FacetCapabilityTier = "full" | "config-only" | "none";
+
+export type FacetCapabilityFacts = {
+  id: FacetTargetId;
+  /** Project-level MCP config file the CLI writes, if the target has one. */
+  mcpProjectFile: string | null;
+  /** Claude-plugin marketplace form availability (claude-code only today). */
+  marketplace: boolean;
+  /** Real-environment verification tier from the recorded walkthroughs. */
+  verified: FacetCapabilityTier;
+};
+
+export const FACET_CAPABILITIES: FacetCapabilityFacts[] = [
+  { id: "claude-code", mcpProjectFile: "<dir>/.mcp.json", marketplace: true, verified: "full" },
+  { id: "cursor", mcpProjectFile: "<dir>/.cursor/mcp.json", marketplace: false, verified: "config-only" },
+  { id: "zcode", mcpProjectFile: null, marketplace: false, verified: "full" },
+  { id: "codex", mcpProjectFile: null, marketplace: false, verified: "config-only" },
+  { id: "gemini-cli", mcpProjectFile: null, marketplace: false, verified: "config-only" },
+];

@@ -69,7 +69,7 @@ curl -X POST https://wanxing.finddatatech.cloud/api/wanxing/v1/a2a/packs-ev5e51�
 | # | 坑 | 处置 |
 |---|---|---|
 | ① | **并发双部署拧断 billing_key_ref**：同包两次并发部署交错（registry 先后手≠库表先后手），registry 指向已轮换死 ref→runner 取键 404→**静默回落共享键**，部署者键停止计费且车道随机不通 | **已修**（4dd46b2）：deploy 路由按 packId 承诺链串行整段写序；`scripts/test-deploy-lock.mjs` 2/2（无锁复现 desync 实证）；镜像随本片滚 |
-| ② | **车道≠花名册 + 错回合照计费**：`inclusionai/ling-3.1-flash` 过车道门但不在 dsh 花名册→子回合 UNKNOWN_MODEL 静默空返；且 facade send 路径只看 HTTP 状态（A2A 错误随 **HTTP 200** 返回）→模型失败回合 **outcome:ok 照常计费+分成**。2026-10-13 runner 拆分切换日上游大面故障时升级为真实事故（两笔 502 回合照扣费） | **计费侧已修**（fd-wanxing `fix-error-turn-billing`，sha-ed21d00）：双车道 send 路径 outcome 从 JSON-RPC error 派生，错回合记录但豁免（零分钟/零结算/零分成）；回归 2 例；历史 4 行 \$0.40 退款+分成回抽已清。**仍挂账**：部署侧花名册校验（UNKNOWN_MODEL 静默空返类失败回合仍可能 outcome:ok——空返不产生 JSON-RPC error，采集器侧识别 turn/end reason=error 未做） |
+| ② | **车道≠花名册 + 错回合照计费**：`inclusionai/ling-3.1-flash` 过车道门但不在 dsh 花名册→子回合 UNKNOWN_MODEL 静默空返；且 facade send 路径只看 HTTP 状态（A2A 错误随 **HTTP 200** 返回）→模型失败回合 **outcome:ok 照常计费+分成**。2026-10-13 runner 拆分切换日上游大面故障时升级为真实事故（两笔 502 回合照扣费） | **计费侧已修**（fd-wanxing `fix-error-turn-billing`，sha-ed21d00）：双车道 send 路径 outcome 从 JSON-RPC error 派生，错回合记录但豁免（零分钟/零结算/零分成）；回归 2 例；历史 4 行 \$0.40 退款+分成回抽已清。**花名册门已修**（paas `add-deploy-roster-gate`，sha-53ef436 六面同滚）：runner 心跳携带 buildLlmProfile 同源 models（board 透传），部署门三层验证（whitelist∩lanes∩roster）——事故原模型 ling-3.1-flash 生产实证 400 `MODEL_NOT_IN_ROSTER`+在册清单。**仍挂账**：空返回合的采集器识别（turn/end reason=error → 免单）未做——静默空返不再能被部署出来，但配置面 model 写与历史遗留 effective_model 仍无 roster 门 |
 | ③ | **免费车道 429 拥挤**：free 系模型上游限速频繁（重试 5 次耗尽仍空返） | 部署键改绑 openrouter 组（paid 车道）；运维操作记录在案 |
 | ④ | **调用者停权自愈链**：余额不足→结算连败 30×→CALLER_SUSPENDED；充值后 pending 扫尾结算成功→自动清停权 | 语义正确（防滥用）；充值即恢复，无需手工解封 |
 

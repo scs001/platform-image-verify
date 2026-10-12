@@ -3,7 +3,7 @@
 > 来源：finddata 侧 2026-10-12 凭据轮换与链路体检
 > 对象：萬星（paas）侧
 > 状态：**P0 / P1 已收口上线并实证（2026-10-12 晚）**；
-> **P2 第一项代码已就位、生效待下次镜像构建；第二项已落地实证。**
+> **P2 已全部收口（2026-10-13 上线实证：单行引号 + 单行取值 93 字符全值）。**
 > 更新记录见文末「收口状态」。
 
 ## 背景（一段话）
@@ -202,17 +202,31 @@ agent-runner-c: api.github=200 | platform=200
 对比：v10 那次是 finddata **手工补库**（正文长度不变、raw_url 靠硬写）；
 v11 是**部署链路自动传播**——P1 根治确认生效，此后无需再手工补数据。
 
-### P2 · 已部分收口（代码就位，生效待下次镜像构建）
+### P2 · 已全部收口（2026-10-13 上线实证）
 
-**第一项（凭据块标量改单行）——代码已修，待发镜像**：
+**第一项（凭据块标量改单行）——已上线并生产实证**：
 根因是 `js-yaml` 默认把长密钥折成块标量（`git_pat: >-`），技能单行 grep/sed 取到空串
 → agent 打印原文 → 完整值落会话日志。修法=写 `.credentials.yaml` 时统一
-`yaml.dump(doc, { lineWidth: -1 })`，长密钥恒为单行值（`compose.js` 两处写入点）。
-回归测试 `agent-runner/test/credentials-scalar.test.mjs`（3 例）钉死该性质。
+`yaml.dump(doc, { lineWidth: -1, forceQuotes: true })`——**两条写入路径都改了**
+（`compose.js` 两处写入点 + `dsh-profile.js` `ensureCredentialsStore`；两条路径写同一份文件，
+格式必须一致，否则「值带不带引号」取决于谁最后写）。
 
-> ⚠️ 本改动在 **runner 二进制**里，**需下次镜像构建才落到生产**。当前生产 child home
-> 仍为块标量形态（已核）——技能侧已做块标量兼容，期间不受影响。
-> 验收动作：下次发镜像后，用「不打印值、只看行长」的方式确认 `git_pat:` 行自带值。
+**上线（2026-10-13）**：镜像 sha-5c9f532（真 sha 5f9c37d）经 `scs001/platform-image-verify`
+出片 → relay → ccr；**三处服务面全部滚齐**——平台应用、k8s runner-b/c、以及 cheap-1 手工容器
+`agent-runner-dsh`（**它才是 spider-heal child 凭据的真正写入者**）。
+
+**生产实证**（cheap-1，spider-heal 真实 child）：触发一次真 A2A 回合令 child 重生后：
+
+```
+$ docker exec agent-runner-dsh cat /data/packs-KkCie…-spider-heal/.credentials.yaml
+  git_pat: 'github_pat_11CGM…1H7zNX'        # ← 单行引号，无块标量
+$ # 单行取值法（事故当时的失败模式）
+value_len: 93   prefix: github_pat_11CGM   suffix: 1H7zNX   no_block_scalar: True
+```
+
+三台 runner 全扫零块标量；并清理了 k8s runner-b/c 上 spider-heal 的 v9/v10 孤儿凭据文件
+（旧格式副本，不会被读但属散落凭据）。回归测试：`agent-runner/test/credentials-scalar.test.mjs`
+（3 例）+ `scripts/test-credential-file-format.mjs`（6 例，含 93 字符 PAT 与单行取值等价）。
 
 **第二项（代理凭据对 agent 可见）——已落地并实证**：
 child 进程环境实测已继承 `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY`

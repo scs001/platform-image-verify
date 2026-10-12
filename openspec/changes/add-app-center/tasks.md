@@ -12,7 +12,7 @@
 
 ## 2. 上线与收口
 
-- [ ] 2.1 commit + 出片（GHA 阻断则 scs001 错峰：与并行会话的 deploy-snapshot
+- [x] 2.1 commit + 出片（GHA 阻断则 scs001 错峰：与并行会话的 deploy-snapshot
       分支错开，push 前先 fetch scs001）+ GitOps 双清单滚
 - [ ] 2.2 生产实证：/apps 五卡+平台应用区渲染；浏览器已登录态直通谦面/萬星
       记录 SSO 实证结论（逐线：直通/需再点登录）

@@ -25,7 +25,7 @@
 
 
 ## 3. 上线与验证
-- [ ] 3.1 镜像构建（标准 TCR 线：GHA→hkccr→relay→ccr）+ cheap-1 compose 滚版
-- [ ] 3.2 生产实证：删掉 runner-c 上 spider-heal child 的旧 `.credentials.yaml` 后重建
+- [x] 3.1 镜像构建（标准 TCR 线：GHA→hkccr→relay→ccr）+ cheap-1 compose 滚版
+- [x] 3.2 生产实证：删掉 runner-c 上 spider-heal child 的旧 `.credentials.yaml` 后重建
       （或重部署带 secrets），`cat` 确认 `git_pat: 'github_pat_…'` 单行引号
 - [ ] 3.3 归档 openspec change（validate --specs 通过后）

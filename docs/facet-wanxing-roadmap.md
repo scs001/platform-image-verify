@@ -167,6 +167,9 @@ reporter 重试梯在 observer 升级后自动补放积压）。**M2 出口判�
 （session+tokens，mission 派发回合可归属）+ planner v2 三律（每醒核窗/调查有界/report
 前终态——生产实证：标语任务 90s reported 两步全 done）。**M2 四切片全数完结**：
 ①任务定义面 ②planner pack ③归属戳+v2 ④mission board。
+（补记 2026-10-13：③ 的 tokens 半边当时实测恒 null——真因是 tokensOf 字段名错配，
+已由 paas fix-turn-token-attribution 修复：dsh harness usage 是 camelCase 分列，
+补分列求和后滚后实证 tokens:428。归属戳双字段自此全实。）
 
 基建四期已齐（任务引擎/执行槽/委派/预算 C1/通知 C3/机群观测），缺三层新产品面：
 

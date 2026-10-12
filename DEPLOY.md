@@ -1719,8 +1719,10 @@ runner 预算 3328 必胜）+ 打 `runner_id` 标签 + 端口环探防撞；⑤ 
 **空回合免单（fix-empty-turn-billing，2026-10-13）**：child.js 采集器在
 `session.status=idle` 结算时若整回合零 assistant 文本（trim 空）→ 按失败结算
 （-32005，与 -32003 自报失败区分归因）→ 计量 ok:false / A2A JSON-RPC error /
-facade 免单自动接管。判别式只能是**文本**：该 dsh 版本 usage 恒缺席（生产 700/700
-ok:true 行 tokens:null）。**探针配方**（复现静默空返做生产验证）：直写 registry
+facade 免单自动接管。判别式只能是**文本**：当时的 700/700 ok:true 行 tokens:null 不
+表示 usage 缺席——真因是 tokensOf 字段名错配（dsh harness 是 camelCase 分列
+inputTokens/outputTokens 无总数字段），已由 fix-turn-token-attribution 修复
+（滚后实证 tokens:428）；即今日 usage 可用，判别式仍以文本为准（空回合问题域不同）。**探针配方**（复现静默空返做生产验证）：直写 registry
 `/api/agents/register`（visibility:public + metadata.effective_model 指 roster 外
 模型——trusted 平面绕过双门，正是事故原形状）→ 注册后安全扫描会禁用条目（鸡生蛋），
 需 `POST /api/agents/{path}/toggle?enabled=true` 且要抢在扫描落禁用之后（部署库的

@@ -1562,6 +1562,14 @@
     "needNamePersona": "El nombre y el persona son obligatorios",
     "save": "Guardar solución",
     "savedAs": "Se guardó «{{name}}». Edítalo en Mis expertos o publícalo en el mercado con un clic.",
-    "goPublish": "Publicar"
+    "goPublish": "Publicar",
+    "modeCreate": "Nueva solución",
+    "modeUpdate": "Actualizar existente",
+    "targetLabel": "Objetivo",
+    "targetPlaceholder": "Elige la solución a actualizar…",
+    "boundary": "El persona de esta sesión y los ejemplos elegidos sobrescribirán el objetivo; sus habilidades y composición MCP no se tocan.",
+    "needTarget": "Elige la solución a actualizar",
+    "updatedAs": "Se actualizó «{{name}}». El nuevo ajuste quedó escrito; la composición no se tocó.",
+    "noTargets": "Aún no hay soluciones para actualizar"
   }
 }

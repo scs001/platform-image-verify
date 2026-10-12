@@ -1562,6 +1562,14 @@
     "needNamePersona": "请填写名称和角色设定",
     "save": "保存方案",
     "savedAs": "已保存「{{name}}」。可以在“我的专家”里继续编辑，或一键发布到功能集市场。",
-    "goPublish": "去发布"
+    "goPublish": "去发布",
+    "modeCreate": "新建方案",
+    "modeUpdate": "更新已有",
+    "targetLabel": "更新目标",
+    "targetPlaceholder": "选择要更新的方案…",
+    "boundary": "将用本次会话的角色设定与勾选的示例提问覆盖该方案；技能与 MCP 组合保持不变。",
+    "needTarget": "请选择要更新的方案",
+    "updatedAs": "已更新「{{name}}」。新调教已写回，技能组合未动。",
+    "noTargets": "还没有可更新的方案"
   }
 }

@@ -140,7 +140,11 @@ export function ChatSessionMenu({ sessionId, isCurrent, onDelete, triggerRef, on
 
   return (
     <>
-      {!confirmOpen && (
+      {/* The floating menu hides while any of its dialogs is open (confirm /
+          shares / solution capture) — the component must stay MOUNTED so the
+          dialog survives, but the little fixed panel would otherwise sit on
+          top of the dialog and swallow its clicks. */}
+      {!confirmOpen && !sharesOpen && !solutionOpen && (
       <div
         ref={menuRef}
         role="menu"

@@ -90,3 +90,48 @@ test("wizard save lands a preset with picked examples; cancel lands nothing", as
   expect(latest.persona).toContain("financial analysis assistant");
   expect(JSON.parse(latest.examples)).toEqual(["帮我把这份季报做成趋势图", "再总结三条风险信号"]);
 });
+
+test("iterate mode writes the session's tuning back, composition untouched", async ({ page }) => {
+  const sessionId = await seedSession();
+  // A prior solution with its own composition and an old persona.
+  const db = new Database(tempStoreDirs().db);
+  db.prepare(
+    "INSERT INTO user_presets (id, name, persona, skills, mcp_servers, tags, icon, examples, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)",
+  ).run(
+    "user.prior-solution",
+    "旧方案",
+    "旧的角色设定",
+    JSON.stringify(["old-skill"]),
+    JSON.stringify(["old-server"]),
+    "[]",
+    JSON.stringify(["旧示例一"]),
+    new Date().toISOString(),
+    new Date().toISOString(),
+  );
+  db.close();
+
+  await pinLocaleEn(page);
+  await page.goto(`/chat/${sessionId}`);
+  await expect(page.getByTestId("chat-header")).toBeVisible({ timeout: 15000 });
+  await openMenu(page);
+  await page.getByTestId("session-save-solution").click();
+  const dialog = page.getByTestId("session-solution-dialog");
+  await expect(dialog).toBeVisible({ timeout: 10000 });
+
+  await expect(dialog.getByTestId("session-solution-mode-update")).toBeEnabled({ timeout: 15000 });
+  await dialog.getByTestId("session-solution-mode-update").click();
+  await dialog.getByTestId("session-solution-target").selectOption("user.prior-solution");
+  await expect(dialog.getByTestId("session-solution-boundary")).toBeVisible();
+  await dialog.getByTestId("session-solution-example-2").click();
+  await dialog.getByTestId("session-solution-persona").fill("Tuned further in this session.");
+  await dialog.getByTestId("session-solution-save").click();
+  await expect(page.getByTestId("session-solution-saved")).toBeVisible({ timeout: 10000 });
+
+  const after = new Database(tempStoreDirs().db);
+  const row = after.prepare("SELECT persona, skills, mcp_servers, examples FROM user_presets WHERE id = ?").get("user.prior-solution");
+  after.close();
+  expect(row.persona).toBe("Tuned further in this session.");
+  expect(JSON.parse(row.skills)).toEqual(["old-skill"]);
+  expect(JSON.parse(row.mcp_servers)).toEqual(["old-server"]);
+  expect(JSON.parse(row.examples)).toEqual(["帮我把这份季报做成趋势图", "再总结三条风险信号"]);
+});

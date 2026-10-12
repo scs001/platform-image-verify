@@ -1562,6 +1562,14 @@
     "needNamePersona": "Name and persona are required",
     "save": "Save solution",
     "savedAs": "Saved \"{{name}}\". Continue editing it in My Experts, or publish it to the packs marketplace in one click.",
-    "goPublish": "Publish"
+    "goPublish": "Publish",
+    "modeCreate": "New solution",
+    "modeUpdate": "Update existing",
+    "targetLabel": "Update target",
+    "targetPlaceholder": "Pick a solution to update…",
+    "boundary": "This session's persona and picked examples will overwrite the target; its skills and MCP composition stay untouched.",
+    "needTarget": "Pick a solution to update",
+    "updatedAs": "Updated \"{{name}}\". The new tuning is written back; the composition was not touched.",
+    "noTargets": "No solutions to update yet"
   }
 }

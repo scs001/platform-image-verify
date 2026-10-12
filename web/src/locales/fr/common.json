@@ -1562,6 +1562,14 @@
     "needNamePersona": "Le nom et le persona sont requis",
     "save": "Enregistrer la solution",
     "savedAs": "« {{name}} » enregistré. Modifiez-le dans Mes experts ou publiez-le sur le marché en un clic.",
-    "goPublish": "Publier"
+    "goPublish": "Publier",
+    "modeCreate": "Nouvelle solution",
+    "modeUpdate": "Mettre à jour",
+    "targetLabel": "Cible",
+    "targetPlaceholder": "Choisir la solution à mettre à jour…",
+    "boundary": "Le persona de cette session et les exemples choisis remplaceront la cible ; ses compétences et sa composition MCP restent intactes.",
+    "needTarget": "Choisissez la solution à mettre à jour",
+    "updatedAs": "« {{name}} » mis à jour. Le nouveau réglage est écrit ; la composition n'a pas été touchée.",
+    "noTargets": "Pas encore de solutions à mettre à jour"
   }
 }

@@ -1,4 +1,5 @@
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 
 interface DialogProps {
@@ -74,6 +75,7 @@ function Dialog({ open, onOpenChange, children }: DialogProps) {
     // Settings modal's Escape/Tab guard also keys off
     // [role="dialog"][data-state="open"] to yield the keyboard to a nested
     // dialog opened inside a section pane (simplify-ia-non-technical).
+    createPortal(
     <div
       ref={rootRef}
       role="dialog"
@@ -90,7 +92,9 @@ function Dialog({ open, onOpenChange, children }: DialogProps) {
       <div className="fixed left-[50%] top-[50%] z-50 max-h-[90vh] w-full translate-x-[-50%] translate-y-[-50%] overflow-y-auto">
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
+    )
   )
 }
 

@@ -48,6 +48,8 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
+type Mode = "create" | "update";
+
 export function SessionToPresetDialog({ sessionId, agentPreset, onOpenChange }: Props) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -61,6 +63,13 @@ export function SessionToPresetDialog({ sessionId, agentPreset, onOpenChange }: 
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState<CustomPreset | null>(null);
+  // Iterate mode (add-solution-iterate): write this session's tuning back
+  // into an existing solution instead of minting a new one. The target list
+  // is the user's own custom presets; the composition boundary (skills/MCP
+  // stay the target's own) is stated in the UI, not implied.
+  const [mode, setMode] = useState<Mode>("create");
+  const [myPresets, setMyPresets] = useState<CustomPreset[]>([]);
+  const [targetId, setTargetId] = useState<string>("");
 
   const open = Boolean(sessionId);
 
@@ -74,6 +83,8 @@ export function SessionToPresetDialog({ sessionId, agentPreset, onOpenChange }: 
     setPersona("");
     setSkills([]);
     setMcpServers([]);
+    setMode("create");
+    setTargetId("");
     try {
       // The conversation itself: title + the user's real questions.
       const session = await getChatSession(sessionId);
@@ -94,19 +105,21 @@ export function SessionToPresetDialog({ sessionId, agentPreset, onOpenChange }: 
         } catch {
           // No persona prefill — the user writes their own, the wizard still works.
         }
-        // Reference lists ride along only when the source is itself a custom
-        // preset (its lists are fetchable); a builtin's composition stays
-        // server-side and we do not guess at it.
-        try {
-          const cp = await presetsApi.fetchCustomPresets();
+      }
+      // The user's own presets: the iterate target list, and (when the
+      // session started under one of them) the reference snapshot.
+      try {
+        const cp = await presetsApi.fetchCustomPresets();
+        setMyPresets(cp.presets);
+        if (agentPreset) {
           const row = cp.presets.find((p) => p.id === agentPreset);
           if (row) {
             setSkills(row.skills ?? []);
             setMcpServers(row.mcpServers ?? []);
           }
-        } catch {
-          // composition snapshot is best-effort by design
         }
+      } catch {
+        // iterate list is best-effort; create mode still works without it
       }
     } catch (e) {
       setError((e as Error).message);
@@ -130,21 +143,36 @@ export function SessionToPresetDialog({ sessionId, agentPreset, onOpenChange }: 
   const examples = picked.map((i) => userMsgs[i]).filter((s) => s.length <= MAX_EXAMPLE_CHARS);
 
   const save = async () => {
-    if (!name.trim() || !persona.trim()) {
+    if (mode === "update" && !targetId) {
+      setError(t("sessionSolution.needTarget"));
+      return;
+    }
+    if (!persona.trim() || (mode === "create" && !name.trim())) {
       setError(t("sessionSolution.needNamePersona"));
       return;
     }
     setSaving(true);
     setError(null);
     try {
-      const r = await presetsApi.createCustomPreset({
-        name: name.trim(),
-        persona,
-        skills,
-        mcpServers,
-        examples: examples.length > 0 ? examples : undefined,
-      });
-      setSaved(r.preset);
+      if (mode === "update") {
+        // Partial PUT: this session's tuning (persona + picked examples)
+        // overwrites the target; the composition (skills/mcp) is the
+        // solution's own asset and is not sent at all.
+        const r = await presetsApi.updateCustomPreset(targetId, {
+          persona,
+          ...(examples.length > 0 ? { examples } : {}),
+        });
+        setSaved(r.preset);
+      } else {
+        const r = await presetsApi.createCustomPreset({
+          name: name.trim(),
+          persona,
+          skills,
+          mcpServers,
+          examples: examples.length > 0 ? examples : undefined,
+        });
+        setSaved(r.preset);
+      }
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -154,7 +182,10 @@ export function SessionToPresetDialog({ sessionId, agentPreset, onOpenChange }: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent data-testid="session-solution-dialog" className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
+      <DialogContent data-testid="session-solution-dialog" className="sm:max-w-lg">
+        {/* No inner max-h/overflow here: the dialog's own content container
+            already scrolls (single scroll container — nested ones break
+            scrollIntoView for elements near the edges). */}
         <DialogHeader>
           <DialogTitle>{t("sessionSolution.title")}</DialogTitle>
           <DialogDescription>{t("sessionSolution.subtitle")}</DialogDescription>
@@ -163,7 +194,9 @@ export function SessionToPresetDialog({ sessionId, agentPreset, onOpenChange }: 
         {saved ? (
           <div className="flex flex-col gap-3" data-testid="session-solution-saved">
             <p className="text-sm text-muted-foreground">
-              {t("sessionSolution.savedAs", { name: saved.name })}
+              {mode === "update"
+                ? t("sessionSolution.updatedAs", { name: saved.name })
+                : t("sessionSolution.savedAs", { name: saved.name })}
             </p>
             <div className="flex justify-end gap-2">
               <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
@@ -185,10 +218,56 @@ export function SessionToPresetDialog({ sessionId, agentPreset, onOpenChange }: 
           <p className="py-6 text-center text-sm text-muted-foreground">{t("common.loading")}</p>
         ) : (
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="ss-name">{t("sessionSolution.nameLabel")}</Label>
-              <Input id="ss-name" value={name} onChange={(e) => setName(e.target.value)} data-testid="session-solution-name" />
+            {/* Mode switch (add-solution-iterate): mint a new solution from
+                this session, or write the tuning back into an existing one. */}
+            <div className="flex gap-2" data-testid="session-solution-mode">
+              <button
+                type="button"
+                data-testid="session-solution-mode-create"
+                onClick={() => setMode("create")}
+                className={`rounded-md border px-3 py-1 text-xs ${mode === "create" ? "border-primary bg-primary-deep text-primary-foreground" : "border-border text-muted-foreground hover:bg-muted"}`}
+              >
+                {t("sessionSolution.modeCreate")}
+              </button>
+              <button
+                type="button"
+                data-testid="session-solution-mode-update"
+                onClick={() => setMode("update")}
+                disabled={myPresets.length === 0}
+                title={myPresets.length === 0 ? t("sessionSolution.noTargets") : undefined}
+                className={`rounded-md border px-3 py-1 text-xs ${mode === "update" ? "border-primary bg-primary-deep text-primary-foreground" : "border-border text-muted-foreground hover:bg-muted"} disabled:opacity-50`}
+              >
+                {t("sessionSolution.modeUpdate")}
+              </button>
             </div>
+
+            {mode === "update" ? (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="ss-target">{t("sessionSolution.targetLabel")}</Label>
+                <select
+                  id="ss-target"
+                  value={targetId}
+                  onChange={(e) => setTargetId(e.target.value)}
+                  data-testid="session-solution-target"
+                  className="rounded-md border border-border bg-background px-3 py-1.5 text-sm"
+                >
+                  <option value="">{t("sessionSolution.targetPlaceholder")}</option>
+                  {myPresets.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-muted-foreground" data-testid="session-solution-boundary">
+                  {t("sessionSolution.boundary")}
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="ss-name">{t("sessionSolution.nameLabel")}</Label>
+                <Input id="ss-name" value={name} onChange={(e) => setName(e.target.value)} data-testid="session-solution-name" />
+              </div>
+            )}
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="ss-persona">{t("sessionSolution.personaLabel")}</Label>
               <Textarea

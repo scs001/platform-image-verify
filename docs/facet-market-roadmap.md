@@ -114,9 +114,9 @@ F1.3 文档面），谦面域内自解释闭环成立。
 |---|---|---|
 | F3.1 | `add-selfhost-funnel-guidance` | ✅ 2026-10-13（5f9c37d，sha-5c9f532 三面滚+OSS f298100）：serving-status 探针（两向单测+生产双实例）+部署区引导面板（自部署=官方市场+创作指南双链/内部错误双隐藏/503 竞态同面板；官方路径零变化）+MineView 漏斗全链文案+空态创作指南。面板眼见实证（facet 壳同源市场+预启动 stub） |
 | F3.2 | `add-facet-publish-bridge` | ✅ 2026-10-13（bd6c77b+5304bc5，sha-70b3b61 facet 面+OSS 815a191）：facet 配对面（pairing.js 三门+bindcode+withAppBearer 第三身份通道；模块第三次逐字复用）+CLI publish v0.3.0（本地清单/--from 跨实例拉存储 manifest→推官方；按需配对+每跑静默续登+token 零落盘+源id→官方id 映射续推；门全官方侧）。生产实证：本地第二实例双子包真 CLI 跨实例回流官方市场 v1→静默续登 v2、作者=配对账号、技能内容逐字搬运、下架清理干净。坑：Dockerfile facet 枚举拷贝漏 pairing.js 致首片崩启动（5304bc5 修） |
-| F3.3 | `add-funnel-acceptance` | 真自部署者全旅程验收：自己实例发布→官方市场上架→萬星部署→真回合计费→分成落账，产出案例卡 |
+| F3.3 | `add-funnel-acceptance` | ✅ 2026-10-13（4dd46b2，sha-dadf3ea facet 面+OSS 随快照）：五跳生产全通——本地实例发布→CLI 回流官方（公开保留 ev5E51eth7e5McvyDrl9Rg）→萬星目录收录+部署（部署者键绑定）→外部调用者（73≠78）真回合 506 字固定版式速览（settled 1min×$0.10）→分成落账 share $0.07/回合×4（waived 负保护实证）。案例卡 docs/ecosystem/selfhost-funnel-case.md（五跳实录+四坑+诚实边界=回归基线）。**验收挖出真缺陷即修**：并发双部署拧断 billing_key_ref→packId 部署互斥（test-deploy-lock 2/2 无锁复现）。挂账：车道≠dsh 花名册静默空返且照常计费、免费车道 429 |
 
-**出口判据**：一个真实自部署者全链走通，零运营手工介入。
+**出口判据**：一个真实自部署者全链走通，零运营手工介入。F3 三片全收口（2026-10-13）。
 
 路线 B（manifest 直交萬星部署器）**挂账**，仅当 A 跑通后有真实需求再议。
 

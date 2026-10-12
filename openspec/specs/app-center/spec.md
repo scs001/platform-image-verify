@@ -36,21 +36,6 @@ TBD - created by archiving change add-app-center. Update Purpose after archive.
 - WHEN 某产品线官网尚为占位/骨架（识律、柏讯现状）
 - THEN 该卡片状态徽标如实标注「建设早期」，链接仍直达（不隐藏、不虚构可用性）
 
-### Requirement: 平台应用聚合
-
-应用中心聚合服务端 external-service 目录为「平台应用」区；目录不可见或为空时
-诚实隐藏该区。
-
-#### Scenario: 有目录条目
-
-- WHEN 服务端 external-service 目录含条目（如 NEW API）且当前角色可见
-- THEN 平台应用区渲染对应卡片，入口通往既有嵌入体验（`/external/:appId` 或其外链）
-
-#### Scenario: 目录空或角色不可见
-
-- WHEN 目录为空或 role-filtered 过滤后无条目
-- THEN 平台应用区整区隐藏（不渲染空壳或报错）
-
 ### Requirement: 文案与质量线
 
 五语文案齐全（check-locales 门），e2e 哨兵覆盖导航可达+页面渲染+卡片直达行为。

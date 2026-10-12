@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { createShare, listShares, revokeShare, type ShareInfo } from "@platform/core";
 import { useChatStore } from "@platform/core";
+import { SessionToPresetDialog } from "@/components/SessionToPresetDialog";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -36,6 +37,11 @@ export function ChatSessionMenu({ sessionId, isCurrent, onDelete, triggerRef, on
   const [shareNote, setShareNote] = useState<string | null>(null);
   const [sharesOpen, setSharesOpen] = useState(false);
   const [shares, setShares] = useState<ShareInfo[] | null>(null);
+  // Solution capture (openspec: add-session-to-preset): extracting the tuned
+  // session into a custom preset. The session's starting preset feeds the
+  // wizard's prefill; absent metadata still works (persona hand-written).
+  const [solutionOpen, setSolutionOpen] = useState(false);
+  const sessionMeta = useChatStore((s) => s.sessions.find((x) => x.id === sessionId));
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -53,11 +59,11 @@ export function ChatSessionMenu({ sessionId, isCurrent, onDelete, triggerRef, on
     // overlay/Escape handling dismisses it — an outside click here must not
     // unmount the component out from under the dialog.
     const onDown = (e: MouseEvent) => {
-      if (confirmOpen || sharesOpen) return;
+      if (confirmOpen || sharesOpen || solutionOpen) return;
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (confirmOpen || sharesOpen) return;
+      if (confirmOpen || sharesOpen || solutionOpen) return;
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("mousedown", onDown);
@@ -66,7 +72,7 @@ export function ChatSessionMenu({ sessionId, isCurrent, onDelete, triggerRef, on
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [onClose, confirmOpen, sharesOpen]);
+  }, [onClose, confirmOpen, sharesOpen, solutionOpen]);
 
   if (!pos) return null;
 
@@ -182,6 +188,15 @@ export function ChatSessionMenu({ sessionId, isCurrent, onDelete, triggerRef, on
         <button
           type="button"
           role="menuitem"
+          data-testid="session-save-solution"
+          onClick={() => setSolutionOpen(true)}
+          className="block w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-muted"
+        >
+          {t("sessionSolution.menuItem")}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
           data-testid="session-menu-share"
           onClick={handleShare}
           className="block w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-muted"
@@ -272,6 +287,15 @@ export function ChatSessionMenu({ sessionId, isCurrent, onDelete, triggerRef, on
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <SessionToPresetDialog
+        sessionId={solutionOpen ? sessionId : null}
+        agentPreset={sessionMeta?.agentPreset ?? null}
+        onOpenChange={(o) => {
+          setSolutionOpen(o);
+          if (!o) onClose();
+        }}
+      />
     </>
   );
 }

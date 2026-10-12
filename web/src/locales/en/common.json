@@ -1411,7 +1411,10 @@
     "shadowed": "overridden",
     "shadowedHint": "An operators-file or cloud entry holds the same id; the role currently composes under the overriding entry's persona.",
     "toPackDraft": "Convert to pack draft",
-    "bridgeDenied": "Conversion requires deployment manage rights (admin or cell owner) — you can still hand-author a pack draft"
+    "bridgeDenied": "Conversion requires deployment manage rights (admin or cell owner) — you can still hand-author a pack draft",
+    "examples": "Example prompts",
+    "examplesHint": "Up to 3; they become the try-it examples once published",
+    "examplePlaceholder": "Example {{n}} (optional)"
   },
   "presetPublish": {
     "action": "Publish & deploy",
@@ -1545,5 +1548,20 @@
         "tagline": "Enterprise data platform — a data hub boosted by macro indicators"
       }
     }
+  },
+  "sessionSolution": {
+    "menuItem": "Save as my solution",
+    "title": "Save as my solution",
+    "subtitle": "Turn what you tuned in this conversation into a reusable, shareable solution",
+    "defaultName": "My solution",
+    "nameLabel": "Name",
+    "personaLabel": "Persona",
+    "personaPlaceholder": "Who the assistant in this solution is and how it works (prefilled from the session's persona — edit freely)",
+    "examplesLabel": "Example prompts (up to {{max}}, they become the try-it examples after publishing)",
+    "tooLong": "(over 200 chars — will be skipped on save)",
+    "needNamePersona": "Name and persona are required",
+    "save": "Save solution",
+    "savedAs": "Saved \"{{name}}\". Continue editing it in My Experts, or publish it to the packs marketplace in one click.",
+    "goPublish": "Publish"
   }
 }

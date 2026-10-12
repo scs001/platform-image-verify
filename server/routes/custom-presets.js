@@ -42,6 +42,10 @@ const LIMITS = {
   maxTagChars: 24,
   maxRefs: 50,
   maxIconChars: 64,
+  // Sample prompts (add-session-to-preset): the same bound the pack manifest's
+  // serving.card.examples enforces — one authoring surface, one set of bounds.
+  maxExamples: 3,
+  maxExampleChars: 200,
 };
 
 // Keys a preset must NOT carry — persona-only, the same boundary pack agent
@@ -68,7 +72,9 @@ function parseNameList(input, field) {
 // only the fields present; a full body (POST) requires name + persona and
 // defaults both reference dimensions to empty. Returns { ok: true, value } or
 // { ok: false, error }.
-function validatePresetBody(body, { partial = false } = {}) {
+// Exported for the unit suite (test-session-to-preset.mjs); routes are the
+// only other caller.
+export function validatePresetBody(body, { partial = false } = {}) {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return { ok: false, error: "body must be an object" };
   }
@@ -114,6 +120,20 @@ function validatePresetBody(body, { partial = false } = {}) {
       return { ok: false, error: `icon must be a string of at most ${LIMITS.maxIconChars} characters` };
     }
     out.icon = body.icon;
+  }
+  if (body.examples !== undefined) {
+    if (!Array.isArray(body.examples) || body.examples.length === 0 || body.examples.length > LIMITS.maxExamples) {
+      return { ok: false, error: `examples must be an array of 1-${LIMITS.maxExamples} sample prompts` };
+    }
+    for (const ex of body.examples) {
+      if (typeof ex !== "string" || !ex.trim() || ex.trim().length > LIMITS.maxExampleChars) {
+        return {
+          ok: false,
+          error: `each example must be a non-empty string of at most ${LIMITS.maxExampleChars} characters`,
+        };
+      }
+    }
+    out.examples = body.examples.map((e) => e.trim());
   }
   return { ok: true, value: out };
 }

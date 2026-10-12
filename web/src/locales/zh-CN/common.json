@@ -1411,7 +1411,10 @@
     "shadowed": "被覆盖",
     "shadowedHint": "同名条目由 agents.json 或云端配置覆盖，当前以覆盖方角色运行。",
     "toPackDraft": "转为功能集草稿",
-    "bridgeDenied": "转换需要部署管理权限（管理员或 cell 所有者）——可先在功能集草稿中手工创作"
+    "bridgeDenied": "转换需要部署管理权限（管理员或 cell 所有者）——可先在功能集草稿中手工创作",
+    "examples": "示例提问",
+    "examplesHint": "最多 3 条；发布为功能集后成为试问示例",
+    "examplePlaceholder": "示例 {{n}}（可选）"
   },
   "presetPublish": {
     "action": "发布并部署",
@@ -1545,5 +1548,20 @@
         "tagline": "企业数据平台——宏观指标加持的数据中台"
       }
     }
+  },
+  "sessionSolution": {
+    "menuItem": "存为我的方案",
+    "title": "存为我的方案",
+    "subtitle": "把这次会话调教出的用法沉淀成可复用、可分享的方案",
+    "defaultName": "我的方案",
+    "nameLabel": "名称",
+    "personaLabel": "角色设定",
+    "personaPlaceholder": "这个方案里的助手是谁、怎么做事（从会话的角色预填，可改）",
+    "examplesLabel": "示例提问（最多 {{max}} 条，发布后成为试问示例）",
+    "tooLong": "（超 200 字，保存时将跳过此条）",
+    "needNamePersona": "请填写名称和角色设定",
+    "save": "保存方案",
+    "savedAs": "已保存「{{name}}」。可以在“我的专家”里继续编辑，或一键发布到功能集市场。",
+    "goPublish": "去发布"
   }
 }

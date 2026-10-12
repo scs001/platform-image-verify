@@ -1411,7 +1411,10 @@
     "shadowed": "sobrescrito",
     "shadowedHint": "El archivo del operador o la nube define el mismo id; el rol se compone ahora con la entrada que lo sobrescribe.",
     "toPackDraft": "Convertir en borrador de paquete",
-    "bridgeDenied": "La conversión requiere permisos de gestión del despliegue (admin o propietario del cell); también puedes crear el borrador a mano"
+    "bridgeDenied": "La conversión requiere permisos de gestión del despliegue (admin o propietario del cell); también puedes crear el borrador a mano",
+    "examples": "Preguntas de ejemplo",
+    "examplesHint": "Hasta 3; al publicar se convierten en ejemplos de prueba",
+    "examplePlaceholder": "Ejemplo {{n}} (opcional)"
   },
   "presetPublish": {
     "action": "Publicar y desplegar",
@@ -1545,5 +1548,20 @@
         "tagline": "Plataforma de datos empresariales: hub de datos potenciado por indicadores macro"
       }
     }
+  },
+  "sessionSolution": {
+    "menuItem": "Guardar como mi solución",
+    "title": "Guardar como mi solución",
+    "subtitle": "Convierte lo que ajustaste en esta conversación en una solución reutilizable y compartible",
+    "defaultName": "Mi solución",
+    "nameLabel": "Nombre",
+    "personaLabel": "Persona",
+    "personaPlaceholder": "Quién es el asistente de esta solución y cómo trabaja (prellenado con el persona de la sesión; edítalo libremente)",
+    "examplesLabel": "Preguntas de ejemplo (hasta {{max}}; al publicar se convierten en ejemplos de prueba)",
+    "tooLong": "(más de 200 caracteres: se omitirá al guardar)",
+    "needNamePersona": "El nombre y el persona son obligatorios",
+    "save": "Guardar solución",
+    "savedAs": "Se guardó «{{name}}». Edítalo en Mis expertos o publícalo en el mercado con un clic.",
+    "goPublish": "Publicar"
   }
 }

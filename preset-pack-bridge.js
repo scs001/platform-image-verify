@@ -108,6 +108,14 @@ export async function composePackDraftFromPreset(preset, deps) {
   };
   if (preset.tags?.length) agent.tags = preset.tags;
   if (preset.icon) agent.icon = preset.icon;
+  // Sample prompts captured from the session that produced this preset ride
+  // the draft's serving card (add-session-to-preset): the ask-card surface
+  // (catalog/detail/chat prefill) then shows the author's own real questions,
+  // not placeholder copy. The preset validator bounds them to ≤3×200 chars —
+  // the manifest's serving.card.examples contract.
+  if (Array.isArray(preset.examples) && preset.examples.length > 0) {
+    agent.serving = { ...agent.serving, card: { examples: [...preset.examples] } };
+  }
 
   return {
     draft: {

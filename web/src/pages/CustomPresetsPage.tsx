@@ -88,6 +88,14 @@ function PresetEditor({
   const [tags, setTags] = useState((initial?.tags ?? []).join(", "));
   const [pickedSkills, setPickedSkills] = useState<string[]>(initial?.skills ?? []);
   const [pickedMcp, setPickedMcp] = useState<string[]>(initial?.mcpServers ?? []);
+  // Sample prompts (add-session-to-preset): three one-line inputs, one per
+  // slot; empty lines drop out on save. The wizard prefills them from the
+  // session; here they stay editable like every other authored field.
+  const [examples, setExamples] = useState<string[]>([
+    initial?.examples?.[0] ?? "",
+    initial?.examples?.[1] ?? "",
+    initial?.examples?.[2] ?? "",
+  ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -129,6 +137,7 @@ function PresetEditor({
       skills: pickedSkills,
       mcpServers: pickedMcp,
       tags: tags.split(",").map((s) => s.trim()).filter(Boolean),
+      examples: examples.map((e) => e.trim()).filter(Boolean),
     };
     try {
       const { preset } = initial
@@ -181,6 +190,25 @@ function PresetEditor({
         <p className="text-xs text-muted-foreground" data-testid="preset-persona-cost">
           {t("packs.editor.personaCost", { chars: persona.length, tokens: Math.ceil(persona.length / 3) })}
         </p>
+      </div>
+
+      <div>
+        <Label>{t("customPresets.examples")}</Label>
+        <p className="pb-1.5 text-xs text-muted-foreground">{t("customPresets.examplesHint")}</p>
+        <div className="flex flex-col gap-1.5" data-testid="preset-examples-inputs">
+          {examples.map((ex, i) => (
+            <Input
+              key={`example-slot-${i}`}
+              value={ex}
+              maxLength={200}
+              onChange={(e) =>
+                setExamples((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))
+              }
+              placeholder={t("customPresets.examplePlaceholder", { n: i + 1 })}
+              data-testid={`preset-example-${i}`}
+            />
+          ))}
+        </div>
       </div>
 
       <div>

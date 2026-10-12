@@ -1411,7 +1411,10 @@
     "shadowed": "surchargé",
     "shadowedHint": "Le fichier opérateur ou le cloud définit le même id ; le rôle se compose actuellement sous l'entrée qui le surcharge.",
     "toPackDraft": "Convertir en brouillon de pack",
-    "bridgeDenied": "La conversion nécessite les droits de gestion du déploiement (admin ou propriétaire du cell) ; tu peux aussi créer le brouillon à la main"
+    "bridgeDenied": "La conversion nécessite les droits de gestion du déploiement (admin ou propriétaire du cell) ; tu peux aussi créer le brouillon à la main",
+    "examples": "Exemples de questions",
+    "examplesHint": "Jusqu'à 3 ; elles deviennent les exemples d'essai après publication",
+    "examplePlaceholder": "Exemple {{n}} (facultatif)"
   },
   "presetPublish": {
     "action": "Publier et déployer",
@@ -1545,5 +1548,20 @@
         "tagline": "Plateforme de données d'entreprise : hub dopé aux indicateurs macro"
       }
     }
+  },
+  "sessionSolution": {
+    "menuItem": "Enregistrer comme ma solution",
+    "title": "Enregistrer comme ma solution",
+    "subtitle": "Transformez ce que vous avez réglé dans cette conversation en une solution réutilisable et partageable",
+    "defaultName": "Ma solution",
+    "nameLabel": "Nom",
+    "personaLabel": "Persona",
+    "personaPlaceholder": "Qui est l'assistant de cette solution et comment il travaille (prérempli depuis le persona de la session, modifiable)",
+    "examplesLabel": "Exemples de questions (jusqu'à {{max}} ; ils deviennent les exemples d'essai après publication)",
+    "tooLong": "(plus de 200 caractères — sera ignoré à l'enregistrement)",
+    "needNamePersona": "Le nom et le persona sont requis",
+    "save": "Enregistrer la solution",
+    "savedAs": "« {{name}} » enregistré. Modifiez-le dans Mes experts ou publiez-le sur le marché en un clic.",
+    "goPublish": "Publier"
   }
 }

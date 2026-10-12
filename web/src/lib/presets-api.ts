@@ -11,6 +11,9 @@ export interface CustomPreset {
   mcpServers: string[];
   tags: string[];
   icon: string | null;
+  // Sample prompts captured from the session that produced the preset
+  // (add-session-to-preset): ≤3 × ≤200 chars; undefined = none authored.
+  examples?: string[];
   createdAt: string;
   updatedAt: string;
   // Composition-time markers (server-computed): references that resolve to
@@ -29,6 +32,7 @@ export interface CustomPresetInput {
   mcpServers?: string[];
   tags?: string[];
   icon?: string | null;
+  examples?: string[];
 }
 
 async function json(res: Response) {

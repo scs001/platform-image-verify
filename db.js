@@ -613,6 +613,18 @@ const MIGRATIONS = [
       db.exec(`ALTER TABLE user_connector_credentials_v25 RENAME TO user_connector_credentials`);
     },
   },
+  {
+    version: 26,
+    // add-session-to-preset: sample prompts captured from a session ride the
+    // preset (≤3×200 chars, validated in routes/custom-presets.js) and flow
+    // into the pack draft's serving card at publish. NULL = none authored;
+    // JSON array like the sibling list columns.
+    apply: (db) => {
+      const cols = new Set(db.prepare("PRAGMA table_info(user_presets)").all().map((c) => c.name));
+      if (cols.has("examples")) return;
+      db.exec(`ALTER TABLE user_presets ADD COLUMN examples TEXT`);
+    },
+  },
 ];
 
 function nowIso() {
@@ -1942,7 +1954,7 @@ export function deleteCustomSkillsByPack(packId) {
 // read these rows; nothing else keys off them.
 
 const USER_PRESET_COLS =
-  "id, name, persona, skills, mcp_servers AS mcpServers, tags, icon, created_at AS createdAt, updated_at AS updatedAt";
+  "id, name, persona, skills, mcp_servers AS mcpServers, tags, icon, examples, created_at AS createdAt, updated_at AS updatedAt";
 
 function hydrateUserPreset(row) {
   if (!row) return null;
@@ -1959,6 +1971,9 @@ function hydrateUserPreset(row) {
     skills: parseNames(row.skills),
     mcpServers: parseNames(row.mcpServers),
     tags: parseNames(row.tags),
+    // NULL (pre-v26 rows / none authored) reads as an absent field, not [] —
+    // the API contract keeps examples optional end to end.
+    examples: row.examples == null ? undefined : parseNames(row.examples),
   };
 }
 
@@ -1996,13 +2011,13 @@ function assignUserPresetId(name) {
   return id;
 }
 
-export function createUserPreset({ name, persona, skills = [], mcpServers = [], tags = [], icon = null }) {
+export function createUserPreset({ name, persona, skills = [], mcpServers = [], tags = [], icon = null, examples = null }) {
   if (!dbReady) return null;
   const id = assignUserPresetId(name);
   const now = nowIso();
   stmt(
-    `INSERT INTO user_presets (id, name, persona, skills, mcp_servers, tags, icon, created_at, updated_at)
-     VALUES (@id, @name, @persona, @skills, @mcpServers, @tags, @icon, @now, @now)`
+    `INSERT INTO user_presets (id, name, persona, skills, mcp_servers, tags, icon, examples, created_at, updated_at)
+     VALUES (@id, @name, @persona, @skills, @mcpServers, @tags, @icon, @examples, @now, @now)`
   ).run({
     id,
     name,
@@ -2011,12 +2026,13 @@ export function createUserPreset({ name, persona, skills = [], mcpServers = [], 
     mcpServers: JSON.stringify(mcpServers ?? []),
     tags: JSON.stringify(tags ?? []),
     icon,
+    examples: examples ? JSON.stringify(examples) : null,
     now,
   });
   return getUserPreset(id);
 }
 
-export function updateUserPreset(id, { name, persona, skills, mcpServers, tags, icon }) {
+export function updateUserPreset(id, { name, persona, skills, mcpServers, tags, icon, examples }) {
   if (!dbReady) return null;
   const updates = [];
   const params = { id, updated_at: nowIso() };
@@ -2026,6 +2042,7 @@ export function updateUserPreset(id, { name, persona, skills, mcpServers, tags, 
   if (mcpServers !== undefined) { updates.push("mcp_servers = @mcpServers"); params.mcpServers = JSON.stringify(mcpServers ?? []); }
   if (tags !== undefined) { updates.push("tags = @tags"); params.tags = JSON.stringify(tags ?? []); }
   if (icon !== undefined) { updates.push("icon = @icon"); params.icon = icon; }
+  if (examples !== undefined) { updates.push("examples = @examples"); params.examples = examples ? JSON.stringify(examples) : null; }
   if (updates.length === 0) return getUserPreset(id);
   updates.push("updated_at = @updated_at");
   stmt(`UPDATE user_presets SET ${updates.join(", ")} WHERE id = @id`).run(params);

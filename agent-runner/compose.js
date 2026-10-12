@@ -15,6 +15,15 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import yaml from "js-yaml";
+
+// The child's credentials file is read by agent skills with shell one-liners
+// (grep/sed/awk). js-yaml's default lineWidth folds a long secret into a BLOCK
+// SCALAR (`git_pat: >-` with the value on the next line) — a one-line reader
+// then returns an empty string, and the 2026-10-12 credential-leak incident
+// started exactly there (the skill re-read the raw file to debug and echoed
+// the full PAT). Dumping with lineWidth -1 keeps every scalar on ONE line, so
+// the file is unambiguous for both YAML parsers and shell readers.
+const YAML_DUMP_OPTS = { lineWidth: -1 };
 import {
   composeAgentPreset,
   ensureCredentialsStore,
@@ -271,7 +280,7 @@ export async function applyBillingKey(home, keyValue) {
   doc.refs = doc.refs && typeof doc.refs === "object" ? doc.refs : {};
   doc.refs.LLM_API_KEY = keyValue;
   for (const ref of apiKeyEnvRefs(home)) doc.refs[ref] = keyValue;
-  writeFileSync(credentialsPath, yaml.dump(doc), { mode: 0o600 });
+  writeFileSync(credentialsPath, yaml.dump(doc, YAML_DUMP_OPTS), { mode: 0o600 });
 }
 
 // Every `apiKeyEnv` string in the private home's settings.yaml — the env-var
@@ -316,7 +325,7 @@ export function applyDeploymentSecrets(home, secrets) {
   doc.version = 1;
   doc.refs = doc.refs && typeof doc.refs === "object" ? doc.refs : {};
   for (const [name, value] of entries) doc.refs[name] = String(value);
-  writeFileSync(credentialsPath, yaml.dump(doc), { mode: 0o600 });
+  writeFileSync(credentialsPath, yaml.dump(doc, YAML_DUMP_OPTS), { mode: 0o600 });
 }
 
 // One dsh-mcp-client loader entry per registry server — the http branch of

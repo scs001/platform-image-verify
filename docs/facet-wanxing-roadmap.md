@@ -285,12 +285,14 @@ M4 是漏斗落地端的体验面；F3.3 全旅程验收若早于 M4① 落地�
   `refactor-console-ia` 84d8535，web 单滚 sha-58a1f96）：1442 行单体瘦壳+四组件
   （FleetView/MissionsView/OpsView/DeployWizard）——「我的舰队/我的任务」+运维面
   三标签，testid 零丢失、「去配置」slug 深链契约保持（保留字 missions/ops 切标签）、
-  按需加载；R4 教训（先骨架后可视化）落实。**④b 可视化待做**（落在这副骨架上）。
-  舰队视图 =
-  部署卡片（健康/最近回合/成本水位/额度余量；数据源 fleet observer+usage 台账+
-  earnings 全在产）；任务视图 = mission 进度可视化（目标->步骤->成本->产物，状态机+
-  planner 回写事件族全在产），rhythm 型与 mission 型同屏双视图。体验标准：用户不读
-  手册能答「在干活吗/离目标多远/花了多少钱」。
+  按需加载；R4 教训（先骨架后可视化）落实。**④b 可视化 ✅ 2026-10-12**（fd-wanxing
+  `add-cockpit-views` ea12d4a→归档 12c6b6c，sha-443c622 双滚）：facade
+  `GET /console/fleet/summary`（store-only 单 SQL 条件聚合 turns7d/minutes30d/usd30d
+  [waived 排除]+allowance 全量，registry 富化客户端 join）；舰队视图部署卡片四信号
+  （健康/近7天回合/近30天分钟+结算/额度余量水位条+管理动作全保留）；任务视图列表
+  成本水位条+详情步骤进度/成本双条+窗口剩余。生产实证：10 卡全渲染、高流量卡真实
+  信号（doc-studio 18回合/17分/$1.70 与目录 turns7d 一致）、草稿任务条全出。
+  **M4④ 驾驶舱整片完结**——体验标准达成：不读手册答「在干活吗/离目标多远/花了多少钱」。
 - **⑤ 开放前置**：serving runner 独立 deployment（M2 挂账结构决策，内存实测
   ≈2-3 fresh child/pod——**M4 开工前拍板**）；开放身份门沿用「内部范围」触发器纪律，
   开放时连带容量水位线（机群余量作部署闸）与合规项。

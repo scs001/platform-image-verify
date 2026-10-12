@@ -1702,8 +1702,10 @@ cheap-4（100.64.0.8）、hostNetwork、hostPath `/data/agent-runner-serving`、
 对比旧形态 2-3）、标准端口几何 ops 8790 + 8791/32（专用节点无撞口）。镜像与 runner-b/c
 同源平台镜像（滚镜像 = 三清单同滚）。secret `agent-runner-serving-env` 带外（四 token
 值自旧容器 env 原样拷：registry/backend/relay/fleet——**backend token 与 facade 共享，
-轮换需两侧同步**）。cheap-1 侧 `agent-runner-dsh` 容器已 stop（卷 `agent-runner-data`
-留回滚位后清）。
+轮换需两侧同步**）。cheap-1 侧 `agent-runner-dsh` 容器已 stop；**2026-10-13 深夜清理完毕**
+（新 runner 过两次完整镜像滚 + 计费链复核后）：容器 `agent-runner-dsh-retired-20261013`
+与卷 `agent-runner-data`/`agent-runner_agent-runner-home` 已删，卷内容 tar 归档留
+cheap-1 `/root/retired-archive/agent-runner-data-20261013.tar.gz`（85M，最终回滚位）。
 
 **切换配方（接管波，零手工改点）**：① rsync 旧卷数据（llm-providers.json 必带——漏迁
 = child 初始化 `no adapter registered for provider "finddata"`）；② 新 Deployment 先带

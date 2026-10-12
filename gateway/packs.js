@@ -28,7 +28,7 @@ import express from "express";
 import { PACK_LIMITS, validatePackManifest as validateManifest, validateRhythm, budgetMinutesError, modelIdError } from "../lib/pack-manifest.js";
 import { declaredToolsByServer, toolGateErrors, probeMcpToolNames } from "../lib/publish-tool-gate.js";
 import { registryServerIndex } from "../registry-bridge.js";
-import { deployToRegistry, setAgentPaused, modelChoiceError, resolveServiceConfig, NOTIFY_CHANNEL_RE, SECRET_NAME_RE, SECRET_LIMITS, maskSecretRef } from "../lib/agent-serving.js";
+import { deployToRegistry, setAgentPaused, modelChoiceError, resolveServiceConfig, resolveAgentPort, NOTIFY_CHANNEL_RE, SECRET_NAME_RE, SECRET_LIMITS, maskSecretRef } from "../lib/agent-serving.js";
 import { createFleetScheduler } from "./fleet-scheduler.js";
 import { createSub2apiClient } from "../lib/sub2api-admin.js";
 
@@ -2003,6 +2003,23 @@ export function registerPackRoutes(app, {
         } catch { /* board unreachable → degrade open */ }
       }
       const overrides = { ...(entry?.metadata?.config_overrides ?? {}) };
+      // URL + PUT-shape sanitation (live finding 2026-10-13): the GET answers
+      // the PUBLIC display url, and writing it back (PUT or the register
+      // fallback after a 422) stores a self-looping proxy target — four
+      // entries lost their A2A route exactly this way. Rebuild the url from
+      // the hosting runner's fleet geometry (the same formula the deploy
+      // side and the failover scheduler use), and normalize provider/version
+      // to the write model the strict PUT parser demands (the scheduler's
+      // ladder). No resolvable fleet row (legacy bare deployment) keeps the
+      // stored url untouched.
+      const fleetRowsForUrl = registry.runnerList();
+      const urlRunnerId = entry?.metadata?.runner_id ?? fleetRowsForUrl[0]?.id ?? null;
+      const urlRow = fleetRowsForUrl.find((r) => r.id === urlRunnerId) ?? null;
+      if (urlRow) {
+        entry.url = `http://${new URL(urlRow.baseUrl).hostname}:${resolveAgentPort(entry, { base: urlRow.portBase ?? 8791, span: urlRow.portSpan ?? 32 })}`;
+        entry.provider = { organization: "paas-pack", url: urlRow.baseUrl };
+        entry.version = String(entry.version ?? "1");
+      }
       for (const key of ["rhythm", "budgetMinutes", "model"]) {
         if (Object.prototype.hasOwnProperty.call(body, key)) overrides[key] = body[key];
       }

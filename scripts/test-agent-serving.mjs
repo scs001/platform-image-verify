@@ -1494,6 +1494,14 @@ test("config write: roster layer refuses a lane-passing roster-absent model; nul
       assert.equal(dep.status, 200, JSON.stringify(dep.body));
       const putsBefore = stub.calls.agents.length;
 
+      // URL sanitation (live finding 2026-10-13): the production GET answers
+      // the PUBLIC display url — writing it back looped four entries' proxy
+      // target onto themselves. Corrupt the stored entry to display-shape and
+      // assert the config write PUTs the runner ORIGIN back.
+      const entryPath = `/packs/${h.packId}/pack-fingpt`;
+      // The stub keys entries without the leading slash (its PUT regex strips it).
+      stub.agents.get(entryPath.slice(1)).url = `https://mcp.example.test/agent${entryPath}/`;
+
       const bad = await h.call("PUT", `/api/packs/${h.packId}/deployments/pack-fingpt/config`, { model: "m-alt" });
       assert.equal(bad.status, 400, JSON.stringify(bad.body));
       assert.equal(bad.body.code, "MODEL_NOT_IN_ROSTER");
@@ -1503,6 +1511,9 @@ test("config write: roster layer refuses a lane-passing roster-absent model; nul
       const ok = await h.call("PUT", `/api/packs/${h.packId}/deployments/pack-fingpt/config`, { model: "m-in" });
       assert.equal(ok.status, 200, JSON.stringify(ok.body));
       assert.equal(stub.calls.agents.at(-1).body.metadata.effective_model, "m-in");
+      const putUrl = stub.calls.agents.at(-1).body.url;
+      assert.match(putUrl, /^http:\/\/runner:879[1-9]|^http:\/\/runner:88[0-2]\d/, "the write restores the runner origin url, never the display loop");
+      assert.ok(!String(putUrl).includes("mcp.example.test"), "display url must not ride back");
 
       // Null clear: not a model choice — never roster-checked (also the
       // wx-alpha remediation shape).

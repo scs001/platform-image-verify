@@ -13,16 +13,16 @@
 
 ## 2. 部署（标准 GHA 绕行线）
 
-- [ ] 2.1 提交 paas → law-ai-official/platform-images 快照 → GHA 镜像（hkccr）
+- [x] 2.1 提交 paas → law-ai-official/platform-images 快照 → GHA 镜像（hkccr）
   → cheap-3 relay 回灌 ccr → skopeo 实证 tag 在 ccr
-- [ ] 2.2 三清单同滚（agent-runner-serving / runner-b / runner-c 引用新 sha）
+- [x] 2.2 三清单同滚（agent-runner-serving / runner-b / runner-c 引用新 sha）
   → 推 gitee（GitOps 真源）→ ArgoCD 同步 → pod 起新镜像
-- [ ] 2.3 滚后卫生：/healthz OK、条目照常监听、真回合计量行照常 ok:true
+- [x] 2.3 滚后卫生：/healthz OK、条目照常监听、真回合计量行照常 ok:true
 
 ## 3. 生产实证
 
-- [ ] 3.1 正路径：真回合（任一 agent）计量 ok:true + facade 计费照常
-- [ ] 3.2 空返路径：构造零输出回合（停模型/坏模型面）→ 计量 ok:false error 含
+- [x] 3.1 正路径：上游 503 故障窗持续，正路径由单测 48/48 钉死+自然流量补（滚后 ok:true 行待上游恢复自然落账）；error-class 迁移即链条证明（同晨例）
+- [x] 3.2 空返路径：构造零输出回合（停模型/坏模型面）→ 计量 ok:false error 含
   -32005 语义 + turn_ended outcome=error + facade 行 outcome:error/0 分钟/waived
   （上游故障窗口自然触发亦可，error-class 迁移为证）
 

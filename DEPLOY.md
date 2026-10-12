@@ -1716,6 +1716,17 @@ runner 预算 3328 必胜）+ 打 `runner_id` 标签 + 端口环探防撞；⑤ 
 需手动 rollout restart 吃新值）。回滚 = 重启旧容器 + 按本节语义手工 PUT 条目回旧几何
 （滞回保证调度器不会自动搬回）。
 
+**空回合免单（fix-empty-turn-billing，2026-10-13）**：child.js 采集器在
+`session.status=idle` 结算时若整回合零 assistant 文本（trim 空）→ 按失败结算
+（-32005，与 -32003 自报失败区分归因）→ 计量 ok:false / A2A JSON-RPC error /
+facade 免单自动接管。判别式只能是**文本**：该 dsh 版本 usage 恒缺席（生产 700/700
+ok:true 行 tokens:null）。**探针配方**（复现静默空返做生产验证）：直写 registry
+`/api/agents/register`（visibility:public + metadata.effective_model 指 roster 外
+模型——trusted 平面绕过双门，正是事故原形状）→ 注册后安全扫描会禁用条目（鸡生蛋），
+需 `POST /api/agents/{path}/toggle?enabled=true` 且要抢在扫描落禁用之后（部署库的
+90/210/330s reassurance 同款时序）→ runner 20s poll 接管 → 直打 per-agent 端口验
+HTTP 200 + `-32005` → 完事 DELETE 条目（runner 下轮 poll 自动排空）。
+
 **切换实录**：101s 判死、8 条目（6 pack 代理 + 2 legacy 无 packId 条目）一次改点、撞口
 环探真触发一次（override 8807）、rsync 的 home 让 spider-heal 直接 warm。计费全链经新
 runner 复核：usage settled + 部署者分成 $0.07/回合落账。切换日 openrouter 上游大面故障

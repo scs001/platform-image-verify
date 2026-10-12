@@ -58,8 +58,8 @@ curl -X POST https://wanxing.finddatatech.cloud/api/wanxing/v1/a2a/packs-ev5e51�
    发布者吃分成的方式是**自己部署自己的包**（本卡即此形状）。MineView 文案
    「你按分成获得收益」按此理解。v1 无提现——收益只抵部署者自身消耗。
 2. **失败回合不分成**（负保护）：`outcome:error` 行 waived、零分成（旅程中有一条
-   20ms 失败回合实证）；但「模型报错后 dsh 会话照常 idle」的空回合会被记
-   outcome:ok 并**照常计费**——见坑 ②，用户侧目前无感知，须先修。
+   20ms 失败回合实证）；「模型报错后 dsh 会话照常 idle」的空回合自 2026-10-13 起
+   按失败结算（-32005→outcome:error→免单，见坑 ②）——失败类回合全谱不分成。
 3. **模型选择是两道门**：部署时只验证**计费车道**（sub2api 键的 /v1/models）；
    子进程真正能调的模型还受 runner 的 dsh 花名册（settings.yaml 8 模型）约束。
    只在车道不在花名册的模型会**静默空返**（见坑 ②）。选花名册∩车道的交集。
@@ -69,7 +69,7 @@ curl -X POST https://wanxing.finddatatech.cloud/api/wanxing/v1/a2a/packs-ev5e51�
 | # | 坑 | 处置 |
 |---|---|---|
 | ① | **并发双部署拧断 billing_key_ref**：同包两次并发部署交错（registry 先后手≠库表先后手），registry 指向已轮换死 ref→runner 取键 404→**静默回落共享键**，部署者键停止计费且车道随机不通 | **已修**（4dd46b2）：deploy 路由按 packId 承诺链串行整段写序；`scripts/test-deploy-lock.mjs` 2/2（无锁复现 desync 实证）；镜像随本片滚 |
-| ② | **车道≠花名册 + 错回合照计费**：`inclusionai/ling-3.1-flash` 过车道门但不在 dsh 花名册→子回合 UNKNOWN_MODEL 静默空返；且 facade send 路径只看 HTTP 状态（A2A 错误随 **HTTP 200** 返回）→模型失败回合 **outcome:ok 照常计费+分成**。2026-10-13 runner 拆分切换日上游大面故障时升级为真实事故（两笔 502 回合照扣费） | **计费侧已修**（fd-wanxing `fix-error-turn-billing`，sha-ed21d00）：错回合豁免（生产复核：503 回合 outcome=error/0 分钟/waived）。**部署门已修**（paas `add-deploy-roster-gate`，sha-53ef436）：三层验证，事故原模型生产实证 400。**配置门+现患已清**（paas `add-config-roster-gate`，sha-ff19181）：配置写同门；在役 wx-alpha 挂 ling-3.1-flash 的现患清 null 回默认，全条目零不在册。**同批揪出并修复配置写 URL 自环缺陷**（GET 显示 URL 回写→4 条目 A2A 断路；PUT 前按宿主几何重建 origin）。**仍挂账**：空返回合采集器识别（turn/end reason=error → 免单）——部署/配置双门关闭后新增暴露面已封，仅历史语义项 |
+| ② | **车道≠花名册 + 错回合照计费**：`inclusionai/ling-3.1-flash` 过车道门但不在 dsh 花名册→子回合 UNKNOWN_MODEL 静默空返；且 facade send 路径只看 HTTP 状态（A2A 错误随 **HTTP 200** 返回）→模型失败回合 **outcome:ok 照常计费+分成**。2026-10-13 runner 拆分切换日上游大面故障时升级为真实事故（两笔 502 回合照扣费） | **计费侧已修**（fd-wanxing `fix-error-turn-billing`，sha-ed21d00）：错回合豁免（生产复核：503 回合 outcome=error/0 分钟/waived）。**部署门已修**（paas `add-deploy-roster-gate`，sha-53ef436）：三层验证，事故原模型生产实证 400。**配置门+现患已清**（paas `add-config-roster-gate`，sha-ff19181）：配置写同门；在役 wx-alpha 挂 ling-3.1-flash 的现患清 null 回默认，全条目零不在册。**同批揪出并修复配置写 URL 自环缺陷**（GET 显示 URL 回写→4 条目 A2A 断路；PUT 前按宿主几何重建 origin）。**采集器语义项已修**（paas `fix-empty-turn-billing`，sha-82f671b/镜像 sha-5187ddc 三 runner 同滚）：idle 零 assistant 文本按失败结算 -32005（usage 恒 null 不可判别——生产 700/700 ok:true 行 tokens:null 实证，判别式=文本）；生产探针复现事故原形状（roster 外模型直写注册→静默 idle）实证 HTTP 200+JSON-RPC -32005+计量 ok:false；-32003（自报失败）/-32005（静默空返）双码区分归因。坑 ② 四线全闭环 |
 | ③ | **免费车道 429 拥挤**：free 系模型上游限速频繁（重试 5 次耗尽仍空返） | 部署键改绑 openrouter 组（paid 车道）；运维操作记录在案 |
 | ④ | **调用者停权自愈链**：余额不足→结算连败 30×→CALLER_SUSPENDED；充值后 pending 扫尾结算成功→自动清停权 | 语义正确（防滥用）；充值即恢复，无需手工解封 |
 

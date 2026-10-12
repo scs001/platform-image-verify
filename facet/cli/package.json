@@ -1,7 +1,7 @@
 {
   "name": "@finddatatechnology/facet",
-  "version": "0.2.2",
-  "description": "谦面 Facet CLI — install packs (skills) into editor targets (Claude Code, Cursor, ZCode, Codex, Gemini CLI) and connect their MCP references with a caller key.",
+  "version": "0.3.0",
+  "description": "谦面 Facet CLI — install packs (skills) into editor targets, connect MCP references with a caller key, and return self-hosted packs to the official market (publish).",
   "type": "module",
   "bin": {
     "facet": "facet.js"

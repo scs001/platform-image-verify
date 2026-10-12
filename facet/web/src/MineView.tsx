@@ -163,10 +163,16 @@ function PublishFromManifest({ onPublished }: { onPublished: () => void }) {
   };
 
   return (
-    <div className="border border-border rounded-lg p-4 space-y-2" data-testid="facet-mine-publish">
+      <div className="border border-border rounded-lg p-4 space-y-2" data-testid="facet-mine-publish">
       <h3 className="text-sm font-semibold">从清单发布 · Publish from manifest</h3>
       <p className="text-xs text-muted-foreground">
         粘贴或编辑功集 manifest JSON（facet-pack-builder 产物）。留空功集 id = 新功集；填已有 id = 发布新版本。
+      </p>
+      <p className="text-xs text-muted-foreground" data-testid="facet-mine-publish-cli-hint">
+        包在自有实例上？用 CLI 一键回流官方市场（配对一次，之后静默续登）：
+        <code className="mx-1 px-1 rounded bg-muted font-mono">facet publish &lt;功集id&gt; --from {typeof window !== "undefined" ? window.location.origin : "<你的实例>"}</code>
+        <br />
+        Published on your own instance? Return it to the official market with the CLI — pair once via a bind code, silent logins after.
       </p>
       <Input
         value={packId}

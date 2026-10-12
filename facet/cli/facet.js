@@ -18,6 +18,7 @@
 import { realpathSync } from "node:fs";
 import { chmod, mkdir, readFile, rm, writeFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
+import crypto from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -39,6 +40,8 @@ const USAGE = `facet v${VERSION} — 谦面功能集安装器 / 萬星调用者�
   facet prefs <agent-slug> [--key sk-…] [--wanxing <url>]
                           [--set-callback <url> <secret>] [--set-reap <minutes>]
                           [--clear callback|reap|all] [--show]
+  facet publish <manifest.json | 功集id> [--from <自部署实例>]
+                          [--market <url>] [--pack-id <官方id>] [--new] [--no-open]
   facet help | --version
 
   <packRef>  功能集 id（市场详情页可见）或含 id 的 URL
@@ -66,10 +69,17 @@ const USAGE = `facet v${VERSION} — 谦面功能集安装器 / 萬星调用者�
   update 子命令（F2.3）：按 ~/.facet/installed.json 的记录重取各包最新版——已最新
   即 no-op，升级打印 v旧 → v新；零订阅副作用（快照模型）。
 
+  publish 子命令（F3.2 回流桥）：把功集 manifest 发到官方市场——本地清单文件，
+  或从自部署实例的公开详情拉取（--from <base>，或直接给功集页 URL）。首次运行
+  走配对：打开 ${DEFAULT_BASE}/api/mp/bindcode（登录创作者账号）取 6 位绑定码，
+  输回终端；之后每次静默续登。token 不落盘；首发记 源id→官方id 映射，同源续推
+  自动出新版本（--new 强制新包；--pack-id 手工指定官方 id）。
+  creators 门/清单校验/工具声明门/限流 全在官方侧判定，本 CLI 只搬运。
+
 说明：安装即版本快照（不产生订阅）；MCP 需 registry 账号凭据，端点仅打印。`;
 
 function parseArgs(argv) {
-  const out = { command: null, packRef: null, target: "claude-code", project: null, base: DEFAULT_BASE, registry: DEFAULT_REGISTRY, key: null, wanxing: process.env.FACET_WANXING || "https://wanxing.finddatatech.cloud", setCallback: null, setReap: undefined, clear: null };
+  const out = { command: null, packRef: null, target: "claude-code", project: null, base: DEFAULT_BASE, registry: DEFAULT_REGISTRY, market: DEFAULT_BASE, from: null, packId: null, key: null, wanxing: process.env.FACET_WANXING || "https://wanxing.finddatatech.cloud", setCallback: null, setReap: undefined, clear: null };
   const rest = [...argv];
   out.command = rest.shift() ?? null;
   // A bare flag in command position (`facet --version`, `facet -h`) is the
@@ -87,6 +97,10 @@ function parseArgs(argv) {
     else if (a === "--registry") out.registry = rest.shift();
     else if (a === "--key") out.key = rest.shift();
     else if (a === "--wanxing") out.wanxing = rest.shift();
+    else if (a === "--from") out.from = rest.shift();
+    else if (a === "--market") out.market = rest.shift();
+    else if (a === "--pack-id") out.packId = rest.shift();
+    else if (a === "--new") out.fresh = true;
     else if (a === "--set-callback") {
       const url = rest.shift();
       const secret = rest.shift();
@@ -364,11 +378,11 @@ export async function verifyCallerKey(registry, key) {
   return { servers };
 }
 
-async function readKeyFromStdin() {
+async function readKeyFromStdin(prompt = "粘贴 wgk- 调用键（回车确认）：") {
   const rl = (await import("node:readline/promises")).createInterface({ input: process.stdin });
   try {
-    const k = (await rl.question("粘贴 wgk- 调用键（回车确认）：")).trim();
-    if (!k) throw new Error("未读入调用键");
+    const k = (await rl.question(prompt)).trim();
+    if (!k) throw new Error("未读入输入");
     return k;
   } finally {
     rl.close();
@@ -645,6 +659,218 @@ async function update(opts) {
   console.log(upgraded > 0 ? `完成：${upgraded} 笔更新（无订阅副作用——快照模型）。` : "没有需要更新的安装。");
 }
 
+// ── publish (add-facet-publish-bridge, F3.2): return a pack to the official market ──
+// The cross-instance transport is THIS process: read a local manifest file or
+// pull the stored manifest from the source instance's public detail, then push
+// it through the market's own publish route. Auth is the market's device-
+// pairing surface — pair once via a bind code minted from the author's web
+// session, silently re-login every run (the token never rests on disk; only
+// the device identity and the source→official id map do). Every gate —
+// creators group, manifest validation, tool declarations, author rate limit —
+// stays on the market; this side only transports and reports verdicts.
+
+function publishKeypairPath() {
+  return process.env.FACET_PUBLISH_KEY_PATH || path.join(HOME(), ".facet", "publish-key.json");
+}
+function publishIdentityPath() {
+  return process.env.FACET_PUBLISH_IDENTITY_PATH || path.join(HOME(), ".facet", "publish-identity.json");
+}
+function publishMapPath() {
+  return process.env.FACET_PUBLISH_MAP_PATH || path.join(HOME(), ".facet", "publish-map.json");
+}
+
+// One device identity for every market: the keypair never leaves this machine
+// (PEM at 0600); each market's binding store holds only the public half. The
+// pubkey wire format is app-auth's: base64url of the raw 32-byte Ed25519 key
+// (JWK `x`), so it round-trips the server's KeyObject wrap exactly.
+async function ensurePublishDevice() {
+  try {
+    const doc = JSON.parse(await readFile(publishKeypairPath(), "utf8"));
+    if (doc?.deviceId && doc?.privateKeyPem && doc?.publicKey) return doc;
+  } catch { /* absent or unreadable — mint below */ }
+  const { publicKey, privateKey } = crypto.generateKeyPairSync("ed25519");
+  const doc = {
+    deviceId: crypto.randomBytes(12).toString("base64url"),
+    publicKey: publicKey.export({ format: "jwk" }).x,
+    privateKeyPem: privateKey.export({ type: "pkcs8", format: "pem" }),
+    createdAt: new Date().toISOString(),
+  };
+  await mkdir(path.dirname(publishKeypairPath()), { recursive: true });
+  await writeFile(publishKeypairPath(), JSON.stringify(doc, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
+  await chmod(publishKeypairPath(), 0o600);
+  return doc;
+}
+
+async function loadPublishIdentity(market) {
+  try {
+    const doc = JSON.parse(await readFile(publishIdentityPath(), "utf8"));
+    return doc?.markets?.[market] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function savePublishIdentity(market, entry) {
+  let doc = {};
+  try {
+    doc = JSON.parse(await readFile(publishIdentityPath(), "utf8")) ?? {};
+  } catch { /* first write */ }
+  doc.markets ??= {};
+  doc.markets[market] = entry;
+  await mkdir(path.dirname(publishIdentityPath()), { recursive: true });
+  await writeFile(publishIdentityPath(), JSON.stringify(doc, null, 2) + "\n", { encoding: "utf8", mode: 0o600 });
+}
+
+const publishMapKey = (market, sourceId) => `${market}|${sourceId}`;
+
+async function loadPublishMap() {
+  try {
+    return (JSON.parse(await readFile(publishMapPath(), "utf8")) ?? {}).maps ?? {};
+  } catch {
+    return {};
+  }
+}
+
+async function savePublishMapEntry(market, sourceId, officialId) {
+  let doc = {};
+  try {
+    doc = JSON.parse(await readFile(publishMapPath(), "utf8")) ?? {};
+  } catch { /* first write */ }
+  doc.maps ??= {};
+  doc.maps[publishMapKey(market, sourceId)] = officialId;
+  await mkdir(path.dirname(publishMapPath()), { recursive: true });
+  await writeFile(publishMapPath(), JSON.stringify(doc, null, 2) + "\n", "utf8");
+}
+
+// Always-fresh credentials: silent login (single-use challenge + Ed25519
+// signature) each run; pair via bind code only when the market says the device
+// is unknown or was revoked. The returned token lives in this invocation only.
+async function publishToken(market, opts, device) {
+  const identity = await loadPublishIdentity(market);
+  if (identity) {
+    const ch = await fetch(`${market}/api/app/challenge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ deviceId: device.deviceId }),
+    });
+    const chDoc = await ch.json().catch(() => ({}));
+    if (ch.ok && chDoc.nonce) {
+      const signature = crypto
+        .sign(null, Buffer.from(`${device.deviceId}:${chDoc.nonce}`, "utf8"), crypto.createPrivateKey(device.privateKeyPem))
+        .toString("base64url");
+      const lg = await fetch(`${market}/api/app/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ deviceId: device.deviceId, nonce: chDoc.nonce, signature }),
+      });
+      const lgDoc = await lg.json().catch(() => ({}));
+      if (lg.ok && lgDoc.token) return { token: lgDoc.token, email: lgDoc.email };
+      throw new Error(`静默登录失败（HTTP ${lg.status} ${lgDoc.error || ""}）`);
+    }
+    // binding_required (unknown/revoked device) falls through to pairing;
+    // anything else means the market did not offer the door at all.
+    if (ch.status !== 401 || chDoc.error !== "binding_required") {
+      throw new Error(`市场 challenge 不可用（HTTP ${ch.status} ${chDoc.error || ""}）——该部署可能未开设备配对`);
+    }
+  }
+
+  console.log(`首次配对 ${market}（或既有配对已被吊销）：`);
+  console.log(`  打开并登录创作者账号，取 6 位绑定码：${market}/api/mp/bindcode`);
+  if (!opts.noOpen && process.platform !== "win32") {
+    const { execFile } = await import("node:child_process");
+    const open = process.platform === "darwin" ? "open" : "xdg-open";
+    execFile(open, [`${market}/api/mp/bindcode`], () => {}); // best-effort; the URL is printed regardless
+  }
+  const code = await readKeyFromStdin("输入 6 位绑定码（回车确认）：");
+  const pr = await fetch(`${market}/api/app/pair`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ code, deviceId: device.deviceId, pubkey: device.publicKey, label: "facet-cli publish" }),
+  });
+  const pd = await pr.json().catch(() => ({}));
+  if (!pr.ok) throw new Error(`配对失败（HTTP ${pr.status}）${pd.error ? `：${pd.error}` : ""}`);
+  await savePublishIdentity(market, { email: pd.email, pairedAt: new Date().toISOString() });
+  console.log(`✓ 已配对为 ${pd.email}（设备身份存 ${publishKeypairPath()}，0600）`);
+  return { token: pd.token, email: pd.email };
+}
+
+async function publishRun(opts) {
+  const market = String(opts.market || DEFAULT_BASE).replace(/\/+$/, "");
+  const ref = String(opts.packRef || "").trim();
+  if (!ref) throw new Error("缺少发布载荷——给 manifest 文件路径，或功集 id 配 --from <源实例>");
+
+  let manifest;
+  let sourceId = null;
+  const asFile = path.resolve(ref);
+  const fileExists = await stat(asFile).then(() => true).catch(() => false);
+  if (fileExists) {
+    try {
+      manifest = JSON.parse(await readFile(asFile, "utf8"));
+    } catch (e) {
+      throw new Error(`清单文件不是合法 JSON：${e.message}`);
+    }
+    console.log(`载荷：本地清单 ${asFile}`);
+  } else {
+    let fromBase = opts.from ? String(opts.from).replace(/\/+$/, "") : null;
+    if (!fromBase) {
+      try {
+        fromBase = new URL(ref).origin; // a detail-page URL names its own source
+      } catch { /* bare id — --from is required */ }
+    }
+    if (!fromBase) throw new Error("跨实例发布需要 --from <源实例地址>（或直接给功集详情页 URL）");
+    sourceId = extractPackId(ref);
+    const detail = await fetchJson(`${fromBase}/api/packs/${encodeURIComponent(sourceId)}`).catch(() => null);
+    if (!detail?.manifest) {
+      throw new Error(`源实例 ${fromBase} 上找不到公开功集 ${sourceId}——私有/下架包不可搬运（先转公开，或改用本地清单文件）`);
+    }
+    manifest = detail.manifest;
+    console.log(`载荷：${fromBase} 的 ${detail.name ?? sourceId} v${detail.version}（存储 manifest，含技能内容）`);
+  }
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+    throw new Error("载荷不是 manifest 对象——官方侧校验是唯一权威，但基本形状须成立");
+  }
+
+  const device = await ensurePublishDevice();
+  const { token, email } = await publishToken(market, opts, device);
+
+  let packId = typeof opts.packId === "string" && opts.packId.trim() ? opts.packId.trim() : null;
+  if (!packId && sourceId && !opts.fresh) {
+    const mapped = (await loadPublishMap())[publishMapKey(market, sourceId)];
+    if (mapped) {
+      packId = mapped;
+      console.log(`沿用 id 映射 ${sourceId} → ${packId}（续推新版本；--new 强制发新包）`);
+    }
+  }
+
+  const r = await fetch(`${market}/api/packs`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ packId, manifest }),
+  });
+  const doc = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const errors = Array.isArray(doc?.errors) ? doc.errors.map((e) => e?.error ?? String(e)).join("；") : "";
+    if (r.status === 403 && doc?.error === "Creator group required") {
+      throw new Error(`官方市场拒绝：配对账号 ${email} 不在创作者组——用创作者组成员的会话铸造绑定码，重新配对`);
+    }
+    if (r.status === 404) throw new Error(`官方包 ${packId} 不存在——核对 --pack-id，或用 --new 发新包`);
+    if (r.status === 403) {
+      throw new Error(`官方市场拒绝（403）：${doc?.error || ""}${packId ? `——${packId} 的作者不是 ${email}，新版本须由原作者发布` : ""}`);
+    }
+    throw new Error(`发布失败 HTTP ${r.status}${doc?.error ? `：${doc.error}` : ""}${errors ? `\n  ${errors}` : ""}`);
+  }
+  console.log(`✓ 已发布到官方市场：${doc.id} v${doc.version}（作者 ${email}）`);
+  console.log(`  ${market}/#/packs`);
+  if (sourceId && doc.id) {
+    await savePublishMapEntry(market, sourceId, doc.id);
+    console.log(
+      packId
+        ? `  版本已续推（${sourceId} → ${doc.id} 映射不变）`
+        : `  已记 id 映射 ${sourceId} → ${doc.id}：下次同源发布会自动续推新版本`,
+    );
+  }
+}
+
 const isMain =
   process.argv[1] &&
   realOrSelf(fileURLToPath(import.meta.url)) === realOrSelf(path.resolve(process.argv[1]));
@@ -657,6 +883,7 @@ if (isMain) {
     else if (opts.command === "connect") await connectRun(opts);
     else if (opts.command === "prefs") await prefs(opts);
     else if (opts.command === "update") await update(opts);
+    else if (opts.command === "publish") await publishRun(opts);
     else {
       console.error(`未知命令：${opts.command}\n\n${USAGE}`);
       process.exit(2);

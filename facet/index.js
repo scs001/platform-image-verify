@@ -14,6 +14,10 @@
 // With 壹座 entirely down, everything here keeps working: browsing, detail,
 // skill downloads of public packs (anonymous read face), direct login,
 // publishing, deploying.
+//
+// Third identity channel (add-facet-publish-bridge, F3.2): a paired device's
+// app token — the CLI publish bridge's door. Same pairing modules as the
+// gateway (pairing.js), inert without MP_TOKEN_SECRET.
 
 import path from "node:path";
 import express from "express";
@@ -23,6 +27,7 @@ import { resolveSessionSecret } from "../server/session.js";
 import { createResolveUser } from "./identity.js";
 import { initFacetMcpCatalog } from "./mcp-catalog.js";
 import { registerMarketplaceJson } from "./marketplace-json.js";
+import { createFacetPairing, registerPairingRoutes, withAppBearer } from "./pairing.js";
 
 const PORT = Number(process.env.PORT || 8080);
 const DATA_ROOT = process.env.FACET_DATA_ROOT || process.env.DATA_ROOT || path.resolve("data");
@@ -52,10 +57,19 @@ const logtoAuth = await createLogtoAuth({
   return null;
 });
 
-const resolveUser = createResolveUser({
-  expectedToken: process.env.FACET_INTERNAL_TOKEN || "",
-  sessionAuth: logtoAuth ? (req) => logtoAuth.authenticate(req) : null,
+const pairing = createFacetPairing({
+  dataRoot: DATA_ROOT,
+  tokenSecret: process.env.MP_TOKEN_SECRET || "",
+  ttlHours: Number(process.env.MP_TOKEN_TTL_HOURS || 12),
 });
+
+const resolveUser = withAppBearer(
+  createResolveUser({
+    expectedToken: process.env.FACET_INTERNAL_TOKEN || "",
+    sessionAuth: logtoAuth ? (req) => logtoAuth.authenticate(req) : null,
+  }),
+  pairing.appAuth,
+);
 
 function rejectUnauthenticated(_req, res) {
   return res.status(401).json({ error: "Authentication required", loginUrl: "/auth/login" });
@@ -100,6 +114,15 @@ function rejectUnauthenticatedSoft(_req, res) {
 }
 
 if (logtoAuth) logtoAuth.register(app);
+
+// Pairing doors (bindcode + pair/challenge/login + device management) before
+// the pack routes — the CLI publish bridge's login rides them.
+registerPairingRoutes(app, {
+  appAuth: pairing.appAuth,
+  mpBindings: pairing.bindings,
+  resolveUser,
+  rejectUnauthenticated,
+});
 
 registerPackRoutes(app, {
   registry,
@@ -148,7 +171,9 @@ await initFacetMcpCatalog(app, { resolveUser });
 app.use(express.static(WEB_DIST, { index: "index.html" }));
 app.get(/^\/(?!api\/|auth\/).*/, (_req, res) => res.sendFile(path.join(WEB_DIST, "index.html")));
 
+await pairing.bindings.load();
+
 app.listen(PORT, () => {
   console.log(`[facet] listening on http://127.0.0.1:${PORT} (public base ${PUBLIC_BASE})`);
-  console.log(`[facet] registry at ${path.join(DATA_ROOT, "packs.db")}; login ${logtoAuth ? "enabled" : "DISABLED"}; proxy channel ${process.env.FACET_INTERNAL_TOKEN ? "armed" : "closed"}`);
+  console.log(`[facet] registry at ${path.join(DATA_ROOT, "packs.db")}; login ${logtoAuth ? "enabled" : "DISABLED"}; proxy channel ${process.env.FACET_INTERNAL_TOKEN ? "armed" : "closed"}; pairing ${pairing.appAuth.configured ? "armed" : "closed"}`);
 });

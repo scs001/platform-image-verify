@@ -995,6 +995,136 @@ test("deploy: model choice passes lane validation or refuses the deploy", async 
   }
 });
 
+// ── add-deploy-agent-selection: `agents` subset on the deploy endpoint ──────
+
+const TWO_SERVING = {
+  ...BASE,
+  agents: [
+    { ...BASE.agents[0], serving: { protocol: "a2a" } },
+    { id: "pack-fingpt-r2", name: "FingPt 研报员", persona: "你是严谨的研报撰写员。", serving: { protocol: "a2a" } },
+  ],
+};
+
+test("agents subset: only the named serving agents are composed and recorded", async () => {
+  const stub = stubRegistry();
+  const h = await routeHarness({
+    user: { email: "author@x", groups: [] },
+    deployConfig: { registryUrl: "https://mcp.example.test", token: "t", runnerBaseUrl: "http://runner:8790", packsPublicBase: "https://packs.example.test", fetchImpl: stub.fetch },
+    manifest: TWO_SERVING,
+  });
+  try {
+    const res = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, { agents: ["pack-fingpt"] });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.deployed.length, 1);
+    assert.equal(res.body.deployed[0].agentId, "pack-fingpt");
+    assert.equal(stub.calls.agents.length, 1, "the unselected agent never reaches the registry");
+    assert.equal(stub.calls.agents[0].body.path, `/packs/${h.packId}/pack-fingpt`);
+
+    const list = await h.call("GET", `/api/packs/${h.packId}/deployments`);
+    assert.deepEqual(list.body.deployments.map((d) => d.agentId), ["pack-fingpt"], "bookkeeping records only the selection");
+  } finally {
+    await h.close();
+  }
+});
+
+test("agents subset: a bad selection refuses naming the entry, nothing deploys", async () => {
+  const cases = [
+    { agents: ["pack-fingpt", "nope"] }, // not a serving agent
+    { agents: ["pack-fingpt", "pack-fingpt"] }, // duplicate
+    { agents: [] }, // empty
+    { agents: "pack-fingpt" }, // not an array
+    { agents: [42] }, // non-string entry
+  ];
+  for (const body of cases) {
+    const stub = stubRegistry();
+    const h = await routeHarness({
+      user: { email: "author@x", groups: [] },
+      deployConfig: { registryUrl: "https://mcp.example.test", token: "t", runnerBaseUrl: "http://runner:8790", packsPublicBase: "https://packs.example.test", fetchImpl: stub.fetch },
+      manifest: TWO_SERVING,
+    });
+    try {
+      const res = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, body);
+      assert.equal(res.status, 400, JSON.stringify(body));
+      assert.match(res.body.error, /agents/i);
+      assert.equal(stub.calls.agents.length, 0, "no registry write for a refused selection");
+    } finally {
+      await h.close();
+    }
+  }
+});
+
+test("agents subset: billing admission scopes to the selection; outside-aimed keys and secret unbinds refuse", async () => {
+  const sub2api = stubSub2api();
+  const cfg = {
+    registryUrl: "https://mcp.example.test", token: "t",
+    runnerBaseUrl: "http://runner:8790", packsPublicBase: "https://packs.example.test",
+    sub2api: { adminKey: sub2api.adminKey, fetchImpl: sub2api.fetchImpl },
+  };
+
+  // The unselected agent has NO key binding, and the subset deploy is still
+  // admitted — the admission rule asks only about the agents being deployed.
+  {
+    const stub = stubRegistry();
+    const h = await routeHarness({ user: { email: "author@x", groups: [] }, deployConfig: { ...cfg, fetchImpl: stub.fetch }, manifest: TWO_SERVING });
+    try {
+      const res = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, {
+        agents: ["pack-fingpt"],
+        billingKeys: { "pack-fingpt": sub2api.key },
+      });
+      assert.equal(res.status, 200);
+      assert.equal(res.body.deployed.length, 1);
+      assert.equal(stub.calls.agents.length, 1);
+    } finally { await h.close(); }
+  }
+  // A pasted key aimed at a serving agent OUTSIDE the selection refuses.
+  {
+    const stub = stubRegistry();
+    const h = await routeHarness({ user: { email: "author@x", groups: [] }, deployConfig: { ...cfg, fetchImpl: stub.fetch }, manifest: TWO_SERVING });
+    try {
+      const res = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, {
+        agents: ["pack-fingpt"],
+        billingKeys: { "pack-fingpt": sub2api.key, "pack-fingpt-r2": sub2api.key },
+      });
+      assert.equal(res.status, 400);
+      assert.equal(res.body.code, "BILLING_KEY_INVALID");
+      assert.equal(res.body.reason, "outside-selection");
+      assert.equal(stub.calls.agents.length, 0);
+    } finally { await h.close(); }
+  }
+  // A secret binding aimed outside the selection refuses too (its live entry
+  // would be stranded off the binding).
+  {
+    const stub = stubRegistry();
+    const h = await routeHarness({ user: { email: "author@x", groups: [] }, deployConfig: { ...cfg, fetchImpl: stub.fetch }, manifest: TWO_SERVING });
+    try {
+      const res = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, {
+        agents: ["pack-fingpt"],
+        billingKeys: { "pack-fingpt": sub2api.key },
+        secrets: { "pack-fingpt-r2": { repo_token: "x" } },
+      });
+      assert.equal(res.status, 400);
+      assert.equal(res.body.code, "SECRET_INVALID");
+      assert.equal(res.body.reason, "outside-selection");
+      assert.equal(stub.calls.agents.length, 0);
+    } finally { await h.close(); }
+  }
+});
+
+test("deployToRegistry: onlyAgents filters the composed list; unknown ids refuse", async () => {
+  const base = { packId: "pk-abc", version: 3, runnerBaseUrl: "http://runner.tailnet", packsPublicBase: "https://packs.example.test", registryUrl: "https://mcp.example.test", manifest: TWO_SERVING };
+  const stub = stubRegistry();
+  await servingLib.deployToRegistry({ ...base, onlyAgents: ["pack-fingpt-r2"], fetchImpl: stub.fetch });
+  assert.equal(stub.calls.agents.length, 1);
+  assert.equal(stub.calls.agents[0].body.path, "/packs/pk-abc/pack-fingpt-r2");
+
+  const none = stubRegistry();
+  await assert.rejects(
+    servingLib.deployToRegistry({ ...base, onlyAgents: ["ghost"], fetchImpl: none.fetch }),
+    (err) => /'ghost' is not a serving agent/.test(err.message) && err.status === 400,
+  );
+  assert.equal(none.calls.agents.length, 0);
+});
+
 test("config routes: deployer/admin gate, three-state merge, live effective fields", async () => {
   const sub2api = stubSub2api();
   const stub = stubRegistry();

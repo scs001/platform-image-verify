@@ -1037,11 +1037,36 @@ export function registerPackRoutes(app, {
         }
       }
     }
+    const servingIds = new Set((version.manifest.agents ?? []).filter((a) => a?.serving).map((a) => a.id));
+    // Agent subset selection (add-deploy-agent-selection / M4①): `agents`
+    // names the serving agents THIS deploy composes — absent = every serving
+    // agent, byte-identical to the pre-selection contract. A bad selection
+    // refuses naming the entry before anything is touched.
+    let deployIds = servingIds;
+    const agentsBody = req.body?.agents;
+    if (agentsBody !== undefined) {
+      if (!Array.isArray(agentsBody) || agentsBody.length === 0) {
+        return res.status(400).json({ error: "agents must be a non-empty array of serving agent ids" });
+      }
+      const picked = new Set();
+      for (const id of agentsBody) {
+        if (typeof id !== "string" || !id) {
+          return res.status(400).json({ error: `agents entry ${JSON.stringify(id)} must be a serving agent id string` });
+        }
+        if (picked.has(id)) {
+          return res.status(400).json({ error: `agents lists '${id}' twice — select each agent once` });
+        }
+        if (!servingIds.has(id)) {
+          return res.status(400).json({ error: `agents entry '${id}' is not a serving agent of this pack (serving: ${[...servingIds].join(", ") || "(none)"})` });
+        }
+        picked.add(id);
+      }
+      deployIds = picked;
+    }
     // Model choices (agent-service-config / ADR-0019): { "<agentId>": model |
     // null } — a deploy-time model rides the SAME write-time validation as a
     // later config write (shape here; whitelist + billing lanes below, once
     // the deployment keys resolved). null clears back to the declaration.
-    const servingIds = new Set((version.manifest.agents ?? []).filter((a) => a?.serving).map((a) => a.id));
     const models = req.body?.models;
     if (models !== undefined) {
       if (!models || typeof models !== "object" || Array.isArray(models)) {
@@ -1137,6 +1162,11 @@ export function registerPackRoutes(app, {
             }
             return keyInvalid("unknown-agent", agentId);
           }
+          if (!deployIds.has(agentId)) {
+            // A key aimed outside the selection would be minted but never
+            // ride a descriptor — refuse rather than burn a binding.
+            return keyInvalid("outside-selection", `'${agentId}' is not in this deploy's agent selection (${[...deployIds].join(", ")}) — paste keys for the agents being deployed`);
+          }
           if (value === null) {
             return res.status(400).json({
               error: `billingKeys.${agentId}: a serving agent's key can only be replaced, not removed`,
@@ -1148,13 +1178,15 @@ export function registerPackRoutes(app, {
           if (!servingIds.has(agentId)) registry.deleteDeploymentKey(id, agentId);
         }
 
-        // Kept bindings: serving agents absent from this request ride their
+        // Kept bindings: deployed agents absent from this request ride their
         // existing reference into the new descriptor — after a liveness
         // revalidation (below, once the cheap layers passed). A dead kept key
         // refuses the deploy with replace guidance (the paste flow cannot
         // re-deliver an old value: the platform never echoes key values back).
+        // Unselected serving agents are out of scope: their live entries keep
+        // their bindings untouched (not revalidated, not required, not dropped).
         const kept = new Map();
-        for (const agentId of servingIds) {
+        for (const agentId of deployIds) {
           if (providedKeys && Object.hasOwn(providedKeys, agentId)) continue;
           const k = existing.get(agentId);
           if (k?.keyValue) kept.set(agentId, k);
@@ -1204,9 +1236,12 @@ export function registerPackRoutes(app, {
           agentKeyValues.set(agentId, key);
         }
 
-        // Every serving agent must end up with a key — the paste flow's
+        // Every deployed agent must end up with a key — the paste flow's
         // admission rule, aligned with "the deployer pays for what serves".
-        for (const agentId of servingIds) {
+        // Unselected serving agents are exempt this round (add-deploy-agent-
+        // selection): their absence of a binding changes nothing for a deploy
+        // that does not touch their entries.
+        for (const agentId of deployIds) {
           if (billingKeys[agentId] == null) {
             return res.status(400).json({
               error: `agent '${agentId}' is a serving agent and needs a sub2api key — create one in your billing panel (Logto sign-in) and paste it here`,
@@ -1277,6 +1312,11 @@ export function registerPackRoutes(app, {
       for (const [agentId, names] of requested) {
         if (!names || typeof names !== "object" || Array.isArray(names)) {
           return secretInvalid("shape", `secrets.${agentId} must be an object of { name: value | null }`);
+        }
+        if (servingIds.has(agentId) && !deployIds.has(agentId)) {
+          // Its live registry entry is not being replaced this round — an
+          // unbind here would strand the running agent off its binding.
+          return secretInvalid("outside-selection", `secrets.${agentId}: '${agentId}' is serving but outside this deploy's agent selection — its live entry keeps its current bindings`);
         }
         for (const [name, value] of Object.entries(names)) {
           const where = `secrets.${agentId}.${name}`;
@@ -1368,6 +1408,7 @@ export function registerPackRoutes(app, {
         packId: id,
         version: version.version,
         manifest: version.manifest,
+        ...(agentsBody !== undefined ? { onlyAgents: [...deployIds] } : {}),
         rhythmOverrides: rhythms ?? {},
         budgetOverrides: budgets ?? {},
         modelOverrides: models ?? {},

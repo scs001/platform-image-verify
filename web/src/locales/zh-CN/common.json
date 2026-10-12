@@ -17,7 +17,8 @@
     "bots": "机器人",
     "trace": "调用追踪",
     "openMenu": "打开导航菜单",
-    "tasks": "自动化"
+    "tasks": "自动化",
+    "apps": "应用"
   },
   "trace": {
     "title": "调用追踪",
@@ -1510,6 +1511,39 @@
       "prev": "上一页",
       "next": "下一页",
       "page": "第 {{page}} / {{pages}} 页"
+    }
+  },
+  "appCenter": {
+    "title": "应用中心",
+    "subtitle": "运行在壹座平台上的产品线与工具",
+    "linesHeading": "产品线",
+    "appsHeading": "平台应用",
+    "open": "打开",
+    "here": "你正在这里",
+    "status": {
+      "early": "建设早期"
+    },
+    "line": {
+      "yizuo": {
+        "name": "壹座",
+        "tagline": "多端 AI 执行平台——对话、任务与产品线的承载底座"
+      },
+      "facet": {
+        "name": "谦面",
+        "tagline": "packs 市场——发现、安装与创作 AI 能力包"
+      },
+      "wanxing": {
+        "name": "萬星",
+        "tagline": "agents 执行层——部署你的智能体并对世界开放"
+      },
+      "lex": {
+        "name": "识律",
+        "tagline": "法律数据、应用与模型"
+      },
+      "wire": {
+        "name": "柏讯",
+        "tagline": "企业数据平台——宏观指标加持的数据中台"
+      }
     }
   }
 }

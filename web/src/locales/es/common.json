@@ -17,7 +17,8 @@
     "bots": "Bots",
     "trace": "Traza",
     "openMenu": "Abrir menú de navegación",
-    "tasks": "Automatización"
+    "tasks": "Automatización",
+    "apps": "Apps"
   },
   "trace": {
     "title": "Traza",
@@ -1510,6 +1511,39 @@
       "prev": "Anterior",
       "next": "Siguiente",
       "page": "Página {{page}} / {{pages}}"
+    }
+  },
+  "appCenter": {
+    "title": "Centro de Apps",
+    "subtitle": "Líneas de producto y herramientas que corren en la plataforma",
+    "linesHeading": "Líneas de producto",
+    "appsHeading": "Apps de la plataforma",
+    "open": "Abrir",
+    "here": "Estás aquí",
+    "status": {
+      "early": "En fase temprana"
+    },
+    "line": {
+      "yizuo": {
+        "name": "Yizuo",
+        "tagline": "Plataforma multicliente de ejecución de IA: chat, tareas y la base que sostiene cada línea"
+      },
+      "facet": {
+        "name": "Facet",
+        "tagline": "Mercado de packs: descubre, instala y crea paquetes de capacidades de IA"
+      },
+      "wanxing": {
+        "name": "Wanxing",
+        "tagline": "Capa de ejecución de agentes: despliega tus agentes y ábrelos al mundo"
+      },
+      "lex": {
+        "name": "Lex",
+        "tagline": "Datos, aplicaciones y modelos legales"
+      },
+      "wire": {
+        "name": "Wire",
+        "tagline": "Plataforma de datos empresariales: hub de datos potenciado por indicadores macro"
+      }
     }
   }
 }

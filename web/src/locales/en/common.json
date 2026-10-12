@@ -17,7 +17,8 @@
     "bots": "Bots",
     "trace": "Trace",
     "openMenu": "Open navigation menu",
-    "tasks": "Automation"
+    "tasks": "Automation",
+    "apps": "Apps"
   },
   "trace": {
     "title": "Trace",
@@ -1510,6 +1511,39 @@
       "prev": "Prev",
       "next": "Next",
       "page": "Page {{page}} / {{pages}}"
+    }
+  },
+  "appCenter": {
+    "title": "App Center",
+    "subtitle": "Product lines and tools running on the platform",
+    "linesHeading": "Product Lines",
+    "appsHeading": "Platform Apps",
+    "open": "Open",
+    "here": "You are here",
+    "status": {
+      "early": "Early stage"
+    },
+    "line": {
+      "yizuo": {
+        "name": "Yizuo",
+        "tagline": "Multi-client AI execution platform — chat, tasks, and the base carrying every line"
+      },
+      "facet": {
+        "name": "Facet",
+        "tagline": "Packs marketplace — discover, install, and author AI capability packs"
+      },
+      "wanxing": {
+        "name": "Wanxing",
+        "tagline": "Agents execution layer — deploy your agents and open them to the world"
+      },
+      "lex": {
+        "name": "Lex",
+        "tagline": "Legal data, applications, and models"
+      },
+      "wire": {
+        "name": "Wire",
+        "tagline": "Enterprise data platform — a data hub boosted by macro indicators"
+      }
     }
   }
 }

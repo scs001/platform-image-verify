@@ -42,6 +42,7 @@ const ResourcesPage = lazy(() =>
 const ExternalServicePage = lazy(() =>
   import("@/pages/EmbeddedServicePages").then((m) => ({ default: m.ExternalServicePage })),
 );
+const AppCenterPage = lazy(() => import("@/pages/AppCenterPage").then((m) => ({ default: m.AppCenterPage })));
 // The preview drawer is code-split for the same reason as the pages above, and
 // one more: a session that never previews a file should not download the
 // renderers (mammoth among them).
@@ -244,6 +245,7 @@ export default function App() {
             <Route path="/knowledge" element={<DocumentsPage send={send} />} />
             <Route path="/resources" element={<ResourcesPage send={send} />} />
             <Route path="/agents" element={<AgentsPage />} />
+            <Route path="/apps" element={<AppCenterPage />} />
             <Route path="/bots" element={<Navigate to={settingsPath("channels")} replace />} />
             <Route path="/trace" element={<Navigate to={settingsPath("diagnostics")} replace />} />
             <Route path="/trace/:turnId" element={<TraceDetailPage />} />

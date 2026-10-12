@@ -27,6 +27,7 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  LayoutGrid,
   MessageSquare,
   PanelLeftClose,
   Search,
@@ -60,6 +61,7 @@ const NAV_BASE = [
   { to: "/knowledge", key: "nav.knowledge", testId: "nav-knowledge", icon: BookOpen },
   { to: "/resources", key: "nav.resources", testId: "nav-resources", icon: FolderOpen },
   { to: "/agents", key: "nav.agents", testId: "nav-agents", icon: Sparkles },
+  { to: "/apps", key: "nav.apps", testId: "nav-apps", icon: LayoutGrid },
   { to: "/tasks", key: "nav.tasks", testId: "nav-tasks", icon: Clock },
 ];
 

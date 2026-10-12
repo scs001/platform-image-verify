@@ -874,6 +874,16 @@ export function registerPackRoutes(app, {
     res.json({ versions: result });
   });
 
+  // Serving capability probe (add-selfhost-funnel-guidance, F3.1): registered
+  // BEFORE /api/packs/:id so the literal path never falls into the :id
+  // capture. Lets the deploy surface distinguish "this instance runs agent
+  // serving" from the self-hosted shape — where the honest answer is the
+  // official-market guidance panel, never a raw internal-config error.
+  app.get("/api/packs/serving-status", (_req, res) => {
+    const cfg = deployConfig();
+    res.json({ configured: Boolean(cfg.runnerBaseUrl && cfg.registryUrl) });
+  });
+
   // Latest-version detail. An unlisted pack stays visible to its author and
   // active subscribers; the author additionally sees the subscriber count.
   app.get("/api/packs/:id", (req, res) => {
@@ -1621,6 +1631,14 @@ export function registerPackRoutes(app, {
     }
     return true;
   };
+    // Serving capability probe (add-selfhost-funnel-guidance, F3.1): lets the
+    // deploy surface distinguish "this instance runs agent serving" from the
+    // self-hosted shape — where the honest answer is the official-market
+    // guidance panel, never a raw internal-config error.
+    app.get("/api/packs/serving-status", (_req, res) => {
+      const cfg = deployConfig();
+      res.json({ configured: Boolean(cfg.runnerBaseUrl && cfg.registryUrl) });
+    });
   app.get("/api/packs/internal/deployments", (req, res) => {
     if (!internalAuth(req, res)) return;
     res.json({ deployments: registry.allDeployments() });

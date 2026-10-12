@@ -104,6 +104,21 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
 
   const servingAgents = (pack?.manifest?.agents ?? []).filter((a) => a.serving);
 
+  // Serving capability (add-selfhost-funnel-guidance, F3.1): a self-hosted
+  // instance without agent serving renders the official-market guidance
+  // panel — the raw "not configured" error never surfaces.
+  const [servingReady, setServingReady] = useState<boolean | null>(null);
+  useEffect(() => {
+    let live = true;
+    api
+      .getServingStatus()
+      .then((d) => live && setServingReady(Boolean(d.configured)))
+      .catch(() => live && setServingReady(true)); // probe failure ≠ not configured
+    return () => {
+      live = false;
+    };
+  }, []);
+
   const deploy = async () => {
     if (!packId || !pack) return;
     setDeploying(true);
@@ -142,6 +157,8 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
         setError(t(`packs.detail.keyInvalid.${e.body?.reason ?? "liveness"}`, { defaultValue: e.message }));
       } else if (code === "BILLING_KEY_REQUIRED") {
         setError(t("packs.detail.keyRequired", { defaultValue: e.message }));
+      } else if (servingReady === false || /not configured/i.test(e.message)) {
+        setServingReady(false); // race-proof: the probe lost to a click
       } else {
         setError(e.message);
       }
@@ -346,7 +363,38 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
               </section>
             )}
 
-            {servingAgents.length > 0 && (
+            {servingAgents.length > 0 && servingReady === false && (
+              <section className="border border-dashed border-border rounded-md p-3" data-testid="pack-deploy-guidance">
+                <h4 className="font-medium mb-2">{t("packs.detail.selfhostTitle")}</h4>
+                <p className="text-xs text-muted-foreground leading-5">{t("packs.detail.selfhostBody")}</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    onClick={() => window.open("https://facet.finddatatech.cloud", "_blank", "noopener")}
+                    data-testid="pack-deploy-guidance-market"
+                  >
+                    {t("packs.detail.selfhostMarketBtn")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      window.open(
+                        "https://github.com/FindDataTechnology/platform/blob/main/docs/creating-packs.md",
+                        "_blank",
+                        "noopener",
+                      )
+                    }
+                    data-testid="pack-deploy-guidance-creating"
+                  >
+                    {t("packs.detail.selfhostCreatingBtn")}
+                  </Button>
+                </div>
+                <p className="mt-2 text-[11px] text-muted-foreground">{t("packs.detail.selfhostNote")}</p>
+              </section>
+            )}
+
+            {servingAgents.length > 0 && (servingReady === null || servingReady) && (
               <section className="border border-border rounded-md p-3" data-testid="pack-deploy-section">
                 <h4 className="font-medium mb-2">{t("packs.detail.deployTitle")}</h4>
                 {billing?.linked && billing.accountState === "none" && (

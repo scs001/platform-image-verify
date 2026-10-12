@@ -1235,7 +1235,12 @@
         "ownership": "Cette clé appartient à un autre compte sub2api — collez une clé créée sous votre propre compte."
       },
       "downloadSkill": "Télécharger SKILL.md",
-      "manifestJson": "Manifeste JSON"
+      "manifestJson": "Manifeste JSON",
+      "selfhostTitle": "Déployez ce pack sur le cloud officiel",
+      "selfhostBody": "Cette instance auto-hébergée n'exécute pas le service d'agents. Pour mettre en ligne les agents de ce pack — pages partageables, facturation au tour, revenus créateur — publiez-le sur la marketplace officielle ; le déploiement en un clic y est exécuté.",
+      "selfhostMarketBtn": "Ouvrir la marketplace officielle",
+      "selfhostCreatingBtn": "Guide de publication",
+      "selfhostNote": "Auto-héberger la pile de service est également possible — voir la documentation du dépôt ; la voie de la marketplace ne demande aucune infrastructure supplémentaire."
     },
     "report": {
       "title": "Résultat d'installation de « {{name}} »",

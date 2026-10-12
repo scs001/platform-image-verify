@@ -1235,7 +1235,12 @@
         "ownership": "Esa clave pertenece a otra cuenta de sub2api — pega una clave creada en tu propia cuenta."
       },
       "downloadSkill": "Descargar SKILL.md",
-      "manifestJson": "Manifiesto JSON"
+      "manifestJson": "Manifiesto JSON",
+      "selfhostTitle": "Despliega este paquete en la nube oficial",
+      "selfhostBody": "Esta instancia autoalojada no ejecuta el servicio de agentes. Para poner en línea los agentes de este paquete —páginas compartibles, medición por turno, ingresos para creadores— publícalo en el mercado oficial; el despliegue de un clic se ejecuta allí.",
+      "selfhostMarketBtn": "Abrir el mercado oficial",
+      "selfhostCreatingBtn": "Guía de publicación",
+      "selfhostNote": "Autoalojar la pila de servicio también es posible —consulta la documentación del repositorio—; la ruta del mercado no requiere infraestructura adicional."
     },
     "report": {
       "title": "Resultado de instalación de «{{name}}»",

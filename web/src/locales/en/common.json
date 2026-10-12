@@ -1235,7 +1235,12 @@
         "ownership": "That key belongs to a different sub2api account — paste a key created under your own account."
       },
       "downloadSkill": "Download SKILL.md",
-      "manifestJson": "Manifest JSON"
+      "manifestJson": "Manifest JSON",
+      "selfhostTitle": "Deploy this pack on the official cloud",
+      "selfhostBody": "This self-hosted instance doesn't run agent serving. To put this pack's agents online — shareable pages, metered turns, earnings — publish it to the official marketplace; the one-click deploy flow runs there.",
+      "selfhostMarketBtn": "Open the official marketplace",
+      "selfhostCreatingBtn": "Publishing guide",
+      "selfhostNote": "Self-hosting the serving stack yourself is possible — see the repository docs; the marketplace route needs no extra infrastructure."
     },
     "report": {
       "title": "Install result for “{{name}}”",

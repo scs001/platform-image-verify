@@ -1235,7 +1235,12 @@
         "ownership": "そのキーは別の sub2api アカウントのものです — 自分のアカウントで作成したキーを貼り付けてください。"
       },
       "downloadSkill": "SKILL.md をダウンロード",
-      "manifestJson": "マニフェスト JSON"
+      "manifestJson": "マニフェスト JSON",
+      "selfhostTitle": "このパックを公式クラウドにデプロイ",
+      "selfhostBody": "このセルフホスト構成では agent サービシングが無効です。このパックの agent を公開（共有ページ・従量課金・クリエイター収益）するには、公式マーケットへ公開してください。ワンクリック・デプロイは公式側で実行されます。",
+      "selfhostMarketBtn": "公式マーケットを開く",
+      "selfhostCreatingBtn": "公開ガイド",
+      "selfhostNote": "サービシング基盤のセルフホストも可能です（リポジトリのドキュメント参照）。公式マーケット経路なら追加インフラは不要です。"
     },
     "report": {
       "title": "「{{name}}」のインストール結果",

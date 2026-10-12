@@ -206,6 +206,13 @@ export function getBillingBindings(id: string): Promise<Record<string, boolean>>
   return fetch(`/api/packs/${encodeURIComponent(id)}/billing-bindings`).then(json) as Promise<Record<string, boolean>>;
 }
 
+// Serving capability probe (add-selfhost-funnel-guidance, F3.1): false on a
+// self-hosted instance without agent serving — the deploy surface renders the
+// official-market guidance panel instead of the deploy form.
+export function getServingStatus(): Promise<{ configured: boolean }> {
+  return fetch("/api/packs/serving-status").then(json) as Promise<{ configured: boolean }>;
+}
+
 // Deploy with optional per-agent rhythm overrides (add-agent-residency D7):
 // rhythms maps agentId → entry list; the descriptor records the override as
 // the effective rhythm, the manifest default otherwise. billingKeys maps

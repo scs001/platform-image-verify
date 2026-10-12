@@ -54,7 +54,12 @@ export function MineView() {
         <p className="text-xs text-muted-foreground mt-1">
           管理你发布的功集：版本、上下架、可见性。安装到运行时请在壹座内完成（设置 → 功集 → 我的功能集）。
           <br />
+          带服务契约（serving）的公开功集会进入萬星目录——外部调用者一键部署、按回合计量，
+          你按分成获得收益（发布即全链打通，无需额外配置）。
+          <br />
           Manage what you publish here; installing into a runtime stays a 壹座 surface.
+          Public packs with a serving contract flow into the 万星 catalog — external deployers
+          run them with metered turns, and your share accrues automatically.
         </p>
       </header>
 
@@ -65,7 +70,23 @@ export function MineView() {
       )}
 
       {packs.length === 0 && (
-        <p className="text-sm text-muted-foreground">还没有发布的功集 / Nothing published yet — use the publish box below.</p>
+        <div className="text-sm text-muted-foreground space-y-1" data-testid="facet-mine-empty">
+          <p>还没有发布的功集 / Nothing published yet — use the publish box below.</p>
+          <p className="text-xs">
+            第一次发布？看创作指南（manifest 写法、serving 契约、版本纪律）：
+            <a
+              className="underline hover:text-foreground ml-1"
+              href="https://github.com/FindDataTechnology/platform/blob/main/docs/creating-packs.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="facet-mine-creating-guide"
+            >
+              docs/creating-packs.md
+            </a>
+            <br />
+            First time? The creation guide covers manifests, serving contracts, and version discipline.
+          </p>
+        </div>
       )}
 
       <div className="grid gap-3">

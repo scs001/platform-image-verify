@@ -545,6 +545,38 @@ test("3.2 non-author non-creator is refused; creator may deploy", async () => {
   }
 });
 
+test("F3.1: serving-status probe answers configured honestly both ways", async () => {
+  // Without runner wiring: the self-hosted shape — the deploy surface shows
+  // the official-market guidance panel, never the raw internal error.
+  {
+    const manifest = withServing({ protocol: "a2a" });
+    const h = await routeHarness({ user: { email: "author@x", groups: [] }, deployConfig: {}, manifest });
+    try {
+      const r = await h.call("GET", `/api/packs/serving-status`);
+      assert.equal(r.status, 200);
+      assert.deepEqual(r.body, { configured: false });
+    } finally {
+      await h.close();
+    }
+  }
+  // With wiring: the official shape — the deploy form renders as before.
+  {
+    const stub = stubRegistry();
+    const manifest = withServing({ protocol: "a2a" });
+    const h = await routeHarness({
+      user: { email: "author@x", groups: [] },
+      deployConfig: { registryUrl: "https://mcp.example.test", token: "t", runnerBaseUrl: "http://runner:8790", packsPublicBase: "https://packs.example.test", fetchImpl: stub.fetch },
+      manifest,
+    });
+    try {
+      const r = await h.call("GET", `/api/packs/serving-status`);
+      assert.deepEqual(r.body, { configured: true });
+    } finally {
+      await h.close();
+    }
+  }
+});
+
 test("3.2 missing runner wiring answers 503, not silent success", async () => {
   const manifest = withServing({ protocol: "a2a" });
   const h = await routeHarness({ user: { email: "author@x", groups: [] }, deployConfig: {}, manifest });

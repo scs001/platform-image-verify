@@ -22,8 +22,12 @@ import yaml from "js-yaml";
 // then returns an empty string, and the 2026-10-12 credential-leak incident
 // started exactly there (the skill re-read the raw file to debug and echoed
 // the full PAT). Dumping with lineWidth -1 keeps every scalar on ONE line, so
-// the file is unambiguous for both YAML parsers and shell readers.
-const YAML_DUMP_OPTS = { lineWidth: -1 };
+// the file is unambiguous for both YAML parsers and shell readers. forceQuotes
+// keeps it that way regardless of which writer touched the file last: another
+// path (dsh-profile.js ensureCredentialsStore, called above at the preset
+// compose) writes the same file, and mixing bare/quoted scalars there would
+// make "is my value quoted?" depend on history. One invariant, both writers.
+const YAML_DUMP_OPTS = { lineWidth: -1, forceQuotes: true };
 import {
   composeAgentPreset,
   ensureCredentialsStore,

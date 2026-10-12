@@ -6,6 +6,10 @@
 
 - [x] 1.1 `dsh-profile.js:350`：凭据写出改为 `yaml.dump(doc, { lineWidth: -1, forceQuotes: true })`
       （`-1` 而非 `0`——design D1，js-yaml 的 `0` 表示「保持在 0 列内」仍会折叠）
+- [x] 1.3 收拢第二条写入路径：`agent-runner/compose.js` 的 `YAML_DUMP_OPTS` 补 `forceQuotes`
+      ——与并行会话提交 67b813c（`lineWidth: -1`）互补：它覆盖 runner child home 的
+      `applyBillingKey`/`applyDeploymentSecrets`，本 change 覆盖 profile 写入器；而 compose.js:231
+      本身也调用 `ensureCredentialsStore`，两路径写同一份文件，格式必须一致
 - [x] 1.2 确认其余 9 处 `yaml.dump`（settings/mcp/skills/presets/permissions/tool-search/
       chart-bind/user-questions）**不动**——它们不是凭据载体
 
@@ -15,9 +19,12 @@
       `name: 'value'`（断言文件中无 `>-`/`|-`/续行缩进）
 - [x] 2.2 单测：值语义等价——新格式加载出的 ref 值与输入字节相同（含含特殊字符的 gh_actor）
 - [x] 2.3 单测：单行 grep+sed 式取值得完整值（把 spec 的「单行取值」场景钉成可执行断言）
+- [x] 2.4 适配并行会话既有测试 `agent-runner/test/credentials-scalar.test.mjs`：其断言用裸值
+      正则（`gh_actor:\s*bot@...`），加引号后失配——改为「取该行 + 剥引号 + 等值」，保留其单行不变量
+      （同文件另一个测试本就在剥引号，兼容无误）；3/3 绿
+
 
 ## 3. 上线与验证
-
 - [ ] 3.1 镜像构建（标准 TCR 线：GHA→hkccr→relay→ccr）+ cheap-1 compose 滚版
 - [ ] 3.2 生产实证：删掉 runner-c 上 spider-heal child 的旧 `.credentials.yaml` 后重建
       （或重部署带 secrets），`cat` 确认 `git_pat: 'github_pat_…'` 单行引号

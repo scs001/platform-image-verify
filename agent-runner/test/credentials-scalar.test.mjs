@@ -50,5 +50,13 @@ test("existing refs survive and short values are unaffected", () => {
   applyDeploymentSecrets(home, { git_pat: LONG_SECRET, gh_actor: "bot@example.com" });
 
   const raw = readFileSync(path.join(home, ".credentials.yaml"), "utf8");
-  assert.match(raw, /gh_actor:\s*bot@example\.com/, "ref update lands on one line");
+  // Values may be quoted (the platform writes them quoted so both writers of
+  // this file agree on the shape); the invariant asserted here is ONE LINE.
+  const line = raw.split("\n").find((l) => /^\s*gh_actor:/.test(l));
+  assert.ok(line, "gh_actor line must exist");
+  assert.equal(
+    line.replace(/^\s*gh_actor:\s*/, "").trim().replace(/^["']|["']$/g, ""),
+    "bot@example.com",
+    "ref update lands on one line",
+  );
 });

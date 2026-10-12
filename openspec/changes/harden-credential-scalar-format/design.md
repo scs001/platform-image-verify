@@ -11,9 +11,21 @@ js-yaml 选择 `>-` 折叠块）。技能用单行 `grep+sed` 取值得空串 �
 71 字符→仍单行；`git_pat` 93 字符→被引擎折叠为 `git_pat: >-` + 续行。即：**能不能安全地被
 单行取值，取决于 token 长度**——这是最坏的一类不确定性，因为它随着 token 类型/供应商而变。
 
-写入点定位：`dsh-profile.js:350` `writeCredentialsStore()` 内 `yaml.dump(doc)`，
+写入点定位（**两条路径写同一份文件，必须同格式**）：
+
+- `dsh-profile.js` `ensureCredentialsStore()`：profile 树的写出。
+- `agent-runner/compose.js` `YAML_DUMP_OPTS`（`:26`，用于 `applyBillingKey` `:283` 与
+  `applyDeploymentSecrets` `:328`）：runner child home 的写出——**线上那份 `.credentials.yaml`
+  正是它写的**。且 `compose.js:231` 自身也调用 `ensureCredentialsStore`，两条路径在同一份文件上
+  交替；若一个加引号一个不加，「值带不带引号」将取决于谁是最后一个写者。**故本 change 把两处
+  统一到 `{ lineWidth: -1, forceQuotes: true }`**（task 1.3）。
+
 同文件另有 9 处 `yaml.dump` 属于 patch 文件（settings/mcp/skills/presets/permissions/
-tool-search/chart-bind/user-questions），均非凭据载体。
+tool-search/chart-bind/user-questions），均非凭据载体，不动。
+
+> 实施期协作记录：并行会话的提交 67b813c（同一晚）已对 `compose.js` 加了 `lineWidth: -1`，
+> 本 change 与之互补而非重复——它缺 `forceQuotes` 且未覆盖 profile 写入器。本 change 在其上
+> 补齐引号统一，并适配了它那条用裸值正则的既有断言（改「取行+剥引号+等值」，保留其单行不变量）。
 
 ## Goals / Non-Goals
 

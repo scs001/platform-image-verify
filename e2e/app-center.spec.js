@@ -57,12 +57,15 @@ test("line cards link out to each line's own domain", async ({ page }) => {
   );
 });
 
-test("the center is the five lines' brand surface — no embedded-apps section", async ({ page }) => {
+test("platform products section renders the authored catalog entries", async ({ page }) => {
   await pinLocaleEn(page);
   await page.goto("/apps");
   await expect(page.getByTestId("app-center-page")).toBeVisible({ timeout: 15000 });
   await expect(page.getByTestId("app-center-lines")).toBeVisible();
-  // Embedded apps have exactly one home (the Agents page); the center must
-  // not duplicate them (polish-fusion-details).
-  await expect(page.getByTestId("app-center-platform-apps")).toHaveCount(0);
+  // The products section is catalog-driven: the bundled agents.json entries
+  // (壹座·Packs / 萬星·词元 / 萬星·连接器) surface as product cards.
+  await expect(page.getByTestId("app-center-platform-apps")).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId("app-card-yizuo-packs")).toBeVisible();
+  await expect(page.getByTestId("app-card-wanxing-token")).toBeVisible();
+  await expect(page.getByTestId("app-card-wanxing-connector")).toBeVisible();
 });

@@ -187,7 +187,7 @@ COPY --chown=node:node --from=builder /app/facet/web/dist ./facet/web/dist
 # bundle-manifest.js, chat-history.js, documents.js, mcp-bridge.js, …) + the
 # root JSON data files extension-store.js reads at runtime (market-catalog*.json)
 # + the dirs the supervisor/launcher need at runtime.
-COPY --chown=node:node --from=builder /app/package.json /app/platform.bundle.json /app/mcp.example.json ./
+COPY --chown=node:node --from=builder /app/package.json /app/platform.bundle.json /app/mcp.example.json /app/agents.json ./
 COPY --chown=node:node --from=builder /app/market-catalog.json /app/market-catalog-skills.json ./
 # The chart replay allowlist (openspec: add-chart-data-binding): read at boot by
 # dsh-profile.js, which copies it into $DSH_HOME/profiles/<name> for the

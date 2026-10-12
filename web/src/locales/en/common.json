@@ -516,7 +516,7 @@
       "needsConfig": "Needs config"
     },
     "registry": {
-      "title": "MCP market account",
+      "title": "Facet · Tool Market",
       "state": {
         "connected": "Connected",
         "disconnected": "Not connected",

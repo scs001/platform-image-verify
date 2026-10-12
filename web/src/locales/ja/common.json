@@ -516,7 +516,7 @@
       "needsConfig": "設定が必要"
     },
     "registry": {
-      "title": "MCP マーケットのアカウント",
+      "title": "謙面・ツール市場",
       "state": {
         "connected": "接続済み",
         "disconnected": "未接続",

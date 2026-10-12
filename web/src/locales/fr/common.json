@@ -516,7 +516,7 @@
       "needsConfig": "Configuration requise"
     },
     "registry": {
-      "title": "Compte du marché MCP",
+      "title": "Facet · Marché d'outils",
       "state": {
         "connected": "Connecté",
         "disconnected": "Non connecté",

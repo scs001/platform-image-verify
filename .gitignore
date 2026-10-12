@@ -1,7 +1,6 @@
 node_modules/
 .DS_Store
 mcp.json
-agents.json
 registry-groups.json
 knowledge-store/
 data/

@@ -84,7 +84,8 @@
 | 内部范围 | M1 的内部 = finddata 自己人（含 creators org）；伙伴侧（柏讯/zihan）为第二波，触发 = 伙伴侧真实 pack/对话车道需求出现；M1 目录与权限形状预留伙伴可见性（设计约束），不建伙伴功能 |
 | tool-scoping 五决策 | 2026-10-11 代拍：① 执行层做全（pack persona/自定义预设/用户级裁剪一处 bridge 实现，裁剪 UI 后置）② 未声明 tools = 兼容全量（guard 只拦声明者，发布门对未声明者警告，commercial surface 上限独立生效）③ 自部署 MCP 同名绑定正式化（对拍降级 warn）④ 上游 allowedTools 已递交（#9385）不阻塞，本地 bridge 先行 ⑤ virtual MCP 保留仅限产品级 SKU 窄用途，不做 pack 创作粒度——全部已随 add-mcp-tool-scoping 落地归档（2026-10-11，18/18） |
 | M2 planner 形态 | 2026-10-11 立项定案：**agent 路线**——planner = 营运自营 pack agent（spider-heal 同型：persona+rhythm+预算+通知，部署在 runner），消费 MC 四期工具族（search_agents/delegate·progress·result/scheduling/bot_notify）拆解派发；**不建独立规划服务，不建外部 MC console**（mission-control-bridge 的外部控制台方向与 runner 部署模型相悖，console 侧从未成产品；四期的真身=工具族，消费即演进）。平台侧新增=任务定义面（facade 四元组+成本闸+console） |
-| 多机 runner | 2026-10-11 用户拍板：**多机部署 agents + 相互协同 = 萬星蓝图硬前提**（不再是"等需求触发"）。落地=add-runner-fleet-sharding：descriptor `runner_id`+托管过滤（缺省归 cheap-1，存量零迁移）+机群表（agent_runners，env 种子）+deploy API 选址+第二台 runner（agent-runner-b@cheap-6，hostNetwork 8851+32）；协同面本就经 facade HTTP 中介（mission 派发/委派/A2A），跨机不变式=分片只改代理落点。扩容路径自此=加机器+机群表加行 || M4 目录热度口径 | 2026-10-12 M4② 拍板：**featured（策展优先档）+ turns7d（usage 台账 7 天双车道外部回合）双信号**；安装数不采用（无安装事件回流，不可测）。已随 add-catalog-facets 落地 |
+| 多机 runner | 2026-10-11 用户拍板：**多机部署 agents + 相互协同 = 萬星蓝图硬前提**（不再是"等需求触发"）。落地=add-runner-fleet-sharding：descriptor `runner_id`+托管过滤（缺省归 cheap-1，存量零迁移）+机群表（agent_runners，env 种子）+deploy API 选址+第二台 runner（agent-runner-b@cheap-6，hostNetwork 8851+32）；协同面本就经 facade HTTP 中介（mission 派发/委派/A2A），跨机不变式=分片只改代理落点。扩容路径自此=加机器+机群表加行 || M4 套装分享边界 | 2026-10-12 M4③ 拍板：**含 suggestedConfig 透传**（{model?, budgetMinutes?, rhythm?} 向导同款三旋钮，按 agentId 直传 deploy 载荷、部署者可改、facet 唯一校验权威；须 agentId 命名作用域）。仅引用清单=退化子集。已随 add-deploy-collections 落地 |
+| M4 目录热度口径 | 2026-10-12 M4② 拍板：**featured（策展优先档）+ turns7d（usage 台账 7 天双车道外部回合）双信号**；安装数不采用（无安装事件回流，不可测）。已随 add-catalog-facets 落地 |
 | 谦面运营面 | 2026-10-12 用户裁定（修订 M1「轻通用市场功能」边界）：谦面内容管理 C 档全量建设——作者面（#/mine：列表/版本/下架/可见性/从清单发布）+策展（category/featured+策展板 #/curate）+观测（用量代理）。「服务垂直内容主线的运营面」不算通用市场功能；触发=功能集白屏事故（10-11 R4 路由钩子炸穿谦面壳）暴露共享面演进无谦面侧安全网，且 19 包四垂类在架无人能组织呈现。已随 add-facet-content-management 全链上线 |
 
 ## 待定决策（挂账，定案即并入上表）
@@ -94,7 +95,6 @@
 | M1 出口数字 | 内部 pack 周活跃门槛（暂写 ≥5，待运营校准——遥测已可测） | M1 验收 |
 | pack 自带界面 | 长线开放线索：pack 清单声明前端、部署即挂载（带 UI 的 pack = mini-app 形态，谦面多 harness 的延伸）；不进当前里程碑 | 谦面终态演化方向 |
 | M4 试驾预调 | 部署前临时实例聊几轮调 persona——做不做/何时做（当前后置可选，向导主体稳后再议） | M4① 向导范围 |
-| M4 套装分享边界 | 仅引用清单 or 含 suggestedConfig 透传 | M4③b 数据模型 |
 
 ## 里程碑
 
@@ -269,13 +269,18 @@ M4 是漏斗落地端的体验面；F3.3 全旅程验收若早于 M4① 落地�
   facets live（data/docs 两类+featured 1）、q=planner 服务端命中、文档工坊精选前置、
   turns7d 真回流（18/3/4/2）、外作者 pack 绿地部署成功进目录带 cat data、在役再部署
   400 指名作者路径。
-- **③ 集合：三段式语义，一个数据模型**：`collection = {owner, name, entries:[{packId,
-  agentId, suggestedConfig?}], visibility}`——引用清单不复制内容，pack 仍是唯一原子
-  供给单位。a 组织分组（自己部署的归类，纯 UX+一张表）；b 可部署套装（多 pack 挑选
-  一键全部署/分享他人一键部署——用户侧的 pack 镜像，部署时用部署者自己的计费键）；
-  c 团队语义（集合 = mission 派发对象，planner search_agents 已有，只加引用不另建
-  执行面，远期与场景B合流）。**硬约束：集合永远不长执行语义，团队协作只经
-  mission/planner——违反即两套引擎。**
+- **③ 集合：三段式语义，一个数据模型 ✅ 2026-10-12 全链上线**（fd-wanxing
+  `add-deploy-collections` 14acdbe+prop 修复 7aac97a，镜像 sha-d9c02c0 双滚）：
+  `collection = {owner, name, entries:[{packId, agentId?, suggestedConfig?}], visibility}`
+  一张表 JSON entries（≤20/去重/三键白名单）；a 组织分组=private；b 可部署套装=public
+  +`#/bundle/:id` 公开分享页（匿名只读/登录后一键部署）+套装部署逐条 verdict
+  （deployed/skipped-in-service/refused/error——在役跳过不阻断，facet 拒收透传）；
+  c 团队语义**留门未建面**（mission/planner 仍是唯一协作通道）。**套装分享边界拍板**
+  （已定决策表）：含 suggestedConfig 透传={model?,budgetMinutes?,rhythm?} 按向导同款
+  直传 deploy 载荷、部署者可改、facet 唯一校验权威——仅引用清单是其退化子集。硬约束
+  落 spec 文字（集合无调度/运行/监控）。生产实证：UI 三条目混编套装（own+suggested
+  budget 15+foreign 在役+foreign 绿地）→分享链接匿名 200/bogus 404→一键部署三 verdict
+  全中→wx-alpha 描述符 budget=15→分享页全渲染。
 - **④ 驾驶舱（看得清）**：前置 console IA 重构（ConsoleView 已 1039 行六面板垂直
   堆叠；R4 教训 = 先骨架后可视化）——重构为「我的舰队/我的任务」两视图。舰队视图 =
   部署卡片（健康/最近回合/成本水位/额度余量；数据源 fleet observer+usage 台账+

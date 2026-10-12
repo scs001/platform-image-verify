@@ -20,7 +20,7 @@
 
 ## 4. 收尾
 
-- [ ] 4.1 openspec 归档（validate --specs 先行）
-- [ ] 4.2 记忆落盘 + MEMORY.md 索引
-- [ ] 4.3 cheap-1 退役容器 agent-runner-dsh-retired-20261013 + 卷清理（新 runner
+- [x] 4.1 openspec 归档（validate --specs 先行）
+- [x] 4.2 记忆落盘 + MEMORY.md 索引
+- [x] 4.3 cheap-1 退役容器 agent-runner-dsh-retired-20261013 + 卷清理（新 runner
   稳定性已确认：接管后三镜像滚、计费/分成链复核、无回滚需求）

@@ -18,5 +18,5 @@
 ## 3. 上线与收口
 
 - [x] 3.1 全门绿（单测+e2e+lint+build）→ commit → 出片（快照+image.yml 配方）
-- [ ] 3.2 GitOps 滚+生产实证（in-pod 探针+浏览器眼见留用户）
-- [ ] 3.3 归档 + roadmap Y4 第一刀标注
+- [x] 3.2 GitOps 滚+生产实证（in-pod 探针+浏览器眼见留用户）
+- [x] 3.3 归档 + roadmap Y4 第一刀标注

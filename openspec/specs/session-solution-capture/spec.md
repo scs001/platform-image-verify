@@ -1,6 +1,9 @@
 # session-solution-capture Specification
 
-## ADDED Requirements
+## Purpose
+TBD - created by archiving change add-session-to-preset. Update Purpose after archive.
+
+## Requirements
 
 ### Requirement: 会话菜单提炼入口
 
@@ -43,10 +46,3 @@
 
 - WHEN 用户取消向导
 - THEN 无任何预设创建，会话与原预设不受影响
-
-## MODIFIED Requirements
-
-### Requirement: Custom presets are created and managed in the cell
-
-（原场景不变，新增：）预设可选携带示例提问 `examples`（字符串数组 ≤3 条、
-每条 ≤200 字），创建与编辑通道同校验；未提供时字段缺省，既有消费方不受影响。

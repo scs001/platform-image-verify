@@ -536,7 +536,7 @@
       "staleHint": "El mercado rechazó el token guardado. Reconecta para restaurar los servidores del registro."
     },
     "connector": {
-      "title": "Conexiones SaaS (conector)",
+      "title": "Wanxing · Conector",
       "state": {
         "connected": "Conectado",
         "disconnected": "Sin conectar",

@@ -536,7 +536,7 @@
       "staleHint": "The market rejected the stored token. Re-connect to restore registry servers."
     },
     "connector": {
-      "title": "SaaS connections (Connector)",
+      "title": "Wanxing · Connector",
       "state": {
         "connected": "Connected",
         "disconnected": "Not connected",

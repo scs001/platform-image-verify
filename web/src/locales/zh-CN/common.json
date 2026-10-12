@@ -536,7 +536,7 @@
       "staleHint": "市场已拒绝当前令牌，重新连接后即可恢复 registry 服务。"
     },
     "connector": {
-      "title": "SaaS 连接（连接器）",
+      "title": "萬星·连接器",
       "state": {
         "connected": "已连接",
         "disconnected": "未连接",

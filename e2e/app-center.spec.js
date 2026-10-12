@@ -57,11 +57,12 @@ test("line cards link out to each line's own domain", async ({ page }) => {
   );
 });
 
-test("platform apps section degrades silently when catalog is empty", async ({ page }) => {
+test("the center is the five lines' brand surface — no embedded-apps section", async ({ page }) => {
   await pinLocaleEn(page);
   await page.goto("/apps");
   await expect(page.getByTestId("app-center-page")).toBeVisible({ timeout: 15000 });
-  // Whatever the catalog returns, the lines section stays standing and the
-  // page shows no error surface.
   await expect(page.getByTestId("app-center-lines")).toBeVisible();
+  // Embedded apps have exactly one home (the Agents page); the center must
+  // not duplicate them (polish-fusion-details).
+  await expect(page.getByTestId("app-center-platform-apps")).toHaveCount(0);
 });

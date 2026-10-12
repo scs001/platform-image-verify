@@ -9,21 +9,9 @@
 //      the section hides entirely; a fetch error degrades the same way (the
 //      five lines are static and never depend on the network).
 
-import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
 import { ExternalLink, Layers, Scale, Store, Orbit, Database, ShieldAlert } from "lucide-react";
 import { APP_LINES, type AppLine } from "@/lib/appCatalog";
-
-interface CatalogApp {
-  id: string;
-  kind?: string;
-  name?: string;
-  url?: string;
-  icon?: string;
-  embedded?: boolean;
-  description?: string;
-}
 
 const LINE_ICONS: Record<string, typeof Layers> = {
   yizuo: Layers,
@@ -92,25 +80,6 @@ function LineCard({ line }: { line: AppLine }) {
 
 export function AppCenterPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const [apps, setApps] = useState<CatalogApp[] | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      const r = await fetch("/api/catalog");
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const c = await r.json();
-      setApps((c.apps ?? []).filter((a: CatalogApp) => a.kind === "external-service"));
-    } catch {
-      // Honest degradation: hide the section, keep the five lines standing.
-      setApps(null);
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
   return (
     <main className="h-full overflow-y-auto bg-background" data-testid="app-center-page">
       <div className="mx-auto max-w-4xl px-6 py-8">
@@ -126,41 +95,7 @@ export function AppCenterPage() {
           </div>
         </section>
 
-        {apps && apps.length > 0 && (
-          <section className="mt-8" data-testid="app-center-platform-apps">
-            <h2 className="text-sm font-semibold text-muted-foreground">{t("appCenter.appsHeading")}</h2>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {apps.map((app) => (
-                <div
-                  key={app.id}
-                  data-testid={`app-card-${app.id}`}
-                  className="flex flex-col gap-3 rounded-lg border border-border bg-card p-5"
-                >
-                  <div>
-                    <h3 className="font-medium">{app.name || app.id}</h3>
-                    {app.description && (
-                      <p className="mt-1 text-sm text-muted-foreground">{app.description}</p>
-                    )}
-                  </div>
-                  <div className="mt-auto pt-1">
-                    <button
-                      type="button"
-                      data-testid={`app-card-${app.id}-open`}
-                      onClick={() => {
-                        if (app.embedded !== false) navigate(`/external/${app.id}`);
-                        else if (app.url) window.open(app.url, "_blank", "noreferrer");
-                      }}
-                      className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                    >
-                      {t("appCenter.open")}
-                      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+
       </div>
     </main>
   );

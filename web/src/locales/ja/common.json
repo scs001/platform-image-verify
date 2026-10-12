@@ -536,7 +536,7 @@
       "staleHint": "保存済みトークンがマーケットに拒否されました。再接続するとレジストリのサーバーが復帰します。"
     },
     "connector": {
-      "title": "SaaS 接続（コネクタ）",
+      "title": "萬星・コネクタ",
       "state": {
         "connected": "接続済み",
         "disconnected": "未接続",

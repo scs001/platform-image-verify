@@ -536,7 +536,7 @@
       "staleHint": "Le marché a rejeté le jeton enregistré. Reconnectez-vous pour restaurer les serveurs du registre."
     },
     "connector": {
-      "title": "Connexions SaaS (connecteur)",
+      "title": "Wanxing · Connecteur",
       "state": {
         "connected": "Connecté",
         "disconnected": "Non connecté",

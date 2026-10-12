@@ -93,7 +93,9 @@
   双清单滚，GitOps f087a4d）：壹座 web「应用」导航 `/apps`——五线卡片（壹座 self/谦面·萬星
   live/识律·柏讯 early 如实徽标）+平台应用区（external-service 目录聚合，空则隐藏）；
   单源 appCatalog.ts+五语；in-pod 实证 chunk 在位+/api/catalog 门正常+Logto issuer 同域。
-  生产眼见（五卡渲染+SSO 逐线免登录）留用户浏览器验收。识律/柏讯官网填充后徽标转 live。
+  **生产眼见 ✅ 2026-10-13 用户验收**：五卡渲染正确（截图在案）+谦面/萬星双线
+  SSO 直通（点击「打开」新页面均免重登）。识律/柏讯官网填充后徽标转 live。
+  **Y1 至此全项闭环。**
 - **Y2 端矩阵收口**：add-mobile-app 真机尾巴（14/16）——**全部待用户行动项**（Apple
   Developer Program 付费决策+真机在手侧载 CI APK），不挡 Y3。
 - **Y3 移动端指挥面**：app/小程序的任务安排（cron/mission 下发 UI）+任务监控

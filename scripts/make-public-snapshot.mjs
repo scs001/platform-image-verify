@@ -93,6 +93,14 @@ const EXCLUDE_PATHS = new Set([
   "scripts/make-public-snapshot.mjs",
   // internal ops test: fleet board URL (tailnet) + jenkins/harbor/argocd state
   "scripts/test-ops-console-board.mjs",
+  // internal ops test: fleet-scheduler fixtures carry tailnet IPs and cluster
+  // node names (add-fleet-scheduler); same class as the board test above.
+  "scripts/test-fleet-scheduler.mjs",
+  // internal planning docs: 双星伞文档与市场线路线图 carry live-ops facts
+  // (cluster node names, law-ai-official relay line, production shas) and
+  // change with every internal slice — not curated for the public drop.
+  "docs/facet-wanxing-roadmap.md",
+  "docs/facet-market-roadmap.md",
 ]);
 // internal health MCP: README is operator-facing (tailnet mesh IPs, SSRF
 // allowlists, DSN handling) — not curated for the public drop (2026-10-06).
@@ -161,6 +169,13 @@ const SCRUBS = [
     "production serves /dl/* from the platform host via its edge proxy.",
     1,
   ],
+  // Sharded-runner fixtures (add-runner-fleet-sharding, 2026-10-11) use the
+  // real node name as a sample runner id — scrub to a neutral id; the test
+  // semantics are name-agnostic.
+  ["scripts/test-agent-runner.mjs", "cheap-1", "runner-a", 6],
+  // Same change: the legacy single-runner seed's default id is a node name in
+  // our fleet; a self-hosted install should see a neutral default.
+  ["gateway/packs.js", 'AGENT_SERVING_DEFAULT_RUNNER_ID \\|\\| "cheap-1"', 'AGENT_SERVING_DEFAULT_RUNNER_ID || "default-runner"', 1],
   [
     "Dockerfile",
     "is a 4GB machine that ALSO runs the production pod:",

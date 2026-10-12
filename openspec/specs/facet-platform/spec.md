@@ -157,7 +157,7 @@ The facet web shell SHALL contain view failures: when any view throws during ren
 
 ### Requirement: The facet surface carries a creator console
 
-The facet web shell SHALL provide a creator console at `#/mine` for signed-in users in the creator group: it lists the packs the viewer authored (with version history), offers unpublish (the unlisted semantics of openspec: pack-marketplace), toggles pack visibility between public and private (openspec: pack-visibility), and offers a publish-from-manifest entry that submits a manifest to the same identity-gated publish endpoint the cell-assembled flow uses, surfacing validation errors verbatim. Cell-side surfaces — installed-packs management and cell-assembled drafts — SHALL remain 壹座-only; the facet install surface keeps its guided refusal.
+The facet web shell SHALL provide a creator console at `#/mine` for signed-in users in the creator group: it lists the packs the viewer authored (with version history), offers unpublish (the unlisted semantics of openspec: pack-marketplace), toggles pack visibility between public and private (openspec: pack-visibility), and offers a publish-from-manifest entry that submits a manifest to the same identity-gated publish endpoint the cell-assembled flow uses, surfacing validation errors verbatim. The creator console's version history SHALL render through the same version-list presentation the public detail view uses (openspec: pack-marketplace, Browse, search, and inspect): one shared component serves both surfaces, its rows carrying version number, publish time, publisher, the version's note when present, and per-version manifest/skill links — the author surface and the public surface cannot drift. Cell-side surfaces — installed-packs management and cell-assembled drafts — SHALL remain 壹座-only; the facet install surface keeps its guided refusal.
 
 #### Scenario: the author sees their packs
 
@@ -179,6 +179,12 @@ The facet web shell SHALL provide a creator console at `#/mine` for signed-in us
 
 - **WHEN** any visitor reaches the facet creator console
 - **THEN** it offers no cell install action, consistent with the install surface's guided refusal
+
+#### Scenario: version history shares the public presentation
+
+- **WHEN** a creator expands a pack's version history on `#/mine`
+- **THEN** the rows render through the same version-list presentation the public detail view uses, showing note-when-present and the same per-version manifest/skill links
+- **AND** an update to the shared presentation changes both surfaces together
 
 ### Requirement: Curation is a facet-admin surface
 

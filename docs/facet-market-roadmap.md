@@ -66,7 +66,7 @@ F3 依赖 OSS 快照发布节奏与萬星容量（伞文档 M2 容量行）。
 
 | 切片 | change | 内容 |
 |---|---|---|
-| F1.1 | `add-facet-version-history` | detail 视图版本列表 + 逐版 manifest/skill 链接（API 已支持，补 UI）；manifest 加可选版本说明字段（≤500 字，随版本不可变）；`#/mine` 复用同组件 |
+| F1.1 ✅ | `add-facet-version-history` | **已上线 2026-10-12**（sha-606d1ac=真 242acf7；双壳 dist+匿名版本列表+notes 三态生产实证）。detail 视图版本列表 + 逐版 manifest/skill 链接；manifest 可选版本说明字段（≤500 字，随版本不可变，发布门+安装路径同源校验）；`#/mine` 复用共享 PackVersionList 组件（三面同源不可漂移）；版本列表按 detail 可见性放行匿名 |
 | F1.2 | `add-facet-infra-pages` | `#/mcp` 升级：每 server 深度页（工具清单/示例调用/所需组与档位**如实**标注）+ skills 目录视图（来源/许可证标记，与 ecosystem-curation 同货架）+「平台基建 vs 包内容」叙事段 |
 | F1.3 | `add-facet-docs-view` | `#/docs` 哈希视图，家法=静态/五语/事实可验证（`check-locales.js` 强制）。三块：按客户端安装指南（壹座页置顶，五客户端各一页、一条命令级）/ MCP 接入（wgk-key 与 OAuth 两路）/ 创作 quickstart。深度创作文档落 OSS 仓 `docs/`（自部署者与创作者是同一批人） |
 

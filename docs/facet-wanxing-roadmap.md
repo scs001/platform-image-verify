@@ -84,7 +84,8 @@
 | 内部范围 | M1 的内部 = finddata 自己人（含 creators org）；伙伴侧（柏讯/zihan）为第二波，触发 = 伙伴侧真实 pack/对话车道需求出现；M1 目录与权限形状预留伙伴可见性（设计约束），不建伙伴功能 |
 | tool-scoping 五决策 | 2026-10-11 代拍：① 执行层做全（pack persona/自定义预设/用户级裁剪一处 bridge 实现，裁剪 UI 后置）② 未声明 tools = 兼容全量（guard 只拦声明者，发布门对未声明者警告，commercial surface 上限独立生效）③ 自部署 MCP 同名绑定正式化（对拍降级 warn）④ 上游 allowedTools 已递交（#9385）不阻塞，本地 bridge 先行 ⑤ virtual MCP 保留仅限产品级 SKU 窄用途，不做 pack 创作粒度——全部已随 add-mcp-tool-scoping 落地归档（2026-10-11，18/18） |
 | M2 planner 形态 | 2026-10-11 立项定案：**agent 路线**——planner = 营运自营 pack agent（spider-heal 同型：persona+rhythm+预算+通知，部署在 runner），消费 MC 四期工具族（search_agents/delegate·progress·result/scheduling/bot_notify）拆解派发；**不建独立规划服务，不建外部 MC console**（mission-control-bridge 的外部控制台方向与 runner 部署模型相悖，console 侧从未成产品；四期的真身=工具族，消费即演进）。平台侧新增=任务定义面（facade 四元组+成本闸+console） |
-| 多机 runner | 2026-10-11 用户拍板：**多机部署 agents + 相互协同 = 萬星蓝图硬前提**（不再是"等需求触发"）。落地=add-runner-fleet-sharding：descriptor `runner_id`+托管过滤（缺省归 cheap-1，存量零迁移）+机群表（agent_runners，env 种子）+deploy API 选址+第二台 runner（agent-runner-b@cheap-6，hostNetwork 8851+32）；协同面本就经 facade HTTP 中介（mission 派发/委派/A2A），跨机不变式=分片只改代理落点。扩容路径自此=加机器+机群表加行 || 谦面运营面 | 2026-10-12 用户裁定（修订 M1「轻通用市场功能」边界）：谦面内容管理 C 档全量建设——作者面（#/mine：列表/版本/下架/可见性/从清单发布）+策展（category/featured+策展板 #/curate）+观测（用量代理）。「服务垂直内容主线的运营面」不算通用市场功能；触发=功能集白屏事故（10-11 R4 路由钩子炸穿谦面壳）暴露共享面演进无谦面侧安全网，且 19 包四垂类在架无人能组织呈现。已随 add-facet-content-management 全链上线 |
+| 多机 runner | 2026-10-11 用户拍板：**多机部署 agents + 相互协同 = 萬星蓝图硬前提**（不再是"等需求触发"）。落地=add-runner-fleet-sharding：descriptor `runner_id`+托管过滤（缺省归 cheap-1，存量零迁移）+机群表（agent_runners，env 种子）+deploy API 选址+第二台 runner（agent-runner-b@cheap-6，hostNetwork 8851+32）；协同面本就经 facade HTTP 中介（mission 派发/委派/A2A），跨机不变式=分片只改代理落点。扩容路径自此=加机器+机群表加行 || M4 目录热度口径 | 2026-10-12 M4② 拍板：**featured（策展优先档）+ turns7d（usage 台账 7 天双车道外部回合）双信号**；安装数不采用（无安装事件回流，不可测）。已随 add-catalog-facets 落地 |
+| 谦面运营面 | 2026-10-12 用户裁定（修订 M1「轻通用市场功能」边界）：谦面内容管理 C 档全量建设——作者面（#/mine：列表/版本/下架/可见性/从清单发布）+策展（category/featured+策展板 #/curate）+观测（用量代理）。「服务垂直内容主线的运营面」不算通用市场功能；触发=功能集白屏事故（10-11 R4 路由钩子炸穿谦面壳）暴露共享面演进无谦面侧安全网，且 19 包四垂类在架无人能组织呈现。已随 add-facet-content-management 全链上线 |
 
 ## 待定决策（挂账，定案即并入上表）
 
@@ -94,7 +95,6 @@
 | pack 自带界面 | 长线开放线索：pack 清单声明前端、部署即挂载（带 UI 的 pack = mini-app 形态，谦面多 harness 的延伸）；不进当前里程碑 | 谦面终态演化方向 |
 | M4 试驾预调 | 部署前临时实例聊几轮调 persona——做不做/何时做（当前后置可选，向导主体稳后再议） | M4① 向导范围 |
 | M4 套装分享边界 | 仅引用清单 or 含 suggestedConfig 透传 | M4③b 数据模型 |
-| M4 目录热度口径 | 安装数/回合数/策展加权 | M4② 呈现 |
 
 ## 里程碑
 
@@ -258,10 +258,17 @@ M4 是漏斗落地端的体验面；F3.3 全旅程验收若早于 M4① 落地�
   生产实证：双 agent pack 勾 1 部署（wx-alpha 上线、wx-beta 未动、记账 1 行、描述符
   model/budget/rhythm 全落）；模型车道拒收 verbatim 且配置保持；收尾面额度+caller 落账。
   试驾预调（部署前临时实例聊几轮调 persona）后置可选。
-- **② 目录筛选与挑货面（挑得准）**：catalog API 服务端 facets（今天只有分页+当前页
-  客户端搜索）；谦面策展信号（category/featured）消费为目录分组——双星合流具体形态；
-  console 加「从目录部署」入口替代手粘 packId；facet 遥测+console usage 回流目录做
-  热度信号。
+- **② 目录筛选与挑货面（挑得准）✅ 2026-10-12 全链上线**（fd-wanxing `add-catalog-facets`
+  4defe8c+6b4be50，镜像 sha-31e264e 双滚；生产修复一轮=策展 join 误用原始 Response）：
+  catalog 服务端 facets（q/category/featured 过滤在分页前+facets 汇总块计数未过滤集）；
+  策展信号消费=条目带 category/featured（facet browse 60s join，unlisted/私有 pack 诚实
+  降级无策展）+turns7d 活跃回流（自家 usage 台账双车道 7 天回合——**热度口径拍板**：
+  featured 策展优先档+turns7d 真实外部使用，安装数无回流不采用）；console 向导「目录
+  可部署」源（browse+detail+在役徽标）+foreign 公开 pack **绿地**部署（转发身份附
+  creators 组=console 允许清单信任桥；在役 400 拒收=不接管他人在役部署）。生产实证：
+  facets live（data/docs 两类+featured 1）、q=planner 服务端命中、文档工坊精选前置、
+  turns7d 真回流（18/3/4/2）、外作者 pack 绿地部署成功进目录带 cat data、在役再部署
+  400 指名作者路径。
 - **③ 集合：三段式语义，一个数据模型**：`collection = {owner, name, entries:[{packId,
   agentId, suggestedConfig?}], visibility}`——引用清单不复制内容，pack 仍是唯一原子
   供给单位。a 组织分组（自己部署的归类，纯 UX+一张表）；b 可部署套装（多 pack 挑选

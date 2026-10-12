@@ -219,9 +219,9 @@ v11 是**部署链路自动传播**——P1 根治确认生效，此后无需再
 
 ```
 $ docker exec agent-runner-dsh cat /data/packs-KkCie…-spider-heal/.credentials.yaml
-  git_pat: 'github_pat_11CGM…1H7zNX'        # ← 单行引号，无块标量
+  git_pat: '<github_pat_…7zNX>'        # ← 单行引号，无块标量
 $ # 单行取值法（事故当时的失败模式）
-value_len: 93   prefix: github_pat_11CGM   suffix: 1H7zNX   no_block_scalar: True
+value_len: 93   suffix: …7zNX   no_block_scalar: True   # 值完整、单行、无块标量（此处不引用全文）
 ```
 
 三台 runner 全扫零块标量；并清理了 k8s runner-b/c 上 spider-heal 的 v9/v10 孤儿凭据文件

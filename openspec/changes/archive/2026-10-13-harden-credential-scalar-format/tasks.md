@@ -31,5 +31,5 @@
       按在册配方重建（显式 `node agent-runner/index.js`）
 - [x] 3.2 生产实证（cheap-1 spider-heal 真实 child）：触发一次真 A2A 回合（"收到"回执）令 child 重生
       → `.credentials.yaml` 中 `git_pat: 'github_pat_…'` **单行引号**、无块标量；单行取值法拿到完整
-      93 字符值（prefix github_pat_11CGM / suffix 1H7zNX）——事故失败模式消除
+      93 字符值（仅记尾四位 …7zNX）——事故失败模式消除
 - [x] 3.3 归档 openspec change（validate --specs 131 passed）

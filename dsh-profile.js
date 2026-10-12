@@ -347,7 +347,14 @@ export async function ensureCredentialsStore(opts = {}) {
   // only write when a ref changed, to avoid needlessly tripping the watcher.
   const absent = !existsSync(credentialsPath);
   if (!changed && !absent) return { path: credentialsPath, changed: false };
-  atomicWriteTextSync(credentialsPath, yaml.dump(doc));
+  // Invariant (credential-file-format): values MUST stay on one line and be
+  // quoted. js-yaml folds long values into a `>-` block scalar past lineWidth
+  // (default 80), and a folded ref is invisible to line-oriented extraction
+  // (`grep`+`sed`) — a skill reading the file that way gets an empty string,
+  // which in 2026-10-12 led an agent to print the file and leak the PAT into
+  // its transcript. `lineWidth: -1` disables folding (0 does NOT: it means
+  // "stay within zero columns"); forceQuotes keeps the value boundary explicit.
+  atomicWriteTextSync(credentialsPath, yaml.dump(doc, { lineWidth: -1, forceQuotes: true }));
   try { chmodSync(credentialsPath, 0o600); } catch { /* perms best-effort on some FS */ }
   console.log(`[dsh-profile] wrote credentials store (${Object.keys(doc.refs).join(", ") || "empty"}) → ${credentialsPath}`);
   return { path: credentialsPath, changed: true };

@@ -376,3 +376,36 @@ The five supported client targets SHALL each carry a walkthrough record in its d
 
 - **WHEN** a pack's MCP reference points at a server that is disabled or invisible to the caller's groups
 - **THEN** the guide explains the resulting 405/401 honestly instead of implying misconfiguration of the client
+
+### Requirement: The facet CLI carries an honest update path
+
+The CLI SHALL record each install locally (`installed.json` under the facet home: pack id, name, target, scope, project, version, time) and SHALL offer `facet update [packRef] [--target]`: with no argument every recorded install refreshes; with a pack reference only that pack. Each refresh SHALL fetch the pack's latest published version — an unchanged version reports `已最新` and changes nothing; a newer version rewrites the skill snapshot through the install write path (identical bytes to a fresh install) and reports `v旧 → v新`. A pack that no longer resolves (unpublished, private, gone) SHALL report honestly per pack without aborting the rest. Updating SHALL carry no subscription semantics — it is a snapshot re-fetch, exactly like install.
+
+#### Scenario: A stale install refreshes with version reporting
+
+- **WHEN** a recorded install sits at v2 and the pack's latest is v3, and the deployer runs `facet update`
+- **THEN** the skills directory rewrites to v3's snapshot, the record moves to v3, and the output names the pack with `v2 → v3`
+
+#### Scenario: Current installs are a no-op
+
+- **WHEN** every recorded install already matches the latest published version
+- **THEN** update reports `已最新` per pack and writes nothing
+
+#### Scenario: A vanished pack never blocks the rest
+
+- **WHEN** one recorded pack no longer resolves
+- **THEN** that pack reports its failure honestly and the remaining installs still refresh
+
+### Requirement: Client capabilities are stated as a verified matrix
+
+The facet surface SHALL publish a client-capability matrix — per client: user-level and project-level skill installation, user-level and project-level MCP config writing, marketplace form availability, and the update path — with each cell traceable to either a code fact (what the CLI writes) or a recorded real-environment walkthrough (what the client honors), never invention. The matrix SHALL render in the docs view (derived from the same single-source facts as the command tables, so drift fails tests) and ship in the OSS deep docs. A smoke script SHALL verify the CLI side periodically: isolated-home installs per target with the native config shapes asserted per client, runnable in CI without real credentials.
+
+#### Scenario: The docs view answers "can it" at a glance
+
+- **WHEN** a visitor opens the docs view's install section
+- **THEN** the capability matrix renders one row per client with its verified cells, and the deep guides carry the per-client evidence
+
+#### Scenario: The smoke catches a shape drift
+
+- **WHEN** the CLI's write path for any target changes shape (file location or entry form)
+- **THEN** the smoke script's assertion for that target fails, forcing the matrix and guides to move with the code

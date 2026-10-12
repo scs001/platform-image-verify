@@ -16,8 +16,8 @@
 
 | 容器 | 镜像 | 代码来源 | 职责 |
 |---|---|---|---|
-| registry-1 | `ccr.ccs.tencentyun.com/yizuo/mcp-registry:sha-2c2ad48`（fd-1.2.0，torch-free 瘦身 843MB） | **fd fork 构建**（org Actions 阻断期经 scs001 临时线，标准 hkccr→relay→ccr 通道） | 控制台 SPA + `/api/*` 路由（服务注册/目录/审计面）+ patch-key 铸造面；本地 embedding 推理=fastembed ONNX（`~/mcp-gateway/models/all-MiniLM-L6-v2-onnx/`） |
-| auth-server-1 | `ccr.ccs.tencentyun.com/yizuo/mcp-auth-server:sha-676a245` | **fd fork 构建**（标准 TCR 线） | `/validate` 鉴权、自签 JWT、Logto IAM、egress PAT 注入、wire 双 patch |
+| registry-1 | `ccr.ccs.tencentyun.com/yizuo/mcp-registry:sha-c9a2015`（fd-1.2.1，agents card examples 字段） | **fd fork 构建**（scs001 临时线，标准 hkccr→relay→ccr 通道；fd-1.2.0 瘦身版 sha-2c2ad48 为上一版） | 控制台 SPA + `/api/*` 路由（服务注册/目录/审计面）+ patch-key 铸造面；本地 embedding 推理=fastembed ONNX（`~/mcp-gateway/models/all-MiniLM-L6-v2-onnx/`） |
+| auth-server-1 | `ccr.ccs.tencentyun.com/yizuo/mcp-auth-server:sha-3739eb7`（fd-1.1.3，行数门 server 作用域+拒绝审计） | **fd fork 构建**（scs001 临时线 `fd-quota-gate-scope`，基线=生产在跑的 0aad2b53 谱系，未夹带品牌线） | `/validate` 鉴权、自签 JWT、Logto IAM、egress PAT 注入、wire 双 patch |
 | mcpgw-server-1 | `public.ecr.aws/p3v1o3c6/mcpgw:1.32.0` | 上游预构建（已钉版） | nginx 转发 hop（`/mcp-proxy/{server}`） |
 | mcp-mongodb / mcp-openbao | — | 官方镜像 | 审计流（`audit_events`，逐工具调用记录）/ 密钥 |
 
@@ -126,4 +126,21 @@ MCP server 接入系统供给层的统一上牌契约，出自 openspec change *
 | `.env` | 988 | `EMBEDDINGS_PROVIDER=fastembed`（代码默认同值；留 `sentence-transformers` 会静默降级为纯关键词搜索） |
 | `.env` | 1152 | `ECR_REGISTRY=ccr.ccs.tencentyun.com/yizuo`（mcpgw 转存，原 public.ecr.aws 海外源） |
 
-第 410 行 auth-server `sha-0aad2b5` 未动（你的版本）。备份在 `.bak-slim`。
+第 410 行 auth-server 已由 fix-quota-gate-server-scope（2026-10-12）滚至 `sha-3739eb7`（基于你线 0aad2b53 的直系修复，非品牌线）；compose environment 块新增 `FD_WIRE_QUOTA_SERVERS` 透传一行 + `.env` 名单三 wire server。备份在 `.bak-quota-scope`。
+
+### 9.2 fix-quota-gate-server-scope 发布记录（2026-10-12）
+
+**事故**：wire 行数门（3.2，10-10/11 上线）无 server 维度，lex 客户（caller map 共享、sub2api 56）在 wire 额度面 404 → 无条件 503 QUOTA_UNAVAILABLE，lex 直连入口整线不可用。移交包另报"被拒调用仍转发"——**翻案**：`mcp_response.status=success` 审计是 `/validate` 的鉴权成功记录（先于 mcp-proxy 跳）；后端 200 来自同时段虚拟入口探针（`/_vs_backend` nginx 直连上游，天然不过门）。真缺陷=审计流无拒绝最终局。
+
+**修复**（scs001 分支 `fd-quota-gate-scope`，基线 0aad2b53，sha-3739eb7，BUILD_VERSION fd-1.1.3）：
+1. `FD_WIRE_QUOTA_SERVERS` opt-in 名单（未设=全量现状；设了=只管名单）。名单=`fd-find-data-business-mcp,fd-wire-cell-drillcust001,fd-wire-cell-pgauto001`（14 天审计窗经验定稿：wire 客户 16/67/70/71/72 只打这三个）。余额门不受豁免影响。
+2. mcp_proxy 四闸（tier/scope/preflight/call-grant）拒绝时经 mcp_logger 写最终局 `status=refused` 审计（对账取最终局，/validate 的 success 行保留）。
+3. 单测：`TestWireQuotaGateScope` + 归一等价钉死 + 路由级 refused 审计四态，preflight 专项 103 全绿；全仓仅 4 个预存 call_grant 失败（base 复证非本次引入）。
+
+**部署两步灰度**：①滚镜像不设 env（中间态实证：lex 仍 503 且审计出现 refused 记录=修复代码生效）→ ②`.env` 设名单+compose environment 块补透传行+重启（"Running"不重建的坑：FD_WIRE_* 是白名单式 environment 透传，.env 新变量必须同步加 compose 行）。
+
+**验收**：initialize 200 ✅；law_search 真数据+provenance 三件套（source=law_db.laws/stable_id/as_of）✅；线内执法实证（lex key→business-mcp 503+jsonl 落行）✅；wire 回归=drillcust001 修复后 156 次 success 穿门 ✅；jsonl 无 lex 直连拒绝行 ✅；场景 6 重释版（同 id 双记录：validate success + proxy refused）✅。余额 402 逻辑由单测覆盖（生产验证需耗尽余额，未做破坏性测试）。
+
+**回滚**：`.env` 去 `FD_WIRE_QUOTA_SERVERS` + 重启（回全量现状，lex 复 503）；或 compose 行回 `sha-0aad2b5`；总闸 `FD_WIRE_QUOTA_GATE=false`。备份 `.bak-quota-scope`。
+
+**运维纪律（新）**：注册新 wire server 后必须同步 `.env` 名单（漏加=行数门静默失效，余额门仍在）；名单核对配方=容器内 `grep mcp_preflight_quota /tmp/preflight_quota.jsonl | jq -r .server | sort -u`（注意 jsonl 只记拒绝，放行流量不在内）。

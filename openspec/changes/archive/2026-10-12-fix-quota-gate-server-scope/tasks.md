@@ -15,11 +15,11 @@
 ## 3. 回归与构建
 
 - [x] 3.1 全仓回归：既有 `TestWireQuotaGate*` 五类（Config/Off/Exhausted/Allow/FailClosed）+ 全量单测零回归——`pytest tests/auth_server/unit/` 全绿
-- [ ] 3.2 从 `wire-onboarding` 拉 fix 支线提交并推 scs001；GHA 镜像构建（mcp-auth-server matrix）绿、hkccr→relay→ccr digest 三点核齐
+- [x] 3.2 从 `wire-onboarding` 拉 fix 支线提交并推 scs001；GHA 镜像构建（mcp-auth-server matrix）绿、hkccr→relay→ccr digest 三点核齐
 
 ## 4. 生产两步灰度（cheap-1 /opt/mcp-gateway-registry）
 
-- [ ] 4.1 第一步（发码不动 env）：compose auth-server 换新 tag 重启；验证 wire 回归不破（platform-test 调 wire server 200 + free 档 0 余额 200），lex 直连仍 503 属预期中间态——探针结果留档
-- [ ] 4.2 枚举 wire server 名单：auth-server 容器内 `grep mcp_preflight_quota /tmp/preflight_quota.jsonl | jq -r .server | sort -u` 对照 wire onboarding 记录定稿清单
-- [ ] 4.3 第二步（设 env）：`.env` 写 `FD_WIRE_QUOTA_SERVERS=<清单>` 重启 auth-server；验收移交包场景 1（lex initialize 200）/2（tools/call 200+真实数据+provenance）/3（余额耗尽 402）/7（jsonl 无 lex 拒绝行）+ 重释 6（审计流有 refused 记录）+ 判别性探针（直连入口唯一 id、虚拟入口静默、tail 后端 pod log → 无 POST）——全部留档
-- [ ] 4.4 回滚通道验证说明落 runbook：去 env 重启 = 回现状；`FD_WIRE_QUOTA_GATE=false` = 门整体下线；新 wire server 注册须同步进名单
+- [x] 4.1 第一步（发码不动 env）：compose auth-server 换新 tag 重启；验证 wire 回归不破（platform-test 调 wire server 200 + free 档 0 余额 200），lex 直连仍 503 属预期中间态——探针结果留档
+- [x] 4.2 枚举 wire server 名单：auth-server 容器内 `grep mcp_preflight_quota /tmp/preflight_quota.jsonl | jq -r .server | sort -u` 对照 wire onboarding 记录定稿清单
+- [x] 4.3 第二步（设 env）：`.env` 写 `FD_WIRE_QUOTA_SERVERS=<清单>` 重启 auth-server；验收移交包场景 1（lex initialize 200）/2（tools/call 200+真实数据+provenance）/3（余额耗尽 402）/7（jsonl 无 lex 拒绝行）+ 重释 6（审计流有 refused 记录）+ 判别性探针（直连入口唯一 id、虚拟入口静默、tail 后端 pod log → 无 POST）——全部留档
+- [x] 4.4 回滚通道验证说明落 runbook：去 env 重启 = 回现状；`FD_WIRE_QUOTA_GATE=false` = 门整体下线；新 wire server 注册须同步进名单

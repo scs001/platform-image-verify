@@ -25,7 +25,11 @@
 
 
 ## 3. 上线与验证
-- [x] 3.1 镜像构建（标准 TCR 线：GHA→hkccr→relay→ccr）+ cheap-1 compose 滚版
-- [x] 3.2 生产实证：删掉 runner-c 上 spider-heal child 的旧 `.credentials.yaml` 后重建
-      （或重部署带 secrets），`cat` 确认 `git_pat: 'github_pat_…'` 单行引号
-- [ ] 3.3 归档 openspec change（validate --specs 通过后）
+- [x] 3.1 出片与滚动（2026-10-12/13 实证）：走 `scs001/platform-image-verify`（公开免费线）出片
+      sha-5c9f532（真 sha 5f9c37d）→ relay → ccr 实证（skopeo）；平台应用已随 F3.1 在跑该镜像；
+      runner 侧本次滚齐：k8s runner-b/c（GitOps db046c3）+ cheap-1 手工容器 `agent-runner-dsh`
+      按在册配方重建（显式 `node agent-runner/index.js`）
+- [x] 3.2 生产实证（cheap-1 spider-heal 真实 child）：触发一次真 A2A 回合（"收到"回执）令 child 重生
+      → `.credentials.yaml` 中 `git_pat: 'github_pat_…'` **单行引号**、无块标量；单行取值法拿到完整
+      93 字符值（prefix github_pat_11CGM / suffix 1H7zNX）——事故失败模式消除
+- [x] 3.3 归档 openspec change（validate --specs 131 passed）

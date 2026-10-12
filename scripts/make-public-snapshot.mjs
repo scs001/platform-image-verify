@@ -278,7 +278,10 @@ const FORBIDDEN = [
   [/harbor\.local\/paas_private/, "internal registry path"],
   [/hkccr|tencentcontainers|ccr\.cfs/, "internal image registry"],
   [/[Jj]enkins/, "internal CI"],
-  [/token\.finddatatech\.cloud|paas-admin\.finddatatech\.cloud/, "internal-only domain"],
+  // token.finddatatech.cloud reclassified 2026-10-13: it is 萬星·词元's public
+  // metering/billing panel (user-facing, login-gated) and appears in the
+  // product catalog agents.json; paas-admin stays internal-only.
+  [/paas-admin\.finddatatech\.cloud/, "internal-only domain"],
   [/fd-craw-private|fd-infra-deploy/, "private repo name"],
   [/mo2z9kllx2j7|hpe07qejcwk7|sl63fy08ruh9/, "Logto organization id"],
   [/\bDEPLOY\.md\b/, "internal runbook reference"],

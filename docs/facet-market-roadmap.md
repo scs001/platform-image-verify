@@ -84,7 +84,7 @@ F1.3 文档面），谦面域内自解释闭环成立。
 
 | 切片 | change | 内容 |
 |---|---|---|
-| F2.1 | `add-facet-client-walkthroughs` | 五客户端「从零到装好」真环境 walkthrough，逐个验证 OAuth 零贴 key 路径，实证内容填进 F1.3 建好的 `#/docs` 各页 |
+| F2.1 | `add-facet-client-walkthroughs` | ✅ 2026-10-12（dcb761d+OSS d645590）：五客户端真环境 walkthrough——console 铸 wgk 键→connect 验活 0600→五 target install --write-mcp 技能+配置形状逐字节验证→wire initialize 200（fd-cn-report）；实证回填 docs/ecosystem/*.md+公开仓。三诚实边界入档：停用 server=405（fd-daas/fd-open-data location 当前注释，运维项）、设备流 facet-cli 未注册 IdP（粘贴键为可用路径）、双 Accept 要求 |
 | F2.2 | `add-facet-client-matrix` | 支持矩阵（客户端×能力：技能安装/项目级/MCP 配置写/更新路径），文档+定期冒烟脚本（照 dsh-version-matrix 先例） |
 | F2.3 | `add-facet-cli-update` | CLI `update` 命令 = 重取最新版快照，无订阅副作用（快照模型不动），报版本前后 |
 

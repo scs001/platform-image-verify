@@ -12,6 +12,9 @@ const base = `http://127.0.0.1:${process.env.E2E_FACET_SHELL_PORT || 3209}`;
 test("all three shell views render without a routing provider", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (e) => pageErrors.push(String(e)));
+  // Pin zh-CN: the infra views' copy assertions below read Chinese strings
+  // (the shell's locale store, same key the 壹座 suite uses).
+  await page.addInitScript(() => localStorage.setItem("platform.locale", "zh-CN"));
 
   // intro: the landing carries its CTAs and the footer ladder.
   await page.goto(`${base}/#/`);
@@ -34,16 +37,34 @@ test("all three shell views render without a routing provider", async ({ page })
   await detail.getByTestId("pack-version-list-toggle").click();
   await expect(detail.getByTestId("pack-version-list-row-1")).toBeVisible();
 
-  // mcp: the catalog must mount. In the playwright chain the facet service
-  // inherits MARKET_REGISTRY_URL (the e2e stub), so cards render; standalone
-  // (no registry) the honest empty state shows. Either branch proves the
-  // view rendered — and in both cases no page error is tolerated below.
+  // mcp: the catalog must mount with its narrative and both tabs
+  // (add-facet-infra-pages). The shell server now wires the e2e registry stub,
+  // so the servers tab carries real stub entries.
   await page.goto(`${base}/#/mcp`);
-  await expect(
-    page
-      .getByText("来自注册处的 MCP 服务目录")
-      .or(page.getByText("当前身份下没有可见的 MCP 服务")),
-  ).toBeVisible();
+  await expect(page.getByTestId("infra-narrative")).toBeVisible();
+  await expect(page.getByTestId("mcp-tab-servers")).toBeVisible();
+  await expect(page.getByTestId("mcp-tab-skills")).toBeVisible();
+
+  // Depth view: open the stub server's card — tool surface (names with
+  // descriptions) and provenance render; the card list itself stays without
+  // tool surfaces (lazy depth payload).
+  const card = page.getByTestId("mcp-card-e2e-registry-mcp");
+  await expect(card).toBeVisible();
+  await card.click();
+  const depth = page.getByTestId("mcp-depth-e2e-registry-mcp");
+  await expect(depth).toBeVisible();
+  await expect(page.getByTestId("mcp-tool-read")).toContainText("Read an entry.");
+  await expect(page.getByTestId("mcp-depth-license")).toContainText("MIT");
+  await expect(page.getByTestId("mcp-depth-provider")).toContainText("e2e-org");
+  await page.getByTestId("mcp-depth-back").click();
+  await expect(card).toBeVisible();
+
+  // Skills catalog: provenance renders for the declared entry and the
+  // honest not-declared mark for the bare one.
+  await page.getByTestId("mcp-tab-skills").click();
+  await expect(page.getByTestId("skills-catalog")).toBeVisible();
+  await expect(page.getByTestId("skill-provenance-e2e-provenance-skill")).toContainText("https://github.com/example/e2e-skills");
+  await expect(page.getByTestId("skill-provenance-e2e-bare-skill")).toContainText("未标注");
 
   expect(pageErrors, `page errors: ${pageErrors.join(" | ")}`).toEqual([]);
 });

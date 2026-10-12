@@ -1371,5 +1371,44 @@
       "skip": "Skip tour",
       "stepLabel": "Step {{n}} of 3"
     }
+  },
+  "mcp": {
+    "narrative": {
+      "title": "Platform infrastructure vs pack content",
+      "body": "MCP servers and skills on this page are platform-provided infrastructure: connect them to your MCP client or agent and use them directly. Packs are content bundles that combine skills, MCP references, and agent personas into one installable unit — install a pack and its parts arrive together."
+    },
+    "tabs": {
+      "servers": "MCP servers",
+      "skills": "Skills catalog"
+    },
+    "intro": "MCP service catalog from the registry (read-only). Connecting needs registry account credentials — authorize via registry login; the URL is each card's endpoint.",
+    "empty": "No MCP services visible to this identity (sign in to see more).",
+    "unavailable": "Catalog unavailable: {{error}}",
+    "requiresGroup": "requires group {{group}}",
+    "depth": {
+      "back": "Back to list",
+      "failed": "Failed to load: {{message}}",
+      "endpoint": "Endpoint",
+      "license": "License",
+      "provider": "Provider",
+      "tier": "Hosting",
+      "groups": "Access",
+      "public": "public",
+      "notDeclared": "not declared",
+      "tools": "Tools",
+      "toolCount": "{{count}} declared",
+      "toolsMissing": "No tool snapshot captured for this server yet — the registry entry predates a tool-list refresh."
+    },
+    "skills": {
+      "empty": "No skills visible to this identity (sign in to see more).",
+      "search": "Search: name / description / author / tag",
+      "count": "{{count}} total",
+      "noDescription": "—",
+      "source": "Source",
+      "author": "Author",
+      "prev": "Prev",
+      "next": "Next",
+      "page": "Page {{page}} / {{pages}}"
+    }
   }
 }

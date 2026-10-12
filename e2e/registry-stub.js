@@ -112,11 +112,23 @@ const server = createServer((req, res) => {
             is_enabled: true,
             health_status: "healthy",
             status: "active",
-            tags: ["e2e"],
+            tags: ["e2e", "ecosystem"],
+            // Depth-view provenance (add-facet-infra-pages): the live shape
+            // carries license/provider_organization/deployment; the facet
+            // depth view renders them (or an explicit not-declared mark).
+            license: "MIT",
+            provider_organization: "e2e-org",
+            deployment: "remote",
+            num_tools: 3,
             // Tool surface (add-mcp-tool-scoping): the snapshot the pack
             // editor's tool picker and the publish gate cross-check against;
             // the commercial NAME list keeps every stub tool pack-eligible.
-            tool_list: ["read", "search", "purge"],
+            // Tool OBJECTS (live shape) so the depth view renders descriptions.
+            tool_list: [
+              { name: "read", description: "Read an entry." },
+              { name: "search", description: "Search entries." },
+              { name: "purge", description: "Purge an entry." },
+            ],
             metadata: { surface: { commercial_tools: ["read", "search", "purge"], tools_commercial: 3, tools_total: 3 } },
           },
           // Second entry (add-persona-resource-sets): pack manifests need TWO
@@ -137,7 +149,36 @@ const server = createServer((req, res) => {
         total_count: 2,
       });
     }
-    if (url.pathname.startsWith("/api/skills")) return json(res, 200, { skills: [], total_count: 0 });
+    if (url.pathname.startsWith("/api/skills")) {
+      // Skills catalog (add-facet-infra-pages): one entry with declared
+      // provenance, one without — the honest-rendering pair.
+      return json(res, 200, {
+        skills: [
+          {
+            id: "sk1",
+            path: "/skills/e2e-provenance-skill",
+            name: "e2e-provenance-skill",
+            description: "Skill with declared provenance",
+            skill_md_url: "https://example.test/skill.md",
+            repository_url: "https://github.com/example/e2e-skills",
+            author: "E2E Author",
+            version: "1.0.0",
+            tags: ["e2e", "ecosystem"],
+            is_enabled: true,
+          },
+          {
+            id: "sk2",
+            path: "/skills/e2e-bare-skill",
+            name: "e2e-bare-skill",
+            description: "Skill without declared provenance",
+            skill_md_url: "https://example.test/skill2.md",
+            is_enabled: true,
+            tags: [],
+          },
+        ],
+        total_count: 2,
+      });
+    }
     // Agent entries (agent-service-config): the deploy surface registers one
     // per serving role and the config write is a GET-merge-PUT onto it.
     if (url.pathname === "/api/agents/register" && req.method === "POST") {

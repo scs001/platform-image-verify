@@ -1371,5 +1371,44 @@
       "skip": "Omitir guía",
       "stepLabel": "Paso {{n}} de 3"
     }
+  },
+  "mcp": {
+    "narrative": {
+      "title": "Infraestructura de la plataforma vs contenido de packs",
+      "body": "Los servidores MCP y las skills de esta página son infraestructura de la plataforma: conéctalos a tu cliente MCP o agente y úsalos directamente. Los packs son paquetes de contenido que combinan skills, referencias MCP y personas de agente en una unidad instalable."
+    },
+    "tabs": {
+      "servers": "Servidores MCP",
+      "skills": "Catálogo de skills"
+    },
+    "intro": "Catálogo de servicios MCP del registro (solo lectura). Conectar requiere credenciales de cuenta del registro — autoriza con el inicio de sesión del registro; la URL es el endpoint de cada tarjeta.",
+    "empty": "No hay servicios MCP visibles para esta identidad (inicia sesión para ver más).",
+    "unavailable": "Catálogo no disponible: {{error}}",
+    "requiresGroup": "requiere el grupo {{group}}",
+    "depth": {
+      "back": "Volver a la lista",
+      "failed": "Error al cargar: {{message}}",
+      "endpoint": "Endpoint",
+      "license": "Licencia",
+      "provider": "Proveedor",
+      "tier": "Alojamiento",
+      "groups": "Acceso",
+      "public": "público",
+      "notDeclared": "no declarado",
+      "tools": "Herramientas",
+      "toolCount": "{{count}} declaradas",
+      "toolsMissing": "Aún no se ha capturado una instantánea de herramientas para este servidor — la entrada del registro es anterior a una actualización."
+    },
+    "skills": {
+      "empty": "No hay skills visibles para esta identidad (inicia sesión para ver más).",
+      "search": "Buscar: nombre / descripción / autor / etiqueta",
+      "count": "{{count}} en total",
+      "noDescription": "—",
+      "source": "Fuente",
+      "author": "Autor",
+      "prev": "Anterior",
+      "next": "Siguiente",
+      "page": "Página {{page}} / {{pages}}"
+    }
   }
 }

@@ -1371,5 +1371,44 @@
       "skip": "ツアーをスキップ",
       "stepLabel": "ステップ {{n}} / 3"
     }
+  },
+  "mcp": {
+    "narrative": {
+      "title": "プラットフォーム基盤とパック内容",
+      "body": "このページの MCP サーバーと skills はプラットフォーム提供の基盤です。MCP クライアントや agent に接続して直接使えます。pack（機能セット）は内容のバンドルで、スキル・MCP 参照・agent ペルソナを一つのインストール単位にまとめたものです。"
+    },
+    "tabs": {
+      "servers": "MCP サーバー",
+      "skills": "スキルカタログ"
+    },
+    "intro": "レジストリの MCP サービスカタログ（読み取り専用）。接続にはレジストリアカウントの認証情報が必要です——認証はレジストリログインで行い、URL は各カードのエンドポイントです。",
+    "empty": "この ID で表示できる MCP サービスはありません（サインインすると増えます）。",
+    "unavailable": "カタログ利用不可：{{error}}",
+    "requiresGroup": "グループ {{group}} が必要",
+    "depth": {
+      "back": "一覧に戻る",
+      "failed": "読み込み失敗：{{message}}",
+      "endpoint": "エンドポイント",
+      "license": "ライセンス",
+      "provider": "提供元",
+      "tier": "ホスティング",
+      "groups": "アクセス",
+      "public": "公開",
+      "notDeclared": "未記載",
+      "tools": "ツール一覧",
+      "toolCount": "{{count}} 個",
+      "toolsMissing": "このサーバーのツールスナップショットは未取得です——レジストリ項目がツール一覧更新より前のものです。"
+    },
+    "skills": {
+      "empty": "この ID で表示できるスキルはありません（サインインすると増えます）。",
+      "search": "検索：名前 / 説明 / 作者 / タグ",
+      "count": "全 {{count}} 件",
+      "noDescription": "—",
+      "source": "ソース",
+      "author": "作者",
+      "prev": "前へ",
+      "next": "次へ",
+      "page": "{{page}} / {{pages}} ページ"
+    }
   }
 }

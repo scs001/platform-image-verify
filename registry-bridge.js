@@ -109,7 +109,35 @@ function mapServer(s) {
     // stored tool_list rides the catalog so the pack editor's tool picker can
     // offer real names; null when the entry predates a snapshot refresh.
     toolList: toolListNames(s.tool_list),
+    // Depth-view fields (add-facet-infra-pages): names-only toolList stays as
+    // the pack editor's contract; the facet depth view reads these instead.
+    // Provenance renders honestly — absent fields stay absent (never invented).
+    toolDetails: toolDetails(s.tool_list),
+    license: typeof s.license === "string" && s.license && s.license !== "N/A" ? s.license : null,
+    providerOrganization:
+      typeof s.provider_organization === "string" && s.provider_organization
+        ? s.provider_organization
+        : null,
+    numTools: Number.isFinite(Number(s.num_tools)) ? Number(s.num_tools) : null,
+    tags: Array.isArray(s.tags) ? s.tags.map((t) => String(t)) : [],
+    // Hosting tier as declared on the entry ("remote" | "local" | …).
+    deployment: typeof s.deployment === "string" && s.deployment ? s.deployment : null,
   };
+}
+
+// Depth-view tool shape (add-facet-infra-pages): name + description per tool,
+// from the same stored snapshot. Kept separate from toolListNames so the pack
+// editor's names-only contract is untouched.
+function toolDetails(toolList) {
+  if (!Array.isArray(toolList)) return null;
+  const out = [];
+  for (const t of toolList) {
+    if (typeof t === "string") out.push({ name: t, description: "" });
+    else if (t && typeof t === "object" && typeof t.name === "string") {
+      out.push({ name: t.name, description: typeof t.description === "string" ? t.description : "" });
+    }
+  }
+  return out.length ? out : null;
 }
 
 // `tool_list` entries are tool OBJECTS ({name, description, schema, …}), not
@@ -179,6 +207,12 @@ function mapSkill(s) {
     origin: "registry",
     contentPath: s.path,
     groups: groupsFor("skills", name),
+    // Provenance (add-facet-infra-pages; openspec: ecosystem-curation): the
+    // facet skills catalog renders these marks; absent stays absent.
+    repositoryUrl: typeof s.repository_url === "string" && s.repository_url ? s.repository_url : null,
+    author: typeof s.author === "string" && s.author ? s.author : null,
+    version: typeof s.version === "string" && s.version ? s.version : null,
+    tags: Array.isArray(s.tags) ? s.tags.map((t) => String(t)) : [],
   };
 }
 

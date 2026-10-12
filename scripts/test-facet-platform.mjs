@@ -271,6 +271,146 @@ test("S2 mcp-catalog: anonymous sees group-less servers only; grouped visible to
   }
 });
 
+// ── add-facet-infra-pages: depth view + skills catalog ──────────────────────
+
+test("mcp depth route carries tools/provenance on demand; visibility gated; card list stays six fields", async () => {
+  const { registerFacetMcpRoutes } = await import("../facet/mcp-catalog.js");
+  const entries = [
+    {
+      name: "websearch",
+      displayName: "Web Search",
+      description: "search",
+      configTemplate: { url: "https://mcp.x/websearch/mcp" },
+      groups: [],
+      toolDetails: [
+        { name: "search", description: "Search the web." },
+        { name: "fetch", description: "Fetch a page." },
+      ],
+      toolList: ["search", "fetch"],
+      numTools: 2,
+      license: "MIT",
+      providerOrganization: "example-org",
+      deployment: "remote",
+      tags: ["ecosystem", "official"],
+    },
+    {
+      name: "bare-server",
+      displayName: "Bare",
+      description: "no metadata declared",
+      configTemplate: { url: "https://mcp.x/bare/mcp" },
+      groups: [],
+    },
+    {
+      name: "law-bench",
+      displayName: "LawBench",
+      description: "legal",
+      configTemplate: { url: "https://mcp.x/law-bench/mcp" },
+      groups: ["legal"],
+      toolDetails: [{ name: "review", description: "Review a contract." }],
+    },
+  ];
+  const app = express();
+  registerFacetMcpRoutes(app, {
+    resolveUser: (req) => (req.headers["x-viewer"] ? { email: "u@x", groups: String(req.headers["x-viewer"]).split(",") } : null),
+    entriesFn: () => entries,
+  });
+  const server = http.createServer(app);
+  server.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    // The card list stays five fields — no tool surface rides the default payload.
+    const list = await (await fetch(`${base}/api/mcp-catalog`)).json();
+    assert.deepEqual(
+      Object.keys(list.servers[0]).sort(),
+      ["description", "displayName", "endpoint", "name", "requiredGroups"].sort(),
+    );
+    assert.equal(list.servers[0].tools, undefined);
+
+    // Depth: tools + provenance as declared.
+    const depth = await (await fetch(`${base}/api/mcp-catalog/websearch`)).json();
+    assert.deepEqual(depth.tools, [
+      { name: "search", description: "Search the web." },
+      { name: "fetch", description: "Fetch a page." },
+    ]);
+    assert.equal(depth.toolCount, 2);
+    assert.equal(depth.license, "MIT");
+    assert.equal(depth.providerOrganization, "example-org");
+    assert.equal(depth.deployment, "remote");
+    assert.deepEqual(depth.tags, ["ecosystem", "official"]);
+
+    // Absent fields render null (honest rendering) — never invented.
+    const bare = await (await fetch(`${base}/api/mcp-catalog/bare-server`)).json();
+    assert.equal(bare.tools, null);
+    assert.equal(bare.license, null);
+    assert.equal(bare.providerOrganization, null);
+    assert.equal(bare.deployment, null);
+
+    // Group-gated entry: not-found for the anonymous caller, visible to a member.
+    assert.equal((await fetch(`${base}/api/mcp-catalog/law-bench`)).status, 404);
+    const member = await fetch(`${base}/api/mcp-catalog/law-bench`, { headers: { "x-viewer": "legal" } });
+    assert.equal(member.status, 200);
+    assert.equal((await member.json()).tools[0].name, "review");
+
+    // Unknown name: not-found.
+    assert.equal((await fetch(`${base}/api/mcp-catalog/nope`)).status, 404);
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
+test("skills catalog: provenance marks, visibility gating, read-only", async () => {
+  const { registerFacetMcpRoutes } = await import("../facet/mcp-catalog.js");
+  const skills = [
+    {
+      name: "legal-harness-init",
+      displayName: "legal-harness-init",
+      description: "legal skill",
+      repositoryUrl: "https://github.com/cat-xierluo/legal-skills",
+      author: "杨卫薪",
+      version: "1.0.0",
+      tags: ["legal", "chinese-law"],
+      groups: [],
+    },
+    {
+      name: "finddata-internal",
+      displayName: "internal",
+      description: "grouped",
+      repositoryUrl: null,
+      author: null,
+      version: null,
+      tags: [],
+      groups: ["analysts"],
+    },
+  ];
+  const app = express();
+  registerFacetMcpRoutes(app, {
+    resolveUser: (req) => (req.headers["x-viewer"] ? { email: "u@x", groups: String(req.headers["x-viewer"]).split(",") } : null),
+    entriesFn: () => [],
+    skillsFn: () => skills,
+  });
+  const server = http.createServer(app);
+  server.listen(0);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const anon = await (await fetch(`${base}/api/skills-catalog`)).json();
+    assert.equal(anon.skills.length, 1);
+    const sk = anon.skills[0];
+    assert.equal(sk.name, "legal-harness-init");
+    assert.equal(sk.repositoryUrl, "https://github.com/cat-xierluo/legal-skills");
+    assert.equal(sk.author, "杨卫薪");
+    assert.deepEqual(sk.tags, ["legal", "chinese-law"]);
+
+    const member = await (await fetch(`${base}/api/skills-catalog`, { headers: { "x-viewer": "analysts" } })).json();
+    assert.equal(member.skills.length, 2);
+    const grouped = member.skills.find((s) => s.name === "finddata-internal");
+    // Undeclared provenance stays null (renders "not declared").
+    assert.equal(grouped.repositoryUrl, null);
+    assert.equal(grouped.author, null);
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+});
+
 // ── agent-service-config: the proxy's actor-header pass-through ──────────────
 
 test("2.5 facet proxy forwards the config channel's actor headers (agent-service-config)", async () => {

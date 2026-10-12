@@ -60,6 +60,15 @@ function goodResponses() {
           is_enabled: true,
           tags: ["Data"],
           mcp_endpoint: "https://elsewhere.example/custom",
+          // Depth-view fields (add-facet-infra-pages): the live shape carries
+          // license/provider_organization/tool_list (objects with descriptions).
+          license: "MIT",
+          provider_organization: "modelcontextprotocol",
+          num_tools: 2,
+          tool_list: [
+            { name: "get_time", description: "Returns the current time." },
+            { name: "set_zone", description: "Sets the timezone." },
+          ],
         },
       ],
       total_count: 2,
@@ -74,6 +83,10 @@ function goodResponses() {
           skill_md_url: "https://x/SKILL.md",
           is_enabled: true,
           tags: ["docs"],
+          // Provenance (add-facet-infra-pages): declared on the live shape.
+          repository_url: "https://github.com/example/pdf-skills",
+          author: "Example Author",
+          version: "1.2.0",
         },
       ],
       total_count: 1,
@@ -131,12 +144,33 @@ test("mapping: servers/skills/agents → market + catalog shapes", async () => {
   assert.equal(explicit.name, "explicit-endpoint");
   assert.equal(explicit.configTemplate.url, "https://elsewhere.example/custom");
   assert.equal(explicit.category, "Data");
+  // Depth-view fields (add-facet-infra-pages): provenance + tool details ride
+  // the snapshot; names-only toolList stays the pack editor's contract.
+  assert.deepEqual(explicit.toolList, ["get_time", "set_zone"]);
+  assert.deepEqual(explicit.toolDetails, [
+    { name: "get_time", description: "Returns the current time." },
+    { name: "set_zone", description: "Sets the timezone." },
+  ]);
+  assert.equal(explicit.license, "MIT");
+  assert.equal(explicit.providerOrganization, "modelcontextprotocol");
+  assert.equal(explicit.numTools, 2);
+  assert.deepEqual(explicit.tags, ["Data"]);
+  // Absent fields stay absent — never invented (the honest-rendering contract).
+  assert.equal(srv.license, null);
+  assert.equal(srv.providerOrganization, null);
+  assert.equal(srv.toolDetails, null);
+  assert.deepEqual(srv.tags, []);
 
   assert.equal(market.skills.length, 1);
   assert.equal(market.skills[0].name, "pdf-processing");
   assert.equal(market.skills[0].contentPath, "/skills/pdf-processing");
   assert.equal(market.skills[0].category, "docs");
   assert.equal(market.skills[0].skillTemplate, undefined, "no inline content for registry skills");
+  // Provenance (add-facet-infra-pages; openspec: ecosystem-curation).
+  assert.equal(market.skills[0].repositoryUrl, "https://github.com/example/pdf-skills");
+  assert.equal(market.skills[0].author, "Example Author");
+  assert.equal(market.skills[0].version, "1.2.0");
+  assert.deepEqual(market.skills[0].tags, ["docs"]);
 
   const agents = bridge.getAgentEntries();
   assert.equal(agents.length, 1, "url-less agent dropped");

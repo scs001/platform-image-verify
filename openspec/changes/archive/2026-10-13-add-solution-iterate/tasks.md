@@ -10,4 +10,4 @@
 ## 2. 上线与收口
 
 - [x] 2.1 全门绿 → commit → 出片（快照+image.yml 配方）→ GitOps 滚 → in-pod
-- [ ] 2.2 归档（delta 全场景校验过）+ roadmap Y4 标注第二刀
+- [x] 2.2 归档（delta 全场景校验过）+ roadmap Y4 标注第二刀

@@ -109,8 +109,11 @@
   （add-session-to-preset，sha-8e1516b：会话菜单「存为我的方案」提炼向导
   [名称/persona 按 catalog 预填+示例提问从会话勾选]+CustomPreset examples 字段
   全链[校验/迁移 v26/编辑器]+桥透传 serving.card.examples[发布后试问卡带作者
-  真实问题]；单测 8/8+e2e 2/2——e2e 抓出菜单 deps 真 bug 已修）。后续刀口
-  （迭代更新已有方案/轻分享档）待流量与反馈定形。
+  真实问题]；单测 8/8+e2e 2/2——e2e 抓出菜单 deps 真 bug 已修）。**第二刀 ✅ 同日上线
+  归档**（add-solution-iterate，sha-d7b3436：向导双模式——「更新已有」把本次会话调教
+  覆盖所选方案的 persona+示例提问、技能组合保持不动边界明示；捎带修复 dialog 被
+  backdrop-blur 劫持 fixed 定位的用户级 bug=ui/dialog portal 到 body，全量 e2e 回归
+  395 过 0 败）。后续刀口（迭代更新已有方案/轻分享档）待流量与反馈定形。
 
 ## 待定决策（挂账）
 

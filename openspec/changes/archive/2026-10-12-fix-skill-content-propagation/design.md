@@ -40,6 +40,10 @@ Non-Goals:
 先例语义：DB 存正文而非拉 URL）。字段无 max_length——与 `SkillCard.skill_md_content`
 一致，pack 技能正文为 KB 级，Mongo 文档无压力。
 
+实施期补记（apply 阶段发现）：部署侧 upsert 对**新技能走 POST**（按名查不到时回退
+`/api/skills` create），载荷同样带正文——故 `_build_skill_card` 一并从 request 透传
+`skill_md_content`，首版正文即入库；属同一传播语义的 create 侧补全，非新范围。
+
 ### D2 · raw_url 刷新放服务端派生，而非 schema 开放字段
 
 不让请求模型接受 `skill_md_raw_url`（那是交接文档方案 2 的变体）：raw_url 的语义是

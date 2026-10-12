@@ -16,7 +16,7 @@
 
 | 容器 | 镜像 | 代码来源 | 职责 |
 |---|---|---|---|
-| registry-1 | `ccr.ccs.tencentyun.com/yizuo/mcp-registry:sha-c9a2015`（fd-1.2.1，agents card examples 字段） | **fd fork 构建**（scs001 临时线，标准 hkccr→relay→ccr 通道；fd-1.2.0 瘦身版 sha-2c2ad48 为上一版） | 控制台 SPA + `/api/*` 路由（服务注册/目录/审计面）+ patch-key 铸造面；本地 embedding 推理=fastembed ONNX（`~/mcp-gateway/models/all-MiniLM-L6-v2-onnx/`） |
+| registry-1 | `ccr.ccs.tencentyun.com/yizuo/mcp-registry:sha-ad118d4`（fd-1.2.2，技能正文随版本传播修复） | **fd fork 构建**（scs001 临时线 `fd-skill-content-propagation`，基线=origin/main 5bfb6894（fd-1.2.1 谱系）；fd-1.2.1 card examples 版 sha-c9a2015 为上一版） | 控制台 SPA + `/api/*` 路由（服务注册/目录/审计面）+ patch-key 铸造面；本地 embedding 推理=fastembed ONNX（`~/mcp-gateway/models/all-MiniLM-L6-v2-onnx/`） |
 | auth-server-1 | `ccr.ccs.tencentyun.com/yizuo/mcp-auth-server:sha-3739eb7`（fd-1.1.3，行数门 server 作用域+拒绝审计） | **fd fork 构建**（scs001 临时线 `fd-quota-gate-scope`，基线=生产在跑的 0aad2b53 谱系，未夹带品牌线） | `/validate` 鉴权、自签 JWT、Logto IAM、egress PAT 注入、wire 双 patch |
 | mcpgw-server-1 | `public.ecr.aws/p3v1o3c6/mcpgw:1.32.0` | 上游预构建（已钉版） | nginx 转发 hop（`/mcp-proxy/{server}`） |
 | mcp-mongodb / mcp-openbao | — | 官方镜像 | 审计流（`audit_events`，逐工具调用记录）/ 密钥 |
@@ -144,3 +144,19 @@ MCP server 接入系统供给层的统一上牌契约，出自 openspec change *
 **回滚**：`.env` 去 `FD_WIRE_QUOTA_SERVERS` + 重启（回全量现状，lex 复 503）；或 compose 行回 `sha-0aad2b5`；总闸 `FD_WIRE_QUOTA_GATE=false`。备份 `.bak-quota-scope`。
 
 **运维纪律（新）**：注册新 wire server 后必须同步 `.env` 名单（漏加=行数门静默失效，余额门仍在）；名单核对配方=容器内 `grep mcp_preflight_quota /tmp/preflight_quota.jsonl | jq -r .server | sort -u`（注意 jsonl 只记拒绝，放行流量不在内）。
+
+### 9.3 fix-skill-content-propagation 发布记录（fd-1.2.2，2026-10-12 上线）
+
+**缺陷**（finddata 交接 docs/spider-heal-fleet-egress-handoff.md P1）：pack 部署侧每次 upsert PUT `skill_md_content`+版本化 `skill_md_url`，但 `SkillRegistrationRequest` 无该字段——pydantic 静默丢弃，正文永不落库；`skill_md_raw_url` 只在 create 时翻译一次 → 内容端点回退拉取永远拿 v1 旧正文（spider-heal 凭据事故的根因之一：子机读到的是 v1 旧指令）。finddata 已直写 Mongo 热修 v10（与本修兼容，滚动后四条 spider-heal 技能 content/raw_url 完好复核）。
+
+**修复**（origin/main ad118d4a = 5bfb6894 + 075eb7ec；scs001 分支 `fd-skill-content-propagation`，BUILD_VERSION fd-1.2.2）：
+1. `SkillRegistrationRequest` 增 `skill_md_content: str | None`（空串归一 None）；service 层 None 守卫——PUT 不带/null/空串绝不清空存量正文。
+2. `update_skill` 对 `skill_md_url` 实际变更重跑 `translate_skill_url` 刷新 `skill_md_raw_url`，正文或 URL 任一真实变化刷新 `content_updated_at`（raw_url 成为服务端派生不变量）。
+3. create 路径 `_build_skill_card` 透传正文（部署侧对新技能走 POST，首版即入库）。
+4. 测试：模型/服务/路由三层新增单测 + skill 面 431 绿 + 全量 7577 绿（1 失败=security_scanner_ssrf 缺 yara，venv 环境性预存）+ 进程内冒烟 8/8（v1→v2 两连击+UI 编辑不清空）。
+
+**发布载体实录**：原 D4「cherry-pick fd-1.1.2」前提过时——实际生产已是 fd-1.2.1（card examples，sha-c9a2015），origin/main 也已含全部三笔（PR #4/#5）→ 直接 rebase 上 origin/main 发 patch fd-1.2.2。org Actions 仍账单阻断（4-6s startup failure）→ scs001 临时线（与同日 quota 发布共用通道，无碰撞：其滚 auth-server、本发布滚 registry）。镜像 `yizuo/mcp-registry:sha-ad118d4` 双 job 绿（预算门过）。
+
+**验收**（生产实证）：启动日志 fastembed 双 worker loaded + /health healthy + 公网 200/401；容器内 `SkillRegistrationRequest.model_fields` 含 `skill_md_content`；**真 HTTP 端到端探针**（wanxing-facade pod 内以 AGENT_SERVING_REGISTRY_TOKEN，即部署同款鉴权）：POST 注册一次性技能 201 → PUT 带 `skill_md_content` 200 且卡片回显正文 → GET content 200 `source:inline` 直取探针正文 → DELETE 204 清场。**下次 spider-heal 升级（v11）即首次自然传播**，事后 mongosh 三查（content=新版本正文/raw_url=v11/content_updated_at 滚动）。
+
+**运维备注**：换版前盘 97%，清掉 auth 家族陈旧 `sha-0aad2b5`（quota 发布的回滚梯；不可变 tag 仍在 ccr，需回滚时重拉即可）。备份 `.bak-fd122-skillprop`（compose+.env）。回滚=compose 行回 `sha-c9a2015`（本地在）+ `up -d --no-deps registry`。

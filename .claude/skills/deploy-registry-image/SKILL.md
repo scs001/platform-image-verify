@@ -30,9 +30,13 @@ metadata:
 │    gh run list -R FindDataTechnology/mcp-gateway-registry --limit 3
 │    —— 全是 5~8 秒 failure = 账单阻断（2026-10-06 起复发），startup 级失败不是测试失败
 ├─ org 活着 → push main 自动触发 image.yml（标准线）
-└─ org 死了 → scs001 临时线：
-     git push scs001 <branch>:refs/heads/fd-<name>   # 分支名必须 fd-* 才触发其测试套件
-     gh workflow run image.yml -R scs001/mcp-gateway-registry --ref fd-<name>
+├─ org 死了 → scs001 临时线：
+│    git push scs001 <branch>:refs/heads/fd-<name>   # 分支名必须 fd-* 才触发其测试套件
+│    gh workflow run image.yml -R scs001/mcp-gateway-registry --ref fd-<name>
+└─ scs001 也额度尽（4 秒 billing 失败）→ law-ai-official org 线（2026-10-11 用户定案）：
+     gh repo create law-ai-official/mcp-gateway-registry-images --private
+     git push <该仓> main（快照法，配方见 tcr-image-pipeline「出片账号绕行梯」）
+     设 TCR_USERNAME/TCR_PASSWORD secrets（值=cheap-3 /etc/tcr-relay/env 同源）→ run image.yml
 ```
 
 - **不要用 cheap-3 本地 docker build**（慢且坑多：apt/PyPI 直连爬行、注入镜像源时 sed 表达式的 `|` 必须加单引号否则被容器 shell 当管道吃掉、apt 源在基础镜像 `/etc/apt/sources.list.d/` 里不在 Dockerfile 文本里）。仅作 GHA 全线瘫痪时的最后手段。
@@ -161,7 +165,7 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/python scripts/test.py unit -n 8
 
 | 现象 | 根因 | 处置 |
 |---|---|---|
-| GHA run 5~8 秒全红、零 step 执行 | org 账单阻断（startup failure） | 走 §1 scs001 临时线 |
+| GHA run 5~8 秒全红、零 step 执行 | org 账单阻断（startup failure） | 走 §1 scs001 临时线；scs001 同症 → law-ai-official org 线 |
 | hkccr 查不到刚推的 sha tag | tag 是 **7 位**不是 8 位 | 用 7 位重查 |
 | compose up 报 alpine/python 拉取超时 | 没带 `--no-deps`，旁支 init 服务拉 docker.io | `up -d --no-deps <svc>` |
 | 本地测试莫名全绿/串环境 | scripts/test.py 走了 PATH 的 micromamba pytest | `PATH=.venv/bin:$PATH` 前缀 |

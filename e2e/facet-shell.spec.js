@@ -9,7 +9,7 @@ import { expect, test } from "@playwright/test";
 
 const base = `http://127.0.0.1:${process.env.E2E_FACET_SHELL_PORT || 3209}`;
 
-test("all three shell views render without a routing provider", async ({ page }) => {
+test("all four shell views render without a routing provider", async ({ page }) => {
   const pageErrors = [];
   page.on("pageerror", (e) => pageErrors.push(String(e)));
   // Pin zh-CN: the infra views' copy assertions below read Chinese strings
@@ -65,6 +65,25 @@ test("all three shell views render without a routing provider", async ({ page })
   await expect(page.getByTestId("skills-catalog")).toBeVisible();
   await expect(page.getByTestId("skill-provenance-e2e-provenance-skill")).toContainText("https://github.com/example/e2e-skills");
   await expect(page.getByTestId("skill-provenance-e2e-bare-skill")).toContainText("未标注");
+
+  // docs (add-facet-docs-view): the three sections render statically, 壹座
+  // leads the install tabs, a target page carries the single-sourced facts,
+  // and the deep-guide links point into the public repository.
+  await page.goto(`${base}/#/docs`);
+  await expect(page.getByTestId("facet-docs-view")).toBeVisible();
+  await expect(page.getByTestId("docs-install")).toBeVisible();
+  await expect(page.getByTestId("docs-mcp")).toBeVisible();
+  await expect(page.getByTestId("docs-create")).toBeVisible();
+  await expect(page.getByTestId("docs-install-yizuo")).toBeVisible(); // default-selected
+  await page.getByTestId("docs-install-tab-cursor").click();
+  const cursorPane = page.getByTestId("docs-install-client-cursor");
+  await expect(cursorPane).toContainText("--target cursor");
+  await expect(cursorPane).toContainText("~/.cursor/skills");
+  await expect(cursorPane).toContainText("~/.cursor/mcp.json");
+  // The honest OAuth statement must render (no universal zero-paste promise).
+  await expect(page.getByTestId("docs-mcp-oauth-honest")).toBeVisible();
+  const guide = page.getByTestId("docs-create-deep-guide");
+  await expect(guide).toHaveAttribute("href", /github\.com\/FindDataTechnology\/platform\/blob\/main\/docs\/creating-packs\.md$/);
 
   expect(pageErrors, `page errors: ${pageErrors.join(" | ")}`).toEqual([]);
 });

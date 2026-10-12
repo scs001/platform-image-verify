@@ -1,10 +1,10 @@
 // Facet's thin shell: a header (text site mark + identity + locale switcher +
-// login/logout) over three hash-addressed views — the mechanism-first intro
+// login/logout) over hash-addressed views — the mechanism-first intro
 // (#/, the default landing), the 壹座 packs market surface reused verbatim
-// (#/packs), and the MCP catalog (#/mcp). v1 scope on the facet domain:
-// browse, inspect, subscribe (recorded at the market), publish via the same
-// /api/packs API. Cell-side install stays a 壹座 surface — the service answers
-// /api/mypacks/* with a guided 501 and the dialog shows it.
+// (#/packs), the MCP catalog (#/mcp), and the docs view (#/docs). v1 scope on
+// the facet domain: browse, inspect, subscribe (recorded at the market),
+// publish via the same /api/packs API. Cell-side install stays a 壹座 surface
+// — the service answers /api/mypacks/* with a guided 501 and the dialog shows it.
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { PackMarketView } from "@/components/packs/PackMarketView";
@@ -13,6 +13,7 @@ import { useLanguage } from "@/i18n/useLanguage";
 import { FACET_HELP_COMMAND } from "./cliFacts";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { CurateView } from "./CurateView";
+import { DocsView } from "./DocsView";
 import { IntroView } from "./IntroView";
 import { McpCatalog } from "./McpCatalog";
 import { MineView } from "./MineView";
@@ -22,7 +23,7 @@ import { SiteMark } from "./SiteMark";
 // Conditional views (add-facet-content-management): #/mine needs a signed-in
 // viewer, #/curate needs an admin — an unauthorized deep link falls back to
 // the intro landing (the data plane rejects those calls anyway).
-type View = "intro" | "packs" | "mcp" | "mine" | "curate";
+type View = "intro" | "packs" | "mcp" | "docs" | "mine" | "curate";
 
 type WhoamiUser = { email: string; groups: string[]; creator?: boolean; admin?: boolean } | null;
 
@@ -30,6 +31,7 @@ const VIEW_HASH: Record<View, string> = {
   intro: "#/",
   packs: "#/packs",
   mcp: "#/mcp",
+  docs: "#/docs",
   mine: "#/mine",
   curate: "#/curate",
 };
@@ -38,6 +40,7 @@ const VIEW_HASH: Record<View, string> = {
 function viewFromHash(hash: string, user: WhoamiUser): View {
   if (hash === "#/packs") return "packs";
   if (hash === "#/mcp") return "mcp";
+  if (hash === "#/docs") return "docs";
   if (hash === "#/mine") return user ? "mine" : "intro";
   if (hash === "#/curate") return user?.admin ? "curate" : "intro";
   return "intro";
@@ -102,6 +105,7 @@ export function App() {
     ["intro", t("facetShell.tabs.intro")],
     ["packs", t("facetShell.tabs.packs")],
     ["mcp", t("facetShell.tabs.mcp")],
+    ["docs", t("facetShell.tabs.docs")],
     ...(user ? ([["mine", t("facetShell.tabs.mine")]] as [View, string][]) : []),
     ...(user?.admin ? ([["curate", t("facetShell.tabs.curate")]] as [View, string][]) : []),
   ];
@@ -164,6 +168,7 @@ export function App() {
             </div>
           )}
           {view === "mcp" && <McpCatalog />}
+          {view === "docs" && <DocsView />}
           {view === "mine" && <MineView />}
           {view === "curate" && <CurateView />}
         </ErrorBoundary>

@@ -1031,10 +1031,94 @@
       "packs": "Packs",
       "mcp": "Servicios MCP",
       "mine": "Mis packs",
-      "curate": "Curaduría"
+      "curate": "Curaduría",
+      "docs": "Docs"
     },
     "langLabel": "Idioma",
     "packsFootnote": "Navegación anónima; inicia sesión para publicar y suscribirte. Uso de la CLI:"
+  },
+  "facetDocs": {
+    "title": "Documentación",
+    "subtitle": "Todo lo necesario desde un id de paquete hasta una instalación funcionando: instalar, conectar y crear.",
+    "packageNote": "Paquete CLI publicado:",
+    "nav": {
+      "install": "Instalar",
+      "mcp": "Acceso MCP",
+      "create": "Crear"
+    },
+    "install": {
+      "title": "Instalar un paquete",
+      "lead": "Suscríbete en el mercado y luego instala la instantánea de una versión en la herramienta que uses. 壹座 es la vía de primera clase — sin línea de comandos. La CLI cubre cinco editores.",
+      "marketNote": "Mercado: explora y copia el id del paquete en",
+      "yizuoTab": "壹座 (sin CLI)",
+      "yizuo": {
+        "title": "壹座 — la vía de primera clase",
+        "body": "Inicia sesión en 壹座 con la misma identidad que este mercado, suscríbete a un paquete e instálalo en tu runtime de conversación con un clic — las credenciales MCP ya están conectadas.",
+        "step1": "Explora el mercado y suscríbete a un paquete.",
+        "step2": "En 壹座, abre Ajustes → Paquetes → Mis paquetes.",
+        "step3": "Instala el paquete suscrito: sus habilidades, referencias MCP y personas de agente llegan juntas."
+      },
+      "client": {
+        "skillDir": "Las habilidades se escriben en",
+        "mcpFile": "Archivo de configuración MCP nativo:",
+        "deepGuide": "Guía detallada de este cliente (repositorio público)"
+      }
+    },
+    "clients": {
+      "claude-code": {
+        "label": "Claude Code",
+        "body": "Las habilidades se instalan como instantánea de versión; con una clave de llamada guardada, las referencias MCP del paquete pueden escribirse en su configuración MCP nativa."
+      },
+      "cursor": {
+        "label": "Cursor",
+        "body": "Las habilidades van al directorio de habilidades de Cursor; las entradas MCP se escriben en el archivo de configuración propio de Cursor."
+      },
+      "zcode": {
+        "label": "ZCode",
+        "body": "Las habilidades van al directorio de habilidades de ZCode; las entradas MCP se escriben en la configuración CLI de ZCode."
+      },
+      "codex": {
+        "label": "Codex CLI",
+        "body": "Las habilidades van al directorio de habilidades de Codex; las entradas MCP se escriben como TOML en la configuración de Codex."
+      },
+      "gemini-cli": {
+        "label": "Gemini CLI",
+        "body": "Las habilidades van al directorio de habilidades de Gemini CLI; las entradas MCP usan su forma httpUrl."
+      }
+    },
+    "mcp": {
+      "title": "Conectar servicios MCP",
+      "lead": "Los paquetes referencian servidores MCP que se ejecutan a través de la pasarela del registro. Hay dos vías de conexión: la universal con clave de llamada y la nativa del cliente por descubrimiento OAuth.",
+      "keyPath": {
+        "title": "Clave de llamada (universal)",
+        "body": "Crea una clave wgk- en la consola del registro; la CLI la verifica y la guarda localmente (0600). Después, install puede escribir la configuración MCP nativa de cada destino con esa clave.",
+        "mintNote": "Crea claves en la consola del registro:"
+      },
+      "oauthPath": {
+        "title": "Descubrimiento OAuth (nativo del cliente)",
+        "body": "El registro responde a las peticiones MCP sin autenticar con una cabecera WWW-Authenticate que apunta a los metadatos del recurso protegido, y sirve los documentos de descubrimiento estándar: los clientes compatibles pueden completar la autorización en el navegador.",
+        "honest": "Que la conexión se complete sin entrada manual depende del soporte OAuth del propio cliente; no se ofrece registro dinámico de clientes."
+      },
+      "essentials": {
+        "title": "Puntos clave",
+        "quota": "Las llamadas son gratuitas dentro de la cuota mensual; al superarla se rechazan con 402 y se restablece el mes siguiente.",
+        "tier": "Los servidores de nivel de pago (p. ej. law-bench) rechazan claves community con un aviso de mejora que nombra el nivel.",
+        "revoke": "Las claves pueden revocarse en la consola del registro en cualquier momento; la copia local puede borrarse desde la CLI."
+      }
+    },
+    "create": {
+      "title": "Crear y publicar un paquete",
+      "lead": "Publicar requiere el grupo creators. Hay tres vías de creación; todas pasan por la misma puerta de publicación y las versiones publicadas son inmutables.",
+      "routesTitle": "Tres vías de creación",
+      "route1": "En 壹座: Ajustes → Paquetes → Nuevo paquete — compón habilidades, referencias MCP y personas como borrador.",
+      "route2": "Conversión con un clic: convierte un preset propio en borrador de paquete (Ajustes → Presets personalizados → Publicar), con un informe de lo transferido y lo pendiente.",
+      "route3": "Desde la consola del autor (#/mine): envía un manifest directamente al endpoint de publicación; los errores de validación aparecen tal cual.",
+      "disciplineTitle": "Disciplina de publicación",
+      "versions": "Cada publicación añade una versión inmutable; cada versión puede llevar una nota breve (≤500 caracteres).",
+      "subscribe": "Suscribirse e instalar son dos actos: la suscripción se registra en el mercado; la instalación toma una instantánea de versión concreta.",
+      "gate": "Solo pueden referenciarse servidores MCP registrados en el registro; las entradas de agente son solo persona.",
+      "deepGuide": "Guía detallada de creación (repositorio público)"
+    }
   },
   "facetIntro": {
     "title": "Mil facetas — el mercado de packs y herramientas para editores de IA",

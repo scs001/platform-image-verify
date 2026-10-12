@@ -114,6 +114,11 @@ function extractPackId(ref) {
   return String(ref).trim();
 }
 
+// SKILLS_SUBDIR and MCP_TARGETS are exported for the docs-facts single-source
+// test (add-facet-docs-view): the shell's documentation view renders target
+// directories and native MCP config paths from its own facts table, and
+// scripts/test-facet-docs-facts.mjs asserts the two tables are equal — the
+// docs cannot drift from the shipped CLI.
 const SKILLS_SUBDIR = {
   "claude-code": ".claude",
   cursor: ".cursor",
@@ -536,7 +541,7 @@ async function prefs(opts) {
   }
 }
 
-export { parseArgs, extractPackId, targetDir };
+export { parseArgs, extractPackId, targetDir, SKILLS_SUBDIR, MCP_TARGETS };
 
 // Both sides go through realpath: npm/npx run the bin through a symlink in
 // node_modules/.bin, so argv[1] is the link while import.meta.url is already

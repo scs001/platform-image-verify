@@ -1031,10 +1031,94 @@
       "packs": "功能集",
       "mcp": "MCP 服务",
       "mine": "我的功能集",
-      "curate": "策展"
+      "curate": "策展",
+      "docs": "文档"
     },
     "langLabel": "语言",
     "packsFootnote": "匿名可浏览，登录后可发布订阅；CLI 安装与用法明细见"
+  },
+  "facetDocs": {
+    "title": "使用文档",
+    "subtitle": "从一个功能集 id 到装好可用，这里都有——安装、接入、创作。",
+    "packageNote": "已发布的 CLI 包名：",
+    "nav": {
+      "install": "安装",
+      "mcp": "MCP 接入",
+      "create": "创作"
+    },
+    "install": {
+      "title": "安装功能集",
+      "lead": "在市场订阅，然后把某个版本的快照装进你实际使用的工具。壹座是第一公民路径——不需要命令行；CLI 覆盖五个编辑器目标。",
+      "marketNote": "市场——浏览并复制功能集 id：",
+      "yizuoTab": "壹座（免命令行）",
+      "yizuo": {
+        "title": "壹座——第一公民路径",
+        "body": "用与本市场相同的身份登录壹座，订阅功能集，然后一键装进你的对话运行时——MCP 凭据已接线。",
+        "step1": "在本市场浏览并订阅一个功能集。",
+        "step2": "在壹座打开 设置 → 功能集 → 我的功能集。",
+        "step3": "安装已订阅的功能集——技能、MCP 引用与 agent 角色一起到位。"
+      },
+      "client": {
+        "skillDir": "技能写入：",
+        "mcpFile": "原生 MCP 配置文件：",
+        "deepGuide": "该客户端的深度指南（公开仓库）"
+      }
+    },
+    "clients": {
+      "claude-code": {
+        "label": "Claude Code",
+        "body": "技能以版本快照安装；存好调用键后，功能集的 MCP 引用可写进其原生 MCP 配置。"
+      },
+      "cursor": {
+        "label": "Cursor",
+        "body": "技能落 Cursor 的技能目录；MCP 条目写进 Cursor 自己的配置文件。"
+      },
+      "zcode": {
+        "label": "ZCode",
+        "body": "技能落 ZCode 的技能目录；MCP 条目写进 ZCode 的 CLI 配置。"
+      },
+      "codex": {
+        "label": "Codex CLI",
+        "body": "技能落 Codex 的技能目录；MCP 条目以 TOML 形式写进 Codex 配置。"
+      },
+      "gemini-cli": {
+        "label": "Gemini CLI",
+        "body": "技能落 Gemini CLI 的技能目录；MCP 条目用其 httpUrl 形状。"
+      }
+    },
+    "mcp": {
+      "title": "接入 MCP 服务",
+      "lead": "功能集引用的 MCP 服务经注册处网关调用。连接有两条路——通用的调用键路径，与客户端原生的 OAuth 发现路径。",
+      "keyPath": {
+        "title": "调用键（通用）",
+        "body": "在注册处控制台铸取 wgk- 调用键；CLI 验活并存本地（0600）。之后 install 可把该键写进各客户端原生的 MCP 配置。",
+        "mintNote": "铸键入口（注册处控制台）："
+      },
+      "oauthPath": {
+        "title": "OAuth 发现（客户端原生）",
+        "body": "注册处对未鉴权的 MCP 请求返回 WWW-Authenticate 头，指向受保护资源元数据，并提供标准发现文档——支持 OAuth 发现的客户端可在浏览器完成授权。",
+        "honest": "能否零手工输入完成连接，取决于你的客户端自身的 OAuth 支持程度；本注册处未提供动态客户端注册。"
+      },
+      "essentials": {
+        "title": "要点",
+        "quota": "月度免费额度内调用免费；超额返回 402，次月自动重置。",
+        "tier": "付费档服务（如 law-bench）对 community 键返回指名付费档的升级提示。",
+        "revoke": "调用键可在注册处控制台随时吊销；本地留存可在 CLI 中清除。"
+      }
+    },
+    "create": {
+      "title": "创作与发布功能集",
+      "lead": "发布需要 creators 组。三条组装路径，最终都过同一道发布门；版本一经发布不可变。",
+      "routesTitle": "三条组装路径",
+      "route1": "壹座内：设置 → 功能集 → 新建功能集——以草稿形式组装技能、MCP 引用与角色。",
+      "route2": "一键转换：把自建预设转成功能集草稿（设置 → 自建预设 → 发布并部署），附「带走了什么、还需替换什么」的报告。",
+      "route3": "作者面（#/mine）：把 manifest 直发发布端点；校验错误原样呈现。",
+      "disciplineTitle": "发布纪律",
+      "versions": "每次发布追加一个不可变版本；每版可带一段简短说明（≤500 字）。",
+      "subscribe": "订阅与安装是两个动作：订阅记录在市场；安装取的是确定的版本快照。",
+      "gate": "MCP 只能引用注册处已注册的 server；角色条目仅限 persona。",
+      "deepGuide": "创作深度指南（公开仓库）"
+    }
   },
   "facetIntro": {
     "title": "千人千面 —— AI 编辑器的功能集与工具分发市场",

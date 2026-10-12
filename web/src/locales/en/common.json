@@ -1031,10 +1031,94 @@
       "packs": "Packs",
       "mcp": "MCP services",
       "mine": "My packs",
-      "curate": "Curation"
+      "curate": "Curation",
+      "docs": "Docs"
     },
     "langLabel": "Language",
     "packsFootnote": "Anonymous browsing; sign in to publish and subscribe. CLI usage:"
+  },
+  "facetDocs": {
+    "title": "Documentation",
+    "subtitle": "Everything from a pack id to a working setup — install, connect, and create.",
+    "packageNote": "Published CLI package:",
+    "nav": {
+      "install": "Install",
+      "mcp": "MCP access",
+      "create": "Create"
+    },
+    "install": {
+      "title": "Install a pack",
+      "lead": "Subscribe in the market, then install a version snapshot into the tool you actually use. 壹座 is the first-citizen path — no command line. The CLI covers five editor targets.",
+      "marketNote": "Market — browse and copy a pack id at",
+      "yizuoTab": "壹座 (no CLI)",
+      "yizuo": {
+        "title": "壹座 — the first-citizen path",
+        "body": "Sign in to 壹座 with the same identity as this market, subscribe to a pack, then install it into your conversation runtime in one click — MCP credentials are already wired.",
+        "step1": "Browse the market here and subscribe to a pack.",
+        "step2": "In 壹座, open Settings → Packs → My packs.",
+        "step3": "Install the subscribed pack — its skills, MCP references, and agent personas arrive together."
+      },
+      "client": {
+        "skillDir": "Skills are written to",
+        "mcpFile": "Native MCP config file:",
+        "deepGuide": "Deep guide for this client (public repository)"
+      }
+    },
+    "clients": {
+      "claude-code": {
+        "label": "Claude Code",
+        "body": "Skills install as a version snapshot; once a caller key is stored, the pack's MCP references can be written into the native MCP configuration."
+      },
+      "cursor": {
+        "label": "Cursor",
+        "body": "Skills land in Cursor's skills directory; MCP entries are written into Cursor's own configuration file."
+      },
+      "zcode": {
+        "label": "ZCode",
+        "body": "Skills land in ZCode's skills directory; MCP entries are written into ZCode's CLI configuration."
+      },
+      "codex": {
+        "label": "Codex CLI",
+        "body": "Skills land in Codex's skills directory; MCP entries are written as TOML into Codex's configuration."
+      },
+      "gemini-cli": {
+        "label": "Gemini CLI",
+        "body": "Skills land in Gemini CLI's skills directory; MCP entries use its httpUrl shape."
+      }
+    },
+    "mcp": {
+      "title": "Connect MCP services",
+      "lead": "Packs reference MCP servers that run through the registry gateway. Two connection paths exist — the universal caller-key path and the client-native OAuth discovery path.",
+      "keyPath": {
+        "title": "Caller key (universal)",
+        "body": "Mint a wgk- caller key in the registry console; the CLI verifies it and stores it locally (0600). After that, install can write each target's native MCP configuration carrying that key.",
+        "mintNote": "Mint keys in the registry console:"
+      },
+      "oauthPath": {
+        "title": "OAuth discovery (client-native)",
+        "body": "The registry answers unauthenticated MCP requests with a WWW-Authenticate header pointing at its protected-resource metadata, and serves the standard discovery documents — clients that support OAuth discovery can complete authorization in the browser.",
+        "honest": "Whether the connection completes with zero manual entry depends on your client's own OAuth support; dynamic client registration is not offered."
+      },
+      "essentials": {
+        "title": "Essentials",
+        "quota": "Calls are free within the monthly free quota; over-quota calls are refused with 402 and reset next month.",
+        "tier": "Paid-tier servers (e.g. law-bench) refuse community keys with an upgrade prompt naming the tier.",
+        "revoke": "Keys can be revoked in the registry console at any time; the local copy can be cleared from the CLI."
+      }
+    },
+    "create": {
+      "title": "Create and publish a pack",
+      "lead": "Publishing requires the creators group. Three authoring routes exist; all of them end at the same publish gate, and published versions are immutable.",
+      "routesTitle": "Three authoring routes",
+      "route1": "In 壹座: Settings → Packs → New pack — compose skills, MCP references, and personas as a draft.",
+      "route2": "One-click conversion: turn a custom preset into a pack draft (Settings → Custom presets → Publish), with a report of what was carried and what needs replacing.",
+      "route3": "From the creator console (#/mine): submit a pack manifest directly to the publish endpoint; validation errors surface verbatim.",
+      "disciplineTitle": "Publishing discipline",
+      "versions": "Every publish appends an immutable version; each version may carry a short note (≤500 characters).",
+      "subscribe": "Subscribe and install are two acts: a subscription is recorded in the market; installing takes a definite version snapshot.",
+      "gate": "Only registry-registered MCP servers can be referenced; agent entries are persona-only.",
+      "deepGuide": "Deep authoring guide (public repository)"
+    }
   },
   "facetIntro": {
     "title": "A thousand facets — the pack-and-tool marketplace for AI editors",

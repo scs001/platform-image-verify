@@ -85,10 +85,12 @@ F1.3 文档面），谦面域内自解释闭环成立。
 | 切片 | change | 内容 |
 |---|---|---|
 | F2.1 | `add-facet-client-walkthroughs` | ✅ 2026-10-12（dcb761d+OSS d645590）：五客户端真环境 walkthrough——console 铸 wgk 键→connect 验活 0600→五 target install --write-mcp 技能+配置形状逐字节验证→wire initialize 200（fd-cn-report）；实证回填 docs/ecosystem/*.md+公开仓。三诚实边界入档：停用 server=405（fd-daas/fd-open-data location 当前注释，运维项）、设备流 facet-cli 未注册 IdP（粘贴键为可用路径）、双 Accept 要求 |
-| F2.2 | `add-facet-client-matrix` | 支持矩阵（客户端×能力：技能安装/项目级/MCP 配置写/更新路径），文档+定期冒烟脚本（照 dsh-version-matrix 先例） |
-| F2.3 | `add-facet-cli-update` | CLI `update` 命令 = 重取最新版快照，无订阅副作用（快照模型不动），报版本前后 |
+| F2.2 | `add-facet-client-matrix` | ✅ 2026-10-12（dd2506b，sha-5c99ea2 三面滚+OSS 34da38e）：逐格出处矩阵（深文档+#/docs 表[cliFacts 单源]+冒烟脚本生产 PASS 5/5；事实单测咬合能力表↔MCP_TARGETS） |
+| F2.3 | `add-facet-cli-update` | ✅ 2026-10-12（dd2506b）：installed.json 记录+`facet update`（三态/零订阅副作用/v0.2.2）；**npm 发布挂账** org GHA 账单（仓库内 CLI 可用） |
 
-**出口判据**：五客户端各有生产实证 walkthrough；矩阵公开在 `#/docs`；update 可用。
+**出口判据**：五客户端各有生产实证 walkthrough ✅；矩阵公开在 `#/docs` ✅；update 可用 ✅
+（npm 渠道待 org 账单恢复——2026-10-12）。**F2 全片完结**（出口判据达成，npm 发行为
+渠道恢复项非功能缺口）。
 
 **质量线**：walkthrough 必须真环境录证（照 paas-release 的生产实证标准），不接受
 文档想象。

@@ -47,11 +47,20 @@ function pidAlive(pid) {
 }
 
 // Flatten a dsh usage payload to a token count; null when absent (metering
-// records the turn without tokens rather than guessing).
+// records the turn without tokens rather than guessing). Two shapes: OpenAI
+// totals (total_tokens/totalTokens/tokens) first, then the dsh harness shape
+// the pi-ai adapter emits on EVERY terminal event — separate camelCase
+// input/output counts with no total field, which is why 700/700 live meter
+// rows read tokens:null before this (live finding 2026-10-14; cache counts
+// stay excluded — the sum is input+output, the spec's 合计口径).
 function tokensOf(usage) {
   if (!usage || typeof usage !== "object") return null;
   const t = usage.total_tokens ?? usage.totalTokens ?? usage.tokens;
-  return Number.isFinite(Number(t)) ? Number(t) : null;
+  if (Number.isFinite(Number(t))) return Number(t);
+  const input = Number(usage.inputTokens ?? usage.input_tokens);
+  const output = Number(usage.outputTokens ?? usage.output_tokens);
+  if (Number.isFinite(input) && Number.isFinite(output)) return input + output;
+  return null;
 }
 import { agentKeyFor, materializeAgentHome, mcpEntry, applyBillingKey, applyDeploymentSecrets, workspaceChildEnv } from "./compose.js";
 

@@ -56,7 +56,7 @@ test.after(() => rmSync(tmpRoot, { recursive: true, force: true }));
 
 // ── Fake harness client: records calls, replies to prompt with a scripted ──
 // turn (text deltas + final message + idle), per the dsh notification shapes.
-function fakeHarnessClient({ reply = "ok", delayMs = 0, failPrompt = false } = {}) {
+function fakeHarnessClient({ reply = "ok", delayMs = 0, failPrompt = false, noUsage = false } = {}) {
   const calls = { initialize: [], prompt: [], requests: [], started: 0, stopped: 0 };
   const client = {
     calls,
@@ -112,7 +112,11 @@ function fakeHarnessClient({ reply = "ok", delayMs = 0, failPrompt = false } = {
       setTimeout(() => {
         emit({ method: "session.event", params: { sessionId, event: { type: "turn/start", data: {} } } });
         emit({ method: "session.event", params: { sessionId, event: { type: "assistant/chunk", data: { chunk: { type: "text-delta", text: reply.slice(0, 2) } } } } });
-        emit({ method: "session.event", params: { sessionId, event: { type: "assistant/message", data: { message: { content: [{ type: "text", text: reply }] } } } } });
+        // usage rides ON the assistant/message event at data.usage — the dsh
+        // harness shape (agent-loop appends assembler.usage there; the pi-ai
+        // adapter emits a usage chunk on every terminal event). camelCase
+        // input/output counts, no total field (fix-turn-token-attribution).
+        emit({ method: "session.event", params: { sessionId, event: { type: "assistant/message", data: { message: { content: [{ type: "text", text: reply }] }, ...(noUsage ? {} : { usage: { inputTokens: 120, outputTokens: 30 } }) } } } });
         emit({ method: "session.status", params: { sessionId, status: "idle" } });
       }, delayMs);
       return `msg-${calls.prompt.length}`;
@@ -683,6 +687,22 @@ test("metering: every turn kind lands one jsonl line", async () => {
     assert.equal(lines[1].kind, "self");
     assert.equal(typeof lines[0].at, "string");
     assert.ok(lines[0].durationMs >= 0);
+    // Harness usage shape sums input+output (the 700/700 tokens:null fix).
+    assert.equal(lines[0].tokens, 150, "inputTokens+outputTokens sums into the meter's tokens");
+  } finally {
+    await manager.stopAll();
+  }
+});
+
+test("metering: no usage event leaves tokens null (never guessed)", async () => {
+  const { manager, config } = await directManager({ harness: { noUsage: true } });
+  try {
+    await manager.reconcile();
+    const out = await manager.turn(ENTRY, "s1", "hi");
+    assert.equal(out.text, "答复");
+    const lines = readFileSync(config.meterFile, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+    assert.equal(lines[0].ok, true);
+    assert.equal(lines[0].tokens, null, "absent usage records null, not a guess");
   } finally {
     await manager.stopAll();
   }
@@ -1504,8 +1524,11 @@ test("attribution: turn_started/turn_ended carry session; ok turns carry tokens"
     const ended = collected.find((e) => e.kind === "turn_ended" && e.payload.outcome === "ok");
     assert.equal(started.payload.session, "srv-mission-msn_x1");
     assert.equal(ended.payload.session, "srv-mission-msn_x1");
-    // The fake harness reports no usage — the spec says absent, not blank.
-    assert.ok(!("tokens" in ended.payload));
+    // The fake harness now mirrors dsh's real shape — usage rides the
+    // assistant/message event every turn, so the ok turn carries summed
+    // tokens (fix-turn-token-attribution; the null path is pinned by the
+    // noUsage metering test).
+    assert.equal(ended.payload.tokens, 150, "harness input+output sums into turn_ended tokens");
   } finally {
     await manager.stopAll?.() ?? manager.stop?.();
   }

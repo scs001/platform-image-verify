@@ -23,6 +23,6 @@
 
 ## 4. 上线与验收
 
-- [ ] 4.1 出片（scs001 绕行线）→ ccr 落地 → GitOps 滚 platform/platform-demo
-- [ ] 4.2 生产实证：设置面板保存 url/token → patch 重写含新值（scoped 在场时派生值不变）；测试按钮分类正确（503 上游干涸如实标注）；清除回退 env；非管理员 403
+- [x] 4.1 出片（scs001 绕行线）→ ccr 落地 → GitOps 滚 platform/platform-demo
+- [x] 4.2 生产实证：设置面板保存 url/token → patch 重写含新值（scoped 在场时派生值不变）；测试按钮分类正确（503 上游干涸如实标注）；清除回退 env；非管理员 403
 - [ ] 4.3 归档（validate + archive + 记忆）

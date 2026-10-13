@@ -24,6 +24,6 @@
 ## 4. 上线与验收
 
 - [x] 4.1 relay 出片+滚动（keys.json 现场加 scoped_master，静态 fb0afc 保留）；cheap1 本地探针双通道实证（静态过 + 派生过 + denylist 拒）——已上线 scoped=on（GitOps 双文件 ConfigMap+目录挂载 keys）；双通道探针 503/401 判别实证；**热撤销生产实证**（改 secret revoked_scopes → kubelet 同步 → 无重启 401 reason=revoked，静态通道无伤）
-- [ ] 4.2 platform 滚动（env 加 SEARCH_RELAY_SCOPED_MASTER + SEARCH_RELAY_SCOPE_ID）；验证新写 cell patch 的 SEARCH_RELAY_TOKEN 为 wsrc- 派生值、文件 mode 0600 ——**半程**：镜像 sha-6827f35 与 master env 双 pod 已实证；cell 内派生日志已现（`derived per cell scope=cell-3fdc7b8e8ac0`）；patch 落盘复核（wsrc+0600）待 cell 下次组合——**被西安节点事故阻塞（见 4.3）**
-- [ ] 4.3 端到端：装包 → websearch 实调走派生令牌 200；诊断端点各 server 态可见；演示 cell cat patch 仅见本 cell 作用域值 ——**阻塞**：西安三节点（liuliang*）2026-10-13 10:15+0800 起 NotReady，platform/facet/search-relay 全在其上、全域 000；节点恢复后执行
+- [x] 4.2 platform 滚动（env 加 SEARCH_RELAY_SCOPED_MASTER + SEARCH_RELAY_SCOPE_ID）；验证新写 cell patch 的 SEARCH_RELAY_TOKEN 为 wsrc- 派生值、文件 mode 0600 ——**完成**：镜像 sha-6827f35 + master env 双 pod 实证；演示 cell patch 实测 `mode=600` + `wsrc-cell-3fdc7b8e8ac0-fab9f727…`（cell 重启自动重生，其余 cell 待各自下次组合自然迁移）；共享值 fb0afc 不在任何 patch
+- [x] 4.3 端到端：装包 → websearch 实调走派生令牌 200；诊断端点各 server 态可见；演示 cell cat patch 仅见本 cell 作用域值 ——**完成**（西安节点恢复后）：`/api/diagnostics/mcp` 经 gateway HTTP 200 返三态（fd-cn-report/fd-daas-mcp `ok` + fd-find-data-business-mcp `auth-rejected 403` 真实暴露，正是本 change 要消灭的三无声）；relay 归因日志 `503 token=wsrc:cell-3fdc7b8e8ac0`（派生令牌过鉴权，503=serpapi 池干涸既有状态）；旧泄露令牌 b99fef 实测 401（死透）
 - [x] 4.4 归档前 `openspec validate --specs` 全绿（133 passed）+ 把"dsh 侧凭据代理（headers ref 化）"记为长期方向备注（design.md Non-Goals 已载）

@@ -343,8 +343,8 @@ IA 先行（可视化在重构之后，不在旧骨架上堆）；容量物理�
 
 | 切片 | 内容 | 出口 |
 |---|---|---|
-| 5.1 合规摸底 | 经营性增项与等保评估：范围盘点（对外对话车道/计费/分成=经营面、数据出境面、日志留存、隐私政策与用户协议文案位）。域名备案已在（介绍页备案号在案），此处指经营性许可与等保定级。公司侧主导，工程侧供材料+落地整改 | 评估结论「可开门」或整改清零 |
-| 5.2 开门动作 | `PACK_ACCESS_MODE=open`（runbook=DEPLOY.md 拧开关配方表）+宣布渠道。开门即验三件：whoami accessMode=open、非 creator 一发一部署真实走通、水位线拒绝路径演练（临时调低 `FLEET_CAPACITY_WATERLINE_MB` 重现 503 后复位）。前置复核两件：水位线数值 vs 三 runner 实余量（待定决策表）、marketplace.json 收录口径接策展（K1） | 三验记录在案 |
+| 5.2 开门动作 | `PACK_ACCESS_MODE=open`（runbook=DEPLOY.md 拧开关配方表）+宣布渠道。开门即验三件：whoami accessMode=open、非 creator 一发一部署真实走通、水位线拒绝路径演练（临时调低 `FLEET_CAPACITY_WATERLINE_MB` 重现 503 后复位）。前置复核两件：水位线数值 vs 三 runner 实余量（待定决策表）、marketplace.json 收录口径接策展（K1 ✅ 已于 2026-10-13 提前完成） | 三验记录在案 |
+| 5.1 合规摸底 | 经营性增项与等保评估：范围盘点（对外对话车道/计费/分成=经营面、数据出境面、日志留存、隐私政策与用户协议文案位）。域名备案已在（介绍页备案号在案），此处指经营性许可与等保定级。公司侧主导，工程侧供材料+落地整改。**工程侧材料 v0 已备 2026-10-13**（`docs/compliance-opening-assessment.md`） | 评估结论「可开门」或整改清零 |
 | 5.3 首批用户旅程 | 邀 3-5 名非运营自己人（伙伴侧若触发一并）零运维介入全程自助：发现→筛选→集合→预配置→部署→驾驶舱看进度成本；断点即修（邀请与组织=用户行动项） | M4 内部出口判据兑现（≥3 agents 全程自助） |
 | 5.4 运营节奏固化 | 遥测月报（`probe-m1-weekly-active` 按月、全量口径为主单口径对照）+策展 cadence（category/featured 维护纪律）+creator 准入阈值运营（community→creator 升档流程化） | 连续两个月月报在案 |
 | 5.5 欠账清偿 | 工程欠账清单（见下节）逐项处置；K1 随 5.2 前置完成 | 清单清零或降级观察项 |
@@ -382,7 +382,7 @@ IA 先行（可视化在重构之后，不在旧骨架上堆）；容量物理�
 
 | # | 欠账 | 性质 | 出处 | 处置 |
 |---|---|---|---|---|
-| K1 | marketplace.json 收录口径未接策展信号——D5 定案「公开且已策展（category 非空或 featured），与浏览面一致」；现实现=公开非 unlisted + env 白名单（`FACET_MARKETPLACE_PACK_IDS`，未设列全量） | 开门前收敛项（creator 开放后 Claude 原生市场面会被全量公开包灌满） | 市场线 D5 | 小切片：过滤接 category∨featured，env 白名单保留为覆写；随 M5.2 前置完成 |
+| K1 | ~~marketplace.json 收录口径未接策展信号~~ | ✅ **已销账 2026-10-13**（`wire-marketplace-json-curation` 全链：真 sha-e279152/镜像 sha-5ccc968/GitOps 59b3b9b；生产实证 19/19 与 packs DB 策展集合逐 id 全等、未策展公开包树直链 200、非公开 404；白名单覆写语义保已设部署零变化） | 市场线 D5 | 见本行 |
 | K2 | npm CLI 发布挂 org GHA 账单（v0.2.2 功能完备、v0.3.0 含发布桥在仓） | 渠道 | F2.3/F3.2 | 账单恢复即发（动作项非开发项） |
 | K3 | M2 出口夜间形态样本（夜间窗执行+晨报送达+成本对账） | 验收完备 | M2 出口 | M5.5 采集：真实夜间 mission 一单 |
 | K4 | M3 出口双向样本（互调+各引数据+双方结算） | 终态验收 | M3 出口 | 终态线·场景B 深化首切片内采 |
@@ -392,7 +392,9 @@ IA 先行（可视化在重构之后，不在旧骨架上堆）；容量物理�
 销账记录：F3.3 验收挖出的「车道≠dsh 花名册静默空返且照常计费」已于 2026-10-13
 五连环修复清偿——fd-wanxing fix-error-turn-billing + paas add-deploy-roster-gate /
 add-config-roster-gate / fix-empty-turn-billing / fix-turn-token-attribution；生产复核
-错回合 waived、tokens 真数值 428 在案（案例卡坑②）。
+错回合 waived、tokens 真数值 428 在案（案例卡坑②）。K1 同日销账（见上表行）。
+M5.1 工程侧材料 v0 已备（`docs/compliance-opening-assessment.md`——经营面/数据面/
+出境面/日志留存盘点+待公司侧定夺五项，只供料不下结论）。
 
 ## 终态线（M5 后按信号立项，不预排期）
 

@@ -6,6 +6,7 @@
 > （托管+售卖）杂交；壹座 = 第一公民客户端；萬星 = 执行层承接。
 > 2026-10-13 完善轮：F4 终态推进立项（M5 窗并行，按信号启动）；D1-D5 挂账对账
 > （四落地一待接线）；F3 验收缺陷已销账（记入伞文档工程欠账清单口径）。
+> 同日补记：D5/K1 已由 `wire-marketplace-json-curation` 接线收口（见挂账表），五项全清。
 
 ## 北极星
 
@@ -148,7 +149,7 @@ F4.3=策展纪律+月评连续两个月在案。
 | D2 | 版本说明字段 | ✅ 已落地（F1.1：manifest `notes` ≤500 字、随版本不可变） |
 | D3 | `#/docs` 家法 | ✅ 已落地（F1.3：壳内静态五语 + OSS 仓深度文档，双层） |
 | D4 | CLI update 语义 | ✅ 已落地（F2.3：=重取最新快照，模型与订阅语义都不动） |
-| D5 | marketplace.json 收录 | ◐ 定案未接线：定案口径「公开且已策展（category 非空或 featured），与浏览面一致」；现实现=公开非 unlisted + env 白名单（`FACET_MARKETPLACE_PACK_IDS`，未设列全量公开包）。待小切片接线=伞文档工程欠账 **K1**，M5.2 开门前完成 |
+| D5 | marketplace.json 收录 | ✅ 已接线（2026-10-13 `wire-marketplace-json-curation`，真 sha-e279152/镜像 sha-5ccc968）：默认=公开∧¬unlisted∧（category∨featured）与浏览面一致；`FACET_MARKETPLACE_PACK_IDS` 白名单升为覆写语义（已设零变化）；未策展公开包插件树直链仍可取；生产实证 19/19 全等 |
 
 ## 与伞的对齐
 

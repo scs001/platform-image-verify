@@ -75,6 +75,11 @@ export function Composer({ send, value, onChange, focusTick = 0 }: Props) {
   const pendingConfig = useChatStore((s) => s.pendingConfig);
   const hasPermissionRoster = useChatStore((s) => s.permissionOptions.length > 0);
   const openPreview = usePreviewStore((s) => s.open);
+  // Submit latch (chat-streaming: latched submission): true from send until
+  // the `user` echo — Enter-repeat and double-click duplicates die here, and
+  // the send control shows an in-progress state through the blind window
+  // between "prompt left" and "agent_start".
+  const promptInFlight = useChatStore((s) => s.promptInFlight);
 
   const [acIdx, setAcIdx] = useState(0);
   // Esc "dismisses" the picker without clearing the composer (a separate
@@ -108,7 +113,15 @@ export function Composer({ send, value, onChange, focusTick = 0 }: Props) {
   // never competes with a parallel prompt in the same turn.
   const pendingQuestion = useChatStore((s) => s.pendingQuestion);
   const canSend =
-    !!trimmed && !disabled && !isUploading && pendingConfig === null && pendingQuestion === null;
+    !!trimmed &&
+    !disabled &&
+    !isUploading &&
+    pendingConfig === null &&
+    pendingQuestion === null &&
+    // Latched (this prompt's echo hasn't landed) or streaming (a run owns the
+    // floor) — both mean another submission cannot produce an honest new turn.
+    !promptInFlight &&
+    !isStreaming;
 
   // Built-in commands (Commands section). Skills come from the store and are
   // rendered as the Skills section inside <SlashCommandPicker>. Memoized on
@@ -150,6 +163,11 @@ export function Composer({ send, value, onChange, focusTick = 0 }: Props) {
 
   const submit = () => {
     if (!canSend) return;
+    // Stale-closure armor: an Enter key-repeat firing before the re-render
+    // still sees the old (latch-free) canSend — the store read is always
+    // fresh, and the latch is set before the send leaves.
+    const chat = useChatStore.getState();
+    if (chat.promptInFlight || chat.isStreaming) return;
 
     // Local commands never reach the server.
     if (/^\/clear\b/i.test(trimmed)) {
@@ -173,7 +191,9 @@ export function Composer({ send, value, onChange, focusTick = 0 }: Props) {
     const text = refs ? `${trimmed} ${refs}` : trimmed;
 
     // The server echoes the user turn back as a `user` event - no optimistic
-    // append here, or it renders twice.
+    // append here, or it renders twice. The latch arms now so the blind window
+    // between "prompt left" and "agent_start" cannot produce a re-send.
+    chat.beginPromptSubmit();
     send({ type: "prompt", text });
     onChange("");
     setAttachments([]);
@@ -462,10 +482,20 @@ export function Composer({ send, value, onChange, focusTick = 0 }: Props) {
           onAttach={() => fileInputRef.current?.click()}
           trailing={
             /* Typing is never disabled — a local-first product must absorb the
-               outage, not punish it: draft while disconnected, send when back. */
+               outage, not punish it: draft while disconnected, send when back.
+               Three states: a live run owns the Stop control (real cancel via
+               stop_turn + the local finalize for instant feedback); a latched
+               submission shows the in-progress spinner through the blind
+               window until agent_start takes over; otherwise Send. */
             isStreaming ? (
               <button
-                onClick={stopStreaming}
+                onClick={() => {
+                  // Real stop (live-runtime-control): the server cancels the
+                  // run in the child; the local finalize below stays the
+                  // instant-view fallback and the suppression clearer.
+                  send({ type: "stop_turn" });
+                  stopStreaming();
+                }}
                 aria-label={t("composer.stop")}
                 data-testid="composer-stop"
                 className={cn(
@@ -475,6 +505,15 @@ export function Composer({ send, value, onChange, focusTick = 0 }: Props) {
               >
                 <Square className="h-3 w-3 fill-current" />
               </button>
+            ) : promptInFlight ? (
+              <span
+                role="status"
+                aria-label={t("composer.sending")}
+                data-testid="composer-sending"
+                className="grid h-8 w-8 shrink-0 place-items-center"
+              >
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </span>
             ) : (
               <button
                 onClick={submit}

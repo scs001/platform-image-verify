@@ -205,8 +205,13 @@
         "confirm": "Activer l’accès complet"
       },
       "add": "Ajouter un fichier ou une commande",
-      "more": "Plus"
-    }
+      "more": "Plus",
+      "websearch": "Recherche web",
+      "websearchHint": "Active la recherche web pour cette conversation (désactivée par défaut)",
+      "ctx": "ctx {{pct}}%",
+      "ctxHint": "{{tokens}} / {{window}} tokens"
+    },
+    "sending": "Envoi…"
   },
   "chat": {
     "empty": "Envoyez un message pour commencer à discuter.",
@@ -333,7 +338,8 @@
     "retryWaitingNoBudget": "Passerelle saturée, nouvelle tentative ({{retry}})…",
     "retryStarted": "Nouvelle tentative…",
     "connectionLost": "Connexion perdue, reprise…",
-    "resumedLag": "Reconnecté ; le contenu peut être en retard"
+    "resumedLag": "Reconnecté ; le contenu peut être en retard",
+    "usage": "in {{in}} · out {{out}}"
   },
   "markdown": {
     "copy": "Copier",
@@ -779,13 +785,6 @@
       "save": "Enregistrer",
       "saving": "Enregistrement…",
       "saved": "Enregistré",
-      "test": {
-        "ok": "Connecté",
-        "auth-rejected": "Jeton refusé",
-        "upstream-degraded": "Joignable, mais le fournisseur de recherche est dégradé",
-        "unreachable": "Service injoignable",
-        "invalid-url": "Saisissez d'abord une URL http(s) valide"
-      },
       "testing": "Test en cours…",
       "sourceStored": "Enregistré ici",
       "sourceEnv": "Réglage du déploiement",
@@ -813,6 +812,14 @@
         "poolUsage": "{{day}} : {{used}} recherches avec des clés utilisateur, {{fallback}} retours au pool",
         "poolDry": "Pool épuisé {{count}} fois aujourd'hui — ajoutez une clé amont pour rétablir la recherche.",
         "poolUnreachable": "Statistiques du relais injoignables"
+      },
+      "test": "Tester la connexion",
+      "testStates": {
+        "ok": "Connecté",
+        "auth-rejected": "Jeton refusé",
+        "upstream-degraded": "Joignable, mais le fournisseur de recherche est dégradé",
+        "unreachable": "Service injoignable",
+        "invalid-url": "Saisissez d'abord une URL http(s) valide"
       }
     }
   },

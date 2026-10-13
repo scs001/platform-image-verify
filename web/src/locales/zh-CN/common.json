@@ -205,8 +205,13 @@
         "confirm": "启用完全访问"
       },
       "add": "添加文件或命令",
-      "more": "更多"
-    }
+      "more": "更多",
+      "websearch": "网络搜索",
+      "websearchHint": "为本会话开启联网搜索（默认关闭）",
+      "ctx": "上下文 {{pct}}%",
+      "ctxHint": "已用 {{tokens}} / {{window}} tokens"
+    },
+    "sending": "发送中…"
   },
   "chat": {
     "empty": "发送消息开始对话。",
@@ -333,7 +338,8 @@
     "retryWaitingNoBudget": "网关限流，重试中 ({{retry}})…",
     "retryStarted": "正在重试…",
     "connectionLost": "连接中断，恢复中…",
-    "resumedLag": "已重连，内容可能滞后"
+    "resumedLag": "已重连，内容可能滞后",
+    "usage": "入 {{in}} · 出 {{out}}"
   },
   "markdown": {
     "copy": "复制",
@@ -779,13 +785,6 @@
       "save": "保存",
       "saving": "保存中…",
       "saved": "已保存",
-      "test": {
-        "ok": "连接正常",
-        "auth-rejected": "令牌被拒",
-        "upstream-degraded": "可达，但搜索上游异常",
-        "unreachable": "服务不可达",
-        "invalid-url": "请先填写有效的 http(s) 地址"
-      },
       "testing": "测试中…",
       "sourceStored": "在此保存",
       "sourceEnv": "部署配置",
@@ -813,6 +812,14 @@
         "poolUsage": "{{day}}：用户密钥搜索 {{used}} 次，回退共享池 {{fallback}} 次",
         "poolDry": "今日池干涸 {{count}} 次——补充上游密钥即可恢复搜索。",
         "poolUnreachable": "搜索服务统计不可达"
+      },
+      "test": "测试连接",
+      "testStates": {
+        "ok": "连接正常",
+        "auth-rejected": "令牌被拒",
+        "upstream-degraded": "可达，但搜索上游异常",
+        "unreachable": "服务不可达",
+        "invalid-url": "请先填写有效的 http(s) 地址"
       }
     }
   },

@@ -180,4 +180,50 @@ export function applyMcpToolRestrict(agentCtx) {
   }
 }
 
+// ── Session-gated MCP servers (live-runtime-control, tools/set) ──────────────
+// A per-session on/off gate for whole MCP servers, defaulting CLOSED for the
+// servers the host names at initialize (the platform default: websearch off).
+// Enforcement is a per-agent guard (the same hard layer as the role allowlist
+// guard above), so a live flip is instant and never needs a child restart or a
+// roster recomposition. The gate only ever DENIES closed servers for agents of
+// sessions that did not enable them — it cannot re-enable a server the
+// operator disabled through the extensions surface, nor widen a role allowlist.
+const sessionGates = new Map(); // sessionId -> Map<server, boolean>
+
+export function setSessionToolGate(sessionId, server, enabled) {
+  let byServer = sessionGates.get(sessionId);
+  if (!byServer) {
+    byServer = new Map();
+    sessionGates.set(sessionId, byServer);
+  }
+  byServer.set(server, enabled === true);
+}
+
+export function sessionGateEnabled(sessionId, server) {
+  return sessionGates.get(sessionId)?.get(server) === true;
+}
+
+// The guard body for gated servers: undefined leaves the call unchanged; a
+// string denies it. Only servers the host declared session-gated are ever
+// denied here — an unnamed server keeps today's behavior whatever the map says.
+export function sessionGateReason(sessionId, gatedServers, name) {
+  const parts = mcpNameParts(name);
+  if (!parts) return undefined;
+  if (!gatedServers.includes(parts.server)) return undefined;
+  if (sessionGateEnabled(sessionId, parts.server)) return undefined;
+  return (
+    `web search tools for MCP server '${parts.server}' are disabled for this session ` +
+    "(platform default) — ask the user to enable the session's web-search toggle before using them"
+  );
+}
+
+// Install the per-agent session gate guard on one agent scope. Reads the live
+// gate map on every call, so a tools/set flip applies to the next tool call
+// with no recomposition. Registered through agentCtx.effect so the guard lifts
+// with the agent scope.
+export function installSessionToolGate(agentCtx, sessionId, gatedServers) {
+  const reason = (execution) => sessionGateReason(sessionId, gatedServers, execution?.name);
+  agentCtx.effect(() => agentCtx.tools.guard(reason, "platform.session-tool-gate"), "platform.session-tool-gate");
+}
+
 export { FILTER_FILE };

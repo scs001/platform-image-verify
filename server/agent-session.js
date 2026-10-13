@@ -110,6 +110,20 @@ async function stopStreamingForSessionNavigation() {
     return;
   }
   ctx.promptStoppedByNavigation = true;
+  // Live control (live-runtime-control): cancel the run natively instead of
+  // restarting the child — a session switch becomes instant and the window
+  // where a prompt into the new session would bounce off a restarting bridge
+  // disappears. The aborted run's own idle notification is the safety net for
+  // the finishTurn above (idempotent).
+  if (ctx.dshBridge?.hasLiveMethod?.("session/cancel")) {
+    const sid = ctx.dshSessionId;
+    if (sid) {
+      ctx.dshBridge.cancelSession(sid).catch((e) =>
+        console.warn("[dsh] live cancel on navigation failed:", e?.message || e),
+      );
+    }
+    return;
+  }
   await ctx.dshBridge.restart({});
 }
 
@@ -168,6 +182,7 @@ async function getAvailableModels() {
       name: m.name || m.id,
       provider: m.provider,
       ...(m.reasoningEfforts?.length ? { reasoningEfforts: m.reasoningEfforts } : {}),
+      ...(typeof m.contextWindow === "number" ? { contextWindow: m.contextWindow } : {}),
     });
   }
   return models;
@@ -189,9 +204,6 @@ function persistEffort(provider, effort) {
 // settings.yaml IS the transport, so applying it is the same restart path as a
 // model switch (design D1). Returns { ok, error? } like switchModelTo.
 async function switchEffortToInner(effort) {
-  if (ctx.isStreaming) {
-    return { ok: false, error: "Cannot change the thinking level while the agent is responding" };
-  }
   const modelId = ctx.session?.model?.id;
   const provider = ctx.session?.model?.provider || ctx.defaultModel?.provider;
   if (!modelId || !provider) return { ok: false, error: "No active model" };
@@ -201,12 +213,27 @@ async function switchEffortToInner(effort) {
     return { ok: false, error: `Model ${modelId} does not support thinking level "${effort}"` };
   }
   if ((ctx.currentEffort || null) === (effort || null)) return { ok: true };
+  // Live control: the effort rides the same model/set selection flip (no
+  // restart, streaming-safe by the step snapshot). Legacy path restarts.
+  const live = ctx.dshBridge?.hasLiveMethod?.("model/set") === true;
+  if (!live && ctx.isStreaming) {
+    return { ok: false, error: "Cannot change the thinking level while the agent is responding" };
+  }
   const level = effort || null;
   try {
     persistEffort(provider, level);
     if (!dshProfileMod) dshProfileMod = await import("../dsh-profile.js");
     await dshProfileMod.writeLlmProfile();
-    await ctx.dshBridge.restart({ provider, model: modelId });
+    if (live) {
+      await ctx.dshBridge.setModel({
+        provider,
+        model: modelId,
+        effort: level,
+        sessionId: ctx.dshSessionId ?? undefined,
+      });
+    } else {
+      await ctx.dshBridge.restart({ provider, model: modelId });
+    }
     ctx.currentEffort = level;
     ctx.broadcast({ type: "effort_changed", effort: level });
     return { ok: true };
@@ -239,7 +266,7 @@ async function refreshDshModels() {
   ctx.dshModels = models;
   const after = ctx.dshModels.map((m) => m.id).join(",");
   if (before !== after) console.log(`[dsh] model list refreshed: ${after || "(none)"}`);
-  ctx.broadcast({ type: "models", models: await getAvailableModels() });
+  ctx.broadcast({ type: "models", models: await getAvailableModels(), live: ctx.liveControlFlags() });
   return ctx.dshModels.map((m) => ({ id: m.id, name: m.name || m.id, provider: m.provider }));
 }
 
@@ -249,13 +276,17 @@ async function refreshDshModels() {
 // sends it bare (the client shows it as a toast: no run is open). Shared by
 // the `set_model` WS handler and the `/model` command.
 async function switchModelToInner(id) {
-  if (ctx.isStreaming) {
+  // Live control (live-runtime-control): with model/set the switch is a live
+  // selection flip — dsh snapshots the current step's selection, so a mid-run
+  // switch lands on the next step and the streaming guard is lifted. Without
+  // it, the legacy restart path still refuses mid-run switches (a restart
+  // would kill the turn).
+  const live = ctx.dshBridge?.hasLiveMethod?.("model/set") === true;
+  if (!live && ctx.isStreaming) {
     return { ok: false, error: "Cannot switch model while the agent is responding" };
   }
-  // ponytail: no stock setModel RPC, so a live switch restarts the bridge with
-  // the new provider/model baked into initialize. This drops the child's
-  // in-memory session state (v1 ceiling); a non-disruptive switch needs a
-  // custom dsh RPC. Unknown model → "Unknown model" error.
+  // ponytail: the legacy path restarts the bridge because dsh bakes the model
+  // into initialize (v1 ceiling without the live bridge methods).
   const target = ctx.dshModels.find((m) => m.id === id);
   if (!target) {
     return { ok: false, error: `Unknown model: ${id}` };
@@ -272,7 +303,16 @@ async function switchModelToInner(id) {
       if (!dshProfileMod) dshProfileMod = await import("../dsh-profile.js");
       await dshProfileMod.writeLlmProfile();
     }
-    await ctx.dshBridge.restart({ provider: target.provider, model: target.id });
+    if (live) {
+      await ctx.dshBridge.setModel({
+        provider: target.provider,
+        model: target.id,
+        effort,
+        sessionId: ctx.dshSessionId ?? undefined,
+      });
+    } else {
+      await ctx.dshBridge.restart({ provider: target.provider, model: target.id });
+    }
     ctx.session.model = { id: target.id };
     ctx.defaultModel = { id: target.id, provider: target.provider, name: target.name || target.id };
     // Keep the effective runtime model in step: ws.js reports current_model and
@@ -664,6 +704,9 @@ async function startNewSession(originWs = null, ownerEmail = null) {
   toOrigin({ type: "session_changed", id });
   toOrigin({ type: "session_loaded", id, title: "New chat", messages: [] });
   toOrigin(ctx.planMessage(id));
+  // A fresh session composes gates closed (live-runtime-control) — restate so
+  // the requester's web-search chip resets to the default-off position.
+  toOrigin(ctx.toolGateMessage(id));
   void ctx.broadcastSessions();
   return id;
 }
@@ -933,4 +976,12 @@ function listWorkspaces() {
   ctx.switchPresetTo = switchPresetTo;
   ctx.getPermissionPresets = getPermissionPresets;
   ctx.switchPermissionTo = switchPermissionTo;
+  // Live-control flags (live-runtime-control): which custom bridge RPCs the
+  // current child answers. Shared by the WS layer (models payload for client
+  // affordances) and any surface that needs to degrade the same way.
+  ctx.liveControlFlags = () => ({
+    modelSet: ctx.dshBridge?.hasLiveMethod?.("model/set") === true,
+    cancel: ctx.dshBridge?.hasLiveMethod?.("session/cancel") === true,
+    toolGate: ctx.dshBridge?.hasLiveMethod?.("tools/set") === true,
+  });
 }

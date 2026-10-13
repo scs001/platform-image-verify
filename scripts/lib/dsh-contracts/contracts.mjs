@@ -540,6 +540,177 @@ async function contractPlatformSdkRpc(ctx) {
   return `presets/list → ${presets.length} row(s); permissions/list → ${perms.options.length} option(s) (current "${perms.current ?? "—"}"); permissions/set applied "${target}" to a live session without restart`;
 }
 
+// ── Contracts ⑦⑧⑨ (live-runtime-control) ────────────────────────────────────
+// The three live-control RPCs the platform bridge template adds over the SDK
+// surface. They are dsh-agent PUBLIC exports consumed through our plugin — not
+// internal-API — but the rc cadence still needs them pinned like the rest.
+
+// The last session.status value seen for one session id.
+function lastStatus(ctx, sessionId) {
+  let status = null;
+  for (const n of ctx.notifications ?? []) {
+    if (n?.method === "session.status" && n?.params?.sessionId === sessionId) {
+      status = n.params.status;
+    }
+  }
+  return status;
+}
+
+// Idempotent hot-route write (contract ④'s shape — that contract may already
+// have written it; rewriting the same doc is a no-op reload).
+function ensureHotRoute(ctx) {
+  const doc = yaml.load(readFileSync(ctx.settingsPath, "utf8")) ?? {};
+  doc["llm-pi-ai"] = doc["llm-pi-ai"] ?? {};
+  doc["llm-pi-ai"].providers = doc["llm-pi-ai"].providers ?? {};
+  if (doc["llm-pi-ai"].providers[HOT_ROUTE]?.models?.some((m) => m?.id === HOT_MODEL)) return;
+  doc["llm-pi-ai"].providers[HOT_ROUTE] = {
+    apiKeyEnv: "LLM_API_KEY",
+    displayName: "Contracts Hot Route",
+    api: "openai-completions",
+    baseURL: ctx.dummyLlm.url,
+    models: [{ id: HOT_MODEL, name: "Contracts Hot Model", contextWindow: 8192, maxTokens: 1024, input: ["text"] }],
+  };
+  atomicWriteTextSync(ctx.settingsPath, yaml.dump(doc));
+}
+
+async function contractLiveModelSet(ctx) {
+  requireHandshake(ctx);
+  const caps = await ctx.client.request("platform/capabilities");
+  if (!Array.isArray(caps?.methods) || !caps.methods.includes("model/set")) {
+    throw new Error(`platform/capabilities does not list model/set (got ${JSON.stringify(caps)}) — template without live control`);
+  }
+  ensureHotRoute(ctx);
+  const S = "contracts-live-model";
+  // Baseline: one request on the default model (also proves the session runs).
+  await ctx.client.prompt(S, [{ type: "text", text: "live-model baseline probe" }]);
+  const baseline = await pollUntil(
+    () => ctx.dummyLlm.requests.find((r) => r.model === ctx.model) ?? null,
+    { timeoutMs: 15_000, intervalMs: 400 },
+  );
+  if (!baseline) throw new Error("baseline prompt never reached the dummy endpoint");
+  // Live switch: fast, and the adapter may still be registering (contract ④'s
+  // reload window) — a "no adapter" answer is retried within the budget.
+  let res = null;
+  const switched = await pollUntil(
+    async () => {
+      try {
+        res = await ctx.client.request("model/set", { sessionId: S, provider: HOT_ROUTE, model: HOT_MODEL });
+        return true;
+      } catch (e) {
+        if (!/no adapter registered for provider/.test(String(e?.message))) throw e;
+        return false;
+      }
+    },
+    { timeoutMs: 15_000, intervalMs: 500 },
+  );
+  const t0 = ctx.dummyLlm.requests.length;
+  if (!switched || res?.ok !== true) {
+    throw new Error(`model/set failed: ${JSON.stringify(res)}`);
+  }
+  if (ctx.childExit) throw new Error(`child exited after model/set (${ctx.childExit.at}) — the live switch must not restart`);
+  // The NEXT request on the session must run on the new model.
+  await ctx.client.prompt(S, [{ type: "text", text: "live-model switched probe" }]);
+  const onNext = await pollUntil(
+    () => (ctx.dummyLlm.requests.slice(t0).some((r) => r.model === HOT_MODEL) ? true : null),
+    { timeoutMs: 20_000, intervalMs: 400 },
+  );
+  if (!onNext) {
+    const models = ctx.dummyLlm.requests.slice(t0).map((r) => r.model);
+    throw new Error(
+      `the request after model/set ran on ${JSON.stringify(models)} — the live selection did not take effect (model/set said ${JSON.stringify(res)})`,
+    );
+  }
+  // Unknown provider must reject (the host's error surface).
+  let badRejected = false;
+  try {
+    await ctx.client.request("model/set", { sessionId: S, provider: "contracts-no-such-route", model: "x" });
+  } catch {
+    badRejected = true;
+  }
+  if (!badRejected) throw new Error('model/set accepted an unregistered provider "contracts-no-such-route"');
+  // Leave the shared session on the default model.
+  await ctx.client.request("model/set", { sessionId: S, provider: ctx.provider, model: ctx.model });
+  return `model/set flipped the live route to ${HOT_MODEL} without a restart; the next request ran on it; unknown providers reject`;
+}
+
+async function contractSessionCancel(ctx) {
+  requireHandshake(ctx);
+  const caps = await ctx.client.request("platform/capabilities");
+  if (!Array.isArray(caps?.methods) || !caps.methods.includes("session/cancel")) {
+    throw new Error(`platform/capabilities does not list session/cancel (got ${JSON.stringify(caps)})`);
+  }
+  const S = "contracts-cancel";
+  await ctx.client.prompt(S, [{ type: "text", text: "cancel probe [HOLD]" }]);
+  const parked = await pollUntil(
+    () => (ctx.dummyLlm.heldCount() >= 1 ? true : null),
+    { timeoutMs: 15_000, intervalMs: 300 },
+  );
+  if (!parked) throw new Error("the held prompt never reached the dummy endpoint");
+  const before = ctx.dummyLlm.requests.length;
+  const res = await ctx.client.request("session/cancel", { sessionId: S });
+  if (res?.ok !== true) throw new Error(`session/cancel returned ${JSON.stringify(res)}`);
+  // The aborted session must converge to idle (the RPC awaits it, bounded).
+  const idle = await pollUntil(
+    () => (lastStatus(ctx, S) === "idle" ? true : null),
+    { timeoutMs: 15_000, intervalMs: 300 },
+  );
+  if (!idle) throw new Error(`session ${S} never reported idle after cancel (last: ${lastStatus(ctx, S)})`);
+  // And it must accept a NEW prompt immediately — a cancelled session that
+  // wedges is worse than no cancel at all.
+  await ctx.client.prompt(S, [{ type: "text", text: "after cancel" }]);
+  const dispatched = await pollUntil(
+    () => (ctx.dummyLlm.requests.length > before ? true : null),
+    { timeoutMs: 15_000, intervalMs: 300 },
+  );
+  if (!dispatched) throw new Error("the post-cancel prompt never dispatched — the session wedged after cancel");
+  await pollUntil(() => (lastStatus(ctx, S) === "idle" ? true : null), { timeoutMs: 15_000, intervalMs: 300 });
+  ctx.dummyLlm.release();
+  // Cancel on an idle session is a successful no-op.
+  const noop = await ctx.client.request("session/cancel", { sessionId: S });
+  if (noop?.ok !== true) throw new Error(`idle-session cancel returned ${JSON.stringify(noop)}`);
+  return "session/cancel aborted the in-flight turn; the session reached idle, accepted the next prompt, and idle-cancel is a no-op";
+}
+
+async function contractMultiSessionConcurrency(ctx) {
+  requireHandshake(ctx);
+  const A = "contracts-multi-a";
+  const B = "contracts-multi-b";
+  const before = ctx.dummyLlm.requests.length;
+  // A's turn parks at the dummy (in flight). The platform-facing contract:
+  // ANOTHER session's prompt is not rejected or starved at DISPATCH — its
+  // request reaches the adapter while the first session's turn is open. (The
+  // stricter "both turns close interleaved" does NOT hold on rc.2: turn close
+  // starves while another session's request is parked — recorded as a known
+  // upstream limitation in wire-dsh-live-runtime-control's design; the
+  // platform's host runs one turn at a time and consumes cancel ⑧ for the
+  // switch path, so close-interleaving is not a dependency.)
+  await ctx.client.prompt(A, [{ type: "text", text: "multi A [HOLD]" }]);
+  await pollUntil(() => (ctx.dummyLlm.heldCount() >= 1 ? true : null), { timeoutMs: 15_000, intervalMs: 300 });
+  await ctx.client.prompt(B, [{ type: "text", text: "multi B" }]);
+  const bDispatched = await pollUntil(
+    () => (ctx.dummyLlm.requests.length > before + 1 ? true : null),
+    { timeoutMs: 20_000, intervalMs: 300 },
+  );
+  const sawBRunning = await pollUntil(
+    () => (lastStatus(ctx, B) === "running" ? true : null),
+    { timeoutMs: 5_000, intervalMs: 200 },
+  );
+  ctx.dummyLlm.release();
+  // Both drivers must converge once the parked request drains (cancel-or-
+  // release always unblocks — the wedge class ⑧ guards against).
+  const idleAll = await pollUntil(
+    () => (lastStatus(ctx, A) === "idle" && lastStatus(ctx, B) === "idle" ? true : null),
+    { timeoutMs: 30_000, intervalMs: 400 },
+  );
+  const statuses = (ctx.notifications ?? [])
+    .filter((n) => n?.method === "session.status" && (n?.params?.sessionId === A || n?.params?.sessionId === B))
+    .map((n) => `${n.params.sessionId === A ? "A" : "B"}:${n.params.status}`);
+  if (!bDispatched) throw new Error(`B's prompt never dispatched while A's turn was in flight (statuses=[${statuses.join(" ")}])`);
+  if (!sawBRunning) throw new Error(`B's driver never started while A's turn was in flight (statuses=[${statuses.join(" ")}])`);
+  if (!idleAll) throw new Error(`sessions did not converge to idle after release (statuses=[${statuses.join(" ")}])`);
+  return "B dispatched and drove its own turn while A's request was parked; both converged to idle after release (close-interleaving: rc.2 known limit)";
+}
+
 // ── The table ────────────────────────────────────────────────────────────────
 
 export const CONTRACTS = [
@@ -549,4 +720,7 @@ export const CONTRACTS = [
   { id: "settings-credentials-hot-reload", title: "④ settings/credentials hot-reload", run: contractSettingsHotReload },
   { id: "patch-semantics-scaffold", title: "⑤ patch semantics + scaffold", run: contractPatchSemanticsScaffold },
   { id: "platform-sdk-rpc", title: "⑥ platform SDK RPC surface", tags: ["internal-API"], run: contractPlatformSdkRpc },
+  { id: "live-model-set", title: "⑦ live model/set (step-safe switch)", run: contractLiveModelSet },
+  { id: "session-cancel", title: "⑧ session/cancel (abort + converge)", run: contractSessionCancel },
+  { id: "multi-session-concurrency", title: "⑨ multi-session concurrency", run: contractMultiSessionConcurrency },
 ];

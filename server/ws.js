@@ -141,8 +141,30 @@ const beginTurnFor = async (ws) => {
   ctx.turnOrigin = {
     user: ctx.authEnabled ? ws.user?.email ?? null : null,
     sessionId: target,
-  };  return target;
+  };
+  // Session tool gates (live-runtime-control): re-assert the target session's
+  // enabled gates to the child each turn. The child's gate map is per-child
+  // state, so this heals a bridge restart and costs one tiny fire-and-forget
+  // RPC per turn, only for sessions that enabled a gated server (default
+  // closed needs no assertion — the child composes gates closed).
+  const gates = ctx.sessionToolGates?.get(target);
+  if (gates?.size && ctx.dshBridge?.hasLiveMethod?.("tools/set")) {
+    for (const [server, enabled] of gates) {
+      ctx.dshBridge.setToolGate({ sessionId: target, server, enabled }).catch(() => {});
+    }
+  }
+  return target;
 };
+
+// Live-control flags (live-runtime-control): which custom bridge RPCs this
+// child answers. Clients key affordances off them (stream-safe model selector,
+// web-search toggle chip); the server's own switch paths degrade off the same
+// source. Carried on every `models` message so a client connect/reconnect
+// always has the current picture.
+const liveControl = () =>
+  ctx.liveControlFlags
+    ? ctx.liveControlFlags()
+    : { modelSet: false, cancel: false, toolGate: false };
 
 // Sync a client that connected mid-boot with everything the normal connect
 // path sends, once the dsh agent is live (the "ready" broadcast's payload).
@@ -155,7 +177,7 @@ const syncReadyClient = async (ws) => {
   if (ws.identity) ctx.sendUserBindings?.(ws, ws.identity.email);
 
   const models = await ctx.getAvailableModels();
-  if (!sendIfOpen(ws, { type: "models", models })) return;
+  if (!sendIfOpen(ws, { type: "models", models, live: liveControl() })) return;
   if (!sendIfOpen(ws, { type: "current_preset", id: ctx.currentPreset })) return;
   // Permission state: the roster arrives on the client's list_permissions
   // request (bridge round-trip), but the current value is pushed here so a
@@ -484,7 +506,58 @@ ctx.wss.on("connection", (ws, req) => {
           break;
         }
         const models = await ctx.getAvailableModels();
-        ws.send(JSON.stringify({ type: "models", models }));
+        ws.send(JSON.stringify({ type: "models", models, live: liveControl() }));
+        break;
+      }
+
+      case "stop_turn": {
+        // Real stop (live-runtime-control): cancel the run in the child; the
+        // aborted run's session.status idle notification finalizes the turn
+        // (finishTurn → done), so the client's suppression clears through the
+        // normal close. Without the live method, finalize immediately — the
+        // client's local stop view stays the fallback and this done releases
+        // its suppression honestly.
+        if (!ctx.ready.dsh || !ctx.isStreaming) break;
+        const stopSid = ctx.turnOrigin?.sessionId ?? ctx.dshSessionId;
+        if (stopSid && ctx.dshBridge?.hasLiveMethod?.("session/cancel")) {
+          // The abort makes the dispatching prompt's promise reject — that
+          // rejection is intentional, not a failure to surface.
+          ctx.promptStoppedByNavigation = true;
+          ctx.dshBridge.cancelSession(stopSid).catch((e) =>
+            console.warn("[dsh] live cancel on stop failed:", e?.message || e),
+          );
+        } else {
+          ctx.finishTurn("aborted");
+        }
+        break;
+      }
+
+      case "set_tool_gate": {
+        // Per-session MCP server gate (live-runtime-control): default-closed
+        // servers (websearch) the user flips per conversation. The host keeps
+        // the durable intent; the child enforces per tool call.
+        if (!ctx.ready.dsh) {
+          ws.send(JSON.stringify({ type: "error", message: "Agent is still initializing" }));
+          break;
+        }
+        if (!ctx.dshBridge?.hasLiveMethod?.("tools/set")) {
+          ws.send(JSON.stringify({ type: "error", message: "Tool gating is unavailable on this runtime" }));
+          break;
+        }
+        const gateServer = typeof data.server === "string" && data.server ? data.server : "websearch";
+        const gateEnabled = data.enabled === true;
+        const gateSession = ws.viewedSession || chatHistory.currentSessionId();
+        if (!gateSession) break;
+        ctx.setSessionToolGate(gateSession, gateServer, gateEnabled);
+        ctx.dshBridge
+          .setToolGate({ sessionId: gateSession, server: gateServer, enabled: gateEnabled })
+          .catch((e) => console.warn(`[dsh] tools/set for ${gateSession} failed:`, e?.message || e));
+        ctx.sendToViewers(gateSession, {
+          type: "tool_gate",
+          sessionId: gateSession,
+          server: gateServer,
+          enabled: gateEnabled,
+        });
         break;
       }
 
@@ -787,6 +860,9 @@ ctx.wss.on("connection", (ws, req) => {
               const question = ctx.questionMessage?.(result.id);
               if (question) sendIfOpen(ws, question);
             }
+            // The session's tool-gate state (live-runtime-control): always
+            // sent — the empty form is the default-closed chip position.
+            sendIfOpen(ws, ctx.toolGateMessage(result.id));
             break;
           }
           // Reconnect resync payload (add-reconnect-resync): report whether a
@@ -821,6 +897,10 @@ ctx.wss.on("connection", (ws, req) => {
             const question = ctx.questionMessage?.(result.id);
             if (question) ctx.sendToViewers(result.id, question);
           }
+          // Tool-gate restore (live-runtime-control): the client resets its
+          // web-search chip on session_loaded; this push restates the session's
+          // gate so the chip never shows the previous session's position.
+          ctx.sendToViewers(result.id, ctx.toolGateMessage(result.id));
           ctx.sendToViewers(result.id, { type: "session_changed", id: result.id });
           void ctx.broadcastSessions();
         } catch (err) {

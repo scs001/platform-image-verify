@@ -45,7 +45,13 @@ export type ServerMessage =
   | ({ type: "tool_end"; toolCallId: string; name?: string; result: unknown; isError?: boolean } & { sessionId?: string })
   | ({ type: "skill_use"; name: string; args?: string } & { sessionId?: string })
   | ({ type: "command_use"; name: string; args?: string; message?: string } & { sessionId?: string })
-  | ({ type: "done" } & { sessionId?: string })
+  | ({ type: "done" } & {
+      sessionId?: string;
+      // Turn token usage (chat-usage-display): the LAST finish chunk's
+      // numbers — input is the session's live context size. Absent when the
+      // runtime reported none (older servers / usage-less turns).
+      usage?: { inputTokens: number; outputTokens: number };
+    })
   // Bounded model-request retry progress (add-llm-retry-resilience): a
   // transient failure was scheduled for retry (normal mode carries the finite
   // budget), and the wait elapsed with the next attempt starting. Status
@@ -65,7 +71,17 @@ export type ServerMessage =
   // terminal condition (demo_limit / sandbox_limit — add-mp-demo-quota-end).
   | { type: "error"; message: string; code?: string }
   | { type: "current_model"; id: string | null; effort?: string | null }
-  | { type: "models"; models: ModelInfo[] }
+  | {
+      type: "models";
+      models: ModelInfo[];
+      // Live-control flags (live-runtime-control): which custom bridge RPCs
+      // the current child answers. Absent on older servers = all false.
+      live?: { modelSet: boolean; cancel: boolean; toolGate: boolean };
+    }
+  // Per-session MCP server gate state (live-runtime-control tools/set):
+  // pushed on toggle and after every session load so each client's web-search
+  // chip shows the session's real position (default closed).
+  | { type: "tool_gate"; sessionId: string; server: string; enabled: boolean }
   | { type: "model_changed"; id: string | null; effort?: string | null }
   // Default-lane guard (add-editable-llm-route): the default model was dark at
   // probe time and the pointer fell back to `to`.
@@ -192,6 +208,9 @@ export interface ModelInfo {
   provider?: string;
   // Selectable thinking levels; absent when the model offers no control.
   reasoningEfforts?: string[];
+  // Context window in tokens when the route declares one (chat-usage-display):
+  // the denominator of the composer's context meter.
+  contextWindow?: number;
 }
 
 // Catalog agent (GET /api/catalog / the `agents` WS message). Serialized
@@ -342,6 +361,13 @@ export type ClientMessage =
   | { type: "list_models" }
   | { type: "set_model"; id: string }
   | { type: "set_effort"; effort: string | null }
+  // Real stop (live-runtime-control): cancel the run in the child via the
+  // bridge's session/cancel. Falls back to a server-side finalize on older
+  // children; the client ALSO finalizes its view locally either way.
+  | { type: "stop_turn" }
+  // Per-session MCP server gate flip (live-runtime-control): default-closed
+  // servers (websearch) the user toggles per conversation.
+  | { type: "set_tool_gate"; server: string; enabled: boolean }
   | { type: "list_workspaces" }
   | { type: "set_workspace"; path: string }
   | { type: "list_agents" }

@@ -120,6 +120,36 @@ export function attachDshEvents(ctx) {
     };
   };
 
+  // Per-chat-session MCP server gates (live-runtime-control tools/set). The
+  // child's gate is per-child state, so the host keeps the durable intent here
+  // and re-asserts it to the bridge at every turn dispatch of an enabled
+  // session (self-healing across child restarts; default needs no assertion —
+  // the child composes gates closed).
+  ctx.sessionToolGates = new Map(); // chatSessionId -> Map<server, boolean>
+  ctx.setSessionToolGate = (sessionId, server, enabled) => {
+    let byServer = ctx.sessionToolGates.get(sessionId);
+    if (enabled) {
+      if (!byServer) {
+        byServer = new Map();
+        ctx.sessionToolGates.set(sessionId, byServer);
+      }
+      byServer.set(server, true);
+    } else if (byServer) {
+      byServer.delete(server);
+      if (byServer.size === 0) ctx.sessionToolGates.delete(sessionId);
+    }
+  };
+  // The tool_gate sync message for a session's viewers — always sent (the
+  // empty form is the default-closed state), so a client that just switched
+  // sessions can never keep the previous session's toggle on screen. Mirrors
+  // planMessage's contract.
+  ctx.toolGateMessage = (sessionId) => ({
+    type: "tool_gate",
+    sessionId,
+    server: "websearch",
+    enabled: ctx.sessionToolGates.get(sessionId)?.get("websearch") === true,
+  });
+
   // Mark the current agent turn finished: reset the streaming flag, broadcast
   // `done` (which re-enables the UI / model selector and finalizes tool
   // blocks), and refresh the sidebar session list. Idempotent per turn — it
@@ -143,9 +173,16 @@ export function attachDshEvents(ctx) {
     });
     // `done` closes the turn for exactly the clients viewing the session it
     // ran in (add-session-ownership); a foreign viewer never saw the turn and
-    // must not see its close either.
-    ctx.sendToViewers(ctx.dshSessionId, { type: "done" });
+    // must not see its close either. The payload carries the turn's token
+    // usage when the runtime reported one (chat-usage-display): the LAST
+    // finish chunk's numbers — its input is the session's live context size,
+    // and additive so older clients ignore it.
+    ctx.sendToViewers(ctx.dshSessionId, {
+      type: "done",
+      ...(ctx.dshTurnUsage ? { usage: ctx.dshTurnUsage } : {}),
+    });
     ctx.turnOrigin = null;
+    ctx.dshTurnUsage = null;
     // The replay log is only for an in-flight turn (add-reconnect-resync) —
     // post-done the persisted transcript is the truth a sync serves.
     ctx.resetTurnBuffer?.();
@@ -332,6 +369,7 @@ export function attachDshEvents(ctx) {
         // observes it; re-affirm here idempotently.
         ctx.isStreaming = true;
         ctx.dshTurnError = null;
+        ctx.dshTurnUsage = null;
         ctx.dshToolNames.clear();
         ctx.dshTurnBlocks = [];
         // A fresh turn starts a fresh replay log (add-reconnect-resync) —
@@ -353,6 +391,15 @@ export function attachDshEvents(ctx) {
           // Capture the LLM failure; broadcast on turn/end (the turn-completion
           // signal), then session.status idle → finishTurn → done.
           ctx.dshTurnError = chunk.reason.failure?.message || "LLM request failed";
+        }
+        if (chunk.type === "finish" && chunk.usage && typeof chunk.usage.inputTokens === "number") {
+          // Token usage (chat-usage-display): keep the LAST finish chunk's
+          // numbers — a multi-step turn reports one per model request, and the
+          // final request's input is the honest live context size.
+          ctx.dshTurnUsage = {
+            inputTokens: chunk.usage.inputTokens,
+            outputTokens: typeof chunk.usage.outputTokens === "number" ? chunk.usage.outputTokens : 0,
+          };
         }
         break;
       }

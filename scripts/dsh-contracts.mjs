@@ -2,7 +2,8 @@
 // scripts/dsh-contracts.mjs — the dsh-contracts runner (add-dsh-contracts,
 // design D1/D2; ADR-0007 upgrade gate).
 //
-// Candidate mode: run the six v1 contracts against ANY dsh install —
+// Candidate mode: run the v1 contracts (six) plus the live-control contracts
+// (⑦⑧⑨, wire-dsh-live-runtime-control) against ANY dsh install —
 //
 //   npm run dsh:contracts                          # the frozen matrix scratch tree
 //   npm run dsh:contracts -- --tree /opt/dsh       # an image install
@@ -69,6 +70,13 @@ function parseArgs(argv) {
 // with a well-formed completion so the probe turn settles cleanly.
 function startDummyLlm() {
   const requests = [];
+  // Hold mode (live-runtime-control contracts ⑧⑨): a request whose messages
+  // carry the [HOLD] marker parks without a response until release() — the
+  // contract-visible stand-in for a slow upstream, so a turn stays in flight.
+  const held = [];
+  const release = () => {
+    for (const h of held.splice(0)) h();
+  };
   const server = http.createServer((req, res) => {
     const chunks = [];
     req.on("data", (c) => chunks.push(c));
@@ -90,6 +98,42 @@ function startDummyLlm() {
       if (req.method !== "POST") {
         res.writeHead(404);
         res.end();
+        return;
+      }
+      const holdMarker = (() => {
+        const msgs = Array.isArray(json?.messages) ? json.messages : [];
+        // Only the FINAL message parks: the first request of a turn carries the
+        // user prompt last; a later step's request carries assistant/tool
+        // content last. Matching ANY history message would park every later
+        // request of the same session (the [HOLD] user text never leaves the
+        // history) and the turn could never drain.
+        const last = msgs.at(-1);
+        const content = typeof last?.content === "string"
+          ? last.content
+          : Array.isArray(last?.content)
+            ? last.content.map((p) => (typeof p?.text === "string" ? p.text : "")).join(" ")
+            : "";
+        return content.includes("[HOLD]");
+      })();
+      if (holdMarker) {
+        held.push(() => {
+          if (json?.stream) {
+            res.writeHead(200, { "content-type": "text/event-stream" });
+            res.write(`${JSON.stringify({ id: "dsh-contracts", object: "chat.completion.chunk", choices: [{ index: 0, delta: { role: "assistant", content: "ok" }, finish_reason: null }] })}\n\n`);
+            res.write(`${JSON.stringify({ id: "dsh-contracts", object: "chat.completion.chunk", choices: [{ index: 0, delta: {}, finish_reason: "stop" }] })}\n\n`);
+            res.end("data: [DONE]\n\n");
+          } else {
+            res.writeHead(200, { "content-type": "application/json" });
+            res.end(
+              JSON.stringify({
+                id: "dsh-contracts",
+                object: "chat.completion",
+                choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
+                usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+              }),
+            );
+          }
+        });
         return;
       }
       if (json?.stream) {
@@ -116,7 +160,13 @@ function startDummyLlm() {
       // unref: the endpoint must never be the thing keeping the process alive —
       // an early failure path exits instead of hanging on the listener.
       server.unref();
-      resolvePromise({ url: `http://127.0.0.1:${port}/v1`, requests, close: () => new Promise((r) => server.close(r)) });
+      resolvePromise({
+        url: `http://127.0.0.1:${port}/v1`,
+        requests,
+        heldCount: () => held.length,
+        release,
+        close: () => new Promise((r) => server.close(r)),
+      });
     });
   });
 }
@@ -266,11 +316,16 @@ async function main() {
 
     // Crash watcher: one subscription whose only job is noticing the child died
     // and attributing the exit to whatever was running at the time (design D3).
+    // Every notification is also recorded (live-runtime-control contracts ⑧⑨
+    // read per-session session.status transitions back).
+    ctx.notifications = [];
     watcher = client.subscribe();
     pump = (async () => {
       for (;;) {
         try {
-          await watcher.next();
+          // The subscription's next() resolves the notification itself.
+          const notif = await watcher.next();
+          if (notif) ctx.notifications.push(notif);
         } catch (e) {
           const error = String(e?.message || e);
           ctx.childExit = { at: currentContract, error };

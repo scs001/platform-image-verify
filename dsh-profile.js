@@ -202,7 +202,15 @@ export async function buildLlmProfile({
     };
     for (const m of volcesModels) {
       const levels = effortLevels(declaredEfforts(m.id));
-      models.push({ id: m.id, name: m.name, provider: route, ...(levels.length ? { reasoningEfforts: levels } : {}) });
+      models.push({
+        id: m.id,
+        name: m.name,
+        provider: route,
+        ...(levels.length ? { reasoningEfforts: levels } : {}),
+        // Context window rides along (chat-usage-display) when the route
+        // declares one — the client's context meter divides by it.
+        ...(typeof m.contextWindow === "number" ? { contextWindow: m.contextWindow } : {}),
+      });
     }
   }
 

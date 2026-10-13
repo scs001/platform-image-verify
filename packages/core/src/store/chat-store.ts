@@ -98,6 +98,10 @@ export type Turn =
       // and render the step count only.
       activityStartedAt?: number;
       activityEndedAt?: number;
+      // Turn token usage (chat-usage-display): the done payload's LAST finish
+      // chunk numbers. Absent when the runtime reported none — the footer
+      // omits rather than renders a zero. Never persisted.
+      usage?: { inputTokens: number; outputTokens: number };
     };
 
 interface State {
@@ -138,6 +142,19 @@ interface State {
   // disabled until it lands. `agent` is the same switch for an agent the
   // deployment serves locally (a vertical pack is a persona preset).
   pendingConfig: "model" | "effort" | "workspace" | "preset" | "agent" | null;
+  // Live-control flags (live-runtime-control) mirrored off every `models`
+  // message: which custom bridge RPCs the current child answers. Absent
+  // server support = all false, and the affordances keyed on them hide.
+  liveControl: { modelSet: boolean; cancel: boolean; toolGate: boolean };
+  // The current session's web-search gate position (live-runtime-control
+  // tools/set): driven by `tool_gate` pushes (toggle echo + post-load sync);
+  // a session switch resets to the platform default until its push lands.
+  websearchEnabled: boolean;
+  // Submit latch (chat-streaming: prompt submission is latched): true from
+  // the moment a prompt leaves until its `user` echo (or the safety timeout /
+  // turn end) — Enter-repeat and double-click duplicates die here.
+  promptInFlight: boolean;
+  beginPromptSubmit: () => void;
   sessions: SessionMeta[];
   currentSessionId: string | null;
   turns: Turn[];
@@ -344,6 +361,16 @@ function discardDeltas() {
   }
 }
 
+// Submit-latch safety timer: a prompt whose echo never arrives (socket died
+// between send and echo) must not latch the composer forever.
+let promptInFlightTimer: ReturnType<typeof setTimeout> | null = null;
+function clearPromptInFlightTimer() {
+  if (promptInFlightTimer) {
+    clearTimeout(promptInFlightTimer);
+    promptInFlightTimer = null;
+  }
+}
+
 // Stream events that belong to one run. While `suppressed`, these are
 // dropped; everything else (models, sessions, …) still applies.
 const RUN_EVENT_TYPES = new Set([
@@ -431,6 +458,18 @@ export const useChatStore = create<State>((set) => ({
   currentWorkspace: null,
   workspaceRecents: [],
   pendingConfig: null,
+  liveControl: { modelSet: false, cancel: false, toolGate: false },
+  websearchEnabled: false,
+  promptInFlight: false,
+
+  beginPromptSubmit: () => {
+    clearPromptInFlightTimer();
+    promptInFlightTimer = setTimeout(() => {
+      promptInFlightTimer = null;
+      useChatStore.setState({ promptInFlight: false });
+    }, 8000);
+    set({ promptInFlight: true });
+  },
   sessions: [],
   currentSessionId: null,
   turns: [],
@@ -475,6 +514,9 @@ export const useChatStore = create<State>((set) => ({
         todos: [],
         todoCounts: NO_TODOS,
         pendingQuestion: null,
+        // Gate chip resets to the platform default on switch; the load's
+        // tool_gate push restates the target session's real position.
+        websearchEnabled: false,
         // Re-entry is itself a use — bump recency.
         sessionCache: cached ? cacheWrite(cache, id, cached) : cache,
       };
@@ -579,6 +621,13 @@ export const useChatStore = create<State>((set) => ({
     if (m.type === "text" || m.type === "thinking") {
       queueDelta(m.type, m.delta);
       return;
+    }
+    // Submit-latch release (chat-streaming): the latch belongs to one prompt's
+    // lifecycle, so the echo, the turn's close, a failure, or a view swap all
+    // release it — a latched send can never outlive its turn's resolution.
+    if (m.type === "user" || m.type === "done" || m.type === "error" || m.type === "session_loaded") {
+      clearPromptInFlightTimer();
+      if (useChatStore.getState().promptInFlight) useChatStore.setState({ promptInFlight: false });
     }
     // A session swap discards buffered deltas (previous conversation); every
     // other message folds them in first, preserving event order exactly.
@@ -721,9 +770,17 @@ export const useChatStore = create<State>((set) => ({
           // Clone (not mutate): the finalized turn needs a new reference so
           // the memoized <AssistantTurn> re-renders its closed state. A turn
           // that closes had no unresolved retry; strip the chip either way.
+          // The done payload's usage (chat-usage-display) lands on the
+          // finalized turn — the footer reads it; history reloads have none.
           if (tail && tail.role === "assistant" && tail.streaming) {
             markActivityEnd(tail);
-            turns[turns.length - 1] = { ...tail, streaming: false, retry: undefined, connectionLost: undefined };
+            turns[turns.length - 1] = {
+              ...tail,
+              streaming: false,
+              retry: undefined,
+              connectionLost: undefined,
+              ...(m.usage ? { usage: m.usage } : {}),
+            };
           }
           // The dismissed run (if any) has ended; stop swallowing events.
           // Turn events carry no session id pre-targeted-delivery, so the
@@ -817,7 +874,23 @@ export const useChatStore = create<State>((set) => ({
           };
 
         case "models":
-          return { models: m.models };
+          return {
+            models: m.models,
+            // Live-control flags ride every models message; an absent field
+            // (older server) keeps the previous picture rather than flipping
+            // affordances off mid-session.
+            ...(m.live ? { liveControl: m.live } : {}),
+          };
+
+        case "tool_gate":
+          // Per-session gate sync (live-runtime-control): apply only to the
+          // session this client views — a foreign session's toggle is that
+          // viewer's chip state, not ours. The server pushes a session's
+          // position right after its session_loaded, so ordering guarantees a
+          // freshly loaded view gets its own value.
+          if (m.server !== "websearch") return {};
+          if (typeof m.sessionId === "string" && m.sessionId !== state.currentSessionId) return {};
+          return { websearchEnabled: m.enabled };
 
         case "current_agent":
           return { currentAgent: m.id };
@@ -977,6 +1050,7 @@ export const useChatStore = create<State>((set) => ({
                 pendingSession: null,
                 pendingNewSession: isNewChatArrival ? false : state.pendingNewSession,
                 sessionSwitchBackup: null,
+                websearchEnabled: false,
               };
             }
           }
@@ -1003,6 +1077,7 @@ export const useChatStore = create<State>((set) => ({
             pendingNewSession: isNewChatArrival ? false : state.pendingNewSession,
             sessionSwitchBackup: null,
             sessionCache: running ? state.sessionCache : cacheWrite(state.sessionCache, m.id, mapped),
+            websearchEnabled: false,
           };
         }
 

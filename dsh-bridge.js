@@ -142,6 +142,56 @@ export class DshBridge {
     return this.#spawn();
   }
 
+  // ── Live runtime control (live-runtime-control) ────────────────────────────
+  // Custom bridge RPCs over the same stdio transport. `#liveMethods` is probed
+  // once per spawn via platform/capabilities; an older child (template without
+  // the methods) answers unknown-method and the set stays empty — callers then
+  // keep the legacy restart-based behavior.
+  #liveMethods = new Set();
+
+  hasLiveMethod(method) {
+    return this.#liveMethods.has(method);
+  }
+
+  async #probeLiveMethods(client) {
+    this.#liveMethods = new Set();
+    try {
+      const res = await client.request("platform/capabilities");
+      if (Array.isArray(res?.methods)) {
+        for (const m of res.methods) if (typeof m === "string") this.#liveMethods.add(m);
+      }
+    } catch {
+      /* older child — empty set is the degradation signal */
+    }
+  }
+
+  // Flip the live model selection. `effort`: undefined = keep the selection's
+  // current level, null = clear to the provider default, string = the level.
+  // `sessionId` optional — omitted means process defaults for new sessions.
+  async setModel({ provider, model, effort = undefined, sessionId = undefined }) {
+    this.#requireReady();
+    return this.#client.request("model/set", {
+      provider,
+      model,
+      ...(effort !== undefined ? { reasoningEffort: effort ?? "" } : {}),
+      ...(sessionId ? { sessionId } : {}),
+    });
+  }
+
+  // Abort a session's active turn natively (agent.cancel). The turn's close
+  // still surfaces through the session.status idle → finishTurn path.
+  async cancelSession(sessionId) {
+    this.#requireReady();
+    return this.#client.request("session/cancel", { sessionId });
+  }
+
+  // Flip a per-session MCP server gate (default-closed set declared at
+  // initialize). Takes effect on the next tool call — no restart.
+  async setToolGate({ sessionId, server, enabled }) {
+    this.#requireReady();
+    return this.#client.request("tools/set", { sessionId, server, enabled });
+  }
+
   async #spawn() {
     // Build CLI args: profile + optional patch overlays (dsh-profile generators).
     // The flag order is load-bearing (see patchArgs).
@@ -172,6 +222,9 @@ export class DshBridge {
           provider: this.#provider,
           model: this.#model,
           ...(this.#agentPreset ? { agentPreset: this.#agentPreset } : {}),
+          // Session-gated MCP servers (live-runtime-control): default-closed
+          // per-session servers the child's tools/set gate enforces.
+          sessionGatedMcp: ["websearch"],
         });
         break;
       } catch (e) {
@@ -181,6 +234,7 @@ export class DshBridge {
         await sleep(500);
       }
     }
+    await this.#probeLiveMethods(client);
     this.#client = client;
     this.#ready = true;
     // Fresh child = fresh roster: the preset cache is per generation.

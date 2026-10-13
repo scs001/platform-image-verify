@@ -230,9 +230,31 @@ function AssistantTurnBase({
             {connStatus === "disconnected" ? t("turn.connectionLost") : t("turn.resumedLag")}
           </div>
         )}
+        {/* Per-turn token usage (chat-usage-display): the done payload's
+            numbers, compact k-abbreviated. Only for turns the runtime
+            reported usage for — history reloads omit rather than show 0. */}
+        {!turn.streaming && turn.usage && (
+          <div
+            data-testid="turn-usage"
+            className="self-start text-[11px] tabular-nums text-muted-foreground/80"
+          >
+            {t("turn.usage", {
+              in: fmtTokens(turn.usage.inputTokens),
+              out: fmtTokens(turn.usage.outputTokens),
+            })}
+          </div>
+        )}
       </div>
     </article>
   );
+}
+
+// Compact token abbreviation: 1234 → 1.2k, 1234567 → 1.2M; plain under 1000.
+function fmtTokens(n: number): string {
+  if (!Number.isFinite(n)) return "0";
+  if (n < 1000) return String(Math.round(n));
+  if (n < 1_000_000) return `${(n / 1000).toFixed(1).replace(/\.0$/, "")}k`;
+  return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
 }
 
 // Memoized: the store mutates turn objects in place and clones only the

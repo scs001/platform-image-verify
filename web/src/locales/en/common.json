@@ -205,8 +205,13 @@
         "confirm": "Enable full access"
       },
       "add": "Add file or command",
-      "more": "More"
-    }
+      "more": "More",
+      "websearch": "Web search",
+      "websearchHint": "Enable web search for this conversation (off by default)",
+      "ctx": "ctx {{pct}}%",
+      "ctxHint": "{{tokens}} / {{window}} tokens"
+    },
+    "sending": "Sending…"
   },
   "chat": {
     "empty": "Send a message to start chatting.",
@@ -333,7 +338,8 @@
     "retryWaitingNoBudget": "Gateway throttled, retrying ({{retry}})…",
     "retryStarted": "Retrying…",
     "connectionLost": "Connection lost, resuming…",
-    "resumedLag": "Reconnected; content may lag"
+    "resumedLag": "Reconnected; content may lag",
+    "usage": "in {{in}} · out {{out}}"
   },
   "markdown": {
     "copy": "Copy",
@@ -792,13 +798,6 @@
       "save": "Save",
       "saving": "Saving…",
       "saved": "Saved",
-      "test": {
-        "ok": "Connected",
-        "auth-rejected": "Token rejected",
-        "upstream-degraded": "Reachable, but the search provider is degraded",
-        "unreachable": "Service unreachable",
-        "invalid-url": "Enter a valid http(s) URL first"
-      },
       "testing": "Testing…",
       "sourceStored": "Saved here",
       "sourceEnv": "Deployment setting",
@@ -826,6 +825,14 @@
         "poolUsage": "{{day}}: {{used}} searches on user keys, {{fallback}} fell back to the pool",
         "poolDry": "Pool exhausted {{count}} time(s) today — add an upstream key to restore search.",
         "poolUnreachable": "Relay stats unreachable"
+      },
+      "test": "Test connection",
+      "testStates": {
+        "ok": "Connected",
+        "auth-rejected": "Token rejected",
+        "upstream-degraded": "Reachable, but the search provider is degraded",
+        "unreachable": "Service unreachable",
+        "invalid-url": "Enter a valid http(s) URL first"
       }
     }
   },

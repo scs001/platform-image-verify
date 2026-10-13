@@ -32,6 +32,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   FolderOpen,
+  Globe,
   Loader2,
   MoreHorizontal,
   Plus,
@@ -299,6 +300,12 @@ export function ControlStrip({ send, onOpenCommands, onAttach, trailing }: Props
   // Non-null only when the socket carries an identity the server can bind to.
   const userBindings = useChatStore((s) => s.userBindings);
   const runtimePending = useChatStore((s) => s.runtimePending);
+  // Live-control affordances (live-runtime-control): the web-search chip only
+  // exists when the child answers tools/set; the model selector stays usable
+  // mid-run only when model/set does (a legacy restart switch would kill the
+  // turn — disable instead of letting the server reject).
+  const liveControl = useChatStore((s) => s.liveControl);
+  const websearchEnabled = useChatStore((s) => s.websearchEnabled);
   const ssoConfigured = useAuthStore((s) => s.ssoConfigured);
   const [bindingMsg, setBindingMsg] = useState<string | null>(null);
   const [bindingError, setBindingError] = useState<string | null>(null);
@@ -331,7 +338,28 @@ export function ControlStrip({ send, onOpenCommands, onAttach, trailing }: Props
   const [pathDraft, setPathDraft] = useState("");
   const [pathError, setPathError] = useState<string | null>(null);
 
-  const disabled = status !== "connected" || pendingConfig !== null;
+  const disabled =
+    status !== "connected" ||
+    pendingConfig !== null ||
+    // Legacy runtime (no model/set): a mid-run switch is restart-carrying and
+    // server-rejected — disable the strip's switchers while streaming instead
+    // of surfacing the rejection as a toast. With live control the switch is
+    // step-safe and stays available.
+    (!liveControl.modelSet && isStreaming);
+
+  // Context meter (chat-usage-display): the LAST completed turn's input is the
+  // live context size (a request's input carries the whole session history);
+  // the current model's contextWindow is the denominator. Primitive selector —
+  // re-renders only when the numbers actually move (once per turn).
+  const ctxTokens = useChatStore((s) => {
+    for (let i = s.turns.length - 1; i >= 0; i--) {
+      const u = s.turns[i] && s.turns[i]!.role === "assistant" ? (s.turns[i] as { usage?: { inputTokens: number } }).usage : undefined;
+      if (u) return u.inputTokens;
+    }
+    return 0;
+  });
+  const contextWindow = models.find((m) => m.id === currentModel)?.contextWindow ?? 0;
+  const ctxPct = contextWindow > 0 && ctxTokens > 0 ? Math.min(100, Math.round((ctxTokens / contextWindow) * 100)) : 0;
 
   // The effort control exists only for models that declare levels. A
   // permanently-disabled control teaches users to ignore this region.
@@ -467,6 +495,51 @@ export function ControlStrip({ send, onOpenCommands, onAttach, trailing }: Props
 
       {/* ── Right cluster: runtime configuration, then send/stop ──────────── */}
       <div className="flex shrink-0 items-center gap-0.5">
+        {/* Web-search session gate (live-runtime-control): a per-conversation
+            on/off toggle for the default-closed websearch server. Rendered
+            only when the child answers tools/set — a toggle the runtime
+            cannot honor is worse than none. Not disabled while streaming: the
+            gate applies to the next tool call by design. */}
+        {liveControl.toolGate && (
+          <button
+            type="button"
+            onClick={() => send({ type: "set_tool_gate", server: "websearch", enabled: !websearchEnabled })}
+            aria-pressed={websearchEnabled}
+            data-testid="strip-websearch"
+            data-enabled={websearchEnabled ? "true" : "false"}
+            title={t("composer.strip.websearchHint")}
+            className={cn(
+              "flex h-7 items-center gap-1 rounded-md px-2 text-[11px] transition-colors",
+              websearchEnabled
+                ? "bg-primary/15 text-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+            )}
+          >
+            <Globe className={cn("h-3.5 w-3.5 shrink-0", websearchEnabled && "text-primary")} />
+            {t("composer.strip.websearch")}
+          </button>
+        )}
+
+        {/* Context meter (chat-usage-display): passive readout of the session's
+            live context against the current model's window. Appears once the
+            first turn reports usage; disappears for models without a declared
+            window. */}
+        {ctxPct > 0 && (
+          <span
+            data-testid="strip-context-meter"
+            title={t("composer.strip.ctxHint", { tokens: ctxTokens.toLocaleString(), window: contextWindow.toLocaleString() })}
+            className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] text-muted-foreground"
+          >
+            <span className="relative inline-block h-1.5 w-10 overflow-hidden rounded-full bg-muted">
+              <span
+                className={cn("absolute inset-y-0 left-0 rounded-full", ctxPct >= 90 ? "bg-destructive" : ctxPct >= 70 ? "bg-warning" : "bg-primary")}
+                style={{ width: `${ctxPct}%` }}
+              />
+            </span>
+            {t("composer.strip.ctx", { pct: ctxPct })}
+          </span>
+        )}
+
         <StripMenu
           label={t("composer.strip.model")}
           value={currentModel || t("composer.strip.modelUnset")}

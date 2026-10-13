@@ -179,7 +179,7 @@ function UserKeyZone() {
 
       {testResult && (
         <p data-testid="websearch-userkey-test-result" className={`text-xs ${testTone[testResult.state]}`}>
-          {t(`settings.websearch.test.${testResult.state}`)}
+          {t(`settings.websearch.testStates.${testResult.state}`)}
           {served ? ` — ${served}` : ""}
           {testResult.detail && !served ? ` — ${testResult.detail}` : ""}
         </p>
@@ -333,7 +333,7 @@ function SharedServiceZone() {
 
       {testResult && (
         <p data-testid="websearch-test-result" className={`text-xs ${testTone[testResult.state]}`}>
-          {t(`settings.websearch.test.${testResult.state}`)}
+          {t(`settings.websearch.testStates.${testResult.state}`)}
           {testResult.detail ? ` — ${testResult.detail}` : ""}
         </p>
       )}

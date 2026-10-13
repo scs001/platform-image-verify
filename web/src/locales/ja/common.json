@@ -205,8 +205,13 @@
         "confirm": "フルアクセスを有効にする"
       },
       "add": "ファイルまたはコマンドを追加",
-      "more": "その他"
-    }
+      "more": "その他",
+      "websearch": "ウェブ検索",
+      "websearchHint": "この会話でウェブ検索を有効化（デフォルトはオフ）",
+      "ctx": "ctx {{pct}}%",
+      "ctxHint": "{{tokens}} / {{window}} tokens"
+    },
+    "sending": "送信中…"
   },
   "chat": {
     "empty": "メッセージを送信してチャットを開始してください。",
@@ -333,7 +338,8 @@
     "retryWaitingNoBudget": "ゲートウェイ制限中、再試行中 ({{retry}})…",
     "retryStarted": "再試行中…",
     "connectionLost": "接続が切断されました。復元中…",
-    "resumedLag": "再接続済み。内容が遅れる可能性があります"
+    "resumedLag": "再接続済み。内容が遅れる可能性があります",
+    "usage": "入力 {{in}} · 出力 {{out}}"
   },
   "markdown": {
     "copy": "コピー",
@@ -779,13 +785,6 @@
       "save": "保存",
       "saving": "保存中…",
       "saved": "保存しました",
-      "test": {
-        "ok": "接続OK",
-        "auth-rejected": "トークンが拒否されました",
-        "upstream-degraded": "到達可能ですが検索プロバイダが異常です",
-        "unreachable": "サービスに到達できません",
-        "invalid-url": "先に有効な http(s) URL を入力してください"
-      },
       "testing": "テスト中…",
       "sourceStored": "ここで保存",
       "sourceEnv": "デプロイ設定",
@@ -813,6 +812,14 @@
         "poolUsage": "{{day}}：ユーザーキーで {{used}} 回、プールへフォールバック {{fallback}} 回",
         "poolDry": "本日プール枯渇 {{count}} 回 — 上流キーを追加すると検索が復旧します。",
         "poolUnreachable": "リレー統計に到達できません"
+      },
+      "test": "接続テスト",
+      "testStates": {
+        "ok": "接続OK",
+        "auth-rejected": "トークンが拒否されました",
+        "upstream-degraded": "到達可能ですが検索プロバイダが異常です",
+        "unreachable": "サービスに到達できません",
+        "invalid-url": "先に有効な http(s) URL を入力してください"
       }
     }
   },

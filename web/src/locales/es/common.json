@@ -205,8 +205,13 @@
         "confirm": "Habilitar acceso total"
       },
       "add": "Añadir archivo o comando",
-      "more": "Más"
-    }
+      "more": "Más",
+      "websearch": "Búsqueda web",
+      "websearchHint": "Activa la búsqueda web para esta conversación (desactivada por defecto)",
+      "ctx": "ctx {{pct}}%",
+      "ctxHint": "{{tokens}} / {{window}} tokens"
+    },
+    "sending": "Enviando…"
   },
   "chat": {
     "empty": "Envía un mensaje para empezar a chatear.",
@@ -333,7 +338,8 @@
     "retryWaitingNoBudget": "Gateway limitado, reintentando ({{retry}})…",
     "retryStarted": "Reintentando…",
     "connectionLost": "Conexión perdida, reanudando…",
-    "resumedLag": "Reconectado; el contenido puede retrasarse"
+    "resumedLag": "Reconectado; el contenido puede retrasarse",
+    "usage": "in {{in}} · out {{out}}"
   },
   "markdown": {
     "copy": "Copiar",
@@ -779,13 +785,6 @@
       "save": "Guardar",
       "saving": "Guardando…",
       "saved": "Guardado",
-      "test": {
-        "ok": "Conectado",
-        "auth-rejected": "Token rechazado",
-        "upstream-degraded": "Accesible, pero el proveedor de búsqueda está degradado",
-        "unreachable": "Servicio inaccesible",
-        "invalid-url": "Introduce primero una URL http(s) válida"
-      },
       "testing": "Probando…",
       "sourceStored": "Guardado aquí",
       "sourceEnv": "Configuración de la instalación",
@@ -813,6 +812,14 @@
         "poolUsage": "{{day}}: {{used}} búsquedas con claves de usuario, {{fallback}} recurrieron al grupo",
         "poolDry": "Grupo agotado {{count}} vez/veces hoy: añade una clave de proveedor para restaurar la búsqueda.",
         "poolUnreachable": "Estadísticas del relay inaccesibles"
+      },
+      "test": "Probar conexión",
+      "testStates": {
+        "ok": "Conectado",
+        "auth-rejected": "Token rechazado",
+        "upstream-degraded": "Accesible, pero el proveedor de búsqueda está degradado",
+        "unreachable": "Servicio inaccesible",
+        "invalid-url": "Introduce primero una URL http(s) válida"
       }
     }
   },

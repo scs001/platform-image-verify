@@ -43,21 +43,6 @@ The platform SHALL expose a `web_read` tool (callable name `mcp__websearch__web_
 - **THEN** the tool SHALL return an explicit timeout error
 - **AND** the agent's turn SHALL continue (no hang, no crash)
 
-### Requirement: Search ships enabled in every deployment form with zero customer configuration
-The web-search tools SHALL be present and enabled in the effective tool roster on first startup of every deployment form — dev server, packaged desktop app, and hosted cloud cell — without any customer-side account, key, or configuration action. The capability SHALL remain manageable through the existing extensions surface (disable/re-enable) and discoverable through the existing tool-discovery layer. Demo and sandbox users SHALL have the same access as full users.
-
-#### Scenario: Fresh cloud cell has search
-- **WHEN** a hosted cell boots for the first time for a new user
-- **THEN** `mcp__websearch__web_search` and `mcp__websearch__web_read` SHALL appear in the effective tool roster
-
-#### Scenario: No customer credentials required
-- **WHEN** a customer deployment has never configured any search-provider credential
-- **THEN** `web_search` SHALL still be functional (all upstream provider keys live at the operator's relay)
-
-#### Scenario: Admin can disable the capability
-- **WHEN** an administrator disables the bundled web-search server through the extensions surface
-- **THEN** its tools SHALL disappear from the effective roster and from tool-discovery results
-
 ### Requirement: Relay client contract keeps provider credentials operator-side
 The platform SHALL talk to exactly one configurable search-relay endpoint (`SEARCH_RELAY_URL`) authenticated with a single relay token (`SEARCH_RELAY_TOKEN`) sent as a Bearer header. No upstream search-provider key (SerpAPI, GLM, or successor) SHALL appear in the repository, the bundle, any deployment's client-visible surface, or any environment variable of a customer deployment other than the relay pair.
 
@@ -205,3 +190,22 @@ When the relay is unconfigured, unreachable, or returns an error, `web_search` S
 
 - **WHEN** 非管理员用户打开分区
 - **THEN** SHALL 只看到自己的密钥区；共享服务配置与池状态 SHALL 不渲染，且相应端点 SHALL 对其返回 403
+### Requirement: Search is off by default and enabled per session
+
+websearch 工具 SHALL 默认不进入会话的有效工具面（部署可经 `PACK_BASELINE_MCP` 显式回到常开，但平台默认配置为关）。用户 SHALL 能经对话输入框的会话级联网开关（见 chat-composer-controls）为当前会话开启/关闭，开启 SHALL 经 `tools/set` 会话级工具闸免重启生效，SHALL 只影响该会话。运营商经扩展面整体停用 websearch 服务器的既有能力不变。
+
+#### Scenario: 新会话默认无搜索工具
+
+- **WHEN** 用户开启新会话且未翻转联网开关
+- **THEN** 该会话的有效工具面 SHALL 不含 websearch 工具
+
+#### Scenario: 会话内翻开开关后可搜索
+
+- **WHEN** 用户翻开联网开关并发起会触发搜索的提问
+- **THEN** 该会话 SHALL 可调用 websearch 工具
+- **AND** 其他未开启会话 SHALL 不受影响
+
+#### Scenario: 运营商整体停用仍优先
+
+- **WHEN** 管理员经扩展面停用 websearch 服务器
+- **THEN** 会话级开关 SHALL 不恢复其工具（会话闸只做收紧-放开，不越权启停服务器）

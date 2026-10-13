@@ -56,16 +56,16 @@ The server SHALL send the currently active model id and thinking level to a clie
 
 ### Requirement: User can switch the active model at runtime
 
-The server SHALL accept a `set_model` WebSocket message OR a `/model <id>` chat command and switch the dsh runtime's active model via a JSON-RPC model-switch request over the bridge, validating that the requested model is available and has configured auth. A `/model` command with no argument SHALL report the currently active model AND list all available selectable models. The switched model SHALL apply to the next agent turn. Saving a personal model binding is a separate authenticated REST operation and SHALL NOT be implied by an explicit `set_model` or `/model` command. Runtime profile application and explicit model switching SHALL share the streaming guard and SHALL NOT interrupt an in-flight response.
+The server SHALL accept a `set_model` WebSocket message OR a `/model <id>` chat command and switch the runtime's active model, validating that the requested model is available and has configured auth. 当桥声明 `model/set` 能力时，切换 SHALL 经该 RPC 免重启完成（dsh 原生 step 边界语义保证流中安全）；未声明时 SHALL 保留既有 restart 路径。A `/model` command with no argument SHALL report the currently active model AND list all available selectable models. The switched model SHALL apply to the next agent turn (idle) or the next step (mid-run, 由 dsh 快照语义保证当前请求不撕裂). Saving a personal model binding is a separate authenticated REST operation and SHALL NOT be implied by an explicit `set_model` or `/model` command. 切换 SHALL NOT 再产生 pendingConfig 禁发窗口（免重启路径下发送保持可用）。
 
 #### Scenario: user selects a valid model via the selector
 - **WHEN** a client sends `{ "type": "set_model", "id": "deepseek-v4-flash" }` for a model in the available list
-- **THEN** the server SHALL send a JSON-RPC model-switch request to the dsh runtime
+- **THEN** the server SHALL switch the active model without a runtime restart (when the bridge declares `model/set`)
 - **AND** SHALL broadcast `model_changed` with the new id
 
 #### Scenario: user switches model via the /model command
 - **WHEN** a client sends `{ "type": "prompt", "text": "/model deepseek-v4-pro" }` for a model in the available list
-- **THEN** the server SHALL switch the dsh runtime's active model and broadcast `model_changed` with the new id
+- **THEN** the server SHALL switch the runtime's active model and broadcast `model_changed` with the new id
 - **AND** SHALL broadcast a `command_use` event for the `model` command
 
 #### Scenario: /model with no argument reports current model and lists available models
@@ -83,13 +83,11 @@ The server SHALL accept a `set_model` WebSocket message OR a `/model <id>` chat 
 - **THEN** the runtime model changes as an explicit global selection
 - **AND** no personal model binding is created or updated
 
-### Requirement: Model switching is disabled while the agent is streaming
-The server SHALL reject a `set_model` request while the agent is mid-response, so that a turn is not interrupted by a model switch.
-
-#### Scenario: switch attempted during streaming
-- **WHEN** a client sends `set_model` while the agent is streaming a response
-- **THEN** the server SHALL send an `error` message indicating the model cannot be changed mid-turn
-- **AND** SHALL NOT switch the model
+#### Scenario: switch mid-run takes effect at the next step
+- **WHEN** a client sends `set_model` while the target session's turn is streaming, and the bridge declares `model/set`
+- **THEN** the server SHALL accept the switch without rejecting it
+- **AND** the in-flight model request SHALL complete on the old model
+- **AND** subsequent steps of the same turn SHALL use the new model
 
 ### Requirement: Server selects a default model at startup
 The server SHALL select a default model when creating the agent session by passing an explicit model to the runtime. If the `DEFAULT_MODEL` environment variable is set and matches an available model id, that model SHALL be used. Otherwise the first available model with configured auth SHALL be used. The selected default model SHALL be communicated to clients as the active model on connect. The model selector SHALL list models with configured auth, deduplicated by id. The startup selection SHALL pass through the default-lane guard: if the resolved default is probed definitively dark at boot, the guard's fallback applies before the session serves its first turn.
@@ -136,7 +134,8 @@ The platform SHALL verify that the default model actually serves before relying 
 - **THEN** the configured default SHALL remain in effect and the failure SHALL be surfaced (status surface and logs) rather than silently selecting an unverified model
 
 ### Requirement: Model selector is enabled as soon as models are known
-The chat UI SHALL enable the model selector as soon as the available models are received, not only after the first agent turn completes. The selector SHALL be disabled while the agent is streaming and re-enabled when the turn ends (whether it succeeded or failed). The selector SHALL reflect the currently active model. The UI SHALL provide a command list popup showing available models as clickable items that trigger model selection. The click handler SHALL safely check for null DOM references before accessing properties.
+
+The chat UI SHALL enable the model selector as soon as the available models are received, not only after the first agent turn completes. 桥声明 `model/set` 能力时，选择器 SHALL 在流中保持可用（切换经 RPC 免重启生效）；未声明时 SHALL 保留既有「流中禁用」行为。The selector SHALL reflect the currently active model. The UI SHALL provide a command list popup showing available models as clickable items that trigger model selection. The click handler SHALL safely check for null DOM references before accessing properties.
 
 #### Scenario: selector enabled on connect
 - **WHEN** the page loads and the server sends the model list
@@ -151,6 +150,11 @@ The chat UI SHALL enable the model selector as soon as the available models are 
 - **WHEN** the user opens the command list and clicks on a model name
 - **THEN** the UI SHALL send a `set_model` message with the clicked model id
 - **AND** SHALL reflect the new active model in the selector
+
+#### Scenario: selector stays usable while streaming (live capability)
+- **WHEN** the bridge declares `model/set` and the agent is streaming
+- **THEN** the model selector SHALL remain enabled
+- **AND** a selection SHALL take effect without a runtime restart
 
 ### Requirement: Model selector input click does not throw errors
 Clicking on the model selector input SHALL open the dropdown and SHALL NOT throw JavaScript errors. The click handler SHALL properly handle null or undefined references and ensure the dropdown state is managed correctly.
@@ -209,3 +213,16 @@ An authenticated user's saved personal model binding SHALL participate in the sh
 - **WHEN** a saved personal model binding is pending while a turn is streaming
 - **THEN** the binding is applied after the turn completes
 - **AND** the client receives the resulting model state
+### Requirement: Model switching degrades safely without live capability
+
+桥未声明 `model/set` 能力时，服务端 SHALL 保留既有行为：流中 `set_model` 被拒绝并回错误、空闲切换经 restart 完成。降级 SHALL 对客户端透明（无未处理错误），且能力声明变化（子进程升级滚动）后 SHALL 自动切换到活切路径。
+
+#### Scenario: 降级下的流中切换被拒
+
+- **WHEN** 桥能力声明不含 `model/set` 且流中收到 `set_model`
+- **THEN** 服务端 SHALL 回错误且模型不变（既有行为）
+
+#### Scenario: 能力上线后自动走活切
+
+- **WHEN** 子进程滚动升级后能力声明包含 `model/set`
+- **THEN** 后续 `set_model` SHALL 走免重启路径

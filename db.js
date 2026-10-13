@@ -639,6 +639,29 @@ const MIGRATIONS = [
       )`,
     ],
   },
+  {
+    version: 28,
+    // facet-market-credentials (add-facet-market-credentials, design D1): the
+    // market's app tokens live 12h, so what's stored is the DEVICE identity
+    // (Ed25519 keypair + facet-side account), not a terminal token. token /
+    // token_exp are the silent-relogin cache (challenge→sign→login); stale
+    // means the binding was revoked (re-pair required). Referenced from
+    // mcp.json's facet-market server row as `credentialRef: "facet-market"`.
+    statements: [
+      `CREATE TABLE IF NOT EXISTS user_facet_market_devices (
+        email TEXT PRIMARY KEY,
+        device_id TEXT NOT NULL,
+        public_key TEXT NOT NULL,
+        private_key TEXT NOT NULL,
+        facet_email TEXT,
+        stale INTEGER NOT NULL DEFAULT 0,
+        token TEXT,
+        token_exp INTEGER,
+        paired_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+    ],
+  },
 ];
 
 function nowIso() {
@@ -1626,6 +1649,74 @@ export function deleteSearchCredential(email) {
   const key = normalizeIdentityEmail(email);
   if (!key) return false;
   return stmt("DELETE FROM user_search_credentials WHERE email = ?").run(key).changes > 0;
+}
+
+// ── User facet-market devices (add-facet-market-credentials) ────────────────
+// One device identity per user (Ed25519 keypair). token/token_exp are the
+// silent-relogin cache; the row (and the private key) never leaves the
+// server except through the injection path.
+
+const FACET_MARKET_COLS = `device_id AS deviceId, public_key AS publicKey, private_key AS privateKey,
+  facet_email AS facetEmail, stale, token, token_exp AS tokenExp, paired_at AS pairedAt`;
+
+export function getFacetMarketDevice(email) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return null;
+  return stmt(`SELECT ${FACET_MARKET_COLS} FROM user_facet_market_devices WHERE email = ?`).get(key) ?? null;
+}
+
+export function setFacetMarketDevice({ email, deviceId, publicKey, privateKey, facetEmail, token, tokenExp, stale = 0 }) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return null;
+  const now = nowIso();
+  stmt(
+    `INSERT INTO user_facet_market_devices
+       (email, device_id, public_key, private_key, facet_email, stale, token, token_exp, paired_at, updated_at)
+     VALUES (@email, @deviceId, @publicKey, @privateKey, @facetEmail, @stale, @token, @tokenExp, @now, @now)
+     ON CONFLICT(email) DO UPDATE SET
+       device_id = excluded.device_id, public_key = excluded.public_key,
+       private_key = excluded.private_key, facet_email = excluded.facet_email,
+       stale = excluded.stale, token = excluded.token, token_exp = excluded.token_exp,
+       updated_at = excluded.updated_at`
+  ).run({ email: key, deviceId, publicKey, privateKey, facetEmail: facetEmail ?? null, stale: stale ? 1 : 0, token, tokenExp: tokenExp ?? null, now });
+  return getFacetMarketDevice(key);
+}
+
+export function setFacetMarketDeviceToken(email, token, tokenExp, facetEmail, stale = false) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return null;
+  stmt(
+    `UPDATE user_facet_market_devices
+     SET token = ?, token_exp = ?, facet_email = COALESCE(?, facet_email), stale = ?, updated_at = ?
+     WHERE email = ?`
+  ).run(token, tokenExp ?? null, facetEmail ?? null, stale ? 1 : 0, nowIso(), key);
+  return getFacetMarketDevice(key);
+}
+
+export function clearFacetMarketDeviceToken(email) {
+  if (!dbReady) return false;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return false;
+  return stmt("UPDATE user_facet_market_devices SET token = NULL, token_exp = NULL, updated_at = ? WHERE email = ?")
+    .run(nowIso(), key).changes > 0;
+}
+
+export function markFacetMarketDeviceStale(email) {
+  if (!dbReady) return false;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return false;
+  return stmt("UPDATE user_facet_market_devices SET stale = 1, token = NULL, token_exp = NULL, updated_at = ? WHERE email = ?")
+    .run(nowIso(), key).changes > 0;
+}
+
+export function deleteFacetMarketDevice(email) {
+  if (!dbReady) return false;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return false;
+  return stmt("DELETE FROM user_facet_market_devices WHERE email = ?").run(key).changes > 0;
 }
 
 // ── Extension configs (MCP servers) ──────────────────────────────────────────

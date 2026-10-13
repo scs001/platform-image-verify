@@ -11,6 +11,7 @@ import { McpMarketCard } from "./McpMarketCard";
 import { McpServerForm } from "./McpServerForm";
 import { RegistryConnectPanel } from "./RegistryConnectPanel";
 import { ConnectorConnectPanel } from "./ConnectorConnectPanel";
+import { FacetMarketConnectPanel } from "./FacetMarketConnectPanel";
 import type { MarketMcpServer } from "@platform/core";
 
 interface McpMarketViewProps {
@@ -48,6 +49,7 @@ export function McpMarketView({ onInstalled }: McpMarketViewProps = {}) {
             server appears once this credential is live — same credential slot
             mental model, next to the market account. */}
         <ConnectorConnectPanel className="mb-4" />
+        <FacetMarketConnectPanel className="mb-4" />
         {mcpServers.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("extensions.market.empty")}</p>
         ) : (

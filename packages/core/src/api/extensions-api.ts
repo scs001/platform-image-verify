@@ -218,6 +218,53 @@ export async function disconnectConnector(slot?: string): Promise<ConnectorConne
   return res.json();
 }
 
+// ── Facet market device credential (facet-market-credentials, C1.1-B) ───────
+//
+// No terminal token exists to paste: the market's app tokens live 12h. The
+// browser only ever submits a 6-digit bind code minted on the facet market's
+// settings page; the server owns the Ed25519 device key and mints tokens
+// silently. Projections carry state only.
+
+export interface FacetMarketConnection {
+  connected: boolean;
+  stale: boolean;
+  facetAccount: string | null;
+  pairedAt: string | null;
+  tokenExpiresAt: number | null;
+  // Deployment config, not a secret: where the "get a bind code" hint sends
+  // the user (the facet market's paired-devices settings page).
+  facetUrl: string;
+  bindPath: string;
+}
+
+export async function fetchFacetMarketConnection(): Promise<FacetMarketConnection> {
+  const res = await http("/api/facet-market/connection");
+  if (!res.ok) throw new Error(`Failed to fetch facet market connection: ${res.statusText}`);
+  return res.json();
+}
+
+export async function pairFacetMarket(code: string): Promise<FacetMarketConnection> {
+  const res = await http("/api/facet-market/pair", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ code }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to pair: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function disconnectFacetMarket(): Promise<FacetMarketConnection> {
+  const res = await http("/api/facet-market/connection", { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to disconnect: ${res.statusText}`);
+  }
+  return res.json();
+}
+
 // ── MCP Servers ──────────────────────────────────────────────────────────────
 
 export async function fetchMcpServers(): Promise<McpServer[]> {

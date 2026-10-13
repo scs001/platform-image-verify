@@ -18,6 +18,7 @@
 
 import * as registryCredentials from "./registry-credentials.js";
 import * as connectorCredentials from "./connector-credentials.js";
+import * as facetMarketCredentials from "./facet-market-credentials.js";
 
 const REFS = new Map(
   [
@@ -34,6 +35,13 @@ const REFS = new Map(
       liveToken: connectorCredentials.liveToken,
       markInvalid: connectorCredentials.markInvalid,
       staleEvent: "connector_credential_stale",
+    },
+    {
+      refName: facetMarketCredentials.FACET_MARKET_CREDENTIAL_REF,
+      isRef: facetMarketCredentials.isFacetMarketRef,
+      liveToken: facetMarketCredentials.liveToken,
+      markInvalid: facetMarketCredentials.markInvalid,
+      staleEvent: "facet_market_credential_stale",
     },
   ].map((entry) => [entry.refName, entry]),
 );

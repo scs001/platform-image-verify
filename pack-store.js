@@ -17,6 +17,7 @@ import * as db from "./db.js";
 import * as skillMaterialize from "./skill-materialize.js";
 import * as extensionStore from "./extension-store.js";
 import * as registryCredentials from "./registry-credentials.js";
+import * as facetMarketCredentials from "./facet-market-credentials.js";
 import { validatePackManifest } from "./lib/pack-manifest.js";
 
 function notFound(msg) {
@@ -83,6 +84,21 @@ function agentOwner(agentId, excludePackId) {
 // travels with the pack's stored manifest, so the focused composition picks
 // the binding up purely by name intersection — and a reference that matches
 // neither surface awaits one instead of failing the pack.
+
+// Which 壹座-side credentialRef a registry entry's install must wire and
+// require (add-facet-market-credentials D4): the registering line declares
+// it via metadata.credential_ref (mapped onto entry.credentialRef by
+// registry-bridge); absent = the incumbent registry credential.
+export function credentialRefForEntry(entry) {
+  return entry?.credentialRef || registryCredentials.REGISTRY_CREDENTIAL_REF;
+}
+
+export function credentialConnected(refName, email) {
+  return refName === facetMarketCredentials.FACET_MARKET_CREDENTIAL_REF
+    ? facetMarketCredentials.status(email).connected
+    : registryCredentials.status(email).connected;
+}
+
 async function installMcpRef(ref, { user }) {
   const name = ref.registryName;
   const item = { name, status: "unavailable" };
@@ -94,14 +110,25 @@ async function installMcpRef(ref, { user }) {
     if (extensionStore.getMcpServer(name)) {
       return { name, status: "reused" };
     }
-    const cred = registryCredentials.status(user?.email ?? null);
-    if (!cred.connected) {
-      return { ...item, reason: "connect the MCP market first — no live registry credential", code: "credential-required" };
+    // Credential dispatch (add-facet-market-credentials D4): the registering
+    // line declares which 壹座-side credentialRef its entry needs
+    // (metadata.credential_ref); absent = the incumbent registry credential.
+    const refName = credentialRefForEntry(entry);
+    const connected = credentialConnected(refName, user?.email ?? null);
+    if (!connected) {
+      return {
+        ...item,
+        reason:
+          refName === facetMarketCredentials.FACET_MARKET_CREDENTIAL_REF
+            ? "pair the facet market first — no live market credential"
+            : "connect the MCP market first — no live registry credential",
+        code: "credential-required",
+      };
     }
-    // Registry-origin installs are credential-shaped (registry-sso-credentials):
-    // strip the template's placeholder auth and reference the stored credential.
+    // Registry-origin installs are credential-shaped: strip the template's
+    // placeholder auth and reference the stored credential for that ref.
     const { headers: _placeholderHeaders, ...rest } = entry.configTemplate ?? {};
-    const config = { ...rest, credentialRef: registryCredentials.REGISTRY_CREDENTIAL_REF };
+    const config = { ...rest, credentialRef: refName };
     extensionStore.addMcpServer({
       name,
       config,

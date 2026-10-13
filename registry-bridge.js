@@ -122,6 +122,14 @@ function mapServer(s) {
     tags: Array.isArray(s.tags) ? s.tags.map((t) => String(t)) : [],
     // Hosting tier as declared on the entry ("remote" | "local" | …).
     deployment: typeof s.deployment === "string" && s.deployment ? s.deployment : null,
+    // Credential requirement declared by the registering line
+    // (add-facet-market-credentials D4): entries may carry
+    // metadata.credential_ref naming the 壹座-side credentialRef installs
+    // must wire and require (default "registry" — the incumbent behavior).
+    credentialRef:
+      typeof s.metadata?.credential_ref === "string" && s.metadata.credential_ref
+        ? s.metadata.credential_ref
+        : null,
   };
 }
 

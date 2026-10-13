@@ -46,6 +46,7 @@ import { registerMpRoutes } from "./server/routes/mp.js";
 import { registerAppRoutes } from "./server/routes/app.js";
 import { registerRegistryRoutes } from "./server/routes/registry.js";
 import { registerConnectorRoutes } from "./server/routes/connector.js";
+import { registerFacetMarketRoutes } from "./server/routes/facet-market.js";
 import { registerPackUsageRoutes } from "./server/routes/pack-usage.js";
 import { registerFileRoutes } from "./server/routes/files.js";
 import { registerResourceRoutes } from "./server/routes/resources.js";
@@ -221,6 +222,9 @@ registerPackUsageRoutes(ctx);
 // 萬星 connector PAT (connector-credentials) — same route family as the
 // registry credential endpoints.
 registerConnectorRoutes(ctx);
+// 谦面市场设备凭据 (facet-market-credentials, C1.1-B) — same family again:
+// pair-by-bind-code, silent relogin, injection via credentialRef.
+registerFacetMarketRoutes(ctx);
 // The relay must register BEFORE the bots routes: POST /api/bots/relay/send
 // would otherwise match POST /api/bots/:id/send with id = "relay", and the
 // admin-gated handler there would answer a machine caller.
@@ -681,10 +685,11 @@ async function initDshAgent() {
   chatHistory.setWorkspaceSource(() => ctx.listWorkspaces?.().current ?? null);
   ctx.session = {
     prompt: async (text) => {
-      ctx.isStreaming = true;
-      const messageId = await ctx.dshBridge.prompt(ctx.dshSessionId, [{ type: "text", text }]);
+      const sid = chatHistory.currentSessionId();
+      ctx.setStreaming(sid, true);
+      const messageId = await ctx.dshBridge.prompt(sid, [{ type: "text", text }]);
       // Trace: the durable message id keys this turn's trace rows.
-      ctx.dshCurrentTurnId = messageId;
+      ctx.turnStateFor(sid).currentTurnId = messageId;
       trace.bindTurn(messageId);
     },
     model: { id: model, provider },

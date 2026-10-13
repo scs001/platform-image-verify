@@ -11,6 +11,7 @@ import type {
   RegistryConnection,
   ConnectorAccount,
   ConnectorConnection,
+  FacetMarketConnection,
 } from "@platform/core";
 import { connectorSessionLive, mintConnectorToken, suggestSlot } from "@/lib/connector-mint";
 import type { ServerMessage } from "@platform/core";
@@ -30,6 +31,10 @@ interface ExtensionsState {
   // Connector accounts (add-connector-account-picker). null = not fetched yet.
   connectorConnection: ConnectorConnection | null;
   connectorAccounts: ConnectorAccount[] | null;
+
+  // Facet market device credential (facet-market-credentials). null = not
+  // fetched yet.
+  facetMarketConnection: FacetMarketConnection | null;
 
   load: () => Promise<void>;
   refreshMcpServers: () => Promise<void>;
@@ -58,6 +63,10 @@ interface ExtensionsState {
   setActiveConnectorAccount: (slot: string) => Promise<void>;
   disconnectConnector: (slot?: string) => Promise<void>;
 
+  refreshFacetMarketConnection: () => Promise<void>;
+  pairFacetMarket: (code: string) => Promise<void>;
+  disconnectFacetMarket: () => Promise<void>;
+
   applyEvent: (msg: ServerMessage) => void;
 }
 
@@ -79,6 +88,7 @@ export const useExtensionsStore = create<ExtensionsState>((set, get) => ({
   connecting: false,
   connectorConnection: null,
   connectorAccounts: null,
+  facetMarketConnection: null,
 
   load: async () => {
     set({ loading: true, error: null });
@@ -286,6 +296,28 @@ export const useExtensionsStore = create<ExtensionsState>((set, get) => ({
   disconnectConnector: async (slot = "default") => {
     await api.disconnectConnector(slot);
     await get().refreshConnectorConnection();
+  },
+
+  // ── Facet market (facet-market-credentials): pair-by-bind-code; the server
+  // owns the device key and mints tokens silently — no token ever transits
+  // the browser.
+  refreshFacetMarketConnection: async () => {
+    try {
+      const facetMarketConnection = await api.fetchFacetMarketConnection();
+      set({ facetMarketConnection });
+    } catch (err) {
+      set({ error: (err as Error).message });
+    }
+  },
+
+  pairFacetMarket: async (code) => {
+    await api.pairFacetMarket(code);
+    await get().refreshFacetMarketConnection();
+  },
+
+  disconnectFacetMarket: async () => {
+    await api.disconnectFacetMarket();
+    await get().refreshFacetMarketConnection();
   },
 
   applyEvent: (msg) => {

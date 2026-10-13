@@ -44,4 +44,5 @@
 - [x] 7.2 出片（模板+宿主+web 同滚）→ fd-prod 滚动 → 撤 `PACK_BASELINE_MCP` 中 websearch → 生产复验五点 + 观察错误率
   - sha-bd84e6f（快照=paas 377786c，platform-images 绕行线 6 分钟出片）生产 1/1 ready；GitOps 6bfbf3f 双动（镜像 tag + baseline 撤 websearch，各自独立可回滚）
   - 生产已验：web bundle 四标记（websearch/ctxHint/promptInFlight/sending）；容器内 bridge/scope 模板含 platform/capabilities+sessionGatedMcp；baseline 环境变量已撤；websearch 仍装在 owner profile（installed 服务器）但经 guard 会话闸默认关
-  - 挂账：done-usage 真回合、流中活切真回合——LLM 上游（token.finddatatech.cloud）宕机中（pod llm-guard upstream_down 实证），恢复后补两探针
+  - 挂账已清（2026-10-14 上游恢复）：真回合探针五项 ALL PASS——usage {in:204,out:2}、活切 1ms、流中切会话 1ms、tools/set、capabilities。清账时暴露并修复 usage 形状错配（TokenUsage 挂 assistant/message 而非 finish chunk，0cc933b；cron-runner 同修），出片 sha-798332e 已滚生产（GitOps eb1903d）。探针自身 waitFor 历史匹配 bug 同修（waitForNext）。
+  - 连带：/help e2e 用例漏更（10-11 帮助三 tab 化）补 reference tab 点击（d92588e），composer-stop 10/10

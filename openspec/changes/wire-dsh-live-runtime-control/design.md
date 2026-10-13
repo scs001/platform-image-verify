@@ -48,7 +48,7 @@ dsh（@deepseek-ai/dsh@0.1.1-rc.2）子进程与宿主之间只有三个线上 R
 
 ### D6: usage 通道 = done 载荷 + 回合脚注 + 水位条
 
-`dsh-events.js` 在回合结束时把该回合最后一个 finish chunk 的 `usage`（inputTokens/outputTokens，现有捕获路径）附加到 `done` 事件载荷（additive，旧客户端忽略）；回合脚注渲染 in/out。上下文水位 = 当前会话各回合 usage 输入累计 ÷ 模型 `contextWindow`（roster 已带字段），显示于输入框旁。精确 context 长度（dsh 侧快照）非目标，水位为近似。
+`dsh-events.js` 在回合结束时把该回合最后一步 `assistant/message` 的 `data.usage`（inputTokens/outputTokens）附加到 `done` 事件载荷（additive，旧客户端忽略）；回合脚注渲染 in/out。上下文水位 = 当前会话各回合 usage 输入累计 ÷ 模型 `contextWindow`（roster 已带字段），显示于输入框旁。精确 context 长度（dsh 侧快照）非目标，水位为近似。（修订 2026-10-14：原稿写 finish chunk 携带 usage——形状错配，真回合实证 TokenUsage 只在 assistant/message 上，finish chunk 无此字段；cron-runner 同错同修，见 0cc933b。）
 
 ### D7: 客户端防重三件套
 

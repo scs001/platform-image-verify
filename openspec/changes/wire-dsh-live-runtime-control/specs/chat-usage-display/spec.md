@@ -4,7 +4,7 @@
 
 ### Requirement: Turn completion carries token usage
 
-服务端 SHALL 在 `done` 事件载荷中附加该回合的 token 用量 `{ usage?: { inputTokens: number, outputTokens: number } }`（取该回合最后一个 finish chunk 报告的用量；无数据时省略字段）。载荷为 additive——旧客户端 SHALL 忽略未知字段。
+服务端 SHALL 在 `done` 事件载荷中附加该回合的 token 用量 `{ usage?: { inputTokens: number, outputTokens: number } }`（取该回合最后一步 `assistant/message` 事件 `data.usage` 报告的用量——dsh 的 TokenUsage 挂在会话消息事件上，finish chunk 上没有；无数据时省略字段）。载荷为 additive——旧客户端 SHALL 忽略未知字段。
 
 #### Scenario: 正常回合带用量
 

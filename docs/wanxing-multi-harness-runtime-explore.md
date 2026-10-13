@@ -148,6 +148,39 @@ HarnessAdapter（agent 级接口）
 | 4 | 升级粒度 | pod 模式下升级单个 pack=整 pod 排水重建；contextId→session 连续性要跨 pod 重建存活 |
 | 5 | 凭据面 | sidecar 进程级共享=pod 内共享 MCP 凭据；单 pack pod 语义成立，跨 owner/pack 硬禁共宿 |
 
+### 2026-10-14 补记：跨会话回合收尾串行化实测（后台续跑挡路石定量）
+
+`scripts/probe-concurrent-turn-close.mjs`（`--tree` 可测任意候选树）对
+「A 会话请求挂起（dummy LLM 扣住）→ B 会话发回合并等其收尾」的直接实测：
+
+| 候选 | 判决 |
+|---|---|
+| dsh-matrix 0.2.0-rc.2（现役） | ✗ B 派发并 running，但收尾被 A 饿死（15s 窗口不收敛；A 释放后双双干净收敛，无楔死无崩溃） |
+| 0.2.1-alpha.1（全家族树） | ✗ 同上 |
+| 0.2.1-alpha.2（全家族树） | 判据未触发：0 请求到达 dummy、回合空转即关——llm 适配层形状漂移，需跟随性适配后方可测，不构成反证 |
+
+三点定读：
+
+1. **限制是结构性的**：单 agent 驱动内跨会话的回合**收尾**串行（派发/驱动
+   本身并发）。dsh 的并发单位是 **agent 上下文（ctx.agents.create）而非
+   会话**——DS Bot 的多 bot 并发回合走的是每 bot 一个 agent 上下文，不是
+   单 agent 多会话。会话级后台续跑（切走不取消）因此跨三代（0.1.1-rc.2
+   →0.2.0-rc.2→0.2.1-alpha.1）均被挡，等上游改会话驱动不现实。
+2. **宿主侧地基已备**：per-session turn 状态/turn buffer（2000 事件）/
+   `session_loaded{running,turnEvents}` 重放/per-viewer 投递全在产；唯一
+   杀后台回合的是 `stopStreamingForSessionNavigation`（切走即取消的刻意
+   设计，合同⑨当时如实收窄）。
+3. **解锁路径**：结构性解 = 每会话（或每后台会话）一个 agent 上下文，
+   即 DshPodAdapter 方向（本底稿切片 2）——后台续跑是 pod 模型的第一个
+   消费者。0.2.0 时代的部分解可选：后台续跑+全局单活回合（在别会话发
+   prompt 时带提示取消后台回合），碰撞策略是产品决策，未立项。
+
+0.2.1 线的代际差异（未来跟随必读）：**peerDependencies 回来了**
+（0.2.0 是零 peer 锁步）。`--legacy-peer-deps` 会欠装全家族 peer 导致
+64 插件导入失败假象；全家族树（plain `npm install`，peers 自动装）+
+本仓 0.2.0 era profile 模板可握手跑通 alpha.1——迁移面比想象小，但矩阵
+manifest/安装流程必须为 peer 时代重写。
+
 ## 与 unify-dsh-generation 收口的衔接（2026-10-14 已归档）
 
 - **阻塞已解除**：统一代 0.2.0-rc.2 全链完结（0643901 主落地，出片 sha-f7d7c39 四门

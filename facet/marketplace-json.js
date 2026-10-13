@@ -8,11 +8,12 @@
 //
 // Scope discipline (spec: pack-marketplace delta):
 //   - public non-unlisted packs only — private AND unlisted never appear;
+//   - listing admission = curated (category or featured), the same signals
+//     the browse face consumes (D5; wire-marketplace-json-curation) — an
+//     operator whitelist (FACET_MARKETPLACE_PACK_IDS, comma-separated ids)
+//     overrides curation entirely, pinning an explicit set;
 //   - MCP references appear as guidance text in the plugin README, never as
 //     server configuration (the plugin body must install without a key);
-//   - curated subset via FACET_MARKETPLACE_PACK_IDS (comma-separated ids);
-//     unset lists every public pack — today every pack is operator-published,
-//     the filter matters when creator publishing opens up;
 //   - cache headers ≤ 1h so the listing reflects publish/unpublish within it.
 
 const CACHE = "public, max-age=3600";
@@ -25,16 +26,22 @@ export function registerMarketplaceJson(app, { registry, resolveUser }) {
       .filter(Boolean);
 
   const loadListed = (viewer) => {
-    const curated = curatedIds();
+    const whitelist = curatedIds();
+    // Default admission = curated (category ∨ featured); a set whitelist
+    // replaces the curation filter outright, not intersects it (operator
+    // override keeps pre-change behavior byte-identical where configured).
+    const listed = (p) =>
+      whitelist.length > 0 ? whitelist.includes(p.id) : Boolean(p.category || p.featured);
     const out = [];
     let page = 1;
     for (;;) {
       const { packs = [], total = 0 } = registry.list({ page, pageSize: 100, viewer });
       for (const p of packs) {
-        if (curated.length > 0 && !curated.includes(p.id)) continue;
-        out.push(p);
+        if (listed(p)) out.push(p);
       }
-      if (out.length >= total || page > 50) break;
+      // Filtering can hold out.length below total forever — also stop when
+      // the registry stops returning pages.
+      if (out.length >= total || packs.length === 0 || page > 50) break;
       page += 1;
     }
     return out;

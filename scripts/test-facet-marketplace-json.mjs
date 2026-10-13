@@ -1,5 +1,6 @@
-// facet marketplace.json 端点（add-ecosystem-bridge 2.5）
-// 公开面形状：非公开缺席、精选过滤、插件树（plugin.json/SKILL.md/README）、缓存头。
+// facet marketplace.json 端点（add-ecosystem-bridge 2.5；wire-marketplace-json-curation）
+// 公开面形状：策展收录（category∨featured）、白名单覆写、插件树
+// （plugin.json/SKILL.md/README）、缓存头。
 // 运行：node --test scripts/test-facet-marketplace-json.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -44,7 +45,7 @@ async function seed(registry) {
   return { a, b, c };
 }
 
-test("marketplace.json：公开在列、unlisted/private 缺席、缓存头 ≤1h", async () => {
+test("marketplace.json：策展在列（category∨featured）、未策展缺席、缓存头 ≤1h", async () => {
   const { registry, base, cleanup } = await boot();
   try {
     const { a, c } = await seed(registry);
@@ -52,30 +53,37 @@ test("marketplace.json：公开在列、unlisted/private 缺席、缓存头 ≤1
     assert.equal(r.status, 200);
     assert.match(r.headers.get("cache-control") || "", /max-age=(\d+)/);
     assert.ok(Number(r.headers.get("cache-control").match(/max-age=(\d+)/)[1]) <= 3600);
-    const doc = await r.json();
-    const ids = doc.plugins.map((p) => p.name);
-    assert.ok(ids.includes(a.id) && ids.includes(c.id));
-    assert.equal(ids.includes(a.id) && ids.includes(c.id) ? ids.length : 0, 2); // 恰两个
-    const entry = doc.plugins.find((p) => p.name === a.id);
-    assert.equal(entry.source, `./packs/${a.id}/v1`);
-    // Curation metadata (add-facet-content-management) rides the plugin face.
-    assert.equal(entry.category, "");
-    assert.equal(entry.featured, false);
-    registry.setCuration({ id: a.id, actor: { email: "op@finddata.cloud", admin: true }, category: "legal", featured: true });
+    // 默认口径（wire-marketplace-json-curation / D5）：未策展公开包不进清单，
+    // 但插件树直链仍可取（清单管发现，不管可达）。
+    assert.deepEqual((await r.json()).plugins.map((p) => p.name), []);
+    const tree = await fetch(`${base}/api/marketplace/packs/${a.id}/v1/.claude-plugin/plugin.json`);
+    assert.equal(tree.status, 200);
+    // category 一档即收录。
+    registry.setCuration({ id: a.id, actor: { email: "op@finddata.cloud", admin: true }, category: "legal", featured: false });
+    const doc1 = await (await fetch(`${base}/api/marketplace/marketplace.json`)).json();
+    assert.deepEqual(doc1.plugins.map((p) => p.name), [a.id]);
+    const e1 = doc1.plugins.find((p) => p.name === a.id);
+    assert.equal(e1.source, `./packs/${a.id}/v1`);
+    assert.equal(e1.category, "legal");
+    assert.equal(e1.featured, false);
+    // featured 单独为真也收录（category 空）。
+    registry.setCuration({ id: c.id, actor: { email: "op@finddata.cloud", admin: true }, category: "", featured: true });
     const doc2 = await (await fetch(`${base}/api/marketplace/marketplace.json`)).json();
-    const e2 = doc2.plugins.find((p) => p.name === a.id);
-    assert.equal(e2.category, "legal");
+    assert.deepEqual(doc2.plugins.map((p) => p.name), [a.id, c.id]);
+    const e2 = doc2.plugins.find((p) => p.name === c.id);
+    assert.equal(e2.category, "");
     assert.equal(e2.featured, true);
   } finally { await cleanup(); }
 });
 
-test("FACET_MARKETPLACE_PACK_IDS 精选过滤", async () => {
+test("FACET_MARKETPLACE_PACK_IDS 白名单覆写（可列未策展包，不经策展二次过滤）", async () => {
   const { registry, base, cleanup } = await boot();
   process.env.FACET_MARKETPLACE_PACK_IDS = "";
   try {
-    const { a, c } = await seed(registry);
-    process.env.FACET_MARKETPLACE_PACK_IDS = c.id;
+    const { a, b, c } = await seed(registry); // 全部未策展
+    process.env.FACET_MARKETPLACE_PACK_IDS = `${b.id},${c.id}`;
     const doc = await (await fetch(`${base}/api/marketplace/marketplace.json`)).json();
+    // 覆写语义：未策展的 c 在册即列；可见性门独立于白名单（unlisted 的 b 仍缺席）。
     assert.deepEqual(doc.plugins.map((p) => p.name), [c.id]);
     process.env.FACET_MARKETPLACE_PACK_IDS = a.id;
     const doc2 = await (await fetch(`${base}/api/marketplace/marketplace.json`)).json();
@@ -115,6 +123,7 @@ test("版本不可变：v2 发布后清单指 v2，v1 插件文件仍可取", as
   const { registry, base, cleanup } = await boot();
   try {
     const { a } = await seed(registry);
+    registry.setCuration({ id: a.id, actor: { email: "op@finddata.cloud", admin: true }, category: "legal" });
     registry.publishVersion({ email: "op@finddata.tech", id: a.id, manifest: { ...MANIFEST("A2"), skills: [{ name: "skill-A2", description: "新技能", content: "\n新正文\n" }] } });
     const doc = await (await fetch(`${base}/api/marketplace/marketplace.json`)).json();
     const entry = doc.plugins.find((p) => p.name === a.id);
@@ -131,7 +140,8 @@ test("版本不可变：v2 发布后清单指 v2，v1 插件文件仍可取", as
 test("unlisted 包的插件树整体缺席", async () => {
   const { registry, base, cleanup } = await boot();
   try {
-    const { b } = await seed(registry); // b 已 unlisted（a 未用，不解构）
+    const { a, b } = await seed(registry); // b 已 unlisted
+    registry.setCuration({ id: a.id, actor: { email: "op@finddata.cloud", admin: true }, category: "legal" }); // 让清单非空，断言才有咬合
     const pj = await fetch(`${base}/api/marketplace/packs/${b.id}/v1/.claude-plugin/plugin.json`);
     assert.equal(pj.status, 404);
     const sk = await fetch(`${base}/api/marketplace/packs/${b.id}/v1/skills/skill-B/SKILL.md`);

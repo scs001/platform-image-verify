@@ -108,7 +108,9 @@ const EXCLUDE_PATHS = new Set([
 ]);
 // internal health MCP: README is operator-facing (tailnet mesh IPs, SSRF
 // allowlists, DSN handling) — not curated for the public drop (2026-10-06).
-const EXCLUDE_PREFIXES_EXTRA = ["servers/fd-health-mcp/"];
+// internal fork-patch runbook dir: private repo names, registry lines,
+// deploy flow (sub2api 词元谱系, 2026-10-14).
+const EXCLUDE_PREFIXES_EXTRA = ["servers/fd-health-mcp/", "docs/sub2api-fork-patches/"];
 
 const EXCLUDE_PREFIXES = [
   "k8s/",

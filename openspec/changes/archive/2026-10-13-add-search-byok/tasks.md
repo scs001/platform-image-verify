@@ -28,6 +28,6 @@
 
 ## 5. 上线与验收
 
-- [ ] 5.1 relay 代码进 GitOps ConfigMap 再生 + 滚；platform 出片（scs001 线）→ ccr → 滚
-- [ ] 5.2 生产实证：无 user key 走池（现状不变）；配假 user key → 搜索回退共享池且来源=pool-after-user-failure；清 key 回退；池状态端点（admin）；非管理员 userkey 端点可写而 pool 端点 403
-- [ ] 5.3 归档（validate + archive）+ 记忆更新
+- [x] 5.1 relay 代码进 GitOps ConfigMap 再生 + 滚；platform 出片（scs001 线）→ ccr → 滚
+- [x] 5.2 生产实证：无 user key 走池（现状不变）；配假 user key → 搜索回退共享池且来源=pool-after-user-failure；清 key 回退；池状态端点（admin）；非管理员 userkey 端点可写而 pool 端点 403
+- [x] 5.3 归档（validate + archive）+ 记忆更新

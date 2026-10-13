@@ -29,6 +29,7 @@ import { homedir } from "node:os";
 import path from "node:path";
 
 import { HarnessClient } from "@deepseek-ai/dsh-sdk-client";
+import { dshClientRuntime } from "../lib/dsh-client-launch.js";
 import { composeDescriptor } from "../lib/agent-serving.js";
 import { ChildManager } from "../agent-runner/manager.js";
 
@@ -147,14 +148,17 @@ const config = {
 
 // The production client factory (mirrors agent-runner/index.js).
 const clientFactory = (spec) => ({ args, cwd, env }) => {
-  const client = new HarnessClient({
-    command: config.dshBin,
-    args,
-    cwd,
-    env: { ...env, DSH_HOME: spec.home },
-    requestTimeoutMs: (spec.turnBudgetMs ?? config.turnTimeoutMs) + 30_000,
-    shutdownTimeoutMs: 5000,
-  });
+  const client = new HarnessClient(
+    {},
+    dshClientRuntime({
+      command: config.dshBin,
+      args,
+      cwd,
+      env: { ...env, DSH_HOME: spec.home },
+      requestTimeoutMs: (spec.turnBudgetMs ?? config.turnTimeoutMs) + 30_000,
+      shutdownTimeoutMs: 5000,
+    }),
+  );
   return {
     start: () => client.start(),
     initialize: (p) => client.initialize(p),

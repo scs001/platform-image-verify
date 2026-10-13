@@ -20,8 +20,7 @@
 // Writes atomically (temp+rename) and returns the declared model list so server.js
 // can source its model selector without a dsh listModels RPC (dsh has none stock;
 // the generator's declared list IS the dsh list — dsh loads exactly this file).
-import { readFileSync, writeFileSync, mkdirSync, chmodSync, existsSync, statSync, lstatSync, copyFileSync, symlinkSync, readdirSync, realpathSync, rmSync } from "node:fs";
-import { createRequire } from "node:module";
+import { readFileSync, mkdirSync, chmodSync, existsSync, lstatSync, copyFileSync, symlinkSync, readdirSync, realpathSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -33,7 +32,6 @@ import { probeHttpServers } from "./mcp-preflight.js";
 import { repoRoot } from "./paths.js";
 
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), ".dsh");
-const CREDENTIALS_PATH = join(DSH_HOME, ".credentials.yaml");
 const MCP_CONFIG_PATH = resolve(process.env.MCP_CONFIG_PATH || "mcp.json");
 
 // token.finddatatech.cloud gateway model catalog. 2026-09-30 refresh: every id
@@ -1287,7 +1285,6 @@ export async function deriveScope(agentPreset, { noOverlay = false } = {}) {
 // Unresolvable shipped root → the whole overlay is skipped with a warning:
 // chat still works on the bare host composition and the picker stays empty
 // (graceful degradation, never a boot failure).
-const PRESETS_PATCH_PATH = join(DSH_HOME, "profiles", PROFILE_NAME, "presets.patch.yml");
 const BRIDGE_SOURCE = join(dirname(fileURLToPath(import.meta.url)), "dsh-profile-template", "platform-preset-bridge.js");
 const PRESET_BRIDGE_FILE = "platform-preset-bridge.js";
 export const DEFAULT_AGENT_PRESET = "standard";

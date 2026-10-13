@@ -17,6 +17,7 @@ import { Rollover } from "./rollover.js";
 import { RhythmScheduler } from "./scheduler.js";
 import { createOpsApp } from "./a2a.js";
 import { HarnessClient } from "@deepseek-ai/dsh-sdk-client";
+import { dshClientRuntime } from "../lib/dsh-client-launch.js";
 import { matrixGate } from "../lib/dsh-matrix-verify.js";
 
 const config = loadConfig();
@@ -56,17 +57,20 @@ mkdirSync(config.homeRoot, { recursive: true });
 // service: its LLM keys ARE the child's keys), minus anything the scrub would
 // strip for MCP subprocesses — dsh's own subprocess layer does that scrubbing.
 const clientFactory = (spec) => ({ args, cwd, env }) => {
-  const client = new HarnessClient({
-    command: config.dshBin,
-    args,
-    cwd,
-    env: { ...env, DSH_HOME: spec.home },
-    // The child's request timeout rides its effective turn budget
-    // (add-serving-budgets D3): the manager resolves descriptor-minutes vs
-    // the deployment default and passes the ms on the spawn spec.
-    requestTimeoutMs: (spec.turnBudgetMs ?? config.turnTimeoutMs) + 30_000,
-    shutdownTimeoutMs: 5000,
-  });
+  const client = new HarnessClient(
+    {},
+    dshClientRuntime({
+      command: config.dshBin,
+      args,
+      cwd,
+      env: { ...env, DSH_HOME: spec.home },
+      // The child's request timeout rides its effective turn budget
+      // (add-serving-budgets D3): the manager resolves descriptor-minutes vs
+      // the deployment default and passes the ms on the spawn spec.
+      requestTimeoutMs: (spec.turnBudgetMs ?? config.turnTimeoutMs) + 30_000,
+      shutdownTimeoutMs: 5000,
+    }),
+  );
   // AgentChild calls start() itself — one lifecycle owner.
   return {
     start: () => client.start(),

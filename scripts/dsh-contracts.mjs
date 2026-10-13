@@ -29,6 +29,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { HarnessClient } from "@deepseek-ai/dsh-sdk-client";
+import { dshClientRuntime } from "../lib/dsh-client-launch.js";
 import { CONTRACTS, ensureScratchTree, firstLine, sleep, treeDshVersion, withTimeout } from "./lib/dsh-contracts/contracts.mjs";
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -281,14 +282,17 @@ async function main() {
     const childEnv = dshProfile.buildScrubbedEnv() ?? { ...process.env };
     for (const k of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]) delete childEnv[k];
     const args = ["--profile", PROFILE_NAME, "--patch", presetsPatchPath, "--patch", permissionsPatchPath];
-    client = new HarnessClient({
-      command: bin,
-      args,
-      cwd: workspace,
-      env: childEnv,
-      requestTimeoutMs: CONTRACT_TIMEOUT_MS,
-      shutdownTimeoutMs: 5_000,
-    });
+    client = new HarnessClient(
+      {},
+      dshClientRuntime({
+        command: process.execPath,
+        args: [bin, ...args],
+        cwd: workspace,
+        env: childEnv,
+        requestTimeoutMs: CONTRACT_TIMEOUT_MS,
+        shutdownTimeoutMs: 5_000,
+      }),
+    );
     client.start();
 
     const ctx = {

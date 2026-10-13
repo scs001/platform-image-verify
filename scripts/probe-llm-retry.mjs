@@ -33,6 +33,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import yaml from "js-yaml";
 import { HarnessClient } from "@deepseek-ai/dsh-sdk-client";
+import { dshClientRuntime } from "../lib/dsh-client-launch.js";
 import { ensureScratchTree, sleep, withTimeout } from "./lib/dsh-contracts/contracts.mjs";
 import { startChaosLlm } from "../e2e/chaos-llm.js";
 
@@ -129,14 +130,17 @@ async function main() {
   // 3. Boot + handshake (adapter-registration race retry, as in dsh-contracts).
   const childEnv = dshProfile.buildScrubbedEnv() ?? { ...process.env };
   for (const k of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]) delete childEnv[k];
-  const client = new HarnessClient({
-    command: bin,
-    args: ["--profile", PROFILE_NAME, "--patch", presetsPatchPath, "--patch", permissionsPatchPath],
-    cwd: workspace,
-    env: childEnv,
-    requestTimeoutMs: TURN_BUDGET_MS,
-    shutdownTimeoutMs: 5_000,
-  });
+  const client = new HarnessClient(
+    {},
+    dshClientRuntime({
+      command: bin,
+      args: ["--profile", PROFILE_NAME, "--patch", presetsPatchPath, "--patch", permissionsPatchPath],
+      cwd: workspace,
+      env: childEnv,
+      requestTimeoutMs: TURN_BUDGET_MS,
+      shutdownTimeoutMs: 5_000,
+    }),
+  );
   client.start();
 
   // Event tap: session events across EVERY session (parent + subagent

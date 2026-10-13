@@ -21,6 +21,7 @@
 // migrate-pi-to-dsh change (no AGENT_RUNTIME branch left to roll back to).
 
 import { HarnessClient, TransportClosedError } from "@deepseek-ai/dsh-sdk-client";
+import { dshClientRuntime } from "./lib/dsh-client-launch.js";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -201,14 +202,17 @@ export class DshBridge {
     // between a working turn and "no API key for provider route" — worth one
     // line in the log rather than a debugging session.
     console.log(`[dsh-bridge] spawn generation=${this.#generation} provider=${this.#provider} model=${this.#model} cwd=${this.#cwd}`);
-    const client = new HarnessClient({
-      command: COMMAND,
-      args,
-      cwd: this.#cwd,
-      env: this.#env,
-      requestTimeoutMs: REQUEST_TIMEOUT_MS,
-      shutdownTimeoutMs: SHUTDOWN_TIMEOUT_MS,
-    });
+    const client = new HarnessClient(
+      {},
+      dshClientRuntime({
+        command: COMMAND,
+        args,
+        cwd: this.#cwd,
+        env: this.#env,
+        requestTimeoutMs: REQUEST_TIMEOUT_MS,
+        shutdownTimeoutMs: SHUTDOWN_TIMEOUT_MS,
+      }),
+    );
     client.start();
     // Retry the initialize handshake — it may race the async adapter
     // registration (see INIT_RETRIES). Only the "no adapter" race is retried;

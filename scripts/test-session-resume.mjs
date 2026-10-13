@@ -25,6 +25,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { HarnessClient } from "@deepseek-ai/dsh-sdk-client";
+import { dshClientRuntime } from "../lib/dsh-client-launch.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -90,13 +91,16 @@ function childEnv(extra = {}) {
 const booted = new Set();
 
 async function boot(extraPatches = [], extraEnv = {}) {
-  const client = new HarnessClient({
-    command: "dsh",
-    args: ["--profile", "platform", ...basePatches.flatMap((p) => ["--patch", p]), ...extraPatches.flatMap((p) => ["--patch", p])],
-    cwd: ROOT,
-    env: childEnv(extraEnv),
-    requestTimeoutMs: 60_000,
-  });
+  const client = new HarnessClient(
+    {},
+    dshClientRuntime({
+      command: "dsh",
+      args: ["--profile", "platform", ...basePatches.flatMap((p) => ["--patch", p]), ...extraPatches.flatMap((p) => ["--patch", p])],
+      cwd: ROOT,
+      env: childEnv(extraEnv),
+      requestTimeoutMs: 60_000,
+    }),
+  );
   booted.add(client);
   client.start();
   for (let attempt = 0; ; attempt++) {

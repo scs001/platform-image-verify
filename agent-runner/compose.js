@@ -42,16 +42,6 @@ import {
 // validated).
 import { SECRET_NAME_RE } from "../lib/agent-serving.js";
 
-function writeIfChanged(file, content) {
-  let current = null;
-  try {
-    current = readFileSync(file, "utf8");
-  } catch {
-    /* absent */
-  }
-  if (current !== content) writeFileSync(file, content);
-}
-
 // ── Home ownership guard (fix-agent-serving-stability 3.1) ───────────────────
 // The home tree must be owned by the identity the child runtime runs as: a
 // root-context write into a uid-1000 volume (or a root-era volume meeting a
@@ -100,7 +90,7 @@ function ensureHomeOwnership(home, log) {
 // registry agent entry; the descriptor is entry.metadata. `skillContents`
 // maps descriptor.skills paths → SKILL.md bodies (fetched by the caller).
 // Returns { home, presetId, patchPaths } — the spawn inputs for the child.
-export async function materializeAgentHome({ homeRoot, agentKey, entry, skillContents, mcpServers, mcpTools = null, template, seedHome }) {
+export async function materializeAgentHome({ homeRoot, agentKey, entry, skillContents, mcpServers, mcpTools = null, seedHome }) {
   const descriptor = entry.metadata;
   const home = path.join(homeRoot, agentKey);
   const profileDir = path.join(home, "profiles", "platform");

@@ -46,7 +46,6 @@ if (!existsSync(lockPath)) {
 const lock = JSON.parse(readFileSync(lockPath, "utf8"));
 
 let removed = 0;
-let freedBytes = 0;
 for (const key of Object.keys(lock.packages ?? {})) {
   if (key === "") continue;
   const idx = key.lastIndexOf("node_modules/");

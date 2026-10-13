@@ -331,7 +331,9 @@ class PlatformSdkServer extends HarnessSdkJsonRpcServer {
         id: p.id,
         name: p.name ?? p.id,
         description: p.description ?? "",
-        trust: p.trust,
+        // The 0.2.0 declarative registry has no trust dimension (no directory
+        // discovery); every platform-composed row is platform-provided.
+        trust: p.trust ?? "system",
         ...(p.broken === undefined ? {} : { broken: p.broken }),
       }));
     }

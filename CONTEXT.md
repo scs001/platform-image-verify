@@ -194,6 +194,10 @@ _Avoid_: 日志（泛指）、监控数据、审计（含合规语义）
 平台中唯一允许了解 dsh 内部的边界：dsh-bridge、dsh-profile、profile 模板 bridge、agent-runner 组合器与 dsh-matrix。上游发版的跟随工作只应发生在这层；其余平台代码经平台自有接口使用 dsh。
 _Avoid_: dsh 封装层、runtime 层
 
+**Harness（代理运行骨架）**:
+承载 agent 运行的外部上游运行时家族：dsh 是壹座第一 harness；萬星多底座目标为主流 harness 并列接入、统一纳管。
+_Avoid_: 底座（专指壹座平台）、运行时（泛指）、引擎
+
 **生产 runner（Production Runner）**:
 承载已部署 Agent 服务的常驻多租户宿主：以平台镜像第三角色形态部署于专用主机，代码只经镜像通道落地，SFTP 热修不在其列。历史的「staging runner」称谓废弃——该实例自 2026-10-01 起承载 fd-prod 生产流量。
 _Avoid_: staging runner（旧称）、执行槽（Task 的承载抽象）、agent-runner（实现软件名）
@@ -211,7 +215,7 @@ _Avoid_: 市场（谦面的用户面才是市场）、mcp-gateway-registry（实
 _Avoid_: connector 平台、Nango（实现前身）、open-connector（实现软件名）
 
 **萬星（Wanxing）**:
-独立长期运作的 agent 对外服务平台：以萬星门面对外售卖 Agent 服务调用，sub2api 为其计费与降费引擎，壹座为其底座。
+独立长期运作的 agent 对外服务平台：以萬星门面对外售卖 Agent 服务调用，sub2api 为其计费与降费引擎，壹座为其底座。萬星亦是 agents 的运行管理层：对常驻（驻留的 Agent 服务）与短期（工作槽承载的）agents 的监控与管理，底座不止 dsh、覆盖主流 harness。
 _Avoid_: 与壹座混称（壹座是底座平台）、paas（仅作工程代号）
 
 **萬星门面（Wanxing Facade）**:

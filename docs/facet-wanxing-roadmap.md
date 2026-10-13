@@ -437,3 +437,24 @@ M5.1 工程侧材料 v0 已备（`docs/compliance-opening-assessment.md`——�
 - M1 → M2（planner 派发的每步是 pack）。
 - connector-mt（open-connector-mt @ finddata）→ M3 数据面。
 - tool-scoping 供给层（commercial surface）→ 公开 agent 的工具面上限（对话车道的安全面）。
+
+## 多 harness 运行管理层（2026-10-14 用户定向；explore 待立项）
+
+M3 已落「谦面多 harness」的**格式层**（pack 可接入各 harness：五 target 出向桥 +
+allowedTools 纪律）。此定向把它推进到**运行层**：
+
+- **谦面**：功能集兼容部署进主流 AI harness（不止 dsh）——格式层终态的运行侧延伸。
+- **萬星**：agents 的运行管理层——监控与管理常驻（驻留 Agent 服务）与短期（工作槽）
+  agents；运行底座不止 dsh，覆盖主流 AI harness；目标在壹座上顺利运行与管理数百个
+  agents。
+- 词汇表已落「Harness（代理运行骨架）」词条，萬星词条扩展运行管理层定义
+  （CONTEXT.md，2026-10-14）。
+
+前置与观察项：
+
+1. `unify-dsh-generation`（0.2.0-rc.2 统一 + 剪枝 + 适配层 lint）——dsh 作为第一
+   harness 的版本面清零，多 harness 抽象的地基；已 grill 定案（2026-10-14）。
+2. 数百 agents 容量规划：每 dsh 子进程实测 64-96MB；runner 机群分片、serving runner
+   独立化、温区机制为既有基建；独立 explore。
+3. `dsh-api-session-controller`（0.2.0 新面，或可承接 11 个"改配置必重启"调用点）：
+   unify 落地后独立探索。

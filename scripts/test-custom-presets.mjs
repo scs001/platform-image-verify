@@ -62,7 +62,7 @@ const extensionStore = await import("../extension-store.js");
 const sm = await import("../skill-materialize.js");
 const packStore = await import("../pack-store.js");
 const { validatePackManifest } = await import("../lib/pack-manifest.js");
-const { writeMcpPatch, writeSkillsPatch, deriveScope, catalogEntryPersona, rosterPresetId } = await import("../dsh-profile.js");
+const { writeMcpPatch, writeSkillsPatch, deriveScope, catalogEntryPersona, rosterPresetId, writeCatalogAgentPresets, catalogPresetDefinitions } = await import("../dsh-profile.js");
 
 // A seeded pack whose skill a custom preset references cross-pack.
 const PACK_ID = "cp-pack";
@@ -200,17 +200,21 @@ test("a same-id agents.json entry shadows the preset (merged view shows the over
 
 // ── Derivation (task 2.2) ─────────────────────────────────────────────────────
 
-// resolvePersona requires the generated preset to exist — marker dir the way
-// writeCatalogAgentPresets would leave it: under the ROSTER (dash) form of
-// the id, because dsh-agent-presets' containment regex forbids dots in
-// directory names.
-function seedGeneratedPresetDir(id) {
-  const dir = path.join(process.env.DSH_HOME, ".agent-presets", rosterPresetId(id));
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(path.join(dir, "agent.cordis.yml"), "- id: persona\n  name: '@deepseek-ai/dsh-persona'\n  config:\n    text: \"test\"\n");
-  return dir;
+// resolvePersona requires the generated preset to exist — a definition the
+// way writeCatalogAgentPresets would persist it (0.2.0 declarative model:
+// $DSH_HOME/.agent-presets.defs.json, no directories).
+function seedGeneratedPreset(...ids) {
+  // Merge into the current definition set — writeCatalogAgentPresets replaces
+  // the whole set, and a bare seed would evict every earlier preset.
+  const keep = catalogPresetDefinitions()
+    .filter((d) => !ids.includes(d.entryId))
+    .map((d) => ({ type: "agent-remote", mode: "chat", id: d.entryId, name: d.name, description: d.description, customPreset: true }));
+  writeCatalogAgentPresets([
+    ...keep,
+    ...ids.map((id) => ({ type: "agent-remote", mode: "chat", id, name: id, description: "seed", customPreset: true })),
+  ]);
 }
-seedGeneratedPresetDir(PRESET_ID);
+seedGeneratedPreset(PRESET_ID);
 
 const patchDir = path.join(process.env.DSH_HOME, "profiles", "platform");
 const mcpPatch = path.join(patchDir, "mcp.patch.yml");
@@ -275,14 +279,14 @@ test("a cross-pack reference follows its pack's lifecycle (uninstall drops, rein
 
 test("empty references focus to the baseline; a disabled server reference stays omitted", async () => {
   const bare = db.createUserPreset({ name: "Bare", persona: "空引用。" });
-  seedGeneratedPresetDir(bare.id);
+  seedGeneratedPreset(bare.id);
   const dirs = await dirListOf({ agentPreset: bare.id });
   assert.equal(dirs.length, 1, "no skills and no servers ⇒ exactly the deployment baseline");
 
   // A preset referencing the DISABLED server: the focused runtime omits it
   // (references never re-enable what the user disabled).
   const disabledRef = db.createUserPreset({ name: "Disabled Ref", persona: "p", mcpServers: ["cp-disabled"] });
-  seedGeneratedPresetDir(disabledRef.id);
+  seedGeneratedPreset(disabledRef.id);
   await writeMcpPatch({ agentPreset: disabledRef.id, ownerEmail: null, userGroups: null });
   assert.deepEqual(serversOf(), ["cp-base"]);
   db.deleteUserPreset(bare.id);

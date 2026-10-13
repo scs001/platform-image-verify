@@ -50,15 +50,18 @@ test("a turn/end-only error broadcasts its message", () => {
   assert.match(errors[0].message, /id collision/);
 });
 
-test("a chunk-captured dshTurnError takes precedence", () => {
-  ctx.dshTurnError = "LLM request failed";
+test("a chunk-captured turn error takes precedence", () => {
+  // Production captures LLM failures into the per-session turn state
+  // (live-runtime-control); the turn/end replay prefers that capture over the
+  // coarser reason the runtime reports.
+  ctx.turnStateFor(SESSION).error = "LLM request failed";
   ctx.handleDshEvent(
     sessionEvent("turn/end", { reason: { kind: "error", error: { message: "later, coarser message" } } }),
   );
   const errors = seen.filter((m) => m.type === "error");
   assert.equal(errors.length, 1);
   assert.equal(errors[0].message, "LLM request failed");
-  assert.equal(ctx.dshTurnError, null);
+  assert.equal(ctx.turnStateFor(SESSION).error, null);
 });
 
 test("an errored turn with no message anywhere still broadcasts a fallback", () => {
@@ -69,7 +72,7 @@ test("an errored turn with no message anywhere still broadcasts a fallback", () 
 });
 
 test("a completed turn broadcasts no error", () => {
-  ctx.dshTurnError = null;
+  ctx.turnStateFor(SESSION).error = null;
   ctx.handleDshEvent(sessionEvent("turn/end", { reason: { kind: "completed" } }));
   assert.deepEqual(seen.filter((m) => m.type === "error"), []);
 });

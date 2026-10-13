@@ -66,10 +66,13 @@ const { models } = await profile.writeLlmProfile();
 // failure into a ~30s retry chain — strip it here; retry behavior has its own
 // suite (scripts/test-llm-retry.mjs + scripts/probe-llm-retry.mjs).
 {
-  const settingsPath = path.join(process.env.DSH_HOME, "settings.yaml");
-  const doc = yaml.load(fs.readFileSync(settingsPath, "utf8"));
-  for (const p of Object.values(doc?.["llm-pi-ai"]?.providers ?? {})) delete p.retryPolicy;
-  fs.writeFileSync(settingsPath, yaml.dump(doc));
+  // 0.2.0 (D7.1): the routes ride the llm-pi-ai row of the profile's own
+  // patch file — strip the retry policy there.
+  const patchPath = path.join(process.env.DSH_HOME, "profiles", "platform", "cordis.patch.yml");
+  const rows = yaml.load(fs.readFileSync(patchPath, "utf8"));
+  const row = rows.find((r) => r?.id === "llm-pi-ai");
+  for (const p of Object.values(row?.config?.providers ?? {})) delete p.retryPolicy;
+  fs.writeFileSync(patchPath, yaml.dump(rows));
 }
 const presetsPatch = await profile.writePresetsPatch();
 const permissionsPatch = await profile.writePermissionsPatch();

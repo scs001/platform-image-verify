@@ -163,6 +163,25 @@ export function assertResolvedInsideTree(tree, spec, resolvedUrl) {
 // anchorRel "" means the tree root.
 export function declaredEntries(lockPath) {
   const lock = JSON.parse(readFileSync(lockPath, "utf8"));
+  // The prune list next to the matrix lock (same matcher the boot gate uses):
+  // pruned names are exempt from the resolvability assertion — the tree
+  // deliberately does not carry them (ADR-0023 D2). Anchor-aware: a lock
+  // entry NESTED under a pruned package (e.g. fflate under libreoffice-kit)
+  // leaves with its anchor, so it is exempt too.
+  const pruneIndex = (() => {
+    let patterns = [];
+    try {
+      const { prune = [] } = JSON.parse(readFileSync(join(MATRIX_DIR, "prune.json"), "utf8"));
+      patterns = prune.flatMap((e) => e?.match ?? []);
+    } catch { /* no list — nothing is pruned */ }
+    if (patterns.length === 0) return null;
+    const matches = (name) => patterns.some((p) => (p.endsWith("*") ? name.startsWith(p.slice(0, -1)) : name === p));
+    const prunedKeys = Object.keys(lock.packages ?? {}).filter((key) => {
+      const idx = key.lastIndexOf("node_modules/");
+      return idx !== -1 && matches(key.slice(idx + "node_modules/".length));
+    });
+    return (key, name) => matches(name) || prunedKeys.some((p) => key.startsWith(`${p}/node_modules/`));
+  })();
   const entries = [];
   for (const [key, entry] of Object.entries(lock.packages ?? {})) {
     if (!key || !entry.version) continue;
@@ -171,6 +190,7 @@ export function declaredEntries(lockPath) {
     if (entry.os && !entry.os.includes(process.platform)) continue;
     if (entry.cpu && !entry.cpu.includes(process.arch)) continue;
     const name = key.slice(idx + "node_modules/".length);
+    if (pruneIndex?.(key, name)) continue;
     const anchorRel = idx === 0 ? "" : key.slice(0, idx - 1); // "node_modules/A"
     entries.push({ name, key, version: entry.version, anchorRel });
   }
@@ -189,6 +209,11 @@ export function ensureScratchTree({ fresh = false } = {}) {
   const marker = join(tree, ".dsh-contracts-tree.json");
 
   if (!fresh && existsSync(marker) && existsSync(join(tree, "node_modules", "@deepseek-ai", "dsh"))) {
+    // Idempotent prune FIRST: a cached tree may predate a prune-list change,
+    // and the (prune-aware) diff below must not read deliberate absences as
+    // cache poisoning.
+    const pr = spawnSync(process.execPath, [join(MATRIX_DIR, "prune.mjs"), "--tree", tree], { stdio: "inherit" });
+    if (pr.status !== 0) throw new Error(`prune for the cached scratch tree failed (status ${pr.status})`);
     const diff = diffMatrixTree(join(MATRIX_DIR, "package-lock.json"), tree);
     if (diff.ok) return { tree, cached: true, key };
     console.log(`[dsh-contracts] cached scratch tree ${key} deviates from the lock — rebuilding:\n${diff.report}`);
@@ -201,23 +226,15 @@ export function ensureScratchTree({ fresh = false } = {}) {
   const res = spawnSync("npm", ["ci", "--prefix", tree], { stdio: "inherit" });
   if (res.error) throw res.error;
   if (res.status !== 0) throw new Error(`npm ci for the scratch tree failed (status ${res.status})`);
+  // The scratch tree mirrors what ships: pruned to the same shape as /opt/dsh
+  // (ADR-0023 D2), so every default contract run validates the pruned tree.
+  const pr = spawnSync(process.execPath, [join(MATRIX_DIR, "prune.mjs"), "--tree", tree], { stdio: "inherit" });
+  if (pr.status !== 0) throw new Error(`prune for the scratch tree failed (status ${pr.status})`);
   writeFileSync(marker, `${JSON.stringify({ key, createdAt: new Date().toISOString(), source: "dsh-matrix" }, null, 2)}\n`);
   return { tree, cached: false, key };
 }
 
 // ── Small shared helpers ─────────────────────────────────────────────────────
-
-// "1.0.16" vs "1.0.17" on [major, minor, patch]; a prerelease of the threshold
-// (1.0.17-rc.1) parses to the same patch number and compares equal — the
-// dangerous side — which is the correct direction for the hmr gate.
-function cmpVersion(a, b) {
-  const pa = String(a).split(".").map((x) => Number.parseInt(x, 10) || 0);
-  const pb = String(b).split(".").map((x) => Number.parseInt(x, 10) || 0);
-  for (let i = 0; i < 3; i++) {
-    if ((pa[i] ?? 0) !== (pb[i] ?? 0)) return (pa[i] ?? 0) < (pb[i] ?? 0) ? -1 : 1;
-  }
-  return 0;
-}
 
 // Session-riding contracts are unjudgeable without the handshake — the design
 // calls this "握手失败即全组不可判": report the handshake error as THEIR reason
@@ -325,10 +342,18 @@ async function contractClosureResolvable(ctx) {
   );
 }
 
-// ── Contract ③ hmr registerConfig ────────────────────────────────────────────
+// ── Contract ③ hmr family generation ────────────────────────────────────────
 
+// Since the unified-generation jump (ADR-0023), hmr ships as the in-family
+// @deepseek-ai/dsh-hmr at the pinned lockstep version; the historical
+// cordis-plugin-hmr <1.0.17 registerConfig pin retired with that package (the
+// 0.2.0 family hard-depends every plugin, so an off-generation hmr can no
+// longer float in through peer resolution — the contract now pins the family
+// row and the boot stability it used to guard).
 async function contractHmrRegisterConfig(ctx) {
-  const HMR_SPEC = "@deepseek-ai/cordis-plugin-hmr/package.json";
+  const expected = JSON.parse(readFileSync(join(REPO_ROOT, "dsh-matrix", "package.json"), "utf8"))
+    .dependencies["@deepseek-ai/dsh"];
+  const HMR_SPEC = "@deepseek-ai/dsh-hmr/package.json";
   let version;
   const url = resolveBatchInTree(ctx.tree, [HMR_SPEC]).get(HMR_SPEC);
   try {
@@ -336,18 +361,18 @@ async function contractHmrRegisterConfig(ctx) {
     const pkgPath = assertResolvedInsideTree(ctx.tree, HMR_SPEC, url);
     version = JSON.parse(readFileSync(pkgPath, "utf8")).version;
   } catch (e) {
-    throw new Error(`cannot resolve/read cordis-plugin-hmr in the candidate tree: ${firstLine(e)}`);
+    throw new Error(`cannot resolve/read @deepseek-ai/dsh-hmr in the candidate tree: ${firstLine(e)}`);
   }
-  if (cmpVersion(version, "1.0.17") >= 0) {
+  if (version !== expected) {
     throw new Error(
-      `cordis-plugin-hmr@${version} ≥ 1.0.17 — registerConfig was removed upstream while dsh-app-boot's watchUserPatches still calls it, so every child crash-loops at boot (2026-09-23 incident class); keep the 1.0.16 override`,
+      `@deepseek-ai/dsh-hmr@${version} ≠ intent-pinned generation ${expected} — the hmr family row must resolve at the lockstep version the matrix manifest pins`,
     );
   }
   const crash = ctx.bootExit ?? ctx.childExit;
-  if (crash && /watchUserPatches|registerConfig/i.test(crash.error)) {
-    throw new Error(`the pin holds (${version}) but the child still crashed at boot with the registerConfig signature: ${firstLine(crash.error)}`);
+  if (crash && /watchUserPatches|registerConfig|dsh-hmr/i.test(crash.error)) {
+    throw new Error(`the family row holds (${version}) but the child still crashed at boot with an hmr signature: ${firstLine(crash.error)}`);
   }
-  return `cordis-plugin-hmr@${version} < 1.0.17; no boot crash (watchUserPatches contract intact)`;
+  return `@deepseek-ai/dsh-hmr@${version} = intent generation ${expected}; no boot crash (hmr family contract intact)`;
 }
 
 // ── Contract ④ settings/credentials hot-reload ───────────────────────────────
@@ -356,25 +381,37 @@ const HOT_ROUTE = "volces-hot";
 const HOT_MODEL = "contracts-hot-model";
 const HOT_SESSION = "contracts-hot-reload";
 
-async function contractSettingsHotReload(ctx) {
-  requireHandshake(ctx);
-
-  // (a) settings hot-reload: a provider route written into settings.yaml
-  // MID-SESSION must register its adapter without a child restart. Observed
-  // through re-initialize onto the new route: initialize rejects with
-  // "no adapter registered for provider" until the settings service has
-  // reloaded the file, then succeeds.
-  const doc = yaml.load(readFileSync(ctx.settingsPath, "utf8")) ?? {};
-  doc["llm-pi-ai"] = doc["llm-pi-ai"] ?? {};
-  doc["llm-pi-ai"].providers = doc["llm-pi-ai"].providers ?? {};
-  doc["llm-pi-ai"].providers[HOT_ROUTE] = {
+// 0.2.0 (D7.1): settings live as the llm-pi-ai row in the profile's OWN
+// patch file (ctx.settingsPath points there) — the one dsh-hmr watches, so a
+// mid-session row edit hot-applies. Upsert a provider into that row.
+function upsertHotRouteProvider(ctx) {
+  const rows = yaml.load(readFileSync(ctx.settingsPath, "utf8")) ?? [];
+  if (!Array.isArray(rows)) throw new Error(`${ctx.settingsPath} is not an entry list`);
+  let row = rows.find((r) => r?.id === "llm-pi-ai" && !r.insert);
+  if (!row) {
+    row = { id: "llm-pi-ai", name: "@deepseek-ai/dsh-llm-pi-ai", config: {} };
+    rows.push(row);
+  }
+  row.config.providers = row.config.providers ?? {};
+  row.config.providers[HOT_ROUTE] = {
     apiKeyEnv: "LLM_API_KEY",
     displayName: "Contracts Hot Route",
     api: "openai-completions",
     baseURL: ctx.dummyLlm.url,
     models: [{ id: HOT_MODEL, name: "Contracts Hot Model", contextWindow: 8192, maxTokens: 1024, input: ["text"] }],
   };
-  atomicWriteTextSync(ctx.settingsPath, yaml.dump(doc));
+  atomicWriteTextSync(ctx.settingsPath, yaml.dump(rows));
+}
+
+async function contractSettingsHotReload(ctx) {
+  requireHandshake(ctx);
+
+  // (a) settings hot-reload: a provider route written into the profile
+  // patch's llm-pi-ai row MID-SESSION must register its adapter without a
+  // child restart. Observed through re-initialize onto the new route:
+  // initialize rejects with "no adapter registered for provider" until the
+  // watched patch has reconciled, then succeeds.
+  upsertHotRouteProvider(ctx);
   const t0 = Date.now();
   const landed = await pollUntil(
     async () => {
@@ -394,7 +431,7 @@ async function contractSettingsHotReload(ctx) {
     { timeoutMs: 10_000, intervalMs: 500 },
   );
   if (!landed) {
-    throw new Error(`the hot-written llm-pi-ai route "${HOT_ROUTE}" never registered within 10s — settings.yaml is not live-reloading`);
+    throw new Error(`the hot-written llm-pi-ai route "${HOT_ROUTE}" never registered within 10s — the profile patch is not live-reloading`);
   }
   const hotMs = Date.now() - t0;
   // Restore the session route for the contracts that follow.
@@ -559,18 +596,10 @@ function lastStatus(ctx, sessionId) {
 // Idempotent hot-route write (contract ④'s shape — that contract may already
 // have written it; rewriting the same doc is a no-op reload).
 function ensureHotRoute(ctx) {
-  const doc = yaml.load(readFileSync(ctx.settingsPath, "utf8")) ?? {};
-  doc["llm-pi-ai"] = doc["llm-pi-ai"] ?? {};
-  doc["llm-pi-ai"].providers = doc["llm-pi-ai"].providers ?? {};
-  if (doc["llm-pi-ai"].providers[HOT_ROUTE]?.models?.some((m) => m?.id === HOT_MODEL)) return;
-  doc["llm-pi-ai"].providers[HOT_ROUTE] = {
-    apiKeyEnv: "LLM_API_KEY",
-    displayName: "Contracts Hot Route",
-    api: "openai-completions",
-    baseURL: ctx.dummyLlm.url,
-    models: [{ id: HOT_MODEL, name: "Contracts Hot Model", contextWindow: 8192, maxTokens: 1024, input: ["text"] }],
-  };
-  atomicWriteTextSync(ctx.settingsPath, yaml.dump(doc));
+  const rows = yaml.load(readFileSync(ctx.settingsPath, "utf8")) ?? [];
+  const row = (Array.isArray(rows) ? rows : []).find((r) => r?.id === "llm-pi-ai" && !r.insert);
+  if (row?.config?.providers?.[HOT_ROUTE]?.models?.some((m) => m?.id === HOT_MODEL)) return;
+  upsertHotRouteProvider(ctx);
 }
 
 async function contractLiveModelSet(ctx) {
@@ -720,7 +749,7 @@ async function contractMultiSessionConcurrency(ctx) {
 export const CONTRACTS = [
   { id: "boot-handshake-roster", title: "① boot/handshake/roster", run: contractBootHandshakeRoster },
   { id: "closure-resolvable", title: "② closure-resolvable", run: contractClosureResolvable },
-  { id: "hmr-register-config", title: "③ hmr registerConfig (<1.0.17)", run: contractHmrRegisterConfig },
+  { id: "hmr-register-config", title: "③ hmr family generation", run: contractHmrRegisterConfig },
   { id: "settings-credentials-hot-reload", title: "④ settings/credentials hot-reload", run: contractSettingsHotReload },
   { id: "patch-semantics-scaffold", title: "⑤ patch semantics + scaffold", run: contractPatchSemanticsScaffold },
   { id: "platform-sdk-rpc", title: "⑥ platform SDK RPC surface", tags: ["internal-API"], run: contractPlatformSdkRpc },

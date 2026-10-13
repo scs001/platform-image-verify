@@ -165,10 +165,12 @@ test("4.2 home layout: preset, skills root, three patch formats", async () => {
     template: TEMPLATE,
   });
   assert.equal(agentKeyFor(ENTRY), "packs-pk-abc-pack-fingpt");
-  // Persona preset composed from the template with our text spliced in.
-  const composed = readFileSync(path.join(spec.home, ".agent-presets", spec.presetId, "agent.cordis.yml"), "utf8");
-  assert.ok(composed.includes("金融分析师"));
-  assert.ok(!composed.includes("base persona"));
+  // Persona preset rides the presets overlay as a declarative row (0.2.0):
+  // the platform-owned standard composition with the persona prefix spliced in.
+  const overlay = readFileSync(path.join(spec.home, "profiles", "platform", "presets.patch.yml"), "utf8");
+  assert.ok(overlay.includes(`id: preset-${spec.presetId}`), "the persona preset row is composed");
+  assert.ok(overlay.includes("金融分析师"));
+  assert.ok(!overlay.includes("base persona"));
   // Skill file materialized under the flat compose root.
   assert.ok(existsSync(path.join(spec.home, "skills", "fin-statement-analysis", "SKILL.md")));
   // Patch shapes mirror dsh-profile verbatim.
@@ -234,7 +236,8 @@ test("4.2 case-mixed pack ids fold into the preset roster alphabet", async () =>
     template: TEMPLATE,
   });
   assert.match(spec.presetId, /^[a-z0-9][a-z0-9-]*$/, "the composed preset id stays inside the plugin's roster alphabet");
-  assert.ok(existsSync(path.join(spec.home, ".agent-presets", spec.presetId, "agent.cordis.yml")), "the preset directory carries the composed id");
+  const wildOverlay = readFileSync(path.join(spec.home, "profiles", "platform", "presets.patch.yml"), "utf8");
+  assert.ok(wildOverlay.includes(`id: preset-${spec.presetId}`), "the preset row carries the composed id");
   const presets = readFileSync(path.join(spec.home, "profiles", "platform", "presets.patch.yml"), "utf8");
   assert.ok(presets.includes(`default: ${spec.presetId}`), "the patch's default names the same id discovery will see");
 });
@@ -946,16 +949,21 @@ test("4.1 depth >= 3 refused explicitly; depth 1-2 served; concurrency queues", 
 test("billing key pins every provider apiKeyEnv ref", async () => {
   const home = path.join(tmpRoot, "billing-home");
   mkdirSync(home, { recursive: true });
+  mkdirSync(path.join(home, "profiles", "platform"), { recursive: true });
   writeFileSync(
-    path.join(home, "settings.yaml"),
-    yaml.dump({
-      "llm-pi-ai": {
-        providers: {
-          finddata: { apiKeyEnv: "LLM_PROVIDER_KEY_FINDDATA", api: "openai-completions" },
-          volces: { apiKeyEnv: "LLM_PROVIDER_KEY_VOLCES" },
+    path.join(home, "profiles", "platform", "cordis.patch.yml"),
+    yaml.dump([
+      {
+        id: "llm-pi-ai",
+        name: "@deepseek-ai/dsh-llm-pi-ai",
+        config: {
+          providers: {
+            finddata: { apiKeyEnv: "LLM_PROVIDER_KEY_FINDDATA", api: "openai-completions" },
+            volces: { apiKeyEnv: "LLM_PROVIDER_KEY_VOLCES" },
+          },
         },
       },
-    }),
+    ]),
   );
   writeFileSync(
     path.join(home, ".credentials.yaml"),
@@ -969,7 +977,7 @@ test("billing key pins every provider apiKeyEnv ref", async () => {
   assert.equal(doc.refs.KEEP, "untouched");
 });
 
-test("billing pinning survives a missing settings.yaml", async () => {
+test("billing pinning survives a missing profile patch", async () => {
   const home = path.join(tmpRoot, "billing-home-bare");
   mkdirSync(home, { recursive: true });
   await applyBillingKey(home, "sk-deployer");

@@ -72,12 +72,13 @@ COPY facet/web/package*.json ./facet/web/
 # below must keep devDeps: vite is one, and the image builds web/dist itself.
 # Native addons (better-sqlite3/tree-sitter) ship prebuilt binaries, so
 # --ignore-scripts + omit=dev compose safely.
-# --legacy-peer-deps: the dsh rc-line mixes two peer generations whose ranges
-# are mutually exclusive (see 1ac86e7 — release/ci carry the same flag); the
-# lock is the resolved truth, clean installs must not re-litigate peers.
-RUN npm ci --omit=dev --ignore-scripts --legacy-peer-deps \
-    && npm --prefix web ci --ignore-scripts --legacy-peer-deps \
-    && npm --prefix facet/web ci --ignore-scripts --legacy-peer-deps
+# --legacy-peer-deps RETIRED (ADR-0023): it existed because the dsh rows mixed
+# two peer generations; since the 0.2.0 unified generation every dsh row is one
+# lockstep version with no peers to reconcile. A bare npm ci is itself the
+# regression probe — a future generation mix fails HERE, at build time.
+RUN npm ci --omit=dev --ignore-scripts \
+    && npm --prefix web ci --ignore-scripts \
+    && npm --prefix facet/web ci --ignore-scripts
 
 # dsh-profile-template/ is consumed by the dsh install layer below (cp →
 # /opt/dsh-home), so it must exist in the builder BEFORE that RUN. Copying it
@@ -85,12 +86,15 @@ RUN npm ci --omit=dev --ignore-scripts --legacy-peer-deps \
 # far less often than the source that arrives via `COPY . .` further down.
 COPY dsh-profile-template/ ./dsh-profile-template/
 
-# dsh-matrix/ — the single version truth for the dsh runtime (ADR-0007,
-# add-dsh-matrix-lock): intent pins in package.json, the full peer closure
-# frozen in package-lock.json. The historical hand-pinned 28-row install
-# (18 peer-only plugin rows, the two-generation sdk family split, the hmr
-# 1.0.16 pin) lived here; the "why" now lives in dsh-matrix/README.md.
-COPY dsh-matrix/package.json dsh-matrix/package-lock.json dsh-matrix/.npmrc ./dsh-matrix/
+# dsh-matrix/ — the single version truth for the dsh runtime (ADR-0007/0023,
+# add-dsh-matrix-lock): since the 0.2.0 unified generation the manifest is the
+# dsh row alone (the whole family ships as exact-pinned hard deps of one
+# lockstep version; overrides and the cordis-plugin-hmr pin retired). The
+# prune list + pruner ride the same layer: after npm ci they remove the
+# packages the platform profile provably never loads (libreoffice-kit
+# binaries, dsh's own UI chrome — see dsh-matrix/prune.json), and the boot
+# gate passes exactly those absences.
+COPY dsh-matrix/package.json dsh-matrix/package-lock.json dsh-matrix/.npmrc dsh-matrix/prune.json dsh-matrix/prune.mjs ./dsh-matrix/
 
 # One npm ci from the frozen matrix into /opt/dsh — the ONLY real tree (the
 # old second install under /opt/dsh-home/profiles/platform is gone; that
@@ -118,6 +122,7 @@ COPY dsh-matrix/package.json dsh-matrix/package-lock.json dsh-matrix/.npmrc ./ds
 RUN mkdir -p /opt/dsh \
     && cp dsh-matrix/package.json dsh-matrix/package-lock.json dsh-matrix/.npmrc /opt/dsh/ \
     && NODE_OPTIONS=--max-old-space-size=8192 npm ci --prefix /opt/dsh \
+    && node dsh-matrix/prune.mjs --tree /opt/dsh \
     && mkdir -p /opt/dsh-home/profiles/platform \
     && cp dsh-profile-template/package.json \
           dsh-profile-template/pnpm-workspace.yaml \

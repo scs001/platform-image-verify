@@ -61,7 +61,7 @@ jobs:
       # not just app/. Skipping this step left the smoke waiting 30s for a
       # server that could never start (run 38075371998).
       - name: Install root dependencies (the integration smoke boots server.js)
-        run: npm ci --legacy-peer-deps
+        run: npm ci
       - name: Install app dependencies (+ linked core)
         run: |
           npm --prefix app ci
@@ -150,7 +150,7 @@ jobs:
       # Only for the MOCK instance (repo server.js); the app itself arrives
       # as a finished release APK from the apk job.
       - name: Install root dependencies (mock instance boots server.js)
-        run: npm ci --legacy-peer-deps
+        run: npm ci
       - name: Install Maestro
         run: |
           curl -fsSL "https://get.maestro.mobile.dev" | bash
@@ -232,7 +232,7 @@ jobs:
             app/package-lock.json
             package-lock.json
       - name: Install root dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm ci
       - name: Install app dependencies (+ linked core)
         run: |
           npm --prefix app ci

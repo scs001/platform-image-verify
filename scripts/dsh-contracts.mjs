@@ -255,7 +255,9 @@ async function main() {
 
     const dshProfile = await import(pathToFileURL(join(REPO_ROOT, "dsh-profile.js")).href);
     const dirs = { dshHome: home, profileName: PROFILE_NAME };
-    const settingsPath = join(home, "settings.yaml");
+    // 0.2.0 (D7.1): the llm-pi-ai providers ride the profile's own patch row
+    // (dsh-hmr watches this file), not the retired home-root settings.yaml.
+    const settingsPath = join(profileDir, "cordis.patch.yml");
     const credentialsPath = join(home, ".credentials.yaml");
     const { providers, models } = await dshProfile.writeLlmProfile({
       dirs,

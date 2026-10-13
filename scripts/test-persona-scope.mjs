@@ -55,7 +55,7 @@ const db = await import("../db.js");
 await db.initDb();
 const catalog = await import("../catalog.js");
 const sm = await import("../skill-materialize.js");
-const { resolvePersona, deriveScope, writeSkillsPatch, writeToolFilterPatch, writeMcpPatch } = await import("../dsh-profile.js");
+const { resolvePersona, deriveScope, writeSkillsPatch, writeToolFilterPatch, writeMcpPatch, writeCatalogAgentPresets } = await import("../dsh-profile.js");
 
 const PACK_ID = "persona-scope-pack";
 const manifest = {
@@ -89,16 +89,11 @@ const seedPack = () =>
   });
 
 // resolvePersona requires the generated preset to exist for the id (the same
-// gate deriveScope always applied) — create the marker dirs the way
-// writeCatalogAgentPresets would.
-const presetDir = (id) => path.join(process.env.DSH_HOME, ".agent-presets", id);
-for (const id of ["persona-alpha", "persona-shadowed"]) {
-  mkdirSync(presetDir(id), { recursive: true });
-  writeFileSync(
-    path.join(presetDir(id), "agent.cordis.yml"),
-    "- id: persona\n  name: '@deepseek-ai/dsh-persona'\n  config:\n    text: \"test\"\n",
-  );
-}
+// gate deriveScope always applied) — persist definitions the way
+// writeCatalogAgentPresets would (0.2.0 declarative model: defs file, no dirs).
+writeCatalogAgentPresets(
+  ["persona-alpha", "persona-shadowed"].map((id) => ({ type: "agent-remote", mode: "chat", id, name: id, description: "seed" })),
+);
 
 test.after(() => {
   rmSync(tmpRoot, { recursive: true, force: true });

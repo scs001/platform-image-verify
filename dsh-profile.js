@@ -33,7 +33,6 @@ import { probeHttpServers } from "./mcp-preflight.js";
 import { repoRoot } from "./paths.js";
 
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), ".dsh");
-const SETTINGS_PATH = join(DSH_HOME, "settings.yaml");
 const CREDENTIALS_PATH = join(DSH_HOME, ".credentials.yaml");
 const MCP_CONFIG_PATH = resolve(process.env.MCP_CONFIG_PATH || "mcp.json");
 
@@ -252,43 +251,44 @@ export async function buildLlmProfile({
 // formats lives in exactly one place — the "formats mirrored in compose.js"
 // drift risk is gone (a format change here IS the change, everywhere).
 export function targetPaths(dirs) {
-  if (!dirs) {
-    return { settings: SETTINGS_PATH, credentials: CREDENTIALS_PATH, presetsPatch: PRESETS_PATCH_PATH };
-  }
-  const profileDir = join(dirs.dshHome, "profiles", dirs.profileName ?? PROFILE_NAME);
+  const home = dirs?.dshHome ?? DSH_HOME;
+  const profileDir = join(home, "profiles", dirs?.profileName ?? PROFILE_NAME);
   return {
-    settings: join(dirs.dshHome, "settings.yaml"),
-    credentials: join(dirs.dshHome, ".credentials.yaml"),
+    // 0.2.0 (D7.1): settings live as rows in the profile's OWN patch file —
+    // the one dsh-hmr watches, so mid-session writes hot-apply exactly like
+    // the retired home-root settings.yaml once did.
+    settings: join(profileDir, "cordis.patch.yml"),
+    credentials: join(home, ".credentials.yaml"),
     presetsPatch: join(profileDir, "presets.patch.yml"),
   };
 }
 
-// Write the llm-pi-ai section to $DSH_HOME/settings.yaml, preserving any other
-// sections already in the document (data-loss safe). Atomic: temp+rename.
+// Upsert the llm-pi-ai row in the profile's cordis.patch.yml (0.2.0 D7.1:
+// the section-body shape is unchanged, it just rides a patch ROW now). Other
+// rows in the patch (the scaffold's inserts) are preserved. Atomic:
+// temp+rename; dsh-hmr watches this file, so a mid-session write hot-applies.
 // Returns { providers, models } so server.js can source its model selector.
 export async function writeLlmProfile(opts = {}) {
   const { dirs, ...buildOpts } = opts;
-  const settingsPath = targetPaths(dirs).settings;
+  const patchPath = targetPaths(dirs).settings;
   const { providers, models } = await buildLlmProfile(buildOpts);
-  let doc = {};
+  let rows = [];
   try {
-    const existing = readFileSync(settingsPath, "utf8");
-    const loaded = yaml.load(existing);
-    // Only keep an object document; a scalar/array means the file isn't a settings
-    // map, so don't merge into it — recreate as a fresh object.
-    if (loaded && typeof loaded === "object" && !Array.isArray(loaded)) doc = loaded;
+    const loaded = yaml.load(readFileSync(patchPath, "utf8"));
+    if (Array.isArray(loaded)) rows = loaded;
   } catch (err) {
     // ENOENT is expected on first run; anything else is warned but not fatal.
-    if (err.code !== "ENOENT") console.warn("[dsh-profile] settings.yaml unreadable, recreating:", err.message);
+    if (err.code !== "ENOENT") console.warn("[dsh-profile] profile patch unreadable, recreating llm row:", err.message);
   }
-  doc["llm-pi-ai"] = { providers };
-  atomicWriteTextSync(settingsPath, yaml.dump(doc));
+  const kept = rows.filter((r) => !(r && typeof r === "object" && !r.insert && r.id === "llm-pi-ai"));
+  kept.push({ id: "llm-pi-ai", name: "@deepseek-ai/dsh-llm-pi-ai", config: { providers } });
+  atomicWriteTextSync(patchPath, yaml.dump(kept));
 
   if (Object.keys(providers).length === 0) {
     console.warn("[dsh] no LLM keys configured; chat non-functional (static + REST still served)");
   } else {
     console.log(
-      `[dsh-profile] wrote ${Object.keys(providers).join(", ")} route(s), ${models.length} model(s) → ${settingsPath}`,
+      `[dsh-profile] wrote ${Object.keys(providers).join(", ")} route(s), ${models.length} model(s) → ${patchPath}`,
     );
   }
   return { providers, models };
@@ -1292,91 +1292,120 @@ const BRIDGE_SOURCE = join(dirname(fileURLToPath(import.meta.url)), "dsh-profile
 const PRESET_BRIDGE_FILE = "platform-preset-bridge.js";
 export const DEFAULT_AGENT_PRESET = "standard";
 
-// Locate the installed @deepseek-ai/dsh package and return its shipped preset
-// root (config/agent-presets), or null. The repo runtime cannot see the dsh
-// package directly (it is not a dependency), so two anchors are tried: a
-// repo-local install (createRequire from this module — the packaged-app
-// layout) and the flat module fallback the dsh boot maintains for every
-// profile ($DSH_HOME/profiles/node_modules/@deepseek-ai/dsh — the global
-// install layout).
-export function resolveShippedPresetRoot() {
-  const anchors = [];
-  try {
-    anchors.push(join(dirname(createRequire(import.meta.url).resolve("@deepseek-ai/dsh/package.json"))));
-  } catch { /* not repo-local — expected with a global dsh install */ }
-  anchors.push(join(DSH_HOME, "profiles", "node_modules", "@deepseek-ai", "dsh"));
-  // The Docker image's shared dsh install (the prefix that puts the `dsh` CLI
-  // on PATH — see Dockerfile's /opt/dsh install layer). A freshly baked
-  // /opt/dsh-home has no dsh self-install under profiles/node_modules yet, so
-  // without this anchor a server image pod resolves nothing and the whole
-  // preset roster silently vanishes on every boot.
-  anchors.push("/opt/dsh/node_modules/@deepseek-ai/dsh");
-  for (const anchor of anchors) {
-    const root = join(anchor, "config", "agent-presets");
-    if (existsSync(root) && statSync(root).isDirectory()) return root;
-  }
-  return null;
+// The platform-owned standard agent-plane composition (0.2.0, ADR-0023 D7.2):
+// dsh no longer ships config/agent-presets — "the deployment persona is a
+// deployment choice" — so the composition lives in dsh-profile-template/ as
+// data, translated once from the 0.1.1 shipped `standard`. Every generated
+// preset composes from THIS file with the persona row's text swapped, so one
+// template serves the platform cell and the runner alike.
+const STANDARD_COMPOSITION_SOURCE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "dsh-profile-template",
+  "standard.agent.cordis.yml",
+);
+
+// The two `!!js` platform gates in the template are evaluated HERE, at
+// composition-write time: this writer runs on the target host, so the rows it
+// emits carry plain booleans and the whole plugins list stays plain YAML
+// (round-trippable by js-yaml — the 0.1.1 text-surgery workaround retired).
+export function standardCompositionRows() {
+  const text = readFileSync(STANDARD_COMPOSITION_SOURCE, "utf8")
+    .replaceAll("disabled: !!js process.platform === 'win32'", `disabled: ${process.platform === "win32"}`)
+    .replaceAll("disabled: !!js process.platform !== 'win32'", `disabled: ${process.platform !== "win32"}`);
+  const rows = yaml.load(text);
+  if (!Array.isArray(rows)) throw new Error(`standard composition is not an entry list: ${STANDARD_COMPOSITION_SOURCE}`);
+  return rows;
+}
+
+// One generated preset's plugin rows: the standard composition with the
+// persona row's prefix swapped (data-level, not YAML round-trip; 0.2.0's
+// dsh-persona schema is prefix/suffix sections).
+export function composePresetRows(persona) {
+  const rows = structuredClone(standardCompositionRows());
+  const personaRow = rows.find((r) => r && typeof r === "object" && r.id === "persona");
+  if (!personaRow) throw new Error("standard composition has no `persona` row");
+  personaRow.config = { ...(personaRow.config ?? {}), prefix: persona };
+  return rows;
 }
 
 // Write the bridge plugin file + presets.patch.yml into the profile dir.
-// Returns the patch path for the bridge's --patch args, or null when the
-// shipped preset root cannot be resolved AND no extra roots were given (the
-// platform's no-args call — caller omits the flag).
+// Returns the patch path for the bridge's --patch args.
 //
 // Target-home + roster composition (add-dsh-matrix-lock design D6): agent-
 // runner/compose.js calls this with its own { dshHome } plus the role's
-// user-root roster, so the presets overlay format exists only here.
-//   - dirs        { dshHome, profileName } — default the deployment singleton
-//   - default     roster default preset id (platform: "standard")
-//   - extraRoots  additional { path, trust } roster roots (runner: user root)
-//   - requireRoster  false = write the overlay (bridge row) even when NO root
-//                 resolves at all — the runner's children need the platform
-//                 SDK server regardless of persona composition
-export async function writePresetsPatch({ dirs, default: defaultPreset = DEFAULT_AGENT_PRESET, extraRoots = [], requireRoster = true } = {}) {
+// persona definition, so the presets overlay format exists only here.
+//   - dirs           { dshHome, profileName } — default the deployment
+//                    singleton, which also folds in the persisted catalog
+//                    preset definitions (0.2.0 D7.2)
+//   - default        registry default preset id (platform: "standard")
+//   - extraPresets   additional preset definitions
+//                    { id, name, description, order, persona } (runner: the
+//                    role's persona row)
+export function writePresetsPatchSync({ dirs, default: defaultPreset = DEFAULT_AGENT_PRESET, extraPresets = [] } = {}) {
   const presetsPatchPath = targetPaths(dirs).presetsPatch;
   mkdirSync(dirname(presetsPatchPath), { recursive: true });
   // The bridge source is copied into the profile dir because the loader
   // resolves a relative plugin name beside the profile's cordis.yml. Written
-  // UNCONDITIONALLY, before the roster check: platform-permission-bridge.js
+  // UNCONDITIONALLY, before any roster work: platform-permission-bridge.js
   // (written by writePermissionsPatch, loaded by its unconditional overlay)
-  // imports this file — skipping it here on an unresolvable preset root left
-  // a dangling import that crashed dsh at boot (fresh baked /opt/dsh-home,
-  // where no dsh self-install anchor exists yet).
+  // imports this file — skipping it here leaves a dangling import that
+  // crashes dsh at boot.
   const bridgeTarget = join(dirname(presetsPatchPath), PRESET_BRIDGE_FILE);
   atomicWriteTextSync(bridgeTarget, readFileSync(BRIDGE_SOURCE, "utf8"));
   // The preset bridge imports the tool-scope module (add-mcp-tool-scoping
-  // D2) — same unconditional-copy discipline as the bridge itself: every
-  // profile that can load the bridge can resolve its dependency, whatever
-  // writer materialized it (writeToolFilterPatch refreshes it alongside the
-  // filter config; this copy covers preset-only compositions).
+  // D2) — same unconditional-copy discipline as the bridge itself.
   atomicWriteTextSync(
     join(dirname(presetsPatchPath), "platform-tool-scope.js"),
     readFileSync(TOOL_SCOPE_BRIDGE_SOURCE, "utf8"),
   );
-  const presetRoot = resolveShippedPresetRoot();
-  const roots = [...(presetRoot ? [{ path: presetRoot, trust: "system" }] : []), ...extraRoots];
-  if (roots.length === 0 && requireRoster) {
-    console.warn(
-      `[dsh-profile] @deepseek-ai/dsh config/agent-presets not resolvable; skipping the agent-preset roster (picker stays empty, chat unaffected)`,
-    );
-    return null;
-  }
+  // The deployment singleton folds in the catalog/custom preset definitions
+  // (persisted in $DSH_HOME/.agent-presets.defs.json); an explicit dirs
+  // target (the runner's private homes) uses only the caller's extras —
+  // those homes have no platform catalog.
+  const defs = dirs ? [...extraPresets] : [...extraPresets, ...catalogPresetDefinitions()];
+  const presetRows = [
+    {
+      id: "preset-standard",
+      name: "@deepseek-ai/dsh-agent-preset",
+      config: {
+        id: "standard",
+        name: "Standard",
+        description: "The full local agent",
+        order: 10,
+        plugins: standardCompositionRows(),
+      },
+    },
+    ...defs.map((d) => ({
+      id: `preset-${d.id}`,
+      name: "@deepseek-ai/dsh-agent-preset",
+      config: {
+        id: d.id,
+        name: d.name,
+        description: d.description,
+        order: d.order ?? 50,
+        plugins: composePresetRows(d.persona),
+      },
+    })),
+  ];
   const patch = [
     { id: "sdk-jsonrpc-server", disabled: true },
     {
       insert: [
-        ...(roots.length
-          ? [{ id: "agent-presets", name: "@deepseek-ai/dsh-agent-presets", config: { default: defaultPreset, roots } }]
-          : []),
+        { id: "agent-presets", name: "@deepseek-ai/dsh-agent-preset-registry", config: { default: defaultPreset } },
+        ...presetRows,
         { id: "platform-sdk-server", name: `./${PRESET_BRIDGE_FILE}` },
       ],
     },
   ];
   atomicWriteTextSync(presetsPatchPath, yaml.dump(patch));
   console.log(
-    `[dsh-profile] wrote preset bridge + roster patch (default: ${defaultPreset}, shipped root: ${presetRoot ?? "(none)"}) → ${presetsPatchPath}`,
+    `[dsh-profile] wrote preset overlay (registry default: ${defaultPreset}, ${presetRows.length} preset row(s)) → ${presetsPatchPath}`,
   );
   return presetsPatchPath;
+}
+
+export async function writePresetsPatch(opts = {}) {
+  return writePresetsPatchSync(opts);
 }
 
 // ── Catalog agent presets (vertical-pack personas) ───────────────────────────
@@ -1398,9 +1427,11 @@ const CATALOG_PRESET_ROOT = join(DSH_HOME, ".agent-presets");
 // Marks a directory as generated (and therefore prunable/writable) by us: a
 // hand-authored user preset that happens to share an id is left alone.
 const CATALOG_PRESET_MARKER = ".platform-catalog-preset.json";
-// The four compositions dsh ships. A catalog entry may not shadow one, and the
-// boot-time preset guard treats these as always-known.
-const SHIPPED_PRESET_IDS = ["standard", "code", "minimal", "cordis"];
+// The preset id the platform itself always composes (0.2.0: no shipped
+// four — dsh ships none; the platform's standard row IS the baseline). A
+// catalog entry may not shadow it, and the boot-time preset guard treats it
+// as always-known.
+const SHIPPED_PRESET_IDS = ["standard"];
 
 function isSafePresetId(id) {
   return typeof id === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(id);
@@ -1460,59 +1491,35 @@ export function catalogEntryPersona(entry) {
   return lines.join("\n");
 }
 
-// Swap the `persona` row's `config.text` in a shipped agent-plane composition
-// for `persona`. Text-level (not a YAML round-trip): the composition carries
-// `!!js` tags and comments that js-yaml would not reproduce. The row's block
-// scalar is replaced by a double-quoted scalar — JSON string escaping is valid
-// YAML double-quoted style, so embedded newlines stay on one line.
-export function composeAgentPreset(template, persona) {
-  const rowAt = template.indexOf("- id: persona\n");
-  if (rowAt < 0) throw new Error("shipped composition has no `persona` row");
-  const textAt = template.indexOf("    text:", rowAt);
-  const nextRowAt = template.indexOf("\n- ", rowAt + 1);
-  if (textAt < 0 || (nextRowAt !== -1 && textAt > nextRowAt)) {
-    throw new Error("shipped composition's `persona` row has no config.text");
+// ── Catalog/custom preset definitions (0.2.0 declarative model, D7.2) ───────
+// Upstream's preset registry no longer discovers directories, so generated
+// presets live as rows in the preset overlay (writePresetsPatchSync). The
+// definition set persists in $DSH_HOME/.agent-presets.defs.json so a restart
+// (new process, cold module state) still knows the roster BEFORE the catalog
+// refresh runs — the persisted-preset validation at server boot depends on
+// it (0.1.1 got this for free from the on-disk .agent-presets dirs).
+const CATALOG_PRESET_DEFS_PATH = join(DSH_HOME, ".agent-presets.defs.json");
+let catalogPresetDefs = null;
+// Read-only view for callers that need the current definition set (tests
+// merge seeds into it; writeCatalogAgentPresets itself replaces the set).
+export function catalogPresetDefinitions() {
+  if (catalogPresetDefs === null) {
+    try {
+      const loaded = JSON.parse(readFileSync(CATALOG_PRESET_DEFS_PATH, "utf8"));
+      catalogPresetDefs = Array.isArray(loaded) ? loaded : [];
+    } catch {
+      catalogPresetDefs = [];
+    }
   }
-  const bodyStart = template.indexOf("\n", textAt) + 1;
-  let bodyEnd = bodyStart;
-  for (;;) {
-    const nl = template.indexOf("\n", bodyEnd);
-    if (nl < 0) break;
-    const line = template.slice(bodyEnd, nl);
-    if (!/^\s{6,}\S/.test(line)) break;
-    bodyEnd = nl + 1;
-  }
-  const quoted = JSON.stringify(persona.trim());
-  return `${template.slice(0, textAt)}    text: ${quoted}\n${template.slice(bodyEnd)}`;
+  return catalogPresetDefs;
 }
 
-// The installed composition a generated preset is built from; null when the
-// shipped preset root is unresolvable (bare deployment → no pack personas).
-function shippedStandardComposition() {
-  const root = resolveShippedPresetRoot();
-  if (!root) return null;
-  const file = join(root, "standard", "agent.cordis.yml");
-  return existsSync(file) ? readFileSync(file, "utf8") : null;
-}
-
-// Preset ids the deployment can boot with: the shipped four plus every valid
-// preset directory in the user root (generated pack presets included). Used to
+// Preset ids the deployment can boot with: the platform's standard row plus
+// every generated catalog/custom preset. Used to
 // validate the persisted preset choice BEFORE the child spawns — an unknown id
 // there would fail every new session's mount.
 export function knownPresetIds() {
-  const ids = new Set();
-  const shipped = resolveShippedPresetRoot();
-  for (const id of SHIPPED_PRESET_IDS) {
-    if (shipped && existsSync(join(shipped, id, "agent.cordis.yml"))) ids.add(id);
-  }
-  try {
-    for (const dirent of readdirSync(CATALOG_PRESET_ROOT, { withFileTypes: true })) {
-      if (dirent.isDirectory() && existsSync(join(CATALOG_PRESET_ROOT, dirent.name, "agent.cordis.yml"))) {
-        ids.add(dirent.name);
-      }
-    }
-  } catch { /* no user preset root — shipped only */ }
-  return ids;
+  return new Set(["standard", ...catalogPresetDefinitions().map((d) => d.id)]);
 }
 
 // Does this catalog entry id have a generated local-preset composition? True ⇒
@@ -1520,17 +1527,17 @@ export function knownPresetIds() {
 // forked to its remote endpoint.
 export function hasCatalogAgentPreset(id) {
   if (!isSafePresetId(id)) return false;
-  return existsSync(join(CATALOG_PRESET_ROOT, rosterPresetId(id), "agent.cordis.yml"));
+  return catalogPresetDefinitions().some((d) => d.entryId === id || d.id === rosterPresetId(id));
 }
 
-// Generate/refresh/prune one preset dir per chat-mode catalog agent. Returns
-// { changed, ids }: `changed` drives the host's roster refresh (a child restart
-// is what makes `presets/list` see a new preset). Idempotent — files are only
-// rewritten when their content differs, so a catalog poll costs nothing.
-// Directory names are the ROSTER form of the entry id (dots → dashes — the
-// plugin's containment regex); the marker's entryId keeps the catalog form.
+// Generate/refresh/prune the preset definitions for chat-mode catalog agents
+// (custom presets ride the same flow — they are catalog entries with
+// customPreset set). Returns { changed, ids }: `changed` drives the host's
+// roster refresh (a child restart is what makes `presets/list` see a new
+// preset — the overlay is a --patch layer, deliberately NOT hot-watched).
+// Idempotent — the defs file and overlay are only rewritten when the
+// definition set differs, so a catalog poll costs nothing.
 export function writeCatalogAgentPresets(entries = []) {
-  const template = shippedStandardComposition();
   const wanted = new Map();
   for (const entry of entries) {
     if (entry?.type !== "agent-remote" || entry.mode !== "chat" || !entry.id) continue;
@@ -1543,58 +1550,41 @@ export function writeCatalogAgentPresets(entries = []) {
     }
     const dirId = rosterPresetId(entry.id);
     if (wanted.has(dirId)) {
-      console.warn(`[dsh-profile] catalog agents '${wanted.get(dirId).id}' and '${entry.id}' map to the same preset dir '${dirId}'; the latter stays a remote chat`);
+      console.warn(`[dsh-profile] catalog agents '${wanted.get(dirId).id}' and '${entry.id}' map to the same preset id '${dirId}'; the latter stays a remote chat`);
       continue;
     }
     wanted.set(dirId, entry);
   }
-  if (!template) {
-    if (wanted.size) console.warn("[dsh-profile] shipped `standard` composition unavailable; skipping catalog agent presets");
-    return { changed: false, ids: [] };
-  }
-
-  let changed = false;
-  // Prune generated presets whose entry left the catalog (never touch dirs we
-  // did not generate: no marker ⇒ someone's own preset).
-  let existing = [];
-  try {
-    existing = readdirSync(CATALOG_PRESET_ROOT, { withFileTypes: true })
-      .filter((d) => d.isDirectory() && existsSync(join(CATALOG_PRESET_ROOT, d.name, CATALOG_PRESET_MARKER)))
-      .map((d) => d.name);
-  } catch { /* no root yet */ }
-  for (const id of existing) {
-    if (wanted.has(id)) continue;
-    rmSync(join(CATALOG_PRESET_ROOT, id), { recursive: true, force: true });
-    console.log(`[dsh-profile] pruned catalog agent preset '${id}' (no longer in the catalog)`);
-    changed = true;
-  }
-
-  const ids = [];
+  const defs = [];
   wanted.forEach((entry, dirId) => {
-    const dir = join(CATALOG_PRESET_ROOT, dirId);
     const name = entry.name || entry.id;
-    const description = (entry.description || `Catalog agent ${name}`).trim();
-    const meta = { entryId: entry.id, name, description, order: 50 + ids.length };
-    const files = {
-      "preset.yml": yaml.dump({ name, description, order: meta.order }),
-      "agent.cordis.yml": composeAgentPreset(template, catalogEntryPersona(entry)),
-      [CATALOG_PRESET_MARKER]: `${JSON.stringify({ ...meta, generator: "paas-catalog" }, null, 2)}\n`,
-    };
-    mkdirSync(dir, { recursive: true });
-    for (const [file, content] of Object.entries(files)) {
-      const target = join(dir, file);
-      let current = null;
-      try { current = readFileSync(target, "utf8"); } catch { /* absent */ }
-      if (current === content) continue;
-      atomicWriteTextSync(target, content);
-      changed = true;
-    }
-    ids.push(dirId);
+    defs.push({
+      id: dirId,
+      entryId: entry.id,
+      name,
+      description: (entry.description || `Catalog agent ${name}`).trim(),
+      order: 50 + defs.length,
+      persona: catalogEntryPersona(entry),
+    });
   });
+  const changed = JSON.stringify(defs) !== JSON.stringify(catalogPresetDefinitions());
   if (changed) {
-    console.log(`[dsh-profile] wrote ${ids.length} catalog agent preset(s): ${ids.join(", ") || "(none)"} → ${CATALOG_PRESET_ROOT}`);
+    catalogPresetDefs = defs;
+    atomicWriteTextSync(CATALOG_PRESET_DEFS_PATH, `${JSON.stringify(defs, null, 2)}\n`);
+    // Stale 0.1.1 materialization dirs are inert under 0.2.0 (nothing
+    // discovers directories anymore); prune the ones we generated so
+    // $DSH_HOME stays honest.
+    try {
+      for (const dirent of readdirSync(CATALOG_PRESET_ROOT, { withFileTypes: true })) {
+        if (dirent.isDirectory() && existsSync(join(CATALOG_PRESET_ROOT, dirent.name, CATALOG_PRESET_MARKER))) {
+          rmSync(join(CATALOG_PRESET_ROOT, dirent.name), { recursive: true, force: true });
+        }
+      }
+    } catch { /* no legacy root */ }
+    writePresetsPatchSync();
+    console.log(`[dsh-profile] catalog agent presets: ${defs.map((d) => d.id).join(", ") || "(none)"}`);
   }
-  return { changed, ids };
+  return { changed, ids: defs.map((d) => d.id) };
 }
 
 // ── Permission preset bridge patch (add-permission-mode-selector) ─────────────
@@ -1849,15 +1839,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const skillsPatch = await writeSkillsPatch();
   console.log(`--- skills patch (${skillsPatch}) ---`);
   console.log(readFileSync(skillsPatch, "utf8"));
-  // Preset roster patch self-check: proves the shipped-root resolution + shows
-  // the generated overlay (null = unresolvable, warn-and-skip path).
+  // Preset overlay self-check: shows the generated registry + preset rows.
   const presetsPatch = await writePresetsPatch();
-  if (presetsPatch) {
-    console.log(`--- presets patch (${presetsPatch}) ---`);
-    console.log(readFileSync(presetsPatch, "utf8"));
-  } else {
-    console.log("presets patch skipped (shipped preset root unresolvable)");
-  }
+  console.log(`--- presets patch (${presetsPatch}) ---`);
+  console.log(readFileSync(presetsPatch, "utf8"));
   // Permission bridge patch self-check.
   const permissionsPatch = await writePermissionsPatch();
   console.log(`--- permissions patch (${permissionsPatch}) ---`);
@@ -1866,18 +1851,15 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const toolSearchPatch = writeToolSearchPatch();
   console.log(`--- tool-search patch (${toolSearchPatch}) ---`);
   console.log(readFileSync(toolSearchPatch, "utf8"));
-  // Catalog agent preset self-check: compose one from the shipped `standard`
-  // composition and prove the persona swap landed (this is what a vertical-pack
-  // chat agent runs on — see writeCatalogAgentPresets).
-  const sample = shippedStandardComposition();
-  if (sample) {
-    const composed = composeAgentPreset(sample, catalogEntryPersona({ id: "pack-demo", name: "合同审查官", description: "法律-合同包对话入口", tags: ["法律", "合同"] }));
-    console.assert(composed.includes("合同审查官"), "composed preset lost its persona");
-    console.assert(composed.includes("dsh-tool-fs") && composed.includes("dsh-tool-skill"), "composed preset lost tool rows");
-    console.assert(composed.includes("!!js process.platform"), "composed preset lost the platform tags");
-    console.log("OK catalog agent preset composes (persona swapped, tool rows intact)");
-  } else {
-    console.log("catalog agent preset skipped (shipped composition unresolvable)");
+  // Catalog agent preset self-check: compose one from the platform-owned
+  // standard composition and prove the persona swap landed (this is what a
+  // vertical-pack chat agent runs on — see writeCatalogAgentPresets).
+  {
+    const rows = composePresetRows(catalogEntryPersona({ id: "pack-demo", name: "合同审查官", description: "法律-合同包对话入口", tags: ["法律", "合同"] }));
+    const personaRow = rows.find((r) => r?.id === "persona");
+    console.assert(personaRow?.config?.prefix?.includes("合同审查官"), "composed preset lost its persona");
+    console.assert(rows.some((r) => r?.id === "tool-ask-user"), "the ask tool rides every composed preset");
+    console.log("OK catalog agent preset composes (persona prefix swapped, ask tool intact)");
   }
 
   // ── Pack agent scope self-check (add-pack-agent-scoping) ──────────────────
@@ -1909,10 +1891,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
     sm.writeSkill({ name: "scope-skill", description: "自检技能", content: "# c", originPackId: PACK_ID, enabled: true });
     // deriveScope requires the generated preset to exist (a departed entry's
     // preset is pruned, and its stale selection must self-heal to full) —
-    // create the marker dir the way writeCatalogAgentPresets would.
-    const presetDir = join(DSH_HOME, ".agent-presets", AGENT_ID);
-    mkdirSync(presetDir, { recursive: true });
-    writeFileSync(join(presetDir, "agent.cordis.yml"), "- id: persona\n  name: '@deepseek-ai/dsh-persona'\n  config:\n    text: \"self-check\"\n");
+    // register the definition the way writeCatalogAgentPresets would.
+    writeCatalogAgentPresets([{ type: "agent-remote", mode: "chat", id: AGENT_ID, name: "自检官", description: "自检角色", packId: PACK_ID }]);
 
     // 1) shipped preset ⇒ full; 2) pack preset ⇒ focused with the pack's set.
     const shippedScope = await deriveScope("standard");

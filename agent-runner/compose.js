@@ -29,9 +29,7 @@ import yaml from "js-yaml";
 // make "is my value quoted?" depend on history. One invariant, both writers.
 const YAML_DUMP_OPTS = { lineWidth: -1, forceQuotes: true };
 import {
-  composeAgentPreset,
   ensureCredentialsStore,
-  resolveShippedPresetRoot,
   rosterPresetId,
   writeLlmProfile,
   writeNotifyPatch,
@@ -52,16 +50,6 @@ function writeIfChanged(file, content) {
     /* absent */
   }
   if (current !== content) writeFileSync(file, content);
-}
-
-function shippedStandardTemplate() {
-  const root = resolveShippedPresetRoot();
-  if (!root) return null;
-  try {
-    return readFileSync(path.join(root, "standard", "agent.cordis.yml"), "utf8");
-  } catch {
-    return null;
-  }
 }
 
 // ── Home ownership guard (fix-agent-serving-stability 3.1) ───────────────────
@@ -157,40 +145,43 @@ export async function materializeAgentHome({ homeRoot, agentKey, entry, skillCon
     writeFileSync(path.join(dir, "SKILL.md"), body);
   }
 
-  // 2. Persona preset: composed from the shipped standard composition exactly
-  //    like the platform's generated presets (the "same composition, two
-  //    execution targets" promise). Falls back to initialize-without-preset
-  //    with a loud warning when the template is unresolvable.
-  const tpl = template ?? shippedStandardTemplate();
+  // 2. Persona preset: a declarative definition the preset overlay composes
+  //    from the platform-owned standard composition (the "same composition,
+  //    two execution targets" promise — the persona row swap now happens
+  //    inside writePresetsPatchSync, 0.2.0 D7.2).
   let presetId = null;
-  if (tpl) {
-    // The dsh preset plugin's id regex is lowercase-only (path containment);
-    // marketplace pack ids are case-mixed base64url — normalize, or the
-    // roster silently drops the preset and every turn fails to mount it.
-    presetId = rosterPresetId(`srv-${descriptor.packId}-${descriptor.agentId}`).toLowerCase();
-    const presetDir = path.join(home, ".agent-presets", presetId);
-    mkdirSync(presetDir, { recursive: true });
-    const name = entry.name || descriptor.agentName || presetId;
-    writeIfChanged(path.join(presetDir, "preset.yml"), yaml.dump({ name, description: entry.description || name, order: 60 }));
-    writeIfChanged(
-      path.join(presetDir, "agent.cordis.yml"),
-      composeAgentPreset(tpl, `${descriptor.persona || name}\n\nYou are serving as a standing A2A agent service; answer in text.`),
-    );
-  } else {
-    console.warn(`[agent-runner] shipped standard composition unresolvable; ${agentKey} boots without its persona`);
+  let extraPresets = [];
+  {
+    // The registry's roster alphabet is lowercase-only (the old containment
+    // regex, kept for id hygiene); marketplace pack ids are case-mixed
+    // base64url — normalize, or the roster row id would be unstable.
+    const name = entry.name || descriptor.agentName || null;
+    const persona = descriptor.persona || name;
+    if (persona) {
+      presetId = rosterPresetId(`srv-${descriptor.packId}-${descriptor.agentId}`).toLowerCase();
+      extraPresets = [
+        {
+          id: presetId,
+          name: name || presetId,
+          description: entry.description || name || presetId,
+          order: 60,
+          persona: `${persona}\n\nYou are serving as a standing A2A agent service; answer in text.`,
+        },
+      ];
+    } else {
+      console.warn(`[agent-runner] no persona for ${agentKey}; the child boots on the bare standard preset`);
+    }
   }
 
   // 3. Presets overlay — the deployment composer's own writer, aimed at this
   //    private home (add-dsh-matrix-lock D6): disables the stock sdk server,
-  //    inserts the platform bridge + a roster that adds this role's user
-  //    root. requireRoster:false — the child needs the platform SDK server
-  //    row even when no preset root resolves at all (bare composition).
+  //    inserts the platform bridge, the preset registry, and this role's
+  //    persona preset row (plus the always-present standard row).
   mkdirSync(profileDir, { recursive: true });
   const presetsPatchPath = await writePresetsPatch({
     dirs: { dshHome: home, profileName: "platform" },
     default: presetId || "standard",
-    extraRoots: presetId ? [{ path: path.join(home, ".agent-presets"), trust: "user" }] : [],
-    requireRoster: false,
+    extraPresets,
   });
 
   writeFileSync(
@@ -287,12 +278,15 @@ export async function applyBillingKey(home, keyValue) {
   writeFileSync(credentialsPath, yaml.dump(doc, YAML_DUMP_OPTS), { mode: 0o600 });
 }
 
-// Every `apiKeyEnv` string in the private home's settings.yaml — the env-var
-// names the provider routes resolve through the credentials store.
+// Every `apiKeyEnv` string in the private home's llm-pi-ai patch row — the
+// env-var names the provider routes resolve through the credentials store.
+// (0.2.0 D7.1: the routes ride the profile patch row, not home-root
+// settings.yaml.)
 function apiKeyEnvRefs(home) {
   const refs = new Set();
   try {
-    const settings = yaml.load(readFileSync(path.join(home, "settings.yaml"), "utf8")) ?? {};
+    const rows = yaml.load(readFileSync(path.join(home, "profiles", "platform", "cordis.patch.yml"), "utf8")) ?? [];
+    const llmRow = (Array.isArray(rows) ? rows : []).find((r) => r?.id === "llm-pi-ai");
     const walk = (node) => {
       if (!node || typeof node !== "object") return;
       for (const [k, v] of Object.entries(node)) {
@@ -300,8 +294,8 @@ function apiKeyEnvRefs(home) {
         else walk(v);
       }
     };
-    walk(settings);
-  } catch { /* no settings → LLM_API_KEY alone */ }
+    walk(llmRow);
+  } catch { /* no patch row → LLM_API_KEY alone */ }
   return refs;
 }
 

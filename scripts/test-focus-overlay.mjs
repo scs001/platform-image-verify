@@ -59,7 +59,7 @@ await db.initDb();
 const catalog = await import("../catalog.js");
 const extensionStore = await import("../extension-store.js");
 const sm = await import("../skill-materialize.js");
-const { writeMcpPatch, writeSkillsPatch, deriveScope } = await import("../dsh-profile.js");
+const { writeMcpPatch, writeSkillsPatch, deriveScope, writeCatalogAgentPresets } = await import("../dsh-profile.js");
 
 const PACK_ID = "fo-pack";
 const OTHER_PACK_ID = "fo-other-pack";
@@ -95,13 +95,12 @@ db.upsertInstalledPack({
   report: { skills: [{ name: "fo-foreign-skill", status: "installed" }], mcpServers: [], agents: [] },
 });
 
-// resolvePersona requires the generated preset to exist — marker dirs the way
-// writeCatalogAgentPresets would leave them.
-for (const id of ["fo-alpha", "fo-beta"]) {
-  const dir = path.join(process.env.DSH_HOME, ".agent-presets", id);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(path.join(dir, "agent.cordis.yml"), "- id: persona\n  name: '@deepseek-ai/dsh-persona'\n  config:\n    text: \"test\"\n");
-}
+// resolvePersona requires the generated preset to exist — definitions the
+// way writeCatalogAgentPresets would persist them (0.2.0 declarative model:
+// .agent-presets.defs.json, no directories).
+writeCatalogAgentPresets(
+  ["fo-alpha", "fo-beta"].map((id) => ({ type: "agent-remote", mode: "chat", id, name: id, description: "seed" })),
+);
 
 // DB server rows: the universes the overlay composes against.
 //   fo-extra        — enabled, ungated, plain config ⇒ ADDABLE

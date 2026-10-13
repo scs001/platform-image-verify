@@ -408,7 +408,7 @@ export function createPackRegistry({ file }) {
         `SELECT p.*, v.version, v.name, v.description, v.tags, v.published_at FROM packs p JOIN pack_versions v
            ON v.pack_id = p.id AND v.version = (SELECT MAX(version) FROM pack_versions WHERE pack_id = p.id)
          WHERE ${whereSql}
-         ORDER BY v.published_at DESC LIMIT ? OFFSET ?`,
+         ORDER BY v.published_at DESC, p.rowid ASC LIMIT ? OFFSET ?`,
       ).all(...params, size, (pageNum - 1) * size);
       return {
         total,

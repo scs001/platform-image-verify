@@ -35,10 +35,13 @@ jobs:
         env:
           PLATFORM_SKIP_WEB_BUILD: "1"
           PLATFORM_SKIP_BUNDLE: "1"
-        run: npm ci --legacy-peer-deps
+        run: npm ci
 
       - name: Lint (Biome)
         run: npm run lint
+
+      - name: dsh adapter boundary (ADR-0023)
+        run: node scripts/lint-dsh-adapter.mjs
 
       # Must precede typecheck/build: web's tsc (TS 5.7) resolves from
       # web/node_modules — without this, npm falls back to the root
@@ -50,7 +53,7 @@ jobs:
       # thin SPA from src — same as the Dockerfile — so its deps must be
       # present before the fast e2e project boots its webServer chain.
       - name: Install facet/web dependencies
-        run: npm --prefix facet/web install --ignore-scripts --legacy-peer-deps
+        run: npm --prefix facet/web install --ignore-scripts
 
       - name: Typecheck (web)
         run: npm run typecheck
@@ -181,7 +184,7 @@ jobs:
         env:
           PLATFORM_SKIP_WEB_BUILD: "1"
           PLATFORM_SKIP_BUNDLE: "1"
-        run: npm ci --legacy-peer-deps
+        run: npm ci
 
       # The scratch npm ci (~450 packages) is the slow leg; cache it keyed on
       # the matrix lock. MUST come after `npm ci` above — that step removes

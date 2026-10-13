@@ -684,7 +684,30 @@ function toMcpClientEntry(name, config, scopedEnv = null) {
 // attributable and revocable for one cell alone. Returns null (shared-value
 // fallback, today's behavior) when derivation isn't configured or can't
 // resolve a scope; each miss warns ONCE per process to keep logs sane.
+//
+// add-websearch-settings: the non-derived fallback now also consults the
+// stored layer (Settings → Network search, deployment_config) BEFORE process
+// env — the settings surface is the user-facing override; env stays the
+// deployment fallback. The scoped derivation above still wins over both.
 let scopedEnvWarned = false;
+async function relayEnvOverrides(ownerEmail) {
+  // Stored layer first (Settings → Network search), independent of the scoped
+  // decision — a stored URL must survive even while the TOKEN is derived.
+  const out = {};
+  try {
+    const db = await import("./db.js");
+    const { resolveWebsearchRelay } = await import("./lib/websearch-relay.js");
+    const { url, token, source } = await resolveWebsearchRelay(db);
+    if (source.url === "stored" && url) out.SEARCH_RELAY_URL = url;
+    if (source.token === "stored" && token) out.SEARCH_RELAY_TOKEN = token;
+  } catch { /* stored layer unavailable — env fallback stands */ }
+  // Scoped derivation overrides the TOKEN only (per-cell value); the URL
+  // override above is orthogonal and must not be clobbered by the early
+  // return this function used to have.
+  const scoped = scopedRelayEnvOverrides(ownerEmail);
+  if (scoped) Object.assign(out, scoped);
+  return Object.keys(out).length ? out : null;
+}
 function scopedRelayEnvOverrides(ownerEmail) {
   const master = process.env.SEARCH_RELAY_SCOPED_MASTER;
   if (!master) return null;
@@ -849,7 +872,7 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
     );
   }
 
-  const scopedEnv = scopedRelayEnvOverrides(ownerEmail);
+  const scopedEnv = await relayEnvOverrides(ownerEmail);
   const entries = [];
   for (const [name, config] of Object.entries(servers)) {
     const e = toMcpClientEntry(name, config, scopedEnv);

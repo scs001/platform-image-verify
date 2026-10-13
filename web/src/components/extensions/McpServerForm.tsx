@@ -213,6 +213,12 @@ export function McpServerForm({ open, onOpenChange, server, initialConfig, setup
       return;
     }
 
+    // Edit mode merges onto the ORIGINAL config so fields the form does not
+    // model survive the save. The load-bearing case: envRefs on bundled stdio
+    // servers (websearch's relay pair) — rebuilding the config from form
+    // fields alone silently stripped it and degraded search (fixed in
+    // add-websearch-settings).
+    const base = isEdit && server ? server.config : {};
     let config: McpServer["config"];
     if (type === "stdio") {
       if (!command.trim()) {
@@ -227,10 +233,15 @@ export function McpServerForm({ open, onOpenChange, server, initialConfig, setup
         return;
       }
       config = {
+        ...base,
         command: command.trim(),
         args: args.trim().split(/\s+/).filter(Boolean),
         env: envObj,
       };
+      // A switch from http to stdio in edit mode: the http fields are gone
+      // from the model — drop their base remnants so the record is coherent.
+      delete (config as Record<string, unknown>).url;
+      delete (config as Record<string, unknown>).headers;
     } else {
       if (!url.trim()) {
         setError(t("extensions.mcp.errors.urlRequired"));
@@ -247,6 +258,15 @@ export function McpServerForm({ open, onOpenChange, server, initialConfig, setup
         url: url.trim(),
         headers: headersObj,
       };
+      // http in edit mode: same unmodeled-field preservation as stdio above;
+      // a stdio→http switch drops the stdio-only remnants for coherence.
+      if (isEdit && server) {
+        config = { ...base, ...config };
+        delete (config as Record<string, unknown>).command;
+        delete (config as Record<string, unknown>).args;
+        delete (config as Record<string, unknown>).env;
+        delete (config as Record<string, unknown>).envRefs;
+      }
     }
 
     setLoading(true);
@@ -293,6 +313,19 @@ export function McpServerForm({ open, onOpenChange, server, initialConfig, setup
             >
               <Icon name="alert-circle" size={16} className="mt-0.5 shrink-0" />
               <span>{error}</span>
+            </div>
+          )}
+
+          {/* Bundled servers whose deployment wiring lives in its own settings
+              section (websearch's relay pair → Settings → Network search): say
+              so instead of inviting an edit that would strip the wiring. */}
+          {isEdit && server?.origin === "bundled" && (
+            <div
+              className="flex items-start gap-2 border border-border bg-secondary/40 px-3 py-2 rounded-md text-sm text-muted-foreground"
+              data-testid="mcp-bundled-wiring-hint"
+            >
+              <Icon name="globe" size={16} className="mt-0.5 shrink-0" />
+              <span>{t("extensions.mcp.bundledWiringHint")}</span>
             </div>
           )}
 

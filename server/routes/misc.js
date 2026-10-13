@@ -8,6 +8,7 @@ import fs from "node:fs";
 import express from "express";
 import { WEB_DIST } from "../context.js";
 import { storeDir } from "../../paths.js";
+import { resolveWebsearchRelay, maskToken } from "../../lib/websearch-relay.js";
 
 export function registerMiscRoutes(ctx) {
   const { app, catalog, db, cron } = ctx;
@@ -292,6 +293,93 @@ export function registerMiscRoutes(ctx) {
       else db.setDeploymentConfig("loginHero", JSON.stringify(heroUpdate));
     }
     res.json({ ok: true });
+  });
+
+  // ── Web search relay wiring (add-websearch-settings) ─────────────────────
+  // Settings → Network search. The relay pair (URL + token) resolves
+  // stored→env (lib/websearch-relay.js); writes land in deployment_config and
+  // hot-rewrite the MCP patch so cells pick the new wiring up without a
+  // restart. Tokens are write-only: responses carry presence + a 4-char hint,
+  // never the value. Same admin gate as the other management surfaces
+  // (auth off = machine owner).
+  const requireWebsearchManage = (req, res) => {
+    if (ctx.authEnabled && !ctx.isAdminUser?.(req.user)) {
+      res.status(403).json({ error: "Admin group required" });
+      return false;
+    }
+    return true;
+  };
+
+  app.get("/api/config/websearch", async (_req, res) => {
+    const { url, token, source } = await resolveWebsearchRelay(db);
+    res.json({
+      url: url ?? "",
+      hasToken: Boolean(token),
+      tokenHint: maskToken(token),
+      source,
+    });
+  });
+
+  app.put("/api/config/websearch", async (req, res) => {
+    if (!requireWebsearchManage(req, res)) return;
+    if (!db.isDbReady()) {
+      return res.status(503).json({ error: "Web search settings are disabled (database unavailable)" });
+    }
+    const body = req.body || {};
+    // Absent field = untouched; "" = clear (back to env); non-empty = store.
+    for (const [field, key] of [["url", "websearchUrl"], ["token", "websearchToken"]]) {
+      if (!Object.hasOwn(body, field)) continue;
+      const value = body[field];
+      if (typeof value !== "string") return res.status(400).json({ error: `Field '${field}' must be a string` });
+      const trimmed = value.trim();
+      if (field === "url" && trimmed && !/^https?:\/\//.test(trimmed)) {
+        return res.status(400).json({ error: "url must be an http(s):// URL" });
+      }
+      if (trimmed.length > 500) return res.status(400).json({ error: `Field '${field}' exceeds 500 characters` });
+      if (trimmed === "") db.clearDeploymentConfig(key);
+      else db.setDeploymentConfig(key, trimmed);
+    }
+    // Hot-rewrite the MCP patch so a running cell re-resolves the envRefs on
+    // its next composition (same path the extensions routes use). The token
+    // VALUE never appears in logs — only the fact that wiring changed.
+    ctx.dshUpdateMcp?.(ctx.runtimeMcpOverlay, req.user?.groups ?? null, req.user?.email ?? undefined)
+      .catch((e) => console.warn(`[websearch-config] MCP patch rewrite failed: ${e.message}`));
+    console.log("[websearch-config] relay wiring updated (values redacted)");
+    const { url, token, source } = await resolveWebsearchRelay(db);
+    res.json({ ok: true, url: url ?? "", hasToken: Boolean(token), tokenHint: maskToken(token), source });
+  });
+
+  app.post("/api/config/websearch/test", async (req, res) => {
+    if (!requireWebsearchManage(req, res)) return;
+    const body = req.body || {};
+    // Form values override the effective pair for a dry run — nothing persists.
+    const effective = await resolveWebsearchRelay(db);
+    const url = (typeof body.url === "string" && body.url.trim()) || effective.url;
+    const token = (typeof body.token === "string" && body.token.trim()) || effective.token;
+    if (!url) return res.json({ state: "invalid-url", detail: "no relay URL configured" });
+    if (!/^https?:\/\//.test(url)) return res.json({ state: "invalid-url", detail: "relay URL must be http(s)://" });
+    if (!token) return res.json({ state: "auth-rejected", detail: "no relay token configured" });
+    const base = url.replace(/\/+$/, "");
+    try {
+      const upstream = await fetch(`${base}/v1/search`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify({ query: "connectivity test", num: 1 }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (upstream.ok) return res.json({ state: "ok", detail: `HTTP ${upstream.status}` });
+      if (upstream.status === 401 || upstream.status === 403) {
+        return res.json({ state: "auth-rejected", detail: `HTTP ${upstream.status}` });
+      }
+      // 5xx etc.: auth passed (the relay answered), upstream is degraded —
+      // report it as such rather than mislabeling the wiring.
+      return res.json({ state: "upstream-degraded", detail: `HTTP ${upstream.status}` });
+    } catch (err) {
+      const msg = err?.name === "TimeoutError" || err?.name === "AbortError"
+        ? "timed out after 5s"
+        : String(err?.message || err).slice(0, 200);
+      return res.json({ state: "unreachable", detail: msg });
+    }
   });
 
   // ── Supervisor / system status (for the Dashboard view) ──────────────────

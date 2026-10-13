@@ -483,7 +483,8 @@
         "urlRequired": "HTTP 需要 URL",
         "envInvalid": "环境变量必须是有效的 JSON",
         "headersInvalid": "请求头必须是有效的 JSON"
-      }
+      },
+      "bundledWiringHint": "该工具的连接配置在 设置 → 网络搜索 中管理。"
     },
     "skills": {
       "title": "技能",
@@ -680,7 +681,8 @@
       "status": "系统状态",
       "packs": "功能集",
       "presets": "自建预设",
-      "devices": "已配对设备"
+      "devices": "已配对设备",
+      "websearch": "网络搜索"
     },
     "groups": {
       "basics": "常规",
@@ -764,6 +766,31 @@
       "revokeConfirm": "撤销这台设备？",
       "revoke": "撤销",
       "cancel": "取消"
+    },
+    "websearch": {
+      "subtitle": "为智能体的网页搜索提供服务的搜索服务。不填则使用本部署的内置配置。",
+      "urlLabel": "搜索服务地址",
+      "urlPlaceholder": "http://127.0.0.1:4597",
+      "tokenLabel": "访问令牌",
+      "tokenPlaceholder": "粘贴令牌",
+      "tokenStoredPlaceholder": "已保存（{{hint}}）—— 输入以替换",
+      "tokenHint": "只写不读：已保存的令牌不会显示。留空表示保持现有令牌不变。",
+      "clearToken": "清除已保存的令牌（回退到部署配置）",
+      "save": "保存",
+      "saving": "保存中…",
+      "saved": "已保存",
+      "test": {
+        "ok": "连接正常",
+        "auth-rejected": "令牌被拒",
+        "upstream-degraded": "可达，但搜索上游异常",
+        "unreachable": "服务不可达",
+        "invalid-url": "请先填写有效的 http(s) 地址"
+      },
+      "testing": "测试中…",
+      "sourceStored": "在此保存",
+      "sourceEnv": "部署配置",
+      "unconfiguredHint": "未配置——设置服务地址前，智能体的网页搜索会提示不可用。",
+      "scopeHint": "保存后会立即更新智能体的工具接线，无需重启。"
     }
   },
   "bindings": {

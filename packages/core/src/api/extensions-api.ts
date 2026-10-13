@@ -13,6 +13,11 @@ export interface McpServer {
     command?: string;
     args?: string[];
     env?: Record<string, string>;
+    // Names of environment variables the host forwards explicitly to a stdio
+    // child (credential-shaped names are scrubbed from the ambient env). The
+    // VALUES never live here — the host resolves them at patch-write time.
+    // The edit form does not model this field; saving must preserve it.
+    envRefs?: string[];
     url?: string;
     headers?: Record<string, string>;
     // Registry-origin servers reference the user's stored market credential
@@ -21,6 +26,9 @@ export interface McpServer {
   };
   enabled: boolean;
   source: "user" | "startup";
+  // "bundled" marks servers seeded from platform.bundle.json (websearch et al);
+  // their deployment wiring is managed outside this form.
+  origin?: "user" | "bundled" | "file" | "registry";
   createdAt: string;
   updatedAt: string;
 }

@@ -483,7 +483,8 @@
         "urlRequired": "La URL es requerida para HTTP",
         "envInvalid": "Las variables de entorno deben ser JSON válido",
         "headersInvalid": "Los encabezados deben ser JSON válido"
-      }
+      },
+      "bundledWiringHint": "La conexión de esta herramienta se configura en Ajustes → Búsqueda web."
     },
     "skills": {
       "title": "Habilidades",
@@ -680,7 +681,8 @@
       "status": "Estado del sistema",
       "packs": "Paquetes",
       "presets": "Preajustes propios",
-      "devices": "Dispositivos vinculados"
+      "devices": "Dispositivos vinculados",
+      "websearch": "Búsqueda web"
     },
     "groups": {
       "basics": "Básico",
@@ -764,6 +766,31 @@
       "revokeConfirm": "¿Revocar este dispositivo?",
       "revoke": "Revocar",
       "cancel": "Cancelar"
+    },
+    "websearch": {
+      "subtitle": "El servicio de búsqueda que alimenta la herramienta web_search del agente. Déjalo vacío para usar la configuración integrada de esta instalación.",
+      "urlLabel": "URL del servicio de búsqueda",
+      "urlPlaceholder": "http://127.0.0.1:4597",
+      "tokenLabel": "Token de acceso",
+      "tokenPlaceholder": "Pega el token",
+      "tokenStoredPlaceholder": "Guardado ({{hint}}): escribe para reemplazar",
+      "tokenHint": "Solo escritura: los tokens guardados nunca se muestran. Déjalo en blanco para conservar el actual.",
+      "clearToken": "Borrar el token guardado (volver a la configuración de la instalación)",
+      "save": "Guardar",
+      "saving": "Guardando…",
+      "saved": "Guardado",
+      "test": {
+        "ok": "Conectado",
+        "auth-rejected": "Token rechazado",
+        "upstream-degraded": "Accesible, pero el proveedor de búsqueda está degradado",
+        "unreachable": "Servicio inaccesible",
+        "invalid-url": "Introduce primero una URL http(s) válida"
+      },
+      "testing": "Probando…",
+      "sourceStored": "Guardado aquí",
+      "sourceEnv": "Configuración de la instalación",
+      "unconfiguredHint": "Sin configurar: la búsqueda web del agente se reportará como no disponible hasta que se indique un servicio.",
+      "scopeHint": "Al guardar se reescribe de inmediato la conexión de herramientas del agente; no hace falta reiniciar."
     }
   },
   "bindings": {

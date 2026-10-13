@@ -483,7 +483,8 @@
         "urlRequired": "URL is required for HTTP",
         "envInvalid": "Environment variables must be valid JSON",
         "headersInvalid": "Headers must be valid JSON"
-      }
+      },
+      "bundledWiringHint": "This tool's connection settings live in Settings → Network search."
     },
     "skills": {
       "title": "Skills",
@@ -693,7 +694,8 @@
       "status": "System Status",
       "packs": "Packs",
       "presets": "Custom presets",
-      "devices": "Paired devices"
+      "devices": "Paired devices",
+      "websearch": "Network search"
     },
     "groups": {
       "basics": "Basics",
@@ -777,6 +779,31 @@
       "revokeConfirm": "Revoke this device?",
       "revoke": "Revoke",
       "cancel": "Cancel"
+    },
+    "websearch": {
+      "subtitle": "The search service that powers the agent's web_search tool. Leave unset to use this deployment's built-in configuration.",
+      "urlLabel": "Search service URL",
+      "urlPlaceholder": "http://127.0.0.1:4597",
+      "tokenLabel": "Access token",
+      "tokenPlaceholder": "Paste the token",
+      "tokenStoredPlaceholder": "Stored ({{hint}}) — type to replace",
+      "tokenHint": "Write-only: saved tokens are never displayed. Leave blank to keep the current one.",
+      "clearToken": "Clear stored token (fall back to deployment setting)",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "test": {
+        "ok": "Connected",
+        "auth-rejected": "Token rejected",
+        "upstream-degraded": "Reachable, but the search provider is degraded",
+        "unreachable": "Service unreachable",
+        "invalid-url": "Enter a valid http(s) URL first"
+      },
+      "testing": "Testing…",
+      "sourceStored": "Saved here",
+      "sourceEnv": "Deployment setting",
+      "unconfiguredHint": "Not configured — the agent's web_search reports itself unavailable until a service is set.",
+      "scopeHint": "Saving rewrites the agent's tool wiring immediately; no restart needed."
     }
   },
   "preview": {

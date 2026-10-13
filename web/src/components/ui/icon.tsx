@@ -38,6 +38,7 @@ import {
   Sparkles,
   Cpu,
   Shield,
+  Globe,
   type LucideProps,
 } from "lucide-react";
 
@@ -74,6 +75,8 @@ const ICONS: Record<string, React.ComponentType<LucideProps>> = {
   // nango-connect / external-service kind icon
   plug: Wrench,
   app: LayoutDashboard,
+  // Network search settings (add-websearch-settings)
+  globe: Globe,
 };
 
 interface IconProps extends LucideProps {

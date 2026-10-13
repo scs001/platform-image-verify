@@ -483,7 +483,8 @@
         "urlRequired": "L'URL est requise pour HTTP",
         "envInvalid": "Les variables d'environnement doivent être un JSON valide",
         "headersInvalid": "Les en-têtes doivent être un JSON valide"
-      }
+      },
+      "bundledWiringHint": "Les réglages de connexion de cet outil se trouvent dans Paramètres → Recherche web."
     },
     "skills": {
       "title": "Compétences",
@@ -680,7 +681,8 @@
       "status": "État du système",
       "packs": "Packs",
       "presets": "Préréglages perso",
-      "devices": "Appareils appariés"
+      "devices": "Appareils appariés",
+      "websearch": "Recherche web"
     },
     "groups": {
       "basics": "Général",
@@ -764,6 +766,31 @@
       "revokeConfirm": "Révoquer cet appareil ?",
       "revoke": "Révoquer",
       "cancel": "Annuler"
+    },
+    "websearch": {
+      "subtitle": "Le service de recherche qui alimente l'outil web_search de l'agent. Laissez vide pour utiliser la configuration intégrée de ce déploiement.",
+      "urlLabel": "URL du service de recherche",
+      "urlPlaceholder": "http://127.0.0.1:4597",
+      "tokenLabel": "Jeton d'accès",
+      "tokenPlaceholder": "Collez le jeton",
+      "tokenStoredPlaceholder": "Enregistré ({{hint}}) — saisissez pour remplacer",
+      "tokenHint": "Écriture seule : les jetons enregistrés ne sont jamais affichés. Laissez vide pour conserver l'actuel.",
+      "clearToken": "Effacer le jeton enregistré (revenir au réglage du déploiement)",
+      "save": "Enregistrer",
+      "saving": "Enregistrement…",
+      "saved": "Enregistré",
+      "test": {
+        "ok": "Connecté",
+        "auth-rejected": "Jeton refusé",
+        "upstream-degraded": "Joignable, mais le fournisseur de recherche est dégradé",
+        "unreachable": "Service injoignable",
+        "invalid-url": "Saisissez d'abord une URL http(s) valide"
+      },
+      "testing": "Test en cours…",
+      "sourceStored": "Enregistré ici",
+      "sourceEnv": "Réglage du déploiement",
+      "unconfiguredHint": "Non configuré — la recherche web de l'agent se déclarera indisponible tant qu'aucun service n'est indiqué.",
+      "scopeHint": "L'enregistrement réécrit immédiatement le câblage des outils de l'agent ; aucun redémarrage nécessaire."
     }
   },
   "bindings": {

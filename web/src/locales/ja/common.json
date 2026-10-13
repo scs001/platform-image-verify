@@ -483,7 +483,8 @@
         "urlRequired": "HTTPにはURLが必要です",
         "envInvalid": "環境変数は有効なJSONである必要があります",
         "headersInvalid": "ヘッダーは有効なJSONである必要があります"
-      }
+      },
+      "bundledWiringHint": "このツールの接続設定は 設定 → ウェブ検索 で管理します。"
     },
     "skills": {
       "title": "スキル",
@@ -680,7 +681,8 @@
       "status": "システム状態",
       "packs": "パック",
       "presets": "カスタムプリセット",
-      "devices": "ペア設定済みデバイス"
+      "devices": "ペア設定済みデバイス",
+      "websearch": "ウェブ検索"
     },
     "groups": {
       "basics": "基本",
@@ -764,6 +766,31 @@
       "revokeConfirm": "このデバイスを失効しますか？",
       "revoke": "失効",
       "cancel": "キャンセル"
+    },
+    "websearch": {
+      "subtitle": "エージェントの web_search ツールを支える検索サービスです。未設定の場合はこのデプロイの組み込み設定を使用します。",
+      "urlLabel": "検索サービスの URL",
+      "urlPlaceholder": "http://127.0.0.1:4597",
+      "tokenLabel": "アクセストークン",
+      "tokenPlaceholder": "トークンを貼り付け",
+      "tokenStoredPlaceholder": "保存済み（{{hint}}）— 入力すると置き換え",
+      "tokenHint": "書き込み専用：保存済みトークンは表示されません。空欄のままにすると現在のトークンを保持します。",
+      "clearToken": "保存済みトークンを削除（デプロイ設定に戻す）",
+      "save": "保存",
+      "saving": "保存中…",
+      "saved": "保存しました",
+      "test": {
+        "ok": "接続OK",
+        "auth-rejected": "トークンが拒否されました",
+        "upstream-degraded": "到達可能ですが検索プロバイダが異常です",
+        "unreachable": "サービスに到達できません",
+        "invalid-url": "先に有効な http(s) URL を入力してください"
+      },
+      "testing": "テスト中…",
+      "sourceStored": "ここで保存",
+      "sourceEnv": "デプロイ設定",
+      "unconfiguredHint": "未設定 — サービスを設定するまで、エージェントのウェブ検索は利用不可と報告します。",
+      "scopeHint": "保存するとエージェントのツール接続が即時に更新されます。再起動は不要です。"
     }
   },
   "bindings": {

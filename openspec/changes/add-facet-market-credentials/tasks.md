@@ -55,3 +55,17 @@
 - 台账联动：registry 条目 /facet-market-mcp 已 PATCH metadata.credential_ref=facet-market（实测回显）。
 - 全量单测回归：13 fail 为树上预存（dsh 树坏基线 6+webTurnSessions 适配漏 1 等，与本 change 无关——
   失败文件均非本 change 触碰面；详见提交说明）。
+
+## 6. 操作 pack 发布（狗粮闭环，2026-10-14 完成）
+
+- [x] 6.1 「谦面市场助手」发布（id 0RdQE184anPUaMhIvFwndA v1，platform-test）：
+      双技能（facet-market-publishing/gateway-ops）+双 MCP（facet-market-mcp/facet-ops-mcp
+      各 allowTools 六）+persona（写操作先查重复述确认）+三步指南；真校验器预对拍 VALID
+- [x] 6.2 发布门活例：首发被工具声明门 fail-closed 拦（网关快照 num_tools=0）——
+      快照回填（PATCH tool_list 需对象形状 {name,description}，rescan 对该 token 504、
+      /api/tools 与 /api/refresh 均 enhanced_auth 不可用）后过门——自家门咬自家包
+- [x] 6.3 壹座内装包全链眼见：Subscribe & Install → 双技能物化（facet-gateway-ops/
+      facet-market-publishing）+三 MCP 行——**凭据分派数据驱动实证**（facet-market-mcp→
+      facet-market ref、facet-ops-mcp→registry 默认）；工具收窄走 pack-scope tool-filter
+      patch（设计如此，不在 config 里）
+- [x] 6.4 验收包 9fqlBKNT 转 private（匿名 404 实证）

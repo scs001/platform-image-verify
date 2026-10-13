@@ -63,7 +63,7 @@ export function registerMpRoutes(ctx) {
   // restart is the honest truth, not a bug. The session-title join is
   // best-effort: a chat-history failure degrades titles to null, it never
   // fails the summary.
-  app.get("/api/mp/command-summary", async (req, res) => {
+  app.get("/api/mp/command-summary", async (_req, res) => {
     try {
       const pending = [];
       for (const [sessionId, p] of ctx.pendingQuestionBySession ?? new Map()) {

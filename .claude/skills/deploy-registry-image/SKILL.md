@@ -1,6 +1,6 @@
 ---
 name: deploy-registry-image
-description: Use when building, releasing, rolling out, verifying, or rolling back the MCP registry (谦面, mcp.finddatatech.cloud) image — any task touching mcp-gateway-registry's release pipeline, TCR image flow (GHA→hkccr→cheap-3 relay→ccr), cheap-1 compose cutover, or registry version bumps (fd-x.y.z). Also covers diagnosing org Actions outages, scs001 temporary build line, relay backfill, embeddings/ONNX weight placement, and the full verification evidence chain.
+description: Use when building, releasing, rolling out, verifying, or rolling back the MCP registry (谦面, mcp.finddatatech.cloud) image — any task touching mcp-gateway-registry's release pipeline, TCR image flow (GHA→hkccr→cheap-3 relay→ccr), cheap-1 compose cutover, or registry version bumps (fd-x.y.z). **出片前先跑 `fd-build-channel` 判路**（公开仓=免费无限 / 私有池=2000 分钟每月每账号；含额度与成本陷阱）。Also covers diagnosing why a build run went red (quota vs real defect), relay backfill, embeddings/ONNX weight placement, and the full verification evidence chain.
 metadata:
   version: 1.0.0
 ---
@@ -24,21 +24,35 @@ metadata:
 
 ## 1. 管线决策树（构建走哪条线）
 
-```
-代码已合入 origin/main？
-├─ 检查 org Actions 是否活着：
-│    gh run list -R FindDataTechnology/mcp-gateway-registry --limit 3
-│    —— 全是 5~8 秒 failure = 账单阻断（2026-10-06 起复发），startup 级失败不是测试失败
-├─ org 活着 → push main 自动触发 image.yml（标准线）
-├─ org 死了 → scs001 临时线：
-│    git push scs001 <branch>:refs/heads/fd-<name>   # 分支名必须 fd-* 才触发其测试套件
-│    gh workflow run image.yml -R scs001/mcp-gateway-registry --ref fd-<name>
-└─ scs001 也额度尽（4 秒 billing 失败）→ law-ai-official org 线（2026-10-11 用户定案）：
-     gh repo create law-ai-official/mcp-gateway-registry-images --private
-     git push <该仓> main（快照法，配方见 tcr-image-pipeline「出片账号绕行梯」）
-     设 TCR_USERNAME/TCR_PASSWORD secrets（值=cheap-3 /etc/tcr-relay/env 同源）→ run image.yml
+**先跑一条命令，不要人工调查、不要读 run 注解试错：**
+
+```bash
+fd-build-channel          # 现状 + 现在用哪条 + 各账号额度余额 + 成本陷阱（吃 24h 缓存）
+fd-build-channel pick mcp-gateway-registry
 ```
 
+> **2026-10-14 更正（旧版此处的"账单阻断绕行梯"已被证伪）**：run 里那句
+> "recent account payments have failed…" **不是欠费**，是该账号**私有仓免费额度
+> 2000 分钟/月用尽**（实测 FDT = 2011/2000，10-07 触顶）。而且**公开仓标准 runner
+> 免费无限、不受同账号私有额度耗尽影响** → 成本最低的线其实是公开仓，不是绕道换账号。
+> 旧的三级梯（org → scs001 → law-ai-official）不再作为判据；判路一律看 `fd-build-channel`。
+
+```
+代码已合入 origin/main？
+├─ fd-build-channel         # 唯一判路入口：给出现在该用哪条 + 各池余额
+├─ T1 公开仓线（免费无限，首选）：
+│    · 仓库公开且有 image.yml → push main 直接触发
+│    · 私有源码 → 公开快照仓（如 scs001/platform-image-verify，免费无限）
+│    · registry 的正统公开线：FindDataTechnology/mcp-gateway-registry 是 private，
+│      故走快照仓或下面的通用池
+├─ T2 通用构建池（私有线，各账号独立 2000 min/月）：
+│    fd-build-snapshot <源码仓URL> -R <org>/build-pool --namespace yizuo --image mcp-registry
+│    现役池：testaction001..005/build-pool（~10,300 分钟）；fd-build-channel 会推荐余额最多的
+└─ 全不通才手工建（最后手段）
+```
+
+- **失败先看失败 step**：跑到业务步才红 = 真缺陷或 flaky，`gh run view --log-failed` 确认，
+  别默认 flaky、也别当额度问题。已知 flaky 仅 dsh 合同 ⑨（多会话并发）。
 - **不要用 cheap-3 本地 docker build**（慢且坑多：apt/PyPI 直连爬行、注入镜像源时 sed 表达式的 `|` 必须加单引号否则被容器 shell 当管道吃掉、apt 源在基础镜像 `/etc/apt/sources.list.d/` 里不在 Dockerfile 文本里）。仅作 GHA 全线瘫痪时的最后手段。
 - **镜像 sha tag 是 7 位短 sha**（metadata-action 默认），不是 8 位。查 tag 少一位 = 假阴性，先怀疑自己数错。
 - BUILD_VERSION 在 image.yml 里手改（版本纪律：部署可见变化=minor，修复=patch；不引入自动推导）。
@@ -165,7 +179,8 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/python scripts/test.py unit -n 8
 
 | 现象 | 根因 | 处置 |
 |---|---|---|
-| GHA run 5~8 秒全红、零 step 执行 | org 账单阻断（startup failure） | 走 §1 scs001 临时线；scs001 同症 → law-ai-official org 线 |
+| GHA run 5~8 秒全红、零 step 执行 | 该账号**私有额度 2000 分钟/月用尽**（**不是欠费**；2026-10-14 实测 FDT=2011/2000） | 跑 `fd-build-channel` 判路：改用有余额的池，或走公开仓免费线（不受影响）。**别把额度问题误判成代码问题** |
+| GHA run 红但跑了 ≥10 秒 | 真缺陷或 flaky（**与额度无关**） | `gh run view <id> --log-failed` 看**失败 step**：有业务错误文本=真缺陷（如 2026-10-14 `896e142` 的 `ctx.userQuestions.registerProvider is not a function`）；无业务错误、同 commit 别处绿=⑨ 类 flaky，`rerun --failed` |
 | hkccr 查不到刚推的 sha tag | tag 是 **7 位**不是 8 位 | 用 7 位重查 |
 | compose up 报 alpine/python 拉取超时 | 没带 `--no-deps`，旁支 init 服务拉 docker.io | `up -d --no-deps <svc>` |
 | 本地测试莫名全绿/串环境 | scripts/test.py 走了 PATH 的 micromamba pytest | `PATH=.venv/bin:$PATH` 前缀 |

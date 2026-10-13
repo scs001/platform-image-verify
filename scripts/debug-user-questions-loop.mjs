@@ -53,7 +53,7 @@ console.log(`[DEBUG-a4f2] throwaway home=${home}`);
 console.log(`[DEBUG-a4f2] tree=${TREE}`);
 
 // ── 2. Imports AFTER the env is pinned.
-const { HarnessClient } = await import("@deepseek-ai/dsh-sdk-client");
+await import("@deepseek-ai/dsh-sdk-client");
 const dshProfile = await import("../dsh-profile.js");
 const { patchArgs } = await import("../dsh-bridge.js");
 

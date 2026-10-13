@@ -473,7 +473,7 @@ function renderBoard() {
   const nodes = [...m.banner.nodes].sort((a, b) => (b.memUsageBytes || 0) - (a.memUsageBytes || 0));
   const nodeChips = nodes.map((n) => {
     const pct = n.memUsageBytes && n.memAllocatable
-      ? Math.round((parseInt(n.memUsageBytes) / parseInt(n.memAllocatable)) * 100) : null;
+      ? Math.round((parseInt(n.memUsageBytes, 10) / parseInt(n.memAllocatable, 10)) * 100) : null;
     const cls = !n.ready ? "bad" : n.pressure || (pct !== null && pct >= 85) ? "warn" : "";
     return `<div class="vchip ${cls}" title="${esc(n.name)}${pct !== null ? ` — memory ${pct}% of allocatable` : ""}${n.pressure ? " — pressure" : ""}">
       <span class="vname">${esc(n.name)}</span>

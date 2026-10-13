@@ -164,7 +164,7 @@ try {
   const seenLenAtSwitch = seen.length;
   const t0 = Date.now();
   send({ type: "set_model", id: target.id });
-  const changed = await waitFor((m) => m.type === "model_changed" && m.id === target.id, "model_changed");
+  await waitFor((m) => m.type === "model_changed" && m.id === target.id, "model_changed");
   const dt = Date.now() - t0;
   assert.ok(dt < 5000, `model switch took ${dt}ms (live path must be seconds-free)`);
   await sleep(1500);

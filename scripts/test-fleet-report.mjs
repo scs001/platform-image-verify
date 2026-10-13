@@ -23,6 +23,7 @@ test.after(() => rmSync(tmp, { recursive: true, force: true }));
 function observerStub() {
   const calls = [];
   let failNext = 0;
+  // biome-ignore lint/correctness/noUnusedFunctionParameters: fetch-mock arity — init.body is read below, url is positionally required
   const impl = async (url, init) => {
     if (failNext > 0) {
       failNext -= 1;

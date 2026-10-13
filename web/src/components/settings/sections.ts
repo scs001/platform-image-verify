@@ -75,7 +75,7 @@ export interface SettingsSection {
   labelKey: string;
   testId: string;
   icon: LucideIcon;
-  Component: React.LazyExoticComponent<React.ComponentType<any>>;
+  Component: SettingsSectionComponent;
   // Props the section's component needs. ExtensionsPage serves the merged
   // Tools & Skills section and distinguishes its sub-view by this prop.
   props?: Record<string, unknown>;
@@ -83,6 +83,11 @@ export interface SettingsSection {
   // auth is off. Matches the server-side gate on the section's routes.
   adminOnly?: boolean;
 }
+
+// Lazy settings sections carry heterogeneous prop shapes (each section owns
+// its own); one escape hatch instead of scattered `any`s at every cast.
+// biome-ignore lint/suspicious/noExplicitAny: section props are per-component and intentionally opaque here
+type SettingsSectionComponent = React.LazyExoticComponent<React.ComponentType<any>>;
 
 export const SETTINGS_SECTIONS: SettingsSection[] = [
   // ── Basics（常规）────────────────────────────────────────────────────────
@@ -92,7 +97,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     labelKey: "settings.sections.general",
     testId: "settings-section-general",
     icon: SlidersHorizontal,
-    Component: GeneralSection as React.LazyExoticComponent<React.ComponentType<any>>,
+    Component: GeneralSection as SettingsSectionComponent,
   },
   {
     slug: "account",
@@ -100,7 +105,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     labelKey: "settings.sections.account",
     testId: "settings-section-account",
     icon: UserRound,
-    Component: AccountSection as React.LazyExoticComponent<React.ComponentType<any>>,
+    Component: AccountSection as SettingsSectionComponent,
   },
   {
     slug: "wechat-app",
@@ -108,7 +113,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     labelKey: "settings.sections.wechat-app",
     testId: "settings-section-wechat-app",
     icon: Smartphone,
-    Component: WeChatAppSection as React.LazyExoticComponent<React.ComponentType<any>>,
+    Component: WeChatAppSection as SettingsSectionComponent,
   },
   {
     // Paired app devices (add-device-pairing-auth): pairing mint (digits +
@@ -118,7 +123,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     labelKey: "settings.sections.devices",
     testId: "settings-section-devices",
     icon: MonitorSmartphone,
-    Component: DevicesSection as React.LazyExoticComponent<React.ComponentType<any>>,
+    Component: DevicesSection as SettingsSectionComponent,
   },
   // ── Capabilities（能力）──────────────────────────────────────────────────
   {
@@ -132,7 +137,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     labelKey: "settings.sections.mcp",
     testId: "settings-section-mcp",
     icon: Plug,
-    Component: ExtensionsPage as React.LazyExoticComponent<React.ComponentType<any>>,
+    Component: ExtensionsPage as SettingsSectionComponent,
     props: { type: "mcp" },
   },
   {
@@ -145,7 +150,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     labelKey: "settings.sections.websearch",
     testId: "settings-section-websearch",
     icon: Globe,
-    Component: WebSearchSection as React.LazyExoticComponent<React.ComponentType<any>>,
+    Component: WebSearchSection as SettingsSectionComponent,
   },
   {
     slug: "models",
@@ -153,7 +158,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     labelKey: "settings.sections.models",
     testId: "settings-section-models",
     icon: Sparkles,
-    Component: ModelsPage as React.LazyExoticComponent<React.ComponentType<any>>,
+    Component: ModelsPage as SettingsSectionComponent,
   },
   // ── Management（管理）────────────────────────────────────────────────────
   {
@@ -164,7 +169,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     labelKey: "settings.sections.channels",
     testId: "settings-section-channels",
     icon: Bot,
-    Component: BotsPage as React.LazyExoticComponent<React.ComponentType<any>>,
+    Component: BotsPage as SettingsSectionComponent,
   },
   {
     // Per-turn trace list — the former /trace page. The /trace/:turnId
@@ -174,7 +179,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     labelKey: "settings.sections.diagnostics",
     testId: "settings-section-diagnostics",
     icon: Waypoints,
-    Component: TracePage as React.LazyExoticComponent<React.ComponentType<any>>,
+    Component: TracePage as SettingsSectionComponent,
   },
   {
     slug: "status",
@@ -182,7 +187,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     labelKey: "settings.sections.status",
     testId: "settings-section-status",
     icon: Activity,
-    Component: DashboardPage as React.LazyExoticComponent<React.ComponentType<any>>,
+    Component: DashboardPage as SettingsSectionComponent,
   },
   {
     slug: "branding",
@@ -190,7 +195,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     labelKey: "settings.sections.branding",
     testId: "settings-section-branding",
     icon: Paintbrush,
-    Component: BrandingSection as React.LazyExoticComponent<React.ComponentType<any>>,
+    Component: BrandingSection as SettingsSectionComponent,
     adminOnly: true,
   },
 ];

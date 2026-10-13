@@ -1506,7 +1506,7 @@ function normalizeSlot(slot) {
   const name = String(slot ?? "").trim();
   if (!name || name.length > 64) return null;
   // eslint-disable-next-line no-control-regex
-  if (/[\u0000-\u001f\u007f]/.test(name)) return null;
+  if (new RegExp("[\\u0000-\\u001f\\u007f]").test(name)) return null;
   return name;
 }
 

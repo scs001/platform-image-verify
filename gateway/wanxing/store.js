@@ -149,7 +149,7 @@ export function createWanxingStore({ file }) {
     callerState(userId) {
       return db.prepare(`SELECT * FROM wanxing_caller_state WHERE user_id = ?`).get(Number(userId)) ?? null;
     },
-    recordSettlementFailure(userId, reason) {
+    recordSettlementFailure(userId) {
       db.prepare(`INSERT INTO wanxing_caller_state (user_id, consecutive_failures, suspended_reason, updated_at) VALUES (?, 1, NULL, ?)
         ON CONFLICT (user_id) DO UPDATE SET consecutive_failures = consecutive_failures + 1, updated_at = excluded.updated_at`)
         .run(Number(userId), now());

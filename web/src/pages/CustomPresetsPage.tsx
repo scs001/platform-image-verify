@@ -198,6 +198,7 @@ function PresetEditor({
         <div className="flex flex-col gap-1.5" data-testid="preset-examples-inputs">
           {examples.map((ex, i) => (
             <Input
+              // biome-ignore lint/suspicious/noArrayIndexKey: example slots are positional by design — fixed-length slot list, reorderable entries are keyed elsewhere
               key={`example-slot-${i}`}
               value={ex}
               maxLength={200}

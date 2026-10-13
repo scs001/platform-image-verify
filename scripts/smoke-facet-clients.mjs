@@ -80,7 +80,6 @@ for (const target of targetIds) {
     const { stdout } = await run(process.execPath, [CLI, "install", PACK, "--target", target, "--write-mcp", "--base", BASE], { env });
 
     // 1) skills landed under the dotdir
-    const skillDir = path.join(home, SKILLS_DIR[target], "skills");
     const skills = stdout.split("\n").filter((l) => l.includes("✓") && l.includes("SKILL.md"));
     if (skills.length === 0) throw new Error("no skill file landed");
     for (const line of skills) {

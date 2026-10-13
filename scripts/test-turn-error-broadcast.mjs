@@ -36,7 +36,7 @@ beforeEach(() => {
   ctx.broadcast = (m) => seen.push(m);
   // Turn payloads (including the error contract under test) ride the
   // per-session fan-out, not the global broadcast — capture there.
-  ctx.sendToViewers = (sid, m) => seen.push(m);
+  ctx.sendToViewers = (_sid, m) => seen.push(m);
 });
 
 test("a turn/end-only error broadcasts its message", () => {

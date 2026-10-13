@@ -102,6 +102,9 @@ const EXCLUDE_PATHS = new Set([
   // change with every internal slice — not curated for the public drop.
   "docs/facet-wanxing-roadmap.md",
   "docs/facet-market-roadmap.md",
+  // internal compliance assessment: inventory of internal domains, registry
+  // transit route, and cluster node names (合规盘点 v0, 2026-10-13).
+  "docs/compliance-opening-assessment.md",
 ]);
 // internal health MCP: README is operator-facing (tailnet mesh IPs, SSRF
 // allowlists, DSN handling) — not curated for the public drop (2026-10-06).
@@ -242,7 +245,7 @@ const SCRUBS = [
   ["playwright.config.js", "targets deployed k3s NodePort at", "targets a deployed instance at", 1],
   [
     "docs/spider-heal-pack.md",
-    "baseURL \`token\.finddatatech\.cloud/v1\`",
+    "baseURL `token\\.finddatatech\\.cloud/v1`",
     "baseURL（模型网关，内网）",
     1,
   ],

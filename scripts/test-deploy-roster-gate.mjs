@@ -75,7 +75,7 @@ function billingStub() {
   return {
     baseUrl: "http://sub2api.test",
     adminKey: "admin-test",
-    fetchImpl: async (url, init = {}) => {
+    fetchImpl: async (url) => {
       const u = String(url);
       if (u.includes("/api/v1/admin/users?")) {
         return { ok: true, status: 200, json: async () => ({ data: { items: [{ id: 42, email: "author@x" }] } }) };

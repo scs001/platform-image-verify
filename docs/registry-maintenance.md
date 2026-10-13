@@ -108,7 +108,7 @@ MCP server 接入系统供给层的统一上牌契约，出自 openspec change *
 | 项 | 值 |
 |---|---|
 | 生产镜像 | `yizuo/mcp-registry:sha-2c2ad48`（BUILD_VERSION=fd-1.2.0） |
-| 构建线 | org Actions 账单阻断期 → scs001 fork workflow_dispatch（临时线）；hkccr → cheap-3 tcr-relay → ccr 标准通道不变 |
+| 构建线 | **判路用 `fd-build-channel`**（2026-10-14 起唯一入口）。历史表述"org 账单阻断期→scs001 临时线"**已更正**：那不是账单阻断，是私有池 2000 分钟/月用尽；且 scs001 私有线 10-11 已耗尽。hkccr → cheap-3 tcr-relay → ccr 标准通道**不变** |
 | CI | scs001 三测试套件绿 + image 预算门绿（843MB ≤1600MB、fastembed import OK、torch import 拒绝） |
 | 引擎等价 | 切换前实证：同文本跨引擎余弦 0.999999、语义邻居 top-3 重合 8/8（evidence 在 paas change 目录） |
 | 切换验证 | entrypoint「ONNX found」+「fastembed loaded Dimension: 384」、容器内 encode (N,384) 归一化、health healthy、向量集合 190 条原封未动、公网 200/401 正常 |

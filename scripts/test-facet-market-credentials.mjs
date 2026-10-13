@@ -24,7 +24,6 @@ await db.initDb();
 const fm = await import("../facet-market-credentials.js");
 
 const EMAIL = "user@test.example";
-const marketUrl = "https://facet.test";
 
 // ── fake market ──────────────────────────────────────────────────────────────
 
@@ -140,7 +139,6 @@ test("pair failure (bad code) leaves no local row", async () => {
 });
 
 test("ensureFresh mints silently; signature verifies market-side", async () => {
-  const row = db.getFacetMarketDevice(EMAIL);
   const before = fm.liveToken(EMAIL);
   // force a relogin by clearing the cache only (device identity intact)
   db.clearFacetMarketDeviceToken(EMAIL);

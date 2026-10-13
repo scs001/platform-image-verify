@@ -15,7 +15,7 @@ export function registerCronRoutes(ctx) {
   const app = ctx.app;
   const router = Router();
 
-  router.get("/", (req, res) => {
+  router.get("/", (_req, res) => {
     res.json({ jobs: cron.listJobs() });
   });
 

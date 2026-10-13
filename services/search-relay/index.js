@@ -223,7 +223,7 @@ const overrideCooldown = new Map(); // sha256-prefix -> until-ts
 function overrideTag(key) {
   return createHash("sha256").update(key, "utf8").digest("hex").slice(0, 8);
 }
-function overrideSearch(overrideKey, query, num) {
+function overrideSearch(overrideKey) {
   const tag = overrideTag(overrideKey);
   const until = overrideCooldown.get(tag) || 0;
   if (Date.now() < until) return { state: "cooling", tag };

@@ -78,7 +78,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 import { scrubbedChildEnv } from "./child.js";
 import { createNotifier } from "./notify.js";
 import { maskSecretRef, resolveAgentPort } from "../lib/agent-serving.js";
-import { createAgentApp, agentPortFor } from "./a2a.js";
+import { createAgentApp } from "./a2a.js";
 
 // Per-session reap window (add-caller-preferences): minimal copy of the
 // facade's parseReapWindow (fd-wanxing wanxing-facade a2a.js) — one

@@ -19,7 +19,6 @@ process.env.MCP_PREFLIGHT_FILE = join(tmp, "state.json"); // resolved at import
 
 const { probeOne, probeHttpServers, getPreflightStatus } = await import("../mcp-preflight.js");
 
-const INIT_HEADERS = { "content-type": "application/json", accept: "application/json, text/event-stream" };
 
 function res(status, body = {}, headers = {}) {
   return new Response(status === 204 ? null : JSON.stringify(body), { status, headers });

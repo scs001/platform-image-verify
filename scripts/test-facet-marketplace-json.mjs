@@ -69,7 +69,9 @@ test("marketplace.json：策展在列（category∨featured）、未策展缺席
     // featured 单独为真也收录（category 空）。
     registry.setCuration({ id: c.id, actor: { email: "op@finddata.cloud", admin: true }, category: "", featured: true });
     const doc2 = await (await fetch(`${base}/api/marketplace/marketplace.json`)).json();
-    assert.deepEqual(doc2.plugins.map((p) => p.name), [a.id, c.id]);
+    // DESC listing is newest-first; equal-second publishes fall to rowid DESC,
+  // so the order is deterministic regardless of clock precision.
+  assert.deepEqual(doc2.plugins.map((p) => p.name), [c.id, a.id]);
     const e2 = doc2.plugins.find((p) => p.name === c.id);
     assert.equal(e2.category, "");
     assert.equal(e2.featured, true);

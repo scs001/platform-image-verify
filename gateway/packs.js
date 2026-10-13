@@ -408,7 +408,7 @@ export function createPackRegistry({ file }) {
         `SELECT p.*, v.version, v.name, v.description, v.tags, v.published_at FROM packs p JOIN pack_versions v
            ON v.pack_id = p.id AND v.version = (SELECT MAX(version) FROM pack_versions WHERE pack_id = p.id)
          WHERE ${whereSql}
-         ORDER BY v.published_at DESC, p.rowid ASC LIMIT ? OFFSET ?`,
+         ORDER BY v.published_at DESC, p.rowid DESC LIMIT ? OFFSET ?`,
       ).all(...params, size, (pageNum - 1) * size);
       return {
         total,
@@ -2076,7 +2076,7 @@ export function registerPackRoutes(app, {
         entry.version = String(entry.version ?? "1");
       }
       for (const key of ["rhythm", "budgetMinutes", "model"]) {
-        if (Object.prototype.hasOwnProperty.call(body, key)) overrides[key] = body[key];
+        if (Object.hasOwn(body, key)) overrides[key] = body[key];
       }
       for (const key of Object.keys(overrides)) {
         if (overrides[key] === undefined) delete overrides[key];

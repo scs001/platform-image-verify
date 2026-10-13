@@ -91,7 +91,7 @@ test("connectRun: 非 wgk- 前缀直接拒绝且不落盘", async () => {
 });
 
 test("connectRun: 活键落盘 0600，--show 可读，--clear 清除", async () => {
-  await withTempCreds(async (dir) => {
+  await withTempCreds(async () => {
     const server = await stubRegistry();
     try {
       await connectRun({ registry: baseOf(server), key: " wgk-good " });

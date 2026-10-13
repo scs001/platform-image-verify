@@ -108,7 +108,7 @@ export function registerBotRoutes(ctx) {
 
   // ── Config CRUD (admin-gated; credentials masked in every response) ────────
 
-  app.get("/api/bots", (req, res) => {
+  app.get("/api/bots", (_req, res) => {
     if (!requireDb(res)) return;
     res.json({
       bots: db.listBots().map(bots.maskBot),

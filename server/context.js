@@ -317,8 +317,6 @@ export function createAppContext(config) {
   // continues live. Deliberately ephemeral: cleared when the turn ends, dropped
   // whole on overflow, never persisted — a miss just degrades the client to
   // keep-its-partial (converging at `done`).
-  const TURN_BUFFER_MAX_EVENTS = 2000;
-  const TURN_BUFFER_MAX_BYTES = 1_000_000;
   const TURN_BUFFERED_TYPES = new Set([
     "agent_start",
     "text",

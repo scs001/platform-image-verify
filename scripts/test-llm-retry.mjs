@@ -50,7 +50,7 @@ beforeEach(() => {
   ctx.webTurnSessions = new Set([SESSION]);
   seen = [];
   ctx.broadcast = (m) => seen.push(m);
-  ctx.sendToViewers = (sid, m) => seen.push(m);
+  ctx.sendToViewers = (_sid, m) => seen.push(m);
 });
 
 // ── 1. Policy attach ─────────────────────────────────────────────────────────

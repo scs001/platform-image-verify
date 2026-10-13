@@ -29,7 +29,6 @@ process.env.MCP_CONFIG_PATH = join(tmp, "mcp.json");
 delete process.env.SEARCH_RELAY_URL;
 delete process.env.SEARCH_RELAY_TOKEN;
 delete process.env.SEARCH_USER_KEY;
-const repoRoot = new URL("..", import.meta.url).pathname;
 
 // ── Lane 1: relay override chain ─────────────────────────────────────────────
 

@@ -44,7 +44,7 @@ beforeEach(() => {
   // Plans deliver to the session's VIEWERS (per-session delivery,
   // live-runtime-control D4) — the capture point moved off the global
   // broadcast accordingly.
-  ctx.sendToViewers = (sid, m) => seen.push(m);
+  ctx.sendToViewers = (_sid, m) => seen.push(m);
 });
 
 test("todo/write broadcasts the list with counts and caches it", () => {

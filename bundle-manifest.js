@@ -111,7 +111,7 @@ export function resolveBundle({ projectRoot = path.resolve(path.dirname(new URL(
  * Runtime-safe variant: on ANY manifest error, log a clear warning and return
  * defaults. Never throws.
  */
-export function resolveBundleSafe({ env = process.env, projectRoot, log = console.warn } = {}) {
+export function resolveBundleSafe({ projectRoot, log = console.warn } = {}) {
   try {
     return resolveBundle({ ...(projectRoot ? { projectRoot } : {}) });
   } catch (err) {

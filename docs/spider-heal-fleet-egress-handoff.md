@@ -199,6 +199,24 @@ agent 自报同样吻合：`inbox.json` / 投递回执自 **10-12T22:31Z 起连�
 **finddata 侧已修**（`fd-infra-deploy` `31083c3`，双远端已推，ArgoCD 自动滚）：
 serving 清单 `envFrom` 增加 `secretRef: fd-health-proxy`，与 b/c、fd-health-runner 同款。
 
+**修复实证（2026-10-13 11:41Z）**：
+
+```
+# 新 pod（agent-runner-serving-76596d75db-7c26k）实测
+api.github.com=200  github.com=200  codeload.github.com=301   # 三次复测稳定
+child pid 44 环境已继承 HTTPS_PROXY/HTTP_PROXY/NO_PROXY（与 secret 值一致：len=37）
+# 20 次连续采样：ok=19 / fail=1（~5% 抖动，见下）
+```
+
+**端到端实证（11:38Z 节奏回合）**：agent 取队首单
+`20261013-flower-auction-67f0aee9` → 五类分诊=兜底类（证据不足）→ 终态 `manual`，
+未推分支/未开 PR（符合「不猜不修」纪律）；队列 3→2。**修复前该单连卡 7 轮**。
+
+> ⚠️ **残余抖动（新观察点）**：代理链路 ~5% 请求超时（20 次采样 1 次 000），
+> agent 回合恰好撞上时会在回执里报「出口抖动/TIMEOUT」。修复前是 100% 失败、
+> 修复后是偶发——但**代理质量本身值得萬星侧核**（mihomo `100.64.0.7:30081` 上游
+> 稳定性/多出口轮换）。建议 agent 侧对读类请求加一次重试以吸收此抖动。
+
 > 教训：**出口是节点属性，不是 deployment 属性**。每次 runner 迁移/新增车道都要
 > 对照本清单核出口——fleet-scheduler 的 `pickPlacement` 不看出口，迁移即可能落进盲区。
 

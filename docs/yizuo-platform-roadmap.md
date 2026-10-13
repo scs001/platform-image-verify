@@ -99,9 +99,12 @@ C3 柏讯（126 条先包需求单+数据面读+市场订阅子集）→ C4 识�
 入口台账补登记 §1.2；credential-refs 本就是泛化形状零改码）。C1 主体 ✅ 生产上线
 （openspec change `facet-ops-mcp`：六工具薄包 registry 网关 AgentCard 面，用户委托
 鉴权全链，fd-prod NodePort 31892，生产 e2e 真数据返回；镜像 law-ai-official 出片线）；
-C1 余=操作 pack 发布+cell 装包验收（CLI 配对需用户浏览器动作）；实施中发现**面边界**
-——registry `/api/agents`=AgentCard 面，facet pack 市场发布面=`/api/packs` 需 facet
-凭据 ref，挂账 C1.1。
+C1 余=操作 pack 发布+cell 装包验收（CLI 配对需用户浏览器动作）。**C1.1 市场面**：
+A ✅ 生产上线（同镜像 FACE=market，NodePort 31893，六工具含头牌 facet_market_pack_publish；
+探针=/api/app/devices——/api/packs 匿名读不可用）；B ✅ 代码落地（paas change
+`add-facet-market-credentials` 14648b5：Ed25519 设备密钥+静默挑战续登注入、
+pair-by-绑定码路由+面板、pack-store ref 数据驱动、14 测全绿）——余=三滚部署
+（标准出片线）+用户配对验收（面板 6 位码）+操作 pack 发布。
 
 ## 已定决策（不许重开）
 

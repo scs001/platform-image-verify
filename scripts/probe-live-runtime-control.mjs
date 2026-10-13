@@ -108,6 +108,17 @@ try {
       );
       waiters.push({ pred, resolve: (m) => { clearTimeout(timer); resolve(m); } });
     });
+  // Like waitFor but only considers messages arriving AFTER the call — needed
+  // wherever an earlier turn already emitted the same message type (done,
+  // user, agent_start), which the history scan would otherwise match.
+  const waitForNext = (pred, label, timeoutMs = 90_000) =>
+    new Promise((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`timeout waiting for ${label}; last=${JSON.stringify(seen.slice(-6))}`)),
+        timeoutMs,
+      );
+      waiters.push({ pred, resolve: (m) => { clearTimeout(timer); resolve(m); } });
+    });
   const send = (m) => ws.send(JSON.stringify(m));
 
   // ── 1. capabilities chain ─────────────────────────────────────────────────
@@ -141,7 +152,7 @@ try {
   // ── 2. real turn: done carries usage ──────────────────────────────────────
   if (llmUp) {
     send({ type: "prompt", text: "只回复两个字：收到" });
-    const done1 = await waitFor((m) => m.type === "done", "first done");
+    const done1 = await waitForNext((m) => m.type === "done", "first done");
     assert.ok(done1.usage && Number.isFinite(done1.usage.inputTokens) && done1.usage.inputTokens > 0,
       `done carries real usage, got ${JSON.stringify(done1.usage)}`);
     console.log("2. done usage: OK —", JSON.stringify(done1.usage));
@@ -162,7 +173,7 @@ try {
   if (llmUp) {
     // The switch didn't wedge: one more real turn on the new model.
     send({ type: "prompt", text: "只回复两个字：再来" });
-    await waitFor((m) => m.type === "done", "post-switch done");
+    await waitForNext((m) => m.type === "done", "post-switch done");
     console.log(`3. live model switch → ${target.id}: OK — model_changed in ${dt}ms, no restart, next turn answered`);
   } else {
     console.log(`3. live model switch → ${target.id}: OK — model_changed in ${dt}ms, no restart (next-turn check SKIP)`);
@@ -170,25 +181,25 @@ try {
 
   // ── 4. tools/set gate ─────────────────────────────────────────────────────
   send({ type: "set_tool_gate", server: "websearch", enabled: true });
-  const gate = await waitFor((m) => m.type === "tool_gate" && m.enabled === true, "tool_gate echo");
+  const gate = await waitForNext((m) => m.type === "tool_gate" && m.enabled === true, "tool_gate echo");
   assert.equal(gate.server, "websearch");
   send({ type: "set_tool_gate", server: "websearch", enabled: false });
-  await waitFor((m) => m.type === "tool_gate" && m.enabled === false, "tool_gate off echo");
+  await waitForNext((m) => m.type === "tool_gate" && m.enabled === false, "tool_gate off echo");
   console.log("4. tools/set gate: OK — echoed on/off");
 
   // ── 5. switch sessions mid-run: instant switch, new session accepts a prompt
   if (llmUp) {
     send({ type: "prompt", text: "从一数到二十，每个数字单独一行，不要停" });
-    await waitFor((m) => m.type === "agent_start", "run started");
+    await waitForNext((m) => m.type === "agent_start", "run started");
     const t1 = Date.now();
     send({ type: "new_session" });
-    await waitFor((m) => m.type === "session_loaded", "new session loaded");
+    await waitForNext((m) => m.type === "session_loaded", "new session loaded");
     const switchDt = Date.now() - t1;
     assert.ok(switchDt < 3000, `session switch took ${switchDt}ms (live cancel must not restart)`);
     send({ type: "prompt", text: "只回复一个字：好" });
-    const echoNew = await waitFor((m) => m.type === "user", "echo in the new session", 30_000);
-    assert.ok(echoNew.text.includes("好"));
-    await waitFor((m) => m.type === "done", "new session turn done");
+    const echoNew = await waitForNext((m) => m.type === "user", "echo in the new session", 30_000);
+    assert.ok(echoNew.text.includes("好"), `new-session echo carried the prompt text: ${JSON.stringify(echoNew.text)}`);
+    await waitForNext((m) => m.type === "done", "new session turn done");
     console.log(`5. mid-run session switch: OK — switch in ${switchDt}ms, new session accepted the prompt immediately`);
   } else {
     console.log("5. mid-run session switch: SKIP (needs a streaming turn)");

@@ -47,9 +47,10 @@ export type ServerMessage =
   | ({ type: "command_use"; name: string; args?: string; message?: string } & { sessionId?: string })
   | ({ type: "done" } & {
       sessionId?: string;
-      // Turn token usage (chat-usage-display): the LAST finish chunk's
-      // numbers — input is the session's live context size. Absent when the
-      // runtime reported none (older servers / usage-less turns).
+      // Turn token usage (chat-usage-display): the LAST step's numbers (dsh
+      // attaches TokenUsage to assistant/message, one per model request) —
+      // input is the session's live context size. Absent when the runtime
+      // reported none (older servers / usage-less turns).
       usage?: { inputTokens: number; outputTokens: number };
     })
   // Bounded model-request retry progress (add-llm-retry-resilience): a

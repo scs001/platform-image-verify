@@ -407,15 +407,6 @@ export function attachDshEvents(ctx) {
           // signal), then session.status idle → finishTurn → done.
           T.error = chunk.reason.failure?.message || "LLM request failed";
         }
-        if (chunk.type === "finish" && chunk.usage && typeof chunk.usage.inputTokens === "number") {
-          // Token usage (chat-usage-display): keep the LAST finish chunk's
-          // numbers — a multi-step turn reports one per model request, and the
-          // final request's input is the honest live context size.
-          T.usage = {
-            inputTokens: chunk.usage.inputTokens,
-            outputTokens: typeof chunk.usage.outputTokens === "number" ? chunk.usage.outputTokens : 0,
-          };
-        }
         break;
       }
       case "assistant/message": {
@@ -427,6 +418,18 @@ export function attachDshEvents(ctx) {
         let text = "";
         if (Array.isArray(blocks)) {
           text = blocks.filter((b) => b.type === "text").map((b) => b.text).join("");
+        }
+        // Token usage (chat-usage-display): dsh attaches the step's TokenUsage
+        // to assistant/message (NOT to the raw finish chunk — the adapter
+        // emits a separate `usage` chunk before finish). Keep the LAST step's
+        // numbers: a multi-step turn reports one per model request, and the
+        // final request's input is the honest live context size.
+        const stepUsage = ev.data?.usage;
+        if (stepUsage && typeof stepUsage.inputTokens === "number") {
+          T.usage = {
+            inputTokens: stepUsage.inputTokens,
+            outputTokens: typeof stepUsage.outputTokens === "number" ? stepUsage.outputTokens : 0,
+          };
         }
         const persistBlocks = [
           ...T.blocks,

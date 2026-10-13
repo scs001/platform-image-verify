@@ -91,6 +91,10 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
           const t = blocks.filter((b) => b.type === "text").map((b) => b.text).join("");
           if (t) text = t;
         }
+        // Token spend when the runtime reports usage (absent on some
+        // providers). dsh attaches TokenUsage to assistant/message, one per
+        // step — keep the last (the honest live context size).
+        if (ev.data?.usage) usage = ev.data.usage;
         // Mirror the final message into SQLite WITH the tool-call blocks, the
         // same structure the web path persists — a reloaded job session
         // rebuilds the same evidence trail as a live one.
@@ -115,9 +119,6 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
             : null;
         }
       } else if (ev.type === "assistant/chunk" && ev.data?.chunk?.type === "finish") {
-        // Token spend when the runtime reports usage (absent on some
-        // providers); captured on every finish, error or not.
-        if (ev.data.chunk.usage) usage = ev.data.chunk.usage;
         if (ev.data.chunk.reason?.kind === "error") {
           error = ev.data.chunk.reason?.failure?.message || "LLM request failed";
         }

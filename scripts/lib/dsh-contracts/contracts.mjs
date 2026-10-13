@@ -19,13 +19,15 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
@@ -458,17 +460,25 @@ async function contractSettingsHotReload(ctx) {
     /* perms best-effort */
   }
   const rotatedAt = Date.now();
-  await ctx.client.prompt(HOT_SESSION, [
-    { type: "text", text: "dsh-contracts credential rotation probe (one request to the dummy endpoint)" },
-  ]);
-  const seen = await pollUntil(
-    () => ctx.dummyLlm.requests.find((r) => r.t >= rotatedAt && r.auth === `Bearer ${rotated}`) ?? null,
-    { timeoutMs: 10_000, intervalMs: 400 },
-  );
+  // The rotation probe must survive the credentials watcher's reload window:
+  // once streams complete instantly (the dummy's SSE is well-formed), the
+  // FIRST post-rotation prompt can still race the file watcher and go out with
+  // the old key — re-prompt within the window until the rotated key appears
+  // (the old retry-ladder timing masked this; the contract now owns it).
+  let seen = null;
+  for (let attempt = 1; attempt <= 5 && !seen; attempt++) {
+    await ctx.client.prompt(HOT_SESSION, [
+      { type: "text", text: `dsh-contracts credential rotation probe #${attempt} (one request to the dummy endpoint)` },
+    ]);
+    seen = await pollUntil(
+      () => ctx.dummyLlm.requests.find((r) => r.t >= rotatedAt && r.auth === `Bearer ${rotated}`) ?? null,
+      { timeoutMs: 4_000, intervalMs: 400 },
+    );
+  }
   if (!seen) {
     const auths = [...new Set(ctx.dummyLlm.requests.filter((r) => r.t >= rotatedAt).map((r) => r.auth || "(none)"))];
     throw new Error(
-      `the rotated credential never reached the LLM request within 10s (Authorization seen: ${auths.join(", ") || "none"}) — .credentials.yaml is not re-resolving per request`,
+      `the rotated credential never reached the LLM request within the reload window (Authorization seen: ${auths.join(", ") || "none"}) — .credentials.yaml is not re-resolving per request`,
     );
   }
   return `hot provider route registered in ~${hotMs}ms without a restart; rotated credential visible on the wire (request #${ctx.dummyLlm.requests.indexOf(seen) + 1})`;
@@ -744,6 +754,513 @@ async function contractMultiSessionConcurrency(ctx) {
   return "B dispatched and drove its own turn while A's request was parked (close-under-concurrency: rc.2 known limit, cleanup via cancel)";
 }
 
+// ── Contracts ⑩-⑭ (extend-dsh-contracts-020-capabilities) ────────────────────
+// The 0.2.0 multi-agent capability family (docs/wanxing-multi-harness-runtime-
+// explore.md): per-session preset composition, per-agent tool scoping, the
+// subagent service, the ACP profile, and MCP sidecar sharing. ⑩⑪⑫⑭ ride the
+// in-process probe plugin the runner materializes (design D1); ⑬ spawns the
+// candidate's `--profile acp` and speaks ACP over stdio with a hand-rolled
+// minimal client (no new deps).
+
+// The probe plugin announces its ephemeral HTTP port via this file in the
+// throwaway home; runner-side client with per-op errors.
+export async function probeClient(ctx) {
+  const portFile = join(ctx.home, "contracts-probe.json");
+  const port = await pollUntil(
+    () => {
+      try {
+        return JSON.parse(readFileSync(portFile, "utf8")).port ?? null;
+      } catch {
+        return null;
+      }
+    },
+    { timeoutMs: 15_000, intervalMs: 400 },
+  );
+  if (!port) throw new Error("the probe plugin never announced its port (contracts-probe.json missing) — it did not load");
+  const base = `http://127.0.0.1:${port}`;
+  const call = async (op, body = {}) => {
+    const res = await fetch(`${base}/${op}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body ?? {}),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(`probe ${op}: ${json?.error ?? res.status}`);
+      if (json?.code) err.code = json.code;
+      throw err;
+    }
+    return json;
+  };
+  return { call };
+}
+
+// Count live processes running the trivial MCP server (contract ⑭'s subject:
+// process count must stay flat as agents multiply; and reach zero after the
+// child exits — no sidecar orphans).
+export function countTrivialSidecars() {
+  const res = spawnSync("ps", ["-axo", "command="], { encoding: "utf8", timeout: 10_000 });
+  if (res.error || res.status !== 0) return -1;
+  return res.stdout
+    .split("\n")
+    .filter((l) => l.includes("trivial-mcp-server.mjs") && !l.includes("grep")).length;
+}
+
+// The alternate persona the runner composes as a second declared preset — its
+// marker string is what contract ⑩ asserts on the wire (black-box, via the
+// dummy LLM's recorded system prompts).
+export const ALT_PRESET_ID = "contracts-alt";
+export const ALT_PERSONA_MARKER = "CONTRACTS-ALT-PERSONA";
+export const ALT_PRESET = {
+  id: ALT_PRESET_ID,
+  name: "Contracts Alt",
+  description: "The 0.2.0 per-session preset selection probe persona",
+  order: 55,
+  persona: `You are ${ALT_PERSONA_MARKER}, an alternate probe composition. Answer briefly.`,
+};
+
+const MCP_TOOL = "mcp__contracts__ping";
+
+// Correlate one probe turn with its CONVERSATION request on the dummy. A turn
+// fires up to two LLM requests carrying the same marker text: the session-title
+// generation (system starts "Create a concise title…") and the conversation
+// itself — whose marker sits mid-history, because the request's final message
+// can be an injected system-reminder (skills descriptions). Scan the whole
+// history, exclude the title request, take the last match.
+function conversationRequest(requests, mark) {
+  return (
+    requests.findLast(
+      (r) =>
+        (r.allText || "").includes(mark) &&
+        typeof r.model === "string" &&
+        !/^Create a concise title/.test(String(r.system || "")),
+    ) ?? null
+  );
+}
+
+// ACP wire constants (sdk v1; PROTOCOL_VERSION=1).
+const ACP_ROUTE = "contracts-acp-route";
+const ACP_MODEL_A = "contracts-acp-a";
+const ACP_MODEL_B = "contracts-acp-b";
+
+// ── Contract ⑩ per-session preset selection + composition isolation ──────────
+
+async function contractPresetSessionSelection(ctx) {
+  requireHandshake(ctx);
+  const probe = await probeClient(ctx);
+  const MARK_STD = `contracts-preset-std-${Date.now()}`;
+  const MARK_ALT = `contracts-preset-alt-${Date.now()}`;
+  const base = { provider: ctx.provider, model: ctx.model };
+
+  const std = await probe.call("agent", {
+    sessionId: "contracts-preset-std",
+    presetId: "standard",
+    ...base,
+    promptText: `say ok (${MARK_STD})`,
+  });
+  const alt = await probe.call("agent", {
+    sessionId: "contracts-preset-alt",
+    presetId: ALT_PRESET_ID,
+    ...base,
+    promptText: `say ok (${MARK_ALT})`,
+  });
+  if (std.preset !== "standard" || alt.preset !== ALT_PRESET_ID) {
+    throw new Error(`composed presets report back wrong: std=${std.preset} alt=${alt.preset}`);
+  }
+  if (std.turn !== "idle" || alt.turn !== "idle") {
+    throw new Error(`probe turns did not settle (std=${std.turn}, alt=${alt.turn})`);
+  }
+
+  // Black-box composition facts: each session's LLM request carries ITS OWN
+  // preset's system prompt — the alt persona marker appears only on the alt
+  // session's requests, never on the standard one's.
+  const reqStd = await pollUntil(
+    () => conversationRequest(ctx.dummyLlm.requests, MARK_STD),
+    { timeoutMs: 15_000, intervalMs: 300 },
+  );
+  const reqAlt = await pollUntil(
+    () => conversationRequest(ctx.dummyLlm.requests, MARK_ALT),
+    { timeoutMs: 15_000, intervalMs: 300 },
+  );
+  if (!reqAlt || !String(reqAlt.system || "").includes(ALT_PERSONA_MARKER)) {
+    throw new Error(
+      `the alt preset's persona never reached the alt session's system prompt (system=${JSON.stringify(String(reqAlt?.system || "").slice(0, 120))}) — per-session composition did not take`,
+    );
+  }
+  if (String(reqStd?.system || "").includes(ALT_PERSONA_MARKER)) {
+    throw new Error("the alt persona leaked into the STANDARD session's system prompt — compositions cross-pollinate");
+  }
+  if (!String(reqStd?.system || "").trim()) {
+    throw new Error("the standard session's system prompt is empty — its composition did not mount");
+  }
+
+  // Unknown preset: creation must fail BEFORE publication and roll back whole.
+  const bad = await probe.call("badPreset", {
+    sessionId: "contracts-preset-bad",
+    presetId: "contracts-no-such-preset",
+    ...base,
+  });
+  if (!/\b(not found|unknown|no preset|resolve|failed)\b/i.test(String(bad.error))) {
+    throw new Error(`unknown preset creation did not fail loudly (error="${bad.error}")`);
+  }
+  if (bad.residue) {
+    throw new Error("unknown preset creation left a live agent behind — no pre-publication rollback");
+  }
+  return (
+    `two sessions mounted two presets in one process (std+alt persona both on the wire, no cross-pollution); ` +
+    `unknown preset fails pre-publication (${String(bad.error).slice(0, 60)}) and rolls back`
+  );
+}
+
+// ── Contract ⑪ per-agent tool-restriction scope ───────────────────────────────
+
+async function contractPerAgentToolScope(ctx) {
+  requireHandshake(ctx);
+  const probe = await probeClient(ctx);
+  // Reuse ⑩'s two live agents (std + alt) — both consume the same MCP server.
+  const A = "contracts-preset-alt";
+  const B = "contracts-preset-std";
+  for (const sid of [A, B]) {
+    const seen = await pollUntil(
+      async () => {
+        const t = await probe.call("tools", { sessionId: sid });
+        return t.names.includes(MCP_TOOL) ? t : null;
+      },
+      { timeoutMs: 20_000, intervalMs: 500 },
+    );
+    if (!seen) throw new Error(`agent ${sid} never saw ${MCP_TOOL} — the trivial MCP server did not register`);
+  }
+  const restricted = await probe.call("restrict", { sessionId: A, deny: [MCP_TOOL] });
+  if (restricted.names.includes(MCP_TOOL)) {
+    throw new Error(`restrict({deny:[${MCP_TOOL}]}) did not remove the tool from agent A's surface`);
+  }
+  const afterB = await probe.call("tools", { sessionId: B });
+  if (!afterB.names.includes(MCP_TOOL)) {
+    throw new Error(`restricting agent A also removed ${MCP_TOOL} from agent B — tool scoping is not per-agent`);
+  }
+  return `restrict on agent A removed ${MCP_TOOL} from A only; sibling B kept it (${afterB.names.length} visible tools)`;
+}
+
+// ── Contract ⑫ subagent one-shot + slot admission ─────────────────────────────
+
+async function contractSubagentOneShotSlots(ctx) {
+  requireHandshake(ctx);
+  const probe = await probeClient(ctx);
+  const parent = "contracts-preset-std";
+  ensureHotRoute(ctx); // the per-child override routes to contract ④'s hot route
+
+  // (a) one-shot with per-child agentOptions: the child's own request must run
+  // on the OVERRIDDEN model (black-box via the marker on the dummy).
+  const MARK_CHILD = `contracts-subagent-child-${Date.now()}`;
+  const one = await probe.call("subagentOneShot", {
+    parentSessionId: parent,
+    promptText: `child probe (${MARK_CHILD})`,
+    agentOptions: { provider: HOT_ROUTE, model: HOT_MODEL },
+  });
+  if (/error/i.test(String(one.stopReason))) {
+    throw new Error(`one-shot child failed (stopReason=${one.stopReason})`);
+  }
+  const childReq = await pollUntil(
+    () => conversationRequest(ctx.dummyLlm.requests, MARK_CHILD),
+    { timeoutMs: 15_000, intervalMs: 300 },
+  );
+  if (!childReq || childReq.model !== HOT_MODEL) {
+    throw new Error(
+      `per-child agentOptions did not land: the child's request ran on model=${JSON.stringify(childReq?.model)} — expected "${HOT_MODEL}"`,
+    );
+  }
+
+  // (b) slot admission with maxActiveSubagents=1: the first continuable child
+  // holds the pool; a SECOND must be refused with ACTIVATION_LIMIT_REACHED —
+  // never queued, never silent.
+  await probe.call("subagentContinuable", { parentSessionId: parent, promptText: "slot holder probe" });
+  let overLimit = null;
+  let overLimitCode = null;
+  try {
+    await probe.call("subagentContinuable", { parentSessionId: parent, promptText: "should be refused" });
+  } catch (e) {
+    overLimit = String(e?.message || e);
+    overLimitCode = typeof e?.code === "string" ? e.code : null;
+  }
+  if (!overLimit) {
+    throw new Error("the over-limit continuable start was ACCEPTED — the slot pool queued or ignored it instead of refusing");
+  }
+  if (overLimitCode !== "ACTIVATION_LIMIT_REACHED" && !/ACTIVATION_LIMIT_REACHED/.test(overLimit)) {
+    throw new Error(`the over-limit start refused without the stable ACTIVATION_LIMIT_REACHED code (code=${overLimitCode}): ${overLimit}`);
+  }
+
+  // (c) one-shot runs stay OUTSIDE the continuable pool (the README's split):
+  // with the one slot held, a plain one-shot must still complete.
+  const plain = await probe.call("subagentOneShot", {
+    parentSessionId: parent,
+    promptText: "outside-the-pool probe",
+  });
+  if (/error/i.test(String(plain.stopReason))) {
+    throw new Error(`a one-shot run failed while a continuable slot was held (stopReason=${plain.stopReason}) — one-shot is not outside the pool`);
+  }
+  return (
+    `one-shot child ran to ${one.stopReason} on the overridden ${HOT_MODEL}; second continuable refused ACTIVATION_LIMIT_REACHED; ` +
+    `a one-shot still completes with the single slot held`
+  );
+}
+
+// ── Contract ⑬ ACP session surface (+ metering-shape appendix) ────────────────
+
+// A minimal ndjson JSON-RPC client for the ACP child's stdio (design D6: no
+// external ACP SDK dependency in scripts/).
+function ndjsonRpc(proc, onNotification) {
+  let buf = "";
+  let nextId = 1;
+  const pending = new Map();
+  const notifications = [];
+  proc.stdout.setEncoding("utf8");
+  proc.stdout.on("data", (chunk) => {
+    buf += chunk;
+    let idx;
+    while ((idx = buf.indexOf("\n")) !== -1) {
+      const line = buf.slice(0, idx).trim();
+      buf = buf.slice(idx + 1);
+      if (!line) continue;
+      let msg;
+      try {
+        msg = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (msg.id !== undefined && (msg.result !== undefined || msg.error !== undefined)) {
+        const p = pending.get(msg.id);
+        pending.delete(msg.id);
+        if (p) {
+          if (msg.error) {
+            const err = new Error(`${p.method}: ${msg.error?.message || JSON.stringify(msg.error)}`);
+            err.code = msg.error?.code ?? null;
+            err.data = msg.error?.data ?? null;
+            p.reject(err);
+          } else {
+            p.resolve(msg.result);
+          }
+        }
+      } else if (msg.method) {
+        notifications.push(msg);
+        onNotification?.(msg);
+      }
+    }
+  });
+  const exited = new Promise((resolve) => proc.on("exit", (code, signal) => resolve({ code, signal })));
+  return {
+    notifications,
+    request(method, params) {
+      const id = nextId++;
+      proc.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, ...(params === undefined ? {} : { params }) })}\n`);
+      return new Promise((resolve, reject) => pending.set(id, { resolve, reject, method }));
+    },
+    notify(method, params) {
+      proc.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method, params })}\n`);
+    },
+    exited,
+    close() {
+      try {
+        proc.stdin.end();
+      } catch {
+        /* already gone */
+      }
+      return exited;
+    },
+  };
+}
+
+// Spawn the candidate's ACP profile against a fresh throwaway home whose
+// home-level patch wires the llm route at the dummy endpoint and points the
+// acp row's default model at MODEL_A.
+function spawnAcpChild(ctx, home) {
+  const patch = [
+    { id: "acp", config: { provider: ACP_ROUTE, model: ACP_MODEL_A } },
+    {
+      insert: [
+        {
+          id: "llm-pi-ai",
+          name: "@deepseek-ai/dsh-llm-pi-ai",
+          config: {
+            providers: {
+              [ACP_ROUTE]: {
+                apiKeyEnv: "LLM_API_KEY",
+                displayName: "Contracts ACP",
+                api: "openai-completions",
+                baseURL: ctx.dummyLlm.url,
+                models: [
+                  { id: ACP_MODEL_A, name: "Contracts ACP A", contextWindow: 8192, maxTokens: 1024, input: ["text"] },
+                  { id: ACP_MODEL_B, name: "Contracts ACP B", contextWindow: 8192, maxTokens: 1024, input: ["text"] },
+                ],
+              },
+            },
+          },
+        },
+      ],
+    },
+  ];
+  writeFileSync(join(home, "cordis.patch.yml"), yaml.dump(patch));
+  const env = { ...process.env, DSH_HOME: home, LLM_API_KEY: `sk-contracts-acp-${Date.now()}` };
+  for (const k of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]) delete env[k];
+  const proc = spawn(ctx.bin, ["--profile", "acp"], { env, stdio: ["pipe", "pipe", "pipe"] });
+  let stderrTail = "";
+  proc.stderr.setEncoding("utf8");
+  proc.stderr.on("data", (c) => {
+    stderrTail = (stderrTail + c).slice(-2000);
+  });
+  const rpc = ndjsonRpc(proc);
+  return { proc, rpc, stderrTail: () => stderrTail };
+}
+
+async function contractAcpSessionSurface(ctx) {
+  if (!ctx.bin) throw new Error("unavailable without the candidate dsh binary (ctx.bin)");
+  const home = mkdtempSync(join(tmpdir(), "dsh-contracts-acp-"));
+  const ws = mkdtempSync(join(tmpdir(), "dsh-contracts-acp-ws-"));
+  let acp = null;
+  try {
+    acp = spawnAcpChild(ctx, home);
+    const init = await withTimeout(acp.rpc.request("initialize", { protocolVersion: 1, clientCapabilities: {} }), 20_000, "acp initialize");
+    if (!init?.protocolVersion) throw new Error(`acp initialize returned ${JSON.stringify(init)?.slice(0, 120)}`);
+
+    // create → set model → prompt runs on the SELECTED model. (mcpServers is
+    // an OBJECT map in ACP, not an array.)
+    const news = await withTimeout(acp.rpc.request("session/new", { cwd: ws, mcpServers: {} }), 20_000, "acp session/new");
+    const sessionId = news?.sessionId;
+    if (!sessionId) throw new Error(`acp session/new returned no sessionId (${JSON.stringify(news)?.slice(0, 120)})`);
+    await withTimeout(
+      acp.rpc.request("session/set_config_option", {
+        sessionId,
+        configId: "model",
+        value: JSON.stringify([ACP_ROUTE, ACP_MODEL_B]),
+      }),
+      15_000,
+      "acp session/set_config_option",
+    );
+    const MARK_ACP = `contracts-acp-${Date.now()}`;
+    const t0 = ctx.dummyLlm.requests.length;
+    const prompt1 = await withTimeout(
+      acp.rpc.request("session/prompt", { sessionId, prompt: [{ type: "text", text: `acp probe (${MARK_ACP})` }] }),
+      30_000,
+      "acp session/prompt",
+    );
+    if (!/end_turn|stop/.test(String(prompt1?.stopReason))) {
+      throw new Error(`acp prompt settled with stopReason=${JSON.stringify(prompt1?.stopReason)}`);
+    }
+    const acpReq = await pollUntil(
+      () => conversationRequest(ctx.dummyLlm.requests, MARK_ACP),
+      { timeoutMs: 15_000, intervalMs: 300 },
+    );
+    if (!acpReq || acpReq.model !== ACP_MODEL_B) {
+      throw new Error(`the selected model did not apply: the ACP turn ran on model=${JSON.stringify(acpReq?.model)} — expected "${ACP_MODEL_B}"`);
+    }
+
+    // cancel: a held prompt aborts via the notification and the session takes
+    // a NEW prompt immediately after.
+    const HOLD = `contracts-acp-hold-${Date.now()} [HOLD]`;
+    const heldPrompt = acp.rpc.request("session/prompt", { sessionId, prompt: [{ type: "text", text: HOLD }] });
+    await pollUntil(() => (ctx.dummyLlm.heldCount() >= 1 ? true : null), { timeoutMs: 15_000, intervalMs: 300 });
+    acp.rpc.notify("session/cancel", { sessionId });
+    const cancelled = await withTimeout(heldPrompt, 15_000, "acp cancelled prompt settle");
+    if (!/cancel/i.test(String(cancelled?.stopReason))) {
+      throw new Error(`a cancelled ACP prompt settled with stopReason=${JSON.stringify(cancelled?.stopReason)} — expected cancelled`);
+    }
+    ctx.dummyLlm.release();
+    const after = await withTimeout(
+      acp.rpc.request("session/prompt", { sessionId, prompt: [{ type: "text", text: "acp after cancel" }] }),
+      30_000,
+      "acp prompt after cancel",
+    );
+    if (!/end_turn|stop/.test(String(after?.stopReason))) {
+      throw new Error(`the post-cancel ACP prompt settled with stopReason=${JSON.stringify(after?.stopReason)} — the session wedged`);
+    }
+
+    // Metering-shape appendix (a RECORD, not an assertion): what usage/token
+    // evidence the ACP notifications carry.
+    const meteringEvidence = [];
+    for (const n of acp.rpc.notifications) {
+      const u = n?.params?.update;
+      if (!u) continue;
+      const kind = String(u.sessionUpdate ?? "?");
+      const raw = JSON.stringify(u);
+      if (/contextUsage|tokenUsage|tokens|usage/i.test(raw) && !meteringEvidence.some((e) => e.kind === kind)) {
+        meteringEvidence.push({ kind, evidence: raw.slice(0, 200) });
+      }
+    }
+    ctx.acpMeteringShape = meteringEvidence.length
+      ? meteringEvidence.map((e) => e.kind).join("+")
+      : "none-observed";
+
+    // Persistence across a process restart: list → resume → prompt → close.
+    await acp.rpc.close();
+    const die = await withTimeout(acp.exited ?? acp.rpc.exited, 15_000, "acp child exit");
+    void die;
+    acp = spawnAcpChild(ctx, home);
+    await withTimeout(acp.rpc.request("initialize", { protocolVersion: 1, clientCapabilities: {} }), 20_000, "acp initialize (restart)");
+    const list = await withTimeout(acp.rpc.request("session/list", {}), 15_000, "acp session/list");
+    const listed = (list?.sessions ?? []).some((s) => s?.sessionId === sessionId);
+    if (!listed) throw new Error(`session/list after restart lost the session (${JSON.stringify(list)?.slice(0, 160)}) — ACP persistence is gone`);
+    await withTimeout(acp.rpc.request("session/resume", { sessionId, cwd: ws, mcpServers: {} }), 20_000, "acp session/resume");
+    const MARK_RESUME = `contracts-acp-resume-${Date.now()}`;
+    const resumed = await withTimeout(
+      acp.rpc.request("session/prompt", { sessionId, prompt: [{ type: "text", text: `acp resume probe (${MARK_RESUME})` }] }),
+      30_000,
+      "acp resumed prompt",
+    );
+    if (!/end_turn|stop/.test(String(resumed?.stopReason))) {
+      throw new Error(`the resumed session's prompt settled with stopReason=${JSON.stringify(resumed?.stopReason)}`);
+    }
+    await withTimeout(acp.rpc.request("session/close", { sessionId }), 15_000, "acp session/close");
+    return (
+      `initialize/new/set_config_option→${ACP_MODEL_B}(applied on the wire)/cancel→cancelled+re-prompt/list+resume+close across a restart; ` +
+      `metering on the wire: ${ctx.acpMeteringShape}`
+    );
+  } finally {
+    if (acp) {
+      try {
+        await withTimeout(acp.rpc.close(), 5_000, "acp final close");
+      } catch {
+        acp.proc.kill("SIGKILL");
+      }
+    }
+    rmSync(home, { recursive: true, force: true });
+    rmSync(ws, { recursive: true, force: true });
+  }
+}
+
+// ── Contract ⑭ MCP sidecar process-level sharing ─────────────────────────────
+
+async function contractMcpSidecarSharing(ctx) {
+  requireHandshake(ctx);
+  const probe = await probeClient(ctx);
+  // Three FRESH consumers (⑩'s agents exist, but ⑪ deliberately denied the
+  // tool from one of them — scope isolation working as intended means reused
+  // agents would make this contract lie about visibility).
+  const sids = ["contracts-sidecar-a", "contracts-sidecar-b", "contracts-sidecar-c"];
+  for (const sid of sids) {
+    await probe.call("agent", { sessionId: sid, presetId: "standard", provider: ctx.provider, model: ctx.model });
+  }
+  for (const sid of sids) {
+    const seen = await pollUntil(
+      async () => {
+        const t = await probe.call("tools", { sessionId: sid });
+        return t.names.includes(MCP_TOOL) ? t : null;
+      },
+      { timeoutMs: 20_000, intervalMs: 500 },
+    );
+    if (!seen) throw new Error(`agent ${sid} never saw ${MCP_TOOL} — the shared server did not reach it`);
+  }
+  const count = countTrivialSidecars();
+  if (count !== 1) {
+    throw new Error(
+      count < 0
+        ? "sidecar count could not be read (ps failed)"
+        : `${count} trivial-MCP server processes live for 3 agents on one server — sidecars are NOT process-shared (memory math breaks)`,
+    );
+  }
+  // The no-orphan half runs after the child exits (the runner flips this row
+  // if any server process outlives the dsh child).
+  return "3 agents on one server → exactly 1 sidecar process (post-exit orphan check rides the runner's shutdown)";
+}
+
 // ── The table ────────────────────────────────────────────────────────────────
 
 export const CONTRACTS = [
@@ -756,4 +1273,9 @@ export const CONTRACTS = [
   { id: "live-model-set", title: "⑦ live model/set (step-safe switch)", run: contractLiveModelSet },
   { id: "session-cancel", title: "⑧ session/cancel (abort + converge)", run: contractSessionCancel },
   { id: "multi-session-concurrency", title: "⑨ multi-session concurrency", run: contractMultiSessionConcurrency },
+  { id: "preset-session-selection", title: "⑩ per-session preset selection", run: contractPresetSessionSelection },
+  { id: "per-agent-tool-scope", title: "⑪ per-agent tool-restriction scope", run: contractPerAgentToolScope },
+  { id: "subagent-oneshot-slots", title: "⑫ subagent one-shot + slot admission", run: contractSubagentOneShotSlots },
+  { id: "acp-session-surface", title: "⑬ ACP session surface", run: contractAcpSessionSurface },
+  { id: "mcp-sidecar-sharing", title: "⑭ MCP sidecar process sharing", run: contractMcpSidecarSharing },
 ];

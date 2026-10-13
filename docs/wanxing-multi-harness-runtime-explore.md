@@ -125,9 +125,25 @@ HarnessAdapter（agent 级接口）
 - 300 agents ≈ 40 个 pack 部署 ≈ 40 pods × ~180MB（dsh 基座+pack sidecar）≈ 7GB 全热；
   配 warm-zone 降级热集 10 pods ≈ 1.8GB——**两三台 runner 撑数百 agents 算术成立**
   （进程模型算不出来）。密度档：高流量/高隔离 agent 走 solo，长尾走 pod。
+- **M2 活体测量已收（2026-10-14，`scripts/measure-dsh-pod-shape.mjs`，剪后矩阵树
+  0.2.0-rc.2）**：boot 峰 ~172-185MB；4 agents×6 回合×16KB、16 agents×4×32KB、
+  32 agents×3×64KB（每会话累计 ~192KB 上下文）三档稳态 RSS 全部落 **89-116MB——
+  低于 boot 基线**。结论：**空闲/温态会话的边际内存≈0**（事件源日志在盘、派生
+  历史可 GC），每 pod 成本是 **~100-180MB 进程地板价**、不按 agent 计价——长尾
+  agent 比 40 pods×180MB 估算更便宜。未测维度：K 个**并发在途**回合的峰值叠加；
+  且受上节收尾饿死限制，pod 吞吐宜按**每 pod 单在途回合**设计（runner 的
+  ONE-queue 纪律天然如此）。
 - 生命周期词汇表：**短期=one-shot**（进程内 child 或 headless 独立进程），**常驻=
   continuable**（持久会话+按序消息+可中断）+ 我们 residency 层（rhythm/warm-zone/日滚动）
   叠加。萬星管理层获得一致原语来源。
+- **合同⑩-⑭ 全绿两轮（2026-10-14，change extend-dsh-contracts-020-capabilities）**：
+  preset 会话级选择与隔离（alt persona 只落 alt 会话的 system prompt）、per-agent
+  工具裁剪不越界、subagent one-shot+per-child 模型覆写+槽位准入
+  （ACTIVATION_LIMIT_REACHED 稳定码）、ACP 会话面（含重启持久化+取消+模型选择）、
+  MCP sidecar 三消费一进程恒一——全部实证。**ACP 计量面答案：线上带
+  `usage_update` 通知**（风险 #2 实证半边已解；字段丰度够不够计费口径，切片③
+  设计时核）。探针插件（`scripts/lib/dsh-contracts/probe/`）为进程内断言通道，
+  test-only、不进生产组合。
 
 ### 多 harness 的两条正交路径（勿混）
 
@@ -142,9 +158,9 @@ HarnessAdapter（agent 级接口）
 
 | # | 项 | 说明 |
 |---|---|---|
-| 1 | rc 版本节奏 | 矩阵钉 0.2.0-rc.2，DS Bot 已测 0.2.1-alpha.1——上游活跃；dsh-contracts 需为 agents/subagent/preset-registry/ACP 四块**扩合同**，否则跳版盲跳 |
-| 2 | ACP 计量边界 | usage/token 事件流在 ACP 面的形状待实证（影响 adapter 基线设计） |
-| 3 | 活体三测量 | 并发回合叠加曲线 / pod 内存峰值 / sidecar 分摊实证——可在 0.2.0 树上测，宜随合同扩展一 change 做掉 |
+| 1 | rc 版本节奏 | 矩阵钉 0.2.0-rc.2，DS Bot 已测 0.2.1-alpha.1——上游活跃；~~dsh-contracts 需为 agents/subagent/preset-registry/ACP 四块扩合同~~ ✅ **已扩（⑩-⑭，2026-10-14 两轮全绿）** |
+| 2 | ACP 计量边界 | ~~usage/token 事件流在 ACP 面的形状待实证~~ ✅ **实证：线上带 `usage_update`**；计费口径字段丰度切片③核 |
+| 3 | 活体三测量 | ✅ **已收（2026-10-14）**：pod 内存=M2（进程地板价 ~100-185MB，空闲会话边际≈0）；sidecar 分摊=合同⑭（恒一）；并发叠加=补记节定量（收尾饿死，每 pod 单在途回合纪律） |
 | 4 | 升级粒度 | pod 模式下升级单个 pack=整 pod 排水重建；contextId→session 连续性要跨 pod 重建存活 |
 | 5 | 凭据面 | sidecar 进程级共享=pod 内共享 MCP 凭据；单 pack pod 语义成立，跨 owner/pack 硬禁共宿 |
 
@@ -196,8 +212,10 @@ manifest/安装流程必须为 peer 时代重写。
 
 ## 建议切片序列（未立项，按序）
 
-1. **0.2.0 能力面合同扩展**（dsh-contracts 增 agents/subagent/preset-registry/ACP
-   四族合同）+ 活体三测量顺路做掉——版本跟随的护栏先行。
+1. ~~**0.2.0 能力面合同扩展**（dsh-contracts 增 agents/subagent/preset-registry/ACP
+   四族合同）+ 活体三测量顺路做掉——版本跟随的护栏先行。~~ ✅ **2026-10-14 完结
+   （change extend-dsh-contracts-020-capabilities：合同⑩-⑭+探针插件+测量脚本，
+   14/14 两轮全绿；M1/M2/M3 三测量全收）**
 2. **DshPodAdapter**（桥接 per-session preset + runner pod 粒度管理 + 端口按 pod +
    warm-zone 按 pod；共宿键=pack；验证=生产一个双 agent pack 共宿部署）。
 3. **HarnessAdapter 接口抽象 + 第二 harness**（ACP 基线实证后定接口；claude-code

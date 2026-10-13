@@ -23,14 +23,15 @@
 // contracts assert routing/registration/credential layers, never a real
 // upstream (candidate mode must not spend tokens).
 
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
-import http from "node:http";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import yaml from "js-yaml";
 import { HarnessClient } from "@deepseek-ai/dsh-sdk-client";
 import { dshClientRuntime } from "../lib/dsh-client-launch.js";
-import { CONTRACTS, ensureScratchTree, firstLine, sleep, treeDshVersion, withTimeout } from "./lib/dsh-contracts/contracts.mjs";
+import { startDummyLlm } from "./lib/dsh-contracts/dummy-llm.mjs";
+import { ALT_PRESET, CONTRACTS, countTrivialSidecars, ensureScratchTree, firstLine, sleep, treeDshVersion, withTimeout } from "./lib/dsh-contracts/contracts.mjs";
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const HANDSHAKE_BUDGET_MS = 30_000; // design D3
@@ -66,111 +67,11 @@ function parseArgs(argv) {
   return opts;
 }
 
-// The dummy OpenAI-compatible endpoint: records every request's headers (the
-// credential-rotation probe reads the Authorization header back) and answers
-// with a well-formed completion so the probe turn settles cleanly.
-function startDummyLlm() {
-  const requests = [];
-  // Hold mode (live-runtime-control contracts ⑧⑨): a request whose messages
-  // carry the [HOLD] marker parks without a response until release() — the
-  // contract-visible stand-in for a slow upstream, so a turn stays in flight.
-  const held = [];
-  const release = () => {
-    for (const h of held.splice(0)) h();
-  };
-  const server = http.createServer((req, res) => {
-    const chunks = [];
-    req.on("data", (c) => chunks.push(c));
-    req.on("end", () => {
-      let json = null;
-      try {
-        json = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-      } catch {
-        /* non-JSON body */
-      }
-      requests.push({
-        t: Date.now(),
-        method: req.method,
-        url: req.url,
-        auth: req.headers.authorization || "",
-        model: json?.model ?? null,
-        stream: json?.stream === true,
-      });
-      if (req.method !== "POST") {
-        res.writeHead(404);
-        res.end();
-        return;
-      }
-      const holdMarker = (() => {
-        const msgs = Array.isArray(json?.messages) ? json.messages : [];
-        // Only the FINAL message parks: the first request of a turn carries the
-        // user prompt last; a later step's request carries assistant/tool
-        // content last. Matching ANY history message would park every later
-        // request of the same session (the [HOLD] user text never leaves the
-        // history) and the turn could never drain.
-        const last = msgs.at(-1);
-        const content = typeof last?.content === "string"
-          ? last.content
-          : Array.isArray(last?.content)
-            ? last.content.map((p) => (typeof p?.text === "string" ? p.text : "")).join(" ")
-            : "";
-        return content.includes("[HOLD]");
-      })();
-      if (holdMarker) {
-        held.push(() => {
-          if (json?.stream) {
-            res.writeHead(200, { "content-type": "text/event-stream" });
-            res.write(`${JSON.stringify({ id: "dsh-contracts", object: "chat.completion.chunk", choices: [{ index: 0, delta: { role: "assistant", content: "ok" }, finish_reason: null }] })}\n\n`);
-            res.write(`${JSON.stringify({ id: "dsh-contracts", object: "chat.completion.chunk", choices: [{ index: 0, delta: {}, finish_reason: "stop" }] })}\n\n`);
-            res.end("data: [DONE]\n\n");
-          } else {
-            res.writeHead(200, { "content-type": "application/json" });
-            res.end(
-              JSON.stringify({
-                id: "dsh-contracts",
-                object: "chat.completion",
-                choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
-                usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-              }),
-            );
-          }
-        });
-        return;
-      }
-      if (json?.stream) {
-        res.writeHead(200, { "content-type": "text/event-stream" });
-        res.write(`${JSON.stringify({ id: "dsh-contracts", object: "chat.completion.chunk", choices: [{ index: 0, delta: { role: "assistant", content: "ok" }, finish_reason: null }] })}\n\n`);
-        res.write(`${JSON.stringify({ id: "dsh-contracts", object: "chat.completion.chunk", choices: [{ index: 0, delta: {}, finish_reason: "stop" }] })}\n\n`);
-        res.end("data: [DONE]\n\n");
-      } else {
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(
-          JSON.stringify({
-            id: "dsh-contracts",
-            object: "chat.completion",
-            choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
-            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-          }),
-        );
-      }
-    });
-  });
-  return new Promise((resolvePromise) => {
-    server.listen(0, "127.0.0.1", () => {
-      const { port } = server.address();
-      // unref: the endpoint must never be the thing keeping the process alive —
-      // an early failure path exits instead of hanging on the listener.
-      server.unref();
-      resolvePromise({
-        url: `http://127.0.0.1:${port}/v1`,
-        requests,
-        heldCount: () => held.length,
-        release,
-        close: () => new Promise((r) => server.close(r)),
-      });
-    });
-  });
-}
+// The dummy OpenAI-compatible endpoint lives in scripts/lib/dsh-contracts/
+// dummy-llm.mjs (shared with the pod-shape measurement): it records every
+// request — headers, model, system prompt, last user text — and answers with a
+// well-formed completion so probe turns settle cleanly. A [HOLD] marker in the
+// final message parks a request until release() (the slow-upstream stand-in).
 
 // The initialize handshake with the adapter-registration race retry (same
 // pattern as dsh-bridge: the llm-pi-ai adapter registers asynchronously after
@@ -266,7 +167,9 @@ async function main() {
       llmBaseUrl: dummyLlm.url,
     });
     await dshProfile.ensureCredentialsStore({ dirs });
-    const presetsPatchPath = await dshProfile.writePresetsPatch({ dirs, requireRoster: false });
+    // ⑩ needs a SECOND declared preset (per-session selection is only
+    // observable with two); the alternate persona carries the wire marker.
+    const presetsPatchPath = await dshProfile.writePresetsPatch({ dirs, requireRoster: false, extraPresets: [ALT_PRESET] });
     const permissionsPatchPath = await dshProfile.writePermissionsPatch();
     // Compose EVERY bridge the image's /api/ready child composes. Composing only
     // presets+permissions let a real regression ship (2026-10-13): the
@@ -288,6 +191,38 @@ async function main() {
     const skillsPatchPath = join(home, "profiles", PROFILE_NAME, "skills.patch.yml");
     try { await dshProfile.writeSkillsPatch({ dirs, agentPreset: AGENT_PRESET }); }
     catch (e) { console.log(`[dsh-contracts] skills patch: ${e.message}`); }
+
+    // Probe overlay (⑩⑪⑫⑭, extend-dsh-contracts design D1/D3): the in-process
+    // agent probe plugin + one trivial MCP server, inserted the same way the
+    // platform bridges are (relative-name row beside the profile's cordis.yml).
+    // The subagent row override pins the continuable pool at ONE slot so ⑫'s
+    // admission refusal is deterministic. Test-only: these files exist solely
+    // inside this throwaway profile.
+    const PROBE_DIR = join(REPO_ROOT, "scripts", "lib", "dsh-contracts", "probe");
+    copyFileSync(join(PROBE_DIR, "contracts-agent-probe.mjs"), join(profileDir, "contracts-agent-probe.mjs"));
+    copyFileSync(join(PROBE_DIR, "trivial-mcp-server.mjs"), join(profileDir, "trivial-mcp-server.mjs"));
+    const probePatchPath = join(profileDir, "probe.patch.yml");
+    writeFileSync(
+      probePatchPath,
+      yaml.dump([
+        { id: "subagent", config: { maxActiveSubagents: 1, maxDepth: 1 } },
+        {
+          insert: [
+            { id: "contracts-agent-probe", name: "./contracts-agent-probe.mjs" },
+            {
+              id: "mcp-contracts",
+              name: "@deepseek-ai/dsh-mcp-client",
+              config: {
+                serverName: "contracts",
+                transport: "stdio",
+                command: process.execPath,
+                args: [join(profileDir, "trivial-mcp-server.mjs")],
+              },
+            },
+          ],
+        },
+      ]),
+    );
     const provider = Object.keys(providers)[0];
     const model = models[0]?.id;
 
@@ -308,6 +243,7 @@ async function main() {
       existsSync(skillsPatchPath) ? skillsPatchPath : null,
       permissionsPatchPath,
       ...extraPatchPaths,
+      probePatchPath,
     ].filter(Boolean))].flatMap((p) => ["--patch", p])];
     client = new HarnessClient(
       {},
@@ -327,6 +263,7 @@ async function main() {
       home,
       workspace,
       profileDir,
+      bin,
       settingsPath,
       credentialsPath,
       presetsPatchPath,
@@ -400,6 +337,22 @@ async function main() {
       }
       rows.push({ contract, status, detail, unjudgeable });
       console.log(`  ${contract.title}${tag} ${status} — ${detail} (${Date.now() - t0}ms)`);
+    }
+
+    // ⑭'s no-orphan half: the trivial MCP sidecar must die with the child.
+    // The contracts table already printed its rows; the check runs after the
+    // child is gone and flips the ⑭ row if a server process survived.
+    await client?.close().catch(() => {});
+    await sleep(1_500);
+    const orphans = countTrivialSidecars();
+    if (orphans > 0) {
+      const row = rows.find((r) => r.contract.id === "mcp-sidecar-sharing");
+      if (row && row.status === "PASS") {
+        row.status = "FAIL";
+        row.detail = `${orphans} trivial-MCP server process(es) outlived the dsh child — sidecar lifecycle is not process-owned`;
+        failures += 1;
+        console.log(`  ⑭ MCP sidecar process sharing FAIL — ${row.detail}`);
+      }
     }
 
     // 6. Summary + aggregate exit code.

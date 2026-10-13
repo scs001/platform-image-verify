@@ -95,6 +95,14 @@ law-bench 既有实践为种子）；④工具命名动词_名词+线前缀、�
 C1 谦面（动作面最小+publish 桥现成+吃狗粮）→ C2 萬星（三路由薄包装）→
 C3 柏讯（126 条先包需求单+数据面读+市场订阅子集）→ C4 识律（内容活为主）。
 
+**进度（2026-10-13 当日）**：C0 ✅（规约落盘 `LINES-MCP-CONFORMANCE.md`+wire 域名
+入口台账补登记 §1.2；credential-refs 本就是泛化形状零改码）。C1 主体 ✅ 生产上线
+（openspec change `facet-ops-mcp`：六工具薄包 registry 网关 AgentCard 面，用户委托
+鉴权全链，fd-prod NodePort 31892，生产 e2e 真数据返回；镜像 law-ai-official 出片线）；
+C1 余=操作 pack 发布+cell 装包验收（CLI 配对需用户浏览器动作）；实施中发现**面边界**
+——registry `/api/agents`=AgentCard 面，facet pack 市场发布面=`/api/packs` 需 facet
+凭据 ref，挂账 C1.1。
+
 ## 已定决策（不许重开）
 
 | # | 决策 | 出处 |

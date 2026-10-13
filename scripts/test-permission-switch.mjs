@@ -63,7 +63,7 @@ function makeBridge(overrides = {}) {
 beforeEach(() => {
   ctx.dshBridge = makeBridge();
   ctx.currentPermission = "workspace-write";
-  ctx.isStreaming = false;
+  for (const sid of ctx.streamingSessions()) ctx.setStreaming(sid, false);
   ctx.broadcast = () => {};
 });
 
@@ -90,7 +90,7 @@ test("switching to the effective preset is a no-op", async () => {
 test("rejected while streaming", async () => {
   const bridge = makeBridge();
   ctx.dshBridge = bridge;
-  ctx.isStreaming = true;
+  ctx.setStreaming(ctx.dshSessionId, true);
   const r = await ctx.switchPermissionTo("read-only");
   assert.equal(r.ok, false);
   assert.match(r.error, /responding/i);

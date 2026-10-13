@@ -25,6 +25,7 @@
 //   node scripts/test-connector-credentials.mjs
 
 import assert from "node:assert/strict";
+import { attachTurnStateModule } from "../server/context.js";
 import { createServer, request as httpRequest } from "node:http";
 import fs from "node:fs";
 import os from "node:os";
@@ -400,12 +401,9 @@ test("2.4 availableMcpNames filters ref-carrying rows by per-ref liveness", asyn
 
 function eventsCtx(overrides = {}) {
   const ctx = baseCtx({ broadcast: () => {}, ...overrides });
+  attachTurnStateModule(ctx);
   ctx.dshSessionId = "session-1";
-  ctx.dshCurrentTurnId = null;
-  ctx.dshToolNames = new Map();
-  ctx.dshTurnBlocks = [];
-  ctx.dshTurnError = null;
-  ctx.isStreaming = false;
+  ctx.webTurnSessions = new Set(["session-1"]);
   ctx.ready = {};
   ctx.sessionVersion = 0;
   ctx.sessionCollectors = new Map();
@@ -421,7 +419,7 @@ function eventsCtx(overrides = {}) {
 }
 
 function toolEvent(callId, toolName, text) {
-  ctx0.dshToolNames.set(callId, toolName);
+  ctx0.turnStateFor("session-1").toolNames.set(callId, toolName);
   return {
     method: "session.event",
     params: {
@@ -485,7 +483,7 @@ test("2.5 a 401 from a registry DB row still goes stale (regression)", async () 
   ctx.runtimeOwnerEmail = email;
   ctx.dshUpdateMcp = () => { updateCalls.push(1); return Promise.resolve(); };
 
-  ctx.dshToolNames.set("c2", "mcp__reg-401__query");
+  ctx.turnStateFor("session-1").toolNames.set("c2", "mcp__reg-401__query");
   ctx.handleDshEvent({
     method: "session.event",
     params: {
@@ -515,7 +513,7 @@ test("2.5 a 401 from a non-ref server leaves credentials alone", async () => {
   const ctx = eventsCtx();
   ctx0 = ctx;
   ctx.runtimeOwnerEmail = email;
-  ctx.dshToolNames.set("c3", "mcp__file-server__fetch");
+  ctx.turnStateFor("session-1").toolNames.set("c3", "mcp__file-server__fetch");
   ctx.handleDshEvent({
     method: "session.event",
     params: {

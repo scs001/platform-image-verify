@@ -150,42 +150,40 @@ export function attachDshEvents(ctx) {
     enabled: ctx.sessionToolGates.get(sessionId)?.get("websearch") === true,
   });
 
-  // Mark the current agent turn finished: reset the streaming flag, broadcast
-  // `done` (which re-enables the UI / model selector and finalizes tool
-  // blocks), and refresh the sidebar session list. Idempotent per turn — it
-  // no-ops if the turn is already finished — so it is safe to call from both
-  // the session-status idle handler and the prompt() catch on failure, without
-  // risking a double `done`. This is what unblocks model-switching /
-  // new-session creation after a failed turn and keeps the sidebar in sync.
-  ctx.finishTurn = (outcome) => {
-    if (!ctx.isStreaming) return;
-    ctx.isStreaming = false;
+  // Mark one session's agent turn finished: reset its streaming flag, broadcast
+  // `done` to that session's viewers, and refresh the sidebar list. Idempotent
+  // per turn — it no-ops if that session has no open turn — so it is safe from
+  // both the session-status idle handler and the prompt() catch. Per-session
+  // (live-runtime-control D4): concurrent sessions each own their close.
+  ctx.finishTurn = (outcome, sid = ctx.dshSessionId) => {
+    const T = ctx.turnStateBySession.get(sid);
+    if (!T?.isStreaming) return;
+    T.isStreaming = false;
     // Usage telemetry (add-pack-usage-telemetry): one row per completed turn,
     // failure-isolated inside. Captured BEFORE the origin resets below; the
     // outcome falls back to the turn's own error flag when the caller (the
     // idle path) doesn't name one.
     recordPackUsage({
-      userEmail: ctx.turnOrigin?.user ?? null,
-      sessionId: ctx.turnOrigin?.sessionId ?? ctx.dshSessionId,
+      userEmail: T.origin?.user ?? null,
+      sessionId: T.origin?.sessionId ?? sid,
       agentId: ctx.currentAgentId ?? "local",
-      outcome: outcome ?? (ctx.dshTurnError ? "error" : "ok"),
-      startedAt: ctx.turnStartedAt,
+      outcome: outcome ?? (T.error ? "error" : "ok"),
+      startedAt: T.startedAt,
     });
     // `done` closes the turn for exactly the clients viewing the session it
     // ran in (add-session-ownership); a foreign viewer never saw the turn and
     // must not see its close either. The payload carries the turn's token
-    // usage when the runtime reported one (chat-usage-display): the LAST
-    // finish chunk's numbers — its input is the session's live context size,
-    // and additive so older clients ignore it.
-    ctx.sendToViewers(ctx.dshSessionId, {
+    // usage when the runtime reported one (chat-usage-display).
+    ctx.sendToViewers(sid, {
       type: "done",
-      ...(ctx.dshTurnUsage ? { usage: ctx.dshTurnUsage } : {}),
+      ...(T.usage ? { usage: T.usage } : {}),
     });
-    ctx.turnOrigin = null;
-    ctx.dshTurnUsage = null;
+    T.origin = null;
+    T.usage = null;
     // The replay log is only for an in-flight turn (add-reconnect-resync) —
     // post-done the persisted transcript is the truth a sync serves.
-    ctx.resetTurnBuffer?.();
+    ctx.resetTurnBuffer?.(sid);
+    ctx.turnStateBySession.delete(sid);
     void ctx.broadcastSessions();
   };
 
@@ -206,9 +204,29 @@ export function attachDshEvents(ctx) {
 
   ctx.handleDshEvent = (notif) => {
     const { method } = notif || {};
+    // Session routing (design D2 + live-runtime-control D4). One dsh runtime
+    // multiplexes the web chat, every bot chat, and subagent children:
+    //   - a notification whose session has a registered collector → collector
+    //     (bot chats; NEVER the WS broadcast path — that is what keeps bot
+    //     turns out of the web transcript);
+    //   - a session the WEB path drove (registered in webTurnSessions, or the
+    //     session manager's current one) → the web machinery keyed by THAT
+    //     sid, even when the manager has since moved on — concurrent web
+    //     turns stay visible;
+    //   - anything else (subagent children, unclaimed) → captured/dropped as
+    //     before;
+    //   - no sid (bridge lifecycle) → the manager's current session.
+    const notifSid = notif?.params?.sessionId || null;
+    const isWebScoped = !notifSid
+      || notifSid === ctx.dshSessionId
+      || ctx.webTurnSessions.has(notifSid);
+    const webSid = isWebScoped ? (notifSid ?? ctx.dshSessionId) : null;
     // Trace tap first: record everything (raw), before the WS translation
     // switch drops unknown event types. Failure-isolated inside record().
-    trace.record(notif, { sessionId: ctx.dshSessionId, turnId: ctx.dshCurrentTurnId });
+    trace.record(notif, {
+      sessionId: webSid ?? ctx.dshSessionId,
+      turnId: (webSid && ctx.turnStateBySession.get(webSid)?.currentTurnId) ?? null,
+    });
 
     if (method === "bridge.ready") {
       ctx.ready.dsh = true;
@@ -228,21 +246,16 @@ export function attachDshEvents(ctx) {
       // sits on a session that will never report idle, which would wedge the
       // cron engine's serialized queue for the full turn timeout.
       ctx.abortCronTurns?.("the agent runtime restarted mid-turn");
-      if (ctx.isStreaming) {
-        ctx.sendToViewers(ctx.dshSessionId, { type: "error", message: "Agent runtime exited unexpectedly" });
-        ctx.finishTurn("error");
+      // Per-session D4: every open web turn closes with the child, each to its
+      // own viewers.
+      for (const openSid of ctx.streamingSessions()) {
+        ctx.sendToViewers(openSid, { type: "error", message: "Agent runtime exited unexpectedly" });
+        ctx.finishTurn("error", openSid);
       }
       return;
     }
 
-    // Session routing (design D2). One dsh runtime multiplexes the web chat and
-    // every bot chat, so the pump can no longer assume THE session. A
-    // notification for a non-web session goes to that session's registered
-    // collector and NEVER to the WS broadcast path — that is what keeps bot
-    // turns out of the web transcript. An unclaimed non-web session is dropped.
-    // Bridge lifecycle notifications carry no sessionId and stay on the web path.
-    const sid = notif?.params?.sessionId;
-    if (sid && sid !== ctx.dshSessionId) {
+    if (notifSid && !isWebScoped) {
       // En-route capture (add-llm-retry-resilience): a subagent child session
       // has no collector, but its terminal turn/end reason is the ONLY place
       // the child's real failure (e.g. a gateway concurrency rejection) is
@@ -257,7 +270,7 @@ export function attachDshEvents(ctx) {
       ) {
         const err = notif.params.event.data.reason.error ?? {};
         ctx.childTurnErrors ??= new Map();
-        ctx.childTurnErrors.set(sid, {
+        ctx.childTurnErrors.set(notifSid, {
           message: typeof err.message === "string" ? err.message : null,
           code: typeof err.code === "string" ? err.code : null,
           ts: Date.now(),
@@ -267,15 +280,17 @@ export function attachDshEvents(ctx) {
           if (v.ts < staleBefore) ctx.childTurnErrors.delete(k);
         }
       }
-      const collector = ctx.sessionCollectors.get(sid);
+      const collector = ctx.sessionCollectors.get(notifSid);
       if (collector) {
         try { collector(notif); }
-        catch (e) { console.error(`[dsh] session collector ${sid} failed: ${e.message}`); }
+        catch (e) { console.error(`[dsh] session collector ${notifSid} failed: ${e.message}`); }
       } else if (process.env.DSH_DEBUG) {
-        console.debug("[dsh] notification for unclaimed session:", sid, notif.method);
+        console.debug("[dsh] notification for unclaimed session:", notifSid, notif.method);
       }
       return;
     }
+    const sid = webSid;
+    const T = sid ? ctx.turnStateFor(sid) : null;
     const { params } = notif || {};
     // A user-questions ask surfaced by the child's provider bridge
     // (add-user-questions, ADR-0012). The session routing above already sent
@@ -294,11 +309,11 @@ export function attachDshEvents(ctx) {
       // client binds the interactive card to its transcript block. Tool calls
       // run serially within a turn, so the last call of that name is the ask.
       let toolCallId = null;
-      for (const [callId, name] of ctx.dshToolNames) {
+      for (const [callId, name] of T?.toolNames ?? []) {
         if (name === "ask_user_question") toolCallId = callId;
       }
-      ctx.pendingQuestionBySession.set(ctx.dshSessionId, { askId, questions, toolCallId });
-      ctx.sendToViewers(ctx.dshSessionId, {
+      ctx.pendingQuestionBySession.set(sid, { askId, questions, toolCallId });
+      ctx.sendToViewers(sid, {
         type: "agent_question",
         askId,
         ...(toolCallId ? { toolCallId } : {}),
@@ -307,7 +322,7 @@ export function attachDshEvents(ctx) {
       return;
     }
     if (method === "session.status") {
-      if (params?.status === "idle") ctx.finishTurn();
+      if (params?.status === "idle") ctx.finishTurn(undefined, sid);
       return;
     }
     if (method !== "session.event") {
@@ -364,21 +379,21 @@ export function attachDshEvents(ctx) {
         break;
       }
       case "turn/start":
-        // One agent_start per turn. isStreaming was already set synchronously at
-        // prompt dispatch (see the WS prompt handler) so a concurrent prompt
-        // observes it; re-affirm here idempotently.
-        ctx.isStreaming = true;
-        ctx.dshTurnError = null;
-        ctx.dshTurnUsage = null;
-        ctx.dshToolNames.clear();
-        ctx.dshTurnBlocks = [];
+        // One agent_start per turn (per-session D4). The streaming flag was
+        // already set synchronously at prompt dispatch so a concurrent prompt
+        // on the same session observes it; re-affirm here idempotently.
+        T.isStreaming = true;
+        T.error = null;
+        T.usage = null;
+        T.toolNames.clear();
+        T.blocks = [];
         // A fresh turn starts a fresh replay log (add-reconnect-resync) —
         // this agent_start below is the log's first event.
-        ctx.resetTurnBuffer?.();
+        ctx.resetTurnBuffer?.(sid);
         // The declared channel's scope: a `chart_bind` declaration may only
         // reach a chart captured during THIS turn.
-        ctx.dshTurnStartedAt = new Date().toISOString();
-        ctx.sendToViewers(ctx.dshSessionId, { type: "agent_start" });
+        T.chartScopeSince = new Date().toISOString();
+        ctx.sendToViewers(sid, { type: "agent_start" });
         break;
       case "assistant/chunk": {
         const chunk = ev.data?.chunk;
@@ -390,13 +405,13 @@ export function attachDshEvents(ctx) {
         } else if (chunk.type === "finish" && chunk.reason?.kind === "error") {
           // Capture the LLM failure; broadcast on turn/end (the turn-completion
           // signal), then session.status idle → finishTurn → done.
-          ctx.dshTurnError = chunk.reason.failure?.message || "LLM request failed";
+          T.error = chunk.reason.failure?.message || "LLM request failed";
         }
         if (chunk.type === "finish" && chunk.usage && typeof chunk.usage.inputTokens === "number") {
           // Token usage (chat-usage-display): keep the LAST finish chunk's
           // numbers — a multi-step turn reports one per model request, and the
           // final request's input is the honest live context size.
-          ctx.dshTurnUsage = {
+          T.usage = {
             inputTokens: chunk.usage.inputTokens,
             outputTokens: typeof chunk.usage.outputTokens === "number" ? chunk.usage.outputTokens : 0,
           };
@@ -414,38 +429,38 @@ export function attachDshEvents(ctx) {
           text = blocks.filter((b) => b.type === "text").map((b) => b.text).join("");
         }
         const persistBlocks = [
-          ...ctx.dshTurnBlocks,
+          ...T.blocks,
           ...(text ? [{ kind: "text", text }] : []),
         ];
-        if (text || ctx.dshTurnBlocks.length) {
+        if (text || T.blocks.length) {
           // The assistant mirror attributes to the turn's origin session and
           // carries its origin user — stamp-once, so this only fills an
           // ownerless row (add-session-ownership).
           chatHistory.recordMessage(
-            ctx.turnOrigin?.sessionId ?? chatHistory.currentSessionId(),
+            T.origin?.sessionId ?? sid,
             "assistant",
             text,
             persistBlocks,
-            ctx.turnOrigin?.user ?? null
+            T.origin?.user ?? null
           );
         }
         break;
       }
       case "tool/call": {
-        ctx.dshToolNames.set(ev.data.callId, ev.data.name);
+        T.toolNames.set(ev.data.callId, ev.data.name);
         // Accumulate for persistence (result/state filled by tool/result).
-        ctx.dshTurnBlocks.push({
+        T.blocks.push({
           kind: "tool",
           id: ev.data.callId,
           name: ev.data.name,
           // dsh carries raw JSON string arguments; parse to match the WS contract.
           args: (() => { try { return JSON.parse(ev.data.arguments); } catch { return ev.data.arguments; } })(),
         });
-        ctx.sendToViewers(ctx.dshSessionId, {
+        ctx.sendToViewers(sid, {
           type: "tool_start",
           toolCallId: ev.data.callId,
           name: ev.data.name,
-          args: ctx.dshTurnBlocks[ctx.dshTurnBlocks.length - 1].args,
+          args: T.blocks[T.blocks.length - 1].args,
         });
         break;
       }
@@ -464,7 +479,7 @@ export function attachDshEvents(ctx) {
         // executed here; the model must issue the next (exact) call itself.
         if (isError && resultText && ev.data?.error?.code === "UNKNOWN_TOOL") {
           const attempted =
-            ctx.dshToolNames.get(callId) ?? /^Error: unknown tool "([^"]+)"/.exec(resultText)?.[1];
+            T.toolNames.get(callId) ?? /^Error: unknown tool "([^"]+)"/.exec(resultText)?.[1];
           if (attempted) {
             const candidates = ctx.unknownToolCandidates?.(attempted) || [];
             resultText = candidates.length
@@ -506,15 +521,15 @@ export function attachDshEvents(ctx) {
           }
         }
         // Fill the accumulated persistence block for this call.
-        const acc = ctx.dshTurnBlocks.find((b) => b.id === callId);
+        const acc = T.blocks.find((b) => b.id === callId);
         if (acc) {
           acc.result = resultText;
           acc.state = isError ? "error" : "done";
         }
-        ctx.sendToViewers(ctx.dshSessionId, {
+        ctx.sendToViewers(sid, {
           type: "tool_end",
           toolCallId: callId,
-          name: ctx.dshToolNames.get(callId) ?? undefined,
+          name: T.toolNames.get(callId) ?? undefined,
           result: resultText,
           isError,
         });
@@ -524,13 +539,13 @@ export function attachDshEvents(ctx) {
         // Optional chaining: minimal/legacy contexts (e.g. unit-test fakes)
         // may predate the pending map — the ask path then no-ops.
         if (
-          ctx.dshSessionId &&
-          (ctx.dshToolNames.get(callId) === "ask_user_question" ||
-            ctx.pendingQuestionBySession?.get(ctx.dshSessionId)?.toolCallId === callId)
+          sid &&
+          (T.toolNames.get(callId) === "ask_user_question" ||
+            ctx.pendingQuestionBySession?.get(sid)?.toolCallId === callId)
         ) {
-          ctx.pendingQuestionBySession?.delete(ctx.dshSessionId);
+          ctx.pendingQuestionBySession?.delete(sid);
         }
-        if (isError) markCredentialStaleOn401(ctx, ctx.dshToolNames.get(callId), resultText);
+        if (isError) markCredentialStaleOn401(ctx, T.toolNames.get(callId), resultText);
         break;
       }
       case "turn/end": {
@@ -541,10 +556,10 @@ export function attachDshEvents(ctx) {
         // the client sees the turn end with no output and no explanation.
         const reason = ev.data?.reason;
         if (reason?.kind === "error") {
-          const message = ctx.dshTurnError || reason.error?.message || "The agent turn failed";
-          ctx.sendToViewers(ctx.dshSessionId, { type: "error", message });
+          const message = T.error || reason.error?.message || "The agent turn failed";
+          ctx.sendToViewers(sid, { type: "error", message });
         }
-        ctx.dshTurnError = null;
+        T.error = null;
         break;
       }
       case "todo/write": {
@@ -558,8 +573,12 @@ export function attachDshEvents(ctx) {
           if (process.env.DSH_DEBUG) console.debug("[dsh] todo/write without a todos list; ignored");
           break;
         }
-        if (ctx.dshSessionId) ctx.planBySession.set(ctx.dshSessionId, plan);
-        ctx.broadcast({ type: "todos", todos: plan.todos, counts: plan.counts });
+        if (sid) {
+          ctx.planBySession.set(sid, plan);
+          // Scoped delivery (per-session D4): another session's plan must not
+          // clobber the plan of whatever this client is viewing.
+          ctx.sendToViewers(sid, { type: "todos", todos: plan.todos, counts: plan.counts });
+        }
         break;
       }
       case "permission/preset": {

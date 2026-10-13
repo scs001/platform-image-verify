@@ -14,6 +14,7 @@
 // Runs under `npm run test:unit`.
 
 import test from "node:test";
+import { attachTurnStateModule } from "../server/context.js";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { EventEmitter } from "node:events";
@@ -66,8 +67,6 @@ test("unit: prompt #limit+1 gets the demo limit reply and starts no turn", async
     clients: new Set(),
     authMode: "forward_auth", // identity from headers, exactly as a cell sees it
     ready: { dsh: true },
-    isStreaming: false,
-    promptStoppedByNavigation: false,
     currentAgentId: "local",
     dshSessionId: null,
     runtimeModel: null,
@@ -97,9 +96,10 @@ test("unit: prompt #limit+1 gets the demo limit reply and starts no turn", async
     // echo rides it; feed it into the same capture the assertions read.
     sendToViewers: (_sid, m) => broadcasts.push(m),
     finishTurn: () => {
-      ctx.isStreaming = false;
+      for (const sid of ctx.streamingSessions?.() ?? []) ctx.setStreaming(sid, false);
     },
   };
+  attachTurnStateModule(ctx);
   attachWebSocket(ctx);
 
   // userForConnection (forward_auth) derives ws.user from the upgrade's

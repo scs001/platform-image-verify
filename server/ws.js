@@ -137,8 +137,13 @@ const beginTurnFor = async (ws) => {
     ctx.sessionVersion = (ctx.sessionVersion || 0) + 1;
   }
   ws.viewedSession = target;
-  ctx.turnStartedAt = Date.now(); // usage telemetry's duration anchor (set at dispatch truth)
-  ctx.turnOrigin = {
+  // Per-session turn state (D4): the web machinery keys everything by this
+  // session; registering it here is also what routes its later notifications
+  // to the web path after the session manager moves on.
+  ctx.webTurnSessions.add(target);
+  const T = ctx.turnStateFor(target);
+  T.startedAt = Date.now(); // usage telemetry's duration anchor (set at dispatch truth)
+  T.origin = {
     user: ctx.authEnabled ? ws.user?.email ?? null : null,
     sessionId: target,
   };
@@ -368,7 +373,10 @@ ctx.wss.on("connection", (ws, req) => {
         const cmd = skills.parseCommand(text);
 
         if (cmd && cmd.command === "skill") {
-          if (ctx.isStreaming) {
+          // Per-session guard (D4): only the TARGET session's open turn blocks
+          // this prompt — another session may legitimately be streaming.
+          const skillHint = ws.viewedSession || null;
+          if (skillHint && ctx.isStreamingFor(skillHint)) {
             ws.send(JSON.stringify({ type: "error", message: "The agent is still responding" }));
             break;
           }
@@ -377,19 +385,23 @@ ctx.wss.on("connection", (ws, req) => {
             break;
           }
           // Set in-flight synchronously (before the first await) so a concurrent
-          // prompt is rejected. agent_start sets it again later (idempotent).
-          // A stale navigation-stop marker means the old turn already settled;
-          // this new turn must own its own errors.
-          ctx.promptStoppedByNavigation = false;
-          ctx.isStreaming = true;
-          ctx.turnStartedAt = Date.now();
+          // prompt on the SAME session is rejected. agent_start sets it again
+          // later (idempotent). A stale navigation-stop marker means the old
+          // turn already settled; this new turn must own its own errors.
+          if (skillHint) {
+            const T = ctx.turnStateFor(skillHint);
+            T.promptStopped = false;
+            T.isStreaming = true;
+            T.startedAt = Date.now();
+          }
           try {
             const target = await beginTurnFor(ws);
+            if (!skillHint) ctx.setStreaming(target, true);
             // Skill invocation: emit a skill_use block and suppress the raw
             // /skill:... text from being echoed as a normal user message.
             ctx.sendToViewers(target, { type: "skill_use", name: cmd.name, args: cmd.args });
             // Mirror the user's skill invocation into the SQLite project database.
-            chatHistory.recordMessage(target, "user", text, undefined, ctx.turnOrigin.user);
+            chatHistory.recordMessage(target, "user", text, undefined, ctx.turnStateFor(target).origin?.user ?? null);
 
             // Manually expand the skill content and send that to the agent. This
             // does not rely on session.prompt() expanding slash commands.
@@ -405,17 +417,19 @@ ctx.wss.on("connection", (ws, req) => {
             promptText = await skills.expandDocRefs(ctx, promptText);
             await ctx.session.prompt(promptText);
           } catch (err) {
-            // The user navigated away and stopStreamingForSessionNavigation
-            // closed the child; the resulting RPC rejection is intentional.
-            const stoppedByNavigation = ctx.promptStoppedByNavigation;
-            ctx.promptStoppedByNavigation = false;
+            // The user navigated away and the navigation stop cancelled the
+            // turn; the resulting RPC rejection is intentional.
+            const errTarget = ws.viewedSession || chatHistory.currentSessionId();
+            const T = ctx.turnStateBySession.get(errTarget);
+            const stoppedByNavigation = T?.promptStopped === true;
+            if (T) T.promptStopped = false;
             if (!stoppedByNavigation) {
               console.error("Agent error:", err.message);
               ctx.broadcast({ type: "error", message: err.message });
             }
             // Finish the turn (reset streaming, emit done, refresh sessions) so a
             // failed turn does not wedge the UI or block model-switch/new-session.
-            ctx.finishTurn();
+            ctx.finishTurn(undefined, errTarget);
           }
         } else if (cmd && cmd.command === "model") {
           await ctx.handleModelCommand(cmd.args, ws);
@@ -426,8 +440,10 @@ ctx.wss.on("connection", (ws, req) => {
           return;
         } else {
           // Normal prompt (includes unknown "/…" commands that fall through):
-          // echo the user message and forward.
-          if (ctx.isStreaming) {
+          // echo the user message and forward. Per-session guard (D4): only
+          // the TARGET session's open turn blocks this prompt.
+          const promptHint = ws.viewedSession || null;
+          if (promptHint && ctx.isStreamingFor(promptHint)) {
             ws.send(JSON.stringify({ type: "error", message: "The agent is still responding" }));
             break;
           }
@@ -445,15 +461,20 @@ ctx.wss.on("connection", (ws, req) => {
             break;
           }
 
-          // No steer mechanism through the bridge; reject concurrent prompts
-          // host-side (Task 2.7) rather than queueing a second turn. Set the
-          // guard before the first await so a concurrent prompt cannot enter.
+          // Reject a concurrent prompt on the SAME session host-side rather
+          // than queueing a second turn. Set the guard before the first await
+          // so a concurrent prompt cannot enter (a session minted fresh has
+          // no turn to race — its flag lands with the resolved target).
           // Same stale-marker contract as the skill branch above.
-          ctx.promptStoppedByNavigation = false;
-          ctx.isStreaming = true;
-          ctx.turnStartedAt = Date.now();
+          if (promptHint) {
+            const T = ctx.turnStateFor(promptHint);
+            T.promptStopped = false;
+            T.isStreaming = true;
+            T.startedAt = Date.now();
+          }
           try {
             const target = await beginTurnFor(ws);
+            if (!promptHint) ctx.setStreaming(target, true);
             ctx.sendToViewers(target, { type: "user", text, ...budgetLeftField(ws) });
 
             if (entry) {
@@ -466,26 +487,28 @@ ctx.wss.on("connection", (ws, req) => {
             } else {
               // Mirror the user prompt into the SQLite project database,
               // stamped with the submitting connection's user.
-              chatHistory.recordMessage(target, "user", text, undefined, ctx.turnOrigin.user);
+              chatHistory.recordMessage(target, "user", text, undefined, ctx.turnStateFor(target).origin?.user ?? null);
               // Expand @doc:<id> attachment references into the document content the
               // agent sees (design D4); the user message above keeps the raw refs.
               const promptWithDocs = await skills.expandDocRefs(ctx, text);
               await ctx.session.prompt(promptWithDocs);
             }
           } catch (err) {
-            // Intentional child shutdown for session navigation — not an error.
-            const stoppedByNavigation = ctx.promptStoppedByNavigation;
-            ctx.promptStoppedByNavigation = false;
+            // Intentional navigation cancel — not an error to surface.
+            const errTarget = ws.viewedSession || chatHistory.currentSessionId();
+            const T = ctx.turnStateBySession.get(errTarget);
+            const stoppedByNavigation = T?.promptStopped === true;
+            if (T) T.promptStopped = false;
             if (!stoppedByNavigation) {
               console.error("Agent error:", err.message);
-              ctx.sendToViewers(ctx.turnOrigin?.sessionId ?? ctx.dshSessionId, {
+              ctx.sendToViewers(errTarget, {
                 type: "error",
                 message: err.message,
               });
             }
             // Finish the turn (reset streaming, emit done, refresh sessions) so a
             // failed turn does not wedge the UI or block model-switch/new-session.
-            ctx.finishTurn();
+            ctx.finishTurn(undefined, errTarget);
           }
         }
         break;
@@ -517,17 +540,17 @@ ctx.wss.on("connection", (ws, req) => {
         // normal close. Without the live method, finalize immediately — the
         // client's local stop view stays the fallback and this done releases
         // its suppression honestly.
-        if (!ctx.ready.dsh || !ctx.isStreaming) break;
-        const stopSid = ctx.turnOrigin?.sessionId ?? ctx.dshSessionId;
-        if (stopSid && ctx.dshBridge?.hasLiveMethod?.("session/cancel")) {
+        const stopSid = ws.viewedSession || null;
+        if (!ctx.ready.dsh || !stopSid || !ctx.isStreamingFor(stopSid)) break;
+        if (ctx.dshBridge?.hasLiveMethod?.("session/cancel")) {
           // The abort makes the dispatching prompt's promise reject — that
           // rejection is intentional, not a failure to surface.
-          ctx.promptStoppedByNavigation = true;
+          ctx.turnStateFor(stopSid).promptStopped = true;
           ctx.dshBridge.cancelSession(stopSid).catch((e) =>
             console.warn("[dsh] live cancel on stop failed:", e?.message || e),
           );
         } else {
-          ctx.finishTurn("aborted");
+          ctx.finishTurn("aborted", stopSid);
         }
         break;
       }
@@ -812,11 +835,7 @@ ctx.wss.on("connection", (ws, req) => {
         // machine refresh of one connection — rebroadcasting to every viewer
         // of the session would clobber co-viewing pages' live state, and
         // refreshes carry no list-wide change worth a sessions broadcast.
-        if (
-          data.resync === true &&
-          ctx.isStreaming &&
-          (ctx.turnOrigin?.sessionId ?? ctx.dshSessionId) !== data.id
-        ) {
+        if (data.resync === true && !ctx.isStreamingFor(data.id)) {
           const sess = await chatHistory.getSession(data.id).catch(() => null);
           ws.viewedSession = data.id;
           sendIfOpen(ws, {
@@ -841,11 +860,11 @@ ctx.wss.on("connection", (ws, req) => {
             // the requester only, with the turn-in-flight status and replay
             // log when one exists (add-reconnect-resync). No list broadcast —
             // a resync changes no session state the roster could observe.
-            const running =
-              !!ctx.isStreaming && (ctx.turnOrigin?.sessionId ?? ctx.dshSessionId) === result.id;
+            const running = ctx.isStreamingFor(result.id);
+            const buf = ctx.turnBufferFor(result.id);
             const turnEvents =
-              running && ctx.turnBuffer && !ctx.turnBuffer.overflow && ctx.turnBuffer.events.length > 0
-                ? ctx.turnBuffer.events.map((e) => ({ ...e }))
+              running && buf && !buf.overflow && buf.events.length > 0
+                ? buf.events.map((e) => ({ ...e }))
                 : undefined;
             sendIfOpen(ws, {
               type: "session_loaded",
@@ -869,11 +888,11 @@ ctx.wss.on("connection", (ws, req) => {
           // turn is in flight for THIS session, and when it is, the replayable
           // event log so the client rebuilds the open turn. Fields are
           // additive — older clients ignore them and keep today's behavior.
-          const running =
-            !!ctx.isStreaming && (ctx.turnOrigin?.sessionId ?? ctx.dshSessionId) === result.id;
+          const running = ctx.isStreamingFor(result.id);
+          const buf = ctx.turnBufferFor(result.id);
           const turnEvents =
-            running && ctx.turnBuffer && !ctx.turnBuffer.overflow && ctx.turnBuffer.events.length > 0
-              ? ctx.turnBuffer.events.map((e) => ({ ...e }))
+            running && buf && !buf.overflow && buf.events.length > 0
+              ? buf.events.map((e) => ({ ...e }))
               : undefined;
           // Per-viewer delivery: the requester (now viewing the target) plus
           // any other connection already viewing it. Foreign clients keep

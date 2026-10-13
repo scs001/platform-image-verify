@@ -37,6 +37,96 @@ export function splitPolicy(policy) {
 // repoRoot, not cwd: hosted cells sit in a per-user cwd (tenant-cell-runtime).
 export const WEB_DIST = repoRoot("web/dist");
 
+
+// The per-session turn-state module (live-runtime-control D4): streaming
+// flags, turn origin, replay buffers, and the derived any-streaming getter.
+// Exported so hand-built test contexts can attach the same machinery the real
+// app context gets — one source of truth for what a streaming-scoped path may
+// touch.
+export function attachTurnStateModule(c) {
+  if (typeof c.turnStateFor === "function") return c; // already attached (idempotence)
+  const TURN_BUFFER_MAX_EVENTS = 2000;
+  const TURN_BUFFER_MAX_BYTES = 1_000_000;
+  c.turnStateBySession = c.turnStateBySession || new Map();
+  c.webTurnSessions = c.webTurnSessions || new Set();
+  // The single accessor every streaming-scoped path goes through. State is
+  // created on demand and evicted when its turn closes (finishTurn) — an idle
+  // session holds no entry. `isStreaming` stays a derived getter over the map
+  // so the "is the runtime busy anywhere" reads (idle-apply, cron single
+  // flight, restart-carrying switch guards) keep one source of truth.
+  c.turnStateFor = (sid) => {
+    let T = c.turnStateBySession.get(sid);
+    if (!T) {
+      T = {
+        isStreaming: false,
+        origin: null,
+        startedAt: null,
+        error: null,
+        toolNames: new Map(),
+        blocks: [],
+        usage: null,
+        promptStopped: false,
+        currentTurnId: null,
+      };
+      c.turnStateBySession.set(sid, T);
+    }
+    return T;
+  };
+  c.isStreamingFor = (sid) => c.turnStateBySession.get(sid)?.isStreaming === true;
+  c.setStreaming = (sid, value) => {
+    c.turnStateFor(sid).isStreaming = value;
+  };
+  Object.defineProperty(c, "isStreaming", {
+    get() {
+      for (const T of c.turnStateBySession.values()) if (T.isStreaming) return true;
+      return false;
+    },
+    // Defensive: a stray write must never shadow the getter silently.
+    set() {
+      throw new Error("isStreaming is derived — use setStreaming(sessionId, boolean)");
+    },
+  });
+  // Every session with an open turn (bridge-exit fan-out, navigation stops).
+  c.streamingSessions = () =>
+    [...c.turnStateBySession.entries()].filter(([, T]) => T.isStreaming).map(([sid]) => sid);
+  // ── In-flight turn replay buffers (add-reconnect-resync; per-session D4) ───
+  // One bounded buffer PER session — concurrent turns must never interleave
+  // into one replay log. Same bounds and same ephemerality as before: cleared
+  // when that session's turn ends, dropped whole on overflow, never persisted.
+  c.turnBuffers = new Map(); // sid -> { events, bytes, overflow }
+  c.turnBufferFor = (sid) => c.turnBuffers.get(sid) ?? null;
+  // A fresh turn's log must not inherit the previous turn's events (a done
+  // that raced a crash could leave one behind).
+  c.resetTurnBuffer = (sid) => {
+    if (sid) c.turnBuffers.delete(sid);
+  };
+  const appendTurnBuffer = (sid, data) => {
+    let buf = c.turnBuffers.get(sid);
+    if (!buf) {
+      buf = { events: [], bytes: 0, overflow: false };
+      c.turnBuffers.set(sid, buf);
+    }
+    if (buf.overflow) return;
+    let size = 64;
+    try {
+      size += JSON.stringify(data).length;
+    } catch {
+      /* size estimate only */
+    }
+    if (buf.events.length >= TURN_BUFFER_MAX_EVENTS || buf.bytes + size > TURN_BUFFER_MAX_BYTES) {
+      buf.overflow = true;
+      buf.events = [];
+      buf.bytes = 0;
+      return;
+    }
+    buf.events.push(data);
+    buf.bytes += size;
+  };
+  c.appendTurnBufferFor = appendTurnBuffer;
+  return c;
+}
+
+
 export function createAppContext(config) {
   const ctx = {
     // ── Config (parsed in server.js, the composition root) ──────────────────
@@ -73,16 +163,25 @@ export function createAppContext(config) {
 
     // ── Agent session state (see agent-session.js / initDshAgent) ───────────
     session: null,
-    isStreaming: false,
+    // ── Per-session web turn state (live-runtime-control D4) ─────────────────
+    // Every streaming-scoped fact is keyed by the session it belongs to:
+    // multiple chat sessions can hold a turn at once (dispatch concurrency),
+    // while restart-carrying switches and idle-apply surfaces keep reading the
+    // derived ANY-streaming view. `isStreaming` below stays a getter over this
+    // map so every "is the runtime busy" read keeps its semantics.
+    turnStateBySession: new Map(), // sid -> { isStreaming, origin, startedAt, error, toolNames, blocks, usage, promptStopped, currentTurnId }
+    // Chat sessions the WEB path drives (beginTurnFor registers its target).
+    // Event routing: a notification for one of these sessions goes to the web
+    // machinery keyed by ITS sid even when the session manager points
+    // elsewhere — that is what makes concurrent web turns visible at all.
+    webTurnSessions: new Set(),
+    // Subagent child sessions (subagent.started) — never web turns; their
+    // turn/end error capture stays the only handling they get.
+    subagentChildIds: new Set(),
     // Set only while a remote-agent fork is streaming. Session navigation can
     // abort that fetch; a local dsh turn has no interrupt RPC and is stopped by
     // restarting the bridge (see agent-session.js).
     activeRemoteTurnAbort: null,
-    // One-shot: the bridge restart that navigation uses to stop a local dsh
-    // turn makes the in-flight prompt RPC reject. That turn's catch consumes
-    // the marker; prompt admission clears any stale marker so a later turn can
-    // never have a real error swallowed.
-    promptStoppedByNavigation: false,
     // Bumped after each session mutation so asynchronous session-list refreshes
     // from an older turn cannot overwrite the current sidebar state.
     sessionVersion: 0,
@@ -140,15 +239,6 @@ export function createAppContext(config) {
     // Declared model list from the profile generator (initDshAgent populates
     // it; dsh exposes no stock listModels RPC, so this IS the model list).
     dshModels: [],
-    // dsh→WS event-translation state: callId→name carried from tool/call
-    // across to tool/result (which has no name); dshTurnError carries an
-    // assistant/chunk finish error to the turn/end error broadcast.
-    // dshTurnBlocks accumulates the turn's tool calls so assistant/message can
-    // persist the block STRUCTURE (not just flattened text) — the transcript's
-    // evidence trail survives reload.
-    dshToolNames: new Map(),
-    dshTurnError: null,
-    dshTurnBlocks: [],
     // Latest `todo/write` plan snapshot per dsh session, normalized for the
     // wire (add-plan-progress-panel). Keyed by dsh session id so switching away
     // and back restores that session's plan. In-memory only: a server restart
@@ -241,33 +331,11 @@ export function createAppContext(config) {
     "retry_scheduled",
     "retry_started",
   ]);
-  ctx.turnBuffer = null;
-  // A fresh turn's log must not inherit the previous turn's events (a done
-  // that raced a crash could leave one behind).
-  ctx.resetTurnBuffer = () => {
-    ctx.turnBuffer = null;
-  };
-  const appendTurnBuffer = (data) => {
-    if (!ctx.turnBuffer) ctx.turnBuffer = { events: [], bytes: 0, overflow: false };
-    const buf = ctx.turnBuffer;
-    if (buf.overflow) return;
-    let size = 64;
-    try {
-      size += JSON.stringify(data).length;
-    } catch {
-      /* size estimate only */
-    }
-    if (buf.events.length >= TURN_BUFFER_MAX_EVENTS || buf.bytes + size > TURN_BUFFER_MAX_BYTES) {
-      buf.overflow = true;
-      buf.events = [];
-      buf.bytes = 0;
-      return;
-    }
-    buf.events.push(data);
-    buf.bytes += size;
-  };
+  // Per-session turn state + replay buffers (D4) — one shared module; the
+  // literal above seeds the collections, this call installs the helpers.
+  attachTurnStateModule(ctx);
   ctx.sendToViewers = (sessionId, data) => {
-    if (ctx.isStreaming && TURN_BUFFERED_TYPES.has(data?.type)) appendTurnBuffer(data);
+    if (ctx.isStreamingFor(sessionId) && TURN_BUFFERED_TYPES.has(data?.type)) ctx.appendTurnBufferFor(sessionId, data);
     baseSendToViewers(sessionId, data);
   };
 
@@ -307,11 +375,11 @@ export function createAppContext(config) {
     }
   };
 
-  // Turn origin (add-session-ownership design D2): the user + session a turn
-  // was dispatched for, set synchronously at prompt dispatch (web, remote,
-  // skill), consumed by the assistant-message mirror at turn completion. The
-  // dsh event pump has no request context of its own.
-  ctx.turnOrigin = null;
+  // Turn origin (add-session-ownership design D2; per-session D4): the user +
+  // session a turn was dispatched for, set synchronously at prompt dispatch,
+  // consumed by the assistant-message mirror at turn completion. Lives in the
+  // per-session turn state (ctx.turnStateFor(sid).origin) — the dsh event pump
+  // resolves it from the event's own session id.
 
   ctx.send = (ws, data) => {
     if (ws?.readyState !== ws?.OPEN) return false;

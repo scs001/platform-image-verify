@@ -47,6 +47,7 @@ beforeEach(() => {
   ctx = createAppContext({});
   attachDshEvents(ctx);
   ctx.dshSessionId = SESSION;
+  ctx.webTurnSessions = new Set([SESSION]);
   seen = [];
   ctx.broadcast = (m) => seen.push(m);
   ctx.sendToViewers = (sid, m) => seen.push(m);
@@ -182,15 +183,15 @@ test("child turn/end error enriches the bare subagent failure card", () => {
       CHILD,
     ),
   );
-  ctx.dshToolNames.set("call-1", "subagent");
-  ctx.dshTurnBlocks.push({ kind: "tool", id: "call-1", name: "subagent", args: {} });
+  ctx.turnStateFor(SESSION).toolNames.set("call-1", "subagent");
+  ctx.turnStateFor(SESSION).blocks.push({ kind: "tool", id: "call-1", name: "subagent", args: {} });
   ctx.handleDshEvent(subagentResult("call-1", "subagent run failed"));
   const end = seen.find((m) => m.type === "tool_end" && m.toolCallId === "call-1");
   assert.ok(end, "tool_end not forwarded");
   assert.match(end.result, /^subagent run failed/);
   assert.match(end.result, /Diagnostic: \[PI_AI_ERROR\] Concurrency limit exceeded for user/);
   // The persisted block carries the same enriched text (model-visible).
-  const acc = ctx.dshTurnBlocks.find((b) => b.id === "call-1");
+  const acc = ctx.turnStateFor(SESSION).blocks.find((b) => b.id === "call-1");
   assert.match(acc.result, /Diagnostic: \[PI_AI_ERROR\]/);
 });
 
@@ -202,7 +203,7 @@ test("the Error:-prefixed shape (a thrown tool error) is enriched too", () => {
       CHILD,
     ),
   );
-  ctx.dshToolNames.set("call-5", "subagent");
+  ctx.turnStateFor(SESSION).toolNames.set("call-5", "subagent");
   ctx.handleDshEvent(subagentResult("call-5", "Error: subagent run failed"));
   const end = seen.find((m) => m.type === "tool_end" && m.toolCallId === "call-5");
   assert.match(end.result, /^Error: subagent run failed/);
@@ -217,7 +218,7 @@ test("already-diagnostic results pass through untouched", () => {
       CHILD,
     ),
   );
-  ctx.dshToolNames.set("call-2", "subagent");
+  ctx.turnStateFor(SESSION).toolNames.set("call-2", "subagent");
   const rich = "subagent run failed\nDiagnostic: provider boom";
   ctx.handleDshEvent(subagentResult("call-2", rich));
   const end = seen.find((m) => m.type === "tool_end" && m.toolCallId === "call-2");
@@ -225,7 +226,7 @@ test("already-diagnostic results pass through untouched", () => {
 });
 
 test("no captured child error leaves the bare headline (legacy shape)", () => {
-  ctx.dshToolNames.set("call-3", "subagent");
+  ctx.turnStateFor(SESSION).toolNames.set("call-3", "subagent");
   ctx.handleDshEvent(subagentResult("call-3", "subagent run failed"));
   const end = seen.find((m) => m.type === "tool_end" && m.toolCallId === "call-3");
   assert.equal(end.result, "subagent run failed");
@@ -239,7 +240,7 @@ test("non-subagent tool failures are never rewritten", () => {
       CHILD,
     ),
   );
-  ctx.dshToolNames.set("call-4", "bash");
+  ctx.turnStateFor(SESSION).toolNames.set("call-4", "bash");
   ctx.handleDshEvent(subagentResult("call-4", "command failed"));
   const end = seen.find((m) => m.type === "tool_end" && m.toolCallId === "call-4");
   assert.equal(end.result, "command failed");

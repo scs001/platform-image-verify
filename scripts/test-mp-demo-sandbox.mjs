@@ -5,6 +5,7 @@
 // `npm run test:unit`.
 
 import test from "node:test";
+import { attachTurnStateModule } from "../server/context.js";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 
@@ -35,8 +36,6 @@ test("unit: sandbox pod — each connection gets its own cap; refusal starts no 
     authMode: "none", // the demo pod runs AUTH_MODE=none — identity-free
     DEMO_SANDBOX: true,
     ready: { dsh: true },
-    isStreaming: false,
-    promptStoppedByNavigation: false,
     currentAgentId: "local",
     dshSessionId: null,
     runtimeModel: null,
@@ -66,9 +65,10 @@ test("unit: sandbox pod — each connection gets its own cap; refusal starts no 
     // asserts on prompts and per-connection replies, not on the fan-out.
     sendToViewers: () => {},
     finishTurn: () => {
-      ctx.isStreaming = false;
+      for (const sid of ctx.streamingSessions?.() ?? []) ctx.setStreaming(sid, false);
     },
   };
+  attachTurnStateModule(ctx);
   attachWebSocket(ctx);
 
   const openWs = () => {

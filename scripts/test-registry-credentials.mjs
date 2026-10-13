@@ -51,6 +51,9 @@ fs.writeFileSync(path.join(TMP, "registry-groups.json"), JSON.stringify({
 test.after(() => fs.rmSync(TMP, { recursive: true, force: true }));
 
 const db = await import("../db.js");
+// Dynamic (after env setup above): a static import would load context.js's
+// dependency tree against the wrong paths/cwd — this file's import-order trap.
+const { attachTurnStateModule } = await import("../server/context.js");
 const registryCredentials = await import("../registry-credentials.js");
 const extensionStore = await import("../extension-store.js");
 const { writeMcpPatch } = await import("../dsh-profile.js");
@@ -282,12 +285,9 @@ test("2.2 an opaque (non-JWT) token without expiry is connected and injectable",
 // normally supplies (dshToolNames/dshTurnBlocks/sessionCollectors).
 function eventsCtx(overrides = {}) {
   const ctx = baseCtx({ broadcast: () => {} , ...overrides });
+  attachTurnStateModule(ctx);
   ctx.dshSessionId = "session-1";
-  ctx.dshCurrentTurnId = null;
-  ctx.dshToolNames = new Map();
-  ctx.dshTurnBlocks = [];
-  ctx.dshTurnError = null;
-  ctx.isStreaming = false;
+  ctx.webTurnSessions = new Set(["session-1"]);
   ctx.ready = {};
   ctx.sessionVersion = 0;
   ctx.sessionCollectors = new Map();
@@ -335,14 +335,14 @@ test("2.3 a 401 tool/result from a registry server marks the credential stale", 
   });
 
   // A tool call whose name is NOT an MCP registry server must not touch state.
-  ctx.dshToolNames.set("c1", "read_file");
+  ctx.turnStateFor("session-1").toolNames.set("c1", "read_file");
   ctx.handleDshEvent(toolEvent("HTTP 401 Unauthorized"));
   await new Promise((r) => setTimeout(r, 50));
   assert.equal(registryCredentials.status(email).stale, false, "non-MCP tool ignored");
   assert.equal(updateCalls.length, 0);
 
   // The registry-backed MCP tool: 401 ⇒ stale + re-applied profile + ping.
-  ctx.dshToolNames.set("c1", "mcp__fd-report__query");
+  ctx.turnStateFor("session-1").toolNames.set("c1", "mcp__fd-report__query");
   ctx.handleDshEvent(toolEvent("HTTP 401 Unauthorized"));
   await new Promise((r) => setTimeout(r, 50));
   assert.equal(registryCredentials.status(email).stale, true, "marked stale");
@@ -380,7 +380,7 @@ test("2.3 a 401 from a non-registry MCP server leaves credentials alone", async 
 
   const ctx = eventsCtx();
   ctx.runtimeOwnerEmail = email;
-  ctx.dshToolNames.set("c9", "mcp__plain-http__fetch");
+  ctx.turnStateFor("session-1").toolNames.set("c9", "mcp__plain-http__fetch");
   ctx.handleDshEvent({
     method: "session.event",
     params: {

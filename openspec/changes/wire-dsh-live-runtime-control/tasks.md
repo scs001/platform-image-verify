@@ -30,9 +30,9 @@
 
 ## 5. 第二片：按会话流状态（D4）
 
-- [ ] 5.1 `ctx.isStreaming`/`turnOrigin`/`turnBuffer` 全局态改按会话分键（Map + LRU 上界）。单测：两会话各自守卫独立
-- [ ] 5.2 prompt/steer 守卫、done/error 路由、broadcastSessions 按会话键取值。e2e：A 流中 B 可发可回（互不阻塞）
-- [ ] 5.3 回归：重连 resync、session-ownership、demo 配额在分键后全量 e2e 绿
+- [x] 5.1 `ctx.isStreaming`/`turnOrigin`/`turnBuffer` 全局态改按会话分键（Map + LRU 上界）。单测：两会话各自守卫独立
+- [x] 5.2 prompt/steer 守卫、done/error 路由、broadcastSessions 按会话键取值。e2e：A 流中 B 可发可回（互不阻塞）
+- [x] 5.3 回归：重连 resync、session-ownership、demo 配额在分键后全量 e2e 绿
 
 ## 6. dsh:contracts 活控制合同
 

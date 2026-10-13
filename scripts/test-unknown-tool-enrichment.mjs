@@ -5,22 +5,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { attachDshEvents } from "../server/dsh-events.js";
+import { attachTurnStateModule } from "../server/context.js";
 
 function buildCtx() {
   const broadcasts = [];
   const persisted = [];
-  return {
+  const ret = {
     broadcasts,
     persisted,
-    isStreaming: true,
     ready: { dsh: true },
     dshSessionId: "platform-test",
     sessionCollectors: new Map(),
     planBySession: new Map(),
-    dshToolNames: new Map(),
-    dshTurnBlocks: [],
-    dshTurnError: null,
-    dshCurrentTurnId: "turn-1",
     clients: { size: 1 },
     broadcast: (m) => broadcasts.push(m),
     // dsh-events now fans turn payloads out per-session (sendToViewers —
@@ -31,6 +27,11 @@ function buildCtx() {
     finishTurn: () => {},
     recordMessage: (sid, role, text, blocks) => persisted.push({ sid, role, text, blocks }),
   };
+  // Per-session turn state (D4) + the web-session registration its events
+  // route by.
+  attachTurnStateModule(ret);
+  ret.webTurnSessions = new Set(["platform-test"]);
+  return ret;
 }
 
 const notif = (event) => ({ method: "session.event", params: { event } });
@@ -73,7 +74,7 @@ test("missing server segment gets exact candidates before broadcast+persist", ()
   assert.match(toolEnd.result, /No candidate was executed/);
   // Persistence carries the SAME enriched text.
   assert.equal(ctx.persisted.length, 0); // assistant/message only persists later; block holds it
-  assert.equal(ctx.dshTurnBlocks[0].result, toolEnd.result);
+  assert.equal(ctx.turnStateFor("platform-test").blocks[0].result, toolEnd.result);
 });
 
 test("malformed server fragment finds the right server's tools", () => {

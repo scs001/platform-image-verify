@@ -100,28 +100,29 @@ function bumpSessionVersion() {
 // AbortController is enough. In both cases finishTurn() first releases the UI;
 // the subsequent bridge.exit then sees an idle runtime and adds no error banner.
 async function stopStreamingForSessionNavigation() {
-  if (!ctx.isStreaming) return;
+  // Per-session D4: navigation stops the OUTGOING session's run — other
+  // sessions' turns (other viewers, concurrent prompts) keep running.
+  const outgoing = chatHistory.currentSessionId();
   const remoteAbort = ctx.activeRemoteTurnAbort;
-  ctx.finishTurn("aborted");
-  if (remoteAbort) {
+  if (remoteAbort && (!outgoing || remoteAbort.sessionId === outgoing)) {
+    if (ctx.isStreamingFor(remoteAbort.sessionId)) ctx.finishTurn("aborted", remoteAbort.sessionId);
     remoteAbort.switchedAway = true;
     if (ctx.activeRemoteTurnAbort === remoteAbort) ctx.activeRemoteTurnAbort = null;
     remoteAbort.abort();
     return;
   }
-  ctx.promptStoppedByNavigation = true;
+  if (!outgoing || !ctx.isStreamingFor(outgoing)) return;
+  ctx.turnStateFor(outgoing).promptStopped = true;
   // Live control (live-runtime-control): cancel the run natively instead of
   // restarting the child — a session switch becomes instant and the window
   // where a prompt into the new session would bounce off a restarting bridge
   // disappears. The aborted run's own idle notification is the safety net for
-  // the finishTurn above (idempotent).
+  // the finishTurn below (idempotent).
+  ctx.finishTurn("aborted", outgoing);
   if (ctx.dshBridge?.hasLiveMethod?.("session/cancel")) {
-    const sid = ctx.dshSessionId;
-    if (sid) {
-      ctx.dshBridge.cancelSession(sid).catch((e) =>
-        console.warn("[dsh] live cancel on navigation failed:", e?.message || e),
-      );
-    }
+    ctx.dshBridge.cancelSession(outgoing).catch((e) =>
+      console.warn("[dsh] live cancel on navigation failed:", e?.message || e),
+    );
     return;
   }
   await ctx.dshBridge.restart({});
@@ -515,21 +516,21 @@ function remoteForkMessages() {
 // Only reached for chat-mode entries the deployment has no local persona preset
 // for (ctx.remoteChatEntryFor); an entry that has one runs on the local agent.
 async function streamRemoteChat(entry, text) {
-  ctx.isStreaming = true; // set synchronously (same contract as the local prompt path)
-  ctx.turnStartedAt = Date.now();
   // The session is captured BEFORE the fetch: navigation may switch the live
   // chat while this request is still open, and the partial reply belongs to the
   // session that asked, never to whichever session is on screen when it lands.
   const sessionId = chatHistory.currentSessionId();
+  ctx.setStreaming(sessionId, true); // synchronous guard, same contract as the local prompt path
   const abort = new AbortController();
   ctx.activeRemoteTurnAbort = abort;
+  ctx.activeRemoteTurnAbort.sessionId = sessionId;
   const timeout = setTimeout(() => abort.abort(), 300_000);
   ctx.sendToViewers(sessionId, { type: "agent_start" });
   // Persist the user turn to the SQLite mirror (design D6) — closes the v1
   // ceiling where remote turns were broadcast-only and a browser close/reopen
   // left a dangling user message with no reply. Owner from the turn origin
   // (beginTurnFor ran before dispatch; add-session-ownership).
-  chatHistory.recordMessage(sessionId, "user", text, undefined, ctx.turnOrigin?.user ?? null);
+  chatHistory.recordMessage(sessionId, "user", text, undefined, ctx.turnStateFor(sessionId).origin?.user ?? null);
   // A fork has no system prompt of its own; give it the catalog entry's identity
   // so it answers as the named agent rather than as a bare model.
   const messages = [
@@ -590,8 +591,8 @@ async function streamRemoteChat(entry, text) {
     const ownsTurn = ctx.activeRemoteTurnAbort === abort;
     // Persist the assistant's final aggregated text (design D6), always to the
     // session that owns this turn.
-    if (assistantText) chatHistory.recordMessage(sessionId, "assistant", assistantText, undefined, ctx.turnOrigin?.user ?? null);
-    if (ctx.isStreaming && ownsTurn) ctx.finishTurn();
+    if (assistantText) chatHistory.recordMessage(sessionId, "assistant", assistantText, undefined, ctx.turnStateFor(sessionId).origin?.user ?? null);
+    if (ctx.isStreamingFor(sessionId) && ownsTurn) ctx.finishTurn(undefined, sessionId);
     if (ownsTurn) ctx.activeRemoteTurnAbort = null;
   }
 }
@@ -608,16 +609,16 @@ async function streamRemoteChat(entry, text) {
 // needed (unlike the OpenAI-compatible fork above). SSE events from the runner
 // map onto the existing text/done/error contract.
 async function streamA2aChat(entry, text) {
-  ctx.isStreaming = true;
-  ctx.turnStartedAt = Date.now();
   const sessionId = chatHistory.currentSessionId();
+  ctx.setStreaming(sessionId, true);
   const abort = new AbortController();
   ctx.activeRemoteTurnAbort = abort;
+  ctx.activeRemoteTurnAbort.sessionId = sessionId;
   const timeout = setTimeout(() => abort.abort(), 300_000);
   ctx.sendToViewers(sessionId, { type: "agent_start" });
-  chatHistory.recordMessage(sessionId, "user", text, undefined, ctx.turnOrigin?.user ?? null);
+  chatHistory.recordMessage(sessionId, "user", text, undefined, ctx.turnStateFor(sessionId).origin?.user ?? null);
 
-  const ownerEmail = ctx.cellUserEmail || ctx.turnOrigin?.user?.email || null;
+  const ownerEmail = ctx.cellUserEmail || ctx.turnStateFor(sessionId).origin?.user?.email || null;
   const { gatewayToken } = resolveGatewayCredential({ ownerEmail, cloudMode: !!ctx.CLOUD_MODE });
   const agentToken = process.env.AGENT_SERVING_BACKEND_TOKEN || "";
   let assistantText = "";
@@ -646,8 +647,8 @@ async function streamA2aChat(entry, text) {
   } finally {
     clearTimeout(timeout);
     const ownsTurn = ctx.activeRemoteTurnAbort === abort;
-    if (assistantText) chatHistory.recordMessage(sessionId, "assistant", assistantText, undefined, ctx.turnOrigin?.user ?? null);
-    if (ctx.isStreaming && ownsTurn) ctx.finishTurn();
+    if (assistantText) chatHistory.recordMessage(sessionId, "assistant", assistantText, undefined, ctx.turnStateFor(sessionId).origin?.user ?? null);
+    if (ctx.isStreamingFor(sessionId) && ownsTurn) ctx.finishTurn(undefined, sessionId);
     if (ownsTurn) ctx.activeRemoteTurnAbort = null;
   }
 }

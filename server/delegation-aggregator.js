@@ -124,15 +124,18 @@ async function runInjection(initiator) {
     // Mirror the web prompt path: streaming flag, turn attribution, viewer
     // echo, SQLite mirror — then the session shim prompt. Persistence of the
     // assistant reply and the `done` broadcast are dsh-events' (finishTurn).
-    ctx.promptStoppedByNavigation = false;
-    ctx.isStreaming = true;
-    ctx.turnOrigin = { sessionId: initiator, user: null };
+    const T = ctx.turnStateFor(initiator);
+    T.promptStopped = false;
+    T.isStreaming = true;
+    T.startedAt = Date.now();
+    T.origin = { sessionId: initiator, user: null };
+    ctx.webTurnSessions.add(initiator);
     ctx.sendToViewers(initiator, { type: "user", text, taskSummary: true });
     chatHistory.recordMessage(initiator, "user", text, blocks);
     try {
       await ctx.session.prompt(text);
     } catch {
-      ctx.finishTurn();
+      ctx.finishTurn(undefined, initiator);
     }
   } else {
     // The user switched away: collector path (the cron-runner contract) — the

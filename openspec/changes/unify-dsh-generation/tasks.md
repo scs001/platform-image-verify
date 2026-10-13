@@ -53,4 +53,6 @@
 - [x] 8.4 合同④⑦改写（D7.3）：热重载断言改 patch 行编辑（upsertHotRouteProvider）；runner settingsPath 指向 profile patch
 - [x] 8.5 桥接面：platform-preset-bridge trust 字段默认 system（声明式注册表无 trust 维度）；agentPresets 服务名/list()/mount() 实证存活零改动
 - [x] 8.6 自检与测试更新：test-catalog-agent-presets.mjs 重写为 defs 模型断言（全绿）；dsh-profile.js 自检块同步（presets overlay/组合自检/deriveScope 种子改 defs）
+- [x] 8.8 user-questions 桥 0.2.0 waterfall 接缝（D7.5，容器 /api/ready 门拦截后修）：registerProvider→ctx.on("user-questions/request") 应答者；answer/abort 双向解绑；问询双线协议形状不变；本地六层 overlay CELL BOOT 1.3s 实证（commit 28d7778）
+- [x] 8.9 全仓 lint 债清零（私有池瘫 CI 期间累积 18+ 错误；公开免费 CI 暴露）+ packs.js 列表序全决定性（published_at DESC, rowid DESC）+ 测试期望序修正；单测 1201/1201（commit 28d7778）
 - [x] 8.7 SDK client spawn API 迁移（D7 补录）：0.2.0 的 HarnessClient 丢弃 command/args 选项（改 resolveDshLaunch 的 dshBin/profile/patches，平台无法经由它表达自组合 argv）——六个 spawn 点（dsh-bridge/agent-runner/合同 runner/两探针/session-resume）迁移到构造器第二参数 runtime 直通车（lib/dsh-client-launch.js 共享工厂，语义与 0.0.1 的 command/args 零漂移）；暴露根因=npm install 残留旧嵌套 client 掩盖断裂、npm ci 清扫后显形

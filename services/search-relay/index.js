@@ -35,6 +35,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { checkTokenAuth, SCOPED_PREFIX } from "./scoped-token.js";
 
@@ -118,6 +119,8 @@ const stats = {
   upstreamErrors: 0, // 5xx relay responses
   poolDry: 0, // all keys exhausted/cooling
   keyFailures: KEYS.serpapi.map(() => 0), // by pool index
+  // Request-scoped override keys (add-search-byok) — counts only, no values.
+  overrides: { used: 0, failed: 0, fallback: 0 },
 };
 
 // ── per-token daily counters ─────────────────────────────────────────────────
@@ -182,6 +185,11 @@ async function serpapiSearch(key, query, num) {
     snippet: r.snippet || "",
   }));
 }
+// Exhausting vs transient is a property of the FAILURE, shared by pool keys
+// and request-scoped override keys.
+function isExhausting(err) {
+  return /run out of searches|account|api key|unauthorized|401|429/i.test(String(err.message) + String(err.status));
+}
 async function poolSearch(query, num) {
   const now = Date.now();
   for (let attempt = 0; attempt < KEYS.serpapi.length; attempt++) {
@@ -197,7 +205,7 @@ async function poolSearch(query, num) {
       stats.keyFailures[KEYS.serpapi.indexOf(key)] += 1;
       // Quota/auth failures exhaust the key; anything else (rate, transient)
       // gets a short cooldown so the next call can retry it.
-      const exhausting = /run out of searches|account|api key|unauthorized|401|429/i.test(String(err.message) + String(err.status));
+      const exhausting = isExhausting(err);
       keyCooldown.set(key, Date.now() + (exhausting ? 12 * 3600_000 : KEY_COOLDOWN_MS));
       console.error(`[search-relay] serpapi key #${KEYS.serpapi.indexOf(key)} failed: ${err.message} (cooldown ${exhausting ? "12h" : `${KEY_COOLDOWN_MS / 1000}s`})`);
     }
@@ -205,10 +213,65 @@ async function poolSearch(query, num) {
   throw new Error("all serpapi keys exhausted or cooling down (glm fallback not wired)");
 }
 
+// ── request-scoped upstream key override (add-search-byok D3) ───────────────
+// A caller may bring its own SerpAPI key on the request (`X-Serpapi-Key`).
+// The override is tried FIRST; on failure the request falls back to the shared
+// pool and says so (`x-search-source: pool-after-user-failure`) — never
+// silently. Nothing about the override key is persisted; attribution in logs
+// is a hash prefix only, so a leaked log line cannot leak the key.
+const overrideCooldown = new Map(); // sha256-prefix -> until-ts
+function overrideTag(key) {
+  return createHash("sha256").update(key, "utf8").digest("hex").slice(0, 8);
+}
+function overrideSearch(overrideKey, query, num) {
+  const tag = overrideTag(overrideKey);
+  const until = overrideCooldown.get(tag) || 0;
+  if (Date.now() < until) return { state: "cooling", tag };
+  return { state: "ready", tag };
+}
+// Returns { results, source } or throws when BOTH the override and the pool
+// are unusable. `source` is "user" | "pool" | "pool-after-user-failure".
+async function searchWithOverride(overrideKey, query, num) {
+  let overrideFailed = false;
+  if (overrideKey) {
+    const o = overrideSearch(overrideKey, query, num);
+    if (o.state === "ready") {
+      try {
+        const results = await serpapiSearch(overrideKey, query, num);
+        overrideCooldown.delete(o.tag);
+        stats.overrides.used += 1;
+        return { results, source: "user" };
+      } catch (err) {
+        overrideFailed = true;
+        stats.overrides.failed += 1;
+        const exhausting = isExhausting(err);
+        overrideCooldown.set(o.tag, Date.now() + (exhausting ? 12 * 3600_000 : KEY_COOLDOWN_MS));
+        // Hash prefix only — NEVER the key value.
+        console.error(`[search-relay] user key ${o.tag}… failed: ${err.message} (cooldown ${exhausting ? "12h" : `${KEY_COOLDOWN_MS / 1000}s`})`);
+      }
+    } else {
+      overrideFailed = true;
+    }
+  }
+  try {
+    const results = await poolSearch(query, num);
+    if (overrideFailed) {
+      stats.overrides.fallback += 1;
+      return { results, source: "pool-after-user-failure" };
+    }
+    return { results, source: "pool" };
+  } catch (err) {
+    if (overrideFailed) {
+      throw new Error(`${err.message} (user key also failed — every source is unavailable)`);
+    }
+    throw err;
+  }
+}
+
 // ── server ───────────────────────────────────────────────────────────────────
 const server = http.createServer((req, res) => {
-  const json = (status, body) => {
-    res.writeHead(status, { "content-type": "application/json" });
+  const json = (status, body, extraHeaders) => {
+    res.writeHead(status, { "content-type": "application/json", ...(extraHeaders || {}) });
     res.end(JSON.stringify(body));
   };
   if (req.method === "GET" && req.url === "/healthz") return json(200, { ok: true });
@@ -260,6 +323,8 @@ const server = http.createServer((req, res) => {
         failures: stats.keyFailures[i] ?? 0,
         coolingDown: Date.now() < (keyCooldown.get(k) || 0),
       })),
+      // Request-scoped user keys (add-search-byok): counts only, never values.
+      overrides: { ...stats.overrides },
       errors: {
         client: stats.clientErrors,
         upstream: stats.upstreamErrors,
@@ -271,21 +336,27 @@ const server = http.createServer((req, res) => {
 
   if (req.method !== "POST" || !req.url.startsWith("/v1/search")) return json(404, { error: "not found" });
 
+  // Request-scoped upstream key override (add-search-byok): an optional
+  // caller-supplied SerpAPI key. Absent header = byte-identical behavior.
+  const overrideKey = (req.headers["x-serpapi-key"] || "").trim() || null;
+
   let body = "";
   req.on("data", (c) => (body += c));
   req.on("end", async () => {
     const started = Date.now();
+    const jsonSrc = (status, payload, source) =>
+      json(status, payload, source ? { "x-search-source": source } : undefined);
     try {
       const { query, num: rawNum } = JSON.parse(body || "{}");
       if (typeof query !== "string" || !query.trim()) {
         stats.clientErrors += 1;
-        return json(400, { error: "missing query" });
+        return jsonSrc(400, { error: "missing query" });
       }
       const num = Math.min(10, Math.max(1, Math.floor(Number(rawNum) || 8)));
 
       if (tokenCount(token) >= DAILY_CAP) {
         stats.clientErrors += 1;
-        return json(429, { error: `daily cap (${DAILY_CAP}) reached for this token` });
+        return jsonSrc(429, { error: `daily cap (${DAILY_CAP}) reached for this token` });
       }
 
       const cacheKey = `${query.trim().toLowerCase()}\u0000${num}`;
@@ -293,20 +364,21 @@ const server = http.createServer((req, res) => {
       if (cached) {
         stats.cacheHits += 1;
         console.log(`[search-relay] 200 token=${tokenTag} cache=hit ${Date.now() - started}ms`);
-        return json(200, { results: cached });
+        // Serve the SOURCE of the original fetch so attribution stays honest.
+        return jsonSrc(200, { results: cached.results }, cached.source);
       }
       stats.cacheMisses += 1;
 
-      const results = await poolSearch(query.trim(), num);
-      cacheSet(cacheKey, results);
+      const { results, source } = await searchWithOverride(overrideKey, query.trim(), num);
+      cacheSet(cacheKey, { results, source });
       tokenTake(token);
-      console.log(`[search-relay] 200 token=${tokenTag} cache=miss ${results.length}r ${Date.now() - started}ms`);
-      json(200, { results });
+      console.log(`[search-relay] 200 token=${tokenTag} source=${source} cache=miss ${results.length}r ${Date.now() - started}ms`);
+      jsonSrc(200, { results }, source);
     } catch (err) {
       stats.upstreamErrors += 1;
       if (/all serpapi keys exhausted/i.test(err.message)) stats.poolDry += 1;
       console.error(`[search-relay] 503 token=${tokenTag} ${err.message}`);
-      json(503, { error: err.message });
+      jsonSrc(503, { error: err.message });
     }
   });
 });

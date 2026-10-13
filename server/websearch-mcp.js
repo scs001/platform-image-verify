@@ -37,7 +37,12 @@ function relayConfig() {
   const url = process.env.SEARCH_RELAY_URL?.trim();
   const token = process.env.SEARCH_RELAY_TOKEN?.trim();
   if (!url || !token) return null;
-  return { base: url.replace(/\/$/, ""), token };
+  // The user's OWN search key (add-search-byok): optional — absent for most
+  // users, in which case the relay serves from its shared pool. Present ⇒ sent
+  // as a request-scoped override the relay prefers, falling back to the pool
+  // on failure (and saying so via x-search-source).
+  const userKey = process.env.SEARCH_USER_KEY?.trim() || null;
+  return { base: url.replace(/\/$/, ""), token, userKey };
 }
 
 const TOOLS = [
@@ -99,6 +104,7 @@ async function toolWebSearch({ query, num }) {
       headers: {
         "content-type": "application/json",
         authorization: `Bearer ${relay.token}`,
+        ...(relay.userKey ? { "x-serpapi-key": relay.userKey } : {}),
       },
       body: JSON.stringify({ query: query.trim(), num: count }),
       signal: AbortSignal.timeout(SEARCH_TIMEOUT_MS),
@@ -121,8 +127,12 @@ async function toolWebSearch({ query, num }) {
   const results = data.results
     .filter((r) => r && typeof r.url === "string")
     .map((r) => ({ title: String(r.title ?? ""), url: r.url, snippet: String(r.snippet ?? "") }));
-  if (!results.length) return textOut(JSON.stringify({ results: [], note: "No results for this query." }));
-  return textOut(JSON.stringify({ results }));
+  // Which credential served this request (add-search-byok): "user" = the
+  // caller's own key, "pool" = the shared pool, "pool-after-user-failure" =
+  // the user's key failed and the pool covered it. Absent on older relays.
+  const source = res.headers.get("x-search-source") || undefined;
+  if (!results.length) return textOut(JSON.stringify({ results: [], source, note: "No results for this query." }));
+  return textOut(JSON.stringify({ results, source }));
 }
 
 async function toolWebRead({ url }) {

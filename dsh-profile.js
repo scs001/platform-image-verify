@@ -613,12 +613,21 @@ function toMcpClientEntry(name, config, scopedEnv = null) {
     // `scopedEnv` wins per NAME (add-mcp-credential-hygiene D3): a platform-
     // wide secret is substituted with the per-cell derived value so a patch
     // never carries the shared one while scoped derivation is configured.
-    if (Array.isArray(config.envRefs)) {
+    // `envRefsOptional` names are resolved the same way but stay SILENT when
+    // unset — the user's own search key (add-search-byok) is absent for most
+    // users by design, and a warning would be noise, not a degradation. The
+    // resolution set is the UNION: an optional name must still be forwarded
+    // when present, so it cannot live outside the loop.
+    if (Array.isArray(config.envRefs) || Array.isArray(config.envRefsOptional)) {
+      const optional = new Set(Array.isArray(config.envRefsOptional) ? config.envRefsOptional : []);
+      const refs = [...new Set([...(config.envRefs ?? []), ...optional])];
       const resolved = {};
-      for (const ref of config.envRefs) {
+      for (const ref of refs) {
         const v = scopedEnv?.[ref] ?? process.env[ref];
         if (v == null || v === "") {
-          console.warn(`[dsh-profile] MCP "${name}" envRef ${ref} is not set; the server may run degraded`);
+          if (!optional.has(ref)) {
+            console.warn(`[dsh-profile] MCP "${name}" envRef ${ref} is not set; the server may run degraded`);
+          }
           continue;
         }
         resolved[ref] = v;
@@ -696,10 +705,16 @@ async function relayEnvOverrides(ownerEmail) {
   const out = {};
   try {
     const db = await import("./db.js");
-    const { resolveWebsearchRelay } = await import("./lib/websearch-relay.js");
+    const { resolveWebsearchRelay, getUserKey } = await import("./lib/websearch-relay.js");
     const { url, token, source } = await resolveWebsearchRelay(db);
     if (source.url === "stored" && url) out.SEARCH_RELAY_URL = url;
     if (source.token === "stored" && token) out.SEARCH_RELAY_TOKEN = token;
+    // The user's OWN search key (add-search-byok): rides the patch for THIS
+    // user's cell only. Not scoped-derived — derivation protects platform-
+    // shared secrets; this is the user's own credential, same exposure class
+    // as their registry/connector key.
+    const userKey = getUserKey(db, ownerEmail);
+    if (userKey) out.SEARCH_USER_KEY = userKey;
   } catch { /* stored layer unavailable — env fallback stands */ }
   // Scoped derivation overrides the TOKEN only (per-cell value); the URL
   // override above is orthogonal and must not be clobbered by the early

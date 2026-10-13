@@ -136,17 +136,16 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     props: { type: "mcp" },
   },
   {
-    // Network search (add-websearch-settings): the search relay wiring that
-    // backs the bundled websearch tools — URL + write-only token, with a
-    // dry-run connectivity test. Admin-gated server-side (auth off = owner),
-    // so the section is admin-visible like branding.
+    // Network search (add-websearch-settings, per-user BYOK via
+    // add-search-byok): every user manages their own search key; the shared
+    // service zone renders only for admins (the server gates those endpoints
+    // the same way), so the section itself is NOT adminOnly.
     slug: "websearch",
     group: "capabilities",
     labelKey: "settings.sections.websearch",
     testId: "settings-section-websearch",
     icon: Globe,
     Component: WebSearchSection as React.LazyExoticComponent<React.ComponentType<any>>,
-    adminOnly: true,
   },
   {
     slug: "models",

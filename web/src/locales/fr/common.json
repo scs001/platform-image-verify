@@ -790,7 +790,30 @@
       "sourceStored": "Enregistré ici",
       "sourceEnv": "Réglage du déploiement",
       "unconfiguredHint": "Non configuré — la recherche web de l'agent se déclarera indisponible tant qu'aucun service n'est indiqué.",
-      "scopeHint": "L'enregistrement réécrit immédiatement le câblage des outils de l'agent ; aucun redémarrage nécessaire."
+      "scopeHint": "L'enregistrement réécrit immédiatement le câblage des outils de l'agent ; aucun redémarrage nécessaire.",
+      "byok": {
+        "title": "Ma clé de recherche",
+        "subtitle": "Apportez votre propre clé de fournisseur de recherche. Si elle est définie, vos recherches l'utilisent ; sinon, ou en cas d'échec, le pool partagé vous sert.",
+        "keyLabel": "Ma clé (SerpAPI)",
+        "keyPlaceholder": "Collez votre clé",
+        "keyStoredPlaceholder": "Enregistrée — saisissez pour remplacer",
+        "storedBadge": "Enregistrée ({{hint}})",
+        "keyHint": "Écriture seule : les clés enregistrées ne sont jamais affichées. Vos recherches utilisent d'abord votre clé ; en cas d'échec, retour automatique au pool partagé.",
+        "clear": "Supprimer ma clé",
+        "noKeyHint": "Aucune clé définie — les recherches utilisent le pool partagé.",
+        "servedUser": "avec votre clé",
+        "servedPool": "avec le pool partagé",
+        "servedFallback": "votre clé a échoué — retour au pool partagé"
+      },
+      "shared": {
+        "title": "Service de recherche partagé",
+        "subtitle": "Le câblage du relais de ce déploiement et son pool de clés partagé (admin). Les utilisateurs sans clé propre sont servis par ce pool.",
+        "poolTitle": "État du pool partagé",
+        "poolKeys": "{{total}} clé(s) amont, {{cooling}} en refroidissement",
+        "poolUsage": "{{day}} : {{used}} recherches avec des clés utilisateur, {{fallback}} retours au pool",
+        "poolDry": "Pool épuisé {{count}} fois aujourd'hui — ajoutez une clé amont pour rétablir la recherche.",
+        "poolUnreachable": "Statistiques du relais injoignables"
+      }
     }
   },
   "bindings": {

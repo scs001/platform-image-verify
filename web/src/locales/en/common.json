@@ -803,7 +803,30 @@
       "sourceStored": "Saved here",
       "sourceEnv": "Deployment setting",
       "unconfiguredHint": "Not configured — the agent's web_search reports itself unavailable until a service is set.",
-      "scopeHint": "Saving rewrites the agent's tool wiring immediately; no restart needed."
+      "scopeHint": "Saving rewrites the agent's tool wiring immediately; no restart needed.",
+      "byok": {
+        "title": "My search key",
+        "subtitle": "Bring your own search-provider key. When set, your searches use your key; if it fails or you don't set one, the shared pool serves you.",
+        "keyLabel": "My key (SerpAPI)",
+        "keyPlaceholder": "Paste your key",
+        "keyStoredPlaceholder": "Stored — type to replace",
+        "storedBadge": "Saved ({{hint}})",
+        "keyHint": "Write-only: saved keys are never displayed. Searches use your key first; failures fall back to the shared pool automatically.",
+        "clear": "Remove my key",
+        "noKeyHint": "No key set — searches use the shared pool.",
+        "servedUser": "using your key",
+        "servedPool": "using the shared pool",
+        "servedFallback": "your key failed — fell back to the shared pool"
+      },
+      "shared": {
+        "title": "Shared search service",
+        "subtitle": "The deployment's relay wiring and shared key pool (admin). Users without their own key are served from this pool.",
+        "poolTitle": "Shared pool health",
+        "poolKeys": "{{total}} upstream key(s), {{cooling}} cooling down",
+        "poolUsage": "{{day}}: {{used}} searches on user keys, {{fallback}} fell back to the pool",
+        "poolDry": "Pool exhausted {{count}} time(s) today — add an upstream key to restore search.",
+        "poolUnreachable": "Relay stats unreachable"
+      }
     }
   },
   "preview": {

@@ -625,6 +625,20 @@ const MIGRATIONS = [
       db.exec(`ALTER TABLE user_presets ADD COLUMN examples TEXT`);
     },
   },
+  {
+    // add-search-byok: the user's own search-provider key (SerpAPI), used by
+    // the relay in preference to the shared pool. Same shape as the sibling
+    // per-user credential tables (registry v15, connector v23) — a separate
+    // table for the same reason: independent lifecycle, no shared migration.
+    version: 27,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS user_search_credentials (
+        email TEXT PRIMARY KEY,
+        token TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+    ],
+  },
 ];
 
 function nowIso() {
@@ -1580,6 +1594,38 @@ export function markConnectorCredentialStale(email, slot) {
   if (!name) return false;
   return stmt("UPDATE user_connector_credentials SET stale = 1, updated_at = ? WHERE email = ? AND slot = ? AND stale = 0")
     .run(nowIso(), key, name).changes > 0;
+}
+
+// ── User search credentials (add-search-byok) ────────────────────────────────
+// The user's own search-provider key, mirroring the registry/connector
+// accessor shapes: normalized email is the key, token never leaves the
+// server except through the injection path.
+
+export function getSearchCredential(email) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return null;
+  const row = stmt("SELECT token, updated_at AS updatedAt FROM user_search_credentials WHERE email = ?").get(key);
+  return row ?? null;
+}
+
+export function setSearchCredential(email, token) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  if (!key || typeof token !== "string" || !token) return null;
+  stmt(
+    `INSERT INTO user_search_credentials (email, token, updated_at)
+     VALUES (@email, @token, @updatedAt)
+     ON CONFLICT(email) DO UPDATE SET token = excluded.token, updated_at = excluded.updated_at`
+  ).run({ email: key, token, updatedAt: nowIso() });
+  return { email: key, updatedAt: nowIso() };
+}
+
+export function deleteSearchCredential(email) {
+  if (!dbReady) return false;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return false;
+  return stmt("DELETE FROM user_search_credentials WHERE email = ?").run(key).changes > 0;
 }
 
 // ── Extension configs (MCP servers) ──────────────────────────────────────────

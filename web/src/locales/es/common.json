@@ -790,7 +790,30 @@
       "sourceStored": "Guardado aquí",
       "sourceEnv": "Configuración de la instalación",
       "unconfiguredHint": "Sin configurar: la búsqueda web del agente se reportará como no disponible hasta que se indique un servicio.",
-      "scopeHint": "Al guardar se reescribe de inmediato la conexión de herramientas del agente; no hace falta reiniciar."
+      "scopeHint": "Al guardar se reescribe de inmediato la conexión de herramientas del agente; no hace falta reiniciar.",
+      "byok": {
+        "title": "Mi clave de búsqueda",
+        "subtitle": "Usa tu propia clave del proveedor de búsqueda. Si la configuras, tus búsquedas usan tu clave; si falla o no la configuras, te sirve el grupo compartido.",
+        "keyLabel": "Mi clave (SerpAPI)",
+        "keyPlaceholder": "Pega tu clave",
+        "keyStoredPlaceholder": "Guardada: escribe para reemplazar",
+        "storedBadge": "Guardada ({{hint}})",
+        "keyHint": "Solo escritura: las claves guardadas nunca se muestran. Tus búsquedas usan tu clave primero; si falla, se recurre al grupo compartido.",
+        "clear": "Quitar mi clave",
+        "noKeyHint": "Sin clave configurada: las búsquedas usan el grupo compartido.",
+        "servedUser": "usando tu clave",
+        "servedPool": "usando el grupo compartido",
+        "servedFallback": "tu clave falló: se recurrió al grupo compartido"
+      },
+      "shared": {
+        "title": "Servicio de búsqueda compartido",
+        "subtitle": "La conexión del relay de esta instalación y su grupo de claves compartido (admin). Los usuarios sin clave propia se sirven de este grupo.",
+        "poolTitle": "Estado del grupo compartido",
+        "poolKeys": "{{total}} clave(s) de proveedor, {{cooling}} en enfriamiento",
+        "poolUsage": "{{day}}: {{used}} búsquedas con claves de usuario, {{fallback}} recurrieron al grupo",
+        "poolDry": "Grupo agotado {{count}} vez/veces hoy: añade una clave de proveedor para restaurar la búsqueda.",
+        "poolUnreachable": "Estadísticas del relay inaccesibles"
+      }
     }
   },
   "bindings": {

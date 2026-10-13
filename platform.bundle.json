@@ -3,8 +3,9 @@
     "websearch": {
       "command": "node",
       "args": ["server/websearch-mcp.js"],
-      "_comment": "envRefs name (never hold) the relay env pair — dsh's subprocess scrub strips TOKEN-shaped names from MCP children, so the pair is forwarded explicitly at patch-write time. Both unset ⇒ web_search degrades to an explicit not-configured error.",
-      "envRefs": ["SEARCH_RELAY_URL", "SEARCH_RELAY_TOKEN"]
+      "_comment": "envRefs name (never hold) the relay env pair — dsh's subprocess scrub strips TOKEN-shaped names from MCP children, so the pair is forwarded explicitly at patch-write time. Both unset ⇒ web_search degrades to an explicit not-configured error. SEARCH_USER_KEY (add-search-byok) is the user's OWN key: optional by design — its absence is the normal state, not a degradation.",
+      "envRefs": ["SEARCH_RELAY_URL", "SEARCH_RELAY_TOKEN"],
+      "envRefsOptional": ["SEARCH_USER_KEY"]
     }
   },
   "skills": [

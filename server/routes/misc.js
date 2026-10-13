@@ -8,7 +8,7 @@ import fs from "node:fs";
 import express from "express";
 import { WEB_DIST } from "../context.js";
 import { storeDir } from "../../paths.js";
-import { resolveWebsearchRelay, maskToken } from "../../lib/websearch-relay.js";
+import { resolveWebsearchRelay, maskToken, getUserKey, setUserKey, clearUserKey } from "../../lib/websearch-relay.js";
 
 export function registerMiscRoutes(ctx) {
   const { app, catalog, db, cron } = ctx;
@@ -356,6 +356,9 @@ export function registerMiscRoutes(ctx) {
     const effective = await resolveWebsearchRelay(db);
     const url = (typeof body.url === "string" && body.url.trim()) || effective.url;
     const token = (typeof body.token === "string" && body.token.trim()) || effective.token;
+    // Admin dry-run may also exercise a user key (the caller's stored one by
+    // default) so the result can disclose which credential served it.
+    const userKey = (typeof body.userKey === "string" && body.userKey.trim()) || getUserKey(db, req.user?.email) || null;
     if (!url) return res.json({ state: "invalid-url", detail: "no relay URL configured" });
     if (!/^https?:\/\//.test(url)) return res.json({ state: "invalid-url", detail: "relay URL must be http(s)://" });
     if (!token) return res.json({ state: "auth-rejected", detail: "no relay token configured" });
@@ -363,22 +366,87 @@ export function registerMiscRoutes(ctx) {
     try {
       const upstream = await fetch(`${base}/v1/search`, {
         method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${token}`,
+          ...(userKey ? { "x-serpapi-key": userKey } : {}),
+        },
         body: JSON.stringify({ query: "connectivity test", num: 1 }),
         signal: AbortSignal.timeout(5000),
       });
-      if (upstream.ok) return res.json({ state: "ok", detail: `HTTP ${upstream.status}` });
+      const source = upstream.headers.get("x-search-source") || undefined;
+      if (upstream.ok) return res.json({ state: "ok", detail: `HTTP ${upstream.status}`, source });
       if (upstream.status === 401 || upstream.status === 403) {
         return res.json({ state: "auth-rejected", detail: `HTTP ${upstream.status}` });
       }
       // 5xx etc.: auth passed (the relay answered), upstream is degraded —
       // report it as such rather than mislabeling the wiring.
-      return res.json({ state: "upstream-degraded", detail: `HTTP ${upstream.status}` });
+      return res.json({ state: "upstream-degraded", detail: `HTTP ${upstream.status}`, source });
     } catch (err) {
       const msg = err?.name === "TimeoutError" || err?.name === "AbortError"
         ? "timed out after 5s"
         : String(err?.message || err).slice(0, 200);
       return res.json({ state: "unreachable", detail: msg });
+    }
+  });
+
+  // ── Per-user search key (add-search-byok) ────────────────────────────────
+  // Any authenticated user manages their OWN key; the email comes from the
+  // request identity, never from the client (no cross-user writes). Write-only
+  // like the deployment token: responses carry presence + a 4-char hint.
+  app.get("/api/config/websearch/userkey", (req, res) => {
+    const key = getUserKey(db, req.user?.email);
+    res.json({ hasKey: Boolean(key), keyHint: maskToken(key) });
+  });
+
+  app.put("/api/config/websearch/userkey", async (req, res) => {
+    if (!db.isDbReady()) {
+      return res.status(503).json({ error: "Search settings are disabled (database unavailable)" });
+    }
+    const body = req.body || {};
+    if (Object.hasOwn(body, "key")) {
+      const value = body.key;
+      if (typeof value !== "string") return res.status(400).json({ error: "Field 'key' must be a string" });
+      const trimmed = value.trim();
+      if (trimmed.length > 500) return res.status(400).json({ error: "Field 'key' exceeds 500 characters" });
+      if (trimmed === "") clearUserKey(db, req.user?.email);
+      else setUserKey(db, req.user?.email, trimmed);
+    }
+    // Same hot-rewrite as the deployment wiring: this user's next patch
+    // composition carries (or drops) SEARCH_USER_KEY.
+    ctx.dshUpdateMcp?.(ctx.runtimeMcpOverlay, req.user?.groups ?? null, req.user?.email ?? undefined)
+      .catch((e) => console.warn(`[websearch-config] MCP patch rewrite failed: ${e.message}`));
+    console.log("[websearch-config] user search key updated (value redacted)");
+    const key = getUserKey(db, req.user?.email);
+    res.json({ ok: true, hasKey: Boolean(key), keyHint: maskToken(key) });
+  });
+
+  // Shared pool health (admin): proxy the relay's own stats with the effective
+  // deployment credential. Secret-free by construction (the relay reports key
+  // indexes/prefixes only).
+  app.get("/api/config/websearch/pool", async (req, res) => {
+    if (!requireWebsearchManage(req, res)) return;
+    const { url, token } = await resolveWebsearchRelay(db);
+    if (!url || !token) return res.json({ configured: false });
+    try {
+      const upstream = await fetch(`${url.replace(/\/+$/, "")}/v1/stats`, {
+        headers: { authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!upstream.ok) return res.json({ configured: true, reachable: false, detail: `HTTP ${upstream.status}` });
+      const stats = await upstream.json();
+      return res.json({
+        configured: true,
+        reachable: true,
+        day: stats.day,
+        dailyCap: stats.dailyCap,
+        keys: Array.isArray(stats.keys) ? stats.keys : [],
+        overrides: stats.overrides ?? null,
+        errors: stats.errors ?? null,
+        uptimeSec: stats.uptimeSec ?? null,
+      });
+    } catch (err) {
+      return res.json({ configured: true, reachable: false, detail: String(err?.message || err).slice(0, 200) });
     }
   });
 

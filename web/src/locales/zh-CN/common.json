@@ -790,7 +790,30 @@
       "sourceStored": "在此保存",
       "sourceEnv": "部署配置",
       "unconfiguredHint": "未配置——设置服务地址前，智能体的网页搜索会提示不可用。",
-      "scopeHint": "保存后会立即更新智能体的工具接线，无需重启。"
+      "scopeHint": "保存后会立即更新智能体的工具接线，无需重启。",
+      "byok": {
+        "title": "我的搜索密钥",
+        "subtitle": "自带搜索服务商密钥。设置后搜索优先用你的密钥；未设置或你的密钥失败时，自动使用共享池。",
+        "keyLabel": "我的密钥（SerpAPI）",
+        "keyPlaceholder": "粘贴你的密钥",
+        "keyStoredPlaceholder": "已保存——输入以替换",
+        "storedBadge": "已保存（{{hint}}）",
+        "keyHint": "只写不读：已保存的密钥不会显示。搜索优先使用你的密钥，失败时自动回退共享池。",
+        "clear": "移除我的密钥",
+        "noKeyHint": "未设置密钥——搜索使用共享池。",
+        "servedUser": "正在使用你的密钥",
+        "servedPool": "正在使用共享池",
+        "servedFallback": "你的密钥失败——已回退共享池"
+      },
+      "shared": {
+        "title": "共享搜索服务",
+        "subtitle": "本部署的搜索服务接线与共享密钥池（管理员）。未自带密钥的用户由此池服务。",
+        "poolTitle": "共享池健康",
+        "poolKeys": "上游密钥 {{total}} 个，{{cooling}} 个冷却中",
+        "poolUsage": "{{day}}：用户密钥搜索 {{used}} 次，回退共享池 {{fallback}} 次",
+        "poolDry": "今日池干涸 {{count}} 次——补充上游密钥即可恢复搜索。",
+        "poolUnreachable": "搜索服务统计不可达"
+      }
     }
   },
   "bindings": {

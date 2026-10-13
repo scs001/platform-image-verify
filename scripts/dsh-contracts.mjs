@@ -268,6 +268,26 @@ async function main() {
     await dshProfile.ensureCredentialsStore({ dirs });
     const presetsPatchPath = await dshProfile.writePresetsPatch({ dirs, requireRoster: false });
     const permissionsPatchPath = await dshProfile.writePermissionsPatch();
+    // Compose EVERY bridge the image's /api/ready child composes. Composing only
+    // presets+permissions let a real regression ship (2026-10-13): the
+    // user-questions bridge called ctx.userQuestions.registerProvider, which
+    // dsh 0.2.0-rc.2 does not expose, so the plugin failed to activate and the
+    // image's readiness probe never went green — while these contracts stayed
+    // 9/9 green because that overlay was never loaded. A gate that omits a
+    // plugin cannot gate it.
+    const extraPatchPaths = [];
+    for (const write of ["writeToolSearchPatch", "writeChartBindPatch", "writeUserQuestionsPatch"]) {
+      if (typeof dshProfile[write] !== "function") continue;
+      try {
+        const p = await dshProfile[write]();
+        if (typeof p === "string") extraPatchPaths.push(p);
+      } catch (e) {
+        console.log(`[dsh-contracts] ${write}: ${e.message}`);
+      }
+    }
+    const skillsPatchPath = join(home, "profiles", PROFILE_NAME, "skills.patch.yml");
+    try { await dshProfile.writeSkillsPatch({ dirs, agentPreset: AGENT_PRESET }); }
+    catch (e) { console.log(`[dsh-contracts] skills patch: ${e.message}`); }
     const provider = Object.keys(providers)[0];
     const model = models[0]?.id;
 
@@ -281,7 +301,14 @@ async function main() {
     // exercises) and minus proxy vars (a system proxy would blackhole 127.0.0.1).
     const childEnv = dshProfile.buildScrubbedEnv() ?? { ...process.env };
     for (const k of ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]) delete childEnv[k];
-    const args = ["--profile", PROFILE_NAME, "--patch", presetsPatchPath, "--patch", permissionsPatchPath];
+    // Same overlay order as the image child (dsh-bridge.patchArgs); only paths
+    // that materialized are passed (the child hard-fails on a missing overlay).
+    const args = ["--profile", PROFILE_NAME, ...[...new Set([
+      presetsPatchPath,
+      existsSync(skillsPatchPath) ? skillsPatchPath : null,
+      permissionsPatchPath,
+      ...extraPatchPaths,
+    ].filter(Boolean))].flatMap((p) => ["--patch", p])];
     client = new HarnessClient(
       {},
       dshClientRuntime({

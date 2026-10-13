@@ -71,22 +71,39 @@ async function loadBridge({ fallbackMs } = {}) {
   return { mod, tmp };
 }
 
-// The base server only touches ctx.on(...) in its constructor; the
-// user-questions layer adds ctx.userQuestions.registerProvider. Both faked.
-// NOTE: hold the returned object — destructuring `provider` would snapshot
-// the getter before the constructor captures it.
+// The base server only touches ctx.on(...). The user-questions layer registers
+// its answerer as a scoped-listener on the "user-questions/request" waterfall
+// (0.2.0 D7.5 — the seam that REPLACED ctx.userQuestions.registerProvider).
+//
+// This fake models the REAL seam: it captures the listener the bridge installs
+// and exposes ask() to drive it, exactly as the dsh scope would. Faking
+// registerProvider (the retired 0.1.x shape) is what let the 2026-10-13 image
+// regression ship: the unit suite passed against a bridge that could not boot.
 function fakeCtx() {
-  let provider = null;
+  let listener = null;
   const ctx = {
-    on: () => () => {},
-    userQuestions: {
-      registerProvider(p) {
-        provider = p;
-        return () => {};
-      },
+    on(event, fn) {
+      if (event === "user-questions/request") listener = fn;
+      return () => {};
     },
   };
-  return { ctx, get provider() { return provider; } };
+  return {
+    ctx,
+    // The captured answerer (null when the bridge registered nothing — the
+    // failure mode this suite exists to catch).
+    listener() {
+      return listener;
+    },
+    // Drive the installed answerer. A caller that never gets a listener means
+    // the bridge registered on a seam this dsh does not emit → hard failure,
+    // not a silent pass.
+    ask(request) {
+      if (listener === null) {
+        throw new Error('bridge installed no "user-questions/request" listener (seam mismatch)');
+      }
+      return listener(request, () => undefined);
+    },
+  };
 }
 
 function fakeTransport() {
@@ -105,7 +122,7 @@ test("ask parks, notifies, and resolves on answer; late answers are refused", as
   const server = new mod.UserQuestionsSdkServer(fake.ctx, transport, {});
 
   const questions = [{ id: "q1", question: "Continue?", options: [{ label: "Yes" }, { label: "No" }] }];
-  const pending = fake.provider.ask({ questions, agent: { session: { id: "sess-1" } } });
+  const pending = fake.ask({ questions, agent: { session: { id: "sess-1" } } });
   await new Promise((r) => setImmediate(r));
   assert.equal(notifications.length, 1);
   assert.equal(notifications[0].method, "userQuestion/ask");
@@ -136,7 +153,7 @@ test("cancellation rejects the parked ask with a model-readable error", async (t
   const fake = fakeCtx();
   const { transport, notifications } = fakeTransport();
   const server = new mod.UserQuestionsSdkServer(fake.ctx, transport, {});
-  const pending = fake.provider.ask({ questions: [{ id: "q", question: "?" }], agent: { session: { id: "s" } } });
+  const pending = fake.ask({ questions: [{ id: "q", question: "?" }], agent: { session: { id: "s" } } });
   await new Promise((r) => setImmediate(r));
   const { askId } = notifications[0].payload;
   const out = await server.handleRequest("userQuestions/answer", { askId, cancelled: true });
@@ -150,7 +167,7 @@ test("shutdown rejects everything still pending", async (t) => {
   const fake = fakeCtx();
   const { transport } = fakeTransport();
   const server = new mod.UserQuestionsSdkServer(fake.ctx, transport, {});
-  const pending = fake.provider.ask({ questions: [{ id: "q", question: "?" }], agent: { session: { id: "s" } } });
+  const pending = fake.ask({ questions: [{ id: "q", question: "?" }], agent: { session: { id: "s" } } });
   await new Promise((r) => setImmediate(r));
   await server.shutdown();
   await assert.rejects(pending, /shutting down/);
@@ -162,15 +179,38 @@ test("the fallback timer cancels an unanswered ask", async (t) => {
   const fake = fakeCtx();
   const { transport } = fakeTransport();
   new mod.UserQuestionsSdkServer(fake.ctx, transport, {});
-  const pending = fake.provider.ask({ questions: [{ id: "q", question: "?" }], agent: { session: { id: "s" } } });
+  const pending = fake.ask({ questions: [{ id: "q", question: "?" }], agent: { session: { id: "s" } } });
   await assert.rejects(pending, /ask window closed/);
 });
 
-test("a session-less caller is refused outright", async (t) => {
+test("a session-less caller is delegated down the waterfall (not answered)", async (t) => {
+  const { mod } = await loadBridge();
+  if (mod === null) return t.skip("no dsh install to link the SDK server package against");
+  const fake = fakeCtx();
+  const { transport, notifications } = fakeTransport();
+  new mod.UserQuestionsSdkServer(fake.ctx, transport, {});
+  // 0.2.0: a request with no session-bound caller returns next() so the seam's
+  // own NO_PROVIDER error names the real condition — the bridge must not invent
+  // a bridge-shaped rejection, and must not park the ask.
+  let delegated = false;
+  const listener = fake.listener();
+  assert.notEqual(listener, null, "bridge must install the 0.2.0 seam listener");
+  const out = await listener({ questions: [{ id: "q", question: "?" }] }, () => { delegated = true; });
+  assert.equal(delegated, true, "session-less ask must delegate via next()");
+  assert.equal(out, undefined);
+  assert.equal(notifications.length, 0, "a delegated ask must not notify the host");
+});
+
+test("the bridge registers on the 0.2.0 seam, not the retired provider API", async (t) => {
   const { mod } = await loadBridge();
   if (mod === null) return t.skip("no dsh install to link the SDK server package against");
   const fake = fakeCtx();
   const { transport } = fakeTransport();
   new mod.UserQuestionsSdkServer(fake.ctx, transport, {});
-  await assert.rejects(fake.provider.ask({ questions: [{ id: "q", question: "?" }] }), /session-bound/);
+  // The exact regression that blocked the 2026-10-13 image: the bridge called
+  // ctx.userQuestions.registerProvider, which 0.2.0-rc.2 does not expose → the
+  // plugin failed to activate → /api/ready never went green. A fake that accepts
+  // EITHER shape cannot catch that, so this asserts the seam directly.
+  assert.notEqual(fake.listener(), null,
+    'bridge must install a "user-questions/request" listener (0.2.0 seam)');
 });

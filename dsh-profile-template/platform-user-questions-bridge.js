@@ -65,16 +65,15 @@ class UserQuestionsSdkServer extends PermissionSdkServer {
 
   constructor(ctx, transportPeer, options) {
     super(ctx, transportPeer, options);
-    // The seam's single provider slot, held for this child's whole lifetime.
-    // dsh-base composes the user-questions service in every real profile, so
-    // the inject above is satisfied; a future profile without it simply never
-    // loads this plugin (and composes no ask tool either — consistent).
+    // 0.2.0 (D7.5): the seam moved from registerProvider to the scoped
+    // "user-questions/request" waterfall — the same consumption shape the
+    // typert host uses (dsh-api-remotes). A root-level listener sees every
+    // scoped ask, and the cell has exactly one answerer (this bridge), so
+    // nothing is delegated further down the waterfall.
     this.disposers.push(
-      ctx.userQuestions.registerProvider({
-        ask: (request) => this.#bridgeAsk(request),
-      }),
+      ctx.on("user-questions/request", (request, next) => this.#bridgeAsk(request, next)),
     );
-    // Shutdown ladder: reject everything still pending AFTER the provider is
+    // Shutdown ladder: reject everything still pending AFTER the answerer is
     // unregistered, so a late answer RPC finds an empty table.
     this.disposers.push(() => this.#rejectAll("the agent runtime is shutting down"));
   }
@@ -87,16 +86,14 @@ class UserQuestionsSdkServer extends PermissionSdkServer {
     }
   }
 
-  // Provider body: park the ask, notify the host, wait. `agent` is the live
+  // Answerer body: park the ask, notify the host, wait. `agent` is the live
   // calling root agent (the seam already rejected owned children); its session
-  // id is what the host routes on.
-  #bridgeAsk(request) {
+  // id is what the host routes on. A request without a session-bound caller is
+  // deferred down the waterfall — the service's own no-answerer error then
+  // names the real condition (NO_PROVIDER), not a bridge-shaped one.
+  #bridgeAsk(request, next) {
     const sessionId = request?.agent?.session?.id;
-    if (sessionId === undefined) {
-      return Promise.reject(
-        new Error("user questions require a session-bound caller in the platform composition"),
-      );
-    }
+    if (sessionId === undefined) return next();
     const askId = randomUUID();
     return new Promise((resolve, reject) => {
       const entry = {
@@ -109,6 +106,15 @@ class UserQuestionsSdkServer extends PermissionSdkServer {
         }, ASK_FALLBACK_MS),
       };
       entry.timer.unref?.();
+      // The seam's abort signal (askTimed windows) must unpark the ask
+      // promptly — the fallback timer alone would hold it for 15 minutes.
+      entry.onAbort = () => {
+        if (this.pendingAsks.delete(askId)) {
+          clearTimeout(entry.timer);
+          reject(request.signal?.reason ?? new Error("the ask was aborted"));
+        }
+      };
+      request.signal?.addEventListener("abort", entry.onAbort, { once: true });
       this.pendingAsks.set(askId, entry);
       this.transport.notify("userQuestion/ask", {
         sessionId: String(sessionId),

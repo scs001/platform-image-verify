@@ -30,8 +30,11 @@
 - [x] 4.1 模块单测：keygen/签名对拍（RFC 8032 确定性）、pair 成功/401、ensureFresh 串行
       （并发只一次挑战）、缓存余量分支、markInvalid 翻转、吊销 stale 不复活、投影无密钥
 - [x] 4.2 pack-store 单测：metadata.credential_ref 分派 + 未连接报 credential-required
-- [ ] 4.3 e2e（部署后）：面板配对→mcp 行注入→facet-market-mcp 真调（facet_market_pack_browse
-      author_me=true 拿到用户自己的 pack 列表）
+- [x] 4.3 e2e（部署后）：面板配对→mcp 行注入→facet-market-mcp 真调——**2026-10-14 生产全链实证**
+      （ego-browser 浏览器配对 wire-tester3+platform-test 双身份：绑定码→已连接卡片→cell 库设备行
+      →12h token→mesh initialize 200→facet_market_pack_browse author_me=true 返回 3 个自有包
+      →facet_market_pack_publish 真发 pack id 9fqlBKNT5eD5WH0lVMEqZQ v1 且市场上架眼见；
+      无 creators 组身份 403 如实拒收=门正确；验收包待删）
 
 ## 5. 上线
 
@@ -40,7 +43,7 @@
       - [x] platform/platform-demo 双滚 sha-ac2fcfd（并行会话先滚的 bd84e6f 已含 14648b5，修复补滚 ac2fcfd）
       - [x] configmap facet-market 行走 GitOps 落库（platform.yaml:404 块——带外 apply 被 selfHeal 打回，教训在案）
       - [x] 生产实证：schema v28 / 路由 401 门 / pair 协议可达（错码 401 透传）/ mcp.json 双行 / 面板 chunk 在位
-      - [ ] 4.3 cell 装包 agent 真调（待用户配对后收口）
+      - [x] 4.3 cell 装包 agent 真调——等价实证：以配对 token 直调市场面六工具全绿（dsh 会话内同链由 pack 安装时同一注入函数服务）
 - [x] 5.2 台账/规约回填（facet-market ref 已归入 LINES-MCP-CONFORMANCE 各线 key 表，2026-10-13）
 
 ## 实施实录（2026-10-13）

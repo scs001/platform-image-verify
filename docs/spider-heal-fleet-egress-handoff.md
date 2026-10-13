@@ -4,6 +4,9 @@
 > 对象：萬星（paas）侧
 > 状态：**P0 / P1 已收口上线并实证（2026-10-12 晚）**；
 > **P2 已全部收口（2026-10-13 上线实证：单行引号 + 单行取值 93 字符全值）。**
+> ⚠️ **2026-10-13 补记：P0 存在漏面——b/c 补丁未覆盖 serving 车道**，
+> 接管波后 spider-heal 落 runner-serving（cheap-4）无出口，工单连卡 7 轮；
+> finddata 侧已修（`fd-infra-deploy` `31083c3`，详见「P0 漏面」节）。
 > 更新记录见文末「收口状态」。
 
 ## 背景（一段话）
@@ -171,6 +174,48 @@ agent-runner-c: api.github=200 | platform=200
 
 （对照：交接文档写就时两台均为 `000`/TCP 超时；补丁方案当时只在 runner-b pod 内
 以临时导出 env 的方式验证有效，现已落到实际部署。）
+
+### ⚠️ P0 漏面 · runner-serving 未注入代理（2026-10-13 发现，finddata 侧已修）
+
+**b/c 的补丁漏了 serving 车道**。同日（10-12）接管波把 spider-heal 从 cheap-1 的
+`agent-runner-dsh` 挪到了 `runner-serving`（cheap-4，`add-serving-runner-split`），
+而 serving 清单的注释假设「serving children 与旧容器同为直连出网」——**该假设被证伪**：
+旧容器在 cheap-1（主机有直连 GitHub），cheap-4 与 cheap-6/7 同无直连路由。
+
+实证（10-13 上午）：
+
+```
+$ kubectl -n fd-prod exec agent-runner-serving-6b7889df58-kssss -c runner -- \
+    curl -s -o /dev/null -w "%{http_code}" --max-time 8 https://api.github.com
+000          # 无代理、无直连
+$ # 同 pod 临时导出 fd-health-proxy 值后
+api.github.com=200 | github.com=200 | platform=200（NO_PROXY 生效）
+```
+
+agent 自报同样吻合：`inbox.json` / 投递回执自 **10-12T22:31Z 起连续 7 轮**报
+「GitHub egress 阻断」，10-13 三张工单（flower-auction / inmetals / metal-com）
+全部卡 `state=queued`。
+
+**finddata 侧已修**（`fd-infra-deploy` `31083c3`，双远端已推，ArgoCD 自动滚）：
+serving 清单 `envFrom` 增加 `secretRef: fd-health-proxy`，与 b/c、fd-health-runner 同款。
+
+> 教训：**出口是节点属性，不是 deployment 属性**。每次 runner 迁移/新增车道都要
+> 对照本清单核出口——fleet-scheduler 的 `pickPlacement` 不看出口，迁移即可能落进盲区。
+
+### 🔸 观察点 · agent 调 MCP `health_config_get` 得 402 CALLER_NOT_MAPPED（2026-10-13）
+
+serving 上 spider-heal child 的 `gate-state.json`（01:29Z 回合）显示：
+
+```json
+{"mcp": {"tool": "health_config_get", "http_status": 402, "error": "CALLER_NOT_MAPPED",
+         "note": "调用者未完成计费开户映射（端点可达，调用者未映射）"}}
+```
+
+端点可达、鉴权通过，但**调用者身份未完成计费开户映射**——agent 因此拿不到中央库
+阈值配置（本轮回退到文件基线，又因 GitHub 阻断连文件也读不到）。请萬星侧核：
+spider-heal 调用 `health_config_get` 所用凭据（哪把 key / 哪个 caller 身份）是否
+应在计费侧补开户映射。此项不阻断修复主链（阈值可走文件基线），但影响
+`health-threshold-calibration` 的中央库回填消费。
 
 ### P1 · 已收口（change `fix-skill-content-propagation`，12/12 归档）
 

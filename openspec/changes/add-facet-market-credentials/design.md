@@ -47,8 +47,9 @@ facet-market-mcp 条目的 metadata 由运维 PATCH（一次动作，随本 chan
 
 ## D6 — 市场基址
 
-`FACET_MARKET_URL`（默认 `https://facet.finddatatech.cloud`）；已有 `FACET_BASE_URL`
-时优先沿用（同一事实源，部署拓扑差异交给 env）。
+`FACET_MARKET_URL`（默认 `https://facet.finddatatech.cloud`）。**不得**沿用
+`FACET_BASE_URL`——生产实证它是 k8s service 注入的同 pod facet 内部服务基址
+（http://127.0.0.1:3200），而设备配对协议+面板指路都在市场公网域上。2026-10-14 修正。
 
 ## 不做
 

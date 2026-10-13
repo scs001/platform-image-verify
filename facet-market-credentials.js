@@ -38,9 +38,11 @@ const UNCONNECTED = {
 };
 
 export function facetMarketUrl() {
+  // 市场公网域（设备配对协议+面板指路都在它上），与 FACET_BASE_URL（同 pod
+  // facet 内部服务，k8s 自动注入的 env 会指向 127.0.0.1:3200——生产实测）无关。
+  // 专用 env 名避免误吸内部基址；缺省=谦面市场生产域。
   return (
     process.env.FACET_MARKET_URL ||
-    process.env.FACET_BASE_URL ||
     "https://facet.finddatatech.cloud"
   ).replace(/\/+$/, "");
 }

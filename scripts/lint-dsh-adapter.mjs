@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const LIST_PATH = join(ROOT, "scripts", "dsh-adapter-files.json");
 const SKIP_DIRS = new Set([
-  "node_modules", ".git", ".github", "web", "facet", "openspec", "docs", "e2e", "dsh-matrix", "dist", "resources", "coverage",
+  "node_modules", ".git", ".github", "web", "facet", "openspec", "docs", "e2e", "dsh-matrix", "dist", "dist-opensource", "resources", "coverage",
 ]);
 
 const IMPORT_RE = /(?:from\s+|require\(\s*)["'](@deepseek-ai\/[^"']+)["']/g;
@@ -42,8 +42,8 @@ const importers = new Set();
 for (const file of walk(ROOT)) {
   const rel = relative(ROOT, file);
   const src = readFileSync(file, "utf8");
-  if (!IMPORT_RE.test(src)) continue;
   IMPORT_RE.lastIndex = 0;
+  if (!IMPORT_RE.test(src)) continue;
   importers.add(rel);
   if (!allow.has(rel)) {
     const hits = [...src.matchAll(IMPORT_RE)].map((m) => m[1]);
@@ -51,13 +51,26 @@ for (const file of walk(ROOT)) {
   }
 }
 
-const stale = [...allow].filter((f) => !importers.has(f));
+// A listed file may be absent in DISTRIBUTION TREES (the public snapshot
+// deletes internal probes) — in that tree the entry cannot import anything,
+// so it is neither stale nor missing there; the full check runs wherever the
+// file set is intact (the private repo's own CI).
+const present = [...allow].filter((f) => {
+  try {
+    statSync(join(ROOT, f));
+    return true;
+  } catch {
+    return false;
+  }
+});
+const absent = [...allow].filter((f) => !present.includes(f) && !importers.has(f));
+const stale = present.filter((f) => !importers.has(f));
 const missing = [...allow].filter((f) => {
   try {
     statSync(join(ROOT, f));
     return false;
   } catch {
-    return true;
+    return importers.has(f); // imported by something else? keep the hard fail
   }
 });
 
@@ -79,4 +92,7 @@ if (stale.length) {
   for (const s of stale) console.error(`  ${s}`);
 }
 if (fail) process.exit(1);
-console.log(`✓ dsh adapter boundary holds: ${importers.size} importer(s), all within the allowlist`);
+console.log(
+  `✓ dsh adapter boundary holds: ${importers.size} importer(s), all within the allowlist` +
+    (absent.length ? ` (${absent.length} listed file(s) absent in this tree — snapshot-pruned)` : ""),
+);

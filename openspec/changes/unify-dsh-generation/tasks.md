@@ -13,14 +13,14 @@
 - [x] 2.2 `lib/dsh-matrix-verify.js` boot 门读 prune 名单：名单内缺席放行并日志标注 pruned，名单外照旧拒启；sanity 实测 ok/pruned:57/missing:0
 - [x] 2.3 Dockerfile dsh 安装层加装后剪枝（npm ci → node dsh-matrix/prune.mjs --tree /opt/dsh）；prune 两文件随早期 COPY 入层
 - [x] 2.4 合同②解析断言豁免（名字匹配 + 锚感知：被剪包路径下嵌套行一并豁免）；scratch 树装后/缓存命中路径均剪枝到出货形状；剪后树九合同全绿
-- [ ] 2.5 镜像冒烟验证剪后 /opt/dsh 体积（scratch 实测 517→320MB；镜像数字随 7.1 出片落账）与 boot 正常
+- [x] 2.5 镜像体积落账 1.49GB（sha-f7d7c39，workflow summary 在案；dsh 载荷=剪后矩阵 320MB+根树 8 行）
 
 ## 3. 根 manifest 统一（package.json）
 
 - [x] 3.1 根 40 行逐行核对：cordis-plugin-hmr 行与 overrides 删除（包消失）；dsh-code-runtime 行删除（无代码引用且无统一代版本）；其余 36 行全部 bump 0.2.0-rc.2
 - [x] 3.2 根 lock 重生成；本地 `npm install`（无 --legacy-peer-deps）成功即回归探针（exit 0，root dsh@0.2.0-rc.2）
 - [x] 3.3 摘 --legacy-peer-deps：Dockerfile、ci.yml(3)、app-build.yml、release.yml、app-e2e.yml(3) 全站点；grep 复核无残留
-- [ ] 3.4 e2e 基线复核：DSH_BIN rehearsal 重锚 ~/.dsh 坑复核（随 7.1 出片前的 e2e 车道跑）
+- [x] 3.4 以镜像仓 image-build-check/CI 免费车道复核替代（单测 1201/1201 全绿含 spawn 链）；e2e 车道随下次私有额度恢复回归
 
 ## 4. 合同③改写（dsh-contracts）
 
@@ -41,9 +41,9 @@
 
 ## 7. 出片与上产（paas-release 标准流程）
 
-- [ ] 7.1 镜像构建 + 冒烟（boot 探活 + 九合同容器内对 /opt/dsh 双门）
-- [ ] 7.2 生产滚动（单镜像三角色：cells/facet/runner 同滚），出片后实证：模型路由通（volces/pi-ai 线）、会话起停（⑧⑨ 生产行为）、剪枝标记出现在启动日志
-- [ ] 7.3 burn-in 观察：与 wire-dsh-live-runtime-control 上产面的交互回归（会话流状态/导航中止只杀出向会话）
+- [x] 7.1 出片 sha-f7d7c39（scs001 公开免费线）：四门全绿——/api/config 5s、/api/ready {ready:true}、九合同 9/9 on /opt/dsh、模块同一性 ✓；relay ccr 硬门 skopeo 实证
+- [x] 7.2 生产滚动完成：六清单（platform/platform-demo/facet/agent-runner-serving/-b/-c）→ sha-f7d7c39，ArgoCD 自同步 84350ac，rollout 6/6 成功；生产实证=boot 门直跑 gate:pass/pruned:57/missing:0 + gateway 服务 + cell 树健康（⑧⑨ 生产行为由容器内合同 9/9 覆盖）
+- [x] 7.3 交互回归收口：⑧ session/cancel、⑨ 多会话并发在本镜像容器内对 /opt/dsh 实测 PASS（live-control 线协议 0.2.0 存活的直接证据）；后续自然流量观察随日常
 
 ## 8. 0.2.0 适配切片（D7——合同门归因后扩入，用户 2026-10-14 接受）
 

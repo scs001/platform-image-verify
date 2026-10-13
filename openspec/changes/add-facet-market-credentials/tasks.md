@@ -36,7 +36,12 @@
 ## 5. 上线
 
 - [ ] 5.1 出片+滚动（三 deployment 同滚纪律）+ 生产 4.3 验收
-- [ ] 5.2 台账/规约回填（facet-market ref 归入 LINES-MCP-CONFORMANCE 各线 key 表）
+      - [x] 出片两轮（sha-99cc318 全含版→首跑 dsh contracts ⑨ flake rerun 过；sha-ac2fcfd 修复版 9/9 一次过）
+      - [x] platform/platform-demo 双滚 sha-ac2fcfd（并行会话先滚的 bd84e6f 已含 14648b5，修复补滚 ac2fcfd）
+      - [x] configmap facet-market 行走 GitOps 落库（platform.yaml:404 块——带外 apply 被 selfHeal 打回，教训在案）
+      - [x] 生产实证：schema v28 / 路由 401 门 / pair 协议可达（错码 401 透传）/ mcp.json 双行 / 面板 chunk 在位
+      - [ ] 4.3 cell 装包 agent 真调（待用户配对后收口）
+- [x] 5.2 台账/规约回填（facet-market ref 已归入 LINES-MCP-CONFORMANCE 各线 key 表，2026-10-13）
 
 ## 实施实录（2026-10-13）
 

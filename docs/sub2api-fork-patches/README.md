@@ -22,7 +22,8 @@ fork 自有代码全在 `backend/internal/lanes/` 等新增包；上游文件仅
 
 | 缝点 | 位置（v0.2.16 实证） | 用途 |
 |---|---|---|
-| 路由注册 | `backend/internal/server/routes/gateway.go:184-187`（`/v1` 组挂 apiKeyAuth） | 车道路由 `/v1/audio/*`、`/v1/rerank`、`/v1/search` 挂 `KeyBillingInfo` 同位（组门 groupModelAllowlist **之前**——车道不绑 chat 分组语义）。非 chat 同位先例：`/v1/sub2api/billing`、`/v1/live`、`/v1/custom-voices/:id/audio`、GrokRealtime WS |
+| 路由注册 | `backend/internal/server/routes/gateway.go:184-187`（`/v1` 组挂 apiKeyAuth） | 车道路由 `/v1/audio/*`、`/v1/rerank`、`/v1/search` 挂 `KeyBillingInfo` 同位（组门 groupModelAllowlist **之前**——车道不绑 chat 分组语义）。非 chat 同位先例：`/v1/sub2api/billing`、`/v1/live`、`/v1/custom-voices/:id/audio`、GrokRealtime WS。**注意：该文件有 400 字符源码级断言窗口**（gateway_model_allowlist_test.go 校验 auth→allowlist 挂载间距）——缝点插入窗口内只留一行，Meter 构造挪组创建之前 |
+| handler 服务访问器 | `backend/internal/handler/openai_gateway_handler.go` 文件尾（+10 行只读 getter） | `LanesBillingCacheService()`/`LanesGatewayService()`——车道计量取计费准入与原生账本写入服务；不走 wire 重排装配（BatchImage 式注入先例） |
 | 计量-账本写入钩子 | `backend/internal/handler/openai_alpha_search.go:275`（recordAlphaSearchUsage→`submitMandatoryUsageRecordTask` 池提交+池满同步兜底→`GatewayService.RecordUsage`） | 车道按次/按量计费落原生用量行的**完整参考实现**（扣费不丢） |
 | 媒体价目面（分组） | `backend/internal/service/media_price_config.go` + Group 字段（admin 后台 admin_group.go 可配） | 上游已有：WebSearchPricePerCall、SearchPricePer1k、Image 1K/2K/4K、Video 480/720/1080、**AudioRealtimePerMin/TTS每百万字符/STT每小时**——websearch+audio 车道直接复用；**rerank 唯一需新增价目字段**。按次计算先例 `CalculateWebSearchCost`（openai_gateway_usage.go:594-599=单价×组倍率） |
 | 音频计量机器 | `service.AudioUsage{Mode,DurationOrUnits}` + `reserveInflightBalance(Kind=InflightEstimateAudio)`（handler/grok_audio.go:47） | audio 车道 ASR/TTS 计量复用 Mode 形状，零新机器 |
@@ -31,9 +32,13 @@ fork 自有代码全在 `backend/internal/lanes/` 等新增包；上游文件仅
 | 前端路由+导航 | `frontend/src/router/index.ts` + `components/layout/AppSidebar.vue` | 车道页路由+侧边导航入口 |
 | i18n 词条 | `frontend/src/i18n/locales/{en,zh}` | 车道页/导航词条 |
 
-**首笔缝点触碰（2026-10-14，fork commit 9225e8baf，未发版）**：车道骨架落
-`internal/lanes/`（全新包）+「路由注册」缝点实插 4 行（apiKeyAuth 链内、组门前）；
-`git diff ciyuan-v0.2.16-1 --stat` = gateway.go +4 行，纪律达标；随下次出片并 tag。
+**首笔缝点触碰（2026-10-14，未发版）**：车道骨架+计量通道落 `internal/lanes/`（全新
+包，fork commits 9225e8baf→ba552983e 已推 main）；缝点实插=「路由注册」+「handler
+服务访问器」两处（gateway.go 累计 +8 行、openai_gateway_handler.go +10 行），
+`git diff ciyuan-v0.2.16-1` 上游文件仅此两处，纪律达标；随下次出片并 tag。
+计量通道（tasks 2.3）已收口：准入门（余额耗尽 403≠501 不触上游全引擎实证）+
+WriteUsage 走 RecordUsage 复用原生账本（入参形状单测实证）；**面板入账眼见随
+3.x 首笔真上游回执**。
 
 **侦察期三项关键结论**（决定 §2 实施形状）：
 1. 上游**无 HTTP `/v1/audio/*` 端点**（Grok 音频是 WS realtime）——audio 车道端点全新，无路由冲突；

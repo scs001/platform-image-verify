@@ -258,7 +258,9 @@ test.describe("composer hardening: IME, stop, disconnect", () => {
 
     const dialog = page.getByTestId("help-dialog");
     await expect(dialog).toBeVisible();
-    // The three sections render: commands, skills, shortcuts.
+    // The dialog opens on the start tab (add-onboarding-tutorial); the three
+    // reference sections — commands, skills, shortcuts — are one click away.
+    await dialog.getByTestId("help-tab-reference").click();
     await expect(dialog.getByRole("heading", { name: "Commands" })).toBeVisible();
     await expect(dialog.getByRole("heading", { name: /Skills \(/ })).toBeVisible();
     await expect(dialog.getByRole("heading", { name: "Shortcuts" })).toBeVisible();

@@ -732,6 +732,17 @@ export function registerPackRoutes(app, {
     console.log("[fleet] scheduler armed (failover + auto-placement)");
   }
   const isCreator = (user) => creatorGroups.some((g) => (user.groups || []).includes(g));
+  // Access mode (add-opening-gates): the opening action's switch, built ahead
+  // of the action. closed (default, unset included) keeps the creator gate
+  // byte-for-byte; open admits any authenticated user to publish/deploy —
+  // the billing-key economic gate stays the real abuse bound either way.
+  const accessMode = String(process.env.PACK_ACCESS_MODE || "").toLowerCase() === "open" ? "open" : "closed";
+  const mayPublish = (user) => accessMode === "open" || isCreator(user);
+  // Capacity waterline (add-opening-gates): a NEW child is refused when the
+  // best target runner's headroom is below the line. Redeploys/upgrades of an
+  // in-service pack skip it (capacity pressure must never wedge a live
+  // service). Unknowable capacity degrades open, same as the roster gate.
+  const waterlineMb = Number(process.env.FLEET_CAPACITY_WATERLINE_MB) > 0 ? Number(process.env.FLEET_CAPACITY_WATERLINE_MB) : 512;
   // The platform emergency stop's gate (add-agent-residency D5): admin groups
   // only — the deployer-facing pause/resume ride the author-or-creator gate.
   const isAdmin = (user) => adminGroups.some((g) => (user.groups || []).includes(g));
@@ -761,7 +772,7 @@ export function registerPackRoutes(app, {
   app.post("/api/packs", express.json({ limit: jsonLimit }), async (req, res) => {
     const user = auth(req, res);
     if (!user) return;
-    if (!isCreator(user)) return res.status(403).json({ error: "Creator group required" });
+    if (!mayPublish(user)) return res.status(403).json({ error: "Creator group required" });
     const manifest = req.body?.manifest;
     const packId = typeof req.body?.packId === "string" ? req.body.packId : null;
     if (!manifest) return res.status(400).json({ error: "manifest required" });
@@ -960,7 +971,7 @@ export function registerPackRoutes(app, {
     if (packRowRec?.visibility === "private" && !registry.visibleTo(packRowRec, user, { admin: isAdmin(user) })) {
       return res.status(404).json({ error: "Pack not found" });
     }
-    if (!isAuthor && !isCreator(user)) return res.status(403).json({ error: "Pack author or creator group required" });
+    if (!isAuthor && !mayPublish(user)) return res.status(403).json({ error: "Pack author or creator group required" });
 
     const version = registry.getVersion(id, req.params.version);
     if (!version) return res.status(404).json({ error: "Pack version not found" });
@@ -1082,6 +1093,50 @@ export function registerPackRoutes(app, {
         picked.add(id);
       }
       deployIds = picked;
+    }
+    // Capacity waterline (add-opening-gates): only a deploy that brings NEW
+    // children is gated — agents of this pack already in service don't count
+    // (their redeploy/upgrade must never be wedged by capacity pressure, and
+    // a subset deploy that adds agents is gated for exactly its new ones).
+    // The gate reads the same board the placement just read: headroom =
+    // budget_mb_limit − budget_mb. The placement target is checked first,
+    // then the remaining healthy runners in the scheduler's order — the
+    // first at or above the line admits. All below → 503 naming the best
+    // candidate. Unknowable capacity (scheduler unarmed, board down)
+    // degrades open, the same discipline as the model roster gate.
+    {
+      const inServiceIds = new Set(registry.deployments(id).map((d) => d.agentId));
+      const newChildCount = [...deployIds].filter((aid) => !inServiceIds.has(aid)).length;
+      if (newChildCount > 0 && scheduler && waterlineMb > 0) {
+        try {
+          const board = await scheduler.boardNow();
+          const headroomOf = (rid) => {
+            const r = board?.runners?.[rid];
+            if (!r || !Number.isFinite(r.budget_mb_limit)) return null;
+            return r.budget_mb_limit - (r.budget_mb ?? 0);
+          };
+          const order = [];
+          if (runnerPlacement.runnerId) order.push(runnerPlacement.runnerId);
+          for (const r of scheduler.healthy(board)) if (!order.includes(r.id)) order.push(r.id);
+          let best = null;
+          let admitted = false;
+          for (const rid of order) {
+            const hr = headroomOf(rid);
+            if (hr == null) continue;
+            if (best == null || hr > best.headroom) best = { id: rid, headroom: hr };
+            if (hr >= waterlineMb) {
+              admitted = true;
+              break;
+            }
+          }
+          if (!admitted && best) {
+            return res.status(503).json({
+              error: `fleet at capacity — best runner '${best.id}' has ${Math.round(best.headroom)}MB headroom, below the ${waterlineMb}MB waterline; retry after existing agents drain`,
+              code: "FLEET_AT_CAPACITY",
+            });
+          }
+        } catch { /* board unreachable → degrade open */ }
+      }
     }
     // Model choices (agent-service-config / ADR-0019): { "<agentId>": model |
     // null } — a deploy-time model rides the SAME write-time validation as a

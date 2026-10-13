@@ -89,15 +89,19 @@ app.get("/api/health", (_req, res) => res.json({ ok: true, service: "facet" }));
 // Identity probe for the SPA header. `creator`/`admin` are computed HERE —
 // the group-name envs (PACK_CREATOR_GROUPS / ADMIN_GROUPS) are server
 // config the client must not duplicate (add-facet-content-management).
+// `accessMode` (add-opening-gates) exposes the effective publish/deploy
+// posture (closed = creator group required; open = any authenticated user).
+const accessMode = String(process.env.PACK_ACCESS_MODE || "").toLowerCase() === "open" ? "open" : "closed";
 app.get("/api/whoami", (req, res) => {
   const user = resolveUser(req);
-  if (!user) return res.json({ email: null, groups: [], creator: false, admin: false });
+  if (!user) return res.json({ email: null, groups: [], creator: false, admin: false, accessMode });
   const groups = user.groups ?? [];
   res.json({
     email: user.email,
     groups,
     creator: creatorGroups.some((g) => groups.includes(g)),
     admin: adminGroups.some((g) => groups.includes(g)),
+    accessMode,
   });
 });
 

@@ -28,17 +28,19 @@ fork 自有代码全在 `backend/internal/lanes/` 等新增包；上游文件仅
 | 媒体价目面（分组） | `backend/internal/service/media_price_config.go` + Group 字段（admin 后台 admin_group.go 可配） | 上游已有：WebSearchPricePerCall、SearchPricePer1k、Image 1K/2K/4K、Video 480/720/1080、**AudioRealtimePerMin/TTS每百万字符/STT每小时**——websearch+audio 车道直接复用；**rerank 唯一需新增价目字段**。按次计算先例 `CalculateWebSearchCost`（openai_gateway_usage.go:594-599=单价×组倍率） |
 | 音频计量机器 | `service.AudioUsage{Mode,DurationOrUnits}` + `reserveInflightBalance(Kind=InflightEstimateAudio)`（handler/grok_audio.go:47） | audio 车道 ASR/TTS 计量复用 Mode 形状，零新机器 |
 | 余额/窗口前置检查 | `billingCacheService.CheckBillingEligibility`（grok_audio.go:36 同款） | 车道请求前置：窗口耗尽拒付不触上游 |
-| 平台清单（**条件缝点**） | `backend/internal/domain/platforms.go` platformList | 仅当车道上游账号收编进上游账号模型时登记一行；v1 走 lanes 包自有上游池（复用账号管理形态）则**不动此文件** |
+| 平台清单（**已触碰**） | `backend/internal/domain/platforms.go`（+Gateway=lane 枚举+siliconflow/serpapi 两行）+ `platforms_test.go`（期望清单同步，上游既定「按位补入」模式） | 车道上游=真 Account 行（2.4）：admin 账号管理面下拉即达；登记副作用=平台进「所有平台」类列表（含分组下拉——误建 chat 分组属可恢复误配，单管理员风险受控）；Gateway=lane 使 UsesOpenAIGateway 等谓词恒 false |
+| service 账号仓储访问器 | `backend/internal/service/openai_gateway_service.go` 文件尾（+1 只读 getter） | `LanesAccountRepo()`——车道池取数（ListSchedulableByPlatform）；与 handler 访问器同注入模式 |
 | 前端路由+导航 | `frontend/src/router/index.ts` + `components/layout/AppSidebar.vue` | 车道页路由+侧边导航入口 |
 | i18n 词条 | `frontend/src/i18n/locales/{en,zh}` | 车道页/导航词条 |
 
-**首笔缝点触碰（2026-10-14，未发版）**：车道骨架+计量通道落 `internal/lanes/`（全新
-包，fork commits 9225e8baf→ba552983e 已推 main）；缝点实插=「路由注册」+「handler
-服务访问器」两处（gateway.go 累计 +8 行、openai_gateway_handler.go +10 行），
-`git diff ciyuan-v0.2.16-1` 上游文件仅此两处，纪律达标；随下次出片并 tag。
-计量通道（tasks 2.3）已收口：准入门（余额耗尽 403≠501 不触上游全引擎实证）+
-WriteUsage 走 RecordUsage 复用原生账本（入参形状单测实证）；**面板入账眼见随
-3.x 首笔真上游回执**。
+**首笔缝点触碰（2026-10-14，未发版）**：车道骨架+计量通道+上游账号池落
+`internal/lanes/`（全新包，fork commits 9225e8baf→ba552983e→520daff3d 已推
+main）；缝点实插=「路由注册」「handler 服务访问器」「平台清单（含 platforms_test
+期望同步）」「service 账号仓储访问器」四处，diff 上游文件仅此四处，纪律达标；
+随下次出片并 tag。§2 地基全收口（2.1-2.4）：准入门+原生账本写入+上游池+平台
+登记；路由链四态（401/403 准入/503 池空/501 无适配器）全引擎实证；**面板入账
+眼见与 admin 增删眼见随 3.x 首个部署窗兑现**。车道 v1 平台定案：audio+rerank=
+siliconflow、websearch=serpapi（search-relay 既有 key 池可播种）。
 
 **侦察期三项关键结论**（决定 §2 实施形状）：
 1. 上游**无 HTTP `/v1/audio/*` 端点**（Grok 音频是 WS realtime）——audio 车道端点全新，无路由冲突；

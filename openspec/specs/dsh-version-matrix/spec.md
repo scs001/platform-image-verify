@@ -6,21 +6,6 @@
 
 ## Requirements
 
-### Requirement: 安装矩阵由一份清单声明并整体冻结
-部署镜像内的 dsh 运行时安装树 SHALL 由仓库内单一 manifest（package.json）声明：手写条目仅限意图级——dsh 本体、dsh-base、两个 sdk 包、以及以 npm overrides 显式钉住的 cordis-plugin-hmr；其余全部包（含仅 peer 可达的插件闭包）SHALL 由 npm 从该 manifest 一次解析，并把完整闭包冻结进提交的 package-lock.json。同一个包名 SHALL 在所有安装树中解析为同一版本（裁决现存的 sdk-protocol 双版本）。重建同一 manifest+lock SHALL 得到逐包相同的安装树。
-
-#### Scenario: 重建可复现
-- **WHEN** 同一份 dsh-matrix manifest 与 lock 在不同时间、不同机器构建镜像
-- **THEN** 镜像内两棵 dsh 安装树逐包逐版本一致，含全部仅 peer 可达的插件
-
-#### Scenario: 同包同版本
-- **WHEN** 任一包名同时出现在 CLI 树与 profile 树的解析结果中
-- **THEN** 两树中该包版本一致
-
-#### Scenario: hmr 钉版承重
-- **WHEN** npm 解析 manifest 的 peer 闭包
-- **THEN** cordis-plugin-hmr 解析为 overrides 钉住的 1.0.16，而非闭包内其他 range 浮动出的更新版本
-
 ### Requirement: 镜像构建从矩阵安装而非手写包清单
 镜像构建 SHALL 以 dsh-matrix manifest + lock 为唯一版本来源安装 dsh 运行时两棵树（CLI 树与 profile 模板树），Dockerfile SHALL NOT 再维护逐包版本条目或与 manifest 重复的版本事实。
 
@@ -29,21 +14,51 @@
 - **THEN** 找不到逐包 `@deepseek-ai/*@<version>` 清单，安装指令引用 dsh-matrix，版本真相只在 manifest 与 lock 中
 
 ### Requirement: 启动期安装树一致性硬门
-从矩阵构建的部署启动时（paas server 与 agent-runner），系统 SHALL 校验实际安装树与冻结 lock 的一致性；不一致时 SHALL 拒绝启动并在日志输出可读的偏差报告（多出的包、缺失的包、版本不一致的包），而非带着错树进入运行。本地开发环境未提供矩阵安装时 SHALL 跳过校验并正常启动。
+从矩阵构建的部署启动时（paas server 与 agent-runner），系统 SHALL 校验实际安装树与冻结 lock 的一致性；偏差 SHALL 按是否在允许缺席名单内分级：名单内缺席放行并在日志标注剪枝标记，其余任何偏差（名单外缺失、多出、版本不一致）SHALL 拒绝启动并输出包级 diff 报告。本地开发环境未提供矩阵安装时 SHALL 跳过校验并正常启动。
 
 #### Scenario: 树不一致拒绝启动
-- **WHEN** 镜像内安装树与 lock 存在偏差（如缺失一个 peer-only 插件包）且未设置逃生口
+- **WHEN** 镜像内安装树与 lock 存在名单外偏差（如缺失一个插件包）且未设置逃生口
 - **THEN** 进程启动失败退出，日志以包级 diff 指明偏差
 - **AND** 不出现"dsh 子进程起来后在会话中才暴露 ERR_MODULE_NOT_FOUND"的晚期失败
+
+#### Scenario: 剪枝缺席放行
+- **WHEN** 安装树缺失的包恰为剪枝名单内条目
+- **THEN** 启动正常，日志保留该缺席的剪枝标记（可区分于意外缺失）
 
 #### Scenario: 逃生口
 - **WHEN** 设置 `DSH_MATRIX_OVERRIDE=1` 且树与 lock 存在偏差
 - **THEN** 进程照常启动，日志保留完整偏差报告与逃生口标记
 
 #### Scenario: 一致正常启动
-- **WHEN** 安装树与 lock 完全一致
+- **WHEN** 安装树与 lock 完全一致（含剪枝后状态）
 - **THEN** 启动正常，不产生偏差告警
 
 #### Scenario: 无矩阵的开发环境
 - **WHEN** 本地开发环境未通过矩阵安装 dsh（无冻结 lock 可比对）
 - **THEN** 校验跳过，启动不受影响
+
+### Requirement: 安装矩阵声明统一代并整体冻结
+dsh 运行时安装矩阵 SHALL 由单一 manifest 声明统一代：手写意图条目收敛为 dsh 本体单行（钉 lockstep 版本号），不再维护 overrides 抹平或 hmr 钉版（0.2.0 起全家族以精确钉版硬依赖随本体发布、零 peerDependencies）。平台所有 dsh 依赖面 SHALL 解析为同一代：矩阵 lock 内任一 `@deepseek-ai/*` 行、根 `package.json` 的 dsh 依赖行、与应用代码直接 import 的 dsh 包，三者版本恒等于意图条目钉住的代。重建同一 manifest+lock SHALL 得到逐包相同的安装树，且安装无需 `--legacy-peer-deps`。
+
+#### Scenario: 重建可复现
+- **WHEN** 同一份 dsh-matrix manifest 与 lock 在不同时间、不同机器构建镜像
+- **THEN** 镜像内 dsh 安装树逐包逐版本一致
+
+#### Scenario: 统一代唯一
+- **WHEN** 检视矩阵 lock、根 package.json 依赖行与应用直接 import 的 dsh 包
+- **THEN** 任一 `@deepseek-ai/dsh*` 包的版本与意图条目钉住的 lockstep 版本号相同，不存在跨代混装
+
+#### Scenario: 干净解析
+- **WHEN** 对根 manifest 与 dsh-matrix manifest 分别执行不带 `--legacy-peer-deps` 的安装解析
+- **THEN** 两者均成功解析，无 ERESOLVE
+
+### Requirement: 允许缺席剪枝名单
+镜像构建 SHALL 在矩阵 `npm ci` 之后按一份入库评审的剪枝名单（位于 dsh-matrix 目录）删除安装树中确认不被平台 profile 加载的包（首刀：`@deepseek-ai/libreoffice-kit-*` 平台二进制与 `dsh-web-app`/`client-ui-*` UI 部件子树）；名单变更 SHALL 与 manifest 变更同评审轨迹。剪枝 SHALL NOT 触碰名单外的任何包，也 SHALL NOT 以手编 lock 的方式实现。
+
+#### Scenario: 剪枝后闭包可解析
+- **WHEN** 剪枝后的安装树接受合同②（闭包可解析）与 boot 握手检查
+- **THEN** 全部存留包可解析、子进程 boot 正常——被剪包在平台 profile（dsh-base 95 行插件表）中零引用
+
+#### Scenario: 名单随版评审
+- **WHEN** 跟随上游跳版
+- **THEN** 剪枝名单随 manifest 意图条目一并复核：新增的"大件依赖若不被 profile 加载"候选进入评审，不再被加载的名目移出

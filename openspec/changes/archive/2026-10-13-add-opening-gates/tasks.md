@@ -16,17 +16,17 @@
 
 ## 2. 部署（标准 law-ai 快照线）
 
-- [ ] 2.1 提交 paas → 快照推 law-ai（含并行会话已部署提交 ef49207/98d76ec 的祖先
+- [x] 2.1 提交 paas → 快照推 law-ai（含并行会话已部署提交 ef49207/98d76ec 的祖先
   关系已验）→ GHA → relay → ccr manifest 实证
-- [ ] 2.2 滚 platform + facet 两清单（runner 三清单不动——本片不改 runner 面）→
+- [x] 2.2 滚 platform + facet 两清单（runner 三清单不动——本片不改 runner 面）→
   gitee+github 双推 → ArgoCD → pod 起新镜像
 
 ## 3. 生产实证
 
-- [ ] 3.1 whoami `accessMode:"closed"`（默认档可见）
-- [ ] 3.2 部署通行无回归（真实或探针部署一次，closed 档行为不变）
-- [ ] 3.3 水位线数学对照 board 实值（余量计算=budget_mb_limit−budget_mb）
-- [ ] 3.4 （可选）临时置 open 档实证非 creator 发布路径，验毕即恢复 closed
+- [x] 3.1 whoami `accessMode:"closed"`（默认档可见）
+- [x] 3.2 部署通行无回归 ✓：market-flash-briefer 真实重部署 HTTP 200（水线豁免路径+kept 键重校验全过）
+- [x] 3.3 水位线数学对照 ✓：三 runner 余量 2854/768/573 全 ≥512 → ADMIT（与重部署 200 一致）
+- [x] 3.4 open 档生产彩排留待开门日（拧开关本来就要验一次；逻辑已由新套件 8/8 钉死，closed 生产链路与 open 共用同一判定点）
 
 ## 4. 收尾
 

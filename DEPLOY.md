@@ -1737,6 +1737,29 @@ runner 复核：usage settled + 部署者分成 $0.07/回合落账。切换日 o
 （deepseek 502/全线 free 车道限流），内容成功回合回执由链路验证+计费行+错回合 waived
 管道代证；错回合误计 outcome:ok = F3.3 挂账缺陷②的活体再现（已退演练号 $0.20）。
 
+### 开放前置双件：身份门 + 容量水位线（add-opening-gates，2026-10-13）
+
+**默认全部为现行语义**（closed/512），开门=拧开关（改 GitOps env + rollout restart）：
+
+| 开关 | 默认 | 语义 | 拧开动作 |
+|---|---|---|---|
+| `PACK_ACCESS_MODE` | `closed` | closed=发布/部署限 creator 组（逐字节不变）；`open`=任意登录用户可发布/部署（计费键经济闸仍在） | platform.yaml + facet.yaml env 改 `open` |
+| `FLEET_CAPACITY_WATERLINE_MB` | `512` | 新增 child 的部署在最优 runner 余量（`budget_mb_limit−budget_mb`，board 读）低于水位时 503 `FLEET_AT_CAPACITY`（指名 runner/余量/水位）；在役 pack 重部署/升级豁免；board 不可达降级开 | 调数值（按 child 实测 ≈540-600MB 校准；0=关闸） |
+
+**观测**：facet `/api/whoami` 带 `accessMode` 字段（生产实证 closed）；水位线判定读同一
+board（`GET {FLEET_BOARD_URL}/api/fleet/v1/board`，runner 行 `budget_mb/budget_mb_limit`）。
+**水位线手工对照配方**（改闸值前自查）：
+
+```bash
+FT=$(kubectl --context cheap exec -n fd-prod deploy/agent-runner-serving -- sh -c 'echo $AGENT_RUNNER_FLEET_TOKEN' | tail -1 | tr -d '\r\n')
+curl -s -H "Authorization: Bearer $FT" http://100.64.0.8:31881/api/fleet/v1/board \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); [print(k, v['budget_mb_limit']-v['budget_mb'], 'headroom') for k,v in d['runners'].items()]"
+```
+
+**验证实录**：facet whoami `accessMode:"closed"`；market-flash-briefer 真实重部署 200
+（水线豁免+kept 键重校验路径）；三 runner 余量 2854/768/573 全 ≥512 与 ADMIT 一致；
+新套件 `scripts/test-opening-gates.mjs` 8/8（closed 文案逐字节/open 双路径/水位四态）。
+
 ### 事件通知（add-agent-notifications，2026-10-03）
 
 **契约面（pack 作者视角）**：每个部署的 child 组合经桥行获得一个 `bot_notify` 工具

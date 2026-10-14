@@ -115,9 +115,26 @@ try {
       console.log("[smoke] dialog text:\n---\n" + (await dialog.innerText()) + "\n---");
     }
     await page.keyboard.press("Escape");
-    await dialog.waitFor({ state: "hidden", timeout: 10_000 }).catch(() => {
-      console.log("[smoke] WARN: dialog still visible after Escape");
-    });
+    const closedOnce = await dialog
+      .waitFor({ state: "hidden", timeout: 10_000 })
+      .then(() => true)
+      .catch(() => false);
+    ok("detail dialog closes on Escape", closedOnce);
+    if (closedOnce) {
+      // Regression guard (fixed 7d89a91, image sha-09989ff): the detail fetch
+      // still in flight at close time used to resolve late and re-open the
+      // dialog. The upstream fetch has a 10s timeout, so watch for 12s.
+      let reopened = false;
+      const deadline = Date.now() + 12_000;
+      while (Date.now() < deadline) {
+        if ((await page.getByTestId("external-entry-detail").count()) > 0) {
+          reopened = true;
+          break;
+        }
+        await page.waitForTimeout(500);
+      }
+      ok("dialog stays closed after in-flight fetch resolves", !reopened);
+    }
   }
 
   console.log("\n[smoke] external API calls observed:");

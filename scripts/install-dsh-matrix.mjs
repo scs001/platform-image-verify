@@ -57,9 +57,14 @@ for (const f of ["package.json", "package-lock.json", ".npmrc"]) {
   if (existsSync(src)) cpSync(src, path.join(STAGING, f));
 }
 try {
+  // shell:true so Windows resolves `npm` → npm.cmd (a .cmd batch file that
+  // execFileSync cannot exec without a shell; same trap postinstall-web.js
+  // documents — release run 38539016384: `staging npm ci failed: spawnSync
+  // npm ENOENT` on windows-latest).
   execFileSync("npm", ["ci", "--no-audit", "--no-fund", "--omit=optional"], {
     cwd: STAGING,
     stdio: ["ignore", "inherit", "inherit"],
+    shell: process.platform === "win32",
   });
 } catch (err) {
   console.error(`❌ staging npm ci failed: ${err?.message || err}`);

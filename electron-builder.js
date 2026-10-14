@@ -42,7 +42,14 @@ const config = {
   appId: "com.earendil.platform",
   productName,
   icon,
-  directories: { output: "dist" },
+  // `app` pinned to the project root, explicitly. Without it electron-builder
+  // probes DEFAULT_APP_DIR_NAMES = ["app", "www"] and finds the MOBILE Expo
+  // app under ./app (add-mobile-app, 2026-10-10) — whose package.json says
+  // main: "expo-router/entry" — then treats it as the desktop app directory
+  // and dies in sanityCheckPackage ("Application entry file …/app/expo-router/
+  // entry does not exist", release run 38539016384). v1.3.8 shipped before
+  // ./app existed, so the collision was latent until the next desktop build.
+  directories: { output: "dist", app: "." },
   asar: false,
   // Native addons (better-sqlite3, tree-sitter, fsevents) run under the BUNDLED
   // Node (resources/node), not Electron's Node - so do NOT rebuild them for

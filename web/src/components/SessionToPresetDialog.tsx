@@ -140,7 +140,9 @@ export function SessionToPresetDialog({ sessionId, agentPreset, onOpenChange }: 
     });
   };
 
-  const examples = picked.map((i) => userMsgs[i]).filter((s) => s.length <= MAX_EXAMPLE_CHARS);
+  const examples = picked
+    .flatMap((i) => (userMsgs[i] === undefined ? [] : [userMsgs[i]]))
+    .filter((s) => s.length <= MAX_EXAMPLE_CHARS);
 
   const save = async () => {
     if (mode === "update" && !targetId) {

@@ -82,6 +82,17 @@ siliconflow、websearch=serpapi（search-relay 既有 key 池可播种）。
 - **TCR 同 tag 覆写坑（首跑实证）**：relay seen 账本挡同 tag 重灌（手动补单也
   不覆写 ccr 侧 manifest）→ **部署永远引用 sha tag**（IfNotPresent 同 tag 不
   重拉 + relay 语义 tag 停旧，双重理由）；语义 tag 只作命名锚点。
+- **快照旗标语反转坑（10-14 实锤）**：`fd-build-snapshot --keep-workflows` 语义=
+  「同步**源仓自带** .github」（供要带 workflows 的仓用），**不是**「保留目标仓
+  workflows」——sub2api 快照线误传该旗标会把上游四套 workflow 同步进镜像仓、
+  **删掉 image.yml** 并触发上游 CI/CLA/Security/Release 烧额度。**正确用法=
+  不传旗标**（默认排除 /.github=保护目标仓 workflows+免 macOS×10 误触）。
+  事故修复配方：`gh run cancel` 两个误触 run → clone 镜像仓 `git checkout
+  <上一好提交> -- .github/workflows/image.yml` + 删上游 workflows → push
+  （image.yml 随修复提交自动重触发）。本次损耗 ~3 分钟额度。
+- **ciyuan-tag 文件进 fork 仓**（10-14 起）：下一版语义 tag 声明从镜像仓专属文件
+  改为 fork 仓 tracked 文件（rsync --delete 镜像模式下仓库根额外文件会被删）；
+  快照自动携带，release 时改此文件+快照即出正确 VERSION。
 - TCR：hkccr `finddata/sub2api` 首推自建成功；ccr 侧同库 0.2.7 在用历史。
 
 **升级配方（照单执行）**：快照推 law-ai 仓（先改 `ciyuan-tag`，workflow 自动

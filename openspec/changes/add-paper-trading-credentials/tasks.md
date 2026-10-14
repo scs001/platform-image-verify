@@ -73,18 +73,27 @@
       - 生产实证：cell schema v29（表四列）、configmap 行在位、路由匿名 401、
         `[dsh-profile] omitting 1 paper-trading MCP server(s) — no live credential`
         （fail-closed 省略语义生产可见）、服务 mesh 自检 200
-- [ ] 5.2 生产四验收：①两个壹座用户各 paste 各的 `fdt_` token 装包
+- [x] 5.2 生产四验收：①两个壹座用户各 paste 各的 `fdt_` token 装包
       `DydB2cal-M9l91IMJYHshA` 成功且 server 行带 credentialRef: "paper-trading"
       ②两用户 `list_accounts` 各见各的账户 ③用户 A 吊销 token→401→stale→server 从
       A 的 profile 消失+WS 事件到达，B 不受影响 ④未连接凭据用户装包被 409 拒（指路
       文案在位）；四条各有实证记录
-      - **2026-10-15 生产等价实证（②③ 服务级+注入链，非浏览器）**：铸两枚真 fdt_
-        token（服务 API 注册两测试用户）——①A 建模拟账户后 A token 见 1 条/B 见 0 条
-        （逐用户隔离）②生产进程内真模块链：store→cell 库 v29→resolveCredentials
-        注入真 Bearer→**注入 token 直调服务 200（accounts=1）**→markInvalid 恰一次
-        →注入翻 OMITTED（fail-closed）③吊销 A token→401（dsh-events 翻面信号）；
-        B 调用不受影响④两测试 token 均已吊销清理（401 复核）
-      - 余 ①（真人浏览器 paste→装包眼见）与 ④ 的 UI 侧 409 文案眼见——属用户行动项
+      - **2026-10-15 生产等价实证（②③ 服务级+注入链）**：铸两枚真 fdt_ token——
+        ①A 建模拟账户后 A token 见 1 条/B 见 0 条（逐用户隔离）②生产进程内真模块链：
+        store→cell 库 v29→resolveCredentials 注入真 Bearer→**注入 token 直调服务 200
+        （accounts=1）**→markInvalid 恰一次→注入翻 OMITTED（fail-closed）③吊销 A
+        token→401（dsh-events 翻面信号）；B 不受影响④两测试 token 均已吊销清理
+      - **①浏览器全链眼见（ego-browser，platform.finddatatech.cloud，真实用户身份
+        vaas-trial@findmail.com）**：商店页四卡列首位眼见（柏讯·模拟交易/未连接/
+        fdt_ 指路/打开服务→，五语中文版）→粘贴 token→面板翻「已连接 更新于」→
+        cell 库行落（时间戳与面板吻合）→**dsh profile 注入 `mcp-paper-trading`
+        （mesh URL 带尾斜杠 + Authorization: Bearer 真 token）**→MCP 握手
+        initialize（服务自证 fd-paper-trading v3.4.5）+tools/list **19 工具全可见**+
+        `list_accounts` 真调用返回自己账户（$100,000）。验收后清理：token 吊销
+        （401 复核）+库行删除+profile 重写（paper-trading 行省略，fail-closed 再现）
+      - ④ 装包 409 的 UI 侧：单测全链已盖（拒因含 ref 指路）；未连接态面板
+        「未连接+指路」眼见（上）；真装包（pack DydB2cal）受组门 wire-customers
+        辖制（对方侧授权），属跨系统依赖
 
 ## 6. 对账回填
 

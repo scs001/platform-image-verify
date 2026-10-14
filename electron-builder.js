@@ -129,6 +129,14 @@ const config = {
     "lib/**",
     "server/**",
     "gateway/**",
+    // services/ joined the runtime graph late (add-search-byok's
+    // lib/scoped-relay-token.js → services/search-relay, ops-console) and
+    // was never added here — v1.3.10's exe died on
+    // "Cannot find services/search-relay/scoped-token.js" (debug run
+    // 38558581131). keys.json is gitignored real credentials: the CI
+    // checkout never has it, but a LOCAL dist build would leak it.
+    "services/**",
+    "!services/**/keys.json",
     // dsh profile scaffold + bridge plugin, materialized at runtime
     "dsh-profile-template/**",
     // root runtime data files (bundled market catalog, llm defaults, replay

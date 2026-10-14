@@ -2,7 +2,9 @@
 
 ## Purpose
 TBD - created by archiving change e2e-tests-and-bugfixes. Update Purpose after archive.
+
 ## Requirements
+
 ### Requirement: Keyboard shortcut toggles all thinking blocks
 The chat UI SHALL support a keyboard shortcut (`Ctrl+O` or `Cmd+O` on macOS) to toggle the expansion state of all activity groups simultaneously.
 
@@ -12,12 +14,33 @@ The chat UI SHALL support a keyboard shortcut (`Ctrl+O` or `Cmd+O` on macOS) to 
 - **AND** the inner per-block collapse states SHALL NOT be affected
 
 ### Requirement: Assistant text is streamed to clients as deltas
-The server SHALL stream assistant text to connected WebSocket clients as incremental `text` events (`{ type: "text", delta }`) as the model produces output, so the UI updates live during a turn.
+The server SHALL stream assistant text to connected WebSocket clients as incremental `text` events (`{ type: "text", delta }`) as the model produces output, so the UI updates live during a turn. On the 0.2.0 runtime generation the deltas SHALL be sourced from the runtime's assistant-stream channel (frames forwarded by the in-child bridge plugin and keyed by session), not from session-event chunk notifications — which the 0.2.0 session format no longer emits. The bridge SHALL advertise the stream forwarding via the runtime capability surface; when the capability is absent (older runtime or bridge not activated), the server SHALL fall back to emitting the turn's settled assistant text once at settlement, per the exactly-once requirement below. Reasoning deltas arriving on the same channel SHALL be forwarded as `thinking` events (`{ type: "thinking", delta }`), preserving live activity rendering.
 
 #### Scenario: streamed text appears live
 - **WHEN** the model emits a text delta during a turn
 - **THEN** the server SHALL broadcast a `text` event carrying that delta
 - **AND** the UI SHALL append the delta to the current assistant bubble
+
+#### Scenario: deltas arrive from the runtime's assistant-stream channel
+- **WHEN** a turn streams on a 0.2.0-generation runtime with the bridge's stream forwarding active
+- **THEN** the server SHALL receive the stream frames forwarded by the bridge, keyed to the streaming session
+- **AND** SHALL map each text delta to a `text` viewer event without waiting for the turn or step to settle
+- **AND** session-event notifications SHALL NOT be relied on to carry those deltas
+
+#### Scenario: reasoning deltas keep the activity stream live
+- **WHEN** the runtime forwards a reasoning delta frame during a turn
+- **THEN** the server SHALL broadcast a `thinking` event carrying that delta
+- **AND** the collapsed-activity rendering SHALL reflect live thinking without tool execution
+
+#### Scenario: capability absence degrades to settled text
+- **WHEN** the runtime's capability surface does not advertise stream forwarding
+- **THEN** live `text`/`thinking` delta broadcast SHALL be absent for the turn
+- **AND** the turn's settled assistant text SHALL be emitted exactly once at settlement (per the exactly-once requirement), so the transcript never ends up without visible body text
+
+#### Scenario: stream failures surface as turn errors
+- **WHEN** the runtime forwards a finish frame carrying an error for the session's in-flight request
+- **THEN** the server SHALL capture the failure for the affected turn
+- **AND** the turn SHALL end with the error surfaced per the failure-rendering behavior, not silently
 
 ### Requirement: Each assistant text segment is emitted exactly once per turn
 The server SHALL deliver each assistant text segment to clients exactly once per turn. The server SHALL NOT re-broadcast the full assistant text on both `message_end` and `agent_end`; the final text SHALL be emitted at most once, and only as a fallback when no text was streamed during the turn (e.g. a non-streaming model response).
@@ -161,6 +184,7 @@ After a socket reconnect, the client SHALL re-sync the active session (send `swi
 - **WHEN** the socket never reconnects after a drop
 - **THEN** the client SHALL keep the transient connection-lost state without finalizing the turn
 - **AND** a later page load SHALL show the server's authoritative transcript
+
 ### Requirement: Stop and session-switch cancel the turn via the bridge
 
 用户停止与切会话停流 SHALL 经 `session/cancel` RPC 真中断目标会话的活跃回合（见 live-runtime-control），SHALL NOT 以重启子进程方式停流。取消后的回合 SHALL 以中止态收尾：`error`（如适用）→ `done` 播报照常，目标会话的流状态复位。客户端的视图级停止（`stopStreaming`）保留为降级路径（桥未声明能力时）。

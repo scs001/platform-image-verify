@@ -44,7 +44,8 @@
 2. **Smithery 条款 ✅（含一条所有权变化）**：官方 OpenAPI 规范已发布（Stainless 托管 `openapi.documented.yml`，`/skills` 为文档化公开读端点，读操作免鉴权是设计而非疏漏）；Arcade.dev ToS（Smithery 2026 已并入 Arcade）未见公开目录元数据的再分发禁令，「Unauthorized sharing or reselling」条款指服务本身。**本次依赖的合规底线 = 只读展示元数据 + 来源归属（originUrl 外链）**，已满足。⚠️ **所有权变更记风险**：API 若未来收敛为需 key，快照 stale 姿态 + `EXTERNAL_SKILL_SOURCES` 关源开关即为降级路径。
 3. **关源演练 ✅**：生产容器内实测三态——默认两源、`skillhub` 单源（smithery 不再请求）、`none` 全关（空清单），searchAll 分组与 `isEnabled` 均按语义行为。
 4. **生产数据通路 ✅**：生产容器内直跑适配器打真实上游，双源各返回 3 条归一化条目（licenseState=unknown 正确、originUrl 真实）；生产前端懒加载 chunk（`ExtensionsPage-UlDl3Pu8.js`）含 `extensions-tab-external` / `external-source-shelf` / `external-group` 全部本 change 标记。
-5. **UI 眼见**：生产域名有登录墙（AUTH_MODE=logto），agent 侧无真人会话，**浏览器级别的最终一眼（登录后开 tab 看渲染）留给人工**——代码层与数据层均已实证，仅剩视觉确认这一步。
+5. **UI 眼见 ✅（登录后生产实证，2026-10-15）**：`scripts/verify-live-external-sources.mjs` 以 .env 测试账号走真 Logto 登录链（平台 /login 是壳 → `sso-login` 跳 auth 域英文两步表单 → 回跳），在生产域名开 `extensions-tab-external`、对两上游市场跑真搜索（`pdf`）、进详情弹窗，**10/10 ALL PASS**：无 flag 下 tab 可见 / 两源分组渲染（腾讯 SkillHub 20 entries + Smithery）/ 许可证三态 chip + 「未经本平台审校」标 / 货架零安装按钮 / 详情弹窗（Pdf 条目 + 「Open upstream page」外链）/ search API 200 且 `groups=[skillhub, smithery]`。真回合外两源均返回生产数据。截图 `/tmp/external-shelf-prod.png`（画面中白卡 = 详情弹窗本身，非登录页——innerText dump 实证）。
+6. **真缺陷修复（上面眼见带出）✅**：Escape 关详情弹窗时若详情 fetch 仍在途，晚到的 `setDetail` 会把弹窗弹回（生产探针实证：Escape→hidden 后 dialog count 仍 = 1）。修 = `ExternalSourceTab` 详情请求加 seq 失效门（close 使在途请求作废）；e2e 新回归用例先红后绿（延迟路由 + Escape → 弹窗必须保持关闭），external-sources 5/5、extensions 20/20、typecheck/lint 全绿。修复随下一版镜像滚产。
 
 ## 证据链（探索底稿，2026-10-14 四路调研 + 20 项亲手核验）
 

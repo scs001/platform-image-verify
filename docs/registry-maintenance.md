@@ -160,3 +160,13 @@ MCP server 接入系统供给层的统一上牌契约，出自 openspec change *
 **验收**（生产实证）：启动日志 fastembed 双 worker loaded + /health healthy + 公网 200/401；容器内 `SkillRegistrationRequest.model_fields` 含 `skill_md_content`；**真 HTTP 端到端探针**（wanxing-facade pod 内以 AGENT_SERVING_REGISTRY_TOKEN，即部署同款鉴权）：POST 注册一次性技能 201 → PUT 带 `skill_md_content` 200 且卡片回显正文 → GET content 200 `source:inline` 直取探针正文 → DELETE 204 清场。**下次 spider-heal 升级（v11）即首次自然传播**，事后 mongosh 三查（content=新版本正文/raw_url=v11/content_updated_at 滚动）。
 
 **运维备注**：换版前盘 97%，清掉 auth 家族陈旧 `sha-0aad2b5`（quota 发布的回滚梯；不可变 tag 仍在 ccr，需回滚时重拉即可）。备份 `.bak-fd122-skillprop`（compose+.env）。回滚=compose 行回 `sha-c9a2015`（本地在）+ `up -d --no-deps registry`。
+
+### 9.4 add-packs-product-home 发布记录（fd-1.4.0，2026-10-15 上线）
+
+**产品门面**（openspec `add-packs-product-home`，paas 仓）：匿名 `GET /` 分流出壹座·Packs 落地页（价值主张+三步上手+市场计数+开发者入口；基线资产 `registry/static_landing/` 入镜像，`LANDING_ASSETS_DIR` ConfigMap 覆盖、滚动生效不热更）；`GET /api/public/summary` 匿名聚合计数+策展精选（public+enabled 过滤器+handler 内二重复核、卡片 allowlist 无后端地址、策展条目失效静默剔除）；品牌串→Yizuo Packs（zh=壹座·Packs）。分支 fd-product-home（6225f1af+f8ccd531），本地 13 新测试全绿+13 预存红 worktree 基线实证；i18n:scan 1301/1301 PASS。
+
+**出片改道**：FindDataTechnology 私有池额度尽（FDT 2011/2000，判红两分法 7 秒终 run 实锤）→ `testaction005/build-pool` 快照线（`fd-build-snapshot --ref fd-product-home`；**坑×2 在册**：①工具默认 clone origin/main，分支快照必须显式 `--ref`；②先推后设 BUILD_* 变量=run 读到空值必炸，dispatch 重跑即愈）。镜像 `sha-689ec5e`（BUILD_VERSION=fd-1.4.0，digest 7784b015，relay OK+ccr skopeo 实证）。
+
+**滚动实录（三段）**：GitOps 0f6a9f1（registry.yaml 换 tag+新增 `landing-config` ConfigMap 挂 `/app/public-featured`）→ ArgoCD hard refresh，pod 新镜像 Running。**但公网仍 fd-1.3.0——双宿主收口**：cheap-1 compose 栈（sha-adeac80）仍占 `100.64.0.11:18080`，Caddy 三处上游原指它 → 切 `100.64.0.15:18080`（cheap-8 k8s pod，Caddyfile.bak-producthome-* 备份）→ 公网过 k8s。**再修 `/api/version` 显示**：外建 Secret `mcp-registry-env` 内 `BUILD_VERSION=fd-1.3.0` 覆盖镜像 ENV（镜像本身正确）→ patch secret=fd-1.4.0+rollout restart。onboard-registry-argocd 的「compose 双轨观察期」至此**完全收口**（cheap-1 compose 栈仍在跑但已无公网流量，退役另案）。
+
+**验收（生产探针 2026-10-15）**：匿名 `/` 200 渲染落地页（landing-hero 锚点）零跳转；携 `mcp_gateway_session` cookie 200 返回 SPA 壳（无 landing 锚点）；`/login` 与 `/api/stats` 401 语义不变；`/api/public/summary` 匿名 200 `{servers:12, agents:10, skills:128}` featured=[]（策展空=基线策略）、未知条目 404 不泄露；`/api/version`=`fd-1.4.0` + `ui_title=壹座·Packs`。应用中心「壹座·Packs」卡片换链 `https://mcp.finddatatech.cloud`（paas fd42437，app-center e2e 4/4 绿）。回滚：GitOps 回 0f6a9f1 前 tag（sha-a95f7a0 本地有）+ Caddyfile.bak-producthome-* 复原。

@@ -37,6 +37,7 @@ pytest → CI 两套绿 → 标准线发布）；**功能永不并入**。每条
 | 日期 | 上游 | 摘要 | 移植提交 | 测试凭证 | 发布 |
 |---|---|---|---|---|---|
 | 2026-10-05 | `1.32.0`（收敛基线，非摘取） | 基线记录：1.30→1.32 全量安全修复随收敛继承（读面越权过滤、url_guard、forward-proxy egress 等） | fd-1.0.0 支线 | CI 两套全绿 + 上线探针 | `sha-7fbc2d6` |
+| 2026-10-15 | —（自研 feature，非上游） | **fd-1.4.0 产品门面**（openspec `add-packs-product-home`）：匿名 `/` 分流出壹座·Packs 落地页（基线资产入镜像+`LANDING_ASSETS_DIR` ConfigMap 覆盖、滚动生效）；`GET /api/public/summary` 匿名聚合计数+策展精选（public+enabled 双重复核、卡片 allowlist 无后端地址、`PUBLIC_FEATURED_JSON` 策展）；品牌串 AI Gateway & Registry→Yizuo Packs（zh=壹座·Packs）；BUILD_VERSION 默认 fd-1.4.0 | fd-product-home 分支 `6225f1af`+`f8ccd531` | 本地新增 13 测试全绿（summary 7+root-split 6）+13 预存红基线 worktree 实证；i18n:scan 1301/1301；**私有池额度尽→testaction005/build-pool 快照线出片**（快照 sha-b0fb497→**sha-689ec5e**） | `sha-689ec5e`（digest 7784b015，ccr 实证） |
 
 ## 四、操作配方
 

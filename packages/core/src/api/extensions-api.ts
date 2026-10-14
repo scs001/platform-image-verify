@@ -48,6 +48,11 @@ export interface Skill {
   description: string;
   source: "file" | "database";
   enabled: boolean;
+  // add-external-skill-install (刀二): a multi-file / externally-installed
+  // skill's auxiliary file paths and provenance, so clients can tell it apart
+  // from a locally authored single-file skill. Absent for legacy rows.
+  files?: string[];
+  originMeta?: Record<string, unknown> | null;
 }
 
 export interface MarketMcpServer {

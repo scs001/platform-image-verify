@@ -224,6 +224,21 @@ test("real routes: preview + install against an injected registry (confirm enfor
       body: JSON.stringify({ source: "skillhub", slug: "ep-demo", confirm: true }),
     })).json();
     assert.equal(again.replaced, true);
+
+    // 3.4: the skills listing carries the auxiliary file paths + provenance
+    // (paths only — contents stay server-side), and legacy single-file rows
+    // carry neither.
+    const listed = await (await fetch(`${base}/api/extensions/skills`)).json();
+    const installed = listed.skills.find((s) => s.name === "ep-demo");
+    assert.ok(installed, "installed skill appears in the listing");
+    assert.deepEqual(installed.files, ["scripts/a.py"], "listing exposes auxiliary paths only");
+    assert.equal(installed.originMeta.source, "skillhub", "listing exposes external provenance");
+    assert.equal(typeof installed.originMeta.upstreamName, "string", "upstream name preserved for display");
+    const legacy = listed.skills.find((s) => s.source === "database" && s.name !== "ep-demo");
+    if (legacy) {
+      assert.equal(legacy.files ?? null, null, "legacy rows list no auxiliary files");
+      assert.equal(legacy.originMeta ?? null, null, "legacy rows list no provenance");
+    }
   } finally {
     server.close();
   }

@@ -238,6 +238,11 @@ export function registerExtensionRoutes(ctx) {
           origin: "user",
           locked: false,
           permissions: null,
+          // add-external-skill-install (刀二 3.4): auxiliary file PATHS only
+          // (contents stay server-side) + external provenance when present;
+          // both null/absent for every legacy single-file row.
+          files: s.files ? Object.keys(s.files) : null,
+          originMeta: s.originMeta ?? null,
         }))
       : [];
     res.json({ skills: [...fileSkills, ...customSkills] });

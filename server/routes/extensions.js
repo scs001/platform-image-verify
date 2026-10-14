@@ -4,10 +4,20 @@ import { getFileSkills } from "../skills.js";
 import { getMarketEntries, getSkillContent } from "../../registry-bridge.js";
 import * as registryCredentials from "../../registry-credentials.js";
 import { getPreflightStatus } from "../../mcp-preflight.js";
+import { createExternalSourceRegistry, requestedPageSize } from "../../external-sources.js";
 
 export function registerExtensionRoutes(ctx) {
   const { app, db, extensionStore, skillMaterialize, broadcast } = ctx;
   const bundle = ctx.bundle;
+
+  // External skill-source mirror (add-external-skill-sources 刀一): a
+  // read-only shelf of external market metadata. No install path exists by
+  // spec — these endpoints never touch the database, the skill store, or the
+  // materialization tree; their only state is the snapshot cache inside the
+  // registry. Same read posture as the market catalog GET (viewer-aware, no
+  // admin gate).
+  const externalSources = createExternalSourceRegistry({ env: process.env });
+  const pageSize = () => requestedPageSize(process.env.EXTERNAL_SOURCE_PAGE_SIZE);
 
   const requireMcpManage = (req, res) => {
     if (!ctx.requireMcpManage(req, res)) return false;
@@ -370,6 +380,45 @@ export function registerExtensionRoutes(ctx) {
         return res.status(409).json({ error: `Skill "${name}" already exists` });
       }
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── External skill sources (read-only mirror, add-external-skill-sources) ──
+
+  // Enabled sources + health, for the shelf's initial render (which tabs of
+  // data to expect and how to caption them).
+  app.get("/api/extensions/external/sources", (_req, res) => {
+    res.json({ sources: externalSources.enabled });
+  });
+
+  // Aggregated search: fan out server-side (the browser never talks to the
+  // external APIs — spec), top-N per source, grouped as returned. A failing
+  // source yields its own failed/stale group; it never fails the response.
+  app.get("/api/extensions/external/search", async (req, res) => {
+    const q = String(req.query.q ?? "").trim();
+    if (!q) return res.status(400).json({ error: "Missing q" });
+    if (q.length > 200) return res.status(400).json({ error: "q too long" });
+    try {
+      const groups = await externalSources.searchAll(q, pageSize());
+      res.json({ query: q, groups });
+    } catch (err) {
+      res.status(502).json({ error: `External source aggregation failed: ${err.message}` });
+    }
+  });
+
+  // One entry's detail, resolved through the same snapshot cache. A disabled
+  // or unknown source resolves to null → 404 (no data is invented).
+  app.get("/api/extensions/external/entry/:source/:slug", async (req, res) => {
+    const { source, slug } = req.params;
+    if (!source || !slug || String(slug).length > 200) {
+      return res.status(400).json({ error: "Bad source or slug" });
+    }
+    try {
+      const out = await externalSources.getEntry(source, String(slug));
+      if (!out) return res.status(404).json({ error: "Entry not found" });
+      res.json(out);
+    } catch (err) {
+      res.status(502).json({ error: `External source fetch failed: ${err.message}` });
     }
   });
 }

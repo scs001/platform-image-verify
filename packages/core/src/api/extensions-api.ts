@@ -424,3 +424,71 @@ export async function installRegistrySkill(name: string): Promise<void> {
     throw new Error(err.error || `Failed to install skill: ${res.statusText}`);
   }
 }
+
+// ── External skill sources (add-external-skill-sources 刀一, read-only) ──────
+
+export interface ExternalSourceInfo {
+  id: string;
+  displayName: string;
+}
+
+export type ExternalLicenseState = "declared" | "not-declared" | "unknown";
+
+export interface ExternalSkillEntry {
+  source: string;
+  id: string;
+  name: string;
+  displayName: string;
+  description: string;
+  originUrl: string | null;
+  licenseState: ExternalLicenseState;
+  licenseText: string | null;
+  version: string | null;
+  versionLayer: string | null;
+  downloads: number | null;
+  stars: number | null;
+  tags: string[];
+  extras: Record<string, unknown> | null;
+}
+
+export interface ExternalSourceGroup {
+  source: string;
+  sourceDisplayName: string;
+  entries: ExternalSkillEntry[];
+  stale: boolean;
+  snapshotAt: number | null;
+  error: string | null;
+  failed: string | null;
+}
+
+export async function fetchExternalSources(): Promise<ExternalSourceInfo[]> {
+  const res = await http(`${BASE_URL}/external/sources`);
+  if (!res.ok) throw new Error(`Failed to list external sources: ${res.statusText}`);
+  const doc = (await res.json()) as { sources: ExternalSourceInfo[] };
+  return doc.sources ?? [];
+}
+
+export async function searchExternalSkills(
+  query: string,
+): Promise<{ query: string; groups: ExternalSourceGroup[] }> {
+  const res = await http(`${BASE_URL}/external/search?q=${encodeURIComponent(query)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `External search failed: ${res.statusText}`);
+  }
+  return (await res.json()) as { query: string; groups: ExternalSourceGroup[] };
+}
+
+export async function fetchExternalEntry(
+  source: string,
+  slug: string,
+): Promise<{ entry: ExternalSkillEntry; stale: boolean; snapshotAt: number | null }> {
+  const res = await http(
+    `${BASE_URL}/external/entry/${encodeURIComponent(source)}/${encodeURIComponent(slug)}`,
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `External entry fetch failed: ${res.statusText}`);
+  }
+  return (await res.json()) as { entry: ExternalSkillEntry; stale: boolean; snapshotAt: number | null };
+}

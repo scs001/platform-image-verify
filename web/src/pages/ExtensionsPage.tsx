@@ -1,6 +1,8 @@
 // ExtensionsPage.tsx — Dedicated page for managing MCP servers OR skills.
 // Accepts a `type` prop to determine whether to show MCP or Skills management.
 // Used by: /extensions/mcp (MCP), /extensions/skills (Skills).
+// The third tab (external, add-external-skill-sources 刀一) is shared by both
+// sub-views: a read-only mirror of external skill markets, no install path.
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -8,6 +10,7 @@ import { McpInstalledView } from "@/components/extensions/McpInstalledView";
 import { McpMarketView } from "@/components/extensions/McpMarketView";
 import { SkillsInstalledView } from "@/components/extensions/SkillsInstalledView";
 import { SkillsMarketView } from "@/components/extensions/SkillsMarketView";
+import { ExternalSourceTab } from "@/components/extensions/ExternalSourceTab";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import { useEffect } from "react";
 
@@ -15,7 +18,7 @@ export interface ExtensionsPageProps {
   type: "mcp" | "skills";
 }
 
-type Tab = "installed" | "market";
+type Tab = "installed" | "market" | "external";
 
 export function ExtensionsPage({ type }: ExtensionsPageProps) {
   const { t } = useTranslation();
@@ -56,6 +59,17 @@ export function ExtensionsPage({ type }: ExtensionsPageProps) {
           >
             {t("extensions.tabs.market")}
           </button>
+          <button
+            onClick={() => setActiveTab("external")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "external"
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+            data-testid="extensions-tab-external"
+          >
+            {t("extensions.tabs.external")}
+          </button>
         </nav>
       </div>
 
@@ -81,6 +95,7 @@ export function ExtensionsPage({ type }: ExtensionsPageProps) {
               ) : (
                 <SkillsMarketView onInstalled={() => setActiveTab("installed")} />
               ))}
+            {activeTab === "external" && <ExternalSourceTab />}
           </div>
         )}
       </div>

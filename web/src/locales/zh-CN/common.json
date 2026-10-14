@@ -455,7 +455,8 @@
     "description": "管理智能体能用的技能与外部工具。",
     "tabs": {
       "installed": "已启用",
-      "market": "商店"
+      "market": "商店",
+      "external": "外部源"
     },
     "status": {
       "disabled": "已禁用",
@@ -569,6 +570,25 @@
       "emptyHintZeroPaste": "尚未连接任何连接器账号。点「连接新账号」一键完成，无需粘贴令牌；也可以粘贴 PAT。",
       "emptyHintPasteOnly": "尚未连接任何连接器账号。在连接器铸造 PAT 后粘贴到这里。",
       "slotPlaceholder": "账号名（可选）"
+    },
+    "external": {
+      "title": "外部源",
+      "subtitle": "镜像外部技能市场的条目。这些内容未经本平台审校，仅供发现；本页不提供安装。",
+      "searchPlaceholder": "搜索外部技能市场…",
+      "searchButton": "搜索",
+      "empty": "没有匹配的外部条目。",
+      "sourceBadge": "外部源",
+      "resultCount": "{{count}} 条",
+      "stale": "数据滞后 · 更新于 {{time}}",
+      "sourceFailed": "该源暂时不可用",
+      "notReviewed": "未经本平台审校",
+      "openUpstream": "打开上游页面",
+      "version": "版本 {{version}}",
+      "license": {
+        "declared": "许可证：已声明",
+        "not-declared": "许可证：未声明",
+        "unknown": "许可证：未知"
+      }
     }
   },
   "help": {

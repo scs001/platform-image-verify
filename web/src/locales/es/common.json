@@ -455,7 +455,8 @@
     "description": "Gestiona MCP y habilidades para extender tu agente",
     "tabs": {
       "installed": "Habilitadas",
-      "market": "Tienda"
+      "market": "Tienda",
+      "external": "Externas"
     },
     "status": {
       "disabled": "Deshabilitado",
@@ -569,6 +570,25 @@
       "emptyHintZeroPaste": "Aún no hay cuentas del conector. Pulsa «Conectar cuenta» para hacerlo en un clic, sin pegar tokens; también puedes pegar un PAT.",
       "emptyHintPasteOnly": "Aún no hay cuentas del conector. Crea un PAT en el conector y pégalo aquí.",
       "slotPlaceholder": "Nombre de cuenta (opcional)"
+    },
+    "external": {
+      "title": "Fuentes externas",
+      "subtitle": "Entradas reflejadas de mercados de habilidades externos. Sin revisión de esta plataforma — solo descubrimiento; aquí no se instala nada.",
+      "searchPlaceholder": "Buscar mercados de habilidades externos…",
+      "searchButton": "Buscar",
+      "empty": "No hay entradas externas coincidentes.",
+      "sourceBadge": "externa",
+      "resultCount": "{{count}} entradas",
+      "stale": "obsoleto · actualizado {{time}}",
+      "sourceFailed": "esta fuente no está disponible temporalmente",
+      "notReviewed": "sin revisión de esta plataforma",
+      "openUpstream": "Abrir página de origen",
+      "version": "versión {{version}}",
+      "license": {
+        "declared": "Licencia: declarada",
+        "not-declared": "Licencia: no declarada",
+        "unknown": "Licencia: desconocida"
+      }
     }
   },
   "help": {

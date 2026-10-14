@@ -455,7 +455,8 @@
     "description": "Gérez MCP et les compétences pour étendre votre agent",
     "tabs": {
       "installed": "Activées",
-      "market": "Boutique"
+      "market": "Boutique",
+      "external": "Externes"
     },
     "status": {
       "disabled": "Désactivé",
@@ -569,6 +570,25 @@
       "emptyHintZeroPaste": "Aucun compte connecteur pour l'instant. Cliquez sur « Connecter un compte » — en un clic, sans collage de jeton ; le collage d'un PAT reste possible.",
       "emptyHintPasteOnly": "Aucun compte connecteur pour l'instant. Créez un PAT sur le connecteur et collez-le ici.",
       "slotPlaceholder": "Nom du compte (facultatif)"
+    },
+    "external": {
+      "title": "Sources externes",
+      "subtitle": "Entrées miroir des marchés de compétences externes. Non validées par cette plateforme — découverte uniquement ; rien ne s'installe ici.",
+      "searchPlaceholder": "Rechercher dans les marchés externes…",
+      "searchButton": "Rechercher",
+      "empty": "Aucune entrée externe correspondante.",
+      "sourceBadge": "externe",
+      "resultCount": "{{count}} entrées",
+      "stale": "périmé · mis à jour {{time}}",
+      "sourceFailed": "cette source est temporairement indisponible",
+      "notReviewed": "non validé par cette plateforme",
+      "openUpstream": "Ouvrir la page amont",
+      "version": "version {{version}}",
+      "license": {
+        "declared": "Licence : déclarée",
+        "not-declared": "Licence : non déclarée",
+        "unknown": "Licence : inconnue"
+      }
     }
   },
   "help": {

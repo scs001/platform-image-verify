@@ -455,7 +455,8 @@
     "description": "MCPとスキルを管理して、エージェントを拡張します",
     "tabs": {
       "installed": "有効",
-      "market": "ストア"
+      "market": "ストア",
+      "external": "外部"
     },
     "status": {
       "disabled": "無効",
@@ -569,6 +570,25 @@
       "emptyHintZeroPaste": "まだコネクタアカウントがありません。「アカウントを接続」ならワンクリックで完了し、トークンの貼り付けは不要です。PAT の貼り付けでも接続できます。",
       "emptyHintPasteOnly": "まだコネクタアカウントがありません。コネクタで PAT を発行してここに貼り付けてください。",
       "slotPlaceholder": "アカウント名（任意）"
+    },
+    "external": {
+      "title": "外部ソース",
+      "subtitle": "外部スキルマーケットのミラー項目。当プラットフォームの審査を受けていません — 発見専用で、ここからインストールはできません。",
+      "searchPlaceholder": "外部スキルマーケットを検索…",
+      "searchButton": "検索",
+      "empty": "一致する外部項目はありません。",
+      "sourceBadge": "外部",
+      "resultCount": "{{count}} 件",
+      "stale": "古いデータ · 更新 {{time}}",
+      "sourceFailed": "このソースは現在一時的に利用できません",
+      "notReviewed": "当プラットフォーム未審査",
+      "openUpstream": "上流ページを開く",
+      "version": "バージョン {{version}}",
+      "license": {
+        "declared": "ライセンス：宣言済み",
+        "not-declared": "ライセンス：未宣言",
+        "unknown": "ライセンス：不明"
+      }
     }
   },
   "help": {

@@ -455,7 +455,8 @@
     "description": "Manage MCP and skills to extend your agent",
     "tabs": {
       "installed": "Enabled",
-      "market": "Store"
+      "market": "Store",
+      "external": "External"
     },
     "status": {
       "disabled": "Disabled",
@@ -569,6 +570,25 @@
       "emptyHintZeroPaste": "No connector accounts yet. Click \"Connect account\" for a one-click flow — no token pasting; pasting a PAT also works.",
       "emptyHintPasteOnly": "No connector accounts yet. Mint a PAT on the connector and paste it here.",
       "slotPlaceholder": "Account name (optional)"
+    },
+    "external": {
+      "title": "External sources",
+      "subtitle": "Mirrored entries from external skill markets. Not reviewed by this platform — discovery only; nothing installs from here.",
+      "searchPlaceholder": "Search external skill markets…",
+      "searchButton": "Search",
+      "empty": "No matching external entries.",
+      "sourceBadge": "external",
+      "resultCount": "{{count}} entries",
+      "stale": "stale · updated {{time}}",
+      "sourceFailed": "this source is temporarily unavailable",
+      "notReviewed": "not reviewed by this platform",
+      "openUpstream": "Open upstream page",
+      "version": "version {{version}}",
+      "license": {
+        "declared": "License: declared",
+        "not-declared": "License: not declared",
+        "unknown": "License: unknown"
+      }
     }
   },
   "help": {

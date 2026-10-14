@@ -39,6 +39,8 @@ import {
   Cpu,
   Shield,
   Globe,
+  Download,
+  Star,
   type LucideProps,
 } from "lucide-react";
 
@@ -77,6 +79,9 @@ const ICONS: Record<string, React.ComponentType<LucideProps>> = {
   app: LayoutDashboard,
   // Network search settings (add-websearch-settings)
   globe: Globe,
+  // External skill-source shelf (add-external-skill-sources)
+  download: Download,
+  star: Star,
 };
 
 interface IconProps extends LucideProps {

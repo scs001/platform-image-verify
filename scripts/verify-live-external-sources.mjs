@@ -1,11 +1,14 @@
-// fd-prod acceptance smoke for add-external-skill-sources (2026-10-15).
-// Logs in through Logto with the .env test account, opens the extensions
-// market, switches to the external-source shelf tab, runs one real aggregated
-// search against both upstream markets, and asserts the visible contract:
-// per-source groups, provenance marks (license three-state + not-reviewed),
-// no install affordance, and a working entry detail dialog.
+// fd-prod acceptance smoke for add-external-skill-sources (2026-10-15) AND
+// add-external-skill-install (刀二, 2026-10-15). 刀一 section: logs in through
+// Logto with the .env test account, opens the extensions market, switches to
+// the external-source shelf tab, runs one real aggregated search against both
+// upstream markets, and asserts the visible contract (per-source groups,
+// provenance marks, detail dialog). 刀二 section (INSTALL=1, default on):
+// installs one real SkillHub entry through the UI consent flow, asserts it in
+// the installed list, then uninstalls it back to a clean state.
 //
-//   node scripts/verify-live-external-sources.mjs
+//   node scripts/verify-live-external-sources.mjs          # shelf + install
+//   SKIP_INSTALL=1 node scripts/verify-live-external-sources.mjs  # shelf only
 import { chromium } from "playwright";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -49,7 +52,7 @@ const browser = await chromium.launch();
 const page = await browser.newPage();
 const apiCalls = [];
 page.on("response", async (r) => {
-  if (r.url().includes("/api/extensions/external")) {
+  if (r.url().includes("/api/extensions/external") || r.url().includes("/api/extensions/skills")) {
     let body = "";
     let sources = null;
     try {
@@ -135,6 +138,107 @@ try {
       }
       ok("dialog stays closed after in-flight fetch resolves", !reopened);
     }
+  }
+
+  // ── 刀二: real install through the consent flow, then clean up ─────────────
+  // One real SkillHub entry, by name (the pdf search's first card), installed
+  // end-to-end in the production UI: detail → install button → preview panel
+  // (files, scripts, license) → ack (when scripts) → confirm → success state →
+  // installed list → uninstall. The entry is a real upstream download, so the
+  // script-bearing path (the platform's core governance case) is exercised.
+  if (!process.env.SKIP_INSTALL && cardCount > 0) {
+    const slug = await firstCard.getAttribute("data-testid"); // external-entry-skillhub-<slug>
+    const skillSlug = slug.replace("external-entry-skillhub-", "");
+    // Mirrors external-install.js normalizeSkillName exactly (fold → trim →
+    // ≤64 → strip a trailing hyphen the slice may have exposed).
+    const installedName = skillSlug
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 64)
+      .replace(/-+$/, "");
+
+    // Re-open the detail dialog (it was closed by the Escape regression check).
+    await firstCard.click();
+    await page.getByTestId("external-entry-detail").waitFor({ state: "visible", timeout: 20_000 });
+    const installBtn = page.getByTestId("external-install-button");
+    ok("install button renders in detail dialog", (await installBtn.count()) === 1);
+    await installBtn.click();
+
+    const panel = page.getByTestId("external-install-dialog");
+    await panel.waitFor({ state: "visible", timeout: 30_000 });
+    ok("consent panel opens", true);
+
+    // Preview arrives (a real package fetch happens server-side here).
+    const loadFailed = await page
+      .getByTestId("install-load-error")
+      .waitFor({ state: "visible", timeout: 45_000 })
+      .then(() => true)
+      .catch(() => false);
+    ok("preview loads without error", !loadFailed);
+    if (!loadFailed) {
+      ok("file inventory renders in the panel", (await page.getByTestId("install-file-list").count()) === 1);
+      ok("package always listed honestly (≥1 file)", (await panel.locator('[data-testid="install-file-list"] li').count()) >= 1);
+      const panelText = await panel.innerText();
+      ok("not-reviewed mark present in consent panel", /未经本平台审校|not reviewed/i.test(panelText));
+
+      const ack = page.getByTestId("install-ack-scripts");
+      const needsAck = (await ack.count()) > 0;
+      console.log(`[smoke] package script-gated: ${needsAck}`);
+      if (needsAck) {
+        const confirmBtn = page.getByTestId("install-confirm");
+        ok("confirm is disabled before the script acknowledgement", await confirmBtn.isDisabled());
+        await ack.check();
+      }
+      await page.getByTestId("install-confirm").click();
+
+      const succeeded = await page
+        .getByTestId("install-success")
+        .waitFor({ state: "visible", timeout: 60_000 })
+        .then(() => true)
+        .catch(() => false);
+      if (!succeeded) {
+        const failText = await page
+          .getByTestId("install-failure")
+          .innerText()
+          .catch(() => "(no failure node)");
+        console.log(`[smoke] install failure text: ${failText}`);
+      }
+      ok("install succeeds through the UI", succeeded);
+
+      if (succeeded) {
+        console.log(`[smoke] installed as: ${installedName}`);
+        await page.keyboard.press("Escape"); // close the panel
+        await page.getByTestId("external-install-dialog").waitFor({ state: "hidden", timeout: 10_000 }).catch(() => {});
+
+        // Installed list (tab label is locale-dependent; assert by card attr).
+        await page.getByRole("button", { name: /已启用|Enabled/i }).first().click();
+        const card = page.locator(`[data-testid="skill-card"][data-skill-name="${installedName}"]`);
+        const inList = await card
+          .waitFor({ state: "visible", timeout: 20_000 })
+          .then(() => true)
+          .catch(() => false);
+        ok("installed skill appears in the installed list", inList);
+
+        // The install response shape also landed on the server: the row's
+        // provenance is visible via the API the page itself just used.
+        const skillsApi = apiCalls.find((c) => c.url.endsWith("/api/extensions/skills"));
+        if (skillsApi) console.log(`[smoke] skills listing: ${skillsApi.body.slice(0, 200)}`);
+
+        // Uninstall → back to a clean instance (the probe must not leave state).
+        if (inList) {
+          page.once("dialog", (d) => d.accept()); // the confirm() guard
+          await card.getByRole("button", { name: /删除|delete/i }).click();
+          const gone = await card
+            .waitFor({ state: "hidden", timeout: 20_000 })
+            .then(() => true)
+            .catch(() => false);
+          ok("uninstall removes it from the list", gone);
+        }
+      }
+    }
+  } else if (process.env.SKIP_INSTALL) {
+    console.log("[smoke] SKIP_INSTALL set — install flow skipped");
   }
 
   console.log("\n[smoke] external API calls observed:");

@@ -33,7 +33,7 @@ test.after(() => {
 
 // Boot the singleton against a fresh fixture file; returns the collected
 // broadcast events. Each initTaskEngine resets the in-memory map.
-async function boot(records, runTurn = async () => ({ ok: true })) {
+async function boot(records, runTurn = async () => ({ ok: true }), opts = {}) {
   // Drain the persistence write chain FIRST: mutations persist fire-and-forget
   // (void saveTasks()), so a save still in flight from the previous test can
   // land AFTER the seed write below and clobber it — initTaskEngine then
@@ -47,6 +47,7 @@ async function boot(records, runTurn = async () => ({ ok: true })) {
     broadcast: (e) => events.push(e),
     runTurn,
     isBusy: () => false,
+    ...(opts.workerStats ? { workerStats: opts.workerStats } : {}),
   });
   return events;
 }
@@ -356,4 +357,68 @@ test("runOnPrimary chains a claimed execution back onto the serial queue", async
   assert.equal(primaryRuns, 1);
   assert.equal(engine.getTask("job_1").state, "done");
   await engine.saveTasks();
+});
+
+// ── Fleet stats snapshot (unify-wanxing-management-plane) ────────────────────
+
+test("stats snapshot: counts executions, worker occupancy, and windowed recents", async () => {
+  const now = Date.now();
+  const fresh = new Date(now - 60_000).toISOString();
+  const stale = new Date(now - 3 * 3_600_000).toISOString();
+  await boot([
+    legacyRecord({
+      id: "job_s",
+      prompt: "SECRET-PROMPT-MARKER",
+      history: [
+        { time: stale, success: true, state: "done" },
+        { time: fresh, success: true, state: "done" },
+        { time: fresh, success: false, state: "failed" },
+        { time: fresh, success: false, state: "interrupted" },
+        { time: fresh, success: true, state: null }, // legacy row: derived from success
+      ],
+    }),
+    legacyRecord({ id: "job_q", history: [] }),
+  ]);
+  // job_q persisted as queued: load keeps the in-memory state until the
+  // scheduling front-end drains the repair queue (not booted here).
+  // allRecords() hands the live records — getTask returns a clientShape copy,
+  // so mutating through it would not stick.
+  const live = Object.fromEntries(engine.allRecords().map((t) => [t.id, t]));
+  live.job_q.state = "queued";
+  live.job_s.state = "running"; // live in-flight execution shape
+
+  const snap = engine.stats({ now });
+  assert.equal(snap.jobs, 2);
+  assert.deepEqual(snap.executions, { running: 1, queued: 1 });
+  assert.deepEqual(snap.recent, { done: 2, failed: 1, interrupted: 1 }); // stale row excluded
+  assert.equal(snap.agentBusy, false);
+});
+
+test("stats snapshot: worker occupancy via the injected provider; broken reads empty", async () => {
+  await boot([legacyRecord()], async () => ({ ok: true }), {
+    workerStats: () => ({ cap: 4, busy: 1, idle: 3 }),
+  });
+  assert.deepEqual(engine.stats().workers, { cap: 4, busy: 1, idle: 3 });
+
+  await boot([legacyRecord()], async () => ({ ok: true }), {
+    workerStats: () => {
+      throw new Error("pool gone");
+    },
+  });
+  assert.deepEqual(engine.stats().workers, { cap: 0, busy: 0, idle: 0 });
+});
+
+test("stats snapshot: carries no user content (prompts never leave the cell)", async () => {
+  await boot([legacyRecord({ prompt: "SECRET-PROMPT-MARKER" })]);
+  const serialized = JSON.stringify(engine.stats());
+  assert.ok(!serialized.includes("SECRET-PROMPT-MARKER"));
+  assert.ok(!serialized.includes("morning report"));
+});
+
+test("stats snapshot: side-effect free (repeat calls, queue untouched)", async () => {
+  await boot([legacyRecord()]);
+  const a = engine.stats();
+  const b = engine.stats();
+  assert.deepEqual(a, b);
+  assert.equal(engine.getTask("job_1").state, null); // nothing queued or run by sampling
 });

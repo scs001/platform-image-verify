@@ -33,6 +33,10 @@ let tasks = new Map(); // id -> task record (loaded from disk + live schedule
 let broadcastFn = null;
 let runTurnFn = null;
 let isBusyFn = null;
+// Worker-pool occupancy provider (unify-wanxing-management-plane): injected by
+// the server layer so the stats snapshot can speak for slots this module does
+// not own. Read lazily at snapshot time — the pool attaches after init.
+let workerStatsFn = null;
 // The scheduling front-end refreshes nextRun; the delegation aggregator arms
 // summary injections. Multiple subscribers, order-independent, each guarded.
 const onFinishedHooks = new Set();
@@ -142,10 +146,11 @@ function loadTasks() {
 
 // ── Initialization ──────────────────────────────────────────────────────────
 
-async function initTaskEngine({ broadcast, runTurn, isBusy, onFinished }) {
+async function initTaskEngine({ broadcast, runTurn, isBusy, onFinished, workerStats }) {
   broadcastFn = broadcast;
   runTurnFn = runTurn;
   isBusyFn = isBusy;
+  workerStatsFn = typeof workerStats === "function" ? workerStats : null;
   onFinishedHooks.clear();
   if (onFinished) onFinishedHooks.add(onFinished);
   tasks = new Map();
@@ -505,6 +510,45 @@ function getDashboardState() {
   };
 }
 
+// Fleet telemetry snapshot (unify-wanxing-management-plane): pure counts over
+// the live store for the gateway's read-only relay to the fleet board. Counts
+// and booleans only — prompts and other user content never take this path —
+// and sampling has no side effects: it derives, it never mutates or queues.
+function stats({ now = Date.now(), windowMs = 3_600_000 } = {}) {
+  const executions = { running: 0, queued: 0 };
+  const recent = { done: 0, failed: 0, interrupted: 0 };
+  for (const t of tasks.values()) {
+    if (t.state === "running") executions.running += 1;
+    else if (t.state === "queued") executions.queued += 1;
+    for (const h of Array.isArray(t.history) ? t.history : []) {
+      const ts = Date.parse(h.time || h.completedAt || "");
+      if (!Number.isFinite(ts) || ts < now - windowMs) continue;
+      const state = h.state || (h.success === true ? "done" : h.success === false ? "failed" : null);
+      if (state && Object.hasOwn(recent, state)) recent[state] += 1;
+    }
+  }
+  let workers = { cap: 0, busy: 0, idle: 0 };
+  if (workerStatsFn) {
+    try {
+      const w = workerStatsFn();
+      if (w && typeof w === "object") {
+        workers = {
+          cap: Number(w.cap) || 0,
+          busy: Number(w.busy) || 0,
+          idle: Number(w.idle) || 0,
+        };
+      }
+    } catch { /* a broken provider reads as an empty pool, never fails the snapshot */ }
+  }
+  return {
+    jobs: tasks.size,
+    executions,
+    workers,
+    recent,
+    agentBusy: isBusyFn ? isBusyFn() : false,
+  };
+}
+
 // ── Graceful shutdown ───────────────────────────────────────────────────────
 
 // Timer cancellation is the scheduling front-end's (cron.js owns the
@@ -535,6 +579,7 @@ export {
   broadcastStatus,
   broadcastEvent,
   getDashboardState,
+  stats,
   shutdown,
   SUPPORTED_TARGET_TYPES,
 };

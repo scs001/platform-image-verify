@@ -177,3 +177,20 @@ test("runner sampler: harness rides runner_stats; absence and failures omit the 
   }).sample();
   assert.equal(emitted3.filter((e) => e.kind === "runner_stats").at(-1).payload.harness, undefined, "failure omits the field");
 });
+
+// Density self-report (unify-wanxing-management-plane): the runner_stats row
+// carries the pod co-hosting mode; absent config reads as a solo runner.
+test("runner sampler: runner_stats carries the pod density flag", () => {
+  const emitted = [];
+  const reporter = { emit: (e) => emitted.push(e) };
+  const manager = {
+    health: () => ({ agents: [], children: 0, queued: 0, budget: 0, budgetMb: 3072 }),
+  };
+  createFleetSampler({ manager, reporter, runnerId: "r-pod", podMode: true }).sample();
+  createFleetSampler({ manager, reporter, runnerId: "r-solo" }).sample();
+  const rows = emitted.filter((e) => e.kind === "runner_stats");
+  assert.equal(rows[0].agent, "r-pod");
+  assert.equal(rows[0].payload.pod, true);
+  assert.equal(rows[1].agent, "r-solo");
+  assert.equal(rows[1].payload.pod, false);
+});

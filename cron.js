@@ -18,12 +18,15 @@ const MAX_MISSED_PER_LOAD = 100;
 
 // ── Initialization ────────────────────────────────────────────────────────────
 
-async function initCron({ broadcast, runJobTurn, isBusy }) {
+async function initCron({ broadcast, runJobTurn, isBusy, workerStats }) {
   await engine.initTaskEngine({
     broadcast,
     runTurn: runJobTurn,
     isBusy,
     onFinished: refreshNextRun,
+    // Occupancy provider for the fleet stats snapshot — a closure so the
+    // worker pool (attached after init) is picked up lazily (unify-wanxing-management-plane).
+    workerStats,
   });
 
   // Scheduling pass over the engine's loaded records: downtime accounting

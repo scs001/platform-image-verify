@@ -29,6 +29,7 @@ import { createShareRegistry, createRateLimiter } from "./share.js";
 import { createPackRegistry, registerPackRoutes } from "./packs.js";
 import { registerFacetProxy } from "./facet-proxy.js";
 import { registerWanxingRoutes } from "./wanxing/index.js";
+import { createCellFleetReporter } from "./fleet-cells.js";
 import { createBotWebhookRouter } from "./bot-webhooks.js";
 import Database from "better-sqlite3";
 
@@ -80,6 +81,16 @@ const registry = createCellRegistry({
   // scripts/test-cell-containment.mjs).
   env: process.env,
 });
+
+// Cell fleet telemetry (unify-wanxing-management-plane): read-only short-term
+// execution visibility for the 萬星 board. The gateway samples each live
+// cell's task stats and relays cell_stats to the fleet ingest — inert without
+// FLEET_INGEST_URL/TOKEN (zero behavior change), and one-directional by
+// construction: no control action rides this channel into a cell.
+const cellFleetReporter = createCellFleetReporter({ registry, secret: SECRET });
+if (cellFleetReporter) {
+  console.log("[gateway] cell fleet telemetry armed (FLEET_INGEST_URL)");
+}
 
 // ── Mini-program identity (second front door) ──────────────────────────────
 // Account-binding model: a WeChat openid is bound to a platform (Logto)
@@ -741,6 +752,7 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
     console.log(`[gateway] ${signal} — stopping ${registry.cells.size} cell(s)`);
     try { shareRegistry.close(); } catch (e) { console.error(`[gateway] share registry close failed: ${e.message}`); }
     try { if (packRegistry) packRegistry.close(); } catch (e) { console.error(`[gateway] pack registry close failed: ${e.message}`); }
+    try { cellFleetReporter?.stop(); } catch { /* telemetry timer; unref'd anyway */ }
     await registry.shutdown();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 3000).unref();

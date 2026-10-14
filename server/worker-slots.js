@@ -225,6 +225,12 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
 
   return {
     cap,
+    // Read-only occupancy for the fleet stats snapshot — counts only, never
+    // personas (the WS broadcast carries those for the UI; telemetry does not).
+    poolStats: () => {
+      const busy = [...workers].filter((w) => w.busy).length;
+      return { cap, busy, idle: workers.size - busy };
+    },
     drain: async () => {
       // Aggregator gate (design D4): wait out every in-flight worker turn.
       while ([...workers].some((w) => w.busy)) {

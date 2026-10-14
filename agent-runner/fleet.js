@@ -146,7 +146,7 @@ export function createFleetReporter({
 // array), and the deploy gate reads it off the observer board the same way it
 // reads `models`. Absent provider or a throw → the field is OMITTED (unknown
 // degrades the deploy gate open, exactly like the roster).
-export function createFleetSampler({ manager, reporter, runnerId, rosterProvider = null, harnessProvider = null }) {
+export function createFleetSampler({ manager, reporter, runnerId, rosterProvider = null, harnessProvider = null, podMode = false }) {
   let last = new Map(); // agentKey → state
   let rosterCache = null; // string[] | null — null until the first refresh lands
   const defaultRosterProvider = async () => {
@@ -208,6 +208,10 @@ export function createFleetSampler({ manager, reporter, runnerId, rosterProvider
           agents: h.agents.length,
           ...(Array.isArray(rosterCache) ? { models: rosterCache } : {}),
           ...(harnessList ? { harness: harnessList } : {}),
+          // Density self-report (unify-wanxing-management-plane): fleet views
+          // read this to tell solo runners from pod-cohosting ones; absent on
+          // older runners and read as solo there (degrade open).
+          pod: podMode === true,
         },
       });
     },

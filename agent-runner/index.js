@@ -132,6 +132,8 @@ if (config.fleetUrl) {
     // Harness self-report (add-harness-adapter D5): the deploy gate reads this
     // off the observer board to refuse harness-mismatched placements.
     harnessProvider: () => manager.harnessRegistry.names(),
+    // Density self-report (unify-wanxing-management-plane): pod co-hosting mode.
+    podMode: config.podMode === true,
   });
   manager.events = (ev) => fleetReporter.emit(ev);
   console.log(`[agent-runner:fleet] reporting to ${config.fleetUrl} as ${config.fleetRunnerId}`);

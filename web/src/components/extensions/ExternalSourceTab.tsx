@@ -5,7 +5,7 @@
 // card carries the source badge, the license three-state chip, and the
 // "not reviewed by this platform" mark.
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   fetchExternalEntry,
@@ -50,6 +50,10 @@ export function ExternalSourceTab() {
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<ExternalSkillEntry | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  // Bumped on every open/close so a fetch that resolves after the dialog was
+  // dismissed cannot re-open it with a late setDetail (live-probe regression:
+  // Escape while "Loading…" → dialog popped back open ~1s later).
+  const detailSeq = useRef(0);
 
   const runSearch = useCallback(async (q: string) => {
     if (!q.trim()) return;
@@ -66,16 +70,23 @@ export function ExternalSourceTab() {
     }
   }, []);
 
+  const closeDetail = useCallback(() => {
+    detailSeq.current += 1;
+    setDetail(null);
+    setDetailLoading(false);
+  }, []);
+
   const openDetail = useCallback(async (entry: ExternalSkillEntry) => {
+    const seq = ++detailSeq.current;
     setDetail(entry); // optimistic: card data renders immediately
     setDetailLoading(true);
     try {
       const out = await fetchExternalEntry(entry.source, entry.id);
-      if (out.entry) setDetail(out.entry);
+      if (seq === detailSeq.current && out.entry) setDetail(out.entry);
     } catch {
       // Card data already on screen; the detail fetch failing must not blank it.
     } finally {
-      setDetailLoading(false);
+      if (seq === detailSeq.current) setDetailLoading(false);
     }
   }, []);
 
@@ -175,7 +186,7 @@ export function ExternalSourceTab() {
         </div>
       ))}
 
-      <Dialog open={detail !== null} onOpenChange={(open) => !open && setDetail(null)}>
+      <Dialog open={detail !== null} onOpenChange={(open) => !open && closeDetail()}>
         <DialogContent className="max-w-lg" data-testid="external-entry-detail">
           <DialogHeader>
             <DialogTitle>{detail?.displayName}</DialogTitle>

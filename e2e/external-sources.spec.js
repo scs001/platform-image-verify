@@ -12,7 +12,7 @@
 // failure caption instead of crashing the shelf.
 
 import { test, expect } from "@playwright/test";
-import { baseURL, gotoExtensions } from "./helpers.js";
+import { gotoExtensions } from "./helpers.js";
 
 const SOURCES = { sources: [{ id: "skillhub", displayName: "腾讯 SkillHub" }, { id: "smithery", displayName: "Smithery" }] };
 
@@ -133,6 +133,34 @@ test.describe("External skill-source shelf (read-only mirror)", () => {
     await expect(upstream).toBeVisible();
     await expect(upstream).toHaveAttribute("rel", /noopener noreferrer/);
     await expect(upstream).toHaveAttribute("href", "https://skillhub.cn/skills/pdf-image-text-extractor");
+  });
+
+  test("closing the detail dialog while its fetch is in flight does not reopen it", async ({ page }) => {
+    // Live-probe regression (2026-10-15): the detail fetch resolved after
+    // Escape had closed the dialog and unconditionally re-set the detail
+    // state, popping the dialog back open ~1s later.
+    await page.route("**/api/extensions/external/entry/skillhub/pdf-image-text-extractor", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await route.fulfill({
+        json: { entry: { ...searchDoc().groups[0].entries[0], description: "late detail body" }, stale: false, snapshotAt: Date.now() },
+      });
+    });
+
+    await gotoExtensions(page);
+    await page.getByTestId("extensions-tab-external").click();
+    await page.getByTestId("external-source-search").fill("pdf");
+    await page.getByRole("button", { name: /^search$/i }).click();
+
+    await page.getByTestId("external-entry-skillhub-pdf-image-text-extractor").click();
+    const dialog = page.getByTestId("external-entry-detail");
+    await expect(dialog).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+
+    // The in-flight fetch resolves after the close; the dialog must stay shut.
+    await page.waitForTimeout(2500);
+    await expect(dialog).toBeHidden();
   });
 
   test("a failed source group renders its failure caption without breaking the shelf", async ({ page }) => {

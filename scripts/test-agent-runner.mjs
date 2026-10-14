@@ -2093,3 +2093,89 @@ test("harness dispatch: an unsupported harness fails the cold start structurally
     await h.close();
   }
 });
+
+// ── ACP composition (add-harness-materializer 2.3/2.4) ───────────────────────
+
+const FAKE_ACP_BIN = [process.execPath, path.join(REPO_ROOT_FOR_TESTS, "scripts", "lib", "dsh-contracts", "fake-acp-agent.mjs")];
+
+test("acp composition: pack content lands in the harness-native workspace, never a DSH_HOME", async () => {
+  const entry = { ...ENTRY, metadata: { ...ENTRY.metadata, harness: "acp-claude-code" } };
+  const h = await bootRunner({
+    entries: [entry],
+    skills: POD_SKILLS,
+    config: { acpCommands: { "acp-claude-code": FAKE_ACP_BIN }, acpEnv: { FAKE_ACP_REPLY: "acp 物化完成" } },
+  });
+  try {
+    await h.manager.reconcile();
+    const out = await h.manager.turn(entry, "srv-mat", "你好");
+    assert.match(out.text, /acp 物化完成/, "the turn ran on the ACP harness");
+    // The wire carried the MCP reference in the SDK http shape — the fake
+    // agent echoes what session/new actually received.
+    const m = out.text.match(/ mcp=(\[[\s\S]*\])$/);
+    assert.ok(m, "the reply echoes the wire's mcpServers");
+    assert.deepEqual(JSON.parse(m[1]), [{
+      type: "http",
+      name: "fd-open-data-mcp",
+      url: "https://mcp.example.test/fd-open-data-mcp/mcp",
+      headers: [{ name: "Authorization", value: "Bearer tok" }],
+    }]);
+    const key = agentKeyFor(entry);
+    const ws = path.join(h.config.homeRoot, "ws", key);
+    const claude = readFileSync(path.join(ws, "CLAUDE.md"), "utf8");
+    assert.ok(claude.startsWith("你是严谨的金融分析师。"), "the persona leads the project instructions");
+    assert.ok(claude.includes("standing A2A agent service"), "the serving suffix rides along");
+    assert.ok(existsSync(path.join(ws, ".claude", "skills", "fin-statement-analysis", "SKILL.md")), "the pack skill landed as a native Agent Skill");
+    assert.ok(!existsSync(path.join(h.config.homeRoot, key)), "no DSH_HOME was materialized for the ACP spawn");
+    const child = [...h.manager.children.values()][0];
+    assert.equal(child.adapter.spawnSpec.cwd, ws, "the spawn cwd is the materialized workspace");
+  } finally {
+    await h.close();
+  }
+});
+
+test("acp composition: declared deployment secrets fail closed, not silently", async () => {
+  const entry = { ...ENTRY, metadata: { ...ENTRY.metadata, harness: "acp-fake", secret_refs: { wgk_pat: "ref-1" } } };
+  const h = await bootRunner({ entries: [entry], skills: POD_SKILLS, config: { acpCommands: { "acp-fake": FAKE_ACP_BIN }, respawnAttempts: 0 } });
+  try {
+    await h.manager.reconcile();
+    await assert.rejects(
+      h.manager.turn(entry, "srv-sec", "你好"),
+      (e) => e.code === -32004 && e.cause?.code === "HARNESS_SECRETS_UNSUPPORTED" && /wgk_pat/.test(e.cause.message) && /acp-fake/.test(e.cause.message),
+      "the refusal is structured and names the secret and the harness",
+    );
+    assert.equal(h.manager.children.size, 0, "no half-credentialed child was kept");
+  } finally {
+    await h.close();
+  }
+});
+
+test("acp composition: the deployer's billing key overrides the standing credential", async () => {
+  const entry = { ...ENTRY, metadata: { ...ENTRY.metadata, harness: "acp-fake", billing_key_ref: "bkr-1" } };
+  const h = await bootRunner({
+    entries: [entry],
+    skills: POD_SKILLS,
+    config: {
+      acpCommands: { "acp-fake": FAKE_ACP_BIN },
+      acpEnv: { FAKE_ACP_REPLY: "acp 计费完成", ANTHROPIC_API_KEY: "sk-standing", ANTHROPIC_AUTH_TOKEN: "sk-standing" },
+      packsBaseUrl: "https://packs.example.test",
+    },
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init = {}) => {
+    if (String(url).startsWith("https://packs.example.test/api/packs/internal/llm-key/")) {
+      return { ok: true, status: 200, json: async () => ({ keyValue: "sk-deployer" }) };
+    }
+    return originalFetch(url, init);
+  };
+  try {
+    await h.manager.reconcile();
+    const out = await h.manager.turn(entry, "srv-bill", "你好");
+    assert.match(out.text, /acp 计费完成/, "the turn ran with the deployer's key");
+    const child = [...h.manager.children.values()][0];
+    assert.equal(child.adapter.spawnSpec.env.ANTHROPIC_API_KEY, "sk-deployer", "the deployer key replaced the standing API key");
+    assert.equal(child.adapter.spawnSpec.env.ANTHROPIC_AUTH_TOKEN, "sk-deployer", "and the standing auth token — both, or the SDK would authenticate on the survivor");
+  } finally {
+    globalThis.fetch = originalFetch;
+    await h.close();
+  }
+});

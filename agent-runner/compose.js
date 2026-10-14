@@ -57,7 +57,9 @@ export function homeOwnershipVerdict({ exists, uid, euid, targetUid }) {
   return euid === 0 ? "repair" : "refuse";
 }
 
-function ensureHomeOwnership(home, log) {
+// Shared with compose-acp.js (add-harness-materializer D2): every runner-
+// written tree — dsh home or ACP workspace — falls under the same discipline.
+export function ensureHomeOwnership(home, log) {
   if (process.platform !== "linux") return; // dev hosts carry no uid discipline
   const targetUid = Number(process.env.AGENT_RUNNER_HOME_UID ?? 1000);
   const targetGid = Number(process.env.AGENT_RUNNER_HOME_GID ?? targetUid);

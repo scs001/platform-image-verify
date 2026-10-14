@@ -7,7 +7,10 @@
 //   initialize → agentCapabilities
 //   session/new {cwd, mcpServers} → sessionId (absolute cwd required — the
 //     adapter must send one; a relative path answers an error, the shape the
-//     real agents enforce via validateWorkspaceParams)
+//     real agents enforce via validateWorkspaceParams). The mcpServers array
+//     is recorded per session and echoed into that session's first reply
+//     (` mcp=<JSON>`) — the contract suite's pin that per-deployment MCP
+//     references actually reached the wire (add-harness-materializer 2.1).
 //   session/set_config_option {configId:"model", value: JSON.stringify([provider,model])}
 //   session/prompt → streamed session/update notifications (agent_message_chunk)
 //     + usage_update, ending with stopReason "end_turn"
@@ -79,7 +82,7 @@ async function handle(msg) {
         return;
       }
       const sessionId = `fake-session-${nextSession++}`;
-      sessions.set(sessionId, { cwd, model: null });
+      sessions.set(sessionId, { cwd, model: null, mcp: Array.isArray(params?.mcpServers) ? params.mcpServers : null });
       out({ jsonrpc: "2.0", id, result: { sessionId } });
       return;
     }
@@ -129,7 +132,8 @@ async function handle(msg) {
           if (!parked.has(sessionId)) return; // already cancelled
           parked.delete(sessionId);
           const modelTag = session.model ? ` [${session.model[1]}]` : "";
-          const text = `${REPLY}${modelTag}`;
+          const mcpTag = Array.isArray(session.mcp) && session.mcp.length ? ` mcp=${JSON.stringify(session.mcp)}` : "";
+          const text = `${REPLY}${modelTag}${mcpTag}`;
           const mid = Math.ceil(text.length / 2);
           for (const piece of [text.slice(0, mid), text.slice(mid)]) {
             out({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: piece } } } });

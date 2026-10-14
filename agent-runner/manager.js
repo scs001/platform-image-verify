@@ -63,6 +63,7 @@ function tokensOf(usage) {
   return null;
 }
 import { agentKeyFor, materializeAgentHome, materializePackHome, mcpEntry, packPodEligibility, podKeyFor, applyBillingKey, applyDeploymentSecrets, workspaceChildEnv } from "./compose.js";
+import { materializeAcpWorkspace, acpMcpServers, acpCredentialEnv, acpSecretsRefusal } from "./compose-acp.js";
 
 // Cold-start respawn escalation (fix-agent-serving-stability 2.2): after the
 // child's own initialize retries are exhausted, the manager retries the
@@ -849,6 +850,19 @@ export class ChildManager {
   }
 
   async #spawnChild(key, entry) {
+    // Harness selection (add-harness-adapter D5, hoisted by
+    // add-harness-materializer D1): the descriptor's declared harness wins,
+    // else the runner default. The registry resolves it to an adapter; an
+    // unknown name throws UNSUPPORTED_HARNESS inside create() below (the
+    // deploy gate normally refused earlier — the runner never assumes it
+    // did) and the cold-start escalation retries it like any other spawn
+    // failure. COMPOSITION is harness-aware: an ACP harness branches to its
+    // own materializer and never builds a DSH_HOME; dsh keeps the exact
+    // pre-existing pipeline below.
+    const harnessName = typeof entry.metadata?.harness === "string" && entry.metadata.harness ? entry.metadata.harness : DEFAULT_HARNESS;
+    if (this.harnessRegistry.kindOf(harnessName) === "acp") {
+      return this.#spawnAcpChild(key, entry, harnessName);
+    }
     const { config } = this;
     const descriptor = entry.metadata;
     const skillContents = {};
@@ -915,12 +929,8 @@ export class ChildManager {
     // instead of talking to the previous channel. The handler runs host-side
     // with the runner-held relay credential — the child never holds either.
     const notifyChannel = typeof descriptor.notify_channel === "string" && descriptor.notify_channel ? descriptor.notify_channel : null;
-    // Harness selection (add-harness-adapter D5): the descriptor's declared
-    // harness wins, else the runner default. The registry resolves it to an
-    // adapter; an unknown name throws UNSUPPORTED_HARNESS here (the deploy gate
-    // normally refused earlier — the runner never assumes it did) and the
-    // cold-start escalation retries it like any other spawn failure.
-    const harnessName = typeof descriptor.harness === "string" && descriptor.harness ? descriptor.harness : DEFAULT_HARNESS;
+    // (harness selection lives at the top of #spawnChild — see the acp
+    // dispatch note; the dsh pipeline below is its consumer.)
     const spawnSpec = {
       profile: config.dshProfile,
       patchPaths: spec.patchPaths,
@@ -983,6 +993,97 @@ export class ChildManager {
     }
     // Residency hooks (add-agent-residency): the rollover's deferred day roll
     // rides a warm agent's re-warm. Fire-and-forget — never blocks serving.
+    this.onSpawnHook?.(key, entry);
+    return child;
+  }
+
+  // ── ACP composition (add-harness-materializer D1/D2/D4) ────────────────────
+  // Pack content lands in the layout the ACP binary natively reads — a
+  // private workspace, never a DSH_HOME. The credential honesty matrix lives
+  // here: the deployment's billing key overrides the runner's standing
+  // credential through spawnSpec.acpCredentialEnv (attribution parity with
+  // the dsh path's applyBillingKey); deployment secrets are REFUSED — the
+  // process env is not a controlled channel for an arbitrary ACP binary, and
+  // fail-closed beats the pre-slice④ silent loss into a home nobody read;
+  // tool allowlists degrade open with a warning (no ACP equivalent).
+  async #spawnAcpChild(key, entry, harnessName) {
+    const { config } = this;
+    const descriptor = entry.metadata;
+    const skillContents = {};
+    for (const p of descriptor.skills ?? []) {
+      skillContents[p] = await this.registryClient.fetchSkillContent(p);
+    }
+    const mcpServers = acpMcpServers(descriptor.mcpServers ?? [], this.registryClient, config.registryToken);
+    const spec = materializeAcpWorkspace({
+      homeRoot: config.homeRoot,
+      agentKey: key,
+      entry,
+      skillContents,
+      harnessName,
+      log: this.log,
+    });
+    if (descriptor.mcpTools && typeof descriptor.mcpTools === "object" && Object.keys(descriptor.mcpTools).length > 0) {
+      this.log.warn(`[agent-runner] ${key}: mcpTools allowlist has no ACP-harness equivalent — MCP tools run unscoped (dsh-only depth)`);
+    }
+    const refusal = acpSecretsRefusal(descriptor.secret_refs ?? {}, harnessName);
+    if (refusal) throw refusal;
+    // Per-deployment billing key: fetch by reference (the same route the dsh
+    // path uses), then override the standing credential. A fetch failure
+    // degrades to the standing credential with a warning — verbatim the dsh
+    // contract.
+    let acpCredentialEnvValue = null;
+    const keyRef = descriptor.billing_key_ref;
+    if (keyRef != null && config.packsBaseUrl) {
+      try {
+        acpCredentialEnvValue = acpCredentialEnv(await this.#fetchBillingKeyValue(keyRef));
+        this.log.log(`[agent-runner] ${key} running on its own billing key (ref ${keyRef})`);
+      } catch (e) {
+        this.log.warn(`[agent-runner] billing key fetch failed for ${key} — falling back to the runner-level key: ${e.message}`);
+      }
+    }
+    const budgetMinutes = Number(descriptor.effective_budget_minutes);
+    const hasBudget = Number.isFinite(budgetMinutes) && budgetMinutes > 0;
+    const turnBudgetMs = hasBudget ? budgetMinutes * 60_000 : config.turnTimeoutMs;
+    const budgetLabel = hasBudget ? `${budgetMinutes}m` : `${Math.max(1, Math.ceil(config.turnTimeoutMs / 60_000))}m`;
+    const notifyChannel = typeof descriptor.notify_channel === "string" && descriptor.notify_channel ? descriptor.notify_channel : null;
+    const spawnSpec = {
+      // cwd = the materialized workspace: the harness's project root — the
+      // persona file and native skills live there and the SDK's project
+      // settings load from it. A declared data workspace no longer MOVES the
+      // cwd (the dsh sandbox rule does not apply); AGENT_DATA_DIR points the
+      // tools at the writable volume instead.
+      cwd: spec.workspace,
+      env: workspaceChildEnv(spec, scrubbedChildEnv(process.env)),
+      provider: config.provider,
+      model: typeof descriptor.effective_model === "string" && descriptor.effective_model ? descriptor.effective_model : config.model,
+      version: descriptor.packVersion ?? null,
+      acpMcpServers: mcpServers,
+      ...(acpCredentialEnvValue ? { acpCredentialEnv: acpCredentialEnvValue } : {}),
+    };
+    let child = null;
+    const onExit = () => {
+      if (child && this.children.get(key) === child) this.children.delete(key);
+    };
+    const adapter = this.harnessRegistry.create(harnessName, {
+      key,
+      log: this.log,
+      onNotify: (payload) => this.notifier.send({ agent: key, boundChannel: notifyChannel, ...payload }),
+      onExit,
+      turnTimeoutMs: turnBudgetMs,
+      budgetLabel,
+      spawnSpec,
+    });
+    child = new AgentChild({ key, spawnSpec, turnTimeoutMs: turnBudgetMs, budgetLabel, log: this.log, adapter });
+    this.children.set(key, child);
+    this.log.log(`[agent-runner] cold-starting ${key} (v${child.version ?? "?"}, harness=${harnessName}, ${mcpServers.length} MCP, ${(descriptor.skills ?? []).length} skills, layout=${spec.layout ?? "bare"})`);
+    try {
+      await child.start();
+    } catch (e) {
+      // The dsh path's half-built-child rule, verbatim: a failed cold-start
+      // must not leave a dead child in the map for later turns to reuse.
+      if (this.children.get(key) === child) this.children.delete(key);
+      throw e;
+    }
     this.onSpawnHook?.(key, entry);
     return child;
   }

@@ -64,16 +64,21 @@ export function createHarnessRegistry({ acpCommands = {}, acpEnv = {}, log = con
       // cwd/provider/model ride along. Credentials reach the process through
       // the child env (claude-code-acp reads ANTHROPIC_API_KEY via the Claude
       // Agent SDK) — the runner's acpEnv configuration injects them on top of
-      // the scrubbed child env.
+      // the scrubbed child env. acpCredentialEnv wins over acpEnv BY DESIGN
+      // (add-harness-materializer D4): the standing credential is the default,
+      // the deployment's own billing key is the override — the same
+      // deployer-attribution semantics the dsh path's applyBillingKey carries.
+      // acpMcpServers (compose-acp.js shape) rides to session/new untouched.
       return new AcpHarnessAdapter({
         key,
         spawnSpec: {
           command: entry.command,
           args: [...entry.args],
           cwd: spawnSpec.cwd,
-          env: { ...spawnSpec.env, ...acpEnv },
+          env: { ...spawnSpec.env, ...acpEnv, ...(spawnSpec.acpCredentialEnv ?? {}) },
           provider: spawnSpec.provider,
           model: spawnSpec.model,
+          ...(Array.isArray(spawnSpec.acpMcpServers) ? { acpMcpServers: spawnSpec.acpMcpServers } : {}),
         },
         log: childLog,
         onExit,

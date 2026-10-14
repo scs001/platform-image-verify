@@ -52,7 +52,7 @@ export class AcpHarnessAdapter {
   constructor({ key, spawnSpec, log = console, onExit = null }) {
     this.name = "acp";
     this.key = key;
-    this.spawnSpec = spawnSpec; // { command, args, cwd, env, provider, model }
+    this.spawnSpec = spawnSpec; // { command, args, cwd, env, provider, model, acpMcpServers? }
     this.log = log;
     this.onExit = onExit;
   }
@@ -210,8 +210,11 @@ export class AcpHarnessAdapter {
     // mcpServers is an ARRAY on the ACP wire (schema.json: items → McpServer;
     // SDK 0.14+). The dsh-era object-map shape came from contract ⑬'s dsh ACP
     // profile, whose value form is its own — the fake agent tolerated both,
-    // the real claude-code-acp zod schema rejected the map. Empty list = no
-    // servers; per-agent MCP injection rides ACP's session-modes later.
+    // the real claude-code-acp zod schema rejected the map. The items are the
+    // http branch (type:"http", name, url, headers-as-entry-array) built by
+    // compose-acp.js's acpMcpServers from the deployment's registry MCP
+    // references; the spawn spec carries them so every session created for
+    // this agent mounts the same servers.
     // The model rides _meta.claudeCode.options.model — claude-code-acp spreads
     // that into its Claude Agent SDK options, and WITHOUT it the SDK boots on
     // its built-in default (claude-sonnet-4-5), which a gateway-backed account
@@ -220,7 +223,7 @@ export class AcpHarnessAdapter {
     // right for the ones that do not.
     const createParams = {
       cwd,
-      mcpServers: [],
+      mcpServers: Array.isArray(this.spawnSpec.acpMcpServers) ? this.spawnSpec.acpMcpServers : [],
       ...(this.spawnSpec.model ? { _meta: { claudeCode: { options: { model: this.spawnSpec.model } } } } : {}),
     };
     const res = await this.#request("session/new", createParams);

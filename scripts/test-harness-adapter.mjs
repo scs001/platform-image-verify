@@ -338,3 +338,60 @@ test("config: ACP allowlist and env parse shapes refuse malformed values", async
   assert.deepEqual(legacy.acpCommands, {});
   assert.deepEqual(legacy.acpEnv, {});
 });
+
+// ── MCP passthrough + credential precedence (add-harness-materializer 2.1/2.2) ─
+
+test("[acp] session/new carries the deployment's MCP servers in the wire shape", async () => {
+  const adapter = new AcpHarnessAdapter({
+    key: "acp-mcp",
+    spawnSpec: {
+      ...acpSpawnSpec({ env: { FAKE_ACP_REPLY: "mcp passthrough" } }),
+      acpMcpServers: [{
+        type: "http",
+        name: "legal",
+        url: "https://reg.example.test/legal/mcp",
+        headers: [{ name: "Authorization", value: "Bearer tok" }],
+      }],
+    },
+    log: { log() {}, warn() {}, error() {} },
+  });
+  await adapter.start();
+  try {
+    const out = await adapter.turn("mcp-s1", "hello");
+    const m = out.text.match(/ mcp=(\[[\s\S]*\])$/);
+    assert.ok(m, "the fake agent echoed the wire's mcpServers");
+    const servers = JSON.parse(m[1]);
+    assert.equal(servers.length, 1);
+    assert.equal(servers[0].name, "legal");
+    assert.equal(servers[0].url, "https://reg.example.test/legal/mcp");
+    assert.deepEqual(servers[0].headers, [{ name: "Authorization", value: "Bearer tok" }], "headers stay the SDK's entry-array shape end to end");
+  } finally {
+    await adapter.stop();
+  }
+});
+
+test("[registry] create() passes acpMcpServers through and lets the credential override win", async () => {
+  const { createHarnessRegistry } = await import("../agent-runner/harness/registry.js");
+  const reg = createHarnessRegistry({
+    acpCommands: { "acp-x": ["/bin/echo", "x"] },
+    acpEnv: { ANTHROPIC_API_KEY: "sk-standing", ANTHROPIC_AUTH_TOKEN: "sk-standing" },
+    log: { log() {}, warn() {}, error() {} },
+  });
+  const adapter = reg.create("acp-x", {
+    key: "k",
+    spawnSpec: {
+      cwd: "/tmp",
+      env: { CHILD_VAR: "1", ANTHROPIC_API_KEY: "sk-child-env" },
+      provider: "p",
+      model: "m",
+      acpMcpServers: [{ type: "http", name: "n", url: "https://n.example.test/mcp", headers: [] }],
+      acpCredentialEnv: { ANTHROPIC_API_KEY: "sk-deployer", ANTHROPIC_AUTH_TOKEN: "sk-deployer" },
+    },
+  });
+  assert.equal(adapter.spawnSpec.env.CHILD_VAR, "1", "the scrubbed child env passes through");
+  assert.equal(adapter.spawnSpec.env.ANTHROPIC_API_KEY, "sk-deployer", "acpCredentialEnv wins over acpEnv — the standing credential is the default, the deployment key the override");
+  assert.equal(adapter.spawnSpec.env.ANTHROPIC_AUTH_TOKEN, "sk-deployer", "both vars, or the SDK would authenticate on the survivor");
+  assert.equal(adapter.spawnSpec.acpMcpServers.length, 1, "the MCP rows ride the spawn spec untouched");
+  assert.equal(adapter.spawnSpec.acpMcpServers[0].name, "n");
+  await adapter.stop();
+});

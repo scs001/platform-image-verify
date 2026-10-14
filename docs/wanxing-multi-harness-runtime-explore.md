@@ -161,8 +161,9 @@ HarnessAdapter（agent 级接口）
 | 1 | rc 版本节奏 | 矩阵钉 0.2.0-rc.2，DS Bot 已测 0.2.1-alpha.1——上游活跃；~~dsh-contracts 需为 agents/subagent/preset-registry/ACP 四块扩合同~~ ✅ **已扩（⑩-⑭，2026-10-14 两轮全绿）** |
 | 2 | ACP 计量边界 | ~~usage/token 事件流在 ACP 面的形状待实证~~ ✅ **实证：线上带 `usage_update`**；计费口径字段丰度切片③核 |
 | 3 | 活体三测量 | ✅ **已收（2026-10-14）**：pod 内存=M2（进程地板价 ~100-185MB，空闲会话边际≈0）；sidecar 分摊=合同⑭（恒一）；并发叠加=补记节定量（收尾饿死，每 pod 单在途回合纪律） |
-| 4 | 升级粒度 | pod 模式下升级单个 pack=整 pod 排水重建；contextId→session 连续性要跨 pod 重建存活 |
+| 4 | 升级粒度 | pod 模式下升级单个 pack=整 pod 排水重建；contextId→session 连续性要跨 pod 重建存活——**生产实证（2026-10-14 pod 验证）：重建后 resume 撞墙根因=桥 `#isPersisted` 探测名 `loadStored` 在 0.2.0 已死（恒 false→create 撞已存会话），修为原生 `stat(id)`（8c3a44b），跨 pod 会话连续性恢复** |
 | 5 | 凭据面 | sidecar 进程级共享=pod 内共享 MCP 凭据；单 pack pod 语义成立，跨 owner/pack 硬禁共宿 |
+| 6 | 上游 API 漂移 | 0.2.0 把内部 seam 静默更名而不留旧名（loadStored→stat 一例）——凡「能力面探测」处都要钉合同/探针，盯 0.2.1 跟随时 contract 全量跑 |
 
 ### 2026-10-14 补记：跨会话回合收尾串行化实测（后台续跑挡路石定量）
 
@@ -223,10 +224,15 @@ manifest/安装流程必须为 peer 时代重写。
    14/14 两轮全绿；M1/M2/M3 三测量全收）**
 2. **DshPodAdapter**（桥接 per-session preset + runner pod 粒度管理 + 端口按 pod +
    warm-zone 按 pod；共宿键=pack；验证=生产一个双 agent pack 共宿部署）。
-   **2026-10-14 立项+实施（change add-dsh-pod-adapter）**：桥 `preset/set`
+   **2026-10-14 立项+实施+生产实证（change add-dsh-pod-adapter）**：桥 `preset/set`
    parked、pack home 物化（byPreset 工具面）、manager pod 粒度（资格门
-   fail-open/组身份排水/预算取消优先/每 pod 在途上限）、合同⑯ 两轮绿；
-   v1 端口仍 per-agent（「端口按 pod」留待 registry 代理路径保持）。
+   fail-open/组身份排水/预算取消优先/每 pod 在途上限）、合同⑯ 两轮绿；生产
+   runner-serving 滚产 sha-d158bf2 + `AGENT_RUNNER_POD_MODE=1`，合成双 serving
+   agent 包共宿眼见：**单进程双成员（各持监听端口）、双 persona 各归各、版本
+   bump→排水→重建→盘存 resume 全链过、pod RSS 216MB 承载 2 成员**（solo 形态
+   2×100-185MB+2×sidecar——摊薄实证）；顺带修跨线缺陷：桥 `#isPersisted` 的
+   `loadStored` 在 0.2.0 已死名→`stat(id)`（8c3a44b）。v1 端口仍 per-agent
+   （「端口按 pod」留待 registry 代理路径保持）。
 3. **HarnessAdapter 接口抽象 + 第二 harness**（ACP 基线实证后定接口；claude-code
    runner 镜像进机群表）。
 4. **谦面物化器**（pack 清单→各 harness 布局映射，与 3 在映射处会合）。

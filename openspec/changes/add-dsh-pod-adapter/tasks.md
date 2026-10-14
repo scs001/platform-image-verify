@@ -72,8 +72,8 @@
 
 ## 7. 生产验证（apply 末段）
 
-- [ ] 7.1 pod 模式上生产 runner（`AGENT_RUNNER_POD_MODE=1`）+ 一个双 serving
+- [x] 7.1 pod 模式上生产 runner（`AGENT_RUNNER_POD_MODE=1`）+ 一个双 serving
   agent pack 共宿部署眼见：单进程 ps、双 persona 回合各归各、-32010/排水/回温
   路径抽查
-- [ ] 7.2 内存对照记录（1 pod vs 2 solo children）回底稿；health/fleet 面板
+- [x] 7.2 内存对照记录（1 pod vs 2 solo children）回底稿；health/fleet 面板
   成员条目正确

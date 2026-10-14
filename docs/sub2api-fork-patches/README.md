@@ -36,15 +36,16 @@ fork 自有代码全在 `backend/internal/lanes/` 等新增包；上游文件仅
 | 前端路由+导航 | `frontend/src/router/index.ts` + `components/layout/AppSidebar.vue` | 车道页路由+侧边导航入口 |
 | i18n 词条 | `frontend/src/i18n/locales/{en,zh}` | 车道页/导航词条 |
 
-**首笔缝点触碰（2026-10-14，未发版）**：车道骨架+计量通道+上游账号池+**rerank v1**+
-**websearch v1** 落 `internal/lanes/`（全新包，fork commits 9225e8baf→42d330131
-已推 main）；**CI 全绿实证**（law-ai 线：rerank 三跑收口 run 38492374586→
-`ciyuan-v0.2.16-2-dev1`/sha-a5e6c87；websearch 一次过 run 38516176793→
-`sha-872b5d3`，均未部署）；缝点实插累计=路由注册/handler 服务访问器/平台清单/
-service 账号仓储访问器/车道平台谓词排除/分组价目 rerank/测试阈值（§二表）。
-车道 v1 平台定案：audio+rerank=siliconflow、websearch=serpapi（search-relay
-既有 key 池可播种）。**3.1/3.3 真上游回执+面板入账=部署窗项目**（rerank 待硅基
-key；websearch key 现成）。CI 复盘：金样镜像六处按位补入；本地轻测+CI 重测分工。
+**首笔缝点触碰（2026-10-14，未发版）**：车道骨架+计量通道+上游账号池+**三车道
+v1 全落地**（rerank 3.1 / audio 3.2 / websearch 3.3）落 `internal/lanes/`（全新包，
+fork commits 9225e8baf→a4506b2a6 已推 main）；**CI 全绿实证**（law-ai 线：rerank
+三跑收口 38492374586→dev1/sha-a5e6c87；websearch 一次过 38516176793→sha-872b5d3；
+audio 一次过 38519899822→sha-e3a88ea，均未部署）；缝点实插累计=路由注册/handler
+服务访问器/平台清单/service 账号仓储访问器/车道平台谓词排除/分组价目 rerank/
+测试阈值（§二表）。车道 v1 平台定案：audio+rerank=siliconflow、websearch=serpapi。
+**§3 真上游回执+面板入账=部署窗项目**（websearch key 现成；rerank+audio 待硅基
+key）。车道 v1 形状：rerank=按请求（新价目字段）/websearch=按次（复用 WebSearchCalls）
+/audio=stt 小时+tts 百万字符（复用 Group 音频三价）；上游失败分级 400/422→400、其余 502。
 
 **侦察期三项关键结论**（决定 §2 实施形状）：
 1. 上游**无 HTTP `/v1/audio/*` 端点**（Grok 音频是 WS realtime）——audio 车道端点全新，无路由冲突；

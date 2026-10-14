@@ -137,6 +137,10 @@ CLA：上游有 CLA.md，首次 PR 前签署（覆盖后续 PR）。补丁保持
 
 ## 六、治理手册索引
 
+- **Origin change（已归档）**：`openspec/changes/archive/2026-10-15-fork-sub2api-ciyuan`
+  （proposal/design/tasks 20 项全绿）；**对应主 spec**：`openspec/specs/ciyuan-fork-lineage`
+  （谱系治理 6 需求）+ `openspec/specs/ciyuan-gateway-lanes`（三车道契约与计量 6 需求）。
+  后续车道增量 change 直接 delta 这两个 capability，勿新建同名。
 - **月度合并窗 runbook**：`docs/sub2api-fork-patches/merge-window-runbook.md`
   （十节照单执行：窗型触发/notes 预判/merge 纪律/缝点解冲突+ent 迁移/本地轻测+
   CI 重测+金样七面/安全快车道判据/出片/部署探针/台账登记/三月检查点/上游回馈）

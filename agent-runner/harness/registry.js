@@ -10,7 +10,6 @@
 // runner has already allowlisted. AGENT_RUNNER_ACP_COMMANDS maps harness name →
 // [command, ...args] (JSON), e.g. {"acp-claude-code": ["claude-code-acp"]}.
 
-import { DshHarnessAdapter } from "./dsh.js";
 import { AcpHarnessAdapter } from "./acp.js";
 
 export const DEFAULT_HARNESS = "dsh";

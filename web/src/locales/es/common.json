@@ -844,6 +844,7 @@
     "openLocal": "Previsualizar un archivo local",
     "openInDrawer": "Previsualizar",
     "noRenderer": "No hay vista previa para este tipo de archivo.",
+    "unavailable": "Este archivo ya no está disponible.",
     "downloadName": "Descargar {{name}}"
   },
   "share": {

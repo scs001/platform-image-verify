@@ -53,6 +53,12 @@ const EXT_KIND: Record<string, PreviewKind> = {
 // render an .xlsx, but it can still save or forward it, and that is the whole
 // point of the chip. Longest-first where one extension prefixes another
 // (markdown before md, jpeg before jpg is irrelevant, but keep the habit).
+//
+// Archive and compression types are here for the same reason (openspec:
+// wire-shell-produced-artifacts): a .tar.gz a shell call produced is a
+// deliverable the user must be able to reach, and it was previously not
+// recognized at all. `extOf` takes the FINAL extension, so `.tar.gz` resolves
+// through `gz`.
 export const FILE_EXTENSIONS: string[] = [
   "markdown",
   "md",
@@ -82,6 +88,13 @@ export const FILE_EXTENSIONS: string[] = [
   "yml",
   "xml",
   "zip",
+  "tar",
+  "gz",
+  "tgz",
+  "7z",
+  "rar",
+  "bz2",
+  "xz",
 ];
 
 export function extOf(name: string): string {
@@ -137,22 +150,19 @@ function routeRef(href: string): FileRef | null {
   return null;
 }
 
-// The href of an anchor in assistant text → a reference, when the anchor is a
-// file the preview drawer can render. Non-previewable types fall through to
-// null here (the web has nothing to show); the mini program's chip wants the
-// broader rule below.
-export function linkRef(href: string | undefined, workspace: string | null): FileRef | null {
-  if (!href) return null;
-  const route = routeRef(href);
-  if (route) return route;
-  if (kindOf(href) === "none") return null;
-  return resolveRef(href, workspace);
-}
-
 // The href of an anchor → a reference whenever it names a produced file, even
 // one the client cannot preview (openspec: resource-library-ui — the mini
 // program's file chip is exactly this case: preview when possible, save or
 // forward otherwise).
+//
+// This is the ONE link rule for both clients (openspec:
+// wire-unpreviewable-links-to-drawer). A narrower variant that admitted only
+// renderable types used to sit beside it; the web chat resolved through that
+// one, so a produced file the client could not render (.zip above all) fell
+// through to a plain anchor and was unreachable from the conversation. The
+// narrow variant was removed with its last caller — do not reintroduce a
+// second door: "can I render this" is `kindOf`, asked by the drawer, and it is
+// a different question from "is this a produced file I should offer".
 export function fileLinkRef(href: string | undefined, workspace: string | null): FileRef | null {
   if (!href) return null;
   const route = routeRef(href);

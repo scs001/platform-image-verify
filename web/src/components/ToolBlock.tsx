@@ -6,7 +6,7 @@ import { usePreviewStore } from "@/hooks/usePreviewStore";
 import { CronToolCard } from "@/components/CronToolCard";
 import { TaskCard } from "@/components/TaskCard";
 import { QuestionCard } from "@/components/QuestionCard";
-import { baseName, fileUrl, findFilePath, resolveRef } from "@/lib/file-preview";
+import { baseName, fileUrl, producedFilePaths, resolveRef } from "@/lib/file-preview";
 import { memo, useId } from "react";
 
 interface Props {
@@ -65,9 +65,13 @@ function ToolBlockBase({ block, onToggle }: Props) {
     return <QuestionCard block={block} />;
   }
 
-  // Any file the call named — written, or just read — is offerable. A path that
-  // does not resolve to a served root simply yields no action.
-  const fileRef = state === "done" ? resolveRef(findFilePath(args, result) ?? "", workspace) : null;
+  // The file this call PRODUCED, when it produced one (openspec:
+  // wire-shell-produced-artifacts). A read/list call has no file to open, so it
+  // offers no action — "any file the call named, read or written" was the
+  // defect this rule replaces. A path that does not resolve to a served root
+  // simply yields no action.
+  const fileRef =
+    state === "done" ? resolveRef(producedFilePaths(name, args)[0] ?? "", workspace) : null;
   const accent =
     state === "running"
       ? "border-l-primary"

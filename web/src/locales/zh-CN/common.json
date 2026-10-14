@@ -844,6 +844,7 @@
     "openLocal": "预览本地文件",
     "openInDrawer": "预览",
     "noRenderer": "此文件类型暂不支持预览。",
+    "unavailable": "此文件已不在工作区。",
     "downloadName": "下载 {{name}}"
   },
   "share": {

@@ -16,7 +16,7 @@ import { EChart } from "@/components/EChart";
 import { canonicalChartHash, useChatStore } from "@platform/core";
 import { useChartCaptured } from "@/hooks/useResourceStatus";
 import { usePreviewStore } from "@/hooks/usePreviewStore";
-import { baseName, fileUrl, linkRef } from "@/lib/file-preview";
+import { baseName, fileLinkRef, fileUrl } from "@/lib/file-preview";
 
 const LANGS = [
   "typescript",
@@ -124,16 +124,19 @@ export const Markdown = memo(function Markdown({ text }: { text: string }) {
 });
 
 // A file reference in model output opens the preview drawer instead of
-// navigating: our own file route verbatim, or a relative path with a previewable
-// extension (a model writing `[report](report.pdf)` should still land in the
-// drawer). Every other link keeps its normal behaviour.
+// navigating: our own file route verbatim, or a path naming any PRODUCED file
+// type — not only the types the drawer can render (openspec:
+// wire-unpreviewable-links-to-drawer). The rule is the same one the mini
+// program's file chip resolves through, so a produced file behaves the same on
+// both clients; an unrenderable type lands on the drawer's download action.
+// Every other link keeps its normal behaviour.
 // biome-ignore lint/suspicious/noExplicitAny: react-markdown passes an opaque, untyped props bag to custom renderers
 function MarkdownLink({ href, children, ...rest }: any) {
   const openPreview = usePreviewStore((s) => s.open);
   const onClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     // Read the workspace at click time rather than subscribing: the drawer
     // resolves the path against the root the server currently serves from.
-    const ref = linkRef(href, useChatStore.getState().currentWorkspace);
+    const ref = fileLinkRef(href, useChatStore.getState().currentWorkspace);
     if (!ref) return;
     e.preventDefault();
     openPreview({ name: baseName(ref.rel), url: fileUrl(ref.root, ref.rel), ref });

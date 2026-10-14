@@ -17,7 +17,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Eye, FolderOutput, Library, Save } from "lucide-react";
 import {
-  findFilePath,
+  producedFilePaths,
   resolveRef,
   saveErrorKey,
   saveResource,
@@ -40,11 +40,17 @@ export function TurnArtifactStrip({ turn }: { turn: AssistantTurn }) {
     const byPath = new Map<string, { rel: string; name: string }>();
     for (const block of turn.blocks) {
       if (block.kind !== "tool" || block.state !== "done") continue;
-      const found = findFilePath(block.args, block.result);
-      if (!found) continue;
-      const ref = resolveRef(found, workspace);
-      if (!ref || ref.root !== "workspace") continue;
-      byPath.set(ref.rel, { rel: ref.rel, name: baseName(ref.rel) });
+      // Which calls count as producing a file is the shared rule's job, not
+      // this component's (openspec: wire-shell-produced-artifacts): a read or
+      // list call contributes nothing, and a shell call contributes the
+      // outputs its command declares. Candidates the server then reports
+      // missing drop out below, so a token that is not really a file — a
+      // directory, a stale path — never reaches the strip.
+      for (const candidate of producedFilePaths(block.name, block.args)) {
+        const ref = resolveRef(candidate, workspace);
+        if (!ref || ref.root !== "workspace") continue;
+        byPath.set(ref.rel, { rel: ref.rel, name: baseName(ref.rel) });
+      }
     }
     return [...byPath.values()];
   }, [turn.blocks, turn.streaming, workspace]);

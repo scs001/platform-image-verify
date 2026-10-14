@@ -12,7 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-import { ADAPTER_CAPABILITIES, assertAdapter, adapterRequest, unsupportedCapability } from "../agent-runner/harness/adapter.js";
+import { ADAPTER_CAPABILITIES, assertAdapter, adapterRequest } from "../agent-runner/harness/adapter.js";
 import { DshHarnessAdapter } from "../agent-runner/harness/dsh.js";
 import { AcpHarnessAdapter } from "../agent-runner/harness/acp.js";
 

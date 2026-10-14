@@ -469,10 +469,37 @@ function DownloadAction({
 
 // The universal terminal state: no renderer (or a renderer that failed). Offers
 // the file, never an apology.
+//
+// Two distinct arrivals end up here, and only one of them needs a check: a type
+// with NO renderer at all, and a renderer that failed to load. For the first —
+// the case the broader link rule newly admits (openspec:
+// wire-unpreviewable-links-to-drawer) — the file may already be gone, and
+// offering a download that can only 404 is the dead end this change removes. So
+// a no-renderer target that came from the server is checked with a HEAD on the
+// very route the download would use; anything else (a failed renderer, a local
+// blob that was never on the server) keeps the plain download action. HEAD
+// answers 200/404 with no body, so this costs no bytes.
 function DownloadOnly({ target }: { target: PreviewTarget }) {
   const { t } = useTranslation();
   const [external, setExternal] = useState<string | null>(null);
   const [externalReady, setExternalReady] = useState(false);
+  const [gone, setGone] = useState(false);
+  const serverBacked = kindOf(target.name) === "none" && Boolean(target.ref);
+  useEffect(() => {
+    if (!serverBacked) return;
+    let live = true;
+    setGone(false);
+    fetch(target.url, { method: "HEAD" })
+      .then((r) => {
+        if (live && !r.ok) setGone(true);
+      })
+      // A failed check is not proof the file is gone — stay optimistic and let
+      // the download itself report.
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [target.url, serverBacked]);
   useEffect(() => {
     let live = true;
     setExternalReady(false);
@@ -513,17 +540,21 @@ function DownloadOnly({ target }: { target: PreviewTarget }) {
 
   return (
     <div className="flex flex-col items-center gap-3 p-8 text-center">
-      <p className="text-sm text-muted-foreground">{t("preview.noRenderer")}</p>
-      <DownloadAction
-        url={target.url}
-        name={target.name}
-        testId="preview-fallback-download"
-        label={t("preview.downloadName", { name: baseName(target.name) })}
-        className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
-      >
-        <Download className="h-4 w-4" aria-hidden="true" />
-        {t("preview.downloadName", { name: baseName(target.name) })}
-      </DownloadAction>
+      <p className="text-sm text-muted-foreground">
+        {gone ? t("preview.unavailable") : t("preview.noRenderer")}
+      </p>
+      {gone ? null : (
+        <DownloadAction
+          url={target.url}
+          name={target.name}
+          testId="preview-fallback-download"
+          label={t("preview.downloadName", { name: baseName(target.name) })}
+          className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-1.5 text-sm hover:bg-muted"
+        >
+          <Download className="h-4 w-4" aria-hidden="true" />
+          {t("preview.downloadName", { name: baseName(target.name) })}
+        </DownloadAction>
+      )}
     </div>
   );
 }

@@ -10,17 +10,18 @@
 import {
   baseName,
   extOf,
+  fileLinkRef,
   fileRefPath,
-  findFilePath,
   kindOf,
-  linkRef,
+  looksLikeFile,
+  producedFilePaths,
   resolveRef,
   type FileRef,
   type FileRoot,
   type PreviewKind,
 } from "@platform/core";
 
-export { baseName, extOf, findFilePath, kindOf, linkRef, resolveRef };
+export { baseName, extOf, fileLinkRef, kindOf, looksLikeFile, producedFilePaths, resolveRef };
 export type { FileRef, PreviewKind };
 
 // The drawer's roots are the shared set (workspace, uploads, resources) —

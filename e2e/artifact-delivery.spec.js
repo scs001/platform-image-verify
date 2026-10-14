@@ -89,8 +89,11 @@ test.beforeAll(async () => {
     {
       kind: "tool",
       id: "t-strip",
-      name: "write_file",
-      args: { path: FILE_PATH },
+      // The REAL dsh write shape: a producer call always carries the content
+      // it is writing (openspec: wire-shell-produced-artifacts — a call that
+      // names a path without content is a reader and must NOT surface).
+      name: "write",
+      args: { file_path: FILE_PATH, content: FILE_BYTES },
       result: "written",
       state: "done",
     },
@@ -227,4 +230,100 @@ test("chart badge, artifact strip, save flip, retroactive re-render, nothing per
   await expect(page.getByTestId("turn-artifact-strip")).toBeVisible();
   await expect(page.getByTestId("turn-artifact-saved")).toBeVisible();
   await expect(page.getByTestId("turn-artifact-save")).toHaveCount(0);
+});
+
+// ── wire-shell-produced-artifacts ─────────────────────────────────────────────
+//
+// The strip's file set is now derived from which calls PRODUCED files, not
+// from any path that appears in a call. Two behaviors follow: a shell call's
+// declared outputs surface (the reported case: a conversation-generated .zip
+// with no other path to it), and a read-only turn surfaces no strip at all.
+
+test("a shell-produced archive surfaces in the strip and opens the drawer", async ({ page }) => {
+  const name = `paas-shell-archive-${Date.now()}.zip`;
+  const abs = path.join(BOOT_WORKSPACE, name);
+  fs.writeFileSync(abs, Buffer.from("not a real zip"));
+  try {
+    await gotoChat(page);
+    await page.evaluate(
+      ([n]) => {
+        window.__chatStore.getState().apply({
+          type: "session_loaded",
+          id: "e2e-shell-archive",
+          messages: [
+            { role: "user", content: "打包" },
+            {
+              role: "assistant",
+              content: "已打包。",
+              blocks: [
+                {
+                  kind: "tool",
+                  id: "t-zip",
+                  name: "bash",
+                  args: { command: `zip -r ${n} docs/`, description: "Zip the docs" },
+                  result: "  adding: docs/a.txt (deflated 12%)",
+                  state: "done",
+                },
+                { kind: "text", text: "已打包。" },
+              ],
+            },
+          ],
+        });
+      },
+      [name],
+    );
+    // The archive the command declared is the artifact — the docs/a.txt in the
+    // command's OUTPUT text is not (it is not even a real path in the workspace).
+    const chip = page.getByTestId("turn-artifact-chip");
+    await expect(chip).toContainText(name, { timeout: 10_000 });
+    // And the chip's file action opens the drawer on the archive itself.
+    await chip.getByRole("button", { name: name }).click();
+    await expect(page.getByTestId("preview-drawer")).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("preview-name")).toHaveText(name);
+    await expect(page.getByTestId("preview-fallback-download")).toBeVisible();
+  } finally {
+    fs.rmSync(abs, { force: true });
+  }
+});
+
+test("a read-only turn surfaces no strip", async ({ page }) => {
+  const name = `paas-readonly-${Date.now()}.md`;
+  const abs = path.join(BOOT_WORKSPACE, name);
+  fs.writeFileSync(abs, "# here\n");
+  try {
+    await gotoChat(page);
+    await page.evaluate(
+      ([n]) => {
+        window.__chatStore.getState().apply({
+          type: "session_loaded",
+          id: "e2e-readonly-turn",
+          messages: [
+            { role: "user", content: "看看有什么" },
+            {
+              role: "assistant",
+              content: "列了个目录。",
+              blocks: [
+                {
+                  kind: "tool",
+                  id: "t-ls",
+                  name: "bash",
+                  args: { command: "ls -la", description: "List files" },
+                  result: `total 8\n-rw-r--r-- 1 u u 100 ${n}`,
+                  state: "done",
+                },
+                { kind: "text", text: "列了个目录。" },
+              ],
+            },
+          ],
+        });
+      },
+      [name],
+    );
+    // The listing NAMES a file that exists, but naming is not producing: no
+    // strip may appear for a turn whose calls wrote nothing.
+    await page.waitForTimeout(500);
+    await expect(page.getByTestId("turn-artifact-strip")).toHaveCount(0);
+  } finally {
+    fs.rmSync(abs, { force: true });
+  }
 });

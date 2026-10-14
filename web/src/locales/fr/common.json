@@ -844,6 +844,7 @@
     "openLocal": "Aperçu d’un fichier local",
     "openInDrawer": "Aperçu",
     "noRenderer": "Aucun aperçu disponible pour ce type de fichier.",
+    "unavailable": "Ce fichier n’est plus disponible.",
     "downloadName": "Télécharger {{name}}"
   },
   "share": {

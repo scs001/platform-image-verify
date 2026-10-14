@@ -386,8 +386,9 @@ test.describe("preview drawer busy states", () => {
   }) => {
     await gotoChat(page);
     // A kind with no renderer (DownloadOnly terminal state), reached via the
-    // raw file-route href — linkRef's previewable-extension rule doesn't gate
-    // route refs, so the drawer still opens for it.
+    // raw file-route href — a route ref is admitted regardless of extension,
+    // so the drawer opens for it (openspec: wire-unpreviewable-links-to-drawer;
+    // the relative-path form of the same case is covered by the sibling spec).
     const name = `paas-fallback-${Date.now()}.zip`;
     const abs = path.join(BOOT_WORKSPACE, name);
     fs.writeFileSync(abs, Buffer.from("not a real zip"));
@@ -421,6 +422,44 @@ test.describe("preview drawer busy states", () => {
       expect(dl.suggestedFilename()).toBe(name);
     } finally {
       fs.rmSync(abs, { force: true });
+    }
+  });
+
+  test("a relative link to an unrenderable produced file opens the drawer", async ({ page }) => {
+    // The reported defect (openspec: wire-unpreviewable-links-to-drawer): the
+    // artifact contract teaches the model to reference files by
+    // workspace-relative path, and a .zip link used to fall through to a plain
+    // anchor because the web rule admitted only renderable types. The mini
+    // program already recognized it. No route href here — this is the bare
+    // relative form, which is what a model actually writes.
+    await gotoChat(page);
+    const name = `relative-link-${Date.now()}.zip`;
+    const cleanup = await workspaceFileAndLink(page, name, Buffer.from("not a real zip"));
+    try {
+      // The drawer opened on a type it cannot render, so it offers the file.
+      await expect(page.getByTestId("preview-fallback-download")).toBeVisible({ timeout: 10_000 });
+    } finally {
+      cleanup();
+    }
+  });
+
+  test("a link to an unrenderable file that is gone reports it instead of offering a dead download", async ({
+    page,
+  }) => {
+    await gotoChat(page);
+    const name = `vanished-${Date.now()}.zip`;
+    const cleanup = await workspaceFileAndLink(page, name, Buffer.from("not a real zip"));
+    try {
+      // The drawer's existence check has answered by now; the file was removed
+      // before the check, so the download action is replaced by the notice.
+      fs.rmSync(path.join(BOOT_WORKSPACE, name), { force: true });
+      await page.getByTestId("preview-close").click();
+      await page.getByRole("link", { name: `open ${name}` }).click();
+      await expect(page.getByTestId("preview-drawer")).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByText("no longer available")).toBeVisible({ timeout: 10_000 });
+      await expect(page.getByTestId("preview-fallback-download")).toHaveCount(0);
+    } finally {
+      cleanup();
     }
   });
 });

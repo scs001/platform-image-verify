@@ -844,6 +844,7 @@
     "openLocal": "Preview a local file",
     "openInDrawer": "Preview",
     "noRenderer": "No preview available for this file type.",
+    "unavailable": "This file is no longer available.",
     "downloadName": "Download {{name}}"
   },
   "share": {

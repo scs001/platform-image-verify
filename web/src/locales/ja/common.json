@@ -844,6 +844,7 @@
     "openLocal": "ローカルファイルをプレビュー",
     "openInDrawer": "プレビュー",
     "noRenderer": "このファイル形式のプレビューはありません。",
+    "unavailable": "このファイルは現在利用できません。",
     "downloadName": "{{name}} をダウンロード"
   },
   "share": {

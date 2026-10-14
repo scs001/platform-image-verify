@@ -159,7 +159,7 @@ The web resources page SHALL expose, for each bound chart, its observation timel
 - **THEN** the as-of state is visually distinguished while active, and the current chart is restored with one action
 
 ### Requirement: Web chat surfaces turn artifacts in a strip
-After each assistant turn, the web chat SHALL surface an aggregated strip of the files that turn's tool calls produced or modified. The strip's file set SHALL be derived from tool call paths (never from workspace scanning), deduplicated by path, and shown at latest state. Each strip entry SHALL display a save state — not in library, or already in library by content — and offer preview and save-to-library actions. The strip SHALL be synthesized at render time only: it SHALL never be persisted into message content, SHALL never enter model-visible history, and SHALL render identically for historical sessions.
+After each assistant turn, the web chat SHALL surface an aggregated strip of the files that turn's tool calls produced or modified. The strip's file set SHALL be derived from the paths those tool calls produced (never from workspace scanning), deduplicated by path, and shown at latest state. Which calls count as producing a file SHALL follow the produced-file rule: a call that only read, listed, or searched contributes nothing, and a shell call contributes only the outputs its command declares. A candidate path SHALL be shown only when the file exists in the workspace. Each strip entry SHALL display a save state — not in library, or already in library by content — and offer preview and save-to-library actions. The strip SHALL be synthesized at render time only: it SHALL never be persisted into message content, SHALL never enter model-visible history, and SHALL render identically for historical sessions.
 
 #### Scenario: unlinked file still surfaces
 - **WHEN** a turn's tool call writes a workspace file and the assistant's text references it only in prose or not at all
@@ -172,6 +172,18 @@ After each assistant turn, the web chat SHALL surface an aggregated strip of the
 #### Scenario: repeated writes to the same path dedupe
 - **WHEN** a turn's tool calls write the same path multiple times, or a file is rewritten across turns
 - **THEN** the strip shows one entry per path at its latest state
+
+#### Scenario: a shell-produced archive surfaces
+- **WHEN** a turn's shell call produces an archive in the workspace and the assistant's text does not link it
+- **THEN** the turn artifact strip lists the archive with preview and save actions
+
+#### Scenario: read-only calls add nothing to the strip
+- **WHEN** a turn's calls only read, list, or search files and produce nothing
+- **THEN** the strip is absent for that turn rather than listing the files those calls named
+
+#### Scenario: a candidate that no longer exists is not shown
+- **WHEN** a produced path is no longer present in the workspace by the time the strip renders
+- **THEN** the strip omits that entry
 
 #### Scenario: the strip is synthesized, never persisted
 - **WHEN** a message with a turn artifact strip is reloaded or exported

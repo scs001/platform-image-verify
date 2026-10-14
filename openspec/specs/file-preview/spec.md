@@ -102,15 +102,33 @@ When a catalog `external-service` entry for file preview is configured, the draw
 
 ### Requirement: File references open the preview
 
-A file reference in assistant output and a completed tool call that produced a file SHALL each offer to open that file in the drawer, without requiring the user to know a URL or leave the chat.
+A file reference in assistant output and a completed tool call that produced a file SHALL each offer to open that file in the drawer, without requiring the user to know a URL or leave the chat. A markdown link in assistant text SHALL open the drawer whenever its target names a file the platform recognizes as a produced file, whether or not the client can render that type; a link naming an unrecognized target, an external URL, or a non-file target SHALL keep its ordinary navigation behavior. For a type the client cannot render, the drawer SHALL present the download action, and SHALL report the file as no longer available rather than offer a download that cannot succeed when the file no longer exists.
 
 #### Scenario: open a produced file from the tool block
+
 - **WHEN** a tool call that wrote a file has completed
 - **THEN** the tool block offers an action that opens that file in the drawer
 
 #### Scenario: open a linked file from the assistant text
+
 - **WHEN** assistant text links to a file served by the file route
 - **THEN** activating the link opens the drawer instead of navigating away
+
+#### Scenario: a link to an unrenderable produced file opens the drawer
+
+- **WHEN** assistant text links to a produced file whose type has no renderer (for example an archive or a spreadsheet)
+- **THEN** activating the link opens the drawer
+- **AND** the drawer presents the download action rather than an error or a navigation
+
+#### Scenario: a link to a produced file that no longer exists
+
+- **WHEN** assistant text links to a produced file whose type has no renderer, and that file is no longer present in the workspace
+- **THEN** the drawer reports that the file is no longer available instead of offering a download that cannot succeed
+
+#### Scenario: ordinary links keep their behavior
+
+- **WHEN** assistant text links to an external URL or a target that names no produced file
+- **THEN** the link keeps its ordinary navigation behavior and does not open the drawer
 
 ### Requirement: An attached file opens the preview from its composer chip
 
@@ -125,3 +143,38 @@ A composer attachment chip in the attached state SHALL open its stored original 
 - **WHEN** the drawer resolves an attachment's file
 - **THEN** it requests the file against the `uploads` root
 - **AND** the agent workspace is not required to contain the file
+
+### Requirement: A file is produced by specific tools, not by any path in a call
+
+Which files a turn produced SHALL be determined by the tool that ran, not by the mere presence of a file path in the call. A tool that creates, modifies, or exports files SHALL contribute the paths it operates on; a tool that reads, lists, or searches files SHALL contribute none; a tool with no declared production behavior SHALL contribute none. A shell tool call SHALL contribute a path from its command string only when the command declares that path as an output — by redirecting into it or by invoking a recognized archive, copy, or conversion command — and SHALL NOT contribute paths named in the command merely as inputs or in the command's output text.
+
+#### Scenario: a tool that writes a file contributes it
+
+- **WHEN** a turn's tool call creates or modifies a workspace file through a file-writing tool
+- **THEN** that path is among the files the turn is considered to have produced
+
+#### Scenario: a tool that reads a file contributes nothing
+
+- **WHEN** a turn's tool call reads, lists, or searches files and writes nothing
+- **THEN** none of the paths it named is among the files the turn is considered to have produced
+
+#### Scenario: a shell command that redirects contributes its target
+
+- **WHEN** a turn's shell call writes its output into a workspace path by redirection
+- **THEN** that path is among the files the turn is considered to have produced
+
+#### Scenario: a shell command that archives contributes the archive
+
+- **WHEN** a turn's shell call runs an archive, copy, or conversion command naming an output file
+- **THEN** that output path is among the files the turn is considered to have produced
+- **AND** the input files the command consumed are not
+
+#### Scenario: a read-only shell command contributes nothing
+
+- **WHEN** a turn's shell call only reads, queries, or inspects state and writes no file
+- **THEN** the turn is considered to have produced no files by that call
+
+#### Scenario: a command's output text is not a source of produced files
+
+- **WHEN** a shell command's output names files (a listing, a match, a log line) that the command did not itself create
+- **THEN** those files are not attributed to the turn as produced

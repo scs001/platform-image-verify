@@ -30,17 +30,21 @@ fork 自有代码全在 `backend/internal/lanes/` 等新增包；上游文件仅
 | 余额/窗口前置检查 | `billingCacheService.CheckBillingEligibility`（grok_audio.go:36 同款） | 车道请求前置：窗口耗尽拒付不触上游 |
 | 平台清单（**已触碰**） | `backend/internal/domain/platforms.go`（+Gateway=lane 枚举+siliconflow/serpapi 两行）+ `platforms_test.go`（期望清单同步，上游既定「按位补入」模式） | 车道上游=真 Account 行（2.4）：admin 账号管理面下拉即达；登记副作用=平台进「所有平台」类列表（含分组下拉——误建 chat 分组属可恢复误配，单管理员风险受控）；Gateway=lane 使 UsesOpenAIGateway 等谓词恒 false |
 | service 账号仓储访问器 | `backend/internal/service/openai_gateway_service.go` 文件尾（+1 只读 getter） | `LanesAccountRepo()`——车道池取数（ListSchedulableByPlatform）；与 handler 访问器同注入模式 |
+| 车道平台谓词排除 | `backend/internal/service/scheduler_snapshot_service.go`（schedulerSnapshotPlatforms）+ `upstream_billing_probe.go`（IsUpstreamBillingProbeIdentity） | Gateway=lane 平台**不进** chat 调度快照（空桶白耗内存，inflight 8MB 界 CI 实证越线）**不进**上游计费探测（非 chat 上游，不外发 key） |
+| 分组价目（rerank） | `ent/schema/group.go`+迁移 246+repo/auth 缓存/admin DTO·输入·克隆/`billing_service.go`（CalculateRerankCost）/`openai_gateway_usage.go`（成本分支） | `rerank_price_per_request`（USD/请求，nil=0 计费告警）——镜像 web_search_price_per_call 全链模式；本 change 唯一 schema 变更 |
+| 测试阈值 | `billing_inflight_reservation_test.go`（8MB→9MB） | 车道平台+价目字段合法增重（CI 1.27.0 实测 8587240）；防失控守护本意不变 |
 | 前端路由+导航 | `frontend/src/router/index.ts` + `components/layout/AppSidebar.vue` | 车道页路由+侧边导航入口 |
 | i18n 词条 | `frontend/src/i18n/locales/{en,zh}` | 车道页/导航词条 |
 
-**首笔缝点触碰（2026-10-14，未发版）**：车道骨架+计量通道+上游账号池落
-`internal/lanes/`（全新包，fork commits 9225e8baf→ba552983e→520daff3d 已推
-main）；缝点实插=「路由注册」「handler 服务访问器」「平台清单（含 platforms_test
-期望同步）」「service 账号仓储访问器」四处，diff 上游文件仅此四处，纪律达标；
-随下次出片并 tag。§2 地基全收口（2.1-2.4）：准入门+原生账本写入+上游池+平台
-登记；路由链四态（401/403 准入/503 池空/501 无适配器）全引擎实证；**面板入账
-眼见与 admin 增删眼见随 3.x 首个部署窗兑现**。车道 v1 平台定案：audio+rerank=
-siliconflow、websearch=serpapi（search-relay 既有 key 池可播种）。
+**首笔缝点触碰（2026-10-14，未发版）**：车道骨架+计量通道+上游账号池+**rerank 车道 v1**
+落 `internal/lanes/`（全新包，fork commits 9225e8baf→0ca816361 已推 main）；
+**CI 全绿实证**（law-ai 线 run 38492374586：unit 全量+出片 `ciyuan-v0.2.16-2-dev1`/
+`sha-a5e6c87`，未部署）；缝点实插累计=路由注册/handler 服务访问器/平台清单/
+service 账号仓储访问器/车道平台谓词排除/分组价目 rerank/测试阈值（§二表）。
+车道 v1 平台定案：audio+rerank=siliconflow、websearch=serpapi（search-relay
+既有 key 池可播种）。**3.1 真上游回执+面板入账=部署窗项目**（待硅基 API key）。
+CI 三跑复盘：金样镜像四处按位补入（model/server/调度桶/组合清单）；本地轻测
+（lanes/domain/routes）+CI 重测（service unit 全量）分工运行。
 
 **侦察期三项关键结论**（决定 §2 实施形状）：
 1. 上游**无 HTTP `/v1/audio/*` 端点**（Grok 音频是 WS realtime）——audio 车道端点全新，无路由冲突；

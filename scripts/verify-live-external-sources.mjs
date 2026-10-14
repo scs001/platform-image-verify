@@ -211,8 +211,12 @@ try {
         await page.keyboard.press("Escape"); // close the panel
         await page.getByTestId("external-install-dialog").waitFor({ state: "hidden", timeout: 10_000 }).catch(() => {});
 
-        // Installed list (tab label is locale-dependent; assert by card attr).
-        await page.getByRole("button", { name: /已启用|Enabled/i }).first().click();
+        // The installed skills list lives under /settings/skills — the pages
+        // share the external tab, but /settings/mcp's installed tab lists MCP
+        // servers only (probe bug found in the first production run: the
+        // install succeeded yet the card was invisible because of the page).
+        await page.goto(`${PLATFORM}/settings/skills`, { waitUntil: "domcontentloaded", timeout: 90_000 });
+        await page.getByTestId("extensions-page").waitFor({ state: "visible", timeout: 30_000 });
         const card = page.locator(`[data-testid="skill-card"][data-skill-name="${installedName}"]`);
         const inList = await card
           .waitFor({ state: "visible", timeout: 20_000 })
@@ -226,7 +230,12 @@ try {
         if (skillsApi) console.log(`[smoke] skills listing: ${skillsApi.body.slice(0, 200)}`);
 
         // Uninstall → back to a clean instance (the probe must not leave state).
-        if (inList) {
+        // KEEP_INSTALLED=1 skips this so the in-pod materialization check
+        // (scripts/verify-live-external-sources.mjs → materialized dir) can
+        // inspect the tree while the skill is live.
+        if (process.env.KEEP_INSTALLED) {
+          console.log(`[smoke] KEEP_INSTALLED set — leaving "${installedName}" installed for in-pod inspection`);
+        } else if (inList) {
           page.once("dialog", (d) => d.accept()); // the confirm() guard
           await card.getByRole("button", { name: /删除|delete/i }).click();
           const gone = await card
@@ -234,6 +243,8 @@ try {
             .then(() => true)
             .catch(() => false);
           ok("uninstall removes it from the list", gone);
+        } else {
+          console.log(`[smoke] WARNING: leaving "${installedName}" installed (list lookup failed)`);
         }
       }
     }

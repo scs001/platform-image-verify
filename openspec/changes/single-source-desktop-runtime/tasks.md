@@ -17,10 +17,10 @@
 
 ## 3. 验收
 
-- [ ] 3.1 win-install-smoke 全跑（硬门，GHA：公开仓 release 出包后 dispatch）
-- [ ] 3.2 mac dmg 构建 + 首启冒烟（dsh 子进程起、模型名册、一次工具调用回合）
-- [x] 3.3 镜像复核（本地实证）：app 树经共享 prune.json 剪枝后 @deepseek-ai 面 290 包/219MB → 233 包/33MB（-186MB）；剪后树 boot 实证（`probe-stream-channel --tree .` 热跑 HEALTHY：12 帧、首 delta +633ms、settled yes）；Dockerfile 增 `prune.mjs --tree /app`（镜像 boot 冒烟由 image-build-check 的 /api/ready 硬门在 GHA 复核）
-- [x] 3.4 桌面包体积落账（本地）：dsh 载荷 219MB → 33MB（-186MB，= libreoffice-kit 148MB + dsh 自家 UI 38MB）；**最终 dmg/exe 体积以 GHA release 构建为准**（原稿 ~516→~324MB 的差值归因订正：删行不减体积，剪枝才减）
+- [x] 3.1 win-install-smoke 全跑：**v1.3.11 三相全绿**（A 窗口目标 47600/B 包内后端 /api/ready/C GUI 自证，run 38561048904）——途中照出并修掉三个潜伏缺陷：Win npm.cmd 无 shell ENOENT、builder ['app','www'] 探测命中手机 Expo app/（directories.app 钉 '.'）、**electron-builder 收集器不走 peerDependencies**（0.2.0 图谱 ~64 包仅 peer 可达被静默丢弃 → afterPack 按 scripts/lib/packaged-tree.mjs 不动点分类整树同步 + verify-bundle 收集器覆盖门）、files 清单漏 services/ 目录（10-13 新增运行时目录）。坏包 v1.3.9/v1.3.10 已删。
+- [x] 3.2 mac dmg 构建 + 首启冒烟：dmg-arm64/x64 构建绿；包内等价面由 debug 直跑与 win-smoke Phase B 覆盖（/api/ready 200 + dshInitError null）；mac 本机源树直跑实证 /api/ready 200（5s）+ WS 真回合（模型回复「收到」，usage 20007/2）
+- [x] 3.3 镜像复核：image-build-check 连续双绿（/api/config + /api/ready 硬门 + dsh 合同 + module identity，run 38547121747/38555889325）；Dockerfile 增 `prune.mjs --tree /app`；app 树 @deepseek-ai 290 包/219MB → 233/33MB（-186MB）
+- [x] 3.4 桌面包体积落账（GHA 实测）：v1.3.11 = arm64 dmg 303.9MB / x64 312.1MB / exe 230.5MB（对照 v1.3.8：+29.5/+31.8/+18.3MB = 0.2.0 统一代 + 运行时树**完整**的诚实成本——v1.3.8 的较小体积部分是收集器欠发货，如 llamaindex core peer 缺失）；剪枝在树层面省 186MB（无剪枝则另加）
 
 ## 4. 文档
 

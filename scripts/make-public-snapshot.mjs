@@ -74,6 +74,7 @@ const OVERLAY_FILES = ["README.md", "README.zh-CN.md", "LICENSE", ".gitleaks.tom
 
 const EXCLUDE_PATHS = new Set([
   // internal docs
+  "AGENTS.md", // workspace agent instructions: cluster node names, internal registries, build-pool accounts
   "DEPLOY.md", // live prod runbook: clusters, IPs, registries, jenkins
   "PRODUCT.md", // internal product-strategy doc
   "demands.md", // scratch demand notes

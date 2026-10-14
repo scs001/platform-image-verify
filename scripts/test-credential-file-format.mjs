@@ -33,6 +33,17 @@ const root = mkdtempSync(path.join(tmpdir(), "credential-format-"));
 const home = path.join(root, "home");
 const profileDir = path.join(home, "custom-profile");
 
+// Environment-independence (2026-10-14): the rewrite under test is gated on
+// "some ref changed" — a developer's machine that happens to carry a populated
+// llm-providers.json (a user provider key) flips that gate and makes this test
+// pass for the wrong reason, while a clean CI checkout has no such ref and
+// took the no-rewrite branch. Point the provider store at an empty file inside
+// the temp root so the outcome never depends on the host's state — the case
+// then exercises exactly what it claims: a FOLDED file must self-heal.
+const emptyProviders = path.join(root, "llm-providers.json");
+writeFileSync(emptyProviders, JSON.stringify({ providers: [] }));
+process.env.LLM_PROVIDERS_STORE = emptyProviders;
+
 let cases = 0;
 const pass = (label) => { cases += 1; console.log(`ok - ${label}`); };
 

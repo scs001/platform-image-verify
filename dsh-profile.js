@@ -311,12 +311,19 @@ export async function writeLlmProfile(opts = {}) {
 // rotation via the Models page re-runs this and hot-reloads (Chokidar watch).
 const CREDENTIAL_REFS = ["LLM_API_KEY"];
 
+// The credential-format invariant a file on disk must satisfy: no block
+// scalars. See the write site for why (line-oriented readers, the 2026-10-12
+// PAT leak). Checked on the RAW text, not the parsed doc — a folded scalar
+// parses back to the same value, so only the text can tell us it is unsafe.
+const BLOCK_SCALAR_RE = /:\s*[>|][-+]?\s*$/m;
+
 export async function ensureCredentialsStore(opts = {}) {
   const credentialsPath = targetPaths(opts.dirs).credentials;
   let doc;
+  let raw;
   try {
-    const existing = readFileSync(credentialsPath, "utf8");
-    const loaded = yaml.load(existing);
+    raw = readFileSync(credentialsPath, "utf8");
+    const loaded = yaml.load(raw);
     doc = loaded && typeof loaded === "object" && !Array.isArray(loaded) ? loaded : {};
   } catch (err) {
     if (err.code !== "ENOENT" && err.code !== undefined) {
@@ -352,9 +359,15 @@ export async function ensureCredentialsStore(opts = {}) {
     console.warn(`[dsh-profile] user credential refs unavailable: ${e?.message || e}`);
   }
   // Always (re)write on first run (file absent) so perms are set; otherwise
-  // only write when a ref changed, to avoid needlessly tripping the watcher.
+  // only write when a ref changed — OR when the file on disk still violates
+  // the single-line invariant. The second condition is load-bearing: a folded
+  // file was written by an older writer (or edited by hand) and would then
+  // never self-heal, because folding is invisible to the "did a ref change"
+  // diff — the parsed value is identical. Leaving it folded is the exact
+  // state that leaked a PAT into a transcript.
   const absent = !existsSync(credentialsPath);
-  if (!changed && !absent) return { path: credentialsPath, changed: false };
+  const unsafeFormat = typeof raw === "string" && BLOCK_SCALAR_RE.test(raw);
+  if (!changed && !absent && !unsafeFormat) return { path: credentialsPath, changed: false };
   // Invariant (credential-file-format): values MUST stay on one line and be
   // quoted. js-yaml folds long values into a `>-` block scalar past lineWidth
   // (default 80), and a folded ref is invisible to line-oriented extraction

@@ -62,12 +62,11 @@
   回报 `[dsh, acp-claude-code]`；心跳 harness 字段由单测钉住（sampler→payload，
   test-fleet-report 6/6 绿；生产 board 读取需 gateway 的 FLEET_BOARD_URL 面，未在
   runner env——字段数据源已在产验证）
-- [x] 7.2 **结构面已实证，真回合待凭证**：真实 `claude-code-acp` 在产 runner 内
-  ACP 握手成功（`start() ok, pid=220`）、能力面如实（cohost/perSessionPreset=false）、
-  stop 干净；双 harness 部署（dsh-side + acp-side）已上 registry 且被 runner 拾取。
-  **真 A2A 回合未验**：平台 LLM 网关无 anthropic 原生路由，`ANTHROPIC_API_KEY`
-  属用户行动项（secret `agent-runner-serving-env` 缺 `AGENT_RUNNER_ACP_ENV` key）；
-  dsh 侧同窗真回合亦撞上游 503（与本次改动无关）
+- [x] 7.2 **链路全实证，真回合挂账上游 429**：凭证链自建完结（词元账户 88+key 66
+  挂组 2 anthropic 上游+充值 $5+计费门 403 实证）；真 claude-code-acp 握手成功、
+  模型解析修复实证（model 错误→429 的变化即证据）、settings 持久化
+  `/data/.claude-acp`+CLAUDE_CONFIG_DIR；**唯上游 workbuddy 中继全天 429**
+  （外部状态；复跑 in-pod E2E 即收口）
 - [x] 7.3 **门逻辑已实证（路由级）**：`scripts/test-deploy-harness-gate.mjs` 6/6 绿，
   驱动真部署路由——错配拒绝（`HARNESS_NOT_HOSTED` 指名 harness 与 runner）、
   命中放行、override 优先、未知/板不可达降级开放、形状拒绝。

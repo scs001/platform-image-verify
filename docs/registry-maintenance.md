@@ -170,3 +170,15 @@ MCP server 接入系统供给层的统一上牌契约，出自 openspec change *
 **滚动实录（三段）**：GitOps 0f6a9f1（registry.yaml 换 tag+新增 `landing-config` ConfigMap 挂 `/app/public-featured`）→ ArgoCD hard refresh，pod 新镜像 Running。**但公网仍 fd-1.3.0——双宿主收口**：cheap-1 compose 栈（sha-adeac80）仍占 `100.64.0.11:18080`，Caddy 三处上游原指它 → 切 `100.64.0.15:18080`（cheap-8 k8s pod，Caddyfile.bak-producthome-* 备份）→ 公网过 k8s。**再修 `/api/version` 显示**：外建 Secret `mcp-registry-env` 内 `BUILD_VERSION=fd-1.3.0` 覆盖镜像 ENV（镜像本身正确）→ patch secret=fd-1.4.0+rollout restart。onboard-registry-argocd 的「compose 双轨观察期」至此**完全收口**（cheap-1 compose 栈仍在跑但已无公网流量，退役另案）。
 
 **验收（生产探针 2026-10-15）**：匿名 `/` 200 渲染落地页（landing-hero 锚点）零跳转；携 `mcp_gateway_session` cookie 200 返回 SPA 壳（无 landing 锚点）；`/login` 与 `/api/stats` 401 语义不变；`/api/public/summary` 匿名 200 `{servers:12, agents:10, skills:128}` featured=[]（策展空=基线策略）、未知条目 404 不泄露；`/api/version`=`fd-1.4.0` + `ui_title=壹座·Packs`。应用中心「壹座·Packs」卡片换链 `https://mcp.finddatatech.cloud`（paas fd42437，app-center e2e 4/4 绿）。回滚：GitOps 回 0f6a9f1 前 tag（sha-a95f7a0 本地有）+ Caddyfile.bak-producthome-* 复原。
+
+### 9.5 fd-1.4.0 补丁一：登出闭环 + 根路径 Vary（2026-10-15 上线，sha-115fea3）
+
+用户报告两症状：**①登出后停在「已成功退出」页（5 秒后跳 /login），不是回首页；②再进首页直接进登录页而不是落地页**。
+
+**根因（两个独立缺陷，均生产实证）**：
+1. **登出终点错**：IdP 的 `logout_uri` 指 `/logout`（已注册白名单页=确认屏），其自动跳转写死 `navigate('/login')` —— 退出闭环把人送回登录墙，落地页再不出现。修=自动跳 `/`（匿名态即落地页），主按钮「返回首页」，保留「重新登录」次级入口。**`/logout` 仍为 IdP 回调，白名单未动**（改 `redirect_uri` 需 Logto 侧同步登记，风险更高、收益为零）。
+2. **`/` 分叉缺 `Vary: Cookie`**：我自己的分流让 `/` 按 cookie 返回两种响应却没声明差异 → 浏览器把登录态的控制台壳缓存复用，登出后访问拿到缓存旧壳 → SPA 401 → 跳 /login，表象正是「进首页直接进登录页」。修=两变体均加 `Vary: Cookie` + `Cache-Control: no-cache`（copilot 式启发式缓存不再串味）。
+
+**探针教训（重要）**：第一版探针自己跳 `/logout` 复现出「cookie 未清」的**假失败**——`/logout` 是 IdP 回调确认屏，**不结束会话**；真登出端点是 `/api/auth/logout`（`Sign out` 按钮用的）。curl 实测其一早返回 `Set-Cookie: Max-Age=0` 是好的。**「断言失败」先怀疑探针路径，再怀疑产品。**
+
+**验收**：root-split 10 绿（新增 4 条缓存契约：Vary 双变体+no-cache+ETag 可区分）、Logout 页 5 绿（含 4999ms 边界）、i18n:scan 1302/1302；**真浏览器 8/8 全绿**（匿名落地→进入控制台→SSO 登录→带 cookie 出控制台→真登出 cookie 清除→回首页出落地页）。回滚锚：GitOps 回 sha-689ec5e。

@@ -662,6 +662,23 @@ const MIGRATIONS = [
       )`,
     ],
   },
+  {
+    version: 29,
+    // paper-trading-credentials (add-paper-trading-credentials, design D7):
+    // one pasted `fdt_` long-lived token per identity — the service has no
+    // multi-account dimension, so a single slot (token IS the identity). No
+    // expiry and no re-login: stale is the only invalid state, cleared by
+    // re-pasting. Referenced from mcp.json's paper-trading server row as
+    // `credentialRef: "paper-trading"`.
+    statements: [
+      `CREATE TABLE IF NOT EXISTS user_paper_trading_credentials (
+        email TEXT PRIMARY KEY,
+        token TEXT NOT NULL,
+        stale INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+      )`,
+    ],
+  },
 ];
 
 function nowIso() {
@@ -1717,6 +1734,51 @@ export function deleteFacetMarketDevice(email) {
   const key = normalizeIdentityEmail(email);
   if (!key) return false;
   return stmt("DELETE FROM user_facet_market_devices WHERE email = ?").run(key).changes > 0;
+}
+
+// ── User paper-trading credentials (add-paper-trading-credentials) ──────────
+// One pasted `fdt_` token per identity (single slot — token IS the identity).
+// Mirrors the search-credential accessor shapes: normalized email is the key,
+// token never leaves the server except through the injection path. No expiry:
+// stale is the only invalid state.
+
+export function getPaperTradingCredential(email) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return null;
+  const row = stmt(
+    "SELECT token, stale, updated_at AS updatedAt FROM user_paper_trading_credentials WHERE email = ?"
+  ).get(key);
+  return row ? { ...row, stale: !!row.stale } : null;
+}
+
+export function setPaperTradingCredential(email, token) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  if (!key || typeof token !== "string" || !token) return null;
+  // A fresh paste replaces the row wholesale and clears stale — re-pasting is
+  // the one recovery path after a 401 flip (design D2).
+  stmt(
+    `INSERT INTO user_paper_trading_credentials (email, token, stale, updated_at)
+     VALUES (@email, @token, 0, @updatedAt)
+     ON CONFLICT(email) DO UPDATE SET token = excluded.token, stale = 0, updated_at = excluded.updated_at`
+  ).run({ email: key, token, updatedAt: nowIso() });
+  return getPaperTradingCredential(key);
+}
+
+export function markPaperTradingCredentialStale(email) {
+  if (!dbReady) return false;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return false;
+  return stmt("UPDATE user_paper_trading_credentials SET stale = 1, updated_at = ? WHERE email = ? AND stale = 0")
+    .run(nowIso(), key).changes > 0;
+}
+
+export function deletePaperTradingCredential(email) {
+  if (!dbReady) return false;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return false;
+  return stmt("DELETE FROM user_paper_trading_credentials WHERE email = ?").run(key).changes > 0;
 }
 
 // ── Extension configs (MCP servers) ──────────────────────────────────────────

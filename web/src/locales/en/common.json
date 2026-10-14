@@ -571,6 +571,18 @@
       "emptyHintPasteOnly": "No connector accounts yet. Mint a PAT on the connector and paste it here.",
       "slotPlaceholder": "Account name (optional)"
     },
+    "paperTrading": {
+      "title": "Wire · Paper Trading",
+      "connected": "Connected",
+      "notConnected": "Not connected",
+      "staleBadge": "Invalidated",
+      "updated": "Updated {{date}}",
+      "disconnect": "Disconnect",
+      "staleHint": "The paper-trading service rejected this token. Mint a fresh one on the service web and re-paste it.",
+      "pasteHint": "Mint an API token (fdt_…) on the service web and paste it here. Paper-only — no real money.",
+      "openService": "Open service →",
+      "paperOnlyNote": "Paper-only: simulated trading, no real funds."
+    },
     "external": {
       "title": "External sources",
       "subtitle": "Mirrored entries from external skill markets. Not reviewed by this platform — discovery only; nothing installs from here.",

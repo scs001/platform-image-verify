@@ -265,6 +265,50 @@ export async function disconnectFacetMarket(): Promise<FacetMarketConnection> {
   return res.json();
 }
 
+// ── Paper-trading token (add-paper-trading-credentials) ─────────────────────
+//
+// A pasted `fdt_` long-lived token minted on the service web — no expiry, no
+// pairing protocol, no multi-account dimension. One token per identity; the
+// browser submits it once and thereafter only ever reads state (the token
+// never returns). Re-pasting replaces the token and recovers a 401-stale row.
+
+export interface PaperTradingConnection {
+  connected: boolean;
+  stale: boolean;
+  updatedAt: string | null;
+  // Deployment config, not a secret: where the "get a token" hint sends the
+  // user (the service's own web UI).
+  serviceUrl: string | null;
+}
+
+export async function fetchPaperTradingConnection(): Promise<PaperTradingConnection> {
+  const res = await http("/api/paper-trading/connection");
+  if (!res.ok) throw new Error(`Failed to fetch paper-trading connection: ${res.statusText}`);
+  return res.json();
+}
+
+export async function savePaperTradingCredential(token: string): Promise<PaperTradingConnection> {
+  const res = await http("/api/paper-trading/connection", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to save paper-trading token: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function disconnectPaperTrading(): Promise<PaperTradingConnection> {
+  const res = await http("/api/paper-trading/connection", { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to disconnect: ${res.statusText}`);
+  }
+  return res.json();
+}
+
 // ── MCP Servers ──────────────────────────────────────────────────────────────
 
 export async function fetchMcpServers(): Promise<McpServer[]> {

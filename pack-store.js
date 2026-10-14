@@ -16,8 +16,7 @@
 import * as db from "./db.js";
 import * as skillMaterialize from "./skill-materialize.js";
 import * as extensionStore from "./extension-store.js";
-import * as registryCredentials from "./registry-credentials.js";
-import * as facetMarketCredentials from "./facet-market-credentials.js";
+import * as credentialRefs from "./credential-refs.js";
 import { validatePackManifest } from "./lib/pack-manifest.js";
 
 function notFound(msg) {
@@ -85,19 +84,14 @@ function agentOwner(agentId, excludePackId) {
 // the binding up purely by name intersection — and a reference that matches
 // neither surface awaits one instead of failing the pack.
 
-// Which 壹座-side credentialRef a registry entry's install must wire and
-// require (add-facet-market-credentials D4): the registering line declares
-// it via metadata.credential_ref (mapped onto entry.credentialRef by
-// registry-bridge); absent = the incumbent registry credential.
-export function credentialRefForEntry(entry) {
-  return entry?.credentialRef || registryCredentials.REGISTRY_CREDENTIAL_REF;
-}
-
-export function credentialConnected(refName, email) {
-  return refName === facetMarketCredentials.FACET_MARKET_CREDENTIAL_REF
-    ? facetMarketCredentials.status(email).connected
-    : registryCredentials.status(email).connected;
-}
+// Credential-ref install dispatch (add-facet-market-credentials D4) now lives
+// on the dispatch table itself (credential-refs.js) — a second install path
+// (the market card install in routes/extensions) consumes it too. These
+// forwarders keep this module's established imports working; new code should
+// import from credential-refs.js.
+export const credentialRefForEntry = credentialRefs.credentialRefForEntry;
+export const credentialConnected = credentialRefs.credentialConnected;
+export const credentialMissingReason = credentialRefs.credentialMissingReason;
 
 async function installMcpRef(ref, { user }) {
   const name = ref.registryName;
@@ -118,10 +112,7 @@ async function installMcpRef(ref, { user }) {
     if (!connected) {
       return {
         ...item,
-        reason:
-          refName === facetMarketCredentials.FACET_MARKET_CREDENTIAL_REF
-            ? "pair the facet market first — no live market credential"
-            : "connect the MCP market first — no live registry credential",
+        reason: credentialMissingReason(refName),
         code: "credential-required",
       };
     }

@@ -12,6 +12,7 @@ import { McpServerForm } from "./McpServerForm";
 import { RegistryConnectPanel } from "./RegistryConnectPanel";
 import { ConnectorConnectPanel } from "./ConnectorConnectPanel";
 import { FacetMarketConnectPanel } from "./FacetMarketConnectPanel";
+import { PaperTradingConnectPanel } from "./PaperTradingConnectPanel";
 import type { MarketMcpServer } from "@platform/core";
 
 interface McpMarketViewProps {
@@ -50,6 +51,9 @@ export function McpMarketView({ onInstalled }: McpMarketViewProps = {}) {
             mental model, next to the market account. */}
         <ConnectorConnectPanel className="mb-4" />
         <FacetMarketConnectPanel className="mb-4" />
+        {/* The 柏讯模拟交易 token (paper-trading-credentials): pasted fdt_
+            token, same credential-slot mental model. */}
+        <PaperTradingConnectPanel className="mb-4" />
         {mcpServers.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("extensions.market.empty")}</p>
         ) : (

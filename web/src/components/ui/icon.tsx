@@ -41,6 +41,7 @@ import {
   Globe,
   Download,
   Star,
+  LineChart,
   type LucideProps,
 } from "lucide-react";
 
@@ -82,6 +83,8 @@ const ICONS: Record<string, React.ComponentType<LucideProps>> = {
   // External skill-source shelf (add-external-skill-sources)
   download: Download,
   star: Star,
+  // Paper-trading credential card (add-paper-trading-credentials)
+  "line-chart": LineChart,
 };
 
 interface IconProps extends LucideProps {

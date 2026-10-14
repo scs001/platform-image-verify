@@ -571,6 +571,18 @@
       "emptyHintPasteOnly": "Aucun compte connecteur pour l'instant. Créez un PAT sur le connecteur et collez-le ici.",
       "slotPlaceholder": "Nom du compte (facultatif)"
     },
+    "paperTrading": {
+      "title": "Wire · Trading Simulé",
+      "connected": "Connecté",
+      "notConnected": "Non connecté",
+      "staleBadge": "Invalidé",
+      "updated": "Mis à jour {{date}}",
+      "disconnect": "Déconnecter",
+      "staleHint": "Le service de trading simulé a rejeté ce jeton. Générez-en un nouveau sur le web du service et recollez-le.",
+      "pasteHint": "Générez un jeton d'API (fdt_…) sur le web du service et collez-le ici. Simulation uniquement — pas d'argent réel.",
+      "openService": "Ouvrir le service →",
+      "paperOnlyNote": "Simulation uniquement : trading fictif, sans fonds réels."
+    },
     "external": {
       "title": "Sources externes",
       "subtitle": "Entrées miroir des marchés de compétences externes. Non validées par cette plateforme — découverte uniquement ; rien ne s'installe ici.",

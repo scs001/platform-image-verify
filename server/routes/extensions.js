@@ -2,7 +2,7 @@
 
 import { getFileSkills } from "../skills.js";
 import { getMarketEntries, getSkillContent } from "../../registry-bridge.js";
-import * as registryCredentials from "../../registry-credentials.js";
+import * as credentialRefs from "../../credential-refs.js";
 import { getPreflightStatus } from "../../mcp-preflight.js";
 import { createExternalSourceRegistry, requestedPageSize } from "../../external-sources.js";
 
@@ -72,23 +72,28 @@ export function registerExtensionRoutes(ctx) {
         return res.status(403).json({ error: `MCP server "${name}" requires one of groups: ${requiredGroups.join(", ")}` });
       }
     }
-    // Registry-origin installs are credential-shaped (registry-sso-credentials):
-    // the record references the installer's stored market credential, and the
-    // Authorization header is resolved at profile-write time. Installing
-    // without a live credential is refused — storing the template's
-    // placeholder would create a server that can never authenticate — so the UI
-    // routes the user to connect (or paste a token) and retries.
+    // Registry-origin installs are credential-shaped (registry-sso-credentials,
+    // extended by add-facet-market-credentials D4 / add-paper-trading-credentials):
+    // the record references the installer's stored credential for the ref the
+    // registering line declared (metadata.credential_ref — "registry",
+    // "facet-market", "paper-trading", …), and the Authorization header is
+    // resolved at profile-write time. Installing without a live credential for
+    // THAT ref is refused — storing the template's placeholder would create a
+    // server that can never authenticate, and judging by the wrong ref's
+    // liveness would wire one service's token into another. The UI routes the
+    // user to the connect flow for the named ref and retries.
     let config = submitted;
     if (entry?.origin === "registry") {
-      const status = registryCredentials.status(req.user?.email ?? null);
-      if (!status.connected) {
+      const refName = credentialRefs.credentialRefForEntry(entry);
+      if (!credentialRefs.credentialConnected(refName, req.user?.email ?? null)) {
         return res.status(409).json({
-          error: "Connect the MCP market (or paste a token) before installing registry servers",
+          error: `Connect the required credential before installing this server (${credentialRefs.credentialMissingReason(refName)})`,
           code: "credential-required",
+          ref: refName,
         });
       }
       const { headers: _placeholderHeaders, ...rest } = submitted;
-      config = { ...rest, credentialRef: registryCredentials.REGISTRY_CREDENTIAL_REF };
+      config = { ...rest, credentialRef: refName };
     }
     try {
       const server = extensionStore.addMcpServer({ name, config, enabled, requiredGroups });

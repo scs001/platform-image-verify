@@ -571,6 +571,18 @@
       "emptyHintPasteOnly": "尚未连接任何连接器账号。在连接器铸造 PAT 后粘贴到这里。",
       "slotPlaceholder": "账号名（可选）"
     },
+    "paperTrading": {
+      "title": "柏讯·模拟交易",
+      "connected": "已连接",
+      "notConnected": "未连接",
+      "staleBadge": "已失效",
+      "updated": "更新于 {{date}}",
+      "disconnect": "断开",
+      "staleHint": "柏讯模拟交易已拒绝该 token，请在服务 Web 重新铸造并粘贴。",
+      "pasteHint": "在服务 Web 铸造 API token（fdt_… 开头）并粘贴到这里。仅模拟盘，无真实资金。",
+      "openService": "打开服务 →",
+      "paperOnlyNote": "paper-only：模拟盘交易，无真实资金。"
+    },
     "external": {
       "title": "外部源",
       "subtitle": "镜像外部技能市场的条目。这些内容未经本平台审校，仅供发现；本页不提供安装。",

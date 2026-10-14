@@ -571,6 +571,18 @@
       "emptyHintPasteOnly": "Aún no hay cuentas del conector. Crea un PAT en el conector y pégalo aquí.",
       "slotPlaceholder": "Nombre de cuenta (opcional)"
     },
+    "paperTrading": {
+      "title": "Wire · Trading Simulado",
+      "connected": "Conectado",
+      "notConnected": "Sin conectar",
+      "staleBadge": "Invalidado",
+      "updated": "Actualizado {{date}}",
+      "disconnect": "Desconectar",
+      "staleHint": "El servicio de trading simulado rechazó este token. Genera uno nuevo en la web del servicio y vuelve a pegarlo.",
+      "pasteHint": "Genera un token de API (fdt_…) en la web del servicio y pégalo aquí. Solo simulado — sin dinero real.",
+      "openService": "Abrir servicio →",
+      "paperOnlyNote": "Solo simulado: trading de práctica, sin fondos reales."
+    },
     "external": {
       "title": "Fuentes externas",
       "subtitle": "Entradas reflejadas de mercados de habilidades externos. Sin revisión de esta plataforma — solo descubrimiento; aquí no se instala nada.",

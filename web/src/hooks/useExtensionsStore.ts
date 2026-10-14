@@ -12,6 +12,7 @@ import type {
   ConnectorAccount,
   ConnectorConnection,
   FacetMarketConnection,
+  PaperTradingConnection,
 } from "@platform/core";
 import { connectorSessionLive, mintConnectorToken, suggestSlot } from "@/lib/connector-mint";
 import type { ServerMessage } from "@platform/core";
@@ -35,6 +36,9 @@ interface ExtensionsState {
   // Facet market device credential (facet-market-credentials). null = not
   // fetched yet.
   facetMarketConnection: FacetMarketConnection | null;
+
+  // Paper-trading token (paper-trading-credentials). null = not fetched yet.
+  paperTradingConnection: PaperTradingConnection | null;
 
   load: () => Promise<void>;
   refreshMcpServers: () => Promise<void>;
@@ -67,6 +71,10 @@ interface ExtensionsState {
   pairFacetMarket: (code: string) => Promise<void>;
   disconnectFacetMarket: () => Promise<void>;
 
+  refreshPaperTradingConnection: () => Promise<void>;
+  savePaperTradingCredential: (token: string) => Promise<void>;
+  disconnectPaperTrading: () => Promise<void>;
+
   applyEvent: (msg: ServerMessage) => void;
 }
 
@@ -89,6 +97,7 @@ export const useExtensionsStore = create<ExtensionsState>((set, get) => ({
   connectorConnection: null,
   connectorAccounts: null,
   facetMarketConnection: null,
+  paperTradingConnection: null,
 
   load: async () => {
     set({ loading: true, error: null });
@@ -320,6 +329,28 @@ export const useExtensionsStore = create<ExtensionsState>((set, get) => ({
     await get().refreshFacetMarketConnection();
   },
 
+  // ── Paper trading (paper-trading-credentials): paste an fdt_ token; the
+  // token is long-lived (no re-mint) and the only recovery from a 401-stale
+  // row is re-pasting.
+  refreshPaperTradingConnection: async () => {
+    try {
+      const paperTradingConnection = await api.fetchPaperTradingConnection();
+      set({ paperTradingConnection });
+    } catch (err) {
+      set({ error: (err as Error).message });
+    }
+  },
+
+  savePaperTradingCredential: async (token) => {
+    await api.savePaperTradingCredential(token);
+    await get().refreshPaperTradingConnection();
+  },
+
+  disconnectPaperTrading: async () => {
+    await api.disconnectPaperTrading();
+    await get().refreshPaperTradingConnection();
+  },
+
   applyEvent: (msg) => {
     if (msg.type === "market_changed") {
       get().refreshMarketCatalog();
@@ -335,6 +366,12 @@ export const useExtensionsStore = create<ExtensionsState>((set, get) => ({
       // A 401 from the connector MCP server: re-read so the card flips to
       // "invalidated — re-paste".
       get().refreshConnectorConnection();
+      return;
+    }
+    if (msg.type === "paper_trading_credential_stale") {
+      // A 401 from the paper-trading MCP server: re-read so the card flips to
+      // "invalidated — re-paste".
+      get().refreshPaperTradingConnection();
       return;
     }
     if (msg.type !== "extensions_changed") return;

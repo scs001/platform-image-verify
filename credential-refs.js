@@ -19,6 +19,7 @@
 import * as registryCredentials from "./registry-credentials.js";
 import * as connectorCredentials from "./connector-credentials.js";
 import * as facetMarketCredentials from "./facet-market-credentials.js";
+import * as paperTradingCredentials from "./paper-trading-credentials.js";
 
 const REFS = new Map(
   [
@@ -43,11 +44,53 @@ const REFS = new Map(
       markInvalid: facetMarketCredentials.markInvalid,
       staleEvent: "facet_market_credential_stale",
     },
+    {
+      refName: paperTradingCredentials.PAPER_TRADING_CREDENTIAL_REF,
+      isRef: paperTradingCredentials.isPaperTradingRef,
+      liveToken: paperTradingCredentials.liveToken,
+      markInvalid: paperTradingCredentials.markInvalid,
+      staleEvent: "paper_trading_credential_stale",
+    },
   ].map((entry) => [entry.refName, entry]),
 );
 
 export function knownRef(name) {
   return REFS.has(name);
+}
+
+// ── Install-path dispatch (add-facet-market-credentials D4; hoisted here when
+// the second consumer appeared — add-paper-trading-credentials) ─────────────
+// Which 壹座-side credentialRef a registry entry's install must wire and
+// require: the registering line declares it via metadata.credential_ref
+// (mapped onto entry.credentialRef by registry-bridge); absent = the
+// incumbent registry credential. Consumed by BOTH install paths — the pack
+// install (pack-store) and the market card install (routes/extensions) —
+// which is why it lives on the dispatch table, not in one consumer.
+
+export function credentialRefForEntry(entry) {
+  return entry?.credentialRef || registryCredentials.REGISTRY_CREDENTIAL_REF;
+}
+
+export function credentialConnected(refName, email) {
+  if (refName === facetMarketCredentials.FACET_MARKET_CREDENTIAL_REF) {
+    return facetMarketCredentials.status(email).connected;
+  }
+  if (refName === paperTradingCredentials.PAPER_TRADING_CREDENTIAL_REF) {
+    return paperTradingCredentials.status(email).connected;
+  }
+  return registryCredentials.status(email).connected;
+}
+
+// Human-readable "what to connect" for a refused install, per ref (the 409
+// body's reason; the UI turns it into the connect-card pointer).
+export function credentialMissingReason(refName) {
+  if (refName === facetMarketCredentials.FACET_MARKET_CREDENTIAL_REF) {
+    return "pair the facet market first — no live market credential";
+  }
+  if (refName === paperTradingCredentials.PAPER_TRADING_CREDENTIAL_REF) {
+    return "connect the paper-trading service first — no live paper-trading credential";
+  }
+  return "connect the MCP market first — no live registry credential";
 }
 
 // The registry entry for a config's `credentialRef`, or null for an absent or

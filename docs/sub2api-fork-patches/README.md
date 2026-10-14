@@ -112,9 +112,20 @@ SUB2API_ADMIN_KEY、公网门面、panic 扫零）。admin key 头=**x-api-key**
 
 ## 五、上游回馈登记（能上游则上游）
 
+> 操作手册与提交计划：`docs/sub2api-fork-patches/upstream-pr-candidates.md`
+> （形状草案/实施步骤/CLA/退役流程）；谱系纪律见 spec「上游回馈优先」。
+
 | 候选 | 上游凭据 | 状态 |
 |---|---|---|
-| 按 key 自助用量查询端点 | issue #6421（ADR-0011 等此） | 未启动 |
-| 虚拟用量端点 | ADR-0014 backlog（門面结算切账本权威的前置） | 未启动 |
+| 按 key 自助用量查询端点 | issue #6421（ADR-0011 等此）**仍 open**（2026-08-14 立、08-31 更新，无关联 PR；近邻端点 `/v1/sub2api/billing` 已在上游=形状对齐锚点） | **计划就绪**（计划文档§候选①：形状草案/数据源复用/单提交流程；触发时机=车道部署窗后） |
+| 虚拟用量端点 | ADR-0014 backlog（門面结算切账本权威的前置） | **计划就绪**（计划文档§候选②：形状草案+幂等要求；前置=候选①先合或先对齐语义） |
 
-CLA：上游有 CLA.md，首次 PR 前签署。补丁保持 cherry-pickable 单提交。
+CLA：上游有 CLA.md，首次 PR 前签署（覆盖后续 PR）。补丁保持 cherry-pickable 单提交。
+
+## 六、治理手册索引
+
+- **月度合并窗 runbook**：`docs/sub2api-fork-patches/merge-window-runbook.md`
+  （十节照单执行：窗型触发/notes 预判/merge 纪律/缝点解冲突+ent 迁移/本地轻测+
+  CI 重测+金样七面/安全快车道判据/出片/部署探针/台账登记/三月检查点/上游回馈）
+- **上游 PR 候选计划**：`docs/sub2api-fork-patches/upstream-pr-candidates.md`
+- **三月检查点**：§三检查点表（单窗 merge 用时 >1 天触发继续/冻结/外提三选一）

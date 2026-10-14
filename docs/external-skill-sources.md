@@ -38,11 +38,13 @@
 
 全部只读 GET；写动词不存在（e2e 有只读断言钉死）。
 
-## 上线核验（部署窗执行，未做不算完）
+## 上线核验结论（2026-10-15，镜像 sha-c175452 ≙ 源码 90b7ece）
 
-1. **prod 可达性**：从 cheap-* 生产节点 `curl https://api.smithery.ai/skills?pageSize=1`（本机可通不代表 CN 节点可通）。不通 → 该部署 `EXTERNAL_SKILL_SOURCES=skillhub` 关停 smithery，记台账。
-2. **Smithery 再分发条款**：读其 terms/API 条款；刀一只读展示 + 来源归属徽章是本次依赖的合规底线；真镜像（刀二+）前必须复核。结论补记本文件。
-3. **关源演练**：生产设 `EXTERNAL_SKILL_SOURCES=skillhub` 冒烟一次（smithery 组应消失且不报错），再恢复。
+1. **prod 可达性 ✅**：从 cheap3 生产节点实测 `api.skillhub.cn` **HTTP 200 (0.35s)**、`api.smithery.ai` **HTTP 200 (1.11s)**——两源均可达，无需关源。
+2. **Smithery 条款 ✅（含一条所有权变化）**：官方 OpenAPI 规范已发布（Stainless 托管 `openapi.documented.yml`，`/skills` 为文档化公开读端点，读操作免鉴权是设计而非疏漏）；Arcade.dev ToS（Smithery 2026 已并入 Arcade）未见公开目录元数据的再分发禁令，「Unauthorized sharing or reselling」条款指服务本身。**本次依赖的合规底线 = 只读展示元数据 + 来源归属（originUrl 外链）**，已满足。⚠️ **所有权变更记风险**：API 若未来收敛为需 key，快照 stale 姿态 + `EXTERNAL_SKILL_SOURCES` 关源开关即为降级路径。
+3. **关源演练 ✅**：生产容器内实测三态——默认两源、`skillhub` 单源（smithery 不再请求）、`none` 全关（空清单），searchAll 分组与 `isEnabled` 均按语义行为。
+4. **生产数据通路 ✅**：生产容器内直跑适配器打真实上游，双源各返回 3 条归一化条目（licenseState=unknown 正确、originUrl 真实）；生产前端懒加载 chunk（`ExtensionsPage-UlDl3Pu8.js`）含 `extensions-tab-external` / `external-source-shelf` / `external-group` 全部本 change 标记。
+5. **UI 眼见**：生产域名有登录墙（AUTH_MODE=logto），agent 侧无真人会话，**浏览器级别的最终一眼（登录后开 tab 看渲染）留给人工**——代码层与数据层均已实证，仅剩视觉确认这一步。
 
 ## 证据链（探索底稿，2026-10-14 四路调研 + 20 项亲手核验）
 

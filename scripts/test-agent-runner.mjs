@@ -17,7 +17,7 @@ import path from "node:path";
 import { test } from "node:test";
 import yaml from "js-yaml";
 
-import { materializeAgentHome, mcpEntry, agentKeyFor, applyBillingKey, applyDeploymentSecrets } from "../agent-runner/compose.js";
+import { materializeAgentHome, materializePackHome, mcpEntry, agentKeyFor, packPodEligibility, podKeyFor, applyBillingKey, applyDeploymentSecrets } from "../agent-runner/compose.js";
 import { AgentChild, sessionKeyFor } from "../agent-runner/child.js";
 import { ChildManager } from "../agent-runner/manager.js";
 import { createOpsApp, agentPortFor } from "../agent-runner/a2a.js";
@@ -56,7 +56,7 @@ test.after(() => rmSync(tmpRoot, { recursive: true, force: true }));
 
 // ── Fake harness client: records calls, replies to prompt with a scripted ──
 // turn (text deltas + final message + idle), per the dsh notification shapes.
-function fakeHarnessClient({ reply = "ok", delayMs = 0, failPrompt = false, noUsage = false } = {}) {
+function fakeHarnessClient({ reply = "ok", delayMs = 0, failPrompt = false, noUsage = false, onRequest = null } = {}) {
   const calls = { initialize: [], prompt: [], requests: [], started: 0, stopped: 0 };
   const client = {
     calls,
@@ -68,9 +68,12 @@ function fakeHarnessClient({ reply = "ok", delayMs = 0, failPrompt = false, noUs
       return { ok: true };
     },
     // Host→child requests (add-agent-notifications: the runner answers a
-    // bot_notify call with `botNotify/result` on this lane).
+    // bot_notify call with `botNotify/result` on this lane). `onRequest`
+    // (add-dsh-pod-adapter) lets a test script the live-method lane — the
+    // capabilities probe, session/cancel convergence, or refusal shapes.
     async request(method, params) {
       calls.requests.push({ method, params });
+      if (onRequest) return onRequest(method, params, client);
       return { accepted: true };
     },
     subscribe() {
@@ -262,7 +265,7 @@ function stubRegistryFetch(entries, skills) {
 
 const OPS = (await import("node:http")).default;
 
-async function bootRunner({ entries, skills = {}, config: cfgOverrides = {}, reply = "分析完成" } = {}) {
+async function bootRunner({ entries, skills = {}, config: cfgOverrides = {}, reply = "分析完成", clientOpts = {} } = {}) {
   const homeRoot = path.join(tmpRoot, `run-${Math.random().toString(36).slice(2)}`);
   const spawned = [];
   const config = {
@@ -296,7 +299,7 @@ async function bootRunner({ entries, skills = {}, config: cfgOverrides = {}, rep
   Object.assign(config, cfgOverrides);
   const registryClient = createRegistryClient({ registryUrl: config.registryUrl, registryToken: config.registryToken, fetchImpl: stubRegistryFetch(entries, skills) });
   const clientFactory = (spec) => () => {
-    const client = fakeHarnessClient({ reply });
+    const client = fakeHarnessClient({ reply, ...clientOpts });
     spawned.push({ spec, client });
     return client;
   };
@@ -1727,5 +1730,310 @@ test("ports: health and bind resolve a valid port_override, junk falls back to t
     assert.equal(manager.health().agents.find((a) => a.key === agentKeyFor(ENTRY)).port, hashPort, "junk override falls back to the hash");
   } finally {
     await manager.stopAll();
+  }
+});
+
+// ── Pod co-hosting (add-dsh-pod-adapter) ──────────────────────────────────────
+
+const ENTRY_B = {
+  ...ENTRY,
+  path: "/packs/pk-abc/pack-writer",
+  name: "WenAn Author",
+  metadata: {
+    ...ENTRY.metadata,
+    agentId: "pack-writer",
+    agentName: "文案作者",
+    persona: "你是简洁的文案作者。",
+    skills: ["packs/pk-abc/fin-statement-analysis", "packs/pk-abc/copy-style"],
+  },
+};
+
+const POD_SKILLS = {
+  "packs/pk-abc/fin-statement-analysis": "# 财报分析\nstep 1",
+  "packs/pk-abc/copy-style": "# 文案风格\n短句优先",
+};
+
+// The capabilities the pod spawn probes for (design D2's runtime gate).
+const POD_CAPS = { methods: ["model/set", "session/cancel", "tools/set", "preset/set"], streamForward: true };
+
+test("pod eligibility: refuses distinct billing keys, secret conflicts, distinct notify channels, persona-less members; accepts the clean shape", () => {
+  assert.equal(packPodEligibility([ENTRY, ENTRY_B]).ok, true);
+  const v1 = packPodEligibility([
+    { ...ENTRY, metadata: { ...ENTRY.metadata, billing_key_ref: "ws_aaaaaaaa" } },
+    { ...ENTRY_B, metadata: { ...ENTRY_B.metadata, billing_key_ref: "ws_bbbbbbbb" } },
+  ]);
+  assert.equal(v1.ok, false);
+  assert.match(v1.reason, /billing/);
+  const v2 = packPodEligibility([
+    { ...ENTRY, metadata: { ...ENTRY.metadata, secret_refs: { db: "ws_x1" } } },
+    { ...ENTRY_B, metadata: { ...ENTRY_B.metadata, secret_refs: { db: "ws_x2" } } },
+  ]);
+  assert.equal(v2.ok, false);
+  assert.match(v2.reason, /secret 'db'/);
+  const v3 = packPodEligibility([
+    { ...ENTRY, metadata: { ...ENTRY.metadata, notify_channel: "ops-a" } },
+    { ...ENTRY_B, metadata: { ...ENTRY_B.metadata, notify_channel: "ops-b" } },
+  ]);
+  assert.equal(v3.ok, false);
+  assert.match(v3.reason, /notify/);
+  const v4 = packPodEligibility([
+    ENTRY,
+    { ...ENTRY_B, name: "", metadata: { ...ENTRY_B.metadata, persona: null, agentName: "" } },
+  ]);
+  assert.equal(v4.ok, false);
+  assert.match(v4.reason, /no persona/);
+});
+
+test("pod compose: one home, N persona rows, union skills/MCP, byPreset tool faces, single credential writes", async () => {
+  const homeRoot = path.join(tmpRoot, `pod-compose-${Math.random().toString(36).slice(2)}`);
+  const memberA = {
+    ...ENTRY,
+    metadata: { ...ENTRY.metadata, mcpTools: { "fd-open-data-mcp": ["read_series", "write_series"] } },
+  };
+  const memberB = {
+    ...ENTRY_B,
+    metadata: { ...ENTRY_B.metadata, mcpTools: { "fd-open-data-mcp": ["read_series", "data_stats"] } },
+  };
+  const spec = await materializePackHome({
+    homeRoot,
+    packId: "pk-abc",
+    memberSpecs: [
+      { entry: memberA, skillContents: POD_SKILLS, billingKeyValue: "sk-shared-pod", secrets: { db: "v1" } },
+      { entry: memberB, skillContents: POD_SKILLS, billingKeyValue: null, secrets: {} },
+    ],
+    mcpServers: [mcpEntry("fd-open-data-mcp", { url: "https://mcp.example.test/fd-open-data-mcp/mcp", token: "tok" })],
+    seedHome: null,
+  });
+  assert.ok(spec.home.endsWith(podKeyFor("pk-abc")), `home lands under ${podKeyFor("pk-abc")}`);
+  // Both members' persona rows ride one overlay, keyed by the SAME ids solo
+  // homes compose (migration between shapes keeps composition nameable).
+  const overlay = readFileSync(path.join(spec.home, "profiles", "platform", "presets.patch.yml"), "utf8");
+  assert.ok(overlay.includes("金融分析师"));
+  assert.ok(overlay.includes("文案作者"));
+  assert.equal(spec.presetIds.get(agentKeyFor(memberA)), "srv-pk-abc-pack-fingpt");
+  assert.equal(spec.presetIds.get(agentKeyFor(memberB)), "srv-pk-abc-pack-writer");
+  // Union skills: the shared skill plus each member's own.
+  assert.ok(existsSync(path.join(spec.skillsRoot, "fin-statement-analysis", "SKILL.md")));
+  assert.ok(existsSync(path.join(spec.skillsRoot, "copy-style", "SKILL.md")));
+  // Pod tool filter: top-level union + per-preset exact faces.
+  const filter = JSON.parse(readFileSync(path.join(spec.home, "profiles", "platform", "tool-filter.json"), "utf8"));
+  assert.deepEqual([...filter.mcpTools["fd-open-data-mcp"]].sort(), ["data_stats", "read_series", "write_series"]);
+  assert.deepEqual([...filter.byPreset["srv-pk-abc-pack-fingpt"].mcpTools["fd-open-data-mcp"]].sort(), ["read_series", "write_series"]);
+  assert.deepEqual([...filter.byPreset["srv-pk-abc-pack-writer"].mcpTools["fd-open-data-mcp"]].sort(), ["data_stats", "read_series"]);
+  // One credentials write carries the shared billing key AND the merged secrets.
+  const creds = yaml.load(readFileSync(path.join(spec.home, ".credentials.yaml"), "utf8"));
+  assert.equal(creds.refs.LLM_API_KEY, "sk-shared-pod");
+  assert.equal(creds.refs.db, "v1");
+});
+
+test("pod mode: same-pack members share ONE child; turns ride namespaced wire sessions with parked preset and model", async () => {
+  const h = await bootRunner({
+    entries: [ENTRY, ENTRY_B],
+    skills: POD_SKILLS,
+    config: { podMode: true, podCostMb: 160, podMaxInflight: 4 },
+    clientOpts: { onRequest: (method) => (method === "platform/capabilities" ? POD_CAPS : { accepted: true }) },
+  });
+  try {
+    await h.manager.reconcile();
+    const out = await h.manager.turn(ENTRY, "srv-ctx1", "你好");
+    assert.match(out.text, /分析完成/);
+    assert.equal(h.manager.children.size, 1, "one process hosts both members");
+    const podKey = [...h.manager.children.keys()][0];
+    assert.equal(podKey, podKeyFor("pk-abc"));
+    assert.ok(h.spawned[0].spec.home.includes(podKeyFor("pk-abc")), "the spawn materializes the pack home");
+    const client = h.spawned[0].client;
+    const wireA = `${agentKeyFor(ENTRY)}--srv-ctx1`;
+    assert.ok(client.calls.prompt.some((p) => p.sessionId === wireA), "the turn addresses the member's namespaced wire session");
+    const presetCall = client.calls.requests.find((r) => r.method === "preset/set" && r.params.sessionId === wireA);
+    assert.equal(presetCall.params.presetId, "srv-pk-abc-pack-fingpt", "the member's persona parks before the first prompt");
+    const modelCall = client.calls.requests.find((r) => r.method === "model/set" && r.params.sessionId === wireA);
+    assert.equal(modelCall.params.model, "test-model");
+    // The sibling member: same child, distinct wire prefix — no cross-talk.
+    await h.manager.turn(ENTRY_B, "srv-ctx1", "写一句");
+    assert.equal(h.manager.children.size, 1);
+    assert.ok(client.calls.prompt.some((p) => p.sessionId === `${agentKeyFor(ENTRY_B)}--srv-ctx1`));
+    const health = h.manager.health();
+    assert.equal(health.children, 1);
+    assert.deepEqual(
+      health.agents.map((a) => `${a.key}:${a.state}`).sort(),
+      [`${agentKeyFor(ENTRY)}:resident`, `${agentKeyFor(ENTRY_B)}:resident`],
+    );
+  } finally {
+    await h.close();
+  }
+});
+
+test("pod turns queue on the in-flight lane: the second member's turn waits for the first to settle", async () => {
+  const h = await bootRunner({
+    entries: [ENTRY, ENTRY_B],
+    skills: POD_SKILLS,
+    config: { podMode: true, podCostMb: 160, podMaxInflight: 1 },
+    clientOpts: {
+      delayMs: 300,
+      onRequest: (method) => (method === "platform/capabilities" ? POD_CAPS : { accepted: true }),
+    },
+  });
+  try {
+    await h.manager.reconcile();
+    const t1 = h.manager.turn(ENTRY, "srv-a", "第一问");
+    await new Promise((r) => setTimeout(r, 80)); // let the first prompt dispatch
+    const client = h.spawned[0].client;
+    assert.equal(client.calls.prompt.length, 1, "member A's turn is in flight");
+    const t2 = h.manager.turn(ENTRY_B, "srv-b", "第二问");
+    await new Promise((r) => setTimeout(r, 120));
+    assert.equal(client.calls.prompt.length, 1, "member B's turn is queued behind the pod's single lane");
+    const [outA, outB] = await Promise.all([t1, t2]);
+    assert.match(outA.text, /分析完成/);
+    assert.match(outB.text, /分析完成/);
+    assert.equal(client.calls.prompt.length, 2);
+  } finally {
+    await h.close();
+  }
+});
+
+test("pod budget: over-budget cancels the member's session first — the pod survives; a wedged cancel escalates", async () => {
+  // Cancel converges: the fake child answers session/cancel by going idle.
+  // delayMs exceeds the member's 60ms budget, so the turn is still in flight
+  // when the budget timer fires.
+  const client = fakeHarnessClient({
+    delayMs: 500,
+    onRequest: (method, params, c) => {
+      if (method === "session/cancel") {
+        setTimeout(() => c.__emit({ method: "session.status", params: { sessionId: params.sessionId, status: "idle" } }), 20);
+        return { ok: true };
+      }
+      return { accepted: true };
+    },
+  });
+  const mkChild = () => new AgentChild({
+    key: "pod-budget",
+    spawnSpec: { profile: "platform", patchPaths: [], cwd: tmpRoot, env: {}, provider: "test-provider", model: "m", presetId: null },
+    turnTimeoutMs: 60_000,
+    budgetLabel: "1m",
+    podMembers: new Map([
+      ["mem-a", { presetId: "p-a", provider: "test-provider", model: "m-a", turnTimeoutMs: 60, budgetLabel: "0m" }],
+      ["mem-b", { presetId: "p-b", provider: "test-provider", model: "m-b", turnTimeoutMs: 60_000, budgetLabel: "1m" }],
+    ]),
+    clientFactory: () => client,
+    log: { log() {}, warn() {}, error() {} },
+  });
+  const child = mkChild();
+  await child.start();
+  try {
+    await assert.rejects(
+      child.turn("srv-slow", "hi", { agentKey: "mem-a" }),
+      (e) => e.code === -32001,
+    );
+    assert.equal(child.budgetKilled, false, "the cancel converged — the pod is NOT marked for the hard stop");
+    // The pod survives: the sibling member's next turn runs on the same child.
+    const out = await child.turn("srv-next", "hi", { agentKey: "mem-b" });
+    assert.match(out.text, /ok/);
+  } finally {
+    await child.stop();
+  }
+  // The wedged shape: cancel never converges → the grace window escalates to
+  // the manager's hard-stop marker (the last resort).
+  const client2 = fakeHarnessClient({ delayMs: 5_000, onRequest: () => ({ accepted: true }) }); // never goes idle on cancel
+  const child2 = new AgentChild({
+    key: "pod-wedged",
+    spawnSpec: { profile: "platform", patchPaths: [], cwd: tmpRoot, env: {}, provider: "test-provider", model: "m", presetId: null },
+    turnTimeoutMs: 60_000,
+    budgetLabel: "1m",
+    budgetCancelGraceMs: 80,
+    podMembers: new Map([
+      ["mem-a", { presetId: "p-a", provider: "test-provider", model: "m-a", turnTimeoutMs: 60, budgetLabel: "0m" }],
+    ]),
+    clientFactory: () => client2,
+    log: { log() {}, warn() {}, error() {} },
+  });
+  await child2.start();
+  try {
+    await assert.rejects(
+      child2.turn("srv-wedge", "hi", { agentKey: "mem-a" }),
+      (e) => e.code === -32001,
+    );
+    assert.equal(child2.budgetKilled, true, "no convergence in the grace window — marked for the hard stop");
+    assert.ok(client2.calls.requests.some((r) => r.method === "session/cancel" && r.params.sessionId === "mem-a--srv-wedge"));
+  } finally {
+    await child2.stop();
+  }
+});
+
+test("pod mode: an ineligible pack (distinct billing keys) serves every member solo — never refused", async () => {
+  const entries = [
+    { ...ENTRY, metadata: { ...ENTRY.metadata, billing_key_ref: "ws_aaaaaaaa" } },
+    { ...ENTRY_B, metadata: { ...ENTRY_B.metadata, billing_key_ref: "ws_bbbbbbbb" } },
+  ];
+  const h = await bootRunner({
+    entries,
+    skills: POD_SKILLS,
+    config: { podMode: true, podCostMb: 160, podMaxInflight: 1, maxChildren: 4 },
+    clientOpts: { onRequest: (method) => (method === "platform/capabilities" ? POD_CAPS : { accepted: true }) },
+  });
+  try {
+    await h.manager.reconcile();
+    await h.manager.turn(entries[0], "srv-a", "你好");
+    await h.manager.turn(entries[1], "srv-b", "你好");
+    assert.equal(h.manager.children.size, 2, "each member keeps its dedicated child");
+    assert.deepEqual([...h.manager.children.keys()].sort(), [agentKeyFor(ENTRY), agentKeyFor(ENTRY_B)].sort());
+    assert.ok(h.spawned.every(({ spec }) => !spec.home.includes(podKeyFor("pk-abc"))), "no pack home was materialized");
+  } finally {
+    await h.close();
+  }
+});
+
+test("pod mode: one member's descriptor change drains the whole pod (pack-granularity upgrade)", async () => {
+  const entries = [ENTRY, ENTRY_B];
+  const h = await bootRunner({
+    entries,
+    skills: POD_SKILLS,
+    config: { podMode: true, podCostMb: 160, podMaxInflight: 4, drainMs: 300 },
+    clientOpts: { onRequest: (method) => (method === "platform/capabilities" ? POD_CAPS : { accepted: true }) },
+  });
+  try {
+    await h.manager.reconcile();
+    await h.manager.turn(entries[0], "srv-a", "你好");
+    const pod = h.manager.children.get(podKeyFor("pk-abc"));
+    assert.ok(pod, "the pod serves the pack");
+    // One member's composition changes (a model bump).
+    entries[1] = { ...entries[1], metadata: { ...entries[1].metadata, effective_model: "test-model-2" } };
+    await h.manager.reconcile();
+    assert.equal(h.manager.children.size, 0, "the identity change removed the pod from the map (draining)");
+    assert.equal(pod.draining, true, "the OLD pod is draining — both members' in-flight turns ride the drain");
+  } finally {
+    await h.close();
+  }
+});
+
+test("pod reap: member-prefixed srv-wx sessions reap by their bare tail; day sessions survive", async () => {
+  const homeRoot = path.join(tmpRoot, `pod-reap-${Math.random().toString(36).slice(2)}`);
+  const sessionsDir = path.join(homeRoot, podKeyFor("pk-abc"), "sessions");
+  mkdirSync(path.join(sessionsDir, "packs-pk-abc-pack-fingpt--srv-wx-30x-abc"), { recursive: true });
+  mkdirSync(path.join(sessionsDir, "packs-pk-abc-pack-writer--srv-wx-plainhash"), { recursive: true });
+  mkdirSync(path.join(sessionsDir, "packs-pk-abc-pack-fingpt--srv-day-2026-10-14"), { recursive: true });
+  mkdirSync(path.join(sessionsDir, "srv-wx-legacy"), { recursive: true });
+  mkdirSync(path.join(sessionsDir, "srv-mission-42"), { recursive: true });
+  const old = new Date(Date.now() - 3 * 24 * 3600 * 1000);
+  for (const name of readdirSync(sessionsDir)) {
+    const dir = path.join(sessionsDir, name);
+    for (const f of readdirSync(dir)) utimesSync(path.join(dir, f), old, old);
+    utimesSync(dir, old, old);
+  }
+  const h = await bootRunner({
+    entries: [],
+    skills: {},
+    config: { homeRoot, externalContextTtlSecs: 86_400 },
+  });
+  try {
+    const reaped = h.manager.reapExternalContexts();
+    assert.equal(reaped, 3, "both member-prefixed wx sessions AND the legacy plain one reap");
+    assert.ok(!existsSync(path.join(sessionsDir, "packs-pk-abc-pack-fingpt--srv-wx-30x-abc")));
+    assert.ok(!existsSync(path.join(sessionsDir, "packs-pk-abc-pack-writer--srv-wx-plainhash")));
+    assert.ok(!existsSync(path.join(sessionsDir, "srv-wx-legacy")));
+    assert.ok(existsSync(path.join(sessionsDir, "packs-pk-abc-pack-fingpt--srv-day-2026-10-14")), "rhythm day sessions never reap");
+    assert.ok(existsSync(path.join(sessionsDir, "srv-mission-42")), "mission sessions never reap");
+  } finally {
+    await h.close();
+    rmSync(homeRoot, { recursive: true, force: true });
   }
 });

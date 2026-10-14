@@ -148,7 +148,7 @@ docs/wanxing-multi-harness-runtime-explore.md 随本 change 补此订正。
 1. **单测**：manager 分组/资格门/合并身份排水/pod 记账；compose pack 物化（多
    preset 行、并集、byPreset 过滤形状）；桥 preset/set parked/拒绝/未知三条；
    会话命名空间与 reap 含匹配（含 solo 名回退）。沿用现有 fake-harness/注入工厂。
-2. **合同⑮**（contracts.mjs）：真矩阵树双成员共宿——`preset/set`+`model/set`
+2. **合同⑯**（contracts.mjs）：真矩阵树双成员共宿——`preset/set`+`model/set`
    parked、各成员各 persona 标记/各模型请求、活会话拒绝、历史不互串；与 ①-⑭
    同报告同两轮绿标准。
 3. **生产眼见**：一个双 serving agent 的 pack 在 pod 模式 runner 上共宿部署——
@@ -163,5 +163,5 @@ docs/wanxing-multi-harness-runtime-explore.md 随本 change 补此订正。
 | 收尾串行 → pod 内尾延迟耦合（慢回合队首阻塞同 pod 他成员收尾） | 默认 in-flight=1 使其确定化（排队而非随机尾）；高流量 pack 留 solo 档 |
 | 冷启动放大：一成员 spawn 失败全员重试 | 阶梯照旧有界（3 次+退避）；失败面 -32004 语义不变，下次触达再试 |
 | paused 语义弱化（成员暂停 pod 仍在跑） | 接受：暂停是回合级拒绝（-32010），非资源回收；资源回收走 warm-zone pod 粒度 |
-| byPreset 过滤形状漂移 | 旧形状语义不变（无 byPreset=全 home 单过滤）；合同⑮+单测钉形状 |
+| byPreset 过滤形状漂移 | 旧形状语义不变（无 byPreset=全 home 单过滤）；合同⑯+单测钉形状 |
 | registry 面/端口面零改动的边界 | 显式非目标（D8）；后续切片接 registry 代理路径保持 |

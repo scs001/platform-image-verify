@@ -960,7 +960,19 @@ export function writeToolFilterPatch(mcpTools, { dirs = null } = {}) {
     ? join(dirs.dshHome, "profiles", dirs.profileName || "platform")
     : dirname(MCP_PATCH_PATH);
   mkdirSync(profileDir, { recursive: true });
-  const doc = { mcpTools: mcpTools && typeof mcpTools === "object" ? mcpTools : {} };
+  // add-dsh-pod-adapter: pack homes pass the pod filter doc —
+  // { mcpTools: <union>, byPreset: { <presetId>: { mcpTools: {…} } } } —
+  // recognized by an own `byPreset` key (a raw per-server map never carries
+  // one). The union feeds the guard/register-shadow (upper bound: never
+  // narrower than a member's own allowlist); per-preset sections are the
+  // member exact faces composition-time restrict resolves. Everything else
+  // keeps the legacy single-map doc byte-for-byte.
+  const doc = Object.hasOwn(mcpTools ?? {}, "byPreset")
+    ? {
+        mcpTools: mcpTools.mcpTools && typeof mcpTools.mcpTools === "object" ? mcpTools.mcpTools : {},
+        ...(mcpTools.byPreset && typeof mcpTools.byPreset === "object" ? { byPreset: mcpTools.byPreset } : {}),
+      }
+    : { mcpTools: mcpTools && typeof mcpTools === "object" ? mcpTools : {} };
   atomicWriteTextSync(join(profileDir, TOOL_FILTER_FILE), JSON.stringify(doc, null, 2) + "\n");
   try {
     atomicWriteTextSync(join(profileDir, "platform-tool-scope.js"), readFileSync(TOOL_SCOPE_BRIDGE_SOURCE, "utf8"));

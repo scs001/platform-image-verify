@@ -40,7 +40,7 @@ import {
 // (add-deployment-secrets: one definition, two enforcement points — the
 // descriptor arrives from the registry, so the runner never assumes it was
 // validated).
-import { SECRET_NAME_RE } from "../lib/agent-serving.js";
+import { SECRET_NAME_RE, maskSecretRef } from "../lib/agent-serving.js";
 
 // ── Home ownership guard (fix-agent-serving-stability 3.1) ───────────────────
 // The home tree must be owned by the identity the child runtime runs as: a
@@ -339,4 +339,248 @@ export function agentKeyFor(entry) {
   return String(entry.path || "")
     .replace(/^\/+/, "")
     .replace(/[^A-Za-z0-9._-]+/g, "-");
+}
+
+// ── Pod co-hosting (add-dsh-pod-adapter) ──────────────────────────────────────
+//
+// One dsh process may host every serving agent of ONE pack deployment (the
+// co-hosting key; cross-pack/cross-owner never shares a process). The pod's
+// cost is the process floor (~100-180MB measured) regardless of member count
+// — the arithmetic that makes hundreds of long-tail agents viable.
+
+// Filesystem + children-map key for one pack's pod. Sanitized with the same
+// alphabet as agentKeyFor, so a pack id with hostile characters cannot escape
+// the home root.
+export function podKeyFor(packId) {
+  return `pod-${String(packId || "").replace(/[^A-Za-z0-9._-]+/g, "-")}`;
+}
+
+// Eligibility (design D2): fail-open to solo — an ineligible pack's members
+// each keep their dedicated child; a deployment is never refused for pod
+// ineligibility. Structural gates only (the runtime-capabilities gate runs
+// after spawn, in the manager):
+//   • billing key: applyBillingKey OVERWRITES the whole credential route set,
+//     so two different keys cannot coexist in one home — all members must
+//     share one billing_key_ref or none declare one;
+//   • secrets: same-named deployment secrets must reference the same value
+//     across members (otherwise the merged pin is last-write-wins = wrong);
+//   • persona: every member must resolve its own preset row — the per-member
+//     exact tool face keys byPreset by preset id, so a persona-less member
+//     would widen to the pack union;
+//   • notify channel: the child's bot_notify calls carry no session identity,
+//     so members with distinct bound channels could not be routed — one
+//     shared channel (or none) only.
+export function packPodEligibility(entries) {
+  const keys = new Set();
+  for (const entry of entries) {
+    const ref = entry?.metadata?.billing_key_ref ?? null;
+    if (ref != null) keys.add(ref);
+  }
+  if (keys.size > 1) {
+    return { ok: false, reason: `distinct billing key refs (${[...keys].map((r) => maskSecretRef(r)).join(", ")})` };
+  }
+  const secretRefs = new Map(); // name → ref
+  for (const entry of entries) {
+    for (const [name, ref] of Object.entries(entry?.metadata?.secret_refs ?? {})) {
+      const prev = secretRefs.get(name);
+      if (prev !== undefined && prev !== ref) {
+        return { ok: false, reason: `secret '${name}' pinned to two different refs across members` };
+      }
+      secretRefs.set(name, ref);
+    }
+  }
+  for (const entry of entries) {
+    const persona = entry?.metadata?.persona || entry?.name || entry?.metadata?.agentName;
+    if (!persona) return { ok: false, reason: `member ${agentKeyFor(entry)} has no persona (no preset row to key its tool face)` };
+  }
+  const channels = new Set();
+  for (const entry of entries) {
+    const ch = entry?.metadata?.notify_channel ?? null;
+    if (ch != null) channels.add(ch);
+  }
+  if (channels.size > 1) {
+    return { ok: false, reason: `distinct notify channels across members (${[...channels].join(", ")})` };
+  }
+  return { ok: true, reason: null };
+}
+
+// The preset row id for one member inside a pack home — the SAME id the solo
+// home would compose (`srv-<packId>-<agentId>`), so a pack migrating between
+// solo and pod shapes keeps its conversation composition nameable.
+export function packMemberPresetId(entry) {
+  const descriptor = entry.metadata;
+  return rosterPresetId(`srv-${descriptor.packId}-${descriptor.agentId}`).toLowerCase();
+}
+
+// Materialize `<homeRoot>/pod-<packId>/` for one pack deployment. Mirrors
+// materializeAgentHome's shape but for N members: N persona preset rows, the
+// union of skills (pack-scoped names are unique) and MCP references, secrets
+// merged (eligibility guaranteed same-name-same-ref), ONE billing key (same
+// discipline), and the pod tool filter — top-level union for the guard /
+// register-shadow, per-preset exact faces for composition-time restrict.
+// `memberSpecs`: [{ entry, skillContents: {path: body}, billingKeyValue,
+// secrets: {name: value} }] — the manager fetches per member, exactly as it
+// does for solo children, and this writer stays fetch-free.
+// Returns { home, presetIds: Map<agentKey, presetId>, patchPaths, skillsRoot,
+// dataDir, dataQuotaMb }.
+export async function materializePackHome({ homeRoot, packId, memberSpecs, mcpServers, seedHome }) {
+  if (!memberSpecs?.length) throw new Error("materializePackHome requires at least one memberSpec");
+  const first = memberSpecs[0].entry;
+  const descriptor = first.metadata;
+  if (memberSpecs.some((s) => s.entry?.metadata?.packId !== descriptor.packId)) {
+    throw new Error("materializePackHome: every memberSpec must belong to the same pack deployment");
+  }
+  const home = path.join(homeRoot, podKeyFor(descriptor.packId));
+  const profileDir = path.join(home, "profiles", "platform");
+  ensureHomeOwnership(home);
+
+  // 0. Seed the profile scaffold from the image's baked home — same shape as
+  //    the solo home (files copied, node_modules symlinked, never duplicated).
+  if (seedHome) {
+    const srcProfile = path.join(seedHome, "profiles", "platform");
+    if (existsSync(srcProfile)) {
+      mkdirSync(profileDir, { recursive: true });
+      for (const ent of readdirSync(srcProfile, { withFileTypes: true })) {
+        if (ent.name === "node_modules") continue;
+        const target = path.join(profileDir, ent.name);
+        if (!existsSync(target)) copyFileSync(path.join(srcProfile, ent.name), target);
+      }
+      const nm = path.join(srcProfile, "node_modules");
+      const nmTarget = path.join(profileDir, "node_modules");
+      if (!existsSync(nmTarget) && existsSync(nm)) {
+        try {
+          symlinkSync(nm, nmTarget, "dir");
+        } catch { /* unsupported FS — the child's boot error will name it */ }
+      }
+    }
+  }
+
+  // 1. Skills: union across members; a name written by two members carries
+  //    the same pack-scoped skill (registry names are pack-unique), and the
+  //    per-path bodies come from the same registry rows either way.
+  const skillsRoot = path.join(home, "skills");
+  rmSync(skillsRoot, { recursive: true, force: true });
+  const skillBodies = new Map(); // name → body (first writer wins; identical rows)
+  for (const spec of memberSpecs) {
+    for (const skillPath of spec.entry.metadata?.skills ?? []) {
+      const name = String(skillPath).split("/").pop();
+      const body = spec.skillContents?.[skillPath];
+      if (typeof body === "string" && !skillBodies.has(name)) skillBodies.set(name, body);
+    }
+  }
+  for (const [name, body] of skillBodies) {
+    const dir = path.join(skillsRoot, name);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, "SKILL.md"), body);
+  }
+  for (const spec of memberSpecs) {
+    for (const skillPath of spec.entry.metadata?.skills ?? []) {
+      if (typeof spec.skillContents?.[skillPath] !== "string") {
+        throw new Error(`skill content unavailable for ${skillPath} (cannot compose pod ${podKeyFor(descriptor.packId)})`);
+      }
+    }
+  }
+
+  // 2. Persona presets: one row per member, the same ids solo homes compose.
+  const presetIds = new Map(); // agentKey → presetId
+  const extraPresets = [];
+  for (const spec of memberSpecs) {
+    const entry = spec.entry;
+    const d = entry.metadata;
+    const name = entry.name || d.agentName || null;
+    const persona = d.persona || name;
+    if (!persona) continue; // eligibility already refused this pack shape
+    const presetId = packMemberPresetId(entry);
+    presetIds.set(agentKeyFor(entry), presetId);
+    extraPresets.push({
+      id: presetId,
+      name: name || presetId,
+      description: entry.description || name || presetId,
+      order: 60,
+      persona: `${persona}\n\nYou are serving as a standing A2A agent service; answer in text.`,
+    });
+  }
+
+  // 3. Presets overlay — N persona rows ride beside the always-present
+  //    standard row; the process-level default only matters for sessions no
+  //    host parked a preset for (pod sessions always park their member's).
+  mkdirSync(profileDir, { recursive: true });
+  const presetsPatchPath = await writePresetsPatch({
+    dirs: { dshHome: home, profileName: "platform" },
+    default: presetIds.values().next().value ?? "standard",
+    extraPresets,
+  });
+
+  writeFileSync(
+    path.join(profileDir, "skills.patch.yml"),
+    yaml.dump([{ id: "skill-filesystem", config: { customSkillDirs: [skillsRoot] } }]),
+  );
+
+  const patchPaths = [presetsPatchPath, path.join(profileDir, "skills.patch.yml")].filter(Boolean);
+  if (mcpServers?.length > 0) {
+    writeFileSync(path.join(profileDir, "mcp.patch.yml"), yaml.dump([{ insert: mcpServers }]));
+    patchPaths.push(path.join(profileDir, "mcp.patch.yml"));
+  }
+
+  // 3a. Pod tool filter: top-level UNION (the guard's upper bound — never
+  //     narrower than a member's own allowlist) + per-preset exact faces.
+  //     Members without allowlists contribute nothing (their exact face is
+  //     the union, which readMcpToolFilterFor falls back to).
+  const union = {};
+  const byPreset = {};
+  for (const spec of memberSpecs) {
+    const tools = spec.entry.metadata?.mcpTools ?? null;
+    if (!tools || typeof tools !== "object") continue;
+    const presetId = presetIds.get(agentKeyFor(spec.entry));
+    if (!presetId) continue;
+    const memberMap = {};
+    for (const [server, leafs] of Object.entries(tools)) {
+      if (!Array.isArray(leafs)) continue;
+      memberMap[server] = [...leafs];
+      union[server] = [...new Set([...(union[server] ?? []), ...leafs])];
+    }
+    if (Object.keys(memberMap).length) byPreset[presetId] = { mcpTools: memberMap };
+  }
+  writeToolFilterPatch(
+    Object.keys(union).length || Object.keys(byPreset).length ? { mcpTools: union, byPreset } : null,
+    { dirs: { dshHome: home, profileName: "platform" } },
+  );
+
+  // 3b. Notify overlay — the pod's roster gains `bot_notify` exactly like a
+  //     solo child (per-member bindings live manager-side).
+  const notifyPatchPath = writeNotifyPatch({ dirs: { dshHome: home, profileName: "platform" } });
+  if (notifyPatchPath) patchPaths.push(notifyPatchPath);
+
+  // LLM wiring — same writers, same private-home discipline as solo.
+  try {
+    await writeLlmProfile({ dirs: { dshHome: home, profileName: "platform" } });
+    await ensureCredentialsStore({ dirs: { dshHome: home, profileName: "platform" } });
+  } catch (e) {
+    console.warn(`[agent-runner] LLM profile unavailable for pod ${podKeyFor(descriptor.packId)}; the child may boot without chat: ${e?.message || e}`);
+  }
+
+  // 4. Billing key: eligibility guaranteed one shared ref — pin the one value.
+  //    Secrets: merged set (same-name-same-ref guaranteed), one write.
+  const billingKeyValue = memberSpecs.find((s) => typeof s.billingKeyValue === "string" && s.billingKeyValue)?.billingKeyValue ?? null;
+  if (billingKeyValue) await applyBillingKey(home, billingKeyValue);
+  const mergedSecrets = {};
+  for (const spec of memberSpecs) Object.assign(mergedSecrets, spec.secrets ?? {});
+  applyDeploymentSecrets(home, mergedSecrets);
+
+  // 5. Data workspace: any member's declaration turns the pack-shared volume
+  //    on (one pod = one cwd/env); the quota bound is the strictest declared.
+  let dataDir = null;
+  let dataQuotaMb = null;
+  const quotas = [];
+  for (const spec of memberSpecs) {
+    const ws = spec.entry.metadata?.workspace;
+    if (ws?.enabled === true && Number.isInteger(ws.quotaMb) && ws.quotaMb > 0) quotas.push(ws.quotaMb);
+  }
+  if (memberSpecs.some((s) => s.entry.metadata?.workspace?.enabled === true)) {
+    dataDir = path.join(home, "data");
+    mkdirSync(dataDir, { recursive: true });
+    if (quotas.length) dataQuotaMb = Math.max(...quotas);
+  }
+
+  return { home, presetIds, patchPaths, skillsRoot, dataDir, dataQuotaMb };
 }

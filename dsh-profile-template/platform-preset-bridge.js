@@ -23,6 +23,12 @@
 //      server gate default-closed (websearch) through the guard layer.
 //      `platform/capabilities` reports the method set so the host can degrade
 //      to its legacy restart paths against an older child.
+//      `preset/set` (add-dsh-pod-adapter) parks a per-session preset choice:
+//      pod-mode hosts select each member's persona before the session's first
+//      prompt; creation composes the parked preset (parked → initialize-time
+//      agentPreset → registry default). Parked-only by design — the supported
+//      mount point is creation-time setup, so a live session's preset is
+//      refused explicitly (start a new session), never silently swapped.
 //   5. Stream forward (restore-assistant-stream-020): the 0.2.0 session
 //      format dropped `assistant/chunk` from session.event — the live token
 //      stream rides the process-wide `agent/assistant-stream` ctx channel.
@@ -79,13 +85,17 @@ class PlatformSdkServer extends HarnessSdkJsonRpcServer {
   // Custom RPC methods this bridge adds over the stock 3-RPC SDK surface. The
   // host probes `platform/capabilities` once per spawn and degrades to the
   // legacy restart paths when the method set is missing (older child).
-  static LIVE_METHODS = ["model/set", "session/cancel", "tools/set"];
+  static LIVE_METHODS = ["model/set", "session/cancel", "tools/set", "preset/set"];
   // installModelSelection refs by dsh session id — the mutable model selection
   // a `model/set` flips. Populated as sessions are (lazily) created.
   #selections = new Map();
   // Selections parked for session ids the child has not created yet (the host
   // may switch models before the first prompt of a session).
   #pendingSelections = new Map();
+  // Preset ids parked for session ids the child has not created yet
+  // (add-dsh-pod-adapter: `preset/set`). Taken (once) at creation — the same
+  // parked-then-seeded shape model selections use, for the persona dimension.
+  #pendingPresets = new Map();
   // Provider-default thinking level carried across model/set calls (null =
   // provider default). Mirrors the host's persisted per-provider effort.
   #defaultEffort = null;
@@ -243,13 +253,19 @@ class PlatformSdkServer extends HarnessSdkJsonRpcServer {
     // Resolve before creation so an unknown id fails before any session or
     // agent state exists; mount in setup so a broken composition rolls the
     // whole creation back instead of publishing a half-composed agent.
+    // A preset parked by `preset/set` wins over the initialize-time default
+    // (add-dsh-pod-adapter) — pod hosts select each member's persona here.
+    // The take is single-shot: a parked id survives only the creation it was
+    // meant to steer, never a later re-creation of the same id.
     // After the mount, the focused role's MCP tool allowlist narrows the
     // agent's roster (add-mcp-tool-scoping D2) — best-effort; the global
     // guard installed in apply() carries the hard interception regardless.
-    const preset = await presets.resolve(this.agentPresetId ?? undefined);
+    const parkedPreset = this.#pendingPresets.get(sessionId);
+    if (parkedPreset !== undefined) this.#pendingPresets.delete(sessionId);
+    const preset = await presets.resolve(parkedPreset ?? this.agentPresetId ?? undefined);
     const setup = async (agentCtx) => {
       await presets.mount(agentCtx, preset.id);
-      applyMcpToolRestrict(agentCtx);
+      applyMcpToolRestrict(agentCtx, preset.id);
     };
     const handle = persisted
       ? await this.ctx.agents.resume({
@@ -273,8 +289,13 @@ class PlatformSdkServer extends HarnessSdkJsonRpcServer {
   // takes effect on the agent's next model request (dsh snapshots the current
   // step's selection, so an in-flight request is never torn). Without one (or
   // for a not-yet-created session) it updates the process defaults every NEW
-  // session composes with — the host's switch-the-active-model semantics. The
-  // effort field: undefined = keep the selection's current level, "" or null =
+  // session composes with — the host's switch-the-active-model semantics.
+  // NOTE: a sessionId-carrying call ALSO flips those process defaults (the
+  // switch-the-active-model side effect); pod hosts therefore park BOTH
+  // dimensions (preset/set + model/set) for EVERY member session before its
+  // first prompt, so a default flipped by one member's park never decides
+  // another session's composition (contract ⑯ pins the live-sibling half).
+  // The effort field: undefined = keep the selection's current level, "" or null =
   // clear to the provider default, otherwise the named level.
   async #rpcModelSet(params) {
     const provider = typeof params?.provider === "string" ? params.provider.trim() : "";
@@ -301,6 +322,27 @@ class PlatformSdkServer extends HarnessSdkJsonRpcServer {
     }
     this.#pendingSelections.set(sessionId, { provider, model, effort: effort === undefined ? this.#defaultEffort : effort });
     return { ok: true, applied: false };
+  }
+
+  // `preset/set {sessionId, presetId}` (add-dsh-pod-adapter) — park the
+  // per-session persona choice for a session the child has not created yet;
+  // the session's (lazy) creation composes it (parked → initialize-time
+  // agentPreset → registry default), and the session header names the preset
+  // actually mounted. A session that already exists — or is being created
+  // right now — is refused explicitly: the supported mount point is
+  // creation-time setup, so changing a live session's persona means starting
+  // a new session, never a silent swap (or a silently ignored call).
+  async #rpcPresetSet(params) {
+    const sessionId = typeof params?.sessionId === "string" ? params.sessionId : "";
+    const presetId = typeof params?.presetId === "string" ? params.presetId.trim() : "";
+    if (!sessionId || !presetId) throw new Error("preset/set requires string sessionId and presetId");
+    if (this.sessions.has(sessionId) || this.sessionCreations?.has(sessionId)) {
+      throw new Error(
+        `preset/set refused for session '${sessionId}': persona is creation-time composition — start a new session to change presets`,
+      );
+    }
+    this.#pendingPresets.set(sessionId, presetId);
+    return { ok: true };
   }
 
   // `session/cancel { sessionId }` — abort the session's active turn via dsh's
@@ -347,6 +389,7 @@ class PlatformSdkServer extends HarnessSdkJsonRpcServer {
     if (method === "model/set") return this.#rpcModelSet(params);
     if (method === "session/cancel") return this.#rpcSessionCancel(params);
     if (method === "tools/set") return this.#rpcToolsSet(params);
+    if (method === "preset/set") return this.#rpcPresetSet(params);
     if (method === "presets/list") {
       const presets = this.ctx.get("agentPresets");
       if (presets === undefined) return [];

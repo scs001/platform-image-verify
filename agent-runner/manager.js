@@ -62,7 +62,7 @@ function tokensOf(usage) {
   if (Number.isFinite(input) && Number.isFinite(output)) return input + output;
   return null;
 }
-import { agentKeyFor, materializeAgentHome, mcpEntry, applyBillingKey, applyDeploymentSecrets, workspaceChildEnv } from "./compose.js";
+import { agentKeyFor, materializeAgentHome, materializePackHome, mcpEntry, packPodEligibility, podKeyFor, applyBillingKey, applyDeploymentSecrets, workspaceChildEnv } from "./compose.js";
 
 // Cold-start respawn escalation (fix-agent-serving-stability 2.2): after the
 // child's own initialize retries are exhausted, the manager retries the
@@ -92,8 +92,20 @@ export function parseReapWindow(value) {
   return m ? Number(m[1]) : null;
 }
 
+// The bare sessionKeyFor tail of an on-disk session name — pod homes prefix
+// wire ids with `<agentKey>--` (child.js wireSessionId), solo names are their
+// own tail. Returns null when the name is not an external-context session.
+// Splits on the LAST `--`: agent keys are single-dash alphabets, so the tail
+// is always the unprefixed session id.
+function externalContextTail(name) {
+  const idx = name.lastIndexOf("--");
+  const tail = idx >= 0 ? name.slice(idx + 2) : name;
+  return tail.startsWith("srv-wx-") ? tail : null;
+}
+
 export class ChildManager {
   #slotWaiters = new Set(); // capacity-queue interval timers, cleared on shutdown
+  #podLaneWaiters = new Set(); // pod in-flight-lane interval timers, cleared on shutdown
   #listeners = new Map(); // agentKey → http server (per-agent port, upstream #1734)
   #quotaAlerted = new Set(); // workspace over-quota episodes already reported
   #spawnFailures = new Map(); // agentKey → consecutive exhausted cold-start cycles (2.2)
@@ -111,13 +123,20 @@ export class ChildManager {
     // every child — the relay credential and the per-agent rate bound live
     // here, never in a child's environment.
     this.notifier = createNotifier({ config, log, fetchImpl: notifyFetchImpl, now });
-    this.children = new Map(); // agentKey → AgentChild (live processes)
+    this.children = new Map(); // childKey → AgentChild (agentKey solo, podKey pod — add-dsh-pod-adapter)
     this.entries = new Map(); // agentKey → registry entry (card source)
-    this.versions = new Map(); // agentKey → descriptor version identity
+    this.versions = new Map(); // childKey → identity of the composition running there
     this.pending = new Map(); // agentKey → promise chain while a slot is awaited
     this.waiting = 0; // queued turn requests at capacity
     this.pausedKeys = new Set(); // registry-marked paused (agent-residency D5)
     this.delegationInFlight = new Map(); // agentKey → live depth≥1 turns (a2a delegation D4)
+    // Pod routing (add-dsh-pod-adapter): agentKey → { childKey, pod }, rebuilt
+    // every reconcile; `groups` (childKey → group) lives per-reconcile.
+    this.groups = new Map();
+    // PackIds whose spawned runtime failed the pod capabilities probe — sticky
+    // until the pack's composition identity changes (reconcile clears on drain),
+    // so one old runtime never loops a pack through pod spawn failures.
+    this.podCapRefused = new Set();
   }
 
   // Delegation-originated (depth ≥ 1) concurrency bound per agent
@@ -141,10 +160,37 @@ export class ChildManager {
     return this.pausedKeys.has(agentKeyFor(entry));
   }
 
+  // Wait for a free in-flight lane on the route's pod (see turn). A child
+  // that is absent or draining passes — acquire handles both — and the wait
+  // uses interval timers registered for shutdown clearing, exactly like the
+  // capacity slot waiters (a stopped manager must not leave queued turns
+  // hanging on a timer nobody clears).
+  async #awaitPodLane(route) {
+    const laneMax = this.config.podMaxInflight ?? 1;
+    for (;;) {
+      const child = this.children.get(route.childKey);
+      const inflight = child && !child.draining ? child.activeTurns : 0;
+      if (inflight < laneMax) return;
+      await new Promise((resolve) => {
+        const timer = setInterval(() => {
+          const c = this.children.get(route.childKey);
+          const n = c && !c.draining ? c.activeTurns : 0;
+          if (n < laneMax) {
+            clearInterval(timer);
+            this.#podLaneWaiters.delete(timer);
+            resolve();
+          }
+        }, 250);
+        this.#podLaneWaiters.add(timer);
+      });
+    }
+  }
+
   health() {
     const agents = [];
     for (const [key, entry] of this.entries) {
-      const child = this.children.get(key);
+      const route = this.groups.get(key);
+      const child = route ? this.children.get(route.childKey) : undefined;
       agents.push({
         key,
         path: entry?.path ?? null,
@@ -152,16 +198,18 @@ export class ChildManager {
         // Five states (spec: agent-runner health): paused > draining >
         // starting > serving (a turn in flight) > resident (warm and idle);
         // no live process = warm (never touched, or demoted by budget/pause).
+        // A pod member's process state comes from the shared pod; its
+        // serving/resident split is the MEMBER's own turn activity.
         state: this.pausedKeys.has(key)
           ? "paused"
           : child
             ? child.draining
               ? "draining"
               : child.ready
-                ? child.activeTurns > 0 ? "serving" : "resident"
+                ? child.agentActiveTurns(key) > 0 ? "serving" : "resident"
                 : "starting"
             : "warm",
-        version: child?.version ?? entry?.metadata?.packVersion ?? null,
+        version: entry?.metadata?.packVersion ?? null,
       });
     }
     return {
@@ -214,12 +262,15 @@ export class ChildManager {
   async reconcile() {
     const served = await this.registryClient.listServedAgents();
     const wanted = new Map(served.map((e) => [agentKeyFor(e), e]));
+    const groups = this.#groupEntries(wanted);
 
     // Undeployed / disabled: drain + forget (spec: undeploy stops serving).
     // Entries can exist without a child (card-only service never messaged),
-    // so cleanup iterates every known key, not just spawned children.
+    // so cleanup iterates every known key, not just spawned children. A pod's
+    // childKey survives while its group exists — a member leaving is a group
+    // identity change, handled by the identity pass below.
     for (const key of new Set([...this.children.keys(), ...this.entries.keys(), ...this.#listeners.keys()])) {
-      if (wanted.has(key)) continue;
+      if (wanted.has(key) || groups.has(key)) continue;
       const child = this.children.get(key);
       this.children.delete(key);
       this.entries.delete(key);
@@ -233,85 +284,148 @@ export class ChildManager {
       }
     }
 
-    // Known entries refresh card/version views; version changes mark the
-    // child draining so the next message spawns the new composition
-    // (spec: upgrade swaps in place with drain — one entry, no proliferation).
+    // Known entries refresh card views; pause/resume (agent-residency D5)
+    // stays per entry — the registry flag is the single source of truth, and
+    // the A2A adapter answers explicit -32010s. In pod mode pausing a member
+    // does NOT drain the pod (its siblings keep serving): pause is a serving
+    // refusal, not a resource reclamation — the warm zone owns reclamation at
+    // pod granularity.
     for (const [key, entry] of wanted) {
-      const identity = JSON.stringify({
-        v: entry.metadata?.packVersion,
-        persona: entry.metadata?.persona,
-        skills: entry.metadata?.skills,
-        mcp: entry.metadata?.mcpServers,
-        // Tool allowlists (add-mcp-tool-scoping): a redeploy that narrows or
-        // widens a reference's tools must drain the old child so the next
-        // spawn composes the new filter — the filter is materialized into the
-        // home, so an unchanged identity would keep serving the old allowlist.
-        mcpTools: entry.metadata?.mcpTools ?? null,
-        name: entry.name,
-        // The effective turn budget materializes at spawn (the child's
-        // timeout); a redeploy that changes it drains the old child so the
-        // new bound takes effect on the next touch.
-        budget: entry.metadata?.effective_budget_minutes,
-        // Deployment-secret refs (add-deployment-secrets): a rebind mints a
-        // fresh reference, and the pinned values live in the home — the
-        // descriptor change must drain the old child so the next spawn
-        // re-fetches and re-pins.
-        secretRefs: entry.metadata?.secret_refs,
-        // The notification binding (add-agent-notifications D2) is captured by
-        // the spawn's notify handler; a rebind must drain the old child or it
-        // would keep notifying the previous channel.
-        notify: entry.metadata?.notify_channel,
-        // The data workspace (facet-mcp-foundation-v1 3.1) is captured by the
-        // spawn's env (AGENT_DATA_DIR / AGENT_DATA_QUOTA_MB); a declaration
-        // change must drain so the next spawn materializes and exports it.
-        // Draining never touches the home — data/ persists verbatim.
-        workspace: entry.metadata?.workspace,
-        // Per-deployment model (agent-service-config / ADR-0019): the spawn's
-        // LLM is derived from this field, so a model change must drain the
-        // old child — the upgrade-grade channel, no third restart path.
-        model: entry.metadata?.effective_model,
-      });
-      const existing = this.children.get(key);
       this.entries.set(key, entry);
       this.#ensureListener(key, entry);
-      // Pause/resume (agent-residency D5): the registry flag is the single
-      // source of truth. Pausing demotes a live child (state on disk) and the
-      // A2A adapter answers explicit -32010s; resuming just clears the flag —
-      // the next event re-warms, and the scheduler resumes from the NEXT due
-      // (missed dues are never caught up).
       if (entry.metadata?.paused === true) {
         this.pausedKeys.add(key);
-        if (existing && !existing.draining) {
+        const soloChild = this.children.get(key);
+        if (!this.groups.get(key)?.pod && soloChild && !soloChild.draining) {
           this.log.log(`[agent-runner] ${key} paused; demoting to warm zone`);
           this.children.delete(key);
-          existing.stop().catch(() => {});
+          soloChild.stop().catch(() => {});
         }
       } else {
         this.pausedKeys.delete(key);
       }
-      if (existing && this.pausedKeys.has(key)) continue;
-      if (existing && this.versions.get(key) !== identity) {
-        this.log.log(`[agent-runner] ${key} descriptor changed; draining old child for in-place upgrade`);
-        this.versions.set(key, identity);
-        this.children.delete(key);
-        existing.drainAndStop(this.config.drainMs).catch((e) => this.log.warn(`[agent-runner] upgrade drain failed for ${key}: ${e.message}`));
+    }
+
+    // Identity pass per child group: any member's descriptor change drains
+    // the WHOLE child (solo: the role's own; pod: the pack's — upgrade
+    // granularity is the co-hosting key, the accepted pod trade) so the next
+    // touch spawns the new composition.
+    for (const [childKey, group] of groups) {
+      const identity = JSON.stringify(
+        [...group.members.entries()]
+          .map(([k, e]) => [k, this.#identityOf(e)])
+          .sort(([a], [b]) => String(a).localeCompare(String(b))),
+      );
+      const existing = this.children.get(childKey);
+      if (existing && this.versions.get(childKey) !== identity) {
+        this.log.log(`[agent-runner] ${childKey} descriptor changed; draining old runtime for in-place upgrade`);
+        this.versions.set(childKey, identity);
+        this.children.delete(childKey);
+        existing.drainAndStop(this.config.drainMs).catch((e) => this.log.warn(`[agent-runner] upgrade drain failed for ${childKey}: ${e.message}`));
+        // A rebuilt composition gets a fresh pod-capabilities probe (the
+        // refusal marked the RUNTIME generation, not the pack forever).
+        if (group.pod) this.podCapRefused.delete(group.packId);
       } else if (!existing) {
-        this.versions.set(key, identity);
+        this.versions.set(childKey, identity);
       }
     }
     return served.length;
+  }
+
+  // The composition-identity fields of one entry: everything that drains a
+  // child when it changes (the solo-era list, verbatim — pods merge their
+  // members' identities in reconcile).
+  #identityOf(entry) {
+    const m = entry?.metadata ?? {};
+    return {
+      v: m.packVersion,
+      persona: m.persona,
+      skills: m.skills,
+      mcp: m.mcpServers,
+      // Tool allowlists (add-mcp-tool-scoping): a redeploy that narrows or
+      // widens a reference's tools must drain the old child so the next
+      // spawn composes the new filter — the filter is materialized into the
+      // home, so an unchanged identity would keep serving the old allowlist.
+      mcpTools: m.mcpTools ?? null,
+      name: entry.name,
+      // The effective turn budget materializes at spawn (the child's
+      // timeout); a redeploy that changes it drains the old child so the
+      // new bound takes effect on the next touch.
+      budget: m.effective_budget_minutes,
+      // Deployment-secret refs (add-deployment-secrets): a rebind mints a
+      // fresh reference, and the pinned values live in the home — the
+      // descriptor change must drain the old child so the next spawn
+      // re-fetches and re-pins.
+      secretRefs: m.secret_refs,
+      // The notification binding (add-agent-notifications D2) is captured by
+      // the spawn's notify handler; a rebind must drain the old child or it
+      // would keep notifying the previous channel.
+      notify: m.notify_channel,
+      // The data workspace (facet-mcp-foundation-v1 3.1) is captured by the
+      // spawn's env (AGENT_DATA_DIR / AGENT_DATA_QUOTA_MB); a declaration
+      // change must drain so the next spawn materializes and exports it.
+      // Draining never touches the home — data/ persists verbatim.
+      workspace: m.workspace,
+      // Per-deployment model (agent-service-config / ADR-0019): the spawn's
+      // LLM is derived from this field, so a model change must drain the
+      // old child — the upgrade-grade channel, no third restart path.
+      model: m.effective_model,
+    };
+  }
+
+  // Group wanted entries by hosting child (add-dsh-pod-adapter). Solo mode
+  // (and every ineligible case) is one group per entry under its agentKey;
+  // pod mode groups same-pack serving agents (≥2 members, eligibility
+  // checked) under one podKey. Fail-open by construction: nothing here can
+  // refuse a deployment — ineligible packs simply keep dedicated children.
+  #groupEntries(wanted) {
+    const groups = new Map(); // childKey → { pod, packId, members: Map<agentKey, entry> }
+    this.groups = new Map(); // agentKey → { childKey, pod }
+    const byPack = new Map(); // packId → [[agentKey, entry]]
+    for (const [key, entry] of wanted) {
+      const packId = entry?.metadata?.packId ?? null;
+      if (this.config.podMode && packId && !this.podCapRefused.has(packId)) {
+        const arr = byPack.get(packId) ?? [];
+        arr.push([key, entry]);
+        byPack.set(packId, arr);
+      } else {
+        groups.set(key, { pod: false, packId: null, members: new Map([[key, entry]]) });
+      }
+    }
+    for (const [packId, arr] of byPack) {
+      if (arr.length < 2) {
+        // A lone member gains nothing from a pod — keep it on the
+        // battle-tested solo path (a pack growing its second serving agent
+        // migrates via the identity drain, like any composition change).
+        for (const [key, entry] of arr) groups.set(key, { pod: false, packId: null, members: new Map([[key, entry]]) });
+        continue;
+      }
+      const verdict = packPodEligibility(arr.map(([, e]) => e));
+      if (!verdict.ok) {
+        this.log.log(`[agent-runner] pod-ineligible pack ${packId}: ${verdict.reason} — members serve solo`);
+        for (const [key, entry] of arr) groups.set(key, { pod: false, packId: null, members: new Map([[key, entry]]) });
+        continue;
+      }
+      groups.set(podKeyFor(packId), { pod: true, packId, members: new Map(arr) });
+    }
+    for (const [childKey, group] of groups) {
+      for (const key of group.members.keys()) this.groups.set(key, { childKey, pod: group.pod });
+    }
+    return groups;
   }
 
   // Acquire the child for a key, materializing + spawning on demand (a warm
   // re-warm after budget/pause demotion, or a first touch). At capacity:
   // first demote an IDLE child to the warm zone (least-recently-active — the
   // next message re-warms it); if every child is busy, the request QUEUES —
-  // it never fails and never demotes a busy child (spec: "without evicting a
-  // busy child").
+  // it never fails and never demotes a busy child (spec: "without evicting
+  // a busy child"). Pod mode routes the entry to its pack's pod (the group
+  // map from the last reconcile); a capabilities-refused pack spawns solo.
   async acquire(entry) {
     const key = agentKeyFor(entry);
+    const route = this.groups.get(key) ?? { childKey: key, pod: false };
     for (;;) {
-      const live = this.children.get(key);
+      const live = this.children.get(route.childKey);
       if (live && !live.draining) return live;
       if (this.children.size < this.config.maxChildren || this.#evictIdleChild()) {
         // Respawn escalation (fix-agent-serving-stability 2.2): a failed
@@ -329,15 +443,15 @@ export class ChildManager {
         let lastErr = null;
         for (let attempt = 0; attempt <= attempts; attempt++) {
           if (attempt > 0) await sleep(backoff[Math.min(attempt - 1, backoff.length - 1)]);
-          const raced = this.children.get(key);
+          const raced = this.children.get(route.childKey);
           if (raced && !raced.draining && raced !== child) { child = raced; lastErr = null; break; }
           try {
-            child = await this.#spawnChild(key, entry);
+            child = await this.#spawnRouted(route, entry);
             lastErr = null;
             break;
           } catch (e) {
             lastErr = e;
-            this.log.warn(`[agent-runner] cold-start attempt ${attempt + 1}/${RESPAWN_ATTEMPTS + 1} for ${key} failed: ${e?.message || e}`);
+            this.log.warn(`[agent-runner] cold-start attempt ${attempt + 1}/${RESPAWN_ATTEMPTS + 1} for ${route.childKey} failed: ${e?.message || e}`);
           }
         }
         if (!child) {
@@ -349,8 +463,17 @@ export class ChildManager {
         }
         this.#spawnFailures.delete(key);
         if (!child.draining) {
-          this.#fleetEmit("woken", entry, { reason: this.everSpawned.has(key) ? "warm" : "first-touch" });
-          this.everSpawned.add(key);
+          // woken is per MEMBER (fleet attribution), not per child: a pod's
+          // spawn wakes every member it hosts.
+          if (route.pod) {
+            for (const [memberKey, memberEntry] of this.#groupMembersOf(route) ?? []) {
+              this.#fleetEmit("woken", memberEntry, { reason: this.everSpawned.has(memberKey) ? "warm" : "first-touch" });
+              this.everSpawned.add(memberKey);
+            }
+          } else {
+            this.#fleetEmit("woken", entry, { reason: this.everSpawned.has(key) ? "warm" : "first-touch" });
+            this.everSpawned.add(key);
+          }
           return child;
         }
         continue; // lost a race with a concurrent upgrade drain
@@ -371,6 +494,41 @@ export class ChildManager {
       } finally {
         this.waiting -= 1;
       }
+    }
+  }
+
+  // The member set a route points at (pods): recovered from the live entry
+  // map so a spawn between reconciles still composes the pack's CURRENT
+  // members — entries.set happens every poll, so this is at most one poll
+  // interval stale, exactly like every other spawn input.
+  #groupMembersOf(route) {
+    if (!route?.pod) return null;
+    const members = new Map();
+    for (const [key, { childKey }] of this.groups) {
+      if (childKey === route.childKey) {
+        const entry = this.entries.get(key);
+        if (entry) members.set(key, entry);
+      }
+    }
+    return members.size ? members : null;
+  }
+
+  // Dispatch one spawn through the route: solo children as ever; pods with a
+  // sticky capabilities refusal (this.podCapRefused) fall back to the
+  // member's dedicated child — fail-open, the deployment is never refused.
+  async #spawnRouted(route, entry) {
+    if (!route.pod || this.podCapRefused.has(route.packId)) {
+      return this.#spawnChild(agentKeyFor(entry), entry);
+    }
+    try {
+      return await this.#spawnPod(route);
+    } catch (e) {
+      if (e?.code === "POD_CAPABILITIES_MISSING") {
+        this.podCapRefused.add(route.packId);
+        this.log.warn(`[agent-runner] pack ${route.packId} falls back to solo children: its runtime lacks the live methods pod serving requires (${e?.message || e})`);
+        return this.#spawnChild(agentKeyFor(entry), entry);
+      }
+      throw e;
     }
   }
 
@@ -407,7 +565,10 @@ export class ChildManager {
         this.log.warn(`[agent-runner] ${key} child pid ${child.pid} is gone — pruned ghost entry from the warm-zone budget`);
         continue;
       }
-      bytes += Math.max(rss ?? 0, this.config.agentCostMb * 1024 * 1024);
+      // A pod counts its floor ONCE (add-dsh-pod-adapter): idle sessions are
+      // ≈0 marginal (M2), so per-member flooring would ghost-count N× the
+      // process floor the host never pays.
+      bytes += Math.max(rss ?? 0, (child.costFloorMb ?? this.config.agentCostMb) * 1024 * 1024);
     }
     return (bytes + extraChildren * this.config.agentCostMb * 1024 * 1024) / (1024 * 1024);
   }
@@ -481,8 +642,9 @@ export class ChildManager {
         // (accumulated evidence on cheap-1: three stale wx dirs from probes).
         const candidates = [];
         for (const ent of entries) {
-          if (ent.name.startsWith("srv-wx-")) {
-            candidates.push({ name: ent.name, sessionPath: path.join(dirPath, ent.name) });
+          const tail = externalContextTail(ent.name);
+          if (tail) {
+            candidates.push({ name: ent.name, sessionPath: path.join(dirPath, ent.name), tail });
             continue;
           }
           if (!ent.isDirectory()) continue;
@@ -493,14 +655,15 @@ export class ChildManager {
             continue;
           }
           for (const child of inner) {
-            if (child.name.startsWith("srv-wx-")) {
-              candidates.push({ name: child.name, sessionPath: path.join(dirPath, ent.name, child.name) });
+            const innerTail = externalContextTail(child.name);
+            if (innerTail) {
+              candidates.push({ name: child.name, sessionPath: path.join(dirPath, ent.name, child.name), tail: innerTail });
             }
           }
         }
-        for (const { name, sessionPath } of candidates) {
+        for (const { name, sessionPath, tail } of candidates) {
           if (this.#sessionActive(agentKey, name)) continue;
-          const minutes = parseReapWindow(name);
+          const minutes = parseReapWindow(tail);
           const ttlMs = minutes == null ? defaultTtlMs : minutes * 60_000;
           if (Date.now() - this.#lastTouched(sessionPath) < ttlMs) continue;
           try {
@@ -577,6 +740,13 @@ export class ChildManager {
       throw Object.assign(new Error("agent paused"), { code: -32010 });
     }
     const release = delegationDepth >= 1 ? await this.#acquireDelegationSlot(key) : null;
+    // Pod in-flight discipline (add-dsh-pod-adapter D7): turn CLOSE is
+    // serialized process-wide on this dsh line (probe-concurrent-turn-close —
+    // two sessions each with their own agent context still starve), so a
+    // pod's turns share a bounded lane count. Queue under the same
+    // bounded-queue law as capacity: never fail, never preempt.
+    const route = this.groups.get(key);
+    if (route?.pod) await this.#awaitPodLane(route);
     const startedAt = this.now();
     // Session attribution (add-mission-runner-attribution D1): the session
     // name rides both turn events so the observer can attribute turns to
@@ -585,7 +755,7 @@ export class ChildManager {
     try {
       const child = await this.acquire(entry);
       try {
-        const out = await child.turn(sessionId, text, { onDelta });
+        const out = await child.turn(sessionId, text, { onDelta, agentKey: route?.pod ? key : undefined });
         this.#meterLine(key, kind, {
           ok: true,
           tokens: tokensOf(out?.usage),
@@ -695,13 +865,7 @@ export class ChildManager {
     const keyRef = descriptor.billing_key_ref;
     if (keyRef != null && config.packsBaseUrl) {
       try {
-        const r = await fetch(`${config.packsBaseUrl}/api/packs/internal/llm-key/${encodeURIComponent(keyRef)}`, {
-          headers: { Authorization: `Bearer ${config.registryToken}` },
-          signal: AbortSignal.timeout(10_000),
-        });
-        const doc = await r.json().catch(() => ({}));
-        if (!r.ok || !doc?.keyValue) throw new Error(doc?.error || `HTTP ${r.status}`);
-        await applyBillingKey(spec.home, doc.keyValue);
+        await applyBillingKey(spec.home, await this.#fetchBillingKeyValue(keyRef));
         this.log.log(`[agent-runner] ${key} running on its own billing key (ref ${keyRef})`);
       } catch (e) {
         this.log.warn(`[agent-runner] billing key fetch failed for ${key} — falling back to the runner-level key: ${e.message}`);
@@ -720,15 +884,7 @@ export class ChildManager {
       const values = {};
       for (const [name, ref] of Object.entries(secretRefs)) {
         try {
-          const r = await fetch(`${config.packsBaseUrl}/api/packs/internal/secret/${encodeURIComponent(ref)}`, {
-            headers: { Authorization: `Bearer ${config.registryToken}` },
-            signal: AbortSignal.timeout(10_000),
-          });
-          const doc = await r.json().catch(() => ({}));
-          if (!r.ok || typeof doc?.secretValue !== "string" || doc.secretValue.length === 0) {
-            throw new Error(doc?.error || `HTTP ${r.status}`);
-          }
-          values[name] = doc.secretValue;
+          values[name] = await this.#fetchSecretValue(ref);
         } catch (e) {
           throw new Error(`deployment secret '${name}' (ref ${maskSecretRef(ref)}) could not be fetched — refusing to compose ${key}: ${e.message}`);
         }
@@ -813,8 +969,187 @@ export class ChildManager {
   // (reapIdle removed — residency is the default since add-agent-residency;
   // the warm-zone budget's enforceBudget() is the only demotion path.)
 
+  // ── Pod spawn (add-dsh-pod-adapter) ─────────────────────────────────────────
+  // Fetch helpers shared by solo and pod composition — same routes, same
+  // credential discipline; callers own the failure policy (solo: billing
+  // degrades with a warning, secrets refuse; pods mirror both).
+  async #fetchBillingKeyValue(keyRef) {
+    const r = await fetch(`${this.config.packsBaseUrl}/api/packs/internal/llm-key/${encodeURIComponent(keyRef)}`, {
+      headers: { Authorization: `Bearer ${this.config.registryToken}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const doc = await r.json().catch(() => ({}));
+    if (!r.ok || !doc?.keyValue) throw new Error(doc?.error || `HTTP ${r.status}`);
+    return doc.keyValue;
+  }
+
+  async #fetchSecretValue(ref) {
+    const r = await fetch(`${this.config.packsBaseUrl}/api/packs/internal/secret/${encodeURIComponent(ref)}`, {
+      headers: { Authorization: `Bearer ${this.config.registryToken}` },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const doc = await r.json().catch(() => ({}));
+    if (!r.ok || typeof doc?.secretValue !== "string" || doc.secretValue.length === 0) {
+      throw new Error(doc?.error || `HTTP ${r.status}`);
+    }
+    return doc.secretValue;
+  }
+
+  async #spawnPod(route) {
+    const { config } = this;
+    const members = this.#groupMembersOf(route) ?? route.members;
+    const memberSpecs = [];
+    const mcpRows = new Map(); // name → loader row (union across members)
+    const secretValues = new Map(); // name → value (same-name-same-ref by eligibility)
+    let billingKeyValue = null;
+    let billingRef = null;
+    const faces = new Map(); // agentKey → per-member turn face
+    let maxBudgetMs = config.turnTimeoutMs;
+    for (const [key, entry] of members) {
+      const descriptor = entry.metadata;
+      const skillContents = {};
+      for (const p of descriptor.skills ?? []) {
+        skillContents[p] = await this.registryClient.fetchSkillContent(p);
+      }
+      for (const name of descriptor.mcpServers ?? []) {
+        if (!mcpRows.has(name)) {
+          mcpRows.set(name, mcpEntry(name, { url: this.registryClient.mcpUrlFor(name), token: config.registryToken }));
+        }
+      }
+      if (billingRef == null && descriptor.billing_key_ref != null) billingRef = descriptor.billing_key_ref;
+      if (Object.keys(descriptor.secret_refs ?? {}).length > 0 && !config.packsBaseUrl) {
+        throw new Error(`deployment secrets declared but the pack gateway URL is not configured (AGENT_RUNNER_PACKS_URL) — refusing to compose pod ${route.childKey}`);
+      }
+      for (const [name, ref] of Object.entries(descriptor.secret_refs ?? {})) {
+        if (!secretValues.has(name)) {
+          try {
+            secretValues.set(name, await this.#fetchSecretValue(ref));
+          } catch (e) {
+            throw new Error(`deployment secret '${name}' (ref ${maskSecretRef(ref)}) could not be fetched — refusing to compose pod ${route.childKey}: ${e.message}`);
+          }
+        }
+      }
+      const budgetMinutes = Number(descriptor.effective_budget_minutes);
+      const hasBudget = Number.isFinite(budgetMinutes) && budgetMinutes > 0;
+      const turnBudgetMs = hasBudget ? budgetMinutes * 60_000 : config.turnTimeoutMs;
+      maxBudgetMs = Math.max(maxBudgetMs, turnBudgetMs);
+      faces.set(key, {
+        presetId: null, // filled from the materialized roster below
+        provider: config.provider,
+        model: typeof descriptor.effective_model === "string" && descriptor.effective_model
+          ? descriptor.effective_model
+          : config.model,
+        turnTimeoutMs: turnBudgetMs,
+        budgetLabel: hasBudget ? `${budgetMinutes}m` : `${Math.max(1, Math.ceil(config.turnTimeoutMs / 60_000))}m`,
+      });
+      memberSpecs.push({ entry, skillContents, secrets: null, billingKeyValue: null });
+    }
+    // One shared billing key (eligibility guaranteed a single distinct ref):
+    // fetch once, pin once — a fetch failure degrades to the runner-level key
+    // with a warning, exactly the solo contract.
+    if (billingRef != null && config.packsBaseUrl) {
+      try {
+        billingKeyValue = await this.#fetchBillingKeyValue(billingRef);
+      } catch (e) {
+        this.log.warn(`[agent-runner] billing key fetch failed for pod ${route.childKey} — falling back to the runner-level key: ${e.message}`);
+      }
+    }
+    if (billingKeyValue != null) memberSpecs[0].billingKeyValue = billingKeyValue;
+    // materializePackHome takes merged secrets as ONE set on the first spec.
+    if (secretValues.size) memberSpecs[0].secrets = Object.fromEntries(secretValues);
+
+    const spec = await materializePackHome({
+      homeRoot: config.homeRoot,
+      packId: route.packId,
+      memberSpecs,
+      mcpServers: [...mcpRows.values()],
+      seedHome: config.seedHome,
+    });
+    for (const [key, face] of faces) face.presetId = spec.presetIds.get(key) ?? null;
+    // The notify binding (eligibility: one shared channel or none) — the
+    // audit identity is the pod (bot_notify carries no session identity on
+    // this wire, so member attribution is structurally unavailable).
+    const notifyChannel = [...members.values()]
+      .map((e) => e.metadata?.notify_channel)
+      .find((c) => typeof c === "string" && c) ?? null;
+    const version = members.values().next().value?.metadata?.packVersion ?? null;
+    const child = new AgentChild({
+      key: route.childKey,
+      version,
+      turnTimeoutMs: config.turnTimeoutMs,
+      budgetLabel: `${Math.max(1, Math.ceil(config.turnTimeoutMs / 60_000))}m`,
+      costFloorMb: config.podCostMb,
+      podMembers: faces,
+      clientFactory: this.clientFactory({
+        home: spec.home,
+        patchPaths: spec.patchPaths,
+        // The shared writable root: any member's data-workspace declaration
+        // turns the pack volume on (one pod = one cwd/env).
+        cwd: spec.dataDir ?? config.cwd,
+        env: workspaceChildEnv(spec, scrubbedChildEnv(process.env)),
+        provider: config.provider,
+        model: config.model,
+        presetId: null,
+        version,
+        turnBudgetMs: maxBudgetMs,
+      }),
+      log: this.log,
+      notifyHandler: (payload) => this.notifier.send({ agent: route.childKey, boundChannel: notifyChannel, ...payload }),
+      onExit: () => {
+        if (this.children.get(route.childKey) === child) this.children.delete(route.childKey);
+      },
+      spawnSpec: {
+        profile: config.dshProfile,
+        patchPaths: spec.patchPaths,
+        cwd: spec.dataDir ?? config.cwd,
+        env: workspaceChildEnv(spec, scrubbedChildEnv(process.env)),
+        provider: config.provider,
+        // Process-level defaults are a fallback only — every member session
+        // parks its own preset and model before its first prompt (child.js).
+        model: config.model,
+        presetId: null,
+        version,
+      },
+    });
+    this.children.set(route.childKey, child);
+    this.log.log(`[agent-runner] cold-starting pod ${route.childKey} (${members.size} members, ${mcpRows.size} MCP)`);
+    try {
+      await child.start();
+    } catch (e) {
+      if (this.children.get(route.childKey) === child) this.children.delete(route.childKey);
+      throw e;
+    }
+    // Runtime-capabilities gate (design D2): pod serving requires the bridge
+    // live methods — parked persona/model selection and native cancel. An
+    // older runtime missing any method must not wedge a pack: stop the pod
+    // and hand the pack back to solo children (sticky until the composition
+    // identity changes).
+    try {
+      const caps = await child.client?.request?.("platform/capabilities", {});
+      const methods = Array.isArray(caps?.methods) ? caps.methods : [];
+      for (const required of ["preset/set", "model/set", "session/cancel"]) {
+        if (!methods.includes(required)) throw new Error(`runtime does not report '${required}'`);
+      }
+    } catch (e) {
+      await child.stop().catch(() => {});
+      if (this.children.get(route.childKey) === child) this.children.delete(route.childKey);
+      throw Object.assign(
+        new Error(`pod capabilities probe failed (${e?.message || e})`),
+        { code: "POD_CAPABILITIES_MISSING" },
+      );
+    }
+    // Residency hooks fire per member, exactly like a solo re-warm — the
+    // rollover's deferred day roll rides a member's re-warm whichever child
+    // hosts it.
+    for (const [key, entry] of members) {
+      this.onSpawnHook?.(key, entry);
+    }
+    return child;
+  }
+
   async stopAll() {
     for (const timer of this.#slotWaiters ?? []) clearInterval(timer);
+    for (const timer of this.#podLaneWaiters ?? []) clearInterval(timer);
     await Promise.allSettled([...this.children.values()].map((c) => c.drainAndStop(2000)));
     this.children.clear();
     for (const key of [...this.#listeners.keys()]) this.#stopListener(key);

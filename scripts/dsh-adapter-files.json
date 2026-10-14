@@ -16,6 +16,7 @@
     "scripts/probe-concurrent-turn-close.mjs",
     "scripts/probe-data-workspace-writable.mjs",
     "scripts/probe-llm-retry.mjs",
+    "scripts/probe-stream-channel.mjs",
     "scripts/test-session-resume.mjs",
     "scripts/test-tool-scope-register-seam.mjs"
   ]

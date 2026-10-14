@@ -74,6 +74,23 @@ export function loadConfig(env = process.env) {
     // the residency probe: 96MB; recalibrate on Linux hosts — see the ops runbook).
     budgetMb: num(env.AGENT_RUNNER_RESIDENT_BUDGET_MB, 3072),
     agentCostMb: num(env.AGENT_RUNNER_AGENT_COST_MB, 96),
+    // Pod co-hosting (add-dsh-pod-adapter): same-pack serving agents share ONE
+    // dsh process (the process floor ~100-180MB is amortized across members —
+    // the arithmetic behind hundreds of long-tail agents). 0 = solo, the
+    // byte-identical legacy shape (one process per deployed role); 1 = eligible
+    // packs co-host (billing-key/secret/persona/notify-channel gates fall back
+    // to solo per member, never refusing a deployment).
+    podMode: env.AGENT_RUNNER_POD_MODE === "1",
+    // A pod's warm-zone planning floor (M2 measurement: boot peak 172-185MB,
+    // settled 89-116MB — idle sessions cost ≈0 marginal). Counts ONCE per pod,
+    // never per member.
+    podCostMb: num(env.AGENT_RUNNER_POD_COST_MB, 160),
+    // Per-pod in-flight turn bound. Turn-close serialization is PROCESS-level
+    // on this dsh line (probe-concurrent-turn-close: two sessions, each with
+    // its own agent context, still starve — 0.2.0-rc.2/0.2.1-a1), so a pod
+    // cannot promise members independent turn convergence; 1 lane makes the
+    // coupling deterministic (queued turns, never failed, never preempted).
+    podMaxInflight: num(env.AGENT_RUNNER_POD_MAX_INFLIGHT, 1),
     sampleSecs: num(env.AGENT_RUNNER_SAMPLE_SECS, 30),
     // Hysteresis: a child spawned within this window is not a demotion
     // candidate unless the budget is hard-exceeded (x hardBudgetFactor).

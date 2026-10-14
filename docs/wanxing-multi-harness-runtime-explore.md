@@ -175,21 +175,26 @@ HarnessAdapter（agent 级接口）
 | 0.2.1-alpha.1（全家族树） | ✗ 同上 |
 | 0.2.1-alpha.2（全家族树） | 判据未触发：0 请求到达 dummy、回合空转即关——llm 适配层形状漂移，需跟随性适配后方可测，不构成反证 |
 
-三点定读：
+三点定读（**2026-10-14 晚订正**：原第 1/3 点的「结构性解=每会话一个
+agent 上下文」读法不成立——stock 与我们桥的 `createSession` 本就每会话各建
+一个 `ctx.agents.create`（dsh-matrix 0.2.0-rc.2 源码实证），而本探针的
+A/B 两会话正是各持独立 agent 上下文仍饿死。**回合收尾的串行面在进程级，
+不在 agent 上下文级**；后台续跑不因 pod 解锁，等上游改会话收尾驱动才现实。
+pod 的设计后果=不能承诺成员回合独立收敛，每 pod 在途回合上限（默认 1）
+是纪律而非权宜——已随 add-dsh-pod-adapter 落地）：
 
-1. **限制是结构性的**：单 agent 驱动内跨会话的回合**收尾**串行（派发/驱动
-   本身并发）。dsh 的并发单位是 **agent 上下文（ctx.agents.create）而非
-   会话**——DS Bot 的多 bot 并发回合走的是每 bot 一个 agent 上下文，不是
-   单 agent 多会话。会话级后台续跑（切走不取消）因此跨三代（0.1.1-rc.2
-   →0.2.0-rc.2→0.2.1-alpha.1）均被挡，等上游改会话驱动不现实。
+1. **限制是结构性的**：跨会话的回合**收尾**串行（派发/驱动本身并发），
+   且串行单位=**进程**（订正如上）。会话级后台续跑（切走不取消）因此跨
+   三代（0.1.1-rc.2→0.2.0-rc.2→0.2.1-alpha.1）均被挡，等上游改会话
+   收尾驱动不现实。
 2. **宿主侧地基已备**：per-session turn 状态/turn buffer（2000 事件）/
    `session_loaded{running,turnEvents}` 重放/per-viewer 投递全在产；唯一
    杀后台回合的是 `stopStreamingForSessionNavigation`（切走即取消的刻意
    设计，合同⑨当时如实收窄）。
-3. **解锁路径**：结构性解 = 每会话（或每后台会话）一个 agent 上下文，
-   即 DshPodAdapter 方向（本底稿切片 2）——后台续跑是 pod 模型的第一个
-   消费者。0.2.0 时代的部分解可选：后台续跑+全局单活回合（在别会话发
-   prompt 时带提示取消后台回合），碰撞策略是产品决策，未立项。
+3. **解锁路径**：结构性解在上游会话收尾驱动层（进程内并行收尾），
+   非形态层能解。pod（切片 2）交付的是内存摊薄/sidecar 共享/管理粒度，
+   并发纪律（每 pod 单在途回合）如实吸收本限制；高流量 agent 永远有
+   solo 档。
 
 0.2.1 线的代际差异（未来跟随必读）：**peerDependencies 回来了**
 （0.2.0 是零 peer 锁步）。`--legacy-peer-deps` 会欠装全家族 peer 导致
@@ -218,6 +223,10 @@ manifest/安装流程必须为 peer 时代重写。
    14/14 两轮全绿；M1/M2/M3 三测量全收）**
 2. **DshPodAdapter**（桥接 per-session preset + runner pod 粒度管理 + 端口按 pod +
    warm-zone 按 pod；共宿键=pack；验证=生产一个双 agent pack 共宿部署）。
+   **2026-10-14 立项+实施（change add-dsh-pod-adapter）**：桥 `preset/set`
+   parked、pack home 物化（byPreset 工具面）、manager pod 粒度（资格门
+   fail-open/组身份排水/预算取消优先/每 pod 在途上限）、合同⑯ 两轮绿；
+   v1 端口仍 per-agent（「端口按 pod」留待 registry 代理路径保持）。
 3. **HarnessAdapter 接口抽象 + 第二 harness**（ACP 基线实证后定接口；claude-code
    runner 镜像进机群表）。
 4. **谦面物化器**（pack 清单→各 harness 布局映射，与 3 在映射处会合）。
@@ -230,4 +239,4 @@ manifest/安装流程必须为 peer 时代重写。
 | 1 | 萬星管理层边界：只管 runner 舰队（甲），还是全壹座统一管理面含 cell 内 worker（乙，需 cell 自报控制协议）？ | 切片 5 的形状；乙侵入面大得多 |
 | 2 | ACP 与平台 JSON-RPC 的分工：ACP 只驾驶、计量走平台插件？还是计量也上 ACP？ | 切片 3 接口基线 |
 | 3 | 短期 agents 执行宿：留在 cell worker-pool，还是搬上 runner 舰队（ephemeral slot 用完即收）？ | 与切片 5 联动；涉及任务引擎归属 |
-| 4 | pod 密度档策略：默认 pod 还是默认 solo、按流量晋级？ | 切片 2 的部署语义 |
+| 4 | pod 密度档策略：默认 pod 还是默认 solo、按流量晋级？ | 切片 2 的部署语义。**v1 已答（add-dsh-pod-adapter）**：默认 solo（`AGENT_RUNNER_POD_MODE` 默认 0，字节级零变化）、pod 按 runner 级 opt-in 面向长尾 pack（≥2 serving agents 且过资格门才共宿）；默认翻转/按流量晋级待生产实证后再议 |

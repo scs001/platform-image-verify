@@ -1332,6 +1332,124 @@ async function contractAssistantStreamForward(ctx) {
   return `platform/stream forwarded ${frames.length} frames (${kinds.join(",")}) keyed to the prompting session; session.event stayed chunk-free`;
 }
 
+// ── Contract ⑯ (add-dsh-pod-adapter): pod co-hosting shape ───────────────────
+//
+// Two member agents share ONE process (the pod shape's whole premise); each
+// member's session composes the member's OWN persona and model through the
+// HOST lane a pod child drives: `preset/set` + `model/set` parked before the
+// session's first prompt, applied at its lazy creation. Member A keeps the
+// initialize-time defaults; member B parks the alt persona and a second model.
+// The refusal shape (live-session preset/set) and the loud-failure shape
+// (unresolvable parked id) pin the same seams the runner's pod child relies on.
+async function contractPodCoHost(ctx) {
+  requireHandshake(ctx);
+  const caps = await ctx.client.request("platform/capabilities");
+  if (!Array.isArray(caps?.methods) || !caps.methods.includes("preset/set")) {
+    throw new Error(`platform/capabilities does not list preset/set (got ${JSON.stringify(caps)}) — the bridge lacks per-session persona, pod serving cannot route members`);
+  }
+  ensureHotRoute(ctx);
+  const A = "contracts-pod-member-a";
+  const B = "contracts-pod-member-b";
+  const MARK_A = `contracts-pod-a-${Date.now()}`;
+  const MARK_B = `contracts-pod-b-${Date.now()}`;
+
+  // Member A turns FIRST (its session composes on the initialize-time
+  // defaults), then member B parks persona+model and turns — the pod child's
+  // real order. model/set with a sessionId ALSO flips the process defaults
+  // (the bridge's switch-the-active-model side effect), so sessions created
+  // AFTER a park without their own would inherit it — a pod child never
+  // creates those (every member session parks both dimensions before its
+  // first prompt); the invariant that must hold is that a member's park
+  // never RETARGETS a live sibling session, pinned by A's second turn below.
+  await ctx.client.prompt(A, [{ type: "text", text: `pod member A probe (${MARK_A})` }]);
+  const parkedPreset = await ctx.client.request("preset/set", { sessionId: B, presetId: ALT_PRESET_ID });
+  if (parkedPreset?.ok !== true) {
+    throw new Error(`preset/set for a not-yet-created session failed: ${JSON.stringify(parkedPreset)}`);
+  }
+  let parkedModel = null;
+  const modelParked = await pollUntil(
+    async () => {
+      try {
+        parkedModel = await ctx.client.request("model/set", { sessionId: B, provider: HOT_ROUTE, model: HOT_MODEL });
+        return parkedModel?.ok === true;
+      } catch (e) {
+        if (!/no adapter registered for provider/.test(String(e?.message))) throw e;
+        return false;
+      }
+    },
+    { timeoutMs: 15_000, intervalMs: 500 },
+  );
+  if (!modelParked) throw new Error(`parked model/set failed: ${JSON.stringify(parkedModel)}`);
+
+  await ctx.client.prompt(B, [{ type: "text", text: `pod member B probe (${MARK_B})` }]);
+  const reqA = await pollUntil(() => conversationRequest(ctx.dummyLlm.requests, MARK_A), { timeoutMs: 20_000, intervalMs: 400 });
+  const reqB = await pollUntil(() => conversationRequest(ctx.dummyLlm.requests, MARK_B), { timeoutMs: 20_000, intervalMs: 400 });
+
+  if (!String(reqB?.system || "").includes(ALT_PERSONA_MARKER)) {
+    throw new Error(
+      `member B's parked persona never composed its session (system=${JSON.stringify(String(reqB?.system || "").slice(0, 120))}) — the park did not apply at creation`,
+    );
+  }
+  if (reqB?.model !== HOT_MODEL) {
+    throw new Error(`member B's parked model did not apply: its turn ran on model=${JSON.stringify(reqB?.model)} — expected "${HOT_MODEL}"`);
+  }
+  if (String(reqA?.system || "").includes(ALT_PERSONA_MARKER)) {
+    throw new Error("member B's persona leaked into member A's system prompt — pod compositions cross-pollinate");
+  }
+  if (reqA?.model !== ctx.model) {
+    throw new Error(`member A's own turn left its initialize-time model: ran on ${JSON.stringify(reqA?.model)} — expected "${ctx.model}"`);
+  }
+  if ((reqB?.allText || "").includes(MARK_A)) {
+    throw new Error("member A's history reached member B's request — conversations cross members inside the pod");
+  }
+
+  // The live-sibling invariant: after B's park (and its default flip), A's
+  // NEXT turn still runs on A's own composition — a member's selection can
+  // never retarget a session that already exists.
+  const MARK_A2 = `contracts-pod-a2-${Date.now()}`;
+  await ctx.client.prompt(A, [{ type: "text", text: `pod member A second probe (${MARK_A2})` }]);
+  const reqA2 = await pollUntil(() => conversationRequest(ctx.dummyLlm.requests, MARK_A2), { timeoutMs: 20_000, intervalMs: 400 });
+  if (reqA2?.model !== ctx.model) {
+    throw new Error(
+      `member A's SECOND turn ran on ${JSON.stringify(reqA2?.model)} — expected "${ctx.model}": a member's parked selection retargeted a live sibling session`,
+    );
+  }
+  if (String(reqA2?.system || "").includes(ALT_PERSONA_MARKER)) {
+    throw new Error("member B's parked persona reached member A's second turn — live compositions cross-pollinate");
+  }
+
+  // The refusal: a LIVE session's preset is creation-time composition. Both a
+  // silent swap and a silent ignore break the pod host's routing assumptions.
+  let liveRefusal = null;
+  try {
+    await ctx.client.request("preset/set", { sessionId: B, presetId: "standard" });
+  } catch (e) {
+    liveRefusal = String(e?.message || e);
+  }
+  if (!/creation-time composition/.test(liveRefusal || "")) {
+    throw new Error(`preset/set on a live session must refuse naming the rule (got ${JSON.stringify(liveRefusal)})`);
+  }
+
+  // The loud failure: an unresolvable parked id fails the session's creation
+  // before any agent publishes — surfaced through the prompt itself.
+  const C = "contracts-pod-member-bad";
+  await ctx.client.request("preset/set", { sessionId: C, presetId: "contracts-no-such-preset" });
+  let badCreation = null;
+  try {
+    await ctx.client.prompt(C, [{ type: "text", text: "should never run" }]);
+  } catch (e) {
+    badCreation = String(e?.message || e);
+  }
+  if (!badCreation || !/(not found|unknown|no preset|resolve|failed)/i.test(badCreation)) {
+    throw new Error(`an unresolvable parked preset must fail the session's creation loudly (got ${JSON.stringify(badCreation)})`);
+  }
+
+  return (
+    `two members co-hosted one process: A on defaults (model=${ctx.model}), B on its parked persona+model (${HOT_MODEL}); ` +
+    `histories isolated; live-session preset/set refused by rule; unknown parked id fails creation pre-publication`
+  );
+}
+
 // ── The table ────────────────────────────────────────────────────────────────
 
 export const CONTRACTS = [
@@ -1350,4 +1468,5 @@ export const CONTRACTS = [
   { id: "acp-session-surface", title: "⑬ ACP session surface", run: contractAcpSessionSurface },
   { id: "mcp-sidecar-sharing", title: "⑭ MCP sidecar process sharing", run: contractMcpSidecarSharing },
   { id: "assistant-stream-forward", title: "⑮ assistant-stream forward (live delta lane)", run: contractAssistantStreamForward },
+  { id: "pod-cohost-shape", title: "⑯ pod co-host shape (parked persona+model per member)", run: contractPodCoHost },
 ];

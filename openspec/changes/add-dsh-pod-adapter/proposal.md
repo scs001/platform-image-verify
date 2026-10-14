@@ -36,7 +36,7 @@ N agents 各持 persona 需要这根线接上（模型选择已有 parked 机制
    不收敛才整 pod 硬停兜底。
 6. **配置面**：`AGENT_RUNNER_POD_MODE`（默认 0=solo 零变化）、`AGENT_RUNNER_POD_COST_MB`
    （默认 160）、`AGENT_RUNNER_POD_MAX_INFLIGHT`（默认 1）。
-7. **合同⑮**（dsh-contracts）：双 agent 共宿形状合同——per-session preset 选择、成员
+7. **合同⑯**（dsh-contracts）：双 agent 共宿形状合同——per-session preset 选择、成员
    persona/model 互不渗透，跑真矩阵树。
 
 ### 判读订正（随本 change 落盘 docs）
@@ -54,7 +54,7 @@ pod 因此不能承诺成员回合独立收敛，纪律（每 pod 在途上限�
 | agent-runner | MODIFIED ×3 + ADDED | 「One dedicated runtime child」承认 pod 共宿形态；ADDED「Same-pack serving agents may co-host in one pod runtime」（资格门/命名空间/升级粒度/纪律/预算）；「Child lifecycle is bounded and queued」并发单位=child 或 pod；「Turn budgets are enforced with a hard stop」pod 分支=先取消后兜底 |
 | dsh-runtime-bridge | ADDED | 「Per-session preset selection parks until the session exists」（preset/set parked 语义、活会话拒绝、未知 preset 晚失败、capabilities 上报） |
 | agent-residency | MODIFIED | 「The warm zone demotes under budget」warm-zone 记账单位=child 或 pod（pod 一份 RSS + 地板价；排水 pod=全员降温） |
-| dsh-contracts | ADDED | 「pod 形状合同（⑮）」双 agent 共宿隔离钉住 |
+| dsh-contracts | ADDED | 「pod 形状合同（⑯）」双 agent 共宿隔离钉住（编号避让 restore-assistant-stream-020 已占的 ⑮） |
 
 ## Non-Goals
 
@@ -69,7 +69,7 @@ pod 因此不能承诺成员回合独立收敛，纪律（每 pod 在途上限�
 
 ## 验证口径
 
-- 合同⑮两轮绿（真矩阵树 0.2.0-rc.2，与 ①-⑭ 同 runner）。
+- 合同⑯两轮绿（真矩阵树 0.2.0-rc.2，与 ①-⑮ 同 runner）。
 - 单测：manager pod 分组/资格门/排水、compose pack 物化、桥 preset/set parked 语义、
   会话命名空间与 reap 含匹配。
 - 生产眼见：一个双 serving agent 的 pack 共宿部署——单进程承载双成员、双 persona 各归

@@ -61,20 +61,46 @@ function mcpNameParts(name) {
 // tiny JSON read is noise, and per-read keeps an HMR'd patch file from serving
 // a stale allowlist to the guard). Shape-tolerant: anything unexpected reads
 // as "no filtering" rather than breaking composition.
+// add-dsh-pod-adapter: the doc may carry an optional `byPreset` section —
+// { mcpTools: <union>, byPreset: { <presetId>: { mcpTools: {…} } } }. The
+// top-level map stays the process-wide face the guard and register-shadow
+// read (the pod union — never narrower than any member's own allowlist, so
+// the hard layers never block a tool some member needs); per-preset sections
+// are the per-member exact faces composition-time restrict resolves through
+// readMcpToolFilterFor. Docs without byPreset keep the legacy single-filter
+// semantics byte-for-byte.
+function normalizeMcpTools(mcpTools) {
+  if (!mcpTools || typeof mcpTools !== "object" || Array.isArray(mcpTools)) return null;
+  const normalized = {};
+  for (const [server, tools] of Object.entries(mcpTools)) {
+    if (!Array.isArray(tools)) continue;
+    normalized[server] = new Set(tools.filter((t) => typeof t === "string"));
+  }
+  return Object.keys(normalized).length ? normalized : null;
+}
+
 export function readMcpToolFilter() {
   try {
-    const doc = JSON.parse(readFileSync(FILTER_FILE, "utf8"));
-    const mcpTools = doc?.mcpTools;
-    if (!mcpTools || typeof mcpTools !== "object" || Array.isArray(mcpTools)) return null;
-    const normalized = {};
-    for (const [server, tools] of Object.entries(mcpTools)) {
-      if (!Array.isArray(tools)) continue;
-      normalized[server] = new Set(tools.filter((t) => typeof t === "string"));
-    }
-    return Object.keys(normalized).length ? normalized : null;
+    return normalizeMcpTools(JSON.parse(readFileSync(FILTER_FILE, "utf8"))?.mcpTools);
   } catch {
     return null;
   }
+}
+
+// The exact filter face for one preset's sessions (pod members): the
+// per-preset section when the doc carries one for this id, else the whole-home
+// map (legacy docs and un-sectioned presets alike — the guard's union is
+// merely the upper bound, so a member narrowing to it loses nothing the hard
+// layers would have caught).
+export function readMcpToolFilterFor(presetId) {
+  let doc;
+  try {
+    doc = JSON.parse(readFileSync(FILTER_FILE, "utf8"));
+  } catch {
+    return null;
+  }
+  const section = presetId ? doc?.byPreset?.[presetId] : null;
+  return normalizeMcpTools(section?.mcpTools) ?? normalizeMcpTools(doc?.mcpTools);
 }
 
 // The guard body: undefined leaves the call unchanged; a string denies it.
@@ -148,10 +174,13 @@ export function installMcpToolRegisterShadow(ctx) {
 // bridge's setup hook AFTER presets.mount. Deny is computed from the tools the
 // scope can actually see at composition time; unknown-name throws (MCP not
 // synced yet, drifted list) degrade silently to guard-only enforcement.
-export function applyMcpToolRestrict(agentCtx) {
+// `presetId` (add-dsh-pod-adapter) resolves the exact per-preset face from the
+// filter doc's byPreset section — a pod member narrows to its OWN allowlist,
+// not the pack union (the guard keeps enforcing the union as the upper bound).
+export function applyMcpToolRestrict(agentCtx, presetId = null) {
   let filter;
   try {
-    filter = readMcpToolFilter();
+    filter = presetId ? readMcpToolFilterFor(presetId) : readMcpToolFilter();
   } catch {
     return;
   }

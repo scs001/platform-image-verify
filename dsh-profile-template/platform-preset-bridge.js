@@ -141,17 +141,28 @@ class PlatformSdkServer extends HarnessSdkJsonRpcServer {
   }
 
   // Does this session id already own a persisted log? The profile's
-  // persistence service is the jsonl backend (JsonlSessionPersistence), whose
-  // `loadStored(id)` answers undefined for a session this home never stored —
-  // verified inside the composed child, not inferred from the base class (the
-  // base only carries prepare/readRaw). A missing service or a probe failure
-  // degrades to "not persisted": callers then take the stock create path
-  // exactly as they did before this bridge learned to resume.
+  // persistence service answers — with the seam THIS dsh generation actually
+  // exposes. 0.2.0 renamed the probe face: `loadStored` is gone (only
+  // loadStoredMigration survives) and `stat(id)` is the native existence
+  // probe ({header,…} for a stored session, undefined otherwise). Probing the
+  // dead name degraded silently to "not persisted", so a restarted child took
+  // the CREATE path for an id the store had already hydrated — the late
+  // "session … already exists" collision (live pod validation 2026-10-14:
+  // a rebuilt pod's first turn died exactly there). A missing service or a
+  // probe failure still degrades to "not persisted": callers then take the
+  // stock create path exactly as they did before this bridge learned to
+  // resume.
   async #isPersisted(sessionId) {
     const persistence = this.ctx.get("sessionPersistence");
-    if (persistence?.loadStored === undefined) return false;
+    if (persistence === undefined) return false;
     try {
-      return (await persistence.loadStored(SessionId(sessionId))) !== undefined;
+      if (typeof persistence.stat === "function") {
+        return (await persistence.stat(SessionId(sessionId))) !== undefined;
+      }
+      if (typeof persistence.loadStored === "function") {
+        return (await persistence.loadStored(SessionId(sessionId))) !== undefined;
+      }
+      return false;
     } catch {
       return false;
     }

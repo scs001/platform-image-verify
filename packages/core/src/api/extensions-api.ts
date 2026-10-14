@@ -536,3 +536,61 @@ export async function fetchExternalEntry(
   }
   return (await res.json()) as { entry: ExternalSkillEntry; stale: boolean; snapshotAt: number | null };
 }
+
+// ── External install (add-external-skill-install 刀二) ──────────────────────
+// The preview is the consent panel's data source; the install call always
+// carries confirm:true — the SERVER refuses anything else, this flag is just
+// the client stating what the user did.
+
+export interface ExternalInstallFile {
+  path: string;
+  bytes: number;
+  script: boolean;
+  action: "stored" | "omitted-binary" | "omitted-large";
+}
+
+export interface ExternalInstallPreview {
+  source: string;
+  slug: string;
+  normalizedName: string | null;
+  upstreamName: string;
+  displayName: string;
+  originUrl: string | null;
+  version: string | null;
+  licenseState: "declared" | "not-declared" | "unknown";
+  licenseText: string | null;
+  bodyExcerpt: string;
+  hasScripts: boolean;
+  files: ExternalInstallFile[];
+}
+
+export async function previewExternalInstall(
+  source: string,
+  slug: string,
+): Promise<ExternalInstallPreview> {
+  const res = await http(
+    `${BASE_URL}/external/install-preview/${encodeURIComponent(source)}/${encodeURIComponent(slug)}`,
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Install preview failed: ${res.statusText}`);
+  }
+  const doc = (await res.json()) as { preview: ExternalInstallPreview };
+  return doc.preview;
+}
+
+export async function installExternalSkill(
+  source: string,
+  slug: string,
+): Promise<{ skill: { name: string; description: string; originMeta: Record<string, unknown> | null }; replaced: boolean }> {
+  const res = await http(`${BASE_URL}/external/install`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source, slug, confirm: true }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Install failed: ${res.statusText}`);
+  }
+  return (await res.json()) as { skill: { name: string; description: string; originMeta: Record<string, unknown> | null }; replaced: boolean };
+}

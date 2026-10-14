@@ -585,7 +585,7 @@
     },
     "external": {
       "title": "外部源",
-      "subtitle": "镜像外部技能市场的条目。这些内容未经本平台审校，仅供发现；本页不提供安装。",
+      "subtitle": "镜像外部技能市场的条目。这些内容未经本平台审校，仅供发现；安装前会在确认面板展示包内文件与脚本，由你决定是否安装。",
       "searchPlaceholder": "搜索外部技能市场…",
       "searchButton": "搜索",
       "empty": "没有匹配的外部条目。",
@@ -600,6 +600,23 @@
         "declared": "许可证：已声明",
         "not-declared": "许可证：未声明",
         "unknown": "许可证：未知"
+      },
+      "install": {
+        "button": "安装此技能",
+        "title": "安装 {{name}}",
+        "bodyLabel": "技能正文（节选）",
+        "filesLabel": "包内文件（{{count}} 个）",
+        "omittedBinary": "未存储（二进制）",
+        "omittedLarge": "未存储（过大）",
+        "normalizedAs": "安装为：{{name}}",
+        "upstream": "打开上游页面",
+        "scriptWarning": "此技能包含可执行脚本文件，且未经本平台审校。脚本不会自动运行——是否运行由你在对话中决定。我了解并继续。",
+        "confirm": "确认安装",
+        "installing": "安装中…",
+        "success": "已安装「{{name}}」。",
+        "successReplaced": "已更新「{{name}}」（重装）。",
+        "findInInstalled": "可在「已安装」标签页看到这个技能。",
+        "retry": "重试"
       }
     }
   },

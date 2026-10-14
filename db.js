@@ -679,6 +679,29 @@ const MIGRATIONS = [
       )`,
     ],
   },
+  {
+    version: 30,
+    // add-external-skill-install (刀二, design D1): a stored skill becomes a
+    // directory tree, not a lone SKILL.md.
+    //   files       — JSON map {"scripts/x.py": "<text>"} of AUXILIARY files
+    //                 only (the SKILL.md body stays in `content`). NULL = the
+    //                 pre-existing single-file shape; behavior is byte-identical.
+    //   frontmatter — the upstream frontmatter map (JSON) captured at install;
+    //                 materialization re-emits it (name/description overridden
+    //                 by the row) so dsh-consumed fields (whenToUse /
+    //                 user-invocable / disable-model-invocation / metadata)
+    //                 survive. NULL = regenerate the legacy name/description
+    //                 header exactly as before.
+    //   origin_meta — external provenance JSON {kind:"external", source, slug,
+    //                 originUrl, upstreamName, upstreamVersion}. NULL = locally
+    //                 authored or pack-owned.
+    // All nullable and additive: existing rows migrate losslessly.
+    statements: [
+      `ALTER TABLE custom_skills ADD COLUMN files TEXT`,
+      `ALTER TABLE custom_skills ADD COLUMN frontmatter TEXT`,
+      `ALTER TABLE custom_skills ADD COLUMN origin_meta TEXT`,
+    ],
+  },
 ];
 
 function nowIso() {
@@ -1897,15 +1920,29 @@ export function setExtensionEnabled(name, enabled) {
 
 // ── Custom skills ────────────────────────────────────────────────────────────
 
+// files/frontmatter/origin_meta are TEXT-JSON columns (v30, 刀二). They are
+// decoded here so every reader gets objects, not raw JSON strings; NULL stays
+// null (the pre-existing single-file / locally-authored shape).
 const CUSTOM_SKILL_COLS =
-  "id, name, description, content, enabled, origin_pack_id AS originPackId, origin_pack_version AS originPackVersion, created_at AS createdAt, updated_at AS updatedAt";
+  "id, name, description, content, enabled, origin_pack_id AS originPackId, origin_pack_version AS originPackVersion, files, frontmatter, origin_meta AS originMeta, created_at AS createdAt, updated_at AS updatedAt";
+
+function decodeSkillRow(row) {
+  if (!row) return row;
+  return {
+    ...row,
+    enabled: !!row.enabled,
+    files: row.files ? JSON.parse(row.files) : null,
+    frontmatter: row.frontmatter ? JSON.parse(row.frontmatter) : null,
+    originMeta: row.originMeta ? JSON.parse(row.originMeta) : null,
+  };
+}
 
 export function listCustomSkills() {
   if (!dbReady) return [];
   return db
     .prepare(`SELECT ${CUSTOM_SKILL_COLS} FROM custom_skills ORDER BY name`)
     .all()
-    .map((r) => ({ ...r, enabled: !!r.enabled }));
+    .map(decodeSkillRow);
 }
 
 export function getCustomSkill(name) {
@@ -1914,16 +1951,16 @@ export function getCustomSkill(name) {
     .prepare(`SELECT ${CUSTOM_SKILL_COLS} FROM custom_skills WHERE name = ?`)
     .get(name);
   if (!row) return null;
-  return { ...row, enabled: !!row.enabled };
+  return decodeSkillRow(row);
 }
 
-export function addCustomSkill({ name, description, content, enabled = true, originPackId = null, originPackVersion = null }) {
+export function addCustomSkill({ name, description, content, enabled = true, originPackId = null, originPackVersion = null, files = null, frontmatter = null, originMeta = null }) {
   if (!dbReady) return null;
   const id = crypto.randomUUID();
   const now = nowIso();
   stmt(
-    `INSERT INTO custom_skills (id, name, description, content, enabled, origin_pack_id, origin_pack_version, created_at, updated_at)
-     VALUES (@id, @name, @description, @content, @enabled, @originPackId, @originPackVersion, @created_at, @updated_at)`
+    `INSERT INTO custom_skills (id, name, description, content, enabled, origin_pack_id, origin_pack_version, files, frontmatter, origin_meta, created_at, updated_at)
+     VALUES (@id, @name, @description, @content, @enabled, @originPackId, @originPackVersion, @files, @frontmatter, @originMeta, @created_at, @updated_at)`
   ).run({
     id,
     name,
@@ -1932,13 +1969,19 @@ export function addCustomSkill({ name, description, content, enabled = true, ori
     enabled: enabled ? 1 : 0,
     originPackId,
     originPackVersion,
+    files: files ? JSON.stringify(files) : null,
+    frontmatter: frontmatter ? JSON.stringify(frontmatter) : null,
+    originMeta: originMeta ? JSON.stringify(originMeta) : null,
     created_at: now,
     updated_at: now,
   });
   return getCustomSkill(name);
 }
 
-export function updateCustomSkill(name, { description, content, enabled }) {
+// files/frontmatter/originMeta use the "undefined = untouched, null = clear"
+// convention (matching description/content above), so any caller that does not
+// know about the v30 columns keeps its exact old behavior.
+export function updateCustomSkill(name, { description, content, enabled, files, frontmatter, originMeta }) {
   if (!dbReady) return null;
   const updates = [];
   const params = { name, updated_at: nowIso() };
@@ -1953,6 +1996,18 @@ export function updateCustomSkill(name, { description, content, enabled }) {
   if (enabled !== undefined) {
     updates.push("enabled = @enabled");
     params.enabled = enabled ? 1 : 0;
+  }
+  if (files !== undefined) {
+    updates.push("files = @files");
+    params.files = files ? JSON.stringify(files) : null;
+  }
+  if (frontmatter !== undefined) {
+    updates.push("frontmatter = @frontmatter");
+    params.frontmatter = frontmatter ? JSON.stringify(frontmatter) : null;
+  }
+  if (originMeta !== undefined) {
+    updates.push("origin_meta = @originMeta");
+    params.originMeta = originMeta ? JSON.stringify(originMeta) : null;
   }
   if (updates.length === 0) return getCustomSkill(name);
   updates.push("updated_at = @updated_at");

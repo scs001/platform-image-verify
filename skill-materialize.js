@@ -13,11 +13,19 @@
 // flat root. The DB stays the durable store: an installed pack re-materializes
 // into the pack root on the first boot after upgrade, no user action.
 //
+// add-external-skill-install (刀二): a row may carry a directory tree — an
+// auxiliary `files` map and captured upstream `frontmatter`. writeSkill then
+// materializes the whole tree (SKILL.md + auxiliary files, reconciling stale
+// ones away) and re-emits the stored frontmatter with name/description from
+// the row. Rows without those fields (every legacy row) produce byte-identical
+// output to before.
+//
 // Atomic writes (temp+rename) match documents.js / writeMcpPatch. The dir is a
 // runtime artifact under PLATFORM_DATA_DIR (gitignored), rebuilt idempotently
 // from the DB on startup.
 import { mkdirSync, readlinkSync, readdirSync, rmSync, symlinkSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
+import yaml from "js-yaml";
 import { atomicWriteTextSync } from "./lib/persistence.js";
 import { storeDir } from "./paths.js";
 
@@ -87,12 +95,74 @@ function skillFilePath(skill) {
 
 // Render a custom_skills row into a SKILL.md the filesystem plugin can load.
 // The body is the user's `content`; the frontmatter carries name+description.
-function renderSkillMd({ name, description, content }) {
+// The runtime's parser THROWS on legacy camelCase invocation keys and then
+// ignores the whole file, so those keys are filtered out here (storage-side
+// filtering is the first line; this is the invariant guard).
+const REJECTED_FRONTMATTER_KEYS = ["disableModelInvocation", "modelInvocable", "userInvocable"];
+
+function renderSkillMd({ name, description, content, frontmatter }) {
   const desc = (description || "").replace(/\n/g, " ");
+  if (frontmatter && typeof frontmatter === "object") {
+    const kept = {};
+    for (const [k, v] of Object.entries(frontmatter)) {
+      if (REJECTED_FRONTMATTER_KEYS.includes(k)) continue;
+      kept[k] = v;
+    }
+    // Platform record wins for name/description; every other stored field
+    // (whenToUse, user-invocable, disable-model-invocation, metadata, …)
+    // rides through so the runtime keeps consuming it.
+    kept.name = name;
+    kept.description = desc;
+    const yamlText = yaml.dump(kept, { lineWidth: -1, noRefs: true }).trimEnd();
+    return `---\n${yamlText}\n---\n\n${content || ""}\n`;
+  }
   return `---\nname: ${name}\ndescription: ${desc}\n---\n\n${content || ""}\n`;
 }
 
-// Write one skill's SKILL.md atomically (temp+rename). Returns true on success.
+// A stored auxiliary path is written only when it stays inside the skill dir.
+// The install path validated before storing; this is the last-line guard so a
+// hand-edited DB value can never escape the tree.
+function safeAuxPath(dir, relPath) {
+  if (typeof relPath !== "string" || !relPath || relPath.includes("\0")) return null;
+  const target = resolve(dir, relPath);
+  if (target !== dir && !target.startsWith(dir + sep)) return null;
+  return target;
+}
+
+// Reconcile the skill dir against the stored auxiliary set: write each stored
+// file (atomic), then delete files that are neither SKILL.md nor stored.
+function materializeAuxFiles(dir, files) {
+  const wanted = new Set();
+  const entries = files && typeof files === "object" ? Object.entries(files) : [];
+  for (const [relPath, text] of entries) {
+    const target = safeAuxPath(dir, relPath);
+    if (!target) {
+      console.warn(`[skill-materialize] skipping unsafe auxiliary path "${relPath}"`);
+      continue;
+    }
+    wanted.add(target);
+    mkdirSync(dirname(target), { recursive: true });
+    atomicWriteTextSync(target, String(text ?? ""));
+  }
+  // Stale sweep: any file under the dir that is not SKILL.md and not in the
+  // stored set is removed (a reinstall whose package dropped a file, junk).
+  const walk = (d) => {
+    let dirEntries = [];
+    try { dirEntries = readdirSync(d, { withFileTypes: true }); } catch { return; }
+    for (const e of dirEntries) {
+      const p = join(d, e.name);
+      if (e.isDirectory()) { walk(p); continue; }
+      if (p === join(dir, "SKILL.md")) continue;
+      if (!wanted.has(p)) {
+        try { rmSync(p, { force: true }); } catch { /* best-effort */ }
+      }
+    }
+  };
+  walk(dir);
+}
+
+// Write one skill's SKILL.md atomically (temp+rename), plus its auxiliary
+// files when the row carries them. Returns true on success.
 export function writeSkill(skill) {
   if (!skill || !skill.name) return false;
   if (skill.enabled === false) {
@@ -101,6 +171,9 @@ export function writeSkill(skill) {
   }
   const file = skillFilePath(skill);
   atomicWriteTextSync(file, renderSkillMd(skill));
+  if (skill.files && typeof skill.files === "object") {
+    materializeAuxFiles(dirname(file), skill.files);
+  }
   return true;
 }
 

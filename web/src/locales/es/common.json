@@ -585,7 +585,7 @@
     },
     "external": {
       "title": "Fuentes externas",
-      "subtitle": "Entradas reflejadas de mercados de habilidades externos. Sin revisión de esta plataforma — solo descubrimiento; aquí no se instala nada.",
+      "subtitle": "Entradas reflejadas de mercados externos de skills. Sin revisar por esta plataforma — solo para descubrimiento; la instalación muestra primero los archivos y scripts en un panel de confirmación.",
       "searchPlaceholder": "Buscar mercados de habilidades externos…",
       "searchButton": "Buscar",
       "empty": "No hay entradas externas coincidentes.",
@@ -600,6 +600,23 @@
         "declared": "Licencia: declarada",
         "not-declared": "Licencia: no declarada",
         "unknown": "Licencia: desconocida"
+      },
+      "install": {
+        "button": "Instalar esta skill",
+        "title": "Instalar {{name}}",
+        "bodyLabel": "Cuerpo de la skill (extracto)",
+        "filesLabel": "Archivos del paquete ({{count}})",
+        "omittedBinary": "no almacenado (binario)",
+        "omittedLarge": "no almacenado (demasiado grande)",
+        "normalizedAs": "se instala como: {{name}}",
+        "upstream": "Abrir página de origen",
+        "scriptWarning": "Esta skill contiene archivos de script ejecutables y no ha sido revisada por esta plataforma. Los scripts nunca se ejecutan automáticamente — ejecutarlos es tu decisión en el chat. Lo entiendo y quiero continuar.",
+        "confirm": "Confirmar instalación",
+        "installing": "Instalando…",
+        "success": "Se instaló \"{{name}}\".",
+        "successReplaced": "Se actualizó \"{{name}}\" (reinstalada).",
+        "findInInstalled": "Encuéntrala en la pestaña Instaladas.",
+        "retry": "Reintentar"
       }
     }
   },

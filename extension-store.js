@@ -88,12 +88,23 @@ export function getCustomSkill(name) {
   return db.getCustomSkill(name);
 }
 
-export function addCustomSkill({ name, description, content, enabled = true }) {
-  return db.addCustomSkill({ name, description, content, enabled });
+// The v30 fields (files/frontmatter/originMeta) pass through verbatim when
+// present — object in, JSON column storage, object out. Callers that omit
+// them (the user-edit path, packs) keep the old single-file behavior.
+const SKILL_V30_KEYS = ["files", "frontmatter", "originMeta"];
+
+function pickV30(extra) {
+  const out = {};
+  for (const k of SKILL_V30_KEYS) if (extra[k] !== undefined) out[k] = extra[k];
+  return out;
 }
 
-export function updateCustomSkill(name, { description, content, enabled }) {
-  return db.updateCustomSkill(name, { description, content, enabled });
+export function addCustomSkill({ name, description, content, enabled = true, ...extra }) {
+  return db.addCustomSkill({ name, description, content, enabled, ...pickV30(extra) });
+}
+
+export function updateCustomSkill(name, { description, content, enabled, ...extra }) {
+  return db.updateCustomSkill(name, { description, content, enabled, ...pickV30(extra) });
 }
 
 export function removeCustomSkill(name) {

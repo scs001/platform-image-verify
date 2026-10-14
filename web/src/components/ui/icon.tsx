@@ -42,6 +42,7 @@ import {
   Download,
   Star,
   LineChart,
+  Terminal,
   type LucideProps,
 } from "lucide-react";
 
@@ -83,6 +84,8 @@ const ICONS: Record<string, React.ComponentType<LucideProps>> = {
   // External skill-source shelf (add-external-skill-sources)
   download: Download,
   star: Star,
+  // External install consent panel (add-external-skill-install): script marker
+  terminal: Terminal,
   // Paper-trading credential card (add-paper-trading-credentials)
   "line-chart": LineChart,
 };

@@ -5,19 +5,36 @@ import { getMarketEntries, getSkillContent } from "../../registry-bridge.js";
 import * as credentialRefs from "../../credential-refs.js";
 import { getPreflightStatus } from "../../mcp-preflight.js";
 import { createExternalSourceRegistry, requestedPageSize } from "../../external-sources.js";
+import { previewInstall, performInstall } from "../../external-install.js";
 
 export function registerExtensionRoutes(ctx) {
   const { app, db, extensionStore, skillMaterialize, broadcast } = ctx;
   const bundle = ctx.bundle;
 
-  // External skill-source mirror (add-external-skill-sources 刀一): a
-  // read-only shelf of external market metadata. No install path exists by
-  // spec — these endpoints never touch the database, the skill store, or the
+  // External skill-source mirror (add-external-skill-sources 刀一): the shelf
+  // endpoints never touch the database, the skill store, or the
   // materialization tree; their only state is the snapshot cache inside the
   // registry. Same read posture as the market catalog GET (viewer-aware, no
-  // admin gate).
-  const externalSources = createExternalSourceRegistry({ env: process.env });
+  // admin gate). 刀二 adds TWO install endpoints whose consent gate lives
+  // SERVER-SIDE (a direct API call without `confirm` is refused — the UI
+  // panel is the explanation, not the enforcement). `ctx.externalSources` is
+  // a test seam; production leaves it unset and the registry builds from env.
+  const externalSources = ctx.externalSources ?? createExternalSourceRegistry({ env: process.env });
   const pageSize = () => requestedPageSize(process.env.EXTERNAL_SOURCE_PAGE_SIZE);
+
+  // Map an install/preview failure's `.code` to an HTTP status; anything
+  // unmapped is a 502 (upstream-facing by default, never a silent 200).
+  const externalErrorStatus = (err) =>
+    err?.status ?? (
+      err?.code === "upstream-not-found" ? 502
+      : err?.code === "limit-exceeded" ? 422
+      : err?.code === "invalid-package" ? 422
+      : err?.code === "invalid-name" ? 422
+      : err?.code === "name-conflict" ? 409
+      : err?.code === "unknown-source" ? 404
+      : err?.code === "upstream-host-rejected" ? 502
+      : 502
+    );
 
   const requireMcpManage = (req, res) => {
     if (!ctx.requireMcpManage(req, res)) return false;
@@ -424,6 +441,53 @@ export function registerExtensionRoutes(ctx) {
       res.json(out);
     } catch (err) {
       res.status(502).json({ error: `External source fetch failed: ${err.message}` });
+    }
+  });
+
+  // ── External install (刀二) ────────────────────────────────────────────────
+  // Preflight description of what installing the entry would produce: fetched
+  // server-side, parsed, and returned — read-only, nothing stored. This is
+  // the consent panel's data source.
+  app.get("/api/extensions/external/install-preview/:source/:slug", async (req, res) => {
+    const { source, slug } = req.params;
+    if (!source || !slug || String(slug).length > 200) {
+      return res.status(400).json({ error: "Bad source or slug" });
+    }
+    try {
+      const preview = await previewInstall({ source: String(source), slug: String(slug), registry: externalSources });
+      res.json({ preview });
+    } catch (err) {
+      res.status(externalErrorStatus(err)).json({ error: `Install preview failed: ${err.message}`, code: err.code ?? null });
+    }
+  });
+
+  // The install itself. The consent gate is enforced HERE, not in the UI: a
+  // request without `confirm: true` is refused before anything is fetched or
+  // written, so an API caller cannot skip the informed-consent contract.
+  app.post("/api/extensions/external/install", async (req, res) => {
+    const { source, slug, confirm } = req.body || {};
+    if (!source || !slug || String(slug).length > 200) {
+      return res.status(400).json({ error: "Missing source or slug" });
+    }
+    if (confirm !== true) {
+      return res.status(400).json({
+        error: "Installation requires explicit confirmation (confirm: true) after reviewing the install preview",
+        code: "confirm-required",
+      });
+    }
+    try {
+      const out = await performInstall({
+        source: String(source),
+        slug: String(slug),
+        registry: externalSources,
+        store: extensionStore,
+        materialize: skillMaterialize,
+        dbReady: () => db.isDbReady(),
+      });
+      broadcast({ type: "extensions_changed", resource: "skill", action: out.replaced ? "updated" : "added", name: out.skill.name });
+      res.json({ skill: { name: out.skill.name, description: out.skill.description, originMeta: out.skill.originMeta }, replaced: out.replaced });
+    } catch (err) {
+      res.status(externalErrorStatus(err)).json({ error: `Install failed: ${err.message}`, code: err.code ?? null });
     }
   });
 }

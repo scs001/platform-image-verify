@@ -120,13 +120,111 @@ test("entry endpoint 404s a disabled source without fetching", async () => {
   }
 });
 
-test("read-only boundary: the external route block registers only GETs", async () => {
+test("write boundary: the only install write path requires server-side confirm", async () => {
   const src = fs.readFileSync("server/routes/extensions.js", "utf8");
   const block = src.slice(src.indexOf("── External skill sources"));
   assert.ok(block.includes("app.get(\"/api/extensions/external/sources\""));
   assert.ok(block.includes("app.get(\"/api/extensions/external/search\""));
   assert.ok(block.includes("app.get(\"/api/extensions/external/entry/"));
-  // No write verbs anywhere in the external block — the spec's read-only
-  // scenario, pinned as code.
-  assert.ok(!/app\.(post|put|patch|delete)\(\"\/api\/extensions\/external/.test(block));
+  assert.ok(block.includes("app.get(\"/api/extensions/external/install-preview/"));
+  // 刀二 re-judged the 刀一 read-only pin: the shelf keeps only GETs; the ONE
+  // write path is the install POST, and its consent gate is asserted at the
+  // route level in the real-app test below (belt) plus this source pin
+  // (braces) — a write verb without the confirm check would be a defect.
+  const writeVerbs = block.match(/app\.(post|put|patch|delete)\("\/api\/extensions\/external[^"]*"/g) ?? [];
+  assert.deepEqual(writeVerbs, ["app.post(\"/api/extensions/external/install\""], "only the install POST is a write path");
+  assert.ok(block.includes("confirm !== true"), "the install path pins the server-side confirm gate");
+});
+
+test("real routes: preview + install against an injected registry (confirm enforced)", async () => {
+  const express = (await import("express")).default;
+  const { registerExtensionRoutes } = await import("../server/routes/extensions.js");
+  const { createExternalSourceRegistry } = await import("../external-sources.js");
+  const JSZip = (await import("jszip")).default;
+  const zip = new JSZip();
+  zip.file("SKILL.md", "---\nname: ep-demo\nwhenToUse: w\n---\n\n# EP");
+  zip.file("scripts/a.py", "print(1)");
+  const zipBuf = await zip.generateAsync({ type: "nodebuffer" });
+
+  // Registry with a stubbed fetch chain (mirrors the real SkillHub flow).
+  const registry = createExternalSourceRegistry({
+    env: { EXTERNAL_SKILL_SOURCES: "skillhub" },
+    fetchImpl: async (url) => {
+      if (String(url).includes("/download")) {
+        return { ok: false, status: 302, headers: new Headers({ location: "https://b.myqcloud.com/x.zip" }), json: async () => ({}), text: async () => "", arrayBuffer: async () => new ArrayBuffer(0) };
+      }
+      if (String(url).includes("myqcloud.com")) {
+        return { ok: true, status: 200, headers: new Headers(), json: async () => ({}), text: async () => "", arrayBuffer: async () => zipBuf.buffer.slice(zipBuf.byteOffset, zipBuf.byteOffset + zipBuf.byteLength) };
+      }
+      if (String(url).includes("/skills/")) {
+        return jsonResponse({ slug: "ep-demo", name: "ep-demo", displayName: "EP Demo", description: "d", version: "1.0.0", licenseState: "unknown" });
+      }
+      return jsonResponse({ results: [] });
+    },
+  });
+
+  // Real DB + store + materializer so the install path runs end to end.
+  const db = await import("../db.js");
+  await db.initDb();
+  const extensionStore = await import("../extension-store.js");
+  const skillMaterialize = await import("../skill-materialize.js");
+  const broadcasts = [];
+  const app = express();
+  app.use(express.json());
+  registerExtensionRoutes({
+    app,
+    db,
+    extensionStore,
+    skillMaterialize,
+    broadcast: (m) => broadcasts.push(m),
+    bundle: { skills: [], permissions: {} },
+    externalSources: registry, // test seam
+  });
+  const server = app.listen(0);
+  await new Promise((r) => server.on("listening", r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    // Preview works and describes the package.
+    const prev = await (await fetch(`${base}/api/extensions/external/install-preview/skillhub/ep-demo`)).json();
+    assert.equal(prev.preview.normalizedName, "ep-demo");
+    assert.equal(prev.preview.hasScripts, true);
+    assert.ok(prev.preview.files.some((f) => f.path === "scripts/a.py"));
+    assert.equal(extensionStore.getCustomSkill("ep-demo"), null, "preview writes nothing");
+
+    // Missing confirm → 400 and zero side effects.
+    const refused = await fetch(`${base}/api/extensions/external/install`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source: "skillhub", slug: "ep-demo" }),
+    });
+    assert.equal(refused.status, 400);
+    assert.equal((await refused.json()).code, "confirm-required");
+    assert.equal(extensionStore.getCustomSkill("ep-demo"), null, "unconfirmed install writes nothing");
+
+    // Confirmed → installs, broadcasts, exposes provenance.
+    const ok = await fetch(`${base}/api/extensions/external/install`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source: "skillhub", slug: "ep-demo", confirm: true }),
+    });
+    assert.equal(ok.status, 200);
+    const doc = await ok.json();
+    assert.equal(doc.skill.name, "ep-demo");
+    assert.equal(doc.skill.originMeta.source, "skillhub");
+    assert.equal(doc.replaced, false);
+    assert.ok(broadcasts.some((b) => b.resource === "skill" && b.name === "ep-demo"));
+    const row = extensionStore.getCustomSkill("ep-demo");
+    assert.deepEqual(Object.keys(row.files), ["scripts/a.py"]);
+    assert.equal(row.frontmatter.whenToUse, "w");
+
+    // Reinstalling replaces.
+    const again = await (await fetch(`${base}/api/extensions/external/install`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ source: "skillhub", slug: "ep-demo", confirm: true }),
+    })).json();
+    assert.equal(again.replaced, true);
+  } finally {
+    server.close();
+  }
 });

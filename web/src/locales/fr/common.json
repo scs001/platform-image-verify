@@ -585,7 +585,7 @@
     },
     "external": {
       "title": "Sources externes",
-      "subtitle": "Entrées miroir des marchés de compétences externes. Non validées par cette plateforme — découverte uniquement ; rien ne s'installe ici.",
+      "subtitle": "Entrées miroir de marchés externes de skills. Non vérifiées par cette plateforme — pour la découverte ; l'installation affiche d'abord les fichiers et scripts dans un panneau de confirmation.",
       "searchPlaceholder": "Rechercher dans les marchés externes…",
       "searchButton": "Rechercher",
       "empty": "Aucune entrée externe correspondante.",
@@ -600,6 +600,23 @@
         "declared": "Licence : déclarée",
         "not-declared": "Licence : non déclarée",
         "unknown": "Licence : inconnue"
+      },
+      "install": {
+        "button": "Installer cette skill",
+        "title": "Installer {{name}}",
+        "bodyLabel": "Corps de la skill (extrait)",
+        "filesLabel": "Fichiers du paquet ({{count}})",
+        "omittedBinary": "non stocké (binaire)",
+        "omittedLarge": "non stocké (trop volumineux)",
+        "normalizedAs": "installée sous : {{name}}",
+        "upstream": "Ouvrir la page source",
+        "scriptWarning": "Cette skill contient des fichiers de script exécutables et n'a pas été vérifiée par cette plateforme. Les scripts ne s'exécutent jamais automatiquement — les lancer est votre décision dans la conversation. Je comprends et je souhaite continuer.",
+        "confirm": "Confirmer l'installation",
+        "installing": "Installation…",
+        "success": "« {{name}} » installée.",
+        "successReplaced": "« {{name}} » mise à jour (réinstallation).",
+        "findInInstalled": "Retrouvez-la dans l'onglet Installées.",
+        "retry": "Réessayer"
       }
     }
   },

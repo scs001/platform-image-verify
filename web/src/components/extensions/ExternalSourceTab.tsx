@@ -14,6 +14,7 @@ import {
   type ExternalSourceGroup,
 } from "@platform/core";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ExternalInstallDialog } from "@/components/extensions/ExternalInstallDialog";
 import { Icon } from "@/components/ui/icon";
 
 const LicenseChip = ({ state, licenseText }: { state: ExternalSkillEntry["licenseState"]; licenseText: string | null }) => {
@@ -50,6 +51,8 @@ export function ExternalSourceTab() {
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<ExternalSkillEntry | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  // 刀二: the install consent flow's target (null = dialog closed).
+  const [installTarget, setInstallTarget] = useState<{ source: string; slug: string } | null>(null);
   // Bumped on every open/close so a fetch that resolves after the dialog was
   // dismissed cannot re-open it with a late setDetail (live-probe regression:
   // Escape while "Loading…" → dialog popped back open ~1s later).
@@ -226,10 +229,29 @@ export function ExternalSourceTab() {
                 </div>
               )}
               {detailLoading && <p className="text-xs text-muted-foreground">{t("common.loading")}</p>}
+              {/* Install (刀二): the entry detail is the entry point; the flow
+                  always passes through the consent panel (never installs from
+                  here directly) and the server refuses an unconfirmed call
+                  regardless of what the UI would have shown. */}
+              <button
+                onClick={() => setInstallTarget({ source: detail.source, slug: detail.id })}
+                className="h-9 w-full rounded-md bg-primary text-sm text-primary-foreground"
+                data-testid="external-install-button"
+              >
+                {t("extensions.external.install.button")}
+              </button>
             </div>
           )}
         </DialogContent>
       </Dialog>
+
+      {installTarget && (
+        <ExternalInstallDialog
+          source={installTarget.source}
+          slug={installTarget.slug}
+          onOpenChange={(open) => !open && setInstallTarget(null)}
+        />
+      )}
     </div>
   );
 }

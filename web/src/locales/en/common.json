@@ -585,7 +585,7 @@
     },
     "external": {
       "title": "External sources",
-      "subtitle": "Mirrored entries from external skill markets. Not reviewed by this platform — discovery only; nothing installs from here.",
+      "subtitle": "Mirrored entries from external skill markets. Not reviewed by this platform — for discovery; installation shows the package files and scripts in a consent panel first.",
       "searchPlaceholder": "Search external skill markets…",
       "searchButton": "Search",
       "empty": "No matching external entries.",
@@ -600,6 +600,23 @@
         "declared": "License: declared",
         "not-declared": "License: not declared",
         "unknown": "License: unknown"
+      },
+      "install": {
+        "button": "Install this skill",
+        "title": "Install {{name}}",
+        "bodyLabel": "Skill body (excerpt)",
+        "filesLabel": "Package files ({{count}})",
+        "omittedBinary": "not stored (binary)",
+        "omittedLarge": "not stored (too large)",
+        "normalizedAs": "installs as: {{name}}",
+        "upstream": "Open upstream page",
+        "scriptWarning": "This skill contains executable script files and has not been reviewed by this platform. Scripts never run automatically — whether to run them is your decision in chat. I understand and want to continue.",
+        "confirm": "Confirm install",
+        "installing": "Installing…",
+        "success": "Installed \"{{name}}\".",
+        "successReplaced": "Updated \"{{name}}\" (reinstalled).",
+        "findInInstalled": "Find it in the Installed tab.",
+        "retry": "Retry"
       }
     }
   },

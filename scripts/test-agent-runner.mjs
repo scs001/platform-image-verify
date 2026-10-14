@@ -111,7 +111,11 @@ function fakeHarnessClient({ reply = "ok", delayMs = 0, failPrompt = false, noUs
       const emit = (notif) => client.__emit(notif);
       setTimeout(() => {
         emit({ method: "session.event", params: { sessionId, event: { type: "turn/start", data: {} } } });
-        emit({ method: "session.event", params: { sessionId, event: { type: "assistant/chunk", data: { chunk: { type: "text-delta", text: reply.slice(0, 2) } } } } });
+        // Live deltas ride the bridge-forwarded platform/stream lane
+        // (restore-assistant-stream-020 — the 0.2.0 session format removed
+        // the assistant/chunk event).
+        emit({ method: "platform/stream", params: { sessionId, frame: { type: "start", attemptId: `${sessionId}:1`, revision: 1, turn: 1, step: 1 } } });
+        emit({ method: "platform/stream", params: { sessionId, frame: { type: "chunk", attemptId: `${sessionId}:1`, revision: 2, index: 0, chunk: { type: "text-delta", text: reply.slice(0, 2) } } } });
         // usage rides ON the assistant/message event at data.usage — the dsh
         // harness shape (agent-loop appends assembler.usage there; the pi-ai
         // adapter emits a usage chunk on every terminal event). camelCase

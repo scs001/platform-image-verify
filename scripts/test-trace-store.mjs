@@ -42,9 +42,11 @@ async function freshStores({ retentionDays } = {}) {
   return { root, db, trace };
 }
 
-const chunk = (type, extra = {}) => ({
-  method: "session.event",
-  params: { event: { type: "assistant/chunk", data: { chunk: { type, ...extra } } } },
+// Live-lane frame (restore-assistant-stream-020): the shape the bridge
+// forwards today — deltas and finish frames ride platform/stream.
+const streamFrame = (type, extra = {}) => ({
+  method: "platform/stream",
+  params: { sessionId: "s1", frame: { type: "chunk", chunk: { type, ...extra } } },
 });
 const ev = (type, data = {}) => ({ method: "session.event", params: { event: { type, data } } });
 
@@ -52,10 +54,10 @@ test("streaming deltas are dropped; non-delta chunks are stored", async () => {
   const { root, trace } = await freshStores();
   try {
     trace.bindTurn("t1");
-    trace.record(chunk("text-delta", { text: "hello world" }), { sessionId: "s1", turnId: "t1" });
-    trace.record(chunk("reasoning-delta", { text: "hmm" }), { sessionId: "s1", turnId: "t1" });
-    trace.record(chunk("tool-call-delta", { text: "partial" }), { sessionId: "s1", turnId: "t1" });
-    trace.record(chunk("finish", { reason: { kind: "stop" }, usage: { inputTokens: 3, outputTokens: 4 } }), {
+    trace.record(streamFrame("text-delta", { text: "hello world" }), { sessionId: "s1", turnId: "t1" });
+    trace.record(streamFrame("reasoning-delta", { text: "hmm" }), { sessionId: "s1", turnId: "t1" });
+    trace.record(streamFrame("tool-call-delta", { text: "partial" }), { sessionId: "s1", turnId: "t1" });
+    trace.record(streamFrame("finish", { reason: { kind: "stop" }, usage: { inputTokens: 3, outputTokens: 4 } }), {
       sessionId: "s1",
       turnId: "t1",
     });
@@ -63,8 +65,8 @@ test("streaming deltas are dropped; non-delta chunks are stored", async () => {
     await sleep(700);
     const events = trace.getTurn("t1");
     assert.equal(events.length, 2, `expected finish + turn/end only, got ${JSON.stringify(events.map((e) => e.summary))}`);
-    assert.ok(events.some((e) => e.summary.includes("Finish")), "finish chunk must be stored");
-    assert.ok(events.some((e) => e.summary.includes("tokens=")), "finish chunk must keep token usage");
+    assert.ok(events.some((e) => e.summary.includes("Finish")), "finish frame must be stored");
+    assert.ok(events.some((e) => e.summary.includes("tokens=")), "finish frame must keep token usage");
     // Sequence stays gap-free: dropped deltas consume no seq.
     assert.deepEqual(events.map((e) => e.seq), [1, 2]);
   } finally {

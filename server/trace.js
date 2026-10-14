@@ -10,10 +10,13 @@
 //
 // Storage is BOUNDED (openspec: bound-trace-storage). Three properties keep it
 // that way, and each one closed a real failure mode:
-//   - streaming deltas are not persisted at all — `assistant/chunk` deltas were
-//     88% of payload bytes, and the terminal `assistant/message` already
-//     carries the full text (non-delta chunks like `finish` still land, for
-//     token usage and stop reason);
+//   - streaming deltas are not persisted at all — they were 88% of payload
+//     bytes when they rode `assistant/chunk`, and the terminal
+//     `assistant/message` already carries the full text. The deltas now ride
+//     bridge-forwarded `platform/stream` frames (restore-assistant-stream-020;
+//     the 0.2.0 session format removed the chunk event) and stay dropped the
+//     same way — non-delta frames like `finish` still land, for token usage
+//     and stop reason;
 //   - pruning runs HOURLY, not only at process start — a hosted cell is
 //     long-resident, so a boot-only prune never fired (the 2026-10-10 8GB
 //     incident);
@@ -103,12 +106,19 @@ function scheduleFlush() {
 export function record(notif, { sessionId, turnId }) {
   try {
     if (!isTraceReady() || !notif?.method) return;
-    const eventType = notif.params?.event?.type ?? null;
+    let eventType = notif.params?.event?.type ?? null;
+    if (notif.method === "platform/stream") eventType = "platform/stream";
     // Drop streaming deltas before they reach the queue: no row, and no seq
     // consumed for them, so a stored turn's sequence stays gap-free.
     if (eventType === "assistant/chunk") {
       const chunkType = notif.params?.event?.data?.chunk?.type;
       if (STREAMING_DELTA_CHUNKS.has(chunkType)) return;
+    }
+    // Same drop for the live lane's delta frames (restore-assistant-stream-020):
+    // platform/stream carries the frames the chunk event used to; pure
+    // incremental text stays out, finish frames (usage/stop reason) land.
+    if (notif.method === "platform/stream") {
+      if (STREAMING_DELTA_CHUNKS.has(notif.params?.frame?.chunk?.type)) return;
     }
     const t = turnId || "unknown";
     const seq = (seqByTurn.get(t) ?? 0) + 1;
@@ -343,6 +353,14 @@ export function summarizeEvent(eventType, payload) {
       return kind && kind !== "stop" ? `Turn ended (${kind})` : "Turn ended";
     }
     case "user/message": return `User: ${String(d?.content?.[0]?.text ?? d?.text ?? "").slice(0, 120)}`;
+    case "platform/stream": {
+      // Live-lane frame (restore-assistant-stream-020): deltas never reach
+      // here (dropped in record), so this summarizes the kept frames —
+      // the finish's stop reason and token usage.
+      const c = payload?.frame?.chunk;
+      if (c?.type === "finish") return `Finish (${c?.reason?.kind ?? "?"})${c?.usage ? ` tokens=${JSON.stringify(c.usage)}` : ""}`;
+      return `Stream frame ${c?.type ?? payload?.frame?.type ?? "?"}`;
+    }
     case "assistant/chunk": {
       const c = d?.chunk;
       if (c?.type === "text-delta") return `Text +${(c.text || "").length} chars`;
@@ -410,10 +428,12 @@ if (process.argv[1] && process.argv[1].endsWith("trace.js")) {
   const rec = (type, data) => record({ method: "session.event", params: { event: { type, data } } }, { sessionId: sid, turnId: "selfcheck-1" });
   rec("turn/start", {});
   rec("request/header", { header: { config: { provider: "volces", model: "deepseek-v4-pro" } } });
-  // Deltas must not be stored; the finish chunk must be.
-  rec("assistant/chunk", { chunk: { type: "text-delta", text: "hello" } });
-  rec("assistant/chunk", { chunk: { type: "reasoning-delta", text: "thinking" } });
-  rec("assistant/chunk", { chunk: { type: "finish", reason: { kind: "stop" }, usage: { inputTokens: 1, outputTokens: 2 } } });
+  // Deltas must not be stored; the finish frame must be (live lane shape —
+  // restore-assistant-stream-020: frames ride platform/stream now).
+  const recStream = (chunk) => record({ method: "platform/stream", params: { sessionId: sid, frame: { type: "chunk", chunk } } }, { sessionId: sid, turnId: "selfcheck-1" });
+  recStream({ type: "text-delta", text: "hello" });
+  recStream({ type: "reasoning-delta", text: "thinking" });
+  recStream({ type: "finish", reason: { kind: "stop" }, usage: { inputTokens: 1, outputTokens: 2 } } );
   rec("tool/call", { callId: "c1", name: "demo" });
   rec("tool/result", { message: { source: { callId: "c1" }, content: [{ type: "text", text: "ok" }] } });
   record({ method: "session.status", params: { status: "idle" } }, { sessionId: sid, turnId: "selfcheck-1" });

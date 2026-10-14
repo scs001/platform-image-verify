@@ -374,6 +374,16 @@ function collectTurn(ctx, sessionId, { bot = null, adapter = null, chatKey = nul
           .catch((e) => console.warn(`[bots] "${bot.name}" send failed: ${e.message}`));
         return;
       }
+      // LLM failure capture rides the bridge-forwarded stream lane's finish
+      // frames (restore-assistant-stream-020 — the 0.2.0 session format
+      // removed the assistant/chunk event this used to read).
+      if (method === "platform/stream") {
+        const chunk = params?.frame?.chunk;
+        if (chunk?.type === "finish" && chunk.reason?.kind === "error") {
+          error = chunk.reason.failure?.message || "LLM request failed";
+        }
+        return;
+      }
       if (method !== "session.event") return;
       const ev = params.event;
       if (ev?.type === "assistant/message") {
@@ -387,12 +397,6 @@ function collectTurn(ctx, sessionId, { bot = null, adapter = null, chatKey = nul
         // turn that only asked must not count as tool-derived — its reply is
         // the user's own answer carried back.
         if (ev.data?.name !== "ask_user_question") usedTools = true;
-      } else if (
-        ev?.type === "assistant/chunk" &&
-        ev.data?.chunk?.type === "finish" &&
-        ev.data.chunk.reason?.kind === "error"
-      ) {
-        error = ev.data.chunk.reason.failure?.message || "LLM request failed";
       }
     });
   });

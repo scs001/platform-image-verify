@@ -67,6 +67,11 @@ export function attachTurnStateModule(c) {
         usage: null,
         promptStopped: false,
         currentTurnId: null,
+        // Live delta lane bookkeeping (restore-assistant-stream-020): true
+        // once any text/thinking delta reached this session's viewers this
+        // turn — gates the settled-text fallback so a segment is emitted
+        // exactly once (chat-streaming's exactly-once requirement).
+        streamedText: false,
       };
       c.turnStateBySession.set(sid, T);
     }

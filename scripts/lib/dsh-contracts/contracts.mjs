@@ -1261,6 +1261,56 @@ async function contractMcpSidecarSharing(ctx) {
   return "3 agents on one server → exactly 1 sidecar process (post-exit orphan check rides the runner's shutdown)";
 }
 
+// ── Contract ⑮ (restore-assistant-stream-020) ────────────────────────────────
+// The live delta lane: the 0.2.0 session format removed assistant/chunk from
+// session.event, so the ONLY token-by-token source is the bridge-forwarded
+// platform/stream notification (frames from the runtime's
+// agent/assistant-stream channel). This contract pins the lane's existence,
+// its frame vocabulary, its per-session keying, and the format fact that
+// session.event stays chunk-free — a candidate that changes any of these
+// must fail here instead of silently breaking every live transcript.
+
+async function contractAssistantStreamForward(ctx) {
+  requireHandshake(ctx);
+  const caps = await ctx.client.request("platform/capabilities");
+  if (caps?.streamForward !== true) {
+    throw new Error(`platform/capabilities does not advertise streamForward (got ${JSON.stringify(caps)}) — the live delta lane is not forwarded`);
+  }
+  const S = "contracts-stream-fwd";
+  const notifAt = ctx.notifications.length;
+  await ctx.client.prompt(S, [{ type: "text", text: "stream forward probe" }]);
+  const idle = await pollUntil(() => (lastStatus(ctx, S) === "idle" ? true : null), { timeoutMs: 20_000, intervalMs: 300 });
+  if (!idle) throw new Error("the stream-forward probe turn never went idle");
+  const frames = ctx.notifications
+    .slice(notifAt)
+    .filter((n) => n?.method === "platform/stream" && n?.params?.sessionId === S)
+    .map((n) => n.params.frame);
+  const kinds = frames.map((f) => (f?.type === "chunk" ? `chunk:${f.chunk?.type}` : f?.type));
+  if (frames.length === 0) {
+    throw new Error("no platform/stream frames arrived for the prompted session — the delta lane is dead");
+  }
+  if (!frames.some((f) => f?.type === "start")) {
+    throw new Error(`no start frame (kinds: ${kinds.join(",")})`);
+  }
+  if (!frames.some((f) => f?.type === "chunk" && f.chunk?.type === "text-delta")) {
+    throw new Error(`no text-delta chunk frame (kinds: ${kinds.join(",")})`);
+  }
+  if (!frames.some((f) => f?.type === "end")) {
+    throw new Error(`no end frame (kinds: ${kinds.join(",")})`);
+  }
+  // The format fact the host's source binding rests on: session.event must
+  // NOT carry chunk-type deltas. A candidate that re-adds them (or restores
+  // the assistant/chunk name) changes the lane layout — re-evaluate, do not
+  // silently run both sources.
+  const chunkEvents = ctx.notifications
+    .slice(notifAt)
+    .filter((n) => n?.method === "session.event" && ["assistant/chunk", "assistant/attempt"].includes(n?.params?.event?.type));
+  if (chunkEvents.length > 0) {
+    throw new Error(`session.event carried ${chunkEvents.length} chunk/attempt events — the format fact changed, the host source binding needs re-evaluation`);
+  }
+  return `platform/stream forwarded ${frames.length} frames (${kinds.join(",")}) keyed to the prompting session; session.event stayed chunk-free`;
+}
+
 // ── The table ────────────────────────────────────────────────────────────────
 
 export const CONTRACTS = [
@@ -1278,4 +1328,5 @@ export const CONTRACTS = [
   { id: "subagent-oneshot-slots", title: "⑫ subagent one-shot + slot admission", run: contractSubagentOneShotSlots },
   { id: "acp-session-surface", title: "⑬ ACP session surface", run: contractAcpSessionSurface },
   { id: "mcp-sidecar-sharing", title: "⑭ MCP sidecar process sharing", run: contractMcpSidecarSharing },
+  { id: "assistant-stream-forward", title: "⑮ assistant-stream forward (live delta lane)", run: contractAssistantStreamForward },
 ];

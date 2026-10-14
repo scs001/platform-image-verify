@@ -3,8 +3,12 @@
 // lifecycle notifications; this maps them onto the frozen WS protocol the
 // React frontend already speaks:
 //   turn/start          → agent_start (isStreaming already set at dispatch)
-//   assistant/chunk     → text / thinking / (error capture on finish error)
+//   platform/stream     → text / thinking / (error capture on finish error)
+//                         (bridge-forwarded live assistant-stream frames —
+//                         restore-assistant-stream-020: the 0.2.0 session
+//                         format removed assistant/chunk from session.event)
 //   assistant/message   → chat-history record (assistant turn persistence)
+//                         + settled-text fallback when nothing streamed
 //   tool/call           → tool_start
 //   tool/result         → tool_end
 //   turn/end (error)    → error
@@ -292,6 +296,37 @@ export function attachDshEvents(ctx) {
     const sid = webSid;
     const T = sid ? ctx.turnStateFor(sid) : null;
     const { params } = notif || {};
+    // Live delta lane (restore-assistant-stream-020): the 0.2.0 session
+    // format dropped assistant/chunk from session.event, so the bridge
+    // forwards the runtime's assistant-stream frames on this dedicated
+    // notification. Web-scoped frames map straight onto the viewer text/
+    // thinking events; bot-lane sessions never reach here — their frames
+    // were routed to the session collectors above (same source, their lane).
+    if (method === "platform/stream") {
+      const frame = params?.frame;
+      if (sid && frame?.type === "start" && T) {
+        // One attempt = one model request = one settled segment. The fallback
+        // marker is per-SEGMENT: a new attempt resets it so a multi-step turn
+        // where only some steps streamed still falls back each silent step.
+        T.streamedText = false;
+      }
+      if (sid && frame?.type === "chunk" && frame.chunk) {
+        const chunk = frame.chunk;
+        if (chunk.type === "text-delta" && chunk.text) {
+          T.streamedText = true;
+          ctx.sendToViewers(sid, { type: "text", delta: chunk.text });
+        } else if (chunk.type === "reasoning-delta" && chunk.text) {
+          T.streamedText = true;
+          ctx.sendToViewers(sid, { type: "thinking", delta: chunk.text });
+        } else if (chunk.type === "finish" && chunk.reason?.kind === "error") {
+          // The LLM failure capture (formerly the chunk-lane finish branch):
+          // broadcast rides the turn-completion signal, then session.status
+          // idle → finishTurn → done.
+          if (T) T.error = chunk.reason.failure?.message || "LLM request failed";
+        }
+      }
+      return;
+    }
     // A user-questions ask surfaced by the child's provider bridge
     // (add-user-questions, ADR-0012). The session routing above already sent
     // bot sessions to their collectors — reaching here means the WEB session
@@ -387,6 +422,7 @@ export function attachDshEvents(ctx) {
         T.usage = null;
         T.toolNames.clear();
         T.blocks = [];
+        T.streamedText = false;
         // A fresh turn starts a fresh replay log (add-reconnect-resync) —
         // this agent_start below is the log's first event.
         ctx.resetTurnBuffer?.(sid);
@@ -395,20 +431,9 @@ export function attachDshEvents(ctx) {
         T.chartScopeSince = new Date().toISOString();
         ctx.sendToViewers(sid, { type: "agent_start" });
         break;
-      case "assistant/chunk": {
-        const chunk = ev.data?.chunk;
-        if (!chunk) break;
-        if (chunk.type === "text-delta" && chunk.text) {
-          ctx.sendToViewers(ctx.dshSessionId, { type: "text", delta: chunk.text });
-        } else if (chunk.type === "reasoning-delta" && chunk.text) {
-          ctx.sendToViewers(ctx.dshSessionId, { type: "thinking", delta: chunk.text });
-        } else if (chunk.type === "finish" && chunk.reason?.kind === "error") {
-          // Capture the LLM failure; broadcast on turn/end (the turn-completion
-          // signal), then session.status idle → finishTurn → done.
-          T.error = chunk.reason.failure?.message || "LLM request failed";
-        }
-        break;
-      }
+      // (assistant/chunk is gone: the 0.2.0 session format removed the event
+      // type and the live stream moved to the bridge-forwarded platform/stream
+      // lane handled above — restore-assistant-stream-020.)
       case "assistant/message": {
         // Mirror the assistant's final text into the SQLite project database
         // (on assistant/message), now WITH the turn's block structure — the
@@ -435,6 +460,15 @@ export function attachDshEvents(ctx) {
           ...T.blocks,
           ...(text ? [{ kind: "text", text }] : []),
         ];
+        // Settled-text fallback (restore-assistant-stream-020): when nothing
+        // streamed this segment (no delta lane, or a non-streaming model
+        // response), the settlement is the only text source — emit it exactly
+        // once as a single full delta so the transcript never ends without
+        // visible body text. Deltas already delivered → persistence only.
+        if (text && sid && !T.streamedText) {
+          T.streamedText = true;
+          ctx.sendToViewers(sid, { type: "text", delta: text });
+        }
         if (text || T.blocks.length) {
           // The assistant mirror attributes to the turn's origin session and
           // carries its origin user — stamp-once, so this only fills an

@@ -9,7 +9,7 @@ dsh 统一代 0.2.0-rc.2 上线（镜像 sha-f7d7c39，2026-10-14 晨）后，�
 - **桥内转发**：platform-preset-bridge（子进程内插件模板）订阅 `agent/assistant-stream`，把帧（start / chunk / end，按会话归属）作为自定义通知转发给宿主；`platform/capabilities` 照例播报该能力（沿用 model/set、session/cancel 的既有模式）。
 - **宿主换源**：dsh-events.js 删除死掉的 `assistant/chunk` case，改收桥转发的流帧——`text-delta` → 现有 `{type:"text",delta}` 观众消息、`reasoning-delta` → `{type:"thinking",delta}`、`finish` 错误 → 回合错误捕获（`T.error` 复活）。宿主→客户端的 WS 契约不变（客户端零改动）。
 - **降级路径（能力门控）**：桥未声明流转发能力（旧运行时/桥未激活）时，宿主在 `assistant/message` 结算时把正文一次性广播（每段恰好一次，只在当轮无流式文本时——chat-streaming 既有「exactly once + fallback」需求已定义此语义，实现补齐）。
-- **同源收口**：cron-runner（错误捕获）、bots.js（bot 流）、trace.js（增量行）全部改从新源取数，删除对死事件名的引用。
+- **同源收口**：cron-runner（错误捕获）、bots.js（bot 流）、trace.js（增量行）、**agent-runner/child.js（serving 线 SSE delta 与 finish-error 结算——实施时证伪了调研期「serving 未依赖 chunk」的判断，0.2.0 滚产后 A2A 流式 delta 实际同样断了，被 -32005 空回合兜底掩盖）**全部改从新源取数，删除对死事件名的引用。
 - **新合同**：dsh-contracts 套件新增流通道合同（帧词表、按会话路由、能力播报、降级不重复），防止后续代际跳版再次静默断流。
 - 测试夹具更新：test-agent-runner 的伪子进程、test-turn-error-broadcast、test-trace-store 改用新通道形状。
 

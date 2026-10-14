@@ -258,6 +258,18 @@ export class AgentChild {
         if (method === "_child_exit") {
           return settle(false, Object.assign(new Error("agent runtime exited mid-turn"), { code: -32002 }));
         }
+        // Live delta lane (restore-assistant-stream-020): the 0.2.0 session
+        // format removed the assistant/chunk event — text deltas and finish
+        // errors ride the bridge-forwarded platform/stream frames now.
+        if (method === "platform/stream") {
+          const chunk = params?.frame?.chunk;
+          if (chunk?.type === "text-delta" && chunk.text) {
+            onDelta?.(chunk.text);
+          } else if (chunk?.type === "finish" && chunk.reason?.kind === "error") {
+            settle(false, Object.assign(new Error(chunk.reason.failure?.message || "LLM request failed"), { code: -32003 }));
+          }
+          return;
+        }
         if (method !== "session.event") return;
         const ev = params?.event;
         if (ev?.type === "assistant/message") {
@@ -265,13 +277,6 @@ export class AgentChild {
           if (Array.isArray(blocks)) {
             const t = blocks.filter((b) => b.type === "text").map((b) => b.text).join("");
             if (t) finalText = t;
-          }
-        } else if (ev?.type === "assistant/chunk") {
-          const chunk = ev.data?.chunk;
-          if (chunk?.type === "text-delta" && chunk.text) {
-            onDelta?.(chunk.text);
-          } else if (chunk?.type === "finish" && chunk.reason?.kind === "error") {
-            settle(false, Object.assign(new Error(chunk.reason.failure?.message || "LLM request failed"), { code: -32003 }));
           }
         }
       });

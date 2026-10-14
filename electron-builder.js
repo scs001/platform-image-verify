@@ -16,11 +16,79 @@
 //
 // Build with:  npm run dist
 
-import { existsSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { computePackagedTree } from "./scripts/lib/packaged-tree.mjs";
 
 const productName = (process.env.PRODUCT_NAME || "").trim() || "Platform";
 const icon = existsSync("build/icon.downloaded.png") ? "build/icon.downloaded.png" : "build/icon.png";
 const companyName = (process.env.COMPANY_NAME || "").trim() || undefined;
+
+// afterPack: sync the RUNTIME node_modules into the packaged app verbatim,
+// bypassing electron-builder's collector.
+//
+// The collector walks package.json dependencies+optionalDependencies only —
+// it never follows peerDependencies. The 0.2.0 dsh graph reaches ~64
+// foundation/plugin packages (dsh-sdk-protocol, dsh-fs, dsh-sandbox,
+// dsh-llm-deepseek, …) exclusively via peers, and THOSE packages carry their
+// own unscoped deps (brotli, sharp binaries, …) that are equally unreachable.
+// npm ci auto-installs the whole resolved tree (so the build tree looks
+// healthy), but the collector silently drops every peer-only package AND its
+// deps from the package. v1.3.9's exe died exactly there ("Cannot find
+// package '@deepseek-ai/dsh-sdk-protocol'" — debug run 38554132682; the
+// app-spawned backend crash-looped, which win-smoke read as "node.exe alive,
+// port never listens"). The old 39-row manifest carried these rows by hand;
+// the slimmed manifest cannot, and no hand list covers their transitive deps.
+//
+// The predist-prepared tree (npm ci + matrix merge + shared prune) IS the
+// shipping shape, so this hook copies it as-is minus the DEV-ONLY set
+// (everything reachable from devDependencies but not from dependencies —
+// electron, electron-builder, playwright, typescript, …). verify-bundle's
+// collector-coverage gate independently proves no package in that dev set is
+// required by anything shipping.
+async function afterPack(context) {
+  const appDir =
+    context.electronPlatformName === "darwin"
+      ? join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`, "Contents", "Resources", "app")
+      : join(context.appOutDir, "resources", "app");
+  const nmSrc = join(process.cwd(), "node_modules");
+  const nmDest = join(appDir, "node_modules");
+  if (!existsSync(join(nmSrc, "@deepseek-ai", "dsh"))) {
+    throw new Error("afterPack: project runtime tree missing — run predist first");
+  }
+
+  const rootPkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8"));
+  const { ships } = computePackagedTree({ nmDir: nmSrc, rootPkg });
+
+  let pruned = [];
+  try {
+    pruned = JSON.parse(readFileSync(join(process.cwd(), "dsh-matrix", "prune.json"), "utf8"))
+      .prune.flatMap((e) => e.match);
+  } catch { /* no prune list = nothing to skip */ }
+  const isPruned = (name) => pruned.some((p) => (p.endsWith("*") ? name.startsWith(p.slice(0, -1)) : name === p));
+
+  // Mirror the files-list trim negations (docs/markdown/test fat).
+  const TRIM_FILE = /\.(md|markdown|ts|map|coffee|flow)$/;
+  const TRIM_DIR = /[\\/](test|tests|docs|\.github)[\\/]/;
+
+  let copied = 0;
+  for (const name of ships) {
+    if (isPruned(name)) continue;
+    const src = join(nmSrc, name);
+    const dest = join(nmDest, name);
+    mkdirSync(dirname(dest), { recursive: true });
+    cpSync(src, dest, {
+      recursive: true,
+      dereference: false,
+      filter: (p) => {
+        const rel = p.slice(src.length);
+        return !rel || !(TRIM_FILE.test(rel) || TRIM_DIR.test(rel));
+      },
+    });
+    copied++;
+  }
+  console.log(`afterPack: runtime node_modules synced verbatim (${copied} packages, dev-only and pruned excluded)`);
+}
 
 /** @type {import('electron-builder').Configuration['extraResources']} */
 const extraResources = [
@@ -29,12 +97,6 @@ const extraResources = [
     to: "node/",
     filter: ["**/*", "!*.tar.gz"],
   },
-  // (The dsh runtime nested-tree copy was retired by single-source-desktop-
-  // runtime: 0.2.0's flat hard-dependency layout leaves that directory empty,
-  // and scripts/install-dsh-matrix.mjs now merges the full closure — from the
-  // same dsh-matrix source the server image installs — into the TOP-level
-  // node_modules, where the builder's collector and the explicit files glob
-  // both see it.)
 ];
 
 /** @type {import('electron-builder').Configuration} */
@@ -115,6 +177,7 @@ const config = {
   ],
 
   extraResources,
+  afterPack,
 
   mac: {
     category: "public.app-category.developer-tools",

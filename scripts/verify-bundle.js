@@ -88,6 +88,53 @@ if (!process.env.CSC_LINK && process.platform === "darwin") {
   console.log("   Set these env vars before building for a signed, notarized release.\n");
 }
 
+// Collector-coverage gate (single-source-desktop-runtime, v1.3.9 lesson):
+// electron-builder's node_modules collector walks dependencies+optionalDeps
+// but NEVER peerDependencies — runtime packages only peer-reachable (the
+// 0.2.0 dsh graph reaches ~64 foundation/plugin packages that way, plus
+// their unscoped deps) get silently dropped (v1.3.9 exe: "Cannot find
+// package '@deepseek-ai/dsh-sdk-protocol'" — the backend crash-looped on
+// clean machines while the build tree looked healthy). electron-builder.js's
+// afterPack syncs the runtime tree verbatim using the shared classifier in
+// scripts/lib/packaged-tree.mjs (fixpoint: ships = @deepseek-ai scope ∪
+// dependencies closure ∪ everything they require, peers included). This gate
+// re-runs the classifier and proves the two properties that make the
+// verbatim copy safe: (1) every @deepseek-ai package the pruned tree holds
+// ships, and (2) nothing the runtime could resolve into is left in devOnly.
+{
+  const { computePackagedTree } = await import("./lib/packaged-tree.mjs");
+  const root = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8"));
+  const { ships, devOnly, top } = computePackagedTree({ nmDir: path.join(PROJECT_ROOT, "node_modules"), rootPkg: root });
+
+  const scopeMissing = [];
+  for (const name of top) {
+    if (name.startsWith("@deepseek-ai/") && !ships.has(name)) scopeMissing.push(name);
+  }
+  // The packages afterPack skips (devOnly ∪ pruned). Pruned ones are
+  // intentional; devOnly ones must not be @deepseek-ai (the runtime family).
+  const prunePatterns = (() => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "dsh-matrix", "prune.json"), "utf8"))
+        .prune.flatMap((e) => e.match);
+    } catch {
+      return [];
+    }
+  })();
+  const isPruned = (name) => prunePatterns.some((p) => (p.endsWith("*") ? name.startsWith(p.slice(0, -1)) : name === p));
+  const badSkips = devOnly.filter((n) => n.startsWith("@deepseek-ai/") && !isPruned(n));
+
+  if (scopeMissing.length || badSkips.length) {
+    console.error("❌ Collector coverage: the afterPack dev-only exclusion would drop runtime packages:");
+    for (const n of scopeMissing) console.error(`     ${n} (in tree, not classified shipping)`);
+    for (const n of badSkips) console.error(`     ${n} (@deepseek-ai package classified dev-only, not pruned)`);
+    allGood = false;
+  } else {
+    console.log(
+      `✅ Collector coverage: ${ships.size} packages ship verbatim via afterPack; ${devOnly.length} dev-only skipped; no runtime package dropped`,
+    );
+  }
+}
+
 if (!allGood) {
   console.error("\n❌ Verification failed: bundled resources are incomplete.");
   console.error("   Run `npm run predist` to build them before `npm run dist`.");

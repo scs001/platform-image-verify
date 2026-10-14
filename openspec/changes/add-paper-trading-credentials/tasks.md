@@ -88,6 +88,12 @@
 
 ## 6. 对账回填
 
-- [ ] 6.1 台账回填：`LINES-MCP-CONFORMANCE.md` 壹座侧各线 key 表加 paper-trading
+- [x] 6.1 台账回填：`LINES-MCP-CONFORMANCE.md` 壹座侧各线 key 表加 paper-trading
       ref 行（照 facet-market 行形状）；finddata 侧 handoff（任务 3.3/3.4）回执对方
       change
+      - paas 侧：`docs/yizuo-platform-roadmap.md` C3 节追加生产上线记录（d161053/
+        sha-46999e1 五滚/等价实证/组门遗留），提交 7c9ef96
+      - finddata 侧：`LINES-MCP-CONFORMANCE.md` 两处更新（①柏讯模拟交易 `fdt_`
+        key 形状加入各线 key 表 ②既有注册位补第四轨 `paper-trading` + 安装分派
+        说明）；回执 `paper-trading-facet-pack/reports/paas-credential-ref-done.md`
+        （四件活逐项对照+第二分派点发现+验收实证表+对方侧遗留三条）

@@ -1037,8 +1037,9 @@ function ndjsonRpc(proc, onNotification) {
   proc.stdout.setEncoding("utf8");
   proc.stdout.on("data", (chunk) => {
     buf += chunk;
-    let idx;
-    while ((idx = buf.indexOf("\n")) !== -1) {
+    for (;;) {
+      const idx = buf.indexOf("\n");
+      if (idx === -1) break;
       const line = buf.slice(0, idx).trim();
       buf = buf.slice(idx + 1);
       if (!line) continue;
@@ -1157,7 +1158,6 @@ async function contractAcpSessionSurface(ctx) {
       "acp session/set_config_option",
     );
     const MARK_ACP = `contracts-acp-${Date.now()}`;
-    const t0 = ctx.dummyLlm.requests.length;
     const prompt1 = await withTimeout(
       acp.rpc.request("session/prompt", { sessionId, prompt: [{ type: "text", text: `acp probe (${MARK_ACP})` }] }),
       30_000,

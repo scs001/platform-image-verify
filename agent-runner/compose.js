@@ -423,7 +423,7 @@ export function packMemberPresetId(entry) {
 // does for solo children, and this writer stays fetch-free.
 // Returns { home, presetIds: Map<agentKey, presetId>, patchPaths, skillsRoot,
 // dataDir, dataQuotaMb }.
-export async function materializePackHome({ homeRoot, packId, memberSpecs, mcpServers, seedHome }) {
+export async function materializePackHome({ homeRoot, packId: _packId, memberSpecs, mcpServers, seedHome }) {
   if (!memberSpecs?.length) throw new Error("materializePackHome requires at least one memberSpec");
   const first = memberSpecs[0].entry;
   const descriptor = first.metadata;

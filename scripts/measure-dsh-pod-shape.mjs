@@ -15,12 +15,11 @@
 // Output: CSV on stdout (round, live_sessions, turns_done, rss_mb), summary
 // JSON on stderr. The numbers land in docs/wanxing-multi-harness-runtime-explore.md.
 
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import yaml from "js-yaml";
 import { HarnessClient } from "@deepseek-ai/dsh-sdk-client";
 import { dshClientRuntime } from "../lib/dsh-client-launch.js";
 import { startDummyLlm } from "./lib/dsh-contracts/dummy-llm.mjs";

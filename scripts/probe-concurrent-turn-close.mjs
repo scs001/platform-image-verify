@@ -218,10 +218,9 @@ async function main() {
     })();
 
     const deadline = Date.now() + HANDSHAKE_BUDGET_MS;
-    let handshake = null;
     for (let attempt = 0; ; attempt++) {
       try {
-        handshake = await withTimeout(client.initialize({ cwd: workspace, provider, model, agentPreset: AGENT_PRESET }), Math.max(1_000, deadline - Date.now()), "initialize");
+        await withTimeout(client.initialize({ cwd: workspace, provider, model, agentPreset: AGENT_PRESET }), Math.max(1_000, deadline - Date.now()), "initialize");
         break;
       } catch (e) {
         if (!/no adapter registered for provider/.test(String(e?.message || e)) || Date.now() >= deadline - 500) throw e;

@@ -93,7 +93,7 @@ function fakeCtx({ presets }) {
       if (name === "llm") return { listProviders: () => [{ id: "test-provider" }], resolveCallConfig: async () => ({}) };
       return undefined;
     },
-    inject: (_deps, cb) => ({ dispose: () => {} }),
+    inject: (_deps, _cb) => ({ dispose: () => {} }),
     agents: {
       create: async (opts) => {
         created.push(opts);

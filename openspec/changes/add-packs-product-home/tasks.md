@@ -43,3 +43,13 @@
 - **4.4 五条口径生产探针**：①匿名 / 200 渲染 landing-hero 零跳转 ✓ ②携 mcp_gateway_session cookie 200 出 SPA 壳无 landing 锚点 ✓ ③/api/public/summary 匿名 200 {servers:12,agents:10,skills:128} featured=[]，未知条目 404 ✓ ④/api/version=fd-1.4.0 + ui_title=壹座·Packs ✓ ⑤出片双台账登记（fork README §二 + 本仓 registry-maintenance §9.4）✓。
 - **5.1**：agents.json yizuo-packs url → https://mcp.finddatatech.cloud（paas fd42437）；app-center e2e 4/4 绿（fast project）。
 - **验收记录**：docs/registry-maintenance.md §9.4 为准。
+
+### 补丁一：登出闭环 + 根路径缓存契约（2026-10-15，生产 sha-115fea3）
+
+用户报两症状，均为真缺陷，已修并上产：
+
+1. **登出后停「已成功退出」页（5 秒跳 /login）而非首页** → 确认屏自动跳转改 `/`（匿名态即落地页），主按钮「返回首页」+次级「重新登录」；`/logout` 保留为 IdP 已注册回调（改 redirect_uri 需 Logto 侧登记，不划算）。
+2. **再进首页直接进登录页** → `/` 按 cookie 分叉未声明 `Vary: Cookie`，浏览器复用登录态缓存的控制台壳 → SPA 401 → 跳 /login。两变体均补 `Vary: Cookie` + `Cache-Control: no-cache`。
+
+**测试**：root-split 10 绿（新增 4 条缓存契约）、Logout 页 5 绿（含 4999ms 边界）、i18n:scan 1302/1302、真浏览器全链探针 8/8（`scripts/probe-login-logout.mjs` 可复跑）。
+**探针教训**：`/logout` 是 IdP 回调确认屏，不结束会话；真登出=`POST/GET /api/auth/logout`。第一版探针走错路径造出假失败。

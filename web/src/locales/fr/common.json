@@ -569,7 +569,9 @@
       "noActiveHint": "Aucun compte actif actuellement : choisissez-en un pour rétablir les appels d'outils du connecteur.",
       "emptyHintZeroPaste": "Aucun compte connecteur pour l'instant. Cliquez sur « Connecter un compte » — en un clic, sans collage de jeton ; le collage d'un PAT reste possible.",
       "emptyHintPasteOnly": "Aucun compte connecteur pour l'instant. Créez un PAT sur le connecteur et collez-le ici.",
-      "slotPlaceholder": "Nom du compte (facultatif)"
+      "slotPlaceholder": "Nom du compte (facultatif)",
+      "contextLine": "Connectez vos comptes SaaS une fois et émettez des jetons d'accès pour vos plateformes d'agents.",
+      "learnMore": "En savoir plus"
     },
     "paperTrading": {
       "title": "Wire · Trading Simulé",

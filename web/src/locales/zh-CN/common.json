@@ -569,7 +569,9 @@
       "noActiveHint": "当前没有使用的账号：选择一个账号以恢复连接器的工具调用。",
       "emptyHintZeroPaste": "尚未连接任何连接器账号。点「连接新账号」一键完成，无需粘贴令牌；也可以粘贴 PAT。",
       "emptyHintPasteOnly": "尚未连接任何连接器账号。在连接器铸造 PAT 后粘贴到这里。",
-      "slotPlaceholder": "账号名（可选）"
+      "slotPlaceholder": "账号名（可选）",
+      "contextLine": "连一次 SaaS 账户，为 agent 平台铸造访问令牌。",
+      "learnMore": "了解产品"
     },
     "paperTrading": {
       "title": "柏讯·模拟交易",

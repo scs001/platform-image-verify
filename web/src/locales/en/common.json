@@ -569,7 +569,9 @@
       "noActiveHint": "No active account right now: pick one to restore the connector's tool calls.",
       "emptyHintZeroPaste": "No connector accounts yet. Click \"Connect account\" for a one-click flow — no token pasting; pasting a PAT also works.",
       "emptyHintPasteOnly": "No connector accounts yet. Mint a PAT on the connector and paste it here.",
-      "slotPlaceholder": "Account name (optional)"
+      "slotPlaceholder": "Account name (optional)",
+      "contextLine": "Connect your SaaS accounts once and mint access tokens for agent platforms.",
+      "learnMore": "Learn more"
     },
     "paperTrading": {
       "title": "Wire · Paper Trading",

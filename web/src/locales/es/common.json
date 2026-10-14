@@ -569,7 +569,9 @@
       "noActiveHint": "Ahora no hay cuenta activa: elige una para restablecer las llamadas de herramientas del conector.",
       "emptyHintZeroPaste": "Aún no hay cuentas del conector. Pulsa «Conectar cuenta» para hacerlo en un clic, sin pegar tokens; también puedes pegar un PAT.",
       "emptyHintPasteOnly": "Aún no hay cuentas del conector. Crea un PAT en el conector y pégalo aquí.",
-      "slotPlaceholder": "Nombre de cuenta (opcional)"
+      "slotPlaceholder": "Nombre de cuenta (opcional)",
+      "contextLine": "Conecta tus cuentas SaaS una vez y emite tokens de acceso para plataformas de agentes.",
+      "learnMore": "Más información"
     },
     "paperTrading": {
       "title": "Wire · Trading Simulado",

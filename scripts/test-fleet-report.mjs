@@ -146,3 +146,34 @@ test("runner sampler: roster rides runner_stats; failures omit the field", async
   sampler3.sample();
   assert.equal(emitted3.filter((e) => e.kind === "runner_stats").at(-1).payload.models, undefined, "failure omits the field");
 });
+
+// ── add-harness-adapter: the heartbeat carries the harness self-report ──────
+test("runner sampler: harness rides runner_stats; absence and failures omit the field", async () => {
+  const manager = { health: () => ({ agents: [], children: 0, queued: 0, budget: 0, budgetMb: 3328 }) };
+  const emitted = [];
+  const sampler = createFleetSampler({
+    manager,
+    reporter: { emit: (e) => emitted.push(e) },
+    runnerId: "r-h",
+    harnessProvider: () => ["dsh", "acp-claude-code"],
+  });
+  sampler.sample();
+  assert.deepEqual(
+    emitted.filter((e) => e.kind === "runner_stats").at(-1).payload.harness,
+    ["dsh", "acp-claude-code"],
+    "the harness set rides the heartbeat verbatim (the deploy gate reads it off the board)",
+  );
+  // No provider at all (legacy runner): the field is absent — degrade open.
+  const emitted2 = [];
+  createFleetSampler({ manager, reporter: { emit: (e) => emitted2.push(e) }, runnerId: "r-old" }).sample();
+  assert.equal(emitted2.filter((e) => e.kind === "runner_stats").at(-1).payload.harness, undefined, "no provider → no field");
+  // A throwing provider omits the field rather than reporting an empty set.
+  const emitted3 = [];
+  createFleetSampler({
+    manager,
+    reporter: { emit: (e) => emitted3.push(e) },
+    runnerId: "r-broken",
+    harnessProvider: () => { throw new Error("registry unreadable"); },
+  }).sample();
+  assert.equal(emitted3.filter((e) => e.kind === "runner_stats").at(-1).payload.harness, undefined, "failure omits the field");
+});

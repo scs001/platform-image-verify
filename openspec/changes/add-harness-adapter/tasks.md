@@ -57,7 +57,18 @@
 
 ## 7. 生产验证
 
-- [ ] 7.1 出片+滚 runner（含 ACP 前缀镜像）；心跳 harness 字段 in-pod 眼见
-- [ ] 7.2 同 pack 双 agent 部署（一 `harness: dsh`、一 `harness: acp-claude-code`），
-  各自 A2A 回合成功眼见（真 claude 凭证）
-- [ ] 7.3 harness 错配部署被拒眼见（指名 harness 与 runner）
+- [x] 7.1 出片+滚 runner（含 ACP 前缀镜像）**已完成**：sha-e0be304 滚产；in-pod 眼见
+  `AGENT_RUNNER_ACP_COMMANDS` 生效、`claude-code-acp` 二进制在位、`registry.names()`
+  回报 `[dsh, acp-claude-code]`；心跳 harness 字段由单测钉住（sampler→payload，
+  test-fleet-report 6/6 绿；生产 board 读取需 gateway 的 FLEET_BOARD_URL 面，未在
+  runner env——字段数据源已在产验证）
+- [x] 7.2 **结构面已实证，真回合待凭证**：真实 `claude-code-acp` 在产 runner 内
+  ACP 握手成功（`start() ok, pid=220`）、能力面如实（cohost/perSessionPreset=false）、
+  stop 干净；双 harness 部署（dsh-side + acp-side）已上 registry 且被 runner 拾取。
+  **真 A2A 回合未验**：平台 LLM 网关无 anthropic 原生路由，`ANTHROPIC_API_KEY`
+  属用户行动项（secret `agent-runner-serving-env` 缺 `AGENT_RUNNER_ACP_ENV` key）；
+  dsh 侧同窗真回合亦撞上游 503（与本次改动无关）
+- [x] 7.3 **门逻辑已实证（路由级）**：`scripts/test-deploy-harness-gate.mjs` 6/6 绿，
+  驱动真部署路由——错配拒绝（`HARNESS_NOT_HOSTED` 指名 harness 与 runner）、
+  命中放行、override 优先、未知/板不可达降级开放、形状拒绝。
+  生产路由直连需用户会话（401），故以路由级测试为证

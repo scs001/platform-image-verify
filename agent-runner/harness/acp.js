@@ -201,13 +201,17 @@ export class AcpHarnessAdapter {
     const acpSessionId = `ctx-${String(sessionId).replace(/[^A-Za-z0-9._-]+/g, "-")}`;
     if (this.#loadSession) {
       try {
-        await this.#request("session/resume", { sessionId: acpSessionId, cwd, mcpServers: {} });
+        await this.#request("session/resume", { sessionId: acpSessionId, cwd });
         const rec = { acpSessionId, model: null };
         this.#sessions.set(sessionId, rec);
         return rec;
       } catch { /* unknown session → create below */ }
     }
-    const res = await this.#request("session/new", { cwd, mcpServers: {} });
+    // mcpServers is OMITTED, not {}: real ACP agents (claude-code-acp's zod
+    // schema) reject an empty object where the field is absent-or-map — the
+    // fake agent tolerated {} (contract ⑰ gap; the real harness caught it).
+    const createParams = { cwd };
+    const res = await this.#request("session/new", createParams);
     const rec = { acpSessionId: res?.sessionId ?? acpSessionId, model: null };
     this.#sessions.set(sessionId, rec);
     return rec;

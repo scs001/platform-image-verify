@@ -31,6 +31,6 @@
 
 ## 5. 收口
 
-- [ ] 5.1 ADR-0024 落盘（词元=增量谱系 fork，与 ADR-0017 成对）；验证：ADR 目录存在且被本 change 引用一致
-- [ ] 5.2 词元品牌面：token.finddatatech.cloud 控制台品牌/导航含三车道入口；验证：真浏览器眼见车道页+一笔车道用量在面板
-- [ ] 5.3 全链验收：外部 key 三车道各一笔回执+面板入账+窗口/余额硬顶生效；验证：验收记录入台账（同 registry 发布记录样式）
+- [x] 5.1 ADR-0024 落盘（词元=增量谱系 fork，与 ADR-0017 成对）；验证：ADR 目录存在且被本 change 引用一致（`docs/adr/0024-ciyuan-incremental-fork-lineage.md` 已在（explore 期落盘）；内容=决策四条+备选否决+降级预案，与本 change design/spec 一致）
+- [x] 5.2 词元品牌面：token.finddatatech.cloud 控制台品牌/导航含三车道入口；验证：真浏览器眼见车道页+一笔车道用量在面板（**代码面已收口**：车道入口页 `/lanes`（路由+侧边栏「模型车道」+LanesView：端点表/形状/计量/错误面/curl 示例）+i18n zh/en；CI 全量绿 run 38530888676/sha-7a1f7c7（含前端 check:i18n+vue-tsc+vite build）；**品牌=上游配置驱动**（admin site_name 默认 Sub2API→部署窗改配置即得词元品牌，零代码）；**浏览器眼见+面板入账=部署窗验收项**）
+- [ ] 5.3 全链验收：外部 key 三车道各一笔回执+面板入账+窗口/余额硬顶生效；验证：验收记录入台账（同 registry 发布记录样式）（**部署窗项目**：需生产滚动 sha-7a1f7c7+建车道上游账号（websearch key 现成/rerank+audio 待硅基 key）+分组配车道价目；契约面已全绿——按 runbook §7 车道窗附加探针照单执行）

@@ -33,21 +33,25 @@ fork 自有代码全在 `backend/internal/lanes/` 等新增包；上游文件仅
 | 车道平台谓词排除 | `backend/internal/service/scheduler_snapshot_service.go`（schedulerSnapshotPlatforms）+ `upstream_billing_probe.go`（IsUpstreamBillingProbeIdentity） | Gateway=lane 平台**不进** chat 调度快照（空桶白耗内存，inflight 8MB 界 CI 实证越线）**不进**上游计费探测（非 chat 上游，不外发 key） |
 | 分组价目（rerank） | `ent/schema/group.go`+迁移 246+repo/auth 缓存/admin DTO·输入·克隆/`billing_service.go`（CalculateRerankCost）/`openai_gateway_usage.go`（成本分支） | `rerank_price_per_request`（USD/请求，nil=0 计费告警）——镜像 web_search_price_per_call 全链模式；本 change 唯一 schema 变更 |
 | 测试阈值 | `billing_inflight_reservation_test.go`（8MB→9MB） | 车道平台+价目字段合法增重（CI 1.27.0 实测 8587240）；防失控守护本意不变 |
-| 前端路由+导航 | `frontend/src/router/index.ts` + `components/layout/AppSidebar.vue` | 车道页路由+侧边导航入口 |
-| i18n 词条 | `frontend/src/i18n/locales/{en,zh}` | 车道页/导航词条 |
+| 前端路由+导航 | `frontend/src/router/index.ts` + `components/layout/AppSidebar.vue` | 车道页路由（/lanes）+侧边导航入口「模型车道」（5.2） |
+| i18n 词条 | `frontend/src/i18n/locales/lanes.ts` + zh/en index 装配 | 车道页/导航词条（zh/en 对称；扁平化命名空间避免与 common.nav 顶层冲突） |
 
 **首笔缝点触碰（2026-10-14，未发版）**：车道骨架+计量通道+上游账号池+**§3 三车道
-v1 全落地+故障口径统一**（rerank 3.1 / audio 3.2 / websearch 3.3 / 统一错误面 3.4）
-落 `internal/lanes/`（全新包，fork commits 9225e8baf→8e1b56e84 已推 main）；
-**CI 全绿实证**（law-ai 线：rerank 三跑收口 38492374586→dev1/sha-a5e6c87；websearch
-一次过 38516176793→sha-872b5d3；audio 一次过 38519899822→sha-e3a88ea；3.4 一次过
-38523922129→sha-6e809d3，均未部署）；缝点实插累计=路由注册/handler 服务访问器/
-平台清单/service 账号仓储访问器/车道平台谓词排除/分组价目 rerank/测试阈值（§二表）。
+v1 全落地+故障口径统一**+**§5.2 车道入口页**（rerank 3.1 / audio 3.2 / websearch 3.3 /
+统一错误面 3.4 / 前端 /lanes）落 `internal/lanes/` + 前端登记缝点（fork commits
+9225e8baf→ee7f32bcf 已推 main）；**CI 全绿实证**（law-ai 线：rerank 三跑收口
+38492374586→dev1/sha-a5e6c87；websearch 一次过 38516176793→sha-872b5d3；audio
+一次过 38519899822→sha-e3a88ea；3.4 一次过 38523922129→sha-6e809d3；前端页
+38530888676→sha-7a1f7c7（含 check:i18n+vue-tsc+vite build），均未部署）；缝点实插
+累计=路由注册/handler 服务访问器/平台清单/service 账号仓储访问器/车道平台谓词排除/
+分组价目 rerank/测试阈值/**前端路由+导航+i18n 词条**（§二表）。
 车道 v1 平台定案：audio+rerank=siliconflow、websearch=serpapi。
-**§3 真上游回执+面板入账=部署窗项目**（websearch key 现成；rerank+audio 待硅基
-key）。车道 v1 形状：rerank=按请求（新价目字段）/websearch=按次（复用 WebSearchCalls）
-/audio=stt 小时+tts 百万字符（复用 Group 音频三价）；统一错误面=400/422→400、
-其余→502、池空 503、无凭据 502，全部含 lane+engine 标识、不外泄、不计费。
+**品牌面=上游配置驱动**（admin site_name）。**§3/§5.2/§5.3 真回执+面板入账+浏览器
+眼见=部署窗项目**（websearch key 现成；rerank+audio 待硅基 key；按 runbook §7
+车道窗附加探针照单执行）。车道 v1 形状：rerank=按请求（新价目字段）/websearch=
+按次（复用 WebSearchCalls）/audio=stt 小时+tts 百万字符（复用 Group 音频三价）；
+统一错误面=400/422→400、其余→502、池空 503、无凭据 502，全部含 lane+engine 标识、
+不外泄、不计费。
 
 **侦察期三项关键结论**（决定 §2 实施形状）：
 1. 上游**无 HTTP `/v1/audio/*` 端点**（Grok 音频是 WS realtime）——audio 车道端点全新，无路由冲突；

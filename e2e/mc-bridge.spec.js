@@ -116,7 +116,33 @@ test.describe("mc bridge (self-booted cell + stub console)", () => {
       };
       ws.onopen = () => ws.send(JSON.stringify({ type: "list_presets" }));
     });
-    const persona = roster.presets.filter((p) => !p.broken).map((p) => p.id).find((id) => id !== roster.current);
+    // unify-dsh-generation shrank the shipped roster to `standard` alone, so
+    // the non-current persona the task targets is MINTED when missing.
+    let persona = roster.presets.filter((p) => !p.broken).map((p) => p.id).find((id) => id !== roster.current);
+    if (!persona) {
+      const res = await fetch(`${base}/api/agent/presets`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: "MC bridge target", persona: "You are the mc bridge probe persona." }),
+      });
+      test.skip(!res.ok, `custom preset API unavailable: ${await res.text()}`);
+      for (let t = 0; t < 45 && !persona; t++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        try {
+          const m = await new Promise((resolve, reject) => {
+            const w = new WebSocket(`ws://127.0.0.1:${port}/`);
+            const timer = setTimeout(() => { w.close(); reject(new Error("timeout")); }, 10_000);
+            w.onmessage = (ev) => {
+              const x = JSON.parse(ev.data);
+              if (x.type === "presets") { clearTimeout(timer); w.close(); resolve(x); }
+            };
+            w.onopen = () => w.send(JSON.stringify({ type: "list_presets" }));
+          });
+          persona = m.presets.filter((p) => !p.broken).map((p) => p.id).find((id) => id !== roster.current);
+        } catch { /* retry */ }
+      }
+      expect(persona, "minted preset never reached the roster").toBeTruthy();
+    }
     consoleState.queue.push({ id: "mc-e2e-1", title: persona, description: "console probe: reply with one word" });
 
     try {

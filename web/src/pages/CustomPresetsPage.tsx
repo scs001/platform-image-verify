@@ -131,13 +131,18 @@ function PresetEditor({
   const save = async () => {
     setSaving(true);
     setError(null);
+    // Omit `examples` entirely when every field is blank: the API treats a
+    // PRESENT examples key as a 1-3 requirement (add-session-to-preset), so an
+    // empty array would 400 the save — a user who never touched the optional
+    // fields could not save their preset at all.
+    const cleanedExamples = examples.map((e) => e.trim()).filter(Boolean);
     const input: CustomPresetInput = {
       name,
       persona,
       skills: pickedSkills,
       mcpServers: pickedMcp,
       tags: tags.split(",").map((s) => s.trim()).filter(Boolean),
-      examples: examples.map((e) => e.trim()).filter(Boolean),
+      ...(cleanedExamples.length > 0 ? { examples: cleanedExamples } : {}),
     };
     try {
       const { preset } = initial

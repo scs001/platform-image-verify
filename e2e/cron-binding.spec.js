@@ -66,23 +66,57 @@ async function wsCall(page, { send, collect, timeout = 90_000 }) {
 }
 
 test.describe("Cron firing binds to (preset, session)", () => {
+  // unify-dsh-generation shrank the shipped roster to the platform `standard`
+  // alone, so the bound-preset job needs a second persona to bind to — minted
+  // through the custom-preset API (which restarts the idle child and lands the
+  // new entry in `list_presets`), resolved from the roster (never assumed),
+  // and removed after the test.
+  let jobPreset = null;
+  let currentPreset = null;
+
+  test.beforeEach(async ({ page, request }) => {
+    await gotoChat(page);
+    await waitForIdle(page);
+    const listRoster = async () => {
+      const { reply } = await wsCall(page, { send: { type: "list_presets" }, collect: "presets" });
+      return {
+        current: reply.current,
+        ids: reply.presets.filter((p) => !p.broken).map((p) => p.id),
+      };
+    };
+    let { current, ids } = await listRoster();
+    currentPreset = current;
+    if (!ids.some((id) => id !== current)) {
+      const r = await request.post("/api/agent/presets", {
+        data: { name: "Cron binding target", persona: "You are the cron binding probe persona." },
+        timeout: 120_000,
+      });
+      test.skip(!r.ok(), `custom preset API unavailable: ${await r.text()}`);
+      await expect
+        .poll(async () => (await listRoster()).ids.length, { timeout: 90_000 })
+        .toBeGreaterThanOrEqual(2);
+      ({ current, ids } = await listRoster());
+    }
+    jobPreset = ids.find((id) => id !== current);
+  });
+
+  test.afterEach(async ({ request }) => {
+    if (jobPreset) {
+      await request.delete(`/api/agent/presets/${jobPreset}`).catch(() => {});
+      jobPreset = null;
+      currentPreset = null;
+    }
+  });
+
   test("job bound to a non-active preset switches the runtime and lands in its own session", async ({
     page,
     request,
   }) => {
     test.setTimeout(150_000);
-    await gotoChat(page);
-    await waitForIdle(page);
 
-    // Roster + current preset (need a second shipped preset to bind to).
-    const { reply: presetsMsg } = await wsCall(page, {
-      send: { type: "list_presets" },
-      collect: "presets",
-    });
-    const roster = presetsMsg.presets.filter((p) => !p.broken).map((p) => p.id);
-    expect(roster.length).toBeGreaterThanOrEqual(2);
-    const current = presetsMsg.current;
-    const jobPreset = roster.find((id) => id !== current);
+    // beforeEach minted `jobPreset` (a second roster entry) and remembered
+    // `currentPreset`; the old in-body roster fetch assumed dsh 0.1's
+    // four-shipped-preset deployment, which no longer exists.
 
     // Create the bound job.
     const { reply: added } = await wsCall(page, {
@@ -125,7 +159,7 @@ test.describe("Cron firing binds to (preset, session)", () => {
       // dead-gateway turn runs in the job's own session (collector path), so
       // the web session is NOT streaming and set_preset is not guarded out.
       await wsCall(page, { send: { type: "cron_remove", jobId }, collect: "cron_removed" });
-      await wsCall(page, { send: { type: "set_preset", id: current }, collect: "current_preset" });
+      await wsCall(page, { send: { type: "set_preset", id: currentPreset }, collect: "current_preset" });
       await waitForIdle(page);
       // The restore restart settles asynchronously (and can race the catalog
       // poll's own child restart). Wait it out HERE — with this spec first

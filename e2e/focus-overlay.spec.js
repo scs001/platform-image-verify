@@ -42,6 +42,18 @@ const manifest = (version, extra = {}) => ({
 });
 
 const dirs = tempStoreDirs();
+
+// unify-dsh-generation (dsh 0.2.0): catalog personas no longer materialize as
+// .agent-presets/<id>/agent.cordis.yml — they live in .agent-presets.defs.json
+// (keyed by the dashed roster id) and compose into the roster overlay.
+const catalogDefsPath = () => path.join(dirs.dshHome, ".agent-presets.defs.json");
+const catalogDef = (id) => {
+  try {
+    return JSON.parse(fs.readFileSync(catalogDefsPath(), "utf8")).find((d) => d.id === id || d.entryId === id);
+  } catch {
+    return undefined;
+  }
+};
 const patchPath = (file) => path.join(dirs.dshHome, "profiles", "platform", file);
 const packRoot = path.join(dirs.root, "custom-skills", "packs", PACK_ID);
 const personaRoot = path.join(packRoot, "personas", AGENT_ID);
@@ -168,8 +180,8 @@ async function prepareRole(page, version = 1, extra) {
   const { report } = await installPack(page, version, extra);
   expect(report.mcpServers.find((m) => m.name === REGISTRY_REF)?.status).toBe("installed");
   await expect
-    .poll(() => fs.existsSync(path.join(dirs.dshHome, ".agent-presets", AGENT_ID, "agent.cordis.yml")))
-    .toBe(true);
+    .poll(() => catalogDef(AGENT_ID))
+    .toBeTruthy();
   await waitPresetInRoster(page, AGENT_ID);
 }
 

@@ -94,6 +94,11 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
       // Only the reference crosses the wire: the cell fetches the manifest
       // server-side (pack-install-server-side-manifest).
       const { report } = await api.installPack(sub.packId, sub.version);
+      // Close this dialog BEFORE the report mounts: both are fixed overlays,
+      // and a dialog left open above the report intercepts every click on
+      // the report's actions (the report's own z-index cannot win a
+      // still-mounted Radix portal). The report carries the result.
+      onOpenChange(false);
       onSubscribed(report, pack.name);
     } catch (err) {
       setError((err as Error).message);

@@ -44,6 +44,18 @@ const manifest = (version, extra = {}) => ({
 });
 
 const dirs = tempStoreDirs();
+
+// unify-dsh-generation (dsh 0.2.0): catalog personas no longer materialize as
+// .agent-presets/<id>/agent.cordis.yml — they live in .agent-presets.defs.json
+// (keyed by the dashed roster id) and compose into the roster overlay.
+const catalogDefsPath = () => path.join(dirs.dshHome, ".agent-presets.defs.json");
+const catalogDef = (id) => {
+  try {
+    return JSON.parse(fs.readFileSync(catalogDefsPath(), "utf8")).find((d) => d.id === id || d.entryId === id);
+  } catch {
+    return undefined;
+  }
+};
 const patchPath = (file) => path.join(dirs.dshHome, "profiles", "platform", file);
 const packRoot = path.join(dirs.root, "custom-skills", "packs", PACK_ID);
 
@@ -178,10 +190,10 @@ test("selecting a pack role focuses both patches and badges the picker", async (
   // catalog sync writes it + restarts; a click racing that file would fork
   // the agent remotely instead of switching the preset).
   await expect
-    .poll(() => fs.existsSync(path.join(dirs.dshHome, ".agent-presets", AGENT_ID, "agent.cordis.yml")))
-    .toBe(true);
+    .poll(() => catalogDef(AGENT_ID))
+    .toBeTruthy();
   await waitPresetInRoster(page, AGENT_ID);
-  const persona = fs.readFileSync(path.join(dirs.dshHome, ".agent-presets", AGENT_ID, "agent.cordis.yml"), "utf8");
+  const persona = catalogDef(AGENT_ID)?.persona ?? "";
   expect(persona).toContain("聚焦模式");
   expect(persona).toContain("切换回标准模式");
 
@@ -228,8 +240,8 @@ test("MCP CRUD and a pack upgrade while focused keep the focus", async ({ page }
   await installPack(page, 1);
   await addExtraServer(page);
   await expect
-    .poll(() => fs.existsSync(path.join(dirs.dshHome, ".agent-presets", AGENT_ID, "agent.cordis.yml")))
-    .toBe(true);
+    .poll(() => catalogDef(AGENT_ID))
+    .toBeTruthy();
   await waitPresetInRoster(page, AGENT_ID);
   await switchPreset(page, AGENT_ID);
 
@@ -268,8 +280,8 @@ test("uninstall leaves no orphan pack root and the skills patch stops listing it
   await page.goto("/chat/");
   await installPack(page, 1);
   await expect
-    .poll(() => fs.existsSync(path.join(dirs.dshHome, ".agent-presets", AGENT_ID, "agent.cordis.yml")))
-    .toBe(true);
+    .poll(() => catalogDef(AGENT_ID))
+    .toBeTruthy();
   await waitPresetInRoster(page, AGENT_ID);
   // Full-mode patch lists the pack root.
   await expect
@@ -322,8 +334,8 @@ test("a declared subset narrows the focused MCP set and scopes skills to the per
   ]);
 
   await expect
-    .poll(() => fs.existsSync(path.join(dirs.dshHome, ".agent-presets", AGENT_ID, "agent.cordis.yml")))
-    .toBe(true);
+    .poll(() => catalogDef(AGENT_ID))
+    .toBeTruthy();
   await waitPresetInRoster(page, AGENT_ID);
   await switchPreset(page, AGENT_ID);
 
@@ -354,8 +366,8 @@ test("an empty declaration focuses both dimensions to the baseline alone", async
     resources: { skills: [], mcpServers: [] },
   });
   await expect
-    .poll(() => fs.existsSync(path.join(dirs.dshHome, ".agent-presets", AGENT_ID, "agent.cordis.yml")))
-    .toBe(true);
+    .poll(() => catalogDef(AGENT_ID))
+    .toBeTruthy();
   await waitPresetInRoster(page, AGENT_ID);
   await switchPreset(page, AGENT_ID);
 
@@ -378,8 +390,8 @@ test("an upgrade that adds a declaration re-derives the focused patches", async 
   // v1 undeclared: whole-pack focus (both refs once installed, pack root).
   await installPack(page, 1, { mcpServers: [{ registryName: "e2e-registry-mcp" }] });
   await expect
-    .poll(() => fs.existsSync(path.join(dirs.dshHome, ".agent-presets", AGENT_ID, "agent.cordis.yml")))
-    .toBe(true);
+    .poll(() => catalogDef(AGENT_ID))
+    .toBeTruthy();
   await waitPresetInRoster(page, AGENT_ID);
   await switchPreset(page, AGENT_ID);
   await expect
@@ -472,8 +484,8 @@ test("a tool allowlist materializes the filter config; role narrowing clips; ful
   expect(report.mcpServers.find((m) => m.name === "e2e-registry-mcp")?.status).toBe("installed");
 
   await expect
-    .poll(() => fs.existsSync(path.join(dirs.dshHome, ".agent-presets", AGENT_ID, "agent.cordis.yml")))
-    .toBe(true);
+    .poll(() => catalogDef(AGENT_ID))
+    .toBeTruthy();
   await waitPresetInRoster(page, AGENT_ID);
   await switchPreset(page, AGENT_ID);
 
@@ -502,8 +514,8 @@ test("a legacy pack without allowlists focuses with an empty filter (7.2)", asyn
   expect(connect.ok()).toBeTruthy();
   await installPack(page, 1, { mcpServers: [{ registryName: "e2e-registry-mcp-2" }] });
   await expect
-    .poll(() => fs.existsSync(path.join(dirs.dshHome, ".agent-presets", AGENT_ID, "agent.cordis.yml")))
-    .toBe(true);
+    .poll(() => catalogDef(AGENT_ID))
+    .toBeTruthy();
   await waitPresetInRoster(page, AGENT_ID);
   await switchPreset(page, AGENT_ID);
   await expect.poll(() => mcpServersOf(), { timeout: 20_000 }).toContain("e2e-registry-mcp-2");
@@ -527,8 +539,8 @@ test("an awaiting-local-binding reference activates on later install, no reinsta
   expect(part?.reason).toContain("install or connect one");
 
   await expect
-    .poll(() => fs.existsSync(path.join(dirs.dshHome, ".agent-presets", AGENT_ID, "agent.cordis.yml")))
-    .toBe(true);
+    .poll(() => catalogDef(AGENT_ID))
+    .toBeTruthy();
   await waitPresetInRoster(page, AGENT_ID);
   await switchPreset(page, AGENT_ID);
   await expect.poll(() => toolFilterOf(), { timeout: 20_000 }).toEqual({

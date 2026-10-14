@@ -98,7 +98,10 @@ test("one action takes a preset to a published pack and deploys it", async ({ pa
   expect(skill.ok(), await skill.text()).toBeTruthy();
   const preset = await createPreset(page);
 
-  await page.goto("/settings/presets");
+  // simplify-ia-non-technical retired the Settings presets section; the
+  // custom-preset surface (with its publish flow) lives on the agents page's
+  // Experts tab now.
+  await page.goto("/agents?tab=agents");
   await expect(page.getByTestId("custom-presets-page")).toBeVisible({ timeout: 15_000 });
   await page.getByTestId(`preset-publish-${preset.id}`).click();
 
@@ -152,7 +155,7 @@ test("publish failure stops the flow with the failing step named", async ({ page
   expect(skill.ok(), await skill.text()).toBeTruthy();
   const preset = await createPreset(page);
 
-  await page.goto("/settings/presets");
+  await page.goto("/agents?tab=agents");
   await expect(page.getByTestId("custom-presets-page")).toBeVisible({ timeout: 15_000 });
   await page.getByTestId(`preset-publish-${preset.id}`).click();
   await expect(page.getByTestId("preset-publish-name")).toHaveValue("Flow E2E", { timeout: 15_000 });

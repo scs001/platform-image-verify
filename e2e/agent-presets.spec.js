@@ -3,10 +3,13 @@ import { execSync } from "node:child_process";
 import { E2E_PORT, gotoChat, waitForIdle } from "./helpers.js";
 
 // Agent presets (agent modes): the dsh runtime composes each session's
-// capabilities from one of four shipped presets (standard/code/minimal/cordis)
-// plus any user-authored ones. The picker lives on the welcome (blank) state —
-// dsh refuses to recompose a session that has produced turns — and an active
-// session shows a read-only header label instead.
+// capabilities from the platform's `standard` composition (unify-dsh-generation
+// retired dsh 0.1's shipped code/minimal/cordis rows — "the deployment persona
+// is a deployment choice"; 0.2.0 ships ONE platform preset and every catalog /
+// custom persona joins the roster as a generated entry) plus any user-authored
+// ones. The picker lives on the welcome (blank) state — dsh refuses to
+// recompose a session that has produced turns — and an active session shows a
+// read-only header label instead.
 //
 // Test order matters: the fast suite's LLM gateway is unreachable, so the
 // streaming-guard test's probe turn stays open server-side for a while (dsh
@@ -16,15 +19,11 @@ import { E2E_PORT, gotoChat, waitForIdle } from "./helpers.js";
 // The empty-roster deployment shape is exercised through the e2e store seam
 // (the UI contract: render nothing, never block chat).
 
-const SHIPPED = ["standard", "code", "minimal", "cordis"];
+const SHIPPED = ["standard"];
 
-// English pinned via pinLocaleEn; the web bundle owns localized names for the
-// four shipped ids (their preset.yml metadata is zh-only).
+// English pinned via pinLocaleEn; the web bundle owns the localized name.
 const SHIPPED_EN_NAMES = {
   standard: "Standard mode",
-  code: "PTC mode",
-  minimal: "Minimal mode",
-  cordis: "Creative mode",
 };
 
 async function openPicker(page) {
@@ -81,17 +80,17 @@ test.describe("agent presets", () => {
     switchedTo = null;
   });
 
-  test("welcome picker renders the four shipped modes with the active one marked", async ({ page }) => {
+  test("welcome picker renders the platform preset with the active one marked", async ({ page }) => {
     await gotoChat(page);
     await expect(page.getByTestId("chat-welcome")).toBeVisible();
     await expect(page.getByTestId("agent-preset-picker")).toBeVisible({ timeout: 10000 });
 
     await openPicker(page);
     const options = page.getByTestId("agent-preset-option");
-    await expect(options).toHaveCount(4);
+    await expect(options).toHaveCount(1);
     const ids = await options.evaluateAll((rows) => rows.map((r) => r.dataset.presetId));
     expect(new Set(ids)).toEqual(new Set(SHIPPED));
-    // Localized (en) display names + descriptions from the web bundle.
+    // Localized (en) display name + description from the web bundle.
     for (const id of SHIPPED) {
       const row = page.locator(`[data-testid="agent-preset-option"][data-preset-id="${id}"]`);
       await expect(row).toContainText(SHIPPED_EN_NAMES[id]);
@@ -102,7 +101,7 @@ test.describe("agent presets", () => {
       "data-preset-id",
       "standard",
     );
-    // None of the shipped presets is broken.
+    // The platform preset is not broken.
     await expect(page.locator('[data-testid="agent-preset-option"][data-broken="true"]')).toHaveCount(0);
   });
 
@@ -150,9 +149,16 @@ test.describe("agent presets", () => {
     await gotoChat(page);
     await expect(page.getByTestId("agent-preset-picker")).toBeVisible({ timeout: 10000 });
 
+    // A generated catalog entry joins the roster alongside the platform row
+    // (the 0.2.0 shape: platform `standard` + one catalog persona) — exercising
+    // the pick flow needs a SECOND option, which the catalog path provides.
+    const roster = await page.evaluate(() => window.__chatStore.getState().presets);
+    const other = roster.find((p) => p.id !== "standard");
+    test.skip(!other, "no second preset in this deployment's roster");
+
     await openPicker(page);
-    await page.locator('[data-testid="agent-preset-option"][data-preset-id="minimal"]').click();
-    switchedTo = "minimal";
+    await page.locator(`[data-testid="agent-preset-option"][data-preset-id="${other.id}"]`).click();
+    switchedTo = other.id;
 
     // Pending is set synchronously on click and cleared only by the server's
     // current_preset broadcast (after the dsh child restarts). Read it once,
@@ -168,7 +174,7 @@ test.describe("agent presets", () => {
       .poll(() => page.evaluate(() => window.__chatStore.getState().currentPreset), {
         timeout: 60_000,
       })
-      .toBe("minimal");
+      .toBe(other.id);
     await expect
       .poll(() => page.evaluate(() => window.__chatStore.getState().pendingConfig))
       .toBe(null);
@@ -177,13 +183,12 @@ test.describe("agent presets", () => {
     await page.getByTestId("composer-input").fill("hello");
     await expect(page.getByTestId("composer-send")).toBeEnabled();
     await page.getByTestId("composer-input").fill("");
-    await expect(page.getByTestId("agent-preset-picker")).toContainText("Minimal mode");
 
-    // Reopening shows minimal as the marked row.
+    // Reopening shows the picked preset as the marked row.
     await openPicker(page);
     await expect(page.locator('[data-testid="agent-preset-option"][aria-checked="true"]')).toHaveAttribute(
       "data-preset-id",
-      "minimal",
+      other.id,
     );
   });
 
@@ -191,7 +196,11 @@ test.describe("agent presets", () => {
     await gotoChat(page);
     await waitForIdle(page);
     const before = await page.evaluate(() => window.__chatStore.getState().currentPreset);
-    const target = SHIPPED.find((id) => id !== before);
+    // Any roster entry other than the current one: the guard fires on the
+    // switch ATTEMPT, not on a particular preset id.
+    const roster = await page.evaluate(() => window.__chatStore.getState().presets);
+    const target = roster.find((p) => p.id !== before)?.id ?? null;
+    test.skip(target === null, "no second preset in this deployment's roster");
 
     // One raw socket: `prompt` then `set_preset` back-to-back. The server sets
     // isStreaming synchronously while admitting the prompt, so the preset

@@ -42,7 +42,7 @@ export function waitForIdle(ctx, timeoutMs) {
 // worker pool passes a worker-local map so worker events never reach the web
 // broadcast path. Exported for the delegation aggregator and the worker pool.
 export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors = ctx.sessionCollectors) {
-  return new Promise((resolve, reject) => {
+  const collected = new Promise((resolve, reject) => {
     let text = "";
     let error = null;
     let usage = null;
@@ -131,6 +131,16 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
       }
     });
   });
+  // The abort path (a bridge restart mid-turn) rejects this promise for EVERY
+  // registered collector, and a caller whose `await prompt()` threw into its
+  // own catch never reaches `await collected` — under node ≥15 an unhandled
+  // rejection kills the host process, so a single preset switch could take the
+  // whole cell down (observed: the e2e server died mid-suite exactly this
+  // way). A second no-op consumer marks the rejection handled without
+  // disturbing the real one: consumers still await `collected` and read the
+  // interruption there.
+  collected.catch(() => {});
+  return collected;
 }
 
 async function switchPresetForJob(ctx, preset, timeoutMs) {

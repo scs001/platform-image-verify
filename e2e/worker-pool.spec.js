@@ -81,9 +81,46 @@ test.describe("worker pool (self-booted server, TASK_WORKER_MAX=2, dead LLM)", (
     ws.onopen = () => ws.send(JSON.stringify({ type: "list_presets" }));
   });
   const current = roster.current;
-  const ids = roster.presets.filter((p) => !p.broken).map((p) => p.id);
-  expect(ids.length).toBeGreaterThanOrEqual(3);
-  const [pA, pB] = ids.filter((id) => id !== current);
+  // unify-dsh-generation shrank the shipped roster to `standard` alone, so the
+  // two worker personas are MINTED through the custom-preset API (each write
+  // restarts the idle child and lands the entry in list_presets) rather than
+  // assumed from dsh 0.1's four-shipped-preset deployment. One mint adds ONE
+  // roster entry, so loop until two non-current targets exist.
+  const listRoster = () =>
+    new Promise((resolve, reject) => {
+      const w = new WebSocket(`ws://127.0.0.1:${port}/`);
+      const timer = setTimeout(() => { w.close(); reject(new Error("timeout")); }, 10_000);
+      w.onmessage = (ev) => {
+        const x = JSON.parse(ev.data);
+        if (x.type === "presets") { clearTimeout(timer); w.close(); resolve(x); }
+      };
+      w.onopen = () => w.send(JSON.stringify({ type: "list_presets" }));
+    });
+  let pA = null;
+  let pB = null;
+  for (let i = 0; !(pA && pB) && i < 4; i++) {
+    const res = await fetch(`${base}/api/agent/presets`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: `Worker target ${i + 1}`, persona: `You are worker probe persona ${i + 1}.` }),
+    });
+    expect(res.ok, `preset mint failed: ${await res.text()}`).toBe(true);
+    // The creation restarts the idle child; wait the fresh roster out.
+    let fresh = null;
+    for (let t = 0; t < 45 && !fresh; t++) {
+      await new Promise((r) => setTimeout(r, 2000));
+      try {
+        const m = await listRoster();
+        const live = m.presets.filter((p) => !p.broken).map((p) => p.id);
+        if (live.filter((id) => id !== current).length >= (pA ? 2 : 1)) fresh = live;
+      } catch { /* retry */ }
+    }
+    expect(fresh, "minted preset never reached the roster").toBeTruthy();
+    const targets = fresh.filter((id) => id !== current);
+    pA = pA ?? targets[0];
+    pB = pB ?? targets[1];
+  }
+  expect(pA && pB, "two worker personas could not be minted").toBeTruthy();
 
   // Collect worker_pool broadcasts while the fan-out runs.
   const poolEvents = [];

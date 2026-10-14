@@ -107,7 +107,7 @@ test.describe("Composer control row", () => {
 
     await expect(page.getByTestId("full-access-dialog")).toHaveCount(0);
     expect(await sentPermissions(page)).toEqual([]);
-    await expect(page.getByTestId("strip-permission")).toContainText("Workspace write");
+    await expect(page.getByTestId("strip-permission")).toContainText("Project writes");
   });
 
   test("every other preset still applies on selection", async ({ page }) => {

@@ -37,7 +37,16 @@ const presetsRoot = (id) => path.join(dirs.root, "custom-skills", "presets", id)
 // the generated preset lives under the roster/dash form of the catalog id —
 // and a raw set_preset speaks that form too (the agent-switch path maps).
 const rosterId = (id) => id.replace(/\./g, "-");
-const generatedPreset = (id) => path.join(dirs.dshHome, ".agent-presets", rosterId(id), "agent.cordis.yml");
+// unify-dsh-generation (dsh 0.2.0): generated personas no longer materialize
+// as .agent-presets/<id>/agent.cordis.yml directories — the persona rides the
+// roster overlay row (presets.patch.yml inlines composePresetRows(persona)),
+// sourced from .agent-presets.defs.json. Read the DEF as the persisted form.
+const catalogDefsPath = () => path.join(dirs.dshHome, ".agent-presets.defs.json");
+const catalogDefs = () => JSON.parse(fs.readFileSync(catalogDefsPath(), "utf8"));
+const defOf = (id) => catalogDefs().find((d) => d.id === id || d.entryId === id);
+// The compose root under custom-skills is still materialized (the skills-patch
+// side) — unchanged by 0.2.0.
+const generatedPreset = (id) => path.join(dirs.root, "custom-skills", "presets", rosterId(id));
 
 const mcpServersOf = () =>
   yaml.load(fs.readFileSync(patchPath("mcp.patch.yml"), "utf8"))
@@ -217,9 +226,10 @@ test("create→select→focus: the page's form, the badge, and both patches", as
   expect(entry?.packId).toBeUndefined();
   expect(entry?.resourceSummary).toEqual({ skillCount: 2, mcpCount: 0, declared: true });
 
-  // The generated persona carries the custom focus note.
-  await expect.poll(() => fs.existsSync(generatedPreset("user.counsel-e2e"))).toBe(true);
-  const persona = fs.readFileSync(generatedPreset("user.counsel-e2e"), "utf8");
+  // The generated persona carries the custom focus note (the 0.2.0 form: the
+  // def in .agent-presets.defs.json, composed into the roster overlay).
+  await expect.poll(() => defOf("user.counsel-e2e")).toBeTruthy();
+  const persona = defOf("user.counsel-e2e").persona;
   expect(persona).toContain("自建的法务助手");
   expect(persona).toContain("自建预设");
   await waitPresetInRoster(page, rosterId("user.counsel-e2e"));
@@ -253,7 +263,7 @@ test("a cross-pack reference follows its pack's lifecycle", async ({ page }) => 
     persona: "p",
     skills: [PACK_SKILL_A],
   });
-  await expect.poll(() => fs.existsSync(generatedPreset(preset.id))).toBe(true);
+  await expect.poll(() => defOf(preset.id)).toBeTruthy();
   await waitPresetInRoster(page, rosterId(preset.id));
   await idleSwitch(page, rosterId(preset.id));
   expect(fs.readdirSync(presetsRoot(preset.id))).toEqual([PACK_SKILL_A]);
@@ -285,7 +295,7 @@ test("editing through the page regenerates the persona and the focused set", asy
     persona: "初版人设。",
     skills: [PACK_SKILL_A],
   });
-  await expect.poll(() => fs.existsSync(generatedPreset(preset.id))).toBe(true);
+  await expect.poll(() => defOf(preset.id)).toBeTruthy();
   await waitPresetInRoster(page, rosterId(preset.id));
   await idleSwitch(page, rosterId(preset.id));
 
@@ -302,7 +312,7 @@ test("editing through the page regenerates the persona and the focused set", asy
   // The generated preset regenerated with the new persona (the catalog sync
   // fires on every mutation)…
   await expect
-    .poll(() => fs.readFileSync(generatedPreset(preset.id), "utf8"), { timeout: 30_000 })
+    .poll(() => defOf(preset.id)?.persona ?? "", { timeout: 30_000 })
     .toContain("改版人设");
   // …and because the preset is LIVE, the focused composition re-derived with
   // the swapped reference.
@@ -321,7 +331,7 @@ test("deleting the selected preset resets to the built-in agent and prunes", asy
     persona: "即将被删除。",
     // no references — composes the baseline alone, the quickest focus
   });
-  await expect.poll(() => fs.existsSync(generatedPreset(preset.id))).toBe(true);
+  await expect.poll(() => defOf(preset.id)).toBeTruthy();
   await waitPresetInRoster(page, rosterId(preset.id));
   // Select through the picker (set_agent) so the store's agent label tracks
   // the switch — the raw set_preset path confirms the preset but never
@@ -346,7 +356,7 @@ test("deleting the selected preset resets to the built-in agent and prunes", asy
     .toBe("local");
   // …the generated preset and the catalog entry are gone, and the full
   // surface is restored.
-  await expect.poll(() => fs.existsSync(generatedPreset(preset.id))).toBe(false);
+  await expect.poll(() => defOf(preset.id)).toBeUndefined();
   const catalog = await page.request.get("/api/catalog").then((r) => r.json());
   expect(catalog.agents.find((a) => a.id === preset.id)).toBeUndefined();
   expect(skillDirsOf().map((d) => path.resolve(d))).toContain(path.resolve(dirs.root, "custom-skills"));
@@ -356,7 +366,7 @@ test("a shadowed id (agents.json override) composes full", async ({ page }) => {
   test.setTimeout(180_000);
   await page.goto("/chat/");
   const preset = await createPresetApi(page, { name: "Shadowed", persona: "被覆盖的人设。" });
-  await expect.poll(() => fs.existsSync(generatedPreset(preset.id))).toBe(true);
+  await expect.poll(() => defOf(preset.id)).toBeTruthy();
   await waitPresetInRoster(page, rosterId(preset.id));
 
   // The operator's file takes the same id: local overrides the user source.

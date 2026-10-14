@@ -57,6 +57,53 @@ async function wsCall(page, { send, collect, timeout = 90_000 }) {
 }
 
 test.describe("Delegation (fast, dead LLM)", () => {
+  // Delegation needs a SECOND persona to target. unify-dsh-generation shrank
+  // the shipped roster to the platform `standard` alone (dsh 0.2.0 no longer
+  // ships code/minimal/cordis), so the test mints its own target through the
+  // custom-preset API — which regenerates the roster and restarts the idle
+  // child, making the new persona appear in `list_presets`. The roster id is
+  // resolved FROM the roster (never assumed), and the persona is removed in
+  // afterEach so the shared server returns to the single-preset shape.
+  let secondPersona = null;
+
+  async function rosterIds(page) {
+    const msg = await wsCall(page, { send: { type: "list_presets" }, collect: "presets" });
+    return {
+      current: msg.current,
+      ids: msg.presets.filter((p) => !p.broken).map((p) => p.id),
+    };
+  }
+
+  test.beforeEach(async ({ page, request }) => {
+    await gotoChat(page);
+    await waitForIdle(page);
+    let { ids } = await rosterIds(page);
+    if (!ids.some((id) => id !== "standard")) {
+      const r = await request.post("/api/agent/presets", {
+        data: { name: "Delegation target", persona: "You are the delegation probe persona." },
+        timeout: 120_000,
+      });
+      test.skip(!r.ok(), `custom preset API unavailable: ${await r.text()}`);
+      // The creation path restarts the idle child; wait until the fresh
+      // roster actually carries a second entry before delegating.
+      await expect
+        .poll(async () => (await rosterIds(page)).ids.length, { timeout: 60_000 })
+        .toBeGreaterThanOrEqual(2);
+      ({ ids } = await rosterIds(page));
+      secondPersona = ids.find((id) => id !== "standard");
+    } else {
+      secondPersona = ids.find((id) => id !== "standard");
+    }
+  });
+
+  test.afterEach(async ({ request }) => {
+    if (secondPersona) {
+      // Best-effort cleanup: the API takes the id it serves in the roster.
+      await request.delete(`/api/agent/presets/${secondPersona}`).catch(() => {});
+      secondPersona = null;
+    }
+  });
+
   test("REST delegate → manual task row → task card → aggregation turn names the failure", async ({ page, request }) => {
     test.setTimeout(240_000);
     await gotoChat(page);
@@ -66,7 +113,9 @@ test.describe("Delegation (fast, dead LLM)", () => {
     const current = presetsMsg.current;
     const roster = presetsMsg.presets.filter((p) => !p.broken).map((p) => p.id);
     expect(roster.length).toBeGreaterThanOrEqual(2);
-    const other = roster.find((id) => id !== current);
+    // beforeEach guarantees a second persona exists (minted via the custom
+    // preset API when the deployment ships only `standard`).
+    const other = secondPersona ?? roster.find((id) => id !== current);
 
     // Self-delegation is rejected with a structured error, no task.
     const self = await request.post("/api/delegation/tasks", {
@@ -126,7 +175,9 @@ test.describe("Delegation (fast, dead LLM)", () => {
     const presetsMsg = await wsCall(page, { send: { type: "list_presets" }, collect: "presets" });
     const current = presetsMsg.current;
     const roster = presetsMsg.presets.filter((p) => !p.broken).map((p) => p.id);
-    const other = roster.find((id) => id !== current) ?? current;
+    // beforeEach guarantees a second persona (minted when the deployment
+    // ships only `standard`).
+    const other = secondPersona ?? roster.find((id) => id !== current) ?? current;
 
     const created = await request.post("/api/delegation/tasks", {
       data: { persona: other, prompt: "card probe: one word", name: "Card probe" },

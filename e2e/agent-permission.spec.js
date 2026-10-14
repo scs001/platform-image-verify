@@ -14,7 +14,7 @@ test.describe("permission mode selector", () => {
     // Roster received → the control renders, showing the default preset.
     const strip = page.getByTestId("strip-permission");
     await expect(strip).toBeVisible({ timeout: 15000 });
-    await expect(strip).toContainText(/workspace write/i);
+    await expect(strip).toContainText(/project writes|workspace write/i);
 
     await strip.click();
     const menu = page.getByTestId("strip-permission-menu");
@@ -36,14 +36,14 @@ test.describe("permission mode selector", () => {
     await page
       .getByTestId("strip-permission-menu")
       .getByRole("menuitemradio")
-      .filter({ hasText: /workspace write/i })
+      .filter({ hasText: /project writes|workspace write/i })
       .click();
     await expect
       .poll(() => page.evaluate(() => window.__chatStore.getState().currentPermission), { timeout: 15000 })
       .toBe("workspace-write");
   });
 
-  test("a restart-carrying switch resets the permission to the default", async ({ page }) => {
+  test("a live model switch carries the chosen permission across", async ({ page }) => {
     await gotoChat(page);
     const strip = page.getByTestId("strip-permission");
     await expect(strip).toBeVisible({ timeout: 15000 });
@@ -62,8 +62,13 @@ test.describe("permission mode selector", () => {
       .poll(() => page.evaluate(() => window.__chatStore.getState().currentPermission), { timeout: 15000 })
       .toBe("danger-full-access");
 
-    // A model switch restarts the dsh child; the fresh session runs under the
-    // deployment default, and the post-restart roster fetch reports that.
+    // wire-dsh-live-runtime-control made model/set a LIVE method: the switch
+    // no longer restarts the child, the session (and its durable
+    // permission/preset event) continues, and the chosen mode CARRIES across.
+    // Resetting to the deployment default happens on a genuinely fresh session
+    // (a real restart), not on a model switch — the old expectation
+    // ("restart resets the permission") predates the live bridge and described
+    // the restart era, where the fresh session had no permission history.
     const original = await page.evaluate(() => window.__chatStore.getState().currentModel);
     const target = await page.evaluate(
       (orig) => window.__chatStore.getState().models.find((m) => m.id !== orig)?.id,
@@ -78,8 +83,22 @@ test.describe("permission mode selector", () => {
     await expect
       .poll(() => page.evaluate(() => window.__chatStore.getState().pendingConfig), { timeout: 15000 })
       .toBe(null);
+    // Live switch: the permission survives — switching models must not
+    // silently revoke a permission mode the user explicitly chose.
     await expect
       .poll(() => page.evaluate(() => window.__chatStore.getState().currentPermission), { timeout: 60000 })
+      .toBe("danger-full-access");
+
+    // Restore the default posture for later specs: switch back to the default
+    // preset explicitly (the same path a user would take).
+    await strip.click();
+    await page
+      .getByTestId("strip-permission-menu")
+      .getByRole("menuitemradio")
+      .filter({ hasText: /project writes|workspace write/i })
+      .click();
+    await expect
+      .poll(() => page.evaluate(() => window.__chatStore.getState().currentPermission), { timeout: 15000 })
       .toBe("workspace-write");
   });
 
@@ -110,7 +129,7 @@ test.describe("permission mode selector", () => {
     await page
       .getByTestId("strip-permission-menu")
       .getByRole("menuitemradio")
-      .filter({ hasText: /workspace write/i })
+      .filter({ hasText: /project writes|workspace write/i })
       .click();
     await expect
       .poll(() => page.evaluate(() => window.__chatStore.getState().currentPermission), { timeout: 15000 })

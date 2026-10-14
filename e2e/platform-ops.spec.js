@@ -7,9 +7,18 @@
 // covered for real by scripts/test-platform-billing.mjs against booted routes.
 
 import { expect, test } from "@playwright/test";
-import { openSettings } from "./helpers.js";
+import { pinLocaleEn } from "./helpers.js";
 
 const json = (body, status = 200) => ({ status, contentType: "application/json", body: JSON.stringify(body) });
+
+// The packs surface lives on the agents page's Market tab since
+// simplify-ia-non-technical retired the Settings section (/settings/packs
+// redirects there) — enter through the tab the same way packs.spec.js does.
+async function gotoMarket(page) {
+  await pinLocaleEn(page);
+  await page.goto("/agents?tab=market");
+  await expect(page.getByTestId("packs-page")).toBeVisible({ timeout: 15_000 });
+}
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("platform.locale", "zh-CN"));
@@ -28,7 +37,7 @@ test("a private pack shows its badge in the detail dialog", async ({ page }) => 
     }
     return route.fulfill(json({ error: "no route" }, 404));
   });
-  await openSettings(page, "packs");
+  await gotoMarket(page);
   await page.getByTestId("pack-card-pk-priv").click();
   await expect(page.getByTestId("pack-private-badge")).toBeVisible({ timeout: 10_000 });
 });
@@ -59,7 +68,7 @@ test("the deploy section shows the balance readout, paste inputs, and the bound 
     if (url.pathname.includes("/deployments")) return route.fulfill(json({ deployments: [] }));
     return route.fulfill(json({ error: "no route" }, 404));
   });
-  await openSettings(page, "packs");
+  await gotoMarket(page);
   await page.getByTestId("pack-card-pk-svc").click();
   const readout = page.getByTestId("pack-billing-readout");
   await expect(readout).toBeVisible({ timeout: 10_000 });
@@ -97,7 +106,7 @@ test("an unresolved billing account shows the connect-panel guidance, not the re
     if (url.pathname.includes("/deployments")) return route.fulfill(json({ deployments: [] }));
     return route.fulfill(json({ error: "no route" }, 404));
   });
-  await openSettings(page, "packs");
+  await gotoMarket(page);
   await page.getByTestId("pack-card-pk-svc").click();
   await expect(page.getByTestId("pack-billing-no-account")).toBeVisible({ timeout: 10_000 });
   await expect(page.getByTestId("pack-billing-connect")).toBeVisible();

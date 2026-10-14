@@ -15,8 +15,7 @@
 // Output: CSV on stdout (round, live_sessions, turns_done, rss_mb), summary
 // JSON on stderr. The numbers land in docs/wanxing-multi-harness-runtime-explore.md.
 
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";

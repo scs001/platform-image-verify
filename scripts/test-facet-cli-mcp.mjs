@@ -91,7 +91,7 @@ test("install 持键 + --write-mcp：五 target 各写原生形状", async () =>
   const server = await stubFacet();
   try {
     const base = `http://127.0.0.1:${server.address().port}`;
-    await withFakeHome((home) => seedKey(home, base), async (home, proj) => {
+    await withFakeHome((home) => seedKey(home, base), async (home, _proj) => {
       for (const target of ["claude-code", "cursor", "zcode", "gemini-cli", "codex"]) {
         const { stdout } = await install(home, ["--target", target, "--registry", base, "--base", base, "--write-mcp"]);
         assert.match(stdout, /MCP 连接配置已写入/, `${target} 应报告写入`);

@@ -20,6 +20,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -797,8 +798,28 @@ export async function probeClient(ctx) {
 
 // Count live processes running the trivial MCP server (contract ⑭'s subject:
 // process count must stay flat as agents multiply; and reach zero after the
-// child exits — no sidecar orphans).
+// child exits — no sidecar orphans). Reads /proc directly on Linux (the image
+// container ships no procps — shelling to `ps` failed the whole smoke lane
+// there); falls back to `ps` on darwin dev machines where /proc is absent.
 export function countTrivialSidecars() {
+  if (existsSync("/proc")) {
+    try {
+      let count = 0;
+      for (const ent of readdirSync("/proc")) {
+        if (!/^\d+$/.test(ent)) continue;
+        let cmdline = "";
+        try {
+          cmdline = readFileSync(join("/proc", ent, "cmdline"), "utf8");
+        } catch {
+          continue; // raced exit or unreadable — not ours to count
+        }
+        if (cmdline.includes("trivial-mcp-server.mjs")) count++;
+      }
+      return count;
+    } catch {
+      return -1;
+    }
+  }
   const res = spawnSync("ps", ["-axo", "command="], { encoding: "utf8", timeout: 10_000 });
   if (res.error || res.status !== 0) return -1;
   return res.stdout

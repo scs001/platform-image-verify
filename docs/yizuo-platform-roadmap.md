@@ -106,6 +106,21 @@ A ✅ 生产上线（同镜像 FACE=market，NodePort 31893，六工具含头牌
 pair-by-绑定码路由+面板、pack-store ref 数据驱动、14 测全绿）——余=三滚部署
 （标准出片线）+用户配对验收（面板 6 位码）+操作 pack 发布。
 
+**C3 柏讯动作面 · 模拟交易凭据轨 ✅ 生产上线（2026-10-15，paas change
+`add-paper-trading-credentials` d161053，镜像 sha-46999e1 五清单同滚）**：第四条
+credential-refs 轨 `paper-trading`（paste 形最简实例——fdt_ 长命 token 不过期、
+无设备配对、无续登；db v29 单槽表；路由三端点含 fdt_ 形状门+advisory 探活唯 401
+硬拒；面板五语一次做齐）。实施中另修**第二个安装分派点**：市场卡片安装路径
+（routes/extensions）原硬编码判 registry 凭据并 stamp `credentialRef:"registry"`
+——装 fd-paper-trading 条目会把 registry 市场 token 注入柏讯服务（跨服务错投）；
+分派函数上移 credential-refs.js（两个安装路径共用）。生产等价实证：双 fdt_ token
+服务级隔离（A 见 1 账户/B 见 0）+注入链真调 200+吊销→401→翻面 fail-closed 省略+
+测试 token 全清理。余=真人浏览器 paste→装包眼见（方式 B 用户体验）。
+对方侧：registry 条目 metadata 已挂+pack `DydB2cal` 已发布（finddata
+`paper-trading-facet-pack` change；handoff `reports/paas-handoff-credential-ref.md`
+四件活已全数落地）。**注**：pack manifest `requiredGroup: "wire-customers"` 组门在
+对方侧——壹座用户装包前需被授该组（跨系统依赖，未验）。
+
 ## 已定决策（不许重开）
 
 | # | 决策 | 出处 |

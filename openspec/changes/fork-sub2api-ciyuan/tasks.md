@@ -19,7 +19,7 @@
 
 - [x] 3.1 rerank 车道：`POST /v1/rerank`（Cohere/Jina 形状）+ 首家上游适配器（硅基/Jina 择一）+ 按请求计量；验证：契约测试（排序形状/top_n/错误体——本地绿：happy/校验五态/上游失败 502 不泄露不计数/model 透传）+ **CI 全绿**（law-ai 线三跑收口 run 38492374586：`go test -tags=unit ./...` 全量+镜像 ciyuan-v0.2.16-2-dev1/sha-a5e6c87 已出未部署）+ 计费 unit 三件（成本/分支/快照往返保价）；**真上游一笔回执+面板入账=部署窗项目**（需硅基 API key：用户行动项；镜像已就绪，key 到位即按升级配方滚 dev 片验证）。实现：硅基适配器（形状校验/默认模型/凭据 base_url 可覆盖/响应透传）+ Group.rerank_price_per_request 全链（ent+迁移246+repo+auth 缓存+admin DTO/输入/克隆+CalculateRerankCost+成本分支，nil=0 计费告警）。**CI 复盘两坑**：①快照旗标 --keep-workworks 语反转（详见台账§四）；②车道平台须从调度快照/计费探测排除（8MB 内存界 CI 实证越线→生产排除治本+阈值 9MB）；本地轻测+CI 重测分工（用户指令 10-14）实证有效
 - [ ] 3.2 audio 车道：`/v1/audio/transcriptions` + `/v1/audio/speech`（OpenAI 形状）+ 首家上游适配器（火山/硅基择一）+ 按 秒/字符 计量；验证：真 ASR 一笔 + 真 TTS 一笔 + 大小/格式边界用例 + 面板入账
-- [ ] 3.3 websearch 车道：`POST /v1/search` 统一协议（engine+统一信封+归一化条目）+ 首家上游适配器（SerpAPI/博查择一）+ 按次计量；验证：契约测试（信封形状/切 engine 零改造/未知 engine 错误含可用列表且不计费）+ 真搜索一笔回执
+- [x] 3.3 websearch 车道：`POST /v1/search` 统一协议（engine+统一信封+归一化条目）+ 首家上游适配器（SerpAPI，search-relay 既有 key 池可播种）+ 按次计量；验证：契约测试（信封形状/切 engine 零改造/未知 engine 错误含可用列表且不计费）绿+**CI 一次通过**（law-ai 线 run 38516176793，镜像 sha-872b5d3 已出未部署）+真搜索一笔回执=**部署窗项目**（SerpAPI key 已有=search-relay 生产池可直接播种账号）。实现要点：信封 `{meta:{engine,latency_ms},results[{title,url,snippet,position}],usage:{requests}}`；engine=google_light 对齐 search-relay 生产口径；零结果=合法空集照常计费（上游额度已耗）；上游错误文本不外泄（可能含账户信息）；透传白名单六参防覆盖 api_key；num 默认 10 夹 1..20；未传 engine 默认 serpapi（扩容兼容位）
 - [ ] 3.4 三车道上游故障口径：统一 5xx 错误体（lane/engine 标识、无上游泄露、不计费）；验证：mock 上游断连/超时/异常三态测试
 
 ## 4. 治理机制落地

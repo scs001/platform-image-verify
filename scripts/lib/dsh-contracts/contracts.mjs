@@ -1469,4 +1469,118 @@ export const CONTRACTS = [
   { id: "mcp-sidecar-sharing", title: "⑭ MCP sidecar process sharing", run: contractMcpSidecarSharing },
   { id: "assistant-stream-forward", title: "⑮ assistant-stream forward (live delta lane)", run: contractAssistantStreamForward },
   { id: "pod-cohost-shape", title: "⑯ pod co-host shape (parked persona+model per member)", run: contractPodCoHost },
+  { id: "acp-adapter-mapping", title: "⑰ ACP adapter mapping face", run: contractAcpAdapterMapping },
 ];
+
+// ── Contract ⑰ (add-harness-adapter): ACP adapter mapping face ───────────────
+//
+// The ACP adapter is PLATFORM code (agent-runner/harness/acp.js), so this
+// contract runs it directly against a local fake ACP agent process — no dsh
+// tree, no credentials, no network. It pins the mapping the second harness
+// depends on: initialize handshake, lazy session/new with an ABSOLUTE cwd,
+// prompt → stopReason, streamed agent_message_chunk deltas, usage_update
+// parsing, session/cancel convergence — and the two failure families shared
+// with the dsh path (a runtime that cannot start; a turn with no assistant
+// text → -32005). Drift here means the runner's second harness silently
+// breaks; the real claude-code-acp binary is exercised by production
+// validation, not here.
+async function contractAcpAdapterMapping() {
+  const { AcpHarnessAdapter } = await import("../../../agent-runner/harness/acp.js");
+  const fakeAgent = join(REPO_ROOT, "scripts", "lib", "dsh-contracts", "fake-acp-agent.mjs");
+  const workDir = mkdtempSync(join(tmpdir(), "contracts-acp-"));
+  const make = (mode) => new AcpHarnessAdapter({
+    key: `contracts-acp-${mode}`,
+    spawnSpec: {
+      command: process.execPath,
+      args: [fakeAgent, `--mode=${mode}`],
+      cwd: workDir,
+      env: { ...process.env, FAKE_ACP_REPLY: "contracts acp ok" },
+      provider: "fake-provider",
+      model: "fake-model",
+    },
+    log: { log() {}, warn() {}, error() {} },
+  });
+
+  // Normal path: handshake → session → prompt → text + deltas + usage.
+  const adapter = make("normal");
+  try {
+    await adapter.start();
+    if (adapter.ready !== true) throw new Error("start() did not leave the adapter ready");
+    const deltas = [];
+    const out = await adapter.turn("contracts-acp-s1", "hello", { onDelta: (t) => deltas.push(t) });
+    if (!String(out?.text || "").includes("contracts acp ok")) {
+      throw new Error(`the ACP turn did not return the agent's text (got ${JSON.stringify(out?.text)})`);
+    }
+    if (deltas.length < 2 || deltas.join("") !== out.text) {
+      throw new Error(`deltas did not stream and concatenate to the final text (${deltas.length} pieces)`);
+    }
+    if (!out.usage || out.usage.sessionUpdate !== "usage_update") {
+      throw new Error(`usage_update did not ride through to the caller (got ${JSON.stringify(out.usage)})`);
+    }
+    if (!out.text.includes("[fake-model]")) {
+      throw new Error("the spawn-time model never reached the agent — session/set_config_option mapping broke");
+    }
+    // A relative cwd must be refused by the adapter locally (the wire requires
+    // absolute paths; a silent relative send would fail deep in the agent).
+    const rel = new AcpHarnessAdapter({
+      key: "contracts-acp-rel",
+      spawnSpec: { command: process.execPath, args: [fakeAgent], cwd: "relative", env: process.env },
+      log: { log() {}, warn() {}, error() {} },
+    });
+    let relErr = null;
+    try {
+      await rel.start();
+    } catch (e) {
+      relErr = String(e?.message || e);
+    }
+    if (!/absolute cwd/.test(relErr || "")) {
+      throw new Error(`a relative cwd was not refused (got ${JSON.stringify(relErr)})`);
+    }
+    await rel.stop().catch(() => {});
+    // Cancel: the parked turn converges through session/cancel.
+    const parked = adapter.turn("contracts-acp-s1", "hold");
+    await new Promise((r) => setTimeout(r, 5));
+    await adapter.request("session/cancel", { sessionId: "contracts-acp-s1" });
+    const cancelled = await parked;
+    if (cancelled.cancelled !== true) {
+      throw new Error("session/cancel did not converge the parked turn (no cancelled outcome)");
+    }
+  } finally {
+    await adapter.stop().catch(() => {});
+  }
+
+  // Failure family: a turn with no assistant text settles as -32005 (the same
+  // code the dsh path uses — metering/billing semantics are harness-independent).
+  const empty = make("empty");
+  try {
+    await empty.start();
+    let emptyCode = null;
+    try {
+      await empty.turn("contracts-acp-empty", "hello");
+    } catch (e) {
+      emptyCode = e?.code ?? null;
+    }
+    if (emptyCode !== -32005) {
+      throw new Error(`an empty ACP turn did not settle -32005 (got ${JSON.stringify(emptyCode)})`);
+    }
+  } finally {
+    await empty.stop().catch(() => {});
+  }
+
+  // Failure family: a binary that cannot come up fails the start, never hangs.
+  const dead = make("nope");
+  let deadErr = null;
+  try {
+    await dead.start();
+  } catch (e) {
+    deadErr = String(e?.message || e);
+  }
+  if (!deadErr) throw new Error("a dead ACP handshake did not fail the start()");
+  await dead.stop().catch(() => {});
+  rmSync(workDir, { recursive: true, force: true });
+
+  return (
+    "ACP adapter mapping pinned: initialize→session/new(absolute cwd)→prompt(stopReason); deltas stream and concatenate; " +
+    "usage_update rides through; model selection applies; session/cancel converges; empty turn → -32005; dead handshake fails the start"
+  );
+}

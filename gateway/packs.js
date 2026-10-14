@@ -1159,6 +1159,24 @@ export function registerPackRoutes(app, {
         if (wlErr) return res.status(400).json({ error: `models.${agentId}: ${wlErr}` });
       }
     }
+    // Harness choices (add-harness-adapter D5): { "<agentId>": harnessName } —
+    // deploy-time overrides of the serving declaration's `harness`. Shape and
+    // membership only here; the TARGET RUNNER gate below checks the runner can
+    // actually host it (the same two-stage shape as model lanes → roster).
+    const harnesses = req.body?.harnesses;
+    if (harnesses !== undefined) {
+      if (!harnesses || typeof harnesses !== "object" || Array.isArray(harnesses)) {
+        return res.status(400).json({ error: "harnesses must map agentId to a harness name" });
+      }
+      for (const [agentId, harnessName] of Object.entries(harnesses)) {
+        if (!servingIds.has(agentId)) {
+          return res.status(400).json({ error: `harnesses.${agentId}: '${agentId}' is not a serving agent of this pack` });
+        }
+        if (typeof harnessName !== "string" || !harnessName.trim()) {
+          return res.status(400).json({ error: `harnesses.${agentId}: harness must be a non-empty name` });
+        }
+      }
+    }
     // ── Platform billing linkage (add-agent-platform-ops D1–D3; revised by
     // revise-billing-key-acquisition) ─────────────────────────────────────
     // Degrades to the pre-③ behavior when no admin key is wired: no gate,
@@ -1380,6 +1398,41 @@ export function registerPackRoutes(app, {
       return res.status(503).json({ error: "billing plane not configured — model lanes cannot be validated" });
     }
 
+    // ── Runner harness gate (add-harness-adapter D5) ────────────────────────
+    // The declared/overridden harness must be one the PLACED runner hosts —
+    // the same shape as the model roster gate: the runner's heartbeat reports
+    // its adapter set; a harness the runner cannot host would fail every
+    // cold start there. Degrades open when the runner's harness set is
+    // unknowable (scheduler unarmed, board unreachable, older runner image).
+    {
+      const requestedHarness = new Map();
+      for (const agent of version.manifest.agents ?? []) {
+        if (agent?.serving === undefined) continue;
+        if (!deployIds.has(agent.id)) continue;
+        const overridden = harnesses && Object.hasOwn(harnesses, agent.id) ? harnesses[agent.id] : null;
+        const declared = typeof agent.serving?.harness === "string" && agent.serving.harness ? agent.serving.harness : null;
+        const effective = overridden ?? declared;
+        if (effective) requestedHarness.set(agent.id, effective);
+      }
+      if (requestedHarness.size > 0 && scheduler) {
+        try {
+          const board = await scheduler.boardNow();
+          const harnessRunnerId = runnerPlacement.runnerId ?? registry.runnerList()[0]?.id ?? null;
+          const hosted = harnessRunnerId ? board?.runners?.[harnessRunnerId]?.harness : null;
+          if (Array.isArray(hosted)) {
+            for (const [agentId, harnessName] of requestedHarness) {
+              if (!hosted.includes(harnessName)) {
+                return res.status(400).json({
+                  error: `harnesses.${agentId}: harness '${harnessName}' is not hosted by runner '${harnessRunnerId}' (hosted: ${hosted.join(", ") || "none"})`,
+                  code: "HARNESS_NOT_HOSTED",
+                });
+              }
+            }
+          }
+        } catch { /* board unreachable → degrade open */ }
+      }
+    }
+
     // ── Deployment secrets (add-deployment-secrets D1/D2/D5/D6) ─────────────
     // body.secrets maps agentId → { name: value | null }: arbitrary named
     // values the deployed agent needs at runtime (e.g. a content-repo token).
@@ -1507,6 +1560,7 @@ export function registerPackRoutes(app, {
         rhythmOverrides: rhythms ?? {},
         budgetOverrides: budgets ?? {},
         modelOverrides: models ?? {},
+        harnessOverrides: harnesses ?? {},
         notifyChannels: notifyChannel ?? {},
         billingKeys,
         secretRefs,

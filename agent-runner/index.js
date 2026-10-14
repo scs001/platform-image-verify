@@ -125,7 +125,14 @@ if (config.fleetUrl) {
     log: (m) => console.warn(`[agent-runner:fleet] ${m}`),
   });
   fleetReporter.start();
-  fleetSampler = createFleetSampler({ manager, reporter: fleetReporter, runnerId: config.fleetRunnerId });
+  fleetSampler = createFleetSampler({
+    manager,
+    reporter: fleetReporter,
+    runnerId: config.fleetRunnerId,
+    // Harness self-report (add-harness-adapter D5): the deploy gate reads this
+    // off the observer board to refuse harness-mismatched placements.
+    harnessProvider: () => manager.harnessRegistry.names(),
+  });
   manager.events = (ev) => fleetReporter.emit(ev);
   console.log(`[agent-runner:fleet] reporting to ${config.fleetUrl} as ${config.fleetRunnerId}`);
 }

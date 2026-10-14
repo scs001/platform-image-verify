@@ -102,3 +102,20 @@ end_turn 无文本）。合同⑰ 在**仓内 adapter 模块**上直接跑（不
 2. 合同⑰两轮绿；dsh 合同①-⑯零回归（同一 runner）。
 3. 生产眼见：同 pack 双 agent（一 dsh、一 acp-claude-code）各 A2A 回合成功；
    心跳 harness 字段；harness 错配部署被拒。
+
+## D9 实施期增补（2026-10-14 实测）
+
+- **凭证面实测（tasks 3.1）**：claude-code-acp 的凭证由 **Claude Agent SDK 从进程 env 读
+  `ANTHROPIC_API_KEY`**（包内 dist 无文件凭证读取路径；`CLAUDE_CONFIG_DIR` 默认
+  `~/.claude`）。故 ACP spawn 走 **env 注入**（`AGENT_RUNNER_ACP_ENV`，runner 侧配置，
+  值不落日志），不是 dsh 的 credentials 文件通道——因为 ACP 进程不经我们的桥。
+  实施落地：`agent-runner/harness/registry.js` 在 spawn 时把 acpEnv 叠在 scrubbed child env 上。
+- **镜像实测（tasks 3.3）**：`npm install --prefix /opt/harness-acp @zed-industries/claude-code-acp@0.16.2`
+  = **104 包 / 120MB**（含 Claude Agent SDK + bundled CLI），bin `claude-code-acp` 正常落地。
+  120MB < 150MB 阈值 → **同镜像独立前缀方案成立**（Dockerfile builder 装、runtime COPY、
+  PATH 加一行）。dsh 树零污染（独立 prefix，不 merge）。
+- **上游改名（记录，不阻塞）**：npm 提示该包已改名 `@agentclientprotocol/claude-agent-acp`
+  ——本 change pin 0.16.2 继续可用；跟随改名是后续小改（白名单命令名不变，换包名与版本即可）。
+- **ACP adapter 不引入 `@agentclientprotocol/sdk` 直接依赖**（决定）：手写 ndjson JSON-RPC
+  （与合同⑬的 mini client 同形），理由=该 SDK 在 dsh 树里是传递依赖，提升为生产直依赖会给
+  runner 镜像加第二套版本纪律面；合同⑰钉住线形，漂移由套件捕获。

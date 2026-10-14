@@ -24,6 +24,53 @@ function relayFromPacks(env) {
   }
 }
 
+// ACP command allowlist (add-harness-adapter D5): JSON object, harness name →
+// non-empty argv array. Kept here (not in harness/registry.js) so the parse
+// failure surfaces at config load — the boot refuses before any child spawns.
+function parseAcpCommands(raw) {
+  const text = String(raw ?? "").trim();
+  if (!text) return {};
+  let doc;
+  try {
+    doc = JSON.parse(text);
+  } catch (e) {
+    throw new Error(`AGENT_RUNNER_ACP_COMMANDS is not valid JSON: ${e.message}`);
+  }
+  if (!doc || typeof doc !== "object" || Array.isArray(doc)) {
+    throw new Error("AGENT_RUNNER_ACP_COMMANDS must be a JSON object mapping harness name → [command, ...args]");
+  }
+  const out = {};
+  for (const [name, argv] of Object.entries(doc)) {
+    if (!Array.isArray(argv) || argv.length === 0 || argv.some((a) => typeof a !== "string" || !a)) {
+      throw new Error(`AGENT_RUNNER_ACP_COMMANDS['${name}'] must be a non-empty array of strings`);
+    }
+    out[name] = [...argv];
+  }
+  return out;
+}
+
+// ACP environment injection (add-harness-adapter D3): JSON object of env
+// name → value. Values are secrets — never logged, never echoed.
+function parseAcpEnv(raw) {
+  const text = String(raw ?? "").trim();
+  if (!text) return {};
+  let doc;
+  try {
+    doc = JSON.parse(text);
+  } catch (e) {
+    throw new Error(`AGENT_RUNNER_ACP_ENV is not valid JSON: ${e.message}`);
+  }
+  if (!doc || typeof doc !== "object" || Array.isArray(doc)) {
+    throw new Error("AGENT_RUNNER_ACP_ENV must be a JSON object mapping env name → value");
+  }
+  const out = {};
+  for (const [name, value] of Object.entries(doc)) {
+    if (typeof value !== "string" || !name) throw new Error(`AGENT_RUNNER_ACP_ENV['${name}'] must be a string value`);
+    out[name] = value;
+  }
+  return out;
+}
+
 export function loadConfig(env = process.env) {
   return {
     repoRoot,
@@ -140,6 +187,21 @@ export function loadConfig(env = process.env) {
     dshBin: env.DSH_BIN || "dsh",
     dshProfile: env.DSH_PROFILE || "platform",
     cwd: env.AGENT_RUNNER_CWD || repoRoot,
+
+    // Harness adapters (add-harness-adapter D5): the ACP command allowlist —
+    // harness name → [command, ...args] as JSON. A descriptor may only NAME a
+    // harness from this map; commands are runner-side configuration because
+    // descriptors arrive from the registry (untrusted). Absent = dsh only,
+    // the legacy shape. Malformed JSON refuses the boot (a silently empty
+    // allowlist would fail every ACP deploy late).
+    acpCommands: parseAcpCommands(env.AGENT_RUNNER_ACP_COMMANDS),
+    // Credentials for ACP harnesses (name → value JSON): claude-code-acp reads
+    // ANTHROPIC_API_KEY from its environment (the Claude Agent SDK does the
+    // reading — verified against the package's dist, 2026-10-14), so ACP
+    // spawns get these injected on top of the scrubbed child env. Runner-side
+    // configuration, same discipline as the relay token; per-agent ACP billing
+    // keys are future work (recorded in the change design).
+    acpEnv: parseAcpEnv(env.AGENT_RUNNER_ACP_ENV),
 
     // Per-agent listener port pool (the registry proxy maps /agent/{path} onto
     // the registered origin — one agent per origin, upstream #1734).

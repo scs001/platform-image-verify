@@ -234,7 +234,16 @@ manifest/安装流程必须为 peer 时代重写。
    `loadStored` 在 0.2.0 已死名→`stat(id)`（8c3a44b）。v1 端口仍 per-agent
    （「端口按 pod」留待 registry 代理路径保持）。
 3. **HarnessAdapter 接口抽象 + 第二 harness**（ACP 基线实证后定接口；claude-code
-   runner 镜像进机群表）。
+   runner 镜像进机群表）。**2026-10-14 立项+实施（change add-harness-adapter）**：
+   `agent-runner/harness/` 四件——adapter.js 契约（agent 级五方法+能力自报+降级开放）、
+   dsh.js（原 child 协议面搬入，child 变薄壳，**回归 57/57 零改动**）、acp.js（手写
+   ndjson 驱动任意 ACP 二进制；映射 initialize/session-new/set_config_option/prompt/
+   update 流/usage_update/cancel）、registry.js（descriptor 声明 harness 名 +
+   `AGENT_RUNNER_ACP_COMMANDS` runner 侧白名单）。第二 harness = claude-code-acp
+   0.16.2（**实测 104 包/120MB，同镜像独立前缀 /opt/harness-acp 成立**；凭证=
+   Claude Agent SDK 读 env `ANTHROPIC_API_KEY` → `AGENT_RUNNER_ACP_ENV` 注入，
+   非文件通道）。心跳 runner_stats 增 `harness` 自报 + 部署门同形（HARNESS_NOT_HOSTED）。
+   单测 18+60 绿、**合同⑰ 两轮 17/17 绿**、lint 18 名单绿。
 4. **谦面物化器**（pack 清单→各 harness 布局映射，与 3 在映射处会合）。
 5. **萬星管理面统一**（短期/常驻统一舰队视图；先解「甲/乙读法」未决问题）。
 
@@ -243,6 +252,6 @@ manifest/安装流程必须为 peer 时代重写。
 | # | 问题 | 影响 |
 |---|---|---|
 | 1 | 萬星管理层边界：只管 runner 舰队（甲），还是全壹座统一管理面含 cell 内 worker（乙，需 cell 自报控制协议）？ | 切片 5 的形状；乙侵入面大得多 |
-| 2 | ACP 与平台 JSON-RPC 的分工：ACP 只驾驶、计量走平台插件？还是计量也上 ACP？ | 切片 3 接口基线 |
+| 2 | ACP 与平台 JSON-RPC 的分工：ACP 只驾驶、计量走平台插件？还是计量也上 ACP？ | 切片 3 接口基线。**切片级答案（add-harness-adapter）**：ACP = 驾驶面（initialize/session/prompt/cancel/流式/usage_update）；dsh 平台深控（preset 泊靠/工具门/platform-stream）是 dsh 深度、不进接口；能力自报 + 结构化拒绝兜底。计费口径：usage_update 原样交给既有 `tokensOf`（跨 harness 同族） |
 | 3 | 短期 agents 执行宿：留在 cell worker-pool，还是搬上 runner 舰队（ephemeral slot 用完即收）？ | 与切片 5 联动；涉及任务引擎归属 |
 | 4 | pod 密度档策略：默认 pod 还是默认 solo、按流量晋级？ | 切片 2 的部署语义。**v1 已答（add-dsh-pod-adapter）**：默认 solo（`AGENT_RUNNER_POD_MODE` 默认 0，字节级零变化）、pod 按 runner 级 opt-in 面向长尾 pack（≥2 serving agents 且过资格门才共宿）；默认翻转/按流量晋级待生产实证后再议 |

@@ -141,6 +141,19 @@ RUN mkdir -p /opt/dsh \
           /opt/dsh-home/profiles/platform/ \
     && ln -s /opt/dsh/node_modules /opt/dsh-home/profiles/platform/node_modules
 
+# Second harness (add-harness-adapter D3): claude-code-acp into its own npm
+# prefix — an ACP-speaking agent the runner can host beside dsh
+# (agent-runner/harness/acp.js drives it over stdio; AGENT_RUNNER_ACP_COMMANDS
+# allowlists the binary name). A SEPARATE prefix, never merged into /opt/dsh:
+# the ACP closure (Claude Agent SDK + its bundled CLI, ~80MB unpacked) must
+# not enter the dsh matrix's version discipline, and a future harness upgrade
+# rolls this one layer. --ignore-scripts: the SDK's postinstall only prints
+# notices; the binary is plain JS. The install is pinned exactly (no range).
+RUN mkdir -p /opt/harness-acp \
+    && npm install --prefix /opt/harness-acp --omit=dev --ignore-scripts --no-audit --no-fund \
+          @zed-industries/claude-code-acp@0.16.2 \
+    && ln -s /opt/harness-acp/node_modules/.bin/claude-code-acp /usr/local/bin/claude-code-acp
+
 # Copy the rest of the source. resources/ is .dockerignored: it holds only the
 # platform-specific standalone Node that predist downloads, which this image does
 # not build and does not use.
@@ -187,7 +200,9 @@ WORKDIR /app
 COPY --chown=node:node --from=builder /app/node_modules ./node_modules
 COPY --chown=node:node --from=builder /opt/dsh /opt/dsh
 COPY --chown=node:node --from=builder /opt/dsh-home /opt/dsh-home
-ENV PATH="/opt/dsh/node_modules/.bin:${PATH}" \
+# Second harness (add-harness-adapter D3): the ACP agent prefix + its PATH link.
+COPY --chown=node:node --from=builder /opt/harness-acp /opt/harness-acp
+ENV PATH="/opt/dsh/node_modules/.bin:/opt/harness-acp/node_modules/.bin:${PATH}" \
     DSH_HOME="/opt/dsh-home"
 COPY --chown=node:node --from=builder /app/web/dist ./web/dist
 # Facet service + its built thin SPA (same-image second role; see builder note).

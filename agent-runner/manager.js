@@ -76,6 +76,8 @@ const RESPAWN_ATTEMPTS = 3;
 const RESPAWN_BACKOFF_MS = [2_000, 4_000, 8_000];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 import { scrubbedChildEnv } from "./child.js";
+import { DshHarnessAdapter } from "./harness/dsh.js";
+import { createHarnessRegistry, DEFAULT_HARNESS } from "./harness/registry.js";
 import { createNotifier } from "./notify.js";
 import { maskSecretRef, resolveAgentPort } from "../lib/agent-serving.js";
 import { createAgentApp } from "./a2a.js";
@@ -109,10 +111,17 @@ export class ChildManager {
   #listeners = new Map(); // agentKey → http server (per-agent port, upstream #1734)
   #quotaAlerted = new Set(); // workspace over-quota episodes already reported
   #spawnFailures = new Map(); // agentKey → consecutive exhausted cold-start cycles (2.2)
-  constructor({ config, registryClient, clientFactory, log = console, now = () => Date.now(), notifyFetchImpl, events = null }) {
+  constructor({ config, registryClient, clientFactory, log = console, now = () => Date.now(), notifyFetchImpl, events = null, harnessRegistry = null }) {
     this.config = config;
     this.registryClient = registryClient;
     this.clientFactory = clientFactory;
+    // Harness registry (add-harness-adapter D5): descriptor-declared harness →
+    // adapter. Built from the runner's ACP allowlist; dsh is always present.
+    this.harnessRegistry = harnessRegistry ?? createHarnessRegistry({
+      acpCommands: config.acpCommands ?? {},
+      acpEnv: config.acpEnv ?? {},
+      log,
+    });
     this.log = log;
     this.now = now;
     // Fleet observability sink (add-fleet-event-backbone 3.1): optional
@@ -906,49 +915,61 @@ export class ChildManager {
     // instead of talking to the previous channel. The handler runs host-side
     // with the runner-held relay credential — the child never holds either.
     const notifyChannel = typeof descriptor.notify_channel === "string" && descriptor.notify_channel ? descriptor.notify_channel : null;
-    const child = new AgentChild({
-      key,
+    // Harness selection (add-harness-adapter D5): the descriptor's declared
+    // harness wins, else the runner default. The registry resolves it to an
+    // adapter; an unknown name throws UNSUPPORTED_HARNESS here (the deploy gate
+    // normally refused earlier — the runner never assumes it did) and the
+    // cold-start escalation retries it like any other spawn failure.
+    const harnessName = typeof descriptor.harness === "string" && descriptor.harness ? descriptor.harness : DEFAULT_HARNESS;
+    const spawnSpec = {
+      profile: config.dshProfile,
+      patchPaths: spec.patchPaths,
+      // Sandbox writable root (fix-agent-data-workspace-writes): dsh derives
+      // the workspace-write boundary from the session cwd (initialize cwd,
+      // else the spawn process cwd), so a declared data workspace becomes
+      // the child's cwd — the data dir turns writable, nothing else widens
+      // (home stays out: it holds credentials and the persona preset).
+      // No declaration → config.cwd exactly as before.
+      cwd: spec.dataDir ?? config.cwd,
+      // The child sees the runner's environment minus every relay
+      // credential (add-agent-notifications D2): the token's sole owner is
+      // this process's configuration. A declared data workspace adds
+      // AGENT_DATA_DIR (+ AGENT_DATA_QUOTA_MB) on top — no declaration,
+      // no keys (facet-mcp-foundation-v1 3.1).
+      env: workspaceChildEnv(spec, scrubbedChildEnv(process.env)),
+      provider: config.provider,
+      // Per-deployment model (ADR-0019): the descriptor's effective model
+      // wins; absent falls back to the runner's deployment-level default.
+      // The provider family stays the runner's — the model string resolves
+      // through the routing store (LLM_PROVIDERS_STORE).
+      model: typeof descriptor.effective_model === "string" && descriptor.effective_model
+        ? descriptor.effective_model
+        : config.model,
+      presetId: spec.presetId,
       version: descriptor.packVersion ?? null,
+    };
+    let child = null;
+    const onExit = () => {
+      if (child && this.children.get(key) === child) this.children.delete(key);
+    };
+    const adapter = this.harnessRegistry.create(harnessName, {
+      key,
+      log: this.log,
+      onNotify: (payload) => this.notifier.send({ agent: key, boundChannel: notifyChannel, ...payload }),
+      onExit,
       turnTimeoutMs: turnBudgetMs,
       budgetLabel,
-      clientFactory: this.clientFactory({ ...spec, turnBudgetMs }),
-      log: this.log,
-      notifyHandler: (payload) => this.notifier.send({ agent: key, boundChannel: notifyChannel, ...payload }),
-      // Spontaneous-exit prune (M2 容量实测): drops the map entry the moment
-      // the runtime dies on its own — identity-guarded so a concurrently
-      // replaced child is never evicted by a stale exit.
-      onExit: () => {
-        if (this.children.get(key) === child) this.children.delete(key);
-      },
-      spawnSpec: {
-        profile: config.dshProfile,
-        patchPaths: spec.patchPaths,
-        // Sandbox writable root (fix-agent-data-workspace-writes): dsh derives
-        // the workspace-write boundary from the session cwd (initialize cwd,
-        // else the spawn process cwd), so a declared data workspace becomes
-        // the child's cwd — the data dir turns writable, nothing else widens
-        // (home stays out: it holds credentials and the persona preset).
-        // No declaration → config.cwd exactly as before.
-        cwd: spec.dataDir ?? config.cwd,
-        // The child sees the runner's environment minus every relay
-        // credential (add-agent-notifications D2): the token's sole owner is
-        // this process's configuration. A declared data workspace adds
-        // AGENT_DATA_DIR (+ AGENT_DATA_QUOTA_MB) on top — no declaration,
-        // no keys (facet-mcp-foundation-v1 3.1).
-        env: workspaceChildEnv(spec, scrubbedChildEnv(process.env)),
-        provider: config.provider,
-        // Per-deployment model (ADR-0019): the descriptor's effective model
-        // wins; absent falls back to the runner's deployment-level default.
-        // The provider family stays the runner's — the model string resolves
-        // through the routing store (LLM_PROVIDERS_STORE).
-        model: typeof descriptor.effective_model === "string" && descriptor.effective_model
-          ? descriptor.effective_model
-          : config.model,
-        presetId: spec.presetId,
-      },
+      spawnSpec,
+      // The dsh factory needs the manager-owned client factory (which carries
+      // the private home) — an ACP harness ignores it.
+      dshFactory: (args) => new DshHarnessAdapter({
+        ...args,
+        clientFactory: this.clientFactory({ ...spec, turnBudgetMs }),
+      }),
     });
+    child = new AgentChild({ key, spawnSpec, turnTimeoutMs: turnBudgetMs, budgetLabel, log: this.log, adapter });
     this.children.set(key, child);
-    this.log.log(`[agent-runner] cold-starting ${key} (v${child.version ?? "?"}, ${mcpServers.length} MCP, ${(descriptor.skills ?? []).length} skills)`);
+    this.log.log(`[agent-runner] cold-starting ${key} (v${child.version ?? "?"}, harness=${harnessName}, ${mcpServers.length} MCP, ${(descriptor.skills ?? []).length} skills)`);
     try {
       await child.start();
     } catch (e) {
@@ -1125,7 +1146,7 @@ export class ChildManager {
     // and hand the pack back to solo children (sticky until the composition
     // identity changes).
     try {
-      const caps = await child.client?.request?.("platform/capabilities", {});
+      const caps = await child.request("platform/capabilities", {});
       const methods = Array.isArray(caps?.methods) ? caps.methods : [];
       for (const required of ["preset/set", "model/set", "session/cancel"]) {
         if (!methods.includes(required)) throw new Error(`runtime does not report '${required}'`);

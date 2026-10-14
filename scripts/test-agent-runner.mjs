@@ -22,11 +22,13 @@ import { AgentChild, sessionKeyFor } from "../agent-runner/child.js";
 import { ChildManager } from "../agent-runner/manager.js";
 import { createOpsApp, agentPortFor } from "../agent-runner/a2a.js";
 import net from "node:net";
+import { fileURLToPath } from "node:url";
 import { createRegistryClient } from "../agent-runner/registry.js";
 import { RhythmScheduler, DEFAULT_SELF_PROMPT } from "../agent-runner/scheduler.js";
 import { Rollover } from "../agent-runner/rollover.js";
 
 const tmpRoot = mkdtempSync(path.join(tmpdir(), "agent-runner-"));
+const REPO_ROOT_FOR_TESTS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 // File-wide port allocator, PROBE-BASED: managers must not bind a port some
 // other process already listens on. Blind random bases shipped a CI flake
@@ -2035,5 +2037,59 @@ test("pod reap: member-prefixed srv-wx sessions reap by their bare tail; day ses
   } finally {
     await h.close();
     rmSync(homeRoot, { recursive: true, force: true });
+  }
+});
+
+// ── Harness dispatch (add-harness-adapter tasks 4.1/4.4) ─────────────────────
+
+test("harness dispatch: an absent descriptor.harness keeps the dsh path byte-identical", async () => {
+  const h = await bootRunner({ entries: [ENTRY], skills: POD_SKILLS });
+  try {
+    await h.manager.reconcile();
+    const out = await h.manager.turn(ENTRY, "srv-dsh", "你好");
+    assert.match(out.text, /分析完成/);
+    assert.equal(h.manager.children.size, 1);
+    assert.ok(h.spawned[0].spec.home, "the dsh spawn still materializes the private home (clientFactory wiring preserved)");
+    assert.ok(h.spawned[0].spec.patchPaths.length > 0, "the private-home patch paths still ride the dsh spawn");
+  } finally {
+    await h.close();
+  }
+});
+
+test("harness dispatch: a descriptor-declared ACP harness spawns through the allowlist, not dsh", async () => {
+  const entry = { ...ENTRY, metadata: { ...ENTRY.metadata, harness: "acp-fake" } };
+  const h = await bootRunner({
+    entries: [entry],
+    skills: POD_SKILLS,
+    config: {
+      acpCommands: { "acp-fake": [process.execPath, path.join(REPO_ROOT_FOR_TESTS, "scripts", "lib", "dsh-contracts", "fake-acp-agent.mjs")] },
+      acpEnv: { FAKE_ACP_REPLY: "acp 分析完成" },
+    },
+  });
+  try {
+    await h.manager.reconcile();
+    const out = await h.manager.turn(entry, "srv-acp", "你好");
+    assert.match(out.text, /acp 分析完成/, "the turn ran on the ACP harness");
+    assert.equal(h.spawned.length, 0, "no dsh child was spawned — the adapter choice is visible only in the adapter");
+    assert.equal(h.manager.children.size, 1, "the manager hosts the ACP child through the same lifecycle");
+    const child = [...h.manager.children.values()][0];
+    assert.equal(child.adapter.name, "acp");
+  } finally {
+    await h.close();
+  }
+});
+
+test("harness dispatch: an unsupported harness fails the cold start structurally", async () => {
+  const entry = { ...ENTRY, metadata: { ...ENTRY.metadata, harness: "no-such-harness" } };
+  const h = await bootRunner({ entries: [entry], skills: POD_SKILLS, config: { respawnAttempts: 0 } });
+  try {
+    await h.manager.reconcile();
+    await assert.rejects(
+      h.manager.turn(entry, "srv-bad", "你好"),
+      (e) => e.code === -32004 && /no-such-harness/.test(e.message),
+      "the cold start surfaces the structured -32004 naming the harness",
+    );
+  } finally {
+    await h.close();
   }
 });

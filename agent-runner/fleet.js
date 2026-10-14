@@ -141,7 +141,12 @@ export function createFleetReporter({
 // in the background each tick — a provider failure OMITS the field (a missing
 // roster degrades the deploy gate open; an empty array would refuse every
 // model choice, and a read failure is not "no models").
-export function createFleetSampler({ manager, reporter, runnerId, rosterProvider = null }) {
+// `harnessProvider` (add-harness-adapter D5): the harness names this runner's
+// adapter registry can host — rides runner_stats as `harness` (a string
+// array), and the deploy gate reads it off the observer board the same way it
+// reads `models`. Absent provider or a throw → the field is OMITTED (unknown
+// degrades the deploy gate open, exactly like the roster).
+export function createFleetSampler({ manager, reporter, runnerId, rosterProvider = null, harnessProvider = null }) {
   let last = new Map(); // agentKey → state
   let rosterCache = null; // string[] | null — null until the first refresh lands
   const defaultRosterProvider = async () => {
@@ -185,6 +190,13 @@ export function createFleetSampler({ manager, reporter, runnerId, rosterProvider
           });
         }
       }
+      let harnessList = null;
+      if (harnessProvider) {
+        try {
+          const v = harnessProvider();
+          if (Array.isArray(v) && v.length) harnessList = v.map(String);
+        } catch { /* a broken provider omits the field (degrade open) */ }
+      }
       reporter.emit({
         kind: "runner_stats",
         agent: runnerId, // runner-level row: agent field is the runner identity
@@ -195,6 +207,7 @@ export function createFleetSampler({ manager, reporter, runnerId, rosterProvider
           budget_mb_limit: h.budgetMb,
           agents: h.agents.length,
           ...(Array.isArray(rosterCache) ? { models: rosterCache } : {}),
+          ...(harnessList ? { harness: harnessList } : {}),
         },
       });
     },

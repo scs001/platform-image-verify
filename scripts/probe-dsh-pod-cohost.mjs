@@ -23,7 +23,7 @@
 // --keep leaves the entries deployed for eyeball verification (default:
 // disables both entries — the registry keeps rows; re-running re-enables).
 
-import { execSync } from "node:child_process";
+import { readdirSync, readFileSync } from "node:fs";
 import { deployToRegistry } from "../lib/agent-serving.js";
 
 const args = process.argv.slice(2);
@@ -35,6 +35,11 @@ const PACKS = process.env.AGENT_RUNNER_PACKS_URL;
 const BACKEND = process.env.AGENT_RUNNER_BACKEND_TOKEN;
 
 const PACK_ID = `pod-cohost-probe-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}`;
+// One version per run: a re-run upserts the SAME paths at a NEW version (the
+// registry keys entries by path; the runner drains the pod on the identity
+// change and rebuilds — itself a live exercise of the pack-granularity
+// upgrade path).
+const PACK_VERSION = Number(new Date().toISOString().slice(0, 12).replace(/[-T:]/g, ""));
 const PERSONA_A = "你是严谨的金融分析师，回答先给一句话结论。";
 const PERSONA_B = "你是简洁的文案作者，回答不超过两句。";
 
@@ -86,7 +91,7 @@ async function main() {
   console.log(`[probe] deploying ${PACK_ID} → runner-serving slice (${RUNNER_BASE})`);
   const deployed = await deployToRegistry({
     packId: PACK_ID,
-    version: 1,
+    version: PACK_VERSION,
     manifest,
     runnerBaseUrl: RUNNER_BASE,
     packsPublicBase: PACKS,
@@ -129,28 +134,32 @@ async function main() {
     }
 
     // ── 4. The pod evidence ─────────────────────────────────────────────────
-    const ps = execSync("ps -eo pid,rss,args | grep -E 'dsh --profile platform' | grep -v grep", { encoding: "utf8" });
-    const procs = ps.trim().split("\n").filter(Boolean);
+    // /proc directly — the runner container ships no procps (the contract-⑭
+    // lesson: a missing `ps` must never kill an evidence pass).
+    const procs = [];
+    for (const ent of readdirSync("/proc")) {
+      if (!/^\d+$/.test(ent)) continue;
+      try {
+        const cmd = readFileSync(`/proc/${ent}/cmdline`, "utf8").split("\0").filter(Boolean).join(" ");
+        if (!cmd.includes("dsh") || !cmd.includes("--profile platform")) continue;
+        const status = readFileSync(`/proc/${ent}/status`, "utf8");
+        const rssKb = Number(/VmRSS:\s+(\d+)\s+kB/.exec(status)?.[1] ?? 0);
+        procs.push({ pid: Number(ent), rssKb, cmd });
+      } catch { /* raced away */ }
+    }
     console.log(`[probe] dsh processes on this host: ${procs.length}`);
-    for (const line of procs) console.log(`  ${line.slice(0, 160)}`);
-    const podProc = procs.find((l) => l.includes("--profile platform"));
-    const rssMb = podProc ? Math.round(Number(podProc.trim().split(/\s+/)[1]) / 1024) : null;
+    for (const p of procs) console.log(`  pid ${p.pid} rss ${Math.round(p.rssKb / 1024)}MB — ${p.cmd.slice(0, 120)}`);
+    const rssMb = procs.length ? Math.round(Math.max(...procs.map((p) => p.rssKb)) / 1024) : null;
     const finalHealth = await healthFetch();
     console.log(`[probe] health: children=${finalHealth.children} budget=${Math.round(finalHealth.budget)}MB`);
     for (const a of finalHealth.agents.filter((a) => paths.includes(a.path))) {
       console.log(`  ${a.path} → ${a.state} (port ${a.port})`);
     }
-    // The decisive fact: BOTH members served while children === 1.
-    if (!(finalHealth.children <= 1 && procs.length >= 1)) {
-      throw new Error(`expected ONE child hosting both members, got children=${finalHealth.children}, procs=${procs.length}`);
+    // The decisive fact: BOTH members served while exactly ONE child exists.
+    if (!(finalHealth.children === 1 && procs.length === 1)) {
+      throw new Error(`expected ONE child/process hosting both members, got children=${finalHealth.children}, procs=${procs.length}`);
     }
-    console.log(`\n[probe] ✓ POD CO-HOST VERIFIED: one process, two members, pod RSS ${rssMb}MB (solo floor ~100-185MB each — the amortization row for the research doc)`);
-
-    // The runner's own pod log line (best-effort; logs may be rotated).
-    try {
-      const log = execSync("grep -h 'cold-starting pod-' /proc/1/fd/1 2>/dev/null | tail -2", { encoding: "utf8" }).trim();
-      if (log) console.log(`[probe] runner log:\n  ${log.split("\n").join("\n  ")}`);
-    } catch { /* stdout may not be a readable fd here */ }
+    console.log(`\n[probe] ✓ POD CO-HOST VERIFIED: one process, two members, pod RSS ${rssMb}MB (solo floor ~100-185MB EACH — the amortization row for the research doc)`);
   } finally {
     if (!KEEP) {
       for (const p of paths) {

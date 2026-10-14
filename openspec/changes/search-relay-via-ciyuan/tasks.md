@@ -22,6 +22,7 @@
 
 - [x] 2.1 `WebSearchSection.tsx` 池健康区加「上游：车道/冷备」行（stats.upstream 消费，缺字段时优雅隐藏）。验证：web:build:e2e 过+组件测试。
       实证：`web:build:e2e` 绿（含 check:locales，五语言新增 4 键）；`websearch-api.ts` 类型加 `upstream`（可选，旧 relay 缺字段即隐藏行）；`misc.js` 池端点透传 upstream + `test-search-byok.mjs` 断言 mode=direct/laneConfigured=false。本仓无组件测试框架（无 vitest/jest），面板验证按既有惯例=构建门+服务端端点断言。
+      **上线状态：代码在 paas main（946b8e6），待下次 platform 镜像出片才生产可见**（本 change 不含 platform 出片任务；当时 main 上叠有其他会话在途载荷，不为这一行单独占线——详见 3.3 备注）。功能与回滚不受影响：字段缺失时该行优雅隐藏。
 - [x] 2.2 docs：DEPLOY.md websearch 节改供给拓扑说明；`docs/sub2api-fork-patches/README.md` 台账登记收口事实。验证：文档 lint/链接。
       实证：DEPLOY.md「Web search relay」节补供给拓扑段（车道主供/serpapi 冷备/熔断/回滚态）+ stats upstream 块说明；台账§六新增「钥匙收口」条目；`keys.example.json` 形状同步（ciyuan 主供 + serpapi 冷备角色）。
 
@@ -32,3 +33,4 @@
 - [x] 3.2 生产验收四件：①普通搜索 200（stats mode=ciyuan）②BYOK 三态（带错 key→pool-after-user-failure）③停词元 serpapi 账号验冷备接管（mode=direct-fallback+结果正常）④恢复账号验回切。验证：stats 面板+日志路由标注。
       实证（2026-10-15 生产）：①200 `x-search-source: pool`+`route=lane`；②BYOK 好 key→`user`、坏 key→`pool-after-user-failure`（均 200）；③account 37 置 10 分钟 temp_unschedulable → 车道 503「no available upstream account」→ 冷备接管 4 笔 `route=direct-fallback` 结果正常，3 连败后 **breaker OPEN 60s**（stats reachable=false/breakerOpen=true），窗口内零车道调用；④**提前恢复**（改回 null，未等 10 分钟）+窗口过后首请求探活 → `route=lane`、`reachable=true`、`breakerOpen=false`。计量侧：用量行 93902-93934 池笔 `serpapi:google_light`、BYOK 笔 `byok:55faa0c2`，**全部 total_cost=0**（归因 acct 37，计量保留）。
 - [ ] 3.3 观察一周后退役段：删直连路径与 serpapi[]、面板 keys 段隐藏、台账+spec 同步（本表续任务，届时勾）。
+      观察起点 2026-10-15（relay 上线 `upstream=ciyuan-lane`）。届时顺带：①platform 出片把 2.1 面板行带上生产（若中途已有出片则本项已完成）；②确认冷备接管计数 `upstream.fallbacks` 是否长期为 0（是=车道稳定，可退役）。

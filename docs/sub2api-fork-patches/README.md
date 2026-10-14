@@ -152,6 +152,8 @@ CLA：上游有 CLA.md，首次 PR 前签署（覆盖后续 PR）。补丁保持
   日志 `route=lane|direct-fallback|direct`；**对外契约（请求/响应形状、鉴权、
   x-search-source 三态）零变化**。单测 `scripts/test-search-relay-lane.mjs` 5/5
   + 既有 byok 11/11、scoped 9/9 不回归。冷备窗口观察一周后退役直连路径。
+  **面板行待 platform 出片**（2.1 代码在 paas main 946b8e6，字段缺失时优雅隐藏，
+  功能与回滚不受影响）。
 - **Origin change（已归档）**：`openspec/changes/archive/2026-10-15-fork-sub2api-ciyuan`
   （proposal/design/tasks 20 项全绿）；**对应主 spec**：`openspec/specs/ciyuan-fork-lineage`
   （谱系治理 6 需求）+ `openspec/specs/ciyuan-gateway-lanes`（三车道契约与计量 6 需求）。

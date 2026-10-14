@@ -441,6 +441,7 @@ export function registerMiscRoutes(ctx) {
         day: stats.day,
         dailyCap: stats.dailyCap,
         keys: Array.isArray(stats.keys) ? stats.keys : [],
+        upstream: stats.upstream ?? null,
         overrides: stats.overrides ?? null,
         errors: stats.errors ?? null,
         uptimeSec: stats.uptimeSec ?? null,

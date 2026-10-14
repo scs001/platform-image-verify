@@ -252,6 +252,11 @@ test("pool endpoint: admin gate, and proxies relay stats when allowed", async ()
     assert.equal(body.configured, true);
     assert.equal(body.reachable, true);
     assert.ok(Array.isArray(body.keys));
+    // Upstream routing is proxied through (search-relay-via-ciyuan): this
+    // relay runs direct-only (no keys.json `ciyuan`), so the panel row
+    // reports mode=direct. Field absent on pre-migration relays.
+    assert.equal(body.upstream?.mode, "direct");
+    assert.equal(body.upstream?.laneConfigured, false);
     assert.ok(!JSON.stringify(body).includes("pool-key-1"), "no upstream key values");
   });
 });

@@ -23,6 +23,18 @@ export interface WebsearchPoolStatus {
   day?: string;
   dailyCap?: number;
   keys: { index: number; failures: number; coolingDown: boolean }[];
+  // Upstream routing (search-relay-via-ciyuan): the pool is served by the
+  // platform gateway websearch lane ("ciyuan"); the direct provider path is
+  // cold standby. Older relays omit this field entirely.
+  upstream?: {
+    mode: "ciyuan" | "direct";
+    laneConfigured: boolean;
+    reachable: boolean | null;
+    breakerOpen: boolean;
+    laneCalls: number;
+    laneFailures: number;
+    fallbacks: number;
+  } | null;
   overrides?: { used: number; failed: number; fallback: number } | null;
   errors?: { client: number; upstream: number; poolDry: number } | null;
   uptimeSec?: number | null;

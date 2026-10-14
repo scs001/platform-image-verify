@@ -862,7 +862,11 @@
         "poolKeys": "{{total}} clave(s) de proveedor, {{cooling}} en enfriamiento",
         "poolUsage": "{{day}}: {{used}} búsquedas con claves de usuario, {{fallback}} recurrieron al grupo",
         "poolDry": "Grupo agotado {{count}} vez/veces hoy: añade una clave de proveedor para restaurar la búsqueda.",
-        "poolUnreachable": "Estadísticas del relay inaccesibles"
+        "poolUnreachable": "Estadísticas del relay inaccesibles",
+        "upstreamLane": "Origen: carril de búsqueda de la pasarela (ciyuan)",
+        "upstreamDirect": "Origen: proveedor directo (reserva en frío)",
+        "upstreamFallbacks": "{{count}} servidas por la reserva en frío",
+        "upstreamLaneDown": "Carril no disponible: la reserva en frío está sirviendo"
       },
       "test": "Probar conexión",
       "testStates": {

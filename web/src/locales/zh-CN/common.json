@@ -862,7 +862,11 @@
         "poolKeys": "上游密钥 {{total}} 个，{{cooling}} 个冷却中",
         "poolUsage": "{{day}}：用户密钥搜索 {{used}} 次，回退共享池 {{fallback}} 次",
         "poolDry": "今日池干涸 {{count}} 次——补充上游密钥即可恢复搜索。",
-        "poolUnreachable": "搜索服务统计不可达"
+        "poolUnreachable": "搜索服务统计不可达",
+        "upstreamLane": "上游：平台网关搜索车道（词元）",
+        "upstreamDirect": "上游：直连搜索服务（冷备）",
+        "upstreamFallbacks": "冷备接管 {{count}} 次",
+        "upstreamLaneDown": "车道暂不可用，冷备直连接管中"
       },
       "test": "测试连接",
       "testStates": {

@@ -139,6 +139,19 @@ CLA：上游有 CLA.md，首次 PR 前签署（覆盖后续 PR）。补丁保持
 
 ## 六、治理手册索引
 
+- **钥匙收口（2026-10-15，paas 侧 change `search-relay-via-ciyuan`）**：SerpAPI
+  key 从「relay 自持 + 车道池双份」收口为**只存车道账号池**。词元侧零代码动作=
+  admin 建 internal 分组（id=10 `internal-search-relay`，platform=serpapi、
+  is_exclusive、**web_search_price_per_call=0**）+ admin 用户 allowed_groups 补
+  10 + 建专用 key #68 `search-relay-internal`；探针 `POST /v1/search` 200 且
+  用量行 93779 `serpapi:google_light` **total_cost=0**（归因 acct 37，计量保留）。
+  paas 侧 relay 改造（`services/search-relay/index.js`）：keys.json 新增
+  `ciyuan:{url,key}`（env `CIYUAN_URL/CIYUAN_KEY` 兜底）、车道优先+冷备直连
+  （3 连败 60s 熔断、探活恢复、keys.json 重载即清熔断）、`/v1/stats` 增
+  `upstream{mode,reachable,breakerOpen,laneCalls,laneFailures,fallbacks}`、
+  日志 `route=lane|direct-fallback|direct`；**对外契约（请求/响应形状、鉴权、
+  x-search-source 三态）零变化**。单测 `scripts/test-search-relay-lane.mjs` 5/5
+  + 既有 byok 11/11、scoped 9/9 不回归。冷备窗口观察一周后退役直连路径。
 - **Origin change（已归档）**：`openspec/changes/archive/2026-10-15-fork-sub2api-ciyuan`
   （proposal/design/tasks 20 项全绿）；**对应主 spec**：`openspec/specs/ciyuan-fork-lineage`
   （谱系治理 6 需求）+ `openspec/specs/ciyuan-gateway-lanes`（三车道契约与计量 6 需求）。

@@ -12,6 +12,15 @@
 //   GET /healthz               → 200 {"ok":true}
 //
 // Behavior (the cost controls the platform relies on):
+//   - Upstream = the 词元 (ciyuan) platform gateway websearch lane (called with
+//     a dedicated internal key). Provider keys (SerpAPI and successors) live in
+//     the lane's account pool and nowhere else; this relay is an admission +
+//     attribution layer on top.
+//   - Cold standby: a DIRECT SerpAPI path (keys.json `serpapi[]`) covers lane
+//     outages — a lane error falls back per request, and 3 consecutive lane
+//     failures open a 60s breaker during which requests skip the lane; the
+//     first request after the window probes it again. Standby usage is counted
+//     and reported (`upstream.fallbacks`), never silent.
 //   - SerpAPI key pool with round-robin; a key that errors (quota/auth/rate)
 //     goes into a cooldown and the next key is tried. All keys dry ⇒ 503.
 //   - GLM fallback: reserved in keys.json (glm: []) but NOT implemented yet —
@@ -25,12 +34,16 @@
 //     Logs attribute scoped traffic by scope id, never by token value.
 //
 // Config: keys.json next to this file (gitignored) — {"serpapi":[...],
-// "glm":[...], "tokens":[...], "scoped_master":"...", "revoked_scopes":[...]}
-// — or env SERPAPI_KEYS / GLM_KEYS / RELAY_TOKENS / RELAY_SCOPED_MASTER
-// (comma-separated where lists; file wins). keys.json is hot-reloaded on
-// mtime change (tokens/denylist edits take effect without a restart).
+// "glm":[...], "tokens":[...], "scoped_master":"...", "revoked_scopes":[...],
+// "ciyuan":{"url":"https://token.finddatatech.cloud","key":"sk-..."}}
+// — or env SERPAPI_KEYS / GLM_KEYS / RELAY_TOKENS / RELAY_SCOPED_MASTER /
+// CIYUAN_URL+CIYUAN_KEY (comma-separated where lists; file wins). keys.json is
+// hot-reloaded on mtime change (tokens/denylist edits take effect without a
+// restart; a reload also closes any open lane breaker, since an edit is an
+// operator action).
 // RELAY_KEYS_FILE overrides the keys.json path (tests/deployments).
-// PORT (default 4597), RELAY_DAILY_CAP, RELAY_CACHE_TTL_SECS, RELAY_CACHE_MAX.
+// PORT (default 4597), RELAY_DAILY_CAP, RELAY_CACHE_TTL_SECS, RELAY_CACHE_MAX,
+// RELAY_LANE_BREAKER_SECS.
 
 import http from "node:http";
 import fs from "node:fs";
@@ -50,6 +63,12 @@ const CACHE_TTL_MS = (Number(process.env.RELAY_CACHE_TTL_SECS) || 600) * 1000;
 const CACHE_MAX = Number(process.env.RELAY_CACHE_MAX) || 500;
 const KEY_COOLDOWN_MS = 60_000;
 const UPSTREAM_TIMEOUT_MS = 15_000;
+// Cold-standby breaker (search-relay-via-ciyuan D5): lane failures open a
+// window during which requests go straight to the direct path (saving the
+// extra hop); the first request after it probes the lane again.
+const LANE_BREAKER_SECS = Number(process.env.RELAY_LANE_BREAKER_SECS) || 60;
+const LANE_BREAKER_FAILS = 3;
+const CIYUAN_TIMEOUT_MS = 20_000;
 
 const KEYS_FILE = process.env.RELAY_KEYS_FILE || path.join(__dirname, "keys.json");
 
@@ -59,6 +78,12 @@ function loadKeys() {
     file = JSON.parse(fs.readFileSync(KEYS_FILE, "utf8"));
   } catch { /* no file — env only */ }
   const envList = (v) => (v ? v.split(",").map((s) => s.trim()).filter(Boolean) : []);
+  const ciyuanUrl = typeof file.ciyuan?.url === "string" && file.ciyuan.url
+    ? file.ciyuan.url.trim().replace(/\/+$/, "")
+    : (process.env.CIYUAN_URL || "").trim().replace(/\/+$/, "");
+  const ciyuanKey = typeof file.ciyuan?.key === "string" && file.ciyuan.key
+    ? file.ciyuan.key.trim()
+    : (process.env.CIYUAN_KEY || "").trim();
   return {
     serpapi: file.serpapi?.length ? file.serpapi : envList(process.env.SERPAPI_KEYS),
     glm: file.glm?.length ? file.glm : envList(process.env.GLM_KEYS),
@@ -67,6 +92,9 @@ function loadKeys() {
       ? file.scoped_master
       : (process.env.RELAY_SCOPED_MASTER || ""),
     revokedScopes: Array.isArray(file.revoked_scopes) ? file.revoked_scopes.map(String) : [],
+    // Lane upstream (search-relay-via-ciyuan): both halves or nothing — a URL
+    // without a key (or vice versa) is a misconfiguration, not a lane.
+    ciyuan: ciyuanUrl && ciyuanKey ? { url: ciyuanUrl, key: ciyuanKey } : null,
   };
 }
 
@@ -92,7 +120,11 @@ function reloadKeysIfStale() {
     KEYS = next;
     stats.keyFailures.length = 0;
     for (let i = 0; i < next.serpapi.length; i++) stats.keyFailures[i] = stats.keyFailures[i] ?? 0;
-    console.log(`[search-relay] keys reloaded: ${next.serpapi.length} serpapi key(s), ${next.tokens.length} static token(s), ${next.revokedScopes.length} revoked scope(s), scoped=${next.scopedMaster ? "on" : "off"}`);
+    // An operator edit is a deliberate act (key rotation, revoke, re-point) —
+    // drop any open lane breaker so the new configuration is tried immediately.
+    laneBreaker.fails = 0;
+    laneBreaker.openUntil = 0;
+    console.log(`[search-relay] keys reloaded: ${next.serpapi.length} serpapi key(s), upstream=${next.ciyuan ? "ciyuan-lane" : "direct"}, ${next.tokens.length} static token(s), ${next.revokedScopes.length} revoked scope(s), scoped=${next.scopedMaster ? "on" : "off"}`);
   } catch (e) {
     console.error(`[search-relay] keys reload failed (${e?.message || e}); keeping last-known`);
   }
@@ -102,11 +134,14 @@ if (!KEYS.tokens.length && !KEYS.scopedMaster) {
   console.error("[search-relay] no credential material configured (keys.json `tokens`/`scoped_master` or RELAY_TOKENS/RELAY_SCOPED_MASTER) — refusing to start open");
   process.exit(1);
 }
-if (!KEYS.serpapi.length) {
-  console.error("[search-relay] no serpapi keys configured (keys.json `serpapi` or SERPAPI_KEYS) — nothing to serve");
+// A serving upstream is required: the lane, the direct standby, or both.
+// Direct-only remains a fully supported shape (the lane is an upgrade, not a
+// hard dependency) — that pairing is also the rollback state.
+if (!KEYS.ciyuan && !KEYS.serpapi.length) {
+  console.error("[search-relay] no search upstream configured (keys.json `ciyuan`/CIYUAN_URL+CIYUAN_KEY, or `serpapi`/SERPAPI_KEYS) — nothing to serve");
   process.exit(1);
 }
-console.log(`[search-relay] ${KEYS.serpapi.length} serpapi key(s), ${KEYS.glm.length} glm key(s) (fallback: not wired), ${KEYS.tokens.length} static token(s), scoped=${KEYS.scopedMaster ? "on" : "off"}, ${KEYS.revokedScopes.length} revoked scope(s), cap ${DAILY_CAP}/day`);
+console.log(`[search-relay] upstream=${KEYS.ciyuan ? "ciyuan-lane" : "direct"}${KEYS.ciyuan && !KEYS.serpapi.length ? " (no cold standby configured)" : ""}, ${KEYS.serpapi.length} standby serpapi key(s), ${KEYS.glm.length} glm key(s) (fallback: not wired), ${KEYS.tokens.length} static token(s), scoped=${KEYS.scopedMaster ? "on" : "off"}, ${KEYS.revokedScopes.length} revoked scope(s), cap ${DAILY_CAP}/day`);
 
 // ── stats counters (GET /v1/stats — the ops board's data source) ────────────
 // Aggregates only, keyed by token PREFIX and key INDEX: never a token value,
@@ -121,7 +156,81 @@ const stats = {
   keyFailures: KEYS.serpapi.map(() => 0), // by pool index
   // Request-scoped override keys (add-search-byok) — counts only, no values.
   overrides: { used: 0, failed: 0, fallback: 0 },
+  // Lane routing (search-relay-via-ciyuan): lane calls, lane failures, and
+  // how many requests the cold-standby direct path ultimately served.
+  lane: { calls: 0, failures: 0, fallbacks: 0 },
 };
+
+// ── lane breaker (search-relay-via-ciyuan D5) ────────────────────────────────
+// State machine: closed (lane is primary) → 3 consecutive lane failures open a
+// window (direct path serves, lane skipped) → first request after the window
+// probes the lane; success closes the breaker, failure re-opens it.
+const laneBreaker = { fails: 0, openUntil: 0 };
+function laneBreakerOpen() {
+  return Date.now() < laneBreaker.openUntil;
+}
+function laneFailure(err) {
+  stats.lane.failures += 1;
+  laneBreaker.fails += 1;
+  if (laneBreaker.fails >= LANE_BREAKER_FAILS && !laneBreakerOpen()) {
+    laneBreaker.openUntil = Date.now() + LANE_BREAKER_SECS * 1000;
+    console.error(`[search-relay] lane breaker OPEN for ${LANE_BREAKER_SECS}s after ${laneBreaker.fails} consecutive failures (${err?.message || err})`);
+  }
+}
+function laneSuccess() {
+  laneBreaker.fails = 0;
+  laneBreaker.openUntil = 0;
+}
+// A LANE request failure is anything that means "the lane did not answer a
+// 2xx with a parseable envelope": transport/timeout, 5xx, and 401/403 (a bad
+// or rotated internal key is an outage of this path, not of the request).
+// 4xx shape errors from the lane (400/422) are NOT treated as outage signals —
+// they propagate to the caller as relay errors.
+function laneFailIsOutage(status) {
+  return status === 0 || status >= 500 || status === 401 || status === 403;
+}
+
+// ── ciyuan lane upstream (search-relay-via-ciyuan D1-D3) ─────────────────────
+// The lane's uniform envelope: {meta,results[],usage}; this relay's contract
+// only carries `results` (title/url/snippet — same field names, position
+// ignored). BYOK passthrough (D6): the caller's X-Serpapi-Key rides the lane
+// call untouched; the lane implements prefer/fallback/label semantics and its
+// x-search-source comes back verbatim.
+async function ciyuanSearch(query, num, userKey) {
+  stats.lane.calls += 1;
+  const headers = {
+    authorization: `Bearer ${KEYS.ciyuan.key}`,
+    "content-type": "application/json",
+  };
+  if (userKey) headers["x-serpapi-key"] = userKey;
+  let res;
+  try {
+    res = await fetch(`${KEYS.ciyuan.url}/v1/search`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ engine: "serpapi", q: query, num }),
+      signal: AbortSignal.timeout(CIYUAN_TIMEOUT_MS),
+    });
+  } catch (err) {
+    throw Object.assign(new Error(`lane unreachable: ${err?.message || err}`), { laneOutage: true, status: 0 });
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    // Never leak the internal key; the lane's error text is safe to forward
+    // as a message (it names lane-side conditions, not credentials).
+    const message = data?.error?.message || data?.error || `lane HTTP ${res.status}`;
+    throw Object.assign(new Error(typeof message === "string" ? message : `lane HTTP ${res.status}`), {
+      laneOutage: laneFailIsOutage(res.status),
+      status: res.status,
+    });
+  }
+  return {
+    results: Array.isArray(data.results)
+      ? data.results.map((r) => ({ title: r.title || "", url: r.url || "", snippet: r.snippet || "" }))
+      : [],
+    laneSource: res.headers.get("x-search-source") || null,
+  };
+}
 
 // ── per-token daily counters ─────────────────────────────────────────────────
 const tokenDays = new Map(); // token -> { day: "YYYY-MM-DD", count }
@@ -219,6 +328,10 @@ async function poolSearch(query, num) {
 // pool and says so (`x-search-source: pool-after-user-failure`) — never
 // silently. Nothing about the override key is persisted; attribution in logs
 // is a hash prefix only, so a leaked log line cannot leak the key.
+//
+// With the lane configured (search-relay-via-ciyuan D6) the override rides the
+// lane call instead and the lane implements prefer/fallback/naming; this local
+// chain is then the COLD-STANDBY path (lane outage or open breaker).
 const overrideCooldown = new Map(); // sha256-prefix -> until-ts
 function overrideTag(key) {
   return createHash("sha256").update(key, "utf8").digest("hex").slice(0, 8);
@@ -231,7 +344,7 @@ function overrideSearch(overrideKey) {
 }
 // Returns { results, source } or throws when BOTH the override and the pool
 // are unusable. `source` is "user" | "pool" | "pool-after-user-failure".
-async function searchWithOverride(overrideKey, query, num) {
+async function directSearchWithOverride(overrideKey, query, num) {
   let overrideFailed = false;
   if (overrideKey) {
     const o = overrideSearch(overrideKey, query, num);
@@ -266,6 +379,56 @@ async function searchWithOverride(overrideKey, query, num) {
     }
     throw err;
   }
+}
+
+// Lane source header → the relay's caller-visible three states (D4). The
+// routing fact (lane vs standby) is an ops detail and only ever lands in stats.
+function sourceFromLane(laneSource) {
+  if (laneSource === "user") {
+    stats.overrides.used += 1;
+    return "user";
+  }
+  if (laneSource === "pool-after-user-failure") {
+    stats.overrides.failed += 1;
+    stats.overrides.fallback += 1;
+    return "pool-after-user-failure";
+  }
+  // "pool", or a lane older than the header (served pool-side either way).
+  return "pool";
+}
+
+// Top orchestrator (D5): lane first, cold standby on outage, breaker to skip
+// the doomed hop while it lasts. Returns { results, source, route }.
+async function searchWithOverride(overrideKey, query, num) {
+  if (KEYS.ciyuan) {
+    // The breaker may only sideline the lane when a standby can actually
+    // serve; with no standby keys configured the lane is the only path.
+    const standbyUsable = KEYS.serpapi.length > 0;
+    if (!standbyUsable || !laneBreakerOpen()) {
+      try {
+        const { results, laneSource } = await ciyuanSearch(query, num, overrideKey);
+        laneSuccess();
+        return { results, source: sourceFromLane(laneSource), route: "lane" };
+      } catch (err) {
+        if (!err.laneOutage) throw err; // lane 4xx shape errors are the request's problem
+        laneFailure(err);
+        if (!standbyUsable) throw new Error(`lane unavailable (${err.message}); no cold standby configured`);
+        console.error(`[search-relay] lane outage → cold standby: ${err.message}`);
+      }
+    } else {
+      console.error("[search-relay] lane breaker open → cold standby (probe on next window)");
+    }
+    stats.lane.fallbacks += 1;
+    try {
+      const direct = await directSearchWithOverride(overrideKey, query, num);
+      return { ...direct, route: "direct-fallback" };
+    } catch (err) {
+      // Both paths are down: say so, and name the lane failure that started it.
+      throw new Error(`lane unavailable and cold standby exhausted — ${err.message}`);
+    }
+  }
+  const direct = await directSearchWithOverride(overrideKey, query, num);
+  return { ...direct, route: "direct" };
 }
 
 // ── server ───────────────────────────────────────────────────────────────────
@@ -323,6 +486,18 @@ const server = http.createServer((req, res) => {
         failures: stats.keyFailures[i] ?? 0,
         coolingDown: Date.now() < (keyCooldown.get(k) || 0),
       })),
+      // Upstream routing (search-relay-via-ciyuan D4): the lane is the
+      // supply; the direct path is cold standby. mode reflects configuration,
+      // not per-request luck — per-request routing lands in fallbacks/logs.
+      upstream: {
+        mode: KEYS.ciyuan ? "ciyuan" : "direct",
+        laneConfigured: Boolean(KEYS.ciyuan),
+        reachable: KEYS.ciyuan ? !laneBreakerOpen() : null,
+        breakerOpen: KEYS.ciyuan ? laneBreakerOpen() : false,
+        laneCalls: stats.lane.calls,
+        laneFailures: stats.lane.failures,
+        fallbacks: stats.lane.fallbacks,
+      },
       // Request-scoped user keys (add-search-byok): counts only, never values.
       overrides: { ...stats.overrides },
       errors: {
@@ -369,10 +544,10 @@ const server = http.createServer((req, res) => {
       }
       stats.cacheMisses += 1;
 
-      const { results, source } = await searchWithOverride(overrideKey, query.trim(), num);
+      const { results, source, route } = await searchWithOverride(overrideKey, query.trim(), num);
       cacheSet(cacheKey, { results, source });
       tokenTake(token);
-      console.log(`[search-relay] 200 token=${tokenTag} source=${source} cache=miss ${results.length}r ${Date.now() - started}ms`);
+      console.log(`[search-relay] 200 token=${tokenTag} source=${source} route=${route} cache=miss ${results.length}r ${Date.now() - started}ms`);
       jsonSrc(200, { results }, source);
     } catch (err) {
       stats.upstreamErrors += 1;

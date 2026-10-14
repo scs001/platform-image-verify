@@ -348,6 +348,24 @@ function SharedServiceZone() {
           </div>
           {pool.reachable ? (
             <div className="mt-1 flex flex-col gap-0.5 text-muted-foreground">
+              {/* Upstream routing (search-relay-via-ciyuan): lane = the platform
+                  gateway websearch lane serves this pool; direct = cold standby
+                  (pre-migration relays omit the field and this row hides). */}
+              {pool.upstream && (
+                <span data-testid="websearch-pool-upstream">
+                  {pool.upstream.mode === "ciyuan"
+                    ? t("settings.websearch.shared.upstreamLane")
+                    : t("settings.websearch.shared.upstreamDirect")}
+                  {pool.upstream.mode === "ciyuan" && pool.upstream.fallbacks > 0
+                    ? ` · ${t("settings.websearch.shared.upstreamFallbacks", { count: pool.upstream.fallbacks })}`
+                    : ""}
+                </span>
+              )}
+              {pool.upstream?.breakerOpen && (
+                <span data-testid="websearch-pool-lane-down" className="text-warning">
+                  {t("settings.websearch.shared.upstreamLaneDown")}
+                </span>
+              )}
               <span data-testid="websearch-pool-keys">
                 {t("settings.websearch.shared.poolKeys", { total: pool.keys.length, cooling })}
               </span>

@@ -862,7 +862,11 @@
         "poolKeys": "{{total}} clé(s) amont, {{cooling}} en refroidissement",
         "poolUsage": "{{day}} : {{used}} recherches avec des clés utilisateur, {{fallback}} retours au pool",
         "poolDry": "Pool épuisé {{count}} fois aujourd'hui — ajoutez une clé amont pour rétablir la recherche.",
-        "poolUnreachable": "Statistiques du relais injoignables"
+        "poolUnreachable": "Statistiques du relais injoignables",
+        "upstreamLane": "Amont : voie de recherche de la passerelle (ciyuan)",
+        "upstreamDirect": "Amont : fournisseur direct (secours froid)",
+        "upstreamFallbacks": "{{count}} servi(s) par le secours froid",
+        "upstreamLaneDown": "Voie indisponible — le secours froid prend le relais"
       },
       "test": "Tester la connexion",
       "testStates": {

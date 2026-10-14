@@ -24,4 +24,4 @@
 
 - [x] 5.1 CI 测试门（用户硬规则=Go 不本地跑）：law-ai 额度实尽（5s payments-failed）→ 测试门搬 build-pool（workflow 补 test job 钉 go 1.27.0）；快照 testaction001/build-pool run 全绿即出 `ciyuan-v0.2.16-5`（ciyuan-tag 已改，commit f955c3fba/快照 f13040a）。
 - [x] 5.2 部署滚 sha tag + 探针四件套全过（/health 200、version 自报 ciyuan-v0.2.16-5、公网门面+车道鉴权链统一 401、panic 扫零）+ 台账 §一登记；真实计费笔回执挂 change B 切换窗（内部 key 建立即打）。缝点表=零新增缝点（池本就持完整 AccountRepository）。
-- [ ] 5.3 （运维，可与 5.2 同窗）admin 加第二枚 SerpAPI key 进池，一号手动停用验证换号轮转在产真跑。
+- [x] 5.3 轮转真回路实证（2026-10-15，用户授权用保存的 key）：临时插耗尽旧 key 账号（priority=0 先选）→ 请求 200 由 #37 完成，坏号落 12h 冷却（reason=quota/auth failure status 429），探针账号测毕即删。BYOK 三态真回执 + 用量行 93735 `byok:55faa0c2` 0 费落地（v-6 外键修复后）。

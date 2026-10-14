@@ -134,6 +134,28 @@ test("agent-service-config serving.model / modelWhitelist validate", () => {
   );
 });
 
+test("harness-adapter serving.harness validates (selection, not configuration)", () => {
+  // The declaration the deploy gate and composeDescriptor both read: legal as
+  // a name on the serving contract. Without this key in the allowlist no real
+  // publish could declare a harness (live probe 2026-10-14 caught exactly
+  // that: the gate read a field the writer refused).
+  assert.deepEqual(validatePackManifest(withServing({ protocol: "a2a", harness: "dsh" })), []);
+  assert.deepEqual(validatePackManifest(withServing({ protocol: "a2a", harness: "acp-claude-code" })), []);
+  // Shape: a non-empty bounded name; `""` is falsy at compose (silent default)
+  // — an author writing it means something, so refuse rather than ignore.
+  for (const bad of ["", "   ", 42, null, {}, "x".repeat(65)]) {
+    const errs = validatePackManifest(withServing({ protocol: "a2a", harness: bad }));
+    assert.ok(
+      errs.some((e) => /serving\.harness must be a harness name/.test(e.error)),
+      `harness ${JSON.stringify(String(bad).slice(0, 12))} should be rejected`,
+    );
+  }
+  // A harness that happens to be a forbidden word elsewhere stays fine — the
+  // forbidden list is about endpoints/credentials, and the NAME is resolved
+  // runner-side (the pack never carries a command).
+  assert.deepEqual(validatePackManifest(withServing({ protocol: "a2a", harness: "my-custom-harness" })), []);
+});
+
 test("2.1 unknown keys in serving/card/capability are rejected", () => {
   assert.ok(
     validatePackManifest(withServing({ protocol: "a2a", extra: 1 })).some((e) => /unknown key 'extra'/.test(e.error)),

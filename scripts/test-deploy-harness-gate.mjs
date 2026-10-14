@@ -212,5 +212,58 @@ test("no harness declared and none overridden: the gate is inert", async () => {
 test("a malformed harnesses body is refused at the shape stage", async () => {
   const out = await deployOnce({ board: boardWith(["dsh"]), declaredHarness: null, harnesses: { "gate-agent": 42 } });
   assert.equal(out.status, 400);
-  assert.match(out.body.error, /harness must be a non-empty name/);
+  assert.match(out.body.error, /harness must be a harness name/);
+});
+
+test("the declaration survives the REAL publish route (validator + gate agree)", async () => {
+  // The first drill published via registry.publish(), which skips
+  // validateManifest — so the gate read a serving.harness the writer refused
+  // (live probe 2026-10-14: publish → 400 "serving has unknown key 'harness'").
+  // This drives the real POST /api/packs with the declared harness, then the
+  // real deploy route on the result.
+  const file = path.join(tmpRoot, `packs-publish-${Math.random().toString(36).slice(2)}.db`);
+  const registry = createPackRegistry({ file });
+  const app = express();
+  registerPackRoutes(app, {
+    registry,
+    resolveUser: () => ({ email: "author@x", groups: ["creators"] }),
+    rejectUnauthenticated: (_req, res) => res.status(401).json({ error: "auth required" }),
+    creatorGroups: ["creators"],
+    adminGroups: [],
+    deployConfig: {
+      registryUrl: "https://mcp.example.test",
+      token: "t",
+      runnerBaseUrl: "http://runner:8790",
+      packsPublicBase: "https://packs.example.test",
+      fetchImpl: registryStub().fetch,
+      sub2api: billingStub(),
+    },
+  });
+  const server = http.createServer(app);
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const pub = await fetch(`${base}/api/packs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ manifest: manifestFor("acp-claude-code") }),
+    });
+    const pubBody = await pub.json().catch(() => ({}));
+    assert.equal(pub.status, 200, `a declared harness must publish (got ${pub.status}: ${JSON.stringify(pubBody).slice(0, 240)})`);
+    const run = withGlobalFetch(boardWith(["dsh"]), async () => {
+      const r = await fetch(`${base}/api/packs/${pubBody.id}/versions/${pubBody.version}/deploy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ billingKeys: { "gate-agent": "sk-testkey-00000000000000000000000001" } }),
+      });
+      return { status: r.status, body: await r.json().catch(() => ({})) };
+    });
+    const out = await run();
+    assert.equal(out.body.code, "HARNESS_NOT_HOSTED", JSON.stringify({ status: out.status, body: out.body }).slice(0, 400));
+    assert.match(out.body.error, /harness 'acp-claude-code' is not hosted by runner 'runner-x'/);
+  } finally {
+    server.closeAllConnections?.();
+    await new Promise((r) => server.close(r));
+    registry.close();
+  }
 });

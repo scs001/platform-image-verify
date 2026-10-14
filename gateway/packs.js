@@ -1172,8 +1172,8 @@ export function registerPackRoutes(app, {
         if (!servingIds.has(agentId)) {
           return res.status(400).json({ error: `harnesses.${agentId}: '${agentId}' is not a serving agent of this pack` });
         }
-        if (typeof harnessName !== "string" || !harnessName.trim()) {
-          return res.status(400).json({ error: `harnesses.${agentId}: harness must be a non-empty name` });
+        if (typeof harnessName !== "string" || !harnessName.trim() || harnessName.length > 64) {
+          return res.status(400).json({ error: `harnesses.${agentId}: harness must be a harness name (non-empty string, at most 64 chars)` });
         }
       }
     }

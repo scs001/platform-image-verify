@@ -65,12 +65,12 @@ function fakeDshClient({ reply = "dsh ok", noUsage = false, failPrompt = false }
 }
 
 // ── the ACP fixture: the fake ACP agent over stdio ───────────────────────────
-function acpSpawnSpec({ mode = "normal" } = {}) {
+function acpSpawnSpec({ mode = "normal", env = {} } = {}) {
   return {
     command: process.execPath,
     args: [FAKE_ACP, `--mode=${mode}`],
     cwd: REPO_ROOT,
-    env: { ...process.env, FAKE_ACP_REPLY: "acp ok" },
+    env: { ...process.env, FAKE_ACP_REPLY: "acp ok", ...env },
     provider: "fake",
     model: "fake-model",
   };
@@ -215,9 +215,12 @@ test("[acp] mapping: deltas stream, usage rides the wire, model selection applie
 });
 
 test("[acp] mapping: session/cancel converges the parked turn", async () => {
+  // The agent parks far longer than the cancel round trip: the cancel is
+  // ALWAYS what ends this turn, never the park timer (the 10ms default could
+  // let the turn finish first under load and read as a cancel defect).
   const adapter = new AcpHarnessAdapter({
     key: "acp-cancel",
-    spawnSpec: acpSpawnSpec(),
+    spawnSpec: acpSpawnSpec({ env: { FAKE_ACP_PARK_MS: "5000" } }),
     log: { log() {}, warn() {}, error() {} },
   });
   await adapter.start();

@@ -71,3 +71,29 @@
   驱动真部署路由——错配拒绝（`HARNESS_NOT_HOSTED` 指名 harness 与 runner）、
   命中放行、override 优先、未知/板不可达降级开放、形状拒绝。
   生产路由直连需用户会话（401），故以路由级测试为证
+
+## 追记（2026-10-14 深夜，workbuddy 恢复后收口）
+
+- [x] 7.2 收口：**真 A2A 回合已通**——in-pod E2E `TURN-OK in 21s | "ACP harness OK."`；
+  完整双 harness 生产探针（`scripts/probe-harness-adapter-live.mjs`）绿：
+  dsh 侧 9s、**acp 侧 32s** 各回真文本，`/proc` 眼见 3 进程（2 dsh + 1
+  `claude-code-acp`）→ 一个 runner 上两种 harness 同时服务实证。
+  发现：真 claude-code-acp **不实现 `session/set_config_option`**（Method not
+  found）→ adapter 按设计降级（warn + 用 agent 默认）；**模型实际走
+  settings.json 的 model + session/new 的 `_meta.claudeCode.options.model`**
+  （即 0a5a654 修的路径才是真通道，D4 表里的 set_config_option 是 dsh ACP
+  profile 的形状，对真 agent 无此方法）。
+- [x] 7.3 收口：**生产真路由实证**——board 行 `runner-serving: ["dsh",
+  "acp-claude-code"]`、`runner-b/c: ["dsh"]`（真心跳）；facet 内部通道驱动真
+  deploy 路由三向：A `runner-serving`+`no-such-harness` → 400
+  `HARNESS_NOT_HOSTED`、B `runner-b`+`acp-claude-code` → 400 指名
+  `(hosted: dsh)`、C `runner-b`+`dsh` → **200 部署成功**（真 child 起、billing
+  ref 落地）。
+- [x] **真缺口修复（probe 抓到）**：`serving.harness` 被 `SERVING_KEYS`
+  白名单拒收 → 任何 pack 都无法**发布**harness 声明（只有部署 body 的 override
+  能进；部署门与 composeDescriptor 都在读这个字段）。修复：白名单加 `harness`
+  + 形状校验（非空、≤64）+ 部署 override 同形；测试补两处——`test-agent-serving`
+  契约校验、`test-deploy-harness-gate` **真发布路由**用例（旧用例经
+  `registry.publish()` 绕过校验器=盲区本身）。172/172 绿。
+  另修 `test-harness-adapter` cancel 用例竞态（`sleep(3)` 可能跑输
+  `session/new` 往返 → `FAKE_ACP_PARK_MS` 加宽泊车窗，3×18/18 稳定）。

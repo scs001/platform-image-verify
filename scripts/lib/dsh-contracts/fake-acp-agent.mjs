@@ -24,6 +24,11 @@ import { createInterface } from "node:readline";
 
 const mode = (process.argv.find((a) => a.startsWith("--mode=")) || "--mode=normal").slice("--mode=".length);
 const REPLY = process.env.FAKE_ACP_REPLY || "fake acp ok";
+// How long a prompt stays parked before answering itself. The cancel test
+// widens it so the cancel always arrives while the prompt is still parked —
+// with the 10ms default a slow session/new could let the turn finish first
+// and the test would read as a cancel defect under load.
+const PARK_MS = Number(process.env.FAKE_ACP_PARK_MS) > 0 ? Number(process.env.FAKE_ACP_PARK_MS) : 10;
 
 if (mode === "nope") {
   // A binary that cannot come up: no handshake, immediate exit.
@@ -131,7 +136,7 @@ async function handle(msg) {
           }
           out({ jsonrpc: "2.0", method: "session/update", params: { sessionId, update: { sessionUpdate: "usage_update", inputTokens: 120, outputTokens: 30 } } });
           resolve("end_turn");
-        }, 10);
+        }, PARK_MS);
       });
       out({ jsonrpc: "2.0", id, result: { stopReason } });
       return;

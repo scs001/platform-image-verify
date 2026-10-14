@@ -53,11 +53,12 @@ The server SHALL expose REST API endpoints to list, add, remove, enable, and dis
 - **THEN** enable/disable and config-update requests SHALL return 400 and leave the entry untouched
 
 ### Requirement: Backend API for managing skills at runtime
-The server SHALL expose REST API endpoints to list, add, remove, enable, and disable skills without requiring a server restart. Each listed skill SHALL include its `origin` and `locked` flag. Locked bundled skills SHALL NOT be removable, disable-able, or editable via the API: such requests SHALL return 400.
+The server SHALL expose REST API endpoints to list, add, remove, enable, and disable skills without requiring a server restart. Each listed skill SHALL include its `origin` and `locked` flag. Locked bundled skills SHALL NOT be removable, disable-able, or editable via the API: such requests SHALL return 400. A skill record MAY additionally carry an auxiliary file set (a mapping of relative paths to text contents) and external-origin provenance metadata; a record without them behaves as a single-file skill exactly as before, and every existing record (pre-migration rows) SHALL remain in that single-file shape with unchanged behavior. The list endpoint SHALL expose each skill's auxiliary file inventory (paths only) and its external provenance when present, so clients can distinguish multi-file and externally-installed skills from locally authored ones.
 
 #### Scenario: list skills via API
 - **WHEN** client sends GET `/api/extensions/skills`
 - **THEN** the server SHALL return a list of all skills with their name, description, source (built-in/custom/bundled), enabled state, origin, and locked flag
+- **AND** a multi-file skill's entry SHALL additionally expose its auxiliary file paths and external provenance
 
 #### Scenario: add custom skill via API
 - **WHEN** client sends POST `/api/extensions/skills` with skill definition (name, description, body)
@@ -76,6 +77,11 @@ The server SHALL expose REST API endpoints to list, add, remove, enable, and dis
 - **THEN** the server SHALL register the skill with the agent, mark it enabled, and return success
 - **WHEN** the named skill is locked
 - **THEN** enable/disable requests SHALL return 400 and leave the entry untouched
+
+#### Scenario: legacy single-file records are unchanged
+
+- **WHEN** the server starts against a database created before auxiliary files existed
+- **THEN** every existing skill lists with no auxiliary files and no external provenance, and all prior behaviors (list/add/remove/enable/disable) work unchanged
 
 ### Requirement: Extension records carry origin, lock, and permission metadata
 The extensions store SHALL persist for every MCP server and skill record: `origin` (`bundled` | `user`, defaulting to `user` for existing and newly added records), `locked` (default false), `permissions` (nullable JSON holding `allow`/`deny` tool globs), and `requiredGroups` (nullable JSON array of group names, stamped from the market entry's groups at gated-install time; null for ungated installs and all pre-existing rows). Existing rows SHALL migrate to these defaults losslessly. Permission enforcement is a separate capability; this requirement covers storage and API exposure only.

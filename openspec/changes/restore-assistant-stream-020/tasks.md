@@ -26,6 +26,6 @@
 ## 5. 验收与出片
 
 - [x] 5.1 单测+lint 全绿：`npm test`（或既有套件入口）零新失败；biome lint 零错
-- [ ] 5.2 真环境眼见：fd-prod 滚产后浏览器一轮真实对话——逐字流式正文+思考折叠+用量脚注+刷新后一致；`入/出` 数字与 assistant/message 结算一致
+- [x] 5.2 真环境眼见：fd-prod 滚产后浏览器一轮真实对话——逐字流式正文+思考折叠+用量脚注+刷新后一致；`入/出` 数字与 assistant/message 结算一致
 - [x] 5.3 降级路径实证：临时禁用桥能力位（或伪旧运行时）验证结算单发恰一次、无重复气泡
-- [ ] 5.4 出片滚产：快照→公开线出片→六清单滚 sha tag→rollout 全绿；归档前 `openspec validate restore-assistant-stream-020 --specs`
+- [x] 5.4 出片滚产：快照→公开线出片→六清单滚 sha tag→rollout 全绿；归档前 `openspec validate restore-assistant-stream-020 --specs`

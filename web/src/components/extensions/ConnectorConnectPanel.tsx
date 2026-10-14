@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Icon } from "@/components/ui/icon";
+import { connectorLearnMoreUrl } from "@/lib/connector-mint";
 
 interface ConnectorConnectPanelProps {
   compact?: boolean;
@@ -25,7 +26,7 @@ interface ConnectorConnectPanelProps {
 }
 
 export function ConnectorConnectPanel({ compact = false, className = "" }: ConnectorConnectPanelProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const {
     connectorConnection,
     connectorAccounts,
@@ -126,6 +127,21 @@ export function ConnectorConnectPanel({ compact = false, className = "" }: Conne
           {t("extensions.connector.pasteToggle")}
         </Button>
       </div>
+
+      {/* add-connector-context: what this product is and where to read more —
+          shown before the user ever clicks "connect". */}
+      <p className="mt-1 text-xs text-muted-foreground" data-testid="connector-context-line">
+        {t("extensions.connector.contextLine")}{" "}
+        <a
+          href={connectorLearnMoreUrl(i18n.language)}
+          target="_blank"
+          rel="noreferrer"
+          data-testid="connector-learn-more"
+          className="text-primary hover:underline"
+        >
+          {t("extensions.connector.learnMore")}
+        </a>
+      </p>
 
       {/* Account list — one row per connected connector identity. */}
       {accounts.length > 0 && (

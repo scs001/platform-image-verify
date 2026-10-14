@@ -79,3 +79,15 @@ export async function mintConnectorToken(
   if (!doc.token) throw new Error("The connector returned no token");
   return { token: doc.token, patId: doc.id ?? "", name: doc.name ?? `壹座 · ${slot}` };
 }
+
+// ── add-connector-context: the "Learn more" target ──────────────────────────
+// The official product page, written for the credential panel so the user can
+// read what the connector IS before clicking connect. The site ships the page
+// in zh/en only; every other console language reads the en page. It follows the
+// CONSOLE language (the user's explicit pick), not the browser's.
+export function connectorLearnMoreUrl(lang: string): string {
+  const base = "https://www.finddatatech.cloud";
+  return lang.toLowerCase().startsWith("zh")
+    ? `${base}/zh/products/wanxing-connector/`
+    : `${base}/products/wanxing-connector/`;
+}

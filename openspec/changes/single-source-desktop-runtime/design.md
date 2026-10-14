@@ -43,9 +43,21 @@ electron-builder.js 的嵌套树拷贝行（42-43）删除；`files` 列表的 `
 
 `dsh-profile.js` 的 `RUNTIME_NODE_MODULES` 推导不变：无 `DSH_BIN` 时回退 `APP_NODE_MODULES`——桌面 app 树在 predist 后含矩阵闭包，桥插件链接（`PROFILE_BRIDGE_PACKAGES`）继续从同一棵树取，realpath 单例约束（2026-10-09 Symbol 事故的修复）自然保持。`Links point at the app's own copies` 的既有合同语义不变。
 
-## D4 — 镜像顺带瘦身
+## D4 — 记账收敛（原「镜像顺带瘦身」的订正）
 
-根 manifest 删 33 行后，Dockerfile 的根安装层（`npm ci --omit=dev`）自然不再装运行时闭包，`/app/node_modules` 的 @deepseek-ai 面缩到 8 包（~5MB）；`/opt/dsh` 路线零变化。无 Dockerfile 改动需求——除一处复核：根安装行的 `--legacy-peer-deps` 已在 unify 摘除，本 change 后根树连"两代并存"的形态都消失，ESM 解析面更简单。
+**订正（2026-10-14 实测）**：本 change 不产生镜像/包体积收益。原稿假设"根 manifest 删 33 行 → 根树不再装运行时闭包 → `/app/node_modules` 的 @deepseek-ai 面缩到 8 包（~5MB）"，实测证伪：
+
+- 瘦身后根清单的干净安装（`npm ci --omit=dev`，临时目录）仍是 **290 个 `@deepseek-ai` 包 / 219MB**，`@deepseek-ai/dsh` 照常在树里。
+- 原因：保留行 `dsh-sdk-client` 在 `dependencies` 里硬写 `"@deepseek-ai/dsh": "0.2.0-rc.2"`，而 dsh 硬依赖全家族 → 根树**永远传递拉入整个闭包**，与根清单列几行无关。
+- 反证 `dsh-sdk-client` 是元数据冗余而非真依赖：其 `lib/` 只 import `dsh-sdk-protocol` / `dsh-session` / `dsh-llm`（grep 全量，零处 import 裸 `@deepseek-ai/dsh`）。要拿体积收益只能改发布方包的元数据（overrides/本地 patch），属于「动 dsh」范畴——**明确不做**（用户 2026-10-14 明令：不删 dsh 的部分）。
+
+**本 change 的真实收益 = 版本真源收敛 + 构建路径统一**：
+
+- 桌面闭包的**声明位置**从根清单 39 行（手维护、须与矩阵同步 bump）收敛到 `dsh-matrix/` 单源（manifest + frozen lock + prune 名单），与镜像 `/opt/dsh` 完全同构——桌面与服务器从此不可能各装一代。
+- 旧机制的两个历史前提（嵌套树拷贝、41 行手维护）在 0.2.0 平铺布局下本就失效，本 change 把失效机制清掉，而不是新增机制。
+- Dockerfile 零改动（原稿"无 Dockerfile 改动需求"这半句仍成立）。根树 `--legacy-peer-deps` 的摘除属 unify 变更，与本 change 无耦合。
+
+体积账（3.4）相应改判：桌面载荷**不变**（闭包逐包同版），只落"声明面 39→9 行 + 一条 predist 步替代 hoist 步"的机制账。
 
 ## D5 — 验收门
 

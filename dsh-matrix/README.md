@@ -22,6 +22,24 @@ ADR-0023）。Dockerfile 的 dsh 安装层从这里的 `package.json`（意图�
 - `.npmrc` 刻意**不含** `legacy-peer-deps`（历史 Dockerfile 用它关掉了传递
   peer 自动安装，才被迫手钉 18 个插件包——该类别随 0.2.0 硬依赖化消灭）。
 
+## 桌面同源（single-source-desktop-runtime）
+
+桌面安装包与服务器镜像**共用这一个源头**，不再有第二条路径：
+
+- 镜像：Dockerfile 的 dsh 安装层 `npm ci` 到 `/opt/dsh` → `prune.mjs --tree /opt/dsh`
+  （同一 RUN 里 `--tree /app` 剪应用树）。
+- 桌面：`predist` 的 `scripts/install-dsh-matrix.mjs` —— staging `npm ci`（同
+  manifest+lock+.npmrc）→ `prune.mjs` staging → 平铺并入 app `node_modules`
+  （不覆盖 npm 已解析的包）→ **再 `prune.mjs --tree <app 根>`**。
+- 合同 scratch 树：`ensureScratchTree` 同样 `npm ci` + 剪枝（出货形状）。
+
+为什么 app 树也要剪：根 `package.json` 保留的 `dsh-sdk-client` 在 `dependencies`
+里硬写 `@deepseek-ai/dsh`（其 `lib/` 实际零处 import 裸 dsh，是发布方的元数据
+冗余），dsh 又硬依赖全家族——所以根树**永远**传递携带整个闭包，与根清单列几行
+无关（2026-10-14 干净安装实测：290 个 `@deepseek-ai` 包 / 219MB）。剪枝是各树
+达到同一出货形状的唯一手段：剪后 233 包 / 33MB（-186MB = libreoffice-kit
+148MB + dsh 自家 UI 38MB）。
+
 ## 上游陷阱备忘
 
 - `dsh-base` / `dsh-sdk-protocol` 的 `latest` dist-tag 停在首版从未更新——

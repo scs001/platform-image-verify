@@ -30,28 +30,38 @@ if (fs.existsSync(nodePath)) {
   allGood = false;
 }
 
-// The dsh runtime binary and its nested component tree must be present in the
-// dependency tree the installer will pack — a packaged install cannot fall
-// back to a global `dsh` (win-install-smoke 2026-10-08: spawn dsh ENOENT on a
-// clean machine, then cordis-plugin-group missing from the nested closure).
-// The bundled bin.js is exactly the path dsh-bridge.js resolves at runtime.
+// The dsh runtime must be present in the tree the installer packs — a packaged
+// install cannot fall back to a global `dsh` (win-install-smoke 2026-10-08:
+// spawn dsh ENOENT on a clean machine). The bundled bin.js is exactly the path
+// dsh-bridge.js resolves at runtime.
+//
+// Single-source assertion (single-source-desktop-runtime D2/D5): the runtime
+// closure is installed from dsh-matrix by scripts/install-dsh-matrix.mjs, so
+// the packed dsh version MUST equal the matrix's intent row. A drift here
+// means the desktop and the server image are on different runtimes — exactly
+// the class of split this change removed.
 const bundledDshBin = path.join(PROJECT_ROOT, "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js");
-const nestedRuntimeProbe = path.join(
-  PROJECT_ROOT, "node_modules", "@deepseek-ai", "dsh", "node_modules",
-  "@deepseek-ai", "dsh-app-boot", "package.json",
-);
-if (fs.existsSync(bundledDshBin)) {
+const bundledDshPkg = path.join(PROJECT_ROOT, "node_modules", "@deepseek-ai", "dsh", "package.json");
+const matrixManifestPath = path.join(PROJECT_ROOT, "dsh-matrix", "package.json");
+if (fs.existsSync(bundledDshBin) && fs.existsSync(bundledDshPkg)) {
   console.log("✅ Bundled dsh runtime bin: OK");
+  try {
+    const installed = JSON.parse(fs.readFileSync(bundledDshPkg, "utf8")).version;
+    const intent = JSON.parse(fs.readFileSync(matrixManifestPath, "utf8")).dependencies?.["@deepseek-ai/dsh"];
+    if (intent && installed !== intent) {
+      console.error(`❌ Bundled dsh version drift: app tree has ${installed}, dsh-matrix intends ${intent}.`);
+      console.error("   Run `node scripts/install-dsh-matrix.mjs` (or the full predist) to re-sync from the matrix.");
+      allGood = false;
+    } else {
+      console.log(`✅ Bundled dsh version matches the matrix intent: ${installed}`);
+    }
+  } catch (err) {
+    console.error(`❌ dsh version assertion could not run: ${err?.message || err}`);
+    allGood = false;
+  }
 } else {
   console.error(`❌ Bundled dsh runtime missing at: ${bundledDshBin}`);
-  console.error("   @deepseek-ai/dsh must be a dependency — a packaged install has no global dsh.");
-  allGood = false;
-}
-if (fs.existsSync(nestedRuntimeProbe)) {
-  console.log("✅ dsh nested runtime tree: OK");
-} else {
-  console.error(`❌ dsh nested runtime tree missing at: ${path.dirname(path.dirname(path.dirname(path.dirname(path.dirname(nestedRuntimeProbe)))))}`);
-  console.error("   dsh loads its components dynamically from its nested node_modules — without them the packaged agent dies on first boot.");
+  console.error("   Run predist (scripts/install-dsh-matrix.mjs installs it from dsh-matrix).");
   allGood = false;
 }
 

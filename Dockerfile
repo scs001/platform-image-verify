@@ -119,10 +119,20 @@ COPY dsh-matrix/package.json dsh-matrix/package-lock.json dsh-matrix/.npmrc dsh-
 # NODE_OPTIONS heap bump: npm's resolver exhausts the default 2GB heap on
 # this closure. Boot-time hard gate: server.js and agent-runner verify the
 # installed tree against the same lock at startup (lib/dsh-matrix-verify.js).
+#
+# The app-tree prune (--tree /app) rides the same RUN: the root tree
+# transitively carries the dsh family (dsh-sdk-client hard-depends on dsh, so
+# slimming the root manifest does NOT shrink /app — measured 2026-10-14:
+# 290 @deepseek-ai packages / 219MB), and that copy includes the same prunable
+# payload /opt/dsh removes (libreoffice-kit ~148MB, dsh's own UI ~38MB).
+# prune.json's contract is "applies everywhere the matrix installs" — the
+# image's /opt/dsh, the contracts scratch tree, and the desktop's predist
+# install; the app tree is the fourth site and was the one missing.
 RUN mkdir -p /opt/dsh \
     && cp dsh-matrix/package.json dsh-matrix/package-lock.json dsh-matrix/.npmrc /opt/dsh/ \
     && NODE_OPTIONS=--max-old-space-size=8192 npm ci --prefix /opt/dsh \
     && node dsh-matrix/prune.mjs --tree /opt/dsh \
+    && node dsh-matrix/prune.mjs --tree /app \
     && mkdir -p /opt/dsh-home/profiles/platform \
     && cp dsh-profile-template/package.json \
           dsh-profile-template/pnpm-workspace.yaml \

@@ -29,20 +29,12 @@ const extraResources = [
     to: "node/",
     filter: ["**/*", "!*.tar.gz"],
   },
-  {
-    // dsh's runtime components live in its NESTED node_modules (172 packages:
-    // dsh-* / cordis-plugin-* / dsh-sdk-jsonrpc-server, loaded dynamically by
-    // the profile boot and the platform bridge plugins). The builder's node-
-    // modules collector only walks DECLARED dependency edges (npm list prod
-    // graph), so peer-only and dynamically-inserted components never reach
-    // the packed tree — v1.3.2/v1.3.3/v1.3.4 win-install-smoke all died on
-    // the first missing component (cordis-plugin-group). extraResources
-    // copies LITERALLY, bypassing the collector: ship the nested tree intact
-    // so the packaged dsh resolves components exactly like a dev tree.
-    from: "node_modules/@deepseek-ai/dsh/node_modules/",
-    to: "app/node_modules/@deepseek-ai/dsh/node_modules/",
-    filter: ["**/*", "!**/.bin/**", "!**/.DS_Store"],
-  },
+  // (The dsh runtime nested-tree copy was retired by single-source-desktop-
+  // runtime: 0.2.0's flat hard-dependency layout leaves that directory empty,
+  // and scripts/install-dsh-matrix.mjs now merges the full closure — from the
+  // same dsh-matrix source the server image installs — into the TOP-level
+  // node_modules, where the builder's collector and the explicit files glob
+  // both see it.)
 ];
 
 /** @type {import('electron-builder').Configuration} */
@@ -86,16 +78,6 @@ const config = {
     "mcp.example.json",
     "package.json",
     "node_modules/**",
-    // dsh ships its runtime components as NESTED dependencies inside its own
-    // node_modules (170+ dsh-* / cordis-plugin-* packages, loaded dynamically
-    // by the profile boot — not statically importable, so the builder's
-    // production-closure walk misses them; win-install-smoke 2026-10-08:
-    // packaged dsh died on the first missing cordis-plugin-group). The glob
-    // above should already match them (negations below do not exclude them),
-    // but nested scopes have historically been dropped by builder versions —
-    // keep this explicit restatement so the dsh runtime can never silently
-    // half-ship.
-    "node_modules/@deepseek-ai/dsh/node_modules/**",
     // trim node_modules fat (keep native .node binaries + prebuilds)
     "!node_modules/**/{*.md,*.markdown,LICENSE,LICENCE,*.ts,*.map,*.coffee,*.flow}",
     "!node_modules/**/.bin/**",

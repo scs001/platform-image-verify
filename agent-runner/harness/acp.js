@@ -207,10 +207,22 @@ export class AcpHarnessAdapter {
         return rec;
       } catch { /* unknown session → create below */ }
     }
-    // mcpServers is OMITTED, not {}: real ACP agents (claude-code-acp's zod
-    // schema) reject an empty object where the field is absent-or-map — the
-    // fake agent tolerated {} (contract ⑰ gap; the real harness caught it).
-    const createParams = { cwd };
+    // mcpServers is an ARRAY on the ACP wire (schema.json: items → McpServer;
+    // SDK 0.14+). The dsh-era object-map shape came from contract ⑬'s dsh ACP
+    // profile, whose value form is its own — the fake agent tolerated both,
+    // the real claude-code-acp zod schema rejected the map. Empty list = no
+    // servers; per-agent MCP injection rides ACP's session-modes later.
+    // The model rides _meta.claudeCode.options.model — claude-code-acp spreads
+    // that into its Claude Agent SDK options, and WITHOUT it the SDK boots on
+    // its built-in default (claude-sonnet-4-5), which a gateway-backed account
+    // cannot resolve (live E2E finding, 2026-10-14). set_config_option stays
+    // for agents that support live model config, but the boot model must be
+    // right for the ones that do not.
+    const createParams = {
+      cwd,
+      mcpServers: [],
+      ...(this.spawnSpec.model ? { _meta: { claudeCode: { options: { model: this.spawnSpec.model } } } } : {}),
+    };
     const res = await this.#request("session/new", createParams);
     const rec = { acpSessionId: res?.sessionId ?? acpSessionId, model: null };
     this.#sessions.set(sessionId, rec);

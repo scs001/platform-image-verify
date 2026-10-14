@@ -78,24 +78,26 @@ The Windows installer MUST be produced as an assisted (wizard) installer, with t
 - **THEN** the install targets the per-user location
 - **AND** does not require elevation
 
-### Requirement: Packaging closure covers runtime-only packages
-The packaged app MUST contain every package the runtime resolves, including packages that the package manager installed as peers but that no manifest declares as a dependency.
+### Requirement: 打包闭包由运行时矩阵单源供给
+桌面包内的 dsh 运行时闭包 SHALL 由 dsh-matrix manifest（与服务器镜像同一份意图条目与 lock）在打包期安装供给：构建产物内运行时树与矩阵 lock 逐包一致（剪枝名单内条目豁免，与镜像共享同一名单）；根 `package.json` SHALL NOT 再声明平台代码不直接 import 的 dsh 运行时行。打包闭包 SHALL 覆盖运行时解析的全部包——凡 lock 声明且不在剪枝名单内的包都在包内，运行时 boot 无 module-not-found。剪枝 SHALL 在**每个安装位置**应用同一份 `dsh-matrix/prune.json`（镜像 `/opt/dsh`、镜像应用树 `/app`、合同 scratch 树、桌面 app 树）——因根树经 `dsh-sdk-client` 的硬依赖传递携带全家族，剪枝是各树达到同一出货形状的唯一手段。
 
-#### Scenario: Peer-only runtime packages ship in the installer
-- **WHEN** the agent runtime loads components that are declared only as peer dependencies
-- **THEN** those components are present in the packaged app
-- **AND** the runtime boots without a module-not-found failure
+electron-builder 的 node_modules 收集器只遍历 dependencies/optionalDependencies、从不走 peerDependencies，而 0.2.0 dsh 图谱有大量仅经 peer 可达的运行时包及其传递依赖——打包 SHALL NOT 依赖该收集器推导运行时闭包（v1.3.9 实证：~64 包被静默丢弃、包内 boot 即崩）；打包期 SHALL 以 predist 备好的树为准整体同步（scripts/lib/packaged-tree.mjs 不动点分类 + afterPack），且 `verify-bundle` SHALL 持有收集器覆盖门（树内任何 @deepseek-ai 包都必须归入出货集）。
 
-#### Scenario: Dynamically loaded runtime tree ships intact
-- **GIVEN** the agent runtime resolves a large component tree from its own nested directory
-- **WHEN** the app is packaged
-- **THEN** that nested tree is copied into the package by an explicit resource declaration
-- **AND** the packaged tree matches the development tree package-for-package
+#### Scenario: 运行时树随包完整
+- **WHEN** 打包后的应用在无外置供给的机器上启动 agent 运行时
+- **THEN** 运行时解析的每个包（lock 声明、剪枝名单外）都在包内，boot 无 module-not-found
 
-#### Scenario: Install resolves conflicting peer generations
-- **WHEN** declared packages carry mutually incompatible peer ranges across two generations
-- **THEN** installation proceeds with peer resolution relaxed
-- **AND** the lockfile remains the source of truth for the resolved tree
+#### Scenario: 矩阵是唯一版本真相
+- **WHEN** 检视桌面包内 dsh 运行时树的包版本
+- **THEN** 与 dsh-matrix lock 逐包一致；根 package.json 只含平台直接 import 的 dsh 包，不构成第二个版本来源
+
+#### Scenario: 剪枝名单四面共享
+- **WHEN** dsh-matrix 剪枝名单变更
+- **THEN** 镜像（/opt/dsh 与应用树）、合同 scratch 树、桌面包在下一次各自构建时应用同一名单，不各自维护剪枝副本
+
+#### Scenario: 收集器盲区不伤闭包
+- **WHEN** 某运行时包仅经 peerDependencies 可达（manifest 不声明、收集器不遍历）
+- **THEN** 打包流程仍把它与其传递依赖同步进包（afterPack 整树同步），且 verify-bundle 的收集器覆盖门在该包会被丢弃时判红
 
 ### Requirement: Profile module links are maintained by the app
 The app MUST ensure the agent profile can resolve its bare-specifier plugins on a machine that has no out-of-band provisioning.

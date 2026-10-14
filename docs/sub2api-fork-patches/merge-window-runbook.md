@@ -55,6 +55,12 @@ merge 用时从本节开始计（台账§三「merge 用时」字段，>1 天触
   400 字符源码断言窗口内只留一行注册调用，构造挪窗口外）。
 - 上游新增 ent 字段/schema：`cd backend && go generate ./ent`（生成物全量提交）；
   新迁移 SQL 编号顺延（首个 fork 迁移=246_group_rerank_price_per_request.sql）。
+- **快照形状变更必升版本号**（v0.2.16-3 生产实证坑）：给 `APIKeyAuthSnapshot`
+  （`api_key_auth_cache.go`，或任何带 `Version` 门禁的缓存形状）加字段时必须
+  同步 `apiKeyAuthSnapshotVersion++`（当前 v25），否则滚产窗口内 Redis L2 的
+  存量快照按旧形状反序列化——新字段静默 nil（rerank 价目配着仍计 0 的实锤：
+  用量行 92221，同批 audio 正确=恰逢缓存重建）。同型检查：调度快照、
+  `GatewayCache` 内的组/键形状。
 - 车道平台登记若上游改了平台清单派生函数：**车道平台谓词排除**（schedulerSnapshot
   / billingProbe）必须跟住，否则 8MB 内存界与探测外发回归。
 

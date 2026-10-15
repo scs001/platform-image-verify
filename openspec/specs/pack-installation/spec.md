@@ -7,13 +7,28 @@ What subscribing to a pack does inside the subscriber's cell: one-click material
 
 ### Requirement: One action materializes the whole pack
 
-Subscribing to a pack SHALL be a single user action that installs the subscribed version's snapshot: every skill becomes available for invocation through the platform's existing skill pipeline, every MCP reference becomes an installed connectable server, and every agent entry becomes selectable in the agent picker. No part of the install SHALL require per-part user actions.
+Subscribing to a pack SHALL be a single user action that installs the subscribed version's snapshot: every skill becomes available for invocation through the platform's existing skill pipeline, every MCP reference becomes an installed connectable server, and every agent entry becomes selectable in the agent picker. No part of the install SHALL require per-part user actions. A pack whose skills carry executable-content files (scripts) SHALL present exactly one upfront acknowledgment naming the count of script files before the install proceeds — one acknowledgment for the whole pack, never per part; a pack without script files keeps the previous zero-friction flow. A skill entry with an auxiliary file set SHALL materialize as a complete directory tree (skill document plus auxiliary files) so the runtime resolves the skill's resources against its own directory; an entry without one materializes exactly as the single-file skill of the previous contract.
 
 #### Scenario: Full pack installs in one action
 
 - **WHEN** a user subscribes to a pack with two skills, one MCP reference, and one agent
 - **THEN** after the single subscribe action completes, both skills are invocable, the MCP server is installed and connectable, and the agent appears in the picker
 
+#### Scenario: Multi-file skill materializes as a tree
+
+- **WHEN** a subscribed pack contains a skill whose entry carries `references/method.md` and `scripts/run.py`
+- **THEN** the installed skill's directory contains the skill document and both auxiliary files at their relative paths, and a conversation referencing them resolves the paths against the skill's directory
+
+#### Scenario: Script-bearing pack asks once, upfront
+
+- **WHEN** a user subscribes to a pack whose skills carry three script files in total
+- **THEN** the install flow presents one acknowledgment naming three script files, and confirming it installs the whole pack
+- **AND** an install request for a script-bearing pack that arrives without the confirmation marker is rejected server-side and installs nothing
+
+#### Scenario: Script-free pack keeps the zero-friction flow
+
+- **WHEN** a user subscribes to a pack whose skills carry no executable-content files
+- **THEN** the install proceeds exactly as before with no acknowledgment step
 ### Requirement: Installed content is a version snapshot
 
 Installed skills, MCP references, and agent entries SHALL come from the manifest of the version that was subscribed. They SHALL keep working unchanged regardless of later marketplace events: the author publishing newer versions, or unpublishing the pack entirely.
@@ -30,7 +45,7 @@ Installed skills, MCP references, and agent entries SHALL come from the manifest
 
 ### Requirement: Skill conflict policy — never overwrite foreign content
 
-A pack skill whose name collides with an existing skill not owned by that pack (user-created or from another pack) SHALL be skipped and reported with the collision reason; the existing skill SHALL be untouched. Skills owned by the pack itself SHALL be replaced by the pack's current content on install and upgrade. The cell SHALL track which skills each installed pack owns.
+A pack skill whose name collides with an existing skill not owned by that pack (user-created or from another pack) SHALL be skipped and reported with the collision reason; the existing skill SHALL be untouched. Skills owned by the pack itself SHALL be replaced by the pack's current content on install and upgrade — body, auxiliary file set, and stored frontmatter replaced wholesale, with files removed in the new version swept from the materialized tree. The cell SHALL track which skills each installed pack owns.
 
 #### Scenario: Name collision skips and reports
 
@@ -42,6 +57,10 @@ A pack skill whose name collides with an existing skill not owned by that pack (
 - **WHEN** a subscriber upgrades a pack whose new version changed a skill the pack had installed
 - **THEN** the skill is updated to the new version's content
 
+#### Scenario: Upgrade sweeps dropped files
+
+- **WHEN** a pack's new version removes an auxiliary file that the previous version had installed
+- **THEN** the materialized skill directory no longer contains that file
 ### Requirement: MCP references resolve through the subscriber's own credentials
 
 Each MCP reference SHALL resolve through the existing registry-market install path using the subscriber's own registry credential; the pack SHALL NOT carry or transfer any secret. A server already installed in the cell SHALL be reused, not duplicated. A reference whose name matches a locally installed server row (a user-deployed server, not a registry-market entry) SHALL bind to that local row: the binding is recorded with the pack's installed state, the local row's configuration is neither overwritten nor extended by the install, and no group gate applies to a local binding. A reference that resolves to neither — no registry catalog entry and no local row of that name — SHALL be reported as awaiting-local-binding in the install report without blocking the other parts; it becomes a bound reference when a server of that name is later installed or connected in the cell, with no reinstall of the pack required. A reference that names a registry entry the subscriber cannot use — the server is no longer in the visible catalog, or the subscriber's groups do not grant access — SHALL be reported as unavailable in the install report without blocking the other parts. An allowlist declared on the reference SHALL travel with the resolution: reused, bound, and awaiting-local-binding references all keep their declared tool names in the installed record, to take effect in focused mode (openspec: pack-agent-scoping).
@@ -83,7 +102,7 @@ Each MCP reference SHALL resolve through the existing registry-market install pa
 
 ### Requirement: Install report
 
-Every subscribe, upgrade, and unsubscribe action SHALL produce a per-part report stating, for each skill, MCP reference, and agent, one of: installed, reused, replaced, skipped or unavailable with a reason, bound or awaiting-local-binding with guidance, or removed. The UI SHALL show the report after the action.
+Every subscribe, upgrade, and unsubscribe action SHALL produce a per-part report stating, for each skill, MCP reference, and agent, one of: installed, reused, replaced, skipped or unavailable with a reason, bound or awaiting-local-binding with guidance, or removed. The report's skill rows SHALL additionally state the entry's auxiliary file count and name the entry's script files, so a subscriber can see what file content arrived. The UI SHALL show the report after the action.
 
 #### Scenario: Partial failure is visible
 
@@ -95,6 +114,10 @@ Every subscribe, upgrade, and unsubscribe action SHALL produce a per-part report
 - **WHEN** a subscribe completes with one MCP reference bound to a local server and another awaiting-local-binding
 - **THEN** the report lists both with their binding outcomes, and the awaiting part names what the user can do to activate it
 
+#### Scenario: File content is disclosed per skill
+
+- **WHEN** a subscribe completes with a skill that installed six auxiliary files, two of them scripts
+- **THEN** that skill's report row states six files and names the two script files
 ### Requirement: Pack agents run as local personas
 
 A subscribed pack's agent entries SHALL appear in the subscriber's agent picker and, when selected, SHALL run as a local persona in the subscriber's runtime — the platform's currently selected model with the pack persona's behavior — composed with the pack's resource set and the deployment baseline (openspec: pack-agent-scoping): the pack's own skills and MCP references plus the deployment's always-on baseline, not the subscriber's entire installed surface. Switching back to a shipped mode or the built-in agent restores the full surface.
@@ -125,7 +148,7 @@ When the marketplace holds a newer version of an installed pack, the installed p
 
 ### Requirement: Unsubscribe removes pack-owned content only
 
-Unsubscribing SHALL remove the pack's owned skills and agent entries. It SHALL warn before removing a pack skill whose content the user modified after installation. It SHALL NOT remove MCP server configurations, which are shared utilities that manual installs and other packs may also reference.
+Unsubscribing SHALL remove the pack's owned skills and agent entries. It SHALL warn before removing a pack skill whose content the user modified after installation — modified meaning the body, the auxiliary file set, or the stored frontmatter diverges from the installed version's manifest. It SHALL NOT remove MCP server configurations, which are shared utilities that manual installs and other packs may also reference.
 
 #### Scenario: Uninstall removes skills and agent
 
@@ -137,11 +160,15 @@ Unsubscribing SHALL remove the pack's owned skills and agent entries. It SHALL w
 - **WHEN** a subscriber edited a pack skill's content and then unsubscribes
 - **THEN** the uninstall flow warns that the modified skill will be lost and requires explicit confirmation
 
+#### Scenario: Edited auxiliary file also warns
+
+- **WHEN** a subscriber edited one auxiliary file of a pack skill and then unsubscribes
+- **THEN** the uninstall flow warns that the modified skill will be lost, same as a body edit
+
 #### Scenario: MCP configurations survive unsubscribe
 
 - **WHEN** a subscriber unsubscribes from a pack whose MCP reference was installed by the subscribe action
 - **THEN** the MCP server configuration remains installed and connectable
-
 ### Requirement: The cell records installed packs
 
 The cell SHALL record each installed pack (identifier, version, per-part state) and expose the list to the user. This installed-pack state — not the gateway's subscription records — is what determines what is materialized in the cell and what the update and unsubscribe flows act on.

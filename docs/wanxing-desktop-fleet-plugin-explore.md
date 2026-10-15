@@ -1,6 +1,7 @@
 # 萬星桌面舰队插件 调研底稿（桌面版=客户主要执行平台线）
 
-> 2026-10-15 用户拍板立项。**状态：调研完成、切片待排**——本文是后续 change 的单一
+> 2026-10-15 用户拍板立项；同日 `/grill-with-docs` 三轮拷问收口（十问全裁）。
+> **状态：shared understanding 达成、切片①待排**——本文是后续 change 的单一
 > 事实源。伞文档关系：产品计划归 `facet-wanxing-roadmap.md`，运行底座机制层归
 > `wanxing-multi-harness-runtime-explore.md`，本文只管**萬星能力落到桌面版**这一片。
 > 调研基线：本仓生产代码实证（supervisor/ electron/ agent-runner/ gateway/）+
@@ -83,16 +84,17 @@
 桌面已有自己的 cell（server-js）。管理动作走 registry（部署面），监控走 observer
 ingest（只读上行），**桌面 runner 永不向本地之外的平面开入站控制口**。
 
-## 切片序列（提案）
+## 切片序列（grill 后定稿）
 
 | # | 切片 | 内容 | 验收 |
 |---|---|---|---|
-| ① | 本地舰队宿主 | descriptors 加 `agent-runner-js`（optional、默认 disabled）+ Preferences「萬星舰队」面板（开关+registry/fleet/模型 env）+ `DSH_MATRIX_INSTALL_ROOT` 指发行树矩阵 | 桌面开插件 → 本地 runner 健康 → 从公网 registry 部署一个 pack → A2A localhost 真回合 |
-| ② | 桌面舰队 UI | web 加舰队页：runner /health + fleet 采样（本地直读）；部署/暂停/销毁按钮走 registry API | 浏览器级眼见：本地 agents 列表+状态+费用（sub2api per-agent key） |
-| ③ | 远程互通·监控上行 | fleet 上报指客户萬星实例 observer；设备配对流（bind-code）发 runner 凭据 | 远程良机 console board 眼见桌面 runner 的 agents/pod 徽标 |
-| ④ | 远程互通·入站交流 | 定入站通道（未决 #1）+ agent-card 注册公网 | 外部萬星 agent 真回合调通桌面 agent |
+| ① | 本地舰队宿主 | descriptors 加 `agent-runner-js`（optional、默认 disabled）+ Preferences「萬星舰队」面板（开关+registry/fleet/模型 env）+ `DSH_MATRIX_INSTALL_ROOT` 指发行树矩阵 + 独占 runner_id（sticky、离线永不重派）；生命周期 v1=跟随退出 | 桌面开插件 → 本地 runner 健康 → API 部署一个市场 pack → A2A localhost 真回合 |
+| ② | 桌面舰队 UI + 市场页 | web 加舰队页（本机 runner 直读：agents/状态/生命周期/费用）+ 内嵌市场页（公网 registry 目录，部署目标=本机机位）+ 托盘驻留（关窗→托盘 agents 继续跑；退出→drain） | 浏览器级眼见：市场选包装本机 + 舰队页管理 + 关窗后定时任务照跑 |
+| ③ | 远程互通·监控上行+设备管理 | fleet 上报指客户萬星实例 observer；桌面机位经良机 console 设备管理面配对（bind-code 复用）/命名/吊销 | 远程 board 眼见桌面机位的 agents/pod 徽标；吊销即时断 |
+| ④ | 远程互通·信箱协议 | 异步信箱：外部萬星 agent 派任务→落公网中继→桌面 runner 出站轮询取回→唤起执行→结果回投；调用侧走萬星门面调用键体系 | 外部萬星 agent 真任务调通桌面 agent（延迟=轮询间隔，秒级可调） |
 
-①② 是「插件」本体，③④ 是「和外部萬星交流」的协议层。
+①② 是「插件」本体，③④ 是「和外部萬星交流」的协议层。托盘驻留并入②（①先跟随
+退出，简单起步）。
 
 ## 资源诚实账（上百 agents 的物理边界）
 
@@ -102,18 +104,33 @@ ingest（只读上行），**桌面 runner 永不向本地之外的平面开入�
   天花板随密度解锁（底稿《多 harness》37 行同判）。
 - 模型费用：runner 级 provider/model + pack descriptor 覆写 + 白名单门（roster
   gate）已支持；桌面场景建议默认接 sub2api per-agent key（费用可见性七问之一）。
+- **验收口径（grill Q6 定案）**：注册/管理上百、温态（驻留 pod 内）约 10-20、
+  热态并发 3-5；对外话术「管理上百、智能驻留」。桌面不承诺上百并发热态。
 
-## 未决问题
+## grill 裁决（2026-10-15 三轮，十问）
 
-1. **入站通道**（切片④ 前必须定）：(a) 异步信箱——外部经公网中继给本地 agent 留
-   任务，本地轮询取回（turn 语义异步化，配 NAT 现实）；(b) 反向隧道（cloudflared/
-   frp 类，或自建 cheap-1 tunnel 同款）；(c) v1 只出不进——桌面 agents 主动委托
-   外部（delegation 已支持），外部到桌面先以「远程可查询产出」满足。倾向：④ 选
-   (a)，隧道作为 (a) 的传输层候选。
-2. **registry 归属**：桌面 runner 连公网壹座 registry（市场同源，天然成立），还是
-   允许客户指自建 registry？倾向：v1 锁公网 registry（凭据/计费/白名单都在那），
-   自建 registry 留 env 逃生口不宣传。
-3. **远程 observer 的多租户边界**：客户萬星实例收桌面 runner 遥测，ingest token 的
-   发放/吊销流程挂在哪（良机 console 的设备管理面？）——切片③ 设计时答。
-4. **桌面 runner 的调度分片**：桌面 runner 应带独占 `runner_id`（不落云端默认分片），
-   避免云端调度器把条目派到不存在的机位——切片① 的 env 定死。
+| 问 | 裁决 |
+|---|---|
+| Q1 外部萬星指谁 | v1=同一客户在我们云端的舰队；协议面（observer ingest/A2A/信箱）按任意萬星部署设计；跨客户联邦不在 v1 |
+| Q2 插件安装形态 | 预装禁用+开关（代码已在发行树、体积已付）；可下载组件留未来组件市场 |
+| Q3 模型费用归属 | BYOK：用户自己的 sub2api/LLM key；平台分成体系不进桌面；企业接平台计费留未来 |
+| Q4 桌面两 agent 世界 | v1 分开（chat cell vs runner 舰队）；v2 在 chat 里 @萬星 agent 走本地 loopback A2A（一行 fetch，不返工） |
+| Q5 app 关闭行为 | 托盘驻留：关窗→托盘、agents 继续跑（含定时）；菜单退出→drain 全停 |
+| Q6 「上百」口径 | 注册/管理上百、温态 10-20、热态 3-5；pod 密度默认开 |
+| Q7 选包安装流 | 内嵌市场页为目标（拆到②）；①验收用 API 部署 |
+| Q8 外部→桌面交流 | **异步信箱**：任务落公网中继、桌面出站轮询取回——纯出站，零入站通道，NAT 免疫、可审计、与驻留唤起模型天作合；隧道降级为传输层候选；实时流语义对冷态驻留 agent 本不成立 |
+| Q9 registry 归属 | v1 锁公网壹座 registry（凭据/白名单/审计的治理面）；env 逃生口不宣传；自建萬星=另一部署走开放协议面交流 |
+| Q10 多设备机位 | 每设备一机位（机器名默认）；设备配对/命名/吊销挂良机 console 设备管理面（bind-code 体系第三客户端形态）；桌面舰队页只看本机 |
+
+**自决定案**（技术性无分叉）：凭据沿 settings.json（与 LLM key 同待遇，keychain
+不做）；舰队页=桌面精简版（不复刻良机多租户视图）；rhythm 桌面默认关（保温靠 app
+可见性，开 budget 逐出+external-context reap）；费用分档（sub2api=金额，裸 key=
+usage tokens 标注无金额口径）；断网=reconcile keeping last-good（已驻留继续跑，
+新部署等待）。
+
+## 已钉死的事实（不裁自明）
+
+- **桌面机位 sticky 永不重派**：fleet-scheduler 的 dead-runner 接管重派逻辑必须对
+  桌面机位短路——客户关 app ≠ 机位死亡，重派=别人机器/云 runner 偷跑计费。
+- 术语已入册 CONTEXT.md：**萬星插件**（预装禁用的运行能力组件，≠功能集 Pack）、
+  **机位**（registry 机群表一行，条目 sticky 归属）。

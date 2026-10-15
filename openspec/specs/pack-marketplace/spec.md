@@ -308,7 +308,7 @@ Each pack SHALL carry a curation category (a short slug, empty when uncategorize
 
 ### Requirement: The pack detail dialog carries an always-visible action bar
 
-The pack detail dialog SHALL render its primary actions in a bar fixed to the dialog's bottom edge — always visible regardless of the content scroll position — carrying the subscribe-and-install primary button and a visible close affordance. The former in-content action placement (the subscribe button at the end of the scrolling flow) SHALL be replaced by this bar. The bar's optional "go to my packs" affordance is host-selected: hosts pass it only where an installed-packs management surface exists (壹座); hosts without one (the facet shell) omit it. An explicit close control SHALL be present in the bar in addition to the existing overlay/Escape dismissal.
+The pack detail dialog SHALL render its primary actions in a bar flush to the dialog's bottom edge — always visible regardless of the content scroll position, opaque, with the scrolling content ending above it (no see-through gap at any scroll position) — carrying the subscribe-and-install primary button and a visible close affordance. The former in-content action placement (the subscribe button at the end of the scrolling flow) SHALL be replaced by this bar. The bar's optional "go to my packs" affordance is host-selected: hosts pass it only where an installed-packs management surface exists (壹座); hosts without one (the facet shell) omit it. An explicit close control SHALL be present in the bar in addition to the existing overlay/Escape dismissal.
 
 #### Scenario: the bar is visible without scrolling
 
@@ -330,11 +330,10 @@ The pack detail dialog SHALL render its primary actions in a bar fixed to the di
 - **WHEN** the dialog renders
 - **THEN** the close control is positioned at the dialog's top-right corner — the conventional spot — and dismisses in one step
 
-#### Scenario: scrim click is a two-step dismissal
+#### Scenario: scrim click dismisses in one step
 
 - **WHEN** the visitor clicks the overlay while the dialog is open
-- **THEN** the dialog stays open and the action bar arms a confirm row (close / keep reading)
-- **AND** activating the row's close button dismisses the dialog; Escape and the ✕ control remain one-step
+- **THEN** the dialog closes (a two-step scrim confirm was tried and reverted — the plain dismissal is the product call)
 
 #### Scenario: the signed-out viewer's goto-mine flips the guidance row
 

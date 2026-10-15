@@ -100,7 +100,7 @@ await page.evaluate(() => {
 await page.reload({ waitUntil: 'networkidle' });
 await page.waitForTimeout(2500);
 const textEn = await page.locator('body').innerText();
-const enOk = /Request \{query|Request \{input/.test(textEn) || /Rerank|Rerank/i.test(textEn) || bodyLenOf(textEn) > 50;
+const _enOk = /Request \{query|Request \{input/.test(textEn) || /Rerank|Rerank/i.test(textEn) || bodyLenOf(textEn) > 50;
 function bodyLenOf(s) { return s.length; }
 ok('en 轮 BODY 非空', textEn.length > 50, `len=${textEn.length}`);
 const braceErrEn = consoleErrors.filter((e) => /Unterminated closing brace/.test(e));

@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { validatePackManifest, validateSkillFiles, skillScriptFiles, PACK_LIMITS } from "../lib/pack-manifest.js";
 
-const KIB = 1024;
+const _KIB = 1024;
 const BASE = {
   name: "T",
   skills: [{ name: "s", description: "d", content: "c" }],

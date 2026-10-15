@@ -17,7 +17,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import assert from "node:assert/strict";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -41,7 +40,7 @@ const ingest = http.createServer((req, res) => {
 await new Promise((r) => ingest.listen(0, "127.0.0.1", r));
 const INGEST_PORT = ingest.address().port;
 
-const registry = http.createServer((req, res) => {
+const registry = http.createServer((_req, res) => {
   res.writeHead(200, { "Content-Type": "application/json" });
   res.end(JSON.stringify({ agents: [] })); // the seat hosts nothing — stats only
 });

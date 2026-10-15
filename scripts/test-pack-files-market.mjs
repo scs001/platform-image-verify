@@ -159,8 +159,8 @@ test("3.1+3.3 gate on: a >1mb files-bearing publish passes the raised jsonLimit 
     assert.equal(anon.text, "# 参考 Y\n");
 
     // Path escapes are 404, never a traversal.
-    const escape = await h.call(`/api/packs/${id}/versions/1/skills/tree-skill/files/${encodeURIComponent("../../etc/passwd")}`);
-    assert.equal(escape.status, 404);
+    const escapeProbe = await h.call(`/api/packs/${id}/versions/1/skills/tree-skill/files/${encodeURIComponent("../../etc/passwd")}`);
+    assert.equal(escapeProbe.status, 404);
     const missing = await h.call(`/api/packs/${id}/versions/1/skills/tree-skill/files/references/nope.md`);
     assert.equal(missing.status, 404);
     const foreign = await h.call(`/api/packs/${id}/versions/1/skills/doc-skill/files/any.md`);

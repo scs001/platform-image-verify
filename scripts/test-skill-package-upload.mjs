@@ -45,7 +45,7 @@ registerExtensionRoutes({
   broadcast: () => {},
   upload,
   bundle: { skills: [], permissions: {}, splitPolicy: null },
-  requireMcpManage: (_req, res) => true,
+  requireMcpManage: (_req, _res) => true,
   getMarketEntries: () => ({ skills: [], mcpServers: [] }),
 });
 const server = http.createServer(app);

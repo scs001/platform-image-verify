@@ -177,7 +177,7 @@ try {
           params: { message: { role: "user", parts: [{ kind: "text", text: "请只回复两个字：就绪" }] } },
         }),
         signal: AbortSignal.timeout(LLM_TIMEOUT_MS),
-      }).catch((e) => null);
+      }).catch((_e) => null);
       if (!res) return null;
       const doc = await res.json().catch(() => null);
       if (!doc || doc.error) return null;

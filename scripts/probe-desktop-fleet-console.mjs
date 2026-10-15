@@ -9,7 +9,6 @@
 //
 // Run: node scripts/probe-desktop-fleet-console.mjs
 
-import http from "node:http";
 import express from "express";
 import assert from "node:assert/strict";
 import { registerWanxingFleetRoutes } from "../server/routes/wanxing-fleet.js";

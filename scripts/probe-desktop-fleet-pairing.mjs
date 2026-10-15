@@ -114,7 +114,7 @@ await check("mint → desktop pair → credentials persist into settings.json", 
 await check("a real runner reports THROUGH the facade forward with desktop:true", async () => {
   // The facade forward is the public ingest door — point the runner at it.
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "wx-pair-runner-"));
-  const registry = http.createServer((req, res) => {
+  const registry = http.createServer((_req, res) => {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ agents: [] }));
   });

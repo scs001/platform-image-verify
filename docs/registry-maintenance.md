@@ -342,3 +342,15 @@ www.finddatatech.cloud 中/英双站 v1.3.12 眼见。
 包前缀解析器——facet 的全局 1mb 曾是真墙，路由级 limit 被遮蔽）；raw-md 端点对树技能
 fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 finddata
 `build_pack_manifests.py` 组 files、`validate_manifest.py` 对拍真校验器。
+
+### 12.1 add-packaged-skills 滚产记录（2026-10-16）
+
+| 项 | 值 |
+|---|---|
+| 生产镜像 | `ccr.../yizuo/platform:sha-1eda304`（digest `63e5a5dd`；snapshot sha ≙ paas `7d565f8`） |
+| 出片线 | `scs001/platform-image-verify` 公开仓免费线（run 38793699374 绿 7m0s，烟测门过；`image.yml` 恢复提交即出片 tag——快照 scrub 老坑照旧） |
+| 滚动 | fd-infra-deploy `c203f6e`（platform.yaml:54 + platform-demo.yaml:71 双清单）→ gitee 双端 → ArgoCD hard-refresh → 两 deploy 滚完，pods Running 新 tag |
+| 实证 | in-pod `/api/config` 200（packMarketplace live）；`sha-1eda304` skopeo ccr 实证后才 bump（硬门序） |
+| 门状态 | **`PACK_FILES_ENABLED` 未设（关）**——本滚只交新校验器/装包线/上传通道，生产行为与旧版逐字节一致；开门按 §12 次序（桌面版下一版本带新 cell 后） |
+| 门待办 | 桌面版 release.yml 公开线随 v1.3.13 带此 cell → 那之后才开门 + 记录首个 files 包 packId |
+| 验证账 | 单测 1449/1449（新增 27 例）；e2e 全链 1/1 + 兼容回归 40/40；typecheck 绿；CLI 对拍 vaas 88 文件真校验器 ✓ |

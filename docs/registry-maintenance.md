@@ -268,6 +268,11 @@ healthz 200；七 deployment rollout 全 OK。
 **免费无限**，不受 FDT 私有额度影响）。win-smoke 用同仓 `workflow_dispatch` 指
 tag 复验。
 
+**v1.3.12 出片实证**：release run 38770836031 三矩阵全绿（dmg-arm64/dmg-x64/exe
+——含 dmg-x64 的 Rosetta Node 路径）；assets 304/312.2/230.5MB 附 Release；
+win-smoke 38772823000 三相全绿（Phase C 窗口渲染 self-test exit 0）。
+release.yml 的 tag 触发与 win-smoke 的 dispatch(tag) 配方照旧有效。
+
 **认知订正（用户指正 2026-10-16）**：先前把 app-build.yml 的 macOS 计费当阻断是
 错的——那条 workflow 属**私仓** app-build 线；桌面发行一直走公开仓 release.yml
 （v1.3.0-v1.3.11 的 Release 资产即其产物）。**开源线的免费额度就是桌面打包的

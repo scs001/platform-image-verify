@@ -45,6 +45,30 @@ settings.json，此后每次启用沿用。runner 的默认分片 id SHALL 显�
 - **WHEN** 插件停用后再启用
 - **THEN** runner 沿用同一机位 id，其名下条目不换归属
 
+### Requirement: 机位配对与吊销
+
+桌面机位 SHALL 经六位配对码绑定到 console 身份：console 侧铸码（短时、单次），
+桌面侧凭码核销换取 per-seat 上行凭据（facade 公开 ingest 转发面），凭据由 cell
+server 直接持久化、不经渲染层转交。吊销 SHALL 删除机位登记使下一次上行即 401。
+服务间内部凭据 SHALL 永不下发桌面——桌面只持有自己的 per-seat token。
+
+#### Scenario: 配对闭环
+
+- **WHEN** console 用户铸码、桌面在设置面输入该码
+- **THEN** 机位绑定该用户，上行 URL/token 落入 settings.json，runner 重启后经
+  facade 转发面上报（observer 收到 `desktop: true` 的 runner_stats）
+
+#### Scenario: 吊销即时断链
+
+- **WHEN** console 用户吊销某机位
+- **THEN** 该机位的 per-seat token 在下一次 ingest 即 401，其 registry 条目仍
+  sticky 等待（调度器永不重派桌面机位）
+
+#### Scenario: 配对码单次且限形
+
+- **WHEN** 同一码被重复核销或 runnerId 非 desktop- 形状
+- **THEN** 核销拒绝（401/400），码不可复用
+
 ### Requirement: 桌面机位对云端调度隐形
 
 桌面 runner SHALL 可配置向 fleet observer 上行遥测（`runner_stats` 携带

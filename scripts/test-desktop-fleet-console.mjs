@@ -10,10 +10,14 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import express from "express";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { registerWanxingFleetRoutes } from "../server/routes/wanxing-fleet.js";
 
 function appWith({ env = {}, fetchImpl } = {}) {
   const app = express();
+  app.use(express.json()); // the real cell app parses JSON bodies globally
   registerWanxingFleetRoutes({ app, env, fleetFetchImpl: fetchImpl });
   return app;
 }
@@ -23,6 +27,20 @@ const handle = (app, path) =>
     const server = app.listen(0, "127.0.0.1", () => {
       const { port } = server.address();
       fetch(`http://127.0.0.1:${port}${path}`)
+        .then(async (r) => resolve({ status: r.status, body: await r.json() }))
+        .finally(() => server.close());
+    });
+  });
+
+const post = (app, path, body) =>
+  new Promise((resolve) => {
+    const server = app.listen(0, "127.0.0.1", () => {
+      const { port } = server.address();
+      fetch(`http://127.0.0.1:${port}${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      })
         .then(async (r) => resolve({ status: r.status, body: await r.json() }))
         .finally(() => server.close());
     });
@@ -77,4 +95,39 @@ test("registry failure surfaces as 502 registry_unreachable", async () => {
   const { status, body } = await handle(app, "/api/wanxing/fleet/catalog");
   assert.equal(status, 502);
   assert.equal(body.error, "registry_unreachable");
+});
+
+// Pairing (slice ③): the redeem call goes out with the seat id from the
+// process env; success persists the uplink credentials into settings.json.
+test("pair redeems server-side and persists uplink credentials", async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "wx-pair-"));
+  let seen = null;
+  const app = appWith({
+    env: {
+      PLATFORM_DATA_DIR: tmpDir,
+      WANXING_PLUGIN_RUNNER_ID: "desktop-ab12cd34",
+      WANXING_CONSOLE_URL: "https://wanxing.example.test",
+    },
+    fetchImpl: async (u, i) => {
+      seen = { url: u, body: JSON.parse(i.body) };
+      return { ok: true, status: 201, json: async () => ({ runnerId: "desktop-ab12cd34", fleetUrl: "https://wanxing.example.test/api/wanxing/v1/fleet", fleetToken: "wxdesk-abc" }) };
+    },
+  });
+  const { status, body } = await post(app, "/api/wanxing/fleet/pair", { code: "123456", machineName: "书房 Mac" });
+  assert.equal(status, 200);
+  assert.equal(body.ok, true);
+  assert.equal(seen.url, "https://wanxing.example.test/api/wanxing/v1/console/devices/redeem");
+  assert.equal(seen.body.runnerId, "desktop-ab12cd34");
+  assert.equal(seen.body.machineName, "书房 Mac");
+  const saved = JSON.parse(fs.readFileSync(path.join(tmpDir, "settings.json"), "utf8"));
+  assert.equal(saved.AGENT_RUNNER_FLEET_URL, "https://wanxing.example.test/api/wanxing/v1/fleet");
+  assert.equal(saved.AGENT_RUNNER_FLEET_TOKEN, "wxdesk-abc");
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+test("pair rejects a malformed code without touching the console", async () => {
+  const app = appWith({ env: { WANXING_PLUGIN_RUNNER_ID: "desktop-ab12cd34" }, fetchImpl: async () => { throw new Error("must not be called"); } });
+  const { status, body } = await post(app, "/api/wanxing/fleet/pair", { code: "abc" });
+  assert.equal(status, 400);
+  assert.equal(body.error, "bad_code");
 });

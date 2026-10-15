@@ -129,3 +129,41 @@ document.getElementById('saveWanxing').addEventListener('click', async () => {
   setTimeout(() => { statusEl.textContent = ''; }, 6000);
 });
 
+
+// Pair with the Wanxing console (slice ③): the code redeems server-side and
+// the credentials persist in settings.json — the renderer only sees success.
+document.getElementById('wanxingPairBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('wanxingPairBtn');
+  const code = document.getElementById('wanxingPairCode').value.trim();
+  const machineName = document.getElementById('wanxingPairName').value.trim();
+  const statusEl = document.getElementById('wanxingStatus');
+  if (!/^\d{6}$/.test(code)) {
+    statusEl.className = 'error';
+    statusEl.textContent = '✗ The pairing code is six digits';
+    return;
+  }
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/wanxing/fleet/pair', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, machineName }),
+    });
+    const doc = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      statusEl.className = 'error';
+      statusEl.textContent = '✗ Pairing failed: ' + (doc.message || doc.error || r.status);
+    } else {
+      document.getElementById('wanxingPairCode').value = '';
+      document.getElementById('wanxingFleetUrl').value = doc.fleetUrl || '';
+      statusEl.className = 'success';
+      statusEl.textContent = '✓ Seat ' + doc.runnerId + ' paired — uplink saved. Restart the fleet runner to apply.';
+      setTimeout(() => void loadInitial(), 400);
+    }
+  } catch (e) {
+    statusEl.className = 'error';
+    statusEl.textContent = '✗ Pairing unreachable: ' + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+});

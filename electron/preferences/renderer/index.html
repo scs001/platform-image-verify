@@ -169,6 +169,15 @@
       <label for="wanxingFleetToken">Fleet uplink token</label>
       <input type="password" id="wanxingFleetToken" name="wanxingFleetToken" autocomplete="off">
     </div>
+    <div class="form-group">
+      <label>Pair with the Wanxing console</label>
+      <p class="hint">Mint a pairing code in the console's device panel, paste it here — the uplink URL and token are fetched and saved automatically.</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input type="text" id="wanxingPairCode" placeholder="6-digit code" style="width:120px" autocomplete="off">
+        <input type="text" id="wanxingPairName" placeholder="machine name" style="flex:1;min-width:140px">
+        <button id="wanxingPairBtn" class="secondary">Pair</button>
+      </div>
+    </div>
     <div class="actions">
       <button id="saveWanxing">Save Wanxing Settings</button>
       <span id="wanxingStatus"></span>

@@ -10,6 +10,9 @@
 // renders as guidance, not an error toast.
 
 import { Router } from "express";
+import fs from "node:fs";
+import path from "node:path";
+import { atomicWriteJsonSync } from "../../lib/persistence.js";
 
 const RUNNER_TIMEOUT_MS = 2000;
 
@@ -23,6 +26,15 @@ export function registerWanxingFleetRoutes(ctx) {
   const registryBase = () =>
     String(env.AGENT_SERVING_REGISTRY_URL || "").replace(/\/+$/, "");
   const registryToken = () => String(env.AGENT_SERVING_REGISTRY_TOKEN || "");
+  // The Wanxing console the desktop pairs against (slice ③): the redeem call
+  // carries no console session — the six-digit code is the entire proof, so
+  // the server-side call never needs a forwarded identity.
+  const consoleBase = () =>
+    String(env.WANXING_CONSOLE_URL || "https://wanxing.finddatatech.cloud").replace(/\/+$/, "");
+  const settingsPath = () => {
+    const dataDir = env.PLATFORM_DATA_DIR || "";
+    return dataDir ? path.join(dataDir, "settings.json") : null;
+  };
 
   router.get("/live", async (_req, res) => {
     try {
@@ -69,6 +81,52 @@ export function registerWanxingFleetRoutes(ctx) {
     } catch {
       return res.status(502).json({ error: "registry_unreachable" });
     }
+  });
+
+  // Pairing (slice ③): the user pastes a six-digit code minted in the Wanxing
+  // console. The cell redeems it server-side (the seat id rides the process
+  // env, planted by first-run bootstrap) and PERSISTS the returned uplink
+  // credentials straight into settings.json — the token transits the renderer
+  // as a success flag only, never as a value to re-submit.
+  router.post("/pair", async (req, res) => {
+    const runnerId = String(env.WANXING_PLUGIN_RUNNER_ID || "");
+    if (!/^desktop-[A-Za-z0-9._-]{1,60}$/.test(runnerId)) {
+      return res.status(503).json({ error: "seat_id_missing", message: "restart the app once so first-run seeds the seat id" });
+    }
+    const code = String(req.body?.code || "").trim();
+    const machineName = String(req.body?.machineName || "").slice(0, 80) || null;
+    if (!/^\d{6}$/.test(code)) {
+      return res.status(400).json({ error: "bad_code", message: "the pairing code is six digits" });
+    }
+    const file = settingsPath();
+    if (!file) {
+      return res.status(503).json({ error: "settings_unwritable", message: "no PLATFORM_DATA_DIR on this deployment" });
+    }
+    let doc;
+    try {
+      doc = await doFetch(`${consoleBase()}/api/wanxing/v1/console/devices/redeem`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code, runnerId, machineName }),
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch {
+      return res.status(502).json({ error: "console_unreachable" });
+    }
+    if (!doc.ok) {
+      const body = await doc.json().catch(() => ({}));
+      return res.status(doc.status === 401 ? 401 : 502).json({ error: body.error || "redeem_failed" });
+    }
+    const { fleetUrl, fleetToken } = await doc.json();
+    // Merge into settings.json atomically: the desktop supervisor reads these
+    // keys at construction (a runner restart applies them without an app
+    // restart when the plugin is already on).
+    let current = {};
+    try {
+      current = JSON.parse(fs.readFileSync(file, "utf8"));
+    } catch { /* absent/corrupt — start fresh, the seeder re-adds defaults */ }
+    atomicWriteJsonSync(file, { ...current, AGENT_RUNNER_FLEET_URL: fleetUrl, AGENT_RUNNER_FLEET_TOKEN: fleetToken });
+    res.json({ ok: true, fleetUrl, runnerId });
   });
 
   ctx.app.use("/api/wanxing/fleet", router);

@@ -58,3 +58,17 @@
       相关道回归（13/13）
 - [x] 8.5 探针 `scripts/probe-desktop-fleet-uplink.mjs`：真 runner→stub ingest
       收到 runner_stats 且 desktop:true/pod:true 眼见
+
+## 9. ③第二刀：机位配对协议+设备面后端（2026-10-15 同 change 追加）
+
+- [x] 9.1 facade `services/wanxing-facade/devices.js`：铸码/列表/核销/吊销四端点
+      +公开 ingest 转发（per-seat 验证在 facade、换服务凭据打 observer——
+      observer 与部署面零改动，吊销即时生效）
+- [x] 9.2 store `wanxing_devices` 表（token 存 SHA-256，明文只在核销给一次）
+- [x] 9.3 桌面侧 cell `POST /api/wanxing/fleet/pair`：凭码核销、上行凭据服务端
+      直写 settings.json（token 不经渲染层转交）+Preferences 配对面（输码即连）
+- [x] 9.4 测试：facade 6/6（码单次/限形/转发换凭据/吊销 401）+paas 7/7+
+      fd-wanxing 全量 141/141+paas 相关道 33/33
+- [x] 9.5 端到端探针 `scripts/probe-desktop-fleet-pairing.mjs` 3/3：真 facade+
+      真 store+真 pair 路由+真 runner 经 facade 转发上报（desktop:true 眼见）+
+      吊销下一拍 401

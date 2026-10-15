@@ -92,7 +92,9 @@ admit that declaration — a gate that reads a field the publish path refuses is
 The runner SHALL report the harnesses it can host in its heartbeat, and the deploy gate SHALL
 refuse — naming the missing harness and the target runner — a deployment whose declared harness
 is not in the target runner's reported set; unknown or absent self-report SHALL degrade open,
-exactly like the model-roster gate. Routing a deployment to a runner SHALL use the existing
+exactly like the model-roster gate. The heartbeat SHALL also carry the runner's pod co-hosting
+mode (density) so fleet views can tell solo runners from pod runners; an absent density field
+SHALL degrade open (read as a solo runner). Routing a deployment to a runner SHALL use the existing
 runner assignment channel; no second placement mechanism SHALL be introduced.
 
 #### Scenario: A harness-mismatched deployment is refused at deploy time
@@ -110,6 +112,12 @@ runner assignment channel; no second placement mechanism SHALL be introduced.
 
 - **WHEN** a runner with both dsh and ACP adapters heartbeats
 - **THEN** its runner_stats row carries the harness set the deploy gate reads
+
+#### Scenario: The heartbeat reports the runner's density mode
+
+- **WHEN** a runner configured for pod co-hosting heartbeats
+- **THEN** its runner_stats row carries a truthy pod density field, and a solo runner carries a
+  falsy one
 
 #### Scenario: Unknown harness metadata degrades open
 

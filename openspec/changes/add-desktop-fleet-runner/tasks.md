@@ -45,3 +45,16 @@
 
 - [x] 7.1 docs：`docs/wanxing-desktop-fleet-plugin-explore.md` 切片①打勾落账
 - [x] 7.2 openspec validate 全绿；实施中发现的偏差回写 design
+
+## 8. ③第一刀扩展：监控上行+调度短路（2026-10-15 同 change 追加）
+
+- [x] 8.1 runner_stats 自报 `desktop: true`（config `AGENT_RUNNER_DESKTOP` +
+      sampler payload + index 接线）
+- [x] 8.2 fleet-scheduler 三处短路：stale/orphan/pickPlacement 对 desktop- 前缀
+      或自报 desktop 的机位全部排除（监控可见、调度不可动）
+- [x] 8.3 上行 env 全链：settings 键 + descriptors 透传 FLEET_URL/TOKEN +
+      Preferences 舰队区两字段（token 掩码）
+- [x] 8.4 测试：scheduler 短路三场景（12/12）+sampler desktop 标志（8/8）+
+      相关道回归（13/13）
+- [x] 8.5 探针 `scripts/probe-desktop-fleet-uplink.mjs`：真 runner→stub ingest
+      收到 runner_stats 且 desktop:true/pod:true 眼见

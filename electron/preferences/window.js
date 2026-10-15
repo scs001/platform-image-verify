@@ -43,11 +43,13 @@ export function registerPreferencesIpc(supervisor) {
   const ALLOWED_VISIBLE_KEYS = [
     "LLM_API_KEY", "LLM_BASE_URL", "DEFAULT_MODEL",
     "WANXING_PLUGIN_ENABLED", "AGENT_SERVING_REGISTRY_URL", "AGENT_RUNNER_PORT",
+    "AGENT_RUNNER_FLEET_URL",
   ];
   const ALLOWED_WRITE_KEYS = [
     "LLM_API_KEY", "LLM_BASE_URL", "DEFAULT_MODEL",
     "WANXING_PLUGIN_ENABLED", "AGENT_SERVING_REGISTRY_URL",
     "AGENT_SERVING_REGISTRY_TOKEN", "AGENT_RUNNER_PORT",
+    "AGENT_RUNNER_FLEET_URL", "AGENT_RUNNER_FLEET_TOKEN",
   ];
   const ALLOWED_SERVICE_RESTART = ["server-js", "agent-runner-js"];
   const MASKED = "••••••••";
@@ -59,8 +61,9 @@ export function registerPreferencesIpc(supervisor) {
     for (const k of ALLOWED_VISIBLE_KEYS) {
       if (k in all) visible[k] = all[k];
     }
-    // Secret: presence, not content (spec: preferences-ui).
+    // Secrets: presence, not content (spec: preferences-ui).
     visible.AGENT_SERVING_REGISTRY_TOKEN_SET = Boolean(all.AGENT_SERVING_REGISTRY_TOKEN);
+    visible.AGENT_RUNNER_FLEET_TOKEN_SET = Boolean(all.AGENT_RUNNER_FLEET_TOKEN);
     visible.AGENT_SERVING_REGISTRY_TOKEN_MASK = MASKED;
     return visible;
   });

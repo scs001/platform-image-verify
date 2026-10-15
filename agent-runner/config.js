@@ -99,6 +99,11 @@ export function loadConfig(env = process.env) {
     // never exposes agent ports to the LAN (openspec: desktop-fleet-runner).
     host: String(env.AGENT_RUNNER_HOST || "0.0.0.0"),
 
+    // Desktop seat self-report (add-desktop-fleet-runner ③): rides
+    // runner_stats as `desktop` — the board consumer excludes desktop seats
+    // from every cloud control decision.
+    desktopMode: ["1", "true", "yes"].includes(String(env.AGENT_RUNNER_DESKTOP || "").toLowerCase()),
+
     // Registry (the runtime distribution plane — design D2/ADR-0004).
     registryUrl: (env.AGENT_SERVING_REGISTRY_URL || env.REGISTRY_URL || "").replace(/\/+$/, ""),
     registryToken: env.AGENT_SERVING_REGISTRY_TOKEN || env.MARKET_REGISTRY_TOKEN || "",

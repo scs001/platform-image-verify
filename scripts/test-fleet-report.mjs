@@ -194,3 +194,19 @@ test("runner sampler: runner_stats carries the pod density flag", () => {
   assert.equal(rows[1].agent, "r-solo");
   assert.equal(rows[1].payload.pod, false);
 });
+
+// Desktop seat self-report (add-desktop-fleet-runner ③): the runner_stats row
+// marks desktop seats so the board consumer can exclude them from every cloud
+// control decision; absent config reads as a cloud runner.
+test("runner sampler: runner_stats carries the desktop seat flag", () => {
+  const emitted = [];
+  const reporter = { emit: (e) => emitted.push(e) };
+  const manager = {
+    health: () => ({ agents: [], children: 0, queued: 0, budget: 0, budgetMb: 2048 }),
+  };
+  createFleetSampler({ manager, reporter, runnerId: "desktop-abc", podMode: true, desktopMode: true }).sample();
+  createFleetSampler({ manager, reporter, runnerId: "runner-1" }).sample();
+  const rows = emitted.filter((e) => e.kind === "runner_stats");
+  assert.equal(rows[0].payload.desktop, true);
+  assert.equal(rows[1].payload.desktop, false);
+});

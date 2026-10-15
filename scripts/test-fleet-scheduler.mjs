@@ -212,3 +212,53 @@ test("failover: a brand-new fleet row keeps its pre-assigned entries for the gra
   assert.equal(out.moved, 0, "provisioning runner (row < grace) is not treated as dead");
   assert.equal(reg.puts.length, 0);
 });
+
+// ── Desktop seat invisibility (add-desktop-fleet-runner ③) ─────────────────
+// A desktop- prefixed seat (or a self-reported desktop row) is monitoring-
+// only: its staleness never fails its entries over, its board-pruned absence
+// never orphans them, and it is never picked as a placement target.
+
+test("desktop: a STALE desktop seat keeps its entries (closed app ≠ dead runner)", async () => {
+  const entries = [
+    { path: "/packs/p1/a", name: "A", provider: "paas-pack", version: 1, metadata: { packId: "p1", runner_id: "desktop-abcd1234" } },
+  ];
+  const board = { runners: {
+    "cheap-1": { seen_at: NOW, children: 0, budget_mb: 0, budget_mb_limit: 768 },
+    // The seat's heartbeat went stale ages ago.
+    "desktop-abcd1234": { seen_at: NOW - 3_600_000, children: 1, budget_mb: 100, budget_mb_limit: 2048 },
+  } };
+  const { sched, reg } = harness({ board, entries });
+  const out = await sched.tick();
+  assert.equal(out.moved, 0, "desktop entries are never re-pointed");
+  assert.equal(reg.puts.length, 0);
+});
+
+test("desktop: a PRUNED desktop seat's entries wait (never orphaned)", async () => {
+  const entries = [
+    { path: "/packs/p1/a", name: "A", provider: "paas-pack", version: 1, metadata: { packId: "p1", runner_id: "desktop-abcd1234" } },
+  ];
+  const board = { runners: {
+    "cheap-1": { seen_at: NOW, children: 0, budget_mb: 0, budget_mb_limit: 768 },
+    // The seat is entirely absent from the board.
+  } };
+  // The seat carries a fleet row (a future device-management plane may
+  // register one) well past the grace window — the entries still wait.
+  const rows = [...ROWS, { id: "desktop-abcd1234", baseUrl: "http://192.168.1.9", portBase: 8791, portSpan: 32, createdAt: NOW - 86_400_000 }];
+  const reg = fakeRegistry(entries);
+  const sched = createFleetScheduler({ registry: reg, boardFetch: async () => board, fleetRows: () => rows, log: { log() {}, warn() {} }, now: () => NOW });
+  const out = await sched.tick();
+  assert.equal(out.moved, 0, "desktop entries are never orphan-reaped");
+  assert.equal(reg.puts.length, 0);
+});
+
+test("desktop: a self-reported desktop row is excluded from placement targets", async () => {
+  const board = { runners: {
+    "cheap-1": { seen_at: NOW, children: 2, budget_mb: 400, budget_mb_limit: 768 },
+    // NOT desktop- prefixed, but its runner_stats self-reports desktop.
+    "laptop-seat": { seen_at: NOW, children: 0, budget_mb: 0, budget_mb_limit: 4096, desktop: true },
+  } };
+  const sched = createFleetScheduler({ registry: fakeRegistry([]), boardFetch: async () => board, fleetRows: () => ROWS, log: { log() {}, warn() {} }, now: () => NOW });
+  const pick = sched.pickPlacement(board);
+  assert.equal(pick.id, "cheap-1", "the desktop self-report keeps the seat out of placement even with more headroom");
+  assert.deepEqual(sched.healthy(board).map((r) => r.id), ["cheap-1"]);
+});

@@ -146,7 +146,7 @@ export function createFleetReporter({
 // array), and the deploy gate reads it off the observer board the same way it
 // reads `models`. Absent provider or a throw → the field is OMITTED (unknown
 // degrades the deploy gate open, exactly like the roster).
-export function createFleetSampler({ manager, reporter, runnerId, rosterProvider = null, harnessProvider = null, podMode = false }) {
+export function createFleetSampler({ manager, reporter, runnerId, rosterProvider = null, harnessProvider = null, podMode = false, desktopMode = false }) {
   let last = new Map(); // agentKey → state
   let rosterCache = null; // string[] | null — null until the first refresh lands
   const defaultRosterProvider = async () => {
@@ -212,6 +212,10 @@ export function createFleetSampler({ manager, reporter, runnerId, rosterProvider
           // read this to tell solo runners from pod-cohosting ones; absent on
           // older runners and read as solo there (degrade open).
           pod: podMode === true,
+          // Desktop seat self-report (add-desktop-fleet-runner ③): marks this
+          // runner as owned territory on the board — visible to monitoring,
+          // invisible to the cloud scheduler's failover/placement decisions.
+          desktop: desktopMode === true,
         },
       });
     },

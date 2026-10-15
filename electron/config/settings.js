@@ -36,6 +36,10 @@ export const SETTING_KEYS = [
   "AGENT_SERVING_REGISTRY_URL",
   "AGENT_SERVING_REGISTRY_TOKEN",
   "AGENT_RUNNER_PORT",
+  // Fleet uplink (slice ③): where this seat reports runner_stats/state events
+  // (the customer's Wanxing observer). Absent = the seat is board-invisible.
+  "AGENT_RUNNER_FLEET_URL",
+  "AGENT_RUNNER_FLEET_TOKEN",
 ];
 
 function settingsFile() {

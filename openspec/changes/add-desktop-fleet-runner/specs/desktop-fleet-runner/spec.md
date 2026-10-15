@@ -47,14 +47,27 @@ settings.json，此后每次启用沿用。runner 的默认分片 id SHALL 显�
 
 ### Requirement: 桌面机位对云端调度隐形
 
-桌面 runner SHALL 不登记进 registry 的 agent_runners 机群表，且（本切片）不向 fleet
-board 上报心跳——云端重派控制循环 SHALL 因此永不观察到桌面机位，其名下条目在桌面
-离线时保持等待、不被重派到其他机位。
+桌面 runner SHALL 可配置向 fleet observer 上行遥测（`runner_stats` 携带
+`desktop: true` 自报）；未配置上行时对 board 彻底不可见。云端调度控制循环 SHALL
+在一切控制决策中排除桌面机位：其心跳过期不触发条目重派（关 app ≠ 机位死亡），
+其被 board 剪除不触发孤儿回收（条目等待回归），其永不作为重派或自动选址的
+目标机位。监控可见性与调度控制权分离——board 能看见桌面机位，控制循环不能动它。
 
 #### Scenario: 关闭应用不触发重派
 
 - **WHEN** 桌面 runner 离线（应用退出）超过云端 stale 阈值且云端存在健康 runner
 - **THEN** 该机位名下的 registry 条目不被修改，仍指向桌面机位等待回归
+
+#### Scenario: 上行自报使调度排除生效
+
+- **WHEN** 桌面 runner 上行 `runner_stats`（payload 含 `desktop: true`）且其 id
+  不带 desktop- 前缀（自定义机位名）
+- **THEN** 该机位不出现在调度循环的健康目标集合中，自动选址永不落在它上面
+
+#### Scenario: 机位被 board 剪除后条目仍等待
+
+- **WHEN** 桌面机位长期离线被 observer 从 board 剪除，其名下条目仍 tagged 该机位
+- **THEN** 孤儿回收不接管这些条目（即便机位在机群表有登记行且已过宽限窗）
 
 ### Requirement: 桌面监听收紧到回环
 

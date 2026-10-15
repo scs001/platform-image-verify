@@ -60,6 +60,12 @@ export function getDescriptors({ serverPort, projectRoot, nodeBin, dataDir, agen
     // so the desktop polls only entries explicitly tagged to this seat.
     AGENT_RUNNER_FLEET_ID: seatId,
     AGENT_RUNNER_DEFAULT_ID: "cloud-default",
+    // Desktop seat self-report (③): the board marks this runner as scheduling-
+    // invisible. Fleet uplink itself stays user-configured (Preferences) — an
+    // unconfigured seat simply never appears on any board.
+    AGENT_RUNNER_DESKTOP: "1",
+    ...(agentEnv.AGENT_RUNNER_FLEET_URL ? { AGENT_RUNNER_FLEET_URL: agentEnv.AGENT_RUNNER_FLEET_URL } : {}),
+    ...(agentEnv.AGENT_RUNNER_FLEET_TOKEN ? { AGENT_RUNNER_FLEET_TOKEN: agentEnv.AGENT_RUNNER_FLEET_TOKEN } : {}),
     // Profile scaffold source: the same shared dsh home the chat cell uses
     // (~/.dsh — the cell's ensureDshHome establishes it on first boot).
     // Cloud images keep their baked /opt/dsh-home default by never running

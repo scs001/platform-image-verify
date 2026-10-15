@@ -22,6 +22,18 @@ import { planAgentPort, resolveAgentPort } from "../lib/agent-serving.js";
 
 const RUNNER_ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
 
+// Desktop seats (add-desktop-fleet-runner ③): a runner whose id carries the
+// desktop- prefix, or whose runner_stats self-reports desktop, is OWNED
+// territory for the cloud loop — it appears on the board (monitoring) but is
+// invisible to every control decision: never a failover source (its offline
+// is "closed the app", not death — re-pointing its entries would run them,
+// and bill them, somewhere the owner never chose), never a placement target
+// (auto-placement must not land cloud work on a customer laptop), never
+// orphan-reaped (board pruning of an offline seat leaves its entries waiting
+// for its return, exactly like a tagged cloud runner behind a partition).
+const isDesktopRunner = (id, row = null) =>
+  /^desktop-/i.test(String(id || "")) || row?.desktop === true;
+
 export function createFleetScheduler({
   // cfg: { staleMs, intervalMs }
   config = {},
@@ -40,6 +52,7 @@ export function createFleetScheduler({
     const out = [];
     for (const [id, r] of Object.entries(board?.runners ?? {})) {
       if (!RUNNER_ID_RE.test(id) || !Number.isFinite(r?.seen_at)) continue;
+      if (isDesktopRunner(id, r)) continue;
       if (now() - r.seen_at <= staleMs) out.push({ id, ...r });
     }
     return out;
@@ -48,6 +61,7 @@ export function createFleetScheduler({
     const out = [];
     for (const [id, r] of Object.entries(board?.runners ?? {})) {
       if (!RUNNER_ID_RE.test(id) || !Number.isFinite(r?.seen_at)) continue;
+      if (isDesktopRunner(id, r)) continue;
       if (now() - r.seen_at > staleMs) out.push({ id, ...r });
     }
     return out;
@@ -112,6 +126,10 @@ export function createFleetScheduler({
     for (const e of entries) {
       const rid = e?.metadata?.runner_id ?? defaultRunnerId;
       if (rid == null || boardIds.has(rid) || orphaned.has(rid)) continue;
+      // A desktop seat pruned from the board is offline, not orphaned: its
+      // entries wait for the seat to come back (never re-pointed, never billed
+      // elsewhere).
+      if (isDesktopRunner(rid, null)) continue;
       const row = rowsById.get(rid);
       if (!row || (Number.isFinite(row.createdAt) && now() - row.createdAt < graceMs)) continue;
       orphaned.set(rid, true);

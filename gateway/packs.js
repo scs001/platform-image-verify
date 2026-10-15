@@ -21,7 +21,7 @@
 // and createPublishRateLimiter() caps the publish rate per author.
 
 import Database from "better-sqlite3";
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import express from "express";
@@ -993,8 +993,34 @@ export function registerPackRoutes(app, {
     if (runnerIdBody !== undefined && (typeof runnerIdBody !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(runnerIdBody))) {
       return res.status(400).json({ error: "runnerId must be a runner id from the fleet list" });
     }
+    // Desktop seat target (add-desktop-fleet-runner ③): seats are NOT fleet
+    // rows — they live in the Wanxing facade's device registry. Ownership was
+    // verified console-side, and the forwarded body carries the facade-signed
+    // seatGrant; the grant is the only thing that authorizes a seat target
+    // (public callers, direct or proxied, cannot mint one). A seat entry is
+    // distribution-only: the seat's runner polls its slice over the public
+    // registry, but the A2A upstream origin is unreachable by design (home
+    // NAT) — the placeholder never serves; inbound service is the mailbox
+    // protocol's slice (④).
+    if (runnerIdBody != null && /^desktop-/i.test(runnerIdBody)) {
+      const seatSecret = () => process.env.WANXING_SEAT_DEPLOY_SECRET || "";
+      const grant = String(req.body?.seatGrant || "");
+      const [expRaw, mac] = grant.split(".");
+      const expMs = Number(expRaw);
+      const valid = (() => {
+        if (!seatSecret() || !mac || !Number.isFinite(expMs) || expMs < Date.now()) return false;
+        const expect = createHmac("sha256", seatSecret()).update(`${runnerIdBody}|${user.email}|${expRaw}`).digest("hex");
+        return mac === expect;
+      })();
+      if (!valid) {
+        return res.status(403).json({ error: "desktop seat targets require a Wanxing console seat grant (pair the seat, deploy from the console)" });
+      }
+      runnerPlacement = { runnerId: runnerIdBody, runnerBaseUrl: "http://127.0.0.1:9", portBase: 8791, portSpan: 32, desktopSeat: true };
+    }
     const fleetRows = registry.runnerList();
-    if (runnerIdBody != null) {
+    // (Desktop seat targets were fully resolved above — the fleet lookup
+    // below is for cloud fleet rows only.)
+    if (runnerIdBody != null && !/^desktop-/i.test(runnerIdBody)) {
       const row = fleetRows.find((r) => r.id === runnerIdBody);
       if (!row) {
         return res.status(400).json({ error: `unknown runnerId '${runnerIdBody}' — the fleet holds: ${fleetRows.map((r) => r.id).join(", ") || "(none)"}` });

@@ -90,7 +90,7 @@ ingest（只读上行），**桌面 runner 永不向本地之外的平面开入�
 |---|---|---|---|
 | ① | 本地舰队宿主 ✅ 2026-10-15 | descriptors 加 `agent-runner-js`（optional、默认 disabled）+ Preferences「萬星舰队」面板（开关+registry/fleet/模型 env）+ `DSH_MATRIX_INSTALL_ROOT` 指发行树矩阵 + 独占 runner_id（sticky、离线永不重派）；生命周期 v1=跟随退出 | **已验**：探针 7/7（stub registry→seat 条目拉起→真 dsh child→A2A 真回合回复「就绪」→SIGTERM 排空）；单测 6/6+回归 82/82；change `add-desktop-fleet-runner` |
 | ② | 桌面舰队 UI + 市场页 ✅ 2026-10-15（范围收口） | 舰队页（live 五态+budget+目录只读，经 cell 代理零新凭据）+ 托盘驻留（关窗跑定时/退出 drain）。**「部署到本机」挪③**：部署通道的正确形状=console 部署目标选本机机位（=③设备面）；硬做需把 x-facet-token 服务间凭据下发桌面（可伪造任意转发身份，不可接受） | 探针 4/4（live 透传/只读投影/两降级态）+单测 5/5+typecheck 绿+五语 1332×5+web build 绿；change `add-desktop-fleet-console` |
-| ③ | 远程互通·监控上行+设备管理 ✅ 第一刀 2026-10-15；第二刀（协议后端）同日 | **第一刀**：runner_stats 自报 desktop:true + fleet-scheduler 三处短路 + 上行 env 全链。**第二刀（协议后端，双仓）**：facade 设备配对面（六位码铸/核销/列表/吊销+公开 ingest 转发——per-seat 验证在 facade、换服务凭据打 observer，**observer 与部署面零改动、吊销即时生效、内部凭据永不下发桌面**）+桌面 pair 端点（凭据服务端直写 settings.json）+Preferences 配对面。**余 UI 面（下轮）**：console 设备管理页+部署目标加本机机位 | 第一刀探针 3/3+短路 12/12；第二刀端到端探针 3/3（铸码→配对→**真 runner 经 facade 转发上报 desktop:true**→吊销下一拍 401）+facade 6/6+fd-wanxing 全量 141/141+paas 33/33 |
+| ③ | 远程互通·监控上行+设备管理 ✅ 全片 2026-10-15（三刀） | 第一刀：desktop 自报+调度三处短路+上行 env。第二刀：配对协议（facade 设备面+ingest 转发+桌面 pair）+E2E 3/3。第三刀：**部署链解锁**——deployHandler seatGrant HMAC 验签（归属校验在 facade、单一信任根=共享 secret、公网无票全 403）+console「桌面机位」tab（列表/在线态/铸码/吊销）+DeployWizard 目标下拉；条目 loopback 占位 origin+`desktop_seat` 标记（分发-only，A2A 入站=④） | 三刀累计：探针 6 项全绿+paas 62/62+17/17+fd-wanxing 144/144+web build 绿 |
 | ④ | 远程互通·信箱协议 | 异步信箱：外部萬星 agent 派任务→落公网中继→桌面 runner 出站轮询取回→唤起执行→结果回投；调用侧走萬星门面调用键体系 | 外部萬星 agent 真任务调通桌面 agent（延迟=轮询间隔，秒级可调） |
 
 ①② 是「插件」本体，③④ 是「和外部萬星交流」的协议层。托盘驻留并入②（①先跟随

@@ -1561,3 +1561,63 @@ test("config write: roster layer refuses a lane-passing roster-absent model; nul
     }
   }
 });
+
+// ── Desktop seat deploy targets (add-desktop-fleet-runner ③) ────────────────
+// A desktop- runnerId bypasses the fleet table only with a valid
+// facade-signed seat grant (HMAC over seat|email|exp, shared secret); the
+// entry lands tagged to the seat with the unreachable-by-design placeholder
+// origin. No grant / wrong email / expired grant = 403, nothing written.
+const { createHmac: seatHmac } = await import("node:crypto");
+const SEAT_SECRET = "seat-test-secret";
+
+async function seatHarness({ user, grantOf }) {
+  process.env.WANXING_SEAT_DEPLOY_SECRET = SEAT_SECRET;
+  const stub = stubRegistry();
+  const manifest = withServing({ protocol: "a2a" });
+  const h = await routeHarness({
+    user,
+    deployConfig: { registryUrl: "https://mcp.example.test", token: "t", runnerBaseUrl: "http://runner:8790", packsPublicBase: "https://packs.example.test", fetchImpl: stub.fetch },
+    manifest,
+  });
+  const grantFor = (seat, email, exp) => `${exp}.${seatHmac("sha256", SEAT_SECRET).update(`${seat}|${email}|${exp}`).digest("hex")}`;
+  return { ...h, stub, grantFor, closeAll: async () => { delete process.env.WANXING_SEAT_DEPLOY_SECRET; await h.close(); } };
+}
+
+test("seat deploy: a valid grant lands the entry on the seat with the placeholder origin", async () => {
+  const h = await seatHarness({ user: { email: "author@x", groups: [] } });
+  try {
+    const exp = String(Date.now() + 60_000);
+    const r = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, {
+      runnerId: "desktop-ab12cd34",
+      seatGrant: h.grantFor("desktop-ab12cd34", "author@x", exp),
+      billingKeys: { "pack-fingpt": "sk-x" },
+    });
+    assert.equal(r.status, 200, JSON.stringify(r.body));
+    const entry = h.stub.calls.agents.at(-1);
+    assert.equal(entry.body.metadata.runner_id, "desktop-ab12cd34");
+    assert.match(entry.body.url, /^http:\/\/127\.0\.0\.1:\d+$/, "distribution-only loopback placeholder origin");
+    assert.equal(entry.body.metadata.desktop_seat, true, "the entry is marked as a seat placement");
+  } finally {
+    await h.closeAll();
+  }
+});
+
+test("seat deploy: no grant, a foreign email, or an expired grant all refuse with zero writes", async () => {
+  const h = await seatHarness({ user: { email: "author@x", groups: [] } });
+  try {
+    const exp = String(Date.now() + 60_000);
+    const cases = [
+      { runnerId: "desktop-ab12cd34" },
+      { runnerId: "desktop-ab12cd34", seatGrant: h.grantFor("desktop-ab12cd34", "someone-else@x", exp) },
+      { runnerId: "desktop-ab12cd34", seatGrant: h.grantFor("desktop-ab12cd34", "author@x", String(Date.now() - 1000)) },
+      { runnerId: "desktop-ab12cd34", seatGrant: "garbage" },
+    ];
+    for (const body of cases) {
+      const r = await h.call("POST", `/api/packs/${h.packId}/versions/1/deploy`, body);
+      assert.equal(r.status, 403, `case ${JSON.stringify(body.runnerId)} refused`);
+    }
+    assert.equal(h.stub.calls.agents.filter((c) => c.body?.metadata?.runner_id === "desktop-ab12cd34").length, 0);
+  } finally {
+    await h.closeAll();
+  }
+});

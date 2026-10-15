@@ -72,3 +72,16 @@
 - [x] 9.5 端到端探针 `scripts/probe-desktop-fleet-pairing.mjs` 3/3：真 facade+
       真 store+真 pair 路由+真 runner 经 facade 转发上报（desktop:true 眼见）+
       吊销下一拍 401
+
+## 10. ③第三刀：console 设备面 UI+部署链解锁（2026-10-15 同 change 追加）
+
+- [x] 10.1 gateway/facet `deployHandler` desktop 分支：seatGrant HMAC 验签
+      （seat|email|exp，共享 `WANXING_SEAT_DEPLOY_SECRET`）——公网/直调/代理无票
+      全 403；条目落 loopback 占位 origin+`desktop_seat` 标记（分发-only，A2A 入站
+      等④信箱）；fleet 查找段对 desktop 排除
+- [x] 10.2 selfservice `deployCore`：desktop 目标查 device 归属（非本人 403）+签
+      5 分钟 seatGrant 附转发体；非 desktop runnerId 原样透传
+- [x] 10.3 console「桌面机位」tab（DevicesView：列表+board 在线态+铸码+吊销）
+- [x] 10.4 DeployWizard 部署目标下拉（云端自动/我的机位，附 desktop 语义提示）
+- [x] 10.5 测试：paas 62/62（seat 部署两场景）+deploy 道 17/17；fd-wanxing
+      144/144（selfservice seat 三场景）；wanxing-web vite build 绿

@@ -1370,10 +1370,7 @@
       "authRequired": "Se requiere iniciar sesión — inicia sesión antes de suscribirte o instalar.",
       "loginHint": "Suscribirse e instalar requieren iniciar sesión.",
       "loginGo": "Iniciar sesión",
-      "close": "Cerrar",
-      "closeConfirm": "¿Cerrar este diálogo de detalle?",
-      "closeYes": "Cerrar",
-      "closeNo": "Seguir leyendo"
+      "close": "Cerrar"
     },
     "report": {
       "title": "Resultado de instalación de «{{name}}»",

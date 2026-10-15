@@ -86,10 +86,6 @@ function Dialog({ open, onOpenChange, children }: DialogProps) {
       {/* backdrop; clicking it closes the modal */}
       <div
         className="fixed inset-0 bg-scrim backdrop-blur-sm animate-in fade-in-0"
-        // data-pack-detail-scrim: PackDetailDialog intercepts scrim clicks in
-        // the capture phase to arm its two-step close confirm (its own UX
-        // contract). For every other dialog this attribute is inert.
-        data-pack-detail-scrim=""
         onClick={() => onOpenChange?.(false)}
       />
       {/* content container - max-h + scroll keeps tall forms usable on small screens */}

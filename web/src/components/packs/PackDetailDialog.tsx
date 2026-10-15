@@ -58,26 +58,6 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
   // when a signed-out viewer activates a gated action and the host wired
   // onRequireLogin; cleared when the dialog reopens for another pack.
   const [loginHint, setLoginHint] = useState(false);
-  // Two-step scrim dismissal: armed by an overlay click, consumed by the
-  // confirm row's button, reset on any dialog-internal navigation or reopen.
-  const [closeConfirm, setCloseConfirm] = useState(false);
-  // The base Dialog's scrim closes on any click; for this dialog the first
-  // scrim click only ARMS the confirm row (a misdirected click must not
-  // throw away a half-read long detail). Capture-phase listener keyed off
-  // the scrim's data attribute — no changes to the shared dialog.tsx.
-  useEffect(() => {
-    if (!packId) return;
-    const onScrimClick = (ev: MouseEvent) => {
-      const target = ev.target as HTMLElement | null;
-      if (target?.closest("[data-pack-detail-scrim]") || target?.hasAttribute("data-pack-detail-scrim")) {
-        ev.stopImmediatePropagation();
-        ev.preventDefault();
-        setCloseConfirm(true);
-      }
-    };
-    document.addEventListener("click", onScrimClick, { capture: true });
-    return () => document.removeEventListener("click", onScrimClick, { capture: true });
-  }, [packId]);
   const [pack, setPack] = useState<PackDetail | null>(null);
   const [subscribing, setSubscribing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +85,6 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
     setBindings(null);
     setKeyDrafts({});
     setLoginHint(false);
-    setCloseConfirm(false);
     if (!packId) return;
     api
       .getPack(packId)
@@ -253,7 +232,22 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
 
   return (
     <Dialog open={!!packId} onOpenChange={onOpenChange}>
-      <DialogContent className="relative max-w-2xl max-h-[85vh] overflow-auto pb-2" data-testid="pack-detail">
+      <DialogContent
+        className="relative flex max-h-[85vh] max-w-2xl flex-col overflow-hidden p-0"
+        data-testid="pack-detail"
+      >
+        {/* Close control at the dialog's top-right — the conventional spot.
+            A sibling of the scroll pane, so it never scrolls away. */}
+        <button
+          type="button"
+          aria-label={t("packs.detail.close")}
+          className="absolute right-3 top-3 z-20 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          onClick={() => onOpenChange(false)}
+          data-testid="pack-detail-close"
+        >
+          ✕
+        </button>
+        <div className="flex-1 overflow-y-auto p-6">
         <DialogHeader>
           <DialogTitle>
             {pack?.name ?? (error ? t("packs.detail.notFound") : "")}
@@ -267,17 +261,6 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
             {pack ? `${pack.authorEmail} · v${pack.version}` : ""}
           </DialogDescription>
         </DialogHeader>
-        {/* Close control at the dialog's top-right — the conventional spot
-            (polish-facet-interactions follow-up). One-step dismissal. */}
-        <button
-          type="button"
-          aria-label={t("packs.detail.close")}
-          className="absolute right-3 top-3 z-20 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-          onClick={() => onOpenChange(false)}
-          data-testid="pack-detail-close"
-        >
-          ✕
-        </button>
 
         {error && (
           <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md">{error}</div>
@@ -587,13 +570,15 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
           </div>
         )}
 
-        {/* Action bar (polish-facet-interactions): sticky to the dialog's
-            bottom edge — always visible regardless of scroll position, opaque
-            so scrolled content never shows through. The host-selected
-            goto-mine affordance renders only when wired (the facet shell
-            routes it through the login guidance when signed out). */}
+        </div>
+
+        {/* Action bar (polish-facet-interactions): a real flex child pinned to
+            the dialog's bottom edge — the scroll pane ends above it, so it is
+            always visible and nothing can show through behind it. The host-
+            selected goto-mine affordance renders only when wired (the facet
+            shell routes it through the login guidance when signed out). */}
         <div
-          className="sticky bottom-0 z-10 -mx-6 -mb-6 mt-3 border-t border-border bg-background px-6 py-3"
+          className="shrink-0 border-t border-border bg-background px-6 py-3"
           data-testid="pack-action-bar"
         >
           {loginHint && (
@@ -607,28 +592,6 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                   {t("packs.detail.loginGo")}
                 </Button>
               )}
-            </div>
-          )}
-          {closeConfirm && (
-            <div
-              className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2"
-              data-testid="pack-close-confirm"
-            >
-              <span className="text-xs text-muted-foreground">{t("packs.detail.closeConfirm")}</span>
-              <div className="flex items-center gap-2">
-                <Button size="sm" className="h-7 px-3 text-xs" onClick={() => onOpenChange(false)} data-testid="pack-close-confirm-yes">
-                  {t("packs.detail.closeYes")}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 px-3 text-xs"
-                  onClick={() => setCloseConfirm(false)}
-                  data-testid="pack-close-confirm-no"
-                >
-                  {t("packs.detail.closeNo")}
-                </Button>
-              </div>
             </div>
           )}
           <div className="flex items-center gap-2">

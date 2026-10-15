@@ -1370,10 +1370,7 @@
       "authRequired": "Sign-in required — please sign in before subscribing or installing.",
       "loginHint": "Subscribing and installing require signing in.",
       "loginGo": "Sign in",
-      "close": "Close",
-      "closeConfirm": "Close this detail dialog?",
-      "closeYes": "Close",
-      "closeNo": "Keep reading"
+      "close": "Close"
     },
     "report": {
       "title": "Install result for “{{name}}”",

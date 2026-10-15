@@ -1370,10 +1370,7 @@
       "authRequired": "Connexion requise — connectez-vous avant de vous abonner ou d'installer.",
       "loginHint": "S'abonner et installer nécessitent une connexion.",
       "loginGo": "Se connecter",
-      "close": "Fermer",
-      "closeConfirm": "Fermer cette fenêtre de détail ?",
-      "closeYes": "Fermer",
-      "closeNo": "Continuer"
+      "close": "Fermer"
     },
     "report": {
       "title": "Résultat d'installation de « {{name}} »",

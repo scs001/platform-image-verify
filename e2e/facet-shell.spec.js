@@ -317,10 +317,16 @@ test("the pack dialog carries an always-visible action bar with close, and anony
   await page.locator('[data-testid^="pack-card-"]').first().click();
   await expect(page.getByTestId("pack-detail")).toBeVisible();
 
-  // The bar is visible without scrolling (sticky), with subscribe + close.
+  // The bar is visible without scrolling, with subscribe + close.
   await expect(page.getByTestId("pack-action-bar")).toBeVisible();
   await expect(page.getByTestId("pack-subscribe")).toBeVisible();
   await expect(page.getByTestId("pack-detail-close")).toBeVisible();
+
+  // No gap: the bar's bottom edge sits flush with the dialog's bottom edge
+  // (the earlier sticky + negative-margin approach left a see-through slit).
+  const dialogBox = await page.getByTestId("pack-detail").boundingBox();
+  const barBox = await page.getByTestId("pack-action-bar").boundingBox();
+  expect(Math.abs(dialogBox.y + dialogBox.height - (barBox.y + barBox.height))).toBeLessThanOrEqual(1);
   // The facet shell omits the goto-mine affordance (no installed-packs surface).
   await expect(page.getByRole("button", { name: /我的功能集|My packs/ })).toHaveCount(0);
 
@@ -335,14 +341,11 @@ test("the pack dialog carries an always-visible action bar with close, and anony
   await page.getByTestId("pack-detail-close").click();
   await expect(page.getByTestId("pack-detail")).toHaveCount(0);
 
-  // Scrim click is two-step: first arms the confirm row, the row's button
-  // closes (polish-facet-interactions follow-up).
+  // Scrim click closes in one step (the two-step confirm was tried and
+  // reverted by the user's call — keep the plain dismissal).
   await page.locator('[data-testid^="pack-card-"]').first().click();
   await expect(page.getByTestId("pack-detail")).toBeVisible();
-  await page.locator("[data-pack-detail-scrim]").click({ position: { x: 5, y: 5 } });
-  await expect(page.getByTestId("pack-close-confirm")).toBeVisible();
-  await expect(page.getByTestId("pack-detail")).toBeVisible();
-  await page.getByTestId("pack-close-confirm-yes").click();
+  await page.locator(".bg-scrim").click({ position: { x: 5, y: 5 }, force: true });
   await expect(page.getByTestId("pack-detail")).toHaveCount(0);
 
   // The goto-mine affordance for a signed-out viewer flips the guidance row

@@ -22,7 +22,7 @@
 
 ## 5. 上线与验证
 
-- [ ] 5.1 提交 main → 双推 → 出片（判路 fd-build-channel；org/scs001 阻断走 law-ai-official platform-images 快照线）→ relay → ccr skopeo 实证。
-- [ ] 5.2 fd-infra-deploy 双清单滚 tag → ArgoCD hard-refresh → 双 rollout status。
-- [ ] 5.3 线上复验：#/packs 细页脚+#/ 完整页脚；弹窗底栏常驻+关闭可用；匿名点订阅→引导行+登录回跳 #/packs；部署节新文案（zh+en 两语抽查）。验证：无头浏览器断言全过。
-- [ ] 5.4 openspec 归档（validate --specs 先行，delta 并入 facet-platform / pack-marketplace）。
+- [x] 5.1 提交 main → 双推 → 出片（判路 fd-build-channel；org/scs001 阻断走 law-ai-official platform-images 快照线）→ relay → ccr skopeo 实证。
+- [x] 5.2 fd-infra-deploy 双清单滚 tag → ArgoCD hard-refresh → 双 rollout status。
+- [x] 5.3 线上复验：#/packs 细页脚+#/ 完整页脚；弹窗底栏常驻+关闭可用；匿名点订阅→引导行+登录回跳 #/packs；部署节新文案（zh+en 两语抽查）。验证：无头浏览器断言全过。
+- [x] 5.4 openspec 归档（validate --specs 先行，delta 并入 facet-platform / pack-marketplace）。

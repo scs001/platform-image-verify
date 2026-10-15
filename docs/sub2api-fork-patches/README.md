@@ -35,10 +35,12 @@ fork 自有代码全在 `backend/internal/lanes/` 等新增包；上游文件仅
 | 平台清单（**已触碰**） | `backend/internal/domain/platforms.go`（+Gateway=lane 枚举+siliconflow/serpapi 两行）+ `platforms_test.go`（期望清单同步，上游既定「按位补入」模式） | 车道上游=真 Account 行（2.4）：admin 账号管理面下拉即达；登记副作用=平台进「所有平台」类列表（含分组下拉——误建 chat 分组属可恢复误配，单管理员风险受控）；Gateway=lane 使 UsesOpenAIGateway 等谓词恒 false |
 | service 账号仓储访问器 | `backend/internal/service/openai_gateway_service.go` 文件尾（+1 只读 getter） | `LanesAccountRepo()`——车道池取数（ListSchedulableByPlatform）；与 handler 访问器同注入模式 |
 | 车道平台谓词排除 | `backend/internal/service/scheduler_snapshot_service.go`（schedulerSnapshotPlatforms）+ `upstream_billing_probe.go`（IsUpstreamBillingProbeIdentity） | Gateway=lane 平台**不进** chat 调度快照（空桶白耗内存，inflight 8MB 界 CI 实证越线）**不进**上游计费探测（非 chat 上游，不外发 key） |
+| 调度投影凭据白名单 | `backend/internal/repository/scheduler_cache.go`（filterSchedulerCredentials）+ `service/account.go`（常量导出） | 候选过滤按 `credentials["openai_capabilities"]` 判能力（capability_mismatch），投影白名单漏该键 → 配了能力的账号被恒久排除（v0.2.16-7 修复；上游同类既有修三次：RPM/passthrough/Anthropic 阈值） |
 | 分组价目（rerank） | `ent/schema/group.go`+迁移 246+repo/auth 缓存/admin DTO·输入·克隆/`billing_service.go`（CalculateRerankCost）/`openai_gateway_usage.go`（成本分支） | `rerank_price_per_request`（USD/请求，nil=0 计费告警）——镜像 web_search_price_per_call 全链模式；本 change 唯一 schema 变更 |
 | 测试阈值 | `billing_inflight_reservation_test.go`（8MB→9MB） | 车道平台+价目字段合法增重（CI 1.27.0 实测 8587240）；防失控守护本意不变 |
 | 前端路由+导航 | `frontend/src/router/index.ts` + `components/layout/AppSidebar.vue` | 车道页路由（/lanes）+侧边导航入口「模型车道」（5.2） |
 | i18n 词条 | `frontend/src/i18n/locales/lanes.ts` + zh/en index 装配 | 车道页/导航词条（zh/en 对称；扁平化命名空间避免与 common.nav 顶层冲突） |
+| OIDC 多宿主回调派生 | `backend/internal/config/config.go`（`OIDCConnectConfig.RedirectURLAliases` 字段 + `setDefaults` 一行）+ `backend/internal/handler/auth_oidc_oauth.go`（`oidcRedirectURLForRequest`/`oidcRequestHost`/`oidcHostWithoutPort`，Start 与 Callback 两处取址改调） | **fix-ciyuan-oidc-login**：token./router. 两域同部署服务，而回调单值 + state cookie host-only → router 域登录必然 `invalid_state`（实测）。按请求有效主机（X-Forwarded-Host 优先、去端口）命中**别名白名单**时返回该别名 URI 原文（与 Logto 登记逐字节一致），未命中回落单值；白名单防 Host 头伪造外泄授权码。零 schema、零对外契约变化 |
 
 **首笔缝点触碰（2026-10-14，未发版）**：车道骨架+计量通道+上游账号池+**§3 三车道
 v1 全落地+故障口径统一**+**§5.2 车道入口页**（rerank 3.1 / audio 3.2 / websearch 3.3 /

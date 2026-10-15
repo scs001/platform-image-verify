@@ -196,3 +196,36 @@ MCP server 接入系统供给层的统一上牌契约，出自 openspec change *
 **GitOps force-push 竞态（新坑在册）**：推 091d2d1 后并行会话 `forced update` 把 gitee main 顶回不含我的历史（"not our ref" ComparisonError + registry/auth tag 在 LiveManifest 里双双回退）。处置=rebase 到新 head 重放（8552702）再推。**多会话并行滚 GitOps 后必查 `git ls-remote` 确认 head 未被 force 回退**。
 
 **验收（真点按钮 5/5）**：登录→控制台→点 Sign out→**最终落 `https://mcp.finddatatech.cloud/` 产品首页**（非 Logto 域）→ 会话 cookie 清除→再进 `/` 落地页。回滚锚：GitOps 回 7e6ea90（registry sha-115fea3 / auth sha-a95f7a0）。
+
+---
+
+## 10. 萬星·词元修复与产品面刷新（fix-ciyuan-oidc-login + refresh-ciyuan-intro + add-ciyuan-partner-intro，2026-10-15）
+
+**背景**：用户报告三问题——①词元 OIDC 登录不可用；②面板首页介绍落后（三车道/词元品牌零提及）；③缺一份可发合作伙伴的介绍材料。当日全链收口。
+
+### ① OIDC 登录修复（fix-ciyuan-oidc-login）
+
+**根因（双缺陷咬合，均实测实证）**：
+1. `oidc_connect_redirect_url` 单值只登记 token 域；Logto 应用（`jm955c6cnud2yoa6tytno`，auth-admin 管理台可达）也只登记该一条回调 → router 域发起的 authorize 被 Logto 以 `400 oidc.invalid_redirect_uri` 拒绝。
+2. sub2api 的 state/nonce cookie 不设 Domain（host-only）→ 即便回调放行，「起点主机 ≠ 回调主机」也必然 `invalid_state`。router 域登录**每次必败**（终态 `token.../auth/oidc/callback#error=invalid_state`）。
+3. 附带脆弱点：`authorize_url/token_url/userinfo_url` 三设置空 → 每次登录实时拉 discovery（15s 超时无缓存）；10-15 15:28 生产日志一次真实 500（`context deadline exceeded`，15014ms），30 秒后该访客改邮箱注册。pod 内 auth 域经 CoreDNS 钉 `100.64.0.1`（tailnet 边缘，coredns-recovery ConfigMap）。
+
+**修复**：
+- fork `ee4d03092`：`oidcRedirectURLForRequest` 别名白名单派生（`oidc_connect.redirect_url_aliases` / env `OIDC_CONNECT_REDIRECT_URL_ALIASES`，请求有效主机 X-Forwarded-Host 优先、去端口；命中返回别名 URI 原文，未命中回落单值）。新缝点两处（config.go + auth_oidc_oauth.go）已登记 fork 台账 §二；单测 9 例。
+- Logto Management API（M2M `https://default.logto.app/api`）补 router 回调——双回调 authorize 均 303。
+- 设置三端点填入（`/oidc/auth`、`/oidc/token`、`/oidc/me`）→ 登录路径零 discovery 拉取（pod 日志 0 次，start 15014ms 超时形态消失，实测 ~0.15s）。
+- 出片：build-pool testaction001（test job 钉 go1.27.0 **全绿**，run 38734451231）→ sha-678937c；并发会话合流滚 sha-893f610（含 Seedance 修复 e8794277f）；GitOps 2c84d70→dc56ded（gitee=ArgoCD 真源）。
+
+**验收**：①router 域 OIDC 全链 PASS（登录→回 `router.finddatatech.cloud/dashboard`）；②token 域回归 PASS；③派生实证：router start 的 redirect_uri=router 回调、token start=token 回调；④伪造 Host（`evil.example.com`/`router-x...`）不派生，回落 token 单值（SafeLine 边缘另 404 域名白名单）；⑤密码登录双域 401 = **改前基线即如此**（测试账号走 OIDC 建号，与本次无关）。**回滚**：移除别名 env 即回落单值（Logto 双登记无害可留）。
+
+### ② 首页产品面刷新（refresh-ciyuan-intro）
+
+- **结构性缺口先修**：`home_content` 此前只活在词元 DB（10-05 写入，三仓无源码）→ 单一事实源落地 paas `docs/ciyuan/home-content.html` + 灌入脚本 `scripts/apply-ciyuan-home.mjs`（admin API 部分 PUT——上游 `omittedSettingKeys` 机制保其余设置不重置，已实证）+ 基线副本 `home-content.baseline-2026-10-05.html`（回滚锚）。
+- 首页重写 23901→26731 字符：hero/顶栏补「萬星·词元」品牌 + 三车道一句话；**新增「模型车道」段**（ASR/TTS/rerank/websearch 四卡：端点/形状/计量口径，与 `/lanes` 同源）+ lanes.sh curl 示例；五线叙事/计费/备案保留。
+- 灌入后浏览器双宽（1440/390px）验证：车道段/品牌/计量全渲染，零 page error。
+- 官网 `finddatarouter.md`（zh/en）同改（tagline + 模型车道小节 + 品牌名）；出片滚产 sha-710bfb4（与并发会话星研线合流），official-web 双副本滚完，线上 `/zh/products/finddatarouter/` 眼见四关键词全渲染。
+
+### ③ 伙伴介绍材料（add-ciyuan-partner-intro）
+
+- 新增 `finddata/docs/ciyuan-intro.md`（wire/vaas 试用指南同形态）：是什么/入口登录/快速上手（chat 双协议+三车道 curl）/能力清单七行表/计量与计费（硬顶+错误码）/注意事项/支持。
+- 口径纪律实证：无价目数字、无上游供应商身份、无谱系治理词；测试账号表留占位（伙伴名单未定）。

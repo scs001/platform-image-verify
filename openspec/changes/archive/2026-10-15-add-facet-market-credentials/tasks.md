@@ -38,7 +38,7 @@
 
 ## 5. 上线
 
-- [ ] 5.1 出片+滚动（三 deployment 同滚纪律）+ 生产 4.3 验收
+- [x] 5.1 出片+滚动（三 deployment 同滚纪律）+ 生产 4.3 验收
       - [x] 出片两轮（sha-99cc318 全含版→首跑 dsh contracts ⑨ flake rerun 过；sha-ac2fcfd 修复版 9/9 一次过）
       - [x] platform/platform-demo 双滚 sha-ac2fcfd（并行会话先滚的 bd84e6f 已含 14648b5，修复补滚 ac2fcfd）
       - [x] configmap facet-market 行走 GitOps 落库（platform.yaml:404 块——带外 apply 被 selfHeal 打回，教训在案）

@@ -152,8 +152,10 @@ if (config.fleetUrl) {
 
   // Seat mailbox (add-desktop-fleet-runner ④): the desktop's outbound half —
   // poll the facade's per-seat box over the same fleet prefix, run each task
-  // locally, settle the result. Inert without the fleet uplink configured.
-  if (config.fleetUrl && config.fleetToken) {
+  // locally, settle the result. Desktop seats only: a CLOUD runner's fleet
+  // uplink points at the bare observer (no mailbox face there) — polling it
+  // would be a 404 every pass.
+  if (config.fleetUrl && config.fleetToken && config.desktopMode) {
     const { createMailboxPoller } = await import("./mailbox.js");
     const pollSecs = Number(config.mailboxPollSecs) > 0 ? Number(config.mailboxPollSecs) : 30;
     const mailbox = createMailboxPoller({

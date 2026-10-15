@@ -182,3 +182,17 @@ MCP server 接入系统供给层的统一上牌契约，出自 openspec change *
 **探针教训（重要）**：第一版探针自己跳 `/logout` 复现出「cookie 未清」的**假失败**——`/logout` 是 IdP 回调确认屏，**不结束会话**；真登出端点是 `/api/auth/logout`（`Sign out` 按钮用的）。curl 实测其一早返回 `Set-Cookie: Max-Age=0` 是好的。**「断言失败」先怀疑探针路径，再怀疑产品。**
 
 **验收**：root-split 10 绿（新增 4 条缓存契约：Vary 双变体+no-cache+ETag 可区分）、Logout 页 5 绿（含 4999ms 边界）、i18n:scan 1302/1302；**真浏览器 8/8 全绿**（匿名落地→进入控制台→SSO 登录→带 cookie 出控制台→真登出 cookie 清除→回首页出落地页）。回滚锚：GitOps 回 sha-689ec5e。
+
+### 9.6 fd-1.4.0 补丁二：Logto 登出闭环（2026-10-15 上线，双镜像 sha-8b376ae）
+
+用户视角验证（真点 Sign out 按钮，`scripts/verify-logout-return.mjs`）揪出补丁一未触及的真问题：**登出最终停在 Logto 的 `/oidc/session/end/success`，不回我们域名**——确认屏的 5 秒回跳根本没被走到。
+
+**两处根因**：
+1. **auth-server `oauth2_logout` 的 Logto 落进 Cognito 形状 else 分支**：参数名 `logout_uri`，而 Logto 只认 `post_logout_redirect_uri`（OIDC RP-initiated logout 标准）→ 参数静默丢弃。修=新增 Logto 分支（provider 名或 `/session/end` 路径匹配），发标准参数 + id_token_hint。
+2. **registry 端 `redirect_uri` 指 `/logout`，但 Logto 客户端白名单登记的是裸 origin `/`**（管理 API `oidcClientMetadata.postLogoutRedirectUris` 实证）→ 未登记的 URI 被丢。修=redirect_uri 改指 `/`：登出时会话 cookie 已清，根路径即匿名落地页，一步到位。**管理 API 排查配方**：M2M token 要 `resource=https://default.logto.app/api&scope=all`（业务 resource 不行）；`GET /api/applications` 找 app → 看 `oidcClientMetadata`。
+
+**测试**：test_logto_logout 5 绿（分支形状+Cognito 无回归）、logout_handler 17 绿（redirect_uri 钉为裸 origin）。
+
+**GitOps force-push 竞态（新坑在册）**：推 091d2d1 后并行会话 `forced update` 把 gitee main 顶回不含我的历史（"not our ref" ComparisonError + registry/auth tag 在 LiveManifest 里双双回退）。处置=rebase 到新 head 重放（8552702）再推。**多会话并行滚 GitOps 后必查 `git ls-remote` 确认 head 未被 force 回退**。
+
+**验收（真点按钮 5/5）**：登录→控制台→点 Sign out→**最终落 `https://mcp.finddatatech.cloud/` 产品首页**（非 Logto 域）→ 会话 cookie 清除→再进 `/` 落地页。回滚锚：GitOps 回 7e6ea90（registry sha-115fea3 / auth sha-a95f7a0）。

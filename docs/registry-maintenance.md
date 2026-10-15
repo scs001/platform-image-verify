@@ -229,3 +229,38 @@ MCP server 接入系统供给层的统一上牌契约，出自 openspec change *
 
 - 新增 `finddata/docs/ciyuan-intro.md`（wire/vaas 试用指南同形态）：是什么/入口登录/快速上手（chat 双协议+三车道 curl）/能力清单七行表/计量与计费（硬顶+错误码）/注意事项/支持。
 - 口径纪律实证：无价目数字、无上游供应商身份、无谱系治理词；测试账号表留占位（伙伴名单未定）。
+
+## 11. 桌面萬星①-④生产滚动（add-desktop-fleet-runner 全片，2026-10-15 深夜）
+
+**出片通道**：FDT/law-ai-official/scs001 私有额度**全部实锤耗尽**（三仓 images run
+均 5-7s 终+payments failed；fd-build-channel 的 law-ai 剩 17min 读数为滞后）。
+转 **testaction004/build-pool 通用池**（1996min）出 paas，**testaction001** 出
+fd-wanxing 两镜像。为此给 build-pool workflow 落了三项通用增强（向后兼容）：
+`BUILD_ARGS` repo 变量（多 target Dockerfile 的 SERVICE=）、`BUILD_CONTEXT`（子
+目录 Dockerfile 如 wanxing-web）、Go test job 加 `backend/go.sum` 存在门（非 Go
+租户零动作过，`hashFiles` 不能上 job-if、`working-directory: backend` 目录缺失
+bash 起不来——两坑在册）。
+
+| 镜像 | tag | 源 | 池 |
+|---|---|---|---|
+| yizuo/platform | sha-51c33c3 | paas 4c03c19 | testaction004 |
+| yizuo/wanxing-facade | sha-43bfb29 | fd-wanxing 3e294b6 | testaction001 |
+| yizuo/wanxing-web | sha-67f2f2f | fd-wanxing 3e294b6 | testaction001 |
+
+**滚动（七面）**：platform/facet/agent-runner-serving/agent-runner-b/c 同代
+sha-51c33c3 + facade sha-43bfb29 + web sha-67f2f2f。fd-infra-deploy 166a978→
+27d2215。**wanxing-fleet secret +seat_deploy_secret**（三处 env 引用：facade
+deployCore 签票、platform/facet deployHandler 验票——单一信任根）。
+
+**坑三条**：①agent-runner-serving 有 init+main 双 image 行，正则 count=1 只中
+init 容器（live 迟迟不滚的根因）；②fd-prod compute-quota 双顶（cpu 15/15 后
+memory 28Gi/28Gi——RollingUpdate surge 全卡 FailedCreate；提 cpu 16+memory
+30Gi，web 还吃了 RS 退避需 rollout restart 推一把）；③并行会话同窗在滚
+sub2api（gitee 非快进+detached HEAD 事故——reset 重放五文件解决）。
+
+**生产验证**：facade healthz 200（3080 口）；信箱 ingest 无票 401；redeem 坏码
+401；web 新版资产 hash 眼见（index-OJt9mj6X.js=本地 build 同 hash）；facet
+healthz 200；七 deployment rollout 全 OK。
+
+**挂账**：桌面版 v1.3.12 出片（app-build.yml=macos ×10 计费在 FDT org，额度断
+——11:09 run 同 12s fail）。月初重置或加 spending limit 后走既线。

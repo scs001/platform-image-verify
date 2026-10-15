@@ -1,7 +1,6 @@
 # line-credentials Specification
 
 ## Purpose
-
 壹座侧的各产品线凭据轨道（wire-customer / lex / wanxing-caller 三 ref）：让 dsh 会话以
 用户自己的身份调用各线操作 MCP。分两型——**短命 ID token 型**（wire-customer/lex：浏览器
 PKCE 静默铸，上游验签，过期省略-重铸）与**长命 key 型**（wanxing-caller：粘贴 sk-，401

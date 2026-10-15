@@ -29,10 +29,10 @@ interface Props {
   onSubscribed: (report: PackReport, name: string) => void;
   onGotoMine?: () => void;
   // Signed-out signal (polish-facet-interactions): hosts whose viewers can be
-  // anonymous (the facet shell) wire this — activating subscribe flips the
-  // action bar to a login-guidance row instead of surfacing a raw error.
-  // Hosts without it (壹座 — every viewer holds a session) keep the
-  // authenticated-error fallback below.
+  // anonymous (the facet shell) wire this — gated actions (subscribe, goto-
+  // mine) flip the action bar to a login-guidance row instead of firing or
+  // surfacing a raw error. Hosts without it (壹座 — every viewer holds a
+  // session) keep the authenticated-error fallback below.
   onRequireLogin?: () => void;
 }
 
@@ -55,9 +55,29 @@ const wanxingSlugFor = (agentPath: string) =>
 export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMine, onRequireLogin }: Props) {
   const { t } = useTranslation();
   // The action bar's login-guidance row (polish-facet-interactions): flipped
-  // when a signed-out viewer activates subscribe and the host wired
+  // when a signed-out viewer activates a gated action and the host wired
   // onRequireLogin; cleared when the dialog reopens for another pack.
   const [loginHint, setLoginHint] = useState(false);
+  // Two-step scrim dismissal: armed by an overlay click, consumed by the
+  // confirm row's button, reset on any dialog-internal navigation or reopen.
+  const [closeConfirm, setCloseConfirm] = useState(false);
+  // The base Dialog's scrim closes on any click; for this dialog the first
+  // scrim click only ARMS the confirm row (a misdirected click must not
+  // throw away a half-read long detail). Capture-phase listener keyed off
+  // the scrim's data attribute — no changes to the shared dialog.tsx.
+  useEffect(() => {
+    if (!packId) return;
+    const onScrimClick = (ev: MouseEvent) => {
+      const target = ev.target as HTMLElement | null;
+      if (target?.closest("[data-pack-detail-scrim]") || target?.hasAttribute("data-pack-detail-scrim")) {
+        ev.stopImmediatePropagation();
+        ev.preventDefault();
+        setCloseConfirm(true);
+      }
+    };
+    document.addEventListener("click", onScrimClick, { capture: true });
+    return () => document.removeEventListener("click", onScrimClick, { capture: true });
+  }, [packId]);
   const [pack, setPack] = useState<PackDetail | null>(null);
   const [subscribing, setSubscribing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +105,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
     setBindings(null);
     setKeyDrafts({});
     setLoginHint(false);
+    setCloseConfirm(false);
     if (!packId) return;
     api
       .getPack(packId)
@@ -232,7 +253,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
 
   return (
     <Dialog open={!!packId} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-auto pb-2" data-testid="pack-detail">
+      <DialogContent className="relative max-w-2xl max-h-[85vh] overflow-auto pb-2" data-testid="pack-detail">
         <DialogHeader>
           <DialogTitle>
             {pack?.name ?? (error ? t("packs.detail.notFound") : "")}
@@ -246,6 +267,17 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
             {pack ? `${pack.authorEmail} · v${pack.version}` : ""}
           </DialogDescription>
         </DialogHeader>
+        {/* Close control at the dialog's top-right — the conventional spot
+            (polish-facet-interactions follow-up). One-step dismissal. */}
+        <button
+          type="button"
+          aria-label={t("packs.detail.close")}
+          className="absolute right-3 top-3 z-20 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          onClick={() => onOpenChange(false)}
+          data-testid="pack-detail-close"
+        >
+          ✕
+        </button>
 
         {error && (
           <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md">{error}</div>
@@ -556,11 +588,12 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
         )}
 
         {/* Action bar (polish-facet-interactions): sticky to the dialog's
-            bottom edge — always visible regardless of scroll position. The
-            host-selected goto-mine affordance renders only when wired (the
-            facet shell omits it; no installed-packs surface there). */}
+            bottom edge — always visible regardless of scroll position, opaque
+            so scrolled content never shows through. The host-selected
+            goto-mine affordance renders only when wired (the facet shell
+            routes it through the login guidance when signed out). */}
         <div
-          className="sticky bottom-0 z-10 -mx-2 mt-3 border-t border-border bg-background/95 px-4 py-3 backdrop-blur"
+          className="sticky bottom-0 z-10 -mx-6 -mb-6 mt-3 border-t border-border bg-background px-6 py-3"
           data-testid="pack-action-bar"
         >
           {loginHint && (
@@ -576,25 +609,45 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
               )}
             </div>
           )}
+          {closeConfirm && (
+            <div
+              className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2"
+              data-testid="pack-close-confirm"
+            >
+              <span className="text-xs text-muted-foreground">{t("packs.detail.closeConfirm")}</span>
+              <div className="flex items-center gap-2">
+                <Button size="sm" className="h-7 px-3 text-xs" onClick={() => onOpenChange(false)} data-testid="pack-close-confirm-yes">
+                  {t("packs.detail.closeYes")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-7 px-3 text-xs"
+                  onClick={() => setCloseConfirm(false)}
+                  data-testid="pack-close-confirm-no"
+                >
+                  {t("packs.detail.closeNo")}
+                </Button>
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <Button onClick={() => void subscribe()} disabled={subscribing} data-testid="pack-subscribe">
               {subscribing ? t("common.loading") : t("packs.detail.subscribe")}
             </Button>
-            {onGotoMine && (
-              <Button variant="ghost" onClick={onGotoMine}>
-                {t("packs.detail.gotoMine")}
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="ml-auto h-8 w-8"
-              aria-label={t("packs.detail.close")}
-              onClick={() => onOpenChange(false)}
-              data-testid="pack-detail-close"
-            >
-              ✕
-            </Button>
+            {onGotoMine &&
+              (onRequireLogin ? (
+                // Facet shell: no installed-packs surface for an anonymous
+                // viewer — the button joins the login guidance row instead
+                // of being a silent no-op.
+                <Button variant="ghost" onClick={() => setLoginHint(true)}>
+                  {t("packs.detail.gotoMine")}
+                </Button>
+              ) : (
+                <Button variant="ghost" onClick={onGotoMine}>
+                  {t("packs.detail.gotoMine")}
+                </Button>
+              ))}
           </div>
         </div>
       </DialogContent>

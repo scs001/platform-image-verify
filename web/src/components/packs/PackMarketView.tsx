@@ -14,9 +14,9 @@ import { Badge } from "@/components/packs/Badge";
 import { PackDetailDialog } from "./PackDetailDialog";
 
 export function PackMarketView({
-  onSubscribed,
   onOpenChat,
   onRequireLogin,
+  onGotoMine,
 }: {
   onSubscribed?: () => void;
   // The report footer's open-chat hook. Hosts without a conversation view
@@ -27,6 +27,11 @@ export function PackMarketView({
   // Signed-out signal forwarded to the detail dialog (polish-facet-
   // interactions): hosts with anonymous viewers wire it, 壹座 omits it.
   onRequireLogin?: () => void;
+  // Host-selected "go to my packs" affordance (polish-facet-interactions
+  // follow-up): forwarded to the dialog, which routes it through the login
+  // guidance when the host also wired onRequireLogin and the viewer is
+  // signed out.
+  onGotoMine?: () => void;
 }) {
   const { t } = useTranslation();
   const [packs, setPacks] = useState<PackSummary[]>([]);
@@ -179,7 +184,7 @@ export function PackMarketView({
           setReportPack(name);
           void refresh(search);
         }}
-        onGotoMine={onSubscribed}
+        onGotoMine={onGotoMine}
         onRequireLogin={onRequireLogin}
       />
 

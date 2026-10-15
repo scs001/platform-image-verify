@@ -211,7 +211,14 @@ export function App() {
               <PackMarketView
                 onSubscribed={() => {}}
                 onOpenChat={null}
-                onRequireLogin={goLogin}
+                // Only a signed-out viewer gets the gated path: after login
+                // these must be undefined so the buttons fire for real (the
+                // earlier unconditional wiring sent signed-in users to login).
+                onRequireLogin={user ? undefined : goLogin}
+                // goto-mine: signed-out the dialog flips the guidance row
+                // itself; signed-in facet has no installed-packs surface, so
+                // the button is omitted entirely.
+                onGotoMine={user ? undefined : () => {}}
               />
               <p className="text-xs text-muted-foreground">
                 {t("facetShell.packsFootnote")} <code className="font-mono">{FACET_HELP_COMMAND}</code>

@@ -331,9 +331,26 @@ test("the pack dialog carries an always-visible action bar with close, and anony
   // by presence — activating it would navigate away from this spec's scope).
   await expect(page.getByTestId("pack-login-go")).toBeVisible();
 
-  // Close control dismisses the dialog.
+  // Close control (top-right) dismisses the dialog in one step.
   await page.getByTestId("pack-detail-close").click();
   await expect(page.getByTestId("pack-detail")).toHaveCount(0);
+
+  // Scrim click is two-step: first arms the confirm row, the row's button
+  // closes (polish-facet-interactions follow-up).
+  await page.locator('[data-testid^="pack-card-"]').first().click();
+  await expect(page.getByTestId("pack-detail")).toBeVisible();
+  await page.locator("[data-pack-detail-scrim]").click({ position: { x: 5, y: 5 } });
+  await expect(page.getByTestId("pack-close-confirm")).toBeVisible();
+  await expect(page.getByTestId("pack-detail")).toBeVisible();
+  await page.getByTestId("pack-close-confirm-yes").click();
+  await expect(page.getByTestId("pack-detail")).toHaveCount(0);
+
+  // The goto-mine affordance for a signed-out viewer flips the guidance row
+  // (no silent no-op, no navigation).
+  await page.locator('[data-testid^="pack-card-"]').first().click();
+  await expect(page.getByTestId("pack-action-bar")).toBeVisible();
+  await page.getByRole("button", { name: /我的功能集|View my packs|Mis packs|Mes packs|マイ機能集/ }).click();
+  await expect(page.getByTestId("pack-login-guidance")).toBeVisible();
 
   expect(pageErrors, pageErrors.join(" | ")).toEqual([]);
 });

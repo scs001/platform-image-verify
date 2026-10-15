@@ -262,5 +262,16 @@ sub2api（gitee 非快进+detached HEAD 事故——reset 重放五文件解决�
 401；web 新版资产 hash 眼见（index-OJt9mj6X.js=本地 build 同 hash）；facet
 healthz 200；七 deployment rollout 全 OK。
 
-**挂账**：桌面版 v1.3.12 出片（app-build.yml=macos ×10 计费在 FDT org，额度断
-——11:09 run 同 12s fail）。月初重置或加 spending limit 后走既线。
+**桌面版 v1.3.12 出片（2026-10-16 补完）**：走**公开仓免费线**——私仓 bump 版本 →
+`make-public-snapshot.mjs --init` → 推 `FindDataTechnology/platform` main → 打
+`v1.3.12` tag 触发该仓 `release.yml`（macos×2 + windows 矩阵，公开仓标准 runner
+**免费无限**，不受 FDT 私有额度影响）。win-smoke 用同仓 `workflow_dispatch` 指
+tag 复验。
+
+**认知订正（用户指正 2026-10-16）**：先前把 app-build.yml 的 macOS 计费当阻断是
+错的——那条 workflow 属**私仓** app-build 线；桌面发行一直走公开仓 release.yml
+（v1.3.0-v1.3.11 的 Release 资产即其产物）。**开源线的免费额度就是桌面打包的
+正路，私仓 macos 只是 app-e2e 之类内部验证才碰**。
+
+**快照线新增排除**：`docs/ciyuan/home-content*.html`（词元线首页部署存档，含对外
+联系 QQ——公开清单不该带公司联系标识符；forbidden-pattern 扫描拦下）。

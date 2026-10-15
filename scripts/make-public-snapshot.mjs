@@ -106,6 +106,11 @@ const EXCLUDE_PATHS = new Set([
   // internal compliance assessment: inventory of internal domains, registry
   // transit route, and cluster node names (合规盘点 v0, 2026-10-13).
   "docs/compliance-opening-assessment.md",
+  // ciyuan line deployment payloads: the finddatarouter home-page content
+  // archives carry our contact identifiers (personal QQ) — deployed surfaces,
+  // not part of the OSS distribution (2026-10-16, forbidden-pattern scan hit).
+  "docs/ciyuan/home-content.html",
+  "docs/ciyuan/home-content.baseline-2026-10-05.html",
 ]);
 // internal health MCP: README is operator-facing (tailnet mesh IPs, SSRF
 // allowlists, DSN handling) — not curated for the public drop (2026-10-06).

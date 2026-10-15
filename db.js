@@ -702,6 +702,25 @@ const MIGRATIONS = [
       `ALTER TABLE custom_skills ADD COLUMN origin_meta TEXT`,
     ],
   },
+  {
+    version: 31,
+    // line-credentials (add-line-credential-refs, design D1): per-line creds —
+    // wire-customer / lex hold short-lived Logto ID tokens (browser PKCE silent
+    // mint; aud is each line's own Logto app — upstream verifies),
+    // wanxing-caller holds a pasted long-lived sk- key. Referenced from
+    // mcp.json rows as credentialRef: wire-customer | lex | wanxing-caller.
+    statements: [
+      `CREATE TABLE IF NOT EXISTS user_line_credentials (
+        email TEXT NOT NULL,
+        line TEXT NOT NULL,
+        token TEXT NOT NULL,
+        token_exp INTEGER,
+        stale INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (email, line)
+      )`,
+    ],
+  },
 ];
 
 function nowIso() {
@@ -1757,6 +1776,49 @@ export function deleteFacetMarketDevice(email) {
   const key = normalizeIdentityEmail(email);
   if (!key) return false;
   return stmt("DELETE FROM user_facet_market_devices WHERE email = ?").run(key).changes > 0;
+}
+
+// ── User line credentials (add-line-credential-refs) ────────────────────────
+// Per-line creds: wire-customer / lex = short-lived Logto ID tokens (browser
+// silent mint), wanxing-caller = pasted long-lived sk- key. Token never leaves
+// the server except through the injection path.
+
+export function getLineCredential(email, line) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return null;
+  return stmt(
+    "SELECT token, token_exp AS tokenExp, stale, updated_at AS updatedAt FROM user_line_credentials WHERE email = ? AND line = ?"
+  ).get(key, line) ?? null;
+}
+
+export function setLineCredential({ email, line, token, tokenExp, stale = 0 }) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return null;
+  stmt(
+    `INSERT INTO user_line_credentials (email, line, token, token_exp, stale, updated_at)
+     VALUES (@email, @line, @token, @tokenExp, @stale, @now)
+     ON CONFLICT(email, line) DO UPDATE SET
+       token = excluded.token, token_exp = excluded.token_exp,
+       stale = excluded.stale, updated_at = excluded.updated_at`
+  ).run({ email: key, line, token, tokenExp: tokenExp ?? null, stale: stale ? 1 : 0, now: nowIso() });
+  return getLineCredential(key, line);
+}
+
+export function markLineCredentialStale(email, line) {
+  if (!dbReady) return false;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return false;
+  return stmt("UPDATE user_line_credentials SET stale = 1, updated_at = ? WHERE email = ? AND line = ?")
+    .run(nowIso(), key, line).changes > 0;
+}
+
+export function clearLineCredential(email, line) {
+  if (!dbReady) return false;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return false;
+  return stmt("DELETE FROM user_line_credentials WHERE email = ? AND line = ?").run(key, line).changes > 0;
 }
 
 // ── User paper-trading credentials (add-paper-trading-credentials) ──────────

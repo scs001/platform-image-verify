@@ -270,6 +270,47 @@ export async function disconnectFacetMarket(): Promise<FacetMarketConnection> {
   return res.json();
 }
 
+// ── Line operation-MCP credentials (line-credentials) ───────────────────────
+// wire-customer / lex: short-lived ID tokens minted silently in the browser;
+// wanxing-caller: a pasted long-lived sk- key. Projections carry state only.
+
+export type LineName = "wire-customer" | "lex" | "wanxing-caller";
+
+export interface LineConnection {
+  line: LineName;
+  connected: boolean;
+  stale: boolean;
+  expiresAt: number | null;
+}
+
+export async function fetchLineConnection(line: LineName): Promise<LineConnection> {
+  const res = await http(`/api/lines/${line}/connection`);
+  if (!res.ok) throw new Error(`Failed to fetch line connection: ${res.statusText}`);
+  return res.json();
+}
+
+export async function saveLineCredential(line: LineName, token: string): Promise<LineConnection> {
+  const res = await http(`/api/lines/${line}/credential`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to save the credential: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function disconnectLine(line: LineName): Promise<LineConnection> {
+  const res = await http(`/api/lines/${line}/connection`, { method: "DELETE" });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Failed to disconnect: ${res.statusText}`);
+  }
+  return res.json();
+}
+
 // ── Paper-trading token (add-paper-trading-credentials) ─────────────────────
 //
 // A pasted `fdt_` long-lived token minted on the service web — no expiry, no

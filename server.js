@@ -48,6 +48,7 @@ import { registerAppRoutes } from "./server/routes/app.js";
 import { registerRegistryRoutes } from "./server/routes/registry.js";
 import { registerConnectorRoutes } from "./server/routes/connector.js";
 import { registerFacetMarketRoutes } from "./server/routes/facet-market.js";
+import { registerLineCredentialRoutes } from "./server/routes/line-credentials.js";
 import { registerPaperTradingRoutes } from "./server/routes/paper-trading.js";
 import { registerPackUsageRoutes } from "./server/routes/pack-usage.js";
 import { registerFileRoutes } from "./server/routes/files.js";
@@ -230,6 +231,9 @@ registerConnectorRoutes(ctx);
 // 谦面市场设备凭据 (facet-market-credentials, C1.1-B) — same family again:
 // pair-by-bind-code, silent relogin, injection via credentialRef.
 registerFacetMarketRoutes(ctx);
+// 各线操作 MCP 凭据 (line-credentials): wire-customer / lex (browser silent
+// mint ID tokens) + wanxing-caller (pasted sk-) — same family.
+registerLineCredentialRoutes(ctx);
 // 柏讯模拟交易 token (paper-trading-credentials) — fourth in the same family:
 // paste an fdt_ token, advisory liveness probe, injection via credentialRef.
 registerPaperTradingRoutes(ctx);

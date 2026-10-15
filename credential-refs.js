@@ -19,6 +19,7 @@
 import * as registryCredentials from "./registry-credentials.js";
 import * as connectorCredentials from "./connector-credentials.js";
 import * as facetMarketCredentials from "./facet-market-credentials.js";
+import * as lineCredentials from "./line-credentials.js";
 import * as paperTradingCredentials from "./paper-trading-credentials.js";
 
 const REFS = new Map(
@@ -50,6 +51,27 @@ const REFS = new Map(
       liveToken: paperTradingCredentials.liveToken,
       markInvalid: paperTradingCredentials.markInvalid,
       staleEvent: "paper_trading_credential_stale",
+    },
+    {
+      refName: lineCredentials.WIRE_CUSTOMER_CREDENTIAL_REF,
+      isRef: lineCredentials.isWireCustomerRef,
+      liveToken: (email) => lineCredentials.liveToken(email, "wire-customer"),
+      markInvalid: (email) => lineCredentials.markInvalid(email, "wire-customer"),
+      staleEvent: "line_credential_stale",
+    },
+    {
+      refName: lineCredentials.LEX_CREDENTIAL_REF,
+      isRef: lineCredentials.isLexRef,
+      liveToken: (email) => lineCredentials.liveToken(email, "lex"),
+      markInvalid: (email) => lineCredentials.markInvalid(email, "lex"),
+      staleEvent: "line_credential_stale",
+    },
+    {
+      refName: lineCredentials.WANXING_CALLER_CREDENTIAL_REF,
+      isRef: lineCredentials.isWanxingCallerRef,
+      liveToken: (email) => lineCredentials.liveToken(email, "wanxing-caller"),
+      markInvalid: (email) => lineCredentials.markInvalid(email, "wanxing-caller"),
+      staleEvent: "line_credential_stale",
     },
   ].map((entry) => [entry.refName, entry]),
 );

@@ -273,6 +273,17 @@ tag 复验。
 win-smoke 38772823000 三相全绿（Phase C 窗口渲染 self-test exit 0）。
 release.yml 的 tag 触发与 win-smoke 的 dispatch(tag) 配方照旧有效。
 
+**官网上架（release-sync 四步链，`DL_HOST=cheap3`）**：`node scripts/release-sync.mjs
+v1.3.12 --dl-live --prune` → ①Release 资产映射 ②快照条目校验 ③写
+fd-official-web `src/data/desktop-releases.json` + 推 github/gitee ④rsync 三产物
+到 cheap3 `/srv/dl/platform/1.3.12/`（prune 掉 1.3.5）。随后滚官网镜像
+`fd-web.yaml` sha-443f415（GitOps→ArgoCD fd-web 应用）。**验证**：dl 直链
+arm64/exe 双 206；源站（124.220.7.175 https 本机）v1.3.12；公网
+www.finddatatech.cloud 中/英双站 v1.3.12 眼见。
+**坑一笔**：www 域穿腾讯 EdgeOne CDN（max-age=300）——源站/pod 已新版但公网
+仍显旧（1.3.8），是缓存不是没滚；等 300s 或 cache-bust 即新。**1.3.11 从未上官网
+（数据文件停 1.3.8）——版本跳档已由 1.3.12 直接覆盖。**
+
 **认知订正（用户指正 2026-10-16）**：先前把 app-build.yml 的 macOS 计费当阻断是
 错的——那条 workflow 属**私仓** app-build 线；桌面发行一直走公开仓 release.yml
 （v1.3.0-v1.3.11 的 Release 资产即其产物）。**开源线的免费额度就是桌面打包的

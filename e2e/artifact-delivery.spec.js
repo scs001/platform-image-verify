@@ -327,3 +327,100 @@ test("a read-only turn surfaces no strip", async ({ page }) => {
     fs.rmSync(abs, { force: true });
   }
 });
+
+// ── wire-produced-files-to-outputs ───────────────────────────────────────────
+// The rule's production blind spots, pinned at the UI level: a multi-line
+// command's archive line must surface (newlines now split segments), and a
+// heredoc-built zip must surface instead of the code-text chip the redirect
+// regex used to mint from `print("... ->", out)`.
+
+test("an archive on a later line of a multi-line command surfaces in the strip", async ({ page }) => {
+  const name = `paas-multiline-${Date.now()}.tar.gz`;
+  const abs = path.join(BOOT_WORKSPACE, name);
+  fs.writeFileSync(abs, Buffer.from("not a real tar"));
+  try {
+    await gotoChat(page);
+    await page.evaluate(
+      ([n]) => {
+        window.__chatStore.getState().apply({
+          type: "session_loaded",
+          id: "e2e-multiline-archive",
+          messages: [
+            { role: "user", content: "打包" },
+            {
+              role: "assistant",
+              content: "已打包。",
+              blocks: [
+                {
+                  kind: "tool",
+                  id: "t-tar",
+                  name: "bash",
+                  args: {
+                    command: `find . | sort > /tmp/doclist.txt\ntar -czf ${n} -T /tmp/doclist.txt`,
+                    description: "Bundle docs",
+                  },
+                  result: "ok",
+                  state: "done",
+                },
+                { kind: "text", text: "已打包。" },
+              ],
+            },
+          ],
+        });
+      },
+      [name],
+    );
+    const chip = page.getByTestId("turn-artifact-chip");
+    await expect(chip).toContainText(name, { timeout: 10_000 });
+    // The /tmp redirect target is a candidate but not an existing workspace
+    // file, so only the archive chip shows.
+    await expect(chip).not.toContainText("doclist.txt");
+  } finally {
+    fs.rmSync(abs, { force: true });
+  }
+});
+
+test("a heredoc-built zip surfaces and no code-text chip appears", async ({ page }) => {
+  const name = `paas-heredoc-${Date.now()}.zip`;
+  const abs = path.join(BOOT_WORKSPACE, name);
+  fs.writeFileSync(abs, Buffer.from("PK\x03\x04 not real"));
+  try {
+    await gotoChat(page);
+    await page.evaluate(
+      ([n]) => {
+        window.__chatStore.getState().apply({
+          type: "session_loaded",
+          id: "e2e-heredoc-zip",
+          messages: [
+            { role: "user", content: "python 打包" },
+            {
+              role: "assistant",
+              content: "已打包。",
+              blocks: [
+                {
+                  kind: "tool",
+                  id: "t-py",
+                  name: "bash",
+                  args: {
+                    command: `python3 - <<'EOF'\nout = "${n}"\nprint("Zipped files ->", out)\nEOF`,
+                    description: "Zip via python",
+                  },
+                  result: "Zipped 2 files",
+                  state: "done",
+                },
+                { kind: "text", text: "已打包。" },
+              ],
+            },
+          ],
+        });
+      },
+      [name],
+    );
+    const chip = page.getByTestId("turn-artifact-chip");
+    await expect(chip).toContainText(name, { timeout: 10_000 });
+    // The old bug: `->` in the print minted a chip of Python source text.
+    await expect(page.getByTestId("turn-artifact-strip")).not.toContainText("Zipped files");
+  } finally {
+    fs.rmSync(abs, { force: true });
+  }
+});

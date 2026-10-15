@@ -176,3 +176,80 @@ test("archive and compression extensions are recognized produced-file types", ()
   ]);
   assert.deepEqual(produced("bash", { command: "7z a pack.7z docs/" }), ["pack.7z"]);
 });
+
+// ── Production replays (wire-produced-files-to-outputs) ─────────────────────
+// The three commands below are verbatim from production session transcripts
+// (cell 1da519d4c1c0bf89, 2026-10-14/15). The deployed rule at the time
+// produced: (1) ["/tmp/doclist.txt"] — the tar line glued onto a sort segment
+// because newlines did not split; (2) a code-text candidate
+// `", out)\nwith zipfile.ZipFile(out) as z:\n    bad = z.testzip() print("` —
+// `->` in a print misread as a redirect; (3) no zip at all — the heredoc body
+// scattered across verb-less segments. Each test pins the fixed behavior.
+
+test("a multi-line command treats each line as its own segment", () => {
+  // Production: find | sort > /tmp/doclist.txt, then tar -czf on the next line.
+  const out = produced("bash", {
+    command:
+      "find . -type f -name '*.md' | sort > /tmp/doclist.txt\ntar -czf workspace-docs.tar.gz -T /tmp/doclist.txt\necho \"exit=$?\"\nls -lh workspace-docs.tar.gz",
+  });
+  assert.ok(out.includes("workspace-docs.tar.gz"), "the archive line declares its output");
+  assert.ok(out.includes("/tmp/doclist.txt"), "the earlier line's redirect still counts");
+});
+
+test("a heredoc body never mints a redirect candidate", () => {
+  // Production: print("Zipped", len(files), "files ->", out) — the `->` plus
+  // the following quoted span used to become a candidate of code text.
+  const out = produced("bash", {
+    command:
+      "python3 - <<'EOF'\nout = \"markdown-docs.zip\"\nprint(\"Zipped\", len(files), \"files ->\", out)\nEOF\nls -la markdown-docs.zip",
+  });
+  assert.deepEqual(out, ["markdown-docs.zip"]);
+  assert.ok(out.every((c) => !c.includes("zipfile") && !c.includes("print")), "no code text");
+});
+
+test("a script-runner heredoc naming an archive contributes it", () => {
+  // Production: a zip built inside a python3 heredoc never reached the strip.
+  const out = produced("bash", {
+    command:
+      "cd /workspace && python3 - <<'EOF'\nimport zipfile\nout = \"markdown-docs.zip\"\nwith zipfile.ZipFile(out, \"w\") as z:\n    z.write(\"a.md\")\nEOF\nls -la",
+  });
+  assert.deepEqual(out, ["markdown-docs.zip"]);
+});
+
+test("script runners contribute only archive-shaped tokens", () => {
+  // A runner reading a non-archive file contributes nothing (readers are not
+  // producers); writing/verifying an archive contributes it.
+  assert.deepEqual(produced("bash", { command: "python3 -c \"open('data.csv').read()\"" }), []);
+  assert.deepEqual(produced("bash", { command: "node -e \"write('bundle.zip')\"" }), ["bundle.zip"]);
+  assert.deepEqual(produced("bash", { command: "sudo python3 makezip.py output.tar.gz" }), [
+    "output.tar.gz",
+  ]);
+});
+
+test("heredoc delimiters are line-bounded and bodies are glued whole", () => {
+  // Unterminated `<<'EOF` must not let the quoted-delimiter branch run across
+  // newlines and swallow body text as the delimiter.
+  assert.deepEqual(produced("bash", { command: "python3 - <<'EOF\nprint('a.zip')" }), ["a.zip"]);
+  assert.deepEqual(produced("bash", { command: "python3 - <<EOF\nx = 'a.zip'" }), ["a.zip"]);
+  // Two heredocs in one command each contribute their own archive.
+  assert.deepEqual(
+    produced("bash", {
+      command: "python3 - <<'A'\nv='x.zip'\nA\npython3 - <<'B'\nw='y.tar.gz'\nB",
+    }),
+    ["x.zip", "y.tar.gz"]
+  );
+  // A heredoc with no archive in it contributes nothing.
+  assert.deepEqual(produced("bash", { command: "python3 - <<'EOF'\nprint('hello -> world')\nEOF" }), []);
+  // Double-quoted delimiter.
+  assert.deepEqual(produced("bash", { command: "python3 - <<\"EOF\"\nout = 'b.tar.gz'\nEOF" }), [
+    "b.tar.gz",
+  ]);
+});
+
+test("redirect targets must be path-shaped and /dev sinks stay dropped", () => {
+  // A redirect whose target is not a file path contributes nothing — the
+  // mechanism behind the code-text chip.
+  assert.deepEqual(produced("bash", { command: "prog --flag -> out" }), []);
+  assert.deepEqual(produced("bash", { command: "cmd > /dev/null 2>&1" }), []);
+  assert.deepEqual(produced("bash", { command: "echo hi > result.md" }), ["result.md"]);
+});

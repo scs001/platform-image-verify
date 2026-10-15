@@ -185,6 +185,7 @@ export function recordMessage(sessionId, role, content, blocks, ownerUser = null
   // examined once, here. A parse failure is a skipped chart, never a failed
   // message record.
   if (role === "assistant" && inserted) {
+    const workspaceRoot = dshBridge?.getCwd?.() || null;
     try {
       resources.captureFromMessage({
         sessionId,
@@ -199,6 +200,28 @@ export function recordMessage(sessionId, role, content, blocks, ownerUser = null
       });
     } catch (err) {
       console.warn(`[resources] capture failed for session ${sessionId}: ${err.message}`);
+    }
+    // Files a turn produced ride the same funnel (openspec:
+    // wire-produced-files-to-outputs): the shared rule yields candidates per
+    // tool block, the store gates and copies each. Best-effort like charts —
+    // a refused candidate is a skip, and no failure ever breaks the mirror.
+    // recordMessage is a synchronous funnel (its callers rely on that), so the
+    // async capture is launched, not awaited; captureFilesFromTurn never
+    // throws (every per-candidate error is caught inside), and the outer catch
+    // plus the .catch below make an escaping rejection a logged line, not an
+    // unhandled one.
+    if (workspaceRoot && blocks?.length) {
+      resources
+        .captureFilesFromTurn({
+          sessionId,
+          messageId: inserted.id,
+          blocks,
+          workspaceRoot,
+          createdAt: now,
+        })
+        .catch((err) => {
+          console.warn(`[resources] file capture failed for session ${sessionId}: ${err.message}`);
+        });
     }
   }
 }

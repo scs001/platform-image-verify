@@ -278,7 +278,13 @@ function resolveUnderRoot(workspaceRoot, input) {
 // Copy a workspace file into the store. The source must be a regular file
 // inside the workspace root, proven by realpath — a symlink pointing out of
 // the root is refused even though its lexical path looked contained.
-export async function saveFile({ sessionId = null, messageId = null, path: inputPath, workspaceRoot }) {
+// The gate → hash → store → insert core, shared by the explicit-save route
+// (source "manual") and the turn capture path (source "auto",
+// openspec: wire-produced-files-to-outputs). One writer, one discipline:
+// containment, realpath, size cap, content-hash dedupe, durable copy. Throws
+// ResourceError with a code the route maps to a status; the capture path
+// catches everything.
+async function storeFileCopy({ sessionId, messageId, inputPath, workspaceRoot, source, createdAt }) {
   if (!db.isDbReady()) {
     throw new ResourceError(503, "db_unavailable", "资源库暂不可用");
   }
@@ -333,12 +339,12 @@ export async function saveFile({ sessionId = null, messageId = null, path: input
   }
 
   const session = sessionId ? db.getSessionMeta(sessionId) : null;
-  const now = new Date().toISOString();
+  const now = createdAt || new Date().toISOString();
   const { inserted, resource } = db.insertResource({
     id,
     type: "file",
     title: originalName,
-    source: "manual",
+    source,
     sessionId: sessionId || null,
     sessionTitle: session?.title || null,
     messageId: Number.isInteger(messageId) ? messageId : null,
@@ -357,6 +363,58 @@ export async function saveFile({ sessionId = null, messageId = null, path: input
   }
   broadcastChange("created", resource);
   return { inserted: true, resource };
+}
+
+export async function saveFile({ sessionId = null, messageId = null, path: inputPath, workspaceRoot }) {
+  return storeFileCopy({ sessionId, messageId, inputPath, workspaceRoot, source: "manual" });
+}
+
+// The auto-source twin of saveFile, for the backfill script
+// (openspec: wire-produced-files-to-outputs, task 4.1): every existing
+// workspace file, same gate, same dedupe, no session provenance. Not exposed
+// over HTTP — the routes keep the manual semantics.
+export async function saveFileAuto({ path: inputPath, workspaceRoot }) {
+  return storeFileCopy({ sessionId: null, messageId: null, inputPath, workspaceRoot, source: "auto" });
+}
+
+// Files a turn produced ride the same mirror funnel as charts
+// (openspec: wire-produced-files-to-outputs): every tool block in the turn's
+// block list goes through the shared produced-file rule, and each candidate is
+// gated by storeFileCopy with source "auto". Best-effort by contract — a
+// refused candidate (outside the workspace, oversize, missing) is a skip, and
+// no error ever escapes: the caller's mirror must not fail because capture
+// did. A same-hash candidate refreshes the existing row's last-seen (the
+// dedupe primitive); a changed-byte candidate inserts a new row.
+export async function captureFilesFromTurn({ sessionId, messageId, blocks = null, workspaceRoot, createdAt } = {}) {
+  if (!db.isDbReady() || !workspaceRoot || !Array.isArray(blocks)) return [];
+  const { producedFilePaths } = await import("./server/file-tool-paths-server.js");
+  const now = createdAt || new Date().toISOString();
+  const results = [];
+  const seen = new Set();
+  for (const block of blocks) {
+    if (!block || typeof block !== "object") continue;
+    const candidates = producedFilePaths(block.name, block.args);
+    for (const candidate of candidates) {
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      try {
+        const result = await storeFileCopy({
+          sessionId,
+          messageId,
+          inputPath: candidate,
+          workspaceRoot,
+          source: "auto",
+          createdAt: now,
+        });
+        if (result.resource) results.push(result);
+      } catch (err) {
+        // A refused candidate is normal (reads, /tmp redirects, oversize);
+        // anything else is logged and skipped all the same.
+        console.warn(`[resources] file capture skipped for ${candidate}: ${err?.code || err?.message}`);
+      }
+    }
+  }
+  return results;
 }
 
 // ── Management ──────────────────────────────────────────────────────────────

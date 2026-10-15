@@ -159,4 +159,22 @@ test.describe("live functional @live-functional", () => {
       fs.rmSync(docx.dir, { recursive: true, force: true });
     }
   });
+
+  test("a turn-produced archive surfaces in Outputs without a manual save", async ({ page }) => {
+    await logIn(page);
+    const name = `paas-live-auto-${Date.now()}.tar.gz`;
+    // A deterministic one-step prompt: the agent runs exactly one shell call
+    // that redirects into a workspace file. The capture rides the mirror
+    // funnel, so the library row must exist by the time the turn settles.
+    await sendPrompt(
+      page,
+      `请只执行一条命令：echo produced-by-live-test > ${name} ，不要做任何其他事，不要解释。`,
+    );
+    await page.goto("/resources", { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("resources-page")).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId("resources-page")).toContainText(name, { timeout: 30_000 });
+    // Cleanup: the live library is shared — delete the auto row.
+    const card = page.getByTestId("resource-card").filter({ hasText: name });
+    await card.locator("button").first().click({ timeout: 15_000 }).catch(() => {});
+  });
 });

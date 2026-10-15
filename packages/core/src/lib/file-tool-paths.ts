@@ -49,6 +49,12 @@ function pathTokens(text: string): string[] {
   return [...text.matchAll(new RegExp(PATH_TOKEN_SRC, "gi"))].map((m) => m[0]);
 }
 
+// The archive and compression extensions, cut out of FILE_EXTENSION_SRC: the
+// shapes a script-runner segment (python3 heredoc, `node -c`) may contribute —
+// an archive is the deliverable case; a csv a script merely reads is not.
+const ARCHIVE_EXTENSIONS =
+  "zip|tar|gz|tgz|7z|rar|bz2|xz";
+
 // Commands that declare an output among their arguments. A command that
 // produces a file through something not on this list (`make`, `python -c`, a
 // bespoke script) contributes nothing unless it redirects; the list is one
@@ -70,6 +76,12 @@ const PRODUCING_VERBS = new Set([
   "split",
 ]);
 
+// Script runners: not producers by verb, but a runner whose text names an
+// archive-shaped path is building (or at least handling) that archive —
+// empirically the deliverable case (python3 heredoc zips in production).
+// Their segments contribute archive-shaped tokens only.
+const SCRIPT_RUNNER_VERBS = new Set(["python3", "python", "node"]);
+
 // Wrappers that sit in front of the real verb (`sudo zip …`). Skipped when
 // finding a segment's verb, so the wrapper does not hide it.
 const COMMAND_PREFIXES = new Set(["sudo", "env", "command", "nice", "time", "nohup"]);
@@ -78,9 +90,56 @@ const COMMAND_PREFIXES = new Set(["sudo", "env", "command", "nice", "time", "noh
 // so `2>&1` (a descriptor) matches nothing and `< input` is not considered.
 const REDIRECT_RE = />>?\s*("[^"]*"|'[^']*'|[^\s;&|<>()]+)/g;
 
+// A heredoc introducer. A segment containing one is exempt from redirect
+// scanning: inside a heredoc body, `->` and `=>` are code, not redirections
+// (production: a python heredoc's `print("... ->", out)` minted a candidate
+// that was a multi-line span of Python source).
+const HEREDOC_RE = /<<-?/;
+
+// A heredoc introducer with its delimiter word, up to the end of its line —
+// `python3 - <<'EOF'`, `bash <<< "x"`, `cat <<EOF`. Everything after the
+// introducer to the next delimiter line is the heredoc BODY. The quoted
+// delimiter forms are line-bounded: an unterminated `<<'EOF` must not let
+// `[^']*` run across newlines and swallow body text as the delimiter.
+const HEREDOC_INTRO_RE = /<<-?\s*(?:"([^"\n]*)"|'([^'\n]*)'|(\S+))/;
+
 // Segment separators: a command may run several programs, each with its own
-// verb (`cd out && zip -r …`).
-const SEGMENT_SPLIT_RE = /&&|\|\||[;|]/;
+// verb (`cd out && zip -r …`). Newlines split too — a redirected line must not
+// glue its verb onto the next line's command (production: `… | sort >
+// /tmp/doclist.txt\ntar -czf workspace-docs.tar.gz …` made the `tar` line a
+// `sort` segment, dropping the archive entirely).
+const SEGMENT_SPLIT_RE = /&&|\|\||[;|\n]/;
+
+// Glue every heredoc body onto its introducer's line before segment splitting.
+// A heredoc body is not shell syntax — newlines inside it are not command
+// separators, and splitting would scatter the body across verb-less segments
+// (production: the zip built inside a `python3 - <<'EOF'` body landed in a
+// segment with no verb and was lost). Replaces the body's newlines with
+// spaces; the introducer keeps the heredoc marker so its segment is exempt
+// from redirect scanning. Bounded scan: stops after the body of the last
+// heredoc, walks the string once.
+function glueHeredocs(command: string): string {
+  let out = "";
+  let rest = command;
+  for (;;) {
+    const m = HEREDOC_INTRO_RE.exec(rest);
+    if (!m) return out + rest;
+    const introEnd = m.index + m[0].length;
+    const delim = (m[1] ?? m[2] ?? m[3] ?? "EOF").replace(/^'/, "").replace(/'$/, "");
+    // Body: everything up to a line that is the bare delimiter. replaceAll,
+    // not a regex escape — an escape-class bug here swallowed literal
+    // newlines into the pattern and crashed on unterminated heredocs.
+    const esc = delim.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const bodyRe = new RegExp(`\\n[ \\t]*${esc}[ \\t]*(?:\\n|$)`);
+    const tail = rest.slice(introEnd);
+    const bodyMatch = bodyRe.exec(tail);
+    const body = bodyMatch ? tail.slice(0, bodyMatch.index) : tail;
+    const after = bodyMatch ? tail.slice(bodyMatch.index + bodyMatch[0].length) : "";
+    out += rest.slice(0, introEnd) + " " + body.replace(/\n/g, " ") + (bodyMatch ? "\n" : "\n");
+    rest = after;
+    if (!bodyMatch) return out;
+  }
+}
 
 // The server caps a status lookup at 20 paths (LOOKUP_MAX_PATHS); capping here
 // too keeps a pathological command from pushing a real artifact off the list.
@@ -90,25 +149,44 @@ function unquote(token: string): string {
   return token.replace(/^["']|["']$/g, "");
 }
 
-// Candidates from a shell command string. Two output signals admit one: an
-// explicit redirection, or a producing verb in the segment. Neither present —
-// `ls -la`, `curl …`, `git status`, `sed -n '1,40p' f`, `wc -c < f` — yields
-// nothing, which is the point: those commands write no file.
+// Candidates from a shell command string. Three output signals admit one: an
+// explicit redirection into a path-shaped target, a producing verb in the
+// segment, or a script-runner segment naming an archive-shaped path. Neither
+// present — `ls -la`, `curl …`, `git status`, `sed -n '1,40p' f`, `wc -c < f`
+// — yields nothing, which is the point: those commands write no file.
 function commandCandidates(command: string): string[] {
   const out: string[] = [];
-  for (const m of command.matchAll(REDIRECT_RE)) {
-    const target = unquote(m[1] ?? "");
-    // /dev/null and friends are sinks, not files.
-    if (target && !target.startsWith("/dev/")) out.push(target);
-  }
-  for (const segment of command.split(SEGMENT_SPLIT_RE)) {
-    const tokens = segment.trim().split(/\s+/).filter(Boolean);
+  for (const segment of glueHeredocs(command).split(SEGMENT_SPLIT_RE)) {
+    const trimmed = segment.trim();
+    const tokens = trimmed.split(/\s+/).filter(Boolean);
     let i = 0;
     while (i < tokens.length && COMMAND_PREFIXES.has(tokens[i] ?? "")) i++;
     // A leading path (`/usr/bin/zip`) still names the verb.
     const verb = (tokens[i] ?? "").split("/").pop() ?? "";
-    if (!PRODUCING_VERBS.has(verb)) continue;
-    for (const token of pathTokens(segment)) out.push(unquote(token));
+    const isHeredoc = HEREDOC_RE.test(trimmed);
+
+    // Redirect targets are admitted under the same discipline as verb
+    // candidates — path-shaped only. This is what kills the pseudo-redirect
+    // (`->` inside a heredoc's print) that minted a code-text chip in
+    // production. A heredoc segment skips the scan entirely: double defense.
+    if (!isHeredoc) {
+      for (const m of trimmed.matchAll(REDIRECT_RE)) {
+        const target = unquote(m[1] ?? "");
+        // /dev/null and friends are sinks, not files.
+        if (target && !target.startsWith("/dev/") && pathTokens(target).includes(unquote(target)))
+          out.push(unquote(target));
+      }
+    }
+
+    if (PRODUCING_VERBS.has(verb)) {
+      for (const token of pathTokens(trimmed)) out.push(unquote(token));
+    } else if (SCRIPT_RUNNER_VERBS.has(verb)) {
+      // The runner is not a producer by verb; an archive-shaped path in its
+      // text (command line, -c body, heredoc body — all part of the segment)
+      // is the deliverable case. Readers of a csv contribute nothing.
+      const archiveToken = new RegExp(`[\\w./-]*[\\w-]\\.(?:${ARCHIVE_EXTENSIONS})\\b`, "gi");
+      for (const m of trimmed.matchAll(archiveToken)) out.push(m[0]);
+    }
   }
   return out;
 }

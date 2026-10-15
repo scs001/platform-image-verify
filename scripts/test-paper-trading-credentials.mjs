@@ -83,7 +83,6 @@ const { attachTurnStateModule } = await import("../server/context.js");
 const db = await import("../db.js");
 const paperTradingCredentials = await import("../paper-trading-credentials.js");
 const registryCredentials = await import("../registry-credentials.js");
-const connectorCredentials = await import("../connector-credentials.js");
 const credentialRefs = await import("../credential-refs.js");
 const extensionStore = await import("../extension-store.js");
 const packStore = await import("../pack-store.js");

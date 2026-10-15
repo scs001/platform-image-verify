@@ -44,10 +44,6 @@ const rosterId = (id) => id.replace(/\./g, "-");
 const catalogDefsPath = () => path.join(dirs.dshHome, ".agent-presets.defs.json");
 const catalogDefs = () => JSON.parse(fs.readFileSync(catalogDefsPath(), "utf8"));
 const defOf = (id) => catalogDefs().find((d) => d.id === id || d.entryId === id);
-// The compose root under custom-skills is still materialized (the skills-patch
-// side) — unchanged by 0.2.0.
-const generatedPreset = (id) => path.join(dirs.root, "custom-skills", "presets", rosterId(id));
-
 const mcpServersOf = () =>
   yaml.load(fs.readFileSync(patchPath("mcp.patch.yml"), "utf8"))
     .flatMap((row) => row.insert ?? [])

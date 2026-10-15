@@ -114,6 +114,7 @@ await overlay("permissionsPatchPath", () => dshProfile.writePermissionsPatch());
 await overlay("toolSearchPatchPath", async () => dshProfile.writeToolSearchPatch());
 await overlay("userQuestionsPatchPath", async () => dshProfile.writeUserQuestionsPatch());
 await overlay("chartBindPatchPath", async () => dshProfile.writeChartBindPatch?.());
+await overlay("saveLibraryPatchPath", async () => dshProfile.writeSaveLibraryPatch?.());
 await overlay("skillsPatchPath", async () => {
   await dshProfile.writeSkillsPatch({ dirs, agentPreset: "standard" });
   return join(home, "profiles", "platform", "skills.patch.yml");

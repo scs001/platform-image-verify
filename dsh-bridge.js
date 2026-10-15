@@ -81,6 +81,7 @@ export function patchArgs(paths = {}) {
     paths.toolSearchPatchPath,
     paths.chartBindPatchPath,
     paths.userQuestionsPatchPath,
+    paths.saveLibraryPatchPath,
   ];
   return order.filter(Boolean).flatMap((p) => ["--patch", p]);
 }
@@ -102,6 +103,7 @@ export class DshBridge {
   #toolSearchPatchPath;
   #chartBindPatchPath;
   #userQuestionsPatchPath;
+  #saveLibraryPatchPath;
   #agentPreset;
   #env;
   // Preset roster cache, per child generation: null until the first successful
@@ -114,7 +116,7 @@ export class DshBridge {
   #restarting = false;
   #generation = 0;
 
-  constructor({ onEvent, provider, model, cwd, mcpPatchPath, skillsPatchPath, presetsPatchPath, permissionsPatchPath, toolSearchPatchPath, chartBindPatchPath, userQuestionsPatchPath, agentPreset, env } = {}) {
+  constructor({ onEvent, provider, model, cwd, mcpPatchPath, skillsPatchPath, presetsPatchPath, permissionsPatchPath, toolSearchPatchPath, chartBindPatchPath, userQuestionsPatchPath, saveLibraryPatchPath, agentPreset, env } = {}) {
     if (onEvent) this.#onEvent = onEvent;
     this.#provider = provider || "deepseek-official";
     this.#model = model || "deepseek-v4-flash";
@@ -126,6 +128,7 @@ export class DshBridge {
     this.#toolSearchPatchPath = toolSearchPatchPath || null;
     this.#chartBindPatchPath = chartBindPatchPath || null;
     this.#userQuestionsPatchPath = userQuestionsPatchPath || null;
+    this.#saveLibraryPatchPath = saveLibraryPatchPath || null;
     this.#agentPreset = agentPreset || null;
     // When provided, the dsh child is spawned with this env instead of the
     // inherited process env — used to scrub upstream API keys (LLM_API_KEY /
@@ -425,6 +428,7 @@ export class DshBridge {
       toolSearchPatchPath: this.#toolSearchPatchPath,
       chartBindPatchPath: this.#chartBindPatchPath,
       userQuestionsPatchPath: this.#userQuestionsPatchPath,
+      saveLibraryPatchPath: this.#saveLibraryPatchPath,
     };
   }
 

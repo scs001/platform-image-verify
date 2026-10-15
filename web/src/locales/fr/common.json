@@ -1154,7 +1154,26 @@
     },
     "export": "Exporter la sélection ({{count}})",
     "exporting": "Empaquetage…",
-    "selectHint": "Cochez des fichiers pour les exporter ensemble"
+    "selectHint": "Cochez des fichiers pour les exporter ensemble",
+    "time": {
+      "label": "Date",
+      "all": "Tout",
+      "today": "Aujourd'hui",
+      "7d": "7 derniers jours",
+      "30d": "30 derniers jours"
+    },
+    "group": {
+      "label": "Type",
+      "chart": "Graphiques",
+      "document": "Documents",
+      "spreadsheet": "Tableurs",
+      "image": "Images",
+      "slideshow": "Diapositives",
+      "archive": "Archives",
+      "web": "Web",
+      "data": "Données",
+      "other": "Autres"
+    }
   },
   "facetShell": {
     "tabs": {

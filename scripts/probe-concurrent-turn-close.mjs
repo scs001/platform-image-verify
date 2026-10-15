@@ -166,7 +166,7 @@ async function main() {
     const presetsPatchPath = await dshProfile.writePresetsPatch({ dirs, requireRoster: false });
     const permissionsPatchPath = await dshProfile.writePermissionsPatch();
     const extraPatchPaths = [];
-    for (const write of ["writeToolSearchPatch", "writeChartBindPatch", "writeUserQuestionsPatch"]) {
+    for (const write of ["writeToolSearchPatch", "writeChartBindPatch", "writeUserQuestionsPatch", "writeSaveLibraryPatch"]) {
       if (typeof dshProfile[write] !== "function") continue;
       try {
         const p = await dshProfile[write]();

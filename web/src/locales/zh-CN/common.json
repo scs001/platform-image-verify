@@ -1154,7 +1154,26 @@
     },
     "export": "导出所选（{{count}}）",
     "exporting": "打包中…",
-    "selectHint": "勾选文件可批量导出"
+    "selectHint": "勾选文件可批量导出",
+    "time": {
+      "label": "时间",
+      "all": "全部",
+      "today": "今天",
+      "7d": "近 7 天",
+      "30d": "近 30 天"
+    },
+    "group": {
+      "label": "类型",
+      "chart": "图表",
+      "document": "文档",
+      "spreadsheet": "表格",
+      "image": "图片",
+      "slideshow": "幻灯片",
+      "archive": "压缩包",
+      "web": "网页",
+      "data": "数据",
+      "other": "其他"
+    }
   },
   "facetShell": {
     "tabs": {

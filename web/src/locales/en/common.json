@@ -1154,7 +1154,26 @@
     },
     "export": "Export selected ({{count}})",
     "exporting": "Packaging…",
-    "selectHint": "Tick files to export them together"
+    "selectHint": "Tick files to export them together",
+    "time": {
+      "label": "Time",
+      "all": "All",
+      "today": "Today",
+      "7d": "Last 7 days",
+      "30d": "Last 30 days"
+    },
+    "group": {
+      "label": "Type",
+      "chart": "Charts",
+      "document": "Documents",
+      "spreadsheet": "Spreadsheets",
+      "image": "Images",
+      "slideshow": "Slides",
+      "archive": "Archives",
+      "web": "Web",
+      "data": "Data",
+      "other": "Other"
+    }
   },
   "facetShell": {
     "tabs": {

@@ -104,6 +104,14 @@ const isInternalChartBridge = (req) =>
 const isInternalDelegationBridge = (req) =>
   req.path.startsWith("/api/delegation/") && isLoopback(req.socket?.remoteAddress);
 
+// The save-library bridge (`save_to_library`, openspec: add-save-to-library-tool)
+// — the fourth bridge, same credential model: the dsh child's tool ingests
+// workspace files the CURRENT turn produced. Loopback is its credential, and
+// the route resolves the session server-side, so a caller cannot name another
+// session; a non-loopback caller still faces the full gate.
+const isInternalSaveBridge = (req) =>
+  req.path === "/api/resources/save-declared" && isLoopback(req.socket?.remoteAddress);
+
 // The header the gateway injects alongside the identity headers in hosted mode.
 export const GATEWAY_SECRET_HEADER = "x-cloud-gateway-secret";
 
@@ -168,6 +176,10 @@ export function registerAuth(ctx) {  ctx.app.use((req, res, next) => {
     }
     if (isInternalDelegationBridge(req)) {
       req.user = { email: "delegation@internal", internal: true };
+      return next();
+    }
+    if (isInternalSaveBridge(req)) {
+      req.user = { email: "save-bridge@internal", internal: true };
       return next();
     }
     const headerUser = userFromHeaders(req.headers, ctx.headerTrust);

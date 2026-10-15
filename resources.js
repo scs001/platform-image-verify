@@ -304,7 +304,16 @@ async function storeFileCopy({ sessionId, messageId, inputPath, workspaceRoot, s
     throw new ResourceError(403, "invalid_path", "文件路径无效或不在工作区内");
   }
   const info = await stat(real).catch(() => null);
-  if (!info?.isFile()) {
+  if (!info) {
+    throw new ResourceError(404, "file_not_found", "文件不存在或已被移除");
+  }
+  if (info.isDirectory()) {
+    // The model channel returns per-path results, so the reason must say WHY
+    // (a bare "file not found" for a path that clearly exists sends the model
+    // in circles) — openspec: add-save-to-library-tool.
+    throw new ResourceError(400, "not_a_file", "路径指向目录，资源库只收文件");
+  }
+  if (!info.isFile()) {
     throw new ResourceError(404, "file_not_found", "文件不存在或已被移除");
   }
   if (info.size > MAX_FILE_BYTES) {
@@ -375,6 +384,15 @@ export async function saveFile({ sessionId = null, messageId = null, path: input
 // over HTTP — the routes keep the manual semantics.
 export async function saveFileAuto({ path: inputPath, workspaceRoot }) {
   return storeFileCopy({ sessionId: null, messageId: null, inputPath, workspaceRoot, source: "auto" });
+}
+
+// The model-source twin (openspec: add-save-to-library-tool): the agent's
+// explicit save during a turn, via the save-declared loopback route. Same gate
+// and dedupe as the other two channels; session-level provenance only (the
+// assistant message is not in the database until the turn closes, so there is
+// no message id to record yet).
+export async function saveFileFromModel({ sessionId = null, path: inputPath, workspaceRoot }) {
+  return storeFileCopy({ sessionId, messageId: null, inputPath, workspaceRoot, source: "model" });
 }
 
 // Files a turn produced ride the same mirror funnel as charts

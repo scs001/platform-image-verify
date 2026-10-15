@@ -2606,25 +2606,134 @@ export function touchResourceSeen(id, iso) {
   return stmt("UPDATE resources SET last_seen_at = ? WHERE id = ?").run(iso, String(id)).changes > 0;
 }
 
-// List with the page's filters. `type` and `q` are optional; the count query
-// mirrors the filter predicates so pagination metadata always agrees.
-export function listResources({ type = null, q = null, limit = 50, offset = 0 } = {}) {
-  if (!dbReady) return { items: [], total: 0 };
+// ── Type groups (openspec: add-resource-filters) ─────────────────────────────
+//
+// A file's kind for filtering purposes, derived from its file name extension.
+// This map is the single home of that derivation — the list filter, the facet
+// counts and (through the route) every client have to agree on what "document"
+// means. `file_mime` is deliberately NOT the key: it is itself derived from an
+// extension map that does not cover every extension below, so tsv/log/gz/yaml
+// would all pile up as octet-stream. `chart` is a row type, not an extension,
+// and is handled in the SQL expression.
+//
+// An extension matching no group — including a row with no file at all — is
+// `other`, never dropped: every row always belongs to exactly one group.
+
+export const RESOURCE_GROUPS = [
+  "chart",
+  "document",
+  "spreadsheet",
+  "image",
+  "slideshow",
+  "archive",
+  "web",
+  "data",
+  "other",
+];
+
+const EXTENSION_GROUPS = {
+  document: ["pdf", "doc", "docx", "md", "txt", "log"],
+  spreadsheet: ["csv", "tsv", "xls", "xlsx"],
+  image: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"],
+  slideshow: ["ppt", "pptx"],
+  archive: ["zip", "tar", "gz", "tgz", "7z", "rar", "bz2", "xz"],
+  web: ["html", "htm"],
+  data: ["json", "yaml", "yml", "xml"],
+};
+
+// Built from the constant above, so the SQL can never drift from the map.
+// LIKE is anchored at the end, so `%.xls` does not swallow `report.xlsx`.
+const GROUP_EXPR = `CASE
+      WHEN type = 'chart' THEN 'chart'
+      ${Object.entries(EXTENSION_GROUPS)
+        .map(
+          ([group, exts]) =>
+            `WHEN ${exts.map((e) => `lower(file_path) LIKE '%.${e}'`).join(" OR ")} THEN '${group}'`
+        )
+        .join("\n      ")}
+      ELSE 'other' END`;
+
+// `groups` is a caller-supplied selection and lands in SQL as bound parameters,
+// never as interpolated text. An unrecognized name is dropped rather than
+// fatal: a stale client sending an old group must narrow less, not error.
+function groupPredicate(groups) {
+  const wanted = (Array.isArray(groups) ? groups : []).filter((g) => RESOURCE_GROUPS.includes(g));
+  if (!wanted.length) return { clause: "", params: {} };
+  const params = {};
+  const placeholders = wanted.map((g, i) => {
+    params[`grp${i}`] = g;
+    return `@grp${i}`;
+  });
+  return { clause: `AND (${GROUP_EXPR} IN (${placeholders.join(", ")}))`, params };
+}
+
+// List with the page's filters. `type`, `q`, `groups`, `since` and `until` are
+// all optional and combine as AND. `created_at` is stored as an ISO 8601
+// string, so lexicographic comparison is chronological comparison and the
+// window needs no conversion. The count query mirrors every filter predicate
+// so pagination metadata always agrees.
+export function listResources({
+  type = null,
+  q = null,
+  groups = null,
+  since = null,
+  until = null,
+  limit = 50,
+  offset = 0,
+} = {}) {
+  if (!dbReady) return { items: [], total: 0, limit, offset, facets: emptyFacets() };
+  const group = groupPredicate(groups);
   const params = {
     type: type || null,
     q: q ? `%${escapeLike(q)}%` : null,
+    since: since || null,
+    until: until || null,
     limit: Math.max(1, Number(limit) || 50),
     offset: Math.max(0, Number(offset) || 0),
+    ...group.params,
   };
   const where = `WHERE (@type IS NULL OR type = @type)
-      AND (@q IS NULL OR title LIKE @q ESCAPE '\\')`;
+      AND (@q IS NULL OR title LIKE @q ESCAPE '\\')
+      AND (@since IS NULL OR created_at >= @since)
+      AND (@until IS NULL OR created_at <= @until)
+      ${group.clause}`;
   const items = db
     .prepare(
       `SELECT ${RESOURCE_COLS} FROM resources ${where} ORDER BY created_at DESC, rowid DESC LIMIT @limit OFFSET @offset`
     )
     .all(params);
   const total = db.prepare(`SELECT COUNT(*) AS n FROM resources ${where}`).get(params).n;
-  return { items, total, limit: params.limit, offset: params.offset };
+  return {
+    items,
+    total,
+    limit: params.limit,
+    offset: params.offset,
+    facets: countGroups({ q: params.q, since: params.since, until: params.until }),
+  };
+}
+
+function emptyFacets() {
+  return Object.fromEntries(RESOURCE_GROUPS.map((g) => [g, 0]));
+}
+
+// Per-group counts for the filter chips (openspec: add-resource-filters). The
+// window is the active time window plus the title search, deliberately WITHOUT
+// the group selection: a chip you unchecked still tells you what is behind it,
+// which is the whole point of showing counts at all. Zero-filled, so a client
+// can render every chip in a stable order without testing for presence.
+function countGroups({ q = null, since = null, until = null } = {}) {
+  if (!dbReady) return emptyFacets();
+  const params = { q, since, until };
+  const where = `WHERE (@q IS NULL OR title LIKE @q ESCAPE '\\')
+      AND (@since IS NULL OR created_at >= @since)
+      AND (@until IS NULL OR created_at <= @until)`;
+  const facets = emptyFacets();
+  for (const row of db
+    .prepare(`SELECT ${GROUP_EXPR} AS g, COUNT(*) AS n FROM resources ${where} GROUP BY g`)
+    .all(params)) {
+    facets[row.g] = row.n;
+  }
+  return facets;
 }
 
 export function renameResource(id, title, updatedAt) {

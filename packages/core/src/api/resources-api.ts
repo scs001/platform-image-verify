@@ -140,11 +140,41 @@ export interface ResourceList {
   total: number;
   limit: number;
   offset: number;
+  /** Per-group counts for the filter chips, zero-filled for every group. */
+  facets: ResourceFacets;
 }
+
+/**
+ * The file-kind groups a resource can belong to. `chart` is a row type; the
+ * rest are derived from the file's extension by the server (openspec:
+ * add-resource-filters), so this list is the client's mirror of that map, not
+ * a client-side derivation.
+ */
+export const RESOURCE_GROUPS = [
+  "chart",
+  "document",
+  "spreadsheet",
+  "image",
+  "slideshow",
+  "archive",
+  "web",
+  "data",
+  "other",
+] as const;
+
+export type ResourceGroup = (typeof RESOURCE_GROUPS)[number];
+
+export type ResourceFacets = Record<ResourceGroup, number>;
 
 export interface ResourceListQuery {
   type?: string;
   q?: string;
+  /** Selected type groups; omitted means no group filtering. */
+  groups?: ResourceGroup[];
+  /** Inclusive ISO 8601 lower bound on creation time. */
+  since?: string;
+  /** Inclusive ISO 8601 upper bound on creation time. */
+  until?: string;
   limit?: number;
   offset?: number;
 }
@@ -189,9 +219,13 @@ async function jsonOrThrow<T>(resPromise: ReturnType<typeof http>): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function listResources(query: ResourceListQuery = {}): Promise<ResourceList> {  const params = new URLSearchParams();
+export async function listResources(query: ResourceListQuery = {}): Promise<ResourceList> {
+  const params = new URLSearchParams();
   if (query.type) params.set("type", query.type);
   if (query.q) params.set("q", query.q);
+  if (query.groups?.length) params.set("groups", query.groups.join(","));
+  if (query.since) params.set("since", query.since);
+  if (query.until) params.set("until", query.until);
   if (query.limit != null) params.set("limit", String(query.limit));
   if (query.offset != null) params.set("offset", String(query.offset));
   const qs = params.toString();

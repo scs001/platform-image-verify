@@ -28,15 +28,61 @@ function notFound(res) {
   return res.status(404).json({ error: "资源不存在", code: "resource_not_found" });
 }
 
+// Per-call path cap for the model's save tool (openspec: add-save-to-library-tool).
+const SAVE_DECLARED_MAX_PATHS = 10;
+
+// `created_at` is stored as an ISO 8601 string, so a filter bound must be one
+// too — the comparison is lexicographic and only trustworthy on that shape.
+function isIsoInstant(value) {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/.test(value);
+}
+
 export function registerResourceRoutes(ctx) {
   const { app } = ctx;
 
+  // `groups` is a CSV of type-group names and `since`/`until` are absolute ISO
+  // 8601 instants — the client computes the window from its own clock, so the
+  // server never interprets a timezone. A value that cannot be used is a 400
+  // with a reason code, never a silent empty page: a client sending garbage
+  // must learn it, not wonder where its resources went.
   app.get("/api/resources", (req, res) => {
-    const { type, q, limit, offset } = req.query ?? {};
+    const { type, q, limit, offset, groups, since, until } = req.query ?? {};
+    let parsedGroups = null;
+    let parsedSince = null;
+    let parsedUntil = null;
+    if (typeof groups === "string" && groups.trim()) {
+      parsedGroups = groups
+        .split(",")
+        .map((g) => g.trim())
+        .filter(Boolean);
+      const unknown = parsedGroups.filter((g) => !db.RESOURCE_GROUPS.includes(g));
+      if (unknown.length) {
+        return res.status(400).json({
+          error: `未知的类型分组：${unknown.join(", ")}`,
+          code: "invalid_group",
+          allowed: db.RESOURCE_GROUPS,
+        });
+      }
+    }
+    for (const [name, raw] of [
+      ["since", since],
+      ["until", until],
+    ]) {
+      if (typeof raw !== "string" || !raw.trim()) continue;
+      const value = raw.trim();
+      if (!isIsoInstant(value)) {
+        return res.status(400).json({ error: `${name} 参数需要 ISO 时间`, code: `invalid_${name}` });
+      }
+      if (name === "since") parsedSince = value;
+      else parsedUntil = value;
+    }
     res.json(
       resources.list({
         type: typeof type === "string" && type ? type : null,
         q: typeof q === "string" && q.trim() ? q.trim() : null,
+        groups: parsedGroups,
+        since: parsedSince,
+        until: parsedUntil,
         limit,
         offset,
       })
@@ -232,6 +278,60 @@ export function registerResourceRoutes(ctx) {
         note: typeof body.note === "string" ? body.note : null,
       });
       res.json({ ok: true, binding: resources.bindingView(result.binding), note: result.note });
+    } catch (err) {
+      errorResponse(res, err);
+    }
+  });
+
+  // The save channel's landing point (openspec: add-save-to-library-tool).
+  // The dsh child's `save_to_library` tool posts here over loopback — see the
+  // auth gate's fourth bridge — and each path is gated by the SAME store path a
+  // user save takes, attributed to the platform's CURRENT turn's session (the
+  // assistant message is not in the database until the turn closes, so there is
+  // no message id to record). A declaration can never reach another session,
+  // and the route is rejected for anything but a loopback caller.
+  //
+  // The per-call cap is enforced HERE, not only in the tool: the route is the
+  // truth layer, and the answer is per-path so the model can relay outcomes.
+  // One refused path never blocks the others.
+  app.post("/api/resources/save-declared", async (req, res) => {
+    const body = req.body ?? {};
+    try {
+      const sessionId = ctx.dshSessionId ?? null;
+      const workspaceRoot = ctx.dshBridge?.getCwd?.() || process.cwd();
+      const paths = Array.isArray(body.paths) ? body.paths.filter((p) => typeof p === "string") : [];
+      const results = [];
+      const processable = paths.slice(0, SAVE_DECLARED_MAX_PATHS);
+      for (const p of processable) {
+        try {
+          const { inserted, resource } = await resources.saveFileFromModel({
+            sessionId,
+            path: p,
+            workspaceRoot,
+          });
+          results.push({
+            path: p,
+            status: inserted ? "saved" : "already-saved",
+            id: resource?.id ?? null,
+          });
+        } catch (err) {
+          results.push({
+            path: p,
+            status: "refused",
+            reason: err.code || "error",
+            message: err.message,
+          });
+        }
+      }
+      for (const p of paths.slice(SAVE_DECLARED_MAX_PATHS)) {
+        results.push({
+          path: p,
+          status: "refused",
+          reason: "too_many_paths",
+          message: `每次调用最多 ${SAVE_DECLARED_MAX_PATHS} 个路径`,
+        });
+      }
+      res.json({ ok: true, results });
     } catch (err) {
       errorResponse(res, err);
     }

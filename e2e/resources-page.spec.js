@@ -210,3 +210,136 @@ test("a save elsewhere in the app appears without a reload", async ({ page, requ
     fs.rmSync(planted, { force: true });
   }
 });
+
+// ── Filters (openspec: add-resource-filters, tasks 3.2 / 3.3) ────────────────
+//
+// The landing view, the time presets and the group chips are driven through the
+// real page against rows seeded at known ages, so the assertions are about what
+// the user sees: which chips start checked, what the counts say, and whether a
+// card shows when it was created.
+
+// These cases share the run's SQLite with the rest of the file, so each one
+// removes the rows it planted: a leftover PDF would otherwise change the facet
+// counts and card totals the neighbouring cases assert on.
+// Every case here starts from an EMPTY library: the neighbouring cases in this
+// file seed their own rows and assert exact card counts, and the facet counts
+// are computed over the whole library, so any leftover row changes what this
+// page shows.
+test.beforeEach(() => {
+  const handle = db();
+  handle.prepare("DELETE FROM resources").run();
+  handle.close();
+});
+
+test.afterEach(() => {
+  const handle = db();
+  handle.prepare("DELETE FROM resources").run();
+  handle.close();
+});
+
+function seedAgedLibrary() {
+  const now = Date.now();
+  const iso = (daysAgo) => new Date(now - daysAgo * 86_400_000).toISOString();
+  const rows = {
+    chart: insertResource({ type: "chart", title: "Aged Chart", payload: JSON.stringify(CHART_OPTION), created_at: iso(1), updated_at: iso(1), last_seen_at: iso(1) }),
+    pdf: insertResource({ type: "file", title: "report.pdf", source: "manual", file_path: "u/report.pdf", file_mime: "application/pdf", created_at: iso(2), updated_at: iso(2), last_seen_at: iso(2) }),
+    csv: insertResource({ type: "file", title: "data.csv", source: "manual", file_path: "u/data.csv", file_mime: "text/csv", created_at: iso(3), updated_at: iso(3), last_seen_at: iso(3) }),
+    oldPdf: insertResource({ type: "file", title: "archived.pdf", source: "manual", file_path: "u/archived.pdf", file_mime: "application/pdf", created_at: iso(40), updated_at: iso(40), last_seen_at: iso(40) }),
+  };
+  return rows;
+}
+
+test("the landing view pre-checks the common groups and shows facet counts", async ({ page }) => {
+  seedAgedLibrary();
+  await gotoResources(page);
+
+  // Chart / document / spreadsheet / image start checked; the rest do not.
+  for (const g of ["chart", "document", "spreadsheet", "image"]) {
+    await expect(page.getByTestId(`resources-group-${g}`)).toHaveAttribute("data-checked", "true");
+  }
+  for (const g of ["slideshow", "archive"]) {
+    await expect(page.getByTestId(`resources-group-${g}`)).toHaveAttribute("data-checked", "false");
+  }
+  // Counts reflect what is behind each chip, including the unchecked ones.
+  await expect(page.getByTestId("resources-group-document")).toHaveAttribute("data-count", "2");
+  await expect(page.getByTestId("resources-group-spreadsheet")).toHaveAttribute("data-count", "1");
+  await expect(page.getByTestId("resources-group-chart")).toHaveAttribute("data-count", "1");
+  await expect(page.getByTestId("resources-group-archive")).toHaveAttribute("data-count", "0");
+  // A zero-count chip is disabled (greyed out), not hidden.
+  await expect(page.getByTestId("resources-group-archive")).toBeDisabled();
+  await expect(page.getByTestId("resources-group-archive")).toBeVisible();
+
+  // The default selection is what the list reflects: no archive, no "other".
+  await expect(page.getByTestId("resource-card")).toHaveCount(4);
+});
+
+test("a time preset narrows the list and the counts together", async ({ page }) => {
+  seedAgedLibrary();
+  await gotoResources(page);
+  await expect(page.getByTestId("resource-card")).toHaveCount(4);
+
+  await page.getByTestId("resources-time-7d").click();
+  // archived.pdf is 40 days old; the other three are inside the window.
+  await expect(page.getByTestId("resource-card")).toHaveCount(3);
+  await expect(page.getByTestId("resources-group-document")).toHaveAttribute("data-count", "1");
+
+  await page.getByTestId("resources-time-30d").click();
+  await expect(page.getByTestId("resource-card")).toHaveCount(3);
+  await page.getByTestId("resources-time-all").click();
+  await expect(page.getByTestId("resource-card")).toHaveCount(4);
+});
+
+test("the group row follows the tab; unchecking a group drops its cards", async ({ page }) => {
+  seedAgedLibrary();
+  await gotoResources(page);
+
+  // Files tab: the chart chip is gone, the file groups remain.
+  await page.getByTestId("resources-filter-file").click();
+  await expect(page.getByTestId("resources-group-chart")).toHaveCount(0);
+  await expect(page.getByTestId("resources-group-document")).toBeVisible();
+  await expect(page.getByTestId("resource-card")).toHaveCount(3);
+
+  // Unchecking documents leaves only the CSV.
+  await page.getByTestId("resources-group-document").click();
+  await expect(page.getByTestId("resource-card")).toHaveCount(1);
+  await expect(page.getByTestId("resource-card").first()).toContainText("data.csv");
+
+  // Charts tab: the group row is absent, the time filter still applies.
+  await page.getByTestId("resources-filter-chart").click();
+  await expect(page.getByTestId("resources-group-row")).toHaveCount(0);
+  await expect(page.getByTestId("resources-time-row")).toBeVisible();
+  await expect(page.getByTestId("resource-card")).toHaveCount(1);
+});
+
+test("cards show their creation time", async ({ page }) => {
+  const rows = seedAgedLibrary();
+  await gotoResources(page);
+  const stamp = page.locator(`[data-resource-id="${rows.pdf.id}"]`).getByTestId("resource-created-at");
+  await expect(stamp).toBeVisible();
+  // Short absolute form: MM-DD HH:mm for the current year, never a blank.
+  await expect(stamp).toHaveAttribute("data-created-at", rows.pdf.created_at);
+  await expect(stamp).toContainText(/^\d{2}-\d{2} \d{2}:\d{2}$/);
+  // The full timestamp is available on hover.
+  await expect(stamp).toHaveAttribute("title", /.+/);
+});
+
+test("the filter rows survive a narrow viewport", async ({ page }) => {
+  seedAgedLibrary();
+  await page.setViewportSize({ width: 380, height: 720 });
+  await gotoResources(page);
+
+  // Both rows stay on screen: the presets scroll horizontally, the chips wrap
+  // onto more than one line rather than pushing content out of view.
+  await expect(page.getByTestId("resources-time-row")).toBeVisible();
+  await expect(page.getByTestId("resources-group-row")).toBeVisible();
+
+  const overflowX = await page.evaluate(() => {
+    const el = document.documentElement;
+    return el.scrollWidth - el.clientWidth;
+  });
+  expect(overflowX).toBeLessThanOrEqual(1);
+
+  // A chip on the wrapped row is still clickable at this width.
+  await page.getByTestId("resources-group-document").click();
+  await expect(page.getByTestId("resource-card")).toHaveCount(2);
+});

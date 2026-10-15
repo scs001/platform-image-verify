@@ -1154,7 +1154,26 @@
     },
     "export": "Exportar seleccionados ({{count}})",
     "exporting": "Empaquetando…",
-    "selectHint": "Marca archivos para exportarlos juntos"
+    "selectHint": "Marca archivos para exportarlos juntos",
+    "time": {
+      "label": "Fecha",
+      "all": "Todo",
+      "today": "Hoy",
+      "7d": "Últimos 7 días",
+      "30d": "Últimos 30 días"
+    },
+    "group": {
+      "label": "Tipo",
+      "chart": "Gráficos",
+      "document": "Documentos",
+      "spreadsheet": "Hojas de cálculo",
+      "image": "Imágenes",
+      "slideshow": "Presentaciones",
+      "archive": "Comprimidos",
+      "web": "Web",
+      "data": "Datos",
+      "other": "Otros"
+    }
   },
   "facetShell": {
     "tabs": {

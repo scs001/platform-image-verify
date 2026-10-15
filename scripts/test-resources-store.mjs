@@ -203,16 +203,19 @@ test("traversal, NUL and symlink escapes are refused", async () => {
   );
 });
 
-test("missing files and directories are 404; the size cap is 413", async () => {
+test("missing files are 404; directories are refused with their own reason; the size cap is 413", async () => {
   const dirsBefore = (await fsp.readdir(resources.filesRoot())).length;
   await assert.rejects(
     () => resources.saveFile({ path: "nope.txt", workspaceRoot: WORKSPACE }),
     (err) => err.status === 404 && err.code === "file_not_found"
   );
   await fsp.mkdir(path.join(WORKSPACE, "adir"), { recursive: true });
+  // A directory says WHY it was refused (openspec: add-save-to-library-tool):
+  // the model channel reports per-path reasons, and "file not found" for a
+  // path that clearly exists would send the model in circles.
   await assert.rejects(
     () => resources.saveFile({ path: "adir", workspaceRoot: WORKSPACE }),
-    (err) => err.status === 404
+    (err) => err.status === 400 && err.code === "not_a_file"
   );
   await fsp.writeFile(path.join(WORKSPACE, "big.bin"), Buffer.alloc(2048));
   await assert.rejects(
@@ -288,4 +291,26 @@ test("storeRoot honors the RESOURCES_STORAGE_PATH override", () => {
   assert.equal(resources.storeRoot(), process.env.RESOURCES_STORAGE_PATH);
   assert.equal(resources.filesRoot(), path.join(process.env.RESOURCES_STORAGE_PATH, "files"));
   assert.equal(resources.maxFileBytes(), 1024);
+});
+let beforeModelCount = 0;
+
+// ── The model channel (openspec: add-save-to-library-tool, task 3.1/3.2) ─────
+//
+// End-to-end through the service: the model's save takes the same gate and
+// byte path as a user save, dedupes against BOTH other channels (a user save
+// first, then the model saving the same bytes; and the reverse), and records
+// session-level provenance.
+
+test("the model save dedupes against user and auto captures on shared content", async () => {
+  const bytes = "shared-content\n";
+  beforeModelCount = db.countResources();
+  await fsp.writeFile(path.join(WORKSPACE, "shared.txt"), bytes);
+  // Channel 1: a user save.
+  const manual = await resources.saveFile({ path: "shared.txt", workspaceRoot: WORKSPACE });
+  assert.equal(manual.inserted, true);
+  // Channel 2: the model saving the same bytes — already in the library.
+  const model = await resources.saveFileFromModel({ sessionId: null, path: "shared.txt", workspaceRoot: WORKSPACE });
+  assert.equal(model.inserted, false);
+  assert.equal(model.resource.id, manual.resource.id, "content identity spans channels");
+  assert.equal(db.countResources() - beforeModelCount, 1, "no second row was created");
 });

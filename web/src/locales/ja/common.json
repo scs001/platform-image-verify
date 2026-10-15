@@ -1154,7 +1154,26 @@
     },
     "export": "選択したものを書き出す（{{count}}）",
     "exporting": "パッキング中…",
-    "selectHint": "ファイルにチェックするとまとめて書き出せます"
+    "selectHint": "ファイルにチェックするとまとめて書き出せます",
+    "time": {
+      "label": "期間",
+      "all": "すべて",
+      "today": "今日",
+      "7d": "直近 7 日",
+      "30d": "直近 30 日"
+    },
+    "group": {
+      "label": "種類",
+      "chart": "グラフ",
+      "document": "ドキュメント",
+      "spreadsheet": "表計算",
+      "image": "画像",
+      "slideshow": "スライド",
+      "archive": "圧縮ファイル",
+      "web": "Web",
+      "data": "データ",
+      "other": "その他"
+    }
   },
   "facetShell": {
     "tabs": {

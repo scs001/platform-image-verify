@@ -235,3 +235,180 @@ test("lookup answers path questions by content, with containment", async () => {
   assert.equal(junk.status, 200);
   assert.deepEqual(junk.json.hashes, {});
 });
+
+// ── List filters (openspec: add-resource-filters, task 1.3) ──────────────────
+//
+// The route's own job: parse and validate the filter parameters, then hand them
+// to the service. The filtering semantics themselves are covered in
+// test-resource-filters.mjs against the store; here only the HTTP contract —
+// valid values pass through, invalid ones are a 400 with a reason code.
+
+test("list accepts type groups and a time window", async () => {
+  const now = new Date().toISOString();
+  const old = new Date(Date.now() - 10 * 86_400_000).toISOString();
+  db.insertResource({
+    id: "f-pdf",
+    type: "file",
+    title: "近期报告.pdf",
+    source: "manual",
+    filePath: "u/近期报告.pdf",
+    contentHash: "hash-f-pdf",
+    createdAt: now,
+    updatedAt: now,
+  });
+  db.insertResource({
+    id: "f-old-pdf",
+    type: "file",
+    title: "旧报告.pdf",
+    source: "manual",
+    filePath: "u/旧报告.pdf",
+    contentHash: "hash-f-old-pdf",
+    createdAt: old,
+    updatedAt: old,
+  });
+  db.insertResource({
+    id: "f-csv",
+    type: "file",
+    title: "数据.csv",
+    source: "manual",
+    filePath: "u/数据.csv",
+    contentHash: "hash-f-csv",
+    createdAt: now,
+    updatedAt: now,
+  });
+  db.insertResource({
+    id: "f-json",
+    type: "file",
+    title: "配置.json",
+    source: "manual",
+    filePath: "u/配置.json",
+    contentHash: "hash-f-json",
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  const grouped = await call("GET", "/api/resources?groups=document,spreadsheet");
+  assert.equal(grouped.status, 200);
+  const ids = grouped.json.items.map((r) => r.id);
+  for (const id of ["f-csv", "f-old-pdf", "f-pdf"]) {
+    assert.ok(ids.includes(id), `document/spreadsheet group must include ${id}`);
+  }
+  assert.ok(!ids.includes("f-json"), "a json row is neither document nor spreadsheet");
+
+  const windowed = await call("GET", `/api/resources?since=${encodeURIComponent(old)}&until=${encodeURIComponent(now)}`);
+  assert.equal(windowed.status, 200);
+  assert.ok(windowed.json.items.some((r) => r.id === "f-old-pdf"));
+
+  // facets ride the same response and are keyed by every group
+  assert.ok(grouped.json.facets.document >= 2, "both PDFs count as documents");
+  assert.ok(grouped.json.facets.spreadsheet >= 1);
+  assert.ok(grouped.json.facets.data >= 1, "facets count the unchecked data group too");
+  assert.equal(typeof grouped.json.facets.chart, "number", "every group key is present");
+});
+
+test("list rejects unusable filter values with a reason code", async () => {
+  const badGroup = await call("GET", "/api/resources?groups=document,nonsense");
+  assert.equal(badGroup.status, 400);
+  assert.equal(badGroup.json.code, "invalid_group");
+  assert.ok(Array.isArray(badGroup.json.allowed), "the rejection names the valid groups");
+
+  const badSince = await call("GET", "/api/resources?since=yesterday");
+  assert.equal(badSince.status, 400);
+  assert.equal(badSince.json.code, "invalid_since");
+
+  const badUntil = await call("GET", "/api/resources?until=2026-10-16");
+  assert.equal(badUntil.status, 400);
+  assert.equal(badUntil.json.code, "invalid_until");
+
+  // An omitted filter is not an invalid one — the plain list still works.
+  const plain = await call("GET", "/api/resources");
+  assert.equal(plain.status, 200);
+  assert.ok(plain.json.facets);
+});
+
+// ── The model save channel (openspec: add-save-to-library-tool, task 1.2) ────
+//
+// The route is the truth layer: per-path results, the per-call cap, and the
+// same store gate a user save takes. The loopback exemption itself is verified
+// behaviorally in test-cell-containment.mjs (same convention as the other
+// bridges — the predicate is not exported, and a source assertion proves
+// nothing about the running gate).
+
+test("save-declared ingests workspace files per-path with model provenance", async () => {
+  await fsp.writeFile(path.join(WORKSPACE, "declared.csv"), "k,v\n1,2\n");
+  await fsp.mkdir(path.join(WORKSPACE, "subdir"), { recursive: true });
+
+  const res = await call("POST", "/api/resources/save-declared", {
+    paths: ["declared.csv", "subdir", "nope.txt"],
+  });
+  assert.equal(res.status, 200);
+  assert.ok(res.json.ok);
+  const byPath = new Map(res.json.results.map((r) => [r.path, r]));
+  assert.deepEqual(byPath.get("declared.csv").status, "saved");
+  assert.ok(byPath.get("declared.csv").id);
+  assert.deepEqual(byPath.get("subdir").status, "refused");
+  assert.deepEqual(byPath.get("subdir").reason, "not_a_file", "a directory says why");
+  assert.deepEqual(byPath.get("nope.txt").status, "refused");
+  assert.deepEqual(byPath.get("nope.txt").reason, "file_not_found");
+
+  const row = db.getResource(byPath.get("declared.csv").id);
+  assert.equal(row.source, "model", "the row is attributable to the model channel");
+  assert.equal(row.sessionId, null, "no session context in this harness — provenance stays null");
+
+  // Same bytes again: already-saved, no second row.
+  const again = await call("POST", "/api/resources/save-declared", { paths: ["declared.csv"] });
+  assert.deepEqual(again.json.results[0].status, "already-saved");
+  assert.equal(again.json.results[0].id, byPath.get("declared.csv").id);
+});
+
+test("save-declared caps the per-call path count at ten, refusing the excess", async () => {
+  const paths = [];
+  for (let i = 0; i < 12; i += 1) {
+    const name = `cap-${i}.txt`;
+    await fsp.writeFile(path.join(WORKSPACE, name), `cap ${i}`);
+    paths.push(name);
+  }
+  const res = await call("POST", "/api/resources/save-declared", { paths });
+  assert.equal(res.status, 200);
+  const statuses = res.json.results.map((r) => r.status);
+  assert.equal(statuses.filter((s) => s === "saved").length, 10, "the first ten save");
+  const excess = res.json.results.slice(10);
+  assert.ok(
+    excess.every((r) => r.status === "refused" && r.reason === "too_many_paths"),
+    "the excess are refused with the cap reason, not silently dropped",
+  );
+});
+
+test("save-declared records the current session when one is wired", async () => {
+  // The route reads ctx.dshSessionId; this harness registered the routes
+  // without one, so prove the wiring by re-registering with a session present.
+  const express2 = (await import("express")).default;
+  const app2 = express2();
+  app2.use(express2.json());
+  const { registerResourceRoutes: register } = await import("../server/routes/resources.js");
+  register({ app: app2, db, dshBridge: { getCwd: () => WORKSPACE }, dshSessionId: "sess-model-1" });
+  db.upsertSession("sess-model-1", "模型保存会话", new Date().toISOString(), new Date().toISOString());
+  await fsp.writeFile(path.join(WORKSPACE, "sessioned.txt"), "with session");
+  const holder = { app: app2 };
+  const server2 = createServer(holder.app);
+  server2.unref();
+  await new Promise((resolve) => server2.listen(0, "127.0.0.1", resolve));
+  const port2 = server2.address().port;
+  const payload = JSON.stringify({ paths: ["sessioned.txt"] });
+  const raw = await new Promise((resolve, reject) => {
+    const req = httpRequest(
+      { host: "127.0.0.1", port: port2, path: "/api/resources/save-declared", method: "POST",
+        headers: { "content-type": "application/json", "content-length": Buffer.byteLength(payload) } },
+      (r) => { const c = []; r.on("data", (x) => c.push(x)); r.on("end", () => resolve(Buffer.concat(c).toString())); },
+    );
+    req.on("error", reject);
+    req.end(payload);
+  });
+  server2.close();
+  const json = JSON.parse(raw);
+  const id = json.results[0].id;
+  const row = db.getResource(id);
+  assert.equal(row.sessionId, "sess-model-1");
+  assert.equal(row.sessionTitle, "模型保存会话");
+  assert.equal(row.source, "model");
+});

@@ -1725,6 +1725,32 @@ export function writeChartBindPatch() {
   return CHART_BIND_PATCH_PATH;
 }
 
+// ── Save-library bridge patch (add-save-to-library-tool) ────────────────────
+// The `save_to_library` tool (ingest workspace files into the resource library
+// during the turn) rides its own overlay, exactly like chart_bind: the plugin
+// is copied into the profile dir and one fresh row is inserted. No allowlist
+// and no subclassing — the tool is a thin client over the save-declared
+// loopback route; all gates live server-side. Purely additive: without the
+// overlay the roster is unchanged and chat works as before.
+const SAVE_LIBRARY_PATCH_PATH = join(DSH_HOME, "profiles", PROFILE_NAME, "save-library.patch.yml");
+const SAVE_LIBRARY_BRIDGE_SOURCE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "dsh-profile-template",
+  "platform-save-library-bridge.js",
+);
+
+export function writeSaveLibraryPatch() {
+  mkdirSync(dirname(SAVE_LIBRARY_PATCH_PATH), { recursive: true });
+  atomicWriteTextSync(
+    join(dirname(SAVE_LIBRARY_PATCH_PATH), "platform-save-library-bridge.js"),
+    readFileSync(SAVE_LIBRARY_BRIDGE_SOURCE, "utf8"),
+  );
+  const patch = [{ insert: [{ id: "save-library-bridge", name: "./platform-save-library-bridge.js" }] }];
+  atomicWriteTextSync(SAVE_LIBRARY_PATCH_PATH, yaml.dump(patch));
+  console.log(`[dsh-profile] wrote save-library bridge patch → ${SAVE_LIBRARY_PATCH_PATH}`);
+  return SAVE_LIBRARY_PATCH_PATH;
+}
+
 // ── User-questions bridge patch (add-user-questions) ────────────────────────
 // The ask_user_question tool (standard preset) needs a host-side
 // ctx.userQuestions provider — the seam's single slot is empty in the platform

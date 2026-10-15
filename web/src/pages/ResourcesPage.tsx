@@ -23,15 +23,17 @@ import {
   resourceFileRef,
   resourceFileUrl,
   useChatStore,
+  RESOURCE_GROUPS,
   type ClientMessage,
   type PeriodWindow,
   type Resource,
+  type ResourceGroup,
 } from "@platform/core";
 import { showToast } from "@/components/Toast";
 import { EChart } from "@/components/EChart";
 import { ChartBindingBar, ChartBindPicker, ChartTimeline } from "@/components/resources/ChartBinding";
 import JSZip from "jszip";
-import { useResourcesStore, type ResourceTypeFilter } from "@/hooks/useResourcesStore";
+import { useResourcesStore, type ResourceTimePreset, type ResourceTypeFilter } from "@/hooks/useResourcesStore";
 import { usePreviewStore } from "@/hooks/usePreviewStore";
 
 export interface ResourcesPageProps {
@@ -39,6 +41,20 @@ export interface ResourcesPageProps {
 }
 
 const FILTERS: ResourceTypeFilter[] = ["all", "chart", "file"];
+const TIME_PRESETS: ResourceTimePreset[] = ["all", "today", "7d", "30d"];
+// The chip row mirrors the server's group list, minus the chart group when the
+// files tab already means "files only".
+const FILE_GROUPS: ResourceGroup[] = RESOURCE_GROUPS.filter((g) => g !== "chart");
+
+// `MM-DD HH:mm` for the current year, `YYYY-MM-DD HH:mm` for anything older —
+// a resource from last March must not read like one from last week.
+function formatCreatedAt(iso: string | null, now = new Date()): string {
+  const at = iso ? new Date(iso) : null;
+  if (!at || Number.isNaN(at.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const stamp = `${pad(at.getMonth() + 1)}-${pad(at.getDate())} ${pad(at.getHours())}:${pad(at.getMinutes())}`;
+  return at.getFullYear() === now.getFullYear() ? stamp : `${at.getFullYear()}-${stamp}`;
+}
 
 function ResourceCard({
   resource,
@@ -68,6 +84,8 @@ function ResourceCard({
 
   const option = resource.type === "chart" ? chartOption(resource) : null;
   const fileUrl = resourceFileUrl(resource);
+  const shortCreatedAt = formatCreatedAt(resource.createdAt ?? null);
+  const fullCreatedAt = resource.createdAt ? new Date(resource.createdAt).toLocaleString() : "";
 
   // `bindings` is absent on a cell older than this capability: the whole
   // bound-chart surface hides itself and the chart renders as it always did.
@@ -234,6 +252,18 @@ function ResourceCard({
         )}
       </div>
 
+      {/* Creation time on every card (openspec: add-resource-filters). Short and
+          absolute — the library is looked back through, and a relative age
+          silently drifts; the full timestamp rides the title attribute. */}
+      <div
+        className="mt-1 text-xs text-muted-foreground"
+        title={fullCreatedAt}
+        data-testid="resource-created-at"
+        data-created-at={resource.createdAt}
+      >
+        {shortCreatedAt}
+      </div>
+
       <div className="mt-2 min-h-0 flex-1">
         {resource.type === "chart" ? (
           option ? (
@@ -367,6 +397,11 @@ export function ResourcesPage({ send }: ResourcesPageProps) {
   const typeFilter = useResourcesStore((s) => s.typeFilter);
   const setTypeFilter = useResourcesStore((s) => s.setTypeFilter);
   const setSearch = useResourcesStore((s) => s.setSearch);
+  const timePreset = useResourcesStore((s) => s.timePreset);
+  const setTimePreset = useResourcesStore((s) => s.setTimePreset);
+  const groups = useResourcesStore((s) => s.groups);
+  const toggleGroup = useResourcesStore((s) => s.toggleGroup);
+  const facets = useResourcesStore((s) => s.facets);
   const load = useResourcesStore((s) => s.load);
   const loadMore = useResourcesStore((s) => s.loadMore);
   const sessions = useChatStore((s) => s.sessions);
@@ -437,7 +472,10 @@ export function ResourcesPage({ send }: ResourcesPageProps) {
   }, [searchInput, setSearch]);
 
   const sessionIds = useMemo(() => new Set(sessions.map((s) => s.id)), [sessions]);
-  const filtered = searchInput.trim().length > 0 || typeFilter !== "all";
+  // Any departure from the landing view counts as "filtered" for the empty
+  // state's wording: with no filters at all, the library itself is empty.
+  const filtered = searchInput.trim().length > 0 || typeFilter !== "all" || timePreset !== "all";
+  const visibleGroups: ResourceGroup[] = typeFilter === "file" ? FILE_GROUPS : [...RESOURCE_GROUPS];
 
   return (
     <div className="flex h-full flex-col bg-background" data-testid="resources-page">
@@ -471,6 +509,59 @@ export function ResourcesPage({ send }: ResourcesPageProps) {
             />
           </div>
         </div>
+
+        {/* Time window and file-kind groups (openspec: add-resource-filters).
+            Both rows are server-applied and combine with the tab and the search;
+            a change refetches immediately — there is no apply action. */}
+        <div className="mt-3 flex flex-wrap items-center gap-2" data-testid="resources-time-row">
+          <span className="text-xs text-muted-foreground">{t("resources.time.label")}</span>
+          <div className="flex max-w-full flex-nowrap gap-1 overflow-x-auto">
+            {TIME_PRESETS.map((preset) => (
+              <button
+                key={preset}
+                className={`shrink-0 rounded-md px-2.5 py-1 text-xs ${
+                  timePreset === preset
+                    ? "bg-primary/15 text-primary"
+                    : "text-muted-foreground hover:bg-muted"
+                }`}
+                onClick={() => setTimePreset(preset)}
+                data-testid={`resources-time-${preset}`}
+              >
+                {t(`resources.time.${preset}`)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Absent on the charts tab: the tab is already the group filter there.
+            The chart chip is absent on the files tab for the same reason. */}
+        {typeFilter === "chart" ? null : (
+          <div className="mt-2 flex flex-wrap items-center gap-2" data-testid="resources-group-row">
+            <span className="text-xs text-muted-foreground">{t("resources.group.label")}</span>
+            {visibleGroups.map((group) => {
+              const checked = groups.includes(group);
+              const count = facets[group] ?? 0;
+              return (
+                <button
+                  key={group}
+                  className={`shrink-0 rounded-md border px-2.5 py-1 text-xs ${
+                    checked
+                      ? "border-primary/40 bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:bg-muted"
+                  } ${count === 0 ? "opacity-50" : ""}`}
+                  onClick={() => toggleGroup(group)}
+                  disabled={count === 0 && !checked}
+                  aria-pressed={checked}
+                  data-testid={`resources-group-${group}`}
+                  data-checked={checked ? "true" : "false"}
+                  data-count={count}
+                >
+                  {t(`resources.group.${group}`)} ({count})
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto p-6">

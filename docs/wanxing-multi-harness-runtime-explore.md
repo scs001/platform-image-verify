@@ -246,12 +246,21 @@ manifest/安装流程必须为 peer 时代重写。
    单测 18+60 绿、**合同⑰ 两轮 17/17 绿**、lint 18 名单绿。
 4. **谦面物化器**（pack 清单→各 harness 布局映射，与 3 在映射处会合）。
 5. **萬星管理面统一**（短期/常驻统一舰队视图；先解「甲/乙读法」未决问题）。
+   **2026-10-15 立项+实施+生产实证（change unify-wanxing-management-plane + 姊妹仓
+   fd-wanxing add-fleet-cell-views）——本线全部切片完结**：甲/乙定案（管理=甲只覆盖
+   runner 舰队；监控=统一只读，cell 短期执行经 gateway 代采以 cell_stats 进舰队面，
+   无控制回程——ADR-0008 租户边界不动）；未决 #3 随之定案（短期执行宿留在 cell）。
+   生产四滚动位（platform sha-022cb16 双位含 FLEET_INGEST 开门 / fleet-observer
+   sha-9b45cf4 / wanxing-web sha-daef5b8）；board cells 段真 cell 遥测 30s 循环在流 +
+   runner_stats 增 pod 密度自报 + 良机运维面统一视图浏览器级 7/7 眼见。
+   出片侧在册两坑：**池变量竞态**（fd-build-snapshot 已修：变量先于 push）与
+   **boot 烟测误杀集群内反代镜像**（SMOKE_MODE=skip）。
 
 ## 未决问题（立项前必答）
 
 | # | 问题 | 影响 |
 |---|---|---|
-| 1 | 萬星管理层边界：只管 runner 舰队（甲），还是全壹座统一管理面含 cell 内 worker（乙，需 cell 自报控制协议）？ | 切片 5 的形状；乙侵入面大得多 |
+| 1 | 萬星管理层边界：只管 runner 舰队（甲），还是全壹座统一管理面含 cell 内 worker（乙，需 cell 自报控制协议）？ | 切片 5 的形状；乙侵入面大得多。**已答（2026-10-15 切片⑤）**：管理=甲（控制动作全在部署面，永不伸进用户 cell——ADR-0008）；监控=统一只读（gateway 代采 cell 任务 stats→cell_stats 进舰队面；cell 零新凭据、零入站控制面）。CONTEXT.md 萬星词条的「监控与管理」两半各归其位 |
 | 2 | ACP 与平台 JSON-RPC 的分工：ACP 只驾驶、计量走平台插件？还是计量也上 ACP？ | 切片 3 接口基线。**切片级答案（add-harness-adapter）**：ACP = 驾驶面（initialize/session/prompt/cancel/流式/usage_update）；dsh 平台深控（preset 泊靠/工具门/platform-stream）是 dsh 深度、不进接口；能力自报 + 结构化拒绝兜底。计费口径：usage_update 原样交给既有 `tokensOf`（跨 harness 同族） |
-| 3 | 短期 agents 执行宿：留在 cell worker-pool，还是搬上 runner 舰队（ephemeral slot 用完即收）？ | 与切片 5 联动；涉及任务引擎归属 |
+| 3 | 短期 agents 执行宿：留在 cell worker-pool，还是搬上 runner 舰队（ephemeral slot 用完即收）？ | 与切片 5 联动；涉及任务引擎归属。**已答（2026-10-15 切片⑤）**：留在 cell（fd-prod 串行是内存预算的诚实现状；跨租户计费/隔离不支持把用户 cell 任务搬平台 runner；mission 类平台侧短期工作本就在 runner） |
 | 4 | pod 密度档策略：默认 pod 还是默认 solo、按流量晋级？ | 切片 2 的部署语义。**v1 已答（add-dsh-pod-adapter）**：默认 solo（`AGENT_RUNNER_POD_MODE` 默认 0，字节级零变化）、pod 按 runner 级 opt-in 面向长尾 pack（≥2 serving agents 且过资格门才共宿）；默认翻转/按流量晋级待生产实证后再议 |

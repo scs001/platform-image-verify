@@ -1362,7 +1362,15 @@
       "selfhostBody": "This self-hosted instance doesn't run agent serving. To put this pack's agents online — shareable pages, metered turns, earnings — publish it to the official marketplace; the one-click deploy flow runs there.",
       "selfhostMarketBtn": "Open the official marketplace",
       "selfhostCreatingBtn": "Publishing guide",
-      "selfhostNote": "Self-hosting the serving stack yourself is possible — see the repository docs; the marketplace route needs no extra infrastructure."
+      "selfhostNote": "Self-hosting the serving stack yourself is possible — see the repository docs; the marketplace route needs no extra infrastructure.",
+      "deploySummary": "Deploying puts this pack's agents live as a conversation service: you get a shareable public chat page, visitors are metered per round, and you (the deployer) take a revenue share.",
+      "keySubtitle": "Metering key = the quota that pays for visitor rounds: visitors chat free, rounds are billed to the key you paste here.",
+      "rhythmSubtitle": "Rhythm = whether it works on its own: no entries means it only answers when addressed; entries have the platform wake it on schedule (spending your quota).",
+      "deployOutcome": "After deploying you get a shareable conversation page.",
+      "authRequired": "Sign-in required — please sign in before subscribing or installing.",
+      "loginHint": "Subscribing and installing require signing in.",
+      "loginGo": "Sign in",
+      "close": "Close"
     },
     "report": {
       "title": "Install result for “{{name}}”",

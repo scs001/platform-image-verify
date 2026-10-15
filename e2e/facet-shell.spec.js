@@ -294,3 +294,46 @@ test("data plane: publish, curate, versions, visibility, unpublish with real for
   const anonList = await request.get(`${base}/api/packs`);
   expect((await anonList.json()).packs.some((p) => p.id === id)).toBeFalsy();
 });
+
+// ── Footer shapes + dialog action bar (polish-facet-interactions) ────────────
+
+test("the intro landing carries the full footer; tool views carry the filing-only footer", async ({ page }) => {
+  await page.goto(`${base}/#/`);
+  await expect(page.getByTestId("facet-footer")).toBeVisible();
+  await expect(page.getByTestId("facet-filing-footer")).toHaveCount(0);
+
+  for (const hash of ["#/packs", "#/mcp", "#/docs"]) {
+    await page.goto(`${base}/${hash}`);
+    await expect(page.getByTestId("facet-filing-footer")).toBeVisible();
+    await expect(page.getByTestId("facet-footer")).toHaveCount(0);
+  }
+});
+
+test("the pack dialog carries an always-visible action bar with close, and anonymous subscribe gets the login guidance", async ({ page }) => {
+  const pageErrors = [];
+  page.on("pageerror", (e) => pageErrors.push(String(e)));
+
+  await page.goto(`${base}/#/packs`);
+  await page.locator('[data-testid^="pack-card-"]').first().click();
+  await expect(page.getByTestId("pack-detail")).toBeVisible();
+
+  // The bar is visible without scrolling (sticky), with subscribe + close.
+  await expect(page.getByTestId("pack-action-bar")).toBeVisible();
+  await expect(page.getByTestId("pack-subscribe")).toBeVisible();
+  await expect(page.getByTestId("pack-detail-close")).toBeVisible();
+  // The facet shell omits the goto-mine affordance (no installed-packs surface).
+  await expect(page.getByRole("button", { name: /我的功能集|My packs/ })).toHaveCount(0);
+
+  // Anonymous subscribe: no raw error — the guidance row appears.
+  await page.getByTestId("pack-subscribe").click();
+  await expect(page.getByTestId("pack-login-guidance")).toBeVisible();
+  // The sign-in action inside the row carries the host navigation (asserted
+  // by presence — activating it would navigate away from this spec's scope).
+  await expect(page.getByTestId("pack-login-go")).toBeVisible();
+
+  // Close control dismisses the dialog.
+  await page.getByTestId("pack-detail-close").click();
+  await expect(page.getByTestId("pack-detail")).toHaveCount(0);
+
+  expect(pageErrors, pageErrors.join(" | ")).toEqual([]);
+});

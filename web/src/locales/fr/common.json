@@ -1362,7 +1362,15 @@
       "selfhostBody": "Cette instance auto-hébergée n'exécute pas le service d'agents. Pour mettre en ligne les agents de ce pack — pages partageables, facturation au tour, revenus créateur — publiez-le sur la marketplace officielle ; le déploiement en un clic y est exécuté.",
       "selfhostMarketBtn": "Ouvrir la marketplace officielle",
       "selfhostCreatingBtn": "Guide de publication",
-      "selfhostNote": "Auto-héberger la pile de service est également possible — voir la documentation du dépôt ; la voie de la marketplace ne demande aucune infrastructure supplémentaire."
+      "selfhostNote": "Auto-héberger la pile de service est également possible — voir la documentation du dépôt ; la voie de la marketplace ne demande aucune infrastructure supplémentaire.",
+      "deploySummary": "Déployer met les agents de ce pack en ligne comme un service de conversation : vous obtenez une page de chat publique partageable, les visiteurs sont mesurés par tour, et vous (le déployeur) percevez un partage de revenus.",
+      "keySubtitle": "Clé de mesure = le quota qui paie les tours des visiteurs : les visiteurs discutent gratuitement, les tours sont facturés sur la clé que vous collez ici.",
+      "rhythmSubtitle": "Rythme = s'il agit par lui-même : sans entrée, il ne fait que répondre ; avec des entrées, la plateforme le réveille à horaire fixe (consomme votre quota).",
+      "deployOutcome": "Après le déploiement, vous obtenez une page de conversation partageable.",
+      "authRequired": "Connexion requise — connectez-vous avant de vous abonner ou d'installer.",
+      "loginHint": "S'abonner et installer nécessitent une connexion.",
+      "loginGo": "Se connecter",
+      "close": "Fermer"
     },
     "report": {
       "title": "Résultat d'installation de « {{name}} »",

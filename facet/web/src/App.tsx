@@ -18,7 +18,7 @@ import { DocsView } from "./DocsView";
 import { IntroView } from "./IntroView";
 import { McpCatalog } from "./McpCatalog";
 import { MineView } from "./MineView";
-import { PageFooter } from "./PageFooter";
+import { FilingFooter, PageFooter } from "./PageFooter";
 import { SiteMark } from "./SiteMark";
 
 // Conditional views (add-facet-content-management): #/mine needs a signed-in
@@ -116,6 +116,13 @@ export function App() {
     else window.location.hash = VIEW_HASH[next];
   }, []);
 
+  // Signed-out viewers subscribing from the detail dialog land on the login
+  // entry with a same-origin return path (logto-auth's safeReturnPath keeps
+  // the hash) — back to the packs market, dialog state intentionally lost.
+  const goLogin = useCallback(() => {
+    window.location.href = `/auth/login?rd=${encodeURIComponent(window.location.href)}`;
+  }, []);
+
   const tabs: [View, string][] = [
     ["intro", t("facetShell.tabs.intro")],
     ["packs", t("facetShell.tabs.packs")],
@@ -201,7 +208,11 @@ export function App() {
                   conversation view this shell doesn't have (installing stays a
                   壹座 surface), so the footer is suppressed — the report panel
                   itself renders unchanged (spec: pack-marketplace). */}
-              <PackMarketView onSubscribed={() => {}} onOpenChat={null} />
+              <PackMarketView
+                onSubscribed={() => {}}
+                onOpenChat={null}
+                onRequireLogin={goLogin}
+              />
               <p className="text-xs text-muted-foreground">
                 {t("facetShell.packsFootnote")} <code className="font-mono">{FACET_HELP_COMMAND}</code>
               </p>
@@ -212,7 +223,9 @@ export function App() {
           {view === "mine" && <MineView />}
           {view === "curate" && <CurateView />}
         </ErrorBoundary>
-        <PageFooter />
+        {/* Spec: the intro landing carries the full marketing footer (ladder,
+            brand, mission); the tool views carry the filing-only footer. */}
+        {view === "intro" ? <PageFooter /> : <FilingFooter />}
       </main>
     </div>
   );

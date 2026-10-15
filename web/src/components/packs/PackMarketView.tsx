@@ -16,6 +16,7 @@ import { PackDetailDialog } from "./PackDetailDialog";
 export function PackMarketView({
   onSubscribed,
   onOpenChat,
+  onRequireLogin,
 }: {
   onSubscribed?: () => void;
   // The report footer's open-chat hook. Hosts without a conversation view
@@ -23,6 +24,9 @@ export function PackMarketView({
   // navigates 壹座's chat route. See NextStepsFooter for why the routing
   // call lives there and not here.
   onOpenChat?: (() => void) | null;
+  // Signed-out signal forwarded to the detail dialog (polish-facet-
+  // interactions): hosts with anonymous viewers wire it, 壹座 omits it.
+  onRequireLogin?: () => void;
 }) {
   const { t } = useTranslation();
   const [packs, setPacks] = useState<PackSummary[]>([]);
@@ -176,6 +180,7 @@ export function PackMarketView({
           void refresh(search);
         }}
         onGotoMine={onSubscribed}
+        onRequireLogin={onRequireLogin}
       />
 
       {/* Post-subscribe per-part report (spec: pack-installation). */}

@@ -28,6 +28,12 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   onSubscribed: (report: PackReport, name: string) => void;
   onGotoMine?: () => void;
+  // Signed-out signal (polish-facet-interactions): hosts whose viewers can be
+  // anonymous (the facet shell) wire this — activating subscribe flips the
+  // action bar to a login-guidance row instead of surfacing a raw error.
+  // Hosts without it (壹座 — every viewer holds a session) keep the
+  // authenticated-error fallback below.
+  onRequireLogin?: () => void;
 }
 
 // The 万星 console deep link (agent-service-config): the deployment's slug and
@@ -35,11 +41,23 @@ interface Props {
 // (fd-wanxing wanxing-facade core.js) — a minimal copy, keep the two in
 // lockstep (the same discipline the console's setPaused copy follows).
 const wanxingConsoleBase = () => import.meta.env.VITE_WANXING_CONSOLE_URL || "https://wanxing.finddatatech.cloud";
+
+// Authentication failures get a localized guidance line, never raw English
+// (polish-facet-interactions): exact-match the platform's well-known
+// "Authentication required" body; anything else passes through untouched.
+function authErrorMessage(t: (k: string) => string, err: Error): string {
+  if (err.message === "Authentication required") return t("packs.detail.authRequired");
+  return err.message;
+}
 const wanxingSlugFor = (agentPath: string) =>
   String(agentPath).replace(/^\/+/, "").replace(/[^A-Za-z0-9._-]+/g, "-").toLowerCase();
 
-export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMine }: Props) {
+export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMine, onRequireLogin }: Props) {
   const { t } = useTranslation();
+  // The action bar's login-guidance row (polish-facet-interactions): flipped
+  // when a signed-out viewer activates subscribe and the host wired
+  // onRequireLogin; cleared when the dialog reopens for another pack.
+  const [loginHint, setLoginHint] = useState(false);
   const [pack, setPack] = useState<PackDetail | null>(null);
   const [subscribing, setSubscribing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,6 +84,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
     setDeployNote(null);
     setBindings(null);
     setKeyDrafts({});
+    setLoginHint(false);
     if (!packId) return;
     api
       .getPack(packId)
@@ -87,6 +106,14 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
 
   const subscribe = async () => {
     if (!packId || !pack) return;
+    if (onRequireLogin) {
+      // Host-wired signed-out path (facet shell): no call is made — the bar
+      // flips to the login guidance row (spec: anonymous subscribe attempts
+      // get a login guidance bar). Only the row's sign-in action invokes the
+      // host's navigation.
+      setLoginHint(true);
+      return;
+    }
     setSubscribing(true);
     setError(null);
     try {
@@ -101,7 +128,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
       onOpenChange(false);
       onSubscribed(report, pack.name);
     } catch (err) {
-      setError((err as Error).message);
+      setError(authErrorMessage(t, err as Error));
     } finally {
       setSubscribing(false);
     }
@@ -205,7 +232,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
 
   return (
     <Dialog open={!!packId} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-auto" data-testid="pack-detail">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-auto pb-2" data-testid="pack-detail">
         <DialogHeader>
           <DialogTitle>
             {pack?.name ?? (error ? t("packs.detail.notFound") : "")}
@@ -402,6 +429,9 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
             {servingAgents.length > 0 && (servingReady === null || servingReady) && (
               <section className="border border-border rounded-md p-3" data-testid="pack-deploy-section">
                 <h4 className="font-medium mb-2">{t("packs.detail.deployTitle")}</h4>
+                <p className="text-xs text-muted-foreground leading-5 mb-3" data-testid="pack-deploy-summary">
+                  {t("packs.detail.deploySummary")}
+                </p>
                 {billing?.linked && billing.accountState === "none" && (
                   <div className="text-xs mb-2 rounded-md px-2 py-2 bg-amber-500/10 text-amber-700" data-testid="pack-billing-no-account">
                     <p>{t("packs.detail.noAccountHintNew")}</p>
@@ -432,6 +462,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                 )}
                 {billing?.linked && billing.accountState === "ok" && (
                   <div className="mb-2 space-y-2">
+                    <p className="text-xs text-muted-foreground leading-5">{t("packs.detail.keySubtitle")}</p>
                     {servingAgents.map((a) => (
                       <div key={a.id} data-testid={`pack-billing-key-${a.id}`}>
                         <div className="flex items-center gap-2">
@@ -461,6 +492,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                     ))}
                   </div>
                 )}
+                <p className="text-xs text-muted-foreground leading-5 mb-2">{t("packs.detail.rhythmSubtitle")}</p>
                 {servingAgents.map((a) => (
                   <div key={a.id} className="mb-2" data-testid={`pack-deploy-override-${a.id}`}>
                     <p className="text-xs text-muted-foreground">{t("packs.detail.rhythmOverride", { id: a.id })}</p>
@@ -514,21 +546,57 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                 >
                   {deploying ? t("common.loading") : t("packs.detail.deployBtn")}
                 </Button>
+                <p className="text-[11px] text-muted-foreground mt-1.5" data-testid="pack-deploy-outcome">
+                  {t("packs.detail.deployOutcome")}
+                </p>
               </section>
             )}
 
-            <div className="flex items-center gap-2 pt-2">
-              <Button onClick={() => void subscribe()} disabled={subscribing} data-testid="pack-subscribe">
-                {subscribing ? t("common.loading") : t("packs.detail.subscribe")}
-              </Button>
-              {onGotoMine && (
-                <Button variant="ghost" onClick={onGotoMine}>
-                  {t("packs.detail.gotoMine")}
+          </div>
+        )}
+
+        {/* Action bar (polish-facet-interactions): sticky to the dialog's
+            bottom edge — always visible regardless of scroll position. The
+            host-selected goto-mine affordance renders only when wired (the
+            facet shell omits it; no installed-packs surface there). */}
+        <div
+          className="sticky bottom-0 z-10 -mx-2 mt-3 border-t border-border bg-background/95 px-4 py-3 backdrop-blur"
+          data-testid="pack-action-bar"
+        >
+          {loginHint && (
+            <div
+              className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2"
+              data-testid="pack-login-guidance"
+            >
+              <span className="text-xs text-muted-foreground">{t("packs.detail.loginHint")}</span>
+              {onRequireLogin && (
+                <Button size="sm" className="h-7 px-3 text-xs" onClick={onRequireLogin} data-testid="pack-login-go">
+                  {t("packs.detail.loginGo")}
                 </Button>
               )}
             </div>
+          )}
+          <div className="flex items-center gap-2">
+            <Button onClick={() => void subscribe()} disabled={subscribing} data-testid="pack-subscribe">
+              {subscribing ? t("common.loading") : t("packs.detail.subscribe")}
+            </Button>
+            {onGotoMine && (
+              <Button variant="ghost" onClick={onGotoMine}>
+                {t("packs.detail.gotoMine")}
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto h-8 w-8"
+              aria-label={t("packs.detail.close")}
+              onClick={() => onOpenChange(false)}
+              data-testid="pack-detail-close"
+            >
+              ✕
+            </Button>
           </div>
-        )}
+        </div>
       </DialogContent>
     </Dialog>
   );

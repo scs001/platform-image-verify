@@ -1362,7 +1362,15 @@
       "selfhostBody": "Esta instancia autoalojada no ejecuta el servicio de agentes. Para poner en línea los agentes de este paquete —páginas compartibles, medición por turno, ingresos para creadores— publícalo en el mercado oficial; el despliegue de un clic se ejecuta allí.",
       "selfhostMarketBtn": "Abrir el mercado oficial",
       "selfhostCreatingBtn": "Guía de publicación",
-      "selfhostNote": "Autoalojar la pila de servicio también es posible —consulta la documentación del repositorio—; la ruta del mercado no requiere infraestructura adicional."
+      "selfhostNote": "Autoalojar la pila de servicio también es posible —consulta la documentación del repositorio—; la ruta del mercado no requiere infraestructura adicional.",
+      "deploySummary": "Desplegar pone los agentes de este pack en vivo como un servicio de conversación: obtienes una página de chat pública para compartir, los visitantes se miden por ronda y tú (el desplegador) recibes una participación de ingresos.",
+      "keySubtitle": "Clave de medición = la cuota que paga las rondas de los visitantes: los visitantes chatean gratis, las rondas se cobran a la clave que pegues aquí.",
+      "rhythmSubtitle": "Ritmo = si trabaja por su cuenta: sin entradas solo responde cuando se le addressa; con entradas la plataforma lo despierta según horario (gastando tu cuota).",
+      "deployOutcome": "Tras desplegar obtendrás una página de conversación para compartir.",
+      "authRequired": "Se requiere iniciar sesión — inicia sesión antes de suscribirte o instalar.",
+      "loginHint": "Suscribirse e instalar requieren iniciar sesión.",
+      "loginGo": "Iniciar sesión",
+      "close": "Cerrar"
     },
     "report": {
       "title": "Resultado de instalación de «{{name}}»",

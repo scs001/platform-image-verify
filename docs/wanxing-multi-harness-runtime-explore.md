@@ -158,7 +158,7 @@ HarnessAdapter（agent 级接口）
 
 | # | 项 | 说明 |
 |---|---|---|
-| 1 | rc 版本节奏 | 矩阵钉 0.2.0-rc.2，DS Bot 已测 0.2.1-alpha.1——上游活跃；~~dsh-contracts 需为 agents/subagent/preset-registry/ACP 四块扩合同~~ ✅ **已扩（⑩-⑭，2026-10-14 两轮全绿）** |
+| 1 | rc 版本节奏 | 矩阵钉 0.2.0-rc.2，DS Bot 已测 0.2.1-alpha.1——上游活跃；~~dsh-contracts 需为 agents/subagent/preset-registry/ACP 四块扩合同~~ ✅ **已扩（⑩-⑭，2026-10-14 两轮全绿）**；**0.2.1-alpha.3 已实跑评估（2026-10-15）**：合同 8/17、组合层真漂移+subagent API 重做——定案等 rc 再跟，见《0.2.1 线跟随评估》节 |
 | 2 | ACP 计量边界 | ~~usage/token 事件流在 ACP 面的形状待实证~~ ✅ **实证：线上带 `usage_update`**；计费口径字段丰度切片③核 |
 | 3 | 活体三测量 | ✅ **已收（2026-10-14）**：pod 内存=M2（进程地板价 ~100-185MB，空闲会话边际≈0）；sidecar 分摊=合同⑭（恒一）；并发叠加=补记节定量（收尾饿死，每 pod 单在途回合纪律） |
 | 4 | 升级粒度 | pod 模式下升级单个 pack=整 pod 排水重建；contextId→session 连续性要跨 pod 重建存活——**生产实证（2026-10-14 pod 验证）：重建后 resume 撞墙根因=桥 `#isPersisted` 探测名 `loadStored` 在 0.2.0 已死（恒 false→create 撞已存会话），修为原生 `stat(id)`（8c3a44b），跨 pod 会话连续性恢复** |
@@ -202,6 +202,39 @@ pod 的设计后果=不能承诺成员回合独立收敛，每 pod 在途回合�
 64 插件导入失败假象；全家族树（plain `npm install`，peers 自动装）+
 本仓 0.2.0 era profile 模板可握手跑通 alpha.1——迁移面比想象小，但矩阵
 manifest/安装流程必须为 peer 时代重写。
+
+## 0.2.1 线跟随评估（2026-10-15，alpha.3 实跑收口）
+
+上游节奏：0.2.1-alpha.1（10-03）/ alpha.2（10-09）/ **alpha.3（10-14）**，`latest` 仍=0.2.0-rc.2；
+无 rc。候选树配方=三组合件（dsh/dsh-base/sdk-jsonrpc-server @alpha.3）plain `npm install`
+（peers 时代全家族自动装，611 包 vs 矩阵锁步闭包），`dsh --version` 握手正常。
+
+**合同全家桶实跑（scripts/dsh-contracts.mjs --tree）= 8/17**，失败按根因分三族：
+
+| 族 | 合同 | 定性 |
+|---|---|---|
+| 矩阵钉版伪失败 | ③ | 候选树≠manifest 钉的锁步版——跟随时重钉矩阵即消，非漂移 |
+| **组合面没挂载**（真漂移主体） | ④⑦⑧⑨⑩⑯⑮ | platform profile 会话组合为空（⑩「system prompt is empty—composition did not mount」）：回合 running→idle 正常走完但**从不触 LLM**（④的 Authorization 缺席同因）。`dsh-agent-preset-registry` 内部大改（mount/fiber 逻辑重写：livePresetMounts/standingMountFor 已除），0.2.0 时代声明式组合（standard.agent.cordis.yml+presets patch 行）不再装配 |
+| 具体 API 改名 | ⑫ | `ctx.subagents.start("spawn",…)` → **`startActivation(spec)`**；架构重做为「命名 provider 注册表+激活管理器+sendMessage 引导+listChildren 发现」，provider 拆独立包（`dsh-subagent-spawn-in-process/-fork/-acp`，须实现 `start|prepareContinuable`），模型消费面移交 `dsh-tool-subagent` |
+
+**关键健康事实**：pi-ai LLM 派发链**没坏**——⑬（ACP profile，同一个 llm-pi-ai insert+dummy 端点）
+全过含 dummy 命中与 usage_update。alpha.2 的「llm 适配层形状漂移」读法就此订正：坏的不是适配层，
+是 platform 组合层不装配导致回合空转。稳面：①boot/roster、②闭包解析、⑪工具裁剪、⑬⑰ACP、
+⑭sidecar。
+
+**定案：等到 0.2.1 出 rc 再跟随**（版本纪律=矩阵钉 rc；现在跟=对每周 alpha 做组合层移植，
+反复烧）。跟随时的实施面（按合同失败面反推，全部要动）：
+1. dsh-profile-template 组合层移植（cordis.yml/presets 行形状→0.2.1 装配语义）——最大头，
+   ④⑦⑧⑨⑩⑯⑮ 七合同的共同解；
+2. 探针插件与任何 subagent 消费点改 `startActivation`（⑫）；
+3. 平台流通道（platform/stream 帧）随组合层重移植（⑮）；
+4. 矩阵 manifest+lock 为 peers 时代重生成（install-dsh-matrix 的 `npm ci` 冻结流要改）；
+5. 跟随后必测：**跨会话回合收尾串行化是否上游已解**（本轮无法测——组合面不挂载，
+   收尾探针跑不起来；这是后台续跑解锁的判定实验，跟随实施的第一批验证）。
+
+**pod 密度档默认翻转的数据水位（同日盘点）**：生产 19 个 serving 包、23 agents，**≥2 agents
+的包=2 个且全是 10-14 探针残留**——真实多 agent 包为零。默认翻转无对象，维持 solo 默认
+（pod 按 runner opt-in 保留），待真实多 agent 包出现再议。
 
 ## 与 unify-dsh-generation 收口的衔接（2026-10-14 已归档）
 

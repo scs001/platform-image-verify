@@ -20,10 +20,15 @@ BYOK key 时，搜索工具 SHALL 返回调用者可见的明确错误（不再�
 - **WHEN** 退役段实施后检查 relay 配置
 - **THEN** keys.json 只含词元车道凭据，`serpapi[]` 键不复存在，relay 启动日志不再出现 standby serpapi 行
 
-#### Scenario: 车道故障时调用者得到明确错误
+#### Scenario: 车道不可达冷备接管（退役后永不触发）
 
-- **WHEN** 冷备退役后词元车道不可用且调用者未带 BYOK key
-- **THEN** 搜索工具返回明确的错误消息（不再是静默的直连回退），其余工具面不受影响
+- **WHEN** 冷备路径与 `serpapi[]` 已删除后，词元车道不可达或持续 5xx
+- **THEN** 直连冷备路径不复存在（无配置可启用）；调用者在无 BYOK key 时得到明确的错误消息，relay 统计不再含冷备路由
+
+#### Scenario: 供应商 key 不再常设 relay 侧（退役后恒成立）
+
+- **WHEN** 迁移窗口结束（冷备路径退役后）检查 relay 配置
+- **THEN** relay 的 keys 集合中 SHALL 不存在供应商 key，供给唯一来源为车道内部凭据
 
 ### Requirement: Shared pool health is visible to administrators
 

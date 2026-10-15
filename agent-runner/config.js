@@ -250,6 +250,8 @@ export function loadConfig(env = process.env) {
     fleetToken: env.AGENT_RUNNER_FLEET_TOKEN || "",
     fleetRunnerId: env.AGENT_RUNNER_FLEET_ID || "runner-1",
     fleetSampleSecs: num(env.AGENT_RUNNER_FLEET_SAMPLE_SECS, 30),
+    // Seat mailbox cadence (add-desktop-fleet-runner ④).
+    mailboxPollSecs: num(env.AGENT_RUNNER_MAILBOX_POLL_SECS, 30),
     // Sharding (add-runner-fleet-sharding D1): unassigned entries belong to
     // the default runner. Defaulting to the runner's own fleet id keeps a
     // legacy runner (no new env) hosting everything unassigned — zero

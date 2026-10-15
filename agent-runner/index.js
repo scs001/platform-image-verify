@@ -100,9 +100,7 @@ const clientFactory = (spec) => ({ args, cwd, env }) => {
 // child; the inner ({args,cwd,env}) shape matches what AgentChild builds.
 const wrappedFactory = (spec) => (specArg) => clientFactory(spec)(specArg);
 
-const manager = new ChildManager({
-  config,
-  registryClient: createRegistryClient({
+const registryClient = createRegistryClient({
     registryUrl: config.registryUrl,
     registryToken: config.registryToken,
     // Sharding (add-runner-fleet-sharding D1): the fleet id hosts only its
@@ -110,7 +108,10 @@ const manager = new ChildManager({
     // fleet's default (AGENT_RUNNER_DEFAULT_ID, itself by default).
     runnerId: config.fleetRunnerId,
     defaultRunnerId: config.defaultRunnerId,
-  }),
+  });
+const manager = new ChildManager({
+  config,
+  registryClient,
   clientFactory: wrappedFactory,
 });
 
@@ -143,11 +144,29 @@ if (config.fleetUrl) {
   manager.events = (ev) => fleetReporter.emit(ev);
   console.log(`[agent-runner:fleet] reporting to ${config.fleetUrl} as ${config.fleetRunnerId}`);
 }
-// Residency wiring (add-agent-residency): rollover owns the day boundary,
-// the scheduler consumes its pending digest at the day's head.
-const rollover = new Rollover({ manager, config });
-manager.onSpawnHook = (key, entry) => void rollover.onSpawn(key, entry).catch(() => {});
-const scheduler = new RhythmScheduler({ manager, rollover, config });
+  // Residency wiring (add-agent-residency): rollover owns the day boundary,
+  // the scheduler consumes its pending digest at the day's head.
+  const rollover = new Rollover({ manager, config });
+  manager.onSpawnHook = (key, entry) => void rollover.onSpawn(key, entry).catch(() => {});
+  const scheduler = new RhythmScheduler({ manager, rollover, config });
+
+  // Seat mailbox (add-desktop-fleet-runner ④): the desktop's outbound half —
+  // poll the facade's per-seat box over the same fleet prefix, run each task
+  // locally, settle the result. Inert without the fleet uplink configured.
+  if (config.fleetUrl && config.fleetToken) {
+    const { createMailboxPoller } = await import("./mailbox.js");
+    const pollSecs = Number(config.mailboxPollSecs) > 0 ? Number(config.mailboxPollSecs) : 30;
+    const mailbox = createMailboxPoller({
+      manager,
+      registryClient,
+      url: config.fleetUrl,
+      token: config.fleetToken,
+      pollSecs,
+      log: (m) => console.log(`[agent-runner:mailbox] ${m}`),
+    });
+    mailbox.start();
+  }
+
 const app = createOpsApp({ manager });
 const server = http.createServer(app);
 

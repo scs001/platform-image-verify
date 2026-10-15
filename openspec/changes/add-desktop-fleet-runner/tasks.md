@@ -85,3 +85,18 @@
 - [x] 10.4 DeployWizard 部署目标下拉（云端自动/我的机位，附 desktop 语义提示）
 - [x] 10.5 测试：paas 62/62（seat 部署两场景）+deploy 道 17/17；fd-wanxing
       144/144（selfservice seat 三场景）；wanxing-web vite build 绿
+
+## 11. ④：座席信箱——外部任务的异步入站（2026-10-15 同 change 追加，全片完）
+
+- [x] 11.1 facade `mailbox.js`：投递（console 门）/拉取+回投（per-seat 凭据，挂
+      fleet 前缀——runner 只需一个上行基址）/查询（console 门）；`wanxing_mailbox`
+      表（queued→delivered→done 状态机，at-least-once+按 id 幂等结算）
+- [x] 11.2 a2a 面 desktop_seat 拦截：message/send 投箱+排队回执（taskId+async 标
+      记，永不触碰不可达 upstream）；message/stream -32601
+- [x] 11.3 runner `mailbox.js` 轮询器：拉取→本地 manager.turn→回投；未托管 agent
+      立即失败结算；index.js 接线（fleet uplink 配置即启用）
+- [x] 11.4 测试：facade 信箱 5/5+a2a 拦截 1/1（50/50）+fd-wanxing 全量 150/150+
+      paas runner 道 77/77
+- [x] 11.5 E2E 探针 `scripts/probe-desktop-fleet-mailbox.mjs` 3/3：真 facade（设
+      备面+信箱面+真 store）→真 runner 拉到任务→**真 dsh 真 LLM 回合回复「信箱
+      就绪」**→回投→console 查询取回

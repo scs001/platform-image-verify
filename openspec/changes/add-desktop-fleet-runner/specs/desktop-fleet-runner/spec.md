@@ -127,3 +127,29 @@ children 后退出；runner 异常退出时由 supervisor 按退避序列自动�
 
 - **WHEN** 同一 pack 的两个 serving agents 部署到桌面机位
 - **THEN** 二者共享一个 pod runtime 进程，各自持有独立监听端口
+
+### Requirement: 座席信箱（外部任务的异步入站）
+
+外部萬星 agent 对桌面机位上 agent 的 `message/send` SHALL 经萬星门面投递到该机位
+的公网信箱（facade 中继，queue→deliver→settle 状态机），并即时以排队回执应答
+（携带 taskId）；`message/stream` 对座席目标 SHALL 显式拒绝（-32601）。桌面
+runner SHALL 以纯出站轮询拉取信箱任务、在本地执行真回合、把结果回投中继存档，
+调用方经任务查询端点取回。信箱通道 SHALL 复用座席的 per-seat 凭据（与遥测上行
+同 token、同吊销语义）。座席未托管任务所指 agent 时 SHALL 立即以失败结算（不
+重试）。
+
+#### Scenario: 外部任务经信箱闭环
+
+- **WHEN** 外部调用方向桌面 agent 发 message/send，桌面 runner 在线且托管该 agent
+- **THEN** 调用方即时收到排队回执；runner 轮询拉到任务、本地真回合执行、结果
+  回投；任务查询端点可读到结果文本
+
+#### Scenario: 流式对座席拒绝
+
+- **WHEN** 调用方向桌面 agent 发 message/stream
+- **THEN** 门面以 -32601 拒绝并说明座席仅接受异步 message/send
+
+#### Scenario: 吊销断信箱
+
+- **WHEN** 机位被吊销后其 runner 尝试拉取或回投
+- **THEN** 两端点均 401（与遥测上行同时失效）

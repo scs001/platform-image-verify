@@ -40,6 +40,6 @@
 
 ## 7. 文档与部署
 
-- [ ] 7.1 `facet-pack-builder` skill 文档：manifest 限值表更新（files 三限）、CLI 组 files 用法、raw-md 对树技能 fail-loud 提示。
-- [ ] 7.2 部署次序手册：先 cell（fd-prod GitOps）→ 桌面版随下一版本（release.yml 公开线）→ `PACK_FILES_ENABLED` 开门；写进 `docs/registry-maintenance.md` §9 发布记录模板备注。
-- [ ] 7.3 出片滚产：fd-build-channel 判路 → 镜像 GHA→hkccr→relay→ccr → fd-prod 滚 → 台账落账（按 AGENTS.md 纪律，禁本地 docker build）。
+- [x] 7.1 `facet-pack-builder` skill 文档：manifest 限值表更新（files 三限）、CLI 组 files 用法、raw-md 对树技能 fail-loud 提示。
+- [x] 7.2 部署次序手册：先 cell（fd-prod GitOps）→ 桌面版随下一版本（release.yml 公开线）→ `PACK_FILES_ENABLED` 开门；写进 `docs/registry-maintenance.md` §9 发布记录模板备注。
+- [x] 7.3 出片滚产：fd-build-channel 判路 → 镜像 GHA→hkccr→relay→ccr → fd-prod 滚 → 台账落账（按 AGENTS.md 纪律，禁本地 docker build）。

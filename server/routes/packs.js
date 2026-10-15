@@ -121,6 +121,10 @@ export function registerPackRoutes(ctx) {
         version,
         manifest,
         user: req.user,
+        // add-packaged-skills D5: script-bearing packs need the explicit
+        // acknowledgment; the error carries code "script-confirm-required"
+        // which the client maps to the one-time confirm dialog.
+        confirm: req.body?.confirm === true,
         hooks: {
           onMcpChanged: () => {
             broadcast({ type: "extensions_changed", resource: "mcp", action: "pack-install", name: manifest?.name || packId });
@@ -141,6 +145,7 @@ export function registerPackRoutes(ctx) {
     } catch (err) {
       res.status(err.status || 500).json({
         error: err.message,
+        ...(err.code ? { code: err.code } : {}),
         ...(err.details ? { details: err.details } : {}),
       });
     }

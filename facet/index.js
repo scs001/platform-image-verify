@@ -82,7 +82,10 @@ const adminGroups = splitGroups(process.env.ADMIN_GROUPS, "");
 const app = express();
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
-app.use(express.json({ limit: "1mb" }));
+// add-packaged-skills D2: publishes may carry inline skill packages (~21MiB
+// manifests). This GLOBAL parser must allow it or the publish route's own
+// jsonLimit is shadowed — Express runs this one first.
+app.use(express.json({ limit: "24mb" }));
 
 app.get("/api/health", (_req, res) => res.json({ ok: true, service: "facet" }));
 

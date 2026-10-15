@@ -58,6 +58,11 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
   // when a signed-out viewer activates a gated action and the host wired
   // onRequireLogin; cleared when the dialog reopens for another pack.
   const [loginHint, setLoginHint] = useState(false);
+  // Script confirm gate (add-packaged-skills 5.1): set when the install
+  // answered 400 code=script-confirm-required — the names + script files it
+  // carries render the one-time acknowledgment; confirming retries with
+  // confirm=true. Server-enforced, this dialog is only the explanation.
+  const [scriptGate, setScriptGate] = useState<{ name: string; scriptFiles: string[] }[] | null>(null);
   const [pack, setPack] = useState<PackDetail | null>(null);
   const [subscribing, setSubscribing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +90,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
     setBindings(null);
     setKeyDrafts({});
     setLoginHint(false);
+    setScriptGate(null);
     if (!packId) return;
     api
       .getPack(packId)
@@ -104,7 +110,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
       .catch(() => setBindings(null)); // bindings route absent = pre-revise gateway
   }, [packId]);
 
-  const subscribe = async () => {
+  const subscribe = async (confirmScripts = false) => {
     if (!packId || !pack) return;
     if (onRequireLogin) {
       // Host-wired signed-out path (facet shell): no call is made — the bar
@@ -119,8 +125,9 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
     try {
       const sub = await api.subscribePack(packId);
       // Only the reference crosses the wire: the cell fetches the manifest
-      // server-side (pack-install-server-side-manifest).
-      const { report } = await api.installPack(sub.packId, sub.version);
+      // server-side (pack-install-server-side-manifest). A script-bearing
+      // pack installs only with the explicit confirm (server-enforced).
+      const { report } = await api.installPack(sub.packId, sub.version, confirmScripts);
       // Close this dialog BEFORE the report mounts: both are fixed overlays,
       // and a dialog left open above the report intercepts every click on
       // the report's actions (the report's own z-index cannot win a
@@ -128,7 +135,14 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
       onOpenChange(false);
       onSubscribed(report, pack.name);
     } catch (err) {
-      setError(authErrorMessage(t, err as Error));
+      const e = err as Error & { body?: { code?: string; details?: { name: string; scriptFiles: string[] }[] } };
+      if (e.body?.code === "script-confirm-required") {
+        // Map the server's refusal to the one-time acknowledgment; the retry
+        // carries confirm=true (task 5.1).
+        setScriptGate(Array.isArray(e.body.details) ? e.body.details : []);
+        return;
+      }
+      setError(authErrorMessage(t, e));
     } finally {
       setSubscribing(false);
     }
@@ -354,6 +368,21 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                       <pre className="text-xs whitespace-pre-wrap bg-muted/50 rounded p-2 max-h-48 overflow-auto">
                         {s.content}
                       </pre>
+                      {/* File inventory (add-packaged-skills D4): the detail
+                          projection lists a tree skill's auxiliary paths —
+                          contents fetch per-file on demand, nothing hidden. */}
+                      {Array.isArray(s.files) && s.files.length > 0 && (
+                        <div className="mt-1" data-testid={`pack-skill-files-${s.name}`}>
+                          <p className="text-[11px] font-medium text-muted-foreground">
+                            {t("packs.detail.skillFiles", { count: s.files.length })}
+                          </p>
+                          <ul className="mt-0.5 max-h-24 space-y-0.5 overflow-y-auto">
+                            {s.files.map((f) => (
+                              <li key={f} className="font-mono text-[11px] text-muted-foreground">· {f}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -613,6 +642,39 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
               ))}
           </div>
         </div>
+
+        {/* Script confirm gate (add-packaged-skills 5.1): the one-time
+            acknowledgment for script-bearing packs, mounted only after the
+            server refused with script-confirm-required. Confirming retries
+            the install with confirm=true; the gate is server-enforced. */}
+        <Dialog open={scriptGate !== null} onOpenChange={(open) => !open && setScriptGate(null)}>
+          <DialogContent className="max-w-md" data-testid="pack-script-confirm">
+            <DialogHeader>
+              <DialogTitle>{t("packs.detail.scriptGateTitle")}</DialogTitle>
+              <DialogDescription>{t("packs.detail.scriptGateBody")}</DialogDescription>
+            </DialogHeader>
+            <ul className="max-h-48 space-y-1 overflow-y-auto text-sm">
+              {scriptGate?.map((b) => (
+                <li key={b.name}>
+                  <span className="font-mono text-xs text-foreground">{b.name}</span>
+                  <ul className="ml-4 list-disc">
+                    {b.scriptFiles.map((f) => (
+                      <li key={f} className="font-mono text-[11px] text-amber-700 dark:text-amber-400">{f}</li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setScriptGate(null)}>
+                {t("common.cancel")}
+              </Button>
+              <Button onClick={() => void subscribe(true)} disabled={subscribing} data-testid="pack-script-confirm-ok">
+                {subscribing ? t("common.loading") : t("packs.detail.scriptGateConfirm")}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );

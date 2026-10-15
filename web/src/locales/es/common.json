@@ -512,6 +512,22 @@
       "errors": {
         "nameRequired": "El nombre es requerido",
         "contentRequired": "El contenido es requerido"
+      },
+      "package": {
+        "title": "Subir paquete de habilidad",
+        "subtitle": "Sube un paquete zip de habilidad (SKILL.md + referencias y scripts); se instala como una habilidad utilizable en conversaciones.",
+        "uploadButton": "Subir paquete",
+        "pick": "Elegir un paquete zip de habilidad",
+        "bodyLabel": "Vista previa del cuerpo de la habilidad",
+        "filesLabel": "Archivos ({{count}} almacenados / {{total}} en total)",
+        "omittedBinary": "binario, no se almacena",
+        "omittedLarge": "demasiado grande, no se almacena",
+        "scriptWarning": "Entiendo que este paquete contiene archivos de script ejecutables",
+        "install": "Instalar paquete",
+        "success": "Habilidad {{name}} instalada ({{count}} archivos auxiliares)",
+        "successReplaced": "Habilidad {{name}} reemplazada por completo",
+        "normalizedAs": "se normalizará a {{name}} (origen: {{upstream}})",
+        "fileCountBadge": "{{count}} archivos"
       }
     },
     "market": {
@@ -1371,7 +1387,11 @@
       "authRequired": "Se requiere iniciar sesión — inicia sesión antes de suscribirte o instalar.",
       "loginHint": "Suscribirse e instalar requieren iniciar sesión.",
       "loginGo": "Iniciar sesión",
-      "close": "Cerrar"
+      "close": "Cerrar",
+      "skillFiles": "{{count}} archivos auxiliares",
+      "scriptGateTitle": "Este paquete contiene scripts ejecutables",
+      "scriptGateBody": "Las habilidades siguientes contienen archivos de script que se depositarán en tu runtime al instalar; nada se instala sin tu confirmación (única).",
+      "scriptGateConfirm": "Confirmar instalación"
     },
     "report": {
       "title": "Resultado de instalación de «{{name}}»",
@@ -1389,7 +1409,9 @@
         "awaiting-local-binding": "Esperando servidor local"
       },
       "nextHint": "Instalado. Siguiente paso: abre Conversación y elige este experto en el selector.",
-      "openChat": "Abrir conversación"
+      "openChat": "Abrir conversación",
+      "files": "{{count}} archivos auxiliares",
+      "filesWithScripts": "{{count}} archivos auxiliares (scripts: {{scripts}})"
     },
     "mine": {
       "empty": "Aún no hay suscripciones. Explora el mercado.",
@@ -1460,7 +1482,9 @@
         "hint": "Escribe “qué preparar → qué decir → qué obtienes”; se muestra en la página de detalle. Los tres pasos son obligatorios para publicarla con el pack.",
         "stepTitle": "Título del paso {{n}}",
         "stepBody": "Descripción del paso {{n}}"
-      }
+      },
+      "uploadSkillPackage": "Subir paquete",
+      "skillFiles": "{{count}} archivos auxiliares: {{paths}}"
     },
     "bridge": {
       "title": "Traído del preset: {{skills}} habilidades, {{servers}} servidores. No migrado:",

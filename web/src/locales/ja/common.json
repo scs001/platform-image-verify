@@ -512,6 +512,22 @@
       "errors": {
         "nameRequired": "名前は必須です",
         "contentRequired": "内容は必須です"
+      },
+      "package": {
+        "title": "スキルパッケージをアップロード",
+        "subtitle": "zip 形式のスキルパッケージ（SKILL.md + 参考資料・スクリプト）をアップロードすると、会話で使えるスキルとしてインストールされます。",
+        "uploadButton": "パッケージをアップロード",
+        "pick": "zip スキルパッケージを選択",
+        "bodyLabel": "スキル本文プレビュー",
+        "filesLabel": "ファイル一覧（{{count}} 件を同時保存 / 全 {{total}} 件）",
+        "omittedBinary": "バイナリのため保存されません",
+        "omittedLarge": "サイズ超過のため保存されません",
+        "scriptWarning": "このパッケージに実行可能なスクリプトが含まれることを理解しました",
+        "install": "パッケージをインストール",
+        "success": "スキル {{name}} をインストールしました（補助ファイル {{count}} 件）",
+        "successReplaced": "スキル {{name}} を全体置換しました",
+        "normalizedAs": "{{name}} に正規化されます（元名：{{upstream}}）",
+        "fileCountBadge": "{{count}} ファイル"
       }
     },
     "market": {
@@ -1371,7 +1387,11 @@
       "authRequired": "ログインが必要です — 登録・インストールの前にログインしてください。",
       "loginHint": "登録してインストールするにはログインが必要です。",
       "loginGo": "ログイン",
-      "close": "閉じる"
+      "close": "閉じる",
+      "skillFiles": "補助ファイル {{count}} 件",
+      "scriptGateTitle": "このパックには実行可能なスクリプトが含まれます",
+      "scriptGateBody": "以下のスキルはスクリプトファイルを含み、インストール時にランタイムへ展開されます。確認後のみインストールされます（一度だけ）。",
+      "scriptGateConfirm": "インストールを確認"
     },
     "report": {
       "title": "「{{name}}」のインストール結果",
@@ -1389,7 +1409,9 @@
         "awaiting-local-binding": "ローカルサーバー待ち"
       },
       "nextHint": "インストール完了。次はチャットを開いて、上のセレクターでこのエキスパートを選びます。",
-      "openChat": "チャットを開く"
+      "openChat": "チャットを開く",
+      "files": "補助ファイル {{count}} 件",
+      "filesWithScripts": "補助ファイル {{count}} 件（スクリプト：{{scripts}}）"
     },
     "mine": {
       "empty": "まだ購読していません。市場をのぞいてみましょう。",
@@ -1460,7 +1482,9 @@
         "hint": "「何を準備 → 何を言う → 何が手に入る」を書くと詳細ページに表示されます。3 ステップ全部埋めるとパックと一緒に公開されます。",
         "stepTitle": "ステップ {{n}} のタイトル",
         "stepBody": "ステップ {{n}} の説明"
-      }
+      },
+      "uploadSkillPackage": "パッケージをアップロード",
+      "skillFiles": "補助ファイル {{count}} 件：{{paths}}"
     },
     "bridge": {
       "title": "プリセットから移行：スキル {{skills}} 件、サーバー {{servers}} 件。移行されなかった項目：",

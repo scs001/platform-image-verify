@@ -1,4 +1,4 @@
-import { http } from "./http";
+import { http, type HttpResponse } from "./http";
 
 // extensions-api.ts
 // API client for extensions management (MCP servers + custom skills)
@@ -39,6 +39,10 @@ export interface CustomSkill {
   description: string | null;
   content: string;
   enabled: boolean;
+  // Auxiliary file PATHS for package-form skills (add-packaged-skills;
+  // contents stay server-side). Null/absent for every single-document skill.
+  files?: string[] | null;
+  originMeta?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -492,6 +496,98 @@ export async function toggleCustomSkill(name: string, enabled: boolean): Promise
     throw new Error(err.error || `Failed to toggle skill: ${res.statusText}`);
   }
   return res.json();
+}
+
+// ── Skill package upload (add-packaged-skills D7) ───────────────────────────
+// A zip package travels through the same multipart channel both ways: preview
+// describes what WOULD install (nothing stored), install writes it. The
+// script-consent checkbox is enforced server-side (confirm field).
+
+export interface SkillPackageFile {
+  path: string;
+  bytes: number;
+  script: boolean;
+  action: "stored" | "omitted-binary" | "omitted-large";
+}
+
+export interface SkillPackagePreview {
+  name: string;
+  upstreamName: string;
+  description: string;
+  bodyExcerpt: string;
+  hasScripts: boolean;
+  storedFileCount: number;
+  files: SkillPackageFile[];
+}
+
+export interface SkillPackageInstallResult {
+  skill: { name: string; description: string | null; fileCount: number; originMeta: Record<string, unknown> | null };
+  replaced: boolean;
+}
+
+async function postSkillPackage(
+  file: File,
+  mode: "preview" | "install" | "seed",
+  fields: Record<string, string> = {},
+): Promise<HttpResponse> {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("mode", mode);
+  for (const [k, v] of Object.entries(fields)) fd.append(k, v);
+  return http(`${BASE_URL}/skills`, { method: "POST", body: fd });
+}
+
+async function packageError(res: HttpResponse, fallback: string): Promise<Error> {
+  const err = await res.json().catch(() => ({}));
+  return Object.assign(new Error(err.error || `${fallback}: ${res.statusText}`), {
+    code: err.code ?? null,
+    details: err.details ?? null,
+  });
+}
+
+export async function previewSkillPackage(
+  file: File,
+  fields: { name?: string; description?: string } = {},
+): Promise<SkillPackagePreview> {
+  const res = await postSkillPackage(file, "preview", {
+    name: fields.name ?? "",
+    description: fields.description ?? "",
+  });
+  if (!res.ok) throw await packageError(res, "Upload preview failed");
+  const doc = (await res.json()) as { preview: SkillPackagePreview };
+  return doc.preview;
+}
+
+export async function installSkillPackage(
+  file: File,
+  fields: { name?: string; description?: string; confirm?: boolean } = {},
+): Promise<SkillPackageInstallResult> {
+  const res = await postSkillPackage(file, "install", {
+    name: fields.name ?? "",
+    description: fields.description ?? "",
+    ...(fields.confirm ? { confirm: "true" } : {}),
+  });
+  if (!res.ok) throw await packageError(res, "Package upload failed");
+  return (await res.json()) as SkillPackageInstallResult;
+}
+
+export interface SkillPackageSeed {
+  name: string;
+  upstreamName: string;
+  description: string;
+  content: string;
+  files: Record<string, string> | null;
+  frontmatter: Record<string, unknown> | null;
+}
+
+// The pack editor's direct-upload path (add-packaged-skills 4.4): returns the
+// FULL parsed package — a draft skill entry carries the whole tree into the
+// published manifest. The caller uploaded the zip themselves.
+export async function seedSkillPackage(file: File): Promise<SkillPackageSeed> {
+  const res = await postSkillPackage(file, "seed");
+  if (!res.ok) throw await packageError(res, "Package upload failed");
+  const doc = (await res.json()) as { seed: SkillPackageSeed };
+  return doc.seed;
 }
 
 // ── Market Catalog ───────────────────────────────────────────────────────────

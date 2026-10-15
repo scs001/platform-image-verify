@@ -26,6 +26,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import express from "express";
 import { PACK_LIMITS, validatePackManifest as validateManifest, validateRhythm, budgetMinutesError, modelIdError } from "../lib/pack-manifest.js";
+import { safePackagePath } from "../lib/skill-files.js";
 import { declaredToolsByServer, toolGateErrors, probeMcpToolNames } from "../lib/publish-tool-gate.js";
 import { registryServerIndex } from "../registry-bridge.js";
 import { deployToRegistry, setAgentPaused, modelChoiceError, resolveServiceConfig, resolveAgentPort, NOTIFY_CHANNEL_RE, SECRET_NAME_RE, SECRET_LIMITS, maskSecretRef } from "../lib/agent-serving.js";
@@ -38,6 +39,28 @@ export { PACK_LIMITS, validateManifest };
 // True when the manifest declares any tool leaf names (pack-level allowTools
 // or per-role mcpTools) — the publish tool gate's consultation predicate.
 const declaresTools = (manifest) => declaredToolsByServer(manifest).size > 0;
+
+// True when any skill entry carries an auxiliary file set (add-packaged-skills)
+// — the operator gate's consultation predicate (see the publish route).
+const declaresFiles = (manifest) =>
+  (manifest?.skills ?? []).some((s) => s?.files && typeof s.files === "object" && !Array.isArray(s.files) && Object.keys(s.files).length > 0);
+
+// Read projection for the DETAIL view (add-packaged-skills D4): browsing
+// carries a file inventory (sorted relative paths), never the tree's contents
+// — every file's body is fetched on demand through the per-file endpoint. The
+// stored-VERSION read stays the full manifest (it is the install channel);
+// frontmatter is tiny and part of what gets installed, so it rides untouched.
+function projectManifestForDetail(manifest) {
+  if (!manifest || !Array.isArray(manifest.skills)) return manifest;
+  return {
+    ...manifest,
+    skills: manifest.skills.map((s) =>
+      s && s.files && typeof s.files === "object" && !Array.isArray(s.files)
+        ? { ...s, files: Object.keys(s.files).sort() }
+        : s,
+    ),
+  };
+}
 
 // The gate's data plumbing: the registry server index (one cached fetch) as
 // serverInfo, the minimal streamable-http probe as the staleness fallback.
@@ -643,7 +666,11 @@ export function registerPackRoutes(app, {
   adminGroups = [],
   rateMax = 10,
   rateWindowMs = 60 * 60_000,
-  jsonLimit = "1mb",
+  // add-packaged-skills D2: the publish body may carry inline skill packages
+  // (≤10 skills × ~2MiB aux ≈ 21MiB manifest + JSON escaping headroom). The
+  // facet mount's GLOBAL parser must allow at least this much or the route's
+  // own limit is shadowed (see facet/index.js).
+  jsonLimit = "24mb",
   deployConfig: deployConfigOpt = null,
   // Facet-open read face (add-facet-platform): when true, the three read
   // routes (browse / detail / stored version) answer anonymous callers with
@@ -778,6 +805,17 @@ export function registerPackRoutes(app, {
     if (!manifest) return res.status(400).json({ error: "manifest required" });
     const errors = validateManifest(manifest);
     if (errors.length > 0) return res.status(400).json({ error: "Invalid manifest", errors });
+    // Operator gate (add-packaged-skills D9): files-bearing publishes stay
+    // refused until PACK_FILES_ENABLED is switched on. Cells running
+    // pre-package validators accept unknown manifest keys silently — without
+    // the gate, such a cell would install a degraded, files-dropped skill.
+    // Read per-request so operations can flip the switch without a restart.
+    if (declaresFiles(manifest) && process.env.PACK_FILES_ENABLED !== "1") {
+      return res.status(400).json({
+        error: "Skill packages are not enabled on this market yet (PACK_FILES_ENABLED); publish without auxiliary files or ask the operator to enable them",
+        code: "pack-files-disabled",
+      });
+    }
     // Tool-declaration gate (add-mcp-tool-scoping D5): registry tool_list
     // cross-check with one live-probe fallback per server, plus commercial
     // closure for surface-registered entries. Consulted ONLY when the
@@ -910,6 +948,10 @@ export function registerPackRoutes(app, {
       return res.status(404).json({ error: "Pack not found" });
     }
     if (isAuthor) pack.subscriberCount = registry.subscriberCount(id);
+    // Read projection (add-packaged-skills D4): the detail payload carries the
+    // file inventory, not the tree's contents — browsing stays cheap; the
+    // per-file route below serves each body on demand.
+    pack.manifest = projectManifestForDetail(pack.manifest);
     res.json(pack);
   });
 
@@ -922,6 +964,29 @@ export function registerPackRoutes(app, {
     const v = registry.getVersionVisible(req.params.id, req.params.version, user, { admin: isAdmin(user) });
     if (!v) return res.status(404).json({ error: "Pack version not found" });
     res.json(v);
+  });
+
+  // Per-file auxiliary content read (add-packaged-skills D4): the detail view
+  // carries the path inventory; this route serves one file's body on demand
+  // under the stored-version read's OWN visibility (anonymous callers read
+  // public packs — "inspectable before subscribe" extended to the tree). The
+  // path is re-validated through the same safePackagePath the publish
+  // validator used, so a hostile URL cannot probe outside the file set.
+  app.get("/api/packs/:id/versions/:version/skills/:skill/files/*", (req, res) => {
+    const user = authRead(req);
+    if (!user) return rejectUnauthenticated(req, res);
+    const version = registry.getVersionVisible(req.params.id, req.params.version, user, { admin: isAdmin(user) });
+    if (!version) return res.status(404).json({ error: "Pack version not found" });
+    const wanted = String(req.params.skill).replace(/\.md$/, "");
+    const skill = version.manifest?.skills?.find((s) => s.name === wanted);
+    if (!skill || !skill.files || typeof skill.files !== "object" || Array.isArray(skill.files)) {
+      return res.status(404).type("text/plain").send("file not found");
+    }
+    const rel = safePackagePath(String(req.params[0] ?? ""));
+    if (!rel || skill.files[rel] === undefined) {
+      return res.status(404).type("text/plain").send("file not found");
+    }
+    res.type("text/plain").send(skill.files[rel]);
   });
 
   // PUBLIC raw SKILL.md per pack skill (add-a2a-agent-serving D3): the
@@ -939,6 +1004,16 @@ export function registerPackRoutes(app, {
     const wanted = String(req.params.skill).replace(/\.md$/, "");
     const skill = version?.manifest?.skills?.find((s) => s.name === wanted);
     if (!skill) return res.status(404).type("text/plain").send("skill not found");
+    // Fail-loud (add-packaged-skills D6): a tree skill must never be served
+    // as a body-only twin — registry skill registration validates
+    // skill_md_url against this route and would register a degraded copy.
+    // The multi-file registry shape is a future change; per-file reads above
+    // are the inspection path until then.
+    if (skill.files && typeof skill.files === "object" && Object.keys(skill.files).length > 0) {
+      return res.status(400)
+        .type("text/plain")
+        .send("this skill carries auxiliary files and cannot be served as a single document; read its files through the pack's per-file endpoints");
+    }
     const fm = [`---`, `name: ${JSON.stringify(skill.name)}`, `description: ${JSON.stringify(skill.description)}`, `---`, ""].join("\n");
     res.type("text/markdown").send(`${fm}${skill.content}`);
   });

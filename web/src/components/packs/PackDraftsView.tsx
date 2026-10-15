@@ -9,17 +9,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "@/lib/packs-api";
-import type { PackDraft, PackManifest, PackManifestAgent } from "@/lib/packs-api";
+import type { PackDraft, PackManifest, PackManifestAgent, PackManifestSkill } from "@/lib/packs-api";
 import { takeBridgeHandoff } from "@/lib/pack-draft-bridge";
 import type { BridgeReport } from "@/lib/pack-draft-bridge";
 import { RhythmEditor } from "./RhythmEditor";
 import type { RhythmEntry } from "./RhythmEditor";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
+import { seedSkillPackage } from "@platform/core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "./Badge";
+import { Upload } from "lucide-react";
 
 const emptyEntries = { skills: [], mcpServers: [], agents: [] };
 
@@ -418,14 +420,22 @@ function PackDraftEditor({
       <section>
         <div className="flex items-center justify-between mb-2">
           <h3 className="font-medium text-foreground">{t("packs.editor.skills")}</h3>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setSkills([...skills, { key: nextKey(), value: { name: "", description: "", content: "" } }])}
-            data-testid="pack-skill-add"
-          >
-            {t("packs.editor.addSkill")}
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Direct zip upload (add-packaged-skills 4.4): a skill entry may be
+                seeded from a local package through the same server-side parse
+                the settings surface uses — files ride the entry verbatim. */}
+            <SkillPackageSeedButton
+              onSeed={(seed) => setSkills([...skills, { key: nextKey(), value: seed }])}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setSkills([...skills, { key: nextKey(), value: { name: "", description: "", content: "" } }])}
+              data-testid="pack-skill-add"
+            >
+              {t("packs.editor.addSkill")}
+            </Button>
+          </div>
         </div>
         <div className="space-y-3">
           {skills.map((entry, i) => (
@@ -442,6 +452,15 @@ function PackDraftEditor({
                   placeholder={t("packs.editor.skillDescription")}
                 />
               </div>
+              {entry.value.files && Object.keys(entry.value.files).length > 0 && (
+                <p className="text-xs text-muted-foreground" data-testid={`pack-skill-files-${i}`}>
+                  {t("packs.editor.skillFiles", {
+                    count: Object.keys(entry.value.files).length,
+                    paths: Object.keys(entry.value.files).slice(0, 4).join("、"),
+                  })}
+                  {Object.keys(entry.value.files).length > 4 ? " …" : ""}
+                </p>
+              )}
               <Textarea
                 value={entry.value.content}
                 onChange={(e) => setSkills(skills.map((x, j) => (j === i ? { ...x, value: { ...x.value, content: e.target.value } } : x)))}
@@ -685,6 +704,63 @@ function PackDraftEditor({
         </div>
       </section>
     </section>
+  );
+}
+
+// Direct zip upload seed button (add-packaged-skills 4.4): the editor's skill
+// entry may be seeded from a local package through the same server-side parse
+// the settings surface uses — the whole tree (files/frontmatter) rides the
+// draft entry verbatim into the published manifest.
+function SkillPackageSeedButton({ onSeed }: { onSeed: (seed: PackManifestSkill) => void }) {
+  const { t } = useTranslation();
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const handleFile = async (f: File | null) => {
+    if (!f) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const seed = await seedSkillPackage(f);
+      onSeed({
+        name: seed.name,
+        description: seed.description ?? "",
+        content: seed.content,
+        ...(seed.files ? { files: seed.files } : {}),
+        ...(seed.frontmatter ? { frontmatter: seed.frontmatter } : {}),
+      });
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <label
+        className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-md border border-input px-3 text-sm hover:bg-accent"
+        data-testid="pack-skill-upload-package"
+      >
+        <Upload className="h-4 w-4" />
+        {busy ? t("common.loading") : t("packs.editor.uploadSkillPackage")}
+        <input
+          type="file"
+          accept=".zip"
+          className="hidden"
+          onChange={(e) => {
+            void handleFile(e.target.files?.[0] ?? null);
+            e.target.value = "";
+          }}
+          data-testid="pack-skill-upload-input"
+        />
+      </label>
+      {error && (
+        <span className="text-xs text-destructive" data-testid="pack-skill-upload-error" role="alert">
+          {error}
+        </span>
+      )}
+    </>
   );
 }
 

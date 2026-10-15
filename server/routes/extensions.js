@@ -6,6 +6,7 @@ import * as credentialRefs from "../../credential-refs.js";
 import { getPreflightStatus } from "../../mcp-preflight.js";
 import { createExternalSourceRegistry, requestedPageSize } from "../../external-sources.js";
 import { previewInstall, performInstall } from "../../external-install.js";
+import { previewUpload, performUpload, seedUpload } from "../../skill-package-upload.js";
 
 export function registerExtensionRoutes(ctx) {
   const { app, db, extensionStore, skillMaterialize, broadcast } = ctx;
@@ -248,7 +249,72 @@ export function registerExtensionRoutes(ctx) {
     res.json({ skills: [...fileSkills, ...customSkills] });
   });
 
-  // Add a new custom skill.
+  // Add a new custom skill — multipart channel first (add-packaged-skills D7,
+  // entry 1): a zip package uploads as `file` with mode=preview|install.
+  // Non-multipart requests fall through to the legacy JSON path untouched.
+  // Same parse pipeline and limits as the external install line; the script
+  // consent gate is enforced server-side inside performUpload.
+  const uploadSkillPackage = ctx.upload ? ctx.upload.single("file") : null;
+  app.post("/api/extensions/skills", (req, res, next) => {
+    if (!String(req.headers["content-type"] ?? "").startsWith("multipart/form-data")) return next();
+    if (!uploadSkillPackage) {
+      return res.status(501).json({ error: "Skill package uploads are not available on this deployment" });
+    }
+    uploadSkillPackage(req, res, (err) => {
+      if (err) return res.status(400).json({ error: `Upload rejected: ${err.message}` });
+      if (!req.file) return res.status(400).json({ error: "Missing file field (the skill package zip)" });
+      const mode = ["install", "seed"].includes(req.body?.mode) ? req.body.mode : "preview";
+      const finish = (out) => {
+        if (mode === "install") {
+          broadcast({ type: "extensions_changed", resource: "skill", action: out.replaced ? "updated" : "added", name: out.skill.name });
+        }
+        res.json(mode === "install"
+          ? {
+            skill: {
+              name: out.skill.name,
+              description: out.skill.description,
+              fileCount: out.skill.files ? Object.keys(out.skill.files).length : 0,
+              originMeta: out.skill.originMeta,
+            },
+            replaced: out.replaced,
+          }
+          : mode === "seed" ? { seed: out } : { preview: out });
+      };
+      if (mode === "install") {
+        if (!db.isDbReady()) {
+          return res.status(503).json({ error: "Extensions management is disabled (database unavailable)" });
+        }
+        performUpload({
+          buffer: req.file.buffer,
+          fileName: req.file.originalname,
+          fields: req.body ?? {},
+          store: extensionStore,
+          materialize: skillMaterialize,
+          dbReady: () => db.isDbReady(),
+        }).then(finish, (err) => {
+          res.status(externalErrorStatus(err)).json({ error: `Package upload failed: ${err.message}`, code: err.code ?? null });
+        });
+      } else if (mode === "seed") {
+        seedUpload({
+          buffer: req.file.buffer,
+          fileName: req.file.originalname,
+          fields: req.body ?? {},
+        }).then(finish, (err) => {
+          res.status(externalErrorStatus(err)).json({ error: `Package upload failed: ${err.message}`, code: err.code ?? null });
+        });
+      } else {
+        previewUpload({
+          buffer: req.file.buffer,
+          fileName: req.file.originalname,
+          fields: req.body ?? {},
+        }).then(finish, (err) => {
+          res.status(externalErrorStatus(err)).json({ error: `Upload preview failed: ${err.message}`, code: err.code ?? null });
+        });
+      }
+    });
+  });
+
+  // Add a new custom skill (legacy JSON path, unchanged).
   app.post("/api/extensions/skills", (req, res) => {
     if (!db.isDbReady()) {
       return res.status(503).json({ error: "Extensions management is disabled (database unavailable)" });

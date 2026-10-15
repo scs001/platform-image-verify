@@ -70,7 +70,17 @@ export async function composePackDraftFromPreset(preset, deps) {
     } else if (row.originPackId) {
       report.pendingSkills.push({ name, reason: "pack", pack: row.originPackId });
     } else {
-      draftSkills.push({ name: row.name, description: row.description || "", content: row.content || "" });
+      // add-packaged-skills (task 4.3): the WHOLE row rides into the draft —
+      // auxiliary files and captured frontmatter included — so converting a
+      // preset that uses a package-form skill publishes the package, not a
+      // silently degraded single document.
+      draftSkills.push({
+        name: row.name,
+        description: row.description || "",
+        content: row.content || "",
+        ...(row.files && Object.keys(row.files).length > 0 ? { files: row.files } : {}),
+        ...(row.frontmatter ? { frontmatter: row.frontmatter } : {}),
+      });
       report.inlinedSkills.push(row.name);
     }
   }

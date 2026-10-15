@@ -512,6 +512,22 @@
       "errors": {
         "nameRequired": "Le nom est requis",
         "contentRequired": "Le contenu est requis"
+      },
+      "package": {
+        "title": "Téléverser un paquet de compétence",
+        "subtitle": "Téléversez un paquet zip (SKILL.md + références et scripts) ; il s'installe comme une compétence utilisable en conversation.",
+        "uploadButton": "Téléverser le paquet",
+        "pick": "Choisir un paquet zip de compétence",
+        "bodyLabel": "Aperçu du corps de la compétence",
+        "filesLabel": "Fichiers ({{count}} stockés / {{total}} au total)",
+        "omittedBinary": "binaire, non stocké",
+        "omittedLarge": "trop volumineux, non stocké",
+        "scriptWarning": "Je comprends que ce paquet contient des scripts exécutables",
+        "install": "Installer le paquet",
+        "success": "Compétence {{name}} installée ({{count}} fichiers auxiliaires)",
+        "successReplaced": "Compétence {{name}} remplacée intégralement",
+        "normalizedAs": "sera normalisé en {{name}} (origine : {{upstream}})",
+        "fileCountBadge": "{{count}} fichiers"
       }
     },
     "market": {
@@ -1371,7 +1387,11 @@
       "authRequired": "Connexion requise — connectez-vous avant de vous abonner ou d'installer.",
       "loginHint": "S'abonner et installer nécessitent une connexion.",
       "loginGo": "Se connecter",
-      "close": "Fermer"
+      "close": "Fermer",
+      "skillFiles": "{{count}} fichiers auxiliaires",
+      "scriptGateTitle": "Ce pack contient des scripts exécutables",
+      "scriptGateBody": "Les compétences ci-dessous contiennent des scripts qui seront déposés dans votre runtime ; rien ne s'installe avant votre confirmation (unique).",
+      "scriptGateConfirm": "Confirmer l'installation"
     },
     "report": {
       "title": "Résultat d'installation de « {{name}} »",
@@ -1389,7 +1409,9 @@
         "awaiting-local-binding": "En attente du serveur local"
       },
       "nextHint": "Installé. Ensuite : ouvrez Discussion et choisissez cet expert dans le sélecteur.",
-      "openChat": "Ouvrir Discussion"
+      "openChat": "Ouvrir Discussion",
+      "files": "{{count}} fichiers auxiliaires",
+      "filesWithScripts": "{{count}} fichiers auxiliaires (scripts : {{scripts}})"
     },
     "mine": {
       "empty": "Aucun abonnement pour l'instant. Parcourez le marché.",
@@ -1460,7 +1482,9 @@
         "hint": "Écrivez « quoi préparer → quoi dire → ce qu’on obtient » ; affiché sur la page de détail. Les trois étapes sont requises pour publier avec le pack.",
         "stepTitle": "Titre de l’étape {{n}}",
         "stepBody": "Description de l’étape {{n}}"
-      }
+      },
+      "uploadSkillPackage": "Téléverser le paquet",
+      "skillFiles": "{{count}} fichiers auxiliaires : {{paths}}"
     },
     "bridge": {
       "title": "Importé depuis le preset : {{skills}} compétences, {{servers}} serveurs. Non migré :",

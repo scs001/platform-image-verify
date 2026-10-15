@@ -208,6 +208,18 @@ export function PackMarketView({
                   <span className="text-foreground">{s.name}</span>
                   <span className="ml-auto">{statusLabel(t, s.status)}</span>
                   {s.reason && <span className="text-xs text-destructive w-full">{s.reason}</span>}
+                  {/* Disclosure (add-packaged-skills 5.2): tree skills state
+                      their file count and name their script files. */}
+                  {s.fileCount != null && (
+                    <span className="text-xs text-muted-foreground w-full" data-testid={`pack-report-files-${s.name}`}>
+                      {s.scriptFiles?.length
+                        ? t("packs.report.filesWithScripts", {
+                            count: s.fileCount,
+                            scripts: s.scriptFiles.join("、"),
+                          })
+                        : t("packs.report.files", { count: s.fileCount })}
+                    </span>
+                  )}
                 </div>
               ))}
               {report.mcpServers.map((m) => (

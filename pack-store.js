@@ -17,7 +17,7 @@ import * as db from "./db.js";
 import * as skillMaterialize from "./skill-materialize.js";
 import * as extensionStore from "./extension-store.js";
 import * as credentialRefs from "./credential-refs.js";
-import { validatePackManifest } from "./lib/pack-manifest.js";
+import { validatePackManifest, skillScriptFiles } from "./lib/pack-manifest.js";
 
 function notFound(msg) {
   return Object.assign(new Error(msg), { status: 404 });
@@ -147,13 +147,28 @@ async function installMcpRef(ref, { user }) {
 // browser (design D8) so it is re-validated here — the same rules the gateway
 // enforced at publish. Returns { report, installed, effects } where `effects`
 // tells the route which downstream refreshes to fire.
-export async function installPack({ packId, version, manifest, user, hooks = {} }) {
+//
+// add-packaged-skills: a pack whose skills carry script files installs only
+// with an explicit `confirm` (D5 — one upfront acknowledgment, enforced here
+// so both request shapes, body manifest and server-side fetch, are gated).
+export async function installPack({ packId, version, manifest, user, confirm = false, hooks = {} }) {
   if (!packId || !manifest?.name || !Number.isInteger(Number(version))) {
     throw Object.assign(new Error("packId, version, and manifest are required"), { status: 400 });
   }
   const errors = validatePackManifest(manifest);
   if (errors.length > 0) {
     throw Object.assign(new Error("Invalid manifest"), { status: 400, details: errors });
+  }
+  // Script confirm gate: name the offending skills and their scripts so the
+  // client can render the acknowledgment without a second round-trip.
+  const scriptBearers = (manifest.skills ?? [])
+    .map((s) => ({ name: s.name, scriptFiles: skillScriptFiles(s) }))
+    .filter((b) => b.scriptFiles.length > 0);
+  if (scriptBearers.length > 0 && confirm !== true) {
+    throw Object.assign(
+      new Error("This pack carries executable script files; explicit confirmation is required to install it"),
+      { status: 400, code: "script-confirm-required", details: scriptBearers },
+    );
   }
   const ver = Number(version);
   const report = { skills: [], mcpServers: [], agents: [] };
@@ -169,9 +184,13 @@ export async function installPack({ packId, version, manifest, user, hooks = {} 
       });
       continue;
     }
+    // files/frontmatter ride both write paths wholesale (`?? null` — an
+    // upgrade that drops a file clears it; updateCustomSkill treats undefined
+    // as untouched). The materializer/DB columns are 刀二's, unchanged.
+    const pkg = { files: skill.files ?? null, frontmatter: skill.frontmatter ?? null };
     let row;
     if (existing) {
-      db.updateCustomSkill(skill.name, { description: skill.description, content: skill.content });
+      db.updateCustomSkill(skill.name, { description: skill.description, content: skill.content, ...pkg });
       row = db.stampSkillPackVersion(skill.name, ver);
     } else {
       row = db.addCustomSkill({
@@ -180,10 +199,18 @@ export async function installPack({ packId, version, manifest, user, hooks = {} 
         content: skill.content,
         originPackId: packId,
         originPackVersion: ver,
+        ...pkg,
       });
     }
     skillMaterialize.writeSkill(row);
-    report.skills.push({ name: skill.name, status: existing ? "replaced" : "installed" });
+    // Report disclosure (D5): fileCount + scriptFiles on tree skills only —
+    // legacy single-document rows keep their byte-identical shape.
+    const item = { name: skill.name, status: existing ? "replaced" : "installed" };
+    if (skill.files) {
+      item.fileCount = Object.keys(skill.files).length;
+      item.scriptFiles = skillScriptFiles(skill);
+    }
+    report.skills.push(item);
   }
 
   for (const ref of manifest.mcpServers ?? []) {
@@ -235,7 +262,14 @@ export function uninstallPreview(packId) {
   const modifiedSkills = [];
   for (const s of manifest.skills ?? []) {
     const row = db.getCustomSkill(s.name);
-    if (row?.originPackId === packId && row.content !== s.content) modifiedSkills.push(s.name);
+    if (row?.originPackId !== packId) continue;
+    // add-packaged-skills D8: "modified" covers the whole stored shape — body,
+    // auxiliary files, frontmatter — any drift from the installed snapshot
+    // warns (JSON key order is stable here: both sides round-trip the stored
+    // manifest / row exactly as written).
+    const filesChanged = JSON.stringify(row.files ?? null) !== JSON.stringify(s.files ?? null);
+    const fmChanged = JSON.stringify(row.frontmatter ?? null) !== JSON.stringify(s.frontmatter ?? null);
+    if (row.content !== s.content || filesChanged || fmChanged) modifiedSkills.push(s.name);
   }
   return {
     packId,

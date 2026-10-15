@@ -512,6 +512,22 @@
       "errors": {
         "nameRequired": "Name is required",
         "contentRequired": "Content is required"
+      },
+      "package": {
+        "title": "Upload skill package",
+        "subtitle": "Upload a zip skill package (SKILL.md + references and scripts); it installs as a skill usable in conversations.",
+        "uploadButton": "Upload package",
+        "pick": "Choose a .zip skill package",
+        "bodyLabel": "Skill body preview",
+        "filesLabel": "Files ({{count}} stored with the skill / {{total}} total)",
+        "omittedBinary": "binary, not stored",
+        "omittedLarge": "oversized, not stored",
+        "scriptWarning": "I understand this package contains executable script files",
+        "install": "Install package",
+        "success": "Skill {{name}} installed ({{count}} auxiliary files)",
+        "successReplaced": "Skill {{name}} replaced wholesale",
+        "normalizedAs": "will be normalized to {{name}} (upstream: {{upstream}})",
+        "fileCountBadge": "{{count}} files"
       }
     },
     "market": {
@@ -1371,7 +1387,11 @@
       "authRequired": "Sign-in required — please sign in before subscribing or installing.",
       "loginHint": "Subscribing and installing require signing in.",
       "loginGo": "Sign in",
-      "close": "Close"
+      "close": "Close",
+      "skillFiles": "{{count}} auxiliary files",
+      "scriptGateTitle": "This pack carries executable scripts",
+      "scriptGateBody": "The skills below carry script files that will land in your runtime when installed; nothing installs until you confirm (one-time).",
+      "scriptGateConfirm": "Confirm install"
     },
     "report": {
       "title": "Install result for “{{name}}”",
@@ -1389,7 +1409,9 @@
         "awaiting-local-binding": "Awaiting local server"
       },
       "nextHint": "Installed. Next: open the conversation and pick this expert in the picker above.",
-      "openChat": "Open chat"
+      "openChat": "Open chat",
+      "files": "{{count}} auxiliary files",
+      "filesWithScripts": "{{count}} auxiliary files (scripts: {{scripts}})"
     },
     "mine": {
       "empty": "No packs subscribed yet. Browse the market.",
@@ -1460,7 +1482,9 @@
         "hint": "Write “what to prepare → what to say → what you get”; it shows on the detail page. All three steps are required to publish with the pack.",
         "stepTitle": "Step {{n}} title",
         "stepBody": "Step {{n}} description"
-      }
+      },
+      "uploadSkillPackage": "Upload package",
+      "skillFiles": "{{count}} auxiliary files: {{paths}}"
     },
     "bridge": {
       "title": "Carried over from the preset: {{skills}} skills, {{servers}} servers. Not migrated:",

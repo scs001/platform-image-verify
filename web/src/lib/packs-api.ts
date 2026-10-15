@@ -29,6 +29,11 @@ export interface PackManifestSkill {
   name: string;
   description: string;
   content: string;
+  // Skill package shape (add-packaged-skills): authoring surfaces carry the
+  // inline map (relative path → text); the market DETAIL projection carries
+  // the path inventory (string[]) — contents fetch per-file on demand.
+  files?: Record<string, string> | string[];
+  frontmatter?: Record<string, unknown>;
 }
 
 export interface PackManifestMcp {
@@ -96,7 +101,9 @@ export type PackPartStatus =
   | "awaiting-local-binding";
 
 export interface PackReport {
-  skills: { name: string; status: PackPartStatus; reason?: string }[];
+  // add-packaged-skills (task 5.2): tree skills disclose their file count and
+  // script file names; legacy single-document rows carry neither.
+  skills: { name: string; status: PackPartStatus; reason?: string; fileCount?: number; scriptFiles?: string[] }[];
   mcpServers: { name: string; status: PackPartStatus; reason?: string; code?: string }[];
   agents: { id: string; name: string; status: PackPartStatus; reason?: string }[];
 }
@@ -331,11 +338,15 @@ export function listInstalledPacks() {
 // the manifest from the market under the caller's identity. Manifest bodies
 // must not ride browser POSTs — pack skills legally embed code/SQL and the
 // deployment edge WAF resets such requests.
-export function installPack(packId: string, version: number) {
+// add-packaged-skills: `confirm` is the script acknowledgment — a pack whose
+// skills carry script files installs only with it (server-enforced 400 with
+// code "script-confirm-required" otherwise; the dialog maps that to the
+// one-time confirm and retries).
+export function installPack(packId: string, version: number, confirm = false) {
   return fetch("/api/mypacks/install", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ packId, version }),
+    body: JSON.stringify({ packId, version, ...(confirm ? { confirm: true } : {}) }),
   }).then(json) as Promise<{ report: PackReport; installed: InstalledPack }>;
 }
 

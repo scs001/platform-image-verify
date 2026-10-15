@@ -9,14 +9,17 @@ import { useTranslation } from "react-i18next";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import { SkillCard } from "./SkillCard";
 import { SkillForm } from "./SkillForm";
+import { SkillPackageDialog } from "./SkillPackageDialog";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { PackagePlus, Plus } from "lucide-react";
 import type { CustomSkill } from "@platform/core";
 
 export function SkillsInstalledView() {
   const { t } = useTranslation();
+  const refresh = useExtensionsStore((s) => s.refreshSkills);
   const skills = useExtensionsStore((s) => s.skills);
   const [skillFormOpen, setSkillFormOpen] = useState(false);
+  const [packageOpen, setPackageOpen] = useState(false);
   const [editingSkill, setEditingSkill] = useState<CustomSkill | null>(null);
 
   const handleEditSkill = (skill: CustomSkill) => {
@@ -34,10 +37,16 @@ export function SkillsInstalledView() {
       <section data-testid="skills-section">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-foreground">{t("extensions.skills.title")}</h2>
-          <Button size="sm" data-testid="create-skill-btn" onClick={() => { setEditingSkill(null); setSkillFormOpen(true); }}>
-            <Plus className="h-4 w-4 mr-1" />
-            {t("extensions.skills.addButton")}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" data-testid="upload-skill-package-btn" onClick={() => setPackageOpen(true)}>
+              <PackagePlus className="h-4 w-4 mr-1" />
+              {t("extensions.skills.package.uploadButton")}
+            </Button>
+            <Button size="sm" data-testid="create-skill-btn" onClick={() => { setEditingSkill(null); setSkillFormOpen(true); }}>
+              <Plus className="h-4 w-4 mr-1" />
+              {t("extensions.skills.addButton")}
+            </Button>
+          </div>
         </div>
         {skills.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("extensions.skills.empty")}</p>
@@ -59,6 +68,12 @@ export function SkillsInstalledView() {
         open={skillFormOpen}
         onOpenChange={setSkillFormOpen}
         skill={editingSkill}
+      />
+
+      <SkillPackageDialog
+        open={packageOpen}
+        onOpenChange={setPackageOpen}
+        onInstalled={() => void refresh()}
       />
     </>
   );

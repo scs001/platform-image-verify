@@ -49,6 +49,14 @@ export function SkillCard({ skill, customSkill, onEdit }: SkillCardProps) {
             <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">
               {isCustom ? t("extensions.skills.custom") : t("extensions.skills.builtIn")}
             </span>
+            {(skill.files?.length ?? 0) > 0 && (
+              <span
+                className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary"
+                data-testid="skill-file-count"
+              >
+                {t("extensions.skills.package.fileCountBadge", { count: skill.files!.length })}
+              </span>
+            )}
             {!skill.enabled && isCustom && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
                 {t("extensions.status.disabled")}

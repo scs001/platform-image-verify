@@ -157,12 +157,20 @@ ctx.upload = multer({
 // The bot relay is excluded for a different reason: its bearer token must be
 // verified before the payload is parsed, so it mounts its own JSON parser
 // inside the route, behind that check.
+// Pack surfaces (add-packaged-skills) get the raised parser: the in-process
+// market's publish route, creator drafts carrying skill packages, and the
+// install endpoint's rolling-window body-manifest shape all legitimately
+// exceed the default 100kb.
 const jsonBodyParser = express.json();
-app.use((req, res, next) =>
-  req.path.startsWith(WEBHOOK_PREFIX) || req.path.startsWith(RELAY_PREFIX)
-    ? next()
-    : jsonBodyParser(req, res, next),
-);
+const packJsonBodyParser = express.json({ limit: "24mb" });
+const PACK_BODY_PREFIXES = ["/api/packs", "/api/pack-drafts", "/api/mypacks"];
+app.use((req, res, next) => {
+  if (req.path.startsWith(WEBHOOK_PREFIX) || req.path.startsWith(RELAY_PREFIX)) return next();
+  const parser = PACK_BODY_PREFIXES.some((p) => req.path === p || req.path.startsWith(p + "/"))
+    ? packJsonBodyParser
+    : jsonBodyParser;
+  parser(req, res, next);
+});
 // HTTP compression for static assets + API JSON (the entry chunk ships ~600KB
 // raw). Must mount before express.static (registered in routes/misc.js).
 app.use(compression());

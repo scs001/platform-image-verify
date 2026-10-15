@@ -512,6 +512,22 @@
       "errors": {
         "nameRequired": "名称为必填项",
         "contentRequired": "内容为必填项"
+      },
+      "package": {
+        "title": "上传技能包",
+        "subtitle": "上传一个 zip 技能包（SKILL.md + 引用文档与脚本），安装为可在对话中使用的技能。",
+        "uploadButton": "上传技能包",
+        "pick": "选择 zip 技能包文件",
+        "bodyLabel": "技能正文预览",
+        "filesLabel": "文件清单（{{count}} 个随技能存储 / 共 {{total}} 项）",
+        "omittedBinary": "二进制，不入库",
+        "omittedLarge": "超大，不入库",
+        "scriptWarning": "我知道此技能包包含可执行脚本文件",
+        "install": "安装技能包",
+        "success": "技能 {{name}} 已安装（含 {{count}} 个辅助文件）",
+        "successReplaced": "技能 {{name}} 已整体替换",
+        "normalizedAs": "将按平台文法归一为 {{name}}（原始名：{{upstream}}）",
+        "fileCountBadge": "{{count}} 个文件"
       }
     },
     "market": {
@@ -1371,7 +1387,11 @@
       "authRequired": "需要登录后操作——请先登录再订阅或安装。",
       "loginHint": "订阅并安装需要登录。",
       "loginGo": "去登录",
-      "close": "关闭"
+      "close": "关闭",
+      "skillFiles": "技能包 {{count}} 个辅助文件",
+      "scriptGateTitle": "此功能集包含可执行脚本",
+      "scriptGateBody": "以下技能携带脚本文件，安装后会落盘到你的运行时；确认后才会安装（仅此一次确认）。",
+      "scriptGateConfirm": "确认安装"
     },
     "report": {
       "title": "「{{name}}」安装结果",
@@ -1389,7 +1409,9 @@
         "awaiting-local-binding": "待绑定本地服务"
       },
       "nextHint": "装好了。下一步：打开对话，在上方选择框选上这位专家。",
-      "openChat": "打开对话"
+      "openChat": "打开对话",
+      "files": "{{count}} 个辅助文件",
+      "filesWithScripts": "{{count}} 个辅助文件（含脚本：{{scripts}}）"
     },
     "mine": {
       "empty": "还没有订阅任何功能集。去市场看看。",
@@ -1460,7 +1482,9 @@
         "hint": "写清“准备什么→说什么→拿到什么”，会随包展示在详情页。三步都填才会随包发布。",
         "stepTitle": "第 {{n}} 步标题",
         "stepBody": "第 {{n}} 步说明"
-      }
+      },
+      "uploadSkillPackage": "上传技能包",
+      "skillFiles": "含 {{count}} 个辅助文件：{{paths}}"
     },
     "bridge": {
       "title": "已从预设转入 {{skills}} 个技能、{{servers}} 个服务器；以下引用未迁移：",

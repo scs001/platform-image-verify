@@ -15,6 +15,11 @@
 
 import JSZip from "jszip";
 import yaml from "js-yaml";
+import {
+  isTextFilePath,
+  isScriptFilePath,
+  safePackagePath as sharedSafePackagePath,
+} from "./lib/skill-files.js";
 
 const SNAPSHOT_TTL_MS = 60 * 60 * 1000; // spec: at most 1 hour
 const DEFAULT_PAGE_SIZE = 20; // design D6
@@ -30,35 +35,12 @@ export const PACKAGE_LIMITS = {
   maxBodyChars: 200_000, // SKILL.md body cap (prompt-injection surface bound)
 };
 
-// Text extensions stored alongside SKILL.md. Everything else is omitted from
-// storage but MUST be listed in the preview (omission is visible, not silent).
-const TEXT_EXTENSIONS = new Set([
-  "md", "txt", "json", "yaml", "yml", "toml", "csv", "tsv",
-  "py", "sh", "bash", "zsh", "js", "mjs", "cjs", "ts", "rb", "pl", "ps1", "bat", "cmd",
-  "sql", "html", "css", "ini", "cfg", "conf", "env", "gitignore", "dockerfile", "xml",
-]);
-
-function isTextCandidate(relPath, head) {
-  const name = relPath.split("/").pop() || relPath;
-  if (name === "Dockerfile" || name === "Makefile") return true;
-  const ext = name.includes(".") ? name.split(".").pop().toLowerCase() : "";
-  if (TEXT_EXTENSIONS.has(ext)) return true;
-  if (!ext && typeof head === "string" && head.startsWith("#!")) return true;
-  return false;
-}
-
-// A package entry path is accepted only when it stays inside the package root:
-// no absolute paths, no drive letters, no NUL, no backslash tricks, no `..`
-// segments. Returns the normalized relative path or null.
+// Text-extension/whitelist/path rules now live in lib/skill-files.js
+// (add-packaged-skills D3: one definition shared with the pack-manifest
+// validator and the upload endpoints). safePackagePath keeps its exported name
+// here — 刀二's importers (tests, install orchestration) are untouched.
 export function safePackagePath(rawPath) {
-  if (typeof rawPath !== "string" || !rawPath) return null;
-  if (rawPath.includes("\0") || rawPath.includes("\\")) return null;
-  if (/^[A-Za-z]:/.test(rawPath)) return null;
-  if (rawPath.startsWith("/")) return null;
-  const parts = rawPath.split("/").filter((p) => p !== "" && p !== ".");
-  if (parts.some((p) => p === "..")) return null;
-  if (parts.length === 0) return null;
-  return parts.join("/");
+  return sharedSafePackagePath(rawPath);
 }
 
 function isJunkPath(relPath) {
@@ -97,7 +79,7 @@ export function parsePackage(rawFiles) {
   for (const [rawPath, data] of Object.entries(rawFiles)) {
     const safe = safePackagePath(rawPath);
     if (!safe || safe === skillMdPath || isJunkPath(safe)) continue;
-    const isScript = /\.(py|sh|bash|zsh|js|mjs|cjs|ts|rb|pl|ps1|bat|cmd)$/i.test(safe);
+    const isScript = isScriptFilePath(safe);
     // Adapters may deliver { oversized: true } descriptors instead of bytes
     // (the contents-API path refuses to download huge files and reports them).
     if (data && typeof data === "object" && !Buffer.isBuffer(data) && data.oversized) {
@@ -111,7 +93,7 @@ export function parsePackage(rawFiles) {
       continue;
     }
     const head = buf.subarray(0, 64).toString("utf8");
-    if (!isTextCandidate(safe, head)) {
+    if (!isTextFilePath(safe, head)) {
       inventory.push({ path: safe, bytes, script: isScript, action: "omitted-binary" });
       continue;
     }

@@ -318,3 +318,27 @@ www.finddatatech.cloud 中/英双站 v1.3.12 眼见。
 
 **快照线新增排除**：`docs/ciyuan/home-content*.html`（词元线首页部署存档，含对外
 联系 QQ——公开清单不该带公司联系标识符；forbidden-pattern 扫描拦下）。
+
+## 12. 技能包（add-packaged-skills）滚动次序手册（2026-10-16 立）
+
+**为什么有次序**：pack manifest 的技能可携带 `files`（技能包目录树）。旧 cell 的校验器
+**不认识也不拒绝**未知键——files manifest 发到旧 cell 会静默装出丢文件的哑技能。 facet 侧
+`PACK_FILES_ENABLED` 发布门（**默认关**）把这个窗口期变成显式未开放，门的开关次序因此是
+硬约束，不是建议：
+
+1. **先滚 cell**：fd-prod GitOps 滚新镜像（新校验器 + 装包透传 + 确认门；门关时生产行为
+   与旧版逐字节一致——存量 manifest 全不带 files）。
+2. **桌面版随下一版本**：`release.yml` 公开线出片（桌面版内嵌 cell）；桌面用户按月节奏
+   自行升级——门开着之前他们装 files 包会看到明确「未开放」错误而非哑技能，可接受。
+3. **开门**：facet `PACK_FILES_ENABLED=1`（env，读在每请求——改 fd-prod 的 facet
+   ConfigMap/Secret 后滚动 facet 即生效，无需等代码版）。
+
+**发布记录模板备注（本手册要求每条涉及 files 的发布记录带上）**：
+- 滚动时的 cell 镜像 sha + 桌面版最低版本号（=首个带新校验器的桌面版）；
+- 开门时间点 + 开门人；
+- 首个 files 包的 packId（回溯锚点）。
+
+**配套事实**：jsonLimit 24mb 三处同抬（gateway 路由默认 / facet 全局解析器 / server.js
+包前缀解析器——facet 的全局 1mb 曾是真墙，路由级 limit 被遮蔽）；raw-md 端点对树技能
+fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 finddata
+`build_pack_manifests.py` 组 files、`validate_manifest.py` 对拍真校验器。

@@ -39,6 +39,7 @@ import { registerTraceRoutes } from "./server/routes/trace.js";
 import { registerUserBindingRoutes } from "./server/routes/user-bindings.js";
 import { registerCronRoutes } from "./server/routes/cron.js";
 import { registerTaskRoutes } from "./server/routes/tasks.js";
+import { registerWanxingFleetRoutes } from "./server/routes/wanxing-fleet.js";
 import { registerDelegationRoutes } from "./server/routes/delegation.js";
 import { attachDelegationAggregator } from "./server/delegation-aggregator.js";
 import { attachWorkerPool } from "./server/worker-slots.js";
@@ -216,6 +217,9 @@ registerCronRoutes(ctx);
 // Task stats lane (unify-wanxing-management-plane): read-only counts for the
 // gateway's fleet relay; standard cell auth, no loopback exemption.
 registerTaskRoutes(ctx);
+// Desktop fleet console lane (add-desktop-fleet-console): local runner live
+// snapshot + public registry catalog, both proxied behind standard cell auth.
+registerWanxingFleetRoutes(ctx);
 // Delegation REST bridge (loopback delegation MCP child; manual-trigger tasks).
 registerDelegationRoutes(ctx);
 // Mini-program identity endpoints (bindcode mint / login / login-bindcode /

@@ -18,7 +18,8 @@
     "trace": "Traçage",
     "openMenu": "Ouvrir le menu de navigation",
     "tasks": "Automatisation",
-    "apps": "Apps"
+    "apps": "Apps",
+    "fleet": "Flotte Wanxing"
   },
   "trace": {
     "title": "Traçage",
@@ -1700,5 +1701,44 @@
     "needTarget": "Choisissez la solution à mettre à jour",
     "updatedAs": "« {{name}} » mis à jour. Le nouveau réglage est écrit ; la composition n'a pas été touchée.",
     "noTargets": "Pas encore de solutions à mettre à jour"
+  },
+  "fleet": {
+    "title": "Flotte Wanxing",
+    "live": {
+      "title": "Cette machine",
+      "summary": "{{agents}} agents · {{children}} processus",
+      "budget": "Empreinte mémoire",
+      "agent": "Agent",
+      "state": "État",
+      "version": "Version",
+      "port": "Port",
+      "empty": "Aucun agent déployé sur ce poste",
+      "loading": "Chargement…",
+      "guide": {
+        "notRunning": "Le runner de flotte n'est pas activé",
+        "error": "Le runner de flotte est injoignable",
+        "howToEnable": "Activez-le dans Préférences → Wanxing Fleet puis redémarrez l'app"
+      },
+      "states": {
+        "serving": "en service",
+        "resident": "résident",
+        "starting": "démarrage",
+        "draining": "purge",
+        "paused": "en pause",
+        "warm": "tiède"
+      }
+    },
+    "catalog": {
+      "title": "Catalogue",
+      "refresh": "Actualiser",
+      "empty": "Le catalogue est vide",
+      "deploy": "Déployer ici",
+      "deployPending": "En attente du plan de gestion des appareils (slice ③)",
+      "deployNote": "Les déploiements s'ouvriront avec la gestion des appareils — ce poste deviendra une cible valide.",
+      "guide": {
+        "notConfigured": "Registre non configuré (Préférences → Wanxing Fleet)",
+        "unreachable": "Le catalogue est injoignable"
+      }
+    }
   }
 }

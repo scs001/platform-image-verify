@@ -18,7 +18,8 @@
     "trace": "トレース",
     "openMenu": "ナビゲーションメニューを開く",
     "tasks": "自動化",
-    "apps": "アプリ"
+    "apps": "アプリ",
+    "fleet": "萬星艦隊"
   },
   "trace": {
     "title": "トレース",
@@ -1700,5 +1701,44 @@
     "needTarget": "更新するソリューションを選択してください",
     "updatedAs": "「{{name}}」を更新しました。新しい調整を書き込み、構成は変更していません。",
     "noTargets": "更新できるソリューションがありません"
+  },
+  "fleet": {
+    "title": "萬星艦隊",
+    "live": {
+      "title": "このマシン",
+      "summary": "{{agents}} agents · {{children}} プロセス",
+      "budget": "メモリ使用量",
+      "agent": "Agent",
+      "state": "状態",
+      "version": "バージョン",
+      "port": "ポート",
+      "empty": "この席にデプロイされた agent はまだありません",
+      "loading": "読み込み中…",
+      "guide": {
+        "notRunning": "艦隊ランナーが無効または停止中",
+        "error": "艦隊ランナーに到達できません",
+        "howToEnable": "環境設定 → Wanxing Fleet で有効化してアプリを再起動"
+      },
+      "states": {
+        "serving": "サービス中",
+        "resident": "常駐",
+        "starting": "起動中",
+        "draining": "排出中",
+        "paused": "一時停止",
+        "warm": "温態"
+      }
+    },
+    "catalog": {
+      "title": "マーケットカタログ",
+      "refresh": "更新",
+      "empty": "カタログは空です",
+      "deploy": "ここにデプロイ",
+      "deployPending": "デバイス管理面（スライス③）待ち",
+      "deployNote": "デバイス管理面の実装後にデプロイが開放されます。",
+      "guide": {
+        "notConfigured": "レジストリ未設定（環境設定 → Wanxing Fleet）",
+        "unreachable": "カタログに到達できません"
+      }
+    }
   }
 }

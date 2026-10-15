@@ -7,7 +7,7 @@
 //
 // Run in dev with:  npm start:electron   (npm run dist builds a distributable)
 
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeImage, shell, Tray } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -45,6 +45,49 @@ if (MAIN_LOG_PATH) {
 let supervisor = null;
 let mainWindow = null;
 let stopping = false;
+let tray = null;
+
+// Tray residency (add-desktop-fleet-console): closing the window parks the
+// app in the system tray instead of quitting — the fleet runner and its
+// scheduled work keep running; only the tray's Quit runs the supervised
+// drain. The icon resolves in both layouts (repo build/ in dev, the packaged
+// app bundle in production); an unresolvable icon degrades to no tray, and
+// without a tray closing the window quits as before (never a zombie app).
+function ensureTray() {
+  if (tray) return tray;
+  const iconCandidates = [
+    path.join(PROJECT_ROOT, "build", "icon.png"),
+    app.isPackaged ? path.join(process.resourcesPath, "app", "build", "icon.png") : null,
+  ].filter(Boolean);
+  const iconPath = iconCandidates.find((p) => fs.existsSync(p));
+  if (!iconPath) {
+    console.warn("[electron] no tray icon found — tray residency disabled, close quits");
+    return null;
+  }
+  const image = nativeImage.createFromPath(iconPath);
+  const sized = image.isEmpty() ? image : image.resize({ width: 16, height: 16 });
+  tray = new Tray(sized);
+  tray.setToolTip(app.name || "Platform");
+  const showWindow = () => {
+    if (!mainWindow) return openWindow(`http://127.0.0.1:${supervisor?.serverPort || 47600}`);
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+    return undefined;
+  };
+  tray.setContextMenu(
+    Menu.buildFromTemplate([
+      { label: "Show", click: () => showWindow() },
+      { type: "separator" },
+      // Quit rides the before-quit handler: supervised drain (fleet runner
+      // children included) then app.quit().
+      { label: "Quit", click: () => app.quit() },
+    ]),
+  );
+  tray.on("click", () => showWindow());
+  console.log("[electron] tray resident (close = park, tray Quit = drain + exit)");
+  return tray;
+}
 
 const gotLock = app.requestSingleInstanceLock();
 console.log("[electron] main loaded, lock=", gotLock, "packaged=", app.isPackaged);
@@ -63,8 +106,14 @@ if (!gotLock) {
     openErrorWindow(`Failed to start: ${err && err.message ? err.message : err}`);
   });
 
-  // The window IS the app - closing it stops the backend and quits.
-  app.on("window-all-closed", () => { app.quit(); });
+  // The window is the app's face, not its life: closing it parks the app in
+  // the tray (supervisor, chat backend, fleet runner and schedules keep
+  // running). With no tray icon available (unexpected layout), closing falls
+  // back to quitting so the app can never linger unseen.
+  app.on("window-all-closed", () => {
+    if (tray) return;
+    app.quit();
+  });
 
   app.on("before-quit", async (event) => {
     if (stopping) return;
@@ -187,6 +236,8 @@ async function boot() {
     await supervisor.start();
     const port = supervisor.serverPort;
     if (!port) throw new Error("no server port assigned");
+    // Tray parks the app on window close (spec: desktop-fleet-console).
+    ensureTray();
     // 127.0.0.1, not localhost: on Windows the localhost resolution can
     // prefer IPv6 and fall back slowly, stretching the blank-window wait.
     openWindow(`http://127.0.0.1:${port}`);

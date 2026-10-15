@@ -18,7 +18,8 @@
     "trace": "Traza",
     "openMenu": "Abrir menú de navegación",
     "tasks": "Automatización",
-    "apps": "Apps"
+    "apps": "Apps",
+    "fleet": "Flota Wanxing"
   },
   "trace": {
     "title": "Traza",
@@ -1700,5 +1701,44 @@
     "needTarget": "Elige la solución a actualizar",
     "updatedAs": "Se actualizó «{{name}}». El nuevo ajuste quedó escrito; la composición no se tocó.",
     "noTargets": "Aún no hay soluciones para actualizar"
+  },
+  "fleet": {
+    "title": "Flota Wanxing",
+    "live": {
+      "title": "Esta máquina",
+      "summary": "{{agents}} agents · {{children}} procesos",
+      "budget": "Memoria",
+      "agent": "Agent",
+      "state": "Estado",
+      "version": "Versión",
+      "port": "Puerto",
+      "empty": "Aún no hay agents desplegados",
+      "loading": "Cargando…",
+      "guide": {
+        "notRunning": "El runner de flota no está activo",
+        "error": "El runner de flota no responde",
+        "howToEnable": "Actívalo en Preferencias → Wanxing Fleet y reinicia la app"
+      },
+      "states": {
+        "serving": "sirviendo",
+        "resident": "residente",
+        "starting": "iniciando",
+        "draining": "purgando",
+        "paused": "en pausa",
+        "warm": "templado"
+      }
+    },
+    "catalog": {
+      "title": "Catálogo",
+      "refresh": "Actualizar",
+      "empty": "El catálogo está vacío",
+      "deploy": "Desplegar aquí",
+      "deployPending": "Esperando el plano de gestión de dispositivos (slice ③)",
+      "deployNote": "Los despliegues se abren con la gestión de dispositivos: este asiento será entonces un destino válido.",
+      "guide": {
+        "notConfigured": "Registro sin configurar (Preferencias → Wanxing Fleet)",
+        "unreachable": "El catálogo no responde"
+      }
+    }
   }
 }

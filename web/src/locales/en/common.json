@@ -18,7 +18,8 @@
     "trace": "Trace",
     "openMenu": "Open navigation menu",
     "tasks": "Automation",
-    "apps": "Apps"
+    "apps": "Apps",
+    "fleet": "Wanxing Fleet"
   },
   "trace": {
     "title": "Trace",
@@ -1700,5 +1701,44 @@
     "needTarget": "Pick a solution to update",
     "updatedAs": "Updated \"{{name}}\". The new tuning is written back; the composition was not touched.",
     "noTargets": "No solutions to update yet"
+  },
+  "fleet": {
+    "title": "Wanxing Fleet",
+    "live": {
+      "title": "This machine",
+      "summary": "{{agents}} agents · {{children}} runtime processes",
+      "budget": "Memory footprint",
+      "agent": "Agent",
+      "state": "State",
+      "version": "Version",
+      "port": "Port",
+      "empty": "No agents deployed to this seat yet",
+      "loading": "Loading…",
+      "guide": {
+        "notRunning": "The fleet runner is not enabled or not running",
+        "error": "The fleet runner is unreachable",
+        "howToEnable": "Enable the plugin in Preferences → Wanxing Fleet and restart the app"
+      },
+      "states": {
+        "serving": "serving",
+        "resident": "resident",
+        "starting": "starting",
+        "draining": "draining",
+        "paused": "paused",
+        "warm": "warm"
+      }
+    },
+    "catalog": {
+      "title": "Market catalog",
+      "refresh": "Refresh",
+      "empty": "The catalog is empty",
+      "deploy": "Deploy here",
+      "deployPending": "Waiting for the device-management plane (slice ③)",
+      "deployNote": "Deploys open once the device-management plane lands — this seat then becomes a deploy target.",
+      "guide": {
+        "notConfigured": "Registry not configured (Preferences → Wanxing Fleet)",
+        "unreachable": "The catalog service is unreachable"
+      }
+    }
   }
 }

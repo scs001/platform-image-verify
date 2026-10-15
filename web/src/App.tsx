@@ -36,6 +36,7 @@ const TraceDetailPage = lazy(() =>
 );
 const SharePage = lazy(() => import("@/pages/SharePage").then((m) => ({ default: m.SharePage })));
 const TasksPage = lazy(() => import("@/pages/TasksPage").then((m) => ({ default: m.TasksPage })));
+const FleetPage = lazy(() => import("@/pages/FleetPage").then((m) => ({ default: m.FleetPage })));
 const ResourcesPage = lazy(() =>
   import("@/pages/ResourcesPage").then((m) => ({ default: m.ResourcesPage })),
 );
@@ -250,6 +251,10 @@ export default function App() {
             <Route path="/trace" element={<Navigate to={settingsPath("diagnostics")} replace />} />
             <Route path="/trace/:turnId" element={<TraceDetailPage />} />
             <Route path="/tasks" element={<TasksPage send={send} />} />
+            {/* Desktop Wanxing fleet console (add-desktop-fleet-console): the
+                seat's live snapshot + the public catalog, read-only via the
+                cell's proxy lane. */}
+            <Route path="/fleet" element={<FleetPage />} />
 
             <Route path="/documents" element={<Navigate to="/knowledge" replace />} />
             <Route path="/external/:appId" element={<ExternalServicePage />} />

@@ -32,6 +32,7 @@ import {
   PanelLeftClose,
   Search,
   Settings,
+  Ship,
   Sparkles,
   X,
 } from "lucide-react";
@@ -63,6 +64,7 @@ const NAV_BASE = [
   { to: "/agents", key: "nav.agents", testId: "nav-agents", icon: Sparkles },
   { to: "/apps", key: "nav.apps", testId: "nav-apps", icon: LayoutGrid },
   { to: "/tasks", key: "nav.tasks", testId: "nav-tasks", icon: Clock },
+  { to: "/fleet", key: "nav.fleet", testId: "nav-fleet", icon: Ship },
 ];
 
 // Sessions whose workspace stamp is missing (rows written before the

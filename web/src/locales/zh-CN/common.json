@@ -18,7 +18,8 @@
     "trace": "调用追踪",
     "openMenu": "打开导航菜单",
     "tasks": "自动化",
-    "apps": "应用"
+    "apps": "应用",
+    "fleet": "萬星舰队"
   },
   "trace": {
     "title": "调用追踪",
@@ -1700,5 +1701,44 @@
     "needTarget": "请选择要更新的方案",
     "updatedAs": "已更新「{{name}}」。新调教已写回，技能组合未动。",
     "noTargets": "还没有可更新的方案"
+  },
+  "fleet": {
+    "title": "萬星舰队",
+    "live": {
+      "title": "本机舰队",
+      "summary": "{{agents}} 个 agents · {{children}} 个运行时进程",
+      "budget": "内存足迹",
+      "agent": "Agent",
+      "state": "状态",
+      "version": "版本",
+      "port": "端口",
+      "empty": "机位尚无部署的 agents",
+      "loading": "读取中…",
+      "guide": {
+        "notRunning": "舰队运行器未启用或未运行",
+        "error": "舰队运行器不可达",
+        "howToEnable": "在 偏好设置 → Wanxing Fleet 打开插件并重启应用"
+      },
+      "states": {
+        "serving": "服务中",
+        "resident": "驻留",
+        "starting": "启动中",
+        "draining": "排空中",
+        "paused": "已暂停",
+        "warm": "温态"
+      }
+    },
+    "catalog": {
+      "title": "市场目录",
+      "refresh": "刷新",
+      "empty": "目录为空",
+      "deploy": "部署到本机",
+      "deployPending": "待设备管理面（切片③）解锁",
+      "deployNote": "部署动作将在设备管理面落地后开放：届时本机机位可作为部署目标。",
+      "guide": {
+        "notConfigured": "未配置 registry（偏好设置 → Wanxing Fleet）",
+        "unreachable": "目录服务暂不可达"
+      }
+    }
   }
 }

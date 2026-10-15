@@ -325,6 +325,27 @@ The pack detail dialog SHALL render its primary actions in a bar fixed to the di
 - **WHEN** the facet shell opens the pack detail dialog
 - **THEN** the action bar shows the subscribe button and the close control and no "go to my packs" button
 
+#### Scenario: the close control sits at the dialog's top-right
+
+- **WHEN** the dialog renders
+- **THEN** the close control is positioned at the dialog's top-right corner — the conventional spot — and dismisses in one step
+
+#### Scenario: scrim click is a two-step dismissal
+
+- **WHEN** the visitor clicks the overlay while the dialog is open
+- **THEN** the dialog stays open and the action bar arms a confirm row (close / keep reading)
+- **AND** activating the row's close button dismisses the dialog; Escape and the ✕ control remain one-step
+
+#### Scenario: the signed-out viewer's goto-mine flips the guidance row
+
+- **WHEN** a host wires both the signed-out signal and the goto-mine affordance and a signed-out visitor activates goto-mine
+- **THEN** the login guidance row appears (no silent no-op, no navigation)
+
+#### Scenario: a signed-in viewer's gated buttons fire for real
+
+- **WHEN** the host reports a signed-in viewer
+- **THEN** the signed-out path is not wired, and subscribe and goto-mine execute their normal behavior (no login redirect)
+
 ### Requirement: Anonymous subscribe attempts get a login guidance bar
 
 When the host reports a signed-out viewer, activating the subscribe-and-install button SHALL NOT emit a raw error: the action bar SHALL surface an inline guidance row — a localized line stating that subscribing and installing require signing in, plus a sign-in action that navigates to the host's login entry (the facet shell: `/auth/login` with a same-origin return path back to the packs market, per the service's existing safe-return handling). Hosts that do not wire the signed-out signal keep the existing authenticated-error fallback unchanged (壹座 users always hold a session; that path is an edge state there, and its error text SHALL be localized rather than raw English).

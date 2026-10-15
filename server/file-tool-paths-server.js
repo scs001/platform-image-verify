@@ -43,6 +43,8 @@ const HEREDOC_INTRO_RE = /<<-?\s*(?:"([^"\n]*)"|'([^'\n]*)'|(\S+))/;
 
 const SEGMENT_SPLIT_RE = /&&|\|\||[;|\n]/;
 
+const QUOTED_SYNTAX_RE = /[&|;\n<>]/g;
+
 const MAX_CANDIDATES = 20;
 
 function unquote(token) {
@@ -73,9 +75,47 @@ function glueHeredocs(command) {
   }
 }
 
+// Mirror of maskQuotedSyntax in packages/core/src/lib/file-tool-paths.ts —
+// see that file for the rationale (production: `python3 -c "…;…"` split at the
+// body's semicolons and the zip never reached Outputs).
+function maskQuotedSyntax(command) {
+  let out = "";
+  let i = 0;
+  while (i < command.length) {
+    const ch = command[i] ?? "";
+    if (ch === "\\") {
+      out += ch + (command[i + 1] ?? "").replace(QUOTED_SYNTAX_RE, " ");
+      i += 2;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      let j = i + 1;
+      while (j < command.length) {
+        const c = command[j] ?? "";
+        if (c === "\\" && ch === '"') {
+          j += 2;
+          continue;
+        }
+        if (c === ch) break;
+        j++;
+      }
+      if (j >= command.length) {
+        out += command.slice(i);
+        break;
+      }
+      out += ch + command.slice(i + 1, j).replace(QUOTED_SYNTAX_RE, " ") + ch;
+      i = j + 1;
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
 function commandCandidates(command) {
   const out = [];
-  for (const segment of glueHeredocs(command).split(SEGMENT_SPLIT_RE)) {
+  for (const segment of maskQuotedSyntax(glueHeredocs(command)).split(SEGMENT_SPLIT_RE)) {
     const trimmed = segment.trim();
     const tokens = trimmed.split(/\s+/).filter(Boolean);
     let i = 0;

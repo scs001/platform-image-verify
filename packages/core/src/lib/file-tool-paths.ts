@@ -110,6 +110,58 @@ const HEREDOC_INTRO_RE = /<<-?\s*(?:"([^"\n]*)"|'([^'\n]*)'|(\S+))/;
 // `sort` segment, dropping the archive entirely).
 const SEGMENT_SPLIT_RE = /&&|\|\||[;|\n]/;
 
+// The shell-syntax characters that stop being syntax inside a quoted span:
+// separators (`&&`, `||`, `;`, newline) and redirections (`<`, `>`). Inside
+// quotes they are literal text of an argument, and masking them keeps the span
+// scannable (an archive name lives in quotes) without minting boundaries or
+// pseudo-redirects.
+const QUOTED_SYNTAX_RE = /[&|;\n<>]/g;
+
+// Mask shell-syntax characters inside well-formed quoted spans. Quoted text is
+// not shell syntax: production's `python3 -c "import zipfile;z=…('out.zip','w');…"`
+// split at the body's semicolons and the archive landed in a verb-less fragment
+// — the zip never reached Outputs (cell 1da519d4c1c0bf89, 2026-10-15). Masking
+// with spaces (not removal) keeps the body's tokens separated. A quote with no
+// closing partner is left untouched (fail-open: malformed input keeps the old
+// splitting rather than swallowing the rest of the line).
+function maskQuotedSyntax(command: string): string {
+  let out = "";
+  let i = 0;
+  while (i < command.length) {
+    const ch = command[i] ?? "";
+    if (ch === "\\") {
+      // An escaped character is literal, never syntax.
+      out += ch + (command[i + 1] ?? "").replace(QUOTED_SYNTAX_RE, " ");
+      i += 2;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      let j = i + 1;
+      while (j < command.length) {
+        const c = command[j] ?? "";
+        // Inside double quotes a backslash escapes the next character (so \"
+        // does not close the span); inside single quotes it is literal.
+        if (c === "\\" && ch === '"') {
+          j += 2;
+          continue;
+        }
+        if (c === ch) break;
+        j++;
+      }
+      if (j >= command.length) {
+        out += command.slice(i);
+        break;
+      }
+      out += ch + command.slice(i + 1, j).replace(QUOTED_SYNTAX_RE, " ") + ch;
+      i = j + 1;
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
 // Glue every heredoc body onto its introducer's line before segment splitting.
 // A heredoc body is not shell syntax — newlines inside it are not command
 // separators, and splitting would scatter the body across verb-less segments
@@ -156,7 +208,11 @@ function unquote(token: string): string {
 // — yields nothing, which is the point: those commands write no file.
 function commandCandidates(command: string): string[] {
   const out: string[] = [];
-  for (const segment of glueHeredocs(command).split(SEGMENT_SPLIT_RE)) {
+  // Order: glue (heredoc structure) → mask (quoted literals) → split. Quoted
+  // spans are masked before splitting so an archive named inside a `-c` body
+  // stays in its runner's segment, and before redirect scanning so a quoted
+  // `->` is not a redirection.
+  for (const segment of maskQuotedSyntax(glueHeredocs(command)).split(SEGMENT_SPLIT_RE)) {
     const trimmed = segment.trim();
     const tokens = trimmed.split(/\s+/).filter(Boolean);
     let i = 0;

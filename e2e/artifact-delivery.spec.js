@@ -424,3 +424,52 @@ test("a heredoc-built zip surfaces and no code-text chip appears", async ({ page
     fs.rmSync(abs, { force: true });
   }
 });
+
+test("a single-line python -c body with semicolons surfaces its zip", async ({ page }) => {
+  // Production shape (cell 1da519d4c1c0bf89, 2026-10-15): the agent packed with
+  // one `python3 -c "import zipfile;z=…('out.zip','w');…"` line. The quoted
+  // body's semicolons used to split the command, stranding the archive in a
+  // verb-less fragment — the zip never reached the strip or Outputs.
+  const name = `paas-pyc-${Date.now()}.zip`;
+  const abs = path.join(BOOT_WORKSPACE, name);
+  fs.writeFileSync(abs, Buffer.from("PK\x03\x04 not real"));
+  try {
+    await gotoChat(page);
+    await page.evaluate(
+      ([n]) => {
+        window.__chatStore.getState().apply({
+          type: "session_loaded",
+          id: "e2e-pyc-zip",
+          messages: [
+            { role: "user", content: "打包成 zip" },
+            {
+              kind: "assistant",
+              content: "已完成。",
+              blocks: [
+                {
+                  kind: "tool",
+                  id: "t-pyc",
+                  name: "bash",
+                  args: {
+                    command: `python3 -c "import zipfile;z=zipfile.ZipFile('${n}','w');z.writestr('hello.txt','hi');z.close()"`,
+                    description: "Create zip file",
+                  },
+                  result: null,
+                  state: "done",
+                },
+                { kind: "text", text: "已完成。" },
+              ],
+            },
+          ],
+        });
+      },
+      [name],
+    );
+    const chip = page.getByTestId("turn-artifact-chip");
+    await expect(chip).toContainText(name, { timeout: 10_000 });
+    // The body's other quoted tokens must not mint extra chips.
+    await expect(page.getByTestId("turn-artifact-strip")).not.toContainText("zipfile");
+  } finally {
+    fs.rmSync(abs, { force: true });
+  }
+});

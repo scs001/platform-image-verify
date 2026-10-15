@@ -226,6 +226,26 @@ test("script runners contribute only archive-shaped tokens", () => {
   ]);
 });
 
+test("a quoted script body keeps its separators out of segment splitting", () => {
+  // Production (cell 1da519d4c1c0bf89, 2026-10-15): the agent built the zip
+  // with `python3 -c "import zipfile;z=…"`. The body's semicolons split the
+  // command and the archive landed in a verb-less fragment — the zip never
+  // reached Outputs. Quoted text is not shell syntax.
+  assert.deepEqual(
+    produced("bash", {
+      command:
+        "python3 -c \"import zipfile;z=zipfile.ZipFile('paas-live-zip-1.zip','w');z.writestr('hello.txt','hi from live probe');z.close()\"",
+    }),
+    ["paas-live-zip-1.zip"],
+  );
+  // A quoted body with no archive still contributes nothing.
+  assert.deepEqual(produced("bash", { command: "python3 -c \"print('nothing; here')\"" }), []);
+  // Masking must not lose a redirect that sits outside the quotes.
+  assert.deepEqual(produced("bash", { command: "echo \"a;b\" > out.txt" }), ["out.txt"]);
+  // A quoted `>` is not a redirection.
+  assert.deepEqual(produced("bash", { command: "grep -c \"a > b\" file.txt" }), []);
+});
+
 test("heredoc delimiters are line-bounded and bodies are glued whole", () => {
   // Unterminated `<<'EOF` must not let the quoted-delimiter branch run across
   // newlines and swallow body text as the delimiter.

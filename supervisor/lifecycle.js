@@ -243,6 +243,10 @@ export class Supervisor {
   async restart(id) {
     const s = this.servers.get(id);
     if (!s) return false;
+    // A disabled descriptor (Wanxing plugin switch off) must never be started
+    // by a restart call — the Preferences "Save" flow restarts services
+    // opportunistically and would otherwise boot a disabled plugin.
+    if (!s.descriptor.enabled) return false;
 
     if (s.descriptor.kind === "http-external") {
       await this._waitForHealthy(id, 30000);

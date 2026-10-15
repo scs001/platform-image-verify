@@ -254,7 +254,9 @@ export class ChildManager {
         log: this.log,
       }),
     );
-    server.listen(port, "0.0.0.0");
+    // config.host: 0.0.0.0 on cloud (historical default), 127.0.0.1 on the
+    // desktop fleet plugin — agent A2A ports must not face the LAN there.
+    server.listen(port, this.config.host || "0.0.0.0");
     this.#listeners.set(key, server);
     this.log.log(`[agent-runner] serving ${key} on :${port} (registry path ${entry.path})`);
   }

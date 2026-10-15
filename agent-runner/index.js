@@ -61,7 +61,10 @@ const clientFactory = (spec) => ({ args, cwd, env }) => {
     {},
     dshClientRuntime({
       command: config.dshBin,
-      args,
+      // dshBinArgs: desktop ships dsh as a Node entry behind the bundled
+      // node, so the real argv is [node, <entry>, ...dsh argv]; cloud keeps
+      // an empty prefix.
+      args: [...(config.dshBinArgs || []), ...args],
       cwd,
       env: { ...env, DSH_HOME: spec.home },
       // The child's request timeout rides its effective turn budget
@@ -156,7 +159,7 @@ async function poll() {
   }
 }
 
-server.listen(config.port, "0.0.0.0", () => {
+server.listen(config.port, config.host, () => {
   console.log(`[agent-runner] listening on :${config.port} (home: ${config.homeRoot}, registry: ${config.registryUrl}, model: ${config.provider}/${config.model}, cap: ${config.maxChildren})`);
   poll();
   const pollTimer = setInterval(poll, config.pollSecs * 1000);

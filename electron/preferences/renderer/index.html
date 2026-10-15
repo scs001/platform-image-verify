@@ -108,11 +108,18 @@
       gap: 8px;
       align-items: center;
     }
+    .hint {
+      color: #8b949e;
+      font-size: 12px;
+      margin: 6px 0 0;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
   <div class="tabs">
     <div class="tab active" data-tab="general">General</div>
+    <div class="tab" data-tab="wanxing">Wanxing Fleet</div>
   </div>
 
   <div class="tab-panel active" data-panel="general">
@@ -131,6 +138,32 @@
     <div class="actions">
       <button id="saveGeneral">Save & Restart Server</button>
       <span id="generalStatus"></span>
+    </div>
+  </div>
+
+  <div class="tab-panel" data-panel="wanxing">
+    <div class="form-group">
+      <label for="wanxingEnabled" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="wanxingEnabled" name="wanxingEnabled" style="width:auto">
+        Enable the Wanxing fleet runner on this computer
+      </label>
+      <p class="hint">Turning the runner into a Wanxing seat takes effect after restarting the app. Registry changes apply with a runner restart only.</p>
+    </div>
+    <div class="form-group">
+      <label for="wanxingRegistryUrl">Serving registry URL</label>
+      <input type="text" id="wanxingRegistryUrl" name="wanxingRegistryUrl" placeholder="https://registry.example.com">
+    </div>
+    <div class="form-group">
+      <label for="wanxingRegistryToken">Serving registry token</label>
+      <input type="password" id="wanxingRegistryToken" name="wanxingRegistryToken" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label for="wanxingRunnerPort">Runner ops port (advanced)</label>
+      <input type="text" id="wanxingRunnerPort" name="wanxingRunnerPort" placeholder="8790">
+    </div>
+    <div class="actions">
+      <button id="saveWanxing">Save Wanxing Settings</button>
+      <span id="wanxingStatus"></span>
     </div>
   </div>
 

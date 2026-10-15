@@ -11,6 +11,21 @@ import { fileURLToPath } from "node:url";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const num = (v, d) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : d);
 
+function parseStringArray(raw) {
+  const text = String(raw ?? "").trim();
+  if (!text) return [];
+  let doc;
+  try {
+    doc = JSON.parse(text);
+  } catch {
+    throw new Error(`DSH_BIN_ARGS is not valid JSON: expected an array of strings`);
+  }
+  if (!Array.isArray(doc) || doc.some((a) => typeof a !== "string" || !a)) {
+    throw new Error(`DSH_BIN_ARGS must be a JSON array of non-empty strings`);
+  }
+  return [...doc];
+}
+
 // The platform bot relay's default address: the pack gateway's origin plus the
 // relay route (add-agent-notifications D3). Empty when no pack gateway is
 // configured — the notify face then declines not-configured.
@@ -78,6 +93,11 @@ export function loadConfig(env = process.env) {
     // volume in compose; a tmp dir in tests.
     homeRoot: env.AGENT_RUNNER_HOME || path.join(repoRoot, "runner-home"),
     port: num(env.AGENT_RUNNER_PORT, 8790),
+    // Bind host for the ops listener and every agent A2A listener. Cloud
+    // deployments leave it unset (0.0.0.0, the historical behavior, byte for
+    // byte); the desktop fleet plugin injects 127.0.0.1 so a home machine
+    // never exposes agent ports to the LAN (openspec: desktop-fleet-runner).
+    host: String(env.AGENT_RUNNER_HOST || "0.0.0.0"),
 
     // Registry (the runtime distribution plane — design D2/ADR-0004).
     registryUrl: (env.AGENT_SERVING_REGISTRY_URL || env.REGISTRY_URL || "").replace(/\/+$/, ""),
@@ -185,6 +205,12 @@ export function loadConfig(env = process.env) {
 
     // dsh spawn knobs (mirror dsh-bridge.js).
     dshBin: env.DSH_BIN || "dsh",
+    // Prefix argv for the dsh command (desktop-fleet-runner): the packaged
+    // desktop ships dsh as a Node entry (<app>/node_modules/@deepseek-ai/dsh/
+    // lib/bin.js) run through the bundled Node — spawnable on Windows (no
+    // extensionless .bin shim) and ABI-consistent. JSON string array in env;
+    // empty default keeps cloud argv byte-identical.
+    dshBinArgs: parseStringArray(env.DSH_BIN_ARGS),
     dshProfile: env.DSH_PROFILE || "platform",
     cwd: env.AGENT_RUNNER_CWD || repoRoot,
 

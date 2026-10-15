@@ -28,6 +28,14 @@ export const SETTING_KEYS = [
   // an explicit "not configured" tool error.
   "SEARCH_RELAY_URL",
   "SEARCH_RELAY_TOKEN",
+  // Wanxing fleet plugin (openspec: desktop-fleet-runner). The runner id is
+  // minted by first-run bootstrap and rides the same settings file; the
+  // switch + registry wiring are user-editable in Preferences.
+  "WANXING_PLUGIN_ENABLED",
+  "WANXING_PLUGIN_RUNNER_ID",
+  "AGENT_SERVING_REGISTRY_URL",
+  "AGENT_SERVING_REGISTRY_TOKEN",
+  "AGENT_RUNNER_PORT",
 ];
 
 function settingsFile() {

@@ -88,7 +88,7 @@ ingest（只读上行），**桌面 runner 永不向本地之外的平面开入�
 
 | # | 切片 | 内容 | 验收 |
 |---|---|---|---|
-| ① | 本地舰队宿主 | descriptors 加 `agent-runner-js`（optional、默认 disabled）+ Preferences「萬星舰队」面板（开关+registry/fleet/模型 env）+ `DSH_MATRIX_INSTALL_ROOT` 指发行树矩阵 + 独占 runner_id（sticky、离线永不重派）；生命周期 v1=跟随退出 | 桌面开插件 → 本地 runner 健康 → API 部署一个市场 pack → A2A localhost 真回合 |
+| ① | 本地舰队宿主 ✅ 2026-10-15 | descriptors 加 `agent-runner-js`（optional、默认 disabled）+ Preferences「萬星舰队」面板（开关+registry/fleet/模型 env）+ `DSH_MATRIX_INSTALL_ROOT` 指发行树矩阵 + 独占 runner_id（sticky、离线永不重派）；生命周期 v1=跟随退出 | **已验**：探针 7/7（stub registry→seat 条目拉起→真 dsh child→A2A 真回合回复「就绪」→SIGTERM 排空）；单测 6/6+回归 82/82；change `add-desktop-fleet-runner` |
 | ② | 桌面舰队 UI + 市场页 | web 加舰队页（本机 runner 直读：agents/状态/生命周期/费用）+ 内嵌市场页（公网 registry 目录，部署目标=本机机位）+ 托盘驻留（关窗→托盘 agents 继续跑；退出→drain） | 浏览器级眼见：市场选包装本机 + 舰队页管理 + 关窗后定时任务照跑 |
 | ③ | 远程互通·监控上行+设备管理 | fleet 上报指客户萬星实例 observer；桌面机位经良机 console 设备管理面配对（bind-code 复用）/命名/吊销 | 远程 board 眼见桌面机位的 agents/pod 徽标；吊销即时断 |
 | ④ | 远程互通·信箱协议 | 异步信箱：外部萬星 agent 派任务→落公网中继→桌面 runner 出站轮询取回→唤起执行→结果回投；调用侧走萬星门面调用键体系 | 外部萬星 agent 真任务调通桌面 agent（延迟=轮询间隔，秒级可调） |

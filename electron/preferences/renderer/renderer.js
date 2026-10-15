@@ -27,6 +27,16 @@ async function loadInitial() {
   if (currentSettings.DEFAULT_MODEL !== undefined) {
     document.getElementById('defaultModel').value = currentSettings.DEFAULT_MODEL || '';
   }
+  // Wanxing fleet tab: switch + registry wiring (secret shown as presence only).
+  document.getElementById('wanxingEnabled').checked = currentSettings.WANXING_PLUGIN_ENABLED === '1';
+  document.getElementById('wanxingRegistryUrl').value = currentSettings.AGENT_SERVING_REGISTRY_URL || '';
+  document.getElementById('wanxingRunnerPort').value = currentSettings.AGENT_RUNNER_PORT || '';
+  const tokenInput = document.getElementById('wanxingRegistryToken');
+  if (currentSettings.AGENT_SERVING_REGISTRY_TOKEN_SET) {
+    tokenInput.placeholder = '•••• saved — type to replace';
+  } else {
+    tokenInput.placeholder = 'paste token';
+  }
 }
 
 loadInitial();
@@ -57,5 +67,51 @@ document.getElementById('saveGeneral').addEventListener('click', async () => {
     statusEl.textContent = '✗ Restart failed: ' + (result.error || 'unknown error');
   }
   setTimeout(() => { statusEl.textContent = ''; }, 5000);
+});
+
+// Wanxing fleet save
+document.getElementById('saveWanxing').addEventListener('click', async () => {
+  const statusEl = document.getElementById('wanxingStatus');
+  const enabled = document.getElementById('wanxingEnabled').checked;
+  const registryUrl = document.getElementById('wanxingRegistryUrl').value.trim();
+  const token = document.getElementById('wanxingRegistryToken').value;
+  const port = document.getElementById('wanxingRunnerPort').value.trim();
+  const wasEnabled = currentSettings.WANXING_PLUGIN_ENABLED === '1';
+
+  // Front-of-gate: enabling without a registry keeps the runner crash-looping
+  // (it exits without AGENT_SERVING_REGISTRY_URL) — refuse the combination.
+  if (enabled && !registryUrl) {
+    statusEl.className = 'error';
+    statusEl.textContent = '✗ A serving registry URL is required to enable the fleet runner';
+    return;
+  }
+  if (port && !/^\d+$/.test(port)) {
+    statusEl.className = 'error';
+    statusEl.textContent = '✗ Runner port must be a number';
+    return;
+  }
+
+  await window.platform.setSettingField('WANXING_PLUGIN_ENABLED', enabled ? '1' : '0');
+  await window.platform.setSettingField('AGENT_SERVING_REGISTRY_URL', registryUrl);
+  // Empty input = keep the saved secret (masked echo is display-only).
+  if (token.trim()) {
+    await window.platform.setSettingField('AGENT_SERVING_REGISTRY_TOKEN', token.trim());
+    document.getElementById('wanxingRegistryToken').value = '';
+  }
+  await window.platform.setSettingField('AGENT_RUNNER_PORT', port);
+
+  currentSettings.WANXING_PLUGIN_ENABLED = enabled ? '1' : '0';
+  statusEl.className = 'success';
+  if (enabled !== wasEnabled) {
+    statusEl.textContent = '✓ Saved — restart the app for the switch to take effect';
+  } else if (enabled) {
+    const r = await window.platform.restartService('agent-runner-js');
+    statusEl.textContent = r.ok
+      ? '✓ Saved and restarted Wanxing fleet runner'
+      : '✓ Saved (runner restart failed: ' + (r.error || 'unknown') + ')';
+  } else {
+    statusEl.textContent = '✓ Saved';
+  }
+  setTimeout(() => { statusEl.textContent = ''; }, 6000);
 });
 

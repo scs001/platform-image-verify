@@ -13,6 +13,7 @@
 // file exists and merges defaults.
 
 import { atomicWriteJsonSync } from "../lib/persistence.js";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -55,6 +56,13 @@ export function runFirstRun(opts) {
 
   // Merge default settings if missing
   const merged = { ...defaultSettings, ...settings };
+
+  // Desktop fleet seat id (openspec: desktop-fleet-runner): minted once,
+  // then stable for the machine's lifetime — registry entries tagged to it
+  // keep their assignment across plugin disable/enable cycles.
+  if (!merged.WANXING_PLUGIN_RUNNER_ID) {
+    merged.WANXING_PLUGIN_RUNNER_ID = `desktop-${crypto.randomBytes(4).toString("hex")}`;
+  }
 
   // Write settings atomically if we changed it OR it didn't exist
   if (!settingsExists || Object.keys(settings).length !== Object.keys(merged).length) {

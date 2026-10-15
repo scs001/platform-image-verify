@@ -36,10 +36,21 @@ export function openPreferencesWindow() {
 
 // IPC handlers registered once when the app starts
 export function registerPreferencesIpc(supervisor) {
-  // Allow only these keys to be read/written
-  const ALLOWED_VISIBLE_KEYS = ["LLM_API_KEY", "LLM_BASE_URL", "DEFAULT_MODEL"];
-  const ALLOWED_WRITE_KEYS = ["LLM_API_KEY", "LLM_BASE_URL", "DEFAULT_MODEL"];
-  const ALLOWED_SERVICE_RESTART = ["server-js"];
+  // Allow only these keys to be read/written. The Wanxing registry token is
+  // read-masked (see get-visible below) — the raw secret never echoes back to
+  // the renderer, matching the platform's "tokens never reach the browser"
+  // rule; an overwrite requires re-typing the value.
+  const ALLOWED_VISIBLE_KEYS = [
+    "LLM_API_KEY", "LLM_BASE_URL", "DEFAULT_MODEL",
+    "WANXING_PLUGIN_ENABLED", "AGENT_SERVING_REGISTRY_URL", "AGENT_RUNNER_PORT",
+  ];
+  const ALLOWED_WRITE_KEYS = [
+    "LLM_API_KEY", "LLM_BASE_URL", "DEFAULT_MODEL",
+    "WANXING_PLUGIN_ENABLED", "AGENT_SERVING_REGISTRY_URL",
+    "AGENT_SERVING_REGISTRY_TOKEN", "AGENT_RUNNER_PORT",
+  ];
+  const ALLOWED_SERVICE_RESTART = ["server-js", "agent-runner-js"];
+  const MASKED = "••••••••";
 
   // Get whitelisted visible settings
   ipcMain.handle("settings:get-visible", () => {
@@ -48,6 +59,9 @@ export function registerPreferencesIpc(supervisor) {
     for (const k of ALLOWED_VISIBLE_KEYS) {
       if (k in all) visible[k] = all[k];
     }
+    // Secret: presence, not content (spec: preferences-ui).
+    visible.AGENT_SERVING_REGISTRY_TOKEN_SET = Boolean(all.AGENT_SERVING_REGISTRY_TOKEN);
+    visible.AGENT_SERVING_REGISTRY_TOKEN_MASK = MASKED;
     return visible;
   });
 

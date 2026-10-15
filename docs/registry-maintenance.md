@@ -230,6 +230,33 @@ MCP server 接入系统供给层的统一上牌契约，出自 openspec change *
 - 新增 `finddata/docs/ciyuan-intro.md`（wire/vaas 试用指南同形态）：是什么/入口登录/快速上手（chat 双协议+三车道 curl）/能力清单七行表/计量与计费（硬顶+错误码）/注意事项/支持。
 - 口径纪律实证：无价目数字、无上游供应商身份、无谱系治理词；测试账号表留占位（伙伴名单未定）。
 
+## 10-A. 词元第二轮：车道白屏修复 + 视频上首页 + 试用账号（fix-ciyuan-lanes-white-screen + show-ciyuan-video-on-home + add-ciyuan-trial-account，2026-10-16）
+
+**背景**：用户报告四问题——①介绍文档没有测试账号（要求全能力+$10）；②控制台「模型车道」白屏；③首页车道卡计量徽标未底部对齐；④视频已支持但首页未展示。当日全链收口。
+
+### ① 车道白屏修复（fix-ciyuan-lanes-white-screen）
+
+**根因**：`lanes.ts` 六条车道形状文案含裸 `{`/`}`（如 `请求 {query, documents[]…}`），vue-i18n 运行时编译抛 `Unterminated closing brace`，整组件树死亡 → /lanes 白屏。构建期无人拦（守门测试 `localesMessageCompile.spec.ts` 存在但不在 Makefile FRONTEND_CRITICAL_VITEST 清单；fork CI 额度死，测试门只在本地）。
+
+**修复**（ciyuan-v0.2.16-8，源 64cebfaae，镜像 sha-6f11590 / digest 4cb5e8a2）：
+- 6 条字符串按仓内先例转义（`{'{'}`/`{'}'}`，见 admin/settings.ts）；Makefile 守门测试入 FRONTEND_CRITICAL_VITEST。
+- **fork 前端测试债清偿 13→16**：fork 给 `platformCatalog.builtin.json` 补了 siliconflow/serpapi/openainext 三车道平台但没同步前端断言清单 → platforms.spec.ts + UserPlatformQuotaModal.spec.ts 17 例红（先 git worktree 到父提交复证 pre-existing 再修）。
+- 出片走 testaction004/build-pool（run 38779870953 绿）；GitOps 92d9b2e（先并 github/main b5ad7f5 分叉再 bump）；ArgoCD sub2api 自动同步实证 revision 对齐。
+- **线上眼见**：真 OIDC 链登录探针（scripts/probe-ciyuan-lanes-live.mjs）zh PASS + en PASS——4 车道行 + 形状字面量渲染 + 零 console error。en 探针坑：locale key 是 `sub2api_locale`，且须等 OIDC 回调落库后再 set。
+
+### ② 首页对齐 + 视频节（show-ciyuan-video-on-home）
+
+- `docs/ciyuan/home-content.html`：`.lane` 改 flex column + `.meter{margin-top:auto}`（四卡计量徽标底部对齐，生产实测 gap [21,21,21,21] spread 0px，desktop/390 双宽）；lead 补「并支持视频生成」；新增 `#fdr-video` 段（异步任务协议 create+poll curl）。灌入 26731→27749 字符。
+- 官网 finddatarouter.md zh/en 双份：tagline + 能力 bullet（`/v1/contents/generations/tasks` 异步任务协议）；**en 页在站点根 `/products/`（无 /en 前缀）**，部署容器名是 `web` 不是 official-web。滚产 sha-7fa6a51（digest d86961ae），ArgoCD fd-web app 管辖，手动 set image 会被回滚——须推 deploy YAML。
+- 探针：scripts/probe-ciyuan-home-lanes.mjs（对齐 gap 等值 + #fdr-video + lead 关键词，双宽 ALL PASS）。
+
+### ③ 试用账号（add-ciyuan-trial-account）
+
+- user 93 `ciyuan-trial@findmail.com`（密码 CiyuanTrial2026!），$10 财务硬顶，**两把密钥**（key74 group3 openrouter=chat+三车道；key75 group9 image=视频+图像）——一把密钥绑一个分组，全能力必须两把。
+- **四能力实调全绿**：chat 200×3 模型（坑：group3 /v1/models 列 26 个但只有部分可路由——deepseek-v4.1-flash=model_not_found、mimo-v2.5=upstream_error，可用例 cohere/north-mini-code:free、inclusionai/ling-3.1-flash、nvidia/nemotron-3.5-lightning:free）；rerank 200（relevance_score 返回）；websearch 200（serpapi 5413ms）；视频任务 queued→running→**succeeded**（doubao-seedance-2-0-fast-260128，completion_tokens=108900）。
+- **余额对账**：10 → 8.968675，chat+车道+视频全在扣。凭据只落伙伴文档 `/Users/chengsishi/finddata/docs/ciyuan-intro.md`（第一节账号表+两把 sk- 全文），paas 侧一切材料只留指纹（邮箱/用途/额度，无密码无 key）。
+- 文档口径三修：快速上手④注明视频用第二把密钥；登录步骤提醒「OIDC 登进的是您自己的账号，不是测试账号」；第一节补密钥按分组划能力的桥梁说明。
+
 ## 11. 桌面萬星①-④生产滚动（add-desktop-fleet-runner 全片，2026-10-15 深夜）
 
 **出片通道**：FDT/law-ai-official/scs001 私有额度**全部实锤耗尽**（三仓 images run

@@ -172,12 +172,13 @@
 /* ── lanes (模型车道) ── */
 #fdr-home .lanes{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin:0 0 26px}
 #fdr-home .lane{background:rgba(127,212,255,.04);border:1px solid rgba(127,212,255,.16);
-  border-radius:14px;padding:20px 22px}
+  border-radius:14px;padding:20px 22px;display:flex;flex-direction:column}
 #fdr-home .lane .ep2{font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace;font-size:.82rem;
   color:#38e1c8;margin:0 0 8px;word-break:break-all}
 #fdr-home .lane h4{margin:0 0 6px;font-size:1rem;font-weight:800;color:#e6ebff}
 #fdr-home .lane p{margin:0;color:#9fb0d8;font-size:.88rem;line-height:1.7}
-#fdr-home .lane .meter{display:inline-block;margin-top:10px;font-size:.76rem;color:#7fd4ff;
+#fdr-home .lane h4 + p{margin:0 0 10px}
+#fdr-home .lane .meter{display:inline-block;margin-top:auto;align-self:flex-start;font-size:.76rem;color:#7fd4ff;
   border:1px solid rgba(127,212,255,.28);border-radius:999px;padding:3px 10px}
 #fdr-home .lanesNote{color:#9fb0d8;font-size:.9rem;margin:0 0 30px}
 #fdr-home .lanesNote a{color:#7fd4ff;text-decoration:none}
@@ -388,8 +389,8 @@
 </section>
 
 <section class="wrap" id="fdr-lanes">
-  <h2>模型车道：chat 之外的三类能力</h2>
-  <p class="lead">词元在 chat 订阅池之外提供三类非 chat 模型能力——<strong>语音、重排、搜索</strong>。它们与 chat <strong>共用同一把 API Key、同一余额与消费窗口、同一用量面板</strong>：换车道不换身份，用量与费用实时可查。</p>
+  <h2>模型车道：chat 之外的多类能力</h2>
+  <p class="lead">词元在 chat 订阅池之外提供三类非 chat 模型能力——<strong>语音、重排、搜索</strong>，并支持<strong>视频生成</strong>（异步任务协议，见下节）。它们与 chat <strong>共用同一把 API Key、同一余额与消费窗口、同一用量面板</strong>：换能力不换身份，用量与费用实时可查。</p>
   <div class="lanes">
     <div class="lane">
       <p class="ep2">POST /v1/audio/transcriptions</p>
@@ -431,6 +432,24 @@
   -d '{"engine":"serpapi","q":"寻数科技"}'</pre>
   </div>
   <p class="lanesNote">端点、请求与响应形状、计量口径与错误面的完整说明见控制台「<strong>模型车道</strong>」页（登录后左侧导航）。</p>
+</section>
+
+<section class="wrap" id="fdr-video">
+  <h2>视频生成：异步任务协议</h2>
+  <p class="lead">词元同时提供<strong>视频生成</strong>能力：以异步任务方式提交（创建 → 轮询 → 取回），与 chat 及其他能力<strong>共用同一把 API Key 与同一余额</strong>，按生成用量计费、账单实时可查。</p>
+  <div class="term">
+    <div class="bar"><i></i><i></i><i></i><span>video.sh</span></div>
+    <pre><span class="c"># 创建视频生成任务（返回任务 ID）</span>
+<span class="p">curl</span> https://router.finddatatech.cloud/v1/contents/generations/tasks \
+  -H "Authorization: Bearer sk-你的密钥" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"&lt;模型名&gt;","content":[{"type":"text","text":"一只猫在草地上打滚"}]}'
+
+<span class="c"># 轮询任务状态（succeeded 时可取回结果）</span>
+<span class="p">curl</span> https://router.finddatatech.cloud/v1/contents/generations/tasks/&lt;任务ID&gt; \
+  -H "Authorization: Bearer sk-你的密钥"</pre>
+  </div>
+  <p class="lanesNote">兼容多种视频模型；任务失败不计费。模型清单与计量口径以控制台与对接说明为准。</p>
 </section>
 
 <section class="wrap">

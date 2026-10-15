@@ -20,9 +20,22 @@ export interface ExtensionsPageProps {
 
 type Tab = "installed" | "market" | "external";
 
+// The line-credential mint callback lands on /settings/mcp?tab=market — the
+// connect cards live in the market tab, so the round trip must come back to
+// that surface, not the installed list.
+function initialTab(): Tab {
+  try {
+    const tab = new URL(window.location.href).searchParams.get("tab");
+    if (tab === "market" || tab === "external") return tab;
+  } catch {
+    /* default below */
+  }
+  return "installed";
+}
+
 export function ExtensionsPage({ type }: ExtensionsPageProps) {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<Tab>("installed");
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const { load, loading, error } = useExtensionsStore();
 
   useEffect(() => {

@@ -1,11 +1,13 @@
 // LineOpsConnectPanel.tsx
 // The line operation-MCP credential cards (line-credentials): 柏讯（wire）/识律（lex）
-// connect by BROWSER SILENT MINT (PKCE + prompt=none against the shared Logto
-// session — one interactive consent ever, then silent); 萬星 caller is a pasted
+// connect through the SERVER-MEDIATED mint — a full-page authorization-code
+// round trip (prompt=none while the shared Logto session lives, one interactive
+// consent ever) that lands back on /settings/mcp; the server does the code→token
+// exchange, so no token ever passes through browser JS. 萬星 caller is a pasted
 // long-lived sk- key (billing panel). ID tokens are short-lived — the platform
-// omits those MCP servers when a token expires and the browser re-mints on the
-// next visit, so the card says "自动续期" for mint lines. Rendered beside the
-// registry / connector / facet-market cards.
+// omits those MCP servers when a token expires, so the card says "自动续期"
+// and the next connect click re-mints silently. Rendered beside the registry /
+// connector / facet-market cards.
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -15,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Icon } from "@/components/ui/icon";
 import type { LineConnection, LineName } from "@platform/core";
 import { disconnectLine, fetchLineConnection, saveLineCredential } from "@platform/core";
-import { LINE_TARGETS, mintLineCredential } from "@/lib/line-mint";
+import { startLineMint, takeLineMintError, type MintLine } from "@/lib/line-mint";
 
 interface LineOpsConnectPanelProps {
   compact?: boolean;
@@ -50,24 +52,19 @@ export function LineOpsConnectPanel({ compact = false, className = "" }: LineOps
     }
   }, []);
 
-  // Self-fetch once + auto re-mint sweep: expired ID tokens re-mint silently
-  // whenever this settings surface is open (the browser carries the Logto
-  // session; the server omitted those servers meanwhile).
+  // Self-fetch once; a mint-failure marker left by the callback redirect turns
+  // into one readable line.
   useEffect(() => {
+    const failed = takeLineMintError();
+    if (failed) setError(t("settings.lines.mintFailed", "连接未完成——请重试"));
     void refresh();
-  }, [refresh]);
+  }, [refresh, t]);
 
-  const connectMint = async (line: LineName) => {
+  const connectMint = (line: LineName) => {
     setError("");
     setBusy(line);
-    try {
-      await mintLineCredential(LINE_TARGETS[line as "wire-customer" | "lex"]);
-      await refresh();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
+    // Full-page round trip; the settings deep-link is where it comes back.
+    startLineMint(line as MintLine);
   };
 
   const pasteCaller = async () => {
@@ -183,7 +180,7 @@ export function LineOpsConnectPanel({ compact = false, className = "" }: LineOps
         <div className="mt-1 text-xs text-muted-foreground">
           {t(
             "settings.lines.footnote",
-            "短命 ID token 过期时对应工具暂不可用，打开本页会自动重铸；萬星 caller key 401 时需重贴。",
+            "短命 ID token 过期时对应工具暂不可用，点「连接」即静默重铸（Logto 会话在则无需交互）；萬星 caller key 401 时需重贴。",
           )}
         </div>
       )}

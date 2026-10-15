@@ -12,26 +12,29 @@
 | 恢复 | 浏览器会话打开壹座时自动重铸（line-mint.ts 扫描+刷新） | 用户重贴（401→stale） |
 | 401 翻面 | markInvalid 清缓存（下次浏览器重铸即愈） | markInvalid→stale（facet-market 同款） |
 
-## D2 — 浏览器静默铸（line-mint.ts）
+## D2 — 服务端中介的授权码往返（rev. 2026-10-15：原浏览器弹窗方案在真实页面不可行）
+
+原方案（浏览器弹窗 + 轮询弹窗 `location.href` 抓 code）**在真实页面里永远不可能工作**：
+跨域读弹窗 location 必抛 SecurityError（浏览器同源策略），且 wire 的 `auth/config` 端点
+无 CORS 头（lex 有 `*`）——首步 fetch 即断。当初的"可行性实证"是自动化层直读地址栏做的，
+绕过了同源策略，验证形态与真实页面能力有缝。**修法：整链改服务端中介。**
 
 ```
-GET {issuer}/oidc/auth?client_id={line.clientId}&response_type=code
-    &scope=openid profile email&redirect_uri={line.redirect}
-    &state&nonce&code_challenge(S256)&prompt=none
-  ├─ 回调带 code → POST {issuer}/oidc/token（PKCE）→ id_token → POST /api/lines/:line/credential
-  └─ 回调带 consent_required/login_required → 弹一次该线登录窗（授权后永久静默）
+浏览器 GET /api/lines/:line/mint/start
+  ├─ 服务端读该线 auth/config（服务端无 CORS 问题）
+  ├─ 302 → {issuer}/oidc/auth?client_id={line}&redirect_uri={平台}/api/lines/:line/mint/callback
+  │     &prompt=none&PKCE(S256)&state&nonce      （PKCE+state 存签名 cookie）
+  └─ Logto 会话静默通过 → 回调平台 origin
+        ├─ 首见 login_required/consent_required → 重定向 start?interactive=1（去 prompt=none）一次
+        ├─ 校验 state（签名 cookie）→ 服务端 POST {issuer}/oidc/token（code_verifier，无 secret）
+        └─ 存 ID token（按调用者身份）→ 302 /settings/mcp → profile 重应用
 ```
 
-- 各线 client_id/scopes/redirect 从该线公开 `auth/config` 取（wire `/api/console/auth/config`、
-  lex 同款——公开端点，不硬编码）；
-- redirect_uri 必须是该线 SPA 注册过的回调（wire=`{origin}/console/callback` 实测有效）；
-- code 换 token 在**该线域的回调页上下文**不可行（跨域）——实际做法：authorize 的
-  redirect 直接指向**壹座自己的回调路由**？不可——redirect_uri 必须在该线 client 注册表里。
-  **定案：redirect 用该线 SPA 回调，callback 页是我们的探针窗口**（pageflow 窗口读
-  `location.search` 里的 code+state 后 `window.opener.postMessage` 或直接由壹座页面
-  轮询同窗口 URL——实现取简单者：`window.open` 打 authorize，壹座页轮询弹窗
-  `location.href` 抓 code（same-origin 不受限，弹窗 URL 可读），关窗，后端换 token）。
-- nonce/state 后端不校验（壹座是 token 的搬运工；验签由 wire/lex 上游做——上游权威）。
+- 两个 client 的 `redirectUris` 各加平台回调（已注册：`…/api/lines/{wire-customer,lex}/mint/callback`）——
+  这是同源读的**前提**；Logto 即时生效，无需重启。
+- code→token 交换在服务端：无 CORS、token 不经过浏览器 JS、无 client secret（两线 client 均 SPA，PKCE 足够）。
+- 失败诚实回落：`/settings/mcp?lineError=<line>`，面板显示一行可读错误；日志不回声上游 body。
+- nonce/state 平台自校（state 防伪造回调；nonce 透传给上游 token 交换，验签仍由 wire/lex 做——上游权威）。
 
 ## D3 — 注入与 mcp.json 基线
 
@@ -52,8 +55,9 @@ liveToken 短命语义：ID token 过期→server 行省略（壹座 preflight �
 - `GET /api/lines/:line/connection`（token-free 投影：connected/stale/expiresAt/line）；
 - `POST /api/lines/:line/credential` {token}：wire/lex=ID token（形状校验 JWT 三段+exp 解析）；
   wanxing-caller=`sk-` 前缀校验；存后 reapplyProfile；
+- `GET /api/lines/:line/mint/start` + `/mint/callback`：ID-token 线的服务端中介往返（D2 rev.）；
 - `DELETE /api/lines/:line/connection`。
-- 面板：McpMarketView 加三卡（柏讯/识律=静默铸按钮「连接」；萬星 caller=粘贴框+面板链接）。
+- 面板：McpMarketView 加三卡（柏讯/识律=「连接」整页跳 start；萬星 caller=粘贴框+面板链接）。
 
 ## 不做
 

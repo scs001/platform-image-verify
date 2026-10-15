@@ -53,3 +53,11 @@
 
 **测试**：root-split 10 绿（新增 4 条缓存契约）、Logout 页 5 绿（含 4999ms 边界）、i18n:scan 1302/1302、真浏览器全链探针 8/8（`scripts/probe-login-logout.mjs` 可复跑）。
 **探针教训**：`/logout` 是 IdP 回调确认屏，不结束会话；真登出=`POST/GET /api/auth/logout`。第一版探针走错路径造出假失败。
+
+### 补丁二：Logto 登出闭环（2026-10-15，双镜像 sha-8b376ae）
+
+真点 Sign out 验证（`scripts/verify-logout-return.mjs`）揪出补丁一没覆盖到的最后一环：登出停在 Logto 自己的成功页，不回我们域名。两根因均修：
+1. auth-server `oauth2_logout` 加 Logto 分支（标准 OIDC RP-initiated：`post_logout_redirect_uri`+`id_token_hint`）——此前落 Cognito 形状 else 分支，`logout_uri` 被 Logto 静默忽略；
+2. registry 端 `redirect_uri` 改指裸 origin `/`——Logto 客户端白名单登记的就是 `/`（管理 API 实证），登出时会话已清、根路径即落地页。
+
+测试 22 绿（logto_logout 5 + logout_handler 17）；用户视角验证 5/5：登录→控制台→点 Sign out→**最终落产品首页**→cookie 清除→再进 `/` 落地页。GitOps force-push 竞态一坑在册（rebase 重放处置）。

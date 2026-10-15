@@ -327,11 +327,12 @@ www.finddatatech.cloud 中/英双站 v1.3.12 眼见。
 硬约束，不是建议：
 
 1. **先滚 cell**：fd-prod GitOps 滚新镜像（新校验器 + 装包透传 + 确认门；门关时生产行为
-   与旧版逐字节一致——存量 manifest 全不带 files）。
+   与旧版逐字节一致——存量 manifest 全不带 files）。**清单三张：platform.yaml +
+   platform-demo.yaml + facet.yaml**（市场发布路由在 facet 进程——见 §12.2 坑一笔）。
 2. **桌面版随下一版本**：`release.yml` 公开线出片（桌面版内嵌 cell）；桌面用户按月节奏
    自行升级——门开着之前他们装 files 包会看到明确「未开放」错误而非哑技能，可接受。
 3. **开门**：facet `PACK_FILES_ENABLED=1`（env，读在每请求——改 fd-prod 的 facet
-   ConfigMap/Secret 后滚动 facet 即生效，无需等代码版）。
+   ConfigMap/Secret 后滚动 facet 即生效；「无需等代码版」前提=①已把 facet 滚到带门镜像）。
 
 **发布记录模板备注（本手册要求每条涉及 files 的发布记录带上）**：
 - 滚动时的 cell 镜像 sha + 桌面版最低版本号（=首个带新校验器的桌面版）；
@@ -354,3 +355,16 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 门状态 | **`PACK_FILES_ENABLED` 未设（关）**——本滚只交新校验器/装包线/上传通道，生产行为与旧版逐字节一致；开门按 §12 次序（桌面版下一版本带新 cell 后） |
 | 门待办 | 桌面版 release.yml 公开线随 v1.3.13 带此 cell → 那之后才开门 + 记录首个 files 包 packId |
 | 验证账 | 单测 1449/1449（新增 27 例）；e2e 全链 1/1 + 兼容回归 40/40；typecheck 绿；CLI 对拍 vaas 88 文件真校验器 ✓ |
+
+### 12.2 v1.3.13 出片 + 开门记录（2026-10-16，§12 次序走完）
+
+| 项 | 值 |
+|---|---|
+| 桌面版 | `v1.3.13`（release run 38797895288 三矩阵全绿 13m04s；assets arm64 303.9MB / x64 312.1MB / Setup.exe 230.6MB） |
+| win-smoke | 4 连红同签名（Phase A node.exe 活、47600 拒连 2min）→ 三轮 debug 工作流实证 exe 健康（直跑 server.js 200 / GUI 200 / 冒烟原样启动+netstat 127.0.0.1:47600 Listen+settings 种子正确+main.log 干净）→ **tag+main 双跑 smoke 三相全绿**（38808977012 / 38808972478，Phase A+/B/C）定案 **runner 池瞬态**（同日 macOS Node native crash 佐证；与 v1.3.12 exe 差异仅 1 前端文件） |
+| 排障残留 | win-boot-debug ①②③ 临时工作流已从公开仓 main 删除（b95df82/b9bca51）；**判读配方**：smoke Phase A 红先看 main.log 镜像（`%APPDATA%\platform\main.log` 含 piped server 子进程日志）+ `Get-NetTCPConnection -OwningProcess`，别再盲重跑 |
+| 官网上架 | release-sync 四步链 `DL_HOST=cheap3 node scripts/release-sync.mjs v1.3.13 --dl-live --prune`（数据 c45c955 双端推；3 产物 rsync cheap3 `/srv/dl/platform/1.3.13/`，prune 1.3.8）→ 滚 `fd-web.yaml` sha-c45c955（digest `6a692df8` ccr 已核，deploy 837b333）→ ArgoCD gen96 2/2 |
+| 验证 | dl 直链三产物 3× **206**；公网 `www.finddatatech.cloud` 中/英 products 页 **v1.3.13 眼见**；EdgeOne 300s 缓存坑照旧（age 命中即旧） |
+| 开门 | **`PACK_FILES_ENABLED=1` 已开**（2026-10-16，开门人=工程）；facet.yaml `cf86e72`：镜像滚 `sha-1eda304` + env 开门一滚到位 → in-pod `PACK_FILES_ENABLED=1` 眼见 + `/api/health` ok；前置条件=v1.3.13 已带新 cell 出片（win-smoke 双跑绿） |
+| 基线 | 开门时 packs.db **96 版本、0 个 files 包**（`SELECT … WHERE manifest LIKE '%\"files\"%'`）——**首个 files 包 packId 回溯锚待首包落地**（该 SQL 即锚点查询） |
+| 坑一笔 | **§12.1 滚动漏了 facet.yaml**：packs 市场发布路由跑在 facet 进程（`facet/index.js` 挂 `gateway/packs.js` 路由），platform.yaml 只是 `/api/packs` 代理——次序手册里的「先滚 cell」**必须含 facet 面**，否则开门 env 落在无门代码的旧镜像上等于没开。手册③的「无需等代码版」前提= facet 已在新镜像 |

@@ -486,3 +486,18 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 发布 | pack `3LUWFBGS3RJe5BIV9MvBFw` **v3**（续版）；真校验器零 error + 发布门 `valid:true`（含续版归属检查）后经集群内 loopback 发布（含代码块走公网会被边缘 WAF 拦） |
 | 实证 | 公网读到 v3：`facet-pack-builder` 正文 3960 字符、开头为"先分清用哪个"指向段；`yizuo-wanxing-guide` 未动 |
 | 待办 | ~~已订阅用户需升级 v3~~ → **核销（2026-10-16）**：packs.db 实测平台指南订阅总数 **0**（无外部订阅者），v3 即唯一可见版本。**另：真对话补验 `mcp__facet-market__facet_market_pack_validate` 真实调用成立**（trace 有 tool/call + tool/result），至此 finddata 侧四件全部完成 |
+
+### 12.10 首配四缺陷修复与滚产（§12.9 的收口，2026-10-17）
+
+| 项 | 值 |
+|---|---|
+| 生产镜像 | `ccr.../yizuo/platform:sha-ef54bb0`（digest `2779e2e4`；snapshot sha ≙ paas `b91e8666`）。三清单同 tag（platform + platform-demo + facet），pod 内 imageID 实测 = 该 digest，restarts=0 |
+| 出片线 | `testaction003/build-pool`（私有源码走通用池）。**快照从已推送 commit 出**（`git log origin/main..HEAD`=0 在先）——快照仓 clone 复核五处修复全在。冒烟门实证真跑：`smoke: running scripts/ci-smoke.sh` → `/api/config healthy` → `/api/ready healthy` → `smoke: OK` |
+| 门 | hkccr 与 ccr digest **全等**（`2779e2e4…`，relay 日志 `OK yizuo/platform:sha-ef54bb0`）→ 才 bump；三 deploy rollout 全绿 |
+| 修① | **托管态自服务角色写回**：新增 `POST /api/roles/self`（gateway，共享密钥鉴权、目标恒为请求者自身、admin 位保留且永不授予）+ `writeSelfAssignment`（cell 侧，CLOUD_MODE 时经网关写入，失败即 502 不落假成功）。设计 D1 原本要求的「托管走 gateway 内部写入」至此补齐 |
+| 修② | **recipe 改作者名引用**：`packs:["法律-合同"]`（原为臆造 slug `legal-contract`）；`buildPlan` 增 `resolved` 入参返回 `{ref,packId,name,status}`；新增 `resolvePackReferences`（按名 search 市场，同一可见性面）与 `localMarket.findByName`。解析不到 → `unavailable` + `degraded`，不阻塞其余项 |
+| 修③ | **无 ws 专家切换**：`switchAgentTo` 增 `{user,onError}`，`ws` 全程可选（`reply()` 容错）；失败必带原因（原为空解引用后静默 failed） |
+| 修④ | **i18n 双花括号**：`onboarding.planPack/readyTitle` `{name}/{role}` → `{{name}}/{{role}}`（5 语区）；新增 `doneIssues/doneExpertUnavailable` 键，done 屏改为**如实报告**未装成/不可用项（原为无条件「已就绪」） |
+| 测试 | 单测 **1552/1552**；e2e 三面 **27/27**；新增 `scripts/test-onboarding-hosted.mjs` **2/2**（真 gateway+真 cell 无 dsh 依赖：托管写入落网关照头、引用解析到本部署 id、无 ws 装包+切专家、幂等、伪造无密钥 401、自频道不授 admin）。**突变测试验证断言有效性**：改坏 `readyTitle` → e2e 红；`planPack` 那半在 marketplace-off 下**测不到**（无 pack 行），已在注释里写明由另一套覆盖 |
+| 生产验收（真账号重跑首配） | 同 trial 账号改为选「股票」：确认清单显示 `Install 数据-股票`（**作者名，非随机 id**）且无裸花括号；标题 `Ready to set up for Equity research`；激活后 `/api/auth/me` → `stock`、`/api/config` nav **收窄至 4 项**；cell 库实测 `installed_packs` 有 `Y5uR57UBAXi7_xruKQBsfg`（数据-股票 v3）、`agent.preset=pack-industry-analyst`；网关 store `/data/cells/roles.json` 落有该账号 `{primary:"stock"}`。**10/10 断言全过** |
+| 教训（续 §12.9） | ①**修完必须真机重跑**：四处缺陷里①③只在真实请求链上现形，本地模块级与既有 e2e 全绿；②**突变测试是断言有效性的唯一证法**——写完「不该出现 {name}」的断言后要故意改坏看它红，否则可能像本文 planPack 那样在特定配置下恒真；③**平台侧新能力要一次给全**：本轮四个缺陷同源——把「本地单进程」的假设带进了「托管多租户」形态（写存储、拿 ws、拿 id），凡跨这两个形态的路径都要问一句「托管下谁是真源」 |

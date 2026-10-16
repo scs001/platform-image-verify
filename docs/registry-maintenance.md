@@ -461,3 +461,18 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 🛡️ 防线加固（为何 CI 没拦住） | 通用池 `image.yml` 的通用冒烟门带 `SMOKE_MODE=skip`（日志实证 `smoke=skip`），本仓又无 `scripts/ci-smoke.sh`，钩子落空 → **坏镜像直通推送**。新增仓库自有 `scripts/ci-smoke.sh`（池 workflow 优先执行它，**SMOKE_MODE 无法跳过**），四道门：`/api/config` 可达 + `/api/ready` 翻转（dsh 握手）+ 启动日志无 `ERR_MODULE_NOT_FOUND`（打包缺目录类）+ 九个共享契约/新模块文件在盘（把本次故障形态钉死）。重出片日志实证：`smoke: running scripts/ci-smoke.sh` → `/api/config healthy` → `/api/ready healthy` → `smoke: OK — ... shared-core files all verified` |
 | 教训（计入坑册） | ①**新增 server→共享层的运行时 import，必须同步 Dockerfile COPY**——这类缺口本地/单测/e2e 全绿（仓库树有文件），只在镜像里暴露；②**快照必须从已推送的 commit 出**——`fd-build-snapshot` clone 自 remote，未推送的本地提交会被静默漏掉（首次滚产即踩，产出「同 tag 无新码」的假绿）；③**冒烟门是否真跑要看日志里的脚本执行行**，`smoke=skip` 与 `smoke: OK` 是两回事 |
 | 归档 | `2026-10-16-role-system` / `2026-10-16-layout-configuration` / `2026-10-16-intent-onboarding`（spec sync 后归档） |
+
+### 12.9 真机试用（新账号注册→首跑）暴露三缺陷 —— 三案「验收合格」结论**不成立**（2026-10-17）
+
+2026-10-17 用真实邮箱注册了一个全新账号（`zztrial-*@maxxspace.com`，走生产 Logto 注册：用户名 → 邮箱 → **真实验证码** → 设密码），在公网域名做完首跑。结论：**部署/代码同一性验收全过（§12.8），但产品功能在真实托管形态下有 3 个缺陷，用户可见地不工作**。§12.8 的「生产验证」只证了「镜像里的代码对」，证不了「端到端可用」——这是两种验收，不能互相代替。
+
+| # | 缺陷 | 证据（可复现） | 根因 |
+|---|---|---|---|
+| ① | **首配写的角色被网关头覆盖，布局永不生效**（用户可见：选了「法律」，导航仍是 7 项默认） | cell 内 `roles.assignments` 确实写入了 `{primary:"legal"}`；但直打 cell 带网关实际所盖头 `x-forwarded-roles: ["standard"]` → `roles` 变 `standard`、nav 回到 7 项；不带该头 → `legal` + 4 项。网关 `roleStore.assignmentFor()` 读的是**自己的** `/data/cells/roles.json`（为空 → fallback standard），而 `/api/onboarding/answers` 写的是 **cell 自己的** `deployment_config`。`resolveAssignment` 里 gateway 源**优先于** stored（`server/roles.js:147`） | 设计 D1 明写「托管走 gateway 指派存储的内部写入」，实现只写了 cell 侧存储；网关无 `/api/onboarding/*` 路由，故该写入路径不存在 |
+| ② | **配方 pack id 全部解析不到**（首配「安装」全部失败） | `POST /api/onboarding/provision` → `{"results":[{"packId":"legal-contract","status":"failed","error":"Pack version not found"}]}`；市场实测 38 包无 `legal-contract`/`stock-research`/`china-macro`，真实 id 是**随机串**（如 `J9sO_wRCgUVjbYVEqD4Pog`=法律-合同），且无 slug 字段 | `RECIPE_CATALOG` 用的是**人类可读 slug**，市场用的是生成的 id，两者无映射表 |
+| ③ | **选默认专家抛异常 → 显示为「失败」** | provision 返回 `{"expert":{"status":"failed","error":"Cannot read properties of null (reading 'user')"}}` | `onboarding.js` 传 `ctx.switchAgentTo(id, null)`，而 `switchAgentToInner` 首行即用 `ws.user` 解引用（`server/agent-session.js:413`）——自服务通道没有 ws |
+| ④ | **确认列表里 `{name}` 字面量外露**（用户可见） | 首配确认清单渲染成 `Install {name}` | 项目用 **react-i18next**（`{{name}}` 双花括号），本轮新加的 `onboarding.planPack` / `onboarding.readyTitle` 用了单花括号；5 个语言文件全中，共 2 键 ×5 语区 |
+
+**未被证伪的部分**：同一账号实测通过的——真实注册链（含邮件验证）/ 首跑问卷出现且题型正确（三维度就绪角色卡 + 备注 + 跳过）/ 提交后确认清单出现 / 激活走到 done / 回答后问卷不再复现 / 重开入口预填已存答案（`aria-pressed=true`）/ `layout.config` 部署层隐藏头生效（7→5）/ 伪造身份头无 secret → 401 / 分权不变量（`role-admin` 头与 roles 头必须同行，且自频道不授 admin）。
+
+**方法论教训（重要）**：§12.8 的验收（模块 md5 比对 + 模块级活体调用）**证明了代码部署正确，但没有穿过 HTTP + 网关头注入这条真实路径**。三个缺陷都只在「带身份走完整请求链」时才现形——①甚至需要**先知道网关会盖什么头**才能构造出复现。**结论：新能力上产后的验收必须包含一次真实账号端到端首跑**（注册→首跑→看用户可见结果），模块级验收只能证「形」，不能证「用」。相关坑：`{name}` 单花括号（react-i18next 不吃）。

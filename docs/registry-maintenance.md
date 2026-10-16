@@ -415,3 +415,17 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 验证账 | 全量单测 **1494/1494**；相邻 packs 14 套 117 项；新测试 `test-pack-validate.mjs` 8 项（parity 语料双端对拍 8 例 + 全量收集 + 副作用 + 独立限流 + 匿名 401 + registry 503 fail-closed）；openspec validate 绿；biome 干净 |
 | 边界 | 出片**只交路由**——validate 是给创作者 pack（finddata 侧「谦面工坊」独立 change）用的地基，本滚不改变任何既有生产行为（新路由 + publish 内部等价重构）。工坊 pack 发布前另有 infra 第零步（airegistry-tools 路由修复 + 快照回填 + mcpgw 凭据姿态） |
 | 归档 | `2026-10-16-creator-pack-forge-support`（spec sync：pack-marketplace ADDED「不发布即可校验」+ tool-discovery 补澄清 Scenario 后归档） |
+
+### 12.6 前置第零步之一：airegistry-tools 路由修复（2026-10-16，工坊线）
+
+| 项 | 值 |
+|---|---|
+| 背景 | 「谦面工坊」creator pack（finddata 侧待开工）要用 `airegistry-tools` 做发现源；其条目此前 `tool_list=0`+公网 405（land UNHEALTHY_URL_BLOCKED），没有快照就过不了发布门的 allowTools 对拍 |
+| 原挂账判断 | finddata `MCP-REGISTRY.md` §3 条 2 记为"`mcpgw-server` 无 DNS，补 Service 后把 `proxy_pass_url` 指到 `.svc.cluster.local`"——**方向有误**（本栈全 hostNetwork + `dnsPolicy: Default`，svc 名同样解析不了；且改 URL 会掉出源码的三元组身份绑定） |
+| 根因（生产代码路径复现） | `proxy_profile_for_entity_target` 选中 `builtin-airegistry-tools` profile ✓ → `validate_url` 抛 `DNS resolution failed: Name or service not known` → `UNHEALTHY_URL_BLOCKED` → nginx location 被注释 → grep 405/`tool_list=0` |
+| 实修 | fd-infra-deploy `ee45bec`：`mcp-registry/prod/registry.yaml` 的 `hostAliases` 加 `mcpgw-server`，与既有 `auth-server` **同一 ip 条目内**。⚠️ 首修 `18775fe` 拆成两条同 ip 条目**未生效**（last-applied 注解有新值而 `spec.template.spec.hostAliases` 恒旧值）——同 ip 的 hostAliases 必须合并为一条 |
+| 原理 | url_guard 对 `trusted_hostname` 显式放宽 loopback（`_validate_resolved_ips` 把解析出的 IP 加成精确 CIDR 放行）；拓扑前提天然具备（两容器同 hostNetwork 同钉 cheap-8） |
+| 实证 | pod `/etc/hosts` 含别名；`validate_url` OK pin `['127.0.0.1']`；`num_tools=7`+`tool_list` 7 条自动回填；工具名实弹全集与源码 7 个 `@mcp.tool` 逐条吻合；公网 `POST /airegistry-tools/` **405→401**（与 `/fd-open-data-mcp/` 同态）；registry 日志 `Creating location block`；`security_scan` 五项全清 |
+| 凭据姿态 | mcpgw 未配静态令牌/M2M = **调用者 bearer 转发**（姿态 A 成立，无管理员视图全透出风险）；`_INTERNAL_INGRESS_RELAY_SERVERS` 硬编码仅放行此一条的进站 Authorization |
+| 剩余（工坊线另两件） | ① 快照回填**已随本修自动完成**（7 工具）；② 「谦面工坊」pack 内容与 facet-market-mcp 第七工具（finddata 侧 change） |
+

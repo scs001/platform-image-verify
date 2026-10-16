@@ -485,4 +485,4 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 动作 | 该技能缩成**编排补篇**（11.2KB → 6.6KB）：只留工坊不覆盖的 ①批量套件定义 schema（`facet-preset-suite/v1`，含组装规则与 persona 追加指引）②registry 侧技能注册（供各处复用，非 pack 内联；单文档注册不承载树技能）③四道闸全貌（含需平台运维介入的②③两道，工坊只写用户能自救的①④）。正文开头即指向工坊；包描述同步写明分工 |
 | 发布 | pack `3LUWFBGS3RJe5BIV9MvBFw` **v3**（续版）；真校验器零 error + 发布门 `valid:true`（含续版归属检查）后经集群内 loopback 发布（含代码块走公网会被边缘 WAF 拦） |
 | 实证 | 公网读到 v3：`facet-pack-builder` 正文 3960 字符、开头为"先分清用哪个"指向段；`yizuo-wanxing-guide` 未动 |
-| 待办 | 已订阅的用户停在 v2，需**在壹座内升级到 v3**（已发布的版本不可变，新版本靠用户升级生效） |
+| 待办 | ~~已订阅用户需升级 v3~~ → **核销（2026-10-16）**：packs.db 实测平台指南订阅总数 **0**（无外部订阅者），v3 即唯一可见版本。**另：真对话补验 `mcp__facet-market__facet_market_pack_validate` 真实调用成立**（trace 有 tool/call + tool/result），至此 finddata 侧四件全部完成 |

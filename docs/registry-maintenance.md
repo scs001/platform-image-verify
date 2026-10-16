@@ -257,6 +257,12 @@ MCP server 接入系统供给层的统一上牌契约，出自 openspec change *
 - **余额对账**：10 → 8.968675，chat+车道+视频全在扣。凭据只落伙伴文档 `/Users/chengsishi/finddata/docs/ciyuan-intro.md`（第一节账号表+两把 sk- 全文），paas 侧一切材料只留指纹（邮箱/用途/额度，无密码无 key）。
 - 文档口径三修：快速上手④注明视频用第二把密钥；登录步骤提醒「OIDC 登进的是您自己的账号，不是测试账号」；第一节补密钥按分组划能力的桥梁说明。
 
+### ④ VAAS 专用账号（2026-10-16，vaas-ciyuan-lane-providers 前置）
+
+- user 94 `vaas@findmail.com`（username `vaasline`，role user，**$20 财务硬顶**，allowed_groups=[3]），**非人类账号**——VAAS 生成后端（wanxing 线）专用，与试用账号隔离。两把密钥：key76 `vaas-tts-lanes`（group3=chat+三车道，实际用于 TTS）、key77 `vaas-image-video`（group9=图像+视频）。密码与 sk- 全文落 VAAS 部署密钥件（`/root/vaas-deploy-secrets.txt` 同级，仅部署面），paas 台账只记本指纹。
+- **三车道实调全绿**（key76/key77 真调）：TTS 200（qwen3-tts-flash+Cherry，215KB RIFF WAV）；图像 200（gemini-3-pro-image，合规 b64_json，解码 778KB 真 JPEG 1408×768）；视频 queued→running→**succeeded**（doubao-seedance-2-0-fast-260128，108900 tokens，下载 2.3MB 真 MP4）。**余额对账 20 → 17.987435 全在扣**。
+- 实测坑两枚（对 VAAS 集成方）：①图像 `gpt-image-1/2` 返回 HTTP 200 但 `Content-Type: text/html`（openai-next 网页 UI，两不同 prompt 同一 favicon URL）——集成分支必须校验 Content-Type；②doubao-seedance-1-0-pro / seedance-2-5 = 503、veo3.1/sora-2/kling = 404（目录挂名不可路由），可用面仅 seedance-2-0-fast 家族。调查记录在案：VAAS 会话曾因 shell 变量跨调用未持久误判 key 失效（401=空 Bearer），排障先验 key 是否真实到达请求头。
+
 ## 11. 桌面萬星①-④生产滚动（add-desktop-fleet-runner 全片，2026-10-15 深夜）
 
 **出片通道**：FDT/law-ai-official/scs001 私有额度**全部实锤耗尽**（三仓 images run
@@ -368,3 +374,16 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 开门 | **`PACK_FILES_ENABLED=1` 已开**（2026-10-16，开门人=工程）；facet.yaml `cf86e72`：镜像滚 `sha-1eda304` + env 开门一滚到位 → in-pod `PACK_FILES_ENABLED=1` 眼见 + `/api/health` ok；前置条件=v1.3.13 已带新 cell 出片（win-smoke 双跑绿） |
 | 基线 | 开门时 packs.db **96 版本、0 个 files 包**（`SELECT … WHERE manifest LIKE '%\"files\"%'`）——**首个 files 包 packId 回溯锚待首包落地**（该 SQL 即锚点查询） |
 | 坑一笔 | **§12.1 滚动漏了 facet.yaml**：packs 市场发布路由跑在 facet 进程（`facet/index.js` 挂 `gateway/packs.js` 路由），platform.yaml 只是 `/api/packs` 代理——次序手册里的「先滚 cell」**必须含 facet 面**，否则开门 env 落在无门代码的旧镜像上等于没开。手册③的「无需等代码版」前提= facet 已在新镜像 |
+
+### 12.3 v1.3.14 滚产：成果筛选 + save_to_library 模型入藏（add-resource-filters + add-save-to-library-tool，2026-10-16）
+
+| 项 | 值 |
+|---|---|
+| 生产镜像 | `ccr.../yizuo/platform:sha-836bdc6`（digest `cab3545d`；snapshot sha ≙ paas `14d9da1` = 3394b66 两 change + 14d9da1 adapter allowlist 修复） |
+| 出片线 | `scs001/platform-image-verify` 公开仓免费线。**首跑真红**（非 flaky）：新桥 `platform-save-library-bridge.js` 直 import `@deepseek-ai/dsh-tools` 违反 ADR-0023 适配器边界 → 加进 `scripts/dsh-adapter-files.json`（`14d9da1`）后全绿；`image.yml` 恢复提交 `836bdc6` 即出片 tag（scrub 老坑第三次照旧） |
+| 构建 | build-check run `38823998437` 全绿（lint→typecheck→unit→locales→build→e2e+contracts 烟测）；image build-push run `38825720268` 绿（boot 烟测门后推 hkccr） |
+| 滚动 | fd-infra-deploy `ca32718`（platform.yaml:54 + platform-demo.yaml:71 双清单）→ gitee 双端 → ArgoCD hard-refresh → 两 deploy rollout 完成新 tag |
+| 实证 | in-pod：`platform-save-library-bridge.js` 在位、契约 skill 含 save_to_library×2、web bundle 含 resource-created-at；真库探针 `listResources({groups})` + 9 组 facets ✓；`saveFileFromModel` 工作区外路径 `invalid_path` 拒 ✓；**save-declared 三个 loopback cell 端口全 `200 ok:true`**（网关化拓扑下 3100 gateway 面 401=预期——转发后 remoteAddress 非 loopback，桥调用只发生在 cell 内部） |
+| 新能力 | 成果页：时间窗（今天/7天/30天）+类型组 chips（facet 计数、默认预勾图表/文档/表格/图片）+卡片创建时间；模型侧：`save_to_library` 工具（≤10 路径逐条回报、第四座 loopback 桥、source=model 会话级溯源、产物契约"交付即调"条款） |
+| 验证账 | 相关单测 74/74（新增 filters 7 + bridge 7 + api 3 + store 1）；e2e 11/11（含 380px 窄屏）；dsh-contracts 17/17；spec sync 后 151/151 |
+| 归档 | ① `2026-10-16-add-resource-filters`、② `2026-10-16-add-save-to-library-tool`（均 sync 主 spec 后归档） |

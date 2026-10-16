@@ -14,8 +14,29 @@ import { Check, Loader2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface PlanPack {
-  packId: string;
-  status: "install" | "installed";
+  // The deployment's id when the reference resolved; null when it did not
+  // (absent, or invisible under admission) — then `name` carries the authored
+  // reference and the row renders as unavailable.
+  packId: string | null;
+  ref?: string;
+  name?: string;
+  status: "install" | "installed" | "unavailable";
+}
+
+interface ProvisionResult {
+  packId: string | null;
+  ref?: string;
+  name?: string;
+  status: "installed" | "already-installed" | "unavailable" | "failed";
+  version?: number;
+  error?: string;
+}
+
+interface ProvisionResponse {
+  role: string;
+  results: ProvisionResult[];
+  expert: { status: string; id?: string; error?: string };
+  layoutPreset: string | null;
 }
 
 interface Plan {
@@ -45,6 +66,7 @@ export function IntentOnboarding({ onProvisioned }: { onProvisioned?: () => void
   const [note, setNote] = useState("");
   const [plan, setPlan] = useState<Plan | null>(null);
   const [expert, setExpert] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<ProvisionResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -135,9 +157,12 @@ export function IntentOnboarding({ onProvisioned }: { onProvisioned?: () => void
     setError("");
     try {
       const res = await fetch("/api/onboarding/provision", { method: "POST" });
-      const body = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(body?.error || `HTTP ${res.status}`);
-      setExpert(body?.expert?.status === "selected" ? body.expert.id : null);
+      const body = (await res.json().catch(() => null)) as ProvisionResponse | null;
+      if (!res.ok) throw new Error((body as unknown as { error?: string })?.error || `HTTP ${res.status}`);
+      // The done screen reports the SERVER's per-item outcome: claiming a
+      // ready workspace while every item failed is the lie this replaces.
+      setOutcome(body ?? null);
+      setExpert(body?.expert?.status === "selected" ? (body.expert.id ?? null) : null);
       setPhase("done");
       onProvisioned?.();
     } catch (err) {
@@ -148,6 +173,10 @@ export function IntentOnboarding({ onProvisioned }: { onProvisioned?: () => void
   }, [onProvisioned]);
 
   if (!loaded || !visible) return null;
+
+  // Items the activation could not deliver (failed or unavailable): surfaced
+  // on the done screen so "all set" never covers a partial result.
+  const doneIssues = (outcome?.results ?? []).filter((r) => r.status === "failed" || r.status === "unavailable");
 
   return (
     <section
@@ -234,9 +263,12 @@ export function IntentOnboarding({ onProvisioned }: { onProvisioned?: () => void
           </h2>
           <ul className="flex flex-col gap-1.5" data-testid="intent-plan">
             {plan.packs.map((p) => (
-              <li key={p.packId} className="flex items-center gap-2 text-sm text-foreground">
+              <li
+                key={p.packId ?? p.ref ?? p.name ?? "pack"}
+                className="flex items-center gap-2 text-sm text-foreground"
+              >
                 <Check className="h-3.5 w-3.5 text-primary" />
-                {t("onboarding.planPack", { name: p.packId })} {p.status === "installed" ? `· ${t("onboarding.planAlready")}` : ""}
+                {t("onboarding.planPack", { name: p.name ?? p.packId })} {p.status === "installed" ? `· ${t("onboarding.planAlready")}` : ""}
               </li>
             ))}
             {plan.defaultExpert && (
@@ -282,6 +314,21 @@ export function IntentOnboarding({ onProvisioned }: { onProvisioned?: () => void
           <p className="text-sm text-muted-foreground">
             {expert ? t("onboarding.doneExpert") : t("onboarding.doneGeneric")}
           </p>
+          {/* Anything the server could not deliver is named here rather than
+              swallowed by the success line above — an item that failed or is
+              unavailable on this deployment must not read as "set up". */}
+          {doneIssues.length > 0 ? (
+            <p className="text-xs text-muted-foreground" data-testid="intent-outcome-issues">
+              {t("onboarding.doneIssues", {
+                items: doneIssues.map((r) => r.name ?? r.packId ?? r.ref ?? "").filter(Boolean).join("、"),
+              })}
+            </p>
+          ) : null}
+          {outcome?.expert?.status === "failed" ? (
+            <p className="text-xs text-muted-foreground" data-testid="intent-outcome-expert">
+              {t("onboarding.doneExpertUnavailable")}
+            </p>
+          ) : null}
           <button
             type="button"
             onClick={() => setVisible(false)}

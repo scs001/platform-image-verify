@@ -107,6 +107,35 @@ export function createRoleStore({ file, env = process.env }) {
       persist();
       return { ok: true, assignment: this.assignmentFor(normalized) };
     },
+    // Self-service role write (intent-onboarding). Distinct from `set` in the
+    // one way that matters: this channel can NEVER touch the admin flag. It
+    // preserves whatever admin state the user already has and writes business
+    // roles only — an onboarding answer must never be a privilege escalation
+    // (the same hard rule the cell-side self channel enforces).
+    //
+    // It exists because a hosted deployment's assignments live HERE: the cell
+    // stores its own copy, but the gateway stamps `x-forwarded-roles` from this
+    // document on every request and resolveAssignment prefers the gateway
+    // source, so a cell-side write alone is invisible (the 2026-10-17 defect —
+    // a user picked 法律 and every page kept the default navigation).
+    setSelf(email, { primary, secondary = [] } = {}) {
+      const normalized = String(email || "").trim().toLowerCase();
+      if (!normalized || !normalized.includes("@")) return { error: "invalid user id" };
+      if (!isBusinessRole(primary)) return { error: `unknown role '${primary}'` };
+      const current = this.assignmentFor(normalized);
+      const assignment = normalizeAssignment({
+        primary,
+        secondary,
+        admin: current.admin === true,
+      });
+      if (!assignment) return { error: "invalid assignment" };
+      const isNeutral = assignment.primary === DEFAULT_ROLE && !assignment.secondary.length && !assignment.admin;
+      if (isNeutral) delete doc.assignments[normalized];
+      else doc.assignments[normalized] = assignment;
+      if (!doc.roster.includes(normalized)) doc.roster.push(normalized);
+      persist();
+      return { ok: true, assignment: this.assignmentFor(normalized) };
+    },
     // Deployment default (all users without a per-user row). Read-only here:
     // the default is seeded from env (ROLES_DEFAULT_PRIMARY) per the spec's
     // deployment-level seeding requirement, not edited through a live route.

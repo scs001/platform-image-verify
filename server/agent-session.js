@@ -407,14 +407,39 @@ function ownPreset() {
   return ctx.db.getPreference(OWN_PRESET_KEY) || dshProfile.DEFAULT_AGENT_PRESET;
 }
 
-async function switchAgentToInner(id, ws) {
+// `ws` is optional: server-driven callers (intent-onboarding's provisioning
+// step) have no socket, and this ran `ws.send`/`ws.user` unconditionally —
+// every self-service expert selection threw "Cannot read properties of null
+// (reading 'user')" and was reported to the user as a failed step. With no
+// socket the switch still applies and broadcasts; only the per-socket error
+// replies are dropped, and the caller reads the boolean return instead.
+//
+// `onError` carries the same message the socket would have received, so a
+// socket-less caller can report WHY a switch failed instead of a bare
+// "failed" (the 2026-10-17 defect was invisible for exactly that reason).
+async function switchAgentToInner(id, ws, { user = null, onError = null } = {}) {
+  const reply = (payload) => {
+    try {
+      ws?.send(JSON.stringify(payload));
+    } catch {
+      /* a dead socket must not break the switch itself */
+    }
+    if (payload?.type === "error" && payload.message) {
+      try {
+        onError?.(payload.message);
+      } catch {
+        /* a reporting hook must not break the switch either */
+      }
+    }
+  };
   if (ctx.isStreaming) {
-    ws.send(JSON.stringify({ type: "error", message: "Cannot switch agent while the agent is responding" }));
+    reply({ type: "error", message: "Cannot switch agent while the agent is responding" });
     return false;
   }
-  const target = switchableAgents(ws.user).find((a) => a.id === id);
+  const actor = ws?.user ?? user ?? null;
+  const target = switchableAgents(actor).find((a) => a.id === id);
   if (!target) {
-    ws.send(JSON.stringify({ type: "error", message: `Unknown agent: ${id}` }));
+    reply({ type: "error", message: `Unknown agent: ${id}` });
     return false;
   }
     const isPack = id !== "local" && dshProfile.hasCatalogAgentPreset(id);
@@ -433,7 +458,10 @@ async function switchAgentToInner(id, ws) {
     if (localPreset !== ctx.currentPreset) {
       const r = await switchPresetToInner(localPreset);
       if (!r.ok) {
-        if (r.error) ws.send(JSON.stringify({ type: "error", message: r.error }));
+        // Always name a reason: a bare false reaches socket-less callers as an
+        // unexplained "failed" step (the roster may be empty on a deployment
+        // whose runtime never published modes, which the caller should learn).
+        reply({ type: "error", message: r.error || `Agent mode "${localPreset}" could not be applied` });
         return false;
       }
     }
@@ -444,11 +472,11 @@ async function switchAgentToInner(id, ws) {
   return true;
 }
 
-function switchAgentTo(id, ws) {
+function switchAgentTo(id, ws, options = {}) {
   if (ctx.runExclusiveRuntimeMutation) {
-    return ctx.runExclusiveRuntimeMutation(() => switchAgentToInner(id, ws));
+    return ctx.runExclusiveRuntimeMutation(() => switchAgentToInner(id, ws, options));
   }
-  return switchAgentToInner(id, ws);
+  return switchAgentToInner(id, ws, options);
 }
 
 // Regenerate the per-entry persona presets from the merged catalog and, when

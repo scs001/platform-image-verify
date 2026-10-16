@@ -116,3 +116,62 @@ export async function fetchLatestPackVersion({
 
   throw fail(503, "pack marketplace is not configured on this deployment");
 }
+
+// Resolve curated pack REFERENCES to this deployment's ids (intent-onboarding).
+// A recipe names its packs by their authored display name — the market mints
+// ids randomly per deployment (`randomBytes(16)` in gateway/packs.js), so a
+// static table cannot carry one (the v1 recipes shipped invented slugs like
+// `legal-contract` and every provisioning run failed "Pack version not found").
+//
+// One search per reference over the same channel the install fetch uses, under
+// the same viewer identity, keeping the market's EXACT-name rule: a pack the
+// viewer cannot see never appears in the listing, so an invisible or absent
+// reference resolves to nothing and the plan reports it unavailable.
+//
+// Returns { [ref]: { packId, name } } — resolved references only. Resolution
+// failure is never terminal: the caller degrades the individual item.
+export async function resolvePackReferences({
+  refs,
+  viewer,
+  localMarket = null,
+  env = process.env,
+  fetchImpl = fetch,
+  timeoutMs = 15_000,
+}) {
+  const wanted = [...new Set((refs ?? []).filter((r) => typeof r === "string" && r.trim()))];
+  const out = {};
+  if (!wanted.length) return out;
+
+  const base = (env.FACET_BASE_URL || "").replace(/\/+$/, "");
+  const pick = (ref, entries) => {
+    const hit = entries.find((p) => p?.name === ref);
+    if (hit?.id) out[ref] = { packId: hit.id, name: hit.name };
+  };
+
+  for (const ref of wanted) {
+    if (base) {
+      let upstream;
+      try {
+        upstream = await facetRequest({
+          base,
+          token: env.FACET_INTERNAL_TOKEN || "",
+          user: viewer,
+          path: `/api/packs?search=${encodeURIComponent(ref)}&pageSize=50`,
+          fetchImpl,
+          timeoutMs,
+        });
+      } catch (e) {
+        console.warn(`[onboarding] pack reference '${ref}' unresolved (marketplace unreachable: ${e?.message || e})`);
+        continue;
+      }
+      if (!upstream.ok) continue;
+      const body = await upstream.json().catch(() => null);
+      pick(ref, body?.packs ?? []);
+      continue;
+    }
+    if (localMarket?.findByName) {
+      pick(ref, localMarket.findByName(ref, viewer));
+    }
+  }
+  return out;
+}

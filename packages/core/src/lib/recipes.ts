@@ -16,11 +16,17 @@
 // The default expert a recipe selects: a catalog agent id (dotted, as the
 // picker and the persisted preference speak it) or the built-in "local".
 export interface RoleRecipe {
-  /** Pack ids to install, in order. Empty = layout + expert only. */
+  /**
+   * Marketplace pack references, in order. A reference is the pack's authored
+   * DISPLAY NAME, not its id: the market mints ids randomly per deployment
+   * (`randomBytes(16)`, gateway/packs.js), so a curated static table cannot
+   * hold one. The name is authored content and stable across deployments; the
+   * plan resolves it to the deployment's id at build time.
+   */
   packs: string[];
   /** The expert to select after provisioning. */
   defaultExpert: string;
-  /** Which prompt set the welcome cards follow (a pack id with client content). */
+  /** Which pack's client prompt set the welcome cards follow (a display name). */
   prompts: string | null;
   /** The layout preset key this role rides (layout-configuration's space). */
   layoutPreset: string;
@@ -32,30 +38,31 @@ export interface RecipeCatalog {
   recipes: Record<string, RoleRecipe>;
 }
 
-// v1 recipes. The pack ids are vertical-pack ids from the registry (see
-// docs/vertical-packs.md); the expert ids are the pack personas the market
-// publishes. A reference that resolves to nothing at provision time degrades
-// to "item unavailable" rather than failing the run (design D3).
+// v1 recipes. Pack references are the vertical packs' market display names
+// (docs/vertical-packs.md: 法律-合同 / 数据-股票 / 数据-中国经济); the expert ids
+// are the personas those packs publish in their manifests. A reference that
+// resolves to nothing at provision time degrades to "unavailable" rather than
+// failing the run (design D3).
 export const RECIPE_CATALOG: RecipeCatalog = {
   version: 1,
   ready: ["legal", "stock", "economic"],
   recipes: {
     legal: {
-      packs: ["legal-contract"],
-      defaultExpert: "legal.contract-officer",
-      prompts: "legal-contract",
+      packs: ["法律-合同"],
+      defaultExpert: "pack-contract-reviewer",
+      prompts: "法律-合同",
       layoutPreset: "simple",
     },
     stock: {
-      packs: ["stock-research"],
-      defaultExpert: "analysts.industry",
-      prompts: "stock-research",
+      packs: ["数据-股票"],
+      defaultExpert: "pack-industry-analyst",
+      prompts: "数据-股票",
       layoutPreset: "simple",
     },
     economic: {
-      packs: ["china-macro"],
-      defaultExpert: "analysts.industry",
-      prompts: "china-macro",
+      packs: ["数据-中国经济"],
+      defaultExpert: "pack-industry-analyst-macro",
+      prompts: "数据-中国经济",
       layoutPreset: "simple",
     },
   },

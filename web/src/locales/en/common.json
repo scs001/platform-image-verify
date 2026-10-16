@@ -1682,8 +1682,8 @@
     "notePlaceholder": "e.g. review supplier contracts",
     "submit": "Set up my workspace",
     "skip": "Skip for now",
-    "readyTitle": "Ready to set up for {role}",
-    "planPack": "Install {name}",
+    "readyTitle": "Ready to set up for {{role}}",
+    "planPack": "Install {{name}}",
     "planAlready": "already installed",
     "planExpert": "Select your default assistant",
     "planLayout": "Adjust your workspace layout",
@@ -1695,7 +1695,9 @@
     "doneClose": "Close",
     "reopenTitle": "Areas of work",
     "reopenHint": "Change the areas you work in — new resources are added, nothing already installed is removed.",
-    "reopen": "Choose areas again"
+    "reopen": "Choose areas again",
+    "doneIssues": "Not set up this time: {{items}}. You can add these from the marketplace later.",
+    "doneExpertUnavailable": "The default assistant for this domain is not available on this deployment yet."
   },
   "mcp": {
     "narrative": {

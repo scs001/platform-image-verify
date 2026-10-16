@@ -49,6 +49,14 @@ test("v1 ready roles are legal/stock/economic; every ready role has a full recip
     assert.ok(recipe, `${role} has no recipe`);
     assert.ok(recipe.defaultExpert, `${role} has no default expert`);
     assert.equal(recipe.layoutPreset, "simple");
+    // Pack references are authored names, never ids: the market mints ids
+    // randomly per deployment, so a curated table cannot hold one. The
+    // v1 recipes shipped invented slugs (`legal-contract`) and every
+    // provisioning run failed "Pack version not found" (2026-10-17 defect).
+    for (const ref of recipe.packs) {
+      assert.ok(!/^[A-Za-z0-9_-]{20,}$/.test(ref), `'${ref}' looks like a minted id, not an authored name`);
+      assert.ok([...ref].some((ch) => ch.codePointAt(0) > 0x7f), `'${ref}' is not an authored market display name`);
+    }
   }
   // Roles without a recipe stay out of the ready set (assignable by admins).
   for (const role of ["financial", "screenplay", "paper", "technical", "standard"]) {
@@ -84,20 +92,33 @@ test("validateAnswers: 1..3 ready roles, unknown and not-ready rejected", () => 
 // ── Plan ────────────────────────────────────────────────────────────────────
 
 test("buildPlan: recipe packs, installed state, marketplace-off degradation", () => {
-  const plan = buildPlan({ role: "legal" });
-  assert.equal(plan.role, "legal");
-  assert.equal(plan.defaultExpert, "legal.contract-officer");
-  assert.deepEqual(plan.packs, [{ packId: "legal-contract", status: "install" }]);
+  // Recipe pack references are authored DISPLAY NAMES (ids are minted per
+  // deployment, so a static table cannot hold one). Unresolved refs are
+  // reported unavailable and mark the plan degraded.
+  const skeleton = buildPlan({ role: "legal" });
+  assert.equal(skeleton.role, "legal");
+  assert.equal(skeleton.defaultExpert, "pack-contract-reviewer");
+  assert.deepEqual(skeleton.packs, [{ ref: "法律-合同", packId: null, name: "法律-合同", status: "unavailable" }]);
+  assert.equal(skeleton.degraded, true);
+
+  // Resolved: the plan carries the deployment's id plus the authored name.
+  const plan = buildPlan({ role: "legal", resolved: { "法律-合同": { packId: "PK1", name: "法律-合同" } } });
+  assert.deepEqual(plan.packs, [{ ref: "法律-合同", packId: "PK1", name: "法律-合同", status: "install" }]);
   assert.equal(plan.degraded, false);
 
-  const withInstalled = buildPlan({ role: "legal", installed: ["legal-contract"] });
-  assert.deepEqual(withInstalled.packs, [{ packId: "legal-contract", status: "installed" }]);
+  const withInstalled = buildPlan({
+    role: "legal",
+    installed: ["PK1"],
+    resolved: { "法律-合同": { packId: "PK1", name: "法律-合同" } },
+  });
+  assert.deepEqual(withInstalled.packs, [{ ref: "法律-合同", packId: "PK1", name: "法律-合同", status: "installed" }]);
+  assert.equal(withInstalled.degraded, false);
 
   const off = buildPlan({ role: "legal", marketplaceOff: true });
   assert.deepEqual(off.packs, []);
   assert.equal(off.degraded, true);
   // Layout + expert survive the degradation.
-  assert.equal(off.defaultExpert, "legal.contract-officer");
+  assert.equal(off.defaultExpert, "pack-contract-reviewer");
   assert.equal(off.layoutPreset, "simple");
 
   assert.equal(buildPlan({ role: "screenplay" }), null);
@@ -183,7 +204,7 @@ function request(app, path, { method = "GET", body, user } = {}) {
   });
 }
 
-function makeApp({ db, authEnabled = true, isAdmin = false, installed = [] }) {
+function makeApp({ db, authEnabled = true, isAdmin = false, installed = [], localPackMarket = null, onInstall = null }) {
   const app = express();
   app.use(express.json());
   const ctx = {
@@ -205,9 +226,16 @@ function makeApp({ db, authEnabled = true, isAdmin = false, installed = [] }) {
     ssoEnabled: false,
     AUTH_LOGIN_PATH: "/oauth2/start",
     AUTH_LOGOUT_PATH: "/oauth2/sign_out",
-    localPackMarket: null,
-    switchAgentTo: async (id) => id === "legal.contract-officer" || id === "analysts.industry",
+    localPackMarket,
+    switchAgentTo: async (id) => id === "pack-contract-reviewer" || id === "pack-industry-analyst",
+    installPackHook: onInstall
+      ? async ({ packId }) => {
+          onInstall(packId);
+          return { report: { agents: [], skills: [] }, installed: { packId } };
+        }
+      : null,
     _installed: installed,
+    _onInstall: onInstall,
   };
   registerMiscRoutes(ctx);
   return app;
@@ -248,7 +276,63 @@ test("POST answers: writes profile + roles, returns the plan, never sets admin",
       body: { roles: ["legal", "stock"], note: "合同审查" },
       user: { email: "a@b.c" },
     });
-    assert.deepEqual(again.json.plan.packs, [{ packId: "legal-contract", status: "install" }]);
+    // No market is injected in this harness, so the recipe's authored
+    // reference cannot resolve and the plan reports it unavailable rather
+    // than inventing an id.
+    assert.deepEqual(again.json.plan.packs, [
+      { ref: "法律-合同", packId: null, name: "法律-合同", status: "unavailable" },
+    ]);
+    assert.equal(again.json.plan.degraded, true);
+  } finally {
+    delete process.env.PACK_MARKETPLACE;
+  }
+});
+
+test("provision: a resolvable recipe pack installs through the market", async () => {
+  // The end-to-end shape the v1 recipes got wrong: the recipe names a pack by
+  // its authored display name, the resolver maps it to this deployment's
+  // minted id, and provisioning installs it via the server-side fetch.
+  process.env.PACK_MARKETPLACE = "1";
+  try {
+    const db = fakeDb();
+    const installed = [];
+    const app = makeApp({
+      db,
+      installed: [],
+      // One pack, resolved by name — the shape the real market answers.
+      localPackMarket: {
+        findByName: (name) => (name === "法律-合同" ? [{ id: "PK1", name: "法律-合同" }] : []),
+        getLatest: (packId) =>
+          packId === "PK1"
+            ? { version: 3, manifest: { name: "法律-合同", version: 3, skills: [], agents: [{ id: "pack-contract-reviewer", name: "合同审查官" }] } }
+            : null,
+      },
+      onInstall: (packId) => installed.push(packId),
+    });
+    await request(app, "/api/onboarding/answers", { method: "POST", body: { roles: ["legal"] }, user: { email: "a@b.c" } });
+    const res = await request(app, "/api/onboarding/provision", { method: "POST", user: { email: "a@b.c" } });
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.json.results, [{ packId: "PK1", name: "法律-合同", status: "installed", version: 3 }]);
+    assert.deepEqual(installed, ["PK1"]);
+    assert.deepEqual(res.json.expert, { status: "selected", id: "pack-contract-reviewer" });
+  } finally {
+    delete process.env.PACK_MARKETPLACE;
+  }
+});
+
+test("provision: an unresolvable reference is reported, never fatal", async () => {
+  process.env.PACK_MARKETPLACE = "1";
+  try {
+    const db = fakeDb();
+    const app = makeApp({ db, localPackMarket: { findByName: () => [], getLatest: () => null } });
+    await request(app, "/api/onboarding/answers", { method: "POST", body: { roles: ["legal"] }, user: { email: "a@b.c" } });
+    const res = await request(app, "/api/onboarding/provision", { method: "POST", user: { email: "a@b.c" } });
+    assert.equal(res.status, 200);
+    assert.deepEqual(res.json.results, [
+      { packId: null, ref: "法律-合同", name: "法律-合同", status: "unavailable" },
+    ]);
+    // The expert step still ran: one missing pack never blocks the rest (D5).
+    assert.equal(res.json.expert.status, "selected");
   } finally {
     delete process.env.PACK_MARKETPLACE;
   }
@@ -293,7 +377,7 @@ test("provision: marketplace-off deployment degrades to expert only", async () =
   assert.equal(res.status, 200);
   // No marketplace in this test env → PACK_MARKETPLACE is unset → degraded.
   assert.deepEqual(res.json.results, []);
-  assert.deepEqual(res.json.expert, { status: "selected", id: "legal.contract-officer" });
+  assert.deepEqual(res.json.expert, { status: "selected", id: "pack-contract-reviewer" });
 });
 
 test("provision: already-installed packs are reported, not reinstalled", async () => {

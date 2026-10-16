@@ -1682,8 +1682,8 @@
     "notePlaceholder": "p. ej. revisar contratos de proveedores",
     "submit": "Configurar mi espacio",
     "skip": "Omitir por ahora",
-    "readyTitle": "Listo para configurar para {role}",
-    "planPack": "Instalar {name}",
+    "readyTitle": "Listo para configurar para {{role}}",
+    "planPack": "Instalar {{name}}",
     "planAlready": "ya instalado",
     "planExpert": "Seleccionar tu asistente predeterminado",
     "planLayout": "Ajustar el diseño de tu espacio",
@@ -1695,7 +1695,9 @@
     "doneClose": "Cerrar",
     "reopenTitle": "Áreas de trabajo",
     "reopenHint": "Cambia tus áreas de trabajo: se añaden recursos nuevos y no se elimina nada de lo ya instalado.",
-    "reopen": "Elegir áreas de nuevo"
+    "reopen": "Elegir áreas de nuevo",
+    "doneIssues": "No se configuró esta vez: {{items}}. Puedes añadirlo más tarde desde el mercado.",
+    "doneExpertUnavailable": "El asistente predeterminado de este ámbito aún no está disponible en este despliegue."
   },
   "mcp": {
     "narrative": {

@@ -82,29 +82,44 @@ export function needsQuestionnaire({ db, email = null, env = process.env }) {
 
 // Build the plan for a role. `installed` = pack ids already installed;
 // `marketplaceOff` = no pack marketplace on this deployment (the plan degrades
-// to layout + expert, per the spec's degradation requirement).
+// to layout + expert, per the spec's degradation requirement); `resolved` maps
+// a recipe pack reference (its authored display name) to the id this
+// deployment minted for it — { ref: { packId, name } }.
+//
+// Resolution is injected rather than done here: this stays pure, and the
+// lookup needs network/market access the caller owns. A reference that did
+// not resolve is reported as `unavailable` and marks the plan degraded —
+// the confirmation list shows the rest and the closing note (spec: "unavailable
+// pack omitted without blocking").
 //
 // Admission is deliberately NOT pre-judged here: pack visibility is
 // private/public (there is no per-pack group gate to evaluate), while the
 // group-gated resources a pack references resolve at install time. The plan
 // therefore lists every recipe pack not already installed, and provisioning
 // reports each item's outcome — a failing item never blocks the rest (D5).
-export function buildPlan({ role, installed = [], marketplaceOff = false }) {
+export function buildPlan({ role, installed = [], marketplaceOff = false, resolved = {} }) {
   const recipe = recipeFor(role);
   if (!recipe) return null;
   const installedSet = new Set(installed);
   const packs = marketplaceOff
     ? []
-    : recipe.packs.map((packId) =>
-        installedSet.has(packId) ? { packId, status: "installed" } : { packId, status: "install" },
-      );
+    : recipe.packs.map((ref) => {
+        const hit = resolved[ref];
+        if (!hit?.packId) return { ref, packId: null, name: ref, status: "unavailable" };
+        return {
+          ref,
+          packId: hit.packId,
+          name: hit.name || ref,
+          status: installedSet.has(hit.packId) ? "installed" : "install",
+        };
+      });
   return {
     role,
     defaultExpert: recipe.defaultExpert,
     prompts: recipe.prompts,
     layoutPreset: recipe.layoutPreset,
     packs,
-    degraded: marketplaceOff,
+    degraded: marketplaceOff || packs.some((p) => p.status === "unavailable"),
   };
 }
 
@@ -145,4 +160,41 @@ export function selfAssignment(roles, current) {
 // The resolved assignment for one user in this cell (plan-building helper).
 export function currentAssignment({ db, email, env = process.env }) {
   return resolveAssignment({ user: { email }, db, env });
+}
+
+// ── Self-service write, hosted aware ────────────────────────────────────────
+
+// In a hosted deployment the assignments live in the GATEWAY's store: the
+// gateway stamps x-forwarded-roles from that document on every request and
+// resolveAssignment prefers it, so a cell-local write alone never reaches the
+// browser (the 2026-10-17 defect: a user picked a domain, every page kept the
+// default navigation). Design D1 always called for "托管走 gateway 指派存储的
+// 内部写入" — this is that write.
+//
+// Returns { ok } or { error }. On a hosted cell the gateway write is
+// load-bearing: if it fails the caller must NOT report success, because the
+// stored answer would be silently dead.
+export async function writeSelfAssignment({ email, roles, env = process.env, fetchImpl = fetch, timeoutMs = 10_000 }) {
+  if (String(env.CLOUD_MODE || "") !== "1" && String(env.CLOUD_MODE || "").toLowerCase() !== "true") {
+    return { ok: true, hosted: false };
+  }
+  const secret = String(env.CELL_GATEWAY_SECRET || "");
+  if (!secret) return { error: "hosted cell without CELL_GATEWAY_SECRET" };
+  const base = (env.GATEWAY_INTERNAL_URL || `http://127.0.0.1:${env.GATEWAY_PORT || 3080}`).replace(/\/+$/, "");
+  let res;
+  try {
+    res = await fetchImpl(`${base}/api/roles/self`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-cloud-gateway-secret": secret },
+      body: JSON.stringify({ email, roles }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (e) {
+    return { error: `role assignment channel unreachable: ${e?.message || e}` };
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    return { error: body?.error || `role assignment failed (HTTP ${res.status})` };
+  }
+  return { ok: true, hosted: true };
 }

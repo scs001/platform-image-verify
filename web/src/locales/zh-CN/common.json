@@ -1682,8 +1682,8 @@
     "notePlaceholder": "例如：审查供应商合同",
     "submit": "为我配置好",
     "skip": "暂时跳过",
-    "readyTitle": "准备好为你配置「{role}」",
-    "planPack": "安装 {name}",
+    "readyTitle": "准备好为你配置「{{role}}」",
+    "planPack": "安装 {{name}}",
     "planAlready": "已安装",
     "planExpert": "选定默认助手",
     "planLayout": "调整工作面布局",
@@ -1695,7 +1695,9 @@
     "doneClose": "关闭",
     "reopenTitle": "工作领域",
     "reopenHint": "更换你的工作领域——只会新增资源，不会卸载已装的内容。",
-    "reopen": "重新选择领域"
+    "reopen": "重新选择领域",
+    "doneIssues": "这次没能装上：{{items}}。之后可以在市场中添加。",
+    "doneExpertUnavailable": "该领域的默认助手在本部署上暂不可用。"
   },
   "mcp": {
     "narrative": {

@@ -30,6 +30,8 @@ import { createPackRegistry, registerPackRoutes } from "./packs.js";
 import { registerFacetProxy } from "./facet-proxy.js";
 import { createRoleStore, makeIsAdminUser } from "./roles.js";
 import { createLayoutStore } from "./layout.js";
+import { GATEWAY_SECRET_HEADER, secretMatches } from "../server/auth.js";
+import { isBusinessRole } from "../server/roles.js";
 import { registerWanxingRoutes } from "./wanxing/index.js";
 import { createCellFleetReporter } from "./fleet-cells.js";
 import { createBotWebhookRouter } from "./bot-webhooks.js";
@@ -390,6 +392,31 @@ app.put("/api/roles/assignments/:userId", express.json(), (req, res) => {
   const result = roleStore.set(req.params.userId, req.body || {});
   if (result.error) return res.status(400).json({ error: result.error });
   res.json({ email: String(req.params.userId).trim().toLowerCase(), ...result.assignment });
+});
+
+// Self-service role write (intent-onboarding). A hosted deployment's
+// assignments live in THIS store — the gateway stamps x-forwarded-roles from it
+// on every request, so the cell's own copy never reaches the browser. The cell
+// posts here with its gateway secret (it is the only caller that knows the
+// answer was validated) and this route writes WITHOUT the admin gate, because
+// the whole point is that a user may choose their own business roles. Two
+// invariants make that safe, both enforced in the store rather than trusted
+// from the caller:
+//   * the target is the CALLER's own identity — a cell cannot assign roles to
+//     anyone else;
+//   * the admin flag is preserved verbatim and never granted (setSelf).
+app.post("/api/roles/self", express.json(), (req, res) => {
+  // The cell authenticates with the shared secret, not a browser session —
+  // this is the internal half of the same identity channel the cells verify.
+  const provided = req.headers[GATEWAY_SECRET_HEADER];
+  if (!secretMatches(provided, SECRET)) return res.status(401).json({ error: "Authentication required" });
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  if (!email) return res.status(400).json({ error: "email is required" });
+  const roles = Array.isArray(req.body?.roles) ? req.body.roles.filter(isBusinessRole) : [];
+  if (!roles.length) return res.status(400).json({ error: "at least one business role is required" });
+  const result = roleStore.setSelf(email, { primary: roles[0], secondary: roles.slice(1) });
+  if (result.error) return res.status(400).json({ error: result.error });
+  res.json({ email, ...result.assignment });
 });
 
 // ── Workbench layout (layout-configuration) ─────────────────────────────────

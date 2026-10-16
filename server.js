@@ -326,6 +326,15 @@ if (process.env.PACK_MARKETPLACE === "1") {
       if (!detail?.version || !detail?.manifest) return null;
       return { version: detail.version, manifest: detail.manifest };
     },
+    // Name lookup for curated recipe references (intent-onboarding): the
+    // recipe names a pack by its authored display name because ids are minted
+    // randomly per deployment. Goes through the registry's own listing, so the
+    // viewer's visibility rules (private ⇒ owner only) answer exactly as the
+    // market surface does.
+    findByName: (name, viewer) => {
+      const listed = packRegistry.list?.({ search: String(name), pageSize: 50, viewer })?.packs ?? [];
+      return listed.filter((p) => p?.name === name).map((p) => ({ id: p.id, name: p.name }));
+    },
   };
 }
 registerStaticAndFallback(ctx);

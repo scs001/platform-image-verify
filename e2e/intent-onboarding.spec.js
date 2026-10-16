@@ -200,6 +200,22 @@ test.describe("intent onboarding", () => {
     await expect(page.getByTestId("intent-degraded-note")).toBeVisible();
     await expect(page.getByTestId("intent-activate")).toBeVisible();
 
+    // Chrome text must be INTERPOLATED, not literal: these two keys shipped
+    // with single braces while the project uses react-i18next, which needs
+    // {{name}}/{{role}} — the raw braces reached the user's eyes in all five
+    // locales (2026-10-17 defect ④). check:locales only compares key sets, so
+    // this is the assertion that catches it.
+    //
+    // Guarding the heading ({{role}}) is the load-bearing half here: this
+    // deployment has the marketplace OFF, so no pack rows render and the
+    // planPack slot never appears. That key is covered by
+    // scripts/test-intent-onboarding.mjs (the plan carries `name`) plus the
+    // hosted suite's live market.
+    const panelText = await page.getByTestId("intent-questionnaire").innerText();
+    expect(panelText).not.toContain("{name}");
+    expect(panelText).not.toContain("{role}");
+    expect(panelText).toContain("Legal");
+
     const me = await api("/api/auth/me", { cookie: newUserCookie });
     expect(me.json.roles.primary).toBe("legal");
   });

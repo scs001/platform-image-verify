@@ -1682,8 +1682,8 @@
     "notePlaceholder": "例：取引先の契約書をレビューする",
     "submit": "設定する",
     "skip": "今はスキップ",
-    "readyTitle": "「{role}」向けに設定します",
-    "planPack": "{name} をインストール",
+    "readyTitle": "「{{role}}」向けに設定します",
+    "planPack": "{{name}} をインストール",
     "planAlready": "インストール済み",
     "planExpert": "既定のアシスタントを選択",
     "planLayout": "ワークスペース配置を調整",
@@ -1695,7 +1695,9 @@
     "doneClose": "閉じる",
     "reopenTitle": "仕事の分野",
     "reopenHint": "分野を変更します。リソースは追加のみで、インストール済みのものは削除されません。",
-    "reopen": "分野を選び直す"
+    "reopen": "分野を選び直す",
+    "doneIssues": "今回は設定できませんでした：{{items}}。後でマーケットから追加できます。",
+    "doneExpertUnavailable": "この分野の既定アシスタントは、この配備ではまだ利用できません。"
   },
   "mcp": {
     "narrative": {

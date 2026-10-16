@@ -10,15 +10,17 @@
 // self-service answer is never a privilege escalation.
 
 import * as packStore from "../../pack-store.js";
-import { fetchLatestPackVersion } from "../pack-manifest-source.js";
+import { fetchLatestPackVersion, resolvePackReferences } from "../pack-manifest-source.js";
 import { readyRoles } from "../../packages/core/src/lib/recipes.ts";
 import {
   buildPlan,
+  currentAssignment,
   effectiveIntent,
   needsQuestionnaire,
   selfAssignment,
   validateAnswers,
   writeIntent,
+  writeSelfAssignment,
 } from "../onboarding.js";
 import { parseStoredAssignments, resolveAssignment } from "../roles.js";
 
@@ -27,7 +29,8 @@ export function registerOnboardingRoutes(ctx) {
 
   const emailOf = (req) => req.user?.email ?? null;
 
-  // The assignment document writer (same key the role routes use).
+  // The assignment document writer (single-process deployments only; hosted
+  // cells write through the gateway — see writeSelfAssignment).
   const readDoc = () => (db.isDbReady() ? parseStoredAssignments(db.getDeploymentConfig("roles.assignments")) : null);
   const writeAssignment = (email, assignment) => {
     const doc = readDoc() ?? { assignments: {}, default: null };
@@ -38,12 +41,30 @@ export function registerOnboardingRoutes(ctx) {
     db.setDeploymentConfig("roles.assignments", JSON.stringify(doc));
   };
 
-  const planFor = (role) =>
-    buildPlan({
-      role,
-      installed: db.isDbReady() ? db.listInstalledPacks().map((p) => p.packId) : [],
-      marketplaceOff: process.env.PACK_MARKETPLACE !== "1",
+  // Build the plan for a role: resolve the recipe's pack REFERENCES (authored
+  // display names) to this deployment's ids, then hand the map to buildPlan.
+  // The viewer rides along so the market answers with the user's own
+  // visibility — an invisible pack resolves to nothing and is reported
+  // unavailable rather than failing the run.
+  //
+  // The first build only supplies the refs to resolve; it is NOT the answer.
+  // (Its packs all read "unavailable" — nothing is resolved yet — so its
+  // `degraded` flag says nothing about the final plan.)
+  const planFor = async (role, viewer) => {
+    const installed = db.isDbReady() ? db.listInstalledPacks().map((p) => p.packId) : [];
+    const marketplaceOff = process.env.PACK_MARKETPLACE !== "1";
+    const skeleton = buildPlan({ role, installed, marketplaceOff });
+    if (!skeleton || marketplaceOff || !skeleton.packs.length) return skeleton;
+    const resolved = await resolvePackReferences({
+      refs: skeleton.packs.map((p) => p.ref),
+      viewer,
+      localMarket: ctx.localPackMarket ?? null,
+    }).catch((e) => {
+      console.warn(`[onboarding] pack reference resolution failed: ${e?.message || e}`);
+      return {};
     });
+    return buildPlan({ role, installed, marketplaceOff, resolved });
+  };
 
   // Profile read: what the questionnaire should render, plus the ready-role
   // list (the server decides readiness — the client never guesses).
@@ -64,14 +85,13 @@ export function registerOnboardingRoutes(ctx) {
 
   // Answers: profile + role assignments in ONE write. Returns the provisioning
   // plan so the confirmation list the user sees is exactly what would run.
-  app.post("/api/onboarding/answers", (req, res) => {
+  app.post("/api/onboarding/answers", async (req, res) => {
     if (!db.isDbReady()) return res.status(503).json({ error: "Database unavailable" });
     const result = validateAnswers(req.body || {});
     if (result.error) return res.status(400).json({ error: result.error });
     const email = emailOf(req);
     if (!email) return res.status(400).json({ error: "No identity on the request" });
 
-    const current = resolveAssignment({ user: { email }, db });
     const profile = {
       roles: result.value.roles,
       note: result.value.note,
@@ -79,23 +99,38 @@ export function registerOnboardingRoutes(ctx) {
       answeredAt: new Date().toISOString(),
     };
 
+    // Set on the non-skip path; read again when reporting the assignment.
+    let hosted = { hosted: false };
+
     if (!profile.skipped) {
-      const assignment = selfAssignment(profile.roles, current);
-      // Atomicity: both writes touch the same SQLite handle sequentially; a
-      // throw between them would leave the profile answered but the roles
-      // stale, so the assignment lands FIRST (it is the load-bearing half) and
-      // the profile write is the cheap confirmation.
-      writeAssignment(email, assignment);
+      // Hosted deployments keep assignments in the gateway's store, and its
+      // headers outrank anything stored here — so the gateway write is the
+      // load-bearing half and comes FIRST. A failure is surfaced rather than
+      // stored behind, because a cell-local answer the browser never sees is
+      // exactly the silent breakage this path exists to prevent.
+      hosted = await writeSelfAssignment({ email, roles: profile.roles }).catch((e) => ({ error: e?.message || String(e) }));
+      if (hosted?.error) {
+        console.warn(`[onboarding] gateway role write failed for ${email}: ${hosted.error}`);
+        return res.status(502).json({ error: "Your role selection could not be saved. Please try again." });
+      }
+      if (!hosted.hosted) {
+        // Single-process deployment: this cell IS the authority.
+        const current = resolveAssignment({ user: { email }, db });
+        writeAssignment(email, selfAssignment(profile.roles, current));
+      }
       writeIntent({ db, email }, profile);
     } else {
       writeIntent({ db, email }, profile);
     }
 
-    const primary = result.value.skipped ? current.primary : result.value.roles[0];
+    const primary = result.value.skipped ? currentAssignment({ db, email }).primary : result.value.roles[0];
     res.json({
       profile,
-      assignment: resolveAssignment({ user: { email }, db }),
-      plan: result.value.skipped ? null : planFor(primary),
+      assignment: result.value.skipped
+        ? currentAssignment({ db, email })
+        : // The gateway's answer when hosted: it is what the headers will say.
+          (hosted?.hosted ? { primary, secondary: profile.roles.slice(1), admin: false } : resolveAssignment({ user: { email }, db })),
+      plan: result.value.skipped ? null : await planFor(primary, req.user ?? null),
     });
   });
 
@@ -110,15 +145,21 @@ export function registerOnboardingRoutes(ctx) {
     const intent = effectiveIntent({ db, email });
     const role = intent.roles[0];
     if (!role) return res.status(400).json({ error: "Answer the questionnaire first" });
-    const plan = planFor(role);
-    if (!plan) return res.status(400).json({ error: `No recipe for role '${role}'` });
-
     const viewer = req.user ?? (ctx.authEnabled ? null : { email: ctx.cellUserEmail || "owner@local", groups: [] });
+    const plan = await planFor(role, viewer);
+    if (!plan) return res.status(400).json({ error: `No recipe for role '${role}'` });
     const results = [];
 
     for (const item of plan.packs) {
       if (item.status === "installed") {
-        results.push({ packId: item.packId, status: "already-installed" });
+        results.push({ packId: item.packId, name: item.name, status: "already-installed" });
+        continue;
+      }
+      if (item.status === "unavailable") {
+        // The recipe names a pack this deployment cannot resolve for this
+        // viewer (absent, or invisible under admission). Reported explicitly
+        // so the outcome list is honest, and never fatal to the rest (D5).
+        results.push({ packId: null, ref: item.ref, name: item.name, status: "unavailable" });
         continue;
       }
       try {
@@ -127,7 +168,11 @@ export function registerOnboardingRoutes(ctx) {
           viewer,
           localMarket: ctx.localPackMarket ?? null,
         });
-        await packStore.installPack({
+        // The install itself is injectable for the same reason switchAgentTo
+        // is: pack-store binds the process-wide db module, so a route test can
+        // only exercise this path if the route names the seam.
+        const install = ctx.installPackHook ?? packStore.installPack;
+        await install({
           packId: item.packId,
           version,
           manifest,
@@ -150,11 +195,12 @@ export function registerOnboardingRoutes(ctx) {
             },
           },
         });
-        results.push({ packId: item.packId, status: "installed", version });
+        results.push({ packId: item.packId, name: item.name, status: "installed", version });
       } catch (err) {
         // One failing item never blocks the rest (design D5).
         results.push({
           packId: item.packId,
+          name: item.name,
           status: "failed",
           error: err?.message || String(err),
           ...(err?.code ? { code: err.code } : {}),
@@ -172,8 +218,21 @@ export function registerOnboardingRoutes(ctx) {
     let expert = { status: "skipped" };
     if (plan.defaultExpert) {
       try {
-        const switched = await ctx.switchAgentTo?.(plan.defaultExpert, null);
-        expert = switched === false ? { status: "failed" } : { status: "selected", id: plan.defaultExpert };
+        // No websocket on this channel: the switch applies through the return
+        // value and the catalog broadcast (switchAgentTo's `user` option is the
+        // actor for the visibility check the socket would otherwise supply;
+        // `onError` recovers the reason so a failure is reported, not guessed).
+        let reason = null;
+        const switched = await ctx.switchAgentTo?.(plan.defaultExpert, null, {
+          user: viewer,
+          onError: (m) => {
+            reason = m;
+          },
+        });
+        expert =
+          switched === false
+            ? { status: "failed", ...(reason ? { error: reason } : {}) }
+            : { status: "selected", id: plan.defaultExpert };
       } catch (err) {
         expert = { status: "failed", error: err?.message || String(err) };
       }

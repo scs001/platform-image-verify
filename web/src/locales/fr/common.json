@@ -1682,8 +1682,8 @@
     "notePlaceholder": "p. ex. réviser des contrats fournisseurs",
     "submit": "Configurer mon espace",
     "skip": "Passer pour l'instant",
-    "readyTitle": "Prêt à configurer pour {role}",
-    "planPack": "Installer {name}",
+    "readyTitle": "Prêt à configurer pour {{role}}",
+    "planPack": "Installer {{name}}",
     "planAlready": "déjà installé",
     "planExpert": "Sélectionner votre assistant par défaut",
     "planLayout": "Ajuster la disposition de votre espace",
@@ -1695,7 +1695,9 @@
     "doneClose": "Fermer",
     "reopenTitle": "Domaines de travail",
     "reopenHint": "Changez vos domaines de travail — de nouvelles ressources s'ajoutent, rien de ce qui est installé n'est supprimé.",
-    "reopen": "Choisir à nouveau"
+    "reopen": "Choisir à nouveau",
+    "doneIssues": "Non installé cette fois : {{items}}. Vous pourrez l'ajouter plus tard depuis le marché.",
+    "doneExpertUnavailable": "L'assistant par défaut de ce domaine n'est pas encore disponible sur ce déploiement."
   },
   "mcp": {
     "narrative": {

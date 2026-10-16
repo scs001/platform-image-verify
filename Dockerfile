@@ -238,6 +238,13 @@ COPY --chown=node:node --from=builder /app/server ./server
 # missing dir here boots the image just fine until its first import — the
 # smoke test catches it as ERR_MODULE_NOT_FOUND.
 COPY --chown=node:node --from=builder /app/gateway ./gateway
+# packages/core is imported DIRECTLY by server-side modules: server/roles.js,
+# server/layout.js and server/onboarding.js resolve the shared role / surface /
+# recipe contracts from ../packages/core/src/lib/*.ts (Node strips the types at
+# load). Without this dir the very first import throws ERR_MODULE_NOT_FOUND and
+# every cell crashloops — the 2026-10-17 incident. Local runs never saw it
+# because the repo tree has packages/ on disk; only the packaged image did.
+COPY --chown=node:node --from=builder /app/packages ./packages
 COPY --chown=node:node --from=builder /app/lib ./lib
 COPY --chown=node:node --from=builder /app/scripts ./scripts
 COPY --chown=node:node --from=builder /app/supervisor ./supervisor

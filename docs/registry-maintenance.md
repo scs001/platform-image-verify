@@ -387,3 +387,16 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 新能力 | 成果页：时间窗（今天/7天/30天）+类型组 chips（facet 计数、默认预勾图表/文档/表格/图片）+卡片创建时间；模型侧：`save_to_library` 工具（≤10 路径逐条回报、第四座 loopback 桥、source=model 会话级溯源、产物契约"交付即调"条款） |
 | 验证账 | 相关单测 74/74（新增 filters 7 + bridge 7 + api 3 + store 1）；e2e 11/11（含 380px 窄屏）；dsh-contracts 17/17；spec sync 后 151/151 |
 | 归档 | ① `2026-10-16-add-resource-filters`、② `2026-10-16-add-save-to-library-tool`（均 sync 主 spec 后归档） |
+
+### 12.4 v1.3.15 滚产：壹座部署表单模型/回合预算输入（add-deploy-form-model-budget，2026-10-16）
+
+| 项 | 值 |
+|---|---|
+| 生产镜像 | `ccr.../yizuo/platform:sha-343ad99`（digest `f61f2768`；snapshot sha ≙ paas `fd48a6b` = ad915b0 功能全链 + v1.3.15 bump） |
+| 出片线 | `scs001/platform-image-verify` 公开仓免费线；快照 `9c038f8` 强推 + `image.yml` 恢复提交 `343ad99` 即出片 tag（scrub 老坑第四次照旧，推后立即恢复） |
+| 构建 | image build-push run `38829026658` 绿（boot 烟测门后推 hkccr）；relay OK 行 08:31:39 + skopeo ccr digest `f61f2768` 实证后才 bump（硬门序） |
+| 滚动 | fd-infra-deploy `eca6120`（platform.yaml:54 + platform-demo.yaml:71 双清单）→ gitee 双端 → ArgoCD hard-refresh → 两 deploy rollout 完成；首查 image 字段仍旧=ArgoCD 刷新→同步窗口（~60s），非异常 |
+| 实证 | in-pod：`AgentsPage-CsBVP5qS.js` 含 `pack-deploy-model-`/`modelLanesUnavailable`（bundle `index-qce88fQq.js` ×5 locale）；公网同 hash chunk 眼见；healthz 200 |
+| 新能力 | 部署区每 serving agent 增模型输入（modelWhitelist datalist + 声明默认 placeholder）与回合预算输入（1-120 整数客户端挡提交）；空输入=维持现状三态（既有覆盖→声明→平台默认，升级存续语义对齐，不发 null）；部署请求带 `models`/`budgets`；`MODEL_LANE_REJECTED`/`MODEL_NOT_IN_ROSTER`/503 三分支本地化——**503 窄分支新修**：`billing plane not configured…` 文案会误中 catch 的 `/not configured/i` 把整个部署表单换成自托管引导面板、埋掉真因（专项回归测试钉住） |
+| 验证账 | typecheck/biome/check:locales 绿（12 key×5 locale）；e2e `pack-deploy-config` 3/3（route-mock 线约断言：空输入省略、预算落体、无效挡提交、模型落体+闸拒本地化+503 回归守卫）+相邻回归 23/23（packs/agent-service-config/preset-publish-flow/packaged-skills） |
+| 归档 | `2026-10-16-add-deploy-form-model-budget`（spec sync：pack-marketplace ADDED 部署表单需求 + MODIFIED 部署区副标题，151→153 需求后归档） |

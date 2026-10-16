@@ -399,4 +399,4 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 实证 | in-pod：`AgentsPage-CsBVP5qS.js` 含 `pack-deploy-model-`/`modelLanesUnavailable`（bundle `index-qce88fQq.js` ×5 locale）；公网同 hash chunk 眼见；healthz 200 |
 | 新能力 | 部署区每 serving agent 增模型输入（modelWhitelist datalist + 声明默认 placeholder）与回合预算输入（1-120 整数客户端挡提交）；空输入=维持现状三态（既有覆盖→声明→平台默认，升级存续语义对齐，不发 null）；部署请求带 `models`/`budgets`；`MODEL_LANE_REJECTED`/`MODEL_NOT_IN_ROSTER`/503 三分支本地化——**503 窄分支新修**：`billing plane not configured…` 文案会误中 catch 的 `/not configured/i` 把整个部署表单换成自托管引导面板、埋掉真因（专项回归测试钉住） |
 | 验证账 | typecheck/biome/check:locales 绿（12 key×5 locale）；e2e `pack-deploy-config` 3/3（route-mock 线约断言：空输入省略、预算落体、无效挡提交、模型落体+闸拒本地化+503 回归守卫）+相邻回归 23/23（packs/agent-service-config/preset-publish-flow/packaged-skills） |
-| 归档 | `2026-10-16-add-deploy-form-model-budget`（spec sync：pack-marketplace ADDED 部署表单需求 + MODIFIED 部署区副标题，151→153 需求后归档） |
+| 归档 | `2026-10-16-add-deploy-form-model-budget`（spec sync：pack-marketplace ADDED 部署表单需求 + MODIFIED 部署区副标题，该 capability 17→18 需求后归档） |

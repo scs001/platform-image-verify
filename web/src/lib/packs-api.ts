@@ -49,8 +49,18 @@ export interface PackManifestAgent {
   name: string;
   persona: string;
   // Optional serving contract (add-a2a-agent-serving): present ⇒ the role is
-  // deployable as an Agent Service over A2A.
-  serving?: { protocol: string; card?: Record<string, unknown>; rhythm?: { every?: string; daily?: string; do?: string }[] };
+  // deployable as an Agent Service over A2A. model/modelWhitelist/budget are
+  // the contract's declarations (ADR-0019 / add-serving-budgets) — the deploy
+  // form surfaces them as the empty-input placeholder and the model picker's
+  // narrowing domain.
+  serving?: {
+    protocol: string;
+    card?: Record<string, unknown>;
+    rhythm?: { every?: string; daily?: string; do?: string }[];
+    model?: string;
+    modelWhitelist?: string[];
+    budget?: { turnMinutes: number };
+  };
   tags?: string[];
   icon?: string;
   // Optional per-role resource declaration (add-persona-resource-sets): a
@@ -225,15 +235,25 @@ export function getServingStatus(): Promise<{ configured: boolean }> {
 // the effective rhythm, the manifest default otherwise. billingKeys maps
 // serving agentId → a pasted panel key ("sk-…"); omitting the field keeps
 // existing bindings (the platform never echoes key values back).
+// models/budgets (add-deploy-form-model-budget): the deploy-time model choice
+// and per-turn budget ceiling per serving agent. Absent = the dimension is
+// untouched — the deployment follows its preserved override when redeploying,
+// else the contract declaration, else the platform default. The form never
+// sends null: clearing an existing override is the serving config surface's
+// act, not the deploy form's.
 export function deployPack(
   id: string,
   version: number,
   rhythms?: Record<string, unknown>,
   billingKeys?: Record<string, string | null>,
+  models?: Record<string, string>,
+  budgets?: Record<string, number>,
 ) {
   const body: Record<string, unknown> = {};
   if (rhythms && Object.keys(rhythms).length > 0) body.rhythms = rhythms;
   if (billingKeys && Object.keys(billingKeys).length > 0) body.billingKeys = billingKeys;
+  if (models && Object.keys(models).length > 0) body.models = models;
+  if (budgets && Object.keys(budgets).length > 0) body.budgets = budgets;
   return fetch(`/api/packs/${encodeURIComponent(id)}/versions/${version}/deploy`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

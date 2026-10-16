@@ -52,6 +52,18 @@ function authErrorMessage(t: (k: string) => string, err: Error): string {
 const wanxingSlugFor = (agentPath: string) =>
   String(agentPath).replace(/^\/+/, "").replace(/[^A-Za-z0-9._-]+/g, "-").toLowerCase();
 
+// Budget draft rule (add-deploy-form-model-budget D2) — a client mirror of
+// the platform's budgetMinutesError (lib/pack-manifest.js: positive whole
+// minutes, cap 120 = BUDGET_MAX_MINUTES). Same discipline as RhythmEditor
+// mirroring lib/rhythm.js: the server stays the enforcement point; this only
+// refuses the submit so a typo never meets its error server-side first.
+const BUDGET_MAX_MINUTES = 120;
+function budgetDraftValid(text: string): boolean {
+  if (!/^\d+$/.test(text)) return false;
+  const n = Number(text);
+  return n > 0 && n <= BUDGET_MAX_MINUTES;
+}
+
 export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMine, onRequireLogin }: Props) {
   const { t } = useTranslation();
   // The action bar's login-guidance row (polish-facet-interactions): flipped
@@ -71,6 +83,12 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
   const [deployNote, setDeployNote] = useState<string | null>(null);
   // Deployer rhythm overrides (add-agent-residency D7): agentId → entries.
   const [overrides, setOverrides] = useState<Record<string, RhythmEntry[]>>({});
+  // Deploy-time model/budget drafts (add-deploy-form-model-budget): agentId →
+  // trimmed input. Empty = the dimension rides no map (standing precedence:
+  // preserved override → declaration → platform default); the form never
+  // sends null (clearing is the serving config surface's act).
+  const [modelDrafts, setModelDrafts] = useState<Record<string, string>>({});
+  const [budgetDrafts, setBudgetDrafts] = useState<Record<string, string>>({});
   const [pauseBusy, setPauseBusy] = useState<string | null>(null);
   // Billing readout (add-agent-platform-ops D3; revised by
   // revise-billing-key-acquisition): linked + accountState drives the deploy
@@ -89,6 +107,8 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
     setDeployNote(null);
     setBindings(null);
     setKeyDrafts({});
+    setModelDrafts({});
+    setBudgetDrafts({});
     setLoginHint(false);
     setScriptGate(null);
     if (!packId) return;
@@ -150,6 +170,14 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
 
   const servingAgents = (pack?.manifest?.agents ?? []).filter((a) => a.serving);
 
+  // Any invalid budget draft freezes the deploy submit (add-deploy-form-
+  // model-budget D2): a scalar typo meets its error in the form, never
+  // server-side. Empty drafts are fine (empty = the dimension rides no map).
+  const anyBudgetInvalid = servingAgents.some((a) => {
+    const d = (budgetDrafts[a.id] ?? "").trim();
+    return d.length > 0 && !budgetDraftValid(d);
+  });
+
   // Serving capability (add-selfhost-funnel-guidance, F3.1): a self-hosted
   // instance without agent serving renders the official-market guidance
   // panel — the raw "not configured" error never surfaces.
@@ -185,15 +213,42 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
         const draft = (keyDrafts[a.id] ?? "").trim();
         if (draft) billingKeys[a.id] = draft;
       }
+      // Model drafts (add-deploy-form-model-budget): non-empty trimmed only.
+      // No client lane check — lanes belong to the bound/pasted key and are
+      // unknowable here; the server's gates refuse with a code the catch
+      // below localizes.
+      const models: Record<string, string> = {};
+      for (const a of servingAgents) {
+        const draft = (modelDrafts[a.id] ?? "").trim();
+        if (draft) models[a.id] = draft;
+      }
+      // Budget drafts: a single scalar where silently dropping an invalid
+      // value would second-guess the deployer — the submit button is already
+      // disabled while any draft is invalid (budgetDraftValid), and this is
+      // the race-proof second gate.
+      const budgets: Record<string, number> = {};
+      for (const a of servingAgents) {
+        const draft = (budgetDrafts[a.id] ?? "").trim();
+        if (!draft) continue;
+        if (!budgetDraftValid(draft)) {
+          setError(t("packs.detail.budgetInvalid", { defaultValue: "turn budget must be whole minutes, 1–120" }));
+          return;
+        }
+        budgets[a.id] = Number(draft);
+      }
       const out = await api.deployPack(
         packId,
         pack.version,
         Object.keys(rhythms).length > 0 ? rhythms : undefined,
         Object.keys(billingKeys).length > 0 ? billingKeys : undefined,
+        Object.keys(models).length > 0 ? models : undefined,
+        Object.keys(budgets).length > 0 ? budgets : undefined,
       );
       const d = await api.getPackDeployments(packId);
       setDeployments(d.deployments ?? []);
       setKeyDrafts({});
+      setModelDrafts({});
+      setBudgetDrafts({});
       api.getBillingBindings(packId).then(setBindings).catch(() => {});
       setDeployNote(t("packs.detail.deployEffective", { minutes: Math.ceil(out.effectiveWithinSecs / 60) }));
     } catch (err) {
@@ -203,6 +258,19 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
         setError(t(`packs.detail.keyInvalid.${e.body?.reason ?? "liveness"}`, { defaultValue: e.message }));
       } else if (code === "BILLING_KEY_REQUIRED") {
         setError(t("packs.detail.keyRequired", { defaultValue: e.message }));
+      } else if (code === "MODEL_LANE_REJECTED") {
+        // The server's reason names the agent and the gate (whitelist/lanes);
+        // the prefix is the only localized half (add-deploy-form-model-budget D3).
+        setError(t("packs.detail.modelLaneRejected", { reason: e.message, defaultValue: e.message }));
+      } else if (code === "MODEL_NOT_IN_ROSTER") {
+        setError(t("packs.detail.modelNotInRoster", { reason: e.message, defaultValue: e.message }));
+      } else if (/model lanes cannot be validated/.test(e.message)) {
+        // The unlinked-billing-plane refusal for a filled model. MUST be
+        // matched BEFORE the serving-not-configured branch below: its text
+        // ("billing plane not configured — …") also matches that branch's
+        // /not configured/i, which would swap the whole deploy form for the
+        // self-host guidance panel and bury the actual reason.
+        setError(t("packs.detail.modelLanesUnavailable", { defaultValue: e.message }));
       } else if (servingReady === false || /not configured/i.test(e.message)) {
         setServingReady(false); // race-proof: the probe lost to a click
       } else {
@@ -537,6 +605,8 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground leading-5 mb-2">{t("packs.detail.rhythmSubtitle")}</p>
+                <p className="text-xs text-muted-foreground leading-5 mb-2">{t("packs.detail.modelSubtitle")}</p>
+                <p className="text-xs text-muted-foreground leading-5 mb-2">{t("packs.detail.budgetSubtitle")}</p>
                 {servingAgents.map((a) => (
                   <div key={a.id} className="mb-2" data-testid={`pack-deploy-override-${a.id}`}>
                     <p className="text-xs text-muted-foreground">{t("packs.detail.rhythmOverride", { id: a.id })}</p>
@@ -545,6 +615,55 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                       onChange={(entries) => setOverrides((o) => ({ ...o, [a.id]: entries }))}
                       testIdPrefix={`pack-deploy-override-editor-${a.id}`}
                     />
+                    <p className="text-xs text-muted-foreground mt-1.5">{t("packs.detail.modelOverride", { id: a.id })}</p>
+                    <input
+                      type="text"
+                      className="mt-1 w-full rounded-md border border-border bg-transparent px-2 py-1 font-mono text-xs"
+                      placeholder={a.serving?.model || t("packs.detail.modelPlaceholder")}
+                      value={modelDrafts[a.id] ?? ""}
+                      onChange={(e) => setModelDrafts((d) => ({ ...d, [a.id]: e.target.value }))}
+                      autoComplete="off"
+                      spellCheck={false}
+                      data-testid={`pack-deploy-model-${a.id}`}
+                      list={`pack-deploy-model-wl-${a.id}`}
+                    />
+                    {a.serving?.modelWhitelist?.length ? (
+                      <>
+                        <datalist id={`pack-deploy-model-wl-${a.id}`}>
+                          {a.serving.modelWhitelist.map((m) => (
+                            <option key={m} value={m} />
+                          ))}
+                        </datalist>
+                        <p className="text-[10px] text-muted-foreground" data-testid={`pack-deploy-model-wl-${a.id}`}>
+                          {t("packs.detail.modelHintWhitelist", { list: a.serving.modelWhitelist.join(" · ") })}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-[10px] text-muted-foreground" data-testid={`pack-deploy-model-wl-${a.id}`}>
+                        {t("packs.detail.modelHintNoWhitelist")}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground mt-1.5">{t("packs.detail.budgetOverride", { id: a.id })}</p>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      className="mt-1 w-full rounded-md border border-border bg-transparent px-2 py-1 font-mono text-xs"
+                      placeholder={
+                        a.serving?.budget?.turnMinutes != null
+                          ? String(a.serving.budget.turnMinutes)
+                          : t("packs.detail.budgetPlaceholder")
+                      }
+                      value={budgetDrafts[a.id] ?? ""}
+                      onChange={(e) => setBudgetDrafts((d) => ({ ...d, [a.id]: e.target.value }))}
+                      autoComplete="off"
+                      spellCheck={false}
+                      data-testid={`pack-deploy-budget-${a.id}`}
+                    />
+                    {(budgetDrafts[a.id] ?? "").trim().length > 0 && !budgetDraftValid((budgetDrafts[a.id] ?? "").trim()) && (
+                      <p className="text-[10px] text-amber-600" data-testid={`pack-deploy-budget-invalid-${a.id}`}>
+                        {t("packs.detail.budgetInvalid")}
+                      </p>
+                    )}
                   </div>
                 ))}
                 {deployments.length > 0 && (
@@ -585,7 +704,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                 <Button
                   variant="outline"
                   onClick={() => void deploy()}
-                  disabled={deploying}
+                  disabled={deploying || anyBudgetInvalid}
                   data-testid="pack-deploy-btn"
                 >
                   {deploying ? t("common.loading") : t("packs.detail.deployBtn")}

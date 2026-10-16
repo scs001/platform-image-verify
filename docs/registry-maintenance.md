@@ -445,3 +445,17 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 断连根因（已修，2026-10-16 第二跳） | 真因=**调用链末跳**：`nginx(registry) → auth-server 的 mcp-proxy → http://mcpgw-server:8003/`，**末跳在 auth-server 容器**，它同样 hostNetwork+Default DNS 解析不了该名字 → 公网 initialize **502** → 壹座 `[mcp-preflight] server-error (initialize 502)` → 会话判 disconnected。首修（`ee45bec`）只治了 registry 容器自己的健康检查/url_guard。**实修** `6be0653`：auth-server.yaml 加同款 hostAliases。实证：容器内解析成功 + `/health` 200；platform pod 打网关由 **502→401**；后续 preflight 不再报 502 |
 | 判词两种病灶 | **405 = 健康门**（条目非 healthy，location 被注释）；**502 = 末跳解析失败**（链路某容器解析不了上游名）。别混判 |
 | ⚠️ 残留 | dsh 运行时仍持旧连接态（连接是进程内缓存），需 **cell runtime 重启**才对已有会话彻底生效——重启属用户会话级操作，未擅动。另观察到 `facet-market-mcp: auth-rejected (initialize 401)`：它走网关 URL 而网关只对 airegistry-tools 转发 Authorization，故走网关必 401（其正确形态是 mesh 直连，见 §1 表） |
+
+### 12.8 v1.3.17 滚产：业务角色/可配置布局/意图首配 三案 + **打包事故与冒烟门加固**（2026-10-17）
+
+| 项 | 值 |
+|---|---|
+| 生产镜像 | `ccr.../yizuo/platform:sha-68314d5`（digest `d8cc1a31`；snapshot sha ≙ paas `223a089` = 707595c 三案功能 + 5f92e20 v1.3.17 bump + 223a089 打包修复） |
+| 出片线 | **testaction003/build-pool**（FDT 私有额度已耗尽 2011/2000；公开线需私有源码入公开仓，按 AGENTS.md 改走通用池）。三次快照：`6b546fa`（❌ 源未推送，镜像无新码）→ `6e4e8a1`（❌ 打包缺 packages/）→ `68314d5`（✅） |
+| 滚动 | fd-infra-deploy 三清单（platform.yaml + platform-demo.yaml + facet.yaml）→ gitee/github 双推 → kubectl 发起 ArgoCD hard-refresh（`d178e8a` 修正 →`2dd523f` 回滚 →`31dd961` 终版）→ 三 deploy rollout 全绿 |
+| 生产验证（in-pod 活体） | pod 内直接执行真实代码路径：`resolveForUser(role=legal)` → 导航 4 项 `[chat,knowledge,resources,agents]`（**三案联合生效**：角色层收窄 + 配方预设 + 注册表）；无配方角色 → 7 项不收窄；8 枚角色枚举在位；`validateAnswers(screenplay)` → 拒（无配方）；`buildPlan(legal).packs` → `[{legal-contract, install}]`；`selfAssignment` 保留 admin 位。`/healthz` 200；三条新路由（`/api/roles`、`/api/onboarding/profile`、`/api/layout/*`）401 而非 404（挂在鉴权门后，正确） |
+| 🔥 事故 | 首次滚 `sha-6e4e8a1` 后 **platform 与 platform-demo 双双 CrashLoopBackOff**：`ERR_MODULE_NOT_FOUND: /app/packages/core/src/lib/recipes.ts`。**根因**：本 change 新增 server→packages 运行时 import（`server/{roles,layout,onboarding}.js` 与 `gateway/layout.js` 引共享契约），而 Dockerfile runtime 阶段从未 `COPY /app/packages`。本地与 e2e 全绿是因为仓库树里有 `packages/`，**只有打包镜像暴露此缺口** |
+| 处置 | ①立即回滚三清单 → `sha-c303424`（`2dd523f`），服务恢复（`/healthz` 200、两部署 1/1）②Dockerfile 补 `COPY --from=builder /app/packages ./packages`（设计原意即「packages/core 由 web 与 server 共用」，非权宜）→ `223a089` |
+| 🛡️ 防线加固（为何 CI 没拦住） | 通用池 `image.yml` 的通用冒烟门带 `SMOKE_MODE=skip`（日志实证 `smoke=skip`），本仓又无 `scripts/ci-smoke.sh`，钩子落空 → **坏镜像直通推送**。新增仓库自有 `scripts/ci-smoke.sh`（池 workflow 优先执行它，**SMOKE_MODE 无法跳过**），四道门：`/api/config` 可达 + `/api/ready` 翻转（dsh 握手）+ 启动日志无 `ERR_MODULE_NOT_FOUND`（打包缺目录类）+ 九个共享契约/新模块文件在盘（把本次故障形态钉死）。重出片日志实证：`smoke: running scripts/ci-smoke.sh` → `/api/config healthy` → `/api/ready healthy` → `smoke: OK — ... shared-core files all verified` |
+| 教训（计入坑册） | ①**新增 server→共享层的运行时 import，必须同步 Dockerfile COPY**——这类缺口本地/单测/e2e 全绿（仓库树有文件），只在镜像里暴露；②**快照必须从已推送的 commit 出**——`fd-build-snapshot` clone 自 remote，未推送的本地提交会被静默漏掉（首次滚产即踩，产出「同 tag 无新码」的假绿）；③**冒烟门是否真跑要看日志里的脚本执行行**，`smoke=skip` 与 `smoke: OK` 是两回事 |
+| 归档 | `2026-10-16-role-system` / `2026-10-16-layout-configuration` / `2026-10-16-intent-onboarding`（spec sync 后归档） |

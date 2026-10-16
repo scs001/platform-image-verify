@@ -429,3 +429,16 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 凭据姿态 | mcpgw 未配静态令牌/M2M = **调用者 bearer 转发**（姿态 A 成立，无管理员视图全透出风险）；`_INTERNAL_INGRESS_RELAY_SERVERS` 硬编码仅放行此一条的进站 Authorization |
 | 剩余（工坊线另两件） | ① 快照回填**已随本修自动完成**（7 工具）；② 「谦面工坊」pack 内容与 facet-market-mcp 第七工具（finddata 侧 change） |
 
+
+### 12.7 工坊线收口：facet-market-mcp 第七工具 + 「谦面工坊」上架（2026-10-16）
+
+| 项 | 值 |
+|---|---|
+| 背景 | creator-pack-forge-support（§12.5）铺了 `POST /api/packs/validate`；本段把 finddata 侧两件做完——市场 MCP 接出该工具 + 创作者 pack 上架 |
+| 工具面 | finddata `facet-ops-mcp` 加 `facet_market_pack_validate`（第 7 个，薄包转发；docstring 写明三条语义纪律：errors 原样转述、caller 必须同呈、建议流程 browse→validate→publish）；surface manifest 同步（marketplane commercial 6→7 + `skills_eligible` 加 `facet-forge-assembly`）；**27 测试 + 双面 selfcheck PASS（13 tools）**；源真 sha `0174f3e` |
+| 出片 | **testaction003/build-pool**（law-ai-official 仅剩 17 min 不够；scs001 无该 images 仓）→ `sha-0a2dba6`；坑：`fd-build-snapshot` 带 `--keep-workflows` 会取消 `/.github` 排除 → 源仓无 `.github` → rsync --delete **把 pool 自己的 image.yml 删掉** → 推了快照无 run。恢复提交即出片 tag（`0a2dba6`）；**不带该 flag 时 --exclude 会保留 pool 的 workflow**（已在 file 头部留纪律注释） |
+| 滚动 | fd-infra-deploy `68eac31` **双清单**（facet-market-mcp + facet-ops-mcp，同镜像双面）→ 双端推 → ArgoCD hard-refresh → 两 deploy rollout 完成；运行时实弹 7 工具（`create_server(Settings(face='market'))` + `list_tools()`） |
+| 快照回填（关键门） | registry 条目 `tool_list` 6→7 + `metadata.surface.commercial_tools` 6→7。**踩坑**：先写成**字符串数组** → Mongo 看着正常但公网 `/api/servers` 返回 `num_tools=0`（`tool_filter._tool_identity` 取 `tool.get("name")`，字符串取不到 → fail-closed 裁空）。改**对象数组** `[{name,description}]`（描述从运行时 `list_tools()` 实取，不手写）后公网回读 7 条 |
+| E2E 实证 | 工坊 manifest 过门：`{"valid":true,"errors":[],"caller":{"publishEligible":true}}`——同时证明 `airegistry-tools`(5 allowTools) 与 `facet-market-mcp`(5) 两处声明都对得上快照 |
+| 上架 | 「谦面工坊」`_B99vDq0CFBNQGvmfy5iSw` v1，作者 aloadtree@gmail.com，public，匿名可见；3 技能（assembly 带 3 个 references 文件 / adaptation / acceptance）+ 双 MCP 收窄 + 铸造师 persona + 三步指南；**真校验器零 error**；files 匿名可读实弹 |
+| 待办（用户侧） | 真对话验收需浏览器：装包后发一条真实铸造请求，确认 `mcp__facet-market-mcp__facet_market_pack_validate` 真被调用（凭据是设备配对产物，不可代持——这正是设计） |

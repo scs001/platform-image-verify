@@ -42,8 +42,12 @@ const declaresTools = (manifest) => declaredToolsByServer(manifest).size > 0;
 
 // True when any skill entry carries an auxiliary file set (add-packaged-skills)
 // — the operator gate's consultation predicate (see the publish route).
+// Shape-tolerant: validate's collect mode reaches it with a manifest whose
+// structural errors were already reported (skills present but not an array).
 const declaresFiles = (manifest) =>
-  (manifest?.skills ?? []).some((s) => s?.files && typeof s.files === "object" && !Array.isArray(s.files) && Object.keys(s.files).length > 0);
+  (Array.isArray(manifest?.skills) ? manifest.skills : []).some(
+    (s) => s?.files && typeof s.files === "object" && !Array.isArray(s.files) && Object.keys(s.files).length > 0,
+  );
 
 // Read projection for the DETAIL view (add-packaged-skills D4): browsing
 // carries a file inventory (sorted relative paths), never the tree's contents
@@ -70,6 +74,70 @@ async function runPublishToolGate(manifest) {
     probe: (endpoint) => probeMcpToolNames(endpoint),
     logger: console,
   });
+}
+
+// ── Publish gates as data (creator-pack-forge-support D1) ───────────────────
+//
+// The publish route's gate sequence — manifest presence, structural limits,
+// the files gate, the tool-declaration gate — collected as ordered verdict
+// items instead of early returns. Publish answers the FIRST item (its status
+// and body are byte-identical to the pre-extraction route); the validate
+// dry-run reports EVERY item so a creator sees all problems in one pass. One
+// collector, so the two faces can never drift apart.
+//
+// Item shape: { stage, status, body } — `body` is exactly the JSON a publish
+// rejection would carry at that gate (wording, `code`, `toolGate` markers).
+// shortCircuit=true (publish) stops at the first failing gate, preserving the
+// documented "invalid attempts cost only a pure-function validation" property
+// — no registry round-trip on a rejection a cheaper gate already explained.
+// shortCircuit=false (validate) collects every gate's verdict in one pass.
+const CREATOR_GROUP_REQUIRED = "Creator group required";
+
+async function collectPublishVerdict(manifest, { shortCircuit = false } = {}) {
+  const items = [];
+  const push = (stage, status, body) => items.push({ stage, status, body });
+  if (!manifest) {
+    push("request", 400, { error: "manifest required" });
+    return items;
+  }
+  const structural = validateManifest(manifest);
+  if (structural.length > 0) {
+    push("structural", 400, { error: "Invalid manifest", errors: structural });
+    if (shortCircuit) return items;
+  }
+  // Operator gate (add-packaged-skills D9): files-bearing publishes stay
+  // refused until PACK_FILES_ENABLED is switched on. Cells running
+  // pre-package validators accept unknown manifest keys silently — without
+  // the gate, such a cell would install a degraded, files-dropped skill.
+  // Read per-request so operations can flip the switch without a restart.
+  if (declaresFiles(manifest) && process.env.PACK_FILES_ENABLED !== "1") {
+    push("files", 400, {
+      error: "Skill packages are not enabled on this market yet (PACK_FILES_ENABLED); publish without auxiliary files or ask the operator to enable them",
+      code: "pack-files-disabled",
+    });
+    if (shortCircuit) return items;
+  }
+  // Tool-declaration gate (add-mcp-tool-scoping D5): registry tool_list
+  // cross-check with one live-probe fallback per server, plus commercial
+  // closure for surface-registered entries. Consulted ONLY when the
+  // manifest declares tool names — a pack without declarations publishes
+  // exactly as before (no registry round-trip at all).
+  // (Both predicates tolerate malformed shapes — validate's collect mode
+  // reaches them with a manifest the structural gate already rejected.)
+  if (declaresTools(manifest)) {
+    let gate;
+    try {
+      gate = await runPublishToolGate(manifest);
+    } catch (err) {
+      // The registry index itself is unreachable: for a DECLARING manifest
+      // that is a fail-closed verdict (the names cannot be verified), never
+      // a silent pass — with the registry back, the publish retried.
+      push("tools", 503, { error: `Tool declarations could not be verified against the registry (${err?.message || err}); retry shortly` });
+      return items;
+    }
+    if (gate.errors.length > 0) push("tools", 400, { error: "Invalid manifest", errors: gate.errors, toolGate: true });
+  }
+  return items;
 }
 
 export function createPackRegistry({ file }) {
@@ -700,6 +768,15 @@ export function registerPackRoutes(app, {
     };
   };
   const publishAllowed = createPublishRateLimiter({ windowMs: rateWindowMs, max: rateMax });
+  // Validate's own budget (creator-pack-forge-support D4): deliberately NOT
+  // the publish limiter — a dry-run must never exhaust publish allowance —
+  // but bounded all the same, because the tool-declaration gate carries one
+  // live probe per server and a looping agent must not turn validation into
+  // a probing amplifier.
+  const validateAllowed = createPublishRateLimiter({
+    windowMs: Number(process.env.PACK_VALIDATE_RATE_WINDOW_MS) > 0 ? Number(process.env.PACK_VALIDATE_RATE_WINDOW_MS) : 60 * 60_000,
+    max: Number(process.env.PACK_VALIDATE_RATE_MAX) > 0 ? Number(process.env.PACK_VALIDATE_RATE_MAX) : 120,
+  });
 
   // ── Fleet scheduler (add-fleet-scheduler) ─────────────────────────────────
   // Env-gated control loop: failover for stale runners + the placement hint
@@ -799,40 +876,16 @@ export function registerPackRoutes(app, {
   app.post("/api/packs", express.json({ limit: jsonLimit }), async (req, res) => {
     const user = auth(req, res);
     if (!user) return;
-    if (!mayPublish(user)) return res.status(403).json({ error: "Creator group required" });
+    if (!mayPublish(user)) return res.status(403).json({ error: CREATOR_GROUP_REQUIRED });
     const manifest = req.body?.manifest;
     const packId = typeof req.body?.packId === "string" ? req.body.packId : null;
-    if (!manifest) return res.status(400).json({ error: "manifest required" });
-    const errors = validateManifest(manifest);
-    if (errors.length > 0) return res.status(400).json({ error: "Invalid manifest", errors });
-    // Operator gate (add-packaged-skills D9): files-bearing publishes stay
-    // refused until PACK_FILES_ENABLED is switched on. Cells running
-    // pre-package validators accept unknown manifest keys silently — without
-    // the gate, such a cell would install a degraded, files-dropped skill.
-    // Read per-request so operations can flip the switch without a restart.
-    if (declaresFiles(manifest) && process.env.PACK_FILES_ENABLED !== "1") {
-      return res.status(400).json({
-        error: "Skill packages are not enabled on this market yet (PACK_FILES_ENABLED); publish without auxiliary files or ask the operator to enable them",
-        code: "pack-files-disabled",
-      });
-    }
-    // Tool-declaration gate (add-mcp-tool-scoping D5): registry tool_list
-    // cross-check with one live-probe fallback per server, plus commercial
-    // closure for surface-registered entries. Consulted ONLY when the
-    // manifest declares tool names — a pack without declarations publishes
-    // exactly as before (no registry round-trip at all).
-    if (declaresTools(manifest)) {
-      let gate;
-      try {
-        gate = await runPublishToolGate(manifest);
-      } catch (err) {
-        // The registry index itself is unreachable: for a DECLARING manifest
-        // that is a fail-closed verdict (the names cannot be verified), never
-        // a silent pass — with the registry back, the publish retried.
-        return res.status(503).json({ error: `Tool declarations could not be verified against the registry (${err?.message || err}); retry shortly` });
-      }
-      if (gate.errors.length > 0) return res.status(400).json({ error: "Invalid manifest", errors: gate.errors, toolGate: true });
-    }
+    // The gate sequence lives in collectPublishVerdict (creator-pack-forge-
+    // support D1): publish answers the FIRST failing gate — status and body
+    // byte-identical to the pre-extraction early returns — while the validate
+    // route reports every item from the same collector. shortCircuit keeps
+    // the pre-existing property that a rejection costs no registry round-trip.
+    const verdict = await collectPublishVerdict(manifest, { shortCircuit: true });
+    if (verdict.length > 0) return res.status(verdict[0].status).json(verdict[0].body);
     // Only publishes that pass validation count against the author's budget —
     // iterating on a manifest must not exhaust it. Invalid attempts store
     // nothing and cost only a pure-function validation.
@@ -843,6 +896,40 @@ export function registerPackRoutes(app, {
     if (result?.error === "not_found") return res.status(404).json({ error: "Pack not found" });
     if (result?.error === "forbidden") return res.status(403).json({ error: "Only the pack author may publish new versions" });
     res.json(result);
+  });
+
+  // Dry-run validation (creator-pack-forge-support): the same gate sequence
+  // publishing runs, reported without publishing. Any authenticated caller
+  // may validate — creator-group eligibility is a caller finding, never a
+  // rejection — and a validation call mints nothing, stores nothing, and
+  // does not consume the publish-rate budget. It has its own limiter instead
+  // (see validateAllowed), because the tool gate's live probe must not
+  // become a probing amplifier.
+  app.post("/api/packs/validate", express.json({ limit: jsonLimit }), async (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    if (!validateAllowed(user.email)) return res.status(429).json({ error: "Too many validation requests, try again later" });
+    const manifest = req.body?.manifest;
+    const packId = typeof req.body?.packId === "string" ? req.body.packId : null;
+    const verdict = await collectPublishVerdict(manifest);
+    // Each item is exactly the reject body publishing would return at that
+    // gate (wording, code, toolGate markers) — no translation layer.
+    const errors = verdict.map((item) => item.body);
+    // Continuation target: the read-only half of publishVersion's checks. A
+    // bad target appends the same wording publish would return (404/403),
+    // and nothing is created or modified for the caller to clean up.
+    if (packId) {
+      const pack = registry.packRowPublic(packId);
+      if (!pack) errors.push({ error: "Pack not found" });
+      else if (pack.author_email !== user.email) errors.push({ error: "Only the pack author may publish new versions" });
+    }
+    res.json({
+      valid: errors.length === 0,
+      errors,
+      caller: mayPublish(user)
+        ? { publishEligible: true }
+        : { publishEligible: false, reason: CREATOR_GROUP_REQUIRED },
+    });
   });
 
   // Browse: paginated, searchable listing of live packs.

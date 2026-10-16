@@ -1759,6 +1759,10 @@
   },
   "fleet": {
     "title": "萬星舰队",
+    "desktopOnly": {
+      "body": "萬星舰队是桌面版专属：它读取的是桌面 App 内嵌运行器（本机舰队）的实时状态，浏览器里没有\"本机\"可读。",
+      "hint": "在桌面 App 中打开壹座，并在 偏好设置 → Wanxing Fleet 启用插件后重启应用即可使用。"
+    },
     "live": {
       "title": "本机舰队",
       "summary": "{{agents}} 个 agents · {{children}} 个运行时进程",

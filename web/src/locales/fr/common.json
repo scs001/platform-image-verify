@@ -1759,6 +1759,10 @@
   },
   "fleet": {
     "title": "Flotte Wanxing",
+    "desktopOnly": {
+      "body": "La console de flotte Wanxing est exclusive à la version bureau : elle lit le runner intégré à l'app bureau (la flotte locale) — un navigateur n'a pas de « machine locale » à lire.",
+      "hint": "Ouvrez Yizuo dans l'app bureau et activez le plugin Wanxing Fleet dans les Préférences, puis redémarrez l'app."
+    },
     "live": {
       "title": "Cette machine",
       "summary": "{{agents}} agents · {{children}} processus",

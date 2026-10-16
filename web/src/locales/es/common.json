@@ -1759,6 +1759,10 @@
   },
   "fleet": {
     "title": "Flota Wanxing",
+    "desktopOnly": {
+      "body": "La consola de flota Wanxing es exclusiva de escritorio: lee el runner integrado en la app de escritorio (la flota local); un navegador no tiene \"máquina local\" que leer.",
+      "hint": "Abre Yizuo en la app de escritorio y activa el complemento Wanxing Fleet en Preferencias, luego reinicia la app."
+    },
     "live": {
       "title": "Esta máquina",
       "summary": "{{agents}} agents · {{children}} procesos",

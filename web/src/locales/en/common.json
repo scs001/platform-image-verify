@@ -1759,6 +1759,10 @@
   },
   "fleet": {
     "title": "Wanxing Fleet",
+    "desktopOnly": {
+      "body": "The Wanxing fleet console is desktop-only: it reads the runner embedded in the desktop app (the local fleet) — a browser has no \"local machine\" to read.",
+      "hint": "Open Yizuo in the desktop app and enable the Wanxing Fleet plugin under Preferences, then restart the app."
+    },
     "live": {
       "title": "This machine",
       "summary": "{{agents}} agents · {{children}} runtime processes",

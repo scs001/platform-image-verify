@@ -11,7 +11,10 @@ TBD - created by archiving change add-desktop-fleet-console. Update Purpose afte
 不新增桌面侧凭据、不直接跨域调用：`GET /api/wanxing/fleet/live` 透传本机 runner
 的 `/health`（runner 地址来自配置，默认本机 ops 端口），`GET
 /api/wanxing/fleet/catalog` 以既有 registry 凭据代理公网 registry 的 a2a 目录。
-两端点 SHALL 走标准 cell 鉴权。
+两端点 SHALL 走标准 cell 鉴权。舰队页与它的导航入口 SHALL 只在 Electron 桌面
+壳内可达（以 preload bridge 的存在为准，`window.platform`）——纯浏览器里导航
+不渲染「萬星舰队」入口，路由直达也落在一个明确的桌面专属说明页，而非两个恒空
+的读区：本机 runner 概念只对桌面进程成立，网页访客没有"本机"。
 
 #### Scenario: runner 运行时舰队页有数据
 
@@ -32,6 +35,16 @@ TBD - created by archiving change add-desktop-fleet-console. Update Purpose afte
 
 - **WHEN** 舰队页目录区渲染
 - **THEN** 部署入口呈禁用态并标注「待设备管理面（切片③）解锁」，不发起任何写请求
+
+#### Scenario: 纯浏览器导航不含舰队入口
+
+- **WHEN** the sidebar renders in a plain browser (no preload bridge)
+- **THEN** no fleet navigation item is present, and no desktop-only page is reachable from the navigation
+
+#### Scenario: 浏览器直达舰队路由落到说明页
+
+- **WHEN** a plain-browser viewer opens `/fleet` directly
+- **THEN** a desktop-only explanation renders in place of the two read zones, and no proxy endpoints are polled
 
 ### Requirement: 托盘驻留生命周期
 

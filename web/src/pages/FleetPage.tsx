@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { IS_DESKTOP } from "@/lib/environment";
 
 interface LiveAgent {
   key: string;
@@ -86,6 +87,10 @@ export function FleetPage() {
   }, []);
 
   useEffect(() => {
+    // Desktop shell only (hide-fleet-nav-on-web): the read zones proxy the
+    // desktop process's own runner — a plain browser has neither, so it never
+    // polls and gets the desktop-only explanation instead of two dead zones.
+    if (!IS_DESKTOP) return;
     void loadLive();
     void loadCatalog();
     const id = setInterval(() => void loadLive(), POLL_MS);
@@ -99,6 +104,20 @@ export function FleetPage() {
       <div className="border-b border-border px-6 py-4">
         <h1 className="text-lg font-semibold">{t("fleet.title")}</h1>
       </div>
+
+      {!IS_DESKTOP && (
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div
+            className="max-w-md rounded-md border border-dashed border-border p-6 text-center text-sm text-muted-foreground space-y-2"
+            data-testid="fleet-desktop-only"
+          >
+            <p>{t("fleet.desktopOnly.body")}</p>
+            <p className="text-xs">{t("fleet.desktopOnly.hint")}</p>
+          </div>
+        </div>
+      )}
+
+      {IS_DESKTOP && (
 
       <div className="flex-1 space-y-6 overflow-auto p-6">
         {/* Local fleet zone */}
@@ -221,6 +240,7 @@ export function FleetPage() {
           <p className="mt-2 text-xs text-muted-foreground">{t("fleet.catalog.deployNote")}</p>
         </section>
       </div>
+      )}
     </div>
   );
 }

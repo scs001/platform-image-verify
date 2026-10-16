@@ -57,6 +57,10 @@ interface Props {
 // Icon is part of a tab's identity and stays fixed across locales — the label
 // translates, the glyph does not. Bots and Trace were demoted from the nav to
 // Settings sections (channels / diagnostics) — simplify-ia-non-technical.
+// The fleet console is a desktop-shell surface (spec desktop-fleet-console,
+// hide-fleet-nav-on-web): its "local fleet" is the Electron process's own
+// runner, which a plain browser has no business showing. Filtered at render,
+// not in the array — the desktop shell keeps the identical list.
 const NAV_BASE = [
   { to: "/chat", key: "nav.chat", testId: "nav-chat", icon: MessageSquare },
   { to: "/knowledge", key: "nav.knowledge", testId: "nav-knowledge", icon: BookOpen },
@@ -75,8 +79,8 @@ const GROUP_PREVIEW = 5;
 
 // The native folder picker exists only inside the Electron shell (exposed via
 // the preload bridge); in a plain browser the path input is the only entry.
-const CAN_PICK_NATIVE =
-  typeof window !== "undefined" && typeof window.platform?.pickWorkdir === "function";
+import { IS_DESKTOP } from "@/lib/environment";
+const CAN_PICK_NATIVE = IS_DESKTOP;
 
 export function Sidebar({ send, onNavigate, onCollapse }: Props) {
   const { t } = useTranslation();
@@ -316,7 +320,7 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
       </div>
 
       <div className="flex flex-col gap-0.5 p-2">
-        {NAV_BASE.map((n) => {
+        {NAV_BASE.filter((n) => IS_DESKTOP || n.to !== "/fleet").map((n) => {
           const Icon = n.icon;
           return (
             <NavLink

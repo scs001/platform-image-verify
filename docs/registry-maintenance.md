@@ -400,3 +400,18 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 新能力 | 部署区每 serving agent 增模型输入（modelWhitelist datalist + 声明默认 placeholder）与回合预算输入（1-120 整数客户端挡提交）；空输入=维持现状三态（既有覆盖→声明→平台默认，升级存续语义对齐，不发 null）；部署请求带 `models`/`budgets`；`MODEL_LANE_REJECTED`/`MODEL_NOT_IN_ROSTER`/503 三分支本地化——**503 窄分支新修**：`billing plane not configured…` 文案会误中 catch 的 `/not configured/i` 把整个部署表单换成自托管引导面板、埋掉真因（专项回归测试钉住） |
 | 验证账 | typecheck/biome/check:locales 绿（12 key×5 locale）；e2e `pack-deploy-config` 3/3（route-mock 线约断言：空输入省略、预算落体、无效挡提交、模型落体+闸拒本地化+503 回归守卫）+相邻回归 23/23（packs/agent-service-config/preset-publish-flow/packaged-skills） |
 | 归档 | `2026-10-16-add-deploy-form-model-budget`（spec sync：pack-marketplace ADDED 部署表单需求 + MODIFIED 部署区副标题，该 capability 17→18 需求后归档） |
+
+### 12.5 v1.3.16 滚产：功集发布预校验 dry-run（creator-pack-forge-support，2026-10-16）
+
+| 项 | 值 |
+|---|---|
+| 生产镜像 | `ccr.../yizuo/platform:sha-c303424`（digest `3631feb2`；snapshot sha ≙ paas `b12ffe0` = d575e39 功能全链 + v1.3.16 bump） |
+| 出片线 | `scs001/platform-image-verify` 公开仓免费线；快照 `432883c` 强推 + `image.yml` 恢复提交 `c303424` 即出片 tag（scrub 老坑第五次照旧，推后立即恢复）；image run `38904625661` 绿 447s，四道烟测门全过（/api/config、agent liveness、dsh contracts、module identity），体积 1.41GB |
+| 构建 | relay 手动补单 `21:09:13 OK yizuo/platform:sha-c303424 (20s)`；skopeo ccr digest `3631feb2` 实证后才 bump（硬门序） |
+| 滚动 | fd-infra-deploy `6ce7d05`（**三清单**：platform.yaml:54 + platform-demo.yaml:71 + **facet.yaml:66**——发布路由跑在 facet 进程，§12.2 坑册的次序教训已内化为常例）→ gitee/github 双推 → ArgoCD hard-refresh（argocd CLI 公网入口超时，改 kubectl patch 发起 sync，phase=Succeeded）→ 三 deploy rollout 全绿 |
+| 实证 | in-pod：`collectPublishVerdict` ×4 引用 + `/api/packs/validate` + `PACK_VALIDATE_RATE_MAX` 在位；facet `/api/health` ok。**生产眼见四例**：① 匿名 validate 401 与 publish **逐字节同形**（含 `loginUrl`）② 创作者身份 200 `{valid:true,errors:[],caller:{publishEligible:true}}` ③ 非创作者 200 `valid:true` + `caller:{publishEligible:false,reason:"Creator group required"}` ④ **parity 对拍**：同一非法 manifest 上 publish 400 body 与 validate `errors[0]` 逐字节相同 |
+| 新能力 | `POST /api/packs/validate` dry-run：任何登录用户可调；信封体 `{valid,errors[],caller}`；errors 为**全量收集**（publish 早退，validate 一次给全）；每项即 publish 对应拒绝响应的完整体（code/toolGate 标记保留）；零副作用（不铸 id/版本、不落库、不耗发布预算）；独立限流桶（`PACK_VALIDATE_RATE_MAX`，默认 120/h）。门序列收敛为单一纯读收集器 `collectPublishVerdict`，publish 传 `shortCircuit:true` 保住"拒绝路径零 registry 往返"性质 |
+| 实施期修 | 顺手修 `lib/publish-tool-gate.js:106` 既有日志 bug：`missing.length - stillMissing` 漏 `.length`，"N name(s) confirmed by live probe" 注记**一直为 NaN**（只影响注记文本，不影响判词） |
+| 验证账 | 全量单测 **1494/1494**；相邻 packs 14 套 117 项；新测试 `test-pack-validate.mjs` 8 项（parity 语料双端对拍 8 例 + 全量收集 + 副作用 + 独立限流 + 匿名 401 + registry 503 fail-closed）；openspec validate 绿；biome 干净 |
+| 边界 | 出片**只交路由**——validate 是给创作者 pack（finddata 侧「谦面工坊」独立 change）用的地基，本滚不改变任何既有生产行为（新路由 + publish 内部等价重构）。工坊 pack 发布前另有 infra 第零步（airegistry-tools 路由修复 + 快照回填 + mcpgw 凭据姿态） |
+| 归档 | `2026-10-16-creator-pack-forge-support`（spec sync：pack-marketplace ADDED「不发布即可校验」+ tool-discovery 补澄清 Scenario 后归档） |

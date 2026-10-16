@@ -122,3 +122,9 @@ Tool discovery SHALL cover only tools already available through the platform's e
 
 - **WHEN** the agent searches for or receives candidates from effective-tool discovery
 - **THEN** no marketplace entry, extension record, MCP patch, credential, or runtime profile SHALL be modified
+
+#### Scenario: An explicitly installed pack may reference the registry discovery server
+
+- **WHEN** a user installs a pack whose manifest references `airegistry-tools` through the normal pack installation flow
+- **THEN** that server and its tools become effective for that user through the pack, as with any other referenced server
+- **AND** the effective-tool discovery layer itself still does not search, mount, install, or auto-enable `airegistry-tools` for users who have not installed such a pack, and no chat-driven marketplace discovery flow is created

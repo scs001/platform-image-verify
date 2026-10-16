@@ -25,8 +25,8 @@
 
 - [x] 5.1 全量单测 + 相邻 packs 路由回归（14 套 117 项绿；全量 `npm run test:unit` 结果另记）
 - [x] 5.2 `openspec validate` 绿 + design.md 回写实施期细化（shortCircuit / packId 顺序 / 形状容错 / NaN 修正）
-- [ ] 5.3 出片滚产（`fd-build-channel` 判路 → GHA `image.yml` → hkccr → relay → ccr → ArgoCD），验证：facet 新 sha 就绪、`/api/ready` 200
-- [ ] 5.4 生产眼见三例：匿名 401、创作者账号 200 信封 `valid:true`、非创作者账号 200 + `publishEligible:false`，验证：curl 证据记入台账 `docs/registry-maintenance.md` §9
+- [x] 5.3 出片滚产（`fd-build-channel` 判路 → 公开仓免费线 → hkccr → relay → ccr → ArgoCD），验证：image run `38904625661` 绿 447s（四道烟测门）、relay OK 21:09:13、skopeo ccr digest `3631feb2` 实证、fd-infra-deploy `6ce7d05` 三清单（platform/platform-demo/**facet**）rollout 全绿
+- [x] 5.4 生产眼见四例：匿名 401（与 publish 逐字节同形）、创作者 200 信封 `valid:true`、非创作者 200 + `publishEligible:false`、**parity 对拍**（非法 manifest 上 publish 400 body === validate `errors[0]`），验证：证据记入台账 `docs/registry-maintenance.md` §12.5
 - [ ] 5.5 向 finddata 侧成对 change（facet-market-mcp `market_pack_validate` 工具 + 「谦面工坊」pack）交接路由契约（信封形状、`reason` 原文、全量收集语义、独立限流），验证：对端 change 的 design 引用本契约
 
 ## 边界与前置（非本 change 任务，记录备查）

@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useChatStore } from "@platform/core";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import { AGENTS_TAB_SURFACES } from "@platform/core";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { CustomPresetsPage } from "@/pages/CustomPresetsPage";
@@ -25,10 +26,19 @@ import type { AgentInfo, AppInfo } from "@platform/core";
 
 type Tab = "agents" | "market" | "apps";
 
+// The tab label keys live client-side (the registry carries slugs/testids —
+// labels are presentation). One map, so a new tab cannot land with a missing
+// label silently.
+const TAB_LABEL_KEYS: Record<string, string> = {
+  agents: "agentsPage.agents",
+  market: "agentsPage.market",
+  apps: "agentsPage.apps",
+};
+
 export function AgentsPage() {
   const { t } = useTranslation();
   const catalogVersion = useChatStore((s) => s.catalogVersion);
-  const { packMarketplace } = useAppConfig();
+  const { packMarketplace, resolvedLayout } = useAppConfig();
   const [agents, setAgents] = useState<AgentInfo[]>([]);
   const [apps, setApps] = useState<AppInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -36,16 +46,35 @@ export function AgentsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // ?tab=apps|market|agents; default to "agents" when missing or unknown.
-  // The Market tab only exists on marketplace deployments — a deep link to
-  // ?tab=market elsewhere falls back to Experts.
+  // The tab set comes from the server-resolved layout (layout-configuration);
+  // without it (older server) the client falls back to the factory set with
+  // its own marketplace gate — the pre-change behavior exactly.
+  const visibleTabs = useMemo(() => {
+    const resolved = resolvedLayout?.agentsTabs;
+    if (!resolved) {
+      return AGENTS_TAB_SURFACES.filter((s) => !s.predicates?.packMarketplace || packMarketplace).map((s) => ({
+        slug: s.slug,
+        testId: s.testId,
+        labelKey: TAB_LABEL_KEYS[s.slug]!,
+      }));
+    }
+    const byRegistry = new Map(AGENTS_TAB_SURFACES.map((e) => [e.slug, e]));
+    const kept = resolved
+      .map((slug) => byRegistry.get(slug))
+      .filter((e): e is (typeof AGENTS_TAB_SURFACES)[number] => Boolean(e));
+    // Belt and braces: the server already applied the predicate, but a stale
+    // resolvedLayout must never surface the market on a market-less deployment.
+    return kept
+      .filter((s) => !s.predicates?.packMarketplace || packMarketplace)
+      .map((s) => ({ slug: s.slug, testId: s.testId, labelKey: TAB_LABEL_KEYS[s.slug]! }));
+  }, [resolvedLayout, packMarketplace]);
+
+  // ?tab=apps|market|agents; the requested tab stands only while it is visible,
+  // otherwise the first visible tab wins (layout-configuration: a hidden tab's
+  // deep link falls back rather than erroring).
   const tabParam = searchParams.get("tab");
   const activeTab: Tab =
-    tabParam === "apps"
-      ? "apps"
-      : tabParam === "market" && packMarketplace
-        ? "market"
-        : "agents";
+    tabParam && visibleTabs.some((tab) => tab.slug === tabParam) ? (tabParam as Tab) : ((visibleTabs[0]?.slug ?? "agents") as Tab);
 
   // catalogVersion bumps on `catalog_changed` — refetch so cloud edits show up live.
   const refresh = useCallback(async () => {

@@ -6,7 +6,7 @@ import * as chatHistory from "../chat-history.js";
 import * as cron from "../cron.js";
 import * as catalog from "../catalog.js";
 import * as skills from "./skills.js";
-import { userFromHeaders, mpUserFromToken, normalizeSsoEmail } from "./auth.js";
+import { userFromHeaders, mpUserFromToken, normalizeSsoEmail, withRoles } from "./auth.js";
 
 // Identity for a WS upgrade, logto mode: the browser's session cookie first,
 // then the mini program's platform Bearer token (openspec:
@@ -232,7 +232,9 @@ const syncReadyClient = async (ws) => {
 
 ctx.wss.on("connection", (ws, req) => {
   // Identity is fixed at upgrade time (v1 ceiling: no re-auth mid-connection).
-  ws.user = userForConnection(ctx, req);
+  // Business roles ride the same fixed identity (role-system): assignment is
+  // resolved once here, from the gateway's signed headers or the local store.
+  ws.user = withRoles(ctx, userForConnection(ctx, req));
   // The optional-SSO overlay's identity is normalized like req.ssoUser (auth
   // boundary, server/auth.js): personal bindings key on the lowercase form.
   ws.identity = ctx.authEnabled

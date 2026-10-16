@@ -33,15 +33,18 @@ import {
   Search,
   Settings,
   Ship,
+  SlidersHorizontal,
   Sparkles,
   X,
 } from "lucide-react";
 import { useChatStore } from "@platform/core";
 import type { ClientMessage, SessionMeta } from "@platform/core";
+import { NAV_SURFACES, FACTORY_PRESETS, FACTORY_PRESET_SLUG, registryFor } from "@platform/core";
 import { cn } from "@/lib/utils";
 import { getLastSeen, markSessionSeen, isSessionUnseen } from "@/lib/unread";
 import { ChatSessionMenu } from "@/components/ChatSessionMenu";
-import { useBranding } from "@/hooks/useAppConfig";
+import { WorkbenchPanel } from "@/components/WorkbenchPanel";
+import { useAppConfig, useBranding } from "@/hooks/useAppConfig";
 import { settingsPath } from "@/components/settings/sections";
 
 interface Props {
@@ -54,22 +57,23 @@ interface Props {
   onCollapse?: () => void;
 }
 
-// Icon is part of a tab's identity and stays fixed across locales — the label
-// translates, the glyph does not. Bots and Trace were demoted from the nav to
-// Settings sections (channels / diagnostics) — simplify-ia-non-technical.
-// The fleet console is a desktop-shell surface (spec desktop-fleet-console,
-// hide-fleet-nav-on-web): its "local fleet" is the Electron process's own
-// runner, which a plain browser has no business showing. Filtered at render,
-// not in the array — the desktop shell keeps the identical list.
-const NAV_BASE = [
-  { to: "/chat", key: "nav.chat", testId: "nav-chat", icon: MessageSquare },
-  { to: "/knowledge", key: "nav.knowledge", testId: "nav-knowledge", icon: BookOpen },
-  { to: "/resources", key: "nav.resources", testId: "nav-resources", icon: FolderOpen },
-  { to: "/agents", key: "nav.agents", testId: "nav-agents", icon: Sparkles },
-  { to: "/apps", key: "nav.apps", testId: "nav-apps", icon: LayoutGrid },
-  { to: "/tasks", key: "nav.tasks", testId: "nav-tasks", icon: Clock },
-  { to: "/fleet", key: "nav.fleet", testId: "nav-fleet", icon: Ship },
-];
+// Icons are presentation and stay in the client (the registry carries slugs,
+// i18n keys and testids — the server never needs a glyph). A nav slug the
+// registry knows but this map lacks renders without an icon rather than
+// dropping the tab.
+const NAV_ICONS: Record<string, typeof MessageSquare> = {
+  chat: MessageSquare,
+  knowledge: BookOpen,
+  resources: FolderOpen,
+  agents: Sparkles,
+  apps: LayoutGrid,
+  tasks: Clock,
+  fleet: Ship,
+};
+
+// Route for a nav slug (the registry slug IS the route segment — the R1
+// "slug is public API" rule).
+const navRoute = (slug: string) => `/${slug}`;
 
 // Sessions whose workspace stamp is missing (rows written before the
 // capability) group under this sentinel key.
@@ -86,6 +90,25 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
   const { t } = useTranslation();
   // The deployment's own name (ASSISTANT_NAME) wins over the localized default.
   const { brand } = useBranding();
+  const { resolvedLayout } = useAppConfig();
+  // The nav renders from the server-resolved layout (layout-configuration).
+  // A server that predates the field (null) falls back to the factory snapshot
+  // — byte-identical to the pre-change hardcoded list. The desktop-only
+  // predicate stays client-side: only this shell knows it is the shell.
+  const visibleNav = useMemo(() => {
+    const slugs = resolvedLayout?.nav ?? FACTORY_PRESETS[FACTORY_PRESET_SLUG]!.nav!;
+    const byRegistry = new Map(registryFor("nav").map((e) => [e.slug, e]));
+    return slugs
+      .map((slug) => byRegistry.get(slug))
+      .filter((e): e is (typeof NAV_SURFACES)[number] => Boolean(e))
+      .filter((e) => !e.predicates?.desktopOnly || IS_DESKTOP)
+      .map((e) => ({
+        to: navRoute(e.slug),
+        key: e.i18nKey,
+        testId: e.testId,
+        icon: NAV_ICONS[e.slug],
+      }));
+  }, [resolvedLayout]);
   const status = useChatStore((s) => s.status);
   const sessions = useChatStore((s) => s.sessions);
   const currentSessionId = useChatStore((s) => s.currentSessionId);
@@ -95,6 +118,9 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
   const catalogVersion = useChatStore((s) => s.catalogVersion);
   const navigate = useNavigate();
   const location = useLocation();
+  // Workbench customization drawer (layout-configuration): the user's own
+  // visibility/order adjustments on top of what the layers above left.
+  const [workbenchOpen, setWorkbenchOpen] = useState(false);
 
   // Right-click context menu on session rows: one trigger ref per row, one
   // popover anchored to the row that fired it.
@@ -301,7 +327,14 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
   };
 
   return (
-    <nav className="flex h-screen flex-col border-r border-border bg-card" data-testid="sidebar">
+    <nav className="relative flex h-screen flex-col border-r border-border bg-card" data-testid="sidebar">
+      {/* Workbench customization drawer: floats over the nav column, so the
+          user sees the effect of a change behind it. */}
+      {workbenchOpen && (
+        <div className="absolute inset-y-0 left-0 z-20 w-full overflow-y-auto border-r border-border bg-card shadow-lg">
+          <WorkbenchPanel onClose={() => setWorkbenchOpen(false)} />
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2 border-b border-border p-4">
         <div className="text-base font-semibold">{t("sidebar.brand", { brand })}</div>
         {onCollapse && (
@@ -320,7 +353,7 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
       </div>
 
       <div className="flex flex-col gap-0.5 p-2">
-        {NAV_BASE.filter((n) => IS_DESKTOP || n.to !== "/fleet").map((n) => {
+        {visibleNav.map((n) => {
           const Icon = n.icon;
           return (
             <NavLink
@@ -336,7 +369,7 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
                 )
               }
             >
-              <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {Icon ? <Icon className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
               {t(n.key)}
             </NavLink>
           );
@@ -672,19 +705,31 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
         data-testid="sidebar-footer"
       >
         <StatusRow status={status} />
-        <button
-          type="button"
-          onClick={() => {
-            navigate(settingsPath("general"), { state: { backgroundLocation: location } });
-            onNavigate?.();
-          }}
-          aria-label={t("settings.title")}
-          title={t("settings.title")}
-          data-testid="settings-btn"
-          className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <Settings className="h-4 w-4" />
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setWorkbenchOpen(true)}
+            aria-label={t("settings.layout.workbenchTitle")}
+            title={t("settings.layout.workbenchTitle")}
+            data-testid="workbench-btn"
+            className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              navigate(settingsPath("general"), { state: { backgroundLocation: location } });
+              onNavigate?.();
+            }}
+            aria-label={t("settings.title")}
+            title={t("settings.title")}
+            data-testid="settings-btn"
+            className="shrink-0 rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <Settings className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </nav>
   );

@@ -15,6 +15,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
 import { DEFAULT_SECTION, SETTINGS_SECTIONS, propsForSlug, sectionMatchesSlug, settingsPath } from "./sections";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import { useAuthStore } from "@/hooks/useAuth";
 import { cn } from "@/lib/utils";
 
@@ -31,19 +32,30 @@ export function SettingsDialog({ backgroundPath }: { backgroundPath: string }) {
   // The element focused before the modal opened, restored on close.
   const returnFocusRef = useRef<Element | null>(null);
   const auth = useAuthStore();
+  const appConfig = useAppConfig();
 
-  // Auth-on: admin-only sections (branding) are hidden from non-admins, and
-  // deep links to them fall through to the first visible section. Auth-off:
-  // every section shows (the server routes are open then too). The group
-  // names are deployment-configured (ADMIN_GROUPS; e.g. a Logto org role
-  // named platform-admin), reported by /api/auth/me.
+  // Auth-on: admin-only sections (branding, user roles) are hidden from
+  // non-admins, and deep links to them fall through to the first visible
+  // section. Auth-off: every section shows (the server routes are open then
+  // too). The composed answer comes from the server (`isAdmin`, which folds in
+  // the stored role flag alongside ADMIN_GROUPS); the local group check is the
+  // fallback for older servers that do not report the field.
   const authOn = auth.mode !== null && auth.mode !== "none";
   const adminGroups = auth.adminGroups ?? ["admin"];
-  const isAdmin = Boolean(auth.groups?.some?.((g) => adminGroups.includes(g)));
-  const sections = useMemo(
-    () => SETTINGS_SECTIONS.filter((s) => !s.adminOnly || !authOn || isAdmin),
-    [authOn, isAdmin],
-  );
+  const isAdmin =
+    auth.isAdmin ?? Boolean(auth.groups?.some?.((g) => adminGroups.includes(g)));
+  // The section list the server resolved (layout-configuration) is the
+  // primary filter — it already folded in the deployment/role/user layers and
+  // the admin + marketplace facts. Without it (older server) the local
+  // adminOnly check stands, unchanged from before.
+  const sections = useMemo(() => {
+    const resolved = appConfig.resolvedLayout?.settings;
+    if (!resolved) return SETTINGS_SECTIONS.filter((s) => !s.adminOnly || !authOn || isAdmin);
+    const bySlug = new Map(SETTINGS_SECTIONS.map((s) => [s.slug, s]));
+    return resolved
+      .map((slug) => bySlug.get(slug))
+      .filter((s): s is (typeof SETTINGS_SECTIONS)[number] => Boolean(s));
+  }, [appConfig.resolvedLayout, authOn, isAdmin]);
   // The registry always contains at least the General section, so the chain
   // resolves; the bang keeps TS from narrowing through two runtime fallbacks.
   // Alias slugs (the merged Tools & Skills section) match their section too.

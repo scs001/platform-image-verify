@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 import { Database, Sparkles, Search, PenLine, Wand2, type LucideIcon } from "lucide-react";
 import { useChatStore } from "@platform/core";
 import { AgentPresetPicker } from "@/components/AgentPresetPicker";
+import { IntentOnboarding } from "@/components/IntentOnboarding";
 import { LocalFileButton } from "@/components/preview/LocalFileButton";
 import { promptsFor } from "@/lib/packGuides";
 import type { ClientMessage } from "@platform/core";
@@ -111,6 +112,11 @@ export function ChatWelcome({ onPrefill, send }: Props) {
         <h1 className="text-2xl font-semibold text-foreground">
           {t("chat.welcome.greeting")}
         </h1>
+
+        {/* Intent questionnaire (intent-onboarding): renders only for a user
+            whose profile is empty and unskipped — the server decides. The
+            composer below stays usable throughout. */}
+        <IntentOnboarding />
 
         {/* Agent-mode picker (blank sessions only — this whole surface only
             renders when there are no turns). Empty roster renders nothing. */}

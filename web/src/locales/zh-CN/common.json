@@ -756,7 +756,9 @@
       "packs": "功能集",
       "presets": "自建预设",
       "devices": "已配对设备",
-      "websearch": "网络搜索"
+      "websearch": "网络搜索",
+      "roles": "用户角色",
+      "layout": "工作面布局"
     },
     "groups": {
       "basics": "常规",
@@ -893,6 +895,37 @@
         "unreachable": "服务不可达",
         "invalid-url": "请先填写有效的 http(s) 地址"
       }
+    },
+    "roles": {
+      "intro": "为每位用户指定业务角色。主角色决定其工作面布局与默认专家；管理员标志与业务角色相互独立。",
+      "loading": "加载中…",
+      "empty": "暂无用户。用户首次访问后会出现在这里。",
+      "primaryLabel": "主角色",
+      "adminLabel": "管理员"
+    },
+    "layout": {
+      "intro": "选择部署默认布局与各业务角色的布局，并为所有人隐藏页面。被隐藏的页面仅入口消失——路由仍可直达。",
+      "defaultPreset": "部署默认预设",
+      "defaultPresetHint": "应用于没有角色专属预设的所有用户。",
+      "presets": {
+        "standard-snapshot": "标准（当前布局）",
+        "simple": "简洁（聚焦工作面）"
+      },
+      "rolePresets": "按角色指定预设",
+      "rolePresetsHint": "角色预设在其用户范围内收窄部署默认。「跟随默认」保持默认不变。",
+      "roleInherit": "跟随默认",
+      "hiddenSurfaces": "对所有人隐藏",
+      "hiddenSurfacesHint": "终局设置：任何用户都无法为自身重新开启。",
+      "groupNav": "导航",
+      "groupSettings": "设置分节",
+      "groupAgentsTabs": "智能体页签",
+      "loading": "加载中…",
+      "workbenchTitle": "定制工作面",
+      "workbenchHint": "隐藏或调整你可用的页面顺序，仅影响你自己的账号。",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "hide": "隐藏",
+      "restore": "恢复继承布局"
     }
   },
   "bindings": {
@@ -1643,24 +1676,26 @@
     "logout": "退出登录"
   },
   "onboarding": {
-    "tour": {
-      "step1": {
-        "title": "选一位专家",
-        "body": "点上方选择框，挑一个懂行的角色。更多专家在「智能体」页，行业方案里装。"
-      },
-      "step2": {
-        "title": "直接说需求",
-        "body": "像给同事派活一样把需求打进来；文件可以直接拖进输入框。"
-      },
-      "step3": {
-        "title": "来看成果",
-        "body": "智能体做出的图表和文件会自动存进侧边的「成果」，随时回来取。"
-      },
-      "next": "下一步",
-      "finish": "完成",
-      "skip": "跳过引导",
-      "stepLabel": "第 {{n}} 步 / 共 3 步"
-    }
+    "title": "你主要用它做什么？",
+    "subtitle": "选择与你的工作相符的领域（最多三个）。我们会据此配置工作面、助手与工具——随时可以改。",
+    "noteLabel": "有具体想做的事吗？（可选）",
+    "notePlaceholder": "例如：审查供应商合同",
+    "submit": "为我配置好",
+    "skip": "暂时跳过",
+    "readyTitle": "准备好为你配置「{role}」",
+    "planPack": "安装 {name}",
+    "planAlready": "已安装",
+    "planExpert": "选定默认助手",
+    "planLayout": "调整工作面布局",
+    "degradedNote": "本部署当前部分内容不可用——其余照常配置。",
+    "activate": "启用",
+    "doneTitle": "配置完成",
+    "doneExpert": "助手已就绪，直接开始对话吧。",
+    "doneGeneric": "工作面已就绪。",
+    "doneClose": "关闭",
+    "reopenTitle": "工作领域",
+    "reopenHint": "更换你的工作领域——只会新增资源，不会卸载已装的内容。",
+    "reopen": "重新选择领域"
   },
   "mcp": {
     "narrative": {
@@ -1799,5 +1834,29 @@
         "unreachable": "目录服务暂不可达"
       }
     }
+  },
+  "roles": {
+    "slug": {
+      "legal": "法律人员",
+      "economic": "经济分析",
+      "financial": "金融分析",
+      "stock": "股票分析",
+      "screenplay": "剧本创作",
+      "paper": "论文写作",
+      "technical": "技术用户",
+      "standard": "标准用户"
+    },
+    "note": {
+      "legal": "律师与法务人员",
+      "economic": "经济分析人员",
+      "financial": "金融分析人员",
+      "stock": "股票研究人员",
+      "screenplay": "剧本创作者",
+      "paper": "论文写作者",
+      "technical": "技术用户",
+      "standard": "其他所有用户（默认）"
+    },
+    "admin": "管理员",
+    "panelTitle": "业务角色"
   }
 }

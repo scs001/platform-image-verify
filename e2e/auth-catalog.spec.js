@@ -28,6 +28,10 @@ test.describe("default AUTH_MODE (auth off)", () => {
       groups: null,
       authenticated: false,
       adminGroups: ["admin"],
+      // role-system: the composed admin answer and the viewer's roles ride
+      // this introspection route; auth off has no identity for either.
+      isAdmin: false,
+      roles: null,
       loginUrl: "/oauth2/start",
       logoutUrl: "/oauth2/sign_out",
       ssoConfigured: false,
@@ -247,6 +251,8 @@ test.describe("AUTH_MODE=forward_auth", () => {
       groups: null,
       authenticated: false,
       adminGroups: ["admin"],
+      isAdmin: false,
+      roles: null,
       loginUrl: "/oauth2/start",
       logoutUrl: "/oauth2/sign_out",
       // Optional SSO is a mode-none-only overlay; under forward_auth it stays off.
@@ -272,6 +278,10 @@ test.describe("AUTH_MODE=forward_auth", () => {
       groups: ["admin"],
       authenticated: true,
       adminGroups: ["admin"],
+      // The identity carries no role headers and the store is empty: the
+      // standard fallback, admin via the group path.
+      isAdmin: true,
+      roles: { primary: "standard", secondary: [] },
       loginUrl: "/oauth2/start",
       logoutUrl: "/oauth2/sign_out",
       ssoConfigured: false,

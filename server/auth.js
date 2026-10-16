@@ -11,6 +11,13 @@
 
 import { timingSafeEqual } from "node:crypto";
 import { noteOwnerGroups } from "./owner-groups.js";
+import { LAYOUT_HEADER } from "./layout.js";
+import {
+  admissionView,
+  composeAdmin,
+  parseRoleHeaders,
+  resolveAssignment,
+} from "./roles.js";
 
 // Paths exempt from the identity requirement, because the caller is an
 // external service that cannot supply the proxy header. Each exempt path MUST
@@ -147,7 +154,29 @@ export function userFromHeaders(headers, trust) {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  return { email, groups };
+  // Business-role assignment (role-system) rides the SAME trust boundary: the
+  // secret check above gates the identity pair, so the role headers are only
+  // read after it passes. Carried only when present, so an identity arriving
+  // without role headers keeps the exact pre-role-system shape. The deployment
+  // layout layer (layout-configuration) travels the same way.
+  const gatewayAssignment = parseRoleHeaders(headers);
+  const gatewayLayout = parseLayoutHeader(headers);
+  const identity = gatewayAssignment ? { email, groups, gatewayAssignment } : { email, groups };
+  return gatewayLayout ? { ...identity, gatewayLayout } : identity;
+}
+
+// The deployment layout layer the gateway stamped (layout-configuration). Raw
+// JSON — the cell parses it with the shared validator, so a malformed value
+// degrades to "no header" rather than poisoning resolution.
+export function parseLayoutHeader(headers) {
+  const raw = headers?.[LAYOUT_HEADER];
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 // Mini-program platform token (openspec: miniprogram-auth) — the gateway's
@@ -161,6 +190,37 @@ export function mpUserFromToken(ctx, req) {
   const payload = ctx.mpAuth?.verifyToken(auth.slice(7));
   if (!payload) return null;
   return { email: payload.email, groups: payload.groups ?? [], mp: true };
+}
+
+// Attach the business-role assignment to an identity at the point it enters
+// the request (role-system). The assignment source is the gateway's signed
+// header when present, else the cell's local store / env seed; the `standard`
+// fallback keeps a deployment without any role data byte-identical to before.
+// Attach the business-role assignment to an identity at the point it enters
+// the request (role-system). The assignment source is the gateway's signed
+// header when present, else the cell's local store / env seed; the `standard`
+// fallback keeps a deployment without any role data byte-identical to before.
+// Exported for the WS connection path, which resolves identity itself.
+export function withRoles(ctx, user) {
+  if (!user) return user;
+  const assignment = resolveAssignment({
+    user,
+    gatewayAssignment: user.gatewayAssignment ?? null,
+    db: ctx.db ?? null,
+    env: process.env,
+  });
+  const { gatewayAssignment: _drop, ...identity } = user;
+  const withRolesUser = {
+    ...identity,
+    roles: { primary: assignment.primary, secondary: assignment.secondary },
+    roleAdmin: assignment.admin === true,
+    roleSource: assignment.source,
+  };
+  // Admission view (role-system D4): identity groups win when present; with
+  // none, the roles' mapped groups stand in. Every existing visibility filter
+  // reads `user.groups`, so substituting here is what grants role-mapped
+  // admission without touching each filter.
+  return admissionView(withRolesUser);
 }
 
 // Install the HTTP auth gate. forward_auth trusts proxy-injected identity;
@@ -188,7 +248,7 @@ export function registerAuth(ctx) {  ctx.app.use((req, res, next) => {
       // cookie first (parity with the gateway's resolveUser), token fallback.
       if (isLogtoPublicRequest(req) || isExempt(req.path)) {
         const user = ctx.logtoAuth?.authenticate(req, res) || mpUserFromToken(ctx, req);
-        if (user) req.user = user;
+        if (user) req.user = withRoles(ctx, user);
         return next();
       }
       const user = ctx.logtoAuth?.authenticate(req, res) || mpUserFromToken(ctx, req);
@@ -197,17 +257,17 @@ export function registerAuth(ctx) {  ctx.app.use((req, res, next) => {
         if (req.accepts("html")) return res.redirect("/login");
         return res.status(401).json({ error: "Authentication required" });
       }
-      req.user = user;
+      req.user = withRoles(ctx, user);
       return next();
     }
 
     if (ctx.authEnabled) {
       if (isPublicRequest(req) || isExempt(req.path)) {
-        if (headerUser) req.user = headerUser;
+        if (headerUser) req.user = withRoles(ctx, headerUser);
         return next();
       }
       if (!headerUser) return res.status(401).json({ error: "Authentication required" });
-      req.user = headerUser;
+      req.user = withRoles(ctx, headerUser);
       return next();
     }
     // Optional SSO is an identity overlay only. It never turns auth off into
@@ -229,8 +289,15 @@ export function registerAuth(ctx) {  ctx.app.use((req, res, next) => {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+  // Admin composition (role-system D3): the stored/header admin flag OR the
+  // admin group — the group path is preserved verbatim, so a deployment that
+  // never touches the role store answers exactly as before.
   ctx.isAdminUser = (user) =>
-    Array.isArray(user?.groups) && ctx.adminGroups.some((g) => user.groups.includes(g));
+    composeAdmin({
+      assignment: user?.roleAdmin === true ? { admin: true } : null,
+      user,
+      adminGroups: ctx.adminGroups,
+    });
 
   ctx.requireAdmin = (req, res) => {
     if (ctx.authEnabled && !ctx.isAdminUser(req.user)) {

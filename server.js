@@ -308,6 +308,24 @@ if (process.env.PACK_MARKETPLACE === "1") {
   ctx.localPackMarket = {
     getVersion: (packId, version, viewer) =>
       packRegistry.getVersionVisible(packId, version, viewer, { admin: false }),
+    // Latest-version lookup for server-driven installs (intent-onboarding): the
+    // provisioning action names a pack from the recipe, not a version. Composed
+    // from the same registry primitives the market detail route uses, so
+    // visibility (private ⇒ owner/admin only) answers identically.
+    getLatest: (packId, viewer) => {
+      const row = packRegistry.packRowPublic?.(packId);
+      if (!row) return null;
+      const subscriber = Boolean(viewer?.email && packRegistry.subscription?.(viewer.email, packId));
+      const visible = packRegistry.visibleTo?.(
+        { visibility: row.visibility, author_email: row.author_email },
+        viewer,
+        { admin: false },
+      );
+      if (!visible && !subscriber) return null;
+      const detail = packRegistry.get?.(packId, { includeUnlisted: subscriber });
+      if (!detail?.version || !detail?.manifest) return null;
+      return { version: detail.version, manifest: detail.manifest };
+    },
   };
 }
 registerStaticAndFallback(ctx);

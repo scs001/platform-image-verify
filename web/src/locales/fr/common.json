@@ -756,7 +756,9 @@
       "packs": "Packs",
       "presets": "Préréglages perso",
       "devices": "Appareils appariés",
-      "websearch": "Recherche web"
+      "websearch": "Recherche web",
+      "roles": "Rôles utilisateur",
+      "layout": "Disposition de l'espace"
     },
     "groups": {
       "basics": "Général",
@@ -893,6 +895,37 @@
         "unreachable": "Service injoignable",
         "invalid-url": "Saisissez d'abord une URL http(s) valide"
       }
+    },
+    "roles": {
+      "intro": "Attribuez à chaque utilisateur un rôle métier. Le rôle principal détermine sa disposition et son expert par défaut ; le statut d'administrateur est indépendant des rôles métier.",
+      "loading": "Chargement…",
+      "empty": "Aucun utilisateur pour l'instant. Ils apparaîtront ici après leur première visite.",
+      "primaryLabel": "Rôle principal",
+      "adminLabel": "Administrateur"
+    },
+    "layout": {
+      "intro": "Choisissez la disposition par défaut du déploiement et les dispositions par rôle, et masquez des surfaces pour tous. Les surfaces masquées restent accessibles par leur route ; seule l'entrée disparaît.",
+      "defaultPreset": "Préréglage par défaut du déploiement",
+      "defaultPresetHint": "S'applique à tout utilisateur sans préréglage de rôle.",
+      "presets": {
+        "standard-snapshot": "Standard (disposition actuelle)",
+        "simple": "Simple (surfaces de travail ciblées)"
+      },
+      "rolePresets": "Préréglages par rôle",
+      "rolePresetsHint": "Le préréglage d'un rôle restreint le défaut pour ses utilisateurs. « Hériter » conserve le défaut.",
+      "roleInherit": "Hériter",
+      "hiddenSurfaces": "Masquées pour tous",
+      "hiddenSurfacesHint": "Définitif : aucun utilisateur ne peut les réactiver pour lui-même.",
+      "groupNav": "Navigation",
+      "groupSettings": "Sections des réglages",
+      "groupAgentsTabs": "Onglets des agents",
+      "loading": "Chargement…",
+      "workbenchTitle": "Personnaliser l'espace",
+      "workbenchHint": "Masquez ou réordonnez les surfaces disponibles pour vous. Cela n'affecte que votre compte.",
+      "moveUp": "Monter",
+      "moveDown": "Descendre",
+      "hide": "Masquer",
+      "restore": "Restaurer la disposition héritée"
     }
   },
   "bindings": {
@@ -1643,24 +1676,26 @@
     "logout": "Se déconnecter"
   },
   "onboarding": {
-    "tour": {
-      "step1": {
-        "title": "Choisissez un expert",
-        "body": "Ouvrez le sélecteur ci-dessus et choisissez un rôle qui connaît votre métier. D’autres experts se trouvent dans la page Agents et dans les packs sectoriels."
-      },
-      "step2": {
-        "title": "Énoncez le besoin",
-        "body": "Écrivez la demande comme à un collègue ; glissez les fichiers directement dans la zone de saisie."
-      },
-      "step3": {
-        "title": "Récupérez les résultats",
-        "body": "Les graphiques et fichiers produits par l’agent arrivent dans Résultats, dans la barre latérale."
-      },
-      "next": "Suivant",
-      "finish": "Terminé",
-      "skip": "Passer la visite",
-      "stepLabel": "Étape {{n}} sur 3"
-    }
+    "title": "Dans quel but allez-vous l'utiliser ?",
+    "subtitle": "Choisissez les domaines correspondant à votre travail (trois au maximum). Nous configurerons votre espace, vos assistants et vos outils en conséquence — modifiable à tout moment.",
+    "noteLabel": "Une idée précise en tête ? (facultatif)",
+    "notePlaceholder": "p. ex. réviser des contrats fournisseurs",
+    "submit": "Configurer mon espace",
+    "skip": "Passer pour l'instant",
+    "readyTitle": "Prêt à configurer pour {role}",
+    "planPack": "Installer {name}",
+    "planAlready": "déjà installé",
+    "planExpert": "Sélectionner votre assistant par défaut",
+    "planLayout": "Ajuster la disposition de votre espace",
+    "degradedNote": "Certains contenus ne sont pas disponibles sur ce déploiement — le reste sera configuré.",
+    "activate": "Activer",
+    "doneTitle": "Tout est prêt",
+    "doneExpert": "Votre assistant est prêt. Posez votre question.",
+    "doneGeneric": "Votre espace est prêt.",
+    "doneClose": "Fermer",
+    "reopenTitle": "Domaines de travail",
+    "reopenHint": "Changez vos domaines de travail — de nouvelles ressources s'ajoutent, rien de ce qui est installé n'est supprimé.",
+    "reopen": "Choisir à nouveau"
   },
   "mcp": {
     "narrative": {
@@ -1799,5 +1834,29 @@
         "unreachable": "Le catalogue est injoignable"
       }
     }
+  },
+  "roles": {
+    "slug": {
+      "legal": "Juridique",
+      "economic": "Analyse économique",
+      "financial": "Analyse financière",
+      "stock": "Analyse boursière",
+      "screenplay": "Écriture de scénario",
+      "paper": "Rédaction académique",
+      "technical": "Utilisateur technique",
+      "standard": "Utilisateur standard"
+    },
+    "note": {
+      "legal": "Avocats et personnel juridique",
+      "economic": "Analystes économiques",
+      "financial": "Analystes financiers",
+      "stock": "Analystes boursiers",
+      "screenplay": "Scénaristes",
+      "paper": "Rédacteurs académiques",
+      "technical": "Utilisateurs techniques",
+      "standard": "Tous les autres (par défaut)"
+    },
+    "admin": "Administrateur",
+    "panelTitle": "Rôles métier"
   }
 }

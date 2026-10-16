@@ -756,7 +756,9 @@
       "packs": "Paquetes",
       "presets": "Preajustes propios",
       "devices": "Dispositivos vinculados",
-      "websearch": "Búsqueda web"
+      "websearch": "Búsqueda web",
+      "roles": "Roles de usuario",
+      "layout": "Diseño del espacio"
     },
     "groups": {
       "basics": "Básico",
@@ -893,6 +895,37 @@
         "unreachable": "Servicio inaccesible",
         "invalid-url": "Introduce primero una URL http(s) válida"
       }
+    },
+    "roles": {
+      "intro": "Asigna a cada usuario un rol de negocio. El rol principal determina su diseño y experto predeterminado; el indicador de administrador es independiente de los roles de negocio.",
+      "loading": "Cargando…",
+      "empty": "Aún no hay usuarios. Aparecerán aquí tras su primera visita.",
+      "primaryLabel": "Rol principal",
+      "adminLabel": "Administrador"
+    },
+    "layout": {
+      "intro": "Elige el diseño predeterminado de la implementación y los diseños por rol, y oculta superficies para todos. Las superficies ocultas siguen accesibles por su ruta; solo desaparece la entrada.",
+      "defaultPreset": "Preajuste predeterminado de la implementación",
+      "defaultPresetHint": "Se aplica a todo usuario sin un preajuste de rol.",
+      "presets": {
+        "standard-snapshot": "Estándar (diseño actual)",
+        "simple": "Simple (superficies de trabajo enfocadas)"
+      },
+      "rolePresets": "Preajustes por rol",
+      "rolePresetsHint": "El preajuste de un rol restringe el predeterminado para sus usuarios. «Heredar» mantiene el predeterminado.",
+      "roleInherit": "Heredar",
+      "hiddenSurfaces": "Ocultas para todos",
+      "hiddenSurfacesHint": "Terminal: ningún usuario puede reactivarlas por sí mismo.",
+      "groupNav": "Navegación",
+      "groupSettings": "Secciones de ajustes",
+      "groupAgentsTabs": "Pestañas de agentes",
+      "loading": "Cargando…",
+      "workbenchTitle": "Personalizar espacio",
+      "workbenchHint": "Oculta o reordena las superficies disponibles para ti. Solo afecta a tu cuenta.",
+      "moveUp": "Subir",
+      "moveDown": "Bajar",
+      "hide": "Ocultar",
+      "restore": "Restaurar diseño heredado"
     }
   },
   "bindings": {
@@ -1643,24 +1676,26 @@
     "logout": "Cerrar sesión"
   },
   "onboarding": {
-    "tour": {
-      "step1": {
-        "title": "Elige un experto",
-        "body": "Abre el selector de arriba y elige un rol que conozca tu trabajo. Hay más expertos en la página Agentes y dentro de los Packs sectoriales."
-      },
-      "step2": {
-        "title": "Di lo que necesitas",
-        "body": "Escribe la petición como a un colega; arrastra los archivos directamente al cuadro de entrada."
-      },
-      "step3": {
-        "title": "Recoge los resultados",
-        "body": "Los gráficos y archivos que produzca el agente quedan en Resultados, en la barra lateral."
-      },
-      "next": "Siguiente",
-      "finish": "Hecho",
-      "skip": "Omitir guía",
-      "stepLabel": "Paso {{n}} de 3"
-    }
+    "title": "¿Para qué vas a usarlo?",
+    "subtitle": "Elige las áreas que encajan con tu trabajo (hasta tres). Configuraremos tu espacio, asistentes y herramientas en consecuencia; puedes cambiarlo cuando quieras.",
+    "noteLabel": "¿Algo concreto en mente? (opcional)",
+    "notePlaceholder": "p. ej. revisar contratos de proveedores",
+    "submit": "Configurar mi espacio",
+    "skip": "Omitir por ahora",
+    "readyTitle": "Listo para configurar para {role}",
+    "planPack": "Instalar {name}",
+    "planAlready": "ya instalado",
+    "planExpert": "Seleccionar tu asistente predeterminado",
+    "planLayout": "Ajustar el diseño de tu espacio",
+    "degradedNote": "Parte del contenido no está disponible en esta implementación; el resto se configurará igualmente.",
+    "activate": "Activar",
+    "doneTitle": "Todo listo",
+    "doneExpert": "Tu asistente está listo. Pregunta lo que quieras.",
+    "doneGeneric": "Tu espacio está listo.",
+    "doneClose": "Cerrar",
+    "reopenTitle": "Áreas de trabajo",
+    "reopenHint": "Cambia tus áreas de trabajo: se añaden recursos nuevos y no se elimina nada de lo ya instalado.",
+    "reopen": "Elegir áreas de nuevo"
   },
   "mcp": {
     "narrative": {
@@ -1799,5 +1834,29 @@
         "unreachable": "El catálogo no responde"
       }
     }
+  },
+  "roles": {
+    "slug": {
+      "legal": "Jurídico",
+      "economic": "Análisis económico",
+      "financial": "Análisis financiero",
+      "stock": "Análisis bursátil",
+      "screenplay": "Guion",
+      "paper": "Redacción académica",
+      "technical": "Usuario técnico",
+      "standard": "Usuario estándar"
+    },
+    "note": {
+      "legal": "Abogados y personal jurídico",
+      "economic": "Analistas económicos",
+      "financial": "Analistas financieros",
+      "stock": "Analistas bursátiles",
+      "screenplay": "Guionistas",
+      "paper": "Redactores académicos",
+      "technical": "Usuarios técnicos",
+      "standard": "Todos los demás (predeterminado)"
+    },
+    "admin": "Administrador",
+    "panelTitle": "Roles de negocio"
   }
 }

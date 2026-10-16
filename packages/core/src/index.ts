@@ -40,3 +40,12 @@ export * from "./api/trace-api";
 
 // The path/href → file-reference rule (web preview drawer + MP file chip).
 export * from "./lib/file-ref";
+
+// Surface registry + layout presets (openspec: layout-configuration).
+export * from "./lib/surfaces";
+
+// Business-role enumeration (openspec: role-system) — shared slug contract.
+export * from "./lib/roles";
+
+// Onboarding recipes (openspec: intent-onboarding; ADR-0027).
+export * from "./lib/recipes";

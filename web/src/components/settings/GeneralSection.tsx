@@ -66,6 +66,27 @@ export function GeneralSection() {
           ))}
         </select>
       </section>
+
+      {/* Re-open the intent questionnaire (intent-onboarding). Re-answering
+          updates the profile and roles and re-runs provisioning add-only. */}
+      <section className="flex flex-col gap-2">
+        <h2 className="text-sm font-semibold text-foreground">{t("onboarding.reopenTitle")}</h2>
+        <p className="text-xs text-muted-foreground">{t("onboarding.reopenHint")}</p>
+        <button
+          type="button"
+          data-testid="onboarding-reopen"
+          onClick={() => {
+            // The panel lives in the chat welcome state. This only ASKS it to
+            // re-open (pre-filled from the stored profile); nothing is written
+            // until the user submits. ChatWelcome listens, so closing Settings
+            // lands on the questionnaire.
+            window.dispatchEvent(new CustomEvent("onboarding:reopen"));
+          }}
+          className="w-fit rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+        >
+          {t("onboarding.reopen")}
+        </button>
+      </section>
     </div>
   );
 }

@@ -9,9 +9,160 @@ import express from "express";
 import { WEB_DIST } from "../context.js";
 import { storeDir } from "../../paths.js";
 import { resolveWebsearchRelay, maskToken, getUserKey, setUserKey, clearUserKey } from "../../lib/websearch-relay.js";
+import { BUSINESS_ROLES, parseStoredAssignments, resolveAssignment } from "../roles.js";
+import { registerOnboardingRoutes } from "./onboarding.js";
+import {
+  LAYOUT_CONFIG_KEY,
+  deploymentLayer,
+  mergeLayoutConfig,
+  resolveForUser,
+  userTweaks,
+  validateLayoutConfig,
+  writeUserTweaks,
+} from "../layout.js";
+
+// ── Workbench layout (layout-configuration) ──────────────────────────────────
+// Deployment config (admin) + the user's own visibility/order adjustments
+// (self). The resolved layout ships in /api/config; these routes are the
+// editing faces. The gateway answers /api/layout/config on hosted deployments
+// before the catch-all; this mount serves the local topology.
+function registerLayoutRoutes(ctx) {
+  const { app, db } = ctx;
+
+  const storedConfig = () => {
+    if (!db.isDbReady()) return {};
+    try {
+      const raw = db.getDeploymentConfig(LAYOUT_CONFIG_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      console.warn("[layout] stored layout config is not valid JSON; ignoring");
+      return {};
+    }
+  };
+
+  // Admin read of the deployment document (as stored, not the resolved view).
+  app.get("/api/layout/config", (req, res) => {
+    if (!ctx.requireAdmin(req, res)) return;
+    const layer = deploymentLayer({ db });
+    res.json({
+      defaultPreset: layer.defaultPreset ?? null,
+      rolePresets: layer.rolePresets ?? {},
+      hidden: layer.hidden ?? [],
+      presets: Object.keys(layer.presets ?? {}),
+    });
+  });
+
+  // Admin write: partial patch merged onto the stored document. Validation is
+  // whole-write-or-nothing (an unknown slug persists nothing).
+  app.put("/api/layout/config", (req, res) => {
+    if (!ctx.requireAdmin(req, res)) return;
+    const result = validateLayoutConfig(req.body || {});
+    if (result.error) return res.status(400).json({ error: result.error });
+    const merged = mergeLayoutConfig(storedConfig(), result.config);
+    db.setDeploymentConfig(LAYOUT_CONFIG_KEY, JSON.stringify(merged));
+    res.json({
+      defaultPreset: merged.defaultPreset ?? null,
+      rolePresets: merged.rolePresets ?? {},
+      hidden: merged.hidden ?? [],
+      presets: Object.keys(merged.presets ?? {}),
+    });
+  });
+
+  // The user's own tweaks (self; no admin gate — everyone adjusts their own
+  // workbench within what the layers above left visible).
+  // Identity scopes every read/write: the preference table is per-cell, and a
+  // cell can host several identities — one user's workbench must never leak
+  // into another's resolution.
+  const emailOf = (req) => req.user?.email ?? null;
+
+  app.get("/api/layout/preferences", (req, res) => {
+    res.json({ tweaks: userTweaks({ db, email: emailOf(req) }) });
+  });
+
+  app.put("/api/layout/preferences", (req, res) => {
+    const tweaks = req.body?.tweaks;
+    if (tweaks !== null && (typeof tweaks !== "object" || Array.isArray(tweaks))) {
+      return res.status(400).json({ error: "tweaks must be an object or null" });
+    }
+    writeUserTweaks({ db, email: emailOf(req) }, tweaks);
+    res.json({ tweaks: userTweaks({ db, email: emailOf(req) }) });
+  });
+
+  // DELETE clears the adjustments (the restore control's server half).
+  app.delete("/api/layout/preferences", (req, res) => {
+    writeUserTweaks({ db, email: emailOf(req) }, null);
+    res.json({ tweaks: null });
+  });
+}
+
+// ── Business roles (role-system) ─────────────────────────────────────────────
+// The cell-side REST face. On a hosted deployment the gateway answers these
+// routes BEFORE the cell-proxy catch-all (the assignment document is
+// deployment-level and lives there); this mount is the local/single-process
+// implementation of the same contract, reading and writing its own
+// deployment_config key. Either way the resolved assignment is what lands on
+// req.user.roles, so every consumer sees one shape.
+function registerRoleRoutes(ctx) {
+  const { app, db } = ctx;
+
+  const storedDoc = () => (db.isDbReady() ? parseStoredAssignments(db.getDeploymentConfig("roles.assignments")) : null);
+  const writeStored = (doc) => db.setDeploymentConfig("roles.assignments", JSON.stringify(doc));
+  const readAssignments = () => storedDoc() ?? { assignments: {}, default: null };
+  const localRoster = () => {
+    const doc = readAssignments();
+    return [...new Set(Object.keys(doc.assignments))].sort();
+  };
+
+  // Enumeration — readable by any authenticated user (labels resolve client
+  // side from the i18n bundle keyed by slug; the slug list is the contract).
+  app.get("/api/roles", (_req, res) => {
+    res.json({ roles: BUSINESS_ROLES, default: "standard" });
+  });
+
+  // Admin listing: every assigned user with their effective assignment.
+  app.get("/api/roles/assignments", (req, res) => {
+    if (!ctx.requireAdmin(req, res)) return;
+    const doc = readAssignments();
+    const emails = [...new Set([...localRoster(), ...Object.keys(doc.assignments)])].sort();
+    res.json({
+      assignments: emails.map((email) => ({
+        email,
+        ...resolveAssignment({ user: { email }, db, env: process.env }),
+      })),
+      default: doc.default ?? null,
+    });
+  });
+
+  // Whole-assignment replace for one user. Admin-gated with the standard gate
+  // (open when auth is off: the machine owner). Invalid payloads are 4xx with
+  // nothing persisted.
+  app.put("/api/roles/assignments/:userId", (req, res) => {
+    if (!ctx.requireAdmin(req, res)) return;
+    const email = String(req.params.userId || "").trim().toLowerCase();
+    if (!email || !email.includes("@")) return res.status(400).json({ error: "invalid user id" });
+    const body = req.body || {};
+    if (body.primary !== undefined && !BUSINESS_ROLES.includes(body.primary)) {
+      return res.status(400).json({ error: `unknown role '${body.primary}'` });
+    }
+    const secondary = Array.isArray(body.secondary) ? body.secondary : [];
+    const unknown = secondary.filter((s) => !BUSINESS_ROLES.includes(s));
+    if (unknown.length) return res.status(400).json({ error: `unknown roles: ${unknown.join(", ")}` });
+    const primary = body.primary ?? "standard";
+    const assignment = { primary, secondary: [...new Set(secondary)].filter((s) => s !== primary), admin: body.admin === true };
+    const doc = readAssignments();
+    const neutral = assignment.primary === "standard" && !assignment.secondary.length && !assignment.admin;
+    if (neutral) delete doc.assignments[email];
+    else doc.assignments[email] = assignment;
+    writeStored(doc);
+    res.json({ email, ...resolveAssignment({ user: { email }, db, env: process.env }) });
+  });
+}
 
 export function registerMiscRoutes(ctx) {
   const { app, catalog, db, cron } = ctx;
+  registerRoleRoutes(ctx);
+  registerLayoutRoutes(ctx);
+  registerOnboardingRoutes(ctx);
 
   // Identity introspection: lets the frontend render login state without
   // inspecting headers. email/groups are null when auth is off. adminGroups
@@ -26,6 +177,11 @@ export function registerMiscRoutes(ctx) {
       groups: req.user?.groups ?? null,
       authenticated,
       adminGroups: ctx.adminGroups ?? ["admin"],
+      // The composed admin answer (role flag OR admin group) — the same
+      // predicate ctx.requireAdmin uses, so the UI never disagrees with the
+      // server about who is admin (role-system D3).
+      isAdmin: ctx.isAdminUser?.(req.user) === true,
+      roles: req.user?.roles ?? null,
       loginUrl: mode === "logto" ? "/auth/login" : ctx.AUTH_LOGIN_PATH,
       logoutUrl: mode === "logto" ? "/api/auth/logout" : ctx.AUTH_LOGOUT_PATH,
       ssoConfigured: ctx.ssoEnabled,
@@ -219,13 +375,36 @@ export function registerMiscRoutes(ctx) {
     return result.normalized;
   };
 
-  app.get("/api/config", (_req, res) => {
+  app.get("/api/config", (req, res) => {
+    // The resolved layout (layout-configuration): the server composes all four
+    // layers (factory/deployment/role/user) plus the facts it owns, and the
+    // client renders straight from the answer — no layer precedence logic in
+    // the browser. `desktopOnly` stays client-owned: the predicate list ships
+    // and the client applies it at render (only it knows the shell).
+    const { layout } = resolveForUser({
+      db,
+      email: req.user?.email ?? null,
+      roles: req.user?.roles ?? null,
+      gatewayLayout: req.user?.gatewayLayout ?? null,
+      facts: {
+        authOn: Boolean(ctx.authEnabled),
+        isAdmin: ctx.isAdminUser?.(req.user) === true,
+        packMarketplace: process.env.PACK_MARKETPLACE === "1",
+        documentsEnabled: db.isDbReady(),
+      },
+    });
     res.json({
       documentsEnabled: db.isDbReady(),
       // Pack marketplace surfaces (add-pack-marketplace): shown only on
       // gateway-fronted deployments — the market/publish APIs live on the
       // gateway, which a local single-process deployment does not have.
       packMarketplace: process.env.PACK_MARKETPLACE === "1",
+      // The viewer's business roles (role-system): the resolved assignment the
+      // layout chain and onboarding consume. Null when no identity is attached
+      // (anonymous/public read) — the web treats that as "no role data".
+      roles: req.user?.roles ?? null,
+      // The server-computed layout: per-container ordered visible slugs.
+      resolvedLayout: layout,
       // The deployment's name for the assistant, shown in the sidebar, the turn
       // header and the composer placeholder. Unset (or blank) ⇒ null, and the
       // web keeps its own defaults.

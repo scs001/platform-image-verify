@@ -22,7 +22,14 @@ const HOP_BY_HOP = [
   "upgrade",
 ];
 
-const IDENTITY_HEADERS = ["x-forwarded-email", "x-forwarded-groups", GATEWAY_SECRET_HEADER];
+const IDENTITY_HEADERS = [
+  "x-forwarded-email",
+  "x-forwarded-groups",
+  "x-forwarded-roles",
+  "x-forwarded-role-admin",
+  "x-forwarded-layout",
+  GATEWAY_SECRET_HEADER,
+];
 
 // Machine-caller headers (no platform identity): the ORIGINAL request headers
 // pass through minus hop-by-hop and identity — a webhook's content-type and
@@ -41,7 +48,7 @@ export function machineHeaders(req, secret) {
   return headers;
 }
 
-export function forwardedHeaders(req, user, secret, { keepUpgrade = false } = {}) {
+export function forwardedHeaders(req, user, secret, { keepUpgrade = false, roleHeaders = null, layoutHeader = null } = {}) {
   const headers = {};
   for (const [key, value] of Object.entries(req.headers)) {
     const name = key.toLowerCase();
@@ -51,6 +58,17 @@ export function forwardedHeaders(req, user, secret, { keepUpgrade = false } = {}
   }
   headers["x-forwarded-email"] = user.email;
   headers["x-forwarded-groups"] = (user.groups || []).join(",");
+  // Business-role assignment (role-system): stamped by the gateway from its
+  // own store, never copied from the caller — the IDENTITY_HEADERS skip above
+  // drops any client-supplied value first.
+  if (roleHeaders) {
+    headers["x-forwarded-roles"] = roleHeaders.roles;
+    headers["x-forwarded-role-admin"] = roleHeaders.admin;
+  }
+  // The deployment layout layer (layout-configuration): same channel, same
+  // rule — gateway-owned, client-supplied values dropped above. Absent when
+  // the document is empty, and the cell falls through to its own copy.
+  if (layoutHeader) headers["x-forwarded-layout"] = layoutHeader;
   headers[GATEWAY_SECRET_HEADER] = secret;
   if (keepUpgrade) {
     // A handshake we replay verbatim, so the upgrade headers the client sent

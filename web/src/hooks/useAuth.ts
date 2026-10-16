@@ -8,6 +8,10 @@ export interface AuthInfo {
   groups: string[] | null;
   // Deployment-configured admin group names (server ADMIN_GROUPS).
   adminGroups?: string[];
+  // The server's composed admin answer (admin group OR stored role flag,
+  // role-system D3): preferred over the local group check so the UI agrees
+  // with ctx.requireAdmin. Absent on older servers — callers fall back.
+  isAdmin?: boolean;
   authenticated: boolean;
   loginUrl: string;
   logoutUrl: string;

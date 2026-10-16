@@ -756,7 +756,9 @@
       "packs": "パック",
       "presets": "カスタムプリセット",
       "devices": "ペア設定済みデバイス",
-      "websearch": "ウェブ検索"
+      "websearch": "ウェブ検索",
+      "roles": "ユーザーロール",
+      "layout": "ワークスペース配置"
     },
     "groups": {
       "basics": "基本",
@@ -893,6 +895,37 @@
         "unreachable": "サービスに到達できません",
         "invalid-url": "先に有効な http(s) URL を入力してください"
       }
+    },
+    "roles": {
+      "intro": "各ユーザーに業務ロールを割り当てます。主ロールはレイアウトと既定のエキスパートを決定し、管理者フラグは業務ロールとは独立です。",
+      "loading": "読み込み中…",
+      "empty": "ユーザーはまだいません。初回アクセス後にここに表示されます。",
+      "primaryLabel": "主ロール",
+      "adminLabel": "管理者"
+    },
+    "layout": {
+      "intro": "デプロイの既定レイアウトとロール別レイアウトを選び、全員に対して画面を非表示にできます。非表示の画面もルートでは引き続き到達でき、入口だけが消えます。",
+      "defaultPreset": "デプロイ既定プリセット",
+      "defaultPresetHint": "ロール別プリセットを持たないすべてのユーザーに適用されます。",
+      "presets": {
+        "standard-snapshot": "標準（現在のレイアウト）",
+        "simple": "シンプル（作業面を絞る）"
+      },
+      "rolePresets": "ロール別プリセット",
+      "rolePresetsHint": "ロールのプリセットはそのユーザー範囲で既定を絞り込みます。「既定を継承」は既定のままにします。",
+      "roleInherit": "既定を継承",
+      "hiddenSurfaces": "全員に非表示",
+      "hiddenSurfacesHint": "最終設定：どのユーザーも自分で再有効化できません。",
+      "groupNav": "ナビゲーション",
+      "groupSettings": "設定セクション",
+      "groupAgentsTabs": "エージェントタブ",
+      "loading": "読み込み中…",
+      "workbenchTitle": "ワークスペースをカスタマイズ",
+      "workbenchHint": "利用可能な画面の表示/順序を変更します。自分のアカウントにのみ影響します。",
+      "moveUp": "上へ",
+      "moveDown": "下へ",
+      "hide": "非表示",
+      "restore": "継承したレイアウトに戻す"
     }
   },
   "bindings": {
@@ -1643,24 +1676,26 @@
     "logout": "ログアウト"
   },
   "onboarding": {
-    "tour": {
-      "step1": {
-        "title": "エキスパートを選ぶ",
-        "body": "上のセレクターを開いて、仕事に詳しい役割を選びます。他のエキスパートは「エージェント」ページや業界パックにあります。"
-      },
-      "step2": {
-        "title": "そのまま依頼",
-        "body": "同僚に頼むように要件を入力します。ファイルは入力欄に直接ドロップできます。"
-      },
-      "step3": {
-        "title": "成果を受け取る",
-        "body": "エージェントが作ったグラフやファイルはサイドの「成果」に自動保存されます。"
-      },
-      "next": "次へ",
-      "finish": "完了",
-      "skip": "ツアーをスキップ",
-      "stepLabel": "ステップ {{n}} / 3"
-    }
+    "title": "主に何に使いますか？",
+    "subtitle": "仕事に合う分野を選んでください（最大3つ）。それに合わせてワークスペース・アシスタント・ツールを設定します。いつでも変更できます。",
+    "noteLabel": "具体的にやりたいことはありますか？（任意）",
+    "notePlaceholder": "例：取引先の契約書をレビューする",
+    "submit": "設定する",
+    "skip": "今はスキップ",
+    "readyTitle": "「{role}」向けに設定します",
+    "planPack": "{name} をインストール",
+    "planAlready": "インストール済み",
+    "planExpert": "既定のアシスタントを選択",
+    "planLayout": "ワークスペース配置を調整",
+    "degradedNote": "このデプロイでは一部のコンテンツが利用できません。残りは通常どおり設定します。",
+    "activate": "有効にする",
+    "doneTitle": "設定完了",
+    "doneExpert": "アシスタントの準備ができました。どうぞ話しかけてください。",
+    "doneGeneric": "ワークスペースの準備ができました。",
+    "doneClose": "閉じる",
+    "reopenTitle": "仕事の分野",
+    "reopenHint": "分野を変更します。リソースは追加のみで、インストール済みのものは削除されません。",
+    "reopen": "分野を選び直す"
   },
   "mcp": {
     "narrative": {
@@ -1799,5 +1834,29 @@
         "unreachable": "カタログに到達できません"
       }
     }
+  },
+  "roles": {
+    "slug": {
+      "legal": "法務担当",
+      "economic": "経済分析",
+      "financial": "財務分析",
+      "stock": "株式分析",
+      "screenplay": "脚本創作",
+      "paper": "論文執筆",
+      "technical": "テクニカルユーザー",
+      "standard": "標準ユーザー"
+    },
+    "note": {
+      "legal": "弁護士・法務担当者",
+      "economic": "経済アナリスト",
+      "financial": "財務アナリスト",
+      "stock": "株式アナリスト",
+      "screenplay": "脚本家",
+      "paper": "学術ライター",
+      "technical": "テクニカルユーザー",
+      "standard": "その他すべて（既定）"
+    },
+    "admin": "管理者",
+    "panelTitle": "業務ロール"
   }
 }

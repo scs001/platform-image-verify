@@ -769,7 +769,9 @@
       "packs": "Packs",
       "presets": "Custom presets",
       "devices": "Paired devices",
-      "websearch": "Network search"
+      "websearch": "Network search",
+      "roles": "User roles",
+      "layout": "Workbench layout"
     },
     "groups": {
       "basics": "Basics",
@@ -906,6 +908,37 @@
         "unreachable": "Service unreachable",
         "invalid-url": "Enter a valid http(s) URL first"
       }
+    },
+    "roles": {
+      "intro": "Assign each user a business role. The primary role drives their layout and default expert; the admin flag is independent of business roles.",
+      "loading": "Loading…",
+      "empty": "No users yet. Users appear here after their first visit.",
+      "primaryLabel": "Primary role",
+      "adminLabel": "Admin"
+    },
+    "layout": {
+      "intro": "Choose the deployment's default layout and per-role layouts, and hide surfaces for everyone. Hidden surfaces stay hidden for every user — their routes keep working, only the entry disappears.",
+      "defaultPreset": "Deployment default preset",
+      "defaultPresetHint": "Applies to every user without a role-specific preset.",
+      "presets": {
+        "standard-snapshot": "Standard (current layout)",
+        "simple": "Simple (focused work surfaces)"
+      },
+      "rolePresets": "Per-role presets",
+      "rolePresetsHint": "A role's preset narrows the deployment default for its users. “Inherit” keeps the default.",
+      "roleInherit": "Inherit",
+      "hiddenSurfaces": "Hidden for everyone",
+      "hiddenSurfacesHint": "Terminal: no user can re-enable these for themselves.",
+      "groupNav": "Navigation",
+      "groupSettings": "Settings sections",
+      "groupAgentsTabs": "Agents page tabs",
+      "loading": "Loading…",
+      "workbenchTitle": "Customize workbench",
+      "workbenchHint": "Hide or reorder the surfaces available to you. This affects only your account.",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "hide": "Hide",
+      "restore": "Restore inherited layout"
     }
   },
   "preview": {
@@ -1643,24 +1676,26 @@
     "logout": "Sign out"
   },
   "onboarding": {
-    "tour": {
-      "step1": {
-        "title": "Pick an expert",
-        "body": "Open the picker above and choose a role that knows your work. More experts live on the Agents page and inside Industry Packs."
-      },
-      "step2": {
-        "title": "State the request",
-        "body": "Type your request like you would brief a colleague; drop files straight into the input."
-      },
-      "step3": {
-        "title": "Collect the outputs",
-        "body": "Charts and files the agent produces land in Outputs in the sidebar — come back for them anytime."
-      },
-      "next": "Next",
-      "finish": "Done",
-      "skip": "Skip tour",
-      "stepLabel": "Step {{n}} of 3"
-    }
+    "title": "What will you use this for?",
+    "subtitle": "Pick the areas that match your work (up to three). We'll set up your workspace, assistants and tools accordingly — you can change this anytime.",
+    "noteLabel": "Anything specific in mind? (optional)",
+    "notePlaceholder": "e.g. review supplier contracts",
+    "submit": "Set up my workspace",
+    "skip": "Skip for now",
+    "readyTitle": "Ready to set up for {role}",
+    "planPack": "Install {name}",
+    "planAlready": "already installed",
+    "planExpert": "Select your default assistant",
+    "planLayout": "Adjust your workspace layout",
+    "degradedNote": "Some content is currently unavailable on this deployment — the rest will be set up.",
+    "activate": "Activate",
+    "doneTitle": "All set",
+    "doneExpert": "Your assistant is ready. Ask away.",
+    "doneGeneric": "Your workspace is ready.",
+    "doneClose": "Close",
+    "reopenTitle": "Areas of work",
+    "reopenHint": "Change the areas you work in — new resources are added, nothing already installed is removed.",
+    "reopen": "Choose areas again"
   },
   "mcp": {
     "narrative": {
@@ -1799,5 +1834,29 @@
         "unreachable": "The catalog service is unreachable"
       }
     }
+  },
+  "roles": {
+    "slug": {
+      "legal": "Legal",
+      "economic": "Economic analysis",
+      "financial": "Financial analysis",
+      "stock": "Equity research",
+      "screenplay": "Screenwriting",
+      "paper": "Academic writing",
+      "technical": "Technical user",
+      "standard": "Standard user"
+    },
+    "note": {
+      "legal": "Lawyers and legal staff",
+      "economic": "Economic analysts",
+      "financial": "Financial analysts",
+      "stock": "Equity researchers",
+      "screenplay": "Screenwriters",
+      "paper": "Academic writers",
+      "technical": "Technical users",
+      "standard": "Everyone else (default)"
+    },
+    "admin": "Administrator",
+    "panelTitle": "Business roles"
   }
 }

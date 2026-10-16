@@ -28,6 +28,8 @@ import { createAppAuth } from "./app-auth.js";
 import { createShareRegistry, createRateLimiter } from "./share.js";
 import { createPackRegistry, registerPackRoutes } from "./packs.js";
 import { registerFacetProxy } from "./facet-proxy.js";
+import { createRoleStore, makeIsAdminUser } from "./roles.js";
+import { createLayoutStore } from "./layout.js";
 import { registerWanxingRoutes } from "./wanxing/index.js";
 import { createCellFleetReporter } from "./fleet-cells.js";
 import { createBotWebhookRouter } from "./bot-webhooks.js";
@@ -350,7 +352,66 @@ const ADMIN_GROUPS = (process.env.ADMIN_GROUPS || "admin")
   .split(",")
   .map((s) => s.trim())
   .filter(Boolean);
-const isAdminUser = (user) => ADMIN_GROUPS.some((g) => (user.groups || []).includes(g));
+// Admin composition (role-system D3): the admin group OR the stored admin
+// flag. The flag lives in the role store, so the predicate is built with it.
+const roleStore = createRoleStore({
+  file: path.join(DATA_ROOT, "roles.json"),
+  env: process.env,
+});
+const layoutStore = createLayoutStore({
+  file: path.join(DATA_ROOT, "layout.json"),
+  env: process.env,
+});
+const isAdminUser = makeIsAdminUser({ adminGroups: ADMIN_GROUPS, store: roleStore });
+
+// ── Business roles (role-system) ────────────────────────────────────────────
+// Answered at the gateway (before the cell-proxy catch-all): assignments are
+// deployment-level, so the admin surface and the headers cells receive must
+// come from one store regardless of which cells are running. Registered for
+// the /api/roles prefix only — every other route still falls through to the
+// owning cell.
+app.get("/api/roles", (req, res) => {
+  const user = resolveUser(req);
+  if (!user) return rejectUnauthenticated(req, res);
+  res.json({ roles: roleStore.roles, default: "standard" });
+});
+
+app.get("/api/roles/assignments", (req, res) => {
+  const user = resolveUser(req);
+  if (!user) return rejectUnauthenticated(req, res);
+  if (!isAdminUser(user)) return res.status(403).json({ error: "Admin group required" });
+  res.json({ assignments: roleStore.list(), default: roleStore.getDefault().default });
+});
+
+app.put("/api/roles/assignments/:userId", express.json(), (req, res) => {
+  const user = resolveUser(req);
+  if (!user) return rejectUnauthenticated(req, res);
+  if (!isAdminUser(user)) return res.status(403).json({ error: "Admin group required" });
+  const result = roleStore.set(req.params.userId, req.body || {});
+  if (result.error) return res.status(400).json({ error: result.error });
+  res.json({ email: String(req.params.userId).trim().toLowerCase(), ...result.assignment });
+});
+
+// ── Workbench layout (layout-configuration) ─────────────────────────────────
+// Deployment-level, answered here for the same reason roles are: the document
+// must be one regardless of which cells are running. The cell resolves the
+// user's final layout (it owns the user's tweaks) from the headers this layer
+// ships plus its own stored copy; the admin face edits the deployment layer.
+app.get("/api/layout/config", (req, res) => {
+  const user = resolveUser(req);
+  if (!user) return rejectUnauthenticated(req, res);
+  if (!isAdminUser(user)) return res.status(403).json({ error: "Admin group required" });
+  res.json(layoutStore.config());
+});
+
+app.put("/api/layout/config", express.json(), (req, res) => {
+  const user = resolveUser(req);
+  if (!user) return rejectUnauthenticated(req, res);
+  if (!isAdminUser(user)) return res.status(403).json({ error: "Admin group required" });
+  const result = layoutStore.set(req.body || {});
+  if (result.error) return res.status(400).json({ error: result.error });
+  res.json(result.config);
+});
 
 // Per-user cell status for operators. Same identity check as everything else,
 // plus the admin group: the list of users on this deployment is deployment
@@ -686,6 +747,9 @@ app.all(/^\/api\/bots\/relay\//, async (req, res) => {
 app.use(async (req, res) => {
   const user = resolveUser(req);
   if (!user) return rejectUnauthenticated(req, res);
+  // The roster is what the admin surface lists (cells are keyed by hash, so
+  // this write is where a real email enters the store).
+  roleStore.noteUser(user.email);
   let cell;
   try {
     cell = await registry.ensure(user);
@@ -702,7 +766,10 @@ app.use(async (req, res) => {
   proxyHttp(req, res, {
     host: "127.0.0.1",
     port: cell.port,
-    headers: forwardedHeaders(req, user, SECRET),
+    headers: forwardedHeaders(req, user, SECRET, {
+      roleHeaders: roleStore.headersFor(user.email),
+      layoutHeader: layoutStore.headerValue(),
+    }),
   });
 });
 
@@ -733,7 +800,11 @@ server.on("upgrade", async (req, socket, head) => {
   proxyUpgrade(req, socket, head, {
     host: "127.0.0.1",
     port: cell.port,
-    headers: forwardedHeaders(req, user, SECRET, { keepUpgrade: true }),
+    headers: forwardedHeaders(req, user, SECRET, {
+      keepUpgrade: true,
+      roleHeaders: roleStore.headersFor(user.email),
+      layoutHeader: layoutStore.headerValue(),
+    }),
   });
 });
 

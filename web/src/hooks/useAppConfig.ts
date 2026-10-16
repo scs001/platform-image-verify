@@ -22,9 +22,17 @@ export interface AppConfig {
   // Pack marketplace surfaces exist only on gateway-fronted deployments
   // (add-pack-marketplace, design D15): false = no pack UI anywhere.
   packMarketplace: boolean;
+  // The viewer's business roles (role-system): the resolved assignment the
+  // layout chain and onboarding consume. Null = no identity on the request
+  // (anonymous read) or an older server without the field.
+  roles: { primary: string; secondary: string[] } | null;
+  // The server-resolved layout (layout-configuration): per-container ordered
+  // visible slugs. Null = an older server — the web then renders the factory
+  // snapshot's full set, matching the pre-change behavior.
+  resolvedLayout: { nav: string[]; settings: string[]; agentsTabs: string[] } | null;
 }
 
-let config: AppConfig = { documentsEnabled: true, assistantName: null, companyName: null, brandIconUrl: null, loginFooterText: null, loginHero: null, packMarketplace: false };
+let config: AppConfig = { documentsEnabled: true, assistantName: null, companyName: null, brandIconUrl: null, loginFooterText: null, loginHero: null, packMarketplace: false, roles: null, resolvedLayout: null };
 const listeners = new Set<() => void>();
 
 function emit(next: AppConfig) {
@@ -49,6 +57,9 @@ export async function loadAppConfig(timeoutMs = 1500): Promise<AppConfig> {
     const res = await fetch("/api/config", { signal: AbortSignal.timeout(timeoutMs) });
     const body = await res.json();
     const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+    const roles = body?.roles;
+    const slugList = (v: unknown) => (Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : null);
+    const layout = body?.resolvedLayout;
     emit({
       documentsEnabled: body?.documentsEnabled ?? true,
       assistantName: str(body?.assistantName),
@@ -57,6 +68,18 @@ export async function loadAppConfig(timeoutMs = 1500): Promise<AppConfig> {
       loginFooterText: str(body?.loginFooterText),
       loginHero: parseLoginHero(body?.loginHero),
       packMarketplace: body?.packMarketplace === true,
+      roles:
+        roles && typeof roles.primary === "string"
+          ? { primary: roles.primary, secondary: Array.isArray(roles.secondary) ? roles.secondary.filter((s: unknown) => typeof s === "string") : [] }
+          : null,
+      resolvedLayout:
+        layout && typeof layout === "object"
+          ? {
+              nav: slugList(layout.nav) ?? [],
+              settings: slugList(layout.settings) ?? [],
+              agentsTabs: slugList(layout.agentsTabs) ?? [],
+            }
+          : null,
     });
   } catch {
     /* keep defaults */

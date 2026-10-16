@@ -20,6 +20,7 @@ import {
   Activity,
   Bot,
   Globe,
+  LayoutPanelLeft,
   MonitorSmartphone,
   Paintbrush,
   Plug,
@@ -27,6 +28,7 @@ import {
   Smartphone,
   Sparkles,
   UserRound,
+  Users,
   Waypoints,
   type LucideIcon,
 } from "lucide-react";
@@ -58,6 +60,12 @@ const DashboardPage = lazy(() =>
 );
 const BotsPage = lazy(() => import("@/pages/BotsPage").then((m) => ({ default: m.BotsPage })));
 const TracePage = lazy(() => import("@/pages/TracePage").then((m) => ({ default: m.TracePage })));
+const RolesSection = lazy(() =>
+  import("@/components/settings/RolesSection").then((m) => ({ default: m.RolesSection })),
+);
+const LayoutSection = lazy(() =>
+  import("@/components/settings/LayoutSection").then((m) => ({ default: m.LayoutSection })),
+);
 
 export type SettingsGroup = "basics" | "capabilities" | "management";
 
@@ -161,6 +169,30 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     Component: ModelsPage as SettingsSectionComponent,
   },
   // ── Management（管理）────────────────────────────────────────────────────
+  {
+    // Business roles (role-system): the user list with primary/secondary role
+    // reassignment and the orthogonal admin flag. Admin-only when auth is on
+    // (the REST routes are gated the same way).
+    slug: "roles",
+    group: "management",
+    labelKey: "settings.sections.roles",
+    testId: "settings-section-roles",
+    icon: Users,
+    Component: RolesSection as SettingsSectionComponent,
+    adminOnly: true,
+  },
+  {
+    // Workbench layout (layout-configuration): the deployment default preset,
+    // per-role presets, and terminal per-surface hiding. Admin-only when auth
+    // is on (the REST routes are gated the same way).
+    slug: "layout",
+    group: "management",
+    labelKey: "settings.sections.layout",
+    testId: "settings-section-layout",
+    icon: LayoutPanelLeft,
+    Component: LayoutSection as SettingsSectionComponent,
+    adminOnly: true,
+  },
   {
     // Bot channels (企业微信/飞书/Telegram/微信公众号) — the former /bots
     // page, demoted from the sidebar nav. Ungated like its REST routes.

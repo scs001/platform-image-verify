@@ -62,7 +62,15 @@ test("logto ignores forged identity headers and accepts a signed cookie", async 
 
   const authenticated = await request(expressApp(ctx), "/protected", { cookie: `paas_session=${cookie}` });
   assert.equal(authenticated.status, 200);
-  assert.deepEqual(JSON.parse(authenticated.body).user, { email: "user@example.com", groups: ["admin"] });
+  // The role decoration rides every authenticated identity (role-system):
+// no role data anywhere resolves to the standard fallback.
+  assert.deepEqual(JSON.parse(authenticated.body).user, {
+    email: "user@example.com",
+    groups: ["admin"],
+    roles: { primary: "standard", secondary: [] },
+    roleAdmin: false,
+    roleSource: "fallback",
+  });
 });
 
 test("forward_auth preserves proxy email casing", () => {
@@ -84,7 +92,13 @@ test("hosted cell honors identity headers carrying the gateway secret", async ()
   const app = expressApp(forwardAuthCtx({ secret: "s3cret" }));
   const res = await request(app, "/api/private", { ...IDENTITY, "x-cloud-gateway-secret": "s3cret" });
   assert.equal(res.status, 200);
-  assert.deepEqual(JSON.parse(res.body).user, { email: "user@example.com", groups: ["admin"] });
+  assert.deepEqual(JSON.parse(res.body).user, {
+    email: "user@example.com",
+    groups: ["admin"],
+    roles: { primary: "standard", secondary: [] },
+    roleAdmin: false,
+    roleSource: "fallback",
+  });
 });
 
 test("hosted cell treats identity headers without the secret as absent", async () => {
@@ -109,7 +123,13 @@ test("gate is inert outside hosted mode (headerTrust null)", async () => {
   const app = expressApp(forwardAuthCtx(null));
   const res = await request(app, "/api/private", IDENTITY);
   assert.equal(res.status, 200);
-  assert.deepEqual(JSON.parse(res.body).user, { email: "user@example.com", groups: ["admin"] });
+  assert.deepEqual(JSON.parse(res.body).user, {
+    email: "user@example.com",
+    groups: ["admin"],
+    roles: { primary: "standard", secondary: [] },
+    roleAdmin: false,
+    roleSource: "fallback",
+  });
 });
 
 // ── Exempt paths (machine callers) ───────────────────────────────────────────

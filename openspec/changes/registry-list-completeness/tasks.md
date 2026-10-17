@@ -49,14 +49,18 @@
 
 ## 4. 跨仓后续（不在本仓实施，登记以免丢失）
 
-- [ ] 4.1 `finddata-skills`（Gitee）`scripts/register_skills.py` 仍为裸读版；需把
-       `docs/wire-presets/register_skills.py` 的分页实现回推至该仓并推送
-- [ ] 4.2 `docs/wire-presets/register_skills.py` 的 `--rescan` 分支引用未赋值的
-       `after_items`（分页改造遗留），带 `--rescan` 跑必 NameError；修掉并实跑验证
+- [x] 4.1 `finddata-skills`（Gitee）`scripts/register_skills.py` 裸读版已修：判重与
+       verification 两处改走分页 `all_skills()`（has_next 翻页/limit=100 推进 offset/
+       兼容裸数组），保留本仓 SKILLS 清单与 payload 字段。**收尾加做**：修好的
+       wire-presets 版 register 脚本首次进 gitee 仓 `wire-presets/register_skills.py`
+       （load_description 适配仓内布局），双拷贝隐患消除
+- [x] 4.2 `--rescan` NameError 已修：`all_skills()` 返回 `(names, items)` 二元组，
+       `--rescan` 改用 items 拼扫描 URL；stub 离线验证 17 个 scan 请求全发出、rc=0
 - [ ] 4.3 网关侧（跨仓）：评估是否对未带 `limit` 的列表请求返回告警头，或提高默认页大小；
        需与网关仓所有者确认契约变更
 
-> **交接（2026-10-17）**：4.1/4.2 已写自包含交接文档
-> `~/finddata/docs/handoff/registry-pagination-register-scripts.md`（含坐标、次序、
-> 参考实现、验收口径；handoff README 已加行⑤），留给独立 session 执行（跨仓改动
-> 与 paas 会话隔离）。4.3 仍为开放项，需与网关仓所有者确认。
+> **交接完成（2026-10-17）**：4.1/4.2 由独立 session 按
+> `~/finddata/docs/handoff/registry-pagination-register-scripts.md` 执行完毕并核销——
+> gitee `finddata-skills` `21c8740 → 7d4fc94`（双远端已在 main/master）；验收实跑：
+> 两脚本 `existing skills on gateway: 212` + 19/19、17/17 全 SKIP + verification
+> missing=none；干净 clone 复跑同证。**4.3 仍开放**。

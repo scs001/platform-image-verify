@@ -55,3 +55,8 @@
        `after_items`（分页改造遗留），带 `--rescan` 跑必 NameError；修掉并实跑验证
 - [ ] 4.3 网关侧（跨仓）：评估是否对未带 `limit` 的列表请求返回告警头，或提高默认页大小；
        需与网关仓所有者确认契约变更
+
+> **交接（2026-10-17）**：4.1/4.2 已写自包含交接文档
+> `~/finddata/docs/handoff/registry-pagination-register-scripts.md`（含坐标、次序、
+> 参考实现、验收口径；handoff README 已加行⑤），留给独立 session 执行（跨仓改动
+> 与 paas 会话隔离）。4.3 仍为开放项，需与网关仓所有者确认。

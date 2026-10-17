@@ -32,10 +32,53 @@ function client(registryUrl, token, fetchImpl) {
 export function createRegistryClient({ registryUrl, token: tokenOpt, registryToken, fetchImpl, runnerId = null, defaultRunnerId = null }) {
   const token = tokenOpt ?? registryToken;
   const get = client(registryUrl, token, fetchImpl);
+
+  // Paginated list read (registry-list-completeness): the registry defaults to
+  // limit=20 and reports has_next, so one page is not the full set. A runner
+  // that read a single page would silently stop serving the tail of its fleet.
+  const LIST_PAGE_LIMIT = 500;
+  const LIST_MAX_PAGES = 100;
+  async function listAllPages(path) {
+    const items = [];
+    let offset = 0;
+    let complete = false;
+    let reportedTotal = null;
+    const seenFirst = new Set();
+    for (let page = 0; page < LIST_MAX_PAGES; page += 1) {
+      const doc = await get(`${path}?limit=${LIST_PAGE_LIMIT}&offset=${offset}`);
+      const rows = Array.isArray(doc) ? doc : (doc?.agents ?? doc?.items ?? []);
+      const firstPath = rows.length ? (rows[0]?.path ?? rows[0]?.name ?? null) : null;
+      if (page > 0 && firstPath !== null && seenFirst.has(firstPath)) break;
+      if (firstPath !== null) seenFirst.add(firstPath);
+      items.push(...rows);
+      const total = Number.isFinite(Number(doc?.total_count)) ? Number(doc.total_count) : null;
+      if (total !== null) reportedTotal = total;
+      const hasNext =
+        typeof doc?.has_next === "boolean"
+          ? doc.has_next
+          : total !== null
+            ? items.length < total
+            : rows.length >= LIST_PAGE_LIMIT;
+      if (!hasNext) {
+        complete = true;
+        break;
+      }
+      if (rows.length === 0) break;
+      const nextOffset = offset + rows.length;
+      if (nextOffset <= offset) break;
+      offset = nextOffset;
+    }
+    if (!complete) {
+      console.warn(
+        `[agent-runner] ${path}: truncated read — retrieved ${items.length} of ${reportedTotal ?? "?"} entries`,
+      );
+    }
+    return items;
+  }
+
   return {
     async listServedAgents() {
-      const doc = await get(`/api/agents?limit=500`);
-      const rows = Array.isArray(doc) ? doc : (doc?.agents ?? doc?.items ?? []);
+      const rows = await listAllPages("/api/agents");
       return rows.filter(
         (a) =>
           a &&

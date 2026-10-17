@@ -367,13 +367,29 @@ export async function verifyCallerKey(registry, key) {
   }
   let servers = null;
   try {
-    const r = await fetch(`${registry}/api/servers`, { headers });
-    if (r.ok) {
+    // Paginated read (registry-list-completeness): one page is not the full
+    // set. Best-effort stays best-effort — any failure here must not fail
+    // the connect, and a walk that cannot complete still shows what it got.
+    const PAGE = 500;
+    const names = [];
+    let offset = 0;
+    for (let page = 0; page < 100; page += 1) {
+      const r = await fetch(`${registry}/api/servers?limit=${PAGE}&offset=${offset}`, { headers });
+      if (!r.ok) break;
       const doc = await r.json();
-      servers = (Array.isArray(doc) ? doc : doc?.servers ?? [])
-        .map((s) => s?.name ?? s?.server?.name ?? s?.id)
-        .filter(Boolean);
+      const rows = Array.isArray(doc) ? doc : doc?.servers ?? [];
+      names.push(...rows.map((s) => s?.name ?? s?.server?.name ?? s?.id).filter(Boolean));
+      const total = Number.isFinite(Number(doc?.total_count)) ? Number(doc.total_count) : null;
+      const hasNext =
+        typeof doc?.has_next === "boolean"
+          ? doc.has_next
+          : total !== null
+            ? names.length < total
+            : rows.length >= PAGE;
+      if (!hasNext || rows.length === 0) break;
+      offset += rows.length;
     }
+    if (names.length) servers = names;
   } catch { /* best-effort */ }
   return { servers };
 }

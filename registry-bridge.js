@@ -69,6 +69,70 @@ async function fetchJson(endpoint) {
   return res.json();
 }
 
+// ── paginated list reads ─────────────────────────────────────────────────────
+// Registry list endpoints are PAGINATED: they default to limit=20 and report
+// {total_count, limit, offset, has_next}. Reading one page and treating it as
+// the full set silently drops entries — production hit this on /api/agents
+// (23 entries, 20 returned, the tail invisible with no error). A fixed large
+// `limit` only moves the cliff, so reads follow has_next until it clears.
+
+const LIST_PAGE_LIMIT = 500; // requested page size; the registry may clamp it
+const LIST_MAX_PAGES = 100; // runaway guard (500 × 100 ≫ any real registry)
+
+function listItemsOf(doc, path) {
+  if (Array.isArray(doc)) return doc;
+  const key = path === "/api/agents" ? "agents" : path === "/api/servers" ? "servers" : "skills";
+  return doc?.[key] ?? doc?.items ?? doc?.agents ?? doc?.servers ?? doc?.skills ?? [];
+}
+
+// Read every page of a registry list endpoint.
+// Returns {items, complete}. `complete:false` means the registry reported more
+// entries than were retrieved (has_next still true when we stopped) — the
+// caller decides what to do; this helper never silently pretends it is whole.
+// Non-2xx throws (a 422 for an out-of-range limit must NOT read as "no more
+// data"), so callers keep their existing last-good behavior.
+async function fetchAllPages(path, { pageLimit = LIST_PAGE_LIMIT } = {}) {
+  const items = [];
+  let offset = 0;
+  let complete = false;
+  let reportedTotal = null;
+  const seenFirstPaths = new Set();
+  for (let page = 0; page < LIST_MAX_PAGES; page += 1) {
+    const doc = await fetchJson(`${path}?limit=${pageLimit}&offset=${offset}`);
+    const rows = listItemsOf(doc, path);
+    // Guard against a registry that ignores offset and replays the same page:
+    // if this page's first entry was already returned by an earlier page, the
+    // offset is not advancing — stop instead of piling up duplicates.
+    const firstPath = rows.length ? (rows[0]?.path ?? rows[0]?.name ?? null) : null;
+    if (page > 0 && firstPath !== null && seenFirstPaths.has(firstPath)) break;
+    if (firstPath !== null) seenFirstPaths.add(firstPath);
+    items.push(...rows);
+    const total = Number.isFinite(Number(doc?.total_count)) ? Number(doc.total_count) : null;
+    if (total !== null) reportedTotal = total;
+    // has_next is the contract; fall back to total_count for older registries.
+    const hasNext =
+      typeof doc?.has_next === "boolean"
+        ? doc.has_next
+        : total !== null
+          ? items.length < total
+          : rows.length >= pageLimit;
+    if (!hasNext) {
+      complete = true;
+      break;
+    }
+    if (rows.length === 0) break;
+    const nextOffset = offset + rows.length;
+    if (nextOffset <= offset) break;
+    offset = nextOffset;
+  }
+  if (!complete) {
+    console.warn(
+      `[registry-bridge] ${path}: truncated read — retrieved ${items.length} of ${reportedTotal ?? "?"} entries (registry reports more)`,
+    );
+  }
+  return { items, complete };
+}
+
 // Sanitize a registry path ("/currenttime", "/skills/pdf-processing") into a
 // filesystem/DB-safe name segment.
 function pathToName(p) {
@@ -262,17 +326,17 @@ function mapAgent(a) {
 
 async function doRefresh() {
   loadGroups();
-  // Array vs object: GET /api/agents returns a bare list in current builds;
-  // accept a wrapper too, defensively.
-  const [serversDoc, skillsDoc, agentsDoc] = await Promise.all([
-    fetchJson("/api/servers?limit=500"),
-    fetchJson("/api/skills?limit=500"),
-    fetchJson("/api/agents"),
+  // All three are paginated reads — see fetchAllPages. /api/agents used to be
+  // read bare here, which silently capped the agent catalog at the default
+  // page size (live: 23 entries, 20 returned).
+  const [serversList, skillsList, agentsList] = await Promise.all([
+    fetchAllPages("/api/servers"),
+    fetchAllPages("/api/skills"),
+    fetchAllPages("/api/agents"),
   ]);
-  const mcpServers = (serversDoc?.servers || []).map(mapServer).filter(Boolean);
-  const skills = (skillsDoc?.skills || []).map(mapSkill).filter(Boolean);
-  const agentsRaw = Array.isArray(agentsDoc) ? agentsDoc : agentsDoc?.agents || [];
-  const agents = agentsRaw.map(mapAgent).filter(Boolean);
+  const mcpServers = serversList.items.map(mapServer).filter(Boolean);
+  const skills = skillsList.items.map(mapSkill).filter(Boolean);
+  const agents = agentsList.items.map(mapAgent).filter(Boolean);
   if (mcpServers.length === 0 && skills.length === 0 && agents.length === 0) {
     // Auth failures and API changes both surface as empty lists; keeping a
     // previous good snapshot beats wiping the market on a bad response.

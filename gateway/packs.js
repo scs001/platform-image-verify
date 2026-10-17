@@ -812,9 +812,28 @@ export function registerPackRoutes(app, {
       },
       registry: {
         listAgents: async () => {
-          const r = await doRegFetch("/api/agents?limit=500");
-          if (!r.ok) throw new Error(`registry list HTTP ${r.status}`);
-          return r.json();
+          // Paginated read (registry-list-completeness): one page is not the
+          // full set; the scheduler reconciles only what it is shown.
+          const items = [];
+          let offset = 0;
+          const PAGE = 500;
+          for (let page = 0; page < 100; page += 1) {
+            const r = await doRegFetch(`/api/agents?limit=${PAGE}&offset=${offset}`);
+            if (!r.ok) throw new Error(`registry list HTTP ${r.status}`);
+            const doc = await r.json();
+            const rows = Array.isArray(doc) ? doc : (doc?.agents ?? doc?.items ?? []);
+            items.push(...rows);
+            const total = Number.isFinite(Number(doc?.total_count)) ? Number(doc.total_count) : null;
+            const hasNext =
+              typeof doc?.has_next === "boolean"
+                ? doc.has_next
+                : total !== null
+                  ? items.length < total
+                  : rows.length >= PAGE;
+            if (!hasNext || rows.length === 0) break;
+            offset += rows.length;
+          }
+          return items;
         },
         putAgent: async (path, body) => {
           const r = await doRegFetch(`/api/agents${path}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });

@@ -45,7 +45,9 @@ function stubRegistry({ keysStatus = 200 } = {}) {
       } else {
         res.writeHead(keysStatus).end('{"keys":[]}');
       }
-    } else if (req.url === "/api/servers") {
+    } else if (req.url.split("?")[0] === "/api/servers") {
+      // Query-bearing match: the client paginates (limit/offset), so the stub
+      // must answer those too, not just the bare path.
       if (auth !== "Bearer wgk-good") res.writeHead(401).end("{}");
       else res.writeHead(200).end('[{"name":"fd-open-data-mcp"},{"name":"fd-cn-report"}]');
     } else {
@@ -173,7 +175,7 @@ test("deviceFlow: 授权挂起一次后发键；connectRun 走设备分支落盘
       } else if (req.url === "/api/patch-keys") {
         if (auth !== "Bearer wgk-good") res.writeHead(401).end("{}");
         else res.writeHead(200).end('{"keys":[]}');
-      } else if (req.url === "/api/servers") {
+      } else if (req.url.split("?")[0] === "/api/servers") {
         res.writeHead(200).end('[{"name":"fd-open-data-mcp"}]');
       } else {
         res.writeHead(404).end("{}");

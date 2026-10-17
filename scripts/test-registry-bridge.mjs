@@ -31,9 +31,27 @@ const extensionStore = await import("../extension-store.js");
 // Distinct marker so each test's first fill differs from the previous
 // snapshot (module-level signature is shared across tests in this process).
 let marker = "v1";
+
+// List endpoints are paginated: the live registry defaults to limit=20 and
+// signals continuation via has_next. Stubs key on the bare PATH and are
+// sliced here so a multi-page read is exercised end to end.
+//
+// PAGE_CAP models a server that clamps the requested limit (the live default
+// is 20). A client must not assume its `limit` is honored — that assumption
+// is the defect these tests pin.
+const PAGE_CAP = 20;
+function itemsOf(doc) {
+  if (Array.isArray(doc)) return doc;
+  return doc.servers ?? doc.skills ?? doc.agents ?? doc.items ?? [];
+}
+function listKeyOf(doc, path = "") {
+  if (Array.isArray(doc)) return path === "/api/agents" ? "agents" : null;
+  for (const k of ["servers", "skills", "agents", "items"]) if (Array.isArray(doc[k])) return k;
+  return null;
+}
 function goodResponses() {
   return {
-    "/api/servers?limit=500": {
+    "/api/servers": {
       servers: [
         {
           path: "/currenttime",
@@ -73,7 +91,7 @@ function goodResponses() {
       ],
       total_count: 2,
     },
-    "/api/skills?limit=500": {
+    "/api/skills": {
       skills: [
         {
           id: "s1",
@@ -116,9 +134,30 @@ function makeFetch(responsesFn) {
     calls.push({ url, headers: opts.headers });
     const doc = responsesFn();
     const endpoint = url.replace(/^https:\/\/registry\.example\.test/, "");
-    const body = doc[endpoint];
+    const [rawPath, rawQuery = ""] = endpoint.split("?");
+    const body = doc[rawPath];
     if (!body) throw new Error(`unexpected endpoint ${endpoint}`);
-    return { ok: true, status: 200, json: async () => body };
+    // Paginate list responses the way the live registry does: clamp the
+    // requested limit, slice by offset, carry the envelope.
+    const key = listKeyOf(body, rawPath);
+    if (!key) return { ok: true, status: 200, json: async () => body };
+    const q = new URLSearchParams(rawQuery);
+    const all = itemsOf(body);
+    const limit = Math.min(Number(q.get("limit") ?? PAGE_CAP), PAGE_CAP);
+    const offset = Number(q.get("offset") ?? 0);
+    const page = all.slice(offset, offset + limit);
+    const nextOffset = offset + page.length;
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        [key]: page,
+        total_count: all.length,
+        limit,
+        offset,
+        has_next: nextOffset < all.length,
+      }),
+    };
   };
   fetchImpl.calls = calls;
   return fetchImpl;
@@ -182,6 +221,98 @@ test("mapping: servers/skills/agents → market + catalog shapes", async () => {
 
   assert.equal(fetchImpl.calls[0].headers.Authorization, "Bearer test-token");
   assert.equal(events.filter((e) => e.type === "market_changed").length, 1, "first fill broadcasts");
+});
+
+// ── pagination completeness (registry-list-completeness) ─────────────────────
+// The live registry paginates list endpoints (default limit=20) and reports
+// total_count/has_next. Reading one page as "everything" silently drops
+// entries — production hit this on /api/agents (23 entries, 20 returned).
+
+test("pagination: every entry is read when the registry spans several pages", async () => {
+  // 25 agents: more than the default page, fewer than one limit=500 page. The
+  // stub slices at the requested limit, so a single-read implementation can
+  // only ever see the first 20.
+  const many = Array.from({ length: 25 }, (_, i) => ({
+    name: `agent-${i}`,
+    path: `/agents/agent-${i}`,
+    url: `https://registry.example.test/agent/agent-${i}`,
+    is_enabled: true,
+    supported_protocol: "a2a",
+  }));
+  const fetchImpl = makeFetch(() => ({
+    "/api/servers": { servers: [{ path: "/srv", display_name: "S", is_enabled: true }] },
+    "/api/skills": { skills: [{ name: "sk", path: "/skills/sk", is_enabled: true }] },
+    "/api/agents": many,
+  }));
+  bridge.initRegistryBridge({ broadcast: () => {}, fetchImpl });
+  await bridge.refreshRegistry();
+
+  const agents = bridge.getAgentEntries();
+  assert.equal(agents.length, 25, "all 25 agents read, not the first page only");
+  assert.ok(agents.some((a) => a.id === "registry-agents-agent-24"), "the last entry survives");
+});
+
+test("pagination: offset advances so pages do not repeat", async () => {
+  const many = Array.from({ length: 60 }, (_, i) => ({
+    name: `s-${i}`,
+    path: `/servers/s-${i}`,
+    is_enabled: true,
+  }));
+  const fetchImpl = makeFetch(() => ({
+    "/api/servers": { servers: many },
+    "/api/skills": { skills: [{ name: "sk", path: "/skills/sk", is_enabled: true }] },
+    "/api/agents": [{ name: "a", path: "/agents/a", is_enabled: true }],
+  }));
+  bridge.initRegistryBridge({ broadcast: () => {}, fetchImpl });
+  await bridge.refreshRegistry();
+
+  const servers = bridge.getMarketEntries().mcpServers;
+  assert.equal(servers.length, 60);
+  assert.equal(new Set(servers.map((s) => s.name)).size, 60, "no duplicates from a stuck offset");
+});
+
+test("pagination: a truncated read is logged with endpoint and counts", async () => {
+  // has_next stays true forever: the read cannot complete. The bridge must
+  // still use what it got (partial success beats an empty market) and say so.
+  const warns = [];
+  const origWarn = console.warn;
+  console.warn = (...args) => warns.push(args.join(" "));
+  try {
+    const fetchImpl = async (url) => {
+      const endpoint = url.replace(/^https:\/\/registry\.example\.test/, "");
+      const path = endpoint.split("?")[0];
+      const base = {
+        "/api/servers": { servers: [{ path: "/srv", display_name: "S", is_enabled: true }] },
+        "/api/skills": { skills: [{ name: "sk", path: "/skills/sk", is_enabled: true }] },
+        "/api/agents": [
+          { name: "a", path: "/agents/a", url: "https://registry.example.test/agent/a", is_enabled: true },
+        ],
+      }[path];
+      if (!base) throw new Error(`unexpected endpoint ${endpoint}`);
+      const key = listKeyOf(base, path);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          [key]: itemsOf(base),
+          total_count: 99,
+          limit: 20,
+          offset: 0,
+          has_next: true, // never resolves
+        }),
+      };
+    };
+    bridge.initRegistryBridge({ broadcast: () => {}, fetchImpl });
+    await bridge.refreshRegistry();
+
+    const msg = warns.join("\n");
+    assert.match(msg, /truncated/i, "a truncated read must be reported");
+    assert.match(msg, /\/api\/(servers|skills|agents)/, "the warning names the endpoint");
+    assert.match(msg, /99/, "the warning carries total_count");
+    assert.ok(bridge.getAgentEntries().length > 0, "partial data is still used");
+  } finally {
+    console.warn = origWarn;
+  }
 });
 
 test("last-good: failing refresh keeps the snapshot; unchanged refresh stays silent", async () => {

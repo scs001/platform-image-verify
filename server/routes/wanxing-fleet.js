@@ -55,18 +55,48 @@ export function registerWanxingFleetRoutes(ctx) {
       return res.status(503).json({ error: "registry_not_configured" });
     }
     try {
-      const r = await doFetch(`${registryBase()}/api/agents?limit=500`, {
-        headers: {
-          Accept: "application/json",
-          ...(registryToken() ? { Authorization: `Bearer ${registryToken()}` } : {}),
-        },
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!r.ok) {
-        return res.status(502).json({ error: "registry_unreachable", status: r.status });
+      // Paginated read (registry-list-completeness): the 8s budget covers the
+      // whole walk; on timeout the partial rows are still served (this is a
+      // read-only projection, better half a fleet than a 502) with a warning.
+      const headers = {
+        Accept: "application/json",
+        ...(registryToken() ? { Authorization: `Bearer ${registryToken()}` } : {}),
+      };
+      const rows = [];
+      let offset = 0;
+      let truncated = false;
+      const PAGE = 500;
+      const deadline = Date.now() + 7500; // leave the response path 500ms
+      for (let page = 0; page < 100; page += 1) {
+        const r = await doFetch(`${registryBase()}/api/agents?limit=${PAGE}&offset=${offset}`, {
+          headers,
+          signal: AbortSignal.timeout(Math.max(500, deadline - Date.now())),
+        });
+        if (!r.ok) {
+          return res.status(502).json({ error: "registry_unreachable", status: r.status });
+        }
+        const doc = await r.json();
+        const pageRows = Array.isArray(doc) ? doc : (doc?.agents ?? doc?.items ?? []);
+        rows.push(...pageRows);
+        const total = Number.isFinite(Number(doc?.total_count)) ? Number(doc.total_count) : null;
+        const hasNext =
+          typeof doc?.has_next === "boolean"
+            ? doc.has_next
+            : total !== null
+              ? rows.length < total
+              : pageRows.length >= PAGE;
+        if (!hasNext || pageRows.length === 0) break;
+        if (Date.now() >= deadline) {
+          truncated = true;
+          break;
+        }
+        offset += pageRows.length;
       }
-      const doc = await r.json();
-      const rows = Array.isArray(doc) ? doc : (doc?.agents ?? doc?.items ?? []);
+      if (truncated) {
+        console.warn(
+          `[wanxing-fleet] /api/agents: truncated catalog read — retrieved ${rows.length} entries within the time budget`,
+        );
+      }
       // Read-only projection: metadata internals never reach the renderer.
       const agents = rows
         .filter((a) => a && a.is_enabled !== false && String(a.supported_protocol || "").toLowerCase() === "a2a")

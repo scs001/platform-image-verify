@@ -501,3 +501,16 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 测试 | 单测 **1552/1552**；e2e 三面 **27/27**；新增 `scripts/test-onboarding-hosted.mjs` **2/2**（真 gateway+真 cell 无 dsh 依赖：托管写入落网关照头、引用解析到本部署 id、无 ws 装包+切专家、幂等、伪造无密钥 401、自频道不授 admin）。**突变测试验证断言有效性**：改坏 `readyTitle` → e2e 红；`planPack` 那半在 marketplace-off 下**测不到**（无 pack 行），已在注释里写明由另一套覆盖 |
 | 生产验收（真账号重跑首配） | 同 trial 账号改为选「股票」：确认清单显示 `Install 数据-股票`（**作者名，非随机 id**）且无裸花括号；标题 `Ready to set up for Equity research`；激活后 `/api/auth/me` → `stock`、`/api/config` nav **收窄至 4 项**；cell 库实测 `installed_packs` 有 `Y5uR57UBAXi7_xruKQBsfg`（数据-股票 v3）、`agent.preset=pack-industry-analyst`；网关 store `/data/cells/roles.json` 落有该账号 `{primary:"stock"}`。**10/10 断言全过** |
 | 教训（续 §12.9） | ①**修完必须真机重跑**：四处缺陷里①③只在真实请求链上现形，本地模块级与既有 e2e 全绿；②**突变测试是断言有效性的唯一证法**——写完「不该出现 {name}」的断言后要故意改坏看它红，否则可能像本文 planPack 那样在特定配置下恒真；③**平台侧新能力要一次给全**：本轮四个缺陷同源——把「本地单进程」的假设带进了「托管多租户」形态（写存储、拿 ws、拿 id），凡跨这两个形态的路径都要问一句「托管下谁是真源」 |
+
+### 12.11 registry 列表分页取全量（registry-list-completeness，2026-10-17）
+
+| 项 | 值 |
+|---|---|
+| 缺陷 | 网关 `GET /api/{skills,servers,agents}` 是分页端点（默认 `limit=20`，信封带 `total_count/has_next`），调用方裸读当全量。实测源起：wire-presets `register_skills.py` 只读 20/212 条 → 17 个既有技能被判缺失（8 个重提交被 409 兜住）+ verification 报 0/17 与事实相反。paas 侧同源：`registry-bridge.js` 的 `/api/agents` 裸读（23 取 20，enabled 净丢 1：daas-analyst），另有四处 `limit=500` 硬顶是同一假设（网关上限实测 2000，`limit=5000`→422） |
+| 修复 | `fetchAllPages` 助手（has_next 翻页/空页与 offset 不推进与同页重放三重防护/`total_count` 退化/非 2xx 抛错走 last-good），`registry-bridge.js` 三端点 + `agent-serving` + `agent-runner` + packs fleet scheduler + `wanxing-fleet`（保 8s 预算，超时部分返回+告警）+ `facet/cli verifyCallerKey` 全部接入；截断告警含端点+实取条数+total_count。paas `a1c1a60c`，openspec change `registry-list-completeness` 四件齐 |
+| 测试 | 测试先行三用例（桩钳页 20 强制多页）先红后绿；**突变自检**（改回单页读 → 分页用例转红）证断言非恒真；14 套件 243 用例全绿。坑：`registryCall` 显式 `method:"GET"` 会坏掉按 `!init.method` 判 GET 的桩/旧网关（agent-serving 三端口用例红过的根因），助手改裸 `doFetch(path)` 保持线形 |
+| 出片线 | 公开快照线（scs001/platform-image-verify）构建验证绿但 **image-build-check 不推镜像**（纯构建检查，relay 无 sha-a1c1a60c，第一次"RELAY OK"是 SSH 缓冲误报）→ 改走 `testaction002/build-pool`。**首跑红：Dockerfile not found = 池 repo 变量 `BUILD_CONTEXT=web` 是上一位使用者残留**（workflow 去 `web/Dockerfile` 找）；删变量回默认 `.` 后同 run rerun 绿。出片 tag `sha-d1c1cb3`（≙ paas `a1c1a60c`） |
+| 门 | relay 日志 `OK yizuo/platform:sha-d1c1cb3`（16:28:26，copied=3）；hkccr digest `2f767fb1` skopeo 实证 → 才 bump `fd-infra-deploy`（platform + platform-demo + facet 三清单，`1de0cb7` 双远端推）→ ArgoCD hard-refresh → 三 rollout 全绿，pod imageID 实测 = `2f767fb1` 与 digest 全等，restarts=0 |
+| 生产验收（cell 内通道） | gateway secret + cell 端口（日志 `cell … on 127.0.0.1:40575`）打 `/api/catalog`：registry-sourced agents **11→12**，`daas-analyst`（孤儿条目，pack 已 404）出现——与 registry enabled 口径一致；pod 日志无 truncated 告警；模块活体 `import registry-bridge.js` OK；pod 内 md5 与本地工作树全等（`296e6655`） |
+| 教训 | ①**出片通道要分清「构建验证」与「出片」**：image-build-check 是 build-only，成功≠镜像存在；relay 验证必须对具体 sha tag 抓日志行（上一轮的 grep 模式过宽+SSH 缓冲复用产出过一次假绿）；②**通用池是共享资源，repo 变量会被上一个使用者留下**——fd-build-snapshot 设了 NS/IMAGE 但 BUILD_CONTEXT 是 repo 级手配，首跑红灯就是它的锅；通用池使用前 `gh variable list` 核一遍目标三件套；③验收走 cell 内通道 + gateway secret（memory `prod-liveness-evidence-discipline`），公网匿名 401 无鉴别力 |
+| 待办 | finddata 跨仓两件（tasks 4.x）：Gitee `finddata-skills/scripts/register_skills.py` 仍是裸读版需回推分页修复；`docs/wire-presets/register_skills.py` 的 `--rescan` 分支 `after_items` NameError 未修 |

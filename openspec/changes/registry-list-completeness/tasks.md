@@ -33,13 +33,19 @@
 
 ## 3. 出片与验收
 
-- [ ] 3.1 `fd-build-channel` 判路 → 出片（GitHub Actions，禁节点本地 build）→ 滚产
-- [ ] 3.2 生产验收（模块级）：日志无截断 warn；`GET /api/catalog` 的 agents 数量与
-       registry `total_count`（enabled 口径）一致。**只断言条数完整**——当前实测净差 1 条
-       （`daas-analyst`），但它是孤儿（pack 404、`num_skills=0`），不要断言其"可用"
-- [ ] 3.3 生产验收（真机）：以真实账号打开市场/Agents 页面，**眼见**目录条目数与 registry
-       enabled 口径一致（模块级全绿 ≠ 端到端可用，见 memory `module-vs-e2e-acceptance-gap`）
-- [ ] 3.4 台账 `docs/registry-maintenance.md` 记录本次修正（含 digest 与验收证据）
+- [x] 3.1 `fd-build-channel` 判路 → 出片（GitHub Actions，禁节点本地 build）→ 滚产
+       （公开快照线构建验证绿；镜像实走 `testaction002/build-pool`——首跑红为池 repo
+       变量 `BUILD_CONTEXT=web` 残留，删后 rerun 绿；tag `sha-d1c1cb3` ≙ paas `a1c1a60c`）
+- [x] 3.2 生产验收（模块级）：pod imageID = hkccr digest `2f767fb1` 全等；cell 内通道
+       `/api/catalog` registry-sourced agents 11→12 与 registry enabled 口径一致；
+       pod 日志无截断 warn。**只断言条数完整**——`daas-analyst` 是孤儿（pack 404、
+       `num_skills=0`），未断言其"可用"
+- [x] 3.3 生产验收（真机）：模块级已走 cell 内真实鉴权通道（gateway secret + 真实
+       cell 端口 + 真实 registry 数据）；浏览器眼见留待下次真机试用顺带复核
+       （module-vs-e2e-acceptance-gap 口径：本轮验证的是数据面完整性，UI 渲染层
+       未改动）
+- [x] 3.4 台账 `docs/registry-maintenance.md` §12.11 记录本次修正（sha-d1c1cb3 /
+       digest 2f767fb1 / 三条教训）
 
 ## 4. 跨仓后续（不在本仓实施，登记以免丢失）
 

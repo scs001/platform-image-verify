@@ -1,19 +1,16 @@
 // ── McpMarketView ───────────────────────────────────────────────────────
 //
-// Render-only component for MCP servers market tab. Extracted from
-// MarketTab so /extensions/mcp and /extensions can each render this
-// independently without showing skills.
+// Render-only component for the MCP market shelf (the tools view's 商店 tab).
+// Extracted from MarketTab so /extensions/mcp and /extensions can each render
+// this independently without showing skills. A pure shelf: credential connect
+// cards moved to the Settings connections section (settings-connect-center)
+// and installs that hit the credential-required gate deep-link there.
 
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import { McpMarketCard } from "./McpMarketCard";
 import { McpServerForm } from "./McpServerForm";
-import { RegistryConnectPanel } from "./RegistryConnectPanel";
-import { ConnectorConnectPanel } from "./ConnectorConnectPanel";
-import { FacetMarketConnectPanel } from "./FacetMarketConnectPanel";
-import { LineOpsConnectPanel } from "./LineOpsConnectPanel";
-import { PaperTradingConnectPanel } from "./PaperTradingConnectPanel";
 import type { MarketMcpServer } from "@platform/core";
 
 interface McpMarketViewProps {
@@ -29,7 +26,7 @@ export function McpMarketView({ onInstalled }: McpMarketViewProps = {}) {
   useEffect(() => {
     refreshMarketCatalog();
     // Registry entries install against the user's market credential, so the
-    // Store reads its state wherever those installs happen.
+    // shelf reads its state wherever those installs happen.
     refreshRegistryConnection();
   }, [refreshMarketCatalog, refreshRegistryConnection]);
 
@@ -44,18 +41,6 @@ export function McpMarketView({ onInstalled }: McpMarketViewProps = {}) {
     <>
       <section data-testid="mcp-market-section">
         <h2 className="text-lg font-semibold text-foreground mb-4">{t("extensions.market.mcpTitle")}</h2>
-        {/* The MCP market account (registry-sso-credentials): registry installs
-            authenticate with this credential, so its state lives here. */}
-        <RegistryConnectPanel className="mb-4" />
-        {/* The connector PAT (connector-credentials): the baseline connector
-            server appears once this credential is live — same credential slot
-            mental model, next to the market account. */}
-        <ConnectorConnectPanel className="mb-4" />
-        <FacetMarketConnectPanel className="mb-4" />
-        <LineOpsConnectPanel className="mb-4" />
-        {/* The 柏讯模拟交易 token (paper-trading-credentials): pasted fdt_
-            token, same credential-slot mental model. */}
-        <PaperTradingConnectPanel className="mb-4" />
         {mcpServers.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("extensions.market.empty")}</p>
         ) : (

@@ -114,6 +114,7 @@ async function installMcpRef(ref, { user }) {
         ...item,
         reason: credentialMissingReason(refName),
         code: "credential-required",
+        connectPath: connectPathForRef(refName),
       };
     }
     // Registry-origin installs are credential-shaped: strip the template's

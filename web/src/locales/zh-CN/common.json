@@ -7,7 +7,8 @@
     "add": "添加",
     "edit": "编辑",
     "delete": "删除",
-    "close": "关闭"
+    "close": "关闭",
+    "disconnect": "断开"
   },
   "nav": {
     "chat": "对话",
@@ -492,7 +493,8 @@
         "envInvalid": "环境变量必须是有效的 JSON",
         "headersInvalid": "请求头必须是有效的 JSON"
       },
-      "bundledWiringHint": "该工具的连接配置在 设置 → 网络搜索 中管理。"
+      "bundledWiringHint": "该工具的连接配置在 设置 → 连接 → 搜索服务 中管理。",
+      "goConnect": "去连接对应服务 →"
     },
     "skills": {
       "title": "技能",
@@ -636,7 +638,9 @@
         "successReplaced": "已更新「{{name}}」（重装）。",
         "findInInstalled": "可在「已安装」标签页看到这个技能。",
         "retry": "重试"
-      }
+      },
+      "zoneTitle": "外部市场",
+      "zoneSubtitle": "未经平台审校的第三方技能市场，条目带来源与许可标记；安装前展示完整预览并需确认。"
     }
   },
   "help": {
@@ -756,9 +760,9 @@
       "packs": "功能集",
       "presets": "自建预设",
       "devices": "已配对设备",
-      "websearch": "网络搜索",
       "roles": "用户角色",
-      "layout": "工作面布局"
+      "layout": "工作面布局",
+      "connections": "连接"
     },
     "groups": {
       "basics": "常规",
@@ -926,6 +930,92 @@
       "moveDown": "下移",
       "hide": "隐藏",
       "restore": "恢复继承布局"
+    },
+    "connections": {
+      "subtitle": "管理你与外部服务的连接——连上之后，对应的工具、搜索或模型才能工作。凭据只写不可读。",
+      "glossary": {
+        "title": "这些名字都是谁？（点开速查）",
+        "ciyuan": {
+          "name": "萬星·词元",
+          "desc": "AI 能力网关——模型、搜索、语音按车道供能、按量计费。"
+        },
+        "facet": {
+          "name": "谦面",
+          "desc": "功能集市场——技能、MCP 与角色打包发布的地方。"
+        },
+        "connector": {
+          "name": "萬星·连接器",
+          "desc": "SaaS 连接服务——托管你的外部账号凭据，交给 agent 安全调用。"
+        },
+        "wire": {
+          "name": "柏讯",
+          "desc": "业务线——需求单、数据查询与市场订阅。"
+        },
+        "lex": {
+          "name": "识律",
+          "desc": "业务线——账户、用量与检索凭据管理。"
+        }
+      },
+      "cards": {
+        "facetGroup": {
+          "title": "谦面"
+        },
+        "registry": {
+          "subtitle": "工具市场登录——装市场工具、启用注册处来源的 MCP。"
+        },
+        "facetMarket": {
+          "subtitle": "市场设备配对——启用谦面市场 MCP。"
+        },
+        "connector": {
+          "subtitle": "连接器账号——托管 SaaS 凭据、解锁连接器生态工具。"
+        },
+        "lines": {
+          "subtitle": "产品线操作凭据——柏讯/识律静默铸造；萬星 Caller 贴计费 key。"
+        },
+        "paperTrading": {
+          "subtitle": "模拟交易凭据——贴 fdt_ token 解锁模拟盘工具。"
+        },
+        "search": {
+          "title": "搜索服务",
+          "subtitle": "网络搜索的凭据与服务接线：个人搜索密钥、共享服务（管理员）。"
+        }
+      }
+    },
+    "lines": {
+      "title": "产品线操作",
+      "subtitle": "各线操作 MCP 的凭据",
+      "wire": {
+        "title": "柏讯操作",
+        "hint": "需求单/数据查询/市场订阅的凭据（静默铸造，自动续期）"
+      },
+      "lex": {
+        "title": "识律操作",
+        "hint": "账户/用量/检索凭据管理的凭据（静默铸造，自动续期）"
+      },
+      "wanxingCaller": "萬星 Caller",
+      "wanxingCallerHint": "发起萬星回合用的计费 key（token.finddatatech.cloud 自铸）",
+      "connect": "连接",
+      "connecting": "连接中…",
+      "connected": "已连接",
+      "connectedUntil": "已连接 · 至",
+      "stale": "已失效——请重连",
+      "notConnected": "未连接",
+      "unknown": "…",
+      "save": "保存",
+      "pasteKey": "粘贴 key",
+      "mintFailed": "连接未完成——请重试",
+      "footnote": "短命 ID token 过期时对应工具暂不可用，点「连接」即静默重铸（Logto 会话在则无需交互）；萬星 caller key 401 时需重贴。"
+    },
+    "facetMarket": {
+      "title": "谦面市场",
+      "connectedAs": "已连接",
+      "notConnected": "未连接",
+      "staleHint": "设备被吊销——请重新配对",
+      "silentHint": "凭据自动续期，无需干预",
+      "pairHint": "在谦面市场设置页生成 6 位绑定码，填入此处完成配对",
+      "pair": "配对",
+      "openSettings": "打开市场设置 →",
+      "tokenUntil": "凭据有效期至"
     }
   },
   "bindings": {

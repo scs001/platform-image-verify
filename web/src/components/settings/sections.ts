@@ -19,7 +19,7 @@ import { lazy } from "react";
 import {
   Activity,
   Bot,
-  Globe,
+  Cable,
   LayoutPanelLeft,
   MonitorSmartphone,
   Paintbrush,
@@ -49,8 +49,8 @@ const BrandingSection = lazy(() =>
   import("@/components/settings/BrandingSection").then((m) => ({ default: m.BrandingSection })),
 );
 const ModelsPage = lazy(() => import("@/pages/ModelsPage").then((m) => ({ default: m.ModelsPage })));
-const WebSearchSection = lazy(() =>
-  import("@/components/settings/WebSearchSection").then((m) => ({ default: m.WebSearchSection })),
+const ConnectionsSection = lazy(() =>
+  import("@/components/settings/ConnectionsSection").then((m) => ({ default: m.ConnectionsSection })),
 );
 const ExtensionsPage = lazy(() =>
   import("@/pages/ExtensionsPage").then((m) => ({ default: m.ExtensionsPage })),
@@ -135,6 +135,17 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
   },
   // ── Capabilities（能力）──────────────────────────────────────────────────
   {
+    // Connections (settings-connect-center): the single home for user-level
+    // credential connect cards and the search wiring — everything that lets a
+    // capability work. First in the group: connecting precedes using.
+    slug: "connections",
+    group: "capabilities",
+    labelKey: "settings.sections.connections",
+    testId: "settings-section-connections",
+    icon: Cable,
+    Component: ConnectionsSection as SettingsSectionComponent,
+  },
+  {
     // Merged Tools & Skills section: one surface, two sub-views. The
     // canonical `mcp` slug opens the tools view; the legacy `skills` slug
     // opens the skills view. Both keep every existing deep link alive.
@@ -147,18 +158,6 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Plug,
     Component: ExtensionsPage as SettingsSectionComponent,
     props: { type: "mcp" },
-  },
-  {
-    // Network search (add-websearch-settings, per-user BYOK via
-    // add-search-byok): every user manages their own search key; the shared
-    // service zone renders only for admins (the server gates those endpoints
-    // the same way), so the section itself is NOT adminOnly.
-    slug: "websearch",
-    group: "capabilities",
-    labelKey: "settings.sections.websearch",
-    testId: "settings-section-websearch",
-    icon: Globe,
-    Component: WebSearchSection as SettingsSectionComponent,
   },
   {
     slug: "models",

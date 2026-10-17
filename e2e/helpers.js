@@ -244,6 +244,24 @@ export async function gotoExtensions(page) {
   await expect(page.getByTestId("extensions-page")).toBeVisible({ timeout: 15000 });
 }
 
+// The connect cards' home since settings-connect-center.
+export async function gotoConnections(page, panel = null) {
+  await pinLocaleEn(page);
+  await page.goto(`/settings/connections${panel ? `?panel=${panel}` : ""}`);
+  await expect(page.getByTestId("settings-section-connections")).toBeVisible({ timeout: 15000 });
+}
+
+// The external market is a zone of the skills view's Store tab
+// (settings-connect-center): the retired third tab resolves here.
+export async function gotoExternalMarket(page) {
+  await pinLocaleEn(page);
+  await page.goto("/settings/skills");
+  await expect(page).toHaveURL(/\/settings\/skills$/);
+  await expect(page.getByTestId("extensions-page")).toBeVisible({ timeout: 15000 });
+  await page.getByTestId("extensions-tab-market").click();
+  await expect(page.getByTestId("market-external-zone")).toBeVisible();
+}
+
 // ── Hermetic facet stand-in (pack-install-server-side-manifest) ─────────────
 //
 // The install endpoint fetches the manifest SERVER-side over the facet

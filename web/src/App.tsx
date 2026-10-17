@@ -302,6 +302,13 @@ export default function App() {
             path="/settings/packs"
             element={<Navigate to="/agents?tab=market" replace state={location.state} />}
           />
+          {/* Retired section (settings-connect-center): the search wiring moved
+              into the connections section's search-service card. The slug stays
+              addressable via this stable redirect, per settings-surface. */}
+          <Route
+            path="/settings/websearch"
+            element={<Navigate to="/settings/connections?panel=search" replace state={location.state} />}
+          />
           <Route
             path="/settings/:section"
             element={<SettingsDialog backgroundPath={backgroundPath} />}

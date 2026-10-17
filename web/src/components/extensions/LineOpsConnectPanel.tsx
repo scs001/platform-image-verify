@@ -24,9 +24,17 @@ interface LineOpsConnectPanelProps {
   className?: string;
 }
 
-const MINT_LINES: Array<{ line: LineName; title: string; hint: string }> = [
-  { line: "wire-customer", title: "柏讯操作", hint: "需求单/数据查询/市场订阅的凭据（静默铸造，自动续期）" },
-  { line: "lex", title: "识律操作", hint: "账户/用量/检索凭据管理的凭据（静默铸造，自动续期）" },
+const MINT_LINES: Array<{ line: LineName; titleKey: string; hintKey: string }> = [
+  {
+    line: "wire-customer",
+    titleKey: "settings.lines.wire.title",
+    hintKey: "settings.lines.wire.hint",
+  },
+  {
+    line: "lex",
+    titleKey: "settings.lines.lex.title",
+    hintKey: "settings.lines.lex.hint",
+  },
 ];
 
 const CALLER_LINE: LineName = "wanxing-caller";
@@ -130,11 +138,11 @@ export function LineOpsConnectPanel({ compact = false, className = "" }: LineOps
         </span>
       </div>
 
-      {MINT_LINES.map(({ line, title, hint }) => {
+      {MINT_LINES.map(({ line, titleKey, hintKey }) => {
         const conn = mintStates[line];
         return row(
-          title,
-          hint,
+          t(titleKey),
+          t(hintKey),
           conn,
           conn?.connected ? (
             <Button variant="outline" size="sm" disabled={busy !== null} onClick={() => disconnect(line)}>

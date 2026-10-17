@@ -12,7 +12,7 @@
 // failure caption instead of crashing the shelf.
 
 import { test, expect } from "@playwright/test";
-import { gotoExtensions } from "./helpers.js";
+import { gotoExternalMarket } from "./helpers.js";
 
 const SOURCES = { sources: [{ id: "skillhub", displayName: "腾讯 SkillHub" }, { id: "smithery", displayName: "Smithery" }] };
 
@@ -121,8 +121,7 @@ test.describe("External skill-source shelf (mirror + consent install)", () => {
       await route.fulfill({ json: { skill: { name: "pdf-image-text-extractor", description: "d", originMeta: { kind: "external", source: "skillhub", slug: "pdf-image-text-extractor" } }, replaced: false } });
     });
 
-    await gotoExtensions(page);
-    await page.getByTestId("extensions-tab-external").click();
+    await gotoExternalMarket(page);
     await page.getByTestId("external-source-search").fill("pdf");
     await page.getByRole("button", { name: /^search$/i }).click();
     await page.getByTestId("external-entry-skillhub-pdf-image-text-extractor").click();
@@ -157,8 +156,7 @@ test.describe("External skill-source shelf (mirror + consent install)", () => {
     await page.route("**/api/extensions/external/install-preview/**", (route) =>
       route.fulfill({ json: previewDoc({ hasScripts: false, files: [{ path: "SKILL.md", bytes: 100, script: false, action: "stored" }] }) }),
     );
-    await gotoExtensions(page);
-    await page.getByTestId("extensions-tab-external").click();
+    await gotoExternalMarket(page);
     await page.getByTestId("external-source-search").fill("pdf");
     await page.getByRole("button", { name: /^search$/i }).click();
     await page.getByTestId("external-entry-skillhub-pdf-image-text-extractor").click();
@@ -174,8 +172,7 @@ test.describe("External skill-source shelf (mirror + consent install)", () => {
     await page.route("**/api/extensions/external/install", (route) =>
       route.fulfill({ status: 502, json: { error: "Install failed: upstream directory not found: https://github.com/o/r/tree/main/gone", code: "upstream-not-found" } }),
     );
-    await gotoExtensions(page);
-    await page.getByTestId("extensions-tab-external").click();
+    await gotoExternalMarket(page);
     await page.getByTestId("external-source-search").fill("pdf");
     await page.getByRole("button", { name: /^search$/i }).click();
     await page.getByTestId("external-entry-skillhub-pdf-image-text-extractor").click();
@@ -191,8 +188,7 @@ test.describe("External skill-source shelf (mirror + consent install)", () => {
       installCalled = true;
       await route.fulfill({ json: {} });
     });
-    await gotoExtensions(page);
-    await page.getByTestId("extensions-tab-external").click();
+    await gotoExternalMarket(page);
     await page.getByTestId("external-source-search").fill("pdf");
     await page.getByRole("button", { name: /^search$/i }).click();
     await page.getByTestId("external-entry-skillhub-pdf-image-text-extractor").click();
@@ -202,14 +198,17 @@ test.describe("External skill-source shelf (mirror + consent install)", () => {
     expect(installCalled).toBe(false);
   });
 
-  test("external tab is visible by default with no flag", async ({ page }) => {
-    await gotoExtensions(page);
-    await expect(page.getByTestId("extensions-tab-external")).toBeVisible();
+  test("external zone is present by default in the skills market, absent from the tools view", async ({ page }) => {
+    await gotoExternalMarket(page);
+    // The tools view's Store tab shows the catalog only (settings-connect-center).
+    await page.goto("/settings/mcp");
+    await page.getByTestId("extensions-tab-market").click();
+    await expect(page.getByTestId("mcp-market-section")).toBeVisible();
+    await expect(page.getByTestId("market-external-zone")).toHaveCount(0);
   });
 
   test("search renders per-source groups with provenance marks; shelf offers no direct install", async ({ page }) => {
-    await gotoExtensions(page);
-    await page.getByTestId("extensions-tab-external").click();
+    await gotoExternalMarket(page);
 
     await page.getByTestId("external-source-search").fill("pdf");
     await page.getByRole("button", { name: /^search$/i }).click();
@@ -236,8 +235,7 @@ test.describe("External skill-source shelf (mirror + consent install)", () => {
   });
 
   test("entry detail opens with upstream link and the install entry point", async ({ page }) => {
-    await gotoExtensions(page);
-    await page.getByTestId("extensions-tab-external").click();
+    await gotoExternalMarket(page);
     await page.getByTestId("external-source-search").fill("pdf");
     await page.getByRole("button", { name: /^search$/i }).click();
 
@@ -267,8 +265,7 @@ test.describe("External skill-source shelf (mirror + consent install)", () => {
       });
     });
 
-    await gotoExtensions(page);
-    await page.getByTestId("extensions-tab-external").click();
+    await gotoExternalMarket(page);
     await page.getByTestId("external-source-search").fill("pdf");
     await page.getByRole("button", { name: /^search$/i }).click();
 
@@ -289,8 +286,7 @@ test.describe("External skill-source shelf (mirror + consent install)", () => {
     doc.groups[1] = { ...doc.groups[1], entries: [], stale: false, snapshotAt: null, error: "connect ECONNREFUSED", failed: "connect ECONNREFUSED" };
     await page.route("**/api/extensions/external/search?q=pdf", (route) => route.fulfill({ json: doc }));
 
-    await gotoExtensions(page);
-    await page.getByTestId("extensions-tab-external").click();
+    await gotoExternalMarket(page);
     await page.getByTestId("external-source-search").fill("pdf");
     await page.getByRole("button", { name: /^search$/i }).click();
 

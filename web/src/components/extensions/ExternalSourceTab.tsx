@@ -1,9 +1,9 @@
-// ExternalSourceTab.tsx — read-only mirror of external skill markets
-// (add-external-skill-sources 刀一). One search box fans out server-side; the
-// shelf renders results grouped by source with per-source health captions.
-// By spec this view offers NO install path — entries are display-only, every
-// card carries the source badge, the license three-state chip, and the
-// "not reviewed by this platform" mark.
+// ExternalSourceTab.tsx — the external-market zone of the skills market shelf
+// (add-external-skill-sources 刀一, install flow 刀二; a zone of the 商店 tab
+// since settings-connect-center). One search box fans out server-side; results
+// render grouped by source with per-source health captions. Installing is
+// per-entry and consent-gated (刀二): every card carries the source badge, the
+// license three-state chip, and the "not reviewed by this platform" mark.
 
 import { useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";

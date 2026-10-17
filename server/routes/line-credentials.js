@@ -62,12 +62,18 @@ function mintCallbackUri(req, ctx, line) {
   return `${requestBase(req, ctx.PAAS_BASE_URL)}/api/lines/${line}/mint/callback`;
 }
 
+// The connect cards live in the Settings connections section (connection-center);
+// the mint round trip must land back on that surface, on the line's own card.
+function linePanel(line) {
+  return `line-${line}`;
+}
+
 // Every mint failure lands the user back on the settings surface with a
 // reason marker the panel turns into "连接未完成——请重试". Never echoes
 // upstream bodies (they can carry token material).
 function mintFail(res, line, reason) {
   console.warn(`[line-credentials] mint ${line} failed: ${reason}`);
-  res.redirect(`/settings/mcp?tab=market&lineError=${encodeURIComponent(line)}`);
+  res.redirect(`/settings/connections?panel=${linePanel(line)}&lineError=${encodeURIComponent(line)}`);
 }
 
 function jwtPayload(token) {
@@ -245,7 +251,7 @@ export function registerLineCredentialRoutes(ctx) {
       if (!lineCredentials.store({ email: user?.email ?? null, line, token: idToken })) {
         throw new Error("store failed");
       }
-      res.redirect("/settings/mcp?tab=market");
+      res.redirect(`/settings/connections?panel=${linePanel(line)}`);
       reapplyProfile(ctx, user?.email ?? null, user?.groups ?? null);
     } catch (e) {
       mintFail(res, line, `exchange failed: ${e?.message || e}`);

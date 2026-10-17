@@ -7,7 +7,8 @@
     "add": "Agregar",
     "edit": "Editar",
     "delete": "Eliminar",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "disconnect": "Desconectar"
   },
   "nav": {
     "chat": "Chat",
@@ -492,7 +493,8 @@
         "envInvalid": "Las variables de entorno deben ser JSON válido",
         "headersInvalid": "Los encabezados deben ser JSON válido"
       },
-      "bundledWiringHint": "La conexión de esta herramienta se configura en Ajustes → Búsqueda web."
+      "bundledWiringHint": "La conexión de esta herramienta se configura en Ajustes → Conexiones → Servicio de búsqueda.",
+      "goConnect": "Abrir la tarjeta de conexión →"
     },
     "skills": {
       "title": "Habilidades",
@@ -636,7 +638,9 @@
         "successReplaced": "Se actualizó \"{{name}}\" (reinstalada).",
         "findInInstalled": "Encuéntrala en la pestaña Instaladas.",
         "retry": "Reintentar"
-      }
+      },
+      "zoneTitle": "Mercado externo",
+      "zoneSubtitle": "Mercados de skills de terceros sin revisión de la plataforma; cada entrada lleva origen y licencia, y la instalación muestra una vista previa completa."
     }
   },
   "help": {
@@ -756,9 +760,9 @@
       "packs": "Paquetes",
       "presets": "Preajustes propios",
       "devices": "Dispositivos vinculados",
-      "websearch": "Búsqueda web",
       "roles": "Roles de usuario",
-      "layout": "Diseño del espacio"
+      "layout": "Diseño del espacio",
+      "connections": "Conexiones"
     },
     "groups": {
       "basics": "Básico",
@@ -926,6 +930,92 @@
       "moveDown": "Bajar",
       "hide": "Ocultar",
       "restore": "Restaurar diseño heredado"
+    },
+    "connections": {
+      "subtitle": "Gestiona tus conexiones con servicios externos: las herramientas, la búsqueda y los modelos funcionan cuando su conexión está activa. Las credenciales son de solo escritura.",
+      "glossary": {
+        "title": "¿Quién es quién? (despliega la chuleta)",
+        "ciyuan": {
+          "name": "Wanxing Ciyuan",
+          "desc": "La pasarela de capacidades de IA: modelos, búsqueda y voz por carril, con pago por uso."
+        },
+        "facet": {
+          "name": "Facet",
+          "desc": "El mercado de paquetes: donde se publican skills, servidores MCP y personas."
+        },
+        "connector": {
+          "name": "Conector de Wanxing",
+          "desc": "El servicio de conexión SaaS: guarda tus credenciales externas para que los agentes las usen."
+        },
+        "wire": {
+          "name": "Wire",
+          "desc": "Línea de negocio: tickets de demanda, consultas de datos y suscripciones."
+        },
+        "lex": {
+          "name": "Lex",
+          "desc": "Línea de negocio: cuentas, uso y gestión de credenciales de recuperación."
+        }
+      },
+      "cards": {
+        "facetGroup": {
+          "title": "Facet"
+        },
+        "registry": {
+          "subtitle": "Inicio de sesión en el mercado de herramientas: instala herramientas y habilita el MCP del registro."
+        },
+        "facetMarket": {
+          "subtitle": "Emparejamiento de dispositivo del mercado: habilita el MCP de Facet."
+        },
+        "connector": {
+          "subtitle": "Cuentas del conector: guardan credenciales SaaS y desbloquean el ecosistema del conector."
+        },
+        "lines": {
+          "subtitle": "Credenciales de operaciones por línea: Wire/Lex se acuñan en silencio; Wanxing Caller usa una clave de facturación."
+        },
+        "paperTrading": {
+          "subtitle": "Credencial de trading simulado: pega un token fdt_ para desbloquear las herramientas."
+        },
+        "search": {
+          "title": "Servicio de búsqueda",
+          "subtitle": "Credenciales y cableado de la búsqueda web: tu clave y el servicio compartido (admin)."
+        }
+      }
+    },
+    "lines": {
+      "title": "Operaciones por línea",
+      "subtitle": "Credenciales de los MCP de operaciones",
+      "wire": {
+        "title": "Operaciones Wire",
+        "hint": "Credencial de demandas/consultas/suscripciones (acuñación silenciosa, auto-renueva)"
+      },
+      "lex": {
+        "title": "Operaciones Lex",
+        "hint": "Credencial de cuentas/uso/recuperación (acuñación silenciosa, auto-renueva)"
+      },
+      "wanxingCaller": "Wanxing Caller",
+      "wanxingCallerHint": "Clave de facturación para turnos de Wanxing (acuña en token.finddatatech.cloud)",
+      "connect": "Conectar",
+      "connecting": "Conectando…",
+      "connected": "Conectado",
+      "connectedUntil": "Conectado · hasta",
+      "stale": "Caducada — reconecta",
+      "notConnected": "Sin conectar",
+      "unknown": "…",
+      "save": "Guardar",
+      "pasteKey": "Pegar clave",
+      "mintFailed": "La conexión no se completó: reintenta",
+      "footnote": "Cuando un token ID breve caduca, sus herramientas se pausan; Conectar re-acuña en silencio. Una clave caller con 401 debe pegarse de nuevo."
+    },
+    "facetMarket": {
+      "title": "Mercado Facet",
+      "connectedAs": "Conectado",
+      "notConnected": "Sin conectar",
+      "staleHint": "Dispositivo revocado — vuelve a emparejar",
+      "silentHint": "La credencial se renueva sola",
+      "pairHint": "Genera un código de 6 dígitos en los ajustes del mercado y pégalo aquí",
+      "pair": "Emparejar",
+      "openSettings": "Abrir ajustes del mercado →",
+      "tokenUntil": "Credencial válida hasta"
     }
   },
   "bindings": {

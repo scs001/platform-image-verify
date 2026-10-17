@@ -7,7 +7,8 @@
     "add": "Ajouter",
     "edit": "Modifier",
     "delete": "Supprimer",
-    "close": "Fermer"
+    "close": "Fermer",
+    "disconnect": "Déconnecter"
   },
   "nav": {
     "chat": "Discussion",
@@ -492,7 +493,8 @@
         "envInvalid": "Les variables d'environnement doivent être un JSON valide",
         "headersInvalid": "Les en-têtes doivent être un JSON valide"
       },
-      "bundledWiringHint": "Les réglages de connexion de cet outil se trouvent dans Paramètres → Recherche web."
+      "bundledWiringHint": "La connexion de cet outil se gère dans Paramètres → Connexions → Service de recherche.",
+      "goConnect": "Ouvrir la carte de connexion →"
     },
     "skills": {
       "title": "Compétences",
@@ -636,7 +638,9 @@
         "successReplaced": "« {{name}} » mise à jour (réinstallation).",
         "findInInstalled": "Retrouvez-la dans l'onglet Installées.",
         "retry": "Réessayer"
-      }
+      },
+      "zoneTitle": "Marché externe",
+      "zoneSubtitle": "Marchés de skills tiers non revus par la plateforme ; entrées avec origine et licence, et aperçu complet avant installation."
     }
   },
   "help": {
@@ -756,9 +760,9 @@
       "packs": "Packs",
       "presets": "Préréglages perso",
       "devices": "Appareils appariés",
-      "websearch": "Recherche web",
       "roles": "Rôles utilisateur",
-      "layout": "Disposition de l'espace"
+      "layout": "Disposition de l'espace",
+      "connections": "Connexions"
     },
     "groups": {
       "basics": "Général",
@@ -926,6 +930,92 @@
       "moveDown": "Descendre",
       "hide": "Masquer",
       "restore": "Restaurer la disposition héritée"
+    },
+    "connections": {
+      "subtitle": "Gérez vos connexions aux services externes — outils, recherche et modèles fonctionnent une fois leur connexion active. Les identifiants sont en écriture seule.",
+      "glossary": {
+        "title": "Qui est qui ? (déplie l'aide-mémoire)",
+        "ciyuan": {
+          "name": "Wanxing Ciyuan",
+          "desc": "La passerelle de capacités IA : modèles, recherche et voix par couloir, au volume."
+        },
+        "facet": {
+          "name": "Facet",
+          "desc": "Le marché de packs — où skills, serveurs MCP et personas sont publiés."
+        },
+        "connector": {
+          "name": "Connecteur Wanxing",
+          "desc": "Le service de connexion SaaS — héberge vos identifiants externes pour les agents."
+        },
+        "wire": {
+          "name": "Wire",
+          "desc": "Ligne métier — tickets de demande, requêtes de données et abonnements."
+        },
+        "lex": {
+          "name": "Lex",
+          "desc": "Ligne métier — comptes, usage et gestion des identifiants de récupération."
+        }
+      },
+      "cards": {
+        "facetGroup": {
+          "title": "Facet"
+        },
+        "registry": {
+          "subtitle": "Connexion au marché d'outils — installe les outils et active le MCP du registre."
+        },
+        "facetMarket": {
+          "subtitle": "Appairage de l'appareil du marché — active le MCP Facet."
+        },
+        "connector": {
+          "subtitle": "Comptes du connecteur — hébergent des identifiants SaaS et débloquent l'écosystème."
+        },
+        "lines": {
+          "subtitle": "Identifiants des opérations par ligne — Wire/Lex se frappent en silence ; Wanxing Caller prend une clé de facturation."
+        },
+        "paperTrading": {
+          "subtitle": "Identifiant de trading simulé — collez un token fdt_ pour débloquer les outils."
+        },
+        "search": {
+          "title": "Service de recherche",
+          "subtitle": "Identifiants et câblage de la recherche web : votre clé et le service partagé (admin)."
+        }
+      }
+    },
+    "lines": {
+      "title": "Opérations par ligne",
+      "subtitle": "Identifiants des MCP d'opérations",
+      "wire": {
+        "title": "Opérations Wire",
+        "hint": "Identifiant demandes/requêtes/abonnements (frappe silencieuse, auto-renouvelé)"
+      },
+      "lex": {
+        "title": "Opérations Lex",
+        "hint": "Identifiant comptes/usage/récupération (frappe silencieuse, auto-renouvelé)"
+      },
+      "wanxingCaller": "Wanxing Caller",
+      "wanxingCallerHint": "Clé de facturation des tours Wanxing (frappez sur token.finddatatech.cloud)",
+      "connect": "Connecter",
+      "connecting": "Connexion…",
+      "connected": "Connecté",
+      "connectedUntil": "Connecté · jusqu'au",
+      "stale": "Expiré — reconnectez",
+      "notConnected": "Non connecté",
+      "unknown": "…",
+      "save": "Enregistrer",
+      "pasteKey": "Coller la clé",
+      "mintFailed": "Connexion inachevée — réessayez",
+      "footnote": "Quand un token ID court expire, ses outils se mettent en pause ; Connecter refrappe en silence. Une clé caller en 401 doit être recollée."
+    },
+    "facetMarket": {
+      "title": "Marché Facet",
+      "connectedAs": "Connecté",
+      "notConnected": "Non connecté",
+      "staleHint": "Appareil révoqué — réappairez",
+      "silentHint": "L'identifiant se renouvelle seul",
+      "pairHint": "Générez un code à 6 chiffres dans les réglages du marché et collez-le ici",
+      "pair": "Appairer",
+      "openSettings": "Ouvrir les réglages du marché →",
+      "tokenUntil": "Identifiant valide jusqu'au"
     }
   },
   "bindings": {

@@ -7,7 +7,8 @@
     "add": "Add",
     "edit": "Edit",
     "delete": "Delete",
-    "close": "Close"
+    "close": "Close",
+    "disconnect": "Disconnect"
   },
   "nav": {
     "chat": "Chat",
@@ -492,7 +493,8 @@
         "envInvalid": "Environment variables must be valid JSON",
         "headersInvalid": "Headers must be valid JSON"
       },
-      "bundledWiringHint": "This tool's connection settings live in Settings → Network search."
+      "bundledWiringHint": "This tool's connection settings live in Settings → Connections → Search service.",
+      "goConnect": "Open the connect card →"
     },
     "skills": {
       "title": "Skills",
@@ -636,7 +638,9 @@
         "successReplaced": "Updated \"{{name}}\" (reinstalled).",
         "findInInstalled": "Find it in the Installed tab.",
         "retry": "Retry"
-      }
+      },
+      "zoneTitle": "External market",
+      "zoneSubtitle": "Third-party skill markets, not reviewed by this platform; entries carry source and license marks, and installs show a full preview first."
     }
   },
   "help": {
@@ -769,9 +773,9 @@
       "packs": "Packs",
       "presets": "Custom presets",
       "devices": "Paired devices",
-      "websearch": "Network search",
       "roles": "User roles",
-      "layout": "Workbench layout"
+      "layout": "Workbench layout",
+      "connections": "Connections"
     },
     "groups": {
       "basics": "Basics",
@@ -939,6 +943,92 @@
       "moveDown": "Move down",
       "hide": "Hide",
       "restore": "Restore inherited layout"
+    },
+    "connections": {
+      "subtitle": "Manage your connections to external services — tools, search, and models work once their connection is live. Credentials are write-only.",
+      "glossary": {
+        "title": "Who's who? (expand for a cheat sheet)",
+        "ciyuan": {
+          "name": "Wanxing Ciyuan",
+          "desc": "The AI capability gateway — models, search, and voice, served per lane and metered."
+        },
+        "facet": {
+          "name": "Facet",
+          "desc": "The pack market — where skills, MCP servers, and personas are published."
+        },
+        "connector": {
+          "name": "Wanxing Connector",
+          "desc": "The SaaS connector — hosts your external account credentials for agents."
+        },
+        "wire": {
+          "name": "Wire",
+          "desc": "Business line — demand tickets, data queries, and market subscriptions."
+        },
+        "lex": {
+          "name": "Lex",
+          "desc": "Business line — accounts, usage, and retrieval credential management."
+        }
+      },
+      "cards": {
+        "facetGroup": {
+          "title": "Facet"
+        },
+        "registry": {
+          "subtitle": "Tool-market sign-in — installs market tools and enables registry-sourced MCP."
+        },
+        "facetMarket": {
+          "subtitle": "Market device pairing — enables the facet-market MCP."
+        },
+        "connector": {
+          "subtitle": "Connector accounts — host SaaS credentials and unlock the connector ecosystem."
+        },
+        "lines": {
+          "subtitle": "Line-operation credentials — Wire/Lex mint silently; the Wanxing Caller takes a billing key."
+        },
+        "paperTrading": {
+          "subtitle": "Paper-trading credential — paste an fdt_ token to unlock the simulated trading tools."
+        },
+        "search": {
+          "title": "Search service",
+          "subtitle": "Web-search credentials and wiring: your own key, and the shared service (admin)."
+        }
+      }
+    },
+    "lines": {
+      "title": "Line operations",
+      "subtitle": "Credentials for the line-operation MCPs",
+      "wire": {
+        "title": "Wire operations",
+        "hint": "Demand/data-query/market-subscription credential (silent mint, auto-renews)"
+      },
+      "lex": {
+        "title": "Lex operations",
+        "hint": "Account/usage/retrieval credential (silent mint, auto-renews)"
+      },
+      "wanxingCaller": "Wanxing Caller",
+      "wanxingCallerHint": "Billing key for Wanxing turns (mint at token.finddatatech.cloud)",
+      "connect": "Connect",
+      "connecting": "Connecting…",
+      "connected": "Connected",
+      "connectedUntil": "Connected · until",
+      "stale": "Stale — reconnect",
+      "notConnected": "Not connected",
+      "unknown": "…",
+      "save": "Save",
+      "pasteKey": "Paste key",
+      "mintFailed": "Connect did not complete — try again",
+      "footnote": "When a short-lived ID token expires its tools pause; clicking Connect re-mints silently (no interaction while the Logto session lives). A 401 caller key must be re-pasted."
+    },
+    "facetMarket": {
+      "title": "Facet market",
+      "connectedAs": "Connected",
+      "notConnected": "Not connected",
+      "staleHint": "Device revoked — pair again",
+      "silentHint": "Credential renews automatically",
+      "pairHint": "Generate a 6-digit bind code on the market's settings page and paste it here",
+      "pair": "Pair",
+      "openSettings": "Open market settings →",
+      "tokenUntil": "Credential valid until"
     }
   },
   "preview": {

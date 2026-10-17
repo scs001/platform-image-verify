@@ -9,6 +9,11 @@ import express from "express";
 import { WEB_DIST } from "../context.js";
 import { storeDir } from "../../paths.js";
 import { resolveWebsearchRelay, maskToken, getUserKey, setUserKey, clearUserKey } from "../../lib/websearch-relay.js";
+import * as registryCredentials from "../../registry-credentials.js";
+import * as connectorCredentials from "../../connector-credentials.js";
+import * as facetMarketCredentials from "../../facet-market-credentials.js";
+import * as lineCredentials from "../../line-credentials.js";
+import * as paperTradingCredentials from "../../paper-trading-credentials.js";
 import { BUSINESS_ROLES, parseStoredAssignments, resolveAssignment } from "../roles.js";
 import { registerOnboardingRoutes } from "./onboarding.js";
 import {
@@ -628,6 +633,82 @@ export function registerMiscRoutes(ctx) {
     } catch (err) {
       return res.json({ configured: true, reachable: false, detail: String(err?.message || err).slice(0, 200) });
     }
+  });
+
+  // ── Connection status aggregation (connection-center) ─────────────────────
+  // Read-only projection of every connection the Settings connections section
+  // renders. Whitelist projection by construction: each entry is built from
+  // exactly the fields below, so credential material cannot leak into the
+  // payload even if a module's status shape grows. Keyed to the requesting
+  // identity like the per-credential routes; auth off = machine owner.
+  app.get("/api/connections", async (req, res) => {
+    const identity = req.ssoUser || req.user || null;
+    const email = identity?.email ?? null;
+    if (ctx.authEnabled && !email) {
+      return res.status(401).json({ error: "Authentication is required" });
+    }
+    const entry = (id, name, state, reason = null) => ({ id, name, state, reason });
+
+    const fromStatus = (id, name, s) => {
+      if (s.connected) return entry(id, name, "connected");
+      if (s.stale || s.expired) return entry(id, name, "stale", s.expired && !s.stale ? "expired" : "stale");
+      return entry(id, name, "disconnected");
+    };
+
+    const items = [
+      fromStatus("registry", "谦面·工具市场", registryCredentials.status(email)),
+      fromStatus("facet-market", "谦面市场（设备配对）", facetMarketCredentials.status(email)),
+    ];
+
+    // Connector is multi-slot: any live slot counts as connected; slots that
+    // all went stale still show as stale (reconnect, not first connect).
+    const slots = connectorCredentials.listForClient(email);
+    if (slots.some((s) => s.connected)) items.push(entry("connector", "萬星·连接器", "connected"));
+    else if (slots.length > 0) items.push(entry("connector", "萬星·连接器", "stale", "stale"));
+    else items.push(entry("connector", "萬星·连接器", "disconnected"));
+
+    for (const [line, name] of [
+      ["wire-customer", "柏讯（操作）"],
+      ["lex", "识律（操作）"],
+      ["wanxing-caller", "萬星 Caller"],
+    ]) {
+      items.push(fromStatus(`line-${line}`, name, lineCredentials.status(email, line)));
+    }
+    items.push(fromStatus("paper-trading", "柏讯·模拟交易", paperTradingCredentials.status(email)));
+
+    // Search: the user's own key serves first, then the deployment's shared
+    // relay. Admins additionally get the pool health summary (same source as
+    // /api/config/websearch/pool, bounded probe).
+    const userKey = getUserKey(db, email);
+    const { url, token } = await resolveWebsearchRelay(db);
+    const search = userKey
+      ? entry("search", "搜索服务", "connected", "user-key")
+      : url && token
+        ? entry("search", "搜索服务", "connected", "shared-pool")
+        : entry("search", "搜索服务", "not-configured");
+    search.userKey = Boolean(userKey);
+    const isAdmin = !ctx.authEnabled || ctx.isAdminUser?.(req.user);
+    if (isAdmin) {
+      search.shared = { configured: Boolean(url && token) };
+      if (url && token) {
+        try {
+          const upstream = await fetch(`${url.replace(/\/+$/, "")}/v1/stats`, {
+            headers: { authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(3000),
+          });
+          search.shared.reachable = upstream.ok;
+          if (upstream.ok) {
+            const stats = await upstream.json();
+            search.shared.upstreamMode = stats.upstream?.mode ?? null;
+          }
+        } catch {
+          search.shared.reachable = false;
+        }
+      }
+    }
+    items.push(search);
+
+    res.json({ connections: items });
   });
 
   // ── Supervisor / system status (for the Dashboard view) ──────────────────

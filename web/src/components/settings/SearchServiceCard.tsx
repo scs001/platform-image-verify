@@ -1,5 +1,7 @@
-// Settings → Network search (add-websearch-settings, extended by
-// add-search-byok). Two zones:
+// SearchServiceCard — the search-service card inside Settings → 连接
+// (settings-connect-center). Formerly its own settings section
+// (add-websearch-settings, extended by add-search-byok); the two zones moved
+// verbatim, only the section wrapper became a card:
 //
 //   1. My search key — every signed-in user: their OWN search-provider key
 //      (BYOK). Write-only (presence + 4-char hint), clear = back to the shared
@@ -7,13 +9,14 @@
 //   2. Shared search service — admins only: the deployment relay wiring
 //      (URL + token, stored→env) and the shared pool's health.
 //
-// The section is visible to everyone; zone 2 renders only for admins (the
-// server gates its endpoints the same way).
+// The card is visible to everyone; zone 2 renders only for admins (the
+// server gates those endpoints the same way).
 
 import { useEffect, useState } from "react";
 import { Globe } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useAuthStore } from "@/hooks/useAuth";
+import { cn } from "@/lib/utils";
 import {
   fetchWebsearchConfig,
   saveWebsearchConfig,
@@ -391,7 +394,7 @@ function SharedServiceZone() {
   );
 }
 
-export function WebSearchSection() {
+export function SearchServiceCard({ highlight = false }: { highlight?: boolean }) {
   const { t } = useTranslation();
   const { groups, adminGroups, authenticated } = useAuthStore();
   // Admin check mirrors the server gate: intersection of the user's groups
@@ -401,11 +404,20 @@ export function WebSearchSection() {
     (Array.isArray(groups) && Array.isArray(adminGroups) && groups.some((g) => adminGroups.includes(g)));
 
   return (
-    <div className="flex flex-col gap-6" data-testid="settings-websearch">
-      <p className="text-sm text-muted-foreground">{t("settings.websearch.subtitle")}</p>
+    <div
+      data-testid="search-service-card"
+      className={cn(
+        "rounded-lg border border-border bg-card p-4",
+        highlight && "ring-2 ring-primary/60",
+      )}
+    >
+      <div className="mb-3">
+        <h2 className="text-sm font-medium text-foreground">{t("settings.connections.cards.search.title")}</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">{t("settings.connections.cards.search.subtitle")}</p>
+      </div>
       <UserKeyZone />
       {isAdmin && (
-        <div className="border-t border-border pt-4">
+        <div className="border-t border-border pt-4 mt-4">
           <SharedServiceZone />
         </div>
       )}

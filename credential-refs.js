@@ -115,6 +115,22 @@ export function credentialMissingReason(refName) {
   return "connect the MCP market first — no live registry credential";
 }
 
+// Where the connect card for a ref lives (connection-center): the Settings
+// connections section, on the ref's own panel. Consumed by both install paths
+// alongside credentialMissingReason so the UI can deep-link the exact card.
+export function connectPathForRef(refName) {
+  const panel = KNOWN_CONNECT_PANELS.get(refName) ?? "registry";
+  return `/settings/connections?panel=${panel}`;
+}
+const KNOWN_CONNECT_PANELS = new Map([
+  [registryCredentials.REGISTRY_CREDENTIAL_REF, "registry"],
+  [facetMarketCredentials.FACET_MARKET_CREDENTIAL_REF, "facet-market"],
+  [paperTradingCredentials.PAPER_TRADING_CREDENTIAL_REF, "paper-trading"],
+  ["wire-customer", "line-wire-customer"],
+  ["lex", "line-lex"],
+  ["wanxing-caller", "line-wanxing-caller"],
+]);
+
 // The registry entry for a config's `credentialRef`, or null for an absent or
 // unknown ref name — callers decide what an unknown name means (the profile
 // writer omits the server; a hand-entered config is rejected outright).

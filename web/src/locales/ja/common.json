@@ -7,7 +7,8 @@
     "add": "追加",
     "edit": "編集",
     "delete": "削除",
-    "close": "閉じる"
+    "close": "閉じる",
+    "disconnect": "切断"
   },
   "nav": {
     "chat": "チャット",
@@ -492,7 +493,8 @@
         "envInvalid": "環境変数は有効なJSONである必要があります",
         "headersInvalid": "ヘッダーは有効なJSONである必要があります"
       },
-      "bundledWiringHint": "このツールの接続設定は 設定 → ウェブ検索 で管理します。"
+      "bundledWiringHint": "このツールの接続設定は 設定 → 接続 → 検索サービス で管理します。",
+      "goConnect": "接続カードを開く →"
     },
     "skills": {
       "title": "スキル",
@@ -636,7 +638,9 @@
         "successReplaced": "「{{name}}」を更新しました（再インストール）。",
         "findInInstalled": "「インストール済み」タブで確認できます。",
         "retry": "再試行"
-      }
+      },
+      "zoneTitle": "外部マーケット",
+      "zoneSubtitle": "プラットフォーム未審査のサードパーティ・スキル市場。出典とライセンス表示付き、導入前に完全なプレビューを表示します。"
     }
   },
   "help": {
@@ -756,9 +760,9 @@
       "packs": "パック",
       "presets": "カスタムプリセット",
       "devices": "ペア設定済みデバイス",
-      "websearch": "ウェブ検索",
       "roles": "ユーザーロール",
-      "layout": "ワークスペース配置"
+      "layout": "ワークスペース配置",
+      "connections": "接続"
     },
     "groups": {
       "basics": "基本",
@@ -926,6 +930,92 @@
       "moveDown": "下へ",
       "hide": "非表示",
       "restore": "継承したレイアウトに戻す"
+    },
+    "connections": {
+      "subtitle": "外部サービスとの接続を管理します——接続すると対応するツール・検索・モデルが利用可能になります。認証情報は書き込み専用です。",
+      "glossary": {
+        "title": "ブランド早見表（クリックで展開）",
+        "ciyuan": {
+          "name": "萬星・詞元",
+          "desc": "AI 能力ゲートウェイ——モデル・検索・音声をレーンごとに提供し、従量課金。"
+        },
+        "facet": {
+          "name": "謙面",
+          "desc": "機能セットのマーケット——スキル・MCP・ペルソナの公開場所。"
+        },
+        "connector": {
+          "name": "萬星・コネクタ",
+          "desc": "SaaS 接続サービス——外部アカウントの認証情報を預かり agent が安全に利用。"
+        },
+        "wire": {
+          "name": "柏訊",
+          "desc": "業務ライン——需求チケット・データ照会・マーケット購読。"
+        },
+        "lex": {
+          "name": "識律",
+          "desc": "業務ライン——アカウント・使用量・検索認証の管理。"
+        }
+      },
+      "cards": {
+        "facetGroup": {
+          "title": "謙面"
+        },
+        "registry": {
+          "subtitle": "ツール市場ログイン——市場ツールの導入とレジストリ由来 MCP の有効化。"
+        },
+        "facetMarket": {
+          "subtitle": "市場デバイスのペアリング——謙面市場 MCP を有効化。"
+        },
+        "connector": {
+          "subtitle": "コネクタアカウント——SaaS 認証情報を預け、コネクタのツール群を解放。"
+        },
+        "lines": {
+          "subtitle": "ライン操作の認証情報——柏訊/識律はサイレント発行、萬星 Caller は課金キーを貼付。"
+        },
+        "paperTrading": {
+          "subtitle": "模擬取引の認証情報——fdt_ トークンを貼付して模擬取引ツールを解放。"
+        },
+        "search": {
+          "title": "検索サービス",
+          "subtitle": "ウェブ検索の認証情報と接続：自分のキー、共有サービス（管理者）。"
+        }
+      }
+    },
+    "lines": {
+      "title": "ライン操作",
+      "subtitle": "各ライン操作 MCP の認証情報",
+      "wire": {
+        "title": "柏訊操作",
+        "hint": "需求/データ照会/マーケット購読の認証情報（サイレント発行・自動更新）"
+      },
+      "lex": {
+        "title": "識律操作",
+        "hint": "アカウント/使用量/検索認証の認証情報（サイレント発行・自動更新）"
+      },
+      "wanxingCaller": "萬星 Caller",
+      "wanxingCallerHint": "萬星ターンの課金キー（token.finddatatech.cloud で発行）",
+      "connect": "接続",
+      "connecting": "接続中…",
+      "connected": "接続済み",
+      "connectedUntil": "接続済み · 期限",
+      "stale": "失効——再接続してください",
+      "notConnected": "未接続",
+      "unknown": "…",
+      "save": "保存",
+      "pasteKey": "キーを貼付",
+      "mintFailed": "接続が完了しませんでした——再試行してください",
+      "footnote": "短期 ID トークンの失効中は該当ツールが停止します。「接続」でサイレント再発行（Logto セッションがあれば無操作）。Caller キーは 401 時に再貼付が必要です。"
+    },
+    "facetMarket": {
+      "title": "謙面市場",
+      "connectedAs": "接続済み",
+      "notConnected": "未接続",
+      "staleHint": "デバイスが失効——再ペアリング",
+      "silentHint": "認証情報は自動更新",
+      "pairHint": "市場の設定ページで 6 桁のバインドコードを生成し、ここに入力",
+      "pair": "ペアリング",
+      "openSettings": "市場の設定を開く →",
+      "tokenUntil": "認証情報の有効期限"
     }
   },
   "bindings": {

@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
-import { baseURL, gotoExtensions, tempStoreDirs } from "./helpers.js";
+import { baseURL, gotoConnections, gotoExtensions, tempStoreDirs } from "./helpers.js";
 
 // registry-sso-credentials, task 3.3 — the Store's connect flow and the
 // registry-shaped install:
@@ -62,9 +62,11 @@ async function gotoStore(page) {
   await expect(page.getByTestId("mcp-market-section")).toBeVisible();
 }
 
-// Two panels can be on screen at once (the Store's and the install dialog's);
-// each scopes its own by the context attribute the component sets.
-const sectionPanel = (page) => page.getByTestId("mcp-market-section").getByTestId("registry-connect-panel");
+// Two panels can be on screen at once (the connections section's and the
+// install dialog's); each scopes its own by the context attribute the
+// component sets. The section panel lives in Settings → 连接 since
+// settings-connect-center; the compact one stays in the install dialog.
+const sectionPanel = (page) => page.getByTestId("settings-connections").getByTestId("registry-connect-panel");
 const dialogPanel = (page) => page.locator('[data-testid="registry-connect-panel"][data-registry-compact="true"]');
 
 test.describe("MCP market credential", () => {
@@ -75,7 +77,7 @@ test.describe("MCP market credential", () => {
   });
 
   test("panel reports state; the paste fallback stores a credential", async ({ page, request }) => {
-    await gotoStore(page);
+    await gotoConnections(page, "registry");
 
     const panel = sectionPanel(page);
     await expect(panel).toBeVisible();
@@ -103,7 +105,7 @@ test.describe("MCP market credential", () => {
   });
 
   test("silent connect completes with no credential typing", async ({ page }) => {
-    await gotoStore(page);
+    await gotoConnections(page, "registry");
     await expect(sectionPanel(page)).toHaveAttribute("data-registry-state", "disconnected");
 
     // One click: popup → registry login (stub redirects straight back) → mint
@@ -194,7 +196,7 @@ test.describe("MCP market credential", () => {
     });
     await expect.poll(() => readPatch().includes(REGISTRY_MCP), { timeout: 15000 }).toBe(true);
 
-    await gotoStore(page);
+    await gotoConnections(page, "registry");
     await expect(sectionPanel(page)).toHaveAttribute("data-registry-state", "connected");
     await sectionPanel(page).getByTestId("registry-disconnect").click();
     await expect(sectionPanel(page)).toHaveAttribute("data-registry-state", "disconnected");

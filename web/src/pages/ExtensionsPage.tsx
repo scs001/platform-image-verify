@@ -1,8 +1,13 @@
-// ExtensionsPage.tsx — Dedicated page for managing MCP servers OR skills.
+// ExtensionsPage.tsx — the Settings section for Tools & Skills management.
 // Accepts a `type` prop to determine whether to show MCP or Skills management.
-// Used by: /extensions/mcp (MCP), /extensions/skills (Skills).
-// The third tab (external, add-external-skill-sources 刀一) is shared by both
-// sub-views: a read-only mirror of external skill markets, no install path.
+// Used by: /settings/mcp (tools view), /settings/skills (skills view).
+//
+// Two tabs: 已启用 (installed management) and 商店 (the market shelf —
+// catalog zone plus, in the skills view, the external-market zone per
+// external-skill-sources). The former external tab resolves into the market
+// tab's external zone. Credential connect cards do NOT live here — they moved
+// to the Settings connections section (settings-connect-center), and the
+// install gates deep-link there via connectPath.
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -10,7 +15,6 @@ import { McpInstalledView } from "@/components/extensions/McpInstalledView";
 import { McpMarketView } from "@/components/extensions/McpMarketView";
 import { SkillsInstalledView } from "@/components/extensions/SkillsInstalledView";
 import { SkillsMarketView } from "@/components/extensions/SkillsMarketView";
-import { ExternalSourceTab } from "@/components/extensions/ExternalSourceTab";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import { useEffect } from "react";
 
@@ -18,29 +22,39 @@ export interface ExtensionsPageProps {
   type: "mcp" | "skills";
 }
 
-type Tab = "installed" | "market" | "external";
+type Tab = "installed" | "market";
 
-// The line-credential mint callback lands on /settings/mcp?tab=market — the
-// connect cards live in the market tab, so the round trip must come back to
-// that surface, not the installed list.
-function initialTab(): Tab {
+// The line-credential mint callback used to land on ?tab=market (the connect
+// cards lived there); it now lands on the connections section directly. The
+// external deep link (?tab=external, from the retired third tab) resolves
+// into the market tab's external zone.
+function initialTab(): { tab: Tab; anchor: string | null } {
   try {
     const tab = new URL(window.location.href).searchParams.get("tab");
-    if (tab === "market" || tab === "external") return tab;
+    if (tab === "external") return { tab: "market", anchor: "market-external" };
+    if (tab === "market") return { tab: "market", anchor: null };
   } catch {
     /* default below */
   }
-  return "installed";
+  return { tab: "installed", anchor: null };
 }
 
 export function ExtensionsPage({ type }: ExtensionsPageProps) {
   const { t } = useTranslation();
-  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
+  const initial = initialTab();
+  const [activeTab, setActiveTab] = useState<Tab>(initial.tab);
+  const [anchor] = useState<string | null>(initial.anchor);
   const { load, loading, error } = useExtensionsStore();
 
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (anchor && activeTab === "market") {
+      document.getElementById(anchor)?.scrollIntoView({ block: "start", behavior: "smooth" });
+    }
+  }, [anchor, activeTab]);
 
   // No page header: this renders as a Settings section, and the modal's nav
   // already names it. The old <h1> duplicated that label, and its subtitle
@@ -69,19 +83,9 @@ export function ExtensionsPage({ type }: ExtensionsPageProps) {
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
+            data-testid="extensions-tab-market"
           >
             {t("extensions.tabs.market")}
-          </button>
-          <button
-            onClick={() => setActiveTab("external")}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === "external"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}
-            data-testid="extensions-tab-external"
-          >
-            {t("extensions.tabs.external")}
           </button>
         </nav>
       </div>
@@ -108,7 +112,6 @@ export function ExtensionsPage({ type }: ExtensionsPageProps) {
               ) : (
                 <SkillsMarketView onInstalled={() => setActiveTab("installed")} />
               ))}
-            {activeTab === "external" && <ExternalSourceTab />}
           </div>
         )}
       </div>

@@ -7,6 +7,7 @@
 //   - manual add: raw form (command/args/env-JSON/url/headers-JSON)
 
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import type { McpServer, MarketMcpServer } from "@platform/core";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
@@ -77,6 +78,10 @@ export function McpServerForm({ open, onOpenChange, server, initialConfig, setup
   const [enabled, setEnabled] = useState(true);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  // Set when the server refused an install with credential-required: the
+  // connections-section deep link for the missing credential (connectPath).
+  const [connectPath, setConnectPath] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   // Setup-mode field values: env key -> filled value, arg index -> filled value,
   // header name -> filled value (http templates, e.g. gateway Bearer tokens).
@@ -195,12 +200,17 @@ export function McpServerForm({ open, onOpenChange, server, initialConfig, setup
       onInstalled?.();
       onOpenChange(false);
     } catch (err) {
-      const e = err as Error & { code?: string };
+      const e = err as Error & { code?: string; connectPath?: string };
       setError(e.message);
       // The market refused the install because the credential is no longer
       // live (it expired between render and submit, or the profile marked it
-      // stale): re-read so the panel offers the connect flow again.
-      if (e.code === "credential-required") refreshRegistryConnection();
+      // stale): re-read so the panel offers the connect flow again, and take
+      // the server's connectPath so the error carries a way out — the connect
+      // cards live in the connections section (settings-connect-center).
+      if (e.code === "credential-required") {
+        refreshRegistryConnection();
+        setConnectPath(typeof e.connectPath === "string" ? e.connectPath : null);
+      }
     } finally {
       setLoading(false);
     }
@@ -314,6 +324,16 @@ export function McpServerForm({ open, onOpenChange, server, initialConfig, setup
               <Icon name="alert-circle" size={16} className="mt-0.5 shrink-0" />
               <span>{error}</span>
             </div>
+          )}
+          {connectPath && (
+            <button
+              type="button"
+              onClick={() => navigate(connectPath)}
+              className="self-start text-xs text-primary underline hover:text-primary/80"
+              data-testid="form-connect-link"
+            >
+              {t("extensions.mcp.goConnect")}
+            </button>
           )}
 
           {/* Bundled servers whose deployment wiring lives in its own settings

@@ -108,6 +108,7 @@ export function registerExtensionRoutes(ctx) {
           error: `Connect the required credential before installing this server (${credentialRefs.credentialMissingReason(refName)})`,
           code: "credential-required",
           ref: refName,
+          connectPath: credentialRefs.connectPathForRef(refName),
         });
       }
       const { headers: _placeholderHeaders, ...rest } = submitted;

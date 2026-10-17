@@ -525,3 +525,15 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 生产验收 | pod imageID=`c740d37a` + 模块 md5 `a48b0879` 与本地全等 + pod 内代码 `Query(500`。公网裸读：skills **216/216**、servers **23/23**、agents **23/23**，均 `has_next=false`。paas 回归：catalog registry-sourced 12 与 enabled 口径一致、`daas-analyst` 在、无截断告警 |
 | 教训 | ①**relay 的 seen-tags 是「tag 级」去重**：同 tag 二次推送（cancel 重跑、修复重推）不会自动回灌——同名 tag 重推后必须 `skopeo copy` 手动回灌 ccr，或换新 tag；②**cancel 不能假定「没推完」**：push 步骤在 cancel 生效前可能已完成，先查 hkccr 实际 digest 再决定 rerun；③**fd-build-snapshot 的 commit message 只是标签不是内容**：跨分支源码必须 `--ref`，且上产前 pod 内 md5 比对是唯一可信同一性证据（本次靠它抓住第二个事故）；④fd-infra-deploy 双远端并行会话高频碰撞（本日 3 次 rebase），push 前先 fetch，被拒后 rebase 重推，勿 force |
 | 状态 | paas `registry-list-completeness` tasks 4.3 **核销**；4.1/4.2 已于 §12.11 核销——该 change 全组任务完结，归档 |
+
+### 12.13 settings-connect-center：连接分节 IA 重组上产（2026-10-18）
+
+| 项 | 值 |
+|---|---|
+| 改动 | 壹座设置 IA 重组（openspec `settings-connect-center`，四件齐）：新「连接」分节（能力组首位）收拢五类凭据卡+搜索服务（谦面归组单卡/连接器/产品线/模拟交易/BYOK+admin 接线）+ 品牌速查 + `?panel=` 深链；`GET /api/connections` 白名单状态聚合（凭据材料结构上不可入载荷，admin 附加池健康）；网络搜索分节退役为 `/settings/websearch→connections?panel=search` 稳定重定向；商店 tab 三态减二态纯货架化（连接卡迁出、外部市场并入为技能子视图分区）；credential-required 409/pack 项带 `connectPath`、线铸造回跳改址；LineOps/FacetMarket i18n 键五语补齐；死代码清理。CONTEXT.md 新增 6 词条（连接/外部技能/词元/车道/词元账号/生态产品） |
+| 验证 | e2e **53/53 绿**（新增 connections.spec 4：API 白名单+凭据不可泄、速查+panel 深链+未知 panel 退化、websearch 重定向、商店纯货架；registry-connect 5 在新家全链含静默 SSO；external-sources 9 含「工具子视图无外部区」新契约；extensions 20；settings-modal 15）+ 单测全绿 + 五语 parity + tsc/biome。6.1 四条真流（connector/facet/wire/lex/paper）与 6.3 非 admin 视角留真机走查（hermetic 无法覆盖 Logto/外部服务/auth-on） |
+| 出片线 | 公开快照线：`make-public-snapshot --init`（HEAD `99f63cb7`）→ **发现镜像仓 workflows 已被修剪到只剩 image-build-check，image.yml 缺失**——从孤儿提交 `c303424`（10-16「restore image.yml」run 的 headSha）取回；快照 `.github` 修剪到只剩 image.yml（快照纪律，免误触 app-e2e/win-smoke）→ 恢复提交 `22489c8` 即出片 tag → force push mirror → run 39077891938 绿 |
+| 门 | relay `OK yizuo/platform:sha-22489c8`（07:16:40）；ccr skopeo digest `2ba5cf1c` → 才 bump `fd-infra-deploy` 双清单（`f31e0b9` 推 gitee）→ ArgoCD hard-refresh → platform + platform-demo 双 rollout 全绿 |
+| 生产实证 | pod imageID=`2ba5cf1c` 与 ccr digest 全等；镜像内模块活体（`/app/server/routes/misc.js` 含 `/api/connections`、`credential-refs.js` 含 `connectPathForRef`）；新 chunk `ConnectionsSection-PowPHyBE.js` 在 `/app/web/dist/assets`。注：pod 内 3100 是网关口，匿名 401 连未知路径也同形（网关先于路由拦截），无鉴别力——`/api/connections` 的带身份实测并入真机走查 |
+| 教训 | ①**设置分节清单三处同源**（web `sections.ts` / `packages/core/src/lib/surfaces.ts` SETTINGS_SURFACES / 服务端 resolvedLayout）——只改其一，新分节被 resolved 列表静默滤掉、深链回落 General，e2e 才抓住；②**e2e 服务吃预构建 dist**，改前端必须先 `web:build:e2e`（首轮 12 个假失败全是旧包症状）；③**RegistryConnectPanel store 未知时渲染 null**，新挂载点必须自带 `refreshRegistryConnection()`；④镜像仓 workflow 会被快照 force-push/修剪冲掉，出片前先 `gh api contents` 核 image.yml 在不在，缺了从孤儿 run headSha 取回 |
+| 状态 | L1 落地。后续刀：L1b 应用中心统一网格、L2a 词元账号线（零粘贴一次到位：词元仓编程铸 key 端点现成 `POST /api/v1/keys`，跨仓开发量=0）、L2b 语音（硬前置：词元 audio 车道 openainext 池 429 解除）、L3 对话内 connections 工具 |

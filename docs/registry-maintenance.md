@@ -514,3 +514,14 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 生产验收（cell 内通道） | gateway secret + cell 端口（日志 `cell … on 127.0.0.1:40575`）打 `/api/catalog`：registry-sourced agents **11→12**，`daas-analyst`（孤儿条目，pack 已 404）出现——与 registry enabled 口径一致；pod 日志无 truncated 告警；模块活体 `import registry-bridge.js` OK；pod 内 md5 与本地工作树全等（`296e6655`） |
 | 教训 | ①**出片通道要分清「构建验证」与「出片」**：image-build-check 是 build-only，成功≠镜像存在；relay 验证必须对具体 sha tag 抓日志行（上一轮的 grep 模式过宽+SSH 缓冲复用产出过一次假绿）；②**通用池是共享资源，repo 变量会被上一个使用者留下**——fd-build-snapshot 设了 NS/IMAGE 但 BUILD_CONTEXT 是 repo 级手配，首跑红灯就是它的锅；通用池使用前 `gh variable list` 核一遍目标三件套；③验收走 cell 内通道 + gateway secret（memory `prod-liveness-evidence-discipline`），公网匿名 401 无鉴别力 |
 | 待办 | finddata 跨仓两件 → **核销（2026-10-17）**：独立 session 按交接文档执行完毕，gitee `finddata-skills` `21c8740→7d4fc94`（分页 all_skills 回推 + `--rescan` NameError 修复 + wire-presets 版脚本首次入仓消双拷贝）；实跑验收 `existing skills on gateway: 212` + 19/19、17/17 全 SKIP + 干净 clone 复跑同证。遗留开放项仅 4.3（网关侧默认页大小/告警头契约，需与网关仓所有者确认） |
+
+### 12.12 网关侧收口：列表端点默认 limit 20→500（4.3，2026-10-17）
+
+| 项 | 值 |
+|---|---|
+| 改动 | `mcp-gateway-registry` 三列表端点（`/api/skills` `/api/agents` `/api/servers`）默认 `limit` 20→500（`le=2000` 上限不动；不设告警头——信封 `total_count`/`has_next` 已是完备性契约，加头是冗余）。commit `5af96c16`（分支 `fd-product-home`），含 6 处测试断言跟进 + 3 条新默认值契约测试（261 pass；1 失败 `test_include_tools_true_returns_tool_list` 为既有 bug——fixture 里 tool_blocks override 是裸 coroutine，基线同红，不属本改动） |
+| 出片事故①（relay 竞态） | 构建池 testaction005 首跑带残留 `BUILD_DOCKERFILE=docker/Dockerfile.auth`（上一位使用者）→ cancel 时**坏镜像（auth 构建，a0cf5efd，Created 10:25:09）已推到 hkccr 同名 tag** → relay 18:27:25 把坏 manifest 抄回 ccr → rerun 的好镜像（81779c28）推 hkccr 后 relay 因 seen-tags 已记录而**跳过回灌** → ccr 同名 tag 仍是坏镜像 → 滚产后 CrashLoop（`sed: can't read nginx_rev_proxy…conf`）。**修复=skopeo copy hkccr→ccr 强推 + deployment 改按 digest 引用**（`IfNotPresent` 会永远吃坏缓存，tag 引用不可信） |
+| 出片事故②（快照默认分支陷阱） | digest 修复后公网仍 limit=20：pod 内模块 md5=旧码。**根因=`fd-build-snapshot` 从远端干净 clone 只取默认分支**（源仓默认=main），commit message 写 `@ 5af96c16` 但内容是 main 旧码——跨分支出片必须 `--ref <branch>`。重出快照 `bfd0de4`（真内容）→ digest `c740d37a` hkccr=ccr 全等 → 滚产 |
+| 生产验收 | pod imageID=`c740d37a` + 模块 md5 `a48b0879` 与本地全等 + pod 内代码 `Query(500`。公网裸读：skills **216/216**、servers **23/23**、agents **23/23**，均 `has_next=false`。paas 回归：catalog registry-sourced 12 与 enabled 口径一致、`daas-analyst` 在、无截断告警 |
+| 教训 | ①**relay 的 seen-tags 是「tag 级」去重**：同 tag 二次推送（cancel 重跑、修复重推）不会自动回灌——同名 tag 重推后必须 `skopeo copy` 手动回灌 ccr，或换新 tag；②**cancel 不能假定「没推完」**：push 步骤在 cancel 生效前可能已完成，先查 hkccr 实际 digest 再决定 rerun；③**fd-build-snapshot 的 commit message 只是标签不是内容**：跨分支源码必须 `--ref`，且上产前 pod 内 md5 比对是唯一可信同一性证据（本次靠它抓住第二个事故）；④fd-infra-deploy 双远端并行会话高频碰撞（本日 3 次 rebase），push 前先 fetch，被拒后 rebase 重推，勿 force |
+| 状态 | paas `registry-list-completeness` tasks 4.3 **核销**；4.1/4.2 已于 §12.11 核销——该 change 全组任务完结，归档 |

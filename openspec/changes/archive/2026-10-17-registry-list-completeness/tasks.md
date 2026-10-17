@@ -56,11 +56,15 @@
        （load_description 适配仓内布局），双拷贝隐患消除
 - [x] 4.2 `--rescan` NameError 已修：`all_skills()` 返回 `(names, items)` 二元组，
        `--rescan` 改用 items 拼扫描 URL；stub 离线验证 17 个 scan 请求全发出、rc=0
-- [ ] 4.3 网关侧（跨仓）：评估是否对未带 `limit` 的列表请求返回告警头，或提高默认页大小；
-       需与网关仓所有者确认契约变更
+- [x] 4.3 网关侧（mcp-gateway-registry `5af96c16`，分支 fd-product-home）：三列表端点默认
+       `limit` 20→500（上限 2000 不动；不加告警头——信封 `total_count`/`has_next` 已是
+       完备性契约）。出片 `sha-bfd0de4` → digest `c740d37a` hkccr=ccr 全等 → 滚产（digest
+       引用）。生产实测：skills 216/216、servers 23/23、agents 23/23 裸读全量、
+       `has_next=false`；paas 回归 catalog 12 条与 enabled 口径一致。出片途中两次事故
+       （relay 竞态盖同名 tag / fd-build-snapshot 默认分支陷阱）已实录台账 §12.12
 
 > **交接完成（2026-10-17）**：4.1/4.2 由独立 session 按
 > `~/finddata/docs/handoff/registry-pagination-register-scripts.md` 执行完毕并核销——
 > gitee `finddata-skills` `21c8740 → 7d4fc94`（双远端已在 main/master）；验收实跑：
 > 两脚本 `existing skills on gateway: 212` + 19/19、17/17 全 SKIP + verification
-> missing=none；干净 clone 复跑同证。**4.3 仍开放**。
+> missing=none；干净 clone 复跑同证。4.3 已于同日收口（见上）。**全组任务完结。**

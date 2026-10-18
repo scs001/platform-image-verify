@@ -252,7 +252,7 @@ MCP server 接入系统供给层的统一上牌契约，出自 openspec change *
 
 ### ③ 试用账号（add-ciyuan-trial-account）
 
-- user 93 `ciyuan-trial@findmail.com`（密码 CiyuanTrial2026!），$10 财务硬顶，**两把密钥**（key74 group3 openrouter=chat+三车道；key75 group9 image=视频+图像）——一把密钥绑一个分组，全能力必须两把。
+- user 93 `ciyuan-trial@findmail.com`（密码 2026-10-18 已轮换——原值因误推事故作废，新值离线保管），$10 财务硬顶，**两把密钥**（key74 group3 openrouter=chat+三车道；key75 group9 image=视频+图像）——一把密钥绑一个分组，全能力必须两把。
 - **四能力实调全绿**：chat 200×3 模型（坑：group3 /v1/models 列 26 个但只有部分可路由——deepseek-v4.1-flash=model_not_found、mimo-v2.5=upstream_error，可用例 cohere/north-mini-code:free、inclusionai/ling-3.1-flash、nvidia/nemotron-3.5-lightning:free）；rerank 200（relevance_score 返回）；websearch 200（serpapi 5413ms）；视频任务 queued→running→**succeeded**（doubao-seedance-2-0-fast-260128，completion_tokens=108900）。
 - **余额对账**：10 → 8.968675，chat+车道+视频全在扣。凭据只落伙伴文档 `/Users/chengsishi/finddata/docs/ciyuan-intro.md`（第一节账号表+两把 sk- 全文），paas 侧一切材料只留指纹（邮箱/用途/额度，无密码无 key）。
 - 文档口径三修：快速上手④注明视频用第二把密钥；登录步骤提醒「OIDC 登进的是您自己的账号，不是测试账号」；第一节补密钥按分组划能力的桥梁说明。

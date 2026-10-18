@@ -11,7 +11,7 @@ refs:
   LLM_API_KEY: sk-7e05d6…ef869
   gh_actor: 295187081+FindDataOfficial@users.noreply.github.com
   git_pat: >-
-    github_pat_11CGMDFCI0rqcvlFkABFmM_…FXMYFHE4h1H7zNX
+    github_pat_<REDACTED-2026-10-18：已验证失效>…FXMYFHE4h1H7zNX
 ```
 
 `git_pat` 是**块标量**（`>-`，真值换行缩进在下一行）。技能用单行 `grep+sed` 取值得到空串，

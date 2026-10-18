@@ -125,7 +125,23 @@ try {
   const tts = await ttsRes;
   const ttsBytes = (await tts.body()).length;
   ok("TTS forward answered 200 audio on the user's key", tts.status() === 200 && /^audio\//.test(tts.headers()["content-type"] ?? "") && tts.headers()["x-voice-key-source"] === "user", `HTTP ${tts.status()} ${tts.headers()["content-type"]} ${ttsBytes}B`);
-  ok("synthesised audio is a real payload (>1 KB)", ttsBytes > 1024, `${ttsBytes}B`);
+  // Playwright 的 response.body() 在页面已消费该响应时可能读到空（本项目实测：
+  // 播放器用 res.blob() 读走后 waitForResponse.body() 返回 0B，但音频确实在播）。
+  // 因此这里再独立打一次同一端点，直接量字节，作为「真载荷」的判据。
+  const ttsProbe = await page.evaluate(async () => {
+    const r = await fetch("/api/voice/speech", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input: "语音链路字节数自检" }),
+    });
+    const b = await r.blob();
+    return { status: r.status, size: b.size, type: b.type, keySource: r.headers.get("x-voice-key-source") };
+  });
+  ok(
+    "synthesised audio is a real payload (>1 KB)",
+    ttsProbe.status === 200 && ttsProbe.size > 1024,
+    `probe HTTP ${ttsProbe.status} ${ttsProbe.size}B ${ttsProbe.type} keySource=${ttsProbe.keySource}; intercepted ${ttsBytes}B`,
+  );
   await page.locator("[data-testid='turn-speak'][data-state='playing']").waitFor({ timeout: 20_000 }).then(() => ok("朗读 entered playing", true)).catch(() => ok("朗读 entered playing", false, "never reached data-state=playing"));
   let afterTts = beforeTts;
   for (let i = 0; i < 10 && afterTts <= beforeTts; i++) { await page.waitForTimeout(3000); afterTts = usageRows(mintedKeyId); }

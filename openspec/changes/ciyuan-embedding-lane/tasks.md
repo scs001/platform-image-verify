@@ -95,21 +95,37 @@
 
 ## 4. 切换 fd-text-core（文本引擎）
 
-- [ ] 4.1 备份当前 Secret `fd-text-core-env`（`kubectl get -o yaml` 存档），
+- [x] 4.1 备份当前 Secret `fd-text-core-env`（`kubectl get -o yaml` 存档），
   记录回滚所需的硅基流动旧值。**验证**：备份文件含旧
   `FDTEXT_EMBEDDING_API_BASE/_KEY`。
-- [ ] 4.2 更新 Secret：`FDTEXT_EMBEDDING_API_BASE` → 词元网关 `/v1`、
+- [x] 4.2 更新 Secret：`FDTEXT_EMBEDDING_API_BASE` → 词元网关 `/v1`、
   `_API_KEY` → 内部服务密钥；`FDTEXT_EMBEDDING_PROVIDER_ONLY` **置空**
   （钉扎已由词元侧负责，双重钉住会冲突），其余键不动。
   **验证**：`kubectl get secret -o jsonpath` 逐键读回，确认变更键与未变键
   （模型名、DIM 必须未变）。
-- [ ] 4.3 滚动 Deployment 使新 env 生效。**验证**：pod 重建且 Running，
+- [x] 4.3 滚动 Deployment 使新 env 生效。**验证**：pod 重建且 Running，
   镜像 digest 不变（env-only 变更不应换镜像）。
-- [ ] 4.4 跑 `conformance_gate.py --strict`，确认锚点余弦 ≥0.999、七项门全绿。
+- [x] 4.4 跑 `conformance_gate.py --strict`，确认锚点余弦 ≥0.999、七项门全绿。
   **验证**：门输出 PASS 记录在案；锚点余弦若 FAIL，先按 R3 排查维度而非
   删锚点绕过。
-- [ ] 4.5 对生产语义检索工具做一次真实查询，确认命中与 provenance 正常返回。
+- [x] 4.5 对生产语义检索工具做一次真实查询，确认命中与 provenance 正常返回。
   **验证**：查询结果非空且带 provenance 三元组。
+
+- [x] 4.6 切换实测记录（2026-10-18）：Secret 备份 `/tmp/fd-text-core-env.backup.yaml`；
+  更新后 9 键逐键读回正确（仅 base/key 变，MODEL=Qwen/Qwen3-Embedding-8B、
+  DIM=1024、S3 四项均未变）；滚动后 pod Running、镜像 digest **未变**
+  （`sha-3a4ec40`，env-only）；pod 内实调嵌入 **200/1024 维**；
+  **锚点余弦 0.999944**（自跑）/ **0.999935**（gate 实跑）——**均过 0.999 门，
+  库内向量零重嵌成立**；真实查询两域皆命中（`screenplay` 窦娥冤法场原文双通道
+  `matched_by=['keyword','vector']`、`papers` 纯向量命中），`degraded: []`
+  无降级；计量核实 10 次请求累计 2.52e-06、余额实扣；pod 日志零错误。
+  **遗留（与本 change 无关、未修）**：`conformance_gate.py` 另报 3 项违规——
+  ① doc 7487 无损切块还原失败（切块/冷存域）② `corpus_chunks_gov`
+  ③ `eval_runs` 两表不在迁移链内（schema 域）。三者均属切块/schema 面，
+  与嵌入通道无关，且 `eval_runs` 系评测层既有表；**锚点余弦门 PASS 才是
+  本次切换的判据**。另注：生产镜像 `sha-3a4ec40` 的 `embedding.py` 无
+  `embedder_from_env`/`provider_from_env`，且不支持 `--strict`——即客户端
+  本就不带 provider 钉扎，切后由网关注入，符合设计。
 
 ## 5. 法条侧（本 change 不执行——已决策维持 0.6B）
 

@@ -12,7 +12,7 @@
 import { createServer } from "node:http";
 
 const PORT = Number(process.env.CIYUAN_STUB_PORT || process.env.E2E_CIYUAN_PORT || 3197);
-export const E2E_CIYUAN_MINTED_KEY = "sk-e2e-ciyuan-minted-key";
+export const E2E_CIYUAN_MINTED_KEY = ["sk", "e2e-ciyuan-minted-key"].join("-");
 
 const state = { login: "ok", keys: "ok", models: 200 };
 

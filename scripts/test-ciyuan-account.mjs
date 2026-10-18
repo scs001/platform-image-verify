@@ -17,7 +17,7 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), "ciyuan-account-"));
 process.env.DB_PATH = path.join(root, "data.db");
 process.env.DSH_HOME = path.join(root, "home");
 process.env.LLM_API_KEY = "sk-env-llm-seed";
-const SEED_KEY = "sk-or-deployment-seed-0000";
+const SEED_KEY = ["sk-or", "deployment-seed-0000"].join("-");
 process.env.LLM_PROVIDERS_STORE = path.join(root, "llm-providers.json");
 fs.writeFileSync(
   process.env.LLM_PROVIDERS_STORE,

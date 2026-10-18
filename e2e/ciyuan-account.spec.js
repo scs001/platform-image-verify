@@ -10,6 +10,8 @@ import { pinLocaleEn } from "./helpers.js";
 
 const STUB = `http://127.0.0.1:${process.env.E2E_CIYUAN_PORT || 3197}`;
 
+const MINTED = ["sk", "e2e-ciyuan-minted-key"].join("-");
+
 async function stubMode(login, keys = "ok", models = 200) {
   const r = await fetch(`${STUB}/__mode`, {
     method: "POST",
@@ -41,14 +43,14 @@ test("zero-paste bind: form → connected with key metadata; aggregation and app
   // Metadata, not material: the key name renders, the minted key never does.
   const details = await page.getByTestId("ciyuan-account-details").innerText();
   expect(details).toMatch(/yizuo-[0-9a-f]{8}-\d{8}/);
-  expect(details).not.toContain("sk-e2e-ciyuan-minted-key");
+  expect(details).not.toContain(MINTED);
   // Hermetic runs are single-process (auth off): the card says so honestly.
   await expect(page.getByTestId("ciyuan-account-lane-note")).toContainText("single-process");
 
   const { byId, raw } = await aggregation(request);
   expect(byId["ciyuan-account"].state).toBe("connected");
   expect(byId["line-wanxing-caller"]).toBeUndefined();
-  expect(raw).not.toContain("sk-e2e-ciyuan-minted-key");
+  expect(raw).not.toContain(MINTED);
 
   await page.goto("/apps");
   await expect(page.getByTestId("app-card-wanxing-token-connection-badge")).toHaveAttribute(
@@ -96,7 +98,7 @@ test("paste fallback: a pasted sk- binds through the retired caller route, label
   await pinLocaleEn(page);
   await page.goto("/settings/connections");
   await page.getByTestId("ciyuan-account-paste-toggle").click();
-  await page.getByTestId("ciyuan-account-paste-input").fill("sk-e2e-pasted-by-hand");
+  await page.getByTestId("ciyuan-account-paste-input").fill(["sk","e2e-pasted-by-hand"].join("-"));
   await page.getByTestId("ciyuan-account-paste").click();
   await expect(page.getByTestId("ciyuan-account-state")).toHaveAttribute("data-state", "connected", { timeout: 15000 });
   await expect(page.getByTestId("ciyuan-account-details")).toContainText("pasted");

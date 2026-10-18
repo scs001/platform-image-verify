@@ -15,6 +15,7 @@ import * as facetMarketCredentials from "../../facet-market-credentials.js";
 import * as lineCredentials from "../../line-credentials.js";
 import * as paperTradingCredentials from "../../paper-trading-credentials.js";
 import * as ciyuanAccountCredentials from "../../ciyuan-account-credentials.js";
+import { resolveVoiceConfig } from "./voice.js";
 import { BUSINESS_ROLES, parseStoredAssignments, resolveAssignment } from "../roles.js";
 import { registerOnboardingRoutes } from "./onboarding.js";
 import {
@@ -424,6 +425,14 @@ export function registerMiscRoutes(ctx) {
       // devicePairing rides the same MP_TOKEN_SECRET gate as the
       // mini-program path.
       capabilities: { devicePairing: Boolean(process.env.MP_TOKEN_SECRET) },
+      // Voice lane (voice-lane): the deployment-level switch and the TTS
+      // container format, enough for the composer to decide at boot whether
+      // to render voice entries at all. Key availability is per-user and
+      // comes from /api/voice/status.
+      voice: (() => {
+        const v = resolveVoiceConfig();
+        return { enabled: v.enabled, ttsFormat: v.ttsFormat };
+      })(),
     });
   });
 

@@ -213,7 +213,17 @@
       "ctx": "ctx {{pct}}%",
       "ctxHint": "{{tokens}} / {{window}} tokens"
     },
-    "sending": "Enviando…"
+    "sending": "Enviando…",
+    "voice": {
+      "record": "Entrada de voz",
+      "stop": "Detener grabación",
+      "recording": "Grabando — clic para detener",
+      "transcribing": "Transcribiendo…",
+      "file": "Voz a texto (subir audio)",
+      "permissionDenied": "Permiso de micrófono denegado",
+      "failed": "La transcripción falló",
+      "dismiss": "Cerrar"
+    }
   },
   "chat": {
     "empty": "Envía un mensaje para empezar a chatear.",
@@ -341,7 +351,12 @@
     "retryStarted": "Reintentando…",
     "connectionLost": "Conexión perdida, reanudando…",
     "resumedLag": "Reconectado; el contenido puede retrasarse",
-    "usage": "in {{in}} · out {{out}}"
+    "usage": "in {{in}} · out {{out}}",
+    "connectAction": "Conectar",
+    "speak": "Leer en voz alta",
+    "speakStop": "Detener lectura",
+    "speakTruncated": "La respuesta es larga; solo se leen los primeros 4000 caracteres",
+    "speakFailed": "La lectura falló"
   },
   "markdown": {
     "copy": "Copiar",
@@ -1980,5 +1995,30 @@
     },
     "admin": "Administrador",
     "panelTitle": "Roles de negocio"
+  },
+  "voiceCard": {
+    "title": "Voz",
+    "subtitle": "La entrada de voz y la lectura pasan por el carril de audio de 词元 con el protocolo de audio OpenAI fijo; los canales se configuran en 词元",
+    "enabled": "Activar voz",
+    "asrModel": "Modelo de transcripción",
+    "ttsModel": "Modelo de síntesis",
+    "ttsVoice": "Voz",
+    "ttsFormat": "Formato de audio",
+    "blankHint": "Vacío = valor por defecto de 词元",
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "saved": "Ajustes de voz guardados",
+    "readOnly": "Los parámetros de voz los define un administrador",
+    "status": {
+      "loading": "Comprobando…",
+      "available": "Disponible",
+      "disabled": "Desactivado",
+      "noKey": "Sin credencial configurada",
+      "unavailable": "No disponible"
+    },
+    "keySource": {
+      "user": "Facturado a tu cuenta 词元",
+      "deployment": "Usando la credencial del despliegue"
+    }
   }
 }

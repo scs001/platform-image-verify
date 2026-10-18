@@ -14,14 +14,17 @@
 // tokens (/model, /new, …) are identifiers and stay literal.
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUp, Loader2, Paperclip, Square, TriangleAlert, X } from "lucide-react";
+import { ArrowUp, Loader2, Mic, Paperclip, Square, TriangleAlert, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChatStore } from "@platform/core";
 import { SlashCommandPicker, type SlashCommand } from "@/components/SlashCommandPicker";
 import { ControlStrip } from "@/components/ControlStrip";
 import { PlanDock } from "@/components/PlanPanel";
 import { HelpDialog } from "@/components/HelpDialog";
+import { ConnectCta } from "@/components/ConnectCta";
 import { useBranding } from "@/hooks/useAppConfig";
+import { useVoice } from "@/hooks/useVoice";
+import { pickRecordingFormat, recordingSupported, transcribeAudio, VoiceError } from "@/lib/voice";
 import type { ClientMessage } from "@platform/core";
 import { cn } from "@/lib/utils";
 import { showToast } from "@/components/Toast";
@@ -101,6 +104,115 @@ export function Composer({ send, value, onChange, focusTick = 0 }: Props) {
   const abortRef = useRef<Map<string, AbortController>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Voice input (voice-lane, design D4): a dedicated path — microphone or an
+  // audio file — that ends in TEXT inserted into this box, never a document
+  // attachment (the upload path rejects audio by design). The state machine
+  // is deliberately small; "transcribing" can last seconds (the 词元 side may
+  // poll an async ASR task) and the chip says so.
+  const voice = useVoice();
+  const canRecord = voice.available && recordingSupported();
+  type VoiceState =
+    | { kind: "idle" }
+    | { kind: "recording" }
+    | { kind: "transcribing" }
+    | { kind: "error"; message: string; connect: { panel: string } | null };
+  const [voiceState, setVoiceState] = useState<VoiceState>({ kind: "idle" });
+  const audioInputRef = useRef<HTMLInputElement>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+  const recordingNameRef = useRef("recording.webm");
+
+  const insertTranscript = (text: string) => {
+    const clean = text.trim();
+    if (!clean) return;
+    const base = value.trimEnd();
+    onChange(base ? `${base} ${clean}` : clean);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
+  const transcribe = async (blob: Blob, fileName: string) => {
+    setVoiceState({ kind: "transcribing" });
+    try {
+      const { text } = await transcribeAudio(blob, fileName);
+      insertTranscript(text);
+      setVoiceState({ kind: "idle" });
+    } catch (e) {
+      const err = e instanceof VoiceError ? e : null;
+      setVoiceState({ kind: "error", message: err?.message || t("composer.voice.failed"), connect: err?.connect ?? null });
+      // A credential-shaped failure flipped the server-side binding; re-read
+      // availability so the entries reflect whatever key is left.
+      if (err?.status === 401 || err?.status === 503) void voice.refresh();
+    }
+  };
+
+  const stopTracks = () => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  };
+
+  const startRecording = async () => {
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch {
+      setVoiceState({ kind: "error", message: t("composer.voice.permissionDenied"), connect: null });
+      return;
+    }
+    const { mimeType, fileName } = pickRecordingFormat();
+    recordingNameRef.current = fileName;
+    const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    chunksRef.current = [];
+    recorder.ondataavailable = (ev) => {
+      if (ev.data.size > 0) chunksRef.current.push(ev.data);
+    };
+    recorder.onstop = () => {
+      stopTracks();
+      const blob = new Blob(chunksRef.current, { type: recorder.mimeType || mimeType || "audio/webm" });
+      chunksRef.current = [];
+      recorderRef.current = null;
+      if (blob.size === 0) {
+        setVoiceState({ kind: "idle" });
+        return;
+      }
+      void transcribe(blob, recordingNameRef.current);
+    };
+    recorderRef.current = recorder;
+    streamRef.current = stream;
+    recorder.start();
+    setVoiceState({ kind: "recording" });
+  };
+
+  const stopRecording = () => {
+    const recorder = recorderRef.current;
+    if (!recorder) return;
+    if (recorder.state !== "inactive") recorder.stop();
+    else stopTracks();
+  };
+
+  const toggleRecording = () => {
+    if (voiceState.kind === "recording") stopRecording();
+    else if (voiceState.kind !== "transcribing") void startRecording();
+  };
+
+  // Unmount mid-recording: release the microphone, drop the take.
+  useEffect(() => {
+    return () => {
+      const recorder = recorderRef.current;
+      if (recorder) {
+        recorder.onstop = null;
+        if (recorder.state !== "inactive") recorder.stop();
+      }
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    };
+  }, []);
+
+  const transcribeFile = (file: File | undefined) => {
+    if (!file) return;
+    void transcribe(file, file.name || "audio");
+  };
 
   const disabled = status !== "connected";
   const trimmed = value.trim();
@@ -459,6 +571,57 @@ export function Composer({ send, value, onChange, focusTick = 0 }: Props) {
             e.target.value = "";
           }}
         />
+        {/* Voice file entry (voice-lane): its own input so audio never enters
+            the document upload path above. Triggered from the `+` menu. */}
+        <input
+          ref={audioInputRef}
+          type="file"
+          accept="audio/*"
+          data-testid="composer-audio-input"
+          className="hidden"
+          onChange={(e) => {
+            transcribeFile(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+        {voiceState.kind !== "idle" && (
+          <div
+            data-testid="composer-voice-state"
+            data-state={voiceState.kind}
+            className={cn(
+              "mb-1 flex flex-wrap items-center gap-2 text-xs",
+              voiceState.kind === "error" ? "text-destructive" : "text-muted-foreground",
+            )}
+          >
+            {voiceState.kind === "recording" && (
+              <>
+                <span className="h-2 w-2 animate-pulse rounded-full bg-destructive" aria-hidden="true" />
+                {t("composer.voice.recording")}
+              </>
+            )}
+            {voiceState.kind === "transcribing" && (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                {t("composer.voice.transcribing")}
+              </>
+            )}
+            {voiceState.kind === "error" && (
+              <>
+                <TriangleAlert className="h-3 w-3 shrink-0" aria-hidden="true" />
+                <span className="min-w-0 break-words">{voiceState.message}</span>
+                {voiceState.connect?.panel && <ConnectCta panel={voiceState.connect.panel} testId="composer-voice-connect" />}
+                <button
+                  type="button"
+                  onClick={() => setVoiceState({ kind: "idle" })}
+                  aria-label={t("composer.voice.dismiss")}
+                  className="-my-1 rounded p-1 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-3 w-3" aria-hidden="true" />
+                </button>
+              </>
+            )}
+          </div>
+        )}
         <textarea
           ref={textareaRef}
           value={value}
@@ -480,14 +643,46 @@ export function Composer({ send, value, onChange, focusTick = 0 }: Props) {
           send={send}
           onOpenCommands={openCommands}
           onAttach={() => fileInputRef.current?.click()}
+          onVoiceFile={voice.available ? () => audioInputRef.current?.click() : undefined}
           trailing={
-            /* Typing is never disabled — a local-first product must absorb the
-               outage, not punish it: draft while disconnected, send when back.
-               Three states: a live run owns the Stop control (real cancel via
-               stop_turn + the local finalize for instant feedback); a latched
-               submission shows the in-progress spinner through the blind
-               window until agent_start takes over; otherwise Send. */
-            isStreaming ? (
+            <>
+              {/* Microphone (voice-lane): click to record, click again to stop
+                  and transcribe. Hidden when voice is unavailable or the
+                  browser has no MediaRecorder (the file entry still works). */}
+              {canRecord && (
+                <button
+                  type="button"
+                  onClick={toggleRecording}
+                  disabled={voiceState.kind === "transcribing"}
+                  aria-label={voiceState.kind === "recording" ? t("composer.voice.stop") : t("composer.voice.record")}
+                  aria-pressed={voiceState.kind === "recording"}
+                  data-testid="composer-voice-mic"
+                  data-state={voiceState.kind}
+                  className={cn(
+                    "grid h-8 w-8 shrink-0 place-items-center rounded-full",
+                    voiceState.kind === "recording"
+                      ? "bg-destructive text-destructive-foreground"
+                      : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                    "disabled:cursor-not-allowed disabled:opacity-40",
+                  )}
+                >
+                  {voiceState.kind === "recording" ? (
+                    <Square className="h-3 w-3 fill-current" aria-hidden="true" />
+                  ) : voiceState.kind === "transcribing" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Mic className="h-4 w-4" aria-hidden="true" />
+                  )}
+                </button>
+              )}
+              {
+                /* Typing is never disabled — a local-first product must absorb the
+                   outage, not punish it: draft while disconnected, send when back.
+                   Three states: a live run owns the Stop control (real cancel via
+                   stop_turn + the local finalize for instant feedback); a latched
+                   submission shows the in-progress spinner through the blind
+                   window until agent_start takes over; otherwise Send. */
+                isStreaming ? (
               <button
                 onClick={() => {
                   // Real stop (live-runtime-control): the server cancels the
@@ -527,7 +722,9 @@ export function Composer({ send, value, onChange, focusTick = 0 }: Props) {
               >
                 <ArrowUp className="h-4 w-4" />
               </button>
-            )
+                )
+              }
+            </>
           }
         />
       </div>

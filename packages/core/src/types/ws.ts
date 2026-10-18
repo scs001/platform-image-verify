@@ -35,6 +35,10 @@ export type RunScopedMessage = Extract<
   { type: TurnEvent["type"] | "user" | "done" }
 > & { sessionId?: string };
 
+// Where to fix a credential-shaped failure (chat-connect-guidance): the
+// connections-panel id whose card repairs it. Absent = not credential-shaped.
+export type ConnectPointer = { panel: string };
+
 export type ServerMessage =
   | { type: "user"; text: string; budgetLeft?: number; taskSummary?: boolean; sessionId?: string }
   | ({ type: "agent_start" } & { sessionId?: string })
@@ -42,7 +46,7 @@ export type ServerMessage =
   | ({ type: "thinking"; delta: string } & { sessionId?: string })
   | ({ type: "tool_start"; toolCallId: string; name: string; args: unknown } & { sessionId?: string })
   | ({ type: "tool_update"; toolCallId: string; name: string; partialResult: unknown } & { sessionId?: string })
-  | ({ type: "tool_end"; toolCallId: string; name?: string; result: unknown; isError?: boolean } & { sessionId?: string })
+  | ({ type: "tool_end"; toolCallId: string; name?: string; result: unknown; isError?: boolean; connect?: ConnectPointer } & { sessionId?: string })
   | ({ type: "skill_use"; name: string; args?: string } & { sessionId?: string })
   | ({ type: "command_use"; name: string; args?: string; message?: string } & { sessionId?: string })
   | ({ type: "done" } & {
@@ -70,7 +74,7 @@ export type ServerMessage =
   | { type: "retry_started"; retryId: string | null; retry: number | null }
   // `code` carries the machine-readable shape when the error is a designed
   // terminal condition (demo_limit / sandbox_limit — add-mp-demo-quota-end).
-  | { type: "error"; message: string; code?: string }
+  | { type: "error"; message: string; code?: string; connect?: ConnectPointer }
   | { type: "current_model"; id: string | null; effort?: string | null }
   | {
       type: "models";

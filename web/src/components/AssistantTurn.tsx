@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useState, useSyncExternalStore } from "react";
 // Full-width assistant turn. Blocks nest inside a left-rail so tool/thinking
 // visibly belong to the same turn as the text. This is the "not siblings"
 // design decision from proposal.md.
@@ -7,13 +7,17 @@ import { memo, useState } from "react";
 // tool/thinking block labels resolve through the i18n bundle. Icons are
 // lucide throughout — no emoji as an icon system (DESIGN.md).
 import { useTranslation } from "react-i18next";
-import { Check, Copy, Loader2, RefreshCw, Terminal, TriangleAlert } from "lucide-react";
+import { Check, Copy, Loader2, RefreshCw, Square, Terminal, TriangleAlert, Volume2 } from "lucide-react";
 import { groupTurnBlocks, useChatStore, type Turn } from "@platform/core";
 import { useBranding } from "@/hooks/useAppConfig";
+import { useVoice } from "@/hooks/useVoice";
+import { speechPlayer, synthesizeSpeech, VoiceError } from "@/lib/voice";
+import { showToast } from "@/components/Toast";
 import { Markdown } from "@/components/Markdown";
 import { ActivityGroup } from "@/components/ActivityGroup";
 import { ThinkingBlock } from "@/components/ThinkingBlock";
 import { ToolBlock } from "@/components/ToolBlock";
+import { ConnectCta } from "@/components/ConnectCta";
 import { SkillBlock } from "@/components/SkillBlock";
 import { TurnArtifactStrip } from "@/components/TurnArtifactStrip";
 import { cn } from "@/lib/utils";
@@ -51,6 +55,35 @@ function AssistantTurnBase({
       setTimeout(() => setCopied(false), 1200);
     } catch {
       /* clipboard unavailable (permissions); the button stays honest */
+    }
+  };
+
+  // 朗读 (voice-lane, design D5): synthesise the answer prose through
+  // /api/voice/speech and play it on the page's single player. Three states —
+  // idle / loading / playing — and a click while playing stops. Rendered only
+  // when voice is available and the turn has finished with text.
+  const voice = useVoice();
+  const playingId = useSyncExternalStore(speechPlayer.subscribe, speechPlayer.playingId, speechPlayer.playingId);
+  const [speakLoading, setSpeakLoading] = useState(false);
+  const speaking = playingId === turn.id;
+  const speakState = speaking ? "playing" : speakLoading ? "loading" : "idle";
+  const speak = async () => {
+    if (speaking) {
+      speechPlayer.stop();
+      return;
+    }
+    if (!answerText || speakLoading) return;
+    setSpeakLoading(true);
+    try {
+      const { blob, truncated } = await synthesizeSpeech(answerText);
+      if (truncated) showToast(t("turn.speakTruncated"));
+      await speechPlayer.play(turn.id, blob);
+    } catch (e) {
+      const err = e instanceof VoiceError ? e : null;
+      showToast(err?.message || t("turn.speakFailed"));
+      if (err?.status === 401 || err?.status === 503) void voice.refresh();
+    } finally {
+      setSpeakLoading(false);
     }
   };
 
@@ -96,17 +129,20 @@ function AssistantTurnBase({
             )}
           </div>
         );
-      case "error":
-        return (
-          <div
-            key={key}
-            data-testid="turn-error-block"
-            className="flex items-start gap-1.5 rounded-md border border-destructive bg-destructive/10 px-3 py-2 text-xs text-destructive"
-          >
-            <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" />
-            <span className="min-w-0 break-words">{b.message}</span>
-          </div>
-        );
+        case "error":
+          return (
+            <div
+              key={key}
+              data-testid="turn-error-block"
+              className="flex items-start gap-1.5 rounded-md border border-destructive bg-destructive/10 px-3 py-2 text-xs text-destructive"
+            >
+              <TriangleAlert className="mt-0.5 h-3 w-3 shrink-0" />
+              <span className="min-w-0 break-words">{b.message}</span>
+              {/* Credential-shaped failures carry the panel to fix (chat-
+                  connect-guidance); the CTA deep-links that exact card. */}
+              {b.connect?.panel && <ConnectCta panel={b.connect.panel} />}
+            </div>
+          );
       default:
         return null;
     }
@@ -154,6 +190,28 @@ function AssistantTurnBase({
         )}
         {/* Turn actions: revealed on hover, keyboard-accessible always. */}
         <div className="ml-auto flex items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+          {answerText && voice.available && !turn.streaming && (
+            <button
+              type="button"
+              onClick={speak}
+              aria-label={speaking ? t("turn.speakStop") : t("turn.speak")}
+              aria-pressed={speaking}
+              data-testid="turn-speak"
+              data-state={speakState}
+              className={cn(
+                "grid h-6 w-6 place-items-center rounded-md hover:bg-muted hover:text-foreground",
+                speaking ? "text-primary" : "text-muted-foreground",
+              )}
+            >
+              {speakState === "loading" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+              ) : speaking ? (
+                <Square className="h-3 w-3 fill-current" aria-hidden="true" />
+              ) : (
+                <Volume2 className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+            </button>
+          )}
           {answerText && (
             <button
               type="button"

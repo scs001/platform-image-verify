@@ -53,10 +53,13 @@ export type Block =
       result?: unknown;
       partial?: unknown;
       open: boolean;
+      connect?: { panel: string };
     }
   | { kind: "skill"; name: string; args?: string; open: boolean }
   | { kind: "command"; name: string; args?: string; message?: string; open: boolean }
-  | { kind: "error"; message: string };
+  // `connect` (chat-connect-guidance): credential-shaped failures carry the
+  // panel whose connect card repairs them; absent blocks render no CTA.
+  | { kind: "error"; message: string; connect?: { panel: string } };
 
 export type Turn =
   | { id: string; role: "user"; text: string; taskSummary?: boolean }
@@ -695,6 +698,11 @@ export const useChatStore = create<State>((set) => ({
           if (b) {
             b.state = m.isError ? "error" : "done";
             b.result = m.result;
+            // Credential-shaped failures keep the connect pointer the server
+            // classified (chat-connect-guidance); done calls clear any stale
+            // pointer left by an earlier failed attempt of the same call.
+            if (m.isError && m.connect) b.connect = m.connect;
+            else delete b.connect;
             if (m.isError) {
               b.open = true;
               // The enclosing activity group must not hide the failure: mark
@@ -845,7 +853,10 @@ export const useChatStore = create<State>((set) => ({
           }
           turns[turns.length - 1] = {
             ...tail,
-            blocks: [...tail.blocks, { kind: "error", message: m.message }],
+            blocks: [
+              ...tail.blocks,
+              { kind: "error", message: m.message, ...(m.connect ? { connect: m.connect } : {}) },
+            ],
           };
           return { turns };
         }

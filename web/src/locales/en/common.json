@@ -213,7 +213,17 @@
       "ctx": "ctx {{pct}}%",
       "ctxHint": "{{tokens}} / {{window}} tokens"
     },
-    "sending": "Sending…"
+    "sending": "Sending…",
+    "voice": {
+      "record": "Voice input",
+      "stop": "Stop recording",
+      "recording": "Recording — click to stop",
+      "transcribing": "Transcribing…",
+      "file": "Voice to text (upload audio)",
+      "permissionDenied": "Microphone permission denied",
+      "failed": "Transcription failed",
+      "dismiss": "Dismiss"
+    }
   },
   "chat": {
     "empty": "Send a message to start chatting.",
@@ -341,7 +351,12 @@
     "retryStarted": "Retrying…",
     "connectionLost": "Connection lost, resuming…",
     "resumedLag": "Reconnected; content may lag",
-    "usage": "in {{in}} · out {{out}}"
+    "usage": "in {{in}} · out {{out}}",
+    "connectAction": "Go connect",
+    "speak": "Read aloud",
+    "speakStop": "Stop reading",
+    "speakTruncated": "Reply is long; only the first 4000 characters are read",
+    "speakFailed": "Read aloud failed"
   },
   "markdown": {
     "copy": "Copy",
@@ -1980,5 +1995,30 @@
     },
     "admin": "Administrator",
     "panelTitle": "Business roles"
+  },
+  "voiceCard": {
+    "title": "Voice",
+    "subtitle": "Voice input and read-aloud go through the 词元 audio lane over the fixed OpenAI audio protocol; channels are configured on the 词元 side",
+    "enabled": "Enable voice",
+    "asrModel": "Transcription model",
+    "ttsModel": "Synthesis model",
+    "ttsVoice": "Voice",
+    "ttsFormat": "Audio format",
+    "blankHint": "Blank = 词元-side default",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Voice settings saved",
+    "readOnly": "Voice parameters are set by an administrator",
+    "status": {
+      "loading": "Checking…",
+      "available": "Available",
+      "disabled": "Disabled",
+      "noKey": "No credential configured",
+      "unavailable": "Unavailable"
+    },
+    "keySource": {
+      "user": "Billed to your 词元 account",
+      "deployment": "Using the deployment credential"
+    }
   }
 }

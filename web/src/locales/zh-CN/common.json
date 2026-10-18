@@ -213,7 +213,17 @@
       "ctx": "上下文 {{pct}}%",
       "ctxHint": "已用 {{tokens}} / {{window}} tokens"
     },
-    "sending": "发送中…"
+    "sending": "发送中…",
+    "voice": {
+      "record": "语音输入",
+      "stop": "停止录音",
+      "recording": "录音中，点击停止",
+      "transcribing": "转写中…",
+      "file": "语音转文字（上传音频）",
+      "permissionDenied": "麦克风权限被拒绝",
+      "failed": "转写失败",
+      "dismiss": "关闭"
+    }
   },
   "chat": {
     "empty": "发送消息开始对话。",
@@ -341,7 +351,12 @@
     "retryStarted": "正在重试…",
     "connectionLost": "连接中断，恢复中…",
     "resumedLag": "已重连，内容可能滞后",
-    "usage": "入 {{in}} · 出 {{out}}"
+    "usage": "入 {{in}} · 出 {{out}}",
+    "connectAction": "去连接",
+    "speak": "朗读",
+    "speakStop": "停止朗读",
+    "speakTruncated": "回复过长，只朗读前 4000 字",
+    "speakFailed": "朗读失败"
   },
   "markdown": {
     "copy": "复制",
@@ -1980,5 +1995,30 @@
     },
     "admin": "管理员",
     "panelTitle": "业务角色"
+  },
+  "voiceCard": {
+    "title": "语音",
+    "subtitle": "语音输入与朗读经词元语音车道，固定 OpenAI 音频协议；渠道在词元侧配置",
+    "enabled": "启用语音",
+    "asrModel": "转写模型",
+    "ttsModel": "合成模型",
+    "ttsVoice": "音色",
+    "ttsFormat": "音频格式",
+    "blankHint": "留空使用词元侧默认",
+    "save": "保存",
+    "saving": "保存中…",
+    "saved": "语音设置已保存",
+    "readOnly": "语音参数由管理员配置",
+    "status": {
+      "loading": "检测中…",
+      "available": "可用",
+      "disabled": "已停用",
+      "noKey": "未配置凭据",
+      "unavailable": "不可用"
+    },
+    "keySource": {
+      "user": "计费到你的词元账号",
+      "deployment": "使用部署凭据"
+    }
   }
 }

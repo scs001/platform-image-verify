@@ -59,7 +59,15 @@ export default defineConfig({
   projects: [
     {
       name: "fast",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        // voice-lane: a fake microphone (a real audio track, so MediaRecorder
+        // produces bytes without a device or a permission prompt) and no
+        // autoplay gate (so the 朗读 player's play() resolves headlessly).
+        launchOptions: {
+          args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", "--autoplay-policy=no-user-gesture-required"],
+        },
+      },
       // Exclude @smoke (real LLM call) AND @live (deployed-service tests that
       // belong only to the `live` project - they would otherwise run against
       // the local 127.0.0.1 server and assert the wrong things).

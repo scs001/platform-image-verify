@@ -6,6 +6,7 @@ import { usePreviewStore } from "@/hooks/usePreviewStore";
 import { CronToolCard } from "@/components/CronToolCard";
 import { TaskCard } from "@/components/TaskCard";
 import { QuestionCard } from "@/components/QuestionCard";
+import { ConnectCta } from "@/components/ConnectCta";
 import { baseName, fileUrl, producedFilePaths, resolveRef } from "@/lib/file-preview";
 import { memo, useId } from "react";
 
@@ -154,6 +155,9 @@ function ToolBlockBase({ block, onToggle }: Props) {
               error={state === "error"}
             />
           )}
+          {/* Credential-shaped failures carry the panel to fix (chat-connect-
+              guidance); the block auto-opens on error, so this stays visible. */}
+          {state === "error" && block.connect?.panel && <ConnectCta panel={block.connect.panel} />}
         </div>
       )}
     </div>

@@ -123,8 +123,12 @@ export function credentialMissingReason(refName) {
 // connections section, on the ref's own panel. Consumed by both install paths
 // alongside credentialMissingReason so the UI can deep-link the exact card.
 export function connectPathForRef(refName) {
-  const panel = KNOWN_CONNECT_PANELS.get(refName) ?? "registry";
-  return `/settings/connections?panel=${panel}`;
+  return `/settings/connections?panel=${connectPanelForRef(refName)}`;
+}
+// The connect panel id for a ref name (chat-connect-guidance consumes this
+// to point failed tool calls at the right card without parsing the path).
+export function connectPanelForRef(refName) {
+  return KNOWN_CONNECT_PANELS.get(refName) ?? "registry";
 }
 const KNOWN_CONNECT_PANELS = new Map([
   [registryCredentials.REGISTRY_CREDENTIAL_REF, "registry"],

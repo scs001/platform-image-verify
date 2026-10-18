@@ -30,9 +30,13 @@ export interface AppConfig {
   // visible slugs. Null = an older server — the web then renders the factory
   // snapshot's full set, matching the pre-change behavior.
   resolvedLayout: { nav: string[]; settings: string[]; agentsTabs: string[] } | null;
+  // Voice lane (voice-lane): the deployment switch and TTS container format.
+  // Null = an older server without the field (the web then probes
+  // /api/voice/status and degrades to "unavailable" on 404).
+  voice: { enabled: boolean; ttsFormat: string } | null;
 }
 
-let config: AppConfig = { documentsEnabled: true, assistantName: null, companyName: null, brandIconUrl: null, loginFooterText: null, loginHero: null, packMarketplace: false, roles: null, resolvedLayout: null };
+let config: AppConfig = { documentsEnabled: true, assistantName: null, companyName: null, brandIconUrl: null, loginFooterText: null, loginHero: null, packMarketplace: false, roles: null, resolvedLayout: null, voice: null };
 const listeners = new Set<() => void>();
 
 function emit(next: AppConfig) {
@@ -79,6 +83,10 @@ export async function loadAppConfig(timeoutMs = 1500): Promise<AppConfig> {
               settings: slugList(layout.settings) ?? [],
               agentsTabs: slugList(layout.agentsTabs) ?? [],
             }
+          : null,
+      voice:
+        body?.voice && typeof body.voice === "object"
+          ? { enabled: body.voice.enabled !== false, ttsFormat: str(body.voice.ttsFormat) ?? "mp3" }
           : null,
     });
   } catch {

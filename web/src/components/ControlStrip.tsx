@@ -64,6 +64,10 @@ interface Props {
   // Opens the composer's own file picker. The input (and the upload path it
   // feeds) stays in the composer — this menu only triggers it.
   onAttach: () => void;
+  // Opens the composer's audio-file picker (voice-lane): a dedicated input
+  // that goes to transcription, never to the document upload path. Absent
+  // when voice is unavailable — the entry then does not render.
+  onVoiceFile?: () => void;
   // The send/stop control, rendered as the row's rightmost element.
   trailing?: React.ReactNode;
 }
@@ -281,7 +285,7 @@ function FullAccessDialog({
   );
 }
 
-export function ControlStrip({ send, onOpenCommands, onAttach, trailing }: Props) {
+export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trailing }: Props) {
   const { t } = useTranslation();
   const status = useChatStore((s) => s.status);
   const models = useChatStore((s) => s.models);
@@ -446,6 +450,16 @@ export function ControlStrip({ send, onOpenCommands, onAttach, trailing }: Props
                   onAttach();
                 }}
               />
+              {onVoiceFile && (
+                <MenuItem
+                  testId="composer-voice-file"
+                  primary={t("composer.voice.file")}
+                  onClick={() => {
+                    close();
+                    onVoiceFile();
+                  }}
+                />
+              )}
               <MenuItem
                 testId="strip-commands"
                 primary={t("composer.strip.commands")}

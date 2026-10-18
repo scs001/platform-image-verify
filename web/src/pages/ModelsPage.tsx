@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/dialog";
 import { ProviderCard } from "@/components/llm/ProviderCard";
 import { ProviderForm, type ProviderFormValue } from "@/components/llm/ProviderForm";
+import { VoiceCard } from "@/components/llm/VoiceCard";
 import { showToast } from "@/components/Toast";
 import { useAuthStore } from "@/hooks/useAuth";
 import {
@@ -170,6 +171,11 @@ export function ModelsPage() {
             ))}
           </div>
         )}
+
+        {/* Voice lane settings (voice-lane): the deployment's ASR/TTS block,
+            after the providers — the same "models" surface, the admin gate
+            mirrors the provider actions above. */}
+        <VoiceCard isAdmin={isAdmin} />
       </div>
 
       <ProviderForm

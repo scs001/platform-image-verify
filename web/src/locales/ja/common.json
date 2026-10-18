@@ -213,7 +213,17 @@
       "ctx": "ctx {{pct}}%",
       "ctxHint": "{{tokens}} / {{window}} tokens"
     },
-    "sending": "送信中…"
+    "sending": "送信中…",
+    "voice": {
+      "record": "音声入力",
+      "stop": "録音を停止",
+      "recording": "録音中 — クリックで停止",
+      "transcribing": "文字起こし中…",
+      "file": "音声→テキスト（音声をアップロード）",
+      "permissionDenied": "マイクの権限が拒否されました",
+      "failed": "文字起こしに失敗しました",
+      "dismiss": "閉じる"
+    }
   },
   "chat": {
     "empty": "メッセージを送信してチャットを開始してください。",
@@ -341,7 +351,12 @@
     "retryStarted": "再試行中…",
     "connectionLost": "接続が切断されました。復元中…",
     "resumedLag": "再接続済み。内容が遅れる可能性があります",
-    "usage": "入力 {{in}} · 出力 {{out}}"
+    "usage": "入力 {{in}} · 出力 {{out}}",
+    "connectAction": "接続する",
+    "speak": "読み上げ",
+    "speakStop": "読み上げを停止",
+    "speakTruncated": "返答が長いため先頭 4000 文字のみ読み上げます",
+    "speakFailed": "読み上げに失敗しました"
   },
   "markdown": {
     "copy": "コピー",
@@ -1980,5 +1995,30 @@
     },
     "admin": "管理者",
     "panelTitle": "業務ロール"
+  },
+  "voiceCard": {
+    "title": "音声",
+    "subtitle": "音声入力と読み上げは 词元 の音声レーンを固定の OpenAI 音声プロトコルで経由します。チャネルは 词元 側で設定します",
+    "enabled": "音声を有効化",
+    "asrModel": "文字起こしモデル",
+    "ttsModel": "合成モデル",
+    "ttsVoice": "音声（ボイス）",
+    "ttsFormat": "音声フォーマット",
+    "blankHint": "空欄 = 词元 側の既定値",
+    "save": "保存",
+    "saving": "保存中…",
+    "saved": "音声設定を保存しました",
+    "readOnly": "音声パラメータは管理者が設定します",
+    "status": {
+      "loading": "確認中…",
+      "available": "利用可能",
+      "disabled": "無効",
+      "noKey": "認証情報が未設定",
+      "unavailable": "利用不可"
+    },
+    "keySource": {
+      "user": "あなたの 词元 アカウントに課金",
+      "deployment": "デプロイの認証情報を使用"
+    }
   }
 }

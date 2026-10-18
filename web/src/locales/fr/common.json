@@ -213,7 +213,17 @@
       "ctx": "ctx {{pct}}%",
       "ctxHint": "{{tokens}} / {{window}} tokens"
     },
-    "sending": "Envoi…"
+    "sending": "Envoi…",
+    "voice": {
+      "record": "Saisie vocale",
+      "stop": "Arrêter l'enregistrement",
+      "recording": "Enregistrement — cliquez pour arrêter",
+      "transcribing": "Transcription…",
+      "file": "Voix vers texte (envoyer un audio)",
+      "permissionDenied": "Accès au microphone refusé",
+      "failed": "Échec de la transcription",
+      "dismiss": "Fermer"
+    }
   },
   "chat": {
     "empty": "Envoyez un message pour commencer à discuter.",
@@ -341,7 +351,12 @@
     "retryStarted": "Nouvelle tentative…",
     "connectionLost": "Connexion perdue, reprise…",
     "resumedLag": "Reconnecté ; le contenu peut être en retard",
-    "usage": "in {{in}} · out {{out}}"
+    "usage": "in {{in}} · out {{out}}",
+    "connectAction": "Connecter",
+    "speak": "Lire à voix haute",
+    "speakStop": "Arrêter la lecture",
+    "speakTruncated": "Réponse longue ; seuls les 4000 premiers caractères sont lus",
+    "speakFailed": "Échec de la lecture"
   },
   "markdown": {
     "copy": "Copier",
@@ -1980,5 +1995,30 @@
     },
     "admin": "Administrateur",
     "panelTitle": "Rôles métier"
+  },
+  "voiceCard": {
+    "title": "Voix",
+    "subtitle": "La saisie vocale et la lecture passent par la voie audio 词元 avec le protocole audio OpenAI fixe ; les canaux se configurent côté 词元",
+    "enabled": "Activer la voix",
+    "asrModel": "Modèle de transcription",
+    "ttsModel": "Modèle de synthèse",
+    "ttsVoice": "Voix",
+    "ttsFormat": "Format audio",
+    "blankHint": "Vide = valeur par défaut côté 词元",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "saved": "Réglages vocaux enregistrés",
+    "readOnly": "Les paramètres vocaux sont définis par un administrateur",
+    "status": {
+      "loading": "Vérification…",
+      "available": "Disponible",
+      "disabled": "Désactivé",
+      "noKey": "Aucun identifiant configuré",
+      "unavailable": "Indisponible"
+    },
+    "keySource": {
+      "user": "Facturé sur votre compte 词元",
+      "deployment": "Identifiant du déploiement utilisé"
+    }
   }
 }

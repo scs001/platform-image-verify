@@ -19,6 +19,7 @@
 import * as chatHistory from "../chat-history.js";
 import * as trace from "./trace.js";
 import { recordPackUsage } from "./usage-telemetry.js";
+import { turnErrorHint, toolFailureHint } from "./connect-guidance.js";
 import {
   parseToolSchemas,
   candidateToolNames,
@@ -570,12 +571,17 @@ export function attachDshEvents(ctx) {
           acc.result = resultText;
           acc.state = isError ? "error" : "done";
         }
+        // Credential-shaped tool failures carry the server's connect panel
+        // (chat-connect-guidance) — additive, the result text stays as the
+        // model and the transcript see it.
+        const toolHint = isError ? toolFailureHint(T.toolNames.get(callId), resultText) : null;
         ctx.sendToViewers(sid, {
           type: "tool_end",
           toolCallId: callId,
           name: T.toolNames.get(callId) ?? undefined,
           result: resultText,
           isError,
+          ...(toolHint ? { connect: toolHint } : {}),
         });
         // A resolved ask_user_question closes the pending card — answered,
         // cancelled, or failed, the tool result IS the card's summary
@@ -601,7 +607,10 @@ export function attachDshEvents(ctx) {
         const reason = ev.data?.reason;
         if (reason?.kind === "error") {
           const message = T.error || reason.error?.message || "The agent turn failed";
-          ctx.sendToViewers(sid, { type: "error", message });
+          // Credential-shaped failures carry a connect pointer (chat-connect-
+          // guidance): additive field, the message text itself is untouched.
+          const hint = turnErrorHint(message);
+          ctx.sendToViewers(sid, { type: "error", message, ...(hint ? { connect: hint } : {}) });
         }
         T.error = null;
         break;

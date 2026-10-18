@@ -52,6 +52,7 @@ import { registerFacetMarketRoutes } from "./server/routes/facet-market.js";
 import { registerLineCredentialRoutes } from "./server/routes/line-credentials.js";
 import { registerPaperTradingRoutes } from "./server/routes/paper-trading.js";
 import { registerCiyuanAccountRoutes } from "./server/routes/ciyuan-account.js";
+import { registerVoiceRoutes } from "./server/routes/voice.js";
 import { registerPackUsageRoutes } from "./server/routes/pack-usage.js";
 import { registerFileRoutes } from "./server/routes/files.js";
 import { registerResourceRoutes } from "./server/routes/resources.js";
@@ -250,6 +251,10 @@ registerLineCredentialRoutes(ctx);
 // 词元账号 (ciyuan-account-lane): zero-paste bind — server-side 词元 login →
 // key mint → stored key; serves the cell model lane + the wanxing-caller ref.
 registerCiyuanAccountRoutes(ctx);
+// 语音车道 (voice-lane): ASR/TTS forwarded to the 词元 audio lane over the
+// fixed OpenAI audio protocol; the key follows the model lane (user's bound
+// 词元 key first, deployment key second) and never reaches the browser.
+registerVoiceRoutes(ctx);
 // 柏讯模拟交易 token (paper-trading-credentials) — fourth in the same family:
 // paste an fdt_ token, advisory liveness probe, injection via credentialRef.
 registerPaperTradingRoutes(ctx);

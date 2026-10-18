@@ -123,8 +123,11 @@ try {
   const ttsRes = page.waitForResponse((r) => r.url().includes("/api/voice/speech"), { timeout: 90_000 });
   await speak.click();
   const tts = await ttsRes;
+  // Playwright hands back an empty body for binary responses, so the byte
+  // count here is only the header-level truth; the payload size is measured
+  // by the same-origin probe below.
   const ttsBytes = (await tts.body()).length;
-  ok("TTS forward answered 200 audio on the user's key", tts.status() === 200 && /^audio\//.test(tts.headers()["content-type"] ?? "") && tts.headers()["x-voice-key-source"] === "user", `HTTP ${tts.status()} ${tts.headers()["content-type"]} ${ttsBytes}B`);
+  ok("TTS forward answered 200 audio on the user's key", tts.status() === 200 && /^audio\//.test(tts.headers()["content-type"] ?? "") && tts.headers()["x-voice-key-source"] === "user", `HTTP ${tts.status()} ${tts.headers()["content-type"]} ${tts.headers()["x-voice-key-source"]} (browser-side body ${ttsBytes}B — binary responses are not captured)`);
   // Playwright 的 response.body() 在页面已消费该响应时可能读到空（本项目实测：
   // 播放器用 res.blob() 读走后 waitForResponse.body() 返回 0B，但音频确实在播）。
   // 因此这里再独立打一次同一端点，直接量字节，作为「真载荷」的判据。
@@ -140,7 +143,7 @@ try {
   ok(
     "synthesised audio is a real payload (>1 KB)",
     ttsProbe.status === 200 && ttsProbe.size > 1024,
-    `probe HTTP ${ttsProbe.status} ${ttsProbe.size}B ${ttsProbe.type} keySource=${ttsProbe.keySource}; intercepted ${ttsBytes}B`,
+    `probe HTTP ${ttsProbe.status} ${ttsProbe.size}B ${ttsProbe.type} keySource=${ttsProbe.keySource}`,
   );
   await page.locator("[data-testid='turn-speak'][data-state='playing']").waitFor({ timeout: 20_000 }).then(() => ok("朗读 entered playing", true)).catch(() => ok("朗读 entered playing", false, "never reached data-state=playing"));
   let afterTts = beforeTts;

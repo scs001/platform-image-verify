@@ -34,7 +34,7 @@
 
 ## 6. 发布与真机验收
 
-- [ ] 6.1 提交只 `git add` 本变更文件（勿 `-A`），双推。验证：`git show --stat HEAD` 只含本变更文件
-- [ ] 6.2 `fd-build-channel` → 公开快照线（**产完快照先 `ls .github/workflows`，手动修剪到只剩 image.yml**）→ run 绿 → relay OK 日志行 → ccr digest → 双清单滚 tag → ArgoCD → 双 rollout 绿 → pod imageID 全等。验证：台账证据链逐项有值
-- [ ] 6.3 生产真机 `scripts/verify-live-ciyuan-account.mjs`（真 Logto 账号 + 词元 trial 账号 `ciyuan-trial@findmail.com`）：bind → `/api/connections ciyuan-account=connected` → 应用中心词元卡 `connected` → pod 内 cell `.credentials.yaml` 的 `LLM_PROVIDER_KEY_FINDDATA` 为新 key（只比对前缀与长度，不打印）→ 发一句聊天 → 词元 `usage_logs` 该 key 有新行（计费主体=trial）→ test 200 → disconnect → 文件回落种子 → 徽章回未连接；词元侧 `api_keys` 出现 `yizuo-*` 新行。验证：脚本 ALL PASS
+- [x] 6.1 提交只 `git add` 本变更文件（勿 `-A`），双推。验证：`git show --stat HEAD` 只含本变更文件
+- [x] 6.2 `fd-build-channel` → 公开快照线（**产完快照先 `ls .github/workflows`，手动修剪到只剩 image.yml**）→ run 绿 → relay OK 日志行 → ccr digest → 双清单滚 tag → ArgoCD → 双 rollout 绿 → pod imageID 全等。验证：台账证据链逐项有值
+- [x] 6.3 生产真机 `scripts/verify-live-ciyuan-account.mjs`（真 Logto 账号 + 词元 trial 账号 `ciyuan-trial@findmail.com`）：bind → `/api/connections ciyuan-account=connected` → 应用中心词元卡 `connected` → pod 内 cell `.credentials.yaml` 的 `LLM_PROVIDER_KEY_FINDDATA` 为新 key（只比对前缀与长度，不打印）→ 发一句聊天 → 词元 `usage_logs` 该 key 有新行（计费主体=trial）→ test 200 → disconnect → 文件回落种子 → 徽章回未连接；词元侧 `api_keys` 出现 `yizuo-*` 新行。验证：脚本 ALL PASS
 - [ ] 6.4 台账 §12.16 + 核销本 tasks + `openspec validate ciyuan-account-lane --strict` 绿 → 归档 + 五份 spec 同步（`ciyuan-account` 新主 spec 带 Purpose）。验证：归档目录存在；主 spec `connection-center` id 集含 `ciyuan-account`、`app-center` 映射已改、`line-credentials` 两要求已改、`dsh-llm-providers` 新要求在位

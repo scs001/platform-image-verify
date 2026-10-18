@@ -582,6 +582,21 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 状态 | 已收口。GitHub 侧泄露 commit 作为 unreachable object 仍在（可发 support 请求 GC，但内容已无有效凭据，风险可忽略） |
 
 ### 12.17 双刀上产：admin-layout-exempt + ciyuan-account-lane（2026-10-19 凌晨）
+
+**admin-layout-exempt**（规格变更：管理员不吃业务角色层收窄）。背景=§12.15 晚间用户报告 admin 账号管理界面消失——两层根因：测试角色留在 admin 账号（数据，已清）+ **role-system spec 明文「admin 兼任角色走角色布局」是有意设计**（v1.3.17），simple 预设裁掉整套管理面；`adminOnly` 谓词只挂 3 节救不回 models/channels/diagnostics/status。修法=核心层 `resolveLayout`：`authOn && isAdmin` 时丢弃 role 层（auth off 保持收窄，hermetic/本地预览不受影响）。
+
+**ciyuan-account-lane**（L2a：词元账号零粘贴 + 模型车道用户级计费）。服务端 login→`POST /api/v1/keys` 铸组 3（与部署 key 同组）→按身份只写存储（密码/token 用后即弃，单测断言零落盘零日志）；托管 cell 内 `ensureCredentialsStore` 第三层覆盖→下一请求按用户计费，断开/stale 回落种子；单进程不覆盖+卡面如实说明；wanxing-caller 引用账号 key 优先、手贴兜底零迁移，断开删两源；`/api/connections` 与应用中心词元卡换挂 `ciyuan-account`（旧 panel 别名保留）；LineOps 卡去 Caller 行，粘贴入口迁为逃生口。
+
+| 项 | 值 |
+|---|---|
+| 出片（三轮） | ①`40ab011`（paas `868ee362`，digest `27a3637c`，infra `903cc48`）——真机抓出**硬编码 provider id 缺陷**；②`0a4ff39`（`4d52105c`，digest `91b62d1d`，infra `9bd74b9`）——修 `CIYUAN_PROVIDER_IDS` 后又抓出**生产模型真源是 volces 环境路由**；③`86820e6`（`22785b48`，digest `762ad65b`，infra `a0f28b7`）——补 `LLM_API_KEY` 覆盖，终态。每轮 relay OK→ccr digest→双清单→ArgoCD→双 rollout 绿、imageID 全等 |
+| 两个生产真相（模块级测试测不到） | ①部署的词元 provider 叫 **`finddata-token`** 不是 `finddata`（仓内未跟踪的本地 json 与生产不同名）；②生产模型调用走 **pod env `LLM_API_KEY` + NodePort 32080 直达词元**（volces 保留路由），provider ref 那路在生产 cell 的 store 里多为空——覆盖面两者都要 |
+| 本地门 | 单测 1579/1579（新增 test-ciyuan-account 12 条：假词元 http 桩、覆盖/回落、单进程守卫、双 provider id、env 路由覆盖、legacy 优先级、脱敏 grep）；e2e ciyuan-account 6 + connections 4 + app-center 9 + layout 13 = 28/28（新增 `e2e/ciyuan-stub.js` 三端点可编程，webServer 挂 `CIYUAN_API_BASE`）；五语 parity/typecheck/lint 绿 |
+| 真机（admin） | `scripts/verify-live-admin-layout.mjs` **8/8 ALL PASS**：临时 PUT stock → resolvedLayout 三容器与无角色基线全等（nav 7 项、settings 13 节）→ 侧边栏眼见 应用/任务 在 → finally 复原 standard |
+| 真机（词元） | `scripts/verify-live-ciyuan-account.mjs` **18/18 ALL PASS**（词元 trial 账号实测）：bind → 卡/聚合/应用中心全 connected；**恰好一个 cell 的 `.credentials.yaml` 带用户 key**（值不等于种子集合判定）；词元 `api_keys` 出现 `yizuo-1da519d4-20261018` 组 3 user 93；探测 200；**绑定态聊天一句 → `usage_logs` 记到铸的 key 上（计费主体切换实证）**；断开 → revoke 提示 + cell 文件回落种子 + 徽章回 disconnected。脚本软删测试 key |
+| 教训 | ①**跨仓 id/配置要运行时探测别硬编码**（provider id 两名并存）；②真机验收三轮各抓一个「模块级全绿但生产形态不工作」的缺陷，第三次复现 §12.9 形态；③绑定触发的 dsh/mcp 热重载有秒级窗口，真机脚本发消息前要 settle；④词元 usage 异步落账，断言要轮询 |
+| 状态 | 双刀落地、可归档。词元试用账号密码已轮换（新值离线交付）。后续：L2b 语音（等词元 audio-lane-multi-upstream）、L3 对话内 connections 工具、role nav 是否加 `apps` 项待拍板 |
+
 ### 12.18 词元嵌入通道：provider 钉扎 + fd-text-core 切入（ciyuan-embedding-lane，2026-10-18）
 
 **背景**：硅基流动账户曾对全部嵌入模型 402（`Qwen3-Embedding-8B/4B/0.6B`、`bge-m3`、
@@ -623,17 +638,24 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 **密钥**：内部服务密钥 `embedding-internal`（组 8）明文只落
 `finddata/INFRA-NOTES.md`（部署秘密件），不进任何仓。
 
+### 12.19 三刀同车上产：voice-lane（L2b）+ chat-connect-guidance（L3）+ role-nav-apps（2026-10-19 凌晨）
 
-**admin-layout-exempt**（规格变更：管理员不吃业务角色层收窄）。背景=§12.15 晚间用户报告 admin 账号管理界面消失——两层根因：测试角色留在 admin 账号（数据，已清）+ **role-system spec 明文「admin 兼任角色走角色布局」是有意设计**（v1.3.17），simple 预设裁掉整套管理面；`adminOnly` 谓词只挂 3 节救不回 models/channels/diagnostics/status。修法=核心层 `resolveLayout`：`authOn && isAdmin` 时丢弃 role 层（auth off 保持收窄，hermetic/本地预览不受影响）。
+**前置核实**：词元 `audio-lane-multi-upstream` 已落地（ciyuan-v0.2.16-13，paas 侧 change 22/25，5.4 生产复验腾讯 ASR / 豆包 TTS 200）；立项前再以 **group-3 铸造 key**（壹座绑定用户同款凭据）单探针：`POST /v1/audio/transcriptions` **200/3.5s 真转写**、`POST /v1/audio/speech` **200/1.2s 16KB 合法 mp3**（02:4x）。探针 key 用后软删。
 
-**ciyuan-account-lane**（L2a：词元账号零粘贴 + 模型车道用户级计费）。服务端 login→`POST /api/v1/keys` 铸组 3（与部署 key 同组）→按身份只写存储（密码/token 用后即弃，单测断言零落盘零日志）；托管 cell 内 `ensureCredentialsStore` 第三层覆盖→下一请求按用户计费，断开/stale 回落种子；单进程不覆盖+卡面如实说明；wanxing-caller 引用账号 key 优先、手贴兜底零迁移，断开删两源；`/api/connections` 与应用中心词元卡换挂 `ciyuan-account`（旧 panel 别名保留）；LineOps 卡去 Caller 行，粘贴入口迁为逃生口。
+**voice-lane**（L2b）：壹座只说固定 OpenAI 音频协议，渠道差异全在词元侧（用户定调）。`server/routes/voice.js`：`/api/voice/transcriptions`（multipart→ASR）、`/api/voice/speech`（JSON→TTS 二进制）；key 三级解析 绑定用户铸造 key → `VOICE_API_KEY` → `LLM_API_KEY`（皆无 503）；用户 key 上游 401/403 → 标 stale + 广播 + 回 401 带 `connect:{panel:"ciyuan-account"}`；部署 key 401 → 502；>25MB 413；`voice` 配置块 deployment_config > `VOICE_CONFIG` > 默认，`PUT /api/config/voice` admin 门，`GET /api/voice/status` 无密钥，`/api/config` 附 `voice`。Composer 麦克风（MediaRecorder，点录点停）+ `+` 菜单「语音转文字」专用音频入口（**不走文档附件路径**，绕开 EXT_TYPE_MAP 415 / 无抽取器 / 无 accept 三阻断）→ 转写文本插入输入框不自动发送；AssistantTurn「朗读」三态单播放器；模型节 VoiceCard。
+
+**chat-connect-guidance**（L3）：`server/connect-guidance.js` 分类（模型车道凭据错→ciyuan-account；`mcp__<server>__`→ref→panel），dsh-events 两处附着 `connect` 字段（**文本一字不改、持久化不带**），客户端错误块/失败工具块渲染「去连接」深链。
+
+**role-nav-apps**：`simple.nav` 加 `apps`（§12.15 观察项，用户 10-18 拍板）；七处硬编码断言同步。
 
 | 项 | 值 |
 |---|---|
-| 出片（三轮） | ①`40ab011`（paas `868ee362`，digest `27a3637c`，infra `903cc48`）——真机抓出**硬编码 provider id 缺陷**；②`0a4ff39`（`4d52105c`，digest `91b62d1d`，infra `9bd74b9`）——修 `CIYUAN_PROVIDER_IDS` 后又抓出**生产模型真源是 volces 环境路由**；③`86820e6`（`22785b48`，digest `762ad65b`，infra `a0f28b7`）——补 `LLM_API_KEY` 覆盖，终态。每轮 relay OK→ccr digest→双清单→ArgoCD→双 rollout 绿、imageID 全等 |
-| 两个生产真相（模块级测试测不到） | ①部署的词元 provider 叫 **`finddata-token`** 不是 `finddata`（仓内未跟踪的本地 json 与生产不同名）；②生产模型调用走 **pod env `LLM_API_KEY` + NodePort 32080 直达词元**（volces 保留路由），provider ref 那路在生产 cell 的 store 里多为空——覆盖面两者都要 |
-| 本地门 | 单测 1579/1579（新增 test-ciyuan-account 12 条：假词元 http 桩、覆盖/回落、单进程守卫、双 provider id、env 路由覆盖、legacy 优先级、脱敏 grep）；e2e ciyuan-account 6 + connections 4 + app-center 9 + layout 13 = 28/28（新增 `e2e/ciyuan-stub.js` 三端点可编程，webServer 挂 `CIYUAN_API_BASE`）；五语 parity/typecheck/lint 绿 |
-| 真机（admin） | `scripts/verify-live-admin-layout.mjs` **8/8 ALL PASS**：临时 PUT stock → resolvedLayout 三容器与无角色基线全等（nav 7 项、settings 13 节）→ 侧边栏眼见 应用/任务 在 → finally 复原 standard |
-| 真机（词元） | `scripts/verify-live-ciyuan-account.mjs` **18/18 ALL PASS**（词元 trial 账号实测）：bind → 卡/聚合/应用中心全 connected；**恰好一个 cell 的 `.credentials.yaml` 带用户 key**（值不等于种子集合判定）；词元 `api_keys` 出现 `yizuo-1da519d4-20261018` 组 3 user 93；探测 200；**绑定态聊天一句 → `usage_logs` 记到铸的 key 上（计费主体切换实证）**；断开 → revoke 提示 + cell 文件回落种子 + 徽章回 disconnected。脚本软删测试 key |
-| 教训 | ①**跨仓 id/配置要运行时探测别硬编码**（provider id 两名并存）；②真机验收三轮各抓一个「模块级全绿但生产形态不工作」的缺陷，第三次复现 §12.9 形态；③绑定触发的 dsh/mcp 热重载有秒级窗口，真机脚本发消息前要 settle；④词元 usage 异步落账，断言要轮询 |
-| 状态 | 双刀落地、可归档。词元试用账号密码已轮换（新值离线交付）。后续：L2b 语音（等词元 audio-lane-multi-upstream）、L3 对话内 connections 工具、role nav 是否加 `apps` 项待拍板 |
+| 测试门 | `test:unit` **1599/1599**（新增 voice 14 + guidance 6）；fast e2e 新 spec **21/21**（voice 9 含假麦克风录音与真 mp3 播放、guidance 3、layout 9）；全套 475 过 / 13 红 → 隔离重跑 10 个纯 flaky 全过，`intent-onboarding:244` 是 nav 列表第七处漏网（已修），`composer-stop.spec` 为 main 固有竞态（**HEAD 基线 worktree 对照 7 轮各 5/6 红**，`:63` 单跑 5/5 过，级联自 IME 用例的 new-session 广播竞态） |
+| 提交 | paas `afd27184`（nav）+ `23ba5136`（voice+guidance），origin+gitee 双推 |
+| 出片线 | 公开快照线：`make-public-snapshot --init` gitleaks 干净 → **修剪到只剩 image.yml**（从镜像仓 `86820e6` 以 `gh api contents?ref=` 取回；链路只 `&&` + 哨兵 `pwd`/`test ! -f llm-providers.json`/`test ! -f .env`/toplevel 校验）→ 快照 **`6be8400`** 强推 → run 39161136227 绿（4m31s）→ relay `OK yizuo/platform:sha-6be8400`（04:06:40）→ ccr skopeo digest **`29d08729`** → `fd-infra-deploy` 双清单 `955aea7`（双远端）→ ArgoCD hard refresh → platform + platform-demo 双 rollout 绿 |
+| 生产实证 | 两 pod `sha-6be8400` imageID `sha256:29d08729…` 与 ccr 全等、restarts=0、`/healthz` 200；pod 内 `/app/server/connect-guidance.js` 在位；served chunk 含 `turn-connect-cta` 与 `"chat","knowledge","resources","agents","apps"` 各 1 |
+| 真机 ASR（`scripts/verify-live-voice.mjs`） | 真 Logto 账号 + 绑定词元 trial（key `yizuo-1da519d4-20261018` id 111）：`/api/voice/status` 绑定前 `keySource=deployment` → 绑定后 `user`；真语音 wav 经 `composer-audio-input` → `/api/voice/transcriptions` **200 keySource=user** → 输入框得文本 `"FFFFGGGG like!"`、零附件、未发送；词元 `usage_logs` 该 key **+1 行 `audio:stt`（计费主体=用户）**；断开后回落 `deployment`；麦克风入口、模型节 VoiceCard（available）均在位。**13 项 PASS** |
+| 真机 TTS | **FAIL 4 项——词元上游阻塞，非壹座缺陷**：`/api/voice/speech` 回 502（pod 日志 `[voice] upstream 502 on speech (lane_upstream_error)`）。复现与定位：直打词元 `/v1/audio/speech` 任意文本 **502 `audio lane upstream request failed (status 200)`** 连续 12 分钟；绕过词元直探豆包握手 → **`403 {"error":"[resource_id=volc.seedtts.default] requested resource not granted"}`**（`seed-tts-2.0` 与 `volc.service_type.10029` 同报）= 该 key 的 TTS 2.0 资源授权失效/额度用尽（火山控制台侧）；车道 `serveWithFailover` 轮到腾讯 #44 亦败（紧随其后 503 `no available upstream account`；腾讯 TTS 从未在生产验过——5.4 只证了腾讯 ASR）。壹座侧行为符合规格：502 脱敏文案 toast、不标 stale、ASR 不受影响 |
+| 词元侧交接 | ①火山引擎控制台重新开通/购买 seed-tts（`volc.seedtts.default`）或换 key；②腾讯 TTS（`TextToVoice`）生产实测补上，否则豆包一挂 TTS 全停；③`doubaoUpstreamError` 把握手失败记成 `status 200`（Go dialer resp 状态码失真），而真实是 403 + 明确错误体——建议把握手响应体进 WARN 日志，本次定位多绕了两步；④词元 4.4「跨协议轮转」任务未勾与此现象直接相关 |
+| 复跑 | 上游恢复后 `node scripts/verify-live-voice.mjs` 应 **ALL PASS**（脚本已覆盖 TTS 200 audio/mpeg + `x-voice-key-source: user` + usage 行 + 播放态） |
+| 遗留 | ①`composer-stop.spec` 固有 flaky 在案（非本刀引入）；②同一台账 §12.17/§12.18 曾错位（12.18 正文卡在 12.17 标题下，并行会话各自追加所致），本次已归位 |

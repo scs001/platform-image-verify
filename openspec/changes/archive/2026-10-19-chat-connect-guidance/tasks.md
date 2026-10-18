@@ -21,9 +21,9 @@
 
 ## 4. 发布与真机
 
-- [ ] 4.1 随同车发布；生产 chunk 含 `turn-connect-cta`。
-- [ ] 4.2 真机核销：§12.15 角色账号（stock）——无法安全触发真 401，故验收=部署证据（chunk 标记）+ 分类表单测 + e2e；台账如实记「未在生产触发真实凭据失败」。
-- [ ] 4.3 主 spec 同步 + 归档。
+- [x] 4.1 随同车发布；生产 chunk 含 `turn-connect-cta`。
+- [x] 4.2 真机核销：§12.15 角色账号（stock）——无法安全触发真 401，故验收=部署证据（chunk 标记）+ 分类表单测 + e2e；台账如实记「未在生产触发真实凭据失败」。
+- [x] 4.3 主 spec 同步 + 归档。
 
 ## 实施记录（apply 阶段，2026-10-19）
 
@@ -31,3 +31,4 @@
 - 单测 `scripts/test-connect-guidance.mjs` 6/6：分类表（8 命中 / 9 不命中）、mcp 前缀→ref→panel 三例（含 wanxing-caller→ciyuan-account）、无 ref/未知服务/裸工具/非凭据不附；**附着点走真 harness**（`createAppContext` + `attachDshEvents` + `handleDshEvent`）证实 `tool_end`/`error` 带 `connect`、result 文本逐字节不变、持久化块无指针。
 - 客户端：`ws.ts` `ConnectPointer` 类型挂 `tool_end`/`error`；`chat-store` 两处透传（done 调用清掉旧失败留下的指针）；`ConnectCta` 共用组件在错误块与失败工具块渲染；e2e `e2e/connect-guidance.spec.js` 3/3（turn 错误带/不带 connect、失败工具块内 CTA 深链 registry 面板）。
 - 3.1 的 e2e 用 store 缝注入 WS 事件（非真 401）——分类正确性由单测保证，e2e 只证客户端渲染与深链。
+- 4.1/4.2 实证：pod 内 `/app/server/connect-guidance.js` 在位（`ciyuan-account` 引用 2）、served chunk 含 `turn-connect-cta`；生产未触发真实凭据失败（如计划所述），分类正确性由单测 6/6 + e2e 3/3 保证。

@@ -29,10 +29,10 @@
 
 ## 4. 发布与真机
 
-- [ ] 4.1 提交只 `git add` 本变更文件（勿 `-A`），双推。
-- [ ] 4.2 `fd-build-channel` → 公开快照线（修剪 .github/workflows 只剩 image.yml；命令链只 `&&` + 双哨兵）→ run 绿 → relay → ccr digest → 双清单 → ArgoCD → rollout 绿 → pod imageID 全等。
+- [x] 4.1 提交只 `git add` 本变更文件（勿 `-A`），双推。
+- [x] 4.2 `fd-build-channel` → 公开快照线（修剪 .github/workflows 只剩 image.yml；命令链只 `&&` + 双哨兵）→ run 绿 → relay → ccr digest → 双清单 → ArgoCD → rollout 绿 → pod imageID 全等。
 - [ ] 4.3 真机 `scripts/verify-live-voice.mjs`：绑定 trial → 上传真 wav 转写非空 + 朗读 200 audio/mpeg + 词元 usage_logs 出现该 key 的 audio 车道用量行（计费主体=用户）。
-- [ ] 4.4 台账 §12.19 + 归档 + 主 spec `voice-lane` 同步（`openspec validate --specs`）。
+- [x] 4.4 台账 §12.19 + 归档 + 主 spec `voice-lane` 同步（`openspec validate --specs`）。
 
 ## 实施记录（apply 阶段，2026-10-19）
 
@@ -40,3 +40,5 @@
 - 服务端单测 `scripts/test-voice-lane.mjs` 14/14（D7 ①-⑨ 全覆盖 + speech 三用例 + unreachable）；**apply 中抓出一缺口**：`resolveVoiceKey` 在 email 为空时跳过查找，而 `ownerKey(null)` 映射到机器主人键（auth 关闭的本地单进程绑定存在那里）——已改为无条件 `liveToken(email)`。
 - e2e `e2e/voice.spec.js` 9/9（状态/入口、音频文件转写插入且零附件、假麦克风录音转写、绑定 key 上行 + 401 标 stale + connect CTA 深链、朗读播放/停止、VoiceCard 改音色下一次合成携带、502 toast、停用全隐藏）；`playwright.config.js` fast 项目加 `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream --autoplay-policy=no-user-gesture-required`；stub 内嵌 693B 真 mp3（ffmpeg sine），fixture `e2e/fixtures/voice-tiny.wav`（0.6s 静音，仅供 e2e 走通路径）。
 - 全量门：`npm run test:unit` 1599/1599；fast e2e 全套 475 过 / 13 红 → 隔离重跑 10 个纯 flaky（全过）、`intent-onboarding:244` 是 role-nav-apps 第七处列表断言（已同步）、`composer-stop.spec` 为 main 固有竞态 flake（HEAD 基线 worktree 对照 7 轮各 5/6 红，`:63` 单跑 5/5 过）。
+- 4.2 实证：快照 `6be8400` → run 39161136227 绿 → relay 04:06:40 → ccr digest `29d08729` → infra `955aea7` → 双 rollout 绿，双 pod imageID 全等。
+- **4.3 部分完成（故不勾）**：`scripts/verify-live-voice.mjs` **ASR 全链 13 项 PASS**（用户 key 上行、转写插入、零附件、usage `audio:stt` 计到用户 key、断开回落）；**TTS 4 项 FAIL = 词元上游阻塞非壹座缺陷**——豆包握手 `403 requested resource not granted`（`volc.seedtts.default`）+ 腾讯 TTS 亦败（车道 503 无可用账号）。壹座侧按规格诚实 502。上游恢复后复跑该脚本应 ALL PASS。详见台账 §12.19。

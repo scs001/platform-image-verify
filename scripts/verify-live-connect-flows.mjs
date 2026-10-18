@@ -32,8 +32,34 @@ const ctx = await browser.newContext({ locale: "zh-CN" });
 const page = await ctx.newPage();
 
 async function state(id) {
-  const doc = await page.evaluate(async () => (await fetch("/api/connections")).json());
-  return (doc.connections || []).find((c) => c.id === id);
+  const doc = await page.evaluate(async () => (await fetch("/api/connections")).json()).catch(() => null);
+  return (doc?.connections || []).find((c) => c.id === id);
+}
+
+// The mint is a FULL-PAGE authorization round trip: the click navigates away
+// (Logto) and back. The FIRST mint of a line per user lands on Logto's consent
+// screen (the retry leg drops prompt=none by design); approve it if present,
+// then poll the aggregate — a fixed sleep races the redirect chain.
+async function approveConsentIfShown() {
+  if (!/auth\.finddatatech\.cloud/.test(page.url())) return false;
+  const label = page.getByRole("button", { name: /^(Continue|Authorize|Allow|允许|继续|同意)$/i }).first();
+  const present = await label.isVisible().catch(() => false);
+  if (!present) return false;
+  console.log("  approving Logto consent screen");
+  await label.click().catch(() => {});
+  return true;
+}
+
+async function waitConnected(id, timeoutMs = 90_000) {
+  const deadline = Date.now() + timeoutMs;
+  let last = null;
+  while (Date.now() < deadline) {
+    await approveConsentIfShown();
+    last = await state(id);
+    if (last?.state === "connected") return last;
+    await page.waitForTimeout(1500);
+  }
+  return last;
 }
 
 try {
@@ -64,18 +90,23 @@ try {
   ok("connections section reachable for the role-carrying account", sectionSeen, page.url());
 
   if (sectionSeen) {
-    // The line card's connect button for wire: first row's primary button.
-    const wireRow = page.locator("text=柏讯操作").locator("xpath=ancestor::div[contains(@class,'border-t')][1]");
-    const connectBtn = wireRow.getByRole("button", { name: /^连接$/ }).first();
-    const hasConnect = (await connectBtn.count()) > 0;
-    if (hasConnect) {
-      await connectBtn.click();
+    // Rows are `<div.border-t>`; the title is the row's first text node and the
+    // action column holds its button. Anchor per row so an already-connected
+    // sibling (whose button reads 断开) cannot shift the index.
+    const row = (title) => page.locator("[data-testid='settings-connections'] div.border-t").filter({ hasText: title }).first();
+    const wireRow = row("柏讯操作");
+    const wireBtn = wireRow.getByRole("button", { name: /^连接$/ }).first();
+    const wireReady = await wireBtn
+      .waitFor({ state: "visible", timeout: 20_000 })
+      .then(() => true)
+      .catch(() => false);
+    console.log(`  wire connect button ready: ${wireReady}`);
+    if (wireReady) {
+      await wireBtn.click();
       // Full-page round trip through Logto; the callback lands back on the
-      // same panel. Wait for the section to render again.
+      // same panel. Poll the aggregate rather than sleeping.
       await page.waitForURL(/\/settings\/connections/, { timeout: 90_000 }).catch(() => {});
-      await page.getByTestId("settings-section-connections").waitFor({ state: "visible", timeout: 60_000 }).catch(() => {});
-      await page.waitForTimeout(2500);
-      const after = await state("line-wire-customer");
+      const after = await waitConnected("line-wire-customer");
       ok("wire-customer mint flips /api/connections to connected", after?.state === "connected", JSON.stringify(after));
       const mintErr = await page.locator("text=连接未完成").count();
       ok("no mint-failure marker on the card", mintErr === 0, `markers=${mintErr}`);
@@ -84,14 +115,18 @@ try {
     }
 
     // ── 2. lex mint (same machinery) ──────────────────────────────────────
-    const lexRow = page.locator("text=识律操作").locator("xpath=ancestor::div[contains(@class,'border-t')][1]");
-    const lexBtn = lexRow.getByRole("button", { name: /^连接$/ }).first();
-    if ((await lexBtn.count()) > 0) {
+    // Re-locate by row (after wire connects its row's button reads 断开).
+    await page.goto(`${PLATFORM}/settings/connections?panel=line-lex`, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    await page.getByTestId("settings-section-connections").waitFor({ state: "visible", timeout: 30_000 });
+    const lexBtn = row("识律操作").getByRole("button", { name: /^连接$/ }).first();
+    const lexReady = await lexBtn
+      .waitFor({ state: "visible", timeout: 20_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (lexReady) {
       await lexBtn.click();
       await page.waitForURL(/\/settings\/connections/, { timeout: 90_000 }).catch(() => {});
-      await page.getByTestId("settings-section-connections").waitFor({ state: "visible", timeout: 60_000 }).catch(() => {});
-      await page.waitForTimeout(2500);
-      const after = await state("line-lex");
+      const after = await waitConnected("line-lex");
       ok("lex mint flips /api/connections to connected", after?.state === "connected", JSON.stringify(after));
     } else {
       console.log("  (skip) lex connect button not found");

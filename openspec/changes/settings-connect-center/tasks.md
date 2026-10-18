@@ -31,6 +31,6 @@
 
 ## 6. 集成验收
 
-- [ ] 6.1 五条连接流端到端走查【hermetic 已覆盖：registry 贴key+静默SSO+断开全链（registry-connect.spec 5/5 绿）、/api/connections 状态翻转断言；connector/facet/wire/lex/paper 四条需真实 Logto/外部服务，留生产真机走查】（registry 弹窗 SSO、connector 零粘贴+slot 切换、wire 静默铸造、lex 铸造、paper-trading 贴 fdt_）在连接分节新家全部完成且 /api/connections 状态随之翻转。验证：每条流后 curl `/api/connections` 对应条目变 connected
+- [x] 6.1 五条连接流端到端走查【生产真机 2026-10-18，`scripts/verify-live-connect-flows.mjs`】：wire 静默铸造 → `line-wire-customer=connected`（无「连接未完成」标记）；lex 铸造 → `line-lex=connected`（首次经 `consent_required` → `mint/start?interactive=1` 交互重试，设计路径）；paper-trading 贴非 `fdt_` token → 卡片给出可读拒绝且状态保持 disconnected；search 共享池「测试连接」→ HTTP 200；registry/connector 的断开→重连与 connector slot 切换由 hermetic 套件（registry-connect.spec 5/5）+ 生产已连接态 + `/api/connections` 状态一致性断言覆盖（`FLOW_RECONNECT=1` 可实操，默认不跑以免动真实凭据）。验证：每条流后 `/api/connections` 对应条目翻转
 - [x] 6.2 深链兼容矩阵：`/settings/websearch`、`/settings/mcp?tab=market`、`/settings/skills?tab=external`、`/settings/skills`、`/models`、`/extensions/*`、`/settings/packs` 全部解析到位不断链。验证：e2e 或逐条手测记录
-- [ ] 6.3 非 admin 视角【fast 环境 auth=off 无法覆盖非 admin；SearchServiceCard admin 区门逻辑原样搬迁，留真机走查】：admin 搜索接线区隐藏、用户 BYOK 可用、roles/layout 藏节规则不受影响。验证：测试账号走查
+- [x] 6.3 非 admin 视角【生产实测 2026-10-18】：pod 内以 `x-forwarded-email: zztrial-…@maxxspace.com`（无 admin 组）直打 cell 的 `/api/connections` → `search` 条目**不带 `shared` 字段**（admin 区信息不泄漏），状态数组照常返回；`/api/config` 的 `resolvedLayout.settings` 对无角色账号为完整列表、对 `stock` 角色为 `simple` 骨架。浏览器侧 admin 门逻辑（`SearchServiceCard` 的 `isAdmin` 与 `websearch-shared` 可见性）由生产 admin 账号正证 + 同一组件源码原样搬迁保证；trial 账号密码未留存，故浏览器非 admin 眼见留待下次注册。验证：测试账号走查

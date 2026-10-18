@@ -121,8 +121,13 @@ try {
     await page.waitForTimeout(1200);
     const landed = await page.getByTestId("settings-panel").getAttribute("data-section").catch(() => null);
     ok("DEFECT: role-narrowed deep link still reaches the connections section", landed === "connections", `data-section=${landed}`);
+  }
 
-    // Lift the role for the rest of the run (admin API; restored in finally).
+  // Sections C–E address the Tools & Skills store, which the `simple` preset
+  // hides by design (only the Basics group + connections survive). Clear the
+  // role for those assertions and restore it in the finally block — the
+  // narrowing itself is already recorded above.
+  if (me.roles?.primary && me.roles.primary !== "standard") {
     const put = await page.evaluate(async (email) => {
       const r = await fetch(`/api/roles/assignments/${encodeURIComponent(email)}`, {
         method: "PUT",
@@ -147,6 +152,9 @@ try {
   );
 
   const glossary = page.getByTestId("connections-glossary");
+  // The section's panels mount lazily; wait for the wrapper before counting
+  // (a bare count() right after the section appears can still be 0).
+  await glossary.first().waitFor({ state: "visible", timeout: 20_000 }).catch(() => {});
   const glossaryCount = await glossary.count();
   console.log(`  glossary elements: ${glossaryCount}`);
   ok("glossary present", glossaryCount >= 1, `count=${glossaryCount}`);

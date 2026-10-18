@@ -54,15 +54,29 @@
 ## 2. 价目、白名单与密钥配置（admin 面，零滚动）
 
 
-- [ ] 2.1 为承载嵌入的账号开启模型白名单放行（推荐 `extra.openai_passthrough=true`；
+- [x] 2.1 为承载嵌入的账号开启模型白名单放行（推荐 `extra.openai_passthrough=true`；
   备选 `model_mapping` 补 Qwen 条目），确保 Qwen 模型名不被 `model_not_supported`
   拦死。**验证**：调 `Qwen/Qwen3-Embedding-8B` 不再 404/`model_not_supported`。
-- [ ] 2.2 在组 8 为契约模型配置 token 自定义价（按上游成本 + 倍率），确认价目
+- [x] 2.2 在组 8 为契约模型配置 token 自定义价（按上游成本 + 倍率），确认价目
   来源为分组/渠道自定义而非全局价格表。**验证**：嵌入请求用量行有非零费用且
   面板可按模型区分；另用一未配价模型确认按「无价可循」失败而非静默 $0。
-- [ ] 2.3 确认内部服务密钥：沿用现成 key 55（组 8）或另铸一把
+- [x] 2.3 确认内部服务密钥：沿用现成 key 55（组 8）或另铸一把
   （命名如 `embedding-internal`），仅内部消费方使用、不写入对外交付材料。
   **验证**：该 key 调嵌入 200；凭据只落部署秘密件，paas 侧材料不含明文。
+
+- [x] 2.4 配置实测记录（2026-10-18）：① **白名单无需改动**——账号 #32（OpenRouter，
+  priority 40）无 `model_mapping` 故放行全部模型，模型名大小写均已实测 200
+  （`Qwen/Qwen3-Embedding-8B` 与 `qwen/qwen3-embedding-8b` 皆通）；账号 #34
+  （openai-next，priority 1）虽有三型号白名单但不供 Qwen 嵌入，不影响契约达成。
+  ② **价目已配**：组 8 `model_pricing` = `Qwen/Qwen3-Embedding-8B`
+  token 模式 in=3e-08/token（=$0.03/M，成本 $0.01/M 的 3 倍，与既有渠道倍率同档）、
+  out=0；**计费实证**——调用后余额自 `99956932.03700617` 降至 `...03700587`
+  （−3e-07），用量行 `requests=3 cost=3e-07`，**非零价静默**；未配价模型按
+  `does not exist` 400 拒绝（fail-closed 生效）。
+  ③ **内部服务密钥**：新铸 `embedding-internal`（key id 96，组 8），
+  实测 200/1024 维；明文只落部署秘密件，不进任何仓内文件。
+  **坑在案**：模型名匹配**大小写不敏感**，同一模型两个写法同配会报
+  `MODEL_PATTERN_CONFLICT`（overlapping match range），只需配一条。
 
 ## 3. 通道与一致性验证（切消费方前的硬门槛）
 

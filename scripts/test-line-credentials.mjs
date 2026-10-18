@@ -229,7 +229,7 @@ test("mint/callback exchanges the code server-side, stores, and lands on /settin
     { headers: { ...ADMIN, cookie } },
   );
   assert.equal(cb.status, 302);
-  assert.equal(cb.location, "/settings/mcp?tab=market", "lands back on the connect cards");
+  assert.equal(cb.location, "/settings/connections?panel=line-lex", "lands back on the line card in Settings → 连接");
   assert.equal(tokenCalls.length, 1, "server exchanged the code");
   assert.ok(tokenCalls[0].body.includes("grant_type=authorization_code"));
   assert.ok(tokenCalls[0].body.includes("code_verifier="), "PKCE verifier sent (no client secret)");
@@ -291,7 +291,7 @@ test("mint/callback rejects a state mismatch and never echoes upstream bodies", 
     headers: { ...ADMIN, cookie },
   });
   assert.equal(cb.status, 302);
-  assert.match(cb.location, /^\/settings\/mcp\?tab=market&lineError=lex$/);
+  assert.match(cb.location, /^\/settings\/connections\?panel=line-lex&lineError=lex$/);
 });
 
 test("mint/callback retries once interactively on login_required, then gives up", async () => {
@@ -338,7 +338,9 @@ test("mint/callback retries once interactively on login_required, then gives up"
     `/api/lines/wire-customer/mint/callback?error=login_required&state=${state2}`,
     { headers: { ...ADMIN, cookie: cookie2 } },
   );
-  assert.match(cb2.location, /tab=market&lineError=wire-customer$/);
+  // The mint round trip lands on the connections section's own line card
+  // (settings-connect-center), not the retired market tab.
+  assert.match(cb2.location, /\/settings\/connections\?panel=line-wire-customer&lineError=wire-customer$/);
 });
 
 test("mint routes 404 unknown lines and 401 anonymous hosted callers", async () => {

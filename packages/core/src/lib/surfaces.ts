@@ -158,7 +158,12 @@ export const FACTORY_PRESETS: PresetCatalog = {
   simple: {
     version: 1,
     nav: ["chat", "knowledge", "resources", "agents"],
-    settings: ["general", "account", "wechat-app", "devices"],
+    // `connections` rides in the non-technical skeleton: it is where a user
+    // makes their tools and search work at all, and the business-role recipes
+    // (legal/stock/economic) all resolve to this preset. Leaving it out made
+    // the section invisible — and every connect deep link fell back to
+    // General — for exactly the users those recipes provision (2026-10-18).
+    settings: ["general", "account", "wechat-app", "devices", "connections"],
     agentsTabs: ["agents", "market"],
   },
 };

@@ -52,7 +52,7 @@ let userCookie;
 const ALL_NAV = ["chat", "knowledge", "resources", "agents", "apps", "tasks", "fleet"];
 const BROWSER_NAV = ["chat", "knowledge", "resources", "agents", "apps", "tasks"];
 const ALL_SETTINGS = [
-  "general", "account", "wechat-app", "devices", "mcp", "websearch",
+  "general", "account", "wechat-app", "devices", "connections", "mcp",
   "models", "channels", "diagnostics", "status",
 ]; // branding/roles/layout are admin-only → filtered for a plain user
 
@@ -203,7 +203,17 @@ test.describe("workbench layout (logto mode)", () => {
 
     const cfg = await api("/api/config", { cookie: userCookie });
     expect(cfg.json.resolvedLayout.nav).toEqual(["chat", "knowledge", "resources", "agents"]);
-    expect(cfg.json.resolvedLayout.settings).toEqual(["general", "account", "wechat-app", "devices"]);
+    // `connections` belongs to the non-technical skeleton: the business-role
+    // recipes (legal/stock/economic) all resolve to this preset, and it is
+    // where those users make tools/search work at all. Dropping it made the
+    // section — and every connect deep link — vanish for them (2026-10-18).
+    expect(cfg.json.resolvedLayout.settings).toEqual([
+      "general",
+      "account",
+      "wechat-app",
+      "devices",
+      "connections",
+    ]);
     expect(cfg.json.resolvedLayout.agentsTabs).toEqual(["agents"]);
   });
 

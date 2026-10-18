@@ -88,7 +88,9 @@ test("resolveForUser composes deployment + role + user layers", () => {
   });
   const { layout } = resolveForUser({ db, env: {}, roles: { primary: "legal", secondary: [] } });
   assert.deepEqual(layout.nav, ["chat", "knowledge", "resources", "agents"]);
-  assert.deepEqual(layout.settings, ["general", "account", "wechat-app", "devices"]);
+  // `connections` is part of the simple skeleton — business-role users need
+  // it to make tools/search work (2026-10-18).
+  assert.deepEqual(layout.settings, ["general", "account", "wechat-app", "devices", "connections"]);
 });
 
 test("resolveForUser: a role with no preset entry keeps the deployment default", () => {
@@ -325,6 +327,14 @@ test("/api/config ships the resolved layout for the requesting user", async () =
   assert.equal(res.status, 200);
   // Role layer = deployment default (simple), then the user's own narrowing.
   assert.deepEqual(res.json.resolvedLayout.nav, ["chat", "agents"]);
-  assert.deepEqual(res.json.resolvedLayout.settings, ["general", "account", "wechat-app", "devices"]);
+  // `connections` is part of the non-technical skeleton (2026-10-18): the
+  // role recipes resolve to `simple`, and those users need the section.
+  assert.deepEqual(res.json.resolvedLayout.settings, [
+    "general",
+    "account",
+    "wechat-app",
+    "devices",
+    "connections",
+  ]);
   assert.deepEqual(res.json.resolvedLayout.agentsTabs, ["agents"]);
 });

@@ -92,6 +92,7 @@ function agentOwner(agentId, excludePackId) {
 export const credentialRefForEntry = credentialRefs.credentialRefForEntry;
 export const credentialConnected = credentialRefs.credentialConnected;
 export const credentialMissingReason = credentialRefs.credentialMissingReason;
+export const connectPathForRef = credentialRefs.connectPathForRef;
 
 async function installMcpRef(ref, { user }) {
   const name = ref.registryName;

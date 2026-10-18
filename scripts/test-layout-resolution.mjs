@@ -93,7 +93,8 @@ test("role preset narrows within the deployment default", () => {
     role: { preset: factoryPreset("simple") },
   });
   assert.deepEqual(r.nav, ["chat", "knowledge", "resources", "agents"]);
-  assert.deepEqual(r.settings, ["general", "account", "wechat-app", "devices"]);
+  // `connections` rides in the simple skeleton (2026-10-18).
+  assert.deepEqual(r.settings, ["general", "account", "wechat-app", "devices", "connections"]);
 });
 
 test("no layer can re-reveal what a more general layer hid", () => {

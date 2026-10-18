@@ -552,3 +552,19 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 6.3 非 admin（真机） | pod 内以 `x-forwarded-email: zztrial-1792171761@maxxspace.com`（网关无 admin 头）直打 cell：`/api/connections` 的 `search` 条目**无 `shared` 字段**（admin 区信息不泄漏），八条目状态照常返回；`/api/config` 对无角色账号给出完整 settings、对 `stock` 给 `simple` 骨架。trial 账号密码未留存 → 浏览器非 admin 眼见留待下次注册（组件门逻辑原样搬迁 + admin 正证已覆盖） |
 | 教训 | ①**新增设置分节必须同时问一句「哪些布局预设要包含它」**——预设是手写白名单，不是「默认全含再删」；漏了就只有默认角色看得见，而首配角色恰恰是最需要连接卡的人；②**re-export 不是 import**：把一个模块的助手逐个导出成局部名时，新加的助手要同步补，否则裸调处只在特定分支（无凭据装 pack）才炸，主路径全绿；③真机验收的价值再次被证实——60 条断言里唯一抓出用户可见缺陷的，正是「带业务角色看设置」这条真实请求链 |
 | 状态 | settings-connect-center **tasks 6.1/6.2/6.3 全部核销**，可归档；单测 1555/1555；e2e 受影响面全绿（connections 4/4、layout 13/13、registry-connect 5/5）；全量 fast 有 17 红但 stash 基线同样红（既有 flaky，与本改动无关） |
+
+### 12.15 app-center-unified-grid：应用中心统一网格 + 连接徽章上产（L1b，2026-10-18）
+
+四刀路线第二刀。应用中心原是两张网格两种卡（静态五线卡 vs `/api/catalog` 三产品卡），同一品牌拆在两区、发现面看不到连没连；app-center spec 在 10-13 删掉产品区后 fusion-ia 又把代码加回但 spec 没跟。定案依据不在 explore 会话（只剩一句标题），而在 **CONTEXT.md:253「生态产品」词条**（单卡/一句职责/连接状态与设置·连接同源/「打开」+「去连接」；「产品线」「平台应用」为 Avoid 词）。
+
+| 项 | 值 |
+|---|---|
+| 范围 | 单网格八卡品牌序（壹座 / 壹座·Packs / 谦面 / 萬星 / 萬星·词元 / 萬星·连接器 / 识律 / 柏讯），一种卡形；分区标题退役；连接徽章四态 `connected/partial/stale/disconnected`（柏讯挂两条连接常见只连其一，故需 partial；stale 优先）+「去连接」深链 `/settings/connections?panel=<首个非 connected id>`；`/api/catalog` 与 `/api/connections` 两路并行 fetch 各自 `catch→null`，品牌卡零等待。**映射按宿主**：`registry→yizuo-packs`（弹窗铸造宿主 `MARKET_REGISTRY_URL`=mcp.finddatatech.cloud 即该卡 url），非按 L1 的「谦面」归组——谦面双胞胎命名遗留，改名另议。纯函数全在 `web/src/lib/appCatalog.ts`（node --test 直接 import .ts） |
+| spec | `app-center`：REMOVED「五线产品线卡片」（旧名是 Avoid 词，MODIFIED 保不住标题）+ ADDED「统一网格——一卡一生态产品」「连接徽章与去连接」+ MODIFIED「文案与质量线」；主 spec 遗留 `TBD` Purpose 同轮补上 |
+| 本地门 | 单测 `test-app-center.mjs` 5→13 条（归属/排序/四态/映射守门/五语）+ 全量 1563/1563；e2e `app-center.spec.js` 4→8 条（四态走 `page.route` mock，hermetic 只有「全未连接」一种真实态）+ connections 4 条 = 12/12；五语 parity 绿；typecheck/lint 绿 |
+| 出片线 | 公开快照线：HEAD `4ea84848` → `make-public-snapshot --init` → **快照带回 7 个 workflow 且缺 image.yml（我漏做手动修剪，首推 `ee8898f` 误触 CI + image-build-check，已 cancel）** → 从镜像仓旧提交 `bed11a5` 以 `gh api contents?ref=` 取回 image.yml、修剪到只剩它 → 恢复提交 **`8b184a1`** 即出片 tag → run 39126471173 绿 → relay `OK yizuo/platform:sha-8b184a1`（20:21:43）→ ccr skopeo digest **`0a9758d3`** → `fd-infra-deploy` 双清单 `33cc6fa`（gitee+github 双端核过）→ ArgoCD hard refresh → platform + platform-demo 双 rollout 绿 |
+| 生产实证 | 两 pod imageID `sha256:0a9758d3…` 与 ccr digest 全等、restarts=0；pod 内新 chunk `AppCenterPage-S8UwKjOI.js` 含 `app-center-grid`/`connection-badge`，`app-center-platform-apps` 旧标记 0 处；`/healthz` 200 |
+| 真机走查 | `scripts/verify-live-app-center.mjs`（真 Logto 账号 `aloadtree@gmail.com`，`roles={stock,[legal]}`）：**期望网格用页面同一套纯函数对生产 `/api/catalog`+`/api/connections` 实算**，再逐卡比 DOM——八卡顺序全等；六张徽章逐卡与聚合全等（生产实况：registry/facet-market/connector 已连 → 壹座·Packs/谦面/萬星·连接器 `connected` 且无去连接；三线+paper 未连 → 词元/识律/柏讯 `disconnected`）；壹座/萬星两卡无徽章；点词元「去连接」→ `?panel=line-wanxing-caller` 且高亮锚 `line-wire-customer`（三线共卡 ids[0]，设计如此）；词元「打开」→ `/external/wanxing-token`。**21/21 ALL PASS** |
+| 观察（非缺陷，待拍板） | 该角色账号（stock 配方）的主导航**没有「应用」项**（`nav-apps` 不可见，直开 `/apps` 正常）——§12.8 角色 nav 收窄至 4 项是设计；但这意味着首配角色用户到不了发现面，而词元卡「去连接」正是 L2a 的入口。是否把 `apps` 加进角色 nav，一行配方改动，另立决定 |
+| 教训 | ①**快照 `.github` 修剪是手动步**，`make-public-snapshot` 的 scrubber 不做它——照 skill 直接 push 就会把全仓 7 个 workflow 推上公开镜像仓（公开仓免费所以只是噪音，但 **image.yml 不在快照里 → 根本不出片**）；下次产完快照先 `ls .github/workflows` 再推；②镜像仓被 force push 后旧提交 **`git fetch <sha>` 取不到**（非 ref 可达），用 `gh api repos/…/contents/<path>?ref=<sha>` 直取文件；③真机脚本断言懒加载分节必须 `waitFor`，hermetic 本地快所以 e2e 用 `toHaveCount` 自动重试没暴露，生产即时 `count()` 假红一次 |
+| 状态 | L1b 落地、可归档。后续刀：**L2a 词元账号线**（零粘贴一次到位，`POST /api/v1/keys` 现成；词元卡徽章翻绿即其验收面）、**L2b 语音**（硬前置变了：openainext 429 冷却已自愈，现为上游对转写 POST 挂起 120s 超时，我方不可修；硅基 SenseVoiceSmall 实测可用但 `LanePlatform(audio)` 硬编码需改码或换 base_url——两方案待拍板）、L3 对话内 connections 工具 |

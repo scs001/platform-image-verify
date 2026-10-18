@@ -37,7 +37,7 @@
 
 ## 7. 发布与真机验收
 
-- [ ] 7.1 提交只 `git add` 本变更文件（`web/src/pages/AppCenterPage.tsx`、`web/src/lib/appCatalog.ts`、五语 locale、`scripts/test-app-center.mjs`、`e2e/app-center.spec.js`、`openspec/changes/app-center-unified-grid/**`、`openspec/specs/app-center/spec.md` Purpose），勿 `-A`。验证：`git show --stat HEAD` 只含上述文件
-- [ ] 7.2 `fd-build-channel` 判路 → 公开快照线出片（出片前 `gh api` 核 image.yml 在位）→ relay `OK yizuo/platform:sha-<snap>` 日志行 → ccr skopeo digest → `fd-infra-deploy` 双清单滚 tag → ArgoCD refresh → platform + platform-demo 双 rollout 绿 → pod imageID 与 digest 全等。验证：台账证据链逐项有值
-- [ ] 7.3 生产真机走查脚本 `scripts/verify-live-app-center.mjs`（仿 `verify-live-connections.mjs`，真实 Logto 账号）：`/apps` 8 卡与顺序、无分区标题、每张有映射卡的 `data-state` 与同一会话 `/api/connections` 的聚合结果逐卡相等、点一张「去连接」落位并高亮、`wanxing-token`「打开」进内嵌页；再用角色账号（simple 预设）复跑确认网格不受布局预设影响。验证：脚本 ALL PASS
+- [x] 7.1 提交只 `git add` 本变更文件（`web/src/pages/AppCenterPage.tsx`、`web/src/lib/appCatalog.ts`、五语 locale、`scripts/test-app-center.mjs`、`e2e/app-center.spec.js`、`openspec/changes/app-center-unified-grid/**`、`openspec/specs/app-center/spec.md` Purpose），勿 `-A`。验证：`git show --stat HEAD` 只含上述文件
+- [x] 7.2 `fd-build-channel` 判路 → 公开快照线出片（出片前 `gh api` 核 image.yml 在位）→ relay `OK yizuo/platform:sha-<snap>` 日志行 → ccr skopeo digest → `fd-infra-deploy` 双清单滚 tag → ArgoCD refresh → platform + platform-demo 双 rollout 绿 → pod imageID 与 digest 全等。验证：台账证据链逐项有值
+- [x] 7.3 生产真机走查脚本 `scripts/verify-live-app-center.mjs`（仿 `verify-live-connections.mjs`，真实 Logto 账号）：`/apps` 8 卡与顺序、无分区标题、每张有映射卡的 `data-state` 与同一会话 `/api/connections` 的聚合结果逐卡相等、点一张「去连接」落位并高亮、`wanxing-token`「打开」进内嵌页；再用角色账号（simple 预设）复跑确认网格不受布局预设影响。验证：脚本 ALL PASS
 - [ ] 7.4 台账 `docs/registry-maintenance.md` 新增 §12.15（出片线/门/生产实证/教训/状态，状态行更新后续刀：L2a、L2b、L3）；核销本 tasks；`openspec validate app-center-unified-grid --strict` 绿后归档并同步 spec。验证：归档目录 `openspec/changes/archive/<date>-app-center-unified-grid/` 存在，主 spec 含「统一网格」「连接徽章与去连接」两要求且不含「五线产品线卡片」

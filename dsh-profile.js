@@ -311,8 +311,11 @@ export async function writeLlmProfile(opts = {}) {
 // rotation via the Models page re-runs this and hot-reloads (Chokidar watch).
 const CREDENTIAL_REFS = ["LLM_API_KEY"];
 // The deployment's 词元 route in llm-providers.json; a bound 词元 account
-// overrides this provider's ref per hosted cell (ciyuan-account-lane).
-const CIYUAN_PROVIDER_ID = "finddata";
+// overrides this provider's ref per hosted cell (ciyuan-account-lane). The id
+// is deployment data — production names it `finddata-token`, local/dev `finddata`
+// — so both ride the default list (CIYUAN_PROVIDER_IDS, comma-separated).
+const CIYUAN_PROVIDER_IDS = (process.env.CIYUAN_PROVIDER_IDS || "finddata,finddata-token")
+  .split(",").map((s) => s.trim()).filter(Boolean);
 
 // The credential-format invariant a file on disk must satisfy: no block
 // scalars. See the write site for why (line-oriented readers, the 2026-10-12
@@ -373,11 +376,15 @@ export async function ensureCredentialsStore(opts = {}) {
         import("./llm-providers.js"),
         import("./ciyuan-account-credentials.js"),
       ]);
-      const ref = envRefForProvider(CIYUAN_PROVIDER_ID);
       const userKey = ciyuanAccount.liveToken(opts.cellOwnerEmail);
-      if (userKey && Object.hasOwn(doc.refs, ref) && doc.refs[ref] !== userKey) {
-        doc.refs[ref] = userKey;
-        changed = true;
+      if (userKey) {
+        for (const providerId of CIYUAN_PROVIDER_IDS) {
+          const ref = envRefForProvider(providerId);
+          if (Object.hasOwn(doc.refs, ref) && doc.refs[ref] !== userKey) {
+            doc.refs[ref] = userKey;
+            changed = true;
+          }
+        }
       }
     } catch (e) {
       console.warn(`[dsh-profile] ciyuan account override unavailable: ${e?.message || e}`);

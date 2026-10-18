@@ -18,10 +18,16 @@ process.env.DB_PATH = path.join(root, "data.db");
 process.env.DSH_HOME = path.join(root, "home");
 process.env.LLM_API_KEY = "sk-env-llm-seed";
 const SEED_KEY = ["sk-or", "deployment-seed-0000"].join("-");
+const SEED_KEY_2 = ["sk-or", "deployment-seed-2222"].join("-");
 process.env.LLM_PROVIDERS_STORE = path.join(root, "llm-providers.json");
 fs.writeFileSync(
   process.env.LLM_PROVIDERS_STORE,
-  JSON.stringify({ providers: [{ id: "finddata", name: "finddata", baseUrl: "https://token.example/v1", apiKey: SEED_KEY, type: "openai-completions", models: [] }] }),
+  JSON.stringify({ providers: [
+    { id: "finddata", name: "finddata", baseUrl: "https://token.example/v1", apiKey: SEED_KEY, type: "openai-completions", models: [] },
+    // Production names the deployment's 词元 route finddata-token (design D1):
+    // the override must cover BOTH ids, whichever the deployment carries.
+    { id: "finddata-token", name: "finddata-token", baseUrl: "https://token.example/v1", apiKey: SEED_KEY_2, type: "openai-completions", models: [] },
+  ] }),
 );
 
 // ── programmable fake 词元 ───────────────────────────────────────────────────
@@ -203,6 +209,7 @@ test("connect: login → mint(group 3, yizuo-* name) → stored → cell overrid
   assert.equal(ctx.dshUpdateMcpCalls.length, 1, "MCP profile re-applied once");
   // Hosted cell: the credential store now carries the user's key under the 词元 ref.
   assert.equal(readRefs().LLM_PROVIDER_KEY_FINDDATA, MINTED);
+  assert.equal(readRefs().LLM_PROVIDER_KEY_FINDDATA_TOKEN, MINTED, "both provider ids overridden");
   assert.equal(readRefs().LLM_API_KEY, "sk-env-llm-seed", "other refs untouched");
   const text = fs.readFileSync(credentialsPath, "utf8");
   assert.ok(!/:\s*[>|][-+]?\s*$/m.test(text), "credential-file-format invariant holds");
@@ -222,6 +229,7 @@ test("disconnect: local drop, override removed, seed restored (2.1 fallback)", a
   assert.equal(r.status, 200);
   assert.equal(r.body.connected, false);
   assert.equal(readRefs().LLM_PROVIDER_KEY_FINDDATA, SEED_KEY, "seed is back");
+  assert.equal(readRefs().LLM_PROVIDER_KEY_FINDDATA_TOKEN, SEED_KEY_2, "second seed is back too");
 });
 
 test("connect: wrong password → 401 readable, state untouched", async () => {
@@ -305,6 +313,7 @@ test("single-process form: bound account never overrides the shared store (D6)",
   assert.equal(ca.liveToken(EMAIL), MINTED, "binding itself works (serves the MCP ref)");
   await dshProfile.ensureCredentialsStore({ cellOwnerEmail: null });
   assert.equal(readRefs().LLM_PROVIDER_KEY_FINDDATA, SEED_KEY, "shared store keeps the seed");
+  assert.equal(readRefs().LLM_PROVIDER_KEY_FINDDATA_TOKEN, SEED_KEY_2);
   await request(ctx.app, "DELETE", "/api/ciyuan-account", { headers: AS_OWNER });
 });
 
@@ -312,6 +321,7 @@ test("ensureCredentialsStore: override only for the owning identity; unbound own
   ca.store({ email: "other@x.test", token: `sk-other-${"o".repeat(20)}`, ciyuanEmail: "o@x.test" });
   await dshProfile.ensureCredentialsStore({ cellOwnerEmail: EMAIL });
   assert.equal(readRefs().LLM_PROVIDER_KEY_FINDDATA, SEED_KEY, "another identity's key never leaks into this cell");
+  assert.equal(readRefs().LLM_PROVIDER_KEY_FINDDATA_TOKEN, SEED_KEY_2);
   ca.disconnect("other@x.test");
 });
 

@@ -2,21 +2,21 @@
 // The line operation-MCP credential cards (line-credentials): 柏讯（wire）/识律（lex）
 // connect through the SERVER-MEDIATED mint — a full-page authorization-code
 // round trip (prompt=none while the shared Logto session lives, one interactive
-// consent ever) that lands back on /settings/mcp; the server does the code→token
-// exchange, so no token ever passes through browser JS. 萬星 caller is a pasted
-// long-lived sk- key (billing panel). ID tokens are short-lived — the platform
-// omits those MCP servers when a token expires, so the card says "自动续期"
-// and the next connect click re-mints silently. Rendered beside the registry /
-// connector / facet-market cards.
+// consent ever) that lands back on the settings deep link; the server does the
+// code→token exchange, so no token ever passes through browser JS. ID tokens
+// are short-lived — the platform omits those MCP servers when a token expires,
+// so the card says "自动续期" and the next connect click re-mints silently.
+// The former 萬星 Caller row moved into the 词元 account card
+// (CiyuanAccountConnectPanel, ciyuan-account-lane): one key serves the model
+// lane and the operations MCP alike.
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Icon } from "@/components/ui/icon";
 import type { LineConnection, LineName } from "@platform/core";
-import { disconnectLine, fetchLineConnection, saveLineCredential } from "@platform/core";
+import { disconnectLine, fetchLineConnection } from "@platform/core";
 import { startLineMint, takeLineMintError, type MintLine } from "@/lib/line-mint";
 
 interface LineOpsConnectPanelProps {
@@ -37,23 +37,17 @@ const MINT_LINES: Array<{ line: LineName; titleKey: string; hintKey: string }> =
   },
 ];
 
-const CALLER_LINE: LineName = "wanxing-caller";
-
 export function LineOpsConnectPanel({ compact = false, className = "" }: LineOpsConnectPanelProps) {
   const { t } = useTranslation();
   const [mintStates, setMintStates] = useState<Partial<Record<LineName, LineConnection | null>>>({});
-  const [caller, setCaller] = useState<LineConnection | null>(null);
-  const [callerKey, setCallerKey] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<LineName | null>(null);
-  const [showPaste, setShowPaste] = useState(false);
 
   const refresh = useCallback(async () => {
-    for (const line of ["wire-customer", "lex", CALLER_LINE] as LineName[]) {
+    for (const { line } of MINT_LINES) {
       try {
         const conn = await fetchLineConnection(line);
-        if (line === CALLER_LINE) setCaller(conn);
-        else setMintStates((prev) => ({ ...prev, [line]: conn }));
+        setMintStates((prev) => ({ ...prev, [line]: conn }));
       } catch {
         // leave that card unknown — never claim "not connected" before known
       }
@@ -73,21 +67,6 @@ export function LineOpsConnectPanel({ compact = false, className = "" }: LineOps
     setBusy(line);
     // Full-page round trip; the settings deep-link is where it comes back.
     startLineMint(line as MintLine);
-  };
-
-  const pasteCaller = async () => {
-    setError("");
-    setBusy(CALLER_LINE);
-    try {
-      await saveLineCredential(CALLER_LINE, callerKey.trim());
-      setCallerKey("");
-      setShowPaste(false);
-      await refresh();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(null);
-    }
   };
 
   const disconnect = async (line: LineName) => {
@@ -156,39 +135,12 @@ export function LineOpsConnectPanel({ compact = false, className = "" }: LineOps
         );
       })}
 
-      {row(
-        t("settings.lines.wanxingCaller", "萬星 Caller"),
-        t("settings.lines.wanxingCallerHint", "發起萬星回合用的计费 key（token.finddatatech.cloud 自铸）"),
-        caller,
-        caller?.connected ? (
-          <Button variant="outline" size="sm" disabled={busy !== null} onClick={() => disconnect(CALLER_LINE)}>
-            {t("common.disconnect", "断开")}
-          </Button>
-        ) : showPaste ? (
-          <div className="flex items-center gap-1.5">
-            <Input
-              value={callerKey}
-              onChange={(e) => setCallerKey(e.target.value)}
-              placeholder="sk-…"
-              className="h-7 w-40 font-mono text-xs"
-            />
-            <Button size="sm" disabled={busy !== null || !callerKey.trim()} onClick={pasteCaller}>
-              {t("settings.lines.save", "保存")}
-            </Button>
-          </div>
-        ) : (
-          <Button size="sm" onClick={() => setShowPaste(true)}>
-            {t("settings.lines.pasteKey", "粘贴 key")}
-          </Button>
-        ),
-      )}
-
       {error && <div className="mt-2 text-xs text-destructive">{error}</div>}
       {!compact && (
         <div className="mt-1 text-xs text-muted-foreground">
           {t(
             "settings.lines.footnote",
-            "短命 ID token 过期时对应工具暂不可用，点「连接」即静默重铸（Logto 会话在则无需交互）；萬星 caller key 401 时需重贴。",
+            "短命 ID token 过期时对应工具暂不可用，点「连接」即静默重铸（Logto 会话在则无需交互）。",
           )}
         </div>
       )}

@@ -315,6 +315,59 @@ export async function disconnectLine(line: LineName): Promise<LineConnection> {
   return res.json();
 }
 
+// ── 词元 account (ciyuan-account-lane) ───────────────────────────────────────
+//
+// Zero-paste binding: the user's 词元 email + password go to the platform
+// server once, which logs in and mints a key server-side; only the key is
+// stored, and the projection below never carries it. `source` tells whether
+// the account binding or a legacy pasted wanxing-caller key is serving.
+
+export type CiyuanAccountSource = "account" | "pasted-key" | null;
+
+export interface CiyuanAccountConnection {
+  connected: boolean;
+  stale: boolean;
+  source: CiyuanAccountSource;
+  keyName: string | null;
+  mintedAt: string | null;
+  ciyuanEmailMasked: string | null;
+  // "cell" = hosted per-user cell, the bound key drives the model lane;
+  // "shared" = single-process store, the account only serves the ops MCP.
+  modelLaneForm: "cell" | "shared";
+  probe?: { reachable: boolean; detail: string };
+}
+
+async function ciyuanAccountResult(res: Awaited<ReturnType<typeof http>>, fallback: string): Promise<CiyuanAccountConnection> {
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `${fallback}: ${res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function fetchCiyuanAccount(): Promise<CiyuanAccountConnection> {
+  return ciyuanAccountResult(await http("/api/ciyuan-account/connection"), "Failed to fetch the 词元 account");
+}
+
+export async function connectCiyuanAccount(email: string, password: string): Promise<CiyuanAccountConnection> {
+  return ciyuanAccountResult(
+    await http("/api/ciyuan-account/connect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    }),
+    "Failed to bind the 词元 account",
+  );
+}
+
+export async function testCiyuanAccount(): Promise<CiyuanAccountConnection> {
+  return ciyuanAccountResult(await http("/api/ciyuan-account/test", { method: "POST" }), "Failed to test the 词元 account");
+}
+
+export async function disconnectCiyuanAccount(): Promise<CiyuanAccountConnection> {
+  return ciyuanAccountResult(await http("/api/ciyuan-account", { method: "DELETE" }), "Failed to disconnect the 词元 account");
+}
+
 // ── Paper-trading token (add-paper-trading-credentials) ─────────────────────
 //
 // A pasted `fdt_` long-lived token minted on the service web — no expiry, no

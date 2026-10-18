@@ -14,6 +14,7 @@ import * as connectorCredentials from "../../connector-credentials.js";
 import * as facetMarketCredentials from "../../facet-market-credentials.js";
 import * as lineCredentials from "../../line-credentials.js";
 import * as paperTradingCredentials from "../../paper-trading-credentials.js";
+import * as ciyuanAccountCredentials from "../../ciyuan-account-credentials.js";
 import { BUSINESS_ROLES, parseStoredAssignments, resolveAssignment } from "../roles.js";
 import { registerOnboardingRoutes } from "./onboarding.js";
 import {
@@ -670,10 +671,12 @@ export function registerMiscRoutes(ctx) {
     for (const [line, name] of [
       ["wire-customer", "柏讯（操作）"],
       ["lex", "识律（操作）"],
-      ["wanxing-caller", "萬星 Caller"],
     ]) {
       items.push(fromStatus(`line-${line}`, name, lineCredentials.status(email, line)));
     }
+    // 词元账号 (ciyuan-account-lane): replaces the retired line-wanxing-caller entry —
+    // the account key (or a legacy pasted caller key) is one connection, one card.
+    items.push(fromStatus("ciyuan-account", "萬星·词元", ciyuanAccountCredentials.status(email)));
     items.push(fromStatus("paper-trading", "柏讯·模拟交易", paperTradingCredentials.status(email)));
 
     // Search: the user's own key serves first, then the deployment's shared

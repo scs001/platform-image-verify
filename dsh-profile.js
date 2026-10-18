@@ -310,6 +310,9 @@ export async function writeLlmProfile(opts = {}) {
 // User-provider keys are added here too so their apiKeyEnv refs resolve; a key
 // rotation via the Models page re-runs this and hot-reloads (Chokidar watch).
 const CREDENTIAL_REFS = ["LLM_API_KEY"];
+// The deployment's 词元 route in llm-providers.json; a bound 词元 account
+// overrides this provider's ref per hosted cell (ciyuan-account-lane).
+const CIYUAN_PROVIDER_ID = "finddata";
 
 // The credential-format invariant a file on disk must satisfy: no block
 // scalars. See the write site for why (line-oriented readers, the 2026-10-12
@@ -357,6 +360,28 @@ export async function ensureCredentialsStore(opts = {}) {
     }
   } catch (e) {
     console.warn(`[dsh-profile] user credential refs unavailable: ${e?.message || e}`);
+  }
+  // Third layer (ciyuan-account-lane, design D1/D6): in a hosted cell — one
+  // identity per store — a bound 词元 account key overrides the deployment seed
+  // the loop above just (re)asserted for the 词元 provider ref, so the next LLM
+  // request bills the user's own account. No owner (shared single-process
+  // store) or no live key (unbound / stale) leaves the seed in place: that is
+  // the fallback, not a special case.
+  if (opts.cellOwnerEmail) {
+    try {
+      const [{ envRefForProvider }, ciyuanAccount] = await Promise.all([
+        import("./llm-providers.js"),
+        import("./ciyuan-account-credentials.js"),
+      ]);
+      const ref = envRefForProvider(CIYUAN_PROVIDER_ID);
+      const userKey = ciyuanAccount.liveToken(opts.cellOwnerEmail);
+      if (userKey && Object.hasOwn(doc.refs, ref) && doc.refs[ref] !== userKey) {
+        doc.refs[ref] = userKey;
+        changed = true;
+      }
+    } catch (e) {
+      console.warn(`[dsh-profile] ciyuan account override unavailable: ${e?.message || e}`);
+    }
   }
   // Always (re)write on first run (file absent) so perms are set; otherwise
   // only write when a ref changed — OR when the file on disk still violates

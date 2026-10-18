@@ -721,6 +721,25 @@ const MIGRATIONS = [
       )`,
     ],
   },
+  {
+    version: 32,
+    // ciyuan-account-lane (design D4): one 词元 account binding per identity —
+    // the key minted server-side through the user's 词元 login, plus display
+    // metadata (never the password or the login token, which are discarded).
+    statements: [
+      `CREATE TABLE IF NOT EXISTS user_ciyuan_account (
+        email TEXT NOT NULL PRIMARY KEY,
+        token TEXT NOT NULL,
+        key_id INTEGER,
+        key_name TEXT,
+        group_id INTEGER,
+        ciyuan_email_masked TEXT,
+        minted_at TEXT NOT NULL,
+        stale INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+      )`,
+    ],
+  },
 ];
 
 function nowIso() {
@@ -1819,6 +1838,52 @@ export function clearLineCredential(email, line) {
   const key = normalizeIdentityEmail(email);
   if (!key) return false;
   return stmt("DELETE FROM user_line_credentials WHERE email = ? AND line = ?").run(key, line).changes > 0;
+}
+
+// ── User 词元 account binding (ciyuan-account-lane) ──────────────────────────
+// One server-minted sk- key per identity plus display metadata. The 词元
+// password and login token are never stored anywhere — only the minted key.
+
+export function getCiyuanAccount(email) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return null;
+  return stmt(
+    `SELECT token, key_id AS keyId, key_name AS keyName, group_id AS groupId,
+            ciyuan_email_masked AS ciyuanEmailMasked, minted_at AS mintedAt, stale, updated_at AS updatedAt
+     FROM user_ciyuan_account WHERE email = ?`
+  ).get(key) ?? null;
+}
+
+export function setCiyuanAccount({ email, token, keyId = null, keyName = null, groupId = null, ciyuanEmailMasked = null, mintedAt = null }) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return null;
+  const now = nowIso();
+  stmt(
+    `INSERT INTO user_ciyuan_account (email, token, key_id, key_name, group_id, ciyuan_email_masked, minted_at, stale, updated_at)
+     VALUES (@email, @token, @keyId, @keyName, @groupId, @masked, @mintedAt, 0, @now)
+     ON CONFLICT(email) DO UPDATE SET
+       token = excluded.token, key_id = excluded.key_id, key_name = excluded.key_name,
+       group_id = excluded.group_id, ciyuan_email_masked = excluded.ciyuan_email_masked,
+       minted_at = excluded.minted_at, stale = 0, updated_at = excluded.updated_at`
+  ).run({ email: key, token, keyId, keyName, groupId, masked: ciyuanEmailMasked, mintedAt: mintedAt ?? now, now });
+  return getCiyuanAccount(key);
+}
+
+export function markCiyuanAccountStale(email, stale = true) {
+  if (!dbReady) return false;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return false;
+  return stmt("UPDATE user_ciyuan_account SET stale = ?, updated_at = ? WHERE email = ?")
+    .run(stale ? 1 : 0, nowIso(), key).changes > 0;
+}
+
+export function clearCiyuanAccount(email) {
+  if (!dbReady) return false;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return false;
+  return stmt("DELETE FROM user_ciyuan_account WHERE email = ?").run(key).changes > 0;
 }
 
 // ── User paper-trading credentials (add-paper-trading-credentials) ──────────

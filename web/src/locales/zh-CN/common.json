@@ -937,7 +937,7 @@
         "title": "这些名字都是谁？（点开速查）",
         "ciyuan": {
           "name": "萬星·词元",
-          "desc": "AI 能力网关——模型、搜索、语音按车道供能、按量计费。"
+          "desc": "AI 能力网关——模型、搜索、语音按车道供能、按量计费；绑定账号后按你的额度计费。"
         },
         "facet": {
           "name": "谦面",
@@ -957,6 +957,9 @@
         }
       },
       "cards": {
+        "ciyuanAccount": {
+          "subtitle": "绑定词元账号：模型按你的额度计费，同一把钥匙也喂萬星运维工具。"
+        },
         "facetGroup": {
           "title": "谦面"
         },
@@ -992,8 +995,6 @@
         "title": "识律操作",
         "hint": "账户/用量/检索凭据管理的凭据（静默铸造，自动续期）"
       },
-      "wanxingCaller": "萬星 Caller",
-      "wanxingCallerHint": "发起萬星回合用的计费 key（token.finddatatech.cloud 自铸）",
       "connect": "连接",
       "connecting": "连接中…",
       "connected": "已连接",
@@ -1004,7 +1005,7 @@
       "save": "保存",
       "pasteKey": "粘贴 key",
       "mintFailed": "连接未完成——请重试",
-      "footnote": "短命 ID token 过期时对应工具暂不可用，点「连接」即静默重铸（Logto 会话在则无需交互）；萬星 caller key 401 时需重贴。"
+      "footnote": "短命 ID token 过期时对应工具暂不可用，点「连接」即静默重铸（Logto 会话在则无需交互）。"
     },
     "facetMarket": {
       "title": "谦面市场",
@@ -1016,6 +1017,30 @@
       "pair": "配对",
       "openSettings": "打开市场设置 →",
       "tokenUntil": "凭据有效期至"
+    },
+    "ciyuanAccount": {
+      "title": "萬星·词元 账号",
+      "hint": "绑定你的词元账号：模型、搜索、语音按车道用同一把钥匙，额度随你的套餐。",
+      "connected": "已连接",
+      "stale": "需重连",
+      "notConnected": "未连接",
+      "keyLine": "调用键",
+      "pastedSource": "来源：手动粘贴的调用键",
+      "laneCell": "模型车道按你的词元额度计费；断开后回到部署密钥。",
+      "laneShared": "本部署为单进程形态：账号仅用于运维工具，模型车道仍走部署密钥。",
+      "emailPlaceholder": "词元登录邮箱",
+      "passwordPlaceholder": "词元密码",
+      "connecting": "绑定中…",
+      "rebind": "重新绑定",
+      "bind": "绑定账号",
+      "passwordNote": "密码只用于这一次登录换取调用键，不会保存。",
+      "testing": "测试中…",
+      "test": "测试连接",
+      "testDone": "已测试",
+      "revokeHint": "本地凭据已删除。词元侧的调用键仍有效，可到 token.finddatatech.cloud 吊销。",
+      "pasteInstead": "已有调用键？直接粘贴",
+      "probe": "探测",
+      "footnote": "调用键 401 时标记为需重连，重新绑定即铸新键；绑定的账号优先于手动粘贴的键。"
     }
   },
   "bindings": {

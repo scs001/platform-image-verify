@@ -950,7 +950,7 @@
         "title": "Who's who? (expand for a cheat sheet)",
         "ciyuan": {
           "name": "Wanxing Ciyuan",
-          "desc": "The AI capability gateway — models, search, and voice, served per lane and metered."
+          "desc": "The AI capability gateway — models, search, and voice, served per lane and metered; Bind your account to bill your own quota."
         },
         "facet": {
           "name": "Facet",
@@ -970,6 +970,9 @@
         }
       },
       "cards": {
+        "ciyuanAccount": {
+          "subtitle": "Bind your 词元 account: chats bill your own quota, and the same key feeds the 萬星 operations tools."
+        },
         "facetGroup": {
           "title": "Facet"
         },
@@ -1005,8 +1008,6 @@
         "title": "Lex operations",
         "hint": "Account/usage/retrieval credential (silent mint, auto-renews)"
       },
-      "wanxingCaller": "Wanxing Caller",
-      "wanxingCallerHint": "Billing key for Wanxing turns (mint at token.finddatatech.cloud)",
       "connect": "Connect",
       "connecting": "Connecting…",
       "connected": "Connected",
@@ -1017,7 +1018,7 @@
       "save": "Save",
       "pasteKey": "Paste key",
       "mintFailed": "Connect did not complete — try again",
-      "footnote": "When a short-lived ID token expires its tools pause; clicking Connect re-mints silently (no interaction while the Logto session lives). A 401 caller key must be re-pasted."
+      "footnote": "When a short-lived ID token expires its tools pause; clicking Connect re-mints silently (no interaction while the Logto session lives)."
     },
     "facetMarket": {
       "title": "Facet market",
@@ -1029,6 +1030,30 @@
       "pair": "Pair",
       "openSettings": "Open market settings →",
       "tokenUntil": "Credential valid until"
+    },
+    "ciyuanAccount": {
+      "title": "萬星·词元 account",
+      "hint": "Bind your 词元 account: one key unlocks models, search and voice by lane; availability follows your plan.",
+      "connected": "Connected",
+      "stale": "Re-connect needed",
+      "notConnected": "Not connected",
+      "keyLine": "Key",
+      "pastedSource": "Source: a pasted key",
+      "laneCell": "The model lane bills your own 词元 quota; disconnecting falls back to the deployment key.",
+      "laneShared": "This deployment runs single-process: the account only serves the operations tools; the model lane keeps the deployment key.",
+      "emailPlaceholder": "词元 login email",
+      "passwordPlaceholder": "词元 password",
+      "connecting": "Binding…",
+      "rebind": "Re-bind",
+      "bind": "Bind account",
+      "passwordNote": "The password is used once to mint a key and is never stored.",
+      "testing": "Testing…",
+      "test": "Test connection",
+      "testDone": "Tested",
+      "revokeHint": "Local credential removed. The key still exists in 词元 — revoke it at token.finddatatech.cloud.",
+      "pasteInstead": "Already have a key? Paste it",
+      "probe": "Probe",
+      "footnote": "A 401 marks the key as needing re-connect; re-binding mints a fresh key. A bound account takes precedence over a pasted key."
     }
   },
   "preview": {

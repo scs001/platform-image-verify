@@ -22,7 +22,7 @@ const KNOWN_CONNECTION_IDS = [
   "connector",
   "line-wire-customer",
   "line-lex",
-  "line-wanxing-caller",
+  "ciyuan-account",
   "paper-trading",
   "search",
 ];

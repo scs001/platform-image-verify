@@ -51,6 +51,7 @@ import { registerConnectorRoutes } from "./server/routes/connector.js";
 import { registerFacetMarketRoutes } from "./server/routes/facet-market.js";
 import { registerLineCredentialRoutes } from "./server/routes/line-credentials.js";
 import { registerPaperTradingRoutes } from "./server/routes/paper-trading.js";
+import { registerCiyuanAccountRoutes } from "./server/routes/ciyuan-account.js";
 import { registerPackUsageRoutes } from "./server/routes/pack-usage.js";
 import { registerFileRoutes } from "./server/routes/files.js";
 import { registerResourceRoutes } from "./server/routes/resources.js";
@@ -246,6 +247,9 @@ registerFacetMarketRoutes(ctx);
 // 各线操作 MCP 凭据 (line-credentials): wire-customer / lex (browser silent
 // mint ID tokens) + wanxing-caller (pasted sk-) — same family.
 registerLineCredentialRoutes(ctx);
+// 词元账号 (ciyuan-account-lane): zero-paste bind — server-side 词元 login →
+// key mint → stored key; serves the cell model lane + the wanxing-caller ref.
+registerCiyuanAccountRoutes(ctx);
 // 柏讯模拟交易 token (paper-trading-credentials) — fourth in the same family:
 // paste an fdt_ token, advisory liveness probe, injection via credentialRef.
 registerPaperTradingRoutes(ctx);
@@ -435,7 +439,7 @@ async function initDshAgent() {
 
   // Seed the dsh-credentials-local store from process.env (design D3) and build
   // a scrubbed child env so the file is the winning key-resolution layer.
-  try { await ensureCredentialsStore(); } catch (e) { console.warn(`[dsh] credentials store init failed: ${e?.message || e}`); }
+  try { await ensureCredentialsStore({ cellOwnerEmail: cellEmail || null }); } catch (e) { console.warn(`[dsh] credentials store init failed: ${e?.message || e}`); }
   const dshChildEnv = buildScrubbedEnv();
 
   // Seed startup MCP configs into the extensions DB so the UI "Installed" tab

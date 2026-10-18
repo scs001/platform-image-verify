@@ -16,6 +16,7 @@ const PW_LIVE = process.env.PW_LIVE === "1";
 // the fast/smoke projects' server talks to this instead of the live registry.
 // The fake open-data MCP's port (chart data binding e2e).
 const E2E_FAKE_MCP_PORT = Number(process.env.E2E_FAKE_MCP_PORT) || 3199;
+const E2E_CIYUAN_PORT = Number(process.env.E2E_CIYUAN_PORT) || 3197;
 const E2E_REGISTRY_URL = process.env.E2E_REGISTRY_URL || "http://127.0.0.1:4599";
 const E2E_REGISTRY_TOKEN = process.env.E2E_REGISTRY_TOKEN || "e2e-registry-token";
 // The hermetic facet stand-in (e2e/facet-stub.js): the cell's install endpoint
@@ -96,7 +97,7 @@ export default defineConfig({
           // (same process group, so Playwright's teardown kills it): the market
           // then carries registry entries and the connect popup can mint
           // against a hermetic stand-in instead of the live registry.
-          command: `node e2e/registry-stub.js & node e2e/facet-stub.js & node e2e/fake-mcp.js & node e2e/facet-shell-server.mjs & node e2e/seed-fixtures.js && node server.js`,
+          command: `node e2e/registry-stub.js & node e2e/facet-stub.js & node e2e/fake-mcp.js & node e2e/ciyuan-stub.js & node e2e/facet-shell-server.mjs & node e2e/seed-fixtures.js && node server.js`,
           // The server listens FIRST and initializes the agent in the
           // background (listen-first boot) — readiness must gate on the
           // agent, not the port, or tests would race a half-booted server.
@@ -184,6 +185,12 @@ export default defineConfig({
             // control route. Fixed port so the seeded extension config can name
             // it; the specs that use it install the server themselves.
             FAKE_MCP_PORT: String(E2E_FAKE_MCP_PORT),
+            // The 词元 account binding (ciyuan-account-lane) logs in and mints
+            // server-side against this fake gateway; specs flip its scenarios
+            // over POST /__mode. Group 3 mirrors production's deployment key.
+            CIYUAN_API_BASE: `http://127.0.0.1:${E2E_CIYUAN_PORT}`,
+            CIYUAN_MINT_GROUP_ID: "3",
+            E2E_CIYUAN_PORT: String(E2E_CIYUAN_PORT),
             DSH_SHARED_HOME: process.env.DSH_SHARED_HOME || path.join(os.homedir(), ".dsh"),
           },
         },

@@ -35,7 +35,7 @@ export function registerLlmRoutes(ctx) {
   // pick up the new model ids immediately.
   async function reloadLlmProviders() {
     const dshProfile = await import("../../dsh-profile.js");
-    await dshProfile.ensureCredentialsStore();
+    await dshProfile.ensureCredentialsStore({ cellOwnerEmail: ctx.cellUserEmail || null });
     const { models } = await dshProfile.writeLlmProfile();
     ctx.dshModels = models;
     broadcast({ type: "models", models: await ctx.getAvailableModels() });

@@ -937,7 +937,7 @@
         "title": "Qui est qui ? (déplie l'aide-mémoire)",
         "ciyuan": {
           "name": "Wanxing Ciyuan",
-          "desc": "La passerelle de capacités IA : modèles, recherche et voix par couloir, au volume."
+          "desc": "La passerelle de capacités IA : modèles, recherche et voix par couloir, au volume; Liez votre compte pour facturer sur votre propre quota."
         },
         "facet": {
           "name": "Facet",
@@ -957,6 +957,9 @@
         }
       },
       "cards": {
+        "ciyuanAccount": {
+          "subtitle": "Liez votre compte 词元 : les conversations sont facturées sur votre propre quota et la même clé alimente les outils d'exploitation 萬星."
+        },
         "facetGroup": {
           "title": "Facet"
         },
@@ -992,8 +995,6 @@
         "title": "Opérations Lex",
         "hint": "Identifiant comptes/usage/récupération (frappe silencieuse, auto-renouvelé)"
       },
-      "wanxingCaller": "Wanxing Caller",
-      "wanxingCallerHint": "Clé de facturation des tours Wanxing (frappez sur token.finddatatech.cloud)",
       "connect": "Connecter",
       "connecting": "Connexion…",
       "connected": "Connecté",
@@ -1004,7 +1005,7 @@
       "save": "Enregistrer",
       "pasteKey": "Coller la clé",
       "mintFailed": "Connexion inachevée — réessayez",
-      "footnote": "Quand un token ID court expire, ses outils se mettent en pause ; Connecter refrappe en silence. Une clé caller en 401 doit être recollée."
+      "footnote": "Quand un ID token de courte durée expire, ses outils se mettent en pause ; cliquer sur Connecter le réémet en silence (sans interaction tant que la session Logto vit)."
     },
     "facetMarket": {
       "title": "Marché Facet",
@@ -1016,6 +1017,30 @@
       "pair": "Appairer",
       "openSettings": "Ouvrir les réglages du marché →",
       "tokenUntil": "Identifiant valide jusqu'au"
+    },
+    "ciyuanAccount": {
+      "title": "Compte 萬星·词元",
+      "hint": "Liez votre compte 词元 : une seule clé ouvre modèles, recherche et voix par voie ; la disponibilité suit votre forfait.",
+      "connected": "Connecté",
+      "stale": "Reconnexion requise",
+      "notConnected": "Non connecté",
+      "keyLine": "Clé",
+      "pastedSource": "Source : clé collée manuellement",
+      "laneCell": "La voie modèles est facturée sur votre quota 词元 ; la déconnexion revient à la clé du déploiement.",
+      "laneShared": "Ce déploiement est mono-processus : le compte ne sert qu'aux outils d'exploitation ; la voie modèles garde la clé du déploiement.",
+      "emailPlaceholder": "E-mail 词元",
+      "passwordPlaceholder": "Mot de passe 词元",
+      "connecting": "Liaison…",
+      "rebind": "Relier",
+      "bind": "Lier le compte",
+      "passwordNote": "Le mot de passe sert une seule fois à émettre la clé et n'est jamais conservé.",
+      "testing": "Test…",
+      "test": "Tester la connexion",
+      "testDone": "Testé",
+      "revokeHint": "Identifiant local supprimé. La clé existe toujours dans 词元 : révoquez-la sur token.finddatatech.cloud.",
+      "pasteInstead": "Vous avez déjà une clé ? Collez-la",
+      "probe": "Sonde",
+      "footnote": "Un 401 marque la clé comme à reconnecter ; relier émet une nouvelle clé. Le compte lié prime sur une clé collée."
     }
   },
   "bindings": {

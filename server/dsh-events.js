@@ -92,6 +92,13 @@ function markCredentialStaleOn401(ctx, toolName, resultText) {
       ctx
         .dshUpdateMcp?.(ctx.runtimeMcpOverlay ?? null, ctx.runtimeOwnerGroups ?? null, owner)
         ?.catch((e) => console.warn(`[${entry.refName}] profile update after stale mark failed: ${e.message}`));
+      // The wanxing-caller ref is served by the 词元 account key (ciyuan-account-lane):
+      // a stale account must also fall the cell's model lane back to the deployment seed.
+      if (entry.refName === "wanxing-caller") {
+        import("../dsh-profile.js")
+          .then((m) => m.ensureCredentialsStore({ cellOwnerEmail: ctx.cellUserEmail || null }))
+          .catch((e) => console.warn(`[ciyuan-account] credential store rewrite after stale mark failed: ${e.message}`));
+      }
     })
     .catch((e) => console.warn(`[credential-refs] stale detection failed: ${e.message}`));
 }

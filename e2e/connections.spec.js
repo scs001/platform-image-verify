@@ -20,7 +20,7 @@ test.describe("GET /api/connections", () => {
       "connector",
       "line-wire-customer",
       "line-lex",
-      "line-wanxing-caller",
+      "ciyuan-account",
       "paper-trading",
       "search",
     ]) {

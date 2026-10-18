@@ -16,7 +16,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   APP_LINES,
-  APP_CONNECTIONS,
   buildAppGrid,
   aggregateConnectionState,
   connectTargetFor,

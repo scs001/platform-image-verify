@@ -86,7 +86,7 @@ export type ConnectionId =
   | "connector"
   | "line-wire-customer"
   | "line-lex"
-  | "line-wanxing-caller"
+  | "ciyuan-account"
   | "paper-trading"
   | "search";
 
@@ -99,7 +99,7 @@ export type ConnectionId =
 export const APP_CONNECTIONS: Record<string, ConnectionId[]> = {
   "yizuo-packs": ["registry"],
   facet: ["facet-market"],
-  "wanxing-token": ["line-wanxing-caller"],
+  "wanxing-token": ["ciyuan-account"],
   "wanxing-connector": ["connector"],
   lex: ["line-lex"],
   wire: ["line-wire-customer", "paper-trading"],

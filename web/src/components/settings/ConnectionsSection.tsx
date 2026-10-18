@@ -20,6 +20,7 @@ import { ConnectorConnectPanel } from "@/components/extensions/ConnectorConnectP
 import { FacetMarketConnectPanel } from "@/components/extensions/FacetMarketConnectPanel";
 import { LineOpsConnectPanel } from "@/components/extensions/LineOpsConnectPanel";
 import { PaperTradingConnectPanel } from "@/components/extensions/PaperTradingConnectPanel";
+import { CiyuanAccountConnectPanel } from "@/components/extensions/CiyuanAccountConnectPanel";
 import { SearchServiceCard } from "./SearchServiceCard";
 
 const GLOSSARY_BRANDS = ["ciyuan", "facet", "connector", "wire", "lex"] as const;
@@ -99,6 +100,17 @@ export function ConnectionsSection() {
         </dl>
       </details>
 
+      {/* 词元 account first (ciyuan-account-lane): the one key behind the model
+          lane and the 萬星 operations MCP. `line-wanxing-caller` is the retired
+          panel id kept as an alias so older deep links still land here. */}
+      <CardAnchor
+        ids={["ciyuan-account", "line-wanxing-caller"]}
+        active={isActive("ciyuan-account", "line-wanxing-caller")}
+        subtitleKey="settings.connections.cards.ciyuanAccount.subtitle"
+      >
+        <CiyuanAccountConnectPanel />
+      </CardAnchor>
+
       {/* 谦面 grouped card: the tool market login and the market device
           pairing are two rows of one brand family (settings-connect-center
           D1) — same brand, two products, two auth models. */}
@@ -131,8 +143,8 @@ export function ConnectionsSection() {
       </CardAnchor>
 
       <CardAnchor
-        ids={["line-wire-customer", "line-lex", "line-wanxing-caller"]}
-        active={isActive("line-wire-customer", "line-lex", "line-wanxing-caller")}
+        ids={["line-wire-customer", "line-lex"]}
+        active={isActive("line-wire-customer", "line-lex")}
         subtitleKey="settings.connections.cards.lines.subtitle"
       >
         <LineOpsConnectPanel />

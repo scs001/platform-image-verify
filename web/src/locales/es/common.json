@@ -937,7 +937,7 @@
         "title": "¿Quién es quién? (despliega la chuleta)",
         "ciyuan": {
           "name": "Wanxing Ciyuan",
-          "desc": "La pasarela de capacidades de IA: modelos, búsqueda y voz por carril, con pago por uso."
+          "desc": "La pasarela de capacidades de IA: modelos, búsqueda y voz por carril, con pago por uso; Vincula tu cuenta para facturar a tu propia cuota."
         },
         "facet": {
           "name": "Facet",
@@ -957,6 +957,9 @@
         }
       },
       "cards": {
+        "ciyuanAccount": {
+          "subtitle": "Vincula tu cuenta de 词元: los chats se facturan a tu propia cuota y la misma clave alimenta las herramientas de operación de 萬星."
+        },
         "facetGroup": {
           "title": "Facet"
         },
@@ -992,8 +995,6 @@
         "title": "Operaciones Lex",
         "hint": "Credencial de cuentas/uso/recuperación (acuñación silenciosa, auto-renueva)"
       },
-      "wanxingCaller": "Wanxing Caller",
-      "wanxingCallerHint": "Clave de facturación para turnos de Wanxing (acuña en token.finddatatech.cloud)",
       "connect": "Conectar",
       "connecting": "Conectando…",
       "connected": "Conectado",
@@ -1004,7 +1005,7 @@
       "save": "Guardar",
       "pasteKey": "Pegar clave",
       "mintFailed": "La conexión no se completó: reintenta",
-      "footnote": "Cuando un token ID breve caduca, sus herramientas se pausan; Conectar re-acuña en silencio. Una clave caller con 401 debe pegarse de nuevo."
+      "footnote": "Cuando un ID token de corta vida caduca, sus herramientas se pausan; pulsar Conectar lo vuelve a emitir en silencio (sin interacción mientras viva la sesión de Logto)."
     },
     "facetMarket": {
       "title": "Mercado Facet",
@@ -1016,6 +1017,30 @@
       "pair": "Emparejar",
       "openSettings": "Abrir ajustes del mercado →",
       "tokenUntil": "Credencial válida hasta"
+    },
+    "ciyuanAccount": {
+      "title": "Cuenta 萬星·词元",
+      "hint": "Vincula tu cuenta de 词元: una sola clave habilita modelos, búsqueda y voz por carril; la disponibilidad sigue tu plan.",
+      "connected": "Conectado",
+      "stale": "Requiere reconexión",
+      "notConnected": "Sin conectar",
+      "keyLine": "Clave",
+      "pastedSource": "Origen: clave pegada manualmente",
+      "laneCell": "El carril de modelos se factura a tu cuota de 词元; al desconectar vuelve a la clave del despliegue.",
+      "laneShared": "Este despliegue es de proceso único: la cuenta solo sirve a las herramientas de operación; el carril de modelos mantiene la clave del despliegue.",
+      "emailPlaceholder": "Correo de 词元",
+      "passwordPlaceholder": "Contraseña de 词元",
+      "connecting": "Vinculando…",
+      "rebind": "Volver a vincular",
+      "bind": "Vincular cuenta",
+      "passwordNote": "La contraseña se usa una sola vez para emitir la clave y nunca se guarda.",
+      "testing": "Probando…",
+      "test": "Probar conexión",
+      "testDone": "Probado",
+      "revokeHint": "Credencial local eliminada. La clave sigue existiendo en 词元: revócala en token.finddatatech.cloud.",
+      "pasteInstead": "¿Ya tienes una clave? Pégala",
+      "probe": "Sonda",
+      "footnote": "Un 401 marca la clave como pendiente de reconexión; volver a vincular emite una clave nueva. La cuenta vinculada tiene prioridad sobre una clave pegada."
     }
   },
   "bindings": {

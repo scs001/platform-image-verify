@@ -21,6 +21,7 @@ import * as connectorCredentials from "./connector-credentials.js";
 import * as facetMarketCredentials from "./facet-market-credentials.js";
 import * as lineCredentials from "./line-credentials.js";
 import * as paperTradingCredentials from "./paper-trading-credentials.js";
+import * as ciyuanAccountCredentials from "./ciyuan-account-credentials.js";
 
 const REFS = new Map(
   [
@@ -67,10 +68,13 @@ const REFS = new Map(
       staleEvent: "line_credential_stale",
     },
     {
+      // ciyuan-account-lane (design D5): the wanxing-caller ref is served by the
+      // user's bound 词元 account key first, a legacy pasted caller key second —
+      // one key for the model lane and the operations MCP alike.
       refName: lineCredentials.WANXING_CALLER_CREDENTIAL_REF,
       isRef: lineCredentials.isWanxingCallerRef,
-      liveToken: (email) => lineCredentials.liveToken(email, "wanxing-caller"),
-      markInvalid: (email) => lineCredentials.markInvalid(email, "wanxing-caller"),
+      liveToken: (email) => ciyuanAccountCredentials.liveToken(email),
+      markInvalid: (email) => ciyuanAccountCredentials.markStale(email),
       staleEvent: "line_credential_stale",
     },
   ].map((entry) => [entry.refName, entry]),
@@ -128,7 +132,7 @@ const KNOWN_CONNECT_PANELS = new Map([
   [paperTradingCredentials.PAPER_TRADING_CREDENTIAL_REF, "paper-trading"],
   ["wire-customer", "line-wire-customer"],
   ["lex", "line-lex"],
-  ["wanxing-caller", "line-wanxing-caller"],
+  ["wanxing-caller", "ciyuan-account"],
 ]);
 
 // The registry entry for a config's `credentialRef`, or null for an absent or

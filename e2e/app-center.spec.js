@@ -30,7 +30,7 @@ function connectionsResponse(overrides) {
     connector: "disconnected",
     "line-wire-customer": "disconnected",
     "line-lex": "disconnected",
-    "line-wanxing-caller": "disconnected",
+    "ciyuan-account": "disconnected",
     "paper-trading": "disconnected",
     search: "not-configured",
     ...overrides,
@@ -129,8 +129,22 @@ test("fresh store: six cards disconnected with connect actions; two brand cards 
 
   // 去连接 lands on the connections section with the right panel highlighted.
   await page.getByTestId("app-card-wanxing-token-connect").click();
-  await expect(page).toHaveURL(/\/settings\/connections\?panel=line-wanxing-caller$/);
+  await expect(page).toHaveURL(/\/settings\/connections\?panel=ciyuan-account$/);
   await expect(page.locator("[data-panel-active='true']")).toHaveCount(1);
+});
+
+test("ciyuan account binding turns the 词元 card green", async ({ page }) => {
+  await pinLocaleEn(page);
+  await page.route("**/api/connections", (route) =>
+    route.fulfill(connectionsResponse({ "ciyuan-account": "connected" })),
+  );
+  await page.goto("/apps");
+  await expect(page.getByTestId("app-center-page")).toBeVisible({ timeout: 15000 });
+  await expect(page.getByTestId("app-card-wanxing-token-connection-badge")).toHaveAttribute(
+    "data-state",
+    "connected",
+  );
+  await expect(page.getByTestId("app-card-wanxing-token-connect")).toHaveCount(0);
 });
 
 test("partial: wire card shows partial and connects the missing leg first", async ({ page }) => {

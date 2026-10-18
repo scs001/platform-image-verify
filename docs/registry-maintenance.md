@@ -627,6 +627,14 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 `MODEL_PATTERN_CONFLICT`；③词元上**无 0.6B 端点**，故 `fd-legal-search-mcp`
 维持 0.6B 硅基流动直连（实测其库为 0.6B 所建：自我检索 0.9999、12 点 0.99989~0.99992）。
 
+**补充实证（归档后补跑，原三项旁证全部达成）**：①直连上游**不钉扎** min_cos=0.992257
+（漂移）vs 网关注入钉扎 0.999918（过门）——钉扎必要性二次证实；②把钉扎临时改为不存在值
+（等价上游不可服务）→ 嵌入 404 如实报原因、不透 key、不给假向量，恢复即 200；
+③嵌入不可用期间 `hybrid_search` 如实标 `degraded:['vector:…']` 且**仍有结果**
+（关键词兜底 3 条），恢复后 `degraded:[]` 双通道回归。
+（注：`admin/accounts/:id/disable` 端点不存在、`schedulable` 经 PUT 不生效，
+故改用「改钉扎值制造上游失败」达成同等待证。）
+
 **遗留（与本 change 无关、未修）**：`conformance_gate.py` 另报 3 项——doc 7487
 无损切块还原失败（切块/冷存域）、`corpus_chunks_gov` 与 `eval_runs` 两表不在
 迁移链内（schema 域）。**锚点余弦门 PASS 才是本次切换判据**，三项属既有债务。

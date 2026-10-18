@@ -1830,13 +1830,18 @@
   },
   "appCenter": {
     "title": "应用中心",
-    "subtitle": "运行在壹座平台上的产品线与工具",
-    "linesHeading": "产品线",
-    "appsHeading": "平台应用",
+    "subtitle": "运行在壹座之上的生态产品——一卡一产品：打开产品本体，或连上你的账号",
     "open": "打开",
     "here": "你正在这里",
     "status": {
       "early": "建设早期"
+    },
+    "connection": {
+      "connected": "已连接",
+      "partial": "部分连接",
+      "stale": "需重连",
+      "disconnected": "未连接",
+      "connect": "去连接"
     },
     "line": {
       "yizuo": {

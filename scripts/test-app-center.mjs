@@ -1,11 +1,35 @@
-// Unit checks for the app-center single source (openspec: add-app-center 1.1).
-// Shape assertions only — rendering is covered by the e2e sentinel.
+// Unit checks for the app-center single source (openspec: add-app-center 1.1,
+// app-center-unified-grid 2.x). Shape assertions only — rendering is covered
+// by the e2e sentinel.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { APP_LINES } from "../web/src/lib/appCatalog.ts";
+import {
+  APP_LINES,
+  APP_CONNECTIONS,
+  brandOf,
+  buildAppGrid,
+  aggregateConnectionState,
+  connectTargetFor,
+} from "../web/src/lib/appCatalog.ts";
 
 const FIVE_LINES = ["yizuo", "facet", "wanxing", "lex", "wire"];
+const LOCALES = ["en", "es", "fr", "ja", "zh-CN"];
+// Same id list e2e/connections.spec.js asserts against the live endpoint.
+const KNOWN_CONNECTION_IDS = [
+  "registry",
+  "facet-market",
+  "connector",
+  "line-wire-customer",
+  "line-lex",
+  "line-wanxing-caller",
+  "paper-trading",
+  "search",
+];
+
+const CATALOG_APPS = JSON.parse(readFileSync(new URL("../agents.json", import.meta.url), "utf8")).apps.filter((a) =>
+  ["external-service", "link"].includes(a.kind),
+);
 
 test("all five product lines present, stable ids", () => {
   assert.deepEqual(
@@ -35,8 +59,7 @@ test("status uses the honest enum", () => {
 });
 
 test("i18n keys exist in all five locales", () => {
-  const locales = ["en", "es", "fr", "ja", "zh-CN"];
-  for (const lang of locales) {
+  for (const lang of LOCALES) {
     const dict = JSON.parse(
       readFileSync(new URL(`../web/src/locales/${lang}/common.json`, import.meta.url)),
     );
@@ -50,5 +73,127 @@ test("i18n keys exist in all five locales", () => {
     }
     assert.ok(dict.nav?.apps, `${lang}: nav.apps missing`);
     assert.ok(dict.appCenter?.title, `${lang}: appCenter.title missing`);
+  }
+});
+
+// ── app-center-unified-grid ────────────────────────────────────────────────
+
+test("unified grid: bundled products are attributed and brand-ordered (2.1)", () => {
+  const order = buildAppGrid(APP_LINES, CATALOG_APPS).map((e) => e.id);
+  assert.deepEqual(order, [
+    "yizuo",
+    "yizuo-packs",
+    "facet",
+    "wanxing",
+    "wanxing-token",
+    "wanxing-connector",
+    "lex",
+    "wire",
+  ]);
+});
+
+test("unified grid: empty or failed catalog keeps the five brand cards (2.1)", () => {
+  assert.deepEqual(
+    buildAppGrid(APP_LINES, null).map((e) => e.id),
+    FIVE_LINES,
+  );
+  assert.deepEqual(
+    buildAppGrid(APP_LINES, []).map((e) => e.id),
+    FIVE_LINES,
+  );
+});
+
+test("brandOf: explicit line field wins over prefix; unknown prefix sorts last (2.1)", () => {
+  assert.equal(brandOf({ id: "yizuo-packs", kind: "link" }), "yizuo");
+  assert.equal(brandOf({ id: "wanxing-token", kind: "external-service" }), "wanxing");
+  // Explicit attribution routes a non-prefix id to its brand.
+  assert.equal(brandOf({ id: "mystery", kind: "link", line: "lex" }), "lex");
+  // An explicit line naming an unknown brand falls through to inference.
+  assert.equal(brandOf({ id: "wire-thing", kind: "link", line: "nope" }), "wire");
+  assert.equal(brandOf({ id: "orphan-tool", kind: "link" }), null);
+
+  const ids = buildAppGrid(APP_LINES, [
+    { id: "mystery", kind: "link", name: "M", url: "https://example.com", line: "lex" },
+    { id: "orphan-tool", kind: "link", name: "O", url: "https://example.com" },
+  ]).map((e) => e.id);
+  assert.deepEqual(ids, ["yizuo", "facet", "wanxing", "lex", "mystery", "wire", "orphan-tool"]);
+});
+
+test("unified grid: product flags carry through (embedded branch, name fallback) (2.1)", () => {
+  const [embed, disabled] = buildAppGrid(APP_LINES, [
+    { id: "wanxing-embed", kind: "external-service", name: "E" },
+    { id: "wanxing-off", kind: "external-service", name: "F", embedded: false },
+  ]).filter((e) => e.kind === "product");
+  assert.equal(embed.embedded, true);
+  assert.equal(disabled.embedded, false);
+  const [named] = buildAppGrid(APP_LINES, [{ id: "facet-thing", kind: "link" }]).filter(
+    (e) => e.kind === "product",
+  );
+  assert.equal(named.name, "facet-thing"); // catalog name missing → id
+});
+
+test("aggregateConnectionState: four states, stale beats partial, missing id counts as disconnected (2.2)", () => {
+  assert.equal(aggregateConnectionState([], {}), null);
+  assert.equal(aggregateConnectionState(["a"], { a: "connected" }), "connected");
+  assert.equal(
+    aggregateConnectionState(["a", "b"], { a: "connected", b: "disconnected" }),
+    "partial",
+  );
+  assert.equal(aggregateConnectionState(["a", "b"], { a: "stale", b: "connected" }), "stale");
+  assert.equal(aggregateConnectionState(["a", "b"], { a: "stale", b: "disconnected" }), "stale");
+  assert.equal(aggregateConnectionState(["a"], {}), "disconnected");
+  assert.equal(aggregateConnectionState(["a"], { a: "not-configured" }), "disconnected");
+});
+
+test("connectTargetFor: first non-connected in declaration order; null when all green (2.2)", () => {
+  const wire = APP_CONNECTIONS.wire; // [line-wire-customer, paper-trading]
+  assert.equal(
+    connectTargetFor(wire, { "line-wire-customer": "connected", "paper-trading": "disconnected" }),
+    "paper-trading",
+  );
+  assert.equal(
+    connectTargetFor(wire, { "line-wire-customer": "connected", "paper-trading": "connected" }),
+    null,
+  );
+  assert.equal(connectTargetFor(wire, {}), "line-wire-customer");
+});
+
+test("APP_CONNECTIONS maps only known ids; search never mapped; 壹座/萬星 cards badge-free (2.3)", () => {
+  for (const ids of Object.values(APP_CONNECTIONS)) {
+    for (const id of ids) assert.ok(KNOWN_CONNECTION_IDS.includes(id), `unknown connection id ${id}`);
+  }
+  assert.equal(
+    Object.values(APP_CONNECTIONS)
+      .flat()
+      .includes("search"),
+    false,
+  );
+  assert.equal(APP_CONNECTIONS.yizuo, undefined);
+  assert.equal(APP_CONNECTIONS.wanxing, undefined);
+  assert.deepEqual(Object.keys(APP_CONNECTIONS).sort(), [
+    "facet",
+    "lex",
+    "wanxing-connector",
+    "wanxing-token",
+    "wire",
+    "yizuo-packs",
+  ]);
+});
+
+test("unified-grid copy exists in all five locales; retired headings gone (2.4)", () => {
+  for (const lang of LOCALES) {
+    const dict = JSON.parse(
+      readFileSync(new URL(`../web/src/locales/${lang}/common.json`, import.meta.url)),
+    );
+    for (const key of ["connected", "partial", "stale", "disconnected", "connect"]) {
+      const v = dict.appCenter?.connection?.[key];
+      assert.ok(typeof v === "string" && v.length > 0, `${lang}: appCenter.connection.${key} missing/empty`);
+    }
+    assert.ok(
+      typeof dict.appCenter?.subtitle === "string" && dict.appCenter.subtitle.length > 0,
+      `${lang}: appCenter.subtitle missing/empty`,
+    );
+    assert.equal(dict.appCenter?.linesHeading, undefined, `${lang}: appCenter.linesHeading must be gone`);
+    assert.equal(dict.appCenter?.appsHeading, undefined, `${lang}: appCenter.appsHeading must be gone`);
   }
 });

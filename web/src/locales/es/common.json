@@ -1830,13 +1830,18 @@
   },
   "appCenter": {
     "title": "Centro de Apps",
-    "subtitle": "Líneas de producto y herramientas que corren en la plataforma",
-    "linesHeading": "Líneas de producto",
-    "appsHeading": "Apps de la plataforma",
+    "subtitle": "Productos del ecosistema que funcionan sobre Yizuo: una tarjeta por producto, ábrelo o conecta tu cuenta",
     "open": "Abrir",
     "here": "Estás aquí",
     "status": {
       "early": "En fase temprana"
+    },
+    "connection": {
+      "connected": "Conectado",
+      "partial": "Conexión parcial",
+      "stale": "Requiere reconexión",
+      "disconnected": "Sin conectar",
+      "connect": "Conectar"
     },
     "line": {
       "yizuo": {

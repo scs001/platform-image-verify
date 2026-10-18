@@ -1,7 +1,8 @@
 # app-center Specification
 
 ## Purpose
-TBD - created by archiving change add-app-center. Update Purpose after archive.
+
+壹座 web 的发现面（`/apps`）：以单一网格呈现运行在平台上的全部生态产品——每个产品一张卡，职责一句话、可用性如实标注、连接状态与设置「连接」分节同源，「打开」看产品本体、「去连接」直达对应连接卡。项目联邦而非融合：各产品保持自己的站点与身份，这里只聚合入口与状态。
 
 ## Requirements
 

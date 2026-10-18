@@ -1,30 +1,32 @@
-// AppCenterPage.tsx — the platform's discovery surface (openspec: add-app-center).
+// AppCenterPage.tsx — the platform's discovery surface (openspec:
+// add-app-center → app-center-unified-grid).
 //
-// Project federation, not melting: each product line keeps its own identity,
-// site, and login — the center aggregates entry points only. Two sections:
-//   1. The five lines (寻数五线) — brand facts single-sourced in appCatalog.ts.
-//      Introductions stay on each line's own site; here it's a one-liner + link.
-//   2. Platform apps — the server's external-service catalog (the same
-//      /api/catalog the AgentsPage consumes). Empty or role-filtered-out →
-//      the section hides entirely; a fetch error degrades the same way (the
-//      five lines are static and never depend on the network).
+// Project federation, not melting: each ecosystem product keeps its own
+// identity, site, and login — the center aggregates entry points only. ONE
+// grid, ONE card shape (web/src/lib/appCatalog.ts owns ordering, brand
+// attribution, and the connection-id map). Two data sources, both optional:
+//   - Brand facts: static in appCatalog.ts — they never depend on the
+//     network, so a dead backend still renders the five brand cards.
+//   - Products: GET /api/catalog (role-filtered) and GET /api/connections
+//     (read-only status projection, connection-center). Each fetch fails to
+//     null independently: no products without a catalog, no badges or
+//     connect actions without a status projection — never a broken page.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { ExternalLink, Layers, Scale, Store, Orbit, Database, ShieldAlert } from "lucide-react";
-import { APP_LINES, type AppLine } from "@/lib/appCatalog";
+import { ExternalLink, Layers, Scale, Store, Orbit, Database, Package, Coins, Plug, PlugZap, ShieldAlert } from "lucide-react";
+import {
+  APP_LINES,
+  buildAppGrid,
+  aggregateConnectionState,
+  connectTargetFor,
+  connectPathFor,
+  type AppGridEntry,
+  type CatalogApp,
+} from "@/lib/appCatalog";
 
-interface CatalogApp {
-  id: string;
-  kind?: string;
-  name?: string;
-  url?: string;
-  description?: string;
-  embedded?: boolean;
-}
-
-const LINE_ICONS: Record<string, typeof Layers> = {
+const BRAND_ICONS: Record<string, typeof Layers> = {
   yizuo: Layers,
   facet: Store,
   wanxing: Orbit,
@@ -32,57 +34,124 @@ const LINE_ICONS: Record<string, typeof Layers> = {
   wire: Database,
 };
 
-function LineStatusBadge({ line }: { line: AppLine }) {
-  const { t } = useTranslation();
-  if (line.status === "live") return null;
-  return (
-    <span
-      data-testid={`app-card-${line.id}-${line.status}-badge`}
-      className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
-    >
-      <ShieldAlert className="h-3 w-3" aria-hidden="true" />
-      {t("appCenter.status.early")}
-    </span>
-  );
+// Product-level icons; products fall back to their brand's icon.
+const PRODUCT_ICONS: Record<string, typeof Layers> = {
+  "yizuo-packs": Package,
+  "wanxing-token": Coins,
+  "wanxing-connector": PlugZap,
+};
+
+function iconFor(entry: AppGridEntry): typeof Layers {
+  if (entry.kind === "product") {
+    const product = PRODUCT_ICONS[entry.id];
+    if (product) return product;
+  }
+  if (entry.brand) {
+    const brand = BRAND_ICONS[entry.brand];
+    if (brand) return brand;
+  }
+  return Layers;
 }
 
-function LineCard({ line }: { line: AppLine }) {
+const BADGE_DOT: Record<string, string> = {
+  connected: "bg-emerald-500",
+  partial: "bg-amber-500",
+  stale: "bg-amber-500",
+  disconnected: "bg-muted-foreground/50",
+};
+
+const BADGE_TEXT: Record<string, string> = {
+  connected: "text-emerald-600 dark:text-emerald-400",
+  partial: "text-amber-600 dark:text-amber-400",
+  stale: "text-amber-600 dark:text-amber-400",
+  disconnected: "text-muted-foreground",
+};
+
+function AppCard({ entry, states }: { entry: AppGridEntry; states: Record<string, string> | null }) {
   const { t } = useTranslation();
-  const Icon = LINE_ICONS[line.id] ?? Layers;
+  const navigate = useNavigate();
+  const Icon = iconFor(entry);
+
+  const state = states ? aggregateConnectionState(entry.connections, states) : null;
+  const target = states ? connectTargetFor(entry.connections, states) : null;
+
   return (
     <div
-      data-testid={`app-card-${line.id}`}
+      data-testid={`app-card-${entry.id}`}
       className="flex flex-col gap-3 rounded-lg border border-border bg-card p-5"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex h-10 w-10 items-center justify-center rounded-md bg-primary-deep text-primary-foreground">
           <Icon className="h-5 w-5" aria-hidden="true" />
         </div>
-        <LineStatusBadge line={line} />
+        <div className="flex items-center gap-1.5">
+          {state && (
+            <span
+              data-testid={`app-card-${entry.id}-connection-badge`}
+              data-state={state}
+              title={t(`appCenter.connection.${state}`)}
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${BADGE_DOT[state]}`} aria-hidden="true" />
+              <span className={BADGE_TEXT[state]}>{t(`appCenter.connection.${state}`)}</span>
+            </span>
+          )}
+          {entry.status === "early" && (
+            <span
+              data-testid={`app-card-${entry.id}-early-badge`}
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] text-muted-foreground"
+            >
+              <ShieldAlert className="h-3 w-3" aria-hidden="true" />
+              {t("appCenter.status.early")}
+            </span>
+          )}
+        </div>
       </div>
       <div>
-        <h3 className="font-medium">{t(line.nameKey)}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">{t(line.taglineKey)}</p>
+        <h3 className="font-medium">
+          {entry.kind === "brand" ? t(entry.nameKey) : entry.name}
+        </h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          {entry.kind === "brand" ? t(entry.taglineKey) : entry.description ?? ""}
+        </p>
       </div>
-      <div className="mt-auto pt-1">
-        {line.self ? (
-          <span
-            data-testid={`app-card-${line.id}-self`}
-            className="text-xs text-muted-foreground"
-          >
-            {t("appCenter.line.here")}
+      <div className="mt-auto flex items-center gap-4 pt-1">
+        {entry.self ? (
+          <span data-testid={`app-card-${entry.id}-self`} className="text-xs text-muted-foreground">
+            {t("appCenter.here")}
           </span>
+        ) : entry.embedded ? (
+          <button
+            type="button"
+            data-testid={`app-card-${entry.id}-open`}
+            onClick={() => navigate(`/external/${entry.id}`)}
+            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+          >
+            {t("appCenter.open")}
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
         ) : (
           <a
-            href={line.url ?? "#"}
+            href={entry.url ?? "#"}
             target="_blank"
             rel="noreferrer"
-            data-testid={`app-card-${line.id}-open`}
+            data-testid={`app-card-${entry.id}-open`}
             className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
           >
             {t("appCenter.open")}
             <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
           </a>
+        )}
+        {state && state !== "connected" && target && (
+          <button
+            type="button"
+            data-testid={`app-card-${entry.id}-connect`}
+            onClick={() => navigate(connectPathFor(target))}
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground hover:underline"
+          >
+            <Plug className="h-3.5 w-3.5" aria-hidden="true" />
+            {t("appCenter.connection.connect")}
+          </button>
         )}
       </div>
     </div>
@@ -91,26 +160,32 @@ function LineCard({ line }: { line: AppLine }) {
 
 export function AppCenterPage() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  // Platform products (壹座·Packs / 萬星·词元 / 萬星·连接器 …) ride the same
-  // catalog the Agents page consumes — one source of truth; product names are
-  // authored in agents.json under GitOps.
+  // null = the fetch failed or hasn't landed; brand cards render regardless.
   const [apps, setApps] = useState<CatalogApp[] | null>(null);
+  const [states, setStates] = useState<Record<string, string> | null>(null);
 
   const load = useCallback(async () => {
-    try {
-      const r = await fetch("/api/catalog");
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const c = await r.json();
-      setApps((c.apps ?? []).filter((a: CatalogApp) => a.kind === "external-service" || a.kind === "link"));
-    } catch {
-      setApps(null);
-    }
+    // Parallel and independent: a dead catalog keeps badges, a dead
+    // /api/connections keeps the cards — neither blocks the other.
+    fetch("/api/catalog")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((c) => setApps(c.apps ?? []))
+      .catch(() => setApps(null));
+    fetch("/api/connections")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((c) => {
+        const byId: Record<string, string> = {};
+        for (const item of c.connections ?? []) byId[item.id] = item.state;
+        setStates(byId);
+      })
+      .catch(() => setStates(null));
   }, []);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const grid = useMemo(() => buildAppGrid(APP_LINES, apps), [apps]);
 
   return (
     <main className="h-full overflow-y-auto bg-background" data-testid="app-center-page">
@@ -118,51 +193,11 @@ export function AppCenterPage() {
         <h1 className="text-xl font-semibold">{t("appCenter.title")}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{t("appCenter.subtitle")}</p>
 
-        <section className="mt-6" data-testid="app-center-lines">
-          <h2 className="text-sm font-semibold text-muted-foreground">{t("appCenter.linesHeading")}</h2>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {APP_LINES.map((line) => (
-              <LineCard key={line.id} line={line} />
-            ))}
-          </div>
-        </section>
-
-        {apps && apps.length > 0 && (
-          <section className="mt-8" data-testid="app-center-platform-apps">
-            <h2 className="text-sm font-semibold text-muted-foreground">{t("appCenter.appsHeading")}</h2>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {apps.map((app) => (
-                <div
-                  key={app.id}
-                  data-testid={`app-card-${app.id}`}
-                  className="flex flex-col gap-3 rounded-lg border border-border bg-card p-5"
-                >
-                  <div>
-                    <h3 className="font-medium">{app.name || app.id}</h3>
-                    {app.description && (
-                      <p className="mt-1 text-sm text-muted-foreground">{app.description}</p>
-                    )}
-                  </div>
-                  <div className="mt-auto pt-1">
-                    <button
-                      type="button"
-                      data-testid={`app-card-${app.id}-open`}
-                      onClick={() => {
-                        if (app.kind === "external-service" && app.embedded !== false) navigate(`/external/${app.id}`);
-                        else if (app.url) window.open(app.url, "_blank", "noreferrer");
-                      }}
-                      className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                    >
-                      {t("appCenter.open")}
-                      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="app-center-grid">
+          {grid.map((entry) => (
+            <AppCard key={entry.id} entry={entry} states={states} />
+          ))}
+        </div>
       </div>
     </main>
   );

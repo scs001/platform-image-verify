@@ -1830,13 +1830,18 @@
   },
   "appCenter": {
     "title": "アプリセンター",
-    "subtitle": "プラットフォーム上で動く製品ラインとツール",
-    "linesHeading": "製品ライン",
-    "appsHeading": "プラットフォームアプリ",
+    "subtitle": "壹座の上で動くエコシステム製品——1 製品 1 カード：開くか、アカウントを接続",
     "open": "開く",
     "here": "現在地",
     "status": {
       "early": "開発初期"
+    },
+    "connection": {
+      "connected": "接続済み",
+      "partial": "一部接続",
+      "stale": "再接続が必要",
+      "disconnected": "未接続",
+      "connect": "接続する"
     },
     "line": {
       "yizuo": {

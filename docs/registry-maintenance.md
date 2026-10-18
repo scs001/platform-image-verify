@@ -582,6 +582,47 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 状态 | 已收口。GitHub 侧泄露 commit 作为 unreachable object 仍在（可发 support 请求 GC，但内容已无有效凭据，风险可忽略） |
 
 ### 12.17 双刀上产：admin-layout-exempt + ciyuan-account-lane（2026-10-19 凌晨）
+### 12.18 词元嵌入通道：provider 钉扎 + fd-text-core 切入（ciyuan-embedding-lane，2026-10-18）
+
+**背景**：硅基流动账户曾对全部嵌入模型 402（`Qwen3-Embedding-8B/4B/0.6B`、`bge-m3`、
+`bge-large-zh-v1.5`、`/v1/rerank` 无一可用），两个嵌入消费方同时停摆；余额当日恢复但暴露
+「两线共用单一上游账户、一挂全停」的结构性问题。
+
+**变更**：
+
+- **词元侧 provider 钉扎**（fork 补丁级 12，镜像 `sha-8c0f4f8` / digest `bbca6ec9`）：
+  新增账号级 `extra.embedding_provider_only`，在 `ForwardEmbeddings` 注入/覆盖请求体
+  `provider` 选择器；只增于 embeddings 转发路径，未配置时 body 不改写。
+  **实测依据**：同文本连调 10 次，不钉扎 min_cos=**0.996511**（漂移）、钉 Nebius
+  **0.999925**（过门）、钉 DeepInfra **0.997614**（不过门）→ 必须钉 Nebius。
+  客户端自带值被覆盖（实测传 `NoSuchProviderXYZ` 仍 200，上游回
+  `No allowed providers are available … nebius, siliconflow, deepinfra`）。
+- **上游与价目**：OpenRouter `qwen/qwen3-embedding-8b`（Nebius $0.01/M）；
+  组 8「embedding」配 `Qwen/Qwen3-Embedding-8B` token 价 in=3e-08/token out=0。
+- **消费方切换**：`fd-text-core` 改 `FDTEXT_EMBEDDING_API_BASE/_KEY` 指词元，
+  模型（8B）与维度（1024）未变 → **零重嵌**。
+
+**验收（生产）**：锚点余弦 **0.999935**（gate）/ 0.999944（自跑）过 0.999 门；
+真实查询两域命中（`screenplay` 双通道融合、`papers` 纯向量）、`degraded: []`；
+计量 12 次请求 96 tokens、余额实扣；pod 日志零错误；镜像 digest 未变（env-only）。
+
+**坑在案**：①build-pool 仓 `BUILD_NAMESPACE` 是共享变量，被并发使用者改成 `sub2api`
+时推送报 `denied: no permission`（首个 run 39131350681 因此红，**非代码缺陷**）——
+出片前须核 run 的 `target:` 行；②模型名匹配**大小写不敏感**，两写法同配报
+`MODEL_PATTERN_CONFLICT`；③词元上**无 0.6B 端点**，故 `fd-legal-search-mcp`
+维持 0.6B 硅基流动直连（实测其库为 0.6B 所建：自我检索 0.9999、12 点 0.99989~0.99992）。
+
+**遗留（与本 change 无关、未修）**：`conformance_gate.py` 另报 3 项——doc 7487
+无损切块还原失败（切块/冷存域）、`corpus_chunks_gov` 与 `eval_runs` 两表不在
+迁移链内（schema 域）。**锚点余弦门 PASS 才是本次切换判据**，三项属既有债务。
+
+**graphiti 线（fd-legal-kg）交接**：`finddata/docs/handoff/ciyuan-embedding-channel-handoff.md`
+（finddata 非 git 仓，无法归档）。3 项待办：客户端 provider 钉扎会被网关覆盖（应置空）、
+客户端截断 vs 服务端 MRL 语义不同（切通道须重嵌）、LLM/嵌入是否统一网关待定。
+
+**密钥**：内部服务密钥 `embedding-internal`（组 8）明文只落
+`finddata/INFRA-NOTES.md`（部署秘密件），不进任何仓。
+
 
 **admin-layout-exempt**（规格变更：管理员不吃业务角色层收窄）。背景=§12.15 晚间用户报告 admin 账号管理界面消失——两层根因：测试角色留在 admin 账号（数据，已清）+ **role-system spec 明文「admin 兼任角色走角色布局」是有意设计**（v1.3.17），simple 预设裁掉整套管理面；`adminOnly` 谓词只挂 3 节救不回 models/channels/diagnostics/status。修法=核心层 `resolveLayout`：`authOn && isAdmin` 时丢弃 role 层（auth off 保持收窄，hermetic/本地预览不受影响）。
 

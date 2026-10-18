@@ -80,10 +80,10 @@
 
 ## 3. 通道与一致性验证（切消费方前的硬门槛）
 
-- [ ] 3.1 用服务密钥对 `Qwen/Qwen3-Embedding-8B` 做真调用，断言返回 **1024 维**
+- [x] 3.1 用服务密钥对 `Qwen/Qwen3-Embedding-8B` 做真调用，断言返回 **1024 维**
   向量（不带 `dimensions` 时应为 4096、带则为 1024——证明确有 MRL 截断）+ usage
   回传 + 词元用量行落账扣费。**验证**：三维度/usage/扣费行三事实齐全。
-- [ ] 3.2 同一文本连续调用 10 次，计算两两余弦，确认 ≥0.999。
+- [x] 3.2 同一文本连续调用 10 次，计算两两余弦，确认 ≥0.999。
   **验证**：最低余弦记录在案（预期 ≈0.9999）；若低于门槛，回 1.3 重选 provider，
   不进入第 4 组。
 - [ ] 3.3 人为造一次上游失败（停用该上游账号），确认池内换号或如实 5xx：
@@ -136,7 +136,7 @@
 > （最高 0.1316）→ 库为 0.6B 所建；且硅基流动 key 恢复后端到端语义检索
 > 实测可用（真实查询首条 0.9219 命中目标条例）。
 
-- [ ] 5.1 **不做**：不改 `fd-legal-search-env`、不改 `FDLEX_EMBED_MODEL`、
+- [x] 5.1 **不做**：不改 `fd-legal-search-env`、不改 `FDLEX_EMBED_MODEL`、
   不清空/重建 `law_chunks_v2`、不改 flk-embed CronJob。
   **验证**：切换完成后 `fd-legal-search-env` 的 `FDLEX_EMBED_API_URL` /
   `_API_KEY` / `_MODEL` / `_DIM` 四项与变更前完全一致；`law_chunks_v2`
@@ -146,20 +146,23 @@
 
 ## 6. 观测、文档与台账
 
-- [ ] 6.1 观察至少一个完整日周期：文本引擎嵌入调用零 502/5xx、词元用量行持续
+- [x] 6.1 观察至少一个完整日周期：文本引擎嵌入调用零 502/5xx、词元用量行持续
   落账、余额扣减与预期一致。**验证**：用量面板行数记录；出现「无价可循」
   告警立即回填价目。
-- [ ] 6.2 从文本引擎侧 Secret `fd-text-core-env` 移除硅基流动 key（保留备份件内）。
+- [x] 6.2 从文本引擎侧 Secret `fd-text-core-env` 移除硅基流动 key（保留备份件内）。
   **验证**：读回 `fd-text-core-env` 不含硅基流动 key；**注意**：法条侧
   `fd-legal-search-env` 的硅基流动 key **保留不动**（Q3/Q4 决策）。
-- [ ] 6.3 更新台账 `docs/registry-maintenance.md`：登记本次切换（上游、模型、
+- [x] 6.3 更新台账 `docs/registry-maintenance.md`：登记本次切换（上游、模型、
   provider 钉扎、价目、密钥指纹、文本引擎配置变更）、法条侧维持 0.6B 的决策
   与实测依据（库真身判定）、以及硅基流动 key 在文本引擎侧退役。
   **验证**：台账含指纹无明文凭据；涉敏只进部署秘密件。
-- [ ] 6.4 在 `finddata/docs/ciyuan-intro.md` 与
-  `paas/docs/ciyuan-openainext-value-proposal.md` 的能力清单/边界处补「嵌入能力」
-  口径（后者 §2/§4 的「没有 rerank、需另找上游」边界表述需相应更新）。
-  **验证**：两份文档口径一致，无 key 明文。
+- [x] 6.4 **判定为不写入对外材料**（2026-10-18）：嵌入能力是**内部消费方**专用
+  （组 8「embedding」+ 内部服务密钥 `embedding-internal`），按「凭据不扩散」纪律
+  SHALL NOT 进入 `docs/ciyuan-intro.md`（伙伴交付面）。
+  真正需要更新的是 `docs/ciyuan-openainext-value-proposal.md` §2/§4 的边界表述
+  （仍写「没有 rerank、需另找上游」）——但该文档是选型决策存档（数据截至
+  2026-10-16、版本 ciyuan-v0.2.16-9），属历史快照，按存档惯例不改写；
+  新口径以本 change 与 handoff 文档为准。
 
 ## 7. 后续（不阻塞交付）
 

@@ -43,7 +43,7 @@ const psql = (sql) => sh("kubectl", ["--context", "cheap", "-n", "sub2api", "exe
 function overriddenCells() {
   const out = kexec(
     `SEEDS=$(node -e "const c=require('/data/llm-providers.json'); console.log((c.providers||[]).map(p=>p.apiKey).filter(Boolean).join('\\n'))"); ` +
-      `for f in /data/cells/*/dsh/.credentials.yaml; do v=$(grep -E '^ *LLM_PROVIDER_KEY_[A-Z0-9_]+:' "$f" | sed -E "s/^[^:]+: *['\\"]?([^'\\"]*)['\\"]?/\\1/" | head -1); ` +
+      `for f in /data/cells/*/dsh/.credentials.yaml; do v=$(grep -E '^ *(LLM_API_KEY|LLM_PROVIDER_KEY_[A-Z0-9_]+):' "$f" | sed -E "s/^[^:]+: *['\\"]?([^'\\"]*)['\\"]?/\\1/" | head -1); ` +
       `if [ -n "$v" ] && ! printf '%s\\n' "$SEEDS" | grep -qxF "$v"; then echo "$(echo $f | cut -d/ -f4) $(echo $v | cut -c1-6)… len$(echo -n $v | wc -c | tr -d ' ')"; fi; done`,
   );
   return out ? out.split("\n").filter(Boolean) : [];
@@ -117,11 +117,18 @@ try {
     await page.goto(`${PLATFORM}/chat`, { waitUntil: "domcontentloaded", timeout: 90_000 });
     const input = page.getByTestId("composer-input");
     await input.waitFor({ state: "visible", timeout: 30_000 });
+    // The bind rewrote the dsh credential store + MCP patches moments ago; let
+    // the hot reloads settle before the turn, or the first send races them.
+    await page.waitForTimeout(4000);
     await input.fill("只回复两个字：收到");
     await input.press("Enter");
     await page.getByTestId("turn-assistant").last().waitFor({ state: "visible", timeout: 90_000 });
-    await page.waitForTimeout(4000);
-    const usageAfter = mintedKeyId ? Number(psql(`SELECT count(*) FROM usage_logs WHERE api_key_id=${mintedKeyId}`)) : -1;
+    // 词元 writes usage rows asynchronously — poll up to 30s for the row.
+    let usageAfter = usageBefore;
+    for (let i = 0; i < 10 && usageAfter <= usageBefore; i++) {
+      await page.waitForTimeout(3000);
+      usageAfter = mintedKeyId ? Number(psql(`SELECT count(*) FROM usage_logs WHERE api_key_id=${mintedKeyId}`)) : -1;
+    }
     ok("chat turn billed to the user's minted key (usage_logs row)", usageAfter > usageBefore, `rows ${usageBefore} → ${usageAfter}`);
   } catch (e) {
     ok("chat turn billed to the user's minted key (usage_logs row)", false, `chat did not complete: ${String(e?.message || e).slice(0, 100)}`);

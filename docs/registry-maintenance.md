@@ -567,4 +567,32 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 真机走查 | `scripts/verify-live-app-center.mjs`（真 Logto 账号 `aloadtree@gmail.com`，`roles={stock,[legal]}`）：**期望网格用页面同一套纯函数对生产 `/api/catalog`+`/api/connections` 实算**，再逐卡比 DOM——八卡顺序全等；六张徽章逐卡与聚合全等（生产实况：registry/facet-market/connector 已连 → 壹座·Packs/谦面/萬星·连接器 `connected` 且无去连接；三线+paper 未连 → 词元/识律/柏讯 `disconnected`）；壹座/萬星两卡无徽章；点词元「去连接」→ `?panel=line-wanxing-caller` 且高亮锚 `line-wire-customer`（三线共卡 ids[0]，设计如此）；词元「打开」→ `/external/wanxing-token`。**21/21 ALL PASS** |
 | 观察（非缺陷，待拍板） | 该角色账号（stock 配方）的主导航**没有「应用」项**（`nav-apps` 不可见，直开 `/apps` 正常）——§12.8 角色 nav 收窄至 4 项是设计；但这意味着首配角色用户到不了发现面，而词元卡「去连接」正是 L2a 的入口。是否把 `apps` 加进角色 nav，一行配方改动，另立决定 |
 | 教训 | ①**快照 `.github` 修剪是手动步**，`make-public-snapshot` 的 scrubber 不做它——照 skill 直接 push 就会把全仓 7 个 workflow 推上公开镜像仓（公开仓免费所以只是噪音，但 **image.yml 不在快照里 → 根本不出片**）；下次产完快照先 `ls .github/workflows` 再推；②镜像仓被 force push 后旧提交 **`git fetch <sha>` 取不到**（非 ref 可达），用 `gh api repos/…/contents/<path>?ref=<sha>` 直取文件；③真机脚本断言懒加载分节必须 `waitFor`，hermetic 本地快所以 e2e 用 `toHaveCount` 自动重试没暴露，生产即时 `count()` 假红一次 |
-| 状态 | L1b 落地、可归档。后续刀：**L2a 词元账号线**（零粘贴一次到位，`POST /api/v1/keys` 现成；词元卡徽章翻绿即其验收面）、**L2b 语音**（硬前置变了：openainext 429 冷却已自愈，现为上游对转写 POST 挂起 120s 超时，我方不可修；硅基 SenseVoiceSmall 实测可用但 `LanePlatform(audio)` 硬编码需改码或换 base_url——两方案待拍板）、L3 对话内 connections 工具 |
+| 状态 | L1b 落地、已归档。后续刀：**L2a 词元账号线**（零粘贴一次到位，`POST /api/v1/keys` 现成；词元卡徽章翻绿即其验收面）、**L2b 语音**（硬前置变了：openainext 429 冷却已自愈，现为上游对转写 POST 挂起 120s 超时，我方不可修；硅基 SenseVoiceSmall 实测可用但 `LanePlatform(audio)` 硬编码需改码或换 base_url——两方案待拍板）、L3 对话内 connections 工具 |
+
+### 12.16 事故：出片链 `;` 断链把私仓全历史推上公开镜像仓 + 全量轮换（2026-10-18 深夜）
+
+`make-public-snapshot --init` 被 **gitleaks 拦截**（原因=新测试文件里有字面假 `sk-` key），快照目录未生成；但我的命令链里 `git remote add … 2>/dev/null;` 后面是**分号**——`cd dist-opensource/platform` 失败后 `&&` 链本应中止，`;` 之后全部命令落回主仓执行：往主仓 `.github/workflows` 写入 image.yml、删了主仓 7 个真实 workflow、在**主仓**提交 `1458d109`、并把**主仓 main 全历史 force push 到公开仓 `scs001/platform-image-verify`**（约 10 分钟暴露窗口）。GHA 还自动构建了泄露 commit 的镜像（run 39141174893，tag `sha-1458d10` 推入 hkccr/ccr，未部署）。
+
+| 项 | 值 |
+|---|---|
+| 止损 | 本地 `git reset --hard origin/main`（origin/gitee 未被碰）；修掉 gitleaks 拦截根因（三个文件的字面假 key 改拼接构造，commit `868ee362`）；重建干净快照顶回公开仓（`40ab011`→…→`86820e6`，泄露 commit 已不在任何 ref 上）；ccr 上 `sha-1458d10` 已 skopeo delete |
+| 泄露面盘点（gitleaks 全历史 982 commits + 定向 git grep） | **真实凭据仅两处**：①台账里的词元试用账号密码（`CiyuanTrial2026!`）②10-13 提案文档里的 github_pat（**实测 401 已失效**，疑截断）。`llm-providers.json` **从未入库**（gitignore:63、无历史）——部署 key 未经此仓泄露；其余命中全是假 key/环境变量名/文档示例 |
+| 轮换（宁可多做） | ①词元部署 key（id 2）：DB UPDATE + 生产 31 个带旧值的文件**等长替换**（含各 cell `.credentials.yaml`、`/data/llm-providers.json`、app.db）+ `platform-secrets` 的 `LLM_API_KEY` patch + 双部署重启——**轮换中发现该 key 同时活在 pod env（volces 路由真源），漏了它生产聊天会断**，patch+重启后内部路由探针 200；②试用账号密码：htpasswd bcrypt（$2y→$2a 前缀转换 Go bcrypt 兼容）UPDATE users 表，新密码实测登录 200，旧密码作废；③文档两处去敏（`21ee57d9`） |
+| 教训 | ①**出片链命令禁用 `;`**——`cd` 失败必须让全链中止（本次已改为全 `&&` + `pwd`/`test ! -f llm-providers.json` 双哨兵）；②gitleaks 拦截是在救你，先修根因再出片，别绕；③轮换密钥前先 `grep -rl` 全部存在位置（env/Secret/卷/DB 四层），**pod env 是最容易漏的一层**；④假 key 一律拼接构造，别写字面量 |
+| 状态 | 已收口。GitHub 侧泄露 commit 作为 unreachable object 仍在（可发 support 请求 GC，但内容已无有效凭据，风险可忽略） |
+
+### 12.17 双刀上产：admin-layout-exempt + ciyuan-account-lane（2026-10-19 凌晨）
+
+**admin-layout-exempt**（规格变更：管理员不吃业务角色层收窄）。背景=§12.15 晚间用户报告 admin 账号管理界面消失——两层根因：测试角色留在 admin 账号（数据，已清）+ **role-system spec 明文「admin 兼任角色走角色布局」是有意设计**（v1.3.17），simple 预设裁掉整套管理面；`adminOnly` 谓词只挂 3 节救不回 models/channels/diagnostics/status。修法=核心层 `resolveLayout`：`authOn && isAdmin` 时丢弃 role 层（auth off 保持收窄，hermetic/本地预览不受影响）。
+
+**ciyuan-account-lane**（L2a：词元账号零粘贴 + 模型车道用户级计费）。服务端 login→`POST /api/v1/keys` 铸组 3（与部署 key 同组）→按身份只写存储（密码/token 用后即弃，单测断言零落盘零日志）；托管 cell 内 `ensureCredentialsStore` 第三层覆盖→下一请求按用户计费，断开/stale 回落种子；单进程不覆盖+卡面如实说明；wanxing-caller 引用账号 key 优先、手贴兜底零迁移，断开删两源；`/api/connections` 与应用中心词元卡换挂 `ciyuan-account`（旧 panel 别名保留）；LineOps 卡去 Caller 行，粘贴入口迁为逃生口。
+
+| 项 | 值 |
+|---|---|
+| 出片（三轮） | ①`40ab011`（paas `868ee362`，digest `27a3637c`，infra `903cc48`）——真机抓出**硬编码 provider id 缺陷**；②`0a4ff39`（`4d52105c`，digest `91b62d1d`，infra `9bd74b9`）——修 `CIYUAN_PROVIDER_IDS` 后又抓出**生产模型真源是 volces 环境路由**；③`86820e6`（`22785b48`，digest `762ad65b`，infra `a0f28b7`）——补 `LLM_API_KEY` 覆盖，终态。每轮 relay OK→ccr digest→双清单→ArgoCD→双 rollout 绿、imageID 全等 |
+| 两个生产真相（模块级测试测不到） | ①部署的词元 provider 叫 **`finddata-token`** 不是 `finddata`（仓内未跟踪的本地 json 与生产不同名）；②生产模型调用走 **pod env `LLM_API_KEY` + NodePort 32080 直达词元**（volces 保留路由），provider ref 那路在生产 cell 的 store 里多为空——覆盖面两者都要 |
+| 本地门 | 单测 1579/1579（新增 test-ciyuan-account 12 条：假词元 http 桩、覆盖/回落、单进程守卫、双 provider id、env 路由覆盖、legacy 优先级、脱敏 grep）；e2e ciyuan-account 6 + connections 4 + app-center 9 + layout 13 = 28/28（新增 `e2e/ciyuan-stub.js` 三端点可编程，webServer 挂 `CIYUAN_API_BASE`）；五语 parity/typecheck/lint 绿 |
+| 真机（admin） | `scripts/verify-live-admin-layout.mjs` **8/8 ALL PASS**：临时 PUT stock → resolvedLayout 三容器与无角色基线全等（nav 7 项、settings 13 节）→ 侧边栏眼见 应用/任务 在 → finally 复原 standard |
+| 真机（词元） | `scripts/verify-live-ciyuan-account.mjs` **18/18 ALL PASS**（词元 trial 账号实测）：bind → 卡/聚合/应用中心全 connected；**恰好一个 cell 的 `.credentials.yaml` 带用户 key**（值不等于种子集合判定）；词元 `api_keys` 出现 `yizuo-1da519d4-20261018` 组 3 user 93；探测 200；**绑定态聊天一句 → `usage_logs` 记到铸的 key 上（计费主体切换实证）**；断开 → revoke 提示 + cell 文件回落种子 + 徽章回 disconnected。脚本软删测试 key |
+| 教训 | ①**跨仓 id/配置要运行时探测别硬编码**（provider id 两名并存）；②真机验收三轮各抓一个「模块级全绿但生产形态不工作」的缺陷，第三次复现 §12.9 形态；③绑定触发的 dsh/mcp 热重载有秒级窗口，真机脚本发消息前要 settle；④词元 usage 异步落账，断言要轮询 |
+| 状态 | 双刀落地、可归档。词元试用账号密码已轮换（新值离线交付）。后续：L2b 语音（等词元 audio-lane-multi-upstream）、L3 对话内 connections 工具、role nav 是否加 `apps` 项待拍板 |

@@ -2,9 +2,9 @@
 
 ## 1. 实现
 
-- [ ] 1.1 `server/layout.js resolveForUser`：`facts.isAdmin === true` 时不解析 role 预设、`layers.role` 留空（其余层不动）。验证：`node --test scripts/test-layout-resolution.mjs` 新增用例绿
-- [ ] 1.2 单测 `scripts/test-layout-resolution.mjs`：① admin + `stock`（simple）→ 三容器全等于部署默认；② 同输入非 admin → simple 收窄（既有行为）；③ admin + 部署隐藏 `fleet` → 结果缺 `fleet` 其余全集；④ auth off（facts.authOn=false）+ 角色 → 不收窄。验证：四用例绿、既有用例不变
-- [ ] 1.3 e2e `e2e/layout.spec.js`：hermetic（auth off=机器所有者）下 PUT 本机身份 `primary:"stock"` 后 `/api/config.resolvedLayout.settings` 仍含 `models`、`roles`、`layout`，nav 含 `apps`、`tasks`；恢复 `standard`。验证：`npx playwright test e2e/layout.spec.js --project=fast` 绿
+- [x] 1.1 核心层 `packages/core/src/lib/surfaces.ts resolveLayout`：`facts.authOn===true && facts.isAdmin===true` 时丢弃 `layers.role`（放核心层而非 server/layout.js：它是解析规则，且与既有 adminOnly 谓词同一处判定）。验证：`node --test scripts/test-layout-resolution.mjs` 24/24 绿
+- [x] 1.2 单测 `scripts/test-layout-resolution.mjs`：① admin + simple → 三容器全等于部署默认；② 同输入非 admin → simple 收窄（既有行为）；③ admin + 部署隐藏 `tasks` → 缺 `tasks` 其余全集；④ **auth off + 角色 → 仍收窄**（本地角色预览与 hermetic e2e 依赖它，与 adminOnly「auth off 不过滤」同一哲学但方向相反——admin 判定需要 auth on 的肯定答案）；⑤ 用户层调整对豁免 admin 仍生效。验证：24/24 绿、既有 19 条 storage 用例不变
+- [x] 1.3 e2e：hermetic 为 auth off，按 1.2④ 不触发豁免，故不新增 e2e（既有 layout.spec 13 条角色收窄用例必须保持绿=回归守门）；admin 路径由单测 + 2.3 生产真机覆盖。验证：layout.spec 全绿
 
 ## 2. 本地门与发布
 

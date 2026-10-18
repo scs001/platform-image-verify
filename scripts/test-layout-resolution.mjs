@@ -122,6 +122,56 @@ test("role narrowing composes with a deployment hidden list", () => {
   assert.deepEqual(r.nav, ["chat", "agents", "tasks"]);
 });
 
+// ── Administrators are exempt from role narrowing (admin-layout-exempt) ─────
+
+test("an admin with a business role resolves to the deployment default", () => {
+  const layers = {
+    deployment: { preset: factoryPreset(FACTORY_PRESET_SLUG) },
+    role: { preset: factoryPreset("simple") },
+  };
+  const admin = resolveLayout(layers, { authOn: true, isAdmin: true });
+  assert.deepEqual(admin.nav, ALL_NAV); // desktopOnly unknown here → fleet kept (client-owned fact)
+  assert.deepEqual(admin.settings, ALL_SETTINGS);
+  assert.deepEqual(admin.agentsTabs, ALL_TABS);
+  // The same input for a non-admin still narrows to the simple skeleton.
+  const user = resolveLayout(layers, { authOn: true, isAdmin: false });
+  assert.deepEqual(user.nav, ["chat", "knowledge", "resources", "agents"]);
+  assert.equal(user.settings.includes("models"), false);
+});
+
+test("deployment hiding stays terminal for an exempt admin", () => {
+  const r = resolveLayout(
+    {
+      deployment: { preset: factoryPreset(FACTORY_PRESET_SLUG), hidden: ["tasks"] },
+      role: { preset: factoryPreset("simple") },
+    },
+    { authOn: true, isAdmin: true },
+  );
+  assert.equal(r.nav.includes("tasks"), false);
+  assert.equal(r.nav.includes("apps"), true);
+  assert.equal(r.settings.includes("models"), true);
+});
+
+test("auth off keeps role narrowing (local preview / hermetic runs)", () => {
+  const r = resolveLayout(
+    { deployment: { preset: factoryPreset(FACTORY_PRESET_SLUG) }, role: { preset: factoryPreset("simple") } },
+    { authOn: false },
+  );
+  assert.deepEqual(r.nav, ["chat", "knowledge", "resources", "agents"]);
+});
+
+test("user adjustments still apply on top for an exempt admin", () => {
+  const r = resolveLayout(
+    {
+      deployment: { preset: factoryPreset(FACTORY_PRESET_SLUG) },
+      role: { preset: factoryPreset("simple") },
+      user: { preset: { version: 1, nav: ["agents", "chat"] } },
+    },
+    { authOn: true, isAdmin: true },
+  );
+  assert.deepEqual(r.nav, ["agents", "chat"]);
+});
+
 test("user layer supplies the final relative order (reorder support)", () => {
   const r = resolveLayout({
     user: { preset: { version: 1, nav: ["tasks", "chat", "knowledge", "resources", "agents", "apps"] } },

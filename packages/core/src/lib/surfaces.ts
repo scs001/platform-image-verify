@@ -255,9 +255,17 @@ export function resolveContainer(container: SurfaceContainer, layers: LayoutLaye
 // Full resolution across containers plus the predicate/admin filter. Predicates
 // are applied LAST and absolutely: no layer can defeat them.
 export function resolveLayout(layers: LayoutLayers, facts: PredicateFacts = {}): ResolvedLayout {
+  // Administrators are exempt from business-role narrowing (admin-layout-exempt):
+  // the role preset is the non-technical skeleton for business users, and
+  // applying it to an operator hides administration surfaces the adminOnly
+  // predicate alone cannot bring back (models/channels/diagnostics carry no
+  // predicate). Only an affirmative admin answer with auth on counts; auth off
+  // keeps narrowing so local role preview and hermetic tests still see it.
+  const effective: LayoutLayers =
+    facts.authOn === true && facts.isAdmin === true ? { ...layers, role: undefined } : layers;
   const out: ResolvedLayout = { nav: [], settings: [], agentsTabs: [] };
   for (const container of SURFACE_CONTAINERS) {
-    const slugs = resolveContainer(container, layers);
+    const slugs = resolveContainer(container, effective);
     const allowed = new Set(
       registryFor(container)
         .filter((e) => predicateAllows(e, facts))

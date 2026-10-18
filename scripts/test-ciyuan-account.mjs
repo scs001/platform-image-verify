@@ -210,7 +210,7 @@ test("connect: login → mint(group 3, yizuo-* name) → stored → cell overrid
   // Hosted cell: the credential store now carries the user's key under the 词元 ref.
   assert.equal(readRefs().LLM_PROVIDER_KEY_FINDDATA, MINTED);
   assert.equal(readRefs().LLM_PROVIDER_KEY_FINDDATA_TOKEN, MINTED, "both provider ids overridden");
-  assert.equal(readRefs().LLM_API_KEY, "sk-env-llm-seed", "other refs untouched");
+  assert.equal(readRefs().LLM_API_KEY, MINTED, "reserved env route overridden too (production serves models through it)");
   const text = fs.readFileSync(credentialsPath, "utf8");
   assert.ok(!/:\s*[>|][-+]?\s*$/m.test(text), "credential-file-format invariant holds");
 
@@ -230,6 +230,7 @@ test("disconnect: local drop, override removed, seed restored (2.1 fallback)", a
   assert.equal(r.body.connected, false);
   assert.equal(readRefs().LLM_PROVIDER_KEY_FINDDATA, SEED_KEY, "seed is back");
   assert.equal(readRefs().LLM_PROVIDER_KEY_FINDDATA_TOKEN, SEED_KEY_2, "second seed is back too");
+  assert.equal(readRefs().LLM_API_KEY, "sk-env-llm-seed", "env seed restored on unbind");
 });
 
 test("connect: wrong password → 401 readable, state untouched", async () => {

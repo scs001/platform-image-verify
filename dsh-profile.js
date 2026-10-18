@@ -378,8 +378,11 @@ export async function ensureCredentialsStore(opts = {}) {
       ]);
       const userKey = ciyuanAccount.liveToken(opts.cellOwnerEmail);
       if (userKey) {
-        for (const providerId of CIYUAN_PROVIDER_IDS) {
-          const ref = envRefForProvider(providerId);
+        // The reserved env route (LLM_API_KEY) is where production actually
+        // serves models (the volces route over LLM_BASE_URL), so the override
+        // must carry it too — the env seed loop above restores it on unbind.
+        const refs = ["LLM_API_KEY", ...CIYUAN_PROVIDER_IDS.map((id) => envRefForProvider(id))];
+        for (const ref of refs) {
           if (Object.hasOwn(doc.refs, ref) && doc.refs[ref] !== userKey) {
             doc.refs[ref] = userKey;
             changed = true;

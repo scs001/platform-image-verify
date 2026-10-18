@@ -148,7 +148,9 @@ export function Composer({ send, value, onChange, focusTick = 0 }: Props) {
   };
 
   const stopTracks = () => {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current?.getTracks().forEach((track) => {
+      track.stop();
+    });
     streamRef.current = null;
   };
 
@@ -204,7 +206,9 @@ export function Composer({ send, value, onChange, focusTick = 0 }: Props) {
         recorder.onstop = null;
         if (recorder.state !== "inactive") recorder.stop();
       }
-      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current?.getTracks().forEach((track) => {
+      track.stop();
+    });
       streamRef.current = null;
     };
   }, []);

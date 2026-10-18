@@ -64,6 +64,9 @@ function tokensOf(usage) {
 }
 import { agentKeyFor, materializeAgentHome, materializePackHome, mcpEntry, packPodEligibility, podKeyFor, applyBillingKey, applyDeploymentSecrets, workspaceChildEnv } from "./compose.js";
 import { materializeAcpWorkspace, acpMcpServers, acpCredentialEnv, acpSecretsRefusal } from "./compose-acp.js";
+import { MemoryCapture } from "./memory-capture.js";
+import { MEMORY_DISCIPLINE } from "./memory-discipline.js";
+import { dshMemoryMount, acpMemoryMount } from "./memory-mount.js";
 
 // Cold-start respawn escalation (fix-agent-serving-stability 2.2): after the
 // child's own initialize retries are exhausted, the manager retries the
@@ -112,7 +115,18 @@ export class ChildManager {
   #listeners = new Map(); // agentKey → http server (per-agent port, upstream #1734)
   #quotaAlerted = new Set(); // workspace over-quota episodes already reported
   #spawnFailures = new Map(); // agentKey → consecutive exhausted cold-start cycles (2.2)
+  // Per-deployment memory tokens (add-fleet-memory-v1): the runner token is
+  // capture-only, so the agent-side MCP mount uses a deployment-scoped token
+  // minted by the service at first spawn and cached here.
+  #memoryTokens = new Map();
+
   constructor({ config, registryClient, clientFactory, log = console, now = () => Date.now(), notifyFetchImpl, events = null, harnessRegistry = null }) {
+    // Fleet memory (add-fleet-memory-v1 D6): null unless enabled+configured —
+    // every memory touch below is inert by construction when this is null.
+    this.memory = config.memoryEnabled && config.memoryUrl && config.memoryToken
+      ? new MemoryCapture({ url: config.memoryUrl, token: config.memoryToken, log })
+      : null;
+
     this.config = config;
     this.registryClient = registryClient;
     this.clientFactory = clientFactory;
@@ -781,6 +795,7 @@ export class ChildManager {
           outcome: "ok",
           ...(() => { const t = tokensOf(out?.usage); return t == null ? {} : { tokens: t }; })(),
         });
+        this.#memoryObserve(entry, sessionId, kind, "ok", tokensOf(out?.usage), this.now() - startedAt);
         return out;
       } catch (e) {
         // Budget kill (add-serving-budgets D3): the child's timeout marker
@@ -802,6 +817,7 @@ export class ChildManager {
           outcome: "error",
           budget_killed: budgetKilled || undefined,
         });
+        this.#memoryObserve(entry, sessionId, kind, "error", null, this.now() - startedAt);
         if (budgetKilled) {
           this.#fleetEmit("budget_killed", entry, { turn_kind: kind, duration_ms: this.now() - startedAt });
           this.#hardStopOnBudget(key, child);
@@ -811,6 +827,51 @@ export class ChildManager {
     } finally {
       release?.();
     }
+  }
+
+  // Fleet memory helpers (add-fleet-memory-v1): the MCP mount row for both
+  // harness composition paths and the turn-observation enqueue. The mount is
+  // appended AFTER the descriptor's own MCP rows — fd-memory rides beside
+  // registry servers under the same token-resolution discipline.
+  async #memoryMountToken(entry) {
+    const packId = entry?.metadata?.packId;
+    const agentId = entry?.name ?? entry?.metadata?.agentId;
+    if (!packId || !agentId) return null;
+    const ns = `d/${packId}/${agentId}`;
+    if (this.#memoryTokens.has(ns)) return this.#memoryTokens.get(ns);
+    try {
+      const res = await fetch(`${this.config.memoryUrl}/admin/mint`, {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${this.config.memoryToken}` },
+        body: JSON.stringify({ namespace: ns, label: `runner:${this.config.fleetRunnerId ?? "runner"}` }),
+      });
+      if (!res.ok) throw new Error(`mint HTTP ${res.status}`);
+      const { token } = await res.json();
+      this.#memoryTokens.set(ns, token);
+      return token;
+    } catch (e) {
+      // Fail-open: no memory mount for this spawn; turns are unaffected.
+      this.log.warn(`[agent-runner] memory token mint failed for ${ns} — spawning without the memory mount: ${e.message}`);
+      return null;
+    }
+  }
+
+  #memoryDiscipline() {
+    return this.memory ? MEMORY_DISCIPLINE : null;
+  }
+
+  #memoryObserve(entry, sessionId, kind, outcome, tokens, durationMs) {
+    if (!this.memory) return;
+    try {
+      const packId = entry?.metadata?.packId;
+      const agentId = entry?.name ?? entry?.metadata?.agentId;
+      if (!packId || !agentId) return;
+      this.memory.observe({
+        namespace: `d/${packId}/${agentId}`,
+        sessionId,
+        summary: `${kind} turn ${outcome}${tokens != null ? ` tokens=${tokens}` : ""} (${Math.round(durationMs)}ms)`,
+      });
+    } catch { /* capture is never load-bearing for a turn */ }
   }
 
   // Over-budget hard stop (add-serving-budgets D3, ADR-0014 ④): the child is
@@ -874,6 +935,10 @@ export class ChildManager {
     const mcpServers = (descriptor.mcpServers ?? []).map((name) =>
       mcpEntry(name, { url: this.registryClient.mcpUrlFor(name), token: config.registryToken }),
     );
+    if (this.memory) {
+      const memoryToken = await this.#memoryMountToken(entry);
+      if (memoryToken) mcpServers.push(dshMemoryMount(`${this.config.memoryUrl}/mcp`, memoryToken));
+    }
     const spec = await materializeAgentHome({
       homeRoot: config.homeRoot,
       agentKey: key,
@@ -881,6 +946,7 @@ export class ChildManager {
       skillContents,
       mcpServers,
       mcpTools: descriptor.mcpTools ?? null,
+      memoryDiscipline: this.#memoryDiscipline(),
       seedHome: config.seedHome,
     });
     // Per-agent billing key (add-agent-platform-ops D2): fetch by reference
@@ -1016,12 +1082,17 @@ export class ChildManager {
       skillContents[p] = await this.registryClient.fetchSkillContent(p);
     }
     const mcpServers = acpMcpServers(descriptor.mcpServers ?? [], this.registryClient, config.registryToken);
+    if (this.memory) {
+      const memoryToken = await this.#memoryMountToken(entry);
+      if (memoryToken) mcpServers.push(acpMemoryMount(`${config.memoryUrl}/mcp`, memoryToken));
+    }
     const spec = materializeAcpWorkspace({
       homeRoot: config.homeRoot,
       agentKey: key,
       entry,
       skillContents,
       harnessName,
+      memoryDiscipline: this.#memoryDiscipline(),
       log: this.log,
     });
     if (descriptor.mcpTools && typeof descriptor.mcpTools === "object" && Object.keys(descriptor.mcpTools).length > 0) {
@@ -1186,7 +1257,11 @@ export class ChildManager {
       homeRoot: config.homeRoot,
       packId: route.packId,
       memberSpecs,
+      // v1 note: pod homes share one MCP patch, but memory tokens scope to a
+      // single deployment namespace — pod members keep platform-seam capture
+      // only; the agent-side mount arrives with per-member MCP patches later.
       mcpServers: [...mcpRows.values()],
+      memoryDiscipline: this.#memoryDiscipline(),
       seedHome: config.seedHome,
     });
     for (const [key, face] of faces) face.presetId = spec.presetIds.get(key) ?? null;

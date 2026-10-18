@@ -153,6 +153,11 @@ export function loadConfig(env = process.env) {
     // packs co-host (billing-key/secret/persona/notify-channel gates fall back
     // to solo per member, never refusing a deployment).
     podMode: env.AGENT_RUNNER_POD_MODE === "1",
+  // Fleet memory (add-fleet-memory-v1): platform-seam capture + MCP mount.
+  // Default off — byte-identical runner behavior until explicitly enabled.
+  memoryEnabled: env.AGENT_RUNNER_MEMORY_ENABLED === "1",
+  memoryUrl: String(env.AGENT_RUNNER_MEMORY_URL || "").replace(/\/+$/, ""),
+  memoryToken: env.AGENT_RUNNER_MEMORY_TOKEN || "",
     // A pod's warm-zone planning floor (M2 measurement: boot peak 172-185MB,
     // settled 89-116MB — idle sessions cost ≈0 marginal). Counts ONCE per pod,
     // never per member.

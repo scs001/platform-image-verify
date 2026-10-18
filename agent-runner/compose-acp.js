@@ -43,7 +43,7 @@ export function acpLayoutFor(harnessName) {
 // { workspace, dataDir, dataQuotaMb, unmapped, layout } — `unmapped` names
 // the declared content parts that found no native mapping (bare layouts
 // only; a mapped layout either lands content or throws).
-export function materializeAcpWorkspace({ homeRoot, agentKey, entry, skillContents, harnessName, log = console }) {
+export function materializeAcpWorkspace({ homeRoot, agentKey, entry, skillContents, harnessName, memoryDiscipline = null, log = console }) {
   const descriptor = entry.metadata ?? {};
   const workspace = path.join(homeRoot, "ws", agentKey);
   ensureHomeOwnership(workspace);
@@ -81,7 +81,7 @@ export function materializeAcpWorkspace({ homeRoot, agentKey, entry, skillConten
   const name = entry.name || descriptor.agentName || null;
   const persona = descriptor.persona || name;
   if (persona) {
-    writeFileSync(path.join(workspace, "CLAUDE.md"), `${persona}${SERVING_SUFFIX}`);
+    writeFileSync(path.join(workspace, "CLAUDE.md"), `${persona}${SERVING_SUFFIX}${memoryDiscipline ?? ""}`);
   } else {
     log.warn(`[agent-runner] no persona for ${agentKey}; the ACP harness runs on its bare preset`);
   }

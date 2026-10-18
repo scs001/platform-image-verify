@@ -92,7 +92,7 @@ export function ensureHomeOwnership(home, log) {
 // registry agent entry; the descriptor is entry.metadata. `skillContents`
 // maps descriptor.skills paths → SKILL.md bodies (fetched by the caller).
 // Returns { home, presetId, patchPaths } — the spawn inputs for the child.
-export async function materializeAgentHome({ homeRoot, agentKey, entry, skillContents, mcpServers, mcpTools = null, seedHome }) {
+export async function materializeAgentHome({ homeRoot, agentKey, entry, skillContents, mcpServers, mcpTools = null, memoryDiscipline = null, seedHome }) {
   const descriptor = entry.metadata;
   const home = path.join(homeRoot, agentKey);
   const profileDir = path.join(home, "profiles", "platform");
@@ -157,7 +157,7 @@ export async function materializeAgentHome({ homeRoot, agentKey, entry, skillCon
           name: name || presetId,
           description: entry.description || name || presetId,
           order: 60,
-          persona: `${persona}\n\nYou are serving as a standing A2A agent service; answer in text.`,
+          persona: `${persona}\n\nYou are serving as a standing A2A agent service; answer in text.${memoryDiscipline ?? ""}`,
         },
       ];
     } else {
@@ -425,7 +425,7 @@ export function packMemberPresetId(entry) {
 // does for solo children, and this writer stays fetch-free.
 // Returns { home, presetIds: Map<agentKey, presetId>, patchPaths, skillsRoot,
 // dataDir, dataQuotaMb }.
-export async function materializePackHome({ homeRoot, packId: _packId, memberSpecs, mcpServers, seedHome }) {
+export async function materializePackHome({ homeRoot, packId: _packId, memberSpecs, mcpServers, memoryDiscipline = null, seedHome }) {
   if (!memberSpecs?.length) throw new Error("materializePackHome requires at least one memberSpec");
   const first = memberSpecs[0].entry;
   const descriptor = first.metadata;
@@ -499,7 +499,7 @@ export async function materializePackHome({ homeRoot, packId: _packId, memberSpe
       name: name || presetId,
       description: entry.description || name || presetId,
       order: 60,
-      persona: `${persona}\n\nYou are serving as a standing A2A agent service; answer in text.`,
+      persona: `${persona}\n\nYou are serving as a standing A2A agent service; answer in text.${memoryDiscipline ?? ""}`,
     });
   }
 

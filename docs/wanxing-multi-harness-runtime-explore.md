@@ -277,7 +277,12 @@ manifest/安装流程必须为 peer 时代重写。
    Claude Agent SDK 读 env `ANTHROPIC_API_KEY` → `AGENT_RUNNER_ACP_ENV` 注入，
    非文件通道）。心跳 runner_stats 增 `harness` 自报 + 部署门同形（HARNESS_NOT_HOSTED）。
    单测 18+60 绿、**合同⑰ 两轮 17/17 绿**、lint 18 名单绿。
-4. **谦面物化器**（pack 清单→各 harness 布局映射，与 3 在映射处会合）。
+4. ~~**谦面物化器**（pack 清单→各 harness 布局映射，与 3 在映射处会合）。~~ ✅ **2026-10-15
+   完结（change add-harness-materializer）**：harness 感知组合分派（dsh 路径字节级零变化）+
+   `materializeAcpWorkspace`（persona→工作区 CLAUDE.md、skills→`.claude/skills/`、MCP 经
+   `session/new` 透传 streamable-http、deployment secrets fail-closed、未知 ACP harness 裸降级
+   显式 warn）；谦面 CLI 五 target（claude-code/cursor/zcode/codex/gemini-cli）本地安装成品复用。
+   v1 布局表仅 acp-claude-code。**至此本线五切片全部完结。**
 5. **萬星管理面统一**（短期/常驻统一舰队视图；先解「甲/乙读法」未决问题）。
    **2026-10-15 立项+实施+生产实证（change unify-wanxing-management-plane + 姊妹仓
    fd-wanxing add-fleet-cell-views）——本线全部切片完结**：甲/乙定案（管理=甲只覆盖

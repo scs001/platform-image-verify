@@ -157,7 +157,12 @@ export const FACTORY_PRESETS: PresetCatalog = {
   },
   simple: {
     version: 1,
-    nav: ["chat", "knowledge", "resources", "agents"],
+    // `apps` rides in the non-technical skeleton too: the app center is the
+    // discovery surface and the connection entry (every card's 去连接, the
+    // 词元 account binding), and the business-role recipes are exactly the
+    // users who must reach it (role-nav-apps, 2026-10-18). `tasks`/`fleet`
+    // stay technical.
+    nav: ["chat", "knowledge", "resources", "agents", "apps"],
     // `connections` rides in the non-technical skeleton: it is where a user
     // makes their tools and search work at all, and the business-role recipes
     // (legal/stock/economic) all resolve to this preset. Leaving it out made

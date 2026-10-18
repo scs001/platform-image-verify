@@ -87,7 +87,7 @@ test("resolveForUser composes deployment + role + user layers", () => {
     },
   });
   const { layout } = resolveForUser({ db, env: {}, roles: { primary: "legal", secondary: [] } });
-  assert.deepEqual(layout.nav, ["chat", "knowledge", "resources", "agents"]);
+  assert.deepEqual(layout.nav, ["chat", "knowledge", "resources", "agents", "apps"]);
   // `connections` is part of the simple skeleton — business-role users need
   // it to make tools/search work (2026-10-18).
   assert.deepEqual(layout.settings, ["general", "account", "wechat-app", "devices", "connections"]);

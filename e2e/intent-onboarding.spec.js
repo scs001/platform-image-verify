@@ -240,8 +240,9 @@ test.describe("intent onboarding", () => {
 
     const cfg = await api("/api/config", { cookie: newUserCookie });
     expect(cfg.json.roles.primary).toBe("legal");
-    // legal's recipe rides the simple preset through the layout chain.
-    expect(cfg.json.resolvedLayout.nav).toEqual(["chat", "knowledge", "resources", "agents"]);
+    // legal's recipe rides the simple preset through the layout chain
+    // (`apps` included since role-nav-apps).
+    expect(cfg.json.resolvedLayout.nav).toEqual(["chat", "knowledge", "resources", "agents", "apps"]);
   });
 
   test("the questionnaire does not come back after answering", async ({ page, context }) => {

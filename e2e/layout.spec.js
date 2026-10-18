@@ -202,7 +202,7 @@ test.describe("workbench layout (logto mode)", () => {
     expect(put.json.defaultPreset).toBe("simple");
 
     const cfg = await api("/api/config", { cookie: userCookie });
-    expect(cfg.json.resolvedLayout.nav).toEqual(["chat", "knowledge", "resources", "agents"]);
+    expect(cfg.json.resolvedLayout.nav).toEqual(["chat", "knowledge", "resources", "agents", "apps"]);
     // `connections` belongs to the non-technical skeleton: the business-role
     // recipes (legal/stock/economic) all resolve to this preset, and it is
     // where those users make tools/search work at all. Dropping it made the
@@ -224,8 +224,10 @@ test.describe("workbench layout (logto mode)", () => {
     await expect(page.getByTestId("sidebar")).toBeVisible();
     await expect(page.getByTestId("nav-chat")).toBeVisible();
     await expect(page.getByTestId("nav-agents")).toBeVisible();
+    // `apps` rides in the simple skeleton (role-nav-apps): the app center is
+    // the connection entry business users must reach.
+    await expect(page.getByTestId("nav-apps")).toBeVisible();
     // Narrowed away by the simple preset.
-    await expect(page.getByTestId("nav-apps")).toHaveCount(0);
     await expect(page.getByTestId("nav-tasks")).toHaveCount(0);
   });
 

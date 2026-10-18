@@ -185,9 +185,14 @@ The server SHALL cache each source's fetched data with a TTL of at most 1 hour a
 
 ### Requirement: Shelf visibility without a feature flag
 
-The external shelf tab SHALL be visible by default in the extensions market surface. There SHALL be no separate feature flag gating its presence; operators who need it gone disable the sources via `EXTERNAL_SKILL_SOURCES` (which empties the shelf) or roll back the deployment.
+The external shelf SHALL render by default as the **外部市场** zone inside the Market tab of the extensions surface, visible in the skills sub-view (per `extension-management-ui`). There SHALL be no separate feature flag gating its presence; operators who need it gone disable the sources via `EXTERNAL_SKILL_SOURCES` (which empties the shelf) or roll back the deployment.
 
 #### Scenario: default visibility
 
-- **WHEN** a user opens the extensions market surface
-- **THEN** the external-source tab is present alongside the existing MCP and skills tabs without any server-side flag being set
+- **WHEN** a user opens the Market tab in the skills sub-view of the extensions surface
+- **THEN** the external-market zone is present without any server-side flag being set
+
+#### Scenario: absent from the tools sub-view
+
+- **WHEN** a user opens the Market tab in the tools (mcp) sub-view
+- **THEN** no external-market zone is rendered there

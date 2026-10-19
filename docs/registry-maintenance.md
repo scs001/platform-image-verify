@@ -763,3 +763,20 @@ Default dnsPolicy 无 cluster DNS；fd-memory 重建=IP 变，两清单注释互
 | ③ | mihomo 代理凭据 | 早前读 secret 时 | 用户按需轮换 |
 
 ①②均为**生产可用的活凭据**，建议优先处置；轮换后 runner/pod 需重启一次。
+
+#### 轮换执行记录（2026-10-19 傍晚）
+
+| 对象 | 动作 | 结果 |
+|---|---|---|
+| fd-memory `runner-serving` 根令牌（id `e3d11be7…`） | 吊销 + 重铸 `runner-serving-20261019`（id `27514b72…`），新令牌写入 secret `fd-memory-runner` 并 `rollout restart` | 旧 401/新 200 双向实证；runner pod 已用新 secret 起 |
+| fd-memory 9 枚 `runner:runner-serving` deployment 令牌 | 全部吊销（含 patch 里露出的 `fdm_950bed` / `fdm_784053a1` / `fdm_cc51384c`） | 吊销后从 pod 内查 `tokens.db` 计数确认；`/data/packs-*/profiles/platform/mcp.patch.yml` 已删（含旧令牌副本） |
+| 本机复验探针铸的 4 枚 `reverify` person 令牌 | 吊销 + `u-reverify@finddata.cloud` 数据目录删除 | 已清 |
+
+**设计缺口（记 fd-memory v1.1）**：runner 的 `#memoryTokens` 内存缓存**没有失效路径**——令牌吊销后
+已缓存值仍会被写进新 patch。当前靠「删 patch + 重启 pod（缓存随进程消失）」达成，属于运维绕行，
+不是产品能力。v1.1 应加：mint 失败（401/403）时清缓存重试一次，或给缓存加 TTL。
+
+**patch 惰性重建**：清掉 `mcp.patch.yml` 后不会立即重建，要等下一次真实 spawn（部署 rollover
+或新回合触发 dsh 拉起）——期间该 agent 无记忆挂载（fail-open，不影响回合本身）。
+
+**仍未处置（需用户/持键方）**：sub2api 调用键 `sk-7e05…`（api_key_id=31）、mihomo 代理凭据。

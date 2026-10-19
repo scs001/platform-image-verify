@@ -825,3 +825,39 @@ A 流中切到 B → A 未被取消、自然收尾；B 提交得到 `queued{posi
 
 **未覆盖**：公网多用户/多 Tab 浏览器态（网关只认 Logto cookie / 小程序 Bearer，验收走 cell 内部
 身份通道）；cron 任务期间的排队（单测覆盖，未跑真实定时任务）。
+
+## §10 发布记录：萬星控制台黑屏 + 消耗表错位（fix-wanxing-console-ux，2026-10-20）
+
+**谱系**：fd-wanxing `640d98d`（= `4df9b53` 空提交）→ 快照 tag `sha-b90bdc0`
+（testaction002/build-pool，run `39299104556`）→ `ccr.ccs.tencentyun.com/yizuo/wanxing-web:sha-b90bdc0`，
+ccr 侧 9 层 / 无 `FLEET_ENTRY`（确认是 nginx 静态镜像，非 facade）。GitOps `fd-infra-deploy` `37e99f1`
+（`all-services/prod/wanxing-web.yaml`），ArgoCD hard-refresh 后 2/2 ready。
+
+**黑屏根因**（用户报的是 `#/console`，不是 Logto 页）：带 token 进控制台时 `FleetView` 对后端响应
+做无保护深层读取（`stmt.usage.planMinutes`、`earn.totals.settledUsd`），任一字段缺失即抛 `TypeError`，
+无错误边界时 React **卸载整棵树** → root 子元素归零，深色底即一整屏黑。实测崩溃是「顺序暴露」的：
+修掉一处只是让崩溃挪到下一处（缺 usage → 崩 planMinutes；补上 usage → 崩 settledUsd）。故修法双管：
+深层读取全部改可选链（约 15 处）+ `ConsoleView` 加控制台级 React 错误边界。
+
+**表格错位根因**：`StatsView` 两张表的「口径」列缺 `truncate`（相邻 agent/pack 列都有）。但**实测证明
+只补 truncate 不够**：auto 布局下列宽仍随内容漂移（口径列 195px vs 188px），表头表身因此对不齐。
+最终方案 = `table-fixed` + `colgroup` 固定列宽（宽度成为布局属性而非数据属性）+ 口径列保持完整可见
+（短且固定词汇，截断等于换了种看不清）+ 外层 `overflow-x-auto` + `min-w` 兜底（窄屏宁可滚动不压字）。
+
+**生产验收**：8/8 全绿（未登录登录卡 / 缺 usage 不黑屏 / 缺 totals 不黑屏 / 表不溢出卡片 /
+表头表身对齐 / 口径列完整可见 / 长文本截断 / 三口径标注在）。本地另有 29 项（三档视口）+ 突变测试：
+用 git 原版跑同一套断言，6 项变红（含 768 下表格 531px 撑出 360px 卡片），证明断言有效。
+**未覆盖**：4.2 真实账号登录（需用户本人执行；已用注入 token + 生产 bundle 验证不黑屏）。
+
+**出片踩坑（三条，都会复发）**：
+1. **`fd-build-snapshot` 的 clone 源是 `origin`，不是本地工作树**——先推 `mirror` 再出片，构建的是
+   **旧代码**（首轮 run 5 秒即终其实是额度问题；但内容错是另一回事：快照里 `grep` 三个修复标记全 0）。
+   出片前必须确认 `origin/master` 已含修复。
+2. **通用池的 `BUILD_DOCKERFILE` 变量会被抹掉**——脚本只设 `BUILD_NAMESPACE`/`BUILD_IMAGE`，
+   `BUILD_DOCKERFILE` 在某次快照后被清空，构建静默回落到根 `Dockerfile`（facade），
+   于是「wanxing-web」镜像里跑的是 facade：`FLEET_ENTRY=facade`、11 层、80 端口拒绝连接。
+   **判据：镜像层数 + 有无 `FLEET_ENTRY` env**；`Dockerfile.web` 应为 9 层无该 env。
+   dispatch 前务必重设变量并核 `Resolve target` 步的 `DF=` 行。
+3. **同 tag 重推 + `IfNotPresent` = 吃坏缓存**——tag 被覆盖后节点拒绝重新拉取，Pod 一直 `0/1`。
+   本次把 `wanxing-web.yaml` 的 `imagePullPolicy` 改为 `Always`（同名 tag 覆盖是真实存在的场景）。
+   另注：relay 是 tag 级去重，同 tag 重推需手动 `skopeo copy` 补（claude 记忆里已有此条）。

@@ -937,3 +937,32 @@ fd-build-snapshot 不设 BUILD_DOCKERFILE 是工具缺口待修。
 
 **顺带**：lint 在 main 上本来就红一条（cell-memory.js:12 unused import，c58f07fb 带入；
 image.yml 不跑 lint 不挡出片）；agent-runner 节点 liuliangth1zdmvyyvr0（100.64.0.11）NotReady 待查。
+
+## §9 发布记录：多对话真并发上产 + dsh 升级否决（flip-turn-dispatch-concurrent，2026-10-20）
+
+**用户诉求**：两个对话同时进行（此前为排队）。**实施 = env-only 翻转**，镜像不变（仍
+sha-73c912d）：platform.yaml 加 `TURN_DISPATCH=concurrent` + `DSH_MATRIX_CLOSE_INTERLEAVE=1`
+（GitOps `1a74070`），pod `platform-74fd7987f4-pgzth` rollout 绿、env 实证；cell 由 gateway
+逐 spawn 继承。**回滚 = env 改 `queue`（分钟级，无镜像）**，排队 UI 全保留为回退面。
+
+**为什么不是版本升级（重要否决记录）**：dsh 0.2.1-rc.2（npm latest）全量合同 **8/17**——
+④ 凭据热重载真回归（轮换凭据不再逐请求生效）、级联 ⑦⑧⑨⑩⑯、⑫ `subagents.start` API
+变面、⑮ delta lane 死。按矩阵纪律不能跟。锁 0.2.0-rc.2。
+
+**证据链（当晚核心工作，全部入册）**：
+1. **旧证据作废**：2026-10-19「⑨b 5/5 PASS」系空转绿——[HOLD] park 的是**标题生成 side
+   call**，会话回合从未被 park（d45c8e43 勘误入 dsh-matrix/README.md）。
+2. **rc.2 请求协议三分类**：每回合发会话/上下文维护（"Current runtime context…"）/标题三类
+   LLM 请求；不建模做不出诚实 dummy ⑨b → 合同路线搁置，⑨b 保持 advisory。
+3. **真 cell 实验全绿**（生产 pod 临时 cell + 真 volces 路由 + concurrent）：对称 8/8（双
+   agent_start 互相落在对方 done 前）+ 非对称 6/6（短回合在长回合内开闭＝原始「收尾不交
+   错」形状不复现）+ sanity。详见 change `notes/evidence.md`。
+4. **生产验收**：用户真 cell 双连接并发 prompt——A 9198ms / B 5626ms 重叠、无 queued、无
+   error；测试会话已删。
+
+**change 已归档**（archive/2026-10-20-flip-turn-dispatch-concurrent，主 spec 已同步，
+validate --specs 160/0）。
+
+**顺带观察**：AGENTS_CONFIG_URL 从生产节点间歇性超时仍在持续（分钟级轮询多次失败，
+last-good 缓存在兜底——昨晚的目录修复正在实战生效）；agent-runner 节点
+liuliangth1zdmvyyvr0（100.64.0.11）NotReady 待查。

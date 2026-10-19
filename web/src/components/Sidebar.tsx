@@ -28,6 +28,7 @@ import {
   FolderOpen,
   FolderPlus,
   LayoutGrid,
+  Loader2,
   MessageSquare,
   PanelLeftClose,
   Search,
@@ -755,6 +756,10 @@ function SessionRow({
   onContextMenu: (el: HTMLElement) => void;
 }) {
   const { t, i18n } = useTranslation();
+  // A background turn's state (concurrent-chat-sessions): the row must show a
+  // run the user is NOT looking at, so this reads the server's per-session
+  // `turnStatus` rather than the viewed session's own isStreaming.
+  const turnStatus = s.turnStatus ?? null;
   return (
     <button
       ref={registerRef}
@@ -762,6 +767,7 @@ function SessionRow({
       data-session-id={s.id}
       data-current={isCurrent ? "true" : "false"}
       data-unseen={unseen ? "true" : "false"}
+      data-turn-status={turnStatus ?? "idle"}
       onClick={onOpen}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -784,6 +790,20 @@ function SessionRow({
             className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary"
             data-testid="session-unread-dot"
             aria-label={t("sidebar.unread")}
+          />
+        )}
+        {turnStatus === "running" && (
+          <Loader2
+            className="h-3 w-3 shrink-0 animate-spin text-muted-foreground"
+            data-testid="session-running"
+            aria-label={t("sidebar.running")}
+          />
+        )}
+        {turnStatus === "queued" && (
+          <Clock
+            className="h-3 w-3 shrink-0 text-muted-foreground"
+            data-testid="session-queued"
+            aria-label={t("sidebar.queued")}
           />
         )}
         <span className="truncate text-foreground">{s.title || t("sidebar.untitled")}</span>

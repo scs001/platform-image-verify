@@ -74,7 +74,9 @@
     "projectNamePlaceholder": "p. ej. Informe trimestral",
     "useExistingFolder": "Elegir una carpeta existente…",
     "createProject": "Crear proyecto",
-    "backToNewProject": "← Nuevo proyecto"
+    "backToNewProject": "← Nuevo proyecto",
+    "running": "Respondiendo",
+    "queued": "Mensaje en cola"
   },
   "modelsPage": {
     "title": "Modelos",
@@ -322,7 +324,11 @@
     "artifactStrip": {
       "title": "Archivos de este turno",
       "saved": "En la biblioteca"
-    }
+    },
+    "queuedBehind": "Esperando a que termine «{{title}}»",
+    "queuedIdle": "Esperando a que el asistente esté libre",
+    "queuedCancel": "Cancelar",
+    "queuedPreempt": "Detenerlo y ejecutar esto ahora"
   },
   "turn": {
     "assistantName": "{{assistant}}",
@@ -418,7 +424,9 @@
     "cannotDeleteActive": "Cambia a otra sesión primero",
     "deleteFailed": "Error al eliminar: {{error}}",
     "clear": "Vaciar",
-    "cannotClearInactive": "Cambia primero a este chat"
+    "cannotClearInactive": "Cambia primero a este chat",
+    "cannotDeleteRunning": "Esta conversación sigue en ejecución",
+    "cannotDeleteQueued": "Esta conversación tiene un mensaje en cola"
   },
   "documents": {
     "title": "Biblioteca",

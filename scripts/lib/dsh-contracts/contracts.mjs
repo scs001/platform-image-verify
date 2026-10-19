@@ -1450,6 +1450,63 @@ async function contractPodCoHost(ctx) {
   );
 }
 
+// ── Contract ⑨b (concurrent-chat-sessions): close-under-concurrency ──────────
+//
+// ADVISORY, not a gate. ⑨ proves the weaker property (B dispatches while A is
+// parked); this one asks the strict question the platform's `concurrent`
+// dispatch policy would depend on: with BOTH sessions open and one parked,
+// release the parked request and let both turns reach idle WITHOUT any cancel.
+//
+// On the frozen matrix (0.2.0-rc.2) this is expected to FAIL — turn close
+// starves while another session's request is parked (wire-dsh-live-runtime-
+// control design, Risks). That is exactly why the row is advisory: a red here
+// must not turn the suite's verdict red, or `dsh:contracts` could never be
+// green on the matrix we ship. A GREEN row is the evidence a future dsh-upgrade
+// change needs to flip TURN_DISPATCH's default to `concurrent`.
+async function contractMultiSessionCloseInterleave(ctx) {
+  requireHandshake(ctx);
+  const A = "contracts-interleave-a";
+  const B = "contracts-interleave-b";
+  // BOTH turns park at the dummy — that is the state the platform's
+  // `concurrent` policy would create, and the only state in which "close
+  // interleaves with another session's parked request" is actually asked.
+  // (A one-sided hold passes trivially: B finishes its turn while A is parked,
+  // so A's later close has nothing to starve on. Measured 6/6 green that way —
+  // a false green this contract must not accept.)
+  await ctx.client.prompt(A, [{ type: "text", text: "interleave A [HOLD]" }]);
+  await pollUntil(() => (ctx.dummyLlm.heldCount() >= 1 ? true : null), { timeoutMs: 15_000, intervalMs: 300 });
+  await ctx.client.prompt(B, [{ type: "text", text: "interleave B [HOLD]" }]);
+  await pollUntil(() => (ctx.dummyLlm.heldCount() >= 2 ? true : null), { timeoutMs: 20_000, intervalMs: 300 });
+
+  const statuses = () => `A:${lastStatus(ctx, A) ?? "none"} B:${lastStatus(ctx, B) ?? "none"}`;
+  // Precondition evidence is the DUMMY's held queue, not session.status: held
+  // count 2 means both prompts actually reached the adapter and are parked
+  // mid-request, which is the state under test. (`lastStatus` is the latest
+  // reported transition and can read "idle" from a short-lived in-child turn
+  // boundary — it is not proof of a live run here.)
+  if (ctx.dummyLlm.heldCount() < 2) {
+    throw new Error(`both sessions must have a parked request before release (held=${ctx.dummyLlm.heldCount()})`);
+  }
+  // Let both requests through; the question is whether BOTH turns can close
+  // while the other's request is still settling.
+  ctx.dummyLlm.release();
+
+  const bothIdle = await pollUntil(
+    () => (lastStatus(ctx, A) === "idle" && lastStatus(ctx, B) === "idle" ? true : null),
+    { timeoutMs: 20_000, intervalMs: 300 },
+  ).catch(() => null);
+  if (!bothIdle) {
+    // Cleanup so the rest of the suite starts from a quiet child.
+    for (const sid of [A, B]) {
+      if (lastStatus(ctx, sid) !== "idle") {
+        try { await ctx.client.request("session/cancel", { sessionId: sid }); } catch { /* best-effort */ }
+      }
+    }
+    throw new Error(`turn close did not interleave without a cancel (${statuses()})`);
+  }
+  return "both turns closed without a cancel — close-under-concurrency holds";
+}
+
 // ── The table ────────────────────────────────────────────────────────────────
 
 export const CONTRACTS = [
@@ -1462,6 +1519,14 @@ export const CONTRACTS = [
   { id: "live-model-set", title: "⑦ live model/set (step-safe switch)", run: contractLiveModelSet },
   { id: "session-cancel", title: "⑧ session/cancel (abort + converge)", run: contractSessionCancel },
   { id: "multi-session-concurrency", title: "⑨ multi-session concurrency", run: contractMultiSessionConcurrency },
+  {
+    id: "multi-session-close-interleave",
+    title: "⑨b close-under-concurrency (advisory)",
+    run: contractMultiSessionCloseInterleave,
+    // Printed and reported, never counted: the frozen matrix fails this by
+    // known upstream limitation, and a gate that is always red is no gate.
+    advisory: true,
+  },
   { id: "preset-session-selection", title: "⑩ per-session preset selection", run: contractPresetSessionSelection },
   { id: "per-agent-tool-scope", title: "⑪ per-agent tool-restriction scope", run: contractPerAgentToolScope },
   { id: "subagent-oneshot-slots", title: "⑫ subagent one-shot + slot admission", run: contractSubagentOneShotSlots },

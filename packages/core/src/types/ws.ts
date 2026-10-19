@@ -125,6 +125,15 @@ export type ServerMessage =
   // is taken by the message discriminator.
   | { type: "resources_changed"; action: "created" | "renamed" | "deleted"; id: string; resourceType: string }
   | { type: "sessions"; sessions: SessionMeta[]; current?: string }
+  // A prompt was accepted while the runtime is busy (concurrent-chat-sessions).
+  // Sent to the session's viewers before any user echo — a queued prompt is not
+  // yet history. `waitingOn` names the web session whose turn is open, or null
+  // when the runtime is busy on a non-web lane (a scheduled task or a bot).
+  | { type: "queued"; sessionId: string; text: string; position: number; waitingOn: { id: string; title: string | null } | null }
+  // The queue entry resolved: "dispatched" hands off to the normal user echo →
+  // agent_start sequence; "cancelled" means it never ran (the client hands the
+  // text back to the composer).
+  | { type: "dequeued"; sessionId: string; reason: "dispatched" | "cancelled" }
   | { type: "session_changed"; id: string }
   | {
       type: "session_loaded";
@@ -139,6 +148,11 @@ export type ServerMessage =
       // before.
       running?: boolean;
       turnEvents?: TurnEvent[];
+      // A prompt is queued behind another session's turn
+      // (concurrent-chat-sessions): the client restores the pending bubble from
+      // this instead of from the transcript, since a queued prompt is never a
+      // history row. Absent/null = nothing queued for this session.
+      queued?: QueuedTurn | null;
     }
   | { type: "session_renamed"; id: string; title: string }
   | { type: "cron_jobs"; jobs: CronJob[] }
@@ -323,6 +337,16 @@ export interface AskAnswerItem {
   custom?: string;
 }
 
+// A prompt waiting behind another session's turn (concurrent-chat-sessions):
+// carried by `queued` and by session_loaded.queued, and rendered as a pending
+// bubble. `position` is 1-based within the queue; `waitingOn` is null when the
+// runtime is busy on a non-web lane.
+export interface QueuedTurn {
+  text: string;
+  position: number;
+  waitingOn: { id: string; title: string | null } | null;
+}
+
 export interface SessionMeta {
   id: string;
   title: string;
@@ -333,6 +357,10 @@ export interface SessionMeta {
   // Runtime workspace the session started in (best-effort; rows written before
   // the capability carry none and render under the sidebar's Ungrouped group).
   workspace?: string | null;
+  // Live turn state for THIS session (concurrent-chat-sessions): "running" when
+  // its turn is open, "queued" when a prompt waits behind another session's
+  // turn, null when idle. Server-computed; drives the sidebar indicator.
+  turnStatus?: "running" | "queued" | null;
 }
 
 // Persisted block structure on assistant messages (chat history): the tool
@@ -372,7 +400,11 @@ export type ClientMessage =
   // Real stop (live-runtime-control): cancel the run in the child via the
   // bridge's session/cancel. Falls back to a server-side finalize on older
   // children; the client ALSO finalizes its view locally either way.
-  | { type: "stop_turn" }
+  // `id` (concurrent-chat-sessions): stop THAT session instead of the one this
+  // connection views — a queued prompt's "stop it and run mine instead"
+  // targets the session currently blocking the queue. Omitted = the viewed
+  // session (the historical shape).
+  | { type: "stop_turn"; id?: string }
   // Per-session MCP server gate flip (live-runtime-control): default-closed
   // servers (websearch) the user toggles per conversation.
   | { type: "set_tool_gate"; server: string; enabled: boolean }

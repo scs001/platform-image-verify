@@ -355,6 +355,12 @@ export function createAppContext(config) {
   // scope's list, and `current` names THAT connection's viewed session — not
   // the deployment-global live session, which may belong to another user.
   // One listSessions query per distinct scope per refresh tick.
+  // `turnStatus` (concurrent-chat-sessions): per-session "running" | "queued" |
+  // null, so the sidebar can show a background turn on ANY row. Attached here,
+  // at the single broadcast choke point, so every emission carries it.
+  ctx.withTurnStatus = (sessions) =>
+    sessions.map((s) => ({ ...s, turnStatus: ctx.turnStatusFor?.(s.id) ?? null }));
+
   ctx.broadcastSessions = async () => {
     const version = ctx.sessionVersion;
     const scopeKey = (ws) => {
@@ -364,7 +370,7 @@ export function createAppContext(config) {
     const lists = new Map();
     for (const key of new Set([...ctx.clients].map(scopeKey))) {
       try {
-        lists.set(key, await chatHistory.listSessions(key === "*" ? undefined : JSON.parse(key)));
+        lists.set(key, ctx.withTurnStatus(await chatHistory.listSessions(key === "*" ? undefined : JSON.parse(key))));
       } catch (e) {
         console.error("[sessions] scoped list failed:", e.message);
         lists.set(key, []);

@@ -74,7 +74,9 @@
     "projectNamePlaceholder": "例：四半期レポート",
     "useExistingFolder": "既存フォルダーを指定…",
     "createProject": "作成",
-    "backToNewProject": "← プロジェクトを新規作成"
+    "backToNewProject": "← プロジェクトを新規作成",
+    "running": "応答中",
+    "queued": "メッセージ待機中"
   },
   "modelsPage": {
     "title": "モデル",
@@ -322,7 +324,11 @@
     "artifactStrip": {
       "title": "このターンの成果物",
       "saved": "ライブラリ済み"
-    }
+    },
+    "queuedBehind": "「{{title}}」の完了待ち",
+    "queuedIdle": "アシスタントの空き待ち",
+    "queuedCancel": "キャンセル",
+    "queuedPreempt": "停止してこれを実行"
   },
   "turn": {
     "assistantName": "{{assistant}}",
@@ -418,7 +424,9 @@
     "cannotDeleteActive": "まず別のセッションに切り替えてください",
     "deleteFailed": "削除に失敗しました: {{error}}",
     "clear": "クリア",
-    "cannotClearInactive": "先にこのチャットに切り替えてください"
+    "cannotClearInactive": "先にこのチャットに切り替えてください",
+    "cannotDeleteRunning": "この会話はまだ実行中です",
+    "cannotDeleteQueued": "この会話には待機中のメッセージがあります"
   },
   "documents": {
     "title": "ライブラリ",

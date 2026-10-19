@@ -20,6 +20,7 @@ import type {
   ModelInfo,
   PresetInfo,
   PermissionOption,
+  QueuedTurn,
   RuntimeModel,
   ServerMessage,
   SessionMeta,
@@ -202,6 +203,12 @@ interface State {
   // the plan surface renders nothing at all.
   todos: TodoItem[];
   todoCounts: TodoCounts;
+  // A prompt queued behind another session's turn (concurrent-chat-sessions):
+  // the pending bubble this view renders. Server-authoritative — set by
+  // `queued` / session_loaded.queued for the CURRENT session, cleared by
+  // `dequeued`, the dispatch handoff (agent_start / user echo), or a load with
+  // nothing queued. A queued prompt is not history: it never enters `turns`.
+  queuedTurn: QueuedTurn | null;
   // The session's pending user-question ask (add-user-questions): non-null
   // from the agent_question broadcast until the ask's own tool_end (answer /
   // cancel / failure), a `done` with the ask still open (it can never resolve
@@ -399,7 +406,9 @@ const RUN_EVENT_TYPES = new Set([
 // still run the turn in the connection's previous session), and a dropped
 // echo blanks the very turn the user just submitted — the phantom-stream
 // risk the guard exists for is assistant-side anyway.
-const SESSION_SCOPED_TYPES = new Set([...RUN_EVENT_TYPES, "done"]);
+// `queued` / `dequeued` are stamped too (concurrent-chat-sessions): a queue
+// announcement belongs to the session it names, never to whatever is on screen.
+const SESSION_SCOPED_TYPES = new Set([...RUN_EVENT_TYPES, "done", "queued", "dequeued"]);
 
 // ── Session turn cache (perf-session-open) ───────────────────────────────────
 // Small LRU of visited sessions' rendered turns. Map order IS the recency
@@ -540,6 +549,7 @@ export const useChatStore = create<State>((set) => ({
       };
     }),
   isStreaming: false,
+  queuedTurn: null,
   todos: [],
   todoCounts: NO_TODOS,
   pendingQuestion: null,
@@ -663,7 +673,31 @@ export const useChatStore = create<State>((set) => ({
         case "agent_start":
           // Fresh assistant turn only when there isn't already an open one.
           currentAssistant(turns);
-          return { turns, isStreaming: true };
+          // The dispatch handoff (concurrent-chat-sessions): a queued prompt
+          // that starts running is a normal turn from here on, so the pending
+          // bubble yields to the stream. `dequeued` normally cleared it first —
+          // this is the belt-and-braces path for a reordered/older payload.
+          return { turns, isStreaming: true, queuedTurn: null };
+
+        case "queued":
+          // Accepted behind another session's turn (concurrent-chat-sessions):
+          // a pending bubble, NOT a transcript turn — a queued prompt has no
+          // history row until it dispatches.
+          return {
+            queuedTurn: { text: m.text, position: m.position, waitingOn: m.waitingOn ?? null },
+          };
+
+        case "dequeued": {
+          // "dispatched" hands off to the normal user echo / agent_start;
+          // "cancelled" means it never ran — the text returns to the composer
+          // so a mis-click costs nothing (design D10). The queued entry is the
+          // only place the text still exists (never a history row).
+          const text = state.queuedTurn?.text ?? null;
+          return {
+            queuedTurn: null,
+            ...(m.reason === "cancelled" && text ? { composerDraft: text } : {}),
+          };
+        }
 
         case "tool_start": {
           const a = currentAssistant(turns);
@@ -1062,6 +1096,7 @@ export const useChatStore = create<State>((set) => ({
                 pendingNewSession: isNewChatArrival ? false : state.pendingNewSession,
                 sessionSwitchBackup: null,
                 websearchEnabled: false,
+                queuedTurn: m.queued ?? null,
               };
             }
           }
@@ -1089,6 +1124,10 @@ export const useChatStore = create<State>((set) => ({
             sessionSwitchBackup: null,
             sessionCache: running ? state.sessionCache : cacheWrite(state.sessionCache, m.id, mapped),
             websearchEnabled: false,
+            // A queued prompt is not history, so the transcript cannot carry
+            // it — the load restores the pending bubble explicitly
+            // (concurrent-chat-sessions D4). Absent/null clears it.
+            queuedTurn: m.queued ?? null,
           };
         }
 

@@ -74,7 +74,9 @@
     "projectNamePlaceholder": "ex. Rapport trimestriel",
     "useExistingFolder": "Choisir un dossier existant…",
     "createProject": "Créer le projet",
-    "backToNewProject": "← Nouveau projet"
+    "backToNewProject": "← Nouveau projet",
+    "running": "Réponse en cours",
+    "queued": "Message en file d'attente"
   },
   "modelsPage": {
     "title": "Modèles",
@@ -322,7 +324,11 @@
     "artifactStrip": {
       "title": "Fichiers de ce tour",
       "saved": "Dans la bibliothèque"
-    }
+    },
+    "queuedBehind": "En attente de la fin de « {{title}} »",
+    "queuedIdle": "En attente que l'assistant soit libre",
+    "queuedCancel": "Annuler",
+    "queuedPreempt": "L'arrêter et exécuter ceci maintenant"
   },
   "turn": {
     "assistantName": "{{assistant}}",
@@ -418,7 +424,9 @@
     "cannotDeleteActive": "Basculez d'abord vers une autre session",
     "deleteFailed": "Échec de la suppression : {{error}}",
     "clear": "Effacer",
-    "cannotClearInactive": "Basculez d'abord sur cette discussion"
+    "cannotClearInactive": "Basculez d'abord sur cette discussion",
+    "cannotDeleteRunning": "Cette conversation est en cours",
+    "cannotDeleteQueued": "Cette conversation a un message en file d'attente"
   },
   "documents": {
     "title": "Bibliothèque",

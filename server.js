@@ -66,6 +66,7 @@ import { createPackRegistry, registerPackRoutes as registerMarketPackRoutes } fr
 import { attachDshEvents } from "./server/dsh-events.js";
 import { attachRuntimeBindings } from "./server/runtime-bindings.js";
 import { attachAgentSession, resolveBootWorkspace } from "./server/agent-session.js";
+import { attachTurnDispatch } from "./server/turn-dispatch.js";
 import { attachWebSocket } from "./server/ws.js";
 import { matrixGate } from "./lib/dsh-matrix-verify.js";
 
@@ -354,6 +355,10 @@ attachDshEvents(ctx);
 attachRuntimeBindings(ctx);
 // Agent-session state machine (model/agent switching, session ops, commands).
 attachAgentSession(ctx);
+// Web-prompt arbiter (concurrent-chat-sessions): one open turn in the shared
+// child at a time, queued otherwise. Must attach before the WS layer, which
+// routes every prompt through ctx.dispatchTurn.
+attachTurnDispatch(ctx);
 // WebSocket upgrade gate + connection handler.
 attachWebSocket(ctx);
 
@@ -741,8 +746,15 @@ async function initDshAgent() {
     setSessionId: (id) => { ctx.dshSessionId = id; },
     setSessionFile: () => {},
   };
-  chatHistory.setSessionManager(dshSm);
-  chatHistory.setDshBridge(ctx.dshBridge);
+chatHistory.setSessionManager(dshSm);
+chatHistory.setDshBridge(ctx.dshBridge);
+// Delete guard extension (concurrent-chat-sessions D7): a session with a turn
+// in flight ANYWHERE, or a queued prompt, is undeletable — not just the
+// session the global pointer happens to name.
+chatHistory.setActivityProbe((id) => ({
+  streaming: ctx.isStreamingFor?.(id) === true,
+  queued: ctx.isQueuedFor?.(id) === true,
+}));
   // Session rows record the preset selected when their first message lands,
   // so a resumed session's header label names the mode it started under.
   chatHistory.setPresetSource(() => ctx.currentPreset);
@@ -750,8 +762,10 @@ async function initDshAgent() {
   // by workspace. Stamped once per session; later switches never re-group.
   chatHistory.setWorkspaceSource(() => ctx.listWorkspaces?.().current ?? null);
   ctx.session = {
-    prompt: async (text) => {
-      const sid = chatHistory.currentSessionId();
+    // `sid` is explicit (concurrent-chat-sessions D6): the dispatcher's run
+    // closure resolves the target BEFORE any await, so a session switch while
+    // doc refs expand can never re-attribute the turn to another session.
+    prompt: async (text, sid = chatHistory.currentSessionId()) => {
       ctx.setStreaming(sid, true);
       const messageId = await ctx.dshBridge.prompt(sid, [{ type: "text", text }]);
       // Trace: the durable message id keys this turn's trace rows.

@@ -42,6 +42,19 @@ export function ChatSessionMenu({ sessionId, isCurrent, onDelete, triggerRef, on
   // wizard's prefill; absent metadata still works (persona hand-written).
   const [solutionOpen, setSolutionOpen] = useState(false);
   const sessionMeta = useChatStore((s) => s.sessions.find((x) => x.id === sessionId));
+  // Delete is also blocked for a background turn (concurrent-chat-sessions):
+  // the server 409s it (its delete guard covers running/queued, not just the
+  // pointer's session), and the menu mirrors that so the entry never looks
+  // available. The tooltip names the actual reason.
+  const busyStatus = sessionMeta?.turnStatus ?? null;
+  const deleteBlocked = isCurrent || busyStatus !== null;
+  const deleteBlockedTitle = isCurrent
+    ? t("sessionMenu.cannotDeleteActive")
+    : busyStatus === "running"
+      ? t("sessionMenu.cannotDeleteRunning")
+      : busyStatus === "queued"
+        ? t("sessionMenu.cannotDeleteQueued")
+        : undefined;
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -77,7 +90,7 @@ export function ChatSessionMenu({ sessionId, isCurrent, onDelete, triggerRef, on
   if (!pos) return null;
 
   const handleDeleteClick = () => {
-    if (isCurrent) return;
+    if (deleteBlocked) return;
     // Do NOT call onClose() here: the parent unmounts this component on
     // close, which would destroy the confirmOpen state before the dialog
     // renders. The dropdown hides itself (confirmOpen) and onClose runs
@@ -177,11 +190,11 @@ export function ChatSessionMenu({ sessionId, isCurrent, onDelete, triggerRef, on
           role="menuitem"
           data-testid="session-menu-delete"
           onClick={handleDeleteClick}
-          disabled={isCurrent}
-          title={isCurrent ? t("sessionMenu.cannotDeleteActive") : undefined}
+          disabled={deleteBlocked}
+          title={deleteBlockedTitle}
           className={cn(
             "block w-full px-3 py-1.5 text-left text-xs",
-            isCurrent
+            deleteBlocked
               ? "cursor-not-allowed text-muted-foreground opacity-50"
               : "text-foreground hover:bg-muted",
           )}

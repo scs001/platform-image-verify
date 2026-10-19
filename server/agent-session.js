@@ -94,30 +94,29 @@ function bumpSessionVersion() {
 }
 
 // Leaving the live chat mid-turn must not leave the old response streaming into
-// the new transcript. dsh has no interrupt RPC, so a local turn is stopped the
-// only reliable way available: close the child (the bridge immediately respawns
-// with the same profile/MCP config). A remote-agent fork owns its fetch, so its
-// AbortController is enough. In both cases finishTurn() first releases the UI;
-// the subsequent bridge.exit then sees an idle runtime and adds no error banner.
+// the new transcript. Under the default dispatch policy that concern is gone by
+// construction: events route by their own session id to that session's viewers
+// (context.js sendToViewers + dsh-events' webTurnSessions), so a background
+// turn can never leak into the transcript on screen (concurrent-chat-sessions).
+// Only the legacy policy still stops the outgoing turn — it is the rollback
+// path and reproduces the pre-change behavior exactly.
+//
+// dsh has no interrupt RPC for the legacy path, so a local turn is stopped the
+// only reliable way available there: close the child (the bridge immediately
+// respawns with the same profile/MCP config). A remote-agent fork owns its
+// fetch, so its AbortController is enough.
 async function stopStreamingForSessionNavigation() {
-  // Per-session D4: navigation stops the OUTGOING session's run — other
-  // sessions' turns (other viewers, concurrent prompts) keep running.
+  if (ctx.dispatchPolicy !== "legacy") return;
   const outgoing = chatHistory.currentSessionId();
   const remoteAbort = ctx.activeRemoteTurnAbort;
   if (remoteAbort && (!outgoing || remoteAbort.sessionId === outgoing)) {
     if (ctx.isStreamingFor(remoteAbort.sessionId)) ctx.finishTurn("aborted", remoteAbort.sessionId);
-    remoteAbort.switchedAway = true;
     if (ctx.activeRemoteTurnAbort === remoteAbort) ctx.activeRemoteTurnAbort = null;
     remoteAbort.abort();
     return;
   }
   if (!outgoing || !ctx.isStreamingFor(outgoing)) return;
   ctx.turnStateFor(outgoing).promptStopped = true;
-  // Live control (live-runtime-control): cancel the run natively instead of
-  // restarting the child — a session switch becomes instant and the window
-  // where a prompt into the new session would bounce off a restarting bridge
-  // disappears. The aborted run's own idle notification is the safety net for
-  // the finishTurn below (idempotent).
   ctx.finishTurn("aborted", outgoing);
   if (ctx.dshBridge?.hasLiveMethod?.("session/cancel")) {
     ctx.dshBridge.cancelSession(outgoing).catch((e) =>
@@ -543,11 +542,13 @@ function remoteForkMessages() {
 // prompt while a remote turn is streaming is rejected instead of steered.
 // Only reached for chat-mode entries the deployment has no local persona preset
 // for (ctx.remoteChatEntryFor); an entry that has one runs on the local agent.
-async function streamRemoteChat(entry, text) {
-  // The session is captured BEFORE the fetch: navigation may switch the live
-  // chat while this request is still open, and the partial reply belongs to the
-  // session that asked, never to whichever session is on screen when it lands.
-  const sessionId = chatHistory.currentSessionId();
+async function streamRemoteChat(entry, text, explicitSessionId = null) {
+  // The session is captured BEFORE the fetch — or passed in explicitly by the
+  // dispatcher, which resolved it before the turn was queued
+  // (concurrent-chat-sessions D6). Navigation may switch the live chat while
+  // this request is still open, and the partial reply belongs to the session
+  // that asked, never to whichever session is on screen when it lands.
+  const sessionId = explicitSessionId || chatHistory.currentSessionId();
   ctx.setStreaming(sessionId, true); // synchronous guard, same contract as the local prompt path
   const abort = new AbortController();
   ctx.activeRemoteTurnAbort = abort;
@@ -583,7 +584,7 @@ async function streamRemoteChat(entry, text) {
     for await (const chunk of r.body) {
       // Navigation already closed this turn; a chunk that raced the abort must
       // not leak into whichever transcript is on screen now.
-      if (abort.switchedAway) break;
+      if (abort.aborted) break;
       buf += decoder.decode(chunk, { stream: true });
       const lines = buf.split("\n");
       buf = lines.pop();
@@ -607,7 +608,7 @@ async function streamRemoteChat(entry, text) {
   } catch (err) {
     // Switching away aborts the fetch on purpose. The turn was already closed
     // with `done`; a follow-up abort error would land in the NEW transcript.
-    if (!abort.switchedAway) {
+    if (!abort.aborted) {
       console.error(`Remote agent '${entry.id}' error:`, err.message);
       ctx.sendToViewers(sessionId, { type: "error", message: err.message });
     }
@@ -636,8 +637,8 @@ async function streamRemoteChat(entry, text) {
 // id — the runner keeps its own per-context session, so no history replay is
 // needed (unlike the OpenAI-compatible fork above). SSE events from the runner
 // map onto the existing text/done/error contract.
-async function streamA2aChat(entry, text) {
-  const sessionId = chatHistory.currentSessionId();
+async function streamA2aChat(entry, text, explicitSessionId = null) {
+  const sessionId = explicitSessionId || chatHistory.currentSessionId();
   ctx.setStreaming(sessionId, true);
   const abort = new AbortController();
   ctx.activeRemoteTurnAbort = abort;
@@ -668,7 +669,7 @@ async function streamA2aChat(entry, text) {
     }
     assistantText = out.text || assistantText;
   } catch (err) {
-    if (!abort.switchedAway) {
+    if (!abort.aborted) {
       console.error(`A2A agent '${entry.id}' error:`, err.message);
       ctx.sendToViewers(sessionId, { type: "error", message: err.message });
     }

@@ -89,6 +89,60 @@ export function attachWebSocket(ctx) {
     const left = ctx.DEMO_SANDBOX ? ws.sandboxBudget.remaining(null) : demoBudget.remaining(ws.user);
     return left === null ? {} : { budgetLeft: left };
   };
+
+  // ── Dispatch helpers (concurrent-chat-sessions) ───────────────────────────
+  // A session is busy for a NEW prompt when its own turn is open or it already
+  // has a prompt queued behind another session's turn. Another session's open
+  // turn is deliberately NOT busy here — that prompt is queued by the
+  // dispatcher, which is the whole point of the change.
+  const isBusyFor = (sid) => ctx.isStreamingFor(sid) || (ctx.isQueuedFor?.(sid) ?? false);
+  const busyMessage = (sid) =>
+    ctx.isQueuedFor?.(sid) ? "This chat already has a message waiting in the queue" : "The agent is still responding";
+
+  // Minimal contexts (unit fakes, tooling) may attach the WS layer without the
+  // dispatcher; degrade to running the prompt directly. The real composition
+  // root always attaches attachTurnDispatch (server.js), so production never
+  // takes this branch — it exists so a fake ctx need not model the queue.
+  const dispatchOrRun = (params) => {
+    if (typeof ctx.dispatchTurn === "function") return ctx.dispatchTurn(params);
+    ctx.setStreaming(params.sessionId, true);
+    params.onAccepted?.();
+    Promise.resolve(params.run(params.sessionId)).catch((err) =>
+      console.error("[ws] prompt run failed:", err?.message || err),
+    );
+    return { accepted: true, dispatched: true, queued: false };
+  };
+
+  // Demo budget consumption moved to acceptance (queued OR dispatched), so the
+  // pre-flight only asks "would this be allowed", and the take happens in the
+  // dispatcher's onAccepted.
+  const budgetAllows = (ws) => {
+    const left = ctx.DEMO_SANDBOX ? ws.sandboxBudget.remaining(null) : demoBudget.remaining(ws.user);
+    return left === null || left > 0;
+  };
+
+  // The pre-await guard set above is a speculative reservation: it must be
+  // released when the prompt never reaches the dispatcher (beginTurnFor threw,
+  // or a fresh session was resolved — that session was never marked).
+  const releaseSpeculativeGuard = (hint, target) => {
+    if (!hint || hint === target) return;
+    const T = ctx.turnStateBySession.get(hint);
+    if (T?.isStreaming) T.isStreaming = false;
+  };
+
+  // A refusal happens after acceptance checks (queue full, or a racing prompt
+  // that slipped in between the guard and the dispatch). Surface it the same
+  // way the old guard did — as a plain error on this connection.
+  const reportDispatchRefusal = (receipt, target, ws) => {
+    if (receipt.accepted) return;
+    if (receipt.reason === "queue_full") {
+      ws.send(JSON.stringify({ type: "error", code: "queue_full", message: "Too many chats are waiting to run; try again shortly" }));
+      return;
+    }
+    if (receipt.reason === "session_busy") {
+      ws.send(JSON.stringify({ type: "error", message: busyMessage(target) }));
+    }
+  };
   ctx.server.on("upgrade", (req, socket, head) => {
     if (!authorizeUpgrade(ctx, req)) {
       socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
@@ -221,7 +275,8 @@ const syncReadyClient = async (ws) => {
     if (question && !sendIfOpen(ws, question)) return;
   }
 
-  const sessions = await chatHistory.listSessions(ctx.sessionScopeFor(ws));
+  const sessionRows = await chatHistory.listSessions(ctx.sessionScopeFor(ws));
+  const sessions = ctx.withTurnStatus?.(sessionRows) ?? sessionRows;
   if (version !== ctx.sessionVersion) return;
   sendIfOpen(ws, {
     type: "sessions",
@@ -303,7 +358,7 @@ ctx.wss.on("connection", (ws, req) => {
         if (version !== ctx.sessionVersion) return;
         sendIfOpen(ws, {
           type: "sessions",
-          sessions,
+          sessions: ctx.withTurnStatus?.(sessions) ?? sessions,
           current: ws.viewedSession ?? (ctx.authEnabled ? null : chatHistory.currentSessionId()),
         });
       })
@@ -376,63 +431,80 @@ ctx.wss.on("connection", (ws, req) => {
 
         if (cmd && cmd.command === "skill") {
           // Per-session guard (D4): only the TARGET session's open turn blocks
-          // this prompt — another session may legitimately be streaming.
+          // this prompt — another session may legitimately be streaming. A
+          // queued prompt counts as busy too (concurrent-chat-sessions).
           const skillHint = ws.viewedSession || null;
-          if (skillHint && ctx.isStreamingFor(skillHint)) {
-            ws.send(JSON.stringify({ type: "error", message: "The agent is still responding" }));
+          if (skillHint && isBusyFor(skillHint)) {
+            ws.send(JSON.stringify({ type: "error", message: busyMessage(skillHint) }));
             break;
           }
-          if (!takeBudget(ws)) {
+          if (!budgetAllows(ws)) {
             ws.send(JSON.stringify(budgetReply()));
             break;
           }
-          // Set in-flight synchronously (before the first await) so a concurrent
-          // prompt on the SAME session is rejected. agent_start sets it again
-          // later (idempotent). A stale navigation-stop marker means the old
-          // turn already settled; this new turn must own its own errors.
+          // Set the guard synchronously (before the first await) so a
+          // concurrent prompt on the SAME session is rejected. The dispatcher
+          // treats it as this caller's reservation, not as someone else's turn.
           if (skillHint) {
             const T = ctx.turnStateFor(skillHint);
             T.promptStopped = false;
             T.isStreaming = true;
             T.startedAt = Date.now();
           }
+          let target;
           try {
-            const target = await beginTurnFor(ws);
-            if (!skillHint) ctx.setStreaming(target, true);
-            // Skill invocation: emit a skill_use block and suppress the raw
-            // /skill:... text from being echoed as a normal user message.
-            ctx.sendToViewers(target, { type: "skill_use", name: cmd.name, args: cmd.args });
-            // Mirror the user's skill invocation into the SQLite project database.
-            chatHistory.recordMessage(target, "user", text, undefined, ctx.turnStateFor(target).origin?.user ?? null);
-
-            // Manually expand the skill content and send that to the agent. This
-            // does not rely on session.prompt() expanding slash commands.
-            // Scan the skills/ dir (same dir the skill-filesystem plugin's
-            // customSkillDirs points at, Task 5.3).
-            const fileSkills = skills.getFileSkills();
-            const skill = fileSkills.find((s) => s.name === cmd.name);
-            let promptText = text;
-            if (skill) {
-              promptText = await skills.expandSkillContent(skill, cmd.args);
-            }
-            // Expand @doc:<id> attachment references (design D4).
-            promptText = await skills.expandDocRefs(ctx, promptText);
-            await ctx.session.prompt(promptText);
+            target = await beginTurnFor(ws);
           } catch (err) {
-            // The user navigated away and the navigation stop cancelled the
-            // turn; the resulting RPC rejection is intentional.
-            const errTarget = ws.viewedSession || chatHistory.currentSessionId();
-            const T = ctx.turnStateBySession.get(errTarget);
-            const stoppedByNavigation = T?.promptStopped === true;
-            if (T) T.promptStopped = false;
-            if (!stoppedByNavigation) {
-              console.error("Agent error:", err.message);
-              ctx.broadcast({ type: "error", message: err.message });
-            }
-            // Finish the turn (reset streaming, emit done, refresh sessions) so a
-            // failed turn does not wedge the UI or block model-switch/new-session.
-            ctx.finishTurn(undefined, errTarget);
+            releaseSpeculativeGuard(skillHint, null);
+            ws.send(JSON.stringify({ type: "error", message: err.message }));
+            break;
           }
+          releaseSpeculativeGuard(skillHint, target);
+          const skillRun = async (sid) => {
+            try {
+              // Skill invocation: emit a skill_use block and suppress the raw
+              // /skill:... text from being echoed as a normal user message.
+              ctx.sendToViewers(sid, { type: "skill_use", name: cmd.name, args: cmd.args });
+              // Mirror the user's skill invocation into the SQLite project
+              // database (at dispatch — a cancelled queued prompt never lands).
+              chatHistory.recordMessage(sid, "user", text, undefined, ctx.turnStateFor(sid).origin?.user ?? null);
+
+              // Manually expand the skill content and send that to the agent.
+              // This does not rely on session.prompt() expanding slash commands.
+              // Scan the skills/ dir (same dir the skill-filesystem plugin's
+              // customSkillDirs points at, Task 5.3).
+              const fileSkills = skills.getFileSkills();
+              const skill = fileSkills.find((s) => s.name === cmd.name);
+              let promptText = text;
+              if (skill) {
+                promptText = await skills.expandSkillContent(skill, cmd.args);
+              }
+              // Expand @doc:<id> attachment references (design D4).
+              promptText = await skills.expandDocRefs(ctx, promptText);
+              // Explicit sid (concurrent-chat-sessions D6): the target was
+              // resolved before this turn was queued, so a session switch while
+              // the prompt waited can never re-attribute it.
+              await ctx.session.prompt(promptText, sid);
+            } catch (err) {
+              const T = ctx.turnStateBySession.get(sid);
+              const stopped = T?.promptStopped === true;
+              if (T) T.promptStopped = false;
+              if (!stopped) {
+                console.error("Agent error:", err.message);
+                ctx.sendToViewers(sid, { type: "error", message: err.message });
+              }
+              ctx.finishTurn(undefined, sid);
+            }
+          };
+          const receipt = dispatchOrRun({
+            sessionId: target,
+            text,
+            run: skillRun,
+            ws,
+            reserved: Boolean(skillHint) && skillHint === target,
+            onAccepted: () => takeBudget(ws),
+          });
+          reportDispatchRefusal(receipt, target, ws);
         } else if (cmd && cmd.command === "model") {
           await ctx.handleModelCommand(cmd.args, ws);
         } else if (cmd && cmd.command === "new") {
@@ -443,10 +515,11 @@ ctx.wss.on("connection", (ws, req) => {
         } else {
           // Normal prompt (includes unknown "/…" commands that fall through):
           // echo the user message and forward. Per-session guard (D4): only
-          // the TARGET session's open turn blocks this prompt.
+          // the TARGET session's open turn blocks this prompt; a queued prompt
+          // counts as busy too.
           const promptHint = ws.viewedSession || null;
-          if (promptHint && ctx.isStreamingFor(promptHint)) {
-            ws.send(JSON.stringify({ type: "error", message: "The agent is still responding" }));
+          if (promptHint && isBusyFor(promptHint)) {
+            ws.send(JSON.stringify({ type: "error", message: busyMessage(promptHint) }));
             break;
           }
           // A chat-mode catalog agent forks to its OpenAI-compatible endpoint only
@@ -458,60 +531,76 @@ ctx.wss.on("connection", (ws, req) => {
             ws.send(JSON.stringify({ type: "error", message: `Unknown agent: ${ctx.currentAgentId}` }));
             break;
           }
-          if (!takeBudget(ws)) {
+          if (!budgetAllows(ws)) {
             ws.send(JSON.stringify(budgetReply()));
             break;
           }
 
-          // Reject a concurrent prompt on the SAME session host-side rather
-          // than queueing a second turn. Set the guard before the first await
-          // so a concurrent prompt cannot enter (a session minted fresh has
-          // no turn to race — its flag lands with the resolved target).
-          // Same stale-marker contract as the skill branch above.
+          // Set the guard synchronously (before the first await) so a
+          // concurrent prompt on the SAME session is rejected. The dispatcher
+          // reads it as this caller's reservation, not as someone else's turn.
           if (promptHint) {
             const T = ctx.turnStateFor(promptHint);
             T.promptStopped = false;
             T.isStreaming = true;
             T.startedAt = Date.now();
           }
+          let target;
           try {
-            const target = await beginTurnFor(ws);
-            if (!promptHint) ctx.setStreaming(target, true);
-            ctx.sendToViewers(target, { type: "user", text, ...budgetLeftField(ws) });
-
-            if (entry) {
-              // Remote-agent fork: expand refs before streaming from the
-              // entry's own transport instead of the local session — an
-              // OpenAI-compatible endpoint (chat mode) or the A2A gateway
-              // route (a2a mode, add-a2a-agent-serving 5.3).
-              const promptText = await skills.expandDocRefs(ctx, text);
-              await (entry.mode === "a2a" ? ctx.streamA2aChat(entry, promptText) : ctx.streamRemoteChat(entry, promptText));
-            } else {
-              // Mirror the user prompt into the SQLite project database,
-              // stamped with the submitting connection's user.
-              chatHistory.recordMessage(target, "user", text, undefined, ctx.turnStateFor(target).origin?.user ?? null);
-              // Expand @doc:<id> attachment references into the document content the
-              // agent sees (design D4); the user message above keeps the raw refs.
-              const promptWithDocs = await skills.expandDocRefs(ctx, text);
-              await ctx.session.prompt(promptWithDocs);
-            }
+            target = await beginTurnFor(ws);
           } catch (err) {
-            // Intentional navigation cancel — not an error to surface.
-            const errTarget = ws.viewedSession || chatHistory.currentSessionId();
-            const T = ctx.turnStateBySession.get(errTarget);
-            const stoppedByNavigation = T?.promptStopped === true;
-            if (T) T.promptStopped = false;
-            if (!stoppedByNavigation) {
-              console.error("Agent error:", err.message);
-              ctx.sendToViewers(errTarget, {
-                type: "error",
-                message: err.message,
-              });
-            }
-            // Finish the turn (reset streaming, emit done, refresh sessions) so a
-            // failed turn does not wedge the UI or block model-switch/new-session.
-            ctx.finishTurn(undefined, errTarget);
+            releaseSpeculativeGuard(promptHint, null);
+            ws.send(JSON.stringify({ type: "error", message: err.message }));
+            break;
           }
+          releaseSpeculativeGuard(promptHint, target);
+          const run = async (sid) => {
+            try {
+              ctx.sendToViewers(sid, { type: "user", text, ...budgetLeftField(ws) });
+
+              if (entry) {
+                // Remote-agent fork: expand refs before streaming from the
+                // entry's own transport instead of the local session — an
+                // OpenAI-compatible endpoint (chat mode) or the A2A gateway
+                // route (a2a mode, add-a2a-agent-serving 5.3).
+                const promptText = await skills.expandDocRefs(ctx, text);
+                await (entry.mode === "a2a"
+                  ? ctx.streamA2aChat(entry, promptText, sid)
+                  : ctx.streamRemoteChat(entry, promptText, sid));
+              } else {
+                // Mirror the user prompt into the SQLite project database at
+                // DISPATCH (not acceptance): a cancelled queued prompt leaves
+                // no history row. Stamped with the submitting connection's user.
+                chatHistory.recordMessage(sid, "user", text, undefined, ctx.turnStateFor(sid).origin?.user ?? null);
+                // Expand @doc:<id> attachment references into the document content the
+                // agent sees (design D4); the user message above keeps the raw refs.
+                const promptWithDocs = await skills.expandDocRefs(ctx, text);
+                await ctx.session.prompt(promptWithDocs, sid);
+              }
+            } catch (err) {
+              // An explicit stop cancelled the run; the resulting RPC rejection
+              // is intentional, not an error to surface.
+              const T = ctx.turnStateBySession.get(sid);
+              const stopped = T?.promptStopped === true;
+              if (T) T.promptStopped = false;
+              if (!stopped) {
+                console.error("Agent error:", err.message);
+                ctx.sendToViewers(sid, { type: "error", message: err.message });
+              }
+              // Finish the turn (reset streaming, emit done, refresh sessions) so a
+              // failed turn does not wedge the UI or block model-switch/new-session.
+              ctx.finishTurn(undefined, sid);
+            }
+          };
+          const receipt = dispatchOrRun({
+            sessionId: target,
+            text,
+            run,
+            ws,
+            reserved: Boolean(promptHint) && promptHint === target,
+            onAccepted: () => takeBudget(ws),
+          });
+          reportDispatchRefusal(receipt, target, ws);
         }
         break;
       }
@@ -542,8 +631,48 @@ ctx.wss.on("connection", (ws, req) => {
         // normal close. Without the live method, finalize immediately — the
         // client's local stop view stays the fallback and this done releases
         // its suppression honestly.
-        const stopSid = ws.viewedSession || null;
-        if (!ctx.ready.dsh || !stopSid || !ctx.isStreamingFor(stopSid)) break;
+        // `id` lets a queued prompt stop the session blocking it
+        // (concurrent-chat-sessions): the requester may be viewing a DIFFERENT
+        // session, so the explicit target still passes the ownership gate.
+        let stopSid = ws.viewedSession || null;
+        if (typeof data.id === "string" && data.id && data.id !== stopSid) {
+          const access = chatHistory.accessSession(ws.user, data.id, {
+            authEnabled: ctx.authEnabled,
+            isAdmin: ctx.isAdminUser?.(ws.user),
+          });
+          if (!access.ok) {
+            ws.send(
+              JSON.stringify({
+                type: "error",
+                message:
+                  access.reason === "forbidden"
+                    ? "You do not have access to this session"
+                    : `session ${data.id} not found`,
+              }),
+            );
+            break;
+          }
+          stopSid = data.id;
+        }
+        if (!ctx.ready.dsh || !stopSid) break;
+        // Queued prompt (concurrent-chat-sessions): stop means "withdraw it
+        // before it ever reaches the runtime" — no cancel RPC, no done.
+        if (ctx.isQueuedFor?.(stopSid)) {
+          ctx.cancelQueued?.(stopSid);
+          break;
+        }
+        if (!ctx.isStreamingFor(stopSid)) break;
+        // A remote-agent fork owns its fetch, not the dsh child: abort it and
+        // close the turn here (the child has no run to cancel for this id).
+        const remoteAbort = ctx.activeRemoteTurnAbort;
+        if (remoteAbort && remoteAbort.sessionId === stopSid) {
+          remoteAbort.aborted = true;
+          if (ctx.activeRemoteTurnAbort === remoteAbort) ctx.activeRemoteTurnAbort = null;
+          ctx.turnStateFor(stopSid).promptStopped = true;
+          ctx.finishTurn("aborted", stopSid);
+          remoteAbort.abort();
+          break;
+        }
         if (ctx.dshBridge?.hasLiveMethod?.("session/cancel")) {
           // The abort makes the dispatching prompt's promise reject — that
           // rejection is intentional, not a failure to surface.
@@ -775,7 +904,8 @@ ctx.wss.on("connection", (ws, req) => {
 
       case "list_sessions": {
         const version = ctx.sessionVersion;
-        const sessions = await chatHistory.listSessions(ctx.sessionScopeFor(ws));
+        const sessionRows = await chatHistory.listSessions(ctx.sessionScopeFor(ws));
+  const sessions = ctx.withTurnStatus?.(sessionRows) ?? sessionRows;
         if (version === ctx.sessionVersion) {
           ws.send(
             JSON.stringify({
@@ -846,6 +976,7 @@ ctx.wss.on("connection", (ws, req) => {
             title: sess?.title || "Chat",
             messages: sess?.messages || [],
             running: false,
+            queued: ctx.queuedViewFor?.(data.id) ?? null,
           });
           sendIfOpen(ws, ctx.planMessage(data.id));
           {
@@ -875,6 +1006,7 @@ ctx.wss.on("connection", (ws, req) => {
               messages: result.messages,
               running,
               ...(turnEvents ? { turnEvents } : {}),
+              queued: ctx.queuedViewFor?.(result.id) ?? null,
             });
             sendIfOpen(ws, ctx.planMessage(result.id));
             {
@@ -906,6 +1038,7 @@ ctx.wss.on("connection", (ws, req) => {
             messages: result.messages,
             running,
             ...(turnEvents ? { turnEvents } : {}),
+            queued: ctx.queuedViewFor?.(result.id) ?? null,
           });
           // The target session's own plan (or the empty list). The client clears
           // the plan on session_loaded; this push is what restores it when the

@@ -51,6 +51,10 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
       clearTimeout(timer);
       collectors.delete(sessionId);
       activeTurns.delete(sessionId);
+      // This lane's turn just closed — the shared child may be free now
+      // (concurrent-chat-sessions D2). A collector is the ONLY trace a non-web
+      // turn leaves, so this is the signal a queued web prompt drains on.
+      ctx.onRuntimeIdle?.();
       fn(arg);
     };
     const timer = setTimeout(
@@ -221,7 +225,7 @@ export function attachCronRunner(ctx) {
           .listSessions()
           .then((sessions) => {
             if (version === ctx.sessionVersion) {
-              ctx.broadcast({ type: "sessions", sessions, current: chatHistory.currentSessionId() });
+              ctx.broadcast({ type: "sessions", sessions: ctx.withTurnStatus?.(sessions) ?? sessions, current: chatHistory.currentSessionId() });
             }
           })
           .catch(() => {});
@@ -238,9 +242,18 @@ export function attachCronRunner(ctx) {
 
     // preset binding: a job without one (legacy record) runs under whatever
     // preset is live, matching its pre-change behavior.
+    // `releaseReservation` is taken BEFORE the switch: it restarts the child,
+    // and bridge.ready drains the web queue (concurrent-chat-sessions D2).
+    // Without the reservation a queued web prompt would be dispatched into the
+    // restart this job is about to use.
+    let releaseReservation = null;
     if (job.preset) {
+      releaseReservation = ctx.reserveRuntime?.("cron-preset-switch") ?? null;
       const switched = await switchPresetForJob(ctx, job.preset, timeoutMs);
-      if (!switched.ok) return switched;
+      if (!switched.ok) {
+        releaseReservation?.();
+        return switched;
+      }
     }
 
     const sessionId = job.sessionId || `cron-${job.id}`;
@@ -255,6 +268,9 @@ export function attachCronRunner(ctx) {
     }
 
     const collected = collectTurn(ctx, sessionId, timeoutMs, activeTurns);
+    // The collector is now the visible trace of this turn — hand the runtime
+    // over to it and drop the preset-switch reservation.
+    releaseReservation?.();
     let result;
     try {
       await ctx.dshBridge.prompt(sessionId, [{ type: "text", text: job.prompt }]);
@@ -262,6 +278,7 @@ export function attachCronRunner(ctx) {
     } catch (e) {
       ctx.sessionCollectors.delete(sessionId);
       activeTurns.delete(sessionId);
+      ctx.onRuntimeIdle?.();
       return { ok: false, error: e.message, interrupted: e.interrupted === true };
     }
 
@@ -273,7 +290,7 @@ export function attachCronRunner(ctx) {
       .listSessions()
       .then((sessions) => {
         if (version === ctx.sessionVersion) {
-          ctx.broadcast({ type: "sessions", sessions, current: chatHistory.currentSessionId() });
+          ctx.broadcast({ type: "sessions", sessions: ctx.withTurnStatus?.(sessions) ?? sessions, current: chatHistory.currentSessionId() });
         }
       })
       .catch((e) => console.error("[cron] sessions refresh failed:", e.message));

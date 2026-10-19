@@ -53,16 +53,17 @@ export function ChatPage({ send, onToggleNav }: Props) {
 
   // Cross-page handoff in: a page that parked a draft (library "Start
   // conversation") navigates here with the WS store carrying it. Consume
-  // exactly once — mount-time read + clear — so a stale draft can never leak
-  // into a later visit.
+  // exactly once — read + clear — so a stale draft can never leak into a later
+  // visit. Subscribed (not mount-time only) because a queued prompt's cancel
+  // also parks its text here (concurrent-chat-sessions), and that happens while
+  // this page is already mounted.
+  const parkedDraft = useChatStore((s) => s.composerDraft);
   useEffect(() => {
-    const parked = useChatStore.getState().composerDraft;
-    if (parked) {
-      useChatStore.getState().setComposerDraft(null);
-      setDraft(parked);
-      setFocusTick((n) => n + 1);
-    }
-  }, []);
+    if (!parkedDraft) return;
+    useChatStore.getState().setComposerDraft(null);
+    setDraft(parkedDraft);
+    setFocusTick((n) => n + 1);
+  }, [parkedDraft]);
 
   // First-run tour (add-onboarding-tutorial): present on the welcome state
   // when this browser hasn't finished it, or when the help center's replay

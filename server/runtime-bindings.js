@@ -180,9 +180,15 @@ export function attachRuntimeBindings(ctx) {
     await ctx.applyUserBindings(next[0]);
   };
 
+  // Wrap, do NOT replace: the wrapper must forward the turn's own (outcome,
+  // sid). Dropping them re-defaults sid to `ctx.dshSessionId` — the global
+  // pointer, which a session switch or new chat moves — so a background turn's
+  // close would be applied to the wrong session and the real one would never
+  // emit `done`. Pre-concurrent-chat-sessions this was masked: switching away
+  // cancelled the outgoing turn first, so no turn ever outlived a pointer move.
   const originalFinishTurn = ctx.finishTurn;
-  ctx.finishTurn = () => {
-    const result = originalFinishTurn?.();
+  ctx.finishTurn = (outcome, sid) => {
+    const result = originalFinishTurn?.(outcome, sid);
     queueMicrotask(() => ctx.applyPendingBindings().catch((err) => console.warn(`[bindings] idle apply failed: ${err.message}`)));
     return result;
   };

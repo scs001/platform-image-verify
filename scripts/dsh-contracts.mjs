@@ -319,6 +319,7 @@ async function main() {
     for (const contract of CONTRACTS) {
       currentContract = contract.title;
       const tag = contract.tags?.length ? ` [${contract.tags.join(",")}]` : "";
+      const advis = contract.advisory ? " [advisory]" : "";
       const t0 = Date.now();
       let status;
       let detail;
@@ -328,7 +329,10 @@ async function main() {
         status = "PASS";
       } catch (e) {
         status = "FAIL";
-        failures += 1;
+        // Advisory contracts are reported but never counted: the frozen matrix
+        // fails ⑨b by known upstream limitation, and a permanently red gate is
+        // no gate (concurrent-chat-sessions design D9).
+        if (!contract.advisory) failures += 1;
         detail = firstLine(e);
         unjudgeable = /unavailable without a completed handshake/.test(detail);
         if (ctx.childExit?.at === contract.title) {
@@ -336,7 +340,7 @@ async function main() {
         }
       }
       rows.push({ contract, status, detail, unjudgeable });
-      console.log(`  ${contract.title}${tag} ${status} — ${detail} (${Date.now() - t0}ms)`);
+      console.log(`  ${contract.title}${tag}${advis} ${status} — ${detail} (${Date.now() - t0}ms)`);
     }
 
     // ⑭'s no-orphan half: the trivial MCP sidecar must die with the child.
@@ -355,15 +359,26 @@ async function main() {
       }
     }
 
-    // 6. Summary + aggregate exit code.
+    // 6. Summary + aggregate exit code. Advisory rows are excluded from both
+    // the numerator and the denominator — they report, they never gate.
+    const gating = rows.filter((r) => !r.contract.advisory);
+    const advisory = rows.filter((r) => r.contract.advisory);
     console.log("");
     const verdict =
-      failures === 0 ? `${rows.length}/${rows.length} PASS` : `${rows.length - failures}/${rows.length} PASS, ${failures} FAIL`;
+      failures === 0
+        ? `${gating.length}/${gating.length} PASS`
+        : `${gating.length - failures}/${gating.length} PASS, ${failures} FAIL`;
     console.log(`dsh-contracts: ${verdict} — candidate ${tree}`);
     if (!ctx.handshake.ok) {
       console.log(
         `  handshake did not complete (${firstLine(ctx.handshake.error)}): the session contracts are marked unjudgeable, not independently red`,
       );
+    }
+    // Advisory summary, listed separately so a red ⑨b can never be mistaken
+    // for a gate failure (and a green one is easy to find for the upgrade
+    // decision).
+    for (const { contract, status, detail } of advisory) {
+      console.log(`  [advisory] ${contract.title}: ${status} — ${detail}`);
     }
     for (const { contract, status, unjudgeable: unj } of rows) {
       if (status === "FAIL" && contract.tags?.includes("internal-API") && !unj) {

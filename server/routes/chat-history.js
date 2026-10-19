@@ -31,7 +31,7 @@ export function registerChatHistoryRoutes(ctx) {
           : { owner: req.user?.email ?? "" }
         : undefined;
       res.json({
-        sessions: await chatHistory.listSessions(scope),
+        sessions: ctx.withTurnStatus(await chatHistory.listSessions(scope)),
         current: chatHistory.currentSessionId(),
       });
     } catch (err) {

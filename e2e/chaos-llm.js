@@ -20,6 +20,12 @@
 //                                 INVALID_REQUEST — permanently fatal even
 //                                 with the retry policy on; drives the
 //                                 subagent-failure-card scenario).
+//     mode "slow"               → every answer is delayed by `delayMs`
+//                                 (default 8000) before the normal text
+//                                 completion. Gives a spec a deterministically
+//                                 LONG turn — the state turn-dispatch's queue
+//                                 needs in order to be observable at all
+//                                 (concurrent-chat-sessions e2e).
 //   POST /__chaos/control       — { mode, rejectCount, shape } to re-arm.
 //
 // Rejection shapes (the wire form of the concurrency message):
@@ -73,7 +79,7 @@ function toolCallsChunk(id) {
 }
 
 export function startChaosLlm({ port = 0, host = "127.0.0.1" } = {}) {
-  const state = { mode: "pass", rejectCount: 0, skipCount: 0, shape: "sse-error", rejectKind: null, rejectedThisArm: 0, servedThisArm: 0, delegatedThisArm: false };
+  const state = { mode: "pass", rejectCount: 0, skipCount: 0, shape: "sse-error", rejectKind: null, rejectedThisArm: 0, servedThisArm: 0, delegatedThisArm: false, delayMs: 8000 };
   const requests = []; // { t, mode, model, stream, rejected, lastRole, hasSubagentTool }
 
   const reject = (res, kind) => {
@@ -106,13 +112,14 @@ export function startChaosLlm({ port = 0, host = "127.0.0.1" } = {}) {
         if (Number.isInteger(body.skip)) state.skipCount = body.skip;
         if (typeof body.shape === "string") state.shape = body.shape;
         if (body.rejectKind === "invalid" || body.rejectKind === "concurrency") state.rejectKind = body.rejectKind;
+        if (Number.isInteger(body.delayMs) && body.delayMs >= 0) state.delayMs = body.delayMs;
         // Re-arm: the rejection budget, the pre-rejection skip window, and the
         // one-shot delegation trigger all restart for the requests that follow.
         state.rejectedThisArm = 0;
         state.servedThisArm = 0;
         state.delegatedThisArm = false;
         res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({ mode: state.mode, rejectCount: state.rejectCount, skip: state.skipCount, shape: state.shape }));
+        res.end(JSON.stringify({ mode: state.mode, rejectCount: state.rejectCount, skip: state.skipCount, shape: state.shape, delayMs: state.delayMs }));
         return;
       }
       if (req.method === "GET" && req.url === "/__chaos/requests") {
@@ -156,36 +163,45 @@ export function startChaosLlm({ port = 0, host = "127.0.0.1" } = {}) {
       const isDelegateFirst =
         state.mode === "delegate2" && !state.delegatedThisArm && lastRole === "user" && hasSubagentTool;
       if (isDelegateFirst) state.delegatedThisArm = true;
-      if (stream) {
-        sse(res, isDelegateFirst ? toolCallsChunk(`chaos-${served}`) : textChunk(`chaos-${served}`, "ok"));
-      } else {
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(
-          JSON.stringify({
-            id: `chaos-${served}`,
-            object: "chat.completion",
-            choices: [
-              isDelegateFirst
-                ? {
-                    index: 0,
-                    message: {
-                      role: "assistant",
-                      tool_calls: [0, 1].map((i) => ({
-                        id: `chaos-call-${i}`,
-                        type: "function",
-                        function: { name: "subagent", arguments: JSON.stringify({ description: `chaos child ${i === 0 ? "one" : "two"}`, prompt: `Reply with only the word: ${i === 0 ? "one" : "two"}`, run_in_background: false }) },
-                      })),
-                    },
-                    finish_reason: "tool_calls",
-                  }
-                : { index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" },
-            ],
-            usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-          }),
-        );
+      if (state.mode === "slow" && state.delayMs > 0) {
+        setTimeout(() => answerNow(res, stream, isDelegateFirst, served), state.delayMs);
+        return;
       }
+      answerNow(res, stream, isDelegateFirst, served);
     });
   });
+
+  // One success answer — factored out so the slow mode can defer it.
+  function answerNow(res, stream, isDelegateFirst, served) {
+    if (stream) {
+      sse(res, isDelegateFirst ? toolCallsChunk(`chaos-${served}`) : textChunk(`chaos-${served}`, "ok"));
+    } else {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          id: `chaos-${served}`,
+          object: "chat.completion",
+          choices: [
+            isDelegateFirst
+              ? {
+                  index: 0,
+                  message: {
+                    role: "assistant",
+                    tool_calls: [0, 1].map((i) => ({
+                      id: `chaos-call-${i}`,
+                      type: "function",
+                      function: { name: "subagent", arguments: JSON.stringify({ description: `chaos child ${i === 0 ? "one" : "two"}`, prompt: `Reply with only the word: ${i === 0 ? "one" : "two"}`, run_in_background: false }) },
+                    })),
+                  },
+                  finish_reason: "tool_calls",
+                }
+              : { index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" },
+          ],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        }),
+      );
+    }
+  }
 
   return new Promise((resolve) => {
     server.listen(port, host, () => {

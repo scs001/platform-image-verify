@@ -74,7 +74,9 @@
     "projectNamePlaceholder": "e.g. Quarterly report",
     "useExistingFolder": "Pick an existing folder…",
     "createProject": "Create project",
-    "backToNewProject": "← New project"
+    "backToNewProject": "← New project",
+    "running": "Responding",
+    "queued": "Message queued"
   },
   "modelsPage": {
     "title": "Models",
@@ -322,7 +324,11 @@
     "artifactStrip": {
       "title": "Files this turn",
       "saved": "In library"
-    }
+    },
+    "queuedBehind": "Waiting for “{{title}}” to finish",
+    "queuedIdle": "Waiting for the assistant to be free",
+    "queuedCancel": "Cancel",
+    "queuedPreempt": "Stop it and run this now"
   },
   "turn": {
     "assistantName": "{{assistant}}",
@@ -418,7 +424,9 @@
     "cannotDeleteActive": "Switch to another session first",
     "deleteFailed": "Failed to delete: {{error}}",
     "clear": "Clear",
-    "cannotClearInactive": "Switch to this chat first"
+    "cannotClearInactive": "Switch to this chat first",
+    "cannotDeleteRunning": "This chat is still running",
+    "cannotDeleteQueued": "This chat has a queued message"
   },
   "documents": {
     "title": "Library",

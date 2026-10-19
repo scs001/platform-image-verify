@@ -45,6 +45,10 @@ let presetSource = null;
 // blank = the sidebar's Ungrouped group). Set by server.js. Read once — a
 // mid-session workspace switch never re-groups a session.
 let workspaceSource = null;
+// Per-session activity probe (concurrent-chat-sessions D7): { streaming, queued }
+// for a session id. Set by server.js once the turn machinery exists; absent in
+// tooling/tests, where only the pointer guard applies.
+let activityProbe = null;
 
 export async function initChatHistory() {
   SESSIONS_DIR = storeDir("sessions-store", process.env.SESSIONS_STORE_DIR);
@@ -65,6 +69,10 @@ export function setPresetSource(source) {
 
 export function setWorkspaceSource(source) {
   workspaceSource = typeof source === "function" ? source : null;
+}
+
+export function setActivityProbe(probe) {
+  activityProbe = typeof probe === "function" ? probe : null;
 }
 
 export function getSessionsDir() {
@@ -394,6 +402,20 @@ export class DeleteSessionError extends Error {
 export async function deleteSession(id) {
   if (!id) throw new DeleteSessionError("not_found", "missing id");
 
+  // A session with a turn in flight anywhere, or a queued prompt, is exactly as
+  // undeletable as the pointer's session (concurrent-chat-sessions D7): the
+  // pointer is only "recently targeted" now, so it cannot stand in for
+  // activity. Checked before the mutex — the answer cannot improve while we
+  // wait, and taking the lock first would serialize a doomed call. The message
+  // stays the historical one (clients key on it); the cause lives in `code`.
+  const busyNow = () => {
+    const a = activityProbe?.(id);
+    return a?.streaming === true || a?.queued === true;
+  };
+  if (busyNow()) {
+    throw new DeleteSessionError("active", "Cannot delete the active session; switch first");
+  }
+
   // Serialize concurrent deletes against the SAME id. Tail-call the prior
   // promise so the second caller waits for the first to finish, then re-checks
   // existence (the row may have been deleted by the prior call already).
@@ -408,6 +430,11 @@ export async function deleteSession(id) {
     }
     if (!db.isDbReady() || !db.sessionExists(id)) {
       throw new DeleteSessionError("not_found", `session ${id} not found`);
+    }
+    // Recheck activity: a turn can start while this delete waited on the
+    // mutex. Same reason the pointer is rechecked below.
+    if (busyNow()) {
+      throw new DeleteSessionError("active", "Cannot delete the active session; switch first");
     }
     // dsh-side delete first: a failure is logged & swallowed, so the host-side
     // SQLite/file cleanup is always the winning delete. The dsh entry is just

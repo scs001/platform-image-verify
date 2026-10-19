@@ -6,6 +6,7 @@
 // edge whose entries jump to a turn via jumpToTurn.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Clock } from "lucide-react";
 import { useChatStore } from "@platform/core";
 import { ChatOutline } from "@/components/ChatOutline";
 import { UserTurn } from "@/components/UserTurn";
@@ -32,6 +33,10 @@ export function Chat({ send, onPrefill }: Props) {
   const { t } = useTranslation();
   const turns = useChatStore((s) => s.turns);
   const isStreaming = useChatStore((s) => s.isStreaming);
+  // A prompt waiting behind another session's turn (concurrent-chat-sessions).
+  // Not a transcript turn — a queued prompt has no history row until it
+  // dispatches — so it renders as its own pending bubble.
+  const queuedTurn = useChatStore((s) => s.queuedTurn);
   const pendingSession = useChatStore((s) => s.pendingSession);
   const currentSessionId = useChatStore((s) => s.currentSessionId);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -189,6 +194,12 @@ export function Chat({ send, onPrefill }: Props) {
         {turns.length === 0 ? (
           pendingSession ? (
             <SessionSkeleton />
+          ) : queuedTurn ? (
+            // A first prompt queued on a blank chat: there is no transcript to
+            // append to, but the bubble is still what the user must see.
+            <div className="mx-auto flex max-w-4xl flex-col gap-6">
+              <QueuedBubble queued={queuedTurn} send={send} />
+            </div>
           ) : (
             <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
               {t("chat.empty")}
@@ -233,12 +244,63 @@ export function Chat({ send, onPrefill }: Props) {
                 </div>
               );
             })}
+            {queuedTurn && <QueuedBubble queued={queuedTurn} send={send} />}
           </div>
         )}
       </div>
       {outlineEntries.length >= OUTLINE_MIN_USER_TURNS ? (
         <ChatOutline entries={outlineEntries} onJump={jumpToTurn} />
       ) : null}
+    </div>
+  );
+}
+
+// A prompt accepted while the runtime is busy (concurrent-chat-sessions,
+// design D10). Deliberately NOT a Turn: the user's message has not been
+// recorded (a cancelled queue entry leaves no history row), so this bubble is
+// local UI driven by server state (`queued` / session_loaded.queued) and
+// disappears on `dequeued`. Two actions: withdraw it, or stop the session it is
+// waiting behind and run this one instead.
+function QueuedBubble({
+  queued,
+  send,
+}: {
+  queued: { text: string; position: number; waitingOn: { id: string; title: string | null } | null };
+  send: (m: ClientMessage) => void;
+}) {
+  const { t } = useTranslation();
+  const currentSessionId = useChatStore((s) => s.currentSessionId);
+  return (
+    <div data-testid="queued-bubble" data-position={queued.position} className="flex flex-col items-end gap-1.5">
+      <div className="max-w-[85%] rounded-lg bg-muted px-3 py-2 text-sm text-foreground">{queued.text}</div>
+      <div className="flex flex-wrap items-center justify-end gap-2 text-xs text-muted-foreground">
+        <span data-testid="queued-status" className="flex items-center gap-1">
+          <Clock className="h-3 w-3" aria-hidden="true" />
+          {queued.waitingOn
+            ? t("chat.queuedBehind", {
+                title: queued.waitingOn.title || t("sidebar.untitled"),
+              })
+            : t("chat.queuedIdle")}
+        </span>
+        <button
+          type="button"
+          data-testid="queued-cancel"
+          onClick={() => currentSessionId && send({ type: "stop_turn", id: currentSessionId })}
+          className="rounded-full border border-border px-2 py-0.5 hover:bg-muted hover:text-foreground"
+        >
+          {t("chat.queuedCancel")}
+        </button>
+        {queued.waitingOn && (
+          <button
+            type="button"
+            data-testid="queued-preempt"
+            onClick={() => send({ type: "stop_turn", id: queued.waitingOn!.id })}
+            className="rounded-full border border-border px-2 py-0.5 hover:bg-muted hover:text-foreground"
+          >
+            {t("chat.queuedPreempt")}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

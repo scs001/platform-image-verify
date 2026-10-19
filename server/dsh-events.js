@@ -197,6 +197,11 @@ export function attachDshEvents(ctx) {
     ctx.resetTurnBuffer?.(sid);
     ctx.turnStateBySession.delete(sid);
     void ctx.broadcastSessions();
+    // A web turn just closed: the shared child is free for the next queued
+    // prompt (concurrent-chat-sessions D1). Synchronous dispatch — the queue
+    // head reserves its turn before any await, so a racing prompt cannot slip
+    // in alongside it.
+    ctx.drainTurnQueue?.();
   };
 
   // Per-turn tool-roster projection for UNKNOWN_TOOL candidate recovery
@@ -245,6 +250,10 @@ export function attachDshEvents(ctx) {
       // During initial boot the session shim is attached after the bridge starts;
       // the composition root performs the ready sync once that state exists.
       if (ctx.session) ctx.onDshReady?.();
+      // A planned restart (MCP update, preset switch) keeps the queue; this is
+      // the resume trigger. A lane that caused the restart holds a reservation
+      // (turn-dispatch design D2), so the queue stays parked in that window.
+      ctx.drainTurnQueue?.();
       return;
     }
     // Bridge lifecycle notifications have no session id and must abort a live
@@ -399,7 +408,10 @@ export function attachDshEvents(ctx) {
         // as a fresh numbered turn the client never mistakes for content).
         if (ev.type === "llm/retry") {
           const failure = ev.data?.failure ?? {};
-          ctx.sendToViewers(ctx.dshSessionId, {
+          // Per-event sid, never the global pointer (concurrent-chat-sessions
+          // D6): a background session retrying must not paint a retry bar onto
+          // whichever transcript happens to be on screen.
+          ctx.sendToViewers(sid, {
             type: "retry_scheduled",
             retryId: ev.data?.retryId ?? null,
             provider: ev.data?.provider ?? null,
@@ -413,7 +425,7 @@ export function attachDshEvents(ctx) {
             },
           });
         } else {
-          ctx.sendToViewers(ctx.dshSessionId, {
+          ctx.sendToViewers(sid, {
             type: "retry_started",
             retryId: ev.data?.retryId ?? null,
             retry: ev.data?.retry ?? null,

@@ -74,7 +74,9 @@
     "projectNamePlaceholder": "比如：季度报告",
     "useExistingFolder": "指定已有文件夹…",
     "createProject": "创建项目",
-    "backToNewProject": "← 新建项目"
+    "backToNewProject": "← 新建项目",
+    "running": "正在回答",
+    "queued": "消息排队中"
   },
   "modelsPage": {
     "title": "模型",
@@ -322,7 +324,11 @@
     "artifactStrip": {
       "title": "本轮产物",
       "saved": "已入资源库"
-    }
+    },
+    "queuedBehind": "排队中 · 等待《{{title}}》完成",
+    "queuedIdle": "排队中 · 等待助手空闲",
+    "queuedCancel": "取消",
+    "queuedPreempt": "停止它并立即执行"
   },
   "turn": {
     "assistantName": "{{assistant}}",
@@ -418,7 +424,9 @@
     "cannotDeleteActive": "请先切换到其他会话",
     "deleteFailed": "删除失败：{{error}}",
     "clear": "清空",
-    "cannotClearInactive": "请先切换到该会话"
+    "cannotClearInactive": "请先切换到该会话",
+    "cannotDeleteRunning": "该对话仍在回答中",
+    "cannotDeleteQueued": "该对话有消息在排队"
   },
   "documents": {
     "title": "资料库",

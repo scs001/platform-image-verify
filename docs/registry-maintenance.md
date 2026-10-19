@@ -688,7 +688,7 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 
 | 镜像 | tag | 源 | 池 |
 |---|---|---|---|
-| yizuo/fleet-observer | sha-5ef1480 | fd-wanxing ed9a567 | testaction004 |
+| yizuo/fleet-observer | sha-5ef1480 → **sha-bbf54c3**（digest 2d6f4650，sub2api 四修复验后滚产） | fd-wanxing ed9a567 → `3efd4df` | testaction004 |
 | yizuo/wanxing-facade | sha-5ef1480（同镜像双入口，FLEET_ENTRY 显式） | fd-wanxing ed9a567 | testaction004 |
 | yizuo/wanxing-web | sha-d10ba31（Dockerfile.web 根上下文变体，SMOKE=skip） | fd-wanxing acc4d8b | testaction004 |
 
@@ -698,6 +698,30 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 本机 collector 2978 条回灌+launchd 小时循环。**坑三条**：池无 build-args 管道（SERVICE 静默失效
 →一镜像双入口+env 显式）；同源零 diff 假绿（dispatch inputs 才是多镜像正解）；web boot 烟测被
 集群服务名误杀（SMOKE=skip）。**复验项**：sub2api 首拉形状、collector 24h、console 浏览器眼见。
+
+### 复验结果（2026-10-19 傍晚，billed 口径四修上产）
+
+**sub2api 首拉形状复验发现四个真缺陷，全部已修并上产**（fd-wanxing `3efd4df`，镜像
+`sha-bbf54c3` / digest `2d6f4650`，ArgoCD revision 对齐后被 pod imageID 实证）：
+
+| # | 缺陷 | 症状 | 修法 |
+|---|---|---|---|
+| ① | 环境变量名不匹配 | 代码读 `FLEET_STATS_SUB2API_BASE`，清单写 `…_BASE_URL` → `sub2api` 恒 null，小时拉取**从未启动** | `index.js` 两个名字都收，`BASE_URL` 为准 |
+| ② | 认证头错 | 用 `Authorization: Bearer`，sub2api `/api/v1/admin/*` 只认 **`x-api-key`** → 恒 401 `INVALID_TOKEN` | 改 `x-api-key`（同门面 `sub2api-admin.js`） |
+| ③ | 逐请求行被覆盖 | usage 端点**一行一请求**且无 `requests` 字段；upsert 是 plain SET → 同桶只留末条 | 拉取侧先按 `(day,bucket,kind)` 聚合再写；`requests` 每行记 1 |
+| ④ | 分页假总量 + 页上限 | 端点 `total`/`pages` **随请求页递增**（p1=201,p2=401,p3=601）不是真总量；实测 **119,363 行/天 = 597 页**，原 500 页上限正好截断 | 只认「短页即末页」，安全阀放到 2000 页；启动 5s 先拉一次消掉滚版空窗 |
+
+**生产实证**（`/api/fleet/v1/stats/overview?since=7d`）：`sub2api` 口径 `{basis:"billed",
+rows:310, requests:238786, tokens_in:2,186,785,720, tokens_out:311,228,506}`，与 fleet
+（`estimated`, 913 回合）和 local（`estimated`, 232 回合）**三口径并列不混算**；
+`stats.db` `MAX(fetched_at)` 推进到 10:37:31 即本轮全量入库。
+
+**同时复验通过的其它三项**：①stats-collector launchd 被我早前误卸，已重载并 exit 0 出
+`{"found":0,…,"delivered":true}`；②fd-memory 生产真实出数 26 页（sessions/log/handoffs），
+handoff `deployment → acceptance-zcode` 状态 `claimed`，交接协议生产闭环；③`/healthz` 绿。
+
+**新增测试守卫**（`scripts/test-stats-plane.mjs` 8 → 12，全仓 162/162 绿）：
+x-api-key 头、逐请求聚合、相对 `pages` 陷阱、信封 `code≠0` 不入库。
 
 
 ## §9 发布记录：记忆联邦上产（add-memory-federation-v1，切片 4，2026-10-19）

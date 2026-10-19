@@ -698,3 +698,19 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 本机 collector 2978 条回灌+launchd 小时循环。**坑三条**：池无 build-args 管道（SERVICE 静默失效
 →一镜像双入口+env 显式）；同源零 diff 假绿（dispatch inputs 才是多镜像正解）；web boot 烟测被
 集群服务名误杀（SMOKE=skip）。**复验项**：sub2api 首拉形状、collector 24h、console 浏览器眼见。
+
+
+## §9 发布记录：记忆联邦上产（add-memory-federation-v1，切片 4，2026-10-19）
+
+| 镜像 | tag | 源 | 池 |
+|---|---|---|---|
+| yizuo/fd-memory | sha-8d2a26d（/hook 联邦面+platform 族+幂等） | fd-memory 1f83d9c+ | testaction005 |
+| yizuo/platform | sha-f6f0508（cell-memory.js 挂载+CELL_MEMORY_* 开门） | paas c58f07fb | testaction004 run 39187304206 |
+
+**联邦三面**：①本地节点——fleet profile 指 NodePort 31899（tailnet），hook 事件 recover 排空直投
+u/ namespace（首投实时落库+幂等实证；配方=fd-memory docs/federation-recipe.md；本机 launchd 小时
+recover 已装）；②cell——platform 全量开门 CELL_MEMORY_*（platform 令牌带外 secret），writeMcpPatch
+追加 fd-memory MCP 行 + 人令牌 per-owner 代铸缓存（/data/cell-memory-tokens），pod 内活体 MOUNT OK +
+MCP 200；③萬星——切片 2 既有。**坑**：CELL_MEMORY_URL 必须 clusterIP（platform hostNetwork +
+Default dnsPolicy 无 cluster DNS；fd-memory 重建=IP 变，两清单注释互指）。**待复验**：真实 cell
+会话工具面眼见、cell 写→本地查互见闭环。7.2B 正式降级为可选迁移工具（spike 附录在案）。

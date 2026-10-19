@@ -1,0 +1,94 @@
+// Admin dashboard for Agent Cluster Platform
+
+export function createAdminRoutes(app) {
+  // GET /api/admin/clusters - List all clusters (admin only)
+  app.get("/api/admin/clusters", (req, res) => {
+    const user = req.user;
+    if (!user || !user.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    const clusters = [];
+    for (const [id, cluster] of global.dynamicClusters || []) {
+      clusters.push({
+        id: cluster.id,
+        name: cluster.name,
+        status: cluster.status,
+        agentCount: cluster.agents.length,
+        totalExecutions: cluster.totalExecutions,
+        totalTokensUsed: cluster.totalTokensUsed,
+        lastUsedAt: cluster.lastUsedAt,
+        createdAt: cluster.createdAt,
+        owner: cluster.ownerEmail || "unknown",
+      });
+    }
+    
+    res.json({ clusters, count: clusters.length });
+  });
+  
+  // POST /api/admin/clusters/:id/terminate - Force terminate cluster
+  app.post("/api/admin/clusters/:id/terminate", (req, res) => {
+    const user = req.user;
+    if (!user || !user.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    const clusterId = req.params.id;
+    const cluster = global.dynamicClusters?.get(clusterId);
+    
+    if (!cluster) {
+      return res.status(404).json({ error: "Cluster not found" });
+    }
+    
+    global.dynamicClusters?.delete(clusterId);
+    
+    res.json({ 
+      success: true, 
+      message: `Cluster ${clusterId} terminated by admin` 
+    });
+  });
+  
+  // GET /api/admin/users - List users with cluster usage
+  app.get("/api/admin/users", (req, res) => {
+    const user = req.user;
+    if (!user || !user.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    // In production, query user database
+    res.json({
+      users: [
+        { email: "user1@example.com", clusterCount: 5, totalExecutions: 1234 },
+        { email: "user2@example.com", clusterCount: 3, totalExecutions: 567 },
+      ],
+      totalUsers: 2,
+    });
+  });
+  
+  // POST /api/admin/bulk-terminate - Terminate multiple clusters
+  app.post("/api/admin/bulk-terminate", (req, res) => {
+    const user = req.user;
+    if (!user || !user.isAdmin) {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+    
+    const { clusterIds } = req.body;
+    if (!Array.isArray(clusterIds)) {
+      return res.status(400).json({ error: "clusterIds array required" });
+    }
+    
+    let terminated = 0;
+    for (const id of clusterIds) {
+      if (global.dynamicClusters?.has(id)) {
+        global.dynamicClusters.delete(id);
+        terminated++;
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      terminated,
+      message: `${terminated} clusters terminated` 
+    });
+  });
+}

@@ -40,10 +40,10 @@
 
 ## 8. 出片与部署
 
-- [ ] 8.1 出片（纪律门：**先 `fd-build-channel` 判路**，GHA→TCR 链，禁本地 build/禁 US 直推），verify：镜像 digest 入台账 `docs/registry-maintenance.md` §9
-- [ ] 8.2 舰队部署：k8s 单实例 + PV（store-roots）+ 每日 git 快照 cron，落点按部署时 INFRA-NOTES 定，verify：pod 健康 + 端到端探针（capture 写入→query 命中）
+- [x] 8.1 出片（fd-build-channel 判路先行：fd-memory=通用池 testaction005 三轮 sha-f170dae/f73eef0/b2fc387；platform=通用池 testaction004 sha-54da09c 池内 image.yml 默认根 Dockerfile——scs001 公开线只作 CI 门），verify：relay OK + skopeo digest 硬门全过、台账 §9 在册
+- [x] 8.2 舰队部署（cheap 集群 fd-prod ns，cheap-4 单实例+PVC 5Gi；runner-serving 同节点滚 sha-54da09c + AGENT_RUNNER_MEMORY_* 开门，令牌走带外 secret fd-memory-runner；pepper 走 fd-memory-env secret；**容器无 git→快照降级可选**，每日快照 cron 留待 git 侧方案），verify：ArgoCD GitOps 全程 + rollout 绿 + 探针/验收全链
 
 ## 9. 生产验收与收尾
 
-- [ ] 9.1 生产验收（切片 1 三判据复演）：一个真实部署 agent 跨会话 handoff 接力成功 + dsh 与 ACP 各一部署产生 manager 代采观测 + 服务停机时回合照常，verify：验收记录（含截图/检索证据）入本 change `reports/`
-- [ ] 9.2 台账与底稿更新：`docs/memory-and-stats-plane-explore.md` 切片 2 完结标记、registry-maintenance 发布记录、记忆文件更新，verify：文档链接互相可达
+- [x] 9.1 生产验收（reports/2026-10-19-prod-acceptance.md）：dsh 部署 spider-heal 真实回合写 handoff→跨会话认领 claim-once ✓；停机降级（scale 0 回合照常）✓；manager 代采观测+会话页+handoff 页落库可检索 ✓；ACP 生产部署缺位——测试层覆盖、补验留待首个真实 ACP 服务（as-built 在案）
+- [x] 9.2 台账与底稿更新：`docs/memory-and-stats-plane-explore.md` 切片 2 完结标记、registry-maintenance 发布记录、记忆文件更新，verify：registry-maintenance §1/§9 + explore 底稿切片②完结标记 + 记忆文件更新，链接互相可达

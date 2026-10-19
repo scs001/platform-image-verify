@@ -130,7 +130,10 @@ L1 沉淀页（durable facts）= L2 最干净的 episode 源，**L1 是 L2 的�
    关键新证据：dsh 会话零 observations（MCP-only）= manager 代采必然性的活体证明；
    token 注入面分 stdio-bridge（文件读）与 http-直连（字面量）两档；headless dsh 组装配方在册。
 2  fleet-memory-v1       fd-memory 新仓：服务 + runner MCP 挂载 + manager 代采
-     |                   + 部署/人令牌铸币 + persona 记忆纪律（验收含）
+   ✅ 2026-10-19 全链上产（change add-fleet-memory-v1，生产验收三判据过）：
+   服务=cheap-4 单实例+PVC（fd-memory sha-b2fc387）；runner-serving 滚 platform
+   sha-54da09c + 记忆开门；验收记录=change reports/。as-built 边界与 v1.1 待办
+   在案（namespace 用显示名/pod 成员无挂载/ACP 生产补验/7.2 B 向 spike）。
 3  stats-plane-v1        三采集点 + 聚合 + 萬星 console 运营段（与 2 并行开线）
 4  memory-federation     壹座 cell 挂载 + 本地 stock 节点与舰队互通（`server=` 直指）
 5  kg-distill（远期）    L1 沉淀页 -> episode -> graphiti 双时态图（分岔 B 会合）

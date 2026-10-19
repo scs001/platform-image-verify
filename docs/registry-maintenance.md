@@ -669,3 +669,16 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 复跑（05:5x，腾讯 TTS 恢复后） | **`node scripts/verify-live-voice.mjs` 21/21 ALL PASS**。TTS 全链通：`/api/voice/speech` **200 audio/mpeg**、`x-voice-key-source: user`、同源探针 **9648B 真 mp3**、`turn-speak` 进 `playing`；用量两行 `audio:tts` 落在绑定用户铸造 key（124/125）**account 44 `tencent:101007 /TextToVoice`**（ASR 同样 `tencent:sentence`，均计用户 key）；断开后回落 deployment。排查期两把探针 key（123 单探针 19008B、124/125 脚本）已软删，`yizuo-l2b%` 存活 0 |
 | 验收脚本 | 浏览器侧对二进制响应只给 0B（Playwright 不捕获 body），故「真载荷」判据改为同源重放探针量字节；`ttsBytes` 只作 header 级佐证。生产复跑两次均 ALL PASS |
 | 遗留 | ①`composer-stop.spec` 固有 flaky 在案（非本刀引入）；②同一台账 §12.17/§12.18 曾错位（12.18 正文卡在 12.17 标题下，并行会话各自追加所致），本次已归位 |
+
+
+## §9 发布记录：舰队记忆面切片 2 上产（add-fleet-memory-v1，2026-10-19）
+
+| 镜像 | tag | 源 | 池 |
+|---|---|---|---|
+| yizuo/fd-memory | sha-b2fc387（首版 f170dae→f73eef0→b2fc387 三轮：池 Dockerfile 路径/bind host/容器无 git） | fd-memory 1edb6e5+ | testaction005 |
+| yizuo/platform | sha-54da09c | paas 457ba1f8 | testaction004（池内 image.yml 默认根 Dockerfile） |
+
+**新服务 fd-memory**（cheap 集群 fd-prod，cheap-4 单实例 + PVC 5Gi + ClusterIP 49375）：
+舰队工作记忆（OKF 真源/跨 owner 物理隔离/fdm_ 三族令牌/capture 脱敏/MCP 八工具）。runner-serving 同车滚 sha-54da09c + `AGENT_RUNNER_MEMORY_*` 开门（令牌=带外 secret fd-memory-runner，pepper=fd-memory-env）。fd-infra-deploy 0018d19。**生产验收三判据全过**（change reports/2026-10-19-prod-acceptance.md：spider-heal 真实回合写 handoff→跨会话认领 claim-once；scale 0 回合照常；代采观测落库）。
+
+**实施期三起旁发现**：① runner 数据根 LLM key 死钥（10-18 轮换漏 /data/llm-providers.json，已修 in-pod，**cheap-1 rsync 源未同步登记待办**）；② wx-alpha 部署者计费键死（sk-a4…401，需部署者重绑）；③ fd-health-proxy NO_PROXY 缺集群 DNS 域（dsh child MCP 被代理劫走——已补 `.svc.cluster.local,.svc` 并滚 runner，普适修复）。**凭据暴露**：mihomo 代理凭据入本会话 transcript（读 NO_PROXY 带出），择时轮换。

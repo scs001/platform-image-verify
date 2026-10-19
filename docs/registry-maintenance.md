@@ -861,3 +861,35 @@ ccr 侧 9 层 / 无 `FLEET_ENTRY`（确认是 nginx 静态镜像，非 facade）
 3. **同 tag 重推 + `IfNotPresent` = 吃坏缓存**——tag 被覆盖后节点拒绝重新拉取，Pod 一直 `0/1`。
    本次把 `wanxing-web.yaml` 的 `imagePullPolicy` 改为 `Always`（同名 tag 覆盖是真实存在的场景）。
    另注：relay 是 tag 级去重，同 tag 重推需手动 `skopeo copy` 补（claude 记忆里已有此条）。
+
+### §10.1 第二轮：错误边界暴露的缺陷 + 消耗表信息可见性（2026-10-20）
+
+**谱系**：fd-wanxing `cd9e4b0` → 快照 tag `sha-49c9d3f`（testaction002/build-pool，run `39302293472`）→
+`ccr.ccs.tencentyun.com/yizuo/wanxing-web:sha-49c9d3f`，ccr manifest digest = pod `imageID` =
+`sha256:21f0304b7d1f8ed0c8be17b580cf72ead14ee4ddef3f3feb630dd48752ee8184`（9 层，nginx 静态镜像）。
+GitOps `fd-infra-deploy` `6eeb853`，ArgoCD hard-refresh 后 2/2 ready。
+
+**错误边界自身带来的第二个缺陷**：第一轮加上错误边界后，原本被「整树崩溃」掩盖的缺陷现形——
+`DeployWizard.jsx:5` 用了 `useEffect` 却只 import 了 `useState`（自 `b215e08` 起就存在）。
+缺陷一直真实存在，只是此前永远不会被看到。修法：补 import + 同型审计
+（`MissionsView` 的 `missions.missions` / `doc.plan.steps` / `doc.history`、`OpsView` 的 `plans.plans`、
+`FleetView` 的 `callers.list` 补可选链），避免「修掉一个只是把崩溃点后移」。
+
+**消耗表「信息看不到」的三个真实原因**（都不是单纯宽度）：
+1. **半宽布局**——两张表在 `grid md:grid-cols-2` 里各占半屏，长 slug 被压到只剩前缀。
+   改堆叠全宽（`space-y-3`，`min-w` 兜底）。
+2. **`truncate` 在共享前缀场景下等于不可读**——agent id 全部以 `packs-` 开头，截断后每行长得一样。
+   改为 `agentLabel()` 去掉 `packs-` + `break-all` 换行，`title` 保留完整值。
+3. **`slice(0, 20)` 静默丢弃**——超过 20 行直接不渲染，页面看起来「完整」但数据缺了。
+   改为 `Pager`：每页 10 项 +「共 N 项 · 第 x/y 页」+ 上/下一页，切时间窗重置页码。
+
+**验收（生产 bundle 端到端，32/32）**：
+- `prod2.mjs` 16 项：我的舰队无「渲染出错」/无 `useEffect is not defined`；五个 tab 逐个切换无边界错误；
+  分页首屏 10 行、页码 `1/3`、翻页取到第 11 行（`0010i262…`）；表头表身列坐标 `[157,524,737,882,990]`
+  完全一致；卡片 `scrollWidth<=clientWidth`；agent 列显示 `0000i262…` 且 `title` 仍是完整 `packs-…`。
+- `prod3.mjs` 16 项：未登录态仍渲染登录卡无错误；1280/1024/768 三档两表均列对齐、不溢出、有总数。
+- **突变测试**（证明断言不是假绿）：撤掉 `useEffect` 导入 → 2 项 FAIL；`PAGE_SIZE` 改回 999 → 9 项 FAIL。
+
+**出片踩坑补一条**：`fd-build-snapshot --branch master` 会把快照推到出片仓的 **`master`** 分支，
+而通用池 `image.yml` 只在 `push: branches: [main]` 触发 → **推送成功但不构建**。
+源码仓默认分支是 `master` 时，**不要传 `--branch`**（脚本默认就推 `main`）。

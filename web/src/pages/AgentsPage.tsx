@@ -45,6 +45,40 @@ export function AgentsPage() {
   const [connecting, setConnecting] = useState<string | null>(null);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  
+  // Dynamic clusters (agent-cluster-platform)
+  const [dynamicClusters, setDynamicClusters] = useState<Array<{
+    id: string;
+    name: string;
+    agentCount: number;
+    status: string;
+  }>>([]);
+  const [loadingClusters, setLoadingClusters] = useState(false);
+  
+  // Load user's dynamic clusters
+  useEffect(() => {
+    if (activeTab === "agents") {
+      void loadUserClusters();
+    }
+  }, [activeTab]);
+  
+  const loadUserClusters = async () => {
+    setLoadingClusters(true);
+    try {
+      const user = await fetch("/api/user").then(r => r.json());
+      if (user?.email) {
+        const r = await fetch(`/api/clusters/user/${encodeURIComponent(user.email)}`);
+        if (r.ok) {
+          const data = await r.json();
+          setDynamicClusters(data.clusters ?? []);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load user clusters:", err);
+    } finally {
+      setLoadingClusters(false);
+    }
+  };
 
   // The tab set comes from the server-resolved layout (layout-configuration);
   // without it (older server) the client falls back to the factory set with
@@ -204,6 +238,25 @@ export function AgentsPage() {
       <div className="mt-4">
         {activeTab === "agents" && (
           <section data-testid="agents-section" className="flex flex-col gap-6">
+            {/* Dynamic clusters section (agent-cluster-platform) */}
+            {!loadingClusters && dynamicClusters.length > 0 && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium text-muted-foreground">
+                  {t("agentsPage.myClusters")}
+                </h3>
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+                  {dynamicClusters.map((cluster) => (
+                    <ClusterCard
+                      key={cluster.id}
+                      cluster={cluster}
+                      onManage={() => {}} // TODO: Open cluster management
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Catalog experts grid */}
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
               {sortedCatalogExperts.map((a) => (
                 <AgentCard
@@ -319,6 +372,59 @@ function AgentCard({ agent, onOpenLink }: { agent: AgentInfo; onOpenLink: () => 
                 Open <Icon name="external-link" size={10} className="inline" />
               </button>
             )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── ClusterCard ───────────────────────────────────────────────────────────
+
+interface ClusterCardProps {
+  cluster: {
+    id: string;
+    name: string;
+    agentCount: number;
+    status: string;
+  };
+  onManage: () => void;
+}
+
+function ClusterCard({ cluster, onManage }: ClusterCardProps) {
+  const { t } = useTranslation();
+  
+  return (
+    <div
+      className="rounded-lg border border-border p-4 transition-colors hover:border-primary/50 bg-gradient-to-br from-primary/5 to-transparent"
+      data-testid="cluster-row"
+      data-cluster-id={cluster.id}
+    >
+      <div className="flex items-start gap-3">
+        <div className="shrink-0 rounded-md bg-primary/10 p-2 text-primary">
+          <Icon name="users" size={20} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center justify-between">
+            <h3 className="truncate font-medium">{cluster.name}</h3>
+            <span className="text-[10px] text-muted-foreground">
+              {cluster.agentCount} {t("clusters.composer.selectAgents")}
+            </span>
+          </div>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">
+              Status: {cluster.status}
+            </span>
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={onManage}
+            >
+              {t("clusters.composer.manage")}
+            </Button>
           </div>
         </div>
       </div>

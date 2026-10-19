@@ -303,6 +303,41 @@ test("tool allowlists: shape, duplicates, and limit are enforced", () => {
   );
 });
 
+// ── Explicit tool face (pack-tool-declaration-gate, tasks 1.1–1.2) ───────────
+const withFullSurface = (registryName, extra) => ({
+  ...MANIFEST_BASE,
+  mcpServers: MANIFEST_BASE.mcpServers.map((m) => (m.registryName === registryName ? { ...m, ...extra } : m)),
+});
+
+test("tool face: a reasoned full-surface marker passes and 'neither' stays shape-valid", () => {
+  assert.deepEqual(
+    validatePackManifest(withFullSurface("law-bench", { fullSurface: true, fullSurfaceReason: "工具经 tool_search 间接选择" })),
+    [],
+  );
+  // Install compatibility: the publish-only gate, not shape, requires a choice.
+  assert.deepEqual(validatePackManifest(MANIFEST_BASE), [], "an undeclared legacy reference stays installable");
+});
+
+test("tool face: fullSurface and allowTools are mutually exclusive", () => {
+  const errs = (m) => validatePackManifest(m).map((e) => e.error).join("; ");
+  assert.match(
+    errs(withFullSurface("law-bench", { allowTools: ["read"], fullSurface: true, fullSurfaceReason: "理由" })),
+    /mutually exclusive/,
+  );
+});
+
+test("tool face: the marker requires a non-empty bounded reason", () => {
+  const errs = (m) => validatePackManifest(m).map((e) => e.error).join("; ");
+  assert.match(errs(withFullSurface("law-bench", { fullSurface: true })), /fullSurfaceReason/);
+  assert.match(errs(withFullSurface("law-bench", { fullSurface: true, fullSurfaceReason: "   " })), /fullSurfaceReason/);
+  assert.match(
+    errs(withFullSurface("law-bench", { fullSurface: true, fullSurfaceReason: "x".repeat(501) })),
+    /at most 500/,
+  );
+  assert.match(errs(withFullSurface("law-bench", { fullSurface: false, fullSurfaceReason: "理由" })), /must be true/);
+  assert.match(errs(withFullSurface("law-bench", { fullSurfaceReason: "理由" })), /requires fullSurface: true/);
+});
+
 test("tool allowlists: role mcpTools narrows within the pack-level declaration", () => {
   const manifest = {
     ...withAllowTools("law-bench", ["read", "search.legal", "verify_1"]),

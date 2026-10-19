@@ -9,6 +9,9 @@ export interface CustomPreset {
   persona: string;
   skills: string[];
   mcpServers: string[];
+  // Per-server tool narrowing (full-mode-tool-scope D4): {server: [leaf...]}.
+  // Absent/empty = the preset inherits the full-mode derived scope.
+  mcpTools: Record<string, string[]>;
   tags: string[];
   icon: string | null;
   // Sample prompts captured from the session that produced the preset
@@ -30,6 +33,7 @@ export interface CustomPresetInput {
   persona: string;
   skills?: string[];
   mcpServers?: string[];
+  mcpTools?: Record<string, string[]>;
   tags?: string[];
   icon?: string | null;
   examples?: string[];

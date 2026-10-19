@@ -27,7 +27,7 @@ import path from "node:path";
 import express from "express";
 import { PACK_LIMITS, validatePackManifest as validateManifest, validateRhythm, budgetMinutesError, modelIdError } from "../lib/pack-manifest.js";
 import { safePackagePath } from "../lib/skill-files.js";
-import { declaredToolsByServer, toolGateErrors, probeMcpToolNames } from "../lib/publish-tool-gate.js";
+import { declaredToolsByServer, toolGateErrors, probeMcpToolNames, toolFaceErrors, toolClosureErrors } from "../lib/publish-tool-gate.js";
 import { registryServerIndex } from "../registry-bridge.js";
 import { deployToRegistry, setAgentPaused, modelChoiceError, resolveServiceConfig, resolveAgentPort, NOTIFY_CHANNEL_RE, SECRET_NAME_RE, SECRET_LIMITS, maskSecretRef } from "../lib/agent-serving.js";
 import { createFleetScheduler } from "./fleet-scheduler.js";
@@ -39,6 +39,16 @@ export { PACK_LIMITS, validateManifest };
 // True when the manifest declares any tool leaf names (pack-level allowTools
 // or per-role mcpTools) — the publish tool gate's consultation predicate.
 const declaresTools = (manifest) => declaredToolsByServer(manifest).size > 0;
+
+// Explicit tool-face gate mode (pack-tool-declaration-gate): off skips the
+// gate, warn (the default, and the authoring repo's backfill window) logs the
+// violation surface and lets the publish through, enforce rejects. Read per
+// request so rollout and rollback never need a restart.
+const TOOL_FACE_GATE_MODES = new Set(["off", "warn", "enforce"]);
+const toolFaceGateMode = () => {
+  const raw = String(process.env.PACK_TOOL_FACE_GATE || "").trim().toLowerCase();
+  return TOOL_FACE_GATE_MODES.has(raw) ? raw : "warn";
+};
 
 // True when any skill entry carries an auxiliary file set (add-packaged-skills)
 // — the operator gate's consultation predicate (see the publish route).
@@ -104,6 +114,30 @@ async function collectPublishVerdict(manifest, { shortCircuit = false } = {}) {
   if (structural.length > 0) {
     push("structural", 400, { error: "Invalid manifest", errors: structural });
     if (shortCircuit) return items;
+  }
+  // Explicit tool-face gate (pack-tool-declaration-gate D1/D2): every reference
+  // must carry an allowlist or a reasoned full-surface marker, and every tool
+  // its skills name must sit inside that declaration. Pure functions — no
+  // registry round-trip, so it runs before the name gate. The shared shape
+  // validator deliberately still accepts "neither" (install compatibility);
+  // this gate is where a PUBLISHED version must have decided. Read per request:
+  // off skips, warn (default) logs the violation surface and lets the publish
+  // through, enforce rejects. The authoring repo's backfill runs in the warn
+  // window; enforce flips after it.
+  const faceMode = toolFaceGateMode();
+  if (faceMode !== "off") {
+    const violations = [...toolFaceErrors(manifest), ...toolClosureErrors(manifest)];
+    if (violations.length > 0) {
+      if (faceMode === "enforce") {
+        push("toolFace", 400, { error: "Invalid manifest", errors: violations, toolFace: true });
+        if (shortCircuit) return items;
+      } else {
+        console.warn(
+          `[publish-tool-face-gate] warn-only pack='${manifest?.name ?? "unnamed"}' ` +
+            `violations=${violations.length}: ${violations.map((v) => v.error).join(" | ")}`,
+        );
+      }
+    }
   }
   // Operator gate (add-packaged-skills D9): files-bearing publishes stay
   // refused until PACK_FILES_ENABLED is switched on. Cells running

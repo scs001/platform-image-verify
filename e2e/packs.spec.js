@@ -256,7 +256,15 @@ test("per-role resource declarations round-trip through save/reload; cost readou
     await page.getByTestId(`pack-skill-entry-${i}`).locator("textarea").fill("# c");
   }
   const mcpChip = page.getByTestId("pack-mcp-option-e2e-registry-mcp");
-  if (await mcpChip.count()) await mcpChip.click();
+  const hasMcpChip = (await mcpChip.count()) > 0;
+  if (hasMcpChip) {
+    await mcpChip.click();
+    // Publish requires an explicit tool face (pack-tool-declaration-gate):
+    // this test is about the resource-set dimension, so mark the reference
+    // full-surface rather than picking tools.
+    await page.getByTestId("pack-mcp-full-toggle-e2e-registry-mcp").check();
+    await page.getByTestId("pack-mcp-full-reason-e2e-registry-mcp").fill("资源集用例：整面引用");
+  }
 
   await page.getByTestId("pack-agent-add").click();
   await page.getByTestId("pack-agent-entry-0").locator("input").nth(0).fill("pack-resource-reviewer");
@@ -278,11 +286,10 @@ test("per-role resource declarations round-trip through save/reload; cost readou
   await page.getByTestId("pack-agent-resource-toggle-skills-0").check();
   await page.getByTestId("pack-agent-resource-chip-resource-skill-b").click(); // deselect B
   await expect(page.getByTestId("pack-agent-resource-chip-resource-skill-a")).toHaveClass(/bg-primary/);
-  if (await mcpChip.count()) {
+  if (hasMcpChip) {
     await page.getByTestId("pack-agent-resource-toggle-mcp-0").check();
     await expect(page.getByTestId("pack-agent-resource-chip-e2e-registry-mcp")).toHaveClass(/bg-primary/);
   }
-
   // Round-trip: save → close → reopen; the declaration survives intact.
   const editor = page.getByTestId("pack-editor");
   await editor.getByRole("button", { name: "保存草稿" }).click();
@@ -341,6 +348,117 @@ test("subscriber inspects, subscribes, and the pack materializes", async ({ page
   const mine = page.getByTestId("my-pack-pack-sub");
   await expect(mine).toContainText("v1");
   await expect(mine).toContainText("订阅包审查官");
+});
+
+// ── Detail: tool-face disclosure (pack-tool-declaration-gate 3.1–3.3) ───────
+test("detail discloses declared, full-surface, and legacy tool faces", async ({ page }) => {
+  const gw = seedableGateway(page);
+  const faceManifest = (name, skill, ref) => ({
+    name,
+    description: "工具面披露",
+    tags: [],
+    skills: [{ name: skill, description: "技能", content: "# c" }],
+    mcpServers: [{ registryName: "e2e-registry-mcp", ...ref }],
+    agents: [],
+  });
+  seedPack(gw.state, faceManifest("声明包", "face-declared-skill", { allowTools: ["t1", "t2"] }), "pack-face-declared");
+  seedPack(
+    gw.state,
+    faceManifest("全量包", "face-full-skill", { fullSurface: true, fullSurfaceReason: "工具经 tool_search 间接选择" }),
+    "pack-face-full",
+  );
+  seedPack(gw.state, faceManifest("旧版包", "face-legacy-skill", {}), "pack-face-legacy");
+  // Deterministic totals: the catalog's tool_list snapshot (no live probe).
+  await page.route("**/api/extensions/market", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        skills: [],
+        mcpServers: [
+          {
+            name: "e2e-registry-mcp",
+            displayName: "E2E Registry MCP",
+            description: "",
+            category: "Registry",
+            icon: "box",
+            configTemplate: { url: "http://127.0.0.1:1/mcp" },
+            installInstructions: "",
+            origin: "registry",
+            toolList: ["t1", "t2", "t3", "t4", "t5"],
+          },
+        ],
+      }),
+    }),
+  );
+  gw.install();
+  await gotoPacksTab(page, "market");
+
+  const open = async (id) => {
+    await page.getByTestId(`pack-card-${id}`).click();
+    const detail = page.getByTestId("pack-detail");
+    await expect(detail).toBeVisible();
+    return detail;
+  };
+
+  const declared = await open("pack-face-declared");
+  await expect(declared.getByTestId("pack-mcp-tool-face-e2e-registry-mcp")).toContainText("声明 2 / 全量 5 工具");
+  await declared.getByTestId("pack-detail-close").click();
+  await expect(declared).toBeHidden();
+
+  const full = await open("pack-face-full");
+  await expect(full.getByTestId("pack-mcp-tool-face-e2e-registry-mcp")).toContainText("全量 5 工具");
+  await expect(full.getByTestId("pack-mcp-full-surface-reason-e2e-registry-mcp")).toContainText(
+    "工具经 tool_search 间接选择",
+  );
+  await full.getByTestId("pack-detail-close").click();
+  await expect(full).toBeHidden();
+
+  const legacy = await open("pack-face-legacy");
+  await expect(legacy.getByTestId("pack-mcp-tool-face-e2e-registry-mcp")).toContainText("全量 5 工具（未声明）");
+});
+
+// ── Editor: full-surface marker + publish face gate (4.1–4.3) ───────────────
+test("draft saves without tools, the full-surface marker round-trips, publish requires a face", async ({ page }) => {
+  const gw = seedableGateway(page);
+  gw.install();
+  await gotoPacksTab(page, "drafts");
+  await page.getByTestId("pack-draft-create").click();
+  await page.locator("#pack-name").fill("工具面草稿包");
+
+  const mcpChip = page.getByTestId("pack-mcp-option-e2e-registry-mcp");
+  if (!(await mcpChip.count())) test.skip(true, "registry stub not serving the market catalog");
+  await mcpChip.click();
+
+  // 4.3: publishing with no tool face is blocked locally, naming the server.
+  await page.getByTestId("pack-draft-publish").click();
+  const editorError = page.getByTestId("pack-editor-error");
+  await expect(editorError).toContainText("e2e-registry-mcp");
+  await expect(editorError).toContainText("工具面");
+
+  // 4.1: a draft may still SAVE with no tools; reopening keeps that state.
+  const editor = page.getByTestId("pack-editor");
+  await editor.getByRole("button", { name: "保存草稿" }).click();
+  await editor.getByRole("button", { name: "关闭" }).click();
+  await page.locator('[data-testid^="pack-draft-item-"]').filter({ hasText: "工具面草稿包" }).first().click();
+  await expect(page.getByTestId("pack-mcp-tools-count-e2e-registry-mcp")).toHaveText("全部工具");
+  await expect(page.getByTestId("pack-mcp-full-toggle-e2e-registry-mcp")).not.toBeChecked();
+
+  // 4.2: the explicit marker + reason are offered and persist across reopen.
+  await page.getByTestId("pack-mcp-full-toggle-e2e-registry-mcp").check();
+  await page.getByTestId("pack-mcp-full-reason-e2e-registry-mcp").fill("工具经 tool_search 间接选择");
+  await page.getByRole("button", { name: "保存草稿" }).click();
+  await page.getByRole("button", { name: "关闭" }).click();
+  await page.locator('[data-testid^="pack-draft-item-"]').filter({ hasText: "工具面草稿包" }).first().click();
+  await expect(page.getByTestId("pack-mcp-full-toggle-e2e-registry-mcp")).toBeChecked();
+  await expect(page.getByTestId("pack-mcp-full-reason-e2e-registry-mcp")).toHaveValue("工具经 tool_search 间接选择");
+
+  // Publishing now succeeds and the manifest carries the marker verbatim.
+  await page.getByTestId("pack-draft-publish").click();
+  await expect(page.getByTestId("pack-card-pack-e2e-1")).toContainText("工具面草稿包", { timeout: 10_000 });
+  const published = gw.state.packs.find((p) => p.id === "pack-e2e-1");
+  expect(published.manifest.mcpServers[0].fullSurface).toBe(true);
+  expect(published.manifest.mcpServers[0].fullSurfaceReason).toBe("工具经 tool_search 间接选择");
 });
 
 test("version history disclosure is lazy, carries notes, and links each version", async ({ page }) => {

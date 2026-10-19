@@ -42,6 +42,10 @@ export interface PackManifestMcp {
   // Tool allowlist (add-mcp-tool-scoping): leaf names narrowing this
   // reference; absent = the server's full tool surface.
   allowTools?: string[];
+  // Explicit full-surface marker (pack-tool-declaration-gate): mutually
+  // exclusive with allowTools; the detail view discloses the reason.
+  fullSurface?: boolean;
+  fullSurfaceReason?: string;
 }
 
 export interface PackManifestAgent {
@@ -243,6 +247,41 @@ export function getServingStatus(): Promise<{ configured: boolean }> {
 // act, not the deploy form's.
 export function deployPack(
   id: string,
+
+// Dynamic cluster creation (agent-cluster-platform)
+export interface CreateDynamicClusterRequest {
+  name: string;
+  description?: string;
+  agents: Array<{
+    packId: string;
+    agentId: string;
+    version?: string;
+  }>;
+  activateAll?: boolean;
+  bindToSession?: boolean;
+}
+
+export interface CreateDynamicClusterResponse {
+  clusterId: string;
+  status: "creating" | "ready" | "loading";
+  name?: string;
+  agents: Array<{
+    packId: string;
+    agentId: string;
+    status: "active" | "installing";
+  }>;
+}
+
+export function createDynamicCluster(
+  request: CreateDynamicClusterRequest
+): Promise<CreateDynamicClusterResponse> {
+  return fetch("/api/clusters/dynamic", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  }).then(json) as Promise<CreateDynamicClusterResponse>;
+}
+
   version: number,
   rhythms?: Record<string, unknown>,
   billingKeys?: Record<string, string | null>,

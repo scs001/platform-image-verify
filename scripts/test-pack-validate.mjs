@@ -383,3 +383,108 @@ test("validate has its own limiter, env-tunable, independent of publish", async 
     await h.close();
   }
 });
+
+// ── Explicit tool-face gate (pack-tool-declaration-gate) ─────────────────────
+// In-process boots, so the per-request env switch is exercised end to end.
+test("tool-face gate: warn (the default) publishes an undeclared reference", async () => {
+  const h = await boot();
+  try {
+    process.env.PACK_TOOL_FACE_GATE = "warn";
+    // manifest() references law-bench with no declaration — the backfill window.
+    const p = await h.as(CREATOR).publish(manifest({ name: "未声明包" }));
+    assert.equal(p.status, 200, JSON.stringify(p.body));
+  } finally {
+    delete process.env.PACK_TOOL_FACE_GATE;
+    await h.close();
+  }
+});
+
+test("tool-face gate: off skips the gate entirely", async () => {
+  const h = await boot();
+  try {
+    process.env.PACK_TOOL_FACE_GATE = "off";
+    assert.equal((await h.as(CREATOR).publish(manifest({ name: "关闭门包" }))).status, 200);
+  } finally {
+    delete process.env.PACK_TOOL_FACE_GATE;
+    await h.close();
+  }
+});
+
+test("tool-face gate: enforce rejects an undeclared reference, naming both remedies", async () => {
+  const h = await boot();
+  try {
+    process.env.PACK_TOOL_FACE_GATE = "enforce";
+    const md = manifest({ name: "缺声明包" });
+    const p = await h.as(CREATOR).publish(md);
+    assert.equal(p.status, 400, JSON.stringify(p.body));
+    assert.equal(p.body.toolFace, true);
+    assert.match(p.body.errors[0].error, /缺声明包/);
+    assert.match(p.body.errors[0].error, /law-bench/);
+    assert.match(p.body.errors[0].error, /allowTools/);
+    assert.match(p.body.errors[0].error, /fullSurface/);
+
+    // The dry-run reports the same verdict instead of a silent pass.
+    const v = await h.as(CREATOR).validate(md);
+    assert.equal(v.body.valid, false);
+    assert.ok(v.body.errors.some((e) => e.toolFace === true), "toolFace marker kept in validate");
+  } finally {
+    delete process.env.PACK_TOOL_FACE_GATE;
+    await h.close();
+  }
+});
+
+test("tool-face gate: enforce accepts a reasoned full-surface reference", async () => {
+  const h = await boot();
+  try {
+    process.env.PACK_TOOL_FACE_GATE = "enforce";
+    const p = await h.as(CREATOR).publish(
+      manifest({
+        name: "全量声明包",
+        mcpServers: [{ registryName: "law-bench", fullSurface: true, fullSurfaceReason: "工具经 tool_search 间接选择" }],
+      }),
+    );
+    assert.equal(p.status, 200, JSON.stringify(p.body));
+  } finally {
+    delete process.env.PACK_TOOL_FACE_GATE;
+    await h.close();
+  }
+});
+
+test("tool-face gate: enforce rejects a named tool outside the declaration, naming tool and skill", async () => {
+  const h = await boot();
+  try {
+    process.env.PACK_TOOL_FACE_GATE = "enforce";
+    const md = manifest({
+      name: "闭包包",
+      skills: [{ name: "legal-search", description: "技能", content: "调用 mcp__stub-srv__ghost_tool 检索" }],
+      mcpServers: [{ registryName: "stub-srv", allowTools: ["read"] }],
+    });
+    const p = await h.as(CREATOR).publish(md);
+    assert.equal(p.status, 400, JSON.stringify(p.body));
+    assert.equal(p.body.toolFace, true);
+    assert.match(p.body.errors[0].error, /ghost_tool/);
+    assert.match(p.body.errors[0].error, /stub-srv/);
+    assert.match(p.body.errors[0].error, /legal-search/);
+  } finally {
+    delete process.env.PACK_TOOL_FACE_GATE;
+    await h.close();
+  }
+});
+
+test("tool-face gate: enforce exempts a full-surface reference from tool closure", async () => {
+  const h = await boot();
+  try {
+    process.env.PACK_TOOL_FACE_GATE = "enforce";
+    const p = await h.as(CREATOR).publish(
+      manifest({
+        name: "全量豁免包",
+        skills: [{ name: "indirect-refs", description: "技能", content: "经 tool_search 选择 mcp__law-bench__clause_assemble" }],
+        mcpServers: [{ registryName: "law-bench", fullSurface: true, fullSurfaceReason: "间接选择，无法静态枚举" }],
+      }),
+    );
+    assert.equal(p.status, 200, JSON.stringify(p.body));
+  } finally {
+    delete process.env.PACK_TOOL_FACE_GATE;
+    await h.close();
+  }
+});

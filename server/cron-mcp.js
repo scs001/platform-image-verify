@@ -71,9 +71,9 @@ const TOOLS = [
   {
     name: "cron_create",
     description:
-      "Schedule a recurring task (cron expression) or a one-shot task (absolute time) that runs the given prompt " +
-      "under the CURRENT agent persona, in its own dedicated chat session. The task fires even when the user is " +
-      "away; output lands in that session and the user is notified in-app. Prefer cron five-field syntax " +
+      "Schedule a recurring task (cron expression) or a one-shot task (absolute time) that runs the given prompt. " +
+      "For single-agent tasks, it runs under the CURRENT agent persona in its own dedicated session. " +
+      "For cluster tasks, specify a clusterId to run across multiple agents. Prefer cron five-field syntax " +
       "(minute hour day-of-month month day-of-week) in the USER's timezone — pass the user's IANA timezone as `tz` " +
       "whenever they name a local time. Times for one-shots are ISO-8601.",
     inputSchema: {
@@ -81,16 +81,32 @@ const TOOLS = [
       properties: {
         cron: { type: "string", description: "Five-field cron expression (mutually exclusive with `when`)." },
         when: { type: "string", description: "ISO-8601 absolute time for a one-shot task (mutually exclusive with `cron`)." },
-        prompt: { type: "string", description: "The prompt to run on the schedule. Self-contained: no conversation context carries over." },
+        prompt: { type: "string", description: "The prompt to run on the schedule." },
         tz: { type: "string", description: "IANA timezone the cron expression is evaluated in (e.g. Asia/Shanghai). Defaults to the cell's local timezone." },
         name: { type: "string", description: "Short human label; becomes the dedicated session's title." },
+        // Cluster-aware fields (agent-cluster-platform)
+        clusterId: { type: "string", description: "Dynamic cluster ID to run across multiple agents (optional)." },
+        executionPolicy: {
+          type: "object",
+          description: "Execution policy for cluster tasks.",
+          properties: {
+            allowParallel: { type: "boolean", description: "Run agents concurrently (default: false = sequential)." },
+            timeoutMinutes: { type: "number", description: "Max duration per agent run." },
+            resultAggregation: { type: "string", enum: ["first", "all", "summary"], description: "How to combine results." }
+          }
+        },
+        targetAgents: { 
+          type: "array", 
+          items: { type: "string" },
+          description: "Override which agents in the cluster to run (defaults to all defaultAgents)."
+        }
       },
       required: ["prompt"],
     },
   },
   {
     name: "cron_list",
-    description: "List all scheduled tasks with id, schedule, timezone, status, and last outcome.",
+    description: "List all scheduled tasks with id, schedule, timezone, status, and last outcome. Cluster tasks show cluster name and agent count.",
     inputSchema: { type: "object", properties: {} },
   },
   {
@@ -126,27 +142,50 @@ function tzLabel(tz) {
   return tz || `${cellLocalTz} (cell-local default)`;
 }
 
-async function toolCreate({ cron, when, prompt, tz, name }) {
+async function toolCreate({ cron, when, prompt, tz, name, clusterId, executionPolicy, targetAgents }) {
   if (!cron && !when) return errOut("provide either `cron` (recurring) or `when` (one-shot)");
   if (cron && when) return errOut("`cron` and `when` are mutually exclusive");
-  const { job } = await call("POST", "/api/cron", {
+  
+  const body = {
     cron,
     when,
     prompt,
     tz,
     sessionTitle: name || null,
-  });
+  };
+  
+  // Add cluster fields if provided (agent-cluster-platform)
+  if (clusterId) {
+    body.clusterId = clusterId;
+    if (executionPolicy) {
+      body.executionPolicy = executionPolicy;
+    }
+    if (targetAgents && Array.isArray(targetAgents)) {
+      body.targetAgents = targetAgents;
+    }
+  }
+  
+  const { job } = await call("POST", "/api/cron", body);
   const when_ = cron
     ? `${describeCron(cron)} (${tzLabel(job.tz)})`
     : `once at ${new Date(when).toISOString()}`;
-  return textOut(
-    `Scheduled task created.\n` +
-      `- id: ${job.id}\n` +
-      `- schedule: ${when_}\n` +
-      `- agent: ${job.preset ?? "the cell's current agent"}\n` +
-      `- output session: ${job.sessionTitle || "dedicated session"}\n` +
-      `Tell the user it is set up; they can manage it on the scheduled-tasks page.`,
-  );
+  
+  let output = `Scheduled task created.\n` +
+    `- id: ${job.id}\n` +
+    `- schedule: ${when_}\n`;
+  
+  if (job.clusterId) {
+    output += `- cluster: ${job.clusterName || job.clusterId}\n` +
+      `- agents: ${job.agentCount || "multiple"}\n` +
+      `- execution: ${job.executionPolicy?.allowParallel ? "parallel" : "sequential"}\n`;
+  } else {
+    output += `- agent: ${job.preset ?? "the cell's current agent"}\n`;
+  }
+  
+  output += `- output session: ${job.sessionTitle || "dedicated session"}\n` +
+    `Tell the user it is set up; they can manage it on the scheduled-tasks page.`;
+    
+  return textOut(output);
 }
 
 async function toolList() {
@@ -157,7 +196,15 @@ async function toolList() {
       .map((j) => {
         const schedule = j.type === "recurring" ? `${describeCron(j.cron)} (${tzLabel(j.tz)})` : `once at ${j.when}`;
         const last = j.history?.length ? (j.history.at(-1).success ? "ok" : `failed: ${j.history.at(-1).error || "?"}`) : "never run";
-        return `- ${j.id} [${j.status}]${j.paused ? " (paused)" : ""}: ${schedule} — "${j.prompt.slice(0, 80)}" | last: ${last}`;
+        
+        let line = `- ${j.id} [${j.status}]${j.paused ? " (paused)" : ""}: ${schedule} — "${j.prompt.slice(0, 80)}" | last: ${last}`;
+        
+        // Add cluster info if applicable (agent-cluster-platform)
+        if (j.clusterId) {
+          line += ` [cluster: ${j.clusterName || j.clusterId}, agents: ${j.agentCount || "?"}]`;
+        }
+        
+        return line;
       })
       .join("\n"),
   );

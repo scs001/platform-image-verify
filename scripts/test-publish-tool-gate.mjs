@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-const { declaredToolsByServer, toolGateErrors, probeMcpToolNames } = await import("../lib/publish-tool-gate.js");
+const { declaredToolsByServer, toolGateErrors, probeMcpToolNames, namedMcpTools, toolFaceErrors, toolClosureErrors } = await import("../lib/publish-tool-gate.js");
 const { registryServerIndex } = await import("../registry-bridge.js");
 
 const manifestWith = (mcpServers, agents = []) => ({
@@ -223,4 +223,62 @@ test("registryServerIndex maps snapshots, surfaces, and endpoints; caches", asyn
   const fresh = await registryServerIndex({ fetchImpl, maxAgeMs: 0 });
   assert.equal(fetches, fetchesAfterWarm + 1, "maxAgeMs: 0 forces a refetch");
   assert.ok(fresh.get("idx-srv-a"));
+});
+
+// ── Explicit tool face + tool-level closure (pack-tool-declaration-gate) ────
+test("tool face: every reference must decide (allowlist or reasoned full surface)", () => {
+  const errs = (m) => toolFaceErrors(m).map((e) => e.error);
+  assert.deepEqual(errs(manifestWith([{ registryName: "srv-a", allowTools: ["read"] }])), []);
+  assert.deepEqual(
+    errs(manifestWith([{ registryName: "law-bench", fullSurface: true, fullSurfaceReason: "工具经 tool_search 间接选择" }])),
+    [],
+  );
+  // Neither fails, naming the pack, the server, and both remedies.
+  const [message] = errs(manifestWith([{ registryName: "srv-a" }]));
+  assert.match(message, /门测试包/);
+  assert.match(message, /srv-a/);
+  assert.match(message, /allowTools/);
+  assert.match(message, /fullSurface/);
+  assert.equal(toolFaceErrors(manifestWith([{ registryName: "srv-a" }]))[0].entry, "mcpServers:srv-a");
+});
+
+test("tool face: empty and malformed declarations do not count as a decision", () => {
+  assert.equal(toolFaceErrors(manifestWith([{ registryName: "srv-a", allowTools: [] }])).length, 1);
+  assert.equal(toolFaceErrors(manifestWith([{ registryName: "srv-a", fullSurface: false }])).length, 1);
+});
+
+test("named tools are collected per server with their skill names", () => {
+  const manifest = {
+    name: "p",
+    skills: [
+      { name: "s1", content: "call mcp__srv-a__read then mcp__srv-a__read again and mcp__srv-b__search.legal" },
+      { name: "s2", content: "use mcp__srv-a__write_v2 and mcp__srv-a__read" },
+      { name: "s3", content: "no tool names here" },
+    ],
+    mcpServers: [],
+  };
+  const named = namedMcpTools(manifest);
+  assert.deepEqual([...named.get("srv-a").keys()].sort(), ["read", "write_v2"]);
+  assert.deepEqual([...named.get("srv-a").get("read")].sort(), ["s1", "s2"]);
+  assert.deepEqual([...named.get("srv-b").keys()], ["search.legal"]);
+});
+
+test("tool closure: a named tool outside the declaration fails, fullSurface is exempt", () => {
+  const base = {
+    name: "门测试包",
+    skills: [{ name: "workflow", content: "call mcp__srv-a__read and mcp__srv-a__purge" }],
+  };
+  const closure = (ref) => toolClosureErrors({ ...base, mcpServers: [ref] });
+  const errors = closure({ registryName: "srv-a", allowTools: ["read"] });
+  assert.equal(errors.length, 1);
+  assert.match(errors[0].error, /purge/);
+  assert.match(errors[0].error, /srv-a/);
+  assert.match(errors[0].error, /workflow/);
+  assert.equal(errors[0].entry, "mcpServers:srv-a");
+  assert.deepEqual(closure({ registryName: "srv-a", allowTools: ["read", "purge"] }), []);
+  assert.deepEqual(closure({ registryName: "srv-a", fullSurface: true, fullSurfaceReason: "间接引用" }), []);
+  // No declaration at all: the tool-face check owns that verdict, not per-tool noise.
+  assert.deepEqual(closure({ registryName: "srv-a" }), []);
+  // A server the pack never references is the server-level closure's concern.
+  assert.deepEqual(toolClosureErrors({ ...base, mcpServers: [] }), []);
 });

@@ -104,6 +104,45 @@ export function validatePresetBody(body, { partial = false } = {}) {
       out[field] = [];
     }
   }
+  // Per-server tool narrowing (full-mode-tool-scope D4): {server: [leaf...]}.
+  // Same bounds as the pack manifest's allowTools (≤64 leaf names, 1-128 chars
+  // of [A-Za-z0-9._-]); keys must be referenced servers. Absent/empty = the
+  // preset inherits the full-mode derived scope, never an empty face.
+  if (body.mcpTools !== undefined) {
+    if (!body.mcpTools || typeof body.mcpTools !== "object" || Array.isArray(body.mcpTools)) {
+      return { ok: false, error: "mcpTools must be an object mapping server names to tool-name arrays" };
+    }
+    const outTools = {};
+    for (const [server, names] of Object.entries(body.mcpTools)) {
+      if (!NAME_RE.test(server)) {
+        return { ok: false, error: `mcpTools key '${server}' must match [A-Za-z0-9._-], 1-64 chars` };
+      }
+      if (!Array.isArray(names)) {
+        return { ok: false, error: `mcpTools['${server}'] must be an array of tool names` };
+      }
+      if (names.length > 64) {
+        return { ok: false, error: `mcpTools['${server}'] may list at most 64 tools` };
+      }
+      const clean = [];
+      for (const t of names) {
+        if (typeof t !== "string" || !/^[A-Za-z0-9._-]{1,128}$/.test(t)) {
+          return { ok: false, error: `mcpTools['${server}'] entries must match [A-Za-z0-9._-], 1-128 chars` };
+        }
+        clean.push(t);
+      }
+      const deduped = [...new Set(clean)];
+      if (deduped.length > 0) outTools[server] = deduped;
+    }
+    // Only referenced servers may carry a face (create: out.mcpServers is
+    // always present; partial PUT without mcpServers keeps the caller's list
+    // unchecked here — the composition only reads referenced servers anyway).
+    const kept = out.mcpServers ?? (partial ? null : []);
+    out.mcpTools = kept
+      ? Object.fromEntries(Object.entries(outTools).filter(([server]) => kept.includes(server)))
+      : outTools;
+  } else if (!partial) {
+    out.mcpTools = {};
+  }
   if (body.tags !== undefined) {
     if (!Array.isArray(body.tags) || body.tags.length > LIMITS.maxTags) {
       return { ok: false, error: `tags must be an array of at most ${LIMITS.maxTags} strings` };

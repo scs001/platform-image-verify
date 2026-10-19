@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "./Badge";
+import { Switch } from "@/components/ui/switch";
 import { Upload } from "lucide-react";
 
 const emptyEntries = { skills: [], mcpServers: [], agents: [] };
@@ -186,6 +187,16 @@ function PackDraftEditor({
     }
     return init;
   });
+  // Full-surface markers (pack-tool-declaration-gate D5): server → reason.
+  // Only meaningful while that reference selects no tools — the two are
+  // mutually exclusive, so a tool selection wins on save.
+  const [fullSurfaceReasons, setFullSurfaceReasons] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const m of draft.entries.mcpServers ?? []) {
+      if (m.registryName && m.fullSurface === true) init[m.registryName] = m.fullSurfaceReason ?? "";
+    }
+    return init;
+  });
   const [toolsOpenFor, setToolsOpenFor] = useState<string | null>(null);
   const [agents, setAgents] = useState(() => withKeys(draft.entries.agents ?? []));
   const [saving, setSaving] = useState(false);
@@ -211,10 +222,14 @@ function PackDraftEditor({
         tags: tags.split(",").map((s) => s.trim()).filter(Boolean),
         entries: {
           skills: skills.map((e) => e.value),
-          mcpServers: mcpPicked.map((registryName) => ({
-            registryName,
-            ...(mcpTools[registryName]?.length ? { allowTools: mcpTools[registryName] } : {}),
-          })),
+          mcpServers: mcpPicked.map((registryName) => {
+            const tools = mcpTools[registryName] ?? [];
+            if (tools.length > 0) return { registryName, allowTools: tools };
+            if (registryName in fullSurfaceReasons) {
+              return { registryName, fullSurface: true, fullSurfaceReason: fullSurfaceReasons[registryName] ?? "" };
+            }
+            return { registryName };
+          }),
           agents: agents.map((e) => e.value),
           // Guide rides the entries JSON. SAVE keeps steps as authored (even
           // partial — authors lose nothing across sessions); PUBLISH lifts a
@@ -238,9 +253,21 @@ function PackDraftEditor({
   };
 
   const publish = async () => {
-    setPublishing(true);
     setError(null);
     setPublishResult(null);
+    // Publish-time face check (pack-tool-declaration-gate D5): every reference
+    // needs an allowlist or a reasoned full-surface marker. Drafts still save
+    // without one; publishing names the servers that have not decided yet.
+    const missingFace = mcpPicked.filter((registryName) => {
+      if ((mcpTools[registryName] ?? []).length > 0) return false;
+      if (!(registryName in fullSurfaceReasons)) return true;
+      return (fullSurfaceReasons[registryName] ?? "").trim().length === 0;
+    });
+    if (missingFace.length > 0) {
+      setError(t("packs.editor.toolsFaceRequired", { servers: missingFace.join(", ") }));
+      return;
+    }
+    setPublishing(true);
     try {
       const updated = await save();
       if (!updated) return;
@@ -330,7 +357,7 @@ function PackDraftEditor({
         </div>
       </div>
 
-      {error && <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md">{error}</div>}
+      {error && <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md" data-testid="pack-editor-error" role="alert">{error}</div>}
       {publishResult && (
         <div className="bg-primary/10 text-primary px-4 py-3 rounded-md" data-testid="pack-publish-ok">
           {publishResult}
@@ -553,6 +580,34 @@ function PackDraftEditor({
                       </>
                     )}
                   </div>
+                  {selected.length === 0 && (
+                    <div className="mt-2 space-y-1" data-testid={`pack-mcp-full-surface-${name}`}>
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Switch
+                          checked={name in fullSurfaceReasons}
+                          onCheckedChange={(on) =>
+                            setFullSurfaceReasons((prev) => {
+                              const next = { ...prev };
+                              if (on) next[name] = prev[name] ?? "";
+                              else delete next[name];
+                              return next;
+                            })
+                          }
+                          data-testid={`pack-mcp-full-toggle-${name}`}
+                        />
+                        {t("packs.editor.toolsMarkFull")}
+                      </label>
+                      {name in fullSurfaceReasons && (
+                        <Input
+                          value={fullSurfaceReasons[name] ?? ""}
+                          onChange={(e) => setFullSurfaceReasons((prev) => ({ ...prev, [name]: e.target.value }))}
+                          aria-label={t("packs.editor.toolsFullReason")}
+                          placeholder={t("packs.editor.toolsFullReasonPlaceholder")}
+                          data-testid={`pack-mcp-full-reason-${name}`}
+                        />
+                      )}
+                    </div>
+                  )}
                   {open && (
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       {toolList.map((tool) => {

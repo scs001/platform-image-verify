@@ -778,6 +778,28 @@ export function registerMiscRoutes(ctx) {
     res.json({ ok: true });
   });
 
+  // ── Per-server full-surface override (full-mode-tool-scope B3) ────────────
+  // One GLOBAL preference (not per-preset): the servers the user wants at
+  // their complete tool surface, in full AND focused modes. The marker is a
+  // removal from the derived filter — an empty array clears it (the key is
+  // deleted, so "never set" and "cleared" are the same state). Composition
+  // picks the change up on the next derivation (boot / preset switch / MCP
+  // change); this route never touches the runtime directly.
+  app.get("/api/mcp-tool-scope", (_req, res) => {
+    res.json({ fullSurface: db.isDbReady() ? db.getFullSurfaceServers() : [] });
+  });
+
+  app.put("/api/mcp-tool-scope", (req, res) => {
+    if (!db.isDbReady()) {
+      return res.status(503).json({ error: "Preferences are disabled (database unavailable)" });
+    }
+    const list = req.body?.fullSurface;
+    if (!Array.isArray(list) || list.some((s) => typeof s !== "string" || !s)) {
+      return res.status(400).json({ error: "fullSurface must be an array of server names" });
+    }
+    res.json({ fullSurface: db.setFullSurfaceServers(list) });
+  });
+
   // ── Projects (add-projects-automation-flow) ───────────────────────────────
   // Name-based project creation: the client sends a display name, the server
   // materializes a directory under the projects root and returns its absolute

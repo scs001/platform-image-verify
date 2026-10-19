@@ -105,7 +105,10 @@ export function readMcpToolFilterFor(presetId) {
 
 // The guard body: undefined leaves the call unchanged; a string denies it.
 // Names outside every mapped server are never denied — only servers WITH an
-// allowlist are narrowed.
+// allowlist are narrowed. The denial names the escape hatch (full-mode-tool-scope
+// B3): the per-server "Full tool surface" toggle in Settings → MCP restores the
+// whole surface in every mode. That pointer is the ONLY bridge change this
+// change makes — the guard/restrict execution logic stays untouched.
 export function mcpToolGuardReason(name) {
   const filter = readMcpToolFilter();
   if (!filter) return undefined;
@@ -114,8 +117,8 @@ export function mcpToolGuardReason(name) {
   const allow = filter[parts.server];
   if (allow === undefined || allow.has(parts.leaf)) return undefined;
   return (
-    `tool '${parts.leaf}' is outside this role's tool allowlist for MCP server '${parts.server}' ` +
-    "(focused mode) — use an allowlisted tool, or switch to a full mode for the whole surface"
+    `tool '${parts.leaf}' is outside this role's tool allowlist for MCP server '${parts.server}' — ` +
+    `use an allowlisted tool, switch to a full mode, or enable "Full tool surface" for this server in Settings → MCP`
   );
 }
 

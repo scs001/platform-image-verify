@@ -495,6 +495,8 @@
       "subtitle": "连接智能体能调用的外部工具（以 MCP 接入）。",
       "addButton": "添加工具",
       "empty": "暂无外部工具。添加一个，智能体就多一套本领。",
+      "fullSurface": "完整工具面",
+      "fullSurfaceHint": "标记后该服务在完整模式与聚焦模式都暴露全部工具，优先于功能集的工具声明。下次合成生效。",
       "addTitle": "添加工具",
       "editTitle": "编辑工具",
       "confirmDelete": "移除 \"{{name}}\"？",
@@ -1532,8 +1534,23 @@
       "notFound": "功能集不存在或已下架",
       "skills": "技能",
       "mcp": "外部工具",
+      "toolFaceDeclared": "声明 {{declared}} / 全量 {{total}} 工具",
+      "toolFaceDeclaredNoTotal": "声明 {{declared}} 个工具",
+      "toolFaceFull": "全量 {{total}} 工具",
+      "toolFaceFullNoTotal": "全量工具面",
+      "toolFaceUndeclared": "全量 {{total}} 工具（未声明）",
+      "toolFaceUndeclaredNoTotal": "全量工具面（未声明）",
+      "toolFaceReason": "作者理由：{{reason}}",
       "agents": "角色",
       "requiresGroup": "需要组 {{group}}",
+      // Cluster info (agent-cluster-platform)
+      "cluster": {
+        "title": "集群信息",
+        "agentCount": "{{count}} 个角色",
+        "agents": "角色组成",
+        "showOptional": "显示可选角色",
+        "hideOptional": "隐藏可选角色"
+      },
       "subscribe": "订阅并安装",
       "gotoMine": "查看我的功能集",
       "deployTitle": "部署为服务",
@@ -1679,6 +1696,10 @@
       "toolsCollapse": "收起",
       "toolsClear": "恢复全量",
       "toolsNoSnapshot": "注册处暂无该服务的工具清单——发布时不做工具级校验",
+      "toolsMarkFull": "标为全量（工具经间接方式选择）",
+      "toolsFullReason": "全量理由",
+      "toolsFullReasonPlaceholder": "例如：工具经 tool_search 间接选择",
+      "toolsFaceRequired": "以下 MCP 引用还没有工具面：{{servers}}。请选择工具，或标为全量并填写理由。",
       "guide": {
         "title": "使用指南（三步）",
         "hint": "写清“准备什么→说什么→拿到什么”，会随包展示在详情页。三步都填才会随包发布。",
@@ -2028,5 +2049,34 @@
       "user": "计费到你的词元账号",
       "deployment": "使用部署凭据"
     }
+  },
+  "clusters": {
+    "composer": {
+      "title": "创建集群",
+      "clusterName": "集群名称",
+      "description": "描述",
+      "selectAgents": "选择角色",
+      "addAllFromPack": "添加该功能集所有角色",
+      "defaultAgent": "默认",
+      "activateAllOnCreation": "创建时激活所有角色",
+      "bindToCurrentSession": "绑定到当前会话",
+      "noAgents": "暂无可用角色。请先安装一些功能集。",
+      "creating": "正在创建集群...",
+      "created": "集群已创建",
+      "createCluster": "创建集群",
+      "creatingBtn": "创建中...",
+      "cancel": "取消",
+      "nameRequired": "请输入集群名称",
+      "nameTooLong": "集群名称不能超过 100 个字符",
+      "atLeastOneAgent": "请至少选择一个角色",
+      "manage": "管理"
+    }
+  },
+  "agentsPage": {
+    "title": "角色与应用",
+    "agents": "专家",
+    "market": "市场",
+    "apps": "应用",
+    "myClusters": "我的集群"
   }
 }

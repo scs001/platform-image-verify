@@ -58,6 +58,7 @@ import { registerFileRoutes } from "./server/routes/files.js";
 import { registerResourceRoutes } from "./server/routes/resources.js";
 import { registerBotRoutes, WEBHOOK_PREFIX } from "./server/routes/bots.js";
 import { registerBotRelayRoutes, RELAY_PREFIX } from "./server/routes/bot-relay.js";
+import { createClusterRoutes, startAutoTerminationJob } from "./server/routes/clusters.js";
 import { registerExternalServiceRoutes } from "./server/routes/external-services.js";
 import { registerPackRoutes as registerCellPackRoutes } from "./server/routes/packs.js";
 import { registerOverlayRoutes } from "./server/routes/overlay.js";
@@ -243,6 +244,9 @@ registerPackUsageRoutes(ctx);
 // 萬星 connector PAT (connector-credentials) — same route family as the
 // registry credential endpoints.
 registerConnectorRoutes(ctx);
+// Dynamic cluster management (agent-cluster-platform): REST API for creating,
+// managing, and operating dynamic agent clusters assembled from pack agents.
+createClusterRoutes(app);
 // 谦面市场设备凭据 (facet-market-credentials, C1.1-B) — same family again:
 // pair-by-bind-code, silent relogin, injection via credentialRef.
 registerFacetMarketRoutes(ctx);
@@ -361,6 +365,9 @@ attachAgentSession(ctx);
 attachTurnDispatch(ctx);
 // WebSocket upgrade gate + connection handler.
 attachWebSocket(ctx);
+
+// Dynamic cluster auto-termination (agent-cluster-platform)
+startAutoTerminationJob();
 
 // Demo sandbox only (openspec: mp-demo-sandbox): periodically wipe the shared
 // conversation state so visitors never see each other's sessions. The timer

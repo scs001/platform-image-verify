@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "@/lib/packs-api";
 import type { PackDetail, PackDeployment, PackReport } from "@/lib/packs-api";
+import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import {
   Dialog,
   DialogContent,
@@ -66,6 +67,14 @@ function budgetDraftValid(text: string): boolean {
 
 export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMine, onRequireLogin }: Props) {
   const { t } = useTranslation();
+  // Tool-face disclosure (pack-tool-declaration-gate D4): the declared count
+  // rides the version manifest; the per-server total comes from the catalog's
+  // tool_list snapshot (the same source the draft editor's picker uses) — no
+  // live probe, so an unreachable server cannot break this page.
+  const { marketCatalog, refreshMarketCatalog } = useExtensionsStore();
+  useEffect(() => {
+    if (packId) void refreshMarketCatalog();
+  }, [packId, refreshMarketCatalog]);
   // The action bar's login-guidance row (polish-facet-interactions): flipped
   // when a signed-out viewer activates a gated action and the host wired
   // onRequireLogin; cleared when the dialog reopens for another pack.
@@ -99,6 +108,8 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
   const [bindings, setBindings] = useState<Record<string, boolean> | null>(null);
   // Paste inputs, serving agentId → drafted key (never echoed back).
   const [keyDrafts, setKeyDrafts] = useState<Record<string, string>>({});
+  // Optional agents toggle for cluster view (agent-cluster-platform)
+  const [showOptionalAgents, setShowOptionalAgents] = useState(false);
 
   useEffect(() => {
     setPack(null);
@@ -111,6 +122,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
     setBudgetDrafts({});
     setLoginHint(false);
     setScriptGate(null);
+    setShowOptionalAgents(false);
     if (!packId) return;
     api
       .getPack(packId)
@@ -461,13 +473,116 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
               <section>
                 <h4 className="font-medium mb-2">{t("packs.detail.mcp")}</h4>
                 <ul className="space-y-1">
-                  {m.mcpServers!.map((r) => (
-                    <li key={r.registryName} className="flex items-center gap-2">
-                      <span className="font-mono text-xs">{r.registryName}</span>
-                      {r.requiredGroup && <Badge>{t("packs.detail.requiresGroup", { group: r.requiredGroup })}</Badge>}
-                    </li>
-                  ))}
+                  {m.mcpServers!.map((r) => {
+                    const total =
+                      marketCatalog?.mcpServers?.find((s) => s.name === r.registryName)?.toolList?.length ?? null;
+                    const declared = Array.isArray(r.allowTools) && r.allowTools.length > 0 ? r.allowTools.length : null;
+                    const face =
+                      declared !== null
+                        ? t(
+                            total === null ? "packs.detail.toolFaceDeclaredNoTotal" : "packs.detail.toolFaceDeclared",
+                            { declared, total },
+                          )
+                        : r.fullSurface === true
+                          ? t(total === null ? "packs.detail.toolFaceFullNoTotal" : "packs.detail.toolFaceFull", { total })
+                          : t(
+                              total === null
+                                ? "packs.detail.toolFaceUndeclaredNoTotal"
+                                : "packs.detail.toolFaceUndeclared",
+                              { total },
+                            );
+                    return (
+                      <li key={r.registryName} className="py-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs">{r.registryName}</span>
+                          {r.requiredGroup && (
+                            <Badge>{t("packs.detail.requiresGroup", { group: r.requiredGroup })}</Badge>
+                          )}
+                          <span
+                            className="text-xs text-muted-foreground"
+                            data-testid={`pack-mcp-tool-face-${r.registryName}`}
+                          >
+                            {face}
+                          </span>
+                        </div>
+                        {r.fullSurface === true && r.fullSurfaceReason && (
+                          <p
+                            className="mt-0.5 text-[11px] text-muted-foreground"
+                            data-testid={`pack-mcp-full-surface-reason-${r.registryName}`}
+                          >
+                            {t("packs.detail.toolFaceReason", { reason: r.fullSurfaceReason })}
+                          </p>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
+              </section>
+            )}
+
+            {/* Cluster Info (agent-cluster-platform): when the pack declares cluster metadata,
+                show a dedicated section with cluster name, description, and agent composition. */}
+            {pack.manifest?.cluster && (
+              <section className="border border-primary/20 bg-primary/5 rounded-md p-4" data-testid="pack-cluster-info">
+                <h4 className="font-medium text-primary mb-1">{t("packs.detail.cluster.title")}</h4>
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-lg font-semibold text-foreground">{pack.manifest.cluster.name}</h3>
+                  <Badge variant="secondary" data-testid="pack-cluster-agent-count">
+                    {t("packs.detail.cluster.agentCount", { count: (m.agents?.length ?? 0) })}
+                  </Badge>
+                </div>
+                <p className="text-sm text-muted-foreground mb-3">{pack.manifest.cluster.description}</p>
+                
+                {/* Agent composition list */}
+                <div className="mb-3">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">{t("packs.detail.cluster.agents")}</p>
+                  <div className="space-y-1">
+                    {/* Default agents */}
+                    {(pack.manifest.cluster.defaultAgents ?? []).map((agentId) => {
+                      const agent = m.agents?.find((a) => a.id === agentId);
+                      if (!agent) return null;
+                      return (
+                        <div key={agentId} className="flex items-center gap-2 text-xs" data-testid={`pack-cluster-default-agent-${agentId}`}>
+                          <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                          <span className="font-medium text-foreground">{agent.name}</span>
+                          <span className="text-muted-foreground">({agentId})</span>
+                        </div>
+                      );
+                    })}
+                    
+                    {/* Optional agents toggle */}
+                    {(pack.manifest.cluster.optionalAgents ?? []).length > 0 && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-xs pl-2"
+                          data-testid="pack-cluster-toggle-optional"
+                          onClick={() => setShowOptionalAgents(!showOptionalAgents)}
+                        >
+                          {showOptionalAgents ? t("packs.detail.cluster.hideOptional") : t("packs.detail.cluster.showOptional")}
+                        </Button>
+                        
+                        {/* Optional agents (collapsible) */}
+                        {showOptionalAgents && (
+                          <div className="ml-3 space-y-1 pt-1 border-l border-border pl-2">
+                            {(pack.manifest.cluster.optionalAgents ?? []).map((agentId) => {
+                              const agent = m.agents?.find((a) => a.id === agentId);
+                              if (!agent) return null;
+                              return (
+                                <div key={agentId} className="flex items-center gap-2 text-xs" data-testid={`pack-cluster-optional-agent-${agentId}`}>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground"></span>
+                                  <span className="text-foreground">{agent.name}</span>
+                                  <span className="text-muted-foreground">({agentId})</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
               </section>
             )}
 

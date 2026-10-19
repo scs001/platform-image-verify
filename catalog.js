@@ -205,7 +205,7 @@ function packAgentDoc() {
         continue;
       }
       if (reportAgents.get(a.id) !== "installed") continue;
-      agents.push({
+      const entry = {
         id: a.id,
         type: "agent-remote",
         mode: "chat",
@@ -217,7 +217,16 @@ function packAgentDoc() {
         packId: installed.packId,
         packName: installed.name,
         resourceSummary: personaResourceSummary(installed, a),
-      });
+      };
+      // Cluster metadata (agent-cluster-platform): add clusterId and related
+      // fields when the pack declares cluster metadata.
+      if (installed.manifest?.cluster) {
+        const cluster = installed.manifest.cluster;
+        entry.clusterId = installed.packId;
+        entry.clusterName = cluster.name;
+        entry.isDefaultAgent = cluster.defaultAgents?.includes(a.id) ?? false;
+      }
+      agents.push(entry);
     }
   }
   return { agents, apps: [] };
@@ -289,7 +298,9 @@ function merged() {
 // entries additionally carry their packId (+ display name) so picker surfaces
 // can badge them as focused roles (add-pack-agent-scoping); custom-preset
 // entries carry their `customPreset` marker for the same purpose
-// (add-custom-presets D2).
+// (add-custom-presets D2). Cluster metadata (agent-cluster-platform): entries
+// from packs with cluster declarations carry clusterId, clusterName, and
+// isDefaultAgent for UI grouping and "Load entire cluster" affordances.
 function serialize(entry) {
   const base = { id: entry.id, type: entry.type, name: entry.name || entry.id };
   // Optional display fields (all optional, all whitelisted — not secrets).
@@ -303,6 +314,12 @@ function serialize(entry) {
     if (entry.packName) base.packName = entry.packName;
   }
   if (entry.customPreset) base.customPreset = true;
+  // Cluster metadata (agent-cluster-platform): add cluster fields when present.
+  if (entry.clusterId) {
+    base.clusterId = entry.clusterId;
+    if (entry.clusterName) base.clusterName = entry.clusterName;
+    if (typeof entry.isDefaultAgent === "boolean") base.isDefaultAgent = entry.isDefaultAgent;
+  }
   // Role-level resource summary (add-persona-resource-sets D5; custom presets
   // ride the same shape) — additive serialization; older clients ignore the
   // unknown field.

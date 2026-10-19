@@ -27,6 +27,7 @@ import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { atomicWriteTextSync, normalizeBaseUrl } from "./lib/persistence.js";
 import { effectiveMcpTools } from "./lib/pack-manifest.js";
+import { deriveFullModeToolScope, customPresetToolScope } from "./lib/full-mode-tool-scope.js";
 import { deriveScopedToken, scopeIdForEmail } from "./lib/scoped-relay-token.js";
 import { probeHttpServers } from "./mcp-preflight.js";
 import { cellMemoryMount } from "./cell-memory.js";
@@ -958,7 +959,10 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
   // The filter config refreshes at the same composition moments as the MCP
   // patch (server cells, desktop, and the runner all converge here or on the
   // parameterized writer below) — a stale filter cannot outlive its patch.
-  writeToolFilterPatch(scope.source === "pack" ? scope.mcpTools : null);
+  // full-mode-tool-scope: the derived map is the whole input now — focused
+  // packs, custom presets and full mode's union all arrive in mcpTools; null
+  // keeps the pre-change "no filter" composition byte-for-byte.
+  writeToolFilterPatch(scope.mcpTools);
 
   // Preflight health signal (add-mcp-credential-hygiene D5): fire-and-forget
   // probe of every http entry with the exact URL+headers the patch carries —
@@ -1252,10 +1256,51 @@ export async function resolvePersona(presetId) {
 // already enforces subset at publish), else the pack-level allowTools, else
 // the server is absent from the map = full surface. null for full mode and
 // custom presets (v1 declares tools on packs only).
+//
+// full-mode-tool-scope: full mode and custom presets gain a tool dimension too.
+// The union is derived from the durable installed-pack snapshots at EVERY
+// composition (never persisted), and the per-server override (a global
+// preference) removes a server from any map — removal IS the marker, because
+// the runtime bridge only narrows servers present in the map.
+
+const fullModeToolScopeEnabled = () =>
+  String(process.env.FULL_MODE_TOOL_SCOPE || "").trim().toLowerCase() === "on";
+
+// Fail-open: an unavailable DB yields no filter rather than hiding tools.
+async function readFullSurfaceOverrides() {
+  try {
+    const db = await import("./db.js");
+    if (!db.isDbReady()) return [];
+    return db.getFullSurfaceServers();
+  } catch {
+    return [];
+  }
+}
+
+async function fullModeToolInputs() {
+  let installed = [];
+  let overrides = [];
+  try {
+    const db = await import("./db.js");
+    if (db.isDbReady()) {
+      installed = db.listInstalledPacks();
+      overrides = db.getFullSurfaceServers();
+    }
+  } catch { /* no inputs ⇒ no filter (fail open) */ }
+  return { union: deriveFullModeToolScope(installed, overrides), overrides };
+}
+
 export async function deriveScope(agentPreset, { noOverlay = false } = {}) {
   const full = { source: null, packId: null, packName: null, persona: null, mcpKeep: null, mcpTools: null, skillsDir: null, skillsDecl: undefined, overlay: null };
   const persona = await resolvePersona(agentPreset);
-  if (!persona) return full;
+  if (!persona) {
+    // Full mode's tool dimension (full-mode-tool-scope B1/B2): the union of
+    // the installed packs' declarations, with the safety valve inside the
+    // derivation. Flag off keeps the pre-change null composition.
+    if (!fullModeToolScopeEnabled()) return full;
+    const { union } = await fullModeToolInputs();
+    return { ...full, mcpTools: union };
+  }
   let overlay = null;
   if (!noOverlay) {
     try {
@@ -1273,6 +1318,15 @@ export async function deriveScope(agentPreset, { noOverlay = false } = {}) {
       const dir = sm.customPresetSkillsRoot(row.id);
       if (existsSync(dir)) skillsDir = dir;
     } catch { /* no compose root yet ⇒ baseline-only focus */ }
+    const mcpKeep = [...new Set(row.mcpServers ?? [])];
+    // Tool dimension (full-mode-tool-scope D4): a declared per-server list
+    // narrows; an absent one inherits the full-mode union; the override
+    // removes the server. Flag off keeps the pre-change null byte-for-byte.
+    let mcpTools = null;
+    if (fullModeToolScopeEnabled()) {
+      const inputs = await fullModeToolInputs();
+      mcpTools = customPresetToolScope(mcpKeep, row.mcpTools ?? {}, inputs.union, inputs.overrides);
+    }
     return {
       source: "custom",
       packId: null,
@@ -1280,8 +1334,8 @@ export async function deriveScope(agentPreset, { noOverlay = false } = {}) {
       persona: null,
       customPresetId: row.id,
       customPresetName: row.name,
-      mcpKeep: [...new Set(row.mcpServers ?? [])],
-      mcpTools: null,
+      mcpKeep,
+      mcpTools,
       skillsDir,
       skillsDecl: [...new Set(row.skills ?? [])],
       overlay,
@@ -1301,6 +1355,9 @@ export async function deriveScope(agentPreset, { noOverlay = false } = {}) {
   // serving descriptor (lib/pack-manifest.js effectiveMcpTools); only kept
   // servers appear, a dropped server's allowlist is moot (not loaded).
   const mcpTools = effectiveMcpTools(persona.manifest, persona.agent);
+  // Per-server full-surface override (full-mode-tool-scope B3): removing the
+  // key IS the marker — the bridge only narrows servers present in the map.
+  for (const server of await readFullSurfaceOverrides()) delete mcpTools[server];
   const skillsDecl = persona.agent?.resources?.skills;
   let skillsDir = null;
   try {

@@ -82,12 +82,16 @@ function PresetEditor({
   onSaved: (preset: CustomPreset) => void;
 }) {
   const { t } = useTranslation();
-  const { skills, mcpServers, load } = useExtensionsStore();
+  const { skills, mcpServers, marketCatalog, load } = useExtensionsStore();
   const [name, setName] = useState(initial?.name ?? "");
   const [persona, setPersona] = useState(initial?.persona ?? "");
   const [tags, setTags] = useState((initial?.tags ?? []).join(", "));
   const [pickedSkills, setPickedSkills] = useState<string[]>(initial?.skills ?? []);
   const [pickedMcp, setPickedMcp] = useState<string[]>(initial?.mcpServers ?? []);
+  // Per-server tool narrowing (full-mode-tool-scope D4): server → selected
+  // leaf names. An empty/absent entry inherits the full-mode derived scope.
+  const [mcpTools, setMcpTools] = useState<Record<string, string[]>>(() => ({ ...(initial?.mcpTools ?? {}) }));
+  const [toolsOpenFor, setToolsOpenFor] = useState<string | null>(null);
   // Sample prompts (add-session-to-preset): three one-line inputs, one per
   // slot; empty lines drop out on save. The wizard prefills them from the
   // session; here they stay editable like every other authored field.
@@ -141,6 +145,13 @@ function PresetEditor({
       persona,
       skills: pickedSkills,
       mcpServers: pickedMcp,
+      // Only picked servers carry a face; empty lists are omitted (absent =
+      // inherit the full-mode union).
+      mcpTools: Object.fromEntries(
+        pickedMcp
+          .map((server) => [server, mcpTools[server] ?? []] as const)
+          .filter(([, tools]) => tools.length > 0),
+      ),
       tags: tags.split(",").map((s) => s.trim()).filter(Boolean),
       ...(cleanedExamples.length > 0 ? { examples: cleanedExamples } : {}),
     };
@@ -257,6 +268,69 @@ function PresetEditor({
             <RefChip key={n} name={n} on unavailable />
           ))}
         </div>
+        {/* Per-server tool narrowing (full-mode-tool-scope D4): names come from
+            the catalog snapshot — picker-only, no free-form entry; nothing
+            selected = inherit the full-mode derived scope. */}
+        {pickedMcp.length > 0 && (
+          <div className="mt-2 space-y-1" data-testid="preset-mcp-tools">
+            {pickedMcp.map((server) => {
+              const toolList = marketCatalog?.mcpServers?.find((s) => s.name === server)?.toolList ?? [];
+              const selected = mcpTools[server] ?? [];
+              const open = toolsOpenFor === server;
+              return (
+                <div key={`tools-${server}`} className="border border-border rounded-md p-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-foreground">{server}</span>
+                    <span className="text-xs text-muted-foreground" data-testid={`preset-mcp-tools-count-${server}`}>
+                      {selected.length > 0
+                        ? t("packs.editor.toolsN", { n: selected.length })
+                        : t("packs.editor.toolsAll")}
+                    </span>
+                    {toolList.length > 0 && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="ml-auto h-6 px-2 text-xs"
+                        onClick={() => setToolsOpenFor(open ? null : server)}
+                        data-testid={`preset-mcp-tools-toggle-${server}`}
+                      >
+                        {open ? t("packs.editor.toolsCollapse") : t("packs.editor.toolsEdit")}
+                      </Button>
+                    )}
+                  </div>
+                  {open && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {toolList.map((tool) => {
+                        const on = selected.includes(tool);
+                        return (
+                          <button
+                            key={tool}
+                            type="button"
+                            onClick={() =>
+                              setMcpTools((prev) => ({
+                                ...prev,
+                                [server]: on ? (prev[server] ?? []).filter((x) => x !== tool) : [...(prev[server] ?? []), tool],
+                              }))
+                            }
+                            className={`border rounded-full px-2 py-0.5 font-mono text-[11px] transition-colors ${
+                              on ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground"
+                            }`}
+                            data-testid={`preset-mcp-tool-${server}-${tool}`}
+                          >
+                            {tool}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {toolList.length === 0 && (
+                    <p className="mt-1 text-[11px] text-muted-foreground">{t("packs.editor.toolsNoSnapshot")}</p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {error && (

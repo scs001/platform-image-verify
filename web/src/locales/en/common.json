@@ -495,6 +495,8 @@
       "subtitle": "Add or edit an MCP server the agent runtime can call.",
       "addButton": "Add MCP",
       "empty": "No MCP configured. Add one to extend your agent.",
+      "fullSurface": "Full tool surface",
+      "fullSurfaceHint": "Marked servers expose every tool in full and focused modes, overriding pack allowlists. Applied on the next composition.",
       "addTitle": "Add MCP",
       "editTitle": "Edit MCP",
       "confirmDelete": "Remove \"{{name}}\"?",
@@ -1532,8 +1534,23 @@
       "notFound": "Pack not found or unlisted",
       "skills": "Skills",
       "mcp": "MCP Servers",
+      "toolFaceDeclared": "{{declared}} / {{total}} tools declared",
+      "toolFaceDeclaredNoTotal": "{{declared}} tools declared",
+      "toolFaceFull": "All {{total}} tools (full surface)",
+      "toolFaceFullNoTotal": "Full tool surface",
+      "toolFaceUndeclared": "All {{total}} tools (undeclared)",
+      "toolFaceUndeclaredNoTotal": "Full tool surface (undeclared)",
+      "toolFaceReason": "Reason: {{reason}}",
       "agents": "Agents",
       "requiresGroup": "requires group {{group}}",
+      // Cluster info (agent-cluster-platform)
+      "cluster": {
+        "title": "Cluster Info",
+        "agentCount": "{{count}} agents",
+        "agents": "Agent Composition",
+        "showOptional": "Show optional agents",
+        "hideOptional": "Hide optional agents"
+      },
       "subscribe": "Subscribe & Install",
       "gotoMine": "View my packs",
       "deployTitle": "Deploy as service",
@@ -1679,6 +1696,10 @@
       "toolsCollapse": "Collapse",
       "toolsClear": "Full surface",
       "toolsNoSnapshot": "No tool list from the registry yet — no tool-level checks at publish",
+      "toolsMarkFull": "Mark full surface (tools chosen indirectly)",
+      "toolsFullReason": "Full-surface reason",
+      "toolsFullReasonPlaceholder": "e.g. tools are selected via tool_search",
+      "toolsFaceRequired": "These MCP references have no tool face yet: {{servers}}. Select their tools, or mark full surface with a reason.",
       "guide": {
         "title": "Usage guide (three steps)",
         "hint": "Write “what to prepare → what to say → what you get”; it shows on the detail page. All three steps are required to publish with the pack.",
@@ -2028,5 +2049,34 @@
       "user": "Billed to your 词元 account",
       "deployment": "Using the deployment credential"
     }
+  },
+  "clusters": {
+    "composer": {
+      "title": "Create Cluster",
+      "clusterName": "Cluster name",
+      "description": "Description",
+      "selectAgents": "Select agents",
+      "addAllFromPack": "Add all from pack",
+      "defaultAgent": "Default",
+      "activateAllOnCreation": "Activate all agents on creation",
+      "bindToCurrentSession": "Bind to current session",
+      "noAgents": "No agents available. Install some packs first.",
+      "creating": "Creating cluster...",
+      "created": "Cluster created",
+      "createCluster": "Create Cluster",
+      "creatingBtn": "Creating...",
+      "cancel": "Cancel",
+      "nameRequired": "Cluster name is required",
+      "nameTooLong": "Cluster name must be 100 characters or less",
+      "atLeastOneAgent": "Select at least one agent",
+      "manage": "Manage"
+    }
+  },
+  "agentsPage": {
+    "title": "Agents & Apps",
+    "agents": "Experts",
+    "market": "Market",
+    "apps": "Apps",
+    "myClusters": "My Clusters"
   }
 }

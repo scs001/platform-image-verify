@@ -740,6 +740,14 @@ const MIGRATIONS = [
       )`,
     ],
   },
+  {
+    version: 33,
+    // full-mode-tool-scope (design D4): a custom preset may narrow each of its
+    // own MCP references to tool leaf names — JSON {server: [leaf...]}.
+    // '{}' / NULL = no declaration (the preset inherits the full-mode derived
+    // scope). Additive and nullable: existing rows migrate losslessly.
+    statements: [`ALTER TABLE user_presets ADD COLUMN mcp_tools TEXT DEFAULT '{}'`],
+  },
 ];
 
 function nowIso() {
@@ -1344,6 +1352,29 @@ export function getAllPreferences() {
   if (!dbReady) return {};
   const rows = stmt("SELECT key, value FROM user_preferences").all();
   return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+}
+
+// ── Full-surface overrides (full-mode-tool-scope D3) ─────────────────────────
+// One GLOBAL preference: the server names the user marked "show the complete
+// tool surface", effective in every mode. JSON array; an empty result deletes
+// the key so "never set" and "cleared" are the same state. A corrupt value
+// reads as none — inert, like the other preference readers.
+export function getFullSurfaceServers() {
+  if (!dbReady) return [];
+  try {
+    const parsed = JSON.parse(getPreference("toolScope.fullSurface") ?? "[]");
+    return Array.isArray(parsed) ? parsed.filter((s) => typeof s === "string" && s) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function setFullSurfaceServers(servers) {
+  if (!dbReady) return [];
+  const clean = [...new Set((Array.isArray(servers) ? servers : []).filter((s) => typeof s === "string" && s))];
+  if (clean.length === 0) stmt("DELETE FROM user_preferences WHERE key = ?").run("toolScope.fullSurface");
+  else setPreference("toolScope.fullSurface", JSON.stringify(clean));
+  return clean;
 }
 
 // ── Focus overlay preferences (add-focus-overlay, design D1) ─────────────────
@@ -2335,7 +2366,7 @@ export function deleteCustomSkillsByPack(packId) {
 // read these rows; nothing else keys off them.
 
 const USER_PRESET_COLS =
-  "id, name, persona, skills, mcp_servers AS mcpServers, tags, icon, examples, created_at AS createdAt, updated_at AS updatedAt";
+  "id, name, persona, skills, mcp_servers AS mcpServers, mcp_tools AS mcpTools, tags, icon, examples, created_at AS createdAt, updated_at AS updatedAt";
 
 function hydrateUserPreset(row) {
   if (!row) return null;
@@ -2347,10 +2378,29 @@ function hydrateUserPreset(row) {
       return []; // corrupt row reads as no references — inert, like overlays
     }
   };
+  // Per-server tool narrowing (full-mode-tool-scope D4): a tolerant reader —
+  // a corrupt or legacy row reads as no declaration, never as an empty face.
+  const parseToolMap = (raw) => {
+    let parsed;
+    try {
+      parsed = JSON.parse(raw || "{}");
+    } catch {
+      return {};
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+    const out = {};
+    for (const [server, names] of Object.entries(parsed)) {
+      if (!Array.isArray(names)) continue;
+      const clean = [...new Set(names.filter((n) => typeof n === "string" && n))];
+      if (clean.length > 0) out[server] = clean;
+    }
+    return out;
+  };
   return {
     ...row,
     skills: parseNames(row.skills),
     mcpServers: parseNames(row.mcpServers),
+    mcpTools: parseToolMap(row.mcpTools),
     tags: parseNames(row.tags),
     // NULL (pre-v26 rows / none authored) reads as an absent field, not [] —
     // the API contract keeps examples optional end to end.
@@ -2392,19 +2442,20 @@ function assignUserPresetId(name) {
   return id;
 }
 
-export function createUserPreset({ name, persona, skills = [], mcpServers = [], tags = [], icon = null, examples = null }) {
+export function createUserPreset({ name, persona, skills = [], mcpServers = [], mcpTools = {}, tags = [], icon = null, examples = null }) {
   if (!dbReady) return null;
   const id = assignUserPresetId(name);
   const now = nowIso();
   stmt(
-    `INSERT INTO user_presets (id, name, persona, skills, mcp_servers, tags, icon, examples, created_at, updated_at)
-     VALUES (@id, @name, @persona, @skills, @mcpServers, @tags, @icon, @examples, @now, @now)`
+    `INSERT INTO user_presets (id, name, persona, skills, mcp_servers, mcp_tools, tags, icon, examples, created_at, updated_at)
+     VALUES (@id, @name, @persona, @skills, @mcpServers, @mcpTools, @tags, @icon, @examples, @now, @now)`
   ).run({
     id,
     name,
     persona,
     skills: JSON.stringify(skills ?? []),
     mcpServers: JSON.stringify(mcpServers ?? []),
+    mcpTools: JSON.stringify(mcpTools ?? {}),
     tags: JSON.stringify(tags ?? []),
     icon,
     examples: examples ? JSON.stringify(examples) : null,
@@ -2413,7 +2464,7 @@ export function createUserPreset({ name, persona, skills = [], mcpServers = [], 
   return getUserPreset(id);
 }
 
-export function updateUserPreset(id, { name, persona, skills, mcpServers, tags, icon, examples }) {
+export function updateUserPreset(id, { name, persona, skills, mcpServers, mcpTools, tags, icon, examples }) {
   if (!dbReady) return null;
   const updates = [];
   const params = { id, updated_at: nowIso() };
@@ -2421,6 +2472,7 @@ export function updateUserPreset(id, { name, persona, skills, mcpServers, tags, 
   if (persona !== undefined) { updates.push("persona = @persona"); params.persona = persona; }
   if (skills !== undefined) { updates.push("skills = @skills"); params.skills = JSON.stringify(skills ?? []); }
   if (mcpServers !== undefined) { updates.push("mcp_servers = @mcpServers"); params.mcpServers = JSON.stringify(mcpServers ?? []); }
+  if (mcpTools !== undefined) { updates.push("mcp_tools = @mcpTools"); params.mcpTools = JSON.stringify(mcpTools ?? {}); }
   if (tags !== undefined) { updates.push("tags = @tags"); params.tags = JSON.stringify(tags ?? []); }
   if (icon !== undefined) { updates.push("icon = @icon"); params.icon = icon; }
   if (examples !== undefined) { updates.push("examples = @examples"); params.examples = examples ? JSON.stringify(examples) : null; }

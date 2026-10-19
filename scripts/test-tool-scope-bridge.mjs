@@ -46,7 +46,8 @@ test("guard denies only mapped servers' out-of-allowlist leaves", () => {
   const reason = mcpToolGuardReason("mcp__law-bench__delete_corpus");
   assert.match(reason, /delete_corpus/);
   assert.match(reason, /law-bench/);
-  assert.match(reason, /focused mode/, "the reason explains the scope and the exit");
+  assert.match(reason, /tool allowlist/, "the reason explains the scope");
+  assert.match(reason, /Settings → MCP/, "the reason names the per-server full-surface toggle (full-mode-tool-scope 2.5)");
   // Unmapped server: full surface, never denied.
   assert.equal(mcpToolGuardReason("mcp__fetch__anything"), undefined);
   // Non-MCP tools are never denied.

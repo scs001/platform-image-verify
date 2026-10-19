@@ -92,17 +92,23 @@ The server SHALL allow a past session to be resumed into the live agent. Resumin
 - **THEN** the agent SHALL respond with awareness of the resumed session's history
 - **AND** the turn SHALL be appended to that session
 
-### Requirement: Users can switch the active chat session
-The server SHALL accept a `switch_session` WebSocket message and switch the live agent to the requested session by id using the SDK session manager's resume mechanism, delivering a `session_loaded` event carrying the session id, title, and message list to the requesting connection and any other connection viewing that session (per-viewer delivery, `session-ownership`). Switching SHALL be rejected while the agent is streaming. The request SHALL be rejected with an access error when the requester neither owns the session nor is an admin-group user. The active session SHALL be reflected as highlighted in the sidebar.
+### Requirement: Users can switch the active chat session without disturbing in-flight turns
+The server SHALL accept a `switch_session` WebSocket message and point the live agent at the requested session by id, delivering a `session_loaded` event carrying the session id, title, and message list to the requesting connection and any other connection viewing that session (per-viewer delivery, `session-ownership`). Switching SHALL be allowed while any session — including the one being left — is streaming, and SHALL NOT cancel, pause or otherwise affect any in-flight turn; the outgoing session's turn continues, and its events keep flowing to its remaining viewers and into its replay log (`web-chat-server`). The request SHALL be rejected with an access error when the requester neither owns the session nor is an admin-group user. The active session SHALL be reflected as highlighted in the sidebar.
 
 #### Scenario: switch to a session
-- **WHEN** a client sends `switch_session` for a valid session id it owns and the agent is not streaming
-- **THEN** the server SHALL switch the live agent to that session
+- **WHEN** a client sends `switch_session` for a valid session id it owns
+- **THEN** the server SHALL point the live agent at that session
 - **AND** SHALL deliver `session_loaded` with that session's id, title, and messages to the requesting connection and same-session viewers
 
-#### Scenario: switch rejected while streaming
-- **WHEN** a client sends `switch_session` while the agent is streaming
-- **THEN** the server SHALL send an error and the active session SHALL remain unchanged
+#### Scenario: switching away from a streaming session leaves it running
+- **WHEN** session A is streaming and the viewing client sends `switch_session` for session B
+- **THEN** the server SHALL complete the switch and deliver `session_loaded` for B
+- **AND** A's turn SHALL continue to completion with no cancel issued
+- **AND** a later `switch_session` back to A SHALL answer with `running: true` and the replay log while A is still in flight
+
+#### Scenario: another connection's navigation does not disturb a streaming session
+- **WHEN** connection 1 views streaming session A and connection 2 sends `switch_session` for session B
+- **THEN** A's turn SHALL continue and connection 1 SHALL keep receiving A's events
 
 #### Scenario: switch to an unknown session
 - **WHEN** a client sends `switch_session` for an id that does not exist
@@ -111,7 +117,6 @@ The server SHALL accept a `switch_session` WebSocket message and switch the live
 #### Scenario: switch to a session the requester does not own
 - **WHEN** a client sends `switch_session` for a session owned by a different, non-admin user
 - **THEN** the server SHALL send an access error and the active session SHALL remain unchanged
-
 ### Requirement: Session list refreshes after every turn end
 The server SHALL broadcast a refreshed session list whenever an agent turn ends, whether the turn succeeded or failed, so that a newly created session appears in the sidebar even when its first turn errors. The list SHALL also be broadcast when a client connects and when a session is created or switched.
 
@@ -121,10 +126,10 @@ The server SHALL broadcast a refreshed session list whenever an agent turn ends,
 - **AND** any session created during that turn SHALL appear in the list
 
 ### Requirement: Server exposes a session delete endpoint
-The server SHALL expose `DELETE /api/chat-history/sessions/:id` to remove a session by id. The server SHALL delete the on-disk session store file (atomic temp-file + rename, matching the existing write pattern) AND delete the mirror row in the project database (managed by `project-database`). After a successful delete, the server SHALL deliver a refreshed `sessions` WebSocket event to every connected client, each computed from that client's user visibility. A request for a non-existent id SHALL return 404. A request for the current session id SHALL be rejected with 409 and a clear error (`Cannot delete the active session; switch first`). A request for a session the requester neither owns nor is admin for SHALL be rejected with 403 and remove nothing. The dsh runtime's own session persistence (sessions stored by id on disk by dsh itself) SHALL also be removed so reopening the dsh session does not resurrect the deleted entry.
+The server SHALL expose `DELETE /api/chat-history/sessions/:id` to remove a session by id. The server SHALL delete the on-disk session store file (atomic temp-file + rename, matching the existing write pattern) AND delete the mirror row in the project database (managed by `project-database`). After a successful delete, the server SHALL deliver a refreshed `sessions` WebSocket event to every connected client, each computed from that client's user visibility. A request for a non-existent id SHALL return 404. A request for the current session id, OR for a session whose turn is in flight, OR for a session with a queued prompt (`turn-dispatch`), SHALL be rejected with 409 and a clear error (`Cannot delete the active session; switch first`). A request for a session the requester neither owns nor is admin for SHALL be rejected with 403 and remove nothing. The dsh runtime's own session persistence (sessions stored by id on disk by dsh itself) SHALL also be removed so reopening the dsh session does not resurrect the deleted entry.
 
 #### Scenario: delete a non-active session
-- **WHEN** the client sends `DELETE /api/chat-history/sessions/<id>` for a session it owns that is not the current one
+- **WHEN** the client sends `DELETE /api/chat-history/sessions/<id>` for a session it owns that is not the current one and has no in-flight or queued turn
 - **THEN** the server SHALL remove the on-disk file and the database row
 - **AND** deliver a `sessions` event with the refreshed list to every client (each scoped to its user)
 - **AND** return HTTP 200 with `{ ok: true }`
@@ -133,6 +138,14 @@ The server SHALL expose `DELETE /api/chat-history/sessions/:id` to remove a sess
 - **WHEN** the client sends `DELETE /api/chat-history/sessions/<id>` for the current session
 - **THEN** the server SHALL return HTTP 409 with `{ error: "Cannot delete the active session; switch first" }`
 - **AND** no data SHALL be removed
+
+#### Scenario: delete a background-streaming session is rejected
+- **WHEN** the client views session B and sends `DELETE /api/chat-history/sessions/<id>` for session A whose turn is in flight
+- **THEN** the server SHALL return HTTP 409 and no data SHALL be removed
+
+#### Scenario: delete a queued session is rejected
+- **WHEN** the client sends `DELETE /api/chat-history/sessions/<id>` for a session with a queued prompt
+- **THEN** the server SHALL return HTTP 409 and no data SHALL be removed
 
 #### Scenario: delete a non-existent session
 - **WHEN** the client sends `DELETE /api/chat-history/sessions/<id>` for an id that does not exist
@@ -145,7 +158,6 @@ The server SHALL expose `DELETE /api/chat-history/sessions/:id` to remove a sess
 #### Scenario: delete broadcasts refreshed list
 - **WHEN** a delete completes
 - **THEN** every connected WebSocket client SHALL receive a `sessions` event whose `sessions[]` array does not include the deleted id and matches that client's user visibility
-
 ### Requirement: Sessions carry a title that the user can rename
 Each session SHALL have a `title` field that defaults to the first user message (truncated) but MAY be set by the user via a rename action. The server SHALL expose `PATCH /api/chat-history/sessions/:id` accepting `{ title }` (validated to a non-empty string ≤ 200 characters). On success, the server SHALL update the title in the project-database mirror and the on-disk store, and SHALL deliver a `session_renamed` WebSocket event `{ id, title }` to the connections viewing that session. The WS protocol SHALL also accept a `rename_session` client message with `{ id, title }` as an alternative to the REST route — both produce the same server-side effect and the same ownership gate: a rename from a requester who neither owns the session nor is admin SHALL be rejected with an access error (REST 403) and change nothing. The existing title-derivation logic (truncate the first user message) is the default; the user can override it at any time.
 

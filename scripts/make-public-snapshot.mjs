@@ -103,6 +103,10 @@ const EXCLUDE_PATHS = new Set([
   // change with every internal slice — not curated for the public drop.
   "docs/facet-wanxing-roadmap.md",
   "docs/facet-market-roadmap.md",
+  // internal planning doc for the memory + stats plane: cluster node names
+  // (cheap-N), production image shas and per-deployment service topology —
+  // same class as the roadmaps above, not curated for the public drop.
+  "docs/memory-and-stats-plane-explore.md",
   // internal compliance assessment: inventory of internal domains, registry
   // transit route, and cluster node names (合规盘点 v0, 2026-10-13).
   "docs/compliance-opening-assessment.md",

@@ -29,6 +29,7 @@ import { atomicWriteTextSync, normalizeBaseUrl } from "./lib/persistence.js";
 import { effectiveMcpTools } from "./lib/pack-manifest.js";
 import { deriveScopedToken, scopeIdForEmail } from "./lib/scoped-relay-token.js";
 import { probeHttpServers } from "./mcp-preflight.js";
+import { cellMemoryMount } from "./cell-memory.js";
 import { repoRoot } from "./paths.js";
 
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), ".dsh");
@@ -948,6 +949,11 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
     if (e) entries.push(e);
     else console.warn(`[dsh-profile] skipping MCP server "${name}": unknown config shape`);
   }
+
+  // Cell memory mount (add-memory-federation-v1): appended after the user's
+  // own servers; fail-open — any failure leaves the patch without the row.
+  const memoryMount = await cellMemoryMount(process.env, ownerEmail);
+  if (memoryMount) entries.push(memoryMount.mcpEntry);
 
   // The filter config refreshes at the same composition moments as the MCP
   // patch (server cells, desktop, and the runner all converge here or on the

@@ -893,3 +893,47 @@ GitOps `fd-infra-deploy` `6eeb853`，ArgoCD hard-refresh 后 2/2 ready。
 **出片踩坑补一条**：`fd-build-snapshot --branch master` 会把快照推到出片仓的 **`master`** 分支，
 而通用池 `image.yml` 只在 `push: branches: [main]` 触发 → **推送成功但不构建**。
 源码仓默认分支是 `master` 时，**不要传 `--branch`**（脚本默认就推 `main`）。
+
+## §9 发布记录：「对话什么都不返回」事故修复——目录预设两层根因（2026-10-20）
+
+**现象**：cell `1da519d4c1c0bf89`（aloadtree@gmail.com）每条提问 dsh 侧报
+`Agent error: Unknown agent preset: pack-contract-reviewer`，UI 无任何回复。
+
+**两层根因（叠加）**：
+1. **同步漏补重启**：启动期两次 `syncCatalogAgentPresets` 竞争——本地目录（5 agent）改 roster 并
+   重启子进程；1 秒后云端合并（+2 agent）改写 `presets.patch.yml` 时 bridge 正在重启 → 旧代码
+   `isReady()` 为假即静默跳过自己的重启且永不回头。子进程以 6 行 roster 活到底，宿主却认为
+   `pack-contract-reviewer` 存在（该 cell 部署预设 `agent.preset=pack-contract-reviewer`）。
+2. **云目录 last-good 不落盘 + GitHub raw 抖动**：AGENTS_CONFIG_URL
+   （raw.githubusercontent.com/fd-vertical-packs/agents.json）从生产节点 ETIMEDOUT 6+ 分钟
+   （02:02–02:08，恢复后实测 ~870ms），旧代码 cloudEntries 只在内存 → 断网窗口内 boot 的 cell
+   云 agent 全无。
+
+**修复两车**：
+- `225dc9e3` → 快照 `02d20d8`（testaction003/build-pool，run `39297324826`）→
+  `yizuo/platform:sha-02d20d8`，ccr digest `sha256:1cc95531…` 同款校验（digest `f715cd76…9fb81`）。
+  改写挂账 `catalogPresetRestartPending`，`flushCatalogPresetRestart` 在 **bridge.ready / 空闲转换**
+  补投（`onRuntimeIdle`=flush→drain）；全程持运行时预约，排队提问等新子进程；失败不自旋、自身
+  ready 不再触发（无回环）。单测 4/4（真实组合根接线）+ 双突变核验。
+- `8c93fbea` → 快照 `73c912d`（run `39303391128`）→ `yizuo/platform:sha-73c912d`，ccr digest
+  `sha256:1cc95531220a685a3cfa349a8c91e47d6537d9a6fa7dad45be467457ebf1e782`，pod
+  `platform-587c795d86-xxvlm` imageID 全等、catalog.js/agent-session.js md5 双向比对一致。
+  云 last-good 落盘 `data/data/catalog-cloud-last-good.json`（成功 fetch 写、boot seed、失败绝不
+  覆写）+ agent 标签随 roster 回归（outage 跨启动后从 local 恢复，远端 agent 选择不被覆写）。
+  单测 1625/1625，新增 cache 2/2 + 标签 1/1，双突变各 1 红。
+
+**生产验收**（webhook 路由拉起用户 cell，详见记忆 catalog-preset-restart-incident）：boot 日志
+实证补投链（6 行 sync 重启 → 8 行 sync 中途到达 → gen2 ready 即补投 gen4，两条
+`runtime restarted for 7`）；`list_presets` 实测 roster 含 `pack-contract-reviewer`；真提问
+`user→agent_start→text→done` 零 error；`current_agent=pack-contract-reviewer`（标签已回归）；
+缓存文件已落盘。测试会话已删（admin 头 wire 格式：`x-forwarded-roles=["legal"]` +
+`x-forwarded-role-admin=1`）。
+
+**出片踩坑（共享池变量竞态，[[build-pool-shared-repo-variables]] 升级版）**：testaction002 上
+删除他人 `BUILD_DOCKERFILE` 残留后 rerun，15 秒后另一会话覆写 `BUILD_NAMESPACE=fd-wire`，
+rerun 的 job 启动晚于覆写 → 几乎把 paas 镜像推成 `fd-wire/api:main`（取消于 build 步、push 未
+执行）。**纪律：rerun 前后必看 job 日志 `target:` 行；并发期换静默池（本次换 testaction003）**。
+fd-build-snapshot 不设 BUILD_DOCKERFILE 是工具缺口待修。
+
+**顺带**：lint 在 main 上本来就红一条（cell-memory.js:12 unused import，c58f07fb 带入；
+image.yml 不跑 lint 不挡出片）；agent-runner 节点 liuliangth1zdmvyyvr0（100.64.0.11）NotReady 待查。

@@ -91,3 +91,29 @@ dummy 上重复足够多轮**（上游记录称该缺陷非确定）。满足后
 5/5 PASS。**未采信**：与 ⑨ 的内联记录（"rc.2 收尾不交错、非确定卡死"）矛盾，
 5 轮不足以反证非确定性，且 dummy 单 chunk 远快于真实 provider。默认策略仍为
 `queue`。完整记录见 `openspec/changes/concurrent-chat-sessions/notes/dsh-contract-9b-measurement.md`。
+
+### 2026-10-20 勘误与新事实（⑨b 证据重估）
+
+**勘误：2026-10-19 的「⑨b 5/5 PASS」是空转绿，证据力为零。** 当晚 dummy 的 `[HOLD]`
+匹配的是**最终消息**；而每个新会话的首回合会先发一个**标题生成 side call**（system=
+"Create a concise title…"，最终消息=用户原文）——park 住的是 titler，真正的会话请求
+（最终消息是 dsh 注入的 skills system-reminder，不含 marker）**从未被 park**，回合即时
+完成。所谓「双方挂起后释放、双双无 cancel 收尾」问的问题从未被问过。
+
+**更深的协议事实**：rc.2 的每个回合还会发一个 "Current runtime context. This snapshot
+supersedes…" 的上下文维护 LLM 调用（trace 实证：⑧ 的 prompt 只产生了 context 调用 +
+titler，会话请求在部分状态下根本不发出）。一次 marker 实验里三种请求（会话/上下文维护/
+标题）先后被 park 过，各自制造不同的假形状。**结论：不建模这套请求协议，dummy 侧做不出
+诚实的 ⑨b**；重建 harness（识别三类请求、marker 只作用于会话请求、慢流多轮）是 ⑨b 升
+门禁的前置工作，未完成前 ⑨b 保持 advisory 且其 PASS 不作为任何决策依据。
+
+**0.2.1-rc.2 全量合同实测（2026-10-20，--tree 干净安装）**：8/17——④ 凭据热重载真回归
+（轮换后的凭据不再逐请求生效，Authorization 迟迟不出现）、级联 ⑦⑧⑨⑩⑯（此后 prompt
+到不了 adapter）、⑫ `ctx.subagents.start is not a function`（内部 API 变面）、⑮ delta
+lane 死。按本 README 升级纪律：公开面合同红 = **不能跟**，等下一个 rc 或上游澄清。
+（③ 的红是 manifest 未随动的预期产物，不计。）
+
+**concurrent 的证据路线改判**：在 harness 重建完成前，`concurrent` 的开启证据改为
+**真实 cell 实验**（临时 cell、TURN_DISPATCH=concurrent、真实 provider、多轮双会话并发
+prompt、断言双 agent_start 重叠 + 双 done + 无 error + 无楔死）——记录见
+`openspec/changes/<policy-flip-change>/notes/`。

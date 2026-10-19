@@ -682,3 +682,19 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 舰队工作记忆（OKF 真源/跨 owner 物理隔离/fdm_ 三族令牌/capture 脱敏/MCP 八工具）。runner-serving 同车滚 sha-54da09c + `AGENT_RUNNER_MEMORY_*` 开门（令牌=带外 secret fd-memory-runner，pepper=fd-memory-env）。fd-infra-deploy 0018d19。**生产验收三判据全过**（change reports/2026-10-19-prod-acceptance.md：spider-heal 真实回合写 handoff→跨会话认领 claim-once；scale 0 回合照常；代采观测落库）。
 
 **实施期三起旁发现**：① runner 数据根 LLM key 死钥（10-18 轮换漏 /data/llm-providers.json，已修 in-pod，**cheap-1 rsync 源未同步登记待办**）；② wx-alpha 部署者计费键死（sk-a4…401，需部署者重绑）；③ fd-health-proxy NO_PROXY 缺集群 DNS 域（dsh child MCP 被代理劫走——已补 `.svc.cluster.local,.svc` 并滚 runner，普适修复）。**凭据暴露**：mihomo 代理凭据入本会话 transcript（读 NO_PROXY 带出），择时轮换。
+
+
+## §9 发布记录：消耗统计面上产（add-stats-plane-v1，2026-10-19）
+
+| 镜像 | tag | 源 | 池 |
+|---|---|---|---|
+| yizuo/fleet-observer | sha-5ef1480 | fd-wanxing ed9a567 | testaction004 |
+| yizuo/wanxing-facade | sha-5ef1480（同镜像双入口，FLEET_ENTRY 显式） | fd-wanxing ed9a567 | testaction004 |
+| yizuo/wanxing-web | sha-d10ba31（Dockerfile.web 根上下文变体，SMOKE=skip） | fd-wanxing acc4d8b | testaction004 |
+
+**stats plane**：observer 姊妹库 stats.db（13 月明细+永久日聚合）+ stats API 四端点（source/basis
+口径分离硬约束）+ /ingest/local（fsc_ 令牌）+ sub2api 小时只读拉取（wanxing-fleet 借用凭据）；
+门面 stats 四路由代理；console 消耗页签（三口径分列）。回填 892 条（7d=865 回合/24.9M tok）；
+本机 collector 2978 条回灌+launchd 小时循环。**坑三条**：池无 build-args 管道（SERVICE 静默失效
+→一镜像双入口+env 显式）；同源零 diff 假绿（dispatch inputs 才是多镜像正解）；web boot 烟测被
+集群服务名误杀（SMOKE=skip）。**复验项**：sub2api 首拉形状、collector 24h、console 浏览器眼见。

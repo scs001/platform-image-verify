@@ -135,6 +135,9 @@ L1 沉淀页（durable facts）= L2 最干净的 episode 源，**L1 是 L2 的�
    sha-54da09c + 记忆开门；验收记录=change reports/。as-built 边界与 v1.1 待办
    在案（namespace 用显示名/pod 成员无挂载/ACP 生产补验/7.2 B 向 spike）。
 3  stats-plane-v1        三采集点 + 聚合 + 萬星 console 运营段（与 2 并行开线）
+   ✅ 2026-10-19 全链上产（change add-stats-plane-v1@fd-wanxing，验收记录在 change reports/）：
+   fleet 口径真数（回填+活体）/ collector 本机在流（launchd）/ console 消耗页签三口径分列；
+   sub2api 首拉形状与 24h 浸润待复验。统计面自此与记忆面并列成形。
 4  memory-federation     壹座 cell 挂载 + 本地 stock 节点与舰队互通（`server=` 直指）
 5  kg-distill（远期）    L1 沉淀页 -> episode -> graphiti 双时态图（分岔 B 会合）
 ```

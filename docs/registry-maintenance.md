@@ -738,3 +738,28 @@ recover 已装）；②cell——platform 全量开门 CELL_MEMORY_*（platform 
 MCP 200；③萬星——切片 2 既有。**坑**：CELL_MEMORY_URL 必须 clusterIP（platform hostNetwork +
 Default dnsPolicy 无 cluster DNS；fd-memory 重建=IP 变，两清单注释互指）。**待复验**：真实 cell
 会话工具面眼见、cell 写→本地查互见闭环。7.2B 正式降级为可选迁移工具（spike 附录在案）。
+
+### 复验收口（2026-10-19 傍晚）：记忆闭环 + 凭据轮换清单
+
+**cell 写→本地查互见闭环 ✓**（原「待复验」项核销）：产内用 platform 令牌
+`POST /admin/mint`（`{kind:"person", namespace:"u/<email>"}`）→ `POST /capture`
+（`{"stored":1}`）→ MCP `initialize` 握手 → `memory_recent` / `memory_query` 均命中刚写内容；
+中文 `复验` 与英文 `reverify`/`session` 都命中 → **FTS trigram 对 CJK 可用**。生产已 26 页真实
+记忆，handoff `deployment → acceptance-zcode` 状态 `claimed` = **交接协议生产闭环实证**。
+**runner 侧挂载实证**：`/data/packs-*/profiles/platform/mcp.patch.yml` 里真实存在
+`mcp-fd-memory` 行（serverName fd-memory，url `http://fd-memory.fd-prod.svc.cluster.local:49375/mcp`），
+从 runner pod 内 DNS 解析到 `10.43.117.111`、`/healthz` 200。
+
+**探针坑两条（静默/误导性失败）**：①`/capture` 的事件字段是 `event` 不是 `kind`，写错静默
+`stored:0`；②`memory_query` 入参名是 **`q`** 不是 `query`，传错返回空结果而非报错
+（工具描述未写参数名，fd-memory v1.1 补）。
+
+**凭据轮换清单（复验期间进入对话/日志的明文，按敏感度排序）**：
+
+| # | 凭据 | 露出位置 | 处置 |
+|---|---|---|---|
+| ① | sub2api 调用键 `sk-7e05…`（api_key_id=31，`wanxing-probe-…`） | 本次探针响应体 | sub2api 面板吊销/重生；持键者应重绑 |
+| ② | fd-memory runner/部署令牌 `fdm_950b…` | runner `mcp.patch.yml` 读取输出 | 生产 `fd-memory` CLI `token revoke` + 重铸 secret 后滚 runner |
+| ③ | mihomo 代理凭据 | 早前读 secret 时 | 用户按需轮换 |
+
+①②均为**生产可用的活凭据**，建议优先处置；轮换后 runner/pod 需重启一次。

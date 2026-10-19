@@ -69,3 +69,25 @@ ADR-0023）。Dockerfile 的 dsh 安装层从这里的 `package.json`（意图�
    - ② fail 且报告指剪枝名单内条目 = 检查 prune.json 是否漏了豁免接线。
 6. 复核 `prune.json`：新增的"大件依赖若不被 profile 加载"候选进评审；上游
    若开始加载某已剪包（dsh-base 插件表新增行）→ 移出名单。
+
+## 合同 ⑨b（收尾交错，advisory）
+
+`⑨b close-under-concurrency` 是 **advisory** 行：照常打印 PASS/FAIL 与 detail，
+但**不计入失败数、不影响 exit code**，摘要末尾单列。存在原因是它钉住的行为在
+冻结矩阵上可能长期为红，而一个永远红的门禁不是门禁。
+
+它问的是平台 `TURN_DISPATCH=concurrent` 策略所依赖的严格性质：两个会话**都**
+有挂起请求时释放，双方能否都无 cancel 收尾到 idle。⑨（派发并发）只证明较弱的
+一面——B 在 A 挂起时能派发；A 收尾时 B 早已结束，所以单边挂起会假绿
+（实测 6/6 假绿后才改成双边挂起）。
+
+**开启 `concurrent` 的条件**：候选矩阵 ⑨b PASS，**并且在慢速/多 chunk 的
+dummy 上重复足够多轮**（上游记录称该缺陷非确定）。满足后由一次 dsh 升级 change
+同时做三件事：矩阵升级、`TURN_DISPATCH` 默认翻 `concurrent`、⑨b 升格为门禁
+（同时设 `DSH_MATRIX_CLOSE_INTERLEAVE=1`，代码在 `server/turn-dispatch.js`
+`resolvePolicy`）。
+
+**2026-10-19 实测（冻结矩阵 0.2.0-rc.2）**：双边挂起、`heldCount()>=2` 前置断言，
+5/5 PASS。**未采信**：与 ⑨ 的内联记录（"rc.2 收尾不交错、非确定卡死"）矛盾，
+5 轮不足以反证非确定性，且 dummy 单 chunk 远快于真实 provider。默认策略仍为
+`queue`。完整记录见 `openspec/changes/concurrent-chat-sessions/notes/dsh-contract-9b-measurement.md`。

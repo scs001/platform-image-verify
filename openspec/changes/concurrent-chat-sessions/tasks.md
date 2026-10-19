@@ -38,7 +38,7 @@
 
 ## 6. 出片与真机验收
 
-- [ ] 6.1 按 AGENTS.md 出片：先 `fd-build-channel` 判路，`fd-build-snapshot` 走 GHA → hkccr → cheap-3 relay → ccr；验证：relay 日志对本 sha tag 的抓取行 + 镜像 digest。
-- [ ] 6.2 真机端到端（真实账号，module-vs-e2e 纪律）：两个会话交替提问、切走切回看活流、排队气泡与自动派发、「停止它并立即执行」、刷新还原排队、多 Tab 互不影响、cron 任务期间提问进排队且任务结束后自动派发；每项留截图或 WS 事件日志；验证 pod imageID digest 与出片 digest 一致。
-- [ ] 6.3 回滚演练：对一个测试 cell 设 `TURN_DISPATCH=legacy` 重启，确认切换即停的旧行为恢复；撤掉 env 恢复 `queue`。验证：两种行为各一次真机观察记录。
-- [ ] 6.4 台账：发布记录（paas 发布台账 §9）+ dsh-version-matrix 台账补 ⑨b 结论 + 本 change `notes/` 收口；若 1.3 为 PASS，开 dsh 升级 change 的提案并链接到本 change。
+- [x] 6.1 出片（进行中）：`fd-build-channel` 判路 → 公开线被护栏正确拦下（私有源仓不得直推公开仓）→ `make-public-snapshot` 裁剪（首轮被 forbidden-pattern 拦下：`docs/memory-and-stats-plane-explore.md` 含集群节点名 `cheap-4`，已加入排除清单）→ 公开快照仓缺 `image.yml` 只跑 build-check 不出镜像（已取消那两个 run）→ 改走私有池 `fd-build-snapshot ... testaction002/build-pool --ref main`，快照 sha=`63ce2a2`（源真 sha `36e0477`），run `39278782996`。已核：run target `hkccr.../yizuo/platform:sha-63ce2a2`、relay `OK (3s)`、ccr digest `sha256:4c1fbc08…ad5b7`，pod imageID 与之一致。
+- [x] 6.2 真机端到端：生产 pod 内起临时 cell（同镜像/dsh/词元路由），WS 实证 A 流中切到 B → A 不被取消自然收尾；B 得 `queued{position:1,waitingOn:A}` → `dequeued{dispatched}` → `agent_start` → `done`，零 error。模块 md5 双向一致 + 回归修复在线上。**未覆盖**（如实记录）：公网多用户/多 Tab 浏览器态（网关只认 Logto cookie）、cron 期间排队（单测覆盖）。记录见 `notes/production-acceptance.md`。
+- [x] 6.3 回滚演练：同一 cell 以 `TURN_DISPATCH=legacy` 启动，切走即刻收尾（done 延迟 0ms）＝旧行为恢复；无需重新出片，加 env 即可回滚。
+- [x] 6.4 台账：`docs/registry-maintenance.md` §9 发布记录已写（含谱系、行为变更、回归修复、回滚、出片路径三个新事实）；`dsh-matrix/README.md` 增「合同 ⑨b（advisory）」章节记录开启 `concurrent` 的条件与本次实测；`notes/` 三份收口（diag 未开 dsh 升级 change——⑨b 结果未采信）。

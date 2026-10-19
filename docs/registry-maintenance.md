@@ -790,3 +790,38 @@ Default dnsPolicy 无 cluster DNS；fd-memory 重建=IP 变，两清单注释互
 后调了 `obs.close()`，而全量拉取要 ~25s → 出现 `sub2api pull error: The database connection is
 not open`。生产侧同一逻辑没有此现象（进程常驻、无 close）。写这类探针要让等待时间覆盖拉取耗时，
 或在 pull 的 promise 上等待。
+
+## §9 发布记录：并发会话——切窗口不再断流（concurrent-chat-sessions，2026-10-19）
+
+**谱系**：paas `36e0477` → 快照 `63ce2a2`（testaction002/build-pool，run `39278782996`）→
+`ccr.ccs.tencentyun.com/yizuo/platform:sha-63ce2a2`，ccr digest `sha256:4c1fbc08…ad5b7`，
+pod imageID 双向比对一致；GitOps `fd-infra-deploy` `dd776df`（`all-services/prod/platform.yaml`），
+ArgoCD hard-refresh 后 rollout 成功（pod `platform-77979cfb9f-jkwnb`，ready，restarts=0）。
+relay 日志 `OK yizuo/platform:sha-63ce2a2 (3s)`。
+
+**行为变更**：切会话 / 新建 / 深链 / 多 Tab 导航**不再取消**离开会话的进行中回合；运行时忙时
+新 prompt 进宿主 FIFO 队列（每会话一条、总量 ≤8、可取消），上一回合收尾后自动派发。
+侧栏逐会话显示 running/queued；队列气泡提供「取消」与「停止它并立即执行」。
+
+**顺带修复的真回归**：`server/runtime-bindings.js` 的 `finishTurn` 包装丢掉了
+`(outcome, sid)`，`sid` 回落全局指针 → 后台回合永不发 `done`。改动前不可达（切换先 cancel），
+本变更使其必现。
+
+**生产验收**（pod 内起临时 cell，同镜像/dsh/词元路由；详见 change `notes/production-acceptance.md`）：
+A 流中切到 B → A 未被取消、自然收尾；B 提交得到 `queued{position:1, waitingOn:A}` →
+`dequeued{dispatched}` → `agent_start` → `done`，零 error。
+
+**回滚**：同一 cell 以 `TURN_DISPATCH=legacy` 启动，切走即刻收尾（done 延迟 0ms）＝旧行为。
+回滚只需给 cell/gateway 加 env，无需重新出片。
+
+**出片路径上的两个新事实**：
+1. **私有源仓不能直推公开出片仓**——`fd-build-snapshot` 的护栏会拦（这是 2026-10-18 泄露事故后加的，
+   工作正常）。公开线须先 `make-public-snapshot` 裁剪。
+2. **`scs001/platform-image-verify` 没有 `image.yml`**（公开快照排除了它），推上去只会触发
+   `CI` + `image-build-check`（build-only，**不推镜像**）。要真出镜像必须走私有池。
+3. `make-public-snapshot` 的 forbidden-pattern 扫描在本次抓到
+   `docs/memory-and-stats-plane-explore.md` 含集群节点名 `cheap-4` → 已加入 `EXCLUDE_PATHS`
+   （commit `d78c3a3d`）。
+
+**未覆盖**：公网多用户/多 Tab 浏览器态（网关只认 Logto cookie / 小程序 Bearer，验收走 cell 内部
+身份通道）；cron 任务期间的排队（单测覆盖，未跑真实定时任务）。

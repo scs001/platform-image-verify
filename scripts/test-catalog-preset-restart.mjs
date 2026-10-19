@@ -247,3 +247,40 @@ test("a failed restart keeps the rewrite pending for the next idle transition", 
   await tick();
   assert.equal(ctx.catalogPresetRestartPending, false);
 });
+
+test("a returning roster entry restores the agent label from local", async () => {
+  const ctx = makeCtx();
+  const agentEvents = [];
+  ctx.broadcast = (m) => {
+    if (m?.type === "agent_changed") agentEvents.push(m.id);
+  };
+
+  // The mid-outage state: the roster (re)gains an agent while the cell's label
+  // fell back to `local` and the live preset is that agent's.
+  const row = addPreset();
+  const dshProfile = await import("../dsh-profile.js");
+  ctx.currentAgentId = "local";
+  ctx.currentPreset = dshProfile.rosterPresetId(row.id);
+
+  const syncP = ctx.syncCatalogAgentPresets();
+  await tick();
+  assert.equal(ctx.currentAgentId, row.id, "the label follows the preset back to its catalog agent");
+  assert.deepEqual(agentEvents, [row.id]);
+  for (const call of ctx.dshBridge.restarts) call.finish?.();
+  await syncP;
+
+  // A remote-agent selection (a catalog id with no generated preset) is never
+  // stomped by preset derivation: the gone-branch still owns it.
+  const ctx2 = makeCtx();
+  const events2 = [];
+  ctx2.broadcast = (m) => {
+    if (m?.type === "agent_changed") events2.push(m.id);
+  };
+  ctx2.currentAgentId = "registry-packs-remote-agent";
+  ctx2.currentPreset = "standard";
+  const sync2 = ctx2.syncCatalogAgentPresets();
+  await tick();
+  assert.deepEqual(events2, ["local"], "a departed remote agent falls back to local, never mislabeled as a pack agent");
+  for (const call of ctx2.dshBridge.restarts) call.finish?.();
+  await sync2;
+});

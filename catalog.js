@@ -9,7 +9,8 @@
 // DB-less convention holds for every other source and for the DB-off
 // degradation path.
 import path from "node:path";
-import { bundledJson } from "./paths.js";
+import fs from "node:fs";
+import { bundledJson, storeDir } from "./paths.js";
 import { readJsonOr } from "./lib/persistence.js";
 import { getAgentEntries } from "./registry-bridge.js";
 import * as db from "./db.js";
@@ -38,6 +39,38 @@ let lastSignature = null;
 let timer = null;
 let broadcastFn = null;
 let changeFn = null;
+
+// The last-good cloud document, durably. "Cloud outage never empties the
+// catalog" must survive a process restart too: a cell that boots while
+// AGENTS_CONFIG_URL is unreachable (production 2026-10-20: raw.githubusercontent.com
+// timed out for 6+ minutes) would otherwise have NO cloud agents, and a
+// deployment whose preset is one (pack-contract-reviewer) fails every prompt
+// until the fetch recovers. Seeded at init, rewritten on each successful fetch.
+const CLOUD_CACHE_NAME = "catalog-cloud-last-good.json";
+let cloudCachePath = null;
+let cloudCacheWritten = null;
+
+function seedCloudFromCache() {
+  try {
+    const doc = JSON.parse(fs.readFileSync(cloudCachePath, "utf8"));
+    cloudEntries = validateDoc(doc, "cloud-cache");
+    console.log(`[catalog] cloud cache seeded (${cloudEntries.agents.length} agent(s)) from ${cloudCachePath}`);
+  } catch {
+    /* no cache yet, or unreadable: the fetch is the only source */
+  }
+}
+
+function persistCloudCache() {
+  if (!cloudCachePath || !cloudEntries) return;
+  try {
+    const body = JSON.stringify(cloudEntries);
+    if (body === cloudCacheWritten) return;
+    fs.writeFileSync(cloudCachePath, body);
+    cloudCacheWritten = body;
+  } catch (err) {
+    console.warn(`[catalog] cloud cache write failed: ${err.message}`);
+  }
+}
 
 // Validation: unknown type / duplicate id / missing required fields ⇒ drop the
 // entry with a warning, serve the rest (spec: agent-catalog, invalid entries).
@@ -106,6 +139,7 @@ async function loadCloud() {
     const r = await fetch(CLOUD_URL, { signal: AbortSignal.timeout(10_000) });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     cloudEntries = validateDoc(await r.json(), "cloud");
+    persistCloudCache();
   } catch (err) {
     // Cloud outage never empties the catalog: keep the last-good entries.
     console.warn(`[catalog] AGENTS_CONFIG_URL fetch failed (keeping last-good): ${err.message}`);
@@ -379,11 +413,20 @@ function notifyIfChanged() {
 export async function initCatalog({ broadcast, onChange }) {
   broadcastFn = broadcast;
   changeFn = onChange ?? null;
+  try {
+    cloudCachePath = path.join(storeDir("data"), CLOUD_CACHE_NAME);
+  } catch {
+    cloudCachePath = null;
+  }
   // Local catalog first: boot readiness must not wait on the cloud fetch (a
   // slow/unreachable AGENTS_CONFIG_URL costs up to its 10s timeout). The
-  // cloud merges asynchronously and broadcasts catalog_changed on arrival;
-  // the periodic refresh below keeps syncing.
+  // durable last-good cloud doc seeds alongside it — the boot catalog is the
+  // FULL one whenever the process has ever seen a successful fetch, which is
+  // what keeps a cloud-defined deployment preset composable through an outage.
+  // The live fetch then merges asynchronously (broadcasts catalog_changed on a
+  // real change); the periodic refresh below keeps syncing.
   await loadLocal();
+  seedCloudFromCache();
   notifyIfChanged();
   void loadCloud()
     .then(() => notifyIfChanged())

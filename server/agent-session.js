@@ -502,11 +502,24 @@ async function syncCatalogAgentPresets() {
     console.warn(`[dsh] catalog agent preset sync failed: ${err.message}`);
     return { changed: false };
   }
-  // A pack that left the catalog leaves a stale selection behind; report the
-  // fallback before the restart so clients never show a departed agent.
+  // The agent label follows the roster in BOTH directions. A pack that left
+  // the catalog leaves a stale selection behind — report the fallback before
+  // the restart so clients never show a departed agent. And an entry that
+  // RETURNS (a cloud-catalog outage that spanned a boot, then recovered)
+  // restores the label the live preset implies — otherwise the picker shows
+  // the built-in agent while the persona is the pack's, until the user
+  // re-picks it by hand. Only from `local`: a remote-agent selection
+  // (currentAgentId is its catalog id) must not be stomped by preset
+  // derivation.
   if (ctx.currentAgentId !== "local" && !dshProfile.hasCatalogAgentPreset(ctx.currentAgentId)) {
     ctx.currentAgentId = catalogAgentForPreset(ctx.currentPreset);
     ctx.broadcast({ type: "agent_changed", id: ctx.currentAgentId });
+  } else if (ctx.currentAgentId === "local") {
+    const implied = catalogAgentForPreset(ctx.currentPreset);
+    if (implied !== "local") {
+      ctx.currentAgentId = implied;
+      ctx.broadcast({ type: "agent_changed", id: implied });
+    }
   }
   if (!result.changed) return result;
   ctx.catalogPresetRestartPending = true;

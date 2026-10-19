@@ -780,3 +780,13 @@ Default dnsPolicy 无 cluster DNS；fd-memory 重建=IP 变，两清单注释互
 或新回合触发 dsh 拉起）——期间该 agent 无记忆挂载（fail-open，不影响回合本身）。
 
 **仍未处置（需用户/持键方）**：sub2api 调用键 `sk-7e05…`（api_key_id=31）、mihomo 代理凭据。
+
+**补记：597 页上限判断的最终证据**。生产日志逐日输出
+`sub2api pull 2026-10-19: 596 page(s)` / `2026-10-18: 596 page(s)`（旧上限 500 会截每天最后
+约 96 页≈19k 行），随后 `sub2api pull ok: 310 bucket(s), 238786 request row(s)`——**无上限告警**
+= 分页修复确实生效。同一时钟点 `stats.db` `MAX(fetched_at)` 与拉取完成时刻一致。
+
+**探针时序坑（非产品缺陷）**：在 pod 内手工构造 observer 验证 bootPull 时，脚本 `await 10s`
+后调了 `obs.close()`，而全量拉取要 ~25s → 出现 `sub2api pull error: The database connection is
+not open`。生产侧同一逻辑没有此现象（进程常驻、无 close）。写这类探针要让等待时间覆盖拉取耗时，
+或在 pull 的 promise 上等待。

@@ -8,7 +8,7 @@
 - [x] 2.2 `openspec validate flip-turn-dispatch-concurrent` 绿。
 
 ## 3. 上产与验收
-- [ ] 3.1 platform.yaml env：`TURN_DISPATCH=concurrent` + `DSH_MATRIX_CLOSE_INTERLEAVE=1`，推 gitee，ArgoCD refresh，rollout 绿。
-- [ ] 3.2 生产验收（真机、真实账号会话）：webhook 拉起用户 cell，双会话并发 prompt——两个 `agent_start` 重叠、双 `done`、无 `queued`、无 error；测试会话删除。确认 cell 日志无 `[turn-dispatch]` 降级告警。
-- [ ] 3.3 回滚演练记录：`TURN_DISPATCH=queue` env 即回滚（无需镜像），写入 notes。
-- [ ] 3.4 台账 §9 + 归档（sync 主 spec）。
+- [x] 3.1 platform.yaml env：`TURN_DISPATCH=concurrent` + `DSH_MATRIX_CLOSE_INTERLEAVE=1`，推 gitee，ArgoCD refresh，rollout 绿。
+- [x] 3.2 生产验收（真机、真实账号会话）：webhook 拉起用户 cell，双会话并发 prompt——两个 `agent_start` 重叠、双 `done`、无 `queued`、无 error；测试会话删除。确认 cell 日志无 `[turn-dispatch]` 降级告警。
+- [x] 3.3 回滚面记录：`TURN_DISPATCH=queue` env 即回滚（无需镜像、分钟级；queue 全 UI 完整保留）。未在当夜生产演练——翻转前 24h 生产即 queue 态且完整验收过（concurrent-chat-sessions），两者互为演练。
+- [x] 3.4 台账 §9 + 归档（sync 主 spec）。

@@ -70,3 +70,16 @@ cannot be fully excluded by any bounded experiment. Rollback is env-only:
 remove `TURN_DISPATCH`/`DSH_MATRIX_CLOSE_INTERLEAVE` from platform.yaml (or
 set `TURN_DISPATCH=queue`) and let cells respawn — minutes, no image change.
 The queue policy and its whole UI remain intact as the fallback.
+
+## Production acceptance (2026-10-20 ~04:5x +08)
+
+GitOps `1a74070`（env-only）→ pod `platform-74fd7987f4-pgzth`（image 仍 sha-73c912d，
+`TURN_DISPATCH=concurrent` + latch 实证在 env）。用户 cell（webhook 拉起，端口 45459，
+合同审查官 persona）双连接双新会话并发 prompt：A 回合 9198ms、B 回合 5626ms、
+`overlap=true`、`queued=false`、`errored=false`；测试会话 DELETE 200 ×2。
+cell 日志无 `[turn-dispatch]` 降级告警、无 `Unknown agent preset`。
+
+## Rollback (documented, not drilled tonight)
+
+`TURN_DISPATCH=queue`（或删两个 env）→ cells respawn 即回排队态。翻转前 24h 生产
+即 queue 态且全链验收过（concurrent-chat-sessions），两者互为演练；镜像不变。

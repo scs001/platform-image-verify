@@ -257,9 +257,15 @@ export function attachTurnDispatch(ctx) {
     }
   }
 
-  // Signal from non-web lanes: their collector left sessionCollectors, so the
-  // runtime may have just become idle.
-  ctx.onRuntimeIdle = () => ctx.drainTurnQueue();
+  // The runtime may have just become idle: a web turn closed, a non-web lane's
+  // collector left sessionCollectors (the ONLY trace such a turn leaves), or
+  // the child (re)started. A roster restart the catalog sync had to defer goes
+  // first — dispatching onto the stale child would only have that restart kill
+  // the turn; it reserves the runtime, so the drain parks until it is done.
+  ctx.onRuntimeIdle = () => {
+    ctx.flushCatalogPresetRestart?.();
+    ctx.drainTurnQueue();
+  };
 
   return ctx;
 }

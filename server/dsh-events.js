@@ -198,10 +198,11 @@ export function attachDshEvents(ctx) {
     ctx.turnStateBySession.delete(sid);
     void ctx.broadcastSessions();
     // A web turn just closed: the shared child is free for the next queued
-    // prompt (concurrent-chat-sessions D1). Synchronous dispatch — the queue
+    // prompt (concurrent-chat-sessions D1) — or for a roster restart the
+    // catalog sync deferred under this turn. Synchronous dispatch — the queue
     // head reserves its turn before any await, so a racing prompt cannot slip
     // in alongside it.
-    ctx.drainTurnQueue?.();
+    ctx.onRuntimeIdle?.();
   };
 
   // Per-turn tool-roster projection for UNKNOWN_TOOL candidate recovery
@@ -253,7 +254,10 @@ export function attachDshEvents(ctx) {
       // A planned restart (MCP update, preset switch) keeps the queue; this is
       // the resume trigger. A lane that caused the restart holds a reservation
       // (turn-dispatch design D2), so the queue stays parked in that window.
-      ctx.drainTurnQueue?.();
+      // The same hook applies a roster rewrite that landed while this child
+      // was spawning (its sync had to skip the restart) BEFORE the first
+      // prompt reaches the stale roster.
+      ctx.onRuntimeIdle?.();
       return;
     }
     // Bridge lifecycle notifications have no session id and must abort a live

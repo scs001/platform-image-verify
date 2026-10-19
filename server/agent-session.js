@@ -482,6 +482,18 @@ function switchAgentTo(id, ws, options = {}) {
 // they changed, restart the idle child so its `presets/list` roster includes
 // them. Called on every catalog change (the minute poll plus the initial cloud
 // merge); a no-op when nothing changed, so the poll costs nothing.
+//
+// The restart IS the delivery: the child composes its roster from the overlay
+// it read at spawn (a --patch layer, deliberately not hot-watched), so a
+// rewrite the child never restarted onto changes nothing it can see — the host
+// then believes in an agent the runtime answers with "Unknown agent preset".
+// A restart that cannot happen right now (the bridge is mid-restart from the
+// previous change, a turn is open) is therefore parked as pending and applied
+// by flushCatalogPresetRestart at the next bridge.ready / idle transition.
+// Production 2026-10-20: the boot-time local-catalog sync restarted the child,
+// the cloud merge one second later rewrote the roster during that restart and
+// skipped its own, and every prompt on a cloud-merged agent failed for the
+// rest of the cell's life.
 async function syncCatalogAgentPresets() {
   let result;
   try {
@@ -496,24 +508,76 @@ async function syncCatalogAgentPresets() {
     ctx.currentAgentId = catalogAgentForPreset(ctx.currentPreset);
     ctx.broadcast({ type: "agent_changed", id: ctx.currentAgentId });
   }
-  if (result.changed && ctx.dshBridge?.isReady?.() && !ctx.isStreaming) {
-    const restart = () => ctx.dshBridge.restart({});
-    try {
-      // Serialized with model/workspace/preset switches: a restart here must not
-      // overlap one of those (both re-spawn the same child). Already INSIDE an
-      // exclusive mutation (e.g. a custom-preset CRUD route awaiting this sync
-      // from within its own serialized section)? Run directly — re-queuing on
-      // the chain would wait on ourselves forever (the dshUpdateSkills guard).
-      if (ctx.runtimeApplying?.()) await restart();
-      else if (ctx.runExclusiveRuntimeMutation) await ctx.runExclusiveRuntimeMutation(restart);
-      else await restart();
-      await getAgentPresets();
-      console.log(`[dsh] runtime restarted for ${result.ids.length} catalog agent preset(s)`);
-    } catch (err) {
-      console.warn(`[dsh] catalog agent preset restart failed: ${err.message}`);
-    }
-  }
+  if (!result.changed) return result;
+  ctx.catalogPresetRestartPending = true;
+  // Already INSIDE an exclusive mutation (a custom-preset CRUD route awaiting
+  // this sync from its own serialized section)? The restart must run inline —
+  // re-queuing on the chain would wait on ourselves forever (the
+  // dshUpdateSkills guard).
+  const restarting = flushCatalogPresetRestart({ inline: ctx.runtimeApplying?.() === true });
+  if (restarting) await restarting;
   return result;
+}
+
+// Deliver a pending roster rewrite when the runtime can take it: bridge ready
+// and idle by the dispatcher's definition (an open web turn, a collector lane
+// or a reservation — a restart under any of them kills that lane's turn).
+// Returns the restart in flight, or null when nothing was started.
+//
+// The pending flag is cleared BEFORE the restart (and set again on failure),
+// so the restart's own bridge.ready cannot re-trigger it: no loop. A runtime
+// reservation is held from the decision through the restart, so a queued
+// prompt waits for the fresh child instead of landing on the stale one and
+// being killed by the restart; its release re-drains the queue.
+//
+// Idle-transition callers never pass `inline`: they may be running inside the
+// bridge.ready of another restart, and the exclusive chain serializes this
+// one behind it.
+function flushCatalogPresetRestart({ inline = false } = {}) {
+  if (!ctx.catalogPresetRestartPending) return null;
+  if (!ctx.dshBridge?.isReady?.()) return null;
+  const busy = () => (ctx.runtimeBusy ? ctx.runtimeBusy() : ctx.isStreaming);
+  if (busy()) return null;
+  ctx.catalogPresetRestartPending = false;
+  const reserve = () => ctx.reserveRuntime?.("catalog-presets") ?? (() => {});
+  let release = reserve();
+  const restart = async () => {
+    // The chained restart runs after whatever mutation was in flight; a lane
+    // may have opened a turn meanwhile. Re-checked with our own reservation
+    // lifted (synchronously — nothing can interleave before it is retaken).
+    release();
+    if (busy()) {
+      ctx.catalogPresetRestartPending = true;
+      return;
+    }
+    release = reserve();
+    let delivered = false;
+    try {
+      await ctx.dshBridge.restart({});
+      delivered = true;
+      await getAgentPresets();
+      console.log(`[dsh] runtime restarted for ${dshProfile.catalogPresetDefinitions().length} catalog agent preset(s)`);
+    } catch (err) {
+      // The rewrite outlives the child on disk: the next ready/idle transition
+      // retries rather than leaving the roster stale for the cell's lifetime.
+      // Never from here — a retry loop on a failing restart would spin.
+      ctx.catalogPresetRestartPending = true;
+      console.warn(`[dsh] catalog agent preset restart failed: ${err.message}`);
+    } finally {
+      release();
+      // bridge.ready fired while the reservation was held, so its drain parked
+      // the queue; hand the idle runtime back (a rewrite that landed during the
+      // spawn is picked up here too). A dead child drains on its own ready.
+      if (ctx.dshBridge?.isReady?.()) {
+        if (delivered) ctx.onRuntimeIdle?.();
+        else ctx.drainTurnQueue?.();
+      }
+    }
+  };
+  if (inline || !ctx.runExclusiveRuntimeMutation) return restart();
+  // Serialized with model/workspace/preset switches: a restart here must not
+  // overlap one of those (both re-spawn the same child).
+  return ctx.runExclusiveRuntimeMutation(restart);
 }
 
 // The conversation so far, shaped for an OpenAI-compatible request. The remote
@@ -995,6 +1059,7 @@ function listWorkspaces() {
   ctx.remoteChatEntryFor = remoteChatEntryFor;
   ctx.catalogAgentForPreset = catalogAgentForPreset;
   ctx.syncCatalogAgentPresets = syncCatalogAgentPresets;
+  ctx.flushCatalogPresetRestart = flushCatalogPresetRestart;
   ctx.streamRemoteChat = streamRemoteChat;
   ctx.streamA2aChat = streamA2aChat;
   ctx.handleModelCommand = handleModelCommand;

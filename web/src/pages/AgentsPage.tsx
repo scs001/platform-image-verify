@@ -437,7 +437,7 @@ function ClusterCard({ cluster, onManage }: ClusterCardProps) {
           <div className="flex items-center justify-between">
             <h3 className="truncate font-medium">{cluster.name}</h3>
             <span className="text-[10px] text-muted-foreground">
-              {cluster.agentCount} {t("clusters.composer.selectAgents")}
+              {t("packs.detail.cluster.agentCount", { count: cluster.agentCount })}
             </span>
           </div>
           <div className="mt-1 flex items-center gap-2">

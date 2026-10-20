@@ -65,6 +65,19 @@ CLI 会打开设备配对页，粘贴 6 位码完成绑定。
 - 尝试写操作：「部署一个 agent」
 - 预期：助手生成 propose_action 提议，提示云端需要 billingKey、桌面需要机位在线
 
+## 实际发布记录（2026-10-20）
+
+未走 CLI 设备配对——用的是 **cell 里已连接的 facet-market 设备凭据直调市场 MCP**：
+`facet_market_pack_validate`（干跑）→ `facet_market_pack_publish`。两包均已上架：
+- 谦面助手：`qCEIutJzQd49jnDtV4qeqw` v1 public（作者 aloadtree@gmail.com）
+- 萬星舰队助手：`INdsRWpgpp2Q03I0z3XoFA` v1 public（同上）
+
+前提：发布身份的 cell 已有 facet-market 凭据（aloadtree 早已配对）且在 creators 组。
+发版 = 同 manifest 再调 publish（版本自动 +1）。无凭据的新身份仍需设置页一次配对。
+
+前置注意：发布门会查 registry 快照——`wanxing-ops-mcp` 的 `tool_list` 曾为空导致
+萬星包卡门，已 Mongo 直写回填 7 条（见 docs/registry-maintenance.md §tool_list 直写回填）。
+
 ## 回滚
 
 如需下架：

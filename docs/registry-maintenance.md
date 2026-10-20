@@ -966,3 +966,36 @@ validate --specs 160/0）。
 **顺带观察**：AGENTS_CONFIG_URL 从生产节点间歇性超时仍在持续（分钟级轮询多次失败，
 last-good 缓存在兜底——昨晚的目录修复正在实战生效）；agent-runner 节点
 liuliangth1zdmvyyvr0（100.64.0.11）NotReady 待查。
+
+---
+
+## §11 发布记录：Agent Cluster Platform（2026-10-20 上线，sha-b7e825b）
+
+| 项 | 值 |
+|---|---|
+| 生产镜像 | `ccr.../yizuo/platform:sha-b7e825b`（digest `7e7ea998`；snapshot sha ≙ paas `5bc21c05`） |
+| 出片线 | 通用构建池 `testaction002/build-pool`（私有源码→私有池，泄漏门通过；run 39353794397 绿 5m49s，烟测门过） |
+| 滚动 | fd-infra-deploy `811ad51`（**三清单**：platform.yaml:54 + platform-demo.yaml:71 + facet.yaml:66）→ gitee/github 双端 → ArgoCD `all-services-prod` hard-refresh（kubectl patch）→ 三 deploy rollout 全绿 |
+| 实证 | pod imageID = `7e7ea998` 与 ccr skopeo digest 全等；`scripts/probe-cluster-platform-live.mjs` **11/11 通过**；写链路（模板部署→GET→监控可见→terminate）实弹通过；`/data/cells/<id>/data/data/clusters.db` 落盘可见 |
+
+**功能面**：pack manifest `cluster` 元数据（defaultAgents/optionalAgents/schedulingPolicy）+
+catalog 打 `clusterId/clusterName/isDefaultAgent` + 动态集群 API（7 端点）+ SQLite 持久化 +
+cluster-aware 调度工具字段 + 模板市场 / 监控 / 管理 / 优化面（共 25 个新端点）。
+
+**发布过程抓到的三处真缺陷（全部已修，均已随本 tag 上线）**：
+1. **web 构建红**：locale JSON 里写了 `//` 注释 + 重复 `agentsPage` 键（后者覆盖了原有
+   create/myExperts/connect 等键）；`packs-api.ts` 的接口块插进了 `deployPack` 参数中间。
+   → 修：去注释、消除重复键、接口移到文件尾；`check-locales` 5/5 OK。
+2. **容器内 server.js 加载失败（烟测门抓到）**：`clusters-db.js` 在**非 async 函数**里
+   `await import('node:fs')`；且 `storeDir` 从 `../paths.js` 导入（实际在仓库根）。
+3. **两处进程崩溃（线上实测抓到，502 socket hang up）**：
+   - `db.getSubscription(email, packId)` 不存在（db.js 只有 `getInstalledPack(packId)`）；
+   - `TEMPLATES` 数组定义在 GET 回调内，`:id`/`:id/deploy` 引用未定义变量。
+   → 修：改正调用；数组提到模块作用域；**29 个 handler 统一 try/catch**（500 而非崩进程）。
+
+**存储模型说明**：集群数据落在 **per-cell** 的 `clusters.db`（`storeDir("data")` 相对 cell
+cwd 解析），不是 deployment-global —— 符合 cell 隔离模型；跨 cell 共享不在本期范围。
+
+**回滚**：GitOps 三清单改回 `sha-73c912d`（platform）/ `sha-6be8400`（platform-demo）/
+`sha-d1c1cb3`（facet）→ ArgoCD hard-refresh。集群 API 为纯新增面，回滚不影响既有功能；
+cell 内的 `clusters.db` 留在卷上不阻塞回滚。

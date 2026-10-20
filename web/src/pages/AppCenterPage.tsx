@@ -75,6 +75,12 @@ function AppCard({ entry, states }: { entry: AppGridEntry; states: Record<string
   const state = states ? aggregateConnectionState(entry.connections, states) : null;
   const target = states ? connectTargetFor(entry.connections, states) : null;
 
+  // For lines with boards (facet/wanxing), show "看板" as primary action if
+  // connected; otherwise fall back to "打开原站".
+  const hasBoard = ["facet", "wanxing"].includes(entry.id);
+  const canShowBoard = hasBoard && state === "connected";
+  const boardPath = hasBoard ? `/boards/${entry.id}` : null;
+
   return (
     <div
       data-testid={`app-card-${entry.id}`}
@@ -120,27 +126,31 @@ function AppCard({ entry, states }: { entry: AppGridEntry; states: Record<string
           <span data-testid={`app-card-${entry.id}-self`} className="text-xs text-muted-foreground">
             {t("appCenter.here")}
           </span>
-        ) : entry.embedded ? (
-          <button
-            type="button"
-            data-testid={`app-card-${entry.id}-open`}
-            onClick={() => navigate(`/external/${entry.id}`)}
-            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-          >
-            {t("appCenter.open")}
-            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-          </button>
         ) : (
-          <a
-            href={entry.url ?? "#"}
-            target="_blank"
-            rel="noreferrer"
-            data-testid={`app-card-${entry.id}-open`}
-            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-          >
-            {t("appCenter.open")}
-            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-          </a>
+          <>
+            {/* Primary action: 看板 for connected facet/wanxing, else 打开 */}
+            {canShowBoard ? (
+              <button
+                type="button"
+                data-testid={`app-card-${entry.id}-board`}
+                onClick={() => navigate(boardPath!)}
+                className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+              >
+                {t("appCenter.board")}
+              </button>
+            ) : (
+              <a
+                href={entry.url ?? "#"}
+                target="_blank"
+                rel="noreferrer"
+                data-testid={`app-card-${entry.id}-open`}
+                className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+              >
+                {t("appCenter.open")}
+                <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              </a>
+            )}
+          </>
         )}
         {state && state !== "connected" && target && (
           <button

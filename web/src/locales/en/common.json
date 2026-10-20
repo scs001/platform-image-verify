@@ -1909,6 +1909,7 @@
     "title": "App Center",
     "subtitle": "Ecosystem products running on Yizuo — one card per product: open it, or connect your account",
     "open": "Open",
+    "board": "Board",
     "here": "You are here",
     "status": {
       "early": "Early stage"
@@ -1935,13 +1936,38 @@
       },
       "lex": {
         "name": "Lex",
-        "tagline": "Legal data, applications, and models"
+        "tagline": "Legal data and application models (early stage)"
       },
       "wire": {
         "name": "Wire",
-        "tagline": "Enterprise data platform — a data hub boosted by macro indicators"
+        "tagline": "Enterprise tenants and data middleware (early stage)"
       }
     }
+  },
+  "board": {
+    "notFound": "This line is not yet integrated. Please try again later.",
+    "openOrigin": "Open Origin Site",
+    "tab": {
+      "overview": "Overview",
+      "my-packs": "My Packs",
+      "publish-history": "Publish History",
+      "fleet-summary": "Fleet Summary",
+      "missions": "Missions",
+      "deployments": "Deployments"
+    }
+  },
+  "copilot": {
+    "context": "Viewing",
+    "clearContext": "Clear Context"
+  },
+  "action": {
+    "pending": "Proposing...",
+    "approved": "Approved",
+    "executed": "Executed",
+    "rejected": "Rejected",
+    "expired": "Expired",
+    "tier": "Confirmation Tier",
+    "result": "Processed"
   },
   "sessionSolution": {
     "menuItem": "Save as my solution",

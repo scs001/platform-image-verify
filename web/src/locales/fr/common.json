@@ -1941,7 +1941,8 @@
         "name": "Wire",
         "tagline": "Plateforme de données d'entreprise : hub dopé aux indicateurs macro"
       }
-    }
+    },
+    "board": "Tableau"
   },
   "sessionSolution": {
     "menuItem": "Enregistrer comme ma solution",
@@ -2079,5 +2080,30 @@
       "atLeastOneAgent": "Sélectionnez au moins un agent",
       "manage": "Gérer"
     }
+  },
+  "board": {
+    "notFound": "Cette ligne n'est pas encore intégrée. Veuillez réessayer plus tard.",
+    "openOrigin": "Ouvrir le site d'origine",
+    "tab": {
+      "overview": "Aperçu",
+      "my-packs": "Mes packs",
+      "publish-history": "Historique de publication",
+      "fleet-summary": "Résumé de la flotte",
+      "missions": "Missions",
+      "deployments": "Déploiements"
+    }
+  },
+  "copilot": {
+    "context": "Affichage",
+    "clearContext": "Effacer le contexte"
+  },
+  "action": {
+    "pending": "Proposition...",
+    "approved": "Approuvé",
+    "executed": "Exécuté",
+    "rejected": "Rejeté",
+    "expired": "Expiré",
+    "tier": "Niveau de confirmation",
+    "result": "Traité"
   }
 }

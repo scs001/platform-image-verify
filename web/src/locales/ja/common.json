@@ -1941,7 +1941,8 @@
         "name": "柏訊",
         "tagline": "企業データプラットフォーム——マクロ指標搭載のデータハブ"
       }
-    }
+    },
+    "board": "ボード"
   },
   "sessionSolution": {
     "menuItem": "自分のソリューションとして保存",
@@ -2079,5 +2080,30 @@
       "atLeastOneAgent": "少なくとも1つのエージェントを選択してください",
       "manage": "管理"
     }
+  },
+  "board": {
+    "notFound": "このラインはまだ統合されていません。後でもう一度お試しください。",
+    "openOrigin": "元のサイトを開く",
+    "tab": {
+      "overview": "概要",
+      "my-packs": "マイパック",
+      "publish-history": "公開履歴",
+      "fleet-summary": "フリート概要",
+      "missions": "ミッション",
+      "deployments": "デプロイ"
+    }
+  },
+  "copilot": {
+    "context": "表示中",
+    "clearContext": "コンテキストをクリア"
+  },
+  "action": {
+    "pending": "提案中...",
+    "approved": "承認済み",
+    "executed": "実行済み",
+    "rejected": "拒否済み",
+    "expired": "期限切れ",
+    "tier": "確認レベル",
+    "result": "処理済み"
   }
 }

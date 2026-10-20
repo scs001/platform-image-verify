@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Menu } from "lucide-react";
 import { useChatStore } from "@platform/core";
@@ -35,6 +35,12 @@ export function ChatPage({ send, onToggleNav }: Props) {
   const { t } = useTranslation();
   const { brand } = useBranding();
   const { sessionId: urlSessionId } = useParams();
+  const [searchParams] = useSearchParams();
+  // Embed mode (add-line-boards-and-action-gate): the copilot dock mounts this
+  // page inside a same-origin iframe. It hides the sidebar/header chrome but
+  // keeps the transcript, composer and action cards.
+  const embedMode = searchParams.get("embed") === "copilot";
+  const boardLine = searchParams.get("board") || null;
   // Length-and-pending subscription: this page branches on emptiness —
   // subscribing to the whole turns array would re-render it per streamed
   // token. An optimistic session switch clears turns the instant the request
@@ -105,10 +111,9 @@ export function ChatPage({ send, onToggleNav }: Props) {
 
   return (
     <main className="flex min-h-0 min-w-0 flex-1 flex-col">
-      {/* Nav drawer toggle: below md the rail is off-canvas, so BOTH states
-          (welcome and in-session) need the handle — it sits at the page's
-          top-left, above the state branch. */}
-      {onToggleNav && (
+      {/* Embed mode hides the nav chrome entirely: the copilot dock owns its
+          own close affordance and the page is a conversation panel. */}
+      {!embedMode && onToggleNav && (
         <div className="flex items-center border-b border-border bg-card px-3 py-1.5 md:hidden">
           <button
             type="button"
@@ -122,6 +127,29 @@ export function ChatPage({ send, onToggleNav }: Props) {
           <span className="ml-1 truncate text-xs text-muted-foreground">
             {t("sidebar.brand", { brand })}
           </span>
+        </div>
+      )}
+      {/* Copilot context bar (embed mode): shows what the assistant is told
+          about the board it was opened from, and lets the user clear it. */}
+      {embedMode && boardLine && (
+        <div
+          data-testid="copilot-context-bar"
+          className="flex items-center gap-2 border-b border-border bg-muted px-3 py-1.5 text-xs text-muted-foreground"
+        >
+          <span>
+            {t("copilot.context", { defaultValue: "正在看" })}: {boardLine}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              const url = new URL(window.location.href);
+              url.searchParams.delete("board");
+              window.history.replaceState({}, "", url.toString());
+            }}
+            className="ml-auto rounded px-2 py-0.5 hover:bg-background hover:text-foreground"
+          >
+            {t("copilot.clearContext", { defaultValue: "清除" })}
+          </button>
         </div>
       )}
       {/* A dropped socket used to be legible only in the sidebar's 6px status

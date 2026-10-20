@@ -1,0 +1,84 @@
+# 官方功能集发布指南（add-line-boards-and-action-gate）
+
+## 目标
+
+发布两个 read-only 助手 pack，用于壹座中的谦面和萬星操作：
+1. **谦面助手** (`facet-assistant`) — 只读 facet-market-mcp + facet-ops-mcp
+2. **萬星舰队助手** (`wanxing-fleet-assistant`) — 只读 wanxing-ops-mcp
+
+## 前置条件
+
+- 当前用户已在 `creators` 组（Logto 组织）
+- 已安装 `facet-cli` CLI 工具
+- 有访问谦面市场的凭据（设备配对）
+
+## 发布步骤
+
+### 1. 验证 manifest
+
+```bash
+cd docs/official-packs
+
+# 谦面助手
+facet validate facet-assistant-manifest.json
+
+# 萬星舰队助手
+facet validate wanxing-fleet-assistant-manifest.json
+```
+
+确保所有工具名在注册处存在，且 allowTools 格式正确。
+
+### 2. 发布到谦面市场
+
+```bash
+# 谦面助手
+facet publish facet-assistant-manifest.json \
+  --from https://facet.finddatatech.cloud \
+  --new-name "谦面助手"
+
+# 萬星舰队助手
+facet publish wanxing-fleet-assistant-manifest.json \
+  --from https://facet.finddatatech.cloud \
+  --new-name "萬星舰队助手"
+```
+
+CLI 会打开设备配对页，粘贴 6 位码完成绑定。
+
+### 3. 验证安装
+
+在壹座中：
+1. 进入「设置 → 连接」→ 确认「谦面市场」已连接
+2. 进入「设置 → 功能集」→ 「我的创作」或「市场」标签
+3. 找到新发布的两个包，点击「安装」装进 cell
+
+### 4. 验收测试
+
+#### 谦面助手
+- 对话：「帮我搜索法律相关的包」
+- 预期：助手调用 `facet_market_pack_browse(category="legal")` 返回结果
+- 尝试写操作：「帮我发布一个新包」
+- 预期：助手生成 propose_action 提议，展示影响面和风险等级
+
+#### 萬星舰队助手
+- 对话：「列出所有 agent」
+- 预期：助手调用 `wanxing_agents_browse()` 返回结果
+- 尝试写操作：「部署一个 agent」
+- 预期：助手生成 propose_action 提议，提示云端需要 billingKey、桌面需要机位在线
+
+## 回滚
+
+如需下架：
+```bash
+facet publish <pack-id> --visibility unlisted
+```
+
+## 后续迭代
+
+v1 是 read-only 版本。未来可逐步添加：
+- 更多引导技能（如部署向导、故障排查）
+- 与动作闸的深度集成（自动填充 preflight 参数）
+- 多语言支持（当前仅中文）
+
+---
+
+**注意**：这两个 pack 的 publish lint 必须通过「不声明写工具」的检查。任何包含 write 工具的提交都会被拒绝。

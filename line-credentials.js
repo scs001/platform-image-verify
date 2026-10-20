@@ -1,7 +1,7 @@
 // line-credentials.js — per-line operation-MCP credentials
 // (add-line-credential-refs, design D1).
 //
-// Three refs, two lifecycle types:
+// Four refs, two lifecycle types:
 //   wire-customer / lex  — short-lived Logto ID tokens (aud = each line's own
 //     Logto SPA app; the browser mints them by PKCE + prompt=none against the
 //     shared Logto session and POSTs them here — the server NEVER mints, the
@@ -9,6 +9,8 @@
 //     OMITTED from profiles; the browser re-mints on next platform visit.
 //   wanxing-caller — a pasted long-lived sub2api `sk-` key (billing panel).
 //     401 flips stale (re-paste to recover), mirroring the connector family.
+//   wanxing-deployer — a pasted long-lived sub2api `sk-` key for cloud deployment.
+//     Same paste semantics as wanxing-caller; used only when deploying to cloud.
 //
 // Tokens live only here and in the generated dsh profile. DB unavailable
 // degrades to "unconnected".
@@ -19,10 +21,11 @@ import { ownerKey } from "./registry-credentials.js";
 export const WIRE_CUSTOMER_CREDENTIAL_REF = "wire-customer";
 export const LEX_CREDENTIAL_REF = "lex";
 export const WANXING_CALLER_CREDENTIAL_REF = "wanxing-caller";
+export const WANXING_DEPLOYER_CREDENTIAL_REF = "wanxing-deployer";
 
 // ID-token lines: re-mint is browser-driven; stale is not used (clear on 401).
 const ID_TOKEN_LINES = new Set(["wire-customer", "lex"]);
-const LINES = new Set([...ID_TOKEN_LINES, "wanxing-caller"]);
+const LINES = new Set([...ID_TOKEN_LINES, "wanxing-caller", "wanxing-deployer"]);
 
 const UNCONNECTED = {
   connected: false,
@@ -44,6 +47,10 @@ export function isLexRef(config) {
 
 export function isWanxingCallerRef(config) {
   return config?.credentialRef === WANXING_CALLER_CREDENTIAL_REF;
+}
+
+export function isWanxingDeployerRef(config) {
+  return config?.credentialRef === WANXING_DEPLOYER_CREDENTIAL_REF;
 }
 
 function projectRow(row) {

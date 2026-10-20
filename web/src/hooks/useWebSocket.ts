@@ -62,6 +62,12 @@ export function useWebSocket(enabled: boolean, identityKey = "") {
           const fb = msg as { from: string; to: string };
           showToast(i18n.t("modelsPage.modelFallbackToast", { from: fb.from, to: fb.to }));
         }
+        // Board refresh signal (add-line-boards-and-action-gate): re-dispatch
+        // as a window event so any mounted board can refetch its blocks.
+        if ((msg as { type?: string }).type === "board_changed") {
+          const bc = msg as { line: string; resources?: string[] };
+          window.dispatchEvent(new CustomEvent("board_changed", { detail: bc }));
+        }
         apply(msg as ServerMessage);
         applyExtensions(msg as ServerMessage);
         applyOverlay(msg as ServerMessage);

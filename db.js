@@ -748,6 +748,60 @@ const MIGRATIONS = [
     // scope). Additive and nullable: existing rows migrate losslessly.
     statements: [`ALTER TABLE user_presets ADD COLUMN mcp_tools TEXT DEFAULT '{}'`],
   },
+  {
+    // add-line-boards-and-action-gate: action proposals + audit log.
+    //   action_proposals — pending/approved/rejected/expired actions;
+    //     id (proposalId), line, action_id, args_digest (sha256), args_json (encrypted or plain for execution), risk, target,
+    //     impact_text, proposer_session, proposer_email, approver_email,
+    //     approved_at, expired_at, state ("pending"|"executed"|"rejected"|"expired"),
+    //     result_summary, created_at, updated_at.
+    //   action_audit — executed actions (append-only); same columns plus
+    //     executor_info, duration_ms, error_text.
+    // Both tables use WAL-friendly design; no FK cascades needed (session/user
+    // rows are soft-deleted by design; we keep history even if session is gone).
+    statements: [
+      `CREATE TABLE IF NOT EXISTS action_proposals (
+        proposal_id TEXT PRIMARY KEY,
+        line TEXT NOT NULL,
+        action_id TEXT NOT NULL,
+        args_digest TEXT NOT NULL,
+        args_json TEXT,
+        risk TEXT NOT NULL,
+        target TEXT NOT NULL,
+        impact_text TEXT NOT NULL,
+        proposer_session TEXT,
+        proposer_email TEXT,
+        approver_email TEXT,
+        approved_at TEXT,
+        expired_at TEXT,
+        state TEXT NOT NULL DEFAULT 'pending',
+        result_summary TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_action_proposals_line ON action_proposals(line)`,
+      `CREATE INDEX IF NOT EXISTS idx_action_proposals_state ON action_proposals(state)`,
+      `CREATE INDEX IF NOT EXISTS idx_action_proposals_created ON action_proposals(created_at DESC)`,
+      `CREATE TABLE IF NOT EXISTS action_audit (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        proposal_id TEXT REFERENCES action_proposals(proposal_id) ON DELETE SET NULL,
+        line TEXT NOT NULL,
+        action_id TEXT NOT NULL,
+        args_digest TEXT NOT NULL,
+        args_json TEXT,
+        risk TEXT NOT NULL,
+        target TEXT NOT NULL,
+        impact_text TEXT NOT NULL,
+        executor_info TEXT,
+        duration_ms INTEGER,
+        error_text TEXT,
+        result_summary TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_action_audit_line ON action_audit(line)`,
+      `CREATE INDEX IF NOT EXISTS idx_action_audit_created ON action_audit(created_at DESC)`,
+    ],
+  },
 ];
 
 function nowIso() {

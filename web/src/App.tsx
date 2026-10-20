@@ -44,6 +44,8 @@ const ExternalServicePage = lazy(() =>
   import("@/pages/EmbeddedServicePages").then((m) => ({ default: m.ExternalServicePage })),
 );
 const AppCenterPage = lazy(() => import("@/pages/AppCenterPage").then((m) => ({ default: m.AppCenterPage })));
+const BoardsPage = lazy(() => import("@/pages/BoardsPage").then((m) => ({ default: m.BoardsPage })));
+const CopilotDock = lazy(() => import("@/components/CopilotDock").then((m) => ({ default: m.CopilotDock })));
 // The preview drawer is code-split for the same reason as the pages above, and
 // one more: a session that never previews a file should not download the
 // renderers (mammoth among them).
@@ -256,6 +258,10 @@ export default function App() {
                 cell's proxy lane. */}
             <Route path="/fleet" element={<FleetPage />} />
 
+            {/* Line boards (add-line-boards-and-action-gate): /boards/:line renders
+                a board for each integrated product line (facet/wanxing). */}
+            <Route path="/boards/:line" element={<BoardsPage />} />
+
             <Route path="/documents" element={<Navigate to="/knowledge" replace />} />
             <Route path="/external/:appId" element={<ExternalServicePage />} />
 
@@ -277,6 +283,11 @@ export default function App() {
         </Suspense>
         <ToastHost />
       </div>
+
+      {/* Copilot dock (add-line-boards-and-action-gate): FAB + iframe dock */}
+      <Suspense fallback={null}>
+        <CopilotDock />
+      </Suspense>
 
       {/* File preview overlays the shell instead of replacing a region, so the
           chat (and its socket) stays mounted while a file is open. */}

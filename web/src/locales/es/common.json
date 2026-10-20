@@ -1941,7 +1941,8 @@
         "name": "Wire",
         "tagline": "Plataforma de datos empresariales: hub de datos potenciado por indicadores macro"
       }
-    }
+    },
+    "board": "Tablero"
   },
   "sessionSolution": {
     "menuItem": "Guardar como mi solución",
@@ -2079,5 +2080,30 @@
       "atLeastOneAgent": "Selecciona al menos un agente",
       "manage": "Gestionar"
     }
+  },
+  "board": {
+    "notFound": "Esta línea aún no está integrada. Inténtalo más tarde.",
+    "openOrigin": "Abrir sitio original",
+    "tab": {
+      "overview": "Resumen",
+      "my-packs": "Mis packs",
+      "publish-history": "Historial de publicación",
+      "fleet-summary": "Resumen de flota",
+      "missions": "Misiones",
+      "deployments": "Despliegues"
+    }
+  },
+  "copilot": {
+    "context": "Viendo",
+    "clearContext": "Limpiar contexto"
+  },
+  "action": {
+    "pending": "Proponiendo...",
+    "approved": "Aprobado",
+    "executed": "Ejecutado",
+    "rejected": "Rechazado",
+    "expired": "Expirado",
+    "tier": "Nivel de confirmación",
+    "result": "Procesado"
   }
 }

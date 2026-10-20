@@ -75,6 +75,9 @@ import { attachAgentSession, resolveBootWorkspace } from "./server/agent-session
 import { attachTurnDispatch } from "./server/turn-dispatch.js";
 import { attachWebSocket } from "./server/ws.js";
 import { matrixGate } from "./lib/dsh-matrix-verify.js";
+import { registerActionsRoutes } from "./server/routes/actions.js";
+import { startActionExpiryJob } from "./lib/action-expiry.js";
+import { registerBoardRoutes } from "./server/routes/boards.js";
 
 const PORT = process.env.PORT || 3000;
 const HOST = process.env.HOST || "localhost";
@@ -231,6 +234,12 @@ registerTraceRoutes(ctx);
 registerUserBindingRoutes(ctx);
 // Cron REST bridge (loopback MCP child; clients use the WS cron_* messages).
 registerCronRoutes(ctx);
+// Action gate routes (add-line-boards-and-action-gate): propose/approve/reject/query.
+registerActionsRoutes(ctx);
+// Action expiry sweeper (24h fail-closed, broadcast action_expired).
+startActionExpiryJob(ctx);
+// Board routes (add-line-boards-and-action-gate): GET /api/boards/:line.
+registerBoardRoutes(ctx);
 // Task stats lane (unify-wanxing-management-plane): read-only counts for the
 // gateway's fleet relay; standard cell auth, no loopback exemption.
 registerTaskRoutes(ctx);

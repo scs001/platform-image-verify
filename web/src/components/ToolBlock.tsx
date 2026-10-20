@@ -6,6 +6,7 @@ import { usePreviewStore } from "@/hooks/usePreviewStore";
 import { CronToolCard } from "@/components/CronToolCard";
 import { TaskCard } from "@/components/TaskCard";
 import { QuestionCard } from "@/components/QuestionCard";
+import { ActionCard } from "@/components/ActionCard";
 import { ConnectCta } from "@/components/ConnectCta";
 import { baseName, fileUrl, producedFilePaths, resolveRef } from "@/lib/file-preview";
 import { memo, useId } from "react";
@@ -64,6 +65,11 @@ function ToolBlockBase({ block, onToggle }: Props) {
   // static summary once resolved (spec: web-chat-ui, add-user-questions).
   if (name === "ask_user_question") {
     return <QuestionCard block={block} />;
+  }
+
+  // propose_action renders as an action confirmation card.
+  if (name === "__propose_action") {
+    return <ActionCard block={block} />;
   }
 
   // The file this call PRODUCED, when it produced one (openspec:

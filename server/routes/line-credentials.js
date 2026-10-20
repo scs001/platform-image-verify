@@ -21,7 +21,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { clearCookie, parseCookies, sessionCookie, verifySignedCookie } from "../session.js";
 import * as lineCredentials from "../../line-credentials.js";
 
-const LINES = new Set(["wire-customer", "lex", "wanxing-caller"]);
+const LINES = new Set(["wire-customer", "lex", "wanxing-caller", "wanxing-deployer"]);
 const MINT_LINES = new Set(["wire-customer", "lex"]);
 const MINT_COOKIE = "paas_line_mint";
 const MINT_TTL_MS = 10 * 60 * 1000;

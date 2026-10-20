@@ -137,6 +137,26 @@ export function createClusterRoutes(app) {
     }
   });
   
+  // Session-derived listing (the UI has no email to pass): "my clusters".
+  app.get("/api/clusters/mine", (req, res) => {
+    try {
+      const user = req.user;
+      if (!user) return res.status(401).json({ error: "Authentication required" });
+      const clusters = clusterDb.listByUser(user.email).map((cluster) => ({
+        clusterId: cluster.id,
+        name: cluster.name,
+        status: cluster.status,
+        agentCount: cluster.agents.length,
+        createdAt: cluster.createdAt,
+        lastUsedAt: cluster.lastUsedAt,
+      }));
+      res.json({ clusters });
+    } catch (err) {
+      console.error("[cluster] handler error:", err);
+      if (!res.headersSent) res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
   app.get("/api/clusters/:id", (req, res) => {
     try {
       const clusterId = req.params.id;
@@ -321,26 +341,6 @@ export function createClusterRoutes(app) {
     }
   });
   
-  // Session-derived listing (the UI has no email to pass): "my clusters".
-  app.get("/api/clusters/mine", (req, res) => {
-    try {
-      const user = req.user;
-      if (!user) return res.status(401).json({ error: "Authentication required" });
-      const clusters = clusterDb.listByUser(user.email).map((cluster) => ({
-        clusterId: cluster.id,
-        name: cluster.name,
-        status: cluster.status,
-        agentCount: cluster.agents.length,
-        createdAt: cluster.createdAt,
-        lastUsedAt: cluster.lastUsedAt,
-      }));
-      res.json({ clusters });
-    } catch (err) {
-      console.error("[cluster] handler error:", err);
-      if (!res.headersSent) res.status(500).json({ error: err.message || "internal error" });
-    }
-  });
-
   app.get("/api/clusters/user/:email", (req, res) => {
     try {
       const requestedEmail = req.params.email;

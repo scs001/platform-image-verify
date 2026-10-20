@@ -17,4 +17,16 @@ test("@smoke agents page renders (no white screen)", async ({ page }) => {
   // No uncaught runtime errors
   const fatal = errors.filter((e) => !/Failed to load resource|401|404/i.test(e));
   expect(fatal, "runtime errors:\n" + fatal.join("\n")).toHaveLength(0);
+
+  // The clusters listing endpoint must resolve (route order regression guard:
+  // /api/clusters/mine must be registered BEFORE /api/clusters/:id).
+  const mine = await page.evaluate(async () => {
+    const r = await fetch("/api/clusters/mine");
+    const ct = r.headers.get("content-type") || "";
+    return { status: r.status, json: ct.includes("application/json") };
+  });
+  // 200 (session) or 401 (no session) both prove the route is registered and
+  // answering JSON; a 404 means /:id captured "mine" — the regression this guards.
+  expect(mine.json, "/api/clusters/mine must answer JSON, not the SPA fallback").toBe(true);
+  expect([200, 401], "/api/clusters/mine must not 404 (route order)").toContain(mine.status);
 });

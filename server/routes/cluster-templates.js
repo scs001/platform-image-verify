@@ -2,6 +2,9 @@
 // Allows users to publish, browse, and subscribe to cluster templates
 
 import * as db from "../../db.js";
+import { getClusterDatabase } from "./clusters-db.js";
+
+const clusterDb = getClusterDatabase();
 
 export function createClusterTemplateRoutes(app) {
   // GET /api/templates - List available cluster templates
@@ -206,10 +209,7 @@ export function createClusterTemplateRoutes(app) {
     };
     
     // Store cluster
-    if (!global.dynamicClusters) {
-      global.dynamicClusters = new Map();
-    }
-    global.dynamicClusters.set(clusterData.id, clusterData);
+    clusterDb.create(clusterData);
     
     res.json({
       success: true,

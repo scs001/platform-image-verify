@@ -1,7 +1,10 @@
 // Model binding and provider routing for Agent Cluster Platform
 // Handles per-agent model selection, provider fallback, and billing attribution
 
+
 import { getClusterDatabase } from "./clusters-db.js";
+
+const clusterDb = getClusterDatabase();
 
 const PROVIDER_ROUTES = {
   // Volces (豆包)
@@ -66,7 +69,7 @@ export function createModelBindingRoutes(app) {
     }
     
     const clusterId = req.params.clusterId;
-    const cluster = global.dynamicClusters?.get(clusterId);
+    const cluster = clusterDb.get(clusterId);
     
     if (!cluster) {
       return res.status(404).json({ error: "Cluster not found" });
@@ -129,7 +132,7 @@ export function createModelBindingRoutes(app) {
   // GET /api/clusters/:clusterId/bindings - Get current model bindings
   app.get("/api/clusters/:clusterId/bindings", (req, res) => {
     const clusterId = req.params.clusterId;
-    const cluster = global.dynamicClusters?.get(clusterId);
+    const cluster = clusterDb.get(clusterId);
     
     if (!cluster) {
       return res.status(404).json({ error: "Cluster not found" });

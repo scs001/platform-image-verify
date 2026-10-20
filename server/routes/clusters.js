@@ -1,7 +1,9 @@
 // Dynamic cluster management (agent-cluster-platform)
-// Simplified version to avoid ES module issues
+// Storage: SQLite via clusters-db.js (durable across restarts; the
+// in-memory Map this module started with lost clusters on every rollout).
 
 import * as db from "../../db.js";
+import { getClusterDatabase } from "./clusters-db.js";
 
 const CLUSTER_RATE_LIMIT = 10;
 const CLUSTER_RATE_WINDOW = 60 * 60 * 1000;
@@ -33,6 +35,8 @@ setInterval(() => {
     }
   }
 }, CLUSTER_RATE_WINDOW).unref();
+
+const clusterDb = getClusterDatabase();
 
 export function createClusterRoutes(app) {
   app.post("/api/clusters/dynamic", async (req, res) => {
@@ -110,11 +114,7 @@ export function createClusterRoutes(app) {
       status: hasInstalling ? "loading" : "ready"
     };
     
-    // Use in-memory storage for now
-    if (!global.dynamicClusters) {
-      global.dynamicClusters = new Map();
-    }
-    global.dynamicClusters.set(clusterId, clusterData);
+    clusterDb.create(clusterData);
     
     if (bindToSession && req.sessionId) {
       if (!global.clusterSessionBindings) {
@@ -133,7 +133,7 @@ export function createClusterRoutes(app) {
   
   app.get("/api/clusters/:id", (req, res) => {
     const clusterId = req.params.id;
-    const cluster = global.dynamicClusters?.get(clusterId);
+    const cluster = clusterDb.get(clusterId);
     
     if (!cluster) {
       return res.status(404).json({ error: "Cluster not found" });
@@ -157,7 +157,7 @@ export function createClusterRoutes(app) {
   
   app.patch("/api/clusters/:id", (req, res) => {
     const clusterId = req.params.id;
-    const cluster = global.dynamicClusters?.get(clusterId);
+    const cluster = clusterDb.get(clusterId);
     
     if (!cluster) {
       return res.status(404).json({ error: "Cluster not found" });
@@ -170,10 +170,12 @@ export function createClusterRoutes(app) {
         return res.status(400).json({ error: "Invalid cluster name" });
       }
       cluster.name = name.trim();
+      clusterDb.update(clusterId, { name: cluster.name });
     }
     
     if (description !== undefined) {
       cluster.description = description?.trim() || "";
+      clusterDb.update(clusterId, { description: cluster.description });
     }
     
     if (tags !== undefined) {
@@ -181,6 +183,7 @@ export function createClusterRoutes(app) {
         return res.status(400).json({ error: "Tags must be an array" });
       }
       cluster.tags = tags.filter(t => typeof t === "string" && t.trim()).slice(0, 5);
+      clusterDb.update(clusterId, { tags: cluster.tags });
     }
     
     res.json({
@@ -194,13 +197,13 @@ export function createClusterRoutes(app) {
   
   app.delete("/api/clusters/:id", (req, res) => {
     const clusterId = req.params.id;
-    const cluster = global.dynamicClusters?.get(clusterId);
+    const cluster = clusterDb.get(clusterId);
     
     if (!cluster) {
       return res.status(404).json({ error: "Cluster not found" });
     }
     
-    global.dynamicClusters?.delete(clusterId);
+    clusterDb.update(clusterId, { status: "terminated" });
     
     if (cluster.bindToSession && cluster.sessionId) {
       global.clusterSessionBindings?.delete(cluster.sessionId);
@@ -214,7 +217,7 @@ export function createClusterRoutes(app) {
   
   app.post("/api/clusters/:id/agents", (req, res) => {
     const clusterId = req.params.id;
-    const cluster = global.dynamicClusters?.get(clusterId);
+    const cluster = clusterDb.get(clusterId);
     
     if (!cluster) {
       return res.status(404).json({ error: "Cluster not found" });
@@ -261,7 +264,7 @@ export function createClusterRoutes(app) {
   app.delete("/api/clusters/:id/agents/:agentId", (req, res) => {
     const clusterId = req.params.id;
     const agentId = req.params.agentId;
-    const cluster = global.dynamicClusters?.get(clusterId);
+    const cluster = clusterDb.get(clusterId);
     
     if (!cluster) {
       return res.status(404).json({ error: "Cluster not found" });
@@ -291,7 +294,7 @@ export function createClusterRoutes(app) {
     }
     
     const userClusters = [];
-    for (const cluster of global.dynamicClusters?.values() || []) {
+    for (const cluster of clusterDb.listByUser(user.email)) {
       userClusters.push({
         clusterId: cluster.id,
         name: cluster.name,
@@ -312,22 +315,12 @@ export function startAutoTerminationJob() {
     const gracePeriod = 24 * 60 * 60 * 1000;
     const absoluteTimeout = 7 * 24 * 60 * 60 * 1000;
     
-    if (!global.dynamicClusters) return;
-    
-    for (const [clusterId, cluster] of global.dynamicClusters) {
-      const idleSince = now - cluster.lastUsedAt;
-      const shouldTerminate = 
-        (idleSince > gracePeriod && cluster.totalExecutions < 5) ||
-        idleSince > absoluteTimeout;
-      
-      if (shouldTerminate) {
-        setTimeout(() => {
-          const deleted = global.dynamicClusters?.delete(clusterId);
-          if (deleted) {
-            console.log(`[cluster] Auto-terminated: ${clusterId}`);
-          }
-        }, 60 * 60 * 1000);
-      }
+    const candidates = clusterDb.findExpiring(gracePeriod, absoluteTimeout);
+    for (const cluster of candidates) {
+      setTimeout(() => {
+        clusterDb.update(cluster.id, { status: "terminated" });
+        console.log(`[cluster] Auto-terminated: ${cluster.id}`);
+      }, 60 * 60 * 1000).unref();
     }
   }, 60 * 60 * 1000).unref();
 }

@@ -76,37 +76,54 @@ export function createClusterDatabase({ file }) {
     },
     
     update(id, updates) {
-      const allowedFields = ["name", "description", "tags", "last_used_at", "total_executions", "total_tokens_used"];
+      // camelCase (JS shape) → snake_case (column names)
+      const COLUMNS = {
+        name: "name",
+        description: "description",
+        tags: "tags",
+        status: "status",
+        lastUsedAt: "last_used_at",
+        totalExecutions: "total_executions",
+        totalTokensUsed: "total_tokens_used",
+      };
       const setParts = [];
       const values = [];
-      
+
       for (const [key, value] of Object.entries(updates)) {
-        if (!allowedFields.includes(key)) continue;
-        
-        setParts.push(`${key} = ?`);
-        if (key === "tags") {
-          values.push(JSON.stringify(value));
-        } else if (key === "last_used_at" || key === "total_executions" || key === "total_tokens_used") {
-          values.push(Number(value));
-        } else {
-          values.push(value);
-        }
+        const col = COLUMNS[key];
+        if (!col) continue;
+
+        setParts.push(`${col} = ?`);
+        if (key === "tags") values.push(JSON.stringify(value));
+        else if (key === "lastUsedAt" || key === "totalExecutions" || key === "totalTokensUsed") values.push(Number(value));
+        else values.push(value);
       }
-      
+
       if (setParts.length === 0) return null;
-      
-      setParts.push("last_updated_at = CURRENT_TIMESTAMP");
+
       values.push(id);
-      
       db.prepare(`UPDATE dynamic_clusters SET ${setParts.join(", ")} WHERE id = ?`).run(...values);
       return { id, updated: true };
     },
-    
+
     delete(id) {
       const result = db.prepare("DELETE FROM dynamic_clusters WHERE id = ?").run(id);
       return result.changes > 0;
     },
     
+    listAll() {
+      return db.prepare(`SELECT * FROM dynamic_clusters WHERE status != 'terminated' ORDER BY last_used_at DESC`).all()
+        .map(deserialize);
+    },
+
+    count() {
+      return db.prepare(`SELECT COUNT(*) AS n FROM dynamic_clusters WHERE status != 'terminated'`).get().n;
+    },
+
+    countActive() {
+      return db.prepare(`SELECT COUNT(*) AS n FROM dynamic_clusters WHERE status = 'ready'`).get().n;
+    },
+
     listByUser(email) {
       // In a real implementation, you'd link clusters to users via a user_clusters table
       // For now, return all active clusters

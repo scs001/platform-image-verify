@@ -1,11 +1,15 @@
 // Real-time monitoring for Agent Cluster Platform
 
+import { getClusterDatabase } from "./clusters-db.js";
+
+const clusterDb = getClusterDatabase();
+
 export function createMonitoringRoutes(app) {
   // GET /api/monitoring/clusters - Get cluster metrics
   app.get("/api/monitoring/clusters", (req, res) => {
     const clusters = [];
     
-    for (const [id, cluster] of global.dynamicClusters || []) {
+    for (const cluster of clusterDb.listAll()) {
       clusters.push({
         id: cluster.id,
         name: cluster.name,
@@ -95,8 +99,8 @@ export function createMonitoringRoutes(app) {
         total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024 * 100) / 100 + "MB",
       },
       clusters: {
-        total: global.dynamicClusters?.size || 0,
-        active: global.dynamicClusters?.size || 0,
+        total: clusterDb.count(),
+        active: clusterDb.countActive(),
       },
       api: {
         endpoints: 12,

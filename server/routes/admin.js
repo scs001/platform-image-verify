@@ -1,5 +1,9 @@
 // Admin dashboard for Agent Cluster Platform
 
+import { getClusterDatabase } from "./clusters-db.js";
+
+const clusterDb = getClusterDatabase();
+
 export function createAdminRoutes(app) {
   // GET /api/admin/clusters - List all clusters (admin only)
   app.get("/api/admin/clusters", (req, res) => {
@@ -9,7 +13,7 @@ export function createAdminRoutes(app) {
     }
     
     const clusters = [];
-    for (const [id, cluster] of global.dynamicClusters || []) {
+    for (const cluster of clusterDb.listAll()) {
       clusters.push({
         id: cluster.id,
         name: cluster.name,
@@ -34,13 +38,13 @@ export function createAdminRoutes(app) {
     }
     
     const clusterId = req.params.id;
-    const cluster = global.dynamicClusters?.get(clusterId);
+    const cluster = clusterDb.get(clusterId);
     
     if (!cluster) {
       return res.status(404).json({ error: "Cluster not found" });
     }
     
-    global.dynamicClusters?.delete(clusterId);
+    clusterDb.update(clusterId, { status: "terminated" });
     
     res.json({ 
       success: true, 
@@ -79,8 +83,8 @@ export function createAdminRoutes(app) {
     
     let terminated = 0;
     for (const id of clusterIds) {
-      if (global.dynamicClusters?.has(id)) {
-        global.dynamicClusters.delete(id);
+      if (clusterDb.get(id)) {
+        clusterDb.update(id, { status: "terminated" });
         terminated++;
       }
     }

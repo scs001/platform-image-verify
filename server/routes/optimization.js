@@ -2,23 +2,25 @@
 
 import { getClusterDatabase } from "./clusters-db.js";
 
+const clusterDb = getClusterDatabase();
+
 export function createOptimizationRoutes(app) {
   // GET /api/optimization/stats - Get performance statistics
   app.get("/api/optimization/stats", (req, res) => {
-    const clusters = global.dynamicClusters || new Map();
+    const clusters = clusterDb.listAll();
     
     let totalExecutions = 0;
     let totalTokens = 0;
     let totalUptime = 0;
     
-    for (const cluster of clusters.values()) {
+    for (const cluster of clusters) {
       totalExecutions += cluster.totalExecutions || 0;
       totalTokens += cluster.totalTokensUsed || 0;
       totalUptime += Date.now() - cluster.createdAt;
     }
     
     res.json({
-      clusters: clusters.size,
+      clusters: clusters.length,
       totalExecutions,
       totalTokens,
       averageTokensPerExecution: totalExecutions > 0 ? Math.floor(totalTokens / totalExecutions) : 0,
@@ -39,9 +41,9 @@ export function createOptimizationRoutes(app) {
     const cutoff = Date.now() - (daysOld || 7) * 24 * 60 * 60 * 1000;
     
     let cleaned = 0;
-    for (const [id, cluster] of global.dynamicClusters || []) {
+    for (const cluster of clusterDb.listAll()) {
       if (cluster.lastUsedAt < cutoff && cluster.status === "ready") {
-        global.dynamicClusters.delete(id);
+        clusterDb.update(cluster.id, { status: "terminated" });
         cleaned++;
       }
     }

@@ -1154,3 +1154,15 @@ NodePort 31893——**网关对 facet-market-mcp 剥 Authorization**，同 paper
 **待补**：wire 客户身份的读回合/写动作（控制面仅认 Logto ID token，wdk_ 只开数据面）；
 聚焦面真实会话 tools/list；prod go-live 三前置（prod 基线补 actions、LINE_BOARDS_ENABLED、
 pack 转 public 时机）。证据细节见 docs/acceptance-criteria.md 柏讯实录节。
+
+## §14 发布记录：動作闸真执行器接通谦面/萬星——prod go-live（add-line-boards-and-action-gate D11，2026-10-21）
+
+**代码**：paas `5b13288d`+`bf0c8b05`（镜像 `sha-e4e8e1f`，digest `sha256:e713dfc2…` ccr skopeo 实证；快照线 scs001/platform-image-verify，快照 d062d49 + workflow 恢复提交 e4e8e1f 即 tag）。
+
+**内容**：执行器凭据解析（动作 ref → 线固定 ref → 宿主服务器目录声明）+ `credential-refs` 调度表取 token/置失效；萬星四条操作动作显式钉 `wanxing-caller`（运营基线口径；按数据驱动落 registry 令牌会 401 且误伤 registry 凭据）；preflight `requireExecutionCredential`（目录冷/未连接拦截+连接卡深链）；HTTP 层与工具层 401 同等置失效；`COPILOT_ENABLED` 杀开关（默认开）；修 iframe 套娃 FAB；修 `getMarketEntries()` 对象形状误读（`.find` 炸真执行的潜伏缺陷）。
+
+**滚动**：prod platform（GitOps cdf4e3b）：滚 tag + `LINE_BOARDS_ENABLED=1` + `platform-mcp-config` 补 actions stdio 条目（副驾 propose_action 硬前置，含 4dfa7104 的 tools capability 修复）。**坑：ArgoCD refresh 注解 key 打成 `argoprod.io` 未生效，rollout 对旧 RS 秒回假成功——正确是 `argoproj.io`，且要以 deploy image 字段翻转为准（本次 60s 内翻转）。**
+
+**registry 变更（对账）**：`facet-market-mcp`/`facet-ops-mcp` 两目此前 `mcp_endpoint` 缺失 → 经网关会被剥 Authorization（同 paper-trading 坑）→ Mongo 直写补 mesh 直连（31893/31892，wire-reg-debug 特权 hostPID pod + nsenter --mount --net=/proc/1/ns/net + 容器 `/app/.venv/bin/python3`，**venv python 非 /usr/local**）；API 回读一致。此修同时惠及装包绑定。
+
+**实证**：prod in-pod——mcp.json actions 条目 ✓、`LINE_BOARDS_ENABLED=1` env ✓、ccr digest↔部署一致 ✓、cell 设备 token + mesh 端点真调 `facet_market_pack_versions` 返回真实版本 JSON（422 逐字段语义顺带验证）✓。**未验**：真用户会话（pod 重建后 cell 未拉起，浏览器走查需真实登录）——tasks 7.3/8.2 仍开。

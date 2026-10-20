@@ -79,7 +79,11 @@ const TOOLS = [
 ];
 
 export async function createServer() {
-  const server = new Server({ name: "actions-mcp", version: "0.1.0" }, { capabilities: {} });
+  // capabilities.tools is REQUIRED: the dsh client's connect() asserts it
+  // before any tools/list — an empty capabilities object kills the child at
+  // startup ("Server does not support tools"), which is exactly what the
+  // first live stdio handshake on the demo pod caught (2026-10-21).
+  const server = new Server({ name: "actions-mcp", version: "0.1.0" }, { capabilities: { tools: {} } });
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 

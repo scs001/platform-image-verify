@@ -98,6 +98,7 @@ const EXCLUDE_PATHS = new Set([
   "docs/handoff/mcp-tool-scope-2026-10-20.md",
   "docs/pr-wanxing-agent-deploy.md",
   "scripts/deploy-cluster-platform.sh", // internal deploy plumbing (internal TCR URL)
+  "scripts/tcr-purge-tags.py", // internal TCR ops: registry hosts + tag policy (2026-10-20)
   // this tool itself
   "scripts/make-public-snapshot.mjs",
   // internal ops test: fleet board URL (tailnet) + jenkins/harbor/argocd state

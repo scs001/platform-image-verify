@@ -38,9 +38,13 @@ export interface AppConfig {
   // /boards/:line and the app-center "看板" primary action. False = the
   // surfaces do not exist; absent on older servers is read as false.
   lineBoardsEnabled: boolean;
+  // Copilot dock kill switch (add-line-boards-and-action-gate 8.3). True unless
+  // the server says otherwise; absent on older servers is read as true because
+  // the dock predates the lever.
+  copilotEnabled: boolean;
 }
 
-let config: AppConfig = { documentsEnabled: true, assistantName: null, companyName: null, brandIconUrl: null, loginFooterText: null, loginHero: null, packMarketplace: false, roles: null, resolvedLayout: null, voice: null, lineBoardsEnabled: false };
+let config: AppConfig = { documentsEnabled: true, assistantName: null, companyName: null, brandIconUrl: null, loginFooterText: null, loginHero: null, packMarketplace: false, roles: null, resolvedLayout: null, voice: null, lineBoardsEnabled: false, copilotEnabled: true };
 const listeners = new Set<() => void>();
 
 function emit(next: AppConfig) {
@@ -93,6 +97,7 @@ export async function loadAppConfig(timeoutMs = 1500): Promise<AppConfig> {
           ? { enabled: body.voice.enabled !== false, ttsFormat: str(body.voice.ttsFormat) ?? "mp3" }
           : null,
       lineBoardsEnabled: body?.lineBoardsEnabled === true,
+      copilotEnabled: body?.copilotEnabled !== false,
     });
   } catch {
     /* keep defaults */

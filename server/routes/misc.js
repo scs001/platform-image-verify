@@ -16,7 +16,7 @@ import * as lineCredentials from "../../line-credentials.js";
 import * as paperTradingCredentials from "../../paper-trading-credentials.js";
 import * as ciyuanAccountCredentials from "../../ciyuan-account-credentials.js";
 import { resolveVoiceConfig } from "./voice.js";
-import { lineBoardsEnabled } from "../../lib/board-adapters.js";
+import { copilotEnabled, lineBoardsEnabled } from "../../lib/board-adapters.js";
 import { BUSINESS_ROLES, parseStoredAssignments, resolveAssignment } from "../roles.js";
 import { registerOnboardingRoutes } from "./onboarding.js";
 import {
@@ -438,6 +438,9 @@ export function registerMiscRoutes(ctx) {
       // reads to decide whether /boards/:line and the app-center board CTA
       // exist at all. Absent on older servers ⇒ the web treats it as off.
       lineBoardsEnabled: lineBoardsEnabled(),
+      // Copilot dock kill switch (add-line-boards-and-action-gate 8.3). Absent
+      // on older servers ⇒ the web treats it as on (the dock predates it).
+      copilotEnabled: copilotEnabled(),
     });
   });
 

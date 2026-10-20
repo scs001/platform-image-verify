@@ -64,6 +64,35 @@
 - **WHEN** 查询任意审计记录
 - **THEN** 响应不含 token、sk- 或其片段
 
+### Requirement: 谦面与萬星动作以用户自己的凭据执行
+
+被批准的谦面/萬星动作 SHALL 经统一执行路径、以**该用户自己的**凭据调用宿主操作 MCP 的写工具，MUST NOT 使用平台凭据或他人凭据。执行所用的凭据引用 SHALL 由宿主服务器在市场目录中的声明决定（`facet-market-mcp` 声明 `facet-market`；`facet-ops-mcp`、`wanxing-ops-mcp` 未声明即为 `registry`），与该用户的 cell 经 pack 调用同一服务器时所呈现的凭据一致。宿主服务器未进入市场目录、或该用户未连接所需凭据时，提议 SHALL 在 preflight 阶段被拦截并给出去连接指引，MUST NOT 进入确认档位。执行中上游在 HTTP 层或工具层返回 401 时，SHALL 使该用户的该凭据失效（ID-token 清除 / 粘贴键与 registry 令牌置 stale）、将提案标记为执行失败并提示重新连接。上游尚不存在的工具（`wanxing_agent_deploy`）MUST 以「不可路由」失败，MUST NOT 伪装成功。
+
+#### Scenario: 谦面市场动作以设备 token 执行
+
+- **WHEN** 已连接谦面市场的用户批准「将包可见性改为 private」
+- **THEN** 闸以该用户的 `facet-market` 设备 token 调用 `facet-market-mcp` 的 `facet_market_pack_visibility`，审计台账新增一条记录
+
+#### Scenario: 萬星动作以 registry 令牌执行
+
+- **WHEN** 已连接 MCP 市场的用户批准「暂停 agent」
+- **THEN** 闸以该用户的 `registry` 令牌调用 `wanxing-ops-mcp` 的 `wanxing_agent_pause`
+
+#### Scenario: 未连接谦面市场时提议被拦截
+
+- **WHEN** 未连接谦面市场的用户让副驾修改包可见性
+- **THEN** preflight 失败，指引指向 `/settings/connections?panel=facet-market`，不调用任何工具
+
+#### Scenario: 鉴权门 401 使凭据失效
+
+- **WHEN** 已批准的萬星动作在 HTTP 层收到 401
+- **THEN** 该用户的 `registry` 凭据置 stale，提案标记为执行失败，审计保留失败原因
+
+#### Scenario: 尚不存在的部署工具不可路由
+
+- **WHEN** 批准 `wanxing.agent.deploy`
+- **THEN** 执行以不可路由失败，不调用任何服务器，提案标记为执行失败
+
 ### Requirement: 部署无关的 preflight
 
 动作的目标 SHALL 在确认前完成 preflight：`target=cloud` SHALL 要求该用户已连接部署者凭据（`wanxing-deployer`）；`target=desktop:<seat>` SHALL 要求该机位已配对且在线，MUST NOT 要求计费键。preflight 失败 SHALL 阻止动作进入确认档位，并给出可操作的修复指引。

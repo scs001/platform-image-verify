@@ -129,6 +129,18 @@ v1：`/chat?embed=copilot&board=<line>&preset=<copilotPreset>` 的**同源 ifram
 
 `/boards/:line`；应用中心卡片主行动「看板」，外链降为「打开原站」。看板不新增主导航项——发现面仍是应用中心。
 
+### D11 — 执行凭据按宿主服务器的目录声明解析（2026-10-21 收尾补决）
+
+执行器（`lib/action-executor.js`，姊妹 change add-wire-line-board 落的 MCP 客户端）取凭据的顺序定为：**动作自身 `credentialRef` → 线固定 ref（wire = `wire-customer`）→ 宿主服务器在市场目录条目上声明的 `credential_ref`**（`facet-market-mcp` → `facet-market` 设备 token；`facet-ops-mcp` / `wanxing-ops-mcp` 未声明 → `registry`）。第三条就是装包路径的 `credentialRefForEntry` 规则——执行器呈现的 bearer 与该用户 cell 经 pack 调同一服务器时**完全一致**，不另造第二套凭据映射。
+
+取 token / 置失效一律经 `credential-refs.js` 调度表（新增 `liveTokenForRef` / `invalidateRef`），而非只认 `line-credentials` 一张表——否则 facet-market 的设备 token 与 registry 令牌根本取不到。路由是**声明式**：facet/wanxing 动作在注册表上写明 `server`；wire 动作钉在 `wire-tool-risk` 快照；二者互不回落，wire 动作永远够不到 facet 工具名。`wanxing.agent.deploy` 刻意不声明 server（上游工具尚不存在，task 6.2），以 `tool_unroutable` 诚实失败。
+
+preflight 用同一解析（`requireExecutionCredential`）：目录冷、或用户未连接所需 ref，都在进档位前拦住并给出连接卡深链。401 在 HTTP 层（鉴权门）与工具层（无 wire 信封的自由措辞，复用 `dsh-events` 的 `UNAUTHORIZED_RE`）同等处理：置失效 + `upstream_401`。
+
+**顺手修的潜伏缺陷**：`getMarketEntries()` 返回 `{ mcpServers, skills }` 对象，执行器原按数组 `.find()`——所有未 stub 的真执行都会抛 `list.find is not a function`；单测全靠注入 `resolveEndpoint` 才没暴露。现按对象形状读。
+
+**COPILOT_ENABLED 与原 Migration Plan 的偏差**：dock 已随 sha-352d662 先行上产且无杆，若按计划「默认关」，升级即消失。实施为**杀开关**（仅 `"0"` 关闭，默认开）；`LINE_BOARDS_ENABLED` 维持姊妹 change 的默认关，生产清单显式置 `1`。
+
 ## Risks / Trade-offs
 
 - **看板与产品 API 漂移** → 每线一个契约探针（复用 `scripts/probe-*.mjs` 的形状），块级失败诚实降级，不整页白屏。
@@ -141,12 +153,12 @@ v1：`/chat?embed=copilot&board=<line>&preset=<copilotPreset>` 的**同源 ifram
 
 ## Migration Plan
 
-1. 新增表与路由（additive，无回填）；`/boards/:line` 与副驾入口由 `LINE_BOARDS_ENABLED` / `COPILOT_ENABLED` 两个 env 控制，默认关闭。
+1. 新增表与路由（additive，无回填）；`/boards/:line` 由 `LINE_BOARDS_ENABLED` 控制（默认关，生产清单置 `1`）；副驾入口由 `COPILOT_ENABLED` 杀开关控制（默认开，`"0"` 关闭——见 D11 偏差说明）。
 2. 部署 `server/actions-mcp.js` 与 `mcp.json` 条目；滚动 cell 与 runner（共享 profile 管线）。
 3. `wanxing-ops-mcp` 发布新版本并加 deploy 工具；registry 侧更新 `tool-surface.json`。
 4. 发布两个官方 pack（private 先行），装进验收 cell。
 5. 打开 env，跑真机验收：看板打开不计费、写动作行内确认、破坏性二次确认、publish 异步审批、桌面部署不需要计费键。
-6. 回滚：关闭两个 env 即回到现状；表与工具留存无害。
+6. 回滚：`LINE_BOARDS_ENABLED` 删除/置非 `1` 即关看板；`COPILOT_ENABLED=0` 即关副驾入口；表与工具留存无害。
 
 ## Open Questions
 

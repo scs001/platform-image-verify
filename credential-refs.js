@@ -151,6 +151,27 @@ export function isCredentialRef(config) {
   return Boolean(config?.credentialRef);
 }
 
+// Resolve one ref NAME for one user — the same resolution the profile writer
+// applies per server, for callers that hold a name instead of a server config
+// (action preflight and the action executor, add-line-boards-and-action-gate).
+// A name the table does not list falls back to the line-credentials store so a
+// registered action can name any ref the platform stores (wanxing-deployer is
+// preflight-only today and lives there alone).
+export function liveTokenForRef(refName, email) {
+  if (typeof refName !== "string" || !refName) return null;
+  const entry = REFS.get(refName);
+  if (entry) return entry.liveToken(email) || null;
+  return lineCredentials.liveToken(email, refName) || null;
+}
+
+// The 401 handler for a ref name; true when state changed (= re-apply once).
+export function invalidateRef(refName, email) {
+  if (typeof refName !== "string" || !refName) return false;
+  const entry = REFS.get(refName);
+  if (entry) return Boolean(entry.markInvalid(email));
+  return Boolean(lineCredentials.markInvalid(email, refName));
+}
+
 // Resolve every ref-carrying config in `servers` for `email`: returns a new
 // object where each carried server either gained an Authorization header or was
 // dropped, plus per-ref diagnostics for the omission warnings. Grouped by ref

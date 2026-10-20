@@ -14,9 +14,11 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Bot, X } from "lucide-react";
+import { useAppConfig } from "@/hooks/useAppConfig";
 
 export function CopilotDock() {
   const location = useLocation();
+  const { copilotEnabled } = useAppConfig();
   const [open, setOpen] = useState(false);
   const [boardLine, setBoardLine] = useState<string | null>(null);
 
@@ -36,6 +38,14 @@ export function CopilotDock() {
       frame.contentWindow.postMessage({ type: "copilot_context", board: boardLine }, window.location.origin);
     }
   }, [boardLine, open]);
+
+  // The dock's own iframe runs this same App: without this guard the embed
+  // would grow a second FAB inside the dock. Any framed document is a guest,
+  // never a host.
+  const embedded =
+    new URLSearchParams(location.search).get("embed") === "copilot" ||
+    (typeof window !== "undefined" && window.self !== window.top);
+  if (!copilotEnabled || embedded) return null;
 
   const src = `/chat?embed=copilot${boardLine ? `&board=${encodeURIComponent(boardLine)}` : ""}`;
 

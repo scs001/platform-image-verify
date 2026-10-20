@@ -1038,3 +1038,34 @@ cell 内的 `clusters.db` 留在卷上不阻塞回滚。
 **回滚**：A 改 `PACK_TOOL_FACE_GATE=warn|off`；B 改 `FULL_MODE_TOOL_SCOPE=off`，改 `platform-config`
 后重启 pod 生效（逐请求/逐合成读取，无数据迁移）。新列 `user_presets.mcp_tools` 与新键
 `toolScope.fullSurface` 对旧代码惰性。
+
+### §11.1 事故与修复：/agents 白屏（2026-10-20，sha-b7752cf → sha-27e0991）
+
+**现象**：用户登录后点「智能体」页面全白。API 探针 11/11 全绿也看不出来 —— **接口层验收
+对 UI 崩溃零鉴别力**（这次教训的核心）。
+
+**取证**：用 pod 的 `session-secret` 签 `paas_session` cookie 注入 Playwright，直打
+`https://platform.finddatatech.cloud/agents?tab=agents`，抓到
+`pageerror: ReferenceError: Cannot access 'R' before initialization` —— TDZ 崩溃卸载整棵树。
+
+**四个根因（都是本轮新增代码引入，全部只在运行时暴露，`npm run web:build` 全绿）**：
+1. `AgentsPage` 的 `useEffect` 引用了声明在其后的 `activeTab` → TDZ（白屏主因）；
+2. `ClusterCard` 用了 `<Button>` 但该文件从未导入；
+3. `loadUserClusters` 调 `/api/user`（端点不存在，返回 SPA fallback HTML → JSON.parse 抛错）；
+4. `ClusterComposerModal` 用了 `useMemo` 未导入 → 又一记白屏；且 `api.getMyPacks()` 不存在、
+   `Badge` 导入路径与 props 都不对。
+
+**附带发现**：`ClusterComposerModal` **从未被任何页面挂载** —— 功能写了但没有入口。
+已挂到 AgentsPage（`new-cluster-btn` + 弹窗）。
+
+**路由顺序坑**：新增的 `GET /api/clusters/mine` 必须注册在 `GET /api/clusters/:id` **之前**，
+否则 `mine` 被 `:id` 吃掉 → 404。
+
+**护栏**：`e2e/agents-smoke.spec.js`（`@smoke`）——断言 tab 可见、`agents-section` 挂载、
+无未捕获运行时错误、`new-cluster-btn` 可见且点击后 dialog 打开、`/api/clusters/mine`
+返回 JSON 且非 404。**这条测试在修复前是红的**；它现在也是本仓唯一能在构建后抓住
+「运行时未定义标识符」类白屏的检查。
+
+**线上终验**（真浏览器 + 真 session，`sha-27e0991` / digest `26c63185`）：
+`body len 398`、`agents-section 1`、`new-cluster-btn 1`、`dialog visible true`、
+`pageerror/console errors: []`、`failed requests: []`。

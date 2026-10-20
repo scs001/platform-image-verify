@@ -35,6 +35,18 @@ test("@smoke agents page renders (no white screen)", async ({ page }) => {
     expect(txt, "must not reuse the composer's no-agents line").not.toMatch(/No agents available/i);
   }
 
+  // If a cluster card exists, Manage must open its detail (guards the
+  // clusterId-vs-id mismatch that produced GET /api/clusters/undefined).
+  const row = page.getByTestId("cluster-row").first();
+  if (await row.count()) {
+    const seen = [];
+    page.on("request", (r) => { if (/\/api\/clusters\//.test(r.url())) seen.push(r.url()); });
+    await row.getByRole("button").first().click();
+    await expect(page.getByTestId("cluster-detail")).toBeVisible({ timeout: 10000 });
+    expect(seen.some((u) => u.includes("/undefined")), "no request may carry an undefined id").toBe(false);
+    await page.keyboard.press("Escape");
+  }
+
   // The clusters listing endpoint must resolve (route order regression guard:
   // /api/clusters/mine must be registered BEFORE /api/clusters/:id).
   const mine = await page.evaluate(async () => {

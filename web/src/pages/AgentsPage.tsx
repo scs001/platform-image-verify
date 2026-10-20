@@ -49,8 +49,10 @@ export function AgentsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   
   // Dynamic clusters (agent-cluster-platform)
+  // Shape mirrors GET /api/clusters/mine exactly. `clusterId` (not `id`) — the
+  // mismatch silently produced GET /api/clusters/undefined.
   const [dynamicClusters, setDynamicClusters] = useState<Array<{
-    id: string;
+    clusterId: string;
     name: string;
     agentCount: number;
     status: string;
@@ -119,6 +121,7 @@ export function AgentsPage() {
     tabParam && visibleTabs.some((tab) => tab.slug === tabParam) ? (tabParam as Tab) : ((visibleTabs[0]?.slug ?? "agents") as Tab);
 
   const openClusterDetail = async (clusterId: string) => {
+    if (!clusterId) return;
     try {
       const r = await fetch(`/api/clusters/${encodeURIComponent(clusterId)}`);
       if (!r.ok) return;
@@ -297,9 +300,9 @@ export function AgentsPage() {
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                   {dynamicClusters.map((cluster) => (
                     <ClusterCard
-                      key={cluster.id}
+                      key={cluster.clusterId}
                       cluster={cluster}
-                      onManage={() => void openClusterDetail(cluster.id)}
+                      onManage={() => void openClusterDetail(cluster.clusterId)}
                     />
                   ))}
                 </div>
@@ -515,7 +518,7 @@ function AgentCard({ agent, onOpenLink }: { agent: AgentInfo; onOpenLink: () => 
 
 interface ClusterCardProps {
   cluster: {
-    id: string;
+    clusterId: string;
     name: string;
     agentCount: number;
     status: string;
@@ -530,7 +533,7 @@ function ClusterCard({ cluster, onManage }: ClusterCardProps) {
     <div
       className="rounded-lg border border-border p-4 transition-colors hover:border-primary/50 bg-gradient-to-br from-primary/5 to-transparent"
       data-testid="cluster-row"
-      data-cluster-id={cluster.id}
+      data-cluster-id={cluster.clusterId}
     >
       <div className="flex items-start gap-3">
         <div className="shrink-0 rounded-md bg-primary/10 p-2 text-primary">

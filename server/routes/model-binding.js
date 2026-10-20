@@ -49,181 +49,205 @@ const PROVIDER_ROUTES = {
 export function createModelBindingRoutes(app) {
   // GET /api/models - List available models with provider info
   app.get("/api/models", (req, res) => {
-    const models = Object.entries(PROVIDER_ROUTES).map(([id, config]) => ({
-      id,
-      name: id.replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase()),
-      provider: config.provider,
-      endpoint: config.endpoint,
-      hasFallback: config.fallbackProviders.length > 0,
-      fallbackCount: config.fallbackProviders.length,
-    }));
+    try {
+      const models = Object.entries(PROVIDER_ROUTES).map(([id, config]) => ({
+        id,
+        name: id.replace(/-/g, " ").replace(/\b\w/g, l => l.toUpperCase()),
+        provider: config.provider,
+        endpoint: config.endpoint,
+        hasFallback: config.fallbackProviders.length > 0,
+        fallbackCount: config.fallbackProviders.length,
+      }));
+      
+      res.json({ models });
     
-    res.json({ models });
+    } catch (err) {
+      console.error("[cluster] handler error:", err);
+      if (!res.headersSent) res.status(500).json({ error: err.message || "internal error" });
+    }
   });
   
   // POST /api/clusters/:clusterId/bindings - Set model bindings for cluster agents
   app.post("/api/clusters/:clusterId/bindings", async (req, res) => {
-    const user = req.user;
-    if (!user) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-    
-    const clusterId = req.params.clusterId;
-    const cluster = clusterDb.get(clusterId);
-    
-    if (!cluster) {
-      return res.status(404).json({ error: "Cluster not found" });
-    }
-    
-    const { bindings } = req.body;
-    
-    if (!bindings || !Array.isArray(bindings)) {
-      return res.status(400).json({ error: "bindings array required" });
-    }
-    
-    // Validate each binding
-    for (const binding of bindings) {
-      if (!binding.agentId || !binding.modelId) {
-        return res.status(400).json({ 
-          error: `Invalid binding: agentId and modelId required` 
-        });
+    try {
+      const user = req.user;
+      if (!user) {
+        return res.status(401).json({ error: "Authentication required" });
       }
       
-      if (!PROVIDER_ROUTES[binding.modelId]) {
-        return res.status(400).json({ 
-          error: `Unknown model: ${binding.modelId}` 
-        });
+      const clusterId = req.params.clusterId;
+      const cluster = clusterDb.get(clusterId);
+      
+      if (!cluster) {
+        return res.status(404).json({ error: "Cluster not found" });
       }
       
-      // Check if agent exists in cluster
-      const agentExists = cluster.agents.some(a => a.agentId === binding.agentId);
-      if (!agentExists) {
-        return res.status(400).json({ 
-          error: `Agent ${binding.agentId} not found in cluster` 
-        });
+      const { bindings } = req.body;
+      
+      if (!bindings || !Array.isArray(bindings)) {
+        return res.status(400).json({ error: "bindings array required" });
       }
-    }
+      
+      // Validate each binding
+      for (const binding of bindings) {
+        if (!binding.agentId || !binding.modelId) {
+          return res.status(400).json({ 
+            error: `Invalid binding: agentId and modelId required` 
+          });
+        }
+        
+        if (!PROVIDER_ROUTES[binding.modelId]) {
+          return res.status(400).json({ 
+            error: `Unknown model: ${binding.modelId}` 
+          });
+        }
+        
+        // Check if agent exists in cluster
+        const agentExists = cluster.agents.some(a => a.agentId === binding.agentId);
+        if (!agentExists) {
+          return res.status(400).json({ 
+            error: `Agent ${binding.agentId} not found in cluster` 
+          });
+        }
+      }
+      
+      // Store bindings (in production, use database)
+      if (!global.modelBindings) {
+        global.modelBindings = new Map();
+      }
+      
+      if (!global.modelBindings.has(clusterId)) {
+        global.modelBindings.set(clusterId, {});
+      }
+      
+      const clusterBindings = global.modelBindings.get(clusterId);
+      for (const binding of bindings) {
+        clusterBindings[binding.agentId] = {
+          modelId: binding.modelId,
+          updatedAt: Date.now(),
+          updatedBy: user.email,
+        };
+      }
+      
+      res.json({ 
+        success: true, 
+        message: "Model bindings updated",
+        bindings: clusterBindings 
+      });
     
-    // Store bindings (in production, use database)
-    if (!global.modelBindings) {
-      global.modelBindings = new Map();
+    } catch (err) {
+      console.error("[cluster] handler error:", err);
+      if (!res.headersSent) res.status(500).json({ error: err.message || "internal error" });
     }
-    
-    if (!global.modelBindings.has(clusterId)) {
-      global.modelBindings.set(clusterId, {});
-    }
-    
-    const clusterBindings = global.modelBindings.get(clusterId);
-    for (const binding of bindings) {
-      clusterBindings[binding.agentId] = {
-        modelId: binding.modelId,
-        updatedAt: Date.now(),
-        updatedBy: user.email,
-      };
-    }
-    
-    res.json({ 
-      success: true, 
-      message: "Model bindings updated",
-      bindings: clusterBindings 
-    });
   });
   
   // GET /api/clusters/:clusterId/bindings - Get current model bindings
   app.get("/api/clusters/:clusterId/bindings", (req, res) => {
-    const clusterId = req.params.clusterId;
-    const cluster = clusterDb.get(clusterId);
-    
-    if (!cluster) {
-      return res.status(404).json({ error: "Cluster not found" });
-    }
-    
-    const bindings = {};
-    const clusterBindings = global.modelBindings?.get(clusterId) || {};
-    
-    for (const agent of cluster.agents) {
-      const binding = clusterBindings[agent.agentId];
-      if (binding) {
-        const modelConfig = PROVIDER_ROUTES[binding.modelId];
-        bindings[agent.agentId] = {
-          ...binding,
-          modelName: modelConfig ? modelConfig.provider : "unknown",
-          hasFallback: modelConfig ? modelConfig.hasFallback : false,
-        };
-      } else {
-        bindings[agent.agentId] = null;
+    try {
+      const clusterId = req.params.clusterId;
+      const cluster = clusterDb.get(clusterId);
+      
+      if (!cluster) {
+        return res.status(404).json({ error: "Cluster not found" });
       }
-    }
+      
+      const bindings = {};
+      const clusterBindings = global.modelBindings?.get(clusterId) || {};
+      
+      for (const agent of cluster.agents) {
+        const binding = clusterBindings[agent.agentId];
+        if (binding) {
+          const modelConfig = PROVIDER_ROUTES[binding.modelId];
+          bindings[agent.agentId] = {
+            ...binding,
+            modelName: modelConfig ? modelConfig.provider : "unknown",
+            hasFallback: modelConfig ? modelConfig.hasFallback : false,
+          };
+        } else {
+          bindings[agent.agentId] = null;
+        }
+      }
+      
+      res.json({ bindings });
     
-    res.json({ bindings });
+    } catch (err) {
+      console.error("[cluster] handler error:", err);
+      if (!res.headersSent) res.status(500).json({ error: err.message || "internal error" });
+    }
   });
   
   // POST /api/tasks/:taskId/route - Execute task with provider routing
   app.post("/api/tasks/:taskId/route", async (req, res) => {
-    const taskId = req.params.taskId;
-    const { agentId, prompt, modelOverride } = req.body;
-    
-    // Get cluster and agent info
-    // (This would normally query the task system)
-    
-    // Determine which model to use
-    let modelId = modelOverride;
-    if (!modelId) {
-      // Try to get from cluster bindings
-      // (would come from task context in real implementation)
-      modelId = getDefaultModelForAgent(agentId);
-    }
-    
-    if (!modelId || !PROVIDER_ROUTES[modelId]) {
-      return res.status(400).json({ error: "Invalid or missing model" });
-    }
-    
-    const route = PROVIDER_ROUTES[modelId];
-    
     try {
-      // Call primary provider
-      const result = await callProvider(route, prompt);
+      const taskId = req.params.taskId;
+      const { agentId, prompt, modelOverride } = req.body;
       
-      res.json({
-        success: true,
-        provider: route.provider,
-        modelId,
-        result,
-        tokensUsed: result.tokens || 0,
-      });
-    } catch (error) {
-      console.log(`[model-routing] Primary provider ${route.provider} failed:`, error.message);
+      // Get cluster and agent info
+      // (This would normally query the task system)
       
-      // Try fallback providers
-      if (route.fallbackProviders && route.fallbackProviders.length > 0) {
-        for (const fallbackProvider of route.fallbackProviders) {
-          const fallbackRoute = findProviderByType(fallbackProvider);
-          if (fallbackRoute) {
-            try {
-              const result = await callProvider(fallbackRoute, prompt);
-              
-              res.json({
-                success: true,
-                provider: fallbackProvider,
-                modelId,
-                result,
-                tokensUsed: result.tokens || 0,
-                routed: true, // Indicates fallback was used
-              });
-              return;
-            } catch (fallbackError) {
-              console.log(`[model-routing] Fallback ${fallbackProvider} also failed:`, fallbackError.message);
+      // Determine which model to use
+      let modelId = modelOverride;
+      if (!modelId) {
+        // Try to get from cluster bindings
+        // (would come from task context in real implementation)
+        modelId = getDefaultModelForAgent(agentId);
+      }
+      
+      if (!modelId || !PROVIDER_ROUTES[modelId]) {
+        return res.status(400).json({ error: "Invalid or missing model" });
+      }
+      
+      const route = PROVIDER_ROUTES[modelId];
+      
+      try {
+        // Call primary provider
+        const result = await callProvider(route, prompt);
+        
+        res.json({
+          success: true,
+          provider: route.provider,
+          modelId,
+          result,
+          tokensUsed: result.tokens || 0,
+        });
+      } catch (error) {
+        console.log(`[model-routing] Primary provider ${route.provider} failed:`, error.message);
+        
+        // Try fallback providers
+        if (route.fallbackProviders && route.fallbackProviders.length > 0) {
+          for (const fallbackProvider of route.fallbackProviders) {
+            const fallbackRoute = findProviderByType(fallbackProvider);
+            if (fallbackRoute) {
+              try {
+                const result = await callProvider(fallbackRoute, prompt);
+                
+                res.json({
+                  success: true,
+                  provider: fallbackProvider,
+                  modelId,
+                  result,
+                  tokensUsed: result.tokens || 0,
+                  routed: true, // Indicates fallback was used
+                });
+                return;
+              } catch (fallbackError) {
+                console.log(`[model-routing] Fallback ${fallbackProvider} also failed:`, fallbackError.message);
+              }
             }
           }
         }
+        
+        // All providers failed
+        res.status(503).json({ 
+          error: "All providers unavailable",
+          originalError: error.message,
+          attemptedProviders: [route.provider, ...route.fallbackProviders || []]
+        });
       }
-      
-      // All providers failed
-      res.status(503).json({ 
-        error: "All providers unavailable",
-        originalError: error.message,
-        attemptedProviders: [route.provider, ...route.fallbackProviders || []]
-      });
+    
+    } catch (err) {
+      console.error("[cluster] handler error:", err);
+      if (!res.headersSent) res.status(500).json({ error: err.message || "internal error" });
     }
   });
 }

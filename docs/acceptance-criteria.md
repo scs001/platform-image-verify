@@ -268,7 +268,9 @@ kubectl rollout restart deployment paas-cell
 
 ## 剩余（不阻塞本 change 归档判断）
 
-- 场景 6 执行段仍等市场有货（`wire_market_browse` total=0）。
+- ~~场景 6 执行段~~ 已补（第三轮深夜）：挂市场→订阅执行→撤回复原；注意 wire 的
+  拥有者自订是幂等空转（`created:false`），跨客户订阅才是有订阅行的正路径（属
+  fd-wire marketplace 既有验收范围）。
 - prod go-live 前置不变：`platform` 仍在 `sha-352d662`；prod `platform-mcp-config`
   需补 `actions` 条目；prod 建议同设 `PACK_BASELINE_MCP=actions`（聚焦角色保留
   propose_action 的显式口径，当前靠「过滤图不收窄未列 server」的语义达成）。
@@ -299,7 +301,7 @@ wire 生产 `sha-22da877`。连接凭据 = 浏览器 Logto 会话（本轮为 `a
 | 3 | 读回合 → `wire_datasets_list` | **工具层通过，会话层未跑** | 持 cell 凭据直连 wire-ops MCP：`wire_datasets_list` 返回「客户表冒烟（6 行）」等，与看板一致；会话层见「待补」 |
 | 4 | 写提议行内确认 + 合规两空字段 + 审计 | **通过** | 提议返回 `userFilledArgs=[source_urls, public_data_asserted]`；未填 → 400 `missing required user arg: source_urls`；补填后 `executed`，wire 侧生成需求单 `DE-20261020-01`（id 12）；`action_audit` 一行，line=wire，仅 digest，无 Bearer/token |
 | 5 | 模型合规值不采纳 | **通过** | 模型传 `source_urls/public_data_asserted` → `args_json` 只剩 `description/contact_email`（落库实证） |
-| 6 | 花钱二次确认 | **卡片通过，执行不可测** | `risk=cost`、`tier=second`、影响面含「产生费用」；市场盘点为 0（`wire_market_browse` → total 0），无可订阅对象 |
+| 6 | 花钱二次确认 | **通过（第三轮含执行段）** | `risk=cost`、`tier=second`、影响面含「产生费用」；把一个数据集挂市场后全链执行：approve → `executed`，上游如实返回 `{subscribed:true, created:false}`（**拥有者自订语义**：自己的数据集无订阅行，幂等空转——闸不遮掩），审计 206ms 无错误；验后数据集已撤回市场（盘点复原 0） |
 | 7 | 未注册动作拒绝 | **通过** | `wire.dataset.delete` → 400 `action not registered`，wire 零调用 |
 | 8 | 风险对拍 | **通过（本地）** | `test-wire-tool-risk.mjs` 6/6；`test-action-executor-refs.mjs` 16/16；`test-wire-line-board.mjs` 23/23 |
 | 9 | 应用中心 | **通过** | Wire 卡主行动 `Board`、次要 `Open origin site`、**无 Early stage** 徽章、聚合态 `Partly connected` |

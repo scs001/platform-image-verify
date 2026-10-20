@@ -102,7 +102,11 @@ test("1.1 ref precedence: declaration, then line, then the server's registry ent
   assert.equal(resolveCredentialRef(action("wire.demand.submit"), null, { entryFor }), "wire-customer");
   assert.equal(resolveCredentialRef(action("facet.pack.visibility"), "facet-market-mcp", { entryFor }), "facet-market");
   assert.equal(resolveCredentialRef(action("facet.agent.toggle"), "facet-ops-mcp", { entryFor }), "registry");
-  assert.equal(resolveCredentialRef(action("wanxing.agent.pause"), "wanxing-ops-mcp", { entryFor }), "registry");
+  // The four wanxing ops entries pin wanxing-caller even though the registry
+  // entry declares none — the operator baseline presents that key, and a wrong
+  // registry token would 401 AND stale the user's market credential.
+  assert.equal(resolveCredentialRef(action("wanxing.agent.pause"), "wanxing-ops-mcp", { entryFor }), "wanxing-caller");
+  assert.equal(resolveCredentialRef(action("wanxing.callers.remove"), "wanxing-ops-mcp", { entryFor }), "wanxing-caller");
   assert.equal(resolveCredentialRef(action("facet.pack.visibility"), "not-in-catalog", { entryFor }), null);
   assert.equal(resolveCredentialRef(action("facet.pack.visibility"), null, { entryFor }), null);
 });
@@ -160,11 +164,11 @@ test("2.1 a facet-market action presents the facet-market token to its declared 
 
 test("2.2 a registry-ref action presents the stored registry token via the credential-refs table", async () => {
   registryCredentials.store({ email: EMAIL, token: "reg-tok" });
-  const fake = await startFakeMcp({ toolName: "wanxing_agent_pause" });
+  const fake = await startFakeMcp({ toolName: "facet_agent_toggle" });
   try {
     const result = await executeRegisteredAction({
-      action: action("wanxing.agent.pause"),
-      args: { agentId: "a1", packId: "p1" },
+      action: action("facet.agent.toggle"),
+      args: { path: "/x", enabled: false },
       email: EMAIL,
       deps: {
         resolveEndpoint: () => fake.url,
@@ -174,10 +178,34 @@ test("2.2 a registry-ref action presents the stored registry token via the crede
     });
     assert.ok(fake.seen.auth.length >= 2);
     assert.deepEqual(new Set(fake.seen.auth), new Set(["Bearer reg-tok"]));
-    assert.equal(result.server, "wanxing-ops-mcp");
+    assert.equal(result.server, "facet-ops-mcp");
   } finally {
     await fake.stop();
     registryCredentials.disconnect(EMAIL);
+  }
+});
+
+test("2.3 a wanxing action presents the user's caller key, resolved via the table (ciyuan → legacy)", async () => {
+  const lc = await import("../line-credentials.js");
+  lc.store({ email: EMAIL, line: "wanxing-caller", token: "sk-live" });
+  const fake = await startFakeMcp({ toolName: "wanxing_agent_pause" });
+  try {
+    const result = await executeRegisteredAction({
+      action: action("wanxing.agent.pause"),
+      args: { agentId: "a1", packId: "p1" },
+      email: EMAIL,
+      deps: {
+        resolveEndpoint: () => fake.url,
+        resolveRef: (a, server) => resolveCredentialRef(a, server, { entryFor }),
+        // no liveToken stub: the table resolves wanxing-caller
+      },
+    });
+    assert.ok(fake.seen.auth.length >= 2);
+    assert.deepEqual(new Set(fake.seen.auth), new Set(["Bearer sk-live"]));
+    assert.equal(result.server, "wanxing-ops-mcp");
+  } finally {
+    await fake.stop();
+    lc.disconnect(EMAIL, "wanxing-caller");
   }
 });
 
@@ -326,14 +354,20 @@ test("5.2 requireExecutionCredential: unconnected → the ref's connect pointer;
   assert.equal(refused.connectPath, "/settings/connections?panel=facet-market");
   assert.match(refused.details, /谦面市场/);
 
-  const unconnectedRegistry = await hook({ email: EMAIL }, {}, action("wanxing.agent.pause"));
+  const unconnectedRegistry = await hook({ email: EMAIL }, {}, action("facet.agent.toggle"));
   assert.equal(unconnectedRegistry.ok, false);
   assert.equal(unconnectedRegistry.credentialRef, "registry");
   assert.equal(unconnectedRegistry.connectPath, "/settings/connections?panel=registry");
 
+  // wanxing ops actions require the caller key (词元账号 panel), not the registry
+  const unconnectedCaller = await hook({ email: EMAIL }, {}, action("wanxing.agent.pause"));
+  assert.equal(unconnectedCaller.ok, false);
+  assert.equal(unconnectedCaller.credentialRef, "wanxing-caller");
+  assert.equal(unconnectedCaller.connectPath, "/settings/connections?panel=ciyuan-account");
+  assert.match(unconnectedCaller.details, /词元账号/);
+
   registryCredentials.store({ email: EMAIL, token: "reg-tok" });
   try {
-    assert.deepEqual(await hook({ email: EMAIL }, {}, action("wanxing.agent.pause")), { ok: true });
     assert.deepEqual(await hook({ email: EMAIL }, {}, action("facet.agent.toggle")), { ok: true });
   } finally {
     registryCredentials.disconnect(EMAIL);

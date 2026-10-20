@@ -66,17 +66,17 @@
 
 ### Requirement: 谦面与萬星动作以用户自己的凭据执行
 
-被批准的谦面/萬星动作 SHALL 经统一执行路径、以**该用户自己的**凭据调用宿主操作 MCP 的写工具，MUST NOT 使用平台凭据或他人凭据。执行所用的凭据引用 SHALL 由宿主服务器在市场目录中的声明决定（`facet-market-mcp` 声明 `facet-market`；`facet-ops-mcp`、`wanxing-ops-mcp` 未声明即为 `registry`），与该用户的 cell 经 pack 调用同一服务器时所呈现的凭据一致。宿主服务器未进入市场目录、或该用户未连接所需凭据时，提议 SHALL 在 preflight 阶段被拦截并给出去连接指引，MUST NOT 进入确认档位。执行中上游在 HTTP 层或工具层返回 401 时，SHALL 使该用户的该凭据失效（ID-token 清除 / 粘贴键与 registry 令牌置 stale）、将提案标记为执行失败并提示重新连接。上游尚不存在的工具（`wanxing_agent_deploy`）MUST 以「不可路由」失败，MUST NOT 伪装成功。
+被批准的谦面/萬星动作 SHALL 经统一执行路径、以**该用户自己的**凭据调用宿主操作 MCP 的写工具，MUST NOT 使用平台凭据或他人凭据。执行所用的凭据引用 SHALL 与该用户的 cell 调用同一服务器时所呈现的凭据一致：`facet-market-mcp` 取宿主服务器目录声明的 `facet-market`（设备 token）；`facet-ops-mcp` 目录未声明，取 `registry` 令牌；萬星四条操作动作在注册表显式钉 `wanxing-caller`（运营基线向 `wanxing-ops-mcp` 呈现該用户键，萬星平台令牌即 sub2api 键）——呈现错误的凭据不仅会 401，还会错误置失效该凭据（如误伤 `registry`）。宿主服务器未进入市场目录、或该用户未连接所需凭据时，提议 SHALL 在 preflight 阶段被拦截并给出去连接指引，MUST NOT 进入确认档位。执行中上游在 HTTP 层或工具层返回 401 时，SHALL 使该用户的该凭据失效（ID-token 清除 / 粘贴键与 registry 令牌置 stale）、将提案标记为执行失败并提示重新连接。上游尚不存在的工具（`wanxing_agent_deploy`）MUST 以「不可路由」失败，MUST NOT 伪装成功。
 
 #### Scenario: 谦面市场动作以设备 token 执行
 
 - **WHEN** 已连接谦面市场的用户批准「将包可见性改为 private」
 - **THEN** 闸以该用户的 `facet-market` 设备 token 调用 `facet-market-mcp` 的 `facet_market_pack_visibility`，审计台账新增一条记录
 
-#### Scenario: 萬星动作以 registry 令牌执行
+#### Scenario: 萬星动作以用户 caller 键执行
 
-- **WHEN** 已连接 MCP 市场的用户批准「暂停 agent」
-- **THEN** 闸以该用户的 `registry` 令牌调用 `wanxing-ops-mcp` 的 `wanxing_agent_pause`
+- **WHEN** 已连接词元账号（wanxing-caller）的用户批准「暂停 agent」
+- **THEN** 闸以该用户的 caller 键调用 `wanxing-ops-mcp` 的 `wanxing_agent_pause`，且绝不以 `registry` 令牌试探
 
 #### Scenario: 未连接谦面市场时提议被拦截
 

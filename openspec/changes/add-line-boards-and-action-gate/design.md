@@ -131,7 +131,7 @@ v1：`/chat?embed=copilot&board=<line>&preset=<copilotPreset>` 的**同源 ifram
 
 ### D11 — 执行凭据按宿主服务器的目录声明解析（2026-10-21 收尾补决）
 
-执行器（`lib/action-executor.js`，姊妹 change add-wire-line-board 落的 MCP 客户端）取凭据的顺序定为：**动作自身 `credentialRef` → 线固定 ref（wire = `wire-customer`）→ 宿主服务器在市场目录条目上声明的 `credential_ref`**（`facet-market-mcp` → `facet-market` 设备 token；`facet-ops-mcp` / `wanxing-ops-mcp` 未声明 → `registry`）。第三条就是装包路径的 `credentialRefForEntry` 规则——执行器呈现的 bearer 与该用户 cell 经 pack 调同一服务器时**完全一致**，不另造第二套凭据映射。
+执行器（`lib/action-executor.js`，姊妹 change add-wire-line-board 落的 MCP 客户端）取凭据的顺序定为：**动作自身 `credentialRef` → 线固定 ref（wire = `wire-customer`）→ 宿主服务器在市场目录条目上声明的 `credential_ref`**（`facet-market-mcp` → `facet-market` 设备 token；`facet-ops-mcp` 未声明 → `registry`）。第三条就是装包路径的 `credentialRefForEntry` 规则——执行器呈现的 bearer 与该用户 cell 调同一服务器时**一致**，不另造第二套凭据映射。**萬星例外**：运营基线 `platform-mcp-config` 向 `wanxing-ops-mcp` 呈现的是 `wanxing-caller`（萬星平台令牌 = sub2api 键），注册表条目却未声明——若按数据驱动落到 registry 令牌，不仅 401 还会误伤用户的 registry 凭据（置 stale 断整个市场访问）。故萬星四条操作动作在注册表**显式钉 `wanxing-caller`**（优先级第一档），preflight 同步要求词元账号已连接。
 
 取 token / 置失效一律经 `credential-refs.js` 调度表（新增 `liveTokenForRef` / `invalidateRef`），而非只认 `line-credentials` 一张表——否则 facet-market 的设备 token 与 registry 令牌根本取不到。路由是**声明式**：facet/wanxing 动作在注册表上写明 `server`；wire 动作钉在 `wire-tool-risk` 快照；二者互不回落，wire 动作永远够不到 facet 工具名。`wanxing.agent.deploy` 刻意不声明 server（上游工具尚不存在，task 6.2），以 `tool_unroutable` 诚实失败。
 

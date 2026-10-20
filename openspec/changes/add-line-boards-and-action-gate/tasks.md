@@ -6,7 +6,7 @@
 - [x] 1.4 审批过期扫描：24h 未处理置 `expired` 且不执行；单测用可注入时钟验证 fail-closed（生产活体探针抓出 ISO/epoch 比较缺陷，910a739e 修复）
 - [x] 1.5 preflight：`target=cloud` 要求 `wanxing-deployer` 已连接，`target=desktop:<seat>` 要求机位已配对且在线且不要求计费键；单测覆盖两条路径与失败指引
 - [ ] 1.6 审计与通知接线：执行成功/失败写审计并通过 `bot_notify` 发审批请求；单测验证通知只在 pending 时发一次 —— **审计已做；`bot_notify` 审批通知未做**（publish 档 approve 后停留 `approved`，无异步审批流）。**DEFERRED** → 后续 change「async 档审批通知」
-- [x] 1.7 执行器接通谦面/萬星（2026-10-21 收尾，design D11）：`lib/action-executor.js` 凭据按「动作 ref → 线固定 ref → 宿主服务器目录声明」解析并经 `credential-refs` 调度表取 token / 置失效；注册表八条 facet/wanxing 动作显式声明 `server`；preflight `requireExecutionCredential` 在目录冷或未连接时拦截并给连接卡深链；HTTP 层与工具层 401 同等置失效；修 `getMarketEntries()` 对象形状误读；`scripts/test-action-executor-refs.mjs` 15 条（含突变验证：去掉置失效即 3 红）
+- [x] 1.7 执行器接通谦面/萬星（2026-10-21 收尾，design D11；萬星四条显式钉 wanxing-caller，防误伤 registry 凭据）：`lib/action-executor.js` 凭据按「动作 ref → 线固定 ref → 宿主服务器目录声明」解析并经 `credential-refs` 调度表取 token / 置失效；注册表八条 facet/wanxing 动作显式声明 `server`；preflight `requireExecutionCredential` 在目录冷或未连接时拦截并给连接卡深链；HTTP 层与工具层 401 同等置失效；修 `getMarketEntries()` 对象形状误读；`scripts/test-action-executor-refs.mjs` 15 条（含突变验证：去掉置失效即 3 红）
 
 ## 2. 平台内置 propose_action
 
@@ -16,8 +16,8 @@
 
 ## 3. 线看板
 
-- [x] 3.1 定义 `BoardAdapter` 接口并实现谦面适配器（我的包列表、安装/回合指标、最近版本时间线），用 facet-market 凭据直读；契约测试对真实响应形状断言
-- [x] 3.2 实现萬星适配器（舰队卡片、任务/成本指标、最近事件时间线），用 wanxing 平台令牌直读；契约测试对真实响应形状断言
+- [ ] 3.1 定义 `BoardAdapter` 接口并实现谦面适配器（我的包列表、安装/回合指标、最近版本时间线），用 facet-market 凭据直读；契约测试对真实响应形状断言 —— **接口已定义；谦面适配器仍是占位块（TODO 真 REST）**，真适配器待做（姊妹 change 8.4 决策「两 change 均不归档」的依据之一）
+- [ ] 3.2 实现萬星适配器（舰队卡片、任务/成本指标、最近事件时间线），用 wanxing 平台令牌直读；契约测试对真实响应形状断言 —— **仍是占位块（TODO 真 REST）**，真适配器待做
 - [x] 3.3 实现 `GET /api/boards/:line`：一次返回块元数据与数据，每块独立错误信封；未知 line 返回诚实降级；单测覆盖单块失败不影响整页
 - [x] 3.4 前端新增 `/boards/:line` 路由与块渲染器（指标/列表/时间线），未连接时渲染去连接入口；e2e 覆盖打开看板、单块失败降级、未知 line 降级
 - [x] 3.5 看板行内动作接到 `/api/actions/propose`，写类走确认对话框、破坏性展示影响面；e2e 验证未确认不调用底层

@@ -5,13 +5,13 @@
 
 import Database from "better-sqlite3";
 import path from "node:path";
-import { storeDir } from "../paths.js";
+import fs from "node:fs";
+import { storeDir } from "../../paths.js";
 
 export function createClusterDatabase({ file }) {
   const dbPath = file || path.join(storeDir("data"), "clusters.db");
   
   // Ensure directory exists
-  const fs = await import("node:fs");
   const dir = path.dirname(dbPath);
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });

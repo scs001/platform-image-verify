@@ -999,3 +999,38 @@ cwd 解析），不是 deployment-global —— 符合 cell 隔离模型；跨 c
 **回滚**：GitOps 三清单改回 `sha-73c912d`（platform）/ `sha-6be8400`（platform-demo）/
 `sha-d1c1cb3`（facet）→ ArgoCD hard-refresh。集群 API 为纯新增面，回滚不影响既有功能；
 cell 内的 `clusters.db` 留在卷上不阻塞回滚。
+
+---
+
+## §12 发布记录：MCP 工具面治理（pack-tool-declaration-gate + full-mode-tool-scope，2026-10-20 上线，sha-b7752cf）
+
+| 项 | 值 |
+|---|---|
+| 生产镜像 | `ccr.../yizuo/platform:sha-b7752cf`（digest `1d563371`；≙ paas `620dbadc`，含两 change 代码） |
+| 部署 | platform / platform-demo / facet 三处同镜像；pod 于 2026-10-20T09:36Z 前后重启 |
+| A 开关 | `platform-config`：`PACK_TOOL_FACE_GATE=enforce`（facet 进程内已读到） |
+| B 开关 | `platform-config`：`FULL_MODE_TOOL_SCOPE=on`（platform 进程内已读到） |
+| 归档 | `openspec/changes/archive/2026-10-20-pack-tool-declaration-gate`、`.../2026-10-20-full-mode-tool-scope`（各含 `measurements.md`） |
+
+**A 端到端判词**（`/api/packs/validate`，与发布共用 `collectPublishVerdict`，不落数据）：
+未声明的 `mcpServers` 引用 → `valid:false` + `toolFace:true` + 两种修法；同一引用标
+`fullSurface:true` + 理由 → `valid:true`。
+
+**B 物化实证**：cell `1da519d4c1c0bf89` 的 `dsh/profiles/platform/tool-filter.json` 于 09:36:29 写出
+`{"airegistry-tools":5,"facet-market-mcp":5}`；其余 cell 为 `{"mcpTools":{}}`——所装 pack 仍是回填前
+版本，安全阀按全量处理，无 `{server: []}`。
+
+**两项生产事实（对后续运营重要）**：
+1. 在架 50 个带 MCP 引用的最新版里 **12 个仍无声明**（`数据-股票` v3、`数据-中国经济` v3、两个旧 id
+   的柏讯包、`法律-合同`/`法律-案件`、`萬星`、5 个「物化验证」测试包）；下一次发版会被 400 挡下，
+   安装与已发布版本不受影响。
+2. 9 个 cell 的 **41 条已装引用里 30 条落后于最新发布版本**——回填重发不追溯已装快照，用户升级后
+   并集才生效。升级完成后估算：cell `3fdc7b8e8ac03b68` ≈60k token/轮、`1da519d4c1c0bf89` ≈72k。
+
+**未做/未满**：A 5.1 `warn` 观察窗（开关在核实前已被 `kubectl-patch` 翻到 enforce，无 warn 日志；
+替代依据=回填前预检全绿）；B 5.2 `--turn-trace`（需在真实用户 cell 发消息，未做；改为工具数 ×
+实测 schema token 比例估算）；B 5.3 默认值翻转（观察窗未满一周，代码默认仍 `off`）。
+
+**回滚**：A 改 `PACK_TOOL_FACE_GATE=warn|off`；B 改 `FULL_MODE_TOOL_SCOPE=off`，改 `platform-config`
+后重启 pod 生效（逐请求/逐合成读取，无数据迁移）。新列 `user_presets.mcp_tools` 与新键
+`toolScope.fullSurface` 对旧代码惰性。

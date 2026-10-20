@@ -174,17 +174,36 @@ MARKET_REGISTRY_TOKEN=<fresh> REGISTRY_URL=https://mcp.finddatatech.cloud \
 
 ---
 
-## 8. 上线顺序（建议）
+## 8. 上线状态（2026-10-20 已执行）
 
-```
-作者仓 22 套发完（32 套全带声明）
-        │
-        ├─ A：facet 换新镜像 → PACK_TOOL_FACE_GATE=enforce
-        │      （facet Recreate，短暂中断；先避峰）
-        │
-        └─ B：FULL_MODE_TOOL_SCOPE=on（cell 镜像已含）→ probe-pack-scope 前后对比
-               → 观察一周 → 翻默认值 → measurements.md
-```
+生产环境 fd-prod（kube context `cheap`），镜像 `sha-b7752cf` / digest `1d563371`（≙ paas `620dbadc`，
+含 A+B），platform / facet / platform-demo 三个部署同镜像。
 
-- 回滚：A `PACK_TOOL_FACE_GATE=off`；B `FULL_MODE_TOOL_SCOPE=off`（均逐请求/逐合成读取）。
-- `PACK_TOOL_FACE_GATE` 当前保持 `warn`，未切 enforce。
+| 项 | 状态 | 证据 |
+|---|---|---|
+| A 发布门 | **`enforce` 已生效** | `platform-config` 的 `PACK_TOOL_FACE_GATE=enforce`，platform 与 facet 进程内 `printenv` 一致 |
+| A 端到端判词 | **通过** | `/api/packs/validate`：未声明 → `toolFace: true` + 两种修法；`fullSurface`+理由 → `valid: true` |
+| B full 模式并集 | **`on` 已生效** | cell `1da519d4c1c0bf89` 的 `tool-filter.json` 09:36:29 写出 `{airegistry-tools:5, facet-market-mcp:5}` |
+| B 安全阀 | **按设计** | 未声明引用（`数据-股票` 等旧版本）对应 server 保持全量，无 `{server: []}` |
+| 测量记录 | 已落盘 | A / B 各自归档目录下的 `measurements.md` |
+
+**enforce 的暴露面**：在架 50 个带 MCP 引用的最新版里 **12 个仍无声明**（`数据-股票` v3、
+`数据-中国经济` v3、两个旧 id 的柏讯包、`法律-合同`/`法律-案件`、`萬星`、5 个「物化验证」测试包）。
+它们下一次发版会被 400 挡下，直到补声明或标 `fullSurface`；安装与已发布版本不受影响。
+
+**B 的收益前置**：9 个 cell 共 41 条已装引用里 **30 条落后于最新发布版本**——回填并重发不会追溯
+改变已装快照，用户升级后才吃到并集。升级完成后的估算：cell `3fdc7b8e8ac03b68` ≈60k token/轮，
+cell `1da519d4c1c0bf89` ≈72k token/轮（`measurements.md` §3）。
+
+**未做/未满**：
+- A 5.1 的 `warn` 观察窗：核实生产时开关已被翻到 `enforce`（`kubectl-patch` 09:35:43Z），无 warn 日志；
+  替代依据是回填前预检全绿（34 份 / 11 server / faceViolations=0 / unresolved=0）。
+- B 5.2 的 `--turn-trace`：需在真实用户 cell 发两轮对话，未在他人 cell 上执行；以工具数 × 实测
+  schema token 比例估算。
+- B 5.3 的默认值翻转：观察窗未满一周，代码默认仍是 `off`，生产靠 env 开启。
+
+- 回滚：A `PACK_TOOL_FACE_GATE=warn|off`；B `FULL_MODE_TOOL_SCOPE=off`（均逐请求/逐合成读取，
+  改 `platform-config` 后重启 pod 生效）。
+- 观察项：用户报「工具不见了」→ 先看该 cell 的 `tool-filter.json` 与已装版本；单 server 可用
+  设置 → MCP 的「完整工具面」开关立即恢复。
+

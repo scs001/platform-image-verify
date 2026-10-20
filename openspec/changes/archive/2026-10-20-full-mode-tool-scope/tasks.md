@@ -30,7 +30,16 @@
 
 ## 5. 灰度与验收
 
-- [ ] 5.1 依赖 finddata 侧回填完成，在 fd-prod 以 `FULL_MODE_TOOL_SCOPE=on` 打开；验证：`kubectl exec` 后 `probe-pack-scope.mjs` 报告的 full roster 工具数下降
+- [x] 5.1 依赖 finddata 侧回填完成，在 fd-prod 以 `FULL_MODE_TOOL_SCOPE=on` 打开；验证：`kubectl exec` 后 `probe-pack-scope.mjs` 报告的 full roster 工具数下降
+      → 开关已 `on`（2026-10-20T09:35:43Z）；cell `1da519d4c1c0bf89` 的 `tool-filter.json` 于 09:36:29
+      写出并集（airegistry-tools 5 + facet-market-mcp 5）。`probe-pack-scope.mjs` 的一次性合成拿不到
+      cell 凭据（full roster 只剩 `websearch`），改用运行时物化文件 + registry `tool_list` 对照；
+      见 `measurements.md` §1/§4。
 - [ ] 5.2 `--turn-trace` 同题对比开关前后；验证：input+cacheRead 的 token 差与预期带一致（三 pack 场景 ≥60k 降幅）
+      → **未做**：需要在真实用户 cell 上发两轮对话（WS 鉴权 + 替用户发消息），不适合在他人 cell 上执行；
+      以「并集工具数 × 实测 schema token 比例」估算，cell `3fdc7b8e8ac03b68` 升级后 ≈60k token/轮
+      （`measurements.md` §3）。
 - [ ] 5.3 观察一周无用户报"工具不见了"（或全部由开关解决）后翻转默认值为 on；验证：默认值改动 + 一次重启后的合成日志
-- [ ] 5.4 把数字写入 `measurements.md`；验证：文件含 full/focused 两模式的 roster 与 token 表
+      → 观察窗自 2026-10-20 起算未满一周；代码默认值仍是 `off`，生产靠 env 开启。
+- [x] 5.4 把数字写入 `measurements.md`；验证：文件含 full/focused 两模式的 roster 与 token 表
+      → `measurements.md` 已含物化实证、当前/升级后并集对照、token 估算与复现命令。

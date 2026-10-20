@@ -81,6 +81,7 @@ function StripMenu({
   pending,
   disabled,
   testId,
+  className,
   children,
 }: {
   label: string;
@@ -90,6 +91,10 @@ function StripMenu({
   pending?: boolean;
   disabled?: boolean;
   testId: string;
+  // Layout hook for the trigger's wrapper (e.g. max-md:hidden — the copilot
+  // dock's 418px iframe and phone viewports cannot fit every menu; secondary
+  // configuration yields its slot to the send control).
+  className?: string;
   children: (close: () => void) => React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -112,7 +117,7 @@ function StripMenu({
   }, [open]);
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className={cn("relative", className)}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -524,6 +529,10 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
             title={t("composer.strip.websearchHint")}
             className={cn(
               "flex h-7 items-center gap-1 rounded-md px-2 text-[11px] transition-colors",
+              // Narrow viewports (copilot dock iframe, phones) cannot fit the
+              // full strip — the send control wins the slot (copilot-dock
+              // overflow fix 2026-10-21).
+              "max-md:hidden",
               websearchEnabled
                 ? "bg-primary/15 text-primary"
                 : "text-muted-foreground hover:bg-muted hover:text-foreground",
@@ -542,7 +551,7 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
           <span
             data-testid="strip-context-meter"
             title={t("composer.strip.ctxHint", { tokens: ctxTokens.toLocaleString(), window: contextWindow.toLocaleString() })}
-            className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] text-muted-foreground"
+            className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] text-muted-foreground max-md:hidden"
           >
             <span className="relative inline-block h-1.5 w-10 overflow-hidden rounded-full bg-muted">
               <span
@@ -628,6 +637,7 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
             pending={pendingConfig === "effort"}
             disabled={disabled}
             testId="strip-effort"
+            className="max-md:hidden"
           >
             {(close) => (
               <div className="py-1">

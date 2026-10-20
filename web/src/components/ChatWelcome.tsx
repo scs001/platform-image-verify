@@ -105,9 +105,15 @@ export function ChatWelcome({ onPrefill, send }: Props) {
   return (
     <div
       data-testid="chat-welcome"
-      className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-10"
+      className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-4 py-10"
     >
-      <div className="mx-auto flex w-full max-w-4xl flex-col gap-8">
+      {/* my-auto, not justify-center: an overflowing flex-centered child splits
+          the overflow above AND below, and scrollTop cannot go negative — the
+          top of the content becomes permanently unreachable (the copilot
+          dock's short iframe hid the greeting's first row). Margin auto
+          centers only while the content fits and collapses to top-aligned
+          (fully scrollable) when it does not. */}
+      <div className="mx-auto my-auto flex w-full max-w-4xl flex-col gap-8">
         {/* Greeting */}
         <h1 className="text-2xl font-semibold text-foreground">
           {t("chat.welcome.greeting")}

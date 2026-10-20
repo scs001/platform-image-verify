@@ -53,7 +53,15 @@
     "connect": "Connecter",
     "connecting": "Connexion…",
     "loadFailed": "Échec du chargement du catalogue : {{error}}",
-    "myClusters": "Mes clusters"
+    "myClusters": "Mes clusters",
+    "clustersEmpty": "Aucun cluster — utilisez « + Créer un cluster » pour regrouper des agents.",
+    "clusterDetail": "Détails du cluster",
+    "clusterAgents": "Agents du cluster",
+    "clusterStatus": "Statut",
+    "clusterCreated": "Créé",
+    "clusterTerminate": "Dissoudre le cluster",
+    "clusterTerminateHint": "La dissolution arrête le cluster ; les agents et packs restent installés.",
+    "close": "Fermer"
   },
   "sidebar": {
     "brand": "{{brand}}",

@@ -53,7 +53,15 @@
     "connect": "连接",
     "connecting": "连接中…",
     "loadFailed": "加载目录失败：{{error}}",
-    "myClusters": "我的集群"
+    "myClusters": "我的集群",
+    "clustersEmpty": "还没有集群 —— 点右上「+ 创建集群」把多个角色编成一组。",
+    "clusterDetail": "集群详情",
+    "clusterAgents": "集群内的角色",
+    "clusterStatus": "状态",
+    "clusterCreated": "创建时间",
+    "clusterTerminate": "解散集群",
+    "clusterTerminateHint": "解散后集群停止；已安装的角色和功能集不受影响。",
+    "close": "关闭"
   },
   "sidebar": {
     "brand": "{{brand}}",

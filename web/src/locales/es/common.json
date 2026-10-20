@@ -53,7 +53,15 @@
     "connect": "Conectar",
     "connecting": "Conectando…",
     "loadFailed": "Error al cargar el catálogo: {{error}}",
-    "myClusters": "Mis clústeres"
+    "myClusters": "Mis clústeres",
+    "clustersEmpty": "Aún no hay clústeres — usa \"+ Crear clúster\" para agrupar agentes en un equipo.",
+    "clusterDetail": "Detalles del clúster",
+    "clusterAgents": "Agentes del clúster",
+    "clusterStatus": "Estado",
+    "clusterCreated": "Creado",
+    "clusterTerminate": "Terminar clúster",
+    "clusterTerminateHint": "Terminar detiene el clúster; los agentes y paquetes siguen instalados.",
+    "close": "Cerrar"
   },
   "sidebar": {
     "brand": "{{brand}}",

@@ -53,7 +53,15 @@
     "connect": "Connect",
     "connecting": "Connecting…",
     "loadFailed": "Failed to load catalog: {{error}}",
-    "myClusters": "My Clusters"
+    "myClusters": "My Clusters",
+    "clustersEmpty": "No clusters yet — use \"+ Create Cluster\" to group agents into a team.",
+    "clusterDetail": "Cluster details",
+    "clusterAgents": "Agents in this cluster",
+    "clusterStatus": "Status",
+    "clusterCreated": "Created",
+    "clusterTerminate": "Terminate cluster",
+    "clusterTerminateHint": "Terminating stops the cluster; agents and packs stay installed.",
+    "close": "Close"
   },
   "sidebar": {
     "brand": "{{brand}}",

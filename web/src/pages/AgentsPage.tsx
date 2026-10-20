@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { CustomPresetsPage } from "@/pages/CustomPresetsPage";
 import { PacksPage } from "@/pages/PacksPage";
 import { ClusterComposerModal } from "@/components/clusters/ClusterComposerModal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { AgentInfo, AppInfo } from "@platform/core";
 
 type Tab = "agents" | "market" | "apps";
@@ -56,6 +57,17 @@ export function AgentsPage() {
   }>>([]);
   const [loadingClusters, setLoadingClusters] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
+  // Cluster detail (Manage): the summary row carries no agent list, so the full
+  // record is fetched on open. Terminate is the one lifecycle action here.
+  const [detail, setDetail] = useState<{
+    id: string;
+    name: string;
+    description?: string;
+    status: string;
+    createdAt?: number;
+    agents?: Array<{ agentId: string; packId: string; status: string }>;
+  } | null>(null);
+  const [detailBusy, setDetailBusy] = useState(false);
   
   const loadUserClusters = async () => {
     setLoadingClusters(true);
@@ -105,6 +117,29 @@ export function AgentsPage() {
   const tabParam = searchParams.get("tab");
   const activeTab: Tab =
     tabParam && visibleTabs.some((tab) => tab.slug === tabParam) ? (tabParam as Tab) : ((visibleTabs[0]?.slug ?? "agents") as Tab);
+
+  const openClusterDetail = async (clusterId: string) => {
+    try {
+      const r = await fetch(`/api/clusters/${encodeURIComponent(clusterId)}`);
+      if (!r.ok) return;
+      setDetail(await r.json());
+    } catch {
+      /* detail is best-effort; the list stays usable */
+    }
+  };
+
+  const terminateCluster = async (clusterId: string) => {
+    setDetailBusy(true);
+    try {
+      const r = await fetch(`/api/clusters/${encodeURIComponent(clusterId)}`, { method: "DELETE" });
+      if (r.ok) {
+        setDetail(null);
+        void loadUserClusters();
+      }
+    } finally {
+      setDetailBusy(false);
+    }
+  };
 
   // Dynamic clusters (agent-cluster-platform): load once per tab entry. Declared
   // AFTER activeTab — referencing it earlier is a TDZ crash that unmounts the tree.
@@ -264,14 +299,14 @@ export function AgentsPage() {
                     <ClusterCard
                       key={cluster.id}
                       cluster={cluster}
-                      onManage={() => setComposerOpen(true)}
+                      onManage={() => void openClusterDetail(cluster.id)}
                     />
                   ))}
                 </div>
               ) : (
                 !loadingClusters && (
                   <p className="text-xs text-muted-foreground" data-testid="clusters-empty">
-                    {t("clusters.composer.noAgents")}
+                    {t("agentsPage.clustersEmpty")}
                   </p>
                 )
               )}
@@ -300,6 +335,74 @@ export function AgentsPage() {
                 void loadUserClusters();
               }}
             />
+
+            {/* Cluster detail (Manage): what is in this cluster, and the one
+                lifecycle action — terminate. Agents and packs stay installed. */}
+            <Dialog open={Boolean(detail)} onOpenChange={(o) => !o && setDetail(null)}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>{detail?.name || t("agentsPage.clusterDetail")}</DialogTitle>
+                </DialogHeader>
+                {detail && (
+                  <div className="space-y-3 text-sm" data-testid="cluster-detail">
+                    {detail.description && (
+                      <p className="text-muted-foreground">{detail.description}</p>
+                    )}
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      <span>
+                        {t("agentsPage.clusterStatus")}: <b className="text-foreground">{detail.status}</b>
+                      </span>
+                      <span>
+                        {t("packs.detail.cluster.agentCount", { count: detail.agents?.length ?? 0 })}
+                      </span>
+                      {detail.createdAt && (
+                        <span>
+                          {t("agentsPage.clusterCreated")}:{" "}
+                          {new Date(detail.createdAt).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <p className="mb-1 text-xs font-medium text-muted-foreground">
+                        {t("agentsPage.clusterAgents")}
+                      </p>
+                      <ul className="space-y-1">
+                        {(detail.agents ?? []).map((a) => (
+                          <li key={a.agentId} className="flex items-center gap-2 text-xs">
+                            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                            <span className="font-mono">{a.agentId}</span>
+                            <span className="text-muted-foreground">({a.status})</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="border-t border-border pt-3">
+                      <p className="mb-2 text-[11px] text-muted-foreground">
+                        {t("agentsPage.clusterTerminateHint")}
+                      </p>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setDetail(null)}
+                          className="rounded-md border border-border px-3 py-1 text-xs hover:bg-muted"
+                        >
+                          {t("agentsPage.close")}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={detailBusy}
+                          onClick={() => void terminateCluster(detail.id)}
+                          data-testid="cluster-terminate-btn"
+                          className="rounded-md bg-red-600 px-3 py-1 text-xs text-white hover:bg-red-700 disabled:opacity-50"
+                        >
+                          {t("agentsPage.clusterTerminate")}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
           </section>
         )}
 

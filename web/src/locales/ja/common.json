@@ -53,7 +53,15 @@
     "connect": "接続",
     "connecting": "接続中…",
     "loadFailed": "カタログの読み込みに失敗しました: {{error}}",
-    "myClusters": "マイクラスター"
+    "myClusters": "マイクラスター",
+    "clustersEmpty": "クラスターはまだありません — 「+ クラスターを作成」でエージェントをまとめられます。",
+    "clusterDetail": "クラスター詳細",
+    "clusterAgents": "このクラスターのエージェント",
+    "clusterStatus": "ステータス",
+    "clusterCreated": "作成日時",
+    "clusterTerminate": "クラスターを解散",
+    "clusterTerminateHint": "解散するとクラスターは停止します。エージェントとパックは残ります。",
+    "close": "閉じる"
   },
   "sidebar": {
     "brand": "{{brand}}",

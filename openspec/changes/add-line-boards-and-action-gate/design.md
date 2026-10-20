@@ -162,6 +162,8 @@ preflight 用同一解析（`requireExecutionCredential`）：目录冷、或用
 
 ## Open Questions
 
+- **dock/embed 未传 preset（2026-10-21 真机发现③，待后续 change）**：dock 只带 `board=` 不带 `preset=`，会话跑用户默认预设=全工具面；模型面对同一写操作有直写工具与 propose_action 两条路时选择了前者，闸（确认/审计）被整体绕过。D6 的 `preset=<copilotPreset>` 参数已在设计中但未接线——修复方向：dock 按线注入聚焦 pack 预设（读工具 + propose_action），使「副驾=闸内」成为默认而非约定。
+
 - 副驾 dock 是否在实测后从 iframe 提升为原生 dock（取决于焦点与滚动体验）。
 - 移动端审批是否需要（当前审批只在 cell 内；若要手机批，需要一条 cell 审批 API + MP 页面）。
 - 风险声明何时迁到 `tool-surface.json` 并让注册表退化为缓存。

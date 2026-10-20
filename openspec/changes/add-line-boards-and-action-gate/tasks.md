@@ -45,10 +45,10 @@
 
 - [x] 7.1 编写并发布 `谦面助手` pack（facet-market 读工具 + facet-ops 读工具 + 建包/发布 playbook），先发 private；发布门 lint 验证白名单不含写工具（实发 public v1 `qCEIutJzQd49jnDtV4qeqw`，经 cell 设备 token 直调市场 MCP，未走配对）
 - [x] 7.2 编写并发布 `萬星舰队助手` pack（agents_browse / agent_card / callers_list + 巡检 playbook），先发 private；验证不含 `wanxing_agent_turn` 与 pause/resume（实发 public v1 `INdsRWpgpp2Q03I0z3XoFA`；registry 快照 tool_list 回填 7 条后过门）
-- [ ] 7.3 在验收 cell 安装两个 pack，探针验证会话可见工具面只含读工具 + `propose_action`，且一次读回合与一次提议回合都成功
+- [ ] 7.3 在验收 cell 安装两个 pack，探针验证会话可见工具面只含读工具 + `propose_action`，且一次读回合与一次提议回合都成功 —— **未装包**；2026-10-21 真机走查补验：闸全链（propose→approve→executed→审计→市场回包）已用真实身份在生产 cell 打穿，但**发现③：dock/embed 未传 preset，默认预设全工具面下模型直调 facet_market_pack_visibility 绕过闸**（D2 边界的真机现身）——dock 预设收窄列为后续 change
 
 ## 8. 验收与回滚
 
 - [x] 8.1 跑单测、typecheck、`web:build` 与 e2e 相关 spec，全绿（2026-10-21：test:unit 1706/1706、biome 零错、check:locales 5/5、web:build 绿；typecheck 的 7 个错误全在 `PackDetailDialog.tsx`，源自并行 change agent-cluster-platform 的 bf3f5916，非本 change）
-- [ ] 8.2 真机验收：打开看板不产生模型回合与 token；写动作行内确认；破坏性动作展示影响面；publish 进审批队列且 24h 过期拒绝；桌面部署不需要计费键；审计台账可检索
+- [ ] 8.2 真机验收：打开看板不产生模型回合与 token；写动作行内确认；破坏性动作展示影响面；publish 进审批队列且 24h 过期拒绝；桌面部署不需要计费键；审计台账可检索 —— **部分完成（2026-10-21 真机）**：看板打开 ✓（stub 数据如实呈现）、闸链 propose→approve→executed ✓（生产 cell、真实身份、166ms、审计含摘要与服务器、无凭据）、审计可检索 ✓；**未验**：UI 确认卡点击（走查环境输入管线不稳）与破坏性/异步档；另抓两窄口布局缺陷已修上产（sha-848d733：composer max-md 隐藏次要项、ChatWelcome my-auto）
 - [x] 8.3 回滚演练：关闭 `LINE_BOARDS_ENABLED` / `COPILOT_ENABLED` 后入口消失、主对话与既有页面零变化；表与工具留存无副作用（两杆语义单测钉死：boards 为 opt-in、copilot 为杀开关；生产清单显式 `LINE_BOARDS_ENABLED=1`）

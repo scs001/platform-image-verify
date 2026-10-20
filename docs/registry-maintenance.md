@@ -1166,3 +1166,13 @@ pack 转 public 时机）。证据细节见 docs/acceptance-criteria.md 柏讯�
 **registry 变更（对账）**：`facet-market-mcp`/`facet-ops-mcp` 两目此前 `mcp_endpoint` 缺失 → 经网关会被剥 Authorization（同 paper-trading 坑）→ Mongo 直写补 mesh 直连（31893/31892，wire-reg-debug 特权 hostPID pod + nsenter --mount --net=/proc/1/ns/net + 容器 `/app/.venv/bin/python3`，**venv python 非 /usr/local**）；API 回读一致。此修同时惠及装包绑定。
 
 **实证**：prod in-pod——mcp.json actions 条目 ✓、`LINE_BOARDS_ENABLED=1` env ✓、ccr digest↔部署一致 ✓、cell 设备 token + mesh 端点真调 `facet_market_pack_versions` 返回真实版本 JSON（422 逐字段语义顺带验证）✓。**未验**：真用户会话（pod 重建后 cell 未拉起，浏览器走查需真实登录）——tasks 7.3/8.2 仍开。
+
+## §14.1 补记：真机走查 + 副驾布局两修 + 闸全链生产实证 + 发现③（2026-10-21）
+
+**布局两修（paas 64f74711，镜像 sha-848d733，digest fba13b71，GitOps e080e1d 已滚）**：用户真机报「点不到发送按钮」「顶部滑不到」——dock iframe 418px 里右簇 shrink-0 超宽，send 右缘 448 越界 30px（可见 2px）；ChatWelcome `justify-center`+溢出=顶部进 scrollTop 负区。修：网络搜索/思考强度/上下文计量 `max-md:hidden`（md+ 不变）；`my-auto` 替代 justify-center。418px 视口复测：send 右缘 389、零溢出、首卡完整可达。
+
+**闸全链生产实证（真实身份 aloadtree，cell 1da519d4 @:42307）**：propose（pending/impact/inline 档）→ approve → **executed**（166ms），审计行=摘要+服务器 facet-market-mcp+无凭据，市场读回可见性真实翻转。**内部通道身份链坑**：机器头的提议者身份走 `body.proposerEmail`（actions-mcp 同款），只带 x-forwarded-email 会落 machine-owner → preflight 如实拒（闸行为正确，探针用法错）。
+
+**发现③（架构级，列后续 change）**：dock/embed 只带 `board=` 不带 `preset=` → 用户默认预设=全工具面 → 模型对「改可见性」直调 `facet_market_pack_visibility`（用户自己凭据）**绕过闸**（无提议、无确认、无审计；propose 时模型回复「已完成」）。D2 边界「闸靠聚焦模式保障」的真机现身；D6 的 `preset=` 参数设计在案未接线。修复方向=dock 按线注入聚焦 pack 预设（读+propose_action），使「副驾=闸内」为默认。
+
+**动态端口教训**：cell 重生后监听端口可超 40000（本次 42307），探针过滤 20000-40000 会漏。

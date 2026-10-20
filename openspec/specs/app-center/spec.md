@@ -27,7 +27,7 @@
 
 网格顺序 SHALL 为品牌序（壹座 → 谦面 → 萬星 → 识律 → 柏讯），每张品牌卡之后紧随其归属的产品卡；无法归属的产品卡排在末尾。平台自身（壹座）SHALL 以锚点卡呈现「你正在这里」，不带外链。页面 SHALL 不再出现「产品线」「平台应用」两个分区标题（CONTEXT.md「生态产品」词条的 Avoid 用词）。
 
-「打开」动作：外链产品在新标签打开其自有域名；`external-service` 且未禁用内嵌的产品进入平台内嵌页；平台自身无「打开」。
+动作区：已接入线看板的产品（谦面、萬星）SHALL 以「看板」为主行动，进入 `/boards/<line>`，并 SHALL 保留「打开原站」为次要动作，在新标签打开其自有域名。未接入线看板的外链产品 SHALL 在新标签打开其自有域名；`external-service` 且未禁用内嵌的产品 SHALL 进入平台内嵌页；平台自身无「打开」。
 
 #### Scenario: 单一网格渲染全部卡
 
@@ -44,10 +44,17 @@
 - **WHEN** 单一网格渲染完成
 - **THEN** `yizuo` 卡显示「你正在这里」（testid `app-card-yizuo-self`），不渲染 `app-card-yizuo-open`
 
+#### Scenario: 已接入看板的线以看板为主行动
+
+- **WHEN** 用户点击 `facet` 或 `wanxing` 卡的「看板」（testid `app-card-{id}-board`）
+- **THEN** 路由到 `/boards/facet` 或 `/boards/wanxing`
+- **WHEN** 同一张卡渲染完成
+- **THEN** 同时渲染「打开原站」次要动作（testid `app-card-{id}-open`），点击后在新标签打开该产品自有域名
+
 #### Scenario: 直达外链与内嵌页
 
-- **WHEN** 用户点击 `facet` / `wanxing` / `lex` / `wire` / `yizuo-packs` / `wanxing-connector` 卡的「打开」
-- **THEN** 在新标签打开该产品自有域名（`https://facet.finddatatech.cloud`、`https://wanxing.finddatatech.cloud`、`https://lex.finddatatech.cloud`、`https://wire.finddatatech.cloud`、目录条目的 `url`）
+- **WHEN** 用户点击 `lex` / `wire` / `yizuo-packs` / `wanxing-connector` 卡的「打开」
+- **THEN** 在新标签打开该产品自有域名（`https://lex.finddatatech.cloud`、`https://wire.finddatatech.cloud`、目录条目的 `url`）
 - **WHEN** 用户点击 `wanxing-token`（`external-service`，未禁用内嵌）卡的「打开」
 - **THEN** 路由到 `/external/wanxing-token`
 

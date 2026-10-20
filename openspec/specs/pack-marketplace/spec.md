@@ -113,6 +113,7 @@ The detail view SHALL offer a version-history disclosure: an on-demand, lazily l
 
 - **WHEN** a viewer opens the version-history disclosure of any pack
 - **THEN** the rows offer inspection links only, with no install action for a non-latest version
+
 ### Requirement: Manifest validation and limits
 
 The publish endpoint SHALL validate the manifest shape and reject invalid publishes with a machine-readable reason: skill entries SHALL have well-formed unique names and bounded content; a skill entry MAY carry an auxiliary file set (relative path to text content) and a stored frontmatter object, admitted under the platform's package contract — paths that escape the skill directory, non-text file kinds, file names colliding with the rendered skill document under case-insensitive filesystems, an auxiliary file beyond the per-file bound, or an aggregate beyond the per-skill bound (file count or total size) are each rejected naming the offending entry; MCP entries SHALL be registry-name references only (any endpoint URL or command config SHALL be rejected); agent entries SHALL be persona-only (any endpoint, model, or credential reference SHALL be rejected) and their ids SHALL NOT fall under the `user.` prefix (reserved for the cell's custom presets — openspec: custom-presets); an agent entry's resource declaration SHALL name only skills and MCP references that the same manifest declares, with no duplicated names within one declaration (violations SHALL be rejected naming the role and entry); the manifest as a whole SHALL stay within per-pack size and count limits. A manifest MAY carry an optional top-level `notes` field — a string of at most 500 characters serving as the human-readable version note; a `notes` value that is not a string or exceeds the limit SHALL be rejected with a reason naming the field. Once published, the note is part of the immutable version (openspec: pack-marketplace, Published versions are immutable). The cell's install path SHALL enforce the same rules on the manifest it receives.
@@ -181,6 +182,7 @@ The publish endpoint SHALL validate the manifest shape and reject invalid publis
 
 - **WHEN** a publish carries no `notes` field
 - **THEN** the publish proceeds exactly as before, and the version renders with no note
+
 ### Requirement: Publish abuse controls
 
 The publish endpoint SHALL apply per-author rate limiting and a request payload cap. Rejected or throttled publishes SHALL store nothing.
@@ -509,3 +511,24 @@ The facet service SHALL expose a manifest validation endpoint that accepts the s
 
 - **WHEN** an unauthenticated request hits the validation endpoint
 - **THEN** it is rejected with the same authentication failure as the other pack write endpoints
+
+### Requirement: The detail view discloses each MCP reference's tool face
+
+The pack detail view SHALL render, for every MCP reference of the published version, the tool face the pack actually mounts: for an allowlisted reference, the declared tool count against the server's catalog-served total (for example "6 / 161 工具"); for a `fullSurface` reference, the server's full tool count together with the author's stated reason. A version published before the explicit-declaration gate — carrying neither — SHALL render as the full surface, marked as undeclared.
+
+The disclosure SHALL be derived from the immutable version manifest plus the catalog's `tool_list`; it SHALL NOT require a live call to the server.
+
+#### Scenario: Allowlisted reference shows declared versus total
+
+- **WHEN** a user opens the detail view of a pack whose `fd-daas-mcp` reference declares 5 tools
+- **THEN** the view shows 5 against the catalog's total for that server, and no reason line
+
+#### Scenario: Full-surface reference shows its reason
+
+- **WHEN** a pack marks `law-bench` full-surface with a reason
+- **THEN** the detail view shows the server's full tool count and the reason text
+
+#### Scenario: Legacy version renders as undeclared full surface
+
+- **WHEN** a published version predates the gate and its reference carries no declaration
+- **THEN** the view shows the full tool count marked as undeclared, and the page still renders normally

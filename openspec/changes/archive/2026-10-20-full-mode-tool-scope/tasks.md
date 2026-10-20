@@ -12,7 +12,7 @@
 - [x] 2.2 覆盖在 `deriveScope` 之后应用：从并集/聚焦映射中删除被覆盖的 server；验证：单测断言覆盖后该 server 不在 `mcpTools` 里
 - [x] 2.3 覆盖 API：`GET/PUT /api/mcp-tool-scope`（沿用现有鉴权与序列化变更路径）；验证：route 单测 + 一次真实调用
 - [x] 2.4 设置→MCP 增加"完整工具面"开关并接入 API；验证：浏览器操作后 `user_preferences` 出现/移除对应键，下次合成生效
-- [ ] 2.5 开关文案与拒绝理由呼应（guard 提示指向该开关）；验证：文案走 i18n 四语言 key，`platform-tool-scope.js` 的拒绝文案含"设置→MCP"指引
+- [x] 2.5 开关文案与拒绝理由呼应（guard 提示指向该开关）；验证：文案走 i18n 四语言 key，`platform-tool-scope.js` 的拒绝文案含"设置→MCP"指引
 
 ## 3. 自建预设工具维度
 
@@ -26,7 +26,7 @@
 
 - [x] 4.1 单测：并集、安全阀、优先级、开关 off 的逐字节等价；验证：`node scripts/test-full-mode-tool-scope.mjs` 全绿
 - [x] 4.2 集成：装两个 pack → full 模式 `tool-filter.json` 为并集 → 卸载一个 → 并集收窄 → 卸载最后一个 → 键消失；验证：脚本化断言四步的文件内容
-- [ ] 4.3 e2e（Playwright）：full 模式 roster 收窄、打开覆盖后恢复、自建预设收窄；验证：`e2e/pack-agent-scoping.spec.js` 扩三条用例通过
+- [x] 4.3 e2e（Playwright）：full 模式 roster 收窄、打开覆盖后恢复、自建预设收窄；验证：`e2e/pack-agent-scoping.spec.js` 扩三条用例通过
 
 ## 5. 灰度与验收
 

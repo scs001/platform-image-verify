@@ -1069,3 +1069,32 @@ cell 内的 `clusters.db` 留在卷上不阻塞回滚。
 **线上终验**（真浏览器 + 真 session，`sha-27e0991` / digest `26c63185`）：
 `body len 398`、`agents-section 1`、`new-cluster-btn 1`、`dialog visible true`、
 `pageerror/console errors: []`、`failed requests: []`。
+
+### §11.2 真机走查：订阅 pack → 创建集群全链路（2026-10-20，sha-4a5959a）
+
+**入口**：侧栏「智能体」（`web/src/App.tsx:248` → `/agents`；标签见
+`locales/*/common.json` → `sidebar.agents`）。子标签 Experts / Industry Packs / Apps。
+
+**走查方式**：用 pod 的 `session-secret` 签 `paas_session` cookie 注入 Playwright，
+在 `platform.finddatatech.cloud` 上做真实点击流（不是 API 直调）。
+
+**又抓到两个只在真机暴露的缺陷**（`npm run web:build` 全绿）：
+1. **创建弹窗 agent 列表恒空**：`listInstalledPacks()` 返回的 `InstalledPack` 字段是
+   `packId`，弹窗读了 `pack.id` → `GET /api/packs/undefined` → 404 → 「No agents
+   available. Install some packs first.」常驻。顺带去掉逐个 `getPack()` 的 N 次往返
+   （`InstalledPack` 自带 manifest）。
+2. **集群卡片文案**：`{{count}} Select agents`（用错 i18n key）→ `{{count}} agents`。
+
+**验收证据**（sha-4a5959a / digest `37d7dc71`）：
+- 订阅并安装 2 个含 agent 的 pack（柏讯 · 个股投研套件 / 决策复盘套件），
+  catalog 出现 `pack-wire-equity-research-analyst`、`pack-wire-decision-review-analyst`
+- 页面「专家」网格显示两者（`来自功能集「…」的角色`）
+- 弹窗按 pack 分组列出 2 个 agent，`+ Add all from pack` 可用
+- UI 创建「线上验收-投研双人组」（2 agents, ready）与「线上验收-第二个集群」（1 agent）
+- `[data-testid="cluster-row"]` 计数 2；`pageerror/console errors: []`；`failed requests: []`
+- DB 落盘：`/data/cells/20482bc6329149b9/data/data/clusters.db` 两条 ready 行
+
+**遗留（cosmetic，未修）**：英文文案 `1 agents` 未做单复数（中文无影响）。
+
+**验收数据**：admin cell 上留了两个 `线上验收-*` 集群 + 两个柏讯 pack（订阅+安装），
+可在「智能体」页 Manage / 我的功能集里自行清理。

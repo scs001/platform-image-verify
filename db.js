@@ -808,6 +808,8 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+export { nowIso };
+
 function bootstrapMigrationsTable() {
   db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (
     version INTEGER PRIMARY KEY,

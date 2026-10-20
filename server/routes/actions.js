@@ -13,7 +13,6 @@ import crypto from "node:crypto";
 import { getDb, nowIso } from "../../db.js";
 import { getAction, isRegistered, riskToTierMap } from "../../lib/action-registry.js";
 import { preflightAction } from "../../lib/action-preflight.js";
-import { normalizeIdentityEmail } from "../../db.js";
 
 /**
  * SHA256 digest of JSON stringified args (for audit, never returns raw args).
@@ -142,30 +141,30 @@ export async function approveAction(req, res) {
   if (tier !== "async") {
     try {
       resultSummary = await executeAction(proposalId);
-      // Update to executed
+      // Update to executed. resultSummary MUST be a string (SQLite bind).
       db.prepare(`
         UPDATE action_proposals SET state = 'executed', result_summary = ?, updated_at = ?
         WHERE proposal_id = ?
-      `).run(resultSummary, nowIso(), proposalId);
+      `).run(String(resultSummary), nowIso(), proposalId);
 
       // Broadcast board_changed event for the line
       if (req.ctx && req.ctx.broadcast) {
         req.ctx.broadcast({ type: "board_changed", line: row.line, resources: [row.action_id.split(".")[0]] });
       }
+      return res.json({ state: "executed", resultSummary: String(resultSummary) });
     } catch (err) {
       console.error("[actions] execution failed:", err.message);
+      // Spec: execution failure keeps the action inspectable and retryable —
+      // state 'failed' (NOT 'rejected', which means the human said no).
       db.prepare(`
-        UPDATE action_proposals SET state = 'rejected', result_summary = ?, updated_at = ?
+        UPDATE action_proposals SET state = 'failed', result_summary = ?, updated_at = ?
         WHERE proposal_id = ?
       `).run(`execution failed: ${err.message}`, nowIso(), proposalId);
       return res.status(500).json({ error: "execution failed", message: err.message });
     }
-  } else {
-    // Publish tier: wait for async approval (not implemented in v1)
-    resultSummary = "awaiting async approval";
   }
-
-  return res.json({ state: row.state === "executed" ? "executed" : "approved", resultSummary });
+  // Publish tier: wait for async approval (not implemented in v1)
+  return res.json({ state: "approved", resultSummary: "awaiting async approval" });
 }
 
 /**
@@ -227,8 +226,10 @@ export async function getActionProposal(req, res) {
 /**
  * Single execution path for all actions.
  * In v1, this calls the underlying MCP tool via loopback REST bridge.
- * TODO: move actual tool invocation to a separate service (e.g., server/actions-executor.js)
- *       so we can swap implementations without changing routes.
+ * Writes an audit row on BOTH outcomes (spec: 执行留痕 — 成功与失败都进台账).
+ * Returns a plain-string result summary (SQLite bind safety).
+ * TODO: implement actual tool invocation via the platform's loopback REST
+ * bridge (same pattern as cron-mcp / delegation-mcp).
  */
 export async function executeAction(proposalId) {
   const db = getDb();
@@ -248,16 +249,50 @@ export async function executeAction(proposalId) {
   let args;
   try {
     args = row.args_json ? JSON.parse(row.args_json) : {};
-  } catch (err) {
+  } catch {
     throw new Error("invalid args_json");
   }
 
-  // TODO: implement actual tool invocation here.
-  // For now, return a placeholder success message.
-  // In production, this should call the underlying MCP tool via the platform's
-  // loopback REST bridge (same pattern as cron-mcp / delegation-mcp).
-  console.log(`[actions/execute] executing ${action.id} with args:`, args);
-  return { success: true, message: `executed ${action.id}` };
+  const startedAt = Date.now();
+  let resultSummary;
+  let errorText = null;
+  try {
+    // v1 placeholder executor: the real invocation lands in the follow-up
+    // change that wires per-action tool calls (wanxing_agent_deploy etc.).
+    console.log(`[actions/execute] executing ${action.id} (proposal ${proposalId})`);
+    resultSummary = `executed ${action.id} (placeholder executor; ${Object.keys(args).length} arg keys)`;
+  } catch (err) {
+    errorText = err.message;
+    resultSummary = `failed: ${err.message}`;
+    throw err;
+  } finally {
+    // Audit both outcomes; never store args or secrets in the ledger.
+    try {
+      db.prepare(`
+        INSERT INTO action_audit (
+          proposal_id, line, action_id, args_digest, risk, target, impact_text,
+          executor_info, duration_ms, error_text, result_summary, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        row.proposal_id,
+        row.line,
+        row.action_id,
+        row.args_digest,
+        row.risk,
+        row.target,
+        row.impact_text,
+        "v1-placeholder-executor",
+        Date.now() - startedAt,
+        errorText,
+        resultSummary,
+        nowIso(),
+      );
+    } catch (auditErr) {
+      // Audit failure must never mask the action's own outcome.
+      console.error("[actions] audit write failed:", auditErr.message);
+    }
+  }
+  return resultSummary;
 }
 
 // Register routes

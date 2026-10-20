@@ -266,14 +266,35 @@ kubectl rollout restart deployment paas-cell
   `refreshRegistry()` → 重装 pack。已全部脚本化（`/tmp/wire-accept/*`）。
 - demo 当前活跃 profile 已切到 `agent.preset=assistant`（聚焦）——验收 cell 无碍。
 
+# prod go-live（2026-10-21 深夜，第四轮）
+
+`platform` 生产 `sha-e4e8e1f` → **`sha-eec250d`**（paas `9d87ae1d`），fd-infra-deploy
+`4763b80`。此前 `LINE_BOARDS_ENABLED=1`、`platform-mcp-config`（connector/facet-market/
+paper-trading/**wire-ops(wire-customer)**/lex-ops/wanxing-ops/**actions**）与
+`PAAS_BASE_URL` 均已在位——go-live 只差镜像。
+
+**生产真会话 E2E（aloadtree，Logto 会话直登）**：
+
+| 步骤 | 结果 |
+|---|---|
+| 连接柏讯（静默 mint） | ✓（prod 回调已在 Logto 注册；`PAAS_BASE_URL` 在位） |
+| `/boards/wire` | ✓ 四块真实数据（2 数据集 / 7 产物 / 4 需求单 / 配额 2/3） |
+| 看板行内动作（归档 #18 test） | ✓ propose → inline 确认卡 → executed → 徽章自动变 archived（board_changed 生效）；wire 侧 operator 留痕 `console:aloadtree@gmail.com` |
+| 现场还原 | ✓ #18 已 restore 回 draft |
+
+已知边界（如实）：多用户生产中，若 dsh 运行时 profile 的 owner 与发起者不同，
+行内动作提议可能瞬时报「未连接」——刷新/重进即恢复（per-user profile 按活跃
+owner 重写）；单租户场景不受影响。另：**源包订阅不在 v1 闸名单**（fd-wire 十一条
+无 pack.subscribe），用户所见「源包」页与数据集市场是两个面。
+
 ## 剩余（不阻塞本 change 归档判断）
 
 - ~~场景 6 执行段~~ 已补（第三轮深夜）：挂市场→订阅执行→撤回复原；注意 wire 的
   拥有者自订是幂等空转（`created:false`），跨客户订阅才是有订阅行的正路径（属
   fd-wire marketplace 既有验收范围）。
-- prod go-live 前置不变：`platform` 仍在 `sha-352d662`；prod `platform-mcp-config`
-  需补 `actions` 条目；prod 建议同设 `PACK_BASELINE_MCP=actions`（聚焦角色保留
-  propose_action 的显式口径，当前靠「过滤图不收窄未列 server」的语义达成）。
+- ~~prod go-live~~ 已完成（第四轮）：prod `sha-eec250d` + 真会话 E2E 全过；
+  `PACK_BASELINE_MCP=actions` 的显式口径仍建议后续补上（当前靠「过滤图不收窄
+  未列 server」的语义达成）。
 
 # 柏讯线真机验收第二轮（2026-10-21 晚，wire 客户凭据打通后）
 

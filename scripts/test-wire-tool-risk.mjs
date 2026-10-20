@@ -3,7 +3,8 @@
 //
 //   Test A (CI hard gate): every wire action in lib/action-registry.js names the
 //     tool the snapshot maps it to and carries exactly the snapshot's risk; the
-//     snapshot covers all 12 write tools; the risk→tier map is byte-identical
+//     snapshot covers all 14 write tools (12 + 源包订阅/退订,
+//     add-pack-subscribe-actions); the risk→tier map is byte-identical
 //     to fd-wire's RISK_TO_TIER.
 //   Test B (local gate): when the wire-ops-mcp / wire-build-mcp checkouts are
 //     present, their tool-surface.json `tool_risk` equals the snapshot. Skips
@@ -23,6 +24,8 @@ const EXPECTED_WIRE_ACTIONS = [
   "wire.demand.submit",
   "wire.market.subscribe",
   "wire.market.unsubscribe",
+  "wire.pack.subscribe",
+  "wire.pack.unsubscribe",
   "wire.dataset.create",
   "wire.artifact.publish",
   "wire.artifact.archive",
@@ -51,7 +54,7 @@ test("A: the eight wire actions exist, line=wire, and match the snapshot tool + 
 });
 
 test("A: snapshot covers exactly the 12 declared write tools and every action tool is one of them", () => {
-  assert.equal(snapshot.WIRE_WRITE_TOOLS.length, 12, "write-tool universe size");
+  assert.equal(snapshot.WIRE_WRITE_TOOLS.length, 14, "write-tool universe size (12 + 源包订阅/退订 add-pack-subscribe-actions)");
   assert.deepEqual(snapshot.WIRE_WRITE_TOOLS, [...snapshot.WIRE_WRITE_TOOLS].sort(), "sorted");
   for (const [action, tool] of Object.entries(snapshot.WIRE_ACTION_TOOLS)) {
     assert.ok(snapshot.isWireWriteTool(tool), `${action} → ${tool} missing from tool_risk`);
@@ -91,7 +94,7 @@ test("A: wire.demand.submit declares the two compliance fields as user-filled (f
 test("A: existing facet/wanxing roster is untouched by the wire additions", () => {
   assert.equal(registry.listActions({ line: "facet" }).length, 4);
   assert.equal(registry.listActions({ line: "wanxing" }).length, 5);
-  assert.equal(registry.listActions().length, 17);
+  assert.equal(registry.listActions().length, 19);
 });
 
 test("B: source tool-surface.json tool_risk equals the vendored snapshot (skips without checkouts)", (t) => {

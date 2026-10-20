@@ -41,6 +41,8 @@ export const WIRE_ACTION_TOOLS = Object.freeze({
   "wire.demand.submit": "wire_demand_submit",
   "wire.market.subscribe": "wire_market_subscribe",
   "wire.market.unsubscribe": "wire_market_unsubscribe",
+  "wire.pack.subscribe": "wire_pack_subscribe",
+  "wire.pack.unsubscribe": "wire_pack_unsubscribe",
   "wire.dataset.create": "wire_dataset_create",
   "wire.artifact.publish": "wire_artifact_publish",
   "wire.artifact.archive": "wire_artifact_archive",

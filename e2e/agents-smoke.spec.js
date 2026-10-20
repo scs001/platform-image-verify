@@ -18,6 +18,14 @@ test("@smoke agents page renders (no white screen)", async ({ page }) => {
   const fatal = errors.filter((e) => !/Failed to load resource|401|404/i.test(e));
   expect(fatal, "runtime errors:\n" + fatal.join("\n")).toHaveLength(0);
 
+  // The cluster create entry must exist and open the composer (the modal was
+  // written but never mounted until this fix — an unreachable feature).
+  const newCluster = page.getByTestId("new-cluster-btn");
+  await expect(newCluster).toBeVisible({ timeout: 10000 });
+  await newCluster.click();
+  await expect(page.getByRole("dialog")).toBeVisible({ timeout: 10000 });
+  await page.keyboard.press("Escape");
+
   // The clusters listing endpoint must resolve (route order regression guard:
   // /api/clusters/mine must be registered BEFORE /api/clusters/:id).
   const mine = await page.evaluate(async () => {

@@ -4,13 +4,13 @@
 // Allows users to assemble custom agent clusters at runtime from multiple
 // installed pack agents, with full lifecycle management.
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/Badge";
+import { Badge } from "@/components/packs/Badge";
 import * as api from "@/lib/packs-api";
 import type { PackDetail } from "@/lib/packs-api";
 
@@ -67,7 +67,7 @@ export function ClusterComposerModal({ open, onOpenChange, onSuccess }: Props) {
   const loadAvailableAgents = async () => {
     setLoadingAgents(true);
     try {
-      const myPacks = await api.getMyPacks();
+      const myPacks = await api.listInstalledPacks();
       const agents: AgentOption[] = [];
       
       for (const pack of myPacks.packs || []) {
@@ -273,9 +273,7 @@ export function ClusterComposerModal({ open, onOpenChange, onSuccess }: Props) {
                             <div className="flex items-center gap-2">
                               <span className="font-medium text-sm">{agent.agentName}</span>
                               {agent.isDefaultAgent && (
-                                <Badge variant="secondary" size="sm">
-                                  {t("clusters.composer.defaultAgent")}
-                                </Badge>
+                                <Badge>{t("clusters.composer.defaultAgent")}</Badge>
                               )}
                             </div>
                             <div className="text-xs text-muted-foreground font-mono mt-0.5">

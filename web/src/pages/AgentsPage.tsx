@@ -22,6 +22,7 @@ import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { CustomPresetsPage } from "@/pages/CustomPresetsPage";
 import { PacksPage } from "@/pages/PacksPage";
+import { ClusterComposerModal } from "@/components/clusters/ClusterComposerModal";
 import type { AgentInfo, AppInfo } from "@platform/core";
 
 type Tab = "agents" | "market" | "apps";
@@ -54,6 +55,7 @@ export function AgentsPage() {
     status: string;
   }>>([]);
   const [loadingClusters, setLoadingClusters] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
   
   const loadUserClusters = async () => {
     setLoadingClusters(true);
@@ -239,23 +241,41 @@ export function AgentsPage() {
       <div className="mt-4">
         {activeTab === "agents" && (
           <section data-testid="agents-section" className="flex flex-col gap-6">
-            {/* Dynamic clusters section (agent-cluster-platform) */}
-            {!loadingClusters && dynamicClusters.length > 0 && (
-              <div className="space-y-2">
+            {/* Dynamic clusters (agent-cluster-platform): the section (and its
+                create entry) is always present — a user with no clusters needs a
+                way to make one. */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
                 <h3 className="text-sm font-medium text-muted-foreground">
                   {t("agentsPage.myClusters")}
                 </h3>
+                <button
+                  type="button"
+                  onClick={() => setComposerOpen(true)}
+                  className="rounded-md bg-primary px-3 py-1 text-xs text-primary-foreground hover:bg-primary/90"
+                  data-testid="new-cluster-btn"
+                >
+                  + {t("clusters.composer.title")}
+                </button>
+              </div>
+              {dynamicClusters.length > 0 ? (
                 <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                   {dynamicClusters.map((cluster) => (
                     <ClusterCard
                       key={cluster.id}
                       cluster={cluster}
-                      onManage={() => {}} // TODO: Open cluster management
+                      onManage={() => setComposerOpen(true)}
                     />
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                !loadingClusters && (
+                  <p className="text-xs text-muted-foreground" data-testid="clusters-empty">
+                    {t("clusters.composer.noAgents")}
+                  </p>
+                )
+              )}
+            </div>
             
             {/* Catalog experts grid */}
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
@@ -272,6 +292,14 @@ export function AgentsPage() {
                 here from the retired Settings section. It refetches on the
                 same catalog_changed pulse as the grid above. */}
             <CustomPresetsPage />
+            <ClusterComposerModal
+              open={composerOpen}
+              onOpenChange={setComposerOpen}
+              onSuccess={() => {
+                setComposerOpen(false);
+                void loadUserClusters();
+              }}
+            />
           </section>
         )}
 

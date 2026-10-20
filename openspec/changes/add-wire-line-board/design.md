@@ -23,7 +23,7 @@
 
 - 不补 facet / wanxing 占位适配器（点名暴露，不修）。
 - 不做 MCP 客户端连接池、不做跨回合长连接。
-- 不引入独立的 `failed` 提案状态与原地重试（v1 沿既有状态机）。
+- 不做卡片原地重试（执行失败置 `failed` 后，重试 = 重新提议）。
 - 不把写工具 lint 做成 `/api/packs/validate` 的平台级规则（需要 registry 暴露风险数据，挂账）。
 - 不改 fd-wire、不改两个 MCP 仓。
 
@@ -68,7 +68,7 @@ wire-build-mcp/tool-surface.json ─┴──> lib/wire-tool-risk.js（快照：
 
 新增 `lib/action-executor.js`：按 `action.tool` 找到其所属 server（快照里带 `server: "wire-ops-mcp" | "wire-build-mcp"`），endpoint 沿 registry-bridge 的推导 `{REGISTRY_URL}/{entry_path}/mcp`，每次执行 `new Client` + `StreamableHTTPClientTransport(url, { requestInit: { headers: { Authorization: "Bearer <liveToken>" } } })` → `callTool({ name, arguments })` → `close()`。一次性连接、20s 超时、不池化。
 
-错误映射：工具返回 `isError` 且内容可解析出上游 422 → 结果摘要携带 `{ code: "upstream_422", fields: [...] }` **逐字段**透传到卡片，不改写不补全；上游 401 → `markInvalid(email, "wire-customer")` + 提案置 `rejected`、`result_summary` 前缀 `execution failed:`（沿既有失败路径），并广播 `line_credential_stale`。成功 → `executed` + `board_changed { line: "wire", resources: [<action id 第二段>] }`。
+错误映射：工具返回 `isError` 且内容可解析出上游 422 → 结果摘要携带 `{ code: "upstream_422", fields: [...] }` **逐字段**透传到卡片，不改写不补全；上游 401 → `markInvalid(email, "wire-customer")` + 提案置 **`failed`**（执行失败、可查可重提——`rejected` 只表示人说不，沿 main `4e06e955` 的定案）、`result_summary` 前缀 `execution failed:`，并广播 `line_credential_stale`。成功 → `executed` + `board_changed { line: "wire", resources: [<action id 第二段>] }`。审计台账只记参数 **digest**，不存 args 本体。
 
 `executeAction` 从 `proposal.proposer_email` 取 email——这正是 D4 必须先成立的原因。
 
@@ -139,7 +139,7 @@ lint：仓库级测试对 `docs/official-packs/*.json` 的全部 `allowTools` �
 - **两个在途 change 修同一 app-center 需求** → 本 delta 叠加姊妹文本；归档顺序须先姊妹后本 change；若顺序反了需手工合并（任务 8 点名）。
 - **facet / wanxing 适配器仍是占位** → 本 change 不修，看板页对它们仍渲染零数据（现状）；在 proposal / tasks 点名给维护者。
 - **一次性 MCP 连接的握手开销**（每次执行 1 次 initialize）→ 动作频率低（人确认一次执行一次），可接受；若实测慢再池化。
-- **`rejected` 承载执行失败语义** → spec「失败允许重试」在 v1 = 重新提议；独立 `failed` 状态列为 Open Question。
+- **`failed` 与 `rejected` 两种终态并存** → 卡片与审计按状态名区分展示；spec「失败允许重试」在 v1 = 重新提议，原地重试不做。
 
 ## Migration Plan
 
@@ -156,7 +156,7 @@ lint：仓库级测试对 `docs/official-packs/*.json` 的全部 `allowTools` �
 
 - **fd-wire 侧映射缺口**（fd-wire 线 follow-up，不阻塞本 change）：`ACTION_TO_TOOL_NAME` 漏 `wire.dataset.create`；`wire_artifact_update` / `wire_artifact_restore` 有工具无 action id；`wire.artifact.draft.create` 按 `kind` 对应 `wire_artifact_form_create` / `wire_artifact_record_view_create`（非 1:1，args 形状不同）；`wire.artifact.promote` / `wire.artifact.share.create` 真无工具。何时补齐、paas 何时扩到 11 条。
 - 通用写工具 lint 何时进 `/api/packs/validate`（前置：registry 暴露 `tool_risk`）。
-- 是否引入独立 `failed` 提案状态与卡片原地重试（v1 = `rejected` + 重新提议）。
+- 卡片原地重试（`failed` 态已有；重试目前 = 重新提议）。
 - 市场浏览块（v1.1）与 `wire.market.subscribe` 在看板上的行内入口形态。
 - `COPILOT_ENABLED` 杆（姊妹 change 的债）。
 - 快照 ↔ 源仓对拍是否在两个 MCP 仓的 CI 做反向校验（它们改 `tool_risk` 时提示 paas 刷新）。

@@ -2127,7 +2127,8 @@
       "approved": "承認済み",
       "executed": "実行済み",
       "rejected": "却下",
-      "expired": "期限切れ"
+      "expired": "期限切れ",
+      "failed": "実行失敗"
     },
     "tierName": {
       "auto": "自動実行",

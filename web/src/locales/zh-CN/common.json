@@ -1990,7 +1990,8 @@
       "approved": "已批准",
       "executed": "已执行",
       "rejected": "已拒绝",
-      "expired": "已过期"
+      "expired": "已过期",
+      "failed": "执行失败"
     },
     "tierName": {
       "auto": "自动执行",

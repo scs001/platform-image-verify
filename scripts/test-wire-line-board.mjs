@@ -474,6 +474,7 @@ test("3.2/1.3 approve merges user values, executes, audits (no secrets) and broa
   assert.ok(audit, "audit row exists");
   assert.equal(audit.line, "wire");
   assert.equal(audit.error_text, null);
+  assert.equal(audit.args_json, null, "ledger carries the digest only, never the args");
   assert.ok(!JSON.stringify(audit).includes("Bearer"), "no bearer in audit");
   const info = JSON.parse(audit.executor_info);
   assert.equal(info.proposer, EMAIL);
@@ -483,7 +484,7 @@ test("3.2/1.3 approve merges user values, executes, audits (no secrets) and broa
   assert.ok(events.some((e) => e.type === "board_changed" && e.line === "wire" && e.resources.includes("demand")));
 });
 
-test("3.2 approve surfaces upstream 422 fields verbatim and rejects the proposal", async () => {
+test("3.2 approve surfaces upstream 422 fields verbatim and marks the proposal failed (not rejected)", async () => {
   connected();
   const id = await proposeDemand();
   const detail = '[{"loc":["body","source_urls",0],"msg":"non-public URL","type":"value_error"}]';
@@ -506,10 +507,11 @@ test("3.2 approve surfaces upstream 422 fields verbatim and rejects the proposal
     res,
   );
   assert.equal(res.statusCode, 422);
+  assert.equal(res.body.state, "failed", "execution failure is 'failed'; 'rejected' means the human said no");
   assert.equal(res.body.code, "upstream_422");
   assert.deepEqual(res.body.fields, [{ field: "source_urls.0", message: "non-public URL", type: "value_error" }]);
   const row = db.getDb().prepare("SELECT state, result_summary FROM action_proposals WHERE proposal_id = ?").get(id);
-  assert.equal(row.state, "rejected");
+  assert.equal(row.state, "failed");
   assert.match(row.result_summary, /non-public URL/);
   const audit = db.getDb().prepare("SELECT error_text FROM action_audit WHERE proposal_id = ?").get(id);
   assert.match(audit.error_text, /upstream_422/);
@@ -544,7 +546,7 @@ test("3.2 approve on upstream 401 clears the credential and broadcasts line_cred
   assert.deepEqual(invalidated, [[EMAIL, "wire-customer"]]);
   assert.ok(events.some((e) => e.type === "line_credential_stale" && e.line === "wire-customer"));
   const row = db.getDb().prepare("SELECT state FROM action_proposals WHERE proposal_id = ?").get(id);
-  assert.equal(row.state, "rejected");
+  assert.equal(row.state, "failed");
 });
 
 // ── 5. WireBoardAdapter ──────────────────────────────────────────────────────

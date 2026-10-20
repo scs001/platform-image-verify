@@ -2127,7 +2127,8 @@
       "approved": "Aprobado",
       "executed": "Ejecutado",
       "rejected": "Rechazado",
-      "expired": "Expirado"
+      "expired": "Expirado",
+      "failed": "Error en la ejecución"
     },
     "tierName": {
       "auto": "Automático",

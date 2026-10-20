@@ -1990,7 +1990,8 @@
       "approved": "Approved",
       "executed": "Executed",
       "rejected": "Rejected",
-      "expired": "Expired"
+      "expired": "Expired",
+      "failed": "Execution failed"
     },
     "tierName": {
       "auto": "Auto",

@@ -276,7 +276,7 @@ test("user-filled fields: confirm stays disabled until filled; approve carries e
   ]);
 });
 
-test("upstream 422 shows the field errors verbatim and marks the proposal rejected", async ({ page }) => {
+test("upstream 422 shows the field errors verbatim and marks the proposal failed", async ({ page }) => {
   await pinLocaleEn(page);
   await enableBoards(page);
   await page.route("**/api/boards/wire", (route) => route.fulfill(json(connectedBoard())));
@@ -288,7 +288,7 @@ test("upstream 422 shows the field errors verbatim and marks the proposal reject
       json(
         {
           error: "execution failed",
-          state: "rejected",
+          state: "failed",
           code: "upstream_422",
           message: '[{"loc":["body","artifact_id"],"msg":"already archived","type":"value_error"}]',
           fields: [{ field: "artifact_id", message: "already archived", type: "value_error" }],
@@ -300,7 +300,7 @@ test("upstream 422 shows the field errors verbatim and marks the proposal reject
   await page.goto("/boards/wire#artifacts");
   await page.getByTestId("row-action-wire.artifact.archive").click({ timeout: 15000 });
   await page.getByTestId("action-confirm").click();
-  await expect(page.getByTestId("action-card-rejected")).toBeVisible();
+  await expect(page.getByTestId("action-card-failed")).toBeVisible();
   await expect(page.getByTestId("action-card-fields")).toContainText("artifact_id");
   await expect(page.getByTestId("action-card-fields")).toContainText("already archived");
 });

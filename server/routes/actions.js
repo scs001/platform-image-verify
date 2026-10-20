@@ -211,9 +211,11 @@ export async function approveAction(req, res) {
   if (outcome.ok) {
     return res.json({ state: "executed", resultSummary: outcome.summary });
   }
+  // Execution failure is 'failed' (inspectable, re-proposable) — never
+  // 'rejected', which means the human said no (main 4e06e955).
   return res.status(outcome.httpStatus).json({
     error: "execution failed",
-    state: "rejected",
+    state: "failed",
     code: outcome.code,
     message: outcome.message,
     ...(outcome.fields ? { fields: outcome.fields } : {}),
@@ -281,7 +283,7 @@ export async function getActionProposal(req, res) {
  *
  * Reads the approved proposal, runs the registered action through the MCP
  * executor with the PROPOSER's line credential, writes the audit row, and
- * transitions the proposal to executed / rejected. Returns
+ * transitions the proposal to executed / failed. Returns
  *   { ok: true, summary }
  *   { ok: false, httpStatus, code, message, fields?, credentialInvalidated?, ref? }
  * and never throws for an execution outcome — only for a corrupt proposal.
@@ -330,8 +332,9 @@ export async function executeAction(proposalId, { email = null, ctx = null, deps
   const durationMs = Date.now() - started;
   const now = nowIso();
 
-  // Audit (task 1.3): one row per execution attempt, success or failure. Only
-  // a digest + the stored args; never the bearer.
+  // Audit (task 1.3): one row per execution attempt, success or failure. The
+  // ledger carries the args DIGEST only — never the args themselves, never
+  // the bearer (spec: 参数摘要; main 4e06e955).
   try {
     db.prepare(`
       INSERT INTO action_audit (
@@ -343,7 +346,7 @@ export async function executeAction(proposalId, { email = null, ctx = null, deps
       row.line,
       row.action_id,
       row.args_digest,
-      row.args_json,
+      null,
       row.risk,
       row.target,
       row.impact_text,
@@ -373,8 +376,10 @@ export async function executeAction(proposalId, { email = null, ctx = null, deps
   }
 
   console.error(`[actions] execution failed (${failure.code}):`, failure.message);
+  // 'failed' keeps the action inspectable and re-proposable; 'rejected' is
+  // reserved for the human saying no.
   db.prepare(`
-    UPDATE action_proposals SET state = 'rejected', result_summary = ?, updated_at = ?
+    UPDATE action_proposals SET state = 'failed', result_summary = ?, updated_at = ?
     WHERE proposal_id = ?
   `).run(`execution failed: ${failure.message}`, now, proposalId);
   if (failure.credentialInvalidated && failure.ref) {

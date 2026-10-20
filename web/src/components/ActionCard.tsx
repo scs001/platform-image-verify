@@ -28,7 +28,9 @@ export interface UserFilledArg {
 
 export interface ActionProposal {
   proposalId: string;
-  state: "pending" | "approved" | "executed" | "rejected" | "expired";
+  // `failed` = execution failed (inspectable, re-proposable); `rejected` = the
+  // human said no. Mirrors server/routes/actions.js.
+  state: "pending" | "approved" | "executed" | "rejected" | "failed" | "expired";
   impact: string;
   risk: string;
   target: string;
@@ -62,6 +64,8 @@ function statusIcon(state: string) {
       return <CheckCircle className="h-4 w-4 text-success" />;
     case "rejected":
       return <XCircle className="h-4 w-4 text-destructive" />;
+    case "failed":
+      return <AlertTriangle className="h-4 w-4 text-destructive" />;
     case "expired":
       return <AlertTriangle className="h-4 w-4 text-warning" />;
     default:
@@ -179,7 +183,7 @@ function ProposalCard({ proposal, onResolved }: { proposal: ActionProposal; onRe
         return;
       }
       // 400 = our own validation (stay pending, show why); anything else = the
-      // execution failed and the proposal is now rejected server-side.
+      // execution failed and the proposal is now 'failed' server-side.
       if (res.status === 400) {
         setError(json.details || json.error || t("action.failed"));
         return;
@@ -189,7 +193,7 @@ function ProposalCard({ proposal, onResolved }: { proposal: ActionProposal; onRe
       if (json.credentialInvalidated && json.credentialRef) {
         setConnectPath(`/settings/connections?panel=${encodeURIComponent(connectPanelFor(json.credentialRef))}`);
       }
-      finish("rejected", json.message ?? null);
+      finish("failed", json.message ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("action.failed"));
     } finally {
@@ -220,7 +224,7 @@ function ProposalCard({ proposal, onResolved }: { proposal: ActionProposal; onRe
         state === "pending" && "border-l-primary",
         state === "approved" || state === "executed"
           ? "border-l-success"
-          : state === "rejected"
+          : state === "rejected" || state === "failed"
             ? "border-l-destructive"
             : state === "expired"
               ? "border-l-warning"
@@ -291,7 +295,7 @@ function ProposalCard({ proposal, onResolved }: { proposal: ActionProposal; onRe
 
           {state !== "pending" && (
             <div className="mt-2 space-y-1 text-xs">
-              {summary && state !== "rejected" && (
+              {summary && (state === "executed" || state === "approved") && (
                 <p data-testid="action-card-summary" className="text-foreground">
                   {summary}
                 </p>

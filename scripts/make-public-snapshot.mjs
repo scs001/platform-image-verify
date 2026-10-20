@@ -91,6 +91,13 @@ const EXCLUDE_PATHS = new Set([
   ".github/workflows/image.yml", // internal TCR/Harbor image pipeline
   // internal ops artifacts
   "docs/vertical-packs.md", // market-registration runbook (internal registry)
+  // internal handoff / acceptance material for add-line-boards-and-action-gate
+  // (2026-10-20): live cluster node names, fd-infra-deploy paths, internal TCR
+  // URLs, private repo names — same class as the roadmap/handoff exclusions.
+  "docs/acceptance-criteria.md",
+  "docs/handoff/mcp-tool-scope-2026-10-20.md",
+  "docs/pr-wanxing-agent-deploy.md",
+  "scripts/deploy-cluster-platform.sh", // internal deploy plumbing (internal TCR URL)
   // this tool itself
   "scripts/make-public-snapshot.mjs",
   // internal ops test: fleet board URL (tailnet) + jenkins/harbor/argocd state

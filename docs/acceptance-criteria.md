@@ -233,3 +233,50 @@ kubectl rollout restart deployment paas-cell
    Mongo 直写回填对象数组（wire-ops 10 / wire-build 15），公网 API 回读一致。
 3. demo 无 operator MCP 基线（mcp.json 是 .dockerignore 的，经 GitOps ConfigMap 挂载）→
    增设 `platform-demo-mcp-config`（仅 actions）。
+
+---
+
+# 柏讯线真机验收第二轮（2026-10-21 晚，wire 客户凭据打通后）
+
+环境：`platform-demo` → `sha-9dba0ff`（paas `fad9d71c`），`LINE_BOARDS_ENABLED=1`；
+wire 生产 `sha-22da877`。连接凭据 = 浏览器 Logto 会话（本轮为 `aloadtree@gmail.com`，
+即 demo 机器主人的 SSO 身份；`AUTH_MODE=none` 下凭据按 `machine-owner` 键存取）。
+
+## 本轮新打通 / 新发现并修复
+
+| # | 缺陷（真机抓到） | 修法 | 落点 |
+|---|---|---|---|
+| 1 | demo 未设 `PAAS_BASE_URL`，mint 回调被拼成 `http://`，Logto 以 `invalid_redirect_uri` 拒绝 | GitOps 加 `PAAS_BASE_URL=https://demo.finddatatech.cloud` | fd-infra-deploy `daedfd2` |
+| 2 | wire 的 Logto SPA 客户端只注册了控制台回调与 **prod** mint 回调，缺 demo 回调 | Admin Console 补 `https://demo.finddatatech.cloud/api/lines/wire-customer/mint/callback` | Logto 控制台（已保存） |
+| 3 | demo 镜像 `sha-29d5c89`（paas `4dfa7104`）早于执行器形状修复：`getMarketEntries()` 返回快照对象被当数组，`list.find is not a function`，**一切执行必失败** | 从 HEAD 现出 `sha-97086a8`（paas `35617efe`，含 `5b13288d` 的 `safeMarketEntries`） | fd-infra-deploy `5a9dbc4` |
+| 4 | 模型给 `wire.demand.submit` 带 `title`，工具 pydantic 严格签名 → 上游 422；注册表八条柏讯动作无参数白名单 | 注册表 `argKeys` + propose 过滤未知键 + camelCase 归一；需求单影响面改 `description` | paas `fad9d71c`（镜像 `sha-9dba0ff`） |
+
+> 缺陷 3/4 只有真机执行才会暴露：单测用假 executor/假 MCP，测不到「快照形状」和「上游严格签名」。
+
+## 十场景结果
+
+| # | 场景 | 结果 | 证据 |
+|---|---|---|---|
+| 1 | 打开看板零 token | **通过** | `/api/boards/wire` 与 `/boards/wire`：概览 2 数据集 / 6 产物 / 4 需求单 / 配额 2/3；四块真实数据；页面无对话请求 |
+| 2 | 未连接态 | **通过**（前轮） | `{connected:false,reason:not_connected,connectPath:/settings/connections?panel=line-wire-customer}`，零上游 |
+| 3 | 读回合 → `wire_datasets_list` | **工具层通过，会话层未跑** | 持 cell 凭据直连 wire-ops MCP：`wire_datasets_list` 返回「客户表冒烟（6 行）」等，与看板一致；会话层见「待补」 |
+| 4 | 写提议行内确认 + 合规两空字段 + 审计 | **通过** | 提议返回 `userFilledArgs=[source_urls, public_data_asserted]`；未填 → 400 `missing required user arg: source_urls`；补填后 `executed`，wire 侧生成需求单 `DE-20261020-01`（id 12）；`action_audit` 一行，line=wire，仅 digest，无 Bearer/token |
+| 5 | 模型合规值不采纳 | **通过** | 模型传 `source_urls/public_data_asserted` → `args_json` 只剩 `description/contact_email`（落库实证） |
+| 6 | 花钱二次确认 | **卡片通过，执行不可测** | `risk=cost`、`tier=second`、影响面含「产生费用」；市场盘点为 0（`wire_market_browse` → total 0），无可订阅对象 |
+| 7 | 未注册动作拒绝 | **通过** | `wire.dataset.delete` → 400 `action not registered`，wire 零调用 |
+| 8 | 风险对拍 | **通过（本地）** | `test-wire-tool-risk.mjs` 6/6；`test-action-executor-refs.mjs` 16/16；`test-wire-line-board.mjs` 23/23 |
+| 9 | 应用中心 | **通过** | Wire 卡主行动 `Board`、次要 `Open origin site`、**无 Early stage** 徽章、聚合态 `Partly connected` |
+| 10 | 工具面纯净 | **清单/服务端通过，聚焦会话未跑** | wire-ops 10 工具（7 读 + 3 写）、wire-build 15 工具（10 读 + 5 写）；pack `allowTools` = ops 7 读 + build 4 读，与 12 写工具交集为空（lint 绿）；`propose_action` 由 actions MCP 提供（前轮 stdio 已验） |
+
+## 待补（本轮仍无法闭环，原因如实）
+
+- **场景 3 会话层 / 场景 10 聚焦面**：pack「柏讯助手」重装后 MCP 两条目报
+  `credential-required`——demo cell 没有 registry 凭据（`platform-demo-registry-token`
+  缺失/为空），dsh 无法把 wire MCP 注入会话。补 registry 凭据后跑一次真实问句
+  「我有哪些数据集」，同时用宿主会话 `tools/list` 验聚焦面 = 11 读 + `propose_action`。
+- **场景 6 执行段**：wire 市场当前盘点为 0，无可订阅数据集；补市场货后做一次
+  `wire.market.subscribe` → 二次确认 → 执行 → 退订回收。
+- **身份字段口径**：`AUTH_MODE=none` 下 proposer/approver 落 `null`（凭证键为
+  `machine-owner`）；prod 启用认证后同一路径写入真实邮箱，本轮不构成缺陷。
+- **上产 go-live 前置不变**：prod `platform` 仍 `sha-352d662`；`platform-mcp-config`
+  ConfigMap 仍缺 `actions` 条目。

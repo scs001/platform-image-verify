@@ -52,7 +52,8 @@
     "myExperts": "Mis expertos",
     "connect": "Conectar",
     "connecting": "Conectando…",
-    "loadFailed": "Error al cargar el catálogo: {{error}}"
+    "loadFailed": "Error al cargar el catálogo: {{error}}",
+    "myClusters": "Mis clústeres"
   },
   "sidebar": {
     "brand": "{{brand}}",
@@ -1602,7 +1603,14 @@
       "skillFiles": "{{count}} archivos auxiliares",
       "scriptGateTitle": "Este paquete contiene scripts ejecutables",
       "scriptGateBody": "Las habilidades siguientes contienen archivos de script que se depositarán en tu runtime al instalar; nada se instala sin tu confirmación (única).",
-      "scriptGateConfirm": "Confirmar instalación"
+      "scriptGateConfirm": "Confirmar instalación",
+      "cluster": {
+        "title": "Información del clúster",
+        "agentCount": "{{count}} agentes",
+        "agents": "Composición de agentes",
+        "showOptional": "Mostrar agentes opcionales",
+        "hideOptional": "Ocultar agentes opcionales"
+      }
     },
     "report": {
       "title": "Resultado de instalación de «{{name}}»",
@@ -2040,6 +2048,28 @@
     "keySource": {
       "user": "Facturado a tu cuenta 词元",
       "deployment": "Usando la credencial del despliegue"
+    }
+  },
+  "clusters": {
+    "composer": {
+      "title": "Crear clúster",
+      "clusterName": "Nombre del clúster",
+      "description": "Descripción",
+      "selectAgents": "Seleccionar agentes",
+      "addAllFromPack": "Añadir todos del paquete",
+      "defaultAgent": "Predeterminado",
+      "activateAllOnCreation": "Activar todos los agentes al crear",
+      "bindToCurrentSession": "Vincular a la sesión actual",
+      "noAgents": "No hay agentes disponibles. Instala algún paquete primero.",
+      "creating": "Creando clúster...",
+      "created": "Clúster creado",
+      "createCluster": "Crear clúster",
+      "creatingBtn": "Creando...",
+      "cancel": "Cancelar",
+      "nameRequired": "El nombre del clúster es obligatorio",
+      "nameTooLong": "El nombre del clúster debe tener 100 caracteres o menos",
+      "atLeastOneAgent": "Selecciona al menos un agente",
+      "manage": "Gestionar"
     }
   }
 }

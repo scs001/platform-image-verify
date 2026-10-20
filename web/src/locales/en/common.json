@@ -52,7 +52,8 @@
     "myExperts": "My experts",
     "connect": "Connect",
     "connecting": "Connecting…",
-    "loadFailed": "Failed to load catalog: {{error}}"
+    "loadFailed": "Failed to load catalog: {{error}}",
+    "myClusters": "My Clusters"
   },
   "sidebar": {
     "brand": "{{brand}}",
@@ -1543,7 +1544,6 @@
       "toolFaceReason": "Reason: {{reason}}",
       "agents": "Agents",
       "requiresGroup": "requires group {{group}}",
-      // Cluster info (agent-cluster-platform)
       "cluster": {
         "title": "Cluster Info",
         "agentCount": "{{count}} agents",
@@ -2071,12 +2071,5 @@
       "atLeastOneAgent": "Select at least one agent",
       "manage": "Manage"
     }
-  },
-  "agentsPage": {
-    "title": "Agents & Apps",
-    "agents": "Experts",
-    "market": "Market",
-    "apps": "Apps",
-    "myClusters": "My Clusters"
   }
 }

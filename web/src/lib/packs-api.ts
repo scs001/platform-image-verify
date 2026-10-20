@@ -248,40 +248,6 @@ export function getServingStatus(): Promise<{ configured: boolean }> {
 export function deployPack(
   id: string,
 
-// Dynamic cluster creation (agent-cluster-platform)
-export interface CreateDynamicClusterRequest {
-  name: string;
-  description?: string;
-  agents: Array<{
-    packId: string;
-    agentId: string;
-    version?: string;
-  }>;
-  activateAll?: boolean;
-  bindToSession?: boolean;
-}
-
-export interface CreateDynamicClusterResponse {
-  clusterId: string;
-  status: "creating" | "ready" | "loading";
-  name?: string;
-  agents: Array<{
-    packId: string;
-    agentId: string;
-    status: "active" | "installing";
-  }>;
-}
-
-export function createDynamicCluster(
-  request: CreateDynamicClusterRequest
-): Promise<CreateDynamicClusterResponse> {
-  return fetch("/api/clusters/dynamic", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-  }).then(json) as Promise<CreateDynamicClusterResponse>;
-}
-
   version: number,
   rhythms?: Record<string, unknown>,
   billingKeys?: Record<string, string | null>,
@@ -459,4 +425,38 @@ export function markDraftPublished(id: string, packId: string) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ packId }),
   }).then(json) as Promise<{ draft: PackDraft }>;
+}
+
+// Dynamic cluster creation (agent-cluster-platform)
+export interface CreateDynamicClusterRequest {
+  name: string;
+  description?: string;
+  agents: Array<{
+    packId: string;
+    agentId: string;
+    version?: string;
+  }>;
+  activateAll?: boolean;
+  bindToSession?: boolean;
+}
+
+export interface CreateDynamicClusterResponse {
+  clusterId: string;
+  status: "creating" | "ready" | "loading";
+  name?: string;
+  agents: Array<{
+    packId: string;
+    agentId: string;
+    status: "active" | "installing";
+  }>;
+}
+
+export function createDynamicCluster(
+  request: CreateDynamicClusterRequest
+): Promise<CreateDynamicClusterResponse> {
+  return fetch("/api/clusters/dynamic", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  }).then(json) as Promise<CreateDynamicClusterResponse>;
 }

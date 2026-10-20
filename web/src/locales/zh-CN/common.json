@@ -52,7 +52,8 @@
     "myExperts": "我的专家",
     "connect": "连接",
     "connecting": "连接中…",
-    "loadFailed": "加载目录失败：{{error}}"
+    "loadFailed": "加载目录失败：{{error}}",
+    "myClusters": "我的集群"
   },
   "sidebar": {
     "brand": "{{brand}}",
@@ -1543,7 +1544,6 @@
       "toolFaceReason": "作者理由：{{reason}}",
       "agents": "角色",
       "requiresGroup": "需要组 {{group}}",
-      // Cluster info (agent-cluster-platform)
       "cluster": {
         "title": "集群信息",
         "agentCount": "{{count}} 个角色",
@@ -2071,12 +2071,5 @@
       "atLeastOneAgent": "请至少选择一个角色",
       "manage": "管理"
     }
-  },
-  "agentsPage": {
-    "title": "角色与应用",
-    "agents": "专家",
-    "market": "市场",
-    "apps": "应用",
-    "myClusters": "我的集群"
   }
 }

@@ -52,7 +52,8 @@
     "myExperts": "Mes experts",
     "connect": "Connecter",
     "connecting": "Connexion…",
-    "loadFailed": "Échec du chargement du catalogue : {{error}}"
+    "loadFailed": "Échec du chargement du catalogue : {{error}}",
+    "myClusters": "Mes clusters"
   },
   "sidebar": {
     "brand": "{{brand}}",
@@ -1602,7 +1603,14 @@
       "skillFiles": "{{count}} fichiers auxiliaires",
       "scriptGateTitle": "Ce pack contient des scripts exécutables",
       "scriptGateBody": "Les compétences ci-dessous contiennent des scripts qui seront déposés dans votre runtime ; rien ne s'installe avant votre confirmation (unique).",
-      "scriptGateConfirm": "Confirmer l'installation"
+      "scriptGateConfirm": "Confirmer l'installation",
+      "cluster": {
+        "title": "Informations du cluster",
+        "agentCount": "{{count}} agents",
+        "agents": "Composition des agents",
+        "showOptional": "Afficher les agents optionnels",
+        "hideOptional": "Masquer les agents optionnels"
+      }
     },
     "report": {
       "title": "Résultat d'installation de « {{name}} »",
@@ -2040,6 +2048,28 @@
     "keySource": {
       "user": "Facturé sur votre compte 词元",
       "deployment": "Identifiant du déploiement utilisé"
+    }
+  },
+  "clusters": {
+    "composer": {
+      "title": "Créer un cluster",
+      "clusterName": "Nom du cluster",
+      "description": "Description",
+      "selectAgents": "Sélectionner des agents",
+      "addAllFromPack": "Ajouter tous du pack",
+      "defaultAgent": "Par défaut",
+      "activateAllOnCreation": "Activer tous les agents à la création",
+      "bindToCurrentSession": "Lier à la session actuelle",
+      "noAgents": "Aucun agent disponible. Installez d'abord des packs.",
+      "creating": "Création du cluster...",
+      "created": "Cluster créé",
+      "createCluster": "Créer le cluster",
+      "creatingBtn": "Création...",
+      "cancel": "Annuler",
+      "nameRequired": "Le nom du cluster est requis",
+      "nameTooLong": "Le nom du cluster doit contenir au plus 100 caractères",
+      "atLeastOneAgent": "Sélectionnez au moins un agent",
+      "manage": "Gérer"
     }
   }
 }

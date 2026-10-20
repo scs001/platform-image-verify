@@ -52,7 +52,8 @@
     "myExperts": "マイエキスパート",
     "connect": "接続",
     "connecting": "接続中…",
-    "loadFailed": "カタログの読み込みに失敗しました: {{error}}"
+    "loadFailed": "カタログの読み込みに失敗しました: {{error}}",
+    "myClusters": "マイクラスター"
   },
   "sidebar": {
     "brand": "{{brand}}",
@@ -1602,7 +1603,14 @@
       "skillFiles": "補助ファイル {{count}} 件",
       "scriptGateTitle": "このパックには実行可能なスクリプトが含まれます",
       "scriptGateBody": "以下のスキルはスクリプトファイルを含み、インストール時にランタイムへ展開されます。確認後のみインストールされます（一度だけ）。",
-      "scriptGateConfirm": "インストールを確認"
+      "scriptGateConfirm": "インストールを確認",
+      "cluster": {
+        "title": "クラスター情報",
+        "agentCount": "{{count}} エージェント",
+        "agents": "エージェント構成",
+        "showOptional": "オプションのエージェントを表示",
+        "hideOptional": "オプションのエージェントを隠す"
+      }
     },
     "report": {
       "title": "「{{name}}」のインストール結果",
@@ -2040,6 +2048,28 @@
     "keySource": {
       "user": "あなたの 词元 アカウントに課金",
       "deployment": "デプロイの認証情報を使用"
+    }
+  },
+  "clusters": {
+    "composer": {
+      "title": "クラスターを作成",
+      "clusterName": "クラスター名",
+      "description": "説明",
+      "selectAgents": "エージェントを選択",
+      "addAllFromPack": "パックからすべて追加",
+      "defaultAgent": "既定",
+      "activateAllOnCreation": "作成時にすべてのエージェントを有効化",
+      "bindToCurrentSession": "現在のセッションにバインド",
+      "noAgents": "利用可能なエージェントがありません。先にパックをインストールしてください。",
+      "creating": "クラスターを作成中...",
+      "created": "クラスターを作成しました",
+      "createCluster": "クラスターを作成",
+      "creatingBtn": "作成中...",
+      "cancel": "キャンセル",
+      "nameRequired": "クラスター名は必須です",
+      "nameTooLong": "クラスター名は100文字以内で入力してください",
+      "atLeastOneAgent": "少なくとも1つのエージェントを選択してください",
+      "manage": "管理"
     }
   }
 }

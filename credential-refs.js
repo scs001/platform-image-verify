@@ -22,6 +22,16 @@ import * as facetMarketCredentials from "./facet-market-credentials.js";
 import * as lineCredentials from "./line-credentials.js";
 import * as paperTradingCredentials from "./paper-trading-credentials.js";
 import * as ciyuanAccountCredentials from "./ciyuan-account-credentials.js";
+// Wire line tool hosting: the vendored tool_risk snapshot is a generated,
+// import-only module (safe from cycles) — derive the server set from it rather
+// than hand-editing the snapshot. The registry's public API does not surface
+// metadata.credential_ref, so the credential dispatch derives the ref from tool
+// hosting instead: any market entry of these names installs with — and its
+// sessions inject — the USER's wire-customer ID token. A wgk- key (the
+// incumbent registry credential) only speaks the wire data plane; every
+// control-plane read in these servers 401s (real-machine acceptance 10-21).
+import { WIRE_TOOL_RISK } from "./lib/wire-tool-risk.js";
+const WIRE_LINE_SERVERS = new Set(Object.values(WIRE_TOOL_RISK).map((w) => w.server));
 
 const REFS = new Map(
   [
@@ -94,7 +104,11 @@ export function knownRef(name) {
 // which is why it lives on the dispatch table, not in one consumer.
 
 export function credentialRefForEntry(entry) {
-  return entry?.credentialRef || registryCredentials.REGISTRY_CREDENTIAL_REF;
+  if (entry?.credentialRef) return entry.credentialRef;
+  if (entry?.name && WIRE_LINE_SERVERS.has(entry.name)) {
+    return lineCredentials.WIRE_CUSTOMER_CREDENTIAL_REF;
+  }
+  return registryCredentials.REGISTRY_CREDENTIAL_REF;
 }
 
 export function credentialConnected(refName, email) {

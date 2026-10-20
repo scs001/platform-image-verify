@@ -340,3 +340,20 @@ wire 生产 `sha-22da877`。连接凭据 = 浏览器 Logto 会话（本轮为 `a
   `machine-owner`）；prod 启用认证后同一路径写入真实邮箱，本轮不构成缺陷。
 - **上产 go-live 前置不变**：prod `platform` 仍 `sha-352d662`；`platform-mcp-config`
   ConfigMap 仍缺 `actions` 条目。
+
+---
+
+# go-live 终态复核（2026-10-21，本会话收尾）
+
+prod `platform` 已由后续滚动至 **`sha-848d733`**（paas `64f74711`——副驾 dock 两处窄口布局修复，
+⊇ 柏讯 go-live 代码 `9d87ae1d`；fd-infra-deploy `e080e1d`）。复核（in-pod）：
+
+- pod `platform-7dd8bdcc5c-th977` Running、restarts=0（20:39 起稳定数小时）；
+- `tools/list`（actions stdio）→ `["propose_action"]` ✓；
+- 匿名 `/api/boards/wire`、`/api/boards/nope` → 401（认证门正常——prod 形态正确行为，
+  身份态证据以第四轮真会话 E2E 为金标准）；SPA 壳 200。
+
+**`PACK_BASELINE_MCP=actions` 显式口径——判断：不单独滚 prod，等下次滚动搭车。**
+依据：`dsh-profile.js` 聚焦 keep 集 = `Object.keys(mcpJsonServers)` 全集，actions 已在
+prod 基线 ConfigMap → 显式 env 无行为差异（belt-and-suspenders）；为一行无行为差异的
+显式声明付一次 Recreate 中断不值。届时在 platform.yaml env 段补 `PACK_BASELINE_MCP: actions`。

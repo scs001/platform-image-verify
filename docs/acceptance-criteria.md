@@ -357,3 +357,34 @@ prod `platform` 已由后续滚动至 **`sha-848d733`**（paas `64f74711`——�
 依据：`dsh-profile.js` 聚焦 keep 集 = `Object.keys(mcpJsonServers)` 全集，actions 已在
 prod 基线 ConfigMap → 显式 env 无行为差异（belt-and-suspenders）；为一行无行为差异的
 显式声明付一次 Recreate 中断不值。届时在 platform.yaml env 段补 `PACK_BASELINE_MCP: actions`。
+
+---
+
+# 第四轮补遗：源包订阅/退订入闸（2026-10-21 深夜，归档后增量）
+
+用户指出「源包」页有货可订——那是与数据集市场不同的面，且 v1 闸名单只有市场订阅。
+按裁决补成第 12/13 条闸动作并全链上产：
+
+| 侧 | 改动 | 落点 |
+|---|---|---|
+| wire-ops-mcp | +3 工具：`wire_packs_list`（读）/ `wire_pack_subscribe` / `wire_pack_unsubscribe`（写，tool_risk=write——**订阅免费**，非市场订阅的 cost 语义）；selfcheck 13 tools 一致 | wire-ops-mcp `562f416`，镜像 `sha-f3161a4`（已滚 fd-prod） |
+| fd-wire | 闸第 12/13 条：`wire.pack.subscribe` / `wire.pack.unsubscribe`（write/inline，直调 PackSubscriptionService）；GateSessions +packs 会话；openspec change `add-pack-subscribe-actions` **已归档**（wire-action-gate 名单改十三条） | fd-wire `31690d6`/`3accd53`，api `sha-b3b5389`（已滚生产） |
+| 壹座 | 快照 14 写工具（+2）、WIRE_ACTION_TOOLS +2、注册表两条 write/inline（argKeys=[pack_id]） | paas `7c6bc0b9`，platform+demo `sha-302ea63`（已滚） |
+| registry | wire-ops-mcp `tool_list` 回填 13 工具；两 wire 条目 `metadata.credential_ref=wire-customer`（API 暂不透出，future-proof） | Mongo `mcp_servers_default`（运维直写） |
+
+**真机 E2E（demo cell，sha-302ea63）**：`wire.pack.subscribe` population-employment →
+tier=inline → 确认 → executed（`subscribed:true`）→ `wire_packs_list` 回读
+`subscribed=[macro-prices, population-employment]`；退订 → executed → 回读
+`[macro-prices]` 复原。审计两行无 token。
+
+**过程缺陷（第五轮真机抓到）**：testaction002 池的 `BUILD_CONTEXT` 变量是共享可变
+状态——并发会话滚 web 后残留 `web`，我出的 `fd-wire/api:sha-b3b5389` 实为 web
+Dockerfile 产物（21MB nginx，无 uvicorn），生产 fd-wire-api 崩溃循环约 6 分钟，
+回滚 `sha-f07ed95` 恢复后以 `BUILD_CONTEXT=api` 重出（hkccr digest `11492a0e`
+核 PATH=/opt/venv）再滚。另外 ccr 同名 tag 若已被节点缓存（IfNotPresent），重推
+同 tag 不会重拉——需 `crictl rmi` 清节点缓存或换新 tag。
+
+**归档状态**：paas `add-line-boards-and-action-gate`（`df1e1ec2`）先归档、
+`add-wire-line-board`（`3b8cf33e`）后归档——8.4 顺序纪律兑现；主 spec 三能力
+（line-boards/action-gate/app-center）已同步。fd-wire
+`add-pack-subscribe-actions` 亦已归档（`3accd53`）。

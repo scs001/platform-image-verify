@@ -1011,6 +1011,7 @@ cell 内的 `clusters.db` 留在卷上不阻塞回滚。
 | A 开关 | `platform-config`：`PACK_TOOL_FACE_GATE=enforce`（facet 进程内已读到） |
 | B 开关 | `platform-config`：`FULL_MODE_TOOL_SCOPE=on`（platform 进程内已读到） |
 | 归档 | `openspec/changes/archive/2026-10-20-pack-tool-declaration-gate`、`.../2026-10-20-full-mode-tool-scope`（各含 `measurements.md`） |
+| demo | `platform-demo` 用独立 `platform-demo-config`，无这两个键 → 仍 `warn`/`off`（未改，需时同样加键+重启） |
 
 **A 端到端判词**（`/api/packs/validate`，与发布共用 `collectPublishVerdict`，不落数据）：
 未声明的 `mcpServers` 引用 → `valid:false` + `toolFace:true` + 两种修法；同一引用标

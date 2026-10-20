@@ -187,6 +187,10 @@ MARKET_REGISTRY_TOKEN=<fresh> REGISTRY_URL=https://mcp.finddatatech.cloud \
 | B 安全阀 | **按设计** | 未声明引用（`数据-股票` 等旧版本）对应 server 保持全量，无 `{server: []}` |
 | 测量记录 | 已落盘 | A / B 各自归档目录下的 `measurements.md` |
 
+**platform-demo 不在开关范围内**：它用独立的 `platform-demo-config`（没有这两个键），
+所以 demo 仍是 `warn` / `off`（与改动前逐字节一致）。要一并打开就把同样的两个键加进
+`platform-demo-config` 再重启 `platform-demo`。
+
 **enforce 的暴露面**：在架 50 个带 MCP 引用的最新版里 **12 个仍无声明**（`数据-股票` v3、
 `数据-中国经济` v3、两个旧 id 的柏讯包、`法律-合同`/`法律-案件`、`萬星`、5 个「物化验证」测试包）。
 它们下一次发版会被 400 挡下，直到补声明或标 `fullSurface`；安装与已发布版本不受影响。

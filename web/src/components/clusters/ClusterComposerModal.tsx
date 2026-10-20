@@ -67,32 +67,33 @@ export function ClusterComposerModal({ open, onOpenChange, onSuccess }: Props) {
   const loadAvailableAgents = async () => {
     setLoadingAgents(true);
     try {
+      // InstalledPack already carries the manifest — no per-pack detail round-trip.
+      // Field is `packId` (not `id`); using the wrong one produced
+      // GET /api/packs/undefined → 404 and an empty agent list.
       const myPacks = await api.listInstalledPacks();
       const agents: AgentOption[] = [];
-      
       for (const pack of myPacks.packs || []) {
-        const detail = await api.getPack(pack.id);
-        for (const agent of detail.manifest?.agents ?? []) {
-          const isDefault = detail.manifest.cluster?.defaultAgents?.includes(agent.id) ?? false;
+        const manifest = pack.manifest;
+        for (const agent of manifest?.agents ?? []) {
           agents.push({
-            packId: pack.id,
-            packName: detail.name,
+            packId: pack.packId,
+            packName: pack.name,
             agentId: agent.id,
             agentName: agent.name,
             description: agent.description,
-            isDefaultAgent: isDefault
+            isDefaultAgent: manifest?.cluster?.defaultAgents?.includes(agent.id) ?? false,
           });
         }
       }
-      
       setAvailableAgents(agents);
     } catch (err) {
       console.error("Failed to load available agents:", err);
+      setAvailableAgents([]);
     } finally {
       setLoadingAgents(false);
     }
   };
-  
+
   const toggleAgentSelection = (agentId: string) => {
     const next = new Set(selectedAgents);
     if (next.has(agentId)) {

@@ -64,7 +64,7 @@ export function createClusterRoutes(app) {
         continue;
       }
       
-      const subscription = db.getSubscription(user.email, agentRef.packId);
+      const subscription = db.getInstalledPack(agentRef.packId);
       if (!subscription) {
         invalidAgents.push({ ...agentRef, reason: "not_subscribed" });
       }
@@ -82,7 +82,7 @@ export function createClusterRoutes(app) {
     
     let hasInstalling = false;
     const processedAgents = agents.map(a => {
-      const sub = db.getSubscription(user.email, a.packId);
+      const sub = db.getInstalledPack(a.packId);
       const status = sub ? "active" : "installing";
       if (!sub) hasInstalling = true;
       
@@ -236,7 +236,7 @@ export function createClusterRoutes(app) {
         continue;
       }
       
-      const sub = db.getSubscription(req.user.email, agentRef.packId);
+      const sub = db.getInstalledPack(agentRef.packId);
       if (!sub) {
         continue;
       }

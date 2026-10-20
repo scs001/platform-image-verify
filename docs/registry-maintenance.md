@@ -1098,3 +1098,27 @@ cell 内的 `clusters.db` 留在卷上不阻塞回滚。
 
 **验收数据**：admin cell 上留了两个 `线上验收-*` 集群 + 两个柏讯 pack（订阅+安装），
 可在「智能体」页 Manage / 我的功能集里自行清理。
+
+### §11.3 「我的集群」入口与详情（2026-10-20，sha-512f7a4）
+
+**入口**：侧栏「智能体」→ `/agents` → **Experts** 子标签 → 页面顶部「我的集群」
+（右上「+ 创建集群」）。注意这是 **per-cell** 的：换账号/换 cell 看不到别的 cell 的集群。
+
+**两处让入口「看不见」的缺陷（已修）**：
+1. **空状态文案错位**：无集群时复用了创建弹窗的「No agents available. Install some
+   packs first.」→ 用户以为那是 agent 区域。已换 `agentsPage.clustersEmpty`
+   （5 语言，明确指向「+ 创建集群」）。
+2. **Manage 点了没反应**：`ClusterCard` 与 state 类型声明成 `id`，而
+   `GET /api/clusters/mine` 返回 `clusterId` → `GET /api/clusters/undefined`。
+   已统一为 `clusterId` + 空 id 守卫；Manage 改为拉 `/api/clusters/:id` 展示
+   集群内角色/状态/创建时间，并提供「解散集群」（terminate）。
+
+**同一类 bug 的第三次出现**（前两次：`InstalledPack.packId` 写成 `id`、`activeTab` TDZ）。
+根因是 `.json()` 返回 `any`，API↔UI 字段名没有类型约束。**smoke 已加两条针对性断言**：
+有集群卡片时 Manage 必须打开 `cluster-detail`、且全程不得出现含 `/undefined` 的请求。
+
+**线上终验**（sha-512f7a4 / digest `1ae97b95`）：2 张集群卡片、Manage 打开详情
+（`pack-wire-equity-research-analyst (active)` / Status ready / 创建时间）、
+`undefined requests: []`、`pageerror+console errors: []`。
+
+**遗留（cosmetic）**：`1 agents` 未做英文单复数。

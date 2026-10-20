@@ -1015,11 +1015,14 @@ cell 内的 `clusters.db` 留在卷上不阻塞回滚。
 
 **A 端到端判词**（`/api/packs/validate`，与发布共用 `collectPublishVerdict`，不落数据）：
 未声明的 `mcpServers` 引用 → `valid:false` + `toolFace:true` + 两种修法；同一引用标
-`fullSurface:true` + 理由 → `valid:true`。
+`fullSurface:true` + 理由 → `valid:true`；`allowTools` 与 `fullSurface` 并存 → 形状层拒绝；
+技能点名 `search_registry` 而声明只有 `list_services` → `toolFace:true` 并点名工具+技能+server；
+同一技能正文配 `fullSurface` → 豁免通过（五条见 A 的 `measurements.md` §2/§2.1）。
 
 **B 物化实证**：cell `1da519d4c1c0bf89` 的 `dsh/profiles/platform/tool-filter.json` 于 09:36:29 写出
-`{"airegistry-tools":5,"facet-market-mcp":5}`；其余 cell 为 `{"mcpTools":{}}`——所装 pack 仍是回填前
-版本，安全阀按全量处理，无 `{server: []}`。
+`{"airegistry-tools":5,"facet-market-mcp":5}`；该 cell 的 dsh agent 进程启动于 09:36:32（晚于落盘），
+即活着的 agent 加载的是并集后的过滤器；其余 cell 为 `{"mcpTools":{}}`——所装 pack 仍是回填前版本，
+安全阀按全量处理，无 `{server: []}`。
 
 **两项生产事实（对后续运营重要）**：
 1. 在架 50 个带 MCP 引用的最新版里 **12 个仍无声明**（`数据-股票` v3、`数据-中国经济` v3、两个旧 id

@@ -20,6 +20,14 @@
 对应 server（`fd-open-data-mcp`、`fd-cn-report`、`fd-quant`、`fd-daas-mcp`…）全部保持全量，
 只有 `airegistry-tools` 与 `facet-market-mcp` 被收窄——没有出现 `{server: []}`。
 
+**运行时链路证据**（不只文件存在）：
+
+- profile 里物化了 `platform-tool-scope.js`（23,435 B，含 `tool-filter.json` 读取与
+  「Settings → MCP」拒绝文案）与 `tool-filter.json`（377 B），时间戳同为 09:36。
+- 该 cell 的 dsh agent 进程（`/opt/dsh/node_modules/@deepseek-ai/dsh/lib/bin.js --profile platform
+  --patch /data/cells/1da519d4c1c0bf89/dsh/profiles/platform/*.patch.yml`）启动于 **09:36:32.1**，
+  晚于 filter 写入的 **09:36:29.0**——即当前活着的 agent 是在并集落盘之后加载的。
+
 ## 2. 并集 vs 全量（已装版本 → 升级后）
 
 全量工具数取自 registry 实时 `tool_list`（`GET /api/servers?limit=500`，24 个 server）；

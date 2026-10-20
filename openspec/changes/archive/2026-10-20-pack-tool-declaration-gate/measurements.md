@@ -46,6 +46,17 @@ kubectl --context cheap -n fd-prod exec deploy/platform -- sh -c \
 发布路径 `POST /api/packs` 对同一判词返回 400（`collectPublishVerdict` 的 shortCircuit 取第一项），
 validate 以 200 报告全部问题——这是既有设计，两者共用同一收集器。
 
+## 2.1 其余三条判词（同一端点，2026-10-20 补测）
+
+| 用例 | 结果 |
+|---|---|
+| `allowTools` 与 `fullSurface` 并存 | `Invalid manifest` + `mcpServers[0]`：`allowTools and fullSurface are mutually exclusive; declare the tools or mark the reference full-surface, not both`（形状层拒绝） |
+| 技能正文点名 `search_registry`，但 `allowTools=[list_services]` | `Invalid manifest` + `toolFace: true`：`pack 'gate-probe-closure' skill(s) [gate-probe-skill] name 'search_registry' on MCP server 'airegistry-tools', outside that reference's allowTools (add it to the declaration, or mark the reference fullSurface)` |
+| 同一技能正文 + `fullSurface` | `errors: []`（闭包豁免） |
+
+这三条与 §2 的两条合起来覆盖了 A6 的发布侧验收矩阵（安装兼容性由单测与 e2e 覆盖，
+不在生产上装测试包）。
+
 ## 3. 在架 pack 的声明面（enforce 的暴露面）
 
 `/data/facet/packs.db` 每个 pack 的最新版本：

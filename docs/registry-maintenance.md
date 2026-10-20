@@ -1123,3 +1123,34 @@ cell 内的 `clusters.db` 留在卷上不阻塞回滚。
 `undefined requests: []`、`pageerror+console errors: []`。
 
 **遗留（cosmetic）**：`1 agents` 未做英文单复数。
+
+## §13 发布记录：柏讯线看板 + 动作闸真执行器（add-wire-line-board，2026-10-21 demo 先行）
+
+**代码**：paas `9861191c`+`eba36c89`+`4dfa7104`（镜像 `sha-29d5c89`，digest `24dc4c4e` ccr skopeo 实证；
+公开快照线 scs001/platform-image-verify，快照 1ca8ce6 + workflow 恢复提交即出片 tag——`sha-9b7417a`
+为无 actions 修复首版，已废弃于 demo）。
+
+**滚动**：仅 `platform-demo`（GitOps 4d41721 起）：`LINE_BOARDS_ENABLED=1` +
+`MARKET_REGISTRY_URL` + 专用带外 Secret `platform-demo-registry-token`（只含该键，**不**
+envFrom 全套 platform-secrets）+ 新增 `platform-demo-mcp-config` ConfigMap（仅 actions 条目）。
+**prod platform 刻意留 `sha-352d662`**——按迁移计划验收后 go-live；**硬前置：prod 的
+`platform-mcp-config` 尚无 actions 条目，不补则上产后副驾无 propose_action**。
+
+**真机实证**：boards/wire 未连接形状 + 诚实 404 + 开关双向（回滚演练实走 404
+`line_boards_disabled`）；probe 全量档真握手 wire-ops 10 / wire-build 15 / actions 1；
+propose_action stdio 握手修复后通过。**真机缺陷两只**：① actions-mcp `capabilities:{}`
+被 dsh connect 断言击杀（`4dfa7104`）；② demo 无 operator 基线（mcp.json .dockerignore，
+ConfigMap 挂载制）。
+
+**registry 变更（对账）**：`/wire-ops-mcp`、`/wire-build-mcp` 两条目 tool_list 空是 AuthGate
+匿名 401 的既定接受态（MCP-REGISTRY §167-181 决策不变）——pack 发布门需要快照，照萬星配方
+Mongo 直写回填**对象数组**（ops 10 / build 15，`num_tools` 同步），公网 /api/servers 回读一致。
+回填脚本模式：kubectl hostPID pod @cheap-8 → `nsenter --mount=/proc/<uvicorn>/ns/mnt
+--net=/proc/1/ns/net`（**net 必须取宿主**，mongo 绑宿主 loopback）→ 容器自带 pymongo。
+
+**pack**：柏讯助手 `ALuUIiL23WP5OqLIgSRX1g` v1 private（facet 市场实发，aloadtree 凭据直调
+NodePort 31893——**网关对 facet-market-mcp 剥 Authorization**，同 paper-trading 坑）。
+
+**待补**：wire 客户身份的读回合/写动作（控制面仅认 Logto ID token，wdk_ 只开数据面）；
+聚焦面真实会话 tools/list；prod go-live 三前置（prod 基线补 actions、LINE_BOARDS_ENABLED、
+pack 转 public 时机）。证据细节见 docs/acceptance-criteria.md 柏讯实录节。

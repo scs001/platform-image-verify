@@ -191,3 +191,45 @@ kubectl rollout restart deployment paas-cell
 
 - 单测：`scripts/test-wire-tool-risk.mjs`（对拍 A/B + 突变验证）、`scripts/test-wire-line-board.mjs`（执行器真 HTTP MCP / 闸三态 / 身份豁免 / profile 注入 / 适配器四态 / env 门）、`scripts/test-official-packs-lint.mjs`（写工具 lint + 校验器）、`scripts/test-app-center.mjs`（看板 CTA 条件）。
 - e2e（fast）：`e2e/wire-board.spec.js` 十条（门默认关 / 四块深链 / 未连接 / 过期 / 单块失败 / 行内归档确认前零执行 / 补填字段门控与提交体 / 422 逐字段 / 应用中心两态）。
+
+---
+
+# 柏讯线真机验收实录（2026-10-21，platform-demo 验收 cell）
+
+环境：`platform-demo`（fd-prod，AUTH_MODE=none 机器主人、emptyDir 沙箱）滚动至
+`sha-29d5c89`（= paas `4dfa7104`，digest `24dc4c4e` ccr 实证），`LINE_BOARDS_ENABLED=1`、
+`MARKET_REGISTRY_URL/TOKEN` 就位；镜像含 actions-mcp tools-capability 修复（首版 `sha-9b7417a`
+的 actions 子进程在 dsh connect 断言即死——真机 stdio 握手当场抓获，本地假服务端单测测不出）。
+
+## 已在真机跑过并绿的场景
+
+| # | 场景 | 证据 |
+|---|---|---|
+| 2 | 未连接态 | `GET /api/boards/wire` → 200 `{connected:false, reason:not_connected, connectPath:/settings/connections?panel=line-wire-customer}`，零上游请求 |
+| — | 诚实降级 | `GET /api/boards/nope` → 404 `line_not_found` + availableLines |
+| — | 部署开关 | `/api/config` → `lineBoardsEnabled:true`；关 env → 立即 404 `line_boards_disabled`（回滚演练双向实走） |
+| — | MCP 端点链路 | probe-pack-scope 全量档真握手：wire-ops-mcp **10 工具**、wire-build-mcp **15 工具**、actions **1（propose_action）**——registry 端点 + Bearer 透传全通 |
+| — | propose_action | pod 内 stdio 握手 `tools/list → ["propose_action"]`（修复后） |
+| — | pack 发布 | facet 市场实发：validate `valid:true`（发布门过）→ publish **`ALuUIiL23WP5OqLIgSRX1g` v1（private）**，经 aloadtree 设备凭据直调 facet-market-mcp（网关剥 Authorization，走 NodePort 31893 直连） |
+| — | pack 安装 | demo 真安装链 `POST /api/mypacks/install` → skills/mcpServers/agents 全 installed（前置：registry 两条目 tool_list 回填 10/15 对象数组 + 机器主人 registry 凭据） |
+
+## 待补（阻塞原因如实记录）
+
+- **场景 1/3/4/5/6（需 wire 客户数据与写动作）**：wire 控制面 REST **只认 Logto ID token**
+  （`console/auth.py` JWKS 验签+aud；`wdk_` key 仅数据面，`X-Customer-Id` 占位登录已退位），
+  无人持有 wire 测试账号的浏览器会话 → 本轮无法铸 token。需要一个 wire 客户身份在壹座
+  完成「设置→连接→柏讯」浏览器授权（或提供 Logto 测试凭据由 browser 工具走 PKCE）。
+- **场景 10 聚焦面实测**：预设定义/allowTools 已物化（presets.patch.yml 含 柏讯助手），
+  但合成探针无法在真实宿主进程外判焦（deriveScope 在探针上下文解析不到 persona）——
+  聚焦面正确性目前由本地 e2e（wire-board 十条）+ 仓库 lint 钉死；待真实会话 tools/list 实测。
+- **上产 go-live**：prod `platform` 仍 `sha-352d662`（刻意不动，按迁移计划验收后 go-live）。
+  **硬前置**：prod 的 `platform-mcp-config` ConfigMap 尚无 `actions` 条目——不补则上产后
+  副驾没有 propose_action（本 change 遗留 follow-up）。
+
+## 过程缺陷（真机抓获并已修）
+
+1. actions-mcp `capabilities:{}` → dsh connect 断言死（`4dfa7104` 修复）。
+2. registry 两条目 `tool_list=[]` 卡发布门（AuthGate 匿名 401 是既定接受态）→ 照萬星配方
+   Mongo 直写回填对象数组（wire-ops 10 / wire-build 15），公网 API 回读一致。
+3. demo 无 operator MCP 基线（mcp.json 是 .dockerignore 的，经 GitOps ConfigMap 挂载）→
+   增设 `platform-demo-mcp-config`（仅 actions）。

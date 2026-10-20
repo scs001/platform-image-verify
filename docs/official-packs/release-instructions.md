@@ -95,3 +95,17 @@ v1 是 read-only 版本。未来可逐步添加：
 ---
 
 **注意**：这两个 pack 的 publish lint 必须通过「不声明写工具」的检查。任何包含 write 工具的提交都会被拒绝。
+
+## 柏讯助手发布记录（2026-10-21，add-wire-line-board 6.3）
+
+同配方直调 facet-market-mcp（网关剥 Authorization → **走 NodePort 直连**
+`http://cheap6.mesh.finddata.cn:31893/mcp`），发布身份 aloadtree 设备凭据：
+
+- **柏讯助手：`ALuUIiL23WP5OqLIgSRX1g` v1 private**（作者 aloadtree@gmail.com）
+- validate 干跑 `valid:true`（发布门过）——**前置**：registry 两条目 tool_list 回填
+  （wire-ops-mcp 10 / wire-build-mcp 15，对象数组 Mongo 直写，见 registry-maintenance 台账），
+  否则 allowTools 全部 unresolvable 卡门（與萬星同款）。
+- 读面 = ops 7 + build 4（含 corrections_list）；`requiredGroup: wire-customers` 两条目。
+- 验收 cell（platform-demo）真安装链 200：skills/mcpServers/agents 全 installed；
+  propose_action stdio 握手 `["propose_action"]`。
+- 转-public 前置：wire 客户身份的一次读回合实测（待 Logto 凭据，见 acceptance-criteria 待补）。

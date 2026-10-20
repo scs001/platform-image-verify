@@ -68,6 +68,12 @@ export function useWebSocket(enabled: boolean, identityKey = "") {
           const bc = msg as { line: string; resources?: string[] };
           window.dispatchEvent(new CustomEvent("board_changed", { detail: bc }));
         }
+        // A line credential the gate/board just saw rejected upstream
+        // (add-wire-line-board D9): boards refetch and flip to "re-authorize".
+        if ((msg as { type?: string }).type === "line_credential_stale") {
+          const lc = msg as { line?: string };
+          window.dispatchEvent(new CustomEvent("line_credential_stale", { detail: lc }));
+        }
         apply(msg as ServerMessage);
         applyExtensions(msg as ServerMessage);
         applyOverlay(msg as ServerMessage);

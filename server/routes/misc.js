@@ -16,6 +16,7 @@ import * as lineCredentials from "../../line-credentials.js";
 import * as paperTradingCredentials from "../../paper-trading-credentials.js";
 import * as ciyuanAccountCredentials from "../../ciyuan-account-credentials.js";
 import { resolveVoiceConfig } from "./voice.js";
+import { lineBoardsEnabled } from "../../lib/board-adapters.js";
 import { BUSINESS_ROLES, parseStoredAssignments, resolveAssignment } from "../roles.js";
 import { registerOnboardingRoutes } from "./onboarding.js";
 import {
@@ -433,6 +434,10 @@ export function registerMiscRoutes(ctx) {
         const v = resolveVoiceConfig();
         return { enabled: v.enabled, ttsFormat: v.ttsFormat };
       })(),
+      // Line boards (add-wire-line-board D8): the deployment switch the web
+      // reads to decide whether /boards/:line and the app-center board CTA
+      // exist at all. Absent on older servers ⇒ the web treats it as off.
+      lineBoardsEnabled: lineBoardsEnabled(),
     });
   });
 

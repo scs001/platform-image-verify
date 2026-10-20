@@ -7,10 +7,14 @@ import { readFileSync } from "node:fs";
 import {
   APP_LINES,
   APP_CONNECTIONS,
+  BOARD_CREDENTIAL,
+  boardAvailable,
+  boardPathFor,
   brandOf,
   buildAppGrid,
   aggregateConnectionState,
   connectTargetFor,
+  hasBoard,
 } from "../web/src/lib/appCatalog.ts";
 
 const FIVE_LINES = ["yizuo", "facet", "wanxing", "lex", "wire"];
@@ -195,5 +199,68 @@ test("unified-grid copy exists in all five locales; retired headings gone (2.4)"
     );
     assert.equal(dict.appCenter?.linesHeading, undefined, `${lang}: appCenter.linesHeading must be gone`);
     assert.equal(dict.appCenter?.appsHeading, undefined, `${lang}: appCenter.appsHeading must be gone`);
+  }
+});
+
+// ── add-wire-line-board (app-center MODIFIED: 柏讯加入看板线) ─────────────────
+
+test("wire is no longer 'early'; lex still is (add-wire-line-board 7.1)", () => {
+  const byId = Object.fromEntries(APP_LINES.map((l) => [l.id, l]));
+  assert.equal(byId.wire.status, "live", "wire has a real board now — no early badge");
+  assert.equal(byId.lex.status, "early");
+  assert.equal(byId.facet.status, "live");
+  assert.equal(byId.wanxing.status, "live");
+});
+
+test("board lines and their own credential (D7): facet→facet-market, wire→line-wire-customer, wanxing→none", () => {
+  assert.deepEqual(Object.keys(BOARD_CREDENTIAL).sort(), ["facet", "wanxing", "wire"]);
+  assert.equal(BOARD_CREDENTIAL.facet, "facet-market");
+  assert.equal(BOARD_CREDENTIAL.wire, "line-wire-customer");
+  assert.equal(BOARD_CREDENTIAL.wanxing, null);
+  for (const id of ["facet", "wanxing", "wire"]) assert.ok(hasBoard(id), id);
+  for (const id of ["lex", "yizuo", "yizuo-packs", "wanxing-token"]) assert.equal(hasBoard(id), false, id);
+  assert.equal(boardPathFor("wire"), "/boards/wire");
+});
+
+test("boardAvailable: wire shows the board on its OWN credential even when the card aggregate is partial", () => {
+  const partial = { "line-wire-customer": "connected", "paper-trading": "disconnected" };
+  assert.equal(aggregateConnectionState(APP_CONNECTIONS.wire, partial), "partial", "precondition: card badge is partial");
+  assert.equal(boardAvailable("wire", partial, true), true, "board still offered");
+  assert.equal(boardAvailable("wire", { "line-wire-customer": "disconnected", "paper-trading": "connected" }, true), false);
+  assert.equal(boardAvailable("wire", {}, true), false);
+  assert.equal(boardAvailable("wire", null, true), false, "no /api/connections projection = not connected");
+});
+
+test("boardAvailable: facet needs facet-market; wanxing needs nothing; lex has no board", () => {
+  assert.equal(boardAvailable("facet", { "facet-market": "connected" }, true), true);
+  assert.equal(boardAvailable("facet", { "facet-market": "stale" }, true), false);
+  assert.equal(boardAvailable("wanxing", {}, true), true);
+  assert.equal(boardAvailable("wanxing", null, true), true);
+  assert.equal(boardAvailable("lex", { "line-lex": "connected" }, true), false);
+});
+
+test("boardAvailable: the deployment switch off hides every board (D8 rollback)", () => {
+  const allGreen = { "facet-market": "connected", "line-wire-customer": "connected", "paper-trading": "connected" };
+  for (const id of ["facet", "wanxing", "wire"]) {
+    assert.equal(boardAvailable(id, allGreen, false), false, `${id} must not offer a board when disabled`);
+  }
+});
+
+test("appCenter.openOrigin + board copy exist in all five locales (7.2)", () => {
+  for (const lang of LOCALES) {
+    const dict = JSON.parse(readFileSync(new URL(`../web/src/locales/${lang}/common.json`, import.meta.url)));
+    assert.ok(typeof dict.appCenter?.openOrigin === "string" && dict.appCenter.openOrigin.length > 0, `${lang}: appCenter.openOrigin`);
+    for (const key of ["datasets", "artifacts", "demands"]) {
+      assert.ok(typeof dict.board?.tab?.[key] === "string", `${lang}: board.tab.${key}`);
+    }
+    for (const key of ["title", "body", "expiredTitle", "expiredBody", "connect"]) {
+      assert.ok(typeof dict.board?.unconnected?.[key] === "string", `${lang}: board.unconnected.${key}`);
+    }
+    for (const key of ["pending", "approved", "executed", "rejected", "expired"]) {
+      assert.ok(typeof dict.action?.state?.[key] === "string", `${lang}: action.state.${key}`);
+    }
+    for (const key of ["source_urls", "public_data_asserted"]) {
+      assert.ok(typeof dict.action?.field?.[key] === "string", `${lang}: action.field.${key}`);
+    }
   }
 });

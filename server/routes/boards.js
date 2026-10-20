@@ -6,12 +6,20 @@
 //
 // Unknown lines return 404 with an honest message.
 
-import { getBoardAdapter, listBoardLines } from "../../lib/board-adapters.js";
+import { getBoardAdapter, listBoardLines, lineBoardsEnabled } from "../../lib/board-adapters.js";
 
 export function registerBoardRoutes(ctx) {
   const { app } = ctx;
 
   app.get("/api/boards/:line", async (req, res) => {
+    // Deployment switch (add-wire-line-board D8): read per request so flipping
+    // the env on a running cell takes effect without a restart in tests/ops.
+    if (!lineBoardsEnabled()) {
+      return res.status(404).json({
+        error: "line_boards_disabled",
+        message: "线看板未开启（LINE_BOARDS_ENABLED）",
+      });
+    }
     const { line } = req.params;
     const adapter = getBoardAdapter(line);
 

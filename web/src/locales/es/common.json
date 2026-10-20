@@ -1942,7 +1942,8 @@
         "tagline": "Plataforma de datos empresariales: hub de datos potenciado por indicadores macro"
       }
     },
-    "board": "Tablero"
+    "board": "Tablero",
+    "openOrigin": "Abrir sitio original"
   },
   "sessionSolution": {
     "menuItem": "Guardar como mi solución",
@@ -2090,7 +2091,23 @@
       "publish-history": "Historial de publicación",
       "fleet-summary": "Resumen de flota",
       "missions": "Misiones",
-      "deployments": "Despliegues"
+      "deployments": "Despliegues",
+      "datasets": "Mis datos",
+      "artifacts": "Artefactos",
+      "demands": "Solicitudes"
+    },
+    "subtitle": "Yizuo · tablero {{line}}",
+    "disabled": "Los tableros de línea no están activados (LINE_BOARDS_ENABLED)",
+    "empty": "Lista vacía",
+    "noEvents": "Sin eventos",
+    "proposing": "Proponiendo…",
+    "partial": "No disponible ahora: {{blocks}}",
+    "unconnected": {
+      "title": "Sin conectar",
+      "body": "Conecta {{title}} para ver su estado y operar desde Yizuo.",
+      "expiredTitle": "Sesión expirada",
+      "expiredBody": "Tu sesión de Wire expiró — abre la página de conexión para volver a autorizar; no hay clave que pegar.",
+      "connect": "Conectar"
     }
   },
   "copilot": {
@@ -2104,6 +2121,33 @@
     "rejected": "Rechazado",
     "expired": "Expirado",
     "tier": "Nivel de confirmación",
-    "result": "Procesado"
+    "result": "Procesado",
+    "state": {
+      "pending": "Pendiente de confirmación",
+      "approved": "Aprobado",
+      "executed": "Ejecutado",
+      "rejected": "Rechazado",
+      "expired": "Expirado"
+    },
+    "tierName": {
+      "auto": "Automático",
+      "inline": "Confirmación en línea",
+      "second": "Doble confirmación",
+      "async": "Aprobación asíncrona"
+    },
+    "confirm": "Confirmar",
+    "cancel": "Cancelar",
+    "confirming": "Ejecutando…",
+    "fillRequired": "Rellena primero los campos obligatorios",
+    "failed": "Error en la ejecución",
+    "reconnect": "Volver a autorizar la conexión",
+    "userFill": {
+      "title": "Debes rellenarlos tú",
+      "hint": "Los valores del modelo para estos campos se descartan; los confirmas tú."
+    },
+    "field": {
+      "source_urls": "URLs de fuentes públicas (una por línea)",
+      "public_data_asserted": "Confirmo que todas las fuentes anteriores son datos públicos"
+    }
   }
 }

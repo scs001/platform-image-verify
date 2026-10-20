@@ -1942,7 +1942,8 @@
         "name": "柏讯",
         "tagline": "企业租户与数据中台（建设早期）"
       }
-    }
+    },
+    "openOrigin": "打开原站"
   },
   "board": {
     "notFound": "该线尚未接入，请稍后再试。",
@@ -1953,7 +1954,23 @@
       "publish-history": "发布记录",
       "fleet-summary": "舰队概况",
       "missions": "任务",
-      "deployments": "部署"
+      "deployments": "部署",
+      "datasets": "我的数据",
+      "artifacts": "产物",
+      "demands": "需求单"
+    },
+    "subtitle": "壹座 · {{line}} 看板",
+    "disabled": "线看板未开启（LINE_BOARDS_ENABLED）",
+    "empty": "空列表",
+    "noEvents": "暂无事件",
+    "proposing": "提议中…",
+    "partial": "以下块暂不可用：{{blocks}}",
+    "unconnected": {
+      "title": "尚未连接",
+      "body": "连接 {{title}} 后即可在壹座内查看状态与发起操作。",
+      "expiredTitle": "登录已过期",
+      "expiredBody": "柏讯登录已过期——重新进入连接页即可重新授权，无需粘贴任何密钥。",
+      "connect": "去连接"
     }
   },
   "copilot": {
@@ -1967,7 +1984,34 @@
     "rejected": "已拒绝",
     "expired": "已过期",
     "tier": "确认档位",
-    "result": "已处理"
+    "result": "已处理",
+    "state": {
+      "pending": "待确认",
+      "approved": "已批准",
+      "executed": "已执行",
+      "rejected": "已拒绝",
+      "expired": "已过期"
+    },
+    "tierName": {
+      "auto": "自动执行",
+      "inline": "行内确认",
+      "second": "二次确认",
+      "async": "异步审批"
+    },
+    "confirm": "确认执行",
+    "cancel": "取消",
+    "confirming": "执行中…",
+    "fillRequired": "请先填写必填字段",
+    "failed": "执行失败",
+    "reconnect": "重新授权连接",
+    "userFill": {
+      "title": "需要你亲自填写",
+      "hint": "这些字段不采纳模型给出的值，由你确认后提交。"
+    },
+    "field": {
+      "source_urls": "公开源 URL（每行一个）",
+      "public_data_asserted": "我确认以上来源均为公开数据"
+    }
   },
   "sessionSolution": {
     "menuItem": "存为我的方案",

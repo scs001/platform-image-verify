@@ -9,7 +9,14 @@
 // The model can then render a confirmation card; the user's approve/reject
 // decisions are NOT part of this channel — they ride WS messages back to the
 // cell and resolve through routes/actions.js.
+//
+// Identity (add-wire-line-board D4): the per-user effective profile injects
+// ACTIONS_MCP_PROPOSER_EMAIL into this child's env; every proposal names that
+// user so the owner-only approve can match it. The loopback route trusts the
+// value only on POST /api/actions/propose (server/auth.js).
 
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
@@ -18,6 +25,13 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 
 console.log = (...args) => console.error(...args);
+
+export const PROPOSER_EMAIL_ENV = "ACTIONS_MCP_PROPOSER_EMAIL";
+
+export function proposerEmailFromEnv(env = process.env) {
+  const v = String(env[PROPOSER_EMAIL_ENV] || "").trim().toLowerCase();
+  return v || null;
+}
 
 function bridgeOrigin() {
   if (process.env.ACTIONS_MCP_URL) return process.env.ACTIONS_MCP_URL.replace(/\/$/, "");
@@ -81,7 +95,12 @@ export async function createServer() {
         return { content: [{ type: "text", text: "actionId and args required" }], isError: true };
       }
 
-      const result = await call("POST", "/api/actions/propose", { actionId, args: actionArgs });
+      const result = await call("POST", "/api/actions/propose", {
+        actionId,
+        args: actionArgs,
+        proposerEmail: proposerEmailFromEnv(),
+        proposerSession: process.env.DSH_SESSION_ID || process.env.ACTIONS_MCP_SESSION || null,
+      });
       return {
         content: [
           {
@@ -93,6 +112,7 @@ export async function createServer() {
               risk: result.risk,
               target: result.target,
               tier: result.tier,
+              userFilledArgs: result.userFilledArgs ?? [],
             }),
           },
         ],
@@ -111,7 +131,19 @@ async function run() {
   await server.connect(transport);
 }
 
-run().catch((err) => {
-  console.error("[actions-mcp] fatal:", err.message);
-  process.exit(1);
-});
+// Only start the stdio server when launched as the MCP child; importing the
+// module (tests, profile tooling) must stay side-effect free.
+const launchedDirectly = (() => {
+  try {
+    return process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href;
+  } catch {
+    return false;
+  }
+})();
+
+if (launchedDirectly) {
+  run().catch((err) => {
+    console.error("[actions-mcp] fatal:", err.message);
+    process.exit(1);
+  });
+}

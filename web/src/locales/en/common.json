@@ -1942,7 +1942,8 @@
         "name": "Wire",
         "tagline": "Enterprise tenants and data middleware (early stage)"
       }
-    }
+    },
+    "openOrigin": "Open origin site"
   },
   "board": {
     "notFound": "This line is not yet integrated. Please try again later.",
@@ -1953,7 +1954,23 @@
       "publish-history": "Publish History",
       "fleet-summary": "Fleet Summary",
       "missions": "Missions",
-      "deployments": "Deployments"
+      "deployments": "Deployments",
+      "datasets": "My data",
+      "artifacts": "Artifacts",
+      "demands": "Demands"
+    },
+    "subtitle": "Yizuo · {{line}} board",
+    "disabled": "Line boards are not enabled (LINE_BOARDS_ENABLED)",
+    "empty": "Empty list",
+    "noEvents": "No events yet",
+    "proposing": "Proposing…",
+    "partial": "Unavailable right now: {{blocks}}",
+    "unconnected": {
+      "title": "Not connected",
+      "body": "Connect {{title}} to see its status and act on it from Yizuo.",
+      "expiredTitle": "Session expired",
+      "expiredBody": "Your Wire login expired — open the connection page to re-authorize; there is no key to paste.",
+      "connect": "Connect"
     }
   },
   "copilot": {
@@ -1967,7 +1984,34 @@
     "rejected": "Rejected",
     "expired": "Expired",
     "tier": "Confirmation Tier",
-    "result": "Processed"
+    "result": "Processed",
+    "state": {
+      "pending": "Awaiting confirmation",
+      "approved": "Approved",
+      "executed": "Executed",
+      "rejected": "Rejected",
+      "expired": "Expired"
+    },
+    "tierName": {
+      "auto": "Auto",
+      "inline": "Inline confirm",
+      "second": "Double confirm",
+      "async": "Async approval"
+    },
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "confirming": "Executing…",
+    "fillRequired": "Fill in the required fields first",
+    "failed": "Execution failed",
+    "reconnect": "Re-authorize connection",
+    "userFill": {
+      "title": "You must fill these in",
+      "hint": "Model-supplied values for these fields are discarded; you confirm them yourself."
+    },
+    "field": {
+      "source_urls": "Public source URLs (one per line)",
+      "public_data_asserted": "I confirm all sources above are public data"
+    }
   },
   "sessionSolution": {
     "menuItem": "Save as my solution",

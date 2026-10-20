@@ -119,6 +119,14 @@ const isInternalDelegationBridge = (req) =>
 const isInternalSaveBridge = (req) =>
   req.path === "/api/resources/save-declared" && isLoopback(req.socket?.remoteAddress);
 
+// The actions bridge (openspec: add-wire-line-board D4) — the in-cell actions
+// MCP child creating a proposal on behalf of the user named in its per-user
+// profile env. Loopback is its credential and the scope is deliberately ONE
+// verb: a forged caller can only create a *pending* proposal; approve / reject /
+// query never take this door and still require the owner's real session.
+const isInternalActionsBridge = (req) =>
+  req.method === "POST" && req.path === "/api/actions/propose" && isLoopback(req.socket?.remoteAddress);
+
 // The header the gateway injects alongside the identity headers in hosted mode.
 export const GATEWAY_SECRET_HEADER = "x-cloud-gateway-secret";
 
@@ -240,6 +248,10 @@ export function registerAuth(ctx) {  ctx.app.use((req, res, next) => {
     }
     if (isInternalSaveBridge(req)) {
       req.user = { email: "save-bridge@internal", internal: true };
+      return next();
+    }
+    if (isInternalActionsBridge(req)) {
+      req.user = { email: "actions-bridge@internal", internal: true };
       return next();
     }
     const headerUser = userFromHeaders(req.headers, ctx.headerTrust);

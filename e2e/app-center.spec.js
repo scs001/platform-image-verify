@@ -67,9 +67,10 @@ test("one grid renders eight cards in brand order, retired sections gone", async
   await expect(page.getByTestId("app-card-yizuo-self")).toBeVisible();
   await expect(page.getByTestId("app-card-yizuo-open")).toHaveCount(0);
 
-  // Early lines (lex, wire) wear the badge; live cards do not.
+  // Early lines (lex) wear the badge; live cards do not. wire joined the
+  // board lines (add-wire-line-board) and dropped its badge.
   await expect(page.getByTestId("app-card-lex-early-badge")).toBeVisible();
-  await expect(page.getByTestId("app-card-wire-early-badge")).toBeVisible();
+  await expect(page.getByTestId("app-card-wire-early-badge")).toHaveCount(0);
   await expect(page.getByTestId("app-card-facet-early-badge")).toHaveCount(0);
 });
 

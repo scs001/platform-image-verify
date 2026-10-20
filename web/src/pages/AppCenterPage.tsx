@@ -16,10 +16,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ExternalLink, Layers, Scale, Store, Orbit, Database, Package, Coins, Plug, PlugZap, ShieldAlert } from "lucide-react";
+import { useAppConfig } from "@/hooks/useAppConfig";
 import {
   APP_LINES,
   buildAppGrid,
   aggregateConnectionState,
+  boardAvailable,
+  boardPathFor,
   connectTargetFor,
   connectPathFor,
   type AppGridEntry,
@@ -70,16 +73,18 @@ const BADGE_TEXT: Record<string, string> = {
 function AppCard({ entry, states }: { entry: AppGridEntry; states: Record<string, string> | null }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const { lineBoardsEnabled } = useAppConfig();
   const Icon = iconFor(entry);
 
   const state = states ? aggregateConnectionState(entry.connections, states) : null;
   const target = states ? connectTargetFor(entry.connections, states) : null;
 
-  // For lines with boards (facet/wanxing), show "看板" as primary action if
-  // connected; otherwise fall back to "打开原站".
-  const hasBoard = ["facet", "wanxing"].includes(entry.id);
-  const canShowBoard = hasBoard && state === "connected";
-  const boardPath = hasBoard ? `/boards/${entry.id}` : null;
+  // Board as primary action (app-center spec, add-wire-line-board D7): the
+  // deployment switch is on AND the board's OWN credential is connected —
+  // not the card's aggregate badge, which may fold in unrelated connections
+  // (wire's paper-trading). With a board, "打开原站" stays as the secondary.
+  const canShowBoard = boardAvailable(entry.id, states, lineBoardsEnabled);
+  const boardPath = boardPathFor(entry.id);
 
   return (
     <div
@@ -126,18 +131,43 @@ function AppCard({ entry, states }: { entry: AppGridEntry; states: Record<string
           <span data-testid={`app-card-${entry.id}-self`} className="text-xs text-muted-foreground">
             {t("appCenter.here")}
           </span>
+        ) : entry.embedded ? (
+          // external-service with embedding allowed: the in-app proxy route
+          // (app-center spec「直达外链与内嵌页」; restored after it was dropped
+          // alongside the board CTA in the sister change).
+          <button
+            type="button"
+            data-testid={`app-card-${entry.id}-open`}
+            onClick={() => navigate(`/external/${entry.id}`)}
+            className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+          >
+            {t("appCenter.open")}
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
         ) : (
           <>
-            {/* Primary action: 看板 for connected facet/wanxing, else 打开 */}
+            {/* Primary action: 看板 when the board is available, else 打开 */}
             {canShowBoard ? (
-              <button
-                type="button"
-                data-testid={`app-card-${entry.id}-board`}
-                onClick={() => navigate(boardPath!)}
-                className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-              >
-                {t("appCenter.board")}
-              </button>
+              <>
+                <button
+                  type="button"
+                  data-testid={`app-card-${entry.id}-board`}
+                  onClick={() => navigate(boardPath)}
+                  className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                >
+                  {t("appCenter.board")}
+                </button>
+                <a
+                  href={entry.url ?? "#"}
+                  target="_blank"
+                  rel="noreferrer"
+                  data-testid={`app-card-${entry.id}-open`}
+                  className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground hover:underline"
+                >
+                  {t("appCenter.openOrigin")}
+                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                </a>
+              </>
             ) : (
               <a
                 href={entry.url ?? "#"}

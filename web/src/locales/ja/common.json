@@ -1942,7 +1942,8 @@
         "tagline": "企業データプラットフォーム——マクロ指標搭載のデータハブ"
       }
     },
-    "board": "ボード"
+    "board": "ボード",
+    "openOrigin": "元サイトを開く"
   },
   "sessionSolution": {
     "menuItem": "自分のソリューションとして保存",
@@ -2090,7 +2091,23 @@
       "publish-history": "公開履歴",
       "fleet-summary": "フリート概要",
       "missions": "ミッション",
-      "deployments": "デプロイ"
+      "deployments": "デプロイ",
+      "datasets": "マイデータ",
+      "artifacts": "成果物",
+      "demands": "需要票"
+    },
+    "subtitle": "壹座 · {{line}} ボード",
+    "disabled": "ラインボードは無効です（LINE_BOARDS_ENABLED）",
+    "empty": "リストは空です",
+    "noEvents": "イベントはありません",
+    "proposing": "提案中…",
+    "partial": "現在利用できないブロック：{{blocks}}",
+    "unconnected": {
+      "title": "未接続",
+      "body": "{{title}} を接続すると、壹座内で状態の確認と操作ができます。",
+      "expiredTitle": "ログインの期限切れ",
+      "expiredBody": "Wire のログインが期限切れです。接続ページを開いて再認可してください（キーの貼り付けは不要）。",
+      "connect": "接続する"
     }
   },
   "copilot": {
@@ -2104,6 +2121,33 @@
     "rejected": "拒否済み",
     "expired": "期限切れ",
     "tier": "確認レベル",
-    "result": "処理済み"
+    "result": "処理済み",
+    "state": {
+      "pending": "確認待ち",
+      "approved": "承認済み",
+      "executed": "実行済み",
+      "rejected": "却下",
+      "expired": "期限切れ"
+    },
+    "tierName": {
+      "auto": "自動実行",
+      "inline": "インライン確認",
+      "second": "二重確認",
+      "async": "非同期承認"
+    },
+    "confirm": "確認して実行",
+    "cancel": "キャンセル",
+    "confirming": "実行中…",
+    "fillRequired": "必須項目を先に入力してください",
+    "failed": "実行に失敗しました",
+    "reconnect": "接続を再認可",
+    "userFill": {
+      "title": "ご自身で入力してください",
+      "hint": "これらの項目はモデルの値を採用しません。ご自身で確認して送信してください。"
+    },
+    "field": {
+      "source_urls": "公開ソース URL（1 行に 1 つ）",
+      "public_data_asserted": "上記のソースがすべて公開データであることを確認します"
+    }
   }
 }

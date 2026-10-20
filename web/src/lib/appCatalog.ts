@@ -57,7 +57,9 @@ export const APP_LINES: AppLine[] = [
     nameKey: "appCenter.line.wire.name",
     taglineKey: "appCenter.line.wire.tagline",
     url: "https://wire.finddatatech.cloud",
-    status: "early",
+    // add-wire-line-board: the line has a real board now — the "early" badge
+    // would misstate availability.
+    status: "live",
   },
 ];
 
@@ -206,4 +208,38 @@ export function connectTargetFor(
 
 export function connectPathFor(connectionId: string): string {
   return `/settings/connections?panel=${encodeURIComponent(connectionId)}`;
+}
+
+// Lines that have a board, and the ONE connection that board itself needs
+// (add-wire-line-board D7). Null = the board needs no credential. This is
+// deliberately not the card's aggregate badge state: the wire card aggregates
+// `paper-trading` too, which has nothing to do with the wire board.
+export const BOARD_CREDENTIAL: Record<string, ConnectionId | null> = {
+  facet: "facet-market",
+  wanxing: null,
+  wire: "line-wire-customer",
+};
+
+export function hasBoard(lineId: string): boolean {
+  return Object.hasOwn(BOARD_CREDENTIAL, lineId);
+}
+
+// Whether the card should offer "看板" as its primary action: the deployment
+// switch is on, the line has a board, and the board's own credential (if any)
+// is connected. A missing/failed /api/connections projection counts as
+// "not connected" for credential-bearing boards.
+export function boardAvailable(
+  lineId: string,
+  statesById: Record<string, string | undefined> | null,
+  lineBoardsEnabled: boolean,
+): boolean {
+  if (!lineBoardsEnabled || !hasBoard(lineId)) return false;
+  const cred = BOARD_CREDENTIAL[lineId];
+  if (cred === undefined) return false;
+  if (cred === null) return true;
+  return (statesById?.[cred] ?? "disconnected") === "connected";
+}
+
+export function boardPathFor(lineId: string): string {
+  return `/boards/${encodeURIComponent(lineId)}`;
 }

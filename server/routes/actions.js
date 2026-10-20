@@ -1,37 +1,67 @@
 // ── Action gate routes (add-line-boards-and-action-gate) ────────────────────
 //
 // POST /api/actions/propose — create a proposal (model or board button)
-// POST /api/actions/:id/approve — approve (owner-only)
+// POST /api/actions/:id/approve — approve (owner-only); body may carry userArgs
 // POST /api/actions/:id/reject — reject
 // GET /api/actions/:id — query proposal
 //
-// All executions go through a single executor path; audit is written here.
-// No secrets in logs or responses.
+// All executions go through a single executor path (lib/action-executor.js,
+// add-wire-line-board D3); audit is written here. No secrets in logs or
+// responses.
 
 import { randomUUID } from "node:crypto";
 import crypto from "node:crypto";
 import { getDb, nowIso } from "../../db.js";
-import { getAction, isRegistered, riskToTierMap } from "../../lib/action-registry.js";
+import {
+  getAction,
+  isRegistered,
+  riskToTierMap,
+  stripUserFilledArgs,
+  userFilledArgsFor,
+  validateUserFilledArgs,
+} from "../../lib/action-registry.js";
 import { preflightAction } from "../../lib/action-preflight.js";
+import { executeRegisteredAction, ExecutorError } from "../../lib/action-executor.js";
 
 /**
  * SHA256 digest of JSON stringified args (for audit, never returns raw args).
  */
 function argsDigest(args) {
-  const json = JSON.stringify(args);
+  const json = JSON.stringify(args ?? {});
   return crypto.createHash("sha256").update(json).digest("hex");
+}
+
+function normEmail(v) {
+  return String(v || "").trim().toLowerCase();
+}
+
+// Owner check: the approver must be the proposer. With auth off there is one
+// machine owner and no identity on either side, so the match is trivially true
+// (same convention as ctx.requireMcpManage).
+function isOwner(req, row) {
+  if (req.ctx && !req.ctx.authEnabled) return true;
+  const userEmail = normEmail(req.user?.email);
+  const proposer = normEmail(row.proposer_email);
+  return Boolean(userEmail) && Boolean(proposer) && userEmail === proposer;
 }
 
 /**
  * Create a proposal.
  * Body: { actionId, args, proposerSession?, proposerEmail? }
- * Returns: { proposalId, state: "pending", impact, risk, target }
+ * Returns: { proposalId, state: "pending", impact, risk, target, tier, userFilledArgs }
+ *
+ * Identity: an authenticated browser caller is the proposer; the loopback
+ * actions-mcp child (auth.js isInternalActionsBridge) names the proposer in the
+ * body from the per-user profile env (design D4). The body value is only
+ * honoured for that internal caller — a cookie-authenticated user can never
+ * propose as someone else.
  */
 export async function proposeAction(req, res) {
   if (!req.body || typeof req.body.actionId !== "string") {
     return res.status(400).json({ error: "actionId required" });
   }
-  const { actionId, args, proposerSession, proposerEmail } = req.body;
+  const { actionId, proposerSession } = req.body;
+  const proposerEmail = resolveProposerEmail(req);
 
   // Check registration
   if (!isRegistered(actionId)) {
@@ -39,11 +69,22 @@ export async function proposeAction(req, res) {
   }
   const action = getAction(actionId);
 
-  // Preflight (real checks: deployer key for cloud, seat online for desktop)
+  // User-filled parameters (design D5): whatever the model put there is dropped
+  // before anything else sees it — digest, impact text, storage.
+  const args = stripUserFilledArgs(actionId, req.body.args);
+  const userFilledArgs = userFilledArgsFor(actionId);
+
+  // Preflight (real checks: line credential for wire, deployer key for cloud,
+  // seat online for desktop)
   try {
     const pf = await preflightAction(action, { email: proposerEmail }, args);
     if (!pf.ok) {
-      return res.status(400).json({ error: "preflight failed", details: pf.details });
+      return res.status(400).json({
+        error: "preflight failed",
+        details: pf.details,
+        ...(pf.connectPath ? { connectPath: pf.connectPath } : {}),
+        ...(pf.credentialRef ? { credentialRef: pf.credentialRef } : {}),
+      });
     }
   } catch (err) {
     console.error("[actions] preflight failed:", err.message);
@@ -64,6 +105,7 @@ export async function proposeAction(req, res) {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)
   `);
 
+  const impact = action.impact(args);
   try {
     stmtInsert.run(
       proposalId,
@@ -73,7 +115,7 @@ export async function proposeAction(req, res) {
       JSON.stringify(args),
       action.risk,
       action.target,
-      action.impact(args),
+      impact,
       proposerSession ?? null,
       proposerEmail ?? null,
       created,
@@ -88,17 +130,28 @@ export async function proposeAction(req, res) {
   return res.json({
     proposalId,
     state: "pending",
-    impact: action.impact(args),
+    impact,
     risk: action.risk,
     target: action.target,
     tier,
+    userFilledArgs,
   });
+}
+
+function resolveProposerEmail(req) {
+  if (req.user?.internal) {
+    // Loopback bridge: the child names the user (profile-injected env).
+    const fromBody = normEmail(req.body?.proposerEmail);
+    return fromBody || null;
+  }
+  const fromSession = normEmail(req.user?.email);
+  return fromSession || null;
 }
 
 /**
  * Approve a proposal (owner-only).
- * Body: {} (no args needed; proposalId in URL)
- * Returns: { state: "approved"|"executed", resultSummary? }
+ * Body: { userArgs? } — values for the action's userFilledArgs (design D5).
+ * Returns: { state: "approved"|"executed", resultSummary?, ... }
  */
 export async function approveAction(req, res) {
   const { id: proposalId } = req.params;
@@ -118,53 +171,54 @@ export async function approveAction(req, res) {
     return res.status(400).json({ error: `proposal already ${row.state}` });
   }
 
-  // Owner check: proposer_email must match req.user.email (auth middleware sets it)
-  const userEmail = req.user?.email;
-  if (!userEmail || !row.proposer_email || userEmail.toLowerCase() !== row.proposer_email.toLowerCase()) {
+  if (!isOwner(req, row)) {
     return res.status(403).json({ error: "only owner can approve" });
   }
 
+  // Merge user-filled values (only declared keys, required ones present).
+  const check = validateUserFilledArgs(row.action_id, req.body?.userArgs);
+  if (!check.ok) {
+    return res.status(400).json({ error: "invalid user args", details: check.error });
+  }
+  let args;
+  try {
+    args = row.args_json ? JSON.parse(row.args_json) : {};
+  } catch {
+    return res.status(500).json({ error: "invalid args_json" });
+  }
+  const finalArgs = { ...args, ...check.values };
+  const approverEmail = normEmail(req.user?.email) || row.proposer_email || null;
   const approvedAt = nowIso();
-  const updated = approvedAt;
 
-  // Update to approved
+  // Update to approved with the final args (digest now covers user values)
   db.prepare(`
-    UPDATE action_proposals SET approver_email = ?, approved_at = ?, state = 'approved', updated_at = ?
+    UPDATE action_proposals
+    SET approver_email = ?, approved_at = ?, state = 'approved', updated_at = ?,
+        args_json = ?, args_digest = ?
     WHERE proposal_id = ?
-  `).run(userEmail, approvedAt, updated, proposalId);
+  `).run(approverEmail, approvedAt, approvedAt, JSON.stringify(finalArgs), argsDigest(finalArgs), proposalId);
 
   // Execute immediately for non-async tiers (read/write/destructive/cost)
   // Async (publish) stays in approved state until external approval flow completes
   const tier = riskToTierMap()[row.risk];
-  let resultSummary = null;
 
-  if (tier !== "async") {
-    try {
-      resultSummary = await executeAction(proposalId);
-      // Update to executed. resultSummary MUST be a string (SQLite bind).
-      db.prepare(`
-        UPDATE action_proposals SET state = 'executed', result_summary = ?, updated_at = ?
-        WHERE proposal_id = ?
-      `).run(String(resultSummary), nowIso(), proposalId);
-
-      // Broadcast board_changed event for the line
-      if (req.ctx && req.ctx.broadcast) {
-        req.ctx.broadcast({ type: "board_changed", line: row.line, resources: [row.action_id.split(".")[0]] });
-      }
-      return res.json({ state: "executed", resultSummary: String(resultSummary) });
-    } catch (err) {
-      console.error("[actions] execution failed:", err.message);
-      // Spec: execution failure keeps the action inspectable and retryable —
-      // state 'failed' (NOT 'rejected', which means the human said no).
-      db.prepare(`
-        UPDATE action_proposals SET state = 'failed', result_summary = ?, updated_at = ?
-        WHERE proposal_id = ?
-      `).run(`execution failed: ${err.message}`, nowIso(), proposalId);
-      return res.status(500).json({ error: "execution failed", message: err.message });
-    }
+  if (tier === "async") {
+    // Publish tier: wait for async approval (not implemented in v1)
+    return res.json({ state: "approved", resultSummary: "awaiting async approval" });
   }
-  // Publish tier: wait for async approval (not implemented in v1)
-  return res.json({ state: "approved", resultSummary: "awaiting async approval" });
+
+  const outcome = await executeAction(proposalId, { email: row.proposer_email, ctx: req.ctx });
+  if (outcome.ok) {
+    return res.json({ state: "executed", resultSummary: outcome.summary });
+  }
+  return res.status(outcome.httpStatus).json({
+    error: "execution failed",
+    state: "rejected",
+    code: outcome.code,
+    message: outcome.message,
+    ...(outcome.fields ? { fields: outcome.fields } : {}),
+    ...(outcome.credentialInvalidated ? { credentialInvalidated: true, credentialRef: outcome.ref } : {}),
+  });
 }
 
 /**
@@ -186,8 +240,7 @@ export async function rejectAction(req, res) {
     return res.status(400).json({ error: `proposal already ${row.state}` });
   }
 
-  const userEmail = req.user?.email;
-  if (!userEmail || !row.proposer_email || userEmail.toLowerCase() !== row.proposer_email.toLowerCase()) {
+  if (!isOwner(req, row)) {
     return res.status(403).json({ error: "only owner can reject" });
   }
 
@@ -220,18 +273,20 @@ export async function getActionProposal(req, res) {
   }
 
   // Never return args_json or args_digest to client (audit sensitivity)
-  return res.json(row);
+  return res.json({ ...row, userFilledArgs: userFilledArgsFor(row.action_id) });
 }
 
 /**
- * Single execution path for all actions.
- * In v1, this calls the underlying MCP tool via loopback REST bridge.
- * Writes an audit row on BOTH outcomes (spec: 执行留痕 — 成功与失败都进台账).
- * Returns a plain-string result summary (SQLite bind safety).
- * TODO: implement actual tool invocation via the platform's loopback REST
- * bridge (same pattern as cron-mcp / delegation-mcp).
+ * Single execution path for all actions (design D3/D4 of add-wire-line-board).
+ *
+ * Reads the approved proposal, runs the registered action through the MCP
+ * executor with the PROPOSER's line credential, writes the audit row, and
+ * transitions the proposal to executed / rejected. Returns
+ *   { ok: true, summary }
+ *   { ok: false, httpStatus, code, message, fields?, credentialInvalidated?, ref? }
+ * and never throws for an execution outcome — only for a corrupt proposal.
  */
-export async function executeAction(proposalId) {
+export async function executeAction(proposalId, { email = null, ctx = null, deps = undefined } = {}) {
   const db = getDb();
   if (!db) throw new Error("database unavailable");
 
@@ -253,46 +308,103 @@ export async function executeAction(proposalId) {
     throw new Error("invalid args_json");
   }
 
-  const startedAt = Date.now();
-  let resultSummary;
+  const proposerEmail = email ?? row.proposer_email ?? null;
+  // Dependency seam: tests (and a future alternate executor) hang stubs on ctx.
+  const executorDeps = deps ?? ctx?.actionExecutorDeps ?? undefined;
+  const started = Date.now();
+  let summary = null;
   let errorText = null;
+  let server = null;
+  let failure = null;
+
   try {
-    // v1 placeholder executor: the real invocation lands in the follow-up
-    // change that wires per-action tool calls (wanxing_agent_deploy etc.).
-    console.log(`[actions/execute] executing ${action.id} (proposal ${proposalId})`);
-    resultSummary = `executed ${action.id} (placeholder executor; ${Object.keys(args).length} arg keys)`;
+    const result = await executeRegisteredAction({ action, args, email: proposerEmail, deps: executorDeps });
+    summary = typeof result.summary === "string" ? result.summary : JSON.stringify(result.summary);
+    server = result.server ?? null;
   } catch (err) {
-    errorText = err.message;
-    resultSummary = `failed: ${err.message}`;
-    throw err;
-  } finally {
-    // Audit both outcomes; never store args or secrets in the ledger.
-    try {
-      db.prepare(`
-        INSERT INTO action_audit (
-          proposal_id, line, action_id, args_digest, risk, target, impact_text,
-          executor_info, duration_ms, error_text, result_summary, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        row.proposal_id,
-        row.line,
-        row.action_id,
-        row.args_digest,
-        row.risk,
-        row.target,
-        row.impact_text,
-        "v1-placeholder-executor",
-        Date.now() - startedAt,
-        errorText,
-        resultSummary,
-        nowIso(),
-      );
-    } catch (auditErr) {
-      // Audit failure must never mask the action's own outcome.
-      console.error("[actions] audit write failed:", auditErr.message);
-    }
+    const ex = err instanceof ExecutorError ? err : new ExecutorError("executor_error", err?.message || String(err));
+    errorText = `${ex.code}: ${ex.message}`;
+    server = ex.server ?? null;
+    failure = ex;
   }
-  return resultSummary;
+  const durationMs = Date.now() - started;
+  const now = nowIso();
+
+  // Audit (task 1.3): one row per execution attempt, success or failure. Only
+  // a digest + the stored args; never the bearer.
+  try {
+    db.prepare(`
+      INSERT INTO action_audit (
+        proposal_id, line, action_id, args_digest, args_json, risk, target, impact_text,
+        executor_info, duration_ms, error_text, result_summary, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      proposalId,
+      row.line,
+      row.action_id,
+      row.args_digest,
+      row.args_json,
+      row.risk,
+      row.target,
+      row.impact_text,
+      JSON.stringify({
+        proposer: row.proposer_email ?? null,
+        approver: row.approver_email ?? null,
+        approvedAt: row.approved_at ?? null,
+        server,
+        code: failure?.code ?? "ok",
+      }),
+      durationMs,
+      errorText,
+      failure ? `execution failed: ${failure.message}` : summary ?? `executed ${action.id}`,
+      now
+    );
+  } catch (err) {
+    console.error("[actions] audit insert failed:", err.message);
+  }
+
+  if (!failure) {
+    db.prepare(`
+      UPDATE action_proposals SET state = 'executed', result_summary = ?, updated_at = ?
+      WHERE proposal_id = ?
+    `).run(summary ?? `executed ${action.id}`, now, proposalId);
+    ctx?.broadcast?.({ type: "board_changed", line: row.line, resources: [row.action_id.split(".")[1] ?? row.action_id] });
+    return { ok: true, summary: summary ?? `executed ${action.id}` };
+  }
+
+  console.error(`[actions] execution failed (${failure.code}):`, failure.message);
+  db.prepare(`
+    UPDATE action_proposals SET state = 'rejected', result_summary = ?, updated_at = ?
+    WHERE proposal_id = ?
+  `).run(`execution failed: ${failure.message}`, now, proposalId);
+  if (failure.credentialInvalidated && failure.ref) {
+    ctx?.broadcast?.({ type: "line_credential_stale", line: failure.ref });
+  }
+  return {
+    ok: false,
+    httpStatus: httpStatusFor(failure),
+    code: failure.code,
+    message: failure.message,
+    fields: Array.isArray(failure.fields) && failure.fields.length ? failure.fields : undefined,
+    credentialInvalidated: failure.credentialInvalidated === true,
+    ref: failure.ref ?? undefined,
+  };
+}
+
+function httpStatusFor(ex) {
+  switch (ex.code) {
+    case "upstream_422":
+      return 422;
+    case "upstream_401":
+    case "credential_missing":
+      return 409; // the user's connection, not this request, is what must change
+    case "tool_unroutable":
+    case "credential_ref_unknown":
+    case "endpoint_unresolved":
+      return 501;
+    default:
+      return 502;
+  }
 }
 
 // Register routes

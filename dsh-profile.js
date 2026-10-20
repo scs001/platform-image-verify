@@ -859,6 +859,18 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
     }
   }
 
+  // Proposer identity for the actions bridge (add-wire-line-board D4): the
+  // stdio `actions` child has no session of its own, so the per-user profile
+  // names the user in its env and the loopback propose route records that as
+  // the proposer. Email is not credential-shaped, so dsh's env scrub lets it
+  // through; a machine-owner profile (no email) simply carries nothing.
+  if (servers.actions?.command && ownerEmail) {
+    servers.actions = {
+      ...servers.actions,
+      env: { ...(servers.actions.env || {}), ACTIONS_MCP_PROPOSER_EMAIL: String(ownerEmail).trim().toLowerCase() },
+    };
+  }
+
   // Apply the active identity's availability overlay after the global merge.
   // This changes only the runtime patch; extension_configs remains untouched.
   if (mcpOverlay && typeof mcpOverlay === "object") {

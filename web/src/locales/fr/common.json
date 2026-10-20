@@ -1942,7 +1942,8 @@
         "tagline": "Plateforme de données d'entreprise : hub dopé aux indicateurs macro"
       }
     },
-    "board": "Tableau"
+    "board": "Tableau",
+    "openOrigin": "Ouvrir le site d'origine"
   },
   "sessionSolution": {
     "menuItem": "Enregistrer comme ma solution",
@@ -2090,7 +2091,23 @@
       "publish-history": "Historique de publication",
       "fleet-summary": "Résumé de la flotte",
       "missions": "Missions",
-      "deployments": "Déploiements"
+      "deployments": "Déploiements",
+      "datasets": "Mes données",
+      "artifacts": "Artefacts",
+      "demands": "Demandes"
+    },
+    "subtitle": "Yizuo · tableau {{line}}",
+    "disabled": "Les tableaux de ligne ne sont pas activés (LINE_BOARDS_ENABLED)",
+    "empty": "Liste vide",
+    "noEvents": "Aucun événement",
+    "proposing": "Proposition…",
+    "partial": "Indisponible pour l'instant : {{blocks}}",
+    "unconnected": {
+      "title": "Non connecté",
+      "body": "Connectez {{title}} pour voir son état et agir depuis Yizuo.",
+      "expiredTitle": "Session expirée",
+      "expiredBody": "Votre session Wire a expiré — ouvrez la page de connexion pour réautoriser ; aucune clé à coller.",
+      "connect": "Se connecter"
     }
   },
   "copilot": {
@@ -2104,6 +2121,33 @@
     "rejected": "Rejeté",
     "expired": "Expiré",
     "tier": "Niveau de confirmation",
-    "result": "Traité"
+    "result": "Traité",
+    "state": {
+      "pending": "En attente de confirmation",
+      "approved": "Approuvé",
+      "executed": "Exécuté",
+      "rejected": "Rejeté",
+      "expired": "Expiré"
+    },
+    "tierName": {
+      "auto": "Automatique",
+      "inline": "Confirmation en ligne",
+      "second": "Double confirmation",
+      "async": "Approbation asynchrone"
+    },
+    "confirm": "Confirmer",
+    "cancel": "Annuler",
+    "confirming": "Exécution…",
+    "fillRequired": "Renseignez d'abord les champs obligatoires",
+    "failed": "Échec de l'exécution",
+    "reconnect": "Réautoriser la connexion",
+    "userFill": {
+      "title": "À renseigner par vous-même",
+      "hint": "Les valeurs proposées par le modèle pour ces champs sont ignorées ; vous les confirmez vous-même."
+    },
+    "field": {
+      "source_urls": "URL des sources publiques (une par ligne)",
+      "public_data_asserted": "Je confirme que toutes les sources ci-dessus sont des données publiques"
+    }
   }
 }

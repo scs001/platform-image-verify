@@ -34,9 +34,13 @@ export interface AppConfig {
   // Null = an older server without the field (the web then probes
   // /api/voice/status and degrades to "unavailable" on 404).
   voice: { enabled: boolean; ttsFormat: string } | null;
+  // Line boards (add-wire-line-board D8): the deployment switch behind
+  // /boards/:line and the app-center "看板" primary action. False = the
+  // surfaces do not exist; absent on older servers is read as false.
+  lineBoardsEnabled: boolean;
 }
 
-let config: AppConfig = { documentsEnabled: true, assistantName: null, companyName: null, brandIconUrl: null, loginFooterText: null, loginHero: null, packMarketplace: false, roles: null, resolvedLayout: null, voice: null };
+let config: AppConfig = { documentsEnabled: true, assistantName: null, companyName: null, brandIconUrl: null, loginFooterText: null, loginHero: null, packMarketplace: false, roles: null, resolvedLayout: null, voice: null, lineBoardsEnabled: false };
 const listeners = new Set<() => void>();
 
 function emit(next: AppConfig) {
@@ -88,6 +92,7 @@ export async function loadAppConfig(timeoutMs = 1500): Promise<AppConfig> {
         body?.voice && typeof body.voice === "object"
           ? { enabled: body.voice.enabled !== false, ttsFormat: str(body.voice.ttsFormat) ?? "mp3" }
           : null,
+      lineBoardsEnabled: body?.lineBoardsEnabled === true,
     });
   } catch {
     /* keep defaults */

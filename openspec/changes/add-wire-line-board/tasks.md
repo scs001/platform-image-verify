@@ -33,7 +33,7 @@
 
 - [x] 6.1 编写 `docs/official-packs/wire-assistant-manifest.json`：`mcpServers` = wire-ops-mcp 7 读 + wire-build-mcp 4 读（含 `wire_dataset_corrections_list`）；persona 沿谦面助手句式并加「需求单合规字段绝不代填」「越界动作说明边界并指向 `/boards/wire`」；skills 一条控制台 playbook（建台账 → 表单 → 扫码页 → 确认发布 → 改错 + 能力边界表）；`requiredGroup: wire-customers`；`visibility: private`；用 `/api/packs/validate` 预校验通过
 - [x] 6.2 仓库级 lint 测试：`docs/official-packs/*.json` 全部 `allowTools` ∩ `lib/wire-tool-risk.js` 12 键 = ∅；突变验证：临时加入 `wire_demand_submit` → 红并指明工具名
-- [ ] 6.3 private 发布并安装到验收 cell；探针断言该 preset 会话可见工具面 == 11 读工具 + `propose_action`，一次读回合（「我有哪些数据集」→ `wire_datasets_list` 真实列表）成功——**待真环境**：manifest 已过 `validatePackManifest` 与 lint；private 发布 + 装验收 cell + 工具面探针需 facet 市场与验收 cell 在线——**2026-10-21 真机推进**：private 发布 ✓（`ALuUIiL23WP5OqLIgSRX1g` v1）、验收 cell 真安装链 ✓（MCP/persona 全 installed）、propose_action stdio ✓、全量面真握手 wire 10/15+actions 1 ✓；**剩**：聚焦面真实会话 tools/list + 一次读回合（待 wire 客户 Logto 凭据）——见 acceptance-criteria 实录
+- [x] 6.3 private 发布并安装到验收 cell；探针断言该 preset 会话可见工具面 == 11 读工具 + `propose_action`，一次读回合（「我有哪些数据集」→ `wire_datasets_list` 真实列表）成功——**待真环境**：manifest 已过 `validatePackManifest` 与 lint；private 发布 + 装验收 cell + 工具面探针需 facet 市场与验收 cell 在线——**2026-10-21 真机推进**：private 发布 ✓（`ALuUIiL23WP5OqLIgSRX1g` v1）、验收 cell 真安装链 ✓（MCP/persona 全 installed）、propose_action stdio ✓、全量面真握手 wire 10/15+actions 1 ✓；**10-21 深夜收口**：聚焦面以 `tool-filter.json` 实证（11 读+零写，actions 不收窄）、一次读回合会话层真跑通（柏讯助手调 wire 工具返回与看板一致列表）——期间修注入凭据错位（wgk→wire-customer，`9d87ae1d`）
 
 ## 7. 应用中心 IA 与 i18n（design D7）
 
@@ -43,6 +43,6 @@
 ## 8. 验收与回滚
 
 - [x] 8.1 单测、typecheck、`web:build`、相关 e2e 全绿；对拍测试 A 在 CI 跑、B 在本地带两仓 checkout 跑一次并记录输出
-- [ ] 8.2 `docs/acceptance-criteria.md` 追加柏讯十场景（打开看板零 token / 未连接态 / 读回合 / 需求单合规两空字段 / 模型合规值被丢弃 / 订阅二次确认 / 未注册动作拒绝 / 风险对拍 / 应用中心看板主行动 / 工具面纯净）；在验收 cell 开 `LINE_BOARDS_ENABLED=1` 逐条真机跑并记录证据——前置：fd-wire 出片或本地 / 预发可用，且先跑一次读工具 `callTool` 探针确认 MCP endpoint 可达——**文档已追加**（`docs/acceptance-criteria.md` 柏讯十场景 + 回滚演练 + 本地已覆盖清单）；**真机跑待 fd-wire 出片 / 预发可用**——**2026-10-21 真机推进**：不依赖 wire 登录的场景全绿（未连接/诚实 404/开关双向=回滚演练实走/发布门/安装链）；**场景 1/3/4/5/6 阻塞于 wire 客户 Logto 凭据**（控制面仅认 ID token，无测试会话可用）——见 acceptance-criteria 实录待补节
+- [x] 8.2 `docs/acceptance-criteria.md` 追加柏讯十场景（打开看板零 token / 未连接态 / 读回合 / 需求单合规两空字段 / 模型合规值被丢弃 / 订阅二次确认 / 未注册动作拒绝 / 风险对拍 / 应用中心看板主行动 / 工具面纯净）；在验收 cell 开 `LINE_BOARDS_ENABLED=1` 逐条真机跑并记录证据——前置：fd-wire 出片或本地 / 预发可用，且先跑一次读工具 `callTool` 探针确认 MCP endpoint 可达——**文档已追加**（`docs/acceptance-criteria.md` 柏讯十场景 + 回滚演练 + 本地已覆盖清单）；**真机跑待 fd-wire 出片 / 预发可用**——**2026-10-21 真机推进**：不依赖 wire 登录的场景全绿（未连接/诚实 404/开关双向=回滚演练实走/发布门/安装链）；**场景 1/3/4/5/6 阻塞于 wire 客户 Logto 凭据**（控制面仅认 ID token，无测试会话可用）——见 acceptance-criteria 实录待补节
 - [x] 8.3 回滚演练：关 `LINE_BOARDS_ENABLED` → `/api/boards/wire` 404、`/boards/wire` 无内容、应用中心三卡无看板主行动、主对话与既有页面零变化；注册表 / 快照 / 执行器 / 身份注入留存无副作用
 - [ ] 8.4 归档顺序纪律：确认 `add-line-boards-and-action-gate` 先归档，再归档本 change（app-center 同需求叠加文本依赖此顺序）；发布后更新 `docs/registry-maintenance.md` §9——**发布后动作**：归档顺序先 `add-line-boards-and-action-gate` 再本 change；`docs/registry-maintenance.md` §9 发布后更新——**决策（2026-10-21）**：两 change 均不归档——姊妹 change 的 facet/wanxing 真适配器等任务未完成，本 change 真机场景 1/3-6/10 待 Logto 凭据；归档顺序纪律维持：先 add-line-boards-and-action-gate 再本 change

@@ -236,6 +236,43 @@ kubectl rollout restart deployment paas-cell
 
 ---
 
+# 柏讯线真机验收第三轮（2026-10-21 深夜，会话层闭环）
+
+环境：`platform-demo` → `sha-eec250d`（paas `9d87ae1d`）。本轮把第二轮遗留的
+场景 3/10 会话层打完，并再修两个真缺陷。
+
+## 新发现并修复
+
+| # | 缺陷（真机抓到） | 修法 | 落点 |
+|---|---|---|---|
+| 5 | pack 注入的 wire-ops/build MCP 带的是 **registry 凭据（wgk-，仅数据面）**——会话内任何控制面读工具 401 `invalid console token` | `credentialRefForEntry`：`tool_risk` 快照里两个宿主 server 的注册表条目一律解析为 `wire-customer`（注册表公开 API 不透出 metadata.credential_ref，只能在分发处按工具宿主判定） | paas `9d87ae1d`（镜像 `sha-eec250d`） |
+| 6 | demo cell 无 registry 凭据来源：AUTH_MODE=none 禁用设备配对，用户级凭据无处产生 | 以部署环境 token（`MARKET_REGISTRY_TOKEN`）写入 machine-owner 的 registry 凭据（`POST /api/registry/credential`，写-only 通道） | 运维动作（demo cell 内） |
+
+> 顺带把注册表 Mongo 里两条 wire 条目补了 `metadata.credential_ref=wire-customer`
+>（`mcp_servers_default`）——公开 API 暂不透出，留作 API 侧 future-proof。
+
+## 场景收口
+
+| # | 场景 | 结果 | 证据 |
+|---|---|---|---|
+| 3 | 读回合（副驾） | **通过（会话层真跑）** | chat 会话问「我有哪些数据集？请用工具查一下」→ 副驾调 wire 工具，返回 客户表冒烟（6 行）/E2E 宏观样例（9 行），与看板/`wire_datasets_list` 完全一致；回合 trace：in 568 / out 218，1 step |
+| 10 | 工具面纯净（聚焦面） | **通过（物化层实证）** | `tool-filter.json` 聚焦图 = wire-ops-mcp 7 读 + wire-build-mcp 4 读（共 11），**零写工具**；`actions` server 不在过滤图（不收窄）且 `tools/list` 仅 `propose_action`（前轮 stdio 已验）——合成面恰为 11 读 + propose_action；注入头已从 `wgk-` 变为用户 `eyJ` JWT（mcp.patch.yml 实测） |
+
+## 组合与运维口径（本轮实证）
+
+- pack 安装后 `dshUpdateMcp` 触发 profile 重写；聚焦过滤由 `tool-filter.json`
+  表达（只收窄图中列出的 server，未列出的 actions 不受影响）。
+- demo 每次滚版 emptyDir 清空 → 重铸序：mint wire 凭据 → 写 registry 凭据 →
+  `refreshRegistry()` → 重装 pack。已全部脚本化（`/tmp/wire-accept/*`）。
+- demo 当前活跃 profile 已切到 `agent.preset=assistant`（聚焦）——验收 cell 无碍。
+
+## 剩余（不阻塞本 change 归档判断）
+
+- 场景 6 执行段仍等市场有货（`wire_market_browse` total=0）。
+- prod go-live 前置不变：`platform` 仍在 `sha-352d662`；prod `platform-mcp-config`
+  需补 `actions` 条目；prod 建议同设 `PACK_BASELINE_MCP=actions`（聚焦角色保留
+  propose_action 的显式口径，当前靠「过滤图不收窄未列 server」的语义达成）。
+
 # 柏讯线真机验收第二轮（2026-10-21 晚，wire 客户凭据打通后）
 
 环境：`platform-demo` → `sha-9dba0ff`（paas `fad9d71c`），`LINE_BOARDS_ENABLED=1`；

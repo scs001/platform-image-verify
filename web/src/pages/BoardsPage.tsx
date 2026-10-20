@@ -61,13 +61,12 @@ export function BoardsPage() {
     window.addEventListener("hashchange", handleHashChange);
     handleHashChange(); // initial sync
     return () => window.removeEventListener("hashchange", handleHashChange);
-  }, [line]);
+  }, [line]); // Only line is needed, not currentTab (which is derived)
 
-  // Refetch on tab change
-  useEffect(() => {
-    setRefreshTick((n) => n + 1);
-  }, [currentTab]);
+  // Refetch on tab change: merge into the fetch effect below by depending on currentTab
+  // (remove the separate effect)
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshTick and currentTab are deliberate triggers for refetch
   useEffect(() => {
     if (!line) return;
 
@@ -92,7 +91,7 @@ export function BoardsPage() {
         setData(null);
       })
       .finally(() => setLoading(false));
-  }, [line, refreshTick]);
+  }, [line, refreshTick, currentTab]);
 
   // Board refresh: a `board_changed` WS event (broadcast by the action gate
   // after an approved action executes) refetches this line's blocks.
@@ -276,7 +275,8 @@ function ListBlock({ block }: ListBlockProps) {
       ) : (
         <div className="divide-y divide-border">
           {rows.slice(0, 10).map((row, i) => (
-            <div key={i} className="px-4 py-2 text-sm">
+            // biome-ignore lint/suspicious/noArrayIndexKey: rows are static slices; composite key with block.id is unique
+            <div key={`${block.id}-row-${i}`} className="px-4 py-2 text-sm">
               {typeof row === "object" && row !== null ? JSON.stringify(row) : String(row)}
             </div>
           ))}
@@ -330,8 +330,10 @@ function TimelineBlock({ block }: TimelineBlockProps) {
             const timeStr = typeof timeVal === "string" || typeof timeVal === "number"
               ? new Date(timeVal).toLocaleString()
               : new Date().toLocaleString();
+            // Use index-based key since events are from a static slice
             return (
-              <div key={i} className="text-sm">
+              // biome-ignore lint/suspicious/noArrayIndexKey: events are static slices; composite key with block.id is unique
+              <div key={`${block.id}-timeline-${i}`} className="text-sm">
                 <span className="text-xs text-muted-foreground">{timeStr}</span>
                 <span className="ml-2">{String(text ?? event)}</span>
               </div>

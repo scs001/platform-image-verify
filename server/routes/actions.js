@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import crypto from "node:crypto";
 import { getDb, nowIso } from "../../db.js";
 import {
+  filterKnownArgs,
   getAction,
   isRegistered,
   riskToTierMap,
@@ -71,7 +72,7 @@ export async function proposeAction(req, res) {
 
   // User-filled parameters (design D5): whatever the model put there is dropped
   // before anything else sees it — digest, impact text, storage.
-  const args = stripUserFilledArgs(actionId, req.body.args);
+  const args = filterKnownArgs(actionId, stripUserFilledArgs(actionId, req.body.args));
   const userFilledArgs = userFilledArgsFor(actionId);
 
   // Preflight (real checks: line credential for wire, deployer key for cloud,

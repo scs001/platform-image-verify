@@ -341,6 +341,8 @@ test("3.1 propose strips model compliance values and returns the user-fill schem
       actionId: "wire.demand.submit",
       args: {
         title: "竞品价格月报",
+        description: "希望增加竞品价格月报指标",
+        contact_email: EMAIL,
         source_urls: ["https://model-invented.test/never-trust"],
         public_data_asserted: true,
       },
@@ -357,9 +359,22 @@ test("3.1 propose strips model compliance values and returns the user-fill schem
   );
   const row = db.getDb().prepare("SELECT args_json FROM action_proposals WHERE proposal_id = ?").get(res.body.proposalId);
   const stored = JSON.parse(row.args_json);
-  assert.equal(stored.title, "竞品价格月报");
+  assert.equal(stored.description, "希望增加竞品价格月报指标");
+  assert.equal("title" in stored, false, "unknown tool arg must be dropped (wire_demand_submit has no title)");
   assert.equal("source_urls" in stored, false, "model compliance value must be discarded");
   assert.equal("public_data_asserted" in stored, false);
+});
+
+test("3.1 propose normalizes camelCase tool args (artifactId → artifact_id)", async () => {
+  connected();
+  const res = mockRes();
+  await actions.proposeAction(
+    proposeReq({ actionId: "wire.artifact.publish", args: { artifactId: 23 }, proposerEmail: EMAIL }),
+    res,
+  );
+  assert.equal(res.statusCode, 200);
+  const row = db.getDb().prepare("SELECT args_json FROM action_proposals WHERE proposal_id = ?").get(res.body.proposalId);
+  assert.deepEqual(JSON.parse(row.args_json), { artifact_id: 23 });
 });
 
 test("3.1 propose refuses without the wire credential and points at the connect card", async () => {
@@ -432,7 +447,7 @@ function executorStub(toolResult) {
 
 async function proposeDemand() {
   const p = mockRes();
-  await actions.proposeAction(proposeReq({ actionId: "wire.demand.submit", args: { title: "竞品价格" }, proposerEmail: EMAIL }), p);
+  await actions.proposeAction(proposeReq({ actionId: "wire.demand.submit", args: { description: "竞品价格", contact_email: EMAIL, title: "竞品价格" }, proposerEmail: EMAIL }), p);
   assert.equal(p.statusCode, 200);
   return p.body.proposalId;
 }
@@ -468,7 +483,8 @@ test("3.2/1.3 approve merges user values, executes, audits (no secrets) and broa
   assert.equal(seen.bearer.startsWith("eyJ"), true, "the user's live ID token is the bearer");
   assert.deepEqual(seen.args.source_urls, ["https://public.test/a"]);
   assert.equal(seen.args.public_data_asserted, true);
-  assert.equal(seen.args.title, "竞品价格");
+  assert.equal(seen.args.description, "竞品价格");
+  assert.equal(seen.args.title, undefined, "unknown tool arg never reaches the MCP call");
 
   const audit = db.getDb().prepare("SELECT * FROM action_audit WHERE proposal_id = ?").get(id);
   assert.ok(audit, "audit row exists");

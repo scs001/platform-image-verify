@@ -55,26 +55,20 @@ export function AgentsPage() {
   }>>([]);
   const [loadingClusters, setLoadingClusters] = useState(false);
   
-  // Load user's dynamic clusters
-  useEffect(() => {
-    if (activeTab === "agents") {
-      void loadUserClusters();
-    }
-  }, [activeTab]);
-  
   const loadUserClusters = async () => {
     setLoadingClusters(true);
     try {
-      const user = await fetch("/api/user").then(r => r.json());
-      if (user?.email) {
-        const r = await fetch(`/api/clusters/user/${encodeURIComponent(user.email)}`);
-        if (r.ok) {
-          const data = await r.json();
-          setDynamicClusters(data.clusters ?? []);
-        }
+      const r = await fetch("/api/clusters/mine");
+      // Non-JSON (SPA fallback / older server without the route) is "no clusters",
+      // never a thrown parse error in the console.
+      if (!r.ok || !(r.headers.get("content-type") || "").includes("application/json")) {
+        setDynamicClusters([]);
+        return;
       }
-    } catch (err) {
-      console.error("Failed to load user clusters:", err);
+      const data = await r.json();
+      setDynamicClusters(data.clusters ?? []);
+    } catch {
+      setDynamicClusters([]);
     } finally {
       setLoadingClusters(false);
     }
@@ -109,6 +103,13 @@ export function AgentsPage() {
   const tabParam = searchParams.get("tab");
   const activeTab: Tab =
     tabParam && visibleTabs.some((tab) => tab.slug === tabParam) ? (tabParam as Tab) : ((visibleTabs[0]?.slug ?? "agents") as Tab);
+
+  // Dynamic clusters (agent-cluster-platform): load once per tab entry. Declared
+  // AFTER activeTab — referencing it earlier is a TDZ crash that unmounts the tree.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: loadUserClusters is stable-by-intent; activeTab is the trigger
+  useEffect(() => {
+    if (activeTab === "agents") void loadUserClusters();
+  }, [activeTab]);
 
   // catalogVersion bumps on `catalog_changed` — refetch so cloud edits show up live.
   const refresh = useCallback(async () => {
@@ -417,14 +418,14 @@ function ClusterCard({ cluster, onManage }: ClusterCardProps) {
             </span>
           </div>
           <div className="mt-3 flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-7 text-xs"
+            <button
+              type="button"
               onClick={onManage}
+              className="rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"
+              data-testid="cluster-manage-btn"
             >
               {t("clusters.composer.manage")}
-            </Button>
+            </button>
           </div>
         </div>
       </div>

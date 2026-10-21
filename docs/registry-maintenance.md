@@ -1234,3 +1234,15 @@ pack 转 public 时机）。证据细节见 docs/acceptance-criteria.md 柏讯�
 **验证**：探针 10/10；aloadtree 真浏览器三页（/chat //agents //tasks）零 pageerror/console 错；生产绑定链 API 级全通（带 sessionId 建群→mine 回带→terminate）。**分组/载入 UI 真机可视验收被货架空挡住**（在架无 cluster pack）——待首批 cluster pack 上架。LLM 依赖型 smoke 在干净树同红=环境（llm-guard fetch failed+预设名单 1，疑与在途 agent-runner 改动有关），非本轮回归。
 
 **余账更新**：首批 cluster pack（用户选）→ 2.15/1.10 可视走查；市场 Load in chat；模型绑定后半程；④其余（presets 名单 smoke 环境修复后会话头绑定端到端补走）。
+
+### §15.2 补记：计费失败停车上线 + 全链真机验收（2026-10-21，agent-runner-serving → sha-839f39c）
+
+| 项 | 值 |
+|---|---|
+| 代码 | paas `eccae8cf`（add-billing-failure-parking 11/11；镜像同 §15.1 的 `839f39c`/digest `b35419e1`，血统 624a2a70 ⊇ eccae8cf） |
+| 滚动 | 只滚第四清单 agent-runner-serving.yaml（init+main 双 image 行都换——老坑常防）GitOps `53634af` → ArgoCD hard-refresh → rollout OK；同一性：pod imageID=b35419e1 + 模块 md5（scheduler/rollover 全等；manager/config/index 仅快照 scrubber 注释脱敏差异，逐行 diff 证实零功能差） |
+| 内容 | `-32003` 回合 → 钉 key 打 `GET /v1/models` 零花费分型（401/403+`INVALID_API_KEY`→key-invalid、403+`INSUFFICIENT_BALANCE`→insufficient-balance、2xx/传输/其他不停）→ 停车：rhythm/rollover 跳过缝、入站 acquire 前 `-32012` 快失败（消息带 reason+since 人话）、health `parked` 注记（五态词表不动）、`billing_parked`/`billing_unparked` 走既有 fleet 总线；慢复探（`AGENT_RUNNER_BILLING_REPROBE_SECS` 默认 600s）2xx 自动复业；`AGENT_RUNNER_BILLING_PARK=off` 分钟级杀开关。apply 期四更正：①码 -32011→-32012（-32011 早被 a2a 委派深度上限占用）②清停车在 reconcile 身份变更缝非 spawn（spawn 清会被 pod 兄弟 re-warm 误清）③`billing_key_ref` 补入 #identityOf（纯换绑才真重组，同 secretRefs 纪律——顺修一个潜伏旧缺陷）④复探 2xx 才 pass（5xx/传输=undecided 防误复业回风暴） |
+
+**真机验收**（对象=「一键流验收」代理 packs-vz-kDoiTzSqfgkMP5UNdXg/agent，deployer aloadtree——只动这个钦定测试账号）：sub2api 精确清零 1.95984848 → 网关 403 INSUFFICIENT_BALANCE → 驱动一回合 `-32003 "403 status code (no body)"`（事故原形；同秒日滚 digest 也撞死 key，一并收编）→ **一次失败即停车**（health `parked:{reason,since}` + `billing_parked` 事件入槽）→ 第二次入站 `-32012 "agent parked: insufficient-balance (INSUFFICIENT_BALANCE) since 2026-10-21T14:25:39Z"`，零 LLM 燃烧零 meter 行 → **95s 静默窗** meter 零新增（digest 不再被 60s 重试——2874 行/48h 风暴形状消灭）→ 精确回填 1.95984848 → **480.9s 自动复业**（一个复探周期内）+ `billing_unparked{reason}` → 下一回合真实成功（7379 tokens）。门：单测 14/14 + agent 七套件 171/171 + biome 净。
+
+**余账**：HEAD 既有红 `test-official-packs-lint`（tool_risk 断言 12 vs lib 实 14，add-pack-subscribe-actions 欠的同步，与本 change 无关）；萬星面停车展示（fd-wanxing 后续，`-32012` 消息已可读）。

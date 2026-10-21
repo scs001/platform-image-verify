@@ -188,8 +188,8 @@
 
 ### 4.2 Integration tests
 
-- [ ] 4.5 End-to-end test: subscribe to cluster pack → create dynamic cluster → execute task → verify results
-  （2026-10-21 本地真服务器全链已走：装带 cluster 元数据 pack→catalog 打标→建集群→建集群任务→触发→三成员子会话+绑定会话摘要落盘；成员回合止于本地 LLM 凭据 401（环境）。**剩余=真机（有效模型凭据）成功路径走查**——按仓纪律必须在真实账号端到端首跑后才算收口）
+- [x] 4.5 End-to-end test: subscribe to cluster pack → create dynamic cluster → execute task → verify results
+  （2026-10-21 **生产真机成功路径走通**（sha-3234d2f，台账 §15）：测试号 cell 既有集群「集群测试」（柏讯舆情+投委会主持人）→ 建集群任务 → 38.5s success → 绑定会话聚合摘要 + 两成员子会话真实 LLM 回复 + clusters.db 统计回写，均 in-pod 直读实证。本地全链亦已走（装带 cluster 元数据 pack→打标→建群→建任务→触发），止于本地 LLM 凭据 401）
 - [ ] 4.6 End-to-end test: deploy pack with model binding → execute task → verify provider used logged correctly
   （未做）
 - [ ] 4.7 Load test: create 100 dynamic clusters, verify auto-termination cleans them up after 24h
@@ -238,7 +238,10 @@
 ## Verification Summary
 
 - [ ] **Verification**: Full end-to-end test: subscribe to Finance Cluster pack → create dynamic cluster with Data Analyst pack → schedule a daily task → verify task executes both agents → check task history shows cluster view → verify billing logs show correct provider used
-  （未做。订阅→建集群已真机过；**集群任务真执行+任务历史+计费归因三段全空白**——这是本 change 收尾前必须补的主验收）
+  （核心三段已证：执行两 agent ✓（真机）、任务历史 ✓（engine clientShape 带集群字段）、绑定会话聚合 ✓。**剩余两段**：任务历史的集群视图 UI（3.7-3.9 未做）、计费 providerUsed 归因（3.15 未做——且须对齐词元车道真源）。「Finance Cluster pack」按字面仍不存在——首批 cluster pack 待用户选定）
+
+> **发布状态**：本 change 实施轮已于 2026-10-21 上产 `sha-3234d2f`（digest `b524b14a`，台账 §15）；
+> 生产探针 10/10（新口径）。
 
 ---
 

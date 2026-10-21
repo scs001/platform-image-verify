@@ -1189,3 +1189,24 @@ pack 转 public 时机）。证据细节见 docs/acceptance-criteria.md 柏讯�
 | 验证 | dl 三直链 200 且 content-length 精确；**官网 `/products/base/` 下载带眼见 v1.3.18**（mac dmg + win exe href 线上可点）；本机 arm64 本地 dist 无头冒烟 7s READY（npmmirror 双镜像 env 配方） |
 | 坑与配方 | ①本地出桌面包：`ELECTRON_MIRROR` + `ELECTRON_BUILDER_BINARIES_MIRROR` 指 npmmirror，裸跑在 electron 辅助件下载 600s 超时；②CN 网络大文件搬运一律走镜像轨（runner→hkccr→relay 侧 docker pull），SSH/rsync 直连全废；③`workflow_dispatch` 只认默认分支上的 workflow——侧分支快照要配套把 dispatch 型 workflow 放 pool main（win-smoke/dl-publish 已留池仓复用）；④临时 SSH 秘钥用完双侧即撤（cheap3 authorized_keys + 池 secret） |
 | 余账 | 桌面 GUI 八项人工走查（舰队配对真启动/并发切窗/语音等）未做——win-smoke C 相已证 Windows 窗口渲染、mac 后端无头已证，深度走查留后续；无 autoUpdater（用户手动重装，发布文案已带） |
+
+## §15 发布记录：集群任务执行链 + 虚假面清理（agent-cluster-platform 实施轮，2026-10-21 上线，sha-3234d2f）
+
+| 项 | 值 |
+|---|---|
+| 生产镜像 | `ccr.../yizuo/platform:sha-3234d2f`（digest `b524b14a` ccr skopeo 实证；三 pod imageID 全等）≙ paas `f9df3aa3`（6544460a+f9df3aa3；严格超集：⊇7c6bc0b9(302ea63) ⊇64f74711(848d733) ⊇51d313dd(512f7a4)） |
+| 出片线 | 公开快照线 scs001/platform-image-verify（判路 fd-build-channel tier1 免费线）：快照 `d7ac72a` force-push → **恢复提交 `3234d2f` 即出片 tag**（image-publish.yml 仍需快照后立即恢复的老坑，配方不变）；image run 绿 |
+| 滚动 | GitOps `663c4d6` **三清单**（platform/platform-demo/facet，facet 从 512f7a4 补齐三版差距）→ gitee → ArgoCD hard-refresh（`argoproj.io`）→ 三 rollout 绿 |
+| 前置门 | relay OK 行 `yizuo/platform:sha-3234d2f (3s)` + 带凭据 skopeo ccr 可见 + tag 数 ~20（100 上限安全） |
+
+**内容**（openspec `agent-cluster-platform` 对账后实施轮，tasks 0/70→38/70）：
+1. **集群任务执行链接通**：此前 cron-mcp 宣传的 clusterId 在 `/api/cron` 路由即被丢弃。现在 REST/WS 解析集群引用（坏 id 400）、task-engine 放行 cluster target、cron-runner 扇出（persona 成员各自子会话、共享运行时恒串行；a2a 成员 allowParallel 下真并行）+ 聚合 all/first/summary（summary=首个成功 persona 领衔汇总回合落绑定会话）+ 统计回写 + preset 还原；worker pool 拒认领。顺带修 clusters 路由 auth-off 必 401。
+2. **虚假面清理**：`cluster-templates.js`（三个虚构模板+假订阅数）、`model-binding.js`（PROVIDER_ROUTES 死代码+内存 Map 假存储）、`optimization.js`（编造 cacheHitRate）整文件删除；`monitoring.js` 删假 `/providers`、`/tasks` 接真 task-engine、`/health` 删捏造块。两份「✅ 全部完成」总结文档加更正头注。
+3. 生产探针改真口径（旧 templates/models/optimization 检查删除，新增 monitoring/tasks 真引擎 + bogus clusterId 400）。
+
+**实证**：
+- 探针 10/10（`probe-cluster-platform-live.mjs` 新口径，`/data/auth/session-secret` 签 cookie——注意 `/data/data/session-secret` 不存在，直接 cat 会把报错串当秘钥）；
+- 四假面端点生产 404（带签名验，匿名无鉴别力）；
+- **真机成功路径（4.5 收口）**：测试号 aloadtree cell `1da519d4` 既有集群「集群测试」（柏讯舆情+投委会主持人）→ 建集群任务（all 策略）→ 38.5s `success:true` → in-pod 直读 cell 库：绑定会话=提示+聚合摘要、两成员子会话各含真实 LLM 回复（舆情助手还诚实声明聚焦模式只代表自己）、clusters.db `total_executions:1` 回写。REST 读会话被 ownership 门 403=cron 会话无 owner 属设计行为，验尸走 in-pod 只读库。
+
+**余账**：首批谦面 cluster pack 待用户选（货架空——在架 pack 无一声明 cluster 元数据）；会话集成（picker 分组/cluster_bound WS/会话头集群名）；marketplace size 筛选；模型绑定后半程（须对齐词元车道真源重建）。详 `openspec/changes/agent-cluster-platform/tasks.md`。

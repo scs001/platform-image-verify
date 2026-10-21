@@ -1345,3 +1345,22 @@ hkccr 撞时序（build 成功≠tag 可见），~10 分钟下轮回灌——判
 
 **Non-goals 留案**：对账卡跨 tab 迁「消耗」、套餐自助入口、向导表单降门槛。change 6/6
 可归档（待主 spec 同步 console-economics-clarity）。
+
+### §15.4 补记二：三包 v2 上架 + 模型回合级验收 + 四连修（2026-10-22 凌晨，终态 sha-0dcdaf9）
+
+| 项 | 值 |
+|---|---|
+| 市场 | 谦面助手 `qCEIutJzQd49jnDtV4qeqw` / 萬星舰队助手 `INdsRWpgpp2Q03I0z3XoFA` / 柏讯助手 `ALuUIiL23WP5OqLIgSRX1g` **全部 v2**（agent id 去撞；aloadtree 设备身份现铸 token → NodePort 31893 直调 facet-market-mcp validate→publish→versions） |
+| 验收 cell | aloadtree `1da519d4c1c0bf89`（口 34933）走真市场链 `{packId, version:2}` 装谦面助手 → `facet-assistant` installed → `/api/boards/facet/copilot` 非 null |
+| 四片 | sha-a6fcbb9（D7/D8，paas c84f5e1d，digest 1ddc5de2）→ sha-e60834b（D9，e2875486，4734e508）→ sha-0dcdaf9（D10，2b0211ba，62feb893）；GitOps `067036c→a56468b→824b8a7` 三清单；imageID 三 pod 全等 |
+| 归档 | change → `archive/2026-10-22-copilot-dock-focused-preset`；主 spec 同步 line-boards MODIFIED / web-chat-ui ADDED / chat-activity-collapse ADDED；validate --all 168/0 |
+
+**模型回合级验收（发现③的最后一段）**：aloadtree 真账号 + 聚焦预设，中性指令「把我名下的包改成私有」——模型三轮一致：「写操作不直接执行，先只读核实（pack_read/browse）再提案」，`facet.pack.visibility` 提议落库 pending，**`action_audit` 零新增、无任何直写**；最终真机：提议卡**无需点击即可见**（待确认 · write · cloud · 影响面 · 行内确认 · 确认执行/取消），取消 → rejected。所有测试提议均已 reject（a5188b34/04c7f601/99c60ada/a74f223e），cell 人格已切回原「宏观经济研究员」。
+
+**四连修（每一处都是真回合才暴露、e2e/单测此前都没走到）**：
+- **D7** `ToolBlock` 以 `name === "__propose_action"` 分派动作卡，线上名是 `mcp__actions__propose_action` → `endsWith`。
+- **D8** 活动组折叠把提议块藏进「执行了 N 步」→ core `groupHasPendingAction`（调用进行中或 state=pending 保持展开）。
+- **D9（平台级）** 生产 dsh `tool/result` 是**扁平**形状，`dsh-events`/`cron-runner` 读的是包裹形状（单测夹具一直这么喂）——aloadtree cell trace 704/704 全扁平：**线上所有工具块「输出」、持久化历史结果、UNKNOWN_TOOL 候选补全、工具层 401 置 stale 此前全部静默失效**。`parseToolResult` 双形状，`test-dsh-tool-result-shape.mjs` 钉死。
+- **D10** store 对 `tool_end` 原地改块、`ActionCard` 是 memo 且只收 `block` 引用 → 结果落地后卡永不更新 → ToolBlock 传本次渲染的 `{name,args,state,result}` 新对象；e2e 走 `tool_start→tool_end` 真事件路径，突变验证红绿。
+
+**登记待修（不在本轮）**：propose 入口不校验参数键名——模型三轮都先传 `packId/packName`（impact 渲染「包「undefined」」）再自纠为 `id`；应按动作声明校验/归一键名，否则留不可批准的垃圾提议。另：选择器里同名 agent 两份（registry 远端版 + 本地聚焦版）靠 id 后缀才能区分。

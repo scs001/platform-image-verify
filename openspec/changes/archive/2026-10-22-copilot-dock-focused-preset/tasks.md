@@ -32,5 +32,5 @@
 
 ## 6. 收口
 
-- [ ] 6.1 同步主 spec（`line-boards` MODIFIED、`web-chat-ui` ADDED），`openspec validate --all` 绿。
-- [ ] 6.2 归档 change；更新持久记忆（发现③收口、cell 级预设副作用与恢复策略）。
+- [x] 6.1 同步主 spec（`line-boards` MODIFIED、`web-chat-ui` ADDED、`chat-activity-collapse` ADDED），三 spec validate 绿（`--all` 余 4 个红是 knowledge-collection/weknora 空 spec 基线，与本 change 无关）。
+- [x] 6.2 归档 change（archive/2026-10-22-copilot-dock-focused-preset）；台账 §15.4 补记二；持久记忆更新（发现③收口、cell 级预设副作用与恢复策略、tool/result 扁平形状平台级回归）。

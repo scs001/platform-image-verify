@@ -1261,3 +1261,5 @@ pack 转 public 时机）。证据细节见 docs/acceptance-criteria.md 柏讯�
 **配方增量**：市场 list 的 agentCount（json_array_length）让选型一条命令可盘；session 签名带 `groups:["creators"]` 即可代作者发布（平台主秘钥，与探针同手法）；Badge 组件此前吞 props——data-testid 透传已修。
 
 **收尾**：exactly-once+Badge 修复已随 `sha-02082df`（digest `e1bcbe78`，GitOps `4145ab4` 三清单）上产；探针 10/10。tasks 终态 **52/70**。
+
+| 2026-10-21 晚 | platform sha-a9460a2（serving 问询桥）/ wanxing facade+web sha-56efb2e（E3）/ fd-lex-web sha-289851b | testaction001 池串行四发；池残留变量排雷；fd-infra-deploy 与 fd-lex push 真源=gitee；wanxing registry_url 切 100.64.0.15:18080 破 SafeLine SSE 攒包（公网入口缓冲遗留待决） |

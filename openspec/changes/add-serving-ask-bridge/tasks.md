@@ -22,4 +22,4 @@
 
 - [x] 4.1 `docs/adr/0029-serving-ask-bridge.md`: D2 transport choice (side route vs `input-required` splitting), D3 opt-in header, D4 budget-bounded window — cross-links the fd-wanxing sister change
 - [x] 4.2 Full local gate: `node --test scripts/test-agent-serving-asks.mjs` 10/10; runner-adjacent set (harness-adapter / agent-runner / agent-serving / serving-asks / notify-bridge / delegation-a2a) 166/166; full-suite re-run green except the pre-existing parallel-session `test-official-packs-lint.mjs` 14≠12 (wire tool_risk universe grew under an in-flight change — not this change's files); `openspec validate add-serving-ask-bridge --specs --json` green
-- [ ] 4.3 Live probe before rollout: after the serving image rolls, cold-recycle one deployment and confirm `ask_user_question` from it no longer answers NO_PROVIDER on a plain (non-opt-in) stream but returns the cannot-answer tool result
+- [x] 4.3 Live probe before rollout: after the serving image rolls, cold-recycle one deployment and confirm `ask_user_question` from it no longer answers NO_PROVIDER on a plain (non-opt-in) stream but returns the cannot-answer tool result

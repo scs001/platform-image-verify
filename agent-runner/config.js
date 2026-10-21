@@ -263,5 +263,16 @@ export function loadConfig(env = process.env) {
     // migration; a new runner with a distinct fleet id hosts only entries
     // explicitly tagged with it.
     defaultRunnerId: env.AGENT_RUNNER_DEFAULT_ID || env.AGENT_RUNNER_FLEET_ID || "runner-1",
+
+    // Billing-failure parking (add-billing-failure-parking D5): default ON —
+    // a turn that fails with the LLM-failure code probes the role's pinned
+    // key against the billing gate and parks it on a rejection. The env is a
+    // kill-switch: any falsy spelling disables probing AND parking entirely
+    // (minutes-level rollback, no image roll); park state is process-local,
+    // so turning it off also frees every parked role on the next boot.
+    billingParkEnabled: !["0", "false", "off", "no"].includes(String(env.AGENT_RUNNER_BILLING_PARK ?? "").trim().toLowerCase()),
+    // Re-probe cadence for parked roles (D4): a key that passes the gate
+    // again resumes the role automatically, within one cadence of the fix.
+    billingReprobeSecs: num(env.AGENT_RUNNER_BILLING_REPROBE_SECS, 600),
   };
 }

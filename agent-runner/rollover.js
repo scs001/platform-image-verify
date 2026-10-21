@@ -65,6 +65,7 @@ export class Rollover {
     const day = this.#dayKey();
     for (const [key, entry] of this.manager.entries) {
       if (this.manager.pausedKeys.has(key)) continue; // paused: skip the day
+      if (this.manager.isParked?.(key)) continue; // billing-parked (add-billing-failure-parking): no digest retry storm
       if (!this.manager.children.has(key)) continue; // warm: rolls on re-warm
       await this.#roll(key, entry, day);
     }

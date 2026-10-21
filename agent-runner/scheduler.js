@@ -32,9 +32,10 @@ export class RhythmScheduler {
   async tick() {
     for (const [key, entry] of this.manager.entries) {
       const rhythm = entry.metadata?.effective_rhythm;
-      if (this.manager.pausedKeys.has(key) || !Array.isArray(rhythm) || rhythm.length === 0) {
-        // Paused (or rhythm-less): drop anchors so a resume re-anchors from
-        // now — the paused window's dues are skipped by definition.
+      if (this.manager.pausedKeys.has(key) || this.manager.isParked?.(key) || !Array.isArray(rhythm) || rhythm.length === 0) {
+        // Paused, billing-parked (add-billing-failure-parking), or rhythm-less:
+        // drop anchors so a resume re-anchors from now — the skipped window's
+        // dues are skipped by definition.
         for (const id of [...this.anchors.keys()]) {
           if (id.startsWith(`${key}#`)) this.anchors.delete(id);
         }

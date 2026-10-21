@@ -119,8 +119,19 @@ export class ChildManager {
   // capture-only, so the agent-side MCP mount uses a deployment-scoped token
   // minted by the service at first spawn and cached here.
   #memoryTokens = new Map();
+  // Billing-failure parking (add-billing-failure-parking D2): process-local,
+  // automatic, self-healing — deliberately NOT the registry-marked deployer
+  // pause (pausedKeys). agentKey → {reason, detail, since}.
+  #parked = new Map();
+  // The compose-time pin record per role (D3): agentKey → {keyValue, baseUrl,
+  // providerType} — the exact key the child bills on, captured where
+  // applyBillingKey pins it (or the runner-level fallback). Lifetime equals
+  // the pin's: refreshed and park-clearing on every spawn.
+  #billingPins = new Map();
+  #probeInFlight = new Set(); // `${baseUrl}|${keyValue}` → a probe is running (per-key guard)
+  #probeLastAt = new Map(); // `${baseUrl}|${keyValue}` → ts of the last probe (60 s floor)
 
-  constructor({ config, registryClient, clientFactory, log = console, now = () => Date.now(), notifyFetchImpl, events = null, harnessRegistry = null }) {
+  constructor({ config, registryClient, clientFactory, log = console, now = () => Date.now(), notifyFetchImpl, probeFetchImpl, events = null, harnessRegistry = null }) {
     // Fleet memory (add-fleet-memory-v1 D6): null unless enabled+configured —
     // every memory touch below is inert by construction when this is null.
     this.memory = config.memoryEnabled && config.memoryUrl && config.memoryToken
@@ -147,6 +158,9 @@ export class ChildManager {
     // every child — the relay credential and the per-agent rate bound live
     // here, never in a child's environment.
     this.notifier = createNotifier({ config, log, fetchImpl: notifyFetchImpl, now });
+    // Billing-gate probe transport (add-billing-failure-parking D1): injected
+    // in tests; production uses global fetch.
+    this.probeFetchImpl = probeFetchImpl ?? null;
     this.children = new Map(); // childKey → AgentChild (agentKey solo, podKey pod — add-dsh-pod-adapter)
     this.entries = new Map(); // agentKey → registry entry (card source)
     this.versions = new Map(); // childKey → identity of the composition running there
@@ -182,6 +196,17 @@ export class ChildManager {
 
   isPaused(entry) {
     return this.pausedKeys.has(agentKeyFor(entry));
+  }
+
+  // ── Billing-failure parking (add-billing-failure-parking) ──────────────────
+  // Public seams: the scheduler/rollover skip checks (3.1) and health read
+  // through these; the park itself is written only by the classifier below.
+  isParked(key) {
+    return this.config.billingParkEnabled !== false && this.#parked.has(key);
+  }
+
+  parkedInfo(key) {
+    return this.#parked.get(key) ?? null;
   }
 
   // Wait for a free in-flight lane on the route's pod (see turn). A child
@@ -234,6 +259,11 @@ export class ChildManager {
                 : "starting"
             : "warm",
         version: entry?.metadata?.packVersion ?? null,
+        // Billing-park annotation (add-billing-failure-parking D4): rides
+        // ALONGSIDE the lifecycle state — the five-state vocabulary above is
+        // untouched; consumers read `parked` to explain silence, not to
+        // re-classify the runtime.
+        ...(this.isParked(key) ? { parked: (({ reason, since }) => ({ reason, since }))(this.#parked.get(key)) } : {}),
       });
     }
     return {
@@ -301,6 +331,11 @@ export class ChildManager {
       this.children.delete(key);
       this.entries.delete(key);
       this.versions.delete(key);
+      // Billing-park state is role-scoped (add-billing-failure-parking): a
+      // role that left has no turns to gate; a re-deploy re-materializes and
+      // re-derives both the pin and (if the key is still rejected) the park.
+      this.#parked.delete(key);
+      this.#billingPins.delete(key);
       this.#stopListener(key);
       if (child) {
         this.log.log(`[agent-runner] ${key} left the registry; draining`);
@@ -343,7 +378,9 @@ export class ChildManager {
           .sort(([a], [b]) => String(a).localeCompare(String(b))),
       );
       const existing = this.children.get(childKey);
-      if (existing && this.versions.get(childKey) !== identity) {
+      const previous = this.versions.get(childKey);
+      const changed = previous !== undefined && previous !== identity;
+      if (existing && changed) {
         this.log.log(`[agent-runner] ${childKey} descriptor changed; draining old runtime for in-place upgrade`);
         this.versions.set(childKey, identity);
         this.children.delete(childKey);
@@ -353,6 +390,16 @@ export class ChildManager {
         if (group.pod) this.podCapRefused.delete(group.packId);
       } else if (!existing) {
         this.versions.set(childKey, identity);
+      }
+      // Re-materialization clears the billing park (add-billing-failure-
+      // parking D3): the next spawn re-pins from the NEW descriptor, and a
+      // key that is still rejected parks again after one turn. Only an
+      // identity change clears — a same-identity re-warm keeps the park.
+      if (changed) {
+        for (const memberKey of group.members.keys()) {
+          this.#parked.delete(memberKey);
+          this.#billingPins.delete(memberKey);
+        }
       }
     }
     return served.length;
@@ -383,6 +430,11 @@ export class ChildManager {
       // descriptor change must drain the old child so the next spawn
       // re-fetches and re-pins.
       secretRefs: m.secret_refs,
+      // The billing key ref follows the same discipline (add-billing-failure-
+      // parking D3): a rebind must re-materialize so the next spawn re-pins
+      // the deployer's new key — and the re-materialization clears any
+      // billing park on the role.
+      billingKeyRef: m.billing_key_ref ?? null,
       // The notification binding (add-agent-notifications D2) is captured by
       // the spawn's notify handler; a rebind must drain the old child or it
       // would keep notifying the previous channel.
@@ -765,6 +817,19 @@ export class ChildManager {
     if (this.pausedKeys.has(key)) {
       throw Object.assign(new Error("agent paused"), { code: -32010 });
     }
+    // Billing-failure park (add-billing-failure-parking 1.2): pause wins
+    // precedence when both hold. A parked role fails fast BEFORE any
+    // acquire/probe/LLM work — no child cold-start, no doomed request, and a
+    // message a deployer can act on (recharge vs re-key) instead of dsh's
+    // lossy "403 status code (no body)". Code -32012: the next free runner
+    // code (-32011 is the a2a delegation depth bound).
+    if (this.isParked(key)) {
+      const park = this.#parked.get(key);
+      throw Object.assign(
+        new Error(`agent parked: ${park.reason} (${park.detail}) since ${new Date(park.since).toISOString()}`),
+        { code: -32012 },
+      );
+    }
     const release = delegationDepth >= 1 ? await this.#acquireDelegationSlot(key) : null;
     // Pod in-flight discipline (add-dsh-pod-adapter D7): turn CLOSE is
     // serialized process-wide on this dsh line (probe-concurrent-turn-close —
@@ -821,6 +886,15 @@ export class ChildManager {
         if (budgetKilled) {
           this.#fleetEmit("budget_killed", entry, { turn_kind: kind, duration_ms: this.now() - startedAt });
           this.#hardStopOnBudget(key, child);
+        }
+        // Billing-gate classification (add-billing-failure-parking 2.2): an
+        // LLM-reported failure (-32003, message-agnostic — the dsh text is
+        // lossy by the time it reaches here) fires ONE zero-spend probe of
+        // the role's pinned key; a billing-gate rejection parks the role.
+        // Fire-and-forget with the per-key guards below — it never blocks
+        // the error path the caller already holds.
+        if (this.config.billingParkEnabled !== false && e?.code === -32003) {
+          void this.#classifyBillingFailure(key);
         }
         throw e;
       }
@@ -882,6 +956,110 @@ export class ChildManager {
     if (this.children.get(key) === child) this.children.delete(key);
     this.log.warn(`[agent-runner] ${key} over turn budget (${child.budgetLabel}) — hard stop; next touch re-warms`);
     child.stop().catch(() => {});
+  }
+
+  // ── Billing-failure parking core (add-billing-failure-parking) ─────────────
+  // One zero-spend probe of the billing gate classifies a -32003 turn
+  // failure: a gate rejection parks the role (skip seams + -32012 fast-fail
+  // + slow re-probe), anything else keeps exactly today's behavior.
+
+  // The role's provider route from the runner's routing store
+  // (LLM_PROVIDERS_STORE; the env-generated volces route otherwise): the
+  // probe must hit the exact gate the child's turns pass through. Lazy
+  // imports keep store reads off the boot path; any failure degrades to
+  // "unprobeable" (fail open — never park).
+  async #resolveProviderRoute() {
+    try {
+      if (this.config.provider === "volces") {
+        const { effectiveVolcesRoute } = await import("../dsh-profile.js");
+        const route = await effectiveVolcesRoute();
+        return { baseUrl: route.baseURL, providerType: "openai-completions", fallbackKey: process.env.LLM_API_KEY?.trim() || null };
+      }
+      const llm = await import("../llm-providers.js");
+      const record = llm.getProviderRecord(this.config.provider);
+      if (!record) return null;
+      return { baseUrl: record.baseUrl, providerType: record.type ?? null, fallbackKey: record.apiKey ?? null };
+    } catch {
+      return null;
+    }
+  }
+
+  // Capture the pin record where applyBillingKey pins the key (D3) — or the
+  // runner-level route key when no billing ref exists, the same fallback the
+  // child runs on. Runs on EVERY spawn so the record tracks the pin. The
+  // PARK itself clears only on re-materialization (reconcile's identity
+  // pass) — a same-identity re-warm (budget demotion, a pod sibling's touch)
+  // must keep a rejected key parked.
+  async #recordBillingPin(key, pinnedValue) {
+    if (this.config.billingParkEnabled === false) return;
+    const route = await this.#resolveProviderRoute();
+    const keyValue = pinnedValue ?? route?.fallbackKey ?? null;
+    if (route?.baseUrl && keyValue) {
+      this.#billingPins.set(key, { keyValue, baseUrl: route.baseUrl, providerType: route.providerType });
+    } else {
+      // Unprobeable (unknown route, no key): no record → no probe → no park;
+      // the role keeps exactly its pre-change failure behavior.
+      this.#billingPins.delete(key);
+    }
+  }
+
+  // Probe the pinned key against the gate's model-list endpoint — zero spend,
+  // full billing gate (the lib/sub2api-admin.js probeKeyLiveness precedent:
+  // the gateway's JSON carries `code` at the top level). Returns
+  // {outcome:"rejected", reason, detail} | {outcome:"pass"} |
+  // {outcome:"undecided"} — "undecided" (transport error, guard hit,
+  // unprobeable provider) neither parks nor un-parks.
+  async #probeBillingPin(key) {
+    const pin = this.#billingPins.get(key);
+    if (!pin || pin.providerType !== "openai-completions") return { outcome: "undecided" };
+    const guard = `${pin.baseUrl}|${pin.keyValue}`;
+    if (this.#probeInFlight.has(guard)) return { outcome: "undecided" };
+    if (this.now() - (this.#probeLastAt.get(guard) ?? 0) < 60_000) return { outcome: "undecided" };
+    this.#probeInFlight.add(guard);
+    try {
+      this.#probeLastAt.set(guard, this.now());
+      const res = await (this.probeFetchImpl ?? fetch)(`${pin.baseUrl.replace(/\/+$/, "")}/models`, {
+        headers: { Authorization: `Bearer ${pin.keyValue}`, Accept: "application/json" },
+        signal: AbortSignal.timeout(10_000),
+      });
+      if (res.ok) return { outcome: "pass" }; // 2xx: the gate accepted the key
+      if (res.status === 401 || res.status === 403) {
+        const doc = await res.json().catch(() => null);
+        const code = doc?.code ?? null;
+        if (code === "INVALID_API_KEY") return { outcome: "rejected", reason: "key-invalid", detail: "INVALID_API_KEY" };
+        if (res.status === 403 && code === "INSUFFICIENT_BALANCE") return { outcome: "rejected", reason: "insufficient-balance", detail: "INSUFFICIENT_BALANCE" };
+      }
+      return { outcome: "undecided" }; // any other status: no park, no unpark
+    } catch {
+      return { outcome: "undecided" }; // a transport flake must not park
+    } finally {
+      this.#probeInFlight.delete(guard);
+    }
+  }
+
+  // The -32003 trigger's other half: probe once, park on a rejection.
+  async #classifyBillingFailure(key) {
+    try {
+      const verdict = await this.#probeBillingPin(key);
+      if (verdict.outcome !== "rejected") return;
+      const park = { reason: verdict.reason, detail: verdict.detail, since: this.now() };
+      this.#parked.set(key, park);
+      this.#fleetEmit("billing_parked", key, { reason: park.reason, detail: park.detail, since: park.since });
+      this.log.warn(`[agent-runner] ${key} parked — the billing gate rejected its key (${park.reason}); self-turns and digests are skipped, inbound turns fail with -32012 until the gate accepts the key again`);
+    } catch { /* classification is never load-bearing for the failed turn */ }
+  }
+
+  // Slow-cadence re-probe of parked roles (index.js wires the timer): a pass
+  // un-parks and the role resumes — no operator action on a recharge.
+  async reprobeParked() {
+    if (this.config.billingParkEnabled === false) return;
+    for (const [key, park] of [...this.#parked]) {
+      const verdict = await this.#probeBillingPin(key);
+      if (verdict.outcome !== "pass") continue;
+      this.#parked.delete(key);
+      this.#fleetEmit("billing_unparked", key, { reason: park.reason });
+      this.log.log(`[agent-runner] ${key} un-parked — its billing key passes the gate again (${park.reason} resolved)`);
+    }
   }
 
   // Answer or cancel a pending in-flight ask (add-serving-ask-bridge): the
@@ -975,14 +1153,20 @@ export class ChildManager {
     // private home's credential store — this child's turns bill the deployer.
     // A fetch failure keeps the runner-level key but is never silent.
     const keyRef = descriptor.billing_key_ref;
+    let pinnedBillingKey = null;
     if (keyRef != null && config.packsBaseUrl) {
       try {
-        await applyBillingKey(spec.home, await this.#fetchBillingKeyValue(keyRef));
+        pinnedBillingKey = await this.#fetchBillingKeyValue(keyRef);
+        await applyBillingKey(spec.home, pinnedBillingKey);
         this.log.log(`[agent-runner] ${key} running on its own billing key (ref ${keyRef})`);
       } catch (e) {
+        pinnedBillingKey = null;
         this.log.warn(`[agent-runner] billing key fetch failed for ${key} — falling back to the runner-level key: ${e.message}`);
       }
     }
+    // Billing-gate pin record (add-billing-failure-parking D3): captured at
+    // the pin point itself, runner-level fallback when nothing was pinned.
+    await this.#recordBillingPin(key, pinnedBillingKey);
     // Deployment secrets (add-deployment-secrets D4): fetch EVERY declared
     // secret by reference first, then pin the complete set in one write. A
     // fetch that cannot resolve fails composition loudly with the reference
@@ -1126,15 +1310,19 @@ export class ChildManager {
     // degrades to the standing credential with a warning — verbatim the dsh
     // contract.
     let acpCredentialEnvValue = null;
+    let pinnedBillingKey = null;
     const keyRef = descriptor.billing_key_ref;
     if (keyRef != null && config.packsBaseUrl) {
       try {
-        acpCredentialEnvValue = acpCredentialEnv(await this.#fetchBillingKeyValue(keyRef));
+        pinnedBillingKey = await this.#fetchBillingKeyValue(keyRef);
+        acpCredentialEnvValue = acpCredentialEnv(pinnedBillingKey);
         this.log.log(`[agent-runner] ${key} running on its own billing key (ref ${keyRef})`);
       } catch (e) {
         this.log.warn(`[agent-runner] billing key fetch failed for ${key} — falling back to the runner-level key: ${e.message}`);
       }
     }
+    // Billing-gate pin record, same discipline as the dsh path (D3).
+    await this.#recordBillingPin(key, pinnedBillingKey);
     const budgetMinutes = Number(descriptor.effective_budget_minutes);
     const hasBudget = Number.isFinite(budgetMinutes) && budgetMinutes > 0;
     const turnBudgetMs = hasBudget ? budgetMinutes * 60_000 : config.turnTimeoutMs;
@@ -1271,6 +1459,9 @@ export class ChildManager {
       }
     }
     if (billingKeyValue != null) memberSpecs[0].billingKeyValue = billingKeyValue;
+    // Billing-gate pin record per member (D3): one shared key, N member
+    // records — each member's park state is its own.
+    for (const memberKey of members.keys()) await this.#recordBillingPin(memberKey, billingKeyValue);
     // materializePackHome takes merged secrets as ONE set on the first spec.
     if (secretValues.size) memberSpecs[0].secrets = Object.fromEntries(secretValues);
 

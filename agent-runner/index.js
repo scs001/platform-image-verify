@@ -195,6 +195,13 @@ server.listen(config.port, config.host, () => {
   rhythmTimer.unref?.();
   const rolloverTimer = setInterval(() => void rollover.check(), 60_000);
   rolloverTimer.unref?.();
+  // Billing-park re-probe (add-billing-failure-parking D4): parked roles only,
+  // on the slow cadence — a key the gate accepts again resumes automatically.
+  // The kill-switch (AGENT_RUNNER_BILLING_PARK=off) leaves the timer unarmed.
+  if (config.billingParkEnabled !== false) {
+    const reprobeTimer = setInterval(() => void manager.reprobeParked(), config.billingReprobeSecs * 1000);
+    reprobeTimer.unref?.();
+  }
   // External-context reap (add-wanxing-serving-api D10): idle wx sessions are
   // short-lived by contract; internal and rhythm sessions are untouched.
   const reapTimer = setInterval(() => manager.reapExternalContexts(), 60_000);

@@ -15,6 +15,7 @@
 - [x] 3.2 上下文条增加聚焦段：已聚焦显示「聚焦预设：<agent 名>」（名字来自 store `agents` 列表，找不到则显示 id）；`set_agent` 返回 error 时显示「主对话正在回答，暂未聚焦」+ 重试按钮（重试即重发一次）；URL 无 `preset` 时显示「未聚焦：该线助手 pack 未安装」。「清除」按钮只清 `board`，不动 `preset`。五语 locale 补 `copilot.focused` / `copilot.focusPending` / `copilot.focusRetry` / `copilot.unfocused`。
 - [x] 3.4 （验收发现 D7）`ToolBlock` 动作卡分派改 `name.endsWith("__propose_action")`——运行时工具名是 `mcp__actions__propose_action`，全等从未命中，真回合里提议只渲染成普通工具块
 - [x] 3.5 （验收发现 D8）core 新增 `isProposeActionBlock` / `proposalStateOf` / `groupHasPendingAction`，web `ActivityGroup` 合成：待确认提议（调用进行中或 state=pending）保持活动组展开；新 e2e `e2e/action-card-turn.spec.js`（pending 卡无需展开可见 + 不是通用工具块；executed 随组折叠、展开后为已执行面）
+- [x] 3.6 （复验发现 D9）`server/dsh-events.js` 新增 `parseToolResult`（扁平 / 包裹双形状：callId、内容数组、文本、isError），`tool/result` 与 `cron-runner` 收集器共用；`scripts/test-dsh-tool-result-shape.mjs` 6/6（扁平成功文本落 tool_end 与持久块、扁平 401 错误位+指路、垃圾不抛）
 - [x] 3.3 e2e（`e2e/wire-board.spec.js` 追加或新 `e2e/copilot-dock.spec.js`，mock `/api/boards/:line/copilot`）：有助手时 iframe src 含 `preset=`、上下文条显示聚焦段；无助手时 src 不含 `preset` 且显示未聚焦；关闭 dock 后 WS 收到 `set_agent` 恢复消息（或断言主对话 agent 回到打开前）。
 
 ## 4. 官方 pack v2（design D6）

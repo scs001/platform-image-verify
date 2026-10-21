@@ -62,6 +62,34 @@ function normalizePlan(raw) {
 // check for a credential ref.
 const UNAUTHORIZED_RE = /\b401\b|unauthoriz/i;
 
+// The MCP content of a `tool/result` event, in either shape dsh has emitted:
+//   wrapper — message.content[0] = { toolCallId, isError, content: [<mcp blocks>] }
+//   flat    — message.content     = [<mcp blocks>], message.isError beside it
+// Production dsh emits the flat form (704/704 events on a prod cell,
+// 2026-10-22); the wrapper is what the unit fixtures carried and what every
+// reader assumed — so live tool output, persisted results, the UNKNOWN_TOOL
+// candidates and the tool-layer 401 staling were silently empty. The blocks
+// array is returned as-is (the diagnostic rewrites patch its first text block
+// in place); `resultText` is the text blocks joined, null when there is none.
+export function parseToolResult(ev) {
+  const msg = ev?.data?.message;
+  const first = msg?.content?.[0];
+  const resultBlocks = Array.isArray(first?.content)
+    ? first.content
+    : Array.isArray(msg?.content)
+      ? msg.content
+      : null;
+  const resultText = Array.isArray(resultBlocks)
+    ? resultBlocks.filter((b) => b?.type === "text").map((b) => b.text).join("") || null
+    : null;
+  return {
+    callId: msg?.source?.callId ?? first?.toolCallId,
+    resultBlocks,
+    resultText,
+    isError: !!ev?.data?.error || !!first?.isError || !!msg?.isError,
+  };
+}
+
 function markCredentialStaleOn401(ctx, toolName, resultText) {
   if (!toolName || !resultText || !UNAUTHORIZED_RE.test(resultText)) return;
   const serverName = /^mcp__(.+?)__/.exec(toolName)?.[1];
@@ -526,13 +554,11 @@ export function attachDshEvents(ctx) {
         break;
       }
       case "tool/result": {
-        const callId =
-          ev.data?.message?.source?.callId ?? ev.data?.message?.content?.[0]?.toolCallId;
-        const resultBlocks = ev.data?.message?.content?.[0]?.content;
-        let resultText = Array.isArray(resultBlocks)
-          ? resultBlocks.filter((b) => b.type === "text").map((b) => b.text).join("") || null
-          : null;
-        const isError = !!ev.data?.error || !!ev.data?.message?.content?.[0]?.isError;
+        const parsed = parseToolResult(ev);
+        const callId = parsed.callId;
+        const resultBlocks = parsed.resultBlocks;
+        let resultText = parsed.resultText;
+        const isError = parsed.isError;
         // UNKNOWN_TOOL recovery (add-tool-discovery-layer): a failed call gets
         // exact-name candidates from the CURRENT request roster, appended to
         // the result text BEFORE broadcast and persistence — the model reads

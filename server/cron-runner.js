@@ -15,6 +15,7 @@
 import * as chatHistory from "../chat-history.js";
 import * as catalog from "../catalog.js";
 import * as dshProfile from "../dsh-profile.js";
+import { parseToolResult } from "./dsh-events.js";
 import { getClusterDatabase } from "./routes/clusters-db.js";
 import { runA2aTurn, resolveGatewayCredential } from "./a2a-client.js";
 
@@ -126,14 +127,9 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
           args: (() => { try { return JSON.parse(ev.data.arguments); } catch { return ev.data.arguments; } })(),
         });
       } else if (ev.type === "tool/result") {
-        const callId = ev.data?.message?.source?.callId ?? ev.data?.message?.content?.[0]?.toolCallId;
-        const resultBlocks = ev.data?.message?.content?.[0]?.content;
+        const { callId, resultText } = parseToolResult(ev);
         const acc = toolBlocks.find((b) => b.id === callId);
-        if (acc) {
-          acc.result = Array.isArray(resultBlocks)
-            ? resultBlocks.filter((b) => b.type === "text").map((b) => b.text).join("") || null
-            : null;
-        }
+        if (acc) acc.result = resultText;
       }
     });
   });

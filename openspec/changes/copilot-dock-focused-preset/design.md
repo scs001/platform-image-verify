@@ -92,3 +92,5 @@ aloadtree 真 cell + v2 谦面助手聚焦预设，中性指令「把我名下�
 - **D8 — 待确认提议不折叠**：活动组折叠把 `propose_action` 块一并折进「执行了 N 步」头后面；折叠规则只豁免了报错块与进行中的提问卡。新增 `groupHasPendingAction`（core，与 `groupHasPendingAsk` 同形：调用进行中或提议 state=pending 即保持展开），web `ActivityGroup` 合成；已执行 / 拒绝 / 过期的卡随组折叠。小程序侧无 ActionCard，暂不合成（移动端审批是姊妹 change 的 Open Question）。
 
 **顺带登记（不在本 change 修）**：模型第一份提议把参数键写成 `packId/packName`，注册表 `facet.pack.visibility` 的影响面模板读 `id/name`，落库 `impact_text` 成「包「undefined」」；模型自己察觉后按 `id` 键重提。propose 入口应按动作声明校验 / 归一参数键（或 `propose_action` 的 inputSchema 按动作细化），否则会留下不可批准的垃圾提议。
+
+- **D9 — `tool/result` 形状双容（第二片复验揪出的平台级潜伏回归）**：分派修好后卡渲染出来了却停在「提议中...」——`block.result` 为空。溯源：生产 dsh 的 `tool/result` 是**扁平**形状（`message.content` 即 MCP 内容数组、`isError` 在 message 层），`server/dsh-events.js` 与 `server/cron-runner.js` 读的是**包裹**形状（`content[0].content` / `content[0].isError`，单测夹具一直这么喂）。aloadtree cell trace 704/704 条全扁平——线上所有工具块「输出」为空、持久化历史无结果、UNKNOWN_TOOL 候选补全与工具层 401 置 stale 全部静默失效；动作卡是第一个真正依赖结果文本的消费者。新增 `parseToolResult(ev)` 双形状解析（两处共用），`scripts/test-dsh-tool-result-shape.mjs` 以扁平形状钉死 tool_end 文本 / 错误位 / 401 指路 / 持久块。

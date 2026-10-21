@@ -1282,3 +1282,18 @@ pack 转 public 时机）。证据细节见 docs/acceptance-criteria.md 柏讯�
 | 2026-10-21 深夜（CST 10-22 00:58 完成） | SafeLine SSE 攒包修复（site 31+21） | tengine 默认 proxy_buffering on，流式帧同刻到达（wanxing 问询卡交互帧超回合预算被取消）。经 PUT /api/open/site/{31,21}/nginx_config 的 custom_location 注入 proxy_buffering off; proxy_request_buffering off; proxy_send_timeout 600s;（DB 持久化，勿改生成文件）。site 31 覆盖 wanxing/paas-admin/wire/lex/connector/zhesi/shilun/juchuang 八域，site 21 覆盖 mcp/file/file-console/bastion/token/lawbench/lawbench-mcp 七域。未加 proxy_http_version 1.1 与 Connection ""（proxy_params 已设，且会破 WebSocket）。验证须用长回合（≥300 项），短回答无法区分缓冲；改后 201 个 delta 铺开 2.6→9.7s。回滚=PUT 同端点把 custom_location 还原（308 行保留 / site 21 置 []） |
 
 | 2026-10-22 凌晨 | wanxing-facade sha-fa94037（同源 POST Origin 匿名铸发修复 + 并行集群服务单位）| E3 ego 四线全过（等价 harness）；add-copilot-control-surface 归档；embed origins 还原只剩识律站 |
+
+### §15.4 补记：副驾 dock 按线注入聚焦预设（copilot-dock-focused-preset，2026-10-22 上线，sha-865a922）
+
+| 项 | 值 |
+|---|---|
+| 代码 | paas `d0a0e07d`（快照 `865a922` = 出片提交，image-publish.yml 叠进快照一次推送；digest `00d82ecb` ccr 实证；GitOps `067036c` 三清单；imageID 三 pod 全等） |
+| 缘起 | 2026-10-21 真机发现③：dock 只带 board 不带 preset → embed 跑用户默认预设全工具面 → 模型直调 `facet_market_pack_visibility` 绕闸（§14.1 登记） |
+
+**三接缝**：`lib/copilot-presets.js` 按**形状**解析某线聚焦助手（全引用声明非空 allowTools、不含注册表+wire tool_risk 任一写工具、服务器 ⊆ 该线、agent 已 materialize；多候选取最近安装）+ `GET /api/boards/:line/copilot`（同 `LINE_BOARDS_ENABLED` 门、不跑适配器）；`CopilotDock` src 带 `&preset=<agentId>`、关 dock 恢复打开前 agent（用户中途手动切换则不恢复）；`ChatPage` embed 在 `currentPreset` 已知后一次性 `set_agent`，上下文条四态（聚焦/在途/被拒+重试/未聚焦）。
+
+**两笔顺手账**：store +`configErrorSeq`（拒绝判据——`pendingConfig` 回 null 会被连接首帧的 `current_preset` 误清，e2e 首跑抓出的真实竞态）；官方三助手 manifest v2 agent id 去撞（`assistant` → `facet-assistant`/`wanxing-fleet-assistant`/`wire-assistant`，catalog id 即 manifest agent id，同名只活先装的）+ lint 测试修 `7c6bc0b9` 遗留的 wire 写工具 12→14 计数基线红。
+
+**生产实证**（platform-demo 真浏览器 ego 三轮）：`/boards/facet` 开 dock → iframe src `preset=facet-assistant` → 上下文条「Focused preset: 谦面助手」（set_agent→重启→agent_changed 全链真跑通）→ context-free 不带 preset → wanxing 诚实「Unfocused: … not installed」。反向真数据对拍：cell 3fdc 的「谦面市场助手」白名单恰带四个受闸写工具，解析器正确拒之。注意 platform-demo 的 `/data` 为滚动即清卷（本轮测试安装无残留）。
+
+**余账**：①官方三包 v2 市场发布（配方在 docs/official-packs/release-instructions.md「v2」节，发布前经用户确认）；②aloadtree cell（facet-market 已连）+ 助手包安装后的「让模型改可见性 → 只出 propose_action 卡」模型回合级验收——本轮未做，需要真 cell 凭据环境。

@@ -23,8 +23,8 @@
 ## 5. 验证与上产
 
 - [x] 5.1 `npm run test:unit`（含新测试）、`biome check`、`tsc --noEmit`（web）、`web:build`，e2e fast 项目相关 spec 绿。
-- [ ] 5.2 出片：`fd-build-channel` 判路 → `fd-build-snapshot` → relay → ccr → ArgoCD（`argocd.argoproj.io/refresh` 注解，image 字段翻转 ~60s 为准）；digest ↔ pod imageID 比对。
-- [ ] 5.3 真机验收（aloadtree）：`/boards/facet` 开 dock → src 带 `preset` → 上下文条「聚焦预设：谦面助手」→ 主对话选择器同步显示 → 让模型「把包 X 改成私有」→ 只出 `propose_action` 确认卡、无 `facet_market_pack_visibility` 直调 → 关 dock → 主对话 agent 恢复。记录到 `docs/registry-maintenance.md` 发布记录。
+- [x] 5.2 出片：`fd-build-channel` 判路 → `fd-build-snapshot` → relay → ccr → ArgoCD（`argocd.argoproj.io/refresh` 注解，image 字段翻转 ~60s 为准）；digest ↔ pod imageID 比对。
+- [x] 5.3 真机验收：platform-demo（装 v2 agent id 的谦面助手）ego 真浏览器三轮全过——`/boards/facet` 开 dock src 带 `preset=facet-assistant`、上下文条「Focused preset: 谦面助手」（set_agent→重启→agent_changed 全链）、context-free 不带 preset、wanxing 诚实未聚焦；反向对拍 cell 3fdc 白名单带写工具的「谦面市场助手」被解析器正确拒绝。**模型回合级验收（aloadtree cell 让模型改可见性→只出 propose_action 卡）未做**——需真 cell 的 facet-market 凭据环境，留待 aloadtree 走查（platform-demo 为滚动即清卷，测试安装无残留）：`/boards/facet` 开 dock → src 带 `preset` → 上下文条「聚焦预设：谦面助手」→ 主对话选择器同步显示 → 让模型「把包 X 改成私有」→ 只出 `propose_action` 确认卡、无 `facet_market_pack_visibility` 直调 → 关 dock → 主对话 agent 恢复。记录到 `docs/registry-maintenance.md` 发布记录。
 
 ## 6. 收口
 

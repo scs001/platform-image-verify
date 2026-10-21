@@ -53,6 +53,12 @@ export function createAgentApp({ entry, getEntry, manager, config, log = console
   app.disable("x-powered-by");
   app.use(express.json({ limit: "1mb" }));
   const currentEntry = () => (typeof getEntry === "function" ? getEntry() : entry);
+  // In-flight asks on this agent's streams (add-serving-ask-bridge): askId →
+  // "no longer pending" settler. The answer route (or the deadline backstop)
+  // calls it so the stream's keepalive stops the moment the ask resolves —
+  // comment frames ride only while an ask is pending.
+  const liveAsks = new Map();
+  const keepaliveMs = Number(config.askKeepaliveMs ?? process.env.SERVING_ASK_KEEPALIVE_MS) || 15_000;
 
   let warnedOpen = false;
   app.use((req, res, next) => {
@@ -113,6 +119,8 @@ export function createAgentApp({ entry, getEntry, manager, config, log = console
     }
     try {
       if (method === "message/send") {
+        // No answerer on a synchronous turn: the harness declines any ask at
+        // once (caller-cannot-answer), so the reply arrives on its usual path.
         const out = await manager.turn(entry, sessionId, text, { kind: "message", delegationDepth: depth });
         return res.json({ jsonrpc: "2.0", id, result: assistantMessage(contextId ?? sessionId, out.text) });
       }
@@ -123,13 +131,56 @@ export function createAgentApp({ entry, getEntry, manager, config, log = console
       });
       const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
       let acc = "";
-      const out = await manager.turn(entry, sessionId, text, {
-        delegationDepth: depth,
-        onDelta: (delta) => {
-          acc += delta;
-          send("delta", { context_id: contextId ?? sessionId, kind: "message", parts: [{ kind: "text", text: acc }] });
-        },
-      });
+      // Ask lane (add-serving-ask-bridge D3): only a caller that opted in by
+      // header receives in-flight asks — every other stream leaves the ask
+      // to the harness's immediate decline, so an unaware consumer's timing
+      // never changes. While an ask is pending the stream carries keepalive
+      // comment frames so idle proxies between here and the caller hold on
+      // through a human-paced pause.
+      const askCapable = String(req.headers["x-serving-ask"] ?? "") === "1";
+      let pendingAsk = null; // { askId, stop }
+      const settleAsk = () => {
+        if (!pendingAsk) return;
+        pendingAsk.stop();
+        pendingAsk = null;
+      };
+      const onAsk = (ask) => {
+        settleAsk();
+        send("ask", ask);
+        const ka = setInterval(() => {
+          if (!res.writableEnded) res.write(": keepalive\n\n");
+        }, keepaliveMs);
+        // Backstop: the harness cancels the ask at its deadline; a beat later
+        // it is no longer pending by construction even if no answer route
+        // call ever arrived.
+        const backstop = setTimeout(() => settleAsk(), Math.max(0, (Number(ask.deadlineAt) || Date.now()) - Date.now() + 1_000));
+        backstop.unref?.();
+        const askId = ask.askId;
+        pendingAsk = {
+          askId,
+          stop: () => {
+            clearInterval(ka);
+            clearTimeout(backstop);
+            liveAsks.delete(askId);
+          },
+        };
+        liveAsks.set(askId, () => {
+          if (pendingAsk?.askId === askId) settleAsk();
+        });
+      };
+      let out;
+      try {
+        out = await manager.turn(entry, sessionId, text, {
+          delegationDepth: depth,
+          onDelta: (delta) => {
+            acc += delta;
+            send("delta", { context_id: contextId ?? sessionId, kind: "message", parts: [{ kind: "text", text: acc }] });
+          },
+          ...(askCapable ? { onAsk } : {}),
+        });
+      } finally {
+        settleAsk();
+      }
       send("message", assistantMessage(contextId ?? sessionId, out.text));
       res.write("event: done\ndata: {}\n\n");
       return res.end();
@@ -140,6 +191,25 @@ export function createAgentApp({ entry, getEntry, manager, config, log = console
       }
       return res.status(200).json(jsonRpcError(id, e.code ?? -32003, e.message || "agent failure"));
     }
+  });
+
+  // Ask answers (add-serving-ask-bridge D2): the side route for an in-flight
+  // ask — same credential gate as the turn methods (the app-level check above
+  // runs first). The receipt is the runtime's own: `{accepted: true}` for the
+  // first submission that lands, `{accepted: false, reason}` for an unknown or
+  // already-resolved ask — first-wins, relayed as-is. Either way the ask is no
+  // longer pending on its stream, so its keepalive stops here.
+  app.post("/ask-answer", async (req, res) => {
+    const entry = currentEntry();
+    const body = req.body ?? {};
+    const askId = typeof body.askId === "string" ? body.askId : "";
+    const cancelled = body.cancelled === true;
+    if (!askId || (!cancelled && !Array.isArray(body.answers))) {
+      return res.status(400).json({ error: "askId plus answers[] or cancelled:true required" });
+    }
+    const receipt = await manager.answerAsk(entry, askId, cancelled ? { cancelled: true } : { answers: body.answers });
+    liveAsks.get(askId)?.();
+    return res.json(receipt);
   });
 
   return app;

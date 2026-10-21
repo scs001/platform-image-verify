@@ -38,7 +38,7 @@ export class DshHarnessAdapter {
   // runtime's `botNotify/send` notifications — the manager supplies it with
   // the deployment's bound channel. Absent → the call is declined
   // not-configured, never silently dropped.
-  constructor({ key, spawnSpec, clientFactory, log = console, onNotify = null, onExit = null, podMembers = null, budgetCancelGraceMs = 10_000, turnTimeoutMs = 180_000, budgetLabel = null, initRetries = INIT_RETRIES }) {
+  constructor({ key, spawnSpec, clientFactory, log = console, onNotify = null, onExit = null, podMembers = null, budgetCancelGraceMs = 10_000, turnTimeoutMs = 180_000, budgetLabel = null, askGraceMs = Number(process.env.SERVING_ASK_GRACE_MS) || 20_000, initRetries = INIT_RETRIES }) {
     this.name = "dsh";
     this.key = key;
     this.spawnSpec = spawnSpec; // { profile, patchPaths, cwd, env, provider, model, presetId, version }
@@ -49,6 +49,7 @@ export class DshHarnessAdapter {
     this.podMembers = podMembers;
     this.budgetCancelGraceMs = budgetCancelGraceMs;
     this.turnTimeoutMs = turnTimeoutMs;
+    this.askGraceMs = askGraceMs;
     this.budgetLabel = budgetLabel ?? `${Math.max(1, Math.ceil(turnTimeoutMs / 60_000))}m`;
     this.initRetries = initRetries;
     this.client = null;
@@ -56,7 +57,7 @@ export class DshHarnessAdapter {
   }
 
   capabilities() {
-    return { liveModel: true, cancel: true, stream: true, perSessionPreset: true, cohost: true };
+    return { liveModel: true, cancel: true, stream: true, perSessionPreset: true, cohost: true, asks: true };
   }
 
   get ready() {
@@ -223,15 +224,24 @@ export class DshHarnessAdapter {
   }
 
   // Run one turn. `onDelta` (optional) receives incremental text — the SSE
-  // bridge for message/stream. Sessions are lazy: the bridge creates-or-
-  // resumes by id, so a known contextId continues its conversation.
-  // Pod runtimes take `agentKey`: the turn addresses the member's namespaced
-  // wire session (storage + collectors), its first use parks the member's
-  // preset and model for that session (the bridge composes both at the
-  // session's lazy creation), and the member's own turn budget applies.
-  // Every exit path settles exactly once (prompt rejection included), or the
-  // activeTurns counter leaks and a later drain would wedge.
-  async turn(sessionId, text, { onDelta, agentKey } = {}) {
+  // bridge for message/stream. `onAsk` (optional, add-serving-ask-bridge D3)
+  // receives each in-flight ask `{askId, sessionId, questions, deadlineAt}` —
+  // the same mid-turn, session-bound lane deltas ride. A turn WITHOUT an
+  // answerer declines every ask itself: the tool must fail fast with a
+  // caller-cannot-answer result, never wait out the bridge's fallback timer
+  // (self-turns and every non-opt-in internal caller). The ask window is the
+  // remaining turn budget less a grace interval (askGraceMs): the adapter
+  // cancels an unanswered ask at the deadline so the agent finishes the turn
+  // normally instead of taking the -32001 hard stop.
+  // Sessions are lazy: the bridge creates-or-resumes by id, so a known
+  // contextId continues its conversation. Pod runtimes take `agentKey`: the
+  // turn addresses the member's namespaced wire session (storage +
+  // collectors), its first use parks the member's preset and model for that
+  // session (the bridge composes both at the session's lazy creation), and
+  // the member's own turn budget applies. Every exit path settles exactly
+  // once (prompt rejection included), or the activeTurns counter leaks and a
+  // later drain would wedge.
+  async turn(sessionId, text, { onDelta, agentKey, onAsk } = {}) {
     const member = this.podMembers?.get(agentKey);
     if (this.podMembers && !member) {
       throw Object.assign(new Error(`agentKey '${agentKey}' is not a member of pod ${this.key}`), { code: -32000 });
@@ -252,9 +262,12 @@ export class DshHarnessAdapter {
     let settle;
     const collected = new Promise((resolve, reject) => {
       let graceTimer = null;
+      let askTimer = null;
+      const turnStartedAt = Date.now();
       const done = (fn, arg) => {
         clearTimeout(timer);
         clearTimeout(graceTimer);
+        clearTimeout(askTimer);
         this.#collectors.delete(wireId);
         this.#activeTurns -= 1;
         fn(arg);
@@ -321,6 +334,38 @@ export class DshHarnessAdapter {
         }
         if (method === "_child_exit") {
           return settle(false, Object.assign(new Error("agent runtime exited mid-turn"), { code: -32002 }));
+        }
+        // In-flight ask (add-serving-ask-bridge): the bridge parked the tool
+        // call and notified `{sessionId, askId, questions}` on this wire id.
+        // With an answerer, forward it with the deadline and arm the
+        // deadline cancel; without one, decline now — the tool fails with a
+        // caller-cannot-answer result and the turn continues at once.
+        if (method === "userQuestion/ask") {
+          const askId = typeof params?.askId === "string" ? params.askId : "";
+          const questions = Array.isArray(params?.questions) ? params.questions : null;
+          if (!askId || !questions) return;
+          const answer = (payload) => {
+            Promise.resolve(this.client?.request?.("userQuestions/answer", { askId, ...payload })).catch(() => {});
+          };
+          if (typeof onAsk !== "function") {
+            answer({ cancelled: true, reason: "the caller cannot answer questions" });
+            return;
+          }
+          // Deadline floor: at least min(1s, half the budget) so a tiny test
+          // budget still leaves a usable window — but never past the budget.
+          const askWindow = Math.max(Math.min(1_000, Math.floor(turnTimeoutMs / 2)), turnTimeoutMs - this.askGraceMs);
+          const deadlineAt = turnStartedAt + askWindow;
+          clearTimeout(askTimer);
+          askTimer = setTimeout(() => {
+            answer({ cancelled: true, reason: "the ask window closed before the user answered" });
+          }, Math.max(0, deadlineAt - Date.now()));
+          askTimer.unref?.();
+          try {
+            onAsk({ askId, sessionId: String(params?.sessionId ?? wireId), questions, deadlineAt });
+          } catch (e) {
+            this.log.warn(`[agent-runner:${this.key}] onAsk failed: ${e?.message || e}`);
+          }
+          return;
         }
         // Live delta lane (restore-assistant-stream-020): the 0.2.0 session
         // format removed the assistant/chunk event — text deltas and finish

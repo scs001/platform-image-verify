@@ -35,6 +35,7 @@ import {
   writeNotifyPatch,
   writePresetsPatch,
   writeToolFilterPatch,
+  writeServingQuestionsPatch,
 } from "../dsh-profile.js";
 // The deploy gate's shape definition, re-checked here before pinning
 // (add-deployment-secrets: one definition, two enforcement points — the
@@ -206,6 +207,14 @@ export async function materializeAgentHome({ homeRoot, agentKey, entry, skillCon
   //     stay on the runner; nothing here reads them.
   const notifyPatchPath = writeNotifyPatch({ dirs: { dshHome: home, profileName: "platform" } });
   if (notifyPatchPath) patchPaths.push(notifyPatchPath);
+
+  // 3c. Serving questions overlay (add-serving-ask-bridge D1): swaps the
+  //     notify row for its questions subclass, so this child's
+  //     `ask_user_question` gains the serving answerer — the ask parks in the
+  //     bridge and the harness's collector forwards it to the turn's caller.
+  //     LAST after notify — it disables the row the notify overlay inserted.
+  const questionsPatchPath = writeServingQuestionsPatch({ dirs: { dshHome: home, profileName: "platform" } });
+  if (questionsPatchPath) patchPaths.push(questionsPatchPath);
 
   // LLM wiring — the deployment composer's writers into the PRIVATE home:
   // settings.yaml carries the llm-pi-ai provider routes (env route + the
@@ -552,6 +561,11 @@ export async function materializePackHome({ homeRoot, packId: _packId, memberSpe
   //     solo child (per-member bindings live manager-side).
   const notifyPatchPath = writeNotifyPatch({ dirs: { dshHome: home, profileName: "platform" } });
   if (notifyPatchPath) patchPaths.push(notifyPatchPath);
+
+  // 3c. Serving questions overlay — the pod's members ask through the same
+  //     subclass chain as a solo child (asks route by wire session id).
+  const questionsPatchPath = writeServingQuestionsPatch({ dirs: { dshHome: home, profileName: "platform" } });
+  if (questionsPatchPath) patchPaths.push(questionsPatchPath);
 
   // LLM wiring — same writers, same private-home discipline as solo.
   try {

@@ -62,7 +62,7 @@ export class AcpHarnessAdapter {
     // streaming deltas — and none of dsh's platform depth (no persona parking,
     // no co-hosting). Callers degrade open on absence, so `false` here is the
     // explicit "not supported" that structured refusals name.
-    return { liveModel: true, cancel: true, stream: true, perSessionPreset: false, cohost: false };
+    return { liveModel: true, cancel: true, stream: true, perSessionPreset: false, cohost: false, asks: false };
   }
 
   get ready() {

@@ -201,11 +201,21 @@ test("4.2 home layout: preset, skills root, three patch formats", async () => {
   assert.match(notify, /platform-notify-bridge\.js/);
   assert.ok(existsSync(path.join(spec.home, "profiles", "platform", "platform-notify-bridge.js")));
   assert.ok(existsSync(path.join(spec.home, "profiles", "platform", "bot-notify.js")));
-  assert.equal(spec.patchPaths.length, 4);
+  // Serving questions overlay (add-serving-ask-bridge 1.3): the notify row is
+  // swapped for its questions subclass — the ask answerer — and it composes
+  // LAST so the disable targets the row the notify overlay just inserted.
+  const questions = readFileSync(path.join(spec.home, "profiles", "platform", "serving-questions.patch.yml"), "utf8");
+  assert.match(questions, /id: platform-notify-server[\s\S]*?disabled: true/);
+  assert.match(questions, /platform-serving-questions-server/);
+  assert.match(questions, /platform-serving-questions-bridge\.js/);
+  assert.ok(existsSync(path.join(spec.home, "profiles", "platform", "platform-serving-questions-bridge.js")));
+  assert.equal(spec.patchPaths.length, 5);
   // Layer order: the notify overlay must apply AFTER the presets overlay that
-  // inserted the row it disables.
+  // inserted the row it disables, and the questions overlay after notify for
+  // the same reason.
   assert.equal(spec.patchPaths[0], path.join(spec.home, "profiles", "platform", "presets.patch.yml"));
-  assert.equal(spec.patchPaths.at(-1), path.join(spec.home, "profiles", "platform", "notify.patch.yml"));
+  assert.equal(spec.patchPaths.at(-2), path.join(spec.home, "profiles", "platform", "notify.patch.yml"));
+  assert.equal(spec.patchPaths.at(-1), path.join(spec.home, "profiles", "platform", "serving-questions.patch.yml"));
 });
 
 test("4.2 missing skill content refuses to compose (never a silent half-bundle)", async () => {

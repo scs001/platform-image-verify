@@ -33,6 +33,10 @@ export const ADAPTER_CAPABILITIES = Object.freeze([
   "perSessionPreset",
   // Multi-agent co-hosting in one process (dsh pod mode; never for ACP harnesses).
   "cohost",
+  // In-flight asks forwarded to the turn's caller (dsh: the serving questions
+  // bridge's userQuestion/ask + userQuestions/answer; ACP children never
+  // compose the ask overlay, so they report false — add-serving-ask-bridge).
+  "asks",
 ]);
 
 /**

@@ -143,13 +143,13 @@ export class AgentChild {
   // Run one turn through the adapter. Every exit path settles exactly once
   // (prompt rejection included), or the activeTurns counter leaks and a later
   // drain would wedge.
-  async turn(sessionId, text, { onDelta, agentKey } = {}) {
+  async turn(sessionId, text, { onDelta, agentKey, onAsk } = {}) {
     if (this.draining) {
       throw Object.assign(new Error("this agent is draining (upgrade or undeploy in progress)"), { code: -32000 });
     }
     this.lastActivityAt = Date.now();
     try {
-      return await this.adapter.turn(sessionId, text, { onDelta, agentKey });
+      return await this.adapter.turn(sessionId, text, { onDelta, agentKey, onAsk });
     } finally {
       this.lastActivityAt = Date.now();
     }

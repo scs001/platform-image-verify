@@ -760,7 +760,7 @@ export class ChildManager {
   // ONE queueing discipline for every turn source: messages (A2A), self-turns
   // (rhythm), and digests (day rollover) all acquire through here, and every
   // completed/failed turn lands one jsonl meter line (the ③ settlement input).
-  async turn(entry, sessionId, text, { kind = "message", onDelta, delegationDepth = 0 } = {}) {
+  async turn(entry, sessionId, text, { kind = "message", onDelta, onAsk, delegationDepth = 0 } = {}) {
     const key = agentKeyFor(entry);
     if (this.pausedKeys.has(key)) {
       throw Object.assign(new Error("agent paused"), { code: -32010 });
@@ -781,7 +781,7 @@ export class ChildManager {
     try {
       const child = await this.acquire(entry);
       try {
-        const out = await child.turn(sessionId, text, { onDelta, agentKey: route?.pod ? key : undefined });
+        const out = await child.turn(sessionId, text, { onDelta, onAsk, agentKey: route?.pod ? key : undefined });
         this.#meterLine(key, kind, {
           ok: true,
           tokens: tokensOf(out?.usage),
@@ -882,6 +882,27 @@ export class ChildManager {
     if (this.children.get(key) === child) this.children.delete(key);
     this.log.warn(`[agent-runner] ${key} over turn budget (${child.budgetLabel}) — hard stop; next touch re-warms`);
     child.stop().catch(() => {});
+  }
+
+  // Answer or cancel a pending in-flight ask (add-serving-ask-bridge): the
+  // A2A side route and the declining path both land here. The ask's runtime
+  // MUST already be live (its turn is in flight), so this never spawns — a
+  // missing or draining child answers the receipt, never throws. First-wins
+  // is the bridge's own table-emptiness semantics: `{accepted: false}` for an
+  // unknown or already-resolved ask id, exactly what the caller should relay.
+  async answerAsk(entry, askId, { answers, cancelled = false, reason } = {}) {
+    const key = agentKeyFor(entry);
+    const route = this.groups.get(key);
+    const child = this.children.get(route ? route.childKey : key);
+    if (!child || child.draining) return { accepted: false, reason: "no live runtime for this agent" };
+    const payload = cancelled === true
+      ? { askId, cancelled: true, ...(typeof reason === "string" && reason ? { reason } : {}) }
+      : { askId, answers: Array.isArray(answers) ? answers : [] };
+    try {
+      return await child.request("userQuestions/answer", payload);
+    } catch (e) {
+      return { accepted: false, reason: "answer-failed", ...(e?.message ? { message: e.message } : {}) };
+    }
   }
 
   // A rhythm self-turn (the scheduler calls this): the platform-injected turn

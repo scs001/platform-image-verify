@@ -672,7 +672,7 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 遗留 | ①`composer-stop.spec` 固有 flaky 在案（非本刀引入）；②同一台账 §12.17/§12.18 曾错位（12.18 正文卡在 12.17 标题下，并行会话各自追加所致），本次已归位 |
 
 
-## §9 发布记录：舰队记忆面切片 2 上产（add-fleet-memory-v1，2026-10-19）
+## §9 发布记录：舰队记忆面切片 2 上产（add-fleet-memory-v1，2026-10-19；**已归档 2026-10-22**）
 
 | 镜像 | tag | 源 | 池 |
 |---|---|---|---|
@@ -685,7 +685,7 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 **实施期三起旁发现**：① runner 数据根 LLM key 死钥（10-18 轮换漏 /data/llm-providers.json，已修 in-pod，**cheap-1 rsync 源未同步登记待办**）；② wx-alpha 部署者计费键死（sk-a4…401，需部署者重绑）；③ fd-health-proxy NO_PROXY 缺集群 DNS 域（dsh child MCP 被代理劫走——已补 `.svc.cluster.local,.svc` 并滚 runner，普适修复）。**凭据暴露**：mihomo 代理凭据入本会话 transcript（读 NO_PROXY 带出），择时轮换。
 
 
-## §9 发布记录：消耗统计面上产（add-stats-plane-v1，2026-10-19）
+## §9 发布记录：消耗统计面上产（add-stats-plane-v1，2026-10-19；**已归档 2026-10-22**，fd-wanxing `0c3bc7e`）
 
 | 镜像 | tag | 源 | 池 |
 |---|---|---|---|
@@ -725,7 +725,7 @@ handoff `deployment → acceptance-zcode` 状态 `claimed`，交接协议生产�
 x-api-key 头、逐请求聚合、相对 `pages` 陷阱、信封 `code≠0` 不入库。
 
 
-## §9 发布记录：记忆联邦上产（add-memory-federation-v1，切片 4，2026-10-19）
+## §9 发布记录：记忆联邦上产（add-memory-federation-v1，切片 4，2026-10-19；已归档 archive/2026-10-21-）
 
 | 镜像 | tag | 源 | 池 |
 |---|---|---|---|

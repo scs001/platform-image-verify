@@ -40,5 +40,8 @@
     "babel-preset-taro": "4.2.1",
     "typescript": "^5.7.2",
     "webpack": "^5.91.0"
+  },
+  "overrides": {
+    "swiper": "12.1.2"
   }
 }

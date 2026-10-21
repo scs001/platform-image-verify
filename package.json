@@ -70,5 +70,10 @@
     "electron-builder": "^26.15.3",
     "jsqr": "^1.4.0",
     "typescript": "^7.0.2"
+  },
+  "overrides": {
+    "@mapbox/node-pre-gyp": {
+      "tar": "^7.5.22"
+    }
   }
 }

@@ -1220,3 +1220,17 @@ pack 转 public 时机）。证据细节见 docs/acceptance-criteria.md 柏讯�
 
 **待列车**：服务端镜像与桌面 v1.3.19+ 出片时自然携带（本轮无独立滚产动作）；上车后进容器验 `npm ls proxy-addr tar`。`package.json` 变更使 resources 缓存 key 变化，下一班 tag 会重建 bundled Node 一次。
 **余账**：豁免/推迟清单全录 `openspec/changes/dependency-security-round/notes/round-record.md`（dsh rc.2 闭包 ×7、officeparser/pdfjs 大版本、miniapp dev 链钉死项、webpack 5.104 因会改 weapp 包字节随下个 MP 构建周期、app/ 4 条移交 add-mobile-app）。
+
+### §15.1 补记：集群会话集成轮（2026-10-21 上线，sha-839f39c）
+
+| 项 | 值 |
+|---|---|
+| 代码 | paas `624a2a70`（快照 `82944a3` + 恢复提交 `839f39c` 即 tag；digest `b35419e1` ccr skopeo 实证） |
+| 滚动 | GitOps `6c9cb45` 三清单（platform/platform-demo/facet）→ ArgoCD → 三 rollout；**首报 rollout 绿是旧 RS 假象，imageID 重验 b35419e1 才算数**（老坑再现） |
+| 血统 | 624a2a70 ⊇ 736c80be（他会话 agent-runner-serving 轮的 a9460a2 源，滚的是第四清单 agent-runner-serving.yaml 不冲突） |
+
+**内容**（欠账 2.12-2.18 / 3.7-3.8 / 1.9）：ControlStrip agent 下拉按 clusterId 分组（集群头+默认在前）+「载入集群」（绑定会话+切领街 agent——共享运行时一次一个 persona，"同时激活 N 个"按架构事实落定）；**绑定链修真 bug**（`req.sessionId` 无中间件赋值、bindToSession 恒空转 → body.sessionId；编排器弹窗同修）；cluster_bound/_terminated WS + ChatHeader 集群徽标（冷启动 /mine 按 sessionId 恢复）+ 终止兜底（切内置 agent+横幅）；TasksPage 集群徽章+成员子会话直达；市场 `?agents=` URL 状态化筛选（SQL 侧 json_array_length，零 schema 变更）。顺带清掉上版带的 8 处集群 UI typecheck 红。
+
+**验证**：探针 10/10；aloadtree 真浏览器三页（/chat //agents //tasks）零 pageerror/console 错；生产绑定链 API 级全通（带 sessionId 建群→mine 回带→terminate）。**分组/载入 UI 真机可视验收被货架空挡住**（在架无 cluster pack）——待首批 cluster pack 上架。LLM 依赖型 smoke 在干净树同红=环境（llm-guard fetch failed+预设名单 1，疑与在途 agent-runner 改动有关），非本轮回归。
+
+**余账更新**：首批 cluster pack（用户选）→ 2.15/1.10 可视走查；市场 Load in chat；模型绑定后半程；④其余（presets 名单 smoke 环境修复后会话头绑定端到端补走）。

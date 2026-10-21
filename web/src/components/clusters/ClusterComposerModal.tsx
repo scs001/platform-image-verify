@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
+import { useChatStore } from "@platform/core";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -143,12 +144,17 @@ export function ClusterComposerModal({ open, onOpenChange, onSuccess }: Props) {
         };
       });
       
+      // Session binding rides the chat store's live session id — the composer
+      // opens from /agents, so the "current" session is whatever the chat
+      // store last had open (the server keys the binding on this id).
+      const liveSessionId = useChatStore.getState().currentSessionId;
       const result = await api.createDynamicCluster({
         name: clusterName.trim(),
         description: clusterDescription.trim(),
         agents,
         activateAll,
-        bindToSession: bindToSession && !!window.location.pathname // Simple session detection
+        bindToSession,
+        ...(bindToSession && liveSessionId ? { sessionId: liveSessionId } : {}),
       });
       
       setCreationStatus(result);

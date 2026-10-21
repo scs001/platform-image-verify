@@ -452,6 +452,8 @@ export interface CreateDynamicClusterRequest {
   }>;
   activateAll?: boolean;
   bindToSession?: boolean;
+  /** The session to attach the cluster to (server-side binding key). */
+  sessionId?: string;
 }
 
 export interface CreateDynamicClusterResponse {

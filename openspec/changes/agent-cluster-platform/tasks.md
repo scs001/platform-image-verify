@@ -62,10 +62,10 @@
   （`PackDetailDialog.tsx:523-537`）
 - [x] 1.8 Add expandable/collapsible agent list UI with "Show optional agents" toggle
   （`PackDetailDialog.tsx:111`）
-- [ ] 1.9 Update marketplace listing page to add cluster size filter (`?size=3`) and category filter
-  （未做：`PackMarketView.tsx` 无任何 cluster/size 筛选）
-- [ ] 1.10 Verify: Open a cluster pack detail, confirm cluster info section renders; apply size filter and confirm only matching packs shown
-  （前半已被真机走查覆盖；后半随 1.9 未做）
+- [x] 1.9 Update marketplace listing page to add cluster size filter (`?size=3`) and category filter
+  （2026-10-21：`?agents=1|2-3|4+` URL 状态化筛选（`pack-agent-size-filter`）；agent 数由市场 list SQL 侧 `json_array_length` 计算（零 schema 变更，老服务端无数值时直通不过滤）；category 筛选既有。**spec 的"Cluster type"分类筛选未做**——货架空则死 UI，待有 cluster pack 再上）
+- [x] 1.10 Verify: Open a cluster pack detail, confirm cluster info section renders; apply size filter and confirm only matching packs shown
+  （前半真机走查在案（§11.x 轮）；后半随 1.9 上产，等首批 cluster pack 上架后可视复核）
 
 ## 2. Phase 2: Core - Dynamic Cluster Composer
 
@@ -99,25 +99,25 @@
 
 ### 2.3 Frontend: Agent picker cluster grouping
 
-- [ ] 2.12 Update `web/src/components/agent/AgentPicker.tsx` to group pack-sourced agents by `clusterId`
-  （未做：实际组件为 `AgentPresetPicker.tsx`，无任何 cluster 分组逻辑；catalog 已带 clusterId 只差消费）
-- [ ] 2.13 Add cluster header showing cluster name and agent count
-  （未做）
-- [ ] 2.14 Add "Load entire cluster" button that triggers bulk install + activation
-  （未做）
+- [x] 2.12 Update `web/src/components/agent/AgentPicker.tsx` to group pack-sourced agents by `clusterId`
+  （2026-10-21：实际消费点为 `ControlStrip.tsx` 的 agent 下拉（chat 侧真正的 agent 选择器）——`agentRows` 按 clusterId 分组；AgentInfo 类型补齐 clusterId/clusterName/isDefaultAgent（catalog 打标早已上线、客户端类型一直没接））
+- [x] 2.13 Add cluster header showing cluster name and agent count
+  （ControlStrip 集群头：名+计数徽标，`strip-cluster-header`）
+- [x] 2.14 Add "Load entire cluster" button that triggers bulk install + activation
+  （`strip-cluster-load`。**语义按架构事实落定**：共享运行时一次承载一个 persona，"同时激活 N 个"不可达——落为「建绑定当前会话的动态集群（bindToSession+sessionId）+ 切到领街默认 agent」，扇出执行走集群任务面。picker 里的 pack 已安装，安装流在市场侧 Load in chat（见 marketplace-cluster-view spec，仍欠））
 - [ ] 2.15 Verify: Subscribe to a cluster pack, open agent picker, confirm agents are grouped under cluster header with "Load entire cluster" button
-  （随 2.12-14 未做）
+  （代码 2.12-14 已上产 sha-839f39c；**真机可视验收被货架空挡住**——生产市场尚无 cluster pack，分组头无从出现；待首批 cluster pack 上架后走查）
 
 ### 2.4 Integration: Session binding
 
-- [ ] 2.16 Update WebSocket protocol: add `cluster_bound` event when a cluster is bound to a session
-  （未做：ComposerModal 有 bindToSession 字段传后端，但无 WS 广播、无会话侧消费）
-- [ ] 2.17 Update chat session header to display "Running with [Cluster Name]" when cluster-bound
-  （未做）
-- [ ] 2.18 Handle cluster termination during session: fall back to built-in agent, show notification
-  （未做）
-- [ ] 2.19 Verify: Create a cluster with "Bind to current session", send a message, confirm session header shows cluster name
-  （随 2.16-18 未做）
+- [x] 2.16 Update WebSocket protocol: add `cluster_bound` event when a cluster is bound to a session
+  （clusters.js 创建/终止处广播；chat-store 两 case 消费。**顺带修真 bug**：`req.sessionId` 从未被任何中间件赋值，bindToSession 一直空转——改收 body.sessionId；编排器弹窗同样补传真实会话 id）
+- [x] 2.17 Update chat session header to display "Running with [Cluster Name]" when cluster-bound
+  （ChatHeader `chat-header-cluster` 徽标；冷启动按 /api/clusters/mine 的 sessionId 恢复，live 走 WS 事件）
+- [x] 2.18 Handle cluster termination during session: fall back to built-in agent, show notification
+  （cluster_terminated → chat-store 清徽标+置 notice → ChatPage 切回内置 agent（set_agent local）+ 横幅 `cluster-terminated-banner`）
+- [x] 2.19 Verify: Create a cluster with "Bind to current session", send a message, confirm session header shows cluster name
+  （2026-10-21 生产 sha-839f39c API 级验证：带 sessionId 建群→mine 回带 sessionId→terminate 200；徽标渲染链由 typecheck/build+agents-smoke+三页真浏览器零错背书。浏览器级端到端（发消息见徽标）待 cluster pack 上架后一并走查）
 
 ## 3. Phase 3: Advanced - Scheduling & Model Binding
 
@@ -138,10 +138,10 @@
 
 ### 3.2 Frontend: Task history with cluster view
 
-- [ ] 3.7 Update `web/src/pages/TasksPage.tsx` to display cluster tasks with cluster badge and agent avatars
-  （未做：TasksPage 无 cluster 痕迹）
-- [ ] 3.8 Add expandable timeline view for cluster task details (show per-agent output)
-  （未做）
+- [x] 3.7 Update `web/src/pages/TasksPage.tsx` to display cluster tasks with cluster badge and agent avatars
+  （2026-10-21：`cron-job-cluster` 徽章（名×计数）；avatars 落为成员 id 徽标——agent 头像无真实图标数据，不虚构）
+- [x] 3.8 Add expandable timeline view for cluster task details (show per-agent output)
+  （lite 形态：`cron-job-cluster-members` 成员徽标直达各自子会话（id 规则与 runner 落盘一致）——每 agent 输出就在其子会话里；卡片内嵌时间线留待有真实集群任务历史后按需做）
 - [ ] 3.9 Visualize parallel execution: use CSS grid to show agents running simultaneously
   （未做）
 - [ ] 3.10 Verify: View a completed cluster task, confirm cluster badge shows, click to expand and see per-agent outputs

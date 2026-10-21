@@ -673,6 +673,25 @@
         "findInInstalled": "Encuéntrala en la pestaña Instaladas.",
         "retry": "Reintentar"
       },
+      "update": {
+        "button": "Buscar actualización",
+        "title": "Actualizar habilidad: {{name}}",
+        "versionLine": "Versión de origen: {{current}} → {{upstream}}",
+        "noChanges": "Actualizada — idéntica al origen.",
+        "bodyChanged": "Cuerpo de la habilidad con cambios",
+        "bodyUnchanged": "Cuerpo de la habilidad sin cambios",
+        "countsLine": "{{added}} añadidos · {{changed}} modificados · {{removed}} eliminados · {{unchanged}} sin cambios",
+        "status": {
+          "added": "Añadido",
+          "removed": "Eliminado",
+          "changed": "Modificado",
+          "unchanged": "Sin cambios"
+        },
+        "filesLabel": "Diferencias de archivos ({{count}})",
+        "confirm": "Actualizar a la versión de origen",
+        "updating": "Actualizando…",
+        "success": "{{name}} actualizada (recarga en caliente, sin reinicio)"
+      },
       "zoneTitle": "Mercado externo",
       "zoneSubtitle": "Mercados de skills de terceros sin revisión de la plataforma; cada entrada lleva origen y licencia, y la instalación muestra una vista previa completa."
     }

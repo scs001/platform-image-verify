@@ -84,6 +84,63 @@ test.describe("model selection", () => {
     await expect(page).toHaveURL(/\/chat/);
   });
 
+  test("live bridge: strip model switch applies with no pending window", async ({ page }) => {
+    // chat-interaction-round2: when the bridge declares model/set the switch is
+    // a live selection flip — no pendingConfig window, so the chip must never
+    // enter the pending state and the strip never disables. Legacy generations
+    // (no model/set) legitimately pend; skip rather than fail there.
+    const { models, live } = await page.evaluate(async () => {
+      return await new Promise((resolve, reject) => {
+        const wsUrl = window.location.origin.replace(/^http/, "ws") + "/";
+        const ws = new WebSocket(wsUrl);
+        const timer = setTimeout(() => {
+          ws.close();
+          reject(new Error("list_models timeout"));
+        }, 10000);
+        ws.onopen = () => ws.send(JSON.stringify({ type: "list_models" }));
+        ws.onmessage = (ev) => {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === "models") {
+            clearTimeout(timer);
+            ws.close();
+            resolve({ models: msg.models || [], live: msg.live || {} });
+          }
+        };
+        ws.onerror = () => {
+          clearTimeout(timer);
+          reject(new Error("websocket error"));
+        };
+      });
+    });
+    test.skip(!live.modelSet, "bridge does not declare model/set (legacy generation)");
+
+    const current = ((await page.getByTestId("strip-model").textContent()) || "").trim();
+    const target = models.map((m) => m.id).find((id) => id && id !== current);
+    test.skip(!target, "single-model roster, cannot test switching");
+
+    await page.getByTestId("strip-model").click();
+    await page
+      .getByTestId("strip-model-menu")
+      .getByTestId("strip-menu-item")
+      .filter({ hasText: target })
+      .first()
+      .click();
+
+    // Sample the chip through the switch window: on the live path the pending
+    // attribute must never appear (pendingConfig would disable the whole strip).
+    const deadline = Date.now() + 2500;
+    let sawPending = false;
+    while (Date.now() < deadline) {
+      if ((await page.getByTestId("strip-model").getAttribute("data-pending")) === "true") {
+        sawPending = true;
+        break;
+      }
+      await page.waitForTimeout(100);
+    }
+    expect(sawPending).toBe(false);
+    await expect(page.getByTestId("strip-model")).toContainText(target, { timeout: 20000 });
+  });
+
   test("set default model via the Models page", async ({ page }) => {
     // Discover available models via the WS list (same as the frozen set).
     const models = await page.evaluate(async () => {

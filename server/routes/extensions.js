@@ -5,7 +5,7 @@ import { getMarketEntries, getSkillContent } from "../../registry-bridge.js";
 import * as credentialRefs from "../../credential-refs.js";
 import { getPreflightStatus } from "../../mcp-preflight.js";
 import { createExternalSourceRegistry, requestedPageSize } from "../../external-sources.js";
-import { previewInstall, performInstall } from "../../external-install.js";
+import { previewInstall, performInstall, previewUpdate, performUpdate } from "../../external-install.js";
 import { previewUpload, performUpload, seedUpload } from "../../skill-package-upload.js";
 
 export function registerExtensionRoutes(ctx) {
@@ -560,6 +560,56 @@ export function registerExtensionRoutes(ctx) {
       res.json({ skill: { name: out.skill.name, description: out.skill.description, originMeta: out.skill.originMeta }, replaced: out.replaced });
     } catch (err) {
       res.status(externalErrorStatus(err)).json({ error: `Install failed: ${err.message}`, code: err.code ?? null });
+    }
+  });
+
+  // ── External skill update (chat-interaction-round2) ──────────────────────
+  // Keyed by the INSTALLED skill's name (its origin_meta carries the upstream
+  // source/slug). Preview is read-only; the update enforces the same
+  // server-side confirm gate as install, replaces the row in place (local name
+  // pinned), and re-materializes through the install path — hot-reload comes
+  // from the watched directory, no runtime restart.
+  app.get("/api/extensions/external/update-preview/:name", async (req, res) => {
+    const { name } = req.params;
+    if (!name || String(name).length > 200) {
+      return res.status(400).json({ error: "Bad skill name" });
+    }
+    try {
+      const preview = await previewUpdate({
+        name: String(name),
+        registry: externalSources,
+        store: extensionStore,
+        dbReady: () => db.isDbReady(),
+      });
+      res.json({ preview });
+    } catch (err) {
+      res.status(externalErrorStatus(err)).json({ error: `Update preview failed: ${err.message}`, code: err.code ?? null });
+    }
+  });
+
+  app.post("/api/extensions/external/update", async (req, res) => {
+    const { name, confirm } = req.body || {};
+    if (!name || String(name).length > 200) {
+      return res.status(400).json({ error: "Missing skill name" });
+    }
+    if (confirm !== true) {
+      return res.status(400).json({
+        error: "Update requires explicit confirmation (confirm: true) after reviewing the update preview",
+        code: "confirm-required",
+      });
+    }
+    try {
+      const out = await performUpdate({
+        name: String(name),
+        registry: externalSources,
+        store: extensionStore,
+        materialize: skillMaterialize,
+        dbReady: () => db.isDbReady(),
+      });
+      broadcast({ type: "extensions_changed", resource: "skill", action: "updated", name: out.skill.name });
+      res.json({ skill: { name: out.skill.name, description: out.skill.description, originMeta: out.skill.originMeta } });
+    } catch (err) {
+      res.status(externalErrorStatus(err)).json({ error: `Update failed: ${err.message}`, code: err.code ?? null });
     }
   });
 }

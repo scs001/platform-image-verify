@@ -14,9 +14,137 @@
 // grammar is `^[a-z0-9]+(-[a-z0-9]+)*$` and a non-matching skill file is
 // silently ignored — an external name with capitals would install an invisible
 // skill. The original upstream name survives in origin_meta for display.
+//
+// Update (chat-interaction-round2) adds two more, both keyed by the INSTALLED
+// skill's name (its origin_meta supplies the upstream source/slug):
+//   previewUpdate(...)   fetch + diff the current package against the snapshot
+//   performUpdate(...)   the replace write, with the local name pinned
+
+import { createHash } from "node:crypto";
 
 const BODY_EXCERPT_CHARS = 1500;
 const MAX_SKILL_NAME = 64;
+
+// ── Update (chat-interaction-round2) ────────────────────────────────────────
+// Explicit in-place update of an installed external skill. The skill's LOCAL
+// NAME is pinned (an upstream rename never spawns a second skill); everything
+// is fetched and parsed before the first write, so failures leave the installed
+// snapshot untouched (stale-on-failure).
+
+function hashText(text) {
+  return createHash("sha256").update(String(text ?? ""), "utf8").digest("hex");
+}
+
+function dbUnavailableError() {
+  return Object.assign(new Error("Extensions management is disabled (database unavailable)"), { code: "db-unavailable", status: 503 });
+}
+
+// Resolve an installed row to its external origin, refusing anything that was
+// not installed from an external source (user/pack skills have no origin to
+// fetch back).
+function requireExternalOrigin(row, name) {
+  const meta = row?.originMeta;
+  if (meta?.kind !== "external" || !meta?.source || !meta?.slug) {
+    throw Object.assign(new Error(`Skill "${name}" was not installed from an external source`), { code: "not-external", status: 400 });
+  }
+  return meta;
+}
+
+// Three-bucket diff of the installed snapshot vs the fetched package: body,
+// frontmatter, and the aux-file map. Unchanged entries ride along so the UI can
+// show the whole picture; `changed` is the one-glance verdict.
+function diffSnapshot(row, pack) {
+  const storedFiles = row.files && typeof row.files === "object" ? row.files : {};
+  const files = [];
+  const counts = { added: 0, removed: 0, changed: 0, unchanged: 0 };
+  for (const p of new Set([...Object.keys(storedFiles), ...Object.keys(pack.files)])) {
+    const was = storedFiles[p];
+    const now = pack.files[p];
+    let status;
+    if (was === undefined) status = "added";
+    else if (now === undefined) status = "removed";
+    else status = hashText(was) === hashText(now) ? "unchanged" : "changed";
+    counts[status] += 1;
+    files.push({ path: p, status, bytes: Buffer.byteLength(String(now ?? was ?? ""), "utf8") });
+  }
+  files.sort((a, b) => a.path.localeCompare(b.path));
+  const bodyStatus = hashText(row.content) === hashText(pack.body) ? "unchanged" : "changed";
+  const frontmatterStatus =
+    JSON.stringify(row.frontmatter ?? null) === JSON.stringify(sanitizeFrontmatter(pack.frontmatter)) ? "unchanged" : "changed";
+  return {
+    changed: bodyStatus === "changed" || frontmatterStatus === "changed" || counts.added + counts.removed + counts.changed > 0,
+    bodyStatus,
+    frontmatterStatus,
+    counts,
+    files,
+  };
+}
+
+// Update preview: fetch + diff, read-only by construction (no store write, no
+// materializer).
+export async function previewUpdate({ name, registry, store, dbReady }) {
+  if (!dbReady()) throw dbUnavailableError();
+  const row = store.getCustomSkill(String(name));
+  if (!row) {
+    throw Object.assign(new Error(`No installed skill named "${name}"`), { code: "unknown-skill", status: 404 });
+  }
+  const meta = requireExternalOrigin(row, row.name);
+  const pack = await registry.fetchPackage(meta.source, meta.slug); // throws: upstream errors carry .code; disabled source → null below
+  if (!pack) {
+    throw Object.assign(new Error(`Unknown or disabled source: ${meta.source}`), { code: "unknown-source", status: 404 });
+  }
+  const entry = await registry.getEntry(meta.source, meta.slug).then((r) => r?.entry ?? null).catch(() => null);
+  return {
+    name: row.name,
+    source: meta.source,
+    slug: meta.slug,
+    originUrl: entry?.originUrl ?? meta.originUrl ?? null,
+    upstreamName: entry?.name ?? meta.upstreamName ?? meta.slug,
+    currentVersion: meta.upstreamVersion ?? null,
+    upstreamVersion: entry?.version ?? null,
+    licenseState: entry?.licenseState ?? "unknown",
+    bodyExcerpt: excerpt(pack.body),
+    hasScripts: pack.inventory.some((f) => f.script && f.action === "stored"),
+    diff: diffSnapshot(row, pack),
+  };
+}
+
+// The update itself, ordered like performInstall: everything is fetched and
+// parsed BEFORE the first write, so any failure leaves the installed snapshot
+// untouched. Same-row replace (no name-conflict path exists here — the row IS
+// the target), same materialization path, hot-reload via the watched dir.
+export async function performUpdate({ name, registry, store, materialize, dbReady }) {
+  if (!dbReady()) throw dbUnavailableError();
+  const row = store.getCustomSkill(String(name));
+  if (!row) {
+    throw Object.assign(new Error(`No installed skill named "${name}"`), { code: "unknown-skill", status: 404 });
+  }
+  const meta = requireExternalOrigin(row, row.name);
+  const pack = await registry.fetchPackage(meta.source, meta.slug);
+  if (!pack) {
+    throw Object.assign(new Error(`Unknown or disabled source: ${meta.source}`), { code: "unknown-source", status: 404 });
+  }
+  const entry = await registry.getEntry(meta.source, meta.slug).then((r) => r?.entry ?? null).catch(() => null);
+
+  const originMeta = {
+    kind: "external",
+    source: meta.source,
+    slug: meta.slug,
+    originUrl: entry?.originUrl ?? meta.originUrl ?? null,
+    upstreamName: entry?.name ?? meta.upstreamName ?? meta.slug,
+    upstreamVersion: entry?.version ?? null,
+  };
+  const payload = {
+    description: entry?.description || pack.frontmatter?.description || "",
+    content: pack.body,
+    files: Object.keys(pack.files).length > 0 ? pack.files : null,
+    frontmatter: sanitizeFrontmatter(pack.frontmatter),
+    originMeta,
+  };
+  const updated = store.updateCustomSkill(row.name, payload);
+  materialize.writeSkill(updated); // materializer sweeps aux files the new set dropped
+  return { skill: updated };
+}
 
 // Runtime grammar: lowercase alnum runs joined by single hyphens.
 export function normalizeSkillName(raw) {

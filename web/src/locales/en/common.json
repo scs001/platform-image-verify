@@ -673,6 +673,25 @@
         "findInInstalled": "Find it in the Installed tab.",
         "retry": "Retry"
       },
+      "update": {
+        "button": "Check for update",
+        "title": "Update skill: {{name}}",
+        "versionLine": "Upstream version: {{current}} → {{upstream}}",
+        "noChanges": "Up to date — identical to upstream.",
+        "bodyChanged": "Skill body changed",
+        "bodyUnchanged": "Skill body unchanged",
+        "countsLine": "{{added}} added · {{changed}} changed · {{removed}} removed · {{unchanged}} unchanged",
+        "status": {
+          "added": "Added",
+          "removed": "Removed",
+          "changed": "Changed",
+          "unchanged": "Unchanged"
+        },
+        "filesLabel": "File diff ({{count}})",
+        "confirm": "Update to upstream version",
+        "updating": "Updating…",
+        "success": "Updated {{name}} (hot-reloaded, no restart needed)"
+      },
       "zoneTitle": "External market",
       "zoneSubtitle": "Third-party skill markets, not reviewed by this platform; entries carry source and license marks, and installs show a full preview first."
     }

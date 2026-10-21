@@ -6,19 +6,23 @@ import type { Skill, CustomSkill } from "@platform/core";
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, RefreshCw, Trash2 } from "lucide-react";
 
 interface SkillCardProps {
   skill: Skill;
   customSkill?: CustomSkill;
   onEdit?: (skill: CustomSkill) => void;
+  // chat-interaction-round2: explicit update entry for externally-installed
+  // skills (origin_meta carries the upstream source/slug server-side).
+  onUpdate?: (skill: Skill) => void;
 }
 
-export function SkillCard({ skill, customSkill, onEdit }: SkillCardProps) {
+export function SkillCard({ skill, customSkill, onEdit, onUpdate }: SkillCardProps) {
   const { t } = useTranslation();
   const { toggleCustomSkill, removeCustomSkill } = useExtensionsStore();
 
   const isCustom = skill.source === "database";
+  const isExternal = (skill.originMeta as { kind?: string } | null | undefined)?.kind === "external";
   const canEdit = isCustom && onEdit && customSkill;
 
   const handleToggle = async () => {
@@ -71,6 +75,17 @@ export function SkillCard({ skill, customSkill, onEdit }: SkillCardProps) {
           {isCustom && (
             <>
               <Switch checked={skill.enabled} onCheckedChange={handleToggle} />
+              {isExternal && onUpdate && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t("extensions.external.update.button")}
+                  data-testid="external-update-button"
+                  onClick={() => onUpdate(skill)}
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
+              )}
               {canEdit && (
                 <Button variant="ghost" size="icon" aria-label={t("common.edit")} onClick={() => onEdit(customSkill!)}>
                   <Pencil className="h-4 w-4" />

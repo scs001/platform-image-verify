@@ -294,3 +294,136 @@ test.describe("External skill-source shelf (mirror + consent install)", () => {
     await expect(page.getByTestId("external-group-skillhub")).toBeVisible();
   });
 });
+
+// ── Explicit update of installed external skills (chat-interaction-round2) ──
+//
+// The update flow lives on the INSTALLED list, keyed by the skill's local name;
+// the server resolves origin_meta to the upstream source/slug. Route-mocked like
+// the shelf above: pins the visible diff contract (versions, counts, per-file
+// statuses, no-changes posture, upstream failure) and proves the confirm call
+// carries the server-enforced flag.
+
+import { gotoSkills } from "./helpers.js";
+
+function installedDoc() {
+  return {
+    skills: [
+      {
+        name: "pdf-image-text-extractor",
+        description: "from the market",
+        source: "database",
+        enabled: true,
+        files: ["scripts/extract.py"],
+        originMeta: {
+          kind: "external",
+          source: "skillhub",
+          slug: "pdf-image-text-extractor",
+          originUrl: "https://skillhub.cn/skills/pdf-image-text-extractor",
+          upstreamName: "pdf-image-text-extractor",
+          upstreamVersion: "2.1.0",
+        },
+      },
+      { name: "my-own-skill", description: "locally authored", source: "database", enabled: true },
+    ],
+  };
+}
+
+function updatePreviewDoc(over = {}) {
+  return {
+    preview: {
+      name: "pdf-image-text-extractor",
+      source: "skillhub",
+      slug: "pdf-image-text-extractor",
+      originUrl: "https://skillhub.cn/skills/pdf-image-text-extractor",
+      upstreamName: "pdf-image-text-extractor",
+      currentVersion: "2.1.0",
+      upstreamVersion: "2.2.0",
+      licenseState: "unknown",
+      bodyExcerpt: "# v2 body",
+      hasScripts: false,
+      diff: {
+        changed: true,
+        bodyStatus: "changed",
+        frontmatterStatus: "unchanged",
+        counts: { added: 1, removed: 1, changed: 1, unchanged: 1 },
+        files: [
+          { path: "scripts/extract.py", status: "changed", bytes: 210 },
+          { path: "scripts/new.py", status: "added", bytes: 90 },
+          { path: "scripts/old.py", status: "removed", bytes: 50 },
+          { path: "docs/usage.md", status: "unchanged", bytes: 300 },
+        ],
+      },
+      ...over,
+    },
+  };
+}
+
+test.describe("Installed external skill update", () => {
+  test("external row shows the update entry; locally-authored rows do not", async ({ page }) => {
+    await page.route("**/api/extensions/skills", (route) => route.fulfill({ json: installedDoc() }));
+    await gotoSkills(page);
+    await expect(page.locator('[data-skill-name="pdf-image-text-extractor"]').getByTestId("external-update-button")).toBeVisible();
+    await expect(page.locator('[data-skill-name="my-own-skill"]').getByTestId("external-update-button")).toHaveCount(0);
+  });
+
+  test("update previews the diff, confirm carries the explicit flag", async ({ page }) => {
+    await page.route("**/api/extensions/skills", (route) => route.fulfill({ json: installedDoc() }));
+    await page.route("**/api/extensions/external/update-preview/**", (route) => route.fulfill({ json: updatePreviewDoc() }));
+    let updateBody = null;
+    await page.route("**/api/extensions/external/update", async (route) => {
+      updateBody = route.request().postDataJSON();
+      await route.fulfill({
+        json: {
+          skill: {
+            name: "pdf-image-text-extractor",
+            description: "d",
+            originMeta: { kind: "external", source: "skillhub", slug: "pdf-image-text-extractor" },
+          },
+        },
+      });
+    });
+
+    await gotoSkills(page);
+    await page.locator('[data-skill-name="pdf-image-text-extractor"]').getByTestId("external-update-button").click();
+
+    const panel = page.getByTestId("external-update-dialog");
+    await expect(panel).toBeVisible();
+    expect(updateBody).toBeNull(); // preview writes nothing
+    await expect(panel.getByTestId("update-version-line")).toContainText("2.1.0");
+    await expect(panel.getByTestId("update-version-line")).toContainText("2.2.0");
+    await expect(panel.getByTestId("update-body-status")).toContainText(/changed/i);
+    await expect(panel.getByTestId("update-file-list")).toContainText("scripts/new.py");
+    await expect(panel.getByTestId("update-file-list")).toContainText("scripts/old.py");
+
+    await panel.getByTestId("update-confirm").click();
+    await expect(panel.getByTestId("update-success")).toContainText("pdf-image-text-extractor");
+    expect(updateBody).toEqual({ name: "pdf-image-text-extractor", confirm: true });
+  });
+
+  test("up-to-date skill shows the no-changes note and disables confirm", async ({ page }) => {
+    await page.route("**/api/extensions/skills", (route) => route.fulfill({ json: installedDoc() }));
+    await page.route("**/api/extensions/external/update-preview/**", (route) =>
+      route.fulfill({
+        json: updatePreviewDoc({
+          diff: { changed: false, bodyStatus: "unchanged", frontmatterStatus: "unchanged", counts: { added: 0, removed: 0, changed: 0, unchanged: 2 }, files: [] },
+        }),
+      }),
+    );
+    await gotoSkills(page);
+    await page.locator('[data-skill-name="pdf-image-text-extractor"]').getByTestId("external-update-button").click();
+    const panel = page.getByTestId("external-update-dialog");
+    await expect(panel.getByTestId("update-nochanges")).toBeVisible();
+    await expect(panel.getByTestId("update-confirm")).toBeDisabled();
+  });
+
+  test("upstream failure surfaces in the panel with a retry affordance", async ({ page }) => {
+    await page.route("**/api/extensions/skills", (route) => route.fulfill({ json: installedDoc() }));
+    await page.route("**/api/extensions/external/update-preview/**", (route) =>
+      route.fulfill({ status: 502, json: { error: "Update preview failed: upstream directory not found", code: "upstream-not-found" } }),
+    );
+    await gotoSkills(page);
+    await page.locator('[data-skill-name="pdf-image-text-extractor"]').getByTestId("external-update-button").click();
+    await expect(page.getByTestId("update-load-error")).toContainText("upstream directory not found");
+    await expect(page.getByTestId("update-retry")).toBeVisible();
+  });
+});

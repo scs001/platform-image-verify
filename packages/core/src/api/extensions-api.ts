@@ -789,3 +789,62 @@ export async function installExternalSkill(
   }
   return (await res.json()) as { skill: { name: string; description: string; originMeta: Record<string, unknown> | null }; replaced: boolean };
 }
+
+// ── External skill update (chat-interaction-round2) ─────────────────────────
+// Keyed by the INSTALLED skill's name — the server resolves origin_meta to the
+// upstream source/slug, so the local name is the only handle the client needs.
+// Preview is a read-only diff against the current upstream package; the update
+// call carries confirm:true like the install.
+
+export type ExternalUpdateFileStatus = "added" | "removed" | "changed" | "unchanged";
+
+export interface ExternalUpdateFileDiff {
+  path: string;
+  status: ExternalUpdateFileStatus;
+  bytes: number;
+}
+
+export interface ExternalUpdatePreview {
+  name: string;
+  source: string;
+  slug: string;
+  originUrl: string | null;
+  upstreamName: string;
+  currentVersion: string | null;
+  upstreamVersion: string | null;
+  licenseState: "declared" | "not-declared" | "unknown";
+  bodyExcerpt: string;
+  hasScripts: boolean;
+  diff: {
+    changed: boolean;
+    bodyStatus: "changed" | "unchanged";
+    frontmatterStatus: "changed" | "unchanged";
+    counts: { added: number; removed: number; changed: number; unchanged: number };
+    files: ExternalUpdateFileDiff[];
+  };
+}
+
+export async function previewExternalUpdate(name: string): Promise<ExternalUpdatePreview> {
+  const res = await http(`${BASE_URL}/external/update-preview/${encodeURIComponent(name)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Update preview failed: ${res.statusText}`);
+  }
+  const doc = (await res.json()) as { preview: ExternalUpdatePreview };
+  return doc.preview;
+}
+
+export async function updateExternalSkill(
+  name: string,
+): Promise<{ skill: { name: string; description: string; originMeta: Record<string, unknown> | null } }> {
+  const res = await http(`${BASE_URL}/external/update`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, confirm: true }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Update failed: ${res.statusText}`);
+  }
+  return (await res.json()) as { skill: { name: string; description: string; originMeta: Record<string, unknown> | null } };
+}

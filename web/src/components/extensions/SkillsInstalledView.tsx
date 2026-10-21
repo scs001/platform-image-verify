@@ -10,9 +10,10 @@ import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import { SkillCard } from "./SkillCard";
 import { SkillForm } from "./SkillForm";
 import { SkillPackageDialog } from "./SkillPackageDialog";
+import { ExternalUpdateDialog } from "./ExternalUpdateDialog";
 import { Button } from "@/components/ui/button";
 import { PackagePlus, Plus } from "lucide-react";
-import type { CustomSkill } from "@platform/core";
+import type { CustomSkill, Skill } from "@platform/core";
 
 export function SkillsInstalledView() {
   const { t } = useTranslation();
@@ -21,6 +22,7 @@ export function SkillsInstalledView() {
   const [skillFormOpen, setSkillFormOpen] = useState(false);
   const [packageOpen, setPackageOpen] = useState(false);
   const [editingSkill, setEditingSkill] = useState<CustomSkill | null>(null);
+  const [updateTarget, setUpdateTarget] = useState<Skill | null>(null);
 
   const handleEditSkill = (skill: CustomSkill) => {
     setEditingSkill(skill);
@@ -58,6 +60,7 @@ export function SkillsInstalledView() {
                 skill={skill}
                 customSkill={customSkill}
                 onEdit={customSkill ? handleEditSkill : undefined}
+                onUpdate={setUpdateTarget}
               />
             ))}
           </div>
@@ -75,6 +78,15 @@ export function SkillsInstalledView() {
         onOpenChange={setPackageOpen}
         onInstalled={() => void refresh()}
       />
+
+      {updateTarget && (
+        <ExternalUpdateDialog
+          name={updateTarget.name}
+          onOpenChange={(open) => {
+            if (!open) setUpdateTarget(null);
+          }}
+        />
+      )}
     </>
   );
 }

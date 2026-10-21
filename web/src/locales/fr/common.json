@@ -673,6 +673,25 @@
         "findInInstalled": "Retrouvez-la dans l'onglet Installées.",
         "retry": "Réessayer"
       },
+      "update": {
+        "button": "Vérifier la mise à jour",
+        "title": "Mettre à jour la compétence : {{name}}",
+        "versionLine": "Version amont : {{current}} → {{upstream}}",
+        "noChanges": "À jour — identique à la source amont.",
+        "bodyChanged": "Corps de la compétence modifié",
+        "bodyUnchanged": "Corps de la compétence inchangé",
+        "countsLine": "{{added}} ajoutés · {{changed}} modifiés · {{removed}} supprimés · {{unchanged}} inchangés",
+        "status": {
+          "added": "Ajouté",
+          "removed": "Supprimé",
+          "changed": "Modifié",
+          "unchanged": "Inchangé"
+        },
+        "filesLabel": "Diff de fichiers ({{count}})",
+        "confirm": "Mettre à jour vers la version amont",
+        "updating": "Mise à jour…",
+        "success": "{{name}} mis à jour (rechargé à chaud, sans redémarrage)"
+      },
       "zoneTitle": "Marché externe",
       "zoneSubtitle": "Marchés de skills tiers non revus par la plateforme ; entrées avec origine et licence, et aperçu complet avant installation."
     }

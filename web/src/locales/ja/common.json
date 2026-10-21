@@ -673,6 +673,25 @@
         "findInInstalled": "「インストール済み」タブで確認できます。",
         "retry": "再試行"
       },
+      "update": {
+        "button": "更新を確認",
+        "title": "スキルを更新：{{name}}",
+        "versionLine": "アップストリームバージョン：{{current}} → {{upstream}}",
+        "noChanges": "最新です — アップストリームと同一です。",
+        "bodyChanged": "スキル本文に変更あり",
+        "bodyUnchanged": "スキル本文に変更なし",
+        "countsLine": "{{added}} 追加 · {{changed}} 変更 · {{removed}} 削除 · {{unchanged}} 変更なし",
+        "status": {
+          "added": "追加",
+          "removed": "削除",
+          "changed": "変更",
+          "unchanged": "変更なし"
+        },
+        "filesLabel": "ファイル差分（{{count}}）",
+        "confirm": "アップストリーム版へ更新",
+        "updating": "更新中…",
+        "success": "{{name}} を更新しました（ホットリロード済み・再起動不要）"
+      },
       "zoneTitle": "外部マーケット",
       "zoneSubtitle": "プラットフォーム未審査のサードパーティ・スキル市場。出典とライセンス表示付き、導入前に完全なプレビューを表示します。"
     }

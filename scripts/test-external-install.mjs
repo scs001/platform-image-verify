@@ -184,4 +184,104 @@ test("origin_meta round-trips through the skills listing decode", () => {
   assert.ok(typeof row.files === "object" && row.files !== null);
 });
 
+// ── Update (chat-interaction-round2) ────────────────────────────────────────
+
+const { previewUpdate, performUpdate } = await import("../external-install.js");
+
+async function installFixture(slug, packageOver = {}, entryOver = {}) {
+  const registry = fakeRegistry(
+    { [`skillhub/${slug}`]: pack(packageOver) },
+    { [`skillhub/${slug}`]: { ...ENTRY, ...entryOver } },
+  );
+  return performInstall({ source: "skillhub", slug, registry, store, materialize, dbReady: () => true });
+}
+
+test("update preview diffs installed snapshot vs upstream without writing", async () => {
+  await installFixture("upd");
+  const v2 = pack({
+    body: "# V2 body",
+    frontmatter: { name: "upstream-name", whenToUse: "when testing v2", metadata: { src: "x" } },
+    files: { "scripts/run.py": "print(1)\n", "scripts/new.py": "print(2)\n" },
+  });
+  const registry = fakeRegistry({ "skillhub/upd": v2 }, { "skillhub/upd": { ...ENTRY, version: "2.2.0" } });
+  const before = store.getCustomSkill("upd");
+  const p = await previewUpdate({ name: "upd", registry, store, dbReady: () => true });
+
+  assert.equal(p.name, "upd");
+  assert.equal(p.currentVersion, "2.1.0");
+  assert.equal(p.upstreamVersion, "2.2.0");
+  assert.equal(p.diff.changed, true);
+  assert.equal(p.diff.bodyStatus, "changed");
+  assert.equal(p.diff.frontmatterStatus, "changed");
+  assert.deepEqual(p.diff.counts, { added: 1, removed: 0, changed: 0, unchanged: 1 });
+  const byPath = Object.fromEntries(p.diff.files.map((f) => [f.path, f.status]));
+  assert.deepEqual(byPath, { "scripts/new.py": "added", "scripts/run.py": "unchanged" });
+
+  // identical upstream → no changes verdict
+  const sameRegistry = fakeRegistry({ "skillhub/upd": pack() }, { "skillhub/upd": ENTRY });
+  const same = await previewUpdate({ name: "upd", registry: sameRegistry, store, dbReady: () => true });
+  assert.equal(same.diff.changed, false);
+  assert.equal(same.diff.bodyStatus, "unchanged");
+  assert.equal(same.diff.frontmatterStatus, "unchanged");
+  assert.deepEqual(same.diff.counts, { added: 0, removed: 0, changed: 0, unchanged: 1 });
+
+  const after = store.getCustomSkill("upd");
+  assert.deepEqual(after, before, "preview writes nothing");
+});
+
+test("confirmed update replaces in place, pins the local name, hot-reloads", async () => {
+  await installFixture("upd2");
+  const v2 = pack({
+    body: "# V2 body",
+    files: { "scripts/renamed.py": "print(9)\n" },
+    inventory: [
+      { path: "SKILL.md", bytes: 10, script: false, action: "stored" },
+      { path: "scripts/renamed.py", bytes: 10, script: true, action: "stored" },
+    ],
+  });
+  // Upstream renamed its display name — the installed skill must NOT fork.
+  const registry = fakeRegistry({ "skillhub/upd2": v2 }, { "skillhub/upd2": { ...ENTRY, name: "renamed-upstream", version: "3.0.0" } });
+  const out = await performUpdate({ name: "upd2", registry, store, materialize, dbReady: () => true });
+
+  assert.equal(out.skill.name, "upd2", "local name pinned");
+  assert.equal(out.skill.content, "# V2 body");
+  assert.deepEqual(Object.keys(out.skill.files), ["scripts/renamed.py"]);
+  assert.equal(out.skill.originMeta.upstreamVersion, "3.0.0");
+  assert.equal(out.skill.originMeta.upstreamName, "renamed-upstream");
+  assert.equal(store.listCustomSkills().filter((r) => r.originMeta?.slug === "upd2").length, 1, "no forked row");
+
+  const dir = path.join(process.env.PLATFORM_DATA_DIR, "custom-skills", "upd2");
+  assert.ok(!existsSync(path.join(dir, "scripts/run.py")), "stale aux reconciled away");
+  assert.ok(existsSync(path.join(dir, "scripts/renamed.py")));
+  assert.ok(readFileSync(path.join(dir, "SKILL.md"), "utf8").includes("# V2 body"));
+});
+
+test("update on a non-external skill is refused", async () => {
+  store.addCustomSkill({ name: "usermade", description: "mine", content: "# mine" });
+  await assert.rejects(
+    () => previewUpdate({ name: "usermade", registry: fakeRegistry({}), store, dbReady: () => true }),
+    (e) => e.code === "not-external" && e.status === 400,
+  );
+  await assert.rejects(
+    () => previewUpdate({ name: "no-such-skill", registry: fakeRegistry({}), store, dbReady: () => true }),
+    (e) => e.code === "unknown-skill" && e.status === 404,
+  );
+});
+
+test("upstream failure during update keeps the installed snapshot", async () => {
+  await installFixture("upd3");
+  const before = store.getCustomSkill("upd3");
+  const err = Object.assign(new Error("upstream directory not found"), { code: "upstream-not-found" });
+  const registry = fakeRegistry({ "skillhub/upd3": err });
+  await assert.rejects(
+    () => performUpdate({ name: "upd3", registry, store, materialize, dbReady: () => true }),
+    (e) => e.code === "upstream-not-found",
+  );
+  const after = store.getCustomSkill("upd3");
+  assert.equal(after.content, before.content, "snapshot untouched");
+  assert.equal(after.originMeta.upstreamVersion, before.originMeta.upstreamVersion);
+  const dir = path.join(process.env.PLATFORM_DATA_DIR, "custom-skills", "upd3");
+  assert.ok(existsSync(path.join(dir, "scripts/run.py")), "materialized tree untouched");
+});
+
 rmSync(tmpRoot, { recursive: true, force: true });

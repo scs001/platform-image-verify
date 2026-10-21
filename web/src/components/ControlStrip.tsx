@@ -11,11 +11,14 @@
 // configuration (which providers exist, what the default is) lives in Settings.
 // That split is why the sidebar no longer carries a model chip or agent select.
 //
-// Workspace, model and effort change dsh runtime config, and dsh bakes config
-// into the `initialize` handshake — there is no setModel/setCwd RPC. So each of
-// those restarts the child process. That cost is deliberately visible: the
-// changed control shows a spinner and the send button disables until the
-// server's confirming broadcast lands (see `pendingConfig` in the store).
+// Workspace and effort change dsh runtime config, and dsh bakes that config
+// into the `initialize` handshake — no live RPC — so each of those restarts the
+// child process. Model follows the bridge capability: when it declares the
+// `model/set` RPC (liveControl.modelSet) the switch is step-safe with no
+// restart and no pending window; otherwise it restarts like the others. The
+// restart cost is deliberately visible: the changed control shows a spinner and
+// the send button disables until the server's confirming broadcast lands (see
+// `pendingConfig` in the store).
 // Agent follows the same rule when the deployment serves that agent locally
 // (a vertical pack is a persona preset, so its switch restarts the runtime);
 // only a remote-fork agent switches without a restart.
@@ -620,7 +623,10 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
                   onClick={() => {
                     close();
                     if (m.id === currentModel) return;
-                    setPendingConfig("model");
+                    // pendingConfig disables the whole strip + send, so it is
+                    // only for restart-carrying switches. With live model/set
+                    // the switch is step-safe and instant — no pending window.
+                    if (!liveControl.modelSet) setPendingConfig("model");
                     send({ type: "set_model", id: m.id });
                   }}
                 />

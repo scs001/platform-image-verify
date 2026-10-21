@@ -943,14 +943,11 @@
         "title": "共有検索サービス",
         "subtitle": "このデプロイのリレー接続と共有キープール（管理者）。自分のキーを持たないユーザーはこのプールから応答されます。",
         "poolTitle": "共有プールの状態",
-        "poolKeys": "上流キー {{total}} 個、{{cooling}} 個冷却中",
         "poolUsage": "{{day}}：ユーザーキーで {{used}} 回、プールへフォールバック {{fallback}} 回",
-        "poolDry": "本日プール枯渇 {{count}} 回 — 上流キーを追加すると検索が復旧します。",
         "poolUnreachable": "リレー統計に到達できません",
         "upstreamLane": "上流：プラットフォームゲートウェイ検索レーン（ciyuan）",
-        "upstreamDirect": "上流：プロバイダ直結（コールドスタンバイ）",
-        "upstreamFallbacks": "コールドスタンバイが {{count}} 回処理",
-        "upstreamLaneDown": "レーン一時不通 — コールドスタンバイ稼働中"
+        "upstreamLaneErrors": "レーンエラー {{count}} 回",
+        "upstreamLaneDown": "レーン一時不通 — コールドスタンバイは廃止済み。レーン復旧まで検索はエラーになります"
       },
       "test": "接続テスト",
       "testStates": {

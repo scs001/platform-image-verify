@@ -1,16 +1,18 @@
-// Lane upstream for the search relay (search-relay-via-ciyuan §1).
+// Lane upstream for the search relay (search-relay-via-ciyuan §1, direct path
+// retired by retire-search-relay-direct).
 //
 // The relay's shared pool is served by the 词元 platform gateway websearch lane
-// (keys.json `ciyuan:{url,key}`); the direct SerpAPI path is cold standby.
-// Lanes here (one live relay, ephemeral port, both upstreams stubbed):
+// (keys.json `ciyuan:{url,key}`) — the only supply. Lanes here (one live relay,
+// ephemeral port, upstream stubbed):
 //   1. lane happy path — internal key on the wire, envelope unwrap, BYOK
 //      passthrough header, x-search-source passthrough (three states).
-//   2. breaker — 3 consecutive lane failures open a 60s (test: 1s) window:
-//      requests route direct WITHOUT touching the lane; the first request
-//      after the window probes the lane and a success closes the breaker.
-//   3. keys.json reload clears an open breaker (operator edit = try again).
-//   4. stats — upstream {mode,laneConfigured,reachable,breakerOpen,…} shape;
-//      dual-path failure 503 naming both.
+//   2. reachability signal — 3 consecutive lane failures mark the lane
+//      unreachable in stats for a window (test: 1s); every request is still
+//      routed to the lane (nothing to fall back to) and answered with a clear
+//      503; the next success clears the signal.
+//   3. keys.json reload clears the signal (operator edit = try again).
+//   4. no direct path exists: a leftover `serpapi[]` in keys.json never
+//      causes a serpapi.com call; stats carry no cold-standby fields.
 //
 // Run: node scripts/test-search-relay-lane.mjs
 
@@ -26,21 +28,18 @@ const keysFile = join(tmp, "keys.json");
 const STATIC = "lane-static-token";
 const LANE_KEY = "sk-lane-internal-123";
 const LANE_URL = "https://ciyuan.unit.test";
-const STANDBY_KEY = "standby-key-1";
 
 writeFileSync(keysFile, JSON.stringify({
   ciyuan: { url: LANE_URL, key: LANE_KEY },
-  serpapi: [STANDBY_KEY],
   tokens: [STATIC],
 }));
 
-// Upstream stub. The lane and serpapi.com have distinct scripted behaviors:
-//   lane: { mode: "ok" | "http500" | "unreachable", source: "pool"|"user"|… }
-//   serpapi: { mode: "ok" | "fail" }
+// Upstream stub. lane: { mode: "ok" | "http500" | "unreachable", source }.
+// Any serpapi.com call is a test failure — the direct path no longer exists.
 const realFetch = globalThis.fetch;
 let lane = { mode: "ok", source: "pool" };
-let serpapi = { mode: "ok" };
 const laneCalls = []; // captured per-call headers
+let serpapiCalls = 0;
 globalThis.fetch = async (url, opts) => {
   const u = String(url);
   if (u.startsWith(LANE_URL)) {
@@ -56,14 +55,8 @@ globalThis.fetch = async (url, opts) => {
     }), { status: 200, headers: { "content-type": "application/json", ...(lane.source ? { "x-search-source": lane.source } : {}) } });
   }
   if (u.includes("serpapi.com")) {
-    const key = new URL(u).searchParams.get("api_key");
-    if (key !== STANDBY_KEY || serpapi.mode === "fail") {
-      return new Response(JSON.stringify({ error: "account has run out of searches" }), { status: 200 });
-    }
-    return new Response(
-      JSON.stringify({ organic_results: [{ title: "standby", link: "https://standby.test", snippet: "s" }] }),
-      { status: 200, headers: { "content-type": "application/json" } },
-    );
+    serpapiCalls += 1;
+    return new Response(JSON.stringify({ organic_results: [{ title: "DIRECT", link: "https://direct.test", snippet: "s" }] }), { status: 200 });
   }
   return realFetch(url, opts);
 };
@@ -71,7 +64,7 @@ globalThis.fetch = async (url, opts) => {
 process.env.RELAY_KEYS_FILE = keysFile;
 process.env.PORT = "0";
 process.env.HOST = "127.0.0.1";
-process.env.RELAY_LANE_BREAKER_SECS = "1"; // window is configurable; 1s keeps the probe fast
+process.env.RELAY_LANE_BREAKER_SECS = "1"; // window is configurable; 1s keeps the test fast
 const relay = await import("../services/search-relay/index.js");
 if (!relay.relayServer.listening) await once(relay.relayServer, "listening");
 const base = `http://127.0.0.1:${relay.relayServer.address().port}`;
@@ -122,84 +115,87 @@ test("BYOK passthrough: caller's X-Serpapi-Key rides the lane call; lane source 
   lane = { mode: "ok", source: "pool" };
 });
 
-test("breaker: 3 consecutive lane failures open the window; requests skip the lane and serve direct", async () => {
+test("reachability signal: 3 lane failures mark it unreachable; every request still goes to the lane and gets a clear 503", async () => {
   lane = { mode: "http500", source: "pool" };
+  laneCalls.length = 0;
   for (let i = 0; i < 3; i++) {
     const res = await search();
-    assert.equal(res.status, 200, "cold standby covers the failing lane");
-    assert.equal(res.headers.get("x-search-source"), "pool");
+    assert.equal(res.status, 503, "no standby: a lane failure is the caller's answer");
+    assert.equal(res.headers.get("x-search-source"), null, "no source header on an error");
     const body = await res.json();
-    assert.equal(body.results[0].title, "standby", "served by the direct path");
+    assert.match(body.error, /search upstream unavailable \(websearch lane\)/, "names the lane as the failing upstream");
+    assert.match(body.error, /lane exploded/, "carries the lane's own message");
   }
+  assert.equal(laneCalls.length, 3, "each request went to the lane");
   let s = await stats();
   assert.equal(s.upstream.mode, "ciyuan");
   assert.equal(s.upstream.laneConfigured, true);
-  assert.equal(s.upstream.breakerOpen, true, "3 failures opened the breaker");
+  assert.equal(s.upstream.breakerOpen, true, "3 failures raised the signal");
   assert.equal(s.upstream.reachable, false);
-  assert.ok(s.upstream.fallbacks >= 3, "each fallback counted");
+  assert.ok(s.upstream.laneFailures >= 3, "each failure counted");
+  assert.equal(s.upstream.fallbacks, undefined, "no cold-standby counter remains");
 
-  // Window open: requests do NOT touch the lane at all.
+  // Signal raised: the lane is STILL the route (nothing else to try), so the
+  // request probes it immediately rather than waiting for a window.
   laneCalls.length = 0;
-  const res = await search();
-  assert.equal(res.status, 200);
-  assert.equal(laneCalls.length, 0, "lane skipped while the breaker is open");
-  s = await stats();
-  assert.ok(s.upstream.fallbacks >= 4);
-
-  // Window passes → next request probes the lane; success closes the breaker.
-  await new Promise((r) => setTimeout(r, 1100));
   lane = { mode: "ok", source: "pool" };
-  laneCalls.length = 0;
   const probe = await search();
   assert.equal(probe.status, 200);
   assert.equal((await probe.json()).results[0].title, "lane", "recovered lane served again");
-  assert.equal(laneCalls.length, 1, "post-window request probed the lane");
+  assert.equal(laneCalls.length, 1, "request went to the lane while the signal was raised");
   s = await stats();
-  assert.equal(s.upstream.breakerOpen, false, "success closed the breaker");
+  assert.equal(s.upstream.breakerOpen, false, "success cleared the signal");
   assert.equal(s.upstream.reachable, true);
 });
 
-test("keys.json reload clears an open breaker (operator edit = trust the new config)", async () => {
+test("keys.json reload clears the reachability signal (operator edit = trust the new config)", async () => {
   lane = { mode: "http500", source: "pool" };
   for (let i = 0; i < 3; i++) await search();
   assert.equal((await stats()).upstream.breakerOpen, true);
 
   // Edit keys.json (same content is fine — the mtime change is the signal).
-  writeFileSync(keysFile, JSON.stringify({ ciyuan: { url: LANE_URL, key: LANE_KEY }, serpapi: [STANDBY_KEY], tokens: [STATIC] }));
+  writeFileSync(keysFile, JSON.stringify({ ciyuan: { url: LANE_URL, key: LANE_KEY }, tokens: [STATIC] }));
   const future = new Date(Date.now() + 5000);
   utimesSync(keysFile, future, future);
 
+  // The reload alone clears the signal — observable before any lane call.
   lane = { mode: "ok", source: "pool" };
-  laneCalls.length = 0;
+  assert.equal((await stats()).upstream.breakerOpen, false, "reload cleared the signal");
   const res = await search();
   assert.equal(res.status, 200);
-  assert.equal((await res.json()).results[0].title, "lane", "reload cleared the breaker; lane tried again immediately");
-  assert.equal(laneCalls.length, 1);
-  assert.equal((await stats()).upstream.breakerOpen, false);
+  assert.equal((await res.json()).results[0].title, "lane");
 });
 
-test("dual-path failure: lane down (no standby) 503 names the lane", async () => {
-  // Reconfigure to lane-only by wiping the standby array via reload.
-  writeFileSync(keysFile, JSON.stringify({ ciyuan: { url: LANE_URL, key: LANE_KEY }, serpapi: [], tokens: [STATIC] }));
+test("no direct path: leftover serpapi[] in keys.json is inert; lane outage 503 names the lane; stats carry no standby fields", async () => {
+  writeFileSync(keysFile, JSON.stringify({ ciyuan: { url: LANE_URL, key: LANE_KEY }, serpapi: ["leftover-key"], tokens: [STATIC] }));
   const future = new Date(Date.now() + 6000);
   utimesSync(keysFile, future, future);
   lane = { mode: "unreachable", source: "pool" };
+  serpapiCalls = 0;
   const res = await search();
   assert.equal(res.status, 503);
   const body = await res.json();
-  assert.match(body.error, /lane unavailable/, "names the lane failure");
-  assert.match(body.error, /no cold standby configured/);
+  assert.match(body.error, /search upstream unavailable \(websearch lane\)/);
+  assert.match(body.error, /lane unreachable/, "names the lane failure");
+  assert.equal(serpapiCalls, 0, "serpapi.com was never called — no direct path exists");
 
-  // Both configured, both down → the message names both paths.
-  writeFileSync(keysFile, JSON.stringify({ ciyuan: { url: LANE_URL, key: LANE_KEY }, serpapi: [STANDBY_KEY], tokens: [STATIC] }));
-  utimesSync(keysFile, new Date(Date.now() + 7000), new Date(Date.now() + 7000));
-  serpapi = { mode: "fail" };
-  const res2 = await search();
-  assert.equal(res2.status, 503);
-  const body2 = await res2.json();
-  assert.match(body2.error, /lane unavailable and cold standby exhausted/);
+  const s = await stats();
+  assert.equal(s.keys, undefined, "no per-key cold-standby view in stats");
+  assert.equal(s.upstream.fallbacks, undefined);
+  assert.equal(s.errors.poolDry, undefined);
+  assert.ok(!JSON.stringify(s).includes("leftover-key"), "no key values in stats");
   lane = { mode: "ok", source: "pool" };
-  serpapi = { mode: "ok" };
+});
+
+test("reload that drops the lane keeps last-known config (nothing else could serve)", async () => {
+  writeFileSync(keysFile, JSON.stringify({ tokens: [STATIC] }));
+  const future = new Date(Date.now() + 7000);
+  utimesSync(keysFile, future, future);
+  lane = { mode: "ok", source: "pool" };
+  laneCalls.length = 0;
+  const res = await search();
+  assert.equal(res.status, 200, "still served by the last-known lane");
+  assert.equal(laneCalls[0].headers.authorization, `Bearer ${LANE_KEY}`);
 });
 
 test.after(() => {

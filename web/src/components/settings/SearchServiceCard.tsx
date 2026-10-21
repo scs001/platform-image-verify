@@ -252,8 +252,6 @@ function SharedServiceZone() {
     }
   };
 
-  const cooling = (pool?.keys ?? []).filter((k) => k.coolingDown).length;
-
   return (
     <div className="flex flex-col gap-3" data-testid="websearch-shared">
       <div>
@@ -342,7 +340,9 @@ function SharedServiceZone() {
       )}
 
       {/* Shared pool health (admin): the difference between "wiring is wrong"
-          and "the upstream key pool is dry" at a glance. */}
+          and "the lane is failing" at a glance. Upstream is the gateway
+          websearch lane, the only supply — the direct cold-standby path and
+          its per-key cooldown view were retired (retire-search-relay-direct). */}
       {pool?.configured && (
         <div className="rounded-md border border-border bg-secondary/30 px-3 py-2 text-xs" data-testid="websearch-pool">
           <div className="flex items-center gap-2 font-medium text-foreground">
@@ -351,16 +351,13 @@ function SharedServiceZone() {
           </div>
           {pool.reachable ? (
             <div className="mt-1 flex flex-col gap-0.5 text-muted-foreground">
-              {/* Upstream routing (search-relay-via-ciyuan): lane = the platform
-                  gateway websearch lane serves this pool; direct = cold standby
-                  (pre-migration relays omit the field and this row hides). */}
+              {/* Lane = the platform gateway websearch lane serves this pool;
+                  pre-migration relays omit the field and this row hides. */}
               {pool.upstream && (
                 <span data-testid="websearch-pool-upstream">
-                  {pool.upstream.mode === "ciyuan"
-                    ? t("settings.websearch.shared.upstreamLane")
-                    : t("settings.websearch.shared.upstreamDirect")}
-                  {pool.upstream.mode === "ciyuan" && pool.upstream.fallbacks > 0
-                    ? ` · ${t("settings.websearch.shared.upstreamFallbacks", { count: pool.upstream.fallbacks })}`
+                  {t("settings.websearch.shared.upstreamLane")}
+                  {pool.upstream.laneFailures > 0
+                    ? ` · ${t("settings.websearch.shared.upstreamLaneErrors", { count: pool.upstream.laneFailures })}`
                     : ""}
                 </span>
               )}
@@ -369,17 +366,9 @@ function SharedServiceZone() {
                   {t("settings.websearch.shared.upstreamLaneDown")}
                 </span>
               )}
-              <span data-testid="websearch-pool-keys">
-                {t("settings.websearch.shared.poolKeys", { total: pool.keys.length, cooling })}
-              </span>
               <span data-testid="websearch-pool-usage">
                 {t("settings.websearch.shared.poolUsage", { day: pool.day, used: pool.overrides?.used ?? 0, fallback: pool.overrides?.fallback ?? 0 })}
               </span>
-              {(pool.errors?.poolDry ?? 0) > 0 && (
-                <span data-testid="websearch-pool-dry" className="text-warning">
-                  {t("settings.websearch.shared.poolDry", { count: pool.errors?.poolDry ?? 0 })}
-                </span>
-              )}
             </div>
           ) : (
             <p className="mt-1 text-destructive" data-testid="websearch-pool-unreachable">

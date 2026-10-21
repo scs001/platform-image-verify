@@ -943,14 +943,11 @@
         "title": "Service de recherche partagé",
         "subtitle": "Le câblage du relais de ce déploiement et son pool de clés partagé (admin). Les utilisateurs sans clé propre sont servis par ce pool.",
         "poolTitle": "État du pool partagé",
-        "poolKeys": "{{total}} clé(s) amont, {{cooling}} en refroidissement",
         "poolUsage": "{{day}} : {{used}} recherches avec des clés utilisateur, {{fallback}} retours au pool",
-        "poolDry": "Pool épuisé {{count}} fois aujourd'hui — ajoutez une clé amont pour rétablir la recherche.",
         "poolUnreachable": "Statistiques du relais injoignables",
         "upstreamLane": "Amont : voie de recherche de la passerelle (ciyuan)",
-        "upstreamDirect": "Amont : fournisseur direct (secours froid)",
-        "upstreamFallbacks": "{{count}} servi(s) par le secours froid",
-        "upstreamLaneDown": "Voie indisponible — le secours froid prend le relais"
+        "upstreamLaneErrors": "{{count}} erreur(s) de voie",
+        "upstreamLaneDown": "Voie indisponible — plus de secours froid ; la recherche échoue jusqu'au rétablissement de la voie"
       },
       "test": "Tester la connexion",
       "testStates": {

@@ -15,8 +15,19 @@
        ③面板行已在产：生产 facet（platform:sha-02082df）前端产物含 `upstreamFallbacks`/`upstreamLaneDown` 键与
        「冷备接管 {{count}} 次」文案——该项跳过。坑：本机 18099 被他会话 Python 占着（IPv4），kubectl 绑 IPv6 同口导致
        curl 打错进程「Empty reply」，换口即可。
-- [ ] 2.1 代码删除：直连路径 + serpapi 池与 breaker 直连分支（services/search-relay/）
-- [ ] 2.2 面板 keys 段隐藏（WebSearchSection.tsx）；embed 脚本 keys 形状收敛
+- [x] 2.1 代码删除：直连路径 + serpapi 池与 breaker 直连分支（services/search-relay/）
+       实证：`index.js` 删 `serpapiSearch/poolSearch/directSearchWithOverride`、per-key 与 override 冷却、`stats.keyFailures/poolDry/lane.fallbacks`、
+       `SERPAPI_KEYS/GLM_KEYS` 读取、`createHash` 依赖（-170 行）；`loadKeys` 对残留 `serpapi/glm` 键**忽略**；启动守卫改「无车道即拒启」；
+       启动/重载日志去 standby 行；breaker 降级为**纯可达性信号**（不再旁路路由，每请求即探活）；车道故障→503
+       `search upstream unavailable (websearch lane): <车道原文>`；热重载丢车道走既有「keeping last-known」路径；BYOK 继续骑车道、
+       三态由车道裁决（契约不变）。`keys.example.json` 收敛为 `{ciyuan, tokens}`。
+- [x] 2.2 面板 keys 段隐藏（WebSearchSection.tsx）；embed 脚本 keys 形状收敛
+       实证：组件已迁为 `SearchServiceCard.tsx`——删 `websearch-pool-keys`（per-key 冷却视图）与 `websearch-pool-dry` 行、上游行去
+       fallbacks 计数改显 `laneFailures`（`upstreamLaneErrors`，补齐 spec「车道侧错误计数」）、`upstreamLaneDown` 文案不再说冷备接管；
+       `websearch-api.ts` 类型去 `keys/fallbacks/poolDry`、mode 收窄 `"ciyuan"`；`server/routes/misc.js` pool 代理去 `keys` 投影；
+       五语言包各 -4 键（poolKeys/poolDry/upstreamDirect/upstreamFallbacks）+1 键；**顺带修 `services/ops-console/index.js`**（读
+       `poolDry`/`keys[].failures` 的两行改为 lane up/down + laneFailures）。embed 脚本本身不含 keys 逻辑（只嵌 index.js/scoped-token.js），
+       keys 形状收敛落在 keys.example.json（本项）与生产 secret（2.3）。tsc/biome 全绿。
 - [ ] 2.3 单测收敛 + 出片滚产（fd-build-channel 判路 → 快照池）+ configmap/secret 重嵌
        （keys.json 只留车道凭据）
 - [ ] 2.4 台账 + 主 spec 同步（web-search 退役段并入）

@@ -557,8 +557,8 @@ function renderBoard() {
       <div class="chain">
         ${chain("quota", `${used}/${cap}`, pct >= 90 ? "warn" : "ok", (m.relay.tokens || []).map((t) => `${t.prefix} ${t.count}`).join(", "))}
         ${chain("cache hit", hit === null || hit === undefined ? "n/a" : `${Math.round(hit * 100)}%`, "ok", `${m.relay.cache?.hits ?? 0} hits / ${m.relay.cache?.misses ?? 0} misses`)}
-        ${chain("5xx", String((m.relay.errors?.upstream ?? 0) + (m.relay.errors?.poolDry ?? 0)), (m.relay.errors?.upstream ?? 0) + (m.relay.errors?.poolDry ?? 0) > 0 ? "warn" : "ok", `${m.relay.errors?.poolDry ?? 0} pool-dry`)}
-        ${chain("key fails", String((m.relay.keys || []).reduce((a, k) => a + k.failures, 0)), "")}
+        ${chain("5xx", String(m.relay.errors?.upstream ?? 0), (m.relay.errors?.upstream ?? 0) > 0 ? "warn" : "ok", `${m.relay.upstream?.laneFailures ?? 0} lane failures`)}
+        ${chain("lane", m.relay.upstream?.reachable === false ? "down" : "up", m.relay.upstream?.reachable === false ? "warn" : "ok", `${m.relay.upstream?.laneCalls ?? 0} calls`)}
       </div></article>`;
   })() : `<article class="card is-down"><header class="chead"><h2>search-relay</h2><span class="drift bad"><span class="dot"></span>stats unavailable${m.stale.relay ? " · stale" : ""}</span></header></article>`;
 

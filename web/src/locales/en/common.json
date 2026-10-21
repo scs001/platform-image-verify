@@ -956,14 +956,11 @@
         "title": "Shared search service",
         "subtitle": "The deployment's relay wiring and shared key pool (admin). Users without their own key are served from this pool.",
         "poolTitle": "Shared pool health",
-        "poolKeys": "{{total}} upstream key(s), {{cooling}} cooling down",
         "poolUsage": "{{day}}: {{used}} searches on user keys, {{fallback}} fell back to the pool",
-        "poolDry": "Pool exhausted {{count}} time(s) today — add an upstream key to restore search.",
         "poolUnreachable": "Relay stats unreachable",
         "upstreamLane": "Upstream: platform gateway search lane (ciyuan)",
-        "upstreamDirect": "Upstream: direct provider (cold standby)",
-        "upstreamFallbacks": "{{count}} served by cold standby",
-        "upstreamLaneDown": "Lane unavailable — cold standby is serving"
+        "upstreamLaneErrors": "{{count}} lane error(s)",
+        "upstreamLaneDown": "Lane unavailable — no cold standby remains; search errors until the lane recovers"
       },
       "test": "Test connection",
       "testStates": {

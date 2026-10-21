@@ -943,14 +943,11 @@
         "title": "Servicio de búsqueda compartido",
         "subtitle": "La conexión del relay de esta instalación y su grupo de claves compartido (admin). Los usuarios sin clave propia se sirven de este grupo.",
         "poolTitle": "Estado del grupo compartido",
-        "poolKeys": "{{total}} clave(s) de proveedor, {{cooling}} en enfriamiento",
         "poolUsage": "{{day}}: {{used}} búsquedas con claves de usuario, {{fallback}} recurrieron al grupo",
-        "poolDry": "Grupo agotado {{count}} vez/veces hoy: añade una clave de proveedor para restaurar la búsqueda.",
         "poolUnreachable": "Estadísticas del relay inaccesibles",
         "upstreamLane": "Origen: carril de búsqueda de la pasarela (ciyuan)",
-        "upstreamDirect": "Origen: proveedor directo (reserva en frío)",
-        "upstreamFallbacks": "{{count}} servidas por la reserva en frío",
-        "upstreamLaneDown": "Carril no disponible: la reserva en frío está sirviendo"
+        "upstreamLaneErrors": "{{count}} error(es) del carril",
+        "upstreamLaneDown": "Carril no disponible: ya no hay reserva en frío; la búsqueda fallará hasta que el carril se recupere"
       },
       "test": "Probar conexión",
       "testStates": {

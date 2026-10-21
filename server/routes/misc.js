@@ -624,8 +624,9 @@ export function registerMiscRoutes(ctx) {
   });
 
   // Shared pool health (admin): proxy the relay's own stats with the effective
-  // deployment credential. Secret-free by construction (the relay reports key
-  // indexes/prefixes only).
+  // deployment credential. Secret-free by construction (the relay reports
+  // token prefixes/scope ids only; the per-key cold-standby view was retired
+  // with the direct path — retire-search-relay-direct).
   app.get("/api/config/websearch/pool", async (req, res) => {
     if (!requireWebsearchManage(req, res)) return;
     const { url, token } = await resolveWebsearchRelay(db);
@@ -642,7 +643,6 @@ export function registerMiscRoutes(ctx) {
         reachable: true,
         day: stats.day,
         dailyCap: stats.dailyCap,
-        keys: Array.isArray(stats.keys) ? stats.keys : [],
         upstream: stats.upstream ?? null,
         overrides: stats.overrides ?? null,
         errors: stats.errors ?? null,

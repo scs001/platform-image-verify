@@ -943,14 +943,11 @@
         "title": "共享搜索服务",
         "subtitle": "本部署的搜索服务接线与共享密钥池（管理员）。未自带密钥的用户由此池服务。",
         "poolTitle": "共享池健康",
-        "poolKeys": "上游密钥 {{total}} 个，{{cooling}} 个冷却中",
         "poolUsage": "{{day}}：用户密钥搜索 {{used}} 次，回退共享池 {{fallback}} 次",
-        "poolDry": "今日池干涸 {{count}} 次——补充上游密钥即可恢复搜索。",
         "poolUnreachable": "搜索服务统计不可达",
         "upstreamLane": "上游：平台网关搜索车道（词元）",
-        "upstreamDirect": "上游：直连搜索服务（冷备）",
-        "upstreamFallbacks": "冷备接管 {{count}} 次",
-        "upstreamLaneDown": "车道暂不可用，冷备直连接管中"
+        "upstreamLaneErrors": "车道错误 {{count}} 次",
+        "upstreamLaneDown": "车道暂不可用——冷备已退役，搜索将报错直至车道恢复"
       },
       "test": "测试连接",
       "testStates": {

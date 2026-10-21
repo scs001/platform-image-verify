@@ -2,9 +2,9 @@
 // shared-pool fallback, per-user key storage, and the settings-surface routes.
 //
 // Lanes:
-//   1. relay — override precedence, fallback, dual-failure, hash-only logging,
-//      auth/cap unaffected, source header (real relay on an ephemeral port,
-//      upstream stubbed).
+//   1. relay — override header passthrough to the lane, lane-verdict source
+//      three states, lane-down 503, auth/cap unaffected, no key in stats or
+//      logs (real relay on an ephemeral port, lane stubbed).
 //   2. routes — userkey GET/PUT (own key only, mask, clear), pool endpoint
 //      admin gate, test with userKey.
 //   3. dsh-profile — SEARCH_USER_KEY rides the patch when set, absent (silent)
@@ -30,32 +30,41 @@ delete process.env.SEARCH_RELAY_URL;
 delete process.env.SEARCH_RELAY_TOKEN;
 delete process.env.SEARCH_USER_KEY;
 
-// ── Lane 1: relay override chain ─────────────────────────────────────────────
+// ── Lane 1: relay override passthrough ──────────────────────────────────────
+// Since search-relay-via-ciyuan D6 (and the direct path's retirement in
+// retire-search-relay-direct) the relay forwards X-Serpapi-Key on the lane
+// call and the LANE implements prefer/fallback; the relay's job is to pass the
+// header through untouched, surface the lane's x-search-source verdict, count
+// it, and never persist or log the key.
 
 const MASTER = "byok-master";
 const STATIC = "byok-static-token";
+const LANE_KEY = "sk-lane-internal-byok";
+const LANE_URL = "https://ciyuan.byok.test";
 const keysFile = join(tmp, "keys.json");
-writeFileSync(keysFile, JSON.stringify({ serpapi: ["pool-key-1"], tokens: [STATIC], scoped_master: MASTER }));
+writeFileSync(keysFile, JSON.stringify({ ciyuan: { url: LANE_URL, key: LANE_KEY }, tokens: [STATIC], scoped_master: MASTER }));
 
-// Upstream stub: scripted per-key behavior. Key values arrive as api_key=…
-// query params, so the stub can distinguish pool vs user keys.
+// Lane stub: the forwarded X-Serpapi-Key decides the lane's verdict the way
+// the real lane does (good key → user, bad key → pool-after-user-failure,
+// none → pool). "fail-all" = the lane itself is down (5xx).
 const realFetch = globalThis.fetch;
-let upstream = { mode: "ok" }; // "ok" | "fail-user" | "fail-all"
+let upstream = { mode: "ok" }; // "ok" | "fail-all"
 let seenKeys = [];
 globalThis.fetch = async (url, opts) => {
   const u = String(url);
-  if (u.includes("serpapi.com")) {
-    const key = new URL(u).searchParams.get("api_key");
+  if (u.startsWith(LANE_URL)) {
+    const key = opts?.headers?.["x-serpapi-key"] ?? null;
     seenKeys.push(key);
-    const fail = upstream.mode === "fail-all" || (upstream.mode === "fail-user" && key === "user-key-good" === false && key !== "pool-key-1");
-    if (fail) {
-      return new Response(JSON.stringify({ error: "account has run out of searches" }), { status: 200 });
+    if (upstream.mode === "fail-all") {
+      return new Response(JSON.stringify({ error: { message: "no available upstream account" } }), { status: 503 });
     }
+    const source = key === null ? "pool" : key === "user-key-good" ? "user" : "pool-after-user-failure";
     return new Response(
-      JSON.stringify({ organic_results: [{ title: "t", link: "https://unit.test", snippet: "s" }] }),
-      { status: 200, headers: { "content-type": "application/json" } },
+      JSON.stringify({ meta: { engine: "serpapi" }, results: [{ title: "t", url: "https://unit.test", snippet: "s" }], usage: {} }),
+      { status: 200, headers: { "content-type": "application/json", "x-search-source": source } },
     );
   }
+  if (u.includes("serpapi.com")) throw new Error("direct serpapi call — the direct path was retired");
   return realFetch(url, opts);
 };
 
@@ -76,40 +85,42 @@ function search(headers = {}) {
   });
 }
 
-test("relay: no override header → byte-identical pool behavior, source=pool", async () => {
+test("relay: no override header → lane called without one, source=pool", async () => {
   upstream = { mode: "ok" };
+  seenKeys = [];
   const res = await search();
   assert.equal(res.status, 200);
   assert.equal(res.headers.get("x-search-source"), "pool");
   const body = await res.json();
   assert.equal(body.results.length, 1);
+  assert.deepEqual(seenKeys, [null], "no X-Serpapi-Key forwarded when the caller brought none");
 });
 
-test("relay: user key preferred when it works, source=user, pool untouched", async () => {
+test("relay: user key forwarded verbatim; lane's source=user comes back", async () => {
   upstream = { mode: "ok" };
   seenKeys = [];
   const res = await search({ "x-serpapi-key": "user-key-good" });
   assert.equal(res.status, 200);
   assert.equal(res.headers.get("x-search-source"), "user");
-  assert.deepEqual(seenKeys, ["user-key-good"], "only the user key was tried");
+  assert.deepEqual(seenKeys, ["user-key-good"], "the key rode the lane call untouched");
 });
 
-test("relay: user key failure falls back to the pool, source says so", async () => {
-  upstream = { mode: "fail-user" };
+test("relay: user key failure is the lane's verdict — pool-after-user-failure passes through", async () => {
+  upstream = { mode: "ok" };
   seenKeys = [];
   const res = await search({ "x-serpapi-key": "user-key-bad" });
-  assert.equal(res.status, 200, "pool covers the failed user key");
+  assert.equal(res.status, 200, "lane covered the failed user key");
   assert.equal(res.headers.get("x-search-source"), "pool-after-user-failure");
-  assert.ok(seenKeys.includes("user-key-bad"), "user key was tried first");
-  assert.ok(seenKeys.includes("pool-key-1"), "pool key served the request");
+  assert.deepEqual(seenKeys, ["user-key-bad"], "relay did not pre-judge the key; the lane did");
 });
 
-test("relay: both sources dry → 503 with a distinguishing message", async () => {
+test("relay: lane down → 503 naming the lane (no direct rescue for a user key either)", async () => {
   upstream = { mode: "fail-all" };
-  const res = await search({ "x-serpapi-key": "user-key-also-bad" });
+  const res = await search({ "x-serpapi-key": "user-key-good" });
   assert.equal(res.status, 503);
   const body = await res.json();
-  assert.match(body.error, /user key also failed/);
+  assert.match(body.error, /search upstream unavailable \(websearch lane\)/);
+  assert.match(body.error, /no available upstream account/, "carries the lane's message");
   upstream = { mode: "ok" };
 });
 
@@ -122,31 +133,32 @@ test("relay: auth and daily cap are not bypassed by an override key", async () =
   assert.equal(noAuth.status, 401, "override must not bypass relay auth");
 });
 
-test("relay: stats counts overrides, never values", async () => {
+test("relay: stats counts overrides (lane-attributed), never values", async () => {
   const res = await realFetch(`${base}/v1/stats`, { headers: { authorization: `Bearer ${STATIC}` } });
   const stats = await res.json();
   assert.ok(stats.overrides.used >= 1, "successful user-key search counted");
   assert.ok(stats.overrides.failed >= 1, "failed user key counted");
   assert.ok(stats.overrides.fallback >= 1, "fallback counted");
   assert.ok(!JSON.stringify(stats).includes("user-key"), "no key values in stats");
+  assert.ok(!JSON.stringify(stats).includes(LANE_KEY), "lane key never in stats");
 });
 
-test("relay: user key never appears in logs (hash prefix only)", async () => {
-  // The relay logs to stderr via console.error; capture by wrapping it for one
-  // failing call.
+test("relay: user key never appears in logs", async () => {
+  // The relay never inspects the override key, so even a failing call must
+  // not put it on stderr. Capture console.error for one lane-down call.
   const logs = [];
   const orig = console.error;
   console.error = (...a) => logs.push(a.join(" "));
   try {
-    upstream = { mode: "fail-user" };
+    upstream = { mode: "fail-all" };
     await search({ "x-serpapi-key": "super-secret-user-key-xyz" });
   } finally {
     console.error = orig;
     upstream = { mode: "ok" };
   }
   const joined = logs.join("\n");
+  assert.ok(joined.length > 0, "the failing call was logged");
   assert.ok(!joined.includes("super-secret-user-key-xyz"), "raw key must never be logged");
-  assert.match(joined, /user key [0-9a-f]{8}… failed/, "attribution is a hash prefix");
 });
 
 // ── Lane 2: routes ───────────────────────────────────────────────────────────
@@ -251,13 +263,12 @@ test("pool endpoint: admin gate, and proxies relay stats when allowed", async ()
     const body = await res.json();
     assert.equal(body.configured, true);
     assert.equal(body.reachable, true);
-    assert.ok(Array.isArray(body.keys));
-    // Upstream routing is proxied through (search-relay-via-ciyuan): this
-    // relay runs direct-only (no keys.json `ciyuan`), so the panel row
-    // reports mode=direct. Field absent on pre-migration relays.
-    assert.equal(body.upstream?.mode, "direct");
-    assert.equal(body.upstream?.laneConfigured, false);
-    assert.ok(!JSON.stringify(body).includes("pool-key-1"), "no upstream key values");
+    // Upstream routing is proxied through: the lane is the only supply
+    // (retire-search-relay-direct), and the per-key cold-standby view is gone.
+    assert.equal(body.upstream?.mode, "ciyuan");
+    assert.equal(body.upstream?.laneConfigured, true);
+    assert.equal(body.keys, undefined, "no per-key view projected");
+    assert.ok(!JSON.stringify(body).includes(LANE_KEY), "no upstream key values");
   });
 });
 

@@ -74,3 +74,42 @@ export function groupHasPendingAsk(
       (pending.toolCallId === undefined || pending.toolCallId === b.id),
   );
 }
+
+// The action gate's propose_action call. dsh names MCP tools
+// `mcp__<server>__<tool>`, so the match is on the suffix — a strict compare
+// against a bare name never fires on the wire (copilot-dock-focused-preset
+// acceptance, 2026-10-22).
+export function isProposeActionBlock(b: Block): b is Extract<Block, { kind: "tool" }> {
+  return b.kind === "tool" && b.name.endsWith("__propose_action");
+}
+
+// The proposal state inside a propose_action result: the MCP child's JSON text
+// or an already-parsed object (the store may or may not have parsed it — the
+// action card accepts both, so this must too). null when it is not a proposal.
+export function proposalStateOf(result: unknown): string | null {
+  if (!result) return null;
+  if (typeof result === "string") {
+    try {
+      return proposalStateOf(JSON.parse(result));
+    } catch {
+      return null;
+    }
+  }
+  if (typeof result !== "object") return null;
+  const r = result as { proposalId?: unknown; state?: unknown };
+  if (typeof r.proposalId !== "string") return null;
+  return typeof r.state === "string" ? r.state : "pending";
+}
+
+// A proposal still waiting for the human's confirm/cancel must not sit folded
+// behind the collapsed header any more than a live ask: the group renders
+// expanded while the call is in flight or its proposal is pending. A resolved
+// card (executed / rejected / expired) folds like any finished step; a failed
+// call is already covered by the errored-group rule.
+export function groupHasPendingAction(group: ActivityGroup): boolean {
+  return group.blocks.some((b) => {
+    if (!isProposeActionBlock(b)) return false;
+    if (b.state === "running") return true;
+    return b.state === "done" && proposalStateOf(b.result) === "pending";
+  });
+}

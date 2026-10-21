@@ -67,8 +67,11 @@ function ToolBlockBase({ block, onToggle }: Props) {
     return <QuestionCard block={block} />;
   }
 
-  // propose_action renders as an action confirmation card.
-  if (name === "__propose_action") {
+  // propose_action renders as an action confirmation card. Suffix match like
+  // the cron/delegate cards: on the wire the name is `mcp__actions__propose_action`
+  // (a strict compare against the bare name never fired — the card was a plain
+  // tool block in every real turn until the 2026-10-22 acceptance caught it).
+  if (name.endsWith("__propose_action")) {
     return <ActionCard block={block} />;
   }
 

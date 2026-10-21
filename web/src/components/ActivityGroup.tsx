@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import {
   groupHasError,
+  groupHasPendingAction,
   groupHasPendingAsk,
   isGroupOpen,
   useChatStore,
@@ -54,8 +55,10 @@ function ActivityGroupBase({ turn, group, renderBlock }: Props) {
   const pendingQuestion = useChatStore((s) => s.pendingQuestion);
   // A waiting question card must never sit folded away behind the collapsed
   // header — the ask group renders expanded while it holds the live ask
-  // (same never-fold rule as errored activity).
-  const open = isGroupOpen(turn, group) || groupHasPendingAsk(group, pendingQuestion);
+  // (same never-fold rule as errored activity). A proposal awaiting the
+  // human's confirm/cancel is the same case: the gate's confirmation card is
+  // the turn's deliverable, not machinery.
+  const open = isGroupOpen(turn, group) || groupHasPendingAsk(group, pendingQuestion) || groupHasPendingAction(group);
   const errored = groupHasError(group);
   const info = headerInfo(turn, group);
   const params = {

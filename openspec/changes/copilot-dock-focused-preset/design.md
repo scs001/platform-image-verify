@@ -83,3 +83,12 @@ manifest 改 `agents[0].id` 为线名前缀的唯一 id；persona / 工具面不
 
 - 关 dock 的恢复是否该改为「不恢复，只提示」——取决于真机体感（重启两次 vs. 主对话被换人格的时长）。
 - 萬星 `#/embed` 宿主（副驾 widget）是否也注入聚焦预设——它面向匿名 / 外部身份，工具面模型不同，另立 change。
+
+## 验收发现（2026-10-22 生产模型回合级验收）
+
+aloadtree 真 cell + v2 谦面助手聚焦预设，中性指令「把我名下的包改成私有」：模型明确「写操作不直接执行，先只读核实再提案」，两条 `facet.pack.visibility` 提议落库 pending、`action_audit` 零新增——**发现③的绕闸场景不复现**。但确认卡在界面上不可见，两处缺陷：
+
+- **D7 — 动作卡识别按后缀匹配**：`ToolBlock` 以 `name === "__propose_action"` 分派动作卡，而运行时工具名是 `mcp__actions__propose_action`（cron / delegate 两张卡早就用 `endsWith`）。真回合里提议从未渲染成卡，只是普通工具块；此前 e2e 只经看板按钮路径渲染过 ActionCard，没走过 ToolBlock 分派。改为 `endsWith("__propose_action")`。
+- **D8 — 待确认提议不折叠**：活动组折叠把 `propose_action` 块一并折进「执行了 N 步」头后面；折叠规则只豁免了报错块与进行中的提问卡。新增 `groupHasPendingAction`（core，与 `groupHasPendingAsk` 同形：调用进行中或提议 state=pending 即保持展开），web `ActivityGroup` 合成；已执行 / 拒绝 / 过期的卡随组折叠。小程序侧无 ActionCard，暂不合成（移动端审批是姊妹 change 的 Open Question）。
+
+**顺带登记（不在本 change 修）**：模型第一份提议把参数键写成 `packId/packName`，注册表 `facet.pack.visibility` 的影响面模板读 `id/name`，落库 `impact_text` 成「包「undefined」」；模型自己察觉后按 `id` 键重提。propose 入口应按动作声明校验 / 归一参数键（或 `propose_action` 的 inputSchema 按动作细化），否则会留下不可批准的垃圾提议。

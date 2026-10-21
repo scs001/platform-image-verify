@@ -24,6 +24,7 @@
 
 - `line-boards`: **MODIFIED**「看板定义副驾的动作边界」——删除 2026-10-21 登记的「已知边界」段，改为：从线看板打开的副驾 dock SHALL 注入该线的聚焦助手预设；无可用聚焦助手时 SHALL 明示未聚焦。
 - `web-chat-ui`: **ADDED**「副驾 dock 注入聚焦预设并在关闭后恢复」——dock URL 携带预设、embed 连上即应用、上下文条可见、关闭恢复、手动切换优先、流式期间被拒则可重试、无助手时诚实降级。
+- `chat-activity-collapse`: **ADDED**「待确认的动作提议自动展开其活动组」——生产模型回合级验收发现：提议卡被折叠头藏起 + `ToolBlock` 以裸名全等分派动作卡从未命中（design D7/D8）。
 
 ## Impact
 

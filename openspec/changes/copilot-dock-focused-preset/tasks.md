@@ -13,12 +13,14 @@
 
 - [x] 3.1 `web/src/pages/ChatPage.tsx` embed 模式读取 `preset`；`status === "connected"` 后一次性（ref 守卫）在 `currentAgent !== preset` 时 `send({ type: "set_agent", id: preset })`；监听 `agent_changed` 对齐即视为已聚焦。
 - [x] 3.2 上下文条增加聚焦段：已聚焦显示「聚焦预设：<agent 名>」（名字来自 store `agents` 列表，找不到则显示 id）；`set_agent` 返回 error 时显示「主对话正在回答，暂未聚焦」+ 重试按钮（重试即重发一次）；URL 无 `preset` 时显示「未聚焦：该线助手 pack 未安装」。「清除」按钮只清 `board`，不动 `preset`。五语 locale 补 `copilot.focused` / `copilot.focusPending` / `copilot.focusRetry` / `copilot.unfocused`。
+- [x] 3.4 （验收发现 D7）`ToolBlock` 动作卡分派改 `name.endsWith("__propose_action")`——运行时工具名是 `mcp__actions__propose_action`，全等从未命中，真回合里提议只渲染成普通工具块
+- [x] 3.5 （验收发现 D8）core 新增 `isProposeActionBlock` / `proposalStateOf` / `groupHasPendingAction`，web `ActivityGroup` 合成：待确认提议（调用进行中或 state=pending）保持活动组展开；新 e2e `e2e/action-card-turn.spec.js`（pending 卡无需展开可见 + 不是通用工具块；executed 随组折叠、展开后为已执行面）
 - [x] 3.3 e2e（`e2e/wire-board.spec.js` 追加或新 `e2e/copilot-dock.spec.js`，mock `/api/boards/:line/copilot`）：有助手时 iframe src 含 `preset=`、上下文条显示聚焦段；无助手时 src 不含 `preset` 且显示未聚焦；关闭 dock 后 WS 收到 `set_agent` 恢复消息（或断言主对话 agent 回到打开前）。
 
 ## 4. 官方 pack v2（design D6）
 
 - [x] 4.1 `docs/official-packs/{facet-assistant,wanxing-fleet-assistant,wire-assistant}-manifest.json` 的 `agents[0].id` 改为 `facet-assistant` / `wanxing-fleet-assistant` / `wire-assistant`，`notes` 标 v2 原因；`release-instructions.md` 增「v2 发布记录」位与 agent id 去撞说明。
-- [ ] 4.2 市场发布三包 v2（cell 设备凭据直调 validate → publish），验收 cell 升级后 `GET /api/boards/{facet,wanxing,wire}/copilot` 三线各自非 null。（市场侧动作，发布前经用户确认。）
+- [x] 4.2 市场发布三包 v2（用户 2026-10-22 点头；aloadtree 设备身份现铸 token → NodePort 直调 facet-market-mcp：validate `valid:true/publishEligible` → publish → versions 核实）：谦面助手 `qCEIutJzQd49jnDtV4qeqw` v2 / 萬星舰队助手 `INdsRWpgpp2Q03I0z3XoFA` v2 / 柏讯助手 `ALuUIiL23WP5OqLIgSRX1g` v2（仍 private）。aloadtree cell 走真市场链 `{packId, version:2}` 装谦面助手 → agent `facet-assistant` installed → `GET /api/boards/facet/copilot` 非 null（wanxing/wire 未装，诚实 null）
 
 ## 5. 验证与上产
 

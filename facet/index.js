@@ -66,7 +66,12 @@ const pairing = createFacetPairing({
 const resolveUser = withAppBearer(
   createResolveUser({
     expectedToken: process.env.FACET_INTERNAL_TOKEN || "",
-    sessionAuth: logtoAuth ? (req) => logtoAuth.authenticate(req) : null,
+    // Read-only session resolution: the facet never owns the browser cookie,
+    // so there is no res to slide it on — authenticate(req) would reach
+    // slideCookie with an undefined res and CRASH every authenticated
+    // request whose cookie sits inside the renewal half-window (live
+    // 2026-10-22: pack publish/validate 502'd on a 1h-signed cookie).
+    sessionAuth: logtoAuth ? (req) => logtoAuth.userFromCookie(req.headers.cookie) : null,
   }),
   pairing.appAuth,
 );

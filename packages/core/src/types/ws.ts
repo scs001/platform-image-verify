@@ -167,6 +167,12 @@ export type ServerMessage =
   // Rejected cron action (e.g. invalid cron expression in cron_add) — scoped
   // to the action so it can render in the owning view instead of a toast.
   | { type: "cron_error"; action: string; message: string }
+  // Cluster session binding (agent-cluster-platform): a dynamic cluster was
+  // attached to a session (header shows the cluster; messages run under the
+  // lead agent), and a bound cluster was terminated (the session falls back
+  // to the built-in agent with a notification).
+  | { type: "cluster_bound"; clusterId: string; clusterName: string; sessionId: string }
+  | { type: "cluster_terminated"; clusterId: string; clusterName: string; sessionId: string }
   | { type: "dashboard_update"; state: unknown }
   | { type: "dashboard_state"; state: unknown }
   | { type: "extensions_changed"; resource: string; action: string; name: string; enabled?: boolean }
@@ -251,6 +257,12 @@ export interface AgentInfo {
   featured?: boolean;    // show on Agents dashboard first
   packId?: string;       // pack-sourced entry: its pack (focused role marker)
   packName?: string;     // pack-sourced entry: the pack's display name
+  // Cluster metadata (agent-cluster-platform): present when the source pack
+  // declares a `cluster` block — drives picker grouping and the "load entire
+  // cluster" affordance. Absent on non-cluster entries.
+  clusterId?: string;
+  clusterName?: string;
+  isDefaultAgent?: boolean;
   customPreset?: boolean; // user-defined entry: a custom preset (focused role marker)
   // Role-level resource summary (add-persona-resource-sets): the skill/MCP
   // counts of THIS role's effective set — declared, or the pack's own counts
@@ -482,6 +494,15 @@ export interface CronJob {
   initiator?: string | null;
   /** Manual trigger: outcome already summarized into the initiator session. */
   aggregated?: boolean;
+  // Cluster target (agent-cluster-platform): present when target.type is
+  // "cluster" — the label/count the list renders, the policy the run used,
+  // and the member subset (null = every cluster agent). Member outputs land
+  // in sub-sessions `${sessionId}--<agentId>` beside the bound session.
+  clusterId?: string | null;
+  clusterName?: string | null;
+  agentCount?: number | null;
+  executionPolicy?: { allowParallel?: boolean; timeoutMinutes?: number; resultAggregation?: string } | null;
+  targetAgents?: string[] | null;
   paused: boolean;
   createdAt: string;
   lastRun: string | null;

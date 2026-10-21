@@ -62,11 +62,19 @@ export function createClusterRoutes(app, ctx = null) {
         });
       }
       
-      const { name, description, tags, agents, activateAll = true, bindToSession } = req.body;
-      
+      const { name, description, tags, agents, activateAll = true, bindToSession, sessionId: bodySessionId } = req.body;
+
       if (!name || typeof name !== "string" || !name.trim()) {
         return res.status(400).json({ error: "Cluster name is required" });
       }
+
+      // Session binding (dynamic-cluster-composer spec): the client names the
+      // session it wants the cluster attached to. The old `req.sessionId` read
+      // was dead — no middleware ever set it, so bindToSession silently no-op'd.
+      const bindSessionId =
+        bindToSession && typeof bodySessionId === "string" && bodySessionId.trim()
+          ? bodySessionId.trim().slice(0, 128)
+          : null;
       
       if (!Array.isArray(agents) || agents.length === 0) {
         return res.status(400).json({ error: "At least one agent is required" });
@@ -117,7 +125,7 @@ export function createClusterRoutes(app, ctx = null) {
         agents: processedAgents,
         activateAll,
         bindToSession,
-        sessionId: bindToSession ? req.sessionId : null,
+        sessionId: bindSessionId,
         createdAt,
         lastUsedAt: createdAt,
         totalExecutions: 0,
@@ -126,12 +134,22 @@ export function createClusterRoutes(app, ctx = null) {
       };
       
       clusterDb.create(clusterData);
-      
-      if (bindToSession && req.sessionId) {
+
+      if (bindSessionId) {
         if (!global.clusterSessionBindings) {
           global.clusterSessionBindings = new Map();
         }
-        global.clusterSessionBindings.set(req.sessionId, clusterId);
+        // One cluster per session: a newer binding replaces the older one.
+        for (const [sid, cid] of global.clusterSessionBindings) {
+          if (cid === clusterId || sid === bindSessionId) global.clusterSessionBindings.delete(sid);
+        }
+        global.clusterSessionBindings.set(bindSessionId, clusterId);
+        ctx?.broadcast?.({
+          type: "cluster_bound",
+          clusterId,
+          clusterName: clusterData.name,
+          sessionId: bindSessionId,
+        });
       }
       
       res.json({
@@ -157,6 +175,9 @@ export function createClusterRoutes(app, ctx = null) {
         name: cluster.name,
         status: cluster.status,
         agentCount: cluster.agents.length,
+        // Session-binding recency: a reconnecting client matches this against
+        // its current session id to restore the "running with cluster" chip.
+        sessionId: cluster.sessionId ?? null,
         createdAt: cluster.createdAt,
         lastUsedAt: cluster.lastUsedAt,
       }));
@@ -253,9 +274,18 @@ export function createClusterRoutes(app, ctx = null) {
       }
       
       clusterDb.update(clusterId, { status: "terminated" });
-      
+
       if (cluster.bindToSession && cluster.sessionId) {
         global.clusterSessionBindings?.delete(cluster.sessionId);
+        // Spec (dynamic-cluster-composer): a terminated bound session falls
+        // back to the built-in agent — the event carries what the client
+        // needs to switch and notify.
+        ctx?.broadcast?.({
+          type: "cluster_terminated",
+          clusterId,
+          clusterName: cluster.name,
+          sessionId: cluster.sessionId,
+        });
       }
       
       res.json({

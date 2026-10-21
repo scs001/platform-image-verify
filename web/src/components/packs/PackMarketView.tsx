@@ -5,13 +5,24 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import * as api from "@/lib/packs-api";
 import type { PackSummary, PackReport } from "@/lib/packs-api";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/packs/Badge";
 import { PackDetailDialog } from "./PackDetailDialog";
+
+// Agent-count buckets (agent-cluster-platform marketplace views): the spec's
+// "cluster size" filter, expressed over the count every pack carries — a
+// multi-agent pack is cluster material whether or not it declares cluster
+// metadata yet. State lives in the `agents` URL param (stateful per spec).
+const AGENT_SIZE_FILTERS = [
+  { key: "", min: 0, max: Number.POSITIVE_INFINITY },
+  { key: "1", min: 1, max: 1 },
+  { key: "2-3", min: 2, max: 3 },
+  { key: "4+", min: 4, max: Number.POSITIVE_INFINITY },
+] as const;
 
 export function PackMarketView({
   onOpenChat,
@@ -45,6 +56,27 @@ export function PackMarketView({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+
+  // Agent-count filter state rides the URL (?agents=2-3) so a refresh keeps
+  // it (spec: filter state persists across page refreshes).
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sizeKey = AGENT_SIZE_FILTERS.some((f) => f.key === searchParams.get("agents"))
+    ? (searchParams.get("agents") as string)
+    : "";
+  const setSizeKey = (key: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (key) next.set("agents", key);
+    else next.delete("agents");
+    setSearchParams(next, { replace: true });
+  };
+  const sizeFilter = AGENT_SIZE_FILTERS.find((f) => f.key === sizeKey) ?? AGENT_SIZE_FILTERS[0];
+  // Countless summaries (a pre-upgrade server) pass through unfiltered
+  // rather than vanishing.
+  const visiblePacks = packs.filter(
+    (p) =>
+      p.agentCount === undefined ||
+      (p.agentCount >= sizeFilter.min && p.agentCount <= sizeFilter.max),
+  );
 
   const refresh = useCallback(
     async (q: string, cat = category) => {
@@ -91,6 +123,21 @@ export function PackMarketView({
         <Button variant="outline" size="sm" onClick={() => void refresh(search)}>
           {t("packs.market.search")}
         </Button>
+        <select
+          value={sizeKey}
+          onChange={(e) => setSizeKey(e.target.value)}
+          aria-label={t("packs.market.agentSize")}
+          data-testid="pack-agent-size-filter"
+          className="h-8 rounded-md border border-border bg-background px-2 text-xs text-foreground"
+        >
+          {AGENT_SIZE_FILTERS.map((f) => (
+            <option key={f.key || "all"} value={f.key}>
+              {f.key
+                ? t("packs.market.agentSizeValue", { value: f.key })
+                : t("packs.market.agentSizeAny")}
+            </option>
+          ))}
+        </select>
       </div>
 
       {categories.length > 0 && (
@@ -123,11 +170,11 @@ export function PackMarketView({
         </div>
       )}
       {!category && !search &&
-        packs.filter((p) => p.featured).length > 0 && (
+        visiblePacks.filter((p) => p.featured).length > 0 && (
           <div className="mb-4" data-testid="pack-featured-rail">
             <p className="text-xs font-medium text-muted-foreground mb-1.5">{t("packs.market.featured")}</p>
             <div className="grid gap-3">
-              {packs
+              {visiblePacks
                 .filter((p) => p.featured)
                 .map((p) => (
                   <button
@@ -149,12 +196,12 @@ export function PackMarketView({
       {error && (
         <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md mb-4">{error}</div>
       )}
-      {!loading && !error && packs.length === 0 && (
+      {!loading && !error && visiblePacks.length === 0 && (
         <p className="text-sm text-muted-foreground">{t("packs.market.empty")}</p>
       )}
 
       <div className="grid gap-3">
-        {packs.map((pack) => (
+        {visiblePacks.map((pack) => (
           <button
             key={pack.id}
             onClick={() => setDetailId(pack.id)}

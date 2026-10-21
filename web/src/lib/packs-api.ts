@@ -23,6 +23,8 @@ export interface PackSummary {
   unlisted?: boolean;
   category?: string;
   featured?: boolean;
+  /** Agents in the latest version's manifest (marketplace agent-size filter). */
+  agentCount?: number;
 }
 
 export interface PackManifestSkill {
@@ -52,6 +54,8 @@ export interface PackManifestAgent {
   id: string;
   name: string;
   persona: string;
+  /** Short role blurb (catalog rows and cluster composer show it). */
+  description?: string;
   // Optional serving contract (add-a2a-agent-serving): present ⇒ the role is
   // deployable as an Agent Service over A2A. model/modelWhitelist/budget are
   // the contract's declarations (ADR-0019 / add-serving-budgets) — the deploy
@@ -96,6 +100,16 @@ export interface PackManifest {
   skills?: PackManifestSkill[];
   mcpServers?: PackManifestMcp[];
   agents?: PackManifestAgent[];
+  // Cluster declaration (agent-cluster-platform): present when the pack
+  // composes its agents into a shareable cluster — default vs optional
+  // membership and an optional scheduling policy.
+  cluster?: {
+    name: string;
+    description: string;
+    defaultAgents: string[];
+    optionalAgents?: string[];
+    schedulingPolicy?: { maxConcurrentRuns?: number; preferredRunner?: string };
+  };
 }
 
 export interface PackDetail extends PackSummary {

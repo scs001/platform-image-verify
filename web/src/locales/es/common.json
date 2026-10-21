@@ -222,7 +222,9 @@
       "websearch": "Búsqueda web",
       "websearchHint": "Activa la búsqueda web para esta conversación (desactivada por defecto)",
       "ctx": "ctx {{pct}}%",
-      "ctxHint": "{{tokens}} / {{window}} tokens"
+      "ctxHint": "{{tokens}} / {{window}} tokens",
+      "clusterLoad": "Cargar clúster",
+      "clusterLoading": "Cargando…"
     },
     "sending": "Enviando…",
     "voice": {
@@ -317,7 +319,8 @@
       "editTitle": "Renombrar sesión",
       "titlePlaceholder": "Título de la sesión",
       "rename": "Guardar nuevo título",
-      "sessionActions": "Acciones de sesión"
+      "sessionActions": "Acciones de sesión",
+      "clusterBound": "Ejecutando con el clúster {{name}}"
     },
     "titleTooLong": "El título debe tener 200 caracteres o menos",
     "connectionLost": "Conexión perdida — reconectando…",
@@ -337,7 +340,10 @@
     "queuedBehind": "Esperando a que termine «{{title}}»",
     "queuedIdle": "Esperando a que el asistente esté libre",
     "queuedCancel": "Cancelar",
-    "queuedPreempt": "Detenerlo y ejecutar esto ahora"
+    "queuedPreempt": "Detenerlo y ejecutar esto ahora",
+    "cluster": {
+      "terminatedNotice": "El clúster '{{name}}' fue terminado; se cambió al agente integrado"
+    }
   },
   "turn": {
     "assistantName": "{{assistant}}",
@@ -1166,7 +1172,8 @@
       "missedRuns": "omitida {{count}} vez/veces",
       "missedTotal": "{{count}} omitidas",
       "lastOk": "correcto",
-      "lastFailed": "fallido"
+      "lastFailed": "fallido",
+      "cluster": "Clúster {{name}} · {{count}} agentes"
     },
     "schedule": {
       "daily": "cada día a las {{time}}",
@@ -1556,7 +1563,10 @@
       "search": "Buscar",
       "empty": "Aún no hay paquetes en el mercado.",
       "allCategories": "Todas",
-      "featured": "Destacados"
+      "featured": "Destacados",
+      "agentSize": "Filtrar por número de agentes",
+      "agentSizeAny": "Cualquiera",
+      "agentSizeValue": "{{value}} agentes"
     },
     "detail": {
       "notFound": "Paquete no encontrado o retirado",

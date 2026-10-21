@@ -222,7 +222,9 @@
       "websearch": "Recherche web",
       "websearchHint": "Active la recherche web pour cette conversation (désactivée par défaut)",
       "ctx": "ctx {{pct}}%",
-      "ctxHint": "{{tokens}} / {{window}} tokens"
+      "ctxHint": "{{tokens}} / {{window}} tokens",
+      "clusterLoad": "Charger le cluster",
+      "clusterLoading": "Chargement…"
     },
     "sending": "Envoi…",
     "voice": {
@@ -317,7 +319,8 @@
       "editTitle": "Renommer la session",
       "titlePlaceholder": "Titre de la session",
       "rename": "Enregistrer le nouveau titre",
-      "sessionActions": "Actions de session"
+      "sessionActions": "Actions de session",
+      "clusterBound": "Exécution avec le cluster {{name}}"
     },
     "titleTooLong": "Le titre doit comporter 200 caractères ou moins",
     "connectionLost": "Connexion perdue — reconnexion en cours…",
@@ -337,7 +340,10 @@
     "queuedBehind": "En attente de la fin de « {{title}} »",
     "queuedIdle": "En attente que l'assistant soit libre",
     "queuedCancel": "Annuler",
-    "queuedPreempt": "L'arrêter et exécuter ceci maintenant"
+    "queuedPreempt": "L'arrêter et exécuter ceci maintenant",
+    "cluster": {
+      "terminatedNotice": "Le cluster « {{name}} » a été terminé ; retour à l'agent intégré"
+    }
   },
   "turn": {
     "assistantName": "{{assistant}}",
@@ -1166,7 +1172,8 @@
       "missedRuns": "manquée {{count}} fois",
       "missedTotal": "{{count}} manquées",
       "lastOk": "réussie",
-      "lastFailed": "échouée"
+      "lastFailed": "échouée",
+      "cluster": "Cluster {{name}} · {{count}} agents"
     },
     "schedule": {
       "daily": "chaque jour à {{time}}",
@@ -1556,7 +1563,10 @@
       "search": "Rechercher",
       "empty": "Aucun pack sur le marché pour l'instant.",
       "allCategories": "Toutes",
-      "featured": "En vedette"
+      "featured": "En vedette",
+      "agentSize": "Filtrer par nombre d'agents",
+      "agentSizeAny": "Tous",
+      "agentSizeValue": "{{value}} agents"
     },
     "detail": {
       "notFound": "Pack introuvable ou retiré",

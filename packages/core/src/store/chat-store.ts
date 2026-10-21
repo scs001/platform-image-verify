@@ -161,6 +161,18 @@ interface State {
   beginPromptSubmit: () => void;
   sessions: SessionMeta[];
   currentSessionId: string | null;
+  // ── Cluster session binding (agent-cluster-platform) ─────────────────────
+  // The dynamic cluster attached to the CURRENT session, restored on load by
+  // matching /api/clusters/mine against currentSessionId and updated live by
+  // the cluster_bound / cluster_terminated WS events. The header renders the
+  // cluster chip off it; a termination flips the agent back to the built-in.
+  boundCluster: { clusterId: string; clusterName: string } | null;
+  setBoundCluster: (c: { clusterId: string; clusterName: string } | null) => void;
+  // Set when the bound cluster is terminated out from under the session; the
+  // chat page consumes it (switches to the built-in agent, shows the notice)
+  // and clears it.
+  clusterTerminatedNotice: string | null;
+  clearClusterTerminatedNotice: () => void;
   turns: Turn[];
   // ── Optimistic session open (perf-session-open) ──────────────────────────
   // Non-null between an optimistic switch and the `session_loaded` that
@@ -484,6 +496,10 @@ export const useChatStore = create<State>((set) => ({
   },
   sessions: [],
   currentSessionId: null,
+  boundCluster: null,
+  setBoundCluster: (c) => set({ boundCluster: c }),
+  clusterTerminatedNotice: null,
+  clearClusterTerminatedNotice: () => set({ clusterTerminatedNotice: null }),
   turns: [],
   pendingSession: null,
   pendingNewSession: false,
@@ -1143,6 +1159,20 @@ export const useChatStore = create<State>((set) => ({
         // Non-chat channels. Ignored for now — the owning views/stores
         // subscribe to these themselves (e.g. useExtensionsStore.applyEvent
         // handles extensions_changed).
+        case "cluster_bound":
+          // Live binding: only the session the cluster attached to adopts the
+          // chip (other clients keep their own state).
+          return m.sessionId === state.currentSessionId
+            ? { boundCluster: { clusterId: m.clusterId, clusterName: m.clusterName } }
+            : {};
+
+        case "cluster_terminated":
+          // The bound cluster died — drop the chip and raise the fallback
+          // notice the chat page turns into the built-in-agent switch.
+          return state.boundCluster?.clusterId === m.clusterId
+            ? { boundCluster: null, clusterTerminatedNotice: m.clusterName }
+            : {};
+
         case "cron_jobs":
         case "cron_status":
         case "cron_removed":

@@ -222,7 +222,9 @@
       "websearch": "ウェブ検索",
       "websearchHint": "この会話でウェブ検索を有効化（デフォルトはオフ）",
       "ctx": "ctx {{pct}}%",
-      "ctxHint": "{{tokens}} / {{window}} tokens"
+      "ctxHint": "{{tokens}} / {{window}} tokens",
+      "clusterLoad": "クラスターを読み込む",
+      "clusterLoading": "読み込み中…"
     },
     "sending": "送信中…",
     "voice": {
@@ -317,7 +319,8 @@
       "editTitle": "セッション名を変更",
       "titlePlaceholder": "セッション名",
       "rename": "新しい名前を保存",
-      "sessionActions": "セッション操作"
+      "sessionActions": "セッション操作",
+      "clusterBound": "クラスター「{{name}}」で実行中"
     },
     "titleTooLong": "タイトルは 200 文字以下にしてください",
     "connectionLost": "接続が切断されました。自動的に再接続しています…",
@@ -337,7 +340,10 @@
     "queuedBehind": "「{{title}}」の完了待ち",
     "queuedIdle": "アシスタントの空き待ち",
     "queuedCancel": "キャンセル",
-    "queuedPreempt": "停止してこれを実行"
+    "queuedPreempt": "停止してこれを実行",
+    "cluster": {
+      "terminatedNotice": "クラスター「{{name}}」が終了しました。内蔵エージェントに切り替えました"
+    }
   },
   "turn": {
     "assistantName": "{{assistant}}",
@@ -1166,7 +1172,8 @@
       "missedRuns": "{{count}} 回スキップ",
       "missedTotal": "合計 {{count}} 回スキップ",
       "lastOk": "成功",
-      "lastFailed": "失敗"
+      "lastFailed": "失敗",
+      "cluster": "クラスター {{name}} · {{count}} agents"
     },
     "schedule": {
       "daily": "毎日 {{time}}",
@@ -1556,7 +1563,10 @@
       "search": "検索",
       "empty": "市場にパックがまだありません。",
       "allCategories": "すべて",
-      "featured": "注目"
+      "featured": "注目",
+      "agentSize": "エージェント数で絞り込む",
+      "agentSizeAny": "すべて",
+      "agentSizeValue": "{{value}} エージェント"
     },
     "detail": {
       "notFound": "パックが見つからないか公開終了しました",

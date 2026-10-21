@@ -527,8 +527,8 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                 <h4 className="font-medium text-primary mb-1">{t("packs.detail.cluster.title")}</h4>
                 <div className="flex items-center gap-2 mb-2">
                   <h3 className="text-lg font-semibold text-foreground">{pack.manifest.cluster.name}</h3>
-                  <Badge variant="secondary" data-testid="pack-cluster-agent-count">
-                    {t("packs.detail.cluster.agentCount", { count: (m.agents?.length ?? 0) })}
+                  <Badge data-testid="pack-cluster-agent-count">
+                    {t("packs.detail.cluster.agentCount", { count: m?.agents?.length ?? 0 })}
                   </Badge>
                 </div>
                 <p className="text-sm text-muted-foreground mb-3">{pack.manifest.cluster.description}</p>
@@ -539,7 +539,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                   <div className="space-y-1">
                     {/* Default agents */}
                     {(pack.manifest.cluster.defaultAgents ?? []).map((agentId) => {
-                      const agent = m.agents?.find((a) => a.id === agentId);
+                      const agent = m?.agents?.find((a) => a.id === agentId);
                       if (!agent) return null;
                       return (
                         <div key={agentId} className="flex items-center gap-2 text-xs" data-testid={`pack-cluster-default-agent-${agentId}`}>
@@ -567,7 +567,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                         {showOptionalAgents && (
                           <div className="ml-3 space-y-1 pt-1 border-l border-border pl-2">
                             {(pack.manifest.cluster.optionalAgents ?? []).map((agentId) => {
-                              const agent = m.agents?.find((a) => a.id === agentId);
+                              const agent = m?.agents?.find((a) => a.id === agentId);
                               if (!agent) return null;
                               return (
                                 <div key={agentId} className="flex items-center gap-2 text-xs" data-testid={`pack-cluster-optional-agent-${agentId}`}>

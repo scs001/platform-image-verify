@@ -71,6 +71,17 @@ export function ChatPage({ send, onToggleNav }: Props) {
     setFocusTick((n) => n + 1);
   }, [parkedDraft]);
 
+  // Cluster termination fallback (dynamic-cluster-composer spec): when the
+  // cluster bound to this session is terminated, the session falls back to the
+  // built-in agent. The banner below carries the notice; the store clears the
+  // chip itself (chat-store's cluster_terminated case).
+  const clusterTerminatedNotice = useChatStore((s) => s.clusterTerminatedNotice);
+  const clearClusterTerminatedNotice = useChatStore((s) => s.clearClusterTerminatedNotice);
+  useEffect(() => {
+    if (!clusterTerminatedNotice) return;
+    send({ type: "set_agent", id: "local" });
+  }, [clusterTerminatedNotice, send]);
+
   // First-run tour (add-onboarding-tutorial): present on the welcome state
   // when this browser hasn't finished it, or when the help center's replay
   // affordance clears the marker and fires the replay event.
@@ -188,6 +199,24 @@ export function ChatPage({ send, onToggleNav }: Props) {
           ) : (
             <>
               <ChatHeader send={send} />
+              {clusterTerminatedNotice && (
+                <div
+                  data-testid="cluster-terminated-banner"
+                  className="flex items-center justify-between gap-3 border-b border-border bg-muted/50 px-4 py-1.5 text-xs text-muted-foreground"
+                >
+                  <span className="truncate">
+                    {t("chat.cluster.terminatedNotice", { name: clusterTerminatedNotice })}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => clearClusterTerminatedNotice()}
+                    aria-label={t("common.dismiss")}
+                    className="shrink-0 rounded p-1 hover:bg-muted hover:text-foreground"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
               <Chat send={send} onPrefill={prefillComposer} />
               <Composer send={send} value={draft} onChange={setDraft} focusTick={focusTick} />
             </>

@@ -12,7 +12,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/packs/Badge";
 import * as api from "@/lib/packs-api";
-import type { PackDetail } from "@/lib/packs-api";
 
 interface Props {
   open: boolean;
@@ -51,6 +50,7 @@ export function ClusterComposerModal({ open, onOpenChange, onSuccess }: Props) {
   } | null>(null);
   
   // Load available agents when modal opens
+  // biome-ignore lint/correctness/useExhaustiveDependencies: open-triggered reload; the loader is recreated per render by design
   useEffect(() => {
     if (open) {
       void loadAvailableAgents();
@@ -174,7 +174,7 @@ export function ClusterComposerModal({ open, onOpenChange, onSuccess }: Props) {
       if (!groups[agent.packId]) {
         groups[agent.packId] = [];
       }
-      groups[agent.packId].push(agent);
+      groups[agent.packId]?.push(agent);
     }
     return groups;
   }, [availableAgents]);
@@ -242,7 +242,7 @@ export function ClusterComposerModal({ open, onOpenChange, onSuccess }: Props) {
               {Object.entries(groupedAgents).map(([packId, agents]) => (
                 <div key={packId} className="border border-border rounded-md p-3">
                   <div className="flex items-center justify-between mb-2">
-                    <div className="font-medium text-sm">{agents[0].packName}</div>
+                    <div className="font-medium text-sm">{agents[0]?.packName ?? packId}</div>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -335,8 +335,8 @@ export function ClusterComposerModal({ open, onOpenChange, onSuccess }: Props) {
                 : t("clusters.composer.created")}
             </div>
             <div className="text-xs text-muted-foreground space-y-1">
-              {creationStatus.agents.map((a, i) => (
-                <div key={i} className="flex items-center gap-2">
+              {creationStatus.agents.map((a) => (
+                <div key={a.agentId} className="flex items-center gap-2">
                   <span className={`w-1.5 h-1.5 rounded-full ${
                     a.status === "active" ? "bg-green-500" : 
                     a.status === "installing" ? "bg-yellow-500 animate-pulse" :

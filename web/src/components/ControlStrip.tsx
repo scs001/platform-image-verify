@@ -31,7 +31,7 @@
 // composer's file input, and its commands entry drives the same text-derived
 // SlashCommandPicker the typed `/` path uses.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   FolderOpen,
@@ -42,6 +42,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
+  Users,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -49,6 +50,7 @@ import { useAuthStore } from "@/hooks/useAuth";
 import { useChatStore } from "@platform/core";
 import { savePersonalModel } from "@platform/core";
 import type { ClientMessage } from "@platform/core";
+import type { AgentInfo } from "@platform/core";
 import {
   Dialog,
   DialogContent,
@@ -306,6 +308,65 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
   const turns = useChatStore((s) => s.turns);
   const agents = useChatStore((s) => s.agents);
   const currentAgent = useChatStore((s) => s.currentAgent);
+
+  // Cluster-aware agent rows (agent-cluster-core spec): agents from packs that
+  // declare cluster metadata render under their cluster header, defaults
+  // first; everything else keeps its flat order. "Load entire cluster" binds
+  // a dynamic cluster to the current session (server broadcasts cluster_bound)
+  // and switches to the lead default agent — the runtime hosts ONE persona at
+  // a time, so loading a cluster means running under its lead, not N agents
+  // at once (cluster tasks are the fan-out surface).
+  const agentRows = useMemo(() => {
+    const rows: Array<
+      | { kind: "header"; key: string; name: string; count: number; group: AgentInfo[] }
+      | { kind: "agent"; key: string; a: AgentInfo }
+    > = [];
+    const byCluster = new Map<string, AgentInfo[]>();
+    for (const a of agents) {
+      if (!a.clusterId) rows.push({ kind: "agent", key: a.id, a });
+      else byCluster.set(a.clusterId, [...(byCluster.get(a.clusterId) ?? []), a]);
+    }
+    for (const [cid, group] of byCluster) {
+      group.sort((x, y) => Number(y.isDefaultAgent ?? false) - Number(x.isDefaultAgent ?? false));
+      rows.push({
+        kind: "header",
+        key: `cluster-${cid}`,
+        name: group[0]?.clusterName || cid,
+        count: group.length,
+        group,
+      });
+      for (const a of group) rows.push({ kind: "agent", key: a.id, a });
+    }
+    return rows;
+  }, [agents]);
+
+  const [clusterLoading, setClusterLoading] = useState<string | null>(null);
+  const loadCluster = async (clusterPackId: string, name: string, group: AgentInfo[]) => {
+    const sessionId = useChatStore.getState().currentSessionId;
+    if (!sessionId) return;
+    setClusterLoading(clusterPackId);
+    try {
+      const r = await fetch("/api/clusters/dynamic", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name,
+          agents: group.map((a) => ({ packId: a.packId, agentId: a.id })),
+          bindToSession: true,
+          sessionId,
+        }),
+      });
+      if (r.ok) {
+        const lead = group.find((a) => a.isDefaultAgent) ?? group[0];
+        if (lead && lead.id !== currentAgent) {
+          setPendingConfig("agent");
+          send({ type: "set_agent", id: lead.id });
+        }
+      }
+    } finally {
+      setClusterLoading(null);
+    }
+  };
   const isStreaming = useChatStore((s) => s.isStreaming);
   const permissionOptions = useChatStore((s) => s.permissionOptions);
   const currentPermission = useChatStore((s) => s.currentPermission);
@@ -757,7 +818,36 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
                   >
                     <span className="break-all font-mono">{agentLabel}</span>
                   </div>
-                  {agents.map((a) => (
+                  {agentRows.map((row) => {
+                    if (row.kind === "header") {
+                      return (
+                        <div key={row.key} className="px-3 pb-1 pt-2">
+                          <div
+                            data-testid="strip-cluster-header"
+                            className="flex items-center gap-1.5 text-[10px] font-medium tracking-wide text-muted-foreground"
+                          >
+                            <Users className="h-3 w-3 shrink-0" aria-hidden="true" />
+                            <span className="truncate">{row.name}</span>
+                            <span className="shrink-0 rounded-sm border border-border px-1 py-px text-[9px]">
+                              {row.count}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={clusterLoading === row.key}
+                              onClick={() => void loadCluster(row.key.replace(/^cluster-/, ""), row.name, row.group)}
+                              data-testid="strip-cluster-load"
+                              className="ml-auto shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1.5 py-px text-[10px] font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
+                            >
+                              {clusterLoading === row.key
+                                ? t("composer.strip.clusterLoading")
+                                : t("composer.strip.clusterLoad")}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+                    const a = row.a;
+                    return (
                     // A pack role runs focused on its own resource set, so it
                     // also carries the 资源微调 affordance — a sibling button,
                     // never nested inside the select control (add-focus-
@@ -826,7 +916,8 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
                         </button>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

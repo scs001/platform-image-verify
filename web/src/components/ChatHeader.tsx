@@ -12,7 +12,7 @@
 // `session_renamed` to all clients.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pencil, X, Check, MoreHorizontal } from "lucide-react";
+import { Pencil, X, Check, MoreHorizontal, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChatStore } from "@platform/core";
 import { ChatSessionMenu } from "@/components/ChatSessionMenu";
@@ -34,6 +34,32 @@ export function ChatHeader({ send }: Props) {
   const session = sessions.find((s) => s.id === currentSessionId);
   const presets = useChatStore((s) => s.presets);
   const currentPreset = useChatStore((s) => s.currentPreset);
+  const boundCluster = useChatStore((s) => s.boundCluster);
+  const setBoundCluster = useChatStore((s) => s.setBoundCluster);
+
+  // Restore the cluster chip for THIS session on (re)load: the binding lives
+  // server-side (clusters carry their sessionId), so a reconnecting client
+  // derives it from /mine. Live updates arrive as cluster_bound/_terminated
+  // WS events; this pass only reconciles cold state.
+  useEffect(() => {
+    let cancelled = false;
+    setBoundCluster(null);
+    if (!currentSessionId) return;
+    fetch("/api/clusters/mine")
+      .then((r) => (r.ok ? r.json() : { clusters: [] }))
+      .then(({ clusters }) => {
+        if (cancelled) return;
+        const hit = (clusters || []).find(
+          (c: { sessionId?: string | null; status: string }) =>
+            c.sessionId === currentSessionId && c.status === "ready",
+        );
+        if (hit) setBoundCluster({ clusterId: hit.clusterId, clusterName: hit.name });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [currentSessionId, setBoundCluster]);
 
   const [menuOpen, setMenuOpen] = useState(false);
   const overflowRef = useRef<HTMLButtonElement>(null);
@@ -180,6 +206,16 @@ export function ChatHeader({ send }: Props) {
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
+        {boundCluster && (
+          <span
+            data-testid="chat-header-cluster"
+            title={t("chat.header.clusterBound", { name: boundCluster.clusterName })}
+            className="inline-flex max-w-[12rem] items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-1 text-xs text-primary"
+          >
+            <Users className="h-3 w-3 shrink-0" aria-hidden="true" />
+            <span className="truncate">{boundCluster.clusterName}</span>
+          </span>
+        )}
         {presetLabel && (
           <span
             data-testid="agent-preset-label"

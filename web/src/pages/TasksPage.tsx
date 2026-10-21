@@ -102,7 +102,35 @@ function TaskCard({
             </p>
           ) : null}
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            {(job.target?.ref ?? job.preset) ? <span>{t("tasks.fields.agent")}: {job.target?.ref ?? job.preset}</span> : null}
+            {job.clusterId ? (
+              <span
+                data-testid="cron-job-cluster"
+                className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 font-medium text-primary"
+              >
+                {t("tasks.fields.cluster", { name: job.clusterName || job.clusterId, count: job.agentCount ?? "?" })}
+              </span>
+            ) : (job.target?.ref ?? job.preset) ? (
+              <span>{t("tasks.fields.agent")}: {job.target?.ref ?? job.preset}</span>
+            ) : null}
+            {job.clusterId && job.sessionId && (job.targetAgents?.length ?? 0) > 0 && (
+              <span className="inline-flex flex-wrap items-center gap-1" data-testid="cron-job-cluster-members">
+                {(job.targetAgents ?? []).map((agentId) => (
+                  <button
+                    key={agentId}
+                    type="button"
+                    onClick={() =>
+                      onOpenSession(
+                        `${job.sessionId}--${agentId.toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 64)}`,
+                      )
+                    }
+                    className="rounded-sm border border-border px-1.5 py-px hover:bg-muted"
+                    title={`${job.sessionId}--${agentId}`}
+                  >
+                    {agentId}
+                  </button>
+                ))}
+              </span>
+            )}
             {job.nextRun ? (
               <span>
                 {t("tasks.fields.nextRun")}: {formatInJobTz(job.nextRun, job.tz, locale)}

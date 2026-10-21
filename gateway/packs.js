@@ -329,6 +329,12 @@ export function createPackRegistry({ file }) {
       // Curation state (add-facet-content-management): presentation-level.
       category: pack.category ?? "",
       featured: Boolean(pack.featured),
+      // Agent count of the latest version's manifest (agent-cluster-platform
+      // marketplace views): computed in SQL by the list query via
+      // json_array_length — absent when the caller's row didn't select it.
+      ...(version.agent_count !== undefined && version.agent_count !== null
+        ? { agentCount: Number(version.agent_count) }
+        : {}),
     };
   }
 
@@ -530,7 +536,9 @@ export function createPackRegistry({ file }) {
          WHERE ${whereSql}`,
       ).get(...params).n;
       const rows = db.prepare(
-        `SELECT p.*, v.version, v.name, v.description, v.tags, v.published_at FROM packs p JOIN pack_versions v
+        `SELECT p.*, v.version, v.name, v.description, v.tags, v.published_at,
+                json_array_length(v.manifest, '$.agents') AS agent_count
+         FROM packs p JOIN pack_versions v
            ON v.pack_id = p.id AND v.version = (SELECT MAX(version) FROM pack_versions WHERE pack_id = p.id)
          WHERE ${whereSql}
          ORDER BY v.published_at DESC, p.rowid DESC LIMIT ? OFFSET ?`,

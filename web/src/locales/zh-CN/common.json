@@ -222,7 +222,9 @@
       "websearch": "网络搜索",
       "websearchHint": "为本会话开启联网搜索（默认关闭）",
       "ctx": "上下文 {{pct}}%",
-      "ctxHint": "已用 {{tokens}} / {{window}} tokens"
+      "ctxHint": "已用 {{tokens}} / {{window}} tokens",
+      "clusterLoad": "载入集群",
+      "clusterLoading": "载入中…"
     },
     "sending": "发送中…",
     "voice": {
@@ -317,7 +319,8 @@
       "editTitle": "重命名对话",
       "titlePlaceholder": "对话标题",
       "rename": "保存新标题",
-      "sessionActions": "会话操作"
+      "sessionActions": "会话操作",
+      "clusterBound": "运行于集群「{{name}}」"
     },
     "titleTooLong": "标题不能超过 200 个字符",
     "connectionLost": "连接已断开，正在自动重连…",
@@ -337,7 +340,10 @@
     "queuedBehind": "排队中 · 等待《{{title}}》完成",
     "queuedIdle": "排队中 · 等待助手空闲",
     "queuedCancel": "取消",
-    "queuedPreempt": "停止它并立即执行"
+    "queuedPreempt": "停止它并立即执行",
+    "cluster": {
+      "terminatedNotice": "集群「{{name}}」已解散，已切回内置助手"
+    }
   },
   "turn": {
     "assistantName": "{{assistant}}",
@@ -1166,7 +1172,8 @@
       "missedRuns": "错过 {{count}} 次",
       "missedTotal": "累计错过 {{count}} 次",
       "lastOk": "成功",
-      "lastFailed": "失败"
+      "lastFailed": "失败",
+      "cluster": "集群 {{name}} · {{count}} agents"
     },
     "schedule": {
       "daily": "每天 {{time}}",
@@ -1556,7 +1563,10 @@
       "search": "搜索",
       "empty": "市场暂无功能集。",
       "allCategories": "全部垂类",
-      "featured": "精选"
+      "featured": "精选",
+      "agentSize": "按 agent 数筛选",
+      "agentSizeAny": "任意数量",
+      "agentSizeValue": "{{value}} 个 agent"
     },
     "detail": {
       "notFound": "功能集不存在或已下架",

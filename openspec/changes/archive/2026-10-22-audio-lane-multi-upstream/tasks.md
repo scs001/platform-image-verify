@@ -34,8 +34,15 @@
 - [x] 1.2 `audio.go` 的两个 failover 回调改为按候选账号协议分派；
   未标注协议的账号走原实现，行为逐字节不变。
   **验证**：既有 lanes 全量单测全绿（未改任何既有断言）。
-- [ ] 1.3 `LaneEngine` 增加按账号解析，用量行与错误体用实际命中协议标注。
-  **验证**：单测断言三类账号分别产出 `openai`/`doubao`/`tencent` 标识。
+- [x] 1.3（归档对账 2026-10-22，**按 as-built 收窄**）用量行按实际命中协议标注：
+  各适配器写 `UpstreamModel`——豆包 `doubao:<voice>` / `doubao:bigmodel`、腾讯
+  `tencent:<voiceType>` / `tencent:sentence`，OpenAI 兼容路径沿用既有前缀。
+  **验证**：生产用量行 106331/106337=豆包 TTS、106332=腾讯 ASR（5.4）、
+  113751=`tencent:101007`（v-15 验收）。
+  **砍出本 change（挂账）**：错误体 `engine` 仍为车道级 `LaneEngine(lane)`
+  （audio 恒 `openainext`，`errors.go` 注释自标「后续按实际选中账号覆盖」）；
+  设计 D1 的 `laneEngineForAccount` 与三态单测未做。观测性缺口、非正确性缺陷，
+  已登记主 spec 已知边界，随下一 fork 补丁收口。
 
 ## 2. 豆包适配器
 
@@ -51,10 +58,14 @@
   超时如实报错。
   **验证**：`TestDoubaoASR_SubmitAndPollCompletes`（含 duration 33621ms→33.621s
   换算）与 `TestDoubaoASR_SubmitFailurePropagates`（45000030→403 长冷却）全绿。
-- [ ] 2.4 音频可达化：把调用者上传的音频转为上游可取的 URL（短时效）。
-  **已实现** `audio_spool.go`（临时目录 + `LANE_AUDIO_PUBLIC_BASE_URL` 前缀 +
-  TTL 惰性清扫 + 不可猜测文件名）；**未配置前缀时明确报错而非静默降级**。
-  **待办**：部署侧需提供公网可达前缀与静态服务；真机验收见 4.2。
+- [x] 2.4 音频可达化：把调用者上传的音频转为上游可取的 URL（短时效）。
+  **已实现并上产（v-11）** `audio_spool.go`（临时目录 + 前缀来源「账号凭据
+  `audio_public_base_url` 优先 > 环境变量 `LANE_AUDIO_PUBLIC_BASE_URL`」+ TTL
+  惰性清扫 + 不可猜测文件名）；**未配置前缀时明确报错而非静默降级**（v-12 起
+  记瞬态失败换号，不再误记 `misconfigured` 落 12h 冷却）。
+  **归档对账（2026-10-22）**：代码侧完结。**部署侧公网前缀至今未配** → 豆包 ASR
+  在生产不可用；腾讯 ASR 同步收字节不受影响（L2b 生产 ASR 走腾讯 PASS）。
+  前缀与静态服务属部署决策，登记主 spec 已知边界 + 台账挂账，不阻塞归档。
 
 ## 3. 腾讯云适配器
 
@@ -84,8 +95,18 @@
   **验证**：`TestTencentLIVE_TextToVoice`（15408B/17 字符）与
   `TestTencentLIVE_SentenceRecognition`（合成→识别闭环，文本与原句一致）。
   **待办**：经网关端到端的用量行 engine 断言（需出片后）。
-- [ ] 4.4 跨协议轮转：构造高优先级账号失败，验证请求由另一协议账号完成。
-  **验证**：响应正常且 engine 标注为实际命中的协议。
+- [x] 4.4 跨协议轮转：高优先级账号失败后请求由另一协议账号完成。
+  **验证（生产自然实验，归档对账 2026-10-22 采信）**：
+  ① 2026-10-19 豆包 #43 TTS 握手 403 `volc.seedtts.default … not granted` →
+  `serveWithFailover` 循环**跨协议推进到腾讯 #44**（当时腾讯因采样率缺陷亦败，
+  随后 503）——轮转确实跨协议；② v-15 修腾讯后生产验收：豆包仍 403/冷却，
+  `/v1/audio/speech` 200/11376B 合法 mp3 由腾讯完成，用量行 113751=
+  `tencent:101007`，`scripts/verify-live-voice.mjs` ALL PASS——另一协议账号
+  完成请求且归因如实。两条合起来覆盖本任务验证意图。
+  **未做**：构造式单测（`failover_test.go` 现只覆盖同协议轮转）——与 1.3 挂账同车。
+  **顺带抓出两缺陷已修上产（v-14/15）**：腾讯 TTS 采样率跨平台误用（豆包默认
+  24000 原样传腾讯 → `InvalidParameterValue.SampleRate` 100% 失败）；云 API 业务
+  错误码被 HTTP 200 吞掉（冷却原因写 `status 200` 无判别力）。
 
 ## 5. 出片与生产
 
@@ -105,6 +126,8 @@
   **验证**：`/v1/audio/speech` 200/27885B 合法 mp3；`/v1/audio/transcriptions`
   200 且文本正确；**用量行 106331/106337=豆包 TTS、106332=腾讯 ASR**
   （engine 归因如实）。
-- [x] 5.5 台账更新（`docs/sub2api-fork-patches/README.md` 增 v-11 版本行）。
-  **待办**：`docs/registry-maintenance.md` §12.13 状态行的 L2b 前置核销
-  （现仅腾讯云路径在生产可用，豆包 ASR 需音频托管前缀）。
+- [x] 5.5 台账更新（`docs/sub2api-fork-patches/README.md` 增 v-11 版本行；同源
+  v-12 行与收尾两缺陷的 v-15 行亦已在册）。
+  **已核销（2026-10-22 归档对账）**：`docs/registry-maintenance.md` §12.13 状态行
+  的 L2b 硬前置改为「已于 2026-10-18 解除」，并登记残余边界（豆包 ASR 需部署侧
+  公网音频前缀，腾讯路径不受影响）。

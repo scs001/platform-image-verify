@@ -537,7 +537,7 @@ fail-loud（registry 单文档注册不会造出丢树孪生）；CLI 侧 findda
 | 门 | relay `OK yizuo/platform:sha-22489c8`（07:16:40）；ccr skopeo digest `2ba5cf1c` → 才 bump `fd-infra-deploy` 双清单（`f31e0b9` 推 gitee）→ ArgoCD hard-refresh → platform + platform-demo 双 rollout 全绿 |
 | 生产实证 | pod imageID=`2ba5cf1c` 与 ccr digest 全等；镜像内模块活体（`/app/server/routes/misc.js` 含 `/api/connections`、`credential-refs.js` 含 `connectPathForRef`）；新 chunk `ConnectionsSection-PowPHyBE.js` 在 `/app/web/dist/assets`。注：pod 内 3100 是网关口，匿名 401 连未知路径也同形（网关先于路由拦截），无鉴别力——`/api/connections` 的带身份实测并入真机走查 |
 | 教训 | ①**设置分节清单三处同源**（web `sections.ts` / `packages/core/src/lib/surfaces.ts` SETTINGS_SURFACES / 服务端 resolvedLayout）——只改其一，新分节被 resolved 列表静默滤掉、深链回落 General，e2e 才抓住；②**e2e 服务吃预构建 dist**，改前端必须先 `web:build:e2e`（首轮 12 个假失败全是旧包症状）；③**RegistryConnectPanel store 未知时渲染 null**，新挂载点必须自带 `refreshRegistryConnection()`；④镜像仓 workflow 会被快照 force-push/修剪冲掉，出片前先 `gh api contents` 核 image.yml 在不在，缺了从孤儿 run headSha 取回 |
-| 状态 | L1 落地。后续刀：L1b 应用中心统一网格、L2a 词元账号线（零粘贴一次到位：词元仓编程铸 key 端点现成 `POST /api/v1/keys`，跨仓开发量=0）、L2b 语音（硬前置：词元 audio 车道 openainext 池 429 解除）、L3 对话内 connections 工具 |
+| 状态 | L1 落地。后续刀：L1b 应用中心统一网格、L2a 词元账号线（零粘贴一次到位：词元仓编程铸 key 端点现成 `POST /api/v1/keys`，跨仓开发量=0）、L2b 语音（硬前置「词元 audio 车道 openainext 池 429」**已于 2026-10-18 解除**——`audio-lane-multi-upstream` 跨协议上游 v-11 上产，豆包+腾讯双通；L2b 本体 10-19 上产，生产 ASR 走腾讯路径 PASS；**残余边界**=豆包 ASR 需部署侧配公网音频前缀 `audio_public_base_url`/`LANE_AUDIO_PUBLIC_BASE_URL`，至 10-22 归档仍未配，腾讯路径不受影响）、L3 对话内 connections 工具 |
 
 ### 12.14 真机验收抓出两缺陷并修复上产（settings-connect-center 6.1/6.3 核销，2026-10-18）
 

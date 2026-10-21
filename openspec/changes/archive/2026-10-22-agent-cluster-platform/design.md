@@ -1,5 +1,12 @@
 # Agent Cluster Platform - Technical Design
 
+> **归档对账（2026-10-22）**：本文保留立项时的设计意图。实施与四轮生产验证后，**Decision 4（provider 路由层）被推翻**——
+> 平台的模型真源是 sub2api/词元车道，部署侧三闸（白名单/车道/roster）已由 serving 车道工作建成，再造路由层=复制车道；
+> Decision 5 的"并行"按运行时事实落定为「本地 persona 恒串行、仅 a2a 成员并行，摘要如实注记」。
+> 最终行为以主 spec（agent-cluster-core / dynamic-cluster-composer / marketplace-cluster-view / scheduling-cluster-aware
+> 及 pack-marketplace / agent-catalog / agent-scheduling-tools 的 MODIFIED 段）为准，逐任务证据见 tasks.md。
+
+
 ## Context
 
 The platform currently has three separate capabilities:

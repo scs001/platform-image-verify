@@ -124,8 +124,9 @@ export function createClusterDatabase({ file }) {
       return db.prepare(`SELECT COUNT(*) AS n FROM dynamic_clusters WHERE status = 'ready'`).get().n;
     },
 
-    listByUser(email) {
-      // In a real implementation, you'd link clusters to users via a user_clusters table
+    // Per-cell store: every cluster in this db belongs to the cell's owner, so
+    // the email is accepted for interface symmetry and not (yet) filtered on.
+    listByUser(_email) {
       // For now, return all active clusters
       return db.prepare(`SELECT * FROM dynamic_clusters WHERE status != 'terminated' ORDER BY last_used_at DESC`).all()
         .map(deserialize);

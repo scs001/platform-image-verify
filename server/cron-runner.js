@@ -493,6 +493,7 @@ async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, runPersona
   const aggregation = policy.resultAggregation ?? "all";
   let digestText = buildClusterDigest({ clusterName: cluster.name, results, policy });
   let summaryRan = false;
+  let summarySucceeded = false;
 
   // summary: one synthesis turn under the first successful persona member,
   // in the BOUND session, fed with every member's output. Falls back to the
@@ -516,6 +517,7 @@ async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, runPersona
     summaryRan = true;
     if (synth.ok && synth.text) {
       digestText = synth.text;
+      summarySucceeded = true;
     } else {
       digestText += `\n\n（汇总回合失败，以上为成员原始输出。失败原因：${synth.error || "未知"}）`;
     }
@@ -528,7 +530,13 @@ async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, runPersona
     try { await switchPresetForJob(ctx, originalPreset, memberTimeoutMs); } catch { /* best-effort */ }
   }
 
-  chatHistory.recordMessage(boundSessionId, "assistant", digestText);
+  // A successful synthesis turn already persisted itself into the bound
+  // session (runPersona records its exchange) — recording digestText again
+  // would duplicate the reply. Only the self-built digest (all/first, or a
+  // failed summary) needs a manual row.
+  if (!summarySucceeded) {
+    chatHistory.recordMessage(boundSessionId, "assistant", digestText);
+  }
   const version = ctx.sessionVersion;
   chatHistory
     .listSessions()

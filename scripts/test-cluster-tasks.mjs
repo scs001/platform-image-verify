@@ -128,13 +128,18 @@ function makeCtx({ preset = "standard" } = {}) {
 
 function fakeExecutors(ctx, { personaText, a2aOut = { ok: true, text: "remote reply" }, personaDelayMs = 0 } = {}) {
   const calls = { persona: [], a2a: [], personaStart: [], personaEnd: [] };
+  // Mirrors runPersonaTurn's persistence contract: the exchange lands in the
+  // job's own session (the summary regression below keys off exactly-once).
   const runPersona = async (_c, job) => {
     calls.personaStart.push(Date.now());
     calls.persona.push(job);
     ctx.currentPreset = job.preset;
     if (personaDelayMs) await new Promise((r) => setTimeout(r, personaDelayMs));
     calls.personaEnd.push(Date.now());
-    return { ok: true, text: personaText ? personaText(job) : `${job.preset} 的输出`, usage: { input: 10, output: 5 } };
+    const text = personaText ? personaText(job) : `${job.preset} 的输出`;
+    chatHistory.recordMessage(job.sessionId, "user", job.prompt);
+    chatHistory.recordMessage(job.sessionId, "assistant", text);
+    return { ok: true, text, usage: { input: 10, output: 5 } };
   };
   const runA2a = async (_c, job) => {
     calls.a2a.push({ at: Date.now(), job });
@@ -332,7 +337,10 @@ test("runClusterTurn: summary policy adds a synthesis turn under the lead person
   assert.equal(synth.preset, "pack-alpha-analyst", "first successful persona leads the synthesis");
   assert.ok(synth.prompt.includes("综合以上成员输出"));
   const session = await chatHistory.getSession("cron-job_t3");
+  const assistantRows = (session?.messages ?? []).filter((m) => m.role === "assistant");
   assert.ok(JSON.stringify(session).includes("综合结论：一切正常"));
+  assert.equal(assistantRows.filter((m) => String(m.content).includes("综合结论：一切正常")).length, 1,
+    "a successful synthesis must land exactly once (no duplicate digest row)");
 });
 
 test("runClusterTurn: partial failure still succeeds and the digest names the failure", async () => {

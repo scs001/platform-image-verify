@@ -105,8 +105,8 @@
   （ControlStrip 集群头：名+计数徽标，`strip-cluster-header`）
 - [x] 2.14 Add "Load entire cluster" button that triggers bulk install + activation
   （`strip-cluster-load`。**语义按架构事实落定**：共享运行时一次承载一个 persona，"同时激活 N 个"不可达——落为「建绑定当前会话的动态集群（bindToSession+sessionId）+ 切到领街默认 agent」，扇出执行走集群任务面。picker 里的 pack 已安装，安装流在市场侧 Load in chat（见 marketplace-cluster-view spec，仍欠））
-- [ ] 2.15 Verify: Subscribe to a cluster pack, open agent picker, confirm agents are grouped under cluster header with "Load entire cluster" button
-  （代码 2.12-14 已上产 sha-839f39c；**真机可视验收被货架空挡住**——生产市场尚无 cluster pack，分组头无从出现；待首批 cluster pack 上架后走查）
+- [x] 2.15 Verify: Subscribe to a cluster pack, open agent picker, confirm agents are grouped under cluster header with "Load entire cluster" button
+  （2026-10-21 **真机可视收口**：首个 cluster pack「柏讯·投研三镜头」egaYyOaZVTf0FWlLvaGAQA v1 上架（用户授权代选——在架 52 pack 全单 agent，按包上限 agents≤3/mcp≤5/skills≤10 由同作者三套柏讯套件角色合集铸造，成员经 resources.mcpTools 收窄回原工具面）；aloadtree 安装→catalog 打标→真浏览器：picker 集群头「投研三镜头」+载入按钮可见→载入→会话头徽标出现→零 console 错）
 
 ### 2.4 Integration: Session binding
 
@@ -199,8 +199,8 @@
 
 - [x] 4.8 Manually test cluster composer UI: create clusters with various configurations
   （§11.2 真机两场景：2-agent 集群 + 1-agent 集群）
-- [ ] 4.9 Manually test marketplace cluster views: browse, filter, search cluster packs
-  （随 1.9 未做）
+- [x] 4.9 Manually test marketplace cluster views: browse, filter, search cluster packs
+  （2026-10-21 真机：市场搜索「投研三镜头」→卡片→详情 cluster-info 分节+2 条默认成员行渲染；?agents= 筛选随 1.9 在产）
 - [ ] 4.10 Manually test task history: view cluster tasks, expand timelines, verify visualization
   （随 3.7-9 未做）
 
@@ -238,7 +238,7 @@
 ## Verification Summary
 
 - [ ] **Verification**: Full end-to-end test: subscribe to Finance Cluster pack → create dynamic cluster with Data Analyst pack → schedule a daily task → verify task executes both agents → check task history shows cluster view → verify billing logs show correct provider used
-  （核心三段已证：执行两 agent ✓（真机）、任务历史 ✓（engine clientShape 带集群字段）、绑定会话聚合 ✓。**剩余两段**：任务历史的集群视图 UI（3.7-3.9 未做）、计费 providerUsed 归因（3.15 未做——且须对齐词元车道真源）。「Finance Cluster pack」按字面仍不存在——首批 cluster pack 待用户选定）
+  （核心段全证：双 agent 扇出+summary 综合 ✓ 真机（投研三镜头集群 112s success，成员子会话各自真实回复且引用收窄后的真实工具名）、任务历史集群视图 ✓（3.7/3.8 已上产）、绑定会话聚合 ✓。**剩余**：计费 providerUsed 归因（3.15——须对齐词元车道真源）。顺带修真机抓到的 summary 重复落盘 bug（synthesis 自落+手动 digest 双写→exactly-once，含回归断言））
 
 > **发布状态**：本 change 实施轮已于 2026-10-21 上产 `sha-3234d2f`（digest `b524b14a`，台账 §15）；
 > 生产探针 10/10（新口径）。
@@ -249,7 +249,7 @@
 
 1. ~~集群任务执行链从未实测~~ → **已接通并单测/本地集成验证**（本轮）；剩余=真机成功路径走查（4.5/Verification）
 2. ~~虚假面清理~~ → **已处理**：三文件删除、monitoring 接真（本轮 ③）
-3. **货架上货**（②）：本地已验「带 cluster 元数据的 pack→catalog 打标→编排器可见」全链；**谦面生产市场仍无一个声明 cluster 的 pack**——需用户选定自有 pack 加 `cluster` 字段发新版（涉及真实订阅者可见的版本变更，须用户拍板选哪些 pack）
+3. ~~货架上货~~ → **已上**（2026-10-21 用户授权代选：「柏讯·投研三镜头」egaYyOaZVTf0FWlLvaGAQA v1，三镜头=宏观/估值默认+投委会可选；舆情/风控等更多角色入动态集群叠加——包上限决定了合集包是"小队模板"而非"全明星队"，大团队=编排器动态集群，分工诚实）
 4. **会话集成全缺**（2.12-2.19）：picker 分组、Load entire cluster、cluster_bound WS、会话头集群名、终止兜底
 5. **市场集群视图半缺**（1.9/1.10/4.9）：size/类型筛选
 6. **模型绑定后半程**（3.12-3.16/3.18-3.20）：三闸校验、serving PATCH、真 provider 路由（必须对齐词元车道唯一真源）、providerUsed 计量、会话级覆盖

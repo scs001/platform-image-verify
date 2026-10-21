@@ -1246,3 +1246,16 @@ pack 转 public 时机）。证据细节见 docs/acceptance-criteria.md 柏讯�
 **真机验收**（对象=「一键流验收」代理 packs-vz-kDoiTzSqfgkMP5UNdXg/agent，deployer aloadtree——只动这个钦定测试账号）：sub2api 精确清零 1.95984848 → 网关 403 INSUFFICIENT_BALANCE → 驱动一回合 `-32003 "403 status code (no body)"`（事故原形；同秒日滚 digest 也撞死 key，一并收编）→ **一次失败即停车**（health `parked:{reason,since}` + `billing_parked` 事件入槽）→ 第二次入站 `-32012 "agent parked: insufficient-balance (INSUFFICIENT_BALANCE) since 2026-10-21T14:25:39Z"`，零 LLM 燃烧零 meter 行 → **95s 静默窗** meter 零新增（digest 不再被 60s 重试——2874 行/48h 风暴形状消灭）→ 精确回填 1.95984848 → **480.9s 自动复业**（一个复探周期内）+ `billing_unparked{reason}` → 下一回合真实成功（7379 tokens）。门：单测 14/14 + agent 七套件 171/171 + biome 净。
 
 **余账**：HEAD 既有红 `test-official-packs-lint`（tool_risk 断言 12 vs lib 实 14，add-pack-subscribe-actions 欠的同步，与本 change 无关）；萬星面停车展示（fd-wanxing 后续，`-32012` 消息已可读）。
+
+### §15.2 补记：首个 cluster pack 上架 + 全链真机可视收口（2026-10-21）
+
+| 项 | 值 |
+|---|---|
+| pack | **「柏讯 · 投研三镜头」`egaYyOaZVTf0FWlLvaGAQA` v1 public**（作者 aloadtree；首个带 `cluster` 元数据的在架 pack） |
+| 选型 | 用户授权代选。在架 52 pack **全单 agent**（加字段凑不出集群）；受包上限 agents≤3/mcpServers≤5/skills≤10 约束，由同作者三套柏讯套件角色合集铸造：宏观分析员+估值分析员（默认）+投委会主持人（可选），7 技能/5 服务恰满上限；成员经 `resources.mcpTools` 收窄回原套件工具面（**角色只能收窄**校验在案）。舆情/风控等大团队走动态集群——合集包=小队模板，分工诚实 |
+| 发布 | creators 组签名→validate 绿（工具面全声明）→publish v1→aloadtree cell 安装（投委会角色被既有同名安装遮蔽=规格既定行为，本 cell 分组实际 2 员） |
+| 真机可视 | **2.15/1.10/4.9 收口**：picker 集群头「投研三镜头」+载入按钮可见→载入→会话头徽标出现→零 console 错；市场搜索→详情 cluster-info 分节+成员行；WS agents 消息原样携带 clusterId 实证（截包） |
+| 扇出 | 真实集群任务 112s success：宏观/估值子会话各落真实回复（引用 `mcp__fd-open-data-mcp__*` 等收窄后真实工具名），绑定会话 summary 综合回合产出高质量统一结论（"宏观=周期定位×估值=假设穿透→假设台账"）；clusters.db total_executions 回写 |
+| 修 bug | 真机抓到 **summary 重复落盘**（synthesis 回合自落+手动 digest 双写）→ exactly-once（含单测回归断言），随下轮出片 |
+
+**配方增量**：市场 list 的 agentCount（json_array_length）让选型一条命令可盘；session 签名带 `groups:["creators"]` 即可代作者发布（平台主秘钥，与探针同手法）；Badge 组件此前吞 props——data-testid 透传已修。

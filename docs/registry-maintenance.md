@@ -1259,3 +1259,5 @@ pack 转 public 时机）。证据细节见 docs/acceptance-criteria.md 柏讯�
 | 修 bug | 真机抓到 **summary 重复落盘**（synthesis 回合自落+手动 digest 双写）→ exactly-once（含单测回归断言），随下轮出片 |
 
 **配方增量**：市场 list 的 agentCount（json_array_length）让选型一条命令可盘；session 签名带 `groups:["creators"]` 即可代作者发布（平台主秘钥，与探针同手法）；Badge 组件此前吞 props——data-testid 透传已修。
+
+**收尾**：exactly-once+Badge 修复已随 `sha-02082df`（digest `e1bcbe78`，GitOps `4145ab4` 三清单）上产；探针 10/10。tasks 终态 **52/70**。

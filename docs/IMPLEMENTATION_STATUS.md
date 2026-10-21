@@ -1,5 +1,12 @@
 # Agent Cluster Platform - Implementation Status
 
+> **更正（2026-10-21 对账）**：本文出自 1 天冲刺的实现提交，下列「✅ Complete」中多项当时并不成立：
+> 集群任务执行链在 REST 路由层即丢弃 `clusterId`（2026-10-21 才接通并测试）；「模板市场」为三个硬编码虚构模板、
+> 「provider 路由/模型绑定」为无消费者的死代码+内存 Map、`optimization`/`monitoring/providers` 含编造指标——
+> 以上四处已于 2026-10-21 删除或接真。**真实进度与欠账以 `openspec/changes/agent-cluster-platform/tasks.md` 对账记录为准**，
+> 生产发布事实以 `docs/registry-maintenance.md` §11 为准。本文其余内容保留作当时意图的记录。
+
+
 ## Current State: ✅ Complete & Production Ready
 
 ### Summary

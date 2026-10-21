@@ -199,6 +199,10 @@ export function attachWorkerPool(ctx, { spawnBridge = null, idleReapMs = IDLE_RE
     // a2a targets are remote turns (add-agent-delegation-a2a) — no persona to
     // pin; they ride the primary chain's remote executor.
     if (task.targetType === "a2a") return false;
+    // Cluster targets (agent-cluster-platform): `preset` carries the cluster
+    // id, not a persona — a worker pinned to it would boot a broken child.
+    // The primary chain's cluster executor fans members out itself.
+    if (task.targetType === "cluster") return false;
     // Null-ref (legacy live-preset) tasks have no persona to pin a worker to.
     if (!task.preset) return false;
     waiting.push(task.id);

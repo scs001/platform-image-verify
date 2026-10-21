@@ -6,9 +6,17 @@
 //   2. Creating a cluster with no agents is refused (400) — not 404/401
 //   3. Creating a cluster with a bogus pack is refused naming the agent (400)
 //   4. /api/monitoring/health answers with a cluster count
-//   5. /api/templates lists templates
-//   6. /api/models lists provider routes
-//   7. The pack manifest validator accepts cluster metadata (in-image check)
+//   5. /api/monitoring/clusters serves the real cluster-store summary
+//   6. /api/monitoring/tasks serves the live task engine (incl. cluster tasks)
+//   7. POST /api/cron with a bogus clusterId is refused (400) — the cluster
+//      task path resolves the ref at the route
+//   8. The pack manifest validator accepts cluster metadata (in-image check)
+//   9. The pack manifest validator rejects a bad cluster agent ref
+//
+// 2026-10-21: the template-"market" / provider-route / optimization checks
+// this probe used to carry were removed with the fabricated endpoints
+// themselves (cluster-templates.js / model-binding.js / optimization.js —
+// zero consumers, hardcoded fake numbers).
 //
 // Auth: the deployment's own signed session cookie.
 //   CLUSTER_PROBE_BASE=https://platform.finddatatech.cloud \
@@ -114,31 +122,33 @@ console.log(`\n=== Agent Cluster Platform live probe → ${BASE} ===\n`);
   check("GET /api/monitoring/clusters → summary+list", ok, `status=${r.status}`);
 }
 
-// 7. templates
+// 7. monitoring tasks — the live task engine, cluster tasks included
 {
-  const r = await call("GET", "/api/templates");
-  const ok = r.status === 200 && r.json && Array.isArray(r.json.templates) && r.json.templates.length > 0;
+  const r = await call("GET", "/api/monitoring/tasks");
+  const ok = r.status === 200 && r.json?.summary && typeof r.json.summary.totalTasks === "number"
+    && typeof r.json.summary.clusterTasks === "number";
   check(
-    "GET /api/templates → non-empty list",
+    "GET /api/monitoring/tasks → live engine summary",
     ok,
-    `status=${r.status} count=${r.json?.templates?.length ?? "n/a"}`,
+    `status=${r.status} body=${JSON.stringify(r.json?.summary ?? null)}`,
   );
 }
 
-// 8. models
+// 8. cluster task ref resolution: a bogus clusterId never reaches the engine
 {
-  const r = await call("GET", "/api/models");
-  const ok = r.status === 200 && r.json && Array.isArray(r.json.models) && r.json.models.length > 0;
-  check("GET /api/models → provider routes", ok, `status=${r.status} count=${r.json?.models?.length ?? "n/a"}`);
+  const r = await call("POST", "/api/cron", {
+    when: new Date(Date.now() + 3600_000).toISOString(),
+    prompt: "probe",
+    clusterId: "dyn_probe_nonexistent",
+  });
+  check(
+    "POST /api/cron bogus clusterId → 400",
+    r.status === 400 && /not found/.test(JSON.stringify(r.json || {})),
+    `status=${r.status} body=${JSON.stringify(r.json).slice(0, 120)}`,
+  );
 }
 
-// 9. optimization stats
-{
-  const r = await call("GET", "/api/optimization/stats");
-  check("GET /api/optimization/stats → 200", r.status === 200, `status=${r.status}`);
-}
-
-// 10. pack manifest validator accepts cluster metadata (in-image code check)
+// 9. pack manifest validator accepts cluster metadata (in-image code check)
 {
   const r = await call("POST", "/api/packs/validate", {
     manifest: {
@@ -167,7 +177,7 @@ console.log(`\n=== Agent Cluster Platform live probe → ${BASE} ===\n`);
   );
 }
 
-// 11. invalid cluster metadata rejected
+// 10. invalid cluster metadata rejected
 {
   const r = await call("POST", "/api/packs/validate", {
     manifest: {

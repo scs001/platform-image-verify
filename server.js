@@ -59,11 +59,8 @@ import { registerResourceRoutes } from "./server/routes/resources.js";
 import { registerBotRoutes, WEBHOOK_PREFIX } from "./server/routes/bots.js";
 import { registerBotRelayRoutes, RELAY_PREFIX } from "./server/routes/bot-relay.js";
 import { createClusterRoutes, startAutoTerminationJob } from "./server/routes/clusters.js";
-import { createModelBindingRoutes } from "./server/routes/model-binding.js";
-import { createClusterTemplateRoutes } from "./server/routes/cluster-templates.js";
 import { createMonitoringRoutes } from "./server/routes/monitoring.js";
 import { createAdminRoutes } from "./server/routes/admin.js";
-import { createOptimizationRoutes } from "./server/routes/optimization.js";
 import { registerExternalServiceRoutes } from "./server/routes/external-services.js";
 import { registerPackRoutes as registerCellPackRoutes } from "./server/routes/packs.js";
 import { registerOverlayRoutes } from "./server/routes/overlay.js";
@@ -260,17 +257,16 @@ registerPackUsageRoutes(ctx);
 registerConnectorRoutes(ctx);
 // Dynamic cluster management (agent-cluster-platform): REST API for creating,
 // managing, and operating dynamic agent clusters assembled from pack agents.
-createClusterRoutes(app);
-// Model binding and provider routing (agent-cluster-platform Phase 4)
-createModelBindingRoutes(app);
-// Cluster templates marketplace (agent-cluster-platform Phase 5)
-createClusterTemplateRoutes(app);
-// Real-time monitoring (agent-cluster-platform Phase 7)
+createClusterRoutes(app, ctx);
+// Cluster monitoring (agent-cluster-platform). The Phase 4/5/8/10 siblings
+// this shipped with (model-binding provider routes, the hardcoded template
+// "marketplace", the optimization endpoints with fabricated cache metrics)
+// were removed 2026-10-21: zero consumers, fabricated data — the cluster
+// market is pack cluster metadata (catalog.js), model binding is the deploy
+// form's modelOverrides (gateway/packs.js).
 createMonitoringRoutes(app);
 // Admin dashboard (agent-cluster-platform Phase 8)
 createAdminRoutes(app);
-// Performance optimization (agent-cluster-platform Phase 10)
-createOptimizationRoutes(app);
 // 谦面市场设备凭据 (facet-market-credentials, C1.1-B) — same family again:
 // pair-by-bind-code, silent relogin, injection via credentialRef.
 registerFacetMarketRoutes(ctx);

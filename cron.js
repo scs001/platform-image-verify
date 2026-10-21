@@ -53,8 +53,42 @@ async function initCron({ broadcast, runJobTurn, isBusy, workerStats }) {
   engine.drainRepairQueue();
 }
 
-// ── Schedule math ────────────────────────────────────────────────────────────
+// ── Cluster task policy validation (agent-cluster-platform) ─────────────────
+//
+// Shape gate for executionPolicy/targetAgents on cluster tasks. The cluster's
+// existence is the route layer's check (it owns clusters.db); this side owns
+// the scheduling-neutral field shapes so every entry path (REST, WS, MCP)
+// validates identically.
+const RESULT_AGGREGATIONS = ["first", "all", "summary"];
 
+function validateClusterPolicy({ executionPolicy, targetAgents }) {
+  if (executionPolicy !== undefined) {
+    if (typeof executionPolicy !== "object" || executionPolicy === null || Array.isArray(executionPolicy)) {
+      return "executionPolicy must be an object";
+    }
+    const { allowParallel, timeoutMinutes, resultAggregation } = executionPolicy;
+    if (allowParallel !== undefined && typeof allowParallel !== "boolean") {
+      return "executionPolicy.allowParallel must be a boolean";
+    }
+    if (
+      timeoutMinutes !== undefined &&
+      (!Number.isFinite(timeoutMinutes) || timeoutMinutes <= 0 || timeoutMinutes > 1440)
+    ) {
+      return "executionPolicy.timeoutMinutes must be a number in (0, 1440]";
+    }
+    if (resultAggregation !== undefined && !RESULT_AGGREGATIONS.includes(resultAggregation)) {
+      return `executionPolicy.resultAggregation must be one of ${RESULT_AGGREGATIONS.join(", ")}`;
+    }
+  }
+  if (targetAgents !== undefined) {
+    if (!Array.isArray(targetAgents) || targetAgents.length === 0 || !targetAgents.every((a) => typeof a === "string" && a.trim())) {
+      return "targetAgents must be a non-empty array of agent ids";
+    }
+  }
+  return null;
+}
+
+// ── Schedule math ────────────────────────────────────────────────────────────
 // cron-parser is node-schedule's own expression parser, so occurrence math
 // here always agrees with what the timer fires on.
 function parseRule(cron, tz) {
@@ -142,7 +176,19 @@ function refreshNextRun(task) {
   }
 }
 
-async function addJob({ cron, when, prompt, preset, tz, sessionTitle }) {
+async function addJob({
+  cron,
+  when,
+  prompt,
+  preset,
+  tz,
+  sessionTitle,
+  clusterId,
+  clusterName,
+  agentCount,
+  executionPolicy,
+  targetAgents,
+}) {
   if (cron) {
     const invalid = validateCron(cron, tz);
     if (invalid) throw new Error(invalid);
@@ -150,6 +196,22 @@ async function addJob({ cron, when, prompt, preset, tz, sessionTitle }) {
     throw new Error("a valid cron expression or one-shot time is required");
   }
   if (!prompt || typeof prompt !== "string") throw new Error("prompt is required");
+
+  // Cluster binding (agent-cluster-platform): a task targets a persona OR a
+  // cluster — the cluster ref rides `preset` so target-ref semantics stay
+  // uniform, and the human label/count persist beside it for list views.
+  const isClusterTask = Boolean(clusterId);
+  if (isClusterTask && preset) {
+    throw new Error("a task targets a preset OR a cluster, not both");
+  }
+  if (clusterName !== undefined && typeof clusterName !== "string") {
+    throw new Error("clusterName must be a string");
+  }
+  if (agentCount !== undefined && (!Number.isInteger(agentCount) || agentCount < 1)) {
+    throw new Error("agentCount must be a positive integer");
+  }
+  const policyInvalid = validateClusterPolicy({ executionPolicy, targetAgents });
+  if (policyInvalid) throw new Error(policyInvalid);
 
   const id = generateId();
   const taskData = {
@@ -163,8 +225,17 @@ async function addJob({ cron, when, prompt, preset, tz, sessionTitle }) {
     // belongs to. sessionId is minted here so the id is stable from creation,
     // but the dsh/SQLite session itself is only created at first execution
     // (a paused or deleted task leaves no orphan session behind).
-    preset: preset ?? null,
-    targetType: "persona",
+    preset: isClusterTask ? clusterId : (preset ?? null),
+    targetType: isClusterTask ? "cluster" : "persona",
+    ...(isClusterTask
+      ? {
+          clusterId,
+          clusterName: clusterName || null,
+          agentCount: typeof agentCount === "number" ? agentCount : null,
+          executionPolicy: executionPolicy ?? null,
+          targetAgents: targetAgents ?? null,
+        }
+      : {}),
     sessionId: `cron-${id}`,
     sessionTitle: sessionTitle || null,
     tz: tz || null,

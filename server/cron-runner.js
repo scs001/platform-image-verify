@@ -14,6 +14,8 @@
 
 import * as chatHistory from "../chat-history.js";
 import * as catalog from "../catalog.js";
+import * as dshProfile from "../dsh-profile.js";
+import { getClusterDatabase } from "./routes/clusters-db.js";
 import { runA2aTurn, resolveGatewayCredential } from "./a2a-client.js";
 
 const IDLE_POLL_MS = 250;
@@ -165,7 +167,387 @@ async function switchPresetForJob(ctx, preset, timeoutMs) {
   return { ok: false, error: "could not switch the agent for the scheduled task (runtime stayed busy)" };
 }
 
-export function attachCronRunner(ctx) {
+// ── Member executors ─────────────────────────────────────────────────────────
+//
+// The two turn shapes a scheduled task (or a cluster fan-out member) can run.
+// Both record their exchange in the job's session and return
+// { ok, error?, interrupted?, usage?, text? } — `text` is the collected
+// assistant reply, consumed only by the cluster aggregation.
+
+// a2a targets (add-agent-delegation-a2a D2): a REMOTE turn — no runtime
+// readiness, no preset switch, no dsh prompt. The streamed reply lands in the
+// task's dedicated session exactly like a persona execution's output;
+// outbound depth is 1 (human-originated delegation baseline — chains get
+// +1 only when in-cell turns are themselves delegated, a future state).
+async function runA2aRemoteTurn(ctx, job, timeoutMs) {
+  const entry = catalog.getAgentEntry(job.preset);
+  if (!entry || entry.mode !== "a2a") {
+    return { ok: false, error: `market agent '${job.preset}' is not in the catalog (or not a2a)` };
+  }
+  const sessionId = job.sessionId || `task-${job.id}`;
+  chatHistory.recordMessage(sessionId, "user", job.prompt);
+  if (job.sessionTitle) {
+    try { chatHistory.setTitle(sessionId, job.sessionTitle); } catch { /* prompt-derived title stays */ }
+  }
+  try {
+    const { gatewayToken } = resolveGatewayCredential({
+      ownerEmail: ctx.cellUserEmail || null,
+      cloudMode: !!ctx.CLOUD_MODE,
+    });
+    const agentToken = process.env.AGENT_SERVING_BACKEND_TOKEN || "";
+    const out = await runA2aTurn(entry.url, job.prompt, {
+      contextId: sessionId,
+      depth: 1,
+      gatewayToken,
+      agentToken,
+      timeoutMs,
+    });
+    if (out.text) chatHistory.recordMessage(sessionId, "assistant", out.text);
+    ctx.sessionCollectors.delete(sessionId);
+    const version = ctx.sessionVersion;
+    chatHistory
+      .listSessions()
+      .then((sessions) => {
+        if (version === ctx.sessionVersion) {
+          ctx.broadcast({ type: "sessions", sessions: ctx.withTurnStatus?.(sessions) ?? sessions, current: chatHistory.currentSessionId() });
+        }
+      })
+      .catch(() => {});
+    return { ok: true, usage: null, text: out.text ?? null };
+  } catch (e) {
+    ctx.sessionCollectors.delete(sessionId);
+    return { ok: false, error: e.message };
+  }
+}
+
+async function runPersonaTurn(ctx, job, timeoutMs, activeTurns) {
+  if (!ctx.dshBridge?.isReady()) {
+    return { ok: false, error: "the agent runtime is not ready" };
+  }
+
+  // preset binding: a job without one (legacy record) runs under whatever
+  // preset is live, matching its pre-change behavior.
+  // `releaseReservation` is taken BEFORE the switch: it restarts the child,
+  // and bridge.ready drains the web queue (concurrent-chat-sessions D2).
+  // Without the reservation a queued web prompt would be dispatched into the
+  // restart this job is about to use.
+  let releaseReservation = null;
+  if (job.preset) {
+    releaseReservation = ctx.reserveRuntime?.("cron-preset-switch") ?? null;
+    const switched = await switchPresetForJob(ctx, job.preset, timeoutMs);
+    if (!switched.ok) {
+      releaseReservation?.();
+      return switched;
+    }
+  }
+
+  const sessionId = job.sessionId || `cron-${job.id}`;
+
+  // The bound session is a normal session: the user can open it, and rows
+  // stamped here pick up the (just-switched) preset as their creation fact.
+  chatHistory.recordMessage(sessionId, "user", job.prompt);
+  if (job.sessionTitle) {
+    try {
+      chatHistory.setTitle(sessionId, job.sessionTitle);
+    } catch { /* sanitize failure leaves the prompt-derived title */ }
+  }
+
+  const collected = collectTurn(ctx, sessionId, timeoutMs, activeTurns);
+  // The collector is now the visible trace of this turn — hand the runtime
+  // over to it and drop the preset-switch reservation.
+  releaseReservation?.();
+  let result;
+  try {
+    await ctx.dshBridge.prompt(sessionId, [{ type: "text", text: job.prompt }]);
+    result = await collected;
+  } catch (e) {
+    ctx.sessionCollectors.delete(sessionId);
+    activeTurns.delete(sessionId);
+    ctx.onRuntimeIdle?.();
+    return { ok: false, error: e.message, interrupted: e.interrupted === true };
+  }
+
+  // Refresh the sidebar/list so a returning client sees the job session's
+  // new output (this is the sessions broadcast finishTurn makes on the web
+  // path; the cron path never sends `done`, which belongs to live turns).
+  const version = ctx.sessionVersion;
+  chatHistory
+    .listSessions()
+    .then((sessions) => {
+      if (version === ctx.sessionVersion) {
+        ctx.broadcast({ type: "sessions", sessions: ctx.withTurnStatus?.(sessions) ?? sessions, current: chatHistory.currentSessionId() });
+      }
+    })
+    .catch((e) => console.error("[cron] sessions refresh failed:", e.message));
+
+  if (result.error) return { ok: false, error: result.error };
+  return { ok: true, usage: result.usage ?? null, text: result.text ?? null };
+}
+
+// ── Cluster task orchestration (agent-cluster-platform) ─────────────────────
+//
+// A cluster task fans its prompt out to the cluster's member agents and
+// aggregates their outputs into the task's bound session. Members map to the
+// two existing executor shapes: local personas (preset switch + one turn per
+// member, own sub-session) and a2a market agents (remote turns). Persona
+// members always run sequentially — the primary runtime is ONE shared child
+// and a preset switch restarts it, so true parallelism is only possible for
+// remote members; with allowParallel the a2a members overlap the persona
+// loop, and persona members keep their serial order (an honest degradation,
+// never a fanned-out lie).
+
+function memberSessionId(job, agentId) {
+  const key = String(agentId).toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 64);
+  return `${job.sessionId || `cron-${job.id}`}--${key}`;
+}
+
+// Resolve the cluster's member agents against the live catalog. Pure —
+// exported for tests. Returns one resolution per requested member, in
+// cluster order (targetAgents filters, never reorders):
+//   { member, entry }     → runnable (entry.kind picks the executor)
+//   { member, skip, reason } → not runnable now (pack gone, agent uninstalled,
+//                              entry not chat/a2a, persona preset not ready)
+export function resolveClusterMembers(cluster, targetAgents, catalogAgents) {
+  const wanted = Array.isArray(targetAgents) && targetAgents.length ? new Set(targetAgents) : null;
+  const out = [];
+  for (const member of cluster.agents ?? []) {
+    if (wanted && !wanted.has(member.agentId)) continue;
+    const entry =
+      catalogAgents.find((a) => a.packId === member.packId && a.id === member.agentId) || null;
+    if (!entry) {
+      out.push({ member, skip: `pack '${member.packId}' 的 agent '${member.agentId}' 不在当前 catalog（未安装或已卸载）` });
+      continue;
+    }
+    if (entry.mode === "a2a") {
+      out.push({ member, entry });
+      continue;
+    }
+    if (entry.mode !== "chat") {
+      out.push({ member, skip: `agent '${member.agentId}' 的模式（${entry.mode}）不可执行` });
+      continue;
+    }
+    if (!dshProfile.hasCatalogAgentPreset(entry.id)) {
+      out.push({ member, skip: `agent '${member.agentId}' 的本地 persona 预设未就绪` });
+      continue;
+    }
+    out.push({ member, entry });
+  }
+  return out;
+}
+
+// Render the per-member outcome block for the bound session. Pure — exported
+// for tests.
+export function buildClusterDigest({ clusterName, results, policy }) {
+  const lines = [`集群「${clusterName}」任务完成。`];
+  const okResults = results.filter((r) => r.status === "ok");
+  const badResults = results.filter((r) => r.status !== "ok");
+
+  const aggregation = policy?.resultAggregation ?? "all";
+  if (aggregation === "first" && okResults.length > 0) {
+    lines.push("", `## ${okResults[0].name} 的输出（first 策略）`, "", okResults[0].text || "(空回复)");
+  } else {
+    for (const r of okResults) {
+      lines.push("", `## ${r.name}`, "", r.text || "(空回复)");
+    }
+  }
+  if (badResults.length) {
+    lines.push("", "## 未产出成员");
+    for (const r of badResults) {
+      lines.push(`- ${r.name}：${r.status === "skipped" ? `跳过——${r.reason}` : `失败——${r.error || "未知错误"}`}`);
+    }
+  }
+  if (policy?.allowParallel && results.some((r) => r.kind === "persona" && r.status === "ok")) {
+    lines.push("", "（并行策略下本地 persona 成员仍按序执行——共享运行时一次只能承载一个 persona；仅远端 a2a 成员真正并行。）");
+  }
+  return lines.join("\n");
+}
+
+async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, runPersona, runA2a, listAgents }) {
+  const clusterDb = getClusterDatabase();
+  const cluster = clusterDb.get(job.preset);
+  if (!cluster) {
+    return { ok: false, error: `cluster '${job.preset}' no longer exists` };
+  }
+
+  const policy = job.executionPolicy ?? {};
+  const memberTimeoutMs =
+    Number.isFinite(policy.timeoutMinutes) && policy.timeoutMinutes > 0
+      ? policy.timeoutMinutes * 60_000
+      : turnTimeoutMs;
+  const resolutions = resolveClusterMembers(cluster, job.targetAgents, listAgents());
+  if (resolutions.length === 0) {
+    return { ok: false, error: "cluster has no runnable member agents (empty or all filtered out)" };
+  }
+
+  const boundSessionId = job.sessionId || `cron-${job.id}`;
+  // Captured BEFORE any member runs — the persona loop switches the shared
+  // runtime once per member; this is what it goes back to at the end.
+  const originalPreset = ctx.currentPreset || null;
+  chatHistory.recordMessage(boundSessionId, "user", job.prompt);
+  if (job.sessionTitle) {
+    try { chatHistory.setTitle(boundSessionId, job.sessionTitle); } catch { /* prompt-derived title stays */ }
+  }
+
+  const results = [];
+  const personaQueue = [];
+  for (const r of resolutions) {
+    if (r.skip) {
+      results.push({ agentId: r.member.agentId, name: r.member.agentId, kind: "skip", status: "skipped", reason: r.skip });
+    } else if (r.entry.mode === "a2a") {
+      results.push({
+        agentId: r.member.agentId,
+        name: r.entry.name || r.member.agentId,
+        kind: "a2a",
+        status: "pending",
+        entry: r.entry,
+      });
+    } else {
+      personaQueue.push(r);
+    }
+  }
+
+  const runA2aMember = async (slot) => {
+    const out = await runA2a(ctx, {
+      id: job.id,
+      prompt: job.prompt,
+      targetType: "a2a",
+      preset: slot.entry.id,
+      sessionId: memberSessionId(job, slot.agentId),
+      sessionTitle: `${cluster.name} · ${slot.entry.name || slot.agentId}`,
+    }, memberTimeoutMs);
+    slot.status = out.ok ? "ok" : "failed";
+    slot.text = out.text ?? null;
+    slot.error = out.error ?? null;
+    delete slot.entry;
+  };
+  const runPersonaMember = async (r) => {
+    const preset = dshProfile.rosterPresetId(r.entry.id);
+    const out = await runPersona(ctx, {
+      id: job.id,
+      prompt: job.prompt,
+      targetType: "persona",
+      preset,
+      sessionId: memberSessionId(job, r.member.agentId),
+      sessionTitle: `${cluster.name} · ${r.entry.name || r.member.agentId}`,
+    }, memberTimeoutMs, activeTurns);
+    results.push({
+      agentId: r.member.agentId,
+      name: r.entry.name || r.member.agentId,
+      kind: "persona",
+      status: out.ok ? "ok" : "failed",
+      text: out.text ?? null,
+      error: out.error ?? null,
+      usage: out.usage ?? null,
+    });
+    return out;
+  };
+
+  // allowParallel overlaps the remote turns with the persona loop; sequential
+  // runs everything in member order. The persona loop itself is serial either
+  // way (one shared runtime).
+  const a2aSlots = results.filter((r) => r.kind === "a2a");
+  let remote = null;
+  if (a2aSlots.length && policy.allowParallel) {
+    remote = Promise.allSettled(a2aSlots.map((s) => runA2aMember(s)));
+  }
+  let lastPersonaOut = null;
+  let firstOkPreset = null;
+  for (const r of personaQueue) {
+    lastPersonaOut = await runPersonaMember(r);
+    if (lastPersonaOut.ok && !firstOkPreset) {
+      firstOkPreset = dshProfile.rosterPresetId(r.entry.id);
+    }
+  }
+  if (!remote && a2aSlots.length) {
+    for (const s of a2aSlots) await runA2aMember(s);
+  } else if (remote) {
+    const settled = await remote;
+    for (const [i, s] of settled.entries()) {
+      if (s.status === "rejected") {
+        a2aSlots[i].status = "failed";
+        a2aSlots[i].error = s.reason?.message || String(s.reason);
+      }
+    }
+  }
+
+  // Bookkeeping: usage totals ride the cluster row; the fan-out leaves the
+  // runtime on the LAST member's persona — put it back where the user had it.
+  const totalUsage = results.reduce((acc, r) => {
+    const u = r.usage;
+    if (!u) return acc;
+    return {
+      input: (acc?.input ?? 0) + (u.input ?? u.promptTokens ?? 0),
+      output: (acc?.output ?? 0) + (u.output ?? u.completionTokens ?? 0),
+    };
+  }, null);
+  try {
+    clusterDb.update(cluster.id, {
+      lastUsedAt: Date.now(),
+      totalExecutions: (cluster.totalExecutions || 0) + 1,
+      ...(totalUsage ? { totalTokensUsed: (cluster.totalTokensUsed || 0) + (totalUsage.input || 0) + (totalUsage.output || 0) } : {}),
+    });
+  } catch (e) {
+    console.warn(`[cluster] stats update failed for ${cluster.id}: ${e.message}`);
+  }
+
+  const aggregation = policy.resultAggregation ?? "all";
+  let digestText = buildClusterDigest({ clusterName: cluster.name, results, policy });
+  let summaryRan = false;
+
+  // summary: one synthesis turn under the first successful persona member,
+  // in the BOUND session, fed with every member's output. Falls back to the
+  // plain digest when no local member produced output (nothing to lead with).
+  if (aggregation === "summary" && firstOkPreset) {
+    const outputs = results
+      .filter((r) => r.status === "ok" && r.text)
+      .map((r) => `【${r.name}】\n${r.text}`)
+      .join("\n\n");
+    const synthPrompt =
+      `以下是集群「${cluster.name}」各成员对同一任务的输出。\n\n原始任务：${job.prompt}\n\n${outputs}\n\n` +
+      `请综合以上成员输出，给出一份统一的最终答复：先给结论，再列各成员的关键贡献，最后指出成员间的分歧或缺口（如有）。`;
+    const synth = await runPersona(ctx, {
+      id: job.id,
+      prompt: synthPrompt,
+      targetType: "persona",
+      preset: firstOkPreset,
+      sessionId: boundSessionId,
+      sessionTitle: job.sessionTitle || null,
+    }, memberTimeoutMs, activeTurns);
+    summaryRan = true;
+    if (synth.ok && synth.text) {
+      digestText = synth.text;
+    } else {
+      digestText += `\n\n（汇总回合失败，以上为成员原始输出。失败原因：${synth.error || "未知"}）`;
+    }
+  }
+
+  // Put the shared runtime back where the user had it. A persona member that
+  // failed mid-switch may still have moved it, so the restore keys off "any
+  // persona-shaped work happened", not off success.
+  if ((personaQueue.length > 0 || summaryRan) && originalPreset && ctx.currentPreset !== originalPreset) {
+    try { await switchPresetForJob(ctx, originalPreset, memberTimeoutMs); } catch { /* best-effort */ }
+  }
+
+  chatHistory.recordMessage(boundSessionId, "assistant", digestText);
+  const version = ctx.sessionVersion;
+  chatHistory
+    .listSessions()
+    .then((sessions) => {
+      if (version === ctx.sessionVersion) {
+        ctx.broadcast({ type: "sessions", sessions: ctx.withTurnStatus?.(sessions) ?? sessions, current: chatHistory.currentSessionId() });
+      }
+    })
+    .catch((e) => console.error("[cluster] sessions refresh failed:", e.message));
+
+  const okCount = results.filter((r) => r.status === "ok").length;
+  if (okCount === 0) {
+    const errs = results.map((r) => `${r.name}: ${r.status === "skipped" ? r.reason : r.error || "unknown"}`).join("; ");
+    return { ok: false, error: `all cluster members failed or were skipped — ${errs}` };
+  }
+  return { ok: true, usage: totalUsage };
+}
+
+export function attachCronRunner(ctx, { runPersona = null, runA2a = null, listAgents = null } = {}) {
   // A bridge restart (preset switch, catalog sync, crash respawn) kills any
   // in-flight turn in a job session — the collector would otherwise sit out
   // the full turn timeout and wedge the engine's serialized queue behind a
@@ -186,9 +568,25 @@ export function attachCronRunner(ctx) {
     activeTurns.clear();
   };
 
+  // The two member executors (cluster fan-out composes these). Injectable so
+  // tests drive the orchestration without a live runtime.
+  const personaExecutor = runPersona || runPersonaTurn;
+  const a2aExecutor = runA2a || runA2aRemoteTurn;
+  const listAgentsFn = listAgents || catalog.listAgents;
+
   // `job` is the live engine record (cron.js). Returns { ok, error? }.
   ctx.runCronJobTurn = async (job, { turnTimeoutMs } = {}) => {
     const timeoutMs = turnTimeoutMs || 10 * 60 * 1000;
+
+    if (job.targetType === "cluster") {
+      return runClusterTurn(ctx, job, {
+        turnTimeoutMs: timeoutMs,
+        activeTurns,
+        runPersona: personaExecutor,
+        runA2a: a2aExecutor,
+        listAgents: listAgentsFn,
+      });
+    }
 
     // a2a targets (add-agent-delegation-a2a D2): a REMOTE turn — no runtime
     // readiness, no preset switch, no dsh prompt. The streamed reply lands in
@@ -196,106 +594,9 @@ export function attachCronRunner(ctx) {
     // outbound depth is 1 (human-originated delegation baseline — chains get
     // +1 only when in-cell turns are themselves delegated, a future state).
     if (job.targetType === "a2a") {
-      const entry = catalog.getAgentEntry(job.preset);
-      if (!entry || entry.mode !== "a2a") {
-        return { ok: false, error: `market agent '${job.preset}' is not in the catalog (or not a2a)` };
-      }
-      const sessionId = job.sessionId || `task-${job.id}`;
-      chatHistory.recordMessage(sessionId, "user", job.prompt);
-      if (job.sessionTitle) {
-        try { chatHistory.setTitle(sessionId, job.sessionTitle); } catch { /* prompt-derived title stays */ }
-      }
-      try {
-        const { gatewayToken } = resolveGatewayCredential({
-          ownerEmail: ctx.cellUserEmail || null,
-          cloudMode: !!ctx.CLOUD_MODE,
-        });
-        const agentToken = process.env.AGENT_SERVING_BACKEND_TOKEN || "";
-        const out = await runA2aTurn(entry.url, job.prompt, {
-          contextId: sessionId,
-          depth: 1,
-          gatewayToken,
-          agentToken,
-          timeoutMs,
-        });
-        if (out.text) chatHistory.recordMessage(sessionId, "assistant", out.text);
-        ctx.sessionCollectors.delete(sessionId);
-        const version = ctx.sessionVersion;
-        chatHistory
-          .listSessions()
-          .then((sessions) => {
-            if (version === ctx.sessionVersion) {
-              ctx.broadcast({ type: "sessions", sessions: ctx.withTurnStatus?.(sessions) ?? sessions, current: chatHistory.currentSessionId() });
-            }
-          })
-          .catch(() => {});
-        return { ok: true, usage: null };
-      } catch (e) {
-        ctx.sessionCollectors.delete(sessionId);
-        return { ok: false, error: e.message };
-      }
+      return a2aExecutor(ctx, job, timeoutMs);
     }
 
-    if (!ctx.dshBridge?.isReady()) {
-      return { ok: false, error: "the agent runtime is not ready" };
-    }
-
-    // preset binding: a job without one (legacy record) runs under whatever
-    // preset is live, matching its pre-change behavior.
-    // `releaseReservation` is taken BEFORE the switch: it restarts the child,
-    // and bridge.ready drains the web queue (concurrent-chat-sessions D2).
-    // Without the reservation a queued web prompt would be dispatched into the
-    // restart this job is about to use.
-    let releaseReservation = null;
-    if (job.preset) {
-      releaseReservation = ctx.reserveRuntime?.("cron-preset-switch") ?? null;
-      const switched = await switchPresetForJob(ctx, job.preset, timeoutMs);
-      if (!switched.ok) {
-        releaseReservation?.();
-        return switched;
-      }
-    }
-
-    const sessionId = job.sessionId || `cron-${job.id}`;
-
-    // The bound session is a normal session: the user can open it, and rows
-    // stamped here pick up the (just-switched) preset as their creation fact.
-    chatHistory.recordMessage(sessionId, "user", job.prompt);
-    if (job.sessionTitle) {
-      try {
-        chatHistory.setTitle(sessionId, job.sessionTitle);
-      } catch { /* sanitize failure leaves the prompt-derived title */ }
-    }
-
-    const collected = collectTurn(ctx, sessionId, timeoutMs, activeTurns);
-    // The collector is now the visible trace of this turn — hand the runtime
-    // over to it and drop the preset-switch reservation.
-    releaseReservation?.();
-    let result;
-    try {
-      await ctx.dshBridge.prompt(sessionId, [{ type: "text", text: job.prompt }]);
-      result = await collected;
-    } catch (e) {
-      ctx.sessionCollectors.delete(sessionId);
-      activeTurns.delete(sessionId);
-      ctx.onRuntimeIdle?.();
-      return { ok: false, error: e.message, interrupted: e.interrupted === true };
-    }
-
-    // Refresh the sidebar/list so a returning client sees the job session's
-    // new output (this is the sessions broadcast finishTurn makes on the web
-    // path; the cron path never sends `done`, which belongs to live turns).
-    const version = ctx.sessionVersion;
-    chatHistory
-      .listSessions()
-      .then((sessions) => {
-        if (version === ctx.sessionVersion) {
-          ctx.broadcast({ type: "sessions", sessions: ctx.withTurnStatus?.(sessions) ?? sessions, current: chatHistory.currentSessionId() });
-        }
-      })
-      .catch((e) => console.error("[cron] sessions refresh failed:", e.message));
-
-    if (result.error) return { ok: false, error: result.error };
-    return { ok: true, usage: result.usage ?? null };
+    return personaExecutor(ctx, job, timeoutMs, activeTurns);
   };
 }

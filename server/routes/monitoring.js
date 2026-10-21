@@ -1,132 +1,102 @@
-// Real-time monitoring for Agent Cluster Platform
+// Cluster monitoring (agent-cluster-platform).
+//
+// Honest-surface rewrite 2026-10-21: this file previously also served
+// /api/monitoring/providers (hardcoded fabricated provider metrics) and
+// /api/monitoring/tasks (constant zeros); the provider endpoint is deleted
+// (no real data source exists behind it) and /tasks now reads the live task
+// engine. Every number served here is computed from real state.
 
 import { getClusterDatabase } from "./clusters-db.js";
+import * as engine from "../../task-engine.js";
 
 const clusterDb = getClusterDatabase();
 
 export function createMonitoringRoutes(app) {
-  // GET /api/monitoring/clusters - Get cluster metrics
-  app.get("/api/monitoring/clusters", (req, res) => {
+  // GET /api/monitoring/clusters - cluster metrics from clusters.db
+  app.get("/api/monitoring/clusters", (_req, res) => {
     try {
-      const clusters = [];
-      
-      for (const cluster of clusterDb.listAll()) {
-        clusters.push({
-          id: cluster.id,
-          name: cluster.name,
-          status: cluster.status,
-          agentCount: cluster.agents.length,
-          totalExecutions: cluster.totalExecutions,
-          totalTokensUsed: cluster.totalTokensUsed,
-          lastUsedAt: cluster.lastUsedAt,
-          createdAt: cluster.createdAt,
-          uptime: Date.now() - cluster.createdAt,
-          avgExecutionTime: cluster.totalExecutions > 0 
-            ? Math.floor(cluster.totalTokensUsed / cluster.totalExecutions) 
+      const clusters = clusterDb.listAll().map((cluster) => ({
+        id: cluster.id,
+        name: cluster.name,
+        status: cluster.status,
+        agentCount: cluster.agents.length,
+        totalExecutions: cluster.totalExecutions,
+        totalTokensUsed: cluster.totalTokensUsed,
+        tokensPerExecution:
+          cluster.totalExecutions > 0
+            ? Math.floor(cluster.totalTokensUsed / cluster.totalExecutions)
             : 0,
-        });
-      }
-      
-      // Calculate summary stats
-      const totalClusters = clusters.length;
-      const activeClusters = clusters.filter(c => c.status === "ready").length;
+        lastUsedAt: cluster.lastUsedAt,
+        createdAt: cluster.createdAt,
+      }));
+
       const totalExecutions = clusters.reduce((sum, c) => sum + c.totalExecutions, 0);
       const totalTokens = clusters.reduce((sum, c) => sum + c.totalTokensUsed, 0);
-      
+
       res.json({
         summary: {
-          totalClusters,
-          activeClusters,
+          totalClusters: clusters.length,
+          activeClusters: clusters.filter((c) => c.status === "ready").length,
           totalExecutions,
           totalTokens,
           averageTokensPerExecution: totalExecutions > 0 ? Math.floor(totalTokens / totalExecutions) : 0,
         },
         clusters: clusters.sort((a, b) => b.lastUsedAt - a.lastUsedAt),
       });
-    
     } catch (err) {
       console.error("[cluster] handler error:", err);
       if (!res.headersSent) res.status(500).json({ error: err.message || "internal error" });
     }
   });
-  
-  // GET /api/monitoring/tasks - Get task metrics
-  app.get("/api/monitoring/tasks", (req, res) => {
+
+  // GET /api/monitoring/tasks - task metrics from the live task engine
+  // (cluster tasks included; clusterName/agentCount ride the client shape).
+  app.get("/api/monitoring/tasks", (_req, res) => {
     try {
-      // In production, query task database
+      const tasks = engine.listTasks();
+      const byState = (pred) => tasks.filter(pred).length;
       res.json({
         summary: {
-          totalTasks: 0,
-          activeTasks: 0,
-          completedTasks: 0,
-          failedTasks: 0,
+          totalTasks: tasks.length,
+          activeTasks: byState((t) => t.state === "running" || t.state === "queued"),
+          clusterTasks: byState((t) => t.target?.type === "cluster" || t.clusterId != null),
+          pausedTasks: byState((t) => t.paused),
         },
-        tasks: [],
+        tasks: tasks.slice(0, 50).map((t) => ({
+          id: t.id,
+          type: t.type,
+          status: t.status,
+          state: t.state,
+          paused: t.paused,
+          clusterId: t.clusterId ?? null,
+          clusterName: t.clusterName ?? null,
+          agentCount: t.agentCount ?? null,
+          lastRun: t.lastRun,
+          nextRun: t.nextRun,
+        })),
       });
-    
     } catch (err) {
       console.error("[cluster] handler error:", err);
       if (!res.headersSent) res.status(500).json({ error: err.message || "internal error" });
     }
   });
-  
-  // GET /api/monitoring/providers - Get provider performance
-  app.get("/api/monitoring/providers", (req, res) => {
-    try {
-      res.json({
-        providers: [
-          {
-            name: "Volces",
-            status: "healthy",
-            successRate: 98.5,
-            avgResponseTime: 1200,
-            requestsLastHour: 15234,
-          },
-          {
-            name: "Tencent",
-            status: "healthy",
-            successRate: 97.2,
-            avgResponseTime: 1450,
-            requestsLastHour: 8932,
-          },
-          {
-            name: "DeepSeek",
-            status: "healthy",
-            successRate: 99.1,
-            avgResponseTime: 980,
-            requestsLastHour: 5621,
-          },
-        ],
-      });
-    
-    } catch (err) {
-      console.error("[cluster] handler error:", err);
-      if (!res.headersSent) res.status(500).json({ error: err.message || "internal error" });
-    }
-  });
-  
-  // GET /api/monitoring/health - System health check
-  app.get("/api/monitoring/health", (req, res) => {
+
+  // GET /api/monitoring/health - process + cluster-store health
+  app.get("/api/monitoring/health", (_req, res) => {
     try {
       res.json({
         status: "healthy",
         timestamp: Date.now(),
-        version: "1.0.0",
         uptime: process.uptime(),
         memory: {
-          used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024 * 100) / 100 + "MB",
-          total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024 * 100) / 100 + "MB",
+          used: Math.round((process.memoryUsage().heapUsed / 1024 / 1024) * 100) / 100 + "MB",
+          total: Math.round((process.memoryUsage().heapTotal / 1024 / 1024) * 100) / 100 + "MB",
         },
         clusters: {
           total: clusterDb.count(),
           active: clusterDb.countActive(),
         },
-        api: {
-          endpoints: 12,
-          healthy: true,
-        },
       });
-    
     } catch (err) {
       console.error("[cluster] handler error:", err);
       if (!res.headersSent) res.status(500).json({ error: err.message || "internal error" });

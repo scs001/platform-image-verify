@@ -38,10 +38,20 @@ setInterval(() => {
 
 const clusterDb = getClusterDatabase();
 
-export function createClusterRoutes(app) {
+// Same auth-off semantics as the pack market (server.js registerMarketPackRoutes):
+// with auth on, identity is the forward-auth user; with auth off the requester
+// is the machine owner. The unconditional req.user gate this module shipped
+// with made every cluster route 401 in local/e2e auth-off mode.
+function resolveUserFactory(ctx) {
+  return (req) =>
+    req.user ?? (ctx?.authEnabled ? null : { email: ctx?.cellUserEmail || "owner@local", groups: [] });
+}
+
+export function createClusterRoutes(app, ctx = null) {
+  const resolveUser = resolveUserFactory(ctx);
   app.post("/api/clusters/dynamic", async (req, res) => {
     try {
-      const user = req.user;
+      const user = resolveUser(req);
       if (!user) {
         return res.status(401).json({ error: "Authentication required" });
       }
@@ -140,7 +150,7 @@ export function createClusterRoutes(app) {
   // Session-derived listing (the UI has no email to pass): "my clusters".
   app.get("/api/clusters/mine", (req, res) => {
     try {
-      const user = req.user;
+      const user = resolveUser(req);
       if (!user) return res.status(401).json({ error: "Authentication required" });
       const clusters = clusterDb.listByUser(user.email).map((cluster) => ({
         clusterId: cluster.id,
@@ -344,8 +354,8 @@ export function createClusterRoutes(app) {
   app.get("/api/clusters/user/:email", (req, res) => {
     try {
       const requestedEmail = req.params.email;
-      const user = req.user;
-      
+      const user = resolveUser(req);
+
       if (!user || user.email !== requestedEmail) {
         return res.status(403).json({ error: "Forbidden" });
       }
@@ -373,7 +383,6 @@ export function createClusterRoutes(app) {
 
 export function startAutoTerminationJob() {
   setInterval(() => {
-    const now = Date.now();
     const gracePeriod = 24 * 60 * 60 * 1000;
     const absoluteTimeout = 7 * 24 * 60 * 60 * 1000;
     

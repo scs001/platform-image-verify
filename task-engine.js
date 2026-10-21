@@ -25,7 +25,7 @@ const TURN_TIMEOUT_MS = 10 * 60 * 1000;
 const HISTORY_LIMIT = 100;
 // a2a targets (market Agent Services) are supported when the cell's catalog
 // holds online a2a entries — executed as remote turns (add-agent-delegation-a2a).
-const SUPPORTED_TARGET_TYPES = ["persona", "a2a"];
+const SUPPORTED_TARGET_TYPES = ["persona", "a2a", "cluster"];
 const SUPPORTED_TRIGGERS = ["schedule", "manual"];
 
 let tasks = new Map(); // id -> task record (loaded from disk + live schedule
@@ -262,6 +262,14 @@ function clientShape(t) {
     prompt: t.prompt,
     target: { type: t.targetType ?? "persona", ref: t.preset ?? null },
     preset: t.preset ?? null,
+    // Cluster binding (agent-cluster-platform): present only on cluster tasks
+    // — the human label/count ride the record so list views and the cron MCP
+    // can describe the target without re-reading clusters.db.
+    clusterId: t.clusterId ?? null,
+    clusterName: t.clusterName ?? null,
+    agentCount: t.agentCount ?? null,
+    executionPolicy: t.executionPolicy ?? null,
+    targetAgents: t.targetAgents ?? null,
     sessionId: t.sessionId ?? null,
     sessionTitle: t.sessionTitle ?? null,
     tz: t.tz ?? null,

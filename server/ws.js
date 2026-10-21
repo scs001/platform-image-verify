@@ -6,6 +6,7 @@ import * as chatHistory from "../chat-history.js";
 import * as cron from "../cron.js";
 import * as catalog from "../catalog.js";
 import * as skills from "./skills.js";
+import { getClusterDatabase } from "./routes/clusters-db.js";
 import { userFromHeaders, mpUserFromToken, normalizeSsoEmail, withRoles } from "./auth.js";
 
 // Identity for a WS upgrade, logto mode: the browser's session cookie first,
@@ -827,6 +828,21 @@ ctx.wss.on("connection", (ws, req) => {
 
       case "cron_add": {
         try {
+          // Cluster binding (agent-cluster-platform): same shapes the REST
+          // bridge validates; the cluster's existence resolves where clusters
+          // live (clusters.db) before the engine sees the ref.
+          let clusterFields = null;
+          if (data.clusterId !== undefined) {
+            const cluster = getClusterDatabase().get(data.clusterId);
+            if (!cluster) throw new Error(`cluster '${data.clusterId}' not found`);
+            clusterFields = {
+              clusterId: cluster.id,
+              clusterName: cluster.name,
+              agentCount: cluster.agents.length,
+              executionPolicy: data.executionPolicy,
+              targetAgents: data.targetAgents,
+            };
+          }
           const job = await cron.addJob({
             cron: data.cron,
             when: data.when,
@@ -834,6 +850,7 @@ ctx.wss.on("connection", (ws, req) => {
             preset: data.preset,
             tz: data.tz,
             sessionTitle: data.sessionTitle,
+            ...(clusterFields ?? {}),
           });
           ws.send(JSON.stringify({ type: "cron_added", job }));
         } catch (err) {

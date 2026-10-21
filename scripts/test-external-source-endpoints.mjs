@@ -127,13 +127,18 @@ test("write boundary: the only install write path requires server-side confirm",
   assert.ok(block.includes("app.get(\"/api/extensions/external/search\""));
   assert.ok(block.includes("app.get(\"/api/extensions/external/entry/"));
   assert.ok(block.includes("app.get(\"/api/extensions/external/install-preview/"));
-  // 刀二 re-judged the 刀一 read-only pin: the shelf keeps only GETs; the ONE
-  // write path is the install POST, and its consent gate is asserted at the
-  // route level in the real-app test below (belt) plus this source pin
-  // (braces) — a write verb without the confirm check would be a defect.
+  // 刀二 re-judged the 刀一 read-only pin: the shelf keeps only GETs; the write
+  // paths are the install + update POSTs (update added by the explicit-update
+  // flow, same consent gate), and the gate is asserted at the route level in
+  // the real-app test below (belt) plus this source pin (braces) — a write
+  // verb without the confirm check would be a defect.
   const writeVerbs = block.match(/app\.(post|put|patch|delete)\("\/api\/extensions\/external[^"]*"/g) ?? [];
-  assert.deepEqual(writeVerbs, ["app.post(\"/api/extensions/external/install\""], "only the install POST is a write path");
-  assert.ok(block.includes("confirm !== true"), "the install path pins the server-side confirm gate");
+  assert.deepEqual(
+    writeVerbs,
+    ["app.post(\"/api/extensions/external/install\"", "app.post(\"/api/extensions/external/update\""],
+    "the only write paths are the install + update POSTs",
+  );
+  assert.ok(block.includes("confirm !== true"), "the write paths pin the server-side confirm gate");
 });
 
 test("real routes: preview + install against an injected registry (confirm enforced)", async () => {

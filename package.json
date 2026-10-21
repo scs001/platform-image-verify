@@ -1,7 +1,7 @@
 {
   "type": "module",
   "name": "platform",
-  "version": "1.3.17",
+  "version": "1.3.18",
   "description": "Platform - browser-based AI assistant built on the DeepSeek Harness (dsh) runtime",
   "main": "electron/main.js",
   "engines": {

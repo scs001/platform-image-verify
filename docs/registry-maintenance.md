@@ -1247,7 +1247,7 @@ pack 转 public 时机）。证据细节见 docs/acceptance-criteria.md 柏讯�
 
 **余账**：HEAD 既有红 `test-official-packs-lint`（tool_risk 断言 12 vs lib 实 14，add-pack-subscribe-actions 欠的同步，与本 change 无关）；萬星面停车展示（fd-wanxing 后续，`-32012` 消息已可读）。
 
-### §15.2 补记：首个 cluster pack 上架 + 全链真机可视收口（2026-10-21）
+### §15.3 补记：首个 cluster pack 上架 + 全链真机可视收口（2026-10-21）
 
 | 项 | 值 |
 |---|---|

@@ -63,9 +63,9 @@ runner dsh 适配器需要与 cell 完全相同的结果解析（dsh 生产事�
 
 `#memoryDiscipline()` 改签名为按「本次组合是否实际加入了挂载行」返回：dsh / ACP spawn 路径在拿到 `memoryToken` 且 push 了 mount row 之后才取文案；铸币失败（现有 fail-open 分支）→ 无文案；`#spawnPod` 在 scopes change 挂载到位前恒 `null`（去掉现在那段自相矛盾的注释与传参）。`memory-discipline.js personaWithMemoryDiscipline` 不变。
 
-### D6 文案单源：根 `memory-discipline.js`
+### D6 文案单源：根 `memory-discipline.js`（双语）
 
-新建仓库根 `memory-discipline.js`（与 `cell-memory.js` 同层，三种打包形态里根 `*.js` 已随 cell-memory.js 在册）导出唯一 `MEMORY_DISCIPLINE`，取 cell 现行中文文案（产品语言；runner 的英文版退役）。`agent-runner/memory-discipline.js` 改为 `export { MEMORY_DISCIPLINE } from "../memory-discipline.js"` 并保留 `personaWithMemoryDiscipline`；`cell-memory.js` 删本地常量改 import。单测断言 runner 注入文本 === cell 注入文本。
+新建仓库根 `memory-discipline.js`（与 `cell-memory.js` 同层，三种打包形态里根 `*.js` 已随 cell-memory.js 在册）导出唯一 `MEMORY_DISCIPLINE`——**中英双语同串**（用户 2026-10-22 拍板「apply 必须多语言」）：标题双语、两条纪律逐条中英对照，总长 ~700 字符。`agent-runner/memory-discipline.js` 改为 `export { MEMORY_DISCIPLINE } from "../memory-discipline.js"` 并保留 `personaWithMemoryDiscipline`；`cell-memory.js` 删本地常量改 import。单测断言 runner 注入文本 === cell 注入文本、且同时含中英两种文案。
 
 cell 消费：`writePresetsPatchSync` 在**部署单例路径**（`dirs` 为空）且 `cellMemoryConfig(env).enabled` 时，对 `preset-standard` 与每个生成预设的 persona 行写 `config.suffix = MEMORY_DISCIPLINE`（追加到既有 suffix 之后）；`dirs` 非空（runner 私有 home）不动——runner 自己在 persona 文本里追加。门取部署级配置而非每 owner 铸币结果：预设覆盖文件是部署单例，无法按 owner 分叉；某 owner 铸币瞬时失败时文案在而工具缺的边角按既有 fail-open 接受（任务 6.3 记录这一点进台账）。
 
@@ -79,7 +79,7 @@ cell 消费：`writePresetsPatchSync` 在**部署单例路径**（`dirs` 为空�
 
 - 观测条数 ×(2+2N)：短期靠 fd-memory 侧 SUMMARY_MAX 与 runner 截断控体积；PVC 观察一周。
 - ACP 字段名若与 claude-code 实流不符，观测退化为仅回合边界（D2 兜底），不致失败；任务 4.1 用真流核对。
-- 单源文案换成中文会改变 runner 现有英文注入（既有单测只断言「含该字符串」，不绑文本）；英文 persona 的部署读中文纪律可接受（工具名是 ASCII）。
+- 双语文案使 runner 现有英文注入变为中英对照（既有单测只断言「含该字符串」，不绑文本）；长度 ~700 字符，dsh-persona prefix/suffix 均无上限约束。
 - `writePresetsPatchSync` 多了对 `cell-memory.js` 的 import：两者同在根层，无打包缺口；desktop / opensource 清单任务 6.4 核。
 
 ## Test Plan（全部进 `agent-runner/test/memory.test.mjs` 与新 `test/dsh-profile-memory.test.mjs`）

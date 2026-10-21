@@ -37,9 +37,9 @@
 
 ## 6. 文案单源 + cell 消费者（design D6）
 
-- [ ] 6.1 新建根 `memory-discipline.js` 导出唯一 `MEMORY_DISCIPLINE`（取 cell 现行中文文案）；`agent-runner/memory-discipline.js` 改 re-export 并保留 `personaWithMemoryDiscipline`；`cell-memory.js` 删本地常量改 import
+- [ ] 6.1 新建根 `memory-discipline.js` 导出唯一 `MEMORY_DISCIPLINE`——**中英双语同串**（用户 10-22 拍板「apply 必须多语言」：标题双语、两条纪律逐条中英对照）；`agent-runner/memory-discipline.js` 改 re-export 并保留 `personaWithMemoryDiscipline`；`cell-memory.js` 删本地常量改 import
 - [ ] 6.2 `dsh-profile.js writePresetsPatchSync`：部署单例路径（`dirs` 为空）且 `cellMemoryConfig(env).enabled` 时，对 `preset-standard` 与每个生成预设的 persona 行写 `config.suffix`（既有 suffix 之后追加文案）；`dirs` 非空不动
-- [ ] 6.3 cell 测试（新 `test/dsh-profile-memory.test.mjs` 或并入既有 dsh-profile 测试）：开启时每个 persona 行 suffix 含文案；关闭时 presets patch 与现状字节等同；runner 注入文本 === cell 注入文本；台账记录「部署级门 vs 每 owner 铸币失败」的接受边角
+- [ ] 6.3 cell 测试（新 `test/dsh-profile-memory.test.mjs` 或并入既有 dsh-profile 测试）：开启时每个 persona 行 suffix 含文案；关闭时 presets patch 与现状字节等同；runner 注入文本 === cell 注入文本且中英两种文案都在串内；台账记录「部署级门 vs 每 owner 铸币失败」的接受边角
 - [ ] 6.4 打包三形态核查：Dockerfile 根 `*.js` / `agent-runner` / `lib` 已在册（读码确认）；desktop（electron-builder `files`）与 `dist-opensource` 清单含根 `memory-discipline.js` 与 `lib/dsh-tool-result.js`，缺则补
 
 ## 7. 验证与出片

@@ -13,7 +13,7 @@
 ## 2. 干跑确证
 
 - [x] 2.1 改道完成（0.1 判决后）：GHA 干跑被 FDT 池耗尽所阻，**本机 arm64 `npm run dist` 替代**（npmmirror 双镜像 env 绕 electron 辅助件下载墙）——产出 dist/Platform-1.3.17-arm64.dmg + .app，全程 verify-bundle 门在环（还拒了一次我自己的 bots 误报，证明门行为正确）
-- [ ] 2.2 **自动化证据已全绿**（2026-10-21）：打包版 server 用自带 node 启动 7s READY（`{"ready":true,"dshInitError":null}`），SPA/skills/update-preview/mp 端点全通零错；**win-install-smoke Phase C 已证 Windows 窗口真渲染**（自检 exit 0，run 39542514305）、Phase B 装机后端 ready 200、Phase A 装机静默安装链全过。**余人工项**（mac GUI 眼见/舰队配对真启动/并发切窗/语音/集群页深度走查）留发布后走查——不阻塞发布（用户拍板备用仓通道即刻出片）
+- [x] 2.2 **自动化证据已全绿**（2026-10-21）：①打包版 server 无头 7s READY（SPA/skills/update-preview/mp 端点全通零错）；②win-install-smoke 三相（装机链/后端 ready 200/Windows 窗口自检渲染 exit 0，run 39542514305）；③**官方 1.3.18 dmg（sha256 与发布 digest 一致）在本机既有数据目录上真升级装**——GUI 自检 exit 0、did-finish-load、100% 像素着色、旧 4 会话保留、桌面专属导航眼见（Apps 应用中心 + Wanxing Fleet 舰队页=IS_DESKTOP 门正确）、Connected 状态在位。**移交日常验证项**（需用户活凭据/生产配对，非装机缺陷面）：舰队配对真启动（涉生产 seat 状态）、并发切窗流式、语音 ASR 实录
 - [x] 2.3 **坐实且多抓一例**：① agent-runner 缺口坐实（v1.3.13 files 清单无此目录，静态证据链）+ 修复实证（.app 树 agent-runner/index.js 在位）；② **第四例同类病**：server/layout.js 运行时 import `packages/core/src/lib/recipes.ts` 而 files 清单从无 `packages/**`（角色线 10-17 后带入，1.3.18 不修即装机炸）——本地冒烟首启动即捕获已修（RUNTIME_DIRS +packages，commit 5dd1b1c5）。desktop-fleet spec delta：无需（打包类根因，D5 判据不触发）
 
 ## 3. 补版发布

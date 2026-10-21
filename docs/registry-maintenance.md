@@ -1280,3 +1280,5 @@ pack 转 public 时机）。证据细节见 docs/acceptance-criteria.md 柏讯�
 
 **终态**：tasks **70/70**（真完成 50 + 作废/ superseded 20，每条带理由与证据）；测试 43/43；`agent-cluster-platform` 达归档条件（归档动作待与在途姊妹 change 排序后执行）。
 | 2026-10-21 深夜（CST 10-22 00:58 完成） | SafeLine SSE 攒包修复（site 31+21） | tengine 默认 proxy_buffering on，流式帧同刻到达（wanxing 问询卡交互帧超回合预算被取消）。经 PUT /api/open/site/{31,21}/nginx_config 的 custom_location 注入 proxy_buffering off; proxy_request_buffering off; proxy_send_timeout 600s;（DB 持久化，勿改生成文件）。site 31 覆盖 wanxing/paas-admin/wire/lex/connector/zhesi/shilun/juchuang 八域，site 21 覆盖 mcp/file/file-console/bastion/token/lawbench/lawbench-mcp 七域。未加 proxy_http_version 1.1 与 Connection ""（proxy_params 已设，且会破 WebSocket）。验证须用长回合（≥300 项），短回答无法区分缓冲；改后 201 个 delta 铺开 2.6→9.7s。回滚=PUT 同端点把 custom_location 还原（308 行保留 / site 21 置 []） |
+
+| 2026-10-22 凌晨 | wanxing-facade sha-fa94037（同源 POST Origin 匿名铸发修复 + 并行集群服务单位）| E3 ego 四线全过（等价 harness）；add-copilot-control-surface 归档；embed origins 还原只剩识律站 |

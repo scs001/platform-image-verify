@@ -10,8 +10,8 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const manifest = process.argv[2] ?? process.env.SEARCH_RELAY_MANIFEST || "all-services/prod/search-relay.yaml";
-const relayDir = process.argv[3] ?? "/Users/chengsishi/paas/services/search-relay";
+const manifest = process.argv[2] ?? (process.env.SEARCH_RELAY_MANIFEST || "all-services/prod/search-relay.yaml");
+const relayDir = process.argv[3] ?? (process.env.SEARCH_RELAY_DIR || "services/search-relay");
 
 const src = readFileSync(manifest, "utf8");
 

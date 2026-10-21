@@ -504,24 +504,25 @@ served by an **operator-run relay** you deploy and key: the platform holds only
 
 A reference implementation ships at **`services/search-relay/`** (zero-dependency
 single file; `node services/search-relay/index.js`, loopback :4597 by default,
-front it with a TLS proxy in prod). Keys and caller tokens live in
+front it with a TLS proxy in prod). The lane credential and caller tokens live in
 `services/search-relay/keys.json` (gitignored; `keys.example.json` is the
-template) — one entry per customer in `tokens[]`. The GLM fallback slot is
-reserved but not wired; wire it when a GLM search key arrives.
+template) — one entry per customer in `tokens[]`.
 
 **Supply topology.** The shared pool is served by the platform gateway's
 websearch lane (词元): the relay calls `POST /v1/search` on the gateway with a
 dedicated internal key (its own group, websearch price 0, usage still booked).
-**Provider keys therefore live only in the gateway's account pool** — the relay
-holds none for normal operation. `keys.json` gains a `ciyuan:{url,key}` block
-(env `CIYUAN_URL`/`CIYUAN_KEY`; file wins). `serpapi[]` is now the **cold
-standby** path: if the lane is unreachable or keeps 5xx-ing, a request is served
-directly, and 3 consecutive lane failures open a 60s breaker during which
-requests skip the lane (the first request after the window probes it again).
-Standby usage is counted and reported; the caller's `x-search-source` three
-states are unchanged. Both configured paths down ⇒ 503 naming both. A relay
-without `ciyuan` runs direct-only exactly as before (that is also the rollback
-state: restore the old `keys.json`).
+**Provider keys live only in the gateway's account pool** — the relay holds
+none. `keys.json` carries a `ciyuan:{url,key}` block (env `CIYUAN_URL`/
+`CIYUAN_KEY`; file wins) and that is the relay's **only supply**: the direct
+SerpAPI path and its `serpapi[]` cold standby were retired after a clean
+one-week observation window (retire-search-relay-direct; leftover `serpapi`/
+`glm` keys in a file are ignored, and a relay without `ciyuan` refuses to
+start). A lane outage is reported to the caller as a clear 503
+(`search upstream unavailable (websearch lane): …`), never as a silent direct
+fallback; the caller's `x-search-source` three states (`user` /
+`pool` / `pool-after-user-failure`) are decided lane-side and pass through
+unchanged. Rollback of the retirement = revert the code commit and re-embed a
+`serpapi[]` key (kept out of the repo).
 
 The relay must implement exactly one endpoint:
 
@@ -536,19 +537,17 @@ Authorization: Bearer <the deployment's SEARCH_RELAY_TOKEN>
 
 Relay-side expectations (they are the cost controls — demo/sandbox users have
 full search access by product decision, and per-prompt budgets do not meter
-tool calls): pool multiple provider keys and rotate on 429/quota-exhaustion,
-fall back to a second provider (e.g. GLM search) when the pool is dry, cache
-identical queries with a TTL, and cap each token's daily call count. Issue
-**per-customer tokens** so a leaked desktop settings file costs one token's
-quota, not the pool. (In the lane topology the pooling/rotation half is the
-gateway's job — see above — and the relay keeps admission, caching, caps and
-stats.)
+tool calls): cache identical queries with a TTL and cap each token's daily call
+count. Issue **per-customer tokens** so a leaked desktop settings file costs one
+token's quota, not the pool. Provider-key pooling and rotation are the
+gateway lane's job — see above — and the relay keeps admission, caching, caps
+and stats.
 
-`GET /v1/stats` adds an `upstream` block for the ops board:
-`{mode:"ciyuan"|"direct", laneConfigured, reachable, breakerOpen, laneCalls,
-laneFailures, fallbacks}`; `keys[]` remains (cold-standby view) until the
-standby path retires. Logs tag every served request with `route=lane |
-direct-fallback | direct`.
+`GET /v1/stats` carries an `upstream` block for the ops board:
+`{mode:"ciyuan", laneConfigured, reachable, breakerOpen, laneCalls,
+laneFailures}` — `reachable`/`breakerOpen` is a pure reachability signal (3
+consecutive lane failures raise it for 60s; any success clears it; it never
+reroutes anything). Logs tag every served request with `route=lane`.
 
 Wiring per form factor — no code changes in any of them:
 

@@ -164,6 +164,22 @@ CLA：上游有 CLA.md，首次 PR 前签署（覆盖后续 PR）。补丁保持
   + 既有 byok 11/11、scoped 9/9 不回归。冷备窗口观察一周后退役直连路径。
   **面板行待 platform 出片**（2.1 代码在 paas main 946b8e6，字段缺失时优雅隐藏，
   功能与回滚不受影响）。
+- **直连退役（2026-10-22，paas 侧 change `retire-search-relay-direct`）**：观察窗
+  10-15→10-22 到期双门全过（pod 6.69 天 0 重启 `reachable=true/breakerOpen=false`
+  常绿；`fallbacks=4/laneFailures=3` 全系 10-15 07:35 验收演练、此后零回退）→ 删
+  直连路径与 `serpapi[]` 冷备（paas `589930aa`：`serpapiSearch/poolSearch/
+  directSearchWithOverride` + 两级冷却 + `keyFailures/poolDry/fallbacks` 全删；
+  无车道拒启；breaker 降级为纯可达性信号；车道故障→503 `search upstream
+  unavailable (websearch lane): …`）。面板去 per-key 冷却视图/poolDry 行、上游行
+  改显 laneFailures；ops-console lane 视图。**生产**：fd-infra-deploy `96819e3`
+  ConfigMap 重嵌（pod 内 md5 一致）+ secret `search-relay-keys` 去 `serpapi/glm`
+  （tokens/scoped_master 原样，退役 key 本地留底不入仓）+ rollout restart；platform
+  `sha-384a979`（digest a7e380a6，三清单 `0188252`）。验收四件：启动行
+  `upstream=ciyuan-lane, 1 static token(s)…` **无 standby**；真搜 200 `route=lane`；
+  BYOK 三态 user/pool/pool-after-user-failure 全由车道裁决；坏车道 key 演练 503
+  明确命名车道、恢复后回 200。单测 lane 6 + byok 11 + scoped 10。**回滚**=revert
+  589930aa + 重嵌 + secret 回填 serpapi。词元侧**零动作**（internal 分组/key #68
+  不变）。
 - **Origin change（已归档）**：`openspec/changes/archive/2026-10-15-fork-sub2api-ciyuan`
   （proposal/design/tasks 20 项全绿）；**对应主 spec**：`openspec/specs/ciyuan-fork-lineage`
   （谱系治理 6 需求）+ `openspec/specs/ciyuan-gateway-lanes`（三车道契约与计量 6 需求）。

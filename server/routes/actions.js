@@ -19,6 +19,7 @@ import {
   riskToTierMap,
   stripUserFilledArgs,
   userFilledArgsFor,
+  validateArgs,
   validateUserFilledArgs,
 } from "../../lib/action-registry.js";
 import { preflightAction } from "../../lib/action-preflight.js";
@@ -90,6 +91,19 @@ export async function proposeAction(req, res) {
   } catch (err) {
     console.error("[actions] preflight failed:", err.message);
     return res.status(500).json({ error: "preflight error" });
+  }
+
+  // After preflight (the connect card outranks a key typo), before anything is
+  // stored: a proposal missing a required key renders「undefined」and can never
+  // execute, so it must not become a pending row the owner cannot approve.
+  const shape = validateArgs(actionId, args);
+  if (!shape.ok) {
+    return res.status(400).json({
+      error: "invalid args",
+      details: `missing required args for ${actionId}: ${shape.missing.join(", ")} (expected keys: ${shape.argKeys.join(", ")})`,
+      missing: shape.missing,
+      expected: shape.argKeys,
+    });
   }
 
   const proposalId = randomUUID();

@@ -23,6 +23,9 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+// Declarations only — the registry's import chain opens no database until a
+// handler asks for one, so the child stays a thin stdio process.
+import { argKeysFor, listActions, requiredArgsFor } from "../lib/action-registry.js";
 
 console.log = (...args) => console.error(...args);
 
@@ -49,9 +52,24 @@ async function call(method, path, body) {
     signal: AbortSignal.timeout(10_000),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `${method} ${path} failed (${res.status})`);
+  if (!res.ok) {
+    // `details` is what lets the model self-correct in the same turn (the
+    // expected key list, the connect path) — "invalid args" alone would not.
+    const reason = data.details ? `${data.error}: ${data.details}` : data.error;
+    throw new Error(reason || `${method} ${path} failed (${res.status})`);
+  }
   return data;
 }
+
+// One entry per action, parameter names verbatim from the registry (* =
+// required), so the model reads the tool's keys instead of guessing them.
+export const ARG_SPEC = listActions()
+  .map((a) => {
+    const required = new Set(requiredArgsFor(a.id));
+    const keys = argKeysFor(a.id).map((k) => (required.has(k) ? `${k}*` : k));
+    return `${a.id} {${keys.join(", ")}}`;
+  })
+  .join("; ");
 
 const TOOLS = [
   {
@@ -60,18 +78,21 @@ const TOOLS = [
       "Propose an action that requires human confirmation before execution. " +
       "The proposal enters a pending state with a unique ID; the caller should " +
       "render a confirmation card showing the impact and risk tier. Approval " +
-      "and rejection happen outside this channel via WebSocket messages.",
+      "and rejection happen outside this channel via WebSocket messages. " +
+      "Pass exactly the argument keys declared for the action (listed under " +
+      "args): unknown keys are dropped and a missing required key is rejected " +
+      "with the expected list — do not guess names.",
     inputSchema: {
       type: "object",
       required: ["actionId", "args"],
       properties: {
         actionId: {
           type: "string",
-          description: "Registered action id (e.g., 'facet.pack.publish', 'wanxing.agent.deploy')",
+          description: "Registered action id (e.g., 'facet.pack.visibility', 'wanxing.agent.pause')",
         },
         args: {
           type: "object",
-          description: "Action-specific arguments (opaque to the MCP layer)",
+          description: `Action-specific arguments, keys exactly as declared (* = required): ${ARG_SPEC}`,
         },
       },
     },

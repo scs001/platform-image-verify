@@ -377,6 +377,35 @@ test("3.1 propose normalizes camelCase tool args (artifactId → artifact_id)", 
   assert.deepEqual(JSON.parse(row.args_json), { artifact_id: 23 });
 });
 
+test("3.1 propose refuses a proposal missing a required tool arg before it is stored", async () => {
+  connected();
+  const count = () => db.getDb().prepare("SELECT COUNT(*) AS n FROM action_proposals").get().n;
+  const before = count();
+  const res = mockRes();
+  await actions.proposeAction(
+    proposeReq({ actionId: "wire.demand.submit", args: { title: "只有模型发明的键" }, proposerEmail: EMAIL }),
+    res,
+  );
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.body.error, "invalid args");
+  assert.deepEqual(res.body.missing, ["description", "contact_email"]);
+  assert.deepEqual(res.body.expected, ["description", "contact_email", "company", "indicator_code"]);
+  assert.match(res.body.details, /description, contact_email/, "the model is told which keys to send");
+  assert.equal(count(), before, "no pending row for a proposal that could never execute");
+
+  // A blank required value is a missing one.
+  const blank = mockRes();
+  await actions.proposeAction(
+    proposeReq({ actionId: "wire.artifact.archive", args: { artifact_id: "  " }, proposerEmail: EMAIL }),
+    blank,
+  );
+  assert.equal(blank.statusCode, 400);
+  assert.deepEqual(blank.body.missing, ["artifact_id"]);
+  assert.equal(count(), before);
+});
+
+// Also the ordering guard: {title} alone is an invalid-args body, yet without
+// the credential the answer must still be the connect card, not a key list.
 test("3.1 propose refuses without the wire credential and points at the connect card", async () => {
   lc.disconnect(EMAIL, "wire-customer");
   const res = mockRes();
@@ -398,7 +427,10 @@ test("3.1 propose rejects an unregistered wire action outright", async () => {
 test("3.2 approve validates userArgs before anything executes", async () => {
   connected();
   const p = mockRes();
-  await actions.proposeAction(proposeReq({ actionId: "wire.demand.submit", args: { title: "t" }, proposerEmail: EMAIL }), p);
+  await actions.proposeAction(
+    proposeReq({ actionId: "wire.demand.submit", args: { description: "t", contact_email: EMAIL }, proposerEmail: EMAIL }),
+    p,
+  );
   const id = p.body.proposalId;
 
   const missing = mockRes();
@@ -424,7 +456,10 @@ test("3.2 approve validates userArgs before anything executes", async () => {
 test("3.2 approve is owner-only (another user gets 403; auth-off is the machine owner)", async () => {
   connected();
   const p = mockRes();
-  await actions.proposeAction(proposeReq({ actionId: "wire.demand.submit", args: { title: "t" }, proposerEmail: EMAIL }), p);
+  await actions.proposeAction(
+    proposeReq({ actionId: "wire.demand.submit", args: { description: "t", contact_email: EMAIL }, proposerEmail: EMAIL }),
+    p,
+  );
   const id = p.body.proposalId;
   const res = mockRes();
   await actions.approveAction(

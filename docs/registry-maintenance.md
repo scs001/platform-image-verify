@@ -1176,3 +1176,16 @@ pack 转 public 时机）。证据细节见 docs/acceptance-criteria.md 柏讯�
 **发现③（架构级，列后续 change）**：dock/embed 只带 `board=` 不带 `preset=` → 用户默认预设=全工具面 → 模型对「改可见性」直调 `facet_market_pack_visibility`（用户自己凭据）**绕过闸**（无提议、无确认、无审计；propose 时模型回复「已完成」）。D2 边界「闸靠聚焦模式保障」的真机现身；D6 的 `preset=` 参数设计在案未接线。修复方向=dock 按线注入聚焦 pack 预设（读+propose_action），使「副驾=闸内」为默认。
 
 **动态端口教训**：cell 重生后监听端口可超 40000（本次 42307），探针过滤 20000-40000 会漏。
+
+### 12.3 v1.3.18 桌面补版发布记录（2026-10-21，备用仓通道）
+
+| 项 | 值 |
+|---|---|
+| 背景 | 桌面冻结 v1.3.13（10-16）后 main 滚 138 commit 未出桌面；且连抓两例打包缺口——`agent-runner/**`（舰队机位 spawn 件，v1.3.13 装机配对即炸）与 `packages/**`（server/layout.js 运行时 import packages/core/src/lib/*.ts，角色线带入，不修则 1.3.18 装机启动即炸）；已建制 `RUNTIME_DIRS` 单源 + verify-bundle 覆盖门（paas `6ea4a27e`/`20a8e6ca`） |
+| 出片通道 | **FDT 池 2011/2000 耗尽 → 备用仓通道**：干净快照（gitleaks 零泄漏）推 `testaction003/build-pool` 侧分支 `desktop-release/v1.3.18`（.github 只留 release+win-smoke 两 workflow，pool main/image 机器零扰动），tag 触发——**release 矩阵 4/4 绿**（run 39541416123，arm64 319MB/x64 327MB/exe 240MB） |
+| win-smoke | run 39542514305 三相全绿（Phase A 后端进程 / **B `/api/ready` 200** / **C 窗口渲染自检 exit 0**）；`smoke:` 证据行 #85/#53 |
+| 官网上架 | release-sync 数据 c64cc41 双端推（本机跑）；**资产落盘走新 dl-publish 镜像轨**：本机与 cheap3 拉 GitHub 均 ~20KB/s、runner→cheap3:40925 ssh 不可达（keyscan 60s 超时实锤）→ 池仓 dispatch `dl-publish` 把三资产打进 scratch 镜像推 `hkccr/yizuo/desktop-installers:1.3.18`（TCR 自动建仓，1 分钟 887MB），cheap3 `docker pull + cp` 落 `/srv/dl/platform/1.3.18/`——**三产物 sha256 与 GitHub asset 逐一相等**，prune 1.3.12（留 1.3.13/1.3.18） |
+| 滚动 | fd-official-web `fd-web.yaml` sha-c64cc41（010423f 双端推；relay 已自动搬 ccr，digest `1b0551ee` 双侧一致）→ ArgoCD hard-refresh → Synced/Healthy/010423f |
+| 验证 | dl 三直链 200 且 content-length 精确；**官网 `/products/base/` 下载带眼见 v1.3.18**（mac dmg + win exe href 线上可点）；本机 arm64 本地 dist 无头冒烟 7s READY（npmmirror 双镜像 env 配方） |
+| 坑与配方 | ①本地出桌面包：`ELECTRON_MIRROR` + `ELECTRON_BUILDER_BINARIES_MIRROR` 指 npmmirror，裸跑在 electron 辅助件下载 600s 超时；②CN 网络大文件搬运一律走镜像轨（runner→hkccr→relay 侧 docker pull），SSH/rsync 直连全废；③`workflow_dispatch` 只认默认分支上的 workflow——侧分支快照要配套把 dispatch 型 workflow 放 pool main（win-smoke/dl-publish 已留池仓复用）；④临时 SSH 秘钥用完双侧即撤（cheap3 authorized_keys + 池 secret） |
+| 余账 | 桌面 GUI 八项人工走查（舰队配对真启动/并发切窗/语音等）未做——win-smoke C 相已证 Windows 窗口渲染、mac 后端无头已证，深度走查留后续；无 autoUpdater（用户手动重装，发布文案已带） |

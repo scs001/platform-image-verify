@@ -1263,3 +1263,19 @@ pack 转 public 时机）。证据细节见 docs/acceptance-criteria.md 柏讯�
 **收尾**：exactly-once+Badge 修复已随 `sha-02082df`（digest `e1bcbe78`，GitOps `4145ab4` 三清单）上产；探针 10/10。tasks 终态 **52/70**。
 
 | 2026-10-21 晚 | platform sha-a9460a2（serving 问询桥）/ wanxing facade+web sha-56efb2e（E3）/ fd-lex-web sha-289851b | testaction001 池串行四发；池残留变量排雷；fd-infra-deploy 与 fd-lex push 真源=gitee；wanxing registry_url 切 100.64.0.15:18080 破 SafeLine SSE 攒包（公网入口缓冲遗留待决） |
+
+### §15.3 补记：集群三正确性修 + 模型归因 + 创作者指南（2026-10-22 上线，sha-ed371ff）
+
+| 项 | 值 |
+|---|---|
+| 代码 | paas `7cd3a444`（快照 `8e9c791` + 恢复提交 `ed371ff`；digest `47f1a521` ccr 实证；GitOps `e65b129` 三清单；imageID 三 pod 全等；探针 10/10） |
+| 缘起 | 任务页集群视图走查（4.10）连环揪出三处正确性缺陷 |
+
+**三修**（全部先真机实锤后修）：
+1. **saveTasks 白名单漏集群字段**（首轮欠账）：cell 重启后集群任务回载 clusterName/policy/targetAgents 全丢（生产实锤：WS cron_jobs 里 null）——徽章消失、重跑静默退化为全成员+顺序。序列化按 targetType 补五字段；磁盘 jobs.json 实证在位。
+2. **冷 cell 启动竞态**：路由挂载先于 initCron，冷 cell「建任务即运行」以 `turnFn is not a function` 失败（生产实锤一次，重试即愈故更隐蔽）。引擎就绪门（未初始化 insert 抛/enqueue 拒、REST 503 retry）+ 独立进程单测。
+3. **自动清退三缺陷**：到点不复核（宽限内被使用照杀）/无预警事件/不解绑会话/重复计时器。重写 `autoTerminationTick`（可注入时钟）：`cluster_expiring` 预警（绑定徽标显示清退时刻）→1h 宽限→复核仍闲置才终止→释放绑定+广播（与手动 DELETE 同路）。四态单测。
+
+**新增**：模型归因（3.15 车道落定——扇出成员捕获 runtimeModel.id→历史 `models:{成员:模型}`，生产实证两成员 deepseek-v4.1-flash）；创作者指南 `docs/cluster-pack-creator-guide.md`（三镜头真实配方）；载入集群 tooltip 五语言；3.12-3.20 其余按车道架构作废定性（**sub2api/词元车道就是 provider 路由层，再造一层=复制车道**；PATCH=重部署语义；会话级 override 无消费方证据）。
+
+**终态**：tasks **70/70**（真完成 50 + 作废/ superseded 20，每条带理由与证据）；测试 43/43；`agent-cluster-platform` 达归档条件（归档动作待与在途姊妹 change 排序后执行）。

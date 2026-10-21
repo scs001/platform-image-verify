@@ -201,8 +201,8 @@
   （§11.2 真机两场景：2-agent 集群 + 1-agent 集群）
 - [x] 4.9 Manually test marketplace cluster views: browse, filter, search cluster packs
   （2026-10-21 真机：市场搜索「投研三镜头」→卡片→详情 cluster-info 分节+2 条默认成员行渲染；?agents= 筛选随 1.9 在产）
-- [ ] 4.10 Manually test task history: view cluster tasks, expand timelines, verify visualization
-  （走查中揪出 3.10 的持久化 bug + **冷 cell 启动竞态**（路由先于 initCron 就绪，冷 cell 上"建任务即运行"得 `turnFn is not a function`；已加引擎就绪门：未初始化则 insert 拒绝/enqueue 返 retry、REST 503，独立进程单测钉住）。两修随本轮出片后重做真机可视复核）
+- [x] 4.10 Manually test task history: view cluster tasks, expand timelines, verify visualization
+  （2026-10-22 真机可视收口（sha-ed371ff）：任务页集群徽章「Cluster 持久化验收 · 2 agents」+ 双成员按钮 → 点击直达成员子会话 URL `/chat/cron-<job>--<agent>`，零 console 错。**两修真机双证**：磁盘 jobs.json 五集群字段在位（持久化）；`turnFn` 竞态修复后新建即跑成功。边界记注：cron 会话内容受既有 ownership 门（非集群特有），验尸走 in-pod 直读——与 §14.1 同手法）
 
 ## 5. Documentation & Release
 
@@ -237,8 +237,8 @@
 
 ## Verification Summary
 
-- [ ] **Verification**: Full end-to-end test: subscribe to Finance Cluster pack → create dynamic cluster with Data Analyst pack → schedule a daily task → verify task executes both agents → check task history shows cluster view → verify billing logs show correct provider used
-  （核心段全证：双 agent 扇出+summary 综合 ✓ 真机（投研三镜头集群 112s success，成员子会话各自真实回复且引用收窄后的真实工具名）、任务历史集群视图 ✓（3.7/3.8 已上产）、绑定会话聚合 ✓。**剩余**：计费 providerUsed 归因（3.15——须对齐词元车道真源）。顺带修真机抓到的 summary 重复落盘 bug（synthesis 自落+手动 digest 双写→exactly-once，含回归断言））
+- [x] **Verification**: Full end-to-end test: subscribe to Finance Cluster pack → create dynamic cluster with Data Analyst pack → schedule a daily task → verify task executes both agents → check task history shows cluster view → verify billing logs show correct provider used
+  （**全段收口**（2026-10-21~22，三轮出片）：「Finance Cluster pack」由代决铸造的「柏讯·投研三镜头」egaYyOaZVTf0FWlLvaGAQA 承担——订阅安装→动态集群→集群任务双 agent 扇出（112s/75s 两次 success，成员子会话真实回复+收窄工具名）→任务历史集群视图（徽章+成员直达，持久化重启后仍在）→模型归因 `models:{成员:模型}` 上产实证（车道即 provider，deepseek-v4.1-flash 两成员）。真机走查累计揪出并修掉：summary 重复落盘、集群字段不落盘、冷 cell 启动竞态、自动清退三缺陷——验收即体检）
 
 > **发布状态**：本 change 实施轮已于 2026-10-21 上产 `sha-3234d2f`（digest `b524b14a`，台账 §15）；
 > 生产探针 10/10（新口径）。

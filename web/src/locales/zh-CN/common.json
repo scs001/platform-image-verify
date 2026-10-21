@@ -2003,7 +2003,12 @@
   },
   "copilot": {
     "context": "正在看",
-    "clearContext": "清除上下文"
+    "clearContext": "清除上下文",
+    "focused": "聚焦预设",
+    "focusPending": "正在切换到聚焦预设…",
+    "focusRejected": "主对话正在回答，暂未聚焦",
+    "focusRetry": "重试",
+    "unfocused": "未聚焦：该线助手 pack 未安装"
   },
   "action": {
     "pending": "提议中...",

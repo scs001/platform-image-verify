@@ -3,10 +3,14 @@
 // Run: node --test scripts/test-official-packs-lint.mjs
 //
 // Every docs/official-packs/*.json is a copilot pack: its allowTools must be
-// disjoint from the wire write-tool universe (lib/wire-tool-risk.js, 12 keys
-// vendored from the two MCP repos' tool_risk) and from the facet/wanxing write
-// tools the action registry names. The wire pack is additionally pinned to its
-// exact 11-tool read face and to the manifest validator.
+// disjoint from the wire write-tool universe (lib/wire-tool-risk.js, 14 keys
+// vendored from the two MCP repos' tool_risk — 12 + the pack subscribe/
+// unsubscribe pair of add-pack-subscribe-actions) and from the facet/wanxing
+// write tools the action registry names. The wire pack is additionally pinned
+// to its exact 11-tool read face and to the manifest validator. Since v2
+// (copilot-dock-focused-preset D6) the three packs carry DISTINCT agent ids:
+// the catalog agent id is the manifest agent id, so a shared `assistant` let
+// only the first-installed pack materialize its agent.
 //
 // Mutation check (manual): add "wire_demand_submit" to the wire manifest's
 // allowTools → the first test fails naming the tool.
@@ -41,8 +45,8 @@ test("official packs exist and include the wire assistant", () => {
   assert.ok(manifests.some((m) => m.file === "wire-assistant-manifest.json"));
 });
 
-test("no official pack whitelists any wire write tool (tool_risk universe, 12 names)", () => {
-  assert.equal(WIRE_WRITE_TOOLS.length, 12);
+test("no official pack whitelists any wire write tool (tool_risk universe, 14 names)", () => {
+  assert.equal(WIRE_WRITE_TOOLS.length, 14);
   const offenders = [];
   for (const { file, manifest } of manifests) {
     for (const [server, tool] of allowToolsOf(manifest)) {
@@ -76,7 +80,7 @@ test("wire assistant: exact 11-tool read face, both servers group-gated, private
   );
   for (const s of manifest.mcpServers) assert.equal(s.requiredGroup, "wire-customers", s.registryName);
   assert.equal(manifest.visibility, "private");
-  assert.equal(manifest.agents?.[0]?.id, "assistant");
+  assert.equal(manifest.agents?.[0]?.id, "wire-assistant");
   assert.match(manifest.agents[0].persona, /propose_action/);
   assert.match(manifest.agents[0].persona, /公开源 URL/);
   assert.match(manifest.agents[0].persona, /boards\/wire/);
@@ -88,4 +92,18 @@ test("all official packs pass the manifest validator", () => {
     const errors = validatePackManifest(manifest);
     assert.deepEqual(errors, [], `${file}: ${JSON.stringify(errors)}`);
   }
+});
+
+test("official assistant agent ids are distinct across packs (v2: no shared `assistant`)", () => {
+  const ids = manifests.map(({ file, manifest }) => [file, manifest.agents?.[0]?.id]);
+  for (const [file, id] of ids) assert.ok(id && id !== "assistant", `${file}: agent id '${id}' must be pack-specific`);
+  assert.equal(new Set(ids.map(([, id]) => id)).size, ids.length, `duplicate agent ids: ${JSON.stringify(ids)}`);
+  assert.deepEqual(
+    Object.fromEntries(ids),
+    {
+      "facet-assistant-manifest.json": "facet-assistant",
+      "wanxing-fleet-assistant-manifest.json": "wanxing-fleet-assistant",
+      "wire-assistant-manifest.json": "wire-assistant",
+    },
+  );
 });

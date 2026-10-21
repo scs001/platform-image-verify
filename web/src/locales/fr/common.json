@@ -2140,7 +2140,12 @@
   },
   "copilot": {
     "context": "Affichage",
-    "clearContext": "Effacer le contexte"
+    "clearContext": "Effacer le contexte",
+    "focused": "Préréglage ciblé",
+    "focusPending": "Passage au préréglage ciblé…",
+    "focusRejected": "La conversation principale répond ; pas encore ciblé",
+    "focusRetry": "Réessayer",
+    "unfocused": "Non ciblé : le pack assistant de cette ligne n'est pas installé"
   },
   "action": {
     "pending": "Proposition...",

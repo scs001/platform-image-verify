@@ -2140,7 +2140,12 @@
   },
   "copilot": {
     "context": "表示中",
-    "clearContext": "コンテキストをクリア"
+    "clearContext": "コンテキストをクリア",
+    "focused": "フォーカスプリセット",
+    "focusPending": "フォーカスプリセットに切り替え中…",
+    "focusRejected": "メインチャットが応答中のため、まだフォーカスされていません",
+    "focusRetry": "再試行",
+    "unfocused": "未フォーカス：このラインのアシスタントパックが未インストールです"
   },
   "action": {
     "pending": "提案中...",

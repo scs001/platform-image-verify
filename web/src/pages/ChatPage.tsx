@@ -41,6 +41,22 @@ export function ChatPage({ send, onToggleNav }: Props) {
   // keeps the transcript, composer and action cards.
   const embedMode = searchParams.get("embed") === "copilot";
   const boardLine = searchParams.get("board") || null;
+  // Focused preset (copilot-dock-focused-preset): the dock puts the line's
+  // focused assistant on the URL; the embed switches the runtime to it once
+  // the socket is up and the current agent is known. The switch is cell-wide
+  // (a dsh restart) and is sent once per attempt, never looped — a rejection
+  // (main chat mid-answer) clears pendingConfig without an agent_changed, and
+  // the context bar offers a retry.
+  const presetAgent = embedMode ? searchParams.get("preset") || null : null;
+  const currentAgent = useChatStore((s) => s.currentAgent);
+  const currentPreset = useChatStore((s) => s.currentPreset);
+  const configErrorSeq = useChatStore((s) => s.configErrorSeq);
+  const agents = useChatStore((s) => s.agents);
+  const [focusAttempt, setFocusAttempt] = useState(0);
+  // The attempt the switch was sent for, and the refusal count seen then: a
+  // refusal is "the count moved since", never "pendingConfig went back to
+  // null" (the connect burst clears that too).
+  const [focusSent, setFocusSent] = useState<{ attempt: number; errorSeq: number } | null>(null);
   // Length-and-pending subscription: this page branches on emptiness —
   // subscribing to the whole turns array would re-render it per streamed
   // token. An optimistic session switch clears turns the instant the request
@@ -49,6 +65,23 @@ export function ChatPage({ send, onToggleNav }: Props) {
   const isEmpty = useChatStore((s) => s.turns.length === 0 && s.pendingSession === null);
   const status = useChatStore((s) => s.status);
   const currentSessionId = useChatStore((s) => s.currentSessionId);
+
+  // Send the focus switch once per attempt, only when the runtime is known to
+  // be on another agent: switching to the current agent returns without an
+  // agent_changed broadcast, which would leave pendingConfig stuck. Waiting
+  // for currentPreset means the connect burst is over and the runtime is
+  // live — a switch sent mid-boot would be refused.
+  useEffect(() => {
+    if (!presetAgent || status !== "connected" || currentAgent === null || currentPreset === null) return;
+    if (currentAgent === presetAgent || focusSent?.attempt === focusAttempt) return;
+    setFocusSent({ attempt: focusAttempt, errorSeq: configErrorSeq });
+    useChatStore.getState().setPendingConfig("agent");
+    send({ type: "set_agent", id: presetAgent });
+  }, [presetAgent, status, currentAgent, currentPreset, focusAttempt, focusSent, configErrorSeq, send]);
+  const focused = !!presetAgent && currentAgent === presetAgent;
+  const focusRejected =
+    !!presetAgent && !focused && focusSent?.attempt === focusAttempt && configErrorSeq > focusSent.errorSeq;
+  const focusedName = agents.find((a) => a.id === presetAgent)?.name ?? presetAgent;
 
   const [draft, setDraft] = useState("");
   const [focusTick, setFocusTick] = useState(0);
@@ -141,26 +174,60 @@ export function ChatPage({ send, onToggleNav }: Props) {
         </div>
       )}
       {/* Copilot context bar (embed mode): shows what the assistant is told
-          about the board it was opened from, and lets the user clear it. */}
-      {embedMode && boardLine && (
+          about the board it was opened from, and lets the user clear it; the
+          focus segment names the preset the dock injected (or why it did
+          not). Clearing the board context leaves the preset alone — the
+          preset is restored by closing the dock, not by this bar. */}
+      {embedMode && (boardLine || presetAgent) && (
         <div
           data-testid="copilot-context-bar"
-          className="flex items-center gap-2 border-b border-border bg-muted px-3 py-1.5 text-xs text-muted-foreground"
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-muted px-3 py-1.5 text-xs text-muted-foreground"
         >
-          <span>
-            {t("copilot.context", { defaultValue: "正在看" })}: {boardLine}
-          </span>
-          <button
-            type="button"
-            onClick={() => {
-              const url = new URL(window.location.href);
-              url.searchParams.delete("board");
-              window.history.replaceState({}, "", url.toString());
-            }}
-            className="ml-auto rounded px-2 py-0.5 hover:bg-background hover:text-foreground"
-          >
-            {t("copilot.clearContext", { defaultValue: "清除" })}
-          </button>
+          {boardLine && (
+            <span data-testid="copilot-context-board">
+              {t("copilot.context", { defaultValue: "正在看" })}: {boardLine}
+            </span>
+          )}
+          {presetAgent ? (
+            focused ? (
+              <span data-testid="copilot-focus" data-state="focused">
+                {t("copilot.focused", { defaultValue: "聚焦预设" })}: {focusedName}
+              </span>
+            ) : focusRejected ? (
+              <span data-testid="copilot-focus" data-state="rejected" className="inline-flex items-center gap-1">
+                {t("copilot.focusRejected", { defaultValue: "主对话正在回答，暂未聚焦" })}
+                <button
+                  type="button"
+                  data-testid="copilot-focus-retry"
+                  onClick={() => setFocusAttempt((n) => n + 1)}
+                  className="rounded border border-border px-1.5 py-0.5 hover:bg-background hover:text-foreground"
+                >
+                  {t("copilot.focusRetry", { defaultValue: "重试" })}
+                </button>
+              </span>
+            ) : (
+              <span data-testid="copilot-focus" data-state="pending">
+                {t("copilot.focusPending", { defaultValue: "正在切换到聚焦预设…" })}
+              </span>
+            )
+          ) : (
+            <span data-testid="copilot-focus" data-state="unfocused">
+              {t("copilot.unfocused", { defaultValue: "未聚焦：该线助手 pack 未安装" })}
+            </span>
+          )}
+          {boardLine && (
+            <button
+              type="button"
+              onClick={() => {
+                const url = new URL(window.location.href);
+                url.searchParams.delete("board");
+                window.history.replaceState({}, "", url.toString());
+              }}
+              className="ml-auto rounded px-2 py-0.5 hover:bg-background hover:text-foreground"
+            >
+              {t("copilot.clearContext", { defaultValue: "清除" })}
+            </button>
+          )}
         </div>
       )}
       {/* A dropped socket used to be legible only in the sidebar's 6px status

@@ -146,6 +146,12 @@ interface State {
   // disabled until it lands. `agent` is the same switch for an agent the
   // deployment serves locally (a vertical pack is a persona preset).
   pendingConfig: "model" | "effort" | "workspace" | "preset" | "agent" | null;
+  // Counts config changes the runtime REFUSED (the error branch that clears
+  // pendingConfig without a *_changed broadcast). `pendingConfig` alone cannot
+  // tell a refusal from the connect burst, whose current_model/current_preset
+  // messages also clear it; a caller that must know compares this to the value
+  // it saw when it sent (copilot-dock-focused-preset).
+  configErrorSeq: number;
   // Live-control flags (live-runtime-control) mirrored off every `models`
   // message: which custom bridge RPCs the current child answers. Absent
   // server support = all false, and the affordances keyed on them hide.
@@ -482,6 +488,7 @@ export const useChatStore = create<State>((set) => ({
   currentWorkspace: null,
   workspaceRecents: [],
   pendingConfig: null,
+  configErrorSeq: 0,
   liveControl: { modelSet: false, cancel: false, toolGate: false },
   websearchEnabled: false,
   promptInFlight: false,
@@ -899,7 +906,7 @@ export const useChatStore = create<State>((set) => ({
             }
             // A rejected config change (bad path, agent busy) never sends its
             // confirming *_changed broadcast, so the pending control would hang forever.
-            return { pendingConfig: null };
+            return { pendingConfig: null, configErrorSeq: state.configErrorSeq + 1 };
           }
           turns[turns.length - 1] = {
             ...tail,

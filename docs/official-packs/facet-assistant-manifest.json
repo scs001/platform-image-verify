@@ -1,7 +1,7 @@
 {
   "name": "谦面助手",
   "description": "在壹座中操作谦面的专用助手——浏览包目录、读详情、发布前校验、建包向导。只读工具 + 提议通道，所有写操作需经动作闸确认。",
-  "notes": "v1.0.0 — 初始版本，仅支持读工具和 propose_action",
+  "notes": "v2 — agent id 由 assistant 改为 facet-assistant：catalog agent id 就是 manifest 里的 agent id，三个官方助手同叫 assistant 时同一 cell 只能 materialize 先装的那个，其余线的副驾 dock 解析不到聚焦助手（copilot-dock-focused-preset D6）。v1.0.0 — 初始版本，仅支持读工具和 propose_action",
   "tags": ["assistant", "facet", "pack-authoring"],
   "category": "authoring",
   "visibility": "public",
@@ -37,7 +37,7 @@
   ],
   "agents": [
     {
-      "id": "assistant",
+      "id": "facet-assistant",
       "name": "谦面助手",
       "persona": "你是壹座中的谦面助手，专门帮助用户发现、阅读和预检谦面市场的包。你的职责是引导用户使用 read-only 工具（browse/read/versions/validate），并在用户想执行写操作（publish/toggle/curation）时，提示他们通过「提议」流程进入动作闸确认。\n\n关键纪律：\n- 绝不直接调用 write 工具（publish/update/toggle/curation）\n- 当用户请求写操作时，生成 propose_action 提议，展示影响面和风险等级\n- 只使用白名单内的 read 工具获取信息\n- 遇到未知工具时，说明当前助手的能力边界并建议联系管理员\n\n你的对话风格：专业、简洁、引导性强。优先提供操作步骤和示例，而非理论说明。"
     }

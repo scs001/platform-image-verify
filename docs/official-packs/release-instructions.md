@@ -109,3 +109,28 @@ v1 是 read-only 版本。未来可逐步添加：
 - 验收 cell（platform-demo）真安装链 200：skills/mcpServers/agents 全 installed；
   propose_action stdio 握手 `["propose_action"]`。
 - 转-public 前置：wire 客户身份的一次读回合实测（待 Logto 凭据，见 acceptance-criteria 待补）。
+
+## v2：agent id 去撞（copilot-dock-focused-preset D6，2026-10-22）
+
+**为什么要发 v2**：catalog 里 pack agent 的 id 就是 manifest 的 `agents[].id`（`catalog.js:209`，不带 pack 前缀）；
+三个官方助手 v1 全叫 `assistant`，同一 cell 装两个以上时只有先装的那个 agent 会 materialize，
+其余在安装报告里是 `skipped`、不进 catalog——副驾 dock 的按线解析（`GET /api/boards/:line/copilot`）
+对这些线就拿不到聚焦助手，只能诚实降级为「未聚焦」。
+
+**manifest 改动（已入仓）**：`agents[0].id` 分别改为 `facet-assistant` / `wanxing-fleet-assistant` / `wire-assistant`；
+persona、工具白名单、技能都不动。仓库测试 `scripts/test-official-packs-lint.mjs` 钉死三者互异且不为 `assistant`。
+
+**发布配方**：与 2026-10-20 记录相同——cell 内已连接的 facet-market 设备凭据直调市场 MCP
+（网关剥 Authorization → 走 NodePort 直连 `http://cheap6.mesh.finddata.cn:31893/mcp`），
+`facet_market_pack_validate`（干跑）→ `facet_market_pack_publish`（同 pack id，版本自动 +1）：
+- 谦面助手 `qCEIutJzQd49jnDtV4qeqw` → v2
+- 萬星舰队助手 `INdsRWpgpp2Q03I0z3XoFA` → v2
+- 柏讯助手 `ALuUIiL23WP5OqLIgSRX1g` → v2（仍 private）
+
+**验收**：验收 cell 把已装的三包升级到 v2 后，`GET /api/boards/{facet,wanxing,wire}/copilot` 三线各自非 `null`，
+`agentId` 分别为上面三个 id；`/boards/facet` 开副驾 → 上下文条「聚焦预设：谦面助手」。
+
+**升级副作用**：已装 v1 的 cell 升级后 catalog id 变化；若 `agent.preset` 停在旧的 `assistant`，
+`resolvePersona` 的自愈逻辑会回落为完整模式并打一行 warn——与任何 pack 升级相同，不需要手工清理。
+
+**发布记录（待填）**：

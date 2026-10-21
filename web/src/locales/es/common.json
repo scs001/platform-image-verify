@@ -2140,7 +2140,12 @@
   },
   "copilot": {
     "context": "Viendo",
-    "clearContext": "Limpiar contexto"
+    "clearContext": "Limpiar contexto",
+    "focused": "Preajuste enfocado",
+    "focusPending": "Cambiando al preajuste enfocado…",
+    "focusRejected": "El chat principal está respondiendo; aún sin enfocar",
+    "focusRetry": "Reintentar",
+    "unfocused": "Sin enfocar: el pack de asistente de esta línea no está instalado"
   },
   "action": {
     "pending": "Proponiendo...",

@@ -284,9 +284,11 @@ export default function App() {
         <ToastHost />
       </div>
 
-      {/* Copilot dock (add-line-boards-and-action-gate): FAB + iframe dock */}
+      {/* Copilot dock (add-line-boards-and-action-gate): FAB + iframe dock.
+          `send` restores the main chat's agent when the dock closes
+          (copilot-dock-focused-preset). */}
       <Suspense fallback={null}>
-        <CopilotDock />
+        <CopilotDock send={send} />
       </Suspense>
 
       {/* File preview overlays the shell instead of replacing a region, so the

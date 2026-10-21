@@ -2003,7 +2003,12 @@
   },
   "copilot": {
     "context": "Viewing",
-    "clearContext": "Clear Context"
+    "clearContext": "Clear Context",
+    "focused": "Focused preset",
+    "focusPending": "Switching to the focused preset…",
+    "focusRejected": "Main chat is answering; not focused yet",
+    "focusRetry": "Retry",
+    "unfocused": "Unfocused: this line's assistant pack is not installed"
   },
   "action": {
     "pending": "Proposing...",

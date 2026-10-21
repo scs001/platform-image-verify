@@ -7,9 +7,33 @@
 // Unknown lines return 404 with an honest message.
 
 import { getBoardAdapter, listBoardLines, lineBoardsEnabled } from "../../lib/board-adapters.js";
+import { copilotPresetForLine } from "../../lib/copilot-presets.js";
 
 export function registerBoardRoutes(ctx) {
   const { app } = ctx;
+
+  // GET /api/boards/:line/copilot — the focused assistant the copilot dock
+  // injects for this line (copilot-dock-focused-preset). Same switch as the
+  // board, but it never runs the adapter: the dock only needs the preset, and
+  // a wire board fetch is four upstream calls.
+  app.get("/api/boards/:line/copilot", async (req, res) => {
+    if (!lineBoardsEnabled()) {
+      return res.status(404).json({
+        error: "line_boards_disabled",
+        message: "线看板未开启（LINE_BOARDS_ENABLED）",
+      });
+    }
+    const { line } = req.params;
+    if (!getBoardAdapter(line)) {
+      return res.status(404).json({
+        error: "line_not_found",
+        message: `该线尚未接入 (${line})`,
+        availableLines: listBoardLines(),
+      });
+    }
+    const copilot = await copilotPresetForLine(line);
+    return res.json({ line, copilot });
+  });
 
   app.get("/api/boards/:line", async (req, res) => {
     // Deployment switch (add-wire-line-board D8): read per request so flipping

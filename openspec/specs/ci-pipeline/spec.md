@@ -1,7 +1,7 @@
 # ci-pipeline Specification
 
 ## Purpose
-TBD - created by syncing change add-ci-quality-gates. Update Purpose after archive.
+The offline continuous-integration gate: a GitHub Actions workflow that, on every pull request and push to `main`, runs lint (Biome), `web/` typecheck, unit tests, locale parity, the production web build and the offline `fast` Playwright project in order, on a toolchain-pinned runner with no secrets, paid LLM gateways or live-service reachability, so correctness regressions are caught before merge.
 
 ## Requirements
 

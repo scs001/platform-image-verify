@@ -1,7 +1,7 @@
 # weknora-integration Specification
 
 ## Purpose
-TBD - created by archiving change bundle-weknora-knowledge. Update Purpose after archive.
+Bundling the WeKnora knowledge service as a supervised sidecar: when `WEKNORA_BASE_URL` points at localhost the Electron supervisor spawns the WeKnora binary and a Redis sidecar on free ports, health-checks and restarts them, wires WeKnora to the existing embedded PostgreSQL and the Volces LLM provider, auto-provisions its API key and workspace into `dev-settings.json`, and proxies both its REST API (`/api/weknora/*`) and its native web UI (`/weknora-web`) with the token injected server-side; when the variable is unset or the resources are absent the endpoints are disabled and the app starts unchanged.
 
 ## Requirements
 

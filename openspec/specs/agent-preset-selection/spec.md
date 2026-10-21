@@ -1,7 +1,12 @@
 # agent-preset-selection Specification
 
 ## Purpose
-TBD - created by syncing change add-dsh-agent-presets. Update Purpose after archive.
+User-facing selection of the dsh agent preset (composition mode) a new chat
+session runs as. The server exposes the roster — the four shipped modes plus
+user-authored presets, each with trust and broken marks — over the WebSocket,
+applies a pick by restarting the dsh runtime with the preset in `initialize`
+(next session only, never mid-session), persists it as a user preference, and
+shows the running session's preset as read-only header chrome.
 
 ## Requirements
 

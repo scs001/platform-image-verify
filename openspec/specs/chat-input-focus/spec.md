@@ -1,7 +1,7 @@
 # chat-input-focus Specification
 
 ## Purpose
-TBD - created by archiving change chat-ux-model-selector-fixes. Update Purpose after archive.
+Keeps the chat input ready to type: the textarea receives focus whenever a new session is created, whether through the "New chat" button or the `/new` command.
 
 ## Requirements
 

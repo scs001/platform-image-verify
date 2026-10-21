@@ -1,7 +1,7 @@
 # dsh-runtime-bridge Specification
 
 ## Purpose
-TBD - created by archiving change migrate-pi-to-dsh. Update Purpose after archive.
+The platform's seam to the DeepSeek Harness (dsh): the server spawns dsh as a child process speaking newline-delimited JSON-RPC over stdio, owns its lifecycle (spawn, health-check, restart with backoff), generates the profile that composes the core plugins, the Volces adapter, the agent-preset roster and the platform bridge plugin, forwards prompts as `session.prompt`, and translates runtime notifications into the existing WebSocket vocabulary so the frontend contract is unchanged. The bridge also carries restart overrides (cwd, model, preset), keeps sessions usable across child restarts, parks per-session preset picks until the session exists, exposes the permission-preset roster and live switch, and registers the user-questions provider that routes `ask_user_question` to the host and releases pending asks safely on restart or abort. Its live-control methods are dsh-specific depth, not part of the generic harness-adapter contract.
 ## Requirements
 ### Requirement: Server spawns the dsh runtime as a subprocess communicating over JSON-RPC stdio
 

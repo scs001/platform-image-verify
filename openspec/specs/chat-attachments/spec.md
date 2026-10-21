@@ -1,7 +1,7 @@
 # chat-attachments Specification
 
 ## Purpose
-TBD - created by syncing change overall-optimization. Update Purpose after archive.
+File attachments in the chat Composer: a paperclip affordance uploads the file through the existing `POST /api/documents` ingestion path, additionally keeps the original bytes in the preview root (removed together with the document) so the chip can open a preview, and references each attached document in the outgoing prompt as a lightweight `@doc:<id>` that the server expands into name, summary and library-tool pointers — never inlining base64 or the full source text.
 
 ## Requirements
 

@@ -1,7 +1,7 @@
 # knowledge-collection-ui Specification
 
 ## Purpose
-TBD - created by archiving change add-knowledge-collection. Update Purpose after archive.
+The web panel over the knowledge collection: a single place to add documents (file upload, pasted text or URL), see that they are auto-saved and auto-indexed with live per-document status from WebSocket events, browse and remove the saved set, and ask natural-language questions whose answers cite their source document names — re-fetching the list on reconnect so the view stays consistent with the server.
 
 ## Requirements
 

@@ -1,7 +1,7 @@
 # weknora-ui Specification
 
 ## Purpose
-TBD - created by archiving change bundle-weknora-knowledge. Update Purpose after archive.
+Surfacing WeKnora's native web UI inside the React SPA: a "WeKnora" sidebar entry routes to `/weknora`, which renders WeKnora's full UI (knowledge bases, documents, chat, Wiki mode, settings) in a same-origin iframe through the token-injecting `/weknora-web` reverse proxy, replacing the former first-party Documents page and its `/documents` route.
 
 ## Requirements
 

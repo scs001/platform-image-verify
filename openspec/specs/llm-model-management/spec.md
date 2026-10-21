@@ -1,7 +1,7 @@
 # llm-model-management Specification
 
 ## Purpose
-TBD - created by archiving change dsh-llm-models-page. Update Purpose after archive.
+Operator management of LLM providers and their model rosters from the Settings Models page: REST CRUD under `/api/llm/`, a reachability test probe, per-provider sync that reconciles the roster against the provider's own gateway (including the reserved env-generated route, which is also runtime-overridable), editable model lists, a default-model pointer changed via `PUT /api/llm/default` without restarting dsh, API keys never returned to the client (only `hasKey`), and a read-only roster view for non-admin users.
 ## Requirements
 
 ### Requirement: Server exposes LLM provider CRUD endpoints

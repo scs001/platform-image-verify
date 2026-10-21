@@ -1,7 +1,7 @@
 # extension-management-ui Specification
 
 ## Purpose
-TBD - created by archiving change add-mcp-skills-management. Update Purpose after archive.
+The Settings UI for managing MCP servers (`/settings/mcp`) and skills (`/settings/skills`): an Installed tab listing every configured entry with status and an enable / disable toggle plus add, edit and remove flows (MCP forms generated from the market entry's `configTemplate` when it requires configuration, edits preserving unmodelled fields such as `envRefs`; skill forms accepting markdown or a zip skill package), and a Market tab split into the platform catalog zone and the external-skill zone whose installs go through a consent panel first.
 ## Requirements
 ### Requirement: MCP Servers and Skills are Settings sections
 

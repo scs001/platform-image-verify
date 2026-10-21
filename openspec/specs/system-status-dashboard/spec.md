@@ -1,7 +1,7 @@
 # system-status-dashboard Specification
 
 ## Purpose
-TBD - created by archiving change ui-nav-restructure. Update Purpose after archive.
+The System Status section of the Settings modal (`/settings/status`): a Health list of every supervised service with colour-coded state from `GET /api/supervisor/status`, an Active Configuration block showing the current LLM provider, model and agent, and a Resources block with document, collection and MCP tool counts — each row carrying a Manage link that switches panes within the open modal when the target is another Settings section.
 ## Requirements
 ### Requirement: System Status is a Settings section
 

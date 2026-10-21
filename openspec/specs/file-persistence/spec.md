@@ -1,7 +1,7 @@
 # file-persistence Specification
 
 ## Purpose
-TBD - created by syncing change unify-persistence. Update Purpose after archive.
+The shared persistence layer for the server's file-backed stores: atomic, fsync'd temp-and-rename writes for JSON and text, per-store serialized load-mutate-save cycles so concurrent mutations are never lost, one read-with-fallback helper that warns instead of throwing on missing or corrupt files, and the single home for the ISO-timestamp, id-generation and title-truncation helpers that were previously duplicated per module.
 
 ## Requirements
 

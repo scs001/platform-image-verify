@@ -1,7 +1,7 @@
 # workspace-selection Specification
 
 ## Purpose
-TBD — created by archiving change composer-control-strip. Update Purpose after archive.
+The dsh runtime's working directory as a user-selectable setting: the boot workspace resolves from the `AGENT_WORKSPACE` deploy pin and then the persisted current choice; the server exposes the active path plus an LRU recents list over `list_workspaces`, validates a requested path (absolute, existing, readable and writable) before touching the runtime, and applies it by restarting the dsh child with the new `cwd` and broadcasting `workspace_changed`; the client asks for confirmation before switching mid-conversation.
 
 ## Requirements
 

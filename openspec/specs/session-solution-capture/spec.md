@@ -1,7 +1,7 @@
 # session-solution-capture Specification
 
 ## Purpose
-TBD - created by archiving change add-session-to-preset. Update Purpose after archive.
+把一次有效的会话提炼成可复用方案：会话菜单提供「存为我的方案」入口打开提炼向导，向导从该会话历史的用户消息中勾选示例提问（默认前 3 条、至多 3 条）随预设保存，保存默认走既有自定义预设创建通道，另提供「更新已有」模式。
 
 ## Requirements
 

@@ -1,7 +1,7 @@
 # knowledge-collection Specification
 
 ## Purpose
-TBD - created by archiving change add-knowledge-collection. Update Purpose after archive.
+The server-side knowledge collection: documents of four types (PDF, Markdown, plain text, web URL) are indexed automatically on submission with the `pageindex` library reusing the server's existing OpenAI-compatible LLM credentials, persisted to a dedicated on-disk store restored on restart, tracked through `queued` / `indexing` / `ready` / `error` over WebSocket, queryable in natural language with results attributed to their source documents, listable and removable by id, and isolated so one document's failure never blocks the others or the server.
 
 ## Requirements
 

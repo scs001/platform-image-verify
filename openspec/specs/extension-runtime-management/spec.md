@@ -1,7 +1,7 @@
 # extension-runtime-management Specification
 
 ## Purpose
-TBD - created by archiving change add-mcp-skills-management. Update Purpose after archive.
+Runtime management of the agent's extensions — MCP servers and skills — without a server restart: REST endpoints to list, add, remove, enable and disable each kind; records carrying `origin` (bundled / user), `locked`, `permissions` and `requiredGroups` metadata, with packager-locked bundled entries immutable through the API; hot-reload of MCP connections and skill registrations on every mutation; persistence across restarts; and a separate email-keyed personal MCP availability overlay applied through the shared effective-profile path.
 
 ## Requirements
 

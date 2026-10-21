@@ -1,7 +1,7 @@
 # tool-use-rendering Specification
 
 ## Purpose
-TBD - created by archiving change add-mcp-skills-model-select. Update Purpose after archive.
+How tool calls appear in the chat transcript: the server forwards each tool's input in `tool_start` and its result and error status in `tool_end`, and the UI renders every call as a collapsible block (tool name in the header, input and output in the body) with error calls styled distinctly and large outputs scroll-bounded — except `todo_write`, which collapses to a one-line summary because its snapshot is rendered as the plan surface. Subagent failure cards surface the child turn's real end reason instead of a generic label.
 ## Requirements
 ### Requirement: Server forwards tool input and output in tool events
 The server SHALL include the tool's input arguments in `tool_start` events and the tool's result and error status in `tool_end` events, using the `args` and `result` fields already provided by the SDK's tool execution events.

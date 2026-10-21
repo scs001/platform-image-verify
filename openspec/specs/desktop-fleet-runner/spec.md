@@ -1,7 +1,7 @@
 # desktop-fleet-runner Specification
 
 ## Purpose
-TBD - created by archiving change add-desktop-fleet-runner. Update Purpose after archive.
+把桌面发行版变成萬星舰队里的一个本地机位：agent-runner 预装但默认禁用，经 Preferences 开关启用；启用后以持久化的独占机位 id 运行、只托管显式 tagged 给它的部署条目；经六位配对码绑定到 console 身份换取 per-seat 上行凭据，吊销即 401；对云端调度控制循环隐形（遥测可见，但永不被重派、回收或选址）；ops 与 A2A 监听收紧到 127.0.0.1；进程生命周期隶属应用会话；默认同 pack 共宿 pod；外部 agent 的任务经萬星门面信箱异步入站、由 runner 纯出站轮询执行并回投。
 
 ## Requirements
 

@@ -1,7 +1,7 @@
 # internationalization Specification
 
 ## Purpose
-TBD - created by archiving change add-multilanguage-i18n. Update Purpose after archive.
+Multi-language support in the web shell: `react-i18next` is initialized before render with a single `common` namespace and bundles for `en`, `zh-CN`, `es`, `fr` and `ja` (English as source of truth and fallback); the active locale resolves from the persisted user choice, then browser language, then English; the Settings language switcher lists each locale by its own-language name; every user-visible string — including first-party content pages — resolves through `t()` with no hard-coded display text; and `document.documentElement.lang` is kept in sync.
 ## Requirements
 ### Requirement: i18n runtime initialized with a common namespace and English fallback
 The React web shell SHALL initialize `react-i18next` before the application tree renders, configured with a single `common` namespace and resource bundles for the supported locales: `en`, `zh-CN`, `es`, `fr`, and `ja`. `en` SHALL be the source-of-truth and the `fallbackLng`; any translation key missing from the active locale's bundle SHALL resolve to the `en` value, and SHALL never throw or render an empty/raw key.

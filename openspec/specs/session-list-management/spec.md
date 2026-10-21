@@ -1,7 +1,7 @@
 # session-list-management Specification
 
 ## Purpose
-TBD - created by archiving change ui-nav-restructure. Update Purpose after archive.
+Per-session management from the sidebar list: a right-click (or Shift+F10) context menu offering Clear and Delete, with Delete behind a confirmation dialog that calls `DELETE /api/chat-history/sessions/:id` and is disabled for the active, running or queued session, and a per-row turn-status indicator (running / queued) driven by the `sessions` broadcast.
 ## Requirements
 ### Requirement: Right-click context menu on each session row
 Each session row in the sidebar SHALL expose a right-click context menu containing at minimum the actions **Clear** and **Delete** (Delete with confirmation). The menu SHALL open on `contextmenu` (right-click) and on `Shift+F10`. The menu SHALL be dismissable by clicking outside, pressing Escape, or selecting an item. The menu SHALL appear positioned to the row's pointer location and SHALL NOT overflow the viewport.

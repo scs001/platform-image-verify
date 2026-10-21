@@ -1,7 +1,7 @@
 # chat-streaming Specification
 
 ## Purpose
-TBD - created by archiving change e2e-tests-and-bugfixes. Update Purpose after archive.
+The live-turn contract between server and web client: assistant text streams as incremental deltas delivered exactly once per turn; every turn — successful, failed or cancelled — ends with streaming state reset and a `done`; the in-flight guard is set synchronously at dispatch; retry progress is visible on the turn; socket loss leaves the turn in a transient reconnecting state that the reconnect sync restores from the server's answer; only an explicit stop cancels a turn, never session navigation; queued prompts render as a pending bubble with cancel and preempt actions; and submission is latched against duplicates and empty input. Also owns the Ctrl/Cmd+O shortcut that toggles all thinking blocks.
 
 ## Requirements
 

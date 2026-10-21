@@ -1,7 +1,7 @@
 # chat-composer-controls Specification
 
 ## Purpose
-TBD — created by archiving change composer-control-strip. Update Purpose after archive.
+The composer's control strip — the single row beneath the chat input and the only surface for per-turn runtime configuration: workspace, agent, model, reasoning effort, permission and the web-search toggle, plus the `+` menu for attachments and commands. Controls render store state only (no optimistic updates), report runtime restarts and block sending until the runtime is healthy, hide themselves when not applicable (effort without declared `reasoningEfforts`, agent with a single agent), reject agent switches mid-stream, and keep a 16px textarea on mobile to avoid iOS focus zoom.
 
 ## Requirements
 

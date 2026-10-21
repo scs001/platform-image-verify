@@ -1,7 +1,7 @@
 # chat-commands Specification
 
 ## Purpose
-TBD - created by archiving change chat-commands-and-session-fixes. Update Purpose after archive.
+Slash-commands in the web chat: the server parses a leading `/` token and dispatches the built-ins (`/model`, `/new`, `/clear`, `/help`, `/skill:<name>`) to their server- or client-side handlers, server-handled invocations render as collapsible `command_use` blocks instead of echoed user text, and the composer offers a `/` autocomplete popover that groups built-in commands and loaded skills into separate sections.
 ## Requirements
 ### Requirement: Server parses and dispatches general chat slash-commands
 The server SHALL accept chat prompts whose first token is a slash-command and dispatch them according to a command table that includes `/model`, `/new`, `/clear`, `/help`, and `/skill:<name>`. Server-handled commands (`/model`, `/new`, `/skill:`) SHALL be dispatched to their behavior; client-handled commands (`/clear`, `/help`) SHALL be intercepted by the UI before the prompt is sent and SHALL NOT be forwarded to the agent. The raw text of a recognised server-handled command SHALL NOT be echoed as a normal user message. The UI SHALL clear the chat input field after executing any slash command.

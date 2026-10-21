@@ -1,7 +1,7 @@
 # extension-marketplace Specification
 
 ## Purpose
-TBD - created by archiving change add-mcp-skills-management. Update Purpose after archive.
+The in-app market for MCP servers and skills: a curated catalog (bundled `market-catalog*.json` plus, when configured, a remote mcp-gateway-registry) browsable by category with a derived `requiresConfig` flag, one-click install that routes MCP entries through the template-generated setup form, at least three zero-config MCP servers shipped, registry entries filtered per user by group membership with that admission re-enforced server-side on the install path, and registry skill content fetched at install time into the existing custom-skill path.
 
 ## Requirements
 

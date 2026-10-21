@@ -1,7 +1,7 @@
 # skill-invocation Specification
 
 ## Purpose
-TBD - created by archiving change add-mcp-skills-model-select. Update Purpose after archive.
+Skills as a first-class agent capability: the dsh runtime loads skills from a configured skills directory; database-managed custom skills are materialized as `SKILL.md` files (frontmatter preserved) into a watched directory so create / update / delete hot-reload without a restart; the server reports the loaded roster over `list_skills`; `/skill:<name>` prompts are forwarded as invocations with a `skill_use` broadcast (disabled skills rejected); and the chat renders each invocation as a collapsible block and offers `/skill:` entries in the slash autocomplete.
 ## Requirements
 ### Requirement: Server loads skills from configured paths
 

@@ -1,7 +1,7 @@
 # web-chat-server Specification
 
 ## Purpose
-TBD - created by archiving change build-pi-web-chat. Update Purpose after archive.
+The Node backend that hosts the web chat: it spawns and owns the dsh agent session, accepts `prompt` messages over WebSocket and hands them to the turn dispatcher, streams assistant text and tool lifecycle events back to clients, serves the Vite-built SPA with a deep-link fallback, and starts listening within about a second, before background initialization completes. It must boot without a chat provider, never ship a baked-in API key, surface every async handler error as a client `error` instead of an unhandled rejection, and keep its HTTP and WebSocket contract stable across internal decomposition. It also synchronizes shared runtime-profile changes, holds one pending ask per session with ownership-checked first-wins answers (bot-session asks never reach the web transcript), and buffers in-flight turn events so `session_loaded` can replay a running turn to a client that switches in or reconnects.
 
 ## Requirements
 

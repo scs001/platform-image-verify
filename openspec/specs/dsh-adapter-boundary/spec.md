@@ -1,7 +1,7 @@
 # dsh-adapter-boundary Specification
 
 ## Purpose
-TBD - created by archiving change unify-dsh-generation. Update Purpose after archive.
+把对 `@deepseek-ai/*` 包的直接引用收口到一份入库评审的适配层文件名单：名单随 dsh 矩阵变更同轨评审，CI 以 lint 强制——名单外任何文件直接 `import` / `require` 该范围的包即失败并指名文件与包，使 dsh 代际升级的影响面可枚举、可审。
 
 ## Requirements
 

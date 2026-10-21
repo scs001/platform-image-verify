@@ -1,7 +1,7 @@
 # live-service-testing Specification
 
 ## Purpose
-TBD - created by archiving change add-platform-service-tests. Update Purpose after archive.
+Verifying an already-deployed instance from the outside: a Playwright `live` project that points at `LIVE_SERVICE_URL` with no local `webServer`, whose default `@live` tests are read-only and spend no LLM tokens (config endpoint, SPA routes, sidebar / composer render, WebSocket connects), plus an opt-in `@live-smoke` real chat turn gated behind `LIVE_SMOKE=1`, exposed through `npm run test:e2e:live[:smoke]` and `make test-live[-smoke]` and documented in `DEPLOY.md`.
 ## Requirements
 ### Requirement: A live test project targets the deployed service without launching a local server
 The project SHALL provide a Playwright `live` project (alongside the existing `fast` and `smoke` projects) that connects to an already-running external service URL resolved from the `LIVE_SERVICE_URL` env var (default `http://23.144.68.246:30950`), and SHALL NOT define a `webServer` block for this project. The `live` project SHALL select only tests tagged `@live` and `@live-smoke`. It SHALL NOT create temp store directories, SHALL NOT set `CHAT_HISTORY_STORE_DIR` / `DOCUMENTS_STORE_DIR` / `SESSIONS_STORE_DIR` / `DB_PATH`, and SHALL NOT spawn `node server.js`.

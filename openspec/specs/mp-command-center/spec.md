@@ -1,7 +1,7 @@
 # mp-command-center Specification
 
 ## Purpose
-TBD - created by archiving change add-mp-command-center. Update Purpose after archive.
+小程序端的指挥台：`GET /api/mp/command-summary` 以单请求返回该实例的待答问询与定时任务状态快照（空态如实返回空集合），指挥台页三区呈现——待答问询可跳对应会话、任务异常可跳任务页、近期完成可查产物；任务页另提供「新建」入口，以预设档或自定义 cron 复用 `POST /api/cron` 创建定时任务。
 
 ## Requirements
 

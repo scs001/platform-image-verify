@@ -1,7 +1,7 @@
 # dsh-llm-providers Specification
 
 ## Purpose
-TBD - created by archiving change migrate-pi-to-dsh. Update Purpose after archive.
+How upstream LLM providers are wired into the dsh runtime: the Volces (火山引擎) OpenAI-compatible endpoint is registered as a dsh `ctx.llm` adapter plugin, API keys are routed through dsh's hot-reloaded `dsh-credentials-local` store so a rotated key reaches the next request without a restart, a hosted cell's bound ciyuan account key overrides the deployment seed for the ciyuan provider's env ref, and every generated provider profile carries a bounded exponential-backoff retry policy for transient failures.
 ## Requirements
 
 ### Requirement: A bound ciyuan account overrides the deployment seed per hosted cell

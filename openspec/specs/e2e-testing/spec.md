@@ -1,7 +1,7 @@
 # e2e-testing Specification
 
 ## Purpose
-TBD - created by archiving change e2e-tests-and-bugfixes. Update Purpose after archive.
+The Playwright end-to-end suite: it launches an isolated server on a throwaway port with throwaway store directories and drives the real browser UI, split into a deterministic offline `fast` project and an LLM-spending `@smoke` project, run by `npm run test:e2e` / `test:e2e:smoke`. Coverage spans documents and collections, chat history and a real chat turn, model switching and the selector, the thinking-block shortcut, app-shell navigation, SQLite persistence, extensions management, the Settings modal (through the shared `openSettings` helper) and theme switching.
 ## Requirements
 ### Requirement: E2E suite launches an isolated server and drives the browser UI
 The project SHALL provide a Playwright-based end-to-end test suite that launches the server fresh via a `webServer` config on an overridable test port (default 3100) bound to `127.0.0.1`, using throwaway store directories passed through `CHAT_HISTORY_STORE_DIR` and `DOCUMENTS_STORE_DIR` env vars so the user's real `chat-history-store/` and `documents-store/` are never touched. The suite SHALL drive the real browser UI (Chromium). The store directories SHALL default to their current hard-coded paths when the env vars are unset, so production behavior is unchanged.

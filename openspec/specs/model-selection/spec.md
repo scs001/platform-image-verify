@@ -1,7 +1,7 @@
 # model-selection Specification
 
 ## Purpose
-TBD - created by archiving change add-mcp-skills-model-select. Update Purpose after archive.
+Choosing which LLM the agent runs on, at runtime: the server lists available models (with their declared reasoning efforts) over `list_models`, announces the active model and thinking level on connect and on every change, accepts `set_model` / `/model` and `set_effort` switches (live through the bridge's `model/set` RPC when declared, otherwise via a dsh restart), picks a startup default from `DEFAULT_MODEL` or the first model with auth and probes it against dark defaults, lets an authenticated user's personal binding shape the effective runtime model, and keeps the UI's model and effort pickers paired and enabled as soon as models are known.
 
 ## Requirements
 

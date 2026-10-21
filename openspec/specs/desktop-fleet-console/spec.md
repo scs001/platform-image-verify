@@ -1,7 +1,7 @@
 # desktop-fleet-console Specification
 
 ## Purpose
-TBD - created by archiving change add-desktop-fleet-console. Update Purpose after archive.
+桌面端查看本机舰队与后台驻留的壳：舰队页经 cell server 的代理端点（`/api/wanxing/fleet/live` 透传本机 runner 健康、`/api/wanxing/fleet/catalog` 以既有 registry 凭据代理公网 a2a 目录）读取数据，不新增桌面侧凭据，且只在 Electron 壳内可达（纯浏览器落到桌面专属说明页）；关闭主窗口最小化到系统托盘而非退出，runner、其 agents 与定时任务继续运行，托盘「退出」才执行 supervisor 有序停机。
 
 ## Requirements
 

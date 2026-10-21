@@ -1346,6 +1346,48 @@ hkccr 撞时序（build 成功≠tag 可见），~10 分钟下轮回灌——判
 **Non-goals 留案**：对账卡跨 tab 迁「消耗」、套餐自助入口、向导表单降门槛。change 6/6
 可归档（待主 spec 同步 console-economics-clarity）。
 
+## §9 发布记录：萬星套餐申请-审批自助线 + 对账卡归位消耗 tab（add-plan-requests-and-move-statement，2026-10-22）
+
+**来源**：clarify-plan-card-and-wizard 归档留案的两项 IA 欠账——对账卡长在舰队页、套餐开通
+「找运维靠喊」。**两刀**（fd-wanxing `e8ee97a`，MODIFIED console-economics-clarity /
+serving-plans）：①「API 调用对账」卡 FleetView → StatsView 三口径之上（`my-statement-*` 键随卡
+走，标题/释义/数字/错误路径原样）；②套餐申请-审批线——facade 新表 `wanxing_plan_requests`
+（pending→approved|rejected 独立生命周期，刻意不混 `wanxing_plans`）+ 三路由：POST 自助（身份
+email 绑定、sub2api 账户前置解析、limit ∈ [60,1e6] 整数、note ≤200）/ GET 双视角（身份=仅本人
+by email，ops=全量 pending 置顶）/ PUT opsOnly（**批准=先 `planSet` 再标 approved**，发放失败留
+pending 可重批、upsert 幂等；驳回只记备注零发放；已决 409）。web：卡内申请折叠表单（500/2000/
+10000 建议档+自定义+备注）+「我的申请」三态徽标+审批备注；OpsView 待审队列（计数/批准/驳回带
+备注/已处理折叠），**队列只在 plans 列表证实 ops 令牌后加载**（登录身份不给一排 403 死按钮）。
+发放权仍独占 ops：申请只是把喊运维变成队列条目。
+
+**验证**：facade `test-wanxing-plans` §5 四测（store 三态置顶/POST+GET 双视角与范围门/批准落
+plan 且 decided 终态/驳回零发放）+ 全套 199/199；web 无单测基建 → 新增 `scripts/stub-console-
+web.mjs`（dist + **真** console 路由 on stub 依赖）+ ego 三轮 DOM 断言全过（舰队无卡且向导收益
+空态键在；消耗卡在口径之上；建议档→提交→待审；越界客户端拦；ops 1 待审→批准带备注→0 待审+
+套餐列表 2000；二笔驳回→已处理双态；调用者回看套餐行+两审批备注；peer 零行；ops 令牌消耗页无
+申请面；登录身份运维面队列闭合）。
+
+**出片滚产（双镜像同车，两池并行）**：facade → testaction001 池 `sha-f2dae59` digest
+**8aa31081**（`--build-arg SERVICE=facade` 采到、11 层、`FLEET_ENTRY=facade`）；web →
+testaction005 池 `sha-aa3aa4a` digest **cdfd1b02**（Dockerfile.web、9 层 nginx、无 FLEET_ENTRY；
+vite 新跑 51 模块）。两池上一轮变量四件套恰为本次两镜像，零改动；`--ref master`（origin 无 tag
+惯例，脚本 `--ref` 只吃分支/标签名——短 sha 不行）并核快照提交记录的源真 sha 同为 e8ee97a。
+relay 双 OK 04:26（推后 ~8 min，首轮撞时序常态）→ skopeo ccr 真 digest → fd-infra-deploy
+`dd4e4d0` gitee + ArgoCD hard-refresh → facade 1/1、web 2/2 全新 digest；**模块实证**：pod
+内 console.js/store.js md5 = 本地；生产路由活体 GET 401 / PUT 403；web bundle 哈希
+`index-C4jjso5O.js` 与本地构建同名且含全部新 testid/文案。回滚位：facade 134c3c8 / web 6edfb83。
+
+**生产真机全链（ego，aloadtree 真账号，04:34–04:36 CST）**：舰队页无卡（向导/收益在）；
+消耗页卡在口径之上、真实数字「暂无套餐 · 余额路径 17 分钟/18 回合」；UI 建议档 500 →
+`wpr_f70c501e89c7` 待审 → **ops 令牌走 OpsView UI** 队列「1 待审」批准带备注 → 「0 待审」+
+套餐列表「2 aloadtree 上限 500」→ 回看卡「套餐上限 500 · 剩余 500」+审批备注、切换语变「申请
+调整套餐」；再提 2000 → 批准 → 卡读 2000（**调整生效 = 同 plan_ref `wp_4f9a763d5cb9`**，upsert
+实证）；提 90000 → 驳回带备注 → 行「已驳回…维持 2000」、卡仍 2000。**恢复原状**：删 aloadtree
+套餐行（测试号不留包月，结算回调用键余额），套餐表回原 1 行（admin@ 120）；三条申请记录保留为
+探针（可删）。**配方沉淀**：`fd-build-snapshot --ref` 只吃分支/标签名（短 sha → clone 128），
+origin 无 tag 惯例时用 `--ref master` + 核快照提交记录的源真 sha；双镜像可两池并行（变量独立）；
+ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本用后即删。change 9/9 可归档。
+
 ### §15.4 补记二：三包 v2 上架 + 模型回合级验收 + 四连修（2026-10-22 凌晨，终态 sha-0dcdaf9）
 
 | 项 | 值 |

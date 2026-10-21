@@ -1297,3 +1297,32 @@ pack 转 public 时机）。证据细节见 docs/acceptance-criteria.md 柏讯�
 **生产实证**（platform-demo 真浏览器 ego 三轮）：`/boards/facet` 开 dock → iframe src `preset=facet-assistant` → 上下文条「Focused preset: 谦面助手」（set_agent→重启→agent_changed 全链真跑通）→ context-free 不带 preset → wanxing 诚实「Unfocused: … not installed」。反向真数据对拍：cell 3fdc 的「谦面市场助手」白名单恰带四个受闸写工具，解析器正确拒之。注意 platform-demo 的 `/data` 为滚动即清卷（本轮测试安装无残留）。
 
 **余账**：①官方三包 v2 市场发布（配方在 docs/official-packs/release-instructions.md「v2」节，发布前经用户确认）；②aloadtree cell（facet-market 已连）+ 助手包安装后的「让模型改可见性 → 只出 propose_action 卡」模型回合级验收——本轮未做，需要真 cell 凭据环境。
+
+## §9 发布记录：萬星舰队归属闸上产（fix-fleet-scope-and-owner-gates，2026-10-22）
+
+**用户诉求**：「我的舰队」管理按钮点了没反应。**真机分诊三层根因**：①列表不按身份过滤
+（任何人见全平台 15 部署）；②非本人卡动作 403 被前端吞进未打开面板（cfgNote/alwNote/
+embedNote 只在面板内渲染）＝静默死按钮；③反向越权——pause/resume 与允许清单增删**无归属
+闸**，任何登录身份可停他人部署/改他人白名单（实测 200）。
+
+**修复 = 三刀 ADDED-only**（fd-wanxing 5f10e4e + 深链补丁 de73bc4，spec 新能力
+fleet-ownership-gates）：facade——列表按 deployedBy（lowercase）过滤、无 deployer 行仅
+ops 可见、ownerGate 提为共享闸并接 pause/callers 全动词；web——面板加载失败按
+`slug:action` 键控渲染卡片旁、403 归属文案 vs 5xx 重试文案分型、空舰队空态、深链非本人
+slug 的 403 孤儿区级可见。测试：console 3/3（过滤/越权 403/ops 全量三线）+ 相关回归 90
+绿；web 无单测基建，本地 stub dist 四线实测（403 文案/500 文案/200 面板/空态）。
+
+**出片滚产**（testaction005 通用池，私额 FindDataTechnology 已尽故弃 law 池）：**facade
+修复由姊妹 change 承运**——cluster 会话 sha-6f5331d（源 0c8c5c0，父=本 change 5f10e4e）
+digest 8515e54f 先我落 gitee，验祖先后不重复滚；自有 facade 片 c3e76f7（digest 36a9cd36）
+留作回滚位。web 两轮：558f5c3 → d5aa0be（源 de73bc4 补深链孤儿 403）digest **2ed27bca**
+，gitee d149953/bed0460 + ArgoCD hard-refresh，web 2/2、facade 1/1 全就绪。**坑复现**：
+并行会话在两片之间推进 origin（0c8c5c0 夹入），`--ref 5f10e4e` 钉版重出 + 取消串味 run
+方保双片同源；通用池变量四件套（fd-wire 残留）删建而非 PUT（PUT 404）。
+
+**生产实证**（ego 真机 + API 探针）：aloadtree 只见本人 5 卡（识律/宏观/估值/Planner/
+一键流），本人卡配置+记录面板 200 开；他人 slug callers GET **403**；深链他人 slug →
+「配置未打开——这不是你部署的 agent，仅部署者本人（或运维）可管理」命中；ops 令牌
+（pod env FLEET_OBSERVER_TOKEN）全量 15 条与 facet packs.db 对账一致。截图因 ego 窗口
+最小化未拍，DOM 文本断言为证。**产品层余账（未立项）**：「我的套餐」卡改名/挪位（现为
+调用方对账、ops-only 发套套餐无自助入口）、部署向导一键一 agent 规则前置。

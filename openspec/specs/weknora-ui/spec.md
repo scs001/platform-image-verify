@@ -1,47 +1,10 @@
 # weknora-ui Specification
 
 ## Purpose
-Surfacing WeKnora's native web UI inside the React SPA: a "WeKnora" sidebar entry routes to `/weknora`, which renders WeKnora's full UI (knowledge bases, documents, chat, Wiki mode, settings) in a same-origin iframe through the token-injecting `/weknora-web` reverse proxy, replacing the former first-party Documents page and its `/documents` route.
+
+已退役（2026-10-21，change `reconcile-knowledge-specs`）：WeKnora 的 SPA 内嵌 UI（`/weknora` 路由 + `/weknora-web` 反代 iframe）随 WeKnora 整链于 2026-08-04 移除（commit `ef60adcf`），无路由、无实现，生产导航的知识入口是 `/knowledge`。现管 UI 真源：`document-management-ui`。
 
 ## Requirements
 
-### Requirement: WeKnora UI is accessible via the React SPA's sidebar navigation
-The React SPA SHALL expose a "WeKnora" entry in the sidebar (using `<NavLink>` like the existing Chat and Dashboard entries) that navigates to the `/weknora` route. The route SHALL render an iframe wrapper component that loads WeKnora's native web UI via the same-origin `/weknora-web` reverse proxy.
-
-#### Scenario: user navigates to WeKnora via sidebar
-- **WHEN** the user clicks the "WeKnora" sidebar entry
-- **THEN** the React router SHALL navigate to `/weknora`
-- **AND** the page SHALL render an iframe pointing to `/weknora-web`
-- **AND** the iframe SHALL load WeKnora's native web UI
-
-#### Scenario: WeKnora is not configured
-- **WHEN** the user navigates to `/weknora` and `WEKNORA_BASE_URL` is not configured
-- **THEN** the page SHALL display a "WeKnora is not configured" placeholder
-- **AND** SHALL NOT render an iframe
-
-### Requirement: WeKnora UI replaces the first-party Documents page
-The old first-party React Documents page (upload forms, document list, indexing status, query interface) SHALL be removed. The `/documents` route SHALL be removed from the React router. The sidebar entry formerly labeled "Documents" SHALL be relabeled "WeKnora" and point to `/weknora`.
-
-#### Scenario: Documents route is removed
-- **WHEN** a user navigates to `/documents`
-- **THEN** the React router SHALL NOT match the route
-- **AND** SHALL fall through to the SPA catch-all (404 or redirect)
-
-#### Scenario: sidebar label is updated
-- **WHEN** the user views the sidebar
-- **THEN** the entry SHALL be labeled "WeKnora" (not "Documents")
-- **AND** SHALL navigate to `/weknora` (not `/documents`)
-
-### Requirement: WeKnora UI is embedded via same-origin iframe proxy
-The WeKnora UI SHALL be embedded via the `/weknora-web` same-origin reverse proxy. The proxy SHALL inject the WeKnora API token into requests so the browser never sees credentials. The iframe SHALL load the full WeKnora web UI (knowledge bases, document management, chat, Wiki mode, settings).
-
-#### Scenario: iframe loads WeKnora UI
-- **WHEN** the user navigates to `/weknora`
-- **THEN** the iframe SHALL load `http://localhost:<weknora-port>/` via the `/weknora-web` proxy
-- **AND** the proxy SHALL inject the `WEKNORA_API_KEY` into requests
-- **AND** the browser SHALL NOT see the API key
-
-#### Scenario: WeKnora UI is fully functional
-- **WHEN** the user interacts with the WeKnora UI in the iframe
-- **THEN** all WeKnora features SHALL be available (knowledge base creation, document upload, chat, Wiki mode, settings)
-- **AND** the UI SHALL communicate with WeKnora's REST API via the proxy
+<!-- All requirements removed by reconcile-knowledge-specs change -->
+<!-- WeKnora UI 随整链移除；被其「替换」的一方（Documents 页）存活至今并经 2026-09-12 重建为文件库页面（document-management-ui） -->

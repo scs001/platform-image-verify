@@ -5,9 +5,6 @@ Document ingestion as a local, deterministic pipeline: uploads are extracted and
 
 ## Requirements
 
-<!-- All requirements removed by bundle-weknora-knowledge change -->
-<!-- WeKnora now handles document management via its knowledge base system -->
-
 ### Requirement: Ingestion completes locally without LLM calls
 
 Adding a document SHALL extract its text locally (PDF, Markdown, text, office formats, URL fetch) and persist the extracted source text as part of the ingest operation. The document SHALL transition from `queued` directly to `ready` (or `error` with a specific message) without an intermediate LLM-backed indexing state. Ingest duration SHALL not depend on any external model provider.

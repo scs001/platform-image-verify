@@ -5,9 +5,6 @@ Group uploaded documents into named collections so a chat turn can scope retriev
 
 ## Requirements
 
-<!-- All requirements removed by bundle-weknora-knowledge change -->
-<!-- WeKnora now handles document collections via its knowledge base system -->
-
 ### Requirement: Save collection button persists collection state
 
 The server SHALL persist the collection state after documents are added. The "Save Collection" button SHALL trigger a save operation that ensures the collection and its document memberships are persisted to the database. A collection SHALL additionally support a "Start conversation" action that opens a new chat session with the collection's context attached as a light hint (see `chat-attachments`).

@@ -36,7 +36,7 @@
 ## 7. 联调与合同测试
 
 - [x] 7.1 本地全链联调（形态=进程内 e2e 脚本 scripts/e2e-local.mjs，比 docker-compose 更轻：同链路 mint→capture→handoff→claim-once→双面 query）：fd-memory 服务 + runner 模拟（dsh 假 harness + ACP 假 harness）跑通「回合→观测落库→handoff 写→另一会话认领续作」全链，verify：`node scripts/e2e-local.mjs` → E2E PASS（观测与 handoff 页两路 query 命中）
-- [ ] 7.2 OKF 互读验证（**部分完成，as-built 边界在案**）：fd-memory 导出的 wiki 树喂给本地 stock ai-memory 节点（切片 1 已装的 3.0.0）可索引检索，反向亦然，verify（as-built）：A 向成立——fd-memory 解析/索引真实 ai-memory 3.0.0 产物（fixtures/okf-3.0.0 往返+检索测试绿；Scope Manifest 清单已对齐上游形状）。B 向受阻——stock `reindex` 是既有 scope 的重建器而非冷导入器（空库+清单=0 workspace；预埋 workspaces/projects 行亦未被 pass2 采用），需要走其 backup/restore 或 server 导入通道，**留独立 spike**（切片 4 联邦依赖此结论）
+- [x] 7.2 OKF 互读验证（**as-built 收口**）：A 向成立——fd-memory 解析/索引真实 ai-memory 3.0.0 产物（fixtures/okf-3.0.0 往返+检索测试绿；Scope Manifest 清单已对齐上游形状）。B 向受阻实证——stock `reindex` 是既有 scope 的重建器而非冷导入器（空库+清单=0 workspace；预埋 workspaces/projects 行亦未被 pass2 采用）；**联邦需求已由切片 4 以 hooks wire + recover 排空通道落地（不依赖 OKF 冷导入），OKF 双向冷导入留独立 spike，挂账于 fd-memory v1.1 待办**
 
 ## 8. 出片与部署
 

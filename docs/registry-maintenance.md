@@ -1326,3 +1326,22 @@ digest 8515e54f 先我落 gitee，验祖先后不重复滚；自有 facade 片 c
 （pod env FLEET_OBSERVER_TOKEN）全量 15 条与 facet packs.db 对账一致。截图因 ego 窗口
 最小化未拍，DOM 文本断言为证。**产品层余账（未立项）**：「我的套餐」卡改名/挪位（现为
 调用方对账、ops-only 发套套餐无自助入口）、部署向导一键一 agent 规则前置。
+
+## §9 发布记录：萬星经济面可懂性三刀上产（clarify-plan-card-and-wizard，2026-10-22）
+
+**用户诉求**：「我的套餐」和「部署我的 agent」看不懂怎么用（舰队归属闸同日分诊的另一半）。
+**三刀**（fd-wanxing ba12699，ADDED-only 新能力 console-economics-clarity）：①套餐卡改名
+「API 调用对账」+释义行（调用方视角/套餐=运维发放包月额度/无套餐按调用键余额实扣，带
+「即原『我的套餐』」过渡语）；②一键一 agent 规则前置——共享常量 ONE_KEY_ONE_AGENT_NOTE，
+第 2 步勾选 >1 即时渲染（choosePack 全预勾，多 agent 包开箱即见），第 4 步兜底保留；
+③向导头常驻备键准备清单（计费面板链接常量化 BILLING_PANEL_URL）。
+
+**纯展示层单镜像**：wanxing-web sha-6edfb83（源 ba12699）digest **e9070721**；gitee
+fd-infra-deploy 滚 tag + ArgoCD 硬刷新，2/2 pod 全新 digest。**坑**：relay 首轮与 GHA 推
+hkccr 撞时序（build 成功≠tag 可见），~10 分钟下轮回灌——判据=relay log 逐 tag OK 行，
+勿只看 build conclusion。验证=stub dist 四线（标题/释义/数字不变、准备行、step2 即时
+警告、step4 兜底）+ 生产 ego 三线（对账卡命中、step1 准备清单、柏讯·投研三镜头双 agent
+预勾即出警告且常驻）。
+
+**Non-goals 留案**：对账卡跨 tab 迁「消耗」、套餐自助入口、向导表单降门槛。change 6/6
+可归档（待主 spec 同步 console-economics-clarity）。

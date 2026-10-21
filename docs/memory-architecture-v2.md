@@ -15,7 +15,7 @@
 
 ## 2. 现状（2026-10-22 as-built 一页）
 
-- **四切片全上产**（10-19）：本地 stock ai-memory 试点 → fd-memory（cheap 集群 fd-prod/cheap-4 单实例 + PVC 5Gi，NodePort 31899）→ 消耗统计（fd-wanxing）→ 联邦（/hook + cell 挂载 `u/<owner>`）。
+- **四切片全上产**（10-19）：本地 stock ai-memory 试点 → fd-memory（cheap 集群单实例 + PVC 5Gi，NodePort 31899）→ 消耗统计（fd-wanxing）→ 联邦（/hook + cell 挂载 `u/<owner>`）。
 - **fd-memory**：TS 1186 行 src + 12 单测 + e2e；路由 `/capture` `/hook` `/mcp` `/admin/mint` `/admin/reindex`；MCP 8 工具（handoff begin/list/accept/cancel、query、recent、read_page、write_page）；令牌四族 deployment|person|runner|platform；OKF markdown 真源 + SQLite（pages / pages_fts trigram / observations / handoffs / hook_dedupe）；脱敏四类 + BIDI；git 快照可选。
 - **规模**：生产 serving agent 6 个、cell 1 个、首个记忆生产部署 spider-heal。「上百」是愿景——骨架按愿景，第一刀按现状落。
 - **多 agent 缺口**：namespace 恒 `d/<packId>/<agentId>` → 根 `d-<packId>--<agentId>` 每 agent 一根；令牌恰一个 namespace；fleet pod 路径不挂记忆（`manager.js:1472-1474`）；cell 集群回合的 persona 成员共用 `u/<owner>` 单 project、无结构无归因。

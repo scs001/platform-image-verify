@@ -135,6 +135,26 @@ if (!process.env.CSC_LINK && process.platform === "darwin") {
   }
 }
 
+// Runtime-directory coverage gate (desktop-catch-up-release): the positive
+// files-list entries for runtime directories are GENERATED from RUNTIME_DIRS
+// (electron-builder.js), and this gate proves the descriptor spawn graph is
+// covered by that same list — every project-relative path supervisor
+// descriptors spawn (and every RUNTIME_DIRS entry itself) must exist in the
+// build tree. Third shipped instance of the class: v1.3.13 packed the fleet
+// descriptor's agent-runner spawn without packing agent-runner/.
+{
+  const { RUNTIME_DIRS, runtimeDirCoverageProblems } = await import("./lib/runtime-dirs.mjs");
+  const descriptorPath = path.join(PROJECT_ROOT, "supervisor", "descriptors.js");
+  const descriptorSource = fs.readFileSync(descriptorPath, "utf8");
+  const problems = runtimeDirCoverageProblems({ root: PROJECT_ROOT, descriptorSource });
+  if (problems.length) {
+    for (const p of problems) console.error(`❌ Runtime-dir coverage: ${p}`);
+    allGood = false;
+  } else {
+    console.log(`✅ Runtime-dir coverage: ${RUNTIME_DIRS.length} dirs packed; supervisor descriptor spawns all covered`);
+  }
+}
+
 if (!allGood) {
   console.error("\n❌ Verification failed: bundled resources are incomplete.");
   console.error("   Run `npm run predist` to build them before `npm run dist`.");

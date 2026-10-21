@@ -2,13 +2,13 @@
 
 ## 0. 前置纪律
 
-- [ ] 0.1 `fd-build-channel` 查私有仓额度余额；本刀预算两次 release 矩阵（2×mac ×10 + 1×win ×2），余额不足则干跑延后并在此注记
+- [x] 0.1 额度判决（2026-10-21 10:56）：私有池合计剩 9360 min（4.7 池），但**本仓 fd-craw-private=PRIVATE，release 矩阵计费走所属账号 FindDataTechnology=2011/2000 已耗尽**→ GHA 干跑当下会被额度闸秒拒。**改道**：打包件确证改走本机 arm64 本地 dist（仓库既有调试先例，零额度）；GHA 矩阵留到月初重置（2026-11-01）随正式 tag 一次跑
 
 ## 1. 打包缺口修复 + 建制化断言
 
-- [ ] 1.1 `electron-builder.js` files 清单补 `agent-runner/**`
-- [ ] 1.2 `scripts/verify-bundle.js` 增 RUNTIME_DIRS 显式清单断言 + `supervisor/descriptors.js` 静态扫描门（descriptor args 相对路径解析出的目录必须在清单且在打包树在位；缺即 fail 并点名路径）
-- [ ] 1.3 断言负例单测：模拟清单缺目录 → 构建红（防断言自身失效）
+- [x] 1.1 落地：files 清单的运行时目录块改为从 RUNTIME_DIRS 生成（`...RUNTIME_DIRS.map(d => \`${d}/**\`)`），agent-runner 随块入列——单源后此缺口类不可再漏
+- [x] 1.2 `scripts/lib/runtime-dirs.mjs` 单一真源（RUNTIME_DIRS 9 目录 + PACKED_ELSEWHERE_DIRS 4 目录）+ descriptorSpawnRefs 静态扫描 + verify-bundle 新门；真实 descriptors 三引用（server.js/agent-runner/node_modules dsh bin）全过；开发树全量 verify-bundle exit 0
+- [x] 1.3 `scripts/test-runtime-dirs.mjs` 5/5：未知目录红（neither…nor）/ 引用目录缺盘红 / RUNTIME_DIRS 条目缺盘红 / 真实仓布局绿 / files 接线（RUNTIME_DIRS.map）钉死防单源烂掉
 
 ## 2. 干跑确证
 

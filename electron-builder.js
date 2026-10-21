@@ -19,6 +19,7 @@
 import { cpSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { computePackagedTree } from "./scripts/lib/packaged-tree.mjs";
+import { RUNTIME_DIRS } from "./scripts/lib/runtime-dirs.mjs";
 
 const productName = (process.env.PRODUCT_NAME || "").trim() || "Platform";
 const icon = existsSync("build/icon.downloaded.png") ? "build/icon.downloaded.png" : "build/icon.png";
@@ -124,21 +125,15 @@ const config = {
     "*.js",
     // the builder config itself is a build-time input, not app code
     "!electron-builder.js",
-    // runtime subdirs server.js imports (2026-10-07 desktop smoke: a missing
-    // lib/ made every packaged app die on ERR_MODULE_NOT_FOUND at boot)
-    "lib/**",
-    "server/**",
-    "gateway/**",
-    // services/ joined the runtime graph late (add-search-byok's
-    // lib/scoped-relay-token.js → services/search-relay, ops-console) and
-    // was never added here — v1.3.10's exe died on
-    // "Cannot find services/search-relay/scoped-token.js" (debug run
-    // 38558581131). keys.json is gitignored real credentials: the CI
-    // checkout never has it, but a LOCAL dist build would leak it.
-    "services/**",
+    // runtime directories — generated from the single source in
+    // scripts/lib/runtime-dirs.mjs (desktop-catch-up-release), so the files
+    // list can never silently drop a directory the descriptors/server graph
+    // reaches (three shipped instances of exactly that: lib/ 2026-10-07,
+    // services/ v1.3.10, agent-runner/ v1.3.13).
+    ...RUNTIME_DIRS.map((d) => `${d}/**`),
+    // keys.json is gitignored real credentials: the CI checkout never has
+    // it, but a LOCAL dist build would leak it.
     "!services/**/keys.json",
-    // dsh profile scaffold + bridge plugin, materialized at runtime
-    "dsh-profile-template/**",
     // root runtime data files (bundled market catalog, llm defaults, replay
     // allowlist…). mcp.json/.env stay excluded below as before.
     "*.json",

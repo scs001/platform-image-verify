@@ -1210,3 +1210,13 @@ pack 转 public 时机）。证据细节见 docs/acceptance-criteria.md 柏讯�
 - **真机成功路径（4.5 收口）**：测试号 aloadtree cell `1da519d4` 既有集群「集群测试」（柏讯舆情+投委会主持人）→ 建集群任务（all 策略）→ 38.5s `success:true` → in-pod 直读 cell 库：绑定会话=提示+聚合摘要、两成员子会话各含真实 LLM 回复（舆情助手还诚实声明聚焦模式只代表自己）、clusters.db `total_executions:1` 回写。REST 读会话被 ownership 门 403=cron 会话无 owner 属设计行为，验尸走 in-pod 只读库。
 
 **余账**：首批谦面 cluster pack 待用户选（货架空——在架 pack 无一声明 cluster 元数据）；会话集成（picker 分组/cluster_bound WS/会话头集群名）；marketplace size 筛选；模型绑定后半程（须对齐词元车道真源重建）。详 `openspec/changes/agent-cluster-platform/tasks.md`。
+
+## §16 入库记录：依赖安全轮 dependency-security-round（2026-10-21，f744f7f6——不出片，随下列车）
+
+**内容**（openspec `dependency-security-round` 全 14 任务收口；FDT 额度 2011/2000，门全本地跑）：
+1. **5 manifest critical 清零**（dependabot open 151→55）：root audit fix 47→27/0c（proxy-addr 2.0.8、tar 全树 7.5.22 靠 `@mapbox/node-pre-gyp.tar ^7.5.22` scoped override、undici/express 族/MCP SDK 1.32.1/electron 43.8.3）+ extraneous tencentcloud-sdk ×3 清除；miniapp overrides swiper 12.1.2（Taro 4.2.1/4.3.0 均精确钉 11.1.15；**weapp 36/36 文件 sha256 字节一致**）+ shell-quote 1.12.0；web 11→3/0h；facet/web 2→0。唯余 critical = miniapp decompress（dev-only、仅 `taro init` 模板下载可达、无补丁——豁免在案）。
+2. **nested major 显式过堂**：@hono/node-server 2.1.5（MCP SDK 自带配对）、@noble/hashes 1.8（builder 构建链）——test:unit 1743/1744 全量门；electron 43.8/builder 26.18 的桌面门在下一班 tag 天然执行。
+3. e2e 二分定案两确定性红均非本轮（full-mode-tool-scope=main 既有红；resources-binding=姊妹在途 WIP 树复现，干净 HEAD+本轮 lock 全绿）——**git worktree @ HEAD 是并行会话污染下归因的正解**。
+
+**待列车**：服务端镜像与桌面 v1.3.19+ 出片时自然携带（本轮无独立滚产动作）；上车后进容器验 `npm ls proxy-addr tar`。`package.json` 变更使 resources 缓存 key 变化，下一班 tag 会重建 bundled Node 一次。
+**余账**：豁免/推迟清单全录 `openspec/changes/dependency-security-round/notes/round-record.md`（dsh rc.2 闭包 ×7、officeparser/pdfjs 大版本、miniapp dev 链钉死项、webpack 5.104 因会改 weapp 包字节随下个 MP 构建周期、app/ 4 条移交 add-mobile-app）。

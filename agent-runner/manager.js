@@ -1132,7 +1132,7 @@ export class ChildManager {
       skillContents[p] = await this.registryClient.fetchSkillContent(p);
     }
     const mcpServers = (descriptor.mcpServers ?? []).map((name) =>
-      mcpEntry(name, { url: this.registryClient.mcpUrlFor(name), token: config.registryToken }),
+      mcpEntry(name, { url: this.registryClient.mcpUrlFor(name), token: config.mcpToken }),
     );
     if (this.memory) {
       const memoryToken = await this.#memoryMountToken(entry);
@@ -1417,7 +1417,7 @@ export class ChildManager {
       }
       for (const name of descriptor.mcpServers ?? []) {
         if (!mcpRows.has(name)) {
-          mcpRows.set(name, mcpEntry(name, { url: this.registryClient.mcpUrlFor(name), token: config.registryToken }));
+          mcpRows.set(name, mcpEntry(name, { url: this.registryClient.mcpUrlFor(name), token: config.mcpToken }));
         }
       }
       if (billingRef == null && descriptor.billing_key_ref != null) billingRef = descriptor.billing_key_ref;

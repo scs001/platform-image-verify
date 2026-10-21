@@ -107,6 +107,13 @@ export function loadConfig(env = process.env) {
     // Registry (the runtime distribution plane — design D2/ADR-0004).
     registryUrl: (env.AGENT_SERVING_REGISTRY_URL || env.REGISTRY_URL || "").replace(/\/+$/, ""),
     registryToken: env.AGENT_SERVING_REGISTRY_TOKEN || env.MARKET_REGISTRY_TOKEN || "",
+    // The MCP-gate credential: the wire line's commercial servers sit behind
+    // the gateway's caller-mapping preflight, which the shared registry
+    // token's identity does not pass (live 2026-10-22: fd-wire servers
+    // answered 402 CALLER_NOT_MAPPED and served members read every channel
+    // "disconnected"). Falls back to the registry token, so deployments
+    // without the wire servers keep the one-credential posture.
+    mcpToken: env.AGENT_SERVING_MCP_TOKEN || env.AGENT_SERVING_REGISTRY_TOKEN || env.MARKET_REGISTRY_TOKEN || "",
     // Poll cadence; spec bound is "effective within five minutes".
     pollSecs: num(env.AGENT_RUNNER_POLL_SECS, 60),
 

@@ -12,9 +12,9 @@
 
 ## 2. 干跑确证
 
-- [ ] 2.1 `workflow_dispatch` 干跑 release 矩阵（artifact-only 不发 release），取 mac arm64 安装包
-- [ ] 2.2 打包件冒烟清单（design D6 八项：升级装/舰队配对真启动/并发切窗/应用中心/连接中心/语音/集群/云目录 last-good），逐项留证据
-- [ ] 2.3 坐实/证伪 agent-runner 缺口记录在案；按 design D5 判据决定是否追加 desktop-fleet-runner spec delta（条件性，预期零 delta）
+- [x] 2.1 改道完成（0.1 判决后）：GHA 干跑被 FDT 池耗尽所阻，**本机 arm64 `npm run dist` 替代**（npmmirror 双镜像 env 绕 electron 辅助件下载墙）——产出 dist/Platform-1.3.17-arm64.dmg + .app，全程 verify-bundle 门在环（还拒了一次我自己的 bots 误报，证明门行为正确）
+- [ ] 2.2 **无头冒烟已绿**（2026-10-21）：打包版 server 用自带 node 启动 7s READY（`{"ready":true,"dshInitError":null}`），SPA 200 / skills API 200 / 新 update-preview 路由在挂（404=无此技能语义正确）/ mp command-summary 200，boot log 零错误。**余 GUI 项**（舰队配对真启动/并发切窗/应用中心/连接中心/语音/集群页眼见）需真开 Electron+外部 registry，留发布前人工走查——首开已证不炸
+- [x] 2.3 **坐实且多抓一例**：① agent-runner 缺口坐实（v1.3.13 files 清单无此目录，静态证据链）+ 修复实证（.app 树 agent-runner/index.js 在位）；② **第四例同类病**：server/layout.js 运行时 import `packages/core/src/lib/recipes.ts` 而 files 清单从无 `packages/**`（角色线 10-17 后带入，1.3.18 不修即装机炸）——本地冒烟首启动即捕获已修（RUNTIME_DIRS +packages，commit 5dd1b1c5）。desktop-fleet spec delta：无需（打包类根因，D5 判据不触发）
 
 ## 3. 补版发布
 

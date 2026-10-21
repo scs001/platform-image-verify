@@ -27,6 +27,12 @@ export const RUNTIME_DIRS = [
   "electron", // desktop shell: main / preload / preferences
   "supervisor", // child-process supervisor + descriptors
   "bootstrap", // first-run bootstrap
+  // server-side imports of the core workspace package (role recipes/surfaces,
+  // imported as .ts and run on the bundled Node ≥23's type stripping) — caught
+  // by the v1.3.18 local dist boot smoke, would have bricked the installer.
+  // (Note: server/routes/bots.js's "../bots/…" resolves INSIDE server/** —
+  // relative import paths resolve from the importing file, not the root.)
+  "packages",
 ];
 
 // Descriptor-referenced directories that ride DEDICATED files-list entries of

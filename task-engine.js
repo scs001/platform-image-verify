@@ -32,6 +32,11 @@ let tasks = new Map(); // id -> task record (loaded from disk + live schedule
 // handle on .job owned by cron.js)
 let broadcastFn = null;
 let runTurnFn = null;
+// Readiness gate: routes are mounted before initTaskEngine runs (it waits on
+// the boot Promise.all), so a task created-and-run on a COLD cell could reach
+// the chain with no turn executor ("turnFn is not a function", prod 2026-10-21)
+// and an insert could land in the pre-init map that init then replaces.
+let initialized = false;
 let isBusyFn = null;
 // Worker-pool occupancy provider (unify-wanxing-management-plane): injected by
 // the server layer so the stats snapshot can speak for slots this module does
@@ -63,6 +68,19 @@ function saveTasks() {
       prompt: t.prompt,
       preset: t.preset ?? null,
       targetType: t.targetType ?? "persona",
+      // Cluster binding (agent-cluster-platform): persisted alongside the ref
+      // in `preset` — without these a cell restart reloaded cluster tasks with
+      // their policy/subset/label gone (prod 2026-10-21: list showed null,
+      // re-runs silently fell back to all-members/sequential).
+      ...(t.targetType === "cluster"
+        ? {
+            clusterId: t.clusterId ?? null,
+            clusterName: t.clusterName ?? null,
+            agentCount: t.agentCount ?? null,
+            executionPolicy: t.executionPolicy ?? null,
+            targetAgents: t.targetAgents ?? null,
+          }
+        : {}),
       sessionId: t.sessionId ?? null,
       sessionTitle: t.sessionTitle ?? null,
       tz: t.tz ?? null,
@@ -159,6 +177,7 @@ async function initTaskEngine({ broadcast, runTurn, isBusy, onFinished, workerSt
   // Load-time mutations (backfill, repair) must reach disk before boot
   // completes, or the next restart re-repairs the same records.
   if (loadTasks()) await saveTasks();
+  initialized = true;
 }
 
 // After the scheduling front-end has initialized (timers armed, expiry
@@ -190,7 +209,12 @@ function allRecords() {
   return [...tasks.values()];
 }
 
+function isInitialized() {
+  return initialized;
+}
+
 function insertTask(record) {
+  if (!initialized) throw new Error("task engine is still starting — retry in a moment");
   if (!record?.id) throw new Error("task id is required");
   if (!record.prompt || typeof record.prompt !== "string") throw new Error("prompt is required");
   const trigger = record.trigger ?? "schedule";
@@ -309,6 +333,7 @@ function scheduleSideBlocked(t) {
 // already queued or running is a no-op returning the current state (re-run
 // must not double-queue).
 function enqueueExecution(id) {
+  if (!initialized) return { ok: false, error: "task engine is still starting — retry in a moment" };
   const t = tasks.get(id);
   if (!t) return { ok: false, error: "task not found" };
   if (scheduleSideBlocked(t)) {
@@ -430,6 +455,11 @@ function finishExecution(t, startTime, result) {
     // Token spend when the runtime reports usage on the finish chunk
     // (absent on some providers — the card omits the line, never blocks).
     ...(result?.usage ? { tokens: result.usage } : {}),
+    // Per-member model attribution (agent-cluster-platform 3.15): a cluster
+    // fan-out reports the model each member actually ran under. The lane is
+    // the deployment's single provider — this records WHAT model id served
+    // each member, not a fictional provider layer.
+    ...(result?.models ? { models: result.models } : {}),
   });
   if (t.history.length > HISTORY_LIMIT) {
     t.history = t.history.slice(-HISTORY_LIMIT);
@@ -571,6 +601,7 @@ export {
   getRecord,
   allRecords,
   insertTask,
+  isInitialized,
   createManualTask,
   deleteRecord,
   clientShape,

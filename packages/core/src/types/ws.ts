@@ -173,6 +173,9 @@ export type ServerMessage =
   // to the built-in agent with a notification).
   | { type: "cluster_bound"; clusterId: string; clusterName: string; sessionId: string }
   | { type: "cluster_terminated"; clusterId: string; clusterName: string; sessionId: string }
+  // Auto-termination warning (1h grace): a bound cluster that is about to
+  // expire shows it on its chip; using it during the grace period keeps it.
+  | { type: "cluster_expiring"; clusterId: string; clusterName: string; terminatesAt: number }
   | { type: "dashboard_update"; state: unknown }
   | { type: "dashboard_state"; state: unknown }
   | { type: "extensions_changed"; resource: string; action: string; name: string; enabled?: boolean }
@@ -459,6 +462,8 @@ export interface CronJobHistoryEntry {
   tokens?: { input?: number; output?: number; total?: number; [k: string]: unknown };
   /** Present on downtime markers: occurrences missed while the cell was down. */
   missed?: number;
+  /** Cluster fan-out: model id each member actually ran under (by member name). */
+  models?: Record<string, string>;
 }
 
 /** Execution target of a task — "persona" today (the preset that runs it). */

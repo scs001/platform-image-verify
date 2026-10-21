@@ -224,7 +224,8 @@
       "ctx": "ctx {{pct}}%",
       "ctxHint": "{{tokens}} / {{window}} tokens",
       "clusterLoad": "Load cluster",
-      "clusterLoading": "Loading…"
+      "clusterLoading": "Loading…",
+      "clusterLoadHint": "Bind this cluster to the current session: switches to the lead default member; use cluster tasks for fan-out."
     },
     "sending": "Sending…",
     "voice": {
@@ -320,7 +321,8 @@
       "titlePlaceholder": "Session title",
       "rename": "Save new title",
       "sessionActions": "Session actions",
-      "clusterBound": "Running with cluster {{name}}"
+      "clusterBound": "Running with cluster {{name}}",
+      "clusterExpiring": "Running with cluster {{name}} — idle, auto-terminates at {{time}} unless used before then"
     },
     "titleTooLong": "Title must be 200 characters or fewer",
     "connectionLost": "Connection lost — reconnecting…",

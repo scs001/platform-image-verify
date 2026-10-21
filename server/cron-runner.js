@@ -347,7 +347,7 @@ export function buildClusterDigest({ clusterName, results, policy }) {
     lines.push("", `## ${okResults[0].name} 的输出（first 策略）`, "", okResults[0].text || "(空回复)");
   } else {
     for (const r of okResults) {
-      lines.push("", `## ${r.name}`, "", r.text || "(空回复)");
+      lines.push("", `## ${r.name}${r.model ? `（模型 ${r.model}）` : ""}`, "", r.text || "(空回复)");
     }
   }
   if (badResults.length) {
@@ -438,6 +438,9 @@ async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, runPersona
       text: out.text ?? null,
       error: out.error ?? null,
       usage: out.usage ?? null,
+      // Model attribution (3.15): the runtime's active model id at this
+      // member's turn — the lane is the single provider, this names the model.
+      model: ctx.runtimeModel?.id ?? null,
     });
     return out;
   };
@@ -548,11 +551,12 @@ async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, runPersona
     .catch((e) => console.error("[cluster] sessions refresh failed:", e.message));
 
   const okCount = results.filter((r) => r.status === "ok").length;
+  const memberModels = Object.fromEntries(results.filter((r) => r.model).map((r) => [r.name, r.model]));
   if (okCount === 0) {
     const errs = results.map((r) => `${r.name}: ${r.status === "skipped" ? r.reason : r.error || "unknown"}`).join("; ");
-    return { ok: false, error: `all cluster members failed or were skipped — ${errs}` };
+    return { ok: false, error: `all cluster members failed or were skipped — ${errs}`, models: memberModels };
   }
-  return { ok: true, usage: totalUsage };
+  return { ok: true, usage: totalUsage, models: memberModels };
 }
 
 export function attachCronRunner(ctx, { runPersona = null, runA2a = null, listAgents = null } = {}) {

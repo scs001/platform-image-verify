@@ -166,8 +166,8 @@ interface State {
   // matching /api/clusters/mine against currentSessionId and updated live by
   // the cluster_bound / cluster_terminated WS events. The header renders the
   // cluster chip off it; a termination flips the agent back to the built-in.
-  boundCluster: { clusterId: string; clusterName: string } | null;
-  setBoundCluster: (c: { clusterId: string; clusterName: string } | null) => void;
+  boundCluster: { clusterId: string; clusterName: string; expiresAt?: number } | null;
+  setBoundCluster: (c: { clusterId: string; clusterName: string; expiresAt?: number } | null) => void;
   // Set when the bound cluster is terminated out from under the session; the
   // chat page consumes it (switches to the built-in agent, shows the notice)
   // and clears it.
@@ -1171,6 +1171,13 @@ export const useChatStore = create<State>((set) => ({
           // notice the chat page turns into the built-in-agent switch.
           return state.boundCluster?.clusterId === m.clusterId
             ? { boundCluster: null, clusterTerminatedNotice: m.clusterName }
+            : {};
+
+        case "cluster_expiring":
+          // Grace-period warning for the bound cluster — the chip carries the
+          // deadline; any use before it keeps the cluster alive.
+          return state.boundCluster?.clusterId === m.clusterId
+            ? { boundCluster: { ...state.boundCluster, expiresAt: m.terminatesAt } }
             : {};
 
         case "cron_jobs":

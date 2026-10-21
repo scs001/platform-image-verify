@@ -224,7 +224,8 @@
       "ctx": "ctx {{pct}}%",
       "ctxHint": "{{tokens}} / {{window}} tokens",
       "clusterLoad": "Cargar clúster",
-      "clusterLoading": "Cargando…"
+      "clusterLoading": "Cargando…",
+      "clusterLoadHint": "Vincula este clúster a la sesión actual: cambia al primer miembro predeterminado; el fan-out va por tareas de clúster."
     },
     "sending": "Enviando…",
     "voice": {
@@ -320,7 +321,8 @@
       "titlePlaceholder": "Título de la sesión",
       "rename": "Guardar nuevo título",
       "sessionActions": "Acciones de sesión",
-      "clusterBound": "Ejecutando con el clúster {{name}}"
+      "clusterBound": "Ejecutando con el clúster {{name}}",
+      "clusterExpiring": "Ejecutando con el clúster {{name}} — inactivo, se terminará a las {{time}} salvo que se use antes"
     },
     "titleTooLong": "El título debe tener 200 caracteres o menos",
     "connectionLost": "Conexión perdida — reconectando…",

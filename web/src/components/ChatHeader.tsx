@@ -209,7 +209,14 @@ export function ChatHeader({ send }: Props) {
         {boundCluster && (
           <span
             data-testid="chat-header-cluster"
-            title={t("chat.header.clusterBound", { name: boundCluster.clusterName })}
+            title={
+              boundCluster.expiresAt
+                ? t("chat.header.clusterExpiring", {
+                    name: boundCluster.clusterName,
+                    time: new Date(boundCluster.expiresAt).toLocaleTimeString(),
+                  })
+                : t("chat.header.clusterBound", { name: boundCluster.clusterName })
+            }
             className="inline-flex max-w-[12rem] items-center gap-1 rounded-md border border-primary/40 bg-primary/10 px-2 py-1 text-xs text-primary"
           >
             <Users className="h-3 w-3 shrink-0" aria-hidden="true" />

@@ -224,7 +224,8 @@
       "ctx": "上下文 {{pct}}%",
       "ctxHint": "已用 {{tokens}} / {{window}} tokens",
       "clusterLoad": "载入集群",
-      "clusterLoading": "载入中…"
+      "clusterLoading": "载入中…",
+      "clusterLoadHint": "把该集群绑定为当前会话的运行编队：切到首个默认成员，成员间可随时切换；扇出执行走集群任务。"
     },
     "sending": "发送中…",
     "voice": {
@@ -320,7 +321,8 @@
       "titlePlaceholder": "对话标题",
       "rename": "保存新标题",
       "sessionActions": "会话操作",
-      "clusterBound": "运行于集群「{{name}}」"
+      "clusterBound": "运行于集群「{{name}}」",
+      "clusterExpiring": "运行于集群「{{name}}」——闲置将于 {{time}} 自动清退，此前使用即保留"
     },
     "titleTooLong": "标题不能超过 200 个字符",
     "connectionLost": "连接已断开，正在自动重连…",

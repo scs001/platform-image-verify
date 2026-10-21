@@ -224,7 +224,8 @@
       "ctx": "ctx {{pct}}%",
       "ctxHint": "{{tokens}} / {{window}} tokens",
       "clusterLoad": "クラスターを読み込む",
-      "clusterLoading": "読み込み中…"
+      "clusterLoading": "読み込み中…",
+      "clusterLoadHint": "このクラスターを現在のセッションにバインドし、先頭の既定メンバーへ切り替えます。ファンアウトはクラスタータスクで。"
     },
     "sending": "送信中…",
     "voice": {
@@ -320,7 +321,8 @@
       "titlePlaceholder": "セッション名",
       "rename": "新しい名前を保存",
       "sessionActions": "セッション操作",
-      "clusterBound": "クラスター「{{name}}」で実行中"
+      "clusterBound": "クラスター「{{name}}」で実行中",
+      "clusterExpiring": "クラスター「{{name}}」で実行中 — アイドルのため {{time}} に自動終了（それまでに使用すれば維持）"
     },
     "titleTooLong": "タイトルは 200 文字以下にしてください",
     "connectionLost": "接続が切断されました。自動的に再接続しています…",

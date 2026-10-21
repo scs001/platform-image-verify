@@ -387,7 +387,7 @@ attachTurnDispatch(ctx);
 attachWebSocket(ctx);
 
 // Dynamic cluster auto-termination (agent-cluster-platform)
-startAutoTerminationJob();
+startAutoTerminationJob(ctx);
 
 // Demo sandbox only (openspec: mp-demo-sandbox): periodically wipe the shared
 // conversation state so visitors never see each other's sessions. The timer

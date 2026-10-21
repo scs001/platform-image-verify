@@ -411,17 +411,74 @@ export function createClusterRoutes(app, ctx = null) {
   });
 }
 
-export function startAutoTerminationJob() {
+// ── Auto-termination (dynamic-cluster-composer spec: usage tracking) ────────
+//
+// Idle clusters (≥24h unused with <5 executions, or ≥7d unused) get a warning
+// event, then a 1h grace period, then termination — re-checked at fire time
+// so a cluster that was used during the grace period survives. One pending
+// timer per cluster (the hourly scan would otherwise stack timers), and the
+// termination releases the session binding + broadcasts cluster_terminated
+// exactly like the manual DELETE, so a bound session falls back cleanly.
+//
+// The tick is exported (with injectable clock/db/scheduler) so the threshold
+// and grace logic is unit-testable without real timers.
+const AUTO_TERM_GRACE_MS = 24 * 60 * 60 * 1000;
+const AUTO_TERM_ABSOLUTE_MS = 7 * 24 * 60 * 60 * 1000;
+const AUTO_TERM_WARN_LEAD_MS = 60 * 60 * 1000;
+
+export function autoTerminationTick({
+  db = clusterDb,
+  now = Date.now(),
+  broadcast = null,
+  pending = new Map(),
+  schedule = (fn, ms) => setTimeout(fn, ms).unref?.(),
+  graceMs = AUTO_TERM_GRACE_MS,
+  absoluteMs = AUTO_TERM_ABSOLUTE_MS,
+  warnLeadMs = AUTO_TERM_WARN_LEAD_MS,
+} = {}) {
+  const candidates = db.findExpiring(graceMs, absoluteMs);
+  const scheduled = [];
+  for (const cluster of candidates) {
+    if (pending.has(cluster.id)) continue;
+    broadcast?.({
+      type: "cluster_expiring",
+      clusterId: cluster.id,
+      clusterName: cluster.name,
+      terminatesAt: now + warnLeadMs,
+    });
+    const fire = () => {
+      pending.delete(cluster.id);
+      const fresh = db.get(cluster.id);
+      if (!fresh || fresh.status === "terminated") return;
+      // Still idle? A use during the grace period moved lastUsedAt forward.
+      const stillExpiring = db.findExpiring(graceMs, absoluteMs).some((c) => c.id === cluster.id);
+      if (!stillExpiring) return;
+      db.update(cluster.id, { status: "terminated" });
+      if (fresh.bindToSession && fresh.sessionId) {
+        global.clusterSessionBindings?.delete(fresh.sessionId);
+        broadcast?.({
+          type: "cluster_terminated",
+          clusterId: cluster.id,
+          clusterName: fresh.name,
+          sessionId: fresh.sessionId,
+        });
+      }
+      console.log(`[cluster] Auto-terminated: ${cluster.id}`);
+    };
+    pending.set(cluster.id, fire);
+    schedule(fire, warnLeadMs);
+    scheduled.push(cluster.id);
+  }
+  return scheduled;
+}
+
+export function startAutoTerminationJob(ctx = null) {
+  const pending = new Map();
   setInterval(() => {
-    const gracePeriod = 24 * 60 * 60 * 1000;
-    const absoluteTimeout = 7 * 24 * 60 * 60 * 1000;
-    
-    const candidates = clusterDb.findExpiring(gracePeriod, absoluteTimeout);
-    for (const cluster of candidates) {
-      setTimeout(() => {
-        clusterDb.update(cluster.id, { status: "terminated" });
-        console.log(`[cluster] Auto-terminated: ${cluster.id}`);
-      }, 60 * 60 * 1000).unref();
+    try {
+      autoTerminationTick({ broadcast: ctx?.broadcast ?? null, pending });
+    } catch (err) {
+      console.warn(`[cluster] auto-termination tick failed: ${err.message}`);
     }
   }, 60 * 60 * 1000).unref();
 }

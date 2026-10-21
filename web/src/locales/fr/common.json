@@ -224,7 +224,8 @@
       "ctx": "ctx {{pct}}%",
       "ctxHint": "{{tokens}} / {{window}} tokens",
       "clusterLoad": "Charger le cluster",
-      "clusterLoading": "Chargement…"
+      "clusterLoading": "Chargement…",
+      "clusterLoadHint": "Lie ce cluster à la session active : bascule sur le premier membre par défaut ; le fan-out passe par les tâches de cluster."
     },
     "sending": "Envoi…",
     "voice": {
@@ -320,7 +321,8 @@
       "titlePlaceholder": "Titre de la session",
       "rename": "Enregistrer le nouveau titre",
       "sessionActions": "Actions de session",
-      "clusterBound": "Exécution avec le cluster {{name}}"
+      "clusterBound": "Exécution avec le cluster {{name}}",
+      "clusterExpiring": "Exécution avec le cluster {{name}} — inactif, fin automatique à {{time}} sauf utilisation avant"
     },
     "titleTooLong": "Le titre doit comporter 200 caractères ou moins",
     "connectionLost": "Connexion perdue — reconnexion en cours…",

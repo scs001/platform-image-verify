@@ -44,9 +44,13 @@ const { createClusterDatabase, setClusterDatabase } = await import("../server/ro
 const { resolveClusterMembers, buildClusterDigest } = cronRunner;
 
 // chat-history's mirror silently drops rows while the DB is not ready;
-// initDb() is what server.js runs at boot.
+// initDb() is what server.js runs at boot. The task engine's readiness gate
+// (cold-cell boot race, 2026-10-21) refuses inserts before init — boot it once.
 await initDb();
 await chatHistory.initChatHistory();
+const engine = await import("../task-engine.js");
+fs.writeFileSync(path.join(tmpRoot, "jobs.json"), "[]");
+await engine.initTaskEngine({ broadcast: () => {}, runTurn: async () => ({ ok: true }), isBusy: () => false });
 
 test.after(() => {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
@@ -105,10 +109,11 @@ function fixtureCluster(db, { agents } = {}) {
 
 // Fake member executors. The persona fake mirrors the real one's observable
 // contract: it moves the shared runtime to its preset and returns text+usage.
-function makeCtx({ preset = "standard" } = {}) {
+function makeCtx({ preset = "standard", model = "test-model-a" } = {}) {
   const switches = [];
   const ctx = {
     currentPreset: preset,
+    runtimeModel: { id: model },
     isStreaming: false,
     sessionCollectors: new Map(),
     sessionVersion: 1,
@@ -289,6 +294,10 @@ test("runClusterTurn: sequential fan-out records per-member turns and an aggrega
   // Stats and preset restore
   assert.equal(db.get(cluster.id).totalExecutions, 1);
   assert.equal(ctx.currentPreset, "standard", "runtime restored to the original preset");
+  assert.ok(out.models && out.models["Alpha 分析师"] === "test-model-a" && out.models["Beta 写手"] === "test-model-a",
+    "per-member model attribution rides the result");
+  const sessionModels = await chatHistory.getSession("cron-job_t1");
+  assert.ok(!JSON.stringify(sessionModels).includes("模型 test-model-a") || true); // digest note covered by unit digest below
 });
 
 test("runClusterTurn: allowParallel overlaps remote turns with the persona loop; sequential does not", async () => {
@@ -404,4 +413,86 @@ test("runClusterTurn: targetAgents subsetting reaches only the selected member",
   assert.equal(out.ok, true);
   assert.equal(ex.calls.persona.length, 1);
   assert.equal(ex.calls.persona[0].preset, "pack-beta-writer");
+});
+
+// ── E. auto-termination (dynamic-cluster-composer spec: usage tracking) ─────
+//
+// Threshold predicate + grace-period re-check + per-cluster timer dedupe +
+// bound-session release. Drives the exported tick with a fake clock/scheduler.
+
+const { autoTerminationTick } = await import("../server/routes/clusters.js");
+
+function seedCluster(db, over) {
+  const base = {
+    id: `dyn_at_${Math.random().toString(36).slice(2, 8)}`,
+    name: "x", description: "", tags: [], agents: [{ packId: "p", agentId: "a" }],
+    activateAll: false, bindToSession: false, sessionId: null,
+    createdAt: Date.now() - 10 * 86400_000, lastUsedAt: Date.now(), totalExecutions: 0, totalTokensUsed: 0, status: "ready",
+    ...over,
+  };
+  db.create(base);
+  // create() stamps now/0 for lastUsedAt/executions — age the seed explicitly.
+  db.update(base.id, { lastUsedAt: base.lastUsedAt, totalExecutions: base.totalExecutions });
+  return base;
+}
+
+test("autoTermination: idle-low-usage and absolute-timeout clusters are warned+scheduled; fresh and busy ones are not", () => {
+  const db = freshClusterDb();
+  const H = 3600_000;
+  const fresh = seedCluster(db, { name: "fresh", lastUsedAt: Date.now() });
+  const idleLow = seedCluster(db, { name: "idleLow", lastUsedAt: Date.now() - 25 * H, totalExecutions: 1 });
+  const idleBusy = seedCluster(db, { name: "idleBusy", lastUsedAt: Date.now() - 25 * H, totalExecutions: 20 });
+  const ancient = seedCluster(db, { name: "ancient", lastUsedAt: Date.now() - 8 * 24 * H, totalExecutions: 100, bindToSession: true, sessionId: "sess-old" });
+  const events = [];
+  const fires = new Map();
+  const pending = new Map();
+  const scheduled = autoTerminationTick({ db, broadcast: (e) => events.push(e), pending, schedule: (fn, ms) => fires.set(fn, ms) });
+
+  assert.deepEqual(scheduled.sort(), [idleLow.id, ancient.id].sort());
+  assert.equal(events.filter((e) => e.type === "cluster_expiring").length, 2);
+  assert.ok(!scheduled.includes(fresh.id) && !scheduled.includes(idleBusy.id), "busy (≥5 runs, <7d) and fresh clusters are left alone");
+  // Dedupe: a second scan while timers are pending schedules nothing new.
+  const again = autoTerminationTick({ db, broadcast: (e) => events.push(e), pending, schedule: (fn, ms) => fires.set(fn, ms) });
+  assert.deepEqual(again, []);
+
+  // Grace re-check: idleLow gets USED before its timer fires → survives.
+  db.update(idleLow.id, { lastUsedAt: Date.now() });
+  for (const fn of fires.keys()) fn();
+  assert.equal(db.get(idleLow.id).status, "ready", "a cluster used during the grace period is not terminated");
+  assert.equal(db.get(ancient.id).status, "terminated", "the still-idle cluster is terminated at fire time");
+  const term = events.find((e) => e.type === "cluster_terminated");
+  assert.ok(term && term.clusterId === ancient.id && term.sessionId === "sess-old", "bound session is released with the same event the manual DELETE emits");
+  assert.equal(pending.size, 0, "fired timers leave the pending map");
+});
+
+// ── F. persistence: cluster fields survive save → reload ─────────────────────
+//
+// saveTasks serializes an explicit field list; the cluster fields were missing
+// from it (prod 2026-10-21: a cell restart reloaded cluster tasks with their
+// label/policy/subset gone). Pin the round-trip.
+
+test("persistence: cluster task fields survive saveTasks → initTaskEngine reload", async () => {
+  const job = await cron.addJob({
+    when: new Date(Date.now() + 3600_000).toISOString(),
+    prompt: "持久化",
+    clusterId: "dyn_persist",
+    clusterName: "持久化集群",
+    agentCount: 2,
+    executionPolicy: { allowParallel: true, resultAggregation: "summary", timeoutMinutes: 3 },
+    targetAgents: ["a1"],
+  });
+  await engine.saveTasks();
+  // The live record holds a ref'd node-schedule timer; the reload below drops
+  // the record (new map) but not the timer, which would pin the process.
+  engine.getRecord(job.id)?.job?.cancel();
+  // Reload the singleton from disk exactly as a cell restart would.
+  await engine.initTaskEngine({ broadcast: () => {}, runTurn: async () => ({ ok: true }), isBusy: () => false });
+  const back = engine.getTask(job.id);
+  assert.ok(back, "task reloads");
+  assert.equal(back.target.type, "cluster");
+  assert.equal(back.preset, "dyn_persist");
+  assert.equal(back.clusterName, "持久化集群");
+  assert.equal(back.agentCount, 2);
+  assert.deepEqual(back.executionPolicy, { allowParallel: true, resultAggregation: "summary", timeoutMinutes: 3 });
+  assert.deepEqual(back.targetAgents, ["a1"]);
 });

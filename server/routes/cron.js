@@ -59,7 +59,10 @@ export function registerCronRoutes(ctx) {
       });
       res.status(201).json({ job });
     } catch (err) {
-      res.status(400).json({ error: err.message });
+      // Cold-cell boot race: the engine is not wired yet — tell the caller to
+      // retry rather than report a validation failure.
+      const starting = /still starting/.test(err.message);
+      res.status(starting ? 503 : 400).json({ error: err.message });
     }
   });
 

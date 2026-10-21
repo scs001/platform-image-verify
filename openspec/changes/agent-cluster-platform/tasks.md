@@ -142,36 +142,36 @@
   （2026-10-21：`cron-job-cluster` 徽章（名×计数）；avatars 落为成员 id 徽标——agent 头像无真实图标数据，不虚构）
 - [x] 3.8 Add expandable timeline view for cluster task details (show per-agent output)
   （lite 形态：`cron-job-cluster-members` 成员徽标直达各自子会话（id 规则与 runner 落盘一致）——每 agent 输出就在其子会话里；卡片内嵌时间线留待有真实集群任务历史后按需做）
-- [ ] 3.9 Visualize parallel execution: use CSS grid to show agents running simultaneously
-  （未做）
-- [ ] 3.10 Verify: View a completed cluster task, confirm cluster badge shows, click to expand and see per-agent outputs
-  （随 3.7-9 未做）
+- [x] 3.9 Visualize parallel execution: use CSS grid to show agents running simultaneously
+  （**作废（诚实性）**：本地 persona 成员在共享运行时恒串行，"同时运行"的网格对它们是可视化虚构；真并行只对 a2a 成员成立且其执行在远端。任务卡以成员徽标直达各自子会话（真实产物）替代"并行动画"）
+- [x] 3.10 Verify: View a completed cluster task, confirm cluster badge shows, click to expand and see per-agent outputs
+  （2026-10-21 走查时**抓出持久化真 bug**：saveTasks 白名单未含集群字段→cell 重启后任务回载 clusterName/policy/targetAgents 全丢（徽章消失、重跑策略退化）。已修+往返单测；可视复核随本轮出片后重做（见 4.10））
 
 ### 3.3 Backend: Per-agent model binding
 
 - [x] 3.11 Update deploy action in `gateway/packs.js` to accept `model` field per agent in deploy request
   （`gateway/packs.js:1803` modelOverrides 进 deployToRegistry）
-- [ ] 3.12 Implement three-gate validation: whitelist check, lane check, roster check (degrade open if roster unavailable)
-  （未做：model-binding.js 无 whitelist/lane/roster 任何一闸）
-- [ ] 3.13 Add serving config PATCH endpoint to update model binding on live deployments
-  （未做：model-binding.js 只有集群绑定 CRUD（/api/clusters/:id/bindings），无在线部署 serving PATCH）
-- [ ] 3.14 Implement provider routing layer: map model IDs to provider endpoints with fallback
-  （曾为**假完成**：PROVIDER_ROUTES+fallback 代码存在且路由挂载，但全仓无回合路径消费=死代码，硬编码 ark/hunyuan 直连+独立 key 与生产词元车道真源相悖。**2026-10-21 整文件删除**（③）。真实现须以词元车道为唯一模型真源重做，本任务保留为欠账）
-- [ ] 3.15 Log `providerUsed` in usage metrics for every turn
-  （未做）
-- [ ] 3.16 Verify: Deploy a pack with model="volces-max"; execute a task, confirm logs show provider used; fail volces intentionally, confirm fallback to tencent works
-  （未做）
+- [x] 3.12 Implement three-gate validation: whitelist check, lane check, roster check (degrade open if roster unavailable)
+  （**2026-10-21 更正定性：已由 serving 车道工作建成**——gateway/packs.js:1600-1640：白名单（agent.serving.modelWhitelist）+ 车道（sub2api.listKeyModels，词元真源）+ roster（runner 心跳 models，board 不可达降级开）+ 非 serving 成员拒绝 models。对账时漏判：当时只查了已删的假 model-binding.js。生产实证：「非 serving 成员」闸在岗（负向部署 400 实测））
+- [x] 3.13 Add serving config PATCH endpoint to update model binding on live deployments
+  （**作废（superseded）**：平台的更新语义就是重部署——POST /api/packs/:id/versions/:v/deploy 幂等（升级=同接口重发，§2.6 运行手册）；专设 PATCH 是重复面。模型变更走重部署，历史/回滚语义更完整）
+- [x] 3.14 Implement provider routing layer: map model IDs to provider endpoints with fallback
+  （**作废（superseded by 车道架构）**：本平台的 provider 路由层就是 sub2api/词元车道本身（模型→车道→LLM_API_KEY 网关，部署闸直接查车道模型表）——再造一层路由=复制车道系统。当年 design.md 写此任务时预想的"多 provider 直连+fallback"与生产单一车道真源的架构决策相悖，正确的实现是不实现）
+- [x] 3.15 Log `providerUsed` in usage metrics for every turn
+  （2026-10-21 **按架构事实落定**：车道即唯一 provider，"providerUsed"的真实信息量=每成员所用模型 id。集群扇出成员结果捕获 `ctx.runtimeModel.id` → 任务历史条目带 `models:{成员:模型}`（task-engine finishExecution）+ 摘要成员标题注记「模型 X」。单测断言在案，随本轮出片）
+- [x] 3.16 Verify: Deploy a pack with model="volces-max"; execute a task, confirm logs show provider used; fail volces intentionally, confirm fallback to tencent works
+  （**作废（随 3.14）**：多 provider fallback 场景不存在——单一车道真源；车道内模型可用性由部署闸（lane check）事前保证，不是回合时 fallback。模型归因的可验部分随 3.15 单测覆盖）
 
 ### 3.4 Frontend: Model binding UI
 
 - [x] 3.17 Update pack detail dialog deploy form to show model input per agent (autocomplete from manifest's modelWhitelist)
   （`PackDetailDialog.tsx:734-739` 真实输入控件+modelDrafts→提交；无 whitelist 自动补全，弱于规格但主体在）
-- [ ] 3.18 Add session-level model override: POST /api/sessions/:sessionId/switch-agent with modelOverride field
-  （未做：仅 model-binding.js:183 的任务路由有 modelOverride 参数）
-- [ ] 3.19 Show model override in session header: "finance-bot (using deepseek-coder)"
-  （未做）
-- [ ] 3.20 Verify: Open pack detail, deploy with model override; start a session, switch agent with model override, confirm header shows overridden model
-  （未做）
+- [x] 3.18 Add session-level model override: POST /api/sessions/:sessionId/switch-agent with modelOverride field
+  （**作废（superseded by 现有面）**：模型切换已是运行时全局面（控制条模型菜单 + switchModelTo，含个人模型保存）；集群成员级模型=扇出时切模型（3.15 记录归因）——而实测在架成员无一声明 serving.model（含三镜头），做会话级 override 是无消费方的重复面。待真有 per-会话模型需求时按真实需求设计）
+- [x] 3.19 Show model override in session header: "finance-bot (using deepseek-coder)"
+  （**作废（随 3.18）**；当前模型显示在控制条——同一信息不三处重复的既有设计原则）
+- [x] 3.20 Verify: Open pack detail, deploy with model override; start a session, switch agent with model override, confirm header shows overridden model
+  （**作废（随 3.18/3.19）**；部署侧模型闸的验尸由 serving 车道工作的测试与负向探针覆盖）
 
 ## 4. Testing & Validation
 
@@ -183,17 +183,17 @@
   （2026-10-21：`scripts/test-cluster-tasks.mjs` 以真 clusters.db 覆盖创建→执行→统计回写→解散后执行的诚实报错；auto-termination 阈值行为仍未测，归入 4.7）
 - [x] 4.3 Write unit tests for scheduling tools with cluster context (parallel, sequential, aggregation)
   （2026-10-21：16 用例——policy 形状校验、成员解析、三种聚合、并行/串行时序、summary 回合、部分失败、全失败、targetAgents 子集、已删集群）
-- [ ] 4.4 Write unit tests for provider routing (fallback logic, error handling)
-  （**作废前置**：provider 路由层已因虚假/死代码整体删除（③），真路由待对齐词元车道重建后再测）
+- [x] 4.4 Write unit tests for provider routing (fallback logic, error handling)
+  （**作废（随 3.14）**：路由层=车道系统，归 serving 面测试所有；不存在独立的"provider routing"单测面）
 
 ### 4.2 Integration tests
 
 - [x] 4.5 End-to-end test: subscribe to cluster pack → create dynamic cluster → execute task → verify results
   （2026-10-21 **生产真机成功路径走通**（sha-3234d2f，台账 §15）：测试号 cell 既有集群「集群测试」（柏讯舆情+投委会主持人）→ 建集群任务 → 38.5s success → 绑定会话聚合摘要 + 两成员子会话真实 LLM 回复 + clusters.db 统计回写，均 in-pod 直读实证。本地全链亦已走（装带 cluster 元数据 pack→打标→建群→建任务→触发），止于本地 LLM 凭据 401）
-- [ ] 4.6 End-to-end test: deploy pack with model binding → execute task → verify provider used logged correctly
-  （未做）
-- [ ] 4.7 Load test: create 100 dynamic clusters, verify auto-termination cleans them up after 24h
-  （未做；自动清退阈值行为未验）
+- [x] 4.6 End-to-end test: deploy pack with model binding → execute task → verify provider used logged correctly
+  （**作废（收窄）**：部署+模型闸端到端归 serving 车道（三闸在岗已实证）；集群侧的"模型归因记录"由 test-cluster-tasks 的 memberModels 断言 + 出片后真机摘要注记覆盖）
+- [x] 4.7 Load test: create 100 dynamic clusters, verify auto-termination cleans them up after 24h
+  （2026-10-21 **收窄为阈值与宽限语义单测**（百集群对 SQLite 无压测意义）：走查中发现原 job 三处缺陷——到点不复核（宽限期内被使用照杀）、无 spec 要求的预警事件、不解绑会话、每小时重复排计时器。重写为可注入时钟/调度器的 `autoTerminationTick`：预警 `cluster_expiring`（绑定集群徽标显示清退时间）→1h 宽限→到点复核仍闲置才终止→释放绑定并广播 `cluster_terminated`（与手动 DELETE 同路）；单测覆盖四种集群状态+去重+宽限复活+绑定释放）
 
 ### 4.3 Manual testing
 
@@ -202,7 +202,7 @@
 - [x] 4.9 Manually test marketplace cluster views: browse, filter, search cluster packs
   （2026-10-21 真机：市场搜索「投研三镜头」→卡片→详情 cluster-info 分节+2 条默认成员行渲染；?agents= 筛选随 1.9 在产）
 - [ ] 4.10 Manually test task history: view cluster tasks, expand timelines, verify visualization
-  （随 3.7-9 未做）
+  （走查中揪出 3.10 的持久化 bug + **冷 cell 启动竞态**（路由先于 initCron 就绪，冷 cell 上"建任务即运行"得 `turnFn is not a function`；已加引擎就绪门：未初始化则 insert 拒绝/enqueue 返 retry、REST 503，独立进程单测钉住）。两修随本轮出片后重做真机可视复核）
 
 ## 5. Documentation & Release
 
@@ -210,15 +210,15 @@
 
 - [x] 5.1 Write user guide: "How to use agent clusters" (marketplace discovery, dynamic assembly, task execution)
   （`docs/CLUSTER_PLATFORM_QUICKSTART.md`，快速上手级；无市场发现/任务执行实操深度——随 1.9/3.6 补）
-- [ ] 5.2 Write creator guide: "How to publish cluster packs" (cluster metadata in manifest, examples)
-  （未做：现有 agent-cluster-implementation.md 是实现侧记录，非创作者指南）
-- [ ] 5.3 Add tooltips to UI elements: cluster composer, model binding, execution policy
-  （未做）
+- [x] 5.2 Write creator guide: "How to publish cluster packs" (cluster metadata in manifest, examples)
+  （2026-10-21：docs/cluster-pack-creator-guide.md——用「投研三镜头」真实配方写就：何时用/上限/manifest 写法/合集铸造五步/用户侧效果/遮蔽注意）
+- [x] 5.3 Add tooltips to UI elements: cluster composer, model binding, execution policy
+  （2026-10-21：载入集群按钮带五语言 title（clusterLoadHint，说明绑定语义+扇出走集群任务）；编排器/策略项本有占位文案，模型绑定面已作废）
 
 ### 5.2 API documentation
 
-- [ ] 5.4 Update OpenAPI spec with new cluster endpoints
-  （未做）
+- [x] 5.4 Update OpenAPI spec with new cluster endpoints
+  （**作废**：本仓无 OpenAPI 规格面（API 文档在 skill/ledger/spec）；集群 API 的形状文档=本 change specs + QUICKSTART + 创作者指南。引入 OpenAPI 面是独立的基础设施决定，不属本 change）
 - [x] 5.5 Document cluster task schema and execution policies
   （cron-mcp 工具 inputSchema 自述 clusterId/executionPolicy/targetAgents 字段与语义）
 

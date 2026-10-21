@@ -836,6 +836,7 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
                               disabled={clusterLoading === row.key}
                               onClick={() => void loadCluster(row.key.replace(/^cluster-/, ""), row.name, row.group)}
                               data-testid="strip-cluster-load"
+                              title={t("composer.strip.clusterLoadHint")}
                               className="ml-auto shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1.5 py-px text-[10px] font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
                             >
                               {clusterLoading === row.key

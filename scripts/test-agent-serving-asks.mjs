@@ -128,7 +128,7 @@ test("bridge: parks the ask, answers first-wins, cancel reason surfaces in the t
     const ctx = {
       on: (name, cb) => { listeners[name] = cb; return () => {}; },
       get: () => undefined,
-      inject: (_deps, cb) => ({ dispose: () => {} }),
+      inject: () => ({ dispose: () => {} }),
     };
     const transportPeer = { notify: (method, params) => sent.push({ method, params }) };
     const server = new mod.ServingQuestionsSdkServer(ctx, transportPeer, {});

@@ -190,6 +190,60 @@ test("connected: facet card goes quiet — badge green, no connect action", asyn
   await expect(page.getByTestId("app-card-facet-connect")).toHaveCount(0);
 });
 
+test("nango-connect products render a Connect action through the broker", async ({ page }) => {
+  await pinLocaleEn(page);
+  // A nango product joins the catalog (the retired Agents-page Apps tab's
+  // entry kind): the card's primary action mints a connect session via the
+  // platform broker — never a raw outbound link.
+  await page.route("**/api/catalog", async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    body.apps = [
+      ...(body.apps ?? []),
+      { id: "lex-calendar", kind: "nango-connect", name: "Calendar", url: "https://nango.example/c" },
+    ];
+    await route.fulfill({ response: res, json: body });
+  });
+  const seen = [];
+  await page.route("**/api/apps/lex-calendar/connect", async (route) => {
+    seen.push(route.request().method());
+    await route.fulfill({ json: { url: "https://connect.example/session?token=1" } });
+  });
+  await page.goto("/apps");
+  const card = page.getByTestId("app-card-lex-calendar");
+  await expect(card).toBeVisible({ timeout: 15000 });
+  await expect(card.getByTestId("app-card-lex-calendar-nango-connect")).toBeVisible();
+  await card.getByTestId("app-card-lex-calendar-nango-connect").click();
+  await expect.poll(() => seen).toEqual(["POST"]);
+  // The broker's URL took the browser off the app (the fake host cannot
+  // resolve — chrome-error is the honest outcome; what matters is the mint
+  // happened and the app was left).
+  await expect
+    .poll(() => page.url())
+    .not.toMatch(/127\.0\.0\.1/);
+});
+
+test("nango-connect failure stays on the card, named", async ({ page }) => {
+  await pinLocaleEn(page);
+  await page.route("**/api/catalog", async (route) => {
+    const res = await route.fetch();
+    const body = await res.json();
+    body.apps = [
+      ...(body.apps ?? []),
+      { id: "lex-calendar", kind: "nango-connect", name: "Calendar", url: "https://nango.example/c" },
+    ];
+    await route.fulfill({ response: res, json: body });
+  });
+  await page.route("**/api/apps/lex-calendar/connect", async (route) => {
+    await route.fulfill({ status: 400, json: { error: "Authentication required" } });
+  });
+  await page.goto("/apps");
+  const card = page.getByTestId("app-card-lex-calendar");
+  await card.getByTestId("app-card-lex-calendar-nango-connect").click();
+  await expect(card.getByTestId("app-card-lex-calendar-nango-error")).toHaveText("Authentication required");
+  await expect(page).toHaveURL(/\/apps/);
+});
+
 test("status endpoint failure: badges and connect actions vanish, cards stay", async ({ page }) => {
   await pinLocaleEn(page);
   await page.route("**/api/connections", (route) => route.fulfill({ status: 500, body: "" }));

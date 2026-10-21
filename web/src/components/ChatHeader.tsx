@@ -15,12 +15,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Pencil, X, Check, MoreHorizontal, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useChatStore } from "@platform/core";
+import type { ClientMessage } from "@platform/core";
 import { ChatSessionMenu } from "@/components/ChatSessionMenu";
 import { LocalFileButton } from "@/components/preview/LocalFileButton";
-import { presetDisplayName } from "@/components/AgentPresetPicker";
+import { AssistantPicker, presetDisplayName } from "@/components/AssistantPicker";
 
 interface Props {
-  send: (m: { type: "rename_session"; id: string; title: string }) => void;
+  // Widened for the header's assistant picker (simplify-chat-and-agents-ia):
+  // rename_session still flows through here, and the picker's
+  // set_agent/set_preset switches ride the same sender.
+  send: (m: ClientMessage) => void;
 }
 
 const DEBOUNCE_MS = 300;
@@ -223,15 +227,18 @@ export function ChatHeader({ send }: Props) {
             <span className="truncate">{boundCluster.clusterName}</span>
           </span>
         )}
-        {presetLabel && (
-          <span
-            data-testid="agent-preset-label"
-            aria-label={t("chat.preset.label")}
-            className="max-w-[10rem] truncate rounded-md border border-border px-2 py-1 text-xs text-muted-foreground"
-          >
-            {presetLabel}
-          </span>
-        )}
+        {/* The unified assistant picker (simplify-chat-and-agents-ia): the
+            running assistant names itself in the header (read-only chrome),
+            and opening it offers persona switches. Composition modes stay
+            visible but disabled once the session has turns — dsh refuses to
+            recompose, and the picker says so instead of hiding the concept. */}
+        <span
+          data-testid="agent-preset-label"
+          className="max-w-[10rem] truncate text-xs text-muted-foreground"
+        >
+          {presetLabel}
+        </span>
+        <AssistantPicker send={send} variant="header" />
         <LocalFileButton className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" />
         <button
           type="button"

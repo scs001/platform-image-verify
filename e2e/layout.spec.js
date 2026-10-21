@@ -168,7 +168,7 @@ test.describe("workbench layout (logto mode)", () => {
     expect(cfg.json.resolvedLayout.nav).toEqual(ALL_NAV);
     expect(cfg.json.resolvedLayout.settings).toEqual(ALL_SETTINGS);
     // No pack marketplace in this deployment → the market tab is absent.
-    expect(cfg.json.resolvedLayout.agentsTabs).toEqual(["agents", "apps"]);
+    expect(cfg.json.resolvedLayout.agentsTabs).toEqual(["agents"]); // market needs the pack marketplace (absent here); apps tab retired (simplify-chat-and-agents-ia)
   });
 
   test("the sidebar renders exactly the resolved tab set (baseline)", async ({ page, context }) => {

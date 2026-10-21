@@ -356,8 +356,8 @@ test("the 资源微调 panel round-trips an adjustment", async ({ page }) => {
   await addExtraServer(page);
 
   // Open the picker, then the role's adjust affordance (pack roles only).
-  await page.getByTestId("strip-more").click();
-  const option = page.getByTestId("strip-agent-option").filter({ hasText: "微调官" });
+  await page.getByTestId("agent-preset-picker").click();
+  const option = page.getByTestId("agent-preset-option").filter({ hasText: "微调官" });
   await expect(option).toBeVisible({ timeout: 30_000 });
   await page.getByTestId(`strip-agent-adjust-${AGENT_ID}`).click();
 
@@ -381,7 +381,7 @@ test("the 资源微调 panel round-trips an adjustment", async ({ page }) => {
   // added server is a member now; the removed skill left the effective set
   // and renders in the addable row — restorable from there.
   await page.keyboard.press("Escape");
-  await page.getByTestId("strip-more").click();
+  await page.getByTestId("agent-preset-picker").click();
   await page.getByTestId(`strip-agent-adjust-${AGENT_ID}`).click();
   await expect(panel.getByTestId(`overlay-item-${EXTRA_MCP}`)).toBeVisible({ timeout: 15_000 });
   await expect(panel.getByTestId(`overlay-item-${SKILL_A}`)).toHaveCount(0);
@@ -404,8 +404,8 @@ test("a second client's panel refreshes after a PUT broadcast", async ({ page, c
   await pageB.addInitScript(() => localStorage.setItem("platform.locale", "zh-CN"));
   await pageB.goto("/chat/");
   await expect(pageB.getByTestId("composer-control-strip")).toBeVisible({ timeout: 15_000 });
-  await pageB.getByTestId("strip-more").click();
-  await expect(pageB.getByTestId("strip-agent-option").filter({ hasText: "微调官" })).toBeVisible({ timeout: 30_000 });
+  await pageB.getByTestId("agent-preset-picker").click();
+  await expect(pageB.getByTestId("agent-preset-option").filter({ hasText: "微调官" })).toBeVisible({ timeout: 30_000 });
   await pageB.getByTestId(`strip-agent-adjust-${AGENT_ID}`).click();
   const panelB = pageB.getByTestId("overlay-panel");
   await expect(panelB.getByTestId(`overlay-item-${REGISTRY_REF}`)).toBeVisible({ timeout: 15_000 });

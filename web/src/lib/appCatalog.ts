@@ -63,8 +63,10 @@ export const APP_LINES: AppLine[] = [
   },
 ];
 
-// A product as served by GET /api/catalog (`apps[]`). Only these two kinds
-// are products a user can open; everything else in the catalog is an agent.
+// A product as served by GET /api/catalog (`apps[]`). These are the product
+// kinds a user can open — nango-connect joined with simplify-chat-and-agents-ia
+// (the retired Agents-page Apps tab's entries all live here now); everything
+// else in the catalog is an agent.
 export interface CatalogApp {
   id: string;
   kind?: string;
@@ -75,7 +77,7 @@ export interface CatalogApp {
   line?: string; // optional explicit brand attribution (GitOps-authored)
 }
 
-export const PRODUCT_KINDS = ["external-service", "link"] as const;
+export const PRODUCT_KINDS = ["external-service", "link", "nango-connect"] as const;
 
 export function isProductApp(app: CatalogApp): boolean {
   return (PRODUCT_KINDS as readonly string[]).includes(app.kind ?? "");
@@ -131,6 +133,7 @@ export interface ProductEntry {
   self: false;
   embedded: boolean; // external-service with embedding allowed → in-app route
   connections: ConnectionId[];
+  catalogKind?: string; // raw catalog kind — "nango-connect" drives the Connect action
 }
 
 export type AppGridEntry = BrandEntry | ProductEntry;
@@ -157,6 +160,7 @@ export function buildAppGrid(lines: AppLine[], catalogApps: CatalogApp[] | null 
       self: false as const,
       embedded: app.kind === "external-service" && app.embedded !== false,
       connections: APP_CONNECTIONS[app.id] ?? [],
+      catalogKind: app.kind,
     }));
 
   const grid: AppGridEntry[] = [];

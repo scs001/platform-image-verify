@@ -46,8 +46,7 @@
   "agentsPage": {
     "title": "Agents",
     "agents": "Experts",
-    "market": "Packs sectoriels",
-    "apps": "Applications",
+    "market": "Packs",
     "create": "Nouvel expert",
     "myExperts": "Mes experts",
     "connect": "Connecter",
@@ -182,13 +181,13 @@
     "uploading": "Envoi en cours…",
     "cancelUpload": "Annuler l’envoi",
     "strip": {
-      "workspace": "Dossier",
+      "workspace": "Projet de session",
       "workspaceUnset": "Aucun dossier",
       "workspaceRecents": "Dossiers récents",
       "workspacePlaceholder": "Chemin absolu vers un dossier…",
       "workspaceBrowse": "Parcourir les dossiers…",
       "workspaceAbsolute": "Saisissez un chemin absolu.",
-      "workspaceConfirm": "Basculer le dossier de travail vers {{path}} ?\n\nCela redémarre l'agent. Les messages précédents de cette conversation peuvent référencer des fichiers introuvables.",
+      "workspaceConfirm": "Basculer le projet de session vers {{path}} ?\n\nCela redémarre l'agent. Les messages précédents peuvent référencer des chemins devenus invalides.",
       "commands": "Commandes",
       "model": "Modèle",
       "modelUnset": "Aucun modèle",
@@ -202,12 +201,12 @@
       "permissionUnset": "Par défaut",
       "permissionCustom": "Personnalisé",
       "permissionReadonly": {
-        "label": "Lecture seule",
-        "desc": "L'agent peut lire l'espace de travail sans le modifier."
+        "label": "Chat seul",
+        "desc": "L'agent discute sans lire ni écrire les fichiers du projet."
       },
       "permissionWrite": {
-        "label": "Écritures du projet",
-        "desc": "L'agent peut modifier des fichiers dans l'espace de travail."
+        "label": "Lire et écrire les fichiers",
+        "desc": "L'agent peut modifier le dossier du projet."
       },
       "permissionFull": {
         "label": "Accès complet",
@@ -225,7 +224,8 @@
       "ctxHint": "{{tokens}} / {{window}} tokens",
       "clusterLoad": "Charger le cluster",
       "clusterLoading": "Chargement…",
-      "clusterLoadHint": "Lie ce cluster à la session active : bascule sur le premier membre par défaut ; le fan-out passe par les tâches de cluster."
+      "clusterLoadHint": "Lie ce cluster à la session active : bascule sur le premier membre par défaut ; le fan-out passe par les tâches de cluster.",
+      "workspaceAdvanced": "Avancé"
     },
     "sending": "Envoi…",
     "voice": {
@@ -345,6 +345,20 @@
     "queuedPreempt": "L'arrêter et exécuter ceci maintenant",
     "cluster": {
       "terminatedNotice": "Le cluster « {{name}} » a été terminé ; retour à l'agent intégré"
+    },
+    "presetLink": {
+      "pending": "Bascule vers {{name}}…",
+      "rejected": "Bascule refusée — l'assistant est en train de répondre ; réessayez bientôt",
+      "retry": "Réessayer",
+      "missing": "{{name}} n'est plus disponible (le pack a peut-être été désinstallé) ; l'assistant actuel est conservé"
+    },
+    "assistant": {
+      "label": "Parler à",
+      "standardSection": "Standard",
+      "packSection": "Rôles de packs",
+      "mineSection": "Mes experts",
+      "otherSection": "Autres assistants",
+      "composeLocked": "Cette session a déjà commencé, son mode est fixé ; ouvrez un nouveau chat pour changer."
     }
   },
   "turn": {
@@ -1553,9 +1567,8 @@
   },
   "packs": {
     "tabs": {
-      "market": "Marché des packs",
-      "mine": "Mes packs",
-      "drafts": "Mes créations"
+      "market": "Marché",
+      "mine": "Mien"
     },
     "market": {
       "searchPlaceholder": "Rechercher des packs…",
@@ -1663,10 +1676,12 @@
         "bound": "Lié à au local",
         "awaiting-local-binding": "En attente du serveur local"
       },
-      "nextHint": "Installé. Ensuite : ouvrez Discussion et choisissez cet expert dans le sélecteur.",
+      "nextHint": "Installé. Passez au chat — votre expert est déjà sélectionné.",
       "openChat": "Ouvrir Discussion",
       "files": "{{count}} fichiers auxiliaires",
-      "filesWithScripts": "{{count}} fichiers auxiliaires (scripts : {{scripts}})"
+      "filesWithScripts": "{{count}} fichiers auxiliaires (scripts : {{scripts}})",
+      "nextHintCluster": "Installé. Passez au chat avec tout le groupe — le rôle principal est déjà sélectionné.",
+      "openChatCluster": "Ouvrir le chat et charger le groupe"
     },
     "mine": {
       "empty": "Aucun abonnement pour l'instant. Parcourez le marché.",
@@ -1778,6 +1793,10 @@
       "failed": "Échec du chargement de l'historique des versions : {{message}}",
       "skillsToggle": "Corps des skills",
       "noSkills": "Cette version ne déclare aucune skill"
+    },
+    "mineSections": {
+      "installed": "Installés",
+      "creations": "Mes créations"
     }
   },
   "overlay": {
@@ -1971,7 +1990,9 @@
       }
     },
     "board": "Tableau",
-    "openOrigin": "Ouvrir le site d'origine"
+    "openOrigin": "Ouvrir le site d'origine",
+    "nangoConnect": "Connecter",
+    "nangoConnecting": "Connexion…"
   },
   "sessionSolution": {
     "menuItem": "Enregistrer comme ma solution",

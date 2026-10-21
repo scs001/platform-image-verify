@@ -17,7 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Database, Sparkles, Search, PenLine, Wand2, type LucideIcon } from "lucide-react";
 import { useChatStore } from "@platform/core";
-import { AgentPresetPicker } from "@/components/AgentPresetPicker";
+import { AssistantPicker } from "@/components/AssistantPicker";
 import { IntentOnboarding } from "@/components/IntentOnboarding";
 import { LocalFileButton } from "@/components/preview/LocalFileButton";
 import { promptsFor } from "@/lib/packGuides";
@@ -124,9 +124,11 @@ export function ChatWelcome({ onPrefill, send }: Props) {
             composer below stays usable throughout. */}
         <IntentOnboarding />
 
-        {/* Agent-mode picker (blank sessions only — this whole surface only
-            renders when there are no turns). Empty roster renders nothing. */}
-        <AgentPresetPicker send={send} />
+        {/* The unified assistant picker (simplify-chat-and-agents-ia): who
+            this conversation runs with — standard, pack roles, clusters, and
+            the user's own experts in one selector. Nothing to choose renders
+            nothing. */}
+        <AssistantPicker send={send} variant="welcome" />
 
         {/* Suggested prompts */}
         <section aria-labelledby="welcome-prompts-heading" className="flex flex-col gap-3">

@@ -46,8 +46,7 @@
   "agentsPage": {
     "title": "エージェント",
     "agents": "エキスパート",
-    "market": "業界パック",
-    "apps": "アプリ",
+    "market": "パック",
     "create": "エキスパートを作成",
     "myExperts": "マイエキスパート",
     "connect": "接続",
@@ -182,13 +181,13 @@
     "uploading": "アップロード中…",
     "cancelUpload": "アップロードをキャンセル",
     "strip": {
-      "workspace": "作業フォルダ",
+      "workspace": "セッションのプロジェクト",
       "workspaceUnset": "未選択",
       "workspaceRecents": "最近使ったフォルダ",
       "workspacePlaceholder": "フォルダの絶対パスを入力…",
       "workspaceBrowse": "フォルダを選択…",
       "workspaceAbsolute": "絶対パスを入力してください。",
-      "workspaceConfirm": "作業フォルダを {{path}} に切り替えますか？\n\nエージェントが再起動します。このチャットの以前のメッセージが参照するファイルが解決できなくなる場合があります。",
+      "workspaceConfirm": "セッションのプロジェクトを {{path}} に切り替えますか？\n\nエージェントが再起動します。以前のメッセージが参照するパスが無効になる場合があります。",
       "commands": "コマンド",
       "model": "モデル",
       "modelUnset": "未選択",
@@ -202,12 +201,12 @@
       "permissionUnset": "デフォルト",
       "permissionCustom": "カスタム",
       "permissionReadonly": {
-        "label": "読み取り専用",
-        "desc": "エージェントはワークスペースの閲覧のみ行えます。"
+        "label": "チャットのみ",
+        "desc": "エージェントはプロジェクトのファイルを読み書きしません。"
       },
       "permissionWrite": {
-        "label": "プロジェクト書き込み",
-        "desc": "エージェントはワークスペース内で変更を行えます。"
+        "label": "プロジェクトの読み書き",
+        "desc": "エージェントはプロジェクトフォルダー内で変更できます。"
       },
       "permissionFull": {
         "label": "フルアクセス",
@@ -225,7 +224,8 @@
       "ctxHint": "{{tokens}} / {{window}} tokens",
       "clusterLoad": "クラスターを読み込む",
       "clusterLoading": "読み込み中…",
-      "clusterLoadHint": "このクラスターを現在のセッションにバインドし、先頭の既定メンバーへ切り替えます。ファンアウトはクラスタータスクで。"
+      "clusterLoadHint": "このクラスターを現在のセッションにバインドし、先頭の既定メンバーへ切り替えます。ファンアウトはクラスタータスクで。",
+      "workspaceAdvanced": "詳細"
     },
     "sending": "送信中…",
     "voice": {
@@ -345,6 +345,20 @@
     "queuedPreempt": "停止してこれを実行",
     "cluster": {
       "terminatedNotice": "クラスター「{{name}}」が終了しました。内蔵エージェントに切り替えました"
+    },
+    "presetLink": {
+      "pending": "{{name}} へ切り替え中…",
+      "rejected": "切り替えが拒否されました——応答中です。後ほど再試行してください",
+      "retry": "再試行",
+      "missing": "{{name}} は存在しません（パックがアンインストールされた可能性）。現在のアシスタントを維持します"
+    },
+    "assistant": {
+      "label": "話し相手",
+      "standardSection": "標準アシスタント",
+      "packSection": "パックの役割",
+      "mineSection": "自分のエキスパート",
+      "otherSection": "その他のアシスタント",
+      "composeLocked": "このセッションは既に開始済みのためモードは固定です。新しいチャットで切り替えられます。"
     }
   },
   "turn": {
@@ -1553,9 +1567,8 @@
   },
   "packs": {
     "tabs": {
-      "market": "パック市場",
-      "mine": "マイパック",
-      "drafts": "マイ作成"
+      "market": "市场",
+      "mine": "マイ"
     },
     "market": {
       "searchPlaceholder": "パックを検索…",
@@ -1663,10 +1676,12 @@
         "bound": "ローカルにバインド済み",
         "awaiting-local-binding": "ローカルサーバー待ち"
       },
-      "nextHint": "インストール完了。次はチャットを開いて、上のセレクターでこのエキスパートを選びます。",
+      "nextHint": "インストール完了。チャットへどうぞ——エキスパートは自動選択済みです。",
       "openChat": "チャットを開く",
       "files": "補助ファイル {{count}} 件",
-      "filesWithScripts": "補助ファイル {{count}} 件（スクリプト：{{scripts}}）"
+      "filesWithScripts": "補助ファイル {{count}} 件（スクリプト：{{scripts}}）",
+      "nextHintCluster": "インストール完了。グループ全体でチャットへ——リード役が自動選択済みです。",
+      "openChatCluster": "チャットを開いてグループを読み込む"
     },
     "mine": {
       "empty": "まだ購読していません。市場をのぞいてみましょう。",
@@ -1778,6 +1793,10 @@
       "failed": "バージョン履歴の読み込みに失敗しました：{{message}}",
       "skillsToggle": "スキル本文",
       "noSkills": "このバージョンにスキルはありません"
+    },
+    "mineSections": {
+      "installed": "インストール済み",
+      "creations": "自分の作品"
     }
   },
   "overlay": {
@@ -1971,7 +1990,9 @@
       }
     },
     "board": "ボード",
-    "openOrigin": "元サイトを開く"
+    "openOrigin": "元サイトを開く",
+    "nangoConnect": "接続",
+    "nangoConnecting": "接続中…"
   },
   "sessionSolution": {
     "menuItem": "自分のソリューションとして保存",

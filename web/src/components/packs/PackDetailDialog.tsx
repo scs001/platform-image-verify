@@ -27,7 +27,10 @@ import type { RhythmEntry } from "./RhythmEditor";
 interface Props {
   packId: string | null;
   onOpenChange: (open: boolean) => void;
-  onSubscribed: (report: PackReport, name: string) => void;
+  // packId rides the callback (simplify-chat-and-agents-ia): the install
+  // report's next-steps CTA needs the pack id to deep-link a multi-role pack
+  // into a cluster bind.
+  onSubscribed: (report: PackReport, name: string, packId: string) => void;
   onGotoMine?: () => void;
   // Signed-out signal (polish-facet-interactions): hosts whose viewers can be
   // anonymous (the facet shell) wire this — gated actions (subscribe, goto-
@@ -165,7 +168,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
       // the report's actions (the report's own z-index cannot win a
       // still-mounted Radix portal). The report carries the result.
       onOpenChange(false);
-      onSubscribed(report, pack.name);
+      onSubscribed(report, pack.name, packId);
     } catch (err) {
       const e = err as Error & { body?: { code?: string; details?: { name: string; scriptFiles: string[] }[] } };
       if (e.body?.code === "script-confirm-required") {

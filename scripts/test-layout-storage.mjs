@@ -98,7 +98,7 @@ test("resolveForUser: a role with no preset entry keeps the deployment default",
   const { layout } = resolveForUser({ db, env: {}, roles: { primary: "screenplay", secondary: [] } });
   assert.deepEqual(layout.nav, ALL_NAV);
   assert.deepEqual(layout.settings, ALL_SETTINGS);
-  assert.deepEqual(layout.agentsTabs, ALL_TABS);
+  assert.deepEqual(layout.agentsTabs, ["agents", "market"]); // factory default retires apps
 });
 
 test("resolveForUser: user tweaks apply on top of the role layer", () => {
@@ -107,8 +107,9 @@ test("resolveForUser: user tweaks apply on top of the role layer", () => {
   });
   const { layout } = resolveForUser({ db, env: {}, email: "u@e.c", roles: { primary: "standard", secondary: [] } });
   assert.deepEqual(layout.nav, ["chat", "agents"]);
-  // Containers the user did not speak to keep their full set.
-  assert.deepEqual(layout.agentsTabs, ALL_TABS);
+  // Containers the user did not speak to keep their full set (the factory
+  // default — apps retired from every factory preset).
+  assert.deepEqual(layout.agentsTabs, ["agents", "market"]);
 });
 
 test("facts filter admin sections and marketplace tabs server-side", () => {
@@ -121,7 +122,7 @@ test("facts filter admin sections and marketplace tabs server-side", () => {
   });
   assert.equal(layout.settings.includes("roles"), false);
   assert.equal(layout.settings.includes("branding"), false);
-  assert.deepEqual(layout.agentsTabs, ["agents", "apps"]);
+  assert.deepEqual(layout.agentsTabs, ["agents"]); // apps retired from every factory preset (simplify-chat-and-agents-ia)
 });
 
 // ── User tweaks ─────────────────────────────────────────────────────────────

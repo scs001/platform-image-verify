@@ -1,44 +1,51 @@
 import { test, expect } from "@playwright/test";
 import { pinLocaleEn } from "./helpers.js";
 
-// Agent control in the composer strip.
+// Agent selection — the unified「与谁对话」picker (simplify-chat-and-agents-ia).
 //
 // The hermetic e2e server runs with AGENTS_CONFIG_URL="" so no catalog exists
-// and the control never renders on its own. These tests seed the store through
+// and the picker never renders on its own. These tests seed the store through
 // the e2e seam — the same approach thinking-level.spec.js uses for models — so
-// the control's contract is exercised without depending on a catalog.
+// the picker's contract is exercised without depending on a catalog. The
+// retired control-strip ⋯ agent section is asserted GONE: persona selection
+// has exactly one home.
 //
 // The contract worth stating: a catalog agent the deployment serves locally (a
 // vertical pack is a persona preset) applies through the same restart path as a
-// model switch, so the control marks the switch pending and the composer blocks
+// model switch, so the picker marks the switch pending and the composer blocks
 // until `agent_changed` lands. This file asserts the client contract only —
 // `set_agent` is swallowed before it reaches the runtime.
 
 const LOCAL = { id: "local", name: "Local" };
 const REMOTE = { id: "remote-a", name: "Remote A" };
 
-test.describe("Agent control — composer strip", () => {
+test.describe("Agent selection — unified picker", () => {
   // The socket only opens once the auth check resolves, so the server's own
   // `agents`/`current_agent` reply can land after this page load and clobber a
-  // seed applied too early — and the control renders only for >1 agent, so a
-  // clobber makes it vanish mid-test. Re-apply until it sticks (the server
+  // seed applied too early — and the picker renders only for a real choice, so
+  // a clobber makes it vanish mid-test. Re-apply until it sticks (the server
   // sends this payload once, so this converges).
-  const seed = (page, agents, currentAgent) =>
+  const seed = (page, agents, currentAgent, extra = {}) =>
     expect
       .poll(async () => {
         await page.evaluate(
-          ({ agents, currentAgent }) => {
-            window.__chatStore.setState({ agents, currentAgent, pendingConfig: null, isStreaming: false });
+          ({ agents, currentAgent, extra }) => {
+            window.__chatStore.setState({ agents, currentAgent, pendingConfig: null, isStreaming: false, ...extra });
           },
-          { agents, currentAgent },
+          { agents, currentAgent, extra },
         );
         return page.evaluate(() => window.__chatStore.getState().agents.length);
       })
       .toBe(agents.length);
 
+  const openPicker = async (page) => {
+    await page.getByTestId("agent-preset-picker").click();
+    await expect(page.getByTestId("agent-preset-picker-menu")).toBeVisible();
+  };
+
   test.beforeEach(async ({ page }) => {
     await pinLocaleEn(page);
-    // Record what the strip emits and swallow set_agent so a click never hits
+    // Record what the page emits and swallow set_agent so a click never hits
     // the real runtime; these assert the client contract only.
     await page.addInitScript(() => {
       window.__sent = [];
@@ -59,22 +66,33 @@ test.describe("Agent control — composer strip", () => {
     await expect(page.getByTestId("composer-control-strip")).toBeVisible({ timeout: 15000 });
   });
 
-  test("hidden with fewer than two agents, shown with two or more", async ({ page }) => {
-    // The agent section lives inside the overflow popover now, so each check
-    // opens it first and closes it again with Escape.
-    await seed(page, [], null);
-    await page.getByTestId("strip-more").click();
-    await expect(page.getByTestId("strip-agent")).toHaveCount(0);
-    await page.keyboard.press("Escape");
+  test("hidden with fewer than two agents, shown with a real choice", async ({ page }) => {
+    // The picker renders for the standard composition row alone, so hiding
+    // needs an empty preset roster too — and that seed can only stick AFTER
+    // the server's own one-shot presets burst lands (a seed applied earlier
+    // is clobbered and the picker reappears mid-assert).
+    await expect
+      .poll(() => page.evaluate(() => window.__chatStore.getState().presets.length))
+      .toBeGreaterThan(0);
+    await seed(page, [], null, { presets: [], currentPreset: null });
+    await expect(page.getByTestId("agent-preset-picker")).toHaveCount(0);
 
-    await seed(page, [LOCAL], "local");
-    await page.getByTestId("strip-more").click();
-    await expect(page.getByTestId("strip-agent")).toHaveCount(0);
-    await page.keyboard.press("Escape");
+    await seed(page, [LOCAL], "local", { presets: [], currentPreset: null });
+    await expect(page.getByTestId("agent-preset-picker")).toHaveCount(0);
 
+    // With personas beyond the default the picker renders even with no
+    // composition roster — the personas are the choice.
+    await seed(page, [LOCAL, REMOTE], "local", {});
+    await expect(page.getByTestId("agent-preset-picker")).toBeVisible();
+  });
+
+  test("the strip's overflow no longer carries an agent section", async ({ page }) => {
     await seed(page, [LOCAL, REMOTE], "local");
     await page.getByTestId("strip-more").click();
-    await expect(page.getByTestId("strip-agent")).toBeVisible();
+    await expect(page.getByTestId("strip-agent")).toHaveCount(0);
+    await expect(page.getByTestId("strip-agent-option")).toHaveCount(0);
+    // The workspace section remains the overflow's content.
+    await expect(page.getByTestId("strip-workspace")).toBeVisible();
   });
 
   test("orders the two clusters: + and permissions, then model, overflow, send", async ({ page }) => {
@@ -95,11 +113,13 @@ test.describe("Agent control — composer strip", () => {
 
   test("displays the active agent's name and marks it in the menu", async ({ page }) => {
     await seed(page, [LOCAL, REMOTE], "remote-a");
-    await page.getByTestId("strip-more").click();
-    await expect(page.getByTestId("strip-agent")).toContainText("Remote A");
+    await expect(page.getByTestId("agent-preset-picker")).toContainText("Remote A");
 
-    const options = page.getByTestId("strip-agent-option");
-    await expect(options).toHaveCount(2);
+    await openPicker(page);
+    // The platform composition row (standard) may also be present — the
+    // contract is that BOTH personas render as agent rows, exactly once each.
+    await expect(page.locator('[data-testid="agent-preset-option"][data-preset-id="local"]')).toBeVisible();
+    await expect(page.locator('[data-testid="agent-preset-option"][data-preset-id="remote-a"]')).toBeVisible();
     await expect(page.getByRole("menuitemradio", { checked: true })).toContainText("Remote A");
   });
 
@@ -112,8 +132,8 @@ test.describe("Agent control — composer strip", () => {
     await page.getByTestId("composer-input").fill("ready to send");
     await expect(page.getByTestId("composer-send")).toBeEnabled();
 
-    await page.getByTestId("strip-more").click();
-    await page.getByTestId("strip-agent-option").filter({ hasText: "Remote A" }).click();
+    await openPicker(page);
+    await page.getByTestId("agent-preset-option").filter({ hasText: "Remote A" }).click();
 
     await expect
       .poll(() => page.evaluate(() => window.__sent.filter((m) => m.type === "set_agent")))
@@ -129,33 +149,32 @@ test.describe("Agent control — composer strip", () => {
 
   test("renders store state, not the click — the label follows the broadcast", async ({ page }) => {
     await seed(page, [LOCAL, REMOTE], "local");
-    await page.getByTestId("strip-more").click();
-    await page.getByTestId("strip-agent-option").filter({ hasText: "Remote A" }).click();
+    await openPicker(page);
+    await page.getByTestId("agent-preset-option").filter({ hasText: "Remote A" }).click();
 
-    // set_agent was swallowed, so no agent_changed came back — the control must
+    // set_agent was swallowed, so no agent_changed came back — the picker must
     // still show the OLD agent rather than optimistically showing the new one.
-    // The switch is pending (it waits for the broadcast), which also disables the
-    // overflow trigger, so read the store rather than reopening the popover.
     await expect
       .poll(() => page.evaluate(() => window.__chatStore.getState().currentAgent))
       .toBe("local");
 
     // Once the store reflects the server's broadcast, the label follows.
     await page.evaluate(() => window.__chatStore.getState().apply({ type: "agent_changed", id: "remote-a" }));
-    await page.getByTestId("strip-more").click();
-    await expect(page.getByTestId("strip-agent")).toContainText("Remote A");
+    await expect(page.getByTestId("agent-preset-picker")).toContainText("Remote A");
   });
 
   test("disabled while a turn is streaming", async ({ page }) => {
     await seed(page, [LOCAL, REMOTE], "local");
-    await page.getByTestId("strip-more").click();
-    const first = page.getByTestId("strip-agent-option").first();
-    await expect(first).toBeEnabled();
+    await openPicker(page);
+    // Persona rows carry the streaming guard (the standard composition row
+    // follows the preset contract instead — server-side rejection).
+    const personaRow = page.locator('[data-testid="agent-preset-option"][data-preset-id="remote-a"]');
+    await expect(personaRow).toBeEnabled();
 
     await page.evaluate(() => window.__chatStore.setState({ isStreaming: true }));
-    await expect(first).toBeDisabled();
+    await expect(personaRow).toBeDisabled();
 
     await page.evaluate(() => window.__chatStore.setState({ isStreaming: false }));
-    await expect(first).toBeEnabled();
+    await expect(personaRow).toBeEnabled();
   });
 });

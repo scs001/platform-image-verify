@@ -19,9 +19,9 @@
 // restart cost is deliberately visible: the changed control shows a spinner and
 // the send button disables until the server's confirming broadcast lands (see
 // `pendingConfig` in the store).
-// Agent follows the same rule when the deployment serves that agent locally
-// (a vertical pack is a persona preset, so its switch restarts the runtime);
-// only a remote-fork agent switches without a restart.
+// Persona selection no longer lives here (simplify-chat-and-agents-ia): the
+// unified assistant picker owns set_agent/set_preset — the overflow keeps the
+// workspace only.
 //
 // Nothing here holds optimistic local state. A control renders what the store
 // says the runtime IS, not what was requested — so a dropdown briefly shows
@@ -31,7 +31,7 @@
 // composer's file input, and its commands entry drives the same text-derived
 // SlashCommandPicker the typed `/` path uses.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
   FolderOpen,
@@ -42,7 +42,6 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
-  Users,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -50,7 +49,6 @@ import { useAuthStore } from "@/hooks/useAuth";
 import { useChatStore } from "@platform/core";
 import { savePersonalModel } from "@platform/core";
 import type { ClientMessage } from "@platform/core";
-import type { AgentInfo } from "@platform/core";
 import {
   Dialog,
   DialogContent,
@@ -58,7 +56,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { OverlayPanel } from "@/components/OverlayPanel";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -219,6 +216,11 @@ const PERMISSION_I18N = {
   "danger-full-access": "permissionFull",
 } as const;
 
+// The project name a workspace path shows as: its basename — the same rule
+// the sidebar's project grouping uses, so both surfaces name one workspace
+// identically (simplify-chat-and-agents-ia D5).
+const projectBasename = (p: string) => p.split(/[/\\]/).filter(Boolean).pop() || p;
+
 // The native folder picker exists only inside the Electron shell (exposed via
 // the preload bridge); in a plain browser the path input is the only entry.
 const CAN_PICK_NATIVE =
@@ -306,67 +308,7 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
   const pendingConfig = useChatStore((s) => s.pendingConfig);
   const setPendingConfig = useChatStore((s) => s.setPendingConfig);
   const turns = useChatStore((s) => s.turns);
-  const agents = useChatStore((s) => s.agents);
-  const currentAgent = useChatStore((s) => s.currentAgent);
 
-  // Cluster-aware agent rows (agent-cluster-core spec): agents from packs that
-  // declare cluster metadata render under their cluster header, defaults
-  // first; everything else keeps its flat order. "Load entire cluster" binds
-  // a dynamic cluster to the current session (server broadcasts cluster_bound)
-  // and switches to the lead default agent — the runtime hosts ONE persona at
-  // a time, so loading a cluster means running under its lead, not N agents
-  // at once (cluster tasks are the fan-out surface).
-  const agentRows = useMemo(() => {
-    const rows: Array<
-      | { kind: "header"; key: string; name: string; count: number; group: AgentInfo[] }
-      | { kind: "agent"; key: string; a: AgentInfo }
-    > = [];
-    const byCluster = new Map<string, AgentInfo[]>();
-    for (const a of agents) {
-      if (!a.clusterId) rows.push({ kind: "agent", key: a.id, a });
-      else byCluster.set(a.clusterId, [...(byCluster.get(a.clusterId) ?? []), a]);
-    }
-    for (const [cid, group] of byCluster) {
-      group.sort((x, y) => Number(y.isDefaultAgent ?? false) - Number(x.isDefaultAgent ?? false));
-      rows.push({
-        kind: "header",
-        key: `cluster-${cid}`,
-        name: group[0]?.clusterName || cid,
-        count: group.length,
-        group,
-      });
-      for (const a of group) rows.push({ kind: "agent", key: a.id, a });
-    }
-    return rows;
-  }, [agents]);
-
-  const [clusterLoading, setClusterLoading] = useState<string | null>(null);
-  const loadCluster = async (clusterPackId: string, name: string, group: AgentInfo[]) => {
-    const sessionId = useChatStore.getState().currentSessionId;
-    if (!sessionId) return;
-    setClusterLoading(clusterPackId);
-    try {
-      const r = await fetch("/api/clusters/dynamic", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          name,
-          agents: group.map((a) => ({ packId: a.packId, agentId: a.id })),
-          bindToSession: true,
-          sessionId,
-        }),
-      });
-      if (r.ok) {
-        const lead = group.find((a) => a.isDefaultAgent) ?? group[0];
-        if (lead && lead.id !== currentAgent) {
-          setPendingConfig("agent");
-          send({ type: "set_agent", id: lead.id });
-        }
-      }
-    } finally {
-      setClusterLoading(null);
-    }
-  };
   const isStreaming = useChatStore((s) => s.isStreaming);
   const permissionOptions = useChatStore((s) => s.permissionOptions);
   const currentPermission = useChatStore((s) => s.currentPermission);
@@ -383,11 +325,6 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
   const [bindingMsg, setBindingMsg] = useState<string | null>(null);
   const [bindingError, setBindingError] = useState<string | null>(null);
   const [confirmingFullAccess, setConfirmingFullAccess] = useState(false);
-  // The focused role whose 资源微调 dialog is open (add-focus-overlay). The
-  // panel is preset-scoped, not agent-scoped: the diff applies whenever that
-  // role is next selected, not only while it is live.
-  const [overlayRole, setOverlayRole] = useState<{ id: string; name: string; packName?: string } | null>(null);
-
   // Pinning the model currently in effect is a separate, explicit act — the
   // picker above stays a global operation and never writes a personal row.
   const saveAsMyModel = async () => {
@@ -402,11 +339,6 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
       setBindingError((e as Error).message);
     }
   };
-
-  const agentLabel =
-    agents.find((a) => a.id === currentAgent)?.name ??
-    currentAgent ??
-    t("composer.strip.agentUnset");
 
   const [pathDraft, setPathDraft] = useState("");
   const [pathError, setPathError] = useState<string | null>(null);
@@ -726,12 +658,9 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
           </StripMenu>
         )}
 
-        {/* Overflow: the workspace and the agent — both low-frequency, and the
-            workspace's value is a path basename of unbounded length. They share
-            one popover as two labeled sections (no nested menus, one open/close
-            state machine). The agent section is omitted for a single-agent
-            deployment: a control showing one unchangeable value is noise, and
-            the catalog is optional. */}
+        {/* Overflow: the workspace (low-frequency, and its value is a path
+            basename of unbounded length). The agent section moved to the
+            unified assistant picker (simplify-chat-and-agents-ia). */}
         <StripMenu
           label={t("composer.strip.more")}
           icon={<MoreHorizontal className="h-4 w-4 shrink-0" />}
@@ -746,11 +675,29 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
               <div className="border-b border-border py-1">
                 <SectionLabel>{t("composer.strip.workspace")}</SectionLabel>
                 <div data-testid="strip-workspace">
+                  {/* Project semantics (simplify-chat-and-agents-ia): the
+                      default face is the project NAME — the path's basename,
+                      the same resolution the sidebar's project grouping uses —
+                      never a raw absolute path. The path itself, the recents,
+                      and the path input collapse behind the Advanced
+                      disclosure. */}
                   {currentWorkspace && (
-                    <div className="px-3 pb-1 text-[10px] text-muted-foreground">
-                      <span className="break-all font-mono">{currentWorkspace}</span>
+                    <div className="px-3 pb-1 text-[10px] text-muted-foreground" data-testid="strip-workspace-name">
+                      <span className="block truncate font-mono">{projectBasename(currentWorkspace)}</span>
                     </div>
                   )}
+                  <details className="px-0" data-testid="strip-workspace-advanced">
+                    <summary
+                      data-testid="strip-workspace-advanced-toggle"
+                      className="cursor-pointer px-3 py-1 text-[10px] text-muted-foreground hover:text-foreground"
+                    >
+                      {t("composer.strip.workspaceAdvanced")}
+                    </summary>
+                    {currentWorkspace && (
+                      <div className="px-3 pb-1 text-[10px] text-muted-foreground">
+                        <span className="break-all font-mono">{currentWorkspace}</span>
+                      </div>
+                    )}
                   {workspaceRecents.filter((p) => p !== currentWorkspace).length > 0 && (
                     <div className="py-1">
                       <div className="px-3 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -806,121 +753,11 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
                       </button>
                     )}
                   </div>
+                  </details>
                 </div>
               </div>
 
-              {agents.length > 1 && (
-                <div className="py-1">
-                  <SectionLabel>{t("composer.strip.agent")}</SectionLabel>
-                  <div
-                    data-testid="strip-agent"
-                    className="px-3 pb-1 text-[10px] text-muted-foreground"
-                  >
-                    <span className="break-all font-mono">{agentLabel}</span>
-                  </div>
-                  {agentRows.map((row) => {
-                    if (row.kind === "header") {
-                      return (
-                        <div key={row.key} className="px-3 pb-1 pt-2">
-                          <div
-                            data-testid="strip-cluster-header"
-                            className="flex items-center gap-1.5 text-[10px] font-medium tracking-wide text-muted-foreground"
-                          >
-                            <Users className="h-3 w-3 shrink-0" aria-hidden="true" />
-                            <span className="truncate">{row.name}</span>
-                            <span className="shrink-0 rounded-sm border border-border px-1 py-px text-[9px]">
-                              {row.count}
-                            </span>
-                            <button
-                              type="button"
-                              disabled={clusterLoading === row.key}
-                              onClick={() => void loadCluster(row.key.replace(/^cluster-/, ""), row.name, row.group)}
-                              data-testid="strip-cluster-load"
-                              title={t("composer.strip.clusterLoadHint")}
-                              className="ml-auto shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1.5 py-px text-[10px] font-medium text-primary hover:bg-primary/20 disabled:opacity-50"
-                            >
-                              {clusterLoading === row.key
-                                ? t("composer.strip.clusterLoading")
-                                : t("composer.strip.clusterLoad")}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    }
-                    const a = row.a;
-                    return (
-                    // A pack role runs focused on its own resource set, so it
-                    // also carries the 资源微调 affordance — a sibling button,
-                    // never nested inside the select control (add-focus-
-                    // overlay D4). It opens the role's diff dialog; applying
-                    // follows the next-session contract.
-                    <div key={a.id} className="flex items-center gap-0.5">
-                      <div className="min-w-0 flex-1">
-                        <MenuItem
-                          active={a.id === currentAgent}
-                          disabled={isStreaming}
-                          primary={a.name || a.id}
-                          secondary={a.name ? a.id : undefined}
-                          badge={
-                            a.packId || a.customPreset ? (
-                              // Focused roles run on their OWN resource set —
-                              // pack personas (add-persona-resource-sets D5)
-                              // and custom presets (add-custom-presets D5)
-                              // alike — marked with the role-level summary
-                              // (skill/MCP counts of the effective set) so the
-                              // cost of the choice is visible before the switch.
-                              <span
-                                data-testid="strip-agent-focus-badge"
-                                title={a.packId ?? a.id}
-                                className="ml-auto shrink-0 rounded-sm border border-primary/40 bg-primary/10 px-1 py-px text-[9px] font-medium leading-tight text-primary"
-                              >
-                                {a.customPreset
-                                  ? t("composer.strip.agentFocusedCustom", {
-                                      skills: a.resourceSummary?.skillCount ?? 0,
-                                      mcp: a.resourceSummary?.mcpCount ?? 0,
-                                    })
-                                  : t("composer.strip.agentFocused", {
-                                      pack: a.packName || a.packId,
-                                      skills: a.resourceSummary?.skillCount ?? 0,
-                                      mcp: a.resourceSummary?.mcpCount ?? 0,
-                                    })}
-                              </span>
-                            ) : undefined
-                          }
-                          testId="strip-agent-option"
-                          onClick={() => {
-                            close();
-                            if (a.id === currentAgent) return;
-                            // An agent the deployment serves locally (a vertical
-                            // pack) applies its persona through the preset switch,
-                            // which restarts the runtime — so this control waits for
-                            // `agent_changed` like the model/workspace ones do. A
-                            // remote-fork agent answers immediately.
-                            setPendingConfig("agent");
-                            send({ type: "set_agent", id: a.id });
-                          }}
-                        />
-                      </div>
-                      {(a.packId || a.customPreset) && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            close();
-                            setOverlayRole({ id: a.id, name: a.name || a.id, packName: a.packName });
-                          }}
-                          aria-label={t("overlay.adjust")}
-                          title={t("overlay.adjust")}
-                          data-testid={`strip-agent-adjust-${a.id}`}
-                          className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-                        >
-                          <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-                        </button>
-                      )}
-                    </div>
-                    );
-                  })}
-                </div>
-              )}
+
             </div>
           )}
         </StripMenu>
@@ -937,13 +774,6 @@ export function ControlStrip({ send, onOpenCommands, onAttach, onVoiceFile, trai
         }}
       />
 
-      <OverlayPanel
-        role={overlayRole}
-        open={overlayRole !== null}
-        onOpenChange={(o) => {
-          if (!o) setOverlayRole(null);
-        }}
-      />
     </div>
   );
 }

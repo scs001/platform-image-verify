@@ -46,8 +46,7 @@
   "agentsPage": {
     "title": "智能体",
     "agents": "专家",
-    "market": "行业方案",
-    "apps": "应用",
+    "market": "功能集",
     "create": "新建专家",
     "myExperts": "我的专家",
     "connect": "连接",
@@ -182,13 +181,13 @@
     "uploading": "上传中…",
     "cancelUpload": "取消上传",
     "strip": {
-      "workspace": "工作目录",
+      "workspace": "会话项目",
       "workspaceUnset": "未选择",
       "workspaceRecents": "最近使用",
       "workspacePlaceholder": "输入文件夹绝对路径…",
       "workspaceBrowse": "浏览文件夹…",
       "workspaceAbsolute": "请输入绝对路径。",
-      "workspaceConfirm": "将工作目录切换到 {{path}}？\n\n此操作会重启智能体。当前对话中较早的消息可能引用已失效的文件路径。",
+      "workspaceConfirm": "将会话项目切换到 {{path}}？\n\n此操作会重启智能体。当前对话中较早的消息可能引用已失效的文件路径。",
       "commands": "命令",
       "model": "模型",
       "modelUnset": "未选择",
@@ -202,12 +201,12 @@
       "permissionUnset": "默认",
       "permissionCustom": "自定义",
       "permissionReadonly": {
-        "label": "只读",
-        "desc": "智能体只能读取项目，不能修改。"
+        "label": "仅对话",
+        "desc": "智能体只能对话，不读写项目文件。"
       },
       "permissionWrite": {
-        "label": "项目写入",
-        "desc": "智能体可以在工作区内进行修改。"
+        "label": "可读写项目文件",
+        "desc": "智能体可以在项目文件夹内进行修改。"
       },
       "permissionFull": {
         "label": "完全访问",
@@ -225,7 +224,8 @@
       "ctxHint": "已用 {{tokens}} / {{window}} tokens",
       "clusterLoad": "载入集群",
       "clusterLoading": "载入中…",
-      "clusterLoadHint": "把该集群绑定为当前会话的运行编队：切到首个默认成员，成员间可随时切换；扇出执行走集群任务。"
+      "clusterLoadHint": "把该集群绑定为当前会话的运行编队：切到首个默认成员，成员间可随时切换；扇出执行走集群任务。",
+      "workspaceAdvanced": "高级"
     },
     "sending": "发送中…",
     "voice": {
@@ -345,6 +345,20 @@
     "queuedPreempt": "停止它并立即执行",
     "cluster": {
       "terminatedNotice": "集群「{{name}}」已解散，已切回内置助手"
+    },
+    "presetLink": {
+      "pending": "正在切换到 {{name}}…",
+      "rejected": "切换被拒——助手正在回答，可稍后重试",
+      "retry": "重试",
+      "missing": "{{name}} 已不在（功能集可能已卸载），保持当前助手"
+    },
+    "assistant": {
+      "label": "与谁对话",
+      "standardSection": "标准助手",
+      "packSection": "功能集角色",
+      "mineSection": "我的专家",
+      "otherSection": "其他助手",
+      "composeLocked": "会话已开始，运行模式固定；新建对话可换。"
     }
   },
   "turn": {
@@ -1553,9 +1567,8 @@
   },
   "packs": {
     "tabs": {
-      "market": "功能集市场",
-      "mine": "我的功能集",
-      "drafts": "我的创作"
+      "market": "市场",
+      "mine": "我的"
     },
     "market": {
       "searchPlaceholder": "搜索功能集名称…",
@@ -1663,10 +1676,12 @@
         "bound": "已绑定本地",
         "awaiting-local-binding": "待绑定本地服务"
       },
-      "nextHint": "装好了。下一步：打开对话，在上方选择框选上这位专家。",
+      "nextHint": "装好了。去对话直接开聊——已为你自动选中这位专家。",
       "openChat": "打开对话",
       "files": "{{count}} 个辅助文件",
-      "filesWithScripts": "{{count}} 个辅助文件（含脚本：{{scripts}}）"
+      "filesWithScripts": "{{count}} 个辅助文件（含脚本：{{scripts}}）",
+      "nextHintCluster": "装好了。去对话整组开工——已为你自动切换到带头角色。",
+      "openChatCluster": "去对话并载入整组"
     },
     "mine": {
       "empty": "还没有订阅任何功能集。去市场看看。",
@@ -1778,6 +1793,10 @@
       "failed": "版本历史加载失败：{{message}}",
       "skillsToggle": "技能正文",
       "noSkills": "该版本未声明技能"
+    },
+    "mineSections": {
+      "installed": "已安装",
+      "creations": "我的创作"
     }
   },
   "overlay": {
@@ -1971,7 +1990,9 @@
         "tagline": "企业租户与数据中台（建设早期）"
       }
     },
-    "openOrigin": "打开原站"
+    "openOrigin": "打开原站",
+    "nangoConnect": "连接",
+    "nangoConnecting": "连接中…"
   },
   "board": {
     "notFound": "该线尚未接入，请稍后再试。",

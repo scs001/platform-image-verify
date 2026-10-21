@@ -76,6 +76,27 @@ function AppCard({ entry, states }: { entry: AppGridEntry; states: Record<string
   const { lineBoardsEnabled } = useAppConfig();
   const Icon = iconFor(entry);
 
+  // Nango products (simplify-chat-and-agents-ia, from the retired Agents-page
+  // Apps tab): the primary action mints a connect session through the
+  // platform's broker and redirects to the Connect UI; a failure stays on the
+  // card, named — never a silent dead click.
+  const isNango = entry.kind === "product" && entry.catalogKind === "nango-connect";
+  const [nangoBusy, setNangoBusy] = useState(false);
+  const [nangoError, setNangoError] = useState<string | null>(null);
+  const nangoConnect = async () => {
+    setNangoBusy(true);
+    setNangoError(null);
+    try {
+      const r = await fetch(`/api/apps/${encodeURIComponent(entry.id)}/connect`, { method: "POST" });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+      window.location.href = data.url as string;
+    } catch (e) {
+      setNangoError((e as Error).message);
+      setNangoBusy(false);
+    }
+  };
+
   const state = states ? aggregateConnectionState(entry.connections, states) : null;
   const target = states ? connectTargetFor(entry.connections, states) : null;
 
@@ -127,7 +148,25 @@ function AppCard({ entry, states }: { entry: AppGridEntry; states: Record<string
         </p>
       </div>
       <div className="mt-auto flex items-center gap-4 pt-1">
-        {entry.self ? (
+        {isNango ? (
+          <span className="flex flex-col items-start gap-1">
+            <button
+              type="button"
+              data-testid={`app-card-${entry.id}-nango-connect`}
+              disabled={nangoBusy}
+              onClick={() => void nangoConnect()}
+              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline disabled:opacity-50"
+            >
+              {nangoBusy ? t("appCenter.nangoConnecting") : t("appCenter.nangoConnect")}
+              <Plug className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+            {nangoError && (
+              <span data-testid={`app-card-${entry.id}-nango-error`} className="text-xs text-destructive">
+                {nangoError}
+              </span>
+            )}
+          </span>
+        ) : entry.self ? (
           <span data-testid={`app-card-${entry.id}-self`} className="text-xs text-muted-foreground">
             {t("appCenter.here")}
           </span>

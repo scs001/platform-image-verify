@@ -1,10 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { pinLocaleEn } from "./helpers.js";
 
-// AgentsPage: three sub-tabs (Experts, Market, Apps). Default is Experts;
-// the active tab is reflected in ?tab=... and round-trips on reload. Market
-// hosts the pack marketplace (moved out of Settings) and only exists on
-// deployments that report it (simplify-ia-non-technical).
+// AgentsPage: two sub-tabs (Experts, Packs). Default is Experts; the active
+// tab is reflected in ?tab=... and round-trips on reload. Packs hosts the
+// pack marketplace (moved out of Settings) and only exists on deployments
+// that report it (simplify-ia-non-technical). simplify-chat-and-agents-ia
+// retired the Apps tab — its entries live in the app center, and the legacy
+// ?tab=apps deep link falls back to the first visible tab.
 
 test.describe("agents page sub-tabs", () => {
   test("default tab is Agents", async ({ page }) => {
@@ -15,22 +17,18 @@ test.describe("agents page sub-tabs", () => {
     await expect(page.getByTestId("agents-section")).toBeVisible();
   });
 
-  test("clicking Apps switches the active tab", async ({ page }) => {
+  test("the Apps tab is retired: no tab, no section, legacy deep link falls back", async ({ page }) => {
     await pinLocaleEn(page);
     await page.goto("/agents");
     await expect(page.getByTestId("agents-page")).toBeVisible({ timeout: 15000 });
-    await page.getByTestId("agents-tab-apps").click();
-    await expect(page).toHaveURL(/tab=apps/);
-    await expect(page.getByTestId("agents-tab-apps")).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByTestId("apps-section")).toBeVisible();
-  });
+    await expect(page.getByTestId("agents-tab-apps")).toHaveCount(0);
+    await expect(page.getByTestId("apps-section")).toHaveCount(0);
 
-  test("deep-link via ?tab=apps", async ({ page }) => {
-    await pinLocaleEn(page);
+    // The legacy deep link falls back to the first visible tab, no error.
     await page.goto("/agents?tab=apps");
     await expect(page.getByTestId("agents-page")).toBeVisible({ timeout: 15000 });
-    await expect(page.getByTestId("agents-tab-apps")).toHaveAttribute("aria-selected", "true");
-    await expect(page.getByTestId("apps-section")).toBeVisible();
+    await expect(page.getByTestId("agents-tab-agents")).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("agents-tab-apps")).toHaveCount(0);
   });
 
   test("deep-link via ?tab=agents", async ({ page }) => {

@@ -199,8 +199,8 @@ test("selecting a pack role focuses both patches and badges the picker", async (
 
   // Picker: the pack agent renders with the focus badge naming its pack and
   // the role's resource summary (v1 manifest: 1 skill, 0 MCP refs).
-  await page.getByTestId("strip-more").click();
-  const option = page.getByTestId("strip-agent-option").filter({ hasText: "聚焦审查官" });
+  await page.getByTestId("agent-preset-picker").click();
+  const option = page.getByTestId("agent-preset-option").filter({ hasText: "聚焦审查官" });
   await expect(option).toBeVisible({ timeout: 30_000 });
   await expect(option.getByTestId("strip-agent-focus-badge")).toHaveText(
     `聚焦 · ${PACK_NAME} · 1 技能 · 0 工具`,
@@ -435,8 +435,8 @@ test("@smoke focused role declines an out-of-scope tool honestly", async ({ page
   await addExtraServer(page);
 
   await gotoChat(page);
-  await page.getByTestId("strip-more").click();
-  const option = page.getByTestId("strip-agent-option").filter({ hasText: "聚焦审查官" });
+  await page.getByTestId("agent-preset-picker").click();
+  const option = page.getByTestId("agent-preset-option").filter({ hasText: "聚焦审查官" });
   await expect(option).toBeVisible({ timeout: 30_000 });
   await option.click();
   await expect

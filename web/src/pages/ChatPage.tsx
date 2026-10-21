@@ -41,30 +41,57 @@ export function ChatPage({ send, onToggleNav }: Props) {
   // keeps the transcript, composer and action cards.
   const embedMode = searchParams.get("embed") === "copilot";
   const boardLine = searchParams.get("board") || null;
-  // Focused preset (copilot-dock-focused-preset): the dock puts the line's
-  // focused assistant on the URL; the embed switches the runtime to it once
-  // the socket is up and the current agent is known. The switch is cell-wide
-  // (a dsh restart) and is sent once per attempt, never looped — a rejection
-  // (main chat mid-answer) clears pendingConfig without an agent_changed, and
-  // the context bar offers a retry.
-  const presetAgent = embedMode ? searchParams.get("preset") || null : null;
+  // Deep-link intent (copilot-dock-focused-preset + simplify-chat-and-agents-ia):
+  // the dock puts the line's focused assistant on the URL (embed), and the
+  // pack-install guidance lands here the same way in NORMAL navigation
+  // (`?preset=<agentId>`, optionally `?cluster=<clusterId>` to bind the whole
+  // group). Captured once at mount: normal navigation consumes the params
+  // after resolution (see below), and a live re-read would then strand or
+  // re-trigger the switch — embed keeps the param on the URL by contract.
+  const [deeplink] = useState(() => ({
+    preset: searchParams.get("preset"),
+    cluster: searchParams.get("cluster"),
+  }));
+  const presetAgent = deeplink.preset || null;
+  // Cluster binding is the install-guidory story; the dock has none.
+  const presetCluster = !embedMode ? deeplink.cluster || null : null;
   const currentAgent = useChatStore((s) => s.currentAgent);
   const currentPreset = useChatStore((s) => s.currentPreset);
   const configErrorSeq = useChatStore((s) => s.configErrorSeq);
   const agents = useChatStore((s) => s.agents);
+  const currentSessionId = useChatStore((s) => s.currentSessionId);
+  const status = useChatStore((s) => s.status);
   const [focusAttempt, setFocusAttempt] = useState(0);
   // The attempt the switch was sent for, and the refusal count seen then: a
   // refusal is "the count moved since", never "pendingConfig went back to
   // null" (the connect burst clears that too).
   const [focusSent, setFocusSent] = useState<{ attempt: number; errorSeq: number } | null>(null);
+  // A cluster deep link prefers the roster's declared lead over the URL's
+  // agent (the lead is authoritative once the roster lands); the switch and
+  // the bind both key on the roster group, so an unresolvable cluster
+  // degrades to the plain agent switch.
+  const clusterGroup = presetCluster ? agents.filter((a) => a.clusterId === presetCluster) : [];
+  const clusterLead = clusterGroup.find((a) => a.isDefaultAgent) ?? clusterGroup[0] ?? null;
+  const focusTarget = clusterLead?.id ?? presetAgent;
+  // Honest degradation (spec: web-chat-ui, 非 embed 导航的预设深链): with the
+  // runtime live and the roster loaded, a target nothing carries is "this
+  // assistant is gone" — say so and never send the switch. Embed (the dock)
+  // is exempt: its URL contract already guarantees no preset when the line
+  // has no installed assistant, and its e2e drives the send before the roster
+  // lands, so the dock keeps the pre-existing behavior byte-for-byte.
+  const focusMissing =
+    !embedMode &&
+    !!focusTarget &&
+    status === "connected" &&
+    currentPreset !== null &&
+    agents.length > 0 &&
+    !agents.some((a) => a.id === focusTarget);
   // Length-and-pending subscription: this page branches on emptiness —
   // subscribing to the whole turns array would re-render it per streamed
   // token. An optimistic session switch clears turns the instant the request
   // leaves (perf-session-open), and that pending view belongs to the
   // transcript's skeleton, not the welcome.
   const isEmpty = useChatStore((s) => s.turns.length === 0 && s.pendingSession === null);
-  const status = useChatStore((s) => s.status);
-  const currentSessionId = useChatStore((s) => s.currentSessionId);
 
   // Send the focus switch once per attempt, only when the runtime is known to
   // be on another agent: switching to the current agent returns without an
@@ -72,16 +99,58 @@ export function ChatPage({ send, onToggleNav }: Props) {
   // for currentPreset means the connect burst is over and the runtime is
   // live — a switch sent mid-boot would be refused.
   useEffect(() => {
-    if (!presetAgent || status !== "connected" || currentAgent === null || currentPreset === null) return;
-    if (currentAgent === presetAgent || focusSent?.attempt === focusAttempt) return;
+    if (!focusTarget || focusMissing) return;
+    if (status !== "connected" || currentAgent === null || currentPreset === null) return;
+    if (currentAgent === focusTarget || focusSent?.attempt === focusAttempt) return;
     setFocusSent({ attempt: focusAttempt, errorSeq: configErrorSeq });
     useChatStore.getState().setPendingConfig("agent");
-    send({ type: "set_agent", id: presetAgent });
-  }, [presetAgent, status, currentAgent, currentPreset, focusAttempt, focusSent, configErrorSeq, send]);
-  const focused = !!presetAgent && currentAgent === presetAgent;
+    send({ type: "set_agent", id: focusTarget });
+  }, [focusTarget, focusMissing, status, currentAgent, currentPreset, focusAttempt, focusSent, configErrorSeq, send]);
+  const focused = !!focusTarget && currentAgent === focusTarget;
   const focusRejected =
-    !!presetAgent && !focused && focusSent?.attempt === focusAttempt && configErrorSeq > focusSent.errorSeq;
-  const focusedName = agents.find((a) => a.id === presetAgent)?.name ?? presetAgent;
+    !!focusTarget && !focused && focusSent?.attempt === focusAttempt && configErrorSeq > focusSent.errorSeq;
+  const focusedName = agents.find((a) => a.id === focusTarget)?.name ?? focusTarget;
+
+  // Cluster bind (install guidance, 整组载入): the dynamic-cluster contract
+  // binds to a session, and a deep link usually lands on the welcome state —
+  // no session yet. So the bind waits for one (the first send creates it),
+  // fires exactly once per page load, and a failed POST re-arms so a retry
+  // is possible instead of a silent no-bind.
+  const clusterBoundRef = useRef(false);
+  useEffect(() => {
+    if (!presetCluster || clusterBoundRef.current || clusterGroup.length === 0) return;
+    if (!currentSessionId) return;
+    clusterBoundRef.current = true;
+    fetch("/api/clusters/dynamic", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        name: clusterGroup[0]?.clusterName || presetCluster,
+        agents: clusterGroup.map((a) => ({ packId: a.packId, agentId: a.id })),
+        bindToSession: true,
+        sessionId: currentSessionId,
+      }),
+    }).catch(() => {
+      clusterBoundRef.current = false;
+    });
+  }, [presetCluster, clusterGroup, currentSessionId]);
+
+  // One-time URL consumption (normal navigation only): once the deep link is
+  // resolved — switched, or definitively failed (missing / rejected) — the
+  // params leave the address bar so a refresh cannot re-fire the switch. The
+  // dock (embed) keeps its param by contract; replaceState is cosmetic to
+  // React Router, which is exactly why the intent lives in `deeplink` state.
+  const consumedUrlRef = useRef(false);
+  useEffect(() => {
+    if (embedMode || !deeplink.preset || consumedUrlRef.current) return;
+    if (focused || focusMissing || focusRejected) {
+      consumedUrlRef.current = true;
+      const url = new URL(window.location.href);
+      url.searchParams.delete("preset");
+      url.searchParams.delete("cluster");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [embedMode, deeplink.preset, focused, focusMissing, focusRejected]);
 
   const [draft, setDraft] = useState("");
   const [focusTick, setFocusTick] = useState(0);
@@ -171,6 +240,36 @@ export function ChatPage({ send, onToggleNav }: Props) {
           <span className="ml-1 truncate text-xs text-muted-foreground">
             {t("sidebar.brand", { brand })}
           </span>
+        </div>
+      )}
+      {/* Deep-link status (normal navigation, simplify-chat-and-agents-ia):
+          the pack-install guidance lands with ?preset= — this strip narrates
+          the switch it asked for: pending, refused (with retry), or the
+          honest "assistant is gone" degradation. Once focused it steps aside
+          entirely: the assistant selector itself shows the running agent. */}
+      {!embedMode && focusTarget && !focused && (
+        <div
+          data-testid="chat-preset-link"
+          data-state={focusMissing ? "missing" : focusRejected ? "rejected" : "pending"}
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-muted px-4 py-1.5 text-xs text-muted-foreground"
+        >
+          {focusMissing ? (
+            <span>{t("chat.presetLink.missing", { name: focusedName })}</span>
+          ) : focusRejected ? (
+            <>
+              <span>{t("chat.presetLink.rejected")}</span>
+              <button
+                type="button"
+                data-testid="chat-preset-link-retry"
+                onClick={() => setFocusAttempt((n) => n + 1)}
+                className="rounded border border-border px-1.5 py-0.5 hover:bg-background hover:text-foreground"
+              >
+                {t("chat.presetLink.retry")}
+              </button>
+            </>
+          ) : (
+            <span>{t("chat.presetLink.pending", { name: focusedName })}</span>
+          )}
         </div>
       )}
       {/* Copilot context bar (embed mode): shows what the assistant is told

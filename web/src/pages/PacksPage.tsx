@@ -1,11 +1,14 @@
 // PacksPage.tsx — the pack marketplace surface (add-pack-marketplace), served
-// as a Settings section on gateway-fronted deployments only (design D15; the
-// registry gates this section on /api/config's packMarketplace flag).
+// on the agents page's Packs tab (simplify-chat-and-agents-ia) on
+// gateway-fronted deployments only (design D15; the registry gates this
+// section on /api/config's packMarketplace flag).
 //
-// Three tabs: the market (browse/inspect/subscribe), my packs (installed
-// snapshots, updates, uninstall), and creator drafts (authoring + publish).
-// Mounted only when config.packMarketplace is true, so no code path here
-// needs a local-deployment fallback.
+// Two tabs (simplify-chat-and-agents-ia merged the third into the second):
+// the market (browse/inspect/subscribe) and 我的 — installed snapshots
+// (updates, uninstall) as one section, creator drafts (authoring + publish)
+// as the section below it. A preset-conversion handoff lands on 我的 with
+// the drafts section consumed. Mounted only when config.packMarketplace is
+// true, so no code path here needs a local-deployment fallback.
 
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -14,17 +17,17 @@ import { MyPacksView } from "@/components/packs/MyPacksView";
 import { PackDraftsView } from "@/components/packs/PackDraftsView";
 import { hasBridgeHandoff } from "@/lib/pack-draft-bridge";
 
-type Tab = "market" | "mine" | "drafts";
+type Tab = "market" | "mine";
 
 export function PacksPage() {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<Tab>("market");
 
   // A preset conversion handoff lands with this page already targeted — go
-  // straight to the drafts tab where PackDraftsView consumes it (opens the
-  // converted draft, shows the report once).
+  // straight to 我的, where PackDraftsView consumes it (opens the converted
+  // draft, shows the report once).
   useEffect(() => {
-    if (hasBridgeHandoff()) setActiveTab("drafts");
+    if (hasBridgeHandoff()) setActiveTab("mine");
   }, []);
 
   return (
@@ -35,7 +38,6 @@ export function PacksPage() {
             [
               ["market", "packs.tabs.market"],
               ["mine", "packs.tabs.mine"],
-              ["drafts", "packs.tabs.drafts"],
             ] as const
           ).map(([tab, key]) => (
             <button
@@ -55,8 +57,22 @@ export function PacksPage() {
       </div>
       <div className="flex-1 overflow-auto p-6">
         {activeTab === "market" && <PackMarketView onSubscribed={() => setActiveTab("mine")} />}
-        {activeTab === "mine" && <MyPacksView />}
-        {activeTab === "drafts" && <PackDraftsView onPublished={() => setActiveTab("market")} />}
+        {activeTab === "mine" && (
+          <div className="flex flex-col gap-8" data-testid="packs-mine">
+            <section>
+              <h2 className="mb-3 text-sm font-medium text-muted-foreground" data-testid="packs-mine-installed">
+                {t("packs.mineSections.installed")}
+              </h2>
+              <MyPacksView />
+            </section>
+            <section>
+              <h2 className="mb-3 text-sm font-medium text-muted-foreground" data-testid="packs-mine-creations">
+                {t("packs.mineSections.creations")}
+              </h2>
+              <PackDraftsView onPublished={() => setActiveTab("market")} />
+            </section>
+          </div>
+        )}
       </div>
     </div>
   );

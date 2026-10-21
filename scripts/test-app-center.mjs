@@ -32,7 +32,7 @@ const KNOWN_CONNECTION_IDS = [
 ];
 
 const CATALOG_APPS = JSON.parse(readFileSync(new URL("../agents.json", import.meta.url), "utf8")).apps.filter((a) =>
-  ["external-service", "link"].includes(a.kind),
+  ["external-service", "link", "nango-connect"].includes(a.kind),
 );
 
 test("all five product lines present, stable ids", () => {

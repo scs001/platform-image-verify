@@ -96,8 +96,8 @@ test.beforeEach(async ({ page, request }) => {
 
 async function selectA2aAgent(page) {
   await page.getByTestId("composer-input").fill("ping"); // canSend needs text
-  await page.getByTestId("strip-more").click();
-  const option = page.getByTestId("strip-agent-option").filter({ hasText: ENTRY.name });
+  await page.getByTestId("agent-preset-picker").click();
+  const option = page.getByTestId("agent-preset-option").filter({ hasText: ENTRY.name });
   await expect(option).toBeVisible({ timeout: 20000 });
   await option.click();
   // The strip's active-agent label lives INSIDE this menu — reopen it to see
@@ -105,8 +105,8 @@ async function selectA2aAgent(page) {
   await expect
     .poll(() => page.evaluate(() => window.__chatStore?.getState?.().currentAgent))
     .toBe(ENTRY.id);
-  await page.getByTestId("strip-more").click();
-  await expect(page.getByTestId("strip-agent")).toContainText(ENTRY.name, { timeout: 20000 });
+  await page.getByTestId("agent-preset-picker").click();
+  await expect(page.getByTestId("agent-preset-picker")).toContainText(ENTRY.name, { timeout: 20000 });
   await page.keyboard.press("Escape");
 }
 

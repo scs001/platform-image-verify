@@ -46,8 +46,7 @@
   "agentsPage": {
     "title": "Agents",
     "agents": "Experts",
-    "market": "Industry Packs",
-    "apps": "Apps",
+    "market": "Packs",
     "create": "New expert",
     "myExperts": "My experts",
     "connect": "Connect",
@@ -182,13 +181,13 @@
     "uploading": "Uploading…",
     "cancelUpload": "Cancel upload",
     "strip": {
-      "workspace": "Workspace",
+      "workspace": "Session project",
       "workspaceUnset": "No folder",
       "workspaceRecents": "Recent folders",
       "workspacePlaceholder": "Absolute path to a folder…",
       "workspaceBrowse": "Browse folders…",
       "workspaceAbsolute": "Enter an absolute path.",
-      "workspaceConfirm": "Switch the workspace to {{path}}?\n\nThis restarts the agent. Earlier messages in this chat may refer to files that no longer resolve.",
+      "workspaceConfirm": "Switch the session project to {{path}}?\n\nThis restarts the agent. Earlier messages may reference file paths that no longer resolve.",
       "commands": "Commands",
       "model": "Model",
       "modelUnset": "No model",
@@ -202,12 +201,12 @@
       "permissionUnset": "Default",
       "permissionCustom": "Custom",
       "permissionReadonly": {
-        "label": "Read only",
-        "desc": "The agent can read the workspace but not change it."
+        "label": "Chat only",
+        "desc": "The agent converses without reading or writing project files."
       },
       "permissionWrite": {
-        "label": "Project writes",
-        "desc": "The agent can make changes inside the workspace."
+        "label": "Read & write project files",
+        "desc": "The agent can make changes inside the project folder."
       },
       "permissionFull": {
         "label": "Full access",
@@ -225,7 +224,8 @@
       "ctxHint": "{{tokens}} / {{window}} tokens",
       "clusterLoad": "Load cluster",
       "clusterLoading": "Loading…",
-      "clusterLoadHint": "Bind this cluster to the current session: switches to the lead default member; use cluster tasks for fan-out."
+      "clusterLoadHint": "Bind this cluster to the current session: switches to the lead default member; use cluster tasks for fan-out.",
+      "workspaceAdvanced": "Advanced"
     },
     "sending": "Sending…",
     "voice": {
@@ -345,6 +345,20 @@
     "queuedPreempt": "Stop it and run this now",
     "cluster": {
       "terminatedNotice": "Cluster '{{name}}' was terminated; switched to the built-in agent"
+    },
+    "presetLink": {
+      "pending": "Switching to {{name}}…",
+      "rejected": "Switch refused — the assistant is mid-answer; retry shortly",
+      "retry": "Retry",
+      "missing": "{{name}} is no longer available (its pack may be uninstalled); keeping the current assistant"
+    },
+    "assistant": {
+      "label": "Talk to",
+      "standardSection": "Standard",
+      "packSection": "Pack roles",
+      "mineSection": "My experts",
+      "otherSection": "Other assistants",
+      "composeLocked": "This session already started, so its mode is fixed; start a new chat to switch."
     }
   },
   "turn": {
@@ -1553,9 +1567,8 @@
   },
   "packs": {
     "tabs": {
-      "market": "Pack Market",
-      "mine": "My Packs",
-      "drafts": "My Creations"
+      "market": "Market",
+      "mine": "Mine"
     },
     "market": {
       "searchPlaceholder": "Search packs…",
@@ -1663,10 +1676,12 @@
         "bound": "Bound to local",
         "awaiting-local-binding": "Awaiting local server"
       },
-      "nextHint": "Installed. Next: open the conversation and pick this expert in the picker above.",
+      "nextHint": "Installed. Jump into the chat — your new expert is already selected for you.",
       "openChat": "Open chat",
       "files": "{{count}} auxiliary files",
-      "filesWithScripts": "{{count}} auxiliary files (scripts: {{scripts}})"
+      "filesWithScripts": "{{count}} auxiliary files (scripts: {{scripts}})",
+      "nextHintCluster": "Installed. Jump into the chat with the whole group — the lead role is already selected for you.",
+      "openChatCluster": "Open chat & load group"
     },
     "mine": {
       "empty": "No packs subscribed yet. Browse the market.",
@@ -1778,6 +1793,10 @@
       "failed": "Version history failed to load: {{message}}",
       "skillsToggle": "Skill bodies",
       "noSkills": "This version declares no skills"
+    },
+    "mineSections": {
+      "installed": "Installed",
+      "creations": "My creations"
     }
   },
   "overlay": {
@@ -1971,7 +1990,9 @@
         "tagline": "Enterprise tenants and data middleware (early stage)"
       }
     },
-    "openOrigin": "Open origin site"
+    "openOrigin": "Open origin site",
+    "nangoConnect": "Connect",
+    "nangoConnecting": "Connecting…"
   },
   "board": {
     "notFound": "This line is not yet integrated. Please try again later.",

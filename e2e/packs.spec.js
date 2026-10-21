@@ -205,7 +205,7 @@ async function getSkills(page) {
 test("creator drafts, publishes v1, then republishes v2", async ({ page }) => {
   const gw = seedableGateway(page);
   gw.install();
-  await gotoPacksTab(page, "drafts");
+  await gotoPacksTab(page, "mine");
   await page.getByTestId("pack-draft-create").click();
   await expect(page.getByTestId("pack-editor")).toBeVisible();
 
@@ -232,7 +232,7 @@ test("creator drafts, publishes v1, then republishes v2", async ({ page }) => {
 
   // Edit and republish → v2 appended to the same pack (the draft carries the
   // published pack id, so the second publish targets it).
-  await gotoPacksTab(page, "drafts");
+  await gotoPacksTab(page, "mine");
   await page.locator('[data-testid^="pack-draft-item-"]').first().click();
   await expect(page.getByTestId("pack-editor")).toBeVisible();
   await page.getByTestId("pack-draft-publish").click();
@@ -244,7 +244,7 @@ test("creator drafts, publishes v1, then republishes v2", async ({ page }) => {
 test("per-role resource declarations round-trip through save/reload; cost readout is live", async ({ page }) => {
   const gw = seedableGateway(page);
   gw.install();
-  await gotoPacksTab(page, "drafts");
+  await gotoPacksTab(page, "mine");
   await page.getByTestId("pack-draft-create").click();
   await page.locator("#pack-name").fill("资源集包");
 
@@ -422,7 +422,7 @@ test("detail discloses declared, full-surface, and legacy tool faces", async ({ 
 test("draft saves without tools, the full-surface marker round-trips, publish requires a face", async ({ page }) => {
   const gw = seedableGateway(page);
   gw.install();
-  await gotoPacksTab(page, "drafts");
+  await gotoPacksTab(page, "mine");
   await page.getByTestId("pack-draft-create").click();
   await page.locator("#pack-name").fill("工具面草稿包");
 
@@ -830,7 +830,7 @@ test("body-form installs ride the identical pipeline (rolling compatibility)", a
 test("tool allowlists round-trip through save/reload, clear to full, and publish", async ({ page }) => {
   const gw = seedableGateway(page);
   gw.install();
-  await gotoPacksTab(page, "drafts");
+  await gotoPacksTab(page, "mine");
   await page.getByTestId("pack-draft-create").click();
   await page.locator("#pack-name").fill("工具白名单包");
 
@@ -901,6 +901,24 @@ test("detail renders the manifest guide over client content, with examples", asy
 });
 
 test("subscribe report ends with the next-steps wizard", async ({ page }) => {
+  // The CTA's deep link switches the runtime onto the installed persona —
+  // swallow set_agent for this test so the SHARED cell never restarts onto
+  // it (later specs compose the full surface, not the pack's focused set).
+  // The URL param is client-side navigation state and asserts fine while the
+  // switch sits swallowed-pending.
+  await page.addInitScript(() => {
+    const origSend = WebSocket.prototype.send;
+    WebSocket.prototype.send = function (data) {
+      let parsed;
+      try {
+        parsed = JSON.parse(data);
+      } catch {
+        parsed = null;
+      }
+      if (parsed && parsed.type === "set_agent") return;
+      return origSend.call(this, data);
+    };
+  });
   const gw = seedableGateway(page);
   await seedPackBoth(
     gw,
@@ -915,16 +933,24 @@ test("subscribe report ends with the next-steps wizard", async ({ page }) => {
 
   const report = page.getByTestId("pack-install-report");
   await expect(report).toBeVisible();
-  await expect(page.getByTestId("pack-install-next")).toBeVisible();
+  const next = page.getByTestId("pack-install-next");
+  await expect(next).toBeVisible();
+  // simplify-chat-and-agents-ia: the CTA carries the installed role — the
+  // hint no longer tells the user to go pick the expert themselves (this
+  // test's gateway seeding lands on the zh locale, so assert the OLD manual
+  // instruction is gone rather than pinning one locale's new copy), and the
+  // navigation carries the preset param.
+  await expect(next).not.toContainText("选择框");
+  await expect(next).not.toContainText("pick this");
   await page.getByTestId("pack-install-open-chat").click();
-  await expect(page).toHaveURL(/\/chat/);
+  await page.waitForURL(/\/chat\?preset=pack-wizard-reviewer/);
   await expect(page.getByTestId("pack-install-report")).toHaveCount(0);
 });
 
 test("creator guide: complete guide publishes into the manifest, partial does not", async ({ page }) => {
   const gw = seedableGateway(page);
   gw.install();
-  await gotoPacksTab(page, "drafts");
+  await gotoPacksTab(page, "mine");
   await page.getByTestId("pack-draft-create").click();
   await expect(page.getByTestId("pack-editor")).toBeVisible();
 
@@ -946,7 +972,7 @@ test("creator guide: complete guide publishes into the manifest, partial does no
   expect(v1.manifest.guide).toBeUndefined();
 
   // Complete the third step → republish carries the full guide.
-  await gotoPacksTab(page, "drafts");
+  await gotoPacksTab(page, "mine");
   await page.locator('[data-testid^="pack-draft-item-"]').first().click();
   await expect(page.getByTestId("pack-editor")).toBeVisible();
   await page.getByTestId("pack-guide-editor-toggle").click();

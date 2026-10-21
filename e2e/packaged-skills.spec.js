@@ -190,7 +190,7 @@ test("zip upload → preview → install → materialized tree; editor seed → 
   expect(existsSync(path.join(userSkillDir(), "logo.png")), "binary never lands on disk").toBe(false);
 
   // ── Leg 2: pack editor direct-upload seed → draft → publish ───────────────
-  await gotoPacksTab(page, "drafts");
+  await gotoPacksTab(page, "mine");
   await page.getByTestId("pack-draft-create").click();
   await expect(page.getByTestId("pack-editor")).toBeVisible();
   await page.locator("#pack-name").fill(PACK_NAME);

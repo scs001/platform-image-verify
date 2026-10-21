@@ -49,6 +49,7 @@ test.describe("workspace browse buttons (Electron bridge)", () => {
   test("composer strip workspace menu offers browse and sends the pick", async ({ page }) => {
     // The workspace control lives inside the composer's overflow popover now.
     await page.getByTestId("strip-more").click();
+    await page.getByTestId("strip-workspace-advanced-toggle").click();
     const browse = page.getByTestId("strip-workspace-browse");
     await expect(browse).toBeVisible();
     await browse.click();
@@ -68,6 +69,8 @@ test.describe("workspace browse without the Electron bridge", () => {
     await expect(page.getByTestId("workspace-new-browse")).toHaveCount(0);
     await page.keyboard.press("Escape");
     await page.getByTestId("strip-more").click();
+    // Project semantics: the path input lives behind the Advanced disclosure.
+    await page.getByTestId("strip-workspace-advanced-toggle").click();
     await expect(page.getByTestId("strip-workspace-input")).toBeVisible();
     await expect(page.getByTestId("strip-workspace-browse")).toHaveCount(0);
   });

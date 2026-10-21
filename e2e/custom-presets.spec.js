@@ -232,8 +232,8 @@ test("create→select→focus: the page's form, the badge, and both patches", as
 
   // Picker: the custom role renders with the 「聚焦 · 自建」 badge.
   await page.goto("/chat/");
-  await page.getByTestId("strip-more").click();
-  const option = page.getByTestId("strip-agent-option").filter({ hasText: "Counsel E2E" });
+  await page.getByTestId("agent-preset-picker").click();
+  const option = page.getByTestId("agent-preset-option").filter({ hasText: "Counsel E2E" });
   await expect(option).toBeVisible({ timeout: 30_000 });
   await expect(option.getByTestId("strip-agent-focus-badge")).toHaveText("聚焦 · 自建 · 2 技能 · 0 工具");
 
@@ -332,8 +332,8 @@ test("deleting the selected preset resets to the built-in agent and prunes", asy
   // Select through the picker (set_agent) so the store's agent label tracks
   // the switch — the raw set_preset path confirms the preset but never
   // broadcasts agent_changed.
-  await page.getByTestId("strip-more").click();
-  const option = page.getByTestId("strip-agent-option").filter({ hasText: "Doomed" });
+  await page.getByTestId("agent-preset-picker").click();
+  const option = page.getByTestId("agent-preset-option").filter({ hasText: "Doomed" });
   await expect(option).toBeVisible({ timeout: 30_000 });
   await option.click();
   await expect

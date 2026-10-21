@@ -95,7 +95,7 @@ test("all-migratable preset converts clean through the page action", async ({ pa
 
   // Landed in the pack editor with the converted draft open — no banner
   // (nothing pending), serving pre-checked, persona verbatim.
-  await expect(page.getByTestId("packs-tab-drafts")).toHaveClass(/border-primary/);
+  await expect(page.getByTestId("packs-tab-mine")).toHaveClass(/border-primary/);
   const editor = page.getByTestId("pack-editor");
   await expect(editor).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId("pack-bridge-report")).toHaveCount(0);
@@ -162,7 +162,7 @@ test("a mixed preset converts with the pending-replacement report", async ({ pag
   // (leave the section entirely so the page state remounts).
   await page.goto("/chat/");
   await page.goto("/agents?tab=market");
-  await page.getByTestId("packs-tab-drafts").click();
+  await page.getByTestId("packs-tab-mine").click();
   await page.getByTestId(`pack-draft-item-${draft.id}`).click();
   await expect(page.getByTestId("pack-editor")).toBeVisible();
   await expect(page.getByTestId("pack-bridge-report")).toHaveCount(0);

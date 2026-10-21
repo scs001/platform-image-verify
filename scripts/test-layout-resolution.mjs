@@ -29,11 +29,28 @@ const ALL_TABS = AGENTS_TAB_SURFACES.map((s) => s.slug);
 
 // ── Factory baseline ────────────────────────────────────────────────────────
 
-test("factory preset equals the registry exactly (baseline equivalence)", () => {
+test("factory preset baseline: nav/settings full; agentsTabs retire apps", () => {
   const p = FACTORY_PRESETS[FACTORY_PRESET_SLUG];
   assert.deepEqual(p.nav, ALL_NAV);
   assert.deepEqual(p.settings, ALL_SETTINGS);
-  assert.deepEqual(p.agentsTabs, ALL_TABS);
+  // simplify-chat-and-agents-ia: the Apps sub-tab is retired from every
+  // factory preset while its slug stays in the registry (stored presets and
+  // deep links keep validating).
+  assert.deepEqual(p.agentsTabs, ["agents", "market"]);
+  assert.equal(ALL_TABS.includes("apps"), true);
+});
+
+test("stored presets referencing the retired apps tab degrade safely", () => {
+  // Validation still accepts the slug (registry compat)…
+  const v = validatePreset({ version: 1, agentsTabs: ["agents", "market", "apps"] });
+  assert.equal(v.ok, true);
+  // …and resolution never selects it: the factory/deployment layer drops it
+  // first, and no lower layer can re-reveal what a narrower layer removed.
+  const r = resolveLayout({
+    deployment: { preset: factoryPreset(FACTORY_PRESET_SLUG) },
+    user: { preset: { version: 1, agentsTabs: ["agents", "market", "apps"] } },
+  });
+  assert.deepEqual(r.agentsTabs, ["agents", "market"]);
 });
 
 test("no layers resolves to the registry order", () => {
@@ -70,6 +87,9 @@ test("a preset cannot conjure the fleet into a browser", () => {
 test("marketplace-gated tab disappears when the deployment lacks the market", () => {
   assert.equal(predicateAllows(AGENTS_TAB_SURFACES.find((s) => s.slug === "market"), { packMarketplace: false }), false);
   const r = resolveLayout({}, { packMarketplace: false });
+  // Raw no-layers resolution returns the REGISTRY set minus predicates — apps
+  // stays here because no factory-preset layer was applied (the server's
+  // resolveForUser always applies one, where apps retires).
   assert.deepEqual(r.agentsTabs, ["agents", "apps"]);
 });
 
@@ -132,7 +152,7 @@ test("an admin with a business role resolves to the deployment default", () => {
   const admin = resolveLayout(layers, { authOn: true, isAdmin: true });
   assert.deepEqual(admin.nav, ALL_NAV); // desktopOnly unknown here → fleet kept (client-owned fact)
   assert.deepEqual(admin.settings, ALL_SETTINGS);
-  assert.deepEqual(admin.agentsTabs, ALL_TABS);
+  assert.deepEqual(admin.agentsTabs, ["agents", "market"]); // the deployment default retires apps
   // The same input for a non-admin still narrows to the simple skeleton.
   const user = resolveLayout(layers, { authOn: true, isAdmin: false });
   assert.deepEqual(user.nav, ["chat", "knowledge", "resources", "agents", "apps"]);

@@ -3,18 +3,19 @@
 // mint a connect session via the server-side broker then redirect, and
 // external-service entries (NEW API) embed via /external/:appId iframe proxy.
 //
-// Layout: tabbed view with three sub-tabs (Experts | Market | Apps) selected
-// via ?tab=agents|market|apps for deep-linking (simplify-ia-non-technical).
-// Experts unifies the catalog roster with the cell's custom presets — the
-// preset management surface (add-custom-presets) is embedded below the
-// catalog grid, so composing, managing, and picking an expert happen in one
-// place. Market hosts the pack marketplace (moved out of Settings) on
-// deployments that report it. The legacy ?tab=agents|apps values keep their
-// meaning. Featured items appear first; entries sort by id within their tier.
+// Layout: two sub-tabs (Experts | Packs) selected via ?tab=agents|market for
+// deep-linking (simplify-ia-non-technical, then simplify-chat-and-agents-ia
+// retired the Apps tab — its entries moved to the app center, and the legacy
+// ?tab=apps value falls back to the first visible tab). Experts unifies the
+// catalog roster with the cell's custom presets — the preset management
+// surface (add-custom-presets) is embedded below the catalog grid, so
+// composing, managing, and picking an expert happen in one place. Packs hosts
+// the pack marketplace (moved out of Settings) on deployments that report it.
+// Featured items appear first; entries sort by id within their tier.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router-dom";
 import { useChatStore } from "@platform/core";
 import { useAppConfig } from "@/hooks/useAppConfig";
 import { AGENTS_TAB_SURFACES } from "@platform/core";
@@ -24,9 +25,9 @@ import { CustomPresetsPage } from "@/pages/CustomPresetsPage";
 import { PacksPage } from "@/pages/PacksPage";
 import { ClusterComposerModal } from "@/components/clusters/ClusterComposerModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import type { AgentInfo, AppInfo } from "@platform/core";
+import type { AgentInfo } from "@platform/core";
 
-type Tab = "agents" | "market" | "apps";
+type Tab = "agents" | "market";
 
 // The tab label keys live client-side (the registry carries slugs/testids —
 // labels are presentation). One map, so a new tab cannot land with a missing
@@ -34,7 +35,6 @@ type Tab = "agents" | "market" | "apps";
 const TAB_LABEL_KEYS: Record<string, string> = {
   agents: "agentsPage.agents",
   market: "agentsPage.market",
-  apps: "agentsPage.apps",
 };
 
 export function AgentsPage() {
@@ -42,10 +42,7 @@ export function AgentsPage() {
   const catalogVersion = useChatStore((s) => s.catalogVersion);
   const { packMarketplace, resolvedLayout } = useAppConfig();
   const [agents, setAgents] = useState<AgentInfo[]>([]);
-  const [apps, setApps] = useState<AppInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [connecting, setConnecting] = useState<string | null>(null);
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   
   // Dynamic clusters (agent-cluster-platform)
@@ -96,11 +93,16 @@ export function AgentsPage() {
   const visibleTabs = useMemo(() => {
     const resolved = resolvedLayout?.agentsTabs;
     if (!resolved) {
-      return AGENTS_TAB_SURFACES.filter((s) => !s.predicates?.packMarketplace || packMarketplace).map((s) => ({
-        slug: s.slug,
-        testId: s.testId,
-        labelKey: TAB_LABEL_KEYS[s.slug]!,
-      }));
+      // Older server without the layout field: the factory set minus the
+      // retired apps slug (the registry keeps it for stored-preset compat,
+      // but no factory preset selects it — match that here too).
+      return AGENTS_TAB_SURFACES.filter((s) => s.slug !== "apps")
+        .filter((s) => !s.predicates?.packMarketplace || packMarketplace)
+        .map((s) => ({
+          slug: s.slug,
+          testId: s.testId,
+          labelKey: TAB_LABEL_KEYS[s.slug]!,
+        }));
     }
     const byRegistry = new Map(AGENTS_TAB_SURFACES.map((e) => [e.slug, e]));
     const kept = resolved
@@ -158,7 +160,6 @@ export function AgentsPage() {
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const c = await r.json();
       setAgents(c.agents ?? []);
-      setApps(c.apps ?? []);
       setError(null);
     } catch (e) {
       setError((e as Error).message);
@@ -169,20 +170,6 @@ export function AgentsPage() {
   useEffect(() => {
     refresh();
   }, [refresh, catalogVersion]);
-
-  const connect = async (id: string) => {
-    setConnecting(id);
-    setError(null);
-    try {
-      const r = await fetch(`/api/apps/${encodeURIComponent(id)}/connect`, { method: "POST" });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
-      window.location.href = data.url as string;
-    } catch (e) {
-      setError((e as Error).message);
-      setConnecting(null);
-    }
-  };
 
   const switchTab = (next: Tab) => {
     const sp = new URLSearchParams(searchParams);
@@ -204,13 +191,6 @@ export function AgentsPage() {
   const sortedCatalogExperts = useMemo(
     () => sortedAgents.filter((a) => !a.customPreset),
     [sortedAgents],
-  );
-  const sortedApps = useMemo(
-    () => [...apps].sort((a, b) => {
-      if (Boolean(a.featured) !== Boolean(b.featured)) return a.featured ? -1 : 1;
-      return a.id.localeCompare(b.id);
-    }),
-    [apps],
   );
 
   return (
@@ -258,21 +238,6 @@ export function AgentsPage() {
               {t("agentsPage.market")}
             </button>
           )}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === "apps"}
-            data-testid="agents-tab-apps"
-            onClick={() => switchTab("apps")}
-            className={cn(
-              "border-b-2 px-3 py-2 text-sm font-medium transition-colors",
-              activeTab === "apps"
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {t("agentsPage.apps")}
-          </button>
         </nav>
       </div>
 
@@ -414,23 +379,6 @@ export function AgentsPage() {
             <PacksPage />
           </section>
         )}
-
-        {activeTab === "apps" && (
-          <section data-testid="apps-section">
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {sortedApps.map((app) => (
-                <AppCard
-                  key={app.id}
-                  app={app}
-                  connecting={connecting === app.id}
-                  onConnect={() => connect(app.id)}
-                  onOpenLink={() => app.url && window.open(app.url, "_blank", "noreferrer")}
-                  onOpenEmbedded={() => navigate(`/external/${app.id}`)}
-                />
-              ))}
-            </div>
-          </section>
-        )}
       </div>
     </main>
   );
@@ -560,106 +508,6 @@ function ClusterCard({ cluster, onManage }: ClusterCardProps) {
             >
               {t("clusters.composer.manage")}
             </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── AppCard ──────────────────────────────────────────────────────────────
-
-function AppCard({
-  app,
-  connecting,
-  onConnect,
-  onOpenLink,
-  onOpenEmbedded,
-}: {
-  app: AppInfo;
-  connecting: boolean;
-  onConnect: () => void;
-  onOpenLink: () => void;
-  onOpenEmbedded: () => void;
-}) {
-  const isEmbedded = app.kind === "external-service" && app.embedded !== false;
-  return (
-    <div
-      className={cn(
-        "rounded-lg border border-border p-4 transition-colors hover:border-primary/50",
-        app.featured && "border-primary/30 bg-primary/5",
-      )}
-      data-testid="app-row"
-      data-app-id={app.id}
-    >
-      <div className="flex items-start gap-3">
-        <div className="shrink-0 rounded-md bg-muted p-2 text-muted-foreground">
-          <Icon name={app.icon || (app.kind === "nango-connect" ? "plug" : "app")} size={20} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h3 className="truncate font-medium">{app.name || app.id}</h3>
-            {app.featured && (
-              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
-                Featured
-              </span>
-            )}
-            {app.version && (
-              <span className="text-[10px] text-muted-foreground">v{app.version}</span>
-            )}
-          </div>
-          {app.description && (
-            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{app.description}</p>
-          )}
-          {app.features && app.features.length > 0 && (
-            <ul className="mt-2 space-y-0.5">
-              {app.features.map((f) => (
-                <li key={f} className="flex items-start gap-1 text-[11px] text-muted-foreground">
-                  <span className="mt-1 inline-block h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />
-                  <span>{f}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          {app.tags && app.tags.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {app.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="rounded-md border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-          <div className="mt-3">
-            {app.kind === "nango-connect" ? (
-              <button
-                onClick={onConnect}
-                disabled={connecting}
-                data-testid="connect-btn"
-                className="rounded-md border border-border px-3 py-1 text-xs hover:bg-muted disabled:opacity-50"
-              >
-                {connecting ? "Connecting…" : "Connect"}
-              </button>
-            ) : app.kind === "external-service" ? (
-              <button
-                onClick={isEmbedded ? onOpenEmbedded : onOpenLink}
-                data-testid="open-embedded-btn"
-                className="rounded-md bg-primary px-3 py-1 text-xs text-primary-foreground hover:bg-primary/90"
-              >
-                Open Dashboard
-              </button>
-            ) : (
-              <button
-                onClick={onOpenLink}
-                className="text-xs text-primary hover:underline"
-                data-testid="open-link-btn"
-              >
-                Open <Icon name="external-link" size={10} className="inline" />
-              </button>
-            )}
           </div>
         </div>
       </div>

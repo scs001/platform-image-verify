@@ -4,12 +4,13 @@ import { E2E_PORT, gotoChat, waitForIdle } from "./helpers.js";
 
 // Agent presets (agent modes): the dsh runtime composes each session's
 // capabilities from the platform's `standard` composition (unify-dsh-generation
-// retired dsh 0.1's shipped code/minimal/cordis rows — "the deployment persona
-// is a deployment choice"; 0.2.0 ships ONE platform preset and every catalog /
-// custom persona joins the roster as a generated entry) plus any user-authored
-// ones. The picker lives on the welcome (blank) state — dsh refuses to
-// recompose a session that has produced turns — and an active session shows a
-// read-only header label instead.
+// retired dsh 0.1's shipped code/minimal/cordis rows; 0.2.0 ships ONE platform
+// preset and every catalog / custom persona joins the roster as a generated
+// entry) plus any user-authored ones. simplify-chat-and-agents-ia merges the
+// picker into the unified「与谁对话」selector: ONE control on the welcome state
+// AND in the session header (composition rows disable once the session has
+// turns — dsh refuses to recompose), fed by the agent roster as primary source
+// with the preset roster contributing composition modes only.
 //
 // Test order matters: the fast suite's LLM gateway is unreachable, so the
 // streaming-guard test's probe turn stays open server-side for a while (dsh
@@ -86,32 +87,52 @@ test.describe("agent presets", () => {
     await expect(page.getByTestId("agent-preset-picker")).toBeVisible({ timeout: 10000 });
 
     await openPicker(page);
+    // The merged selector: the platform preset row plus the agent roster's
+    // personas (the catalog persona joins as an agent row — one entity, one
+    // row), and NO retired composition modes (D1: standard only unless the
+    // layout opts in).
     const options = page.getByTestId("agent-preset-option");
-    await expect(options).toHaveCount(1);
     const ids = await options.evaluateAll((rows) => rows.map((r) => r.dataset.presetId));
-    expect(new Set(ids)).toEqual(new Set(SHIPPED));
-    // Localized (en) display name + description from the web bundle.
-    for (const id of SHIPPED) {
-      const row = page.locator(`[data-testid="agent-preset-option"][data-preset-id="${id}"]`);
-      await expect(row).toContainText(SHIPPED_EN_NAMES[id]);
-      await expect(row.locator("span").nth(1)).not.toBeEmpty();
+    expect(ids).toContain("standard");
+    for (const retired of ["code", "minimal", "cordis"]) {
+      expect(ids).not.toContain(retired);
     }
-    // The deployment default is visually marked.
-    await expect(page.locator('[data-testid="agent-preset-option"][aria-checked="true"]')).toHaveAttribute(
-      "data-preset-id",
-      "standard",
-    );
+    const stdRow = page.locator('[data-testid="agent-preset-option"][data-preset-id="standard"]');
+    // Localized (en) display name + description from the web bundle.
+    await expect(stdRow).toContainText(SHIPPED_EN_NAMES.standard);
+    await expect(stdRow.locator("span").nth(1)).not.toBeEmpty();
+    // The deployment default (standard composition + local persona) is marked.
+    await expect(stdRow).toHaveAttribute("aria-checked", "true");
     // The platform preset is not broken.
     await expect(page.locator('[data-testid="agent-preset-option"][data-broken="true"]')).toHaveCount(0);
+
+    // D1's client-side half is testable independent of the server roster
+    // (which already retired the modes server-side): inject a retired mode
+    // into the roster and it must STILL stay off the picker.
+    await page.evaluate(() => {
+      const { presets } = window.__chatStore.getState();
+      window.__chatStore.setState({
+        presets: [...presets, { id: "code", name: "PTC", description: "", trust: "system" }],
+      });
+    });
+    await expect(
+      page.locator('[data-testid="agent-preset-option"][data-preset-id="code"]'),
+    ).toHaveCount(0);
   });
 
   test("empty roster renders no picker and never blocks chat", async ({ page }) => {
     await gotoChat(page);
     await expect(page.getByTestId("agent-preset-picker")).toBeVisible({ timeout: 10000 });
-    // A deployment that composes no roster answers list_presets with [] —
-    // the same state the store reaches after the server's empty roster lands.
+    // Nothing left to choose between: an empty preset roster AND a
+    // single-agent roster (the old picker hid on presets === [] alone; the
+    // merged selector hides only when no choice exists at all).
     await page.evaluate(() =>
-      window.__chatStore.setState({ presets: [], currentPreset: null }),
+      window.__chatStore.setState({
+        presets: [],
+        currentPreset: null,
+        agents: [{ id: "local", name: "Local" }],
+        currentAgent: "local",
+      }),
     );
     await expect(page.getByTestId("agent-preset-picker")).toHaveCount(0);
     // Chat itself is unaffected: the composer is still usable.
@@ -132,8 +153,7 @@ test.describe("agent presets", () => {
     await expect(page.getByTestId("chat-header")).toBeVisible({ timeout: 20000 });
     await waitForIdle(page);
 
-    // The picker is gone mid-session; the header names the preset instead.
-    await expect(page.getByTestId("agent-preset-picker")).toHaveCount(0);
+    // The header names the running composition as read-only chrome…
     const label = page.getByTestId("agent-preset-label");
     await expect(label).toBeVisible();
     // The session named no preset (blank = deployment default): the label
@@ -142,6 +162,14 @@ test.describe("agent presets", () => {
     await expect(label).toHaveText(SHIPPED_EN_NAMES[currentPreset]);
     // Read-only chrome: a span, not a button — interacting cannot switch.
     expect(await label.evaluate((el) => el.tagName)).toBe("SPAN");
+
+    // …and the unified picker lives in the header now: persona switches
+    // stay reachable mid-session, while composition rows lock (dsh refuses
+    // to recompose a session with turns).
+    await page.getByTestId("agent-preset-picker").click();
+    await expect(page.getByTestId("agent-preset-picker-menu")).toBeVisible();
+    const stdRow = page.locator('[data-testid="agent-preset-option"][data-preset-id="standard"]');
+    await expect(stdRow).toBeDisabled();
   });
 
   test("selecting a mode emits set_preset, blocks the composer while pending, then applies", async ({ page }) => {
@@ -149,24 +177,25 @@ test.describe("agent presets", () => {
     await gotoChat(page);
     await expect(page.getByTestId("agent-preset-picker")).toBeVisible({ timeout: 10000 });
 
-    // A generated catalog entry joins the roster alongside the platform row
-    // (the 0.2.0 shape: platform `standard` + one catalog persona) — exercising
-    // the pick flow needs a SECOND option, which the catalog path provides.
-    const roster = await page.evaluate(() => window.__chatStore.getState().presets);
-    const other = roster.find((p) => p.id !== "standard");
-    test.skip(!other, "no second preset in this deployment's roster");
+    // A generated catalog entry joins the AGENT roster as a persona — the
+    // merged selector renders it as an agent row (the preset roster's
+    // materialized twin dedupes away), and picking it switches persona via
+    // set_agent (a local persona is a preset switch under the hood).
+    const agentRoster = await page.evaluate(() => window.__chatStore.getState().agents);
+    const other = agentRoster.find((a) => a.id !== "local");
+    test.skip(!other, "no second persona in this deployment's agent roster");
 
     await openPicker(page);
     await page.locator(`[data-testid="agent-preset-option"][data-preset-id="${other.id}"]`).click();
     switchedTo = other.id;
 
     // Pending is set synchronously on click and cleared only by the server's
-    // current_preset broadcast (after the dsh child restarts). Read it once,
-    // immediately — the restart window is seconds, the state itself is the
-    // contract, and the send button additionally gates on draft text so it is
-    // no good as a pendingConfig probe.
+    // broadcasts (after the dsh child restarts). Read it once, immediately —
+    // the restart window is seconds, the state itself is the contract, and
+    // the send button additionally gates on draft text so it is no good as a
+    // pendingConfig probe.
     const pending = await page.evaluate(() => window.__chatStore.getState().pendingConfig);
-    expect(pending).toBe("preset");
+    expect(pending).toBe("agent");
     await expect(page.getByTestId("agent-preset-picker")).toHaveAttribute("data-pending", "true");
 
     // The server restarts the child and confirms with current_preset.
@@ -184,7 +213,7 @@ test.describe("agent presets", () => {
     await expect(page.getByTestId("composer-send")).toBeEnabled();
     await page.getByTestId("composer-input").fill("");
 
-    // Reopening shows the picked preset as the marked row.
+    // Reopening shows the picked persona as the marked row.
     await openPicker(page);
     await expect(page.locator('[data-testid="agent-preset-option"][aria-checked="true"]')).toHaveAttribute(
       "data-preset-id",

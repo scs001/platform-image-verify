@@ -69,15 +69,24 @@ test.describe("Composer control row", () => {
     await expect(page.getByTestId("slash-picker-item").first()).toBeVisible();
   });
 
-  test("the overflow carries the workspace section, and no agent section without a catalog", async ({
+  test("the overflow carries the workspace section; agent selection lives in the unified picker only", async ({
     page,
   }) => {
     await page.getByTestId("strip-more").click();
     await expect(page.getByTestId("strip-more-menu")).toBeVisible();
+    await expect(page.getByTestId("strip-workspace-name")).toBeVisible();
+    await page.getByTestId("strip-workspace-advanced-toggle").click();
     await expect(page.getByTestId("strip-workspace-input")).toBeVisible();
-    // The hermetic server configures no catalog: a single agent means no agent
-    // control at all, rather than one showing an unchangeable value.
+    // simplify-chat-and-agents-ia: the overflow's agent section is retired —
+    // persona selection has exactly one home, the「与谁对话」picker. The
+    // hermetic server configures no catalog, so the picker carries ONLY the
+    // standard composition row (no persona rows).
     await expect(page.getByTestId("strip-agent")).toHaveCount(0);
+    await expect(page.getByTestId("agent-preset-picker")).toBeVisible();
+    await page.getByTestId("agent-preset-picker").click();
+    await expect(
+      page.locator('[data-testid="agent-preset-option"]:not([data-preset-id="standard"])'),
+    ).toHaveCount(0);
   });
 
   test("full access asks for acknowledgement before anything is sent", async ({ page }) => {
@@ -107,12 +116,12 @@ test.describe("Composer control row", () => {
 
     await expect(page.getByTestId("full-access-dialog")).toHaveCount(0);
     expect(await sentPermissions(page)).toEqual([]);
-    await expect(page.getByTestId("strip-permission")).toContainText("Project writes");
+    await expect(page.getByTestId("strip-permission")).toContainText("Read & write project files");
   });
 
   test("every other preset still applies on selection", async ({ page }) => {
     await page.getByTestId("strip-permission").click();
-    await page.getByTestId("strip-permission-menu").getByText("Read only").click();
+    await page.getByTestId("strip-permission-menu").getByText("Chat only").click();
 
     await expect(page.getByTestId("full-access-dialog")).toHaveCount(0);
     await expect

@@ -153,7 +153,11 @@ export const FACTORY_PRESETS: PresetCatalog = {
     version: 1,
     nav: NAV_SURFACES.map((s) => s.slug),
     settings: SETTINGS_SURFACES.map((s) => s.slug),
-    agentsTabs: AGENTS_TAB_SURFACES.map((s) => s.slug),
+    // simplify-chat-and-agents-ia: the Apps sub-tab is retired from every
+    // factory preset — its entries live in the app center (openspec:
+    // app-center). The `apps` slug STAYS in the registry so stored presets
+    // and deep links keep validating; resolution just never selects it.
+    agentsTabs: ["agents", "market"],
   },
   simple: {
     version: 1,

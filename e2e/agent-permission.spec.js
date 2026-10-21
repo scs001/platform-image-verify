@@ -14,7 +14,7 @@ test.describe("permission mode selector", () => {
     // Roster received → the control renders, showing the default preset.
     const strip = page.getByTestId("strip-permission");
     await expect(strip).toBeVisible({ timeout: 15000 });
-    await expect(strip).toContainText(/project writes|workspace write/i);
+    await expect(strip).toContainText(/read & write project files|workspace write/i);
 
     await strip.click();
     const menu = page.getByTestId("strip-permission-menu");
@@ -22,11 +22,11 @@ test.describe("permission mode selector", () => {
 
     // Pick read-only: the confirming current_permission broadcast updates the
     // chip with no composer blocking (no pendingConfig for this control).
-    await menu.getByRole("menuitemradio").filter({ hasText: /read only/i }).click();
+    await menu.getByRole("menuitemradio").filter({ hasText: /chat only/i }).click();
     await expect
       .poll(() => page.evaluate(() => window.__chatStore.getState().currentPermission), { timeout: 15000 })
       .toBe("read-only");
-    await expect(page.getByTestId("strip-permission")).toContainText(/read only/i);
+    await expect(page.getByTestId("strip-permission")).toContainText(/chat only/i);
     await expect
       .poll(() => page.evaluate(() => window.__chatStore.getState().pendingConfig))
       .toBe(null);
@@ -36,7 +36,7 @@ test.describe("permission mode selector", () => {
     await page
       .getByTestId("strip-permission-menu")
       .getByRole("menuitemradio")
-      .filter({ hasText: /project writes|workspace write/i })
+      .filter({ hasText: /read & write project files|workspace write/i })
       .click();
     await expect
       .poll(() => page.evaluate(() => window.__chatStore.getState().currentPermission), { timeout: 15000 })
@@ -95,7 +95,7 @@ test.describe("permission mode selector", () => {
     await page
       .getByTestId("strip-permission-menu")
       .getByRole("menuitemradio")
-      .filter({ hasText: /project writes|workspace write/i })
+      .filter({ hasText: /read & write project files|workspace write/i })
       .click();
     await expect
       .poll(() => page.evaluate(() => window.__chatStore.getState().currentPermission), { timeout: 15000 })
@@ -111,7 +111,7 @@ test.describe("permission mode selector", () => {
     await page
       .getByTestId("strip-permission-menu")
       .getByRole("menuitemradio")
-      .filter({ hasText: /read only/i })
+      .filter({ hasText: /chat only/i })
       .click();
     await expect
       .poll(() => page.evaluate(() => window.__chatStore.getState().currentPermission), { timeout: 15000 })
@@ -121,7 +121,7 @@ test.describe("permission mode selector", () => {
     // fetch) must report the preset the first client switched to.
     const page2 = await context.newPage();
     await gotoChat(page2);
-    await expect(page2.getByTestId("strip-permission")).toContainText(/read only/i, { timeout: 15000 });
+    await expect(page2.getByTestId("strip-permission")).toContainText(/chat only/i, { timeout: 15000 });
     await page2.close();
 
     // Restore the default for later specs.
@@ -129,7 +129,7 @@ test.describe("permission mode selector", () => {
     await page
       .getByTestId("strip-permission-menu")
       .getByRole("menuitemradio")
-      .filter({ hasText: /project writes|workspace write/i })
+      .filter({ hasText: /read & write project files|workspace write/i })
       .click();
     await expect
       .poll(() => page.evaluate(() => window.__chatStore.getState().currentPermission), { timeout: 15000 })

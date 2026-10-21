@@ -42,9 +42,13 @@ export interface AppConfig {
   // the server says otherwise; absent on older servers is read as true because
   // the dock predates the lever.
   copilotEnabled: boolean;
+  // Composition modes in the assistant picker (simplify-chat-and-agents-ia
+  // D1): shipped modes other than `standard` stay off the「与谁对话」selector
+  // unless the deployment layout opts in. Absent/older server = hidden.
+  compositionModesVisible: boolean;
 }
 
-let config: AppConfig = { documentsEnabled: true, assistantName: null, companyName: null, brandIconUrl: null, loginFooterText: null, loginHero: null, packMarketplace: false, roles: null, resolvedLayout: null, voice: null, lineBoardsEnabled: false, copilotEnabled: true };
+let config: AppConfig = { documentsEnabled: true, assistantName: null, companyName: null, brandIconUrl: null, loginFooterText: null, loginHero: null, packMarketplace: false, roles: null, resolvedLayout: null, voice: null, lineBoardsEnabled: false, copilotEnabled: true, compositionModesVisible: false };
 const listeners = new Set<() => void>();
 
 function emit(next: AppConfig) {
@@ -98,6 +102,7 @@ export async function loadAppConfig(timeoutMs = 1500): Promise<AppConfig> {
           : null,
       lineBoardsEnabled: body?.lineBoardsEnabled === true,
       copilotEnabled: body?.copilotEnabled !== false,
+      compositionModesVisible: body?.compositionModesVisible === true,
     });
   } catch {
     /* keep defaults */

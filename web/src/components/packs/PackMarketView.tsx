@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import * as api from "@/lib/packs-api";
 import type { PackSummary, PackReport } from "@/lib/packs-api";
 import { Input } from "@/components/ui/input";
@@ -58,17 +58,21 @@ export function PackMarketView({
   const [detailId, setDetailId] = useState<string | null>(null);
 
   // Agent-count filter state rides the URL (?agents=2-3) so a refresh keeps
-  // it (spec: filter state persists across page refreshes).
-  const [searchParams, setSearchParams] = useSearchParams();
-  const sizeKey = AGENT_SIZE_FILTERS.some((f) => f.key === searchParams.get("agents"))
-    ? (searchParams.get("agents") as string)
-    : "";
-  const setSizeKey = (key: string) => {
-    const next = new URLSearchParams(searchParams);
-    if (key) next.set("agents", key);
-    else next.delete("agents");
-    setSearchParams(next, { replace: true });
-  };
+  // it (spec: filter state persists across page refreshes). Deliberately NOT
+  // react-router's useSearchParams: the facet shell mounts this view with no
+  // Router ancestor, and a top-level router hook blanks its #/packs (the
+  // shell sentinel's exact regression class, regressed 2026-10-21) — plain
+  // window.location keeps the same URL-lived contract router-free.
+  const [sizeKey, setSizeKeyState] = useState(
+    () => new URLSearchParams(window.location.search).get("agents") || "",
+  );
+  const setSizeKey = useCallback((key: string) => {
+    const url = new URL(window.location.href);
+    if (key) url.searchParams.set("agents", key);
+    else url.searchParams.delete("agents");
+    window.history.replaceState({}, "", url.toString());
+    setSizeKeyState(key);
+  }, []);
   const sizeFilter = AGENT_SIZE_FILTERS.find((f) => f.key === sizeKey) ?? AGENT_SIZE_FILTERS[0];
   // Countless summaries (a pre-upgrade server) pass through unfiltered
   // rather than vanishing.
@@ -108,6 +112,24 @@ export function PackMarketView({
 
   const [report, setReport] = useState<PackReport | null>(null);
   const [reportPack, setReportPack] = useState<string>("");
+  const [reportPackId, setReportPackId] = useState<string>("");
+
+  // Deep-link target (simplify-chat-and-agents-ia): a pack with a
+  // successfully installed role goes straight into a conversation with it
+  // (`?preset=`); a multi-role pack additionally carries its cluster id so the
+  // chat binds the whole group and switches to the roster's lead. A pack
+  // without roles (skill/tool-only) keeps the plain navigation — the
+  // conversation needs no switch.
+  const installedAgents = (report?.agents ?? []).filter(
+    (a) => a.status === "installed" || a.status === "reused" || a.status === "replaced",
+  );
+  const chatTarget =
+    report && installedAgents.length > 0
+      ? installedAgents.length >= 2 && reportPackId
+        ? `/chat?preset=${encodeURIComponent(installedAgents[0]!.id)}&cluster=${encodeURIComponent(reportPackId)}`
+        : `/chat?preset=${encodeURIComponent(installedAgents[0]!.id)}`
+      : "/chat";
+  const chatClusterMode = installedAgents.length >= 2;
 
   return (
     <section data-testid="pack-market-section">
@@ -226,9 +248,10 @@ export function PackMarketView({
       <PackDetailDialog
         packId={detailId}
         onOpenChange={(open) => !open && setDetailId(null)}
-        onSubscribed={(r, name) => {
+        onSubscribed={(r, name, packId) => {
           setReport(r);
           setReportPack(name);
+          setReportPackId(packId);
           void refresh(search);
         }}
         onGotoMine={onGotoMine}
@@ -291,10 +314,18 @@ export function PackMarketView({
                 {t("common.close")}
               </Button>
             </div>
-            {/* Next-steps wizard footer (add-pack-tutorials-and-wizard): the
-                report ends with what to do next — open the conversation and
-                pick the pack's expert. The report itself is unchanged. */}
-            <NextStepsFooter onOpenChat={onOpenChat} onDismiss={() => setReport(null)} />
+            {/* Next-steps wizard footer (add-pack-tutorials-and-wizard +
+                simplify-chat-and-agents-ia): the report ends by taking the
+                user straight into a conversation with what they just
+                installed — the CTA carries the installed role (and, for a
+                multi-role pack, the cluster bind intent), so no manual
+                re-selection step remains. The report itself is unchanged. */}
+            <NextStepsFooter
+              target={chatTarget}
+              clusterMode={chatClusterMode}
+              onOpenChat={onOpenChat}
+              onDismiss={() => setReport(null)}
+            />
           </div>
         </div>
       )}
@@ -308,7 +339,17 @@ export function PackMarketView({
 // so this view stays borrowable by router-less shells (facet-platform: the
 // facet shell adds no router dependency — a top-level useNavigate here is
 // exactly what blanked #/packs in production).
-function NextStepsFooter({ onOpenChat, onDismiss }: { onOpenChat?: (() => void) | null; onDismiss: () => void }) {
+function NextStepsFooter({
+  target,
+  clusterMode,
+  onOpenChat,
+  onDismiss,
+}: {
+  target: string;
+  clusterMode: boolean;
+  onOpenChat?: (() => void) | null;
+  onDismiss: () => void;
+}) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   if (onOpenChat === null) return null;
@@ -317,16 +358,18 @@ function NextStepsFooter({ onOpenChat, onDismiss }: { onOpenChat?: (() => void) 
       className="mt-3 flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2"
       data-testid="pack-install-next"
     >
-      <span className="text-xs text-muted-foreground">{t("packs.report.nextHint")}</span>
+      <span className="text-xs text-muted-foreground">
+        {t(clusterMode ? "packs.report.nextHintCluster" : "packs.report.nextHint")}
+      </span>
       <button
         className="shrink-0 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
         onClick={() => {
           onDismiss();
-          onOpenChat ? onOpenChat() : navigate("/chat");
+          onOpenChat ? onOpenChat() : navigate(target);
         }}
         data-testid="pack-install-open-chat"
       >
-        {t("packs.report.openChat")}
+        {t(clusterMode ? "packs.report.openChatCluster" : "packs.report.openChat")}
       </button>
     </div>
   );

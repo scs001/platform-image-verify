@@ -71,8 +71,11 @@ function ToolBlockBase({ block, onToggle }: Props) {
   // the cron/delegate cards: on the wire the name is `mcp__actions__propose_action`
   // (a strict compare against the bare name never fired — the card was a plain
   // tool block in every real turn until the 2026-10-22 acceptance caught it).
+  // The store mutates tool blocks in place, so the memoized card would never
+  // see the landed result through the same object: hand it this render's
+  // values, and the card re-renders exactly when its block does.
   if (name.endsWith("__propose_action")) {
-    return <ActionCard block={block} />;
+    return <ActionCard block={{ name, args, state, result }} />;
   }
 
   // The file this call PRODUCED, when it produced one (openspec:

@@ -84,3 +84,32 @@ test("a resolved proposal folds with the rest of the activity and replays as the
   await expect(page.getByTestId("action-card-executed")).toBeVisible();
   await expect(page.getByTestId("action-confirm")).toHaveCount(0);
 });
+
+test("a proposal that lands AFTER the card mounted fills it in (in-place block mutation reaches the memoized card)", async ({ page }) => {
+  // The live path: tool_start opens a streaming turn with the running call —
+  // the group auto-opens and the card mounts with no proposal yet…
+  await page.evaluate(() =>
+    window.__chatStore.getState().apply({
+      type: "tool_start",
+      toolCallId: "t2",
+      name: "mcp__actions__propose_action",
+      args: { actionId: "facet.pack.visibility", args: { id: "qCEIutJzQd49jnDtV4qeqw", visibility: "private" } },
+    }),
+  );
+  await expect(page.getByTestId("action-card-pending")).toBeVisible();
+  await expect(page.getByTestId("action-confirm")).toHaveCount(0);
+  // …then tool_end mutates that same block object in the store (the turn is
+  // cloned, the block is not) and the card must pick the result up.
+  await page.evaluate(() =>
+    window.__chatStore.getState().apply({
+      type: "tool_end",
+      toolCallId: "t2",
+      name: "mcp__actions__propose_action",
+      isError: false,
+      result: JSON.stringify({ proposalId: "p-e2e-late", state: "pending", impact: "将包「谦面助手」可见性改为 private", risk: "write", target: "cloud", tier: "inline", userFilledArgs: [] }),
+    }),
+  );
+  await expect(page.getByTestId("action-confirm")).toBeVisible();
+  await expect(page.getByTestId("action-cancel")).toBeVisible();
+  await expect(page.getByTestId("action-card-pending")).toContainText("谦面助手");
+});

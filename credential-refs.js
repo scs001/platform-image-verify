@@ -31,6 +31,7 @@ import * as ciyuanAccountCredentials from "./ciyuan-account-credentials.js";
 // incumbent registry credential) only speaks the wire data plane; every
 // control-plane read in these servers 401s (real-machine acceptance 10-21).
 import { WIRE_TOOL_RISK } from "./lib/wire-tool-risk.js";
+import * as chatwootCredentials from "./chatwoot-credentials.js";
 const WIRE_LINE_SERVERS = new Set(Object.values(WIRE_TOOL_RISK).map((w) => w.server));
 
 const REFS = new Map(
@@ -87,6 +88,15 @@ const REFS = new Map(
       markInvalid: (email) => ciyuanAccountCredentials.markStale(email),
       staleEvent: "line_credential_stale",
     },
+    {
+      // add-crm-desk-pack-embed: the merchant's own Chatwoot token — cell patch
+      // env (credentialEnv) and the gated send execution alike. Paste family.
+      refName: chatwootCredentials.CHATWOOT_CREDENTIAL_REF,
+      isRef: chatwootCredentials.isChatwootRef,
+      liveToken: (email) => chatwootCredentials.liveToken(email),
+      markInvalid: (email) => chatwootCredentials.markInvalid(email),
+      staleEvent: "chatwoot_credential_stale",
+    },
   ].map((entry) => [entry.refName, entry]),
 );
 
@@ -115,6 +125,9 @@ export function credentialConnected(refName, email) {
   if (refName === facetMarketCredentials.FACET_MARKET_CREDENTIAL_REF) {
     return facetMarketCredentials.status(email).connected;
   }
+  if (refName === chatwootCredentials.CHATWOOT_CREDENTIAL_REF) {
+    return chatwootCredentials.status(email).connected;
+  }
   if (refName === paperTradingCredentials.PAPER_TRADING_CREDENTIAL_REF) {
     return paperTradingCredentials.status(email).connected;
   }
@@ -126,6 +139,9 @@ export function credentialConnected(refName, email) {
 export function credentialMissingReason(refName) {
   if (refName === facetMarketCredentials.FACET_MARKET_CREDENTIAL_REF) {
     return "pair the facet market first — no live market credential";
+  }
+  if (refName === chatwootCredentials.CHATWOOT_CREDENTIAL_REF) {
+    return "connect your Chatwoot account first — no live Chatwoot credential";
   }
   if (refName === paperTradingCredentials.PAPER_TRADING_CREDENTIAL_REF) {
     return "connect the paper-trading service first — no live paper-trading credential";
@@ -151,6 +167,7 @@ const KNOWN_CONNECT_PANELS = new Map([
   ["wire-customer", "line-wire-customer"],
   ["lex", "line-lex"],
   ["wanxing-caller", "ciyuan-account"],
+  [chatwootCredentials.CHATWOOT_CREDENTIAL_REF, "chatwoot"],
 ]);
 
 // The registry entry for a config's `credentialRef`, or null for an absent or

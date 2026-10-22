@@ -20,12 +20,12 @@
 
 ### Requirement: CRM 客服套件 pack 形状与安装链路
 
-「CRM 客服套件」pack SHALL 以谦面市场 pack 发布：manifest 含客服接待商家变体技能（account_id 经 profile 发现、不硬编码；含 BYOK 使用说明与失败纪律）与 MCP 引用（`registryName: "chatwoot"`，allowTools 为 98-leaf 标准面）。安装 SHALL 走既有本地绑定通道：已连接用户即时绑定本地行；未连接用户记 awaiting-local-binding 并给连接指引，连接完成后绑定自动激活（无需重装 pack）。订阅安装后市场可搜到、安装报告如实、技能可经斜杠命令调用。pack MUST NOT 携带或转移任何秘密。
+「CRM 客服套件」pack SHALL 以谦面市场 pack 发布：manifest 含客服接待商家变体技能（account_id 经 profile 发现、不硬编码；含 BYOK 使用说明与失败纪律）与 MCP 引用（`registryName: "chatwoot"`，整面声明 fullSurface——有效面由平台操作员面收口为 98-leaf 标准面，pack 不另持名单副本）。安装 SHALL 走既有本地绑定通道：已连接用户即时绑定本地行；未连接用户记 awaiting-local-binding 并给连接指引，连接完成后绑定自动激活（无需重装 pack）。订阅安装后市场可搜到、安装报告如实、技能可经斜杠命令调用。pack MUST NOT 携带或转移任何秘密。
 
 #### Scenario: 已连接用户一步安装生效
 
 - **WHEN** 已连接 chatwoot 的商家订阅 CRM 客服套件
-- **THEN** 安装报告绑定本地行，其聚焦角色工具面=98-leaf allowTools 交操作员面，技能可调用
+- **THEN** 安装报告绑定本地行，其聚焦角色工具面=操作员 98-leaf 标准面（整面声明被操作员面收口），技能可调用
 
 #### Scenario: 先装后连自动激活
 

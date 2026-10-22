@@ -14,6 +14,7 @@ import * as connectorCredentials from "../../connector-credentials.js";
 import * as facetMarketCredentials from "../../facet-market-credentials.js";
 import * as lineCredentials from "../../line-credentials.js";
 import * as paperTradingCredentials from "../../paper-trading-credentials.js";
+import * as chatwootCredentials from "../../chatwoot-credentials.js";
 import * as ciyuanAccountCredentials from "../../ciyuan-account-credentials.js";
 import { resolveVoiceConfig } from "./voice.js";
 import { copilotEnabled, lineBoardsEnabled } from "../../lib/board-adapters.js";
@@ -695,6 +696,8 @@ export function registerMiscRoutes(ctx) {
     // the account key (or a legacy pasted caller key) is one connection, one card.
     items.push(fromStatus("ciyuan-account", "萬星·词元", ciyuanAccountCredentials.status(email)));
     items.push(fromStatus("paper-trading", "柏讯·模拟交易", paperTradingCredentials.status(email)));
+    // 商家 Chatwoot BYOK（add-crm-desk-pack-embed）：粘贴 token(+嵌入用登录对)。
+    items.push(fromStatus("chatwoot", "CRM 客服台（自带 Chatwoot）", chatwootCredentials.status(email)));
 
     // Search: the user's own key serves first, then the deployment's shared
     // relay. Admins additionally get the pool health summary (same source as

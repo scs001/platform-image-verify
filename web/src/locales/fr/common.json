@@ -716,6 +716,24 @@
       },
       "zoneTitle": "Marché externe",
       "zoneSubtitle": "Marchés de skills tiers non revus par la plateforme ; entrées avec origine et licence, et aperçu complet avant installation."
+    },
+    "chatwoot": {
+      "title": "Bureau CRM (Chatwoot)",
+      "connected": "Connecté",
+      "notConnected": "Non connecté",
+      "staleBadge": "Invalide",
+      "staleHint": "Votre token Chatwoot a été refusé — collez-en un nouveau pour récupérer.",
+      "pasteHint": "Collez le token API de VOTRE compte Chatwoot (Profil → Access Token). Votre surface d’outils et vos envois tournent sur votre propre tenant.",
+      "tokenLabel": "Token API Chatwoot",
+      "tokenPlaceholder": "Collez le token…",
+      "loginSection": "Identifiants de connexion pour le bureau intégré (facultatif)",
+      "loginEmail": "Email de connexion Chatwoot",
+      "loginPassword": "Mot de passe Chatwoot",
+      "loginHint": "Sert uniquement à vous connecter lors de l’ouverture du bureau dans cette plateforme. Laissez vide : l’entrée intégrée restera indisponible (les outils ne sont pas affectés).",
+      "save": "Connecter",
+      "disconnect": "Déconnecter",
+      "loginReady": "Intégration prête (identifiants enregistrés)",
+      "tokenOnly": "Token connecté — l’intégration nécessite des identifiants"
     }
   },
   "help": {
@@ -1053,6 +1071,9 @@
         "search": {
           "title": "Service de recherche",
           "subtitle": "Identifiants et câblage de la recherche web : votre clé et le service partagé (admin)."
+        },
+        "chatwoot": {
+          "subtitle": "Votre propre tenant Chatwoot — collez votre token ; le pack et le bureau tournent sur votre compte"
         }
       }
     },

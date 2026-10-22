@@ -648,7 +648,7 @@ function linkProfilePinnedModules() {
 // a dsh-mcp-client cordis loader entry. Unknown shape → null (skipped, warned).
 // `scopedEnv` (optional name→value map) overrides process.env for envRefs
 // resolution — the per-cell scoped-credential injection point (below).
-function toMcpClientEntry(name, config, scopedEnv = null) {
+async function toMcpClientEntry(name, config, scopedEnv = null, ownerEmail = null) {
   if (!config || typeof config !== "object") return null;
   const entry = {
     id: `mcp-${name}`,
@@ -693,6 +693,23 @@ function toMcpClientEntry(name, config, scopedEnv = null) {
       if (Object.keys(resolved).length) entry.config.env = { ...(config.env || {}), ...resolved };
     } else if (config.env) {
       entry.config.env = config.env;
+    }
+    // credentialEnv override (add-crm-desk-pack-embed D2): names mapped to a
+    // credential ref take the OWNER's live token for that ref — the BYOK value
+    // rides the patch for this user's cell only. The omission rule upstream in
+    // writeMcpPatch guarantees live credentials here for authenticated users;
+    // a machine owner (null ownerEmail) never enters this branch.
+    if (config.credentialEnv && typeof config.credentialEnv === "object" && ownerEmail) {
+      try {
+        const refs = await import("./credential-refs.js");
+        for (const [envName, ref] of Object.entries(config.credentialEnv)) {
+          if (typeof ref !== "string" || !ref) continue;
+          const token = refs.liveTokenForRef(ref, ownerEmail);
+          if (token) entry.config.env = { ...(entry.config.env || {}), [envName]: token };
+        }
+      } catch (e) {
+        console.warn(`[dsh-profile] credentialEnv resolution failed for "${name}": ${e?.message || e}`);
+      }
     }
     // Relative command/args are authored against the repo root (where
     // mcp.json lives). The dsh child's cwd is the WORKSPACE and moves on
@@ -842,13 +859,54 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
   // landed; a user/admin DB edit without the key is a deliberate override and
   // omits nothing. Info-level by design (spec: omission is a silent normal
   // state, not a warn-grade degradation).
+  let userEnvRefs = null;
+  if (ownerEmail) {
+    try {
+      userEnvRefs = await import("./credential-refs.js");
+    } catch { userEnvRefs = null; }
+  }
+  const userHasRef = (ref) => Boolean(ownerEmail && userEnvRefs?.liveTokenForRef(ref, ownerEmail));
   for (const [name, config] of Object.entries(servers)) {
     const required = Array.isArray(config?.requiresEnv) ? config.requiresEnv.filter((v) => typeof v === "string" && v) : [];
     if (!required.length) continue;
-    const present = required.filter((v) => process.env[v] != null && process.env[v] !== "");
+    const credentialEnv = config?.credentialEnv && typeof config.credentialEnv === "object" ? config.credentialEnv : {};
+    const present = required.filter(
+      (v) =>
+        (process.env[v] != null && process.env[v] !== "") ||
+        (credentialEnv[v] && userHasRef(credentialEnv[v])),
+    );
     if (present.length === 0) {
       delete servers[name];
       console.log(`[dsh-profile] omitting MCP server "${name}": requiresEnv [${required.join(", ")}] all unset in this deployment`);
+    }
+  }
+
+  // Per-user credential source (add-crm-desk-pack-embed D2): an entry whose
+  // env resolves through credentialEnv refs is OMITTED for an authenticated
+  // user with no live credential — never falls back to the deployment pair
+  // (tenant isolation: a cleared merchant connection must not surface the
+  // shared A-tenant inbox). Machine owner (null ownerEmail) keeps the
+  // deployment path untouched, byte-identical to the pre-change composition.
+  // Dispatch-table failure fails closed (those entries omitted) like the
+  // credentialRef resolution below.
+  if (ownerEmail) {
+    const credentialServers = Object.entries(servers).filter(
+      ([, config]) => config?.credentialEnv && typeof config.credentialEnv === "object",
+    );
+    if (credentialServers.length) {
+      if (!userEnvRefs) {
+        for (const [name] of credentialServers) delete servers[name];
+        console.warn(`[dsh-profile] credential-ref table unavailable; omitting ${credentialServers.length} credentialEnv server(s)`);
+      } else {
+        for (const [name, config] of credentialServers) {
+          const refsNeeded = [...new Set(Object.values(config.credentialEnv).filter((v) => typeof v === "string" && v))];
+          if (!refsNeeded.length) continue;
+          if (!refsNeeded.every((ref) => userEnvRefs.liveTokenForRef(ref, ownerEmail))) {
+            delete servers[name];
+            console.log(`[dsh-profile] omitting MCP server "${name}": owner has no live credential for [${refsNeeded.join(", ")}]`);
+          }
+        }
+      }
     }
   }
 
@@ -980,7 +1038,7 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
   const scopedEnv = await relayEnvOverrides(ownerEmail);
   const entries = [];
   for (const [name, config] of Object.entries(servers)) {
-    const e = toMcpClientEntry(name, config, scopedEnv);
+    const e = await toMcpClientEntry(name, config, scopedEnv, ownerEmail);
     if (e) entries.push(e);
     else console.warn(`[dsh-profile] skipping MCP server "${name}": unknown config shape`);
   }

@@ -716,6 +716,24 @@
       },
       "zoneTitle": "External market",
       "zoneSubtitle": "Third-party skill markets, not reviewed by this platform; entries carry source and license marks, and installs show a full preview first."
+    },
+    "chatwoot": {
+      "title": "CRM desk (Chatwoot)",
+      "connected": "Connected",
+      "notConnected": "Not connected",
+      "staleBadge": "Invalid",
+      "staleHint": "Your Chatwoot token was rejected — paste a fresh one to recover.",
+      "pasteHint": "Paste the API token of YOUR Chatwoot account (Profile → Access Token). Your tool face and sends run on your own tenant.",
+      "tokenLabel": "Chatwoot API token",
+      "tokenPlaceholder": "Paste token…",
+      "loginSection": "Login credentials for the embedded desk (optional)",
+      "loginEmail": "Chatwoot login email",
+      "loginPassword": "Chatwoot login password",
+      "loginHint": "Used only to sign you in when opening the desk inside this platform. Leave empty and the embed entry stays unavailable (tools are unaffected).",
+      "save": "Connect",
+      "disconnect": "Disconnect",
+      "loginReady": "Embed ready (login credentials saved)",
+      "tokenOnly": "Token connected — embed needs login credentials"
     }
   },
   "help": {
@@ -1066,6 +1084,9 @@
         "search": {
           "title": "Search service",
           "subtitle": "Web-search credentials and wiring: your own key, and the shared service (admin)."
+        },
+        "chatwoot": {
+          "subtitle": "Your own Chatwoot tenant — paste your token; the pack and the desk embed run on your account"
         }
       }
     },

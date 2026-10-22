@@ -716,6 +716,24 @@
       },
       "zoneTitle": "Mercado externo",
       "zoneSubtitle": "Mercados de skills de terceros sin revisión de la plataforma; cada entrada lleva origen y licencia, y la instalación muestra una vista previa completa."
+    },
+    "chatwoot": {
+      "title": "Mesa CRM (Chatwoot)",
+      "connected": "Conectado",
+      "notConnected": "No conectado",
+      "staleBadge": "No válido",
+      "staleHint": "Tu token de Chatwoot fue rechazado: pega uno nuevo para recuperarlo.",
+      "pasteHint": "Pega el token API de TU cuenta de Chatwoot (Perfil → Access Token). Tu panel de herramientas y envíos usan tu propio tenant.",
+      "tokenLabel": "Token API de Chatwoot",
+      "tokenPlaceholder": "Pega el token…",
+      "loginSection": "Credenciales de acceso para el escritorio integrado (opcional)",
+      "loginEmail": "Email de acceso de Chatwoot",
+      "loginPassword": "Contraseña de acceso de Chatwoot",
+      "loginHint": "Se usa solo para iniciarte sesión al abrir el escritorio en esta plataforma. Si lo dejas vacío, la entrada integrada no estará disponible (las herramientas no se afectan).",
+      "save": "Conectar",
+      "disconnect": "Desconectar",
+      "loginReady": "Integración lista (credenciales guardadas)",
+      "tokenOnly": "Token conectado: la integración necesita credenciales de acceso"
     }
   },
   "help": {
@@ -1053,6 +1071,9 @@
         "search": {
           "title": "Servicio de búsqueda",
           "subtitle": "Credenciales y cableado de la búsqueda web: tu clave y el servicio compartido (admin)."
+        },
+        "chatwoot": {
+          "subtitle": "Tu propio tenant de Chatwoot: pega tu token; el pack y el escritorio usan tu cuenta"
         }
       }
     },

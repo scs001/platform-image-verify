@@ -716,6 +716,24 @@
       },
       "zoneTitle": "外部マーケット",
       "zoneSubtitle": "プラットフォーム未審査のサードパーティ・スキル市場。出典とライセンス表示付き、導入前に完全なプレビューを表示します。"
+    },
+    "chatwoot": {
+      "title": "CRM デスク（Chatwoot）",
+      "connected": "接続済み",
+      "notConnected": "未接続",
+      "staleBadge": "無効",
+      "staleHint": "Chatwoot トークンが拒否されました。貼り直すと復旧します。",
+      "pasteHint": "自分の Chatwoot アカウントの API トークン（プロフィール → Access Token）を貼り付けてください。ツール面と送信は自分のテナントで動作します。",
+      "tokenLabel": "Chatwoot API トークン",
+      "tokenPlaceholder": "トークンを貼り付け…",
+      "loginSection": "埋め込みデスク用ログイン情報（任意）",
+      "loginEmail": "Chatwoot ログインメール",
+      "loginPassword": "Chatwoot ログインパスワード",
+      "loginHint": "プラットフォーム内でデスクを開く際のサインインにのみ使用します。空のままでは埋め込み入口は使えません（ツールには影響しません）。",
+      "save": "接続",
+      "disconnect": "切断",
+      "loginReady": "埋め込み準備完了（ログイン情報あり）",
+      "tokenOnly": "トークン接続済み — 埋め込みにはログイン情報が必要"
     }
   },
   "help": {
@@ -1053,6 +1071,9 @@
         "search": {
           "title": "検索サービス",
           "subtitle": "ウェブ検索の認証情報と接続：自分のキー、共有サービス（管理者）。"
+        },
+        "chatwoot": {
+          "subtitle": "自分の Chatwoot テナント — トークンを貼り付ければ pack もデスクも自分のアカウントで動きます"
         }
       }
     },

@@ -21,6 +21,7 @@ import {
   CloudUpload,
   Folder,
   MessageSquare,
+  Inbox,
   AlertCircle,
   CheckCircle,
   Trash2,
@@ -87,6 +88,7 @@ const ICONS: Record<string, React.ComponentType<LucideProps>> = {
   // External install consent panel (add-external-skill-install): script marker
   terminal: Terminal,
   // Paper-trading credential card (add-paper-trading-credentials)
+  inbox: Inbox,
   "line-chart": LineChart,
 };
 

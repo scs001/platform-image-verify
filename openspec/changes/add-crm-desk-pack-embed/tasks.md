@@ -5,19 +5,19 @@
 
 ## 2. chatwoot 凭据面（D1）
 
-- [ ] 2.1 新 credentialRef `chatwoot`：按 (ref,email) 存储 token+email+password，连接中心新增面板（粘贴表单、深链、状态聚合），单测覆盖存取/清除/stale
-- [ ] 2.2 保存连接物化本地 stdio 行（config 同源 bundled、`credentialEnv: {CHATWOOT_API_TOKEN: "chatwoot"}`、嵌入凭据同 ref），清除连接移除该行；单测双分支+轮换覆盖
+- [x] 2.1 新 credentialRef `chatwoot`：按 (ref,email) 存储 token+email+password，连接中心新增面板（粘贴表单、深链、状态聚合），单测覆盖存取/清除/stale ——实绩：db 迁移 v34 user_chatwoot_credentials + chatwoot-credentials.js（token+登录对，paste/stale 语义）+ REFS 分派 + /api/chatwoot/connection 路由 + 连接中心 chatwoot 面板（五 locale 键）+ /api/connections 聚合；单测 2.1a-c
+- [x] 2.2 保存连接物化本地 stdio 行（config 同源 bundled、`credentialEnv: {CHATWOOT_API_TOKEN: "chatwoot"}`、嵌入凭据同 ref），清除连接移除该行；单测双分支+轮换覆盖 ——实绩（设计修正）：bundled 行即每 cell 本地行，pack 引用天然命中本地绑定条款，物化行整个不需要；bundled 条目加 credentialEnv；spec delta 已同步改写（连接面只管凭据、清除不回落共享 env）
 
 ## 3. stdio env 逐用户凭据解析（D2）
 
-- [ ] 3.1 toMcpClientEntry 增 `credentialEnv` 解析（liveTokenForRef(ref, ownerEmail)），无活凭据→条目整体省略（静默）；writeMcpPatch 组合序接入；单测：有凭据注入、无凭据省略、与 envRefs/requiresEnv 正交
-- [ ] 3.2 工具层 401 使该用户凭据置 stale（走 invalidateRef）；单测断言不误伤部署 env 路径
+- [x] 3.1 toMcpClientEntry 增 `credentialEnv` 解析（liveTokenForRef(ref, ownerEmail)），无活凭据→条目整体省略（静默）；writeMcpPatch 组合序接入；单测：有凭据注入、无凭据省略、与 envRefs/requiresEnv 正交 ——实绩：toMcpClientEntry 加 ownerEmail 参与 credentialEnv 覆盖；requiresEnv 满足判定纳入用户凭据源；已认证无凭据→条目省略、机器 owner 部署 env 逐字节不变；单测 3.1a-d
+- [x] 3.2 工具层 401 使该用户凭据置 stale（走 invalidateRef）；单测断言不误伤部署 env 路径 ——实绩：执行器用户路径 401→invalidateRef（不误伤部署 env），错误面零 token；单测 3.2
 
 ## 4. 动作闸双凭据（D3）
 
-- [ ] 4.1 `crm.message.send` 增 credentialRef；preflight 三分支：已连接→过、已认证未连接→拦截+连接指引、机器 owner 无凭据→回落部署 env；单测三分支
-- [ ] 4.2 执行器 stdio 分支取凭据同序：用户 token 注入子进程 env；用户路径 401→invalidateRef+提案失败，部署路径 401→现行报告；桩单测 2×2（用户/部署 × 成功/401）
-- [ ] 4.3 审计无凭据扩展到新路径（args digest、日志、提案行），突变验证断言有效
+- [x] 4.1 `crm.message.send` 增 credentialRef；preflight 三分支：已连接→过、已认证未连接→拦截+连接指引、机器 owner 无凭据→回落部署 env；单测三分支 ——实绩：registry credentialRef=chatwoot + requireChatwootCredential 三分支（已连接过/已认证未连接拦截+connectPath/机器 owner 校验部署 env）；单测 4.1a-b
+- [x] 4.2 执行器 stdio 分支取凭据同序：用户 token 注入子进程 env；用户路径 401→invalidateRef+提案失败，部署路径 401→现行报告；桩单测 2×2（用户/部署 × 成功/401） ——实绩：执行器 stdio 分支取凭据同序（用户 token 注入子进程 env；credentialEnv map 锚定 env 名）；桩单测 4.2a-c
+- [x] 4.3 审计无凭据扩展到新路径（args digest、日志、提案行），突变验证断言有效 ——实绩：用户 token 仅存在于子进程 env（构造性）；filterKnownArgs/args digest 语义不变（bridge 套件 3.4 系既有断言）；新增 401 错误面零 token 断言（3.2）
 
 ## 5. CRM 客服套件 pack（D4/D5）
 

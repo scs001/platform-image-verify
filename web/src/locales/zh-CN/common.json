@@ -716,6 +716,24 @@
       },
       "zoneTitle": "外部市场",
       "zoneSubtitle": "未经平台审校的第三方技能市场，条目带来源与许可标记；安装前展示完整预览并需确认。"
+    },
+    "chatwoot": {
+      "title": "CRM 客服台（Chatwoot）",
+      "connected": "已连接",
+      "notConnected": "未连接",
+      "staleBadge": "已失效",
+      "staleHint": "你的 Chatwoot token 被拒绝——重新粘贴即可恢复。",
+      "pasteHint": "粘贴你自己 Chatwoot 账号的 API token（Profile → Access Token）。工具面与发送都跑在你自己的租户上。",
+      "tokenLabel": "Chatwoot API token",
+      "tokenPlaceholder": "粘贴 token…",
+      "loginSection": "嵌入用登录凭据（选填）",
+      "loginEmail": "Chatwoot 登录邮箱",
+      "loginPassword": "Chatwoot 登录密码",
+      "loginHint": "仅用于在壹座内代登录打开客服台。不填则嵌入入口不可用（工具面不受影响）。",
+      "save": "连接",
+      "disconnect": "断开",
+      "loginReady": "嵌入就绪（已存登录凭据）",
+      "tokenOnly": "token 已连接——嵌入需补登录凭据"
     }
   },
   "help": {
@@ -1053,6 +1071,9 @@
         "search": {
           "title": "搜索服务",
           "subtitle": "网络搜索的凭据与服务接线：个人搜索密钥、共享服务（管理员）。"
+        },
+        "chatwoot": {
+          "subtitle": "你自己的 Chatwoot 租户——粘贴你的 token，套件与嵌入都跑在你的账号上"
         }
       }
     },

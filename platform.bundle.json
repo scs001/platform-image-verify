@@ -3,9 +3,10 @@
     "chatwoot": {
       "command": "node",
       "args": ["node_modules/@fazer-ai/mcp-chatwoot/dist/index.js"],
-      "_comment": "CRM 客服台（add-crm-desk-bridge）：npm dist 即上游官方 bun --target node 单文件 bundle，node 直跑零本地构建。BYOK：envRefs 只持名字，值在 patch 写入时从部署 env 解析（CHATWOOT_API_TOKEN 含 TOKEN 会被 dsh 子进程擦洗，envRefs 是合规转发通道）。requiresEnv：两值全缺的部署整体省略本条目（而非死条目）；部分缺失沿 envRefs 警告降级。工具面上界（98 标准面）见 lib/operator-tool-face.js。",
+      "_comment": "CRM 客服台（add-crm-desk-bridge/add-crm-desk-pack-embed）：npm dist 即上游官方 bun --target node 单文件 bundle，node 直跑零本地构建。双凭据形态：部署 env（requiresEnv+envRefs，机器 owner/寻数 A 租户）或逐用户 BYOK（credentialEnv→chatwoot ref，已认证用户须自连凭据否则条目省略，见 dsh-profile toMcpClientEntry）。工具面上界（98 标准面）见 lib/operator-tool-face.js。",
       "requiresEnv": ["CHATWOOT_BASE_URL", "CHATWOOT_API_TOKEN"],
-      "envRefs": ["CHATWOOT_BASE_URL", "CHATWOOT_API_TOKEN"]
+      "envRefs": ["CHATWOOT_BASE_URL", "CHATWOOT_API_TOKEN"],
+      "credentialEnv": { "CHATWOOT_API_TOKEN": "chatwoot" }
     },
     "websearch": {
       "command": "node",

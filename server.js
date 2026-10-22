@@ -50,6 +50,7 @@ import { registerRegistryRoutes } from "./server/routes/registry.js";
 import { registerConnectorRoutes } from "./server/routes/connector.js";
 import { registerFacetMarketRoutes } from "./server/routes/facet-market.js";
 import { registerLineCredentialRoutes } from "./server/routes/line-credentials.js";
+import { registerChatwootCredentialRoutes } from "./server/routes/chatwoot-credentials.js";
 import { registerPaperTradingRoutes } from "./server/routes/paper-trading.js";
 import { registerCiyuanAccountRoutes } from "./server/routes/ciyuan-account.js";
 import { registerVoiceRoutes } from "./server/routes/voice.js";
@@ -273,6 +274,8 @@ registerFacetMarketRoutes(ctx);
 // 各线操作 MCP 凭据 (line-credentials): wire-customer / lex (browser silent
 // mint ID tokens) + wanxing-caller (pasted sk-) — same family.
 registerLineCredentialRoutes(ctx);
+// 商家 Chatwoot BYOK 凭据（add-crm-desk-pack-embed）：粘贴 token(+嵌入用登录对)。
+registerChatwootCredentialRoutes(ctx);
 // 词元账号 (ciyuan-account-lane): zero-paste bind — server-side 词元 login →
 // key mint → stored key; serves the cell model lane + the wanxing-caller ref.
 registerCiyuanAccountRoutes(ctx);

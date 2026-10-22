@@ -21,6 +21,7 @@ import { FacetMarketConnectPanel } from "@/components/extensions/FacetMarketConn
 import { LineOpsConnectPanel } from "@/components/extensions/LineOpsConnectPanel";
 import { PaperTradingConnectPanel } from "@/components/extensions/PaperTradingConnectPanel";
 import { CiyuanAccountConnectPanel } from "@/components/extensions/CiyuanAccountConnectPanel";
+import { ChatwootConnectPanel } from "@/components/extensions/ChatwootConnectPanel";
 import { SearchServiceCard } from "./SearchServiceCard";
 
 const GLOSSARY_BRANDS = ["ciyuan", "facet", "connector", "wire", "lex"] as const;
@@ -156,6 +157,16 @@ export function ConnectionsSection() {
         subtitleKey="settings.connections.cards.paperTrading.subtitle"
       >
         <PaperTradingConnectPanel />
+      </CardAnchor>
+
+      {/* 商家 Chatwoot BYOK（add-crm-desk-pack-embed）：自带 token 驱动自己的
+          租户面；登录对仅嵌入代登录用。 */}
+      <CardAnchor
+        ids={["chatwoot"]}
+        active={isActive("chatwoot")}
+        subtitleKey="settings.connections.cards.chatwoot.subtitle"
+      >
+        <ChatwootConnectPanel />
       </CardAnchor>
 
       {/* The search card renders its own title + subtitle (SearchServiceCard). */}

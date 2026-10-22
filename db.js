@@ -802,6 +802,24 @@ const MIGRATIONS = [
       `CREATE INDEX IF NOT EXISTS idx_action_audit_created ON action_audit(created_at DESC)`,
     ],
   },
+  {
+    // add-crm-desk-pack-embed (task 2.1): per-user Chatwoot BYOK credential —
+    // the API token (tool face + action execution) plus optional login
+    // email/password (embed server-side sign-in only). One row per user;
+    // paste semantics (401 flips stale, re-paste to recover) like the
+    // connector family. Plaintext at rest matches the line/registry
+    // credential tables' existing posture (same threat domain, owner-keyed).
+    statements: [
+      `CREATE TABLE IF NOT EXISTS user_chatwoot_credentials (
+        email TEXT PRIMARY KEY,
+        token TEXT NOT NULL,
+        login_email TEXT,
+        login_password TEXT,
+        stale INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL
+      )`,
+    ],
+  },
 ];
 
 function nowIso() {
@@ -1925,6 +1943,49 @@ export function clearLineCredential(email, line) {
   const key = normalizeIdentityEmail(email);
   if (!key) return false;
   return stmt("DELETE FROM user_line_credentials WHERE email = ? AND line = ?").run(key, line).changes > 0;
+}
+
+// ── User Chatwoot credential (add-crm-desk-pack-embed task 2.1) ─────────────
+// Per-user BYOK: API token (tool face + gated send) + optional login
+// email/password (embed server-side sign-in). Paste semantics like the
+// connector family: 401 flips stale, re-save recovers.
+
+export function getChatwootCredential(email) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return null;
+  return stmt(
+    "SELECT token, login_email AS loginEmail, login_password AS loginPassword, stale, updated_at AS updatedAt FROM user_chatwoot_credentials WHERE email = ?"
+  ).get(key) ?? null;
+}
+
+export function setChatwootCredential({ email, token, loginEmail = null, loginPassword = null }) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return null;
+  stmt(
+    `INSERT INTO user_chatwoot_credentials (email, token, login_email, login_password, stale, updated_at)
+     VALUES (@email, @token, @loginEmail, @loginPassword, 0, @now)
+     ON CONFLICT(email) DO UPDATE SET
+       token = excluded.token, login_email = excluded.login_email,
+       login_password = excluded.login_password, stale = 0, updated_at = excluded.updated_at`
+  ).run({ email: key, token, loginEmail: loginEmail ?? null, loginPassword: loginPassword ?? null, now: nowIso() });
+  return getChatwootCredential(key);
+}
+
+export function markChatwootCredentialStale(email) {
+  if (!dbReady) return false;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return false;
+  return stmt("UPDATE user_chatwoot_credentials SET stale = 1, updated_at = ? WHERE email = ?")
+    .run(nowIso(), key).changes > 0;
+}
+
+export function clearChatwootCredential(email) {
+  if (!dbReady) return false;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return false;
+  return stmt("DELETE FROM user_chatwoot_credentials WHERE email = ?").run(key).changes > 0;
 }
 
 // ── User 词元 account binding (ciyuan-account-lane) ──────────────────────────

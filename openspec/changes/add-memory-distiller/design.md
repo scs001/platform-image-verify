@@ -61,6 +61,61 @@ reconcile 观察（soft，不进门禁）：s05 `UPDATE→exp_s04_0`（修复覆
 - embedding 召回候选（S1 喂全量 ≤8 条；真系统 top-3 by task+search_keys）——漏召回会把该 UPDATE 的判成 ADD，属 fd-memory 检索层责任。
 - 并发 4 下网关 1/24 丢失率是否随并发升高（发现 6）。
 
-## 其余设计决策
+## 其余设计决策（S1 过门后、apply 前展开；基线=add-memory-scopes-and-cluster-sharing 已归档的 v2 as-built）
 
-待 S1 过门后、apply 前按 proposal「What Changes」逐项展开（Distiller 契约形状、页型、sidecar 边界、预算表、可见性）。
+### D1 蒸馏坐标：per-project scope，observations rowid 水位作 cursor
+
+- 蒸馏 scope = 一个 project（v1 只开 `d/` 成员 project——runner 观测最完整；person `/hook` project 留 `FD_MEMORY_DISTILL_PERSON=1` 门后开，默认关）。产物写回同 project，跨 project 共享结论仍由 agent 经 `target: shared` 自助搬运——蒸馏不越 project 写。
+- cursor = 该 project `observations` 表 rowid 水位（含 handoff 截止时间的双水位：obs_rowid + handoff created_at，取 max 验证单调）。新表 `distill_state(project, obs_cursor, handoff_cursor, updated_at, last_error, last_tokens)`（RootDb，per-root）。
+- 幂等边界：items 按 cursor 起取且严格含端点（下次从 cursor_next 续），同 cursor 重跑喂同 items——S1 已证引擎在相同输入下 reconcile 稳定。
+
+### D2 页型与检索层标注：frontmatter 为真源，layer 是派生
+
+- fact / experience 页型直接落 frontmatter（proposal 的字段形状），目录 `<project>/facts/<id>.md`、`<project>/experiences/<id>.md`；okf 的 frontmatter 保留 + reindex 按 frontmatter.type 索引天然覆盖，页型识别零新增（验证场景即钉）。
+- `layer` 不落盘——由条目类型推导（observation→L0；handoff/note/session→L1；fact/experience→L2），mcp 读口与可见性面在出参时计算；`sources[]` / `supersedes[]` 自 frontmatter 透传。候选检索（D6）与 forget 过滤同理读 frontmatter。
+
+### D3 sidecar 形状：不信任 `extract()` 的返回值——三条件全在包一层实现
+
+- Python 3.11-slim 容器 `fd-memory-distiller`：pin `hy-memory`（requirements 钉版本；提示词补丁按 fork 纪律放补丁文件目录，不 clone 不 vendor）。HTTP `POST /distill`（ClusterIP 仅集群内 + `DISTILLER_SHARED_TOKEN` 头互信），fd-memory 为唯一调用方。
+- **C1+C3 的落地方式**：sidecar 不调 `CodingMemoryExtractor.extract()`（它吞错、无 repair），而是同形复刻其内部序列——`build_extract_prompt()`（zh/en 自动路由）→ `LLMProvider.complete()`（原文留痕）→ `json_repair` → `_parse_output`；reconcile 同理（`build_experience_reconcile_prompt` → complete → repair → `_parse_ops`）。每次 complete 记 `{stage, prompt_tokens, completion_tokens, elapsed, error?}` 进 `DistillResult.llm_calls`——「没抽到」与「调用失败」自此在账目上分开（S1 发现 6 的根治）。
+- **C2**：提示词末补一行「task / search_keys MUST use the same language as the conversation」+ 产物后检（task 非 CJK 且会话为中文时记 warning 入 llm_calls 审计，评测断言钉住；不改写产物——改写是下一刀的事，先可观测）。
+- LLM 仅词元车道（`LLM_API_KEY` 路由 DeepSeek 端点，S1 同款：temperature 不传、timeout 120s、provider 内重试 2）；推理模型 reasoning 计入 tokens。
+
+### D4 调度：进程内、去抖、单并发、门控
+
+- fd-memory 单实例内 `DistillScheduler`：capture ingest 批末见 `session-end`/`stop` 且 project 属 `d/` → 标 pending（去抖窗 5 分钟合并同 project）；每 10 分钟兜底扫 cursor 落后 ≥200 观测的 project。同 project 串行（Map 锁），跨 project 并发 ≤2（对 sidecar）。
+- sidecar 超时 180s / 5xx → 记 `distill_state.last_error`、cursor 保留、退避（连续失败指数退避封顶 1h）。总开关 `FD_MEMORY_DISTILLER_URL`（空=调度器不启动，等价回滚杆）+ `FD_MEMORY_DISTILL_ENABLED=1` 双门。
+
+### D5 预算：tokens.db 全局表、按 owner 日限额、护栏非对账
+
+- `distill_budget(owner_key, day, tokens, llm_calls)`（tokens.db，跨 root 聚合——owner_key = root 的 owner 部分）。默认日限 `FD_MEMORY_DISTILL_DAILY_TOKENS=400000`（S1 实测 ~7.5k/会话 ≈ 53 会话/日/owner，起步宽裕）；超限：该 owner 当日停止蒸馏、`distill_state` 记 gap、次日零点自动续。计费真源仍是 sub2api；本表是护栏与可见性，不用于对账。
+
+### D6 候选检索：v1 无 embedding，FTS/LIKE top-8（S1 全量喂法为空时兜底）
+
+- candidates = 该 project + shared project 内 experience/fact 页按 task+search_keys 关键词（FTS trigram 短词退 LIKE）取 top-8；检索为空则退 S1 形状（全量 ≤8）。**已知风险（S1 未覆盖节）**：漏召回会把该 UPDATE 的判成 ADD——评测 v1 记录重复率指标观测，embedding 召回留 v2.2 与向量检索同刀。
+
+### D7 可见性：person-only 读面 + forget 逻辑删
+
+- `GET /memory?scope=&layer=&since=&until=&limit=&offset=`（person 令牌，仅自己 root；条目=页面索引行+观测，带 layer/sources/project/时间）；`POST /forget {path, confirm: true}`——frontmatter 落 `forgotten_at`、`deletePageIndex` 剔除、审计 op=`forget`、真源文件保留。agent 令牌 403（spec 钉死）。候选检索与 supersede 目标解析均过滤 forgotten 页。
+
+### D8 评测 v1：两档进 CI
+
+- 零 LLM 档（`npm test` 常跑）：页型 reindex 识别、layer/sources 出参、supersede 不改旧页、预算闸、forget 三段（不现/无确认拒绝/蒸馏不吃）、cursor 幂等。
+- LLM 档（`scripts/eval-distill.mjs`，有 `MEMORY_LLM_*` 才跑）：S1 fixture 重放走真 sidecar——任务关键词命中、task 语言断言（C2）、多 agent 去重回归（s10/s11 双景）、成本与调用数基线输出。引擎/提示词/检索变更必跑并比对基线数字。
+
+### D9 部署与回滚
+
+- 上线序：fd-memory 先滚（调度器双门关）→ sidecar Deployment（build-pool 出片、同 ns、镜像 pin）→ 开 `DISTILLER_URL`+`ENABLED` → 观察首批真实会话蒸馏。回滚 = 关门或 scale sidecar 0（cursor 全保留，无损失）；已写 L2 批清 = 按 `generated.by` 前缀脚本 + reindex（台账记录配方）。
+- 新增部署物：`fd-memory-distiller` Deployment（cheap 与 fd-memory 同 ns/同节点域）；fd-memory env 三枚（URL/ENABLED/DAILY_TOKENS）。
+
+### Risks / Trade-offs
+
+- [中文 task 漂（S1 发现 4）] → C2 提示词行 + 后检 warning + 评测断言；改写留后刀。
+- [漏召回→重复 ADD] → 评测记重复率观测；embedding 同 v2.2。
+- [推理模型 reasoning token 吃预算] → 预算护栏按总 tokens 计（含 reasoning），S1 基线 ~15% 已入账。
+- [hy-memory 上游漂移] → pin 版本 + 补丁目录；契约层对齐，升级必过评测门。
+- [fact 层薄记录灌量（S1 发现 8）] → cursor 去抖（D4 的 200 观测兜底阈值）+ 预算闸；fact 频率监控进 admin/report。
+
+### Open Questions
+
+（无——S1 未覆盖项已各自转为设计决策或观测指标；subject 规范化双路判定随事实层 reconcile 留 v2.1，不阻塞本刀。）

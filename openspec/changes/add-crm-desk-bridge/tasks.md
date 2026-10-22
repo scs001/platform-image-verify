@@ -29,13 +29,13 @@
 
 ## 6. 出片与生产验收（4.1/4.2 收口）
 
-- [ ] 6.1 出片（fd-build-snapshot 既有链）滚 platform 部署，GitOps env 增 `CHATWOOT_BASE_URL=https://desk.finddatatech.cloud` 与 `CHATWOOT_API_TOKEN`（值=finddata docs/TEST-ACCOUNTS.md §七）；验证 pod imageID 与 digest 对上、env 注入后 chatwoot server 出现在任一用户工具面
-- [ ] 6.2 生产四链路验收（经 `/skill:crm-desk-reception`，读类直调、发送走 ActionCard 批准）：①列未处理会话 ②读某会话消息 ③发测试回复且 desk 收件箱 UI 可见 ④读联系人——全过并把证据（会话/消息 id、时间戳、截图或 trace 摘录）落 `reports/acceptance.md`
+- [x] 6.1 出片（公开快照仓线）滚 platform 部署，GitOps env 增 `CHATWOOT_BASE_URL=https://desk.finddatatech.cloud` 与 `CHATWOOT_API_TOKEN`（值=finddata docs/TEST-ACCOUNTS.md §七）——实绩：快照 449a65b（公开仓 image.yml 出片绿）→ relay OK → ccr digest e1dec423 skopeo 实证 → GitOps d9c8ab6（platform 内联 BASE_URL + token 走 platform-secrets 带外 patch；demo 无 env）→ 双部署 rollout 1/1、pod imageID=e1dec423；in-pod 仿真 cell 引导实证 patch 含 chatwoot（env 双值）+ tool-filter 98 面 + operatorFaces 溯源
+- [x] 6.2 生产四链路验收（经 `/skill:crm-desk-reception`，读类直调、发送走 ActionCard 批准）：①列未处理会话 ②读某会话消息 ③发测试回复且 desk 收件箱 UI 可见 ④读联系人——全过：①list+meta 交叉 ②messages_list 逐字 ③propose→ActionCard→批准→执行器 stdio→Chatwoot 消息 #2（API 复核一致）+读回复核 ④contact #4 全字段；证据落 reports/acceptance.md（种子消息为 outgoing 已如实注明：v4 WebWidget 箱禁 agent API 伪造 incoming）
 
 ## 7. 失败口径验证（4.3）
 
-- [ ] 7.1 token 改错一轮：GitOps 把 `CHATWOOT_API_TOKEN` 翻为无效值 → 重启/重组 → 运行技能，验证 agent 输出「凭据无效」分类（401 透传）而非空列表/静默成功、desk 收件箱既有会话原状（UI 或 API 双证），记录后恢复 env
-- [ ] 7.2 BASE_URL 改错一轮：同法把 `CHATWOOT_BASE_URL` 翻为不可达地址，验证「网络不可达」分类与会话原状；恢复 env 后复跑 6.2 四链路回归确认全绿
+- [x] 7.1 token 改错一轮：GitOps 把 `CHATWOOT_API_TOKEN` 翻为无效值 → 重启/重组 → 运行技能，验证 agent 输出「凭据无效」分类（401 透传）而非空列表/静默成功、desk 收件箱既有会话原状（UI 或 API 双证），记录后恢复 env
+- [x] 7.2 BASE_URL 改错一轮：同法把 `CHATWOOT_BASE_URL` 翻为不可达地址，验证「网络不可达」分类与会话原状——实绩见 reports/failure-modes.md：401 原文+凭据无效分类+拒绝空结论+收件箱原状（消息 1/2/3 在）；7.2 注入窗口首回合与 pod 重启赛跑报了过渡态 401（反成 7.1 二次印证），env 稳定重试轮 fetch failed+网络不可达+分层判断（鉴权层 vs 传输层）+收件箱原状；恢复后四链路回归全绿（历史与 resolved 状态在库）
 
 ## 8. 收尾与回勾
 

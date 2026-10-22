@@ -823,7 +823,11 @@ const MIGRATIONS = [
     ],
   },
   {
-    version: 36,
+    // version 100 on purpose: cell ledgers carry their own compacted history
+    // (old cells sat at 60+), so a low number would collide with an
+    // already-recorded entry and NEVER run on those cells. 100 is beyond any
+    // ledger seen in the wild; versions need not be contiguous.
+    version: 100,
     // add-crm-desk-pack-embed task 6.x (SSO): the Chatwoot user id behind the
     // stored API token — discovered lazily via /api/v1/profile and cached so
     // the platform-API SSO login endpoint can be addressed per user.

@@ -27,13 +27,20 @@ export function isChatwootRef(_config) {
 }
 
 export function status(email) {
-  const row = db.getChatwootCredential(ownerKey(email));
-  if (!row) return { ...UNCONNECTED };
-  return {
-    connected: !row.stale && Boolean(row.token),
-    stale: !!row.stale,
-    hasLoginCredentials: Boolean(row.loginEmail && row.loginPassword),
-  };
+  // A cell whose ledger missed the chatwoot migrations (version collisions
+  // across compacted cell ledgers) would make these reads throw — degrade to
+  // "unconnected" instead of crashing every route that touches this module.
+  try {
+    const row = db.getChatwootCredential(ownerKey(email));
+    if (!row) return { ...UNCONNECTED };
+    return {
+      connected: !row.stale && Boolean(row.token),
+      stale: !!row.stale,
+      hasLoginCredentials: Boolean(row.loginEmail && row.loginPassword),
+    };
+  } catch {
+    return { ...UNCONNECTED };
+  }
 }
 
 // Shape validation lives in the route; this layer accepts non-empty strings.
@@ -61,9 +68,13 @@ export function markInvalid(email) {
 // The token to inject into the cell patch / action child env, or null when
 // there is none usable (unconnected or stale).
 export function liveToken(email) {
-  const row = db.getChatwootCredential(ownerKey(email));
-  if (!row || row.stale) return null;
-  return row.token || null;
+  try {
+    const row = db.getChatwootCredential(ownerKey(email));
+    if (!row || row.stale) return null;
+    return row.token || null;
+  } catch {
+    return null;
+  }
 }
 
 // The embed's sign-in pair, or null unless BOTH parts are present.
@@ -77,8 +88,12 @@ export function loginCredentials(email) {
 // add-crm-desk-pack-embed 6.x SSO). Discovered lazily via /api/v1/profile by
 // the route; cached on the credential row.
 export function chatwootUserId(email) {
-  const row = db.getChatwootCredential(ownerKey(email));
-  return row?.chatwootUserId ?? null;
+  try {
+    const row = db.getChatwootCredential(ownerKey(email));
+    return row?.chatwootUserId ?? null;
+  } catch {
+    return null;
+  }
 }
 
 export function storeChatwootUserId(email, id) {

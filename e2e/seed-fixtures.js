@@ -52,6 +52,13 @@ function seedFixtures() {
               command: "node",
               args: ["-e", "process.exit(0)"],
             },
+            // Fleet report tool (agent-fleet-report-lane): a real child so the
+            // e2e server's runtime advertises the same tool face production
+            // has; tests that exercise the bridge hit the HTTP route directly.
+            "fleet": {
+              command: "node",
+              args: ["-e", "process.exit(0)"],
+            },
           },
         },
         null,

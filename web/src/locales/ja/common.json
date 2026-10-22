@@ -2301,6 +2301,18 @@
     "dense": {
       "confirm": "このリズムは 10 分未満の間隔で発火し、モデルコストが高くなる可能性があります。",
       "accept": "理解しました。作成する"
+    },
+    "report": {
+      "drawerTitle": "報告詳細",
+      "drawerOpen": "報告",
+      "selfBadge": "自己報告",
+      "derivedBadge": "実行サマリー・自己報告でない",
+      "note": "自己注記",
+      "blockers": "ブロッカー",
+      "noReports": "報告なし",
+      "openSession": "元セッション",
+      "loadMore": "過去を読み込む",
+      "refresh": "更新"
     }
   }
 }

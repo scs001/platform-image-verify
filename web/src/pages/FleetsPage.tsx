@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,37 @@ interface Cadence {
   enabled: boolean;
 }
 
+interface LatestSlot {
+  key: string;
+  label: string;
+  unit: string | null;
+  value: string | number;
+  note: string | null;
+  trend: { direction: "up" | "down" | "flat" | "changed"; deltaValue: number | null } | null;
+}
+
+interface LatestReport {
+  id: string;
+  at: number;
+  summary: string;
+  source: "self" | "derived";
+  sessionId: string | null;
+  slots: LatestSlot[];
+  undeclaredKeys: string[];
+  blockers: string[];
+}
+
+interface ReportEntry {
+  id: string;
+  at: number;
+  summary: string;
+  metrics: Record<string, { value: string | number; delta?: string }>;
+  blockers: string[];
+  resources: { name: string; kind: string; url?: string }[];
+  source: "self" | "derived";
+  sessionId: string | null;
+}
+
 interface MemberView {
   id: string;
   fleetId: string;
@@ -42,7 +74,15 @@ interface MemberView {
   cadence: Cadence | null;
   status: "on_duty" | "paused" | "missing" | "vacant" | "passive";
   statusReason: string;
-  evidence: { lastRunAt: string | null; nextRunAt: string | null; staleWindowMs: number | null };
+  evidence: {
+    lastRunAt: string | null;
+    nextRunAt: string | null;
+    staleWindowMs: number | null;
+    latestReportAt: number | null;
+    hitWindow: string | null;
+  };
+  latestReport: LatestReport | null;
+  reportTimeline: ReportEntry[];
 }
 
 interface FleetRow {
@@ -105,6 +145,7 @@ export function FleetsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [composerFor, setComposerFor] = useState<string | null>(null); // fleet id
   const [swapFor, setSwapFor] = useState<MemberView | null>(null);
+  const [drawerFor, setDrawerFor] = useState<MemberView | null>(null);
 
   const loadList = useCallback(async () => {
     try {
@@ -322,7 +363,59 @@ export function FleetsPage() {
                         <span className="text-xs text-muted-foreground">
                           {member.cadence ? cadenceText(t, member.cadence) : t("fleets.member.passive")}
                         </span>
+                        {member.latestReport?.source === "derived" ? (
+                          <span
+                            className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                            data-testid={`member-derived-badge-${member.id}`}
+                          >
+                            {t("fleets.report.derivedBadge")}
+                          </span>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="ml-auto rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted"
+                          data-testid={`member-report-drawer-${member.id}`}
+                          onClick={() => setDrawerFor(member)}
+                        >
+                          {t("fleets.report.drawerOpen")}
+                        </button>
                       </div>
+                      {member.latestReport && member.latestReport.slots.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap gap-2" data-testid={`member-kpi-${member.id}`}>
+                          {member.latestReport.slots.map((slot) => (
+                            <span
+                              key={slot.key}
+                              className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs"
+                              data-testid={`kpi-slot-${member.id}-${slot.key}`}
+                              title={slot.note ? `${t("fleets.report.note")}: ${slot.note}` : undefined}
+                            >
+                              <span className="text-muted-foreground">{slot.label}</span>
+                              <span className="font-medium">{String(slot.value)}{slot.unit || ""}</span>
+                              {slot.trend ? (
+                                <span
+                                  className={
+                                    slot.trend.direction === "up"
+                                      ? "text-success"
+                                      : slot.trend.direction === "down"
+                                        ? "text-destructive"
+                                        : "text-muted-foreground"
+                                  }
+                                >
+                                  {slot.trend.direction === "up" ? "↑" : slot.trend.direction === "down" ? "↓" : slot.trend.direction === "changed" ? "±" : "→"}
+                                  {slot.trend.deltaValue != null && slot.trend.direction !== "flat"
+                                    ? `${slot.trend.deltaValue > 0 ? "+" : ""}${slot.trend.deltaValue}`
+                                    : ""}
+                                </span>
+                              ) : null}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                      {member.latestReport ? (
+                        <p className="mt-1 line-clamp-1 text-xs text-muted-foreground" data-testid={`member-summary-${member.id}`}>
+                          {member.latestReport.summary}
+                        </p>
+                      ) : null}
                       <div className="mt-2 flex flex-wrap gap-2 text-xs">
                         {detail.fleet.state !== "archived" ? (
                           <>
@@ -402,7 +495,132 @@ export function FleetsPage() {
           }}
         />
       ) : null}
+      {drawerFor ? (
+        <ReportDrawer
+          member={drawerFor}
+          onClose={() => setDrawerFor(null)}
+          onRefresh={refresh}
+        />
+      ) : null}
     </div>
+  );
+}
+
+// ── report drawer ────────────────────────────────────────────────────────────
+
+function ReportDrawer({
+  member,
+  onClose,
+  onRefresh,
+}: {
+  member: MemberView;
+  onClose: () => void;
+  onRefresh: () => Promise<void>;
+}) {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language;
+  const navigate = useNavigate();
+  const [rows, setRows] = useState<ReportEntry[]>(member.reportTimeline ?? []);
+  const [nextBefore, setNextBefore] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = useCallback(
+    async (before?: number) => {
+      setLoading(true);
+      try {
+        const q = new URLSearchParams();
+        if (before != null) q.set("before", String(before));
+        q.set("limit", "20");
+        const r = await fetch(
+          `/api/fleets/${encodeURIComponent(member.fleetId)}/members/${encodeURIComponent(member.id)}/reports?${q}`,
+        );
+        if (!r.ok) return;
+        const body = await r.json();
+        setRows((prev) => (before == null ? body.reports : [...prev, ...body.reports]));
+        setNextBefore(body.nextBefore ?? null);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [member.fleetId, member.id],
+  );
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  return (
+    <Dialog open onOpenChange={(o) => (!o ? onClose() : undefined)}>
+      <DialogContent className="max-h-[80vh] max-w-lg overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {t("fleets.report.drawerTitle")} — {member.title}
+          </DialogTitle>
+        </DialogHeader>
+        {member.latestReport ? (
+          <div className="rounded-md border border-border p-3" data-testid="report-drawer-latest">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span>{new Date(member.latestReport.at).toLocaleString(locale)}</span>
+              <span className="rounded-full bg-muted px-2 py-0.5">
+                {member.latestReport.source === "derived" ? t("fleets.report.derivedBadge") : t("fleets.report.selfBadge")}
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {member.latestReport.slots.map((s) => (
+                <span key={s.key} className="rounded-md bg-muted px-2 py-1 text-xs">
+                  {s.label}: <span className="font-medium">{String(s.value)}{s.unit || ""}</span>
+                </span>
+              ))}
+            </div>
+            <p className="mt-2 text-sm">{member.latestReport.summary}</p>
+            {member.latestReport.blockers.length > 0 ? (
+              <p className="mt-1 text-xs text-destructive">
+                {t("fleets.report.blockers")}: {member.latestReport.blockers.join("；")}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">{t("fleets.report.noReports")}</p>
+        )}
+        <div className="flex flex-col gap-2" data-testid="report-timeline">
+          {rows.map((r) => (
+            <div key={r.id} className="rounded-md border border-border p-2 text-xs" data-testid={`report-row-${r.id}`}>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-muted-foreground">{new Date(r.at).toLocaleString(locale)}</span>
+                <span className="rounded-full bg-muted px-1.5 py-0.5">{r.source === "derived" ? t("fleets.report.derivedBadge") : t("fleets.report.selfBadge")}</span>
+                {r.sessionId ? (
+                  <button
+                    type="button"
+                    className="rounded-sm border border-border px-1.5 py-px hover:bg-muted"
+                    onClick={() => navigate(`/chat/${encodeURIComponent(r.sessionId!)}`)}
+                  >
+                    {t("fleets.report.openSession")}
+                  </button>
+                ) : null}
+              </div>
+              <div className="mt-1 flex flex-wrap gap-x-3">
+                {Object.entries(r.metrics).map(([k, m]) => (
+                  <span key={k}>
+                    {k}: <span className="font-medium">{String(m.value)}</span>
+                  </span>
+                ))}
+              </div>
+              <p className="mt-1 line-clamp-2">{r.summary}</p>
+            </div>
+          ))}
+        </div>
+        {nextBefore != null ? (
+          <Button variant="outline" size="sm" disabled={loading} onClick={() => void load(nextBefore)}>
+            {t("fleets.report.loadMore")}
+          </Button>
+        ) : null}
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={() => void onRefresh()}>
+            {t("fleets.report.refresh")}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

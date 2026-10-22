@@ -2301,6 +2301,18 @@
     "dense": {
       "confirm": "Este ritmo se dispara más de una vez cada 10 minutos y puede generar coste elevado.",
       "accept": "Lo entiendo: crear"
+    },
+    "report": {
+      "drawerTitle": "Detalles de reportes",
+      "drawerOpen": "Reportes",
+      "selfBadge": "autoinformado",
+      "derivedBadge": "resumen de ejecución · no autoinformado",
+      "note": "Nota propia",
+      "blockers": "Bloqueos",
+      "noReports": "Sin reportes",
+      "openSession": "Sesión de origen",
+      "loadMore": "Cargar anteriores",
+      "refresh": "Actualizar"
     }
   }
 }

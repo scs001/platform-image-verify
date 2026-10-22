@@ -19,6 +19,13 @@ import {
   MEMBER_TARGET_KINDS,
 } from "./fleets-db.js";
 import { reconcileFleet, deriveMemberStatus, cronPeriodMs } from "../fleet-reconcile.js";
+import {
+  validateReportPayload,
+  resolveAttribution,
+  floodWindowMs,
+  checkFlood,
+  buildLatestView,
+} from "../fleet-reports.js";
 
 const DENSE_CADENCE_MS = 10 * 60 * 1000; // design D7: <10min cadence needs confirmation
 const KPI_SLOT_LIMIT = 8;
@@ -144,7 +151,11 @@ function taskIndexFor(fleetId) {
 function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = resolveTarget } = {}) {
   const target = resolver(member);
   const task = tasks.get(member.id) ?? null;
-  const derived = deriveMemberStatus({ member, fleet, task, targetAlive: target.alive, now });
+  // Report lane: latest with system trends (dual-window missing reads its
+  // timestamp too); timeline preview is the first page — the drawer pages.
+  const latest = db.latestReportFor(member.id);
+  const previous = latest ? db.previousReport(member.id, latest.createdAt) : null;
+  const derived = deriveMemberStatus({ member, fleet, task, targetAlive: target.alive, latestReport: latest, now });
   return {
     id: member.id,
     fleetId: member.fleetId,
@@ -160,6 +171,23 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
     status: derived.status,
     statusReason: derived.reason,
     evidence: derived.evidence,
+    latestReport: buildLatestView({ report: latest, previous, kpiSlots: member.kpiSlots }),
+    reportTimeline: db.listReports(member.id, { limit: 5 }).map(reportTimelineEntry),
+  };
+}
+
+// One timeline row (drawer): value snapshot, blockers, the source-session
+// jump link, and the self/derived provenance badge.
+function reportTimelineEntry(report) {
+  return {
+    id: report.id,
+    at: report.createdAt,
+    summary: report.summary,
+    metrics: report.metrics,
+    blockers: report.blockers,
+    resources: report.resources,
+    source: report.source,
+    sessionId: report.sessionId ?? null,
   };
 }
 
@@ -204,6 +232,117 @@ export function createFleetRoutes(app, ctx = null) {
       return { error: err.message };
     }
   };
+
+  // ── Report lane (agent-fleet-report-lane) ─────────────────────────────────
+  //
+  // The report_status bridge. Attribution is SERVER-side (D3): the caller
+  // never names a post — a running fleet cluster task attributes to its own
+  // post (the fan-out rotates presets, which would otherwise misattribute),
+  // else the live preset resolves the unique persona post holding it. The
+  // in-cell fleet MCP child reaches this over loopback; a non-loopback caller
+  // still passes the full auth gate and gets the same server-side attribution.
+  router.post("/report", async (req, res) => {
+    try {
+      const db = getFleetDatabase();
+      const payload = validateReportPayload(req.body);
+      if (!payload.ok) return res.status(400).json({ error: payload.error });
+
+      const personaMembers = [];
+      for (const f of db.listFleets()) {
+        for (const m of db.listMembers(f.id)) {
+          if (m.targetKind === "persona") personaMembers.push(m);
+        }
+      }
+      const attribution = resolveAttribution({
+        currentPreset: ctx?.currentPreset ?? null,
+        runningTasks: cron.listJobs(),
+        personaMembers,
+        rosterPresetId,
+      });
+      if (attribution.kind === "none" || attribution.kind === "ambiguous") {
+        return res.status(409).json({ error: attribution.error });
+      }
+      const member = db.getMember(attribution.memberId);
+      if (!member) return res.status(409).json({ error: "the attributed post no longer exists" });
+
+      // Flood control (design D7): window = half the cadence period with a
+      // 10-minute floor; at most 3 self reports per window. Derived (a2a)
+      // rows never pass through this door, so they never count.
+      const windowMs = floodWindowMs(member.cadence, cronPeriodMs);
+      const now = Date.now();
+      const since = now - windowMs;
+      const recent = db.listReports(member.id, { limit: 3 });
+      const inWindow = recent.filter((r) => r.createdAt > since && r.source === "self");
+      const flood = checkFlood({
+        countSince: inWindow.length,
+        windowMs,
+        now,
+        oldestInWindowAt: inWindow.length ? inWindow[inWindow.length - 1].createdAt : null,
+      });
+      if (!flood.ok) {
+        return res.status(429).json({ error: flood.error, windowResetsAt: flood.windowResetsAt });
+      }
+
+      // Source session: the running task's bound session when the report
+      // rides a fleet fire, else the live conversation pointer.
+      const sessionId =
+        attribution.task?.sessionId ?? chatHistory.currentSessionId?.() ?? null;
+
+      const declared = new Set(member.kpiSlots.map((s) => s.key));
+      const submitted = Object.keys(payload.report.metrics);
+      const report = db.appendReport({
+        id: `r_${now}_${Math.random().toString(36).slice(2, 8)}`,
+        fleetId: member.fleetId,
+        memberId: member.id,
+        sessionId,
+        metrics: payload.report.metrics,
+        resources: payload.report.resources,
+        blockers: payload.report.blockers,
+        summary: payload.report.summary,
+        source: "self",
+        createdAt: now,
+      });
+      res.status(201).json({
+        ok: true,
+        memberTitle: member.title,
+        fleetName: db.getFleet(member.fleetId)?.name ?? member.fleetId,
+        reportId: report.id,
+        slotsAccepted: submitted.filter((k) => declared.has(k)),
+        slotsUnrecognized: submitted.filter((k) => !declared.has(k)),
+        windowResetsAt: now + windowMs,
+      });
+    } catch (err) {
+      console.error("[fleets] report error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // Report timeline page for the detail drawer (owner-gated like the fleet).
+  router.get("/:id/members/:mid/reports", (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const db = getFleetDatabase();
+      const member = db.getMember(req.params.mid);
+      if (!member || member.fleetId !== owned.fleet.id) {
+        return res.status(404).json({ error: "Member not found" });
+      }
+      const beforeMs = req.query.before ? Number(req.query.before) : null;
+      const limit = Math.min(Number(req.query.limit) || 20, 50);
+      const rows = db.listReports(member.id, {
+        ...(Number.isFinite(beforeMs) ? { beforeMs } : {}),
+        limit: limit + 1,
+      });
+      const page = rows.slice(0, limit).map(reportTimelineEntry);
+      res.json({
+        reports: page,
+        nextBefore: rows.length > limit ? page[page.length - 1].at : null,
+      });
+    } catch (err) {
+      console.error("[fleets] reports timeline error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
 
   // ── Fleet CRUD ────────────────────────────────────────────────────────────
 

@@ -423,12 +423,29 @@ async function runExecutionTurn(t, turnFn) {
   if (broadcastFn) broadcastFn({ type: "cron_fired", id: t.id, prompt: t.prompt, startTime, state: "running" });
   broadcastStatus(t.id);
 
+  // Fleet patrol context (agent-fleet-report-lane): the scheduling front-end
+  // may arm a transient, per-fire prompt (template rendered just before this
+  // enqueue). It rides the turn only — never serialized, cleared on finish —
+  // so the stored prompt stays the reusable template.
+  const effective = t.promptOverride != null ? { ...t, prompt: t.promptOverride } : t;
+
   try {
-    const result = await turnFn(t, { turnTimeoutMs: TURN_TIMEOUT_MS });
+    const result = await turnFn(effective, { turnTimeoutMs: TURN_TIMEOUT_MS });
     finishExecution(t, startTime, result);
   } catch (err) {
     finishExecution(t, startTime, { ok: false, error: err?.message || String(err), interrupted: err?.interrupted === true });
   }
+}
+
+// Arm the transient per-fire prompt override (agent-fleet-report-lane). The
+// scheduling front-end calls this synchronously before enqueueing a fire whose
+// {{fleetContext}} it rendered. Cleared in finishExecution; never persisted
+// (saveTasks' whitelist drops it by design).
+function setPromptOverride(id, prompt) {
+  const t = tasks.get(id);
+  if (!t) return false;
+  t.promptOverride = prompt;
+  return true;
 }
 
 // Worker entry point: a pool-owned execution claims the same guards and the
@@ -451,6 +468,8 @@ function finishExecution(t, startTime, result) {
   const ok = result?.ok !== false && !interrupted;
   t.state = interrupted ? "interrupted" : ok ? "done" : "failed";
   t.error = ok ? null : result?.error || (interrupted ? "execution was interrupted" : "execution failed");
+  // The per-fire fleet-context override is spent with this execution.
+  t.promptOverride = null;
 
   t.history.push({
     time: startTime,
@@ -458,6 +477,10 @@ function finishExecution(t, startTime, result) {
     state: t.state,
     success: ok,
     ...(t.error ? { error: t.error } : {}),
+    // The collected assistant text (remote a2a turns and cluster digests
+    // return it). The report lane reads the last a2a turn's text to build the
+    // derived execution summary (agent-fleet-report-lane D4).
+    ...(result?.text ? { text: String(result.text).slice(0, 2000) } : {}),
     // Token spend when the runtime reports usage on the finish chunk
     // (absent on some providers — the card omits the line, never blocks).
     ...(result?.usage ? { tokens: result.usage } : {}),
@@ -492,6 +515,29 @@ function finishExecution(t, startTime, result) {
     });
   }
   broadcastStatus(t.id);
+}
+
+// Register a fire that failed BEFORE execution could start (the fleet
+// patrol-context renderer throwing at trigger time — agent-fleet-report-lane).
+// The failure is recorded into history with a structured error and the
+// lifecycle lands on `failed` (re-runnable from the UI); nothing enqueues.
+function recordFailedFire(id, message) {
+  const t = tasks.get(id);
+  if (!t) return false;
+  const now = new Date().toISOString();
+  t.lastRun = now;
+  t.state = "failed";
+  t.error = message;
+  t.promptOverride = null;
+  t.history.push({ time: now, duration: 0, state: "failed", success: false, error: message });
+  for (const hook of onFinishedHooks) {
+    try {
+      hook(t);
+    } catch { /* a subscriber failure must not lose the outcome */ }
+  }
+  void saveTasks();
+  broadcastStatus(id);
+  return true;
 }
 
 // Run or re-run a task immediately (bypasses the schedule). Enqueues only —
@@ -615,6 +661,8 @@ export {
   getTask,
   enqueueExecution,
   runTaskNow,
+  setPromptOverride,
+  recordFailedFire,
   idle,
   chainTurn,
   addOnFinished,

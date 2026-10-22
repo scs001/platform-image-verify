@@ -199,14 +199,20 @@ export async function reconcileAllFleets({ db, cronApi, resolveTarget, rosterPre
 
 // Precedence: vacant (incumbent object gone) → passive (no cadence) → paused
 // (either pause layer) → missing (no task / beyond tolerance window) → on_duty.
-// The evidence fields explain WHY a post reads the way it does (design D5).
-export function deriveMemberStatus({ member, fleet, task, targetAlive, now = Date.now() }) {
+// The tolerance is DUAL-WINDOW once the report lane exists (agent-fleet-
+// report-lane): an execution beyond the window OR a report beyond the window
+// (when the post has ever reported) both read 失联 — evidence names which
+// window fired. The evidence fields explain WHY a post reads the way it does
+// (design D5).
+export function deriveMemberStatus({ member, fleet, task, targetAlive, latestReport = null, now = Date.now() }) {
   const evidence = {
     lastRunAt: task?.lastRun ?? null,
     nextRunAt: task?.nextRun ?? null,
     staleWindowMs: member.cadence ? staleWindowMs(member.cadence.cron, member.cadence.tz) : null,
     fleetPaused: fleet?.state === "paused",
     memberPaused: member.cadence ? member.cadence.enabled === false : false,
+    latestReportAt: latestReport?.createdAt ?? null,
+    hitWindow: null,
   };
 
   if (targetAlive === false) {
@@ -224,17 +230,29 @@ export function deriveMemberStatus({ member, fleet, task, targetAlive, now = Dat
 
   const window = evidence.staleWindowMs;
   const lastRunMs = task.lastRun ? Date.parse(task.lastRun) : null;
+  const executionStale = (ms) => ms != null && Number.isFinite(ms) && now - ms > window;
+
   if (lastRunMs != null && Number.isFinite(lastRunMs)) {
-    if (now - lastRunMs > window) {
+    if (executionStale(lastRunMs)) {
+      evidence.hitWindow = "execution";
       return { status: "missing", reason: `no execution for over the tolerance window (${Math.round(window / 3_600_000)}h)`, evidence };
     }
-    return { status: "on_duty", reason: "recent execution within tolerance", evidence };
+  } else {
+    // Never ran: on-duty until the first occurrence is due AND the window has
+    // passed since materialization (createdAt is ISO from task-engine).
+    const createdMs = task.createdAt ? Date.parse(task.createdAt) : null;
+    if (createdMs != null && Number.isFinite(createdMs) && now - createdMs > window) {
+      evidence.hitWindow = "execution";
+      return { status: "missing", reason: "materialized but never executed past the tolerance window", evidence };
+    }
+    return { status: "on_duty", reason: "awaiting first scheduled run", evidence };
   }
-  // Never ran: on-duty until the first occurrence is due AND the window has
-  // passed since materialization (createdAt is ISO from task-engine).
-  const createdMs = task.createdAt ? Date.parse(task.createdAt) : null;
-  if (createdMs != null && Number.isFinite(createdMs) && now - createdMs > window) {
-    return { status: "missing", reason: "materialized but never executed past the tolerance window", evidence };
+
+  // Execution is healthy — the report window still applies once the post has
+  // ever reported (a patrol that never hears from a reporting post is stale).
+  if (evidence.latestReportAt != null && now - evidence.latestReportAt > window) {
+    evidence.hitWindow = "report";
+    return { status: "missing", reason: `no report for over the tolerance window (${Math.round(window / 3_600_000)}h)`, evidence };
   }
-  return { status: "on_duty", reason: "awaiting first scheduled run", evidence };
+  return { status: "on_duty", reason: "recent execution within tolerance", evidence };
 }

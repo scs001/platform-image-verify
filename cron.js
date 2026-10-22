@@ -18,7 +18,8 @@ const MAX_MISSED_PER_LOAD = 100;
 
 // ── Initialization ────────────────────────────────────────────────────────────
 
-async function initCron({ broadcast, runJobTurn, isBusy, workerStats }) {
+async function initCron({ broadcast, runJobTurn, isBusy, workerStats, renderFleetContext }) {
+  setFleetContextRenderer(renderFleetContext ?? null);
   await engine.initTaskEngine({
     broadcast,
     runTurn: runJobTurn,
@@ -143,6 +144,44 @@ function generateId() {
   return `job_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// The fleet patrol-context renderer (agent-fleet-report-lane), injected by the
+// server layer at init so this module stays fleet-agnostic and testable. Null
+// when absent: fleet tasks then fire with their stored (template) prompt —
+// the same behavior a deployment without the report lane keeps.
+let renderFleetContextFn = null;
+
+// Wire the renderer without a full initCron pass (tests, late mounting).
+function setFleetContextRenderer(fn) {
+  renderFleetContextFn = typeof fn === "function" ? fn : null;
+}
+
+// One trigger of an armed task: the injection seam (agent-fleet-report-lane
+// D6). A fleet-tagged task whose prompt carries the {{fleetContext}} placeholder
+// gets the context SEGMENT from the renderer and substitutes it into this
+// fire's prompt only (a transient engine override — the stored prompt stays
+// the reusable template); a render failure or empty segment fails the fire
+// explicitly (never a silent empty-context patrol); everything else — non-fleet
+// tasks, templates without the placeholder — enqueues byte-for-byte as before.
+async function fireTask(id) {
+  const task = engine.getRecord(id);
+  if (!task) return;
+  if (renderFleetContextFn && task.sourceTag?.fleetId && typeof task.prompt === "string" && task.prompt.includes("{{fleetContext}}")) {
+    let segment;
+    try {
+      segment = await renderFleetContextFn(task.sourceTag, task);
+    } catch (err) {
+      engine.recordFailedFire(id, `fleetContext render failed: ${err?.message || err}`);
+      return;
+    }
+    if (typeof segment !== "string" || !segment.trim()) {
+      engine.recordFailedFire(id, "fleetContext renderer returned an empty segment");
+      return;
+    }
+    engine.setPromptOverride(id, task.prompt.replace(/\{\{fleetContext\}\}/g, segment));
+  }
+  engine.enqueueExecution(id);
+}
+
 // Arm the live timer on the engine's shared record (in place — the record IS
 // the engine's map entry; copying would detach state transitions from it).
 function scheduleJob(task) {
@@ -155,7 +194,7 @@ function scheduleJob(task) {
       ? (task.tz ? { rule: task.cron, tz: task.tz } : task.cron)
       : new Date(task.when);
     task.job = schedule.scheduleJob(spec, () => {
-      void engine.enqueueExecution(task.id);
+      void fireTask(task.id);
     });
     if (task.job?.nextInvocation()) {
       task.nextRun = task.job.nextInvocation().toISOString();
@@ -486,6 +525,8 @@ export {
   listJobs,
   getJob,
   isEngineInitialized,
+  fireTask,
+  setFleetContextRenderer,
   runJobNow,
   getDashboardState,
   validateCron,

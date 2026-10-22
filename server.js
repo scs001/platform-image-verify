@@ -63,7 +63,9 @@ import { registerBotRelayRoutes, RELAY_PREFIX } from "./server/routes/bot-relay.
 import { createClusterRoutes, startAutoTerminationJob } from "./server/routes/clusters.js";
 import { createFleetRoutes, resolveFleetTarget } from "./server/routes/fleets.js";
 import { getFleetDatabase } from "./server/routes/fleets-db.js";
-import { reconcileAllFleets } from "./server/fleet-reconcile.js";
+import { reconcileAllFleets, deriveMemberStatus } from "./server/fleet-reconcile.js";
+import { buildFleetContext } from "./server/fleet-context.js";
+import { derivedReportFromTask } from "./server/fleet-reports.js";
 import { rosterPresetId } from "./dsh-profile.js";
 import { createMonitoringRoutes } from "./server/routes/monitoring.js";
 import { createAdminRoutes } from "./server/routes/admin.js";
@@ -924,6 +926,32 @@ attachCronRunner(ctx);
 // async); cron reads its jobs file and starts timers. The registry bridge
 // resolves immediately (its first fetch runs in the background, TTL keeps the
 // snapshot warm); disabled entirely without MARKET_REGISTRY_URL/REGISTRY_URL.
+// Fleet patrol-context inputs (agent-fleet-report-lane): the renderer needs
+// the fleet's on-duty overview; statuses are derived read-time, same as the
+// routes' read face.
+const fleetDb = getFleetDatabase();
+function deriveFleetStatuses(fleetId) {
+  const fleet = fleetDb.getFleet(fleetId);
+  if (!fleet) return new Map();
+  const tasks = new Map(
+    cron.listJobs().filter((j) => j?.sourceTag?.fleetId === fleetId).map((j) => [j.sourceTag.memberId, j]),
+  );
+  const out = new Map();
+  for (const m of fleetDb.listMembers(fleetId)) {
+    out.set(
+      m.id,
+      deriveMemberStatus({
+        member: m,
+        fleet,
+        task: tasks.get(m.id) ?? null,
+        targetAlive: resolveFleetTarget(m).alive,
+        latestReport: fleetDb.latestReportFor(m.id),
+      }).status,
+    );
+  }
+  return out;
+}
+
 initRegistryBridge({ broadcast: ctx.broadcast });
 await Promise.all([
   migrate.runLegacyMigrations(),
@@ -954,15 +982,43 @@ await Promise.all([
     // wait-for-idle, preset switch, collector-prompted exchange, persistence.
     runJobTurn: (job, opts) => ctx.runCronJobTurn(job, opts),
     isBusy: () => ctx.isStreaming,
-    // Worker-pool occupancy for the stats snapshot; a closure because the
+    // Worker-pool occupancy for the fleet stats snapshot; a closure because the
     // pool attaches after this init (unify-wanxing-management-plane).
     workerStats: () => ctx.workerPool?.poolStats(),
+    // Fleet patrol context (agent-fleet-report-lane D6): render the
+    // {{fleetContext}} segment at fire time for fleet-tagged tasks; cron.js
+    // substitutes it into that fire's prompt. Throws or empty segments fail
+    // the fire explicitly — never a silent empty-context patrol.
+    renderFleetContext: (sourceTag, task) =>
+      buildFleetContext(sourceTag, task, {
+        db: getFleetDatabase(),
+        deriveStatuses: deriveFleetStatuses,
+        decisionDigest: null, // decision lane (刀3) mounts here
+      }),
   }),
 ]);
 // Delegation aggregator: hooks the engine AFTER initCron (init clears hook
 // subscribers) — finished manual fan-outs inject the summary turn back into
 // the initiating session; rearm covers groups a restart left pending.
 attachDelegationAggregator(ctx).rearm();
+// Fleet report lane (agent-fleet-report-lane D4): a finished a2a fleet fire
+// cannot self-report (the remote agent cannot call this cell's tools) — its
+// outcome becomes a derived, honestly-badged execution-summary report row.
+// Registered after initCron for the same reason as the aggregator; the engine
+// is imported dynamically here because server.js otherwise stays
+// runtime-agnostic behind cron.js.
+{
+  const engine = await import("./task-engine.js");
+  const fleetReportsDb = getFleetDatabase();
+  engine.addOnFinished((task) => {
+    try {
+      const derived = derivedReportFromTask(task);
+      if (derived) fleetReportsDb.appendReport(derived);
+    } catch (e) {
+      console.warn(`[fleets] derived report failed for ${task?.id}: ${e.message}`);
+    }
+  });
+}
 // Worker pool (TASK_WORKER_MAX; 0 = inert, exactly today's serial semantics).
 // Attached after the engine so the slot dispatcher registers against the
 // initialized engine; ctx.workerPool feeds the aggregator's drain gate.

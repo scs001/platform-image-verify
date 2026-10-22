@@ -2301,6 +2301,18 @@
     "dense": {
       "confirm": "Cette cadence se déclenche plus souvent que toutes les 10 minutes et peut coûter cher.",
       "accept": "Compris — créer"
+    },
+    "report": {
+      "drawerTitle": "Détails des rapports",
+      "drawerOpen": "Rapports",
+      "selfBadge": "auto-déclaré",
+      "derivedBadge": "résumé d'exécution · non auto-déclaré",
+      "note": "Note personnelle",
+      "blockers": "Blocages",
+      "noReports": "Aucun rapport",
+      "openSession": "Session source",
+      "loadMore": "Charger plus ancien",
+      "refresh": "Rafraîchir"
     }
   }
 }

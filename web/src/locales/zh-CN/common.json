@@ -2301,6 +2301,18 @@
     "dense": {
       "confirm": "该节奏触发间隔低于 10 分钟，可能产生较高模型成本。",
       "accept": "知晓成本，仍要创建"
+    },
+    "report": {
+      "drawerTitle": "报数详情",
+      "drawerOpen": "报数",
+      "selfBadge": "自报",
+      "derivedBadge": "执行摘要·非自报",
+      "note": "自报备注",
+      "blockers": "阻塞",
+      "noReports": "尚无报数",
+      "openSession": "来源会话",
+      "loadMore": "载入更早",
+      "refresh": "刷新"
     }
   }
 }

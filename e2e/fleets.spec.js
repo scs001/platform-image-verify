@@ -25,7 +25,7 @@ function memberFixture(id, over = {}) {
     title: over.title ?? id,
     parentId: over.parentId ?? null,
     target: over.target ?? { kind: "persona", id: "p1", label: "甲" },
-    kpiSlots: [],
+    kpiSlots: over.kpiSlots ?? [],
     cadence: over.cadence ?? null,
     sortKey: over.sortKey ?? 0,
     createdAt: 0,
@@ -33,17 +33,59 @@ function memberFixture(id, over = {}) {
     taskId: over.taskId ?? null,
     status: over.status ?? "on_duty",
     statusReason: over.statusReason ?? "",
-    evidence: over.evidence ?? { lastRunAt: null, nextRunAt: null, staleWindowMs: null },
+    evidence: over.evidence ?? { lastRunAt: null, nextRunAt: null, staleWindowMs: null, latestReportAt: null, hitWindow: null },
+    latestReport: over.latestReport ?? null,
+    reportTimeline: over.reportTimeline ?? [],
   };
 }
+
+const SHOP_REPORT = {
+  id: "r_shop_2",
+  at: 1790000000000,
+  summary: "Big promo day",
+  source: "self",
+  sessionId: "cron-shop",
+  slots: [
+    { key: "sales_week", label: "Sales", unit: "$", value: 309, note: "+1%", trend: { direction: "up", deltaValue: 29 } },
+  ],
+  undeclaredKeys: [],
+  metricsAll: { sales_week: { value: 309 } },
+  blockers: [],
+};
 
 const DEMO_DETAIL = {
   fleet: { id: FLEET_ID, name: "Demo Fleet", state: "active", createdAt: 0, updatedAt: 0 },
   members: [
     memberFixture("ceo", { title: "CEO", status: "on_duty", statusReason: "recent execution within tolerance" }),
-    memberFixture("ops", { title: "Ops", parentId: "ceo", status: "missing", statusReason: "no execution for over the tolerance window (6h)", cadence: { cron: "0 * * * *", tz: null, promptTemplate: "x", enabled: true } }),
-    memberFixture("shop", { title: "Shop", parentId: "ceo", status: "vacant", statusReason: "target object no longer exists", cadence: { cron: "0 9 * * *", tz: null, promptTemplate: "x", enabled: true } }),
-    memberFixture("assist", { title: "Assist", parentId: "ceo", status: "passive", statusReason: "no cadence" }),
+    memberFixture("ops", {
+      title: "Ops",
+      parentId: "ceo",
+      status: "missing",
+      statusReason: "no report for over the tolerance window (6h)",
+      evidence: { lastRunAt: new Date().toISOString(), nextRunAt: null, staleWindowMs: 21600000, latestReportAt: 1, hitWindow: "report" },
+      cadence: { cron: "0 * * * *", tz: null, promptTemplate: "x", enabled: true },
+    }),
+    memberFixture("shop", {
+      title: "Shop",
+      parentId: "ceo",
+      status: "vacant",
+      statusReason: "target object no longer exists",
+      cadence: { cron: "0 9 * * *", tz: null, promptTemplate: "x", enabled: true },
+      kpiSlots: [{ key: "sales_week", label: "Sales", unit: "$" }],
+      latestReport: SHOP_REPORT,
+      reportTimeline: [
+        { id: "r_shop_2", at: 1790000000000, summary: "Big promo day", metrics: { sales_week: { value: 309 } }, blockers: [], resources: [], source: "self", sessionId: "cron-shop" },
+        { id: "r_shop_1", at: 1789900000000, summary: "Slow week", metrics: { sales_week: { value: 280 } }, blockers: [], resources: [], source: "self", sessionId: "cron-shop" },
+      ],
+    }),
+    memberFixture("assist", {
+      title: "Assist",
+      parentId: "ceo",
+      target: { kind: "a2a", id: "remote", label: "Remote" },
+      status: "passive",
+      statusReason: "no cadence",
+      latestReport: { id: "r_a2a", at: 1790000100000, summary: "remote turn ok", source: "derived", sessionId: "cron-a2a", slots: [], undeclaredKeys: [], metricsAll: {}, blockers: [] },
+    }),
   ],
   statusCounts: { on_duty: 1, missing: 1, vacant: 1, passive: 1 },
 };
@@ -92,8 +134,29 @@ test.describe("fleets board", () => {
     expect(lefts[2] - lefts[0]).toBeGreaterThan(10);
     expect(lefts[3] - lefts[0]).toBeGreaterThan(10);
 
-    // Evidence rides on the badge title (the "why missing" hover).
-    await expect(tree.getByTestId("member-status-ops")).toHaveAttribute("title", /tolerance window/);
+    // Evidence rides on the badge title (the "why missing" hover) — the dual
+    // window names which one fired.
+    await expect(tree.getByTestId("member-status-ops")).toHaveAttribute("title", /no report for over the tolerance window/);
+
+    // Report lane: KPI slot chip with value + system trend, summary line, and
+    // the a2a execution-summary badge.
+    const slotChip = tree.getByTestId("kpi-slot-shop-sales_week");
+    await expect(slotChip).toBeVisible();
+    await expect(slotChip).toContainText("309");
+    await expect(slotChip.locator(".text-success, .text-destructive")).toContainText("↑+29");
+    await expect(tree.getByTestId("member-summary-shop")).toContainText("Big promo day");
+    await expect(tree.getByTestId("member-derived-badge-assist")).toContainText("not self-reported");
+
+    // The report drawer: latest block + timeline rows + session jump link.
+    await page.getByTestId("member-report-drawer-shop").click();
+    const drawer = page.getByTestId("report-drawer-latest");
+    await expect(drawer).toBeVisible();
+    await expect(drawer).toContainText("Big promo day");
+    await expect(page.getByTestId("report-row-r_shop_2")).toContainText("309");
+    await expect(page.getByTestId("report-row-r_shop_1")).toContainText("Slow week");
+    await expect(page.getByTestId("report-row-r_shop_2").getByRole("button", { name: "Source session" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(drawer).toBeHidden();
   });
 });
 

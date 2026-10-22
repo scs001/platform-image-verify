@@ -72,3 +72,15 @@ export function loginCredentials(email) {
   if (!row?.loginEmail || !row?.loginPassword) return null;
   return { email: row.loginEmail, password: row.loginPassword };
 }
+
+// The Chatwoot user id behind the stored token (SSO login addressing,
+// add-crm-desk-pack-embed 6.x SSO). Discovered lazily via /api/v1/profile by
+// the route; cached on the credential row.
+export function chatwootUserId(email) {
+  const row = db.getChatwootCredential(ownerKey(email));
+  return row?.chatwootUserId ?? null;
+}
+
+export function storeChatwootUserId(email, id) {
+  return db.setChatwootUserId(ownerKey(email), id);
+}

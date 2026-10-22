@@ -47,6 +47,18 @@ const upstream = http.createServer((req, res) => {
     });
     return;
   }
+  if (req.url === "/api/v1/profile") {
+    // token-bound profile: the token value selects the chatwoot user id
+    const at = req.headers["api-access-token"] ?? "";
+    const id = at === "tk-merchant" ? 7 : at === "tk" ? 1 : null;
+    if (id == null) {
+      res.writeHead(401).end('{"error":"Invalid Access Token"}');
+      return;
+    }
+    res.writeHead(200, { "content-type": "application/json" });
+    res.end(JSON.stringify({ id, accounts: [{ id, name: "tenant-" + id }] }));
+    return;
+  }
   if (req.url.startsWith("/api/v1/")) {
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({
@@ -56,10 +68,28 @@ const upstream = http.createServer((req, res) => {
     }));
     return;
   }
+  {
+    const m = req.url.match(/^\/platform\/api\/v1\/users\/(\d+)\/login$/);
+    if (m) {
+      if ((req.headers["api-access-token"] ?? "") !== "platform-tok") {
+        res.writeHead(401).end("{}");
+        return;
+      }
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ url: `https://desk.example/app/login?email=u${m[1]}%40x&sso_auth_token=one-time` }));
+      return;
+    }
+    if (req.url.startsWith("/platform/")) {
+      // user not in permissibles
+      res.writeHead(404).end("{}");
+      return;
+    }
+  }
   res.writeHead(404).end("{}");
 });
 await new Promise((r) => upstream.listen(0, "127.0.0.1", r));
 process.env.CHATWOOT_BASE_URL = `http://127.0.0.1:${upstream.address().port}`;
+process.env.CHATWOOT_PLATFORM_TOKEN = "platform-tok";
 
 const express = (await import("express")).default;
 const { registerDeskEmbedRoutes } = await import("../server/routes/desk-embed.js");
@@ -131,7 +161,7 @@ test("6.2 entry: token-only user gets the honest 422, not a half-open embed", as
 
 test("6.2 proxy: devise headers injected from the upstream session; per-user", async () => {
   as(MERCHANT);
-  const r = await fetch(`${base}/external/desk/api/v1/profile`);
+  const r = await fetch(`${base}/external/desk/api/v1/conversations`);
   const body = await r.json();
   assert.equal(body.at, "up-at");
   assert.equal(body.client, "up-client");
@@ -157,4 +187,46 @@ test("6.3 negative: no-credential user never reaches upstream (no upstream sessi
 test.after(() => {
   try { server.close(); } catch {}
   try { upstream.close(); } catch {}
+});
+
+
+// ── SSO direct path (paas-embed-desk-requirements) ──────────────────────────
+
+test("sso: connected user exchanges to a one-time login URL for THEIR tenant", async () => {
+  as(MERCHANT);
+  cw.store({ email: MERCHANT, token: "tk-merchant" }); // profile maps to user 7
+  const r = await fetch(`${base}/external/crm-desk/sso`, { redirect: "manual" });
+  assert.equal(r.status, 302);
+  const loc = r.headers.get("location");
+  assert.match(loc, /sso_auth_token=one-time$/);
+  assert.match(loc, /u7%40x|u7@x/);
+  assert.equal(cw.chatwootUserId(MERCHANT), 7, "mapping cached on the row");
+});
+
+test("sso: user without a connected credential gets the honest 未开通 page", async () => {
+  as("no-cred@test.example");
+  const r = await fetch(`${base}/external/crm-desk/sso`, { redirect: "manual" });
+  assert.equal(r.status, 404);
+  assert.match(await r.text(), /尚未开通客服台/);
+});
+
+test("sso: permissibles-miss (upstream 404) surfaces 未开通 SSO, never a login", async () => {
+  const outsider = "outsider@test.example";
+  cw.store({ email: outsider, token: "tk-unknown" }); // profile maps to id=null → 401 profile → invalid
+  as(outsider);
+  const r = await fetch(`${base}/external/crm-desk/sso`, { redirect: "manual" });
+  // tk-unknown profile → 401 → resolved null → 凭据无效 page
+  assert.equal(r.status, 401);
+});
+
+test("sso: platform token absent → honest 未配置 page", async () => {
+  delete process.env.CHATWOOT_PLATFORM_TOKEN;
+  try {
+    as(MERCHANT);
+    const r = await fetch(`${base}/external/crm-desk/sso`, { redirect: "manual" });
+    assert.equal(r.status, 503);
+    assert.match(await r.text(), /SSO 未配置/);
+  } finally {
+    process.env.CHATWOOT_PLATFORM_TOKEN = "platform-tok";
+  }
 });

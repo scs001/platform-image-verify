@@ -27,6 +27,76 @@
 import { signEmbedToken } from "../session.js";
 import * as chatwootCredentials from "../../chatwoot-credentials.js";
 
+// ── Platform API SSO (paas-embed-desk-requirements.md, task 6.x) ────────────
+// The desk instance runs a Platform App (`paas-sso`); its token (deployment
+// env CHATWOOT_PLATFORM_TOKEN, 带外) exchanges a per-user one-time login URL:
+//   GET {base}/platform/api/v1/users/{id}/login  →  {url: ".../sso_auth_token=…"}
+// Opening that URL logs the user into THEIR tenant with zero typing. This is
+// the LIVE embed path (no edge subdomain needed); the reverse-proxy surfaces
+// below remain the visual-embed upgrade path.
+
+const SSO_TIMEOUT_MS = 10_000;
+
+// Resolve the Chatwoot user id for the caller: the id behind THEIR stored API
+// token (lazy /api/v1/profile discovery, cached on the credential row).
+async function resolveChatwootUserId(email, base) {
+  const cached = chatwootCredentials.chatwootUserId(email);
+  if (cached) return cached;
+  const token = chatwootCredentials.liveToken(email);
+  if (!token) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SSO_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${base}/api/v1/profile`, {
+      headers: { "Api-Access-Token": token },
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    const profile = await res.json();
+    const id = Number(profile?.id);
+    if (!Number.isInteger(id)) return null;
+    chatwootCredentials.storeChatwootUserId(email, id);
+    return id;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Exchange the user id for a one-time SSO login URL (server-side; the platform
+// token never leaves this process).
+async function ssoLoginUrl(userId, base) {
+  const platformToken = process.env.CHATWOOT_PLATFORM_TOKEN;
+  if (!platformToken) {
+    throw Object.assign(new Error("平台未配置客服台 SSO（CHATWOOT_PLATFORM_TOKEN 缺失）"), { code: "not_configured" });
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SSO_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${base}/platform/api/v1/users/${userId}/login`, {
+      headers: { "Api-Access-Token": platformToken },
+      signal: controller.signal,
+    });
+    if (res.status === 404) {
+      throw Object.assign(new Error("该账号尚未开通客服台 SSO（用户不在 Platform App 授权名单）"), { code: "not_provisioned" });
+    }
+    if (!res.ok) {
+      throw Object.assign(new Error(`上游错误：客服台 SSO 返回 ${res.status}`), { code: "upstream" });
+    }
+    const data = await res.json();
+    if (typeof data?.url !== "string" || !data.url) {
+      throw Object.assign(new Error("上游错误：客服台 SSO 响应缺少登录地址"), { code: "upstream" });
+    }
+    return data.url;
+  } catch (err) {
+    if (err?.code) throw err;
+    throw Object.assign(new Error(`网络不可达：${err?.message || err}`), { code: "unreachable" });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const EMBED_COOKIE = "desk_embed";
 const EMBED_COOKIE_TTL_MS = 12 * 60 * 60 * 1000;
 // Devise tokens expire (~14 days from issue); re-sign-in well before that.
@@ -157,6 +227,38 @@ export function registerDeskEmbedRoutes(ctx) {
     }
     const et = signEmbedToken(secret(), email ?? "machine-owner");
     res.redirect(`${embedOrigin()}/entry?et=${encodeURIComponent(et)}`);
+  });
+
+  // PLATFORM ORIGIN — the LIVE embed path: Platform API SSO exchange.
+  // Connected user → one-time login URL for THEIR tenant → 302. No credential
+  // (no mapping) → the honest 未开通 page. The platform token and the one-time
+  // URL never appear in logs or responses beyond the redirect target itself.
+  app.get("/external/crm-desk/sso", async (req, res) => {
+    if (!requireOwner(req, res, ctx)) return;
+    const email = identity(req)?.email ?? null;
+    if (!db.isDbReady()) return errorPage(res, 503, "平台存储不可用", "稍后再试。");
+    const base = baseUrl();
+    if (!base) return errorPage(res, 503, "客服台嵌入未配置", "本部署尚未配置 Chatwoot 地址，请联系平台管理员。");
+    if (!chatwootCredentials.status(email).connected) {
+      // 无映射/未连接 → 未开通客服台（spec fallback）
+      return errorPage(res, 404, "尚未开通客服台", "你的壹座账号还没有连接 Chatwoot 凭据——先在 设置 → 连接 → CRM 客服台 完成连接，即可从这里免密进入你的客服台。");
+    }
+    try {
+      const userId = await resolveChatwootUserId(email, base);
+      if (!userId) {
+        return errorPage(res, 401, "客服台凭据无效", "你在连接面板保存的 token 被客服台拒绝，请重新粘贴后再试。");
+      }
+      const url = await ssoLoginUrl(userId, base);
+      return res.redirect(url);
+    } catch (err) {
+      if (err.code === "not_provisioned") {
+        return errorPage(res, 403, "尚未开通客服台 SSO", err.message);
+      }
+      if (err.code === "not_configured") {
+        return errorPage(res, 503, "客服台 SSO 未配置", err.message);
+      }
+      return errorPage(res, 502, "客服台暂时不可用", err.message);
+    }
   });
 
   // DESK-EMBED ORIGIN — session bootstrap.

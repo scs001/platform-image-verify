@@ -29,8 +29,8 @@
       "type": "app",
       "kind": "link",
       "name": "客服台",
-      "url": "/external/desk/go",
-      "description": "CRM 客服台（Chatwoot）——以你的账号登录态直达自家收件箱；需先在连接面板连接你的 Chatwoot 凭据",
+      "url": "/external/crm-desk/sso",
+      "description": "CRM 客服台（Chatwoot）——免密直达你自己的客服台租户；需先在连接面板连接你的 Chatwoot 凭据",
       "line": "yizuo"
     }
   ],

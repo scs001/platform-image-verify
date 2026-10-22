@@ -749,6 +749,7 @@ const MIGRATIONS = [
     statements: [`ALTER TABLE user_presets ADD COLUMN mcp_tools TEXT DEFAULT '{}'`],
   },
   {
+    version: 34,
     // add-line-boards-and-action-gate: action proposals + audit log.
     //   action_proposals — pending/approved/rejected/expired actions;
     //     id (proposalId), line, action_id, args_digest (sha256), args_json (encrypted or plain for execution), risk, target,
@@ -803,6 +804,7 @@ const MIGRATIONS = [
     ],
   },
   {
+    version: 35,
     // add-crm-desk-pack-embed (task 2.1): per-user Chatwoot BYOK credential —
     // the API token (tool face + action execution) plus optional login
     // email/password (embed server-side sign-in only). One row per user;
@@ -819,6 +821,13 @@ const MIGRATIONS = [
         updated_at TEXT NOT NULL
       )`,
     ],
+  },
+  {
+    version: 36,
+    // add-crm-desk-pack-embed task 6.x (SSO): the Chatwoot user id behind the
+    // stored API token — discovered lazily via /api/v1/profile and cached so
+    // the platform-API SSO login endpoint can be addressed per user.
+    statements: [`ALTER TABLE user_chatwoot_credentials ADD COLUMN chatwoot_user_id INTEGER`],
   },
 ];
 
@@ -1955,7 +1964,7 @@ export function getChatwootCredential(email) {
   const key = normalizeIdentityEmail(email);
   if (!key) return null;
   return stmt(
-    "SELECT token, login_email AS loginEmail, login_password AS loginPassword, stale, updated_at AS updatedAt FROM user_chatwoot_credentials WHERE email = ?"
+    "SELECT token, login_email AS loginEmail, login_password AS loginPassword, chatwoot_user_id AS chatwootUserId, stale, updated_at AS updatedAt FROM user_chatwoot_credentials WHERE email = ?"
   ).get(key) ?? null;
 }
 
@@ -1979,6 +1988,14 @@ export function markChatwootCredentialStale(email) {
   if (!key) return false;
   return stmt("UPDATE user_chatwoot_credentials SET stale = 1, updated_at = ? WHERE email = ?")
     .run(nowIso(), key).changes > 0;
+}
+
+export function setChatwootUserId(email, chatwootUserId) {
+  if (!dbReady) return false;
+  const key = normalizeIdentityEmail(email);
+  if (!key || !Number.isInteger(chatwootUserId)) return false;
+  return stmt("UPDATE user_chatwoot_credentials SET chatwoot_user_id = ?, updated_at = ? WHERE email = ?")
+    .run(chatwootUserId, nowIso(), key).changes > 0;
 }
 
 export function clearChatwootCredential(email) {

@@ -30,7 +30,8 @@ import { effectiveMcpTools } from "./lib/pack-manifest.js";
 import { deriveFullModeToolScope, customPresetToolScope } from "./lib/full-mode-tool-scope.js";
 import { deriveScopedToken, scopeIdForEmail } from "./lib/scoped-relay-token.js";
 import { probeHttpServers } from "./mcp-preflight.js";
-import { cellMemoryMount } from "./cell-memory.js";
+import { cellMemoryMount, cellMemoryConfig } from "./cell-memory.js";
+import { MEMORY_DISCIPLINE } from "./memory-discipline.js";
 import { repoRoot } from "./paths.js";
 
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), ".dsh");
@@ -1495,6 +1496,23 @@ export function writePresetsPatchSync({ dirs, default: defaultPreset = DEFAULT_A
   // target (the runner's private homes) uses only the caller's extras —
   // those homes have no platform catalog.
   const defs = dirs ? [...extraPresets] : [...extraPresets, ...catalogPresetDefinitions()];
+  // Cell memory discipline (fix-memory-capture-p0 D6): on the deployment
+  // singleton, when the cell memory mount is configured, every persona preset
+  // carries the discipline text in the dsh-persona suffix — the mount row and
+  // the persona text appear and disappear together (CELL_MEMORY_ENABLED=0
+  // leaves the output byte-identical). Runner-private homes (dirs set) are
+  // excluded: the runner appends the discipline into the persona text itself
+  // at materialization, gated on the mount actually being present.
+  const cellMemoryOn = !dirs && Boolean(cellMemoryConfig(process.env));
+  const personaSuffix = (rows) => {
+    if (cellMemoryOn) {
+      const personaRow = rows.find((r) => r && typeof r === "object" && r.id === "persona");
+      if (personaRow) {
+        personaRow.config = { ...(personaRow.config ?? {}), suffix: `${personaRow.config?.suffix ?? ""}${MEMORY_DISCIPLINE}` };
+      }
+    }
+    return rows;
+  };
   const presetRows = [
     {
       id: "preset-standard",
@@ -1504,7 +1522,7 @@ export function writePresetsPatchSync({ dirs, default: defaultPreset = DEFAULT_A
         name: "Standard",
         description: "The full local agent",
         order: 10,
-        plugins: standardCompositionRows(),
+        plugins: personaSuffix(standardCompositionRows()),
       },
     },
     ...defs.map((d) => ({
@@ -1515,7 +1533,7 @@ export function writePresetsPatchSync({ dirs, default: defaultPreset = DEFAULT_A
         name: d.name,
         description: d.description,
         order: d.order ?? 50,
-        plugins: composePresetRows(d.persona),
+        plugins: personaSuffix(composePresetRows(d.persona)),
       },
     })),
   ];

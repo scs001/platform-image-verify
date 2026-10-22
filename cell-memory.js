@@ -11,16 +11,12 @@
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
+// Single-source discipline text (fix-memory-capture-p0 D6): the same string
+// the fleet runner injects, imported from the repo root so the two surfaces
+// can never drift (bilingual zh + en by decision).
+import { MEMORY_DISCIPLINE } from "./memory-discipline.js";
 
-export const MEMORY_DISCIPLINE = `
-
-## 工作记忆（fd-memory）
-
-MCP 服务器 fd-memory 已挂载（工具名 mcp__fd-memory__*）。
-
-- 会话收尾做成了有意义的工作时，调用 memory_handoff_begin 写交接：完成了什么、接口形状、下一步、坑、涉及的文件。
-- 开场若可能在续作先前工作，先 memory_handoff_list；有给自己的 open handoff 就 memory_handoff_accept 认领后续作，不要重推背景。
-`;
+export { MEMORY_DISCIPLINE };
 
 export function cellMemoryConfig(env = process.env) {
   const enabled = env.CELL_MEMORY_ENABLED === "1";

@@ -38,6 +38,52 @@ import { unsupportedCapability } from "./adapter.js";
 const HANDSHAKE_TIMEOUT_MS = 30_000;
 const STOP_GRACE_MS = 3_000;
 
+// Text of one ACP tool-call content list, in either shape seen on the wire
+// (fix-memory-capture-p0 4.1, verified against the vendored dsh-acp bridge):
+// the bridge wraps every block — content: [{type:"content", content:<block>}] —
+// while spec-native agents (claude-code-acp) emit the blocks directly.
+function acpToolText(content) {
+  if (!Array.isArray(content)) return "";
+  const out = [];
+  for (const b of content) {
+    const inner = b?.type === "content" && b?.content && typeof b.content === "object" ? b.content : b;
+    if (inner?.type === "text" && typeof inner.text === "string") out.push(inner.text);
+  }
+  return out.join("");
+}
+
+// One ACP session/update (tool_call | tool_call_update) → the adapter's
+// normalized memory-event shape (fix-memory-capture-p0 D2). Exported so the
+// collector tests exercise the exact mapping the turn path uses. `toolNames`
+// is the turn-local toolCallId→title map — result updates carry no tool name.
+// Returns null for other update kinds. Only terminal results (completed /
+// failed) map; "pending"/"in_progress" statuses are not observations.
+export function acpToolEvent(update, toolNames) {
+  if (update?.sessionUpdate === "tool_call") {
+    const callId = update.toolCallId ?? null;
+    const name = update.title ?? update.kind ?? null;
+    if (callId && name && toolNames) toolNames.set(callId, name);
+    return { type: "tool_call", callId, toolName: name, args: update.rawInput ?? null };
+  }
+  if (update?.sessionUpdate === "tool_call_update" &&
+      (update.status === "completed" || update.status === "failed")) {
+    let text = acpToolText(update.content);
+    if (!text && update.rawOutput != null) {
+      text = typeof update.rawOutput === "string" ? update.rawOutput : (() => {
+        try { return JSON.stringify(update.rawOutput); } catch { return String(update.rawOutput); }
+      })();
+    }
+    return {
+      type: "tool_result",
+      callId: update.toolCallId ?? null,
+      toolName: (toolNames?.get(update.toolCallId)) ?? null,
+      resultText: text,
+      isError: update.status === "failed",
+    };
+  }
+  return null;
+}
+
 export class AcpHarnessAdapter {
   #proc = null;
   #rl = null;
@@ -248,7 +294,7 @@ export class AcpHarnessAdapter {
     return rec;
   }
 
-  async turn(sessionId, text, { onDelta } = {}) {
+  async turn(sessionId, text, { onDelta, onEvent } = {}) {
     if (!this.ready) throw new Error("ACP agent is not running");
     // Counted from the top: the contract says an in-flight turn (session
     // setup included) is visible on activeTurns the moment turn() is called —
@@ -268,6 +314,10 @@ export class AcpHarnessAdapter {
       }
       let text_acc = "";
       let usage = null;
+      // Turn-local toolCallId→tool-name map for the memory onEvent lane
+      // (P0 D2): result updates carry no tool name, so it is recalled from
+      // the matching tool_call update.
+      const toolNames = new Map();
       this.#turnCollectors.set(rec.acpSessionId, (update) => {
         if (update?.sessionUpdate === "agent_message_chunk") {
           const piece = typeof update?.content?.text === "string" ? update.content.text : "";
@@ -277,6 +327,14 @@ export class AcpHarnessAdapter {
           }
         } else if (update?.sessionUpdate === "usage_update") {
           usage = update;
+        } else {
+          // Memory onEvent lane: tool lifecycle updates ride the same
+          // collector as the text lane; observation never becomes a turn
+          // failure, so the callback is guarded end to end.
+          const toolEv = acpToolEvent(update, toolNames);
+          if (toolEv) {
+            try { onEvent?.(toolEv); } catch { /* observation never load-bearing */ }
+          }
         }
       });
       let stopReason = null;

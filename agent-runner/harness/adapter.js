@@ -39,6 +39,12 @@ export const ADAPTER_CAPABILITIES = Object.freeze([
   "asks",
 ]);
 
+// Optional per-turn event callback (fix-memory-capture-p0 D2): `onEvent` in
+// turn() options receives `{type:"tool_call"|..., callId, toolName, ...}` for
+// tool activity the harness observes mid-turn. NOT a capability key — adapters
+// that don't surface it simply never call it, and the manager's observation
+// degrades to turn-boundary events only (never a turn failure).
+
 /**
  * The structured error for a control call against an unsupported capability.
  * Codes live in the same family the runner already meters on: a control

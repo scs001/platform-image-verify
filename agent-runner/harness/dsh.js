@@ -14,9 +14,40 @@
 // manager never sees collectors, wire ids, parking, or the pump.
 
 import { unsupportedCapability } from "./adapter.js";
+import { parseToolResult } from "../../lib/dsh-tool-result.js";
 
 const INIT_RETRIES = 20;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// One dsh session.event (tool/call | tool/result) → the adapter's normalized
+// memory-event shape (fix-memory-capture-p0 D2). Exported so the collector
+// tests exercise the exact mapping the turn path uses. `toolNames` is the
+// turn-local callId→name map (dsh's result event carries no tool name).
+// Returns null for non-tool events.
+export function dshToolEvent(ev, toolNames) {
+  if (ev?.type === "tool/call") {
+    const callId = ev.data?.callId;
+    const name = ev.data?.name;
+    if (callId && name && toolNames) toolNames.set(callId, name);
+    return {
+      type: "tool_call",
+      callId: callId ?? null,
+      toolName: name ?? null,
+      args: ev.data?.arguments ?? null,
+    };
+  }
+  if (ev?.type === "tool/result") {
+    const parsed = parseToolResult(ev);
+    return {
+      type: "tool_result",
+      callId: parsed.callId ?? null,
+      toolName: (toolNames?.get(parsed.callId)) ?? null,
+      resultText: parsed.resultText ?? "",
+      isError: parsed.isError,
+    };
+  }
+  return null;
+}
 
 export class DshHarnessAdapter {
   #collectors = new Map(); // wire session id → turn collector
@@ -241,7 +272,7 @@ export class DshHarnessAdapter {
   // the member's own turn budget applies. Every exit path settles exactly
   // once (prompt rejection included), or the activeTurns counter leaks and a
   // later drain would wedge.
-  async turn(sessionId, text, { onDelta, agentKey, onAsk } = {}) {
+  async turn(sessionId, text, { onDelta, agentKey, onAsk, onEvent } = {}) {
     const member = this.podMembers?.get(agentKey);
     if (this.podMembers && !member) {
       throw Object.assign(new Error(`agentKey '${agentKey}' is not a member of pod ${this.key}`), { code: -32000 });
@@ -301,6 +332,10 @@ export class DshHarnessAdapter {
       }, turnTimeoutMs);
       let finalText = "";
       let lastUsage = null;
+      // Turn-local callId→tool-name map for the memory onEvent lane (P0 D2):
+      // dsh's tool/result carries no tool name, so the collector recalls it
+      // from the matching tool/call.
+      const toolNames = new Map();
       this.#collectors.set(wireId, (notif) => {
         const { method, params } = notif;
         const ev0 = params?.event;
@@ -381,6 +416,14 @@ export class DshHarnessAdapter {
         }
         if (method !== "session.event") return;
         const ev = params?.event;
+        // Memory onEvent lane (fix-memory-capture-p0 D2): tool events ride the
+        // same collector the text lane uses; observation never becomes a turn
+        // failure, so the callback is guarded end to end.
+        const toolEv = dshToolEvent(ev, toolNames);
+        if (toolEv) {
+          try { onEvent?.(toolEv); } catch { /* observation never load-bearing */ }
+          return;
+        }
         if (ev?.type === "assistant/message") {
           const blocks = ev.data?.message?.content;
           if (Array.isArray(blocks)) {

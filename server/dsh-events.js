@@ -24,6 +24,9 @@ import {
   parseToolSchemas,
   candidateToolNames,
 } from "./tool-discovery.js";
+import { parseToolResult } from "../lib/dsh-tool-result.js";
+
+export { parseToolResult };
 
 // Normalize a `todo/write` snapshot for the wire: keep only `content`/`status`,
 // drop entries with no content, coerce an unrecognized status to "pending", and
@@ -68,27 +71,10 @@ const UNAUTHORIZED_RE = /\b401\b|unauthoriz/i;
 // Production dsh emits the flat form (704/704 events on a prod cell,
 // 2026-10-22); the wrapper is what the unit fixtures carried and what every
 // reader assumed — so live tool output, persisted results, the UNKNOWN_TOOL
-// candidates and the tool-layer 401 staling were silently empty. The blocks
-// array is returned as-is (the diagnostic rewrites patch its first text block
-// in place); `resultText` is the text blocks joined, null when there is none.
-export function parseToolResult(ev) {
-  const msg = ev?.data?.message;
-  const first = msg?.content?.[0];
-  const resultBlocks = Array.isArray(first?.content)
-    ? first.content
-    : Array.isArray(msg?.content)
-      ? msg.content
-      : null;
-  const resultText = Array.isArray(resultBlocks)
-    ? resultBlocks.filter((b) => b?.type === "text").map((b) => b.text).join("") || null
-    : null;
-  return {
-    callId: msg?.source?.callId ?? first?.toolCallId,
-    resultBlocks,
-    resultText,
-    isError: !!ev?.data?.error || !!first?.isError || !!msg?.isError,
-  };
-}
+// candidates and the tool-layer 401 staling were silently empty.
+// The parser itself moved to lib/dsh-tool-result.js (fix-memory-capture-p0 D4)
+// so agent-runner's L0 observations read through the exact same code; the
+// re-export below keeps the historical import path (cron-runner, tests) stable.
 
 function markCredentialStaleOn401(ctx, toolName, resultText) {
   if (!toolName || !resultText || !UNAUTHORIZED_RE.test(resultText)) return;

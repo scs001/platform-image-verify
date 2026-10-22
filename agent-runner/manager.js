@@ -64,7 +64,7 @@ function tokensOf(usage) {
 }
 import { agentKeyFor, materializeAgentHome, materializePackHome, mcpEntry, packPodEligibility, podKeyFor, applyBillingKey, applyDeploymentSecrets, workspaceChildEnv } from "./compose.js";
 import { materializeAcpWorkspace, acpMcpServers, acpCredentialEnv, acpSecretsRefusal } from "./compose-acp.js";
-import { MemoryCapture } from "./memory-capture.js";
+import { MemoryCapture, compactJsonText } from "./memory-capture.js";
 import { MEMORY_DISCIPLINE } from "./memory-discipline.js";
 import { dshMemoryMount, acpMemoryMount } from "./memory-mount.js";
 
@@ -843,10 +843,17 @@ export class ChildManager {
     // name rides both turn events so the observer can attribute turns to
     // their origin (mission dispatches arrive as srv-mission-<id>).
     this.#fleetEmit("turn_started", entry, { turn_kind: kind, session: sessionId });
+    // L0 observation (fix-memory-capture-p0 D3): the inbound text IS the
+    // turn's intent record — observed before any child work, truncated at the
+    // runner seam. Everything below is fail-open by construction.
+    this.#memoryEventObserve(entry, sessionId, "user-prompt-submit", {
+      summary: String(text ?? "").slice(0, this.config.memoryIntentMax),
+    });
+    const onMemoryEvent = this.#memoryOnEvent(entry, sessionId);
     try {
       const child = await this.acquire(entry);
       try {
-        const out = await child.turn(sessionId, text, { onDelta, onAsk, agentKey: route?.pod ? key : undefined });
+        const out = await child.turn(sessionId, text, { onDelta, onAsk, agentKey: route?.pod ? key : undefined, onEvent: onMemoryEvent });
         this.#meterLine(key, kind, {
           ok: true,
           tokens: tokensOf(out?.usage),
@@ -930,8 +937,47 @@ export class ChildManager {
     }
   }
 
-  #memoryDiscipline() {
-    return this.memory ? MEMORY_DISCIPLINE : null;
+  // The discipline text travels with the mount (fix-memory-capture-p0 D5): a
+  // composition that failed to mint a memory token spawns without the mount
+  // row, and its persona must not instruct the agent to call tools that are
+  // not there. Callers pass `memoryToken ? MEMORY_DISCIPLINE : null`.
+
+  #memoryEventObserve(entry, sessionId, event, { toolName = null, summary = "" } = {}) {
+    if (!this.memory) return;
+    try {
+      const packId = entry?.metadata?.packId;
+      const agentId = entry?.name ?? entry?.metadata?.agentId;
+      if (!packId || !agentId) return;
+      this.memory.observe({
+        namespace: `d/${packId}/${agentId}`,
+        sessionId,
+        event,
+        toolName,
+        summary: String(summary ?? ""),
+      });
+    } catch { /* capture is never load-bearing for a turn */ }
+  }
+
+  // Adapter onEvent → hooks-shaped tool observations (D2/D3). Truncation uses
+  // the runner's configured caps; fd-memory re-sanitizes on its side.
+  #memoryOnEvent(entry, sessionId) {
+    if (!this.memory) return undefined;
+    return (ev) => {
+      try {
+        if (ev?.type === "tool_call") {
+          this.#memoryEventObserve(entry, sessionId, "pre-tool-use", {
+            toolName: ev.toolName ?? null,
+            summary: compactJsonText(ev.args, this.config.memoryArgsMax),
+          });
+        } else if (ev?.type === "tool_result") {
+          const head = String(ev.resultText ?? "").slice(0, this.config.memoryResultMax);
+          this.#memoryEventObserve(entry, sessionId, "post-tool-use", {
+            toolName: ev.toolName ?? null,
+            summary: (ev.isError ? "error: " : "") + head,
+          });
+        }
+      } catch { /* capture is never load-bearing for a turn */ }
+    };
   }
 
   #memoryObserve(entry, sessionId, kind, outcome, tokens, durationMs) {
@@ -1134,9 +1180,13 @@ export class ChildManager {
     const mcpServers = (descriptor.mcpServers ?? []).map((name) =>
       mcpEntry(name, { url: this.registryClient.mcpUrlFor(name), token: config.mcpToken }),
     );
+    let memoryDiscipline = null;
     if (this.memory) {
       const memoryToken = await this.#memoryMountToken(entry);
-      if (memoryToken) mcpServers.push(dshMemoryMount(`${this.config.memoryUrl}/mcp`, memoryToken));
+      if (memoryToken) {
+        mcpServers.push(dshMemoryMount(`${this.config.memoryUrl}/mcp`, memoryToken));
+        memoryDiscipline = MEMORY_DISCIPLINE; // text travels with the mount (P0 D5)
+      }
     }
     const spec = await materializeAgentHome({
       homeRoot: config.homeRoot,
@@ -1145,7 +1195,7 @@ export class ChildManager {
       skillContents,
       mcpServers,
       mcpTools: descriptor.mcpTools ?? null,
-      memoryDiscipline: this.#memoryDiscipline(),
+      memoryDiscipline,
       seedHome: config.seedHome,
     });
     // Per-agent billing key (add-agent-platform-ops D2): fetch by reference
@@ -1287,9 +1337,13 @@ export class ChildManager {
       skillContents[p] = await this.registryClient.fetchSkillContent(p);
     }
     const mcpServers = acpMcpServers(descriptor.mcpServers ?? [], this.registryClient, config.registryToken);
+    let memoryDiscipline = null;
     if (this.memory) {
       const memoryToken = await this.#memoryMountToken(entry);
-      if (memoryToken) mcpServers.push(acpMemoryMount(`${config.memoryUrl}/mcp`, memoryToken));
+      if (memoryToken) {
+        mcpServers.push(acpMemoryMount(`${config.memoryUrl}/mcp`, memoryToken));
+        memoryDiscipline = MEMORY_DISCIPLINE; // text travels with the mount (P0 D5)
+      }
     }
     const spec = materializeAcpWorkspace({
       homeRoot: config.homeRoot,
@@ -1297,7 +1351,7 @@ export class ChildManager {
       entry,
       skillContents,
       harnessName,
-      memoryDiscipline: this.#memoryDiscipline(),
+      memoryDiscipline,
       log: this.log,
     });
     if (descriptor.mcpTools && typeof descriptor.mcpTools === "object" && Object.keys(descriptor.mcpTools).length > 0) {
@@ -1469,11 +1523,13 @@ export class ChildManager {
       homeRoot: config.homeRoot,
       packId: route.packId,
       memberSpecs,
-      // v1 note: pod homes share one MCP patch, but memory tokens scope to a
-      // single deployment namespace — pod members keep platform-seam capture
-      // only; the agent-side mount arrives with per-member MCP patches later.
+      // Pod homes share one MCP patch and memory tokens scope to a single
+      // deployment namespace, so v1 pods carry NO memory mount — and per the
+      // discipline-travels-with-the-mount rule (P0 D5) no discipline text
+      // either. Both arrive with per-member MCP patches in
+      // add-memory-scopes-and-cluster-sharing.
       mcpServers: [...mcpRows.values()],
-      memoryDiscipline: this.#memoryDiscipline(),
+      memoryDiscipline: null,
       seedHome: config.seedHome,
     });
     for (const [key, face] of faces) face.presetId = spec.presetIds.get(key) ?? null;

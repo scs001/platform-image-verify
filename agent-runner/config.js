@@ -165,6 +165,11 @@ export function loadConfig(env = process.env) {
   memoryEnabled: env.AGENT_RUNNER_MEMORY_ENABLED === "1",
   memoryUrl: String(env.AGENT_RUNNER_MEMORY_URL || "").replace(/\/+$/, ""),
   memoryToken: env.AGENT_RUNNER_MEMORY_TOKEN || "",
+  // Observation summary caps (fix-memory-capture-p0 D3): truncation happens at
+  // this seam; fd-memory re-sanitizes and re-caps at 2000 on its side.
+  memoryIntentMax: num(env.AGENT_RUNNER_MEMORY_INTENT_MAX, 500),
+  memoryArgsMax: num(env.AGENT_RUNNER_MEMORY_ARGS_MAX, 600),
+  memoryResultMax: num(env.AGENT_RUNNER_MEMORY_RESULT_MAX, 800),
     // A pod's warm-zone planning floor (M2 measurement: boot peak 172-185MB,
     // settled 89-116MB — idle sessions cost ≈0 marginal). Counts ONCE per pod,
     // never per member.

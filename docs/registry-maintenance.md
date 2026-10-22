@@ -1438,3 +1438,11 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **生产实证**：grants 回填 64 行（五族默认授予矩阵）；runner 令牌 2 段铸造 pod 族 ✓；pod 令牌 /pages shared 读写 + 审计行（principal=pod:*）；成员令牌 MCP recent 返回 own+shared 带源（阿尔法哨兵历史迁移内容可检索）；admin/report 9 授予+写入。**集群回合两挂点（aloadtree 真机）**：「投研三镜头」两轮任务——第一轮 digest 落 `u-aloadtree@gmail.com/p/dyn_…/notes/`（person 令牌审计）；第二轮成员子会话 user 消息含【集群共享记忆】注入块（带首轮 digest 标题），成员输出自发跨成员共享（A 写 shared、B 并集读到并引用路径）。验收 cron job 已删。
 
 **坑**：池 `--branch master` 推 master 但 image.yml 只认 main（memory 在案重演，一次浪费）；fd-memory 无根 Dockerfile（池只认根路径，补 Dockerfile 与 docker/Dockerfile.registry 同文）；scs001 快照仓 workflow 是 build-check 验证线，真出片需 restore commit（cp 私仓 image.yml 进快照仓再推）；buildx metadata digest 是本地值（skopeo raw 双侧比对为准）；BARGS=SERVICE=facade 池变量残留会注入未知 build-arg（无害，未动）。
+
+### §15.8 发布记录：L2 蒸馏上线（add-memory-distiller，2026-10-22 上线）
+
+**镜像**：fd-memory `sha-c608f27`（digest `ae4f7f1c`，源 0a62b06）+ fd-memory-distiller `sha-e6d9704`（digest `c38bce2d`，源 edb7abf，testaction001 池 `BUILD_DOCKERFILE=distiller/Dockerfile` + dispatch）。GitOps 7ac49a3+b9106c3（sidecar Deployment+Service + fd-memory 蒸馏三 env 开门；secret `fd-memory-distiller-env` 四键不进 git）。回滚杆 = `FD_MEMORY_DISTILL_ENABLED=0` 或 scale sidecar 0（cursor 全保留）。
+
+**实现**：五模块——页型（fact/experience，reindex 识别+跳过 forgotten）、cursor（observations rowid 水位 + distill_state 退避/gap）、调度器（会话边界去抖 5min + 10min 兜底 lag≥200、同 project 串行、失败保 cursor 指数退避封顶 1h）、预算表（per-root=per-owner 400k tokens/日护栏）、可见性（GET /memory person-only 三滤 + POST /forget 逻辑删）；sidecar C1（_parse_output/_parse_ops 挂 json_repair 重试）/C2（模板尾语言钉行+产物后检）/C3（provider.complete 记录器，errors 显性化）。零 LLM 档 8 项进 npm test（31/31）；LLM 档 eval-distill.mjs 真跑 PASS（6/6 关键词、task 语言 2/2 中文、去重不重复 ADD、23,807 tokens/5 调用基线）。
+
+**坑**：python:3.11-slim 无 git 而 hy-memory 是 git+https 依赖（Dockerfile 装 git 再 purge）；`_parse_ops` 是 staticmethod（补丁层别传 cls）；池新变量要 POST（PUT 只更新既有）；**同池第二镜像切换 = BUILD_DOCKERFILE 变量 + dispatch，用完必须还原**（忘还原会静默错构建——本刀实撞一次：distiller 首建打成 node 镜像同 tag，取消+重跑）；**runner 的 agent-runner-llm store 里 sk-or 旧钥对词元车道 401**（其 discovery 自标 unauthorized），活钥走 `fd-memory-distiller-env` secret 直供（轮换=改 secret+滚 sidecar）。

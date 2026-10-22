@@ -33,9 +33,9 @@
 
 ## 7. 出片与生产验收
 
-- [ ] 7.1 出片滚 platform（fd-build-channel 判路 → 公开快照仓线）；谦面市场上架 CRM 客服套件；验证市场可搜、订阅流程走通
-- [ ] 7.2 商家全链真机验收：连接自带凭据→订阅 pack→cell 组合出逐用户 chatwoot 面→草拟→发送走闸（写自己租户）→嵌入直达自家租户；A 租户现行四链路回归不回归；证据落 reports/acceptance-b.md
-- [ ] 7.3 越权负例生产实证：商家侧不可见 A 租户会话、A 租户不可见商家会话、审计无凭据
+- [ ] 7.1 出片滚 platform（fd-build-channel 判路 → 公开快照仓线）；谦面市场上架 CRM 客服套件；验证市场可搜、订阅流程走通 ——进度：出片 d279b7e（快照仓 image 绿→relay OK→ccr digest 622fe5fd→双清单滚→rollout 1/1、pod imageID 实证）；in-pod 实证 crm-desk-pack/desk-embed 路由在位、A 租户 cell patch 面完好；**余=谦面市场上架**（facet 发布链+registry 技能公开 URL，运营步骤）
+- [ ] 7.2 商家全链真机验收：连接自带凭据→订阅 pack→cell 组合出逐用户 chatwoot 面→草拟→发送走闸（写自己租户）→嵌入直达自家租户；A 租户现行四链路回归不回归；证据落 reports/acceptance-b.md ——进度：A 租户回归全绿（连接面板真机连接 roundtrip→cell 重组→pod 重启后 chatwoot 工具挂载→meta/list 交叉核对，收件箱出现真实挂件会话 #2 证明 3.1 挂件已通）；**余=商家全链**（待 finddata B6.4 建号）
+- [ ] 7.3 越权负例生产实证：商家侧不可见 A 租户会话、A 租户不可见商家会话、审计无凭据 ——进度：越权负例单测全绿（6.3 三个+3.1b 隔离）；生产越权实证待商家账号
 
 ## 8. 收尾
 

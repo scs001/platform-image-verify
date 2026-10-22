@@ -1,0 +1,26 @@
+{
+  "mcpServers": {
+    "chatwoot": {
+      "command": "node",
+      "args": ["node_modules/@fazer-ai/mcp-chatwoot/dist/index.js"],
+      "_comment": "CRM 客服台（add-crm-desk-bridge/add-crm-desk-pack-embed）：npm dist 即上游官方 bun --target node 单文件 bundle，node 直跑零本地构建。双凭据形态：部署 env（requiresEnv+envRefs，机器 owner/寻数 A 租户）或逐用户 BYOK（credentialEnv→chatwoot ref，已认证用户须自连凭据否则条目省略，见 dsh-profile toMcpClientEntry）。工具面上界（98 标准面）见 lib/operator-tool-face.js。",
+      "requiresEnv": ["CHATWOOT_BASE_URL", "CHATWOOT_API_TOKEN"],
+      "envRefs": ["CHATWOOT_BASE_URL", "CHATWOOT_API_TOKEN"],
+      "credentialEnv": { "CHATWOOT_API_TOKEN": "chatwoot" }
+    },
+    "websearch": {
+      "command": "node",
+      "args": ["server/websearch-mcp.js"],
+      "_comment": "envRefs name (never hold) the relay env pair — dsh's subprocess scrub strips TOKEN-shaped names from MCP children, so the pair is forwarded explicitly at patch-write time. Both unset ⇒ web_search degrades to an explicit not-configured error. SEARCH_USER_KEY (add-search-byok) is the user's OWN key: optional by design — its absence is the normal state, not a degradation.",
+      "envRefs": ["SEARCH_RELAY_URL", "SEARCH_RELAY_TOKEN"],
+      "envRefsOptional": ["SEARCH_USER_KEY"]
+    }
+  },
+  "skills": [
+    "computer-file-system",
+    "computer-process",
+    "computer-shell",
+    "example-skill"
+  ],
+  "permissions": {}
+}

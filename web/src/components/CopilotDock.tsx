@@ -1,0 +1,181 @@
+// ── Copilot dock (add-line-boards-and-action-gate, tasks 14-15) ─────────────
+//
+// A global floating entry (bottom-right) that opens a right-side dock holding
+// a same-origin iframe of /chat?embed=copilot&board=<line>&preset=<agentId>.
+//
+// Why an iframe: useChatStore is a module singleton. A second conversation
+// panel in the same document would fight the main chat for its state. A
+// same-origin iframe gets its own document, its own store instance and its
+// own WS connection — full isolation with zero store refactoring.
+//
+// The board context rides the URL (first frame) and postMessage (updates);
+// the context bar inside the embed shows exactly what was sent.
+//
+// Focused preset (copilot-dock-focused-preset): the dock asks the server which
+// installed pack is this line's focused assistant and puts its agent id on the
+// URL; the embed switches the runtime to it once connected. The preset is
+// CELL-wide (dsh bakes it at initialize, a switch restarts the child), so the
+// dock remembers the agent the main chat was on and restores it on close —
+// unless the user picked something else meanwhile, which then stands.
+
+import { useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { Bot, X } from "lucide-react";
+import { useChatStore } from "@platform/core";
+import type { ClientMessage } from "@platform/core";
+import { useAppConfig } from "@/hooks/useAppConfig";
+
+export interface CopilotPreset {
+  line: string;
+  agentId: string;
+  agentName: string;
+  packId: string;
+  packName: string;
+}
+
+interface Props {
+  send: (m: ClientMessage) => void;
+}
+
+export function CopilotDock({ send }: Props) {
+  const location = useLocation();
+  const { copilotEnabled, lineBoardsEnabled } = useAppConfig();
+  const [open, setOpen] = useState(false);
+  const [boardLine, setBoardLine] = useState<string | null>(null);
+  // The resolved preset for `boardLine`, keyed on the line it was fetched for
+  // so a stale answer from a previous board never rides into the iframe URL.
+  const [preset, setPreset] = useState<{ line: string; copilot: CopilotPreset | null } | null>(null);
+  const agentBeforeOpenRef = useRef<string | null>(null);
+  const injectedAgentRef = useRef<string | null>(null);
+
+  // Derive the current board line from the route (/boards/:line). The dock
+  // opens with that context; on other routes it opens context-free.
+  useEffect(() => {
+    const match = location.pathname.match(/^\/boards\/([^/]+)/);
+    setBoardLine(match?.[1] ?? null);
+  }, [location.pathname]);
+
+  // Resolve the line's focused assistant as soon as the line is known (before
+  // the FAB is clicked), so opening the dock does not wait on the request.
+  useEffect(() => {
+    if (!boardLine || !lineBoardsEnabled) {
+      setPreset(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/boards/${encodeURIComponent(boardLine)}/copilot`)
+      .then((r) => (r.ok ? r.json() : { copilot: null }))
+      .then((body) => {
+        if (!cancelled) setPreset({ line: boardLine, copilot: body?.copilot ?? null });
+      })
+      .catch(() => {
+        if (!cancelled) setPreset({ line: boardLine, copilot: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [boardLine, lineBoardsEnabled]);
+
+  // Keep the iframe's context in sync when the user navigates between boards
+  // while the dock is open. Same-origin, so postMessage is safe and direct.
+  useEffect(() => {
+    if (!open || !boardLine) return;
+    const frame = document.querySelector<HTMLIFrameElement>("[data-testid=copilot-frame]");
+    if (frame && frame.contentWindow) {
+      frame.contentWindow.postMessage({ type: "copilot_context", board: boardLine }, window.location.origin);
+    }
+  }, [boardLine, open]);
+
+  // The preset answer for THIS line; still in flight → hold the iframe (a
+  // reload after the first frame would re-run the switch for nothing).
+  const resolved = !boardLine || !lineBoardsEnabled || preset?.line === boardLine;
+  const copilot = preset?.line === boardLine ? preset.copilot : null;
+
+  // What the open dock last injected. Kept while the dock navigates to a route
+  // without a board, so closing there still restores the main chat's agent.
+  useEffect(() => {
+    if (open && resolved && copilot?.agentId) injectedAgentRef.current = copilot.agentId;
+  }, [open, resolved, copilot]);
+
+  // The dock's own iframe runs this same App: without this guard the embed
+  // would grow a second FAB inside the dock. Any framed document is a guest,
+  // never a host.
+  const embedded =
+    new URLSearchParams(location.search).get("embed") === "copilot" ||
+    (typeof window !== "undefined" && window.self !== window.top);
+  if (!copilotEnabled || embedded) return null;
+
+  const src = `/chat?embed=copilot${boardLine ? `&board=${encodeURIComponent(boardLine)}` : ""}${
+    copilot ? `&preset=${encodeURIComponent(copilot.agentId)}` : ""
+  }`;
+
+  const openDock = () => {
+    agentBeforeOpenRef.current = useChatStore.getState().currentAgent;
+    setOpen(true);
+  };
+
+  const closeDock = () => {
+    setOpen(false);
+    const injected = injectedAgentRef.current;
+    const current = useChatStore.getState().currentAgent;
+    const before = agentBeforeOpenRef.current;
+    agentBeforeOpenRef.current = null;
+    injectedAgentRef.current = null;
+    // Restore only what the dock changed: the runtime must still be on the
+    // injected assistant, and it must differ from where the main chat was.
+    if (injected && current === injected && before !== injected) {
+      send({ type: "set_agent", id: before ?? "local" });
+    }
+  };
+
+  return (
+    <>
+      {!open && (
+        <button
+          type="button"
+          data-testid="copilot-fab"
+          aria-label="打开副驾"
+          onClick={openDock}
+          className="fixed bottom-5 right-5 z-40 grid h-12 w-12 place-items-center rounded-full bg-primary text-primary-foreground shadow-lg hover:opacity-90"
+        >
+          <Bot className="h-5 w-5" aria-hidden="true" />
+        </button>
+      )}
+
+      {open && (
+        <aside
+          data-testid="copilot-dock"
+          className="fixed bottom-0 right-0 z-40 flex h-[70vh] w-[min(420px,92vw)] flex-col overflow-hidden rounded-tl-lg border border-border bg-background shadow-2xl"
+        >
+          <div className="flex items-center justify-between border-b border-border bg-card px-3 py-2">
+            <span className="text-sm font-medium">副驾</span>
+            <button
+              type="button"
+              data-testid="copilot-close"
+              aria-label="关闭副驾"
+              onClick={closeDock}
+              className="grid h-7 w-7 place-items-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+          {resolved ? (
+            <iframe
+              data-testid="copilot-frame"
+              title="副驾"
+              src={src}
+              className="min-h-0 flex-1 border-0"
+            />
+          ) : (
+            <div
+              data-testid="copilot-frame-pending"
+              className="grid min-h-0 flex-1 place-items-center text-xs text-muted-foreground"
+            >
+              正在加载副驾…
+            </div>
+          )}
+        </aside>
+      )}
+    </>
+  );
+}

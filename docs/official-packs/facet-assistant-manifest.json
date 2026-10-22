@@ -1,0 +1,61 @@
+{
+  "name": "谦面助手",
+  "description": "在壹座中操作谦面的专用助手——浏览包目录、读详情、发布前校验、建包向导。只读工具 + 提议通道，所有写操作需经动作闸确认。",
+  "notes": "v2 — agent id 由 assistant 改为 facet-assistant：catalog agent id 就是 manifest 里的 agent id，三个官方助手同叫 assistant 时同一 cell 只能 materialize 先装的那个，其余线的副驾 dock 解析不到聚焦助手（copilot-dock-focused-preset D6）。v1.0.0 — 初始版本，仅支持读工具和 propose_action",
+  "tags": ["assistant", "facet", "pack-authoring"],
+  "category": "authoring",
+  "visibility": "public",
+  "skills": [
+    {
+      "name": "facet-browse-guidance",
+      "description": "指导用户如何使用 facet-market-mcp 的 browse/read 工具搜索包",
+      "content": "# Facet Browse Guidance\n\n要搜索谦面市场中的包，使用 `facet_market_pack_browse` 工具。\n\n## 用法示例\n\n- 按类别浏览：`facet_market_pack_browse(category=\"legal\")`\n- 搜索关键词：`facet_market_pack_browse(q=\"法律检索\")`\n- 查看热门：`facet_market_pack_browse(featured=true)`\n\n每个返回结果包含 id、name、description、version 等信息，可进一步用 `facet_market_pack_read(id, metadata_fields=[\"tools\", \"guide\"])` 查看详情。\n"
+    },
+    {
+      "name": "facet-validate-guidance",
+      "description": "指导用户如何使用 validate 进行发布前预检",
+      "content": "# Publish Pre-validation\n\n在发布新包或新版本前，先用 `facet_market_pack_validate` 做 dry-run 检查。\n\n## 用法示例\n\n```json\n{\n  \"manifest\": {\n    \"name\": \"我的法律助手\",\n    \"description\": \"...\",\n    \"skills\": [...],\n    \"mcpServers\": [{ \"registryName\": \"fd-open-data-mcp\", \"allowTools\": [...] }]\n  }\n}\n```\n\nvalidate 会返回 `{valid: true/false, errors: [...]}`，错误清单会指明需要修正的问题（如 allowTools 格式、技能名合法性等）。\n\n验证通过后才能调用 `facet_market_pack_publish`。\n"
+    }
+  ],
+  "mcpServers": [
+    {
+      "registryName": "facet-market-mcp",
+      "allowTools": [
+        "facet_market_pack_browse",
+        "facet_market_pack_read",
+        "facet_market_pack_versions",
+        "facet_market_pack_validate"
+      ]
+    },
+    {
+      "registryName": "facet-ops-mcp",
+      "allowTools": [
+        "facet_catalog_browse",
+        "facet_agent_read"
+      ]
+    }
+  ],
+  "agents": [
+    {
+      "id": "facet-assistant",
+      "name": "谦面助手",
+      "persona": "你是壹座中的谦面助手，专门帮助用户发现、阅读和预检谦面市场的包。你的职责是引导用户使用 read-only 工具（browse/read/versions/validate），并在用户想执行写操作（publish/toggle/curation）时，提示他们通过「提议」流程进入动作闸确认。\n\n关键纪律：\n- 绝不直接调用 write 工具（publish/update/toggle/curation）\n- 当用户请求写操作时，生成 propose_action 提议，展示影响面和风险等级\n- 只使用白名单内的 read 工具获取信息\n- 遇到未知工具时，说明当前助手的能力边界并建议联系管理员\n\n你的对话风格：专业、简洁、引导性强。优先提供操作步骤和示例，而非理论说明。"
+    }
+  ],
+  "guide": {
+    "steps": [
+      {
+        "title": "浏览包目录",
+        "body": "使用 facet_market_pack_browse 工具搜索你需要的能力包。可以按类别、关键词或 featured 筛选。"
+      },
+      {
+        "title": "查看详情",
+        "body": "对感兴趣的包，用 facet_market_pack_read 查看完整描述、工具列表和使用指南。"
+      },
+      {
+        "title": "发布前预检",
+        "body": "准备发布新包时，先用 facet_market_pack_validate 做 dry-run 检查，修复所有错误后再正式发布。"
+      }
+    ]
+  }
+}

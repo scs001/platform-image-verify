@@ -9,6 +9,7 @@
     "dsh-profile-template/platform-permission-bridge.js",
     "dsh-profile-template/platform-preset-bridge.js",
     "dsh-profile-template/platform-save-library-bridge.js",
+    "dsh-profile-template/platform-serving-questions-bridge.js",
     "dsh-profile-template/platform-tool-search-bridge.js",
     "dsh-profile-template/platform-user-questions-bridge.js",
     "scripts/dsh-contracts.mjs",

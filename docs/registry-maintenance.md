@@ -1505,3 +1505,11 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **关键运维位：PACK_BASELINE_MCP=fleet**。首火教训：fleet MCP 走 extensions DB 行进不了**聚焦层 keep 集**（聚焦 persona 只留 mcp.json 键∪PACK_BASELINE_MCP∪自身引用——模型在回合里 tool_search 找不到工具即此因）；解法=deployment env PACK_BASELINE_MCP=fleet（live set env + GitOps e5acfe7/990530e 双收敛；platform-demo 清单插入曾拆裂 LLM_API_KEY secretKeyRef 块，dry-run=client 必做）。DB 行保留双轨（standard 模式亦可见）。
 
 **顺手抓真 bug 两枚**：①归档/解散舰队成员仍占唯一岗（facet-assistant 建岗 409）→ findPostByTarget JOIN fleets state!='archived'（paas 0030e1e8+单测，待下轮出片）；②/proc env 无 pgrep 时用 for /proc/N/environ 直读。
+
+### §15.13 再补：真余清账轮（2026-10-23 深夜二）
+
+**驳回腿逐字闭环**：内容部真回合 escalate→驳回（by=aloadtree，note=维持原计划）→**下一自然节奏火**送达 prompt 逐字「裁定：驳回。理由：维持原计划，周五发布」→delivered（区别于批准腿的 execute-now 即时通道，两通道均活体）。
+
+**刀4 全链上产**：种子「公司式舰队」铸造上架 `aofNf6o2LR61lPK8IVVkJw` v1（fleet 段闸生产首过；pack agents 上限 3——种子收敛 CEO/开源/投资三真数据岗，助理转引用岗）+ curation category=fleet 列表眼见；**订阅≠安装**——subscribe 只回 manifest，安装由浏览器驱动 `/api/mypacks/install`（PackDetailDialog 同路）；from-template 201（missing=[]、出生全队暂停）→确认启动→on_duty 6/7 六任务就绪；导出-重装腿：导出白名单零运行时痕迹→成包→安装→from-template→骨架+节奏逐字一致→新舰队零报数。应用中心「舰队模板」卡随 79606b0 上产眼见。
+
+**第二轮出片 sha-79606b0/digest f776b82**（占坑修复 0030e1e8 + 应用中心卡）：三面滚完 imageID 相等；**live 回归证明 facet-assistant 建岗 409→201**。走查舰队全解散（驳回验/公司式舰队/重装验 pack 下架卸载；种子包留市场在架）。

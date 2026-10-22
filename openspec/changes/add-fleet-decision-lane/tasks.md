@@ -22,5 +22,5 @@
 
 ## 4. 活体验收
 
-- [x] 4.1 生产走查（2026-10-23 主链闭环：CEO 真回合 escalate→队列 open=1 徽章源→批准 by=aloadtree→立即执行回合 prompt 逐字含「裁定：批准——提高。批注：…」→delivered+deliveredSessionId；驳回路径单测同构覆盖）：真岗位 escalate → 徽章「等你 1 件」→ 批准 → 立即执行回合 prompt 含裁定（真会话取证）→ delivered；驳回+附注路径同型走通
+- [x] 4.1 生产走查（2026-10-23 双腿闭环：批准→execute-now 回合 prompt 逐字含裁定+批注→delivered；驳回→附注→下一自然节奏火送达 prompt 逐字含「裁定：驳回。理由：维持原计划，周五发布」→delivered；均 by=aloadtree 真回合触发）：真岗位 escalate → 徽章「等你 1 件」→ 批准 → 立即执行回合 prompt 含裁定（真会话取证）→ delivered；驳回+附注路径同型走通
 - [ ] 4.2 回归：无拍板舰队注入快照与刀2 一致 + 既有通知/scheduling-tools 测试全绿

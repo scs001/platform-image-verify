@@ -19,6 +19,7 @@ const GRID_ORDER = [
   "wanxing-connector",
   "lex",
   "wire",
+  "fleet-templates",
 ];
 
 const BADGED = ["yizuo-packs", "facet", "wanxing-token", "wanxing-connector", "lex", "wire"];

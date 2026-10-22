@@ -32,6 +32,15 @@
       "url": "/external/crm-desk/sso",
       "description": "CRM 客服台（Chatwoot）——免密直达你自己的客服台租户；需先在连接面板连接你的 Chatwoot 凭据",
       "line": "yizuo"
+    },
+    {
+      "id": "fleet-templates",
+      "type": "app",
+      "kind": "link",
+      "name": "舰队模板",
+      "url": "/fleets",
+      "description": "壹座舰队——把角色/集群/Agent 服务编成自治组织：报数、拍板、驾驶舱；市场「fleet」类目可一键建队",
+      "line": "yizuo"
     }
   ],
   "agents": []

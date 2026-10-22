@@ -21,9 +21,9 @@
 
 ## 5. CRM 客服套件 pack（D4/D5）
 
-- [ ] 5.1 写商家变体技能 `crm-desk-reception-merchant`（profile 发现 account_id、BYOK 说明、失败四分类、守界问答）+ 使用说明；单测：工具名⊆98 面、不出现钉死 account_id
-- [ ] 5.2 pack manifest（registryName chatwoot + allowTools 98 名单≡operator-tool-face 快照的单测断言）+ 按 facet-pack-builder 配方产出 pack；发布闭包校验通过
-- [ ] 5.3 本地安装链路单测：已连接即时绑定/未连接 awaiting-local-binding/连接后激活（对 pack-installation 既有行为，只断言不改动）
+- [x] 5.1 写商家变体技能 `crm-desk-reception-merchant`（profile 发现 account_id、BYOK 说明、失败四分类、守界问答）+ 使用说明；单测：工具名⊆98 面、不出现钉死 account_id ——实绩：packs/crm-desk-suite/skills/crm-desk-reception-merchant/SKILL.md（profile_get 发现账号、BYOK 说明、失败四分类、守界）；单测：引用工具全 ⊆ 98 面、无钉死 account_id
+- [x] 5.2 pack manifest（registryName chatwoot + allowTools 98 名单≡operator-tool-face 快照的单测断言）+ 按 facet-pack-builder 配方产出 pack；发布闭包校验通过 ——实绩：manifest fullSurface+reason（98 名单超 pack allowTools 64 上限→整面声明由操作员面收口，免双份名单漂移）；validatePackManifest PASS；发布闭包豁免成立；单测 5.2
+- [x] 5.3 本地安装链路单测：已连接即时绑定/未连接 awaiting-local-binding/连接后激活（对 pack-installation 既有行为，只断言不改动） ——实绩：单测 5.3 用真 manifest 走 installPack：bundled 行即本地行→bound、fullSurface 标记随快照、无行名 awaiting-local-binding（awaiting→bound 激活流由 test-pack-cell 既有覆盖）
 
 ## 6. 嵌入反代（D6/D7）
 

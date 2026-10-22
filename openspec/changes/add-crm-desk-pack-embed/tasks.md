@@ -33,9 +33,9 @@
 
 ## 7. 出片与生产验收
 
-- [ ] 7.1 出片滚 platform（fd-build-channel 判路 → 公开快照仓线）；谦面市场上架 CRM 客服套件；验证市场可搜、订阅流程走通 ——进度：出片 d279b7e（快照仓 image 绿→relay OK→ccr digest 622fe5fd→双清单滚→rollout 1/1、pod imageID 实证）；in-pod 实证 crm-desk-pack/desk-embed 路由在位、A 租户 cell patch 面完好；**余=谦面市场上架**（facet 发布链+registry 技能公开 URL，运营步骤）
-- [ ] 7.2 商家全链真机验收：连接自带凭据→订阅 pack→cell 组合出逐用户 chatwoot 面→草拟→发送走闸（写自己租户）→嵌入直达自家租户；A 租户现行四链路回归不回归；证据落 reports/acceptance-b.md ——进度：A 租户回归全绿（连接面板真机连接 roundtrip→cell 重组→pod 重启后 chatwoot 工具挂载→meta/list 交叉核对，收件箱出现真实挂件会话 #2 证明 3.1 挂件已通）；**余=商家全链**（待 finddata B6.4 建号）
-- [ ] 7.3 越权负例生产实证：商家侧不可见 A 租户会话、A 租户不可见商家会话、审计无凭据 ——进度：越权负例单测全绿（6.3 三个+3.1b 隔离）；生产越权实证待商家账号
+- [x] 7.1 出片滚 platform（fd-build-channel 判路 → 公开快照仓线）；谦面市场上架 CRM 客服套件；验证市场可搜、订阅流程走通 ——进度：出片 d279b7e（快照仓 image 绿→relay OK→ccr digest 622fe5fd→双清单滚→rollout 1/1、pod imageID 实证）；in-pod 实证 crm-desk-pack/desk-embed 路由在位、A 租户 cell patch 面完好；**余=谦面市场上架**（facet 发布链+registry 技能公开 URL，运营步骤）——实绩：技能 gitee 公开 URL+registry 注册 200；pack 发布 0aVynUNHmscTAxu7fGs-NQ v1（fullSurface 过发布门）；市场可搜+详情 public（acceptance-b.md §7.1）
+- [x] 7.2 商家全链真机验收：连接自带凭据→订阅 pack→cell 组合出逐用户 chatwoot 面→草拟→发送走闸（写自己租户）→嵌入直达自家租户；A 租户现行四链路回归不回归；证据落 reports/acceptance-b.md ——进度：A 租户回归全绿（连接面板真机连接 roundtrip→cell 重组→pod 重启后 chatwoot 工具挂载→meta/list 交叉核对，收件箱出现真实挂件会话 #2 证明 3.1 挂件已通）；**余=商家全链**（待 finddata B6.4 建号）——实绩：订阅安装 report=chatwoot bound+技能 installed；凭据切商家 token→账号发现=7→隔离读零 A 租户内容→草拟不编造→闸批准→发送落 Account 7 msg#9（Account 1 零泄漏）；已恢复 A 租户凭据（acceptance-b.md §7.2；行为面注记：凭据轮换在 cell 生效需 dsh 冷启=envRefs 家族既有语义）
+- [x] 7.3 越权负例生产实证：商家侧不可见 A 租户会话、A 租户不可见商家会话、审计无凭据 ——进度：越权负例单测全绿（6.3 三个+3.1b 隔离）；生产越权实证待商家账号——实绩：单测负例（embed 6.3 三例+3.1b）+生产双租户落点核验（7.2 第 6 步）
 
 ## 8. 收尾
 

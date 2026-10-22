@@ -335,6 +335,7 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
   // unread-by-derivation, so the client owns the refresh. Visiting /fleets
   // naturally refetches via the page.
   const [fleetOpenDecisions, setFleetOpenDecisions] = useState(0);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: location.pathname re-arms the poll on navigation — an intentional trigger, not a value this effect reads
   useEffect(() => {
     let alive = true;
     const fetchOpen = async () => {

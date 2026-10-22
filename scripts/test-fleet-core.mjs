@@ -45,8 +45,6 @@ const {
   deriveMemberStatus,
   cronPeriodMs,
   staleWindowMs,
-  materializedSpec,
-  specDrift,
 } = await import("../server/fleet-reconcile.js");
 const { createFleetRoutes } = await import("../server/routes/fleets.js");
 

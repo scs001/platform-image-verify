@@ -49,8 +49,7 @@ export function descriptorSpawnRefs(source) {
   const refs = [];
   const seen = new Set();
   const re = /path\.join\(\s*projectRoot\s*,\s*(?:"([^"]+)"|'([^']+)')/g;
-  let m;
-  while ((m = re.exec(String(source ?? "")))) {
+  for (let m = re.exec(String(source ?? "")); m; m = re.exec(String(source ?? ""))) {
     const first = (m[1] ?? m[2]).split("/")[0];
     if (!first || seen.has(first)) continue;
     seen.add(first);

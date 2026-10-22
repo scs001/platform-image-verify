@@ -60,7 +60,7 @@ function renderChildBlock({ member, latest, previous }) {
 
 // deps: { db (fleets-db), deriveStatuses(fleetId) => Map<memberId, status>,
 //         decisionDigest(fleetId) => string|null, now? }
-export async function buildFleetContext(sourceTag, task, deps) {
+export async function buildFleetContext(sourceTag, _task, deps) {
   const { db, deriveStatuses, decisionDigest } = deps;
   const fleet = db.getFleet(sourceTag.fleetId);
   if (!fleet) throw new Error(`fleet ${sourceTag.fleetId} no longer exists`);

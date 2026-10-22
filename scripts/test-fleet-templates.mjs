@@ -243,7 +243,7 @@ test("start route: flips both pause layers, reconcile resumes, notice-only upgra
     const started = await call("POST", `/api/fleets/${fleet.id}/start`);
     assert.equal(started.status, 200);
     assert.equal(started.body.fleet.state, "active");
-    const afterTasks = cron.listJobs().filter((j) => j.sourceTag?.fleetId === fleet.id && j.target.preset === "tpl-shop" ? false : true);
+    const _afterTasks = cron.listJobs().filter((j) => j.sourceTag?.fleetId === fleet.id && j.target.preset === "tpl-shop" ? false : true);
     assert.equal(cron.listJobs().filter((j) => j.sourceTag?.fleetId === fleet.id).every((t) => !t.paused), true, "tasks resumed after start");
 
     // Template-newer (D7): publish v2 → notice appears, the LIVE fleet is

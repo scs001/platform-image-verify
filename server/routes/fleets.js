@@ -46,11 +46,11 @@ function resolveUserFactory(ctx) {
     req.user ?? (ctx?.authEnabled ? null : { email: ctx?.cellUserEmail || "owner@local", groups: [] });
 }
 
-function fleetId(id) {
+function fleetId(_id) {
   return `fleet_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function memberId(id) {
+function memberId(_id) {
   return `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 

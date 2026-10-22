@@ -126,7 +126,7 @@ function fixtureDecision(db, fleetId, memberId, over = {}) {
   });
 }
 
-function resolve(item, choice, note) {
+function resolve(_item, choice, note) {
   return { kind: "approve", choice: choice ?? "fri", note: note ?? null, by: "owner@test", at: Date.now() };
 }
 
@@ -398,8 +398,8 @@ test("approved delivery survives vacancy: parked while vacant, delivered after r
 
 test("routes: escalate + queue ops + execute-now paths", async () => {
   const fleet = fixtureFleet(fleetDb, { name: "拍板舰队" });
-  const cadencePost = fixtureMember(fleetDb, fleet.id, { title: "内容部", targetId: "persona-a" });
-  const passivePersona = fixtureMember(fleetDb, fleet.id, { title: "助理岗", targetId: "persona-b", cadence: null });
+  const _cadencePost = fixtureMember(fleetDb, fleet.id, { title: "内容部", targetId: "persona-a" });
+  const _passivePersona = fixtureMember(fleetDb, fleet.id, { title: "助理岗", targetId: "persona-b", cadence: null });
   const passiveCluster = fixtureMember(fleetDb, fleet.id, { title: "集群岗", targetKind: "cluster", targetId: "cluster-1", cadence: null });
   // Materialize the cadence post's task through the real reconcile.
   await reconcileFleet({ fleetId: fleet.id, db: fleetDb, cronApi: cron, resolveTarget: ALIVE, rosterPresetId: (id) => id });
@@ -513,7 +513,7 @@ test("routes: escalate + queue ops + execute-now paths", async () => {
 
 test("routes: daily cap and open-queue cap flood control", async () => {
   const fleet = fixtureFleet(fleetDb, { name: "防洪舰队", decisionPolicy: { expiryHours: 72, dailyCapPerMember: 3 } });
-  const member = fixtureMember(fleetDb, fleet.id, { targetId: "persona-flood" });
+  const _member = fixtureMember(fleetDb, fleet.id, { targetId: "persona-flood" });
   const { server, call } = await startServer({
     authEnabled: false,
     cellUserEmail: "owner@test",

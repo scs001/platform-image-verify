@@ -86,7 +86,7 @@ test("a cell booting during a cloud outage still serves the cached cloud agents"
 test("a successful fetch writes the cache; a fresh boot seeds from it", async () => {
   const { createServer } = await import("node:http");
   const served = { agents: [{ ...CLOUD_AGENT, id: "pack-live-agent", name: "Live" }], apps: [] };
-  const server = createServer((req, res) => {
+  const server = createServer((_req, res) => {
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify(served));
   });

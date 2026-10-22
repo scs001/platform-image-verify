@@ -20,7 +20,7 @@ import { E2E_PORT, gotoChat, waitForIdle } from "./helpers.js";
 // The empty-roster deployment shape is exercised through the e2e store seam
 // (the UI contract: render nothing, never block chat).
 
-const SHIPPED = ["standard"];
+const _SHIPPED = ["standard"];
 
 // English pinned via pinLocaleEn; the web bundle owns the localized name.
 const SHIPPED_EN_NAMES = {

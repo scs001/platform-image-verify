@@ -17,7 +17,6 @@ process.env.DB_PATH = DB_PATH;
 const db = await import("../db.js");
 await db.initDb();
 const cw = await import("../chatwoot-credentials.js");
-const { signEmbedToken } = await import("../server/session.js");
 
 const SECRET = "test-gateway-secret";
 process.env.CELL_GATEWAY_SECRET = SECRET;
@@ -96,7 +95,7 @@ const { registerDeskEmbedRoutes } = await import("../server/routes/desk-embed.js
 
 const app = express();
 const seen = [];
-app.use((req, res, next) => {
+app.use((req, _res, next) => {
   // gateway-injected identity: set by tests per scenario
   req.user = app.locals.testUser ?? null;
   seen.push(`${req.method} ${req.url}`);

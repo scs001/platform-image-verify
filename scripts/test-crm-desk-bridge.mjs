@@ -99,7 +99,7 @@ test("1.3d entries without requiresEnv are unaffected (websearch degrade-not-omi
 
 // ── 2.1 operator face snapshot ──────────────────────────────────────────────
 
-const { OPERATOR_TOOL_FACES, operatorToolFace } = await import("../lib/operator-tool-face.js");
+const { operatorToolFace } = await import("../lib/operator-tool-face.js");
 
 test("2.1a chatwoot face = 98 leaves, generated shape, no fork/send leakage", () => {
   const face = operatorToolFace("chatwoot");

@@ -23,7 +23,7 @@ import { NAV_SURFACES, SETTINGS_SURFACES, AGENTS_TAB_SURFACES } from "../package
 
 const ALL_NAV = NAV_SURFACES.map((s) => s.slug);
 const ALL_SETTINGS = SETTINGS_SURFACES.map((s) => s.slug);
-const ALL_TABS = AGENTS_TAB_SURFACES.map((s) => s.slug);
+const _ALL_TABS = AGENTS_TAB_SURFACES.map((s) => s.slug);
 
 function fakeDb(initial = {}) {
   const deployment = new Map(Object.entries(initial.deployment ?? {}));

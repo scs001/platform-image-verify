@@ -23,7 +23,6 @@ import {
   declaredToolsByServer,
   toolFaceErrors,
   toolClosureErrors,
-  toolGateErrors,
   probeMcpToolNames,
 } from "../lib/publish-tool-gate.js";
 import { registryServerIndex } from "../registry-bridge.js";

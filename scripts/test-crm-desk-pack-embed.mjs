@@ -8,7 +8,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 const DB_PATH = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "crm-pack-")), "data.db");
 process.env.DB_PATH = DB_PATH;
@@ -65,7 +64,7 @@ test("2.1c credential-refs dispatch knows the ref", async () => {
 
 const { writeMcpPatch } = await import("../dsh-profile.js");
 const yaml = (await import("js-yaml")).default;
-const { readFileSync } = fs;
+
 const PATCH = path.join(process.env.DSH_HOME, "profiles", "platform", "mcp.patch.yml");
 
 // Mirrors the real platform.bundle.json chatwoot entry (envRefs carries BOTH
@@ -145,8 +144,8 @@ test("3.1d stale credential omits the entry (stale ⇒ not live)", async () => {
 // ── 4.x action gate dual credential ─────────────────────────────────────────
 
 const { getAction, validateArgs } = await import("../lib/action-registry.js");
-const { requireServerEnv, requireChatwootCredential } = await import("../lib/action-preflight.js");
-const { executeRegisteredAction, ExecutorError, resolveStdioServerConfig } = await import("../lib/action-executor.js");
+const { requireChatwootCredential } = await import("../lib/action-preflight.js");
+const { executeRegisteredAction, ExecutorError } = await import("../lib/action-executor.js");
 
 test("4.1a crm.message.send carries credentialRef and preflight tri-branches", async () => {
   const action = getAction("crm.message.send");
@@ -288,7 +287,7 @@ test("5.2 pack declares fullSurface bounded by the operator face (98)", async ()
   assert.equal(face.length, 98);
   // closure: every chatwoot tool the merchant skill references is on the face
   const fs = await import("node:fs");
-  const path = await import("node:path");
+  const _path = await import("node:path");
   const { repoRoot } = await import("../paths.js");
   const skill = fs.readFileSync(repoRoot("packs/crm-desk-suite/skills/crm-desk-reception-merchant/SKILL.md"), "utf8");
   const referenced = [...new Set([...skill.matchAll(/mcp__chatwoot__([a-z0-9_]+)/g)].map((m) => m[1]))];

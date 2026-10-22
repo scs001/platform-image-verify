@@ -9,7 +9,7 @@
 // Fail-open by contract: any failure (mint, URL missing, disk) leaves the
 // composition byte-identical to the memory-off baseline.
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, } from "node:fs";
 import { join, dirname } from "node:path";
 // Single-source discipline text (fix-memory-capture-p0 D6): the same string
 // the fleet runner injects, imported from the repo root so the two surfaces

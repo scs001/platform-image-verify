@@ -1570,7 +1570,7 @@ test("config write: roster layer refuses a lane-passing roster-absent model; nul
 const { createHmac: seatHmac } = await import("node:crypto");
 const SEAT_SECRET = "seat-test-secret";
 
-async function seatHarness({ user, grantOf }) {
+async function seatHarness({ user, grantOf: _grantOf }) {
   process.env.WANXING_SEAT_DEPLOY_SECRET = SEAT_SECRET;
   const stub = stubRegistry();
   const manifest = withServing({ protocol: "a2a" });

@@ -299,7 +299,7 @@ function contextDeps(db, statuses) {
 
 test("fleet-context: renders child slots, blockers, overview; no-children segment", async () => {
   const fleet = fixtureFleet(fleetDb, "试验舰队");
-  const ceo = fixtureMember(fleetDb, fleet.id, { id: "m_ceo", title: "CEO", targetId: "persona-ceo", cadence: { cron: "0 * * * *", tz: null, promptTemplate: "巡视 {{fleetContext}}", enabled: true } });
+  const _ceo = fixtureMember(fleetDb, fleet.id, { id: "m_ceo", title: "CEO", targetId: "persona-ceo", cadence: { cron: "0 * * * *", tz: null, promptTemplate: "巡视 {{fleetContext}}", enabled: true } });
   const shop = fixtureMember(fleetDb, fleet.id, { id: "m_shop", title: "电商部", parentId: "m_ceo", targetId: "persona-shop" });
   fixtureMember(fleetDb, fleet.id, { id: "m_far", title: "孙岗", parentId: "m_shop", targetId: "persona-far" }); // grandchild — NOT direct
   fixtureReport(fleetDb, shop, { metrics: { sales_week: { value: "$309" } }, blockers: ["库存告急"], summary: "今日大促" });
@@ -313,14 +313,14 @@ test("fleet-context: renders child slots, blockers, overview; no-children segmen
   assert.match(text, /今日大促/);
   assert.ok(!text.includes("孙岗报数"), "only DIRECT children render");
 
-  const lonely = fixtureMember(fleetDb, fleet.id, { id: "m_solo", title: "独立岗", targetId: "persona-solo", cadence: { cron: "0 * * * *", tz: null, promptTemplate: "巡视 {{fleetContext}}", enabled: true } });
+  const _lonely = fixtureMember(fleetDb, fleet.id, { id: "m_solo", title: "独立岗", targetId: "persona-solo", cadence: { cron: "0 * * * *", tz: null, promptTemplate: "巡视 {{fleetContext}}", enabled: true } });
   const soloText = await buildFleetContext({ fleetId: fleet.id, memberId: "m_solo" }, {}, contextDeps(fleetDb));
   assert.match(soloText, /本岗位无直接下级/);
 });
 
 test("fleet-context: per-post 4KB and total 24KB truncation marks; dead fleet throws", async () => {
   const fleet = fixtureFleet(fleetDb);
-  const ceo = fixtureMember(fleetDb, fleet.id, { id: "m_ceo2", title: "CEO", targetId: "persona-ceo2", cadence: { cron: "0 * * * *", tz: null, promptTemplate: "x {{fleetContext}}", enabled: true } });
+  const _ceo = fixtureMember(fleetDb, fleet.id, { id: "m_ceo2", title: "CEO", targetId: "persona-ceo2", cadence: { cron: "0 * * * *", tz: null, promptTemplate: "x {{fleetContext}}", enabled: true } });
 
   // A maximal child post: 8 declared slots × 300-char values + 20 blockers —
   // the inner caps themselves allow >4KB, so the per-post guard cuts.

@@ -219,6 +219,9 @@ export function FleetsPage() {
   // cron_status/cron_completed broadcast (a fleet fire re-broadcasts its task)
   // — watching it refreshes the cockpit without any new polling loop.
   const cronJobsVersion = useCronStore((st) => st.jobs.map((j) => `${j.id}:${j.state ?? ""}:${j.paused ? 1 : 0}`).join("|"));
+  // cronJobsVersion is the intentional refresh TRIGGER (any task broadcast
+  // re-reads the cockpit), not a value this effect reads.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: intentional external refresh signal
   useEffect(() => {
     if (selectedId) void loadDetail(selectedId);
   }, [cronJobsVersion, selectedId, loadDetail]);

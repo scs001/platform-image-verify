@@ -6,7 +6,7 @@ CRM 客服台 agent 桥：以钉版本的开源 mcp-chatwoot server 把自托管
 
 ### Requirement: chatwoot MCP server 经钉版本开源 server 接入
 
-壹座运行时 SHALL 以 stdio 方式接入 `@fazer-ai/mcp-chatwoot`（版本钉死，不改其源码），作为操作员基线服务器 `chatwoot` 供 cell 的 MCP 通道使用。连接凭据 SHALL 仅经部署环境变量注入（`CHATWOOT_BASE_URL` / `CHATWOOT_API_TOKEN`），MUST NOT 落库、进日志或进配置仓；未配置所需 env 的部署 MUST NOT 出现该服务器条目。agent 可见的 chatwoot 工具面 SHALL 为标准 Chatwoot 实例可用的子集：fork 专属工具（`kanban_*`、`scheduled_messages_*`，标准实例 404）MUST NOT 出现在工具面亦 MUST NOT 可调用；发送类工具（`messages_create`、`messages_delete`）MUST NOT 出现在 agent 工具面——发送只能经动作闸提议通道（见 action-gate 能力）。所连实例为 Account 1「寻数 FindData」（zh_CN），工具调用中的 `account_id` SHALL 由技能钉为 1。
+壹座运行时 SHALL 以 stdio 方式接入 `@fazer-ai/mcp-chatwoot`（版本钉死，不改其源码），作为操作员基线服务器 `chatwoot` 供 cell 的 MCP 通道使用，并 SHALL 支持两种凭据形态：部署环境变量注入（寻数 A 租户第一方形态，`CHATWOOT_BASE_URL` / `CHATWOOT_API_TOKEN`）与逐用户凭据注入（商家 BYOK 形态，本地服务器行的 env 经 credentialRef 解析，见 mcp-integration「stdio env 值解析自逐用户凭据」）。凭据 MUST NOT 落库明文、进日志或进配置仓；两种来源皆缺的部署/用户 MUST NOT 出现该服务器条目。agent 可见的 chatwoot 工具面 SHALL 为标准 Chatwoot 实例可用的子集：fork 专属工具（`kanban_*`、`scheduled_messages_*`，标准实例 404）MUST NOT 出现在工具面亦 MUST NOT 可调用；发送类工具（`messages_create`、`messages_delete`）MUST NOT 出现在 agent 工具面——发送只能经动作闸提议通道（见 action-gate 能力）。`account_id` SHALL 按租户口径确定：A 租户技能钉为 1；商家变体技能 SHALL 经 profile 发现其账号 id，MUST NOT 假定任何固定值。
 
 #### Scenario: 配好 env 的部署上 agent 可用 chatwoot 读类工具
 
@@ -21,16 +21,20 @@ CRM 客服台 agent 桥：以钉版本的开源 mcp-chatwoot server 把自托管
 #### Scenario: 凭据不落库不进日志
 
 - **WHEN** 检查仓库、扩展配置数据库与运行日志
-- **THEN** chatwoot token 只存在于部署环境变量与其显式转发的子进程 env，任何表、文件、日志行均不含其明文
+- **THEN** chatwoot token 只存在于部署环境变量与其显式转发的子进程 env、或用户凭据库与其 cell patch 的显式转发，任何表、文件、日志行均不含其明文
 
 #### Scenario: 发送类工具直接调用被拒
 
 - **WHEN** agent 尝试直接调用 `mcp__chatwoot__messages_create`
 - **THEN** 调用被工具面拦下并给出可读原因（不在该服务器的可见面内），不触达 Chatwoot
 
+#### Scenario: 商家以自带凭据获得自己的租户面
+
+- **WHEN** 已连接自带 token 的商家组合运行时
+- **THEN** 其 cell patch 的 chatwoot 条目 env 携带商家自己的 token，工具调用只涉商家自己的 Chatwoot 账号
 ### Requirement: 客服接待技能草拟优先发送走闸
 
-平台 SHALL 内置 `crm-desk-reception` 技能（仓根技能目录，随镜像分发），定义客服接待工作流：读未处理会话 → 读会话消息与联系人 → 在壹座对话中生成回复草稿 → 人工确认后经 `propose_action` 提议发送（动作闸 `crm.message.send`，write 档行内确认）→ 发送后读回消息复核送达。技能 SHALL 钉 `account_id=1` 与收件箱口径（网站挂件 inbox），SHALL 提示 Chatwoot 列表接口分页。默认 MUST 只草不发：未经人工确认 MUST NOT 提议或执行任何发送。
+平台 SHALL 内置 `crm-desk-reception` 技能（仓根技能目录，随镜像分发），定义客服接待工作流：读未处理会话 → 读会话消息与联系人 → 在壹座对话中生成回复草稿 → 人工确认后经 `propose_action` 提议发送（动作闸 `crm.message.send`，write 档行内确认）→ 发送后读回消息复核送达。技能 SHALL 按 `account_id` 口径分变体：A 租户内置变体钉 `account_id=1` 与网站挂件收件箱口径；商家变体（随 CRM 客服套件 pack 分发）SHALL 经 profile 发现账号 id、不硬编码。两变体均 SHALL 提示 Chatwoot 列表接口分页。默认 MUST 只草不发：未经人工确认 MUST NOT 提议或执行任何发送。
 
 #### Scenario: 技能可经斜杠命令调用
 
@@ -47,6 +51,10 @@ CRM 客服台 agent 桥：以钉版本的开源 mcp-chatwoot server 把自托管
 - **WHEN** 用户对草稿未予确认（拒绝或沉默）
 - **THEN** 不发生任何 `messages_create` 执行，收件箱该会话保持原状
 
+#### Scenario: 商家变体不假定账号 id
+
+- **WHEN** 商家运行 pack 分发的接待技能
+- **THEN** 技能先经 profile 发现其账号 id 再调用工具，工具调用只涉商家自己的 Chatwoot 账号
 ### Requirement: 工具失败如实分类上报
 
 客服接待技能 SHALL 要求 agent 对任何 chatwoot 工具调用失败原样上报并给出原因分类（凭据无效 / 网络不可达 / 上游错误 / 参数被拒），MUST NOT 以空列表冒充「无数据」、MUST NOT 静默成功、MUST NOT 假报发送成功或编造会话状态。工具故障 MUST NOT 影响收件箱既有会话（Chatwoot 侧数据不因 agent 侧故障丢失或改变）。

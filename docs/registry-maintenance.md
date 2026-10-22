@@ -1406,3 +1406,11 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 - **D10** store 对 `tool_end` 原地改块、`ActionCard` 是 memo 且只收 `block` 引用 → 结果落地后卡永不更新 → ToolBlock 传本次渲染的 `{name,args,state,result}` 新对象；e2e 走 `tool_start→tool_end` 真事件路径，突变验证红绿。
 
 **登记待修（不在本轮）**：propose 入口不校验参数键名——模型三轮都先传 `packId/packName`（impact 渲染「包「undefined」」）再自纠为 `id`；应按动作声明校验/归一键名，否则留不可批准的垃圾提议。另：选择器里同名 agent 两份（registry 远端版 + 本地聚焦版）靠 id 后缀才能区分。
+
+### §15.5 补记：壹座 IA 收敛 simplify-chat-and-agents-ia（2026-10-22 上线，sha-0768448）
+
+- **链路**：公开快照仓 scs001/platform-image-verify `image` run 绿（GHA→hkccr→cheap3 relay→ccr，hkccr/ccr digest 双等 `sha256:3546fcac`）；GitOps 三清单（platform/platform-demo/facet）滚 `sha-0768448`（fd-infra-deploy `338f659`，gitee+github 双镜推送）；ArgoCD all-services-prod hard-refresh（注解 `argocd.argoproj.io/refresh`，kubectl `--context cheap`）→ 三 rollout 完成，platform/facet pod imageID 逐字节等于构建 digest。
+- **内容**（paas `67dbf53e`）：统一「与谁对话」选人器（合并模式下拉+⋯智能体区，agent roster 主源、rosterPresetId 去重、集群整组条目、D1 出厂只留标准）；安装报告 CTA `?preset=` 直通（多角色=去对话并载入整组）；⋯ 工作目录→会话项目+权限三档口语；agentsTabs 收两 tab（apps 并应用中心，nango-connect 连接主行动）；功能集 市场|我的。
+- **真机走查（aloadtree，2026-10-22）**：单角色重装→CTA→pending→自动选中「柏讯助手」→URL 消费 ✓；投研三镜头整组 CTA→带头「宏观经济研究员」自动选中 ✓；会话中途换人 pending→绿、组合行中途禁用 ✓；专家|功能集两 tab、?tab=apps 回落、我的=已安装+我的创作、应用中心网格全量 ✓。走查后人格还原为宏观经济研究员。
+- **顺手修**：624a2a70 顶层 useSearchParams 砸谦面无路由壳（生产 #/packs 白屏级）——改裸 window.location；出片时快照 forbidden-pattern 门另拦下 memory-architecture-v2 的集群节点名（当日脱敏 `1a170089`）。
+- **基线债（在册非本刀）**：full-mode-tool-scope 空 union（HEAD 同红）、chat-polish 8.3-8.4 死 LLM 族、composer-stop×2（main 固有 flaky）、facet-shell 操作底栏几何 77px（624a2a70 后不可达、本刀复可达但偏差仍在）。

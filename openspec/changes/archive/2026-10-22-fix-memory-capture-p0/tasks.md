@@ -72,9 +72,11 @@
        实证：fd-build-channel 判路（公开仓免费线）；源仓先推 origin（68b20796..768a48bb）；make-public-snapshot HEAD=768a48bb（gitleaks+禁模式双绿）→ 快照提交 9eb4d09 推 scs001/platform-image-verify（.github/workflows 修剪）→ 恢复提交 c45c662 触发 image-publish（run 39699889620 success：/api/config 5s + /api/ready dshInitError:null 双 smoke 门，1.42GB）；relay 后 ccr/hkccr digest 双证 sha256:ec3e0ad2…；fd-infra-deploy 9ba578a 三清单滚 sha-c45c662（platform/platform-demo/agent-runner-serving×2 行）→ ArgoCD hard-refresh → Synced/Healthy，三 pod imageID=ec3e0ad2 同一性过（facet 有意留 IA 版）`fd-build-channel` 判路 → platform 镜像滚 `runner-serving` 与 cell（`deploy-registry-image` / `paas-release` 纪律：先推 origin 再快照、核 pool tree 含新文件、relay 看逐 tag OK 行、digest↔pod imageID 双向比对）
 - [x] 7.4 生产验收：
        实证（第一部署，2026-10-22T00:57Z）：萬星 Planner 滚后首轮真实 serving 回合（巡检 self turn）落全四形状——user-prompt-submit（完整任务意图）、pre/post-tool-use×2（mcp__fd-memory__memory_handoff_accept 认领交接 + memory_handoff_begin 写回，参数单行 JSON、结果摘要、session=srv-day-20261022）、stop（ok tokens=38820）；全库扫描滚后仅 Planner 根有新行、全部本 session（零串投）；基线：滚前 12 个 d/ 根全 stop 单形状。cell 侧：platform pod 内重写 presets patch（幂等组合动作）suffix 带双语文案（工作记忆/Working memory 各 1 命中）。**第二部署补齐（01:13Z，自然流量）：爬虫自愈修复 Agent 巡检回合落 user-prompt-submit（spider-heal-protocol 工单意图）+ pre/post-tool-use×2（mcp__fd-health-config__health_config_get + bash python3 命令与 stderr 结果，session=srv-day-20261022 自有）**；Planner 至 01:3x 已两轮全四形状；全库扫描两根各自只含自己 session（零串投）。哨兵 00:26 自回合 900s 超时后停车（park 回合在 park 检查处早退不观测，非 capture 缺陷）。PVC 基线：/data 6.8M / 5Gi（2026-10-22，一周后复看）两个部署各跑一个含工具的回合，fd-memory 各自 `d/` namespace 下见四形状且无对方事件；记录每回合观测条数与 PVC 用量基线（一周后复看）
-- [ ] 7.5 台账：`docs/registry-maintenance.md` §9 发布记录；记忆台账 `memory-architecture-v2-program.md` 追加 P0 完结
+- [x] 7.5 台账：
+       实证：台账 §15.6（e7b806ec，链路/内容/验收/坑四段）；记忆台账 memory-architecture-v2-program.md + MEMORY.md 索引已更新（上产+配方）`docs/registry-maintenance.md` §9 发布记录；记忆台账 `memory-architecture-v2-program.md` 追加 P0 完结
 
 ## 8. 归档
 
-- [ ] 8.1 `openspec-sync-specs`：`agent-runner` 与 `memory-federation` 两条 MODIFIED 同步主 spec；`add-memory-scopes-and-cluster-sharing` 的 `agent-runner` delta 以同步后的主 spec 为基线重写（其 proposal 已约定）
-- [ ] 8.2 `openspec archive fix-memory-capture-p0`
+- [x] 8.1 `openspec-sync-specs`：
+       实证：agent-runner「部署 agent 的工作记忆经平台缝代采与挂载」与 memory-federation「cell 记忆挂载遵守组合与凭据纪律」两条 MODIFIED 整块同步主 spec；validate --specs 165/0；scopes change 尚无 specs delta（proposal-only），其 agent-runner delta 将以本次同步后主 spec 为基线`agent-runner` 与 `memory-federation` 两条 MODIFIED 同步主 spec；`add-memory-scopes-and-cluster-sharing` 的 `agent-runner` delta 以同步后的主 spec 为基线重写（其 proposal 已约定）
+- [x] 8.2 `openspec archive fix-memory-capture-p0`（本次提交即归档移动）

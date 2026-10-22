@@ -84,9 +84,11 @@ test("i18n keys exist in all five locales", () => {
 
 test("unified grid: bundled products are attributed and brand-ordered (2.1)", () => {
   const order = buildAppGrid(APP_LINES, CATALOG_APPS).map((e) => e.id);
+  // add-crm-desk-pack-embed: the desk embed card joins the yizuo brand group.
   assert.deepEqual(order, [
     "yizuo",
     "yizuo-packs",
+    "crm-desk",
     "facet",
     "wanxing",
     "wanxing-token",

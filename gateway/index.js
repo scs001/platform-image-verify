@@ -19,7 +19,8 @@ import path from "node:path";
 import { readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createLogtoAuth } from "../server/logto-auth.js";
-import { resolveSessionSecret } from "../server/session.js";
+import { resolveSessionSecret, verifyEmbedToken } from "../server/session.js";
+const sessionHelpers = { verifyEmbedToken };
 import { createCellRegistry, userIdFor } from "./spawner.js";
 import { forwardedHeaders, machineHeaders, proxyHttp, proxyUpgrade } from "./proxy.js";
 import { createMpAuth } from "./mp-auth.js";
@@ -771,9 +772,10 @@ app.all(/^\/api\/bots\/relay\//, async (req, res) => {
 });
 
 // Everything else belongs to a cell.
-app.use(async (req, res) => {
-  const user = resolveUser(req);
-  if (!user) return rejectUnauthenticated(req, res);
+// One cell dispatch shared by the Logto path and the desk-embed host path
+// (add-crm-desk-pack-embed D6): ensure the user's cell, then proxy with the
+// verified identity injected.
+async function dispatchToCell(req, res, user) {
   // The roster is what the admin surface lists (cells are keyed by hash, so
   // this write is where a real email enters the store).
   roleStore.noteUser(user.email);
@@ -798,6 +800,44 @@ app.use(async (req, res) => {
       layoutHeader: layoutStore.headerValue(),
     }),
   });
+}
+
+// Desk embed host (add-crm-desk-pack-embed D6): the edge serves a dedicated
+// sibling host (DESK_EMBED_HOST) so the proxied Chatwoot SPA is same-origin —
+// its session cookie is JS-written on its own origin and cannot be injected
+// cross-origin. The Logto session cookie does not ride a sibling host either,
+// so identity here = the short-lived HMAC embed token the user's cell minted
+// when they clicked the desk entry (query `et` on entry, then the embed cookie
+// the cell set on this host). Everything else on this host is rejected.
+const DESK_EMBED_HOST = process.env.DESK_EMBED_HOST || "";
+if (DESK_EMBED_HOST) {
+  const embedEmail = (req) => {
+    if ((req.headers.host || "").split(":")[0] !== DESK_EMBED_HOST) return null;
+    const cookies = req.headers.cookie || "";
+    const m = /(?:^|;\s*)desk_embed=([^;]+)/.exec(cookies);
+    const { verifyEmbedToken } = sessionHelpers;
+    if (m) {
+      const hit = verifyEmbedToken(decodeURIComponent(m[1]), SECRET);
+      if (hit) return hit;
+    }
+    const et = new URL(req.url, "http://x").searchParams.get("et");
+    return et ? verifyEmbedToken(et, SECRET) : null;
+  };
+  app.use((req, res, next) => {
+    if ((req.headers.host || "").split(":")[0] !== DESK_EMBED_HOST) return next();
+    const hit = embedEmail(req);
+    if (!hit) return res.status(401).send("嵌入会话无效或已过期，请从壹座重新进入客服台");
+    dispatchToCell(req, res, { email: hit.email, groups: [] }).catch((err) => {
+      console.error(`[gateway] desk-embed dispatch failed: ${err.message}`);
+      if (!res.headersSent) res.status(502).send("客服台嵌入暂时不可用");
+    });
+  });
+}
+
+app.use(async (req, res) => {
+  const user = resolveUser(req);
+  if (!user) return rejectUnauthenticated(req, res);
+  dispatchToCell(req, res, user);
 });
 
 // WebSocket upgrades take the same identity check, then pin to the user's cell

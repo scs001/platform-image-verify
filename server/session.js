@@ -105,3 +105,32 @@ export function clearCookie(name, secure = false) {
 }
 
 export { STATE_TTL_MS };
+
+// ── Desk embed token (add-crm-desk-pack-embed D6) ────────────────────────────
+// The desk-embed origin (a dedicated host the edge routes to this gateway) has
+// no Logto session cookie — it is a sibling host. Identity rides a short-lived
+// HMAC token minted by the user's cell when they click the desk entry on the
+// platform origin. Same secret as the gateway handshake (CELL_GATEWAY_SECRET).
+
+export function signEmbedToken(secret, email, ttlMs = 5 * 60 * 1000, now = Date.now()) {
+  const payload = Buffer.from(JSON.stringify({ e: email, x: now + ttlMs })).toString("base64url");
+  const sig = createHmac("sha256", secret).update(payload).digest("base64url");
+  return `${payload}.${sig}`;
+}
+
+export function verifyEmbedToken(token, secret, now = Date.now()) {
+  if (typeof token !== "string" || !token.includes(".")) return null;
+  const [payload, sig] = token.split(".");
+  if (!payload || !sig) return null;
+  const expected = createHmac("sha256", secret).update(payload).digest("base64url");
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+  try {
+    const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    if (typeof data.e !== "string" || !data.e || typeof data.x !== "number" || data.x <= now) return null;
+    return { email: data.e };
+  } catch {
+    return null;
+  }
+}

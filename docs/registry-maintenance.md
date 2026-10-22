@@ -1455,3 +1455,7 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 - **事故一枚（即时修复）**：manifest 镜像 tag 与注释间漏空格（`sha-7576187#` 粘连）→ `Init:InvalidImageName`——0ec301d 补空格重滚。regex 替换注释时 `tag + " " + note` 的空格不能省。
 - **v2.2 前置探测**：词元车道 `/v1/embeddings` 不通（bge-m3 → "Embeddings API is not supported for this platform"、text-embedding-* → 组内无账号）——embedding 召回需先建车道（sub2api 加 embedding 账号组或直连硅基流动），非代码活。
 - **萬星 console 可见性 UI（fd-wanxing 姊妹仓）前置**：现 fd-memory 可见面只有 owner-root person 令牌（/memory+/forget）与 admin report；deployer 身份 → d-root 的读车道尚无设计（packId 唯一映射 deployer 但 fd-memory 不持该映射）——UI change 立项前需先定身份映射方案。
+
+### §15.9 发布记录：事实层 reconcile 与 subject 双路上产（add-fact-reconcile-and-subject-normalization / v2.1，2026-10-22 上线）
+
+**镜像**：仅 fd-memory-distiller `sha-90f6862`（digest `79c816ac`，源 c093505；池 DF 配方用完已还原）。fd-memory 服务零改动。**实现**：事实层 reconcile（引擎 `build_fact_reconcile_prompt`→`_parse_ops`，真形状 `{ops:[{draft_idx,supersedes}]}`）；subject 双路（`subject_equal` = NFKC/小写/压空白/剥边缘标点 + despace 第二形态 → 不等才一次结构化 LLM 判定，merged+reason 进 llm_calls，不改写产物）；薄 fact 限流 `DISTILLER_FACT_MAX=2`（合并链优先保位，丢弃记 fact_cap warning）。pytest 8/8；eval v1.1 真跑 PASS（s20/s21 拆四 scene 后 superseding facts=2、8/8 关键词、语言 6/6、69,972 tokens/27 调用）。**生产验收**：无状态直探 prod sidecar——fact 合并 supersedes 链 + distill_fact_reconcile 留痕、零错误（自然流量的合并链待明日预算重置后眼见）。**坑**：① 引擎 fact ops 真形状是列表不是映射（fixture 实撞）；② 合并评测场景必须两次独立蒸馏——同批两 session 会并成一条 trace 无从 reconcile（夹具教训）；③ distill 候选 frontmatter 里 task/statement 不落盘、title 承载（candidate 检索读 title 兜底链已兼容）。

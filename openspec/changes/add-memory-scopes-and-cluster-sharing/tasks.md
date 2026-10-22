@@ -42,7 +42,7 @@
 
 ## 8. 出片、迁移与验收
 
-- [ ] 8.1 fd-build-channel 判路 → fd-memory 与 paas（platform+agent-runner-serving）出片（GHA 链、双 smoke 门、digest 双证）。验证：三镜像 digest 在 hkccr+ccr 一致。
-- [ ] 8.2 生产迁移窗口：PVC 快照 → scale 0 → migrate-v2 dry-run→执行 → 新版本 fd-memory 起来 → 验收（admin/report、抽查 query、eval 对生产数据跑一遍）。验证：`.v1-backup` 在、旧根空、查询可检索历史。
-- [ ] 8.3 滚 runner-serving 与 cell：pod 令牌铸造落库（tokens.db 见 pod 族）、集群任务真跑一轮验证两挂点（digest 落 owner 根 clusterId project）。验证：生产 tokens.db/audit 行/项目页面眼见。
+- [x] 8.1 fd-build-channel 判路 → fd-memory 与 paas（platform+agent-runner-serving）出片（GHA 链、双 smoke 门、digest 双证）。验证：三镜像 digest 在 hkccr+ccr 一致。
+- [x] 8.2 生产迁移窗口：PVC 快照 → scale 0 → migrate-v2 dry-run→执行 → 新版本 fd-memory 起来 → 验收（admin/report、抽查 query、eval 对生产数据跑一遍）。验证：`.v1-backup` 在、旧根空、查询可检索历史。
+- [x] 8.3 滚 runner-serving 与 cell：pod 令牌铸造落库（tokens.db 见 pod 族）、集群任务真跑一轮验证两挂点（digest 落 owner 根 clusterId project）。验证：生产 tokens.db/audit 行/项目页面眼见。
 - [ ] 8.4 台账（docs/registry-maintenance.md §15.7）+ 主 spec 同步 + 归档（`openspec archive --yes`，validate --specs 165/0）。

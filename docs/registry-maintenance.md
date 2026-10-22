@@ -1428,3 +1428,13 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 - **根因（死 LLM 族）**：fast 套件默认 `LLM_BASE_URL=http://127.0.0.1:9/v1`（闭合端口）→ dsh 适配器归类 **TRANSPORT（可重试）**→ 走满 5 级退避（1s→15s 指数 + 20% 抖动 ≈ **24-36s**），恰好横跨所有 30s `waitForIdle`——一半概率超时红（composer-stop #1），且未收敛回合被下一用例重载收养（`session_loaded running:true`），其终局 `done` 清掉 suppression → composer-stop #2 `suppressed:false` 假红；chat-polish 8.3-8.4 同族侥幸绿。注意 `.env` 有真实词元地址但 dotenv 不覆盖显式传入的 env，e2e 实际从未烧真 token。
 - **修法**：新 `e2e/dead-llm.js`——本地 stub 对一切请求**秒回 401**（消息含 "401" → 适配器归类 **AUTH，不在 retryableCodes → 立即终局**，回合一个 HTTP 往返收敛）；两份 playwright 配置接入 webServer 链并改默认 `LLM_BASE_URL`（主 3187 / full-mode **3188 独立口防并行会话撞口**），smoke/chaos 走 env 覆盖不受影响（reconnect-resync/user-questions/plan-smoke=@smoke 用真实 store provider；onboarding/model-selection 发的是斜杠命令，均不落此车道）。
 - **验收**：composer-stop+chat-polish **6 连绿**（对照基线 7 轮 5 红；单轮 2.7min→**12s**）；full-mode 新链 3/3；facet-shell 新链 8/8；几何探针四态数据在案。纯 e2e 基建变更（零运行时代码），不出片。
+
+### §15.7 发布记录：记忆作用域与集群共享上产（add-memory-scopes-and-cluster-sharing，2026-10-22 上线）
+
+**镜像**：fd-memory `sha-1975d05`（digest `8bc826cd`，testaction001/build-pool 通用池；fd-memory 49389b7+1e12ca3，迁移脚本修复 86eacf6 经 pod 覆写执行）+ platform `sha-f6a3646`（digest `6dbc9549`，scs001 公开线 + restore commit 触发 image.yml；paas 4425820a；双 smoke 门绿）。四清单滚产（fd-memory / platform / platform-demo / agent-runner-serving，GitOps 96f818e+017c34c）。
+
+**v1→v2 布局迁移（生产 2026-10-22 03:4x UTC）**：PVC tar 备份双存（本地 + cheap3）/tmp/fd-memory-backup-20261022.tgz → scale 0 → migrate-v2 dry-run → 执行（10 namespace + 2 孤儿根：spider-heal 历史 slug 坐标与 pod-cohost 探测残留按 best-effort 保留为独立 project）→ `.v1-backup` 目录全保留。**真缺陷两枚（迁移窗口现场修）**：① v1 库 handoffs 无 to_agent 列，固定列清单 SELECT 崩（改 SELECT * + DROP COLUMN 造真 v1 schema 测试钉回归）；② 孤儿扫描重复处理已迁根撞 _meta.md（processed 集合 + _meta 幂等合并）。修复版经 runAsUser 0 pod 覆写执行（镜像未重出——脚本不在服务路径；仓已提交 86eacf6）。
+
+**生产实证**：grants 回填 64 行（五族默认授予矩阵）；runner 令牌 2 段铸造 pod 族 ✓；pod 令牌 /pages shared 读写 + 审计行（principal=pod:*）；成员令牌 MCP recent 返回 own+shared 带源（阿尔法哨兵历史迁移内容可检索）；admin/report 9 授予+写入。**集群回合两挂点（aloadtree 真机）**：「投研三镜头」两轮任务——第一轮 digest 落 `u-aloadtree@gmail.com/p/dyn_…/notes/`（person 令牌审计）；第二轮成员子会话 user 消息含【集群共享记忆】注入块（带首轮 digest 标题），成员输出自发跨成员共享（A 写 shared、B 并集读到并引用路径）。验收 cron job 已删。
+
+**坑**：池 `--branch master` 推 master 但 image.yml 只认 main（memory 在案重演，一次浪费）；fd-memory 无根 Dockerfile（池只认根路径，补 Dockerfile 与 docker/Dockerfile.registry 同文）；scs001 快照仓 workflow 是 build-check 验证线，真出片需 restore commit（cp 私仓 image.yml 进快照仓再推）；buildx metadata digest 是本地值（skopeo raw 双侧比对为准）；BARGS=SERVICE=facade 池变量残留会注入未知 build-arg（无害，未动）。

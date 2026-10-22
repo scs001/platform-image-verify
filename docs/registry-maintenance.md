@@ -1475,3 +1475,15 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **生产实证**：runner 令牌带 rootKey 读 d- 根 L2（200/5 条）；真实蒸馏 spider-heal 2 experiences 伴随向量落库（model/dim 4096 眼见）；上游 502 抖动期间蒸馏零中断（embed 告警行 + 关键词兜底 = 伴随数据纪律实证）。
 
 **坑册（两条价值极高）**：① **python 替换补丁必须 assert 命中**——静默 no-op 让 embed_texts 三版并存假象拖出长调试螺旋（「修好了还报错」=代码根本没进盘）；② **pkill -f 模式会自匹配当前命令串杀掉重启链**——老进程持续占 8100，探针全打旧代码（按端口 lsof -t 清场）。另：.env 有未引用的多值行（48 行 HARBOR_TAILNET_ALT）source 报 command not found 但继续——管道里 source 在子 shell 不落父壳，测试变量要用同壳直读。
+
+### §15.12 发布记录：萬星 console 部署记忆可见页（add-memory-visibility-console，2026-10-23 上线）
+
+**镜像**：wanxing-facade `sha-84bbc02`（digest `3eab7e05`）+ wanxing-web 三连滚 `sha-84bbc02`→`1551f4b`→`7ed95d9`（终 digest `8934f1b9`，testaction005 池 DF 双切、**池变量系他会话配置 finddata-business/fd-find-data-business-mcp——用完已按原值还原**）；facade env FD_MEMORY_URL/TOKEN 走 `fd-memory-platform` secret。fd-wanxing 9fad42b+2a2644d+74ee780。
+
+**实现**：facade `/deployments/:slug/memory(+forget)` 透明代理（ownerGate→packId 派生 rootKey、未配 503 MEMORY_LANE_UNCONFIGURED、错误语义单一真源在 fd-memory）+ deployments 列表携带 lane 位；web FleetView「记忆」面板（layer chips、L 徽章 timeline、遗忘两步确认、403/503 分语、lane 位驱动显隐）。console 套件 5/5、全仓 201/201。
+
+**真机走查（aloadtree，console 域 Logto 直通）**：5 部署×记忆按钮全出 → lex-console-copilot 面板 layer chips/条目/时间线渲染 → 遗忘两步确认 → fd-memory 审计行 `platform:b6e02411548beb1d op=forget`（逻辑删）。**走查抓渲染崩溃一枚**（memoryLaneAvailable 引用不存在的 `deployments` 变量 → deps 响应对象形状 → 两连修上产）——面板代码必须在真机首刷，单元测试不覆盖 React 作用域。
+
+**扫宽事故一枚（如实记）**：归档移动 commit 用 `git add openspec/changes/` 宽路径，卷进两会话在树上的归档移动（harden-copilot-intent-envelope 的 archive 新增 + clarify-plan-card-and-wizard 的活动目录删除——后者已核实 archive/2026-10-22-clarify 全量在案，零内容损失）；worktree 状态与归档一致，按纪律不重写历史，仅在册。**教训重申：归档移动提交必须逐 change 路径 add，openspec/changes/ 整目录在并行会话树下永远太宽。**
+
+**记忆 v2 全景收官**：L0 采集/L1 交接/Scope+Grant/v2 布局/L2 蒸馏（经验+事实 reconcile）/向量召回/可见性+forget/**部署者可见页** 全上产。余=蒸馏自然流量观察（运行积累，无动作）。

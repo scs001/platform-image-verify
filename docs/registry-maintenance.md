@@ -1446,3 +1446,12 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **实现**：五模块——页型（fact/experience，reindex 识别+跳过 forgotten）、cursor（observations rowid 水位 + distill_state 退避/gap）、调度器（会话边界去抖 5min + 10min 兜底 lag≥200、同 project 串行、失败保 cursor 指数退避封顶 1h）、预算表（per-root=per-owner 400k tokens/日护栏）、可见性（GET /memory person-only 三滤 + POST /forget 逻辑删）；sidecar C1（_parse_output/_parse_ops 挂 json_repair 重试）/C2（模板尾语言钉行+产物后检）/C3（provider.complete 记录器，errors 显性化）。零 LLM 档 8 项进 npm test（31/31）；LLM 档 eval-distill.mjs 真跑 PASS（6/6 关键词、task 语言 2/2 中文、去重不重复 ADD、23,807 tokens/5 调用基线）。
 
 **坑**：python:3.11-slim 无 git 而 hy-memory 是 git+https 依赖（Dockerfile 装 git 再 purge）；`_parse_ops` 是 staticmethod（补丁层别传 cls）；池新变量要 POST（PUT 只更新既有）；**同池第二镜像切换 = BUILD_DOCKERFILE 变量 + dispatch，用完必须还原**（忘还原会静默错构建——本刀实撞一次：distiller 首建打成 node 镜像同 tag，取消+重跑）；**runner 的 agent-runner-llm store 里 sk-or 旧钥对词元车道 401**（其 discovery 自标 unauthorized），活钥走 `fd-memory-distiller-env` secret 直供（轮换=改 secret+滚 sidecar）。
+
+
+### §15.8 补记：蒸馏首日运营（2026-10-22 下午）
+
+- **首日生产数据**：三根全部开始蒸馏（wx-alpha/mission-planner×2/spider-heal/萬星 Planner/爬虫自愈修复 Agent/阿尔法哨兵 共 7 批），~1.11M tokens / 127 LLM 调用；预算护栏如设计工作（d-4FHj 403,748/400,000 打满 → gap 记录、cursor 冻结、次日续）。PVC owners 18M/5Gi（基线 6.8M + 迁移 backup ~1.1M + L2 页）——健康。
+- **调优上产（fd-memory `sha-7576187`/digest `18c85b1c`，3269259）**：① 兜底回填需预算余量（≥100k 才扫描）——首日发现冻结坐标档案（agentId 切换前的显示名 project，其 L2 页当前成员不可见）在抢活项目的额度；② 批量 500→120（220 obs=74k tokens 实测过粗）。
+- **事故一枚（即时修复）**：manifest 镜像 tag 与注释间漏空格（`sha-7576187#` 粘连）→ `Init:InvalidImageName`——0ec301d 补空格重滚。regex 替换注释时 `tag + " " + note` 的空格不能省。
+- **v2.2 前置探测**：词元车道 `/v1/embeddings` 不通（bge-m3 → "Embeddings API is not supported for this platform"、text-embedding-* → 组内无账号）——embedding 召回需先建车道（sub2api 加 embedding 账号组或直连硅基流动），非代码活。
+- **萬星 console 可见性 UI（fd-wanxing 姊妹仓）前置**：现 fd-memory 可见面只有 owner-root person 令牌（/memory+/forget）与 admin report；deployer 身份 → d-root 的读车道尚无设计（packId 唯一映射 deployer 但 fd-memory 不持该映射）——UI change 立项前需先定身份映射方案。

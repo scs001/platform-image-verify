@@ -34,6 +34,8 @@ Task creation (the `POST /api/cron` bridge, the `cron_add` WebSocket message, an
 
 When a cluster task fires, the engine SHALL resolve the cluster's members (optionally narrowed by `targetAgents`) against the live catalog: a member whose pack is uninstalled, whose entry is not chat/a2a, or whose local persona preset is not ready SHALL be skipped and reported by name. Each runnable member SHALL run the task prompt in its own sub-session `<bound-session>--<agent-id>` titled `<cluster> · <member>`: local persona members through the shared runtime (preset switch, one turn, collected reply) and a2a members as remote turns. Local persona members ALWAYS run sequentially — the runtime hosts one persona at a time; with `allowParallel: true` the a2a members' remote turns overlap the persona loop, and the aggregate SHALL note the sequential degradation when it applies. `timeoutMinutes` bounds each member turn. After the fan-out the runtime SHALL be restored to the preset it had before the task.
 
+When memory federation is enabled on the cell, the engine SHALL, after member resolution and before any member runs, read the cluster's shared memory — the most recent shared pages of the cluster-id project under the owner's memory root — and, when it has content, inject that content as a context block into every member's task prompt; when the project is empty or memory is unreachable no block is injected and the task proceeds unchanged. After the aggregate digest is finalized the engine SHALL write the digest back as a page into the same project; a write failure MUST be recorded without failing the task. Both memory hooks MUST degrade open — with memory unreachable the task's execution, aggregation, and bookkeeping are identical to the memory-off behavior.
+
 The task's bound session SHALL receive the prompt and one aggregate: `all` (default) lists every successful member's output under its name; `first` reports the first successful member's output; `summary` runs one synthesis turn in the bound session under the first successful persona member, fed with every member output, and records that turn exactly once (falling back to the `all` digest with a note when no local member succeeded or the synthesis failed). Members that failed or were skipped SHALL be listed with their reason. The execution SHALL succeed when at least one member succeeded and fail — naming every member's reason — when none did. The cluster's `totalExecutions`/`lastUsedAt` SHALL be updated, and the engine's history entry SHALL record `models: { <member name>: <model id> }` — the model the runtime served each member with (the deployment's lane is the single provider; the record names the model, not a provider layer).
 
 #### Scenario: Sequential fan-out with aggregate
@@ -61,6 +63,15 @@ The task's bound session SHALL receive the prompt and one aggregate: `all` (defa
 - **WHEN** no member produces output
 - **THEN** the task fails with an error naming every member's failure or skip reason
 
+#### Scenario: Shared memory injected into member context
+
+- **WHEN** the cluster-id project under the owner's memory root already holds shared pages and a cluster task fires
+- **THEN** every member's task prompt carries the shared-memory context block, and the digest is written back to that project after aggregation
+
+#### Scenario: Memory unreachable degrades open
+
+- **WHEN** the memory service is unreachable and a cluster task fires
+- **THEN** the task executes, aggregates, and books exactly as with memory off; the history records the degraded write-back, and the task is not failed for memory reasons
 ### Requirement: Cluster task listing and management
 
 The task list (client shape, the `cron_jobs` message, and the agent-facing `cron_list` tool) SHALL show cluster tasks with their cluster name and member count; the agent-facing `cron_create` tool SHALL describe a created cluster task with its cluster and execution mode. The tasks page SHALL render a cluster badge (name × member count) on cluster tasks and, when the task names a member subset, a per-member affordance that opens that member's sub-session. Pause, resume, re-run, and delete SHALL work on cluster tasks through the existing task-level operations; no cluster-scoped task endpoints are introduced. The worker pool SHALL never claim a cluster task — its target ref is a cluster id, not a persona — so cluster tasks always run on the primary chain. Creation and run-now before the task engine has initialized (a cold cell) SHALL be refused with a retry hint rather than executed without an executor.

@@ -18,6 +18,7 @@ import * as dshProfile from "../dsh-profile.js";
 import { parseToolResult } from "./dsh-events.js";
 import { getClusterDatabase } from "./routes/clusters-db.js";
 import { runA2aTurn, resolveGatewayCredential } from "./a2a-client.js";
+import { clusterMemoryFor } from "./cluster-memory.js";
 
 const IDLE_POLL_MS = 250;
 const PRESET_SWITCH_ATTEMPTS = 3;
@@ -379,7 +380,26 @@ async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, runPersona
   // Captured BEFORE any member runs — the persona loop switches the shared
   // runtime once per member; this is what it goes back to at the end.
   const originalPreset = ctx.currentPreset || null;
-  chatHistory.recordMessage(boundSessionId, "user", job.prompt);
+
+  // ── memory hook ① (add-memory-scopes-and-cluster-sharing) ────────────────
+  // After member resolution, read the cluster's shared pages (the cluster-id
+  // project under the OWNER's memory root) and inject them into every
+  // member's task prompt. Degrade open: empty project or unreachable memory
+  // means no block and the task proceeds unchanged.
+  let taskPrompt = job.prompt;
+  const clusterMemory = await clusterMemoryFor(process.env, ctx.runtimeOwnerEmail ?? null);
+  if (clusterMemory) {
+    try {
+      const sharedPages = await clusterMemory.readShared(cluster.id, 5);
+      if (sharedPages.length) {
+        const block = sharedPages.map((p) => `- ${p.title}（${String(p.updated_at ?? "").slice(0, 10)}）`).join("\n");
+        taskPrompt = `${job.prompt}\n\n【集群共享记忆】本集群此前回合的沉淀，供参考：\n${block}`;
+      }
+    } catch (e) {
+      console.warn(`[cluster] shared-memory read failed for ${cluster.id} (degrade open): ${e?.message || e}`);
+    }
+  }
+  chatHistory.recordMessage(boundSessionId, "user", taskPrompt);
   if (job.sessionTitle) {
     try { chatHistory.setTitle(boundSessionId, job.sessionTitle); } catch { /* prompt-derived title stays */ }
   }
@@ -405,7 +425,7 @@ async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, runPersona
   const runA2aMember = async (slot) => {
     const out = await runA2a(ctx, {
       id: job.id,
-      prompt: job.prompt,
+      prompt: taskPrompt,
       targetType: "a2a",
       preset: slot.entry.id,
       sessionId: memberSessionId(job, slot.agentId),
@@ -420,7 +440,7 @@ async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, runPersona
     const preset = dshProfile.rosterPresetId(r.entry.id);
     const out = await runPersona(ctx, {
       id: job.id,
-      prompt: job.prompt,
+      prompt: taskPrompt,
       targetType: "persona",
       preset,
       sessionId: memberSessionId(job, r.member.agentId),
@@ -535,6 +555,21 @@ async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, runPersona
   // failed summary) needs a manual row.
   if (!summarySucceeded) {
     chatHistory.recordMessage(boundSessionId, "assistant", digestText);
+  }
+  // ── memory hook ② (add-memory-scopes-and-cluster-sharing) ────────────────
+  // Write the finalized digest back as a page of the same cluster project —
+  // the next cluster turn's hook ① feeds on it. Failure is recorded, never
+  // task-failing.
+  if (clusterMemory) {
+    try {
+      await clusterMemory.writeDigest(
+        cluster.id,
+        `集群回合 ${new Date().toISOString().slice(0, 16).replace("T", " ")}`,
+        digestText,
+      );
+    } catch (e) {
+      console.warn(`[cluster] digest write-back failed for ${cluster.id} (degrade open): ${e?.message || e}`);
+    }
   }
   const version = ctx.sessionVersion;
   chatHistory

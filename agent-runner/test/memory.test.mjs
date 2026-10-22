@@ -102,7 +102,7 @@ test("acpMcpServers rows keep the SDK header-array shape (memory row appended by
   assert.equal(rows[0].type, "http");
 });
 
-import { dshMemoryMount, acpMemoryMount } from "../memory-mount.js";
+import { acpMemoryMount } from "../memory-mount.js";
 
 test("mount rows: dsh loader row and ACP SDK row shapes", () => {
   const dsh = dshMemoryMount("http://127.0.0.1:49375/mcp", "fdm_dep");
@@ -276,6 +276,62 @@ test("P0 pod composition: discipline provided (per-member mounts, later change) 
     const patch = readFileSync(spec.patchPaths.find((x) => x.endsWith("presets.patch.yml")), "utf8");
     assert.ok(patch.includes("mcp__fd-memory__"));
     assert.ok(patch.includes("memory_handoff_begin"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// ── add-memory-scopes-and-cluster-sharing ───────────────────────────────────
+
+import { memoryNamespaceFor, podMemoryNamespace, dshMemoryMount } from "../memory-mount.js";
+
+test("memoryNamespaceFor: metadata.agentId is the coordinate, display name only a legacy fallback", () => {
+  const withBoth = { name: "爬虫自愈修复 Agent", metadata: { packId: "KkCi", agentId: "spider-heal" } };
+  assert.equal(memoryNamespaceFor(withBoth), "d/KkCi/spider-heal");
+  const legacyNameOnly = { name: "萬星 Planner", metadata: { packId: "i262" } };
+  assert.equal(memoryNamespaceFor(legacyNameOnly), "d/i262/萬星 Planner");
+  assert.equal(memoryNamespaceFor({ metadata: { packId: "p" } }), null);
+  assert.equal(memoryNamespaceFor({ name: "x", metadata: {} }), null);
+  assert.equal(memoryNamespaceFor(null), null);
+});
+
+test("podMemoryNamespace: two-segment pack-shared namespace for the pod token", () => {
+  assert.equal(podMemoryNamespace("pk1"), "d/pk1");
+  assert.equal(podMemoryNamespace(null), null);
+});
+
+test("scopes: pod composition carries the shared mount row and the discipline together", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "fdm-pod3-"));
+  try {
+    const member = { agentKey: "packs-pk-a1", entry: { name: "显示名甲", metadata: { packId: "pk", agentId: "a1", persona: "你是成员一。" } } };
+    const podToken = "fdm_podtest";
+    const spec = await materializePackHome({
+      homeRoot: dir,
+      packId: "pk",
+      memberSpecs: [member],
+      mcpServers: [dshMemoryMount("http://memory.test/mcp", podToken)],
+      memoryDiscipline: MEMORY_DISCIPLINE,
+    });
+    const patch = readFileSync(spec.patchPaths.find((x) => x.endsWith("mcp.patch.yml")), "utf8");
+    assert.ok(patch.includes("fd-memory"), "shared MCP patch carries the memory mount row");
+    const presets = readFileSync(spec.patchPaths.find((x) => x.endsWith("presets.patch.yml")), "utf8");
+    assert.ok(presets.includes("memory_handoff_begin"), "member persona carries the discipline text");
+    assert.ok(presets.includes("工作记忆"));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("scopes: pod composition without a mount keeps the discipline out (degrade open)", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "fdm-pod4-"));
+  try {
+    const member = { agentKey: "packs-pk-a1", entry: { name: "a1", metadata: { packId: "pk", persona: "你是成员一。" } } };
+    const spec = await materializePackHome({ homeRoot: dir, packId: "pk", memberSpecs: [member], mcpServers: [], memoryDiscipline: null });
+    const presets = readFileSync(spec.patchPaths.find((x) => x.endsWith("presets.patch.yml")), "utf8");
+    const patchPath = spec.patchPaths.find((x) => x.endsWith("mcp.patch.yml"));
+    const patch = patchPath ? readFileSync(patchPath, "utf8") : "";
+    assert.ok(!presets.includes("工作记忆"));
+    assert.ok(!patch.includes("fd-memory"));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

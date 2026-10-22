@@ -66,7 +66,7 @@ import { agentKeyFor, materializeAgentHome, materializePackHome, mcpEntry, packP
 import { materializeAcpWorkspace, acpMcpServers, acpCredentialEnv, acpSecretsRefusal } from "./compose-acp.js";
 import { MemoryCapture, compactJsonText } from "./memory-capture.js";
 import { MEMORY_DISCIPLINE } from "./memory-discipline.js";
-import { dshMemoryMount, acpMemoryMount } from "./memory-mount.js";
+import { dshMemoryMount, acpMemoryMount, memoryNamespaceFor, podMemoryNamespace } from "./memory-mount.js";
 
 // Cold-start respawn escalation (fix-agent-serving-stability 2.2): after the
 // child's own initialize retries are exhausted, the manager retries the
@@ -915,16 +915,27 @@ export class ChildManager {
   // appended AFTER the descriptor's own MCP rows — fd-memory rides beside
   // registry servers under the same token-resolution discipline.
   async #memoryMountToken(entry) {
-    const packId = entry?.metadata?.packId;
-    const agentId = entry?.name ?? entry?.metadata?.agentId;
-    if (!packId || !agentId) return null;
-    const ns = `d/${packId}/${agentId}`;
+    const ns = memoryNamespaceFor(entry);
+    if (!ns) return null;
+    return this.#mintMemoryToken(ns, `runner:${this.config.fleetRunnerId ?? "runner"}`);
+  }
+
+  // Pod memory mount (add-memory-scopes-and-cluster-sharing): ONE pod token
+  // per pack mounts the shared MCP patch; member observations keep landing in
+  // their own agent scopes via #memoryEventObserve.
+  async #podMemoryMountToken(packId, childKey) {
+    const ns = podMemoryNamespace(packId);
+    if (!ns) return null;
+    return this.#mintMemoryToken(ns, `pod:${childKey ?? this.config.fleetRunnerId ?? "runner"}`);
+  }
+
+  async #mintMemoryToken(ns, label) {
     if (this.#memoryTokens.has(ns)) return this.#memoryTokens.get(ns);
     try {
       const res = await fetch(`${this.config.memoryUrl}/admin/mint`, {
         method: "POST",
         headers: { "content-type": "application/json", authorization: `Bearer ${this.config.memoryToken}` },
-        body: JSON.stringify({ namespace: ns, label: `runner:${this.config.fleetRunnerId ?? "runner"}` }),
+        body: JSON.stringify({ namespace: ns, label }),
       });
       if (!res.ok) throw new Error(`mint HTTP ${res.status}`);
       const { token } = await res.json();
@@ -945,11 +956,10 @@ export class ChildManager {
   #memoryEventObserve(entry, sessionId, event, { toolName = null, summary = "" } = {}) {
     if (!this.memory) return;
     try {
-      const packId = entry?.metadata?.packId;
-      const agentId = entry?.name ?? entry?.metadata?.agentId;
-      if (!packId || !agentId) return;
+      const ns = memoryNamespaceFor(entry);
+      if (!ns) return;
       this.memory.observe({
-        namespace: `d/${packId}/${agentId}`,
+        namespace: ns,
         sessionId,
         event,
         toolName,
@@ -983,11 +993,10 @@ export class ChildManager {
   #memoryObserve(entry, sessionId, kind, outcome, tokens, durationMs) {
     if (!this.memory) return;
     try {
-      const packId = entry?.metadata?.packId;
-      const agentId = entry?.name ?? entry?.metadata?.agentId;
-      if (!packId || !agentId) return;
+      const ns = memoryNamespaceFor(entry);
+      if (!ns) return;
       this.memory.observe({
-        namespace: `d/${packId}/${agentId}`,
+        namespace: ns,
         sessionId,
         summary: `${kind} turn ${outcome}${tokens != null ? ` tokens=${tokens}` : ""} (${Math.round(durationMs)}ms)`,
       });
@@ -1519,17 +1528,21 @@ export class ChildManager {
     // materializePackHome takes merged secrets as ONE set on the first spec.
     if (secretValues.size) memberSpecs[0].secrets = Object.fromEntries(secretValues);
 
+    // Pod memory mount (add-memory-scopes-and-cluster-sharing): one pod token
+    // (d/<packId>) rides the SHARED MCP patch next to the registry rows;
+    // member personas get the discipline text alongside, member observations
+    // stay attributed to their own agent scopes. Mint failure degrades open —
+    // no mount row, no discipline (P0 D5 rule).
+    let podMemoryToken = null;
+    if (this.memory) podMemoryToken = await this.#podMemoryMountToken(route.packId, route.childKey);
     const spec = await materializePackHome({
       homeRoot: config.homeRoot,
       packId: route.packId,
       memberSpecs,
-      // Pod homes share one MCP patch and memory tokens scope to a single
-      // deployment namespace, so v1 pods carry NO memory mount — and per the
-      // discipline-travels-with-the-mount rule (P0 D5) no discipline text
-      // either. Both arrive with per-member MCP patches in
-      // add-memory-scopes-and-cluster-sharing.
-      mcpServers: [...mcpRows.values()],
-      memoryDiscipline: null,
+      mcpServers: podMemoryToken
+        ? [...mcpRows.values(), dshMemoryMount(`${config.memoryUrl}/mcp`, podMemoryToken)]
+        : [...mcpRows.values()],
+      memoryDiscipline: podMemoryToken ? MEMORY_DISCIPLINE : null,
       seedHome: config.seedHome,
     });
     for (const [key, face] of faces) face.presetId = spec.presetIds.get(key) ?? null;

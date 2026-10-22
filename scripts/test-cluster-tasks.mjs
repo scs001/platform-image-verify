@@ -496,3 +496,127 @@ test("persistence: cluster task fields survive saveTasks → initTaskEngine relo
   assert.deepEqual(back.executionPolicy, { allowParallel: true, resultAggregation: "summary", timeoutMinutes: 3 });
   assert.deepEqual(back.targetAgents, ["a1"]);
 });
+
+// ── E. cluster shared-memory hooks (add-memory-scopes-and-cluster-sharing) ─
+
+import http from "node:http";
+
+function memoryStubServer({ pages = [], writes = [] } = {}) {
+  const server = http.createServer((req, res) => {
+    const url = new URL(req.url ?? "/", "http://stub");
+    if (url.pathname === "/admin/mint" && req.method === "POST") {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", () => {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ token: "fdm_stub_cluster", id: "stub1" }));
+      });
+      return;
+    }
+    if (url.pathname === "/pages" && req.method === "GET") {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ project: url.searchParams.get("project"), pages }));
+      return;
+    }
+    if (url.pathname === "/pages" && req.method === "POST") {
+      let body = "";
+      req.on("data", (c) => (body += c));
+      req.on("end", () => {
+        writes.push({ project: url.searchParams.get("project"), body: JSON.parse(body) });
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ project: "ok", path: "ok" }));
+      });
+      return;
+    }
+    res.writeHead(404, { "content-type": "application/json" });
+    res.end("{}");
+  });
+  return server;
+}
+
+function withMemoryEnv(url, dataDir) {
+  const saved = {};
+  const set = (k, v) => { saved[k] = process.env[k]; process.env[k] = v; };
+  set("CELL_MEMORY_ENABLED", "1");
+  set("CELL_MEMORY_URL", url);
+  set("CELL_MEMORY_PLATFORM_TOKEN", "stub-plat");
+  set("CELL_MEMORY_DATA", dataDir);
+  return () => { for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; } };
+}
+
+test("runClusterTurn memory hooks: shared pages injected into member prompts; digest written back", async () => {
+  const db = freshClusterDb();
+  const cluster = fixtureCluster(db);
+  const ctx = makeCtx();
+  ctx.runtimeOwnerEmail = "owner@test.local";
+  const ex = fakeExecutors(ctx, { personaText: (job) => `${job.preset} 的输出` });
+  const job = { id: "job_m1", prompt: "各自分析", preset: cluster.id, targetType: "cluster", sessionId: "cron-job_m1", executionPolicy: {} };
+
+  const writes = [];
+  const pages = [{ title: "昨日 digest：降价线索", updated_at: "2026-10-21T09:00:00.000Z" }];
+  const server = memoryStubServer({ pages, writes });
+  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  const dataDir = path.join(tmpRoot, `cellmem-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`);
+  const restore = withMemoryEnv(`http://127.0.0.1:${server.address().port}`, dataDir);
+  try {
+    const out = await attachAndRun(ctx, job, ex);
+    assert.equal(out.ok, true);
+    // hook ①: every member's prompt carries the shared block
+    assert.equal(ex.calls.persona.length, 2);
+    for (const call of ex.calls.persona) {
+      assert.ok(call.prompt.includes("【集群共享记忆】"), "member prompt carries the shared block");
+      assert.ok(call.prompt.includes("昨日 digest：降价线索"), "block names the shared page");
+    }
+    // bound session recorded the effective prompt (what members actually saw)
+    const session = await chatHistory.getSession("cron-job_m1");
+    assert.ok(JSON.stringify(session).includes("【集群共享记忆】"));
+    // hook ②: the digest went back to the cluster's project
+    assert.equal(writes.length, 1, "one digest write-back");
+    assert.equal(writes[0].body.project, cluster.id);
+    assert.ok(writes[0].body.body.includes("pack-alpha-analyst 的输出"), "digest carries a member output");
+  } finally {
+    restore();
+    await new Promise((r) => server.close(() => r()));
+  }
+});
+
+test("runClusterTurn memory hooks: unreachable memory degrades open — task unchanged, no write-back", async () => {
+  const db = freshClusterDb();
+  const cluster = fixtureCluster(db);
+  const ctx = makeCtx();
+  ctx.runtimeOwnerEmail = "owner@test.local";
+  const ex = fakeExecutors(ctx, { personaText: (job) => `${job.preset} 的输出` });
+  const job = { id: "job_m2", prompt: "各自分析", preset: cluster.id, targetType: "cluster", sessionId: "cron-job_m2", executionPolicy: {} };
+
+  // dead port: mint fails → clusterMemoryFor null → both hooks no-op
+  const dataDir = path.join(tmpRoot, `cellmem-dead-${Date.now()}`);
+  const restore = withMemoryEnv("http://127.0.0.1:1", dataDir);
+  try {
+    const out = await attachAndRun(ctx, job, ex);
+    assert.equal(out.ok, true, "memory down never fails the task");
+    for (const call of ex.calls.persona) {
+      assert.ok(!call.prompt.includes("【集群共享记忆】"), "no injection when memory is unreachable");
+      assert.equal(call.prompt, "各自分析");
+    }
+    assert.equal(db.get(cluster.id).totalExecutions, 1, "bookkeeping unchanged");
+  } finally {
+    restore();
+  }
+});
+
+test("runClusterTurn memory hooks: no owner identity → hooks skip without any fetch", async () => {
+  const db = freshClusterDb();
+  const cluster = fixtureCluster(db);
+  const ctx = makeCtx(); // no runtimeOwnerEmail
+  const ex = fakeExecutors(ctx, { personaText: (job) => `${job.preset} 的输出` });
+  const job = { id: "job_m3", prompt: "各自分析", preset: cluster.id, targetType: "cluster", sessionId: "cron-job_m3", executionPolicy: {} };
+  const dataDir = path.join(tmpRoot, `cellmem-noowner-${Date.now()}`);
+  const restore = withMemoryEnv("http://memory.invalid", dataDir);
+  try {
+    const out = await attachAndRun(ctx, job, ex);
+    assert.equal(out.ok, true);
+    for (const call of ex.calls.persona) assert.equal(call.prompt, "各自分析");
+  } finally {
+    restore();
+  }
+});

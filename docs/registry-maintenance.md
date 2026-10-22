@@ -1487,3 +1487,13 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **扫宽事故一枚（如实记）**：归档移动 commit 用 `git add openspec/changes/` 宽路径，卷进两会话在树上的归档移动（harden-copilot-intent-envelope 的 archive 新增 + clarify-plan-card-and-wizard 的活动目录删除——后者已核实 archive/2026-10-22-clarify 全量在案，零内容损失）；worktree 状态与归档一致，按纪律不重写历史，仅在册。**教训重申：归档移动提交必须逐 change 路径 add，openspec/changes/ 整目录在并行会话树下永远太宽。**
 
 **记忆 v2 全景收官**：L0 采集/L1 交接/Scope+Grant/v2 布局/L2 蒸馏（经验+事实 reconcile）/向量召回/可见性+forget/**部署者可见页** 全上产。余=蒸馏自然流量观察（运行积累，无动作）。
+
+### §15.13 发布记录：舰队机制四刀（agent-fleet-core/report-lane/decision-lane/templates，2026-10-23 上线）
+
+**出片**：公开仓线 scs001/platform-image-verify，快照 3734a10（paas HEAD d5f28cc8，四刀 af988287 + lint 8e9af2a2 + 适配器白名单 fd23700c + tsc 清零 d5f28cc8）；digest `sha256:cc967258…` ccr/hkccr relay OK 04:41；platform/platform-demo/facet 三清单滚 47d13ba，pod imageID==digest 三面相等。
+
+**出片三坎（公开仓 CI 门序列显形）**：① Biome lint 25 错（我 5 + 存量 20——私仓出片线不跑 lint 所以本地全绿；两处「故意刷新触发」钩子依赖须 biome-ignore 注记在 hook 调用行上方）；② dsh 适配器闸——platform-serving-questions-bridge.js 漏登白名单（被 lint 债掩住的存量）；③ tsc --noEmit——vite build 不查类型，舰队面 5 类型债 + 他会 Sidebar 原生选路漏传 path 真 bug。**教训：公开仓才是最全门面，出片前本地先跑 npm run lint + typecheck。**
+
+**并行会话历史重排一枚**：fd23700c 前身 07880e0 被 CRM 归档轮的重排吞掉（reflog 无痕、dangling 无匹配）——白名单行凭 lint-dsh-adapter 本地复跑重建；共享仓提交后 grep 工作树核对生效内容。
+
+**生产活体（aloadtree，browser 会话）**：侧栏「舰队」眼见 → 建队 201 → 建岗（wire-assistant 每小时 {{fleetContext}} 模板）201 → 物化任务 job_…kmoi24 就绪 + cockpit 卡 on_duty 1/1 → **swap wire-assistant→facet-assistant taskId 逐字不变** → 全队暂停 paused/恢复 on_duty → 成员级暂停扛过全队循环 → escalate 浏览器上下文诚实 409（无 running turn 不乱归属）→ 解散 200 物化任务随删。**余（各刀 4.x）**：真 persona 回合内 report_status 上卡/CEO 注入含下级槽值/a2a 摘要/escalate 201→批→立即执行 prompt 含裁定（需真 LLM 轮次）+ 删 persona 待补岗全链 + 模板市场上架（种子铸造）。

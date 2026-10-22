@@ -39,4 +39,4 @@
 
 ## 8. 收尾与回勾
 
-- [ ] 8.1 `openspec validate add-crm-desk-bridge --strict` 绿；回 finddata `crm-board-adoption/tasks.md` 勾 4.1/4.2/4.3（各注明 paas 侧证据落点：reports/acceptance.md 与 7.x 记录）
+- [x] 8.1 `openspec validate add-crm-desk-bridge --strict` 绿；回 finddata `crm-board-adoption/tasks.md` 勾 4.1/4.2/4.3——validate 绿（80c00a17）；finddata tasks.md 4.1/4.2/4.3 已勾并注明证据落点（finddata 非 git 仓无法提交，编辑已落盘）

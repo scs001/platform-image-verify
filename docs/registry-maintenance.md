@@ -1459,3 +1459,9 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 ### §15.9 发布记录：事实层 reconcile 与 subject 双路上产（add-fact-reconcile-and-subject-normalization / v2.1，2026-10-22 上线）
 
 **镜像**：仅 fd-memory-distiller `sha-90f6862`（digest `79c816ac`，源 c093505；池 DF 配方用完已还原）。fd-memory 服务零改动。**实现**：事实层 reconcile（引擎 `build_fact_reconcile_prompt`→`_parse_ops`，真形状 `{ops:[{draft_idx,supersedes}]}`）；subject 双路（`subject_equal` = NFKC/小写/压空白/剥边缘标点 + despace 第二形态 → 不等才一次结构化 LLM 判定，merged+reason 进 llm_calls，不改写产物）；薄 fact 限流 `DISTILLER_FACT_MAX=2`（合并链优先保位，丢弃记 fact_cap warning）。pytest 8/8；eval v1.1 真跑 PASS（s20/s21 拆四 scene 后 superseding facts=2、8/8 关键词、语言 6/6、69,972 tokens/27 调用）。**生产验收**：无状态直探 prod sidecar——fact 合并 supersedes 链 + distill_fact_reconcile 留痕、零错误（自然流量的合并链待明日预算重置后眼见）。**坑**：① 引擎 fact ops 真形状是列表不是映射（fixture 实撞）；② 合并评测场景必须两次独立蒸馏——同批两 session 会并成一条 trace 无从 reconcile（夹具教训）；③ distill 候选 frontmatter 里 task/statement 不落盘、title 承载（candidate 检索读 title 兜底链已兼容）。
+
+
+### §15.10 侦察记录：v2.2 embedding 车道与 console 可见性前置（2026-10-22 晚）
+
+- **embedding 车道真缺口（采购/账号决策，非代码）**：词元 token 网关 sub2api 有专用 `embedding` 组 #8（active）但现行渠道（openrouter-paas/openrouter/特价）均不载 embedding 模型，且 admin API 无代铸 key 能力（v0.2.x 全系——key 由面板会话铸造）；fd-text-core 的 router.finddatatech.cloud 车道（Qwen/Qwen3-Embedding-8B，硅基流动系）认证通（20 模型）但**组内零 embedding 模型、/embeddings 稳定 502 upstream**——上游账号已不载该模型（10-18 曾过门 min_cos 0.9998）。**启用路径（任选）**：① 硅基流动充值/换 key 载回 Qwen3-Embedding-8B（router 网关现配）；② sub2api embedding 组绑一个载 embedding 的渠道（OpenRouter embedding 模型）+ 面板铸 key。就绪后 v2.2（embedding 召回）即可立项。
+- **console 可见性解锁**：paas 侧 `add-facade-memory-read-lane` 已规划待 apply（/memory+/forget 平台缝带 rootKey 车道，与 /admin/report 同信任级）；fd-wanxing 侧姊妹牌手 `add-memory-visibility-console` 已立（62a00fd），apply 排 paas 车道之后。

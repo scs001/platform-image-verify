@@ -326,7 +326,7 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
   // cancelled dialog resolves null — the popover simply stays open.
   const browseWorkspace = async (close: () => void) => {
     const picked = await window.platform?.pickWorkdir();
-    if (picked) submitWorkspacePath(close);
+    if (picked) submitWorkspacePath(picked, close);
   };
 
   // ── Fleet decision badge (agent-fleet-decision-lane) ──────────────────────

@@ -155,7 +155,7 @@ function fmtTime(v: string | null, locale: string): string {
 }
 
 // Human-readable cadence for a card line (nobody reads raw cron comfortably).
-function cadenceText(t: (k: string) => string, cadence: Cadence): string {
+function cadenceText(t: (k: string, opts?: Record<string, unknown>) => string, cadence: Cadence): string {
   const m = cadence.cron.match(/^(\d+) (\d+) \* \* \*$/);
   if (m) return t("fleets.cadence.daily", { hour: m[2], minute: m[1] });
   const h = cadence.cron.match(/^(\d+) \* \* \* \*$/);
@@ -175,6 +175,7 @@ export function FleetsPage() {
   const [swapFor, setSwapFor] = useState<MemberView | null>(null);
   const [drawerFor, setDrawerFor] = useState<MemberView | null>(null);
   const [decisionsOpen, setDecisionsOpen] = useState(false);
+  const navigate = useNavigate();
 
   const loadList = useCallback(async () => {
     try {
@@ -228,7 +229,8 @@ export function FleetsPage() {
 
   // Autofollow the first fleet when the list arrives and nothing is selected.
   useEffect(() => {
-    if (!selectedId && fleets.length > 0) setSelectedId(fleets[0].id);
+    const first = fleets[0];
+    if (!selectedId && first) setSelectedId(first.id);
   }, [fleets, selectedId]);
 
   const refresh = useCallback(async () => {
@@ -814,9 +816,12 @@ function DecisionsDrawer({
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       {item.resolution ? (
                         <span className="text-xs text-muted-foreground" data-testid={`decision-resolution-${item.id}`}>
-                          {item.resolution.kind === "reject"
-                            ? t("fleets.decisions.rejectedAs", { note: item.resolution.note ?? "" })
-                            : `${t("fleets.decisions.choicePrefix")} ${item.options.find((o) => o.value === item.resolution.choice)?.label ?? item.resolution.choice ?? "—"}${item.resolution.note ? ` · ${item.resolution.note}` : ""}`}
+                          {(() => {
+                            const r = item.resolution;
+                            return r.kind === "reject"
+                              ? t("fleets.decisions.rejectedAs", { note: r.note ?? "" })
+                              : `${t("fleets.decisions.choicePrefix")} ${item.options.find((o) => o.value === r.choice)?.label ?? r.choice ?? "—"}${r.note ? ` · ${r.note}` : ""}`;
+                          })()}
                         </span>
                       ) : null}
                       {item.state === "expired" ? (

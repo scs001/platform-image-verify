@@ -137,6 +137,7 @@ const EXCLUDE_PREFIXES = [
   "openspec/specs/ops-console/", // internal operator console capability
   "openspec/specs/live-service-testing/", // probing our live deployment
   "openspec/specs/registry-market-deployment/", // internal market deployment
+  "openspec/specs/memory-distiller/", // internal examples carry live cluster node names
   "services/ops-console/", // internal operator dashboard
   "docs/vertical-packs/", // sample pack registration data (Logto org ids)
   ".claude/",

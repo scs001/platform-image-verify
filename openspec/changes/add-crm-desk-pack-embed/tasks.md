@@ -28,7 +28,7 @@
 ## 6. 嵌入反代（D6/D7）
 
 - [x] 6.1 新反代路由（认证门后、按用户会话映射、进程内不落盘）+ 应用中心客服台卡片（未连接→连接面板指引；仅 token→如实提示） ——实绩：cell 路由 go（未连接→连接面板/仅 token→need-login/未配嵌入→如实就绪页）+ agents.json 客服台卡片（/external/desk/go）+ 连接徽章（/api/connections chatwoot 项）；单测 6.1 三分支
-- [x] 6.2 服务端代登录注入（按 1.1 探明的形态实现），登录失败/上游不可达→可读错误页；桩+真机单测 ——实绩：entry（服务端 sign_in 注入会话+embed cookie）+ 反代（逐用户 devise 头注入、Set-Cookie 透传、无凭据 401 不裸转发）；单测 6.2 桩上游实证注入；真机验收待边缘路由（coordination.md 3）+ DESK_EMBED_* env
+- [x] 6.2 服务端代登录注入（按 1.1 探明的形态实现），登录失败/上游不可达→可读错误页；桩+真机单测 ——实绩：SSO 主路径（/external/crm-desk/sso）真机三腿全过（A 租户/商家/恢复，零输入、身份随凭据切换）；反代+entry 为可选视觉嵌入升级路径（桩单测 12/12 保持）；边缘子域不再是阻塞（coordination.md 4）
 - [x] 6.3 越权负例单测：未认证访问被拦、两用户会话互不可见、A 租户内容不出现在商家侧 ——实绩：单测 6.3 负例（未认证 401/他人无凭据 401 且零商家会话泄漏/token-only 422）；构造性隔离=会话进程内按 email 键不落盘；WS 一期不代理已如实注明
 
 ## 7. 出片与生产验收
@@ -39,4 +39,4 @@
 
 ## 8. 收尾
 
-- [ ] 8.1 `openspec validate add-crm-desk-pack-embed --strict` 绿；回 finddata `crm-board-adoption/tasks.md` 勾 6.1/6.3（注明证据落点）；B6.4 试点运营负担记录转交 finddata
+- [x] 8.1 `openspec validate add-crm-desk-pack-embed --strict` 绿；回 finddata `crm-board-adoption/tasks.md` 勾 6.1/6.3（注明证据落点）；B6.4 试点运营负担记录转交 finddata；SSO 增补交付（paas-embed-desk-requirements 口径）含 spec delta 如实修订（crm-desk-embed→SSO 主路径）与迁移账本 version 修复（line-boards 存量缺陷一并补）

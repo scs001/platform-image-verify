@@ -1,43 +1,43 @@
 ## Purpose
 
-壹座内嵌入客服台：商家在应用中心点击客服台入口，经平台反向代理打开 Chatwoot 界面；登录态由服务端以该用户连接面凭据代登录注入，商家无需另记独立密码、无需手输任何凭据，直达自家租户。
+壹座内直达客服台：商家/员工在应用中心点击客服台入口，经 Platform API SSO 免密打开 Chatwoot 界面——零密码输入，直达自己租户；未开通者得到如实提示。
 
 ## ADDED Requirements
 
-### Requirement: 壹座内代登录嵌入客服台
+### Requirement: 壹座内免密直达客服台（Platform API SSO）
 
-平台 SHALL 提供客服台嵌入入口（应用中心卡片）：已连接 chatwoot 凭据的用户点击后，平台反向代理打开 Chatwoot 界面，并以其连接面保存的登录邮箱/密码在服务端完成 Chatwoot 登录、将会话注入嵌入页——用户 MUST NOT 被要求再次输入任何凭据。未连接凭据的用户 SHALL 被指引到连接面板而非嵌入页。未提供密码（仅 token）的用户 SHALL 得到如实提示（嵌入需要登录凭据）。代登录所用的凭据 MUST NOT 出现在日志、URL 或页面可读内容之外的平台存储明文中。
+平台 SHALL 提供客服台入口（应用中心卡片 → `/external/crm-desk/sso`）：已连接 chatwoot 凭据的用户点击后，平台以该用户 token 懒映射其 Chatwoot user id（profile 发现+行缓存），再以部署级 Platform App 令牌（带外环境变量，MUST NOT 进日志/响应体/仓库）经 Chatwoot Platform API 换取一次性登录 URL 并 302 直达——用户全程 MUST NOT 被要求输入任何 Chatwoot 凭据，且到达的即其自己的租户界面。未连接凭据的用户 SHALL 得到「尚未开通客服台」页并指向连接面板（MUST NOT 打开半可用嵌入）。Platform App 的 permissibles 名单控制 SSO 准入：名单外用户 SHALL 得到如实的未开通提示。交付记录：此 SSO 路径为主路径（paas-embed-desk-requirements 更新口径）；子域反代+会话注入为实现并保留的可选「视觉嵌入」升级路径（下一条要求的越权防护对它同样适用）。
 
 #### Scenario: 已连接用户一键直达自家租户
 
 - **WHEN** 已连接 chatwoot 凭据的商家点击应用中心客服台入口
-- **THEN** 嵌入页以该商家 Chatwoot 账号登录态打开，只见自家 inbox、会话与联系人
+- **THEN** 经一次性登录 URL 免密落地其 Chatwoot 租户界面（生产实证：A 租户凭据落 accounts/1、商家凭据落 accounts/7，身份随凭据切换，全程零输入）
 
 #### Scenario: 未连接用户被指引而非报错
 
 - **WHEN** 未连接凭据的用户点击入口
-- **THEN** 跳转连接面板（chatwoot 面板），不打开半可用嵌入页
+- **THEN** 得到「尚未开通客服台」页并指向连接面板（chatwoot 面板），不打开半可用嵌入
 
-#### Scenario: 仅 token 无密码的如实提示
+#### Scenario: token-only 用户完整可用
 
-- **WHEN** 用户只粘贴了 API token 未提供登录密码后点击入口
-- **THEN** 得到「嵌入需要登录凭据，请补全」的如实提示，不假装打开
+- **WHEN** 用户仅粘贴了 API token（未提供登录邮箱/密码）后点击入口
+- **THEN** SSO 直达照常工作（token 即唯一凭据）；连接面板中的登录对字段仅服务可选的反代升级路径，缺失不阻塞 SSO
 
-### Requirement: 嵌入反代与租户越权防护
+### Requirement: 嵌入/直达链路的租户越权防护
 
-嵌入反向代理 SHALL 仅转发该用户自己 Chatwoot 会话的流量：代理 MUST NOT 复用或缓存跨用户会话；不同用户的嵌入会话 MUST 相互隔离。代理对上游的故障 SHALL 如实呈现（上游不可达/登录失败均给可读原因），MUST NOT 以缓存页或他人会话冒充。嵌入入口 MUST NOT 向未认证调用者暴露。
+客服台直达链路 SHALL 仅以该用户自己的凭据与身份工作：SSO 交换 MUST 使用该用户 token 映射的 user id（MUST NOT 复用或缓存跨用户身份）；上游故障 SHALL 如实呈现（未开通/凭据无效/上游不可达均给可读原因），MUST NOT 以他人会话或缓存页冒充；入口 MUST NOT 向未认证调用者暴露。可选的子域反代升级路径（实现保留）SHALL 同样满足：每用户一份上游会话（进程内、不落盘）、互不可见、认证门后。
 
 #### Scenario: 会话按用户隔离
 
-- **WHEN** 两个商家同时各自打开嵌入客服台
-- **THEN** 两边各自只见自己账号的界面与会话，代理无跨用户串话
+- **WHEN** 两个商家各自点击入口
+- **THEN** 各自直达自己租户的界面与会话，无跨用户串话（单测：他人无凭据 401 且零他人会话材料）
 
 #### Scenario: 上游故障如实呈现
 
-- **WHEN** Chatwoot 不可达或代登录失败时用户打开嵌入
-- **THEN** 得到带原因的错误页（上游不可达/登录凭据无效），不出现空白页或他人会话
+- **WHEN** Chatwoot 不可达、permissibles 缺失或凭据无效时用户点击入口
+- **THEN** 得到带原因的错误页（上游不可达/尚未开通 SSO/凭据无效），不出现空白页或他人会话
 
 #### Scenario: 入口不暴露给未认证调用者
 
-- **WHEN** 未登录调用者直接访问嵌入代理路由
-- **THEN** 被平台的认证门拦截，不出现任何 Chatwoot 内容
+- **WHEN** 未登录调用者直接访问入口路由
+- **THEN** 被平台认证门拦截（401），不出现任何 Chatwoot 内容

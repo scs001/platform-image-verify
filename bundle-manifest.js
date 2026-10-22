@@ -48,6 +48,15 @@ function validateMcpServers(raw) {
     const isHttp = typeof cfg.url === "string";
     if (!isStdio && !isHttp) fail(`mcpServers."${name}" needs a "command" (stdio) or "url" (http)`);
     if (cfg.enabled !== undefined && typeof cfg.enabled !== "boolean") fail(`mcpServers."${name}".enabled must be a boolean`);
+    // requiresEnv (add-crm-desk-bridge D4): names of env vars whose TOTAL
+    // absence omits the entry at patch-write time. Shape-gate it — a malformed
+    // value would silently break the omission and resurrect the dead entry.
+    if (cfg.requiresEnv !== undefined) {
+      if (!Array.isArray(cfg.requiresEnv) || cfg.requiresEnv.length === 0 ||
+          cfg.requiresEnv.some((v) => typeof v !== "string" || !v)) {
+        fail(`mcpServers."${name}".requiresEnv must be a non-empty array of env-var name strings`);
+      }
+    }
   }
   return raw;
 }

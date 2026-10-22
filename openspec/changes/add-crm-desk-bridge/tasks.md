@@ -19,13 +19,13 @@
 
 ## 4. 客服接待技能（D8）
 
-- [ ] 4.1 写 `skills/crm-desk-reception/SKILL.md`：四步工作流（读未处理会话→读消息/联系人→壹座对话出草稿默认不发→确认后 propose_action 发送 + messages_list 复核）、钉 account_id=1 与挂件 inbox、25/页分页提示、失败四分类纪律（凭据无效/网络不可达/上游错误/参数被拒，逐字引用禁冒充）、守界问答（企微等不支持）；工具名逐一对照名单
-- [ ] 4.2 离线单测：技能可被 `/skill:crm-desk-reception` 展开（getFileSkills 命中），且技能文本引用的全部 `mcp__chatwoot__*` 工具名 ⊆ 98-leaf 名单
+- [x] 4.1 写 `skills/crm-desk-reception/SKILL.md`：四步工作流（读未处理会话→读消息/联系人→壹座对话出草稿默认不发→确认后 propose_action 发送 + messages_list 复核）、钉 account_id=1 与挂件 inbox、25/页分页提示、失败四分类纪律（凭据无效/网络不可达/上游错误/参数被拒，逐字引用禁冒充）、守界问答（企微等不支持）；工具名逐一对照名单——验证：SKILL.md 落 skills/（四步工作流/钉 account_id=1/分页/四分类表/守界问答，工具名全 mcp__chatwoot__ 全名引用）
+- [x] 4.2 离线单测：技能可被 `/skill:crm-desk-reception` 展开（getFileSkills 命中），且技能文本引用的全部 `mcp__chatwoot__*` 工具名 ⊆ 98-leaf 名单——验证：getFileSkills 命中+展开含 account_id:1 与 crm.message.send；技能引用 14 个 chatwoot 工具全 ⊆ 98 面
 
 ## 5. 本地组合验证
 
-- [ ] 5.1 组合断言测试：配齐 env 的合成配置下 patch 含 chatwoot 条目且物化 tool-filter 的 chatwoot 面恰为 98；env 全缺的合成配置下 patch 无 chatwoot 条目、无 tool-filter 条目
-- [ ] 5.2 突变验证：逐项破坏（名单去一项、requiresEnv 改名、注册表 risk 改档）确认 5.1/3.x 断言转红，证明断言有效
+- [x] 5.1 组合断言测试：配齐 env 的合成配置下 patch 含 chatwoot 条目且物化 tool-filter 的 chatwoot 面恰为 98；env 全缺的合成配置下 patch 无 chatwoot 条目、无 tool-filter 条目——验证：配 env 组合出 patch 条目+tool-filter 面=98+operatorFaces 溯源段；env 全缺则 patch 无条目、filter 无行
+- [x] 5.2 突变验证：逐项破坏（名单去一项、requiresEnv 改名、注册表 risk 改档）确认 5.1/3.x 断言转红，证明断言有效——验证：三项突变各红（名单去一=3 红/省略击毙=2 红/risk 改档=1 红），还原后 27/27 绿；另抓出并修复 capByOperatorFace 吞过滤图真回归（persona-scope 测试）+ wire-tool-risk roster 计数 19→20 更新
 
 ## 6. 出片与生产验收（4.1/4.2 收口）
 

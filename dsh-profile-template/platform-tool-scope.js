@@ -109,17 +109,51 @@ export function readMcpToolFilterFor(presetId) {
 // B3): the per-server "Full tool surface" toggle in Settings → MCP restores the
 // whole surface in every mode. That pointer is the ONLY bridge change this
 // change makes — the guard/restrict execution logic stays untouched.
+// add-crm-desk-bridge D5: a leaf outside the doc's operatorFaces section for
+// that server is PLATFORM governance, not role narrowing — the full-surface
+// escape hatch does not apply (it restores up to the operator face), so the
+// denial says so instead of pointing at a toggle that cannot help.
 export function mcpToolGuardReason(name) {
-  const filter = readMcpToolFilter();
+  const raw = readFilterDoc();
+  const filter = raw && normalizeMcpTools(raw.mcpTools);
   if (!filter) return undefined;
   const parts = mcpNameParts(name);
   if (!parts) return undefined;
   const allow = filter[parts.server];
   if (allow === undefined || allow.has(parts.leaf)) return undefined;
+  const operatorFace = operatorFaceHas(raw, parts.server, parts.leaf);
+  if (operatorFace === false) {
+    return (
+      `tool '${parts.leaf}' is outside the platform tool face for MCP server '${parts.server}' — ` +
+      `this bound is set by the deployment and cannot be widened from settings`
+    );
+  }
   return (
     `tool '${parts.leaf}' is outside this role's tool allowlist for MCP server '${parts.server}' — ` +
     `use an allowlisted tool, switch to a full mode, or enable "Full tool surface" for this server in Settings → MCP`
   );
+}
+
+// Read the raw filter doc (mcpTools + optional operatorFaces). Null on any
+// read/parse failure — the guard then denies nothing, same as before.
+function readFilterDoc() {
+  try {
+    const parsed = JSON.parse(readFileSync(FILTER_FILE, "utf8"));
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+// true  — the server has an operator face AND the leaf is inside it (a role
+//         narrowing denial; the escape-hatch copy applies);
+// false — the server has an operator face AND the leaf is outside it (platform
+//         bound; no escape hatch);
+// null  — no operator face declared for this server (legacy semantics).
+function operatorFaceHas(raw, server, leaf) {
+  const face = raw?.operatorFaces?.[server];
+  if (!Array.isArray(face)) return null;
+  return face.includes(leaf);
 }
 
 // Install the global guard on a plain (non-agent) context. Registered through

@@ -94,7 +94,9 @@ test("A: wire.demand.submit declares the two compliance fields as user-filled (f
 test("A: existing facet/wanxing roster is untouched by the wire additions", () => {
   assert.equal(registry.listActions({ line: "facet" }).length, 4);
   assert.equal(registry.listActions({ line: "wanxing" }).length, 5);
-  assert.equal(registry.listActions().length, 19);
+  // 19 = facet 4 + wanxing 5 + wire 10 (pre-crm); crm.message.send (add-crm-desk-bridge) is the 20th.
+  assert.equal(registry.listActions({ line: "crm" }).length, 1);
+  assert.equal(registry.listActions().length, 20);
 });
 
 test("B: source tool-surface.json tool_risk equals the vendored snapshot (skips without checkouts)", (t) => {

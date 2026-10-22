@@ -27,7 +27,8 @@ import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { atomicWriteTextSync, normalizeBaseUrl } from "./lib/persistence.js";
 import { effectiveMcpTools } from "./lib/pack-manifest.js";
-import { deriveFullModeToolScope, customPresetToolScope } from "./lib/full-mode-tool-scope.js";
+import { deriveFullModeToolScope, customPresetToolScope, capByOperatorFace } from "./lib/full-mode-tool-scope.js";
+import { OPERATOR_TOOL_FACES } from "./lib/operator-tool-face.js";
 import { deriveScopedToken, scopeIdForEmail } from "./lib/scoped-relay-token.js";
 import { probeHttpServers } from "./mcp-preflight.js";
 import { cellMemoryMount, cellMemoryConfig } from "./cell-memory.js";
@@ -831,6 +832,26 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
     console.warn(`[dsh-profile] DB MCP read failed; mcp.json/OC only: ${e?.message || e}`);
   }
 
+  // requiresEnv omission (add-crm-desk-bridge D4): an entry whose declared env
+  // names are ALL absent from the deployment env is omitted entirely — a
+  // server that cannot start (its child exits on missing env) must not ride
+  // every patch of every user as a dead entry on deployments that never
+  // configured it. Partial presence keeps the entry and falls through to the
+  // envRefs warn+degrade semantics in toMcpClientEntry. Applies to the MERGED
+  // map, so a bundled/DB row carrying the declaration is honored wherever it
+  // landed; a user/admin DB edit without the key is a deliberate override and
+  // omits nothing. Info-level by design (spec: omission is a silent normal
+  // state, not a warn-grade degradation).
+  for (const [name, config] of Object.entries(servers)) {
+    const required = Array.isArray(config?.requiresEnv) ? config.requiresEnv.filter((v) => typeof v === "string" && v) : [];
+    if (!required.length) continue;
+    const present = required.filter((v) => process.env[v] != null && process.env[v] !== "");
+    if (present.length === 0) {
+      delete servers[name];
+      console.log(`[dsh-profile] omitting MCP server "${name}": requiresEnv [${required.join(", ")}] all unset in this deployment`);
+    }
+  }
+
   // Resolve credential refs before anything else looks at the config: a
   // server whose ref cannot be resolved must never reach toMcpClientEntry with
   // a placeholder header. Dispatch is by ref name through the credential-refs
@@ -975,7 +996,11 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
   // full-mode-tool-scope: the derived map is the whole input now — focused
   // packs, custom presets and full mode's union all arrive in mcpTools; null
   // keeps the pre-change "no filter" composition byte-for-byte.
-  writeToolFilterPatch(scope.mcpTools);
+  // Operator ceiling (add-crm-desk-bridge D5): applied LAST, over the final
+  // composition set, so the operator-declared per-server faces cap every mode
+  // from above — pack unions, role narrowing and the user's full-surface
+  // override all restore/declare UP TO the face, never past it.
+  writeToolFilterPatch(capByOperatorFace(scope.mcpTools, Object.keys(servers)));
 
   // Preflight health signal (add-mcp-credential-hygiene D5): fire-and-forget
   // probe of every http entry with the exact URL+headers the patch carries —
@@ -1044,6 +1069,16 @@ export function writeToolFilterPatch(mcpTools, { dirs = null } = {}) {
         ...(mcpTools.byPreset && typeof mcpTools.byPreset === "object" ? { byPreset: mcpTools.byPreset } : {}),
       }
     : { mcpTools: mcpTools && typeof mcpTools === "object" ? mcpTools : {} };
+  // Operator-face provenance (add-crm-desk-bridge D5): the guard needs to know
+  // WHICH denials are platform governance (no escape hatch) versus role
+  // narrowing (Settings → MCP full-surface escape hatch applies). The faces of
+  // servers actually present in the composition ride the doc; the guard reads
+  // them per call. Absent section = pre-change denial copy byte-for-byte.
+  const operatorSection = {};
+  for (const [server, face] of Object.entries(OPERATOR_TOOL_FACES)) {
+    if (doc.mcpTools && Object.hasOwn(doc.mcpTools, server)) operatorSection[server] = [...face].sort();
+  }
+  if (Object.keys(operatorSection).length) doc.operatorFaces = operatorSection;
   atomicWriteTextSync(join(profileDir, TOOL_FILTER_FILE), JSON.stringify(doc, null, 2) + "\n");
   try {
     atomicWriteTextSync(join(profileDir, "platform-tool-scope.js"), readFileSync(TOOL_SCOPE_BRIDGE_SOURCE, "utf8"));

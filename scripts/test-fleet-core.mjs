@@ -139,6 +139,11 @@ test("fleets-db: fleet + member roundtrip, swap columns, unique-post lookup", ()
   assert.equal(fleetDb.findPostByTarget("persona", "persona-b", { excludeMemberId: member.id }), null);
   assert.equal(fleetDb.findPostByTarget("persona", "ghost"), null);
 
+  // Archived/dissolved fleets release their incumbents (prod 2026-10-23).
+  assert.notEqual(fleetDb.findPostByTarget("persona", "persona-b"), null, "live fleet holds the post");
+  fleetDb.updateFleet(fleet.id, { state: "archived" });
+  assert.equal(fleetDb.findPostByTarget("persona", "persona-b"), null, "archived fleet no longer squats the agent");
+
   // Member deletion + fleet state update.
   assert.equal(fleetDb.deleteMember(passive.id), true);
   assert.equal(fleetDb.listMembers(fleet.id).length, 1);

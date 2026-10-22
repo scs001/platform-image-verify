@@ -458,10 +458,16 @@ export function createFleetDatabase({ file } = {}) {
   }
 
   // Unique-post lookup (design D8): where is this persona/cluster on duty?
-  // Cell-global across fleets; a2a targets never call this (multi-post).
+  // Cell-global across LIVE fleets; a2a targets never call this (multi-post).
+  // Archived (incl. dissolved) fleets release their incumbents — their member
+  // rows survive as history, but a dead organization must not squat a live
+  // agent (prod 2026-10-23: a dissolved walkthrough fleet blocked restaffing).
   function findPostByTarget(targetKind, targetId, { excludeMemberId = null } = {}) {
     const rows = db
-      .prepare("SELECT * FROM fleet_members WHERE target_kind = ? AND target_id = ?")
+      .prepare(
+        `SELECT fm.* FROM fleet_members fm JOIN fleets f ON f.id = fm.fleet_id
+         WHERE fm.target_kind = ? AND fm.target_id = ? AND f.state != 'archived'`,
+      )
       .all(targetKind, targetId);
     const hit = rows.find((r) => r.id !== excludeMemberId);
     if (!hit) return null;

@@ -21,5 +21,5 @@
 
 ## 4. 活体验收
 
-- [ ] 4.1 生产走查：persona 岗位真跑一轮报数卡片见值 → 换防后 latest 连续；CEO 岗位触发会话首条 prompt 含下级槽值（真 cell 会话取证）；a2a 岗位执行摘要标注呈现
+- [x] 4.1 生产走查（2026-10-23 真轮次全闭环：电商岗真火 report_status→卡见 sales_week=309+self 摘要；换防后 latest at/slots 逐字连续；CEO 火会话注入逐字含「### 电商部 - 本周销售额（$）: 309…」；a2a 岗真火 latest source=derived 非自报）：persona 岗位真跑一轮报数卡片见值 → 换防后 latest 连续；CEO 岗位触发会话首条 prompt 含下级槽值（真 cell 会话取证）；a2a 岗位执行摘要标注呈现
 - [ ] 4.2 回归：非舰队 cron 任务 prompt 逐字节不变快照 + 既有 scheduling-tools/工具面治理测试全绿

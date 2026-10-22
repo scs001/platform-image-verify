@@ -1497,3 +1497,11 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **并行会话历史重排一枚**：fd23700c 前身 07880e0 被 CRM 归档轮的重排吞掉（reflog 无痕、dangling 无匹配）——白名单行凭 lint-dsh-adapter 本地复跑重建；共享仓提交后 grep 工作树核对生效内容。
 
 **生产活体（aloadtree，browser 会话）**：侧栏「舰队」眼见 → 建队 201 → 建岗（wire-assistant 每小时 {{fleetContext}} 模板）201 → 物化任务 job_…kmoi24 就绪 + cockpit 卡 on_duty 1/1 → **swap wire-assistant→facet-assistant taskId 逐字不变** → 全队暂停 paused/恢复 on_duty → 成员级暂停扛过全队循环 → escalate 浏览器上下文诚实 409（无 running turn 不乱归属）→ 解散 200 物化任务随删。**余（各刀 4.x）**：真 persona 回合内 report_status 上卡/CEO 注入含下级槽值/a2a 摘要/escalate 201→批→立即执行 prompt 含裁定（需真 LLM 轮次）+ 删 persona 待补岗全链 + 模板市场上架（种子铸造）。
+
+### §15.13 补记：四刀真轮次验收闭环 + PACK_BASELINE_MCP 运维位（2026-10-23 深夜）
+
+**真轮次全链（aloadtree，五证据逐字）**：①电商岗真火调 report_status→驾驶舱卡见 sales_week=309（source=self）；②换防 wire→macro-analyst 后 latestReport at/slots 逐字连续；③CEO 火会话注入逐字「【舰队巡视上下文】…### 电商部 - 本周销售额（$）: 309 - 摘要: 今日大促…」；④CEO 真回合 escalate→批准（by=aloadtree）→execute-now 回合 prompt 逐字含「裁定：批准——提高。批注：批准提高，注意回报率」→state=delivered（deliveredSessionId=CEO 任务会话）；⑤a2a 岗（mission-planner）真火 latest source=derived 非自报摘要。附：删 custom preset→探针岗 vacant（reason=target object no longer exists）→swap 补岗恢复全绿；走查舰队全部解散（可逆纪律）。
+
+**关键运维位：PACK_BASELINE_MCP=fleet**。首火教训：fleet MCP 走 extensions DB 行进不了**聚焦层 keep 集**（聚焦 persona 只留 mcp.json 键∪PACK_BASELINE_MCP∪自身引用——模型在回合里 tool_search 找不到工具即此因）；解法=deployment env PACK_BASELINE_MCP=fleet（live set env + GitOps e5acfe7/990530e 双收敛；platform-demo 清单插入曾拆裂 LLM_API_KEY secretKeyRef 块，dry-run=client 必做）。DB 行保留双轨（standard 模式亦可见）。
+
+**顺手抓真 bug 两枚**：①归档/解散舰队成员仍占唯一岗（facet-assistant 建岗 409）→ findPostByTarget JOIN fleets state!='archived'（paas 0030e1e8+单测，待下轮出片）；②/proc env 无 pgrep 时用 for /proc/N/environ 直读。

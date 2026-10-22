@@ -1463,5 +1463,5 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 
 ### §15.10 侦察记录：v2.2 embedding 车道与 console 可见性前置（2026-10-22 晚）
 
-- **embedding 车道真缺口（采购/账号决策，非代码）**：词元 token 网关 sub2api 有专用 `embedding` 组 #8（active）但现行渠道（openrouter-paas/openrouter/特价）均不载 embedding 模型，且 admin API 无代铸 key 能力（v0.2.x 全系——key 由面板会话铸造）；fd-text-core 的 router.finddatatech.cloud 车道（Qwen/Qwen3-Embedding-8B，硅基流动系）认证通（20 模型）但**组内零 embedding 模型、/embeddings 稳定 502 upstream**——上游账号已不载该模型（10-18 曾过门 min_cos 0.9998）。**启用路径（任选）**：① 硅基流动充值/换 key 载回 Qwen3-Embedding-8B（router 网关现配）；② sub2api embedding 组绑一个载 embedding 的渠道（OpenRouter embedding 模型）+ 面板铸 key。就绪后 v2.2（embedding 召回）即可立项。
+- **embedding 车道（当日稍后订正：已就绪）**：初探结论「组内无模型/上游 502」系组绑定尚未完成——22:32 起 group #8 开始承载 `Qwen/Qwen3-Embedding-8B` 流量（admin usage 行 inbound_endpoint=/v1/embeddings 实证），用户供钥活体探测 SUCCESS（dim 4096、$6e-08/次，与 10-18 记忆「不带 dimensions 回 4096 维」一致）。秘钥按纪律存 paas/.env（MEMORY_EMBED_*，gitignored）。**v2.2（embedding 召回）车道就绪，已立项规划（add-embedding-recall）。侦察配方：sub2api 各组模型名单不进 /v1/models 聚合视图（组域），admin usage 行才是「谁在用什么」的真源。**
 - **console 可见性解锁**：paas 侧 `add-facade-memory-read-lane` 已规划待 apply（/memory+/forget 平台缝带 rootKey 车道，与 /admin/report 同信任级）；fd-wanxing 侧姊妹牌手 `add-memory-visibility-console` 已立（62a00fd），apply 排 paas 车道之后。

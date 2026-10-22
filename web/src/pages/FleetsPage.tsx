@@ -91,12 +91,34 @@ interface FleetRow {
   state: "active" | "paused" | "archived";
   memberCount?: number;
   statusCounts?: Record<string, number>;
+  openDecisions?: number;
 }
 
 interface FleetDetail {
   fleet: FleetRow & { ownerEmail?: string; createdAt?: number };
   members: MemberView[];
   statusCounts: Record<string, number>;
+  openDecisions?: number;
+}
+
+interface DecisionItem {
+  id: string;
+  fleetId: string;
+  memberId: string;
+  memberTitle: string | null;
+  memberDeleted: boolean;
+  pendingDelivery: boolean;
+  question: string;
+  options: { value: string; label: string }[];
+  severity: "low" | "normal" | "high";
+  suggestedDeadline: string | null;
+  recommendation: string | null;
+  state: "open" | "approved" | "rejected" | "expired" | "delivered";
+  resolution: { kind: string; choice: string | null; note: string | null; by: string | null; at: number | null } | null;
+  sourceSessionId: string | null;
+  submittedAt: number;
+  resolvedAt: number | null;
+  deliveredAt: number | null;
 }
 
 interface CatalogTarget {
@@ -146,6 +168,7 @@ export function FleetsPage() {
   const [composerFor, setComposerFor] = useState<string | null>(null); // fleet id
   const [swapFor, setSwapFor] = useState<MemberView | null>(null);
   const [drawerFor, setDrawerFor] = useState<MemberView | null>(null);
+  const [decisionsOpen, setDecisionsOpen] = useState(false);
 
   const loadList = useCallback(async () => {
     try {
@@ -298,6 +321,16 @@ export function FleetsPage() {
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant={detail.openDecisions ? "default" : "outline"}
+                    size="sm"
+                    data-testid="decisions-open"
+                    onClick={() => setDecisionsOpen(true)}
+                  >
+                    {detail.openDecisions
+                      ? t("fleets.decisions.waitingBadge", { count: detail.openDecisions })
+                      : t("fleets.decisions.queueEmpty")}
+                  </Button>
                   {detail.fleet.state === "active" ? (
                     <Button variant="outline" size="sm" onClick={() => patchFleet(selected.id, { state: "paused" })}>
                       {t("fleets.ops.pause")}
@@ -502,7 +535,215 @@ export function FleetsPage() {
           onRefresh={refresh}
         />
       ) : null}
+      {decisionsOpen && selected ? (
+        <DecisionsDrawer
+          fleetId={selected.id}
+          onClose={() => setDecisionsOpen(false)}
+          onDecided={refresh}
+        />
+      ) : null}
     </div>
+  );
+}
+
+// ── decisions drawer ─────────────────────────────────────────────────────────
+
+const SEVERITY_STYLES: Record<DecisionItem["severity"], string> = {
+  low: "bg-muted text-muted-foreground",
+  normal: "bg-muted text-foreground",
+  high: "bg-destructive/15 text-destructive",
+};
+
+function DecisionsDrawer({
+  fleetId,
+  onClose,
+  onDecided,
+}: {
+  fleetId: string;
+  onClose: () => void;
+  onDecided: () => Promise<void>;
+}) {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language;
+  const navigate = useNavigate();
+  const [showAll, setShowAll] = useState(false);
+  const [items, setItems] = useState<DecisionItem[]>([]);
+  const [openCount, setOpenCount] = useState(0);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  // Per-item draft: the chosen option value + note (approve/amend/reject).
+  const [drafts, setDrafts] = useState<Record<string, { choice: string; note: string }>>({});
+
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/fleets/${encodeURIComponent(fleetId)}/decisions?state=${showAll ? "all" : "open"}`);
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body.error ?? `list ${r.status}`);
+      setItems(body.decisions ?? []);
+      setOpenCount(body.openCount ?? 0);
+      setError(null);
+    } catch (e) {
+      setError(String((e as Error).message ?? e));
+    }
+  }, [fleetId, showAll]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const draftFor = (item: DecisionItem) =>
+    drafts[item.id] ?? { choice: item.recommendation ?? item.options[0]?.value ?? "", note: "" };
+
+  const act = async (item: DecisionItem, op: string, extra: Record<string, unknown> = {}) => {
+    setBusyId(item.id);
+    setError(null);
+    try {
+      const r = await fetch(
+        `/api/fleets/${encodeURIComponent(fleetId)}/decisions/${encodeURIComponent(item.id)}/${op}`,
+        {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(extra),
+        },
+      );
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(body.error ?? `${op} ${r.status}`);
+      await load();
+      await onDecided();
+    } catch (e) {
+      setError(String((e as Error).message ?? e));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  return (
+    <Dialog open onOpenChange={(o) => (!o ? onClose() : undefined)}>
+      <DialogContent className="max-h-[85vh] max-w-xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            {t("fleets.decisions.drawerTitle")}
+            {openCount > 0 ? ` · ${t("fleets.decisions.waitingBadge", { count: openCount })}` : ""}
+          </DialogTitle>
+        </DialogHeader>
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} data-testid="decisions-show-all" />
+          {t("fleets.decisions.showAll")}
+        </label>
+        {error ? <p className="text-sm text-destructive" data-testid="decisions-error">{error}</p> : null}
+        <div className="flex flex-col gap-3" data-testid="decisions-list">
+          {items.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("fleets.decisions.empty")}</p>
+          ) : (
+            items.map((item) => {
+              const draft = draftFor(item);
+              return (
+                <div
+                  key={item.id}
+                  data-testid={`decision-${item.id}`}
+                  className="rounded-md border border-border p-3"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-2 py-0.5 text-xs ${SEVERITY_STYLES[item.severity]}`}>
+                      {t(`fleets.decisions.severity.${item.severity}`)}
+                    </span>
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
+                      {t(`fleets.decisions.state.${item.state}`)}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {item.memberTitle ?? t("fleets.decisions.memberGone")}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(item.submittedAt).toLocaleString(locale)}
+                    </span>
+                    {item.sourceSessionId ? (
+                      <button
+                        type="button"
+                        className="rounded-sm border border-border px-1.5 py-px text-xs hover:bg-muted"
+                        onClick={() => navigate(`/chat/${encodeURIComponent(item.sourceSessionId!)}`)}
+                      >
+                        {t("fleets.report.openSession")}
+                      </button>
+                    ) : null}
+                  </div>
+                  <p className="mt-2 text-sm font-medium" data-testid={`decision-question-${item.id}`}>{item.question}</p>
+                  {item.suggestedDeadline ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {t("fleets.decisions.suggested")}: {item.suggestedDeadline}
+                    </p>
+                  ) : null}
+                  {item.recommendation ? (
+                    <p className="text-xs text-muted-foreground">
+                      {t("fleets.decisions.recommendation")}: {item.options.find((o) => o.value === item.recommendation)?.label ?? item.recommendation}
+                    </p>
+                  ) : null}
+                  {item.state === "open" ? (
+                    <div className="mt-2 flex flex-col gap-2">
+                      <select
+                        className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                        data-testid={`decision-choice-${item.id}`}
+                        value={draft.choice}
+                        onChange={(e) => setDrafts((d) => ({ ...d, [item.id]: { ...draftFor(item), choice: e.target.value } }))}
+                      >
+                        {item.options.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                      <Input
+                        placeholder={t("fleets.decisions.notePlaceholder")}
+                        value={draft.note}
+                        onChange={(e) => setDrafts((d) => ({ ...d, [item.id]: { ...draftFor(item), note: e.target.value } }))}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" disabled={busyId === item.id} data-testid={`decision-approve-${item.id}`} onClick={() => void act(item, "approve", { choice: draft.choice, note: draft.note || undefined })}>
+                          {t("fleets.decisions.approve")}
+                        </Button>
+                        <Button size="sm" variant="outline" disabled={busyId === item.id} onClick={() => void act(item, "reject", { note: draft.note || undefined })}>
+                          {t("fleets.decisions.reject")}
+                        </Button>
+                        <Button size="sm" variant="outline" disabled={busyId === item.id} onClick={() => void act(item, "amend", { choice: draft.choice, note: draft.note || undefined })}>
+                          {t("fleets.decisions.amend")}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {item.resolution ? (
+                        <span className="text-xs text-muted-foreground" data-testid={`decision-resolution-${item.id}`}>
+                          {item.resolution.kind === "reject"
+                            ? t("fleets.decisions.rejectedAs", { note: item.resolution.note ?? "" })
+                            : `${t("fleets.decisions.choicePrefix")} ${item.options.find((o) => o.value === item.resolution.choice)?.label ?? item.resolution.choice ?? "—"}${item.resolution.note ? ` · ${item.resolution.note}` : ""}`}
+                        </span>
+                      ) : null}
+                      {item.state === "expired" ? (
+                        <Button size="sm" variant="outline" disabled={busyId === item.id} onClick={() => void act(item, "reopen")}>
+                          {t("fleets.decisions.reopen")}
+                        </Button>
+                      ) : null}
+                      {item.state === "approved" && !item.deliveredAt ? (
+                        <>
+                          <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs text-warning">
+                            {item.memberDeleted ? t("fleets.decisions.awaitMember") : t("fleets.decisions.awaitDelivery")}
+                          </span>
+                          {!item.memberDeleted ? (
+                            <Button size="sm" variant="outline" disabled={busyId === item.id} data-testid={`decision-execute-${item.id}`} onClick={() => void act(item, "execute-now")}>
+                              {t("fleets.decisions.executeNow")}
+                            </Button>
+                          ) : null}
+                        </>
+                      ) : null}
+                      {item.state === "delivered" ? (
+                        <span className="text-xs text-success">{t("fleets.decisions.delivered")}</span>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

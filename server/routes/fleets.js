@@ -26,6 +26,14 @@ import {
   checkFlood,
   buildLatestView,
 } from "../fleet-reports.js";
+import {
+  validateEscalatePayload,
+  validateResolution,
+  renderDecisionSegment,
+  buildExecuteNowPrompt,
+  OPEN_QUEUE_LIMIT,
+} from "../fleet-decisions.js";
+import * as engine from "../../task-engine.js";
 
 const DENSE_CADENCE_MS = 10 * 60 * 1000; // design D7: <10min cadence needs confirmation
 const KPI_SLOT_LIMIT = 8;
@@ -344,6 +352,227 @@ export function createFleetRoutes(app, ctx = null) {
     }
   });
 
+  // ── Decision lane (agent-fleet-decision-lane) ─────────────────────────────
+  //
+  // The escalate bridge (twin of /report): the in-cell fleet MCP child files
+  // an approval request from the post the CURRENT turn runs under. The
+  // question text, options and severity come from the caller; expiry NEVER
+  // does — that is fleet policy (suggestedDeadline is display-only).
+
+  router.post("/escalate", async (req, res) => {
+    try {
+      const db = getFleetDatabase();
+      const payload = validateEscalatePayload(req.body);
+      if (!payload.ok) return res.status(400).json({ error: payload.error });
+
+      const personaMembers = [];
+      for (const f of db.listFleets()) {
+        for (const m of db.listMembers(f.id)) {
+          if (m.targetKind === "persona") personaMembers.push(m);
+        }
+      }
+      const attribution = resolveAttribution({
+        currentPreset: ctx?.currentPreset ?? null,
+        runningTasks: cron.listJobs(),
+        personaMembers,
+        rosterPresetId,
+      });
+      if (attribution.kind === "none" || attribution.kind === "ambiguous") {
+        return res.status(409).json({ error: attribution.error });
+      }
+      const member = db.getMember(attribution.memberId);
+      if (!member) return res.status(409).json({ error: "the attributed post no longer exists" });
+      const fleet = db.getFleet(member.fleetId);
+
+      // Flood (design D5): per-post daily cap from the fleet policy, and the
+      // fleet-wide open queue cap — a flooded queue must not paralyze the
+      // owner's entry point.
+      const now = Date.now();
+      db.expireOpenDecisions(fleet.id, { now });
+      const dayStart = new Date(now);
+      dayStart.setHours(0, 0, 0, 0);
+      const dailyCount = db.countDecisionsByMemberSince(member.id, dayStart.getTime());
+      const cap = fleet.decisionPolicy?.dailyCapPerMember ?? 10;
+      if (dailyCount >= cap) {
+        return res.status(429).json({ error: `daily escalation limit reached (${cap}/day for this post)`, dailyRemaining: 0 });
+      }
+      const openCount = db.countOpenDecisions(fleet.id);
+      if (openCount >= OPEN_QUEUE_LIMIT) {
+        return res.status(429).json({ error: `the fleet's open decision queue is full (${OPEN_QUEUE_LIMIT}) — resolve pending items first` });
+      }
+
+      const sessionId =
+        attribution.task?.sessionId ?? chatHistory.currentSessionId?.() ?? null;
+      const item = db.appendDecision({
+        id: `d_${now}_${Math.random().toString(36).slice(2, 8)}`,
+        fleetId: fleet.id,
+        memberId: member.id,
+        question: payload.item.question,
+        options: payload.item.options,
+        severity: payload.item.severity,
+        suggestedDeadline: payload.item.suggestedDeadline,
+        recommendation: payload.item.recommendation,
+        sourceSessionId: sessionId,
+        submittedAt: now,
+      });
+      // Best-effort out-of-band ping seam (WeChat envelope et al.): mounted
+      // by the deployment when a provider exists; absent = in-app badge only.
+      try {
+        ctx?.fleetDecisionNotifier?.(fleet, item, member);
+      } catch { /* best-effort by contract */ }
+      res.status(201).json({
+        ok: true,
+        itemId: item.id,
+        memberTitle: member.title,
+        queuePosition: openCount + 1,
+        dailyRemaining: cap - dailyCount - 1,
+      });
+    } catch (err) {
+      console.error("[fleets] escalate error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // Owner queue: lazy expiry sweep first, then the list. `state=open` (the
+  // default) is the to-do view; `all` keeps history (expired stay listed).
+  router.get("/:id/decisions", (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const db = getFleetDatabase();
+      db.expireOpenDecisions(owned.fleet.id);
+      const state = req.query.state === "all" ? null : "open";
+      const members = new Map(db.listMembers(owned.fleet.id).map((m) => [m.id, m]));
+      const items = db.listDecisions({ fleetId: owned.fleet.id, state }).map((item) => {
+        const member = members.get(item.memberId) ?? null;
+        return {
+          ...item,
+          memberTitle: member?.title ?? null,
+          memberDeleted: !member,
+          pendingDelivery:
+            (item.state === "approved" || item.state === "rejected") &&
+            item.deliveredAt == null &&
+            !!member,
+        };
+      });
+      res.json({
+        decisions: items,
+        openCount: db.countOpenDecisions(owned.fleet.id),
+        decisionPolicy: owned.fleet.decisionPolicy,
+      });
+    } catch (err) {
+      console.error("[fleets] decisions list error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // approve | reject | amend | reopen | execute-now — one handler, the state
+  // machine's gatekeeping all in one place. Optimistic transitions make a
+  // concurrent second resolution read as a conflict (first resolution wins).
+  router.post("/:id/decisions/:itemId/:op", async (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const db = getFleetDatabase();
+      const { fleet } = owned;
+      const { itemId, op } = req.params;
+      const now = Date.now();
+      db.expireOpenDecisions(fleet.id, { now });
+
+      const item = db.getDecision(itemId);
+      if (!item || item.fleetId !== fleet.id) {
+        return res.status(404).json({ error: "Decision not found" });
+      }
+      const member = db.getMember(item.memberId) ?? null;
+
+      if (op === "reopen") {
+        if (item.state !== "expired") {
+          return res.status(409).json({ error: `only expired items can be reopened (state: ${item.state})` });
+        }
+        const reopened = db.transitionDecision(itemId, "expired", { state: "open", resolution: null, submittedAt: now });
+        if (!reopened) return res.status(409).json({ error: "concurrent change — reload and retry" });
+        return res.json({ decision: reopened });
+      }
+
+      if (op === "execute-now") {
+        if (item.state !== "approved") {
+          return res.status(409).json({ error: `only approved items can execute now (state: ${item.state})` });
+        }
+        // Delivery vehicle: the post's materialized task if it has a cadence
+        // (prompt override carries the decision segment), else a manual task
+        // for persona/a2a posts. A passive CLUSTER post has neither lane —
+        // honest refusal; delivery rides its next delegated turn instead.
+        const task = taskIndexFor(fleet.id).get(item.memberId) ?? null;
+        const deliverable = db.listDecisions({ fleetId: fleet.id, pendingDeliveryFor: item.memberId });
+        if (task) {
+          const digest = renderDecisionSegment(deliverable);
+          const base = task.prompt?.includes("{{fleetContext}}") && digest
+            ? task.prompt.replace(/\{\{fleetContext\}\}/g, digest)
+            : `${task.prompt ?? ""}\n\n${buildExecuteNowPrompt(deliverable)}`;
+          engine.setPromptOverride(task.id, base);
+          const r = await cron.runJobNow(task.id);
+          if (r?.ok === true || r?.already === true) {
+            return res.json({
+              executing: true,
+              alreadyRunning: r?.already === true,
+              taskId: task.id,
+              note: r?.already === true ? "a turn is already in flight — delivery rides it" : null,
+            });
+          }
+          return res.status(409).json({ error: r?.error ?? "could not start the turn" });
+        }
+        if (member && member.targetKind === "persona") {
+          const manual = engine.createManualTask({
+            prompt: buildExecuteNowPrompt(deliverable),
+            persona: rosterPresetId(member.targetId),
+            sessionTitle: `拍板送达 · ${member.title}`,
+            origin: { fleet: { fleetId: fleet.id, memberId: member.id } },
+          });
+          return res.json({ executing: true, taskId: manual.id, manual: true });
+        }
+        if (member && member.targetKind === "a2a") {
+          const manual = engine.createManualTask({
+            prompt: buildExecuteNowPrompt(deliverable),
+            agent: member.targetId,
+            sessionTitle: `拍板送达 · ${member.title}`,
+            origin: { fleet: { fleetId: fleet.id, memberId: member.id } },
+          });
+          return res.json({ executing: true, taskId: manual.id, manual: true });
+        }
+        return res.status(409).json({
+          error: "this post has no cadence task and no manual lane (passive cluster post) — delivery will ride its next delegated turn",
+        });
+      }
+
+      if (!["approve", "reject", "amend"].includes(op)) {
+        return res.status(400).json({ error: `unknown decision op '${op}'` });
+      }
+      if (item.state === "expired") {
+        return res.status(409).json({ error: "this item expired — reopen it before deciding" });
+      }
+      if (item.state !== "open") {
+        return res.status(409).json({ error: `already ${item.state === "delivered" ? "delivered" : `resolved (${item.state})`}` });
+      }
+      const resolution = validateResolution(op, req.body ?? {}, item);
+      if (!resolution.ok) return res.status(400).json({ error: resolution.error });
+      resolution.resolution.by = owned.user.email;
+      resolution.resolution.at = now;
+
+      const updated = db.transitionDecision(itemId, "open", {
+        state: op === "reject" ? "rejected" : "approved",
+        resolution: resolution.resolution,
+        resolvedAt: now,
+      });
+      if (!updated) {
+        return res.status(409).json({ error: "first resolution wins — another decision just landed" });
+      }
+      res.json({ decision: updated });
+    } catch (err) {
+      console.error("[fleets] decision op error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
   // ── Fleet CRUD ────────────────────────────────────────────────────────────
 
   router.get("/", (req, res) => {
@@ -408,7 +637,14 @@ export function createFleetRoutes(app, ctx = null) {
       const views = members.map((m) => memberView(db, owned.fleet, m, tasks, { resolver: targetResolver }));
       const statusCounts = {};
       for (const v of views) statusCounts[v.status] = (statusCounts[v.status] ?? 0) + 1;
-      res.json({ fleet: owned.fleet, members: views, statusCounts });
+      db.expireOpenDecisions(owned.fleet.id);
+      res.json({
+        fleet: owned.fleet,
+        members: views,
+        statusCounts,
+        openDecisions: db.countOpenDecisions(owned.fleet.id),
+        decisionPolicy: owned.fleet.decisionPolicy,
+      });
     } catch (err) {
       console.error("[fleets] detail error:", err.message);
       res.status(500).json({ error: err.message || "internal error" });

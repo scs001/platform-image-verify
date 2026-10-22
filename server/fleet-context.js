@@ -95,9 +95,11 @@ export async function buildFleetContext(sourceTag, task, deps) {
     }
   }
 
-  // Pending decisions digest (decision lane, 刀3): provider returns null until
-  // that lane exists — the segment is simply absent, not an empty promise.
-  const digest = decisionDigest?.(fleet.id) ?? null;
+  // Pending decisions digest (decision lane, 刀3): the provider renders THIS
+  // firing post's undelivered resolutions as their own segment; null (nothing
+  // to deliver, or the lane absent) omits the segment entirely — never an
+  // empty placeholder.
+  const digest = decisionDigest?.(fleet.id, me.id) ?? null;
   if (digest) {
     sections.push(truncateWithMark(digest, PER_POST_LIMIT));
   }

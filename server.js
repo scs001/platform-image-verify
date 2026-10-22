@@ -66,6 +66,7 @@ import { getFleetDatabase } from "./server/routes/fleets-db.js";
 import { reconcileAllFleets, deriveMemberStatus } from "./server/fleet-reconcile.js";
 import { buildFleetContext } from "./server/fleet-context.js";
 import { derivedReportFromTask } from "./server/fleet-reports.js";
+import { renderDecisionSegment } from "./server/fleet-decisions.js";
 import { rosterPresetId } from "./dsh-profile.js";
 import { createMonitoringRoutes } from "./server/routes/monitoring.js";
 import { createAdminRoutes } from "./server/routes/admin.js";
@@ -988,12 +989,17 @@ await Promise.all([
     // Fleet patrol context (agent-fleet-report-lane D6): render the
     // {{fleetContext}} segment at fire time for fleet-tagged tasks; cron.js
     // substitutes it into that fire's prompt. Throws or empty segments fail
-    // the fire explicitly — never a silent empty-context patrol.
+    // the fire explicitly — never a silent empty-context patrol. The decision
+    // digest (agent-fleet-decision-lane) rides the same segment slot: this
+    // post's undelivered resolutions, their own block, absent when empty.
     renderFleetContext: (sourceTag, task) =>
       buildFleetContext(sourceTag, task, {
         db: getFleetDatabase(),
         deriveStatuses: deriveFleetStatuses,
-        decisionDigest: null, // decision lane (刀3) mounts here
+        decisionDigest: (fleetId, memberId) => {
+          const items = getFleetDatabase().listDecisions({ fleetId, pendingDeliveryFor: memberId });
+          return renderDecisionSegment(items);
+        },
       }),
   }),
 ]);
@@ -1001,23 +1007,48 @@ await Promise.all([
 // subscribers) — finished manual fan-outs inject the summary turn back into
 // the initiating session; rearm covers groups a restart left pending.
 attachDelegationAggregator(ctx).rearm();
-// Fleet report lane (agent-fleet-report-lane D4): a finished a2a fleet fire
-// cannot self-report (the remote agent cannot call this cell's tools) — its
-// outcome becomes a derived, honestly-badged execution-summary report row.
-// Registered after initCron for the same reason as the aggregator; the engine
-// is imported dynamically here because server.js otherwise stays
-// runtime-agnostic behind cron.js.
+// Fleet report + decision lanes (agent-fleet-report-lane D4,
+// agent-fleet-decision-lane 2.2): a finished a2a fleet fire cannot self-report
+// (the remote agent cannot call this cell's tools) — its outcome becomes a
+// derived, honestly-badged execution-summary report row. And a DONE fleet turn
+// (cadence fire or execute-now manual task) delivers this post's resolved
+// decisions — idempotent, capped per turn, oldest resolution first. Failed
+// turns deliver nothing (the context never reached the model). Registered
+// after initCron for the same reason as the aggregator; the engine is imported
+// dynamically here because server.js otherwise stays runtime-agnostic behind
+// cron.js.
 {
   const engine = await import("./task-engine.js");
-  const fleetReportsDb = getFleetDatabase();
+  const fleetLanesDb = getFleetDatabase();
   engine.addOnFinished((task) => {
     try {
       const derived = derivedReportFromTask(task);
-      if (derived) fleetReportsDb.appendReport(derived);
+      if (derived) fleetLanesDb.appendReport(derived);
     } catch (e) {
       console.warn(`[fleets] derived report failed for ${task?.id}: ${e.message}`);
     }
+    try {
+      if (task?.state === "done") {
+        const memberId = task.sourceTag?.memberId ?? task.origin?.fleet?.memberId ?? null;
+        if (memberId) {
+          fleetLanesDb.markDelivered(memberId, { sessionId: task.sessionId ?? null });
+        }
+      }
+    } catch (e) {
+      console.warn(`[fleets] decision delivery marking failed for ${task?.id}: ${e.message}`);
+    }
   });
+  // Fleet-policy expiry backstop (lazy sweeps run on every queue read; this
+  // hourly pass covers fleets nobody is reading).
+  setInterval(() => {
+    try {
+      for (const fleet of fleetLanesDb.listFleets()) {
+        fleetLanesDb.expireOpenDecisions(fleet.id);
+      }
+    } catch (e) {
+      console.warn(`[fleets] expiry sweep failed: ${e.message}`);
+    }
+  }, 60 * 60 * 1000).unref();
 }
 // Worker pool (TASK_WORKER_MAX; 0 = inert, exactly today's serial semantics).
 // Attached after the engine so the slot dispatcher registers against the

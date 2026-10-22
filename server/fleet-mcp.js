@@ -75,6 +75,37 @@ const TOOLS = [
       required: ["summary"],
     },
   },
+  {
+    name: "escalate",
+    description:
+      "Submit a decision request to the fleet owner (拍板). Use it when a choice exceeds your post's authority or budget: which option to take, whether to spend, " +
+      "whether to stop. The owner approves/rejects/amends from the fleet decision queue; the result is delivered into your next turn (or immediately on execute-now). " +
+      "suggestedDeadline is display-only — actual expiry follows the fleet's policy. Limits: per-post daily cap and a fleet-wide open queue cap.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        question: { type: "string", description: "The decision being asked (≤500 chars). Write it so the owner can decide without more context." },
+        options: {
+          type: "array",
+          minItems: 2,
+          maxItems: 6,
+          description: "2–6 choices: [{value, label}]. `value` is the machine token, `label` the human text.",
+          items: {
+            type: "object",
+            properties: {
+              value: { type: "string" },
+              label: { type: "string" },
+            },
+            required: ["value", "label"],
+          },
+        },
+        severity: { type: "string", enum: ["low", "normal", "high"], description: "How urgently the owner should decide." },
+        suggestedDeadline: { type: "string", description: "Human-readable suggestion only (e.g. '48 小时内'). Never triggers expiry." },
+        recommendation: { type: "string", description: "The option value you recommend, if any." },
+      },
+      required: ["question", "options"],
+    },
+  },
 ];
 
 function textOut(text) {
@@ -107,6 +138,25 @@ async function toolReport({ metrics, resources, blockers, summary }) {
   return textOut(lines.join("\n"));
 }
 
+async function toolEscalate({ question, options, severity, suggestedDeadline, recommendation }) {
+  const res = await fetch(`${bridgeOrigin()}/api/fleets/escalate`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ question, options, severity, suggestedDeadline, recommendation }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return errOut(data.error || `escalate failed (${res.status})`);
+  return textOut(
+    [
+      `Decision request queued for the owner of fleet 「${data.fleetName ?? ""}」 from post 「${data.memberTitle}」.`,
+      `- queue position: ${data.queuePosition}`,
+      `- daily escalations left for this post: ${data.dailyRemaining}`,
+      `Tell the user a decision is pending; the owner decides from the fleet queue and the result arrives in your next turn.`,
+    ].join("\n"),
+  );
+}
+
 const server = new Server({ name: "fleet", version: "1.0.0" }, { capabilities: { tools: {} } });
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
@@ -116,6 +166,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
   try {
     switch (name) {
       case "report_status": return await toolReport(args);
+      case "escalate": return await toolEscalate(args);
       default: return errOut(`unknown tool: ${name}`);
     }
   } catch (err) {

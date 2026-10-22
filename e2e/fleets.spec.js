@@ -279,6 +279,104 @@ test.describe("fleet composer", () => {
   });
 });
 
+// ── decision queue drawer (agent-fleet-decision-lane) ───────────────────────
+
+test.describe("fleet decision queue", () => {
+  test.beforeEach(async ({ page }) => {
+    await pinLocaleEn(page);
+    const open = [
+      {
+        id: "d1",
+        fleetId: FLEET_ID,
+        memberId: "shop",
+        memberTitle: "Shop",
+        memberDeleted: false,
+        pendingDelivery: false,
+        question: "Publish the video early?",
+        options: [
+          { value: "now", label: "Publish now" },
+          { value: "fri", label: "Publish Friday" },
+        ],
+        severity: "high",
+        suggestedDeadline: "within 48h",
+        recommendation: "fri",
+        state: "open",
+        resolution: null,
+        sourceSessionId: "sess-src",
+        submittedAt: 1790000000000,
+        resolvedAt: null,
+        deliveredAt: null,
+      },
+    ];
+    let current = open;
+    await page.route("**/api/fleets", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ fleets: [{ id: FLEET_ID, name: "Demo Fleet", state: "active", memberCount: 1, openDecisions: current.filter((d) => d.state === "open").length }] }),
+      }),
+    );
+    await page.route(`**/api/fleets/${FLEET_ID}`, (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          fleet: { id: FLEET_ID, name: "Demo Fleet", state: "active", createdAt: 0, updatedAt: 0 },
+          members: [memberFixture("shop", { title: "Shop" })],
+          statusCounts: { passive: 1 },
+          openDecisions: current.filter((d) => d.state === "open").length,
+        }),
+      }),
+    );
+    await page.route(new RegExp(`/api/fleets/${FLEET_ID}/decisions`), (route) => {
+      if (route.request().method() === "GET") {
+        const all = new URL(route.request().url()).searchParams.get("state") === "all";
+        return route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            decisions: all ? current : current.filter((d) => d.state === "open"),
+            openCount: current.filter((d) => d.state === "open").length,
+            decisionPolicy: { expiryHours: 72, dailyCapPerMember: 10 },
+          }),
+        });
+      }
+      const url = route.request().url();
+      const approve = url.endsWith("/approve");
+      current = current.map((d) =>
+        d.id === "d1"
+          ? {
+              ...d,
+              state: approve ? "approved" : d.state,
+              pendingDelivery: approve,
+              resolution: approve ? { kind: "approve", choice: "fri", note: null, by: "owner@test", at: 1790000001000 } : null,
+            }
+          : d,
+      );
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify({ decision: current[0] }) });
+    });
+  });
+
+  test("badge opens the queue; approve flips the item to awaiting delivery", async ({ page }) => {
+    await page.goto("/fleets");
+    await expect(page.getByTestId("fleets-page")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("decisions-open")).toContainText("1 awaiting you");
+    await page.getByTestId("decisions-open").click();
+
+    const item = page.getByTestId("decision-d1");
+    await expect(item).toBeVisible();
+    await expect(page.getByTestId("decision-question-d1")).toContainText("Publish the video early?");
+    await expect(item).toContainText("high");
+    await expect(item).toContainText("within 48h");
+
+    await page.getByTestId("decision-choice-d1").selectOption("fri");
+    await page.getByTestId("decision-approve-d1").click();
+    // The open-only view drops the decided item (the to-do is done); flip to
+    // the all-views to see the approved state.
+    await page.getByTestId("decisions-show-all").check();
+    await expect(page.getByTestId("decision-resolution-d1")).toContainText("Publish Friday", { timeout: 10000 });
+    await expect(page.getByTestId("decision-d1")).toContainText("awaiting delivery");
+    await expect(page.getByTestId("decision-execute-d1")).toBeVisible();
+  });
+});
+
 // ── real server, auth-off (the shared webServer) ─────────────────────────────
 
 test.describe("fleets REST on the auth-off server", () => {

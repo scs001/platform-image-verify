@@ -2313,6 +2313,39 @@
       "openSession": "Source session",
       "loadMore": "Load earlier",
       "refresh": "Refresh"
+    },
+    "decisions": {
+      "waitingBadge": "{{count}} awaiting you",
+      "queueEmpty": "Decisions",
+      "drawerTitle": "Decision queue",
+      "showAll": "Show all (resolved/expired too)",
+      "empty": "Nothing to decide",
+      "severity": {
+        "low": "low",
+        "normal": "normal",
+        "high": "high"
+      },
+      "state": {
+        "open": "open",
+        "approved": "approved",
+        "rejected": "rejected",
+        "expired": "expired",
+        "delivered": "delivered"
+      },
+      "suggested": "Suggested deadline (display only)",
+      "recommendation": "Post recommends",
+      "notePlaceholder": "Note (optional)",
+      "approve": "Approve",
+      "reject": "Reject",
+      "amend": "Amend",
+      "reopen": "Reopen",
+      "executeNow": "Execute now",
+      "choicePrefix": "Choice:",
+      "rejectedAs": "Rejected. Reason: {{note}}",
+      "awaitDelivery": "awaiting delivery",
+      "awaitMember": "awaiting post restore",
+      "delivered": "delivered",
+      "memberGone": "(post deleted)"
     }
   }
 }

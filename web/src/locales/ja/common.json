@@ -2313,6 +2313,39 @@
       "openSession": "元セッション",
       "loadMore": "過去を読み込む",
       "refresh": "更新"
+    },
+    "decisions": {
+      "waitingBadge": "あなたの判断を{{count}}件待つ",
+      "queueEmpty": "拍板",
+      "drawerTitle": "拍板キュー",
+      "showAll": "すべて表示（裁定済み・期限切れ含む）",
+      "empty": "判断すべき項目はありません",
+      "severity": {
+        "low": "低",
+        "normal": "中",
+        "high": "高"
+      },
+      "state": {
+        "open": "未裁定",
+        "approved": "承認",
+        "rejected": "却下",
+        "expired": "期限切れ",
+        "delivered": "配達済み"
+      },
+      "suggested": "提案期限（表示のみ）",
+      "recommendation": "ポストの推奨",
+      "notePlaceholder": "注記（任意）",
+      "approve": "承認",
+      "reject": "却下",
+      "amend": "修正承認",
+      "reopen": "再オープン",
+      "executeNow": "即時実行",
+      "choicePrefix": "選択：",
+      "rejectedAs": "却下。理由：{{note}}",
+      "awaitDelivery": "配達待ち",
+      "awaitMember": "ポスト復帰待ち",
+      "delivered": "配達済み",
+      "memberGone": "（ポスト削除済み）"
     }
   }
 }

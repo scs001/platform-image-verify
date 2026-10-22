@@ -326,8 +326,35 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
   // cancelled dialog resolves null — the popover simply stays open.
   const browseWorkspace = async (close: () => void) => {
     const picked = await window.platform?.pickWorkdir();
-    if (picked) submitWorkspacePath(picked, close);
+    if (picked) submitWorkspacePath(close);
   };
+
+  // ── Fleet decision badge (agent-fleet-decision-lane) ──────────────────────
+  // 「等你 N 件」 over the fleets nav item: the sum of every fleet's OPEN
+  // decisions (expired never counts). A light poll — the lane's server side is
+  // unread-by-derivation, so the client owns the refresh. Visiting /fleets
+  // naturally refetches via the page.
+  const [fleetOpenDecisions, setFleetOpenDecisions] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    const fetchOpen = async () => {
+      try {
+        const r = await fetch("/api/fleets");
+        if (!r.ok) return;
+        const body = await r.json();
+        if (alive) setFleetOpenDecisions((body.fleets ?? []).reduce((n: number, f: { openDecisions?: number }) => n + (f.openDecisions ?? 0), 0));
+      } catch {
+        /* an unreachable server keeps the last count */
+      }
+    };
+    void fetchOpen();
+    const timer = setInterval(fetchOpen, 60_000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [location.pathname]);
+
 
   return (
     <nav className="relative flex h-screen flex-col border-r border-border bg-card" data-testid="sidebar">
@@ -374,6 +401,15 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
             >
               {Icon ? <Icon className="h-4 w-4 shrink-0" aria-hidden="true" /> : null}
               {t(n.key)}
+              {n.to === "/fleets" && fleetOpenDecisions > 0 ? (
+                <span
+                  className="ml-auto rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive"
+                  data-testid="nav-fleets-badge"
+                  title={t("fleets.decisions.waitingBadge", { count: fleetOpenDecisions })}
+                >
+                  {fleetOpenDecisions}
+                </span>
+              ) : null}
             </NavLink>
           );
         })}

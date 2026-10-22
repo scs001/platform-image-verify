@@ -127,14 +127,17 @@ const isInternalSaveBridge = (req) =>
 const isInternalActionsBridge = (req) =>
   req.method === "POST" && req.path === "/api/actions/propose" && isLoopback(req.socket?.remoteAddress);
 
-// The fleet report bridge (`report_status`, openspec: agent-fleet-report-lane)
-// — the in-cell fleet MCP child filing a status report for the post the
-// CURRENT turn runs under. Loopback is its credential; the route attributes
-// the report SERVER-side (running cluster task or live preset — the caller
-// cannot name a post), so a forged loopback caller still cannot post as
-// another member; everyone else faces the full gate.
+// The fleet bridges (`report_status` / `escalate`, openspec:
+// agent-fleet-report-lane + agent-fleet-decision-lane) — the in-cell fleet MCP
+// child reporting for, or escalating from, the post the CURRENT turn runs
+// under. Loopback is their credential; both routes attribute SERVER-side
+// (running cluster task or live preset — the caller cannot name a post), so a
+// forged loopback caller still cannot act as another member; everyone else
+// faces the full gate.
 const isInternalFleetBridge = (req) =>
-  req.method === "POST" && req.path === "/api/fleets/report" && isLoopback(req.socket?.remoteAddress);
+  req.method === "POST" &&
+  (req.path === "/api/fleets/report" || req.path === "/api/fleets/escalate") &&
+  isLoopback(req.socket?.remoteAddress);
 
 // The header the gateway injects alongside the identity headers in hosted mode.
 export const GATEWAY_SECRET_HEADER = "x-cloud-gateway-secret";

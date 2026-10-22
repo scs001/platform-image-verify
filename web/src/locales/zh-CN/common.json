@@ -2313,6 +2313,39 @@
       "openSession": "来源会话",
       "loadMore": "载入更早",
       "refresh": "刷新"
+    },
+    "decisions": {
+      "waitingBadge": "等你 {{count}} 件",
+      "queueEmpty": "拍板队列",
+      "drawerTitle": "拍板队列",
+      "showAll": "显示全部（含已裁/过期）",
+      "empty": "没有待拍板项",
+      "severity": {
+        "low": "低",
+        "normal": "中",
+        "high": "高"
+      },
+      "state": {
+        "open": "待裁",
+        "approved": "已批",
+        "rejected": "已驳",
+        "expired": "已过期",
+        "delivered": "已送达"
+      },
+      "suggested": "建议时限（仅展示）",
+      "recommendation": "岗位建议",
+      "notePlaceholder": "批注（可选）",
+      "approve": "批准",
+      "reject": "驳回",
+      "amend": "改批",
+      "reopen": "重开",
+      "executeNow": "立即执行",
+      "choicePrefix": "所选：",
+      "rejectedAs": "驳回。理由：{{note}}",
+      "awaitDelivery": "待送达",
+      "awaitMember": "待岗位恢复",
+      "delivered": "已送达",
+      "memberGone": "（岗位已删）"
     }
   }
 }

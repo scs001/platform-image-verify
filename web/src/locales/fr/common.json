@@ -2313,6 +2313,39 @@
       "openSession": "Session source",
       "loadMore": "Charger plus ancien",
       "refresh": "Rafraîchir"
+    },
+    "decisions": {
+      "waitingBadge": "{{count}} vous attendent",
+      "queueEmpty": "Décisions",
+      "drawerTitle": "File de décisions",
+      "showAll": "Tout afficher (résolues/expirées)",
+      "empty": "Rien à décider",
+      "severity": {
+        "low": "basse",
+        "normal": "normale",
+        "high": "haute"
+      },
+      "state": {
+        "open": "ouverte",
+        "approved": "approuvée",
+        "rejected": "rejetée",
+        "expired": "expirée",
+        "delivered": "délivrée"
+      },
+      "suggested": "Délai suggéré (affichage)",
+      "recommendation": "Le poste recommande",
+      "notePlaceholder": "Note (facultatif)",
+      "approve": "Approuver",
+      "reject": "Rejeter",
+      "amend": "Amender",
+      "reopen": "Rouvrir",
+      "executeNow": "Exécuter",
+      "choicePrefix": "Choix :",
+      "rejectedAs": "Rejetée. Motif : {{note}}",
+      "awaitDelivery": "en attente de livraison",
+      "awaitMember": "en attente de poste",
+      "delivered": "délivrée",
+      "memberGone": "(poste supprimé)"
     }
   }
 }

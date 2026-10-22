@@ -66,6 +66,38 @@ export function createFleetDatabase({ file } = {}) {
   )`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_member_reports_member ON member_reports(member_id, created_at)`);
 
+  // Decision lane (agent-fleet-decision-lane): the owner's approval queue.
+  // State machine: open → approved|rejected → delivered; open → expired →
+  // (owner reopens) → open. `resolution` is JSON {kind, choice?, note?, by,
+  // at}; expiry is fleet-policy driven (suggestedDeadline is display-only).
+  db.exec(`CREATE TABLE IF NOT EXISTS decision_items (
+    id TEXT PRIMARY KEY,
+    fleet_id TEXT NOT NULL,
+    member_id TEXT NOT NULL,
+    question TEXT NOT NULL,
+    options TEXT NOT NULL,
+    severity TEXT NOT NULL DEFAULT 'normal',
+    suggested_deadline TEXT,
+    recommendation TEXT,
+    state TEXT NOT NULL DEFAULT 'open',
+    resolution TEXT,
+    source_session_id TEXT,
+    submitted_at INTEGER NOT NULL,
+    resolved_at INTEGER,
+    delivered_at INTEGER,
+    delivered_session_id TEXT
+  )`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_decision_items_fleet_state ON decision_items(fleet_id, state)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_decision_items_member ON decision_items(member_id, state)`);
+
+  // Existing fleets gain the decision policy column (fleet-level expiry; the
+  // design default is 72h, 0 = off — never per-post deadlines).
+  try {
+    db.exec(`ALTER TABLE fleets ADD COLUMN decision_policy TEXT`);
+  } catch {
+    /* column already exists */
+  }
+
   db.exec(`CREATE INDEX IF NOT EXISTS idx_fleet_members_fleet ON fleet_members(fleet_id)`);
   // Unique-post check (design D8): "is this persona/cluster on duty anywhere?"
   // scans by target, so index the pair.
@@ -76,10 +108,18 @@ export function createFleetDatabase({ file } = {}) {
   function createFleet(fleet) {
     const now = Date.now();
     db.prepare(`
-      INSERT INTO fleets (id, name, owner_email, state, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).run(fleet.id, fleet.name, fleet.ownerEmail, fleet.state || "active", now, now);
-    return { ...fleet, state: fleet.state || "active", createdAt: now, updatedAt: now };
+      INSERT INTO fleets (id, name, owner_email, state, decision_policy, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      fleet.id,
+      fleet.name,
+      fleet.ownerEmail,
+      fleet.state || "active",
+      fleet.decisionPolicy ? JSON.stringify(fleet.decisionPolicy) : null,
+      now,
+      now,
+    );
+    return getFleet(fleet.id);
   }
 
   function getFleet(id) {
@@ -96,6 +136,10 @@ export function createFleetDatabase({ file } = {}) {
       if (!col) continue;
       setParts.push(`${col} = ?`);
       values.push(value);
+    }
+    if (keyIsDecisionPolicy(updates)) {
+      setParts.push("decision_policy = ?");
+      values.push(JSON.stringify(updates.decisionPolicy));
     }
     if (setParts.length === 0) return null;
     setParts.push("updated_at = ?");
@@ -252,6 +296,141 @@ export function createFleetDatabase({ file } = {}) {
       .get(memberId, sinceMs).n;
   }
 
+  // ── decision items ────────────────────────────────────────────────────────
+
+  function appendDecision(item) {
+    db.prepare(`
+      INSERT INTO decision_items (id, fleet_id, member_id, question, options, severity, suggested_deadline, recommendation, state, resolution, source_session_id, submitted_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', NULL, ?, ?)
+    `).run(
+      item.id,
+      item.fleetId,
+      item.memberId,
+      item.question,
+      JSON.stringify(item.options ?? []),
+      item.severity || "normal",
+      item.suggestedDeadline ?? null,
+      item.recommendation ?? null,
+      item.sourceSessionId ?? null,
+      item.submittedAt ?? Date.now(),
+    );
+    return getDecision(item.id);
+  }
+
+  function getDecision(id) {
+    const row = db.prepare("SELECT * FROM decision_items WHERE id = ?").get(id);
+    return row ? deserializeDecision(row) : null;
+  }
+
+  function listDecisions({ fleetId, state = null, memberId = null, pendingDeliveryFor = null } = {}) {
+    const where = ["fleet_id = ?"];
+    const args = [fleetId];
+    if (state) {
+      where.push("state = ?");
+      args.push(state);
+    }
+    if (memberId) {
+      where.push("member_id = ?");
+      args.push(memberId);
+    }
+    if (pendingDeliveryFor) {
+      // Approved/rejected items of ONE post still awaiting their delivery
+      // turn, oldest resolution first (the injection order).
+      where.push("member_id = ?", "state IN ('approved','rejected')", "delivered_at IS NULL");
+      args.push(pendingDeliveryFor);
+      return db
+        .prepare(`SELECT * FROM decision_items WHERE ${where.join(" AND ")} ORDER BY resolved_at ASC, id ASC`)
+        .all(...args)
+        .map(deserializeDecision);
+    }
+    return db
+      .prepare(`SELECT * FROM decision_items WHERE ${where.join(" AND ")} ORDER BY submitted_at DESC, id DESC`)
+      .all(...args)
+      .map(deserializeDecision);
+  }
+
+  function countOpenDecisions(fleetId) {
+    return db
+      .prepare("SELECT COUNT(*) AS n FROM decision_items WHERE fleet_id = ? AND state = 'open'")
+      .get(fleetId).n;
+  }
+
+  function countDecisionsByMemberSince(memberId, sinceMs) {
+    return db
+      .prepare("SELECT COUNT(*) AS n FROM decision_items WHERE member_id = ? AND submitted_at > ?")
+      .get(memberId, sinceMs).n;
+  }
+
+  // Optimistic-concurrency transition (design D4): the UPDATE only lands when
+  // the row is still in `expectedState` — the first resolution wins, a losing
+  // concurrent writer reads null and reports the conflict.
+  function transitionDecision(id, expectedState, patch, { expectDeliveredNull = false } = {}) {
+    const setParts = [];
+    const values = [];
+    const JSON_COLS = { resolution: "resolution" };
+    const PLAIN_COLS = { state: "state", deliveredAt: "delivered_at", deliveredSessionId: "delivered_session_id", resolvedAt: "resolved_at", submittedAt: "submitted_at", recommendation: "recommendation" };
+    for (const [key, value] of Object.entries(patch)) {
+      const jsonCol = JSON_COLS[key];
+      const plainCol = PLAIN_COLS[key];
+      if (jsonCol) {
+        setParts.push(`${jsonCol} = ?`);
+        values.push(value === null ? null : JSON.stringify(value));
+      } else if (plainCol) {
+        setParts.push(`${plainCol} = ?`);
+        values.push(value);
+      }
+    }
+    if (setParts.length === 0) return null;
+    values.push(id, expectedState);
+    const result = db
+      .prepare(
+        `UPDATE decision_items SET ${setParts.join(", ")} WHERE id = ? AND state = ?${
+          expectDeliveredNull ? " AND delivered_at IS NULL" : ""
+        }`,
+      )
+      .run(...values);
+    return result.changes > 0 ? getDecision(id) : null;
+  }
+
+  // Fleet-policy expiry sweep (lazy on read + hourly backstop): open items
+  // older than the policy window flip to expired and STAY listed. Returns the
+  // flipped count (0 when the policy is off).
+  function expireOpenDecisions(fleetId, { now = Date.now(), expiryHours } = {}) {
+    // getFleet already normalizes the policy (camelCase, defaults filled);
+    // read that, never the raw column again.
+    const hours = expiryHours ?? (getFleet(fleetId)?.decisionPolicy ?? DEFAULT_DECISION_POLICY).expiryHours;
+    if (!hours || hours <= 0) return 0;
+    const cutoff = now - hours * 3600_000;
+    const result = db
+      .prepare("UPDATE decision_items SET state = 'expired' WHERE fleet_id = ? AND state = 'open' AND submitted_at < ?")
+      .run(fleetId, cutoff);
+    return result.changes;
+  }
+
+  // Delivery bookkeeping: mark this post's awaiting items delivered, once —
+  // at most `limit` per finished turn, oldest resolution first, matching the
+  // injector's per-turn cap (the rest roll to the next turn). Flips state to
+  // `delivered` (delivery is a fact, not a new decision).
+  function markDelivered(memberId, { now = Date.now(), sessionId = null, limit = 5 } = {}) {
+    const ids = db
+      .prepare(
+        `SELECT id FROM decision_items
+         WHERE member_id = ? AND state IN ('approved','rejected') AND delivered_at IS NULL
+         ORDER BY resolved_at ASC, id ASC LIMIT ?`,
+      )
+      .all(memberId, limit)
+      .map((r) => r.id);
+    if (ids.length === 0) return 0;
+    const placeholders = ids.map(() => "?").join(",");
+    const result = db
+      .prepare(
+        `UPDATE decision_items SET state = 'delivered', delivered_at = ?, delivered_session_id = ?
+         WHERE id IN (${placeholders}) AND delivered_at IS NULL`,
+      )
+      .run(now, sessionId, ...ids);
+    return result.changes;
+  }
+
   // Unique-post lookup (design D8): where is this persona/cluster on duty?
   // Cell-global across fleets; a2a targets never call this (multi-post).
   function findPostByTarget(targetKind, targetId, { excludeMemberId = null } = {}) {
@@ -287,6 +466,14 @@ export function createFleetDatabase({ file } = {}) {
     previousReport,
     listReports,
     countReportsSince,
+    appendDecision,
+    getDecision,
+    listDecisions,
+    countOpenDecisions,
+    countDecisionsByMemberSince,
+    transitionDecision,
+    expireOpenDecisions,
+    markDelivered,
     close,
   };
 }
@@ -297,9 +484,38 @@ function deserializeFleet(row) {
     name: row.name,
     ownerEmail: row.owner_email,
     state: row.state,
+    decisionPolicy: decisionPolicyOfRow(row),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+// The fleet-level decision policy: default 72h expiry, 10 escalations per
+// post per day. `0` expiryHours disables expiry outright.
+export const DEFAULT_DECISION_POLICY = { expiryHours: 72, dailyCapPerMember: 10 };
+
+function decisionPolicyOfRow(row) {
+  let parsed = null;
+  if (typeof row.decision_policy === "string" && row.decision_policy) {
+    try {
+      parsed = JSON.parse(row.decision_policy);
+    } catch {
+      parsed = null;
+    }
+  }
+  if (!parsed || typeof parsed !== "object") return { ...DEFAULT_DECISION_POLICY };
+  return {
+    expiryHours:
+      Number.isFinite(parsed.expiryHours) && parsed.expiryHours >= 0 ? parsed.expiryHours : DEFAULT_DECISION_POLICY.expiryHours,
+    dailyCapPerMember:
+      Number.isFinite(parsed.dailyCapPerMember) && parsed.dailyCapPerMember > 0
+        ? parsed.dailyCapPerMember
+        : DEFAULT_DECISION_POLICY.dailyCapPerMember,
+  };
+}
+
+function keyIsDecisionPolicy(updates) {
+  return Object.hasOwn(updates, "decisionPolicy");
 }
 
 function deserializeMember(row) {
@@ -330,6 +546,26 @@ function deserializeReport(row) {
     summary: row.summary,
     source: row.source || "self",
     createdAt: row.created_at,
+  };
+}
+
+function deserializeDecision(row) {
+  return {
+    id: row.id,
+    fleetId: row.fleet_id,
+    memberId: row.member_id,
+    question: row.question,
+    options: JSON.parse(row.options || "[]"),
+    severity: row.severity || "normal",
+    suggestedDeadline: row.suggested_deadline ?? null,
+    recommendation: row.recommendation ?? null,
+    state: row.state || "open",
+    resolution: row.resolution ? JSON.parse(row.resolution) : null,
+    sourceSessionId: row.source_session_id ?? null,
+    submittedAt: row.submitted_at,
+    resolvedAt: row.resolved_at ?? null,
+    deliveredAt: row.delivered_at ?? null,
+    deliveredSessionId: row.delivered_session_id ?? null,
   };
 }
 

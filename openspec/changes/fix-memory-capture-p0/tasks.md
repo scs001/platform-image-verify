@@ -68,8 +68,10 @@
        实证：node --test agent-runner 20/20、test/ 9/9、tool-result-shape 6/6、npm run test:unit 1783/1783；openspec validate 绿
 - [x] 7.2 本地活体：本地 fd-memory + runner 托管一个 dsh 部署跑含工具的回合，`observations` 表见 `user-prompt-submit / pre-tool-use / post-tool-use / stop` 四形状且 namespace 正确；两个部署交替各跑一回合，各 namespace 只含自己的事件
        实证（本地活体）：~/finddata/fd-memory dist 起 49387 + runner 令牌；真实 MemoryCapture 两部署交替+四形状 drain → sqlite d-p1--A 根 5 行有序（意图/pre(bash+参数)/post(bash+结果)/意图/stop）、d-p2--B 根 2 行仅自己、第三 namespace 各归各根，droppedBatches=0
-- [ ] 7.3 出片：`fd-build-channel` 判路 → platform 镜像滚 `runner-serving` 与 cell（`deploy-registry-image` / `paas-release` 纪律：先推 origin 再快照、核 pool tree 含新文件、relay 看逐 tag OK 行、digest↔pod imageID 双向比对）
-- [ ] 7.4 生产验收：两个部署各跑一个含工具的回合，fd-memory 各自 `d/` namespace 下见四形状且无对方事件；记录每回合观测条数与 PVC 用量基线（一周后复看）
+- [x] 7.3 出片：
+       实证：fd-build-channel 判路（公开仓免费线）；源仓先推 origin（68b20796..768a48bb）；make-public-snapshot HEAD=768a48bb（gitleaks+禁模式双绿）→ 快照提交 9eb4d09 推 scs001/platform-image-verify（.github/workflows 修剪）→ 恢复提交 c45c662 触发 image-publish（run 39699889620 success：/api/config 5s + /api/ready dshInitError:null 双 smoke 门，1.42GB）；relay 后 ccr/hkccr digest 双证 sha256:ec3e0ad2…；fd-infra-deploy 9ba578a 三清单滚 sha-c45c662（platform/platform-demo/agent-runner-serving×2 行）→ ArgoCD hard-refresh → Synced/Healthy，三 pod imageID=ec3e0ad2 同一性过（facet 有意留 IA 版）`fd-build-channel` 判路 → platform 镜像滚 `runner-serving` 与 cell（`deploy-registry-image` / `paas-release` 纪律：先推 origin 再快照、核 pool tree 含新文件、relay 看逐 tag OK 行、digest↔pod imageID 双向比对）
+- [ ] 7.4 生产验收：
+       实证（第一部署，2026-10-22T00:57Z）：萬星 Planner 滚后首轮真实 serving 回合（巡检 self turn）落全四形状——user-prompt-submit（完整任务意图）、pre/post-tool-use×2（mcp__fd-memory__memory_handoff_accept 认领交接 + memory_handoff_begin 写回，参数单行 JSON、结果摘要、session=srv-day-20261022）、stop（ok tokens=38820）；全库扫描滚后仅 Planner 根有新行、全部本 session（零串投）；基线：滚前 12 个 d/ 根全 stop 单形状。cell 侧：platform pod 内重写 presets patch（幂等组合动作）suffix 带双语文案（工作记忆/Working memory 各 1 命中）。**待补：第二个 serving 部署的滚后回合**（哨兵 00:26 自回合 900s 超时后疑似停车、其余 agent 用户驱动闲置；跨投判别已有单测突变+本地活体两 namespace 交替实证兜底）两个部署各跑一个含工具的回合，fd-memory 各自 `d/` namespace 下见四形状且无对方事件；记录每回合观测条数与 PVC 用量基线（一周后复看）
 - [ ] 7.5 台账：`docs/registry-maintenance.md` §9 发布记录；记忆台账 `memory-architecture-v2-program.md` 追加 P0 完结
 
 ## 8. 归档

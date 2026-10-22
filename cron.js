@@ -181,6 +181,7 @@ async function addJob({
   when,
   prompt,
   preset,
+  agent,
   tz,
   sessionTitle,
   clusterId,
@@ -188,6 +189,7 @@ async function addJob({
   agentCount,
   executionPolicy,
   targetAgents,
+  sourceTag,
 }) {
   if (cron) {
     const invalid = validateCron(cron, tz);
@@ -203,6 +205,22 @@ async function addJob({
   const isClusterTask = Boolean(clusterId);
   if (isClusterTask && preset) {
     throw new Error("a task targets a preset OR a cluster, not both");
+  }
+  // Market a2a target (agent-fleet-core): same dichotomy as the manual
+  // trigger's persona/agent pair — a scheduled a2a post fires remote turns.
+  if (agent && preset) {
+    throw new Error("a task targets a preset OR a market agent, not both");
+  }
+  if (agent && isClusterTask) {
+    throw new Error("a task targets a cluster OR a market agent, not both");
+  }
+  if (agent !== undefined && typeof agent !== "string") {
+    throw new Error("agent must be a market agent id string");
+  }
+  if (sourceTag !== undefined && sourceTag !== null) {
+    if (typeof sourceTag !== "object" || Array.isArray(sourceTag)) {
+      throw new Error("sourceTag must be an object");
+    }
   }
   if (clusterName !== undefined && typeof clusterName !== "string") {
     throw new Error("clusterName must be a string");
@@ -225,8 +243,8 @@ async function addJob({
     // belongs to. sessionId is minted here so the id is stable from creation,
     // but the dsh/SQLite session itself is only created at first execution
     // (a paused or deleted task leaves no orphan session behind).
-    preset: isClusterTask ? clusterId : (preset ?? null),
-    targetType: isClusterTask ? "cluster" : "persona",
+    preset: isClusterTask ? clusterId : (preset ?? agent ?? null),
+    targetType: isClusterTask ? "cluster" : agent ? "a2a" : "persona",
     ...(isClusterTask
       ? {
           clusterId,
@@ -246,6 +264,8 @@ async function addJob({
     nextRun: null,
     missed: 0,
     history: [],
+    // Owning front-end tag (agent-fleet-core) — opaque passthrough.
+    sourceTag: sourceTag ?? null,
   };
 
   // insertTask validates the target (persona-only today) before anything is
@@ -257,6 +277,112 @@ async function addJob({
   // Return the client-facing shape, never the live record: it carries the
   // node-schedule Job handle (a circular object), and the WS reply serializes
   // this value.
+  return engine.getTask(id);
+}
+
+// In-place update of a schedule task (agent-fleet-core reconcile): cadence
+// edits and incumbent swaps REWRITE the existing record — the task id (and
+// with it the dedicated session id and execution history) must survive the
+// change, so remove-then-add is not an option. Only provided fields apply;
+// target rebinding accepts the same target trio as addJob and clears the
+// previous binding's residual fields.
+async function updateJob(id, changes = {}) {
+  const task = engine.getRecord(id);
+  if (!task) return null;
+  if (task.trigger !== "schedule") {
+    throw new Error("only schedule tasks can be updated in place");
+  }
+
+  const { cron, when, prompt, tz, sessionTitle, preset, agent, clusterId, clusterName, agentCount, executionPolicy, targetAgents, sourceTag } = changes;
+
+  if (cron !== undefined) {
+    if (!cron || typeof cron !== "string") throw new Error("cron must be a non-empty string");
+    const invalid = validateCron(cron, tz ?? task.tz);
+    if (invalid) throw new Error(invalid);
+  }
+  if (when !== undefined && when !== null && Number.isNaN(new Date(when).getTime())) {
+    throw new Error("when must be a valid time");
+  }
+  if (prompt !== undefined && (!prompt || typeof prompt !== "string")) {
+    throw new Error("prompt must be a non-empty string");
+  }
+  if (sourceTag !== undefined && sourceTag !== null) {
+    if (typeof sourceTag !== "object" || Array.isArray(sourceTag)) {
+      throw new Error("sourceTag must be an object");
+    }
+  }
+  const policyInvalid = validateClusterPolicy({ executionPolicy, targetAgents });
+  if (policyInvalid) throw new Error(policyInvalid);
+
+  // Target rebinding: at most one flavor among the trio.
+  const targets = [preset, agent, clusterId].filter((v) => v !== undefined);
+  if (targets.length > 1) {
+    throw new Error("a task targets a preset OR a cluster OR a market agent, not several");
+  }
+
+  if (cron !== undefined) task.cron = cron;
+  if (when !== undefined) task.when = when;
+  if (prompt !== undefined) task.prompt = prompt;
+  if (tz !== undefined) task.tz = tz || null;
+  if (sessionTitle !== undefined) task.sessionTitle = sessionTitle || null;
+  if (sourceTag !== undefined) task.sourceTag = sourceTag ?? null;
+  if (cron !== undefined || when !== undefined) {
+    task.type = task.cron ? "recurring" : "once";
+  }
+
+  if (targets.length === 1) {
+    // Clear the outgoing binding's residual fields before writing the new
+    // one — a cluster→persona swap must not leave clusterId riding along
+    // (the engine reads clusterId as the binding when present).
+    task.clusterId = null;
+    task.clusterName = null;
+    task.agentCount = null;
+    task.executionPolicy = null;
+    task.targetAgents = null;
+    if (clusterId !== undefined) {
+      task.targetType = "cluster";
+      task.preset = clusterId;
+      task.clusterId = clusterId;
+      if (clusterName !== undefined) task.clusterName = clusterName || null;
+      if (agentCount !== undefined) task.agentCount = typeof agentCount === "number" ? agentCount : null;
+      if (executionPolicy !== undefined) task.executionPolicy = executionPolicy ?? null;
+      if (targetAgents !== undefined) task.targetAgents = targetAgents ?? null;
+    } else if (agent !== undefined) {
+      task.targetType = "a2a";
+      task.preset = agent;
+    } else {
+      task.targetType = "persona";
+      task.preset = preset ?? null;
+    }
+  } else if (clusterName !== undefined || agentCount !== undefined || executionPolicy !== undefined || targetAgents !== undefined) {
+    // Metadata-only touch-up without rebinding (cluster labels/policy).
+    if (clusterName !== undefined) task.clusterName = clusterName || null;
+    if (agentCount !== undefined) task.agentCount = typeof agentCount === "number" ? agentCount : null;
+    if (executionPolicy !== undefined) task.executionPolicy = executionPolicy ?? null;
+    if (targetAgents !== undefined) task.targetAgents = targetAgents ?? null;
+  }
+
+  // Re-arm the live handle under the new schedule (paused tasks stay parked —
+  // the paused bit is owned by the reconcile layer, never flipped here).
+  if (task.job) {
+    task.job.cancel();
+    task.job = null;
+  }
+  if (!task.paused) {
+    if (task.type === "recurring" && task.cron) {
+      scheduleJob(task);
+    } else if (task.type === "once" && task.when) {
+      const scheduledAt = new Date(task.when);
+      if (scheduledAt > new Date()) {
+        scheduleJob(task);
+      } else {
+        task.status = "expired";
+      }
+    }
+  }
+
+  await engine.saveTasks();
+  engine.broadcastStatus(id);
   return engine.getTask(id);
 }
 
@@ -325,6 +451,12 @@ function listJobs() {
   return engine.listTasks();
 }
 
+// Engine readiness passthrough (agent-fleet-core): the fleet reconcile hook on
+// catalog changes must not race the engine's load-time map replacement.
+function isEngineInitialized() {
+  return engine.isInitialized();
+}
+
 function getJob(id) {
   return engine.getTask(id);
 }
@@ -347,11 +479,13 @@ function shutdown() {
 export {
   initCron,
   addJob,
+  updateJob,
   removeJob,
   pauseJob,
   resumeJob,
   listJobs,
   getJob,
+  isEngineInitialized,
   runJobNow,
   getDashboardState,
   validateCron,

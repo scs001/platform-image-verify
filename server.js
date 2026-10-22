@@ -61,6 +61,10 @@ import { registerResourceRoutes } from "./server/routes/resources.js";
 import { registerBotRoutes, WEBHOOK_PREFIX } from "./server/routes/bots.js";
 import { registerBotRelayRoutes, RELAY_PREFIX } from "./server/routes/bot-relay.js";
 import { createClusterRoutes, startAutoTerminationJob } from "./server/routes/clusters.js";
+import { createFleetRoutes, resolveFleetTarget } from "./server/routes/fleets.js";
+import { getFleetDatabase } from "./server/routes/fleets-db.js";
+import { reconcileAllFleets } from "./server/fleet-reconcile.js";
+import { rosterPresetId } from "./dsh-profile.js";
 import { createMonitoringRoutes } from "./server/routes/monitoring.js";
 import { createAdminRoutes } from "./server/routes/admin.js";
 import { registerExternalServiceRoutes } from "./server/routes/external-services.js";
@@ -260,6 +264,9 @@ registerConnectorRoutes(ctx);
 // Dynamic cluster management (agent-cluster-platform): REST API for creating,
 // managing, and operating dynamic agent clusters assembled from pack agents.
 createClusterRoutes(app, ctx);
+// Agent fleets (agent-fleet-core): fleet/post CRUD + materialization
+// reconcile over the task engine. Same auth semantics as clusters.
+createFleetRoutes(app, ctx);
 // Cluster monitoring (agent-cluster-platform). The Phase 4/5/8/10 siblings
 // this shipped with (model-binding provider routes, the hardcoded template
 // "marketplace", the optimization endpoints with fabricated cache metrics)
@@ -925,7 +932,21 @@ await Promise.all([
     // The catalog's chat agents are served locally through generated persona
     // presets; a changed catalog regenerates them and restarts the idle child so
     // its roster lists the packs that arrived (or dropped) with it.
-    onChange: () => { void ctx.syncCatalogAgentPresets?.(); },
+    onChange: () => {
+      void ctx.syncCatalogAgentPresets?.();
+      // A catalog change can kill a fleet post's incumbent (persona gone) or
+      // revive one — converge every fleet's materialized tasks so a vacant
+      // post stops firing. Gated on engine readiness: this hook can fire
+      // during boot while initCron (same Promise.all) is still loading.
+      if (cron.isEngineInitialized()) {
+        void reconcileAllFleets({
+          db: getFleetDatabase(),
+          cronApi: cron,
+          resolveTarget: resolveFleetTarget,
+          rosterPresetId,
+        }).catch((e) => console.warn(`[fleets] catalog-change reconcile failed: ${e.message}`));
+      }
+    },
   }),
   cron.initCron({
     broadcast: ctx.broadcast,

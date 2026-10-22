@@ -49,8 +49,9 @@ let userCookie;
 // The server's nav list includes `fleet`: desktopOnly is a client-owned fact
 // (only the shell knows it is the shell), so the resolved payload carries it
 // and the browser filters it at render — which the sidebar test asserts.
-const ALL_NAV = ["chat", "knowledge", "resources", "agents", "apps", "tasks", "fleet"];
-const BROWSER_NAV = ["chat", "knowledge", "resources", "agents", "apps", "tasks"];
+// `fleets` (agent-fleet-core) is a plain web surface and rides in both lists.
+const ALL_NAV = ["chat", "knowledge", "resources", "agents", "apps", "tasks", "fleets", "fleet"];
+const BROWSER_NAV = ["chat", "knowledge", "resources", "agents", "apps", "tasks", "fleets"];
 const ALL_SETTINGS = [
   "general", "account", "wechat-app", "devices", "connections", "mcp",
   "models", "channels", "diagnostics", "status",

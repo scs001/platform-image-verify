@@ -37,6 +37,7 @@ const TraceDetailPage = lazy(() =>
 const SharePage = lazy(() => import("@/pages/SharePage").then((m) => ({ default: m.SharePage })));
 const TasksPage = lazy(() => import("@/pages/TasksPage").then((m) => ({ default: m.TasksPage })));
 const FleetPage = lazy(() => import("@/pages/FleetPage").then((m) => ({ default: m.FleetPage })));
+const FleetsPage = lazy(() => import("@/pages/FleetsPage").then((m) => ({ default: m.FleetsPage })));
 const ResourcesPage = lazy(() =>
   import("@/pages/ResourcesPage").then((m) => ({ default: m.ResourcesPage })),
 );
@@ -257,6 +258,9 @@ export default function App() {
                 seat's live snapshot + the public catalog, read-only via the
                 cell's proxy lane. */}
             <Route path="/fleet" element={<FleetPage />} />
+            {/* Agent fleets (agent-fleet-core): the organization layer —
+                posts, cadences, and the derived on-duty board. */}
+            <Route path="/fleets" element={<FleetsPage />} />
 
             {/* Line boards (add-line-boards-and-action-gate): /boards/:line renders
                 a board for each integrated product line (facet/wanxing). */}

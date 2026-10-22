@@ -30,6 +30,7 @@ import {
   LayoutGrid,
   Loader2,
   MessageSquare,
+  Network,
   PanelLeftClose,
   Search,
   Settings,
@@ -69,6 +70,7 @@ const NAV_ICONS: Record<string, typeof MessageSquare> = {
   agents: Sparkles,
   apps: LayoutGrid,
   tasks: Clock,
+  fleets: Network,
   fleet: Ship,
 };
 

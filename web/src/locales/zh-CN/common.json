@@ -19,8 +19,9 @@
     "trace": "调用追踪",
     "openMenu": "打开导航菜单",
     "tasks": "自动化",
+    "fleets": "舰队",
     "apps": "应用",
-    "fleet": "萬星舰队"
+    "fleet": "机群"
   },
   "trace": {
     "title": "调用追踪",
@@ -2113,13 +2114,13 @@
     "noTargets": "还没有可更新的方案"
   },
   "fleet": {
-    "title": "萬星舰队",
+    "title": "机群",
     "desktopOnly": {
-      "body": "萬星舰队是桌面版专属：它读取的是桌面 App 内嵌运行器（本机舰队）的实时状态，浏览器里没有\"本机\"可读。",
+      "body": "机群是桌面版专属：它读取的是桌面 App 内嵌运行器（本机机群）的实时状态，浏览器里没有\"本机\"可读。",
       "hint": "在桌面 App 中打开壹座，并在 偏好设置 → Wanxing Fleet 启用插件后重启应用即可使用。"
     },
     "live": {
-      "title": "本机舰队",
+      "title": "本机机群",
       "summary": "{{agents}} 个 agents · {{children}} 个运行时进程",
       "budget": "内存足迹",
       "agent": "Agent",
@@ -2129,8 +2130,8 @@
       "empty": "机位尚无部署的 agents",
       "loading": "读取中…",
       "guide": {
-        "notRunning": "舰队运行器未启用或未运行",
-        "error": "舰队运行器不可达",
+        "notRunning": "机群运行器未启用或未运行",
+        "error": "机群运行器不可达",
         "howToEnable": "在 偏好设置 → Wanxing Fleet 打开插件并重启应用"
       },
       "states": {
@@ -2224,6 +2225,82 @@
       "nameTooLong": "集群名称不能超过 100 个字符",
       "atLeastOneAgent": "请至少选择一个角色",
       "manage": "管理"
+    }
+  },
+  "fleets": {
+    "title": "舰队",
+    "create": "创建舰队",
+    "empty": "还没有舰队，点右上角创建第一支",
+    "nameLabel": "舰队名称",
+    "namePlaceholder": "如：内容工作室",
+    "membersCount": "{{count}} 个岗位",
+    "detail": {
+      "empty": "选择或创建一支舰队"
+    },
+    "state": {
+      "active": "运行中",
+      "paused": "已暂停",
+      "archived": "已归档"
+    },
+    "ops": {
+      "pause": "全队暂停",
+      "resume": "全队恢复",
+      "archive": "归档",
+      "dissolve": "解散",
+      "confirmArchive": "归档将停止全部节奏并冻结写操作，历史保留。继续？",
+      "confirmDissolve": "解散将移除全部物化任务，历史行保留。继续？"
+    },
+    "tree": {
+      "empty": "还没有岗位，点「建岗」开始编队"
+    },
+    "addMember": "建岗",
+    "member": {
+      "titleLabel": "岗位名",
+      "target": "在岗者",
+      "kindLabel": "目标类型",
+      "targetPlaceholder": "选择目标",
+      "parent": "上级岗位",
+      "noParent": "无（顶层）",
+      "cadence": "节奏",
+      "passive": "被动岗（无节奏）",
+      "pause": "暂停",
+      "resume": "恢复",
+      "remove": "删岗",
+      "confirmRemove": "删除岗位会停止其节奏任务，子岗位上移一级。继续？"
+    },
+    "kind": {
+      "persona": "角色",
+      "cluster": "集群",
+      "a2a": "Agent 服务"
+    },
+    "cadence": {
+      "hourlyMode": "每小时",
+      "dailyMode": "每天定时",
+      "customMode": "自定义 cron",
+      "daily": "每天 {{hour}}:{{minute}}",
+      "hourly": "每小时（第 {{minute}} 分）",
+      "tzPlaceholder": "时区，如 Asia/Shanghai（留空=本机）",
+      "promptPlaceholder": "回合提示词模板（如：巡视店铺并汇总今日数据）"
+    },
+    "status": {
+      "on_duty": "在岗",
+      "paused": "已暂停",
+      "missing": "失联",
+      "vacant": "待补岗",
+      "passive": "被动"
+    },
+    "evidence": {
+      "lastRun": "上次执行",
+      "nextRun": "下次执行",
+      "staleWindow": "容忍窗口"
+    },
+    "swap": "换防",
+    "swapLine": {
+      "freshSession": "清史重开（清空岗位会话对话史，报数史不受影响）"
+    },
+    "dense": {
+      "confirm": "该节奏触发间隔低于 10 分钟，可能产生较高模型成本。",
+      "accept": "知晓成本，仍要创建"
     }
   }
 }

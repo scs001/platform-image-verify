@@ -90,6 +90,10 @@ function saveTasks() {
       initiator: t.initiator ?? null,
       initiatorPreset: t.initiatorPreset ?? null,
       origin: t.origin ?? null,
+      // Owning front-end tag (agent-fleet-core: { fleetId, memberId }). An
+      // opaque passthrough on every surface — the engine never interprets it;
+      // the fleet reconcile layer locates its materialized tasks by it.
+      sourceTag: t.sourceTag ?? null,
       aggregated: t.aggregated ?? false,
       paused: t.paused,
       createdAt: t.createdAt,
@@ -304,6 +308,8 @@ function clientShape(t) {
     // task and whether its outcome has already been summarized into one.
     initiator: t.initiator ?? null,
     aggregated: t.aggregated ?? false,
+    // Owning front-end tag (agent-fleet-core) — passthrough, see saveTasks.
+    sourceTag: t.sourceTag ?? null,
     paused: t.paused,
     createdAt: t.createdAt,
     lastRun: t.lastRun,

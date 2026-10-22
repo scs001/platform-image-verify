@@ -44,6 +44,10 @@ export const NAV_SURFACES: RegistryEntry[] = [
   { container: "nav", slug: "agents", i18nKey: "nav.agents", testId: "nav-agents" },
   { container: "nav", slug: "apps", i18nKey: "nav.apps", testId: "nav-apps" },
   { container: "nav", slug: "tasks", i18nKey: "nav.tasks", testId: "nav-tasks" },
+  // Agent fleets (agent-fleet-core): the organization layer over personas,
+  // clusters and a2a services. Plain web surface — no predicate (unlike the
+  // desktop-only runner console `fleet`).
+  { container: "nav", slug: "fleets", i18nKey: "nav.fleets", testId: "nav-fleets" },
   { container: "nav", slug: "fleet", i18nKey: "nav.fleet", testId: "nav-fleet", predicates: { desktopOnly: true } },
 ];
 

@@ -19,8 +19,9 @@
     "trace": "Trace",
     "openMenu": "Open navigation menu",
     "tasks": "Automation",
+    "fleets": "Fleets",
     "apps": "Apps",
-    "fleet": "Wanxing Fleet"
+    "fleet": "Runner Fleet"
   },
   "trace": {
     "title": "Trace",
@@ -2224,6 +2225,82 @@
       "nameTooLong": "Cluster name must be 100 characters or less",
       "atLeastOneAgent": "Select at least one agent",
       "manage": "Manage"
+    }
+  },
+  "fleets": {
+    "title": "Fleets",
+    "create": "Create fleet",
+    "empty": "No fleets yet — create your first one",
+    "nameLabel": "Fleet name",
+    "namePlaceholder": "e.g. Content Studio",
+    "membersCount": "{{count}} posts",
+    "detail": {
+      "empty": "Select or create a fleet"
+    },
+    "state": {
+      "active": "Active",
+      "paused": "Paused",
+      "archived": "Archived"
+    },
+    "ops": {
+      "pause": "Pause all",
+      "resume": "Resume all",
+      "archive": "Archive",
+      "dissolve": "Dissolve",
+      "confirmArchive": "Archiving stops every cadence and freezes writes; history stays readable. Continue?",
+      "confirmDissolve": "Dissolving removes all materialized tasks; history rows stay. Continue?"
+    },
+    "tree": {
+      "empty": "No posts yet — start staffing one"
+    },
+    "addMember": "Add post",
+    "member": {
+      "titleLabel": "Post title",
+      "target": "Incumbent",
+      "kindLabel": "Target kind",
+      "targetPlaceholder": "Pick a target",
+      "parent": "Reports to",
+      "noParent": "None (top level)",
+      "cadence": "Cadence",
+      "passive": "Passive (no cadence)",
+      "pause": "Pause",
+      "resume": "Resume",
+      "remove": "Remove",
+      "confirmRemove": "Removing a post stops its cadence task; children move up a level. Continue?"
+    },
+    "kind": {
+      "persona": "Persona",
+      "cluster": "Cluster",
+      "a2a": "Agent service"
+    },
+    "cadence": {
+      "hourlyMode": "Hourly",
+      "dailyMode": "Daily at",
+      "customMode": "Custom cron",
+      "daily": "Daily {{hour}}:{{minute}}",
+      "hourly": "Hourly (at :{{minute}})",
+      "tzPlaceholder": "Timezone, e.g. Asia/Shanghai (blank = local)",
+      "promptPlaceholder": "Turn prompt template (e.g. patrol the shop and summarize today's numbers)"
+    },
+    "status": {
+      "on_duty": "On duty",
+      "paused": "Paused",
+      "missing": "Missing",
+      "vacant": "Vacant",
+      "passive": "Passive"
+    },
+    "evidence": {
+      "lastRun": "Last run",
+      "nextRun": "Next run",
+      "staleWindow": "Tolerance"
+    },
+    "swap": "Restaff",
+    "swapLine": {
+      "freshSession": "Fresh session (clear this post's conversation; report history is untouched)"
+    },
+    "dense": {
+      "confirm": "This cadence fires more often than every 10 minutes and may incur significant model cost.",
+      "accept": "I understand — create it"
     }
   }
 }

@@ -19,8 +19,9 @@
     "trace": "トレース",
     "openMenu": "ナビゲーションメニューを開く",
     "tasks": "自動化",
+    "fleets": "艦隊",
     "apps": "アプリ",
-    "fleet": "萬星艦隊"
+    "fleet": "機群"
   },
   "trace": {
     "title": "トレース",
@@ -2039,7 +2040,7 @@
     "noTargets": "更新できるソリューションがありません"
   },
   "fleet": {
-    "title": "萬星艦隊",
+    "title": "機群",
     "desktopOnly": {
       "body": "萬星フリート画面はデスクトップ版専用です：デスクトップアプリ内蔵ランナー（ローカルフリート）の状態を読み取るもので、ブラウザには読み取るべき「ローカルマシン」がありません。",
       "hint": "デスクトップアプリで壹座を開き、環境設定 → Wanxing Fleet でプラグインを有効にしてアプリを再起動してください。"
@@ -2224,6 +2225,82 @@
     "field": {
       "source_urls": "公開ソース URL（1 行に 1 つ）",
       "public_data_asserted": "上記のソースがすべて公開データであることを確認します"
+    }
+  },
+  "fleets": {
+    "title": "艦隊",
+    "create": "艦隊を作成",
+    "empty": "艦隊がありません。右上から作成してください",
+    "nameLabel": "艦隊名",
+    "namePlaceholder": "例：コンテンツスタジオ",
+    "membersCount": "{{count}} ポスト",
+    "detail": {
+      "empty": "艦隊を選択または作成してください"
+    },
+    "state": {
+      "active": "稼働中",
+      "paused": "一時停止",
+      "archived": "アーカイブ済み"
+    },
+    "ops": {
+      "pause": "全体停止",
+      "resume": "全体再開",
+      "archive": "アーカイブ",
+      "dissolve": "解散",
+      "confirmArchive": "アーカイブすると全リズムが停止し書き込みは凍結されます。履歴は残ります。続けますか？",
+      "confirmDissolve": "解散すると実体化タスクを全削除します（履歴行は残ります）。続けますか？"
+    },
+    "tree": {
+      "empty": "ポストがありません。編成を始めましょう"
+    },
+    "addMember": "ポスト追加",
+    "member": {
+      "titleLabel": "ポスト名",
+      "target": "在任者",
+      "kindLabel": "対象種別",
+      "targetPlaceholder": "対象を選択",
+      "parent": "上位ポスト",
+      "noParent": "なし（最上位）",
+      "cadence": "リズム",
+      "passive": "受動（リズムなし）",
+      "pause": "一時停止",
+      "resume": "再開",
+      "remove": "削除",
+      "confirmRemove": "ポスト削除でリズム停止タスクも止まり、子は一階層上がります。続けますか？"
+    },
+    "kind": {
+      "persona": "ペルソナ",
+      "cluster": "クラスタ",
+      "a2a": "エージェントサービス"
+    },
+    "cadence": {
+      "hourlyMode": "毎時",
+      "dailyMode": "毎日定時",
+      "customMode": "カスタム cron",
+      "daily": "毎日 {{hour}}:{{minute}}",
+      "hourly": "毎時（{{minute}} 分）",
+      "tzPlaceholder": "タイムゾーン（例 Asia/Shanghai、空欄=ローカル）",
+      "promptPlaceholder": "ターンのプロンプトテンプレート（例：巡回して今日の数字を集計）"
+    },
+    "status": {
+      "on_duty": "在席",
+      "paused": "停止中",
+      "missing": "失踪",
+      "vacant": "欠員",
+      "passive": "受動"
+    },
+    "evidence": {
+      "lastRun": "前回実行",
+      "nextRun": "次回",
+      "staleWindow": "許容窓"
+    },
+    "swap": "交代",
+    "swapLine": {
+      "freshSession": "履歴リセット（ポスト会話を消去。報告履歴には影響しません）"
+    },
+    "dense": {
+      "confirm": "このリズムは 10 分未満の間隔で発火し、モデルコストが高くなる可能性があります。",
+      "accept": "理解しました。作成する"
     }
   }
 }

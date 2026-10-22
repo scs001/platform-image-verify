@@ -19,8 +19,9 @@
     "trace": "Traçage",
     "openMenu": "Ouvrir le menu de navigation",
     "tasks": "Automatisation",
+    "fleets": "Flottes",
     "apps": "Apps",
-    "fleet": "Flotte Wanxing"
+    "fleet": "Flotte de runners"
   },
   "trace": {
     "title": "Traçage",
@@ -2224,6 +2225,82 @@
     "field": {
       "source_urls": "URL des sources publiques (une par ligne)",
       "public_data_asserted": "Je confirme que toutes les sources ci-dessus sont des données publiques"
+    }
+  },
+  "fleets": {
+    "title": "Flottes",
+    "create": "Créer une flotte",
+    "empty": "Aucune flotte — créez la première",
+    "nameLabel": "Nom",
+    "namePlaceholder": "ex. Studio de contenu",
+    "membersCount": "{{count}} postes",
+    "detail": {
+      "empty": "Sélectionnez ou créez une flotte"
+    },
+    "state": {
+      "active": "Active",
+      "paused": "En pause",
+      "archived": "Archivée"
+    },
+    "ops": {
+      "pause": "Tout suspendre",
+      "resume": "Tout reprendre",
+      "archive": "Archiver",
+      "dissolve": "Dissoudre",
+      "confirmArchive": "L'archivage arrête chaque cadence et gèle les écritures ; l'historial reste lisible. Continuer ?",
+      "confirmDissolve": "Dissoudre supprime les tâches matérialisées ; les lignes d'historial restent. Continuer ?"
+    },
+    "tree": {
+      "empty": "Aucun poste — commencez par en créer un"
+    },
+    "addMember": "Ajouter un poste",
+    "member": {
+      "titleLabel": "Poste",
+      "target": "Titulaire",
+      "kindLabel": "Type de cible",
+      "targetPlaceholder": "Choisir une cible",
+      "parent": "Rend compte à",
+      "noParent": "Aucun (niveau supérieur)",
+      "cadence": "Cadence",
+      "passive": "Passif (sans cadence)",
+      "pause": "Suspendre",
+      "resume": "Reprendre",
+      "remove": "Supprimer",
+      "confirmRemove": "Supprimer le poste arrête sa tâche ; les enfants remontent d'un niveau. Continuer ?"
+    },
+    "kind": {
+      "persona": "Persona",
+      "cluster": "Cluster",
+      "a2a": "Service d'agents"
+    },
+    "cadence": {
+      "hourlyMode": "Chaque heure",
+      "dailyMode": "Chaque jour",
+      "customMode": "Cron personnalisé",
+      "daily": "Quotidien {{hour}}:{{minute}}",
+      "hourly": "Chaque heure (à la minute {{minute}})",
+      "tzPlaceholder": "Fuseau horaire, ex. Asia/Shanghai (vide = local)",
+      "promptPlaceholder": "Modèle d'invite du tour (ex. patrouille et résumé du jour)"
+    },
+    "status": {
+      "on_duty": "En poste",
+      "paused": "En pause",
+      "missing": "Injoignable",
+      "vacant": "Vacant",
+      "passive": "Passif"
+    },
+    "evidence": {
+      "lastRun": "Dernier tour",
+      "nextRun": "Prochain",
+      "staleWindow": "Tolérance"
+    },
+    "swap": "Remplacer",
+    "swapLine": {
+      "freshSession": "Session neuve (efface la conversation du poste ; l'historique de rapports est intact)"
+    },
+    "dense": {
+      "confirm": "Cette cadence se déclenche plus souvent que toutes les 10 minutes et peut coûter cher.",
+      "accept": "Compris — créer"
     }
   }
 }

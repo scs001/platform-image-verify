@@ -19,8 +19,9 @@
     "trace": "Traza",
     "openMenu": "Abrir menú de navegación",
     "tasks": "Automatización",
+    "fleets": "Flotas",
     "apps": "Apps",
-    "fleet": "Flota Wanxing"
+    "fleet": "Flota de runners"
   },
   "trace": {
     "title": "Traza",
@@ -2224,6 +2225,82 @@
     "field": {
       "source_urls": "URLs de fuentes públicas (una por línea)",
       "public_data_asserted": "Confirmo que todas las fuentes anteriores son datos públicos"
+    }
+  },
+  "fleets": {
+    "title": "Flotas",
+    "create": "Crear flota",
+    "empty": "Aún no hay flotas: crea la primera",
+    "nameLabel": "Nombre",
+    "namePlaceholder": "p. ej. Estudio de contenido",
+    "membersCount": "{{count}} puestos",
+    "detail": {
+      "empty": "Selecciona o crea una flota"
+    },
+    "state": {
+      "active": "Activa",
+      "paused": "En pausa",
+      "archived": "Archivada"
+    },
+    "ops": {
+      "pause": "Pausar todo",
+      "resume": "Reanudar todo",
+      "archive": "Archivar",
+      "dissolve": "Disolver",
+      "confirmArchive": "Archivar detiene todos los ritmos y congela las escrituras; el historial se conserva. ¿Continuar?",
+      "confirmDissolve": "Disolver elimina las tareas materializadas; las filas de historial se conservan. ¿Continuar?"
+    },
+    "tree": {
+      "empty": "Aún no hay puestos: crea el primero"
+    },
+    "addMember": "Añadir puesto",
+    "member": {
+      "titleLabel": "Puesto",
+      "target": "Titular",
+      "kindLabel": "Tipo de destino",
+      "targetPlaceholder": "Elige destino",
+      "parent": "Depende de",
+      "noParent": "Nadie (nivel superior)",
+      "cadence": "Ritmo",
+      "passive": "Pasivo (sin ritmo)",
+      "pause": "Pausar",
+      "resume": "Reanudar",
+      "remove": "Eliminar",
+      "confirmRemove": "Eliminar el puesto detiene su tarea; los hijos suben un nivel. ¿Continuar?"
+    },
+    "kind": {
+      "persona": "Persona",
+      "cluster": "Clúster",
+      "a2a": "Servicio de agentes"
+    },
+    "cadence": {
+      "hourlyMode": "Cada hora",
+      "dailyMode": "A diario",
+      "customMode": "Cron personalizado",
+      "daily": "Diario {{hour}}:{{minute}}",
+      "hourly": "Cada hora (en el minuto {{minute}})",
+      "tzPlaceholder": "Zona horaria, p. ej. Asia/Shanghai (vacío = local)",
+      "promptPlaceholder": "Plantilla del turno (p. ej. patrulla y resumen del día)"
+    },
+    "status": {
+      "on_duty": "En servicio",
+      "paused": "En pausa",
+      "missing": "Perdido",
+      "vacant": "Vacante",
+      "passive": "Pasivo"
+    },
+    "evidence": {
+      "lastRun": "Última ejecución",
+      "nextRun": "Próxima",
+      "staleWindow": "Tolerancia"
+    },
+    "swap": "Reemplazar",
+    "swapLine": {
+      "freshSession": "Sesión nueva (borra la conversación del puesto; los reportes no cambian)"
+    },
+    "dense": {
+      "confirm": "Este ritmo se dispara más de una vez cada 10 minutos y puede generar coste elevado.",
+      "accept": "Lo entiendo: crear"
     }
   }
 }

@@ -1413,7 +1413,7 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 - **内容**（paas `67dbf53e`）：统一「与谁对话」选人器（合并模式下拉+⋯智能体区，agent roster 主源、rosterPresetId 去重、集群整组条目、D1 出厂只留标准）；安装报告 CTA `?preset=` 直通（多角色=去对话并载入整组）；⋯ 工作目录→会话项目+权限三档口语；agentsTabs 收两 tab（apps 并应用中心，nango-connect 连接主行动）；功能集 市场|我的。
 - **真机走查（aloadtree，2026-10-22）**：单角色重装→CTA→pending→自动选中「柏讯助手」→URL 消费 ✓；投研三镜头整组 CTA→带头「宏观经济研究员」自动选中 ✓；会话中途换人 pending→绿、组合行中途禁用 ✓；专家|功能集两 tab、?tab=apps 回落、我的=已安装+我的创作、应用中心网格全量 ✓。走查后人格还原为宏观经济研究员。
 - **顺手修**：624a2a70 顶层 useSearchParams 砸谦面无路由壳（生产 #/packs 白屏级）——改裸 window.location；出片时快照 forbidden-pattern 门另拦下 memory-architecture-v2 的集群节点名（当日脱敏 `1a170089`）。
-- **基线债（在册非本刀）**：full-mode-tool-scope 空 union（HEAD 同红）、chat-polish 8.3-8.4 死 LLM 族、composer-stop×2（main 固有 flaky）、facet-shell 操作底栏几何 77px（624a2a70 后不可达、本刀复可达但偏差仍在）。
+- **基线债（在册非本刀）**：full-mode-tool-scope 空 union（HEAD 同红）、chat-polish 8.3-8.4 死 LLM 族、composer-stop×2（main 固有 flaky）、facet-shell 操作底栏几何 77px（624a2a70 后不可达、本刀复可达但偏差仍在）。→ **四项已于当日 §15.7 清账**（full-mode/facet-shell 复验已绿销账、死 LLM 族根修）。
 
 ### §15.6 补记：记忆 P0 双修上产（fix-memory-capture-p0，2026-10-22 上线，sha-c45c662）
 
@@ -1421,3 +1421,10 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 - **内容**（S2 读码兼收）：①capture 批次按 namespace 归队（队列项携带 namespace、按组各投、失败按组回排）——杀掉「A 的观测落进 B 的 namespace」错投通道，突变测试钉死；②L0 带内容——`user-prompt-submit`（入站意图 500 截）/`pre-tool-use`（工具名+参数单行 JSON 600 截）/`post-tool-use`（工具名+结果 800 截、错误加 `error:` 前缀）/`stop`（原有），经两 harness 收集器新 `onEvent` 缝（dsh `tool/call|tool/result`、ACP `tool_call|tool_call_update`）；③纪律文案与挂载同生同灭（铸币失败/pod 无挂载即无文案）；④cell 预设 persona suffix 吃到双语文案单源（根 `memory-discipline.js`，中英同串；`parseToolResult` 抽 `lib/dsh-tool-result.js` 与 cell 同源）。
 - **验收**：单测 1783/1783 + runner 20/20 + cell 9/9；本地 fd-memory 活体（真实 MemoryCapture 两部署交替四形状 → sqlite 各归各根零串投）；生产（00:57Z）萬星 Planner 滚后首轮巡检回合落全四形状——`memory_handoff_accept` 认领交接 + `memory_handoff_begin` 写回（**纪律引导行为与 L0 观测同轮可见**，self turn ok tokens=38820）；全库扫描滚后仅 Planner 根有新行、全部本 session；cell 侧 platform pod 幂等重写 presets patch suffix 带双语文案。**挂账**：第二个 serving 部署的滚后回合待自然流量（哨兵 00:26 自回合 900s 超时后疑似停车、其余用户驱动闲置；跨投判别有单测突变+本地活体交替实证兜底）；观测体积（每回合 2+2N 条）按任务 7.4 记 PVC 观察点一周。
 - **坑**： aloadtree「与谁对话」选人格走的是**用户 cell 车道**（不产生 runner 观测——L0 capture 只挂 serving 车道），驱动 serving 回合要么等 `srv-wx-*`/`srv-day-*` 自然流量要么走萬星车道；fd-memory 容器无 sqlite3 CLI，用容器内 `node:sqlite`（DatabaseSync）直查；platform presets patch 是惰性组合（用户活动才重写），生产验证可在 pod 内幂等调一次 `writePresetsPatch()`。
+
+### §15.7 补记：基线债四项清账（e2e 死 LLM 族根修，2026-10-22，本地未出片）
+
+- **四项处置**：§15.5 在册四项基线债全部清零。①`full-mode-tool-scope` 空 union——**复验已自愈**（HEAD 3/3 绿，后续提交顺带修复，销账）；②facet-shell 操作底栏几何 77px——**实测销账**：短/长内容 × 1280×720/390×844 × 登录引导行开合共四态，弹窗/底栏/滚动区全贴底（偏差 ≤1px）、居中、零缝隙，无任何 77px 异常，e2e 断言绿；③④chat-polish 8.3-8.4 死 LLM 族 + composer-stop×2——**同一根因，根修**。
+- **根因（死 LLM 族）**：fast 套件默认 `LLM_BASE_URL=http://127.0.0.1:9/v1`（闭合端口）→ dsh 适配器归类 **TRANSPORT（可重试）**→ 走满 5 级退避（1s→15s 指数 + 20% 抖动 ≈ **24-36s**），恰好横跨所有 30s `waitForIdle`——一半概率超时红（composer-stop #1），且未收敛回合被下一用例重载收养（`session_loaded running:true`），其终局 `done` 清掉 suppression → composer-stop #2 `suppressed:false` 假红；chat-polish 8.3-8.4 同族侥幸绿。注意 `.env` 有真实词元地址但 dotenv 不覆盖显式传入的 env，e2e 实际从未烧真 token。
+- **修法**：新 `e2e/dead-llm.js`——本地 stub 对一切请求**秒回 401**（消息含 "401" → 适配器归类 **AUTH，不在 retryableCodes → 立即终局**，回合一个 HTTP 往返收敛）；两份 playwright 配置接入 webServer 链并改默认 `LLM_BASE_URL`（主 3187 / full-mode **3188 独立口防并行会话撞口**），smoke/chaos 走 env 覆盖不受影响（reconnect-resync/user-questions/plan-smoke=@smoke 用真实 store provider；onboarding/model-selection 发的是斜杠命令，均不落此车道）。
+- **验收**：composer-stop+chat-polish **6 连绿**（对照基线 7 轮 5 红；单轮 2.7min→**12s**）；full-mode 新链 3/3；facet-shell 新链 8/8；几何探针四态数据在案。纯 e2e 基建变更（零运行时代码），不出片。

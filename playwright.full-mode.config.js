@@ -38,7 +38,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `node e2e/registry-stub.js & node e2e/facet-stub.js & node e2e/fake-mcp.js & node e2e/ciyuan-stub.js & node e2e/facet-shell-server.mjs & node e2e/seed-fixtures.js && node server.js`,
+    command: `node e2e/registry-stub.js & node e2e/facet-stub.js & node e2e/fake-mcp.js & node e2e/ciyuan-stub.js & node e2e/facet-shell-server.mjs & node e2e/dead-llm.js & node e2e/seed-fixtures.js && node server.js`,
     url: `http://127.0.0.1:${E2E_PORT}/api/ready`,
     timeout: 180_000,
     reuseExistingServer: false,
@@ -51,7 +51,11 @@ export default defineConfig({
       // The switch under test: full mode derives the installed-pack union.
       FULL_MODE_TOOL_SCOPE: "on",
       LLM_API_KEY: process.env.LLM_API_KEY || "sk-e2e-dummy-key",
-      LLM_BASE_URL: process.env.LLM_BASE_URL || "http://127.0.0.1:9/v1",
+      // Same dead-llm contract as the main config: 401 = AUTH = non-retryable,
+      // no TRANSPORT backoff ladder. Own port (3188): the main config's stub
+      // sits on 3187, and the two suites can run as parallel sessions.
+      LLM_BASE_URL: process.env.LLM_BASE_URL || "http://127.0.0.1:3188/v1",
+      E2E_DEAD_LLM_PORT: process.env.E2E_DEAD_LLM_PORT || "3188",
       SEARCH_RELAY_URL: process.env.SEARCH_RELAY_URL || "http://127.0.0.1:4598",
       SEARCH_RELAY_TOKEN: process.env.SEARCH_RELAY_TOKEN || "e2e-relay-dummy-token",
       AGENTS_CONFIG_URL: "",

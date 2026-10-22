@@ -105,7 +105,7 @@ export default defineConfig({
           // (same process group, so Playwright's teardown kills it): the market
           // then carries registry entries and the connect popup can mint
           // against a hermetic stand-in instead of the live registry.
-          command: `node e2e/registry-stub.js & node e2e/facet-stub.js & node e2e/fake-mcp.js & node e2e/ciyuan-stub.js & node e2e/facet-shell-server.mjs & node e2e/seed-fixtures.js && node server.js`,
+          command: `node e2e/registry-stub.js & node e2e/facet-stub.js & node e2e/fake-mcp.js & node e2e/ciyuan-stub.js & node e2e/facet-shell-server.mjs & node e2e/dead-llm.js & node e2e/seed-fixtures.js && node server.js`,
           // The server listens FIRST and initializes the agent in the
           // background (listen-first boot) — readiness must gate on the
           // agent, not the port, or tests would race a half-booted server.
@@ -122,8 +122,12 @@ export default defineConfig({
             PORT: String(E2E_PORT),
             HOST: "127.0.0.1",
             // Hermetic-mode defaults: only fill gaps — dotenv keeps real .env values.
+            // LLM_BASE_URL points at the dead-llm stub (401 → AUTH → non-retryable):
+            // turns fail in one roundtrip instead of burning the TRANSPORT retry
+            // ladder a closed port triggers (24-36s, the dead-LLM flake family).
             LLM_API_KEY: process.env.LLM_API_KEY || "sk-e2e-dummy-key",
-            LLM_BASE_URL: process.env.LLM_BASE_URL || "http://127.0.0.1:9/v1",
+            LLM_BASE_URL: process.env.LLM_BASE_URL || "http://127.0.0.1:3187/v1",
+            E2E_DEAD_LLM_PORT: process.env.E2E_DEAD_LLM_PORT || "3187",
             // Relay pair for the bundled websearch MCP: dummy values prove the
             // envRefs forwarding (dsh's subprocess scrub would strip a
             // TOKEN-shaped ambient name; the patch entry must carry it

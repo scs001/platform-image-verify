@@ -1465,3 +1465,13 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 
 - **embedding 车道（当日稍后订正：已就绪）**：初探结论「组内无模型/上游 502」系组绑定尚未完成——22:32 起 group #8 开始承载 `Qwen/Qwen3-Embedding-8B` 流量（admin usage 行 inbound_endpoint=/v1/embeddings 实证），用户供钥活体探测 SUCCESS（dim 4096、$6e-08/次，与 10-18 记忆「不带 dimensions 回 4096 维」一致）。秘钥按纪律存 paas/.env（MEMORY_EMBED_*，gitignored）。**v2.2（embedding 召回）车道就绪，已立项规划（add-embedding-recall）。侦察配方：sub2api 各组模型名单不进 /v1/models 聚合视图（组域），admin usage 行才是「谁在用什么」的真源。**
 - **console 可见性解锁**：paas 侧 `add-facade-memory-read-lane` 已规划待 apply（/memory+/forget 平台缝带 rootKey 车道，与 /admin/report 同信任级）；fd-wanxing 侧姊妹牌手 `add-memory-visibility-console` 已立（62a00fd），apply 排 paas 车道之后。
+
+### §15.11 发布记录：v2.2 embedding 召回 + 可见性车道（add-embedding-recall + add-facade-memory-read-lane，2026-10-22 深夜上线）
+
+**镜像**：fd-memory `sha-bae4539`（digest `537f1d7a`）+ fd-memory-distiller `sha-bae4539`（digest `98536946`，池 DF 配方两连切用完均还原）；secret `fd-memory-distiller-env` 增 MEMORY_EMBED_* 三键（钥=用户供，不入库）；日预算 400k→600k/owner（首日活项目贴线实证）。GitOps 168e91e+1899faa。
+
+**实现**：sidecar `POST /embed`（≤64 批、钉扎 Qwen3-Embedding-8B dim 4096、creds 链 MEMORY_EMBED_*→MEMORY_LLM_*→LLM_*）+ 蒸馏产物伴随向量随 DistillResult；fd-memory `page_vectors`（Float32 BLOB 伴随表，forget 随删）+ 调度器余弦 top-8 与关键词合并去重（模型比对硬闸：跨模型不比余弦、记 gap）+ `/memory`/`/forget` 平台缝 rootKey 车道（platform/runner 带键通、person 带键 400、agent 403）；`scripts/reembed.mjs`（--dry-run/--force、批 64）。测试 33/33；eval v1.2 PASS（8/8 关键词、fact 合并链 2、语言 6/6、77,931 tokens 基线）。
+
+**生产实证**：runner 令牌带 rootKey 读 d- 根 L2（200/5 条）；真实蒸馏 spider-heal 2 experiences 伴随向量落库（model/dim 4096 眼见）；上游 502 抖动期间蒸馏零中断（embed 告警行 + 关键词兜底 = 伴随数据纪律实证）。
+
+**坑册（两条价值极高）**：① **python 替换补丁必须 assert 命中**——静默 no-op 让 embed_texts 三版并存假象拖出长调试螺旋（「修好了还报错」=代码根本没进盘）；② **pkill -f 模式会自匹配当前命令串杀掉重启链**——老进程持续占 8100，探针全打旧代码（按端口 lsof -t 清场）。另：.env 有未引用的多值行（48 行 HARBOR_TAILNET_ALT）source 报 command not found 但继续——管道里 source 在子 shell 不落父壳，测试变量要用同壳直读。

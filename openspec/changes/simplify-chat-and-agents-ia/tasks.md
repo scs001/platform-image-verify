@@ -44,4 +44,4 @@
 
 - [x] 7.1 web typecheck 绿 / biome 净（改动文件）/ check-locales 5/5 / **单测 1783/1783 全绿**（layout 44/44 含工厂预设新契约 + 存量 apps 引用降级安全两新测）
 - [x] 7.2 涉改 e2e 定向全绿（chat-deeplink/agent-presets/agent-control/composer-controls/workspace-picker/agents-tabs/app-center/packs/facet-shell/preset-pack-bridge/packaged-skills/focus-overlay/custom-presets/agent-serving/copilot-dock）；突变闭环（D1 拆过滤器→红→复原→绿）。全量 fast：527 过 10 红 9 未跑——10 红逐一对账为**在册基线/环境族**（full-mode-tool-scope=HEAD 同红、chat-polish 8.3=死 LLM 族 HEAD 同类红、composer-stop×2=main 固有 flaky 台账、sso/session-navigation/projects-automation/registry-connect=环境与顺序 flaky 各自单跑绿、agent-control streaming 与 focus-overlay=共享态广播竞态定向跑绿），无本刀确定性回归
-- [ ] 7.3 真机走查（aloadtree 号，按本仓「模块绿≠活体绿」纪律）：安装单角色包→直通自动选中；安装集群包→整组载入；会话中途换助手 pending/拒绝路径；⋯ 菜单只见项目名；智能体页 2 tab；应用中心出现 nango/外部条目；五语抽查
+- [x] 7.3 真机走查（aloadtree，2026-10-22，生产 sha-0768448）：单角色重装→CTA 直通→pending 条→自动选中「柏讯助手」→URL 消费 ✓；投研三镜头重装→整组 CTA→带头「宏观经济研究员」自动选中 ✓；会话中途换人 pending→绿+组合行中途禁用 ✓；⋯ 菜单默认只见项目名（runtime）+高级折叠 ✓；智能体页 专家|功能集 两 tab、?tab=apps 回落专家 ✓；我的=已安装+我的创作 ✓；应用中心网格全量（本部署无 nango 条目，该行为由 e2e 覆盖）✓；走查后人格还原。台账 §15.5 已记

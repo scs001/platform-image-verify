@@ -2346,6 +2346,22 @@
       "awaitMember": "待岗位恢复",
       "delivered": "已送达",
       "memberGone": "（岗位已删）"
+    },
+    "tpl": {
+      "awaitStart": "舰队已按模板组建（全队暂停）——确认组织与节奏后启动",
+      "start": "启动舰队",
+      "newer": "模板有新版 v{{v}}（现役不受影响，可手动对齐）"
+    },
+    "stream": {
+      "title": "日报流",
+      "noReport": "尚无报数"
+    },
+    "health": {
+      "onDuty": "在岗",
+      "paused": "暂停",
+      "missing": "失联",
+      "vacant": "待补",
+      "passive": "被动"
     }
   }
 }

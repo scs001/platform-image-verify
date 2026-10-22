@@ -9,7 +9,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
+import { useCronStore } from "@platform/core";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -95,10 +96,15 @@ interface FleetRow {
 }
 
 interface FleetDetail {
-  fleet: FleetRow & { ownerEmail?: string; createdAt?: number };
+  fleet: FleetRow & { ownerEmail?: string; createdAt?: number; sourceTemplate?: { packId: string; version: string | null } | null };
   members: MemberView[];
   statusCounts: Record<string, number>;
   openDecisions?: number;
+  // Cockpit aggregate (agent-fleet-templates): the rest of the one-round-trip.
+  decisions?: DecisionItem[];
+  stream?: { memberId: string; title: string; status: MemberView["status"]; latestReport: LatestReport | null }[];
+  health?: { onDuty: number; paused: number; missing: number; vacant: number; passive: number; total: number };
+  template?: { packId: string; instantiatedVersion: string | null; latestVersion: string; updateAvailable: boolean } | null;
 }
 
 interface DecisionItem {
@@ -182,15 +188,24 @@ export function FleetsPage() {
     }
   }, []);
 
+  // The cockpit aggregate (agent-fleet-templates): one round-trip carrying
+  // the tree + slots + statuses + decisions + daily stream + health + template
+  // notice — the field contracts are the previous knives' read faces verbatim.
   const loadDetail = useCallback(async (id: string) => {
     try {
-      const r = await fetch(`/api/fleets/${encodeURIComponent(id)}`);
-      if (!r.ok) throw new Error(`detail ${r.status}`);
+      const r = await fetch(`/api/fleets/${encodeURIComponent(id)}/cockpit`);
+      if (!r.ok) throw new Error(`cockpit ${r.status}`);
       setDetail(await r.json());
     } catch (e) {
       setError(String((e as Error).message ?? e));
     }
   }, []);
+
+  // Deep link /:fleetId selects the fleet (the cockpit is THE fleet page, D6).
+  const { fleetId: routeFleetId } = useParams();
+  useEffect(() => {
+    if (routeFleetId && routeFleetId !== selectedId) setSelectedId(routeFleetId);
+  }, [routeFleetId, selectedId]);
 
   useEffect(() => {
     void loadList();
@@ -199,6 +214,14 @@ export function FleetsPage() {
   useEffect(() => {
     if (selectedId) void loadDetail(selectedId);
   }, [selectedId, loadDetail]);
+
+  // Live refresh over the EXISTING WS lane: the cron store updates on every
+  // cron_status/cron_completed broadcast (a fleet fire re-broadcasts its task)
+  // — watching it refreshes the cockpit without any new polling loop.
+  const cronJobsVersion = useCronStore((st) => st.jobs.map((j) => `${j.id}:${j.state ?? ""}:${j.paused ? 1 : 0}`).join("|"));
+  useEffect(() => {
+    if (selectedId) void loadDetail(selectedId);
+  }, [cronJobsVersion, selectedId, loadDetail]);
 
   // Autofollow the first fleet when the list arrives and nothing is selected.
   useEffect(() => {
@@ -367,6 +390,53 @@ export function FleetsPage() {
                 </div>
               </div>
 
+              {/* Template birth banner: all-paused fleet from a template awaits
+                  the owner's explicit start (install never auto-runs, D3). */}
+              {detail.fleet.state === "paused" && detail.fleet.sourceTemplate ? (
+                <div className="mt-3 flex flex-wrap items-center gap-2 rounded-md border border-warning/50 bg-warning/10 p-3" data-testid="fleet-await-start">
+                  <span className="text-sm">{t("fleets.tpl.awaitStart")}</span>
+                  <Button size="sm" data-testid="fleet-start" onClick={() => void memberAction(`/api/fleets/${selected.id}/start`, "POST")}>
+                    {t("fleets.tpl.start")}
+                  </Button>
+                </div>
+              ) : null}
+              {detail.template?.updateAvailable ? (
+                <p className="mt-2 text-xs text-warning" data-testid="fleet-template-newer">
+                  {t("fleets.tpl.newer", { v: detail.template.latestVersion })}
+                </p>
+              ) : null}
+
+              {/* Decision banner: the queue's top items inline (severity first),
+                  one click from 刀3's operations in the drawer. */}
+              {detail.decisions && detail.decisions.length > 0 ? (
+                <button
+                  type="button"
+                  className="mt-3 flex w-full flex-wrap items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-left"
+                  data-testid="fleet-decision-banner"
+                  onClick={() => setDecisionsOpen(true)}
+                >
+                  <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-xs text-destructive">
+                    {t("fleets.decisions.waitingBadge", { count: detail.openDecisions ?? detail.decisions.length })}
+                  </span>
+                  {detail.decisions.slice(0, 2).map((d) => (
+                    <span key={d.id} className="truncate text-xs text-muted-foreground">
+                      [{d.severity}] {d.question}
+                    </span>
+                  ))}
+                </button>
+              ) : null}
+
+              {/* Health chips. */}
+              {detail.health ? (
+                <div className="mt-3 flex flex-wrap gap-2 text-xs" data-testid="fleet-health">
+                  <span className="rounded-full bg-success/15 px-2 py-0.5 text-success">{t("fleets.health.onDuty")}: {detail.health.onDuty}</span>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">{t("fleets.health.paused")}: {detail.health.paused}</span>
+                  <span className="rounded-full bg-warning/15 px-2 py-0.5 text-warning">{t("fleets.health.missing")}: {detail.health.missing}</span>
+                  <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-destructive">{t("fleets.health.vacant")}: {detail.health.vacant}</span>
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">{t("fleets.health.passive")}: {detail.health.passive}</span>
+                </div>
+              ) : null}
+
               <div className="mt-4 flex flex-col gap-2" data-testid="fleets-tree">
                 {tree.length === 0 ? (
                   <p className="text-sm text-muted-foreground">{t("fleets.tree.empty")}</p>
@@ -492,6 +562,37 @@ export function FleetsPage() {
                   ))
                 )}
               </div>
+
+              {/* Daily stream (報数史 IS the daily report — grill ruling): each
+                  post's latest, missing posts first, a2a honestly badged. */}
+              {detail.stream && detail.stream.length > 0 ? (
+                <div className="mt-5" data-testid="fleet-stream">
+                  <h3 className="text-sm font-semibold">{t("fleets.stream.title")}</h3>
+                  <div className="mt-2 flex flex-col gap-1.5">
+                    {detail.stream.map((row) => (
+                      <div key={row.memberId} className="flex flex-wrap items-center gap-2 rounded-md border border-border px-2 py-1.5 text-xs" data-testid={`stream-${row.memberId}`}>
+                        <span className={`rounded-full px-2 py-0.5 ${STATUS_STYLES[row.status]}`}>{t(`fleets.status.${row.status}`)}</span>
+                        <span className="font-medium">{row.title}</span>
+                        {row.latestReport?.source === "derived" ? (
+                          <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">{t("fleets.report.derivedBadge")}</span>
+                        ) : null}
+                        <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                          {row.latestReport ? row.latestReport.summary : t("fleets.stream.noReport")}
+                        </span>
+                        {row.latestReport?.sessionId ? (
+                          <button
+                            type="button"
+                            className="rounded-sm border border-border px-1.5 py-px hover:bg-muted"
+                            onClick={() => navigate(`/chat/${encodeURIComponent(row.latestReport!.sessionId!)}`)}
+                          >
+                            {t("fleets.report.openSession")}
+                          </button>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </>
           )}
         </div>

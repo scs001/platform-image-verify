@@ -258,9 +258,11 @@ export default function App() {
                 seat's live snapshot + the public catalog, read-only via the
                 cell's proxy lane. */}
             <Route path="/fleet" element={<FleetPage />} />
-            {/* Agent fleets (agent-fleet-core): the organization layer —
-                posts, cadences, and the derived on-duty board. */}
+            {/* Agent fleets (agent-fleet-core + agent-fleet-templates): the
+                organization layer and its cockpit — /fleets/:id IS the cockpit
+                (single-page merge, D6). */}
             <Route path="/fleets" element={<FleetsPage />} />
+            <Route path="/fleets/:fleetId" element={<FleetsPage />} />
 
             {/* Line boards (add-line-boards-and-action-gate): /boards/:line renders
                 a board for each integrated product line (facet/wanxing). */}

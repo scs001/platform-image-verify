@@ -97,6 +97,14 @@ export function createFleetDatabase({ file } = {}) {
   } catch {
     /* column already exists */
   }
+  // Template provenance (agent-fleet-templates D5): the packId+version a
+  // fleet was instantiated from — the dedup anchor for re-installs and the
+  // "template has a newer version" notice (D7: notice only, never migrates).
+  try {
+    db.exec(`ALTER TABLE fleets ADD COLUMN source_template TEXT`);
+  } catch {
+    /* column already exists */
+  }
 
   db.exec(`CREATE INDEX IF NOT EXISTS idx_fleet_members_fleet ON fleet_members(fleet_id)`);
   // Unique-post check (design D8): "is this persona/cluster on duty anywhere?"
@@ -108,14 +116,15 @@ export function createFleetDatabase({ file } = {}) {
   function createFleet(fleet) {
     const now = Date.now();
     db.prepare(`
-      INSERT INTO fleets (id, name, owner_email, state, decision_policy, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO fleets (id, name, owner_email, state, decision_policy, source_template, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       fleet.id,
       fleet.name,
       fleet.ownerEmail,
       fleet.state || "active",
       fleet.decisionPolicy ? JSON.stringify(fleet.decisionPolicy) : null,
+      fleet.sourceTemplate ? JSON.stringify(fleet.sourceTemplate) : null,
       now,
       now,
     );
@@ -141,11 +150,28 @@ export function createFleetDatabase({ file } = {}) {
       setParts.push("decision_policy = ?");
       values.push(JSON.stringify(updates.decisionPolicy));
     }
+    if (Object.hasOwn(updates, "sourceTemplate")) {
+      setParts.push("source_template = ?");
+      values.push(updates.sourceTemplate ? JSON.stringify(updates.sourceTemplate) : null);
+    }
     if (setParts.length === 0) return null;
     setParts.push("updated_at = ?");
     values.push(Date.now(), id);
     db.prepare(`UPDATE fleets SET ${setParts.join(", ")} WHERE id = ?`).run(...values);
     return getFleet(id);
+  }
+
+  // Template-anchor dedup (D5): a fleet instantiated from this pack by this
+  // owner. Archived fleets do not block a fresh instantiation.
+  function findFleetByTemplate(packId, ownerEmail) {
+    const rows = db
+      .prepare("SELECT * FROM fleets WHERE owner_email = ? AND source_template IS NOT NULL")
+      .all(ownerEmail);
+    for (const row of rows) {
+      const t = JSON.parse(row.source_template || "null");
+      if (t?.packId === packId && row.state !== "archived") return deserializeFleet(row);
+    }
+    return null;
   }
 
   function listFleets({ ownerEmail = null } = {}) {
@@ -472,6 +498,7 @@ export function createFleetDatabase({ file } = {}) {
     countOpenDecisions,
     countDecisionsByMemberSince,
     transitionDecision,
+    findFleetByTemplate,
     expireOpenDecisions,
     markDelivered,
     close,
@@ -485,6 +512,7 @@ function deserializeFleet(row) {
     ownerEmail: row.owner_email,
     state: row.state,
     decisionPolicy: decisionPolicyOfRow(row),
+    sourceTemplate: row.source_template ? JSON.parse(row.source_template) : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

@@ -2346,6 +2346,22 @@
       "awaitMember": "pendiente de repuesto",
       "delivered": "entregada",
       "memberGone": "(puesto eliminado)"
+    },
+    "tpl": {
+      "awaitStart": "Flota montada desde la plantilla (todo en pausa) — revisa y arranca",
+      "start": "Arrancar",
+      "newer": "La plantilla tiene una versión nueva v{{v}} (la flota activa no cambia; alinea a mano)"
+    },
+    "stream": {
+      "title": "Flujo diario",
+      "noReport": "sin reportes"
+    },
+    "health": {
+      "onDuty": "en servicio",
+      "paused": "en pausa",
+      "missing": "perdidos",
+      "vacant": "vacantes",
+      "passive": "pasivos"
     }
   }
 }

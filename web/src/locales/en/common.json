@@ -2346,6 +2346,22 @@
       "awaitMember": "awaiting post restore",
       "delivered": "delivered",
       "memberGone": "(post deleted)"
+    },
+    "tpl": {
+      "awaitStart": "Fleet assembled from the template (all paused) — review, then start",
+      "start": "Start fleet",
+      "newer": "Template has a newer version v{{v}} (live fleet untouched; align manually)"
+    },
+    "stream": {
+      "title": "Daily stream",
+      "noReport": "no report yet"
+    },
+    "health": {
+      "onDuty": "on duty",
+      "paused": "paused",
+      "missing": "missing",
+      "vacant": "vacant",
+      "passive": "passive"
     }
   }
 }

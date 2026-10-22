@@ -101,7 +101,7 @@ test.describe("fleets board", () => {
         body: JSON.stringify({ fleets: [{ id: FLEET_ID, name: "Demo Fleet", state: "active", memberCount: 4, statusCounts: DEMO_DETAIL.statusCounts }] }),
       }),
     );
-    await page.route(`**/api/fleets/${FLEET_ID}`, (route) =>
+    await page.route(`**/api/fleets/${FLEET_ID}/cockpit`, (route) =>
       route.fulfill({ contentType: "application/json", body: JSON.stringify(DEMO_DETAIL) }),
     );
   });
@@ -181,7 +181,7 @@ test.describe("fleet composer", () => {
       created.fleet = { id: FLEET_ID, name: body.name, state: "active" };
       return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({ fleet: created.fleet }) });
     });
-    await page.route(`**/api/fleets/${FLEET_ID}`, (route) =>
+    await page.route(`**/api/fleets/${FLEET_ID}/cockpit`, (route) =>
       route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({ fleet: created.fleet, members: created.members, statusCounts: {} }),
@@ -279,6 +279,65 @@ test.describe("fleet composer", () => {
   });
 });
 
+// ── cockpit aggregate view (agent-fleet-templates) ───────────────────────────
+
+test.describe("fleet cockpit", () => {
+  test.beforeEach(async ({ page }) => {
+    await pinLocaleEn(page);
+    await page.route("**/api/fleets", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ fleets: [{ id: FLEET_ID, name: "Demo Fleet", state: "paused", memberCount: 1, openDecisions: 1 }] }),
+      }),
+    );
+    await page.route(`**/api/fleets/${FLEET_ID}/cockpit`, (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          fleet: {
+            id: FLEET_ID, name: "Demo Fleet", state: "paused",
+            sourceTemplate: { packId: "pack_tpl", version: "1.0.0" },
+          },
+          members: [
+            memberFixture("ceo", { title: "CEO", status: "on_duty", kpiSlots: [{ key: "sales_week", label: "Sales" }], latestReport: SHOP_REPORT }),
+            memberFixture("shop", { title: "Shop", parentId: "ceo", status: "missing" }),
+          ],
+          statusCounts: { on_duty: 1, missing: 1 },
+          decisions: [
+            { id: "d1", question: "Publish early?", severity: "high", state: "open", submittedAt: 1790000000000, options: [], memberTitle: "Shop" },
+          ],
+          openDecisions: 1,
+          stream: [
+            { memberId: "shop", title: "Shop", status: "missing", latestReport: null },
+            { memberId: "ceo", title: "CEO", status: "on_duty", latestReport: SHOP_REPORT },
+          ],
+          health: { onDuty: 1, paused: 0, missing: 1, vacant: 0, passive: 0, total: 2 },
+          template: { packId: "pack_tpl", instantiatedVersion: "1.0.0", latestVersion: "2.0.0", updateAvailable: true },
+        }),
+      }),
+    );
+  });
+
+  test("await-start banner, decision banner, health chips, stream, newer notice", async ({ page }) => {
+    await page.goto("/fleets");
+    await expect(page.getByTestId("fleets-page")).toBeVisible({ timeout: 15000 });
+    // The paused template fleet shows the start banner, not the plain resume.
+    await expect(page.getByTestId("fleet-await-start")).toBeVisible();
+    await expect(page.getByTestId("fleet-start")).toBeVisible();
+    await expect(page.getByTestId("fleet-decision-banner")).toContainText("1 awaiting you");
+    await expect(page.getByTestId("fleet-decision-banner")).toContainText("Publish early?");
+    await expect(page.getByTestId("fleet-health")).toContainText("on duty: 1");
+    await expect(page.getByTestId("fleet-health")).toContainText("missing: 1");
+    await expect(page.getByTestId("fleet-template-newer")).toContainText("2.0.0");
+    // Stream: the missing post sits first; the reporting post shows its summary.
+    await expect(page.getByTestId("fleet-stream")).toBeVisible();
+    const rows = page.getByTestId("fleet-stream").locator("[data-testid^='stream-']");
+    await expect(rows).toHaveCount(2);
+    await expect(rows.first()).toHaveAttribute("data-testid", "stream-shop");
+    await expect(page.getByTestId("stream-ceo")).toContainText("Big promo day");
+  });
+});
+
 // ── decision queue drawer (agent-fleet-decision-lane) ───────────────────────
 
 test.describe("fleet decision queue", () => {
@@ -315,7 +374,7 @@ test.describe("fleet decision queue", () => {
         body: JSON.stringify({ fleets: [{ id: FLEET_ID, name: "Demo Fleet", state: "active", memberCount: 1, openDecisions: current.filter((d) => d.state === "open").length }] }),
       }),
     );
-    await page.route(`**/api/fleets/${FLEET_ID}`, (route) =>
+    await page.route(`**/api/fleets/${FLEET_ID}/cockpit`, (route) =>
       route.fulfill({
         contentType: "application/json",
         body: JSON.stringify({

@@ -2346,6 +2346,22 @@
       "awaitMember": "ポスト復帰待ち",
       "delivered": "配達済み",
       "memberGone": "（ポスト削除済み）"
+    },
+    "tpl": {
+      "awaitStart": "テンプレートから編成済み（全停止）——確認して起動",
+      "start": "艦隊を起動",
+      "newer": "テンプレートに新版 v{{v}} あり（現役は不変・手動で揃えられます）"
+    },
+    "stream": {
+      "title": "日報ストリーム",
+      "noReport": "報告なし"
+    },
+    "health": {
+      "onDuty": "在席",
+      "paused": "停止",
+      "missing": "失踪",
+      "vacant": "欠員",
+      "passive": "受動"
     }
   }
 }

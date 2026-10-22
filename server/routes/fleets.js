@@ -34,6 +34,9 @@ import {
   OPEN_QUEUE_LIMIT,
 } from "../fleet-decisions.js";
 import * as engine from "../../task-engine.js";
+import { exportFleetToTemplate } from "../fleet-template.js";
+import { provisionFleetFromTemplate } from "../fleet-provisioner.js";
+import * as dbModule from "../../db.js";
 
 const DENSE_CADENCE_MS = 10 * 60 * 1000; // design D7: <10min cadence needs confirmation
 const KPI_SLOT_LIMIT = 8;
@@ -181,6 +184,21 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
     evidence: derived.evidence,
     latestReport: buildLatestView({ report: latest, previous, kpiSlots: member.kpiSlots }),
     reportTimeline: db.listReports(member.id, { limit: 5 }).map(reportTimelineEntry),
+  };
+}
+
+// The template-newer notice (D7): notice only — never a migration, never a
+// mutation of the live fleet.
+function templateNotice(fleet) {
+  if (!fleet.sourceTemplate?.packId) return null;
+  const installed = dbModule.getInstalledPack(fleet.sourceTemplate.packId);
+  if (!installed?.version) return null;
+  const newer = installed.version !== fleet.sourceTemplate.version;
+  return {
+    packId: fleet.sourceTemplate.packId,
+    instantiatedVersion: fleet.sourceTemplate.version ?? null,
+    latestVersion: installed.version,
+    updateAvailable: newer,
   };
 }
 
@@ -348,6 +366,161 @@ export function createFleetRoutes(app, ctx = null) {
       });
     } catch (err) {
       console.error("[fleets] reports timeline error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // ── Cockpit aggregate + template lifecycle (agent-fleet-templates) ────────
+
+  // One round-trip for the whole cockpit (design: no four-fetch flicker).
+  // Every segment reuses the previous knives' read contracts verbatim —
+  // statuses/evidence/latest from the detail face, decisions from the queue
+  // face — plus the health rollup and the template-newer notice (D7).
+  router.get("/:id/cockpit", (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const db = getFleetDatabase();
+      db.expireOpenDecisions(owned.fleet.id);
+      const members = db.listMembers(owned.fleet.id).map((m) =>
+        memberView(db, owned.fleet, m, taskIndexFor(owned.fleet.id), { resolver: targetResolver }),
+      );
+      const statusCounts = {};
+      for (const v of members) statusCounts[v.status] = (statusCounts[v.status] ?? 0) + 1;
+
+      // Decisions: open, severity first then closest to policy expiry.
+      const policy = owned.fleet.decisionPolicy ?? { expiryHours: 72 };
+      const expiryMs = policy.expiryHours > 0 ? policy.expiryHours * 3600_000 : null;
+      const decisions = db
+        .listDecisions({ fleetId: owned.fleet.id, state: "open" })
+        .map((item) => ({
+          ...item,
+          memberTitle: members.find((m) => m.id === item.memberId)?.title ?? null,
+          expiresAt: expiryMs ? item.submittedAt + expiryMs : null,
+        }))
+        .sort((a, b) => {
+          const sev = { high: 0, normal: 1, low: 2 };
+          if (sev[a.severity] !== sev[b.severity]) return sev[a.severity] - sev[b.severity];
+          return (a.expiresAt ?? Infinity) - (b.expiresAt ?? Infinity);
+        });
+
+      // Daily stream: each post's latest report, missing posts first.
+      const stream = members
+        .map((m) => ({ memberId: m.id, title: m.title, status: m.status, latestReport: m.latestReport }))
+        .sort((a, b) => {
+          if (a.status === "missing" && b.status !== "missing") return -1;
+          if (b.status === "missing" && a.status !== "missing") return 1;
+          return (b.latestReport?.at ?? 0) - (a.latestReport?.at ?? 0);
+        });
+
+      res.json({
+        fleet: owned.fleet,
+        members,
+        statusCounts,
+        decisions,
+        openDecisions: decisions.length,
+        stream,
+        health: {
+          onDuty: statusCounts.on_duty ?? 0,
+          paused: statusCounts.paused ?? 0,
+          missing: statusCounts.missing ?? 0,
+          vacant: statusCounts.vacant ?? 0,
+          passive: statusCounts.passive ?? 0,
+          total: members.length,
+        },
+        template: templateNotice(owned.fleet),
+      });
+    } catch (err) {
+      console.error("[fleets] cockpit error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // Instantiate a fleet from an installed pack's template section. Install
+  // never auto-runs: the fleet is born all-paused with a 待启动 banner.
+  router.post("/from-template", async (req, res) => {
+    try {
+      const user = resolveUser(req);
+      if (!user) return res.status(401).json({ error: "Authentication required" });
+      const packId = req.body?.packId;
+      if (typeof packId !== "string" || !packId.trim()) {
+        return res.status(400).json({ error: "packId is required" });
+      }
+      const installed = dbModule.getInstalledPack(packId);
+      if (!installed) return res.status(400).json({ error: `pack '${packId}' is not installed here` });
+      if (!installed.manifest?.fleet) {
+        return res.status(400).json({ error: `pack '${packId}' carries no fleet template` });
+      }
+
+      const db = getFleetDatabase();
+      const out = await provisionFleetFromTemplate({
+        packId,
+        version: installed.version ?? null,
+        manifest: installed.manifest,
+        ownerEmail: user.email,
+        deps: {
+          db,
+          catalogAgentIds: () => new Set(catalog.getChatAgentEntries().map((e) => e.id)),
+          resolveExisting: ({ kind, id }) => {
+            if (kind === "persona") return !!catalog.getChatAgentEntries().some((e) => e.id === id);
+            if (kind === "a2a") {
+              const entry = catalog.getAgentEntry(id);
+              return !!entry && entry.mode === "a2a";
+            }
+            const cluster = getClusterDatabase().get(id);
+            return !!cluster && cluster.status !== "terminated";
+          },
+          reconcile: (fleetId) =>
+            reconcileFleet({ fleetId, db, cronApi: cron, resolveTarget: targetResolver, rosterPresetId }),
+        },
+      });
+      if (!out.ok) return res.status(400).json({ error: out.error });
+      res.status(out.deduped ? 200 : 201).json(out);
+    } catch (err) {
+      console.error("[fleets] from-template error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // Confirm-start (3.2): the owner reviewed the structure — flip the fleet to
+  // active and re-enable every member's cadence (vacant posts park again via
+  // reconcile; member-level pauses chosen before start are not a thing here —
+  // everything was born paused).
+  router.post("/:id/start", async (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const db = getFleetDatabase();
+      if (owned.fleet.state === "archived") {
+        return res.status(409).json({ error: "This fleet is archived" });
+      }
+      db.updateFleet(owned.fleet.id, { state: "active" });
+      for (const m of db.listMembers(owned.fleet.id)) {
+        if (m.cadence && m.cadence.enabled === false) {
+          db.updateMember(m.id, { cadence: { ...m.cadence, enabled: true } });
+        }
+      }
+      const reconcile = await runReconcile(owned.fleet.id);
+      res.json({ fleet: db.getFleet(owned.fleet.id), reconcile });
+    } catch (err) {
+      console.error("[fleets] start error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // Export (3.3): whitelist-only manifest — skeleton/slots/cadence survive;
+  // reports, decisions, sessions, owner, credentials never do.
+  router.get("/:id/export", (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const db = getFleetDatabase();
+      const members = db.listMembers(owned.fleet.id);
+      const manifest = exportFleetToTemplate(owned.fleet, members);
+      res.setHeader("content-disposition", `attachment; filename="fleet-${owned.fleet.id}.json"`);
+      res.json(manifest);
+    } catch (err) {
+      console.error("[fleets] export error:", err.message);
       res.status(500).json({ error: err.message || "internal error" });
     }
   });

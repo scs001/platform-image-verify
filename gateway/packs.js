@@ -26,6 +26,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import express from "express";
 import { PACK_LIMITS, validatePackManifest as validateManifest, validateRhythm, budgetMinutesError, modelIdError } from "../lib/pack-manifest.js";
+import { parseFleetTemplate } from "../server/fleet-template.js";
 import { safePackagePath } from "../lib/skill-files.js";
 import { declaredToolsByServer, toolGateErrors, probeMcpToolNames, toolFaceErrors, toolClosureErrors } from "../lib/publish-tool-gate.js";
 import { registryServerIndex } from "../registry-bridge.js";
@@ -137,6 +138,17 @@ async function collectPublishVerdict(manifest, { shortCircuit = false } = {}) {
             `violations=${violations.length}: ${violations.map((v) => v.error).join(" | ")}`,
         );
       }
+    }
+  }
+  // Fleet-template gate (agent-fleet-templates D2): a manifest that carries a
+  // fleet section must pass the shared template parser — cycles, bad crons and
+  // missing fields stop at the mint, never reaching the market. A manifest
+  // WITHOUT the section skips this gate entirely: plain packs are untouched.
+  if (manifest && manifest.fleet !== undefined && manifest.fleet !== null) {
+    const fleet = parseFleetTemplate(manifest);
+    if (!fleet.ok) {
+      push("fleetTemplate", 400, { error: "Invalid fleet template", errors: [fleet.error] });
+      if (shortCircuit) return items;
     }
   }
   // Operator gate (add-packaged-skills D9): files-bearing publishes stay

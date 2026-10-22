@@ -2346,6 +2346,22 @@
       "awaitMember": "en attente de poste",
       "delivered": "délivrée",
       "memberGone": "(poste supprimé)"
+    },
+    "tpl": {
+      "awaitStart": "Flotte montée depuis le gabarit (tout en pause) — vérifiez puis démarrez",
+      "start": "Démarrer",
+      "newer": "Le gabarit a une version plus récente v{{v}} (la flotte active n'est pas touchée)"
+    },
+    "stream": {
+      "title": "Flux quotidien",
+      "noReport": "aucun rapport"
+    },
+    "health": {
+      "onDuty": "en poste",
+      "paused": "en pause",
+      "missing": "injoignables",
+      "vacant": "vacants",
+      "passive": "passifs"
     }
   }
 }

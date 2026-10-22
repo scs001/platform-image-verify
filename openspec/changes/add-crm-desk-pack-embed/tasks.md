@@ -1,7 +1,7 @@
 ## 1. 前置事实与活体
 
-- [ ] 1.1 Chatwoot SPA 登录态持久化形态活体探测（cookies vs localStorage、字段名与作用域）：用演示账号真登录 desk 一次，记录 SPA 会话存储与请求头形态，定 D6 注入法——产出落 reports/embed-probe.md
-- [ ] 1.2 协调 finddata 侧：重置/确认演示账号密码（§七 密码 devise 401 事实）、试点商家 Account 建号配方确认（SuperAdmin/cw-seed 脚本）——记录在 reports/coordination.md
+- [x] 1.1 Chatwoot SPA 登录态持久化形态活体探测（cookies vs localStorage、字段名与作用域）：用演示账号真登录 desk 一次，记录 SPA 会话存储与请求头形态，定 D6 注入法——embed-probe.md：cw_d_session_info cookie（devise 头 JSON）+ user.id/expires_at；SAMEORIGIN 同源 iframe 合规；注入法=服务端 sign_in+构造 cookie+按用户注入 devise 头
+- [x] 1.2 协调 finddata 侧：重置/确认演示账号密码（§七 密码 devise 401 事实）、试点商家 Account 建号配方确认（SuperAdmin/cw-seed 脚本）——coordination.md：密码漂移已修（重置回 §七 值，sign_in 200 实证）；建号配方确认现成（seed 脚本/SuperAdmin 人工）
 
 ## 2. chatwoot 凭据面（D1）
 

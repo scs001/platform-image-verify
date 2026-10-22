@@ -2,7 +2,7 @@
 
 ### Requirement: stdio env 值解析自逐用户凭据
 
-本地 stdio 服务器行 SHALL 可声明「env 名 → credentialRef」映射；MCP patch 组合时该 env 值 SHALL 从声明 ref 的**该用户**凭据解析（与 HTTP 条目 Authorization 头同一解析口径），MUST NOT 使用部署 env 或他人凭据。该用户无此 ref 的活凭据时，该条目 SHALL 整体省略（不写 patch、不拉子进程），省略为静默正常态。上游 401 SHALL 使该用户此凭据失效（与既有 ref 失效语义一致）。
+本地 stdio 服务器行 SHALL 可声明「env 名 → credentialRef」映射；MCP patch 组合时该 env 值 SHALL 从声明 ref 的**该用户**凭据解析（与 HTTP 条目 Authorization 头同一解析口径），MUST NOT 使用部署 env 或他人凭据。该用户无此 ref 的活凭据时，该条目对该用户 SHALL 整体省略（不写 patch、不拉子进程），省略为静默正常态；机器 owner（无认证身份）SHALL 维持既有部署 env 语义（组合结果与该能力引入前逐字节一致），MUST NOT 因引入本机制而改变。上游 401 SHALL 使该用户此凭据失效（与既有 ref 失效语义一致）。
 
 #### Scenario: 凭据按用户隔离解析
 

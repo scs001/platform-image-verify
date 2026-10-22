@@ -4,19 +4,19 @@
 
 ## ADDED Requirements
 
-### Requirement: chatwoot 连接面板物化本地服务器行
+### Requirement: chatwoot 连接面板与凭据生命周期
 
-连接中心 SHALL 提供 `chatwoot` 连接面板：用户粘贴自己 Chatwoot 账号的 API token（必填）与登录邮箱/密码（嵌入用，选填）。保存连接时平台 SHALL 物化一条本地 stdio MCP 服务器行（`chatwoot`，配置与平台 bundled 条目同源：command/args 钉版本 dist 路径，env 经逐用户凭据引用解析）；凭据更新或清除 SHALL 联动该行（轮换即下次组合生效，清除即行移除）。token 与密码 MUST NOT 出现在日志、pack 内容或任何共享配置仓。
+连接中心 SHALL 提供 `chatwoot` 连接面板：用户粘贴自己 Chatwoot 账号的 API token（必填）与登录邮箱/密码（嵌入用，选填）。chatwoot 服务器行由平台基线提供（每 cell 一份，配置钉版本 dist 路径），连接面只管凭据：保存/轮换凭据 SHALL 在下次组合即生效（cell patch env 携带该用户 token）；清除凭据后，该用户下次组合 MUST NOT 再以用户凭据出现 chatwoot 条目——在带部署 env 的部署上 MUST NOT 回落到共享部署凭据（防跨租户暴露），仅机器 owner（无认证身份）可回落。token 与密码 MUST NOT 出现在日志、pack 内容或任何共享配置仓。
 
-#### Scenario: 连接后本地行出现且进入工具面
+#### Scenario: 连接后进入自己的租户面
 
 - **WHEN** 用户在连接面板粘贴自己的 Chatwoot token 完成连接
 - **THEN** cell 下次组合出现 chatwoot stdio 条目且其 env 携带该用户 token，工具面为其租户的 98-leaf 标准面
 
-#### Scenario: 清除连接联动移除
+#### Scenario: 清除连接不回落共享凭据
 
-- **WHEN** 用户清除 chatwoot 连接
-- **THEN** 本地服务器行移除，下次组合不再出现 chatwoot 条目，动作提议被 preflight 拦截并给出去连接指引
+- **WHEN** 已连接的商家清除 chatwoot 连接（部署带共享 env）
+- **THEN** 该商家下次组合不再出现 chatwoot 条目，动作提议被 preflight 拦截并给出去连接指引；其工具面 MUST NOT 出现共享凭据对应的 A 租户内容
 
 ### Requirement: CRM 客服套件 pack 形状与安装链路
 

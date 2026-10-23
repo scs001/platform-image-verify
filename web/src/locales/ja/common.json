@@ -2371,6 +2371,34 @@
       "vacant": "欠員",
       "passive": "受動",
       "failing": "失敗"
+    },
+    "orch": {
+      "title": "編成",
+      "cron": "定時",
+      "implicit": "暗黙",
+      "chainDepth": "連鎖上限",
+      "budget": "ホップ予算",
+      "mode": {
+        "schedule": "定時モード",
+        "supervisor": "主管モード",
+        "pipeline": "パイプライン"
+      },
+      "edge": {
+        "trigger": "定時",
+        "report": "報告",
+        "dispatch": "派遣",
+        "handoff": "引継",
+        "fanout": "扇出",
+        "event": "イベント"
+      },
+      "phrase": {
+        "report": "報告上行",
+        "dispatch": "派遣許可",
+        "handoff": "完了→引継",
+        "judge": "裁定",
+        "aggregate": "集約",
+        "event": "起床"
+      }
     }
   }
 }

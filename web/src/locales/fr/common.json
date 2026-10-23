@@ -2371,6 +2371,34 @@
       "vacant": "vacants",
       "passive": "passifs",
       "failing": "en échec"
+    },
+    "orch": {
+      "title": "Orchestration",
+      "cron": "cron",
+      "implicit": "implicite",
+      "chainDepth": "profondeur max",
+      "budget": "budget/saut",
+      "mode": {
+        "schedule": "planifié",
+        "supervisor": "superviseur",
+        "pipeline": "pipeline"
+      },
+      "edge": {
+        "trigger": "déclencheur",
+        "report": "rapport",
+        "dispatch": "délégation",
+        "handoff": "relais",
+        "fanout": "éventail",
+        "event": "événement"
+      },
+      "phrase": {
+        "report": "remonte le rapport",
+        "dispatch": "permission de déléguer",
+        "handoff": "termine → suivant",
+        "judge": "arbitre",
+        "aggregate": "agrégation",
+        "event": "réveil"
+      }
     }
   }
 }

@@ -2371,6 +2371,34 @@
       "vacant": "待补",
       "passive": "被动",
       "failing": "失败"
+    },
+    "orch": {
+      "title": "编排",
+      "cron": "定时",
+      "implicit": "隐式",
+      "chainDepth": "链深上限",
+      "budget": "每跳预算",
+      "mode": {
+        "schedule": "定时模式",
+        "supervisor": "主管模式",
+        "pipeline": "流水线模式"
+      },
+      "edge": {
+        "trigger": "定时",
+        "report": "报数",
+        "dispatch": "派发",
+        "handoff": "接棒",
+        "fanout": "扇出",
+        "event": "事件"
+      },
+      "phrase": {
+        "report": "报数上行",
+        "dispatch": "派发许可",
+        "handoff": "完成接棒",
+        "judge": "裁决",
+        "aggregate": "聚合",
+        "event": "唤醒"
+      }
     }
   }
 }

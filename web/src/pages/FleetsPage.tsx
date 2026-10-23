@@ -121,6 +121,23 @@ interface FleetDetail {
   decisions?: DecisionItem[];
   stream?: { memberId: string; title: string; status: MemberView["status"]; latestReport: LatestReport | null }[];
   health?: { onDuty: number; paused: number; missing: number; vacant: number; passive: number; failing?: number; total: number };
+  // Orchestration read view (agent-fleet-orchestration): mode/constraints +
+  // the read-time edge set (supervisor's implicit edges are marked).
+  orchestration?: {
+    mode: string | null;
+    constraints: { maxChainDepth?: number; spanMax?: number; budgetPerEdgeMin?: number } | null;
+    edges: Array<{
+      kind: string;
+      from?: string;
+      to?: string;
+      targets?: string[];
+      aggregate?: { kind: string; judge?: string };
+      rounds?: number;
+      cron?: string;
+      implicit?: boolean;
+    }>;
+    implicitDispatch?: string | null;
+  } | null;
   template?: { packId: string; instantiatedVersion: string | null; latestVersion: string; updateAvailable: boolean } | null;
 }
 
@@ -163,6 +180,21 @@ const STATE_STYLES: Record<FleetRow["state"], string> = {
   paused: "bg-warning/15 text-warning",
   archived: "bg-muted text-muted-foreground",
 };
+
+// Orchestration edge badges (agent-fleet-orchestration): six kinds, one tone
+// each — read-only semantics, no interaction.
+const EDGE_STYLES: Record<string, string> = {
+  trigger: "bg-muted text-muted-foreground",
+  report: "bg-success/15 text-success",
+  dispatch: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+  handoff: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  fanout: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
+  event: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400",
+};
+
+function memberById(members: MemberView[], id?: string): MemberView | undefined {
+  return id ? members.find((m) => m.id === id) : undefined;
+}
 
 function fmtTime(v: string | null, locale: string): string {
   if (!v) return "—";
@@ -461,6 +493,59 @@ export function FleetsPage() {
                       {t("fleets.health.failing")}: {detail.health.failing}
                     </span>
                   ) : null}
+                </div>
+              ) : null}
+
+              {/* Orchestration panel (agent-fleet-orchestration): the declared
+                  edges as a read-only list — the owner SEES the shape they
+                  declared. Undeclared fleets render nothing. */}
+              {detail.orchestration && detail.orchestration.edges.length > 0 ? (
+                <div className="mt-3 flex flex-col gap-1.5 rounded-md border border-border bg-card p-3 text-xs" data-testid="fleet-orchestration">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-medium">{t("fleets.orch.title")}</span>
+                    {detail.orchestration.mode ? (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">
+                        {t(`fleets.orch.mode.${detail.orchestration.mode}`)}
+                      </span>
+                    ) : null}
+                    {detail.orchestration.constraints?.maxChainDepth ? (
+                      <span className="text-muted-foreground">
+                        {t("fleets.orch.chainDepth")}: {detail.orchestration.constraints.maxChainDepth}
+                      </span>
+                    ) : null}
+                    {detail.orchestration.constraints?.budgetPerEdgeMin ? (
+                      <span className="text-muted-foreground">
+                        {t("fleets.orch.budget")}: {detail.orchestration.constraints.budgetPerEdgeMin}min
+                      </span>
+                    ) : null}
+                  </div>
+                  {detail.orchestration.edges.map((e, i) => {
+                    const name = (id?: string) => memberById(detail.members, id)?.title ?? id ?? "?";
+                    const badge = EDGE_STYLES[e.kind] ?? "bg-muted text-muted-foreground";
+                    let desc = "";
+                    if (e.kind === "trigger") desc = `${e.cron ?? t("fleets.orch.cron")} → ${name(e.to)}`;
+                    else if (e.kind === "report") desc = `${name(e.from)} ↑ ${t("fleets.orch.phrase.report")}`;
+                    else if (e.kind === "dispatch") desc = `${name(e.from)} → ${name(e.to)} · ${t("fleets.orch.phrase.dispatch")}`;
+                    else if (e.kind === "handoff") desc = `${name(e.from)} → ${name(e.to)} · ${t("fleets.orch.phrase.handoff")}`;
+                    else if (e.kind === "fanout")
+                      desc = `${name(e.from)} ⇒ ${(e.targets ?? []).map(name).join(", ")} · ${
+                        e.aggregate?.kind === "judge"
+                          ? `${t("fleets.orch.phrase.judge")}: ${name(e.aggregate.judge)}`
+                          : `${t("fleets.orch.phrase.aggregate")}: ${e.aggregate?.kind ?? "all"}`
+                      }`;
+                    else if (e.kind === "event") desc = `${e.from ?? "?"} → ${name(e.to)} · ${t("fleets.orch.phrase.event")}`;
+                    return (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className={`rounded-full px-2 py-0.5 ${badge}`}>{t(`fleets.orch.edge.${e.kind}`)}</span>
+                        <span className="min-w-0 flex-1 truncate text-muted-foreground">{desc}</span>
+                        {e.implicit ? (
+                          <span className="rounded-full bg-muted px-1.5 py-px text-[10px] text-muted-foreground">
+                            {t("fleets.orch.implicit")}
+                          </span>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : null}
 

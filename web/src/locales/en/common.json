@@ -2371,6 +2371,34 @@
       "vacant": "vacant",
       "passive": "passive",
       "failing": "failing"
+    },
+    "orch": {
+      "title": "Orchestration",
+      "cron": "cron",
+      "implicit": "implicit",
+      "chainDepth": "chain depth",
+      "budget": "per-hop budget",
+      "mode": {
+        "schedule": "schedule",
+        "supervisor": "supervisor",
+        "pipeline": "pipeline"
+      },
+      "edge": {
+        "trigger": "trigger",
+        "report": "report",
+        "dispatch": "dispatch",
+        "handoff": "handoff",
+        "fanout": "fanout",
+        "event": "event"
+      },
+      "phrase": {
+        "report": "reports up",
+        "dispatch": "dispatch grant",
+        "handoff": "completes → next",
+        "judge": "judge",
+        "aggregate": "aggregate",
+        "event": "wake"
+      }
     }
   }
 }

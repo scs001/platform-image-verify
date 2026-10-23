@@ -216,7 +216,17 @@ export function deriveMemberStatus({ member, fleet, task, targetAlive, latestRep
   };
 
   if (targetAlive === false) {
-    return { status: "vacant", reason: "target object no longer exists", evidence };
+    // Two birth-paths to a vacancy, two honest reasons: the empty-targetId
+    // sentinel is minted ONLY by the provisioner's unique-post conflict
+    // degradation (the target exists but holds a post elsewhere); any other
+    // dead targetRef is the "deleted afterwards" case.
+    return {
+      status: "vacant",
+      reason: member.targetId
+        ? "target object no longer exists"
+        : "no incumbent assigned — uniqueness conflict at instantiation",
+      evidence,
+    };
   }
   if (!member.cadence) {
     return { status: "passive", reason: "no cadence — runs only when delegated or replied to", evidence };

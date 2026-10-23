@@ -70,6 +70,14 @@ beforeEach(() => {
 });
 
 const ALIVE = (m) => ({ alive: m?.targetId !== "ghost", label: m?.targetId ?? "?", clusterName: null });
+// Route-level resolver variant that also treats the provisioner's EMPTY
+// targetId sentinel as dead — the real resolveTarget can't find "" in any
+// catalog, so vacancy derivation must agree.
+const SENTINEL_AWARE = (m) => ({
+  alive: !!m?.targetId && m.targetId !== "ghost",
+  label: m?.targetId || null,
+  clusterName: null,
+});
 const rosterFn = (id) => id;
 
 function goodManifest() {
@@ -212,6 +220,56 @@ test("provisioner: dedup, degradation, all-paused birth, tasks parked", async ()
   assert.equal(again.fleet.id, first.fleet.id);
 });
 
+// ── unique-post conflict degradation (fix-fleet-provisioner-unique-post) ────
+
+test("provisioner: on-duty target conflicts degrade to a staffable vacancy", async () => {
+  // user-assist already holds a post in a LIVE fleet…
+  const fleetA = fleetDb.createFleet({ id: "fleet_a", name: "现役A", ownerEmail: "owner@test" });
+  fleetDb.createMember({ id: "m_a", fleetId: fleetA.id, title: "老助理", parentId: null, targetKind: "persona", targetId: "user-assist", kpiSlots: [], cadence: null });
+  // …and the template's assist ref names that same persona. tpl-shop present
+  // so NOTHING is missing — the conflict is the only degradation.
+  const deps = provisionDeps({ catalogIds: new Set(["tpl-ceo", "tpl-shop", "user-assist"]) });
+
+  const out = await provisionFleetFromTemplate({ packId: "pack_uc", version: "1.0.0", manifest: goodManifest(), ownerEmail: "owner@test", deps });
+  assert.equal(out.ok, true);
+  assert.deepEqual(out.missing, [], "the target exists — nothing is missing");
+  assert.deepEqual(out.conflicts.map((c) => c.ref), ["assist"]);
+  assert.equal(out.conflicts[0].occupiedBy.postTitle, "老助理");
+  assert.equal(out.conflicts[0].occupiedBy.fleetName, "现役A");
+  assert.equal(out.conflicts[0].intraTemplate, false);
+
+  // The conflicting post is born with the empty sentinel — the persona keeps
+  // exactly ONE post anywhere.
+  const assistPost = fleetDb.listMembers(out.fleet.id).find((m) => m.title === "助理岗");
+  assert.equal(assistPost.targetId, "");
+  const holders = [fleetA.id, out.fleet.id]
+    .flatMap((fid) => fleetDb.listMembers(fid))
+    .filter((m) => m.targetId === "user-assist");
+  assert.equal(holders.length, 1, "no second post on the incumbent");
+});
+
+test("provisioner: intra-template duplicate conflicts; a2a exempt", async () => {
+  const dup = goodManifest();
+  dup.fleet.members.push({ ref: "assist2", title: "助理二岗", parentRef: "ceo", target: { kind: "existing-persona", id: "user-assist" }, cadence: null });
+  dup.fleet.members.push({ ref: "wx", title: "萬星岗", parentRef: "ceo", target: { kind: "existing-a2a", id: "wx-a" }, cadence: null });
+  dup.fleet.members.push({ ref: "wx2", title: "萬星二岗", parentRef: "ceo", target: { kind: "existing-a2a", id: "wx-a" }, cadence: null });
+  const deps = provisionDeps({ catalogIds: new Set(["tpl-ceo", "tpl-shop", "user-assist"]) });
+
+  const out = await provisionFleetFromTemplate({ packId: "pack_dup", version: "1.0.0", manifest: dup, ownerEmail: "owner@test", deps });
+  assert.equal(out.ok, true);
+  // The SECOND claim of user-assist conflicts with the first post of THIS
+  // batch (no other fleet involved) — occupiedBy stays null.
+  assert.deepEqual(out.conflicts.map((c) => c.ref), ["assist2"]);
+  assert.equal(out.conflicts[0].intraTemplate, true);
+  assert.equal(out.conflicts[0].occupiedBy, null);
+  const members = fleetDb.listMembers(out.fleet.id);
+  assert.equal(members.find((m) => m.title === "助理岗").targetId, "user-assist", "first claim keeps the target");
+  assert.equal(members.find((m) => m.title === "助理二岗").targetId, "", "second claim gets the sentinel");
+  // a2a is exempt from uniqueness (D8): both 萬星 posts hold the target.
+  assert.equal(out.conflicts.some((c) => c.ref.startsWith("wx")), false);
+  assert.equal(members.filter((m) => m.targetId === "wx-a").length, 2);
+});
+
 test("start route: flips both pause layers, reconcile resumes, notice-only upgrades", async () => {
   const manifest = goodManifest();
   const deps = provisionDeps();
@@ -328,6 +386,74 @@ test("from-template route + cockpit segments in one round-trip", async () => {
     assert.equal(typeof ceoView.status, "string");
     assert.ok(ceoView.latestReport);
     assert.equal(ceoView.latestReport.summary, "首报");
+  } finally {
+    server.close();
+  }
+});
+
+// ── 1.1 from-template unique-post conflict leg ──────────────────────────────
+
+test("from-template route: conflict surfaces, sentinel reads vacant, swap staffs it", async () => {
+  seedInstalledPack("pack_uc", "1.0.0", goodManifest());
+  // user-assist must be a LIVE catalog persona at route level — a dead target
+  // would take the missing path instead of the conflict path.
+  dbModule.upsertInstalledPack({
+    packId: "pack_ppl",
+    name: "人员包",
+    version: "1.0.0",
+    manifest: { agents: [{ id: "user-assist", name: "用户助理" }] },
+    report: { agents: [{ id: "user-assist", status: "installed" }], skills: [] },
+  });
+  // …and on duty in a live fleet.
+  const fleetA = fleetDb.createFleet({ id: "fleet_a", name: "现役A", ownerEmail: "owner@test" });
+  fleetDb.createMember({ id: "m_a", fleetId: fleetA.id, title: "老助理", parentId: null, targetKind: "persona", targetId: "user-assist", kpiSlots: [], cadence: null });
+
+  const app = express();
+  app.use(express.json());
+  const ctx = { authEnabled: false, cellUserEmail: "owner@test", fleetTargetResolver: SENTINEL_AWARE, currentPreset: null };
+  createFleetRoutes(app, ctx);
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((r) => server.once("listening", r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const call = (method, p, body) =>
+    fetch(`${base}${p}`, { method, headers: body !== undefined ? { "content-type": "application/json" } : {}, body: body !== undefined ? JSON.stringify(body) : undefined })
+      .then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }));
+
+  try {
+    const created = await call("POST", "/api/fleets/from-template", { packId: "pack_uc" });
+    assert.equal(created.status, 201);
+    assert.deepEqual(created.body.missing, []);
+    assert.equal(created.body.conflicts.length, 1);
+    assert.equal(created.body.conflicts[0].ref, "assist");
+    assert.equal(created.body.conflicts[0].occupiedBy.postTitle, "老助理");
+    assert.equal(created.body.conflicts[0].occupiedBy.fleetName, "现役A");
+
+    // Same-source contrast: a MANUAL post on the busy persona still 409s —
+    // the provisioner is now the third write path agreeing with 建岗.
+    const mk = await call("POST", `/api/fleets/${created.body.fleet.id}/members`, {
+      title: "插岗", targetKind: "persona", targetId: "user-assist",
+    });
+    assert.equal(mk.status, 409);
+
+    // Cockpit: the sentinel post reads vacant with the conflict reason.
+    const cockpit = await call("GET", `/api/fleets/${created.body.fleet.id}/cockpit`);
+    assert.equal(cockpit.status, 200);
+    const assist = cockpit.body.members.find((m) => m.title === "助理岗");
+    assert.equal(assist.status, "vacant");
+    assert.match(assist.statusReason, /conflict/i);
+    assert.equal(assist.target.id, "");
+    assert.equal(assist.target.label, null, "no fake label for the sentinel");
+
+    // Free the incumbent (dissolve archives A), then 补岗 via swap — the
+    // vacancy is staffable through the ordinary restaffing route.
+    const gone = await call("DELETE", `/api/fleets/${fleetA.id}`);
+    assert.equal(gone.status, 200);
+    const swap = await call("POST", `/api/fleets/${created.body.fleet.id}/members/${assist.id}/swap`, {
+      targetKind: "persona", targetId: "user-assist",
+    });
+    assert.equal(swap.status, 200);
+    assert.equal(swap.body.member.target.id, "user-assist");
+    assert.notEqual(swap.body.member.status, "vacant");
   } finally {
     server.close();
   }

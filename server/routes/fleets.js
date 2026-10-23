@@ -64,16 +64,18 @@ function memberId(_id) {
 function resolveTarget(member) {
   if (member.targetKind === "persona") {
     const entry = catalog.getChatAgentEntries().find((e) => e.id === member.targetId) || null;
-    return { alive: !!entry, label: entry?.name ?? member.targetId, clusterName: null };
+    // Empty targetId = provisioner conflict sentinel — no label, the vacant
+    // badge and its reason carry the story.
+    return { alive: !!entry, label: entry?.name ?? (member.targetId || null), clusterName: null };
   }
   if (member.targetKind === "cluster") {
     const cluster = getClusterDatabase().get(member.targetId);
     const alive = !!cluster && cluster.status !== "terminated";
-    return { alive, label: cluster?.name ?? member.targetId, clusterName: cluster?.name ?? null };
+    return { alive, label: cluster?.name ?? (member.targetId || null), clusterName: cluster?.name ?? null };
   }
   const entry = catalog.getAgentEntry(member.targetId);
   const alive = !!entry && entry.mode === "a2a";
-  return { alive, label: entry?.name ?? member.targetId, clusterName: null };
+  return { alive, label: entry?.name ?? (member.targetId || null), clusterName: null };
 }
 
 // Shared with the server.js catalog-change hook (reconcileAllFleets) so the

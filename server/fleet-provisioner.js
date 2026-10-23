@@ -2,12 +2,17 @@
 //
 // Pure orchestration over the existing single-writer surfaces — fleets-db,
 // catalog, clusters store, reconcile — never a direct write into another
-// module's storage. Contract (design D3/D4/D5):
-//   dedup  : a live fleet from the same pack for the same owner returns as-is
-//   resolve: per-post target resolution with per-post degradation — a missing
-//            incumbent still gets its POST (vacant, listed in `missing`)
-//   paused : the fleet is created all-paused; materialized tasks park too;
-//            the owner starts it explicitly (install never auto-runs)
+// module's storage. Contract (design D3/D4/D5 + unique-post fix):
+//   dedup    : a live fleet from the same pack for the same owner returns as-is
+//   resolve  : per-post target resolution with per-post degradation — a missing
+//              incumbent still gets its POST (vacant, listed in `missing`)
+//   conflict : a persona/cluster target already on duty (any live fleet, or an
+//              earlier post IN THIS BATCH) never gets a second post — the post
+//              is born with an EMPTY targetId sentinel (staffable via swap,
+//              listed in `conflicts` with the occupying fleet/post). a2a is
+//              exempt (D8: external execution has no attribution ambiguity).
+//   paused   : the fleet is created all-paused; materialized tasks park too;
+//              the owner starts it explicitly (install never auto-runs)
 import { parseFleetTemplate } from "./fleet-template.js";
 
 // deps: { db, resolveExisting({kind,id}) => boolean|object, rosterPresetId,
@@ -30,12 +35,19 @@ export async function provisionFleetFromTemplate({
   if (existing) return { ok: true, fleet: existing, deduped: true };
 
   const missing = [];
+  const conflicts = [];
   const resolved = [];
+  // Targets claimed by earlier posts of THIS batch — the cross-fleet check
+  // below can't see them yet (this fleet doesn't exist), so intra-template
+  // duplicates are caught here. Keyed kind:id (persona/cluster ids may
+  // collide as strings). a2a never claims.
+  const claimed = new Set();
 
   for (const m of template.members) {
     let targetKind = null;
     let targetId = null;
     let degraded = false;
+    let conflict = null;
 
     if (m.target.kind === "pack-preset") {
       // The pack's own agent, materialized by the install chain — resolve
@@ -59,10 +71,44 @@ export async function provisionFleetFromTemplate({
       degraded = !deps.resolveExisting({ kind: "a2a", id: m.target.id });
     }
 
+    // Unique-post gate (fleet-core D8), same source as the 建岗/swap routes:
+    // only LIVE targets can occupy — a degraded target is nobody's incumbent.
+    if (!degraded && targetKind !== "a2a") {
+      const key = `${targetKind}:${targetId}`;
+      if (claimed.has(key)) {
+        conflict = { occupiedBy: null, intraTemplate: true };
+      } else {
+        const existing = deps.db.findPostByTarget(targetKind, targetId);
+        if (existing) {
+          conflict = {
+            occupiedBy: {
+              fleetId: existing.member.fleetId,
+              fleetName: existing.fleet?.name ?? existing.member.fleetId,
+              postTitle: existing.member.title,
+            },
+            intraTemplate: false,
+          };
+        }
+      }
+      if (conflict) {
+        // Empty-string sentinel: the persona/cluster EXISTS so resolution
+        // would succeed — vacancy must be structural. Every other write path
+        // (建岗/swap) rejects empty targetIds, so only this path can mint one.
+        targetId = "";
+      } else {
+        claimed.add(key);
+      }
+    }
+
     if (degraded) {
       // The post is still created (vacant by targetRef resolution) — the
       // structure is the template's value; the incumbent can be staffed later.
       missing.push({ ref: m.ref, title: m.title, kind: m.target.kind });
+    } else if (conflict) {
+      // Same degradation philosophy, different cause: the target is alive but
+      // holds a post elsewhere. The post carries the template structure and
+      // waits for 补岗; the incumbent keeps its single post.
+      conflicts.push({ ref: m.ref, title: m.title, kind: m.target.kind, ...conflict });
     }
     resolved.push({
       member: m,
@@ -108,6 +154,7 @@ export async function provisionFleetFromTemplate({
     fleet,
     memberIdByRef: Object.fromEntries(idByRef),
     missing,
+    conflicts,
     pausedAtBirth: true,
   };
 }

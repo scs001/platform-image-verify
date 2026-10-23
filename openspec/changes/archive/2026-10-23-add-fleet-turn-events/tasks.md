@@ -24,4 +24,4 @@
 
 - [x] 5.1 `scripts/test-fleet-turn-events.mjs` 全绿(1.x/2.x/3.x 用例 + 三路径与零扰动)
 - [x] 5.2 既有舰队套件全量回归零新增红;`openspec validate add-fleet-turn-events` 通过
-- [ ] 5.3 出片(server/ 有改动)与真机验收:构造一次失败回合,驾驶舱见失败状态与原因;台账补记
+- [x] 5.3 出片(server/ 有改动)与真机验收:构造一次失败回合,驾驶舱见失败状态与原因;台账补记

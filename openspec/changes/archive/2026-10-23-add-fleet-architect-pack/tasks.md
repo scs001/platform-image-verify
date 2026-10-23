@@ -19,4 +19,4 @@
 
 - [x] 4.1 `scripts/test-fleet-architect.mjs` 全绿(1.x/2.x 用例 + draft 不落库 + apply 漂移拒 + create 生而暂停 + edit 幂等)
 - [x] 4.2 既有舰队七套(含 turn-events)回归零新增红;`openspec validate add-fleet-architect-pack` 通过
-- [ ] 4.3 出片与真机验收(与 add-fleet-turn-events、post-model 归档终验**同列车**,用户已定攒车):装 pack→对话建一支三岗舰队→驾驶舱确认启动全链;台账补记
+- [x] 4.3 出片与真机验收(与 add-fleet-turn-events、post-model 归档终验**同列车**,用户已定攒车):装 pack→对话建一支三岗舰队→驾驶舱确认启动全链;台账补记

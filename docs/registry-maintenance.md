@@ -1562,3 +1562,13 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **功能一句话**：岗位/舰队两级模型声明（`fleet_members.model/fallback_model` + `fleets.default_model`），每个 persona 回合按 [岗位首选→岗位兜底→舰队默认→cell 启动默认] 解析链归位（与 preset 同构，不沾上一回合残留）；声明失效选型时回落并留痕（blockers+usage 记实际模型），a2a/集群岗设模型 400 明拒；驾驶舱岗位卡显示生效模型（失效回落琥珀色）。
 
 **§15.15 补记：幽灵岗修复出片全记录（2026-10-23 下午）**：①首滚 **sha-2d99a05/digest 655e0dcb 为陈树快照事故重演**——fd-build-snapshot 对本地源路径「标签 sha 读本地 HEAD、树却从 origin clone」，当时 origin（GitHub fd-craw-private）停在 3e7e9a5f 未含修复（我的 7325d1fc 尚未推送），镜像实为 post-model 内容；**判据=风控回合读容器源码自证无 Ghost-post guard**（agent 直读部署源码诊断生产，行为面金标）；台账既有纪律「出片必核 pool tree 含新文件」本次漏用，已补核。②重出 **sha-94bb331/digest f71dc49d**（源 3ecf3a03，快照树先验 Ghost-post guard×2 再出片）三面滚完 imageID 相等。③生产复验闭环：one-shot 绑定 preset 派发 facet-assistant→report_status→**投研风控岗 risk_flags=6 上卡**（归岗唯一命中，幽灵岗不再撞）。④**第三次发现：UI 追问 cron 会话不重绑原 preset**——在「风控官（派发唤醒）」会话里追问，回合以当值 CEO 人格（company-ceo preset）跑、报数落到活体公司 CEO 岗（patrol_notes 上卡/risk_flags 进 details）——cron 会话的 UI 续聊 preset 语义待定（挂 v2；绑定 preset 的正道=one-shot 派发或原节奏火）。⑤列车撞车实录：并行会话 13:11 已快照 3e7e9a5f 并 13:4x 滚 sha-2d941ac，本列超源滚动 94bb331 承运其全部内容。**教训固化：出片三核=run target 行+快照树含新代码+pod imageID；本地提交未推 origin 前严禁依赖 fd-build-snapshot 本地路径模式**。
+
+### §15.17 发布记录：编排三刀同车（add-fleet-turn-events / add-fleet-architect-pack / add-turn-contract，2026-10-23 深夜）
+
+**列车**：paas 基线 `97d5d608`（九套舰队回归 100/0）→ 公开快照线 scs001/platform-image-verify `45eb6f1`（restore 提交即出片 sha；**image-publish.yml 又被快照冲掉，本次旧 ref/dangling 取不回，用 paas 仓 image.yml 原样恢复**——恢复源第三通道）→ GHA 绿 → relay 手动补单 3s OK → skopeo 硬门 digest `dd960039` → GitOps `72a8471` 双清单滚 platform/platform-demo → ArgoCD 硬刷新 rollout 全成；pod imageID=`sha-45eb6f1`。
+
+**验收（真机,活 cell 1da519d4/13 舰 44 岗）**：①O1 双路径生产实证——delegation 唤醒（回环真派 company-invest,自派拒绝场景顺带复验）落 `delegation ok model=deepseek-v4.1-flash`（无 sourceTag 归属走 persona 扫描）;22:00 CEO cron 火落 `cron failed error="503 Service temporarily unavailable" model=poolside/laguna-xs-2.1:free`,驾驶舱 roster `failing=1` 即时可见。②**post-model 终验闭环**：模型声明岗（公司式舰队 CEO）真实回合落地声明模型 `poolside/laguna-xs-2.1:free`（§15.16 挂账清账；回合因免费档上游 503 如实失败,与归位无关）。③架构师桥活体——cell 回环 `/api/fleet-architect` 名册（memberCount/openDecisions/failing）+ turns 过滤读面全字段;turn-contract 模块 in-pod 派生与保留位拒绝实证。④空 cell 惰性开库未触新表属预期（0 舰队,下次打开自动迁移）。
+
+**功能一句话**：O1 回合事件（三路径收口 runCronJobTurn、errorKind 六类、200/岗滚动裁剪、驾驶舱失败维度与连续失败标记、双读端点）;架构师 pack（壹座 NL 编译面五工具:draft dry-run 校验+diff+token 成本预估、apply 重校验挡漂移、create 生而全队暂停;官方种子七纪律;mcp.example.json 注册,**节点 mcp.json 需手工加 fleet-architect 条目**）;turnRequest 契约（buildTurnRequest 纯派生单一定源、peer/event/blackboard 按 O3/O4/O5 去向指名拒绝、depth 界 1）。
+
+**待办**：①errorKind 校准首例——上游 5xx/`api_error` 现落 `other`,应归 `model_upstream`（表驱动单点改,随下一列车）;②架构师种子铸造上架 + 活体 NL 建队全链验收;③节点 mcp.json 加 fleet-architect 条目（工具面激活,桥与事件面已活）。

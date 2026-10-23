@@ -565,6 +565,38 @@ test("renderFleetIdentity: four fields, credential-free", () => {
   assert.ok(!/token|key|secret|Bearer/i.test(line), "identity carries no credential");
 });
 
+test("routes: ghost posts of archived fleets exit attribution (0030e1e8 family)", async () => {
+  // A persona swapped into a DISSOLVED fleet's post keeps a member row. That
+  // ghost must not collide with its live post: report attribution (and the
+  // same candidate set escalate rides) resolves to the LIVE post alone.
+  const universe = { "persona-a": { name: "甲" } };
+  const live = fixtureFleet(fleetDb, "活舰队");
+  const livePost = fixtureMember(fleetDb, live.id, { title: "真岗", kpiSlots: [{ key: "risk_flags", label: "风险提示" }] });
+  const ghostFleet = fixtureFleet(fleetDb, "已解散舰队");
+  fixtureMember(fleetDb, ghostFleet.id, { title: "幽灵岗", targetId: "persona-a" });
+  fleetDb.updateFleet(ghostFleet.id, { state: "archived" });
+
+  chatHistory.setSessionManager({ getSessionId: () => "sess-ghost" });
+  const { server, call } = await startServer({
+    authEnabled: false,
+    cellUserEmail: "owner@test",
+    currentPreset: "persona-a",
+    fleetTargetResolver: (m) => ({ alive: !!universe[m.targetId], label: m.targetId, clusterName: null }),
+  });
+  try {
+    const r = await call("POST", "/api/fleets/report", {
+      summary: "幽灵岗不应造成歧义",
+      metrics: { risk_flags: { value: 6 } },
+    });
+    assert.equal(r.status, 201, JSON.stringify(r.body));
+    assert.equal(r.body.memberTitle, "真岗");
+    assert.deepEqual(r.body.slotsAccepted, ["risk_flags"]);
+    assert.equal(fleetDb.listReports(livePost.id).length, 1);
+  } finally {
+    server.close();
+  }
+});
+
 // A ctx whose stub bridge closes the turn immediately — enough to drive the
 // REAL runPersonaTurn and inspect the prompt it dispatched.
 function identityCtx(resolveFleetIdentity) {

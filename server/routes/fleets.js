@@ -326,6 +326,10 @@ export function createFleetRoutes(app, ctx = null) {
 
       const personaMembers = [];
       for (const f of db.listFleets()) {
+        // Ghost-post guard (0030e1e8 family): a dissolved fleet's posts exit
+        // attribution — a persona swapped into a walkthrough fleet's post must
+        // not collide with its live post and wedge report/escalate with 409s.
+        if (f.state === "archived") continue;
         for (const m of db.listMembers(f.id)) {
           if (m.targetKind === "persona") personaMembers.push(m);
         }
@@ -598,6 +602,10 @@ export function createFleetRoutes(app, ctx = null) {
 
       const personaMembers = [];
       for (const f of db.listFleets()) {
+        // Ghost-post guard (0030e1e8 family): a dissolved fleet's posts exit
+        // attribution — a persona swapped into a walkthrough fleet's post must
+        // not collide with its live post and wedge report/escalate with 409s.
+        if (f.state === "archived") continue;
         for (const m of db.listMembers(f.id)) {
           if (m.targetKind === "persona") personaMembers.push(m);
         }

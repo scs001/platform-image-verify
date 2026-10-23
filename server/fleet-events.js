@@ -31,7 +31,7 @@ const ERROR_KIND_PATTERNS = [
   ["runtime_not_ready", /not ready|still starting|stayed busy|could not switch the agent|runtime.*(busy|idle)|未就绪/i],
   ["timeout", /timeout|timed? ?out|超时/i],
   ["tool_permission", /permission|denied|forbidden|not authorized|unauthorized|403|工具|权限/i],
-  ["model_upstream", /no runnable model|model switch|invalid model|429|quota|rate.?limit|provider|upstream|api.?key|上游|模型/i],
+  ["model_upstream", /no runnable model|model switch|invalid model|429|quota|rate.?limit|provider|upstream|api.?key|api_error|service temporarily unavailable|5\d{2}\s*:|上游|模型/i],
   ["business_refused", /refused|rejected by policy|业务拒绝|拒绝执行/i],
 ];
 

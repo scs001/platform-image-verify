@@ -176,6 +176,8 @@ test("classifyErrorKind: ordered table, one probe per kind, other floor", () => 
   assert.equal(classifyErrorKind("tool call denied: not authorized"), "tool_permission");
   assert.equal(classifyErrorKind("no runnable model for this post"), "model_upstream");
   assert.equal(classifyErrorKind("429 quota exceeded at provider"), "model_upstream");
+  // Calibration first case from prod (§15.17 待办①): upstream 503 / api_error
+  assert.equal(classifyErrorKind('503: {"message":"Service temporarily unavailable","type":"api_error"}'), "model_upstream");
   assert.equal(classifyErrorKind("该操作被业务拒绝执行"), "business_refused");
   assert.equal(classifyErrorKind(" совершенно неизвестная ошибка "), "other");
   assert.equal(classifyErrorKind(""), "other");

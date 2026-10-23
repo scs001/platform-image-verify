@@ -294,3 +294,90 @@ test("seed: docs/fleet-architect.seed.json passes pack manifest validation", () 
   const errors = validatePackManifest(seed);
   assert.deepEqual(errors, [], `seed must stay valid: ${JSON.stringify(errors)}`);
 });
+
+// ── 6. orchestration edges (add-fleet-architect-edges) ─────────────────────
+
+test("edges: same-draft posts are referenceable; cycle and unknown refs block", () => {
+  const okEdge = validateFleetDraft(fleetDb, {
+    mode: "create",
+    fleet: { name: "流水线", orchestration: { mode: "pipeline", edges: [{ kind: "handoff", from: "draft-1", to: "draft-2" }] } },
+    members: [
+      baseAdd({ targetId: "persona-b", cadence: { cron: "0 9 * * *", tz: null, promptTemplate: "抓" } }),
+      baseAdd({ targetId: "persona-c", cadence: null }),
+    ],
+  }, { resolver });
+  assert.equal(okEdge.ok, true, JSON.stringify(okEdge.errors));
+  assert.equal(okEdge.orchestration.edges.length, 1);
+
+  const cyc = validateFleetDraft(fleetDb, {
+    mode: "create",
+    fleet: { name: "环", orchestration: { edges: [
+      { kind: "handoff", from: "draft-1", to: "draft-2" },
+      { kind: "handoff", from: "draft-2", to: "draft-1" },
+    ] } },
+    members: [baseAdd(), baseAdd({ targetId: "persona-b" })],
+  }, { resolver });
+  assert.equal(cyc.ok, false);
+  assert.ok(cyc.errors.some((e) => e.error.includes("cycle")), JSON.stringify(cyc.errors));
+
+  const ghost = validateFleetDraft(fleetDb, {
+    mode: "create",
+    fleet: { name: "幽灵边", orchestration: { edges: [{ kind: "handoff", from: "draft-1", to: "nope" }] } },
+    members: [baseAdd()],
+  }, { resolver });
+  assert.equal(ghost.ok, false);
+  assert.ok(ghost.errors.some((e) => e.error.includes("orchestration") && e.error.includes("nope")));
+
+  // supervisor diff hint
+  const sup = validateFleetDraft(fleetDb, {
+    mode: "create",
+    fleet: { name: "主管式", orchestration: { mode: "supervisor" } },
+    members: [baseAdd()],
+  }, { resolver });
+  assert.equal(sup.ok, true);
+  assert.ok(sup.orchestration.implicitDispatch.includes("supervisor"));
+});
+
+test("edges: apply mints real ids (create), edit carries the section, section-less edit leaves it alone, drift blocks", async () => {
+  // create with an edge between two draft posts
+  const created = await applyFleetDraft(fleetDb, {
+    mode: "create",
+    fleet: { name: "流水线舰", orchestration: { edges: [{ kind: "handoff", from: "draft-1", to: "draft-2" }] } },
+    members: [
+      baseAdd({ targetId: "persona-b", cadence: { cron: "0 9 * * *", tz: null, promptTemplate: "抓" } }),
+      baseAdd({ targetId: "persona-c", cadence: null }),
+    ],
+  }, { ownerEmail: "owner@test", resolver });
+  assert.equal(created.ok, true);
+  const stored = fleetDb.getFleet(created.fleet.id).orchestration;
+  const ids = created.members.map((m) => m.id);
+  assert.deepEqual(stored.edges, [{ kind: "handoff", from: ids[0], to: ids[1] }], "draft refs swapped for minted ids");
+
+  // edit WITHOUT a section: existing orchestration untouched
+  const noSection = await applyFleetDraft(fleetDb, {
+    mode: "edit", fleetId: created.fleet.id,
+    members: [{ op: "update", ref: ids[0], title: "抓取组" }],
+  }, { ownerEmail: "owner@test", resolver });
+  assert.equal(noSection.ok, true);
+  assert.deepEqual(fleetDb.getFleet(created.fleet.id).orchestration, stored, "section-less edit never clears edges");
+
+  // edit WITH a section: replaces it
+  const withSection = await applyFleetDraft(fleetDb, {
+    mode: "edit", fleetId: created.fleet.id,
+    fleet: { orchestration: { mode: "supervisor" } },
+    members: [],
+  }, { ownerEmail: "owner@test", resolver });
+  assert.equal(withSection.ok, true);
+  assert.equal(fleetDb.getFleet(created.fleet.id).orchestration.mode, "supervisor");
+
+  // drift: draft references a post that vanishes before apply
+  fleetDb.deleteMember(ids[1]);
+  const drifted = await applyFleetDraft(fleetDb, {
+    mode: "edit", fleetId: created.fleet.id,
+    fleet: { orchestration: { edges: [{ kind: "handoff", from: ids[0], to: ids[1] }] } },
+    members: [],
+  }, { ownerEmail: "owner@test", resolver });
+  assert.equal(drifted.ok, false);
+  assert.equal(drifted.stage, "revalidation");
+  assert.ok(drifted.errors.some((e) => e.error.includes("orchestration")));
+});

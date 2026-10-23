@@ -112,6 +112,16 @@ function renderDraft(out) {
       .join(", ");
     lines.push(`- [${d.op}]${d.ref ? ` ${d.ref}` : ""} ${d.title ?? ""}${changes ? `: ${changes}` : ""}${(d.warnings ?? []).length ? ` ⚠ ${d.warnings.join("; ")}` : ""}`);
   }
+  if (out.orchestration) {
+    const o = out.orchestration;
+    lines.push(`- [orchestration] mode: ${o.mode ?? "(none)"}`);
+    if (o.implicitDispatch) lines.push(`  · ${o.implicitDispatch}`);
+    if (o.constraints) lines.push(`  · constraints: ${JSON.stringify(o.constraints)}`);
+    for (const e of o.edges ?? []) {
+      const args = e.args !== undefined ? ` args=${JSON.stringify(e.args).slice(0, 60)}` : "";
+      lines.push(`  · [${e.kind}] ${e.from ?? "(cron)"} → ${e.to}${args}`);
+    }
+  }
   if (out.estimate) {
     const est = out.estimate;
     lines.push(

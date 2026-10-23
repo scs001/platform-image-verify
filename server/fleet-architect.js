@@ -22,6 +22,7 @@ import { reconcileFleet, cronPeriodMs } from "./fleet-reconcile.js";
 import { splitToolTarget } from "./tool-turn.js";
 import { rosterPresetId } from "../dsh-profile.js";
 import { MODEL_ID_RE } from "../lib/pack-manifest.js";
+import { validateOrchestration } from "./fleet-orchestration.js";
 import * as cron from "../cron.js";
 
 // ── tuning knobs (read per call, pack-policy convention) ────────────────────
@@ -281,12 +282,54 @@ export function validateFleetDraft(db, draft, { resolver = resolveFleetTarget } 
     }
   }
 
+  // Orchestration section (add-fleet-architect-edges D1): validate over the
+  // VIRTUAL FINAL member set — posts added in this same draft are reference-
+  // able by edges. The graph rules live in fleet-orchestration (the same
+  // function the REST write face uses); this only feeds it the final state.
+  const orch = draft.fleet?.orchestration ?? null;
+  let orchView = null;
+  if (orch != null) {
+    const finalForGraph = finalMembers ?? existing;
+    const check = validateOrchestration({ members: finalForGraph, orchestration: orch });
+    for (const e of check.errors) errors.push({ error: `orchestration: ${e.error}` });
+    warnings.push(...check.warnings);
+    // Read view for the diff: mode + constraints + edges, supervisor's
+    // implicit grant called out (never stored expanded).
+    orchView = {
+      mode: orch.mode ?? null,
+      constraints: orch.constraints ?? null,
+      edges: orch.edges ?? [],
+      implicitDispatch: orch.mode === "supervisor" ? "supervisor mode: every post may dispatch to every other post (implicit, not stored)" : null,
+    };
+  }
+
   const estimate = estimateFleetCost(draft, { existing, newPostCount });
-  return { ok: errors.length === 0, errors, warnings, diff, estimate };
+  return { ok: errors.length === 0, errors, warnings, diff, orchestration: orchView, estimate };
 }
 
 function byRefTitle(members, id) {
   return members.find((m) => m.id === id)?.title ?? id;
+}
+
+// draft-<n> → minted id: through a ref (parent/edge endpoint), pass-through
+// for real ids and null.
+function remapRef(ref, idMap) {
+  if (typeof ref !== "string") return ref ?? null;
+  return idMap.get(ref) ?? ref;
+}
+
+// Swap every draft-<n> reference in an orchestration section for the minted
+// member ids (edge endpoints only — args are opaque to this layer).
+function remapOrchestration(orchestration, idMap) {
+  if (!orchestration?.edges?.length || idMap.size === 0) return orchestration;
+  return {
+    ...orchestration,
+    edges: orchestration.edges.map((e) => ({
+      ...e,
+      ...(e.from !== undefined ? { from: remapRef(e.from, idMap) } : {}),
+      ...(e.to !== undefined ? { to: remapRef(e.to, idMap) } : {}),
+    })),
+  };
 }
 
 function diffEntry(op, cadence, opWarnings) {
@@ -302,14 +345,19 @@ function diffEntry(op, cadence, opWarnings) {
 
 // Apply the draft's member ops onto the existing list WITHOUT touching the
 // db — the shape the tree checks reason over. Returns null when an op was
-// structurally unusable (already reported as an error above).
+// structurally unusable (already reported as an error above). Add ops get
+// DETERMINISTIC ids `draft-<n>` (n = add order, 1-based): edges and parentIds
+// may reference them, and apply swaps them for the minted ids with the same
+// counting — one bridge, one place (add-fleet-architect-edges D1).
 function virtualApply(existing, ops, errors) {
   const members = existing.map((m) => ({ ...m }));
+  let addSeq = 0;
   for (const op of ops ?? []) {
     if (!op || typeof op !== "object" || !OPS.includes(op.op)) continue;
     if (op.op === "add") {
+      addSeq += 1;
       members.push({
-        id: `@draft-${op.title ?? "post"}`,
+        id: `draft-${addSeq}`,
         title: op.title ?? "(untitled)",
         parentId: op.parentId ?? null,
         targetKind: op.targetKind,
@@ -404,12 +452,19 @@ export async function applyFleetDraft(db, draft, { ownerEmail, resolver = resolv
       // the owner confirms structure before anything fires.
       db.createFleet({ id: fleetId, name: draft.fleet.name, ownerEmail, state: "paused", defaultModel: draft.fleet.defaultModel ?? null });
       let sortKey = now;
+      let addSeq = 0;
+      const idMap = new Map(); // draft-<n> → minted id (same counting as virtualApply)
       for (const op of draft.members) {
+        const minted = `m_${now}_${Math.random().toString(36).slice(2, 8)}`;
+        if (op.op === "add") {
+          addSeq += 1;
+          idMap.set(`draft-${addSeq}`, minted);
+        }
         db.createMember({
-          id: `m_${now}_${Math.random().toString(36).slice(2, 8)}`,
+          id: minted,
           fleetId,
           title: op.title,
-          parentId: op.parentId ?? null,
+          parentId: remapRef(op.parentId ?? null, idMap),
           targetKind: op.targetKind,
           targetId: op.targetId,
           kpiSlots: [],
@@ -419,6 +474,9 @@ export async function applyFleetDraft(db, draft, { ownerEmail, resolver = resolv
           sortKey: sortKey++,
         });
       }
+      if (draft.fleet?.orchestration != null) {
+        db.updateFleet(fleetId, { orchestration: remapOrchestration(draft.fleet.orchestration, idMap) });
+      }
       const reconcile = await reconcileFleet({ fleetId, db, cronApi, resolveTarget: resolver, rosterPresetId: roster });
       return { ok: true, mode: "create", fleet: db.getFleet(fleetId), members: db.listMembers(fleetId), reconcile, started: false };
     }
@@ -426,13 +484,18 @@ export async function applyFleetDraft(db, draft, { ownerEmail, resolver = resolv
     // edit: sequential ops, stop on first failure (already-written ops stand;
     // reconcile is idempotent and converges on the next pass).
     const applied = [];
+    let editAddSeq = 0;
+    const idMap = new Map(); // draft-<n> → minted id (same counting as virtualApply)
     for (const op of draft.members) {
       if (op.op === "add") {
+        editAddSeq += 1;
+        const minted = `m_${now}_${Math.random().toString(36).slice(2, 8)}`;
+        idMap.set(`draft-${editAddSeq}`, minted);
         const m = db.createMember({
-          id: `m_${now}_${Math.random().toString(36).slice(2, 8)}`,
+          id: minted,
           fleetId,
           title: op.title,
-          parentId: op.parentId ?? null,
+          parentId: remapRef(op.parentId ?? null, idMap),
           targetKind: op.targetKind,
           targetId: op.targetId,
           kpiSlots: [],
@@ -472,6 +535,12 @@ export async function applyFleetDraft(db, draft, { ownerEmail, resolver = resolv
       if (draft.fleet?.name) fleetUpdates.name = draft.fleet.name;
       if (draft.fleet?.defaultModel !== undefined) fleetUpdates.defaultModel = draft.fleet.defaultModel ?? null;
       if (Object.keys(fleetUpdates).length) db.updateFleet(fleetId, fleetUpdates);
+    }
+    // Orchestration rides only when the draft carries it — a section-less
+    // draft NEVER clears existing edges implicitly (clearing = explicit empty
+    // edges, or post deletion's cascade).
+    if (draft.fleet?.orchestration != null) {
+      db.updateFleet(fleetId, { orchestration: remapOrchestration(draft.fleet.orchestration, idMap) });
     }
     const reconcile = await reconcileFleet({ fleetId, db, cronApi, resolveTarget: resolver, rosterPresetId: roster });
     return { ok: true, mode: "edit", fleet: db.getFleet(fleetId), members: db.listMembers(fleetId), reconcile, applied };

@@ -1588,3 +1588,9 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **缺陷实录（验收逮住即修）**：①dispatch 桥 loopback 豁免缺失（阻断级,本班修复重出）;②turnRequest source 派生顺序——origin.fleet 抢先于 initiator,派发回合被标 `manual` 应为 `delegation`（initiator 优先已修入库 `§15.18 后续`,**随下一班列车**,非阻断——事件全记、归属正确,仅 source 标签偏差）;③websearch 工具名为 `web_search` 非 `search`（验收配置错,非代码）。
 
 **功能一句话**：orchestration 声明段（edges×constraints,图校验：无环/链深/span,成员删连带清边,mode 读时展开 supervisor=隐式全对派发许可）+ dispatch_post 工具（五护栏,delegation 车道异步送达）+ handoff 完成触发（ok/failed 均如实转述,越界留痕）+ T1 工具岗（targetKind=tool,JSON 参数,零 token 确定性调用,cron/manual 双车道,预估器 tokens=0 分流）。
+
+### §15.19 补记：舰队架构师 pack 上架（2026-10-24 凌晨,§15.17/18 待办③清账）
+
+**铸造上架**（§15.15 通道 A 同配方）:manifest=种子+`category:"fleet"`+v1.0.0,本地 validatePackManifest 绿 → `POST https://facet.finddatatech.cloud/api/packs`（x-facet-token + x-facet-user aloadtree/creators;**发布端点真身=facet 域 `/api/packs`,非 platform/mcp 域——两域各 401 一次才定位,记此免三犯**）→ 200 `NoBBXkvxZnJNHlCrAwWp-w` v1。舰队类目 6 卡眼见(公司+四模板+架构师)。一次性脚本与内部凭据用后即删。
+
+**待用户侧验收**(浏览器一眼):壹座 → 设置 → 功能集 → 安装「舰队架构师」→ 与架构师人格对话建一支测试舰队(工具面已 bundled 全 persona 活,包只差纪律人格;draft/apply 桥面生产已验)。

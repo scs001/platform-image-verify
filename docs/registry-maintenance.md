@@ -1671,3 +1671,9 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **边图(add-cockpit-edge-graph,6b2250dd)**:FleetGraph 纯 SVG 组件(分层有向图/类型色贝塞尔边+箭头图例/定时与事件虚拟源节点/隐式许可不画边只显聚合条/回边曲线不参与分层),编排区图主位+文字列表保留;五语言。typecheck+回归 38/0,**浏览器眼见随下班车镜像**。
 
 **event 真-bot E2E(6d576b90)**:真 Express+真 bots 模块+**真 webhook HTTP 面**——飞书形状入站消息全链:verify→parse→守卫→真 triggerFleetEventWake→引擎 manual 任务(origin.event+origin.fleet 双段、roster 映射、发送者入 brief)→runCronJobTurn 缝→**O1 落库 source=event**;无边缘 bot 消息零扰钉死(test-bots-event-wake 2/2)。**生产侧 E2E 受阻如实记**:bot 创建需 Logto 组 platform-admin,当前会话用户无此组——不擅改他人权限;机制链已由真-HTTP 面钉死,生产补验待管理员账号侧一次配置(配方:feishu 哑出站凭据即可,入站验签项可选)。另:浏览器侧验收舰队残留已归档清理。
+
+### §15.23 发布记录：驾驶舱编排图（add-cockpit-edge-graph，2026-10-24 上午）
+
+**列车**：paas `8165ef95` → 快照 `53e9cdc`（image 绿）→ relay OK → digest `baeb9f2c` → GitOps `96c34dc` 双面滚（二刷落定）。
+
+**验收（浏览器真机）**：柏讯内容舰队（活用户 cell）声明一条 event 边后，编排区**分层有向图眼见**——事件源虚拟节点 bot:wire-ops → 巡线岗，类型色边+图例，未连岗照常为孤立节点；截图存证。**验收后已还原**（该舰队 orchestration 置 null——是别人生产在用的舰队，验收边不遗留）。深链 `/fleets/<id>` 直选舰队可用（列表点击切换的老问题绕开）。

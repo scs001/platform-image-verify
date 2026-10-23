@@ -86,7 +86,7 @@ const TOOLS = [
       properties: {
         fleetId: { type: "string" },
         status: { type: "string", enum: ["ok", "failed", "interrupted"] },
-        source: { type: "string", enum: ["cron", "manual", "delegation"] },
+        source: { type: "string", enum: ["cron", "manual", "delegation", "event"] },
         limit: { type: "number", description: "Max events, default 50" },
       },
       required: ["fleetId"],

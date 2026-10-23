@@ -11,10 +11,9 @@
 // Field mapping is facts-only (design D2): every value below already exists
 // somewhere in the engine record or the bridges — this module just names it.
 
-export const SOURCES = ["cron", "manual", "delegation"];
+export const SOURCES = ["cron", "manual", "delegation", "event"];
 export const RESERVED_SOURCES = {
   peer: "fleet dispatch (O3) — the dispatch lane is not built yet",
-  event: "event-driven wake (O4) — no event source is bound yet",
 };
 export const RESULT_SINKS = ["report", "caller"];
 export const RESERVED_RESULT_SINKS = {
@@ -34,18 +33,24 @@ export function buildTurnRequest(job) {
   const sourceTag = job?.sourceTag ?? null;
   const origin = job?.origin ?? null;
   const initiator = job?.initiator ?? null;
-  // Initiator outranks origin: a dispatched turn carries BOTH (the target's
-  // origin.fleet evidence and the dispatcher's session) and IS a delegation
-  // wake; origin.fleet alone (no initiating conversation) is the execute-now
-  // lane. Found live on prod (§15.18): the old order mislabeled dispatches.
+  const event = origin?.event ?? null;
+  // Event wakes (add-fleet-event-wake) outrank everything: an external
+  // signal source (bot inbound) originated the turn, depth 0 by definition.
+  // Initiator then outranks origin: a dispatched turn carries BOTH (the
+  // target's origin.fleet evidence and the dispatcher's session) and IS a
+  // delegation wake; origin.fleet alone (no initiating conversation) is the
+  // execute-now lane. Found live on prod (§15.18): the old order mislabeled
+  // dispatches.
   const source =
     job?.trigger === "schedule" || sourceTag?.fleetId
       ? "cron"
-      : initiator
-        ? "delegation"
-        : origin?.fleet?.fleetId
-          ? "manual"
-          : "manual";
+      : event?.botId
+        ? "event"
+        : initiator
+          ? "delegation"
+          : origin?.fleet?.fleetId
+            ? "manual"
+            : "manual";
   return {
     source,
     targetRef: { kind: job?.targetType ?? "persona", id: job?.preset ?? null },
@@ -54,14 +59,16 @@ export function buildTurnRequest(job) {
       ...(sourceTag ? { sourceTag } : {}),
       ...(origin ? { origin } : {}),
       ...(initiator ? { initiator } : {}),
+      ...(event ? { event } : {}),
     },
     // The delegation aggregator delivering a summary back into the initiating
     // conversation is an existing fact — this names it, it does not add it.
     resultSink: initiator ? "caller" : "report",
     // Outbound a2a turns carry depth 1 today (a2a-client's
     // X-Delegation-Depth baseline); dispatch/handoff tasks stamp their chain
-    // position in origin.fleet.depth (absent = 0, byte-identical to before).
-    depth: job?.origin?.fleet?.depth ?? (job?.targetType === "a2a" ? 1 : 0),
+    // position in origin.fleet.depth (absent = 0, byte-identical to before);
+    // event wakes are external-origin by definition — depth 0.
+    depth: event?.botId ? 0 : job?.origin?.fleet?.depth ?? (job?.targetType === "a2a" ? 1 : 0),
     budget: Number.isFinite(job?.executionPolicy?.timeoutMinutes)
       ? { minutes: job.executionPolicy.timeoutMinutes }
       : null,

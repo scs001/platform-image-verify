@@ -69,6 +69,7 @@ import { buildFleetContext } from "./server/fleet-context.js";
 import { derivedReportFromTask, fleetIdentityFor, fleetModelFor } from "./server/fleet-reports.js";
 import { recordTurnEvent } from "./server/fleet-events.js";
 import { outgoingHandoffs, outgoingFanouts, constraintsOf } from "./server/fleet-orchestration.js";
+import { triggerFleetEventWake } from "./server/fleet-event-wake.js";
 import * as engine from "./task-engine.js";
 import { renderDecisionSegment } from "./server/fleet-decisions.js";
 import { rosterPresetId } from "./dsh-profile.js";
@@ -987,6 +988,17 @@ ctx.recordFleetTurnEvent = (job, outcome, meta) => {
   } catch (e) {
     console.warn(`[fleets] turn event record failed: ${e?.message || e}`);
     return null;
+  }
+};
+
+// Event wake (add-fleet-event-wake): bots.js calls this after its inbound
+// guards; optional-chained there, so its absence degrades to nothing.
+ctx.triggerFleetEventWake = (botId, meta) => {
+  try {
+    return triggerFleetEventWake({ db: getFleetDatabase(), engine, roster: rosterPresetId }, botId, meta);
+  } catch (e) {
+    console.warn(`[fleets] event wake failed for bot ${botId}: ${e?.message || e}`);
+    return [];
   }
 };
 

@@ -5,7 +5,7 @@
 //     cron fleet post / plain non-fleet cron (schedule trigger, no tag) /
 //     execute-now origin / delegation initiator (resultSink=caller) / a2a
 //     (depth 1) / plain manual / budget + evidence pass-through
-//   - assertTurnRequest: reserved sources (peer→O3, event→O4) and reserved
+//   - assertTurnRequest: reserved source (peer→O3) fails with the destination
 //     sink (blackboard→O5) fail structurally WITH the destination named;
 //     depth bound 1; legal values pass
 //   - single derivation source: turnSourceFor and recordTurnEvent's event
@@ -160,8 +160,10 @@ test("derive: budget passes through executionPolicy; pure — no IO observed", (
 test("assertTurnRequest: reserved values fail with their destination named", () => {
   const peer = assertTurnRequest({ source: "peer", resultSink: "report", depth: 0 });
   assert.ok(peer.error.includes("O3"), "peer names the dispatch destination");
+  // event UNRESERVED (add-fleet-event-wake): a legal source now — only peer
+  // remains reserved. The old refusal assertion flipped to a legality one.
   const event = assertTurnRequest({ source: "event", resultSink: "report", depth: 0 });
-  assert.ok(event.error.includes("O4"), "event names the event-driven destination");
+  assert.equal(event, null, "event is a legal source since the bot-inbound binding");
   const bb = assertTurnRequest({ source: "cron", resultSink: "blackboard", depth: 0 });
   assert.ok(bb.error.includes("O5"), "blackboard names the shared-state destination");
 

@@ -634,7 +634,7 @@ export function registerFleetArchitectRoutes(ctx) {
       if (status && !["ok", "failed", "interrupted"].includes(status)) {
         return res.status(400).json({ error: "status must be one of ok|failed|interrupted" });
       }
-      if (source && !["cron", "manual", "delegation"].includes(source)) {
+      if (source && !["cron", "manual", "delegation", "event"].includes(source)) {
         return res.status(400).json({ error: "source must be one of cron|manual|delegation" });
       }
       const limit = Math.min(Number(req.query.limit) || 50, 100);

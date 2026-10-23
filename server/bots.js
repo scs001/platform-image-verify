@@ -435,6 +435,17 @@ export async function handleMessage(botId, { chatKey, senderName, text }) {
     return;
   }
 
+  // Fleet event wake (add-fleet-event-wake): a declared event edge turns this
+  // inbound message into a post's manual turn. Optional-chained — no fleet
+  // face (or old deployment) means zero disturbance. The bot's own turn below
+  // is untouched: the dual-turn is the edge owner's declared choice.
+  try {
+    const woken = state.ctx?.triggerFleetEventWake?.(botId, { chatKey, senderName, text });
+    if (Array.isArray(woken) && woken.length) {
+      console.log(`[bots] "${bot.name}" message woke ${woken.length} fleet post(s): ${woken.map((w) => w.memberId).join(",")}`);
+    }
+  } catch { /* the wake's own guard already logged; the chat turn proceeds */ }
+
   const sessionId = sessionIdFor(botId, chatKey);
   // A question waiting in this chat? The message is its answer attempt, not a
   // new turn (add-user-questions). The guards above still applied — answering

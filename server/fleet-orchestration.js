@@ -11,8 +11,9 @@
 //
 // Wave 1 is a DAG: handoff cycles (bounded rounds) belong to wave 2's fanout.
 
-export const EDGE_KINDS = ["trigger", "report", "dispatch", "handoff", "fanout"];
+export const EDGE_KINDS = ["trigger", "report", "dispatch", "handoff", "fanout", "event"];
 export const FANOUT_ROUNDS_MAX = 3;
+export const EVENT_SOURCE_RE = /^bot:[A-Za-z0-9][A-Za-z0-9._-]*$/;
 export const MODES = ["schedule", "supervisor", "pipeline"];
 
 export const DEFAULT_MAX_CHAIN_DEPTH = 8;
@@ -92,9 +93,22 @@ export function validateOrchestration({ members = [], orchestration = null } = {
     }
     for (const ref of ["from", "to"]) {
       if (ref === "from" && e.kind === "trigger") continue; // trigger edges hang off the cron, not a post
+      if (ref === "from" && e.kind === "event") continue; // event sources are external (bot:<id>) — shape-checked below
       if (ref === "to" && e.kind === "fanout") continue; // fanout addresses `targets`, not `to`
       if (typeof e[ref] !== "string" || !known.has(e[ref])) {
         errors.push({ error: `${at}.${ref} '${e[ref]}' does not match a member of this fleet`, entry: at });
+      }
+    }
+    if (e.kind === "event") {
+      // Event edges (add-fleet-event-wake): an external signal source wakes
+      // a post. Existence of the bot is judged at run time honestly (the
+      // registry is runtime state); the SHAPE is pinned here.
+      if (typeof e.from !== "string" || !EVENT_SOURCE_RE.test(e.from)) {
+        errors.push({ error: `${at}.from must be an external source name like 'bot:<botId>'`, entry: at });
+      }
+      const target = members.find((m) => m.id === e.to);
+      if (target && target.targetKind !== "persona" && target.targetKind !== "a2a") {
+        errors.push({ error: `${at}.to must be a persona/a2a post — cluster has no manual lane and tool posts take per-hop args`, entry: at });
       }
     }
     if (e.kind === "handoff" && e.from === e.to) {

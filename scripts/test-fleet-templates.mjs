@@ -459,13 +459,47 @@ test("from-template route: conflict surfaces, sentinel reads vacant, swap staffs
   }
 });
 
-// ── official seed template (4.2, local half) ────────────────────────────────
+// ── official seed library conservation (add-fleet-template-library) ────────
+// Every seed under docs/fleet-templates/ is the manifest source of truth for a
+// market-published pack. Rot (an illegal fleet section) must fail HERE, naming
+// the offending file — not surface at casting time on the market side.
 
-test("official seed manifest passes the fleet-section gate", async () => {
+test("official seed library: every manifest passes the fleet-section gate", async () => {
+  const dir = new URL("../docs/fleet-templates/", import.meta.url);
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith(".seed.json")).sort();
+  assert.ok(files.length >= 5, `expected the seed library to hold at least 5 seeds, found ${files.length}`);
+
+  for (const file of files) {
+    const raw = JSON.parse(fs.readFileSync(new URL(file, dir), "utf8"));
+    // The seed carries {{PLACEHOLDER}} ids for the casting step to substitute —
+    // substitute benign values and the manifest MUST clear the shared parser.
+    const filled = JSON.parse(
+      JSON.stringify(raw).replace(/\{\{([A-Z_]+)\}\}/g, (_, key) => (key === "PACK_ID" ? "pack_seed" : `${key.toLowerCase()}-ref`)),
+    );
+    const parsed = parseFleetTemplate(filled);
+    assert.equal(parsed.ok, true, `${file}: ${parsed.error}`);
+
+    // Self-carried agents cap (company-seed casting proved the market-side
+    // limit of 3): extra posts must be reference/passive/cluster/a2a posts.
+    assert.ok(Array.isArray(raw.agents) && raw.agents.length <= 3, `${file}: pack agents must be at most 3, found ${raw.agents?.length}`);
+
+    // Every pack-preset post names a self-carried agent, and every self-carried
+    // agent is referenced by exactly one pack-preset post (1:1, no orphans).
+    const presetIds = parsed.template.members.filter((m) => m.target.kind === "pack-preset").map((m) => m.target.presetId);
+    const agentIds = (raw.agents ?? []).map((a) => a.id);
+    assert.deepEqual([...presetIds].sort(), [...agentIds].sort(), `${file}: agents[] and pack-preset posts must correspond 1:1`);
+
+    assert.ok(
+      parsed.template.members.every((m) => !m.cadence || m.cadence.promptTemplate.includes("{{fleetContext}}")),
+      `${file}: every cadence template carries the patrol placeholder`,
+    );
+  }
+});
+
+// The original single-seed pin, kept as the company fleet's shape contract.
+test("official seed manifest (company fleet) passes the fleet-section gate", async () => {
   const raw = JSON.parse(fs.readFileSync(new URL("../docs/fleet-templates/company-fleet.seed.json", import.meta.url), "utf8"));
-  // The seed carries {{PLACEHOLDER}} ids for the casting step to substitute —
-  // substitute benign values and the manifest MUST clear the shared parser.
-  const filled = JSON.parse(JSON.stringify(raw).replace(/\{\{PACK_ID\}\}/g, "pack_seed").replace(/\{\{SHOP_PERSONA\}\}/g, "shop-p").replace(/\{\{CONTENT_PERSONA\}\}/g, "content-p").replace(/\{\{WANXING_CLUSTER\}\}/g, "wx-cluster"));
+  const filled = JSON.parse(JSON.stringify(raw).replace(/\{\{PACK_ID\}\}/g, "pack_seed").replace(/\{\{SHOP_PERSONA\}\}/g, "shop-p").replace(/\{\{CONTENT_PERSONA\}\}/g, "content-p").replace(/\{\{ASSIST_PERSONA\}\}/g, "assist-p").replace(/\{\{WANXING_CLUSTER\}\}/g, "wx-cluster"));
   const parsed = parseFleetTemplate(filled);
   assert.equal(parsed.ok, true, parsed.error);
   assert.equal(parsed.template.members.length, 7);

@@ -1529,3 +1529,26 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **①（种子自然 cadence）已启动**：验收舰队直接转正观察载体（骨架完整、CEO 补岗后零报数史）——确认启动 active，on_duty 6/7（内容部 passive）：CEO 整点巡视（首火 10:00 京时）/电商部 10:00/开源·投资·助理明早 09:10-09:30/萬星席周一 11:00；首个有意义的跨部门 CEO 巡视=明早 ~09:30 后。每日约 29 回合走 aloadtree cell key。观察点：注入含下级槽值、开源部 CN pod 抓 GitHub 失败应如实报「未取得」、自发 escalate、token 消耗。
 
 **余**：③萬星侧 cockpit 投影独立 change（等 ① 自然 cadence 证据）；provisioner 唯一岗的 persona 克隆真解留 v2。
+
+### §15.15 发布记录：官方舰队模板库四包上架（add-fleet-template-library，2026-10-23）
+
+**四包铸造上架**（通道 A：fd-prod secret `facet-secrets.FACET_INTERNAL_TOKEN` + `x-facet-user` aloadtree/creators；配方=一次性脚本 /tmp/mint-fleet-seeds.mjs 用后即删，manifest=种子+占位符补齐+`category:"fleet"`）：
+
+| 种子 | pack id | v | 骨架 |
+|---|---|---|---|
+| 投研晨会舰队 | `YMSt-hRNiNWXrlLYC8PSiA` | 1 | chief/macro/sector 自带+risk 被动引用岗（facet-assistant） |
+| 内容工厂舰队 | `tkHe8IHE0BuDYYIg5LglUw` | 1 | editor/planner/writer 自带+reviewer 被动引用岗（macro-analyst，实装时缺位 vacant） |
+| 客服护航舰队 | `EMGW14N8voa1b36LSuTxxw` | 1 | 恰 3 岗满编（每 4h 高频） |
+| 情报站舰队 | `56opYgliV9FYAmhmsDIJOw` | 1 | chief/tech/market 自带+existing-cluster 引用岗（缺位 vacant，演示降级） |
+
+四包上架 manifest 与仓内种子逐字语义一致（占位符补齐+category 外零差异，脚本 diff ALL MATCH）；舰队类目 5 卡眼见。**agents≤3 上限真身=lib/pack-manifest.js:40 `maxAgents: 3`**（此前只知现象）；公司种子仓内文件曾带 4 agents 与已上架包分歧——守恒测试首跑抓出，已收敛 3+助理转 existing-persona 引用岗（`{{ASSIST_PERSONA}}` 占位）对齐上架现实。
+
+**守恒测试**：`scripts/test-fleet-templates.mjs` 扩全库（遍历 `docs/fleet-templates/*.seed.json`：parseFleetTemplate 全过+agents↔pack-preset 1:1+自带 agents≤3+每 cadence 模板带 {{fleetContext}}），改坏成环实证红且指明文件。
+
+**活体验收（aloadtree）**：投研全链=装 200→from-template 201（missing/conflicts 双空，风控被动岗活体）→start→run-now 原生火三卡全上真数据（宏观=滞胀交易真指标/行业=白酒+1.68%茅台 600519/chief 晨会点名四矛盾跨两下级报数原文+escalated=1）→拍板项真综合（引下级报数+时间戳）→choice 批准 build_defensive→execute-now→**delivered**。三安装腿降级精确落位（reviewer vacant/满编/cluster vacant），验收后解散；投研保留观察载体（工作日 3 回合/日）。
+
+**验收撞出真 bug 两枚**：①**归岗幽灵岗**（已本地修待出片）：`server/routes/fleets.js` 报数+escalate 两处归岗候选集遍历 `listFleets()` 不过滤 archived——§15.14 swap 进已解散舰队的 facet-assistant 幽灵岗与投研风控岗撞歧义 409（风控真回合两次报数被拒、诚实未伪装）；修=候选集跳过 archived（0030e1e8 同族）+幽灵岗单测钉住（突变验证）；**出片后生产复验风控补报数**。②**聚焦面无 delegate_task**：fleet 聚焦人格只保留 escalate/report_status，成员间委托唤醒在聚焦模式走不通（chief 诚实拒绝编造并给三路替代）——被动岗「受委托唤醒」设计依赖此口，挂 v2（方案=PACK_BASELINE_MCP 增 delegation 或人格切 standard）。另注：聚焦人格+facet-market 断连会触发 list_mcp_resources 重试循环（26+ 步烧 token），行为面观察项。
+
+**走查事故披露**：首轮宏观晨检消息因 ?preset 只切选人器未开新会话，误注入谦面助手 10:30 会话（把谦面助手包可见性改私有的那条）并跑了一轮——报数归岗仍按 preset 正确落宏观岗；该会话属测试号自用，内容无破坏。
+
+**无镜像出片**（内容面+测试+两行路由修复）；路由修复随下轮列车。市场五卡在架，投研舰队 active 观察。

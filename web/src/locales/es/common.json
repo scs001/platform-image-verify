@@ -2400,7 +2400,9 @@
         "aggregate": "agregación",
         "event": "despierta"
       },
-      "implicitAll": "Modo supervisor: cualquiera puede delegar a cualquiera ({{pairs}} pares, implícito)"
+      "implicitAll": "Modo supervisor: cualquiera puede delegar a cualquiera ({{pairs}} pares, implícito)",
+      "graph": "Grafo de orquestación",
+      "graphEmpty": "Solo permisos implícitos — sin aristas explícitas"
     },
     "hints": {
       "on_duty": "Todo bien: cubierto y ejecutando su horario",

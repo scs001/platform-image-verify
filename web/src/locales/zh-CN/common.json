@@ -2400,7 +2400,9 @@
         "aggregate": "聚合",
         "event": "唤醒"
       },
-      "implicitAll": "主管模式:全员互可派发({{pairs}} 对,隐式许可)"
+      "implicitAll": "主管模式:全员互可派发({{pairs}} 对,隐式许可)",
+      "graph": "编排图",
+      "graphEmpty": "仅隐式许可,无显式边可画"
     },
     "hints": {
       "on_duty": "一切正常:岗位有人、按排班干活",

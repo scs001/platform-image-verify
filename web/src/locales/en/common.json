@@ -2400,7 +2400,9 @@
         "aggregate": "aggregate",
         "event": "wake"
       },
-      "implicitAll": "Supervisor mode: every post may dispatch to every other ({{pairs}} pairs, implicit)"
+      "implicitAll": "Supervisor mode: every post may dispatch to every other ({{pairs}} pairs, implicit)",
+      "graph": "Orchestration graph",
+      "graphEmpty": "Implicit grants only — no explicit edges to draw"
     },
     "hints": {
       "on_duty": "All good: staffed and running on schedule",

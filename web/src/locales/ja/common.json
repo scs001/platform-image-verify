@@ -2400,7 +2400,9 @@
         "aggregate": "集約",
         "event": "起床"
       },
-      "implicitAll": "主管モード:全ポスト相互に派遣可能({{pairs}} 組・暗黙)"
+      "implicitAll": "主管モード:全ポスト相互に派遣可能({{pairs}} 組・暗黙)",
+      "graph": "編成グラフ",
+      "graphEmpty": "暗黙許可のみ・明示的辺なし"
     },
     "hints": {
       "on_duty": "正常:担当がおり定時に稼働",

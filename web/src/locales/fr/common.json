@@ -2400,7 +2400,9 @@
         "aggregate": "agrégation",
         "event": "réveil"
       },
-      "implicitAll": "Mode superviseur : tous peuvent déléguer à tous ({{pairs}} paires, implicite)"
+      "implicitAll": "Mode superviseur : tous peuvent déléguer à tous ({{pairs}} paires, implicite)",
+      "graph": "Graphe d'orchestration",
+      "graphEmpty": "Permissions implicites seules — aucun arc explicite"
     },
     "hints": {
       "on_duty": "Tout va bien : pourvu et actif selon ses horaires",

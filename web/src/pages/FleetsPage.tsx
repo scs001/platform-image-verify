@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { FleetGraph } from "../components/FleetGraph";
 import { useNavigate, useParams } from "react-router-dom";
 import { useCronStore } from "@platform/core";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -549,6 +550,19 @@ export function FleetsPage() {
                           </span>
                         </div>
                       ) : null}
+                      <FleetGraph
+                        members={detail.members.map((m) => ({ id: m.id, title: m.title, targetKind: m.target.kind }))}
+                        edges={detail.orchestration!.edges}
+                        kindLabels={{
+                          trigger: t("fleets.orch.edge.trigger"),
+                          report: t("fleets.orch.edge.report"),
+                          dispatch: t("fleets.orch.edge.dispatch"),
+                          handoff: t("fleets.orch.edge.handoff"),
+                          fanout: t("fleets.orch.edge.fanout"),
+                          event: t("fleets.orch.edge.event"),
+                        }}
+                        emptyLabel={t("fleets.orch.graphEmpty")}
+                      />
                       {visible.map((e, i) => {
                     const name = (id?: string) => memberById(detail.members, id)?.title ?? id ?? "?";
                     const badge = EDGE_STYLES[e.kind] ?? "bg-muted text-muted-foreground";

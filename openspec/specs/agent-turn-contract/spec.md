@@ -31,7 +31,7 @@
 - **THEN** 契约照常产出(evidence 空、归属判定为无),不报错不落库
 ### Requirement: 契约取值受界且保留位结构化拒绝
 
-`source` 现行取值 SHALL 为 cron|manual|delegation;peer 与 event 为派发(O3)与事件(O4)的保留位,当前构造 SHALL 以结构化错误拒绝并说明保留去向。`resultSink` 现行取值 SHALL 为 report|caller;blackboard 为黑板(O5)保留位,同样结构化拒绝。深度上限 SHALL 按**道**分界:dispatch 道(运行期临时派发)SHALL 界 1;handoff 道(经图校验的声明链)SHALL 界为该舰队声明的 maxChainDepth(缺省默认 8)。超界 SHALL 结构化拒绝——防链式放大的语义保留,边界来源从全局常量改为声明约束。取值集合与各界 SHALL 以常量导出,派生与校验共用一份真源。
+`source` 现行取值 SHALL 为 cron|manual|delegation|event——event 为已绑定的第一信号源(bot 入站唤醒,派生自 evidence.origin.event);peer 仍为派发(O3)保留位,当前构造 SHALL 以结构化错误拒绝并说明保留去向。`resultSink` 现行取值 SHALL 为 report|caller;blackboard 为黑板(O5)保留位,同样结构化拒绝。深度上限 SHALL 按**道**分界:dispatch 道(运行期临时派发)SHALL 界 1;handoff 道(经图校验的声明链)SHALL 界为该舰队声明的 maxChainDepth(缺省默认 8);event 唤醒的回合 SHALL 深度 0(外部发起)。超界 SHALL 结构化拒绝——防链式放大的语义保留,边界来源从全局常量改为声明约束。取值集合与各界 SHALL 以常量导出,派生与校验共用一份真源。
 
 #### Scenario: 保留源拒绝
 
@@ -52,6 +52,11 @@
 
 - **WHEN** 一支舰队声明 maxChainDepth=5,以 handoff 链位 3 构造契约
 - **THEN** 校验通过;链位 6 被拒
+
+#### Scenario: 事件源派生
+
+- **WHEN** 一条携带 origin.event {botId} 的 manual 任务被派生
+- **THEN** source=event、depth=0;event 为合法值不再保留
 ### Requirement: 回合执行路径消费契约后行为等价
 
 回合收口与回合事件记录 SHALL 消费同一份派生(单一定源),消费后既有回合行为 SHALL 与现状等价:preset 归位、模型归位、身份注入、报数通道、O1 事件的字段与三源判定全部照常。等价性 SHALL 由既有测试套件(舰队八套)全绿证明,且不引入第二执行路径、不改任务引擎调度语义。

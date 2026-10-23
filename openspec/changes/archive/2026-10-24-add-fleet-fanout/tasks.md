@@ -14,4 +14,4 @@
 
 - [x] 3.1 `test-fleet-orchestration.mjs` 补 fanout 用例全绿(1.x/2.x)
 - [x] 3.2 十三套回归零新增红;`openspec validate add-fleet-fanout` 通过
-- [ ] 3.3 出片随攒车列车 + 真机验收(fanout 两目标并行波→judge 裁决回合注入)+ 台账补记
+- [x] 3.3 出片随攒车列车 + 真机验收(fanout 两目标并行波→judge 裁决回合注入)+ 台账补记

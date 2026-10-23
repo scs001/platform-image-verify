@@ -1594,3 +1594,13 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **铸造上架**（§15.15 通道 A 同配方）:manifest=种子+`category:"fleet"`+v1.0.0,本地 validatePackManifest 绿 → `POST https://facet.finddatatech.cloud/api/packs`（x-facet-token + x-facet-user aloadtree/creators;**发布端点真身=facet 域 `/api/packs`,非 platform/mcp 域——两域各 401 一次才定位,记此免三犯**）→ 200 `NoBBXkvxZnJNHlCrAwWp-w` v1。舰队类目 6 卡眼见(公司+四模板+架构师)。一次性脚本与内部凭据用后即删。
 
 **待用户侧验收**(浏览器一眼):壹座 → 设置 → 功能集 → 安装「舰队架构师」→ 与架构师人格对话建一支测试舰队(工具面已 bundled 全 persona 活,包只差纪律人格;draft/apply 桥面生产已验)。
+
+### §15.20 发布记录：编排第三列车——NL 编边 + fanout 裁决 + event 唤醒（add-fleet-architect-edges / add-fleet-fanout / add-fleet-event-wake，2026-10-24 凌晨）
+
+**列车**：paas `b5492c0b`（十三套 153/0）→ 快照 `f0db53d`（image 绿）→ relay OK → skopeo 硬门 digest `641470f0` → GitOps `2ad15aa` 双面滚 → ArgoCD 二刷落定（首刷不拾取，三班同款）→ pod 模块/接线 in-pod 核验（bots.js 唤醒钩子/server.js fanout 块在位）。
+
+**验收（活 cell,全链生产实证）**：①**NL 编边桥面**——架构师桥 draft 携带 handoff+fanout(judge)+event 三类边一次过校验（orchestration 视图回显）,apply edit 落库;②**派生修正**——dispatch 唤醒回合事件 `delegation/ok`（§15.18 曾标 manual,initiator 优先修正生产生效）;③**fanout+judge 全链**——dispatch→投资部(delegation/ok)→回合结束自动起扇出波（电商部/助理部两 manual 任务,initiator=`fleet:<id>:CEO`+initiatorPreset=company-ceo）→聚合器自动注入并起 **CEO 裁决回合**（会话留档「总裁办汇总·扇出第 1 波」,真实裁决还点破波 2 未完）;第二发派发实证「波随上游回合」（每上游回合一波,非自动重入——rounds 声明语义如 design 收敛）;④event 边——代码在位+draft 校验过,**真 bot 消息 E2E 待用户侧配置 bot 后补验**（bot-relay 仅出站,无入站模拟口,如实记）。验收后公司式舰队编排恢复观察态（supervisor+投资部→开源部 handoff）。
+
+**调试实录（记两笔）**：①首查 fanout「未起」为**假阴性**——`GET /api/delegation/tasks` 按发起会话过滤,judge 合成 initiator 的任务不在列;直查引擎存储（cell `data/cron-store/jobs.json`）见两任务 done/running,initiator/preset 全对。教训：**判断「未发生」前先质疑探针的过滤面**。②kubectl logs 无 warn ≠ 无异常（supervisor 吞 stdout 教训重演）,本轮最终靠任务存储与会话留档定案。
+
+**功能一句话**：NL 面编边（draft 虚拟终态图校验/draft-id 换真 id/未带段不清边/种子 v1.1 上架 version=2）;fanout 边（并行波+聚合三式,judge=delegation 聚合器原样复用,波随上游回合,depth 硬界）;event 边（bot 入站唤醒,source=event 转正,每岗每小时≤30,bot 自身回合照常双回合语义）。**六边齐型**（trigger/report/dispatch/handoff/fanout/event）,SOURCES 四值,保留位仅余 peer。

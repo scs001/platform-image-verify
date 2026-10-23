@@ -17,4 +17,4 @@
 
 - [x] 4.1 `test-fleet-architect.mjs` 补边用例全绿(1.x/2.x)
 - [x] 4.2 十三套回归零新增红;`openspec validate add-fleet-architect-edges` 通过
-- [ ] 4.3 出片(与派生顺序修正同车)+ 真机活体验收(对话建 supervisor 两岗舰队→驾驶舱确认边)→ 台账补记
+- [x] 4.3 出片(与派生顺序修正同车)+ 真机活体验收(对话建 supervisor 两岗舰队→驾驶舱确认边)→ 台账补记

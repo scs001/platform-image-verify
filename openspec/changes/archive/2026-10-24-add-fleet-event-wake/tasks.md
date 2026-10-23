@@ -13,4 +13,4 @@
 ## 3. 回归与出片
 
 - [x] 3.1 十三套回归零新增红;`openspec validate add-fleet-event-wake` 通过
-- [ ] 3.2 出片随攒车列车 + 真机验收(声明 event 边→bot 发消息→岗位 source=event 事件)+ 台账补记
+- [x] 3.2 出片随攒车列车 + 真机验收(声明 event 边→bot 发消息→岗位 source=event 事件)+ 台账补记

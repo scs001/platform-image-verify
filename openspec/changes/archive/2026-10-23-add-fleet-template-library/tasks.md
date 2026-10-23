@@ -27,4 +27,4 @@
 ## 5. 收尾
 
 - [x] 5.1 台账 `docs/registry-maintenance.md` 补记（四 pack id/版本、上架证据、活体验收记录）（§15.15：四包表+守恒测试+活体全链+两真 bug+走查事故披露）
-- [ ] 5.2 `openspec validate add-fleet-template-library` 绿 + 归档流程（apply 完结后）（validate 已绿；归档待幽灵岗修复出片+生产复验后，与 4.3 补腿同车）
+- [x] 5.2 `openspec validate add-fleet-template-library` 绿 + 归档流程（apply 完结后）（validate 绿；出片 sha-94bb331/digest f71dc49d 三面滚完（**首滚 2d99a05 为陈树快照事故重演**——fd-build-snapshot 标签读本地 sha、树从 origin clone，当时 origin 停在 3e7e9a5f 未含修复；重出前先核快照树含 Ghost-post guard×2 再出片）；生产复验=one-shot 绑定 preset 派发 facet-assistant→report_status→**风控岗 risk_flags=6 上卡**（归岗唯一命中）；另第三次发现=UI 追问 cron 会话不重绑原 preset、以当值人格跑（记台账）；归档随本勾账）

@@ -173,7 +173,7 @@ test("assertTurnRequest: reserved values fail with their destination named", () 
 
   assert.equal(DISPATCH_DEPTH_BOUND, 1);
   assert.ok(assertTurnRequest({ source: "cron", resultSink: "report", depth: 2 }).error.includes("0..1"), "no chain bound ⇒ dispatch lane bound applies");
-  assert.ok(SOURCES.length === 3 && RESULT_SINKS.length === 2);
+  assert.ok(SOURCES.length === 4 && RESULT_SINKS.length === 2, "cron|manual|delegation|event × report|caller");
 
   // Per-lane depth (add-fleet-orchestration 1.3): dispatch lane hard-bounds at
   // 1; a declared chain bound lifts the handoff lane to maxChainDepth.

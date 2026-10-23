@@ -84,8 +84,16 @@ function ServersSection() {
 
   if (selected) return <ServerDepth name={selected} onBack={() => setSelected(null)} />;
 
-  if (error) return <div className="text-sm text-muted-foreground">{t("mcp.unavailable", { error })}</div>;
-  if (!cards) return <div className="text-sm text-muted-foreground">{t("common.loading")}</div>;
+  if (error)
+    return (
+      <div className="text-sm text-muted-foreground space-y-2" data-testid="mcp-error">
+        <p>{t("mcp.unavailable", { error })}</p>
+        <button type="button" className="text-sm text-primary hover:underline" onClick={() => location.reload()}>
+          {t("common.retry")}
+        </button>
+      </div>
+    );
+  if (!cards) return <CardsSkeleton />;
   if (cards.length === 0)
     return <div className="text-sm text-muted-foreground" data-testid="mcp-empty">{t("mcp.empty")}</div>;
 
@@ -112,6 +120,21 @@ function ServersSection() {
   );
 }
 
+/** Card-list skeleton: three card shells matching the loaded rows (polish-facet-usability state contract). */
+function CardsSkeleton() {
+  return (
+    <div className="space-y-3" data-testid="mcp-cards-skeleton">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="border border-border rounded-lg p-4 space-y-2">
+          <div className="h-4 w-40 animate-pulse rounded bg-muted" />
+          <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
+          <div className="h-3 w-56 animate-pulse rounded bg-muted" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ServerDepth({ name, onBack }: { name: string; onBack: () => void }) {
   const { t } = useTranslation();
   const [doc, setDoc] = useState<McpDepth | null>(null);
@@ -133,7 +156,7 @@ function ServerDepth({ name, onBack }: { name: string; onBack: () => void }) {
         ← {t("mcp.depth.back")}
       </button>
       {error && <div className="text-sm text-muted-foreground">{t("mcp.depth.failed", { message: error })}</div>}
-      {!error && !doc && <div className="text-sm text-muted-foreground">{t("common.loading")}</div>}
+      {!error && !doc && <CardsSkeleton />}
       {doc && (
         <>
           <header>
@@ -213,8 +236,16 @@ function SkillsSection() {
     [q],
   );
 
-  if (error) return <div className="text-sm text-muted-foreground">{t("mcp.unavailable", { error })}</div>;
-  if (!rows) return <div className="text-sm text-muted-foreground">{t("common.loading")}</div>;
+  if (error)
+    return (
+      <div className="text-sm text-muted-foreground space-y-2" data-testid="skills-error">
+        <p>{t("mcp.unavailable", { error })}</p>
+        <button type="button" className="text-sm text-primary hover:underline" onClick={() => location.reload()}>
+          {t("common.retry")}
+        </button>
+      </div>
+    );
+  if (!rows) return <CardsSkeleton />;
   if (rows.length === 0)
     return <div className="text-sm text-muted-foreground" data-testid="skills-empty">{t("mcp.skills.empty")}</div>;
 

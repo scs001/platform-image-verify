@@ -8,7 +8,8 @@
     "edit": "Edit",
     "delete": "Delete",
     "close": "Close",
-    "disconnect": "Disconnect"
+    "disconnect": "Disconnect",
+    "retry": "Retry"
   },
   "nav": {
     "chat": "Chat",
@@ -1554,17 +1555,22 @@
       }
     },
     "pathTitle": "How it works",
-    "path": {
-      "line1": "creator --publish--> Facet market --subscribe--> Platform · one-click install into the conversation runtime",
-      "line1Note": "(MCP credentials already wired in Platform)",
-      "line2": "Facet market --CLI install--> Claude Code / Cursor skill directories",
-      "line2Note": "(skill snapshot on disk; MCP references printed)"
-    },
     "quickTitle": "Quick start",
     "quickArg": "<pack id or a URL containing the id>",
     "quickNote": "Installs to Claude Code by default; --target cursor and --project <dir> are optional.",
     "quickHelpPrefix": "More usage:",
-    "lineLink": "FindData official — Facet line →"
+    "lineLink": "FindData official — Facet line →",
+    "pathGraph": {
+      "market": "Facet market",
+      "creator": "Creator",
+      "platform": "Platform (壹座)",
+      "editors": "Claude Code / Cursor",
+      "edgePublish": "publish",
+      "edgeSubscribe": "subscribe · one-click install into the conversation runtime",
+      "edgeSubscribeNote": "MCP credentials already wired in Platform",
+      "edgeCli": "CLI install",
+      "edgeCliNote": "skill snapshot on disk; MCP references printed"
+    }
   },
   "facetFooter": {
     "tagline": "The pack-and-tool marketplace for AI editors",
@@ -2457,5 +2463,50 @@
         ]
       ]
     }
+  },
+  "facetCurate": {
+    "title": "Curation board",
+    "subtitle": "Category & featured are presentation-level (visibility, versions, and installability are untouched); usage reads the platform aggregate (last 7 days).",
+    "loading": "Loading the board…",
+    "empty": "No packs on the board yet — published packs appear here.",
+    "errorLoad": "Listing failed: {{message}}",
+    "saved": "Saved: {{name}}",
+    "saveFailed": "Save failed: {{name}} — {{message}}",
+    "usageDegraded": "Usage source unavailable (curation unaffected): {{message}}",
+    "unlisted": "unlisted",
+    "private": "private",
+    "usage": "{{users}} weekly actives / {{turns}} turns",
+    "categoryPlaceholder": "category slug (e.g. legal)",
+    "setCategory": "Set category",
+    "feature": "Feature",
+    "unfeature": "Unfeature"
+  },
+  "facetMine": {
+    "title": "My packs",
+    "subtitle": "Manage what you publish here: versions, listing, and visibility. Installing into a runtime stays a 壹座 surface (Settings → Packs → Mine). Public packs with a serving contract flow into the 万星 catalog — external deployers run them with metered turns, and your share accrues automatically.",
+    "loading": "Loading your packs…",
+    "empty": "Nothing published yet — use the publish box below.",
+    "emptyGuide": "First time? The creation guide covers manifests, serving contracts, and version discipline:",
+    "errorLoad": "Loading failed: {{message}}",
+    "public": "public",
+    "private": "private",
+    "unlisted": "unlisted",
+    "unpublish": "Unpublish",
+    "unpublishNote": "Unlisting is unavailable; publishing a new version restores listing",
+    "makePublic": "Make public",
+    "makePrivate": "Make private",
+    "done": "{{label}} — done",
+    "failed": "{{label}} — failed: {{message}}",
+    "publishTitle": "Publish from manifest",
+    "publishHint": "Paste or edit a pack manifest JSON (facet-pack-builder output). Leave the pack id empty for a new pack; fill an existing id to publish a new version.",
+    "publishCliHint": "Published on your own instance? Return it to the official market with the CLI — pair once via a bind code, silent logins after.",
+    "publishIdPlaceholder": "pack id (optional, for a new version)",
+    "publishing": "Publishing…",
+    "publish": "Publish",
+    "publishedResult": "Published: {{id}} v{{version}}",
+    "publishFailed": "Publish failed: {{message}}",
+    "notJson": "not valid JSON",
+    "packIdWord": "pack id",
+    "visibility": "Visibility"
   }
 }

@@ -8,7 +8,8 @@
     "edit": "Modifier",
     "delete": "Supprimer",
     "close": "Fermer",
-    "disconnect": "Déconnecter"
+    "disconnect": "Déconnecter",
+    "retry": "Réessayer"
   },
   "nav": {
     "chat": "Discussion",
@@ -1554,17 +1555,22 @@
       }
     },
     "pathTitle": "Fonctionnement",
-    "path": {
-      "line1": "créateur --publier--> marché Facet --s'abonner--> Platform · installation en un clic dans l'environnement de conversation",
-      "line1Note": "(identifiants MCP déjà raccordés dans Platform)",
-      "line2": "marché Facet --installation CLI--> répertoires de compétences Claude Code / Cursor",
-      "line2Note": "(instantané des compétences sur disque ; références MCP imprimées)"
-    },
     "quickTitle": "Démarrage rapide",
     "quickArg": "<id du pack ou une URL contenant l'id>",
     "quickNote": "Installe dans Claude Code par défaut ; --target cursor et --project <dir> sont optionnels.",
     "quickHelpPrefix": "Autres usages :",
-    "lineLink": "Site officiel FindData — ligne Facet →"
+    "lineLink": "Site officiel FindData — ligne Facet →",
+    "pathGraph": {
+      "market": "Marché Facet",
+      "creator": "Créateur",
+      "platform": "Platform (壹座)",
+      "editors": "Claude Code / Cursor",
+      "edgePublish": "publier",
+      "edgeSubscribe": "s'abonner · installation en un clic dans l'environnement de conversation",
+      "edgeSubscribeNote": "Les identifiants MCP sont déjà câblés dans Platform",
+      "edgeCli": "installation par CLI",
+      "edgeCliNote": "instantané de la compétence sur disque ; références MCP imprimées"
+    }
   },
   "facetFooter": {
     "tagline": "Le marché de packs et d'outils pour les éditeurs d'IA",
@@ -2457,5 +2463,50 @@
         ]
       ]
     }
+  },
+  "facetCurate": {
+    "title": "Panneau de curation",
+    "subtitle": "La catégorie et la mise en avant relèvent de la présentation (visibilité, versions et installabilité inchangées) ; l'usage provient de l'agrégat de la plateforme (7 derniers jours).",
+    "loading": "Chargement du panneau…",
+    "empty": "Aucun paquet sur le panneau pour l'instant — les paquets publiés apparaîtront ici.",
+    "errorLoad": "Échec du listage : {{message}}",
+    "saved": "Enregistré : {{name}}",
+    "saveFailed": "Échec de l'enregistrement : {{name}} — {{message}}",
+    "usageDegraded": "Source d'usage indisponible (la curation n'est pas affectée) : {{message}}",
+    "unlisted": "délisté",
+    "private": "privé",
+    "usage": "{{users}} actifs hebdo / {{turns}} tours",
+    "categoryPlaceholder": "slug de catégorie (ex. legal)",
+    "setCategory": "Définir la catégorie",
+    "feature": "Mettre en avant",
+    "unfeature": "Retirer la mise en avant"
+  },
+  "facetMine": {
+    "title": "Mes paquets",
+    "subtitle": "Gérez ici ce que vous publiez : versions, listage et visibilité. L'installation dans un environnement reste une fonction de 壹座 (Réglages → Paquets → Mes paquets). Les paquets publics avec contrat de service alimentent le catalogue 万星 — les déployeurs externes les exécutent avec des tours mesurés et votre part s'accumule automatiquement.",
+    "loading": "Chargement de vos paquets…",
+    "empty": "Rien de publié pour l'instant — utilisez la zone de publication ci-dessous.",
+    "emptyGuide": "Première fois ? Le guide de création couvre les manifestes, les contrats de service et la discipline de version :",
+    "errorLoad": "Échec du chargement : {{message}}",
+    "public": "public",
+    "private": "privé",
+    "unlisted": "délisté",
+    "unpublish": "Dépublier",
+    "unpublishNote": "La restauration n'est pas disponible ; publier une nouvelle version rétablit le listage",
+    "makePublic": "Rendre public",
+    "makePrivate": "Rendre privé",
+    "done": "{{label}} — terminé",
+    "failed": "{{label}} — échec : {{message}}",
+    "publishTitle": "Publier depuis un manifeste",
+    "publishHint": "Collez ou modifiez un manifeste JSON de paquet (sortie de facet-pack-builder). Laissez l'id vide pour un nouveau paquet ; renseignez un id existant pour publier une nouvelle version.",
+    "publishCliHint": "Publié sur votre propre instance ? Ramenez-le au marché officiel avec la CLI — un appairage unique par code, puis des connexions silencieuses.",
+    "publishIdPlaceholder": "id du paquet (facultatif, pour une nouvelle version)",
+    "publishing": "Publication…",
+    "publish": "Publier",
+    "publishedResult": "Publié : {{id}} v{{version}}",
+    "publishFailed": "Échec de la publication : {{message}}",
+    "notJson": "JSON invalide",
+    "packIdWord": "id du paquet",
+    "visibility": "Visibilité"
   }
 }

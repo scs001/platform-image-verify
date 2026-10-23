@@ -38,7 +38,7 @@ export function LineLadder() {
               <span className="w-4 text-center text-xs text-muted-foreground">{numeral}</span>
               <span>{t(`facetFooter.lines.${slug}`)}</span>
               {current && (
-                <span className="rounded-full border border-border px-2 py-px text-[10px] leading-4 text-muted-foreground">
+                <span className="rounded-full border border-border px-2 py-px text-[10px] font-mono leading-4 text-muted-foreground">
                   {t("facetFooter.current")}
                 </span>
               )}

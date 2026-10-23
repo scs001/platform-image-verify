@@ -89,9 +89,29 @@ export function MyPacksView() {
     }
   };
 
-  if (loading) return <p className="text-sm text-muted-foreground">{t("common.loading")}</p>;
+  if (loading)
+    return (
+      <div className="grid gap-3" data-testid="my-packs-skeleton">
+        {[0, 1].map((i) => (
+          <div key={i} className="border border-border rounded-lg p-4 space-y-2">
+            <div className="flex items-center gap-2">
+              <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+              <div className="h-4 w-10 animate-pulse rounded bg-muted" />
+            </div>
+            <div className="h-4 w-2/3 animate-pulse rounded bg-muted" />
+          </div>
+        ))}
+      </div>
+    );
   if (error) {
-    return <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md mb-4">{error}</div>;
+    return (
+      <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md mb-4 space-y-1" data-testid="my-packs-error">
+        <p>{error}</p>
+        <button type="button" className="text-sm text-destructive underline" onClick={() => void refresh()}>
+          {t("common.retry")}
+        </button>
+      </div>
+    );
   }
   if (packs.length === 0) {
     return <p className="text-sm text-muted-foreground">{t("packs.mine.empty")}</p>;

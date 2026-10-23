@@ -8,7 +8,8 @@
     "edit": "編集",
     "delete": "削除",
     "close": "閉じる",
-    "disconnect": "切断"
+    "disconnect": "切断",
+    "retry": "再試行"
   },
   "nav": {
     "chat": "チャット",
@@ -1554,17 +1555,22 @@
       }
     },
     "pathTitle": "仕組み",
-    "path": {
-      "line1": "作成者 --公開--> 謙面マーケット --購読--> 壹座 · 会話ランタイムへワンクリックでインストール",
-      "line1Note": "（MCP 資格情報は壹座内で接続済み）",
-      "line2": "謙面マーケット --CLI インストール--> Claude Code / Cursor のスキルディレクトリ",
-      "line2Note": "（スキルのスナップショットを配置、MCP 参照を表示）"
-    },
     "quickTitle": "クイックスタート",
     "quickArg": "<機能セット id または id を含む URL>",
     "quickNote": "既定では Claude Code にインストール。--target cursor、--project <dir> は任意です。",
     "quickHelpPrefix": "その他の使い方：",
-    "lineLink": "寻数公式サイト · 謙面ライン →"
+    "lineLink": "寻数公式サイト · 謙面ライン →",
+    "pathGraph": {
+      "market": "謙面マーケット",
+      "creator": "作成者",
+      "platform": "壹座",
+      "editors": "Claude Code / Cursor",
+      "edgePublish": "公開",
+      "edgeSubscribe": "購読 · 会話ランタイムへワンクリックでインストール",
+      "edgeSubscribeNote": "MCP 資格情報は壹座内で接続済み",
+      "edgeCli": "CLI インストール",
+      "edgeCliNote": "スキルのスナップショットを配置、MCP 参照を表示"
+    }
   },
   "facetFooter": {
     "tagline": "AI エディターの機能セットとツールの配布マーケット",
@@ -2457,5 +2463,50 @@
         ]
       ]
     }
+  },
+  "facetCurate": {
+    "title": "キュレーションボード",
+    "subtitle": "カテゴリと注目は表示レベルの管理です（可視性・バージョン・インストール可否には影響しません）。使用量はプラットフォーム集計（直近 7 日）から取得します。",
+    "loading": "ボードを読み込み中…",
+    "empty": "ボードにまだパックがありません——公開されたパックはここに表示されます。",
+    "errorLoad": "一覧の読み込みに失敗しました：{{message}}",
+    "saved": "保存しました：{{name}}",
+    "saveFailed": "保存に失敗しました：{{name}} — {{message}}",
+    "usageDegraded": "使用量ソースが利用できません（キュレーションには影響しません）：{{message}}",
+    "unlisted": "非公開",
+    "private": "プライベート",
+    "usage": "週間アクティブ {{users}} / {{turns}} ターン",
+    "categoryPlaceholder": "カテゴリスラッグ（例：legal）",
+    "setCategory": "カテゴリを設定",
+    "feature": "注目に追加",
+    "unfeature": "注目を解除"
+  },
+  "facetMine": {
+    "title": "マイパック",
+    "subtitle": "ここで公開したパックを管理します：バージョン・公開状態・可視性。実行環境へのインストールは壹座の機能のままです（設定 → パック → マイパック）。サービス契約付きの公開パックは万星カタログに流れます——外部のデプロイヤーが従量ターンで実行し、あなたの取り分が自動的に蓄積されます。",
+    "loading": "パックを読み込み中…",
+    "empty": "まだ公開はありません——下の公開ボックスを使いましょう。",
+    "emptyGuide": "初めてですか？作成ガイドでマニフェスト・サービス契約・バージョン規律を解説しています：",
+    "errorLoad": "読み込みに失敗しました：{{message}}",
+    "public": "公開",
+    "private": "プライベート",
+    "unlisted": "非公開",
+    "unpublish": "公開停止",
+    "unpublishNote": "復帰は利用できません（新バージョンの公開で復帰します）",
+    "makePublic": "公開にする",
+    "makePrivate": "プライベートにする",
+    "done": "{{label}} 完了",
+    "failed": "{{label}} 失敗：{{message}}",
+    "publishTitle": "マニフェストから公開",
+    "publishHint": "パックマニフェスト JSON を貼り付けまたは編集してください（facet-pack-builder の出力）。id を空欄にすると新規パック、既存 id を入力すると新バージョンの公開になります。",
+    "publishCliHint": "自有インスタンスで公開済み？CLI で公式マーケットに戻せます——バインドコードで一度ペアリングすれば、以後はサイレントログインです。",
+    "publishIdPlaceholder": "pack id（任意・新バージョン時に記入）",
+    "publishing": "公開中…",
+    "publish": "公開",
+    "publishedResult": "公開しました：{{id}} v{{version}}",
+    "publishFailed": "公開に失敗しました：{{message}}",
+    "notJson": "有効な JSON ではありません",
+    "packIdWord": "パックid",
+    "visibility": "可視性"
   }
 }

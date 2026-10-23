@@ -420,7 +420,7 @@ function PackDraftEditor({
                     placeholder={t("packs.editor.guide.stepBody", { n: i + 1 })}
                     data-testid={`pack-guide-body-${i}`}
                   />
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-xs text-muted-foreground">
                     {st.title.length}/60 · {st.body.length}/500
                   </p>
                 </div>
@@ -621,7 +621,7 @@ function PackDraftEditor({
                                 [name]: on ? (prev[name] ?? []).filter((t2) => t2 !== tool) : [...(prev[name] ?? []), tool],
                               }))
                             }
-                            className={`border rounded-full px-2 py-0.5 text-[11px] font-mono transition-colors ${
+                            className={`border rounded-full px-2 py-0.5 text-[10px] font-mono transition-colors ${
                               on ? "border-primary text-primary bg-primary/10" : "border-border text-muted-foreground"
                             }`}
                             data-testid={`pack-mcp-tool-${name}-${tool}`}
@@ -633,7 +633,7 @@ function PackDraftEditor({
                     </div>
                   )}
                   {toolList.length === 0 && (
-                    <p className="text-[11px] text-muted-foreground mt-1">{t("packs.editor.toolsNoSnapshot")}</p>
+                    <p className="text-xs text-muted-foreground mt-1">{t("packs.editor.toolsNoSnapshot")}</p>
                   )}
                 </div>
               );

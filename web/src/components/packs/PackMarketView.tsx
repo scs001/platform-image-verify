@@ -24,6 +24,29 @@ const AGENT_SIZE_FILTERS = [
   { key: "4+", min: 4, max: Number.POSITIVE_INFINITY },
 ] as const;
 
+/** Card-grid skeleton matching the loaded market rows (polish-facet-usability
+ *  state contract): title+version line, two description lines, tag row. */
+function MarketSkeleton() {
+  return (
+    <div className="grid gap-3" data-testid="pack-market-skeleton">
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="border border-border rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <div className="h-4 w-36 animate-pulse rounded bg-muted" />
+            <div className="h-4 w-10 animate-pulse rounded bg-muted" />
+          </div>
+          <div className="mt-2 h-4 w-3/4 animate-pulse rounded bg-muted" />
+          <div className="mt-1.5 h-4 w-1/2 animate-pulse rounded bg-muted" />
+          <div className="mt-2 flex gap-1.5">
+            <div className="h-5 w-14 animate-pulse rounded-full bg-muted" />
+            <div className="h-5 w-14 animate-pulse rounded-full bg-muted" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function PackMarketView({
   onOpenChat,
   onRequireLogin,
@@ -214,9 +237,14 @@ export function PackMarketView({
             </div>
           </div>
         )}
-      {loading && <p className="text-sm text-muted-foreground">{t("common.loading")}</p>}
+      {loading && <MarketSkeleton />}
       {error && (
-        <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md mb-4">{error}</div>
+        <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md mb-4 space-y-1" data-testid="pack-market-error">
+          <p>{error}</p>
+          <button type="button" className="text-sm text-destructive underline" onClick={() => void refresh(search)}>
+            {t("common.retry")}
+          </button>
+        </div>
       )}
       {!loading && !error && visiblePacks.length === 0 && (
         <p className="text-sm text-muted-foreground">{t("packs.market.empty")}</p>

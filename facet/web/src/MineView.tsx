@@ -5,10 +5,11 @@
 // version-history) — the same presentation the public detail view uses, so
 // the two surfaces cannot drift. Cell-side authoring (drafts assembled from
 // installed content) stays a 壹座 surface by design; cell install stays
-// refused (INSTALL_IS_A_BASE_SURFACE). Strings are bilingual inline (the
-// McpCatalog precedent — the shell's five-locale parity file stays untouched
-// by view internals).
+// refused (INSTALL_IS_A_BASE_SURFACE). All copy is keyed (five locales,
+// parity enforced — polish-facet-usability replaced the bilingual inline
+// precedent).
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import * as api from "@/lib/packs-api";
 import type { PackSummary } from "@/lib/packs-api";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { PackVersionList } from "@/components/packs/PackVersionList";
 
 export function MineView() {
+  const { t } = useTranslation();
   const [packs, setPacks] = useState<PackSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -26,6 +28,7 @@ export function MineView() {
       const r = await api.listPacks({ author: "me", pageSize: 100 });
       setPacks(r.packs);
     } catch (err) {
+      setPacks([]);
       setError((err as Error).message);
     }
   }, []);
@@ -37,30 +40,29 @@ export function MineView() {
   const act = async (label: string, fn: () => Promise<unknown>) => {
     try {
       await fn();
-      setNotice(`${label} 完成 / done`);
+      setNotice(t("facetMine.done", { label }));
       await refresh();
     } catch (err) {
-      setNotice(`${label} 失败 / failed: ${(err as Error).message}`);
+      setNotice(t("facetMine.failed", { label, message: (err as Error).message }));
     }
   };
 
-  if (error) return <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md">{error}</div>;
-  if (!packs) return <p className="text-sm text-muted-foreground">加载中… / Loading…</p>;
+  if (error)
+    return (
+      <div className="text-sm text-destructive space-y-2" data-testid="facet-mine-error">
+        <p>{t("facetMine.errorLoad", { message: error })}</p>
+        <Button variant="outline" size="sm" onClick={() => void refresh()}>
+          {t("common.retry")}
+        </Button>
+      </div>
+    );
+  if (!packs) return <MineSkeleton />;
 
   return (
     <section data-testid="facet-mine-view" className="space-y-4">
       <header>
-        <h2 className="text-lg font-semibold">我的功集 · My packs</h2>
-        <p className="text-xs text-muted-foreground mt-1">
-          管理你发布的功集：版本、上下架、可见性。安装到运行时请在壹座内完成（设置 → 功集 → 我的功能集）。
-          <br />
-          带服务契约（serving）的公开功集会进入萬星目录——外部调用者一键部署、按回合计量，
-          你按分成获得收益（发布即全链打通，无需额外配置）。
-          <br />
-          Manage what you publish here; installing into a runtime stays a 壹座 surface.
-          Public packs with a serving contract flow into the 万星 catalog — external deployers
-          run them with metered turns, and your share accrues automatically.
-        </p>
+        <h2 className="text-lg font-semibold">{t("facetMine.title")}</h2>
+        <p className="text-xs text-muted-foreground mt-1">{t("facetMine.subtitle")}</p>
       </header>
 
       {notice && (
@@ -71,9 +73,9 @@ export function MineView() {
 
       {packs.length === 0 && (
         <div className="text-sm text-muted-foreground space-y-1" data-testid="facet-mine-empty">
-          <p>还没有发布的功集 / Nothing published yet — use the publish box below.</p>
+          <p>{t("facetMine.empty")}</p>
           <p className="text-xs">
-            第一次发布？看创作指南（manifest 写法、serving 契约、版本纪律）：
+            {t("facetMine.emptyGuide")}
             <a
               className="underline hover:text-foreground ml-1"
               href="https://github.com/FindDataTechnology/platform/blob/main/docs/creating-packs.md"
@@ -83,8 +85,6 @@ export function MineView() {
             >
               docs/creating-packs.md
             </a>
-            <br />
-            First time? The creation guide covers manifests, serving contracts, and version discipline.
           </p>
         </div>
       )}
@@ -95,8 +95,8 @@ export function MineView() {
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <span className="font-medium text-foreground">{p.name}</span>
               <span className="text-xs text-muted-foreground">
-                v{p.version} · {p.visibility === "private" ? "私有 private" : "公开 public"}
-                {p.unlisted ? " · 已下架 unlisted" : ""}
+                v{p.version} · {p.visibility === "private" ? t("facetMine.private") : t("facetMine.public")}
+                {p.unlisted ? ` · ${t("facetMine.unlisted")}` : ""}
                 {p.category ? ` · ${p.category}` : ""}
               </span>
             </div>
@@ -105,21 +105,23 @@ export function MineView() {
               <Button
                 variant="outline"
                 size="sm"
+                title={p.unlisted ? t("facetMine.unpublishNote") : undefined}
                 onClick={() =>
-                  void act(p.unlisted ? "恢复上架不可用（发布新版本即恢复）" : "下架", () =>
-                    p.unlisted ? Promise.resolve() : api.unpublishPack(p.id),
+                  void act(
+                    p.unlisted ? t("facetMine.unpublishNote") : t("facetMine.unpublish"),
+                    () => (p.unlisted ? Promise.resolve() : api.unpublishPack(p.id)),
                   )
                 }
                 disabled={p.unlisted}
               >
-                下架 / Unpublish
+                {t("facetMine.unpublish")}
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => void act("可见性", () => api.setPackVisibility(p.id, p.visibility === "private" ? "public" : "private"))}
+                onClick={() => void act(t("facetMine.visibility"), () => api.setPackVisibility(p.id, p.visibility === "private" ? "public" : "private"))}
               >
-                {p.visibility === "private" ? "转为公开 / Make public" : "转为私有 / Make private"}
+                {p.visibility === "private" ? t("facetMine.makePublic") : t("facetMine.makePrivate")}
               </Button>
             </div>
             <PackVersionList packId={p.id} testId={`facet-mine-versions-${p.id}`} />
@@ -132,7 +134,31 @@ export function MineView() {
   );
 }
 
+/** Structural skeleton matching a loaded row: title + meta + id + two controls + version strip. */
+function MineSkeleton() {
+  return (
+    <section className="space-y-4" data-testid="facet-mine-skeleton">
+      <div className="h-6 w-36 animate-pulse rounded bg-muted" />
+      {[0, 1].map((i) => (
+        <div key={i} className="border border-border rounded-lg p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="h-4 w-32 animate-pulse rounded bg-muted" />
+            <div className="h-4 w-44 animate-pulse rounded bg-muted" />
+          </div>
+          <div className="h-3 w-64 animate-pulse rounded bg-muted" />
+          <div className="flex gap-2">
+            <div className="h-7 w-20 animate-pulse rounded-md bg-muted" />
+            <div className="h-7 w-24 animate-pulse rounded-md bg-muted" />
+          </div>
+          <div className="h-8 w-full animate-pulse rounded bg-muted" />
+        </div>
+      ))}
+    </section>
+  );
+}
+
 function PublishFromManifest({ onPublished }: { onPublished: () => void }) {
+  const { t } = useTranslation();
   const [manifest, setManifest] = useState("");
   const [packId, setPackId] = useState("");
   const [busy, setBusy] = useState(false);
@@ -146,38 +172,34 @@ function PublishFromManifest({ onPublished }: { onPublished: () => void }) {
       try {
         parsed = JSON.parse(manifest);
       } catch {
-        throw new Error("不是合法 JSON / not valid JSON");
+        throw new Error(t("facetMine.notJson"));
       }
       const r = await api.publishPack({ packId: packId.trim() || null, manifest: parsed as never });
-      setResult(`已发布 / published: ${r.id} v${r.version}`);
+      setResult(t("facetMine.publishedResult", { id: r.id, version: r.version }));
       setManifest("");
       setPackId("");
       onPublished();
     } catch (err) {
       const e = err as Error & { body?: { errors?: { error: string }[] } };
       const details = e.body?.errors?.map((x) => x.error).join("；") ?? "";
-      setResult(`发布失败 / failed: ${e.message}${details ? ` — ${details}` : ""}`);
+      setResult(t("facetMine.publishFailed", { message: `${e.message}${details ? ` — ${details}` : ""}` }));
     } finally {
       setBusy(false);
     }
   };
 
   return (
-      <div className="border border-border rounded-lg p-4 space-y-2" data-testid="facet-mine-publish">
-      <h3 className="text-sm font-semibold">从清单发布 · Publish from manifest</h3>
-      <p className="text-xs text-muted-foreground">
-        粘贴或编辑功集 manifest JSON（facet-pack-builder 产物）。留空功集 id = 新功集；填已有 id = 发布新版本。
-      </p>
+    <div className="border border-border rounded-lg p-4 space-y-2" data-testid="facet-mine-publish">
+      <h3 className="text-sm font-semibold">{t("facetMine.publishTitle")}</h3>
+      <p className="text-xs text-muted-foreground">{t("facetMine.publishHint")}</p>
       <p className="text-xs text-muted-foreground" data-testid="facet-mine-publish-cli-hint">
-        包在自有实例上？用 CLI 一键回流官方市场（配对一次，之后静默续登）：
-        <code className="mx-1 px-1 rounded bg-muted font-mono">facet publish &lt;功集id&gt; --from {typeof window !== "undefined" ? window.location.origin : "<你的实例>"}</code>
-        <br />
-        Published on your own instance? Return it to the official market with the CLI — pair once via a bind code, silent logins after.
+        {t("facetMine.publishCliHint")}
+        <code className="mx-1 px-1 rounded bg-muted font-mono">facet publish &lt;{t("facetMine.packIdWord")}&gt; --from {typeof window !== "undefined" ? window.location.origin : "<你的实例>"}</code>
       </p>
       <Input
         value={packId}
         onChange={(e) => setPackId(e.target.value)}
-        placeholder="pack id（可选 / optional，新版本时填写）"
+        placeholder={t("facetMine.publishIdPlaceholder")}
         data-testid="facet-mine-publish-id"
       />
       <textarea
@@ -190,7 +212,7 @@ function PublishFromManifest({ onPublished }: { onPublished: () => void }) {
       />
       <div className="flex items-center gap-2">
         <Button size="sm" disabled={busy || !manifest.trim()} onClick={() => void submit()} data-testid="facet-mine-publish-submit">
-          {busy ? "发布中… / Publishing…" : "发布 / Publish"}
+          {busy ? t("facetMine.publishing") : t("facetMine.publish")}
         </Button>
         {result && (
           <span className="text-xs text-muted-foreground break-all" data-testid="facet-mine-publish-result">

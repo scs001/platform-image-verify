@@ -8,7 +8,8 @@
     "edit": "编辑",
     "delete": "删除",
     "close": "关闭",
-    "disconnect": "断开"
+    "disconnect": "断开",
+    "retry": "重试"
   },
   "nav": {
     "chat": "对话",
@@ -1554,17 +1555,22 @@
       }
     },
     "pathTitle": "工作原理",
-    "path": {
-      "line1": "创作者 --发布--> 谦面市场 --订阅--> 壹座 · 一键安装到对话运行时",
-      "line1Note": "（MCP 凭据已在壹座打通）",
-      "line2": "谦面市场 --CLI 安装--> Claude Code / Cursor 技能目录",
-      "line2Note": "（技能快照落盘；MCP 引用照打）"
-    },
     "quickTitle": "快速开始",
     "quickArg": "<功能集 id 或含 id 的 URL>",
     "quickNote": "默认装到 Claude Code；--target cursor、--project <dir> 可选。",
     "quickHelpPrefix": "更多用法：",
-    "lineLink": "寻数官网 · 谦面线页 →"
+    "lineLink": "寻数官网 · 谦面线页 →",
+    "pathGraph": {
+      "market": "谦面市场",
+      "creator": "创作者",
+      "platform": "壹座",
+      "editors": "Claude Code / Cursor",
+      "edgePublish": "发布",
+      "edgeSubscribe": "订阅 · 一键安装到对话运行时",
+      "edgeSubscribeNote": "MCP 凭据已在壹座打通",
+      "edgeCli": "CLI 安装",
+      "edgeCliNote": "技能快照落盘；MCP 引用照打"
+    }
   },
   "facetFooter": {
     "tagline": "AI 编辑器的功能集与工具分发市场",
@@ -2457,5 +2463,50 @@
         ]
       ]
     }
+  },
+  "facetCurate": {
+    "title": "策展板",
+    "subtitle": "垂类与精选是呈现层管理（不影响可见性/版本/可安装）；用量来自壹座网关聚合（近 7 天）。",
+    "loading": "策展板加载中…",
+    "empty": "板上还没有功集——发布的功集会出现在这里。",
+    "errorLoad": "列表加载失败：{{message}}",
+    "saved": "已保存：{{name}}",
+    "saveFailed": "保存失败：{{name}} — {{message}}",
+    "usageDegraded": "用量面不可用（策展不受影响）：{{message}}",
+    "unlisted": "已下架",
+    "private": "私有",
+    "usage": "周活跃 {{users}} / {{turns}} 回合",
+    "categoryPlaceholder": "垂类 slug（如 legal）",
+    "setCategory": "改垂类",
+    "feature": "精选",
+    "unfeature": "取消精选"
+  },
+  "facetMine": {
+    "title": "我的功集",
+    "subtitle": "管理你发布的功集：版本、上下架、可见性。安装到运行时请在壹座内完成（设置 → 功集 → 我的功能集）。带服务契约（serving）的公开功集会进入萬星目录——外部调用者一键部署、按回合计量，你按分成获得收益（发布即全链打通，无需额外配置）。",
+    "loading": "我的功集加载中…",
+    "empty": "还没有发布的功集——用下面的发布框开始。",
+    "emptyGuide": "第一次发布？看创作指南（manifest 写法、serving 契约、版本纪律）：",
+    "errorLoad": "加载失败：{{message}}",
+    "public": "公开",
+    "private": "私有",
+    "unlisted": "已下架",
+    "unpublish": "下架",
+    "unpublishNote": "恢复上架不可用（发布新版本即恢复）",
+    "makePublic": "转为公开",
+    "makePrivate": "转为私有",
+    "done": "{{label}} 完成",
+    "failed": "{{label}} 失败：{{message}}",
+    "publishTitle": "从清单发布",
+    "publishHint": "粘贴或编辑功集 manifest JSON（facet-pack-builder 产物）。留空功集 id = 新功集；填已有 id = 发布新版本。",
+    "publishCliHint": "包在自有实例上？用 CLI 一键回流官方市场（配对一次，之后静默续登）：",
+    "publishIdPlaceholder": "pack id（可选，新版本时填写）",
+    "publishing": "发布中…",
+    "publish": "发布",
+    "publishedResult": "已发布：{{id}} v{{version}}",
+    "publishFailed": "发布失败：{{message}}",
+    "notJson": "不是合法 JSON",
+    "packIdWord": "功集id",
+    "visibility": "可见性"
   }
 }

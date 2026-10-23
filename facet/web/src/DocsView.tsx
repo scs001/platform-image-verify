@@ -177,7 +177,7 @@ function InstallSection() {
             </tr>
           </tbody>
         </table>
-        <p className="mt-2 text-[11px] text-muted-foreground">
+        <p className="mt-2 text-xs text-muted-foreground">
           {t("facetDocs.matrix.note")}{" "}
           <a className="underline hover:text-foreground" href={FACET_CLIENT_GUIDE_URL("client-matrix").replace(/client-matrix\.md$/, "client-matrix.md")} target="_blank" rel="noopener noreferrer" data-testid="matrix-deep-link">
             {t("facetDocs.matrix.deepDoc")}

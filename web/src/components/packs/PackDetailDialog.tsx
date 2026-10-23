@@ -349,7 +349,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
           <DialogTitle>
             {pack?.name ?? (error ? t("packs.detail.notFound") : "")}
             {pack?.visibility === "private" && (
-              <span data-testid="pack-private-badge" className="ml-2 rounded-sm border border-amber-500/50 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-700 align-middle">
+              <span data-testid="pack-private-badge" className="ml-2 rounded-sm border border-amber-500/50 bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-700 align-middle">
                 {t("packs.detail.private")}
               </span>
             )}
@@ -410,17 +410,17 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                 </ol>
                 {examples.length > 0 && (
                   <div className="mt-2 border-t border-primary/20 pt-2" data-testid="pack-guide-examples">
-                    <p className="text-[11px] font-medium text-muted-foreground">{t("packs.guide.examples")}</p>
+                    <p className="text-xs font-medium text-muted-foreground">{t("packs.guide.examples")}</p>
                     <ul className="mt-1 space-y-0.5">
                       {examples.slice(0, 4).map((ex) => (
-                        <li key={ex.title} className="text-[11px] leading-5 text-muted-foreground">
+                        <li key={ex.title} className="text-xs leading-5 text-muted-foreground">
                           · {ex.title}
                         </li>
                       ))}
                     </ul>
                   </div>
                 )}
-                <p className="mt-2 text-[11px] text-muted-foreground">{t("packs.guide.hint")}</p>
+                <p className="mt-2 text-xs text-muted-foreground">{t("packs.guide.hint")}</p>
               </section>
             )}
 
@@ -456,12 +456,12 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                           contents fetch per-file on demand, nothing hidden. */}
                       {Array.isArray(s.files) && s.files.length > 0 && (
                         <div className="mt-1" data-testid={`pack-skill-files-${s.name}`}>
-                          <p className="text-[11px] font-medium text-muted-foreground">
+                          <p className="text-xs font-medium text-muted-foreground">
                             {t("packs.detail.skillFiles", { count: s.files.length })}
                           </p>
                           <ul className="mt-0.5 max-h-24 space-y-0.5 overflow-y-auto">
                             {s.files.map((f) => (
-                              <li key={f} className="font-mono text-[11px] text-muted-foreground">· {f}</li>
+                              <li key={f} className="font-mono text-[10px] text-muted-foreground">· {f}</li>
                             ))}
                           </ul>
                         </div>
@@ -510,7 +510,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                         </div>
                         {r.fullSurface === true && r.fullSurfaceReason && (
                           <p
-                            className="mt-0.5 text-[11px] text-muted-foreground"
+                            className="mt-0.5 text-xs text-muted-foreground"
                             data-testid={`pack-mcp-full-surface-reason-${r.registryName}`}
                           >
                             {t("packs.detail.toolFaceReason", { reason: r.fullSurfaceReason })}
@@ -600,7 +600,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                         {a.serving && (
                           <span
                             data-testid={`pack-agent-serving-${a.id}`}
-                            className="rounded-md border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary"
+                            className="rounded-md border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-mono font-medium text-primary"
                           >
                             A2A
                           </span>
@@ -652,7 +652,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                     {t("packs.detail.selfhostCreatingBtn")}
                   </Button>
                 </div>
-                <p className="mt-2 text-[11px] text-muted-foreground">{t("packs.detail.selfhostNote")}</p>
+                <p className="mt-2 text-xs text-muted-foreground">{t("packs.detail.selfhostNote")}</p>
               </section>
             )}
 
@@ -701,7 +701,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                           </p>
                           {bindings?.[a.id] && (
                             <span
-                              className="rounded-md border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary"
+                              className="rounded-md border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-mono text-primary"
                               data-testid={`pack-billing-bound-${a.id}`}
                             >
                               {t("packs.detail.keyBoundBadge")}
@@ -752,12 +752,12 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                             <option key={m} value={m} />
                           ))}
                         </datalist>
-                        <p className="text-[10px] text-muted-foreground" data-testid={`pack-deploy-model-wl-${a.id}`}>
+                        <p className="text-xs text-muted-foreground" data-testid={`pack-deploy-model-wl-${a.id}`}>
                           {t("packs.detail.modelHintWhitelist", { list: a.serving.modelWhitelist.join(" · ") })}
                         </p>
                       </>
                     ) : (
-                      <p className="text-[10px] text-muted-foreground" data-testid={`pack-deploy-model-wl-${a.id}`}>
+                      <p className="text-xs text-muted-foreground" data-testid={`pack-deploy-model-wl-${a.id}`}>
                         {t("packs.detail.modelHintNoWhitelist")}
                       </p>
                     )}
@@ -778,7 +778,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                       data-testid={`pack-deploy-budget-${a.id}`}
                     />
                     {(budgetDrafts[a.id] ?? "").trim().length > 0 && !budgetDraftValid((budgetDrafts[a.id] ?? "").trim()) && (
-                      <p className="text-[10px] text-amber-600" data-testid={`pack-deploy-budget-invalid-${a.id}`}>
+                      <p className="text-xs text-amber-600" data-testid={`pack-deploy-budget-invalid-${a.id}`}>
                         {t("packs.detail.budgetInvalid")}
                       </p>
                     )}
@@ -827,7 +827,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                 >
                   {deploying ? t("common.loading") : t("packs.detail.deployBtn")}
                 </Button>
-                <p className="text-[11px] text-muted-foreground mt-1.5" data-testid="pack-deploy-outcome">
+                <p className="text-xs text-muted-foreground mt-1.5" data-testid="pack-deploy-outcome">
                   {t("packs.detail.deployOutcome")}
                 </p>
               </section>
@@ -896,7 +896,7 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                   <span className="font-mono text-xs text-foreground">{b.name}</span>
                   <ul className="ml-4 list-disc">
                     {b.scriptFiles.map((f) => (
-                      <li key={f} className="font-mono text-[11px] text-amber-700 dark:text-amber-400">{f}</li>
+                      <li key={f} className="text-xs text-amber-700 dark:text-amber-400">{f}</li>
                     ))}
                   </ul>
                 </li>

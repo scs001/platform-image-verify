@@ -10,6 +10,41 @@ import { FACET_HELP_COMMAND, FACET_INSTALL_COMMAND } from "./cliFacts";
 
 const CARDS = ["contents", "install", "version"] as const;
 
+/** One node→node edge row: [node] —edge→ [node], with an optional note under the edge. */
+function PathRow({
+  from,
+  edge,
+  to,
+  note,
+}: {
+  from: "creator" | "market";
+  edge: "edgePublish" | "edgeSubscribe" | "edgeCli";
+  to: "market" | "platform" | "editors";
+  note?: "edgeSubscribeNote" | "edgeCliNote";
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+      <span className="shrink-0 rounded-md border border-border bg-background px-2.5 py-1 text-xs font-medium">
+        {t(`facetIntro.pathGraph.${from}`)}
+      </span>
+      <span className="shrink-0 text-xs text-muted-foreground">
+        <span aria-hidden className="mr-1">—</span>
+        {t(`facetIntro.pathGraph.${edge}`)}
+        <span aria-hidden className="ml-1">→</span>
+      </span>
+      <span className="shrink-0 rounded-md border border-primary/40 bg-primary/10 px-2.5 py-1 text-xs text-primary">
+        {t(`facetIntro.pathGraph.${to}`)}
+      </span>
+      {note && (
+        <span className="text-xs text-muted-foreground sm:ml-1">
+          {t(`facetIntro.pathGraph.${note}`)}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function IntroView() {
   const { t, i18n } = useTranslation();
   const lang = (i18n.resolvedLanguage ?? i18n.language ?? "").toLowerCase();
@@ -54,11 +89,15 @@ export function IntroView() {
 
       <section>
         <h2 className="text-sm font-semibold">{t("facetIntro.pathTitle")}</h2>
-        <div className="mt-3 overflow-x-auto rounded-lg border border-border bg-muted/40 p-4 font-mono text-xs text-muted-foreground">
-          <p>{t("facetIntro.path.line1")}</p>
-          <p className="mt-0.5 pl-4">{t("facetIntro.path.line1Note")}</p>
-          <p className="mt-2">{t("facetIntro.path.line2")}</p>
-          <p className="mt-0.5 pl-4">{t("facetIntro.path.line2Note")}</p>
+        {/* Path figure (polish-facet-usability): the ASCII text lines became a
+            three-node graph. Fully static, copy keyed, mobile-wrappable — the
+            flex layout is the diagram; no SVG asset, no live data. */}
+        <div className="mt-3 rounded-lg border border-border bg-muted/40 p-4 space-y-4">
+          <PathRow from="creator" edge="edgePublish" to="market" />
+          <div className="pl-4 sm:pl-6 space-y-3 border-l-2 border-border">
+            <PathRow from="market" edge="edgeSubscribe" to="platform" note="edgeSubscribeNote" />
+            <PathRow from="market" edge="edgeCli" to="editors" note="edgeCliNote" />
+          </div>
         </div>
       </section>
 

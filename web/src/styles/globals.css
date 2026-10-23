@@ -89,10 +89,13 @@
   /* Radii */
   --radius: 0.625rem;
 
-  /* Type — match the current app closely enough that font swap is invisible */
+  /* Type — match the current app closely enough that font swap is invisible.
+   * CJK fallbacks (PingFang/YaHei/Noto CJK) pin the zh render on each OS so
+   * mixed zh/en baselines don't drift across platforms. */
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    Roboto, "Helvetica Neue", Arial, sans-serif;
+    Roboto, "Helvetica Neue", Arial, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
   --font-mono:
     ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
 }
@@ -154,4 +157,36 @@
 .outline-jump-flash {
   animation: outline-jump-flash 1.2s ease-out 1;
   border-radius: var(--radius);
+}
+
+/*
+ * Motion vocabulary (polish-facet-usability D3). Three whitelisted families,
+ * all CSS: state feedback (pulse), list entrance (stagger fade, ≤200ms),
+ * affordance transitions (handled by Tailwind's transition-* utilities with
+ * duration ≤150ms). reduced-motion strips displacement and entrance
+ * animation everywhere; state color changes (non-animated) always survive.
+ */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.rise-in {
+  animation: rise-in 0.2s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

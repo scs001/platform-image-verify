@@ -72,7 +72,13 @@ export function PackVersionList({ packId, testId = "pack-version-list" }: Props)
       {open && (
         <div className="mt-2" data-testid={`${testId}-body`}>
           {error && <p className="text-xs text-destructive">{t("packs.versions.failed", { message: error })}</p>}
-          {!error && rows === null && <p className="text-xs text-muted-foreground">{t("common.loading")}</p>}
+          {!error && rows === null && (
+            <div className="space-y-1.5 py-1" data-testid={`${testId}-skeleton`}>
+              {[0, 1].map((i) => (
+                <div key={i} className="h-4 w-40 animate-pulse rounded bg-muted" />
+              ))}
+            </div>
+          )}
           {rows !== null && rows.length === 0 && (
             <p className="text-xs text-muted-foreground">{t("packs.versions.empty")}</p>
           )}
@@ -85,7 +91,7 @@ export function PackVersionList({ packId, testId = "pack-version-list" }: Props)
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     <span className="font-mono text-foreground">v{v.version}</span>
                     {i === 0 && (
-                      <span className="rounded-sm border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
+                      <span className="rounded-sm border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[10px] font-mono text-primary">
                         {t("packs.versions.current")}
                       </span>
                     )}

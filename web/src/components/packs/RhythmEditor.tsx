@@ -103,7 +103,7 @@ export function RhythmEditor({
               data-testid={`${testIdPrefix}-do-${i}`}
             />
             {invalid && (
-              <p className="text-[10px] text-destructive" data-testid={`${testIdPrefix}-invalid-${i}`}>
+              <p className="text-xs text-destructive" data-testid={`${testIdPrefix}-invalid-${i}`}>
                 {t("packs.rhythm.invalid")}
               </p>
             )}
@@ -121,7 +121,7 @@ export function RhythmEditor({
           {t("packs.rhythm.add")}
         </Button>
       )}
-      <p className="text-[10px] text-muted-foreground">{t("packs.rhythm.hint")}</p>
+      <p className="text-xs text-muted-foreground">{t("packs.rhythm.hint")}</p>
     </div>
   );
 }

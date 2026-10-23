@@ -2358,12 +2358,19 @@
       "title": "日报流",
       "noReport": "尚无报数"
     },
+    "turn": {
+      "failed": "回合失败",
+      "interrupted": "回合中断",
+      "consecutive": "连续失败",
+      "neverRun": "尚未执行"
+    },
     "health": {
       "onDuty": "在岗",
       "paused": "暂停",
       "missing": "失联",
       "vacant": "待补",
-      "passive": "被动"
+      "passive": "被动",
+      "failing": "失败"
     }
   }
 }

@@ -33,6 +33,12 @@
         "server/fleet-mcp.js"
       ],
       "comment": "Fleet report_status tool (agent-fleet-report-lane) — loopback bridge to the platform server."
+    },
+    "fleet-architect": {
+      "command": "node",
+      "args": [
+        "server/fleet-architect-mcp.js"
+      ]
     }
   }
 }

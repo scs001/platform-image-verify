@@ -41,6 +41,7 @@ import { registerCronRoutes } from "./server/routes/cron.js";
 import { registerTaskRoutes } from "./server/routes/tasks.js";
 import { registerWanxingFleetRoutes } from "./server/routes/wanxing-fleet.js";
 import { registerDelegationRoutes } from "./server/routes/delegation.js";
+import { registerFleetArchitectRoutes } from "./server/fleet-architect.js";
 import { attachDelegationAggregator } from "./server/delegation-aggregator.js";
 import { attachWorkerPool } from "./server/worker-slots.js";
 import { attachMcBridge } from "./server/mc-bridge.js";
@@ -66,6 +67,7 @@ import { getFleetDatabase } from "./server/routes/fleets-db.js";
 import { reconcileAllFleets, deriveMemberStatus } from "./server/fleet-reconcile.js";
 import { buildFleetContext } from "./server/fleet-context.js";
 import { derivedReportFromTask, fleetIdentityFor, fleetModelFor } from "./server/fleet-reports.js";
+import { recordTurnEvent } from "./server/fleet-events.js";
 import { renderDecisionSegment } from "./server/fleet-decisions.js";
 import { rosterPresetId } from "./dsh-profile.js";
 import { createMonitoringRoutes } from "./server/routes/monitoring.js";
@@ -254,6 +256,7 @@ registerTaskRoutes(ctx);
 registerWanxingFleetRoutes(ctx);
 // Delegation REST bridge (loopback delegation MCP child; manual-trigger tasks).
 registerDelegationRoutes(ctx);
+registerFleetArchitectRoutes(ctx);
 // Mini-program identity endpoints (bindcode mint / login / login-bindcode /
 // unbind) — mounted with the other /api routes, before the static SPA fallback.
 registerMpRoutes(ctx);
@@ -969,6 +972,20 @@ ctx.takeFleetModelNotices = (memberId) => {
   const notices = fleetModelNotices.get(memberId) ?? [];
   fleetModelNotices.delete(memberId);
   return notices;
+};
+
+// Turn result events (add-fleet-turn-events D1/D2): the cron-runner seam calls
+// this after every member turn; recordTurnEvent resolves attribution
+// (sourceTag → origin.fleet → persona scan) and appends the event, returning
+// null for non-fleet turns. Degrade open here too — the warn is the whole
+// blast radius.
+ctx.recordFleetTurnEvent = (job, outcome, meta) => {
+  try {
+    return recordTurnEvent(getFleetDatabase(), job, outcome, { ...meta, rosterPresetId });
+  } catch (e) {
+    console.warn(`[fleets] turn event record failed: ${e?.message || e}`);
+    return null;
+  }
 };
 
 // One-time import of legacy file stores (documents-store/, sessions-store/,

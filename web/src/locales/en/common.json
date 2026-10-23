@@ -2358,12 +2358,19 @@
       "title": "Daily stream",
       "noReport": "no report yet"
     },
+    "turn": {
+      "failed": "turn failed",
+      "interrupted": "turn interrupted",
+      "consecutive": "consecutive failures",
+      "neverRun": "never run"
+    },
     "health": {
       "onDuty": "on duty",
       "paused": "paused",
       "missing": "missing",
       "vacant": "vacant",
-      "passive": "passive"
+      "passive": "passive",
+      "failing": "failing"
     }
   }
 }

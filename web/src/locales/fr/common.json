@@ -2358,12 +2358,19 @@
       "title": "Flux quotidien",
       "noReport": "aucun rapport"
     },
+    "turn": {
+      "failed": "tour échoué",
+      "interrupted": "tour interrompu",
+      "consecutive": "échecs consécutifs",
+      "neverRun": "jamais exécuté"
+    },
     "health": {
       "onDuty": "en poste",
       "paused": "en pause",
       "missing": "injoignables",
       "vacant": "vacants",
-      "passive": "passifs"
+      "passive": "passifs",
+      "failing": "en échec"
     }
   }
 }

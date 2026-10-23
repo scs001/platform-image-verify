@@ -170,6 +170,11 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
   const latest = db.latestReportFor(member.id);
   const previous = latest ? db.previousReport(member.id, latest.createdAt) : null;
   const derived = deriveMemberStatus({ member, fleet, task, targetAlive: target.alive, latestReport: latest, now });
+  // Turn outcome (add-fleet-turn-events D5): a SECOND dimension next to the
+  // presence derivation above — derived status stays byte-identical, the last
+  // turn's facts ride alongside. Passive posts read their latest wake turn;
+  // no turns yet reads as 尚未执行 in the UI, never as failure.
+  const lastTurn = db.latestTurnFor(member.id);
   // Post model (add-fleet-post-model F1/F3): declared values verbatim plus the
   // advisory effective model — what this post's NEXT turn would run on, given
   // the chain and the roster as of this read. Advisory because the roster at
@@ -202,6 +207,16 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
     evidence: derived.evidence,
     latestReport: buildLatestView({ report: latest, previous, kpiSlots: member.kpiSlots }),
     reportTimeline: db.listReports(member.id, { limit: 5 }).map(reportTimelineEntry),
+    lastTurn: lastTurn
+      ? {
+          status: lastTurn.status,
+          errorKind: lastTurn.errorKind,
+          error: lastTurn.error,
+          endedAt: lastTurn.endedAt,
+          sessionId: lastTurn.sessionId,
+        }
+      : null,
+    consecutiveFailures: lastTurn ? db.consecutiveFailures(member.id) : 0,
   };
 }
 
@@ -432,6 +447,75 @@ export function createFleetRoutes(app, ctx = null) {
     }
   });
 
+  // ── Turn result events (add-fleet-turn-events D6) ─────────────────────────
+
+  // One timeline row: system facts only — no credentials, no session bodies.
+  function turnTimelineEntry(event) {
+    return {
+      id: event.id,
+      memberId: event.memberId,
+      source: event.source,
+      status: event.status,
+      errorKind: event.errorKind,
+      error: event.error,
+      model: event.model,
+      startedAt: event.startedAt,
+      endedAt: event.endedAt,
+      sessionId: event.sessionId,
+    };
+  }
+
+  // Member turn timeline for the detail drawer — same cursor shape as the
+  // report timeline (nextBefore = last row's id).
+  router.get("/:id/members/:mid/turns", (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const db = getFleetDatabase();
+      const member = db.getMember(req.params.mid);
+      if (!member || member.fleetId !== owned.fleet.id) {
+        return res.status(404).json({ error: "Member not found" });
+      }
+      const beforeId = req.query.before ? Number(req.query.before) : null;
+      const limit = Math.min(Number(req.query.limit) || 20, 50);
+      const rows = db.listTurnEvents(member.id, {
+        ...(Number.isFinite(beforeId) ? { beforeId } : {}),
+        limit: limit + 1,
+      });
+      const page = rows.slice(0, limit);
+      res.json({
+        turns: page.map(turnTimelineEntry),
+        nextBefore: rows.length > limit ? page[page.length - 1].id : null,
+      });
+    } catch (err) {
+      console.error("[fleets] turn timeline error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // Fleet-wide filter (status/source) — the data source the architect pack's
+  // read verbs and O3's both-sides dispatch events will consume.
+  router.get("/:id/turns", (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const status = req.query.status ?? null;
+      const source = req.query.source ?? null;
+      if (status && !["ok", "failed", "interrupted"].includes(status)) {
+        return res.status(400).json({ error: "status must be one of ok|failed|interrupted" });
+      }
+      if (source && !["cron", "manual", "delegation"].includes(source)) {
+        return res.status(400).json({ error: "source must be one of cron|manual|delegation" });
+      }
+      const limit = Math.min(Number(req.query.limit) || 50, 100);
+      const db = getFleetDatabase();
+      res.json({ turns: db.listFleetTurnEvents(owned.fleet.id, { status, source, limit }).map(turnTimelineEntry) });
+    } catch (err) {
+      console.error("[fleets] fleet turns error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
   // ── Cockpit aggregate + template lifecycle (agent-fleet-templates) ────────
 
   // One round-trip for the whole cockpit (design: no four-fetch flicker).
@@ -449,6 +533,10 @@ export function createFleetRoutes(app, ctx = null) {
       );
       const statusCounts = {};
       for (const v of members) statusCounts[v.status] = (statusCounts[v.status] ?? 0) + 1;
+      // Failure dimension (add-fleet-turn-events D5): on-duty posts whose
+      // latest turn did not end ok. Presence counts below stay untouched —
+      // a missing post with a failed last turn counts in both dimensions.
+      const failing = members.filter((m) => m.status === "on_duty" && m.lastTurn && m.lastTurn.status !== "ok").length;
 
       // Decisions: open, severity first then closest to policy expiry.
       const policy = owned.fleet.decisionPolicy ?? { expiryHours: 72 };
@@ -488,6 +576,7 @@ export function createFleetRoutes(app, ctx = null) {
           missing: statusCounts.missing ?? 0,
           vacant: statusCounts.vacant ?? 0,
           passive: statusCounts.passive ?? 0,
+          failing,
           total: members.length,
         },
         template: templateNotice(owned.fleet),

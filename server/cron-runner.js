@@ -679,28 +679,50 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, listAg
   const listAgentsFn = listAgents || catalog.listAgents;
 
   // `job` is the live engine record (cron.js). Returns { ok, error? }.
+  // Turn-event seam (add-fleet-turn-events D1): every turn path converges
+  // here, so the outcome event is recorded at this one wrapper — never inside
+  // the three executors. Degrade open: a recording failure must never fail
+  // the turn it observed.
   ctx.runCronJobTurn = async (job, { turnTimeoutMs } = {}) => {
     const timeoutMs = turnTimeoutMs || 10 * 60 * 1000;
+    const startedAt = Date.now();
 
+    let out;
     if (job.targetType === "cluster") {
-      return runClusterTurn(ctx, job, {
+      out = await runClusterTurn(ctx, job, {
         turnTimeoutMs: timeoutMs,
         activeTurns,
         runPersona: personaExecutor,
         runA2a: a2aExecutor,
         listAgents: listAgentsFn,
       });
+    } else if (job.targetType === "a2a") {
+      // a2a targets (add-agent-delegation-a2a D2): a REMOTE turn — no runtime
+      // readiness, no preset switch, no dsh prompt. The streamed reply lands
+      // in the task's dedicated session exactly like a persona execution's
+      // output; outbound depth is 1 (human-originated delegation baseline —
+      // chains get +1 only when in-cell turns are themselves delegated, a
+      // future state).
+      out = await a2aExecutor(ctx, job, timeoutMs);
+    } else {
+      out = await personaExecutor(ctx, job, timeoutMs, activeTurns);
     }
 
-    // a2a targets (add-agent-delegation-a2a D2): a REMOTE turn — no runtime
-    // readiness, no preset switch, no dsh prompt. The streamed reply lands in
-    // the task's dedicated session exactly like a persona execution's output;
-    // outbound depth is 1 (human-originated delegation baseline — chains get
-    // +1 only when in-cell turns are themselves delegated, a future state).
-    if (job.targetType === "a2a") {
-      return a2aExecutor(ctx, job, timeoutMs);
+    try {
+      ctx.recordFleetTurnEvent?.(job, out, {
+        startedAt,
+        endedAt: Date.now(),
+        // Best-effort model metadata: providers that stamp usage win, else
+        // the runtime's landed model (persona turns leave it where they
+        // landed — add-fleet-post-model D6), else the cluster's first member.
+        model:
+          out?.usage?.model ??
+          ctx.session?.model?.id ??
+          (out?.models ? Object.values(out.models)[0] ?? null : null),
+      });
+    } catch (e) {
+      console.warn(`[fleets] turn event record failed for ${job.id}: ${e?.message || e}`);
     }
-
-    return personaExecutor(ctx, job, timeoutMs, activeTurns);
+    return out;
   };
 }

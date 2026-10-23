@@ -2358,12 +2358,19 @@
       "title": "日報ストリーム",
       "noReport": "報告なし"
     },
+    "turn": {
+      "failed": "ターン失敗",
+      "interrupted": "ターン中断",
+      "consecutive": "連続失敗",
+      "neverRun": "未実行"
+    },
     "health": {
       "onDuty": "在席",
       "paused": "停止",
       "missing": "失踪",
       "vacant": "欠員",
-      "passive": "受動"
+      "passive": "受動",
+      "failing": "失敗"
     }
   }
 }

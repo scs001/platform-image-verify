@@ -1,0 +1,85 @@
+// Turn contract (agent-turn-contract, add-turn-contract).
+//
+// The explicit description of ONE turn — the single derivation every consumer
+// (O1 turn events today; O3 dispatch and O4 edge ignition tomorrow) reads
+// from. Pure: from a task-engine record to a value object, no IO, no
+// construction, no execution. The CONSTRUCT direction (peer/event sources,
+// caller sinks born from dispatch) belongs to later changes and is refused
+// here by name — reserved values fail structurally with their destination
+// stated, so the enum can never silently grow.
+//
+// Field mapping is facts-only (design D2): every value below already exists
+// somewhere in the engine record or the bridges — this module just names it.
+
+export const SOURCES = ["cron", "manual", "delegation"];
+export const RESERVED_SOURCES = {
+  peer: "fleet dispatch (O3) — the dispatch lane is not built yet",
+  event: "event-driven wake (O4) — no event source is bound yet",
+};
+export const RESULT_SINKS = ["report", "caller"];
+export const RESERVED_RESULT_SINKS = {
+  blackboard: "the shared blackboard (O5) — not built yet",
+};
+export const DEPTH_BOUND = 1;
+
+// Engine trigger kinds (task-engine.js): "schedule" = cron-armed, "manual" =
+// bridge-created. A scheduled task is cron-sourced with or without a fleet
+// sourceTag; execute-now on a cadenced post rides the cron lane and reads
+// cron here too.
+export function buildTurnRequest(job) {
+  const sourceTag = job?.sourceTag ?? null;
+  const origin = job?.origin ?? null;
+  const initiator = job?.initiator ?? null;
+  const source =
+    job?.trigger === "schedule" || sourceTag?.fleetId
+      ? "cron"
+      : origin?.fleet?.fleetId
+        ? "manual"
+        : initiator
+          ? "delegation"
+          : "manual";
+  return {
+    source,
+    targetRef: { kind: job?.targetType ?? "persona", id: job?.preset ?? null },
+    brief: job?.prompt ?? null,
+    evidence: {
+      ...(sourceTag ? { sourceTag } : {}),
+      ...(origin ? { origin } : {}),
+      ...(initiator ? { initiator } : {}),
+    },
+    // The delegation aggregator delivering a summary back into the initiating
+    // conversation is an existing fact — this names it, it does not add it.
+    resultSink: initiator ? "caller" : "report",
+    // Outbound a2a turns carry depth 1 today (a2a-client's
+    // X-Delegation-Depth baseline); nothing in-cell chains yet.
+    depth: job?.targetType === "a2a" ? 1 : 0,
+    budget: Number.isFinite(job?.executionPolicy?.timeoutMinutes)
+      ? { minutes: job.executionPolicy.timeoutMinutes }
+      : null,
+  };
+}
+
+// Structural gate for the future CONSTRUCT direction (and for tests): legal
+// values pass silently (null); reserved values and out-of-bound depth fail
+// with the reservation's destination named. Returns { error } or null.
+export function assertTurnRequest(request) {
+  if (!request || typeof request !== "object") {
+    return { error: "turnRequest must be an object" };
+  }
+  if (Object.hasOwn(RESERVED_SOURCES, request.source)) {
+    return { error: `source '${request.source}' is reserved for ${RESERVED_SOURCES[request.source]}` };
+  }
+  if (!SOURCES.includes(request.source)) {
+    return { error: `source must be one of ${SOURCES.join("|")}` };
+  }
+  if (Object.hasOwn(RESERVED_RESULT_SINKS, request.resultSink)) {
+    return { error: `resultSink '${request.resultSink}' is reserved for ${RESERVED_RESULT_SINKS[request.resultSink]}` };
+  }
+  if (!RESULT_SINKS.includes(request.resultSink)) {
+    return { error: `resultSink must be one of ${RESULT_SINKS.join("|")}` };
+  }
+  if (!Number.isFinite(request.depth) || request.depth < 0 || request.depth > DEPTH_BOUND) {
+    return { error: `depth must be within 0..${DEPTH_BOUND} — the anti-chain-amplication bound` };
+  }
+  return null;
+}

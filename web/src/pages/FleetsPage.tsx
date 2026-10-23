@@ -91,6 +91,16 @@ interface MemberView {
   };
   latestReport: LatestReport | null;
   reportTimeline: ReportEntry[];
+  // Turn outcome (add-fleet-turn-events): a second dimension next to the
+  // presence status — the last finished turn's facts, never merged into it.
+  lastTurn: {
+    status: "ok" | "failed" | "interrupted";
+    errorKind: string | null;
+    error: string | null;
+    endedAt: number;
+    sessionId: string | null;
+  } | null;
+  consecutiveFailures: number;
 }
 
 interface FleetRow {
@@ -110,7 +120,7 @@ interface FleetDetail {
   // Cockpit aggregate (agent-fleet-templates): the rest of the one-round-trip.
   decisions?: DecisionItem[];
   stream?: { memberId: string; title: string; status: MemberView["status"]; latestReport: LatestReport | null }[];
-  health?: { onDuty: number; paused: number; missing: number; vacant: number; passive: number; total: number };
+  health?: { onDuty: number; paused: number; missing: number; vacant: number; passive: number; failing?: number; total: number };
   template?: { packId: string; instantiatedVersion: string | null; latestVersion: string; updateAvailable: boolean } | null;
 }
 
@@ -446,6 +456,11 @@ export function FleetsPage() {
                   <span className="rounded-full bg-warning/15 px-2 py-0.5 text-warning">{t("fleets.health.missing")}: {detail.health.missing}</span>
                   <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-destructive">{t("fleets.health.vacant")}: {detail.health.vacant}</span>
                   <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">{t("fleets.health.passive")}: {detail.health.passive}</span>
+                  {detail.health.failing ? (
+                    <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-destructive" data-testid="fleet-health-failing">
+                      {t("fleets.health.failing")}: {detail.health.failing}
+                    </span>
+                  ) : null}
                 </div>
               ) : null}
 
@@ -492,6 +507,50 @@ export function FleetsPage() {
                         <span className="text-xs text-muted-foreground">
                           {member.cadence ? cadenceText(t, member.cadence) : t("fleets.member.passive")}
                         </span>
+                        {/* Turn outcome (add-fleet-turn-events): failure facts
+                            ride alongside the presence badge — never replace
+                            it. Interrupted reads warning-tone, failed reads
+                            destructive; the reason sits in the title. */}
+                        {member.lastTurn && member.lastTurn.status !== "ok" ? (
+                          <>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                member.lastTurn.status === "interrupted"
+                                  ? "bg-warning/15 text-warning"
+                                  : "bg-destructive/15 text-destructive"
+                              }`}
+                              data-testid={`member-turn-${member.id}`}
+                              title={member.lastTurn.error ?? undefined}
+                            >
+                              {member.lastTurn.status === "interrupted"
+                                ? t("fleets.turn.interrupted")
+                                : t("fleets.turn.failed")}
+                              {member.lastTurn.errorKind ? ` · ${member.lastTurn.errorKind}` : ""}
+                            </span>
+                            {member.lastTurn.sessionId ? (
+                              <button
+                                type="button"
+                                className="rounded-sm border border-border px-1.5 py-px text-xs hover:bg-muted"
+                                onClick={() => navigate(`/chat/${encodeURIComponent(member.lastTurn!.sessionId!)}`)}
+                              >
+                                {t("fleets.report.openSession")}
+                              </button>
+                            ) : null}
+                          </>
+                        ) : null}
+                        {(member.consecutiveFailures ?? 0) >= 3 ? (
+                          <span
+                            className="rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-semibold text-destructive"
+                            data-testid={`member-consecutive-${member.id}`}
+                          >
+                            {t("fleets.turn.consecutive")} ×{member.consecutiveFailures}
+                          </span>
+                        ) : null}
+                        {member.status === "passive" && !member.lastTurn ? (
+                          <span className="text-xs text-muted-foreground" data-testid={`member-never-run-${member.id}`}>
+                            {t("fleets.turn.neverRun")}
+                          </span>
+                        ) : null}
                         {member.latestReport?.source === "derived" ? (
                           <span
                             className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"

@@ -126,6 +126,27 @@ export function createFleetDatabase({ file } = {}) {
     /* column already exists */
   }
 
+  // Turn result events (add-fleet-turn-events): append-only per-turn outcome
+  // records — one row per finished member turn (cron / manual / delegation),
+  // written at the runCronJobTurn seam. System records, never agent-authored:
+  // reports are content, these are facts. Bounded by rolling prune per member
+  // (appendTurnEvent); reports and decisions never share this store.
+  db.exec(`CREATE TABLE IF NOT EXISTS member_turn_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fleet_id TEXT NOT NULL,
+    member_id TEXT NOT NULL,
+    source TEXT NOT NULL,
+    status TEXT NOT NULL,
+    error_kind TEXT,
+    error TEXT,
+    model TEXT,
+    started_at INTEGER NOT NULL,
+    ended_at INTEGER NOT NULL,
+    session_id TEXT
+  )`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_turn_events_member ON member_turn_events(member_id, id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_turn_events_fleet ON member_turn_events(fleet_id, status, id)`);
+
   db.exec(`CREATE INDEX IF NOT EXISTS idx_fleet_members_fleet ON fleet_members(fleet_id)`);
   // Unique-post check (design D8): "is this persona/cluster on duty anywhere?"
   // scans by target, so index the pair.
@@ -482,6 +503,95 @@ export function createFleetDatabase({ file } = {}) {
     return result.changes;
   }
 
+  // ── turn result events (append-only, pruned) ──────────────────────────────
+
+  // Retention is read per call (same convention as the pack policy caps): an
+  // operator can tighten it without a restart, an invalid value falls back.
+  function turnEventKeep() {
+    const n = Number(process.env.FLEET_TURN_EVENTS_KEEP);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 200;
+  }
+
+  function appendTurnEvent(event) {
+    const out = db
+      .prepare(`
+        INSERT INTO member_turn_events (fleet_id, member_id, source, status, error_kind, error, model, started_at, ended_at, session_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      .run(
+        event.fleetId,
+        event.memberId,
+        event.source,
+        event.status,
+        event.errorKind ?? null,
+        event.error ?? null,
+        event.model ?? null,
+        event.startedAt,
+        event.endedAt,
+        event.sessionId ?? null,
+      );
+    // Rolling prune: keep the newest N rows for this member only — the
+    // oldest overflow goes; reports/decisions live in their own tables.
+    db.prepare(`
+      DELETE FROM member_turn_events
+      WHERE member_id = ? AND id NOT IN (
+        SELECT id FROM member_turn_events WHERE member_id = ? ORDER BY id DESC LIMIT ?
+      )
+    `).run(event.memberId, event.memberId, turnEventKeep());
+    return deserializeTurnEvent(
+      db.prepare("SELECT * FROM member_turn_events WHERE id = ?").get(out.lastInsertRowid),
+    );
+  }
+
+  // Timeline page, newest first; `beforeId` (exclusive) pages via the last
+  // row's id — same cursor shape as the report timeline.
+  function listTurnEvents(memberId, { beforeId = null, limit = 20 } = {}) {
+    const rows = beforeId == null
+      ? db.prepare("SELECT * FROM member_turn_events WHERE member_id = ? ORDER BY id DESC LIMIT ?").all(memberId, limit)
+      : db.prepare("SELECT * FROM member_turn_events WHERE member_id = ? AND id < ? ORDER BY id DESC LIMIT ?").all(memberId, beforeId, limit);
+    return rows.map(deserializeTurnEvent);
+  }
+
+  // Fleet-wide filter (status/source optional, validated by the route).
+  function listFleetTurnEvents(fleetId, { status = null, source = null, limit = 50 } = {}) {
+    const where = ["fleet_id = ?"];
+    const args = [fleetId];
+    if (status) {
+      where.push("status = ?");
+      args.push(status);
+    }
+    if (source) {
+      where.push("source = ?");
+      args.push(source);
+    }
+    return db
+      .prepare(`SELECT * FROM member_turn_events WHERE ${where.join(" AND ")} ORDER BY id DESC LIMIT ?`)
+      .all(...args, limit)
+      .map(deserializeTurnEvent);
+  }
+
+  function latestTurnFor(memberId) {
+    const row = db
+      .prepare("SELECT * FROM member_turn_events WHERE member_id = ? ORDER BY id DESC LIMIT 1")
+      .get(memberId);
+    return row ? deserializeTurnEvent(row) : null;
+  }
+
+  // Count failures walking back from the newest event; the first non-failure
+  // (ok/interrupted) stops the run. Aggregated from the stream by design —
+  // no counter storage (spec: 不要求独立计数).
+  function consecutiveFailures(memberId) {
+    const rows = db
+      .prepare("SELECT status FROM member_turn_events WHERE member_id = ? ORDER BY id DESC")
+      .all(memberId);
+    let n = 0;
+    for (const r of rows) {
+      if (r.status !== "failed") break;
+      n += 1;
+    }
+    return n;
+  }
+
   // Unique-post lookup (design D8): where is this persona/cluster on duty?
   // Cell-global across LIVE fleets; a2a targets never call this (multi-post).
   // Archived (incl. dissolved) fleets release their incumbents — their member
@@ -523,6 +633,11 @@ export function createFleetDatabase({ file } = {}) {
     previousReport,
     listReports,
     countReportsSince,
+    appendTurnEvent,
+    listTurnEvents,
+    listFleetTurnEvents,
+    latestTurnFor,
+    consecutiveFailures,
     appendDecision,
     getDecision,
     listDecisions,
@@ -608,6 +723,22 @@ function deserializeReport(row) {
     summary: row.summary,
     source: row.source || "self",
     createdAt: row.created_at,
+  };
+}
+
+function deserializeTurnEvent(row) {
+  return {
+    id: row.id,
+    fleetId: row.fleet_id,
+    memberId: row.member_id,
+    source: row.source,
+    status: row.status,
+    errorKind: row.error_kind ?? null,
+    error: row.error ?? null,
+    model: row.model ?? null,
+    startedAt: row.started_at,
+    endedAt: row.ended_at,
+    sessionId: row.session_id ?? null,
   };
 }
 

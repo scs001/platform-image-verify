@@ -2358,12 +2358,19 @@
       "title": "Flujo diario",
       "noReport": "sin reportes"
     },
+    "turn": {
+      "failed": "turno fallido",
+      "interrupted": "turno interrumpido",
+      "consecutive": "fallos consecutivos",
+      "neverRun": "sin ejecuciones"
+    },
     "health": {
       "onDuty": "en servicio",
       "paused": "en pausa",
       "missing": "perdidos",
       "vacant": "vacantes",
-      "passive": "pasivos"
+      "passive": "pasivos",
+      "failing": "fallando"
     }
   }
 }

@@ -111,6 +111,13 @@ const isInternalChartBridge = (req) =>
 const isInternalDelegationBridge = (req) =>
   req.path.startsWith("/api/delegation/") && isLoopback(req.socket?.remoteAddress);
 
+// The fleet-architect bridge (agent-fleet-architect) — same credential model:
+// the in-cell architect MCP child reads/drafts/applies fleet structure over
+// /api/fleet-architect. Loopback only; the routes resolve the acting OWNER
+// from the cell context server-side, so the caller cannot name one.
+const isInternalFleetArchitectBridge = (req) =>
+  req.path.startsWith("/api/fleet-architect/") && isLoopback(req.socket?.remoteAddress);
+
 // The save-library bridge (`save_to_library`, openspec: add-save-to-library-tool)
 // — the fourth bridge, same credential model: the dsh child's tool ingests
 // workspace files the CURRENT turn produced. Loopback is its credential, and
@@ -256,6 +263,10 @@ export function registerAuth(ctx) {  ctx.app.use((req, res, next) => {
     }
     if (isInternalDelegationBridge(req)) {
       req.user = { email: "delegation@internal", internal: true };
+      return next();
+    }
+    if (isInternalFleetArchitectBridge(req)) {
+      req.user = { email: "fleet-architect@internal", internal: true };
       return next();
     }
     if (isInternalSaveBridge(req)) {

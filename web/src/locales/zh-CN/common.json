@@ -2251,7 +2251,8 @@
       "confirmDissolve": "解散将移除全部物化任务，历史行保留。继续？"
     },
     "tree": {
-      "empty": "还没有岗位，点「建岗」开始编队"
+      "empty": "还没有岗位，点「建岗」开始编队",
+      "structure": "结构视图"
     },
     "addMember": "建岗",
     "member": {
@@ -2261,8 +2262,8 @@
       "targetPlaceholder": "选择目标",
       "parent": "上级岗位",
       "noParent": "无（顶层）",
-      "cadence": "排班",
-      "passive": "待命(不排班,随叫随到)",
+      "cadence": "定时运行",
+      "passive": "待命(无定时,随叫随到)",
       "pause": "暂停",
       "resume": "恢复",
       "remove": "删岗",
@@ -2305,13 +2306,13 @@
       "accept": "知晓成本，仍要创建"
     },
     "report": {
-      "drawerTitle": "报数详情",
-      "drawerOpen": "汇报",
-      "selfBadge": "本岗汇报",
+      "drawerTitle": "产出详情",
+      "drawerOpen": "产出",
+      "selfBadge": "本岗产出",
       "derivedBadge": "执行摘要·非自报",
       "note": "自报备注",
       "blockers": "阻塞",
-      "noReports": "尚无报数",
+      "noReports": "尚无产出",
       "openSession": "来源会话",
       "loadMore": "载入更早",
       "refresh": "刷新"
@@ -2355,8 +2356,8 @@
       "newer": "模板有新版 v{{v}}（现役不受影响，可手动对齐）"
     },
     "stream": {
-      "title": "最新汇报",
-      "noReport": "尚无汇报"
+      "title": "最新产出",
+      "noReport": "尚无产出"
     },
     "turn": {
       "failed": "回合失败",
@@ -2387,18 +2388,19 @@
         "trigger": "定时",
         "report": "报数",
         "dispatch": "派发",
-        "handoff": "接棒",
+        "handoff": "流转",
         "fanout": "扇出",
         "event": "事件"
       },
       "phrase": {
         "report": "报数上行",
         "dispatch": "派发许可",
-        "handoff": "完成接棒",
+        "handoff": "完成后流转",
         "judge": "裁决",
         "aggregate": "聚合",
         "event": "唤醒"
-      }
+      },
+      "implicitAll": "主管模式:全员互可派发({{pairs}} 对,隐式许可)"
     },
     "hints": {
       "on_duty": "一切正常:岗位有人、按排班干活",
@@ -2407,8 +2409,51 @@
       "vacant": "职位空缺:还没绑执行者,或绑的角色已不存在",
       "passive": "不排班、不烧钱,等被派活或审批唤醒",
       "queue": "岗位遇到超出自己权限或预算的选择时,提请你决定;批准后可立即执行",
-      "stream": "各岗位最新一次汇报的汇流,最新在前;异常岗位置顶",
-      "report": "岗位干完活交的结构化汇报:指标、总结、阻塞项"
+      "stream": "各岗位最新一次产出的汇流,最新在前;异常岗位置顶",
+      "report": "岗位干完活交的结构化产出:指标、总结、阻塞项"
+    },
+    "terms": {
+      "_treeLabel": "结构视图",
+      "title": "词汇对照",
+      "intro": "旧词→现行词,帮你把早先的说法对上",
+      "rows": [
+        [
+          "报数",
+          "产出"
+        ],
+        [
+          "拍板",
+          "审批"
+        ],
+        [
+          "失联",
+          "超时未报"
+        ],
+        [
+          "待补",
+          "空缺"
+        ],
+        [
+          "被动",
+          "待命"
+        ],
+        [
+          "换防",
+          "换人"
+        ],
+        [
+          "节奏",
+          "定时运行"
+        ],
+        [
+          "日报流",
+          "最新产出"
+        ],
+        [
+          "接棒",
+          "流转"
+        ]
+      ]
     }
   }
 }

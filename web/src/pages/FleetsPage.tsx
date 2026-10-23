@@ -496,6 +496,23 @@ export function FleetsPage() {
                 </div>
               ) : null}
 
+              {/* Terminology card (vocabulary policy): old term → current
+                  term, bridging users who learned the original words. */}
+              <details className="mt-3">
+                <summary className="cursor-pointer select-none text-xs text-muted-foreground">
+                  {t("fleets.terms.title")} · {t("fleets.terms.intro")}
+                </summary>
+                <div className="mt-2 grid grid-cols-[auto_auto_auto] items-center gap-x-3 gap-y-1 text-xs">
+                  {(t("fleets.terms.rows", { returnObjects: true }) as Array<[string, string]>).map(([from, to], i) => (
+                    <span key={i} className="contents">
+                      <span className="text-muted-foreground line-through decoration-muted">{from}</span>
+                      <span className="text-muted-foreground">→</span>
+                      <span>{to}</span>
+                    </span>
+                  ))}
+                </div>
+              </details>
+
               {/* Orchestration panel (agent-fleet-orchestration): the declared
                   edges as a read-only list — the owner SEES the shape they
                   declared. Undeclared fleets render nothing. */}
@@ -519,7 +536,20 @@ export function FleetsPage() {
                       </span>
                     ) : null}
                   </div>
-                  {detail.orchestration.edges.map((e, i) => {
+                  {(() => {
+                    const implicitDispatch = detail.orchestration!.edges.filter((e) => e.kind === "dispatch" && e.implicit);
+                    const visible = detail.orchestration!.edges.filter((e) => !(e.kind === "dispatch" && e.implicit));
+                    return (
+                      <>
+                      {implicitDispatch.length > 0 ? (
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-full px-2 py-0.5 bg-blue-500/15 text-blue-600 dark:text-blue-400">{t("fleets.orch.edge.dispatch")}</span>
+                          <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                            {t("fleets.orch.implicitAll", { pairs: implicitDispatch.length })}
+                          </span>
+                        </div>
+                      ) : null}
+                      {visible.map((e, i) => {
                     const name = (id?: string) => memberById(detail.members, id)?.title ?? id ?? "?";
                     const badge = EDGE_STYLES[e.kind] ?? "bg-muted text-muted-foreground";
                     let desc = "";
@@ -546,10 +576,17 @@ export function FleetsPage() {
                       </div>
                     );
                   })}
+                      </>
+                    );
+                  })()}
                 </div>
               ) : null}
 
-              <div className="mt-4 flex flex-col gap-2" data-testid="fleets-tree">
+              <details className="mt-4" open>
+                <summary className="cursor-pointer select-none text-sm font-medium text-muted-foreground">
+                  {t("fleets.tree.structure")}
+                </summary>
+              <div className="mt-2 flex flex-col gap-2" data-testid="fleets-tree">
                 {tree.length === 0 ? (
                   <p className="text-sm text-muted-foreground">{t("fleets.tree.empty")}</p>
                 ) : (
@@ -732,6 +769,7 @@ export function FleetsPage() {
                   ))
                 )}
               </div>
+              </details>
 
               {/* Daily stream (報数史 IS the daily report — grill ruling): each
                   post's latest, missing posts first, a2a honestly badged. */}

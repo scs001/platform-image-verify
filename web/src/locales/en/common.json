@@ -2251,7 +2251,8 @@
       "confirmDissolve": "Dissolving removes all materialized tasks; history rows stay. Continue?"
     },
     "tree": {
-      "empty": "No posts yet — start staffing one"
+      "empty": "No posts yet — start staffing one",
+      "structure": "Structure view"
     },
     "addMember": "Add post",
     "member": {
@@ -2261,7 +2262,7 @@
       "targetPlaceholder": "Pick a target",
       "parent": "Reports to",
       "noParent": "None (top level)",
-      "cadence": "Schedule",
+      "cadence": "Scheduled runs",
       "passive": "On call (no schedule; runs when tasked)",
       "pause": "Pause",
       "resume": "Resume",
@@ -2305,13 +2306,13 @@
       "accept": "I understand — create it"
     },
     "report": {
-      "drawerTitle": "Report details",
-      "drawerOpen": "Report",
-      "selfBadge": "Own report",
+      "drawerTitle": "Output details",
+      "drawerOpen": "Output",
+      "selfBadge": "Own output",
       "derivedBadge": "execution summary · not self-reported",
       "note": "Self note",
       "blockers": "Blockers",
-      "noReports": "No reports yet",
+      "noReports": "No outputs yet",
       "openSession": "Source session",
       "loadMore": "Load earlier",
       "refresh": "Refresh"
@@ -2355,8 +2356,8 @@
       "newer": "Template has a newer version v{{v}} (live fleet untouched; align manually)"
     },
     "stream": {
-      "title": "Latest reports",
-      "noReport": "No reports yet"
+      "title": "Latest outputs",
+      "noReport": "No outputs yet"
     },
     "turn": {
       "failed": "turn failed",
@@ -2398,7 +2399,8 @@
         "judge": "judge",
         "aggregate": "aggregate",
         "event": "wake"
-      }
+      },
+      "implicitAll": "Supervisor mode: every post may dispatch to every other ({{pairs}} pairs, implicit)"
     },
     "hints": {
       "on_duty": "All good: staffed and running on schedule",
@@ -2407,8 +2409,51 @@
       "vacant": "The post has no assignee (or its assignee no longer exists)",
       "passive": "No schedule, no idle cost; runs when tasked or woken",
       "queue": "Posts escalate choices beyond their authority/budget here; approve to execute now",
-      "stream": "Each post's latest report, newest first; troubled posts pinned",
-      "report": "A post's structured hand-in: metrics, summary, blockers"
+      "stream": "Each post's latest output, newest first; troubled posts pinned",
+      "report": "A post's structured output: metrics, summary, blockers"
+    },
+    "terms": {
+      "_treeLabel": "Structure view",
+      "title": "Vocabulary",
+      "intro": "Old term → current term",
+      "rows": [
+        [
+          "report",
+          "output"
+        ],
+        [
+          "decision",
+          "approval"
+        ],
+        [
+          "missing",
+          "overdue"
+        ],
+        [
+          "vacant post",
+          "vacant"
+        ],
+        [
+          "passive",
+          "on call"
+        ],
+        [
+          "swap",
+          "change assignee"
+        ],
+        [
+          "cadence",
+          "scheduled runs"
+        ],
+        [
+          "daily stream",
+          "latest outputs"
+        ],
+        [
+          "handoff",
+          "flow"
+        ]
+      ]
     }
   }
 }

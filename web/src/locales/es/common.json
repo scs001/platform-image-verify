@@ -2251,7 +2251,8 @@
       "confirmDissolve": "Disolver elimina las tareas materializadas; las filas de historial se conservan. ¿Continuar?"
     },
     "tree": {
-      "empty": "Aún no hay puestos: crea el primero"
+      "empty": "Aún no hay puestos: crea el primero",
+      "structure": "Vista de estructura"
     },
     "addMember": "Añadir puesto",
     "member": {
@@ -2261,7 +2262,7 @@
       "targetPlaceholder": "Elige destino",
       "parent": "Depende de",
       "noParent": "Nadie (nivel superior)",
-      "cadence": "Horario",
+      "cadence": "Ejecuciones programadas",
       "passive": "En espera (sin horario; actúa al recibir tareas)",
       "pause": "Pausar",
       "resume": "Reanudar",
@@ -2305,13 +2306,13 @@
       "accept": "Lo entiendo: crear"
     },
     "report": {
-      "drawerTitle": "Detalles de reportes",
-      "drawerOpen": "Informar",
-      "selfBadge": "Informe propio",
+      "drawerTitle": "Detalles de entregas",
+      "drawerOpen": "Entrega",
+      "selfBadge": "Entrega propia",
       "derivedBadge": "resumen de ejecución · no autoinformado",
       "note": "Nota propia",
       "blockers": "Bloqueos",
-      "noReports": "Sin reportes",
+      "noReports": "Aún sin entregas",
       "openSession": "Sesión de origen",
       "loadMore": "Cargar anteriores",
       "refresh": "Actualizar"
@@ -2355,8 +2356,8 @@
       "newer": "La plantilla tiene una versión nueva v{{v}} (la flota activa no cambia; alinea a mano)"
     },
     "stream": {
-      "title": "Últimos informes",
-      "noReport": "Aún sin informes"
+      "title": "Últimas entregas",
+      "noReport": "Aún sin entregas"
     },
     "turn": {
       "failed": "turno fallido",
@@ -2398,7 +2399,8 @@
         "judge": "árbitro",
         "aggregate": "agregación",
         "event": "despierta"
-      }
+      },
+      "implicitAll": "Modo supervisor: cualquiera puede delegar a cualquiera ({{pairs}} pares, implícito)"
     },
     "hints": {
       "on_duty": "Todo bien: cubierto y ejecutando su horario",
@@ -2407,8 +2409,51 @@
       "vacant": "El puesto no tiene titular (o su titular ya no existe)",
       "passive": "Sin horario ni coste en reposo; actúa al recibir tareas",
       "queue": "Aquí los puestos elevan decisiones que superan su autoridad/presupuesto; aprueba para ejecutar ya",
-      "stream": "El último informe de cada puesto, lo más reciente primero",
+      "stream": "La última entrega de cada puesto, lo más reciente primero",
       "report": "Entrega estructurada del puesto: métricas, resumen, bloqueos"
+    },
+    "terms": {
+      "_treeLabel": "Vista de estructura",
+      "title": "Vocabulario",
+      "intro": "Término antiguo → término actual",
+      "rows": [
+        [
+          "informe",
+          "entrega"
+        ],
+        [
+          "decisión",
+          "aprobación"
+        ],
+        [
+          "perdido",
+          "atrasado"
+        ],
+        [
+          "puesto vacante",
+          "vacante"
+        ],
+        [
+          "pasivo",
+          "en espera"
+        ],
+        [
+          "cambiar",
+          "cambiar titular"
+        ],
+        [
+          "horario",
+          "ejecuciones programadas"
+        ],
+        [
+          "flujo diario",
+          "últimas entregas"
+        ],
+        [
+          "relevo",
+          "flujo"
+        ]
+      ]
     }
   }
 }

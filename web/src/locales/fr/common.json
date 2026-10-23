@@ -2251,7 +2251,8 @@
       "confirmDissolve": "Dissoudre supprime les tâches matérialisées ; les lignes d'historial restent. Continuer ?"
     },
     "tree": {
-      "empty": "Aucun poste — commencez par en créer un"
+      "empty": "Aucun poste — commencez par en créer un",
+      "structure": "Vue structure"
     },
     "addMember": "Ajouter un poste",
     "member": {
@@ -2261,7 +2262,7 @@
       "targetPlaceholder": "Choisir une cible",
       "parent": "Rend compte à",
       "noParent": "Aucun (niveau supérieur)",
-      "cadence": "Horaires",
+      "cadence": "Exécutions programmées",
       "passive": "En attente (sans horaire; agit sur demande)",
       "pause": "Suspendre",
       "resume": "Reprendre",
@@ -2305,13 +2306,13 @@
       "accept": "Compris — créer"
     },
     "report": {
-      "drawerTitle": "Détails des rapports",
-      "drawerOpen": "Rapport",
-      "selfBadge": "Rapport du poste",
+      "drawerTitle": "Détails des livraisons",
+      "drawerOpen": "Livraison",
+      "selfBadge": "Livraison du poste",
       "derivedBadge": "résumé d'exécution · non auto-déclaré",
       "note": "Note personnelle",
       "blockers": "Blocages",
-      "noReports": "Aucun rapport",
+      "noReports": "Aucune livraison",
       "openSession": "Session source",
       "loadMore": "Charger plus ancien",
       "refresh": "Rafraîchir"
@@ -2355,8 +2356,8 @@
       "newer": "Le gabarit a une version plus récente v{{v}} (la flotte active n'est pas touchée)"
     },
     "stream": {
-      "title": "Derniers rapports",
-      "noReport": "Aucun rapport"
+      "title": "Dernières livraisons",
+      "noReport": "Aucune livraison"
     },
     "turn": {
       "failed": "tour échoué",
@@ -2398,7 +2399,8 @@
         "judge": "arbitre",
         "aggregate": "agrégation",
         "event": "réveil"
-      }
+      },
+      "implicitAll": "Mode superviseur : tous peuvent déléguer à tous ({{pairs}} paires, implicite)"
     },
     "hints": {
       "on_duty": "Tout va bien : pourvu et actif selon ses horaires",
@@ -2407,8 +2409,51 @@
       "vacant": "Le poste n'a pas de titulaire (ou son titulaire n'existe plus)",
       "passive": "Sans horaire ni coût au repos ; agit sur demande",
       "queue": "Les postes y remontent les décisions au-delà de leur autorité/budget ; approuvez pour exécuter",
-      "stream": "Le dernier rapport de chaque poste, du plus récent au plus ancien",
-      "report": "Compte rendu structuré du poste : métriques, résumé, blocages"
+      "stream": "La dernière livraison de chaque poste, du plus récent au plus ancien",
+      "report": "Livraison structurée du poste : métriques, résumé, blocages"
+    },
+    "terms": {
+      "_treeLabel": "Vue structure",
+      "title": "Vocabulaire",
+      "intro": "Ancien terme → terme actuel",
+      "rows": [
+        [
+          "rapport",
+          "livraison"
+        ],
+        [
+          "décision",
+          "approbation"
+        ],
+        [
+          "injoignable",
+          "en retard"
+        ],
+        [
+          "vacant",
+          "vacant"
+        ],
+        [
+          "passif",
+          "en attente"
+        ],
+        [
+          "échange",
+          "changer le titulaire"
+        ],
+        [
+          "cadence",
+          "exécutions programmées"
+        ],
+        [
+          "flux quotidien",
+          "dernières livraisons"
+        ],
+        [
+          "relais",
+          "flux"
+        ]
+      ]
     }
   }
 }

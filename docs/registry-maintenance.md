@@ -1649,3 +1649,19 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **验收（浏览器真机，活用户会话）**：术语卡展开后 **17 词全见**——旧词列（报数/拍板/失联/待补/被动/换防/节奏/日报流/接棒）×现行词列（产出/审批/超时未报/空缺/待命/换人/定时运行/流转）双语对照 + 截图存证;结构视图 collapsible、产出/换人按钮、hints 悬浮全在;v2 词在 index locale chunk 在位。**意外收获：浏览器会话登的是另一用户 cell（3fdc7b8e），内有一支 active 的「柏讯内容舰队」——fd-wire 线已真实在生产使用舰队**（aloadtree cell 13 舰健在：2 active + 11 archived,零丢失;「列表只剩一舰」为不同用户视角,非数据事故）。
 
 **功能一句话**：五语言运营者框架词汇（定时运行/产出×交付/流转）+ 术语卡（旧×现行九行对照桥）+ 隐式派发边聚合 56→1 行 + 组织树降级「结构视图」（collapsible,功能不删）。词汇三段（原词→未露面过渡→终词）收官,底账 §十五+补记。
+
+### §16.2 发布记录：wire-build-mcp 试点接入自报（add-self-reported-tool-surface 组 2，2026-10-24 上线，三滚两 bug）
+
+**交付（wire-build-mcp 仓，canonical gitee main）**：
+- `wire_build_mcp/surface_report.py` 共用自报模块（组 3 三服务直接复用）：运行时枚举工具名 + `surface_version`（tool-surface.json sha256 前 12 位）→ POST `/api/surface-report/servers/<path>/tool-list`；有界重试 15s/1m/5m/30m×4 成功即停；失败不阻塞启动；无配置静默跳过（=现状）。`tool-surface.json` 进 wheel package-data。
+- `/health` 增 `last_surface_report: ok|failed|not_configured`（not_configured 回退基线 body——无配置零行为变化）。
+- 上牌：registry pod 内 exec（用户显式授权）跑 `issue_surface_token` 铸 path 绑定 token（hash+surface_source 字段级写条目）→ fd-prod Secret `wire-build-surface`（三键：token/entry-path/internal-url）→ 部署 envFrom 注入。
+
+**三滚实录（教训都在里面）**：
+1. `sha-e83fff0`（源 83a0a6b）滚版 → **新 pod Running 不 Ready、ProgressDeadlineExceeded**。日志抓到根因：`create_server()` 在 ASGI **构建期**调 `asyncio.create_task`——uvicorn 尚未起 loop，`no running event loop` 直接把服务打死。本地 59 测试全绿没抓到（pytest 循环常在）——**ASGI 生命周期类 bug 只有真部署暴露**。修：`ensure_started()` 首请求触发 + 一次性封口（未配置置 False）。
+2. `sha-16475b4`（源 4c8c6dc）滚版成功 → 自报**启动失败**、`/health` 显 failed（恰是「registry 缩容演练」验收项的现实版：服务照常起、失败可见）→ **手动重报同参数 200 成功**，公网 `/api/servers` 回读 **tool_list=17、wire_artifact_dashboard_create / wire_artifact_doc_create 双双在册**——§16.1 挂的 15→17 快照缺口就此闭合，发布门 unresolved 判据消除。
+3. 诊断期一次 `probe_test` 假工具误写（diag 调用走了真写面）→ 立即用真 17 工具清单手报覆盖修复；教训：**诊断性调用别走生产写路径**，diag 端点或 dry-run 旗属于组 4 补强。
+
+**挂账（进组 4）**：① 启动自报 5 连击全败而手报同参成功——疑启动窗口内 DNS/网络就绪序，未定位；② `surface_source` 公网读 None——疑 `/api/servers` 响应投影未带新字段（写库在位，`update_server` 字段级写入）；③ pack 发布被 10/时/作者限流，窗后重发即终验发布门；④ `probe_test` 教训落地（diag 通道或 dry-run）。
+
+**生产镜像**：`finddata-business/wire-build-mcp:sha-16475b4`（GitOps 23790ad）；Secret `wire-build-surface`（fd-prod）。**回滚**：滚回 sha-d596f84 + 删 envFrom（Secret 留存无害；registry 条目 hash/surface_source 留存无害，旧代码不读）。

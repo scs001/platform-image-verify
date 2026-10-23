@@ -68,7 +68,7 @@ import { reconcileAllFleets, deriveMemberStatus } from "./server/fleet-reconcile
 import { buildFleetContext } from "./server/fleet-context.js";
 import { derivedReportFromTask, fleetIdentityFor, fleetModelFor } from "./server/fleet-reports.js";
 import { recordTurnEvent } from "./server/fleet-events.js";
-import { outgoingHandoffs, constraintsOf } from "./server/fleet-orchestration.js";
+import { outgoingHandoffs, outgoingFanouts, constraintsOf } from "./server/fleet-orchestration.js";
 import * as engine from "./task-engine.js";
 import { renderDecisionSegment } from "./server/fleet-decisions.js";
 import { rosterPresetId } from "./dsh-profile.js";
@@ -1078,6 +1078,59 @@ ctx.triggerFleetHandoffs = async (job, out) => {
         executionPolicy: { timeoutMinutes: constraints.budgetPerEdgeMin },
       });
       dispatched.push({ to: target.id, taskId: task.id });
+    }
+
+    // Fanout edges (add-fleet-fanout D2): one parallel wave per edge — a
+    // manual turn per target, same honest relay as handoff, depth rides the
+    // chain. Aggregation rides the delegation aggregator VERBATIM: no-judge
+    // waves carry the upstream session as initiator (the group's outcomes
+    // inject into the upstream post's next turn); judge waves carry the
+    // synthetic fleet-scoped initiator + the judge's roster preset, so the
+    // aggregator switches to the judge persona and runs the ruling turn on
+    // group completion. Wave counter is provenance only (single wave per
+    // upstream turn; further debate rounds are the judge's own dispatch_post
+    // calls, depth is the hard bound).
+    const fanouts = outgoingFanouts(fleet.orchestration, memberId);
+    for (const e of fanouts) {
+      const agg = e.aggregate ?? { kind: "all" };
+      const judge = agg.kind === "judge" ? db.getMember(agg.judge) : null;
+      if (agg.kind === "judge" && (!judge || judge.fleetId !== fleetId || judge.targetKind !== "persona")) continue;
+      const summary = out?.ok === true
+        ? String(out.text ?? "").slice(0, 2000) || "(upstream produced no text)"
+        : `上游回合失败:${String(out?.error ?? "unknown").slice(0, 500)}——如实转述,不自动重试`;
+      const rounds = Number.isInteger(e.rounds) ? e.rounds : 1;
+      for (const t of e.targets ?? []) {
+        const target = db.getMember(t);
+        if (!target || target.fleetId !== fleetId) continue;
+        if (target.targetKind === "cluster" || target.targetKind === "tool") continue;
+        if (nextDepth > constraints.maxChainDepth) {
+          db.appendTurnEvent({
+            fleetId,
+            memberId: target.id,
+            source: "manual",
+            status: "failed",
+            errorKind: "other",
+            error: `fanout depth bound reached (${nextDepth} > ${constraints.maxChainDepth}) — wave stopped before this hop`,
+            startedAt: now,
+            endedAt: now,
+            sessionId: null,
+          });
+          continue;
+        }
+        const task = engine.createManualTask({
+          prompt:
+            `【舰队并行扇出】上游岗位「${db.getMember(memberId)?.title ?? memberId}」回合结束,你与同波同伴并行接令(轮次 1/${rounds})。\n` +
+            `上游结果:\n${summary}`,
+          ...(target.targetKind === "a2a" ? { agent: target.targetId } : { persona: rosterPresetId(target.targetId) }),
+          sessionTitle: `扇出 · ${target.title}`,
+          origin: { fleet: { fleetId, memberId: target.id, depth: nextDepth, wave: 1 } },
+          ...(judge
+            ? { initiator: `fleet:${fleetId}:${judge.id}`, initiatorPreset: rosterPresetId(judge.targetId) }
+            : { initiator: job.sessionId ?? null }),
+          executionPolicy: { timeoutMinutes: constraints.budgetPerEdgeMin },
+        });
+        dispatched.push({ to: target.id, taskId: task.id, wave: true, judge: judge?.id ?? null });
+      }
     }
     return dispatched.length ? dispatched : null;
   } catch (e) {

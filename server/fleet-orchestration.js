@@ -11,7 +11,8 @@
 //
 // Wave 1 is a DAG: handoff cycles (bounded rounds) belong to wave 2's fanout.
 
-export const EDGE_KINDS = ["trigger", "report", "dispatch", "handoff"];
+export const EDGE_KINDS = ["trigger", "report", "dispatch", "handoff", "fanout"];
+export const FANOUT_ROUNDS_MAX = 3;
 export const MODES = ["schedule", "supervisor", "pipeline"];
 
 export const DEFAULT_MAX_CHAIN_DEPTH = 8;
@@ -91,6 +92,7 @@ export function validateOrchestration({ members = [], orchestration = null } = {
     }
     for (const ref of ["from", "to"]) {
       if (ref === "from" && e.kind === "trigger") continue; // trigger edges hang off the cron, not a post
+      if (ref === "to" && e.kind === "fanout") continue; // fanout addresses `targets`, not `to`
       if (typeof e[ref] !== "string" || !known.has(e[ref])) {
         errors.push({ error: `${at}.${ref} '${e[ref]}' does not match a member of this fleet`, entry: at });
       }
@@ -101,6 +103,55 @@ export function validateOrchestration({ members = [], orchestration = null } = {
     if (e.kind === "dispatch" && e.from === e.to) {
       errors.push({ error: `${at}: a post cannot dispatch to itself`, entry: at });
     }
+    if (e.kind === "fanout") {
+      // Fanout shape (add-fleet-fanout D1): ≥2 distinct targets, no self,
+      // no tool targets (their arguments are per-hop — handoff+args is that
+      // lane), judge rules, rounds bound. Fanout edges stay OUT of the DAG
+      // walk: their loops are rounds-bounded waves, depth stays the global
+      // anti-runaway bound.
+      const targets = e.targets;
+      if (!Array.isArray(targets) || targets.length < 2) {
+        errors.push({ error: `${at}.targets must list at least 2 posts`, entry: at });
+      } else {
+        if (new Set(targets).size !== targets.length) {
+          errors.push({ error: `${at}.targets has duplicates`, entry: at });
+        }
+        for (const t of targets) {
+          if (typeof t !== "string" || !known.has(t)) {
+            errors.push({ error: `${at}.targets '${t}' does not match a member of this fleet`, entry: at });
+          } else if (t === e.from) {
+            errors.push({ error: `${at}: a post cannot fan out to itself`, entry: at });
+          } else if (members.find((m) => m.id === t)?.targetKind === "tool") {
+            errors.push({ error: `${at}.targets '${t}' is a tool post — tool hops take a handoff edge with per-hop args`, entry: at });
+          }
+        }
+      }
+      const agg = e.aggregate ?? { kind: "all" };
+      if (!["first", "all", "judge"].includes(agg.kind)) {
+        errors.push({ error: `${at}.aggregate.kind must be one of first|all|judge`, entry: at });
+      }
+      if (agg.kind === "judge") {
+        if (typeof agg.judge !== "string" || !known.has(agg.judge)) {
+          errors.push({ error: `${at}.aggregate.judge must reference a member of this fleet`, entry: at });
+        } else {
+          if (agg.judge === e.from) errors.push({ error: `${at}.aggregate.judge cannot be the fanning post itself`, entry: at });
+          if (Array.isArray(targets) && targets.includes(agg.judge)) {
+            errors.push({ error: `${at}.aggregate.judge cannot also be a target`, entry: at });
+          }
+          // The judge turn is a LOCAL persona turn (the aggregator switches
+          // back to its roster preset) — an a2a judge has none.
+          if (members.find((m) => m.id === agg.judge)?.targetKind !== "persona") {
+            errors.push({ error: `${at}.aggregate.judge must be a persona post (the judge turn runs locally)`, entry: at });
+          }
+        }
+      }
+      if (e.rounds !== undefined && (!Number.isInteger(e.rounds) || e.rounds < 1 || e.rounds > FANOUT_ROUNDS_MAX)) {
+        errors.push({ error: `${at}.rounds must be an integer 1..${FANOUT_ROUNDS_MAX} (declarative bound; depth stays the hard bound)`, entry: at });
+      }
+      if (e.args !== undefined) {
+        errors.push({ error: `${at}: fanout edges take no args — per-target arguments are the handoff lane`, entry: at });
+      }
+    }
     // Tool-hop arguments (add-tool-posts): a handoff edge into a tool post
     // carries its JSON args (object); anything else fails at run time, so the
     // shape is pinned here.
@@ -108,7 +159,7 @@ export function validateOrchestration({ members = [], orchestration = null } = {
       errors.push({ error: `${at}.args must be a JSON object (tool-hop arguments)`, entry: at });
     }
     if (typeof e.from === "string" && e.kind !== "trigger") {
-      outDegree.set(e.from, (outDegree.get(e.from) ?? 0) + 1);
+      outDegree.set(e.from, (outDegree.get(e.from) ?? 0) + (e.kind === "fanout" && Array.isArray(e.targets) ? e.targets.length : 1));
     }
   }
 
@@ -176,4 +227,10 @@ export function dispatchAllowed({ members = [], orchestration = null } = {}, fro
 export function outgoingHandoffs(orchestration, memberId) {
   const edges = Array.isArray(orchestration?.edges) ? orchestration.edges : [];
   return edges.filter((e) => e?.kind === "handoff" && e.from === memberId);
+}
+
+// The fanout edges leaving a post (runtime helper for the turn seam).
+export function outgoingFanouts(orchestration, memberId) {
+  const edges = Array.isArray(orchestration?.edges) ? orchestration.edges : [];
+  return edges.filter((e) => e?.kind === "fanout" && e.from === memberId);
 }

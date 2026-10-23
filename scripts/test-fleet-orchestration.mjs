@@ -361,3 +361,134 @@ test("routes: PATCH accepts a valid section, rejects a cycle; cockpit reads expa
     server.close();
   }
 });
+
+// ── 5. fanout edges (add-fleet-fanout) ─────────────────────────────────────
+
+test("fanout validation: legal shape + every rejection class", () => {
+  const members = [
+    P("f_a"), P("f_b"), P("f_c"), P("f_j"),
+    { id: "f_tool", title: "工具", parentId: null, targetKind: "tool", targetId: "s::t" },
+    { id: "f_a2a", title: "远端", parentId: null, targetKind: "a2a", targetId: "agent-x" },
+  ];
+  const fan = (over = {}) => validateOrchestration({ members, orchestration: { edges: [
+    { kind: "fanout", from: "f_a", targets: ["f_b", "f_c"], ...over.edge },
+  ], ...(over.orch ?? {}) } });
+
+  assert.equal(fan().ok, true, "default aggregate=all passes");
+  assert.equal(fan({ edge: { targets: ["f_b"] } }).ok, false, "single target");
+  assert.equal(fan({ edge: { targets: ["f_b", "f_b"] } }).ok, false, "duplicate target");
+  assert.equal(fan({ edge: { targets: ["f_b", "f_a"] } }).ok, false, "self in targets");
+  assert.equal(fan({ edge: { targets: ["f_b", "ghost"] } }).ok, false, "unknown target");
+  assert.equal(fan({ edge: { targets: ["f_b", "f_tool"] } }).ok, false, "tool target");
+  assert.equal(fan({ edge: { targets: ["f_b", "f_c"], aggregate: { kind: "weird" } } }).ok, false, "bad aggregate kind");
+  assert.equal(fan({ edge: { targets: ["f_b", "f_c"], aggregate: { kind: "judge", judge: "f_a" } } }).ok, false, "judge is the fan source");
+  assert.equal(fan({ edge: { targets: ["f_b", "f_c"], aggregate: { kind: "judge", judge: "f_b" } } }).ok, false, "judge is a target");
+  assert.equal(fan({ edge: { targets: ["f_b", "f_c"], aggregate: { kind: "judge", judge: "f_a2a" } } }).ok, false, "a2a judge");
+  assert.equal(fan({ edge: { targets: ["f_b", "f_c"], rounds: 5 } }).ok, false, "rounds over bound");
+  assert.equal(fan({ edge: { targets: ["f_b", "f_c"], args: { x: 1 } } }).ok, false, "fanout takes no args");
+  const judged = fan({ edge: { targets: ["f_b", "f_c"], aggregate: { kind: "judge", judge: "f_j" }, rounds: 2 } });
+  assert.equal(judged.ok, true, "persona judge with rounds passes");
+  // fanout loops stay out of the DAG walk: A→B handoff + B fanout back to A is legal
+  const loop = validateOrchestration({ members, orchestration: { edges: [
+    { kind: "handoff", from: "f_a", to: "f_b" },
+    { kind: "fanout", from: "f_b", targets: ["f_a", "f_c"] },
+  ] } });
+  assert.equal(loop.ok, true, "fanout cycles are rounds/depth-bounded, not DAG-refused");
+});
+
+test("fanout seam: wave creation, initiator wiring both modes, failure relay, depth bound", async () => {
+  const fleet = fleetDb.createFleet({ id: "f_fo", name: "扇出舰", ownerEmail: "owner@test" });
+  fleetDb.createMember({ id: "fo_src", fleetId: fleet.id, title: "主编", targetKind: "persona", targetId: "p-src", kpiSlots: [], cadence: null });
+  fleetDb.createMember({ id: "fo_w1", fleetId: fleet.id, title: "撰稿A", targetKind: "persona", targetId: "p-w1", kpiSlots: [], cadence: null });
+  fleetDb.createMember({ id: "fo_w2", fleetId: fleet.id, title: "撰稿B", targetKind: "persona", targetId: "p-w2", kpiSlots: [], cadence: null });
+  fleetDb.createMember({ id: "fo_judge", fleetId: fleet.id, title: "评审", targetKind: "persona", targetId: "p-judge", kpiSlots: [], cadence: null });
+  fleetDb.updateFleet(fleet.id, { orchestration: { edges: [
+    { kind: "fanout", from: "fo_src", targets: ["fo_w1", "fo_w2"], aggregate: { kind: "judge", judge: "fo_judge" } },
+  ], constraints: { maxChainDepth: 2, budgetPerEdgeMin: 12 } } });
+
+  const created = [];
+  const ctx = {
+    session: { model: { id: "m0" } },
+    taskTurnRegistry: new Map(),
+    recordFleetTurnEvent: () => ({}),
+    triggerFleetHandoffs: async (job, out) => {
+      // mirror the server wiring (fanout half)
+      const f = fleetDb.getFleet("f_fo");
+      const memberId = job.origin?.fleet?.memberId ?? job.sourceTag?.memberId;
+      const edges = (f.orchestration.edges ?? []).filter((e) => e.kind === "fanout" && e.from === memberId);
+      if (!edges.length) return null;
+      const c = constraintsOf(f.orchestration);
+      const depth = (job.origin?.fleet?.depth ?? 0) + 1;
+      const now = Date.now();
+      const dispatched = [];
+      for (const e of edges) {
+        const agg = e.aggregate ?? { kind: "all" };
+        const judge = agg.kind === "judge" ? fleetDb.getMember(agg.judge) : null;
+        const summary = out?.ok === true ? String(out.text).slice(0, 100) : `上游回合失败:${String(out.error).slice(0, 60)}`;
+        for (const t of e.targets ?? []) {
+          const target = fleetDb.getMember(t);
+          if (!target) continue;
+          if (depth > c.maxChainDepth) {
+            fleetDb.appendTurnEvent({ fleetId: "f_fo", memberId: t, source: "manual", status: "failed", errorKind: "other", error: `fanout depth bound reached (${depth})`, startedAt: now, endedAt: now });
+            continue;
+          }
+          const task = engine.createManualTask({
+            prompt: `扇出:${summary}`,
+            persona: `t-${target.id}`,
+            sessionTitle: `扇出 · ${target.title}`,
+            origin: { fleet: { fleetId: "f_fo", memberId: t, depth, wave: 1 } },
+            ...(judge ? { initiator: `fleet:f_fo:${judge.id}`, initiatorPreset: `t-${judge.id}` } : { initiator: job.sessionId ?? null }),
+            executionPolicy: { timeoutMinutes: c.budgetPerEdgeMin },
+          });
+          created.push(task.id);
+          dispatched.push(task.id);
+        }
+      }
+      return dispatched;
+    },
+  };
+  attachCronRunner(ctx, {
+    runPersona: async () => ({ ok: true, text: "主编的题目" }),
+    runA2a: async () => ({ ok: true }),
+    listAgents: () => [],
+  });
+
+  await ctx.runCronJobTurn({ id: "j1", targetType: "persona", preset: "p-src", sessionId: "sess-src", sourceTag: { fleetId: "f_fo", memberId: "fo_src" } });
+  assert.equal(created.length, 2, "one manual turn per target");
+  for (const id of created) {
+    const t = engine.getTaskRecord(id);
+    assert.equal(t.origin.fleet.wave, 1);
+    assert.equal(t.initiator, "fleet:f_fo:fo_judge", "judge wiring: synthetic fleet-scoped initiator");
+    assert.equal(t.initiatorPreset, "t-fo_judge");
+    assert.ok(t.prompt.includes("主编的题目"));
+    assert.equal(t.executionPolicy.timeoutMinutes, 12);
+  }
+
+  // no-judge wiring + failure relay + depth bound in one deeper pass
+  fleetDb.updateFleet(fleet.id, { orchestration: { edges: [
+    { kind: "fanout", from: "fo_src", targets: ["fo_w1", "fo_w2"] },
+  ], constraints: { maxChainDepth: 2, budgetPerEdgeMin: 10 } } });
+  created.length = 0;
+  const failCtx = { ...ctx, triggerFleetHandoffs: (job, out) => ctx.triggerFleetHandoffs(job, out) };
+  const failBind = {};
+  attachCronRunner(failBind, {
+    runPersona: async () => ({ ok: false, error: "429 upstream gone" }),
+    runA2a: async () => ({ ok: true }),
+    listAgents: () => [],
+  });
+  failBind.triggerFleetHandoffs = (job) => ctx.triggerFleetHandoffs(job, { ok: false, error: "429 upstream gone" });
+  await failBind.runCronJobTurn({ id: "j2", targetType: "persona", preset: "p-src", sessionId: "sess-src", sourceTag: { fleetId: "f_fo", memberId: "fo_src" } });
+  assert.equal(created.length, 2);
+  for (const id of created) {
+    const t = engine.getTaskRecord(id);
+    assert.equal(t.initiator, "sess-src", "no judge: the upstream session aggregates");
+    assert.ok(t.prompt.includes("429 upstream gone"), "failure relayed verbatim");
+  }
+
+  // depth bound: upstream at depth 2 → nextDepth 3 > maxChainDepth 2 ⇒ refusal rows
+  created.length = 0;
+  await ctx.runCronJobTurn({ id: "j3", targetType: "persona", preset: "p-src", origin: { fleet: { fleetId: "f_fo", memberId: "fo_src", depth: 2 } } });
+  assert.equal(created.length, 0, "no wave over the depth bound");
+  assert.ok(fleetDb.listFleetTurnEvents("f_fo", { status: "failed" }).some((e) => e.error.includes("fanout depth bound")));
+  await engine.idle?.();
+});

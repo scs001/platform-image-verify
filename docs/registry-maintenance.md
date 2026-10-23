@@ -1552,3 +1552,11 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **走查事故披露**：首轮宏观晨检消息因 ?preset 只切选人器未开新会话，误注入谦面助手 10:30 会话（把谦面助手包可见性改私有的那条）并跑了一轮——报数归岗仍按 preset 正确落宏观岗；该会话属测试号自用，内容无破坏。
 
 **无镜像出片**（内容面+测试+两行路由修复）；路由修复随下轮列车。市场五卡在架，投研舰队 active 观察。
+
+### §15.16 发布记录：岗位级模型 + 岗位身份注入同车（add-fleet-post-model 实施落地 / wire-content-fleet 承运归档，2026-10-23）
+
+**列车**：快照 scs001/platform-image-verify `2d941ac`（paas 基线 `3e7e9a5f`；**7325d1fc 归岗幽灵岗修 + fe8b7ccd 模板库四包未含，随下一列车**）→ GHA 绿（smoke 门：容器起、/api/config 探过才推）→ hkccr/ccr 双侧 digest `841d521d` 一致（relay 手动补单 21s）→ GitOps `499158b` 滚 platform/platform-demo/facet 三面 → ArgoCD 硬刷新自动同步，rollout 全成；pod imageID↔构建 digest↔本地 md5（fleet-model.js `63fafd54`）三向一致。
+
+**验收（真机）**：demo 三闸活性（roster 闸吐 13 真模型名单、形状闸指名）、`GET /api/fleets/:id/cadence` 只读契约路由活（姊妹 change）、`defaultModel` 写/读/清全回环；fleets.db 三列迁移 demo+prod 双证（活 cell `1da5` 13 舰队 44 岗数据完好；空 cell 惰性开库未触属预期）；prod 启动日志干净。persona 岗 happy-path 与解析链归位的回合级证据由十套 129/129 测试套覆盖，**aloadtree 首个真实模型声明岗回合为终验点**；验收后归档，change 在途。
+
+**功能一句话**：岗位/舰队两级模型声明（`fleet_members.model/fallback_model` + `fleets.default_model`），每个 persona 回合按 [岗位首选→岗位兜底→舰队默认→cell 启动默认] 解析链归位（与 preset 同构，不沾上一回合残留）；声明失效选型时回落并留痕（blockers+usage 记实际模型），a2a/集群岗设模型 400 明拒；驾驶舱岗位卡显示生效模型（失效回落琥珀色）。

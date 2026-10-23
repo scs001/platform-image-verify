@@ -143,7 +143,7 @@ const isInternalActionsBridge = (req) =>
 // faces the full gate.
 const isInternalFleetBridge = (req) =>
   req.method === "POST" &&
-  (req.path === "/api/fleets/report" || req.path === "/api/fleets/escalate") &&
+  (req.path === "/api/fleets/report" || req.path === "/api/fleets/escalate" || req.path === "/api/fleets/dispatch") &&
   isLoopback(req.socket?.remoteAddress);
 
 // The header the gateway injects alongside the identity headers in hosted mode.

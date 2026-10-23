@@ -7,4 +7,4 @@
 ## 2. 回归与出片
 
 - [x] 2.1 既有十三套回归零新增红(纯前端);`openspec validate add-cockpit-orchestration-view` 通过
-- [ ] 2.2 出片随下一列车 + 真机眼见验收(公司式舰队 supervisor+handoff 边呈现)→ 台账补记
+- [x] 2.2 出片随下一列车 + 真机眼见验收(公司式舰队 supervisor+handoff 边呈现)→ 台账补记

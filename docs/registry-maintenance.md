@@ -1625,3 +1625,13 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **回滚**：GitOps 行回上一 digest `c740d37a`；`surface_source` 字段与 hash 列留存无害（旧代码不读）。
 
 **余项**（同 change，finddata 侧）：组 2 = wire-build-mcp 试点接入自报模块（借 15→17 现网缺口做真机验收）；组 3 = 三服务回填；组 4 = 文档收口（含发布门文案改指「重启服务/查 last_surface_report」）。
+
+### §15.21 发布记录：驾驶舱编排面板（add-cockpit-orchestration-view，2026-10-24 凌晨）
+
+**列车**：paas `823e581b` → 快照 `17c1d06`（image 绿）→ relay OK → digest `f556c77b` → GitOps `c1f1a98` 双面滚（ArgoCD 首刷即落）。
+
+**验收**：dist 面板在包（FleetsPage chunk 含 `fleet-orchestration` testid）；cockpit API 的 orchestration 字段自 f0db53d 在产且单测钉住（orchestration 套件 cockpit 用例）；浏览器眼见为用户侧（公司式舰队现役编排=supervisor+投资部→开源部 handoff,打开舰队详情即见面板）。五语言 i18n（orch.edge 徽章词/phrase 短语词分离）。
+
+**功能一句话**：驾驶舱只读编排面板——模式徽章+链深/每跳预算摘要+边列表六类语义渲染（fanout 显全目标与裁决岗,event 显信号源,岗位 ref→名,implicit 标记）;未声明不渲染。
+
+**编排路线全景收束**：机制面（六边/四源/三层成员/NL 编译面,O1-O5）+ 产品面（驾驶舱边视图）均上产；余两件用户侧活——装架构师包眼见、真 bot 配置补 event E2E。

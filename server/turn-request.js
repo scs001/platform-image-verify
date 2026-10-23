@@ -20,7 +20,11 @@ export const RESULT_SINKS = ["report", "caller"];
 export const RESERVED_RESULT_SINKS = {
   blackboard: "the shared blackboard (O5) — not built yet",
 };
-export const DEPTH_BOUND = 1;
+// Depth bounds are per-lane (add-fleet-orchestration): the dispatch lane
+// (ad-hoc, run-time) is hard-bounded at 1; the handoff lane (declared,
+// graph-validated chains) is bounded by the fleet's declared maxChainDepth.
+export const DISPATCH_DEPTH_BOUND = 1;
+export const DEFAULT_MAX_CHAIN_DEPTH = 8;
 
 // Engine trigger kinds (task-engine.js): "schedule" = cron-armed, "manual" =
 // bridge-created. A scheduled task is cron-sourced with or without a fleet
@@ -51,8 +55,9 @@ export function buildTurnRequest(job) {
     // conversation is an existing fact — this names it, it does not add it.
     resultSink: initiator ? "caller" : "report",
     // Outbound a2a turns carry depth 1 today (a2a-client's
-    // X-Delegation-Depth baseline); nothing in-cell chains yet.
-    depth: job?.targetType === "a2a" ? 1 : 0,
+    // X-Delegation-Depth baseline); dispatch/handoff tasks stamp their chain
+    // position in origin.fleet.depth (absent = 0, byte-identical to before).
+    depth: job?.origin?.fleet?.depth ?? (job?.targetType === "a2a" ? 1 : 0),
     budget: Number.isFinite(job?.executionPolicy?.timeoutMinutes)
       ? { minutes: job.executionPolicy.timeoutMinutes }
       : null,
@@ -62,7 +67,10 @@ export function buildTurnRequest(job) {
 // Structural gate for the future CONSTRUCT direction (and for tests): legal
 // values pass silently (null); reserved values and out-of-bound depth fail
 // with the reservation's destination named. Returns { error } or null.
-export function assertTurnRequest(request) {
+// Depth is per-lane: dispatch-bounded at 1 unless a declared chain bound
+// (`maxChainDepth`, validated at the fleet's orchestration write face) is
+// supplied for the handoff lane.
+export function assertTurnRequest(request, { maxChainDepth = null } = {}) {
   if (!request || typeof request !== "object") {
     return { error: "turnRequest must be an object" };
   }
@@ -78,8 +86,13 @@ export function assertTurnRequest(request) {
   if (!RESULT_SINKS.includes(request.resultSink)) {
     return { error: `resultSink must be one of ${RESULT_SINKS.join("|")}` };
   }
-  if (!Number.isFinite(request.depth) || request.depth < 0 || request.depth > DEPTH_BOUND) {
-    return { error: `depth must be within 0..${DEPTH_BOUND} — the anti-chain-amplication bound` };
+  const bound = Number.isFinite(maxChainDepth) && maxChainDepth >= DISPATCH_DEPTH_BOUND
+    ? maxChainDepth
+    : DISPATCH_DEPTH_BOUND;
+  if (!Number.isFinite(request.depth) || request.depth < 0 || request.depth > bound) {
+    return {
+      error: `depth must be within 0..1 (dispatch lane bound) or the declared chain bound (${bound}) — the anti-chain-amplification gate`,
+    };
   }
   return null;
 }

@@ -68,6 +68,8 @@ import { reconcileAllFleets, deriveMemberStatus } from "./server/fleet-reconcile
 import { buildFleetContext } from "./server/fleet-context.js";
 import { derivedReportFromTask, fleetIdentityFor, fleetModelFor } from "./server/fleet-reports.js";
 import { recordTurnEvent } from "./server/fleet-events.js";
+import { outgoingHandoffs, constraintsOf } from "./server/fleet-orchestration.js";
+import * as engine from "./task-engine.js";
 import { renderDecisionSegment } from "./server/fleet-decisions.js";
 import { rosterPresetId } from "./dsh-profile.js";
 import { createMonitoringRoutes } from "./server/routes/monitoring.js";
@@ -984,6 +986,74 @@ ctx.recordFleetTurnEvent = (job, outcome, meta) => {
     return recordTurnEvent(getFleetDatabase(), job, outcome, { ...meta, rosterPresetId });
   } catch (e) {
     console.warn(`[fleets] turn event record failed: ${e?.message || e}`);
+    return null;
+  }
+};
+
+// Handoff edges (agent-fleet-orchestration D4): the turn seam calls this
+// after the outcome event. Upstream completion — ok or failed, both honestly
+// relayed — creates one manual turn per declared outgoing edge, depth read
+// from the chain position in origin.fleet. Over-bound hops create nothing
+// but leave an honest event row. Cluster posts have no manual lane: skipped,
+// their next cadence/delegation turn carries the work.
+ctx.triggerFleetHandoffs = async (job, out) => {
+  try {
+    const db = getFleetDatabase();
+    let fleetId = null;
+    let memberId = null;
+    let chainDepth = 0;
+    if (job?.origin?.fleet?.fleetId) {
+      fleetId = job.origin.fleet.fleetId;
+      memberId = job.origin.fleet.memberId ?? null;
+      chainDepth = Number.isFinite(job.origin.fleet.depth) ? job.origin.fleet.depth : 0;
+    } else if (job?.sourceTag?.fleetId) {
+      fleetId = job.sourceTag.fleetId;
+      memberId = job.sourceTag.memberId ?? null;
+    }
+    if (!fleetId || !memberId) return null;
+    const fleet = db.getFleet(fleetId);
+    if (!fleet?.orchestration) return null;
+    const edges = outgoingHandoffs(fleet.orchestration, memberId);
+    if (!edges.length) return null;
+    const constraints = constraintsOf(fleet.orchestration);
+    const nextDepth = chainDepth + 1;
+    const now = Date.now();
+    const dispatched = [];
+    for (const e of edges) {
+      const target = db.getMember(e.to);
+      if (!target || target.fleetId !== fleetId) continue;
+      if (target.targetKind === "cluster") continue;
+      if (nextDepth > constraints.maxChainDepth) {
+        db.appendTurnEvent({
+          fleetId,
+          memberId: target.id,
+          source: "manual",
+          status: "failed",
+          errorKind: "other",
+          error: `handoff depth bound reached (${nextDepth} > ${constraints.maxChainDepth}) — chain stopped before this hop`,
+          startedAt: now,
+          endedAt: now,
+          sessionId: null,
+        });
+        continue;
+      }
+      const summary = out?.ok === true
+        ? String(out.text ?? "").slice(0, 2000) || "(upstream produced no text)"
+        : `上游回合失败:${String(out?.error ?? "unknown").slice(0, 500)}——如实转述,不自动重试`;
+      const task = engine.createManualTask({
+        prompt:
+          `【舰队接棒】上游岗位回合结束,依声明边接棒(链位 ${nextDepth}/${constraints.maxChainDepth})。\n` +
+          `上游结果:\n${summary}`,
+        ...(target.targetKind === "a2a" ? { agent: target.targetId } : { persona: rosterPresetId(target.targetId) }),
+        sessionTitle: `接棒 · ${target.title}`,
+        origin: { fleet: { fleetId, memberId: target.id, depth: nextDepth } },
+        executionPolicy: { timeoutMinutes: constraints.budgetPerEdgeMin },
+      });
+      dispatched.push({ to: target.id, taskId: task.id });
+    }
+    return dispatched.length ? dispatched : null;
+  } catch (e) {
+    console.warn(`[fleets] handoff trigger failed: ${e?.message || e}`);
     return null;
   }
 };

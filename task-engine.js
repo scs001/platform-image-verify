@@ -239,7 +239,7 @@ function insertTask(record) {
 // immediately enqueue — no schedule is attached, so no schedule-side
 // lifecycle ever applies. `origin` tags the creating front-end (e.g.
 // { mc: <consoleTaskId> }) and persists with the record.
-function createManualTask({ prompt, persona, agent, sessionTitle, initiator, initiatorPreset, origin }) {
+function createManualTask({ prompt, persona, agent, sessionTitle, initiator, initiatorPreset, origin, executionPolicy = null }) {
   if (!prompt || typeof prompt !== "string") throw new Error("prompt is required");
   const id = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   // Exactly one target flavor: a cell persona, or a market a2a agent. The
@@ -259,6 +259,11 @@ function createManualTask({ prompt, persona, agent, sessionTitle, initiator, ini
     tz: null,
     status: "manual",
     paused: false,
+    // Per-hop timeout budget (agent-fleet-orchestration handoff edges); null
+    // = the deployment's default turn timeout.
+    executionPolicy: executionPolicy && Number.isFinite(executionPolicy.timeoutMinutes) && executionPolicy.timeoutMinutes > 0
+      ? { timeoutMinutes: executionPolicy.timeoutMinutes }
+      : null,
     createdAt: new Date().toISOString(),
     lastRun: null,
     nextRun: null,
@@ -326,6 +331,13 @@ function listTasks() {
 function getTask(id) {
   const t = tasks.get(id);
   return t ? clientShape(t) : null;
+}
+
+// The RAW record — origin/executionPolicy ride turns internally (the wire
+// view strips them by design). Consumers: the loopback bridges and tests
+// that need to assert evidence (agent-fleet-orchestration dispatch/handoff).
+function getTaskRecord(id) {
+  return tasks.get(id) ?? null;
 }
 
 // ── Execution lifecycle ─────────────────────────────────────────────────────
@@ -659,6 +671,7 @@ export {
   clientShape,
   listTasks,
   getTask,
+  getTaskRecord,
   enqueueExecution,
   runTaskNow,
   setPromptOverride,

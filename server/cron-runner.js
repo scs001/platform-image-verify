@@ -723,6 +723,14 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, listAg
     } catch (e) {
       console.warn(`[fleets] turn event record failed for ${job.id}: ${e?.message || e}`);
     }
+    // Handoff edges (agent-fleet-orchestration): the same seam, AFTER the
+    // outcome event — upstream completion (ok or failed, both honestly)
+    // triggers each declared downstream turn. Degrade open likewise.
+    try {
+      await ctx.triggerFleetHandoffs?.(job, out);
+    } catch (e) {
+      console.warn(`[fleets] handoff trigger failed for ${job.id}: ${e?.message || e}`);
+    }
     return out;
   };
 }

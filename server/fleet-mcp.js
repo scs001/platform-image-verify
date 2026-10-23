@@ -106,6 +106,20 @@ const TOOLS = [
       required: ["question", "options"],
     },
   },
+  {
+    name: "dispatch_post",
+    description:
+      "Dispatch a self-contained task to ANOTHER post of YOUR fleet (舰队派发, supervisor pattern). Async by construction: this returns immediately, the target post runs its turn, and the summary arrives in YOUR next turn — never wait. " +
+      "Only pairs your fleet's orchestration allows (a declared dispatch edge, or supervisor mode). Refused: cross-fleet, self, cluster posts, depth>0 turns, over the per-post/per-fleet caps.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        to: { type: "string", description: "Target post ref (memberId) within the same fleet." },
+        brief: { type: "string", description: "Self-contained task brief (≤4000 chars) — the target may know nothing about this conversation." },
+      },
+      required: ["to", "brief"],
+    },
+  },
 ];
 
 function textOut(text) {
@@ -161,12 +175,29 @@ const server = new Server({ name: "fleet", version: "1.0.0" }, { capabilities: {
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
+async function toolDispatch({ to, brief }) {
+  const res = await fetch(`${bridgeOrigin()}/api/fleets/dispatch`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ to, brief }),
+    signal: AbortSignal.timeout(10_000),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return errOut(data.error || `dispatch failed (${res.status})`);
+  return textOut(
+    `Dispatched to post 「${data.to.title}」 (${data.to.kind}).\n` +
+      `- task id: ${data.taskId}\n` +
+      `- async: the target's summary arrives in YOUR next turn — finish this turn normally.`,
+  );
+}
+
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const { name, arguments: args = {} } = req.params ?? {};
   try {
     switch (name) {
       case "report_status": return await toolReport(args);
       case "escalate": return await toolEscalate(args);
+      case "dispatch_post": return await toolDispatch(args);
       default: return errOut(`unknown tool: ${name}`);
     }
   } catch (err) {

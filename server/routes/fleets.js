@@ -19,6 +19,7 @@ import {
   MEMBER_TARGET_KINDS,
 } from "./fleets-db.js";
 import { reconcileFleet, deriveMemberStatus, cronPeriodMs } from "../fleet-reconcile.js";
+import { validateOrchestration, expandedEdges, dispatchAllowed, outgoingHandoffs, constraintsOf } from "../fleet-orchestration.js";
 import { fleetModelChoiceError, resolveModelChain } from "../fleet-model.js";
 import {
   validateReportPayload,
@@ -516,6 +517,113 @@ export function createFleetRoutes(app, ctx = null) {
     }
   });
 
+  // ── Dispatch bridge (agent-fleet-orchestration O3) ────────────────────────
+  //
+  // A member turn's dispatch_post lands here: the running post (server-side
+  // attribution, same seam as report/escalate) dispatches work to another
+  // post of the SAME fleet. The task rides the existing delegation lane —
+  // engine manual task with origin.fleet evidence (depth 1) and the
+  // dispatcher's session as initiator, so the aggregator returns the summary
+  // into the dispatcher's NEXT turn. Async by construction: never a wait.
+  const dispatchBudgets = new Map(); // `${fleetId}:${memberId}` / fleetId → timestamps[]
+  function dispatchCap(kind, fallback) {
+    const n = Number(process.env[`FLEET_DISPATCH_${kind}_CAP`]);
+    return Number.isFinite(n) && n > 0 ? n : fallback;
+  }
+  function budgetTake(key, windowMs, cap) {
+    const now = Date.now();
+    const stamps = (dispatchBudgets.get(key) ?? []).filter((t) => now - t < windowMs);
+    if (stamps.length >= cap) {
+      dispatchBudgets.set(key, stamps);
+      return false;
+    }
+    stamps.push(now);
+    dispatchBudgets.set(key, stamps);
+    return true;
+  }
+
+  router.post("/dispatch", async (req, res) => {
+    try {
+      const db = getFleetDatabase();
+      const toRef = req.body?.to;
+      const brief = req.body?.brief;
+      if (typeof toRef !== "string" || !toRef) {
+        return res.status(400).json({ error: "to (target post ref) is required" });
+      }
+      if (typeof brief !== "string" || !brief.trim()) {
+        return res.status(400).json({ error: "brief is required" });
+      }
+
+      const personaMembers = [];
+      for (const f of db.listFleets()) {
+        if (f.state === "archived") continue;
+        for (const m of db.listMembers(f.id)) {
+          if (m.targetKind === "persona") personaMembers.push(m);
+        }
+      }
+      const attribution = resolveAttribution({
+        currentPreset: ctx?.currentPreset ?? null,
+        runningTasks: cron.listJobs(),
+        personaMembers,
+        rosterPresetId,
+      });
+      if (attribution.kind === "none" || attribution.kind === "ambiguous") {
+        return res.status(409).json({ error: attribution.error });
+      }
+      const from = db.getMember(attribution.memberId);
+      if (!from) return res.status(409).json({ error: "the attributed post no longer exists" });
+      const fleet = db.getFleet(from.fleetId);
+      if (!fleet) return res.status(409).json({ error: "the dispatcher's fleet no longer exists" });
+
+      // Guard 1: same fleet. Guard 2: no self-dispatch (attribution already
+      // implies it, but the ref could be the caller's own post).
+      const target = db.getMember(toRef);
+      if (!target || target.fleetId !== fleet.id) {
+        return res.status(400).json({ error: `post '${toRef}' is not a member of ${fleet.name}` });
+      }
+      if (target.id === from.id) {
+        return res.status(400).json({ error: "a post cannot dispatch to itself" });
+      }
+      // Guard 3: the edge/mode permission.
+      const allowed = dispatchAllowed({ members: db.listMembers(fleet.id), orchestration: fleet.orchestration }, from.id, target.id);
+      if (!allowed.ok) return res.status(403).json({ error: allowed.error });
+      // Guard 4: cluster posts have no manual lane (delegation targets
+      // personas and a2a agents only).
+      if (target.targetKind === "cluster") {
+        return res.status(400).json({ error: `post '${target.title}' runs a cluster — the manual dispatch lane targets persona/a2a posts` });
+      }
+      // Guard 5: rate caps — per member per turn-proxy window, per fleet per hour.
+      if (!budgetTake(`m:${from.id}`, 15 * 60_000, dispatchCap("PER_TURN", 3))) {
+        return res.status(429).json({ error: "dispatch cap reached for this post (3 per ~15min) — batch the work into fewer briefs" });
+      }
+      if (!budgetTake(`f:${fleet.id}`, 60 * 60_000, dispatchCap("HOURLY", 30))) {
+        return res.status(429).json({ error: "fleet dispatch cap reached for this hour (30) — tighten the edges" });
+      }
+
+      // Dispatch rides the delegation lane: initiator = the dispatcher's
+      // session (the aggregator delivers the summary back there), origin.fleet
+      // carries the target post + depth 1 for the turn contract.
+      const prompt =
+        `【舰队派发】来自同舰队岗位「${from.title}」的派发(回执将自动送回其下一回合):\n${brief.trim().slice(0, 4000)}`;
+      const task = engine.createManualTask({
+        prompt,
+        ...(target.targetKind === "a2a" ? { agent: target.targetId } : { persona: rosterPresetId(target.targetId) }),
+        sessionTitle: `派发 · ${target.title}`,
+        initiator: chatHistory.currentSessionId(),
+        origin: { fleet: { fleetId: fleet.id, memberId: target.id, depth: 1 } },
+      });
+      res.status(201).json({
+        dispatched: true,
+        taskId: task.id,
+        to: { memberId: target.id, title: target.title, kind: target.targetKind },
+        note: "async — the summary arrives in the dispatching post's next turn",
+      });
+    } catch (err) {
+      console.error("[fleets] dispatch error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
   // ── Cockpit aggregate + template lifecycle (agent-fleet-templates) ────────
 
   // One round-trip for the whole cockpit (design: no four-fetch flicker).
@@ -570,6 +678,16 @@ export function createFleetRoutes(app, ctx = null) {
         decisions,
         openDecisions: decisions.length,
         stream,
+        // Orchestration read view (agent-fleet-orchestration): declared
+        // section + read-time mode expansion (implicit supervisor edges are
+        // marked, never stored).
+        orchestration: owned.fleet.orchestration
+          ? {
+              mode: owned.fleet.orchestration.mode ?? null,
+              constraints: constraintsOf(owned.fleet.orchestration),
+              edges: expandedEdges({ members, orchestration: owned.fleet.orchestration }),
+            }
+          : null,
         health: {
           onDuty: statusCounts.on_duty ?? 0,
           paused: statusCounts.paused ?? 0,
@@ -1034,6 +1152,17 @@ export function createFleetRoutes(app, ctx = null) {
         }
         updates.state = state;
       }
+      if (req.body?.orchestration !== undefined) {
+        const orch = req.body.orchestration;
+        // Full graph validation against the live member set — edges reference
+        // posts, so the section lands after the posts exist (create-time
+        // fleets have no members: mode/constraints pass, edges cannot).
+        const check = validateOrchestration({ members: getFleetDatabase().listMembers(fleet.id), orchestration: orch });
+        if (!check.ok) {
+          return res.status(400).json({ error: "orchestration: " + check.errors[0].error, errors: check.errors });
+        }
+        updates.orchestration = orch;
+      }
 
       const updated = getFleetDatabase().updateFleet(fleet.id, updates);
       const reconcile = await runReconcile(fleet.id);
@@ -1298,6 +1427,16 @@ export function createFleetRoutes(app, ctx = null) {
       const children = db.listMembers(fleet.id).filter((m) => m.parentId === member.id);
       for (const child of children) {
         db.updateMember(child.id, { parentId: member.parentId ?? null });
+      }
+      // Orchestration edges must not dangle either: any edge touching the
+      // removed post drops with it (explicit-by-declaration, gone-by-removal).
+      if (fleet.orchestration?.edges?.length) {
+        const kept = fleet.orchestration.edges.filter(
+          (e) => (e.from ?? null) !== member.id && e.to !== member.id,
+        );
+        if (kept.length !== fleet.orchestration.edges.length) {
+          db.updateFleet(fleet.id, { orchestration: { ...fleet.orchestration, edges: kept } });
+        }
       }
       db.deleteMember(member.id);
       const reconcile = await runReconcile(fleet.id);

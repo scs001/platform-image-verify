@@ -125,6 +125,14 @@ export function createFleetDatabase({ file } = {}) {
   } catch {
     /* column already exists */
   }
+  // Orchestration section (add-fleet-orchestration): the declarative edge
+  // grammar — nullable, JSON, validated at the route write face. Unset =
+  // schedule = byte-identical behavior.
+  try {
+    db.exec(`ALTER TABLE fleets ADD COLUMN orchestration TEXT`);
+  } catch {
+    /* column already exists */
+  }
 
   // Turn result events (add-fleet-turn-events): append-only per-turn outcome
   // records — one row per finished member turn (cron / manual / delegation),
@@ -157,8 +165,8 @@ export function createFleetDatabase({ file } = {}) {
   function createFleet(fleet) {
     const now = Date.now();
     db.prepare(`
-      INSERT INTO fleets (id, name, owner_email, state, decision_policy, source_template, default_model, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO fleets (id, name, owner_email, state, decision_policy, source_template, default_model, orchestration, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       fleet.id,
       fleet.name,
@@ -167,6 +175,7 @@ export function createFleetDatabase({ file } = {}) {
       fleet.decisionPolicy ? JSON.stringify(fleet.decisionPolicy) : null,
       fleet.sourceTemplate ? JSON.stringify(fleet.sourceTemplate) : null,
       fleet.defaultModel ?? null,
+      fleet.orchestration ? JSON.stringify(fleet.orchestration) : null,
       now,
       now,
     );
@@ -191,6 +200,10 @@ export function createFleetDatabase({ file } = {}) {
     if (keyIsDecisionPolicy(updates)) {
       setParts.push("decision_policy = ?");
       values.push(JSON.stringify(updates.decisionPolicy));
+    }
+    if (Object.hasOwn(updates, "orchestration")) {
+      setParts.push("orchestration = ?");
+      values.push(updates.orchestration ? JSON.stringify(updates.orchestration) : null);
     }
     if (Object.hasOwn(updates, "sourceTemplate")) {
       setParts.push("source_template = ?");
@@ -660,6 +673,7 @@ function deserializeFleet(row) {
     decisionPolicy: decisionPolicyOfRow(row),
     sourceTemplate: row.source_template ? JSON.parse(row.source_template) : null,
     defaultModel: row.default_model ?? null,
+    orchestration: row.orchestration ? JSON.parse(row.orchestration) : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };

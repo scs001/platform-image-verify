@@ -34,7 +34,8 @@ const {
   assertTurnRequest,
   SOURCES,
   RESULT_SINKS,
-  DEPTH_BOUND,
+  DISPATCH_DEPTH_BOUND,
+  DEFAULT_MAX_CHAIN_DEPTH,
 } = await import("../server/turn-request.js");
 const { recordTurnEvent, turnSourceFor } = await import("../server/fleet-events.js");
 
@@ -154,9 +155,17 @@ test("assertTurnRequest: reserved values fail with their destination named", () 
   assert.equal(assertTurnRequest({ source: "delegation", resultSink: "caller", depth: 1 }), null);
   assert.ok(assertTurnRequest({ source: "mystery", resultSink: "report", depth: 0 }).error.includes("must be one of"));
 
-  assert.equal(DEPTH_BOUND, 1);
-  assert.ok(assertTurnRequest({ source: "cron", resultSink: "report", depth: 2 }).error.includes("0..1"));
+  assert.equal(DISPATCH_DEPTH_BOUND, 1);
+  assert.ok(assertTurnRequest({ source: "cron", resultSink: "report", depth: 2 }).error.includes("0..1"), "no chain bound ⇒ dispatch lane bound applies");
   assert.ok(SOURCES.length === 3 && RESULT_SINKS.length === 2);
+
+  // Per-lane depth (add-fleet-orchestration 1.3): dispatch lane hard-bounds at
+  // 1; a declared chain bound lifts the handoff lane to maxChainDepth.
+  const lane = { source: "manual", resultSink: "report" };
+  assert.equal(assertTurnRequest({ ...lane, depth: 3 }, { maxChainDepth: 5 }), null, "declared chain admits mid-chain depth");
+  assert.ok(assertTurnRequest({ ...lane, depth: 6 }, { maxChainDepth: 5 }).error.includes("declared chain bound"));
+  assert.ok(assertTurnRequest({ ...lane, depth: 2 }, { maxChainDepth: 1 }).error.includes("0..1"), "chain bound never lowers the dispatch floor");
+  assert.equal(DEFAULT_MAX_CHAIN_DEPTH, 8);
 });
 
 // ── single derivation source ────────────────────────────────────────────────

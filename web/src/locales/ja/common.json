@@ -2261,8 +2261,8 @@
       "targetPlaceholder": "対象を選択",
       "parent": "上位ポスト",
       "noParent": "なし（最上位）",
-      "cadence": "リズム",
-      "passive": "受動（リズムなし）",
+      "cadence": "勤務表",
+      "passive": "待機(定時なし・依頼時に実行)",
       "pause": "一時停止",
       "resume": "再開",
       "remove": "削除",
@@ -2285,18 +2285,18 @@
       "promptPlaceholder": "ターンのプロンプトテンプレート（例：巡回して今日の数字を集計）"
     },
     "status": {
-      "on_duty": "在席",
+      "on_duty": "正常",
       "paused": "停止中",
-      "missing": "失踪",
+      "missing": "未報告",
       "vacant": "欠員",
-      "passive": "受動"
+      "passive": "待機"
     },
     "evidence": {
       "lastRun": "前回実行",
       "nextRun": "次回",
       "staleWindow": "許容窓"
     },
-    "swap": "交代",
+    "swap": "担当者変更",
     "swapLine": {
       "freshSession": "履歴リセット（ポスト会話を消去。報告履歴には影響しません）"
     },
@@ -2318,10 +2318,10 @@
     },
     "decisions": {
       "waitingBadge": "あなたの判断を{{count}}件待つ",
-      "queueEmpty": "拍板",
-      "drawerTitle": "拍板キュー",
+      "queueEmpty": "承認キュー",
+      "drawerTitle": "承認キュー",
       "showAll": "すべて表示（裁定済み・期限切れ含む）",
-      "empty": "判断すべき項目はありません",
+      "empty": "承認待ちなし",
       "severity": {
         "low": "低",
         "normal": "中",
@@ -2355,7 +2355,7 @@
       "newer": "テンプレートに新版 v{{v}} あり（現役は不変・手動で揃えられます）"
     },
     "stream": {
-      "title": "日報ストリーム",
+      "title": "最新報告",
       "noReport": "報告なし"
     },
     "turn": {
@@ -2365,11 +2365,11 @@
       "neverRun": "未実行"
     },
     "health": {
-      "onDuty": "在席",
-      "paused": "停止",
-      "missing": "失踪",
+      "onDuty": "正常",
+      "paused": "停止中",
+      "missing": "未報告",
       "vacant": "欠員",
-      "passive": "受動",
+      "passive": "待機",
       "failing": "失敗"
     },
     "orch": {
@@ -2399,6 +2399,16 @@
         "aggregate": "集約",
         "event": "起床"
       }
+    },
+    "hints": {
+      "on_duty": "正常:担当がおり定時に稼働",
+      "paused": "艦隊または該当ポストは停止中 — 何も実行しない",
+      "missing": "定時に実行・報告なし(許容窓超過)",
+      "vacant": "ポストに担当がいない(または担当が既に不存在)",
+      "passive": "定時なし・待機コストなし。依頼時にのみ実行",
+      "queue": "権限・予算を超える選択を各ポストがここへ提起。承認で即時実行",
+      "stream": "各ポストの最新報告の集約(新しい順)",
+      "report": "ポストの構造化された報告:指標・要約・阻塞項目"
     }
   }
 }

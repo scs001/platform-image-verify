@@ -2261,8 +2261,8 @@
       "targetPlaceholder": "Pick a target",
       "parent": "Reports to",
       "noParent": "None (top level)",
-      "cadence": "Cadence",
-      "passive": "Passive (no cadence)",
+      "cadence": "Schedule",
+      "passive": "On call (no schedule; runs when tasked)",
       "pause": "Pause",
       "resume": "Resume",
       "remove": "Remove",
@@ -2285,18 +2285,18 @@
       "promptPlaceholder": "Turn prompt template (e.g. patrol the shop and summarize today's numbers)"
     },
     "status": {
-      "on_duty": "On duty",
+      "on_duty": "OK",
       "paused": "Paused",
-      "missing": "Missing",
+      "missing": "Overdue",
       "vacant": "Vacant",
-      "passive": "Passive"
+      "passive": "On call"
     },
     "evidence": {
       "lastRun": "Last run",
       "nextRun": "Next run",
       "staleWindow": "Tolerance"
     },
-    "swap": "Restaff",
+    "swap": "Change assignee",
     "swapLine": {
       "freshSession": "Fresh session (clear this post's conversation; report history is untouched)"
     },
@@ -2306,8 +2306,8 @@
     },
     "report": {
       "drawerTitle": "Report details",
-      "drawerOpen": "Reports",
-      "selfBadge": "self-reported",
+      "drawerOpen": "Report",
+      "selfBadge": "Own report",
       "derivedBadge": "execution summary · not self-reported",
       "note": "Self note",
       "blockers": "Blockers",
@@ -2318,10 +2318,10 @@
     },
     "decisions": {
       "waitingBadge": "{{count}} awaiting you",
-      "queueEmpty": "Decisions",
-      "drawerTitle": "Decision queue",
+      "queueEmpty": "Approvals",
+      "drawerTitle": "Approvals",
       "showAll": "Show all (resolved/expired too)",
-      "empty": "Nothing to decide",
+      "empty": "Nothing awaiting your approval",
       "severity": {
         "low": "low",
         "normal": "normal",
@@ -2355,8 +2355,8 @@
       "newer": "Template has a newer version v{{v}} (live fleet untouched; align manually)"
     },
     "stream": {
-      "title": "Daily stream",
-      "noReport": "no report yet"
+      "title": "Latest reports",
+      "noReport": "No reports yet"
     },
     "turn": {
       "failed": "turn failed",
@@ -2365,11 +2365,11 @@
       "neverRun": "never run"
     },
     "health": {
-      "onDuty": "on duty",
-      "paused": "paused",
-      "missing": "missing",
-      "vacant": "vacant",
-      "passive": "passive",
+      "onDuty": "OK",
+      "paused": "Paused",
+      "missing": "Overdue",
+      "vacant": "Vacant",
+      "passive": "On call",
       "failing": "failing"
     },
     "orch": {
@@ -2399,6 +2399,16 @@
         "aggregate": "aggregate",
         "event": "wake"
       }
+    },
+    "hints": {
+      "on_duty": "All good: staffed and running on schedule",
+      "paused": "The fleet or this post is paused — nothing fires",
+      "missing": "Missed its scheduled run/report past the tolerance window",
+      "vacant": "The post has no assignee (or its assignee no longer exists)",
+      "passive": "No schedule, no idle cost; runs when tasked or woken",
+      "queue": "Posts escalate choices beyond their authority/budget here; approve to execute now",
+      "stream": "Each post's latest report, newest first; troubled posts pinned",
+      "report": "A post's structured hand-in: metrics, summary, blockers"
     }
   }
 }

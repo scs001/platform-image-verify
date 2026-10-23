@@ -2261,8 +2261,8 @@
       "targetPlaceholder": "Choisir une cible",
       "parent": "Rend compte à",
       "noParent": "Aucun (niveau supérieur)",
-      "cadence": "Cadence",
-      "passive": "Passif (sans cadence)",
+      "cadence": "Horaires",
+      "passive": "En attente (sans horaire; agit sur demande)",
       "pause": "Suspendre",
       "resume": "Reprendre",
       "remove": "Supprimer",
@@ -2285,18 +2285,18 @@
       "promptPlaceholder": "Modèle d'invite du tour (ex. patrouille et résumé du jour)"
     },
     "status": {
-      "on_duty": "En poste",
+      "on_duty": "Normal",
       "paused": "En pause",
-      "missing": "Injoignable",
+      "missing": "En retard",
       "vacant": "Vacant",
-      "passive": "Passif"
+      "passive": "En attente"
     },
     "evidence": {
       "lastRun": "Dernier tour",
       "nextRun": "Prochain",
       "staleWindow": "Tolérance"
     },
-    "swap": "Remplacer",
+    "swap": "Changer le titulaire",
     "swapLine": {
       "freshSession": "Session neuve (efface la conversation du poste ; l'historique de rapports est intact)"
     },
@@ -2306,8 +2306,8 @@
     },
     "report": {
       "drawerTitle": "Détails des rapports",
-      "drawerOpen": "Rapports",
-      "selfBadge": "auto-déclaré",
+      "drawerOpen": "Rapport",
+      "selfBadge": "Rapport du poste",
       "derivedBadge": "résumé d'exécution · non auto-déclaré",
       "note": "Note personnelle",
       "blockers": "Blocages",
@@ -2318,10 +2318,10 @@
     },
     "decisions": {
       "waitingBadge": "{{count}} vous attendent",
-      "queueEmpty": "Décisions",
-      "drawerTitle": "File de décisions",
+      "queueEmpty": "Approbations",
+      "drawerTitle": "Approbations",
       "showAll": "Tout afficher (résolues/expirées)",
-      "empty": "Rien à décider",
+      "empty": "Rien à approuver",
       "severity": {
         "low": "basse",
         "normal": "normale",
@@ -2355,8 +2355,8 @@
       "newer": "Le gabarit a une version plus récente v{{v}} (la flotte active n'est pas touchée)"
     },
     "stream": {
-      "title": "Flux quotidien",
-      "noReport": "aucun rapport"
+      "title": "Derniers rapports",
+      "noReport": "Aucun rapport"
     },
     "turn": {
       "failed": "tour échoué",
@@ -2365,11 +2365,11 @@
       "neverRun": "jamais exécuté"
     },
     "health": {
-      "onDuty": "en poste",
-      "paused": "en pause",
-      "missing": "injoignables",
-      "vacant": "vacants",
-      "passive": "passifs",
+      "onDuty": "Normal",
+      "paused": "En pause",
+      "missing": "En retard",
+      "vacant": "Vacant",
+      "passive": "En attente",
       "failing": "en échec"
     },
     "orch": {
@@ -2399,6 +2399,16 @@
         "aggregate": "agrégation",
         "event": "réveil"
       }
+    },
+    "hints": {
+      "on_duty": "Tout va bien : pourvu et actif selon ses horaires",
+      "paused": "La flotte ou le poste est en pause — rien ne s'exécute",
+      "missing": "N'a pas tourné/rapporté à temps (fenêtre de tolérance dépassée)",
+      "vacant": "Le poste n'a pas de titulaire (ou son titulaire n'existe plus)",
+      "passive": "Sans horaire ni coût au repos ; agit sur demande",
+      "queue": "Les postes y remontent les décisions au-delà de leur autorité/budget ; approuvez pour exécuter",
+      "stream": "Le dernier rapport de chaque poste, du plus récent au plus ancien",
+      "report": "Compte rendu structuré du poste : métriques, résumé, blocages"
     }
   }
 }

@@ -2261,8 +2261,8 @@
       "targetPlaceholder": "选择目标",
       "parent": "上级岗位",
       "noParent": "无（顶层）",
-      "cadence": "节奏",
-      "passive": "被动岗（无节奏）",
+      "cadence": "排班",
+      "passive": "待命(不排班,随叫随到)",
       "pause": "暂停",
       "resume": "恢复",
       "remove": "删岗",
@@ -2285,18 +2285,18 @@
       "promptPlaceholder": "回合提示词模板（如：巡视店铺并汇总今日数据）"
     },
     "status": {
-      "on_duty": "在岗",
+      "on_duty": "正常",
       "paused": "已暂停",
-      "missing": "失联",
-      "vacant": "待补岗",
-      "passive": "被动"
+      "missing": "超时未报",
+      "vacant": "空缺",
+      "passive": "待命"
     },
     "evidence": {
       "lastRun": "上次执行",
       "nextRun": "下次执行",
       "staleWindow": "容忍窗口"
     },
-    "swap": "换防",
+    "swap": "换人",
     "swapLine": {
       "freshSession": "清史重开（清空岗位会话对话史，报数史不受影响）"
     },
@@ -2306,8 +2306,8 @@
     },
     "report": {
       "drawerTitle": "报数详情",
-      "drawerOpen": "报数",
-      "selfBadge": "自报",
+      "drawerOpen": "汇报",
+      "selfBadge": "本岗汇报",
       "derivedBadge": "执行摘要·非自报",
       "note": "自报备注",
       "blockers": "阻塞",
@@ -2318,10 +2318,10 @@
     },
     "decisions": {
       "waitingBadge": "等你 {{count}} 件",
-      "queueEmpty": "拍板队列",
-      "drawerTitle": "拍板队列",
+      "queueEmpty": "审批队列",
+      "drawerTitle": "审批队列",
       "showAll": "显示全部（含已裁/过期）",
-      "empty": "没有待拍板项",
+      "empty": "没有待你审批的事项",
       "severity": {
         "low": "低",
         "normal": "中",
@@ -2355,8 +2355,8 @@
       "newer": "模板有新版 v{{v}}（现役不受影响，可手动对齐）"
     },
     "stream": {
-      "title": "日报流",
-      "noReport": "尚无报数"
+      "title": "最新汇报",
+      "noReport": "尚无汇报"
     },
     "turn": {
       "failed": "回合失败",
@@ -2365,11 +2365,11 @@
       "neverRun": "尚未执行"
     },
     "health": {
-      "onDuty": "在岗",
-      "paused": "暂停",
-      "missing": "失联",
-      "vacant": "待补",
-      "passive": "被动",
+      "onDuty": "正常",
+      "paused": "已暂停",
+      "missing": "超时未报",
+      "vacant": "空缺",
+      "passive": "待命",
       "failing": "失败"
     },
     "orch": {
@@ -2399,6 +2399,16 @@
         "aggregate": "聚合",
         "event": "唤醒"
       }
+    },
+    "hints": {
+      "on_duty": "一切正常:岗位有人、按排班干活",
+      "paused": "舰队或该岗位被暂停,到点不干活",
+      "missing": "到点了但没按时交汇报(超过容忍窗口)",
+      "vacant": "职位空缺:还没绑执行者,或绑的角色已不存在",
+      "passive": "不排班、不烧钱,等被派活或审批唤醒",
+      "queue": "岗位遇到超出自己权限或预算的选择时,提请你决定;批准后可立即执行",
+      "stream": "各岗位最新一次汇报的汇流,最新在前;异常岗位置顶",
+      "report": "岗位干完活交的结构化汇报:指标、总结、阻塞项"
     }
   }
 }

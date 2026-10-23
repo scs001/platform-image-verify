@@ -2261,8 +2261,8 @@
       "targetPlaceholder": "Elige destino",
       "parent": "Depende de",
       "noParent": "Nadie (nivel superior)",
-      "cadence": "Ritmo",
-      "passive": "Pasivo (sin ritmo)",
+      "cadence": "Horario",
+      "passive": "En espera (sin horario; actúa al recibir tareas)",
       "pause": "Pausar",
       "resume": "Reanudar",
       "remove": "Eliminar",
@@ -2285,18 +2285,18 @@
       "promptPlaceholder": "Plantilla del turno (p. ej. patrulla y resumen del día)"
     },
     "status": {
-      "on_duty": "En servicio",
+      "on_duty": "Normal",
       "paused": "En pausa",
-      "missing": "Perdido",
+      "missing": "Atrasado",
       "vacant": "Vacante",
-      "passive": "Pasivo"
+      "passive": "En espera"
     },
     "evidence": {
       "lastRun": "Última ejecución",
       "nextRun": "Próxima",
       "staleWindow": "Tolerancia"
     },
-    "swap": "Reemplazar",
+    "swap": "Cambiar titular",
     "swapLine": {
       "freshSession": "Sesión nueva (borra la conversación del puesto; los reportes no cambian)"
     },
@@ -2306,8 +2306,8 @@
     },
     "report": {
       "drawerTitle": "Detalles de reportes",
-      "drawerOpen": "Reportes",
-      "selfBadge": "autoinformado",
+      "drawerOpen": "Informar",
+      "selfBadge": "Informe propio",
       "derivedBadge": "resumen de ejecución · no autoinformado",
       "note": "Nota propia",
       "blockers": "Bloqueos",
@@ -2318,10 +2318,10 @@
     },
     "decisions": {
       "waitingBadge": "{{count}} te esperan",
-      "queueEmpty": "Decisiones",
-      "drawerTitle": "Cola de decisiones",
+      "queueEmpty": "Aprobaciones",
+      "drawerTitle": "Aprobaciones",
       "showAll": "Mostrar todo (resueltas/caducadas)",
-      "empty": "Nada que decidir",
+      "empty": "Nada pendiente de tu aprobación",
       "severity": {
         "low": "baja",
         "normal": "normal",
@@ -2355,8 +2355,8 @@
       "newer": "La plantilla tiene una versión nueva v{{v}} (la flota activa no cambia; alinea a mano)"
     },
     "stream": {
-      "title": "Flujo diario",
-      "noReport": "sin reportes"
+      "title": "Últimos informes",
+      "noReport": "Aún sin informes"
     },
     "turn": {
       "failed": "turno fallido",
@@ -2365,11 +2365,11 @@
       "neverRun": "sin ejecuciones"
     },
     "health": {
-      "onDuty": "en servicio",
-      "paused": "en pausa",
-      "missing": "perdidos",
-      "vacant": "vacantes",
-      "passive": "pasivos",
+      "onDuty": "Normal",
+      "paused": "En pausa",
+      "missing": "Atrasado",
+      "vacant": "Vacante",
+      "passive": "En espera",
       "failing": "fallando"
     },
     "orch": {
@@ -2399,6 +2399,16 @@
         "aggregate": "agregación",
         "event": "despierta"
       }
+    },
+    "hints": {
+      "on_duty": "Todo bien: cubierto y ejecutando su horario",
+      "paused": "La flota o el puesto está en pausa — no se ejecuta nada",
+      "missing": "No corrió/informó a tiempo (ventana de tolerancia superada)",
+      "vacant": "El puesto no tiene titular (o su titular ya no existe)",
+      "passive": "Sin horario ni coste en reposo; actúa al recibir tareas",
+      "queue": "Aquí los puestos elevan decisiones que superan su autoridad/presupuesto; aprueba para ejecutar ya",
+      "stream": "El último informe de cada puesto, lo más reciente primero",
+      "report": "Entrega estructurada del puesto: métricas, resumen, bloqueos"
     }
   }
 }

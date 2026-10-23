@@ -483,11 +483,11 @@ export function FleetsPage() {
               {/* Health chips. */}
               {detail.health ? (
                 <div className="mt-3 flex flex-wrap gap-2 text-xs" data-testid="fleet-health">
-                  <span className="rounded-full bg-success/15 px-2 py-0.5 text-success">{t("fleets.health.onDuty")}: {detail.health.onDuty}</span>
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">{t("fleets.health.paused")}: {detail.health.paused}</span>
-                  <span className="rounded-full bg-warning/15 px-2 py-0.5 text-warning">{t("fleets.health.missing")}: {detail.health.missing}</span>
-                  <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-destructive">{t("fleets.health.vacant")}: {detail.health.vacant}</span>
-                  <span className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">{t("fleets.health.passive")}: {detail.health.passive}</span>
+                  <span title={t("fleets.hints.on_duty")} className="rounded-full bg-success/15 px-2 py-0.5 text-success">{t("fleets.health.onDuty")}: {detail.health.onDuty}</span>
+                  <span title={t("fleets.hints.paused")} className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">{t("fleets.health.paused")}: {detail.health.paused}</span>
+                  <span title={t("fleets.hints.missing")} className="rounded-full bg-warning/15 px-2 py-0.5 text-warning">{t("fleets.health.missing")}: {detail.health.missing}</span>
+                  <span title={t("fleets.hints.vacant")} className="rounded-full bg-destructive/15 px-2 py-0.5 text-destructive">{t("fleets.health.vacant")}: {detail.health.vacant}</span>
+                  <span title={t("fleets.hints.passive")} className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground">{t("fleets.health.passive")}: {detail.health.passive}</span>
                   {detail.health.failing ? (
                     <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-destructive" data-testid="fleet-health-failing">
                       {t("fleets.health.failing")}: {detail.health.failing}
@@ -590,7 +590,7 @@ export function FleetsPage() {
                           </span>
                         ) : null}
                         <span className="text-xs text-muted-foreground">
-                          {member.cadence ? cadenceText(t, member.cadence) : t("fleets.member.passive")}
+                          {member.cadence ? cadenceText(t, member.cadence) : <span title={t("fleets.hints.passive")}>{t("fleets.member.passive")}</span>}
                         </span>
                         {/* Turn outcome (add-fleet-turn-events): failure facts
                             ride alongside the presence badge — never replace
@@ -737,7 +737,7 @@ export function FleetsPage() {
                   post's latest, missing posts first, a2a honestly badged. */}
               {detail.stream && detail.stream.length > 0 ? (
                 <div className="mt-5" data-testid="fleet-stream">
-                  <h3 className="text-sm font-semibold">{t("fleets.stream.title")}</h3>
+                  <h3 className="text-sm font-semibold" title={t("fleets.hints.stream")}>{t("fleets.stream.title")}</h3>
                   <div className="mt-2 flex flex-col gap-1.5">
                     {detail.stream.map((row) => (
                       <div key={row.memberId} className="flex flex-wrap items-center gap-2 rounded-md border border-border px-2 py-1.5 text-xs" data-testid={`stream-${row.memberId}`}>
@@ -893,7 +893,7 @@ function DecisionsDrawer({
       <DialogContent className="max-h-[85vh] max-w-xl overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {t("fleets.decisions.drawerTitle")}
+            <span title={t("fleets.hints.queue")}>{t("fleets.decisions.drawerTitle")}</span>
             {openCount > 0 ? ` · ${t("fleets.decisions.waitingBadge", { count: openCount })}` : ""}
           </DialogTitle>
         </DialogHeader>

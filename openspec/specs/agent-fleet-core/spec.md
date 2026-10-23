@@ -8,9 +8,9 @@
 
 ### Requirement: 舰队与岗位是一等对象且岗位身份稳定
 
-系统 SHALL 以持久化对象保存舰队(Fleet:名称、所有者、状态 active|paused|archived、创建时间、舰队级默认模型 defaultModel——可空模型声明)与岗位(Member:舰队内稳定标识、岗位名、父岗位引用组成组织树、KPI 槽位声明、节奏规格、在岗者引用 targetRef、模型声明 model 与 fallbackModel——均可空)。模型声明 SHALL 不参与岗位身份:改模型、清模型 SHALL 保持岗位标识、组织位置、KPI 槽位声明与会话史不变。targetRef SHALL 支持 persona、cluster、a2a 三种目标并可在岗位生命周期内原子替换(换防);替换后岗位标识、组织位置、KPI 槽位声明 SHALL 保持不变。组织树 SHALL 允许多个顶层岗位(森林),并 SHALL 拒绝成环。
+系统 SHALL 以持久化对象保存舰队(Fleet:名称、所有者、状态 active|paused|archived、创建时间、舰队级默认模型 defaultModel——可空模型声明)与岗位(Member:舰队内稳定标识、岗位名、父岗位引用组成组织树、KPI 槽位声明、节奏规格、在岗者引用 targetRef、模型声明 model 与 fallbackModel——均可空)。模型声明 SHALL 不参与岗位身份:改模型、清模型 SHALL 保持岗位标识、组织位置、KPI 槽位声明与会话史不变。targetRef SHALL 支持 persona、cluster、a2a、tool 四种目标并可在岗位生命周期内原子替换(换防);替换后岗位标识、组织位置、KPI 槽位声明 SHALL 保持不变。tool 目标(targetId 形如 `server::tool`,指向注册 MCP 服上的一个工具)SHALL 持有 JSON 参数节奏(promptTemplate 为合法 JSON 对象串,执行时作为工具参数原样传入);tool 岗的模型声明 SHALL 以结构化错误拒绝(无 LLM 回合,无处归位)。组织树 SHALL 允许多个顶层岗位(森林),并 SHALL 拒绝成环。
 
-唯一在岗规则:一个 persona 或 cluster SHALL 同时只在一个岗位在岗——对已在岗对象的岗位引用(建岗或换防)SHALL 以结构化错误拒绝并指明现有岗位;a2a 目标 SHALL 允许多岗。岗位引用 SHALL 不限制目标的日常使用(角色照常对话)。
+唯一在岗规则:一个 persona 或 cluster SHALL 同时只在一个岗位在岗——对已在岗对象的岗位引用(建岗或换防)SHALL 以结构化错误拒绝并指明现有岗位;a2a 与 tool 目标 SHALL 允许多岗(远程执行与无状态调用无归属歧义)。岗位引用 SHALL 不限制目标的日常使用(角色照常对话)。
 
 换防语义:换防 SHALL 默认延续岗位的专属会话史;换防请求可显式选择清史重开(清会话对话史,报数史与槽位连续性不受影响)。
 
@@ -37,6 +37,16 @@
 - **WHEN** 主人试图把岗位 B 换防给正在岗位 A 在岗的 persona E
 - **THEN** 请求以结构化错误拒绝并指明 E 已在 A 岗;岗位 A 与 B 均不变
 
+#### Scenario: 工具岗建岗
+
+- **WHEN** 建岗 targetKind=tool、targetId=websearch::search、节奏每小时、promptTemplate 为 `{"query":"舰队 周报"}`
+- **THEN** 岗位落库并物化 targetType=tool 的定时任务;同工具可另设一岗不被唯一岗规则拒绝
+
+#### Scenario: 工具岗非法参数拒绝
+
+- **WHEN** 建工具岗时 promptTemplate 不是合法 JSON 对象,或声明 model
+- **THEN** 写面以结构化错误拒绝并指明原因
+
 #### Scenario: 组织树拒绝成环
 
 - **WHEN** 用户把岗位 A 的父岗位设为其后代岗位 B
@@ -44,8 +54,8 @@
 
 #### Scenario: 改模型不动岗
 
-- **WHEN** 主人把「电商部」的模型从 A 改为 B、或清除为 null
-- **THEN** 岗位标识、父岗位、KPI 槽位声明、会话史与物化任务均不变,仅模型声明变更
+- **WHEN** 岗位「电商部」的模型声明从 glm-4.7 改为 deepseek-v4.1-flash
+- **THEN** 岗位标识、父岗位、KPI 槽位声明与目标不变;该岗下一回合以新声明执行
 ### Requirement: 节奏规格物化为任务引擎任务并幂等对账
 
 节奏为岗位的可选属性：每个**有节奏**岗位的节奏规格（cron 表达式、IANA 时区、prompt 模板）SHALL 物化为任务引擎的 recurring 任务，任务记录 SHALL 携带舰队与岗位标识（fleetId/memberId）以区分于普通定时任务。**无节奏岗位（被动岗）** SHALL 不物化任务，仅在受委托或拍板批复唤醒时发起回合。物化 SHALL 幂等：同一节奏规格重复对账不产生重复任务；修改节奏规格后对账 SHALL 更新既有任务而非新建；删除岗位或归档舰队 SHALL 使对应物化任务停止且不再产生新回合。全队暂停 SHALL 批量暂停全部物化任务，恢复 SHALL 逐岗恢复且尊重岗位自身暂停态。
@@ -258,3 +268,17 @@ errorKind SHALL 在写时从错误文本与形状归类为有限枚举:模型/�
 
 - **WHEN** 请求舰队回合事件并指定 status=failed
 - **THEN** 仅返回该舰队失败事件,含岗位标识与 errorKind
+
+### Requirement: 工具岗回合以确定性工具调用执行
+
+工具岗的回合 SHALL 不经 LLM:执行器 SHALL 将节奏 promptTemplate 解析为 JSON 参数、按 targetId 路由到注册 MCP 服、以 MCP 客户端调用该工具一次,并将工具返回(或错误)以 JSON 文本落入该回合会话。回合结果 SHALL 经既有回合收口产出 O1 事件(model 为空如实),失败 SHALL 结构化分类:参数非 JSON(runtime_not_ready)、server 不可路由(runtime_not_ready)、工具执行错误(other 或按文本归类)。工具岗回合 SHALL 可作为 dispatch 与 handoff 的目标(走 manual 任务车道,targetType=tool),护栏与链深规则与 persona/a2a 一致。
+
+#### Scenario: 确定性回合
+
+- **WHEN** 工具岗 websearch::search 的节奏回合触发
+- **THEN** 该工具被调用一次、参数为声明的 JSON、结果 JSON 落会话,O1 事件 status 如实且 model 为空
+
+#### Scenario: 派发到达工具岗
+
+- **WHEN** supervisor 模式下主管岗 dispatch_post 到工具岗
+- **THEN** manual 任务以 targetType=tool 创建并按同一执行器运行,深度与频次护栏照常生效

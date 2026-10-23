@@ -34,13 +34,17 @@ export function buildTurnRequest(job) {
   const sourceTag = job?.sourceTag ?? null;
   const origin = job?.origin ?? null;
   const initiator = job?.initiator ?? null;
+  // Initiator outranks origin: a dispatched turn carries BOTH (the target's
+  // origin.fleet evidence and the dispatcher's session) and IS a delegation
+  // wake; origin.fleet alone (no initiating conversation) is the execute-now
+  // lane. Found live on prod (§15.18): the old order mislabeled dispatches.
   const source =
     job?.trigger === "schedule" || sourceTag?.fleetId
       ? "cron"
-      : origin?.fleet?.fleetId
-        ? "manual"
-        : initiator
-          ? "delegation"
+      : initiator
+        ? "delegation"
+        : origin?.fleet?.fleetId
+          ? "manual"
           : "manual";
   return {
     source,

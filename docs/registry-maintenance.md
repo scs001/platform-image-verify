@@ -1578,3 +1578,13 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **终验（aloadtree CEO 岗，节奏窗实火三连）**：21:00 声明 `glm-5.3-flash` → 上游 404 错误体**点名该模型**（归位派发铁证）；22:00 声明 `poolside/laguna-xs-2.1:free` → 503 错误体点名（再次派发实证）；23:00 声明 `liquid/lfm-2.5-2.6b:free`（探针 200）→ 回合 clean 完成、CEO 按时报数。同一代码路径三窗，机制闭环；验毕已清模恢复默认继承。**归位归因同族修（04d50a88）真库差分实证**：cell 1da5 存在 4 个 company-ceo 岗行（3 archived 幽灵+1 活），守卫后 `fleetModelFor` 唯一归活岗并解析声明模型——7 个 persona 均有幽灵重复，该修为生产刚需非理论。
 
 **上游暗道名单（roster 在册≠在服务，零花费探针实证）**：404 暗道=`deepseek-v4-pro`/`glm-5.3-flash`/`nvidia/nemotron-3-super-120b-a12b:free`；429=`gemma-4-26b`；503=`laguna-s`。在服务=`deepseek-v4.1-flash`(默认)/`cohere/north-mini-code:free`/`dots-studio/dots-3-note-preview:free`/`liquid/lfm-2.5-2.6b:free`。**写面三闸管不住这一类**（闸对 roster 声明，不对上游真值）——声明暗道模型=回合执行期失败按设计不兜底、等下个 cadence，可见性走 missing 状态；后续增量候选：写面探针/暗道黑名单/执行失败回落。dsh-profile 的 VOLCES_MODELS 列表与探针现实有两处漂移（glm-5.3-flash 在列但 404），修列表属 LLM 路由线不属本条。另：已有其他 cell 真实采用岗位模型（spawn 日志见 `cohere/north-mini-code:free`）。
+
+### §15.18 发布记录：编排第二列车——第一波代数 + T1 工具岗（add-fleet-orchestration / add-tool-posts，2026-10-24 凌晨）
+
+**列车**：paas `a344669e` → 快照 `5c6adf2` 出片绿（relay 长尾一轮）→ 双清单滚 → **真机验收逮住部署阻断缺陷**：dispatch 桥 `/api/fleets/dispatch` 未进 `isInternalFleetBridge` loopback 豁免（fleet-mcp 子进程派发必撞 Authentication required；路由自身凭据=服务端归属，同 report/escalate 模型）→ 修复 `5a0ae199` 重出快照 `8d0660d`（digest `ebd800ee`，image run 绿）→ 二次硬刷新落定（ArgoCD 首刷常不拾取，§15.17 同款）→ 双面滚完。镜像仓 CI workflow 两班皆红为快照仓既有状态（image-build-check/image 双绿为出片门），非本列回归。
+
+**验收（活 cell,全链生产实证）**：①**O3 派发闭环**——CEO(在值 persona)dispatch→投资部,persona 回合 ok、任务带 origin.fleet depth=1+initiator(聚合回投);②**handoff 接棒**——投资部回合结束自动触发「接棒·开源部」manual 任务(prompt 含上游摘要原文、链位 2/8、每跳预算 10min),回合 ok,逐跳 O1 事件成链;③**T1 工具岗**——dispatch 到 websearch::web_search(确定性一次 MCP 调用):首回目标名错(`search`)如实 failed `unknown tool`,改对后 **ok 且 model 为空**(零 LLM 生产实证);④**errorKind 校准生效**——CEO 15:01 的 429 upstream 正确归 `model_upstream`(昨日 503 曾落 other);⑤**bundled 自激活**——cell extension_configs 出现 `fleet-architect origin=bundled enabled=1`(下次 profile patch 即全 persona 可见)。公司式舰队 orchestration 验收预置=supervisor+投资部→开源部 handoff 边+搜索工具岗(直写库,验收动作)。
+
+**缺陷实录（验收逮住即修）**：①dispatch 桥 loopback 豁免缺失（阻断级,本班修复重出）;②turnRequest source 派生顺序——origin.fleet 抢先于 initiator,派发回合被标 `manual` 应为 `delegation`（initiator 优先已修入库 `§15.18 后续`,**随下一班列车**,非阻断——事件全记、归属正确,仅 source 标签偏差）;③websearch 工具名为 `web_search` 非 `search`（验收配置错,非代码）。
+
+**功能一句话**：orchestration 声明段（edges×constraints,图校验：无环/链深/span,成员删连带清边,mode 读时展开 supervisor=隐式全对派发许可）+ dispatch_post 工具（五护栏,delegation 车道异步送达）+ handoff 完成触发（ok/failed 均如实转述,越界留痕）+ T1 工具岗（targetKind=tool,JSON 参数,零 token 确定性调用,cron/manual 双车道,预估器 tokens=0 分流）。

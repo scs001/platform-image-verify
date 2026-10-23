@@ -14,4 +14,4 @@
 
 - [x] 3.1 新增 `scripts/test-tool-posts.mjs` 全绿(1.x/2.x 用例)
 - [x] 3.2 十二套回归零新增红(既有三 targetKind 逐字节等价);`openspec validate add-tool-posts` 与在途 `add-fleet-orchestration` 双绿
-- [ ] 3.3 出片随攒车列车 + 真机验收(工具岗 cron 回合 + supervisor 派发到工具岗)+ 台账补记
+- [x] 3.3 出片随攒车列车 + 真机验收(工具岗 cron 回合 + supervisor 派发到工具岗)+ 台账补记

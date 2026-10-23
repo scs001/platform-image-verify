@@ -20,4 +20,4 @@
 
 - [x] 4.1 新增 `scripts/test-fleet-orchestration.mjs` 全绿(1.x/2.x/3.x 用例)
 - [x] 4.2 十套既有回归零新增红(schedule 逐字节等价门);`openspec validate add-fleet-orchestration` 通过
-- [ ] 4.3 出片(随下一列车,与 errorKind 校准/bundled 自激活同车)+ 真机验收(supervisor 双岗派活闭环 + pipeline 三岗链)+ 台账补记
+- [x] 4.3 出片(随下一列车,与 errorKind 校准/bundled 自激活同车)+ 真机验收(supervisor 双岗派活闭环 + pipeline 三岗链)+ 台账补记

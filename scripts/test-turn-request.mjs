@@ -75,6 +75,20 @@ test("derive: cron fleet post → cron/report/depth0, evidence carries sourceTag
   assert.equal(r.budget, null);
 });
 
+test("derive: dispatch wake (initiator + origin) reads delegation, not manual", () => {
+  const r = buildTurnRequest({
+    trigger: "manual",
+    targetType: "persona",
+    preset: "p",
+    prompt: "brief",
+    initiator: "sess-dispatcher",
+    origin: { fleet: { fleetId: "f", memberId: "m_target", depth: 1 } },
+  });
+  assert.equal(r.source, "delegation", "initiator outranks origin — a dispatch IS a delegation wake");
+  assert.equal(r.resultSink, "caller");
+  assert.equal(r.depth, 1, "chain position rides origin.fleet.depth");
+});
+
 test("derive: execute-now manual → manual, evidence carries origin", () => {
   const r = buildTurnRequest({
     trigger: "manual",

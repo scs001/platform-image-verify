@@ -48,7 +48,10 @@ const {
   computeTrend,
   buildLatestView,
   derivedReportFromTask,
+  renderFleetIdentity,
+  fleetIdentityFor,
 } = await import("../server/fleet-reports.js");
+const { attachCronRunner } = await import("../server/cron-runner.js");
 const { buildFleetContext } = await import("../server/fleet-context.js");
 const { createFleetRoutes } = await import("../server/routes/fleets.js");
 
@@ -543,4 +546,131 @@ test("routes: report bridge attribution, slot echo, flood, timeline, detail late
   } finally {
     server.close();
   }
+});
+
+// ── enable-wire-content-fleet: post identity + cadence read ─────────────────
+
+test("renderFleetIdentity: four fields, credential-free", () => {
+  const line = renderFleetIdentity({
+    fleetId: "f_1",
+    memberId: "m_1",
+    title: "巡线岗",
+    targetKind: "persona",
+    targetId: "persona-a",
+  });
+  assert.match(line, /fleet=f_1/);
+  assert.match(line, /post=m_1/);
+  assert.match(line, /title=巡线岗/);
+  assert.match(line, /target=persona:persona-a/);
+  assert.ok(!/token|key|secret|Bearer/i.test(line), "identity carries no credential");
+});
+
+// A ctx whose stub bridge closes the turn immediately — enough to drive the
+// REAL runPersonaTurn and inspect the prompt it dispatched.
+function identityCtx(resolveFleetIdentity) {
+  const ctx = {
+    currentPreset: "persona-a",
+    isStreaming: false,
+    sessionCollectors: new Map(),
+    sessionVersion: 1,
+    broadcast: () => {},
+    onRuntimeIdle: () => {},
+    reserveRuntime: () => () => {},
+    switchPresetTo: async () => ({ ok: true }),
+    resolveFleetIdentity,
+    prompts: [],
+    dshBridge: {
+      isReady: () => true,
+      prompt: async (sessionId, blocks) => {
+        ctx.prompts.push(blocks[0].text);
+        ctx.sessionCollectors.get(sessionId)?.({ method: "session.status", params: { status: "idle" } });
+      },
+    },
+  };
+  attachCronRunner(ctx);
+  return ctx;
+}
+
+test("member turn gets the identity prefix; non-member turn is byte-identical", async () => {
+  const identity = "【舰队岗位身份】fleet=f_1; post=m_1; title=巡线岗; target=persona:persona-a";
+
+  const memberCtx = identityCtx((p) => (p === "persona-a" ? identity : null));
+  await memberCtx.runCronJobTurn(
+    { id: "job_m", sessionId: "sess_m", prompt: "巡视一下", preset: "persona-a", sessionTitle: "岗" },
+    { turnTimeoutMs: 2000 },
+  );
+  assert.equal(memberCtx.prompts[0], `${identity}\n\n巡视一下`, "identity prefixes the dispatched prompt");
+  const hist = await chatHistory.getSession("sess_m");
+  assert.equal(hist.messages[0].content, `${identity}\n\n巡视一下`, "session history keeps the same line");
+
+  // Non-member (resolver returns null) — the delegation/manual lane and plain
+  // persona turns both land here; prompt must not be touched.
+  const plainCtx = identityCtx(() => null);
+  await plainCtx.runCronJobTurn(
+    { id: "job_p", sessionId: "sess_p", prompt: "随便聊聊", preset: "persona-a", sessionTitle: "聊" },
+    { turnTimeoutMs: 2000 },
+  );
+  assert.equal(plainCtx.prompts[0], "随便聊聊", "non-member turn unchanged");
+});
+
+test("cadence read contract: rhythm + target only, passive post answers null", async () => {
+  const fleet = fixtureFleet(fleetDb, "节奏舰队");
+  const active = fixtureMember(fleetDb, fleet.id, {
+    id: "m_active",
+    title: "巡线岗",
+    cadence: { cron: "0 9 * * *", tz: "Asia/Shanghai", promptTemplate: "巡视", enabled: true },
+  });
+  fixtureMember(fleetDb, fleet.id, {
+    id: "m_passive",
+    title: "内容岗",
+    cadence: null,
+    kpiSlots: [{ key: "secret_slot", label: "不该出现" }],
+  });
+
+  const { server, call } = await startServer({
+    authEnabled: false,
+    cellUserEmail: "owner@test",
+    currentPreset: "persona-a",
+    fleetTargetResolver: (m) => ({ alive: true, label: m.targetId, clusterName: null }),
+  });
+  try {
+    const r = await call("GET", `/api/fleets/${fleet.id}/cadence`);
+    assert.equal(r.status, 200);
+    assert.equal(r.body.fleetName, "节奏舰队");
+    const byRef = Object.fromEntries(r.body.posts.map((p) => [p.ref, p]));
+    assert.deepEqual(byRef[active.id], {
+      ref: "m_active",
+      title: "巡线岗",
+      cron: "0 9 * * *",
+      tz: "Asia/Shanghai",
+      targetRef: { kind: "persona", id: "persona-a" },
+    });
+    assert.equal(byRef.m_passive.cron, null, "passive post answers null cron");
+    assert.equal(byRef.m_passive.tz, null);
+    const raw = JSON.stringify(r.body);
+    assert.ok(!raw.includes("secret_slot"), "KPI slots never leave the fleet");
+    assert.ok(!raw.includes("kpi"), "no KPI surface in the read contract");
+
+    const missing = await call("GET", "/api/fleets/nope/cadence");
+    assert.equal(missing.status, 404);
+  } finally {
+    server.close();
+  }
+});
+
+test("fleetIdentityFor: unique post resolves; no post and ambiguity yield null", () => {
+  const fleet = fixtureFleet(fleetDb, "身份舰队");
+  const post = fixtureMember(fleetDb, fleet.id, { id: "m_id1", title: "巡线岗", targetId: "persona-a" });
+
+  const line = fleetIdentityFor(fleetDb, "persona-a");
+  assert.equal(line, renderFleetIdentity({
+    fleetId: fleet.id, memberId: post.id, title: "巡线岗", targetKind: "persona", targetId: "persona-a",
+  }));
+
+  assert.equal(fleetIdentityFor(fleetDb, "persona-zz"), null, "no post → null");
+  assert.equal(fleetIdentityFor(fleetDb, null), null, "no preset → null");
+
+  // A second post on the SAME persona makes attribution ambiguous → null.
+  fixtureMember(fleetDb, fleet.id, { id: "m_id2", title: "内容岗", targetId: "persona-a" });
+  assert.equal(fleetIdentityFor(fleetDb, "persona-a"), null, "ambiguous → null");
 });

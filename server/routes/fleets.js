@@ -19,6 +19,7 @@ import {
   MEMBER_TARGET_KINDS,
 } from "./fleets-db.js";
 import { reconcileFleet, deriveMemberStatus, cronPeriodMs } from "../fleet-reconcile.js";
+import { fleetModelChoiceError, resolveModelChain } from "../fleet-model.js";
 import {
   validateReportPayload,
   resolveAttribution,
@@ -161,7 +162,7 @@ function taskIndexFor(fleetId) {
   return map;
 }
 
-function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = resolveTarget } = {}) {
+function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = resolveTarget, model = null } = {}) {
   const target = resolver(member);
   const task = tasks.get(member.id) ?? null;
   // Report lane: latest with system trends (dual-window missing reads its
@@ -169,6 +170,17 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
   const latest = db.latestReportFor(member.id);
   const previous = latest ? db.previousReport(member.id, latest.createdAt) : null;
   const derived = deriveMemberStatus({ member, fleet, task, targetAlive: target.alive, latestReport: latest, now });
+  // Post model (add-fleet-post-model F1/F3): declared values verbatim plus the
+  // advisory effective model — what this post's NEXT turn would run on, given
+  // the chain and the roster as of this read. Advisory because the roster at
+  // turn time may have drifted again.
+  const resolution = resolveModelChain({
+    model: member.model ?? null,
+    fallbackModel: member.fallbackModel ?? null,
+    fleetDefault: fleet?.defaultModel ?? null,
+    cellDefault: model?.cellDefault ?? null,
+    roster: model?.roster ?? null,
+  });
   return {
     id: member.id,
     fleetId: member.fleetId,
@@ -177,6 +189,10 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
     target: { kind: member.targetKind, id: member.targetId, label: target.label },
     kpiSlots: member.kpiSlots,
     cadence: member.cadence,
+    model: member.model ?? null,
+    fallbackModel: member.fallbackModel ?? null,
+    effectiveModel: resolution.effective,
+    modelNotice: resolution.notices.length ? resolution.notices.join("; ") : null,
     sortKey: member.sortKey,
     createdAt: member.createdAt,
     updatedAt: member.updatedAt,
@@ -227,6 +243,39 @@ export function createFleetRoutes(app, ctx = null) {
   // against the live catalog/clusters store.
   const targetResolver = ctx?.fleetTargetResolver ?? resolveTarget;
   const router = Router();
+
+  // ── Post-model helpers (add-fleet-post-model) ─────────────────────────────
+  //
+  // Roster source for both faces is ctx.dshModels — the same in-memory list
+  // getAvailableModels() serves (deduped for display; membership tests don't
+  // care). Null (tests without a runtime) degrades every roster gate open.
+  const modelRoster = () => (Array.isArray(ctx?.dshModels) ? ctx.dshModels.map((m) => m.id) : null);
+  const modelCtx = () => ({ roster: modelRoster(), cellDefault: ctx?.bootModel?.id ?? null });
+
+  // Write gate, evaluated against the RESULTING row (not the patch alone):
+  // the fallback⇒primary constraint and the persona-only rule must hold after
+  // the write, so a patch that only clears `model` while a fallback hangs on
+  // is caught here, not by a later turn.
+  const memberModelWriteError = ({ existing = null, targetKind, body }) => {
+    const model = body?.model !== undefined ? body.model : (existing?.model ?? null);
+    const fallbackModel = body?.fallbackModel !== undefined ? body.fallbackModel : (existing?.fallbackModel ?? null);
+    for (const v of [model, fallbackModel]) {
+      if (v != null && typeof v !== "string") return "model fields must be a model id string or null";
+    }
+    if (targetKind !== "persona" && (model != null || fallbackModel != null)) {
+      return "only persona posts declare a model — a2a posts take theirs from the service deployment config, cluster posts from their member posts";
+    }
+    if (fallbackModel != null && model == null) {
+      return "fallbackModel requires model — clear the fallback before clearing (or omitting) the primary";
+    }
+    const roster = modelRoster();
+    for (const [label, value] of [["model", model], ["fallbackModel", fallbackModel]]) {
+      if (value == null) continue;
+      const err = fleetModelChoiceError({ model: value, roster });
+      if (err) return `${label}: ${err}`;
+    }
+    return null;
+  };
 
   const requireOwnedFleet = (req, res) => {
     const user = resolveUser(req);
@@ -318,6 +367,13 @@ export function createFleetRoutes(app, ctx = null) {
 
       const declared = new Set(member.kpiSlots.map((s) => s.key));
       const submitted = Object.keys(payload.report.metrics);
+      // Selection-time model fallbacks (add-fleet-post-model D7): the turn
+      // recorded them under this member; a report filed in that same turn
+      // carries them as blockers so the owner sees WHY the post ran degraded.
+      // One-shot — a report is the only consumer; no report leaves them in the
+      // log only.
+      const modelNotices =
+        typeof ctx?.takeFleetModelNotices === "function" ? ctx.takeFleetModelNotices(member.id) : [];
       const report = db.appendReport({
         id: `r_${now}_${Math.random().toString(36).slice(2, 8)}`,
         fleetId: member.fleetId,
@@ -325,7 +381,7 @@ export function createFleetRoutes(app, ctx = null) {
         sessionId,
         metrics: payload.report.metrics,
         resources: payload.report.resources,
-        blockers: payload.report.blockers,
+        blockers: [...modelNotices.map(String), ...payload.report.blockers].slice(0, 20),
         summary: payload.report.summary,
         source: "self",
         createdAt: now,
@@ -385,7 +441,7 @@ export function createFleetRoutes(app, ctx = null) {
       const db = getFleetDatabase();
       db.expireOpenDecisions(owned.fleet.id);
       const members = db.listMembers(owned.fleet.id).map((m) =>
-        memberView(db, owned.fleet, m, taskIndexFor(owned.fleet.id), { resolver: targetResolver }),
+        memberView(db, owned.fleet, m, taskIndexFor(owned.fleet.id), { resolver: targetResolver, model: modelCtx() }),
       );
       const statusCounts = {};
       for (const v of members) statusCounts[v.status] = (statusCounts[v.status] ?? 0) + 1;
@@ -641,6 +697,31 @@ export function createFleetRoutes(app, ctx = null) {
     }
   });
 
+  // Cadence read contract (enable-wire-content-fleet D3): the fleet's posts
+  // with their cadence and target ref — the facts an external content system
+  // needs to refuse a refresh schedule equivalent to a post it cannot see.
+  // Rhythm and target ONLY: no KPI slots, reports, decisions or credentials.
+  // Passive posts answer cron/tz null (the caller reads that as "not in the
+  // equivalence comparison").
+  router.get("/:id/cadence", (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const db = getFleetDatabase();
+      const posts = db.listMembers(owned.fleet.id).map((m) => ({
+        ref: m.id,
+        title: m.title,
+        cron: m.cadence?.cron ?? null,
+        tz: m.cadence?.tz ?? null,
+        targetRef: { kind: m.targetKind, id: m.targetId },
+      }));
+      res.json({ fleetId: owned.fleet.id, fleetName: owned.fleet.name, posts });
+    } catch (err) {
+      console.error("[fleets] cadence read error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
   // approve | reject | amend | reopen | execute-now — one handler, the state
   // machine's gatekeeping all in one place. Optimistic transitions make a
   // concurrent second resolution read as a conflict (first resolution wins).
@@ -762,7 +843,7 @@ export function createFleetRoutes(app, ctx = null) {
           const tasks = taskIndexFor(fleet.id);
           const counts = {};
           for (const m of members) {
-            const view = memberView(db, fleet, m, tasks, { resolver: targetResolver });
+            const view = memberView(db, fleet, m, tasks, { resolver: targetResolver, model: modelCtx() });
             counts[view.status] = (counts[view.status] ?? 0) + 1;
           }
           return {
@@ -809,7 +890,7 @@ export function createFleetRoutes(app, ctx = null) {
       const db = getFleetDatabase();
       const members = db.listMembers(owned.fleet.id);
       const tasks = taskIndexFor(owned.fleet.id);
-      const views = members.map((m) => memberView(db, owned.fleet, m, tasks, { resolver: targetResolver }));
+      const views = members.map((m) => memberView(db, owned.fleet, m, tasks, { resolver: targetResolver, model: modelCtx() }));
       const statusCounts = {};
       for (const v of views) statusCounts[v.status] = (statusCounts[v.status] ?? 0) + 1;
       db.expireOpenDecisions(owned.fleet.id);
@@ -831,7 +912,7 @@ export function createFleetRoutes(app, ctx = null) {
       const owned = requireOwnedFleet(req, res);
       if (!owned) return;
       const { fleet } = owned;
-      const { name, state } = req.body ?? {};
+      const { name, state, defaultModel } = req.body ?? {};
       const updates = {};
 
       if (name !== undefined) {
@@ -839,6 +920,13 @@ export function createFleetRoutes(app, ctx = null) {
           return res.status(400).json({ error: "Fleet name must be a non-empty string" });
         }
         updates.name = name.trim().slice(0, 120);
+      }
+      if (defaultModel !== undefined) {
+        if (defaultModel !== null) {
+          const err = fleetModelChoiceError({ model: defaultModel, roster: modelRoster() });
+          if (err) return res.status(400).json({ error: `defaultModel: ${err}` });
+        }
+        updates.defaultModel = defaultModel;
       }
       if (state !== undefined) {
         if (!FLEET_STATES.includes(state)) {
@@ -923,6 +1011,9 @@ export function createFleetRoutes(app, ctx = null) {
       const kpi = normalizeKpiSlots(req.body?.kpiSlots);
       if (!kpi.ok) return res.status(400).json({ error: kpi.error });
 
+      const modelErr = memberModelWriteError({ targetKind, body: req.body });
+      if (modelErr) return res.status(400).json({ error: modelErr });
+
       const parentId = req.body?.parentId ?? null;
       if (parentId) {
         const parent = db.getMember(parentId);
@@ -940,10 +1031,12 @@ export function createFleetRoutes(app, ctx = null) {
         targetId,
         kpiSlots: kpi.kpiSlots,
         cadence: cad.cadence,
+        model: req.body?.model ?? null,
+        fallbackModel: req.body?.fallbackModel ?? null,
       });
       const reconcile = await runReconcile(fleet.id);
       const tasks = taskIndexFor(fleet.id);
-      res.status(201).json({ member: memberView(db, fleet, member, tasks, { resolver: targetResolver }), reconcile });
+      res.status(201).json({ member: memberView(db, fleet, member, tasks, { resolver: targetResolver, model: modelCtx() }), reconcile });
     } catch (err) {
       console.error("[fleets] member create error:", err.message);
       res.status(500).json({ error: err.message || "internal error" });
@@ -962,7 +1055,7 @@ export function createFleetRoutes(app, ctx = null) {
       }
 
       const updates = {};
-      const { title, parentId, cadence, kpiSlots } = req.body ?? {};
+      const { title, parentId, cadence, kpiSlots, model, fallbackModel } = req.body ?? {};
 
       if (title !== undefined) {
         if (!title || typeof title !== "string" || !title.trim()) {
@@ -1000,11 +1093,17 @@ export function createFleetRoutes(app, ctx = null) {
         }
         updates.cadence = cad.cadence;
       }
+      if (model !== undefined || fallbackModel !== undefined) {
+        const modelErr = memberModelWriteError({ existing: member, targetKind: member.targetKind, body: { model, fallbackModel } });
+        if (modelErr) return res.status(400).json({ error: modelErr });
+        if (model !== undefined) updates.model = model;
+        if (fallbackModel !== undefined) updates.fallbackModel = fallbackModel;
+      }
 
       const updated = db.updateMember(member.id, updates);
       const reconcile = await runReconcile(fleet.id);
       const tasks = taskIndexFor(fleet.id);
-      res.json({ member: memberView(db, fleet, updated, tasks, { resolver: targetResolver }), reconcile });
+      res.json({ member: memberView(db, fleet, updated, tasks, { resolver: targetResolver, model: modelCtx() }), reconcile });
     } catch (err) {
       console.error("[fleets] member patch error:", err.message);
       res.status(500).json({ error: err.message || "internal error" });
@@ -1048,6 +1147,12 @@ export function createFleetRoutes(app, ctx = null) {
           });
         }
       }
+      // Post model belongs to persona posts only (add-fleet-post-model F1):
+      // restaffing to an a2a/cluster target with a model declared would leave
+      // a dead declaration on a post whose model is owned elsewhere — refuse.
+      if (targetKind !== "persona" && (member.model || member.fallbackModel)) {
+        return res.status(400).json({ error: "this post declares a model — clear it before restaffing to a non-persona target" });
+      }
 
       // 清史重开: clear the dedicated session's conversation before the new
       // incumbent takes over. Report history lives elsewhere (刀2) and is
@@ -1070,7 +1175,7 @@ export function createFleetRoutes(app, ctx = null) {
       const updated = db.updateMember(member.id, { targetKind, targetId });
       const reconcile = await runReconcile(fleet.id);
       const tasks = taskIndexFor(fleet.id);
-      const view = memberView(db, fleet, updated, tasks, { resolver: targetResolver });
+      const view = memberView(db, fleet, updated, tasks, { resolver: targetResolver, model: modelCtx() });
       res.json({ member: view, reconcile });
     } catch (err) {
       console.error("[fleets] swap error:", err.message);

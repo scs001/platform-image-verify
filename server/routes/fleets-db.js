@@ -106,6 +106,26 @@ export function createFleetDatabase({ file } = {}) {
     /* column already exists */
   }
 
+  // Post-level models (add-fleet-post-model D9): nullable declarations — the
+  // member's primary + fallback and the fleet default that doubles as the
+  // availability fallback. Nullable by design: unset = inherit down the
+  // resolution chain, so a rolled-back deployment needs no data migration.
+  try {
+    db.exec(`ALTER TABLE fleet_members ADD COLUMN model TEXT`);
+  } catch {
+    /* column already exists */
+  }
+  try {
+    db.exec(`ALTER TABLE fleet_members ADD COLUMN fallback_model TEXT`);
+  } catch {
+    /* column already exists */
+  }
+  try {
+    db.exec(`ALTER TABLE fleets ADD COLUMN default_model TEXT`);
+  } catch {
+    /* column already exists */
+  }
+
   db.exec(`CREATE INDEX IF NOT EXISTS idx_fleet_members_fleet ON fleet_members(fleet_id)`);
   // Unique-post check (design D8): "is this persona/cluster on duty anywhere?"
   // scans by target, so index the pair.
@@ -116,8 +136,8 @@ export function createFleetDatabase({ file } = {}) {
   function createFleet(fleet) {
     const now = Date.now();
     db.prepare(`
-      INSERT INTO fleets (id, name, owner_email, state, decision_policy, source_template, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO fleets (id, name, owner_email, state, decision_policy, source_template, default_model, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       fleet.id,
       fleet.name,
@@ -125,6 +145,7 @@ export function createFleetDatabase({ file } = {}) {
       fleet.state || "active",
       fleet.decisionPolicy ? JSON.stringify(fleet.decisionPolicy) : null,
       fleet.sourceTemplate ? JSON.stringify(fleet.sourceTemplate) : null,
+      fleet.defaultModel ?? null,
       now,
       now,
     );
@@ -137,7 +158,7 @@ export function createFleetDatabase({ file } = {}) {
   }
 
   function updateFleet(id, updates) {
-    const COLUMNS = { name: "name", state: "state" };
+    const COLUMNS = { name: "name", state: "state", defaultModel: "default_model" };
     const setParts = [];
     const values = [];
     for (const [key, value] of Object.entries(updates)) {
@@ -186,8 +207,8 @@ export function createFleetDatabase({ file } = {}) {
   function createMember(member) {
     const now = Date.now();
     db.prepare(`
-      INSERT INTO fleet_members (id, fleet_id, title, parent_id, target_kind, target_id, kpi_slots, cadence, sort_key, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO fleet_members (id, fleet_id, title, parent_id, target_kind, target_id, kpi_slots, cadence, model, fallback_model, sort_key, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       member.id,
       member.fleetId,
@@ -197,6 +218,8 @@ export function createFleetDatabase({ file } = {}) {
       member.targetId,
       JSON.stringify(member.kpiSlots ?? []),
       member.cadence ? JSON.stringify(member.cadence) : null,
+      member.model ?? null,
+      member.fallbackModel ?? null,
       Number.isFinite(member.sortKey) ? member.sortKey : now,
       now,
       now,
@@ -226,6 +249,8 @@ export function createFleetDatabase({ file } = {}) {
       // identity-adjacent field — everything else on the row is post history.
       targetKind: "target_kind",
       targetId: "target_id",
+      model: "model",
+      fallbackModel: "fallback_model",
     };
     const setParts = [];
     const values = [];
@@ -519,6 +544,7 @@ function deserializeFleet(row) {
     state: row.state,
     decisionPolicy: decisionPolicyOfRow(row),
     sourceTemplate: row.source_template ? JSON.parse(row.source_template) : null,
+    defaultModel: row.default_model ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -562,6 +588,8 @@ function deserializeMember(row) {
     targetId: row.target_id,
     kpiSlots: JSON.parse(row.kpi_slots || "[]"),
     cadence: row.cadence ? JSON.parse(row.cadence) : null,
+    model: row.model ?? null,
+    fallbackModel: row.fallback_model ?? null,
     sortKey: row.sort_key,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

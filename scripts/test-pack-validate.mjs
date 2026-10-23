@@ -488,3 +488,27 @@ test("tool-face gate: enforce exempts a full-surface reference from tool closure
     await h.close();
   }
 });
+
+// ── enable-wire-content-fleet: pack ceilings are operator-tunable ──────────
+test("pack ceilings default to 6 MCP refs and are operator-overridable", async () => {
+  const { validatePackManifest, PACK_LIMITS, packLimits } = await import("../lib/pack-manifest.js");
+  const withServers = (n) =>
+    manifest({ mcpServers: Array.from({ length: n }, (_, i) => ({ registryName: `srv-${i}` })) });
+
+  // Defaults: six in, seven out.
+  assert.equal(PACK_LIMITS.maxMcpRefs, 6, "default ceiling");
+  assert.equal(validatePackManifest(withServers(6)).some((e) => /mcpServers/.test(e.error)), false);
+  assert.ok(validatePackManifest(withServers(7)).some((e) => /at most 6/.test(e.error)));
+
+  // Operator raises the ceiling without a code change.
+  assert.equal(packLimits({ PACK_MAX_MCP_REFS: "8" }).maxMcpRefs, 8);
+  assert.equal(packLimits({ PACK_MAX_AGENTS: "5" }).maxAgents, 5);
+  assert.equal(packLimits({ PACK_MAX_SKILLS: "12" }).maxSkills, 12);
+
+  // A bad override falls back to the default — a typo never disables a ceiling.
+  for (const bad of ["", "0", "-1", "abc", "3.5"]) {
+    assert.equal(packLimits({ PACK_MAX_MCP_REFS: bad }).maxMcpRefs, 6, `'${bad}' falls back`);
+  }
+  // Unrelated env keys leave the limits untouched.
+  assert.deepEqual(packLimits({ SOMETHING_ELSE: "99" }), { ...PACK_LIMITS });
+});

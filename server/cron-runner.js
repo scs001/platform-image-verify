@@ -164,6 +164,43 @@ async function switchPresetForJob(ctx, preset, timeoutMs) {
   return { ok: false, error: "could not switch the agent for the scheduled task (runtime stayed busy)" };
 }
 
+// Post-model normalization (add-fleet-post-model D1/D2/D5): the exact mirror
+// of the preset normalization above — every persona turn LANDS the runtime on
+// the resolution chain's first roster hit instead of riding whatever the
+// previous turn (fleet or the user's chat) left behind. Fallback happens at
+// selection time only: resolution already roster-filtered the candidates, the
+// loop walks past a hop only if the roster drifted between the read and the
+// switch. No candidates at all → honest failure, no invented model.
+async function normalizeModelForJob(ctx, preset) {
+  const plan = (await ctx.resolveFleetModel?.(preset)) ?? null;
+  // Not a fleet post (plain cron task or a persona holding no post): the turn
+  // runs on the current model, byte-for-byte the pre-change behavior.
+  if (!plan) return { ok: true };
+  const notices = [...plan.notices];
+  let landed = null;
+  for (const hop of plan.candidates) {
+    const r = await ctx.switchModelTo(hop.model);
+    if (r?.ok) {
+      landed = hop.model;
+      break;
+    }
+    notices.push(`model switch to '${hop.model}' failed: ${r?.error || "unknown error"}`);
+  }
+  if (!landed) {
+    return {
+      ok: false,
+      error: `no runnable model for this post (${notices.length ? notices.join("; ") : "no model declared and no default available"})`,
+    };
+  }
+  if (notices.length) {
+    console.warn(`[fleets] post model fallback for ${plan.memberId}: ${notices.join("; ")}`);
+    ctx.recordFleetModelNotices?.(plan.memberId, notices);
+  } else {
+    ctx.recordFleetModelNotices?.(plan.memberId, []);
+  }
+  return { ok: true };
+}
+
 // ── Member executors ─────────────────────────────────────────────────────────
 //
 // The two turn shapes a scheduled task (or a cluster fan-out member) can run.
@@ -236,13 +273,31 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns) {
       releaseReservation?.();
       return switched;
     }
+    // Post model (add-fleet-post-model F2): normalize AFTER the preset lands —
+    // the two switches short-circuit independently, so a same-persona model
+    // change is never swallowed, and switchModelTo's live path flips the model
+    // without a second restart when the bridge declares model/set.
+    const modeled = await normalizeModelForJob(ctx, job.preset);
+    if (!modeled.ok) {
+      releaseReservation?.();
+      return modeled;
+    }
   }
 
   const sessionId = job.sessionId || `cron-${job.id}`;
 
+  // Fleet post identity (enable-wire-content-fleet D1): a member turn tells the
+  // agent which post it executes, so it can name its own production source
+  // rather than invent one. This seam serves BOTH wake paths — cron cadence
+  // fires and delegation wakes both land here — which is why identity rides the
+  // prompt instead of a {{...}} template placeholder (passive posts carry no
+  // placeholder at all). Null for non-member turns: prompt stays byte-for-byte.
+  const identity = ctx.resolveFleetIdentity?.(job.preset) ?? null;
+  const prompt = identity ? `${identity}\n\n${job.prompt}` : job.prompt;
+
   // The bound session is a normal session: the user can open it, and rows
   // stamped here pick up the (just-switched) preset as their creation fact.
-  chatHistory.recordMessage(sessionId, "user", job.prompt);
+  chatHistory.recordMessage(sessionId, "user", prompt);
   if (job.sessionTitle) {
     try {
       chatHistory.setTitle(sessionId, job.sessionTitle);
@@ -255,7 +310,7 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns) {
   releaseReservation?.();
   let result;
   try {
-    await ctx.dshBridge.prompt(sessionId, [{ type: "text", text: job.prompt }]);
+    await ctx.dshBridge.prompt(sessionId, [{ type: "text", text: prompt }]);
     result = await collected;
   } catch (e) {
     ctx.sessionCollectors.delete(sessionId);
@@ -378,8 +433,11 @@ async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, runPersona
 
   const boundSessionId = job.sessionId || `cron-${job.id}`;
   // Captured BEFORE any member runs — the persona loop switches the shared
-  // runtime once per member; this is what it goes back to at the end.
+  // runtime once per member; this is what it goes back to at the end. The
+  // model rides the same rule (add-fleet-post-model D6): single-member turns
+  // leave the runtime where they landed it, a fan-out puts it back.
   const originalPreset = ctx.currentPreset || null;
+  const originalModel = ctx.session?.model?.id ?? null;
 
   // ── memory hook ① (add-memory-scopes-and-cluster-sharing) ────────────────
   // After member resolution, read the cluster's shared pages (the cluster-id
@@ -547,6 +605,9 @@ async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, runPersona
   // persona-shaped work happened", not off success.
   if ((personaQueue.length > 0 || summaryRan) && originalPreset && ctx.currentPreset !== originalPreset) {
     try { await switchPresetForJob(ctx, originalPreset, memberTimeoutMs); } catch { /* best-effort */ }
+  }
+  if ((personaQueue.length > 0 || summaryRan) && originalModel && ctx.session?.model?.id !== originalModel) {
+    try { await ctx.switchModelTo(originalModel); } catch { /* best-effort */ }
   }
 
   // A successful synthesis turn already persisted itself into the bound

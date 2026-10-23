@@ -25,7 +25,7 @@ import { createHmac, randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import express from "express";
-import { PACK_LIMITS, validatePackManifest as validateManifest, validateRhythm, budgetMinutesError, modelIdError } from "../lib/pack-manifest.js";
+import { PACK_LIMITS, packLimits, validatePackManifest as validateManifest, validateRhythm, budgetMinutesError, modelIdError } from "../lib/pack-manifest.js";
 import { parseFleetTemplate } from "../server/fleet-template.js";
 import { safePackagePath } from "../lib/skill-files.js";
 import { declaredToolsByServer, toolGateErrors, probeMcpToolNames, toolFaceErrors, toolClosureErrors } from "../lib/publish-tool-gate.js";
@@ -35,7 +35,7 @@ import { createFleetScheduler } from "./fleet-scheduler.js";
 import { createSub2apiClient } from "../lib/sub2api-admin.js";
 
 // Re-exported for the gateway's own consumers (tests import from here).
-export { PACK_LIMITS, validateManifest };
+export { PACK_LIMITS, packLimits, validateManifest };
 
 // True when the manifest declares any tool leaf names (pack-level allowTools
 // or per-role mcpTools) — the publish tool gate's consultation predicate.

@@ -2266,6 +2266,8 @@
       "pause": "一時停止",
       "resume": "再開",
       "remove": "削除",
+      "model": "実効モデル",
+      "modelFallback": "モデルフォールバック",
       "confirmRemove": "ポスト削除でリズム停止タスクも止まり、子は一階層上がります。続けますか？"
     },
     "kind": {

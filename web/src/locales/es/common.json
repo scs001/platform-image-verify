@@ -2266,6 +2266,8 @@
       "pause": "Pausar",
       "resume": "Reanudar",
       "remove": "Eliminar",
+      "model": "Modelo efectivo",
+      "modelFallback": "Repliegue de modelo",
       "confirmRemove": "Eliminar el puesto detiene su tarea; los hijos suben un nivel. ¿Continuar?"
     },
     "kind": {

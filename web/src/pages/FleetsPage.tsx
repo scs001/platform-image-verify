@@ -73,6 +73,13 @@ interface MemberView {
   target: { kind: "persona" | "cluster" | "a2a"; id: string; label: string };
   kpiSlots: KpiSlot[];
   cadence: Cadence | null;
+  // Post model (add-fleet-post-model): declared values plus the advisory
+  // effective model (what the next turn would run on) and, when a declared
+  // hop already fell out of the roster, the notice naming it.
+  model: string | null;
+  fallbackModel: string | null;
+  effectiveModel: string | null;
+  modelNotice: string | null;
   status: "on_duty" | "paused" | "missing" | "vacant" | "passive";
   statusReason: string;
   evidence: {
@@ -468,6 +475,20 @@ export function FleetsPage() {
                         <span className="text-sm text-muted-foreground" data-testid={`member-target-${member.id}`}>
                           {member.target.label}
                         </span>
+                        {member.target.kind === "persona" && member.effectiveModel ? (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-xs ${
+                              member.modelNotice
+                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                            data-testid={`member-model-${member.id}`}
+                            title={member.modelNotice ?? `${t("fleets.member.model")}: ${member.effectiveModel}`}
+                          >
+                            {member.modelNotice ? `${t("fleets.member.modelFallback")} · ` : ""}
+                            {member.effectiveModel}
+                          </span>
+                        ) : null}
                         <span className="text-xs text-muted-foreground">
                           {member.cadence ? cadenceText(t, member.cadence) : t("fleets.member.passive")}
                         </span>

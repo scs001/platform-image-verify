@@ -65,7 +65,7 @@ import { createFleetRoutes, resolveFleetTarget } from "./server/routes/fleets.js
 import { getFleetDatabase } from "./server/routes/fleets-db.js";
 import { reconcileAllFleets, deriveMemberStatus } from "./server/fleet-reconcile.js";
 import { buildFleetContext } from "./server/fleet-context.js";
-import { derivedReportFromTask } from "./server/fleet-reports.js";
+import { derivedReportFromTask, fleetIdentityFor, fleetModelFor } from "./server/fleet-reports.js";
 import { renderDecisionSegment } from "./server/fleet-decisions.js";
 import { rosterPresetId } from "./dsh-profile.js";
 import { createMonitoringRoutes } from "./server/routes/monitoring.js";
@@ -820,6 +820,12 @@ chatHistory.setActivityProbe((id) => ({
   };
   ctx.defaultModel = { id: model, provider, name: model };
   ctx.runtimeModel = { id: model, provider, name: model };
+  // The boot-selected default (user binding → Models-page pointer →
+  // DEFAULT_MODEL → first declared model, dark-lane guarded) is the stable
+  // tail of the fleet post-model resolution chain (add-fleet-post-model).
+  // Kept separately because defaultModel/runtimeModel are overwritten by every
+  // runtime switch — the chain's "cell default" must not ride that drift.
+  ctx.bootModel = { id: model, provider };
   console.log(`[dsh] runtime ready (provider=${provider} model=${model})`);
 }
 
@@ -918,6 +924,52 @@ bots.initBots(ctx);
 // Cron turn executor: mounted before cron.initCron loads jobs, so a restored
 // job that comes due immediately finds its runner attached.
 attachCronRunner(ctx);
+
+// Fleet post identity (enable-wire-content-fleet D2): the runner asks which
+// post a persona is on duty for and prefixes its turn with the one-line
+// identity. Same attribution the report lane uses; a persona holding no post,
+// or several (ambiguous), yields null so the turn runs unchanged. Cluster
+// posts are out of scope — the fan-out picks the member after this seam runs.
+ctx.resolveFleetIdentity = (presetId) => fleetIdentityFor(getFleetDatabase(), presetId, { rosterPresetId });
+
+// Fleet post model (add-fleet-post-model D3): the persona turn path asks for
+// this post's resolution plan (chain candidates + notices) right before the
+// model normalization switch. Same attribution seam as the identity above;
+// roster comes from the live model list, the chain tail from the boot default.
+ctx.resolveFleetModel = async (presetId) => {
+  try {
+    let roster = null;
+    if (typeof ctx.getAvailableModels === "function") {
+      const models = await ctx.getAvailableModels();
+      roster = Array.isArray(models) ? models.map((m) => m.id) : null;
+    }
+    return fleetModelFor(getFleetDatabase(), presetId, {
+      rosterPresetId,
+      roster,
+      cellDefault: ctx.bootModel?.id ?? null,
+    });
+  } catch (e) {
+    console.warn(`[fleets] post model resolution failed: ${e?.message || e}`);
+    return null;
+  }
+};
+
+// Fallback notices bridge (add-fleet-post-model D7): a persona turn records
+// its selection-time fallback facts under the memberId; a report filed during
+// that same turn picks them up as blockers (one-shot). Turns serialize on the
+// shared runtime, so one entry per member is turn-accurate; a member that
+// never reports leaves its notices in the log only — by design.
+const fleetModelNotices = new Map();
+ctx.recordFleetModelNotices = (memberId, notices) => {
+  if (!memberId) return;
+  if (Array.isArray(notices) && notices.length) fleetModelNotices.set(memberId, notices);
+  else fleetModelNotices.delete(memberId);
+};
+ctx.takeFleetModelNotices = (memberId) => {
+  const notices = fleetModelNotices.get(memberId) ?? [];
+  fleetModelNotices.delete(memberId);
+  return notices;
+};
 
 // One-time import of legacy file stores (documents-store/, sessions-store/,
 // chat-history-store/) into the SQLite database. Runs only on a fresh database;

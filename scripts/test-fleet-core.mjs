@@ -615,3 +615,241 @@ test("routes: CRUD + validation + owner scoping", async () => {
     server.close();
   }
 });
+
+// ── post model (add-fleet-post-model) ───────────────────────────────────────
+
+const { resolveModelChain, fleetModelChoiceError } = await import("../server/fleet-model.js");
+const { fleetModelFor } = await import("../server/fleet-reports.js");
+const { attachCronRunner } = await import("../server/cron-runner.js");
+
+test("post model: resolution chain + write gates (pure)", () => {
+  // order + dedupe: an identical fallback is not a second hop
+  let r = resolveModelChain({ model: "a", fallbackModel: "a", fleetDefault: "b", cellDefault: "c", roster: ["a", "b", "c"] });
+  assert.equal(r.effective, "a");
+  assert.equal(r.notices.length, 0);
+
+  // declared but roster-missing: fall through AND name every dead hop
+  r = resolveModelChain({ model: "x", fallbackModel: "y", fleetDefault: "b", cellDefault: "c", roster: ["b"] });
+  assert.equal(r.effective, "b");
+  assert.equal(r.notices.length, 2);
+  assert.match(r.notices[0], /post model 'x'/);
+  assert.match(r.notices[1], /post fallback model 'y'/);
+
+  // undeclared hops inherit silently — no notice for a null
+  r = resolveModelChain({ fleetDefault: "b", roster: ["b"] });
+  assert.equal(r.effective, "b");
+  assert.equal(r.notices.length, 0);
+
+  // known-empty roster refuses everything: honest null, not a guess
+  r = resolveModelChain({ model: "x", roster: [] });
+  assert.equal(r.effective, null);
+  assert.equal(r.candidates.length, 0);
+
+  // unknown roster degrades open (first declared hop wins)
+  r = resolveModelChain({ model: "x", roster: null });
+  assert.equal(r.effective, "x");
+
+  // write gates: shape → roster, error names the violated gate
+  assert.match(fleetModelChoiceError({ model: "bad id!" }), /not a valid model identifier/);
+  assert.match(fleetModelChoiceError({ model: "ghost", roster: ["a"] }), /roster/);
+  assert.equal(fleetModelChoiceError({ model: "a", roster: ["a"] }), null);
+  assert.equal(fleetModelChoiceError({ model: "a", roster: null }), null, "unknown roster leaves the gate open");
+});
+
+test("routes: post-model write gates, inheritance, drift visibility, report bridge", async () => {
+  const universe = {
+    "persona-a": { name: "甲" },
+    "persona-b": { name: "乙" },
+    "cluster-1": { name: "集群一", clusterName: "集群一" },
+    "a2a-x": { name: "远端" },
+  };
+  const pendingNotices = new Map();
+  const ctx = {
+    authEnabled: false,
+    cellUserEmail: "owner@test",
+    fleetTargetResolver: makeResolver(universe),
+    dshModels: [{ id: "cheap-m" }, { id: "strong-m" }, { id: "boot-m" }],
+    bootModel: { id: "boot-m" },
+    currentPreset: "persona-a",
+    recordFleetModelNotices: (id, n) => (n?.length ? pendingNotices.set(id, n) : pendingNotices.delete(id)),
+    takeFleetModelNotices: (id) => {
+      const n = pendingNotices.get(id) ?? [];
+      pendingNotices.delete(id);
+      return n;
+    },
+  };
+  const { server, call } = await startServer(ctx);
+  try {
+    const created = await call("POST", "/api/fleets", { name: "模型舰队" });
+    const fid = created.body.fleet.id;
+
+    // fleet default model: valid lands, ghost names the gate
+    let r = await call("PATCH", `/api/fleets/${fid}`, { defaultModel: "strong-m" });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.fleet.defaultModel, "strong-m");
+    r = await call("PATCH", `/api/fleets/${fid}`, { defaultModel: "ghost-m" });
+    assert.equal(r.status, 400);
+    assert.match(r.body.error, /roster/);
+
+    // member create with a model: echoed, effective = declared
+    r = await call("POST", `/api/fleets/${fid}/members`, { title: "巡线岗", targetKind: "persona", targetId: "persona-a", model: "cheap-m" });
+    assert.equal(r.status, 201);
+    const patrol = r.body.member;
+    assert.equal(patrol.model, "cheap-m");
+    assert.equal(patrol.effectiveModel, "cheap-m");
+    assert.equal(patrol.modelNotice, null);
+
+    // shape + roster gates, and the fallback⇒primary constraint
+    assert.match((await call("POST", `/api/fleets/${fid}/members`, { title: "X", targetKind: "persona", targetId: "persona-b", model: "bad id!" })).body.error, /not a valid model identifier/);
+    assert.match((await call("POST", `/api/fleets/${fid}/members`, { title: "X", targetKind: "persona", targetId: "persona-b", model: "ghost-m" })).body.error, /roster/);
+    assert.match((await call("POST", `/api/fleets/${fid}/members`, { title: "X", targetKind: "persona", targetId: "persona-b", fallbackModel: "strong-m" })).body.error, /fallbackModel requires model/);
+
+    // non-persona posts refuse a model outright
+    assert.match((await call("POST", `/api/fleets/${fid}/members`, { title: "远端岗", targetKind: "a2a", targetId: "a2a-x", model: "cheap-m" })).body.error, /only persona posts/);
+    assert.match((await call("POST", `/api/fleets/${fid}/members`, { title: "集群岗", targetKind: "cluster", targetId: "cluster-1", model: "cheap-m" })).body.error, /only persona posts/);
+
+    // inheritance: an undeclared post's effective model is the fleet default
+    r = await call("POST", `/api/fleets/${fid}/members`, { title: "内容岗", targetKind: "persona", targetId: "persona-b", cadence: HOURLY });
+    const content = r.body.member;
+    assert.equal(content.model, null);
+    assert.equal(content.effectiveModel, "strong-m", "undeclared post inherits the fleet default");
+
+    // PATCH semantics: clearing model with a fallback hanging on is refused;
+    // clearing both lands; then re-set pair is fine
+    await call("PATCH", `/api/fleets/${fid}/members/${patrol.id}`, { fallbackModel: "strong-m" });
+    r = await call("PATCH", `/api/fleets/${fid}/members/${patrol.id}`, { model: null });
+    assert.equal(r.status, 400);
+    assert.match(r.body.error, /fallbackModel requires model/);
+    r = await call("PATCH", `/api/fleets/${fid}/members/${patrol.id}`, { model: null, fallbackModel: null });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.member.model, null);
+    assert.equal(r.body.member.fallbackModel, null);
+    r = await call("PATCH", `/api/fleets/${fid}/members/${patrol.id}`, { model: "cheap-m", fallbackModel: "strong-m" });
+    assert.equal(r.body.member.effectiveModel, "cheap-m");
+
+    // roster drift on the read face: the declared hop dies, the view shows
+    // the fall-through landing AND names the dead hop. The fallback IS the
+    // fleet default here, so it is alive — one notice, not two.
+    ctx.dshModels = [{ id: "strong-m" }, { id: "boot-m" }];
+    let detail = await call("GET", `/api/fleets/${fid}`);
+    const drifted = detail.body.members.find((m) => m.id === patrol.id);
+    assert.equal(drifted.effectiveModel, "strong-m", "falls to the fleet default");
+    assert.match(drifted.modelNotice, /post model 'cheap-m'/);
+
+    // report bridge: a notice recorded for this member rides the next report
+    // as a blocker, prepended to the agent's own
+    ctx.dshModels = [{ id: "cheap-m" }, { id: "strong-m" }, { id: "boot-m" }];
+    pendingNotices.set(patrol.id, ["declared post model 'cheap-m' is not in the runner's model roster — falling through"]);
+    r = await call("POST", "/api/fleets/report", { summary: "正常报数", blockers: ["我自己的阻塞"] });
+    assert.equal(r.status, 201);
+    detail = await call("GET", `/api/fleets/${fid}`);
+    const reported = detail.body.members.find((m) => m.id === patrol.id);
+    assert.deepEqual(reported.reportTimeline[0].blockers, [
+      "declared post model 'cheap-m' is not in the runner's model roster — falling through",
+      "我自己的阻塞",
+    ]);
+    // one-shot: the next report does not repeat the notice
+    r = await call("POST", "/api/fleets/report", { summary: "再报一次" });
+    assert.equal(r.status, 201);
+    detail = await call("GET", `/api/fleets/${fid}`);
+    const again = detail.body.members.find((m) => m.id === patrol.id);
+    assert.deepEqual(again.reportTimeline[0].blockers, []);
+
+    // fleetModelFor: the turn-path lookup resolves the same chain per preset
+    const plan = fleetModelFor(fleetDb, "persona-a", {
+      roster: ["strong-m", "boot-m"],
+      cellDefault: "boot-m",
+    });
+    assert.equal(plan.memberId, patrol.id);
+    assert.equal(plan.effective, "strong-m");
+    assert.ok(plan.notices.some((n) => /post model 'cheap-m'/.test(n)));
+  } finally {
+    server.close();
+  }
+});
+
+// The turn-path normalization: same stub-bridge shape as the identity tests in
+// report-lane, plus a recording switchModelTo and a plan-returning resolver.
+function modelTurnCtx(planFor) {
+  const ctx = {
+    currentPreset: "persona-a",
+    isStreaming: false,
+    sessionCollectors: new Map(),
+    sessionVersion: 1,
+    broadcast: () => {},
+    onRuntimeIdle: () => {},
+    reserveRuntime: () => () => {},
+    switchPresetTo: async () => ({ ok: true }),
+    switchModelTo: async (id) => {
+      ctx.modelSwitches.push(id);
+      return ctx.modelSwitchResult === undefined ? { ok: true } : ctx.modelSwitchResult(id);
+    },
+    resolveFleetModel: planFor,
+    recordFleetModelNotices: (id, n) => {
+      if (n?.length) ctx.recordedNotices.push([id, n]);
+    },
+    recordedNotices: [],
+    modelSwitches: [],
+    prompts: [],
+    dshBridge: {
+      isReady: () => true,
+      prompt: async (sessionId, blocks) => {
+        ctx.prompts.push(blocks[0].text);
+        ctx.sessionCollectors.get(sessionId)?.({ method: "session.status", params: { status: "idle" } });
+      },
+    },
+  };
+  attachCronRunner(ctx);
+  return ctx;
+}
+
+test("member turn normalizes the model; fallback and honest failure", async () => {
+  const job = { id: "job_m1", sessionId: "sess_m1", prompt: "巡视", preset: "persona-a", sessionTitle: "岗" };
+
+  // 1) declared model lands: the runtime switch precedes the prompt
+  const okCtx = modelTurnCtx(() => ({
+    memberId: "m_1",
+    candidates: [{ model: "cheap-m", source: "member" }],
+    notices: [],
+  }));
+  const out = await okCtx.runCronJobTurn(job, { turnTimeoutMs: 2000 });
+  assert.equal(out.ok, true);
+  assert.deepEqual(okCtx.modelSwitches, ["cheap-m"]);
+  assert.equal(okCtx.prompts.length, 1);
+
+  // 2) declared hop dead at selection time: fall to the fleet default, record
+  // the notice for the report bridge
+  const fbCtx = modelTurnCtx(() => ({
+    memberId: "m_1",
+    candidates: [{ model: "strong-m", source: "fleet-default" }],
+    notices: ["declared post model 'cheap-m' is not in the runner's model roster — falling through"],
+  }));
+  assert.equal((await fbCtx.runCronJobTurn({ ...job, sessionId: "sess_m2", id: "job_m2" }, { turnTimeoutMs: 2000 })).ok, true);
+  assert.deepEqual(fbCtx.modelSwitches, ["strong-m"]);
+  assert.equal(fbCtx.recordedNotices.length, 1);
+  assert.equal(fbCtx.recordedNotices[0][0], "m_1");
+
+  // 3) roster drifts again between resolution and switch: the loop walks to
+  // the next candidate instead of dying on the first refusal
+  const driftCtx = modelTurnCtx(() => ({
+    memberId: "m_1",
+    candidates: [{ model: "cheap-m", source: "member" }, { model: "boot-m", source: "cell-default" }],
+    notices: [],
+  }));
+  driftCtx.modelSwitchResult = (id) => (id === "cheap-m" ? { ok: false, error: `Unknown model: ${id}` } : { ok: true });
+  assert.equal((await driftCtx.runCronJobTurn({ ...job, sessionId: "sess_m3", id: "job_m3" }, { turnTimeoutMs: 2000 })).ok, true);
+  assert.deepEqual(driftCtx.modelSwitches, ["cheap-m", "boot-m"]);
+
+  // 4) no runnable model at all: the turn fails honestly, naming why
+  const deadCtx = modelTurnCtx(() => ({ memberId: "m_1", candidates: [], notices: ["declared post model 'cheap-m' is not in the runner's model roster — falling through"] }));
+  const dead = await deadCtx.runCronJobTurn({ ...job, sessionId: "sess_m4", id: "job_m4" }, { turnTimeoutMs: 2000 });
+  assert.equal(dead.ok, false);
+  assert.match(dead.error, /no runnable model/);
+  assert.equal(deadCtx.prompts.length, 0, "nothing dispatched without a model");
+
+  // 5) non-fleet persona turn: resolver yields null → the model is untouched
+  // (byte-for-byte the pre-change behavior)
+  const plainCtx = modelTurnCtx(() => null);
+  assert.equal((await plainCtx.runCronJobTurn({ ...job, sessionId: "sess_m5", id: "job_m5" }, { turnTimeoutMs: 2000 })).ok, true);
+  assert.deepEqual(plainCtx.modelSwitches, [], "non-fleet turns never touch the model");
+});

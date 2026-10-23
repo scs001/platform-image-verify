@@ -2266,6 +2266,8 @@
       "pause": "Suspendre",
       "resume": "Reprendre",
       "remove": "Supprimer",
+      "model": "Modèle effectif",
+      "modelFallback": "Repli de modèle",
       "confirmRemove": "Supprimer le poste arrête sa tâche ; les enfants remontent d'un niveau. Continuer ?"
     },
     "kind": {

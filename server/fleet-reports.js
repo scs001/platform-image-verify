@@ -9,6 +9,8 @@
 // Storage lives in fleets-db; the HTTP/tool faces live in routes/fleets.js
 // and server/fleet-mcp.js.
 
+import { resolveModelChain } from "./fleet-model.js";
+
 const SUMMARY_MAX = 4000;
 const METRIC_VALUE_MAX = 300;
 const RESOURCES_MAX = 50;
@@ -123,6 +125,72 @@ export function resolveAttribution({ currentPreset, runningTasks = [], personaMe
     };
   }
   return { kind: "none", error: "this agent is not a member of any fleet — report_status is for fleet posts" };
+}
+
+// ── Turn identity ────────────────────────────────────────────────────────────
+
+// The one-line post identity a fleet member's turn carries at the head of its
+// prompt (enable-wire-content-fleet D1), so an agent can NAME its own
+// production source instead of inventing a string. Attribution decides who
+// (resolveAttribution above); this only formats. Credential-free by
+// construction — ids and a title, nothing else — and never written to the
+// catalog or an AgentCard.
+export function renderFleetIdentity({ fleetId, memberId, title, targetKind, targetId }) {
+  return `【舰队岗位身份】fleet=${fleetId}; post=${memberId}; title=${title ?? ""}; target=${targetKind ?? ""}:${targetId ?? ""}`;
+}
+
+// The post a persona is on duty for → its turn identity line, or null.
+// Attribution is the report bridge's own (resolveAttribution): no post or
+// several posts (ambiguous) both yield null, so the turn runs unchanged.
+export function fleetIdentityFor(db, presetId, { rosterPresetId = (id) => id } = {}) {
+  if (!presetId) return null;
+  const personaMembers = [];
+  for (const f of db.listFleets()) {
+    for (const m of db.listMembers(f.id)) {
+      if (m.targetKind === "persona") personaMembers.push(m);
+    }
+  }
+  const attribution = resolveAttribution({ currentPreset: presetId, personaMembers, rosterPresetId });
+  if (attribution.kind !== "preset") return null;
+  const member = db.getMember(attribution.memberId);
+  if (!member) return null;
+  return renderFleetIdentity({
+    fleetId: member.fleetId,
+    memberId: member.id,
+    title: member.title,
+    targetKind: member.targetKind,
+    targetId: member.targetId,
+  });
+}
+
+// The post a persona is on duty for → its resolved model plan, or null
+// (add-fleet-post-model D3). Same attribution seam as fleetIdentityFor: the
+// turn path hands in its live preset, this finds the on-duty member and
+// resolves the chain [member.model, member.fallbackModel, fleet.defaultModel,
+// cellDefault] against the current roster. Lookup is per-turn by design — the
+// model declaration is NEVER materialized into the task record, so a PATCH
+// costs zero reconciliation.
+export function fleetModelFor(db, presetId, { rosterPresetId = (id) => id, roster = null, cellDefault = null } = {}) {
+  if (!presetId) return null;
+  const personaMembers = [];
+  for (const f of db.listFleets()) {
+    for (const m of db.listMembers(f.id)) {
+      if (m.targetKind === "persona") personaMembers.push(m);
+    }
+  }
+  const attribution = resolveAttribution({ currentPreset: presetId, personaMembers, rosterPresetId });
+  if (attribution.kind !== "preset") return null;
+  const member = db.getMember(attribution.memberId);
+  if (!member) return null;
+  const fleetDefault = db.getFleet(member.fleetId)?.defaultModel ?? null;
+  const plan = resolveModelChain({
+    model: member.model,
+    fallbackModel: member.fallbackModel,
+    fleetDefault,
+    cellDefault,
+    roster,
+  });
+  return { memberId: member.id, fleetDefault, ...plan };
 }
 
 // ── Flood control ────────────────────────────────────────────────────────────

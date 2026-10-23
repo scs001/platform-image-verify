@@ -2266,6 +2266,8 @@
       "pause": "暂停",
       "resume": "恢复",
       "remove": "删岗",
+      "model": "生效模型",
+      "modelFallback": "模型回落",
       "confirmRemove": "删除岗位会停止其节奏任务，子岗位上移一级。继续？"
     },
     "kind": {

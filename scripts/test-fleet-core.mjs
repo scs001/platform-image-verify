@@ -853,3 +853,25 @@ test("member turn normalizes the model; fallback and honest failure", async () =
   assert.equal((await plainCtx.runCronJobTurn({ ...job, sessionId: "sess_m5", id: "job_m5" }, { turnTimeoutMs: 2000 })).ok, true);
   assert.deepEqual(plainCtx.modelSwitches, [], "non-fleet turns never touch the model");
 });
+
+test("post model/identity: archived-fleet ghost posts exit attribution (0030e1e8 family)", async () => {
+  const { fleetIdentityFor } = await import("../server/fleet-reports.js");
+  const live = fixtureFleet(fleetDb, { name: "活舰队" });
+  const livePost = fixtureMember(fleetDb, live.id, { title: "真岗", targetId: "persona-a" });
+  fleetDb.updateMember(livePost.id, { model: "cheap-m" }); // the fixture predates model fields
+  const ghostFleet = fixtureFleet(fleetDb, { name: "已解散舰队" });
+  const ghost = fixtureMember(fleetDb, ghostFleet.id, { title: "幽灵岗", targetId: "persona-a" });
+  void ghost;
+  fleetDb.updateFleet(ghostFleet.id, { state: "archived" });
+
+  // model plan resolves to the LIVE post alone — the ghost must not push the
+  // attribution into ambiguous-null (which would silently skip normalization)
+  const plan = fleetModelFor(fleetDb, "persona-a", { roster: ["cheap-m"], cellDefault: "boot-m" });
+  assert.equal(plan?.memberId, livePost.id, "ghost does not make the live post ambiguous");
+  assert.equal(plan.effective, "cheap-m");
+
+  // same seam, identity side
+  const line = fleetIdentityFor(fleetDb, "persona-a");
+  assert.match(line, /post=/);
+  assert.ok(line.includes(livePost.id), "identity names the live post");
+});

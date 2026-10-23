@@ -146,6 +146,11 @@ export function fleetIdentityFor(db, presetId, { rosterPresetId = (id) => id } =
   if (!presetId) return null;
   const personaMembers = [];
   for (const f of db.listFleets()) {
+    // Ghost-post guard (0030e1e8 family): a dissolved fleet's posts exit
+    // attribution — the same guard the report/escalate scans carry. Without
+    // it a ghost post makes the live post's attribution ambiguous (null):
+    // identity prefix lost, post-model normalization silently skipped.
+    if (f.state === "archived") continue;
     for (const m of db.listMembers(f.id)) {
       if (m.targetKind === "persona") personaMembers.push(m);
     }
@@ -174,6 +179,11 @@ export function fleetModelFor(db, presetId, { rosterPresetId = (id) => id, roste
   if (!presetId) return null;
   const personaMembers = [];
   for (const f of db.listFleets()) {
+    // Ghost-post guard (0030e1e8 family): a dissolved fleet's posts exit
+    // attribution — the same guard the report/escalate scans carry. Without
+    // it a ghost post makes the live post's attribution ambiguous (null):
+    // identity prefix lost, post-model normalization silently skipped.
+    if (f.state === "archived") continue;
     for (const m of db.listMembers(f.id)) {
       if (m.targetKind === "persona") personaMembers.push(m);
     }

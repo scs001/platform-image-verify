@@ -1513,3 +1513,19 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **刀4 全链上产**：种子「公司式舰队」铸造上架 `aofNf6o2LR61lPK8IVVkJw` v1（fleet 段闸生产首过；pack agents 上限 3——种子收敛 CEO/开源/投资三真数据岗，助理转引用岗）+ curation category=fleet 列表眼见；**订阅≠安装**——subscribe 只回 manifest，安装由浏览器驱动 `/api/mypacks/install`（PackDetailDialog 同路）；from-template 201（missing=[]、出生全队暂停）→确认启动→on_duty 6/7 六任务就绪；导出-重装腿：导出白名单零运行时痕迹→成包→安装→from-template→骨架+节奏逐字一致→新舰队零报数。应用中心「舰队模板」卡随 79606b0 上产眼见。
 
 **第二轮出片 sha-79606b0/digest f776b82**（占坑修复 0030e1e8 + 应用中心卡）：三面滚完 imageID 相等；**live 回归证明 facet-assistant 建岗 409→201**。走查舰队全解散（驳回验/公司式舰队/重装验 pack 下架卸载；种子包留市场在架）。
+
+### §15.14 发布记录：provisioner 唯一岗校验（fix-fleet-provisioner-unique-post，2026-10-23 上线）
+
+**根因**：fleet-core D8 的 persona/cluster 全局唯一岗只钉了建岗/换防两条写路径，实例化器（第三条建岗写路径）只查目标存在性不查在岗占用——导出-重装腿在原舰队未解散时静默建出第二岗，报数归属按 preset 定位唯一岗位直接出歧义；web 无任何 from-template 调用点，不变量必须钉在 API 层。
+
+**修法**（paas 34b1f89f）：provisioner 对 persona/cluster 目标查 `findPostByTarget`（查询自身排除 archived）+ 本批 claimed 集合（模板内重复），a2a 豁免；冲突岗降级为**空 targetId 哨兵**（岗位照建、结构保留、换防可补岗），缺位与冲突互斥（死目标非任何人的在任者）；响应新增 `conflicts`（含占用方舰队/岗位名）；读面区分两种待补岗（对象已删 vs 实例化时唯一岗冲突），哨兵不给假标签。多用户同包 pack-preset 的克隆真解（第二用户实例化同模板）仍留 v2。
+
+**出片**：公开仓线 scs001/platform-image-verify，快照 a747769（=paas HEAD 8f9d3ffd 单提交，workflows 修剪到只剩 image.yml——app-e2e/win-smoke 零触发）；digest `sha256:dff9387e…`，relay 09:16 OK 行，skopeo ccr 验 digest 后才 bump；platform/platform-demo/facet 三清单同步 sha-a747769（GitOps 0160ffa 双端推），ArgoCD hard refresh 后三面 pod imageID==digest 相等。
+
+**生产验收（aloadtree 真会话四证据）**：①装回种子 aofNf6o2→活舰队占坑 company-ceo→from-template **201+conflicts[ceo→占坑-唯一岗验/外占CEO]**（不是静默双岗）；②哨兵岗 cockpit 读 vacant+「no incumbent assigned — uniqueness conflict at instantiation」+targetId=""→label null+任务照常物化（job_…3lpcem）；③company-ceo 全场恰一岗（唯一岗不变量）；④解散占方→swap 补岗 200→status paused（非 vacant）+**taskId 稳定**（物化任务原地换防）。对照腿：手动在岗 persona 建岗仍 409（三写路径同源）。
+
+**顺手两账**：①上轮「走查舰队全解散」漏了一只**活着的公司式舰队**（fleet_…jq1ayt，CEO 整点空转烧了一夜 token）——本次解散，from-template 去重命中它返回 200 属 D5 正确行为；`findFleetByTemplate` 排除 archived，解散后可重实例化。②pod 内临时探针脚本用后即删纪律照旧。
+
+**①（种子自然 cadence）已启动**：验收舰队直接转正观察载体（骨架完整、CEO 补岗后零报数史）——确认启动 active，on_duty 6/7（内容部 passive）：CEO 整点巡视（首火 10:00 京时）/电商部 10:00/开源·投资·助理明早 09:10-09:30/萬星席周一 11:00；首个有意义的跨部门 CEO 巡视=明早 ~09:30 后。每日约 29 回合走 aloadtree cell key。观察点：注入含下级槽值、开源部 CN pod 抓 GitHub 失败应如实报「未取得」、自发 escalate、token 消耗。
+
+**余**：③萬星侧 cockpit 投影独立 change（等 ① 自然 cadence 证据）；provisioner 唯一岗的 persona 克隆真解留 v2。

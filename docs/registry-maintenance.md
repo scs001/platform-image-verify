@@ -1572,3 +1572,9 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **功能一句话**：O1 回合事件（三路径收口 runCronJobTurn、errorKind 六类、200/岗滚动裁剪、驾驶舱失败维度与连续失败标记、双读端点）;架构师 pack（壹座 NL 编译面五工具:draft dry-run 校验+diff+token 成本预估、apply 重校验挡漂移、create 生而全队暂停;官方种子七纪律;mcp.example.json 注册,**节点 mcp.json 需手工加 fleet-architect 条目**）;turnRequest 契约（buildTurnRequest 纯派生单一定源、peer/event/blackboard 按 O3/O4/O5 去向指名拒绝、depth 界 1）。
 
 **待办**：①errorKind 校准首例——上游 5xx/`api_error` 现落 `other`,应归 `model_upstream`（表驱动单点改,随下一列车）;②架构师种子铸造上架 + 活体 NL 建队全链验收;③节点 mcp.json 加 fleet-architect 条目（工具面激活,桥与事件面已活）。
+
+### §15.16 补记：post-model 三窗终验 + 上游暗道名单（2026-10-23 深夜）
+
+**终验（aloadtree CEO 岗，节奏窗实火三连）**：21:00 声明 `glm-5.3-flash` → 上游 404 错误体**点名该模型**（归位派发铁证）；22:00 声明 `poolside/laguna-xs-2.1:free` → 503 错误体点名（再次派发实证）；23:00 声明 `liquid/lfm-2.5-2.6b:free`（探针 200）→ 回合 clean 完成、CEO 按时报数。同一代码路径三窗，机制闭环；验毕已清模恢复默认继承。**归位归因同族修（04d50a88）真库差分实证**：cell 1da5 存在 4 个 company-ceo 岗行（3 archived 幽灵+1 活），守卫后 `fleetModelFor` 唯一归活岗并解析声明模型——7 个 persona 均有幽灵重复，该修为生产刚需非理论。
+
+**上游暗道名单（roster 在册≠在服务，零花费探针实证）**：404 暗道=`deepseek-v4-pro`/`glm-5.3-flash`/`nvidia/nemotron-3-super-120b-a12b:free`；429=`gemma-4-26b`；503=`laguna-s`。在服务=`deepseek-v4.1-flash`(默认)/`cohere/north-mini-code:free`/`dots-studio/dots-3-note-preview:free`/`liquid/lfm-2.5-2.6b:free`。**写面三闸管不住这一类**（闸对 roster 声明，不对上游真值）——声明暗道模型=回合执行期失败按设计不兜底、等下个 cadence，可见性走 missing 状态；后续增量候选：写面探针/暗道黑名单/执行失败回落。dsh-profile 的 VOLCES_MODELS 列表与探针现实有两处漂移（glm-5.3-flash 在列但 404），修列表属 LLM 路由线不属本条。另：已有其他 cell 真实采用岗位模型（spawn 日志见 `cohere/north-mini-code:free`）。

@@ -221,6 +221,7 @@ async function addJob({
   prompt,
   preset,
   agent,
+  tool,
   tz,
   sessionTitle,
   clusterId,
@@ -282,8 +283,10 @@ async function addJob({
     // belongs to. sessionId is minted here so the id is stable from creation,
     // but the dsh/SQLite session itself is only created at first execution
     // (a paused or deleted task leaves no orphan session behind).
-    preset: isClusterTask ? clusterId : (preset ?? agent ?? null),
-    targetType: isClusterTask ? "cluster" : agent ? "a2a" : "persona",
+    preset: isClusterTask ? clusterId : (preset ?? agent ?? tool ?? null),
+    // tool posts (add-tool-posts): preset is the "server::tool" target — a
+    // deterministic MCP call, no dsh runtime.
+    targetType: isClusterTask ? "cluster" : agent ? "a2a" : tool ? "tool" : "persona",
     ...(isClusterTask
       ? {
           clusterId,
@@ -332,7 +335,7 @@ async function updateJob(id, changes = {}) {
     throw new Error("only schedule tasks can be updated in place");
   }
 
-  const { cron, when, prompt, tz, sessionTitle, preset, agent, clusterId, clusterName, agentCount, executionPolicy, targetAgents, sourceTag } = changes;
+  const { cron, when, prompt, tz, sessionTitle, preset, agent, tool, clusterId, clusterName, agentCount, executionPolicy, targetAgents, sourceTag } = changes;
 
   if (cron !== undefined) {
     if (!cron || typeof cron !== "string") throw new Error("cron must be a non-empty string");
@@ -354,9 +357,9 @@ async function updateJob(id, changes = {}) {
   if (policyInvalid) throw new Error(policyInvalid);
 
   // Target rebinding: at most one flavor among the trio.
-  const targets = [preset, agent, clusterId].filter((v) => v !== undefined);
+  const targets = [preset, agent, tool, clusterId].filter((v) => v !== undefined);
   if (targets.length > 1) {
-    throw new Error("a task targets a preset OR a cluster OR a market agent, not several");
+    throw new Error("a task targets a preset OR a cluster OR a market agent OR a tool, not several");
   }
 
   if (cron !== undefined) task.cron = cron;
@@ -389,6 +392,9 @@ async function updateJob(id, changes = {}) {
     } else if (agent !== undefined) {
       task.targetType = "a2a";
       task.preset = agent;
+    } else if (tool !== undefined) {
+      task.targetType = "tool";
+      task.preset = tool;
     } else {
       task.targetType = "persona";
       task.preset = preset ?? null;

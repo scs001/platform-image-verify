@@ -57,6 +57,11 @@ export function materializedSpec({ fleet, member, rosterPresetId = (id) => id, c
   if (member.targetKind === "a2a") {
     return { ...base, agent: member.targetId };
   }
+  if (member.targetKind === "tool") {
+    // Tool posts (add-tool-posts): the target is "server::tool" — a
+    // deterministic MCP call, prompt is the JSON arguments verbatim.
+    return { ...base, tool: member.targetId };
+  }
   // persona: catalog agent id → dsh roster preset id (the one mapping point,
   // same as cluster member resolution).
   return { ...base, preset: rosterPresetId(member.targetId) };
@@ -72,8 +77,8 @@ export function specDrift(task, spec) {
   if ((task.prompt ?? null) !== (spec.prompt ?? null)) changes.prompt = spec.prompt;
   if ((task.sessionTitle ?? null) !== (spec.sessionTitle ?? null)) changes.sessionTitle = spec.sessionTitle;
 
-  const desiredTargetType = spec.clusterId ? "cluster" : spec.agent ? "a2a" : "persona";
-  const desiredPreset = spec.clusterId ?? spec.agent ?? spec.preset ?? null;
+  const desiredTargetType = spec.clusterId ? "cluster" : spec.agent ? "a2a" : spec.tool ? "tool" : "persona";
+  const desiredPreset = spec.clusterId ?? spec.agent ?? spec.tool ?? spec.preset ?? null;
   const targetTypeChanged =
     (task.targetType ?? "persona") !== desiredTargetType ||
     (task.preset ?? null) !== desiredPreset;
@@ -83,6 +88,8 @@ export function specDrift(task, spec) {
       if (spec.clusterName) changes.clusterName = spec.clusterName;
     } else if (desiredTargetType === "a2a") {
       changes.agent = spec.agent;
+    } else if (desiredTargetType === "tool") {
+      changes.tool = spec.tool;
     } else {
       changes.preset = spec.preset ?? null;
     }

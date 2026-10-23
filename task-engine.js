@@ -25,7 +25,7 @@ const TURN_TIMEOUT_MS = 10 * 60 * 1000;
 const HISTORY_LIMIT = 100;
 // a2a targets (market Agent Services) are supported when the cell's catalog
 // holds online a2a entries — executed as remote turns (add-agent-delegation-a2a).
-const SUPPORTED_TARGET_TYPES = ["persona", "a2a", "cluster"];
+const SUPPORTED_TARGET_TYPES = ["persona", "a2a", "cluster", "tool"];
 const SUPPORTED_TRIGGERS = ["schedule", "manual"];
 
 let tasks = new Map(); // id -> task record (loaded from disk + live schedule
@@ -239,12 +239,14 @@ function insertTask(record) {
 // immediately enqueue — no schedule is attached, so no schedule-side
 // lifecycle ever applies. `origin` tags the creating front-end (e.g.
 // { mc: <consoleTaskId> }) and persists with the record.
-function createManualTask({ prompt, persona, agent, sessionTitle, initiator, initiatorPreset, origin, executionPolicy = null }) {
+function createManualTask({ prompt, persona, agent, tool, sessionTitle, initiator, initiatorPreset, origin, executionPolicy = null }) {
   if (!prompt || typeof prompt !== "string") throw new Error("prompt is required");
   const id = `task_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  // Exactly one target flavor: a cell persona, or a market a2a agent. The
-  // delegation front-end validates the ref against its universe beforehand.
-  if (persona && agent) throw new Error("a task targets a persona OR a market agent, not both");
+  // Exactly one target flavor: a cell persona, a market a2a agent, or a tool
+  // post's server::tool target (add-tool-posts). The delegation front-end
+  // validates the ref against its universe beforehand.
+  const targetCount = [persona, agent, tool].filter(Boolean).length;
+  if (targetCount > 1) throw new Error("a task targets a persona OR a market agent OR a tool, not several");
   insertTask({
     id,
     trigger: "manual",
@@ -252,8 +254,8 @@ function createManualTask({ prompt, persona, agent, sessionTitle, initiator, ini
     cron: null,
     when: null,
     prompt,
-    preset: persona ?? agent ?? null,
-    targetType: agent ? "a2a" : "persona",
+    preset: persona ?? agent ?? tool ?? null,
+    targetType: agent ? "a2a" : tool ? "tool" : "persona",
     sessionId: `task-${id}`,
     sessionTitle: sessionTitle || null,
     tz: null,

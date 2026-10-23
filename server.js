@@ -1037,6 +1037,34 @@ ctx.triggerFleetHandoffs = async (job, out) => {
         });
         continue;
       }
+      // Tool hops are deterministic: the edge carries their JSON args (edge.
+      // args); prose summaries are not executable arguments and fail honestly.
+      if (target.targetKind === "tool") {
+        const argsOk = e.args != null && typeof e.args === "object" && !Array.isArray(e.args);
+        if (!argsOk) {
+          db.appendTurnEvent({
+            fleetId,
+            memberId: target.id,
+            source: "manual",
+            status: "failed",
+            errorKind: "runtime_not_ready",
+            error: "handoff to a tool post needs the edge's `args` (JSON object) — upstream prose is not executable",
+            startedAt: now,
+            endedAt: now,
+            sessionId: null,
+          });
+          continue;
+        }
+        const task = engine.createManualTask({
+          prompt: JSON.stringify(e.args),
+          tool: target.targetId,
+          sessionTitle: `接棒 · ${target.title}`,
+          origin: { fleet: { fleetId, memberId: target.id, depth: nextDepth } },
+          executionPolicy: { timeoutMinutes: constraints.budgetPerEdgeMin },
+        });
+        dispatched.push({ to: target.id, taskId: task.id });
+        continue;
+      }
       const summary = out?.ok === true
         ? String(out.text ?? "").slice(0, 2000) || "(upstream produced no text)"
         : `上游回合失败:${String(out?.error ?? "unknown").slice(0, 500)}——如实转述,不自动重试`;

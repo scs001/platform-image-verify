@@ -101,6 +101,12 @@ export function validateOrchestration({ members = [], orchestration = null } = {
     if (e.kind === "dispatch" && e.from === e.to) {
       errors.push({ error: `${at}: a post cannot dispatch to itself`, entry: at });
     }
+    // Tool-hop arguments (add-tool-posts): a handoff edge into a tool post
+    // carries its JSON args (object); anything else fails at run time, so the
+    // shape is pinned here.
+    if (e.args !== undefined && (typeof e.args !== "object" || e.args === null || Array.isArray(e.args))) {
+      errors.push({ error: `${at}.args must be a JSON object (tool-hop arguments)`, entry: at });
+    }
     if (typeof e.from === "string" && e.kind !== "trigger") {
       outDegree.set(e.from, (outDegree.get(e.from) ?? 0) + 1);
     }

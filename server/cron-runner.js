@@ -19,6 +19,7 @@ import { parseToolResult } from "./dsh-events.js";
 import { getClusterDatabase } from "./routes/clusters-db.js";
 import { runA2aTurn, resolveGatewayCredential } from "./a2a-client.js";
 import { clusterMemoryFor } from "./cluster-memory.js";
+import { runToolTurn as runToolTurnDefault } from "./tool-turn.js";
 
 const IDLE_POLL_MS = 250;
 const PRESET_SWITCH_ATTEMPTS = 3;
@@ -651,7 +652,7 @@ async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, runPersona
   return { ok: true, usage: totalUsage, models: memberModels };
 }
 
-export function attachCronRunner(ctx, { runPersona = null, runA2a = null, listAgents = null } = {}) {
+export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runTool = null, listAgents = null } = {}) {
   // A bridge restart (preset switch, catalog sync, crash respawn) kills any
   // in-flight turn in a job session — the collector would otherwise sit out
   // the full turn timeout and wedge the engine's serialized queue behind a
@@ -672,10 +673,12 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, listAg
     activeTurns.clear();
   };
 
-  // The two member executors (cluster fan-out composes these). Injectable so
-  // tests drive the orchestration without a live runtime.
+  // The member executors (cluster fan-out composes these). Injectable so
+  // tests drive the orchestration without a live runtime. runTool is the T1
+  // tool-post executor (add-tool-posts): one deterministic MCP call.
   const personaExecutor = runPersona || runPersonaTurn;
   const a2aExecutor = runA2a || runA2aRemoteTurn;
+  const toolExecutor = runTool || runToolTurnDefault;
   const listAgentsFn = listAgents || catalog.listAgents;
 
   // `job` is the live engine record (cron.js). Returns { ok, error? }.
@@ -704,6 +707,11 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, listAg
       // chains get +1 only when in-cell turns are themselves delegated, a
       // future state).
       out = await a2aExecutor(ctx, job, timeoutMs);
+    } else if (job.targetType === "tool") {
+      // Tool posts (add-tool-posts): one deterministic MCP call — no dsh
+      // runtime, no preset switch, no LLM. Model metadata is meaningless
+      // here; the event seam records it null.
+      out = await toolExecutor(ctx, job, timeoutMs);
     } else {
       out = await personaExecutor(ctx, job, timeoutMs, activeTurns);
     }
@@ -715,10 +723,13 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, listAg
         // Best-effort model metadata: providers that stamp usage win, else
         // the runtime's landed model (persona turns leave it where they
         // landed — add-fleet-post-model D6), else the cluster's first member.
+        // Tool turns carry none — there is no LLM.
         model:
-          out?.usage?.model ??
-          ctx.session?.model?.id ??
-          (out?.models ? Object.values(out.models)[0] ?? null : null),
+          job.targetType === "tool"
+            ? null
+            : out?.usage?.model ??
+              ctx.session?.model?.id ??
+              (out?.models ? Object.values(out.models)[0] ?? null : null),
       });
     } catch (e) {
       console.warn(`[fleets] turn event record failed for ${job.id}: ${e?.message || e}`);

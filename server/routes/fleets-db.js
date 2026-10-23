@@ -12,7 +12,7 @@ import fs from "node:fs";
 import { storeDir } from "../../paths.js";
 
 export const FLEET_STATES = ["active", "paused", "archived"];
-export const MEMBER_TARGET_KINDS = ["persona", "cluster", "a2a"];
+export const MEMBER_TARGET_KINDS = ["persona", "cluster", "a2a", "tool"];
 
 export function createFleetDatabase({ file } = {}) {
   const dbPath = file || path.join(storeDir("data"), "fleets.db");

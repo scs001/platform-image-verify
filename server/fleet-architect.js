@@ -19,6 +19,7 @@ import { Router } from "express";
 import { getFleetDatabase } from "./routes/fleets-db.js";
 import { resolveFleetTarget } from "./routes/fleets.js";
 import { reconcileFleet, cronPeriodMs } from "./fleet-reconcile.js";
+import { splitToolTarget } from "./tool-turn.js";
 import { rosterPresetId } from "../dsh-profile.js";
 import { MODEL_ID_RE } from "../lib/pack-manifest.js";
 import * as cron from "../cron.js";
@@ -40,7 +41,19 @@ export function tokenRange() {
 }
 
 const OPS = ["add", "update", "pause", "resume", "remove"];
-const KINDS = ["persona", "cluster", "a2a"];
+const KINDS = ["persona", "cluster", "a2a", "tool"];
+
+// Tool posts' deterministic contract: the cadence prompt IS the arguments.
+function toolArgsError(targetKind, cadence) {
+  if (targetKind !== "tool" || !cadence) return null;
+  try {
+    const parsed = JSON.parse(cadence.promptTemplate);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
+  } catch {
+    return "a tool post's cadence.promptTemplate must be a JSON object — it is the tool's arguments";
+  }
+  return null;
+}
 
 // ── validation (pure composition over injected db/resolver) ─────────────────
 
@@ -116,6 +129,10 @@ export function validateFleetDraft(db, draft, { resolver = resolveFleetTarget } 
         errors.push({ error: `${at}.targetId is required for add`, entry: at });
         continue;
       }
+      if (op.targetKind === "tool" && !splitToolTarget(op.targetId)) {
+        errors.push({ error: `${at}.targetId '${op.targetId}' must be 'server::tool'`, entry: at });
+        continue;
+      }
       if (!resolver({ targetKind: op.targetKind, targetId: op.targetId }).alive) {
         errors.push({ error: `${at}: target ${op.targetKind}/${op.targetId} does not exist (or is not live)`, entry: at });
       }
@@ -175,6 +192,14 @@ export function validateFleetDraft(db, draft, { resolver = resolveFleetTarget } 
             errors.push({ error: `${at}.${key} must be a model identifier or null`, entry: at });
           }
         }
+        const nextKindForModel = op.targetKind ?? current.targetKind;
+        if (nextKindForModel !== "persona") {
+          const declaredModel = op.model ?? (op.model === undefined ? current.model : null);
+          const declaredFallback = op.fallbackModel ?? (op.fallbackModel === undefined ? current.fallbackModel : null);
+          if (declaredModel != null || declaredFallback != null) {
+            errors.push({ error: `${at}: only persona posts declare a model — ${nextKindForModel} posts run none (tool) or own it elsewhere (a2a/cluster)`, entry: at });
+          }
+        }
         if (op.fallbackModel && !op.model && !current.model) {
           errors.push({ error: `${at}: fallbackModel requires a primary model (declared here or already on the post)`, entry: at });
         }
@@ -218,6 +243,8 @@ export function validateFleetDraft(db, draft, { resolver = resolveFleetTarget } 
     if (period != null && period < minPeriodWarnMinutes() * 60_000) {
       opWarnings.push(`fires every ${Math.round(period / 60_000)}min — denser than the ${minPeriodWarnMinutes()}min advisory floor; watch the cost`);
     }
+    const toolErr = toolArgsError(op.op === "add" ? op.targetKind : undefined, cadence);
+    if (toolErr) errors.push({ error: `${at}: ${toolErr}`, entry: at });
     diff.push(diffEntry(op, { cron: expr, tz: tz || null, promptTemplate }, opWarnings));
   }
 
@@ -339,19 +366,25 @@ export function estimateFleetCost(draft, { existing = [], newPostCount = null } 
       cron,
       periodMinutes: Math.round(period / 60_000),
       turnsPerDay: Math.ceil((24 * 60) / Math.max(1, period / 60_000)),
+      // Tool posts (add-tool-posts): deterministic calls — turns count, tokens
+      // don't. The estimate splits so a fleet's LLM bill reads honest.
+      toolPost: op.targetKind === "tool" || byRef.get(op.ref)?.targetKind === "tool",
     });
   }
   const posts = newPostCount ?? (draft?.mode === "create" ? (draft?.members ?? []).length : 0);
   if (posts <= 5 && newCronPosts.length === 0) return null;
   const turnsPerDayTotal = newCronPosts.reduce((s, p) => s + p.turnsPerDay, 0);
+  const llmTurnsPerDay = newCronPosts.filter((p) => !p.toolPost).reduce((s, p) => s + p.turnsPerDay, 0);
   const [lo, hi] = tokenRange();
-  const monthly = turnsPerDayTotal * 30;
+  const monthly = llmTurnsPerDay * 30;
   return {
     trigger: posts > 5 ? "large-add" : "new-cron",
     posts: newCronPosts,
     turnsPerDayTotal,
+    llmTurnsPerDay,
+    toolTurnsPerDay: turnsPerDayTotal - llmTurnsPerDay,
     tokensPerMonth: [monthly * lo, monthly * hi],
-    assumptions: { tokenRange: [lo, hi], daysPerMonth: 30 },
+    assumptions: { tokenRange: [lo, hi], daysPerMonth: 30, toolPostsAreFree: true },
   };
 }
 

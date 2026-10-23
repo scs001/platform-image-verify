@@ -20,6 +20,8 @@ import {
 } from "./fleets-db.js";
 import { reconcileFleet, deriveMemberStatus, cronPeriodMs } from "../fleet-reconcile.js";
 import { validateOrchestration, expandedEdges, dispatchAllowed, outgoingHandoffs, constraintsOf } from "../fleet-orchestration.js";
+import { splitToolTarget } from "../tool-turn.js";
+import { resolveServerEndpoint, resolveStdioServerConfig } from "../../lib/action-executor.js";
 import { fleetModelChoiceError, resolveModelChain } from "../fleet-model.js";
 import {
   validateReportPayload,
@@ -75,6 +77,14 @@ function resolveTarget(member) {
     const alive = !!cluster && cluster.status !== "terminated";
     return { alive, label: cluster?.name ?? (member.targetId || null), clusterName: cluster?.name ?? null };
   }
+  if (member.targetKind === "tool") {
+    // Tool posts (add-tool-posts): alive = the server is routable at all
+    // (operator stdio config or a registry entry); the tool name itself is
+    // judged at run time, honestly, because MCP tool surfaces drift.
+    const split = splitToolTarget(member.targetId);
+    const alive = !!split && (resolveStdioServerConfig(split.server) != null || resolveServerEndpoint(split.server) != null);
+    return { alive, label: member.targetId, clusterName: null };
+  }
   const entry = catalog.getAgentEntry(member.targetId);
   const alive = !!entry && entry.mode === "a2a";
   return { alive, label: entry?.name ?? (member.targetId || null), clusterName: null };
@@ -90,6 +100,11 @@ function invalidTargetMessage(kind, id) {
   }
   if (kind === "persona") return `persona '${id}' is not in the catalog chat roster`;
   if (kind === "cluster") return `cluster '${id}' does not exist`;
+  if (kind === "tool") {
+    return splitToolTarget(id)
+      ? `tool server '${splitToolTarget(id).server}' is not routable (no registry entry, no stdio config)`
+      : `tool target '${id}' must be 'server::tool'`;
+  }
   return `market agent '${id}' is not an online a2a entry`;
 }
 
@@ -122,6 +137,20 @@ function normalizeCadence(cadence, { confirmed } = {}) {
     ok: true,
     cadence: { cron: expr, tz: tz || null, promptTemplate, enabled: enabled !== false },
   };
+}
+
+// Tool posts (add-tool-posts): the cadence prompt IS the tool's arguments —
+// a JSON object, deterministically. Checked wherever a tool post's cadence is
+// written (create/update/swap), after normalizeCadence's shape checks.
+function toolCadenceError(targetKind, cadence) {
+  if (targetKind !== "tool" || !cadence) return null;
+  try {
+    const parsed = JSON.parse(cadence.promptTemplate);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
+  } catch {
+    return "a tool post's cadence.promptTemplate must be a JSON object — it is the tool's arguments";
+  }
+  return null;
 }
 
 function normalizeKpiSlots(slots) {
@@ -279,7 +308,7 @@ export function createFleetRoutes(app, ctx = null) {
       if (v != null && typeof v !== "string") return "model fields must be a model id string or null";
     }
     if (targetKind !== "persona" && (model != null || fallbackModel != null)) {
-      return "only persona posts declare a model — a2a posts take theirs from the service deployment config, cluster posts from their member posts";
+      return "only persona posts declare a model — a2a posts take theirs from the service deployment config, cluster posts from their member posts, tool posts run no LLM at all";
     }
     if (fallbackModel != null && model == null) {
       return "fallbackModel requires model — clear the fallback before clearing (or omitting) the primary";
@@ -588,9 +617,23 @@ export function createFleetRoutes(app, ctx = null) {
       const allowed = dispatchAllowed({ members: db.listMembers(fleet.id), orchestration: fleet.orchestration }, from.id, target.id);
       if (!allowed.ok) return res.status(403).json({ error: allowed.error });
       // Guard 4: cluster posts have no manual lane (delegation targets
-      // personas and a2a agents only).
+      // personas, a2a agents, and tool posts). Tool posts take their args as
+      // the brief — it must BE the JSON arguments, deterministically.
       if (target.targetKind === "cluster") {
-        return res.status(400).json({ error: `post '${target.title}' runs a cluster — the manual dispatch lane targets persona/a2a posts` });
+        return res.status(400).json({ error: `post '${target.title}' runs a cluster — the manual dispatch lane targets persona/a2a/tool posts` });
+      }
+      let dispatchPrompt = null;
+      if (target.targetKind === "tool") {
+        try {
+          const parsed = JSON.parse(brief);
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
+          dispatchPrompt = brief.trim();
+        } catch {
+          return res.status(400).json({ error: `post '${target.title}' is a tool post — the brief must be its JSON arguments (e.g. {"query":"…"})` });
+        }
+      } else {
+        dispatchPrompt =
+          `【舰队派发】来自同舰队岗位「${from.title}」的派发(回执将自动送回其下一回合):\n${brief.trim().slice(0, 4000)}`;
       }
       // Guard 5: rate caps — per member per turn-proxy window, per fleet per hour.
       if (!budgetTake(`m:${from.id}`, 15 * 60_000, dispatchCap("PER_TURN", 3))) {
@@ -603,11 +646,14 @@ export function createFleetRoutes(app, ctx = null) {
       // Dispatch rides the delegation lane: initiator = the dispatcher's
       // session (the aggregator delivers the summary back there), origin.fleet
       // carries the target post + depth 1 for the turn contract.
-      const prompt =
-        `【舰队派发】来自同舰队岗位「${from.title}」的派发(回执将自动送回其下一回合):\n${brief.trim().slice(0, 4000)}`;
+      const prompt = dispatchPrompt;
       const task = engine.createManualTask({
         prompt,
-        ...(target.targetKind === "a2a" ? { agent: target.targetId } : { persona: rosterPresetId(target.targetId) }),
+        ...(target.targetKind === "a2a"
+          ? { agent: target.targetId }
+          : target.targetKind === "tool"
+            ? { tool: target.targetId }
+            : { persona: rosterPresetId(target.targetId) }),
         sessionTitle: `派发 · ${target.title}`,
         initiator: chatHistory.currentSessionId(),
         origin: { fleet: { fleetId: fleet.id, memberId: target.id, depth: 1 } },
@@ -1010,6 +1056,22 @@ export function createFleetRoutes(app, ctx = null) {
           });
           return res.json({ executing: true, taskId: manual.id, manual: true });
         }
+        if (member && member.targetKind === "tool") {
+          // Tool posts: the delivery must BE the arguments — a JSON body, not
+          // prose. Decision text is prose by nature, so require an explicit
+          // args object on the op.
+          const args = req.body?.args;
+          if (!args || typeof args !== "object" || Array.isArray(args)) {
+            return res.status(400).json({ error: "a tool post's execute-now needs `args` — the tool's JSON arguments (decision prose is not executable)" });
+          }
+          const manual = engine.createManualTask({
+            prompt: JSON.stringify(args),
+            tool: member.targetId,
+            sessionTitle: `拍板送达 · ${member.title}`,
+            origin: { fleet: { fleetId: fleet.id, memberId: member.id } },
+          });
+          return res.json({ executing: true, taskId: manual.id, manual: true });
+        }
         return res.status(409).json({
           error: "this post has no cadence task and no manual lane (passive cluster post) — delivery will ride its next delegated turn",
         });
@@ -1220,8 +1282,9 @@ export function createFleetRoutes(app, ctx = null) {
         return res.status(400).json({ error: invalidTargetMessage(targetKind, targetId) });
       }
       // Unique post (design D8): persona/cluster globally hold one post; a2a
-      // is exempt (external execution has no attribution ambiguity).
-      if (targetKind !== "a2a") {
+      // and tool targets are exempt (external execution / stateless calls
+      // carry no attribution ambiguity).
+      if (targetKind !== "a2a" && targetKind !== "tool") {
         const existing = db.findPostByTarget(targetKind, targetId);
         if (existing) {
           return res.status(409).json({
@@ -1231,6 +1294,8 @@ export function createFleetRoutes(app, ctx = null) {
         }
       }
       const cad = normalizeCadence(req.body?.cadence, { confirmed: req.body?.confirmed });
+      const cadToolErr = toolCadenceError(targetKind, cad.cadence);
+      if (cadToolErr) return res.status(400).json({ error: cadToolErr });
       if (!cad.ok) {
         return res.status(cad.code ? 400 : 400).json({ error: cad.error, ...(cad.code ? { code: cad.code } : {}) });
       }
@@ -1317,6 +1382,8 @@ export function createFleetRoutes(app, ctx = null) {
         if (!cad.ok) {
           return res.status(400).json({ error: cad.error, ...(cad.code ? { code: cad.code } : {}) });
         }
+        const cadToolErr = toolCadenceError(member.targetKind, cad.cadence);
+        if (cadToolErr) return res.status(400).json({ error: cadToolErr });
         updates.cadence = cad.cadence;
       }
       if (model !== undefined || fallbackModel !== undefined) {
@@ -1364,7 +1431,7 @@ export function createFleetRoutes(app, ctx = null) {
       if (!targetResolver({ targetKind, targetId }).alive) {
         return res.status(400).json({ error: invalidTargetMessage(targetKind, targetId) });
       }
-      if (targetKind !== "a2a") {
+      if (targetKind !== "a2a" && targetKind !== "tool") {
         const existing = db.findPostByTarget(targetKind, targetId, { excludeMemberId: member.id });
         if (existing) {
           return res.status(409).json({

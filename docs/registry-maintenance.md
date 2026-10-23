@@ -1604,3 +1604,24 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **调试实录（记两笔）**：①首查 fanout「未起」为**假阴性**——`GET /api/delegation/tasks` 按发起会话过滤,judge 合成 initiator 的任务不在列;直查引擎存储（cell `data/cron-store/jobs.json`）见两任务 done/running,initiator/preset 全对。教训：**判断「未发生」前先质疑探针的过滤面**。②kubectl logs 无 warn ≠ 无异常（supervisor 吞 stdout 教训重演）,本轮最终靠任务存储与会话留档定案。
 
 **功能一句话**：NL 面编边（draft 虚拟终态图校验/draft-id 换真 id/未带段不清边/种子 v1.1 上架 version=2）;fanout 边（并行波+聚合三式,judge=delegation 聚合器原样复用,波随上游回合,depth 硬界）;event 边（bot 入站唤醒,source=event 转正,每岗每小时≤30,bot 自身回合照常双回合语义）。**六边齐型**（trigger/report/dispatch/handoff/fanout/event）,SOURCES 四值,保留位仅余 peer。
+
+### §16.1 发布记录：服务自报工具面（add-self-reported-tool-surface 组 1，2026-10-24 上线）
+
+**背景**：逐用户凭据服务（wire-build-mcp / wire-ops-mcp / wanxing-ops-mcp / paper-trading）HTTP 层 AuthGate 强制进站 Bearer、匿名一律 401 ⟹ registry 探针与 `POST /api/refresh` 永远探不到工具面，快照停在旧值；发布门把合法新工具名判 unresolved（wire-build-mcp 15→17 实录）。兜底已退化到 Mongo 直写（2026-10-20 wanxing-ops 实录）。需求底稿：两仓 `docs/registry-tool-snapshot-longterm.md`。
+
+**本列车交付（registry fork，worktree `feat/self-reported-tool-surface`）**：
+- `apply_tool_surface()` 共享写函数（快照 tool_list/num_tools + scope 行 + 控制台广播三写合一）——探针路径改为调用它，自报路由复用同一函数，防三面漂移；写回全部**字段级 `updated_fields`**（整卡写入会抹掉并发写字段与凭据）。
+- 内部自报路由 `POST /api/surface-report/servers/{path}/tool-list`：path 绑定 Bearer token（registry 只存 sha256 hash，进 `_SERVER_RESPONSE_SECRET_FIELDS` 脱敏名单）；幂等（同值上报零写入）；404/403 不可区分。
+- `surface_source=probe|self_report` 条目字段：self_report 条目巡检**跳过探活与工具抓取**（消周期 401 噪音与恒红假象），健康展示改 `last_surface_report_at` 自报时间戳口径。
+- 仓自持烟测 `scripts/ci-smoke.sh`：registry-entrypoint 无 `SECRET_KEY` 即 fail-fast，通用构建池 boot 门裸跑必死；dummy key + 45s 存活判定。
+
+**上线实录（两列车，第一列车撞回一个设计前提错误）**：
+1. 第一列车 `sha-ee26ae5` 构建成功但**烟测门拦推**（SECRET_KEY 缺失）→ 加 ci-smoke.sh → `sha-b7fa92e` 过门 → GitOps `11c71df` 滚版成功 → **公网验收 404**。
+2. 根因：`/api/internal/` 是 nginx **硬 404 前缀**（`location ^~ /api/internal/ { return 404; }`，lua 子请求专用）——设计文档只说「新路由须在公网面自带 Bearer 校验」，没注意前缀本身不可达。第二列车把路由移到 `/api/surface-report/`，nginx 三处 server 块加显式放行 location（**不走 `auth_request /validate`**——调用者是服务不是控制台会话，应用 token 闸才是门）→ `sha-e6a2cbb` → GitOps `7d71767`。
+3. 验收：公网匿名 POST 返 **401 应用层响应**（路由在位）；`/api/servers` 25 条目全 `probe`、巡检零变化；`fd-build-channel` 判路公开仓额度耗尽 → 私有池 testaction004（repo 变量 BUILD_DOCKERFILE=docker/Dockerfile.registry），构建+烟测绿。
+
+**生产镜像**：`ccr.ccs.tencentyun.com/yizuo/mcp-registry@sha256:d6d32d4dc3acab36426cd0fda82a41767992461fbd0e97059b181e4ddcc137a0`（真 sha f3828cb1，快照 e6a2cbb，digest 引用防 IfNotPresent 吃坏缓存）。
+
+**回滚**：GitOps 行回上一 digest `c740d37a`；`surface_source` 字段与 hash 列留存无害（旧代码不读）。
+
+**余项**（同 change，finddata 侧）：组 2 = wire-build-mcp 试点接入自报模块（借 15→17 现网缺口做真机验收）；组 3 = 三服务回填；组 4 = 文档收口（含发布门文案改指「重启服务/查 last_surface_report」）。

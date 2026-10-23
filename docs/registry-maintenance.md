@@ -1665,3 +1665,9 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **挂账（进组 4）**：① 启动自报 5 连击全败而手报同参成功——疑启动窗口内 DNS/网络就绪序，未定位；② `surface_source` 公网读 None——疑 `/api/servers` 响应投影未带新字段（写库在位，`update_server` 字段级写入）；③ pack 发布被 10/时/作者限流，窗后重发即终验发布门；④ `probe_test` 教训落地（diag 通道或 dry-run）。
 
 **生产镜像**：`finddata-business/wire-build-mcp:sha-16475b4`（GitOps 23790ad）；Secret `wire-build-surface`（fd-prod）。**回滚**：滚回 sha-d596f84 + 删 envFrom（Secret 留存无害；registry 条目 hash/surface_source 留存无害，旧代码不读）。
+
+### §15.22 补记：边图 v2 组件 + event 真-bot E2E(2026-10-24 上午)
+
+**边图(add-cockpit-edge-graph,6b2250dd)**:FleetGraph 纯 SVG 组件(分层有向图/类型色贝塞尔边+箭头图例/定时与事件虚拟源节点/隐式许可不画边只显聚合条/回边曲线不参与分层),编排区图主位+文字列表保留;五语言。typecheck+回归 38/0,**浏览器眼见随下班车镜像**。
+
+**event 真-bot E2E(6d576b90)**:真 Express+真 bots 模块+**真 webhook HTTP 面**——飞书形状入站消息全链:verify→parse→守卫→真 triggerFleetEventWake→引擎 manual 任务(origin.event+origin.fleet 双段、roster 映射、发送者入 brief)→runCronJobTurn 缝→**O1 落库 source=event**;无边缘 bot 消息零扰钉死(test-bots-event-wake 2/2)。**生产侧 E2E 受阻如实记**:bot 创建需 Logto 组 platform-admin,当前会话用户无此组——不擅改他人权限;机制链已由真-HTTP 面钉死,生产补验待管理员账号侧一次配置(配方:feishu 哑出站凭据即可,入站验签项可选)。另:浏览器侧验收舰队残留已归档清理。

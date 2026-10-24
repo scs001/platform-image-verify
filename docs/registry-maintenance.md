@@ -1796,3 +1796,10 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **坑册三枚**：① runner 侧端口分配无 EADDRINUSE 守护（crash loop 而非 skip+warn）+ deploy 侧占用图与 runner 实际监听集不一致（daas-analyst 的 8809 不在占用图）——健壮性缺口挂账；② registry `/agent/` 代理 POST 405（Allow: GET，FastAPI 自答）——a2a_reverse_proxy 疑未生效或 location 未生成，cell 直连 registry 委派通道观察项挂账（萬星 facade/直连 runner 路径不受影响）；③ 部署键≠调用者键（wanxing facade 对 deployment key 拒 INVALID_KEY）——构造测试须走内线双 token，caller 键路径留待真实访客。
 
 **回归归因**：全量 unit 尾部 test-role-gated-extensions 8/14 败——**基线 5265dcc1 同样 8/14**（环境敏感的既有问题，CI 快照树 unit 绿），非本变更引入。
+
+
+### §15.34 归档 add-principal-facade + 挂账②取证深挖（2026-10-25）
+
+**归档**：14/14 收口，主 spec `openspec/specs/principal-facade/spec.md` 同步入库（7 requirements），change 迁 `archive/2026-10-25-add-principal-facade`，validate --specs 181/181。
+
+**挂账②取证（registry /agent/ 代理 405）**： cheap-1 容器实测——`A2A_REVERSE_PROXY_ENABLED=true` 在设；`nginx_rev_proxy.conf` 内 36 个 agent location **全部生成于 Oct 24 18:41**（reception 注册于其后）——**注册/重部署后 nginx 配置未再生成**。toggle enable（200 OK）后 conf 依旧未动（时间戳不变）——debounced reload scheduler 在此部署上未生效（registry 源码：agent location 只为健康已探 agent 生成，register 路径的探活在部署时打在 crash 中的 runner 上失败，之后无再触发）。且**旧 agent 同 wgk- 调用者键 POST 同样 403**——caller 键经 /validate 后仍被拒，代理的调用者鉴权模型与 wgk- invoke 键的匹配从未在生产走通（生产真回合全走萬星 facade/直连 runner）。**处置建议**：registry 线专项一场（①再生成调度失效排查+register 失败探活的重试位；②caller 键×代理鉴权对拍——这正是 K4「双向互调」通道的地基），非 paas 侧改动。

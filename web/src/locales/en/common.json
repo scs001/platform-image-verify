@@ -1604,6 +1604,7 @@
       "empty": "No packs in the market yet.",
       "allCategories": "All",
       "featured": "Featured",
+      "facade": "Facade",
       "agentSize": "Filter by agent count",
       "agentSizeAny": "Any count",
       "agentSizeValue": "{{value}} agents",
@@ -1628,6 +1629,14 @@
         "agents": "Agent Composition",
         "showOptional": "Show optional agents",
         "hideOptional": "Hide optional agents"
+      },
+      "facade": {
+        "title": "Facade",
+        "attribution": "Operated by {{owner}} (platform identity)",
+        "asOf": "Corpus as of {{date}}",
+        "stanceHosted": "Free for visitors · the host pays",
+        "chatEntry": "Chat with this facade",
+        "notDeployed": "Reception not deployed yet — chat unavailable"
       },
       "subscribe": "Subscribe & Install",
       "gotoMine": "View my packs",

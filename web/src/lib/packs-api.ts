@@ -25,6 +25,9 @@ export interface PackSummary {
   featured?: boolean;
   /** Agents in the latest version's manifest (marketplace agent-size filter). */
   agentCount?: number;
+  /** Facade flag (add-principal-facade): the latest version carries a facade
+   *  block — the pack is a principal's conversational front door. */
+  facade?: boolean;
 }
 
 export interface PackManifestSkill {
@@ -114,6 +117,18 @@ export interface PackManifest {
     defaultAgents: string[];
     optionalAgents?: string[];
     schedulingPolicy?: { maxConcurrentRuns?: number; preferredRunner?: string };
+  };
+  // Facade profile (add-principal-facade): present when the pack declares
+  // itself a principal's conversational front door. The reception role must
+  // be one of this pack's serving agents; the corpus names this pack's own
+  // skills (versioned with the manifest — the as-of rides the publish time).
+  // No identity claims ever ride the manifest: attribution is the platform's
+  // author stamp (PackSummary.authorEmail).
+  facade?: {
+    reception: string;
+    corpus: string[];
+    delegation?: { kind: "in-pack" | "a2a"; ref: string }[];
+    stance?: "hosted";
   };
 }
 

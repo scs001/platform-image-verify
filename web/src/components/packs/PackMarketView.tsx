@@ -257,7 +257,10 @@ export function PackMarketView({
                     className="text-left border border-primary/40 rounded-lg p-4 hover:border-primary/70 transition-colors bg-primary/5"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-foreground">{p.name}</span>
+                      <span className="font-medium text-foreground flex items-center gap-1.5">
+                        {p.name}
+                        {p.facade && <Badge data-testid={`pack-facade-badge-${p.id}`}>{t("packs.market.facade")}</Badge>}
+                      </span>
                       <span className="text-xs text-muted-foreground">v{p.version}</span>
                     </div>
                     <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{p.description}</p>
@@ -288,7 +291,10 @@ export function PackMarketView({
             className="text-left border border-border rounded-lg p-4 hover:border-primary/50 transition-colors"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="font-medium text-foreground">{pack.name}</span>
+              <span className="font-medium text-foreground flex items-center gap-1.5">
+                {pack.name}
+                {pack.facade && <Badge data-testid={`pack-facade-badge-${pack.id}`}>{t("packs.market.facade")}</Badge>}
+              </span>
               <span className="text-xs text-muted-foreground">v{pack.version}</span>
             </div>
             <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{pack.description}</p>

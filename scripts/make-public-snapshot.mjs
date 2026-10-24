@@ -99,6 +99,10 @@ const EXCLUDE_PATHS = new Set([
   "docs/pr-wanxing-agent-deploy.md",
   "scripts/deploy-cluster-platform.sh", // internal deploy plumbing (internal TCR URL)
   "scripts/tcr-purge-tags.py", // internal TCR ops: registry hosts + tag policy (2026-10-20)
+  // internal ops tool (add-principal-facade 6.1): the facade corpus snapshot
+  // reads the internal roadmap doc this script deletes below — it runs on the
+  // operator's tree, never in the OSS drop.
+  "scripts/facade-corpus-snapshot.mjs",
   // this tool itself
   "scripts/make-public-snapshot.mjs",
   // internal ops test: fleet board URL (tailnet) + jenkins/harbor/argocd state

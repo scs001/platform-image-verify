@@ -118,6 +118,10 @@ export function createA2aFace({
       default_input_modes: entry.default_input_modes ?? ["text"],
       default_output_modes: entry.default_output_modes ?? ["text"],
       preferred_transport: entry.preferred_transport ?? "jsonrpc",
+      // Facade identification (add-principal-facade): rides the registry
+      // entry's metadata (the descriptor's facade block) so discovery faces
+      // can present the conversational front door and its billing stance.
+      ...(entry?.metadata?.facade ? { facade: true, facade_stance: entry.metadata.facade.stance ?? "hosted" } : {}),
       // The card points callers at the facade, never at the internal runtime.
       url: `${req.protocol}://${req.get("host")}/api/wanxing/v1/a2a/${slug}`,
     };
@@ -149,6 +153,7 @@ export function createA2aFace({
           tags: entry.tags ?? [],
           capabilities: entry.capabilities ?? { streaming: true },
           skills: entry.skills ?? [],
+          ...(entry?.metadata?.facade ? { facade: true, facade_stance: entry.metadata.facade.stance ?? "hosted" } : {}),
         });
       }
       // Pagination (add-wanxing-deployments-cache): explicit page/page_size

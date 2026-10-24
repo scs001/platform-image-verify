@@ -1621,3 +1621,48 @@ test("seat deploy: no grant, a foreign email, or an expired grant all refuse wit
     await h.closeAll();
   }
 });
+
+// ── add-principal-facade: descriptor facade identification ──────────────────
+
+test("facade descriptor: the reception role carries the marker and default stance", async () => {
+  const { composeDescriptor } = await import("../lib/agent-serving.js");
+  const manifest = {
+    name: "p", description: "d",
+    skills: [{ name: "corpus", description: "c", content: "# c" }],
+    mcpServers: [],
+    agents: [{ id: "reception", name: "R", persona: "x", serving: { protocol: "a2a" } }],
+    facade: { reception: "reception", corpus: ["corpus"] },
+  };
+  const d = composeDescriptor({ packId: "pk", version: 1, manifest, agent: manifest.agents[0] });
+  assert.deepEqual(d.facade, { stance: "hosted" });
+
+  const explicit = composeDescriptor({
+    packId: "pk", version: 1,
+    manifest: { ...manifest, facade: { reception: "reception", corpus: ["corpus"], stance: "hosted" } },
+    agent: manifest.agents[0],
+  });
+  assert.deepEqual(explicit.facade, { stance: "hosted" });
+});
+
+test("facade descriptor: non-reception roles and facade-less packs carry no marker", async () => {
+  const { composeDescriptor } = await import("../lib/agent-serving.js");
+  const manifest = {
+    name: "p", description: "d",
+    skills: [{ name: "corpus", description: "c", content: "# c" }],
+    mcpServers: [],
+    agents: [
+      { id: "reception", name: "R", persona: "x", serving: { protocol: "a2a" } },
+      { id: "other", name: "O", persona: "y", serving: { protocol: "a2a" } },
+    ],
+    facade: { reception: "reception", corpus: ["corpus"] },
+  };
+  const other = composeDescriptor({ packId: "pk", version: 1, manifest, agent: manifest.agents[1] });
+  assert.equal("facade" in other, false);
+
+  const plain = composeDescriptor({
+    packId: "pk", version: 1,
+    manifest: { ...manifest, facade: undefined },
+    agent: manifest.agents[0],
+  });
+  assert.equal("facade" in plain, false);
+});

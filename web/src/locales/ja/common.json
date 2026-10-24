@@ -1604,6 +1604,7 @@
       "empty": "市場にパックがまだありません。",
       "allCategories": "すべて",
       "featured": "注目",
+      "facade": "ファサード",
       "agentSize": "エージェント数で絞り込む",
       "agentSizeAny": "すべて",
       "agentSizeValue": "{{value}} エージェント",
@@ -1688,6 +1689,14 @@
         "agents": "エージェント構成",
         "showOptional": "オプションのエージェントを表示",
         "hideOptional": "オプションのエージェントを隠す"
+      },
+      "facade": {
+        "title": "ファサード",
+        "attribution": "運営者 {{owner}}（プラットフォーム認証）",
+        "asOf": "コーパス更新日 {{date}}",
+        "stanceHosted": "訪問者無料・ホスト負担",
+        "chatEntry": "このファサードと話す",
+        "notDeployed": "受付役が未デプロイのためチャット不可"
       }
     },
     "report": {

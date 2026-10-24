@@ -349,6 +349,13 @@ export function createPackRegistry({ file }) {
       ...(version.agent_count !== undefined && version.agent_count !== null
         ? { agentCount: Number(version.agent_count) }
         : {}),
+      // Facade flag (add-principal-facade): the latest version carries a
+      // `facade` block — the pack is a principal's conversational front door.
+      // Same SQL-select convention as agent_count: absent when the caller's
+      // row didn't select it, so non-list callers keep their exact shape.
+      ...(version.is_facade !== undefined && version.is_facade !== null
+        ? { facade: Boolean(version.is_facade) }
+        : {}),
     };
   }
 
@@ -551,7 +558,8 @@ export function createPackRegistry({ file }) {
       ).get(...params).n;
       const rows = db.prepare(
         `SELECT p.*, v.version, v.name, v.description, v.tags, v.published_at,
-                json_array_length(v.manifest, '$.agents') AS agent_count
+                json_array_length(v.manifest, '$.agents') AS agent_count,
+                CAST(json_extract(v.manifest, '$.facade') IS NOT NULL AS INTEGER) AS is_facade
          FROM packs p JOIN pack_versions v
            ON v.pack_id = p.id AND v.version = (SELECT MAX(version) FROM pack_versions WHERE pack_id = p.id)
          WHERE ${whereSql}

@@ -1604,6 +1604,7 @@
       "empty": "Aucun pack sur le marché pour l'instant.",
       "allCategories": "Toutes",
       "featured": "En vedette",
+      "facade": "Vitrine",
       "agentSize": "Filtrer par nombre d'agents",
       "agentSizeAny": "Tous",
       "agentSizeValue": "{{value}} agents",
@@ -1688,6 +1689,14 @@
         "agents": "Composition des agents",
         "showOptional": "Afficher les agents optionnels",
         "hideOptional": "Masquer les agents optionnels"
+      },
+      "facade": {
+        "title": "Vitrine",
+        "attribution": "Opéré par {{owner}} (identité de la plateforme)",
+        "asOf": "Corpus à jour au {{date}}",
+        "stanceHosted": "Gratuit pour les visiteurs · l'hôte paie",
+        "chatEntry": "Discuter avec cette vitrine",
+        "notDeployed": "Réception non déployée — chat indisponible"
       }
     },
     "report": {

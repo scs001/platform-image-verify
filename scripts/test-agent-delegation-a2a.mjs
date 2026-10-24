@@ -211,3 +211,91 @@ test("route: unknown agent refused at creation; persona path and discovery hold"
   assert.equal(search.status, 200);
   assert.ok(Array.isArray(search.body.agents));
 });
+
+// ── add-principal-facade: the delegation bridge's facade bound ──────────────
+
+function routeAppWithFacade(delegation, currentPreset = "reception") {
+  const app = express();
+  app.use(express.json());
+  const ctx = {
+    app,
+    currentPreset,
+    broadcast: () => {},
+    sessionVersion: 0,
+    sessionCollectors: new Map(),
+    db: {
+      listInstalledPacks: () => [
+        {
+          packId: "pk-facade",
+          name: "门面包",
+          manifest: {
+            facade: { reception: "reception", corpus: ["corpus"], delegation },
+          },
+        },
+      ],
+    },
+  };
+  registerDelegationRoutes(ctx);
+  return app;
+}
+
+test("facade bound: pure reception refuses every delegation target", async () => {
+  const app = routeAppWithFacade([]);
+  const agent = await request(app, { method: "POST", path: "/api/delegation/tasks", body: { agent: "registry-whatever", prompt: "x" } });
+  assert.equal(agent.status, 400);
+  assert.match(agent.body.error, /no delegation face \(pure reception\)/);
+
+  const persona = await request(app, { method: "POST", path: "/api/delegation/tasks", body: { persona: "someone", prompt: "x" } });
+  assert.equal(persona.status, 400);
+  assert.match(persona.body.error, /no delegation face \(pure reception\)/);
+});
+
+test("facade bound: in-pack persona in the list passes, outside refused", async () => {
+  const app = routeAppWithFacade([{ kind: "in-pack", ref: "specialist" }]);
+  const ok = await request(app, { method: "POST", path: "/api/delegation/tasks", body: { persona: "specialist", prompt: "x" } });
+  assert.equal(ok.status, 201);
+  assert.equal(ok.body.task.target.type, "persona");
+
+  const foreign = await request(app, { method: "POST", path: "/api/delegation/tasks", body: { persona: "other-pack-role", prompt: "x" } });
+  assert.equal(foreign.status, 400);
+  assert.match(foreign.body.error, /not in this facade's delegation list/);
+});
+
+test("facade bound: a market agent outside the list refused before catalog resolution order", async () => {
+  // An unknown-to-catalog agent still answers with the facade refusal when a
+  // non-empty list exists? No — catalog resolution comes first (unknown
+  // agent wording), so seed the gate's own branch with a resolvable-looking
+  // ref mismatch via the matching rule instead: covered below by a2aRefMatches.
+  const app = routeAppWithFacade([{ kind: "in-pack", ref: "specialist" }]);
+  const unknown = await request(app, { method: "POST", path: "/api/delegation/tasks", body: { agent: "ghost-agent", prompt: "x" } });
+  assert.equal(unknown.status, 400);
+  assert.match(unknown.body.error, /unknown market agent 'ghost-agent'/);
+});
+
+test("facade bound: a non-reception preset on a facade pack stays unbounded", async () => {
+  const app = routeAppWithFacade([{ kind: "in-pack", ref: "specialist" }], "standard");
+  const persona = await request(app, { method: "POST", path: "/api/delegation/tasks", body: { persona: "anyone", prompt: "x" } });
+  assert.equal(persona.status, 201);
+});
+
+test("facade bound: search narrows to declared a2a refs; pure reception sees none", async () => {
+  const pure = routeAppWithFacade([]);
+  const none = await request(pure, { path: "/api/delegation/agents" });
+  assert.deepEqual(none.body.agents, []);
+
+  const bounded = routeAppWithFacade([{ kind: "a2a", ref: "packs/pk-x/analyst" }]);
+  const listed = await request(bounded, { path: "/api/delegation/agents" });
+  // The test catalog carries no a2a entries, so the narrowed view is also
+  // empty — the assertion that matters is shape stability under the bound.
+  assert.deepEqual(listed.body.agents, []);
+});
+
+test("a2aRefMatches: exact id and registry-path-in-url forms", async () => {
+  const { a2aRefMatches } = await import("../server/routes/delegation.js");
+  const entry = { id: "registry-packs-pk-x-analyst", url: "https://reg.example/agent/packs/pk-x/analyst/" };
+  assert.equal(a2aRefMatches("registry-packs-pk-x-analyst", entry), true);
+  assert.equal(a2aRefMatches("packs/pk-x/analyst", entry), true);
+  assert.equal(a2aRefMatches("packs/pk-y/analyst", entry), false);
+  assert.equal(a2aRefMatches("registry-packs-pk-x-analyst", { id: "registry-packs-pk-x-analyst" }), true);
+  assert.equal(a2aRefMatches("packs/pk-x/analyst", { id: "registry-packs-pk-x-analyst", url: "" }), false);
+});

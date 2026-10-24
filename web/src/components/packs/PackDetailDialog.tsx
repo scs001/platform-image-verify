@@ -523,6 +523,58 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
               </section>
             )}
 
+            {/* Facade panel (add-principal-facade): the pack declares itself a
+                principal's conversational front door. Attribution is the
+                platform's author stamp (never the manifest's self-narrative);
+                the corpus as-of is the viewed version's publish time (corpus
+                rides the immutable version — refresh = new version + redeploy);
+                the chat entry exists only when the reception role is deployed
+                (slug mirrors the serving side's slugFor). */}
+            {pack.manifest?.facade && (
+              <section
+                className="border border-primary/20 bg-primary/5 rounded-md p-4"
+                data-testid="pack-facade-info"
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <h4 className="font-medium text-primary">{t("packs.detail.facade.title")}</h4>
+                  <Badge>{t("packs.detail.facade.stanceHosted")}</Badge>
+                </div>
+                <div className="space-y-1 text-sm" data-testid="pack-facade-attribution">
+                  <p className="text-muted-foreground">
+                    {t("packs.detail.facade.attribution", { owner: pack.authorEmail })}
+                  </p>
+                  <p className="text-muted-foreground" data-testid="pack-facade-asof">
+                    {t("packs.detail.facade.asOf", {
+                      date: new Date(pack.publishedAt).toLocaleDateString(),
+                    })}
+                  </p>
+                </div>
+                {(() => {
+                  const reception = pack.manifest.facade!.reception;
+                  const dep = deployments.find((d) => d.agentId === reception);
+                  if (!dep) {
+                    return (
+                      <p className="mt-2 text-xs text-muted-foreground" data-testid="pack-facade-not-deployed">
+                        {t("packs.detail.facade.notDeployed")}
+                      </p>
+                    );
+                  }
+                  const chatUrl = `${wanxingConsoleBase()}/#/chat/${wanxingSlugFor(dep.agentPath)}`;
+                  return (
+                    <a
+                      href={chatUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 text-sm text-primary underline"
+                      data-testid="pack-facade-chat-entry"
+                    >
+                      {t("packs.detail.facade.chatEntry")}
+                    </a>
+                  );
+                })()}
+              </section>
+            )}
+
             {/* Cluster Info (agent-cluster-platform): when the pack declares cluster metadata,
                 show a dedicated section with cluster name, description, and agent composition. */}
             {pack.manifest?.cluster && (

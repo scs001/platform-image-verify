@@ -1758,3 +1758,14 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **fd-memory 半班已滚**：sha-586ab4e（源 d86e7ca 两笔：接续评测 harness 全件 + /digest 平台缝读面；testaction005 池 dispatch 40134301356，relay PASS，ccr 硬门 digest 91dd2dc4，GitOps b085ce5，rollout 绿）。烟测：新 pod /healthz ok + /digest 无令牌 401 结构化拒绝（路由在产、鉴权生效）。**网格四组定默认维持 k=5/budget=1500**（re 3.33/2.83/3.50/3.17、fs 2.83/2.33/2.92/2.92——组间差不大于跑次方差，同参数自差 0.6 在案；add-continuation-eval 5.2 顺带勾销，该 change 14/14 待归档）。坑册重演一枚：池变量 BUILD_DOCKERFILE 停在上班 Dockerfile.web（§15.11 律重演），首发失败已 PATCH 回根 Dockerfile。
 
 **platform 半班接力（用户拍板 2026-10-25）**：阶梯代码（cluster-memory readDigest + cron-runner 三档）与 openspec 双 change 已 commit 15bc4261 在 main；因 paas 树上有平行会话在途发布（facet 线），platform 镜像**随下一班滚产搭车**（勿从脏树单独出片）。**下一班 checklist**：①platform 滚产后首个集群回合验收——成员任务 prompt 含 digest 块眼见（会话留档），对照 §15.30 认领率 8% 基线；②降级演练：断 digest 面一轮看回退标题列表+warn 行；③回滚杆 CELL_MEMORY_DIGEST=0（只关 digest 档）/CELL_MEMORY_ENABLED=0（全关字节归零）；④tasks 4.2/4.3 勾销+本节补记收官，双 change 归档。
+
+
+### §15.32 发布记录：委托人门面全链上产（add-principal-facade 10/14，2026-10-25）
+
+**三面滚 sha-a2fbfcd**（platform/demo/facet，GitOps fda85c0，ArgoCD Synced/Healthy）：manifest `facade` 块校验（reception 须带 serving/corpus 引本包技能/delegation 两 kind/stance v1 仅 hosted，无块零变化——单测 20/20）+目录摘要 facade 标识+市场行徽标与详情面板（身份戳双呈现/语料 as-of/hosted 立场/直达对话入口，五语 i18n）+descriptor 携 facade 元数据（走 registry metadata，避开 fd-registry 顶层字段白名单）+萬星 catalog/AgentCard 透传 facade_stance+委派桥闸（接待角色下清单外拒收且搜索不可见、空清单=纯接待、拒收先于目标解析不泄漏存在性——11/11）。**顺带捱上并行线 platform 半班 15bc4261**（§15.31 的 cluster-digest 三档阶梯+readDigest 随本班在产，其 checklist①「滚产后首个集群回合验收」即可开跑）。
+
+**生产实证**：①出片=公开快照线 scs001/platform-image-verify（FDT 私有额度 2011/2000 耗尽；快照 a2fbfcd=9f149155+镜像仓恢复提交，digest 4278c1d4 ccr skopeo 硬门过）；②in-pod 运行态（合法 facade 过/坏引用拒）；③寻数门面 v1 经普通发布门上架（packId Ut_bJMuW5KxAD83KImPmlg，作者戳 aloadtree——范例同径纪律践行）；④市场 API 全量对拍：50+ 包中唯门面 True、其余 False（零变化实证），facade 块详情完整回传。
+
+**过路翻车三枚（坑册）**：①快照门拦下 wire-lex 需求文档（带集群节点名，早前会话提交未走过快照线）——删除表补录；②Biome 拦 fleet 线尾巴（该线没走过快照 CI：未用变量×5+数组下标 key×3+未用导入）——顺手清尾时**按 Biome 提示过修 fleets.js 导入致 PATCH 500**（validateOrchestration/constraintsOf 两处在用，runtime 测逮住，恢复后 10/10 复绿）；③wire 工具宇宙计数 14→16 既有破损（两对订阅工具只更 lib 未更测试）——31149cdd 同步，下一班快照带走。**cwd 残留快照目录两次事故**（编辑/提交落错仓），已用绝对路径纠偏。
+
+**余 4 项（运营/真人面）**：4.3 部署接待角色+内部同事问答验收（部署需运营计费键，console 四步向导：选包→勾 reception→配置→计费）；5.1 非运营用户同径最小门面；6.2 周更演练（发新版+重部署）；7.1 全套件回归+瀑布四实证补全（入口/瀑布两证随部署落）。语料快照脚本 `scripts/facade-corpus-snapshot.mjs` 已入库（首跑刷新 as-of 在案）。

@@ -1720,6 +1720,8 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 
 **待观测（23:59 终版：机理定案再修正）**：夜观测连出反转——「TTL 31-33min」「grant 绝对租约」「裸登录杀链」三模型全部证伪（aloadtree 链无人干预自持 8.5h+ 多轮 rotation；判别实验裸登录后四链续期全部正常，23:22 lex 那条 invalid_grant 系瞬态、15 分钟后同 rotator 自愈）。**唯一实证杀链机理=同 user+client 新授权作废旧链**（壹座 22:1x 重铸杀掉 8.5h 长寿链=实证①；wire 侧 23:0x 重连 fleet 杀旧链=实证②）。当前四链（admin×2/fleet/wire-tester2）固定节奏连续自持 >1h 全部成功。**球在 wire 的三件事**（壹座仓 `docs/wire-logto-grant-policy-requirements.md`）：①观测期至 10-31 勿再手工重铸（每次授权杀链重置计时）；②审计日志定吊销事件类型；③5.x 前决策舰队专属服务账号。明早 09:00 巡线=「链长期自持」首个自然检查点。fast e2e 复跑 **538/0 全绿**（22.3min，首遍超时纯属本机拥挤）。
 
+**§15.27 终章（10-25 凌晨，wire 侧源码级定案回填）**：wire 取证（Logto 1.42.0 审计日志+OIDC 模型库+部署源码，全程只读）推翻壹座剩余推断——**租户零吊销事件、零额外策略**（全天两 client 零 RevokeToken）。真机理：SPA 公共客户端 refresh token 带 `expiresWithSession`+`sessionUid` **绑定铸币浏览器会话**（三重校验：会话存活/主体未变/grant 未换），且**自铸币起 14 天绝对租约、rotation 不续命**（源码注释 "do not have infinite expiration through rotation"；壹座 14:24 链 16 轮 rotation 后 exp 仍钉铸币+14d 互证）；租户无 TTL 旋钮。**现网四链 11-07 22:25-22:58 集体到点**。验收口径修正：「30 天不再点连接」物理不可达 → **「≤13 天周期自动重铸」**（headless 铸币配方已具备）；舰队/5.x 正解=每 cell 服务账号+<14 天重铸，备选机密客户端不首选。纪律修正版：人工登录/退出不限（独立会话不碰链，双重实证），禁同会话再授权（复用 cookie 的脚本铸币）与铸币会话内登出/换号；铸币统一走 platform mint 通道（双向，贵侧宿主裸脚本三批亦已自纠）。附带：壹座 23:21「瞬态 invalid_grant」实为诊断脚本 lex rotator 刷到 wire 端点（client mismatch，张冠李戴）——生产 rotator per-line 配对复核正确，已补配对单测（renewal 套件 9/9）；诊断脚本同修。22:58 fleet 重连归属勘误（mint-line/1 Mac 发起，非贵侧会话动作，不影响结论）。
+
 ### §16.3 补记：自报闭环兑现 + 发布门零人工实证（2026-10-24）
 
 §16.2 挂账③销账：限流窗过后重发「柏讯 · 产物构建」→ **发布门零人工通过**（工具声明门读 registry 快照 17 工具，`wire_artifact_dashboard_create` / `wire_artifact_doc_create` 在册，不再 unresolved）→ pack `AjFHQ9tjiJp5GTYmBC2y8g` v1 上架，匿名市场可见（总数 70）。**「改代码→出片→滚版→快照自动对齐→发布过门」全链首次无人工介入跑通**——§16.1 立项要交付的那个状态。

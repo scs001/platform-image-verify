@@ -37,16 +37,46 @@ const idToken = (expOffsetSec) => {
 const jsonResponse = (doc, status = 200) =>
   new Response(JSON.stringify(doc), { status, headers: { "content-type": "application/json" } });
 
-const configResponse = () =>
-  jsonResponse({ configured: true, issuer: "https://auth.test", client_id: "spa-test", scopes: ["openid"] });
+// Distinct client ids per line: the rotator must send each line's OWN
+// client_id (the 23:21 diagnostic-mismatch incident class — a lex rotator
+// posted to the wire endpoint answers invalid_grant).
+const configResponse = (url) => {
+  const clientId = String(url).includes("wire.test") ? "wire-spa" : "lex-spa";
+  return jsonResponse({ configured: true, issuer: "https://auth.test", client_id: clientId, scopes: ["openid"] });
+};
 
 // One mutable token-endpoint behavior per test; the config endpoint is static.
 let tokenHandler = null;
+const tokenCalls = [];
 const fetchImpl = async (url, options) => {
-  if (String(url).includes("/auth/config")) return configResponse();
-  if (String(url).includes("/oidc/token")) return tokenHandler(String(url), options);
+  if (String(url).includes("/auth/config")) return configResponse(String(url));
+  if (String(url).includes("/oidc/token")) {
+    tokenCalls.push({ url: String(url), body: String(options.body) });
+    return tokenHandler(String(url), options);
+  }
   throw new Error(`unexpected fetch ${url}`);
 };
+
+test("client pairing: each line's renewal sends that line's own client_id (no cross-wiring)", async () => {
+  const E = "pairing@test.example";
+  lc.disconnect(E, "wire-customer");
+  lc.disconnect(E, "lex");
+  lc.store({ email: E, line: "wire-customer", token: idToken(3600), refreshToken: "rt-wire" });
+  lc.store({ email: E, line: "lex", token: idToken(3600), refreshToken: "rt-lex" });
+  tokenHandler = () => jsonResponse({ id_token: idToken(3600), refresh_token: "rt-new" });
+  tokenCalls.length = 0;
+  const out = await renewal.renewDueCredentials({
+    email: E, targets: TARGETS, fetchImpl,
+    rotationMaxAgeMs: 0, // force both due by cadence
+    now: Date.now() + 5, // strictly after the row writes so age > 0
+  });
+  assert.deepEqual(out.renewed.sort(), ["lex", "wire-customer"]);
+  const wire = tokenCalls.find((c) => c.body.includes("refresh_token=rt-wire"));
+  const lex = tokenCalls.find((c) => c.body.includes("refresh_token=rt-lex"));
+  assert.ok(wire && lex, "both renewals fired");
+  assert.ok(wire.body.includes("client_id=wire-spa"), "wire rotator sent with the WIRE client_id");
+  assert.ok(lex.body.includes("client_id=lex-spa"), "lex rotator sent with the LEX client_id");
+});
 
 const seeded = (line, refreshToken) => {
   lc.store({ email: EMAIL, line, token: idToken(600), ...(refreshToken !== undefined ? { refreshToken } : {}) });
@@ -59,7 +89,7 @@ test("renewLineCredential: success stores the new ID token + new rotator in one 
   tokenHandler = (_url, options) => {
     assert.ok(String(options.body).includes("grant_type=refresh_token"), "refresh grant");
     assert.ok(String(options.body).includes("refresh_token=rt-old"), "stored rotator sent");
-    assert.ok(String(options.body).includes("client_id=spa-test"), "client_id from the live config, no secret");
+    assert.ok(String(options.body).includes("client_id=wire-spa"), "client_id from the live config, no secret");
     return jsonResponse({ id_token: idToken(3600), refresh_token: "rt-new" });
   };
   const out = await renewal.renewLineCredential({

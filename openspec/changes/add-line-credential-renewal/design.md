@@ -106,7 +106,7 @@ dsh/cordis 内部（watcher 对原子重写不触发，或 mcp-client 对同 ser
 跨仓且工作量未知；③ restart 分叉现成、每活跃线约 30min 一次的频率远低于集群扇出/preset
 切换的既有 restart 频率，会话按 id 落盘恢复。
 
-### D6 spike 已执行（2026-10-24，结论全绿）
+### D6 spike 已执行（2026-10-24，结论全绿；机理终版 2026-10-25 由 wire 侧源码级定案修正）
 
 真机验证已做（platform.finddatatech.cloud 会话 + 手拼 authorize URL + 自兑 code），三问落定：
 
@@ -116,10 +116,14 @@ dsh/cordis 内部（watcher 对原子重写不触发，或 mcp-client 对同 ser
 2. **rotation 开启且宽松**：每次刷新返回不同 refresh_token，且**旧值在宽限窗口内重放仍
    200**（Logto lenient rotation）——并发竞态天然可存活；单飞锁（D2）仍然执行，落库以
    最新返回值为准。
-3. **refresh_token 为不透明令牌**（非 JWT，无 exp 可读）——租约不可客户端自读。Logto
-   rotation 每次签发重锚定 TTL（租户配置，默认 14 天）→ **持续刷新即续命**，链只在
-   「平台停机超过租户 TTL」时断裂，届时行标 stale、用户重连一次（诚实降级）。
-   「30 天不再点连接」验收在持续刷新下成立；硬上限=停机窗口 < 租户 refresh TTL。
+3. **机制终版（wire 侧源码级定案，10-25）**：SPA 公共客户端的 refresh token 带
+   `expiresWithSession`+`sessionUid`，**绑定铸币时的浏览器会话**（三重校验：铸币会话存活/
+   主体未变/grant 未换），且**自铸币起 14 天绝对租约、rotation 不续命**。推论：
+   - 无人值守的周期上限 = min(铸币会话寿命, 14 天)，**验收口径由「30 天不再点连接」改为
+     「≤13 天周期自动重铸」**（壹座 headless 铸币配方已具备，走 platform mint 通道）；
+   - 舰队/5.x 结构性正解 = 每 cell 专属服务账号 + <14 天自动重铸；备选机密客户端不首选；
+   - 独立会话的登录/重铸不杀既有链；同铸币会话的再授权（复用 cookie 的脚本化铸币）杀链。
+   详细证据链：fd-wire 闭环报告 §七（壹座观测）+ §八（wire 源码定案）。
 4. **首连 consent**：wire client 首次 offline_access 在 prompt=none 下返回
    `consent_required`（requested scopes not granted）；interactive 通道**免屏自动授权**
    （first-party app 无 consent UI，直接 303 发码），既有 interactive=1 重试完整吸收，

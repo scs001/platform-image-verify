@@ -114,35 +114,42 @@ test("renewLineCredential: transient failure leaves the row untouched (3.1)", as
   assert.equal(row.refreshToken, "rt-keep");
 });
 
-test("renewDueCredentials: the window predicate (trigger ①, 3.1)", async () => {
+test("renewDueCredentials: the fixed-cadence predicate (trigger 1, rotation age + exp belt)", async () => {
   const E = "due@test.example";
   lc.disconnect(E, "wire-customer");
   lc.disconnect(E, "lex");
-  // Due (exp in 10min < 30min window).
-  lc.store({ email: E, line: "wire-customer", token: idToken(600), refreshToken: "rt-due" });
-  // Not due (exp in 55min).
-  lc.store({ email: E, line: "lex", token: idToken(3300), refreshToken: "rt-far" });
+  const isoAgo = (min) => new Date(Date.now() - min * 60_000).toISOString();
+  // Due by cadence: rotated 16 min ago (> 15min).
+  db.setLineCredential({ email: E, line: "wire-customer", token: idToken(3600), refreshToken: "rt-due", updatedAt: isoAgo(16) });
+  // Not due: rotated 5 min ago and exp far.
+  db.setLineCredential({ email: E, line: "lex", token: idToken(3300), refreshToken: "rt-far", updatedAt: isoAgo(5) });
   tokenHandler = () => jsonResponse({ id_token: idToken(3600), refresh_token: "rt-due-2" });
   const out = await renewal.renewDueCredentials({ email: E, targets: TARGETS, fetchImpl });
-  assert.deepEqual(out.renewed, ["wire-customer"], "only the due line renewed");
-  assert.equal(db.getLineCredentialWithRefresh(E, "lex").refreshToken, "rt-far", "far line untouched");
-  // Rows without a refresh token and stale rows are skipped entirely.
-  lc.store({ email: E, line: "wire-customer", token: idToken(600), refreshToken: "rt-st" });
-  db.markLineCredentialStale(E, "wire-customer");
+  assert.deepEqual(out.renewed, ["wire-customer"], "only the aged-out line renewed");
+  assert.equal(db.getLineCredentialWithRefresh(E, "lex").refreshToken, "rt-far", "fresh line untouched");
+  // Belt: a recently-rotated row whose ID token is inside the 30min window still renews.
+  // (Raw setLineCredential needs an explicit tokenExp — store() derives it from the JWT.)
+  db.setLineCredential({ email: E, line: "lex", token: idToken(600), tokenExp: Date.now() + 600_000, refreshToken: "rt-far", updatedAt: isoAgo(5) });
   const out2 = await renewal.renewDueCredentials({ email: E, targets: TARGETS, fetchImpl });
-  assert.deepEqual(out2.renewed, [], "stale row waits for a human");
+  assert.deepEqual(out2.renewed, ["lex"], "exp belt catches a young but expiring row");
+  // Stale rows are skipped entirely.
+  db.setLineCredential({ email: E, line: "wire-customer", token: idToken(600), refreshToken: "rt-st", updatedAt: isoAgo(16) });
+  db.markLineCredentialStale(E, "wire-customer");
+  const out3 = await renewal.renewDueCredentials({ email: E, targets: TARGETS, fetchImpl });
+  assert.deepEqual(out3.renewed, [], "stale row waits for a human");
 });
 
-test("sweepRenewableCredentials: DB-selected expired row recovers through the refresh chain (trigger ②, 3.1)", async () => {
+test("sweepRenewableCredentials: DB-selected aged row recovers through the refresh chain (trigger 2)", async () => {
   const E = "sweep@test.example";
   lc.disconnect(E, "wire-customer");
   db.setLineCredential({
     email: E, line: "wire-customer",
     token: idToken(-600), tokenExp: Date.now() - 600_000, refreshToken: "rt-sweep",
+    updatedAt: new Date(Date.now() - 16 * 60_000).toISOString(),
   });
   tokenHandler = () => jsonResponse({ id_token: idToken(3600), refresh_token: "rt-sweep-2" });
   const out = await renewal.sweepRenewableCredentials({ targets: TARGETS, fetchImpl });
-  assert.ok(out.renewed.includes(`${E}:wire-customer`), "the expired row was recovered");
+  assert.ok(out.renewed.includes(`${E}:wire-customer`), "the aged row was renewed");
   assert.equal(lc.status(E, "wire-customer").connected, true, "back to connected without any browser");
 });
 

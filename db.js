@@ -1948,32 +1948,38 @@ export function getLineCredential(email, line) {
 
 // Secret-bearing read for the renewal path only (add-line-credential-renewal):
 // carries the refresh token, which must never ride the projection SELECT above.
+// updatedAt rides along as the rotation-age anchor for the fixed-cadence
+// renewal policy (the rotator TTL is tenant-configured and opaque — observed
+// ~31-33min on this deployment — so cadence keys off last rotation, not the
+// ID token's exp).
 export function getLineCredentialWithRefresh(email, line) {
   if (!dbReady) return null;
   const key = normalizeIdentityEmail(email);
   if (!key) return null;
   return stmt(
-    "SELECT token, token_exp AS tokenExp, stale, refresh_token AS refreshToken FROM user_line_credentials WHERE email = ? AND line = ?"
+    "SELECT token, token_exp AS tokenExp, stale, refresh_token AS refreshToken, updated_at AS updatedAt FROM user_line_credentials WHERE email = ? AND line = ?"
   ).get(key, line) ?? null;
 }
 
 // Renewal sweep candidates (add-line-credential-renewal trigger ②): mint lines
-// with a stored refresh token, not stale, whose ID token is inside the renewal
-// window — or already expired (a live refresh chain can still recover such a
-// row; Logto rotation re-anchors the lease). Stale rows wait for a human.
-export function listRenewableLineCredentials(nowMs, withinMs) {
+// with a stored refresh token, not stale, whose LAST ROTATION is older than
+// maxAgeMs — the fixed cadence that keeps every rotator's life well inside the
+// tenant's (short, opaque) refresh TTL. Stale rows wait for a human reconnect.
+export function listRenewableLineCredentials(nowMs, maxAgeMs) {
   if (!dbReady) return [];
   return stmt(
-    `SELECT email, line, token_exp AS tokenExp FROM user_line_credentials
+    `SELECT email, line FROM user_line_credentials
      WHERE line IN ('wire-customer','lex') AND stale = 0 AND refresh_token IS NOT NULL
-       AND (token_exp IS NULL OR token_exp < ?)`
-  ).all(nowMs + withinMs);
+       AND updated_at < ?`
+  ).all(new Date(nowMs - maxAgeMs).toISOString());
 }
 
 // refreshToken semantics: undefined = keep the stored value (a manual ID-token
 // paste never breaks a live refresh chain), string/null = set it (the mint
 // stores the freshly issued token; null = honestly no renewal capability).
-export function setLineCredential({ email, line, token, tokenExp, stale = 0, refreshToken }) {
+// updatedAt: optional ISO override — the renewal cadence keys off this column,
+// and tests need to place rows in the past.
+export function setLineCredential({ email, line, token, tokenExp, stale = 0, refreshToken, updatedAt }) {
   if (!dbReady) return null;
   const key = normalizeIdentityEmail(email);
   if (!key) return null;
@@ -1986,7 +1992,8 @@ export function setLineCredential({ email, line, token, tokenExp, stale = 0, ref
        refresh_token = CASE WHEN @setRefresh THEN excluded.refresh_token ELSE user_line_credentials.refresh_token END`
   ).run({
     email: key, line, token, tokenExp: tokenExp ?? null, stale: stale ? 1 : 0,
-    refreshToken: refreshToken ?? null, setRefresh: refreshToken !== undefined ? 1 : 0, now: nowIso(),
+    refreshToken: refreshToken ?? null, setRefresh: refreshToken !== undefined ? 1 : 0,
+    now: updatedAt ?? nowIso(),
   });
   return getLineCredential(key, line);
 }

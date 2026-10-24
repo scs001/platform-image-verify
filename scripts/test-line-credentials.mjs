@@ -439,24 +439,16 @@ test("renewOn401: renewed / failed / no-refresh outcomes drive the hook's branch
   original.setRefreshAttempt(savedAttempt);
 });
 
-test("listRenewableLineCredentials: mint lines + refresh token + expiring, stale excluded (2.1)", () => {
+test("listRenewableLineCredentials: mint lines + refresh token + rotation age, stale excluded (2.1)", () => {
   const E = "renew@test.example";
-  const past = Date.now() - 60_000;
-  const soon = Date.now() + 10 * 60_000;
-  const far = Date.now() + 55 * 60_000;
-  db.setLineCredential({ email: E, line: "wire-customer", token: idToken(3600), tokenExp: soon, refreshToken: "rt-d" }); // due
-  db.setLineCredential({ email: E, line: "lex", token: idToken(3600), tokenExp: far, refreshToken: "rt-e" }); // not due yet
-  db.setLineCredential({ email: E, line: "wire-customer", token: idToken(-60), tokenExp: past, refreshToken: null }); // hmm same PK — overwrite
-  // (the line above replaced the wire row: re-split across two emails)
   const E2 = "renew2@test.example";
-  db.setLineCredential({ email: E2, line: "wire-customer", token: idToken(3600), tokenExp: soon, refreshToken: "rt-f" }); // due, expired-ish
-  db.setLineCredential({ email: E2, line: "lex", token: idToken(3600), tokenExp: soon, refreshToken: "rt-g", stale: 1 }); // stale → excluded
-  db.setLineCredential({ email: E2, line: "wanxing-caller", token: "sk-x" }); // not a mint line
-  const now = Date.now();
-  const rows = db.listRenewableLineCredentials(now, 30 * 60_000);
+  const isoAgo = (min) => new Date(Date.now() - min * 60_000).toISOString();
+  db.setLineCredential({ email: E, line: "wire-customer", token: idToken(3600), refreshToken: "rt-d", updatedAt: isoAgo(16) }); // due by age
+  db.setLineCredential({ email: E, line: "lex", token: idToken(3600), refreshToken: "rt-e", updatedAt: isoAgo(5) }); // fresh, not due
+  db.setLineCredential({ email: E2, line: "wire-customer", token: idToken(3600), refreshToken: "rt-f", updatedAt: isoAgo(20) }); // due
+  db.setLineCredential({ email: E2, line: "lex", token: idToken(3600), refreshToken: "rt-g", stale: 1, updatedAt: isoAgo(20) }); // stale excluded
+  db.setLineCredential({ email: E2, line: "wanxing-caller", token: "sk-x", updatedAt: isoAgo(20) }); // not a mint line
+  const rows = db.listRenewableLineCredentials(Date.now(), 15 * 60_000);
   const hits = rows.map((r) => `${r.email}:${r.line}`).sort();
-  assert.ok(hits.includes(`${E2}:wire-customer`), "expiring row with a refresh token is a candidate");
-  assert.ok(!hits.includes(`${E}:lex`), "row outside the window is not");
-  assert.ok(!hits.includes(`${E2}:lex`), "stale row waits for a human");
-  assert.ok(!hits.some((h) => h.endsWith(":wanxing-caller")), "paste lines are never renewed");
+  assert.deepEqual(hits, [`${E2}:wire-customer`, `${E}:wire-customer`], "only aged mint lines with a live chain");
 });

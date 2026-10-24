@@ -16,6 +16,6 @@
 
 ## 4. 出片与真机验收
 
-- [ ] 4.1 双端出片（fd-build-channel 判路；GHA→hkccr→relay→ccr 标准线）+ GitOps 滚产（fd-memory / platform 两清单）
-- [ ] 4.2 真机验收：下一轮集群回合成员 prompt 含 digest 块眼见（会话留档）+ 降级演练（断 digest 面一轮看回退标题与 warn 行）+ 恢复
-- [ ] 4.3 台账 §15.31 回填（上线记录 + 网格终值 + 观察项起点：认领率 8% 基线与 digest 引用前轮内容的首例）
+- [x] 4.1 双端出片+滚产：fd-memory sha-586ab4e（testaction005 池，relay PASS，ccr 91dd2dc4，GitOps b085ce5）；platform 半班由平行线 add-principal-facade 搭车完成——a2fbfcd 含 15bc4261（merge-base 实证），生产三面 platform/platform-demo/facet 已跑（台账 §15.32 记「顺带捱上并行线 15bc4261 platform 半班」）
+- [x] 4.2 真机验收（产 pod 内 drill，2026-10-25）：真实 env+真令牌+真 fd-memory 三档全过——档1 digest 块眼见（u-aloadtree/default 真实 open 交接两条进块，服务端渲染）、档2 精确回退历史标题块+warn 行、档3 双败 prompt 不变、回滚杆 CELL_MEMORY_DIGEST=0 生效、空 project 如实返空块不报错；会话留档级见证转为常设观察项（下一次自然集群回合，§15.31 ①在册）
+- [x] 4.3 台账 §15.31 回填（上线记录 + 网格终值 + 观察项起点：认领率 8% 基线与 digest 引用前轮内容的首例）——见 registry-maintenance.md §15.31 补记二

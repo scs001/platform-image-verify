@@ -1769,3 +1769,11 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **过路翻车三枚（坑册）**：①快照门拦下 wire-lex 需求文档（带集群节点名，早前会话提交未走过快照线）——删除表补录；②Biome 拦 fleet 线尾巴（该线没走过快照 CI：未用变量×5+数组下标 key×3+未用导入）——顺手清尾时**按 Biome 提示过修 fleets.js 导入致 PATCH 500**（validateOrchestration/constraintsOf 两处在用，runtime 测逮住，恢复后 10/10 复绿）；③wire 工具宇宙计数 14→16 既有破损（两对订阅工具只更 lib 未更测试）——31149cdd 同步，下一班快照带走。**cwd 残留快照目录两次事故**（编辑/提交落错仓），已用绝对路径纠偏。
 
 **余 4 项（运营/真人面）**：4.3 部署接待角色+内部同事问答验收（部署需运营计费键，console 四步向导：选包→勾 reception→配置→计费）；5.1 非运营用户同径最小门面；6.2 周更演练（发新版+重部署）；7.1 全套件回归+瀑布四实证补全（入口/瀑布两证随部署落）。语料快照脚本 `scripts/facade-corpus-snapshot.mjs` 已入库（首跑刷新 as-of 在案）。
+
+### §15.31 补记二：platform 半班已由平行线捱上 + 产 pod 三档 drill 收官（2026-10-25 午）
+
+**接力闭环**：用户问「platform 那个是哪个 session 改的」——查证：平行线=**add-principal-facade**（谦面委托人门面，e5a9c8de 起），其出片 a2fbfcd 走公开快照线（scs001 run 40137251908 绿）且**含本 change 的 15bc4261**（merge-base --is-ancestor 实证）；生产 platform/platform-demo/facet 三面已滚 a2fbfcd（台账 §15.32 dd420224 明记「顺带捱上并行线 15bc4261 platform 半班」）。即：阶梯代码已在产，无需再出片。树上 HANDOFF-facet-release.md 为 10-24 过期交接（其中 facet.yaml 缺口已被 a2fbfcd 补掉）。
+
+**三档 drill（产 platform pod 内、真实 env+真令牌铸造链+真 fd-memory，全程只读）**：①档1 digest：`memoryInjectionFor` 对 u-aloadtree/default 返回 source=digest，块内两条真实 open 交接（CEO 重复岗位阻塞案、10-23 巡检接口备忘）——/digest 面（sha-586ab4e）服务端渲染在产实证；②档2：digest 面注入失败 → 精确回退历史标题块（【集群共享记忆】+ top-5 `- title（date）`）+ warn 行；③档3：双败 prompt 逐字节不变；④回滚杆 CELL_MEMORY_DIGEST=0 跳过档1 实证；⑤空 project 返空块不报错（诚实空）。会话留档级见证（自然集群回合成员 prompt）为常设观察项——生产无循环排程集群任务（仅 10-22 两枚一次性 job 已触发），下次用户在壹座 UI 跑集群回合即自然点亮。
+
+**验收状态**：add-cluster-digest-injection 9/9 勾账；add-continuation-eval 14/14；双 change 待归档。观察项：认领率 8% 基线走向、digest 引用前轮内容首例、embed 10.9s 超时观察。顺带发现（用户侧业务）：aloadtree 舰队 CEO 重复岗位致报数通道阻断（open 交接在案，需平台/人工侧处理）。

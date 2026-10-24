@@ -3,9 +3,9 @@
 // Run: node --test scripts/test-official-packs-lint.mjs
 //
 // Every docs/official-packs/*.json is a copilot pack: its allowTools must be
-// disjoint from the wire write-tool universe (lib/wire-tool-risk.js, 14 keys
-// vendored from the two MCP repos' tool_risk — 12 + the pack subscribe/
-// unsubscribe pair of add-pack-subscribe-actions) and from the facet/wanxing
+// disjoint from the wire write-tool universe (lib/wire-tool-risk.js, 16 keys
+// vendored from the two MCP repos' tool_risk — 12 + the pack and market
+// subscribe/unsubscribe pairs) and from the facet/wanxing
 // write tools the action registry names. The wire pack is additionally pinned
 // to its exact 11-tool read face and to the manifest validator. Since v2
 // (copilot-dock-focused-preset D6) the three packs carry DISTINCT agent ids:
@@ -45,8 +45,8 @@ test("official packs exist and include the wire assistant", () => {
   assert.ok(manifests.some((m) => m.file === "wire-assistant-manifest.json"));
 });
 
-test("no official pack whitelists any wire write tool (tool_risk universe, 14 names)", () => {
-  assert.equal(WIRE_WRITE_TOOLS.length, 14);
+test("no official pack whitelists any wire write tool (tool_risk universe, 16 names)", () => {
+  assert.equal(WIRE_WRITE_TOOLS.length, 16);
   const offenders = [];
   for (const { file, manifest } of manifests) {
     for (const [server, tool] of allowToolsOf(manifest)) {

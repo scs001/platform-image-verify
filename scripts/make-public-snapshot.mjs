@@ -103,6 +103,9 @@ const EXCLUDE_PATHS = new Set([
   // reads the internal roadmap doc this script deletes below — it runs on the
   // operator's tree, never in the OSS drop.
   "scripts/facade-corpus-snapshot.mjs",
+  // internal wire/lex requirements doc (committed 2026-10-2x): carries live
+  // cluster node names — internal planning material, not curated for the drop.
+  "docs/wire-lex-credential-ref-and-consent-asset-requirements.md",
   // this tool itself
   "scripts/make-public-snapshot.mjs",
   // internal ops test: fleet board URL (tailnet) + jenkins/harbor/argocd state

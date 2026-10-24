@@ -1677,3 +1677,9 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **列车**：paas `8165ef95` → 快照 `53e9cdc`（image 绿）→ relay OK → digest `baeb9f2c` → GitOps `96c34dc` 双面滚（二刷落定）。
 
 **验收（浏览器真机）**：柏讯内容舰队（活用户 cell）声明一条 event 边后，编排区**分层有向图眼见**——事件源虚拟节点 bot:wire-ops → 巡线岗，类型色边+图例，未连岗照常为孤立节点；截图存证。**验收后已还原**（该舰队 orchestration 置 null——是别人生产在用的舰队，验收边不遗留）。深链 `/fleets/<id>` 直选舰队可用（列表点击切换的老问题绕开）。
+
+### §15.23 补记：admin 账号 event 生产 E2E 闭环 + 网关路由缺陷入库（2026-10-24 上午）
+
+**用户交付 admin 凭据后闭环**（aloadtree=Super Admin 侧 cell）：建 feishu bot（哑出站凭据配方验证可用）→ 建验收舰队+事件边 → **真 webhook 消息唤醒成功**——引擎任务 origin.event 双段齐、preset=intel-chief、回合经真实模型 **deepseek-v4.1-flash** 跑完，**O1 事件行 source=event/status=ok/model 落库**。两支 E2E 舰队与两只 bot 验后清理（归档/删除）。
+
+**入库真缺陷（网关 bot 路由，待修）**：`gateway/bot-webhooks.js` 的 `ownerEmailOf` 用 `chat_sessions.owner LIMIT 1` 任取属主——**混合登录史的 cell**（该 cell 有 qq 邮箱旧会话+gmail 新会话）会把 webhook 路由到错误属主的 cell → 403。复现：aloadtree cell 建 bot 后公网 webhook 必 403；直连属主 cell 回环口 200。**修法方向**：bot 行落库时记录 owner email（创建者），resolve 优先按 bot 行属主；或 ownerEmailOf 取 chat_sessions 按 created_at DESC。E2E 验收以「直连属主 cell 回环 HTTP」完成（同一 HTTP 面，仅少一跳网关），公网路径待该缺陷修复后复验。

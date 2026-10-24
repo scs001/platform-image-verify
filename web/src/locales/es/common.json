@@ -1606,7 +1606,8 @@
       "featured": "Destacados",
       "agentSize": "Filtrar por número de agentes",
       "agentSizeAny": "Cualquiera",
-      "agentSizeValue": "{{value}} agentes"
+      "agentSizeValue": "{{value}} agentes",
+      "assistantHint": "Guía del mercado: el copiloto (abajo a la derecha) responde con 谦面助手 enfocado. El paquete asistente no está instalado en esta celda — instálalo para enfocar la guía."
     },
     "detail": {
       "notFound": "Paquete no encontrado o retirado",
@@ -2194,7 +2195,8 @@
     "focusPending": "Cambiando al preajuste enfocado…",
     "focusRejected": "El chat principal está respondiendo; aún sin enfocar",
     "focusRetry": "Reintentar",
-    "unfocused": "Sin enfocar: el pack de asistente de esta línea no está instalado"
+    "unfocused": "Sin enfocar: el pack de asistente de esta línea no está instalado",
+    "pack": "Inspeccionando"
   },
   "action": {
     "pending": "Proponiendo...",

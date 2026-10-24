@@ -24,6 +24,7 @@ import { Bot, X } from "lucide-react";
 import { useChatStore } from "@platform/core";
 import type { ClientMessage } from "@platform/core";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import { subscribePackInspection, type CopilotPackContext } from "@/lib/copilot-pack-context";
 
 export interface CopilotPreset {
   line: string;
@@ -48,12 +49,22 @@ export function CopilotDock({ send }: Props) {
   const agentBeforeOpenRef = useRef<string | null>(null);
   const injectedAgentRef = useRef<string | null>(null);
 
-  // Derive the current board line from the route (/boards/:line). The dock
-  // opens with that context; on other routes it opens context-free.
+  // Derive the dock's line context from the route. /boards/:line is the
+  // board path; the 壹座 Market tab (/agents?tab=market) carries the facet
+  // line (add-facet-copilot D1) — the same focused-preset resolution serves
+  // both. Other routes open context-free.
   useEffect(() => {
     const match = location.pathname.match(/^\/boards\/([^/]+)/);
-    setBoardLine(match?.[1] ?? null);
-  }, [location.pathname]);
+    if (match?.[1]) {
+      setBoardLine(match[1]);
+      return;
+    }
+    if (location.pathname === "/agents" && new URLSearchParams(location.search).get("tab") === "market") {
+      setBoardLine("facet");
+      return;
+    }
+    setBoardLine(null);
+  }, [location.pathname, location.search]);
 
   // Resolve the line's focused assistant as soon as the line is known (before
   // the FAB is clicked), so opening the dock does not wait on the request.
@@ -85,6 +96,26 @@ export function CopilotDock({ send }: Props) {
       frame.contentWindow.postMessage({ type: "copilot_context", board: boardLine }, window.location.origin);
     }
   }, [boardLine, open]);
+
+  // The market tab's inspected pack (add-facet-copilot D2): subscribe while
+  // the dock is open on the facet line and forward it into the embed. The
+  // context message re-sends on every change (open/switch/close), so the bar
+  // always shows what the host sees.
+  const [packCtx, setPackCtx] = useState<CopilotPackContext | null>(null);
+  useEffect(() => {
+    if (!open || boardLine !== "facet") {
+      setPackCtx(null);
+      return;
+    }
+    return subscribePackInspection(setPackCtx);
+  }, [open, boardLine]);
+  useEffect(() => {
+    if (!open) return;
+    const frame = document.querySelector<HTMLIFrameElement>("[data-testid=copilot-frame]");
+    if (frame && frame.contentWindow) {
+      frame.contentWindow.postMessage({ type: "copilot_pack", pack: packCtx }, window.location.origin);
+    }
+  }, [packCtx, open]);
 
   // The preset answer for THIS line; still in flight → hold the iframe (a
   // reload after the first frame would re-run the switch for nothing).

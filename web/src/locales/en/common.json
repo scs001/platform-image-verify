@@ -1606,7 +1606,8 @@
       "featured": "Featured",
       "agentSize": "Filter by agent count",
       "agentSizeAny": "Any count",
-      "agentSizeValue": "{{value}} agents"
+      "agentSizeValue": "{{value}} agents",
+      "assistantHint": "Market guide: the copilot (bottom-right) answers with 谦面助手 focused. The assistant pack is not installed on this cell — install it to focus the guide."
     },
     "detail": {
       "notFound": "Pack not found or unlisted",
@@ -2057,7 +2058,8 @@
     "focusPending": "Switching to the focused preset…",
     "focusRejected": "Main chat is answering; not focused yet",
     "focusRetry": "Retry",
-    "unfocused": "Unfocused: this line's assistant pack is not installed"
+    "unfocused": "Unfocused: this line's assistant pack is not installed",
+    "pack": "Inspecting"
   },
   "action": {
     "pending": "Proposing...",

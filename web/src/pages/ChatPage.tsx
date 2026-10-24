@@ -62,6 +62,19 @@ export function ChatPage({ send, onToggleNav }: Props) {
   const currentSessionId = useChatStore((s) => s.currentSessionId);
   const status = useChatStore((s) => s.status);
   const [focusAttempt, setFocusAttempt] = useState(0);
+  // The market tab's inspected pack, forwarded by the dock's postMessage
+  // (add-facet-copilot D2). Same-origin only; a message from any other
+  // origin is dropped. Read-only context: nothing here can act on the host.
+  const [packCtx, setPackCtx] = useState<{ id: string; name: string; version: number } | null>(null);
+  useEffect(() => {
+    if (!embedMode) return;
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if (e.data?.type === "copilot_pack") setPackCtx(e.data.pack ?? null);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [embedMode]);
   // The attempt the switch was sent for, and the refusal count seen then: a
   // refusal is "the count moved since", never "pendingConfig went back to
   // null" (the connect burst clears that too).
@@ -277,7 +290,7 @@ export function ChatPage({ send, onToggleNav }: Props) {
           focus segment names the preset the dock injected (or why it did
           not). Clearing the board context leaves the preset alone — the
           preset is restored by closing the dock, not by this bar. */}
-      {embedMode && (boardLine || presetAgent) && (
+      {embedMode && (boardLine || presetAgent || packCtx) && (
         <div
           data-testid="copilot-context-bar"
           className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-muted px-3 py-1.5 text-xs text-muted-foreground"
@@ -285,6 +298,11 @@ export function ChatPage({ send, onToggleNav }: Props) {
           {boardLine && (
             <span data-testid="copilot-context-board">
               {t("copilot.context", { defaultValue: "正在看" })}: {boardLine}
+            </span>
+          )}
+          {packCtx && (
+            <span data-testid="copilot-context-pack">
+              {t("copilot.pack")}: {packCtx.name} v{packCtx.version}
             </span>
           )}
           {presetAgent ? (

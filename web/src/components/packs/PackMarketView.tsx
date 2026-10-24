@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/packs/Badge";
 import { PackDetailDialog } from "./PackDetailDialog";
+import { publishPackInspection } from "@/lib/copilot-pack-context";
 
 // Agent-count buckets (agent-cluster-platform marketplace views): the spec's
 // "cluster size" filter, expressed over the count every pack carries — a
@@ -79,6 +80,14 @@ export function PackMarketView({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [detailId, setDetailId] = useState<string | null>(null);
+  // Publish the inspected pack for the copilot dock (add-facet-copilot D2):
+  // opening/switching publishes the pack, closing publishes null. The packs
+  // array is the name/version source of truth (the id is all the dialog owns).
+  const inspectedPack = detailId ? packs.find((p) => p.id === detailId) ?? null : null;
+  useEffect(() => {
+    publishPackInspection(inspectedPack && { id: inspectedPack.id, name: inspectedPack.name, version: inspectedPack.version });
+  }, [inspectedPack?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- id change covers name/version at this granularity
+  useEffect(() => () => publishPackInspection(null), []);
 
   // Agent-count filter state rides the URL (?agents=2-3) so a refresh keeps
   // it (spec: filter state persists across page refreshes). Deliberately NOT
@@ -136,6 +145,17 @@ export function PackMarketView({
   const [report, setReport] = useState<PackReport | null>(null);
   const [reportPack, setReportPack] = useState<string>("");
   const [reportPackId, setReportPackId] = useState<string>("");
+  // Honest guide hint (add-facet-copilot): ask the existing focused-preset
+  // endpoint whether the facet assistant is installed. Only the "resolves to
+  // null" answer shows the hint; a failed/absent probe shows nothing (the
+  // dock's own degradation already narrates there).
+  const [guideUnfocused, setGuideUnfocused] = useState(false);
+  useEffect(() => {
+    fetch("/api/boards/facet/copilot")
+      .then((r) => (r.ok ? r.json() : { error: true }))
+      .then((b) => setGuideUnfocused(!b.error && b.copilot == null))
+      .catch(() => setGuideUnfocused(false));
+  }, []);
 
   // Deep-link target (simplify-chat-and-agents-ia): a pack with a
   // successfully installed role goes straight into a conversation with it
@@ -156,6 +176,14 @@ export function PackMarketView({
 
   return (
     <section data-testid="pack-market-section">
+      {guideUnfocused && (
+        <p
+          data-testid="pack-market-guide-hint"
+          className="mb-3 rounded-md border border-amber-600/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400"
+        >
+          {t("packs.market.assistantHint")}
+        </p>
+      )}
       <div className="flex items-center gap-2 mb-4">
         <Input
           value={search}

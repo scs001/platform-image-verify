@@ -1606,7 +1606,8 @@
       "featured": "精选",
       "agentSize": "按 agent 数筛选",
       "agentSizeAny": "任意数量",
-      "agentSizeValue": "{{value}} 个 agent"
+      "agentSizeValue": "{{value}} 个 agent",
+      "assistantHint": "市场向导：右下角副驾以「谦面助手」聚焦应答。当前 cell 未安装助手 pack——安装后向导自动聚焦。"
     },
     "detail": {
       "notFound": "功能集不存在或已下架",
@@ -2057,7 +2058,8 @@
     "focusPending": "正在切换到聚焦预设…",
     "focusRejected": "主对话正在回答，暂未聚焦",
     "focusRetry": "重试",
-    "unfocused": "未聚焦：该线助手 pack 未安装"
+    "unfocused": "未聚焦：该线助手 pack 未安装",
+    "pack": "在看包"
   },
   "action": {
     "pending": "提议中...",

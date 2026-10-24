@@ -1606,7 +1606,8 @@
       "featured": "En vedette",
       "agentSize": "Filtrer par nombre d'agents",
       "agentSizeAny": "Tous",
-      "agentSizeValue": "{{value}} agents"
+      "agentSizeValue": "{{value}} agents",
+      "assistantHint": "Guide du marché : le copilote (en bas à droite) répond avec 谦面助手 en focus. Le paquet assistant n'est pas installé sur cette cellule — installez-le pour focaliser le guide."
     },
     "detail": {
       "notFound": "Pack introuvable ou retiré",
@@ -2194,7 +2195,8 @@
     "focusPending": "Passage au préréglage ciblé…",
     "focusRejected": "La conversation principale répond ; pas encore ciblé",
     "focusRetry": "Réessayer",
-    "unfocused": "Non ciblé : le pack assistant de cette ligne n'est pas installé"
+    "unfocused": "Non ciblé : le pack assistant de cette ligne n'est pas installé",
+    "pack": "Inspection"
   },
   "action": {
     "pending": "Proposition...",

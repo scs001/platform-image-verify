@@ -113,3 +113,27 @@ test("a proposal that lands AFTER the card mounted fills it in (in-place block m
   await expect(page.getByTestId("action-cancel")).toBeVisible();
   await expect(page.getByTestId("action-card-pending")).toContainText("谦面助手");
 });
+
+
+// ── Read-only boundary of the market guide (add-facet-copilot 2.2) ──────────
+// The embed registers no page-action handler: the ONLY channel for a write is
+// the action gate's propose path. A "subscribe this pack" intent inside the
+// copilot embed surfaces the pending proposal card — the same turn shape the
+// focused preset renders — and never a direct subscription. This pins the
+// boundary at the contract level the store seam can see.
+test("market guide write intent surfaces the gated proposal card, never a direct action", async ({ page }) => {
+  await page.goto("/chat?embed=copilot&board=facet&preset=facet-assistant");
+  await page.waitForFunction(() => {
+    const s = window.__chatStore?.getState();
+    return s && s.currentSessionId !== null;
+  }, null, { timeout: 15000 });
+  await page.waitForTimeout(300);
+  // The assistant "subscribes" by proposing: the pending card with
+  // confirm/cancel is the only write affordance in the frame.
+  await page.evaluate((t) => window.__chatStore.getState().apply(t), turn("pending"));
+  await expect(page.getByTestId("action-card-pending")).toBeVisible();
+  await expect(page.getByTestId("action-confirm")).toBeVisible();
+  await expect(page.getByTestId("action-cancel")).toBeVisible();
+  // And the embed carries no copilot FAB of its own (guest, never host).
+  await expect(page.getByTestId("copilot-fab")).toHaveCount(0);
+});

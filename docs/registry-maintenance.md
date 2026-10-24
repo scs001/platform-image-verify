@@ -1718,7 +1718,7 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 
 **出片插曲**：本班 relay 双撞——①手动单子与 cron 的 tag 级 seen 去重相撞（新 tag 在 hkccr 传播窗内被 cron 读空记 seen 后永久跳过，教训①再现），`skopeo copy` 手动回灌解；②快照目录 `--init` 重建后丢 remote 与 workflow（第三通道取回）。
 
-**待观测（23:5x 更新：模型定案）**：夜观测推翻两个候选模型（rotation 重锚定/grant 绝对租约均被证伪），**定案=链死亡全部来自外部吊销事件，与该用户新登录/新 grant 强相关**——判别实验（23:21 裸登录 aloadtree 不铸币）：同用户 wire 链探针存活、lex 链即死（分裂判决，排除"登录吊销全部"）；而 grant 龄 40min 的续期成功（23:17）排除绝对 TTL、rotation 后 20m31s 即死（22:37）排除纯 per-issuance TTL。**精确策略（Logto 会话/grant 吊销配置）只有 wire 侧租户控制台能定**。paas 侧机制面全数生产实证正常：铸币落 rotator ✓/节奏续期（15min 固定制+5min sweep）✓/单飞 ✓/invalid_grant→stale ✓/`[mcp-delivery]` restart 交付（attempt 1）✓/回合前排空 ✓——凡链活着时 paas 的每次刷新都成功。**给 wire 的 ask**：①查 Logto 审计日志定策略（疑似 max-session/revoke-on-login 类）；②若政策不可松，舰队 cell 应换专属服务账号（无人交互登录）；③调好后 paas 零改动即全通。明日 09:00 巡线为自然检查点（今夜若无人再登录 aloadtree，链可能存活过夜=又一佐证）。fleet 行 wire 侧 23:1x 已重连且 23:17 续期成功。fast e2e 本机一次 webServer 超时（同码 4h 前全绿+单测 32/32），复跑中。
+**待观测（23:5x 更新：模型定案）**：夜观测推翻两个候选模型（rotation 重锚定/grant 绝对租约均被证伪），**定案=链死亡全部来自外部吊销事件，与该用户新登录/新 grant 强相关**——判别实验（23:21 裸登录 aloadtree 不铸币）：同用户 wire 链探针存活、lex 链即死（分裂判决，排除"登录吊销全部"）；而 grant 龄 40min 的续期成功（23:17）排除绝对 TTL、rotation 后 20m31s 即死（22:37）排除纯 per-issuance TTL。**精确策略（Logto 会话/grant 吊销配置）只有 wire 侧租户控制台能定**。paas 侧机制面全数生产实证正常：铸币落 rotator ✓/节奏续期（15min 固定制+5min sweep）✓/单飞 ✓/invalid_grant→stale ✓/`[mcp-delivery]` restart 交付（attempt 1）✓/回合前排空 ✓——凡链活着时 paas 的每次刷新都成功。**给 wire 的 ask**：①查 Logto 审计日志定策略（疑似 max-session/revoke-on-login 类）；②若政策不可松，舰队 cell 应换专属服务账号（无人交互登录）；③调好后 paas 零改动即全通。明日 09:00 巡线为自然检查点（今夜若无人再登录 aloadtree，链可能存活过夜=又一佐证）。fleet 行 wire 侧 23:1x 已重连且 23:17 续期成功。fast e2e 复跑 **538/0 全绿**（22.3min，首遍超时纯属本机拥挤）。
 
 ### §16.3 补记：自报闭环兑现 + 发布门零人工实证（2026-10-24）
 

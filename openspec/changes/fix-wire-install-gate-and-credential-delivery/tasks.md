@@ -72,9 +72,15 @@
 - **lex 同形**：市场条目 `lex-ops-mcp` 未声明 `metadata.credential_ref: lex`（注册侧
   缺口，非 paas 闸缺陷）——条目派发按工具面快照只覆盖 wire 系；lex 分支由单测覆盖
   （test-facet-market-ref-dispatch 9/9），箱测待登记侧补声明后可跑。
-- **consent 交叉面**：需账号密码或人工浏览器（headless 通道全部要 tester2 密码，会话
-  记录无留存）——**未覆盖**，移交人工：清 Logto 会话后浏览器完整走一次 wire-customer
-  铸币（同时覆盖 P2 波及面探测）。铸币配方 fd-wire 执行报告 §四。
+- **consent 交叉面（2026-10-25 补，admin 凭据到位后浏览器实走）**：清 Logto 会话
+  （logout + end_session）→ wire 控制台登录全程**无 consent 页/白页/404**（koaAutoConsent
+  对一方 client 自动授权，consent 页不出现——P2 预判的「定时炸弹」实测未复现，升级证据
+  的反面，P2 归 wire/Logto 侧继续观察）→ 平台侧 lex 线浏览器铸币全链
+  mint/start→Logto→callback→`/settings/connections?panel=line-lex`（无 lineError）→
+  connected:true + `[mcp-delivery] restarted (attempt 1)`（交付确定性第二生产实证）。
+  走查选 lex 线系保护观测纪律：wire-customer 链是 7 天观测主体（§15.27 观测期至 10-31
+  禁同 user+client 手工重铸），lex 链计时重置为已知代价；铸币用平台 mint 通道（非裸
+  脚本），符合纪律修正版。aloadtree wire 链走查后 18:00Z 照常续期未受扰。
 - **wire 侧配合项**：tester2 占位 registry 凭据行已撤（DELETE /api/registry/connection
   → connected:false）✓——tester2 回到真实新客户态（无线凭据、无 registry 凭据、pack
   未装），下次真实铸币即走本修复后的完整客户车道。

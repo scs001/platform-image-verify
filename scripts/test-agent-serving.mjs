@@ -247,6 +247,7 @@ function stubRegistry() {
   const agents = new Map();
   const stub = {
     agents, // seeding seam for same-slice occupancy tests
+    failAgentsList: false, // occupancy-listing degradation seam (fix-runner-port-collision)
     calls,
     async fetch(rawUrl, init = {}) {
       const url = String(rawUrl).split("?")[0];
@@ -274,6 +275,7 @@ function stubRegistry() {
         return { ok: true, status: 200, json: async () => ({ message: "Agent enabled successfully", path: m[1], is_enabled: true }) };
       }
       if (url === "/api/agents" && !init.method) {
+        if (stub.failAgentsList) return { ok: false, status: 503, json: async () => ({ detail: "boom" }) };
         return { ok: true, status: 200, json: async () => ({ agents: Array.from(agents.values()) }) };
       }
       m = url.match(/^\/api\/agents\/(.+)$/);
@@ -1665,4 +1667,24 @@ test("facade descriptor: non-reception roles and facade-less packs carry no mark
     agent: manifest.agents[0],
   });
   assert.equal("facade" in plain, false);
+});
+
+// ── fix-runner-port-collision: occupancy listing degradation is visible ─────
+
+test("occupancy listing failure warns loudly and the deploy still completes", async () => {
+  const stub = stubRegistry();
+  stub.failAgentsList = true;
+  const warns = [];
+  const origWarn = console.warn;
+  console.warn = (m) => warns.push(String(m));
+  try {
+    const out = await servingLib.deployToRegistry({ ...PACK, fetchImpl: stub.fetch });
+    assert.equal(out.deployed.length, 1, "deploy completes on pure-hash degradation");
+  } finally {
+    console.warn = origWarn;
+  }
+  assert.ok(
+    warns.some((w) => w.includes("collision detection degraded")),
+    `expected the degradation warning, got: ${JSON.stringify(warns)}`,
+  );
 });

@@ -113,6 +113,7 @@ export class ChildManager {
   #slotWaiters = new Set(); // capacity-queue interval timers, cleared on shutdown
   #podLaneWaiters = new Set(); // pod in-flight-lane interval timers, cleared on shutdown
   #listeners = new Map(); // agentKey → http server (per-agent port, upstream #1734)
+  #listenerWarnAt = new Map(); // agentKey → last bind-failure warn ts (log throttle, retries unthrottled)
   #quotaAlerted = new Set(); // workspace over-quota episodes already reported
   #spawnFailures = new Map(); // agentKey → consecutive exhausted cold-start cycles (2.2)
   // Per-deployment memory tokens (add-fleet-memory-v1): the runner token is
@@ -298,6 +299,29 @@ export class ChildManager {
         log: this.log,
       }),
     );
+    // Bind-failure isolation (fix-runner-port-collision): a port another
+    // listener already holds (deploy-side occupancy listing degraded → hash
+    // collision) must take down ONE agent's reachability, never the runner
+    // process and never the other agents' listeners (production 2026-10-25:
+    // an unhandled 'error' event crash-looped the serving runner, all 16
+    // agents down). Release the entry so later reconcile cycles retry the
+    // bind naturally; the named warning carries the remediation used live
+    // (registry entry metadata.port_override) and is rate-limited per key —
+    // the retry itself is NOT throttled, so a freed port recovers on the
+    // next cycle without a restart. Port drift is deliberately rejected: a
+    // listener moving off its registered port would mis-route requests to
+    // another agent — unreachable-but-honest beats wrong-routing.
+    server.on("error", (err) => {
+      this.#listeners.delete(key);
+      const throttled = Date.now() - (this.#listenerWarnAt.get(key) ?? 0) < 5 * 60_000;
+      if (!throttled) {
+        this.#listenerWarnAt.set(key, Date.now());
+        const hint = err.code === "EADDRINUSE"
+          ? `port ${port} already in use — set metadata.port_override on the registry entry (in-service redeploy) or free the occupant`
+          : `listen error (${err.code ?? err.message ?? err})`;
+        this.log.warn(`[agent-runner] listener for ${key} NOT serving on :${port} — ${hint}; other agents unaffected, retrying next reconcile`);
+      }
+    });
     // config.host: 0.0.0.0 on cloud (historical default), 127.0.0.1 on the
     // desktop fleet plugin — agent A2A ports must not face the LAN there.
     server.listen(port, this.config.host || "0.0.0.0");

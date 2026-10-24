@@ -5,7 +5,7 @@
 - [x] 1.1 静态核对：读 `db.normalizeIdentityEmail` 与 line-credentials 路由 identity()
   （ssoUser 优先）→ 写入器 owner（runtimeOwnerEmail 种子/改写点）的键归一化路径，确认
   两路是否存在可分叉的 email 形态；结论记入本节下方。验证：结论有代码行号支撑。
-- [ ] 1.2 生产只读验证：在受影响 cell 上比对 `user_line_credentials.email`（wire-customer
+- [x] 1.2 生产只读验证：在受影响 cell 上比对 `user_line_credentials.email`（wire-customer
   行）与 `[dsh-profile] omitting` 日志的 owner；坐实别名 → 在本 tasks 追加归一化修复任务。
   验证：比对结果记录（若生产通道不可达，明示 deferred，不静默跳过）。
   > 1.1 结论（2026-10-25）：无归一化分叉——line-credentials 路由（ssoUser 边界即

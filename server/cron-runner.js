@@ -695,6 +695,14 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
     // open — a renewal failure never fails the turn (the round then reports the
     // honest unconnected state instead); a2a/tool shapes are covered too (tool
     // posts read the credential live from the DB, remote turns are unaffected).
+    // The drain first delivers any credential restart deferred from the
+    // previous turn's streaming window, so this round starts on a child whose
+    // patch is current (nothing here can stall the turn — both degrade open).
+    try {
+      await ctx.drainDeferredCredentialRestart?.();
+    } catch (e) {
+      console.warn(`[cron] deferred credential restart drain failed: ${e?.message || e}`);
+    }
     try {
       await ctx.renewLineCredentialsForTurn?.();
     } catch (e) {

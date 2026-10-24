@@ -75,6 +75,7 @@ import { renderDecisionSegment } from "./server/fleet-decisions.js";
 import { rosterPresetId } from "./dsh-profile.js";
 import * as lineTokenRenewal from "./server/line-token-renewal.js";
 import * as lineCredentialsLib from "./line-credentials.js";
+import { createCredentialDelivery } from "./server/dsh-mcp-delivery.js";
 import { createMonitoringRoutes } from "./server/routes/monitoring.js";
 import { createAdminRoutes } from "./server/routes/admin.js";
 import { registerExternalServiceRoutes } from "./server/routes/external-services.js";
@@ -722,31 +723,19 @@ async function initDshAgent() {
   // the documented fallback (PLATFORM_MCP_HOTSWAP=0, or hot-swap never settles).
   const hotswapEnabled = process.env.PLATFORM_MCP_HOTSWAP !== "0";
   const HOTSWAP_SETTLE_MS = Number(process.env.PLATFORM_MCP_HOTSWAP_SETTLE_MS || 800);
-  // Deferred credential restart (add-line-credential-renewal D5): a renewed
-  // credential landing mid-turn must not abort the streaming round — park the
-  // restart for the turn boundary. The drain rides the mutation chain so it
-  // cannot overlap another runtime mutation; the poller (unref'd,
-  // self-clearing) is the boundary detector — ctx.isStreaming drops between
-  // turns and the next round's waitForIdle precedes its prompt, so the
-  // ≤250ms-late restart lands in the gap. If a round does start inside the
-  // tick, the abort registry marks it interrupted (re-runnable), never lost.
-  let pendingCredentialRestart = null;
-  const deferCredentialRestart = (patchPath) => {
-    if (!pendingCredentialRestart) {
-      const poll = setInterval(() => {
-        if (!pendingCredentialRestart) return clearInterval(poll);
-        if (ctx.isStreaming) return;
-        clearInterval(poll);
-        const pending = pendingCredentialRestart;
-        pendingCredentialRestart = null;
-        ctx.runtimeMutationChain = ctx.runtimeMutationChain
-          .then(() => ctx.dshBridge.restart({ mcpPatchPath: pending }))
-          .then(() => {}, () => {});
-      }, 250);
-      poll.unref?.();
-    }
-    pendingCredentialRestart = patchPath;
-  };
+  // Deterministic credential delivery (add-line-credential-renewal D5, hardened
+  // after the fleet-cell incident 2026-10-24 13:46): a renewed credential
+  // landing mid-turn must not abort the streaming round, and a restart that
+  // collides with one already in flight must RETRY — the incident lost the
+  // delivery to a swallowed "dsh restart already in progress" and the child
+  // served an expired token until the platform restarted. The controller owns
+  // the decision (now / defer to the turn boundary / force past a cap) and
+  // logs every branch; the drain hook is exposed for turn boundaries.
+  const credentialDelivery = createCredentialDelivery({
+    isStreaming: () => Boolean(ctx.isStreaming),
+    restart: ({ mcpPatchPath }) => ctx.dshBridge.restart({ mcpPatchPath }),
+  });
+  ctx.drainDeferredCredentialRestart = () => credentialDelivery.drainIfIdle();
   ctx.dshUpdateMcp = (mcpOverlay, userGroups = null, ownerEmail = undefined) => {
     const update = async () => {
       // ownerEmail undefined = "keep whoever the runtime last served" (global
@@ -783,18 +772,18 @@ async function initDshAgent() {
         return;
       }
       if (patchPath !== undefined) {
-        // A credential-value change while a turn streams parks for the turn
-        // boundary (design D5 busy path) instead of aborting the round.
-        if (credentialChanged && ctx.isStreaming) {
-          deferCredentialRestart(patchPath);
+        if (credentialChanged) {
+          // Credential VALUE changed: the delivery controller decides — restart
+          // now when idle, defer to the turn boundary when a round is streaming
+          // (with a hard cap so a wedged stream cannot hold the credential
+          // hostage). Never a bare fire-and-forget restart.
+          await credentialDelivery.onCredentialChange(patchPath);
           return;
         }
-        // Fallback: hot-swap disabled, no servers (empty patch), or a
-        // credential-value change (deterministic delivery — re-spawn re-reads
-        // the patch from disk; production-proven via platform restarts).
-        // dsh persists sessions by id so the conversation resumes from disk.
-        // Serialized behind mcpChain, so concurrent mutations can't
-        // overlap-corrupt the restart.
+        // Fallback: hot-swap disabled or no servers (empty patch). Restart re-spawns
+        // the child with the new --patch; dsh persists sessions by id so the
+        // conversation resumes from disk. Serialized behind mcpChain, so concurrent
+        // mutations can't overlap-corrupt the restart.
         await ctx.dshBridge.restart({ mcpPatchPath: patchPath });
       }
     };

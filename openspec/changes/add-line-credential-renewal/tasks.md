@@ -33,7 +33,11 @@
   `Map<email|line, Promise>` 单飞、`invalid_grant` → 标 stale、日志只记 email/line/成功
   失败——验证 = 单测四件：成功续期落两新值 / rotation 落的是响应里的新 refresh_token /
   并发两次调用只发一次 POST / invalid_grant 行翻 stale 且不清行
-  （**`scripts/test-line-token-renewal.mjs` 8/8 绿：四件全 + 瞬态失败不动行**）
+  （**`server/line-token-renewal.js` 8/8 绿：四件全 + 瞬态失败不动行；**生产再加固（班三
+  2b423e53，TTL 实测）**：租户 refresh TTL 实测仅 ~31-33min（30m35s 首刷成功/32m43s 二刷
+  invalid_grant），原 30min exp 阈值踩边掷硬币——节奏改固定制：锚 `updated_at` rotation
+  年龄 >15min 即续、sweep 5min，rotator 寿命 ≤20min；exp<30min 保留为回合前 belt；
+  `listRenewableLineCredentials` 改 updated_at 扫描；32/32 绿**）
 - [x] 3.2 触发①：`server/cron-runner.js` `runCronJobTurn` 分派前，对回合属主
   （`ctx.cellUserEmail`）的 wire-customer/lex 两行做 `exp - now < 30min` 先续再跑——验证 =
   cron 单测（注入假 renewal：到期行回合前被调、未到期行不调）
@@ -59,7 +63,8 @@
   头值——变化且空闲（`isReady && !isStreaming`）→ 走 `:752` restart；变化且忙 → pending
   标记 + `onRuntimeIdle`/回合边界排空；无头值变化 → 维持 HMR 现状——验证 = 单测三分支
   （头值变化空闲 restart / 头值变化忙时不打断且排空后 restart / 纯增删不触发 restart）
-  （**`readPatchAuthorizations` 快照 + `authorizationHeadersChanged` 谓词单测绿（同值/变值/增删 server/无旧快照四分支）；dshUpdateMcp 接 diff：空闲 restart、忙时 250ms poller 回合边界排空上链**）
+  （**`readPatchAuthorizations` 快照 + `authorizationHeadersChanged` 谓词单测绿（同值/变值/增删 server/无旧快照四分支）；dshUpdateMcp 接 diff：空闲 restart、忙时 defer——
+  **生产加固（2026-10-24 fleet cell 缺陷复盘，paas f62f2177 → 镜像 sha-0bcf53e）**：fleet cell 13:46 组合正确但 restart 碰撞（dsh-bridge 并发拒绝 throw）被 catch 吞掉=交付静默丢失，子进程滞留旧 patch 至 pod 重启；抽出交付控制器 `server/dsh-mcp-delivery.js`——碰撞重试三档/流式 defer 回合边界排空/5min 硬上限强制/全分支 `[mcp-delivery]` 日志；cron 回合前排空 deferred；控制器 7 分支单测（`scripts/test-dsh-mcp-delivery.mjs`）；随快照 0bcf53e 双面滚完**）
 - [ ] 5.2 集成验证：续期 → patch 重写 → restart → 新子进程带新 token 出回合（不依赖
   platform 重启）——验证 = e2e 或真机脚本（重铸/续期后 ≤5 分钟内起的回合读面 200）
   （**本地证据已备：单测链路四环全绿 + fast e2e 537/0 含 MCP 凭据头注入用例；完整链

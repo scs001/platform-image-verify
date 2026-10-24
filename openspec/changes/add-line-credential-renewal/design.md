@@ -62,6 +62,12 @@ redirect_uri（公共客户端 refresh grant）。
 - **失效**：`invalid_grant` → `markLineCredentialStale`（复用现函数），日志只记
   `email/line/成功|失败`。
 
+**生产修正（2026-10-24 深夜，TTL 实测）**：上线当晚测得租户 refresh TTL 仅 ~31-33 分钟
+（首刷 30m35s 成功、下一次 rotation 后 32m43s 失败 invalid_grant；远低于 Logto 默认
+14 天=租户配置值），rotator 不透明无 exp 可读——D3 原设的「exp-30min」阈值使每次续期都
+踩在 TTL 边缘。节奏改为**固定制**：锚 `updated_at`（rotation 年龄）>15min 即续、sweep
+5min，rotator 寿命 ≤20min；exp 窗口降级为回合前 belt。原 exp 驱动扫描退役。
+
 ### D3 触发点：① `runCronJobTurn` 收口顶部，② boot 巡检 interval
 
 - **① 回合前**：`runCronJobTurn`（cron-runner.js:689）分派 executor 之前，对回合属主

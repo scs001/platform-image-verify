@@ -1708,6 +1708,18 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 
 **归档**：两 change tasks 全勾（polish 13/13、copilot 9/9），`openspec archive` 双双落地（2026-10-24-polish-facet-usability / 2026-10-24-add-facet-copilot），specs 全量 178/0。
 
+### §15.27 补记：凭据续期两连修——交付加固 + TTL 实测与固定节奏（2026-10-24 深夜）
+
+§15.25 上产当晚，wire 侧 7 天观测首日即压出两个真缺陷，当夜两班列车修完：
+
+**班二（f62f2177 → sha-0bcf53e，digest 895f46a1）· 交付确定性加固**：fleet cell（3fdc7b8e）13:46 铸币后组合正确但子进程滞留旧 patch 直至 13:55 pod 重启（wire 报告的 P2 缝隙）——根因=`bridge.restart()` 撞上在跑 restart 时直接 throw（dsh-bridge 并发拒绝），reapplyProfile 的 catch 吞掉=交付静默丢失且无重试；pack 重装只走 skills patch 不触发 mcp 重交付。修：交付控制器 `server/dsh-mcp-delivery.js`（restart 碰撞重试 2s/4s/8s 三档 + 流式回合 defer 回合边界排空 + 5min 硬上限强制交付 + 全分支 `[mcp-delivery]` 日志）+ cron 回合前排空 deferred；7 分支单测。
+
+**班三（2b423e53 → sha-42adf23，digest a88eeb30）· TTL 实测与固定节奏**：当晚续期实测钉死**租户 refresh token TTL 仅 ~31-33 分钟**——fleet 链 14:16:47 首刷成功（距铸 30m35s）、14:50 tick 二刷 invalid_grant（距该 rotation 32m43s）；admin 双链 30-33min 首刷同样即死；重铸后即时探针 200 排除铸币死链。远低于 Logto 默认 14 天=租户配置值（wire 侧已知有 TTL 策略，调前会同步）。rotator 不透明（无 exp 可读），原 30min exp 阈值使每次续期都踩在 TTL 边缘掷硬币。修：续期节奏与 ID token exp 解耦改**固定节奏**——锚 `updated_at`（rotation 年龄）>15min 即续、sweep 10min→5min，rotator 寿命压到 ≤20min（对任何 ≥25min TTL 有 >33% 裕量）；exp<30min 窗口保留为回合前 belt；`listRenewableLineCredentials` 改按 `updated_at` 扫描；`setLineCredential` 支持 `updatedAt` 覆盖（测试锚定）。单测 32/32。
+
+**出片插曲**：本班 relay 双撞——①手动单子与 cron 的 tag 级 seen 去重相撞（新 tag 在 hkccr 传播窗内被 cron 读空记 seen 后永久跳过，教训①再现），`skopeo copy` 手动回灌解；②快照目录 `--init` 重建后丢 remote 与 workflow（第三通道取回）。
+
+**待观测（23:5x 更新：模型定案）**：夜观测推翻两个候选模型（rotation 重锚定/grant 绝对租约均被证伪），**定案=链死亡全部来自外部吊销事件，与该用户新登录/新 grant 强相关**——判别实验（23:21 裸登录 aloadtree 不铸币）：同用户 wire 链探针存活、lex 链即死（分裂判决，排除"登录吊销全部"）；而 grant 龄 40min 的续期成功（23:17）排除绝对 TTL、rotation 后 20m31s 即死（22:37）排除纯 per-issuance TTL。**精确策略（Logto 会话/grant 吊销配置）只有 wire 侧租户控制台能定**。paas 侧机制面全数生产实证正常：铸币落 rotator ✓/节奏续期（15min 固定制+5min sweep）✓/单飞 ✓/invalid_grant→stale ✓/`[mcp-delivery]` restart 交付（attempt 1）✓/回合前排空 ✓——凡链活着时 paas 的每次刷新都成功。**给 wire 的 ask**：①查 Logto 审计日志定策略（疑似 max-session/revoke-on-login 类）；②若政策不可松，舰队 cell 应换专属服务账号（无人交互登录）；③调好后 paas 零改动即全通。明日 09:00 巡线为自然检查点（今夜若无人再登录 aloadtree，链可能存活过夜=又一佐证）。fleet 行 wire 侧 23:1x 已重连且 23:17 续期成功。fast e2e 本机一次 webServer 超时（同码 4h 前全绿+单测 32/32），复跑中。
+
 ### §16.3 补记：自报闭环兑现 + 发布门零人工实证（2026-10-24）
 
 §16.2 挂账③销账：限流窗过后重发「柏讯 · 产物构建」→ **发布门零人工通过**（工具声明门读 registry 快照 17 工具，`wire_artifact_dashboard_create` / `wire_artifact_doc_create` 在册，不再 unresolved）→ pack `AjFHQ9tjiJp5GTYmBC2y8g` v1 上架，匿名市场可见（总数 70）。**「改代码→出片→滚版→快照自动对齐→发布过门」全链首次无人工介入跑通**——§16.1 立项要交付的那个状态。

@@ -822,6 +822,46 @@ function scopedRelayEnvOverrides(ownerEmail) {
   }
 }
 
+// Authorization-header snapshot of a written MCP patch
+// (add-line-credential-renewal D5): dshUpdateMcp diffs the snapshot before and
+// after a rewrite to decide restart-vs-HMR. A header-VALUE change (a renewed
+// line credential) is NOT trusted to cordis HMR — production 2026-10-24: the
+// patch was rewritten with a fresh token, the child kept the old one for three
+// rounds, and only a platform restart (re-spawn re-reads the file) fixed it.
+// Server add/remove changes keep riding HMR. Returns null when the patch is
+// absent/unreadable (first write — nothing to diff, the child carries no
+// patch either).
+export function readPatchAuthorizations(patchPath) {
+  try {
+    const loaded = yaml.load(readFileSync(patchPath, "utf8"));
+    const rows = Array.isArray(loaded) ? loaded : [];
+    const out = {};
+    for (const row of rows) {
+      for (const entry of row?.insert ?? []) {
+        const cfg = entry?.config;
+        if (!cfg?.serverName) continue;
+        const auth = cfg?.headers?.Authorization;
+        if (typeof auth === "string" && auth) out[cfg.serverName] = auth;
+      }
+    }
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+// True when any existing server's Authorization value changed or a
+// ref-carrying server appeared/disappeared between two snapshots — i.e. the
+// running child's baked credentials no longer match the patch. Pure.
+export function authorizationHeadersChanged(prev, next) {
+  if (!prev || !next) return false;
+  const names = new Set([...Object.keys(prev), ...Object.keys(next)]);
+  for (const name of names) {
+    if (prev[name] !== next[name]) return true;
+  }
+  return false;
+}
+
 export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail = null, agentPreset = null, noOverlay = false } = {}) {
   // 1. mcp.json (operator config, base layer).
   let mcpJsonServers = {};

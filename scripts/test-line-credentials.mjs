@@ -189,7 +189,9 @@ test("mint/start redirects to Logto with PKCE + prompt=none and a signed state c
     "https://platform.test/api/lines/wire-customer/mint/callback",
     "callback lives on THIS origin — no cross-origin read anywhere",
   );
-  assert.ok(!url.searchParams.get("scope").includes("offline_access"), "offline_access dropped");
+  // offline_access rides the mint (add-line-credential-renewal D1): the
+  // refresh token is stored server-side for unattended renewal.
+  assert.ok(url.searchParams.get("scope").includes("offline_access"), "offline_access present");
   assert.match(res.setCookie, /paas_line_mint=/, "signed state cookie set");
   assert.ok(sawConfig.includes("wire.test"), "config read server-side (no browser CORS)");
 });
@@ -210,8 +212,10 @@ test("mint/callback exchanges the code server-side, stores, and lands on /settin
         tokenCalls.push({ url: String(url), body: options.body.toString() });
         // Echo the nonce from the authorize request (OIDC requires it back).
         const nonce = new URL(start.location).searchParams.get("nonce");
-        return new Response(JSON.stringify({ id_token: idToken(3600, nonce) }), {
-          status: 200,
+        return new Response(
+          JSON.stringify({ id_token: idToken(3600, nonce), refresh_token: "rt-rotator-1" }),
+          {
+            status: 200,
           headers: { "content-type": "application/json" },
         });
       }
@@ -234,6 +238,13 @@ test("mint/callback exchanges the code server-side, stores, and lands on /settin
   assert.ok(tokenCalls[0].body.includes("grant_type=authorization_code"));
   assert.ok(tokenCalls[0].body.includes("code_verifier="), "PKCE verifier sent (no client secret)");
   assert.equal(lc.status("admin@x.test", "lex").connected, true, "stored under the caller's identity");
+  // The rotator lands with the ID token (add-line-credential-renewal D1);
+  // the connection projection stays free of both secrets.
+  const secretRow = db.getLineCredentialWithRefresh("admin@x.test", "lex");
+  assert.equal(secretRow.refreshToken, "rt-rotator-1", "refresh token stored server-side");
+  const projection = JSON.stringify(lc.status("admin@x.test", "lex"));
+  assert.ok(!projection.includes("rt-rotator-1"), "projection carries no refresh token");
+  assert.ok(!projection.includes(idToken(3600, "").slice(0, 20)), "projection carries no id token");
   assert.equal(ctx.dshUpdateMcpCalls.length, 1, "profile re-applied once");
   assert.match(cb.setCookie, /paas_line_mint=;/, "state cookie cleared");
 });
@@ -363,4 +374,89 @@ test("mint routes 404 unknown lines and 401 anonymous hosted callers", async () 
     (await httpRequest(ctx.app, "GET", "/api/lines/unknown/mint/callback", { headers: ADMIN })).status,
     404,
   );
+});
+
+// ── add-line-credential-renewal: refresh-token storage + 401 semantics ──────
+
+test("refresh_token column semantics: undefined keeps the chain, null clears, string sets (2.1)", () => {
+  lc.disconnect("cols@test.example", "wire-customer");
+  lc.store({ email: "cols@test.example", line: "wire-customer", token: idToken(3600), refreshToken: "rt-a" });
+  assert.equal(db.getLineCredentialWithRefresh("cols@test.example", "wire-customer").refreshToken, "rt-a");
+  // A manual paste (no refreshToken param) never breaks a live chain.
+  lc.store({ email: "cols@test.example", line: "wire-customer", token: idToken(3600) });
+  assert.equal(db.getLineCredentialWithRefresh("cols@test.example", "wire-customer").refreshToken, "rt-a");
+  // An explicit null (mint without offline_access) honestly clears capability.
+  lc.store({ email: "cols@test.example", line: "wire-customer", token: idToken(3600), refreshToken: null });
+  assert.equal(db.getLineCredentialWithRefresh("cols@test.example", "wire-customer").refreshToken, null);
+  // The projection SELECT never carries the column.
+  assert.ok(!("refreshToken" in (db.getLineCredential("cols@test.example", "wire-customer") || {})));
+});
+
+test("markInvalid: ID-token row WITH a refresh token flips stale, never clears (4.1)", () => {
+  lc.store({ email: "stale@test.example", line: "wire-customer", token: idToken(3600), refreshToken: "rt-b" });
+  assert.equal(lc.markInvalid("stale@test.example", "wire-customer"), true);
+  const row = db.getLineCredentialWithRefresh("stale@test.example", "wire-customer");
+  assert.ok(row, "row survives — it is the recovery path");
+  assert.equal(row.stale, 1, "stale for the reconnect UI");
+  assert.equal(row.refreshToken, "rt-b", "refresh token preserved");
+  assert.equal(lc.markInvalid("stale@test.example", "wire-customer"), false, "already stale: no re-apply");
+  const s = lc.status("stale@test.example", "wire-customer");
+  assert.equal(s.stale, true);
+  assert.equal(s.connected, false, "scheduled turns see the honest unconnected state");
+});
+
+test("markInvalid: ID-token row WITHOUT a refresh token keeps the clear-and-re-mint UX (4.1)", () => {
+  lc.store({ email: "clear@test.example", line: "lex", token: idToken(3600) });
+  assert.equal(lc.markInvalid("clear@test.example", "lex"), true);
+  assert.equal(db.getLineCredentialWithRefresh("clear@test.example", "lex"), null, "row cleared");
+  assert.equal(lc.markInvalid("clear@test.example", "lex"), false, "nothing to clear twice");
+});
+
+test("renewOn401: renewed / failed / no-refresh outcomes drive the hook's branches (4.1)", async () => {
+  const original = await import("../line-credentials.js");
+  // Degraded boot (no injected attempt) falls back to no-refresh.
+  lc.store({ email: "r401@test.example", line: "wire-customer", token: idToken(3600), refreshToken: "rt-c" });
+  const savedAttempt = original.setRefreshAttempt;
+  original.setRefreshAttempt(null);
+  assert.equal(await original.renewOn401("r401@test.example", "wire-customer"), "no-refresh");
+  // Wired: a successful attempt reports renewed.
+  original.setRefreshAttempt(async ({ email, line }) => {
+    assert.equal(line, "wire-customer");
+    lc.store({ email, line, token: idToken(3600), refreshToken: "rt-c2" });
+    return true;
+  });
+  assert.equal(await original.renewOn401("r401@test.example", "wire-customer"), "renewed");
+  assert.equal(db.getLineCredentialWithRefresh("r401@test.example", "wire-customer").refreshToken, "rt-c2");
+  // A rejected attempt reports failed (markInvalid then stales the row).
+  original.setRefreshAttempt(async () => false);
+  assert.equal(await original.renewOn401("r401@test.example", "wire-customer"), "failed");
+  // A row with no refresh token reports no-refresh regardless of wiring.
+  lc.store({ email: "r401b@test.example", line: "wire-customer", token: idToken(3600) });
+  assert.equal(await original.renewOn401("r401b@test.example", "wire-customer"), "no-refresh");
+  // A throwing attempt is contained (failed, not a crash).
+  original.setRefreshAttempt(async () => { throw new Error("network gone"); });
+  assert.equal(await original.renewOn401("r401@test.example", "wire-customer"), "failed");
+  original.setRefreshAttempt(savedAttempt);
+});
+
+test("listRenewableLineCredentials: mint lines + refresh token + expiring, stale excluded (2.1)", () => {
+  const E = "renew@test.example";
+  const past = Date.now() - 60_000;
+  const soon = Date.now() + 10 * 60_000;
+  const far = Date.now() + 55 * 60_000;
+  db.setLineCredential({ email: E, line: "wire-customer", token: idToken(3600), tokenExp: soon, refreshToken: "rt-d" }); // due
+  db.setLineCredential({ email: E, line: "lex", token: idToken(3600), tokenExp: far, refreshToken: "rt-e" }); // not due yet
+  db.setLineCredential({ email: E, line: "wire-customer", token: idToken(-60), tokenExp: past, refreshToken: null }); // hmm same PK — overwrite
+  // (the line above replaced the wire row: re-split across two emails)
+  const E2 = "renew2@test.example";
+  db.setLineCredential({ email: E2, line: "wire-customer", token: idToken(3600), tokenExp: soon, refreshToken: "rt-f" }); // due, expired-ish
+  db.setLineCredential({ email: E2, line: "lex", token: idToken(3600), tokenExp: soon, refreshToken: "rt-g", stale: 1 }); // stale → excluded
+  db.setLineCredential({ email: E2, line: "wanxing-caller", token: "sk-x" }); // not a mint line
+  const now = Date.now();
+  const rows = db.listRenewableLineCredentials(now, 30 * 60_000);
+  const hits = rows.map((r) => `${r.email}:${r.line}`).sort();
+  assert.ok(hits.includes(`${E2}:wire-customer`), "expiring row with a refresh token is a candidate");
+  assert.ok(!hits.includes(`${E}:lex`), "row outside the window is not");
+  assert.ok(!hits.includes(`${E2}:lex`), "stale row waits for a human");
+  assert.ok(!hits.some((h) => h.endsWith(":wanxing-caller")), "paste lines are never renewed");
 });

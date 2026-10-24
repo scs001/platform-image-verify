@@ -73,6 +73,8 @@ import { triggerFleetEventWake } from "./server/fleet-event-wake.js";
 import * as engine from "./task-engine.js";
 import { renderDecisionSegment } from "./server/fleet-decisions.js";
 import { rosterPresetId } from "./dsh-profile.js";
+import * as lineTokenRenewal from "./server/line-token-renewal.js";
+import * as lineCredentialsLib from "./line-credentials.js";
 import { createMonitoringRoutes } from "./server/routes/monitoring.js";
 import { createAdminRoutes } from "./server/routes/admin.js";
 import { registerExternalServiceRoutes } from "./server/routes/external-services.js";
@@ -477,7 +479,7 @@ function seedStartupMcpConfigs(mcpJsonServers) {
 // now it only emits `done` on turn completion (the 1.5 round-trip placeholder).
 async function initDshAgent() {
   const { DshBridge } = await import("./dsh-bridge.js");
-  const { writeLlmProfile, writeMcpPatch, writeSkillsPatch, writePresetsPatch, writePermissionsPatch, writeToolSearchPatch, writeChartBindPatch, writeUserQuestionsPatch, writeSaveLibraryPatch, ensureCredentialsStore, ensureDshHome, buildScrubbedEnv, knownPresetIds, DEFAULT_AGENT_PRESET } = await import("./dsh-profile.js");
+  const { writeLlmProfile, writeMcpPatch, writeSkillsPatch, writePresetsPatch, writePermissionsPatch, writeToolSearchPatch, writeChartBindPatch, writeUserQuestionsPatch, writeSaveLibraryPatch, ensureCredentialsStore, ensureDshHome, buildScrubbedEnv, knownPresetIds, DEFAULT_AGENT_PRESET, readPatchAuthorizations, authorizationHeadersChanged } = await import("./dsh-profile.js");
 
   // Scaffold $DSH_HOME if it is fresh — a hosted cell's per-user home always
   // is, and dsh refuses to boot a profile that was never materialized.
@@ -720,22 +722,57 @@ async function initDshAgent() {
   // the documented fallback (PLATFORM_MCP_HOTSWAP=0, or hot-swap never settles).
   const hotswapEnabled = process.env.PLATFORM_MCP_HOTSWAP !== "0";
   const HOTSWAP_SETTLE_MS = Number(process.env.PLATFORM_MCP_HOTSWAP_SETTLE_MS || 800);
+  // Deferred credential restart (add-line-credential-renewal D5): a renewed
+  // credential landing mid-turn must not abort the streaming round — park the
+  // restart for the turn boundary. The drain rides the mutation chain so it
+  // cannot overlap another runtime mutation; the poller (unref'd,
+  // self-clearing) is the boundary detector — ctx.isStreaming drops between
+  // turns and the next round's waitForIdle precedes its prompt, so the
+  // ≤250ms-late restart lands in the gap. If a round does start inside the
+  // tick, the abort registry marks it interrupted (re-runnable), never lost.
+  let pendingCredentialRestart = null;
+  const deferCredentialRestart = (patchPath) => {
+    if (!pendingCredentialRestart) {
+      const poll = setInterval(() => {
+        if (!pendingCredentialRestart) return clearInterval(poll);
+        if (ctx.isStreaming) return;
+        clearInterval(poll);
+        const pending = pendingCredentialRestart;
+        pendingCredentialRestart = null;
+        ctx.runtimeMutationChain = ctx.runtimeMutationChain
+          .then(() => ctx.dshBridge.restart({ mcpPatchPath: pending }))
+          .then(() => {}, () => {});
+      }, 250);
+      poll.unref?.();
+    }
+    pendingCredentialRestart = patchPath;
+  };
   ctx.dshUpdateMcp = (mcpOverlay, userGroups = null, ownerEmail = undefined) => {
     const update = async () => {
       // ownerEmail undefined = "keep whoever the runtime last served" (global
       // routes that do not act for a specific identity); explicit null = the
       // machine owner (auth off).
       if (ownerEmail !== undefined) ctx.runtimeOwnerEmail = ownerEmail;
+      // Credential delivery (add-line-credential-renewal D5): snapshot the
+      // Authorization headers the running child was spawned against BEFORE the
+      // rewrite — the post-write diff separates "credential VALUE changed"
+      // (restart: HMR does not deliver header-value changes, production
+      // 2026-10-24) from "server SET changed" (HMR keeps working as before).
+      const prevPatchPath = ctx.dshBridge?.getMcpPatch?.() ?? null;
+      const prevAuth = prevPatchPath ? readPatchAuthorizations(prevPatchPath) : null;
       // The scope filter rides inside the writer keyed off the live preset,
       // so CRUD while focused (add/disable a server, a pack upgrade adding an
       // MCP ref) rewrites the patch focused — the focus survives every
       // mutation without extra bookkeeping (add-pack-agent-scoping D1).
       const patchPath = await writeMcpPatch({ mcpOverlay, userGroups, ownerEmail: ctx.runtimeOwnerEmail, agentPreset: ctx.currentPreset });
+      const credentialChanged = Boolean(
+        prevAuth && patchPath && authorizationHeadersChanged(prevAuth, readPatchAuthorizations(patchPath)),
+      );
       // HMR only reaches the child if it was spawned WITH this --patch (cordis
       // watches the file it loaded). A child booted before the first MCP server
       // existed has no mcp patch on its command line — rewriting the file does
       // nothing it can see, so that case must fall through to the restart path.
-      if (hotswapEnabled && patchPath && ctx.dshBridge.getMcpPatch() === patchPath) {
+      if (hotswapEnabled && patchPath && !credentialChanged && ctx.dshBridge.getMcpPatch() === patchPath) {
         // The patch file was rewritten atomically (temp+rename inside
         // writeMcpPatch); cordis' Chokidar watcher fires refresh() → dsh-mcp-client
         // hot-swaps. No RPC confirms the swap, so settle on a fixed delay — dsh's
@@ -745,11 +782,21 @@ async function initDshAgent() {
         await new Promise((r) => setTimeout(r, HOTSWAP_SETTLE_MS));
         return;
       }
-      // Fallback: hot-swap disabled or no servers (empty patch). Restart re-spawns
-      // the child with the new --patch; dsh persists sessions by id so the
-      // conversation resumes from disk. Serialized behind mcpChain, so concurrent
-      // mutations can't overlap-corrupt the restart.
-      if (patchPath !== undefined) await ctx.dshBridge.restart({ mcpPatchPath: patchPath });
+      if (patchPath !== undefined) {
+        // A credential-value change while a turn streams parks for the turn
+        // boundary (design D5 busy path) instead of aborting the round.
+        if (credentialChanged && ctx.isStreaming) {
+          deferCredentialRestart(patchPath);
+          return;
+        }
+        // Fallback: hot-swap disabled, no servers (empty patch), or a
+        // credential-value change (deterministic delivery — re-spawn re-reads
+        // the patch from disk; production-proven via platform restarts).
+        // dsh persists sessions by id so the conversation resumes from disk.
+        // Serialized behind mcpChain, so concurrent mutations can't
+        // overlap-corrupt the restart.
+        await ctx.dshBridge.restart({ mcpPatchPath: patchPath });
+      }
     };
     // Profile application already owns the mutation lock. Running directly here
     // avoids queuing an MCP update behind itself while preserving one chain for
@@ -759,6 +806,23 @@ async function initDshAgent() {
     ctx.runtimeMutationChain = run.then(() => {}, () => {});
     return run;
   };
+  // ── Line credential renewal (add-line-credential-renewal D2/D3 wiring) ─────
+  // The module owns the refresh grant; this is the only wiring point. Every
+  // renewed credential re-applies the effective profile for its owner — the
+  // Authorization diff above turns that into a deterministic restart (idle) or
+  // a deferred one (mid-turn), so the next round runs on the fresh token with
+  // no platform restart and no HMR trust anywhere in the unattended path.
+  const reapplyRenewedCredential = (email) =>
+    ctx.dshUpdateMcp?.(ctx.runtimeMcpOverlay ?? null, ctx.runtimeOwnerGroups ?? null, email);
+  ctx.renewLineCredentialsForTurn = () =>
+    lineTokenRenewal.renewDueCredentials({
+      email: ctx.cellUserEmail || ctx.runtimeOwnerEmail || null,
+      onRenewed: reapplyRenewedCredential,
+    });
+  lineCredentialsLib.setRefreshAttempt((opts) =>
+    lineTokenRenewal.renewLineCredential({ ...opts, onRenewed: reapplyRenewedCredential }).then((r) => r.renewed),
+  );
+  lineTokenRenewal.startRenewalSweep({ onRenewed: reapplyRenewedCredential });
   // Skills-patch rewrite for pack install/uninstall (add-pack-agent-scoping):
   // a NEW or REMOVED pack root changes the watched-dir set (full mode lists
   // every pack root), and dir-set changes through the skills patch are

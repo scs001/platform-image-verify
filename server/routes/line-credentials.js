@@ -27,14 +27,6 @@ const MINT_COOKIE = "paas_line_mint";
 const MINT_TTL_MS = 10 * 60 * 1000;
 const CONFIG_TIMEOUT_MS = 8000;
 
-// Per-line public auth-config endpoints (client_id/scopes/issuer — no
-// secrets). Read at mint time so a line rotating its SPA client needs no
-// platform redeploy; `ctx.lineMintTargets` overrides in tests.
-const DEFAULT_MINT_TARGETS = {
-  "wire-customer": { configUrl: "https://wire.finddatatech.cloud/api/console/auth/config" },
-  lex: { configUrl: "https://lex.finddatatech.cloud/api/console/auth/config" },
-};
-
 function identity(req) {
   return req.ssoUser || req.user || null;
 }
@@ -119,7 +111,7 @@ export function registerLineCredentialRoutes(ctx) {
   // Logto answers login_required/consent_required (first ever use per user).
   app.get("/api/lines/:line/mint/start", async (req, res) => {
     const line = req.params.line;
-    const targets = ctx.lineMintTargets || DEFAULT_MINT_TARGETS;
+    const targets = ctx.lineMintTargets || lineCredentials.MINT_TARGETS;
     if (!MINT_LINES.has(line) || !targets[line]) {
       return res.status(404).json({ error: "Unknown line" });
     }
@@ -170,9 +162,18 @@ export function registerLineCredentialRoutes(ctx) {
     );
 
     const url = new URL(`${String(cfg.issuer).replace(/\/+$/, "")}/oidc/auth`);
-    const scope = (Array.isArray(cfg.scopes) ? cfg.scopes : ["openid", "profile", "email"])
-      .filter((s) => s !== "offline_access")
-      .join(" ");
+    // offline_access rides the mint so the server can renew unattended
+    // (add-line-credential-renewal D1): the token response's refresh_token is
+    // stored server-side, never exposed. The scope needs one consent per user
+    // the first time — the callback's existing interactive retry absorbs it
+    // (spike 2026-10-24: prompt=none answers consent_required, the interactive
+    // pass auto-grants with no screen for this first-party client).
+    const scopes = new Set(
+      (Array.isArray(cfg.scopes) ? cfg.scopes : ["openid", "profile", "email"])
+        .filter((s) => typeof s === "string" && s),
+    );
+    scopes.add("offline_access");
+    const scope = [...scopes].join(" ");
     for (const [key, value] of Object.entries({
       client_id: String(cfg.client_id),
       response_type: "code",
@@ -195,7 +196,7 @@ export function registerLineCredentialRoutes(ctx) {
   // browser back on the settings surface.
   app.get("/api/lines/:line/mint/callback", async (req, res) => {
     const line = req.params.line;
-    const targets = ctx.lineMintTargets || DEFAULT_MINT_TARGETS;
+    const targets = ctx.lineMintTargets || lineCredentials.MINT_TARGETS;
     if (!MINT_LINES.has(line) || !targets[line]) {
       return res.status(404).json({ error: "Unknown line" });
     }
@@ -248,7 +249,16 @@ export function registerLineCredentialRoutes(ctx) {
       const claims = jwtPayload(idToken);
       if (!claims || claims.nonce !== st.nonce) throw new Error("nonce mismatch");
       const user = identity(req);
-      if (!lineCredentials.store({ email: user?.email ?? null, line, token: idToken })) {
+      // The rotating refresh token lands with the ID token (offline_access,
+      // add-line-credential-renewal). Absent in the response = honestly no
+      // renewal capability for this mint (null clears; the row never keeps a
+      // stale rotator from an earlier mint).
+      if (!lineCredentials.store({
+        email: user?.email ?? null,
+        line,
+        token: idToken,
+        refreshToken: typeof doc.refresh_token === "string" && doc.refresh_token ? doc.refresh_token : null,
+      })) {
         throw new Error("store failed");
       }
       res.redirect(`/settings/connections?panel=${linePanel(line)}`);

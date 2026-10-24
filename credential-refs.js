@@ -69,6 +69,9 @@ const REFS = new Map(
       isRef: lineCredentials.isWireCustomerRef,
       liveToken: (email) => lineCredentials.liveToken(email, "wire-customer"),
       markInvalid: (email) => lineCredentials.markInvalid(email, "wire-customer"),
+      // Refresh-first on 401 (add-line-credential-renewal D4): server-side
+      // recovery attempt before invalidation.
+      renewOn401: (email) => lineCredentials.renewOn401(email, "wire-customer"),
       staleEvent: "line_credential_stale",
     },
     {
@@ -76,6 +79,7 @@ const REFS = new Map(
       isRef: lineCredentials.isLexRef,
       liveToken: (email) => lineCredentials.liveToken(email, "lex"),
       markInvalid: (email) => lineCredentials.markInvalid(email, "lex"),
+      renewOn401: (email) => lineCredentials.renewOn401(email, "lex"),
       staleEvent: "line_credential_stale",
     },
     {

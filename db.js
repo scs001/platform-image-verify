@@ -841,6 +841,15 @@ const MIGRATIONS = [
     version: 101,
     statements: [`ALTER TABLE bots ADD COLUMN owner_email TEXT`],
   },
+  {
+    // add-line-credential-renewal: the rotating refresh token for ID-token
+    // lines (wire-customer/lex), minted together with the ID token via
+    // offline_access and consumed server-side for unattended renewal. NULL =
+    // no renewal capability (legacy rows, manual pastes); readable only
+    // through the secret-bearing accessor — never the projection SELECT.
+    version: 102,
+    statements: [`ALTER TABLE user_line_credentials ADD COLUMN refresh_token TEXT`],
+  },
 ];
 
 function nowIso() {
@@ -1937,17 +1946,48 @@ export function getLineCredential(email, line) {
   ).get(key, line) ?? null;
 }
 
-export function setLineCredential({ email, line, token, tokenExp, stale = 0 }) {
+// Secret-bearing read for the renewal path only (add-line-credential-renewal):
+// carries the refresh token, which must never ride the projection SELECT above.
+export function getLineCredentialWithRefresh(email, line) {
+  if (!dbReady) return null;
+  const key = normalizeIdentityEmail(email);
+  if (!key) return null;
+  return stmt(
+    "SELECT token, token_exp AS tokenExp, stale, refresh_token AS refreshToken FROM user_line_credentials WHERE email = ? AND line = ?"
+  ).get(key, line) ?? null;
+}
+
+// Renewal sweep candidates (add-line-credential-renewal trigger ②): mint lines
+// with a stored refresh token, not stale, whose ID token is inside the renewal
+// window — or already expired (a live refresh chain can still recover such a
+// row; Logto rotation re-anchors the lease). Stale rows wait for a human.
+export function listRenewableLineCredentials(nowMs, withinMs) {
+  if (!dbReady) return [];
+  return stmt(
+    `SELECT email, line, token_exp AS tokenExp FROM user_line_credentials
+     WHERE line IN ('wire-customer','lex') AND stale = 0 AND refresh_token IS NOT NULL
+       AND (token_exp IS NULL OR token_exp < ?)`
+  ).all(nowMs + withinMs);
+}
+
+// refreshToken semantics: undefined = keep the stored value (a manual ID-token
+// paste never breaks a live refresh chain), string/null = set it (the mint
+// stores the freshly issued token; null = honestly no renewal capability).
+export function setLineCredential({ email, line, token, tokenExp, stale = 0, refreshToken }) {
   if (!dbReady) return null;
   const key = normalizeIdentityEmail(email);
   if (!key) return null;
   stmt(
-    `INSERT INTO user_line_credentials (email, line, token, token_exp, stale, updated_at)
-     VALUES (@email, @line, @token, @tokenExp, @stale, @now)
+    `INSERT INTO user_line_credentials (email, line, token, token_exp, stale, refresh_token, updated_at)
+     VALUES (@email, @line, @token, @tokenExp, @stale, @refreshToken, @now)
      ON CONFLICT(email, line) DO UPDATE SET
        token = excluded.token, token_exp = excluded.token_exp,
-       stale = excluded.stale, updated_at = excluded.updated_at`
-  ).run({ email: key, line, token, tokenExp: tokenExp ?? null, stale: stale ? 1 : 0, now: nowIso() });
+       stale = excluded.stale, updated_at = excluded.updated_at,
+       refresh_token = CASE WHEN @setRefresh THEN excluded.refresh_token ELSE user_line_credentials.refresh_token END`
+  ).run({
+    email: key, line, token, tokenExp: tokenExp ?? null, stale: stale ? 1 : 0,
+    refreshToken: refreshToken ?? null, setRefresh: refreshToken !== undefined ? 1 : 0, now: nowIso(),
+  });
   return getLineCredential(key, line);
 }
 

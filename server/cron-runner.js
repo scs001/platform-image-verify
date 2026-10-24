@@ -690,6 +690,17 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
     const timeoutMs = turnTimeoutMs || 10 * 60 * 1000;
     const startedAt = Date.now();
 
+    // Pre-round credential renewal (add-line-credential-renewal D3 trigger ①):
+    // an unattended fleet post must never run on an expired line token. Degrade
+    // open — a renewal failure never fails the turn (the round then reports the
+    // honest unconnected state instead); a2a/tool shapes are covered too (tool
+    // posts read the credential live from the DB, remote turns are unaffected).
+    try {
+      await ctx.renewLineCredentialsForTurn?.();
+    } catch (e) {
+      console.warn(`[cron] pre-round credential renewal failed: ${e?.message || e}`);
+    }
+
     let out;
     if (job.targetType === "cluster") {
       out = await runClusterTurn(ctx, job, {

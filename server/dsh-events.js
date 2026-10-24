@@ -81,7 +81,7 @@ function markCredentialStaleOn401(ctx, toolName, resultText) {
   const serverName = /^mcp__(.+?)__/.exec(toolName)?.[1];
   if (!serverName) return;
   Promise.all([import("../extension-store.js"), import("../credential-refs.js"), import("node:fs"), import("node:path")])
-    .then(([extensionStore, credentialRefs, fs, nodePath]) => {
+    .then(async ([extensionStore, credentialRefs, fs, nodePath]) => {
       // The failing server may be a DB record (market installs) or a baseline
       // mcp.json row (the connector row) — resolve the config from either.
       let config = extensionStore.getMcpServer(serverName)?.config;
@@ -94,26 +94,56 @@ function markCredentialStaleOn401(ctx, toolName, resultText) {
       const entry = credentialRefs.refFor(config);
       if (!entry) return;
       const owner = ctx.runtimeOwnerEmail;
-      // false ⇒ already stale: the profile was re-applied then, so a run of
-      // 401s costs exactly one re-apply.
-      if (!entry.markInvalid(owner)) return;
-      console.warn(
-        `[${entry.refName}] 401 from MCP server "${serverName}" — credential for ${owner || "the machine owner"} marked invalid`,
-      );
-      ctx.broadcast?.({ type: entry.staleEvent });
-      // The server cannot authenticate any more; drop it from the effective
-      // profile now rather than leaving a call that fails every time. Groups
-      // are the last-applied owner's, so the role filter is preserved.
-      ctx
-        .dshUpdateMcp?.(ctx.runtimeMcpOverlay ?? null, ctx.runtimeOwnerGroups ?? null, owner)
-        ?.catch((e) => console.warn(`[${entry.refName}] profile update after stale mark failed: ${e.message}`));
-      // The wanxing-caller ref is served by the 词元 account key (ciyuan-account-lane):
-      // a stale account must also fall the cell's model lane back to the deployment seed.
-      if (entry.refName === "wanxing-caller") {
-        import("../dsh-profile.js")
-          .then((m) => m.ensureCredentialsStore({ cellOwnerEmail: ctx.cellUserEmail || null }))
-          .catch((e) => console.warn(`[ciyuan-account] credential store rewrite after stale mark failed: ${e.message}`));
+      const invalidate = () => {
+        // false ⇒ already stale: the profile was re-applied then, so a run of
+        // 401s costs exactly one re-apply.
+        if (!entry.markInvalid(owner)) return;
+        console.warn(
+          `[${entry.refName}] 401 from MCP server "${serverName}" — credential for ${owner || "the machine owner"} marked invalid`,
+        );
+        ctx.broadcast?.({ type: entry.staleEvent });
+        // The server cannot authenticate any more; drop it from the effective
+        // profile now rather than leaving a call that fails every time. Groups
+        // are the last-applied owner's, so the role filter is preserved.
+        ctx
+          .dshUpdateMcp?.(ctx.runtimeMcpOverlay ?? null, ctx.runtimeOwnerGroups ?? null, owner)
+          ?.catch((e) => console.warn(`[${entry.refName}] profile update after stale mark failed: ${e.message}`));
+        // The wanxing-caller ref is served by the 词元 account key (ciyuan-account-lane):
+        // a stale account must also fall the cell's model lane back to the deployment seed.
+        if (entry.refName === "wanxing-caller") {
+          import("../dsh-profile.js")
+            .then((m) => m.ensureCredentialsStore({ cellOwnerEmail: ctx.cellUserEmail || null }))
+            .catch((e) => console.warn(`[ciyuan-account] credential store rewrite after stale mark failed: ${e.message}`));
+        }
+      };
+      // Refresh-first for ID-token lines (add-line-credential-renewal D4): a
+      // stored refresh token means the 401 may be plain expiry — one
+      // server-side refresh recovers the NEXT round (this one is already
+      // spent). Only rows without refresh capability, or with a rejected
+      // refresh, fall through to invalidation.
+      if (typeof entry.renewOn401 === "function") {
+        let outcome = "no-refresh";
+        try {
+          outcome = await entry.renewOn401(owner);
+        } catch {
+          outcome = "failed";
+        }
+        if (outcome === "renewed") {
+          console.log(
+            `[${entry.refName}] 401 from MCP server "${serverName}" — renewed server-side for ${owner || "the machine owner"}; next round recovers`,
+          );
+          // Row re-stored with a fresh token; the Authorization diff inside
+          // dshUpdateMcp delivers it (restart when idle, deferred mid-turn).
+          ctx
+            .dshUpdateMcp?.(ctx.runtimeMcpOverlay ?? null, ctx.runtimeOwnerGroups ?? null, owner)
+            ?.catch((e) => console.warn(`[${entry.refName}] profile update after renewal failed: ${e.message}`));
+          return;
+        }
+        if (outcome === "failed") return invalidate();
+        // "no-refresh" → the row has no refresh token (legacy/manual paste):
+        // the legacy invalidation path clears it, browser re-mints on visit.
       }
+      invalidate();
     })
     .catch((e) => console.warn(`[credential-refs] stale detection failed: ${e.message}`));
 }

@@ -3,10 +3,13 @@
 //
 // Four refs, two lifecycle types:
 //   wire-customer / lex  — short-lived Logto ID tokens (aud = each line's own
-//     Logto SPA app; the browser mints them by PKCE + prompt=none against the
-//     shared Logto session and POSTs them here — the server NEVER mints, the
-//     upstream lines verify signature+audience themselves). Expired tokens are
-//     OMITTED from profiles; the browser re-mints on next platform visit.
+//     Logto SPA app). Minted by a server-driven PKCE round trip on the user's
+//     browser session (server/routes/line-credentials.js); the mint also
+//     stores the line's ROTATING refresh token (offline_access), which is
+//     renewed SERVER-SIDE (server/line-token-renewal.js,
+//     add-line-credential-renewal) so unattended fleet turns never need a
+//     browser. Expired tokens are still OMITTED from profiles — renewal's
+//     job is to keep that from ever being observable.
 //   wanxing-caller — a pasted long-lived sub2api `sk-` key (billing panel).
 //     401 flips stale (re-paste to recover), mirroring the connector family.
 //   wanxing-deployer — a pasted long-lived sub2api `sk-` key for cloud deployment.
@@ -22,6 +25,15 @@ export const WIRE_CUSTOMER_CREDENTIAL_REF = "wire-customer";
 export const LEX_CREDENTIAL_REF = "lex";
 export const WANXING_CALLER_CREDENTIAL_REF = "wanxing-caller";
 export const WANXING_DEPLOYER_CREDENTIAL_REF = "wanxing-deployer";
+
+// Per-line public auth-config endpoints (client_id/scopes/issuer — no
+// secrets). Shared by the mint route and the server-side renewal module; read
+// live at use time so a line rotating its SPA client needs no platform
+// redeploy. `ctx.lineMintTargets` overrides in tests.
+export const MINT_TARGETS = {
+  "wire-customer": { configUrl: "https://wire.finddatatech.cloud/api/console/auth/config" },
+  lex: { configUrl: "https://lex.finddatatech.cloud/api/console/auth/config" },
+};
 
 // ID-token lines: re-mint is browser-driven; stale is not used (clear on 401).
 const ID_TOKEN_LINES = new Set(["wire-customer", "lex"]);
@@ -69,8 +81,10 @@ export function status(email, line) {
 
 // Store a minted ID token (wire/lex) or pasted sk- (wanxing-caller). Shape
 // validation lives in the route; this layer accepts non-empty strings and
-// records the JWT exp when parseable.
-export function store({ email, line, token }) {
+// records the JWT exp when parseable. refreshToken (mint path only): a string
+// stores the freshly issued rotator, null honestly clears renewal capability;
+// undefined (a manual paste) keeps whatever chain the row already has.
+export function store({ email, line, token, refreshToken }) {
   if (!LINES.has(line)) return null;
   if (typeof token !== "string" || !token.trim()) return null;
   const key = ownerKey(email);
@@ -80,6 +94,7 @@ export function store({ email, line, token }) {
     token: token.trim(),
     tokenExp: tokenExpiry(token.trim()),
     stale: 0,
+    ...(refreshToken !== undefined ? { refreshToken } : {}),
   });
   return status(key, line);
 }
@@ -103,21 +118,65 @@ function tokenExpiry(token) {
 }
 
 // 401 from a line MCP tool.
-//   ID-token lines: drop the cache — the browser re-mints on next visit.
+//   ID-token lines WITH a refresh token: flip stale (the row is a recovery
+//     path — renewal or a fresh mint revives it; never clear the chain away).
+//   ID-token lines without one (legacy/manual paste): drop the cache — the
+//     browser re-mints on next visit.
 //   wanxing-caller: flip stale (facet-market semantics; re-paste to recover).
 // Returns true when state changed (= re-apply exactly once).
 export function markInvalid(email, line) {
   const key = ownerKey(email);
-  const row = db.getLineCredential(key, line);
+  const row = db.getLineCredentialWithRefresh(key, line);
   if (!row) return false;
   if (ID_TOKEN_LINES.has(line)) {
     if (!row.token) return false;
+    if (row.refreshToken) {
+      if (row.stale) return false;
+      db.markLineCredentialStale(key, line);
+      return true;
+    }
     db.clearLineCredential(key, line);
     return true;
   }
   if (row.stale) return false;
   db.markLineCredentialStale(key, line);
   return true;
+}
+
+// ── Server-side renewal (add-line-credential-renewal D2/D4) ─────────────────
+// The refresh attempt itself lives in server/line-token-renewal.js (it needs
+// the line's auth config and a fetch). Injected here at boot to keep the
+// lib→server dependency direction clean; absent = degraded boot, no renewal.
+
+let refreshAttempt = null;
+export function setRefreshAttempt(fn) {
+  refreshAttempt = typeof fn === "function" ? fn : null;
+}
+
+// Secret-bearing state for the renewal module: refresh token + expiry without
+// the projection layer. Never exposed through status/liveToken.
+export function renewalState(email, line) {
+  return db.getLineCredentialWithRefresh(ownerKey(email), line);
+}
+
+export function markStale(email, line) {
+  return db.markLineCredentialStale(ownerKey(email), line);
+}
+
+// The 401 safety net (design D4): before invalidating an ID-token row, try one
+// server-side refresh. The current round is already lost either way; a live
+// chain recovers the NEXT one. "no-refresh" → caller falls through to
+// markInvalid's clear branch; "renewed" → row re-stored, caller re-applies;
+// "failed" → caller flips the row stale via markInvalid.
+export async function renewOn401(email, line) {
+  const key = ownerKey(email);
+  const row = db.getLineCredentialWithRefresh(key, line);
+  if (!row?.refreshToken || !refreshAttempt) return "no-refresh";
+  try {
+    return (await refreshAttempt({ email: key, line })) ? "renewed" : "failed";
+  } catch {
+    return "failed";
+  }
 }
 
 // The token to inject into the effective profile, or null when there is none

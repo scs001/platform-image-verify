@@ -19,7 +19,7 @@ import {
   MEMBER_TARGET_KINDS,
 } from "./fleets-db.js";
 import { reconcileFleet, deriveMemberStatus, cronPeriodMs } from "../fleet-reconcile.js";
-import { expandedEdges, dispatchAllowed } from "../fleet-orchestration.js";
+import { validateOrchestration, expandedEdges, dispatchAllowed, constraintsOf } from "../fleet-orchestration.js";
 import { splitToolTarget } from "../tool-turn.js";
 import { resolveServerEndpoint, resolveStdioServerConfig } from "../../lib/action-executor.js";
 import { fleetModelChoiceError, resolveModelChain } from "../fleet-model.js";

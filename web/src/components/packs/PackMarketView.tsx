@@ -83,10 +83,11 @@ export function PackMarketView({
   // Publish the inspected pack for the copilot dock (add-facet-copilot D2):
   // opening/switching publishes the pack, closing publishes null. The packs
   // array is the name/version source of truth (the id is all the dialog owns).
-  const inspectedPack = detailId ? packs.find((p) => p.id === detailId) ?? null : null;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the dock context keys on the inspected pack's id — a name/version refresh mid-inspection must not re-fire it, so only the id (via detailId) is the trigger
   useEffect(() => {
-    publishPackInspection(inspectedPack && { id: inspectedPack.id, name: inspectedPack.name, version: inspectedPack.version });
-  }, [inspectedPack?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- id change covers name/version at this granularity
+    const pack = detailId ? packs.find((p) => p.id === detailId) ?? null : null;
+    publishPackInspection(pack && { id: pack.id, name: pack.name, version: pack.version });
+  }, [detailId]);
   useEffect(() => () => publishPackInspection(null), []);
 
   // Agent-count filter state rides the URL (?agents=2-3) so a refresh keeps

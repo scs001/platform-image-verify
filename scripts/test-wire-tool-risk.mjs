@@ -54,7 +54,7 @@ test("A: the eight wire actions exist, line=wire, and match the snapshot tool + 
 });
 
 test("A: snapshot covers exactly the 12 declared write tools and every action tool is one of them", () => {
-  assert.equal(snapshot.WIRE_WRITE_TOOLS.length, 14, "write-tool universe size (12 + 源包订阅/退订 add-pack-subscribe-actions)");
+  assert.equal(snapshot.WIRE_WRITE_TOOLS.length, 16, "write-tool universe size (12 + 源包订阅/退订 add-pack-subscribe-actions + 产物看板/文档构建 add-wire-artifact-build-surface)");
   assert.deepEqual(snapshot.WIRE_WRITE_TOOLS, [...snapshot.WIRE_WRITE_TOOLS].sort(), "sorted");
   for (const [action, tool] of Object.entries(snapshot.WIRE_ACTION_TOOLS)) {
     assert.ok(snapshot.isWireWriteTool(tool), `${action} → ${tool} missing from tool_risk`);

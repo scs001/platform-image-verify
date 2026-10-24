@@ -100,6 +100,11 @@ export interface PackManifest {
   skills?: PackManifestSkill[];
   mcpServers?: PackManifestMcp[];
   agents?: PackManifestAgent[];
+  // Bot units (pack-bot-units): generic bot type references with an optional
+  // single mounted skill. No credentials, endpoints or platform parameters
+  // ever ride the manifest; the cell's operator configures the channel after
+  // install.
+  bots?: PackManifestBot[];
   // Cluster declaration (agent-cluster-platform): present when the pack
   // composes its agents into a shareable cluster — default vs optional
   // membership and an optional scheduling policy.
@@ -110,6 +115,17 @@ export interface PackManifest {
     optionalAgents?: string[];
     schedulingPolicy?: { maxConcurrentRuns?: number; preferredRunner?: string };
   };
+}
+
+// Bot units (pack-bot-units): the pack's third content primitive — a generic
+// bot type reference (v1: "channel") with an optional mounted skill from the
+// pack's own skills section.
+export interface PackManifestBot {
+  id: string;
+  name: string;
+  generic: string;
+  description: string;
+  skill?: string;
 }
 
 export interface PackDetail extends PackSummary {
@@ -134,6 +150,9 @@ export interface PackReport {
   skills: { name: string; status: PackPartStatus; reason?: string; fileCount?: number; scriptFiles?: string[] }[];
   mcpServers: { name: string; status: PackPartStatus; reason?: string; code?: string }[];
   agents: { id: string; name: string; status: PackPartStatus; reason?: string }[];
+  // Bot units (pack-bot-units): optional because reports persisted before the
+  // primitive carry no bots array — render `report.bots ?? []`.
+  bots?: { id: string; name: string; status: PackPartStatus; reason?: string; awaitingCredential?: boolean }[];
 }
 
 export interface InstalledPack {

@@ -1710,7 +1710,8 @@
       "files": "{{count}} 个辅助文件",
       "filesWithScripts": "{{count}} 个辅助文件（含脚本：{{scripts}}）",
       "nextHintCluster": "装好了。去对话整组开工——已为你自动切换到带头角色。",
-      "openChatCluster": "去对话并载入整组"
+      "openChatCluster": "去对话并载入整组",
+      "bot": "机器人"
     },
     "mine": {
       "empty": "还没有订阅任何功能集。去市场看看。",
@@ -1720,10 +1721,11 @@
     },
     "uninstall": {
       "title": "退订「{{name}}」",
-      "willRemove": "将移除以下技能和角色：",
+      "willRemove": "将移除以下技能、角色与机器人：",
       "mcpKept": "MCP 服务配置会保留（共享组件）：{{servers}}",
       "modifiedWarning": "这些技能在你安装后被修改过，退订将丢失修改：{{skills}}",
-      "confirm": "确认退订"
+      "confirm": "确认退订",
+      "botsCredentialsKept": "被移除机器人的通道凭据将保留、可被复用：{{bots}}"
     },
     "drafts": {
       "title": "我的创作",

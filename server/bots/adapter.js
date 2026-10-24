@@ -44,6 +44,17 @@ export function getAdapter(type) {
   return adapters()[type] ?? null;
 }
 
+// Resolve a bot ROW's adapter (pack-bot-units). A plain row names its platform
+// in `type`. A generic-type row (v1: "channel", born from a pack install)
+// defers the platform choice to the operator's binding inside credentials —
+// the pack never picks a platform, it only references the generic type. Null
+// until the operator configures the binding (the bot stays awaiting-connection
+// and no runtime entry exists, so nothing is reachable).
+export function adapterForBot(bot) {
+  if (bot?.type === "channel") return getAdapter(bot.credentials?.platform);
+  return getAdapter(bot?.type);
+}
+
 // Adapter-declared credential fields, for the config form and save validation.
 export function credentialFieldsFor(type) {
   return getAdapter(type)?.credentialFields ?? [];
@@ -56,8 +67,20 @@ export function qrCapabilityFor(type) {
 }
 
 // Reject a save whose credentials miss a required field. Returns an error
-// string, or null when the credentials are acceptable.
+// string, or null when the credentials are acceptable. A generic channel row
+// (pack-bot-units) validates against its platform binding: the binding must
+// name one of the four platforms, then that platform's required fields apply.
 export function validateCredentials(type, credentials) {
+  if (type === "channel") {
+    const platform = credentials?.platform;
+    if (!BOT_TYPES.includes(platform)) {
+      return `Channel bot needs a platform binding (credentials.platform: one of ${BOT_TYPES.join(", ")})`;
+    }
+    const missing = (getAdapter(platform)?.credentialFields ?? [])
+      .filter((f) => f.required !== false && !String(credentials[f.key] ?? "").trim())
+      .map((f) => f.key);
+    return missing.length ? `Missing credentials: ${missing.join(", ")}` : null;
+  }
   const adapter = getAdapter(type);
   if (!adapter) return `Unknown bot type "${type}"`;
   const missing = adapter.credentialFields

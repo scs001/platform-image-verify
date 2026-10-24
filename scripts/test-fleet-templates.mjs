@@ -4,6 +4,17 @@
 //   - parseFleetTemplate: the legal manifest passes; cycle / bad cron /
 //     missing fields / duplicate refs / bad target kinds / oversized slots
 //     all refuse with the offending member named
+//   - orchestration-in-templates (add-mixed-fleet-packs group A): the
+//     fleet.orchestration section parses through the SAME pure validator
+//     the live write face uses (member set = template members) — legal
+//     sections pass verbatim, ghost refs / unknown kinds / banned shapes
+//     refuse structured, an ABSENT section keeps the parse output
+//     byte-identical; tool/bot target kinds parse with their shape gates
+//   - provisioner + orchestration: the section lands with the fleet (refs
+//     rewritten to member ids, degraded posts' edges land too, mode-only
+//     sections land verbatim), re-provisioning dedups and never rewrites
+//     the owner's later hand-edits; tool/bot targets resolve or degrade
+//     per post; export round-trips the live section through the parser
 //   - exporter whitelist: the skeleton round-trips through the same parser
 //     and carries ZERO runtime traces (reports/decisions/sessions/owner)
 //   - provisioner: dedup by sourceTemplate anchor; per-post degradation
@@ -15,7 +26,11 @@
 //   - cockpit aggregate: one round-trip with tree/decisions(severity-first)/
 //     stream(missing-first)/health/template segments, field-compatible with
 //     the previous knives' read faces
-//   - from-template route: happy path, dedup response, unknown pack refusal
+//   - from-template route: happy path, dedup response, unknown pack refusal;
+//     bot targets resolve through resolveTarget's bots-store branch
+//   - official seed library conservation: every seed passes the fleet gate
+//     INCLUDING its orchestration section, and each seed's edges match its
+//     narrative (pipeline → trigger+handoff/dispatch; inbound wake → event)
 //
 // Run: node --test scripts/test-fleet-templates.mjs
 
@@ -463,11 +478,31 @@ test("from-template route: conflict surfaces, sentinel reads vacant, swap staffs
 // Every seed under docs/fleet-templates/ is the manifest source of truth for a
 // market-published pack. Rot (an illegal fleet section) must fail HERE, naming
 // the offending file — not surface at casting time on the market side.
+// Since add-mixed-fleet-packs the gate ALSO covers each seed's orchestration
+// section (parseFleetTemplate validates it with the live write face's
+// validator), and the narrative contract is pinned per file: pipeline
+// narratives carry trigger+handoff/dispatch chains, the inbound-wake narrative
+// carries a bot: event edge (spec: 官方种子库守恒).
+
+// Per-file narrative floor: each seed's orchestration must carry AT LEAST
+// these edge kinds (counts are minimums, the stories may grow).
+const SEED_ORCHESTRATION_NARRATIVE = {
+  "company-fleet.seed.json": { dispatch: 1 }, // supervisor-style CEO dispatch
+  "content-factory-fleet.seed.json": { trigger: 1, handoff: 2, dispatch: 1 }, // weekly pipeline
+  "intel-brief-fleet.seed.json": { trigger: 1, handoff: 1 }, // patrol→handoff→digest chain
+  "invest-morning-fleet.seed.json": { trigger: 1, handoff: 1 }, // cascade morning meeting
+  "service-desk-fleet.seed.json": { trigger: 1, event: 1 }, // inbound bot wake
+};
 
 test("official seed library: every manifest passes the fleet-section gate", async () => {
   const dir = new URL("../docs/fleet-templates/", import.meta.url);
   const files = fs.readdirSync(dir).filter((f) => f.endsWith(".seed.json")).sort();
   assert.ok(files.length >= 5, `expected the seed library to hold at least 5 seeds, found ${files.length}`);
+  assert.deepEqual(
+    files.filter((f) => SEED_ORCHESTRATION_NARRATIVE[f]),
+    Object.keys(SEED_ORCHESTRATION_NARRATIVE).sort(),
+    "every official fleet seed has a narrative entry here — new seeds must declare one",
+  );
 
   for (const file of files) {
     const raw = JSON.parse(fs.readFileSync(new URL(file, dir), "utf8"));
@@ -489,6 +524,22 @@ test("official seed library: every manifest passes the fleet-section gate", asyn
     const agentIds = (raw.agents ?? []).map((a) => a.id);
     assert.deepEqual([...presetIds].sort(), [...agentIds].sort(), `${file}: agents[] and pack-preset posts must correspond 1:1`);
 
+    // Orchestration conservation (add-mixed-fleet-packs 1.6): every seed
+    // carries a section, it cleared the shared validator above (parse fails
+    // otherwise), and its edge-kind census meets the narrative floor.
+    const orchestration = parsed.template.orchestration;
+    assert.ok(orchestration && Array.isArray(orchestration.edges) && orchestration.edges.length > 0, `${file}: seed must carry an orchestration section with edges`);
+    const census = {};
+    for (const e of orchestration.edges) census[e.kind] = (census[e.kind] ?? 0) + 1;
+    for (const [kind, min] of Object.entries(SEED_ORCHESTRATION_NARRATIVE[file] ?? {})) {
+      assert.ok((census[kind] ?? 0) >= min, `${file}: narrative needs ≥${min} '${kind}' edge(s), found ${census[kind] ?? 0}`);
+    }
+    // Inbound-wake seeds: the event edge must be an external bot: source
+    // waking an in-set post (the validator pins the rest).
+    for (const e of orchestration.edges.filter((x) => x.kind === "event")) {
+      assert.match(e.from, /^bot:/, `${file}: event edge from must be an external bot: source`);
+    }
+
     assert.ok(
       parsed.template.members.every((m) => !m.cadence || m.cadence.promptTemplate.includes("{{fleetContext}}")),
       `${file}: every cadence template carries the patrol placeholder`,
@@ -505,4 +556,295 @@ test("official seed manifest (company fleet) passes the fleet-section gate", asy
   assert.equal(parsed.template.members.length, 7);
   assert.equal(parsed.template.members.filter((m) => m.cadence).length, 6, "six cadence posts + one passive (内容部)");
   assert.ok(parsed.template.members.every((m) => !m.cadence || m.cadence.promptTemplate.includes("{{fleetContext}}")), "every cadence template carries the patrol placeholder");
+});
+
+// ── orchestration-in-templates (add-mixed-fleet-packs, group A) ────────────
+
+// goodManifest() + a pipeline orchestration section. 'shop' DEGRADES under the
+// default deps (tpl-shop absent from the catalog) — on purpose: the degraded
+// post's edges must land anyway (edges reference posts, not targets).
+function orchestrationManifest() {
+  const manifest = goodManifest();
+  manifest.fleet.orchestration = {
+    edges: [
+      { kind: "trigger", to: "ceo", cron: "0 * * * *" },
+      { kind: "handoff", from: "ceo", to: "shop" },
+      { kind: "dispatch", from: "shop", to: "assist" },
+    ],
+  };
+  return manifest;
+}
+
+test("orchestration parse: legal section passes verbatim; ghosts/unknown kinds/banned shapes refuse; absent section stays byte-identical", () => {
+  // Legal: carried through untouched.
+  const legal = parseFleetTemplate(orchestrationManifest());
+  assert.equal(legal.ok, true, legal.error);
+  assert.deepEqual(legal.template.orchestration, orchestrationManifest().fleet.orchestration);
+
+  // Ghost ref: the refusal names the edge AND the missing post (spec
+  // scenario: 编导引用成员集外岗位被拒).
+  const ghost = orchestrationManifest();
+  ghost.fleet.orchestration.edges[1].to = "ghost";
+  const refused = parseFleetTemplate(ghost);
+  assert.equal(refused.ok, false);
+  assert.match(refused.error, /fleet\.orchestration/);
+  assert.match(refused.error, /does not match a member/);
+  assert.ok(Array.isArray(refused.errors) && refused.errors.length > 0, "structured errors ride along");
+
+  // Unknown edge kind.
+  const mystery = orchestrationManifest();
+  mystery.fleet.orchestration.edges[1].kind = "mystery";
+  assert.match(parseFleetTemplate(mystery).error, /kind must be one of/);
+
+  // Banned shape: edges not an array.
+  const notArray = orchestrationManifest();
+  notArray.fleet.orchestration.edges = { 0: "nope" };
+  assert.match(parseFleetTemplate(notArray).error, /edges must be an array/);
+
+  // Banned target: an event edge may only wake persona/a2a posts — the
+  // cluster member 'shop'… shop is a preset (persona), so use a real cluster.
+  const evBad = goodManifest();
+  evBad.fleet.members.push({ ref: "clu", title: "集群岗", parentRef: "ceo", target: { kind: "existing-cluster", id: "clu-1" }, cadence: null });
+  evBad.fleet.orchestration = { edges: [{ kind: "event", from: "bot:helper", to: "clu" }] };
+  assert.match(parseFleetTemplate(evBad).error, /persona\/a2a post/);
+  // …and the legal twin passes (persona target).
+  const evOk = goodManifest();
+  evOk.fleet.orchestration = { edges: [{ kind: "event", from: "bot:helper", to: "assist" }] };
+  assert.equal(parseFleetTemplate(evOk).ok, true, parseFleetTemplate(evOk).error);
+
+  // Explicit null = "explicitly no edges" — passes and rides along (the live
+  // write face treats null the same way).
+  const nullSection = goodManifest();
+  nullSection.fleet.orchestration = null;
+  const parsedNull = parseFleetTemplate(nullSection);
+  assert.equal(parsedNull.ok, true);
+  assert.equal(parsedNull.template.orchestration, null);
+
+  // ABSENT section: byte-identical short-circuit — the parse output carries
+  // no orchestration key and deep-equals the key-less parse, whether the
+  // section was never there or explicitly undefined.
+  const base = parseFleetTemplate(goodManifest()).template;
+  assert.equal("orchestration" in base, false);
+  const explicitUndefined = goodManifest();
+  explicitUndefined.fleet.orchestration = undefined;
+  assert.deepEqual(parseFleetTemplate(explicitUndefined).template, base);
+});
+
+test("orchestration parse: tool and bot target kinds take their shape gates", () => {
+  const toolManifest = () => {
+    const m = goodManifest();
+    m.fleet.members.push({
+      ref: "toolpost", title: "工具岗", parentRef: "ceo",
+      target: { kind: "tool", id: "server::tool" }, cadence: null,
+    });
+    return m;
+  };
+
+  // Legal tool target + a handoff edge carrying its JSON args.
+  const okTool = toolManifest();
+  okTool.fleet.orchestration = { edges: [{ kind: "handoff", from: "ceo", to: "toolpost", args: { tool: "run" } }] };
+  const parsedTool = parseFleetTemplate(okTool);
+  assert.equal(parsedTool.ok, true, parsedTool.error);
+  assert.equal(parsedTool.template.members.at(-1).target.kind, "tool");
+
+  // Illegal tool shape: the id must be the 'namespace::tool' contract.
+  const badTool = toolManifest();
+  badTool.fleet.members.at(-1).target.id = "not-a-tool-name";
+  assert.match(parseFleetTemplate(badTool).error, /tool target\.id must be 'server::tool'/);
+
+  // A tool member WITH cadence: the prompt IS the tool's args — a JSON object.
+  const toolCadence = toolManifest();
+  toolCadence.fleet.members.at(-1).cadence = { cron: "0 9 * * *", promptTemplate: '{"query":"daily"}' };
+  assert.equal(parseFleetTemplate(toolCadence).ok, true);
+  const toolCadenceBad = toolManifest();
+  toolCadenceBad.fleet.members.at(-1).cadence = { cron: "0 9 * * *", promptTemplate: "not json" };
+  assert.match(parseFleetTemplate(toolCadenceBad).error, /must be a JSON object/);
+
+  // Bot target: any bot id (pack bot or incumbent) — shape gate is just "an
+  // id"; existence is an instantiation-time fact.
+  const botManifest = goodManifest();
+  botManifest.fleet.members.push({ ref: "botpost", title: "客服 bot 岗", parentRef: "ceo", target: { kind: "bot", id: "bot_desk" }, cadence: null });
+  botManifest.fleet.orchestration = { edges: [{ kind: "event", from: "bot:bot_desk", to: "botpost" }] };
+  // event 'to' must be persona/a2a — a bot POST is not woken by events (it
+  // IS the source); the wake lane is event→persona/a2a. Use dispatch instead.
+  const evToBot = parseFleetTemplate(botManifest);
+  assert.equal(evToBot.ok, false, "event edges cannot wake a bot post");
+  assert.match(evToBot.error, /persona\/a2a post/);
+  botManifest.fleet.orchestration = { edges: [{ kind: "dispatch", from: "ceo", to: "botpost" }] };
+  const parsedBot = parseFleetTemplate(botManifest);
+  assert.equal(parsedBot.ok, true, parsedBot.error);
+  assert.equal(parsedBot.template.members.at(-1).target.kind, "bot");
+
+  const botNoId = goodManifest();
+  botNoId.fleet.members.push({ ref: "botpost", title: "无 id bot 岗", parentRef: "ceo", target: { kind: "bot" }, cadence: null });
+  assert.match(parseFleetTemplate(botNoId).error, /bot target needs an id/);
+});
+
+test("provisioner: orchestration lands with the fleet — refs rewritten to member ids, degraded posts' edges land, first trigger parks", async () => {
+  const deps = provisionDeps(); // shop (tpl-shop) degrades, assist resolves
+  const out = await provisionFleetFromTemplate({ packId: "pack_orch", version: "1.0.0", manifest: orchestrationManifest(), ownerEmail: "owner@test", deps });
+  assert.equal(out.ok, true, out.error);
+  assert.deepEqual(out.missing.map((m) => m.ref), ["shop"], "the degraded post is per-post, never the fleet");
+
+  // The section landed on the fleet with REFS swapped for member ids — and
+  // the handoff INTO the degraded shop post landed anyway (edges reference
+  // posts, not the targets behind them).
+  const fleet = fleetDb.getFleet(out.fleet.id);
+  const { memberIdByRef } = out;
+  assert.ok(fleet.orchestration, "the fleet is born carrying its edges");
+  const handoff = fleet.orchestration.edges.find((e) => e.kind === "handoff");
+  assert.equal(handoff.from, memberIdByRef.ceo);
+  assert.equal(handoff.to, memberIdByRef.shop, "the degraded post's edge landed");
+  const trigger = fleet.orchestration.edges.find((e) => e.kind === "trigger");
+  assert.equal(trigger.to, memberIdByRef.ceo);
+  // Trigger cadence materialization stays the ordinary paused-at-birth story.
+  const tasks = cron.listJobs().filter((j) => j.sourceTag?.fleetId === out.fleet.id);
+  assert.ok(tasks.length >= 1 && tasks.every((t) => t.paused), "first trigger materialization parks (待启动)");
+
+  // No section → the fleet is born with none (absent stays absent — the row
+  // deserializes a NULL column as null).
+  const plain = await provisionFleetFromTemplate({ packId: "pack_plain", version: "1.0.0", manifest: goodManifest(), ownerEmail: "owner@test", deps });
+  assert.equal(plain.ok, true);
+  assert.ok(!fleetDb.getFleet(plain.fleet.id).orchestration);
+});
+
+test("provisioner: mode-only orchestration lands verbatim (no edges key)", async () => {
+  const manifest = goodManifest();
+  manifest.fleet.orchestration = { mode: "supervisor" };
+  const deps = provisionDeps({ catalogIds: new Set(["tpl-ceo", "tpl-shop", "user-assist"]) });
+  const out = await provisionFleetFromTemplate({ packId: "pack_super", version: "1.0.0", manifest, ownerEmail: "owner@test", deps });
+  assert.equal(out.ok, true, out.error);
+  assert.deepEqual(fleetDb.getFleet(out.fleet.id).orchestration, { mode: "supervisor" });
+});
+
+test("provisioner: re-provision dedups and never rewrites the owner's orchestration", async () => {
+  const deps = provisionDeps({ catalogIds: new Set(["tpl-ceo", "tpl-shop", "user-assist"]) });
+  const manifest = orchestrationManifest();
+  const first = await provisionFleetFromTemplate({ packId: "pack_re", version: "1.0.0", manifest, ownerEmail: "owner@test", deps });
+  assert.equal(first.ok, true);
+
+  // The owner hand-rewrites the section through the write face after birth.
+  const ownerEdge = { kind: "handoff", from: first.memberIdByRef.shop, to: first.memberIdByRef.ceo };
+  fleetDb.updateFleet(first.fleet.id, { orchestration: { edges: [ownerEdge] } });
+
+  const again = await provisionFleetFromTemplate({ packId: "pack_re", version: "2.0.0", manifest, ownerEmail: "owner@test", deps });
+  assert.equal(again.ok, true);
+  assert.equal(again.deduped, true, "no twin fleet");
+  assert.equal(again.fleet.id, first.fleet.id);
+  assert.deepEqual(
+    fleetDb.getFleet(first.fleet.id).orchestration.edges,
+    [ownerEdge],
+    "the owner's rewrite survives re-provisioning — the template never rewrites a live fleet's section",
+  );
+});
+
+test("exporter: the live orchestration section round-trips through the parser", async () => {
+  // A live fleet carrying a hand-written section (member ids in the edges).
+  const deps = provisionDeps({ catalogIds: new Set(["tpl-ceo", "tpl-shop", "user-assist"]) });
+  const src = await provisionFleetFromTemplate({ packId: "pack_exp", version: "1.0.0", manifest: orchestrationManifest(), ownerEmail: "owner@test", deps });
+  const fleet = fleetDb.getFleet(src.fleet.id);
+  const members = fleetDb.listMembers(fleet.id);
+
+  const exported = exportFleetToTemplate(fleet, members);
+  // The export's refs ARE the member ids, so the section re-parses unchanged.
+  const parsed = parseFleetTemplate(exported);
+  assert.equal(parsed.ok, true, parsed.error);
+  assert.deepEqual(parsed.template.orchestration, fleet.orchestration, "export → parse keeps every edge byte-for-byte");
+});
+
+test("provisioner: tool targets — routable resolves, dead server degrades to a vacant post whose edges land", async () => {
+  const toolManifest = () => {
+    const m = goodManifest();
+    m.fleet.members.push({
+      ref: "toolpost", title: "工具岗", parentRef: "ceo",
+      target: { kind: "tool", id: "server::tool" }, cadence: null,
+    });
+    m.fleet.orchestration = { edges: [{ kind: "handoff", from: "ceo", to: "toolpost", args: { query: "hi" } }] };
+    return m;
+  };
+
+  // Resolves: the post holds the tool name, nothing is missing.
+  const okDeps = provisionDeps({ catalogIds: new Set(["tpl-ceo", "tpl-shop", "user-assist"]) });
+  okDeps.resolveExisting = ({ kind, id }) => (kind === "tool" ? true : id !== "ghost");
+  const ok = await provisionFleetFromTemplate({ packId: "pack_tool_ok", version: "1.0.0", manifest: toolManifest(), ownerEmail: "owner@test", deps: okDeps });
+  assert.equal(ok.ok, true);
+  assert.deepEqual(ok.missing, []);
+  const toolPost = fleetDb.listMembers(ok.fleet.id).find((m) => m.title === "工具岗");
+  assert.equal(toolPost.targetKind, "tool");
+  assert.equal(toolPost.targetId, "server::tool");
+
+  // Dead server: same philosophy as a2a — the post degrades to vacant, the
+  // handoff-into-tool edge lands anyway.
+  const deadDeps = provisionDeps({ catalogIds: new Set(["tpl-ceo", "tpl-shop", "user-assist"]) });
+  deadDeps.resolveExisting = ({ kind }) => (kind === "tool" ? false : true);
+  const dead = await provisionFleetFromTemplate({ packId: "pack_tool_dead", version: "1.0.0", manifest: toolManifest(), ownerEmail: "owner@test", deps: deadDeps });
+  assert.equal(dead.ok, true);
+  assert.deepEqual(dead.missing.map((m) => m.ref), ["toolpost"], "unroutable tool server → per-post degradation");
+  const landed = fleetDb.getFleet(dead.fleet.id).orchestration.edges.find((e) => e.kind === "handoff");
+  assert.equal(landed.to, dead.memberIdByRef.toolpost, "the edge into the vacant tool post landed");
+});
+
+test("provisioner: bot targets — incumbent resolves, missing instance degrades", async () => {
+  const botManifest = () => {
+    const m = goodManifest();
+    m.fleet.members.push({ ref: "botpost", title: "客服 bot 岗", parentRef: "ceo", target: { kind: "bot", id: "bot_desk_tpl" }, cadence: null });
+    m.fleet.orchestration = { edges: [{ kind: "dispatch", from: "ceo", to: "botpost" }] };
+    return m;
+  };
+
+  const hereDeps = provisionDeps({ catalogIds: new Set(["tpl-ceo", "tpl-shop", "user-assist"]) });
+  hereDeps.resolveExisting = ({ kind, id }) => (kind === "bot" ? id === "bot_desk_tpl" : id !== "ghost");
+  const here = await provisionFleetFromTemplate({ packId: "pack_bot_ok", version: "1.0.0", manifest: botManifest(), ownerEmail: "owner@test", deps: hereDeps });
+  assert.equal(here.ok, true);
+  assert.deepEqual(here.missing, []);
+  const botPost = fleetDb.listMembers(here.fleet.id).find((m) => m.title === "客服 bot 岗");
+  assert.equal(botPost.targetKind, "bot");
+  assert.equal(botPost.targetId, "bot_desk_tpl");
+
+  const goneDeps = provisionDeps({ catalogIds: new Set(["tpl-ceo", "tpl-shop", "user-assist"]) });
+  goneDeps.resolveExisting = ({ kind, id }) => (kind === "bot" ? false : id !== "ghost");
+  const gone = await provisionFleetFromTemplate({ packId: "pack_bot_gone", version: "1.0.0", manifest: botManifest(), ownerEmail: "owner@test", deps: goneDeps });
+  assert.equal(gone.ok, true);
+  assert.deepEqual(gone.missing.map((m) => m.ref), ["botpost"], "missing bot instance → 待补岗, never fleet failure");
+  const dispatch = fleetDb.getFleet(gone.fleet.id).orchestration.edges.find((e) => e.kind === "dispatch");
+  assert.equal(dispatch.to, gone.memberIdByRef.botpost, "the edge referencing the post (not the bot) landed");
+});
+
+test("route: from-template resolves bot targets through resolveTarget's bots-store branch", async () => {
+  const manifest = goodManifest();
+  manifest.fleet.members.push({ ref: "botpost", title: "客服 bot 岗", parentRef: "ceo", target: { kind: "bot", id: "bot_route_tpl" }, cadence: null });
+  seedInstalledPack("pack_bot_route", "1.0.0", manifest);
+
+  const app = express();
+  app.use(express.json());
+  createFleetRoutes(app, { authEnabled: false, cellUserEmail: "owner@test", fleetTargetResolver: ALIVE, currentPreset: null });
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((r) => server.once("listening", r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const call = (method, p, body) =>
+    fetch(`${base}${p}`, { method, headers: body !== undefined ? { "content-type": "application/json" } : {}, body: body !== undefined ? JSON.stringify(body) : undefined })
+      .then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }));
+
+  try {
+    // No bot instance in the cell yet → the post degrades (missing), pack
+    // bots and incumbents resolve through the SAME store.
+    const vacant = await call("POST", "/api/fleets/from-template", { packId: "pack_bot_route" });
+    assert.equal(vacant.status, 201);
+    assert.ok(vacant.body.missing.some((m) => m.ref === "botpost"), "absent bot → 待补岗 via resolveTarget");
+
+    // Dissolve the vacant fleet, materialize the incumbent (an
+    // operator-configured channel bot), re-provision — now the branch
+    // resolves alive (same owner re-runs would dedup onto the old fleet).
+    const gone = await call("DELETE", `/api/fleets/${vacant.body.fleet.id}`);
+    assert.equal(gone.status, 200);
+    dbModule.addBot({ id: "bot_route_tpl", type: "feishu", name: "客服通道", credentials: {}, secret: "s" });
+    const staffed = await call("POST", "/api/fleets/from-template", { packId: "pack_bot_route" });
+    assert.equal(staffed.status, 201);
+    assert.equal(staffed.body.missing.some((m) => m.ref === "botpost"), false, "present bot resolves through the bots store");
+    const post = fleetDb.listMembers(staffed.body.fleet.id).find((m) => m.title === "客服 bot 岗");
+    assert.equal(post.targetKind, "bot");
+    assert.equal(post.targetId, "bot_route_tpl");
+  } finally {
+    server.close();
+  }
 });

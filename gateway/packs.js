@@ -141,13 +141,15 @@ async function collectPublishVerdict(manifest, { shortCircuit = false } = {}) {
     }
   }
   // Fleet-template gate (agent-fleet-templates D2): a manifest that carries a
-  // fleet section must pass the shared template parser — cycles, bad crons and
-  // missing fields stop at the mint, never reaching the market. A manifest
+  // fleet section must pass the shared template parser — cycles, bad crons,
+  // missing fields AND the orchestration section (validated by the same pure
+  // validator the live write face uses, over the template member set —
+  // mixed-fleet D3) stop at the mint, never reaching the market. A manifest
   // WITHOUT the section skips this gate entirely: plain packs are untouched.
   if (manifest && manifest.fleet !== undefined && manifest.fleet !== null) {
     const fleet = parseFleetTemplate(manifest);
     if (!fleet.ok) {
-      push("fleetTemplate", 400, { error: "Invalid fleet template", errors: [fleet.error] });
+      push("fleetTemplate", 400, { error: "Invalid fleet template", errors: fleet.errors ?? [fleet.error] });
       if (shortCircuit) return items;
     }
   }

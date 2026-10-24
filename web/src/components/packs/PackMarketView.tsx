@@ -365,6 +365,19 @@ export function PackMarketView({
                   {a.reason && <span className="text-xs text-destructive w-full">{a.reason}</span>}
                 </div>
               ))}
+              {/* Bot units (pack-bot-units): mirror the agents rows; an
+                  awaiting-credential bot is information, not an error — the
+                  operator's channel setup is the explicit next step. */}
+              {(report.bots ?? []).map((b) => (
+                <div key={b.id} className="flex gap-2" data-testid={`pack-report-bot-${b.id}`}>
+                  <span className="text-muted-foreground w-20 shrink-0">{t("packs.report.bot")}</span>
+                  <span className="text-foreground">{b.name}</span>
+                  <span className="ml-auto">{statusLabel(t, b.status)}</span>
+                  {b.reason && (
+                    <span className="text-xs text-muted-foreground w-full">{b.reason}</span>
+                  )}
+                </div>
+              ))}
             </div>
             <div className="flex justify-end mt-4">
               <Button size="sm" onClick={() => setReport(null)}>

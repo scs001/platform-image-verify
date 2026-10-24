@@ -18,7 +18,7 @@ function makeCell(userId, { bots = [], owner = null }) {
   const dir = path.join(tmp, userId);
   mkdirSync(path.join(dir, "data", "data"), { recursive: true });
   const db = new Database(path.join(dir, "data", "data", "app.db"));
-  db.exec("CREATE TABLE bots (id TEXT PRIMARY KEY)");
+  db.exec("CREATE TABLE bots (id TEXT PRIMARY KEY, owner_email TEXT)");
   db.exec("CREATE TABLE chat_sessions (id TEXT PRIMARY KEY, owner TEXT)");
   db.exec("CREATE TABLE user_preferences (key TEXT PRIMARY KEY, value TEXT)");
   for (const id of bots) db.prepare("INSERT INTO bots (id) VALUES (?)").run(id);

@@ -1,6 +1,8 @@
 # 垂直样板包（Vertical Packs）演示手册
 
-四个面向客户演示的行业包：**法律-合同、法律-案件、数据-股票、数据-中国经济**。每个包 = 1 个入口技能 + 1~2 个 MCP server + 1 个对话 agent + 1 个可见角色。客户装 2~3 个条目即得到完整行业助手；入口技能按需点名调用其他 registry 技能（未装则优雅降级，不阻塞）。
+两个面向客户演示的行业包：**法律-合同、法律-案件**。每个包 = 1 个入口技能 + 1~2 个 MCP server + 1 个对话 agent + 1 个可见角色。客户装 2~3 个条目即得到完整行业助手；入口技能按需点名调用其他 registry 技能（未装则优雅降级，不阻塞）。
+
+数据域样例包已从样例面退役，域内容由柏讯套件线承接（见 §9 数据域退役指针）；样例面不再新增数据域样例包。
 
 技能源码在本仓库 `docs/vertical-packs/skills/`（authoring source of truth），注册进 registry 后由客户通过 Store 安装。
 
@@ -8,14 +10,14 @@
 
 ## 1. 包构成总表
 
-| | 法律-合同 | 法律-案件 | 数据-股票 | 数据-中国经济 |
-|---|---|---|---|---|
-| 入口技能 | `legal-contract-workflow` | `legal-case-workflow` | `stock-research-workflow` | `china-macro-brief-workflow` |
-| MCP | `law-bench` | `fd-find-data-business-mcp`（法条检索）+ `law-bench` | `fd-open-data-mcp` + `fd-cn-report` | `fd-open-data-mcp` + `fd-cn-report` |
-| Agent | 合同审查官 | 案件分析师 | 行业分析师 | 行业分析师 |
-| 角色 | `legal` | `legal` | `analysts` | `analysts` |
-| 引用的既有技能 | `contract-review`、`contract-copilot` | `preliminary-legal-analysis`、`statute-case-retrieval`、`case-discussion-outline`、`litigation-visualization` | `akshare-stock`、`stock-analysis`、`financial-statement-analysis`、`earnings-preview`/`earnings-recap`、`dcf-model`、`comps-analysis`、`company-valuation`、`sector-overview` | `sector-overview`、`statsmodels`、`statistical-analysis` |
-| 硬约束 | 不编造法条号/条款库结果 | 不编造案号/裁判结果 | 不编造财务数据/评级 | 数值必须可溯源 |
+| | 法律-合同 | 法律-案件 |
+|---|---|---|
+| 入口技能 | `legal-contract-workflow` | `legal-case-workflow` |
+| MCP | `law-bench` | `fd-legal-search-mcp`（落地前由技能驱动——现经 `fd-find-data-business-mcp` 的 `law_search`/`law_read`，见 §3.6）+ `law-bench` |
+| Agent | 合同审查官 | 案件分析师 |
+| 角色 | `legal` | `legal` |
+| 引用的既有技能 | `contract-review`、`contract-copilot` | `preliminary-legal-analysis`、`statute-case-retrieval`、`case-discussion-outline`、`litigation-visualization` |
+| 硬约束 | 不编造法条号/条款库结果 | 不编造案号/裁判结果 |
 
 `airegistry-tools`（registry 管理工具）与 `fd-daas-mcp`（工作流/看板组，161 工具）不进演示包。
 
@@ -24,7 +26,7 @@
 1. 用带对应角色的账号登录 fd-prod → 左侧 Store。
 2. **连接 MCP 市场**（见 §4 凭据）。V1 已上线：点"连接 MCP 市场"→ registry 页面点 `Continue with Logto`（共享 Logto 会话，**全程不输入任何凭据**）。
 3. 安装包的 MCP（勾选后无需再填 token）→ 安装入口技能（技能热加载，即装即用）。
-4. 进入 Chat，选择包的 agent（合同审查官/案件分析师/行业分析师）。
+4. 进入 Chat，选择包的 agent（合同审查官/案件分析师）。
 5. 粘贴 §5 的演示输入 → 全流程跑完。
 6. 收尾亮点：打开 Trace 页，指出法条/数据来自真实 MCP 调用（`mcp__<server>__<tool>`），不是模型幻觉。
 
@@ -36,8 +38,8 @@
 
 - **平台侧**（✅ 已配置，2026-09-19）：`logto-auth.js` 把 Logto ID token 的 `organizations`（组织 ID 列表）+ `organization_roles` 映射为平台 groups。由于平台只请求 `urn:logto:scope:organizations`（没有 organization_roles scope），**生效的是组织 ID**。已建两个组织（Logto 管理台 → Organizations）：
   - `legal` → 组织 ID **`hpe07qejcwk7`**（法律-合同/案件包）
-  - `analysts` → 组织 ID **`sl63fy08ruh9`**（数据-股票/中国经济包）
-  - 演示成员：平台管理员账号（下同）已加入两个组织（验证：登录后市场正确显示 law-bench/fd-*/四个入口技能，152 技能可见）。
+  - `analysts` → 组织 ID **`sl63fy08ruh9`**（数据域；样例包已退役，见 §9——组保留给数据域条目与柏讯套件线的既有使用者）
+  - 演示成员：平台管理员账号（下同）已加入两个组织（验证：登录后市场正确显示 law-bench/fd-*/两包入口技能，152 技能可见）。
   - `registry-groups.json` 与云端 agents.json 的组列表都**同时含可读名和组织 ID**（交集语义，命中其一即可）——将来平台补请求 `urn:logto:scope:organization_roles` 并用角色名时无需改映射。
   - 新增演示用户：Logto 管理台把用户加入对应组织即可（无需改任何配置）。
 - **registry 侧**（已配置好，2026-09-19）：auth-server 已启用 `IDP_USER_GROUP_FALLBACK_ENABLED_PROVIDERS=pingfederate,logto`——Logto 全局 roles 为空的用户会从 `idp_user_groups` 集合取组。管理员可通过 API 给用户加组（无需 Logto 权限）：
@@ -114,13 +116,13 @@ fd-prod 平台容器 CWD 下的 `registry-groups.json`：
 }
 ```
 
-（引用的既有技能暂不门控——减少演示时"看不到条目"的排障面。）应用后 rollout，验证：两种角色登录 Store 各自只见本角色包条目。
+（引用的既有技能暂不门控——减少演示时"看不到条目"的排障面。）其中数据域条目（`fd-open-data-mcp`/`fd-cn-report`/`fd-daas-mcp` 与 `stock-research-workflow`/`china-macro-brief-workflow`）不再属于样例面：保留是为了既有订阅者不被破坏（退役不删版本、不断订阅，见 §9），fresh 演示复现只需上表两个法律条目。应用后 rollout，验证：两种角色登录 Store 各自只见本角色包条目。
 
 ### 3.5 技能与 agent 注册（✅ 已完成，2026-09-19）
 
-**托管**：四份 SKILL.md + agents.json 已发布到公开仓库 **`github.com/FindDataTechnology/fd-vertical-packs`**（本仓库 `docs/vertical-packs/` 仍为创作源，**改内容后需同步推送该仓库**）。选 GitHub 的依据：registry 现有 143 技能中 121 个托管于 raw.githubusercontent.com（可达性已被持续扫描证明），实测 registry 主机 0.9s 可达。
+**托管**：SKILL.md + agents.json 已发布到公开仓库 **`github.com/FindDataTechnology/fd-vertical-packs`**（本仓库 `docs/vertical-packs/` 仍为创作源，**改内容后需同步推送该仓库**）。当前样例面两包两份；已退役数据域的两份仅作存档（见 §9）。选 GitHub 的依据：registry 现有 143 技能中 121 个托管于 raw.githubusercontent.com（可达性已被持续扫描证明），实测 registry 主机 0.9s 可达。
 
-- **技能**：四个入口技能已注册（`POST /api/skills` 全部 201，enabled/active，内容端点 `/api/skills/<name>/content` 返回完整正文）。注册命令模式：
+- **技能**：两包入口技能已注册（`POST /api/skills` 全部 201，enabled/active，内容端点 `/api/skills/<name>/content` 返回完整正文）。注册命令模式：
 
   ```bash
   curl -X POST http://127.0.0.1:18080/api/skills \
@@ -173,15 +175,7 @@ law-bench 为 `group-restricted`：客户账号 mint 的 JWT 必须含 `legal` �
 
 预期交付：争点清单（要件缺口：制度效力）→ 法条清单（`law_search`/`law_read` 实查劳动合同法及实施条例，标注效力状态）→ 攻防表 → 策略（2N 赔偿主张 + 年假时效风险提示）。类案检索暂无数据源，报告注明"类案检索未启用"。
 
-**数据-股票**：
-> 帮我研究一下贵州茅台（600519.SH）当前的投资价值。
-
-预期交付：标的档案卡 → 财报速览（含红旗项）→ 估值汇总表（方法/假设/区间）→ 申万行业研报交叉 → 多空对照表 + 风险清单 + 免责声明。所有数字带来源。
-
-**数据-中国经济**：
-> 现在的货币信用环境对 A 股制造业意味着什么？给我一份简报。
-
-预期交付：指标框架表（M1/M2、社融结构、LPR…）→ 关键数据表（每个数值带期数来源）→ 趋势图 ≥2 张 → 传导逻辑链 → 制造业行业含义 → 风险与观察点。
+数据域 canned demo（股票研究、宏观简报）随样例退役移出本手册——该工作流现由柏讯套件线承接，见 §9。
 
 ## 6. 云端 agents 目录条目（§3.5 agent 注册用）
 
@@ -195,14 +189,12 @@ law-bench 为 `group-restricted`：客户账号 mint 的 JWT 必须含 `legal` �
     { "id": "pack-case-analyst", "type": "agent-remote", "mode": "chat",
       "name": "案件分析师", "description": "法律-案件包对话入口，配合 legal-case-workflow 技能使用",
       "icon": "gavel", "baseUrl": "https://token.finddatatech.cloud/v1", "model": "deepseek-v4-flash-0731",
-      "apiKeyEnv": "FD_TOKEN_API_KEY", "tags": ["法律", "诉讼"], "roles": ["legal"] },
-    { "id": "pack-industry-analyst", "type": "agent-remote", "mode": "chat",
-      "name": "行业分析师", "description": "数据-股票/中国经济包对话入口，配合 stock-research / china-macro-brief 技能使用",
-      "icon": "line-chart", "baseUrl": "https://token.finddatatech.cloud/v1", "model": "deepseek-v4-flash-0731",
-      "apiKeyEnv": "FD_TOKEN_API_KEY", "tags": ["金融", "宏观"], "roles": ["analysts"] }
+      "apiKeyEnv": "FD_TOKEN_API_KEY", "tags": ["法律", "诉讼"], "roles": ["legal"] }
   ]
 }
 ```
+
+（历史上的第三条 `pack-industry-analyst`（行业分析师）随数据域样例退役——已部署环境上在册的条目**不主动删除**：条目下线即回收 preset（§6.1），既有订阅者不受影响即可；fresh 演示复现只需上面两条，见 §9。）
 
 fd-prod 部署：`FD_TOKEN_API_KEY` 进 `platform-secrets`，`AGENTS_CONFIG_URL` 指 §6 文档 URL 进 `platform-config`，rollout。
 
@@ -220,7 +212,7 @@ fd-prod 部署：`FD_TOKEN_API_KEY` 进 `platform-secrets`，`AGENTS_CONFIG_URL`
 
 ## 7. 回滚
 
-注销 registry 条目（4 技能 + 未来 1 server）/ 删除云端 agent 条目 / 还原 `registry-groups.json`。无平台状态迁移。
+注销 registry 条目（两包 2 技能 + 未来 1 server；数据域退役条目的处置走 §9 的管理面，不在本回滚内）/ 删除云端 agent 条目 / 还原 `registry-groups.json`。无平台状态迁移。
 
 ## 8. 已知边界（如实告知客户）
 
@@ -228,7 +220,16 @@ fd-prod 部署：`FD_TOKEN_API_KEY` 进 `platform-secrets`，`AGENTS_CONFIG_URL`
 - chatlaw / fingpt 卡片是生态展示（GitHub link），对话入口用包的 chat agent。
 - 凭据 TTL 168h：到期后已安装的 MCP 会 401，平台随即把凭据标为 stale 并在 Store 提示"重新连接"（点一次 `Continue with Logto` 即恢复，无需重装）。law-bench 的 egress PAT 有效期 30 天（至 2026-10-18，admin 账号），与用户凭据互不影响。
 - 公开 LLM 网关偶发 502（实测约 1/5 瞬时抖动，重试即恢复；平台 agent 调用无自动重试）——演示时若首答失败，重发一次即可。
-- **默认模型与工具选择（2026-09-24 更新）**：默认模型已切换为 finddata-token 的 **`deepseek/deepseek-v4.1-flash`**（maxTokens 32768）。彩排实测四包 canned demo 全部达标，chat 内真实 MCP 调用稳定（law-bench / fd-find-data-business-mcp / fd-cn-report / fd-open-data-mcp 合计 36+ 次）。此前默认的免费 `liquid/lfm-2.5-2.6b:free` 无法在 ~190 工具清单下选对工具（chat 内 mcp__ 调用为 0，还偶发畸形调用把报错带进回复）——**演示前勿切回免费小模型**。模型条目的 `maxTokens` 勿低于 32768：全流程报告 8192 会被截断（turn/end reason=max-tokens）。
+- **默认模型与工具选择（2026-09-24 更新）**：默认模型已切换为 finddata-token 的 **`deepseek/deepseek-v4.1-flash`**（maxTokens 32768）。彩排实测法律两包 canned demo 全部达标（数据域样例当时同样达标，现已随退役收束，见 §9），chat 内真实 MCP 调用稳定（law-bench / fd-find-data-business-mcp / fd-cn-report / fd-open-data-mcp 合计 36+ 次）。此前默认的免费 `liquid/lfm-2.5-2.6b:free` 无法在 ~190 工具清单下选对工具（chat 内 mcp__ 调用为 0，还偶发畸形调用把报错带进回复）——**演示前勿切回免费小模型**。模型条目的 `maxTokens` 勿低于 32768：全流程报告 8192 会被截断（turn/end reason=max-tokens）。
 - 包 agent 现在跑在**本地运行时**（§6.1）：persona 的模型就是平台当前选中的模型（端点条目的 `model` 字段只在回退转发时生效）；切换 agent 会重启 dsh 子进程（约 5-10 秒），且 persona 对**下一个**会话生效，当前会话继续用原有 persona（UI 头部标签显示的是会话真实 preset）。
 - 每个 agent 的 persona preset 由目录条目生成，标记文件在 `$DSH_HOME/.agent-presets/<id>/`；要手写不同语气，优先在 agents.json 里加 `persona` 字段。
 - registry 的 egress 相关 API（Connected Accounts 自助存 PAT）被 safeline WAF 拦截（404），目前由 admin 直连 cheap1 代存（§3.3）。
+
+## 9. 数据域退役指针
+
+数据域的两个样例包——**数据-股票** 与 **数据-中国经济**——已从样例面退役（user ruling 2026-10-25，柏讯套件线为数据域 pack 的单一真源）。退役后的去向与不变量：
+
+- **域内容由柏讯套件线承接**（market 上架）：股票研究工作流 → **柏讯·估值套件**；宏观简报工作流 → **柏讯·宏观研究套件**（样例技能若有套件未覆盖的差异，先并版进对应套件再退役）。柏讯套件线另覆盖区域经济（柏讯·区域经济套件）、行业企业（柏讯·行业与企业套件）等数据域。
+- **原包 unlisted，不删版本**：已发布版本对既有订阅者保持可拉取（fetchable），订阅不被破坏，re-list 可逆——unlist 是唯一动作，删除版本被禁止。
+- **样例面不再新增数据域样例包**：数据域 pack 一律走柏讯套件线。
+- **同名防呆**：市场发布闸已拒绝同作者同名重复发布（一作者一名，listed 或 unlisted 均算）；既有的同域重复收敛走管理面 unlist/retire，不开发布侧豁免。

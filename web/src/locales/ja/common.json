@@ -1710,7 +1710,8 @@
       "files": "補助ファイル {{count}} 件",
       "filesWithScripts": "補助ファイル {{count}} 件（スクリプト：{{scripts}}）",
       "nextHintCluster": "インストール完了。グループ全体でチャットへ——リード役が自動選択済みです。",
-      "openChatCluster": "チャットを開いてグループを読み込む"
+      "openChatCluster": "チャットを開いてグループを読み込む",
+      "bot": "ボット"
     },
     "mine": {
       "empty": "まだ購読していません。市場をのぞいてみましょう。",
@@ -1720,10 +1721,11 @@
     },
     "uninstall": {
       "title": "「{{name}}」を購読解除",
-      "willRemove": "次のスキルとエージェントが削除されます：",
+      "willRemove": "次のスキル・エージェント・ボットが削除されます：",
       "mcpKept": "MCP サーバー設定は保持されます（共有ユーティリティ）：{{servers}}",
       "modifiedWarning": "これらのスキルはインストール後に編集済み。解除すると変更が失われます：{{skills}}",
-      "confirm": "購読解除"
+      "confirm": "購読解除",
+      "botsCredentialsKept": "削除するボットのチャネル資格情報は保持され、再利用できます：{{bots}}"
     },
     "drafts": {
       "title": "マイ作成",

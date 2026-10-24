@@ -16,6 +16,11 @@ interface UninstallPreview {
   skills: string[];
   modifiedSkills: string[];
   agents: { id: string; name: string }[];
+  // Bot units (pack-bot-units): pack-owned bot rows this uninstall removes.
+  bots?: { id: string; name: string; skill?: string | null }[];
+  // The operator's channel credentials on those bots — kept in the detach
+  // ledger, not deleted (the same "kept items" contract as mcpServersKept).
+  botsCredentialsKept?: string[];
   mcpServersKept: string[];
 }
 
@@ -166,6 +171,9 @@ export function MyPacksView() {
               {(pack.manifest.agents ?? []).map((a) => (
                 <Badge key={a.id}>{a.name}</Badge>
               ))}
+              {(pack.manifest.bots ?? []).map((b) => (
+                <Badge key={b.id}>{b.name}</Badge>
+              ))}
             </div>
           </div>
         );
@@ -185,10 +193,18 @@ export function MyPacksView() {
               {preview.agents.map((a) => (
                 <li key={a.id}>{a.name}</li>
               ))}
+              {(preview.bots ?? []).map((b) => (
+                <li key={b.id} data-testid={`pack-uninstall-bot-${b.id}`}>{b.name}</li>
+              ))}
             </ul>
             <p className="text-xs text-muted-foreground">
               {t("packs.uninstall.mcpKept", { servers: preview.mcpServersKept.join(", ") || "—" })}
             </p>
+            {(preview.botsCredentialsKept ?? []).length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {t("packs.uninstall.botsCredentialsKept", { bots: (preview.botsCredentialsKept ?? []).join(", ") })}
+              </p>
+            )}
             {preview.modifiedSkills.length > 0 && (
               <div className="bg-destructive/10 text-destructive px-3 py-2 rounded-md text-sm mt-3" data-testid="pack-uninstall-modified">
                 {t("packs.uninstall.modifiedWarning", { skills: preview.modifiedSkills.join(", ") })}

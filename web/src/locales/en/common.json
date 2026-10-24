@@ -1710,7 +1710,8 @@
       "files": "{{count}} auxiliary files",
       "filesWithScripts": "{{count}} auxiliary files (scripts: {{scripts}})",
       "nextHintCluster": "Installed. Jump into the chat with the whole group — the lead role is already selected for you.",
-      "openChatCluster": "Open chat & load group"
+      "openChatCluster": "Open chat & load group",
+      "bot": "Bot"
     },
     "mine": {
       "empty": "No packs subscribed yet. Browse the market.",
@@ -1720,10 +1721,11 @@
     },
     "uninstall": {
       "title": "Unsubscribe “{{name}}”",
-      "willRemove": "This removes the following skills and agents:",
+      "willRemove": "This removes the following skills, agents, and bots:",
       "mcpKept": "MCP server configurations are kept (shared utilities): {{servers}}",
       "modifiedWarning": "These skills were modified after install; unsubscribing loses the changes: {{skills}}",
-      "confirm": "Unsubscribe"
+      "confirm": "Unsubscribe",
+      "botsCredentialsKept": "Channel credentials on removed bots are kept for reuse: {{bots}}"
     },
     "drafts": {
       "title": "My Creations",

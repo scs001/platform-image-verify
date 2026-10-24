@@ -1,7 +1,7 @@
 {
   "name": "投研晨会舰队（官方种子）",
   "version": "1.0.0",
-  "description": "官方舰队模板：三层级联的投研晨会——首席分析师汇总宏观/行业研究员晨报并拍板上行，风控官为被动岗（受委托或拍板批复唤醒）。演示：三层组织（{{fleetContext}} 只注入直接下级，中间层向上浓缩）、交易日节奏、escalate 驱动的被动岗。铸造上架时 packId/agents 按铸造脚本补齐；本文件是清单真源，测试钉住其必须通过 fleet 段预校验。",
+  "description": "官方舰队模板：三层级联的投研晨会——首席分析师汇总宏观/行业研究员晨报并拍板上行，风控官为被动岗（受委托或拍板批复唤醒）。演示：三层组织（{{fleetContext}} 只注入直接下级，中间层向上浓缩）、交易日节奏、escalate 驱动的被动岗；编导段为 trigger+handoff 级联（两研究员晨检完成接棒首席）与首席 dispatch 委托风控官。铸造上架时 packId/agents 按铸造脚本补齐；本文件是清单真源，测试钉住其必须通过 fleet 段预校验。",
   "agents": [
     {
       "id": "invest-chief",
@@ -120,6 +120,16 @@
         "cadence": null
       }
     ],
-    "requires": []
+    "requires": [],
+    "orchestration": {
+      "edges": [
+        { "kind": "trigger", "to": "macro", "cron": "0 9 * * 1-5" },
+        { "kind": "trigger", "to": "sector", "cron": "10 9 * * 1-5" },
+        { "kind": "trigger", "to": "chief", "cron": "30 9 * * 1-5" },
+        { "kind": "handoff", "from": "macro", "to": "chief" },
+        { "kind": "handoff", "from": "sector", "to": "chief" },
+        { "kind": "dispatch", "from": "chief", "to": "risk" }
+      ]
+    }
   }
 }

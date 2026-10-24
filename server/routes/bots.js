@@ -12,8 +12,9 @@
 import express from "express";
 import crypto from "node:crypto";
 import * as bots from "../bots.js";
-import { BOT_TYPES, credentialFieldsFor, qrCapabilityFor, getAdapter } from "../bots/adapter.js";
+import { BOT_TYPES, credentialFieldsFor, qrCapabilityFor, adapterForBot } from "../bots/adapter.js";
 import { qrSvg } from "../bots/qr.js";
+import { GENERIC_BOT_TYPES } from "../../lib/generic-bot-types.js";
 
 // The webhook path prefix, shared with the forward-auth exemption in auth.js.
 export const WEBHOOK_PREFIX = "/api/bots/webhook/";
@@ -106,6 +107,17 @@ export function registerBotRoutes(ctx) {
     },
   );
 
+  // ── Generic bot types (read-only registry face) ────────────────────────────
+  // The platform-hosted generic bot type set (pack-bot-units): the same
+  // objects the manifest validator checks references against and the pack
+  // install face lists. Read-only — types are defined by the platform, never
+  // configured here. No db gate: a static registry answers even before the
+  // database is ready (the publish prevalidation face has no cell state).
+
+  app.get("/api/bots/generic-types", (_req, res) => {
+    res.json({ genericTypes: GENERIC_BOT_TYPES });
+  });
+
   // ── Config CRUD (admin-gated; credentials masked in every response) ────────
 
   app.get("/api/bots", (_req, res) => {
@@ -117,6 +129,7 @@ export function registerBotRoutes(ctx) {
         credentialFields: credentialFieldsFor(type),
         qr: qrCapabilityFor(type),
       })),
+      genericTypes: GENERIC_BOT_TYPES,
     });
   });
 
@@ -157,6 +170,13 @@ export function registerBotRoutes(ctx) {
       const invalid = bots.validateCredentials(existing.type, merged);
       if (invalid) return res.status(400).json({ error: invalid });
       req.body.credentials = merged;
+    } else if (enabled === true) {
+      // Enabling is an operator's explicit action — a generic channel bot
+      // (pack-born) must have its platform binding and credentials in place
+      // before it can go live. Plain bots were credential-validated at
+      // creation, so this re-check is a no-op for them.
+      const invalid = bots.validateCredentials(existing.type, existing.credentials);
+      if (invalid) return res.status(400).json({ error: invalid });
     }
     const bot = db.updateBot(req.params.id, { name, credentials: req.body.credentials, enabled });
     bots.reload(bot);
@@ -235,9 +255,12 @@ export function registerBotRoutes(ctx) {
   app.get("/api/bots/:id/qr", async (req, res) => {
     if (!requireDb(res)) return;
     const bot = db.getBot(req.params.id);
-    if (!bot || !getAdapter(bot.type)?.qr) return res.status(404).json({ error: "Bot not found" });
+    // adapterForBot resolves a generic channel row's platform binding; an
+    // unbound pack bot has no adapter yet and answers 404 like an unknown bot.
+    const adapter = bot ? adapterForBot(bot) : null;
+    if (!bot || !adapter?.qr) return res.status(404).json({ error: "Bot not found" });
 
-    const { strategy, hintKey } = getAdapter(bot.type).qr;
+    const { strategy, hintKey } = adapter.qr;
     const hint = hintKey ?? "botsPage.qr.hint.manual";
     const manual = (error) => res.json({ strategy: "manual", url: null, qr: null, hint, ...(error && { error }) });
 
@@ -258,7 +281,7 @@ export function registerBotRoutes(ctx) {
     }
 
     try {
-      const { url } = await getAdapter(bot.type).qr.resolve(bot.credentials);
+      const { url } = await adapter.qr.resolve(bot.credentials);
       res.json({ strategy, url, qr: await qrSvg(url), hint });
     } catch (err) {
       manual(err.message);

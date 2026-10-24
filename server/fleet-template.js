@@ -2,12 +2,18 @@
 //
 // A pack's optional `fleet` section IS the template. This module is the single
 // parser/validator for it: shape gates (members/ref tree/cadence/targets),
-// cycle rejection over parentRef edges, cron sanity, and the normalization
-// every consumer (pack pre-validation, provisioner, exporter round-trip)
-// shares. Packs WITHOUT a fleet section are plain packs — every entry point
-// short-circuits on absence and behaves exactly as before (D1/D2 risk note).
+// cycle rejection over parentRef edges, cron sanity, the optional
+// `orchestration` section (validated by the SAME pure validator the live
+// write face uses — server/fleet-orchestration.js — over the template member
+// set), and the normalization every consumer (pack pre-validation,
+// provisioner, exporter round-trip) shares. Packs WITHOUT a fleet section are
+// plain packs — every entry point short-circuits on absence and behaves
+// exactly as before (D1/D2 risk note).
 
 import cronParser from "cron-parser";
+// Pure leaf module (zero imports of its own) — importing it here keeps this
+// file gateway-safe (no task-engine module graph rides along).
+import { validateOrchestration } from "./fleet-orchestration.js";
 
 // Minimal cron check (the engine's own parser, applied standalone): this
 // module is also imported by the GATEWAY process (pack pre-validation), so it
@@ -21,7 +27,26 @@ function validateCron(expr, tz) {
   }
 }
 
-export const TEMPLATE_TARGET_KINDS = ["pack-preset", "existing-persona", "existing-cluster", "existing-a2a"];
+export const TEMPLATE_TARGET_KINDS = ["pack-preset", "existing-persona", "existing-cluster", "existing-a2a", "tool", "bot"];
+
+// Template target kind → live-fleet targetKind. The orchestration validator
+// speaks the LIVE member vocabulary (persona/cluster/a2a/tool/bot), so the
+// template's members are projected through this map before validation — the
+// member REFS stand in for the not-yet-minted member ids (design D3: same
+// validator, member set swapped for the template's).
+const TARGET_KIND_TO_MEMBER_KIND = {
+  "pack-preset": "persona",
+  "existing-persona": "persona",
+  "existing-cluster": "cluster",
+  "existing-a2a": "a2a",
+  tool: "tool",
+  bot: "bot",
+};
+
+// The live face's 'server::tool' contract (server/tool-turn.js owns the
+// canonical regex; this local mirror keeps this module gateway-pure — the
+// canonical module pulls chat-history along).
+const TOOL_TARGET_SHAPE_RE = /^([A-Za-z0-9][A-Za-z0-9._-]*)::([A-Za-z0-9][A-Za-z0-9._-]*)$/;
 export const TEMPLATE_MEMBER_LIMIT = 50;
 
 // Parse + validate a manifest's fleet section. Returns
@@ -69,6 +94,11 @@ export function parseFleetTemplate(manifest) {
     } else if (typeof target.id !== "string" || !target.id.trim()) {
       return { ok: false, error: `member '${ref}' ${target.kind} target needs an id` };
     }
+    if (target.kind === "tool" && !TOOL_TARGET_SHAPE_RE.test(target.id)) {
+      // Shape gate only (mirrors the live face's 'server::tool' contract);
+      // whether the server is routable stays an instantiation-time fact.
+      return { ok: false, error: `member '${ref}' tool target.id must be 'server::tool' (got '${target.id}')` };
+    }
     if (m.kpiSlots !== undefined) {
       if (!Array.isArray(m.kpiSlots) || m.kpiSlots.length > 8) {
         return { ok: false, error: `member '${ref}' kpiSlots must be an array of at most 8` };
@@ -89,6 +119,17 @@ export function parseFleetTemplate(manifest) {
       if (invalid) return { ok: false, error: `member '${ref}': ${invalid}` };
       if (typeof c.promptTemplate !== "string" || !c.promptTemplate.trim()) {
         return { ok: false, error: `member '${ref}' cadence needs a promptTemplate` };
+      }
+      // Tool posts (add-tool-posts): the cadence prompt IS the tool's
+      // arguments — a JSON object, deterministically (mirror of the live
+      // write face's toolCadenceError; kept local for gateway purity).
+      if (target.kind === "tool") {
+        try {
+          const parsed = JSON.parse(c.promptTemplate);
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
+        } catch {
+          return { ok: false, error: `member '${ref}' is a tool post — its cadence.promptTemplate must be a JSON object (the tool's arguments)` };
+        }
       }
     }
     pending.push(m);
@@ -122,6 +163,24 @@ export function parseFleetTemplate(manifest) {
     }
   }
 
+  // Orchestration section (add-mixed-fleet-packs D3): the SAME validator the
+  // live write face uses, with the template members projected into the live
+  // member vocabulary (ref stands in for the future member id) — one source,
+  // the member set swapped. Present-but-null passes trivially (the live face
+  // treats null as "explicitly no edges"); ABSENT short-circuits entirely so
+  // the section-less parse output stays byte-identical.
+  if (section.orchestration !== undefined) {
+    const projected = pending.map((m) => ({ id: m.ref, targetKind: TARGET_KIND_TO_MEMBER_KIND[m.target.kind] }));
+    const check = validateOrchestration({ members: projected, orchestration: section.orchestration });
+    if (!check.ok) {
+      return {
+        ok: false,
+        error: `fleet.orchestration: ${check.errors[0].error}`,
+        errors: check.errors,
+      };
+    }
+  }
+
   return {
     ok: true,
     template: {
@@ -136,15 +195,25 @@ export function parseFleetTemplate(manifest) {
         cadence: m.cadence ?? null,
       })),
       requires: (requires ?? []).map((r) => ({ kind: r.kind ?? "a2a", name: String(r.name).trim(), optional: r.optional === true })),
+      ...(section.orchestration !== undefined ? { orchestration: section.orchestration } : {}),
     },
   };
 }
 
 // The export whitelist (3.3): the ONLY fields an exported manifest carries.
 // Reports, decisions, sessions, owners, credentials never enter this shape.
+// The live orchestration section survives verbatim (spec: 导出保留现役编导
+// 段) — its edges already speak member ids, and the export's refs ARE those
+// ids, so the section re-parses as a template unchanged.
 export function exportFleetToTemplate(fleet, members) {
   const memberFor = (targetKind) =>
-    targetKind === "cluster" ? "existing-cluster" : targetKind === "a2a" ? "existing-a2a" : "existing-persona";
+    targetKind === "cluster"
+      ? "existing-cluster"
+      : targetKind === "a2a"
+        ? "existing-a2a"
+        : targetKind === "tool" || targetKind === "bot"
+          ? targetKind
+          : "existing-persona";
   return {
     fleet: {
       name: fleet.name,
@@ -159,6 +228,7 @@ export function exportFleetToTemplate(fleet, members) {
           : {}),
       })),
       requires: [],
+      ...(fleet.orchestration ? { orchestration: fleet.orchestration } : {}),
     },
   };
 }

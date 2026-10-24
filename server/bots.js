@@ -12,7 +12,8 @@
 // is logged and skipped rather than crashing the server or stalling the others.
 
 import crypto from "node:crypto";
-import { getAdapter, validateCredentials } from "./bots/adapter.js";
+import { adapterForBot, validateCredentials } from "./bots/adapter.js";
+import { isGenericBotType, packBotMeta, PACK_BOT_CREDENTIAL_KEY } from "../lib/generic-bot-types.js";
 
 // Trust-boundary guards (design D3). These bound an untrusted external caller's
 // reach into an agent, so they live here — before prompt() — not in the adapters.
@@ -92,18 +93,29 @@ export function webhookUrlFor(bot) {
 
 // Browser-facing shape. Credential VALUES never leave the server — only the
 // set of keys that are configured, so the UI can show "configured" hints.
+// A pack-materialized bot additionally exposes its provenance (owning pack,
+// mounted skill) and an awaitingConnection flag: pack bots are born disabled
+// with no channel credentials — enabling and credentialing are the
+// operator's explicit actions, never side effects of installing a pack.
 export function maskBot(bot) {
-  return {
+  const meta = packBotMeta(bot.credentials);
+  const configured = Object.entries(bot.credentials ?? {})
+    .filter(([k, v]) => k !== PACK_BOT_CREDENTIAL_KEY && String(v ?? "").trim())
+    .map(([k]) => k);
+  const mask = {
     id: bot.id,
     type: bot.type,
     name: bot.name,
     enabled: bot.enabled,
     createdAt: bot.createdAt,
-    configuredCredentials: Object.entries(bot.credentials ?? {})
-      .filter(([, v]) => String(v ?? "").trim())
-      .map(([k]) => k),
+    configuredCredentials: configured,
     webhookUrl: webhookUrlFor(bot),
   };
+  if (meta) {
+    mask.pack = { packId: meta.packId, skill: meta.skill ?? null, generic: meta.generic ?? bot.type };
+    mask.awaitingConnection = validateCredentials(bot.type, bot.credentials) !== null;
+  }
+  return mask;
 }
 
 // ── Lifecycle ────────────────────────────────────────────────────────────────
@@ -124,9 +136,16 @@ export function initBots(ctx) {
 // effect without a server restart.
 export function reload(bot) {
   stop(bot.id);
-  const adapter = getAdapter(bot.type);
+  const adapter = adapterForBot(bot);
   if (!adapter) {
-    console.warn(`[bots] "${bot.name}" has unknown type "${bot.type}"; skipped`);
+    // A generic-type row (pack bot) without a platform binding is not an
+    // error state — it is the born awaiting-connection posture. Log it
+    // quietly; no runtime entry exists, so nothing is reachable.
+    if (isGenericBotType(bot.type)) {
+      console.log(`[bots] "${bot.name}" (${bot.type}) awaiting a platform binding; not registered`);
+    } else {
+      console.warn(`[bots] "${bot.name}" has unknown type "${bot.type}"; skipped`);
+    }
     return;
   }
   const entry = { bot, adapter, stopPoll: null };
@@ -469,6 +488,32 @@ export async function handleMessage(botId, { chatKey, senderName, text }) {
   return run;
 }
 
+// Mounted pack skill (pack-bot-units, spec pack-bot-units): a channel bot
+// born from a pack may mount exactly one of the pack's own skills; the
+// inbound turn is then answered through THAT skill's session — the skill's
+// process and honesty constraints govern the answer, with no fleet involved.
+// The skill body is read from the cell's skill store at turn time (fresh
+// after pack upgrades) and injected as the session's opening context block;
+// a missing/uninstalled skill degrades to the plain turn (logged).
+function mountedSkillPreamble(bot) {
+  const meta = packBotMeta(bot.credentials);
+  const skillName = meta?.skill;
+  if (!skillName) return null;
+  let row = null;
+  try {
+    row = state.ctx?.db?.getCustomSkill?.(skillName) ?? null;
+  } catch { /* a broken store must not cost the user their answer */ }
+  if (!row?.content?.trim()) {
+    console.warn(`[bots] "${bot.name}" mounted skill '${skillName}' is not available; answering without it`);
+    return null;
+  }
+  return (
+    `You are the bot "${bot.name}". The skill below governs this conversation: follow its process, ` +
+    `workflow and honesty constraints when answering the user's messages.\n\n` +
+    `# Mounted skill: ${row.name}\n\n${row.content.trim()}`
+  );
+}
+
 async function runTurn({ bot, adapter }, sessionId, chatKey, text) {
   const ctx = state.ctx;
   const reply = async (body) => {
@@ -479,9 +524,15 @@ async function runTurn({ bot, adapter }, sessionId, chatKey, text) {
 
   const collected = collectTurn(ctx, sessionId, { bot, adapter, chatKey });
   const prompt = allowTools() ? text : NO_TOOLS_PREFIX + text;
+  // A mounted pack skill rides as the session's opening context block; with
+  // no mount the blocks are byte-identical to the pre-pack-bot form.
+  const blocks = [];
+  const skillPreamble = mountedSkillPreamble(bot);
+  if (skillPreamble) blocks.push({ type: "text", text: skillPreamble });
+  blocks.push({ type: "text", text: prompt });
   let result;
   try {
-    await ctx.dshBridge.prompt(sessionId, [{ type: "text", text: prompt }]);
+    await ctx.dshBridge.prompt(sessionId, blocks);
     result = await collected;
   } catch (e) {
     ctx.sessionCollectors.delete(sessionId);

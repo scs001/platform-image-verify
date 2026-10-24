@@ -28,6 +28,7 @@ import { createResolveUser } from "./identity.js";
 import { initFacetMcpCatalog } from "./mcp-catalog.js";
 import { registerMarketplaceJson } from "./marketplace-json.js";
 import { createFacetPairing, registerPairingRoutes, withAppBearer } from "./pairing.js";
+import { registerSameNamePublishGate } from "./publish-gate.js";
 
 const PORT = Number(process.env.PORT || 8080);
 const DATA_ROOT = process.env.FACET_DATA_ROOT || process.env.DATA_ROOT || path.resolve("data");
@@ -135,6 +136,12 @@ registerPairingRoutes(app, {
   resolveUser,
   rejectUnauthenticated,
 });
+
+// Same-name publish gate (add-mixed-fleet-packs-and-market-consolidation D5):
+// a pre-route ahead of the publish handler — registration order is what makes
+// it run first. One author, one name: a same-name republish is a structured
+// 409 naming the existing pack and the upgrade path; nothing is stored.
+registerSameNamePublishGate(app, { registry, resolveUser });
 
 registerPackRoutes(app, {
   registry,

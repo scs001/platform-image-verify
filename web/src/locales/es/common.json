@@ -1710,7 +1710,8 @@
       "files": "{{count}} archivos auxiliares",
       "filesWithScripts": "{{count}} archivos auxiliares (scripts: {{scripts}})",
       "nextHintCluster": "Instalado. Ve al chat con todo el grupo: el rol principal ya está seleccionado.",
-      "openChatCluster": "Abrir chat y cargar grupo"
+      "openChatCluster": "Abrir chat y cargar grupo",
+      "bot": "Bot"
     },
     "mine": {
       "empty": "Aún no hay suscripciones. Explora el mercado.",
@@ -1720,10 +1721,11 @@
     },
     "uninstall": {
       "title": "Cancelar suscripción de «{{name}}»",
-      "willRemove": "Se eliminarán las siguientes habilidades y agentes:",
+      "willRemove": "Se eliminarán las siguientes habilidades, agentes y bots:",
       "mcpKept": "Las configuraciones MCP se conservan (utilidades compartidas): {{servers}}",
       "modifiedWarning": "Estas habilidades se modificaron tras la instalación; se perderán los cambios: {{skills}}",
-      "confirm": "Cancelar suscripción"
+      "confirm": "Cancelar suscripción",
+      "botsCredentialsKept": "Las credenciales de canal de los bots eliminados se conservan para su reutilización: {{bots}}"
     },
     "drafts": {
       "title": "Mis creaciones",

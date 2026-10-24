@@ -1692,6 +1692,14 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 
 **公网复验（缺陷闭环）**：admin 会话重建 bot+验收舰队+事件边（过程中两笔自纠：fleet 响应形状 fleet.id 取法、同名残留舰队排序）→ **公网 webhook POST（EdgeOne 全链）→ 200 → 网关路由到正确属主 cell → 引擎任务建（origin.event 齐）**——缺陷修复的判定性证据（修复前同路径必 403）。回合完成状态：模型回合 running 中（共享 runtime 队列排队，非路由问题;O1 行随完成落库,机制已由 harness+直连 cell 双路钉死）。复验残留清理随记录执行。
 
+### §15.25 发布记录：产品线凭据无人值守续期（add-line-credential-renewal，2026-10-24 晚）
+
+**列车**：paas `2b8cc9a9` → 快照 `f8f1505`（image run 40065765778 绿 3m59s）→ relay OK 13:26:34 → digest `sha256:e1e6daa1` 双等 → GitOps `d6767a1` 双清单滚（platform/platform-demo）→ ArgoCD 硬刷新 Synced Healthy，双 pod imageID==digest 三核过；pod `[db] applied migration v102` 实证。
+
+**交付**：①铸币流 offline_access 落 refresh_token（迁移 102 `user_line_credentials.refresh_token`，投影 SELECT 不含新列）；②服务端续期模块 `server/line-token-renewal.js`（回合前 `runCronJobTurn` 收口 + 10min 巡检双触发、`Map<email|line>` 单飞、rotation 新值与新 ID token 同行原子落库、invalid_grant→stale 不清行）；③401 钩子 refresh-first（有链标 stale/无链保持清除旧 UX，`dsh-events.js` refresh-first 三分支）；④P2 交付=`dshUpdateMcp` Authorization diff→restart（忙时 250ms poller 回合边界排空，无人值守链路零 HMR 信任；纯 server 增删维持 HMR）。spike（真机 admin 会话）三问全绿：refresh_token 发放 ✓/rotation 宽松开启（旧值宽限窗口内重放仍 200）✓/不透明令牌+rotation 重锚定=持续刷新即续命 ✓；首连 consent_required 由既有 interactive 重试免屏吸收。测试：line-credentials 17/17 + line-token-renewal 8/8（新）+ fast e2e 537/0 + validate 绿。
+
+**快照配方备忘**：make-public-snapshot 产物仍带 7 workflow 且无 image-publish.yml（scrubber 不修剪 .github 的老坑再现）——从快照仓 main（9403937）`gh api contents` 取回 image-publish.yml、修剪到只剩它，快照目录 `git init -b main` + 强推。fd-build-snapshot 直推被私有→公开泄露防护拒绝（该工具走 build-pool 私有池线；公开线仍走 make-public-snapshot）。**验收前置**：现网两行凭据（aloadtree wire/lex）旧格式无 refresh_token 且已过期（exp 10-18/10-20）——admin 重连一次（每线「连接」）即升级，7 天观测（6.3，fleet_1792786329045_jchvsd）自重连起算。`test-wire-tool-risk` 快照漂移（wire 侧 `wire_artifact_*` 新工具）随本列车入库为已知存量，修复=`scripts/refresh-wire-tool-surface.mjs`。
+
 ### §16.3 补记：自报闭环兑现 + 发布门零人工实证（2026-10-24）
 
 §16.2 挂账③销账：限流窗过后重发「柏讯 · 产物构建」→ **发布门零人工通过**（工具声明门读 registry 快照 17 工具，`wire_artifact_dashboard_create` / `wire_artifact_doc_create` 在册，不再 unresolved）→ pack `AjFHQ9tjiJp5GTYmBC2y8g` v1 上架，匿名市场可见（总数 70）。**「改代码→出片→滚版→快照自动对齐→发布过门」全链首次无人工介入跑通**——§16.1 立项要交付的那个状态。

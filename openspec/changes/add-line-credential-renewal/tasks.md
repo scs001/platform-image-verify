@@ -73,7 +73,16 @@
   MCP 凭据头注入用例）+ biome 11 文件零警告 + validate --strict 绿。全量单测唯一红 =
   `test-wire-tool-risk` 快照漂移（wire 侧 checkout 新增 `wire_artifact_*` 工具未吸收，
   并行舰队工作存量、与本 change 无涉，修复=`scripts/refresh-wire-tool-surface.mjs`）**）
-- [ ] 6.2 出片：`fd-build-channel` 判路 → paas 标准线 → 上产
+- [x] 6.2 出片：`fd-build-channel` 判路 → paas 标准线 → 上产
+  （**2026-10-24 全链：paas `2b8cc9a9` 推 origin → 公开快照线 scs001/platform-image-verify
+  `f8f1505`（make-public-snapshot 产物 + workflows 修剪到只剩 image-publish.yml——从快照仓
+  main 取回）→ GHA image run 40065765778 绿（3m59s，smoke 门含）→ relay OK 13:26:34 →
+  skopeo ccr/hkccr digest 双等 `sha256:e1e6daa1` → GitOps fd-infra-deploy `d6767a1` 双清单
+  （platform/platform-demo）滚 sha-f8f1505，gitee+github 双端 → ArgoCD hard-refresh →
+  Synced Healthy → 双 rollout 完成且 pod imageID==构建 digest 三核过；pod 日志
+  `[db] applied migration v102` 实证。**验收前置**：现网两行凭据（aloadtree wire/lex）为旧
+  格式无 refresh_token 且已过期（exp 10-18/10-20，旧行自然降级）——admin 重连一次
+  （每线点「连接」）即升级为可续期新行，6.3 观测自此起算**）
 - [ ] 6.3 真机验收：`fleet_1792786329045_jchvsd` 连续 7 天 09:00 巡线回合读面全 200，全程
   零浏览器操作、零 platform 重启；30 天口径按 1.1 spike 结论执行（全绿则补 30 天观测，
   绝对租约则按 D6 调口径并记录 wire 侧租户配置配合项）

@@ -1691,3 +1691,9 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **修复**：`bots.owner_email` 列（迁移 101）+ 创建面写创建者邮箱 + 网关 resolve 行属主优先/存量会话推断回退。测试：gateway resolve 三态单测（行属主优先/存量回退/两无 404）+ 建号行值断言；回归 29/0。
 
 **公网复验（缺陷闭环）**：admin 会话重建 bot+验收舰队+事件边（过程中两笔自纠：fleet 响应形状 fleet.id 取法、同名残留舰队排序）→ **公网 webhook POST（EdgeOne 全链）→ 200 → 网关路由到正确属主 cell → 引擎任务建（origin.event 齐）**——缺陷修复的判定性证据（修复前同路径必 403）。回合完成状态：模型回合 running 中（共享 runtime 队列排队，非路由问题;O1 行随完成落库,机制已由 harness+直连 cell 双路钉死）。复验残留清理随记录执行。
+
+### §16.3 补记：自报闭环兑现 + 发布门零人工实证（2026-10-24）
+
+§16.2 挂账③销账：限流窗过后重发「柏讯 · 产物构建」→ **发布门零人工通过**（工具声明门读 registry 快照 17 工具，`wire_artifact_dashboard_create` / `wire_artifact_doc_create` 在册，不再 unresolved）→ pack `AjFHQ9tjiJp5GTYmBC2y8g` v1 上架，匿名市场可见（总数 70）。**「改代码→出片→滚版→快照自动对齐→发布过门」全链首次无人工介入跑通**——§16.1 立项要交付的那个状态。
+
+配套：发布限流对 admin 组豁免已落地 paas `90fc7fe`（`isAdmin` 短路 + 三态钉测三连绿；内部维护者发官方目录不再骑 10/时公共配额）——随下一班 paas 列车生效，生效前现网限流仍按 10/时（本轮重发等窗通过）。

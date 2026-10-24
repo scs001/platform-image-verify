@@ -42,9 +42,58 @@ export async function clusterMemoryFor(env, ownerEmail, fetchImpl = fetch) {
         if (!r.ok) throw new Error(`pages HTTP ${r.status}`);
         return await r.json();
       },
+      // The digest read face (add-cluster-digest-injection): server-side
+      // rendered block from fd-memory — 5s budget, one shot, no retry (the
+      // caller's ladder falls back to the title list on any failure).
+      async readDigest(clusterId, q, { k = 5, budget = 1500 } = {}) {
+        const u = new URL(`${cfg.url}/digest`);
+        u.searchParams.set("project", clusterProjectId(clusterId));
+        u.searchParams.set("q", String(q ?? ""));
+        u.searchParams.set("k", String(k));
+        u.searchParams.set("budget", String(budget));
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 5000);
+        try {
+          const r = await fetchImpl(u, { headers: { authorization: `Bearer ${token}` }, signal: controller.signal });
+          if (!r.ok) throw new Error(`digest HTTP ${r.status}`);
+          return await r.json();
+        } finally {
+          clearTimeout(timer);
+        }
+      },
     };
   } catch (e) {
     console.warn(`[cluster-memory] unavailable (degrade open): ${e?.message || e}`);
     return null;
   }
+}
+
+// The fan-out injection ladder (add-cluster-digest-injection design D3):
+// digest face first (server-rendered block, proven by the continuation eval),
+// fall back to the historical title list, fall back to nothing. One warn per
+// degraded rung; memory never fails a turn. CELL_MEMORY_DIGEST=0 is the
+// rollback lever that skips the digest rung only.
+export async function memoryInjectionFor(clusterMemory, clusterId, prompt, env = process.env) {
+  if (!clusterMemory) return { prompt, source: "none" };
+  if (env.CELL_MEMORY_DIGEST !== "0") {
+    try {
+      const d = await clusterMemory.readDigest(clusterId, prompt, {
+        k: Number(env.CELL_MEMORY_DIGEST_K ?? 5) || 5,
+        budget: Number(env.CELL_MEMORY_DIGEST_BUDGET ?? 1500) || 1500,
+      });
+      if (d?.digest) return { prompt: `${prompt}\n\n${d.digest}`, source: "digest" };
+    } catch (e) {
+      console.warn(`[cluster] digest read failed for ${clusterId} (fallback to titles): ${e?.message || e}`);
+    }
+  }
+  try {
+    const sharedPages = await clusterMemory.readShared(clusterId, 5);
+    if (sharedPages.length) {
+      const block = sharedPages.map((p) => `- ${p.title}（${String(p.updated_at ?? "").slice(0, 10)}）`).join("\n");
+      return { prompt: `${prompt}\n\n【集群共享记忆】本集群此前回合的沉淀，供参考：\n${block}`, source: "titles" };
+    }
+  } catch (e) {
+    console.warn(`[cluster] shared-memory read failed for ${clusterId} (degrade open): ${e?.message || e}`);
+  }
+  return { prompt, source: "none" };
 }

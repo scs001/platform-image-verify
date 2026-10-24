@@ -125,3 +125,66 @@ test("clusterProjectId: sanitized, path-safe, defaulted", () => {
   assert.equal(clusterProjectId("  "), "cluster");
   assert.equal(clusterProjectId(null), "cluster");
 });
+
+// ── digest injection ladder (add-cluster-digest-injection) ──────────────────
+import { memoryInjectionFor } from "../server/cluster-memory.js";
+
+function ladderMemory({ digest = null, digestError = null, pages = [], pagesError = null } = {}) {
+  return {
+    async readDigest() {
+      if (digestError) throw digestError;
+      return digest;
+    },
+    async readShared() {
+      if (pagesError) throw pagesError;
+      return pages;
+    },
+  };
+}
+
+test("ladder: digest face wins — rendered block appended verbatim", async () => {
+  const d = "## 记忆摘要 / Memory digest（fd-memory，截至 2026-10-25）\n\n### 相关记忆 / Related memory\n- 〔L2·experience｜置信 0.80｜2026-10-24〕集群巡检：先读 digest 再分派";
+  const out = await memoryInjectionFor(ladderMemory({ digest: { digest: d } }), "c1", "本轮任务");
+  assert.equal(out.source, "digest");
+  assert.ok(out.prompt.startsWith("本轮任务\n\n## 记忆摘要"));
+  assert.ok(!out.prompt.includes("【集群共享记忆】"), "digest block carries its own header, no legacy wrapper");
+});
+
+test("ladder: digest failure falls back to the exact historical title-list shape", async () => {
+  const pages = [
+    { title: "集群回合 2026-10-24 08:00", updated_at: "2026-10-24T00:00:00.000Z" },
+    { title: "集群回合 2026-10-23 08:00", updated_at: "2026-10-23T00:00:00.000Z" },
+  ];
+  const out = await memoryInjectionFor(ladderMemory({ digestError: new Error("digest HTTP 503"), pages }), "c1", "本轮任务");
+  assert.equal(out.source, "titles");
+  assert.equal(out.prompt, "本轮任务\n\n【集群共享记忆】本集群此前回合的沉淀，供参考：\n- 集群回合 2026-10-24 08:00（2026-10-24）\n- 集群回合 2026-10-23 08:00（2026-10-23）");
+});
+
+test("ladder: both rungs fail → task prompt unchanged, no throw", async () => {
+  const out = await memoryInjectionFor(ladderMemory({ digestError: new Error("x"), pagesError: new Error("y") }), "c1", "本轮任务");
+  assert.equal(out.source, "none");
+  assert.equal(out.prompt, "本轮任务");
+});
+
+test("ladder: CELL_MEMORY_DIGEST=0 skips the digest rung (rollback lever); env k/budget ride the call", async () => {
+  const seen = [];
+  const mem = {
+    async readDigest(_c, q, opts) {
+      seen.push({ q, ...opts });
+      return { digest: "## 记忆摘要" };
+    },
+    async readShared() { return []; },
+  };
+  const out = await memoryInjectionFor(mem, "c1", "任务A", { CELL_MEMORY_DIGEST_K: "3", CELL_MEMORY_DIGEST_BUDGET: "800" });
+  assert.equal(out.source, "digest");
+  assert.deepEqual(seen, [{ q: "任务A", k: 3, budget: 800 }]);
+  const off = await memoryInjectionFor(mem, "c1", "任务A", { CELL_MEMORY_DIGEST: "0" });
+  assert.equal(off.source, "none");
+  assert.equal(seen.length, 1, "digest face not called when disabled");
+});
+
+test("ladder: null clusterMemory → no calls, prompt unchanged (switch off = byte-identical)", async () => {
+  const out = await memoryInjectionFor(null, "c1", "本轮任务");
+  assert.equal(out.source, "none");
+  assert.equal(out.prompt, "本轮任务");
+});

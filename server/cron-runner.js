@@ -18,7 +18,7 @@ import * as dshProfile from "../dsh-profile.js";
 import { parseToolResult } from "./dsh-events.js";
 import { getClusterDatabase } from "./routes/clusters-db.js";
 import { runA2aTurn, resolveGatewayCredential } from "./a2a-client.js";
-import { clusterMemoryFor } from "./cluster-memory.js";
+import { clusterMemoryFor, memoryInjectionFor } from "./cluster-memory.js";
 import { runToolTurn as runToolTurnDefault } from "./tool-turn.js";
 
 const IDLE_POLL_MS = 250;
@@ -440,23 +440,16 @@ async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, runPersona
   const originalPreset = ctx.currentPreset || null;
   const originalModel = ctx.session?.model?.id ?? null;
 
-  // ── memory hook ① (add-memory-scopes-and-cluster-sharing) ────────────────
-  // After member resolution, read the cluster's shared pages (the cluster-id
-  // project under the OWNER's memory root) and inject them into every
-  // member's task prompt. Degrade open: empty project or unreachable memory
-  // means no block and the task proceeds unchanged.
+  // ── memory hook ① (add-memory-scopes-and-cluster-sharing; digest upgrade
+  // add-cluster-digest-injection) ────────────────────────────────────────────
+  // After member resolution, inject the cluster's shared memory into every
+  // member's task prompt through the three-rung ladder in cluster-memory.js:
+  // digest face (server-rendered, continuation-eval proven) → title list →
+  // nothing. Degrade open at every rung: memory never fails a task.
   let taskPrompt = job.prompt;
   const clusterMemory = await clusterMemoryFor(process.env, ctx.runtimeOwnerEmail ?? null);
   if (clusterMemory) {
-    try {
-      const sharedPages = await clusterMemory.readShared(cluster.id, 5);
-      if (sharedPages.length) {
-        const block = sharedPages.map((p) => `- ${p.title}（${String(p.updated_at ?? "").slice(0, 10)}）`).join("\n");
-        taskPrompt = `${job.prompt}\n\n【集群共享记忆】本集群此前回合的沉淀，供参考：\n${block}`;
-      }
-    } catch (e) {
-      console.warn(`[cluster] shared-memory read failed for ${cluster.id} (degrade open): ${e?.message || e}`);
-    }
+    taskPrompt = (await memoryInjectionFor(clusterMemory, cluster.id, job.prompt)).prompt;
   }
   chatHistory.recordMessage(boundSessionId, "user", taskPrompt);
   if (job.sessionTitle) {

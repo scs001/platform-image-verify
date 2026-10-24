@@ -80,9 +80,9 @@
   skopeo ccr/hkccr digest 双等 `sha256:e1e6daa1` → GitOps fd-infra-deploy `d6767a1` 双清单
   （platform/platform-demo）滚 sha-f8f1505，gitee+github 双端 → ArgoCD hard-refresh →
   Synced Healthy → 双 rollout 完成且 pod imageID==构建 digest 三核过；pod 日志
-  `[db] applied migration v102` 实证。**验收前置**：现网两行凭据（aloadtree wire/lex）为旧
-  格式无 refresh_token 且已过期（exp 10-18/10-20，旧行自然降级）——admin 重连一次
-  （每线点「连接」）即升级为可续期新行，6.3 观测自此起算**）
+  `[db] applied migration v102` 实证。**验收前置已完成（2026-10-24 05:43Z）**：旧凭据行
+  已重连升级（两线 `hasRefresh=1`、stale=0、exp 全新；pod 日志 5→6→7 servers 实证
+  wire-ops/lex-ops 回归 patch——过期省略机理在生产反转）；**6.3 观测自 2026-10-24 起算**）
 - [ ] 6.3 真机验收：`fleet_1792786329045_jchvsd` 连续 7 天 09:00 巡线回合读面全 200，全程
   零浏览器操作、零 platform 重启；30 天口径按 1.1 spike 结论执行（全绿则补 30 天观测，
   绝对租约则按 D6 调口径并记录 wire 侧租户配置配合项）

@@ -6,9 +6,12 @@
 
 ## Requirements
 
+
 ### Requirement: 舰队以 orchestration 声明段描述编导边与约束
 
 舰队对象 SHALL 支持可选 `orchestration` 段:`edges`(边集)与 `constraints`(spanMax / budgetPerEdgeMin / maxChainDepth,均可缺省取默认)。边 SHALL 为六种之一:`trigger`(cron 触发某岗,= 既有节奏物化的图形态,行为不变)、`report`(报数上行,= 既有报数通道,行为不变)、`dispatch`(运行期由岗位发起的派活许可)、`handoff`(上游岗回合完成后接棒下游岗)、`fanout`(上游岗回合完成后并行扇出至多岗并按聚合式汇流)、`event`(外部信号源唤醒某岗)。每条边 SHALL 显式引用本舰岗位 ref(event 边的 from SHALL 为 `bot:<botId>` 形式的外部信号源名,存在性由运行期如实判定);系统 SHALL NOT 按建队顺序或任何隐式规则推断边。写面 SHALL 全量校验:边引用的岗位存在、handoff 子图无环、每条 handoff 链长 ≤ maxChainDepth、span ≤ spanMax(警告级)。event 边的 to SHALL 为 persona/a2a 岗(cluster 无 manual 车道、tool 的参数是逐跳 args,均结构化拒绝);event 边 SHALL NOT 参与 DAG 环检测。未声明 orchestration 段或声明为 `schedule` 模式时,系统行为 SHALL 与现状逐字节一致。
+
+**编导随模板下发**：orchestration 段 SHALL 可作为 pack 舰队模板的组成部分下发——发布预校验与实例化建队 SHALL 复用与写面同一校验器（以模板成员集为岗位域）；由模板落地的编导与手写编导在运行时 SHALL 无差异，主人的后续改写走既有写面。模板编导不改变本条的任何护栏语义。
 
 #### Scenario: 声明一条流水线
 
@@ -39,6 +42,11 @@
 
 - **WHEN** 声明 event 边 from="bot:helper" to=客服岗(persona),或 to 为 cluster/tool 岗,或 from 非 bot: 形式
 - **THEN** 前者通过;后两者结构化拒绝并指名原因
+
+#### Scenario: 模板编导与手写无差异
+
+- **WHEN** 两支结构相同的舰队，一支的 orchestration 来自模板下发、一支由主人手写
+- **THEN** 二者的边展开、派发许可、接棒与唤醒行为完全一致
 ### Requirement: dispatch 边使能同舰队岗位间派活
 
 持有 dispatch 许可(显式 dispatch 边或 supervisor/pipeline 模式展开)的岗位回合 SHALL 获得 `dispatch_post` 工具:按岗位 ref 派活给同舰队岗位,brief 为自包含任务说明;派发 SHALL 走既有 delegation 车道创建 manual 任务(证据 `origin.fleet` 指名目标岗、initiator 为派发岗会话),结果 SHALL 异步送达——派发立即返回,目标岗回合摘要经聚合器在派发岗下一回合注入,系统 SHALL NOT 挂起派发回合等待。护栏 SHALL 结构化拒绝:跨舰队目标、自派、目标岗回合深度已达 1、每岗每回合派发超上限(默认 3)、舰队每小时派发超上限(默认 30,均可 env 配置)。派发目标域 SHALL 为 persona、a2a 与 tool 岗(cluster 岗无 manual 车道,SHALL 结构化拒绝)。派发与被派发回合 SHALL 经既有回合收口自动产出 O1 事件,不新增记录路径。

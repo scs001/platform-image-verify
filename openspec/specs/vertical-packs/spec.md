@@ -5,14 +5,15 @@ Defines what a vertical sample pack is on the hosted platform (entry skill + MCP
 
 ## Requirements
 
+
 ### Requirement: Pack composition model
 
-A vertical pack SHALL be defined as a named composition of four parts: exactly one entry skill, one or more MCP servers, exactly one conversational agent entry, and one visibility role. The pack definition SHALL be documented in `docs/vertical-packs.md` and is the single source a demo operator follows. Four packs exist at v1:
+A vertical pack SHALL be defined as a named composition of four parts: exactly one entry skill, one or more MCP servers, exactly one conversational agent entry, and one visibility role. The pack definition SHALL be documented in `docs/vertical-packs.md` and is the single source a demo operator follows. Two packs remain at the sample face:
 
 - **法律-合同**: entry `legal-contract-workflow`; MCP `law-bench`; agent 合同审查官; role `legal`
 - **法律-案件**: entry `legal-case-workflow`; MCP `fd-legal-search-mcp` (skill-driven until it lands); agent 案件分析师; role `legal`
-- **数据-股票**: entry `stock-research-workflow`; MCP `fd-open-data-mcp` + `fd-cn-report`; agent 行业分析师; role `analysts`
-- **数据-中国经济**: entry `china-macro-brief-workflow`; MCP `fd-open-data-mcp` + `fd-cn-report`; agent 行业分析师; role `analysts`
+
+The two data-domain sample packs (**数据-股票**, **数据-中国经济**) SHALL be retired from the sample face: their domain content is carried by the 柏讯 suite line (single source of truth for data-domain packs — user ruling 2026-10-25). Retirement SHALL unlist the packs and fold any skill the 柏讯 suites lack into the corresponding suite as a new version; published versions SHALL NOT be deleted and existing subscribers SHALL NOT be broken. The sample face SHALL NOT gain new data-domain packs.
 
 #### Scenario: Pack parts are individually installable
 
@@ -24,6 +25,10 @@ A vertical pack SHALL be defined as a named composition of four parts: exactly o
 - **WHEN** a user without the pack's role browses the Store and Agents pages
 - **THEN** the pack's gated entries (per `registry-groups.json`) are invisible to that user
 
+#### Scenario: Data sample packs retire without breaking subscribers
+
+- **WHEN** 数据-股票 and 数据-中国经济 are unlisted per this change
+- **THEN** they disappear from the public listing, their published versions remain fetchable by existing subscribers, and the 柏讯 suites carry the equivalent (or richer) data-domain workflows
 ### Requirement: Entry skill is the pack's single install surface
 
 Each entry skill SHALL be a registry skill whose SKILL.md encodes: the pack's workflow stages in order, which existing skills to invoke at each stage (referenced by exact skill name), which MCP tool groups to call (referenced by server name and tool intent), the output deliverable format, and domain honesty constraints (no fabricated citations/case numbers/tickers; low-confidence legal conclusions MUST be flagged). Installing the entry skill plus the pack's MCP servers SHALL be sufficient for the full workflow — the entry skill MUST NOT require installing any other skill to function (other skills are invoked by name when present, skipped with a note when absent).
@@ -71,11 +76,12 @@ Each pack's agent entry SHALL be a catalog `agent-remote` `chat` entry backed by
 - **WHEN** a user chats with a pack agent with the pack's entry skill installed
 - **THEN** the entry skill's workflow and constraints govern the conversation; the agent entry contributes the model endpoint and display identity only
 
+
 ### Requirement: Demo playbook
 
-`docs/vertical-packs.md` SHALL document, per pack: composition table, operator setup (Logto group assignment, scope grants, token provisioning for V0 manual-paste until registry-sso-credentials lands), a canned demo input, and the expected deliverable shape. The playbook SHALL include the registry-side provisioning runbook (groups, scopes, `registry-groups.json`, agent registration) so a new operator can reproduce the demo without this change's history.
+`docs/vertical-packs.md` SHALL document, per remaining pack: composition table, operator setup (Logto group assignment, scope grants, token provisioning for V0 manual-paste until registry-sso-credentials lands), a canned demo input, and the expected deliverable shape. The playbook SHALL include the registry-side provisioning runbook (groups, scopes, `registry-groups.json`, agent registration) so a new operator can reproduce the demo without this change's history, and SHALL record the data-domain retirement pointer (where that workflow now lives).
 
 #### Scenario: New operator reproduces the demo
 
 - **WHEN** an operator follows `docs/vertical-packs.md` top to bottom on a fresh fd-prod account with the right role
-- **THEN** all four packs' entry skills install, their MCP servers connect with a provisioned token, and each canned demo input produces its expected deliverable shape
+- **THEN** both remaining packs' entry skills install, their MCP servers connect with a provisioned token, and each canned demo input produces its expected deliverable shape

@@ -207,10 +207,12 @@ ENV PATH="/opt/dsh/node_modules/.bin:/opt/harness-acp/node_modules/.bin:${PATH}"
 COPY --chown=node:node --from=builder /app/web/dist ./web/dist
 # Facet service + its built thin SPA (same-image second role; see builder note).
 # mcp-catalog.js is imported by facet/index.js (S2 registry 聚合读面); pairing.js
-# mounts the device-pairing doors (F3.2 publish bridge); cli/ is deliberately
-# NOT shipped — it is the npm-published @finddata/facet package, not part of
-# the runtime.
-COPY --chown=node:node --from=builder /app/facet/index.js /app/facet/identity.js /app/facet/mcp-catalog.js /app/facet/marketplace-json.js /app/facet/pairing.js ./facet/
+# mounts the device-pairing doors (F3.2 publish bridge); publish-gate.js is the
+# same-name publish pre-route (add-mixed-fleet-packs 3.1) — a facet import NOT
+# on this list crashloops the facet role only (the platform-role smoke gate
+# cannot catch it); cli/ is deliberately NOT shipped — it is the
+# npm-published @finddata/facet package, not part of the runtime.
+COPY --chown=node:node --from=builder /app/facet/index.js /app/facet/identity.js /app/facet/mcp-catalog.js /app/facet/marketplace-json.js /app/facet/pairing.js /app/facet/publish-gate.js ./facet/
 COPY --chown=node:node --from=builder /app/facet/web/dist ./facet/web/dist
 
 # Application source: all root .js (server.js, paths.js, local-services.js,

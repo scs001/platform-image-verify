@@ -1,5 +1,33 @@
 # 壹座→柏讯/lex 线需求：市场条目补 lex 凭据声明（解锁 lex 箱测） + consent 资产复核（P2 收口）
 
+> **状态（2026-10-25 晚，柏讯/lex 侧回报，两件全收）**
+> ①**已落地**——活栈（cheap-8 k8s，即公网 `mcp.finddatatech.cloud` 实际后端）`/lex-ops-mcp` 条目
+> `metadata.credential_ref: "lex"` 已挂，连同 surface 名单表（commercial 6/internal 2）与工具面快照
+> （8，PUT 全量体回填）一并恢复；壹座**可跑三条箱测**。同批还修复了七条同类漂移
+> （wire-ops/wire-build/sentiment/quant/text-core/wanxing-ops 的 surface 名单表 + law-bench 陈名单
+> 19→21），并给 `export_surface_commercial.py`/`reconcile_mcp_registry.py` 加了 manifest 单一源派生
+> 与 metadata 在位巡检（首跑即抓出 wanxing 漏网条，终跑零漂移）——明细见 finddata
+> `MCP-REGISTRY.md` §0「2026-10-25 对账条目」。
+> ②**已销案（双方可关）**——资产供给实核无故障：`Dyvh6LUv` 为 2026-07-30 重建前旧构建残影 hash，
+> 当前构建 9 资产公网全 200、部署内 0 命中、无页面引用；且当日以**全新账号真机走查**收口
+> （p2walk1025：登录页完整渲染→consent 服务端自动授权→Grant 180 天即时落库→控制台首登自动开户
+> free 客户+密钥，全程无白页/无 404/无 consent 页）——证据在 finddata `INFRA-NOTES.md`
+> 「Logto consent/资产定案（2026-10-25）」。方案 a 的「修资产源」为空操作。
+> ③tester2 占位行销账已知悉，本侧无动作。
+
+> **箱测回填（2026-10-25 当日，三测全过，两件全部销案）**：
+> ①**Test1 正例 ✅**——aloadtree（仅 lex 凭据、registry 凭据已过期）装 lex-ops-mcp → HTTP 200，
+> 落库配置 `credentialRef:"lex"`（占位头被剥，系统接管）；声明已被安装闸读取生效。
+> ②**Test2 负例 ✅**——lex token 过期/行 stale 态装同条目 → 409 credential-required +
+> **「connect your lex line first — no live lex credential」**（lex 专属文案，非旧 registry 误导文案）
+> + `ref:"lex"` + connectPath `panel=line-lex`。
+> ③**Test3 零回归 ✅**——同账号装普通 registry 条目（fd-quant）→ 409 原文案
+> 「connect the MCP market first」+ `ref:"registry"` ——五既有 ref 的闸行为不变。
+> 附带：装机/卸载均触发 `[mcp-delivery] restarted (attempt 1)`（交付确定性第三生产实证）。
+> 过程数据点（机理台账增量）：浏览器铸币后登出铸币会话 → lex 链首刷 invalid_grant → 续期网
+> 诚实标 stale（**expiresWithSession 会话绑定的第三次活体实证**，与前两次重铸杀链同机理）；
+> headless 平台 mint 通道重铸（不登出）即恢复。壹座侧无遗留。
+
 > 来源：壹座 change `fix-wire-install-gate-and-credential-delivery`（wire 配套四件）上产与真机验收
 > 完成后（2026-10-25，sha-055def5），唯一遗留的跨线项。
 > 对象：柏讯（wire）侧市场登记通道 + lex（识律）线登记面 + Logto 租户资产。

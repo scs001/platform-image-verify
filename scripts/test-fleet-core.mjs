@@ -875,3 +875,75 @@ test("post model/identity: archived-fleet ghost posts exit attribution (0030e1e8
   assert.match(line, /post=/);
   assert.ok(line.includes(livePost.id), "identity names the live post");
 });
+
+// ── Fleet row audit (add-fleet-row-update-audit) ────────────────────────────
+// Two layers, adjudicated by pairing: the DB trigger is ground truth (every
+// writer, including out-of-process SQL), updateFleet's meta stamps attribution
+// on the row it caused. Trigger-with-attribution = in-platform; without =
+// out-of-process.
+
+test("audit: attributed updateFleet lands actor/via + orch old→new; out-of-process UPDATE lands a row without actor", () => {
+  const fleet = fleetDb.createFleet({ id: "audit_f1", name: "Audited", ownerEmail: "owner@test.example" });
+  fleetDb.updateFleet(fleet.id, { orchestration: { mode: "supervisor", edges: [] } },
+    { actor: "owner@test.example", via: "PATCH /api/fleets/audit_f1" });
+
+  let rows = fleetDb.db.prepare("SELECT * FROM fleet_row_audit WHERE fleet_id = ? ORDER BY id").all(fleet.id);
+  assert.equal(rows.length, 1, "createFleet is an INSERT — the first UPDATE-triggered row is the orchestration write");
+  const orchRow = rows[0];
+  assert.equal(orchRow.actor, "owner@test.example");
+  assert.equal(orchRow.via, "PATCH /api/fleets/audit_f1");
+  assert.deepEqual(JSON.parse(orchRow.changed_columns), ["orchestration"]);
+  assert.equal(orchRow.orchestration_old, null);
+  assert.ok(orchRow.orchestration_new.includes("supervisor"));
+  assert.ok(Number.isInteger(orchRow.ts));
+
+  // Out-of-process write: raw SQL bypasses updateFleet entirely — the
+  // trigger still lands the row, attribution stays NULL (the adjudication
+  // marker for "this write did not come from the platform").
+  fleetDb.db.exec(`UPDATE fleets SET name = 'Reset By Shell' WHERE id = '${fleet.id}'`);
+  rows = fleetDb.db.prepare("SELECT * FROM fleet_row_audit WHERE fleet_id = ? ORDER BY id").all(fleet.id);
+  const shellRow = rows[rows.length - 1];
+  assert.deepEqual(JSON.parse(shellRow.changed_columns), ["name"]);
+  assert.equal(shellRow.actor, null);
+  assert.equal(shellRow.via, null);
+
+  // Regular in-process update without meta: behavior unchanged, audit row
+  // still lands (trigger), attribution absent but distinguishable from shell
+  // only by correlation with logs — meta-less callers are legacy only.
+  fleetDb.updateFleet(fleet.id, { state: "paused" });
+  rows = fleetDb.db.prepare("SELECT * FROM fleet_row_audit WHERE fleet_id = ? ORDER BY id").all(fleet.id);
+  assert.equal(rows.length, 3);
+  assert.deepEqual(JSON.parse(rows[2].changed_columns), ["state"]);
+});
+
+test("audit: orchestration reset to null warns outside the owner's HTTP session, stays silent for it", () => {
+  const fleet = fleetDb.createFleet({ id: "audit_f2", name: "Warned", ownerEmail: "owner2@test.example" });
+  fleetDb.updateFleet(fleet.id, { orchestration: { mode: "supervisor", edges: [] } });
+
+  const warns = [];
+  const origWarn = console.warn;
+  console.warn = (...a) => warns.push(a.join(" "));
+  try {
+    // Owner via the fleet router: no warn.
+    fleetDb.updateFleet(fleet.id, { orchestration: null },
+      { actor: "owner2@test.example", via: "PATCH /api/fleets/audit_f2" });
+    // Same human, non-HTTP path (e.g. an internal tool): warn.
+    fleetDb.updateFleet(fleet.id, { orchestration: { mode: "supervisor", edges: [] } },
+      { actor: "owner2@test.example", via: "fleet-architect:applyFleetDraft:edit" });
+    fleetDb.updateFleet(fleet.id, { orchestration: null },
+      { actor: "owner2@test.example", via: "fleet-architect:applyFleetDraft:edit" });
+    // No meta at all: warn with the unknown marker.
+    fleetDb.updateFleet(fleet.id, { orchestration: { mode: "supervisor", edges: [] } });
+    fleetDb.updateFleet(fleet.id, { orchestration: null });
+  } finally {
+    console.warn = origWarn;
+  }
+  assert.equal(warns.length, 2, "only the non-owner-HTTP resets warn");
+  assert.match(warns[0], /orchestration reset to null.*fleet-architect/);
+  assert.match(warns[1], /orchestration reset to null.*unknown/);
+  // Every reset is still audited with old→new values.
+  const resets = fleetDb.db
+    .prepare("SELECT orchestration_old, orchestration_new, actor FROM fleet_row_audit WHERE fleet_id = ? AND orchestration_new IS NULL AND orchestration_old IS NOT NULL")
+    .all(fleet.id);
+  assert.equal(resets.length, 3);
+});

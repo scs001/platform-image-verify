@@ -9,11 +9,18 @@
 //   conflict : a persona/cluster target already on duty (any live fleet, or an
 //              earlier post IN THIS BATCH) never gets a second post — the post
 //              is born with an EMPTY targetId sentinel (staffable via swap,
-//              listed in `conflicts` with the occupying fleet/post). a2a is
-//              exempt (D8: external execution has no attribution ambiguity).
+//              listed in `conflicts` with the occupying fleet/post). a2a/tool/
+//              bot are exempt (external execution / stateless calls / channel
+//              signal sources carry no attribution ambiguity).
+//   orchestration : the template's orchestration section lands as the fleet's
+//              initial orchestration — refs rewritten to member ids, validated
+//              and stored through the SAME write-face path (never a second
+//              format); re-provisioning dedups before any write, so the
+//              owner's later rewrites are never clobbered
 //   paused   : the fleet is created all-paused; materialized tasks park too;
 //              the owner starts it explicitly (install never auto-runs)
 import { parseFleetTemplate } from "./fleet-template.js";
+import { validateOrchestration } from "./fleet-orchestration.js";
 
 // deps: { db, resolveExisting({kind,id}) => boolean|object, rosterPresetId,
 //         reconcile(fleetId), catalogAgentIds(): Set<string> }
@@ -69,11 +76,28 @@ export async function provisionFleetFromTemplate({
       targetKind = "a2a";
       targetId = m.target.id;
       degraded = !deps.resolveExisting({ kind: "a2a", id: m.target.id });
+    } else if (m.target.kind === "tool") {
+      // Tool posts (add-tool-posts / mixed-fleet D4): the target IS the
+      // "server::tool" name — routability is judged at resolution time,
+      // honestly; a dead server still gets its post (vacant, in `missing`).
+      targetKind = "tool";
+      targetId = m.target.id;
+      degraded = !deps.resolveExisting({ kind: "tool", id: m.target.id });
+    } else if (m.target.kind === "bot") {
+      // Bot targets (mixed-fleet D4): a pack bot or an incumbent bot id —
+      // resolved against the bots store; a missing instance degrades the post
+      // (same philosophy as a2a), never the fleet.
+      targetKind = "bot";
+      targetId = m.target.id;
+      degraded = !deps.resolveExisting({ kind: "bot", id: m.target.id });
     }
 
     // Unique-post gate (fleet-core D8), same source as the 建岗/swap routes:
     // only LIVE targets can occupy — a degraded target is nobody's incumbent.
-    if (!degraded && targetKind !== "a2a") {
+    // a2a/tool/bot are exempt (external execution / stateless calls / channel
+    // signal sources carry no attribution ambiguity — the manual bot-post
+    // route agrees wherever it already knows the kind).
+    if (!degraded && targetKind !== "a2a" && targetKind !== "tool" && targetKind !== "bot") {
       const key = `${targetKind}:${targetId}`;
       if (claimed.has(key)) {
         conflict = { occupiedBy: null, intraTemplate: true };
@@ -146,12 +170,45 @@ export async function provisionFleetFromTemplate({
     });
   }
 
+  // Orchestration lands with the fleet (mixed-fleet D3): the template speaks
+  // member REFS, the fleet speaks member IDS — rewrite, then validate and
+  // store through the SAME write-face path (one validator, one updateFleet
+  // column — no second format). Edges reference posts, never the target
+  // behind them, so a degraded/vacant post's edges land identically. The
+  // dedup return above guarantees re-provisioning never rewrites this.
+  let landedFleet = fleet;
+  if (template.orchestration) {
+    const idOf = (ref) => idByRef.get(ref) ?? ref;
+    // A mode/constraints-only section (no edges key) is legal on the live
+    // write face — it lands verbatim, no rewrite to attempt.
+    const landed = {
+      ...template.orchestration,
+      ...(Array.isArray(template.orchestration.edges)
+        ? {
+            edges: template.orchestration.edges.map((e) => ({
+              ...e,
+              ...(typeof e.from === "string" && e.kind !== "trigger" && e.kind !== "event" ? { from: idOf(e.from) } : {}),
+              ...(typeof e.to === "string" && e.kind !== "fanout" ? { to: idOf(e.to) } : {}),
+              ...(Array.isArray(e.targets) ? { targets: e.targets.map(idOf) } : {}),
+              ...(e.aggregate && typeof e.aggregate.judge === "string" ? { aggregate: { ...e.aggregate, judge: idOf(e.aggregate.judge) } } : {}),
+            })),
+          }
+        : {}),
+    };
+    const check = validateOrchestration({ members: deps.db.listMembers(fleet.id), orchestration: landed });
+    if (!check.ok) {
+      return { ok: false, error: `invalid fleet template orchestration: ${check.errors[0].error}`, errors: check.errors };
+    }
+    landedFleet = deps.db.updateFleet(fleet.id, { orchestration: landed },
+      { actor: fleet.ownerEmail ?? null, via: "fleet-provisioner:provisionFleet" }) ?? fleet;
+  }
+
   // Converge the materialized tasks under the paused policy (they park).
   await deps.reconcile(fleet.id);
 
   return {
     ok: true,
-    fleet,
+    fleet: landedFleet,
     memberIdByRef: Object.fromEntries(idByRef),
     missing,
     conflicts,

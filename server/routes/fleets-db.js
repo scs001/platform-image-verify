@@ -134,6 +134,47 @@ export function createFleetDatabase({ file } = {}) {
     /* column already exists */
   }
 
+  // Fleet row audit (add-fleet-row-update-audit): the DB-layer half. An
+  // AFTER UPDATE trigger catches EVERY writer — including processes outside
+  // the platform: a bare sqlite UPDATE leaves no application log, which is
+  // why the 2026-10-24 orchestration resets could not be attributed. The
+  // trigger records WHAT changed; the application half (updateFleet's meta)
+  // backfills actor/via on the row it just caused. Trigger-with-attribution =
+  // an in-platform write; trigger-without = out-of-process — the
+  // adjudication rule for the next recurrence. updated_at is excluded: it is
+  // dirty on every write and carries no signal.
+  db.exec(`CREATE TABLE IF NOT EXISTS fleet_row_audit (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts INTEGER NOT NULL,
+    fleet_id TEXT NOT NULL,
+    changed_columns TEXT NOT NULL,
+    orchestration_old TEXT,
+    orchestration_new TEXT,
+    actor TEXT,
+    via TEXT
+  )`);
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS fleets_audit_after_update
+    AFTER UPDATE ON fleets
+    BEGIN
+      INSERT INTO fleet_row_audit (ts, fleet_id, changed_columns, orchestration_old, orchestration_new)
+      VALUES (
+        CAST(strftime('%s','now') AS INTEGER) * 1000,
+        NEW.id,
+        '[' || trim(
+          CASE WHEN NEW.name IS NOT OLD.name THEN '"name",' ELSE '' END ||
+          CASE WHEN NEW.state IS NOT OLD.state THEN '"state",' ELSE '' END ||
+          CASE WHEN NEW.decision_policy IS NOT OLD.decision_policy THEN '"decision_policy",' ELSE '' END ||
+          CASE WHEN NEW.source_template IS NOT OLD.source_template THEN '"source_template",' ELSE '' END ||
+          CASE WHEN NEW.default_model IS NOT OLD.default_model THEN '"default_model",' ELSE '' END ||
+          CASE WHEN NEW.orchestration IS NOT OLD.orchestration THEN '"orchestration",' ELSE '' END
+        , ',') || ']',
+        OLD.orchestration,
+        NEW.orchestration
+      );
+    END
+  `);
+
   // Turn result events (add-fleet-turn-events): append-only per-turn outcome
   // records — one row per finished member turn (cron / manual / delegation),
   // written at the runCronJobTurn seam. System records, never agent-authored:
@@ -187,7 +228,7 @@ export function createFleetDatabase({ file } = {}) {
     return row ? deserializeFleet(row) : null;
   }
 
-  function updateFleet(id, updates) {
+  function updateFleet(id, updates, meta = null) {
     const COLUMNS = { name: "name", state: "state", defaultModel: "default_model" };
     const setParts = [];
     const values = [];
@@ -210,9 +251,35 @@ export function createFleetDatabase({ file } = {}) {
       values.push(updates.sourceTemplate ? JSON.stringify(updates.sourceTemplate) : null);
     }
     if (setParts.length === 0) return null;
+    const before = getFleet(id);
     setParts.push("updated_at = ?");
     values.push(Date.now(), id);
     db.prepare(`UPDATE fleets SET ${setParts.join(", ")} WHERE id = ?`).run(...values);
+    // Attribution half (add-fleet-row-update-audit): stamp the audit row this
+    // UPDATE just caused — better-sqlite3 is synchronous on one connection,
+    // so MAX(id) is this call's row. Callers without meta leave actor NULL:
+    // that NULL is the out-of-process marker, never overwritten.
+    if (meta && (meta.actor != null || meta.via != null)) {
+      db.prepare("UPDATE fleet_row_audit SET actor = ?, via = ? WHERE id = (SELECT MAX(id) FROM fleet_row_audit)").run(
+        meta.actor ?? null,
+        meta.via ?? null,
+      );
+    }
+    // A non-null → null orchestration reset outside the owner's own
+    // /api/fleets session is the incident signature (2026-10-24, twice).
+    if (
+      before &&
+      before.orchestration != null &&
+      Object.hasOwn(updates, "orchestration") &&
+      updates.orchestration == null
+    ) {
+      const owner = String(before.ownerEmail || "").trim().toLowerCase();
+      const actor = meta?.actor != null ? String(meta.actor).trim().toLowerCase() : null;
+      const ownerHttpSession = actor != null && actor === owner && typeof meta.via === "string" && meta.via.includes("/api/fleets");
+      if (!ownerHttpSession) {
+        console.warn(`[fleet-audit] orchestration reset to null: fleet=${id} actor=${meta?.actor ?? "unknown"} via=${meta?.via ?? "(no attribution)"}`);
+      }
+    }
     return getFleet(id);
   }
 

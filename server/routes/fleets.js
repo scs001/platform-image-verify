@@ -85,6 +85,14 @@ function resolveTarget(member) {
     const alive = !!split && (resolveStdioServerConfig(split.server) != null || resolveServerEndpoint(split.server) != null);
     return { alive, label: member.targetId, clusterName: null };
   }
+  if (member.targetKind === "bot") {
+    // Bot posts (add-mixed-fleet-packs D4): the target is a bot id in the
+    // bots store — pack bots and incumbent bots are indistinguishable here.
+    // Existence is the only gate; enabled/connection state is the operator's
+    // runtime story, read honestly like every other target.
+    const bot = dbModule.getBot(member.targetId);
+    return { alive: !!bot, label: bot?.name ?? (member.targetId || null), clusterName: null };
+  }
   const entry = catalog.getAgentEntry(member.targetId);
   const alive = !!entry && entry.mode === "a2a";
   return { alive, label: entry?.name ?? (member.targetId || null), clusterName: null };
@@ -105,6 +113,7 @@ function invalidTargetMessage(kind, id) {
       ? `tool server '${splitToolTarget(id).server}' is not routable (no registry entry, no stdio config)`
       : `tool target '${id}' must be 'server::tool'`;
   }
+  if (kind === "bot") return `bot '${id}' has no instance in this cell's bots store`;
   return `market agent '${id}' is not an online a2a entry`;
 }
 
@@ -288,6 +297,21 @@ export function createFleetRoutes(app, ctx = null) {
   // against the live catalog/clusters store.
   const targetResolver = ctx?.fleetTargetResolver ?? resolveTarget;
   const router = Router();
+
+  // Fleet access log (add-fleet-row-update-audit): one line for every
+  // non-read /api/fleets request — during the 2026-10-24 reset window the
+  // verdict "zero PATCHes" rested on inference precisely because nothing
+  // recorded method lines. Read methods stay silent (log volume).
+  router.use((req, _res, next) => {
+    if (!["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+      console.log(`[fleet-access] ${req.method} ${req.baseUrl}${req.path} ${resolveUser(req)?.email ?? "anon"}`);
+    }
+    next();
+  });
+
+  // Audit attribution (add-fleet-row-update-audit): every fleet-row write
+  // from this router stamps who and through which route.
+  const auditMeta = (req, via) => ({ actor: resolveUser(req)?.email ?? null, via });
 
   // ── Post-model helpers (add-fleet-post-model) ─────────────────────────────
   //
@@ -782,6 +806,11 @@ export function createFleetRoutes(app, ctx = null) {
               const entry = catalog.getAgentEntry(id);
               return !!entry && entry.mode === "a2a";
             }
+            // tool/bot resolve through resolveTarget semantics — the same
+            // authority the member read face uses (mixed-fleet D4).
+            if (kind === "tool" || kind === "bot") {
+              return resolveTarget({ targetKind: kind, targetId: id }).alive;
+            }
             const cluster = getClusterDatabase().get(id);
             return !!cluster && cluster.status !== "terminated";
           },
@@ -809,7 +838,7 @@ export function createFleetRoutes(app, ctx = null) {
       if (owned.fleet.state === "archived") {
         return res.status(409).json({ error: "This fleet is archived" });
       }
-      db.updateFleet(owned.fleet.id, { state: "active" });
+      db.updateFleet(owned.fleet.id, { state: "active" }, auditMeta(req, "POST /api/fleets/:id/start"));
       for (const m of db.listMembers(owned.fleet.id)) {
         if (m.cadence && m.cadence.enabled === false) {
           db.updateMember(m.id, { cadence: { ...m.cadence, enabled: true } });
@@ -1226,7 +1255,7 @@ export function createFleetRoutes(app, ctx = null) {
         updates.orchestration = orch;
       }
 
-      const updated = getFleetDatabase().updateFleet(fleet.id, updates);
+      const updated = getFleetDatabase().updateFleet(fleet.id, updates, auditMeta(req, `PATCH /api/fleets/${fleet.id}`));
       const reconcile = await runReconcile(fleet.id);
       res.json({ fleet: updated, reconcile });
     } catch (err) {
@@ -1246,7 +1275,7 @@ export function createFleetRoutes(app, ctx = null) {
           await cron.removeJob(job.id);
         }
       }
-      const updated = getFleetDatabase().updateFleet(fleet.id, { state: "archived" });
+      const updated = getFleetDatabase().updateFleet(fleet.id, { state: "archived" }, auditMeta(req, `DELETE /api/fleets/${fleet.id}`));
       res.json({ fleet: updated, dissolved: true });
     } catch (err) {
       console.error("[fleets] delete error:", err.message);
@@ -1502,7 +1531,7 @@ export function createFleetRoutes(app, ctx = null) {
           (e) => (e.from ?? null) !== member.id && e.to !== member.id,
         );
         if (kept.length !== fleet.orchestration.edges.length) {
-          db.updateFleet(fleet.id, { orchestration: { ...fleet.orchestration, edges: kept } });
+          db.updateFleet(fleet.id, { orchestration: { ...fleet.orchestration, edges: kept } }, auditMeta(req, `DELETE /api/fleets/${fleet.id}/members/${req.params.mid}`));
         }
       }
       db.deleteMember(member.id);

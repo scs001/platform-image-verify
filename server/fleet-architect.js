@@ -475,7 +475,8 @@ export async function applyFleetDraft(db, draft, { ownerEmail, resolver = resolv
         });
       }
       if (draft.fleet?.orchestration != null) {
-        db.updateFleet(fleetId, { orchestration: remapOrchestration(draft.fleet.orchestration, idMap) });
+        db.updateFleet(fleetId, { orchestration: remapOrchestration(draft.fleet.orchestration, idMap) },
+          { actor: ownerEmail ?? null, via: "fleet-architect:applyFleetDraft:create" });
       }
       const reconcile = await reconcileFleet({ fleetId, db, cronApi, resolveTarget: resolver, rosterPresetId: roster });
       return { ok: true, mode: "create", fleet: db.getFleet(fleetId), members: db.listMembers(fleetId), reconcile, started: false };
@@ -534,13 +535,14 @@ export async function applyFleetDraft(db, draft, { ownerEmail, resolver = resolv
       const fleetUpdates = {};
       if (draft.fleet?.name) fleetUpdates.name = draft.fleet.name;
       if (draft.fleet?.defaultModel !== undefined) fleetUpdates.defaultModel = draft.fleet.defaultModel ?? null;
-      if (Object.keys(fleetUpdates).length) db.updateFleet(fleetId, fleetUpdates);
+      if (Object.keys(fleetUpdates).length) db.updateFleet(fleetId, fleetUpdates, { actor: ownerEmail ?? null, via: "fleet-architect:applyFleetDraft:edit" });
     }
     // Orchestration rides only when the draft carries it — a section-less
     // draft NEVER clears existing edges implicitly (clearing = explicit empty
     // edges, or post deletion's cascade).
     if (draft.fleet?.orchestration != null) {
-      db.updateFleet(fleetId, { orchestration: remapOrchestration(draft.fleet.orchestration, idMap) });
+      db.updateFleet(fleetId, { orchestration: remapOrchestration(draft.fleet.orchestration, idMap) },
+        { actor: ownerEmail ?? null, via: "fleet-architect:applyFleetDraft:edit" });
     }
     const reconcile = await reconcileFleet({ fleetId, db, cronApi, resolveTarget: resolver, rosterPresetId: roster });
     return { ok: true, mode: "edit", fleet: db.getFleet(fleetId), members: db.listMembers(fleetId), reconcile, applied };

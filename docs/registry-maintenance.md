@@ -1683,3 +1683,11 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 **用户交付 admin 凭据后闭环**（aloadtree=Super Admin 侧 cell）：建 feishu bot（哑出站凭据配方验证可用）→ 建验收舰队+事件边 → **真 webhook 消息唤醒成功**——引擎任务 origin.event 双段齐、preset=intel-chief、回合经真实模型 **deepseek-v4.1-flash** 跑完，**O1 事件行 source=event/status=ok/model 落库**。两支 E2E 舰队与两只 bot 验后清理（归档/删除）。
 
 **入库真缺陷（网关 bot 路由，待修）**：`gateway/bot-webhooks.js` 的 `ownerEmailOf` 用 `chat_sessions.owner LIMIT 1` 任取属主——**混合登录史的 cell**（该 cell 有 qq 邮箱旧会话+gmail 新会话）会把 webhook 路由到错误属主的 cell → 403。复现：aloadtree cell 建 bot 后公网 webhook 必 403；直连属主 cell 回环口 200。**修法方向**：bot 行落库时记录 owner email（创建者），resolve 优先按 bot 行属主；或 ownerEmailOf 取 chat_sessions 按 created_at DESC。E2E 验收以「直连属主 cell 回环 HTTP」完成（同一 HTTP 面，仅少一跳网关），公网路径待该缺陷修复后复验。
+
+### §15.24 发布记录：网关 bot 路由属主修复（fix-gateway-bot-owner，2026-10-24 上午）
+
+**列车**：paas `ff36d603` → 快照 `9403937`（image 绿）→ relay OK → digest `287cf7ee` → GitOps `7f5fea8` 双面滚（二刷落定）。
+
+**修复**：`bots.owner_email` 列（迁移 101）+ 创建面写创建者邮箱 + 网关 resolve 行属主优先/存量会话推断回退。测试：gateway resolve 三态单测（行属主优先/存量回退/两无 404）+ 建号行值断言；回归 29/0。
+
+**公网复验（缺陷闭环）**：admin 会话重建 bot+验收舰队+事件边（过程中两笔自纠：fleet 响应形状 fleet.id 取法、同名残留舰队排序）→ **公网 webhook POST（EdgeOne 全链）→ 200 → 网关路由到正确属主 cell → 引擎任务建（origin.event 齐）**——缺陷修复的判定性证据（修复前同路径必 403）。回合完成状态：模型回合 running 中（共享 runtime 队列排队，非路由问题;O1 行随完成落库,机制已由 harness+直连 cell 双路钉死）。复验残留清理随记录执行。

@@ -113,7 +113,7 @@ test("validateFleetDraft: blocking classes", () => {
   const dead = validateFleetDraft(fleetDb, createDraft({ members: [baseAdd({ targetId: "ghost" })] }), { resolver });
   assert.ok(dead.errors.some((e) => e.error.includes("does not exist")));
 
-  const squat = validateFleetDraft(fleetDb, createDraft({
+  const _squat = validateFleetDraft(fleetDb, createDraft({
     members: [baseAdd(), baseAdd({ targetId: "persona-b" })],
   }), { resolver });
   // persona-a already holds a post in draft (unique-post check hits the DB, so

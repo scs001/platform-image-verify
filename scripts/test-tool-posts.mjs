@@ -112,7 +112,7 @@ test("cron-runner branch: tool turns route to the tool executor, event model=nul
   attachCronRunner(ctx, {
     runPersona: async () => ({ ok: true }),
     runA2a: async () => ({ ok: true }),
-    runTool: async (_ctx, job) => (toolOut = { ok: true, text: '{"n":1}' }),
+    runTool: async (_ctx, _job) => (toolOut = { ok: true, text: '{"n":1}' }),
     listAgents: () => [],
   });
   const r = await ctx.runCronJobTurn({ id: "j1", targetType: "tool", preset: "localtools::fetch", prompt: "{}", sourceTag: { fleetId: "f", memberId: "m" } });

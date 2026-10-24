@@ -224,7 +224,7 @@ test("recordTurnEvent: sourceTag wins (cron), origin.fleet reads manual, persona
 
 test("recordTurnEvent: non-fleet turns and ghost posts skip silently", () => {
   const fleet = fixtureFleet(fleetDb);
-  const m = fixtureMember(fleetDb, fleet.id, { id: "m_live", targetId: "persona-live" });
+  const _m = fixtureMember(fleetDb, fleet.id, { id: "m_live", targetId: "persona-live" });
 
   assert.equal(recordTurnEvent(fleetDb, { id: "x1", preset: "stranger" }, { ok: true }, { startedAt: 1, endedAt: 2 }), null);
   assert.equal(recordTurnEvent(fleetDb, { id: "x2" }, { ok: true }, { startedAt: 1, endedAt: 2 }), null);

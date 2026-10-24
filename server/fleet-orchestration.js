@@ -229,7 +229,7 @@ export function validateOrchestration({ members = [], orchestration = null } = {
 // May `from` dispatch to `to` right now? Explicit dispatch edge or supervisor
 // mode's implicit all→all permission. Same-fleet is structural (both refs
 // come from one fleet's member set).
-export function dispatchAllowed({ members = [], orchestration = null } = {}, from, to) {
+export function dispatchAllowed({ orchestration = null } = {}, from, to) {
   if (from === to) return { ok: false, error: "a post cannot dispatch to itself" };
   if (orchestration?.mode === "supervisor") return { ok: true };
   const edges = Array.isArray(orchestration?.edges) ? orchestration.edges : [];

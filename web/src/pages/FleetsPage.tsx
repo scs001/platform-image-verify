@@ -504,8 +504,8 @@ export function FleetsPage() {
                   {t("fleets.terms.title")} · {t("fleets.terms.intro")}
                 </summary>
                 <div className="mt-2 grid grid-cols-[auto_auto_auto] items-center gap-x-3 gap-y-1 text-xs">
-                  {(t("fleets.terms.rows", { returnObjects: true }) as Array<[string, string]>).map(([from, to], i) => (
-                    <span key={i} className="contents">
+                  {(t("fleets.terms.rows", { returnObjects: true }) as Array<[string, string]>).map(([from, to]) => (
+                    <span key={`${from}-${to}`} className="contents">
                       <span className="text-muted-foreground line-through decoration-muted">{from}</span>
                       <span className="text-muted-foreground">→</span>
                       <span>{to}</span>
@@ -563,7 +563,7 @@ export function FleetsPage() {
                         }}
                         emptyLabel={t("fleets.orch.graphEmpty")}
                       />
-                      {visible.map((e, i) => {
+                      {visible.map((e) => {
                     const name = (id?: string) => memberById(detail.members, id)?.title ?? id ?? "?";
                     const badge = EDGE_STYLES[e.kind] ?? "bg-muted text-muted-foreground";
                     let desc = "";
@@ -579,7 +579,7 @@ export function FleetsPage() {
                       }`;
                     else if (e.kind === "event") desc = `${e.from ?? "?"} → ${name(e.to)} · ${t("fleets.orch.phrase.event")}`;
                     return (
-                      <div key={i} className="flex items-center gap-2">
+                      <div key={`${e.kind}-${e.from ?? "*"}-${e.to}`} className="flex items-center gap-2">
                         <span className={`rounded-full px-2 py-0.5 ${badge}`}>{t(`fleets.orch.edge.${e.kind}`)}</span>
                         <span className="min-w-0 flex-1 truncate text-muted-foreground">{desc}</span>
                         {e.implicit ? (

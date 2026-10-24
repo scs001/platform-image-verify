@@ -349,7 +349,7 @@ function diffEntry(op, cadence, opWarnings) {
 // DETERMINISTIC ids `draft-<n>` (n = add order, 1-based): edges and parentIds
 // may reference them, and apply swaps them for the minted ids with the same
 // counting — one bridge, one place (add-fleet-architect-edges D1).
-function virtualApply(existing, ops, errors) {
+function virtualApply(existing, ops, _errors) {
   const members = existing.map((m) => ({ ...m }));
   let addSeq = 0;
   for (const op of ops ?? []) {
@@ -563,7 +563,7 @@ export function registerFleetArchitectRoutes(ctx) {
   const resolver = ctx?.fleetTargetResolver ?? resolveFleetTarget;
 
   // Read: the owner's fleet roster (counts + failing, no credentials).
-  router.get("/fleets", (req, res) => {
+  router.get("/fleets", (_req, res) => {
     try {
       const db = getFleetDatabase();
       const fleets = db.listFleets({ ownerEmail: ownerEmail() }).map((f) => {

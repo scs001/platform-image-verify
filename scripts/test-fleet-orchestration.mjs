@@ -176,7 +176,7 @@ async function startServer(ctx) {
 
 test("dispatch bridge: guards and the delegation-lane task shape", async () => {
   const other = fixtureFleet(fleetDb, { name: "别舰" });
-  const fleet = fixtureFleet(fleetDb, {
+  const _fleet = fixtureFleet(fleetDb, {
     id: "f_main",
     members: [P("m_sup"), P("m_exec"), P("m_cluster"), { id: "m_ghost", title: "幽灵", parentId: null, targetKind: "persona", targetId: "t-ghost", kpiSlots: [], cadence: null }],
     orchestration: { mode: "supervisor" },
@@ -469,7 +469,7 @@ test("fanout seam: wave creation, initiator wiring both modes, failure relay, de
     { kind: "fanout", from: "fo_src", targets: ["fo_w1", "fo_w2"] },
   ], constraints: { maxChainDepth: 2, budgetPerEdgeMin: 10 } } });
   created.length = 0;
-  const failCtx = { ...ctx, triggerFleetHandoffs: (job, out) => ctx.triggerFleetHandoffs(job, out) };
+  const _failCtx = { ...ctx, triggerFleetHandoffs: (job, out) => ctx.triggerFleetHandoffs(job, out) };
   const failBind = {};
   attachCronRunner(failBind, {
     runPersona: async () => ({ ok: false, error: "429 upstream gone" }),

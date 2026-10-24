@@ -57,12 +57,6 @@ function inFlightChanges() {
   }
 }
 
-function stamp(content, note) {
-  const header = `# 项目语料（语料截至 ${asOf}；快照脚本自动生成，人工复核后随新版本发布）`;
-  const body = content.split("\n").slice(1).join("\n");
-  return `${header}\n\n${note}\n${body}`;
-}
-
 const skill = (name) => manifest.skills.find((s) => s.name === name);
 const changed = [];
 

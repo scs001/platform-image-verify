@@ -181,7 +181,7 @@ export function FleetGraph({
             </marker>
           ))}
         </defs>
-        {links.map((l, i) => {
+        {links.map((l) => {
           const a = byId.get(l.from);
           const b = byId.get(l.to);
           if (!a || !b) return null;
@@ -197,7 +197,7 @@ export function FleetGraph({
             : `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`;
           return (
             <path
-              key={i}
+              key={`${l.from}-${l.to}-${l.kind}`}
               d={d}
               fill="none"
               stroke={color}

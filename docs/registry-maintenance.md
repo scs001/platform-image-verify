@@ -1781,3 +1781,18 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 ### §15.31 补记三：构造测试收官——真实集群回合全链 witness（2026-10-25 午后，用户令「自己构造测试」）
 
 生产无循环排程集群任务（自然流量等不来），改为构造：探针 cell 3fdc7b8e（owner=platform-test@findmail.com，35 pack）注入 drill 集群（数据研究员 + 谦面市场助手，`{packId, agentId}` 引用形）→ **真实 loopback cron API**（POST /api/cron 201 + /:id/run）触发两轮真实集群回合。**三路 witness 全落**：①会话留档——drill 会话 user 消息携带服务端渲染 digest 块（cron→runClusterTurn→三档 ladder→成员任务 prompt 全链眼见；新 project=诚实空块，与契约一致）；②成员真跑——两 agent 各以 deepseek-v4.1-flash 出真实回报（数据研究员回报中眼见自身 fd-memory 挂载）；③hook ② 写回——u-platform-test 根 drill-digest-20261025 project 落「集群回合」页 ×2（22:56/23:01 各一），即下一轮蒸馏的 L1 原料（写回 note 为 L1，进 digest 召回须经蒸馏升 L2——管线语义如实记）。drill 残留清零（集群行 DELETE、job 经 API 删 200）；两页写回与两条 session 留档作为常设证据保留。坑一枚：成员引用必须是 `{packId, agentId}` 对象形（首跑引用裸串→双成员跳过 pack 'undefined'——clusters.db agents 形状在 resolveClusterMembers 钉死）。**接续评测→生产注入的两段验证至此闭合**：实验门 PASS（§15.30）+ 生产田野 witness（本节）。记忆注入线（S3）全链在产可用，余观察项照旧（认领率走向、L2 升级后的召回质量）。
+
+
+### §15.33 门面部署+验收+演练全实录（add-principal-facade 14/14，2026-10-25；用户授权代跑构造测试）
+
+**4.3 部署+真机验收**：部署走 facet 部署路由（in-pod 内部凭据+转发身份=console 同径；billing 挂 aloadtree 余额 50.29、keyRef pk_274fa146…）；**端到端口撞车事故与修复**：reception 哈希落 8809 与 daas-analyst 相撞 → serving runner `EADDRINUSE` **无守护 crash loop**（0/1×5 重启）→ registry entry metadata 直改 `port_override: 8810`（既有机制：runner 精确绑定）→ 下轮 poll 复活 1/1。**四回合验收全过**（直连 runner :8810 双 token 内线）：企业（壹座/双星定位语料口径准）、项目（在途变更带进度与「语料截至」标注）、能力（daas 垂类+spider-heal v7）、**诚实性**（报价问题拒答指商务）；v2 升级后 as-of 前移双证（v1 答 2/14→v2 答 10/14 恰为真态）。
+
+**5.1 同径最小门面**：platform-test@findmail.com 经同一发布门发布「演示者最小门面」（单接待+单语料）200 上架，facade:True——全市场 50+ 包恰两 True（两个门面），同径纪律眼见为实。
+
+**6.2 周更演练全链**：快照脚本（刷新 as-of+openspec 在途）→ v2 发布（**同名闸正确拦截直发新包**，packId 升版路径走通）→ 在役重部署 v2（kept override 端口 8810 保留、packVersion=2、facade 元数据在）→ 真回合验新语料。
+
+**fd-wanxing 配套滚版**：6969251（a2a 卡/目录行透传 facade+facade_stance）→ T2 通用池快照 sha-c4753d3（testaction005 池，target 核对 yizuo/wanxing-facade）→ relay OK → GitOps d4eaaa6 → rollout 绿 → **live 目录 facade:true 实证（其余 agent 零误报）**。注意 fd-wanxing 默认分支=master、无 gitee 远端。
+
+**坑册三枚**：① runner 侧端口分配无 EADDRINUSE 守护（crash loop 而非 skip+warn）+ deploy 侧占用图与 runner 实际监听集不一致（daas-analyst 的 8809 不在占用图）——健壮性缺口挂账；② registry `/agent/` 代理 POST 405（Allow: GET，FastAPI 自答）——a2a_reverse_proxy 疑未生效或 location 未生成，cell 直连 registry 委派通道观察项挂账（萬星 facade/直连 runner 路径不受影响）；③ 部署键≠调用者键（wanxing facade 对 deployment key 拒 INVALID_KEY）——构造测试须走内线双 token，caller 键路径留待真实访客。
+
+**回归归因**：全量 unit 尾部 test-role-gated-extensions 8/14 败——**基线 5265dcc1 同样 8/14**（环境敏感的既有问题，CI 快照树 unit 绿），非本变更引入。

@@ -33,7 +33,7 @@
     {
       "name": "corpus-projects",
       "description": "项目语料：双星路线图里程碑状态、出口判据、在途变更",
-      "content": "# 项目语料（语料截至 2026-10-24；快照脚本自动生成，人工复核后随新版本发布）\n\n## 里程碑出口判据（双星路线图对账表）\n\n- M0（在途收口 + tool-scoping 拍板）：✅\n- M1（≥5 内部 pack 周活跃）：✅\n- M2（一句话目标→夜间执行+晨报+成本对账全链）：◐\n- M3（两个用户的 agent 互相调用、各引数据、完成结算）：◐\n- M4 内部出口（非运营自己人零运维介入全程自助 ≥3 agents）：◐\n- M4 终态出口（两个外部用户各自部署套装、互相对话/调用、成本对账清楚）：未采\n- F1（匿名访客谦面域内自解释闭环）：✅\n- F2（五客户端实证+矩阵+update）：✅\n- F3（真实自部署者全链走通零运营介入）：◐\n\n## 在途变更（openspec 实时口径）\n\n- add-principal-facade（2/14，in-progress）\n- add-cluster-digest-injection（5/8，in-progress）\n- add-continuation-eval（14/14，complete）\n- add-line-credential-renewal（11/14，in-progress）\n- add-mobile-app（14/16，in-progress）\n\n## 方向动态\n\n- 方向动态为人工策展段：多 harness 运行管理层、记忆架构 v4、agents-native 沟通愿景（门面能力）——详见 docs/facet-wanxing-roadmap.md 与 openspec/changes/。"
+      "content": "# 项目语料（语料截至 2026-10-24；快照脚本自动生成，人工复核后随新版本发布）\n\n## 里程碑出口判据（双星路线图对账表）\n\n- M0（在途收口 + tool-scoping 拍板）：✅\n- M1（≥5 内部 pack 周活跃）：✅\n- M2（一句话目标→夜间执行+晨报+成本对账全链）：◐\n- M3（两个用户的 agent 互相调用、各引数据、完成结算）：◐\n- M4 内部出口（非运营自己人零运维介入全程自助 ≥3 agents）：◐\n- M4 终态出口（两个外部用户各自部署套装、互相对话/调用、成本对账清楚）：未采\n- F1（匿名访客谦面域内自解释闭环）：✅\n- F2（五客户端实证+矩阵+update）：✅\n- F3（真实自部署者全链走通零运营介入）：◐\n\n## 在途变更（openspec 实时口径）\n\n- add-principal-facade（10/14，in-progress）\n- add-line-credential-renewal（11/14，in-progress）\n- add-mobile-app（14/16，in-progress）\n\n## 方向动态\n\n- 方向动态为人工策展段：多 harness 运行管理层、记忆架构 v4、agents-native 沟通愿景（门面能力）——详见 docs/facet-wanxing-roadmap.md 与 openspec/changes/。"
     },
     {
       "name": "corpus-capabilities",

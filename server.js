@@ -780,6 +780,18 @@ async function initDshAgent() {
           await credentialDelivery.onCredentialChange(patchPath);
           return;
         }
+        // Snapshot-incomparable fallback (fix-wire-install-gate D2): no
+        // previous patch to diff against (first patch on a child booted
+        // before any server existed — e.g. the user's FIRST credential row)
+        // means the diff could not rule a credential change out. Deliver
+        // through the controller like every credential-shaped change: a bare
+        // restart here collides with an in-flight restart and the collision
+        // is swallowed by reapplyProfile's catch — production 2026-10-24,
+        // twice, fixed only by a platform restart.
+        if (!prevAuth) {
+          await credentialDelivery.onCredentialChange(patchPath);
+          return;
+        }
         // Fallback: hot-swap disabled or no servers (empty patch). Restart re-spawns
         // the child with the new --patch; dsh persists sessions by id so the
         // conversation resumes from disk. Serialized behind mcpChain, so concurrent

@@ -30,6 +30,26 @@ test("unknown line is rejected at store", () => {
   assert.equal(lc.store({ email: EMAIL, line: "nope", token: "x" }), null);
 });
 
+test("first row for (email, line) logs a credential-line-created event, re-stores do not", () => {
+  const email = "first-row@test.example";
+  const logs = [];
+  const orig = console.log;
+  console.log = (...a) => logs.push(a.join(" "));
+  try {
+    lc.store({ email, line: "wire-customer", token: idToken(3600) });
+    lc.store({ email, line: "wire-customer", token: idToken(7200) }); // renewal/re-mint of an existing row
+    lc.store({ email, line: "lex", token: idToken(3600) }); // first row of a DIFFERENT line
+  } finally {
+    console.log = orig;
+  }
+  const events = logs.filter((l) => l.includes("credential line created"));
+  assert.equal(events.length, 2);
+  assert.match(events[0], /first-row@test\.example wire-customer/);
+  assert.match(events[1], /first-row@test\.example lex/);
+  // The event never carries token material.
+  for (const l of events) assert.doesNotMatch(l, /eyJ/);
+});
+
 test("ID token line: store → live → expire → omit → 401 clears → browser re-mint recovers", () => {
   const status = lc.store({ email: EMAIL, line: "wire-customer", token: idToken(3600) });
   assert.equal(status.connected, true);

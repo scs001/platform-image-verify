@@ -73,6 +73,13 @@ const REFS = new Map(
       // recovery attempt before invalidation.
       renewOn401: (email) => lineCredentials.renewOn401(email, "wire-customer"),
       staleEvent: "line_credential_stale",
+      // Install-gate fields (fix-wire-install-gate D1): the gate must judge
+      // liveness by THIS ref's own resolver — falling through to the registry
+      // check refused wire-line installs for customers whose registry was
+      // never connected (2026-10-24, wire-tester2). Same resolution the
+      // profile writer applies, so "connected" = the install will inject.
+      connected: (email) => Boolean(lineCredentials.liveToken(email, "wire-customer")),
+      missingReason: "connect your wire line first — no live wire credential",
     },
     {
       refName: lineCredentials.LEX_CREDENTIAL_REF,
@@ -81,6 +88,8 @@ const REFS = new Map(
       markInvalid: (email) => lineCredentials.markInvalid(email, "lex"),
       renewOn401: (email) => lineCredentials.renewOn401(email, "lex"),
       staleEvent: "line_credential_stale",
+      connected: (email) => Boolean(lineCredentials.liveToken(email, "lex")),
+      missingReason: "connect your lex line first — no live lex credential",
     },
     {
       // ciyuan-account-lane (design D5): the wanxing-caller ref is served by the
@@ -91,6 +100,8 @@ const REFS = new Map(
       liveToken: (email) => ciyuanAccountCredentials.liveToken(email),
       markInvalid: (email) => ciyuanAccountCredentials.markStale(email),
       staleEvent: "line_credential_stale",
+      connected: (email) => Boolean(ciyuanAccountCredentials.liveToken(email)),
+      missingReason: "connect your Wanxing caller key first — no live caller credential",
     },
     {
       // add-crm-desk-pack-embed: the merchant's own Chatwoot token — cell patch
@@ -126,6 +137,12 @@ export function credentialRefForEntry(entry) {
 }
 
 export function credentialConnected(refName, email) {
+  // Table-first (fix-wire-install-gate D1): an entry that declares `connected`
+  // is judged by its own resolver — a line ref falling through to the registry
+  // check refused installs for the wrong missing credential. Entries without
+  // the field keep the legacy chain below, byte-identical.
+  const entry = REFS.get(refName);
+  if (typeof entry?.connected === "function") return entry.connected(email);
   if (refName === facetMarketCredentials.FACET_MARKET_CREDENTIAL_REF) {
     return facetMarketCredentials.status(email).connected;
   }
@@ -141,6 +158,8 @@ export function credentialConnected(refName, email) {
 // Human-readable "what to connect" for a refused install, per ref (the 409
 // body's reason; the UI turns it into the connect-card pointer).
 export function credentialMissingReason(refName) {
+  const entry = REFS.get(refName);
+  if (typeof entry?.missingReason === "string") return entry.missingReason;
   if (refName === facetMarketCredentials.FACET_MARKET_CREDENTIAL_REF) {
     return "pair the facet market first — no live market credential";
   }

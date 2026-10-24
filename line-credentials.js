@@ -88,6 +88,11 @@ export function store({ email, line, token, refreshToken }) {
   if (!LINES.has(line)) return null;
   if (typeof token !== "string" || !token.trim()) return null;
   const key = ownerKey(email);
+  // First row for (email, line) is the delivery-observability event: a running
+  // cell that cached "no credential" only recovers through the delivery
+  // controller, so the row's creation must be visible in logs (no token
+  // material) to adjudicate any recurrence.
+  const firstRow = !db.getLineCredential(key, line);
   db.setLineCredential({
     email: key,
     line,
@@ -96,6 +101,7 @@ export function store({ email, line, token, refreshToken }) {
     stale: 0,
     ...(refreshToken !== undefined ? { refreshToken } : {}),
   });
+  if (firstRow) console.log(`[line-credentials] credential line created: ${key} ${line}`);
   return status(key, line);
 }
 

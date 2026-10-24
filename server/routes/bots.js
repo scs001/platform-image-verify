@@ -135,6 +135,10 @@ export function registerBotRoutes(ctx) {
       // and recreate to rotate — the platform's callback URL must change too).
       secret: crypto.randomBytes(24).toString("base64url"),
       enabled,
+      // Creator identity (fix-gateway-bot-owner): the gateway's webhook router
+      // prefers this over session-ownership inference, which is arbitrary on
+      // cells with mixed sign-in history.
+      ownerEmail: req.user?.email ?? null,
     });
     bots.reload(bot);
     res.json(bots.maskBot(bot));

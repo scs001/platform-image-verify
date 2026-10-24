@@ -62,9 +62,12 @@ export function createBotWebhookRouter({ dataRoot, openDb }) {
         continue; // locked or foreign file: not ours to read
       }
       try {
-        const bot = db.prepare("SELECT id FROM bots WHERE id = ?").get(botId);
+        const bot = db.prepare("SELECT id, owner_email FROM bots WHERE id = ?").get(botId);
         if (!bot) continue;
-        const email = ownerEmailOf(db);
+        // Creator identity first (fix-gateway-bot-owner): the row records who
+        // created the bot, which is exact even on cells with mixed sign-in
+        // history. Session inference is the legacy-row fallback.
+        const email = bot.owner_email || ownerEmailOf(db);
         if (!email) continue; // a bot without a resolvable owner is unrouteable
         entry = { email, userId: dir, at: now };
         break;

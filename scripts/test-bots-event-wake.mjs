@@ -182,3 +182,39 @@ test("a message for a bot with no event edge disturbs nothing", async () => {
   assert.equal(fleetDb.listTurnEvents("m_duty", { limit: 50 }).length, before, "no new events");
   assert.equal(engine.allRecords().filter((t) => t.origin?.event).length, tasksBefore, "no new wake tasks");
 });
+
+// ── gateway resolve: owner_email preference (fix-gateway-bot-owner) ────────
+
+test("gateway resolve: row owner_email wins over session inference; legacy rows fall back", async () => {
+  const { createBotWebhookRouter } = await import("../gateway/bot-webhooks.js");
+  const Database = (await import("better-sqlite3")).default;
+  const fs2 = await import("node:fs");
+  const root = fs2.mkdtempSync(path.join(os.tmpdir(), "gw-resolve-"));
+  const mkCell = (hex, withBot, ownerEmail, sessionOwner) => {
+    const dir = path.join(root, hex, "data", "data");
+    fs2.mkdirSync(dir, { recursive: true });
+    const db = new Database(path.join(dir, "app.db"));
+    db.exec(`CREATE TABLE bots (id TEXT PRIMARY KEY, name TEXT, enabled INTEGER DEFAULT 1, owner_email TEXT)`);
+    db.exec(`CREATE TABLE chat_sessions (id TEXT PRIMARY KEY, owner TEXT)`);
+    if (withBot) {
+      db.prepare("INSERT INTO bots (id, name, owner_email) VALUES (?, ?, ?)").run(withBot.id, "b", ownerEmail ?? null);
+    }
+    if (sessionOwner) {
+      db.prepare("INSERT INTO chat_sessions (id, owner) VALUES (?, ?)").run("s1", sessionOwner);
+    }
+    db.close();
+  };
+  mkCell("aaaaaaaaaaaaaaaa", { id: "bot-with-owner" }, "creator@test", "someone-else@test");
+  mkCell("bbbbbbbbbbbbbbbb", { id: "bot-legacy" }, null, "legacy-owner@test");
+  mkCell("cccccccccccccccc", null, null, "innocent@test");
+
+  const router = createBotWebhookRouter({ dataRoot: root, openDb: (p) => new Database(p, { readonly: true }) });
+  const withOwner = router.resolve("bot-with-owner");
+  assert.equal(withOwner.email, "creator@test", "row creator email wins over session inference");
+  assert.equal(withOwner.userId, "aaaaaaaaaaaaaaaa");
+  const legacy = router.resolve("bot-legacy");
+  assert.equal(legacy.email, "legacy-owner@test", "legacy row falls back to session inference");
+  const none = router.resolve("bot-unknown");
+  assert.equal(none.email, null, "unknown bot → unrouteable");
+  fs2.rmSync(root, { recursive: true, force: true });
+});

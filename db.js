@@ -833,6 +833,14 @@ const MIGRATIONS = [
     // the platform-API SSO login endpoint can be addressed per user.
     statements: [`ALTER TABLE user_chatwoot_credentials ADD COLUMN chatwoot_user_id INTEGER`],
   },
+  {
+    // fix-gateway-bot-owner: the creator email on the bot row — the gateway's
+    // webhook router prefers it over session-ownership inference (which is
+    // arbitrary on cells with mixed sign-in history). Nullable: legacy rows
+    // fall back to the inference path.
+    version: 101,
+    statements: [`ALTER TABLE bots ADD COLUMN owner_email TEXT`],
+  },
 ];
 
 function nowIso() {
@@ -2651,11 +2659,11 @@ export function getBot(id) {
   return hydrateBot(stmt(`SELECT ${BOT_COLS} FROM bots WHERE id = ?`).get(id));
 }
 
-export function addBot({ id, type, name, credentials, secret, enabled = true }) {
+export function addBot({ id, type, name, credentials, secret, enabled = true, ownerEmail = null }) {
   if (!dbReady) return null;
   stmt(
-    `INSERT INTO bots (id, type, name, enabled, secret, credentials, created_at)
-     VALUES (@id, @type, @name, @enabled, @secret, @credentials, @created_at)`
+    `INSERT INTO bots (id, type, name, enabled, secret, credentials, created_at, owner_email)
+     VALUES (@id, @type, @name, @enabled, @secret, @credentials, @created_at, @owner_email)`
   ).run({
     id,
     type,
@@ -2664,6 +2672,7 @@ export function addBot({ id, type, name, credentials, secret, enabled = true }) 
     secret,
     credentials: JSON.stringify(credentials ?? {}),
     created_at: nowIso(),
+    owner_email: ownerEmail ?? null,
   });
   return getBot(id);
 }

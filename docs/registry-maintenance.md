@@ -1803,3 +1803,8 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **归档**：14/14 收口，主 spec `openspec/specs/principal-facade/spec.md` 同步入库（7 requirements），change 迁 `archive/2026-10-25-add-principal-facade`，validate --specs 181/181。
 
 **挂账②取证（registry /agent/ 代理 405）**： cheap-1 容器实测——`A2A_REVERSE_PROXY_ENABLED=true` 在设；`nginx_rev_proxy.conf` 内 36 个 agent location **全部生成于 Oct 24 18:41**（reception 注册于其后）——**注册/重部署后 nginx 配置未再生成**。toggle enable（200 OK）后 conf 依旧未动（时间戳不变）——debounced reload scheduler 在此部署上未生效（registry 源码：agent location 只为健康已探 agent 生成，register 路径的探活在部署时打在 crash 中的 runner 上失败，之后无再触发）。且**旧 agent 同 wgk- 调用者键 POST 同样 403**——caller 键经 /validate 后仍被拒，代理的调用者鉴权模型与 wgk- invoke 键的匹配从未在生产走通（生产真回合全走萬星 facade/直连 runner）。**处置建议**：registry 线专项一场（①再生成调度失效排查+register 失败探活的重试位；②caller 键×代理鉴权对拍——这正是 K4「双向互调」通道的地基），非 paas 侧改动。
+
+
+### §15.35 挂账①修复上产（fix-runner-port-collision，2026-10-25）
+
+四面滚 sha-306a1d6（platform/demo/facet + **agent-runner-serving**——runner 清单独立钉版，本次连带把 §15.31 cluster-digest 代与 §15.32 facade 代捎上 runner；GitOps d61655c，digest c2e05373 ccr 实证）：**runner 侧** `#ensureListener` 挂 error 处理——EADDRINUSE/其他 listen error 释放条目+指名 warn（含 port_override 修复指引=生产已验证手法）+per-key 5min 节流，**重试不受节流**（端口释放后下轮 reconcile 自愈，无需重启）；**deploy 侧**占用图列表失败从静默降级改 loud warn（降级行为保持）。单测 4 新（隔离/节流/自愈/可见性）——测试过程钉死两口径：**端口哈希输入是 registry path（带斜杠）非 agentKey**；**macOS 上 :: 通配 probe 与 0.0.0.0 监听可共存**（probe 假 free + probe 竞速重绑两坑，最终用 HTTP 200 语义验证）。生产实证：runner 滚后 0 重启、16 agent 全 serving、无 EADDRINUSE，post-roll 真回合 200。挂账①销账；②留 registry 专项（§15.34）；③随 M5.3 真实访客采集。主 spec 双 capability 同步入库（validate --specs 181/181）。

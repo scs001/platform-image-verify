@@ -11,4 +11,4 @@
 
 ## 3. 回归与出片
 
-- [ ] 3.1 全量相关套件绿（agent-runner test workspace + agent-serving + 既有端口碰撞测试组）——`fd-build-channel` 判路出片，platform 三面 + agent-runner-serving 滚 tag，生产实证：runner 滚动后 16 agent 全部 serving、无 crash
+- [x] 3.1 全量相关套件绿（agent-runner test workspace + agent-serving + 既有端口碰撞测试组）——`fd-build-channel` 判路出片，platform 三面 + agent-runner-serving 滚 tag，生产实证：runner 滚动后 16 agent 全部 serving、无 crash

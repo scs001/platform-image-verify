@@ -13,9 +13,10 @@
   > normalizeIdentityEmail，db.js:1592 同为 trim+lowercase）殊途同归；残余风险仅剩
   > 「铸币会话与 cell 绑定的 email 本串不同」（wire-tester2/wiretester2 双 slug 在
   > AI_CELL_ENDPOINT_MAP 并存为旁证）。
-  > 1.2 状态：**deferred**——壹座平台生产库通道本会话未建立（.remote-dc.yml 是 IdP 栈
-  > 非 paas 部署）。裁决过程：受影响平台 `SELECT email,line FROM user_line_credentials
-  > WHERE line='wire-customer'` 与 `[dsh-profile] omitting` 行 owner 比对；随上产执行。
+  > 1.2 结论（2026-10-25 上产后生产只读裁决）：**身份别名排除**——tester2 cell
+  > (420a3344) 行 owner=`wire-tester2@findmail.com`、platform-test cell (3fdc7b8e) 行
+  > owner=`platform-test@findmail.com`，与 `[dsh-profile] omitting` 日志 owner 串逐字
+  > 一致；静态（1.1）+运行时双侧无分叉。15:1x 事故机理收敛为兜底 restart 缺口（3.1 修）。
 
 ## 2. P0 安装闸表驱动补分支
 
@@ -41,7 +42,39 @@
 - [x] 4.1 本地回归：`node --test` 跑 test-facet-market-ref-dispatch / test-line-credentials
   / test-dsh-mcp-delivery / test-registry-credentials / test-paper-trading-credentials
   / test-facet-market-credentials 全绿。验证：命令输出。
-- [ ] 4.2 真机验收（随上产）：无 registry 凭据账号装 wire pack 成功；断开后 409 文案+
+- [x] 4.2 真机验收（随上产）：无 registry 凭据账号装 wire pack 成功；断开后 409 文案+
   connectPath 指线卡；lex 同形；新 cell 铸首行不重启 5min 内 tool_search 可见；清
   Logto 会话新浏览器完整铸币（consent 交叉面）；验证后 wire 侧撤 wire-tester2 占位
   registry 凭据。验证：验收记录补入本节下方。
+
+### 4.2 验收记录（2026-10-25，sha-055def5 上产后）
+
+- **上产**：快照 055def5 → GHA 绿 → relay OK（digest 9292d3fa）→ fd-infra-deploy 9c02b89
+  → ArgoCD sync → rollout 完成，/healthz 200。
+- **P0 负例**（tester2，占位 registry 行仍在场=旧代码必放行的最强对照）：断开
+  wire-customer → 卸 wire-build-mcp → 装 SWPvacoFTftfVngMMFotwQ v2 → 拒装
+  `credential-required` + **新文案** "connect your wire line first — no live wire
+  credential" + connectPath `/settings/connections?panel=line-wire-customer` ✓（旧文案
+  "connect the MCP market first" 不再出现）。
+- **P0 正例**（aloadtree：registry 凭据 10-23 已过期=零活 registry 凭据、仅活
+  wire-customer 行）：装同 pack → `wire-build-mcp: installed` + 双 agent installed ✓
+  ——正是需求原文的客户车道场景。
+- **P1 事故重放**（aloadtree，全程无平台重启，pod age 12m 恒定）：pod 内 refresh grant
+  铸 ID_1 → DELETE 行（API）→ `[dsh-profile] omitting 3 wire-customer MCP server(s)
+  (wire-ops, wire-build-mcp, wire-ops-mcp)` → PASTE 首行（真 API）→
+  **`[line-credentials] credential line created: aloadtree@gmail.com wire-customer`** →
+  **`[mcp-delivery] credential change: runtime child restarted with the fresh patch
+  (attempt 1)`** ✓（秒级交付，5min 窗口内）。
+- **rotator 保护**：paste 建行无 rotator，RT 窗口内（租户 TTL ~31-33min）refresh#2 取
+  RT_2 直写回行（单列 UPDATE，等效续期服务写入）；链 43 字符 stale=0，7 天观测主体无损，
+  明早巡线不受影响。全程只走 refresh grant（无新授权）——§15.27 定案的杀链机理
+  （同 user+client 新授权）未触发。
+- **lex 同形**：市场条目 `lex-ops-mcp` 未声明 `metadata.credential_ref: lex`（注册侧
+  缺口，非 paas 闸缺陷）——条目派发按工具面快照只覆盖 wire 系；lex 分支由单测覆盖
+  （test-facet-market-ref-dispatch 9/9），箱测待登记侧补声明后可跑。
+- **consent 交叉面**：需账号密码或人工浏览器（headless 通道全部要 tester2 密码，会话
+  记录无留存）——**未覆盖**，移交人工：清 Logto 会话后浏览器完整走一次 wire-customer
+  铸币（同时覆盖 P2 波及面探测）。铸币配方 fd-wire 执行报告 §四。
+- **wire 侧配合项**：tester2 占位 registry 凭据行已撤（DELETE /api/registry/connection
+  → connected:false）✓——tester2 回到真实新客户态（无线凭据、无 registry 凭据、pack
+  未装），下次真实铸币即走本修复后的完整客户车道。

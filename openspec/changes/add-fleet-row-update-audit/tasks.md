@@ -29,3 +29,16 @@
 - [x] 3.2 回归：跑全部 updateFleet 消费方测试（fleet-core / orchestration /
   orchestration-purity / tool-posts / report-lane / turn-events / event-wake /
   bots-event-wake）。验证：全绿输出。
+
+
+## 4. 生产实证（上产 sha-055def5 后，2026-10-25）
+
+- [x] 4.1 fleet_row_audit 生产首行：PATCH /api/fleets/fleet_1792786329045_jchvsd（同值
+  orchestration，零行为变化）→ 审计行 `{actor: platform-test@findmail.com, via: "PATCH
+  /api/fleets/fleet_1792786329045_jchvsd", changed_columns: "[]", orch old=new
+  supervisor}`——归因与触发器双层都在；同值写不误报变更列。进程外捕获路径由单测覆盖
+  （直接 SQL UPDATE → 触发器落行、actor NULL）。
+- [x] 4.2 复位者定位语义就绪：下次 orchestration 复位复发时，凭
+  `SELECT * FROM fleet_row_audit WHERE fleet_id=?`——actor/via 有值=平台内谁干的；
+  actor NULL=进程外写入（首日巡线 bash 裸写嫌疑的唯一落网点）。观察期内每次巡线前照旧
+  查 orchestration 字段（fd-wire HANDOFF §2-1），复发即审计定位。

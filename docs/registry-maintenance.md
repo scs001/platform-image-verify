@@ -1722,7 +1722,14 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 
 **§15.27 终章（10-25 凌晨，wire 侧源码级定案回填）**：wire 取证（Logto 1.42.0 审计日志+OIDC 模型库+部署源码，全程只读）推翻壹座剩余推断——**租户零吊销事件、零额外策略**（全天两 client 零 RevokeToken）。真机理：SPA 公共客户端 refresh token 带 `expiresWithSession`+`sessionUid` **绑定铸币浏览器会话**（三重校验：会话存活/主体未变/grant 未换），且**自铸币起 14 天绝对租约、rotation 不续命**（源码注释 "do not have infinite expiration through rotation"；壹座 14:24 链 16 轮 rotation 后 exp 仍钉铸币+14d 互证）；租户无 TTL 旋钮。**现网四链 11-07 22:25-22:58 集体到点**。验收口径修正：「30 天不再点连接」物理不可达 → **「≤13 天周期自动重铸」**（headless 铸币配方已具备）；舰队/5.x 正解=每 cell 服务账号+<14 天重铸，备选机密客户端不首选。纪律修正版：人工登录/退出不限（独立会话不碰链，双重实证），禁同会话再授权（复用 cookie 的脚本铸币）与铸币会话内登出/换号；铸币统一走 platform mint 通道（双向，贵侧宿主裸脚本三批亦已自纠）。附带：壹座 23:21「瞬态 invalid_grant」实为诊断脚本 lex rotator 刷到 wire 端点（client mismatch，张冠李戴）——生产 rotator per-line 配对复核正确，已补配对单测（renewal 套件 9/9）；诊断脚本同修。22:58 fleet 重连归属勘误（mint-line/1 Mac 发起，非贵侧会话动作，不影响结论）。
 
+### §15.28 补记：wire 配套四件上产+真机验收（2026-10-25 晨）
+
+fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行审计 / P1 凭据首连交付 / P2 consent）当日闭环，sha-055def5（paas b4b2a12e + 6618e3fa，快照 055def5，digest 9292d3fa）上产并真机验收通过。**P0 安装闸**：`credentialConnected`/`credentialMissingReason` 的 fall-through（wire-customer/lex 判活错落 registry）改为 REFS 派发表携带 `connected`/`missingReason` 字段、判活表优先——负例（tester2 断线装 pack，占位 registry 行仍在场=旧代码必放行的对照）拒装文案改指 wire 线 + connectPath 指线卡；正例（aloadtree：registry 凭据 10-23 已过期=零活 registry 凭据、仅活线凭据）装 SWPvacoFTftfVngMMFotwQ v2 成功——客户车道场景原样打通。**P1 交付兜底**：`dshUpdateMcp` 快照不可比（prevAuth null=首装）的裸 restart 改走交付控制器（10-24 15:1x 两次「重启 platform 才生效」的事故形态实证为兜底漏网——控制器 f62f2177 已在产而事故仍发）；事故重放（aloadtree：refresh grant 铸 ID→DELETE 行→`omitting 3 wire-customer MCP server(s)`→PASTE 首行）产出 `[line-credentials] credential line created` 事件 + `[mcp-delivery] restarted (attempt 1)`，全程 pod 不重启、秒级交付。**P1 fleet 行审计**：SQLite AFTER UPDATE 触发器 `fleet_row_audit`（无差别抓进程外裸写=复位案头号嫌疑唯一落网点）+ `updateFleet` meta 归因（8 调用点）+ orchestration 复位非 owner 会话 warn + `/api/fleets` 非只读访问日志；生产首行验证 PATCH 归因 `actor: platform-test@…, via: PATCH /api/fleets/…` 在案，复位复发即可定位。**1.2 身份裁决**：两 cell 行 owner 与 omitting 日志 owner 逐字一致（trim+lowercase 同链），身份别名排除。**P2**：不属 paas（Logto 资产），mint 交互重试已入验收观察；tester2 占位 registry 凭据行已撤（wire 配合项销账），tester2 回到真实新客户态。
+
+运维注记：①aloadtree 行 rotator 在重放中短暂无主，RT 窗口内 refresh#2 取新 rotator 单列写回（等效续期写入），链 43 字符 stale=0、只走 refresh grant 未触发 §15.27 杀链机理；②lex 同形箱测待登记侧给 `lex-ops-mcp` 补 `metadata.credential_ref: lex`（现派发按工具面快照只覆盖 wire 系，lex 分支单测覆盖）；③consent 交叉面（清会话浏览器铸币）需账号密码，移交人工；④kubectl exec 注意 `deploy/platform` 可能落到 demo pod（同名容器异 secret），exec 后以 `/api/auth/me` 验身份再操作。
+
 ### §16.3 补记：自报闭环兑现 + 发布门零人工实证（2026-10-24）
+
 
 §16.2 挂账③销账：限流窗过后重发「柏讯 · 产物构建」→ **发布门零人工通过**（工具声明门读 registry 快照 17 工具，`wire_artifact_dashboard_create` / `wire_artifact_doc_create` 在册，不再 unresolved）→ pack `AjFHQ9tjiJp5GTYmBC2y8g` v1 上架，匿名市场可见（总数 70）。**「改代码→出片→滚版→快照自动对齐→发布过门」全链首次无人工介入跑通**——§16.1 立项要交付的那个状态。
 

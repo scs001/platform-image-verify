@@ -961,8 +961,10 @@ export function registerPackRoutes(app, {
     if (verdict.length > 0) return res.status(verdict[0].status).json(verdict[0].body);
     // Only publishes that pass validation count against the author's budget —
     // iterating on a manifest must not exhaust it. Invalid attempts store
-    // nothing and cost only a pure-function validation.
-    if (!publishAllowed(user.email)) return res.status(429).json({ error: "Too many publishes, try again later" });
+    // nothing and cost only a pure-function validation. Admin groups are
+    // exempt: the platform's own maintainers publish the internal catalog and
+    // must not ride the public anti-abuse budget (10/h shipped default).
+    if (!isAdmin(user) && !publishAllowed(user.email)) return res.status(429).json({ error: "Too many publishes, try again later" });
     const result = packId
       ? registry.publishVersion({ email: user.email, id: packId, manifest })
       : registry.publish({ email: user.email, manifest });

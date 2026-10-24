@@ -1700,6 +1700,14 @@ ops 令牌=pod env `FLEET_OBSERVER_TOKEN`，写进 `$TMPDIR` 临时 ego 脚本�
 
 **快照配方备忘**：make-public-snapshot 产物仍带 7 workflow 且无 image-publish.yml（scrubber 不修剪 .github 的老坑再现）——从快照仓 main（9403937）`gh api contents` 取回 image-publish.yml、修剪到只剩它，快照目录 `git init -b main` + 强推。fd-build-snapshot 直推被私有→公开泄露防护拒绝（该工具走 build-pool 私有池线；公开线仍走 make-public-snapshot）。**验收前置已完成（2026-10-24 05:43Z）**：playwright 走 mint 往返重连两线（与点「连接」等价的同一 URL），生产行 `hasRefresh=1`/43 字符不透明 rotator/stale=0/exp 全新；pod 日志 5→6→7 servers 实证 wire-ops/lex-ops 回归 patch——「未接入」的过期省略机理在生产反转（platform pod 未重启）；7 天观测（6.3，fleet_1792786329045_jchvsd）**自 2026-10-24 起算**；回报已落 wire 仓 `reports/2026-10-24-paas-line-credential-renewal-closure.md`（只落文件未提交，wire 仓在另一会话手中）。`test-wire-tool-risk` 快照漂移（wire 侧 `wire_artifact_*` 新工具）随本列车入库为已知存量，修复=`scripts/refresh-wire-tool-surface.mjs`。
 
+### §15.26 发布记录：谦面双案上产（polish-facet-usability + add-facet-copilot，2026-10-24 深夜）
+
+**列车**：paas `814b5ecf`（打磨 11/13）+ `a954a003`（副驾 6/9）+ `205d7369`（lint 修）——并行会话凭据续期列车快照 `f8f1505` 已含全部三提交（merge-base 实证），镜像免重出；relay OK 13:26:34 → digest `sha256:e1e6daa1`（skopeo 带 creds 实证）→ GitOps `a741089` facet.yaml 滚 `sha-f8f1505`（双推 gitee+github）→ ArgoCD 硬刷新 Synced → Recreate 滚动完成，pod imageID==digest 双向实证；in-pod 双标记：壳面新 bundle `/app/facet/web/dist/assets/index-B_PAoOUz.js` 含 pathGraph、Store 面 `copilot_pack` 在 `CopilotDock-BpIzDFps.js`（**备忘：壳面 SPA 真身在 `/app/facet/web/dist`，`/app/web/dist` 是 Store 面——in-pod 取证别再指错目录**）。
+
+**真机验收（生产，aloadtree 会话）**：壳面五视图（intro/packs/详情弹窗/mine/curate）浅+暗全过、移动宽 390（packs+intro 纵向堆叠正常）、英文键化（mine/curate 全键化零混排）、RM 灭动效线上 CSS 实证（`prefers-reduced-motion:reduce` 全局 0.01ms）。副驾全链：`/agents?tab=market` 路由推导 iframe src=`/chat?embed=copilot&board=facet&preset=facet-assistant`；装前琥珀降级条 → pack v3 安装 → 自动聚焦（聚焦预设: 谦面助手）+ 上下文条「正在看: facet」；真机四问全过——概念（pack=技能+角色确定版本快照、订阅≠安装）/推荐（真调 facet_market_pack_browse、未上牌与卡片覆盖诚实告缺）/权限解释（ask_user_question 问询卡 + 403/404/清单三分类 + 真读包 mfaIAXHRVFQJaXPXyiAzKQ v4 + 只读边界声明）/安装引导（分步 CLI + agent 角色不落位边界 + 真 pack id）。pack v3 狗粮发布：真校验器对拍绿 → 代理通道 `publish_pack.py` 成功（qCEIutJzQd49jnDtV4qeqw version 3，六技能含四问向导面）。
+
+**归档**：两 change tasks 全勾（polish 13/13、copilot 9/9），`openspec archive` 双双落地（2026-10-24-polish-facet-usability / 2026-10-24-add-facet-copilot），specs 全量 178/0。
+
 ### §16.3 补记：自报闭环兑现 + 发布门零人工实证（2026-10-24）
 
 §16.2 挂账③销账：限流窗过后重发「柏讯 · 产物构建」→ **发布门零人工通过**（工具声明门读 registry 快照 17 工具，`wire_artifact_dashboard_create` / `wire_artifact_doc_create` 在册，不再 unresolved）→ pack `AjFHQ9tjiJp5GTYmBC2y8g` v1 上架，匿名市场可见（总数 70）。**「改代码→出片→滚版→快照自动对齐→发布过门」全链首次无人工介入跑通**——§16.1 立项要交付的那个状态。

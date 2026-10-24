@@ -569,3 +569,51 @@ The disclosure SHALL be derived from the immutable version manifest plus the cat
 
 - **WHEN** a published version predates the gate and its reference carries no declaration
 - **THEN** the view shows the full tool count marked as undeclared, and the page still renders normally
+
+### Requirement: Both surfaces share a type scale and spacing discipline
+
+The two market surfaces — the facet standalone shell (`facet/web/src`) and the 壹座 embedded Store (`web/src/components/packs/`) — SHALL follow one type-scale discipline: body and explanatory text renders at `text-xs` (12px) or larger; sub-12px sizes are permitted only for non-prose micro-labels (version chips, badge numerals) and only in monospace single-line form, with the permitted inventory recorded in the shared design doc (`facet/web/DESIGN.md`). Spacing SHALL come from the semantic Tailwind scale; arbitrary-value spacing is permitted only for data-driven dimensions recorded in the same doc. The shared design doc SHALL be the single source of truth for this discipline and for the state-pattern and motion vocabulary both surfaces use.
+
+#### Scenario: no eyeballed type sizes in prose
+
+- **WHEN** either surface renders a paragraph, hint, or list of explanatory text
+- **THEN** its font size comes from the semantic scale at 12px or larger — no `text-[9px]`, `text-[10px]`, or `text-[11px]` on prose
+
+#### Scenario: micro-labels stay within the recorded inventory
+
+- **WHEN** a sub-12px size is used anywhere on either surface
+- **THEN** the element is a non-prose micro-label listed in the DESIGN.md inventory, rendered monospace single-line
+
+#### Scenario: async views on both surfaces share the state pattern
+
+- **WHEN** the 壹座 Store's market tab loads packs, or the facet shell's packs view loads packs
+- **THEN** both render the same shape of skeleton/empty/error states defined by the shared design doc
+
+### Requirement: The 壹座 Store tab carries a market guide entry
+
+On the 壹座 Agents page Market tab, the copilot dock SHALL resolve the facet line's focused assistant (existing `GET /api/boards/facet/copilot` resolution, no new endpoint) and open the guide with that preset injected — same open/restore semantics as the board path. While the guide is open, the tab SHALL publish the currently inspected pack (from the detail dialog's lifecycle) into the guide's context bar via the existing same-origin postMessage channel; the injection SHALL be read-only (the embed registers no page-action handler, and any write intent SHALL still travel through the action gate's propose path). When the facet assistant pack is not installed (no resolvable focused preset), the Market tab SHALL surface an honest hint pointing at the assistant's market entry instead of an unfocused guide pretending to be gated. The facet standalone site (anonymous surface) carries no guide entry in this scope.
+
+#### Scenario: opening the guide from the Market tab injects the focused preset
+
+- **WHEN** a signed-in user on `/agents?tab=market` opens the copilot dock and the 谦面助手 pack is installed
+- **THEN** the guide session runs under the `facet-assistant` focused preset and the context bar names it
+
+#### Scenario: the inspected pack reaches the guide's context
+
+- **WHEN** the pack detail dialog is open and the user asks the guide a question
+- **THEN** the guide's context bar shows the current pack and the answer may reference it
+
+#### Scenario: write intent stays gated
+
+- **WHEN** the user asks the guide to subscribe to the inspected pack
+- **THEN** the turn surfaces an action proposal card (propose/confirm/audit), never a direct subscription
+
+#### Scenario: honest degradation without the assistant pack
+
+- **WHEN** the 谦面助手 pack is not installed on the cell
+- **THEN** the Market tab shows the guidance hint toward the assistant's market entry and the guide does not claim a focused preset
+
+#### Scenario: the standalone site carries no guide
+
+- **WHEN** an anonymous visitor browses the facet standalone site
+- **THEN** no guide entry appears (the anonymous-surface guide is out of scope)

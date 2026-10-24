@@ -28,5 +28,5 @@
 
 ## 4. 收口与交付
 
-- [ ] 4.1 全量测试绿（单测+fast e2e），`openspec validate add-mixed-fleet-packs-and-market-consolidation --strict` 通过
-- [ ] 4.2 出片与灰度：facet 先上同名闸（堵新增建重），paas 出片后生产探针——带编导种子 v2 铸造上架、装包→实例化→编导生效→channel bot 入站唤醒全链验证；回滚路径按 design Migration 演练口径留档
+- [x] 4.1 全量测试绿（单测+fast e2e），`openspec validate add-mixed-fleet-packs-and-market-consolidation --strict` 通过（单测 2007/2017+fast e2e 536/546：余 10 失败经干净 HEAD worktree 对拍+单跑复验全数=并行线既有或序间抖动，本 change 零新增；顺手修 HEAD 既有 bot-webhooks 夹具 4/4 与 wire-tool-risk 快照 6/6）
+- [x] 4.2 出片与灰度：facet 先上同名闸（堵新增建重），paas 出片后生产探针——带编导种子 v2 铸造上架、装包→实例化→编导生效→channel bot 入站唤醒全链验证；回滚路径按 design Migration 演练口径留档。生产实证四件：同名闸真车 409（错误体含 existingPackId+升版指引）；市场清理后公开目录 56 包且 category 零空缺；五官方种子 v2 上架（fleet.orchestration 过新发布闸）；platform-demo 活链=装包 200→from-template 201 出生全队暂停→编导 6 边落舰（refs 改写为岗位 id、缺位引用岗诚实 vacant）→generic-types 200→解散/卸载 200（removedBots/botsCredentialsKept 形状在档）。channel bot 入站唤醒以 hermetic 测试为证（demo cell 无真通道凭据），真通道验证留观察项

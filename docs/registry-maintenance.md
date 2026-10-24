@@ -1734,3 +1734,15 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 §16.2 挂账③销账：限流窗过后重发「柏讯 · 产物构建」→ **发布门零人工通过**（工具声明门读 registry 快照 17 工具，`wire_artifact_dashboard_create` / `wire_artifact_doc_create` 在册，不再 unresolved）→ pack `AjFHQ9tjiJp5GTYmBC2y8g` v1 上架，匿名市场可见（总数 70）。**「改代码→出片→滚版→快照自动对齐→发布过门」全链首次无人工介入跑通**——§16.1 立项要交付的那个状态。
 
 配套：发布限流对 admin 组豁免已落地 paas `90fc7fe`（`isAdmin` 短路 + 三态钉测三连绿；内部维护者发官方目录不再骑 10/时公共配额）——随下一班 paas 列车生效，生效前现网限流仍按 10/时（本轮重发等窗通过）。
+
+### §15.29 发布记录：混合舰队+谦面市场整合（add-mixed-fleet-packs-and-market-consolidation，2026-10-25）
+
+**列车**：快照 scs001/platform-image-verify `c432bc3`（paas `a5f800f6`，含 3057654b 主体+310dd63f Dockerfile 修）→ digest `da1d5be3`（hkccr/ccr 双证，relay 正常轮+手动补单）→ GitOps `b377df9` 三面滚 platform/platform-demo/facet。**两次翻车实录**：①`5e17622` facet 崩溃循环——Dockerfile 末段 facet/ 是显式文件白名单 COPY，C 组新增 `facet/publish-gate.js` 未入列（platform 角色不受影响，smoke 门只验 CMD 默认角色故未拦）；修=白名单补一行（310dd63f），facet 应急回滚 f8f1505 后随 c432bc3 重滚。②`9a2da1c` 为陈树快照事故重演（fd-build-snapshot 本地路径模式：标签写本地 HEAD、树从 origin clone，我的 Dockerfile 修只推了 gitee 未推 origin——§15.15 既有纪律「本地提交未推 origin 前严禁本地路径模式」复发）；GHA 缓存全清（gh cache delete --all）+ 补推 origin 后重出。**教训两条：新增 facet 运行时 import 必须同步 Dockerfile 白名单；本地路径出片前 `git ls-remote origin main` 对拍本地 HEAD**。
+
+**功能三件**：① fleet 模板带 orchestration 编导（validateOrchestration 单源/模板成员集为岗位域/gateway 发布预校验/provisioner 走写面落地/导出往返）+ tool/bot 成员目标；② pack `bots` 第三原语（channel 通用类型+单技能挂载；物化出生=禁用+待连接，botOwner 行优先，凭据 detach 台账；`GET /api/bots/generic-types` 只读面）；③ facet 同名发布闸（前置路由 409+existingPackId+升版指引；同作者同名 listed/unlisted 均拦，跨作者放行）。
+
+**市场治理已落产**：69→56 公开包——3 对建重 v1 下架（预期差/政策传导/信息冲击）、CRM 留「客服套件」下「客服接待套件」、演示/验收 3 包 unlist、数据域 6 包收编进柏讯线（四套件技能为超集零并版；估值/宏观套件 v4 并入老样例入口技能 stock-research-workflow/china-macro-brief-workflow，老样例自身 allowTools 缺口按报错补齐）；28 包 category 补齐（wire/legal/wanxing/business/facet）零空缺。**五官方种子 v2 上架**（带叙事编导 5–7 边；客服护航 `{{SERVICE_BOT}}`→`bot:service-desk-bot` 运行期如实判定）。
+
+**生产实证（platform-demo 活链）**：装包 200（三 persona 落地+报告含 bots 数组）→ from-template 201 出生全队暂停 → **编导 6 边落舰**（refs 改写为岗位 id；审校引用岗缺位诚实 vacant）→ generic-types 200 → 解散/卸载 200（removedBots/botsCredentialsKept 形状在档）。同名闸真车 409 实证（aloadtree 名下重发「柏讯·预期差」被拒、错误体带 packId+升版指引）。channel bot 入站唤醒以 hermetic 单测为证，真通道验证留观察项。
+
+**验证口径**：单测 2007/2017+fast e2e 536/546——余 10 失败经**干净 HEAD worktree 对拍+单跑复验**全数=并行线既有（fleets 徽章文案 76fdc926 未同步 e2e、role-gated-extensions 族、session-navigation）或全量序间抖动（单跑两树均绿），本 change 零新增；顺手修 HEAD 既有 bot-webhooks 夹具缺 owner_email 列（4/4）与 wire-tool-risk 快照+计数（6/6）。validate --strict 绿，21/21 任务勾。

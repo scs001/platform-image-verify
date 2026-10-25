@@ -1958,3 +1958,13 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **三验实录**：①`/api/whoami` 匿名回 `accessMode:"open"`（GitOps 8c6aee9 拧 PACK_ACCESS_MODE=open）；②非 creator 全程真实走通——platform-test（analysts+facet-customers，无 creators 组）经普通发布门发「演示分身」`mjBgihpHN1SfRMrhfaT8cQ` v1（chat 面+技能目录语料）→ 部署 200（in-pod 复用其既存计费键，ownership 闸自然过；首撞 register 504 重试过=§15.40 已知机理）→ runner :8815 接棒 → 代理通道真回合**语料直答全对**（接待自述来历与验证四件事）；③水位线演练——临时 99999 → 部署撞 **503 FLEET_AT_CAPACITY**（错误文案点名 runner-serving headroom 3003MB < 99999MB）→ 复位 512 → 演练包 unpublish 清理。演示分身保留在产（platform-test=官网 demo 公示号，天然 M5.3 展件）。
 
 **法务五项保守缺省（待用户/法务追认）**：①收费形态维持现状（人工充值+闭环抵扣不提现），ICP 证定性暂缓；②等保定级待外部评估（工程材料 v0 在案）；③用户协议/隐私政策文案位待挂（法务出文本）；④境外 LLM 仅显式选择、默认境内车道已核（告知条款随③落）；⑤开门时点=即日（本节），首批用户=M5.3 邀请（platform-test 首件已上）。
+
+### §15.47 V2 第一刀：事项访客可见边界上产（add-matter-visitor-scope，2026-10-25，用户明令「现在就做 v2」）
+
+**披露洞**：事项挂部署级，任一访客可经 matter_status/matter_read 读**其他访客**的事项（摘要+访客线索）——跨访客披露无闸。
+
+**边界设计（D1-D4）**：开串绑定调用会话的 sha256 前 32 作 scope_key（NULL=v1 无界存量，全员可见=兼容承诺，主人可关闭）；internal list 按调用方 scope 过滤、sessionless 降级只看无界行；read 异 scope **同形 404**（存在性即边界）；主人路由全量不变。scope 供给方=runner（manager 回合期 activeSessions 锚定、单写者无竞态、finally 清）；child 工具面零改动。防御路径（非回合开串）落无界+审计 no-session——**转人工出口永不被边界闸堵死**。
+
+**生产双会话实证**（演示分身）：会话 A 开串 mt_372c3b16… → 会话 B read=404/list=0 个 → A read 全见 → B 猜号同形 404。**顺手逮住并修**：边界 404 的失败返回带数字 status 撞 open 成功形状的字符串 status → 工具校验拒（模型只见 validator 噪音）——executor 改 httpStatus + schema 增可选字段（ceb7ae73，runner 6/0），二次上产后 B 读到干净的工具错误"no such matter"。
+
+**列车**：801447a（digest 3d6622d6，facet+runner 同代；platform×2 留钉 bcee756——改动不涉 web 面）→ 794c5bc（digest 12ea1f76，仅 runner）。gateway 4/0（+1 边界四案）、runner 6/0（+1 scope 供给）、agent-runner 67/0、agent-serving 66/0。

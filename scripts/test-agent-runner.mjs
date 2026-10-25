@@ -2255,3 +2255,29 @@ test("4.2b an unknown tool face refuses materialization loud", async () => {
     /unknown tool face/,
   );
 });
+
+// ── Skill catalog frontmatter (fix-skill-catalog-frontmatter) ────────────────
+//
+// dsh's skill provider REQUIRES YAML frontmatter and drops files without it —
+// bare pack bodies never reached the model's catalog, so the corpus channel
+// was "read the files yourself" all along (the leak vector chat-face closed).
+// Materialization synthesizes the frontmatter; authored frontmatter wins.
+
+test("4.2c materialized SKILL.md carries synthesized frontmatter; authored wins", async () => {
+  const homeRoot = path.join(tmpRoot, "frontmatter");
+  const spec = await materializeAgentHome({
+    homeRoot,
+    agentKey: agentKeyFor(ENTRY),
+    entry: ENTRY,
+    skillContents: {
+      "packs/pk-abc/fin-statement-analysis": "# 财报分析\n\n看三张表。\n",
+    },
+    mcpServers: [],
+    template: TEMPLATE,
+  });
+  const md = readFileSync(path.join(spec.home, "skills", "fin-statement-analysis", "SKILL.md"), "utf8");
+  assert.match(md, /^---\nname: fin-statement-analysis\ndescription: "/);
+  assert.match(md, /财报分析/);
+  // The body survives verbatim below the synthesized header.
+  assert.ok(md.endsWith("# 财报分析\n\n看三张表。\n"));
+});

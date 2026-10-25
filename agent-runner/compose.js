@@ -95,6 +95,23 @@ export function ensureHomeOwnership(home, log) {
 // registry agent entry; the descriptor is entry.metadata. `skillContents`
 // maps descriptor.skills paths → SKILL.md bodies (fetched by the caller).
 // Returns { home, presetId, patchPaths } — the spawn inputs for the child.
+// Frontmatter synthesis for materialized skills (fix-skill-catalog-frontmatter):
+// dsh's skill provider parses YAML frontmatter (name/description REQUIRED) and
+// silently drops a file without it. Pack bodies are bare Markdown. The
+// description rides the body's own first heading + first paragraph — the
+// catalog's retrieval surface the model's skill tool matches on.
+export function withSkillFrontmatter(body, name) {
+  if (/^---\r?\n/.test(body)) return body; // authored frontmatter wins
+  const lines = body.split(/\r?\n/);
+  const heading = lines.find((l) => /^#{1,3}\s+\S/.test(l))?.replace(/^#{1,3}\s+/, "").trim() ?? name;
+  const para = lines
+    .filter((l) => l.trim() && !l.startsWith("#"))
+    .map((l) => l.trim())
+    .find((l) => !l.startsWith("|")) ?? "";
+  const description = `${heading}${para ? ` — ${para}` : ""}`.replace(/\s+/g, " ").slice(0, 300);
+  return `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n---\n\n${body}`;
+}
+
 export async function materializeAgentHome({ homeRoot, agentKey, entry, skillContents, mcpServers, mcpTools = null, memoryDiscipline = null, seedHome }) {
   const descriptor = entry.metadata;
   const home = path.join(homeRoot, agentKey);
@@ -127,6 +144,13 @@ export async function materializeAgentHome({ homeRoot, agentKey, entry, skillCon
   // 1. Skills: flat compose root — dsh-skill-filesystem's customSkillDirs is a
   //    flat root list (the same constraint the platform's persona compose
   //    roots dance around); here the root is the whole role scope.
+  //    Frontmatter synthesis (fix-skill-catalog-frontmatter): the dsh skill
+  //    provider REQUIRES YAML frontmatter (name/description) and drops files
+  //    without it — pack skill bodies are bare Markdown, so the catalog never
+  //    carried them and the model could only reach its corpus by reading the
+  //    files (the very channel serving.toolFace "chat" removes). Synthesize
+  //    the frontmatter from the manifest's own name/description; a body that
+  //    already carries frontmatter passes through untouched.
   const skillsRoot = path.join(home, "skills");
   rmSync(skillsRoot, { recursive: true, force: true });
   for (const skillPath of descriptor.skills ?? []) {
@@ -137,7 +161,7 @@ export async function materializeAgentHome({ homeRoot, agentKey, entry, skillCon
     }
     const dir = path.join(skillsRoot, name);
     mkdirSync(dir, { recursive: true });
-    writeFileSync(path.join(dir, "SKILL.md"), body);
+    writeFileSync(path.join(dir, "SKILL.md"), withSkillFrontmatter(body, name));
   }
 
   // 2. Persona preset: a declarative definition the preset overlay composes

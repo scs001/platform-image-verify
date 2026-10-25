@@ -1831,3 +1831,8 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 3. **host-settle 合同真扣款+幂等（完整性铁证）**：首调 `{"settled":true,"duplicate":false,"amountUsd":0.1}`、重放 `duplicate:true`、部署者余额 50.27014829→50.17014829 **恰 −0.10**（若重放再扣应为 −0.20）、`pack_host_settlements` 恰一行（usage_id probe_facade_mvn3qms8，1 分钟/$0.1/deployer aloadtree）。
 
 **如实注记**：登录态租户访客的完整正向回合未采（需真实 Logto 登录，无测试口令在手）——闸下转发路径与 A2A 回合内核同源（本日两程 200 已证）；首个真人访客到来时补一眼即可。**挂账③就此销账**（机制三层全实证，唯登录态正向样本留观察）。
+
+
+### §15.38 采纳断点补齐：门面工坊 pack 上架（2026-10-25）
+
+用户指出真采纳断点：门面能力是工程师级（手写 manifest），无构造工具则无人会用。补法零平台代码——**门面工坊 pack**（`_vcfZzuxPgkiRsj5poZIgg` v1， aloadtree 发布，validatePackManifest VALID）：两个技能=①采访式生成器（四步：身份→素材→生成→发布指引，一次一问；素材整理纪律：去口语化/不改写事实/不编造/as-of 标注；接待 persona 必带三条诚实纪律；硬约束自检单=发布校验器全量规则）②manifest 骨架模板（可直填含 facade 块，字段速查+隐私提醒）。使用路径：装进 cell → 与「门面工坊」角色聊 → 得 manifest.json（工作区文件+对话全文）→ 从清单发布 → 部署 → 目录徽标+直达链接。v2 方向挂账：壹座「自建预设一键发布」流挂 facade 块复选框（preset→门面 GUI 化）、工坊 pack 自身部署为门面（示范效应）。

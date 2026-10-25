@@ -17,6 +17,6 @@
 
 ## 4. 出片与真机验收
 
-- [ ] 4.1 出片（fd-build-channel 判路 → GHA 池 → relay → ccr skopeo 门）+ GitOps 滚产
+- [x] 4.1 出片（fd-build-channel 判路 → GHA 池 → relay → ccr skopeo 门）+ GitOps 滚产
 - [ ] 4.2 真机：aloadtree 根等 fallback 周期眼见 distill 行与 L2 落地 + /digest 老.note 召回眼见；`FD_MEMORY_DISTILL_U=0`（GitOps env 一轮）零蒸馏对照后恢复
 - [ ] 4.3 台账回填（上线记录 + 观察项：人根 token 用量/L2 产出率/老.note 召回首例）+ 归档

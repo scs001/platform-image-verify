@@ -76,6 +76,7 @@ test("an unavailable probe leaves the name unresolved, not absent (actionable re
   assert.equal(errors.length, 1, "an unverifiable declaration still refuses");
   assert.match(errors[0].error, /fresh_tool/);
   assert.match(errors[0].error, /unresolved rather than absent/);
+  assert.match(errors[0].error, /surface_source=self_report.*restart the service/s);
   assert.match(errors[0].error, /refresh the registry entry's tool_list snapshot/);
   assert.ok(!/does not expose/.test(errors[0].error), "never asserts the tool is gone");
   assert.ok(notes.some((n) => /unavailable/.test(n)));

@@ -1836,3 +1836,13 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 ### §15.38 采纳断点补齐：门面工坊 pack 上架（2026-10-25）
 
 用户指出真采纳断点：门面能力是工程师级（手写 manifest），无构造工具则无人会用。补法零平台代码——**门面工坊 pack**（`_vcfZzuxPgkiRsj5poZIgg` v1， aloadtree 发布，validatePackManifest VALID）：两个技能=①采访式生成器（四步：身份→素材→生成→发布指引，一次一问；素材整理纪律：去口语化/不改写事实/不编造/as-of 标注；接待 persona 必带三条诚实纪律；硬约束自检单=发布校验器全量规则）②manifest 骨架模板（可直填含 facade 块，字段速查+隐私提醒）。使用路径：装进 cell → 与「门面工坊」角色聊 → 得 manifest.json（工作区文件+对话全文）→ 从清单发布 → 部署 → 目录徽标+直达链接。v2 方向挂账：壹座「自建预设一键发布」流挂 facade 块复选框（preset→门面 GUI 化）、工坊 pack 自身部署为门面（示范效应）。
+
+### §15.33 发布记录：/digest 召回扩层 L1——集群记忆循环闭合（add-digest-note-recall，2026-10-25 午后上线）
+
+**镜像**：fd-memory `sha-00b1d90`（源 62a4bb7；testaction005 池 40145333861 一次绿，relay PASS，ccr 硬门 digest `f431099c`；GitOps 41a5d69，rollout 绿，/digest 401 烟测）。
+
+**实现**：/digest 在 L2 候选后追加本 project 近期 notes 为 L1 条目（前 3、新近在前，同一渲染器预算纪律承载排序 handoffs>L2>notes），响应增 notes 计数、truncated 覆盖全层；fd-memory 46/46 绿（+3：notes 进块带〔L1·note〕/预算挤迫先截 notes/忘页不复活）。单端发布，paas 零改动。
+
+**闭环构造测试（drill-loop 两回合）**：t1 首跑撞 cell 冷启竞态（`the agent runtime is not ready`，dshBridge.isReady 未就绪——注入本身已成功，与 change 无关）重跑后 done；t2 的注入块含**两条 L1 note**——t1 成功回合写回（成员亲笔「交给下一轮的 ONE 巡检任务」带参数表）+ 失败回合写回（00:42 runtime 故障也如实可召回）——且 t2 成员**真执行了前任提议的任务**（facet-market browse 200、open-data 探测 200，留档在案）。**回合→hook②写回→/digest L1 召回→接棒执行，生产全链闭环**；对照 §15.31 补记三的开环反证（t2 空块），一刀闭合。drill 残留清零（集群行 0、双 job API 删 200）；会话留档与 owner 根 notes 作常设证据。
+
+**在案注记**：①eval 分歧——接续评测钉 L2-only digest，生产自此携带 L1 近期 notes（加法方向），评测下版本补 note 场景再钉；②note 升 L2 的正道（u/ 根蒸馏启用）仍为后续 change；③坑两枚：cell 冷启后 dsh runtime 未就绪时集群任务失败（failed 可重跑自愈——可观察是否要 warmup 或排队重试）、platform pod 重启后 cell 端口漂移（drill 脚本按 /proc 重扫）。

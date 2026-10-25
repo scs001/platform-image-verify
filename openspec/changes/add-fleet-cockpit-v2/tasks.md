@@ -10,7 +10,7 @@
 - [x] 1.6 trace tap 进 collector 回调(`trace.bindTurn` 开始、`trace.record` 每条 notif,`FLEET_TRACE_TAP` 默认开);验证:单测 舰队回合后 `trace.db` 出现 `turn_id=traceTurnId` 行且含工具事件;开关关闭零行且回合事件 trace_turn_id 为空
 - [x] 1.7 WS 事件 `fleet_turn_started/fleet_turn_ended/fleet_run_updated` + `packages/core/src/types/ws.ts` 类型;验证:`scripts/test-fleet-turn-events.mjs` 断言顺序 started→ended→run_updated、payload 仅舰队域字段无凭据无会话正文
 - [x] 1.8 run 读面路由:`GET /api/fleets/:id/runs`(status/source/时段过滤,有界分页)与 `GET /api/fleets/:id/runs/:runId`(有序回合+链位+usage+trace 句柄);聚合读面增 `edgeTraffic[]`(24h);验证:路由测试 非 owner 拒绝/过滤正确/回合有序/链位可还原/edgeTraffic 计数正确
-- [ ] 1.9 A 组收口:舰队八套零新增红;与 `fix-fleet-round-discipline` 合入后 rebase 单缝;出片 A(UI 不变)并以一支真舰队运行一日后核对 `fleet_runs` 收口与合计一致,记台账
+- [x] 1.9 A 组收口:舰队八套零新增红;与 `fix-fleet-round-discipline` 合入后 rebase 单缝;出片 A(UI 不变)并以一支真舰队运行一日后核对 `fleet_runs` 收口与合计一致,记台账
 
 ## 2. 活画布(B)
 

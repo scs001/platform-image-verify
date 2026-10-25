@@ -1730,3 +1730,29 @@ test("K9: a manual port_override survives a degraded list via the fresh single-e
   assert.equal(agent.metadata.port_override, 8810, "the manual override survives");
   assert.ok(agent.proxy_pass_url.endsWith(":8810"), "proxy_pass_url follows the kept port");
 });
+
+test("K9: a kept override whose slot another agent now owns is re-probed, not served", async () => {
+  const stub = stubRegistry();
+  // 寻数-shape: the entry's kept override points at a slot that the LIVE
+  // slice occupancy says belongs to another path (a later deploy ring-probed
+  // into it). Honoring it would proxy this agent into that agent's listener.
+  const wirePath = "/packs/egaYyOaZVTf0FWlLvaGAQA/pack-wire-macro-analyst";
+  stub.agents.set(wirePath.replace(/^\/+/, ""), {
+    path: wirePath,
+    metadata: {}, // wire's slot is its HASH slot: 8816
+  });
+  stub.agents.set("packs/pk-abc/pack-fingpt", {
+    path: "/packs/pk-abc/pack-fingpt",
+    metadata: { port_override: 8816 }, // stale kept → wire's live slot
+  });
+  const out = await servingLib.deployToRegistry({ ...PACK, fetchImpl: stub.fetch });
+  assert.equal(out.deployed.length, 1);
+  const agent = stub.calls.agents[0].body;
+  assert.notEqual(
+    agent.metadata?.port_override ?? null,
+    8816,
+    "the colliding kept override is not re-emitted",
+  );
+  const urlPort = Number(agent.url.match(/:(\d+)$/)?.[1]);
+  assert.equal(agent.metadata?.port_override ?? urlPort, urlPort, "planned port == advertised url port");
+});

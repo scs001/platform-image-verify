@@ -1914,3 +1914,13 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **顺带两枚 fd-wanxing 车道缺陷证据在案（跨仓 backlog，非本仓管辖）**：①失控长回合（v2 时代）回复永不渲染+访客锁楔死（runner meter ok=true×2 vs 浏览器「回复中…」无限+409 TURN_IN_FLIGHT 越过回合完成 25 分钟+）；②锁释放/回合超时呈现语义待修。短回合（v4 后 ~40s）渲染正常，车道内核无恙。另：寻数分身卡片名/占位符已随 v3 改名传播至萬星目录（「与 寻数分身 对话」）。
 
 **发布**：寻数分身 v4（validatePackManifest 零错；v3=上午换皮版）→ 部署 v4 → 物化眼见（v4, 3 skills）。工坊侧无改（其指南 v4 已含事项纪律）。
+
+### §15.44 会话工具面档位上产（add-serving-tool-face，2026-10-25）——泄露事件的结构性收口
+
+**能力**：服务契约新键 `serving.toolFace`（v1 仅 `"chat"`）——物化层写 `tool-face.patch.yml` 纯 disable：tool-bash/pwsh/jobs/fs/fs-search/web×4/subagent×4/workflow/ralph（§15.43 泄露事件的内建向量全裁），保留 tool-skill（语料入口）+tool-ask-user+桥注入三件套（ctx.inject 不经行，天然免疫）。闸在挂载点非运行时；未声明=patchPaths 逐字节 legacy；未知档位两端 fail-loud（发布门枚举+物化拒绝）。范例同径：寻数分身 v5 reception 声明 chat 面（发布门新镜像下过）、工坊 v5 模板骨架+硬约束清单（先于门滚已发，因其 toolFace 在模板字符串里）。
+
+**生产眼见（v5 重部署后代理通道探针）**：工具面=ask_user_question, bot_notify, create_goal, exit_plan_mode, get_goal, list_mcp_resource*, matter_open/status/read, read_mcp_resource, skill, todo_write, update_goal——**bash/grep/read/edit/web_search/subagent 全部消失**，skill/ask/notify/matter 全在。§15.43 的「内建工具面约束 backlog」就此销账。
+
+**列车**：快照 bcee756 → digest 2c493418 ccr 实证 → GitOps 四面滚（runner 必滚）。**本班翻车一枚（GitOps regex bug）**：bump 脚本 `m.group(0).split(" #")[0]` 只换注释不换 tag——四面 spec 全指旧 sha 但注释全是新的，ArgoCD「滚成功」假象（rollout status 验的是旧 spec）；修=完整正则替换（tag+注释一体）+眼见四 deploy image 行。教训：**bump 后必眼见 image 行本身，rollout success 不算数**。另：relay 手动补单撞 cron 全量轮长尾（PASS 行滞后），双仓 list-tags 对拍才是判据。
+
+**验证**：agent-runner 66/0（+3：chat 面物化清单/未声明零变化/未知档位拒）、agent-serving 66/0（+1 枚举校验）、双 manifest 零错、pack lint 6/0、facade 20/0。

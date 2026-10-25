@@ -7,11 +7,11 @@
 // status badges (on_duty/missing/vacant/passive/paused) carry their evidence
 // in the title attribute — "why is this post missing" is one hover away.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FleetGraph } from "../components/FleetGraph";
 import { useNavigate, useParams } from "react-router-dom";
 import { useCronStore } from "@platform/core";
+import { useFleetStore } from "@/store/fleet-store";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -139,8 +139,14 @@ interface FleetDetail {
     }>;
     implicitDispatch?: string | null;
   } | null;
+  // Edge traffic (agent-fleet-runs): hops in the last 24h grouped by
+  // (from, to, kind) — the canvas weighs edges by it.
+  edgeTraffic?: { from: string; to: string; kind: string; turns: number; ok: number; failed: number }[];
   template?: { packId: string; instantiatedVersion: string | null; latestVersion: string; updateAvailable: boolean } | null;
 }
+
+// The live canvas rides its own lazy chunk (@xyflow/react is canvas-only).
+const FleetCanvas = lazy(() => import("@/components/fleet/FleetCanvas"));
 
 interface DecisionItem {
   id: string;
@@ -276,6 +282,34 @@ export function FleetsPage() {
   useEffect(() => {
     if (selectedId) void loadDetail(selectedId);
   }, [cronJobsVersion, selectedId, loadDetail]);
+
+  // Fleet run events (agent-fleet-runs): every fleet_turn_* bumps the live
+  // store's version. The refetch is THROTTLED (≥2s) — a busy fleet fires many
+  // turns a minute and the canvas already lit the node from the event itself;
+  // this re-read only reconciles the durable facts (status, KPIs, health).
+  const fleetEventsVersion = useFleetStore((st) => st.version);
+  const liveTurnsAll = useFleetStore((st) => st.liveTurns);
+  const lastFleetFetchRef = useRef(0);
+  useEffect(() => {
+    if (!selectedId || fleetEventsVersion === 0) return;
+    const wait = 2000 - (Date.now() - lastFleetFetchRef.current);
+    if (wait <= 0) {
+      lastFleetFetchRef.current = Date.now();
+      void loadDetail(selectedId);
+      return;
+    }
+    const timer = setTimeout(() => {
+      lastFleetFetchRef.current = Date.now();
+      void loadDetail(selectedId);
+    }, wait);
+    return () => clearTimeout(timer);
+  }, [fleetEventsVersion, selectedId, loadDetail]);
+
+  // In-flight turns of THIS fleet, for the canvas pulse/edge animation.
+  const liveTurns = useMemo(
+    () => (detail ? Object.values(liveTurnsAll).filter((lt) => lt.fleetId === detail.fleet.id) : []),
+    [liveTurnsAll, detail],
+  );
 
   // Autofollow the first fleet when the list arrives and nothing is selected.
   useEffect(() => {
@@ -550,19 +584,45 @@ export function FleetsPage() {
                           </span>
                         </div>
                       ) : null}
-                      <FleetGraph
-                        members={detail.members.map((m) => ({ id: m.id, title: m.title, targetKind: m.target.kind }))}
-                        edges={detail.orchestration!.edges}
-                        kindLabels={{
-                          trigger: t("fleets.orch.edge.trigger"),
-                          report: t("fleets.orch.edge.report"),
-                          dispatch: t("fleets.orch.edge.dispatch"),
-                          handoff: t("fleets.orch.edge.handoff"),
-                          fanout: t("fleets.orch.edge.fanout"),
-                          event: t("fleets.orch.edge.event"),
-                        }}
-                        emptyLabel={t("fleets.orch.graphEmpty")}
-                      />
+                      {/* The live canvas (agent-fleet-cockpit v2): posts as
+                          cards, declared edges as kind-colored curves, cron /
+                          signal sources as dashed virtual nodes; in-flight
+                          turns pulse their node and animate the igniting
+                          edge; edge weight rides the 24h traffic. */}
+                      <Suspense
+                        fallback={
+                          <p className="py-8 text-center text-xs text-muted-foreground" data-testid="fleet-canvas-loading">
+                            {t("fleets.canvas.loading")}
+                          </p>
+                        }
+                      >
+                        <FleetCanvas
+                          members={detail.members.map((m) => ({
+                            id: m.id,
+                            title: m.title,
+                            kind: m.target.kind,
+                            status: m.status,
+                            statusReason: m.statusReason,
+                            slots: (m.latestReport?.slots ?? []).map((s) => ({
+                              key: s.key,
+                              label: s.label,
+                              value: s.value,
+                              unit: s.unit,
+                              trend: s.trend ?? null,
+                            })),
+                            lastRunAt: m.evidence.lastRunAt,
+                            nextRunAt: m.evidence.nextRunAt,
+                            cadenceEnabled: m.cadence?.enabled ?? false,
+                            effectiveModel: m.target.kind === "persona" ? m.effectiveModel : null,
+                            modelNotice: m.modelNotice,
+                            lastTurnFailed: m.lastTurn ? m.lastTurn.status !== "ok" : false,
+                            consecutiveFailures: m.consecutiveFailures,
+                          }))}
+                          edges={detail.orchestration!.edges.filter((e) => !(e.kind === "dispatch" && e.implicit))}
+                          traffic={detail.edgeTraffic ?? []}
+                          liveTurns={liveTurns}
+                        />
+                      </Suspense>
                       {visible.map((e) => {
                     const name = (id?: string) => memberById(detail.members, id)?.title ?? id ?? "?";
                     const badge = EDGE_STYLES[e.kind] ?? "bg-muted text-muted-foreground";

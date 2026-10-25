@@ -2314,7 +2314,8 @@
     "kind": {
       "persona": "Persona",
       "cluster": "Clúster",
-      "a2a": "Servicio de agentes"
+      "a2a": "Servicio de agentes",
+      "tool": "Herramienta"
     },
     "cadence": {
       "hourlyMode": "Cada hora",
@@ -2496,6 +2497,9 @@
           "flujo"
         ]
       ]
+    },
+    "canvas": {
+      "loading": "Cargando lienzo…"
     }
   },
   "facetCurate": {

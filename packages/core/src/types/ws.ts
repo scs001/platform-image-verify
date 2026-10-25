@@ -172,8 +172,8 @@ export type ServerMessage =
   // position (parentTurnId × edgeKind; null on a root); runUpdated fires on
   // header open and every close. Fleet-domain fields only — ids, outcome,
   // timing; never a credential, never a session body.
-  | { type: "fleet_turn_started"; fleetId: string; memberId: string; runId: string; turnId: string; parentTurnId: string | null; edgeKind: string | null; source: string; sessionId: string | null; startedAt: number }
-  | { type: "fleet_turn_ended"; fleetId: string; memberId: string; runId: string; turnId: string; parentTurnId: string | null; edgeKind: string | null; source: string; sessionId: string | null; startedAt: number; endedAt: number; status: string | null; errorKind: string | null; model: string | null; usage: { input: number | null; output: number | null } | null }
+  | { type: "fleet_turn_started"; fleetId: string; memberId: string; runId: string; turnId: string; parentTurnId: string | null; parentMemberId: string | null; edgeKind: string | null; source: string; sessionId: string | null; startedAt: number }
+  | { type: "fleet_turn_ended"; fleetId: string; memberId: string; runId: string; turnId: string; parentTurnId: string | null; parentMemberId: string | null; edgeKind: string | null; source: string; sessionId: string | null; startedAt: number; endedAt: number; status: string | null; errorKind: string | null; model: string | null; usage: { input: number | null; output: number | null } | null }
   | { type: "fleet_run_updated"; run: FleetRunSummary }
   // Cluster session binding (agent-cluster-platform): a dynamic cluster was
   // attached to a session (header shows the cluster; messages run under the

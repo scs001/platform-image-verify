@@ -243,8 +243,10 @@ test("seam: handoff → fanout three hops read as one tree under one runId; head
 
 test("seam: a mid-turn dispatch found by post inherits the run with edgeKind=dispatch", async () => {
   fixtureFleet(fleetDb, { members: [member("m_up"), member("m_exec")] });
+  const sent = [];
   let ctx;
   ctx = buildCtx(fleetDb, {
+    broadcast: (m) => sent.push(m),
     runPersona: async (_c, job) => {
       // The dispatch route's shape: attribution is post-level, so the chain
       // comes from the dispatcher post's in-flight turn.
@@ -270,6 +272,10 @@ test("seam: a mid-turn dispatch found by post inherits the run with edgeKind=dis
   assert.equal(exec.source, "delegation");
   assert.equal(run.status, "ok");
   assert.equal(run.turns, 2);
+  // The dispatch happened while the upstream turn was still open, so the
+  // downstream's started event carries the parent POST for edge lighting.
+  const execStarted = sent.find((m) => m.type === "fleet_turn_started" && m.memberId === "m_exec");
+  assert.equal(execStarted.parentMemberId, "m_up");
 });
 
 test("seam: non-fleet dispatcher (no in-flight turn) → chain null, target starts a root run honestly", async () => {
@@ -334,7 +340,7 @@ test("broadcasts: open → started → ended → closed, fleet-domain fields onl
   assert.deepEqual(types, ["fleet_run_updated", "fleet_turn_started", "fleet_turn_ended", "fleet_run_updated"]);
   const started = sent.find((m) => m.type === "fleet_turn_started");
   const ended = sent.find((m) => m.type === "fleet_turn_ended");
-  const allowed = new Set(["type", "fleetId", "memberId", "runId", "turnId", "parentTurnId", "edgeKind", "source", "sessionId", "startedAt", "endedAt", "status", "errorKind", "model", "usage"]);
+  const allowed = new Set(["type", "fleetId", "memberId", "runId", "turnId", "parentTurnId", "parentMemberId", "edgeKind", "source", "sessionId", "startedAt", "endedAt", "status", "errorKind", "model", "usage"]);
   for (const k of Object.keys(started)) assert.ok(allowed.has(k), `started leaks ${k}`);
   for (const k of Object.keys(ended)) assert.ok(allowed.has(k), `ended leaks ${k}`);
   assert.equal(ended.status, "ok");

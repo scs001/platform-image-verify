@@ -2314,7 +2314,8 @@
     "kind": {
       "persona": "角色",
       "cluster": "集群",
-      "a2a": "Agent 服务"
+      "a2a": "Agent 服务",
+      "tool": "工具"
     },
     "cadence": {
       "hourlyMode": "每小时",
@@ -2496,6 +2497,9 @@
           "流转"
         ]
       ]
+    },
+    "canvas": {
+      "loading": "画布加载中…"
     }
   },
   "facetCurate": {

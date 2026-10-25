@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@platform/core": "file:../packages/core",
+    "@xyflow/react": "^12.12.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "echarts": "^6.1.0",

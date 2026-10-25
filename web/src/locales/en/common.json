@@ -2314,7 +2314,8 @@
     "kind": {
       "persona": "Persona",
       "cluster": "Cluster",
-      "a2a": "Agent service"
+      "a2a": "Agent service",
+      "tool": "Tool"
     },
     "cadence": {
       "hourlyMode": "Hourly",
@@ -2496,6 +2497,9 @@
           "flow"
         ]
       ]
+    },
+    "canvas": {
+      "loading": "Loading canvas…"
     }
   },
   "facetCurate": {

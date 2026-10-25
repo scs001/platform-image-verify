@@ -118,12 +118,16 @@ test.describe("fleets board", () => {
     await expect(page.getByTestId("fleets-page")).toBeVisible({ timeout: 15000 });
     await expect(page.getByTestId("fleet-card-fleet_demo")).toBeVisible();
 
+    // Undeclared orchestration ⇒ zero canvas noise (agent-fleet-cockpit v2:
+    // the orchestration area — canvas included — appears only when declared).
+    await expect(page.getByTestId("fleet-canvas")).toHaveCount(0);
+
     const tree = page.getByTestId("fleets-tree");
     await expect(tree.getByTestId("member-card-ceo")).toBeVisible();
-    await expect(tree.getByTestId("member-status-ceo")).toHaveText("On duty");
-    await expect(tree.getByTestId("member-status-ops")).toHaveText("Missing");
+    await expect(tree.getByTestId("member-status-ceo")).toHaveText("OK");
+    await expect(tree.getByTestId("member-status-ops")).toHaveText("Overdue");
     await expect(tree.getByTestId("member-status-shop")).toHaveText("Vacant");
-    await expect(tree.getByTestId("member-status-assist")).toHaveText("Passive");
+    await expect(tree.getByTestId("member-status-assist")).toHaveText("On call");
 
     // Depth indentation: children of the CEO sit 20px deeper than the CEO.
     const lefts = await tree.evaluate((el) => {
@@ -326,8 +330,8 @@ test.describe("fleet cockpit", () => {
     await expect(page.getByTestId("fleet-start")).toBeVisible();
     await expect(page.getByTestId("fleet-decision-banner")).toContainText("1 awaiting you");
     await expect(page.getByTestId("fleet-decision-banner")).toContainText("Publish early?");
-    await expect(page.getByTestId("fleet-health")).toContainText("on duty: 1");
-    await expect(page.getByTestId("fleet-health")).toContainText("missing: 1");
+    await expect(page.getByTestId("fleet-health")).toContainText("OK: 1");
+    await expect(page.getByTestId("fleet-health")).toContainText("Overdue: 1");
     await expect(page.getByTestId("fleet-template-newer")).toContainText("2.0.0");
     // Stream: the missing post sits first; the reporting post shows its summary.
     await expect(page.getByTestId("fleet-stream")).toBeVisible();
@@ -542,5 +546,130 @@ test.describe("fleets ownership under forward auth", () => {
     const detail = await fetch(`${BASE}/api/fleets/${fleet.id}`, { headers: BOB });
     expect(detail.ok).toBeTruthy();
     expect((await detail.json()).fleet.state).toBe("active");
+  });
+});
+
+// ── live canvas (agent-fleet-cockpit v2, add-fleet-cockpit-v2 group B) ───────
+//
+// The canvas renders from the cockpit aggregate (posts as cards + declared
+// edges as kind-colored curves + cron/event virtual sources), weighs edges by
+// the 24h edgeTraffic, filters implicit supervisor grants, and lights up from
+// the fleet_* WS events: started pulses the node and animates the igniting
+// edge, ended retires both. Undeclared fleets render no canvas at all.
+
+const CANVAS_FLEET = {
+  fleet: { id: FLEET_ID, name: "Canvas Fleet", state: "active" },
+  members: [
+    memberFixture("ceo", { title: "CEO" }),
+    memberFixture("inv", { title: "Invest", parentId: "ceo" }),
+    memberFixture("ops", { title: "Ops", parentId: "ceo" }),
+  ],
+  statusCounts: { on_duty: 3 },
+  orchestration: {
+    mode: "pipeline",
+    constraints: { maxChainDepth: 4, budgetPerEdgeMin: 10 },
+    edges: [
+      { kind: "trigger", to: "ceo", cron: "0 9 * * *" },
+      { kind: "handoff", from: "ceo", to: "inv" },
+      { kind: "dispatch", from: "ceo", to: "ops", implicit: true },
+    ],
+  },
+  edgeTraffic: [{ from: "ceo", to: "inv", kind: "handoff", turns: 4, ok: 4, failed: 0 }],
+};
+
+test.describe("fleet canvas", () => {
+  test.beforeEach(async ({ page }) => {
+    await pinLocaleEn(page);
+    await page.route("**/api/fleets", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ fleets: [{ id: FLEET_ID, name: "Canvas Fleet", state: "active", memberCount: 3, statusCounts: { on_duty: 3 } }] }),
+      }),
+    );
+    await page.route(`**/api/fleets/${FLEET_ID}/cockpit`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify(CANVAS_FLEET) }),
+    );
+  });
+
+  test("renders posts + virtual sources, filters implicit grants, weighs by traffic", async ({ page }) => {
+    await page.goto(`/fleets/${FLEET_ID}`);
+    const canvas = page.getByTestId("fleet-canvas");
+    await expect(canvas).toBeVisible({ timeout: 15000 });
+
+    // 3 post cards + 1 virtual cron source. Status rings ride each post.
+    for (const id of ["ceo", "inv", "ops", "cron:0 9 * * *"]) {
+      await expect(canvas.getByTestId(`canvas-node-${id}`)).toBeVisible();
+    }
+    await expect(canvas.getByTestId("canvas-status-ceo")).toBeVisible();
+
+    // Declared edges only: trigger + handoff; the implicit dispatch grant is
+    // never drawn (the aggregate banner carries it above).
+    await expect(canvas.locator(".react-flow__edge")).toHaveCount(2);
+    await expect(canvas.locator('.react-flow__edge[data-id="cron:0 9 * * *→ceo:trigger"]')).toHaveCount(1);
+    const handoff = canvas.locator('.react-flow__edge[data-id="ceo→inv:handoff"]');
+    await expect(handoff).toHaveCount(1);
+
+    // Traffic weight: 4 hops in 24h → strokeWidth 2.5 (1.5 + sqrt(4)*0.5).
+    const style = await handoff.locator("path").first().getAttribute("style");
+    expect(style).toMatch(/stroke-width:\s*2\.5/);
+
+    // Minimap + zoom controls are part of the canvas affordance.
+    await expect(canvas.locator(".react-flow__minimap")).toBeVisible();
+    await expect(canvas.locator(".react-flow__controls")).toBeVisible();
+  });
+
+  test("fleet_turn_started pulses the node and animates the igniting edge; ended retires both", async ({ page }) => {
+    let client = null;
+    await page.routeWebSocket(/.*/, (ws) => {
+      client = ws;
+      const server = ws.connectToServer();
+      ws.onMessage((data) => server.send(data));
+      server.onMessage((data) => ws.send(data));
+    });
+    await page.goto(`/fleets/${FLEET_ID}`);
+    const canvas = page.getByTestId("fleet-canvas");
+    await expect(canvas.getByTestId("canvas-node-inv")).toBeVisible({ timeout: 15000 });
+
+    // Before: no live ring on inv, no animated edge.
+    await expect(canvas.getByTestId("canvas-node-inv")).not.toHaveClass(/border-blue-500/);
+    await expect(canvas.locator('.react-flow__edge[data-id="ceo→inv:handoff"].animated')).toHaveCount(0);
+
+    const push = (msg) => client?.send(JSON.stringify(msg));
+    push({
+      type: "fleet_turn_started",
+      fleetId: FLEET_ID,
+      memberId: "inv",
+      runId: "run_e2e",
+      turnId: "turn_e2e",
+      parentTurnId: "turn_ceo",
+      parentMemberId: "ceo",
+      edgeKind: "handoff",
+      source: "delegation",
+      sessionId: "cron-inv",
+      startedAt: Date.now(),
+    });
+    await expect(canvas.getByTestId("canvas-node-inv")).toHaveClass(/border-blue-500/, { timeout: 5000 });
+    await expect(canvas.locator('.react-flow__edge[data-id="ceo→inv:handoff"].animated')).toHaveCount(1);
+
+    push({
+      type: "fleet_turn_ended",
+      fleetId: FLEET_ID,
+      memberId: "inv",
+      runId: "run_e2e",
+      turnId: "turn_e2e",
+      parentTurnId: "turn_ceo",
+      parentMemberId: "ceo",
+      edgeKind: "handoff",
+      source: "delegation",
+      sessionId: "cron-inv",
+      startedAt: Date.now() - 1000,
+      endedAt: Date.now(),
+      status: "ok",
+      errorKind: null,
+      model: null,
+      usage: { input: 10, output: 2 },
+    });
+    await expect(canvas.getByTestId("canvas-node-inv")).not.toHaveClass(/border-blue-500/, { timeout: 5000 });
+    await expect(canvas.locator('.react-flow__edge[data-id="ceo→inv:handoff"].animated')).toHaveCount(0);
   });
 });

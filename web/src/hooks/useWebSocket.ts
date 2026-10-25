@@ -10,6 +10,7 @@ import { WsClient, useChatStore, useCronStore, type ClientMessage, type ServerMe
 import { useExtensionsStore } from "@/hooks/useExtensionsStore";
 import { useOverlayStore } from "@/hooks/useOverlayStore";
 import { useResourcesStore } from "@/hooks/useResourcesStore";
+import { useFleetStore } from "@/store/fleet-store";
 import { browserSocketFactory } from "@/lib/browser-socket";
 import i18n from "@/i18n";
 import { showToast } from "@/components/Toast";
@@ -39,6 +40,7 @@ export function useWebSocket(enabled: boolean, identityKey = "") {
   const applyOverlay = useOverlayStore((s) => s.applyEvent);
   const applyCron = useCronStore((s) => s.apply);
   const applyResources = useResourcesStore((s) => s.applyEvent);
+  const applyFleet = useFleetStore((s) => s.apply);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: identityKey is a deliberate reconnect trigger — an identity change must tear down and rebuild the socket even though the effect body reads it only via this dep; wsUrl is a stable module function.
   useEffect(() => {
@@ -79,6 +81,7 @@ export function useWebSocket(enabled: boolean, identityKey = "") {
         applyOverlay(msg as ServerMessage);
         applyCron(msg as ServerMessage);
         applyResources(msg as ServerMessage);
+        applyFleet(msg as ServerMessage);
       },
       // The protocol's initial state queries, replayed on every reconnect so
       // a resumed socket re-syncs rosters and the session list.
@@ -143,7 +146,7 @@ export function useWebSocket(enabled: boolean, identityKey = "") {
       window.removeEventListener("platform:reconnect", onManualReconnect);
       client.close();
     };
-  }, [apply, applyCron, applyExtensions, applyOverlay, applyResources, enabled, identityKey, setStatus]);
+  }, [apply, applyCron, applyExtensions, applyFleet, applyOverlay, applyResources, enabled, identityKey, setStatus]);
 
   return { send: (msg: ClientMessage) => sendRef.current(msg) };
 }

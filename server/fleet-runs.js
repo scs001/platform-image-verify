@@ -41,7 +41,10 @@ export function traceTapEnabled() {
 }
 
 // Wire shape of the three fleet events — fleet-domain fields only: ids,
-// outcome, timing. Never a credential, never a session body.
+// outcome, timing. Never a credential, never a session body. parentMemberId
+// resolves the chain's parent turn to its POST so the canvas can light the
+// igniting edge (dispatch mid-turn reads the open registry; handoff reads the
+// ended parent's row).
 function turnWire(handle, extra = {}) {
   return {
     fleetId: handle.fleetId,
@@ -49,6 +52,7 @@ function turnWire(handle, extra = {}) {
     runId: handle.runId,
     turnId: handle.turnId,
     parentTurnId: handle.parentTurnId,
+    parentMemberId: handle.parentMemberId,
     edgeKind: handle.edgeKind,
     source: handle.source,
     sessionId: handle.sessionId,
@@ -118,6 +122,13 @@ export function createFleetTurnLedger({
     }
 
     const mirror = job?.sessionId ?? null;
+    // The chain's parent post, for edge lighting on the canvas. Dispatch
+    // happens while the parent turn is still open (registry hit); a handoff
+    // fires after it ended (row hit). Neither found (pruned / cross-restart)
+    // → null, and the client lights only the node.
+    const parentMemberId = chain?.parentTurnId
+      ? open.get(chain.parentTurnId)?.memberId ?? db.getTurnEvent(chain.parentTurnId)?.memberId ?? null
+      : null;
     const handle = {
       turnId,
       runId,
@@ -125,6 +136,7 @@ export function createFleetTurnLedger({
       memberId: post.memberId,
       source: request.source,
       parentTurnId: chain?.parentTurnId ?? null,
+      parentMemberId,
       edgeKind: chain?.edgeKind ?? null,
       startedAt,
       sessionId: mirror,

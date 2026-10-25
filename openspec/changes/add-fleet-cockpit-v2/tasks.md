@@ -14,10 +14,10 @@
 
 ## 2. 活画布(B)
 
-- [ ] 2.1 引入 `@xyflow/react`;`computeGraph` 抽到 `web/src/lib/fleet-layout.ts`(纯函数与既有结构断言保留);画布组件路由级 `React.lazy` 分包;验证:`npm run web:build` typecheck 绿,首屏 chunk 体积与当前持平(体积断言脚本)
-- [ ] 2.2 `PostNode`(状态环/脉冲/槽位摘要/生效模型/失效回落)、`FlowEdge`(类型色/在途动画/粗细=24h 回合数)、虚拟源节点(定时/信号源)、MiniMap/Controls、多根分区、暗色跟随;验证:`e2e/fleets.spec.js` 新用例 画布节点数=岗位数+源节点数、边数=声明边展开数、隐式派发不画边仅一行聚合
-- [ ] 2.3 `useFleetStore`(zustand):订阅三事件增量更新 `liveTurns`、节流 ≥2s 整体重拉自愈、位置仅成员/边签名变化时重算;验证:e2e 注入 started 事件→节点在途+入边动效;ended→收束呈结果;模拟漏事件后重拉收敛;新增岗位触发重排而回合事件不重排
-- [ ] 2.4 结构视图(组织树)降级为折叠区保留;i18n 五语言新键(图例/状态环/源节点);退役 `FleetGraph.tsx`;验证:既有 `fleets.spec` 绿,术语卡词表与 §十五一致,`{{fleetContext}}` 注入测试不变
+- [x] 2.1 引入 `@xyflow/react`;`computeGraph` 抽到 `web/src/lib/fleet-layout.ts`(纯函数与既有结构断言保留);画布组件路由级 `React.lazy` 分包;验证:`npm run web:build` typecheck 绿,首屏 chunk 体积与当前持平(体积断言脚本)
+- [x] 2.2 `PostNode`(状态环/脉冲/槽位摘要/生效模型/失效回落)、`FlowEdge`(类型色/在途动画/粗细=24h 回合数)、虚拟源节点(定时/信号源)、MiniMap/Controls、多根分区、暗色跟随;验证:`e2e/fleets.spec.js` 新用例 画布节点数=岗位数+源节点数、边数=声明边展开数、隐式派发不画边仅一行聚合
+- [x] 2.3 `useFleetStore`(zustand):订阅三事件增量更新 `liveTurns`、节流 ≥2s 整体重拉自愈、位置仅成员/边签名变化时重算;验证:e2e 注入 started 事件→节点在途+入边动效;ended→收束呈结果;模拟漏事件后重拉收敛;新增岗位触发重排而回合事件不重排
+- [x] 2.4 结构视图(组织树)降级为折叠区保留;i18n 五语言新键(图例/状态环/源节点);退役 `FleetGraph.tsx`;验证:既有 `fleets.spec` 绿,术语卡词表与 §十五一致,`{{fleetContext}}` 注入测试不变
 - [ ] 2.5 浏览器眼见:公司式(CEO+三部门)与投研(pipeline+fanout+judge)两型舰队,截图入台账
 
 ## 3. 回放时间线(C)

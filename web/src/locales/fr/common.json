@@ -2314,7 +2314,8 @@
     "kind": {
       "persona": "Persona",
       "cluster": "Cluster",
-      "a2a": "Service d'agents"
+      "a2a": "Service d'agents",
+      "tool": "Outil"
     },
     "cadence": {
       "hourlyMode": "Chaque heure",
@@ -2496,6 +2497,9 @@
           "flux"
         ]
       ]
+    },
+    "canvas": {
+      "loading": "Chargement du canevas…"
     }
   },
   "facetCurate": {

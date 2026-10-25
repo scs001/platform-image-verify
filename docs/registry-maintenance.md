@@ -2095,3 +2095,13 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **终测**：基准 5/5 全中、notes=4 每 query 在块——且全部在 keyword 降级档达成（韧性设计兑现：dense gist 让 keyword 档也满命中）。
 
 **观察项（侧车线，不在本仓）**：embed 冷崖 122.7s（首次 idle 后）+ 当晚 p50>3.5s（deadline 频繁降级 keyword）——LLM/embed 模型共享 GPU 换入换出所致，属 fd-memory-distiller 镜像策略问题；建议侧车线评估 embed 常驻或独立卡。eval run11（L1 top-5 版）在途。
+
+### §15.52 K8 销账：部署租户化上产（add-deploy-tenancy，2026-10-26）
+
+**能力**：部署是部署者的资产。两表（pack_deployments/deployment_keys）三元组重建迁移（pk 位守卫幂等，存量行带归属搬家、**服务地址零变化**）；非作者部署注册到 `/packs/<id>/<agent>/d8` 部署者段（sha256(邮箱) 前 8，稳定=同部署者原地升级）；作者部署与全部存量条目逐字节不动。descriptor 携 agent_path（matters 按 path 定位部署，host-settle 收 deployer 参数）；pause/config/部署清单按 (包,角色,部署者) 归属——陌生人同形 404（存在性不泄露，spec 场景三），管理组通行。
+
+**生产双部署者实证（K8 原场景重放）**：p2walk1025 再部署寻数分身（此前此操作**顶掉** aloadtree）——现落在独立地址 `/packs/Ut_…/reception/dde7ec3a6`，**aloadtree 原行原地址未动**；双 entry 双 toggle healthy、双 proxy_pass（8820/8791）；双 /agent/ 真回合 200 各答各的（原=寻数接待口径，租户=facade 语料口径——两份语料同包冻结，行为随版本实例正确）。
+
+**列车与坑**：快照 ee25ce6（digest 507dd697）四面滚。**翻车一枚（陈树三犯的变体）**：我的 tenancy 提交误删并行会话（fleet cockpit）在途的 FleetGraph.tsx——`git add` 目录过宽把其未提交文件收进又叠加树状态异常；出片构建 `Could not resolve ../components/FleetGraph` 逮住，从 d8bbcfa3 取回恢复。教训：**add 并行会话涉及的目录后必 `git show --stat` 自查一遍有没有别人的文件**。
+
+**验证面**：tenancy 3/0（双部署者独立/作者零变化/pause 归属同形拒）+agent-serving 71/0（pause/config 旧 403 断言按新语义更新）+matters 4/0+runner matters 6/0+agent-runner 67/0+secrets 5/0+wanxing-facade 34/0。

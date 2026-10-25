@@ -9,5 +9,5 @@
        包详情部署清单查看者过滤 + 单测（本人可管理/他人同形拒/管理组通行）
 - [x] 4. web：包详情部署清单归属呈现 + 五语言轻量键
 - [x] 5. 验证面：tenancy 3/0+agent-serving 71/0+matters 4/0+runner matters 6/0+agent-runner 67/0+secrets 5/0+lock 0+wanxing-facade 34/0（pause/config 旧 403 断言按同形 404 新语义更新）；typecheck/biome/locales
-- [ ] 6. 上产：四面同代 → 生产双部署者实证（A 部署在役，B 部署同包→A 的地址与键
+- [x] 6. 上产：四面同代 → 生产双部署者实证（A 部署在役，B 部署同包→A 的地址与键
        不变、B 独立地址真回合）→ 台账 §15.52 + roadmap K8 销账 + 归档

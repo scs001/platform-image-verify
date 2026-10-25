@@ -1636,7 +1636,23 @@
         "asOf": "Corpus as of {{date}}",
         "stanceHosted": "Free for visitors · the host pays",
         "chatEntry": "Chat with this twin",
-        "notDeployed": "Reception not deployed yet — chat unavailable"
+        "notDeployed": "Reception not deployed yet — chat unavailable",
+        "mattersTitle": "Matters",
+        "mattersHint": "Questions the reception cannot answer (or that need a human) land here as matters; your reply is relayed to the visitor verbatim. Closed matters take no further replies.",
+        "matterStatus": {
+          "open": "Awaiting reply",
+          "responded": "Replied",
+          "closed": "Closed"
+        },
+        "matterVisitor": "Visitor: {{hint}}",
+        "matterReplyPlaceholder": "Reply to the visitor… (the reception relays this verbatim)",
+        "matterReplyBtn": "Reply",
+        "matterCloseBtn": "Close",
+        "matterEntry": {
+          "open": "Opened",
+          "reply": "Reply",
+          "close": "Closed"
+        }
       },
       "subscribe": "Subscribe & Install",
       "gotoMine": "View my packs",

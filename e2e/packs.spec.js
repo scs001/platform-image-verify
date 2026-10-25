@@ -985,3 +985,80 @@ test("creator guide: complete guide publishes into the manifest, partial does no
   expect(v2.manifest.guide?.steps?.[0]?.title).toBe("准备合同");
   expect(v2.manifest.guide?.steps?.[2]?.title).toBe("取走成果");
 });
+
+// ── Facade matters (add-matter-threads) ──────────────────────────────────────
+//
+// The principal's queue on the pack detail: a facade pack with one open
+// matter renders the panel (stranger-blindness is server-side — the mock
+// answers the owner's list here), the reply round-trips verbatim, and close
+// is terminal (the reply box goes away with the closed badge).
+
+test("facade matters: the owner queue replies and closes through the detail dialog", async ({ page }) => {
+  const gw = seedableGateway(page);
+  gw.install();
+  const facadeManifest = {
+    name: "分身事项包",
+    description: "matters 面板 e2e",
+    tags: ["分身"],
+    skills: [{ name: "corpus-one", description: "语料", content: "# c" }],
+    agents: [{ id: "reception", name: "接待", persona: "p", serving: { protocol: "a2a" } }],
+    facade: { reception: "reception", corpus: ["corpus-one"], delegation: [], stance: "hosted" },
+  };
+  seedPack(gw.state, facadeManifest, "pack-matters");
+
+  const actions = [];
+  const now = Date.now();
+  await page.route("**/api/packs/pack-matters/matters**", async (route) => {
+    const req = route.request();
+    const method = req.method();
+    const path = new URL(req.url()).pathname;
+    const base = {
+      id: "mt_e2e1", packId: "pack-matters", agentId: "reception", deployer: "creator@e2e.test",
+      summary: "请问企业版怎么收费？", visitorHint: "访客自述：张三", status: "open",
+      timeline: [{ kind: "open", by: "reception", text: "请问企业版怎么收费？", at: now - 3_600_000 }],
+      createdAt: now - 3_600_000, updatedAt: now - 3_600_000,
+    };
+    if (method === "GET") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ matters: [base] }) });
+    }
+    const m = path.match(/\/matters\/(mt_e2e1)\/(reply|close)$/);
+    if (method === "POST" && m) {
+      const body = req.postDataJSON();
+      actions.push({ kind: m[2], body });
+      const out =
+        m[2] === "reply"
+          ? { ...base, status: "responded", updatedAt: now, timeline: [...base.timeline, { kind: "reply", by: "owner", text: body.text, at: now }] }
+          : { ...base, status: "closed", updatedAt: now, timeline: [...base.timeline, { kind: "close", by: "owner", text: body.note ?? "", at: now }] };
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ matter: out }) });
+    }
+    return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "unmocked" }) });
+  });
+
+  await gotoPacksTab(page, "market");
+  await page.getByTestId("pack-card-pack-matters").click();
+  const detail = page.getByTestId("pack-detail");
+  await expect(detail).toBeVisible();
+
+  // The facade panel and the matter queue both render; the matter is open.
+  await expect(detail.getByTestId("pack-facade-info")).toBeVisible();
+  const panel = detail.getByTestId("pack-facade-matters");
+  await expect(panel).toBeVisible();
+  await expect(panel.getByTestId("pack-matter-mt_e2e1")).toContainText("请问企业版怎么收费？");
+  await expect(panel.getByTestId("pack-matter-visitor-mt_e2e1")).toContainText("张三");
+  await expect(panel.getByTestId("pack-matter-mt_e2e1")).toContainText("待回应");
+
+  // Reply round-trips: the owner's text reaches the route verbatim, the badge flips.
+  await panel.getByTestId("pack-matter-reply-input-mt_e2e1").fill("本周四下午三点，链接稍后发。");
+  await panel.getByTestId("pack-matter-reply-btn-mt_e2e1").click();
+  await expect(panel.getByTestId("pack-matter-mt_e2e1")).toContainText("已回应");
+  expect(actions).toHaveLength(1);
+  expect(actions[0].kind).toBe("reply");
+  expect(actions[0].body.text).toBe("本周四下午三点，链接稍后发。");
+
+  // Close is terminal: the badge flips, the reply box disappears.
+  await panel.getByTestId("pack-matter-close-btn-mt_e2e1").click();
+  await expect(panel.getByTestId("pack-matter-mt_e2e1")).toContainText("已关闭");
+  await expect(panel.getByTestId("pack-matter-reply-input-mt_e2e1")).toHaveCount(0);
+  expect(actions).toHaveLength(2);
+  expect(actions[1].kind).toBe("close");
+});

@@ -1696,7 +1696,23 @@
         "asOf": "Corpus à jour au {{date}}",
         "stanceHosted": "Gratuit pour les visiteurs · l'hôte paie",
         "chatEntry": "Discuter avec cet avatar",
-        "notDeployed": "Réception non déployée — chat indisponible"
+        "notDeployed": "Réception non déployée — chat indisponible",
+        "mattersTitle": "Affaires",
+        "mattersHint": "Les questions auxquelles la réception ne peut pas répondre (ou qui exigent une personne) arrivent ici en affaires ; votre réponse est relayée au visiteur mot pour mot. Une affaire clôturée n'accepte plus de réponse.",
+        "matterStatus": {
+          "open": "En attente de réponse",
+          "responded": "Répondu",
+          "closed": "Clôturé"
+        },
+        "matterVisitor": "Visiteur : {{hint}}",
+        "matterReplyPlaceholder": "Répondez au visiteur… (la réception le relaie mot pour mot)",
+        "matterReplyBtn": "Répondre",
+        "matterCloseBtn": "Clôturer",
+        "matterEntry": {
+          "open": "Ouverture",
+          "reply": "Réponse",
+          "close": "Clôture"
+        }
       }
     },
     "report": {

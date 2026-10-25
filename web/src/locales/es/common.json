@@ -1696,7 +1696,23 @@
         "asOf": "Corpus actualizado a {{date}}",
         "stanceHosted": "Gratis para visitantes · el anfitrión paga",
         "chatEntry": "Hablar con este avatar",
-        "notDeployed": "Recepción sin desplegar — chat no disponible"
+        "notDeployed": "Recepción sin desplegar — chat no disponible",
+        "mattersTitle": "Asuntos",
+        "mattersHint": "Las preguntas que la recepción no puede responder (o que requieren una persona) llegan aquí como asuntos; tu respuesta se transmite al visitante literalmente. Un asunto cerrado no admite más respuestas.",
+        "matterStatus": {
+          "open": "Pendiente de respuesta",
+          "responded": "Respondido",
+          "closed": "Cerrado"
+        },
+        "matterVisitor": "Visitante: {{hint}}",
+        "matterReplyPlaceholder": "Responde al visitante… (la recepción lo transmite literalmente)",
+        "matterReplyBtn": "Responder",
+        "matterCloseBtn": "Cerrar",
+        "matterEntry": {
+          "open": "Abierto",
+          "reply": "Respuesta",
+          "close": "Cierre"
+        }
       }
     },
     "report": {

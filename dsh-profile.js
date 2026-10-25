@@ -2149,6 +2149,52 @@ export function writeServingQuestionsPatch({ dirs } = {}) {
   return patchPath;
 }
 
+// ── Matters bridge patch (add-matter-threads D2) ─────────────────────────────
+// The facade reception's matter face: platform-matters-bridge.js (a
+// ServingQuestionsSdkServer subclass carrying the matter trio from
+// matter-tools.js) is copied into the profile dir and a fresh-insert row
+// disables the questions row it subclasses — the chain grows by disable +
+// insert, one overlay per face:
+//   presets.patch.yml inserts `platform-sdk-server`
+//   → notify.patch.yml disables it, inserts `platform-notify-server`
+//   → serving-questions.patch.yml disables THAT, inserts
+//     `platform-serving-questions-server`
+//   → matters.patch.yml disables THAT, inserts `platform-matters-server`.
+// Composed into agent-runner FACADE children only (compose.js gates this
+// writer on the descriptor's `facade` block, AFTER writeServingQuestionsPatch
+// — layer order is fixed by compose.js's patchPaths); non-facade children
+// keep the questions row and structurally never see the matter tools.
+const MATTERS_BRIDGE_SOURCE = join(dirname(fileURLToPath(import.meta.url)), "dsh-profile-template", "platform-matters-bridge.js");
+const MATTERS_MODULE_SOURCE = join(dirname(fileURLToPath(import.meta.url)), "dsh-profile-template", "matter-tools.js");
+export const MATTERS_BRIDGE_FILE = "platform-matters-bridge.js";
+export const MATTERS_MODULE_FILE = "matter-tools.js";
+export const MATTERS_PATCH_FILE = "matters.patch.yml";
+
+// Write the matters bridge files + matters.patch.yml into the profile dir.
+// Same { dshHome, profileName } contract as writeNotifyPatch; returns the
+// patch path for the child's --patch args.
+export function writeMattersPatch({ dirs } = {}) {
+  const profileDir = dirname(targetPaths(dirs).presetsPatch);
+  mkdirSync(profileDir, { recursive: true });
+  // The full subclass parent chain, re-written idempotently (every layer
+  // must resolve regardless of which overlay a caller writes first).
+  atomicWriteTextSync(join(profileDir, PRESET_BRIDGE_SOURCE_FILE), readFileSync(BRIDGE_SOURCE, "utf8"));
+  atomicWriteTextSync(join(profileDir, "platform-tool-scope.js"), readFileSync(TOOL_SCOPE_BRIDGE_SOURCE, "utf8"));
+  atomicWriteTextSync(join(profileDir, NOTIFY_BRIDGE_FILE), readFileSync(NOTIFY_BRIDGE_SOURCE, "utf8"));
+  atomicWriteTextSync(join(profileDir, NOTIFY_MODULE_FILE), readFileSync(NOTIFY_MODULE_SOURCE, "utf8"));
+  atomicWriteTextSync(join(profileDir, SERVING_QUESTIONS_BRIDGE_FILE), readFileSync(SERVING_QUESTIONS_BRIDGE_SOURCE, "utf8"));
+  atomicWriteTextSync(join(profileDir, MATTERS_BRIDGE_FILE), readFileSync(MATTERS_BRIDGE_SOURCE, "utf8"));
+  atomicWriteTextSync(join(profileDir, MATTERS_MODULE_FILE), readFileSync(MATTERS_MODULE_SOURCE, "utf8"));
+  const patchPath = join(profileDir, MATTERS_PATCH_FILE);
+  const patch = [
+    { id: "platform-serving-questions-server", disabled: true },
+    { insert: [{ id: "platform-matters-server", name: `./${MATTERS_BRIDGE_FILE}` }] },
+  ];
+  atomicWriteTextSync(patchPath, yaml.dump(patch));
+  console.log(`[dsh-profile] wrote matters bridge patch → ${patchPath}`);
+  return patchPath;
+}
+
 // Self-check: load .env, build the section, print it + the model list. No file
 // write (read-only) — proves the generator emits valid YAML + the expected ids.
 // Usage: node dsh-profile.js

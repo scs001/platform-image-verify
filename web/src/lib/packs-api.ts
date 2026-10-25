@@ -269,6 +269,44 @@ export function myBillingState(): Promise<MyBillingState> {
   return fetch("/api/packs/billing/me").then(json) as Promise<MyBillingState>;
 }
 
+// Facade matters (add-matter-threads): the principal's escalation queue —
+// rows the reception's matter_open tool created, owner-visible only (the
+// server filters to the caller's own deployments; strangers get an empty
+// list, existence never disclosed). Timeline entries are
+// {kind: open|reply|close, by: reception|owner, text, at}.
+export interface FacadeMatter {
+  id: string;
+  packId: string;
+  agentId: string;
+  deployer: string;
+  summary: string;
+  visitorHint: string;
+  status: "open" | "responded" | "closed";
+  timeline: { kind: string; by: string; text: string; at: number }[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+export function getFacadeMatters(id: string): Promise<{ matters: FacadeMatter[] }> {
+  return fetch(`/api/packs/${encodeURIComponent(id)}/matters`).then(json) as Promise<{ matters: FacadeMatter[] }>;
+}
+
+export function replyFacadeMatter(id: string, matterId: string, text: string): Promise<{ matter: FacadeMatter }> {
+  return fetch(`/api/packs/${encodeURIComponent(id)}/matters/${encodeURIComponent(matterId)}/reply`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text }),
+  }).then(json) as Promise<{ matter: FacadeMatter }>;
+}
+
+export function closeFacadeMatter(id: string, matterId: string, note?: string): Promise<{ matter: FacadeMatter }> {
+  return fetch(`/api/packs/${encodeURIComponent(id)}/matters/${encodeURIComponent(matterId)}/close`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...(note ? { note } : {}) }),
+  }).then(json) as Promise<{ matter: FacadeMatter }>;
+}
+
 // Per-pack key binding state: serving agentId → whether a key is bound.
 // Booleans only — key values never leave the platform.
 export function getBillingBindings(id: string): Promise<Record<string, boolean>> {

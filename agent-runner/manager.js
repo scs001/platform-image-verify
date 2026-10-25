@@ -83,6 +83,7 @@ import { scrubbedChildEnv } from "./child.js";
 import { DshHarnessAdapter } from "./harness/dsh.js";
 import { createHarnessRegistry, DEFAULT_HARNESS } from "./harness/registry.js";
 import { createNotifier } from "./notify.js";
+import { createMatters } from "./matters.js";
 import { maskSecretRef, resolveAgentPort } from "../lib/agent-serving.js";
 import { createAgentApp } from "./a2a.js";
 
@@ -159,6 +160,9 @@ export class ChildManager {
     // every child — the relay credential and the per-agent rate bound live
     // here, never in a child's environment.
     this.notifier = createNotifier({ config, log, fetchImpl: notifyFetchImpl, now });
+    // Matters plane (add-matter-threads D3): the facade receptions' escalation
+    // executor — per-agent OPEN bucket, facet internal route, len-only audit.
+    this.matters = createMatters({ config, log, now });
     // Billing-gate probe transport (add-billing-failure-parking D1): injected
     // in tests; production uses global fetch.
     this.probeFetchImpl = probeFetchImpl ?? null;
@@ -1322,6 +1326,34 @@ export class ChildManager {
       key,
       log: this.log,
       onNotify: (payload) => this.notifier.send({ agent: key, boundChannel: notifyChannel, ...payload }),
+      // Matters (add-matter-threads D3): wired ONLY for facade descriptors —
+      // the deployment identity rides the closure, and a successful open
+      // piggybacks a notify on the bound channel (no binding → the notifier's
+      // own decline, which is fine).
+      ...(descriptor.facade
+        ? {
+            onMatter: async (payload) => {
+              const out = await this.matters.handle({
+                packId: descriptor.packId,
+                agentId: descriptor.agentId,
+                agent: key,
+                op: payload?.op,
+                args: payload?.args,
+              });
+              if (out?.ok && payload?.op === "open" && typeof out.id === "string") {
+                this.notifier
+                  .send({
+                    agent: key,
+                    boundChannel: notifyChannel,
+                    event: "matter_opened",
+                    text: `新事项 ${out.id}: ${String(payload?.args?.summary ?? "").slice(0, 120)}`,
+                  })
+                  .catch(() => {});
+              }
+              return out;
+            },
+          }
+        : {}),
       onExit,
       turnTimeoutMs: turnBudgetMs,
       budgetLabel,
@@ -1437,6 +1469,32 @@ export class ChildManager {
       key,
       log: this.log,
       onNotify: (payload) => this.notifier.send({ agent: key, boundChannel: notifyChannel, ...payload }),
+      // Matters (add-matter-threads D3): facade-gated, same closure contract
+      // as the solo spawn site above.
+      ...(descriptor.facade
+        ? {
+            onMatter: async (payload) => {
+              const out = await this.matters.handle({
+                packId: descriptor.packId,
+                agentId: descriptor.agentId,
+                agent: key,
+                op: payload?.op,
+                args: payload?.args,
+              });
+              if (out?.ok && payload?.op === "open" && typeof out.id === "string") {
+                this.notifier
+                  .send({
+                    agent: key,
+                    boundChannel: notifyChannel,
+                    event: "matter_opened",
+                    text: `新事项 ${out.id}: ${String(payload?.args?.summary ?? "").slice(0, 120)}`,
+                  })
+                  .catch(() => {});
+              }
+              return out;
+            },
+          }
+        : {}),
       onExit,
       turnTimeoutMs: turnBudgetMs,
       budgetLabel,

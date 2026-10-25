@@ -1636,7 +1636,23 @@
         "asOf": "语料截至 {{date}}",
         "stanceHosted": "访客免费 · 接待费用由主人承担",
         "chatEntry": "和这个分身聊",
-        "notDeployed": "接待角色尚未部署，暂不可对话"
+        "notDeployed": "接待角色尚未部署，暂不可对话",
+        "mattersTitle": "事项",
+        "mattersHint": "接待把答不了或需真人的问题开成事项落在这里；你的回应会由接待原样转述给访客。关闭后不可再回应。",
+        "matterStatus": {
+          "open": "待回应",
+          "responded": "已回应",
+          "closed": "已关闭"
+        },
+        "matterVisitor": "访客线索：{{hint}}",
+        "matterReplyPlaceholder": "回应访客…（接待会把这段话原样转述）",
+        "matterReplyBtn": "回应",
+        "matterCloseBtn": "关闭",
+        "matterEntry": {
+          "open": "开串",
+          "reply": "回应",
+          "close": "关闭"
+        }
       },
       "subscribe": "订阅并安装",
       "gotoMine": "查看我的功能集",

@@ -316,6 +316,23 @@ export function createPackRegistry({ file }) {
     deployer TEXT NOT NULL,
     created_at INTEGER NOT NULL
   )`);
+  // Matters (add-matter-threads D1): a facade deployment's escalation
+  // objects — the durable anchor a reception opens when a visitor's question
+  // must reach the principal (price/contract/booking). Timeline entries are
+  // {kind: open|reply|close, by: reception|owner, text, at}; content never
+  // enters logs — the same no-content law the notify relay enforces.
+  db.exec(`CREATE TABLE IF NOT EXISTS matters (
+    id TEXT PRIMARY KEY,
+    pack_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    deployer TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    visitor_hint TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'open',
+    timeline TEXT NOT NULL DEFAULT '[]',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`);
 
   const now = () => Date.now();
   const mintId = () => randomBytes(16).toString("base64url");
@@ -327,6 +344,20 @@ export function createPackRegistry({ file }) {
     db.prepare(`SELECT * FROM pack_versions WHERE pack_id = ? ORDER BY version DESC LIMIT 1`).get(packId) ?? null;
 
   const packRow = (packId) => db.prepare(`SELECT * FROM packs WHERE id = ?`).get(packId) ?? null;
+
+  // Column↔camel mapping for matter rows (timeline parsed once, here).
+  const matterRowOut = (r) => ({
+    id: r.id,
+    packId: r.pack_id,
+    agentId: r.agent_id,
+    deployer: r.deployer,
+    summary: r.summary,
+    visitorHint: r.visitor_hint,
+    status: r.status,
+    timeline: JSON.parse(r.timeline),
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  });
 
   function summaryOf(pack, version) {
     return {
@@ -727,6 +758,50 @@ export function createPackRegistry({ file }) {
         `INSERT INTO pack_host_settlements (usage_id, agent_path, minutes, amount_usd, deployer, created_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
       ).run(String(usageId), agentPath, minutes, amountUsd, deployer, Date.now());
+    },
+
+    // ── Matters (add-matter-threads D1/D4) ───────────────────────────────────
+    // The mt_ id matches the pk_ mint shape; the timeline is the matter's
+    // whole history (open/reply/close append-only, replies after responded
+    // keep flowing — closure is the only terminal).
+    matterOpen({ packId, agentId, deployer, summary, visitorHint }) {
+      const id = `mt_${randomBytes(12).toString("hex")}`;
+      const at = Date.now();
+      db.prepare(
+        `INSERT INTO matters (id, pack_id, agent_id, deployer, summary, visitor_hint, status, timeline, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)`,
+      ).run(
+        id, packId, agentId, deployer, summary, visitorHint,
+        JSON.stringify([{ kind: "open", by: "reception", text: summary, at }]),
+        at, at,
+      );
+      return { id, status: "open" };
+    },
+    mattersForDeployment(packId, agentId) {
+      return db.prepare(
+        `SELECT * FROM matters WHERE pack_id = ? AND agent_id = ?
+         ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'responded' THEN 1 ELSE 2 END, updated_at DESC`,
+      ).all(packId, agentId).map(matterRowOut);
+    },
+    mattersForPack(packId) {
+      return db.prepare(
+        `SELECT * FROM matters WHERE pack_id = ?
+         ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'responded' THEN 1 ELSE 2 END, updated_at DESC`,
+      ).all(packId).map(matterRowOut);
+    },
+    matterRead(id) {
+      const r = db.prepare(`SELECT * FROM matters WHERE id = ?`).get(String(id));
+      return r ? matterRowOut(r) : null;
+    },
+    matterAppend(id, entry, status) {
+      const m = db.prepare(`SELECT timeline FROM matters WHERE id = ?`).get(String(id));
+      if (!m) return null;
+      const timeline = JSON.parse(m.timeline);
+      timeline.push(entry);
+      db.prepare(`UPDATE matters SET timeline = ?, status = ?, updated_at = ? WHERE id = ?`).run(
+        JSON.stringify(timeline), status, Date.now(), String(id),
+      );
+      return true;
     },
 
     // ── Deployment secrets (add-deployment-secrets D2/D5) ────────────────────
@@ -2154,6 +2229,39 @@ export function registerPackRoutes(app, {
     res.json({ settled: true, duplicate: false, amountUsd: amount });
   });
 
+  // Internal: matters (add-matter-threads D6). The serving runner's facade
+  // tool trio calls these — open (the reception escalates a visitor's
+  // question), list (matter_status), read one (matter_read). Same
+  // per-deployment addressing and service-credential gate as host-settle;
+  // the deployer for the row is the deployment's bookkeeping deployer, not
+  // the caller. Matter text never enters a log line here or in the runner.
+  app.post("/api/packs/internal/matters/:packId/:agentId/open", express.json({ limit: "8kb" }), (req, res) => {
+    if (!internalAuth(req, res)) return;
+    const packId = decodeURIComponent(req.params.packId);
+    const agentId = decodeURIComponent(req.params.agentId);
+    const dep = registry.deployments(packId).find((d) => d.agentId === agentId);
+    if (!dep) return res.status(404).json({ error: "no such deployment" });
+    const summary = typeof req.body?.summary === "string" ? req.body.summary.trim() : "";
+    if (!summary || summary.length > 2000) {
+      return res.status(400).json({ error: "summary must be a non-empty string of at most 2000 characters" });
+    }
+    const visitorHintRaw = typeof req.body?.visitor_hint === "string" ? req.body.visitor_hint.trim().slice(0, 300) : "";
+    const out = registry.matterOpen({ packId, agentId, deployer: dep.deployedBy, summary, visitorHint: visitorHintRaw });
+    res.json(out);
+  });
+  app.get("/api/packs/internal/matters/:packId/:agentId", (req, res) => {
+    if (!internalAuth(req, res)) return;
+    res.json({ matters: registry.mattersForDeployment(decodeURIComponent(req.params.packId), decodeURIComponent(req.params.agentId)) });
+  });
+  app.get("/api/packs/internal/matters/:packId/:agentId/:mid", (req, res) => {
+    if (!internalAuth(req, res)) return;
+    const m = registry.matterRead(req.params.mid);
+    if (!m || m.packId !== decodeURIComponent(req.params.packId) || m.agentId !== decodeURIComponent(req.params.agentId)) {
+      return res.status(404).json({ error: "no such matter" });
+    }
+    res.json({ matter: m });
+  });
+
   // Deployed roles of a pack (3.3): the unpublish warning's and the deploy
   // button's data. Online/offline health itself comes from the registry via
   // the catalog's a2a entries — this list is the "deployed" fact. The paused
@@ -2182,6 +2290,45 @@ export function registerPackRoutes(app, {
       }
     }
     res.json({ deployments: rows.map((r) => ({ ...r, paused: paused[r.agentId] ?? false })) });
+  });
+
+  // Owner-side matters (add-matter-threads D6): the principal's queue. The
+  // list filters to the caller's own deployments (admins see the pack's
+  // all); actions are deployer-or-admin gated with a same-shape 404 for
+  // strangers — existence itself is not disclosed. Replies keep a closed
+  // matter immutable (open a new one and cite the old).
+  app.get("/api/packs/:id/matters", (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    const all = registry.mattersForPack(req.params.id);
+    res.json({ matters: isAdmin(user) ? all : all.filter((m) => m.deployer === user.email) });
+  });
+  app.post("/api/packs/:id/matters/:mid/reply", express.json({ limit: "8kb" }), (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    const m = registry.matterRead(req.params.mid);
+    if (!m || m.packId !== req.params.id || (m.deployer !== user.email && !isAdmin(user))) {
+      return res.status(404).json({ error: "no such matter" });
+    }
+    if (m.status === "closed") return res.status(409).json({ error: "matter is closed — open a new one" });
+    const text = typeof req.body?.text === "string" ? req.body.text.trim() : "";
+    if (!text || text.length > 2000) {
+      return res.status(400).json({ error: "text must be a non-empty string of at most 2000 characters" });
+    }
+    registry.matterAppend(m.id, { kind: "reply", by: "owner", text, at: Date.now() }, "responded");
+    res.json({ matter: registry.matterRead(m.id) });
+  });
+  app.post("/api/packs/:id/matters/:mid/close", express.json({ limit: "4kb" }), (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    const m = registry.matterRead(req.params.mid);
+    if (!m || m.packId !== req.params.id || (m.deployer !== user.email && !isAdmin(user))) {
+      return res.status(404).json({ error: "no such matter" });
+    }
+    if (m.status === "closed") return res.status(409).json({ error: "matter is already closed" });
+    const note = typeof req.body?.note === "string" ? req.body.note.trim().slice(0, 2000) : "";
+    registry.matterAppend(m.id, { kind: "close", by: "owner", text: note, at: Date.now() }, "closed");
+    res.json({ matter: registry.matterRead(m.id) });
   });
 
   // Pause/resume (add-agent-residency D5): deployer-facing, reversible — the

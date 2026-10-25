@@ -214,6 +214,12 @@ export function loadConfig(env = process.env) {
     // Runner-side notify audit (D5): one jsonl line per decision
     // ({agent, channel, outcome, reason, textLen} — never the text).
     notifyLogFile: env.AGENT_RUNNER_NOTIFY_LOG || path.join(env.AGENT_RUNNER_HOME || path.join(repoRoot, "runner-home"), "notify.jsonl"),
+    // Matters plane (add-matter-threads D3): the facade receptions' escalation
+    // egress — the facet internal route derives from the same packs base URL
+    // the relay does; the open bound is a per-agent token bucket; the audit
+    // line carries {agent, op, outcome, reason, len}, never the matter text.
+    mattersLogFile: env.AGENT_RUNNER_MATTERS_LOG || path.join(env.AGENT_RUNNER_HOME || path.join(repoRoot, "runner-home"), "matters.jsonl"),
+    mattersOpenPerMin: num(env.AGENT_RUNNER_MATTERS_OPEN_PER_MIN, 4),
 
     // Delegation bounds (add-agent-delegation-a2a D4): the depth at which the
     // adapter refuses chained calls, and the per-agent cap on concurrent

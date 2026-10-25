@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "./Badge";
+import { FacadeMattersPanel } from "./FacadeMattersPanel";
 import { RhythmEditor, rhythmEntryValid } from "./RhythmEditor";
 import { PackVersionList } from "./PackVersionList";
 import { guideFor, promptsFor, type PackGuide } from "@/lib/packGuides";
@@ -574,6 +575,11 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
                 })()}
               </section>
             )}
+
+            {/* The principal's matter queue (add-matter-threads): renders only
+                when the caller owns matters on this pack — strangers see
+                nothing (the server filters existence away). */}
+            {pack.manifest?.facade && <FacadeMattersPanel packId={pack.id} />}
 
             {/* Cluster Info (agent-cluster-platform): when the pack declares cluster metadata,
                 show a dedicated section with cluster name, description, and agent composition. */}

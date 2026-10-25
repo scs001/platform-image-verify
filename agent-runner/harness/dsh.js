@@ -69,13 +69,18 @@ export class DshHarnessAdapter {
   // runtime's `botNotify/send` notifications — the manager supplies it with
   // the deployment's bound channel. Absent → the call is declined
   // not-configured, never silently dropped.
-  constructor({ key, spawnSpec, clientFactory, log = console, onNotify = null, onExit = null, podMembers = null, budgetCancelGraceMs = 10_000, turnTimeoutMs = 180_000, budgetLabel = null, askGraceMs = Number(process.env.SERVING_ASK_GRACE_MS) || 20_000, initRetries = INIT_RETRIES }) {
+  // `onMatter` (add-matter-threads D3): the host-side executor for this
+  // runtime's `matterCall/send` notifications — the manager wires it ONLY for
+  // facade descriptors, with the deployment identity baked in. Absent → the
+  // call is declined not-configured, never silently dropped.
+  constructor({ key, spawnSpec, clientFactory, log = console, onNotify = null, onMatter = null, onExit = null, podMembers = null, budgetCancelGraceMs = 10_000, turnTimeoutMs = 180_000, budgetLabel = null, askGraceMs = Number(process.env.SERVING_ASK_GRACE_MS) || 20_000, initRetries = INIT_RETRIES }) {
     this.name = "dsh";
     this.key = key;
     this.spawnSpec = spawnSpec; // { profile, patchPaths, cwd, env, provider, model, presetId, version }
     this.clientFactory = clientFactory;
     this.log = log;
     this.onNotify = onNotify;
+    this.onMatter = onMatter;
     this.onExit = onExit;
     this.podMembers = podMembers;
     this.budgetCancelGraceMs = budgetCancelGraceMs;
@@ -213,6 +218,14 @@ export class DshHarnessAdapter {
         this.#handleNotify(notif.params ?? {});
         continue;
       }
+      // Matters (add-matter-threads D3): the facade child's trio sends
+      // `matterCall/send` up; the host executes it (bounds/facet route) and
+      // the answer travels back as a `matterCall/result` REQUEST — the same
+      // two-direction contract as notify.
+      if (notif?.method === "matterCall/send") {
+        this.#handleMatter(notif.params ?? {});
+        continue;
+      }
       const sid = notif?.params?.sessionId;
       const collector = sid ? this.#collectors.get(sid) : null;
       if (collector) {
@@ -244,6 +257,28 @@ export class DshHarnessAdapter {
       await this.client?.request?.("botNotify/result", { notifyId, ...result });
     } catch (e) {
       this.log.warn(`[agent-runner:${this.key}] notify result could not reach the child: ${e?.message || e}`);
+    }
+  }
+
+  // Execute one matter call with host authority (the #handleNotify contract,
+  // callId-keyed). Facade children only — the manager wires onMatter solely
+  // for descriptors carrying a facade block; a non-facade child structurally
+  // cannot send this notification (its tool face has no matter trio).
+  async #handleMatter(params) {
+    let result;
+    try {
+      result = this.onMatter
+        ? await this.onMatter({ op: params.op, args: params.args })
+        : { ok: false, reason: "not-configured", message: "matters are not configured on this deployment" };
+    } catch (e) {
+      result = { ok: false, reason: "forward-failed", message: `the matter call could not be forwarded: ${e?.message || e}` };
+    }
+    const callId = typeof params.callId === "string" ? params.callId : null;
+    if (!callId) return;
+    try {
+      await this.client?.request?.("matterCall/result", { callId, ...result });
+    } catch (e) {
+      this.log.warn(`[agent-runner:${this.key}] matter result could not reach the child: ${e?.message || e}`);
     }
   }
 

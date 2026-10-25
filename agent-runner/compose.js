@@ -36,6 +36,7 @@ import {
   writePresetsPatch,
   writeToolFilterPatch,
   writeServingQuestionsPatch,
+  writeMattersPatch,
 } from "../dsh-profile.js";
 // The deploy gate's shape definition, re-checked here before pinning
 // (add-deployment-secrets: one definition, two enforcement points — the
@@ -210,11 +211,23 @@ export async function materializeAgentHome({ homeRoot, agentKey, entry, skillCon
 
   // 3c. Serving questions overlay (add-serving-ask-bridge D1): swaps the
   //     notify row for its questions subclass, so this child's
-  //     `ask_user_question` gains the serving answerer — the ask parks in the
-  //     bridge and the harness's collector forwards it to the turn's caller.
+  //     `ask_user_question` gains the serving answerer — the ask parks in
+  //     the bridge and the harness's collector forwards it to the turn's caller.
   //     LAST after notify — it disables the row the notify overlay inserted.
   const questionsPatchPath = writeServingQuestionsPatch({ dirs: { dshHome: home, profileName: "platform" } });
   if (questionsPatchPath) patchPaths.push(questionsPatchPath);
+
+  // 3d. Matters overlay (add-matter-threads D2): swaps the questions row for
+  //     its matters subclass — the facade reception's matter trio. GATED on
+  //     the descriptor's `facade` block: non-facade children keep the
+  //     questions row and structurally never see the tools (the gate is at
+  //     mount time, not runtime). LAST after questions — it disables the row
+  //     the questions overlay inserted. Solo children only in v1 (pod members
+  //     share one face; a facade reception rides solo deployments).
+  if (descriptor.facade) {
+    const mattersPatchPath = writeMattersPatch({ dirs: { dshHome: home, profileName: "platform" } });
+    if (mattersPatchPath) patchPaths.push(mattersPatchPath);
+  }
 
   // LLM wiring — the deployment composer's writers into the PRIVATE home:
   // settings.yaml carries the llm-pi-ai provider routes (env route + the

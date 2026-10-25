@@ -1696,7 +1696,23 @@
         "asOf": "コーパス更新日 {{date}}",
         "stanceHosted": "訪問者無料・ホスト負担",
         "chatEntry": "この分身と話す",
-        "notDeployed": "受付役が未デプロイのためチャット不可"
+        "notDeployed": "受付役が未デプロイのためチャット不可",
+        "mattersTitle": "事項",
+        "mattersHint": "受付役が答えられない・真人が必要な質問は事項としてここに届きます。あなたの返信は訪問者にそのまま伝えられます。終了した事項には返信できません。",
+        "matterStatus": {
+          "open": "回答待ち",
+          "responded": "回答済み",
+          "closed": "終了"
+        },
+        "matterVisitor": "訪問者：{{hint}}",
+        "matterReplyPlaceholder": "訪問者への返信…（受付役がそのまま伝えます）",
+        "matterReplyBtn": "返信する",
+        "matterCloseBtn": "終了する",
+        "matterEntry": {
+          "open": "起案",
+          "reply": "返信",
+          "close": "終了"
+        }
       }
     },
     "report": {

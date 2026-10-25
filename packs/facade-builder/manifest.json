@@ -51,5 +51,11 @@
       }
     }
   ],
-  "notes": "v2：词汇换皮「门面」→「AI 分身」（用户反馈门面不可解，界面徽标/按钮已同步改「分身」）；并补素材隐私闸。采访式生成器+骨架模板。分身配置块校验、发布门、部署、目录徽标均为平台既有能力（add-principal-facade）。"
+  "facade": {
+    "reception": "builder",
+    "corpus": ["facade-builder-guide", "facade-manifest-template"],
+    "delegation": [],
+    "stance": "hosted"
+  },
+  "notes": "v3：自身成为分身（帮人做分身的分身，自示范）——reception=builder、corpus=指南+模板两技能、纯接待。v2：词汇换皮「门面」→「AI 分身」+素材隐私闸。采访式生成器+骨架模板；分身配置块校验、发布门、部署、目录徽标均为平台既有能力（add-principal-facade）。"
 }

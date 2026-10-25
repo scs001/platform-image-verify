@@ -89,6 +89,10 @@ const EXCLUDE_PATHS = new Set([
   "Makefile", // k8s/argocd deploy wrapper + prod live-service URL
   "Jenkinsfile",
   ".github/workflows/image.yml", // internal TCR/Harbor image pipeline
+  // The hkccr publish pipeline lives in the paas tree so the verify repo can
+  // always re-seed it (d3721f3b), but its internal registry references must
+  // never ship — the release flow copies it back in after the export.
+  ".github/workflows/image-publish.yml",
   // internal ops artifacts
   "docs/vertical-packs.md", // market-registration runbook (internal registry)
   // internal handoff / acceptance material for add-line-boards-and-action-gate

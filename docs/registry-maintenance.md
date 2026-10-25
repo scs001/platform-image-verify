@@ -1994,3 +1994,15 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **回归终验（串包修复后）**：寻数浏览器回合 200 真语料直答（「双星一底座」口径全对）+/agent/ 通道 200 恢复+V2 matters 端点真用户 200（facet-demo 会话）。
 
 **工具沉淀**：`scripts/verify-live-matter-panel.mjs`（V2 面板浏览器 drill）、m53-* 系列探针（面板 SSO/铸键/组字段名=**group_id 单数**）。
+
+### §15.50 K7 修复：新客户自助注册+默认组全链（2026-10-25，四断点中唯一的开门即翻车项）
+
+**两层修复（零代码，全配置）**：
+1. **Logto 开放注册**：生产 sign-in experience `sign_in_mode` 原为 `SignIn`（拒绝新用户）→ 改 `SignInAndRegister` + `sign_up`={verify:true, password:true, identifiers:["email"]}（邮箱验证码注册）。生产实测：注册页出现、未知邮箱走注册流、**验证码真实发出**（邮件连接器在线）。真用户旅程=面板 OIDC → Logto 注册（收码验证）→ 首登自动开户。
+2. **sub2api 默认订阅**：`default_subscriptions=[{group_id:3(openrouter), validity_days:3650}]`（openrouter 组转 subscription 型后该设置方可接受）。SSO 首登自动建户路径本就调用 `assignSubscriptions`（auth_service.go:803/824 OIDC 分支）——**设置即生效**：新户自动挂组 → 自助铸键 group 绑定过闸。
+
+**事故与恢复（如实记）**：为改 Logto 配置走了 DB 直改通道，`docker restart fd-logto` 引爆**陈年雷**——10-19 某会话建的备份表 `users_roles_backup_20261019` 无 RLS，Logto 启动检查要求所有业务表开 RLS → 崩溃循环、auth 域 502 约 4 分钟。修复=`ALTER TABLE ... ENABLE ROW LEVEL SECURITY` 后正常起。**教训两条**：①Logto 库里任何新建表必须带 RLS（备份表也不例外）；②改配置优先走 Logto 管理台/Management API，DB 直改仅限无路可走时且改后即重启验证。
+
+**K7 残余**：验证码邮件送达率（findmail 域收件）随首个真人注册确认；注册后的 sub2api 首登自动开户实证待下一次全新 OIDC 首登（机制在位：OIDC 分支 assignSubscriptions 同款调用）。
+
+**M5.3 终态**：三 agent 全链验收（§15.49）+ K7 自助注册链修复（本节）——「真客户进来不被绊死」的四断点中 K7 已除，K8/K9/K10 有绕行或隔离（引导自有分身发布、浏览器车道、时间盒待查）。

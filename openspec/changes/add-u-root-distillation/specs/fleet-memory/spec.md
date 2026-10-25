@@ -4,7 +4,7 @@
 
 ### Requirement: 平台缝 digest 读面——服务端单源渲染
 
-fd-memory SHALL 在平台缝暴露 digest 读面 `GET /digest?project=<name>&k=&budget=`：以请求令牌自身 root 内该 project 为范围，经与蒸馏候选检索同一条代码路径（向量优先、关键词兜底）按 query 文本（请求参数 `q`）召回 top-k 条 L2 页，并追加该 project 的近期 note 页为 L1 条目（按更新时间新近排序、至多 3 条），交 digest 渲染器（预算硬顶、每条 layer/confidence/日期标注、open handoffs 通知段、forget 与 expired 条目排除）产出注入块，返回 `{digest: string, items: number, notes: number, truncated: boolean, model_note?: string}`。渲染优先级 SHALL 为：open handoffs 通知段最先保留，其后 L2 条目（召回秩），最后 L1 近期 notes——预算不足时按此逆序截断。
+fd-memory SHALL 在平台缝暴露 digest 读面 `GET /digest?project=<name>&k=&budget=`：以请求令牌自身 root 内该 project 为范围，经与蒸馏候选检索同一条代码路径（向量优先、关键词兜底）按 query 文本（请求参数 `q`）召回 top-k 条 L2 页，并追加该 project 的近期 note 页为 L1 条目（按更新时间新近排序、至多 3 条），交 digest 渲染器（预算硬顶、每条 layer/confidence/日期标注、open handoffs 通知段、forget 与 expired 条目排除）产出注入块——open handoffs 通知段同受预算硬顶约束（保先位不保特权：单条超预算即整条让位，防巨型轮报交接淹没整块），返回 `{digest: string, items: number, notes: number, truncated: boolean, model_note?: string}`。渲染优先级 SHALL 为：open handoffs 通知段最先保留，其后 L2 条目（召回秩），最后 L1 近期 notes——预算不足时按此逆序截断。
 
 鉴权与寻址 SHALL 与 `/pages` 面同纪律：person 令牌读自己 root 下 project；platform / runner 族令牌 MUST 以显式 `rootKey` 参数指定目标 root（不带 rootKey 的非 person 调用结构化拒绝）；线协议 MUST NOT 出现 namespace/root 名于 person 路径（project 在请求者自身 root 内解析）；agent 族令牌（deployment / pod）MUST 结构化拒绝。embed 车道不可用或超时 SHALL 降级为关键词召回并在响应 `model_note` 注明，MUST NOT 失败整个请求。k 与 budget 参数 SHALL 有服务端上限（k ≤ 8、budget ≤ 2000），越界取上限。
 

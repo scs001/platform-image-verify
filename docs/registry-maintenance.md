@@ -1808,3 +1808,14 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 ### §15.35 挂账①修复上产（fix-runner-port-collision，2026-10-25）
 
 四面滚 sha-306a1d6（platform/demo/facet + **agent-runner-serving**——runner 清单独立钉版，本次连带把 §15.31 cluster-digest 代与 §15.32 facade 代捎上 runner；GitOps d61655c，digest c2e05373 ccr 实证）：**runner 侧** `#ensureListener` 挂 error 处理——EADDRINUSE/其他 listen error 释放条目+指名 warn（含 port_override 修复指引=生产已验证手法）+per-key 5min 节流，**重试不受节流**（端口释放后下轮 reconcile 自愈，无需重启）；**deploy 侧**占用图列表失败从静默降级改 loud warn（降级行为保持）。单测 4 新（隔离/节流/自愈/可见性）——测试过程钉死两口径：**端口哈希输入是 registry path（带斜杠）非 agentKey**；**macOS 上 :: 通配 probe 与 0.0.0.0 监听可共存**（probe 假 free + probe 竞速重绑两坑，最终用 HTTP 200 语义验证）。生产实证：runner 滚后 0 重启、16 agent 全 serving、无 EADDRINUSE，post-roll 真回合 200。挂账①销账；②留 registry 专项（§15.34）；③随 M5.3 真实访客采集。主 spec 双 capability 同步入库（validate --specs 181/181）。
+
+
+### §15.36 挂账②打通：registry /agent/ A2A 代理通道全链 200（2026-10-25）
+
+**重大更正（双宿主）**：生产 registry = **cheap-8 k8s 栈**（mcp-registry ns，公网 mcp.finddatatech.cloud 经 Caddy→100.64.0.15:18080）；cheap-1 compose 栈**无公网流量**（台账 §registry-1.4.0 双宿主收口行已载「退役另案」）。本轮前期取证误入 cheap-1 旧栈（ssh 可达、容器同名，Mongo 是独立旧库）——**deploy-registry-image skill 的 cheap-1 拓扑描述已过期**，待更新。
+
+**两根因与修复**（都在 cheap-8 生产栈）：①405 期=nginx 块未生成（register 后 health unknown 不渲染，toggle 探活+标脏后块出）——自愈型，非缺陷；②403 期=**patch-key groups 快照过期**：wgk- 键铸造时快照 groups 且非空永不覆写（auth_server `_validate_patch_key_token`），platformtest 的键快照 [community] 无 `paas-agent-callers` scope → invoke 闸拒。修复=生产 Mongo patch_keys 快照补 [community, paas-agent-callers]（与重铸同语义，即时生效无缓存）。
+
+**全链验证 200**：外部调用者 → Caddy → 生产 nginx（`location /agent/…/reception/` → proxy_pass 100.64.0.8:8810）→ /validate（X-Authorization 网关键过 invoke 闸）→ runner（Authorization agent 凭据，端到端）→ reception 真回合（「壹座创作/谦面分发/萬星执行」口径全对）。**双凭据模型实证**：网关键（registry patch-key+invoke scope）管进门，agent 凭据（AGENT_SERVING_BACKEND_TOKEN）管到 agent——A2A 规范出带外取得、端到端携带。
+
+**K4 地基就位**：跨用户 agent 互调的 registry 代理通道（delegation A2A 的 invoke gate 语义）真链路已通。存量 wgk- 键若无 caller 组需重铸或补快照；aloadtree 本机存的是 platformtest 测试键（2026-10-12 铸）——正式使用前应重连重铸。

@@ -188,3 +188,95 @@ test("ladder: null clusterMemory → no calls, prompt unchanged (switch off = by
   assert.equal(out.source, "none");
   assert.equal(out.prompt, "本轮任务");
 });
+
+// ── chat lane (add-chat-memory-injection) ───────────────────────────────────
+import { chatMemoryInjectionFor, chatMemoryClientFor, chatPromptWithMemory } from "../server/cluster-memory.js";
+
+test("chat ladder: digest read targets project default; k/budget ride the shared env; block only appends", async () => {
+  const seen = [];
+  const mem = {
+    async readDigest(project, q, opts) {
+      seen.push({ project, q, ...opts });
+      return { digest: "## 记忆摘要" };
+    },
+    async readShared() {
+      return [];
+    },
+  };
+  const out = await chatMemoryInjectionFor(mem, "帮我继续昨天的事", { CELL_MEMORY_DIGEST_K: "6", CELL_MEMORY_DIGEST_BUDGET: "1200" });
+  assert.equal(out.source, "digest");
+  assert.deepEqual(seen, [{ project: "default", q: "帮我继续昨天的事", k: 6, budget: 1200 }]);
+  assert.ok(out.prompt.startsWith("帮我继续昨天的事"), "injection appends, never rewrites the user text");
+});
+
+test("chat ladder: CELL_MEMORY_CHAT_DIGEST=0 → byte-identical prompt, digest face untouched", async () => {
+  let digestCalls = 0;
+  const mem = {
+    async readDigest() {
+      digestCalls += 1;
+      return { digest: "## 记忆摘要" };
+    },
+    async readShared() {
+      return [];
+    },
+  };
+  const out = await chatMemoryInjectionFor(mem, "原文照旧", { CELL_MEMORY_CHAT_DIGEST: "0" });
+  assert.equal(out.source, "none");
+  assert.equal(out.prompt, "原文照旧");
+  assert.equal(digestCalls, 0, "digest face not called when the chat switch is off");
+});
+
+test("chat ladder: digest failure → generic working-memory title rung; both fail → unchanged", async () => {
+  const pages = [{ title: "偏好：周报用中文", updated_at: "2026-10-24T00:00:00.000Z" }];
+  const out = await chatMemoryInjectionFor(ladderMemory({ digestError: new Error("digest HTTP 503"), pages }), "继续");
+  assert.equal(out.source, "titles");
+  assert.equal(out.prompt, "继续\n\n【工作记忆】此前会话的沉淀，供参考：\n- 偏好：周报用中文（2026-10-24）");
+  assert.ok(!out.prompt.includes("集群"), "chat rung must not carry cluster wording");
+  const none = await chatMemoryInjectionFor(ladderMemory({ digestError: new Error("x"), pagesError: new Error("y") }), "继续");
+  assert.equal(none.source, "none");
+  assert.equal(none.prompt, "继续");
+});
+
+test("chat client: resolved client cached per email; transient mint failure retried (not cached dark)", async () => {
+  const data = tmpData();
+  try {
+    const env = baseEnv(data);
+    let mintOk = false;
+    let mints = 0;
+    const impl = async (url, init = {}) => {
+      const u = String(url);
+      if (u.endsWith("/admin/mint")) {
+        mints += 1;
+        if (!mintOk) return { ok: false, status: 503, json: async () => ({}) };
+        return { ok: true, status: 200, json: async () => ({ token: "fdm_ok", id: "t1" }) };
+      }
+      return stubFetch([])(url, init);
+    };
+    const email = `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}@t.local`;
+    assert.equal(await chatMemoryClientFor(email, env, impl), null, "mint 503 → null this turn");
+    assert.equal(mints, 1);
+    mintOk = true;
+    const cm = await chatMemoryClientFor(email, env, impl);
+    assert.ok(cm, "transient failure heals on the next turn");
+    assert.equal(mints, 2);
+    assert.equal(await chatMemoryClientFor(email, env, impl), cm, "resolved client cached for the process lifetime");
+    assert.equal(mints, 2, "no re-mint once resolved");
+  } finally {
+    rmSync(data, { recursive: true, force: true });
+  }
+});
+
+test("chat wiring: no identity or config off → prompt untouched, zero fetch", async () => {
+  assert.equal(await chatPromptWithMemory(null, "原样"), "原样");
+  const data = tmpData();
+  try {
+    const boom = async (u) => {
+      throw new Error(`unexpected fetch ${u}`);
+    };
+    const env = { ...baseEnv(data), CELL_MEMORY_ENABLED: "0" };
+    const email = `off-${Date.now()}@t.local`;
+    assert.equal(await chatPromptWithMemory(email, "原样", env, boom), "原样");
+  } finally {
+    rmSync(data, { recursive: true, force: true });
+  }
+});

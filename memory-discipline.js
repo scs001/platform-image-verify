@@ -16,4 +16,6 @@ MCP 服务器 fd-memory 已挂载（工具名 mcp__fd-memory__*）。 / An MCP s
   When you finish meaningful work in a session, call memory_handoff_begin before stopping: what is done, interface shapes, next steps, known pitfalls, files touched.
 - 开场若可能在续作先前工作，先 memory_handoff_list；有给自己的 open handoff 就用 memory_handoff_accept 认领后续作，不要重推背景。
   When you start and may be resuming prior work, call memory_handoff_list first; if an open handoff is addressed to you, claim it with memory_handoff_accept and continue from it instead of re-deriving the background.
+- 当用户明确说「记住这个／别忘了」，或你学到跨会话仍有价值的偏好或事实时，调用 memory_write_page 记一条 note；之后的会话开场会自动带上最近的 note。
+  When the user explicitly asks you to remember something, or you learn a preference or fact worth carrying into later sessions, call memory_write_page; recent notes are surfaced automatically at the start of later sessions.
 `;

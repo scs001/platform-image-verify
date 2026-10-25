@@ -58,3 +58,8 @@ test("discipline text: handoff begin/accept guidance present", () => {
   assert.ok(MEMORY_DISCIPLINE.includes("memory_handoff_begin"));
   assert.ok(MEMORY_DISCIPLINE.includes("memory_handoff_accept"));
 });
+
+test("discipline text: note write trigger present (add-chat-memory-injection)", () => {
+  assert.ok(MEMORY_DISCIPLINE.includes("memory_write_page"));
+  assert.ok(MEMORY_DISCIPLINE.includes("记住"));
+});

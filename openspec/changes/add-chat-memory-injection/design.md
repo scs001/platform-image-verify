@@ -20,7 +20,7 @@ person token namespace `u/<email>` 经 `namespaceParts`（fd-memory `src/auth.ts
 
 ## D5 note 纪律单一来源
 
-`memory-discipline.js` MEMORY_DISCIPLINE 加一行（zh+en 镜像）：用户明示「记住这个」或学到跨会话有价值的偏好/事实时，调用 `memory_note_write` 记 note，开场会自动带上最近 note。fleet runner persona 与 cell preset suffix 两面经既有管道自动生效；挂载关闭时输出字节等同（既有断言覆盖）。fd-memory `src/mcp.ts` note 工具描述（现仅"Write a durable note page…"）追加同义触发提示，覆盖不经 dsh persona 的 MCP 消费者。
+`memory-discipline.js` MEMORY_DISCIPLINE 加一行（zh+en 镜像）：用户明示「记住这个」或学到跨会话有价值的偏好/事实时，调用 `memory_write_page` 记 note，开场会自动带上最近 note。fleet runner persona 与 cell preset suffix 两面经既有管道自动生效；挂载关闭时输出字节等同（既有断言覆盖）。fd-memory `src/mcp.ts` note 工具描述（现仅"Write a durable note page…"）追加同义触发提示，覆盖不经 dsh persona 的 MCP 消费者。
 
 ## D6 eval note 场景
 

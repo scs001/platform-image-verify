@@ -9,7 +9,7 @@ S0 生产调查（台账 §15.30，2026-10-25）定案：壹座**主聊天链路
 ## What Changes
 
 1. **主聊天每回合 digest 注入**：本地 web 聊天回合在 `skills.expandDocRefs` 之后、`ctx.session.prompt` 之前挂记忆三档阶梯（digest → 共享标题列表 → 原样），owner = 当前连接用户，project = `"default"`（person token `u/<email>` 的 MCP 写回落 project，fd-memory `auth.ts` namespaceParts——**读面必须 = 写面**，§15.31 补记三 t2 空块开环反证的教训）。历史行仍记 raw text。
-2. **note 写纪律文本**：MEMORY_DISCIPLINE 加一行「用户明示记住 / 学到持久偏好时用 memory_note_write 记 note」（zh+en 镜像），双面自动生效且随挂载出现/消失；fd-memory note 工具描述加同义触发提示，覆盖非 dsh 的 MCP 消费面。
+2. **note 写纪律文本**：MEMORY_DISCIPLINE 加一行「用户明示记住 / 学到持久偏好时用 memory_write_page 记 note」（zh+en 镜像），双面自动生效且随挂载出现/消失；fd-memory note 工具描述加同义触发提示，覆盖非 dsh 的 MCP 消费面。
 3. **eval note 场景**：continue-scenes 增 ≥3 个背景存于 note 的场景，digest 臂照赢——给 1/2 的读面与写触发一个可度量的验证面。
 
 ### New Capabilities

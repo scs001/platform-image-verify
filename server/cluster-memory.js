@@ -68,32 +68,93 @@ export async function clusterMemoryFor(env, ownerEmail, fetchImpl = fetch) {
   }
 }
 
-// The fan-out injection ladder (add-cluster-digest-injection design D3):
-// digest face first (server-rendered block, proven by the continuation eval),
-// fall back to the historical title list, fall back to nothing. One warn per
-// degraded rung; memory never fails a turn. CELL_MEMORY_DIGEST=0 is the
-// rollback lever that skips the digest rung only.
-export async function memoryInjectionFor(clusterMemory, clusterId, prompt, env = process.env) {
-  if (!clusterMemory) return { prompt, source: "none" };
-  if (env.CELL_MEMORY_DIGEST !== "0") {
+// The injection ladder (add-cluster-digest-injection design D3): digest face
+// first (server-rendered block, proven by the continuation eval), fall back
+// to the title list, fall back to nothing. One warn per degraded rung;
+// memory never fails a turn. Extracted at project level (add-chat-memory-
+// injection D3) so the chat lane runs the same ladder under its own switch;
+// the cluster wrapper keeps its exact historical bytes (pinned by tests).
+async function digestLadder(cm, project, prompt, { digestOn, k, budget, titlesLabel, warnTag, warnName }) {
+  if (!cm) return { prompt, source: "none" };
+  if (digestOn) {
     try {
-      const d = await clusterMemory.readDigest(clusterId, prompt, {
-        k: Number(env.CELL_MEMORY_DIGEST_K ?? 5) || 5,
-        budget: Number(env.CELL_MEMORY_DIGEST_BUDGET ?? 1500) || 1500,
-      });
+      const d = await cm.readDigest(project, prompt, { k, budget });
       if (d?.digest) return { prompt: `${prompt}\n\n${d.digest}`, source: "digest" };
     } catch (e) {
-      console.warn(`[cluster] digest read failed for ${clusterId} (fallback to titles): ${e?.message || e}`);
+      console.warn(`[${warnTag}] digest read failed for ${warnName} (fallback to titles): ${e?.message || e}`);
     }
   }
   try {
-    const sharedPages = await clusterMemory.readShared(clusterId, 5);
+    const sharedPages = await cm.readShared(project, 5);
     if (sharedPages.length) {
       const block = sharedPages.map((p) => `- ${p.title}（${String(p.updated_at ?? "").slice(0, 10)}）`).join("\n");
-      return { prompt: `${prompt}\n\n【集群共享记忆】本集群此前回合的沉淀，供参考：\n${block}`, source: "titles" };
+      return { prompt: `${prompt}\n\n${titlesLabel}\n${block}`, source: "titles" };
     }
   } catch (e) {
-    console.warn(`[cluster] shared-memory read failed for ${clusterId} (degrade open): ${e?.message || e}`);
+    console.warn(`[${warnTag}] shared-memory read failed for ${warnName} (degrade open): ${e?.message || e}`);
   }
   return { prompt, source: "none" };
+}
+
+const ladderEnv = (env) => ({
+  k: Number(env.CELL_MEMORY_DIGEST_K ?? 5) || 5,
+  budget: Number(env.CELL_MEMORY_DIGEST_BUDGET ?? 1500) || 1500,
+});
+
+// Cluster lane: CELL_MEMORY_DIGEST=0 is the rollback lever that skips the
+// digest rung only. Signature and behavior unchanged.
+export async function memoryInjectionFor(clusterMemory, clusterId, prompt, env = process.env) {
+  return digestLadder(clusterMemory, clusterProjectId(clusterId), prompt, {
+    digestOn: env.CELL_MEMORY_DIGEST !== "0",
+    ...ladderEnv(env),
+    titlesLabel: "【集群共享记忆】本集群此前回合的沉淀，供参考：",
+    warnTag: "cluster",
+    warnName: clusterId,
+  });
+}
+
+// Chat lane (add-chat-memory-injection D2/D3): same ladder over the owner's
+// memory root, project fixed to "default" — the project person tokens' MCP
+// writes land in (fd-memory namespaceParts) — so the read face equals the
+// write face. Independent kill switch CELL_MEMORY_CHAT_DIGEST=0; k/budget
+// shared with the cluster lane.
+export async function chatMemoryInjectionFor(clusterMemory, prompt, env = process.env) {
+  return digestLadder(clusterMemory, "default", prompt, {
+    digestOn: env.CELL_MEMORY_CHAT_DIGEST !== "0",
+    ...ladderEnv(env),
+    titlesLabel: "【工作记忆】此前会话的沉淀，供参考：",
+    warnTag: "chat-memory",
+    warnName: "default",
+  });
+}
+
+// Client cache for the ws chat lane: one memory client per owner email.
+// Resolved clients are cached for the process lifetime; a null result while
+// the config is on (transient mint failure) is dropped so the next turn
+// retries instead of staying dark until restart.
+const chatClients = new Map();
+export async function chatMemoryClientFor(ownerEmail, env = process.env, fetchImpl = fetch) {
+  if (!ownerEmail) return null;
+  let p = chatClients.get(ownerEmail);
+  if (!p) {
+    p = clusterMemoryFor(env, ownerEmail, fetchImpl);
+    chatClients.set(ownerEmail, p);
+  }
+  const cm = await p;
+  if (!cm && cellMemoryConfig(env)) chatClients.delete(ownerEmail);
+  return cm;
+}
+
+// The ws-lane wiring (add-chat-memory-injection D1): no identity or any
+// failure leaves the prompt untouched — memory never fails a chat turn.
+export async function chatPromptWithMemory(ownerEmail, prompt, env = process.env, fetchImpl = fetch) {
+  if (!ownerEmail) return prompt;
+  try {
+    const cm = await chatMemoryClientFor(ownerEmail, env, fetchImpl);
+    if (!cm) return prompt;
+    return (await chatMemoryInjectionFor(cm, prompt, env)).prompt;
+  } catch (e) {
+    console.warn(`[chat-memory] injection failed for ${ownerEmail} (degrade open): ${e?.message || e}`);
+    return prompt;
+  }
 }

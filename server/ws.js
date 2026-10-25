@@ -6,6 +6,7 @@ import * as chatHistory from "../chat-history.js";
 import * as cron from "../cron.js";
 import * as catalog from "../catalog.js";
 import * as skills from "./skills.js";
+import { chatPromptWithMemory } from "./cluster-memory.js";
 import { getClusterDatabase } from "./routes/clusters-db.js";
 import { userFromHeaders, mpUserFromToken, normalizeSsoEmail, withRoles } from "./auth.js";
 
@@ -576,7 +577,13 @@ ctx.wss.on("connection", (ws, req) => {
                 // Expand @doc:<id> attachment references into the document content the
                 // agent sees (design D4); the user message above keeps the raw refs.
                 const promptWithDocs = await skills.expandDocRefs(ctx, text);
-                await ctx.session.prompt(promptWithDocs, sid);
+                // Chat memory ladder (add-chat-memory-injection): one digest read
+                // from the owner's memory root (project "default"), degrade-open —
+                // the same shape the cron hook ① uses for cluster turns. The
+                // injected block lives only in the outgoing prompt; the history
+                // row above keeps the raw text, same contract as @doc expansion.
+                const promptOut = await chatPromptWithMemory(ws.identity?.email, promptWithDocs);
+                await ctx.session.prompt(promptOut, sid);
               }
             } catch (err) {
               // An explicit stop cancelled the run; the resulting RPC rejection

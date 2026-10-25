@@ -2,13 +2,13 @@
 
 ## 1. paas 主聊天注入
 
-- [ ] 1.1 `server/cluster-memory.js`：内部抽 `digestLadder`（digest→标题→原样，逐档 warn）；`memoryInjectionFor` 对外语义零变化；新增 `chatMemoryInjectionFor(cm, prompt, env)`——project 固定 `"default"`、开关 `CELL_MEMORY_CHAT_DIGEST=0` 独立、k/budget 共用 `CELL_MEMORY_DIGEST_K/BUDGET`、任何失败 warn 一行原样返回
-- [ ] 1.2 `server/ws.js` run 闭包：expandDocRefs 之后、`ctx.session.prompt` 之前挂 `chatMemoryInjectionFor`（owner=`ws.identity.email`，memory client 按邮箱惰性缓存；无身份/未配记忆 no-op）；`chatHistory.recordMessage` 仍记 raw text 不动
-- [ ] 1.3 单测：注入块拼接（digest/标题两档）/ `CELL_MEMORY_CHAT_DIGEST=0` 字节等同 / 未配记忆 no-op / digest 5xx 与超时降级原样不抛 / 历史行 raw text 断言 / cluster 侧既有测试全绿（零行为变化钉死）
+- [x] 1.1 `server/cluster-memory.js`：内部抽 `digestLadder`（digest→标题→原样，逐档 warn）；`memoryInjectionFor` 对外语义零变化；新增 `chatMemoryInjectionFor(cm, prompt, env)`——project 固定 `"default"`、开关 `CELL_MEMORY_CHAT_DIGEST=0` 独立、k/budget 共用 `CELL_MEMORY_DIGEST_K/BUDGET`、任何失败 warn 一行原样返回
+- [x] 1.2 `server/ws.js` run 闭包：expandDocRefs 之后、`ctx.session.prompt` 之前挂 `chatMemoryInjectionFor`（owner=`ws.identity.email`，memory client 按邮箱惰性缓存；无身份/未配记忆 no-op）；`chatHistory.recordMessage` 仍记 raw text 不动
+- [x] 1.3 单测：注入块拼接（digest/标题两档）/ `CELL_MEMORY_CHAT_DIGEST=0` 字节等同 / 未配记忆 no-op / digest 5xx 与超时降级原样不抛 / 历史行 raw text 断言 / cluster 侧既有测试全绿（零行为变化钉死）
 
 ## 2. note 写纪律
 
-- [ ] 2.1 `memory-discipline.js` MEMORY_DISCIPLINE 加 note 触发行（zh+en 镜像）；跑 dsh-profile / runner 两侧既有测试（含 CELL_MEMORY_ENABLED=0 字节等同断言）
+- [x] 2.1 `memory-discipline.js` MEMORY_DISCIPLINE 加 note 触发行（zh+en 镜像）；跑 dsh-profile / runner 两侧既有测试（含 CELL_MEMORY_ENABLED=0 字节等同断言）
 - [ ] 2.2 fd-memory `src/mcp.ts` note 工具描述加触发提示；相关测试更新跑绿
 
 ## 3. eval note 场景

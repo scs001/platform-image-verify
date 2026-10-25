@@ -36,7 +36,7 @@ chatHistory SHALL 只记用户 raw text；注入块不得写入历史行或 UI �
 
 ### Requirement: note 写纪律单一来源
 
-MEMORY_DISCIPLINE（memory-discipline.js 单一来源）SHALL 含 note 触发纪律：用户明示记住某事、或 agent 学到跨会话有价值的偏好/事实时，调用 `memory_note_write` 记 note。该文本 SHALL 经既有双面（fleet runner persona / cell preset suffix）生效，且挂载关闭时输出字节等同。fd-memory note 工具描述 SHALL 携带同义触发提示。
+MEMORY_DISCIPLINE（memory-discipline.js 单一来源）SHALL 含 note 触发纪律：用户明示记住某事、或 agent 学到跨会话有价值的偏好/事实时，调用 `memory_write_page` 记 note。该文本 SHALL 经既有双面（fleet runner persona / cell preset suffix）生效，且挂载关闭时输出字节等同。fd-memory note 工具描述 SHALL 携带同义触发提示。
 
 #### Scenario: 纪律行双面生效
 

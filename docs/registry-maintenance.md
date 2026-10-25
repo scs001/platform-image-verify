@@ -2020,3 +2020,15 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **eval 五跑全录**（runbook 详）：run8 recency 污染修复（同毫秒写 note 随机「最近 3 条」）→ run9 eval 漂移修复（cap-3 未同步+渲染器 handoffs 预算）→ run10 note-depth PASS（+1.50）/first_step 82%/avg diff 1.24；全集 win 53% 触发**门数学定案**——6/17 场景 none≥4 无可赢空间，旧门结构性不可达（上限 65%）；校准为有空间场景 win（9/11=82%）+全集非劣（16/17=94%），两套口径并存入 baseline。校准口径 run10 = **PASS**。
 
 **观察项**：人根蒸馏 token 用量（aloadtree 全量回填 ~257k，日预算 600k 内）；L2 产出率（10/44 原料页）；老.note 召回生产首例待自然流量；served-rung 命中率分布。
+
+### §15.38 构造基准：digest 面三连测——handoff 淹块修复上产 + 老.note 召回闭环首例（2026-10-25 深夜，用户令「自己构造测试」）
+
+**背景**：无自然流量，观察项数据全部构造产生。三套基准（只读为主、专用受控根隔离）：A=平台缝 /digest 跑分（真实根零污染）、B=cell 形状注入（5s AbortController 真实客户端形状）、C=专用根 u-digest-bench@yizuo.local 深度受控实验（6 notes：3 填充+3 深背景，蒸馏后清点）。
+
+**基准 A 关键发现（直接钉一枚修复）**：相关 query 命中 0/5——**检索满分**（候选全对、10/10 向量在、GitHub query top-2 正中）但块 2962 字里 2874 字是 handoffs，「相关记忆」段只剩 `- 〔L2·fact〕…` 纯标题截断行。根因：cap-3 限条数不限尺寸，aloadtree 39 条 open handoffs 里 3 条巨型轮报（~700-1500 token/条）吃穿 1500 预算 95%。修复=handoff 行通知语义截断（100 字 gist，全文本认领时可见；fd-memory eca5ad6，滚产 sha-6c9579f）。**复测 hit 0/5→4/5**（唯一 miss 的内容只在被挤出的 note 里）。
+
+**基准 A/B 性能面**：rung=vector 13-16/16（deadline 面健康，慢侧车 keyword 降级照出块且照样命中）；ms avg 1.4-2.4s / p95 1.9-3.7s（cell 5s 预算内余量充足）；B 面 digest 档 9-10/11（「延迟彩票」时代结束，常态命中；唯一 miss 为一次瞬时错误 titles 降级）。
+
+**基准 C 闭环首例**：6 notes 经 fallback 扫描分批蒸馏（L2=5，23.8k tokens，note_cursor 前进）→ 三个深背景 query（数据导出对账/demo-mock-v2 恢复/报表脱敏哈希）**3/3 经 L2 语义命中**——深 note（L1 top-3 之外，旧读面永久不可达）经蒸馏召回的生产全链闭环。aloadtree 根上的「记忆分区作用域」query 同框验证（note#4/#5 蒸馏产物 L2#3 被召回）。
+
+**迭代输入（数据驱动，呈报待选）**：①notes 被 L2 挤出（渲染序 notes 最后，L2 满员时最近 note 归零——chat 面「用户最近交代」反而看不见；方向=notes 预留份额）；②蒸馏延迟=fallback 10min+分批 2min/批（方向=chat 回合级触发）；③served-rung 命中率现在有构造基线可对照。基准根 u-digest-bench 留作常设 benchmark fixture（合成数据，零业务污染）。

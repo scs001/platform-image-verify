@@ -56,7 +56,8 @@
             "寻数是做什么的？和谦面、萬星是什么关系？",
             "你们有哪些数据和文档方面的能力？"
           ]
-        }
+        },
+        "toolFace": "chat"
       }
     }
   ],
@@ -70,5 +71,5 @@
     "delegation": [],
     "stance": "hosted"
   },
-  "notes": "v3：接待硬纪律——答案只出语料、禁用环境翻找（运行时不是知识源）、直答不展示思考、越界 matter_open 转主人（2026-10-25 生产实证：接待曾 grep /app 内部文件作答且思考流直泄访客）。v2 词汇换皮。委派清单空：a2a 专家委派随新版本追加。语料快照 scripts/facade-corpus-snapshot.mjs 周更。"
+  "notes": "v5：接待声明 serving.toolFace=chat——物化层裁掉 bash/文件/web/子代理内建工具行（结构性闸，补 v4 persona 纪律）；保留 skill 语料入口与桥注入三件套。v4：接待硬纪律。v3：词汇换皮。委派清单空：a2a 专家委派随新版本追加。语料快照 scripts/facade-corpus-snapshot.mjs 周更。"
 }

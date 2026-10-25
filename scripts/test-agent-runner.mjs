@@ -2189,3 +2189,69 @@ test("acp composition: the deployer's billing key overrides the standing credent
     await h.close();
   }
 });
+
+// ── Tool-face tier (add-serving-tool-face) ───────────────────────────────────
+//
+// The contract's declared built-in tool reduction materializes as a pure
+// disable overlay; absence is byte-identical legacy. The chat face drops the
+// filesystem/command/web/subagent TOOL rows and keeps the corpus entry
+// (tool-skill) — the reception shape.
+
+const TOOLFACE_ENTRY = {
+  ...ENTRY,
+  metadata: {
+    ...ENTRY.metadata,
+    tool_face: "chat",
+  },
+};
+
+test("4.2b tool_face=chat materializes the disable overlay after the bridge chain", async () => {
+  const homeRoot = path.join(tmpRoot, "toolface");
+  const spec = await materializeAgentHome({
+    homeRoot,
+    agentKey: agentKeyFor(TOOLFACE_ENTRY),
+    entry: TOOLFACE_ENTRY,
+    skillContents: { "packs/pk-abc/fin-statement-analysis": "# 财报分析\nstep 1" },
+    mcpServers: [],
+    template: TEMPLATE,
+  });
+  const face = spec.patchPaths.find((p) => p.endsWith("tool-face.patch.yml"));
+  assert.ok(face, "the tool-face overlay rides patchPaths");
+  const yml = readFileSync(face, "utf8");
+  for (const row of ["tool-bash", "tool-fs", "tool-web", "tool-subagent", "tool-workflow", "web-search-deepseek"]) {
+    assert.match(yml, new RegExp(`- id: ${row}\\n  disabled: true`), `${row} is disabled`);
+  }
+  assert.ok(!yml.includes("tool-skill"), "the corpus entry (tool-skill) stays mounted");
+  // Layer order: the face overlay applies after the presets overlay that
+  // carries the composition it trims.
+  assert.equal(spec.patchPaths.at(-1), face);
+});
+
+test("4.2b no tool_face: no overlay, patchPaths identical to legacy", async () => {
+  const homeRoot = path.join(tmpRoot, "toolface-legacy");
+  const spec = await materializeAgentHome({
+    homeRoot,
+    agentKey: agentKeyFor(ENTRY),
+    entry: ENTRY,
+    skillContents: { "packs/pk-abc/fin-statement-analysis": "# 财报分析\nstep 1" },
+    mcpServers: [],
+    template: TEMPLATE,
+  });
+  assert.equal(spec.patchPaths.some((p) => p.includes("tool-face")), false);
+  assert.equal(spec.patchPaths.length, 4, "presets+skills+notify+questions (no mcp patch with no servers), byte-identical legacy");
+});
+
+test("4.2b an unknown tool face refuses materialization loud", async () => {
+  await assert.rejects(
+    () =>
+      materializeAgentHome({
+        homeRoot: path.join(tmpRoot, "toolface-bad"),
+        agentKey: agentKeyFor(ENTRY),
+        entry: { ...ENTRY, metadata: { ...ENTRY.metadata, tool_face: "yolo" } },
+        skillContents: { "packs/pk-abc/fin-statement-analysis": "# 财报分析\nstep 1" },
+        mcpServers: [],
+        template: TEMPLATE,
+      }),
+    /unknown tool face/,
+  );
+});

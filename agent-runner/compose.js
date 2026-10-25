@@ -37,6 +37,7 @@ import {
   writeToolFilterPatch,
   writeServingQuestionsPatch,
   writeMattersPatch,
+  writeToolFacePatch,
 } from "../dsh-profile.js";
 // The deploy gate's shape definition, re-checked here before pinning
 // (add-deployment-secrets: one definition, two enforcement points — the
@@ -227,6 +228,16 @@ export async function materializeAgentHome({ homeRoot, agentKey, entry, skillCon
   if (descriptor.facade) {
     const mattersPatchPath = writeMattersPatch({ dirs: { dshHome: home, profileName: "platform" } });
     if (mattersPatchPath) patchPaths.push(mattersPatchPath);
+  }
+
+  // 3e. Tool-face overlay (add-serving-tool-face D1): the contract's declared
+  //     built-in tool reduction — pure row disables over the dsh-base face.
+  //     Gated on descriptor.tool_face (absent = byte-identical legacy); an
+  //     unknown tier throws here, refusing the materialization loud (the
+  //     publish gate should have caught it; no silent full-face fallback).
+  if (descriptor.tool_face) {
+    const toolFacePatchPath = writeToolFacePatch({ dirs: { dshHome: home, profileName: "platform" }, face: descriptor.tool_face });
+    if (toolFacePatchPath) patchPaths.push(toolFacePatchPath);
   }
 
   // LLM wiring — the deployment composer's writers into the PRIVATE home:

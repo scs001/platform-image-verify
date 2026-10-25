@@ -2195,6 +2195,42 @@ export function writeMattersPatch({ dirs } = {}) {
   return patchPath;
 }
 
+// ── Tool-face patch (add-serving-tool-face D1/D2) ────────────────────────────
+// A serving contract's DECLARED built-in tool reduction, materialized as row
+// disables over the dsh-base composition. The chat face strips the
+// filesystem/command/web/subagent TOOL rows (the leak/escape vectors the
+// 2026-10-25 reception incident rode) and keeps `tool-skill` (the corpus
+// entry), `tool-ask-user`, and everything the platform bridges inject via
+// ctx.inject (notify/questions/matters — those never ride composition rows).
+// Infrastructure service rows (sandbox/subprocess/ptc-runtime/…) stay: an
+// unconsumed service is inert, while dropping one risks dependency breakage.
+const TOOL_FACE_DROPS = {
+  chat: [
+    "tool-bash", "tool-pwsh", "tool-jobs",
+    "tool-fs", "tool-fs-search",
+    "tool-web", "web", "web-search-deepseek", "web-fetch-http",
+    "tool-subagent", "tool-subagent-fork", "tool-subagent-list-agents", "tool-subagent-control",
+    "tool-workflow", "tool-ralph",
+  ],
+};
+export const TOOL_FACE_PATCH_FILE = "tool-face.patch.yml";
+
+// Write tool-face.patch.yml (pure disable list) into the profile dir. Same
+// { dshHome, profileName } contract as the bridge patch writers. An unknown
+// face throws — the publish gate validates the enum, and the runner refuses
+// a half-known tier rather than silently composing the full face.
+export function writeToolFacePatch({ dirs, face }) {
+  const drop = TOOL_FACE_DROPS[face];
+  if (!drop) throw new Error(`unknown tool face '${face}' (known: ${Object.keys(TOOL_FACE_DROPS).join(", ")})`);
+  const profileDir = dirname(targetPaths(dirs).presetsPatch);
+  mkdirSync(profileDir, { recursive: true });
+  const patchPath = join(profileDir, TOOL_FACE_PATCH_FILE);
+  const patch = drop.map((id) => ({ id, disabled: true }));
+  atomicWriteTextSync(patchPath, yaml.dump(patch));
+  console.log(`[dsh-profile] wrote tool-face '${face}' patch (${drop.length} rows disabled) → ${patchPath}`);
+  return patchPath;
+}
+
 // Self-check: load .env, build the section, print it + the model list. No file
 // write (read-only) — proves the generator emits valid YAML + the expected ids.
 // Usage: node dsh-profile.js

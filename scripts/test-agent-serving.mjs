@@ -134,6 +134,18 @@ test("agent-service-config serving.model / modelWhitelist validate", () => {
   );
 });
 
+test("serving.toolFace validates (declared reduction, enum-gated)", () => {
+  // The chat tier is the v1 enum; absence stays byte-identical legacy.
+  assert.deepEqual(validatePackManifest(withServing({ protocol: "a2a", toolFace: "chat" })), []);
+  for (const bad of ["yolo", "", "full", 42, null, {}, ["chat"]]) {
+    const errs = validatePackManifest(withServing({ protocol: "a2a", toolFace: bad }));
+    assert.ok(
+      errs.some((e) => /serving\.toolFace must be one of chat/.test(e.error)),
+      `toolFace ${JSON.stringify(String(bad).slice(0, 10))} should be rejected`,
+    );
+  }
+});
+
 test("harness-adapter serving.harness validates (selection, not configuration)", () => {
   // The declaration the deploy gate and composeDescriptor both read: legal as
   // a name on the serving contract. Without this key in the allowlist no real

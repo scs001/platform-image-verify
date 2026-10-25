@@ -388,6 +388,10 @@ IA 先行（可视化在重构之后，不在旧骨架上堆）；容量物理�
 | K4 | M3 出口双向样本（互调+各引数据+双方结算） | 终态验收 | M3 出口 | 终态线·场景B 深化首切片内采 |
 | K5 | 合规项（经营性增项/等保评估） | 开门前置 | M4 余 | M5.1（公司侧主导） |
 | K6 | 免费车道 429（free 系上游限速） | 观察（已缓解：部署键改绑 openrouter paid 车道，运维记录在案） | F3.3 坑③ | 观察项；复发再议分流 |
+| K7 | SSO 自助开户 allowed_groups=null → 自助铸键无组全废（新客户 100% 卡死） | 产品断点 | M5.3 构造验收（§15.49） | sub2api 开户默认组修复；当下邀请流程含 admin 设组 |
+| K8 | pack serving agent 部署单槽（(pack,agent) 主键）——多客户部署同一包互顶 | 产品断点 | M5.3 构造验收（§15.49） | 部署租户化（pack,agent,deployer）；当下引导用户发自己的分身 |
+| K9 | registry /agent/ 通道新 agent invoke 闸 401+串包（nginx 端口映射漂移） | 跨仓缺陷 | M5.3 构造验收（§15.49） | fd-registry 仓修复；浏览器车道不受影响 |
+| K10 | 跨进程 SQLite 读抖动（facet 写/platform 读间歇缺行）→ wanxing 新 agent 聊天页间歇 404 | 跨仓缺陷 | M5.3 构造验收（§15.49） | paas+fd-wanxing 联合排查读一致性 |
 
 销账记录：F3.3 验收挖出的「车道≠dsh 花名册静默空返且照常计费」已于 2026-10-13
 五连环修复清偿——fd-wanxing fix-error-turn-billing + paas add-deploy-roster-gate /

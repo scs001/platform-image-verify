@@ -1978,3 +1978,19 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **列车与坑**：paas 9b381f4（digest e318721e，runner）；fd-wanxing ba0787e→7dc12ee 双镜像（facade digest ae532e2f / web digest 211e1658）。**坑三枚**：①fd-build-snapshot 的 origin-clone 模式同受「先推再出」纪律——首出 74978f7 是旧树（容器 grep matters=0 逮住），推齐重出；②同池第二镜像=BUILD_DOCKERFILE 变量切换（§15.38 律再现：首次 dispatch 用了根 Dockerfile，同 tag 错构建先完成被正确产物覆盖——用完还原已守）；③镜像 tag=快照仓 commit 非源 sha（944700f≠7dc12ee——relay/bump 对 tag 别想当然，以构建日志推送行为准）。
 
 **V2 余项**：无（披露边界第一二刀+面板全落；事项推送随真访客信号再议）。
+
+### §15.49 M5.3 首批用户旅程构造验收（2026-10-25，用户明令「直接构建测试」）——三 agent 全链 + 四枚产品断点入册
+
+**旅程三 agent（全部非运营身份、开放门、自助键）**：①platform-test「演示分身」mjBgihpHN1SfRMrhfaT8cQ（§15.46 发布+部署+真回合）；②p2walk1025「p2 的分身」KmpgjvkEWlY9HgwTJRFzXA——**全新客户全自助链**：Logto SSO 面板自动开户（user 108 实证）→ 自助铸键 → 开放门发布 → 部署 → runner 直连真回合语料直答（「我是 p2walk1025 在 M5 开门后自助完成全流程旅程时诞生的分身记录，全程无运营介入」）；③facet-demo「facet-demo 的分身」IBsyC2w-L9UUc1CDT-aMhg 同程全通。≥3 agents 出口判据核心达成。
+
+**邀请准备动作（非旅程介入，如实记）**：两测试号 sub2api $5 充值+allowed_groups=[3]（openrouter paid 兜底组）。
+
+**四枚产品断点（M5.5 欠账清单新增，全为构造测试的真实产出）**：
+- **K7 新客户键组断点**：SSO 自助开户 allowed_groups=null → 面板铸键（不选组或无组可选）→ 键 403 全废——**每个新客户 100% 卡死**。产品修复=sub2api 开户默认组；当下邀请流程须含 admin 设组步骤。
+- **K8 部署单槽**：pack serving agent 主键 (pack_id,agent_id)+upsert——第二部署者**顶掉**第一部署者（键行覆盖+runtime 接管+descriptor 顶替）。多客户部署同一市场包互踩。当下绕行=引导用户发布自己的分身（同径且自带语料）；产品修复=部署租户化（pack,agent,deployer 三元）。
+- **K9 registry /agent/ 通道新 agent invoke 闸**（fd-registry 仓）：新部署 agent 经 /agent/ 通道 401 "Authentication required"（/validate 对新 entry 的 invoke 校验失败），且观测到**串包**（寻数路径打出 wire 宏观分析师的 context——nginx location 与端口映射漂移）。浏览器聊天车道不受影响（wanxing→runner 直连）。当日恢复手法=port_override 挪槽+redeploy（寻数 8816→8823 后 /agent/ 200 恢复）。
+- **K10 跨进程 SQLite 读抖动**（paas）：facet 写入的 deployment 行在 platform 网关的读视图**间歇消失**（20 行↔19 行波动）→ wanxing 部署缓存快照抖动 → 新 agent 聊天页间歇 AGENT_NOT_FOUND（p2 稳定复现，facet-demo 正常）。重启 platform 连接后源侧稳定；wanxing 侧 404 仍复现=双层待查。
+
+**回归终验（串包修复后）**：寻数浏览器回合 200 真语料直答（「双星一底座」口径全对）+/agent/ 通道 200 恢复+V2 matters 端点真用户 200（facet-demo 会话）。
+
+**工具沉淀**：`scripts/verify-live-matter-panel.mjs`（V2 面板浏览器 drill）、m53-* 系列探针（面板 SSO/铸键/组字段名=**group_id 单数**）。

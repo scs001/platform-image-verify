@@ -22,9 +22,9 @@
 
 ## 3. 回放时间线(C)
 
-- [ ] 3.1 `web/src/api/fleets-api.ts` 封装 run 读面;run 列表区(过滤 status/source/时段、分页、空态、v1 无 runId 回合不入列);验证:e2e 过滤 failed 仅红行、空舰队呈空态文案、含 v1 回合夹具不出现于列表
-- [ ] 3.2 瀑布泳道(岗位×回合条、链位连线自上游条末至下游条起、回合条可读 status/errorKind/model/usage/会话链接、工具调用嵌套 span 取 trace、无 trace 标注缺失);验证:e2e 固定夹具 run(定时→CEO→投资部→开源部,投资部两次工具调用)呈三泳道两连线两 span;去 trace 夹具呈缺失标注
-- [ ] 3.3 游标回放:`replayAt` 入 store,画布以 `clockAt = replayAt ?? now` 派生节点/边态;释放置 null;验证:e2e 拖至投资部进行中时刻 → 投资部运行态/CEO→投资部边在途/开源部未开始;释放后恢复实时
+- [x] 3.1 `web/src/api/fleets-api.ts` 封装 run 读面;run 列表区(过滤 status/source/时段、分页、空态、v1 无 runId 回合不入列);验证:e2e 过滤 failed 仅红行、空舰队呈空态文案、含 v1 回合夹具不出现于列表
+- [x] 3.2 瀑布泳道(岗位×回合条、链位连线自上游条末至下游条起、回合条可读 status/errorKind/model/usage/会话链接、工具调用嵌套 span 取 trace、无 trace 标注缺失);验证:e2e 固定夹具 run(定时→CEO→投资部→开源部,投资部两次工具调用)呈三泳道两连线两 span;去 trace 夹具呈缺失标注
+- [x] 3.3 游标回放:`replayAt` 入 store,画布以 `clockAt = replayAt ?? now` 派生节点/边态;释放置 null;验证:e2e 拖至投资部进行中时刻 → 投资部运行态/CEO→投资部边在途/开源部未开始;释放后恢复实时
 - [ ] 3.4 浏览器眼见 + 高频舰队一日 `trace.db` 行数评估记录(决定是否建议关 `FLEET_TRACE_TAP`)
 
 ## 4. 检查器与设计模式(D)

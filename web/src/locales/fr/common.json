@@ -2500,6 +2500,32 @@
     },
     "canvas": {
       "loading": "Chargement du canevas…"
+    },
+    "runs": {
+      "title": "Chronique d'exécution",
+      "loading": "Chargement de la chronique…",
+      "empty": "Aucune exécution — les tours apparaîtront ici dès que la flotte s'exécute",
+      "filterStatus": "Filtrer par état",
+      "allStatuses": "Tous les états",
+      "filterSource": "Filtrer par source",
+      "allSources": "Toutes les sources",
+      "status": {
+        "open": "En cours",
+        "ok": "Réussie",
+        "failed": "Échouée",
+        "partial": "Partielle"
+      },
+      "source": {
+        "cron": "Planifiée",
+        "manual": "Manuelle",
+        "delegation": "Déléguée",
+        "event": "Événement"
+      },
+      "waterfall": "Cascade",
+      "replaying": "Lecture",
+      "replay": "Curseur de relecture",
+      "live": "Direct",
+      "noTrace": "sans trace"
     }
   },
   "facetCurate": {

@@ -147,6 +147,8 @@ interface FleetDetail {
 
 // The live canvas rides its own lazy chunk (@xyflow/react is canvas-only).
 const FleetCanvas = lazy(() => import("@/components/fleet/FleetCanvas"));
+// The run timeline (face 2) rides its own chunk too (trace join + waterfall).
+const RunTimeline = lazy(() => import("@/components/fleet/RunTimeline"));
 
 interface DecisionItem {
   id: string;
@@ -288,7 +290,6 @@ export function FleetsPage() {
   // turns a minute and the canvas already lit the node from the event itself;
   // this re-read only reconciles the durable facts (status, KPIs, health).
   const fleetEventsVersion = useFleetStore((st) => st.version);
-  const liveTurnsAll = useFleetStore((st) => st.liveTurns);
   const lastFleetFetchRef = useRef(0);
   useEffect(() => {
     if (!selectedId || fleetEventsVersion === 0) return;
@@ -306,9 +307,18 @@ export function FleetsPage() {
   }, [fleetEventsVersion, selectedId, loadDetail]);
 
   // In-flight turns of THIS fleet, for the canvas pulse/edge animation.
-  const liveTurns = useMemo(
-    () => (detail ? Object.values(liveTurnsAll).filter((lt) => lt.fleetId === detail.fleet.id) : []),
-    [liveTurnsAll, detail],
+  // While a replay cursor is held, the timeline's synthesized replayTurns
+  // take over instead (回放 = 换时钟, D7).
+  const liveTurnsAll = useFleetStore((st) => st.liveTurns);
+  const replayAt = useFleetStore((st) => st.replayAt);
+  const replayTurns = useFleetStore((st) => st.replayTurns);
+  const liveTurns = useMemo(() => {
+    if (replayAt != null) return replayTurns.filter((lt) => lt.fleetId === detail?.fleet.id);
+    return detail ? Object.values(liveTurnsAll).filter((lt) => lt.fleetId === detail.fleet.id) : [];
+  }, [liveTurnsAll, replayAt, replayTurns, detail]);
+  const memberTitles = useMemo(
+    () => new Map((detail?.members ?? []).map((m) => [m.id, m.title])),
+    [detail],
   );
 
   // Autofollow the first fleet when the list arrives and nothing is selected.
@@ -655,6 +665,20 @@ export function FleetsPage() {
                   })()}
                 </div>
               ) : null}
+
+              {/* Run timeline (agent-fleet-cockpit v2 face 2): the execution
+                  instance ledger — run list, waterfall replay, cursor-driven
+                  canvas playback. Present for every fleet (empty state is the
+                  honest "nothing has run yet"). */}
+              <Suspense
+                fallback={
+                  <p className="py-4 text-center text-xs text-muted-foreground" data-testid="fleet-runs-loading">
+                    {t("fleets.runs.loading")}
+                  </p>
+                }
+              >
+                <RunTimeline fleetId={detail.fleet.id} memberTitles={memberTitles} />
+              </Suspense>
 
               <details className="mt-4" open>
                 <summary className="cursor-pointer select-none text-sm font-medium text-muted-foreground">

@@ -2500,6 +2500,32 @@
     },
     "canvas": {
       "loading": "Loading canvas…"
+    },
+    "runs": {
+      "title": "Execution timeline",
+      "loading": "Loading timeline…",
+      "empty": "No runs yet — turns land here once the fleet executes",
+      "filterStatus": "Filter by status",
+      "allStatuses": "All statuses",
+      "filterSource": "Filter by source",
+      "allSources": "All sources",
+      "status": {
+        "open": "Running",
+        "ok": "Succeeded",
+        "failed": "Failed",
+        "partial": "Partial"
+      },
+      "source": {
+        "cron": "Schedule",
+        "manual": "Manual",
+        "delegation": "Delegated",
+        "event": "Event"
+      },
+      "waterfall": "Waterfall",
+      "replaying": "Replaying",
+      "replay": "Replay cursor",
+      "live": "Live",
+      "noTrace": "no trace"
     }
   },
   "facetCurate": {

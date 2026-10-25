@@ -2500,6 +2500,32 @@
     },
     "canvas": {
       "loading": "画布加载中…"
+    },
+    "runs": {
+      "title": "执行时间线",
+      "loading": "时间线加载中…",
+      "empty": "暂无执行实例——舰队跑起来后回合在此成串",
+      "filterStatus": "按状态过滤",
+      "allStatuses": "全部状态",
+      "filterSource": "按来源过滤",
+      "allSources": "全部来源",
+      "status": {
+        "open": "进行中",
+        "ok": "成功",
+        "failed": "失败",
+        "partial": "部分失败"
+      },
+      "source": {
+        "cron": "定时运行",
+        "manual": "人工",
+        "delegation": "派发",
+        "event": "事件"
+      },
+      "waterfall": "泳道瀑布",
+      "replaying": "回放中",
+      "replay": "回放游标",
+      "live": "实时",
+      "noTrace": "无 trace"
     }
   },
   "facetCurate": {

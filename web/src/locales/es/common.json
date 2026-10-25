@@ -2500,6 +2500,32 @@
     },
     "canvas": {
       "loading": "Cargando lienzo…"
+    },
+    "runs": {
+      "title": "Cronología de ejecuciones",
+      "loading": "Cargando cronología…",
+      "empty": "Aún no hay ejecuciones — los turnos aparecerán aquí cuando la flota se ejecute",
+      "filterStatus": "Filtrar por estado",
+      "allStatuses": "Todos los estados",
+      "filterSource": "Filtrar por origen",
+      "allSources": "Todos los orígenes",
+      "status": {
+        "open": "En curso",
+        "ok": "Completada",
+        "failed": "Fallida",
+        "partial": "Parcial"
+      },
+      "source": {
+        "cron": "Programada",
+        "manual": "Manual",
+        "delegation": "Delegada",
+        "event": "Evento"
+      },
+      "waterfall": "Cascada",
+      "replaying": "Reproduciendo",
+      "replay": "Cursor de repetición",
+      "live": "En vivo",
+      "noTrace": "sin trace"
     }
   },
   "facetCurate": {

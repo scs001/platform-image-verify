@@ -28,15 +28,31 @@ interface FleetLiveState {
   version: number;
   /** Bumped on fleet_run_updated — the run timeline's refresh trigger (face 2). */
   runsVersion: number;
+  /**
+   * Replay cursor (face 2): while set, the canvas derives node/edge state at
+   * this instant instead of live; null = real time. Set by the timeline
+   * slider, cleared on release (回放释放后恢复实时态).
+   */
+  replayAt: number | null;
+  /**
+   * The replayed run's in-flight turns AT replayAt — synthesized by the
+   * timeline (turns open at the cursor), same shape as liveTurns so the
+   * canvas reads one type either way. Empty when not replaying.
+   */
+  replayTurns: LiveTurn[];
 
   apply: (m: ServerMessage) => void;
   liveTurnsFor: (memberId: string) => LiveTurn[];
+  setReplayAt: (at: number | null) => void;
+  setReplayTurns: (turns: LiveTurn[]) => void;
 }
 
 export const useFleetStore = create<FleetLiveState>((set, get) => ({
   liveTurns: {},
   version: 0,
   runsVersion: 0,
+  replayAt: null,
+  replayTurns: [],
 
   apply: (m) =>
     set((state) => {
@@ -74,4 +90,8 @@ export const useFleetStore = create<FleetLiveState>((set, get) => ({
     const all = get().liveTurns;
     return Object.values(all).filter((t) => t.memberId === memberId);
   },
+
+  setReplayAt: (at) => set({ replayAt: at }),
+
+  setReplayTurns: (turns) => set({ replayTurns: turns }),
 }));

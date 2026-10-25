@@ -104,6 +104,9 @@ test.describe("fleets board", () => {
     await page.route(`**/api/fleets/${FLEET_ID}/cockpit`, (route) =>
       route.fulfill({ contentType: "application/json", body: JSON.stringify(DEMO_DETAIL) }),
     );
+    await page.route(`**/api/fleets/${FLEET_ID}/runs**`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ total: 0, runs: [] }) }),
+    );
   });
 
   test("nav item reaches the fleets page", async ({ page }) => {
@@ -589,6 +592,9 @@ test.describe("fleet canvas", () => {
     await page.route(`**/api/fleets/${FLEET_ID}/cockpit`, (route) =>
       route.fulfill({ contentType: "application/json", body: JSON.stringify(CANVAS_FLEET) }),
     );
+    await page.route(`**/api/fleets/${FLEET_ID}/runs**`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ total: 0, runs: [] }) }),
+    );
   });
 
   test("renders posts + virtual sources, filters implicit grants, weighs by traffic", async ({ page }) => {
@@ -671,5 +677,139 @@ test.describe("fleet canvas", () => {
     });
     await expect(canvas.getByTestId("canvas-node-inv")).not.toHaveClass(/border-blue-500/, { timeout: 5000 });
     await expect(canvas.locator('.react-flow__edge[data-id="ceo→inv:handoff"].animated')).toHaveCount(0);
+  });
+});
+
+// ── run timeline (agent-fleet-runs read face → cockpit v2 face 2) ─────────────
+//
+// The run list filters and pages; the selected run renders as a swimlane
+// waterfall (turn bars, chain hops, tool spans joined from the trace store);
+// the replay cursor drives the canvas above — scrub to an instant and the
+// turns open at that instant light their nodes/edges, release returns live.
+// v1-era turns (no runId) never appear: that's the server's list contract.
+
+const RUNS_BODY = {
+  total: 2,
+  runs: [
+    {
+      runId: "run_fail", rootSource: "manual", rootMemberId: "inv", rootMemberTitle: "Invest",
+      startedAt: 0, endedAt: 500, durationMs: 500, status: "failed", turns: 1, okCount: 0, failedCount: 1,
+      usage: { input: 5, output: 1 },
+    },
+    {
+      runId: "run_ok", rootSource: "cron", rootMemberId: "ceo", rootMemberTitle: "CEO",
+      startedAt: 1000, endedAt: 4400, durationMs: 3400, status: "ok", turns: 3, okCount: 3, failedCount: 0,
+      usage: { input: 300, output: 60 },
+    },
+  ],
+};
+
+const RUN_DETAIL = {
+  run: RUNS_BODY.runs[1],
+  turns: [
+    { id: 1, memberId: "ceo", source: "cron", status: "ok", errorKind: null, error: null, model: "deepseek", startedAt: 1000, endedAt: 2000, sessionId: "cron-ceo", turnId: "t_ceo", runId: "run_ok", parentTurnId: null, edgeKind: null, usage: { input: 100, output: 20 }, traceTurnId: null },
+    { id: 2, memberId: "inv", source: "manual", status: "ok", errorKind: null, error: null, model: "deepseek", startedAt: 2200, endedAt: 3200, sessionId: "task-t_inv", turnId: "t_inv", runId: "run_ok", parentTurnId: "t_ceo", edgeKind: "handoff", usage: { input: 100, output: 20 }, traceTurnId: "tr_inv" },
+    { id: 3, memberId: "ops", source: "manual", status: "ok", errorKind: null, error: null, model: "deepseek", startedAt: 3400, endedAt: 4400, sessionId: "task-t_ops", turnId: "t_ops", runId: "run_ok", parentTurnId: "t_inv", edgeKind: "fanout", usage: { input: 100, output: 20 }, traceTurnId: null },
+  ],
+};
+
+const TRACE_INV = [
+  { seq: 1, ts: 2300, method: "session.event", eventType: "tool/call", summary: "call", payload: { event: { data: { callId: "c1", name: "web_search", arguments: "{}" } } } },
+  { seq: 2, ts: 2500, method: "session.event", eventType: "tool/result", summary: "result", payload: { event: { data: { callId: "c1", resultText: "ok" } } } },
+  { seq: 3, ts: 2600, method: "session.event", eventType: "tool/call", summary: "call", payload: { event: { data: { callId: "c2", name: "save_file", arguments: "{}" } } } },
+  { seq: 4, ts: 2900, method: "session.event", eventType: "tool/result", summary: "result", payload: { event: { data: { callId: "c2", resultText: "ok" } } } },
+];
+
+test.describe("fleet runs timeline", () => {
+  test.beforeEach(async ({ page }) => {
+    await pinLocaleEn(page);
+    await page.route("**/api/fleets", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ fleets: [{ id: FLEET_ID, name: "Canvas Fleet", state: "active", memberCount: 3, statusCounts: { on_duty: 3 } }] }),
+      }),
+    );
+    await page.route(`**/api/fleets/${FLEET_ID}/cockpit`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify(CANVAS_FLEET) }),
+    );
+    await page.route(`**/api/fleets/${FLEET_ID}/runs?**`, (route) => {
+      const url = new URL(route.request().url());
+      const status = url.searchParams.get("status") ?? "";
+      const runs = status ? RUNS_BODY.runs.filter((r) => r.status === status) : RUNS_BODY.runs;
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ total: runs.length, runs }) });
+    });
+    await page.route(`**/api/fleets/${FLEET_ID}/runs/run_ok`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify(RUN_DETAIL) }),
+    );
+    await page.route("**/api/trace/turns/tr_inv", (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ turnId: "tr_inv", events: TRACE_INV }) }),
+    );
+  });
+
+  test("list filters by status; selecting a run renders the waterfall with hops and tool spans", async ({ page }) => {
+    await page.goto(`/fleets/${FLEET_ID}`);
+    const runs = page.getByTestId("fleet-runs");
+    await expect(runs).toBeVisible({ timeout: 15000 });
+
+    await expect(runs.getByTestId("runs-total")).toHaveText("2");
+    await expect(runs.getByTestId("run-row-run_fail")).toBeVisible();
+    await expect(runs.getByTestId("run-row-run_ok")).toBeVisible();
+
+    // status filter narrows the list server-side (the stub honors it).
+    await runs.getByTestId("runs-status-filter").selectOption("failed");
+    await expect(runs.getByTestId("runs-total")).toHaveText("1");
+    await expect(runs.getByTestId("run-row-run_fail")).toBeVisible();
+    await expect(runs.getByTestId("run-row-run_ok")).toHaveCount(0);
+    await runs.getByTestId("runs-status-filter").selectOption("");
+
+    // Select the ok run: 3 lanes, 3 bars, 2 chain hops, 2 nested tool spans
+    // (only t_inv carries a trace; the other turns show none, honestly).
+    await runs.getByTestId("run-row-run_ok").click();
+    const wf = runs.getByTestId("run-waterfall");
+    await expect(wf).toBeVisible();
+    for (const m of ["ceo", "inv", "ops"]) await expect(wf.getByTestId(`run-lane-${m}`)).toBeVisible();
+    for (const t of ["t_ceo", "t_inv", "t_ops"]) await expect(wf.getByTestId(`run-bar-${t}`)).toBeVisible();
+    await expect(wf.locator("[data-testid^='run-hop-']")).toHaveCount(2);
+    await expect(wf.locator("[data-testid^='run-span-']")).toHaveCount(2);
+    await expect(wf.getByTestId("run-span-c1")).toHaveAttribute("title", /web_search/);
+  });
+
+  test("the replay cursor drives the canvas and releases back to live", async ({ page }) => {
+    await page.goto(`/fleets/${FLEET_ID}`);
+    const runs = page.getByTestId("fleet-runs");
+    await expect(runs).toBeVisible({ timeout: 15000 });
+    await runs.getByTestId("run-row-run_ok").click();
+    const canvas = page.getByTestId("fleet-canvas");
+    await expect(canvas.getByTestId("canvas-node-inv")).toBeVisible();
+
+    // No replay yet: nothing pulses.
+    await expect(canvas.getByTestId("canvas-node-inv")).not.toHaveClass(/border-blue-500/);
+
+    // Scrub to 60% of the run window (1000 + 0.6*3400 = 3040): t_inv is the
+    // only turn open at that instant (2200..3200) — the inv node replays as
+    // running and the hop edge animates.
+    const slider = runs.getByTestId("runs-replay-slider");
+    await slider.fill("60");
+    await expect(runs.getByTestId("runs-replaying")).toBeVisible();
+    await expect(canvas.getByTestId("canvas-node-inv")).toHaveClass(/border-blue-500/, { timeout: 5000 });
+    await expect(canvas.getByTestId("canvas-node-ceo")).not.toHaveClass(/border-blue-500/);
+    // SVG <line> has a zero-area bbox, so assert presence, not visibility.
+    await expect(runs.getByTestId("run-cursor")).toHaveCount(1);
+
+    // Release: live again, the pulse clears.
+    await slider.dispatchEvent("pointerup");
+    await expect(runs.getByTestId("runs-replaying")).toHaveCount(0);
+    await expect(canvas.getByTestId("canvas-node-inv")).not.toHaveClass(/border-blue-500/, { timeout: 5000 });
+  });
+
+  test("a fleet with no runs shows the empty state, not an error", async ({ page }) => {
+    await page.route(`**/api/fleets/${FLEET_ID}/runs?**`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ total: 0, runs: [] }) }),
+    );
+    await page.goto(`/fleets/${FLEET_ID}`);
+    const runs = page.getByTestId("fleet-runs");
+    await expect(runs).toBeVisible({ timeout: 15000 });
+    await expect(runs.getByTestId("runs-empty")).toBeVisible();
+    await expect(runs.getByTestId("runs-list")).toHaveCount(0);
   });
 });

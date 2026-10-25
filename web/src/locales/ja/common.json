@@ -2500,6 +2500,32 @@
     },
     "canvas": {
       "loading": "キャンバス読み込み中…"
+    },
+    "runs": {
+      "title": "実行タイムライン",
+      "loading": "タイムライン読み込み中…",
+      "empty": "実行なし——艦隊の実行開始後にここに並びます",
+      "filterStatus": "状態で絞り込み",
+      "allStatuses": "すべての状態",
+      "filterSource": "発生源で絞り込み",
+      "allSources": "すべての発生源",
+      "status": {
+        "open": "実行中",
+        "ok": "成功",
+        "failed": "失敗",
+        "partial": "一部失敗"
+      },
+      "source": {
+        "cron": "定時実行",
+        "manual": "手動",
+        "delegation": "派遣",
+        "event": "イベント"
+      },
+      "waterfall": "レーン瀑布",
+      "replaying": "再生中",
+      "replay": "再生カーソル",
+      "live": "ライブ",
+      "noTrace": "trace なし"
     }
   },
   "facetCurate": {

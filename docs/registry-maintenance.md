@@ -1878,3 +1878,15 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **列车**：快照 `44951c3`（paas 9c588a74）→ image 绿 → relay → digest `d82753dd` ccr 实证 → GitOps `a23b059` 三面滚 platform/platform-demo/facet（**并行会话交织实录**：chat-memory 班已把 platform 滚到其 sha-d3721f3，我的快照基于 9c588a74=其超集，两步 bump 归三代同 sha，无内容丢失）；runner 留钉。in-pod 双 bundle 含「作为 AI 分身发布」实证。
 
 **顺带修复**：`make-public-snapshot` 删除清单补 `.github/workflows/image-publish.yml`——并行会话 d3721f3b 把发布管线收进主仓（意图=verify 仓永久保留）但漏配排除项，快照扫到内部 registry 引用即红；补行后发布流从主仓拷回该文件（不再依赖 gh api 取回，remote 被冲掉也不怕）。
+
+### §15.42 事项串 v1 上产（add-matter-threads，2026-10-25）——agents-native 沟通第二块砖
+
+**能力**：分身接待的转人工出口。接待角色（facade 部署）自带 `matter_open/matter_status/matter_read` 三工具（第四层 overlay，循 notify/questions 链，descriptor.facade 门控）；child 只报事件，runner 持限速桶（开串 4/min）+facet internal 调用+len-only 审计+开串搭车 bot_notify；平台侧 matters 表（mt_ id/三态/时间线）+internal 三支（服务凭据）+主人三支（deployer 归属 404 同形，存在性不泄露）；主人队列在包详情分身面板（五语言）；工坊 v4 接待纪律接事项面（越界开串、读进展原样转述）。
+
+**生产构造验收（代理通道，全闭环逐环眼见）**：访客请开串 → 接待真调 matter_open → **mt_1592afcbca20ed4023b908b4** 落库（open，摘要+访客线索在）→ 主人队列 200 眼见 → 回应 200（responded，时间线 append）→ 访客再问 → 接待真调 matter_read → **原样转述主人回应**。runner matters.jsonl 审计 len-only（事项正文零出现）。
+
+**列车**：paas 485b0ce9（主体）+ f8511d20（两修）→ 快照 b11c419（digest 5e2250cd，四面滚含 runner）→ 0050fe3（digest b6370d12，仅滚 runner——修复纯 runner 侧，三应用面留钉 b11c419）。relay 手动补单撞 cron 锁窗+§15.19 seen 去重再现，二次手动 17s 过。e2e packs 21/21（新案=队列回应/关闭闭环）、preset-publish 4/4 回归、runner 单测 5/5、gateway 单测 3/3。
+
+**两枚上线拦截（双双钉进回归测试）**：①matter_read 输出 schema 的 matter 对象缺 `additionalProperties`——defineTool 严格校验抛错被 inject 回调吞掉，桥干净启动但三工具**静默不注册**（构造回归测试钉死该类）；②harness registry create() 解构白名单漏 onMatter——manager 挂了、registry 转发时**静默丢弃**，所有调用 decline『not configured』而执行器从未到达（转发契约测试钉死）。**取证坑**：kubectl exec 内 `/proc` 扫描 kill 时，脚本文本自身匹配匹配模式（含"dsh""vcfZzux"字样）→ **kill 的是执行 shell 自己**（exit 143），孩子从未被杀、修复从未加载，制造两轮假阴性——正解=排除自身 pid 的 node 脚本杀法（入配方）。
+
+**机理增量**：dsh 桥类「干净启动+工具静默缺失」的取证三件套=①/proc cmdline 对拍 patch argv ②--dump-config 验组合 ③模块足迹探针（appendFileSync 落 ctor 痕）；工具 schema 严格校验（additionalProperties 必须显式）是 dsh-tools 的硬约束。

@@ -2152,3 +2152,9 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **embed 冷崖证据链（交 fd-memory-distiller 侧车线，不在本仓）**：热态 1.3-4.8s；10 分钟 idle 后 6.8s；历史峰值 122.7s（模型换入）。成因为 LLM/embed 共享 GPU 的模型换入换出；对 chat 面影响=/digest 3.5s deadline 降级 keyword（块照出、命中保持 5/5，构造基准已证），属质量降级非故障。建议侧车线评估 embed 模型常驻（或独立小卡）。
 
 **§15.53 补记二（K3 样本落袋，2026-10-26 晨）**：夜巡 v3 于 04:46+08 准时 fire（lastRun 20:46:20Z 与排程逐秒合）——首席分析师 persona 真回合 160 秒 status:ok，**产物落盘实证**：`cells/1da519…/workspace/reports/night-patrol-2026-10-26.md`（资产盘点+5 条在途判断维持/修正+止损价位+失效开关，表格齐全），回合记录与会话落 1da519 cell（fleet cron 的 cell 归属=fleet owner 的 cell，非 fleet id 所在 cell——顺带修正本班早前的 cell 定位）。LLM 计费走 sub2api（aloadtree 余额对账在案）。**K3 样本三要素齐：夜间窗 fire+晨报产物+成本对账**。K3/K4 双双销账。坑册补一条：**fleet cron 的会话归属 cell = fleet.ownerEmail 的 cell**（本次 1da519），取证别在 fleet id 的数字段上猜。
+
+### §15.41 补记二：run13 终局——统计门收束为回归哨兵（2026-10-26）
+
+run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写了问题定性：改写已生效（响应首句即推进「明日纪要」），而 harness 是无工具单轮 chat——agent 输出计划性 bash 序列，judge 把探索判负分；「直接修复到能产出」在无工具环境不可能。**期望背景×单轮能力边界×judge 契约三者冲突 = 统计门对多轮工程任务结构性失真**。
+
+**处置**：注入面质量以四重独立信号收束（61/61 单测 / 生产构造基准 5/5+notes=5 / 消融与微验证 transcript 内容核对 / 真机闭环 witness）；eval 统计门转**回归哨兵**（防倒退监督），其 harness 重构（工具环境化+判分契约对齐能力边界）列独立后续。附带发现：prepDistill 在 eval 形状下静默返空（§15.37 同族，生产分批路径不受影响）。embed 冷崖证据链已交侧车线（§15.41 补记）。

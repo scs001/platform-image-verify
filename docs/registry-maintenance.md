@@ -1936,3 +1936,5 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **车道缺陷定性（fd-wanxing 两项销账改判）**：v5 短回合（~40s）SSE 渲染正常+锁释放正常（verify-live 多回合连发无 409）；v2 时代「不渲染+TURN_IN_FLIGHT 楔死」归因于失控长思考回合（facade relay 在 upstream 完成前一直转发，浏览器无最终帧），非车道内核缺陷——待真长回合复现再议，不在本仓修。facade 侧 release 路径齐全（stream finally/sync/catch 三路 releaseSlot）已核。
 
 **运维**：relay 手动补单撞 cron 全量轮锁（sub2api 仓 ccr 403 拖尾）——`SKIP: 上次同步仍在运行` 后等 RUN DONE 再补；本班 15s OK。
+
+**§15.45 补记（同日收尾）**：①分身工坊 v6——自己的 builder 接待声明 `serving.toolFace: "chat"`（教人裁工具面的分身先裁自己；生产眼见面已裁齐）；②队列三枚验收测试事项关闭归档（close 200×3，附注指向台账）；③本机会话记忆索引膨胀修复（fleet-post-model 行重复膨胀 23.7MB→合并单行，MEMORY.md 3.7KB/15 行恢复索引纪律）。

@@ -96,15 +96,16 @@ export function createMatters({ config, log = console, fetchImpl, now = () => Da
     }
   };
 
-  // handle({ packId, agentId, agent, op, args, session }) — the manager wires
-  // each facade child's matterCall/send here with its deployment identity and
-  // the ACTIVE TURN's sessionId (the visitor scope source; null outside a
-  // turn = the defensive unscoped path).
-  const handle = async ({ packId, agentId, agent, op, args = {}, session = null }) => {
+  // handle({ packId, agentId, agent, op, args, session, scope }) — the manager
+  // wires each facade child's matterCall/send here with its deployment identity
+  // and the visitor boundary: `scope` is the facade-supplied authenticated
+  // visitor scope (preferred); `session` is the ACTIVE TURN's sessionId whose
+  // derivation is the fallback; both absent = the defensive unscoped path.
+  const handle = async ({ packId, agentId, agent, op, args = {}, session = null, scope = null }) => {
     if (!packId || !agentId) {
       return { ok: false, reason: "identity", message: "matter calls need a deployment identity" };
     }
-    const scope = scopeFor(session);
+    const effectiveScope = scope ?? scopeFor(session);
     const enc = encodeURIComponent;
     if (op === "open") {
       const summary = typeof args.summary === "string" ? args.summary : "";
@@ -123,14 +124,14 @@ export function createMatters({ config, log = console, fetchImpl, now = () => Da
           ...(typeof args.visitor_hint === "string" && args.visitor_hint.trim()
             ? { visitor_hint: args.visitor_hint.trim().slice(0, 300) }
             : {}),
-          ...(scope ? { visitor_scope: scope } : {}),
+          ...(effectiveScope ? { visitor_scope: effectiveScope } : {}),
         },
       });
-      audit(agent, op, out.ok ? "opened" : "failed", out.ok ? (scope ? null : "no-session") : out.reason, summary.length);
+      audit(agent, op, out.ok ? "opened" : "failed", out.ok ? (effectiveScope ? null : "no-session") : out.reason, summary.length);
       return out.ok ? { ok: true, id: out.id, status: out.status } : out;
     }
     if (op === "status") {
-      const out = await call(`/api/packs/internal/matters/${enc(packId)}/${enc(agentId)}${scope ? `?visitor_scope=${enc(scope)}` : ""}`);
+      const out = await call(`/api/packs/internal/matters/${enc(packId)}/${enc(agentId)}${effectiveScope ? `?visitor_scope=${enc(effectiveScope)}` : ""}`);
       audit(agent, op, out.ok ? "listed" : "failed", out.ok ? null : out.reason, null);
       if (!out.ok) return out;
       const matters = (out.matters ?? []).map((m) => ({
@@ -147,7 +148,7 @@ export function createMatters({ config, log = console, fetchImpl, now = () => Da
       if (!/^mt_[A-Za-z0-9_-]{1,64}$/.test(id)) {
         return { ok: false, reason: "invalid-request", message: "matter_read needs the mt_… matter id" };
       }
-      const out = await call(`/api/packs/internal/matters/${enc(packId)}/${enc(agentId)}/${enc(id)}${scope ? `?visitor_scope=${enc(scope)}` : ""}`);
+      const out = await call(`/api/packs/internal/matters/${enc(packId)}/${enc(agentId)}/${enc(id)}${effectiveScope ? `?visitor_scope=${enc(effectiveScope)}` : ""}`);
       audit(agent, op, out.ok ? "read" : "failed", out.ok ? null : out.reason, null);
       return out.ok ? { ok: true, matter: out.matter } : out;
     }

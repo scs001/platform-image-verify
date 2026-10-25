@@ -31,6 +31,16 @@ function textOf(message) {
     .trim();
 }
 
+// Visitor scope (add-matter-visitor-scope D1b): the AUTHENTICATED caller's
+// opaque scope, supplied by the facade (chat lane) as message metadata. Takes
+// precedence over the session derivation — the same visitor sees their matters
+// across conversations, different visitors never see each other. A2A callers
+// without a facade (direct API) stay on the session/unscoped path.
+function visitorScopeOf(message) {
+  const v = message?.metadata?.visitor_scope ?? message?.metadata?.visitorScope;
+  return typeof v === "string" && /^[0-9a-f]{32}$/.test(v) ? v : null;
+}
+
 function assistantMessage(contextId, text) {
   return {
     role: "assistant",
@@ -121,7 +131,7 @@ export function createAgentApp({ entry, getEntry, manager, config, log = console
       if (method === "message/send") {
         // No answerer on a synchronous turn: the harness declines any ask at
         // once (caller-cannot-answer), so the reply arrives on its usual path.
-        const out = await manager.turn(entry, sessionId, text, { kind: "message", delegationDepth: depth });
+        const out = await manager.turn(entry, sessionId, text, { kind: "message", delegationDepth: depth, visitorScope: visitorScopeOf(message) });
         return res.json({ jsonrpc: "2.0", id, result: assistantMessage(contextId ?? sessionId, out.text) });
       }
       res.writeHead(200, {
@@ -172,6 +182,7 @@ export function createAgentApp({ entry, getEntry, manager, config, log = console
       try {
         out = await manager.turn(entry, sessionId, text, {
           delegationDepth: depth,
+          visitorScope: visitorScopeOf(message),
           onDelta: (delta) => {
             acc += delta;
             send("delta", { context_id: contextId ?? sessionId, kind: "message", parts: [{ kind: "text", text: acc }] });

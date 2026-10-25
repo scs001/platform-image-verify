@@ -846,7 +846,7 @@ export class ChildManager {
   // ONE queueing discipline for every turn source: messages (A2A), self-turns
   // (rhythm), and digests (day rollover) all acquire through here, and every
   // completed/failed turn lands one jsonl meter line (the ③ settlement input).
-  async turn(entry, sessionId, text, { kind = "message", onDelta, onAsk, delegationDepth = 0 } = {}) {
+  async turn(entry, sessionId, text, { kind = "message", onDelta, onAsk, delegationDepth = 0, visitorScope = null } = {}) {
     const key = agentKeyFor(entry);
     if (this.pausedKeys.has(key)) {
       throw Object.assign(new Error("agent paused"), { code: -32010 });
@@ -890,6 +890,10 @@ export class ChildManager {
       // first tool call can fire, cleared in the outer finally — the
       // single-writer discipline keeps one child to one live session.
       this.activeSessions.set(key, sessionId);
+      // Visitor scope (add-matter-visitor-scope D1b): the facade-supplied
+      // authenticated scope wins; the session derivation is the fallback
+      // (A2A callers without a facade). Same lifecycle as the anchor.
+      this.activeSessions.set(`${key} scope`, visitorScope ?? null);
       try {
         const out = await child.turn(sessionId, text, { onDelta, onAsk, agentKey: route?.pod ? key : undefined, onEvent: onMemoryEvent });
         this.#meterLine(key, kind, {
@@ -945,6 +949,7 @@ export class ChildManager {
       }
     } finally {
       this.activeSessions.delete(key);
+      this.activeSessions.delete(`${key} scope`);
       release?.();
     }
   }
@@ -1351,6 +1356,7 @@ export class ChildManager {
                 op: payload?.op,
                 args: payload?.args,
                 session: this.activeSessions.get(key) ?? null,
+                scope: this.activeSessions.get(`${key}\u0000scope`) ?? null,
               });
               if (out?.ok && payload?.op === "open" && typeof out.id === "string") {
                 this.notifier
@@ -1493,6 +1499,7 @@ export class ChildManager {
                 op: payload?.op,
                 args: payload?.args,
                 session: this.activeSessions.get(key) ?? null,
+                scope: this.activeSessions.get(`${key}\u0000scope`) ?? null,
               });
               if (out?.ok && payload?.op === "open" && typeof out.id === "string") {
                 this.notifier

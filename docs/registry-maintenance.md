@@ -1856,3 +1856,15 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **发布配方备注**：pack 重发走 facet 域 `POST /api/packs {packId, manifest}` + x-facet-token/x-facet-user（转发身份）；`FACET_INTERNAL_TOKEN` 在 **fd-prod ns facet deployment** env（`kubectl --context cheap -n fd-prod exec deploy/facet -- printenv`）——mcp-registry 栈没有，别再找错 ns（本班实测两错路：registry pod、全 ns 扫描皆空）。
 
 **余**：v2 方向不变（壹座自建预设一键发布流挂 facade 复选框=GUI 化、工坊自身部署为分身示范）。
+
+### §15.40 分身工坊自部署上产：「帮人做分身的分身」公开可聊（2026-10-25）
+
+**v3 发版**：工坊 manifest 加 facade 块（reception=builder、corpus=指南+模板两技能、纯接待、hosted）→ 发布 v3（validatePackManifest 零错）→ 市场 facade:true 眼见。
+
+**部署（范例同径）**：facet 代理通道转发 aloadtree/creors 身份，`POST /api/packs/_vcfZzuxPgkiRsj5poZIgg/versions/3/deploy`，计费键=复用寻数分身接待的既存键（**整段「读键→部署」在 facet pod 内一条 exec 完成**，键值只在 pod 内存流转、不落终端不落日志；跨包复用键合法——duplicate 闸只管包内，ownership 闸自然过：同属 aloadtree 账号）。runner 接棒 `:8819`（registry path `/packs/_vcfZzuxPgkiRsj5poZIgg/builder`），**17 serving agent**、无撞口。
+
+**验收**：registry `/agent/` 公网代理通道真回合 200——「我是分身工坊，帮你把自己的知识和经验做成一个可发布的 AI 分身；你只需要接受一次简短的采访……想开始的话，回我一句'开始'就行。」（工坊人设口径全对，真 LLM 回合计入 aloadtree 键）。
+
+**机理增量两枚**：①**首部署 register 504 ≠ 失败**——新建 entry 触发 nginx 全量重载超网关 60s，但服务端实际完成（entry 落库为 draft）；**重试走更新路径 1.5s 过**，幂等安全。②**新 entry 的 health 探针先于 runner 接棒会留 unknown**（§15.36 自愈机理对新 entry 同样成立）——runner 起服务后**再 toggle 一次**触发重探，块即渲染（16→17 A2A blocks 眼见）。
+
+**v2 余项**：壹座「自建预设一键发布」流挂 facade 复选框（preset→分身 GUI 化）——工坊对话路径已通，GUI 路径待立 change。

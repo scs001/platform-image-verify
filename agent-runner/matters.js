@@ -85,7 +85,10 @@ export function createMatters({ config, log = console, fetchImpl, now = () => Da
       });
       const doc = await res.json().catch(() => null);
       if (!res.ok) {
-        return { ok: false, reason: "platform", status: res.status, message: String(doc?.error || `HTTP ${res.status}`) };
+        // `httpStatus`, not `status` — the open success shape carries status as
+        // a STATE string ("open"); a numeric HTTP code under the same key would
+        // break the tool output schema on the boundary 404 (live 2026-10-25).
+        return { ok: false, reason: "platform", httpStatus: res.status, message: String(doc?.error || `HTTP ${res.status}`) };
       }
       return { ok: true, ...(doc ?? {}) };
     } catch (e) {

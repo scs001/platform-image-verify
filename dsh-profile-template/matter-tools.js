@@ -108,6 +108,7 @@ export function createMatterTools({ wire }) {
           message: { type: "string" },
           id: { type: "string" },
           status: { type: "string" },
+          httpStatus: { type: "number" },
         },
       },
       render: (_args, value) => {
@@ -180,6 +181,7 @@ export function createMatterTools({ wire }) {
           reason: { type: "string" },
           message: { type: "string" },
           matter: { type: "object", additionalProperties: true },
+          httpStatus: { type: "number" },
         },
       },
       render: (_args, value) => {

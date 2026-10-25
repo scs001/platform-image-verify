@@ -1948,3 +1948,13 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **残留清理**：owner root（platform-test）的 drill 假偏好 note「周报口径」已 forget（生产真 owner 的 root 里留着会被未来每回合 digest 注入误导）；drill 会话行按 §15.33 先例留档作常设证据；pod 内 drill 脚本与本机临时件已清；开关 env 已移除（注入恢复正常，GitOps 59a814e）。
 
 **收束**：add-chat-memory-injection tasks 9/9；生产三面（chat 注入/note 纪律/eval note 面）全部眼见在案。观察项照 §15.36 主体。
+
+### §15.46 M5.2 开门营业：三验全过（2026-10-25，用户明令「现在就做 M5」）
+
+**开门前置病根修复（本班最大工程件）**：水位线闸此前**瞎**——fleet observer board runners 面恒空（容量闸无数据降级敞开）。根因链：runner spool 20.7k 事件积压永不送达 → 单批含历史事件类别（billing_probe 类）被 observer 当前 EVENT_KINDS 整批 400 → flush 返回错误且 `void flush()` 静默吞 → 队列永久毒化（「单条重放 200 而 reporter 永败」的矛盾即此）。修=agent-runner/fleet.js 4xx 死信（整批 drop+persist+点名首犯，5xx/网络仍重试；fleet-report 9/0）。上产 a800b4a（digest 3d3fae3b）后 spool 两分钟排干、board 实时心跳在板（headroom ~2846MB）。
+
+**前置复核**：runner-serving 余量 2846MB ≫ 512 水位线 PASS（runner-b/c 为 registry 休眠行不参与调度，行为正确）；预备整改三件全过——前端零外源脚本（wanxing/facet 双面 grep 空）、facet packs.db 备份 cronjob ~8h 在跑、默认车道=deepseek（境内；openrouter 等境外仅显式选择）。
+
+**三验实录**：①`/api/whoami` 匿名回 `accessMode:"open"`（GitOps 8c6aee9 拧 PACK_ACCESS_MODE=open）；②非 creator 全程真实走通——platform-test（analysts+facet-customers，无 creators 组）经普通发布门发「演示分身」`mjBgihpHN1SfRMrhfaT8cQ` v1（chat 面+技能目录语料）→ 部署 200（in-pod 复用其既存计费键，ownership 闸自然过；首撞 register 504 重试过=§15.40 已知机理）→ runner :8815 接棒 → 代理通道真回合**语料直答全对**（接待自述来历与验证四件事）；③水位线演练——临时 99999 → 部署撞 **503 FLEET_AT_CAPACITY**（错误文案点名 runner-serving headroom 3003MB < 99999MB）→ 复位 512 → 演练包 unpublish 清理。演示分身保留在产（platform-test=官网 demo 公示号，天然 M5.3 展件）。
+
+**法务五项保守缺省（待用户/法务追认）**：①收费形态维持现状（人工充值+闭环抵扣不提现），ICP 证定性暂缓；②等保定级待外部评估（工程材料 v0 在案）；③用户协议/隐私政策文案位待挂（法务出文本）；④境外 LLM 仅显式选择、默认境内车道已核（告知条款随③落）；⑤开门时点=即日（本节），首批用户=M5.3 邀请（platform-test 首件已上）。

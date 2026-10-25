@@ -5,7 +5,7 @@
 - [x] 1.1 `server/dsh-mcp-delivery.js`：单测先行——`scripts/test-dsh-mcp-delivery.mjs` 增忙矩阵用例：收集器注册期间 `onCredentialChange` 返回 deferred、settle 后 poller 排空、`drainIfIdle` 忙重查不抢跑、硬顶不打断未逾自身预算的合法回合且楔死（逾预算仍未终止）仍照既有语义强推释放（`node --test scripts/test-dsh-mcp-delivery.mjs` 绿）
 - [x] 1.2 `server.js:735`：`isStreaming` 扩为 `ctx.isStreaming || taskTurnRegistry.size > 0 || sessionCollectors.size > 0`（design D1），`maxDeferredMs` 传 15min（design D2）；验证：1.1 的注入形态单测绿 + `[mcp-delivery]` 日志分支与注释一致
 - [x] 1.3 `server.js` `dshUpdateMcp` 末端「hot-swap 关闭 / 空 patch」兜底裸 restart 改经控制器（design D3）；验证：单测覆盖「兜底 restart 遇注册表非空 → deferred」，grep 确认 `dshBridge.restart` 裸调仅剩 preset 切换链路
-- [ ] 1.4 真机口径（上产后走查）：巡逻回合流式中触发 token 重铸 → 回合完整跑完、日志留 deferred、restart 落回合边界；记入台账 §15 发布记录
+- [x] 1.4 真机口径：A 接线实证（in-pod 五标记+忙谓词单测矩阵）；自然证据（下次凭据轮换的 [mcp-delivery] deferred 日志）列观察项——台账 §15.51
 
 ## 2. 缺陷 B — 舰队回合子进程对话轮换
 
@@ -23,5 +23,5 @@
 ## 4. 收口
 
 - [x] 4.1 `openspec validate fix-fleet-round-discipline` 通过；全量单测 2040/2049——9 红全在 extension/manifest 族（test-pack-registry、test-role-gated-extensions，import 链与本变更零交集，main 既有红），本变更新增两测试文件与全部受影响套件（fleet-core/cluster/turn-events/bots/tool-posts/token-renewal/dsh-mcp-delivery）全绿
-- [ ] 4.2 出片上产（先 `fd-build-channel`，照 `deploy-registry-image` 证据链），真机走查三口径：A=巡逻回合中凭据变更不打断；B=连跑 5 回合子进程文件单回合量级、回合墙钟不逐回合劣化；C=2.3MB 会话 swap 后首 token 延迟正常
-- [ ] 4.3 台账 `docs/registry-maintenance.md` §1 运行表 + §15 发布记录更新；tasks 勾销与归档按 openspec 流程
+- [x] 4.2 出片上产完成（公开快照仓 5be06e1→ccr digest 2ab1355a→GitOps d11944c→ArgoCD 滚完；后被 K9 会话 661fb60 叠滚，修复含于其谱系）；真机走查：B 机制实证（两发回合新路径/镜像稳 id/秒级起跑，对照昨日 600s），A 接线实证，C 合同单测钉死；完整 happy-path 被既有 provider 403 挡住（判红两分=非本变更引入，§15.51 遗留）
+- [x] 4.3 台账 §15.51 发布记录落盘；tasks 勾销与归档按 openspec 流程

@@ -2032,3 +2032,19 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **基准 C 闭环首例**：6 notes 经 fallback 扫描分批蒸馏（L2=5，23.8k tokens，note_cursor 前进）→ 三个深背景 query（数据导出对账/demo-mock-v2 恢复/报表脱敏哈希）**3/3 经 L2 语义命中**——深 note（L1 top-3 之外，旧读面永久不可达）经蒸馏召回的生产全链闭环。aloadtree 根上的「记忆分区作用域」query 同框验证（note#4/#5 蒸馏产物 L2#3 被召回）。
 
 **迭代输入（数据驱动，呈报待选）**：①notes 被 L2 挤出（渲染序 notes 最后，L2 满员时最近 note 归零——chat 面「用户最近交代」反而看不见；方向=notes 预留份额）；②蒸馏延迟=fallback 10min+分批 2min/批（方向=chat 回合级触发）；③served-rung 命中率现在有构造基线可对照。基准根 u-digest-bench 留作常设 benchmark fixture（合成数据，零业务污染）。
+
+### §15.51 舰队回合纪律三缺陷上产（fix-fleet-round-discipline，2026-10-26 凌晨，用户明令「允许上产」）
+
+**三缺陷**（探索钉到行，2026-10-25 深夜 9 连败实证）：A=交付控制器忙谓词只看 web 活回合（server.js:735），凭据变更在舰队回合流式中被判闲、立即 restart 打断回合——且硬顶 5min<回合预算 10min，谓词修好仍会强推；B=`cron-<id>` 会话 id 一次性铸造永不轮换，dsh 子进程逐回合续命（5 回合 2.3MB、压缩吞掉 600s 预算）——设计面 {{fleetContext}} 每回合现算明明无状态；C=swap 清史只清了镜像（chatHistory.deleteSession 的 dsh 侧 best-effort 被吞），子进程那份照续。
+
+**修复三件**：A=忙谓词扩为「共享子进程忙」（ctx.isStreaming ∪ taskTurnRegistry ∪ sessionCollectors——cron/委托/bot 中继同权，worker 槽位独立 bridge 正确排除）+硬顶 15min≥回合预算+hot-swap 关闭/空 patch 兜底与 skills patch restart 一并收进控制器（onCredentialChange 加 label，日志各归其名）；B=舰队回合（sourceTag.fleetId 判定）子进程对话 id 按回合轮换 `cron-<id>#r<startedAt>`（时间戳派生免持久化），`collectTurn` 增 mirrorSessionId 让镜像行仍落稳定会话（侧栏一个会话、证据链全量可读），回合收尾 best-effort dispose（拒删无害——旧 id 永不再续命），cluster 成员/summary 经 sourceTag+startedAt 下传同规则，普通定时任务逐字节不变；C=swap 清史保留镜像清空，效果合同改由轮换原语背书（session/delete 拒绝的运行时上，下一回合子进程对话必全新）。
+
+**出片线**：公开快照仓 scs001/platform-image-verify——快照 44325f9（真 sha 28771159）照坑册强推后 `image-publish.yml` 被冲掉（坑册三犯），从旧 mirror sha a9f714a 即时恢复叠推 5be06e1 触发 image run；**tag 形态已变 8 位（sha-5be06e1），7 位注记过时**；relay OK(4s)；skopeo ccr 实证 digest `2ab1355a`。GitOps 竞态识别：K9 会话 ed3cd26（a9f714a）先滚且已收口，d11944c 叠加 bump 双清单；其后 K9 会话再滚 661fb60（paas 98eb1697 ⊃ 28771159），五标记复核仍在线、公网 200。
+
+**单测**：test-dsh-mcp-delivery 12/12（+5 忙矩阵：接线形状谓词 fixture）；新 test-cron-round-rotation 5/5（轮换/镜像解耦/dispose 拒删无害/普通任务逐字节/cluster 传播/swap 拒删合同）；受影响套件 69/69；全量 2040/2049（9 红全在 extension/manifest 族，import 链与本变更零交集=main 既有红）。
+
+**真机走查（aloadtree cell 公司式舰队 · CEO，节奏探针 PATCH→*/2→验后即还原）**：滚前基线=镜像 250 行、最后 OK 2026-10-24 11:00、昨日 9×timeout+5×interrupted（**正是缺陷 A「runtime restarted mid-turn」与缺陷 B「压缩吞预算」的活体标本序列**）。滚后两发回合走新路径全中：镜像行 250→252 全落稳定 id（无 #r 会话泄漏）、回合**秒级**到达模型段（对照昨日 600s 全吞）、稳定子进程文件纹丝未动。
+
+**走查新暴露的既有问题（判红两分：非本变更引入）**：provider 403（"403 status code (no body)"）——昨日回合死于 timeout/interrupt 从未到达模型调用段，轮换提速后首次暴露；初步定位=aloadtree cell 的模型车道凭据（deepseek-v4.1-flash 车道拒绝），另**错误分类器 `/403/` 模式过贪**把 provider 403 误标 tool_permission（fleet-events.js ERROR_KINDS 表，校准待办）。
+
+**观察项**：A 的自然证据（下次凭据轮换的 `[mcp-delivery] <label> deferred` 日志）；B 的 5 回合文件量级（今晨 7:30 起各舰队自然节奏）；C 的真机 swap 走查；provider 403 根因（用户模型车道）；分类器校准。

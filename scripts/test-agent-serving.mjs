@@ -850,8 +850,11 @@ test("pause/resume are deployer-gated and write the registry flag", async () => 
   try {
     const dep = await stranger.call("POST", `/api/packs/${stranger.packId}/versions/1/deploy`);
     assert.equal(dep.status, 403, "stranger cannot deploy, so nothing exists for them to pause");
+    // Deploy tenancy: a non-deployer's pause is the same-shape 404 (the
+    // deployment's existence is not disclosed to strangers) — the old 403
+    // named the gate; the tenancy gate hides the row.
     const noRow = await stranger.call("POST", `/api/packs/${stranger.packId}/deployments/pack-fingpt/pause`);
-    assert.equal(noRow.status, 403);
+    assert.equal(noRow.status, 404);
   } finally {
     await stranger.close();
   }
@@ -1289,9 +1292,10 @@ test("config internal door: service credential + console-verified actor; same en
     // Credential but no actor → 400 (the console must say who it verified).
     const noActor = await raw("GET", url, { Authorization: "Bearer t" });
     assert.equal(noActor.status, 400);
-    // Wrong actor → the deployer/admin rule answers 403.
+    // Wrong actor → same-shape 404 (deploy tenancy: the caller has no row,
+    // existence not disclosed).
     const stranger = await raw("GET", url, { Authorization: "Bearer t", "x-acting-user": "stranger@x" });
-    assert.equal(stranger.status, 403);
+    assert.equal(stranger.status, 404);
     // The deployer reads and writes through the internal door.
     const read = await raw("GET", url, { Authorization: "Bearer t", "x-acting-user": "author@x" });
     assert.equal(read.status, 200);

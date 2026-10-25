@@ -21,7 +21,7 @@
 // and createPublishRateLimiter() caps the publish rate per author.
 
 import Database from "better-sqlite3";
-import { createHmac, randomBytes } from "node:crypto";
+import { createHash, createHmac, randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import express from "express";
@@ -234,7 +234,9 @@ export function createPackRegistry({ file }) {
   // Agent-service deployments (add-a2a-agent-serving 3.3): bookkeeping only —
   // the runner pulls the bundle from the registry; this table answers "which
   // of this pack's roles are deployed" for the unpublish warning and the
-  // deploy button's status. One row per (pack, agent); upgrades upsert.
+  // deploy button's status. Deploy tenancy (add-deploy-tenancy): one row per
+  // (pack, agent, DEPLOYER) — a deployment is the deployer's asset; upgrades
+  // by the same deployer upsert, other deployers get their own rows.
   db.exec(`CREATE TABLE IF NOT EXISTS pack_deployments (
     pack_id TEXT NOT NULL,
     agent_id TEXT NOT NULL,
@@ -243,7 +245,7 @@ export function createPackRegistry({ file }) {
     skill_paths TEXT NOT NULL DEFAULT '[]',
     deployed_by TEXT NOT NULL,
     deployed_at INTEGER NOT NULL,
-    PRIMARY KEY (pack_id, agent_id)
+    PRIMARY KEY (pack_id, agent_id, deployed_by)
   )`);
 
   // Platform billing (add-agent-platform-ops D1/D2; revised by
@@ -286,8 +288,25 @@ export function createPackRegistry({ file }) {
     key_value TEXT NOT NULL,
     deployer TEXT NOT NULL,
     created_at INTEGER NOT NULL,
-    PRIMARY KEY (pack_id, agent_id)
+    PRIMARY KEY (pack_id, agent_id, deployer)
   )`);
+  // Deploy tenancy (add-deploy-tenancy D2): pre-existing tables carry the old
+  // (pack, agent) primary key — deployed_by is a plain column there. SQLite
+  // cannot alter a PK, so rebuild when deployed_by is not yet a PK member;
+  // legacy rows move over with their deployed_by as ownership (paths stay
+  // untouched — the compat promise).
+  for (const [table, basePk] of [["pack_deployments", ["pack_id", "agent_id"]], ["deployment_keys", ["pack_id", "agent_id"]]]) {
+    const info = db.prepare(`PRAGMA table_info(${table})`).all();
+    const deployedBy = info.find((c) => c.name === "deployed_by");
+    if (!deployedBy || deployedBy.pk > 0) continue; // fresh (new PK) or unknown shape
+    const colSql = info.map((c) => `${c.name} ${c.type}${c.notnull ? " NOT NULL" : ""}`).join(", ");
+    const newPk = [...basePk, "deployed_by"].join(", ");
+    db.exec(`CREATE TABLE ${table}__tenancy (${colSql}, PRIMARY KEY (${newPk}))`);
+    db.exec(`INSERT INTO ${table}__tenancy SELECT ${info.map((c) => c.name).join(", ")} FROM ${table}`);
+    db.exec(`DROP TABLE ${table}`);
+    db.exec(`ALTER TABLE ${table}__tenancy RENAME TO ${table}`);
+    console.log(`[packs] deploy tenancy: ${table} rebuilt with (pack, agent, deployer) key — ${db.prepare(`SELECT COUNT(*) c FROM ${table}`).get().c} row(s) preserved`);
+  }
   // Deployment secrets (add-deployment-secrets D2): the deployment_keys trust
   // model generalized to arbitrary named values — the value is stored once,
   // the descriptor carries only the opaque ws_ reference, and the runner
@@ -669,10 +688,9 @@ export function createPackRegistry({ file }) {
       db.prepare(
         `INSERT INTO pack_deployments (pack_id, agent_id, version, agent_path, skill_paths, deployed_by, deployed_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT (pack_id, agent_id) DO UPDATE SET
+         ON CONFLICT (pack_id, agent_id, deployed_by) DO UPDATE SET
            version = excluded.version, agent_path = excluded.agent_path,
-           skill_paths = excluded.skill_paths, deployed_by = excluded.deployed_by,
-           deployed_at = excluded.deployed_at`,
+           skill_paths = excluded.skill_paths, deployed_at = excluded.deployed_at`,
       ).run(packId, agentId, Number(version), agentPath, JSON.stringify(skillPaths ?? []), email, now());
     },
 
@@ -734,8 +752,8 @@ export function createPackRegistry({ file }) {
       db.prepare(
         `INSERT INTO deployment_keys (pack_id, agent_id, key_ref, key_value, deployer, created_at)
          VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT(pack_id, agent_id) DO UPDATE SET key_ref = excluded.key_ref,
-           key_value = excluded.key_value, deployer = excluded.deployer`,
+         ON CONFLICT(pack_id, agent_id, deployer) DO UPDATE SET key_ref = excluded.key_ref,
+           key_value = excluded.key_value, created_at = excluded.created_at`,
       ).run(packId, agentId, String(keyRef), keyValue, deployer, Date.now());
     },
     deploymentKeyByRef(keyRef) {
@@ -755,9 +773,16 @@ export function createPackRegistry({ file }) {
       return db.prepare(`SELECT pack_id, agent_id, key_ref, deployer, created_at FROM deployment_keys`).all()
         .map((r) => ({ packId: r.pack_id, agentId: r.agent_id, keyRef: r.key_ref, deployer: r.deployer, createdAt: r.created_at }));
     },
-    deploymentKeyForAgent(packId, agentId) {
-      const r = db.prepare(`SELECT * FROM deployment_keys WHERE pack_id = ? AND agent_id = ?`).get(packId, agentId);
-      return r ? { keyRef: r.key_ref, keyValue: r.key_value, deployer: r.deployer } : null;
+    // Deploy tenancy: a deployer's own key row; absent deployer = the legacy
+    // (unsuffixed-path) deployment — the row whose agent_path has no deployer
+    // segment, else the oldest (the pre-tenancy shape).
+    deploymentKeyForAgent(packId, agentId, deployer = null) {
+      if (deployer) {
+        const mine = db.prepare(`SELECT * FROM deployment_keys WHERE pack_id = ? AND agent_id = ? AND deployer = ?`).get(packId, agentId, deployer);
+        return mine ? { keyRef: mine.key_ref, keyValue: mine.key_value, deployer: mine.deployer } : null;
+      }
+      const rows = db.prepare(`SELECT * FROM deployment_keys WHERE pack_id = ? AND agent_id = ? ORDER BY created_at ASC`).all(packId, agentId);
+      return rows.length ? { keyRef: rows[0].key_ref, keyValue: rows[0].key_value, deployer: rows[0].deployer } : null;
     },
     hostSettlement(usageId) {
       return db.prepare(`SELECT * FROM pack_host_settlements WHERE usage_id = ?`).get(String(usageId)) ?? null;
@@ -1305,6 +1330,11 @@ export function registerPackRoutes(app, {
     if (!user) return;
     const id = req.params.id;
     const isAuthor = registry.authorEmail(id) === user.email;
+    // Deploy tenancy (add-deploy-tenancy D1): the author's deploy keeps the
+    // legacy unsuffixed service address; any other deployer registers under
+    // a stable per-identity segment — second deployers never touch the first
+    // deployer's entry, key, or listeners.
+    const deployerSeg = isAuthor ? "" : `/d${createHash("sha256").update(user.email).digest("hex").slice(0, 8)}`;
     // Private packs deploy for their owner (and admins) only — creators-group
     // strangers get the same not-found a nonexistent pack gives.
     const packRowRec = registry.packRowPublic(id);
@@ -1947,6 +1977,7 @@ export function registerPackRoutes(app, {
         secretRefs,
         fleetHostsByRunnerId,
         defaultRunnerHost,
+        pathSuffix: deployerSeg,
         ...cfg,
         ...runnerPlacement, // fleet row wins over the env default (sharding D2)
       });
@@ -2225,7 +2256,11 @@ export function registerPackRoutes(app, {
     if (registry.hostSettlement(usage_id)) {
       return res.json({ settled: true, duplicate: true });
     }
-    const key = registry.deploymentKeyForAgent(decodeURIComponent(req.params.packId), decodeURIComponent(req.params.agentId));
+    const key = registry.deploymentKeyForAgent(
+      decodeURIComponent(req.params.packId),
+      decodeURIComponent(req.params.agentId),
+      typeof req.body?.deployed_by === "string" && req.body.deployed_by ? req.body.deployed_by : null,
+    );
     if (!key) return res.status(404).json({ error: "no such deployment" });
     const sub2api = deployConfig().sub2api ? createSub2apiClient(deployConfig().sub2api) : null;
     if (!sub2api || sub2api.degraded()) {
@@ -2274,7 +2309,13 @@ export function registerPackRoutes(app, {
     if (!internalAuth(req, res)) return;
     const packId = decodeURIComponent(req.params.packId);
     const agentId = decodeURIComponent(req.params.agentId);
-    const dep = registry.deployments(packId).find((d) => d.agentId === agentId);
+    // Deploy tenancy: (pack, agent) is ambiguous across deployers — the
+    // runner supplies the descriptor's agent_path (unique); old runners
+    // without it fall back to the (pack, agent, first-row) legacy shape.
+    const agentPathRaw = typeof req.body?.agent_path === "string" ? req.body.agent_path : "";
+    const deps = registry.deployments(packId);
+    const dep = (agentPathRaw ? deps.find((d) => d.agentPath === agentPathRaw) : null)
+      ?? deps.find((d) => d.agentId === agentId);
     if (!dep) return res.status(404).json({ error: "no such deployment" });
     const summary = typeof req.body?.summary === "string" ? req.body.summary.trim() : "";
     if (!summary || summary.length > 2000) {
@@ -2328,7 +2369,11 @@ export function registerPackRoutes(app, {
   app.get("/api/packs/:id/deployments", async (req, res) => {
     const user = auth(req, res);
     if (!user) return;
-    const rows = registry.deployments(req.params.id);
+    // Deploy tenancy: the viewer sees their OWN rows (the author of the pack
+    // and admins see everything — they manage the pack's deployments).
+    const all = registry.deployments(req.params.id);
+    const isPackAuthor = registry.authorEmail(req.params.id) === user.email;
+    const rows = isPackAuthor || isAdmin(user) ? all : all.filter((d) => d.deployedBy === user.email);
     const cfg = deployConfig();
     const paused = {};
     if (cfg.registryUrl) {
@@ -2397,9 +2442,13 @@ export function registerPackRoutes(app, {
     const user = auth(req, res);
     if (!user) return;
     const id = req.params.id;
-    const isAuthor = registry.authorEmail(id) === user.email;
-    if (!isAuthor && !isCreator(user)) return res.status(403).json({ error: "Pack author or creator group required" });
-    const row = registry.deployments(id).find((d) => d.agentId === req.params.agentId);
+    // Deploy tenancy: the DEPLOYER owns the lifecycle of THEIR row — an
+    // author who never deployed cannot pause someone else's service, and a
+    // stranger gets the same not-found (existence not disclosed).
+    const admin = isAdmin(user);
+    const rows = registry.deployments(id).filter((d) => d.agentId === req.params.agentId);
+    if (rows.length === 0) return res.status(404).json({ error: "Deployment not found" });
+    const row = rows.find((d) => d.deployedBy === user.email) ?? (admin ? rows[0] : null);
     if (!row) return res.status(404).json({ error: "Deployment not found" });
     const cfg = deployConfig();
     if (!cfg.registryUrl) return res.status(503).json({ error: "Agent serving is not configured on this deployment" });
@@ -2445,9 +2494,12 @@ export function registerPackRoutes(app, {
   // proxies through the internal door so lane/whitelist enforcement exists
   // exactly once — the console cannot read the deployed manifest anyway.
   const configRow = (id, agentId, actor) => {
-    const row = registry.deployments(id).find((d) => d.agentId === agentId);
-    if (!row) return { error: [404, "Deployment not found"] };
     const admin = adminGroups.some((g) => (actor.groups || []).includes(g));
+    const all = registry.deployments(id).filter((d) => d.agentId === agentId);
+    // Deploy tenancy: the caller's OWN row first; admins fall back to the
+    // first row (they manage all).
+    const row = all.find((d) => d.deployedBy === actor.email) ?? (admin ? all[0] : null);
+    if (!row) return { error: [404, "Deployment not found"] };
     if (row.deployedBy !== actor.email && !admin) {
       return { error: [403, "The deployment's deployer or an admin is required"] };
     }

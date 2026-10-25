@@ -101,7 +101,7 @@ export function createMatters({ config, log = console, fetchImpl, now = () => Da
   // and the visitor boundary: `scope` is the facade-supplied authenticated
   // visitor scope (preferred); `session` is the ACTIVE TURN's sessionId whose
   // derivation is the fallback; both absent = the defensive unscoped path.
-  const handle = async ({ packId, agentId, agent, op, args = {}, session = null, scope = null }) => {
+  const handle = async ({ packId, agentId, agent, op, args = {}, session = null, scope = null, agentPath = null }) => {
     if (!packId || !agentId) {
       return { ok: false, reason: "identity", message: "matter calls need a deployment identity" };
     }
@@ -121,6 +121,7 @@ export function createMatters({ config, log = console, fetchImpl, now = () => Da
         method: "POST",
         body: {
           summary: summary.slice(0, 2000),
+          ...(agentPath ? { agent_path: agentPath } : {}),
           ...(typeof args.visitor_hint === "string" && args.visitor_hint.trim()
             ? { visitor_hint: args.visitor_hint.trim().slice(0, 300) }
             : {}),

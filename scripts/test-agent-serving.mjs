@@ -1453,7 +1453,7 @@ test("ports: a redeploy keeps its own override and self-slots never block", asyn
   const stub = stubRegistry();
   const { agentPortFor } = servingLib;
   const hashPort = agentPortFor("/packs/pk-abc/pack-fingpt");
-  stub.agents.set("/packs/pk-abc/pack-fingpt", {
+  stub.agents.set("packs/pk-abc/pack-fingpt", {
     path: "/packs/pk-abc/pack-fingpt",
     metadata: { packId: "pk-abc", port_override: hashPort + 5 },
   });
@@ -1699,4 +1699,34 @@ test("occupancy listing failure warns loudly and the deploy still completes", as
     warns.some((w) => w.includes("collision detection degraded")),
     `expected the degradation warning, got: ${JSON.stringify(warns)}`,
   );
+});
+
+// ── K9 fixes: proxy_pass_url always + fresh-GET kept-override ────────────────
+
+test("K9: the deploy payload always carries the backend proxy_pass_url", async () => {
+  const stub = stubRegistry();
+  const out = await servingLib.deployToRegistry({ ...PACK, fetchImpl: stub.fetch });
+  assert.equal(out.deployed.length, 1);
+  const agent = stub.calls.agents[0].body;
+  assert.match(agent.proxy_pass_url, /^http:\/\/runner\.tailnet:\d+$/, `backend origin (${agent.proxy_pass_url})`);
+  const expectedPort = agent.metadata?.port_override ?? null;
+  if (expectedPort != null) {
+    assert.ok(agent.proxy_pass_url.endsWith(`:${expectedPort}`), "proxy_pass_url carries the planned port");
+  }
+});
+
+test("K9: a manual port_override survives a degraded list via the fresh single-entry GET", async () => {
+  const stub = stubRegistry();
+  // The list is DEGRADED (worst case) while the agents map holds the
+  // just-landed manual override — the fresh GET must win, keeping the fix.
+  stub.failAgentsList = true;
+  stub.agents.set("packs/pk-abc/pack-fingpt", {
+    path: "/packs/pk-abc/pack-fingpt",
+    metadata: { port_override: 8810 },
+  });
+  const out = await servingLib.deployToRegistry({ ...PACK, fetchImpl: stub.fetch });
+  assert.equal(out.deployed.length, 1);
+  const agent = stub.calls.agents[0].body;
+  assert.equal(agent.metadata.port_override, 8810, "the manual override survives");
+  assert.ok(agent.proxy_pass_url.endsWith(":8810"), "proxy_pass_url follows the kept port");
 });

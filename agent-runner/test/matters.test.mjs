@@ -97,3 +97,40 @@ test("declines: not-configured plane, empty summary, bad read id, unknown op", a
   assert.equal((await h.matters.handle({ packId: "p", agentId: "r", agent: "a", op: "explode" })).reason, "unknown-op");
   assert.equal((await h.matters.handle({ agent: "a", op: "status" })).reason, "identity");
 });
+
+// The trio must CONSTRUCT under the real defineTool validator — a schema
+// defect throws inside the bridge's deferred inject, where it is swallowed:
+// the bridge boots clean and the tools silently never register (live
+// 2026-10-25: matter_read's loose object schema). This test pins that failure
+// class at the source.
+test("the matter trio constructs under the real tool validator", async () => {
+  const { createMatterTools, MatterWire } = await import("../../dsh-profile-template/matter-tools.js");
+  const wire = new MatterWire({ notify: () => {} });
+  const tools = createMatterTools({ wire });
+  assert.deepEqual(
+    tools.map((t) => t?.name).sort(),
+    ["matter_open", "matter_read", "matter_status"],
+  );
+});
+
+// The registry's create() destructuring is the forwarding contract for host
+// callbacks — onMatter dropped there declines every facade matter call as
+// "not configured" while the executor sits unreached (live 2026-10-25).
+test("the harness registry forwards onMatter to the dsh factory", async () => {
+  const { createHarnessRegistry, DEFAULT_HARNESS } = await import("../harness/registry.js");
+  const reg = createHarnessRegistry({});
+  let got = null;
+  const adapter = reg.create(DEFAULT_HARNESS, {
+    key: "k",
+    spawnSpec: {},
+    onNotify: () => {},
+    onMatter: async () => ({ ok: true }),
+    dshFactory: (args) => {
+      got = args;
+      return { fake: true };
+    },
+  });
+  assert.equal(adapter.fake, true);
+  assert.equal(typeof got.onNotify, "function");
+  assert.equal(typeof got.onMatter, "function", "onMatter must survive the registry hop");
+});

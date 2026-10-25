@@ -179,7 +179,7 @@ export function createMatterTools({ wire }) {
           ok: { type: "boolean", required: true },
           reason: { type: "string" },
           message: { type: "string" },
-          matter: { type: "object" },
+          matter: { type: "object", additionalProperties: true },
         },
       },
       render: (_args, value) => {

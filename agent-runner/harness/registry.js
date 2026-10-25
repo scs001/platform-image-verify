@@ -48,7 +48,12 @@ export function createHarnessRegistry({ acpCommands = {}, acpEnv = {}, log = con
     // constructor closure (it needs clientFactory + private home); an ACP
     // entry builds its own adapter from the allowlisted command. An unknown
     // name throws the structured unsupported-harness error the spec names.
-    create(name, { key, spawnSpec, log: childLog = log, onNotify, onExit, podMembers, budgetCancelGraceMs, turnTimeoutMs, budgetLabel, dshFactory }) {
+    // The destructuring list IS the forwarding contract — a host callback
+    // added at the manager's spawn sites must appear here too, or the
+    // registry silently drops it (live 2026-10-25: onMatter wired at both
+    // spawn sites but never forwarded, every facade call declined
+    // "not configured" with the executor never reached).
+    create(name, { key, spawnSpec, log: childLog = log, onNotify, onMatter, onExit, podMembers, budgetCancelGraceMs, turnTimeoutMs, budgetLabel, dshFactory }) {
       const entry = harnesses.get(name);
       if (!entry) {
         throw Object.assign(
@@ -58,7 +63,7 @@ export function createHarnessRegistry({ acpCommands = {}, acpEnv = {}, log = con
       }
       if (entry.kind === "dsh") {
         if (!dshFactory) throw new Error("the dsh harness factory was not wired (internal wiring error)");
-        return dshFactory({ key, spawnSpec, log: childLog, onNotify, onExit, podMembers, budgetCancelGraceMs, turnTimeoutMs, budgetLabel });
+        return dshFactory({ key, spawnSpec, log: childLog, onNotify, onMatter, onExit, podMembers, budgetCancelGraceMs, turnTimeoutMs, budgetLabel });
       }
       // ACP: the spawn spec carries the allowlisted command; the descriptor's
       // cwd/provider/model ride along. Credentials reach the process through

@@ -1940,3 +1940,11 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **§15.45 补记（同日收尾）**：①分身工坊 v6——自己的 builder 接待声明 `serving.toolFace: "chat"`（教人裁工具面的分身先裁自己；生产眼见面已裁齐）；②队列三枚验收测试事项关闭归档（close 200×3，附注指向台账）；③本机会话记忆索引膨胀修复（fleet-post-model 行重复膨胀 23.7MB→合并单行，MEMORY.md 3.7KB/15 行恢复索引纪律）。
 
 **§15.45 补记二（同日终验）**：浏览器车道双回合补齐证据集——①真语料直答渲染 YES（「壹座平台……多租户运行时/谦面功能集市场」口径全对，额度 7→6 计量、无付费墙，访客=platform-test 非部署者，瀑布归属正确）；②访客读已关闭事项（matter 工具查询→「已关闭+时间线」如实转述）。至此分身访客全生命周期在代理+浏览器双车道均有生产实证：语料直答/开串/主人回应转述/关闭读回/额度瀑布/无付费墙。
+
+### §15.36 补记：eval PASS 终值 + drill 残留清理（2026-10-25 晚）
+
+**eval 五跑终值（fd-memory 84e0a9a）**：15 场景（含 3 note 场景）VERDICT **PASS**——re_derivation avg diff 1.60/win 11/15=73%，first_step 1.67/87%，251k tok，embed lane on。**note 臂 digest 5:5×3 完胜 none（2:1/3:3/3:2）**——L1 召回面单独验证过门。run3 FAIL（win 60%）=harness 空响应缺陷（reasoning 烧满无 content，31% 臂），加固 f6a6183；run1/2/4=judge 空输出/上游 502 风暴窗/任务中断。基线与 runbook 已入库。
+
+**残留清理**：owner root（platform-test）的 drill 假偏好 note「周报口径」已 forget（生产真 owner 的 root 里留着会被未来每回合 digest 注入误导）；drill 会话行按 §15.33 先例留档作常设证据；pod 内 drill 脚本与本机临时件已清；开关 env 已移除（注入恢复正常，GitOps 59a814e）。
+
+**收束**：add-chat-memory-injection tasks 9/9；生产三面（chat 注入/note 纪律/eval note 面）全部眼见在案。观察项照 §15.36 主体。

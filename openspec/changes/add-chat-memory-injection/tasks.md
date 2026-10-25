@@ -13,10 +13,10 @@
 
 ## 3. eval note 场景
 
-- [ ] 3.1 `fixtures/eval/continue-scenes.json` 增 ≥3 个 note 场景（expected_background 取自 note 体，review:"reviewed"）；digest 臂全场景跑，门槛照旧（avg diff ≥0.5 / win/noninferior ≥70%）；结果入 continue-baseline + `docs/eval-continue.md` 回填
+- [x] 3.1 `fixtures/eval/continue-scenes.json` 增 ≥3 个 note 场景（expected_background 取自 note 体，review:"reviewed"）；digest 臂全场景跑，门槛照旧（avg diff ≥0.5 / win/noninferior ≥70%）；结果入 continue-baseline + `docs/eval-continue.md` 回填
 
 ## 4. 出片与真机验收
 
 - [x] 4.1 双端出片（fd-build-channel 判路；GHA→hkccr→relay→ccr 标准线）+ GitOps 滚产（platform / fd-memory 两清单）
 - [x] 4.2 真机 drill：聊天回合①令 agent 记 note（纪律行生效眼见）→ 回合②该会话（或新会话）成员 prompt 含该 note 注入块眼见（会话留档）；`CELL_MEMORY_CHAT_DIGEST=0` 一轮验证零注入；恢复
-- [ ] 4.3 台账回填（上线记录 + drill witness + 观察项：每回合注入延迟分布、note 写频次基线）
+- [x] 4.3 台账回填（上线记录 + drill witness + 观察项：每回合注入延迟分布、note 写频次基线）

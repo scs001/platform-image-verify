@@ -1924,3 +1924,15 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **列车**：快照 bcee756 → digest 2c493418 ccr 实证 → GitOps 四面滚（runner 必滚）。**本班翻车一枚（GitOps regex bug）**：bump 脚本 `m.group(0).split(" #")[0]` 只换注释不换 tag——四面 spec 全指旧 sha 但注释全是新的，ArgoCD「滚成功」假象（rollout status 验的是旧 spec）；修=完整正则替换（tag+注释一体）+眼见四 deploy image 行。教训：**bump 后必眼见 image 行本身，rollout success 不算数**。另：relay 手动补单撞 cron 全量轮长尾（PASS 行滞后），双仓 list-tags 对拍才是判据。
 
 **验证**：agent-runner 66/0（+3：chat 面物化清单/未声明零变化/未知档位拒）、agent-serving 66/0（+1 枚举校验）、双 manifest 零错、pack lint 6/0、facade 20/0。（更正：归档提交信息误写 183/183，实际 validate --specs **182/182**。）
+
+### §15.45 技能目录 frontmatter 根因修复（2026-10-25）——语料通道从来就是断的
+
+**追因链**：chat 面上产后访客问「你们是做什么的」（corpus 有原答案）接待答不了开事项 → 强制调用 skill 工具 → `corpus-company is unknown`（v5）→ skills.patch/组合/文件全对 → **根因=dsh-skill-filesystem 要求 YAML frontmatter（name/description 必填）并静默丢弃无 frontmatter 的文件；pack 技能正文一直是裸 Markdown → catalog 从未收录 → 模型历来只能 read/glob 翻文件读语料——v2 泄露事件（§15.43）的真实成因**（工具面全开时它读语料和读 /app 走同一条路）。chat 面裁掉 read 只是揭开了这个一直存在的断点。
+
+**修复**：`withSkillFrontmatter`（compose 物化层）——无 frontmatter 的技能正文合成 `---\nname/description\n---`（description=首标题+首段，catalog 检索面）；authored frontmatter 原样过。agent-runner 67/0（+1）。
+
+**生产闭环**：runner fc4a051（digest 95f70580，三应用面留钉 bcee756）→ reception 首触重物化 → skill 工具加载 corpus-company 成功 → **真语料直答**（壹座/谦面/萬星口径全对）。至此接待体验三层齐：语料直答（skill 目录）+ 越界开事项 + 无环境触手（chat 面）。
+
+**车道缺陷定性（fd-wanxing 两项销账改判）**：v5 短回合（~40s）SSE 渲染正常+锁释放正常（verify-live 多回合连发无 409）；v2 时代「不渲染+TURN_IN_FLIGHT 楔死」归因于失控长思考回合（facade relay 在 upstream 完成前一直转发，浏览器无最终帧），非车道内核缺陷——待真长回合复现再议，不在本仓修。facade 侧 release 路径齐全（stream finally/sync/catch 三路 releaseSlot）已核。
+
+**运维**：relay 手动补单撞 cron 全量轮锁（sub2api 仓 ccr 403 拖尾）——`SKIP: 上次同步仍在运行` 后等 RUN DONE 再补；本班 15s OK。

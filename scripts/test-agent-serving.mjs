@@ -1760,7 +1760,7 @@ test("K9: a kept override whose slot another agent now owns is re-probed, not se
 test("K9: fleet host map groups occupancy by physical host, not by tag", async () => {
   const stub = stubRegistry();
   // wire (legacy, untagged) hash-claims 8816 on the DEFAULT host; the deploy
-  // is auto-placed to runner-serving = the SAME physical host (100.64.0.8).
+  // is auto-placed to runner-serving = the SAME physical host (the default runner's tailnet IP).
   // Tag-based filtering would exclude wire and re-serve 8816 (the K9 串包).
   stub.agents.set("packs/egaYyOaZVTf0FWlLvaGAQA/pack-wire-macro-analyst", {
     path: "/packs/egaYyOaZVTf0FWlLvaGAQA/pack-wire-macro-analyst",

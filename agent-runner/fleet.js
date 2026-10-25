@@ -99,6 +99,21 @@ export function createFleetReporter({
         headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
         body: JSON.stringify({ events: batch.map((q) => q.event) }),
       });
+      // Dead-letter on permanent rejection (fix-fleet-reporter-deadletter):
+      // a 4xx is the server saying these events will NEVER be accepted — an
+      // unknown historical kind, a shape the current observer outgrew. A
+      // plain error return here wedged the queue forever (live 2026-10-25:
+      // 20.7k spooled events, one stale kind poisoning every batch, runner
+      // stats never reaching the board, the capacity waterline flying blind).
+      // Observability must never wedge the runner — drop the batch, name the
+      // first offender, keep flushing. 5xx/network stay retryable.
+      if (res.status >= 400 && res.status < 500) {
+        const body = await res.text().catch(() => "");
+        say(`ingest rejected batch (${res.status}) — dead-lettering ${batch.length} event(s); first: ${batch[0]?.event?.kind ?? "?"} ${body.slice(0, 120)}`);
+        queue.splice(0, batch.length);
+        persist();
+        return { sent: 0, dropped: batch.length, error: `ingest -> ${res.status}` };
+      }
       if (!res.ok) return { sent: 0, error: `ingest -> ${res.status}` };
       queue.splice(0, batch.length);
       persist();

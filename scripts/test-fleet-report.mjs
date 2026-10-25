@@ -210,3 +210,46 @@ test("runner sampler: runner_stats carries the desktop seat flag", () => {
   assert.equal(rows[0].payload.desktop, true);
   assert.equal(rows[1].payload.desktop, false);
 });
+
+// ── Dead-letter on permanent rejection (fix-fleet-reporter-deadletter) ───────
+//
+// A 4xx from the observer is permanent (a kind it will never accept). The
+// pre-fix behavior returned an error and kept the batch — one stale kind
+// wedged the queue forever (live 2026-10-25: 20.7k spooled events, runner
+// stats never reaching the board). The batch must drop, the offender must be
+// named, and flushing must continue.
+
+test("runner reporter: a 4xx batch dead-letters and later events still flow", async () => {
+  const spool = path.join(tmp, "deadletter.jsonl");
+  const seen = [];
+  const impl = async (_url, init) => {
+    const body = JSON.parse(init.body);
+    const kinds = body.events.map((e) => e.kind);
+    if (kinds.includes("billing_probe_v0")) {
+      return { ok: false, status: 400, text: async () => '{"error":"invalid event"}' };
+    }
+    seen.push(...kinds);
+    return { ok: true, status: 200, json: async () => ({ accepted: kinds.length, duplicates: 0 }) };
+  };
+  const logs = [];
+  const r = runnerReporter({
+    url: "https://obs.test", token: "t", runnerId: "r1", spoolFile: spool,
+    fetchImpl: impl, flushIntervalMs: 10 ** 9,
+    log: (m) => logs.push(m),
+  });
+  r.emit({ kind: "billing_probe_v0", agent: "/packs/p1/a1" }); // the poison kind
+  r.emit({ kind: "woken", agent: "/packs/p1/a1" });
+  r.emit({ kind: "runner_stats", agent: "r1", payload: { children: 1 } });
+
+  const out1 = await r.flush();
+  assert.equal(out1.dropped, 3, "the poisoned BATCH is dropped whole, not retained");
+  assert.ok(logs.some((l) => /dead-lettering 3 event/.test(l) && /billing_probe_v0/.test(l)), "the offender is named");
+
+  // Fresh events emitted AFTER the dead-letter still flow — the wedge is gone.
+  r.emit({ kind: "woken", agent: "/packs/p1/a2" });
+  r.emit({ kind: "runner_stats", agent: "r1", payload: { children: 1 } });
+  const out2 = await r.flush();
+  assert.equal(out2.sent, 2, "events after the dead-letter flow");
+  assert.deepEqual(seen.sort(), ["runner_stats", "woken"]);
+  assert.equal(readFileSync(spool, "utf8"), "");
+});

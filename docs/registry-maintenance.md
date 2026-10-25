@@ -2160,3 +2160,13 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写了问题定性：改写已生效（响应首句即推进「明日纪要」），而 harness 是无工具单轮 chat——agent 输出计划性 bash 序列，judge 把探索判负分；「直接修复到能产出」在无工具环境不可能。**期望背景×单轮能力边界×judge 契约三者冲突 = 统计门对多轮工程任务结构性失真**。
 
 **处置**：注入面质量以四重独立信号收束（61/61 单测 / 生产构造基准 5/5+notes=5 / 消融与微验证 transcript 内容核对 / 真机闭环 witness）；eval 统计门转**回归哨兵**（防倒退监督），其 harness 重构（工具环境化+判分契约对齐能力边界）列独立后续。附带发现：prepDistill 在 eval 形状下静默返空（§15.37 同族，生产分批路径不受影响）。embed 冷崖证据链已交侧车线（§15.41 补记）。
+
+### §15.53 画布拖拽排布上产（add-fleet-canvas-drag，2026-10-26，v2 归档后首刀优化）
+
+**能力**：画布节点可拖拽（读态/设计态均可）——受控节点（onNodesChange/applyNodeChanges），实时事件仍只翻数据不重排；拖后位置按舰队持久化 localStorage（`platform.fleetCanvas.<fleetId>`），按节点覆盖分层种子，损坏存档静默回落；「恢复自动布局」按钮清存档回种子（有存档才显示）。零后端改动、零声明数据扰动。
+
+**出片**：快照 **84b50bd**（源 paas c9a6f815，digest f65aeb27 ccr 实证），image run 绿；四面同代滚（GitOps 0cb069a，ArgoCD Synced）。
+
+**验收**：e2e +1（真鼠标拖动→刷新持久→重置→回种子，15 条三连绿）；真机（aloadtree cell）持久化链构造验收——直写存档刷新后两节点精确落位（600,420 / 200,500）、重置按钮现身、点击后回种子 (24,24) 且存档清空。**附记**：IAB 合成手势（cua.drag）拖 React Flow 节点不触发 d3-drag（超时+无位移）——拖拽写链以 e2e 真鼠标为证，非实现缺陷；边检查器 e2e 点击同步改派发 bubbling click（节点可拖后坐标命中不可靠）。
+
+**流程**：v2 归档（26/26，主 spec 五面同步，validate --specs 184/0）→ 本刀立项即实施即上产即归档（ADDED 一需求并入 cockpit 主 spec）。

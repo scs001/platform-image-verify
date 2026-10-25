@@ -2105,3 +2105,7 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **列车与坑**：快照 ee25ce6（digest 507dd697）四面滚。**翻车一枚（陈树三犯的变体）**：我的 tenancy 提交误删并行会话（fleet cockpit）在途的 FleetGraph.tsx——`git add` 目录过宽把其未提交文件收进又叠加树状态异常；出片构建 `Could not resolve ../components/FleetGraph` 逮住，从 d8bbcfa3 取回恢复。教训：**add 并行会话涉及的目录后必 `git show --stat` 自查一遍有没有别人的文件**。
 
 **验证面**：tenancy 3/0（双部署者独立/作者零变化/pause 归属同形拒）+agent-serving 71/0（pause/config 旧 403 断言按新语义更新）+matters 4/0+runner matters 6/0+agent-runner 67/0+secrets 5/0+wanxing-facade 34/0。
+
+### §15.40 补记：run11 判定与收束（2026-10-26 晨）
+
+**run11 FAIL=车道噪声非产品缺陷**：证据三连——①digest 臂内容已完全正确（wx-1 transcript：L2 首行即「明日纪要 digest turn error」背景全文，gists/handoffs 截断全部到位）；②车道病征在案（vectorize 503×2、当晚上游 502 风暴、embed 冷崖 122s）；③none 基线异常偏高（sh-1/2 none=4-5，短响应时代理/裁判方差大）。统计门的站定结论仍为 run10 校准口径 PASS（改动前基线）；**产品改动的确定性验证已由三面完成**：59/59 单测、生产基准 5/5 全中+notes=4 每 query 在块（keyword 降级档韧性达成）、transcript 内容核对。观察项：健康车道上重跑 eval 确认 L1 top-5 的统计增益（非阻塞）。

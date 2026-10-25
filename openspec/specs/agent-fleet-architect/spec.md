@@ -10,6 +10,8 @@
 
 系统 SHALL 向对话 persona 暴露舰队架构师工具面,含五工具:`fleet_list`(owner 舰队名册:标识、名称、状态、岗数、健康概要)、`fleet_spec_read`(单舰队完整 spec:组织树、岗位 targetRef、节奏、模型声明,只读)、`fleet_draft`(草稿 dry-run:校验 + 归一化 diff + 成本预估,不落库)、`fleet_apply`(执行草稿,写走既有舰队写路径)、`fleet_turns_read`(回合事件读:舰队级 status/source 过滤,数据源与 O1 读面同源)。工具桥 SHALL 仅接受 loopback 调用,身份 SHALL 由服务端解析为 cell owner;读写作用域 SHALL 与舰队 owner 门等价。草稿 SHALL 同时支持新建舰队与既有舰队的成员操作集(建/改/停/复/删岗与舰队改名)。
 
+草稿与执行两段 SHALL 另经 owner 鉴权的驾驶舱路由对浏览器会话开放(供驾驶舱设计模式使用):该路由与工具面 SHALL 共用同一校验、diff、成本预估与落地逻辑,语义(校验必经、阻断错误、成本预估触发条件、apply 重校验与漂移拒绝)逐项等价;该路由 SHALL 仅接受 owner 鉴权的会话、作用域限于该 owner 的舰队、不暴露任何凭据;工具桥的 loopback-only 与 cell owner 身份解析 SHALL 不变。
+
 #### Scenario: 读态三件套
 
 - **WHEN** 用户问「我有哪几支舰队,现在谁在连续失败」
@@ -24,6 +26,17 @@
 
 - **WHEN** 工具面发起任何读写
 - **THEN** 服务端以 cell owner 身份执行,作用域与该 owner 的舰队门一致;非 loopback 调用被既有鉴权拒绝
+
+#### Scenario: 驾驶舱路由与工具面同判
+
+- **WHEN** 同一份含成环 handoff 边的草稿分别经工具面 fleet_draft 与驾驶舱草稿路由提交
+- **THEN** 两路返回同一结构化错误指名成环边;两路 apply 均拒
+
+#### Scenario: 驾驶舱路由鉴权
+
+- **WHEN** 未鉴权会话或非 owner 会话调用驾驶舱草稿/执行路由
+- **THEN** 与舰队管理面同一规则拒绝;工具桥对非 loopback 调用的拒绝不变
+
 ### Requirement: 草稿 dry-run 校验必经且产出 diff 与成本预估
 
 `fleet_draft` SHALL 在服务端对草稿做完整校验后才返回结果:岗位字段形状、cron 可解析且时区合法、目标存在(persona/cluster/a2a/tool)、唯一岗不冲突、组织树无环、单父下级数量(span)超 8 警告、cron 周期短于地板值警告。草稿携带 `fleet.orchestration` 段(mode/constraints/edges)时,校验 SHALL 先将成员操作虚拟应用到终态(新建/修改/删除后的成员集),再对该终态跑编排图校验(复用舰队写面同一校验函数):边引用的岗位 SHALL 允许在同一草稿中新建(链式表达合法),图错误(环/链深/未知引用/自边)SHALL 为阻断错误,span 类警告进 diff。归一化 diff SHALL 逐岗列出操作(新建/修改/暂停/恢复/删除)与关键字段变更,并逐行呈现 orchestration:mode、约束、每条边(kind/from/to/args);supervisor 模式 SHALL 提示隐式全对派发许可(读时展开,不落库展开结果)。凡草稿「新增岗位 >5 或含任一新 cron 节奏」,返回 SHALL 必含成本预估:每新节奏岗 turns/day 与舰队 tokens/month 区间(区间假设来自环境配置,默认 3k–8k tokens/回合;工具岗 turns 计、tokens 零)。`fleet_apply` SHALL 在执行前对同一草稿重跑校验(含图校验),草稿与库状态漂移时——含边引用的岗位已删除或既有 orchestration 已被他路改写——如实报错并拒绝执行;create 模式 orchestration 随舰队落库(生而全队暂停惯例不变),edit 模式在成员操作后随舰队更新落库。

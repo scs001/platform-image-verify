@@ -2048,3 +2048,16 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **走查新暴露的既有问题（判红两分：非本变更引入）**：provider 403（"403 status code (no body)"）——昨日回合死于 timeout/interrupt 从未到达模型调用段，轮换提速后首次暴露；初步定位=aloadtree cell 的模型车道凭据（deepseek-v4.1-flash 车道拒绝），另**错误分类器 `/403/` 模式过贪**把 provider 403 误标 tool_permission（fleet-events.js ERROR_KINDS 表，校准待办）。
 
 **观察项**：A 的自然证据（下次凭据轮换的 `[mcp-delivery] <label> deferred` 日志）；B 的 5 回合文件量级（今晨 7:30 起各舰队自然节奏）；C 的真机 swap 走查；provider 403 根因（用户模型车道）；分类器校准。
+
+### §15.51 K9 销账：/agent/ 通道端口占用三层修复（2026-10-26）+ K10 改判笔误
+
+**K9 三层修复（全 paas 侧，registry 零改动，agent-serving 71/0）**：
+- **① proxy_pass_url 恒写**：部署 payload 恒带后端真身 `http://runner:port`（url 是 gateway 面形态，缺它时 nginx 块自环→新 agent 全 401，demo 实证）。
+- **② 占用按物理后端主机归组**：fleetHostsByRunnerId+defaultRunnerHost 从路由传入——fleet 自动放置给新部署打 runner 标，legacy 未标 agent 与其**共享同一物理端口空间**，按标过滤把一个空间劈成两个假想（新部署撞 legacy 监听的直接根因）。
+- **③ 占用图两遍法+fresh GET**：哈希 claim 先行、override claim 择空（顺序无关根治自遮蔽）；kept-override 决策改单 entry 即时 GET（列表快照滞后会把手工 override 回退到占用口）。
+
+**生产终验**：寻数 8820/p2 8821/demo 8822/工坊 8819 各归其位，/agent/ 通道四 agent 真回合全 200 **零串包**（寻数答寻数、p2 答 p2、工坊答工坊）。路径上的坑：部署后 toggle 撞 runner 重启窗 → health=unhealthy → nginx 块跳过 → 405（toggle 重探即愈，"unhealthy→块缺"语义入档）；nginx 已渲染未重载的窗口（手动 reload 一次——registry 的 re-render→reload 链有待查项，随 K9 观察项）。
+
+**K10 改判销账**：「跨进程 SQLite 读抖动」**不成立**——真因=操作员 slug 笔误（`fzxa` 误写 `fzxza` 多一个 z），404/缓存 miss/"抖动"全是笔误连锁（platform 读 12 探 0 miss、slugFor 输出逐字符核对定案）。产品无缺陷。
+
+**遗留观察**：①registry re-render→nginx reload 的自动链（本班手动 reload 一次，观察是否复发）；②`<thinking>` 在 /agent/ A2A 原始通道可见（聊天车道无此问题）——A2A 消费方按需过滤，非缺陷。

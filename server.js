@@ -732,8 +732,20 @@ async function initDshAgent() {
   // the decision (now / defer to the turn boundary / force past a cap) and
   // logs every branch; the drain hook is exposed for turn boundaries.
   const credentialDelivery = createCredentialDelivery({
-    isStreaming: () => Boolean(ctx.isStreaming),
+    // Shared-child busy (fix-fleet-round-discipline D1): the web live turn
+    // alone missed every collector-registered turn on the same child — a
+    // credential landing mid-patrol judged the runtime idle and the restart
+    // killed the round (production 2026-10-24: 3 of the 9 fleet-round losses).
+    // cron/delegation turns register on taskTurnRegistry, bot-relay on
+    // sessionCollectors; worker slots run their own bridges and stay out on
+    // purpose. maxDeferredMs ≥ the shared child's longest round budget
+    // (10min default) — a legal round must never be force-interrupted (D2).
+    isStreaming: () =>
+      Boolean(ctx.isStreaming) ||
+      (ctx.taskTurnRegistry?.size ?? 0) > 0 ||
+      (ctx.sessionCollectors?.size ?? 0) > 0,
     restart: ({ mcpPatchPath }) => ctx.dshBridge.restart({ mcpPatchPath }),
+    maxDeferredMs: 15 * 60 * 1000,
   });
   ctx.drainDeferredCredentialRestart = () => credentialDelivery.drainIfIdle();
   ctx.dshUpdateMcp = (mcpOverlay, userGroups = null, ownerEmail = undefined) => {
@@ -795,8 +807,11 @@ async function initDshAgent() {
         // Fallback: hot-swap disabled or no servers (empty patch). Restart re-spawns
         // the child with the new --patch; dsh persists sessions by id so the
         // conversation resumes from disk. Serialized behind mcpChain, so concurrent
-        // mutations can't overlap-corrupt the restart.
-        await ctx.dshBridge.restart({ mcpPatchPath: patchPath });
+        // mutations can't overlap-corrupt the restart. fix-fleet-round-discipline
+        // D3: even this non-credential-shaped restart rides the delivery
+        // controller — a bare restart here would interrupt an in-flight turn on
+        // the shared child exactly like a credential one would.
+        await credentialDelivery.onCredentialChange(patchPath, { label: "profile fallback" });
       }
     };
     // Profile application already owns the mutation lock. Running directly here
@@ -835,8 +850,14 @@ async function initDshAgent() {
   ctx.dshUpdateSkills = async () => {
     const run = async () => {
       await writeSkillsPatch({ agentPreset: ctx.currentPreset });
-      if (ctx.dshBridge?.isReady?.() && !ctx.isStreaming) {
-        await ctx.dshBridge.restart({});
+      // fix-fleet-round-discipline D3: the skills restart rides the delivery
+      // controller too — the old `!ctx.isStreaming` gate missed collector-
+      // registered turns the same way the MCP paths did (a pack install
+      // during a patrol round killed it). patchPath stays undefined so the
+      // restart keeps the child's existing MCP patch (restart's contract:
+      // only a non-undefined mcpPatchPath overwrites the stored one).
+      if (ctx.dshBridge?.isReady?.()) {
+        await credentialDelivery.onCredentialChange(undefined, { label: "skills patch" });
       }
     };
     if (ctx.runtimeApplying?.()) return run();

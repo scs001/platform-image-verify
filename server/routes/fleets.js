@@ -1480,6 +1480,15 @@ export function createFleetRoutes(app, ctx = null) {
       // incumbent takes over. Report history lives elsewhere (刀2) and is
       // never touched. A session with a turn in flight cannot be cleared —
       // the swap is refused rather than half-applied.
+      //
+      // fix-fleet-round-discipline D6: the dsh-side delete inside
+      // deleteSession is best-effort (old runtimes have no session/delete RPC
+      // and the failure is swallowed) — acceptable BY CONTRACT now: the
+      // guarantee lives in the round rotation (cron-runner D4), which gives
+      // this post's next round a fresh child conversation id regardless of
+      // whether the child-side delete landed, so the new incumbent can never
+      // inherit the old one's child-side state (production 2026-10-25: the
+      // swap cleared only the mirror; the child resumed its 2.36MB session).
       if (req.body?.freshSession === true) {
         const task = taskIndexFor(fleet.id).get(member.id);
         if (task?.sessionId) {

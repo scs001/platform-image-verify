@@ -123,3 +123,107 @@ test("re-defer while pending keeps the original defer timestamp (cap measured fr
   assert.ok(restarts.includes("/tmp/b.yml"), "the latest patch is delivered");
   assert.equal(d.pending, false);
 });
+
+// ── fix-fleet-round-discipline D1: the shared-child busy predicate ──────────
+// The controller consumes one opaque busy signal; what changes here is the
+// signal server.js feeds it: web live turn OR any collector-registered turn
+// on the shared child (cron/delegation register on taskTurnRegistry,
+// bot-relay on sessionCollectors). These tests drive the controller through a
+// fixture mirroring the exact wiring predicate — production 2026-10-24 lost
+// 3 of 9 fleet rounds to the narrow `ctx.isStreaming`-only signal.
+
+function sharedChildFixture() {
+  const ctx = { isStreaming: false, taskTurnRegistry: new Map(), sessionCollectors: new Map() };
+  const isStreaming = () =>
+    Boolean(ctx.isStreaming) ||
+    (ctx.taskTurnRegistry?.size ?? 0) > 0 ||
+    (ctx.sessionCollectors?.size ?? 0) > 0;
+  return { ctx, isStreaming };
+}
+
+test("fleet round in flight (collector registered) defers the restart — the 9-loss blind spot", async () => {
+  const { ctx, isStreaming } = sharedChildFixture();
+  const restarts = [];
+  const d = createCredentialDelivery({
+    isStreaming,
+    restart: async ({ mcpPatchPath }) => restarts.push(mcpPatchPath),
+    log: silentLog,
+  });
+  ctx.sessionCollectors.set("cron-1#r7", () => {}); // a patrol round is streaming
+  const out = await d.onCredentialChange("/tmp/patch.yml");
+  assert.equal(out, "deferred");
+  assert.deepEqual(restarts, [], "no restart while a collector-registered turn runs");
+});
+
+test("collector settles → the poller drains at the turn boundary", async () => {
+  const { ctx, isStreaming } = sharedChildFixture();
+  const restarts = [];
+  const d = createCredentialDelivery({
+    isStreaming,
+    restart: async ({ mcpPatchPath }) => restarts.push(mcpPatchPath),
+    log: silentLog,
+  });
+  ctx.sessionCollectors.set("cron-1#r7", () => {});
+  await d.onCredentialChange("/tmp/patch.yml");
+  ctx.sessionCollectors.delete("cron-1#r7"); // settle: the round just closed
+  await new Promise((r) => setTimeout(r, 600)); // poller ticks every 250ms
+  assert.deepEqual(restarts, ["/tmp/patch.yml"]);
+  assert.equal(d.pending, false);
+});
+
+test("drainIfIdle re-checks the shared-child predicate (never races a fresh round)", async () => {
+  const { ctx, isStreaming } = sharedChildFixture();
+  const restarts = [];
+  const d = createCredentialDelivery({
+    isStreaming,
+    restart: async ({ mcpPatchPath }) => restarts.push(mcpPatchPath),
+    log: silentLog,
+  });
+  ctx.taskTurnRegistry.set("job-9", () => {}); // delegation turn registered
+  await d.onCredentialChange("/tmp/patch.yml");
+  assert.equal(await d.drainIfIdle(), false, "busy on a registered turn → no drain");
+  ctx.taskTurnRegistry.delete("job-9");
+  assert.equal(await d.drainIfIdle(), true);
+  assert.deepEqual(restarts, ["/tmp/patch.yml"]);
+});
+
+test("cap never interrupts a legal long round; the wedge release survives (D2)", async () => {
+  const { ctx, isStreaming } = sharedChildFixture();
+  const restarts = [];
+  const warns = [];
+  const d = createCredentialDelivery({
+    isStreaming,
+    restart: async ({ mcpPatchPath }) => restarts.push(mcpPatchPath),
+    log: { ...silentLog, warn: (m) => warns.push(m) },
+    maxDeferredMs: 400, // stands in for the 15min cap ≥ round budget
+  });
+  ctx.sessionCollectors.set("cron-1#r7", () => {});
+  await d.onCredentialChange("/tmp/patch.yml");
+  await new Promise((r) => setTimeout(r, 300)); // a poller tick lands while busy, under the cap
+  assert.deepEqual(restarts, [], "a legal round (under the cap) is never force-interrupted");
+  ctx.sessionCollectors.delete("cron-1#r7"); // the round self-terminates
+  await new Promise((r) => setTimeout(r, 400));
+  assert.deepEqual(restarts, ["/tmp/patch.yml"], "delivered at the boundary after the round ends");
+
+  // Wedge release (existing semantics under the wider predicate): a turn
+  // stuck past its own budget must not hold the credential hostage.
+  ctx.sessionCollectors.set("cron-2#r8", () => {});
+  await d.onCredentialChange("/tmp/patch2.yml");
+  await new Promise((r) => setTimeout(r, 700));
+  assert.deepEqual(restarts, ["/tmp/patch.yml", "/tmp/patch2.yml"], "wedged turn forced past the cap");
+  assert.ok(warns.some((m) => m.includes("cap")), "the force is logged as a warning");
+});
+
+test("label param: non-credential fallback restarts log under their own name (D3)", async () => {
+  const logs = [];
+  const restarts = [];
+  const d = createCredentialDelivery({
+    isStreaming: () => false,
+    restart: async ({ mcpPatchPath }) => restarts.push(mcpPatchPath),
+    log: { ...silentLog, log: (m) => logs.push(m) },
+  });
+  const out = await d.onCredentialChange(undefined, { label: "profile fallback" });
+  assert.equal(out, "restarted");
+  assert.equal(restarts.length, 1, "patchPath passed through untouched");
+  assert.ok(logs.some((m) => m.includes("profile fallback")));
+});

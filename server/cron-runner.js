@@ -45,8 +45,13 @@ export function waitForIdle(ctx, timeoutMs) {
 // missed; always unregistered. `activeTurns` is the abort registry; the
 // optional `collectors` map defaults to the cell's shared registry — the
 // worker pool passes a worker-local map so worker events never reach the web
-// broadcast path. Exported for the delegation aggregator and the worker pool.
-export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors = ctx.sessionCollectors) {
+// broadcast path. `mirrorSessionId` decouples the collector key from the
+// mirror row id (fix-fleet-round-discipline D4): the collector key MUST equal
+// the session id the child was prompted with (notifications route by it),
+// while the mirror rows land under the stable host session — the fleet round
+// rotation prompts the child under a per-round id and mirrors into `cron-<id>`.
+// Exported for the delegation aggregator and the worker pool.
+export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors = ctx.sessionCollectors, mirrorSessionId = sessionId) {
   const collected = new Promise((resolve, reject) => {
     let text = "";
     let error = null;
@@ -116,10 +121,12 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
         if (ev.data?.usage) usage = ev.data.usage;
         // Mirror the final message into SQLite WITH the tool-call blocks, the
         // same structure the web path persists — a reloaded job session
-        // rebuilds the same evidence trail as a live one.
+        // rebuilds the same evidence trail as a live one. Rows land under the
+        // stable mirror session even when the collector key is a rotated
+        // per-round child id (fix-fleet-round-discipline D4).
         const persistBlocks = [...toolBlocks, ...(text ? [{ kind: "text", text }] : [])];
         if (text || toolBlocks.length) {
-          chatHistory.recordMessage(sessionId, "assistant", text, persistBlocks);
+          chatHistory.recordMessage(mirrorSessionId, "assistant", text, persistBlocks);
         }
       } else if (ev.type === "tool/call") {
         toolBlocks.push({
@@ -255,7 +262,18 @@ async function runA2aRemoteTurn(ctx, job, timeoutMs) {
   }
 }
 
-async function runPersonaTurn(ctx, job, timeoutMs, activeTurns) {
+// Round-scoped child conversation disposal (fix-fleet-round-discipline D5):
+// best-effort — dsh-bridge.deleteSession already swallows its own failures
+// (old runtimes have no session/delete RPC); this never throws and never
+// affects the next round, which runs on a fresh rotated id regardless.
+async function disposeRoundChild(ctx, childSessionId, mirrorSessionId) {
+  if (childSessionId === mirrorSessionId) return;
+  try {
+    await ctx.dshBridge?.deleteSession?.(childSessionId);
+  } catch { /* best-effort: the id is never resumed either way */ }
+}
+
+async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Date.now() } = {}) {
   if (!ctx.dshBridge?.isReady()) {
     return { ok: false, error: "the agent runtime is not ready" };
   }
@@ -287,6 +305,18 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns) {
 
   const sessionId = job.sessionId || `cron-${job.id}`;
 
+  // Fleet round statelessness (fix-fleet-round-discipline D4/D7): the design
+  // re-renders {{fleetContext}} every round — history contributes nothing —
+  // yet the dsh child resumes its persisted conversation by session id, so a
+  // stable id accumulated every round's history (2.3MB in 5 rounds; the
+  // compaction ate the 600s budget before any work started). The child
+  // conversation id therefore ROTATES per round; the mirror keeps the stable
+  // id (collectTurn's mirrorSessionId) so the sidebar stays one readable
+  // session and the evidence trail keeps accumulating. Non-fleet jobs keep
+  // the byte-for-byte pre-change shape: the child id IS the mirror id.
+  const fleetRound = Boolean(job.sourceTag?.fleetId);
+  const childSessionId = fleetRound ? `${sessionId}#r${startedAt}` : sessionId;
+
   // Fleet post identity (enable-wire-content-fleet D1): a member turn tells the
   // agent which post it executes, so it can name its own production source
   // rather than invent one. This seam serves BOTH wake paths — cron cadence
@@ -305,20 +335,28 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns) {
     } catch { /* sanitize failure leaves the prompt-derived title */ }
   }
 
-  const collected = collectTurn(ctx, sessionId, timeoutMs, activeTurns);
+  const collected = collectTurn(ctx, childSessionId, timeoutMs, activeTurns, ctx.sessionCollectors, sessionId);
   // The collector is now the visible trace of this turn — hand the runtime
   // over to it and drop the preset-switch reservation.
   releaseReservation?.();
   let result;
   try {
-    await ctx.dshBridge.prompt(sessionId, [{ type: "text", text: prompt }]);
+    await ctx.dshBridge.prompt(childSessionId, [{ type: "text", text: prompt }]);
     result = await collected;
   } catch (e) {
-    ctx.sessionCollectors.delete(sessionId);
-    activeTurns.delete(sessionId);
+    ctx.sessionCollectors.delete(childSessionId);
+    activeTurns.delete(childSessionId);
     ctx.onRuntimeIdle?.();
+    await disposeRoundChild(ctx, childSessionId, sessionId);
     return { ok: false, error: e.message, interrupted: e.interrupted === true };
   }
+
+  // Round-scoped child disposal (fix-fleet-round-discipline D5): the rotated
+  // conversation is dead the moment the round settles — a best-effort delete
+  // keeps the child's session store bounded. Failure is harmless by contract:
+  // the rotation already guarantees this id is never resumed, so a failed
+  // delete only leaves a bounded orphan file behind.
+  await disposeRoundChild(ctx, childSessionId, sessionId);
 
   // Refresh the sidebar/list so a returning client sees the job session's
   // new output (this is the sessions broadcast finishTurn makes on the web
@@ -415,7 +453,7 @@ export function buildClusterDigest({ clusterName, results, policy }) {
   return lines.join("\n");
 }
 
-async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, runPersona, runA2a, listAgents }) {
+async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, startedAt = Date.now(), runPersona, runA2a, listAgents }) {
   const clusterDb = getClusterDatabase();
   const cluster = clusterDb.get(job.preset);
   if (!cluster) {
@@ -497,7 +535,11 @@ async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, runPersona
       preset,
       sessionId: memberSessionId(job, r.member.agentId),
       sessionTitle: `${cluster.name} · ${r.entry.name || r.member.agentId}`,
-    }, memberTimeoutMs, activeTurns);
+      // sourceTag rides down (fix-fleet-round-discipline D7): a fleet-owned
+      // cluster's persona members rotate their child conversation id inside
+      // runPersonaTurn exactly like a single-post round does.
+      sourceTag: job.sourceTag,
+    }, memberTimeoutMs, activeTurns, { startedAt });
     results.push({
       agentId: r.member.agentId,
       name: r.entry.name || r.member.agentId,
@@ -584,7 +626,8 @@ async function runClusterTurn(ctx, job, { turnTimeoutMs, activeTurns, runPersona
       preset: firstOkPreset,
       sessionId: boundSessionId,
       sessionTitle: job.sessionTitle || null,
-    }, memberTimeoutMs, activeTurns);
+      sourceTag: job.sourceTag, // rotation rides the same D7 rule as members
+    }, memberTimeoutMs, activeTurns, { startedAt });
     summaryRan = true;
     if (synth.ok && synth.text) {
       digestText = synth.text;
@@ -707,6 +750,7 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
       out = await runClusterTurn(ctx, job, {
         turnTimeoutMs: timeoutMs,
         activeTurns,
+        startedAt,
         runPersona: personaExecutor,
         runA2a: a2aExecutor,
         listAgents: listAgentsFn,
@@ -725,7 +769,7 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
       // here; the event seam records it null.
       out = await toolExecutor(ctx, job, timeoutMs);
     } else {
-      out = await personaExecutor(ctx, job, timeoutMs, activeTurns);
+      out = await personaExecutor(ctx, job, timeoutMs, activeTurns, { startedAt });
     }
 
     try {

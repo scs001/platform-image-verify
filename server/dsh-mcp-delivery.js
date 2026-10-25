@@ -16,6 +16,14 @@
 //                    must not hold the credential hostage (interrupted turns
 //                    are re-runnable; an expired token fails every turn).
 //
+// "Busy" is whatever predicate the cell wires in (fix-fleet-round-discipline
+// D1): the shared child is busy when the web turn streams OR any
+// collector-registered turn (cron / delegation / bot-relay) is in flight —
+// the wiring predicate, not this module, is what must stay honest.
+// Non-credential-shaped restarts (profile fallback, skills patch) ride the
+// same controller with their own label (D3) so no patch-delivery path can
+// bypass the busy check.
+//
 // Every branch logs. Extracted from server.js so the branch matrix is unit
 // testable without a bridge.
 
@@ -62,8 +70,8 @@ export function createCredentialDelivery({
     if (!p) return;
     pending = null;
     const waitedMin = Math.round((now() - p.deferredAt) / 60000);
-    log.log(`[mcp-delivery] deferred credential restart executing (waited ${waitedMin}min)`);
-    await restartWithRetry(p.patchPath, "deferred");
+    log.log(`[mcp-delivery] ${p.label ?? "deferred"}: deferred restart executing (waited ${waitedMin}min)`);
+    await restartWithRetry(p.patchPath, p.label ?? "deferred");
   };
 
   const armPoller = () => {
@@ -82,16 +90,18 @@ export function createCredentialDelivery({
 
   return {
     // The decision point dshUpdateMcp calls after rewriting the patch.
-    // Returns "restarted" | "deferred" | "skipped" for the caller to log.
-    async onCredentialChange(patchPath) {
+    // `label` names the delivery in the logs — credential changes by default,
+    // non-credential fallback restarts under their own name (D3). Returns
+    // "restarted" | "deferred" | "skipped" for the caller to log.
+    async onCredentialChange(patchPath, { label = "credential change" } = {}) {
       if (isStreaming()) {
         const first = !pending;
-        pending = { patchPath, deferredAt: pending?.deferredAt ?? now() };
+        pending = { patchPath, deferredAt: pending?.deferredAt ?? now(), label };
         if (first) armPoller();
-        log.log(`[mcp-delivery] credential change deferred until the turn boundary (a turn is streaming)`);
+        log.log(`[mcp-delivery] ${label} deferred until the turn boundary (the shared child is busy)`);
         return "deferred";
       }
-      await restartWithRetry(patchPath, "credential change");
+      await restartWithRetry(patchPath, label);
       return "restarted";
     },
 

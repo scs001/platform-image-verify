@@ -1604,7 +1604,7 @@
       "empty": "市场暂无功能集。",
       "allCategories": "全部垂类",
       "featured": "精选",
-      "facade": "门面",
+      "facade": "分身",
       "agentSize": "按 agent 数筛选",
       "agentSizeAny": "任意数量",
       "agentSizeValue": "{{value}} 个 agent",
@@ -1631,11 +1631,11 @@
         "hideOptional": "隐藏可选角色"
       },
       "facade": {
-        "title": "门面",
+        "title": "AI 分身",
         "attribution": "归属 {{owner}}（平台身份戳）",
         "asOf": "语料截至 {{date}}",
         "stanceHosted": "访客免费 · 接待费用由主人承担",
-        "chatEntry": "和这个门面聊",
+        "chatEntry": "和这个分身聊",
         "notDeployed": "接待角色尚未部署，暂不可对话"
       },
       "subscribe": "订阅并安装",

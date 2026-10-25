@@ -1604,7 +1604,7 @@
       "empty": "市場にパックがまだありません。",
       "allCategories": "すべて",
       "featured": "注目",
-      "facade": "ファサード",
+      "facade": "AI分身",
       "agentSize": "エージェント数で絞り込む",
       "agentSizeAny": "すべて",
       "agentSizeValue": "{{value}} エージェント",
@@ -1691,11 +1691,11 @@
         "hideOptional": "オプションのエージェントを隠す"
       },
       "facade": {
-        "title": "ファサード",
+        "title": "AI分身",
         "attribution": "運営者 {{owner}}（プラットフォーム認証）",
         "asOf": "コーパス更新日 {{date}}",
         "stanceHosted": "訪問者無料・ホスト負担",
-        "chatEntry": "このファサードと話す",
+        "chatEntry": "この分身と話す",
         "notDeployed": "受付役が未デプロイのためチャット不可"
       }
     },

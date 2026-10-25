@@ -1604,7 +1604,7 @@
       "empty": "No packs in the market yet.",
       "allCategories": "All",
       "featured": "Featured",
-      "facade": "Facade",
+      "facade": "AI Twin",
       "agentSize": "Filter by agent count",
       "agentSizeAny": "Any count",
       "agentSizeValue": "{{value}} agents",
@@ -1631,11 +1631,11 @@
         "hideOptional": "Hide optional agents"
       },
       "facade": {
-        "title": "Facade",
+        "title": "AI Twin",
         "attribution": "Operated by {{owner}} (platform identity)",
         "asOf": "Corpus as of {{date}}",
         "stanceHosted": "Free for visitors · the host pays",
-        "chatEntry": "Chat with this facade",
+        "chatEntry": "Chat with this twin",
         "notDeployed": "Reception not deployed yet — chat unavailable"
       },
       "subscribe": "Subscribe & Install",

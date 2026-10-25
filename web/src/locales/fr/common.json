@@ -1604,7 +1604,7 @@
       "empty": "Aucun pack sur le marché pour l'instant.",
       "allCategories": "Toutes",
       "featured": "En vedette",
-      "facade": "Vitrine",
+      "facade": "Avatar IA",
       "agentSize": "Filtrer par nombre d'agents",
       "agentSizeAny": "Tous",
       "agentSizeValue": "{{value}} agents",
@@ -1691,11 +1691,11 @@
         "hideOptional": "Masquer les agents optionnels"
       },
       "facade": {
-        "title": "Vitrine",
+        "title": "Avatar IA",
         "attribution": "Opéré par {{owner}} (identité de la plateforme)",
         "asOf": "Corpus à jour au {{date}}",
         "stanceHosted": "Gratuit pour les visiteurs · l'hôte paie",
-        "chatEntry": "Discuter avec cette vitrine",
+        "chatEntry": "Discuter avec cet avatar",
         "notDeployed": "Réception non déployée — chat indisponible"
       }
     },

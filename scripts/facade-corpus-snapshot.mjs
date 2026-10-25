@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // ── Facade corpus snapshot (add-principal-facade 6.1) ────────────────────────
 //
-// Refreshes the 寻数门面 pack's fast-stale corpus (projects) from live
+// Refreshes the 寻数分身 pack's fast-stale corpus (projects) from live
 // in-repo sources and re-stamps every corpus skill's as-of line:
 //   - corpus-projects: milestone statuses extracted from the 双星 roadmap's
 //     exit-criteria table + in-flight openspec changes (`openspec list --json`).
@@ -77,7 +77,7 @@ if (projects) {
     "",
     "## 方向动态",
     "",
-    "- 方向动态为人工策展段：多 harness 运行管理层、记忆架构 v4、agents-native 沟通愿景（门面能力）——详见 docs/facet-wanxing-roadmap.md 与 openspec/changes/。",
+    "- 方向动态为人工策展段：多 harness 运行管理层、记忆架构 v4、agents-native 沟通愿景（AI 分身能力）——详见 docs/facet-wanxing-roadmap.md 与 openspec/changes/。",
   ].join("\n");
   if (projects.content !== prev) changed.push("corpus-projects");
 }

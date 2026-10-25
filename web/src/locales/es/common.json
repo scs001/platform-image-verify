@@ -1604,7 +1604,7 @@
       "empty": "Aún no hay paquetes en el mercado.",
       "allCategories": "Todas",
       "featured": "Destacados",
-      "facade": "Fachada",
+      "facade": "Avatar de IA",
       "agentSize": "Filtrar por número de agentes",
       "agentSizeAny": "Cualquiera",
       "agentSizeValue": "{{value}} agentes",
@@ -1691,11 +1691,11 @@
         "hideOptional": "Ocultar agentes opcionales"
       },
       "facade": {
-        "title": "Fachada",
+        "title": "Avatar de IA",
         "attribution": "Operado por {{owner}} (identidad de la plataforma)",
         "asOf": "Corpus actualizado a {{date}}",
         "stanceHosted": "Gratis para visitantes · el anfitrión paga",
-        "chatEntry": "Hablar con esta fachada",
+        "chatEntry": "Hablar con este avatar",
         "notDeployed": "Recepción sin desplegar — chat no disponible"
       }
     },

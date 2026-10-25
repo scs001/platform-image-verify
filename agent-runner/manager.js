@@ -167,6 +167,12 @@ export class ChildManager {
     // in tests; production uses global fetch.
     this.probeFetchImpl = probeFetchImpl ?? null;
     this.children = new Map(); // childKey → AgentChild (agentKey solo, podKey pod — add-dsh-pod-adapter)
+    // Active turn sessions (add-matter-visitor-scope D2): childKey → the
+    // sessionId of the turn currently running on that child. The single-writer
+    // discipline (one turn per child at a time) makes this race-free; the
+    // facade-tools closures read it to scope matter opens/reads to the
+    // calling conversation. Cleared in the turn's finally.
+    this.activeSessions = new Map();
     this.entries = new Map(); // agentKey → registry entry (card source)
     this.versions = new Map(); // childKey → identity of the composition running there
     this.pending = new Map(); // agentKey → promise chain while a slot is awaited
@@ -880,6 +886,10 @@ export class ChildManager {
     const onMemoryEvent = this.#memoryOnEvent(entry, sessionId);
     try {
       const child = await this.acquire(entry);
+      // Session anchor (add-matter-visitor-scope D2): set before the turn's
+      // first tool call can fire, cleared in the outer finally — the
+      // single-writer discipline keeps one child to one live session.
+      this.activeSessions.set(key, sessionId);
       try {
         const out = await child.turn(sessionId, text, { onDelta, onAsk, agentKey: route?.pod ? key : undefined, onEvent: onMemoryEvent });
         this.#meterLine(key, kind, {
@@ -934,6 +944,7 @@ export class ChildManager {
         throw e;
       }
     } finally {
+      this.activeSessions.delete(key);
       release?.();
     }
   }
@@ -1339,6 +1350,7 @@ export class ChildManager {
                 agent: key,
                 op: payload?.op,
                 args: payload?.args,
+                session: this.activeSessions.get(key) ?? null,
               });
               if (out?.ok && payload?.op === "open" && typeof out.id === "string") {
                 this.notifier
@@ -1480,6 +1492,7 @@ export class ChildManager {
                 agent: key,
                 op: payload?.op,
                 args: payload?.args,
+                session: this.activeSessions.get(key) ?? null,
               });
               if (out?.ok && payload?.op === "open" && typeof out.id === "string") {
                 this.notifier

@@ -175,3 +175,50 @@ test("stranger: empty list and same-shape 404s — existence never disclosed", a
     await h.close();
   }
 });
+
+// ── Visitor scope boundary (add-matter-visitor-scope) ────────────────────────
+//
+// The disclosure boundary: an opened matter binds to the calling session's
+// opaque scope; another session's tool-face reader cannot see or read it
+// (same-shape 404 — existence never leaks), the same session can, and the
+// owner queue stays unfiltered. Unscoped v1 rows stay visible to everyone.
+
+test("visitor scope: cross-session invisible, same-session visible, owner unfiltered", async () => {
+  const h = await harness();
+  try {
+    // Visitor A (scope a) opens a matter.
+    const a = await h.call("POST", `/api/packs/internal/matters/${h.packId}/reception/open`, {
+      headers: h.svc, body: { summary: "A 的私事", visitor_scope: "scope-a" },
+    });
+    assert.equal(a.status, 200);
+    // A v1-style unscoped matter stays around too.
+    const legacy = await h.open({ summary: "存量无界事项" });
+
+    // Visitor B (scope b): list shows only the unscoped row — A's matter and
+    // its existence are gone.
+    const listB = await h.call("GET", `/api/packs/internal/matters/${h.packId}/reception?visitor_scope=scope-b`, { headers: h.svc });
+    assert.equal(listB.status, 200);
+    assert.deepEqual(listB.body.matters.map((m) => m.summary), ["存量无界事项"], "B sees ONLY the unscoped legacy row");
+    assert.ok(listB.body.matters.every((m) => m.scopeKey == null), "B sees no scoped matters");
+    const readB = await h.call("GET", `/api/packs/internal/matters/${h.packId}/reception/${a.body.id}?visitor_scope=scope-b`, { headers: h.svc });
+    assert.equal(readB.status, 404, "another session's matter reads as nonexistent");
+
+    // Visitor A (scope a): sees own + legacy, reads own fine.
+    const listA = await h.call("GET", `/api/packs/internal/matters/${h.packId}/reception?visitor_scope=scope-a`, { headers: h.svc });
+    assert.equal(listA.body.matters.length, 2);
+    const readA = await h.call("GET", `/api/packs/internal/matters/${h.packId}/reception/${a.body.id}?visitor_scope=scope-a`, { headers: h.svc });
+    assert.equal(readA.status, 200);
+    assert.equal(readA.body.matter.summary, "A 的私事");
+
+    // Sessionless reader: least-privilege — only the unscoped rows.
+    const listNone = await h.call("GET", `/api/packs/internal/matters/${h.packId}/reception`, { headers: h.svc });
+    assert.ok(listNone.body.matters.every((m) => m.scopeKey == null));
+
+    // Owner queue: everything, scoped included.
+    const owner = await h.call("GET", `/api/packs/${h.packId}/matters`);
+    assert.equal(owner.body.matters.length, 2);
+    assert.ok(owner.body.matters.some((m) => m.summary === "A 的私事"));
+  } finally {
+    await h.close();
+  }
+});

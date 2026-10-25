@@ -333,6 +333,14 @@ export function createPackRegistry({ file }) {
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
   )`);
+  // Visitor scope (add-matter-visitor-scope D4): the opaque session-derived
+  // boundary an opened matter binds to. NULL = unscoped (the v1 rows, which
+  // stay visible to every visitor by compatibility promise; the owner can
+  // close them out). Added by try/catch ALTER — the table already exists on
+  // live deployments.
+  try {
+    db.exec("ALTER TABLE matters ADD COLUMN scope_key TEXT");
+  } catch { /* column already present */ }
 
   const now = () => Date.now();
   const mintId = () => randomBytes(16).toString("base64url");
@@ -357,6 +365,7 @@ export function createPackRegistry({ file }) {
     timeline: JSON.parse(r.timeline),
     createdAt: r.created_at,
     updatedAt: r.updated_at,
+    ...(r.scope_key != null ? { scopeKey: r.scope_key } : {}),
   });
 
   function summaryOf(pack, version) {
@@ -764,24 +773,33 @@ export function createPackRegistry({ file }) {
     // The mt_ id matches the pk_ mint shape; the timeline is the matter's
     // whole history (open/reply/close append-only, replies after responded
     // keep flowing — closure is the only terminal).
-    matterOpen({ packId, agentId, deployer, summary, visitorHint }) {
+    matterOpen({ packId, agentId, deployer, summary, visitorHint, scopeKey = null }) {
       const id = `mt_${randomBytes(12).toString("hex")}`;
       const at = Date.now();
       db.prepare(
-        `INSERT INTO matters (id, pack_id, agent_id, deployer, summary, visitor_hint, status, timeline, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)`,
+        `INSERT INTO matters (id, pack_id, agent_id, deployer, summary, visitor_hint, status, timeline, created_at, updated_at, scope_key)
+         VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)`,
       ).run(
         id, packId, agentId, deployer, summary, visitorHint,
         JSON.stringify([{ kind: "open", by: "reception", text: summary, at }]),
-        at, at,
+        at, at, scopeKey,
       );
       return { id, status: "open" };
     },
-    mattersForDeployment(packId, agentId) {
+    // Visitor visibility boundary (add-matter-visitor-scope D3): a tool-face
+    // reader with a scope sees ITS OWN matters plus the unscoped v1 rows;
+    // the owner routes pass no scope and see everything.
+    mattersForDeployment(packId, agentId, scopeKey = null) {
+      if (scopeKey == null) {
+        return db.prepare(
+          `SELECT * FROM matters WHERE pack_id = ? AND agent_id = ?
+           ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'responded' THEN 1 ELSE 2 END, updated_at DESC`,
+        ).all(packId, agentId).map(matterRowOut);
+      }
       return db.prepare(
-        `SELECT * FROM matters WHERE pack_id = ? AND agent_id = ?
+        `SELECT * FROM matters WHERE pack_id = ? AND agent_id = ? AND (scope_key IS NULL OR scope_key = ?)
          ORDER BY CASE status WHEN 'open' THEN 0 WHEN 'responded' THEN 1 ELSE 2 END, updated_at DESC`,
-      ).all(packId, agentId).map(matterRowOut);
+      ).all(packId, agentId, scopeKey).map(matterRowOut);
     },
     mattersForPack(packId) {
       return db.prepare(
@@ -2246,17 +2264,40 @@ export function registerPackRoutes(app, {
       return res.status(400).json({ error: "summary must be a non-empty string of at most 2000 characters" });
     }
     const visitorHintRaw = typeof req.body?.visitor_hint === "string" ? req.body.visitor_hint.trim().slice(0, 300) : "";
-    const out = registry.matterOpen({ packId, agentId, deployer: dep.deployedBy, summary, visitorHint: visitorHintRaw });
+    // Visitor scope (add-matter-visitor-scope): the runner supplies the calling
+    // session's opaque scope when it has one; absent = unscoped (v1 shape —
+    // the boundary must never block the escalation outlet itself).
+    const scopeRaw = typeof req.body?.visitor_scope === "string" ? req.body.visitor_scope.trim().slice(0, 128) : "";
+    const out = registry.matterOpen({
+      packId, agentId, deployer: dep.deployedBy, summary,
+      visitorHint: visitorHintRaw,
+      ...(scopeRaw ? { scopeKey: scopeRaw } : {}),
+    });
     res.json(out);
   });
   app.get("/api/packs/internal/matters/:packId/:agentId", (req, res) => {
     if (!internalAuth(req, res)) return;
-    res.json({ matters: registry.mattersForDeployment(decodeURIComponent(req.params.packId), decodeURIComponent(req.params.agentId)) });
+    // Least-privilege degradation: a sessionless reader sees only the unscoped
+    // v1 rows; a scoped reader sees its own plus those. (Owner routes are a
+    // different surface and stay unfiltered.)
+    const scope = typeof req.query.visitor_scope === "string" ? req.query.visitor_scope.slice(0, 128) : "";
+    res.json({
+      matters: registry.mattersForDeployment(
+        decodeURIComponent(req.params.packId),
+        decodeURIComponent(req.params.agentId),
+        scope || "__sessionless__",
+      ),
+    });
   });
   app.get("/api/packs/internal/matters/:packId/:agentId/:mid", (req, res) => {
     if (!internalAuth(req, res)) return;
     const m = registry.matterRead(req.params.mid);
-    if (!m || m.packId !== decodeURIComponent(req.params.packId) || m.agentId !== decodeURIComponent(req.params.agentId)) {
+    const packOk = m && m.packId === decodeURIComponent(req.params.packId) && m.agentId === decodeURIComponent(req.params.agentId);
+    if (!packOk) return res.status(404).json({ error: "no such matter" });
+    const scope = typeof req.query.visitor_scope === "string" ? req.query.visitor_scope.slice(0, 128) : "";
+    if (m.scopeKey != null && m.scopeKey !== scope) {
+      // Another session's matter: same-shape 404 — existence itself is the
+      // disclosure boundary (add-matter-visitor-scope).
       return res.status(404).json({ error: "no such matter" });
     }
     res.json({ matter: m });

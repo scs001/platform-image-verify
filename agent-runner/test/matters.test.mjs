@@ -134,3 +134,34 @@ test("the harness registry forwards onMatter to the dsh factory", async () => {
   assert.equal(typeof got.onNotify, "function");
   assert.equal(typeof got.onMatter, "function", "onMatter must survive the registry hop");
 });
+
+// ── Visitor scope supply (add-matter-visitor-scope D1/D2) ────────────────────
+//
+// The executor derives the opaque scope from the ACTIVE TURN's session and
+// rides it on open (body) and list/read (query); a sessionless call is the
+// defensive unscoped path (audited no-session, never refused).
+
+test("scope rides the internal calls; sessionless opens land unscoped and audited", async () => {
+  const h = harness();
+  const ident = { packId: "pk", agentId: "reception", agent: "a" };
+  await h.matters.handle({ ...ident, op: "open", args: { summary: "一" }, session: "wx:chat-abc" });
+  const openCall = h.calls.find((c) => c.url.endsWith("/open"));
+  assert.match(openCall.url, /reception\/open$/);
+  assert.ok(openCall.init.body.includes("visitor_scope"), "open carries the scope");
+  const scope = JSON.parse(openCall.init.body).visitor_scope;
+  assert.match(scope, /^[0-9a-f]{32}$/);
+
+  await h.matters.handle({ ...ident, op: "status", session: "wx:chat-abc" });
+  const listCall = h.calls.at(-1);
+  assert.match(listCall.url, /\?visitor_scope=[0-9a-f]{32}$/);
+
+  await h.matters.handle({ ...ident, op: "read", args: { id: "mt_1" }, session: "wx:chat-abc" });
+  assert.match(h.calls.at(-1).url, /mt_1\?visitor_scope=/);
+
+  // Sessionless: no scope anywhere; the audit names it.
+  await h.matters.handle({ ...ident, op: "open", args: { summary: "二" }, session: null });
+  const bare = h.calls.at(-1);
+  assert.ok(!JSON.parse(bare.init.body).visitor_scope, "sessionless open lands unscoped");
+  const lines = readFileSync(h.logFile, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  assert.ok(lines.some((l) => l.op === "open" && l.outcome === "opened" && l.reason === "no-session"), "the audit marks the defensive path");
+});

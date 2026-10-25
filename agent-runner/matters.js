@@ -18,9 +18,15 @@
 // relay's no-content law mirrored.
 
 import { appendFileSync, mkdirSync } from "node:fs";
+import { createHash } from "node:crypto";
 import path from "node:path";
 
 const CALL_TIMEOUT_MS = 10_000;
+
+// Visitor scope (add-matter-visitor-scope D1): sha256 of the calling session
+// id, first 32 hex — opaque, stable within one conversation lane context.
+const scopeFor = (session) =>
+  typeof session === "string" && session ? createHash("sha256").update(session).digest("hex").slice(0, 32) : null;
 
 export function createMatters({ config, log = console, fetchImpl, now = () => Date.now() }) {
   const openPerMin = Number(config?.mattersOpenPerMin) > 0 ? Number(config.mattersOpenPerMin) : 4;
@@ -87,12 +93,15 @@ export function createMatters({ config, log = console, fetchImpl, now = () => Da
     }
   };
 
-  // handle({ packId, agentId, agent, op, args }) — the manager wires each
-  // facade child's matterCall/send here with its deployment identity.
-  const handle = async ({ packId, agentId, agent, op, args = {} }) => {
+  // handle({ packId, agentId, agent, op, args, session }) — the manager wires
+  // each facade child's matterCall/send here with its deployment identity and
+  // the ACTIVE TURN's sessionId (the visitor scope source; null outside a
+  // turn = the defensive unscoped path).
+  const handle = async ({ packId, agentId, agent, op, args = {}, session = null }) => {
     if (!packId || !agentId) {
       return { ok: false, reason: "identity", message: "matter calls need a deployment identity" };
     }
+    const scope = scopeFor(session);
     const enc = encodeURIComponent;
     if (op === "open") {
       const summary = typeof args.summary === "string" ? args.summary : "";
@@ -111,13 +120,14 @@ export function createMatters({ config, log = console, fetchImpl, now = () => Da
           ...(typeof args.visitor_hint === "string" && args.visitor_hint.trim()
             ? { visitor_hint: args.visitor_hint.trim().slice(0, 300) }
             : {}),
+          ...(scope ? { visitor_scope: scope } : {}),
         },
       });
-      audit(agent, op, out.ok ? "opened" : "failed", out.ok ? null : out.reason, summary.length);
+      audit(agent, op, out.ok ? "opened" : "failed", out.ok ? (scope ? null : "no-session") : out.reason, summary.length);
       return out.ok ? { ok: true, id: out.id, status: out.status } : out;
     }
     if (op === "status") {
-      const out = await call(`/api/packs/internal/matters/${enc(packId)}/${enc(agentId)}`);
+      const out = await call(`/api/packs/internal/matters/${enc(packId)}/${enc(agentId)}${scope ? `?visitor_scope=${enc(scope)}` : ""}`);
       audit(agent, op, out.ok ? "listed" : "failed", out.ok ? null : out.reason, null);
       if (!out.ok) return out;
       const matters = (out.matters ?? []).map((m) => ({
@@ -134,7 +144,7 @@ export function createMatters({ config, log = console, fetchImpl, now = () => Da
       if (!/^mt_[A-Za-z0-9_-]{1,64}$/.test(id)) {
         return { ok: false, reason: "invalid-request", message: "matter_read needs the mt_… matter id" };
       }
-      const out = await call(`/api/packs/internal/matters/${enc(packId)}/${enc(agentId)}/${enc(id)}`);
+      const out = await call(`/api/packs/internal/matters/${enc(packId)}/${enc(agentId)}/${enc(id)}${scope ? `?visitor_scope=${enc(scope)}` : ""}`);
       audit(agent, op, out.ok ? "read" : "failed", out.ok ? null : out.reason, null);
       return out.ok ? { ok: true, matter: out.matter } : out;
     }

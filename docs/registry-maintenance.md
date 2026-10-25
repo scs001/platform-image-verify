@@ -2006,3 +2006,17 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **K7 残余**：验证码邮件送达率（findmail 域收件）随首个真人注册确认；注册后的 sub2api 首登自动开户实证待下一次全新 OIDC 首登（机制在位：OIDC 分支 assignSubscriptions 同款调用）。
 
 **M5.3 终态**：三 agent 全链验收（§15.49）+ K7 自助注册链修复（本节）——「真客户进来不被绊死」的四断点中 K7 已除，K8/K9/K10 有绕行或隔离（引导自有分身发布、浏览器车道、时间盒待查）。
+
+### §15.37 发布记录：u/ 人根蒸馏启用 + /digest 内部 deadline（add-u-root-distillation，2026-10-25 深夜）
+
+**镜像**：fd-memory 四班——`sha-5d54186`（源 4c62bd4：闸门放宽+note 原料+deadline+served-rung）→ `sha-0b5284d`（源 686236b：fallback 入队闸补人根支）→ `sha-af831ba`（源 2352134：人根分批蒸馏）→ `sha-8da08cf`（源 c59e717：note event 白名单修复）→ `sha-83a7a22`（源 66e2035：渲染器 handoffs 预算纪律，现行）。GitOps f0398ae 前后全绿滚。paas 零改动。
+
+**实现**：蒸馏器 `isDistillableRoot`（d- 恒真 / u- 看 `FD_MEMORY_DISTILL_U`）；note 页合成 observation 形状进原料（独立 note_cursor 沿 handoff 游标惯例，幂等迁移）；u- 根 project 发现走 distinctProjects、入队按 note/handoff 滞后；人根分批蒸馏（2 条/批×800 字帽）；/digest embed 封 3.5s 内部 deadline（慢侧车=关键词块照出）+ served-rung 日志。
+
+**四枚生产探针实锤（各钉一枚修复）**：①fallback 入队闸只看 observations——人根恒 0 恒不入队（真机验证抓出）；②引擎 completion 顶格 6000 截断后静默返空（4 条真 handoff→0 产物零报错；2 条/批 completion 4.4k 安全）；③引擎按 event 白名单静默丢弃未知 event（note-write 批零 LLM 调用；user-prompt-submit 正常提取）；④渲染器 handoffs 段无预算检查（巨型轮报交接淹块误导 agent——wx 场景 10 条 handoffs 全进块）。
+
+**真机验收**：aloadtree 根回填蒸馏全通——L2 0→10、双游标到头、~257k tokens 分批自愈；`FD_MEMORY_DISTILL_U=0` 对照轮零人根蒸馏（开关验真）后移除；served-rung 日志在产（`rung=vector ms=2063` 首行）。drill 期间误建的 stray 根目录（裸邮箱探针产物，空壳）已清。
+
+**eval 五跑全录**（runbook 详）：run8 recency 污染修复（同毫秒写 note 随机「最近 3 条」）→ run9 eval 漂移修复（cap-3 未同步+渲染器 handoffs 预算）→ run10 note-depth PASS（+1.50）/first_step 82%/avg diff 1.24；全集 win 53% 触发**门数学定案**——6/17 场景 none≥4 无可赢空间，旧门结构性不可达（上限 65%）；校准为有空间场景 win（9/11=82%）+全集非劣（16/17=94%），两套口径并存入 baseline。校准口径 run10 = **PASS**。
+
+**观察项**：人根蒸馏 token 用量（aloadtree 全量回填 ~257k，日预算 600k 内）；L2 产出率（10/44 原料页）；老.note 召回生产首例待自然流量；served-rung 命中率分布。

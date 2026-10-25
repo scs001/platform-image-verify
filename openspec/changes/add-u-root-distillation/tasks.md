@@ -13,10 +13,10 @@
 
 ## 3. eval 老.note 深度面
 
-- [ ] 3.1 fixtures 增 ≥2 个旧.note 场景（背景在同 project 排名 >3 的 note，review:"reviewed"）；harness 增蒸馏前置（EVAL_PREP_DISTILL）与对照渲染；跑门（avg diff ≥0.5 / win ≥70% / 老.note 子集蒸馏臂优于现 digest 臂 ≥1 分均值）；结果入 continue-baseline + runbook 回填
+- [x] 3.1 fixtures 增 ≥2 个旧.note 场景（背景在同 project 排名 >3 的 note，review:"reviewed"）；harness 增蒸馏前置（EVAL_PREP_DISTILL）与对照渲染；跑门（avg diff ≥0.5 / win ≥70% / 老.note 子集蒸馏臂优于现 digest 臂 ≥1 分均值）；结果入 continue-baseline + runbook 回填
 
 ## 4. 出片与真机验收
 
 - [x] 4.1 出片（fd-build-channel 判路 → GHA 池 → relay → ccr skopeo 门）+ GitOps 滚产
-- [ ] 4.2 真机：aloadtree 根等 fallback 周期眼见 distill 行与 L2 落地 + /digest 老.note 召回眼见；`FD_MEMORY_DISTILL_U=0`（GitOps env 一轮）零蒸馏对照后恢复
-- [ ] 4.3 台账回填（上线记录 + 观察项：人根 token 用量/L2 产出率/老.note 召回首例）+ 归档
+- [x] 4.2 真机：aloadtree 根等 fallback 周期眼见 distill 行与 L2 落地 + /digest 老.note 召回眼见；`FD_MEMORY_DISTILL_U=0`（GitOps env 一轮）零蒸馏对照后恢复
+- [x] 4.3 台账回填（上线记录 + 观察项：人根 token 用量/L2 产出率/老.note 召回首例）+ 归档

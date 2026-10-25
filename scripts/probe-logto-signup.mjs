@@ -1,7 +1,6 @@
 import { chromium } from "playwright";
 const STAMP = "k7d" + Date.now().toString(36).slice(-6);
 const EMAIL = `${STAMP}@findmail.com`;
-const PASSWORD = "K7drill#2026";
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage();
 try {

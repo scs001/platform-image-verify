@@ -192,7 +192,7 @@ test("visitor scope: cross-session invisible, same-session visible, owner unfilt
     });
     assert.equal(a.status, 200);
     // A v1-style unscoped matter stays around too.
-    const legacy = await h.open({ summary: "存量无界事项" });
+    await h.open({ summary: "存量无界事项" });
 
     // Visitor B (scope b): list shows only the unscoped row — A's matter and
     // its existence are gone.

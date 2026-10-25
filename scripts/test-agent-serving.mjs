@@ -1756,3 +1756,50 @@ test("K9: a kept override whose slot another agent now owns is re-probed, not se
   const urlPort = Number(agent.url.match(/:(\d+)$/)?.[1]);
   assert.equal(agent.metadata?.port_override ?? urlPort, urlPort, "planned port == advertised url port");
 });
+
+test("K9: fleet host map groups occupancy by physical host, not by tag", async () => {
+  const stub = stubRegistry();
+  // wire (legacy, untagged) hash-claims 8816 on the DEFAULT host; the deploy
+  // is auto-placed to runner-serving = the SAME physical host (100.64.0.8).
+  // Tag-based filtering would exclude wire and re-serve 8816 (the K9 串包).
+  stub.agents.set("packs/egaYyOaZVTf0FWlLvaGAQA/pack-wire-macro-analyst", {
+    path: "/packs/egaYyOaZVTf0FWlLvaGAQA/pack-wire-macro-analyst",
+    metadata: {}, // untagged → default host
+  });
+  const out = await servingLib.deployToRegistry({
+    ...PACK,
+    fetchImpl: stub.fetch,
+    fleetHostsByRunnerId: new Map([["runner-serving", "runner.tailnet"]]),
+    defaultRunnerHost: "runner.tailnet",
+  });
+  assert.equal(out.deployed.length, 1);
+  const agent = stub.calls.agents[0].body;
+  assert.notEqual(agent.metadata?.port_override ?? null, 8816, "wire's 8816 is respected across tags");
+  const urlPort = Number(agent.url.match(/:(\d+)$/)?.[1]);
+  assert.equal(urlPort, agent.metadata?.port_override ?? urlPort, "planned port consistent with url");
+});
+
+test("K9: a different physical host does NOT inherit the default's occupancy", async () => {
+  const stub = stubRegistry();
+  stub.agents.set("packs/egaYyOaZVTf0FWlLvaGAQA/pack-wire-macro-analyst", {
+    path: "/packs/egaYyOaZVTf0FWlLvaGAQA/pack-wire-macro-analyst",
+    metadata: {}, // untagged → default host (runner.tailnet)
+  });
+  const out = await servingLib.deployToRegistry({
+    ...PACK,
+    runnerBaseUrl: "http://runner-b.tailnet", // another machine
+    fetchImpl: stub.fetch,
+    fleetHostsByRunnerId: new Map([
+      ["runner-serving", "runner.tailnet"],
+      ["runner-b", "runner-b.tailnet"],
+    ]),
+    defaultRunnerHost: "runner.tailnet",
+  });
+  assert.equal(out.deployed.length, 1);
+  const agent = stub.calls.agents[0].body;
+  // The deploy's hash slot is free on runner-b even if identical to wire's
+  // default-host slot — separate machines, separate port spaces.
+  const hashPort = servingLib.agentPortFor("/packs/pk-abc/pack-fingpt");
+  assert.equal(agent.metadata?.port_override ?? null, null, "hash slot free on the other host");
+  assert.ok(agent.url.endsWith(`:${hashPort}`));
+});

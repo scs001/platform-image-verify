@@ -1918,6 +1918,21 @@ export function registerPackRoutes(app, {
 
     let out;
     try {
+      // Fleet host map (fix-fleet-host-occupancy): occupancy grouped by
+      // physical backend host — legacy untagged agents share the default
+      // runner's port space with auto-placed tagged deploys on the same host.
+      const fleetHostsByRunnerId = new Map(
+        fleetRows
+          .filter((r) => !/^desktop-/i.test(r.id))
+          .map((r) => {
+            try {
+              return [r.id, new URL(r.baseUrl).hostname];
+            } catch {
+              return [r.id, null];
+            }
+          }),
+      );
+      const defaultRunnerHost = fleetHostsByRunnerId.get(fleetRows[0]?.id) ?? null;
       out = await deployToRegistry({
         packId: id,
         version: version.version,
@@ -1930,6 +1945,8 @@ export function registerPackRoutes(app, {
         notifyChannels: notifyChannel ?? {},
         billingKeys,
         secretRefs,
+        fleetHostsByRunnerId,
+        defaultRunnerHost,
         ...cfg,
         ...runnerPlacement, // fleet row wins over the env default (sharding D2)
       });

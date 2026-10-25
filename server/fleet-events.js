@@ -30,8 +30,14 @@ export const ERROR_KINDS = [
 const ERROR_KIND_PATTERNS = [
   ["runtime_not_ready", /not ready|still starting|stayed busy|could not switch the agent|runtime.*(busy|idle)|未就绪/i],
   ["timeout", /timeout|timed? ?out|超时/i],
-  ["tool_permission", /permission|denied|forbidden|not authorized|unauthorized|403|工具|权限/i],
-  ["model_upstream", /no runnable model|model switch|invalid model|429|quota|rate.?limit|provider|upstream|api.?key|api_error|service temporarily unavailable|5\d{2}\s*:|上游|模型/i],
+  // Bare `403` was dropped here (production 2026-10-25: the lane's
+  // "403 status code (no body)" — a sub2api HTTP echo, no permission word in
+  // sight — classified as a tool problem and sent triage down the wrong
+  // lane). A transport-level "NNN status code" echo now reads as the model
+  // lane; a genuine tool refusal carries permission words with or without
+  // the status digit.
+  ["tool_permission", /permission|denied|forbidden|not authorized|unauthorized|工具|权限/i],
+  ["model_upstream", /no runnable model|model switch|invalid model|\b\d{3}\s*status code|429|quota|rate.?limit|provider|upstream|api.?key|api_error|service temporarily unavailable|5\d{2}\s*:|上游|模型/i],
   ["business_refused", /refused|rejected by policy|业务拒绝|拒绝执行/i],
 ];
 
@@ -67,44 +73,79 @@ function attributedPostFor(db, presetId, rosterPresetId) {
   return { fleetId: attribution.fleetId, memberId: attribution.memberId };
 }
 
-// `outcome` is the executor's return: { ok, error?, interrupted?, usage? }.
-// `meta` carries { startedAt, endedAt, model } from the seam (the wrapper
-// knows when the turn began and what the runtime landed on). Returns the
-// stored event, or null when the turn carries no fleet attribution.
-export function recordTurnEvent(db, job, outcome, { startedAt, endedAt, model = null, rosterPresetId = (id) => id } = {}) {
-  // Single derivation source (agent-turn-contract): attribution and source
-  // both read off the same turnRequest — one rule for both doors.
-  const request = buildTurnRequest(job);
-  let fleetId = null;
-  let memberId = null;
-  if (request.evidence.sourceTag?.fleetId) {
-    fleetId = request.evidence.sourceTag.fleetId;
-    memberId = request.evidence.sourceTag.memberId ?? null;
-  } else if (request.evidence.origin?.fleet?.fleetId) {
-    fleetId = request.evidence.origin.fleet.fleetId;
-    memberId = request.evidence.origin.fleet.memberId ?? null;
-  } else {
-    const post = attributedPostFor(db, request.targetRef.id, rosterPresetId);
-    if (post) {
-      fleetId = post.fleetId;
-      memberId = post.memberId;
-    }
+// Which post does this turnRequest execute? sourceTag (cron-materialized) →
+// origin.fleet (execute-now / dispatch / handoff / event wake) → persona scan
+// (plain delegation wake). Null = not a fleet turn. Shared by the outcome
+// recorder below and the run ledger's begin() (agent-fleet-runs), so the two
+// doors read ONE attribution rule.
+export function resolveTurnPost(db, request, rosterPresetId = (id) => id) {
+  if (request?.evidence?.sourceTag?.fleetId) {
+    return { fleetId: request.evidence.sourceTag.fleetId, memberId: request.evidence.sourceTag.memberId ?? null };
   }
-  if (!fleetId || !memberId) return null;
+  if (request?.evidence?.origin?.fleet?.fleetId) {
+    return { fleetId: request.evidence.origin.fleet.fleetId, memberId: request.evidence.origin.fleet.memberId ?? null };
+  }
+  const post = attributedPostFor(db, request?.targetRef?.id, rosterPresetId);
+  if (!post?.fleetId || !post?.memberId) return null;
+  return post;
+}
 
+// Token usage as the runtime reports it, in the shapes seen across providers
+// (dsh TokenUsage input/output, OpenAI prompt/completion, snake_case). Null
+// when nothing was reported — never a guessed zero (spec: 用量缺失不虚构).
+export function normalizeUsage(u) {
+  if (!u || typeof u !== "object") return null;
+  const input = u.input ?? u.inputTokens ?? u.promptTokens ?? u.input_tokens ?? u.prompt_tokens ?? null;
+  const output = u.output ?? u.outputTokens ?? u.completionTokens ?? u.output_tokens ?? u.completion_tokens ?? null;
+  if (!Number.isFinite(input) && !Number.isFinite(output)) return null;
+  return {
+    input: Number.isFinite(input) ? input : null,
+    output: Number.isFinite(output) ? output : null,
+  };
+}
+
+// The outcome → event-field shaping (status/errorKind/error/model/usage),
+// pure, shared with the ledger.
+export function shapeTurnOutcome(outcome, { model = null } = {}) {
   const ok = outcome?.ok === true;
   const interrupted = outcome?.interrupted === true;
-  const status = ok ? "ok" : interrupted ? "interrupted" : "failed";
-  return db.appendTurnEvent({
-    fleetId,
-    memberId,
-    source: request.source,
-    status,
+  return {
+    status: ok ? "ok" : interrupted ? "interrupted" : "failed",
     errorKind: ok ? null : classifyErrorKind(outcome?.error),
     error: ok ? null : String(outcome?.error ?? "execution failed").slice(0, 500),
     model: model ?? outcome?.usage?.model ?? null,
+    usage: normalizeUsage(outcome?.usage),
+  };
+}
+
+// `outcome` is the executor's return: { ok, error?, interrupted?, usage? }.
+// `meta` carries { startedAt, endedAt, model } from the seam (the wrapper
+// knows when the turn began and what the runtime landed on) and, when the run
+// ledger opened this turn, `ledgerTurn` — the handle whose turnId/runId/chain
+// position/trace key land on the row. Returns the stored event, or null when
+// the turn carries no fleet attribution.
+export function recordTurnEvent(db, job, outcome, { startedAt, endedAt, model = null, rosterPresetId = (id) => id, ledgerTurn = null } = {}) {
+  // Single derivation source (agent-turn-contract): attribution and source
+  // both read off the same turnRequest — one rule for both doors.
+  const request = buildTurnRequest(job);
+  const post = ledgerTurn
+    ? { fleetId: ledgerTurn.fleetId, memberId: ledgerTurn.memberId }
+    : resolveTurnPost(db, request, rosterPresetId);
+  if (!post?.fleetId || !post?.memberId) return null;
+
+  const shaped = shapeTurnOutcome(outcome, { model });
+  return db.appendTurnEvent({
+    fleetId: post.fleetId,
+    memberId: post.memberId,
+    source: request.source,
+    ...shaped,
     startedAt,
     endedAt,
     sessionId: job?.sessionId ?? null,
+    turnId: ledgerTurn?.turnId ?? null,
+    runId: ledgerTurn?.runId ?? request.chain?.runId ?? null,
+    parentTurnId: ledgerTurn?.parentTurnId ?? request.chain?.parentTurnId ?? null,
+    edgeKind: ledgerTurn?.edgeKind ?? request.chain?.edgeKind ?? null,
+    traceTurnId: ledgerTurn?.traceTurnId ?? null,
   });
 }

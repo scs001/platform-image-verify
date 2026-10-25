@@ -2075,3 +2075,13 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **②写触发蒸馏**（add-write-triggered-distill，fd-memory e589a47，滚产 sha-3f76055）：MCP 写面（memory_write_page/memory_handoff_begin）成功后进程内 notify→notifyCapture（闸门与总闸自动生效，失败路径不触发，未接线方零变化）；u- 根去抖 60s（对比 d- 5min 会话去抖按根族分取）。**真机全链验收**：真 MCP 面（streamable-http，Mcp-Session-Id 透传）写哨兵 note 17:34:28 → **T+120s** `[distill] 1 pages from 0 handoffs + 1 notes (chunked), 9,201 tokens`（对比 fallback 10 分钟）→ /digest 语义召回蒸馏产物（L2·fact 内容准确）。57/57 绿（notify 触发/拒路径/假 now 双根族去抖差异三测）。
 
 **验收坑备案**：MCP 面调试需 streamable-http 三步（initialize→notifications/initialized→tools/call + Mcp-Session-Id 头透传）；admin/mint 的 namespace 必须带 `u/` 前缀（`u-x` 报 platform_mints 结构错）；kubectl exec 内 shell 引号多层剥落——复杂调用一律脚本落盘（base64）再 node 执行。
+
+### §15.52 补记：走查暴露的 provider 403 当场修复 + 错误分类器校准（2026-10-26 凌晨，接 §15.51 真机走查）
+
+**403 事件（平台模型车道断供，比三缺陷更晚暴露、影响更大）**：轮换让 CEO 回合秒级起跑后，首两发回合立刻死于 "403 status code (no body)"——判红两分定根因：词元车道（sub2api，节点回环 32080）对车道 key（属主 `admin@finddatatech.cloud`=user 1）返回 `SUBSCRIPTION_NOT_FOUND`。订阅面取证：其余全部用户（2/69/108/109）都有 group 3 十年期活跃订阅，**唯独 user 1 订阅表为空**；时间线强相关——10-26 00:35 +08 给 108/109 建订阅（自助注册线）后约 30 分钟，车道开始 403（该 cell 最后成功回合 09:10 +08）。即平台车道key主人订阅丢失，**昨晚部分「跑满 600s 超时」的回合即使不被缺陷 B 拖死也会死于此**——两病叠加先前只暴露一个。
+
+**处置（数据面，即时生效）**：sub2api 管理面 `POST /api/v1/admin/subscriptions/assign {user_id:1, group_id:3, validity_days:3650}`（路由从管理台前端 JS bundle 摸出——binary strings 与 swagger 均无路）→ sub id=5 active 至 2036-10-23，与兄弟行同构。验证三连：assign 200 → 同 key 同 model chat completion 403→**200 正常回复** → CEO 探针回合（节奏 */2，验后已还原 0 * * * *）**模型真实产出**（读交接/分析/报告草稿，镜像行 252→263 全落稳定会话）。一发回合跑满 600s 超时=模型真干活未收敛（噪音 D 形态，非缺陷回归），明晨自然节奏观察。
+
+**分类器校准（代码面，随下一班出片）**：`fleet-events.js` ERROR_KINDS 的 tool_permission 行裸 `403` 过贪——车道 HTTP 回声 "403 status code (no body)" 被误标工具权限。修正：tool_permission 去裸 403（permission/denied/forbidden/unauthorized/工具/权限 保留），model_upstream 增 `\b\d{3}\s*status code` 回声形态；回归测试 3 断言（403/502 no body → model_upstream；"report failed (403): permission denied" → tool_permission）钉死，test-fleet-turn-events 9/9。
+
+**配方增量**：sub2api 管理面路由考古法（管理台 SPA chunk grep `/assets/SubscriptionsView-*.js` 拿 assign 载荷形状）；车道 403 三层定位链（pod 内 curl 无 key 401 → 带 key 403 SUBSCRIPTION_NOT_FOUND → findUserByKey 定属主 → 订阅表对差）。

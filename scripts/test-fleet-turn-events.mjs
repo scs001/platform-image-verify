@@ -178,6 +178,13 @@ test("classifyErrorKind: ordered table, one probe per kind, other floor", () => 
   assert.equal(classifyErrorKind("429 quota exceeded at provider"), "model_upstream");
   // Calibration first case from prod (§15.17 待办①): upstream 503 / api_error
   assert.equal(classifyErrorKind('503: {"message":"Service temporarily unavailable","type":"api_error"}'), "model_upstream");
+  // Lane HTTP echoes are model-lane failures, never tool problems (production
+  // 2026-10-25: sub2api's "403 status code (no body)" — SUBSCRIPTION_NOT_FOUND
+  // underneath — was misfiled as tool_permission).
+  assert.equal(classifyErrorKind("403 status code (no body)"), "model_upstream");
+  assert.equal(classifyErrorKind("502 status code (no body)"), "model_upstream");
+  // A genuine tool refusal still wins even when the status digit rides along.
+  assert.equal(classifyErrorKind("report failed (403): permission denied"), "tool_permission");
   assert.equal(classifyErrorKind("该操作被业务拒绝执行"), "business_refused");
   assert.equal(classifyErrorKind(" совершенно неизвестная ошибка "), "other");
   assert.equal(classifyErrorKind(""), "other");

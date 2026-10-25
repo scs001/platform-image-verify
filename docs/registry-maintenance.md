@@ -2120,3 +2120,11 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **构造路障三枚（全真实断点，入坑册）**：①a2a 成员调用需**调用者 cell 的个人 registry 凭据**（C-lite 归属——aloadtree 凭据过期即 409 "connect the MCP market first"；修=管理端 mint-on-behalf + POST /api/registry/credential，新户引导需含此步）；②dispatch 归属=**当前 preset 匹配 persona 成员**——纯 a2a 舰队无法派发，需一个 persona 成员+当前 preset 对准（p2 用自定义 preset user.p2 补位）；③orchestration 为 null 的舰队 dispatch 403 无边——**cockpit draft/apply 两段式**补 supervisor mode（draft 校验器拒结构变更，只有 fleet.orchestration+成员 update 子集）。
 
 **K3 夜巡已排程**：投研晨会舰队首席分析师 one-shot 03:30（job_iijqhv，夜间窗内）——夜巡报告 reports/night-patrol-2026-10-26.md + report_status + 成本落 meter。晨间验证即得 K3 样本（机制链全部在产已证：M2 两程 reported+spent + 本日 fleet 双真回合）。
+
+### §15.41 eval 深挖裁定：四连修 + 交接吸力证伪 + wx 场景设计债（2026-10-26，用户令「自己构造测试」）
+
+**经过**：run11/12 双 FAIL（后者干净车道）→ 四发定向修——itemLine title≈excerpt 同文去重+90 字帽（蒸馏 L2 行复读淹信号）、L2 gist 400→150、handoffs 48h 新鲜门槛（env FD_MEMORY_DIGEST_HANDOFF_MAX_AGE_H 可调）、**handoffs 段后置至相关记忆之后**（首位注意力偏置假说；spec 渲染顺序语义同步）→ wx 微验证数字仍不动 → **EVAL_NO_HANDOFFS 消融裁定：无 handoffs 段 wx digest 依旧 1/1/2/1，吸力假说证伪**。
+
+**终裁（消融 transcript 铁证）**：wx 系场景任务-背景脱钩——期望背景（明日纪要失败史等）是 task 文本「继续工作」没指向的观测史；消融版块带着全部背景内容而响应如实答「现有记忆未提供本轮明确待办」；judge 度量的是场景设计张力非注入缺陷。titles 臂赢只因标题行少而近任务。
+
+**处置**：四修各自独立成立且生产有益（块更干净/更密/陈旧交接不再注入），随裁定版滚产；EVAL_NO_HANDOFFS 开关保留作常设消融工具；wx 系场景列为场景设计债（task 须改写为指向背景的续作句式）下一轮场景迭代处理；生产 digest 面以构造基准为准（5/5 hit+notes=4）。59-61/61 单测全程绿。

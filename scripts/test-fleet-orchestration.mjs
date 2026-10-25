@@ -48,6 +48,7 @@ const {
 const { attachCronRunner } = await import("../server/cron-runner.js");
 const { createFleetRoutes } = await import("../server/routes/fleets.js");
 const { createFleetTurnLedger } = await import("../server/fleet-runs.js");
+const { validateFleetDraft } = await import("../server/fleet-architect.js");
 
 await initDb();
 await chatHistory.initChatHistory();
@@ -524,4 +525,87 @@ test("fanout seam: wave creation, initiator wiring both modes, failure relay, de
   assert.equal(created.length, 0, "no wave over the depth bound");
   assert.ok(fleetDb.listFleetTurnEvents("f_fo", { status: "failed" }).some((e) => e.error.includes("fanout depth bound")));
   await engine.idle?.();
+});
+
+// ── 5. cockpit design-mode draft lane (add-fleet-cockpit-v2 group D) ────────
+
+test("cockpit draft/apply: same judgment as the bridge, subset-guarded, owner-gated", async () => {
+  fixtureFleet(fleetDb, { id: "f_dm", members: [P("m_a"), P("m_b"), P("m_c")] });
+  const { server, base } = await startServer({
+    authEnabled: false, cellUserEmail: "owner@test", currentPreset: "t-m_a",
+    fleetTargetResolver: (m) => ({ alive: true, label: m.targetId }),
+  });
+  const post = async (path, body) => {
+    const r = await fetch(`${base}${path}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    return { status: r.status, body: await r.json().catch(() => ({})) };
+  };
+  try {
+    // Subset guard: structural moves stay on the architect lane.
+    assert.equal((await post("/api/fleets/f_dm/orchestration/draft", { members: [{ op: "add", title: "x", targetKind: "persona", targetId: "p" }] })).status, 400);
+    assert.equal((await post("/api/fleets/f_dm/orchestration/draft", { fleet: { name: "改名" } })).status, 400);
+    assert.equal((await post("/api/fleets/f_dm/orchestration/draft", { members: [{ ref: "m_a", op: "update", title: "新题" }] })).status, 400);
+
+    // In-subset draft validates, diffs, estimates — and persists nothing.
+    const edges = { mode: "pipeline", edges: [{ kind: "handoff", from: "m_a", to: "m_b" }] };
+    const cadence = { cron: "0 9 * * *", tz: null, promptTemplate: "报数", enabled: true };
+    const draft = { fleet: { orchestration: edges }, members: [{ ref: "m_a", op: "update", cadence }] };
+    const dry = await post("/api/fleets/f_dm/orchestration/draft", draft);
+    assert.equal(dry.status, 200);
+    assert.equal(dry.body.ok, true);
+    assert.equal(fleetDb.getFleet("f_dm").orchestration, null, "dry-run persists nothing");
+    assert.equal(fleetDb.getMember("m_a").cadence, null);
+
+    // Apply lands orchestration + cadence (reconcile rides along).
+    const applied = await post("/api/fleets/f_dm/orchestration/apply", draft);
+    assert.equal(applied.status, 200);
+    assert.equal(applied.body.ok, true);
+    assert.deepEqual(fleetDb.getFleet("f_dm").orchestration.edges.map((e) => [e.kind, e.from, e.to]), [["handoff", "m_a", "m_b"]]);
+    assert.deepEqual(fleetDb.getMember("m_a").cadence, cadence);
+
+    // A cyclic draft is rejected by BOTH doors with the same verdict — the
+    // route calls the same validateFleetDraft the bridge does.
+    const cyclic = { fleet: { orchestration: { mode: "pipeline", edges: [
+      { kind: "handoff", from: "m_a", to: "m_b" }, { kind: "handoff", from: "m_b", to: "m_a" },
+    ] } } };
+    const viaRoute = await post("/api/fleets/f_dm/orchestration/draft", cyclic);
+    assert.equal(viaRoute.body.ok, false);
+    const viaFn = validateFleetDraft(fleetDb, { mode: "edit", fleetId: "f_dm", ...cyclic });
+    assert.equal(viaFn.ok, false);
+    assert.equal(
+      JSON.stringify(viaRoute.body.errors.map((e) => e.error).sort()),
+      JSON.stringify(viaFn.errors.map((e) => e.error).sort()),
+      "two doors, one judgment",
+    );
+    assert.equal((await post("/api/fleets/f_dm/orchestration/apply", cyclic)).status, 409);
+
+    // Drift: a validated draft whose edge target vanishes before apply fails
+    // honestly, naming the drift.
+    const driftDraft = { fleet: { orchestration: { mode: "pipeline", edges: [{ kind: "handoff", from: "m_a", to: "m_c" }] } } };
+    assert.equal((await post("/api/fleets/f_dm/orchestration/draft", driftDraft)).body.ok, true);
+    fleetDb.deleteMember("m_c");
+    const drifted = await post("/api/fleets/f_dm/orchestration/apply", driftDraft);
+    assert.equal(drifted.status, 409);
+    assert.ok(JSON.stringify(drifted.body.errors).includes("m_c"));
+  } finally {
+    server.close();
+  }
+});
+
+test("cockpit draft lane: ownership identical to the fleet face (403 foreign, 401 anonymous)", async () => {
+  fixtureFleet(fleetDb, { id: "f_own", members: [P("m_a")] });
+  const stranger = await startServer({ authEnabled: false, cellUserEmail: "stranger@test", fleetTargetResolver: (m) => ({ alive: true, label: m.targetId }) });
+  const anon = await startServer({ authEnabled: true, fleetTargetResolver: (m) => ({ alive: true, label: m.targetId }) });
+  const body = { fleet: { orchestration: { mode: "pipeline", edges: [] } } };
+  try {
+    for (const base of [stranger.base, anon.base]) {
+      const r = await fetch(`${base}/api/fleets/f_own/orchestration/draft`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      assert.ok(r.status === 403 || r.status === 401, `gate reads ${r.status}`);
+      const a = await fetch(`${base}/api/fleets/f_own/orchestration/apply`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      assert.ok(a.status === 403 || a.status === 401);
+    }
+    assert.equal(fleetDb.getFleet("f_own").orchestration, null, "nothing written through either rejection");
+  } finally {
+    stranger.server.close();
+    anon.server.close();
+  }
 });

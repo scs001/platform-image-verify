@@ -9,7 +9,8 @@
     "delete": "削除",
     "close": "閉じる",
     "disconnect": "切断",
-    "retry": "再試行"
+    "retry": "再試行",
+    "more": "さらに読み込む"
   },
   "nav": {
     "chat": "チャット",
@@ -2526,6 +2527,36 @@
       "replay": "再生カーソル",
       "live": "ライブ",
       "noTrace": "trace なし"
+    },
+    "inspector": {
+      "open": "詳細",
+      "statusBasis": "状態の根拠",
+      "modelChain": "モデル解決チェーン",
+      "declared": "宣言",
+      "fallback": "フォールバック",
+      "effective": "効力中",
+      "lastTurn": "直近ターン",
+      "slots": "KPI スロット",
+      "cadence": "定時実行",
+      "promptTemplate": "プロンプト雛形",
+      "noDecisions": "このポストの承認なし",
+      "edgeTraffic": "辺トラフィック(24h)",
+      "noTraffic": "直近24時間の通過なし",
+      "tab": {
+        "overview": "概況",
+        "config": "設定",
+        "turns": "ターン",
+        "reports": "産出",
+        "decisions": "承認"
+      }
+    },
+    "design": {
+      "enter": "設計",
+      "on": "設計中",
+      "exit": "退出(破棄)",
+      "confirm": "ドラフトを適用",
+      "edgeKind": "新しい辺の種類",
+      "removed": "{{n}} 本の辺を削除指定"
     }
   },
   "facetCurate": {

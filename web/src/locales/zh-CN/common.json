@@ -9,7 +9,8 @@
     "delete": "删除",
     "close": "关闭",
     "disconnect": "断开",
-    "retry": "重试"
+    "retry": "重试",
+    "more": "加载更多"
   },
   "nav": {
     "chat": "对话",
@@ -2526,6 +2527,36 @@
       "replay": "回放游标",
       "live": "实时",
       "noTrace": "无 trace"
+    },
+    "inspector": {
+      "open": "详情",
+      "statusBasis": "状态判定依据",
+      "modelChain": "模型解析链",
+      "declared": "声明",
+      "fallback": "兜底",
+      "effective": "生效",
+      "lastTurn": "最近回合",
+      "slots": "KPI 槽位",
+      "cadence": "定时运行",
+      "promptTemplate": "提示模板",
+      "noDecisions": "该岗位暂无审批事项",
+      "edgeTraffic": "边流量(24h)",
+      "noTraffic": "近 24 小时无回合经过",
+      "tab": {
+        "overview": "概况",
+        "config": "配置",
+        "turns": "回合",
+        "reports": "产出",
+        "decisions": "审批"
+      }
+    },
+    "design": {
+      "enter": "设计",
+      "on": "设计中",
+      "exit": "退出(丢弃)",
+      "confirm": "落地草稿",
+      "edgeKind": "新边类型",
+      "removed": "标记移除 {{n}} 条边"
     }
   },
   "facetCurate": {

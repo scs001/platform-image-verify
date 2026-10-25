@@ -20,6 +20,7 @@ import {
 } from "./fleets-db.js";
 import { reconcileFleet, deriveMemberStatus, cronPeriodMs } from "../fleet-reconcile.js";
 import { validateOrchestration, expandedEdges, dispatchAllowed, constraintsOf } from "../fleet-orchestration.js";
+import { validateFleetDraft, applyFleetDraft } from "../fleet-architect.js";
 import { splitToolTarget } from "../tool-turn.js";
 import { resolveServerEndpoint, resolveStdioServerConfig } from "../../lib/action-executor.js";
 import { fleetModelChoiceError, resolveModelChain } from "../fleet-model.js";
@@ -659,6 +660,70 @@ export function createFleetRoutes(app, ctx = null) {
       });
     } catch (err) {
       console.error("[fleets] run detail error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // ── Design-mode draft lane (agent-fleet-architect v2, add-fleet-cockpit-v2) ─
+  //
+  // The cockpit's design mode rides the SAME validate/diff/estimate/apply
+  // functions the architect tool bridge calls — two doors, one judgment. This
+  // door is owner-gated per the fleet face (401 anonymous / 404 unknown /
+  // 403 foreign, identical to every other fleet route) and scoped to the
+  // design-mode subset: the orchestration section plus per-member cadence /
+  // model / fallbackModel edits. Structural moves (add/remove posts, renames,
+  // targets, fleet policy) stay on the architect lane — the subset guard
+  // rejects them by name so the UI never offers what this door refuses.
+  function cockpitDraftSubsetError(draft) {
+    if (!draft || typeof draft !== "object" || Array.isArray(draft)) return "draft must be an object";
+    const allowedFleet = new Set(["orchestration"]);
+    for (const k of Object.keys(draft.fleet ?? {})) {
+      if (!allowedFleet.has(k)) return `fleet.${k} is outside the design-mode subset — the architect lane owns it`;
+    }
+    const allowedMember = new Set(["ref", "op", "cadence", "model", "fallbackModel"]);
+    const members = Array.isArray(draft.members) ? draft.members : [];
+    for (const [i, op] of members.entries()) {
+      if (op?.op !== "update") {
+        return `members[${i}].op '${op?.op ?? "?"}' is outside the design-mode subset — add/pause/resume/remove go through the architect lane`;
+      }
+      if (typeof op.ref !== "string" || !op.ref) return `members[${i}].ref is required`;
+      for (const k of Object.keys(op)) {
+        if (!allowedMember.has(k)) return `members[${i}].${k} is outside the design-mode subset`;
+      }
+    }
+    return null;
+  }
+
+  const toCockpitDraft = (body, fleetId) => ({ ...(body ?? {}), mode: "edit", fleetId, fleet: { ...(body?.fleet ?? {}) } });
+
+  router.post("/:id/orchestration/draft", (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const subset = cockpitDraftSubsetError(req.body);
+      if (subset) return res.status(400).json({ error: subset });
+      res.json(validateFleetDraft(getFleetDatabase(), toCockpitDraft(req.body, owned.fleet.id), { resolver: targetResolver }));
+    } catch (err) {
+      console.error("[fleets] orchestration draft error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  router.post("/:id/orchestration/apply", async (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const subset = cockpitDraftSubsetError(req.body);
+      if (subset) return res.status(400).json({ error: subset });
+      // Revalidation happens inside (drift fails honestly, same as the bridge).
+      const out = await applyFleetDraft(getFleetDatabase(), toCockpitDraft(req.body, owned.fleet.id), {
+        ownerEmail: owned.fleet.ownerEmail,
+        resolver: targetResolver,
+      });
+      if (!out.ok) return res.status(409).json(out);
+      res.json(out);
+    } catch (err) {
+      console.error("[fleets] orchestration apply error:", err.message);
       res.status(500).json({ error: err.message || "internal error" });
     }
   });

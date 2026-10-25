@@ -9,7 +9,8 @@
     "delete": "Supprimer",
     "close": "Fermer",
     "disconnect": "Déconnecter",
-    "retry": "Réessayer"
+    "retry": "Réessayer",
+    "more": "Charger plus"
   },
   "nav": {
     "chat": "Discussion",
@@ -2526,6 +2527,36 @@
       "replay": "Curseur de relecture",
       "live": "Direct",
       "noTrace": "sans trace"
+    },
+    "inspector": {
+      "open": "Détails",
+      "statusBasis": "Base du statut",
+      "modelChain": "Chaîne de modèles",
+      "declared": "Déclaré",
+      "fallback": "Repli",
+      "effective": "Effectif",
+      "lastTurn": "Dernier tour",
+      "slots": "Slots KPI",
+      "cadence": "Cadence",
+      "promptTemplate": "Modèle de prompt",
+      "noDecisions": "Aucune décision de ce poste",
+      "edgeTraffic": "Trafic du bord (24h)",
+      "noTraffic": "Aucun passage ces 24h",
+      "tab": {
+        "overview": "Aperçu",
+        "config": "Config",
+        "turns": "Tours",
+        "reports": "Rapports",
+        "decisions": "Décisions"
+      }
+    },
+    "design": {
+      "enter": "Concevoir",
+      "on": "En conception",
+      "exit": "Quitter (abandonner)",
+      "confirm": "Appliquer le brouillon",
+      "edgeKind": "Type de nouvelle arête",
+      "removed": "{{n}} arête(s) à retirer"
     }
   },
   "facetCurate": {

@@ -9,7 +9,8 @@
     "delete": "Eliminar",
     "close": "Cerrar",
     "disconnect": "Desconectar",
-    "retry": "Reintentar"
+    "retry": "Reintentar",
+    "more": "Cargar más"
   },
   "nav": {
     "chat": "Chat",
@@ -2526,6 +2527,36 @@
       "replay": "Cursor de repetición",
       "live": "En vivo",
       "noTrace": "sin trace"
+    },
+    "inspector": {
+      "open": "Detalles",
+      "statusBasis": "Base del estado",
+      "modelChain": "Cadena de modelos",
+      "declared": "Declarado",
+      "fallback": "Respaldo",
+      "effective": "Efectivo",
+      "lastTurn": "Último turno",
+      "slots": "Ranuras KPI",
+      "cadence": "Cadencia",
+      "promptTemplate": "Plantilla de prompt",
+      "noDecisions": "Sin decisiones de este puesto",
+      "edgeTraffic": "Tráfico del borde (24h)",
+      "noTraffic": "Sin pasos en las últimas 24h",
+      "tab": {
+        "overview": "Resumen",
+        "config": "Config",
+        "turns": "Turnos",
+        "reports": "Informes",
+        "decisions": "Decisiones"
+      }
+    },
+    "design": {
+      "enter": "Diseñar",
+      "on": "Diseñando",
+      "exit": "Salir (descartar)",
+      "confirm": "Aplicar borrador",
+      "edgeKind": "Tipo de arista nueva",
+      "removed": "{{n}} arista(s) marcadas para quitar"
     }
   },
   "facetCurate": {

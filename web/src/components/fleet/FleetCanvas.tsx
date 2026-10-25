@@ -11,7 +11,7 @@
 // v1 graph); positions recompute ONLY when the member/edge signature changes,
 // so a live event flips data and never shuffles the board.
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Background,
@@ -66,17 +66,21 @@ export interface CanvasTraffic {
   to: string;
   kind: string;
   turns: number;
+  ok?: number;
+  failed?: number;
 }
 
 type PostData = {
   post: CanvasPost;
   live: boolean;
+  connectable: boolean;
 } & Record<string, unknown>;
 
 type SourceData = {
   label: string;
   kind: string;
   live: boolean;
+  connectable: boolean;
 } & Record<string, unknown>;
 
 const STATUS_RING: Record<string, string> = {
@@ -106,9 +110,10 @@ function fmtClock(v: string | null, locale: string): string {
   return new Date(ms).toLocaleString(locale, { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-// Edges anchor on these; they are invisible and non-interactive (the canvas
-// is read-only — no manual connections in v2 face 1).
-const HIDDEN_HANDLE = { style: { opacity: 0, pointerEvents: "none", width: 8, height: 8 } } as const;
+// Edges anchor on these. They stay invisible but INTERACTIVE: design mode's
+// drag-connect starts on the source handle (pointerEvents must not be none —
+// read mode blocks connections via nodesConnectable instead).
+const HIDDEN_HANDLE = { style: { opacity: 0, width: 8, height: 8 } } as const;
 
 function PostNodeView({ data, id }: NodeProps<Node<PostData>>) {
   const { t, i18n } = useTranslation();
@@ -177,8 +182,8 @@ function PostNodeView({ data, id }: NodeProps<Node<PostData>>) {
           {fmtClock(post.lastRunAt, i18n.language)} · {fmtClock(post.nextRunAt, i18n.language)}
         </span>
       </div>
-      <Handle type="target" position={Position.Left} isConnectable={false} {...HIDDEN_HANDLE} />
-      <Handle type="source" position={Position.Right} isConnectable={false} {...HIDDEN_HANDLE} />
+      <Handle type="target" position={Position.Left} isConnectable={data.connectable} {...HIDDEN_HANDLE} />
+      <Handle type="source" position={Position.Right} isConnectable={data.connectable} {...HIDDEN_HANDLE} />
     </div>
   );
 }
@@ -194,8 +199,8 @@ function SourceNodeView({ data, id }: NodeProps<Node<SourceData>>) {
         {data.label}
       </span>
       {data.live ? <span className="ml-auto h-1.5 w-1.5 animate-ping rounded-full bg-blue-500" /> : null}
-      <Handle type="target" position={Position.Left} isConnectable={false} {...HIDDEN_HANDLE} />
-      <Handle type="source" position={Position.Right} isConnectable={false} {...HIDDEN_HANDLE} />
+      <Handle type="target" position={Position.Left} isConnectable={data.connectable} {...HIDDEN_HANDLE} />
+      <Handle type="source" position={Position.Right} isConnectable={data.connectable} {...HIDDEN_HANDLE} />
     </div>
   );
 }
@@ -211,25 +216,66 @@ export function FleetCanvas({
   edges,
   traffic,
   liveTurns,
+  designMode = false,
+  draftEdges = [],
+  removedEdgeKeys = [],
+  onConnectEdge,
+  onEdgeSelect,
+  onNodeSelect,
+  onDraftEdgeRemove,
 }: {
   members: CanvasPost[];
   edges: GraphEdge[];
   traffic: CanvasTraffic[];
   liveTurns: LiveTurn[];
+  /** Design mode (face 4): enable connect handles + draft visuals. */
+  designMode?: boolean;
+  /** Draft (not-yet-applied) edges, drawn dashed. */
+  draftEdges?: GraphEdge[];
+  /** Keys of declared edges the draft removes (hidden while designing). */
+  removedEdgeKeys?: string[];
+  onConnectEdge?: (from: string, to: string) => void;
+  /** Read mode: an edge was clicked — open the edge inspector. */
+  onEdgeSelect?: (edge: GraphEdge) => void;
+  /** A post node was clicked — open the member inspector. */
+  onNodeSelect?: (memberId: string) => void;
+  /** Design mode: a DRAFT edge was clicked — drop it from the draft. */
+  onDraftEdgeRemove?: (from: string, to: string, kind: string) => void;
 }) {
   const { t } = useTranslation();
 
   // Layout signature: only a member/edge change re-lays-out the board (spec:
   // 实时更新不重排). Live turns and traffic flip data in place below.
+  // The edge universe the canvas draws: declared edges (minus the draft's
+  // removals, while designing) plus the draft's additions (dashed).
+  const effectiveEdges = useMemo(() => {
+    if (!designMode || removedEdgeKeys.length === 0) return edges;
+    const drop = (e: GraphEdge) => {
+      if (e.kind === "fanout") return (e.targets ?? []).every((t) => removedEdgeKeys.includes(`${e.from}→${t}:fanout`));
+      return removedEdgeKeys.includes(`${e.from ?? ""}→${e.to ?? ""}:${e.kind}`);
+    };
+    return edges.filter((e) => !drop(e));
+  }, [edges, designMode, removedEdgeKeys]);
+
+  const allEdges = useMemo(() => [...effectiveEdges, ...draftEdges], [effectiveEdges, draftEdges]);
+  const draftKeySet = useMemo(() => {
+    const set = new Set<string>();
+    for (const e of draftEdges) {
+      if (e.kind === "fanout") for (const t of e.targets ?? []) set.add(`${e.from}→${t}:fanout`);
+      else set.add(`${e.from ?? ""}→${e.to ?? ""}:${e.kind}`);
+    }
+    return set;
+  }, [draftEdges]);
+
   const signature = useMemo(
-    () => `${members.map((m) => `${m.id}:${m.title}:${m.kind}`).join("|")}#${edges.map((e) => `${e.kind}:${e.from ?? "*"}:${e.to ?? ""}:${(e.targets ?? []).join(",")}`).join("|")}`,
-    [members, edges],
+    () => `${members.map((m) => `${m.id}:${m.title}:${m.kind}`).join("|")}#${allEdges.map((e) => `${e.kind}:${e.from ?? "*"}:${e.to ?? ""}:${(e.targets ?? []).join(",")}`).join("|")}`,
+    [members, allEdges],
   );
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: the signature IS the memo key by design — live turns and traffic flip data in place, a member/edge change (and only that) re-lays-out the board (spec: 实时更新不重排)
   const laid = useMemo(() => {
     const graphMembers: GraphMember[] = members.map((m) => ({ id: m.id, title: m.title, targetKind: m.kind }));
-    return computeGraph(graphMembers, edges);
+    return computeGraph(graphMembers, allEdges);
   }, [signature]);
 
   const liveByMember = useMemo(() => {
@@ -264,11 +310,11 @@ export function FleetCanvas({
           type: isPost ? "post" : "source",
           position: { x: n.x, y: n.y },
           data: isPost
-            ? ({ post: members.find((m) => m.id === n.id)!, live } satisfies PostData as PostData)
-            : ({ label: n.label, kind: n.kind, live } satisfies SourceData as SourceData),
+            ? ({ post: members.find((m) => m.id === n.id)!, live, connectable: designMode } satisfies PostData as PostData)
+            : ({ label: n.label, kind: n.kind, live, connectable: designMode } satisfies SourceData as SourceData),
         };
       }),
-    [laid, members, liveByMember],
+    [laid, members, liveByMember, designMode],
   );
 
   const rfEdges: Edge[] = useMemo(
@@ -278,22 +324,60 @@ export function FleetCanvas({
         const color = KIND_COLORS[l.kind] ?? "#94a3b8";
         const turns = trafficByKey.get(key) ?? 0;
         const live = liveEdgeKeys.has(key);
+        const draft = draftKeySet.has(key);
         return {
           id: key,
           source: l.from,
           target: l.to,
           animated: live,
           style: {
-            stroke: color,
+            stroke: draft ? "#3b82f6" : color,
             strokeWidth: 1.5 + Math.min(2.5, Math.sqrt(turns) * 0.5),
+            ...(draft ? { strokeDasharray: "7 4" } : {}),
           },
-          markerEnd: { type: MarkerType.ArrowClosed, color, width: 16, height: 16 },
+          markerEnd: { type: MarkerType.ArrowClosed, color: draft ? "#3b82f6" : color, width: 16, height: 16 },
         };
       }),
-    [laid, liveEdgeKeys, trafficByKey],
+    [laid, liveEdgeKeys, trafficByKey, draftKeySet],
   );
 
   const legendKinds = useMemo(() => [...new Set(laid.links.map((l) => l.kind))], [laid]);
+
+  const handleConnect = useCallback(
+    (c: { source: string | null; target: string | null }) => {
+      if (!designMode || !c.source || !c.target || c.source === c.target) return;
+      onConnectEdge?.(c.source, c.target);
+    },
+    [designMode, onConnectEdge],
+  );
+
+  const handleEdgeClick = useCallback(
+    (_e: unknown, edge: Edge) => {
+      const m = /^(.*)→(.*):(.*)$/.exec(edge.id);
+      if (!m) return;
+      const from = m[1] ?? "";
+      const to = m[2] ?? "";
+      const kind = m[3] ?? "";
+      if (designMode && draftKeySet.has(edge.id)) {
+        onDraftEdgeRemove?.(from, to, kind);
+        return;
+      }
+      if (!designMode) {
+        const hit =
+          allEdges.find((g) => g.kind === kind && g.from === from && g.to === to) ??
+          (kind === "fanout" ? allEdges.find((g) => g.kind === "fanout" && g.from === from) : undefined);
+        if (hit) onEdgeSelect?.(hit);
+      }
+    },
+    [designMode, draftKeySet, onDraftEdgeRemove, onEdgeSelect, allEdges],
+  );
+
+  const handleNodeClick = useCallback(
+    (_e: unknown, node: Node) => {
+      if (!designMode && members.some((m) => m.id === node.id)) onNodeSelect?.(node.id);
+    },
+    [designMode, members, onNodeSelect],
+  );
 
   return (
     <div className="mt-1" data-testid="fleet-canvas">
@@ -314,8 +398,11 @@ export function FleetCanvas({
           minZoom={0.2}
           maxZoom={1.75}
           nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable={false}
+          nodesConnectable={designMode}
+          elementsSelectable
+          onConnect={handleConnect}
+          onEdgeClick={handleEdgeClick}
+          onNodeClick={handleNodeClick}
           proOptions={{ hideAttribution: false }}
           colorMode="system"
         >

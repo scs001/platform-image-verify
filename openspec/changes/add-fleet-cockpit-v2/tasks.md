@@ -29,11 +29,11 @@
 
 ## 4. 检查器与设计模式(D)
 
-- [ ] 4.1 `fleet-architect.js` 抽出 `draftFleetSpec/applyFleetSpec`,桥路由原地改调;验证:`scripts/test-fleet-architect.mjs` 全绿(行为逐项等价)
-- [ ] 4.2 owner 鉴权路由 `POST /api/fleets/:id/orchestration/draft|apply`(限 orchestration 段与 cadence/model 子集);验证:路由测试 同一成环草稿两门同错同拒、未鉴权与非 owner 拒绝、apply 前漂移拒绝指名岗位、桥 loopback 拒绝不变
-- [ ] 4.3 检查器抽屉五页签(概况/配置/回合/产出/审批)+ 边检查器(类型/两端/约束/edgeTraffic 成败分布);换防/暂停/调速/补岗/审批面板抽为可嵌入组件复用;验证:e2e 抽屉内换防含清史重开勾选完成;配置页改 cron 走既有路径且 <10min 触发确认;边检查器呈 24h 计数
-- [ ] 4.4 设计模式:开关(默认关)、拖线/断边/改类型约束生成草稿(视觉区分)、调 draft 呈 diff 面、成环等阻断禁用确认、确认→apply→草稿边转落地、退出丢弃;验证:e2e 拖线→diff→确认→库中出现边且列表同步;成环草稿确认按钮禁用;退出后草稿消失库无变化
-- [ ] 4.5 退役卡片上下文菜单与独立 decisions dialog 入口(迁入抽屉);验证:`fleets.spec` 更新后绿,无死入口
+- [x] 4.1 `fleet-architect.js` 抽出 `draftFleetSpec/applyFleetSpec`,桥路由原地改调;验证:`scripts/test-fleet-architect.mjs` 全绿(行为逐项等价)
+- [x] 4.2 owner 鉴权路由 `POST /api/fleets/:id/orchestration/draft|apply`(限 orchestration 段与 cadence/model 子集);验证:路由测试 同一成环草稿两门同错同拒、未鉴权与非 owner 拒绝、apply 前漂移拒绝指名岗位、桥 loopback 拒绝不变
+- [x] 4.3 检查器抽屉五页签(概况/配置/回合/产出/审批)+ 边检查器(类型/两端/约束/edgeTraffic 成败分布);换防/暂停/调速/补岗/审批面板抽为可嵌入组件复用;验证:e2e 抽屉内换防含清史重开勾选完成;配置页改 cron 走既有路径且 <10min 触发确认;边检查器呈 24h 计数
+- [x] 4.4 设计模式:开关(默认关)、拖线/断边/改类型约束生成草稿(视觉区分)、调 draft 呈 diff 面、成环等阻断禁用确认、确认→apply→草稿边转落地、退出丢弃;验证:e2e 拖线→diff→确认→库中出现边且列表同步;成环草稿确认按钮禁用;退出后草稿消失库无变化
+- [x] 4.5 退役卡片上下文菜单与独立 decisions dialog 入口(迁入抽屉);验证:`fleets.spec` 更新后绿,无死入口
 - [ ] 4.6 浏览器眼见:三面齐备 + 设计模式一次真改(加一条 handoff 并确认)截图入台账
 
 ## 5. 收尾

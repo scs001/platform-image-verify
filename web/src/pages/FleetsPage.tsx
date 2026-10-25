@@ -149,6 +149,9 @@ interface FleetDetail {
 const FleetCanvas = lazy(() => import("@/components/fleet/FleetCanvas"));
 // The run timeline (face 2) rides its own chunk too (trace join + waterfall).
 const RunTimeline = lazy(() => import("@/components/fleet/RunTimeline"));
+// The inspector drawer (face 3) — member tabs + edge inspector.
+const MemberInspector = lazy(() => import("@/components/fleet/InspectorDrawer").then((m) => ({ default: m.MemberInspector })));
+const EdgeInspector = lazy(() => import("@/components/fleet/InspectorDrawer").then((m) => ({ default: m.EdgeInspector })));
 
 interface DecisionItem {
   id: string;
@@ -233,6 +236,19 @@ export function FleetsPage() {
   const [swapFor, setSwapFor] = useState<MemberView | null>(null);
   const [drawerFor, setDrawerFor] = useState<MemberView | null>(null);
   const [decisionsOpen, setDecisionsOpen] = useState(false);
+  // Inspector drawer (v2 face 3): the one place for a post's detail + actions.
+  const [inspectorFor, setInspectorFor] = useState<MemberView | null>(null);
+  const [inspectorTab, setInspectorTab] = useState<"overview" | "config" | "turns" | "reports" | "decisions">("overview");
+  const [edgeInspectorFor, setEdgeInspectorFor] = useState<{ kind: string; from?: string; to?: string; targets?: string[]; aggregate?: { kind: string; judge?: string }; cron?: string; rounds?: number } | null>(null);
+  // Design mode (v2 face 4): draft edges ride the architect dry-run lane —
+  // nothing lands before an explicit confirm on a passing draft.
+  const [design, setDesign] = useState(false);
+  const [newEdgeKind, setNewEdgeKind] = useState("handoff");
+  const [draftEdges, setDraftEdges] = useState<{ kind: string; from: string; to: string }[]>([]);
+  const [removedEdgeKeys, setRemovedEdgeKeys] = useState<string[]>([]);
+  const [dryRun, setDryRun] = useState<{ ok: boolean; errors?: { error: string }[]; warnings?: { warning: string }[]; diff?: unknown[] } | null>(null);
+  const [applying, setApplying] = useState(false);
+  const [designError, setDesignError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const loadList = useCallback(async () => {
@@ -321,6 +337,110 @@ export function FleetsPage() {
     [detail],
   );
 
+  // ── design mode (v2 face 4): draft → dry-run → confirm → apply ────────────
+
+  const hasDraftOps = draftEdges.length > 0 || removedEdgeKeys.length > 0;
+
+  // The terminal orchestration a confirmation would land: the declared section
+  // with the draft's removals applied and additions appended (first edge on an
+  // undeclared fleet starts a pipeline section).
+  const terminalOrchestration = useMemo(() => {
+    if (!detail || !hasDraftOps) return null;
+    const raw = (detail.fleet as { orchestration?: { mode?: string; constraints?: Record<string, number>; edges?: { kind: string; from?: string; to?: string; targets?: string[]; aggregate?: { kind: string; judge?: string }; cron?: string; rounds?: number }[] } | null }).orchestration ?? null;
+    const kept = (raw?.edges ?? []).filter((e) => {
+      if (e.kind === "fanout") return !(e.targets ?? []).every((t) => removedEdgeKeys.includes(`${e.from}→${t}:fanout`));
+      return !removedEdgeKeys.includes(`${e.from ?? ""}→${e.to ?? ""}:${e.kind}`);
+    });
+    return {
+      mode: raw?.mode ?? "pipeline",
+      constraints: raw?.constraints,
+      edges: [...kept, ...draftEdges],
+    };
+  }, [detail, draftEdges, removedEdgeKeys, hasDraftOps]);
+
+  // Dry-run whenever the draft changes (the same validator the architect NL
+  // lane rides — two doors, one judgment).
+  useEffect(() => {
+    if (!selectedId || !design || !hasDraftOps || !terminalOrchestration) {
+      setDryRun(null);
+      return;
+    }
+    let alive = true;
+    fetch(`/api/fleets/${encodeURIComponent(selectedId)}/orchestration/draft`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ fleet: { orchestration: terminalOrchestration } }),
+    })
+      .then(async (r) => {
+        const body = await r.json().catch(() => ({}));
+        if (alive) setDryRun(r.ok ? body : { ok: false, errors: [{ error: body.error ?? `draft ${r.status}` }] });
+      })
+      .catch((e) => alive && setDryRun({ ok: false, errors: [{ error: String(e?.message ?? e) }] }));
+    return () => {
+      alive = false;
+    };
+  }, [selectedId, design, hasDraftOps, terminalOrchestration]);
+
+  const addDraftEdge = (from: string, to: string) => {
+    setDraftEdges((prev) =>
+      prev.some((e) => e.from === from && e.to === to && e.kind === newEdgeKind) ? prev : [...prev, { kind: newEdgeKind, from, to }],
+    );
+  };
+  const removeDraftEdge = (from: string, to: string, kind: string) =>
+    setDraftEdges((prev) => prev.filter((e) => !(e.from === from && e.to === to && e.kind === kind)));
+
+  const confirmDesign = async () => {
+    if (!selectedId || !terminalOrchestration || !dryRun?.ok) return;
+    setApplying(true);
+    setDesignError(null);
+    try {
+      const r = await fetch(`/api/fleets/${encodeURIComponent(selectedId)}/orchestration/apply`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ fleet: { orchestration: terminalOrchestration } }),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok || body.ok === false) {
+        setDesignError(body.errors?.map((e: { error: string }) => e.error).join("; ") ?? body.error ?? `apply ${r.status}`);
+        return;
+      }
+      setDraftEdges([]);
+      setRemovedEdgeKeys([]);
+      setDesign(false);
+      await refresh();
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const exitDesign = () => {
+    setDesign(false);
+    setDraftEdges([]);
+    setRemovedEdgeKeys([]);
+    setDryRun(null);
+    setDesignError(null);
+  };
+
+  const inspectorDecision = async (
+    item: { id: string },
+    op: "approve" | "reject",
+    choice?: string,
+  ) => {
+    if (!selectedId) return;
+    const r = await fetch(`/api/fleets/${encodeURIComponent(selectedId)}/decisions/${encodeURIComponent(item.id)}/${op}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      ...(choice !== undefined ? { body: JSON.stringify({ choice }) } : {}),
+    });
+    if (!r.ok) setError((await r.json().catch(() => ({}))).error ?? `${op} ${r.status}`);
+    await refresh();
+  };
+
+  const openInspector = (member: MemberView, tab: typeof inspectorTab = "overview") => {
+    setInspectorTab(tab);
+    setInspectorFor(member);
+  };
+
   // Autofollow the first fleet when the list arrives and nothing is selected.
   useEffect(() => {
     const first = fleets[0];
@@ -353,7 +473,7 @@ export function FleetsPage() {
     await loadList();
   };
 
-  const memberAction = async (path: string, method: "POST" | "DELETE", body?: Record<string, unknown>) => {
+  const memberAction = async (path: string, method: "POST" | "DELETE" | "PATCH", body?: Record<string, unknown>) => {
     const r = await fetch(path, {
       method,
       headers: { "content-type": "application/json" },
@@ -512,7 +632,15 @@ export function FleetsPage() {
                   type="button"
                   className="mt-3 flex w-full flex-wrap items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-left"
                   data-testid="fleet-decision-banner"
-                  onClick={() => setDecisionsOpen(true)}
+                  onClick={() => {
+                    // 直达批复 (v2): the banner opens the top item's post on the
+                    // inspector's 审批 tab; the fleet-wide queue drawer stays one
+                    // click deeper for the multi-post view.
+                    const top = detail.decisions?.[0];
+                    const member = top ? detail.members.find((m) => m.id === top.memberId) : null;
+                    if (member) openInspector(member, "decisions");
+                    else setDecisionsOpen(true);
+                  }}
                 >
                   <span className="rounded-full bg-destructive/15 px-2 py-0.5 text-xs text-destructive">
                     {t("fleets.decisions.waitingBadge", { count: detail.openDecisions ?? detail.decisions.length })}
@@ -594,6 +722,63 @@ export function FleetsPage() {
                           </span>
                         </div>
                       ) : null}
+                      {/* Design mode (v2 face 4): draft edges ride the architect
+                          dry-run lane — toggle on, drag a connection (kind
+                          picked below), the draft lands only on explicit
+                          confirm of a passing dry-run; exit discards. */}
+                      <div className="mb-2 flex flex-wrap items-center gap-2 text-xs" data-testid="design-panel">
+                        {design ? (
+                          <>
+                            <span className="rounded-full bg-blue-500/15 px-2 py-0.5 text-blue-600 dark:text-blue-400">{t("fleets.design.on")}</span>
+                            <select
+                              aria-label={t("fleets.design.edgeKind")}
+                              className="rounded-md border border-border bg-card px-2 py-1"
+                              value={newEdgeKind}
+                              onChange={(e) => setNewEdgeKind(e.target.value)}
+                              data-testid="design-kind"
+                            >
+                              {["handoff", "dispatch", "report"].map((k) => (
+                                <option key={k} value={k}>
+                                  {t(`fleets.orch.edge.${k}`)}
+                                </option>
+                              ))}
+                            </select>
+                            {removedEdgeKeys.length > 0 ? (
+                              <span className="text-muted-foreground">
+                                {t("fleets.design.removed", { n: removedEdgeKeys.length })}
+                              </span>
+                            ) : null}
+                            {dryRun && !dryRun.ok ? (
+                              <span className="text-destructive" data-testid="design-errors">
+                                {(dryRun.errors ?? []).map((e) => e.error).join("; ")}
+                              </span>
+                            ) : null}
+                            {designError ? <span className="text-destructive">{designError}</span> : null}
+                            <Button
+                              size="sm"
+                              className="ml-auto"
+                              disabled={!hasDraftOps || !dryRun?.ok || applying}
+                              onClick={() => void confirmDesign()}
+                              data-testid="design-confirm"
+                            >
+                              {t("fleets.design.confirm")}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={exitDesign} data-testid="design-exit">
+                              {t("fleets.design.exit")}
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="ml-auto"
+                            onClick={() => setDesign(true)}
+                            data-testid="design-toggle"
+                          >
+                            {t("fleets.design.enter")}
+                          </Button>
+                        )}
+                      </div>
                       {/* The live canvas (agent-fleet-cockpit v2): posts as
                           cards, declared edges as kind-colored curves, cron /
                           signal sources as dashed virtual nodes; in-flight
@@ -631,6 +816,16 @@ export function FleetsPage() {
                           edges={detail.orchestration!.edges.filter((e) => !(e.kind === "dispatch" && e.implicit))}
                           traffic={detail.edgeTraffic ?? []}
                           liveTurns={liveTurns}
+                          designMode={design}
+                          draftEdges={draftEdges}
+                          removedEdgeKeys={removedEdgeKeys}
+                          onConnectEdge={addDraftEdge}
+                          onDraftEdgeRemove={removeDraftEdge}
+                          onEdgeSelect={(e) => setEdgeInspectorFor(e)}
+                          onNodeSelect={(id) => {
+                            const m = detail.members.find((x) => x.id === id);
+                            if (m) openInspector(m);
+                          }}
                         />
                       </Suspense>
                       {visible.map((e) => {
@@ -824,45 +1019,13 @@ export function FleetsPage() {
                           {member.latestReport.summary}
                         </p>
                       ) : null}
-                      <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                        {detail.fleet.state !== "archived" ? (
-                          <>
-                            <Button variant="outline" size="sm" onClick={() => setSwapFor(member)}>
-                              {t("fleets.swap")}
+                        <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                          {detail.fleet.state !== "archived" ? (
+                            <Button variant="outline" size="sm" data-testid={`member-inspect-${member.id}`} onClick={() => openInspector(member)}>
+                              {t("fleets.inspector.open")}
                             </Button>
-                            {member.cadence ? (
-                              member.cadence.enabled ? (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => memberAction(`/api/fleets/${selected.id}/members/${member.id}/pause`, "POST")}
-                                >
-                                  {t("fleets.member.pause")}
-                                </Button>
-                              ) : (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => memberAction(`/api/fleets/${selected.id}/members/${member.id}/resume`, "POST")}
-                                >
-                                  {t("fleets.member.resume")}
-                                </Button>
-                              )
-                            ) : null}
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                if (window.confirm(t("fleets.member.confirmRemove"))) {
-                                  void memberAction(`/api/fleets/${selected.id}/members/${member.id}`, "DELETE");
-                                }
-                              }}
-                            >
-                              {t("fleets.member.remove")}
-                            </Button>
-                          </>
-                        ) : null}
-                      </div>
+                          ) : null}
+                        </div>
                     </div>
                   ))
                 )}
@@ -948,6 +1111,32 @@ export function FleetsPage() {
           onClose={() => setDecisionsOpen(false)}
           onDecided={refresh}
         />
+      ) : null}
+      {inspectorFor && selected ? (
+        <Suspense fallback={null}>
+          <MemberInspector
+            member={inspectorFor}
+            initialTab={inspectorTab}
+            onClose={() => setInspectorFor(null)}
+            onSwap={() => setSwapFor(inspectorFor)}
+            onAction={async (path, method, body) => {
+              await memberAction(path, method, body);
+            }}
+            onDecision={(item, op, choice) => inspectorDecision(item, op, choice)}
+            navigate={(to) => navigate(to)}
+          />
+        </Suspense>
+      ) : null}
+      {edgeInspectorFor ? (
+        <Suspense fallback={null}>
+          <EdgeInspector
+            edge={edgeInspectorFor}
+            memberTitles={memberTitles}
+            constraints={detail?.orchestration?.constraints ?? null}
+            traffic={detail?.edgeTraffic ?? []}
+            onClose={() => setEdgeInspectorFor(null)}
+          />
+        </Suspense>
       ) : null}
     </div>
   );

@@ -561,7 +561,15 @@ test.describe("fleets ownership under forward auth", () => {
 // edge, ended retires both. Undeclared fleets render no canvas at all.
 
 const CANVAS_FLEET = {
-  fleet: { id: FLEET_ID, name: "Canvas Fleet", state: "active" },
+  fleet: {
+    id: FLEET_ID,
+    name: "Canvas Fleet",
+    state: "active",
+    orchestration: { mode: "pipeline", edges: [
+      { kind: "trigger", to: "ceo", cron: "0 9 * * *" },
+      { kind: "handoff", from: "ceo", to: "inv" },
+    ] },
+  },
   members: [
     memberFixture("ceo", { title: "CEO" }),
     memberFixture("inv", { title: "Invest", parentId: "ceo" }),
@@ -811,5 +819,132 @@ test.describe("fleet runs timeline", () => {
     await expect(runs).toBeVisible({ timeout: 15000 });
     await expect(runs.getByTestId("runs-empty")).toBeVisible();
     await expect(runs.getByTestId("runs-list")).toHaveCount(0);
+  });
+});
+
+// ── inspector + design mode (cockpit v2 faces 3+4) ──────────────────────────
+
+test.describe("fleet inspector & design mode", () => {
+  test.beforeEach(async ({ page }) => {
+    await pinLocaleEn(page);
+    await page.route("**/api/fleets", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ fleets: [{ id: FLEET_ID, name: "Canvas Fleet", state: "active", memberCount: 3, statusCounts: { on_duty: 3 } }] }),
+      }),
+    );
+    await page.route(`**/api/fleets/${FLEET_ID}/cockpit`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify(CANVAS_FLEET) }),
+    );
+    await page.route(`**/api/fleets/${FLEET_ID}/runs**`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ total: 0, runs: [] }) }),
+    );
+    await page.route(`**/api/fleets/${FLEET_ID}/members/**/turns**`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ turns: [], nextBefore: null }) }),
+    );
+    await page.route(`**/api/fleets/${FLEET_ID}/members/**/reports**`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ reports: [], nextBefore: null }) }),
+    );
+    await page.route(`**/api/fleets/${FLEET_ID}/decisions**`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ open: 0, decisions: [] }) }),
+    );
+  });
+
+  test("clicking a canvas node opens the five-tab inspector; the edge opens the edge inspector", async ({ page }) => {
+    await page.goto(`/fleets/${FLEET_ID}`);
+    const canvas = page.getByTestId("fleet-canvas");
+    await expect(canvas.getByTestId("canvas-node-inv")).toBeVisible({ timeout: 15000 });
+
+    await canvas.getByTestId("canvas-node-inv").click();
+    const insp = page.getByTestId("inspector-inv");
+    await expect(insp).toBeVisible();
+    for (const tab of ["overview", "config", "turns", "reports", "decisions"]) {
+      await expect(insp.getByTestId(`inspector-tab-${tab}`)).toBeVisible();
+    }
+    await insp.getByTestId("inspector-close").click();
+    await expect(insp).toBeHidden();
+
+    // Click the edge's midpoint (between the two node cards) — SVG paths have
+    // off-viewport bboxes under the flow transform, so aim between the nodes.
+    const cb = await canvas.getByTestId("canvas-node-ceo").boundingBox();
+    const ib = await canvas.getByTestId("canvas-node-inv").boundingBox();
+    await page.mouse.click((cb.x + cb.width + ib.x) / 2, (cb.y + ib.y + cb.height) / 2 - cb.height / 2 + cb.height / 2);
+    const edgeInsp = page.getByTestId("edge-inspector");
+    await expect(edgeInsp).toBeVisible();
+    await expect(edgeInsp).toContainText("handoff");
+    await expect(edgeInsp.getByTestId("edge-inspector-traffic")).toContainText("24h: 4");
+  });
+
+  test("design mode: drag-connect drafts an edge, dry-run gates confirm, apply lands it", async ({ page }) => {
+    const applies = [];
+    let draftOk = true;
+    const connect = async (src, dst) => {
+      const sb = await src.boundingBox();
+      const db = await dst.boundingBox();
+      await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(db.x + db.width / 2, db.y + db.height / 2, { steps: 8 });
+      await page.mouse.up();
+    };
+    await page.route(`**/api/fleets/${FLEET_ID}/orchestration/draft`, (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify(draftOk ? { ok: true, diff: [{ op: "edge", kind: "handoff" }], warnings: [] } : { ok: false, errors: [{ error: "handoff edges form a cycle: ceo→ops→ceo" }], warnings: [] }),
+      }),
+    );
+    await page.route(`**/api/fleets/${FLEET_ID}/orchestration/apply`, (route) => {
+      applies.push(route.request().postDataJSON());
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, mode: "edit", applied: [] }) });
+    });
+    await page.goto(`/fleets/${FLEET_ID}`);
+    const canvas = page.getByTestId("fleet-canvas");
+    await expect(canvas.getByTestId("canvas-node-ceo")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("design-panel")).toBeVisible();
+
+    // Enter design; the confirm is dead until a draft exists.
+    await page.getByTestId("design-toggle").click();
+    await expect(page.getByTestId("design-kind")).toBeVisible();
+    await expect(page.getByTestId("design-confirm")).toBeDisabled();
+
+    // Drag ceo → ops (a NEW pair: existing edges are cron→ceo and ceo→inv).
+    const src = canvas.locator('.react-flow__node[data-id="ceo"] .react-flow__handle.source');
+    const dst = canvas.locator('.react-flow__node[data-id="ops"] .react-flow__handle.target');
+    await connect(src, dst);
+
+    // The draft edge renders (3 edges now) and confirm unlocks on a passing dry-run.
+    await expect(canvas.locator(".react-flow__edge")).toHaveCount(3);
+    await expect(canvas.locator('.react-flow__edge[data-id="ceo→ops:handoff"]')).toHaveCount(1);
+    await expect(page.getByTestId("design-confirm")).toBeEnabled({ timeout: 5000 });
+
+    // A blocked dry-run locks confirm and names the cycle: drop the draft,
+    // flip the stub to failing, reconnect — the errors line shows, confirm is dead.
+    await canvas.locator('.react-flow__edge[data-id="ceo→ops:handoff"]').click();
+    await expect(canvas.locator(".react-flow__edge")).toHaveCount(2);
+    draftOk = false;
+    await connect(src, dst);
+    await expect(page.getByTestId("design-errors")).toContainText("cycle", { timeout: 5000 });
+    await expect(page.getByTestId("design-confirm")).toBeDisabled();
+
+    // Unblock, confirm, land: the apply body carries the terminal orchestration
+    // with BOTH declared edges kept and the new handoff appended.
+    draftOk = true;
+    await canvas.locator('.react-flow__edge[data-id="ceo→ops:handoff"]').click();
+    await connect(src, dst);
+    await expect(page.getByTestId("design-confirm")).toBeEnabled({ timeout: 5000 });
+    await page.getByTestId("design-confirm").click();
+    await expect(page.getByTestId("design-toggle")).toBeVisible({ timeout: 5000 });
+    expect(applies.length).toBe(1);
+    const edges = applies[0].fleet.orchestration.edges.map((e) => `${e.kind}:${e.from ?? "*"}→${e.to ?? (e.targets ?? []).join("+")}`);
+    expect(edges).toContain("trigger:*→ceo");
+    expect(edges).toContain("handoff:ceo→inv");
+    expect(edges).toContain("handoff:ceo→ops");
+
+    // Exit discards: enter, connect, exit without confirming — nothing applied.
+    await page.getByTestId("design-toggle").click();
+    await connect(src, dst);
+    await expect(canvas.locator(".react-flow__edge")).toHaveCount(3);
+    await page.getByTestId("design-exit").click();
+    await expect(canvas.locator(".react-flow__edge")).toHaveCount(2);
+    expect(applies.length).toBe(1);
   });
 });

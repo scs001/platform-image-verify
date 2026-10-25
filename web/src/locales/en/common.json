@@ -9,7 +9,8 @@
     "delete": "Delete",
     "close": "Close",
     "disconnect": "Disconnect",
-    "retry": "Retry"
+    "retry": "Retry",
+    "more": "Load more"
   },
   "nav": {
     "chat": "Chat",
@@ -2526,6 +2527,36 @@
       "replay": "Replay cursor",
       "live": "Live",
       "noTrace": "no trace"
+    },
+    "inspector": {
+      "open": "Details",
+      "statusBasis": "Status basis",
+      "modelChain": "Model chain",
+      "declared": "Declared",
+      "fallback": "Fallback",
+      "effective": "Effective",
+      "lastTurn": "Last turn",
+      "slots": "KPI slots",
+      "cadence": "Cadence",
+      "promptTemplate": "Prompt template",
+      "noDecisions": "No decisions from this post",
+      "edgeTraffic": "Edge traffic (24h)",
+      "noTraffic": "No hops in the last 24h",
+      "tab": {
+        "overview": "Overview",
+        "config": "Config",
+        "turns": "Turns",
+        "reports": "Reports",
+        "decisions": "Decisions"
+      }
+    },
+    "design": {
+      "enter": "Design",
+      "on": "Designing",
+      "exit": "Exit (discard)",
+      "confirm": "Apply draft",
+      "edgeKind": "New edge kind",
+      "removed": "{{n}} edge(s) marked removed"
     }
   },
   "facetCurate": {

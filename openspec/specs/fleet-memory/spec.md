@@ -196,9 +196,11 @@ MCP 面（streamable-http，鉴权头）SHALL 暴露 handoff 四件套与 query/
 
 ### Requirement: 平台缝 digest 读面——服务端单源渲染
 
-fd-memory SHALL 在平台缝暴露 digest 读面 `GET /digest?project=<name>&k=&budget=`：以请求令牌自身 root 内该 project 为范围，经与蒸馏候选检索同一条代码路径（向量优先、关键词兜底）按 query 文本（请求参数 `q`）召回 top-k 条 L2 页，并追加该 project 的近期 note 页为 L1 条目（按更新时间新近排序、至多 3 条），交 digest 渲染器（预算硬顶、每条 layer/confidence/日期标注、open handoffs 通知段、forget 与 expired 条目排除）产出注入块，返回 `{digest: string, items: number, notes: number, truncated: boolean, model_note?: string}`。渲染优先级 SHALL 为：open handoffs 通知段最先保留，其后 L2 条目（召回秩），最后 L1 近期 notes——预算不足时按此逆序截断。
+fd-memory SHALL 在平台缝暴露 digest 读面 `GET /digest?project=<name>&k=&budget=`：以请求令牌自身 root 内该 project 为范围，经与蒸馏候选检索同一条代码路径（向量优先、关键词兜底）按 query 文本（请求参数 `q`）召回 top-k 条 L2 页，并追加该 project 的近期 note 页为 L1 条目（按更新时间新近排序、至多 3 条），交 digest 渲染器（预算硬顶、每条 layer/confidence/日期标注、open handoffs 通知段、forget 与 expired 条目排除）产出注入块——open handoffs 通知段同受预算硬顶约束（保先位不保特权：单条超预算即整条让位，防巨型轮报交接淹没整块），返回 `{digest: string, items: number, notes: number, truncated: boolean, model_note?: string}`。渲染优先级 SHALL 为：open handoffs 通知段最先保留，其后 L2 条目（召回秩），最后 L1 近期 notes——预算不足时按此逆序截断。
 
 鉴权与寻址 SHALL 与 `/pages` 面同纪律：person 令牌读自己 root 下 project；platform / runner 族令牌 MUST 以显式 `rootKey` 参数指定目标 root（不带 rootKey 的非 person 调用结构化拒绝）；线协议 MUST NOT 出现 namespace/root 名于 person 路径（project 在请求者自身 root 内解析）；agent 族令牌（deployment / pod）MUST 结构化拒绝。embed 车道不可用或超时 SHALL 降级为关键词召回并在响应 `model_note` 注明，MUST NOT 失败整个请求。k 与 budget 参数 SHALL 有服务端上限（k ≤ 8、budget ≤ 2000），越界取上限。
+
+embed 尝试 SHALL 受服务端内部 deadline 封顶（约 3.5s，取调用方预算余量与该值较小者）：deadline 内未返回即降级关键词召回——保证 /digest 总耗时存在上界，在调用方（cell 侧 5s AbortController）预算内必然返回 digest 块，而非整脸超时。服务端 SHALL 对每次 /digest 记一行 served-rung 日志（向量/关键词、items、notes、耗时），使命中率先天可观测。
 
 #### Scenario: person 令牌取自家集群 digest
 
@@ -214,6 +216,11 @@ fd-memory SHALL 在平台缝暴露 digest 读面 `GET /digest?project=<name>&k=&
 
 - **WHEN** sidecar embed 查询超时或失败时 person 令牌调用 /digest
 - **THEN** 请求成功，返回关键词召回渲染的块，model_note 注明向量缺席
+
+#### Scenario: 慢 embed 不拖垮整脸
+
+- **WHEN** sidecar embed 迟迟不返回（超过服务端内部 deadline）
+- **THEN** /digest 在 deadline 量级内返回关键词渲染块（model_note 注明），总耗时不超过调用方 5s 预算，调用方不再整脸超时降落到标题档
 
 #### Scenario: 参数上限钳制
 

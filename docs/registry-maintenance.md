@@ -2085,3 +2085,13 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **分类器校准（代码面，随下一班出片）**：`fleet-events.js` ERROR_KINDS 的 tool_permission 行裸 `403` 过贪——车道 HTTP 回声 "403 status code (no body)" 被误标工具权限。修正：tool_permission 去裸 403（permission/denied/forbidden/unauthorized/工具/权限 保留），model_upstream 增 `\b\d{3}\s*status code` 回声形态；回归测试 3 断言（403/502 no body → model_upstream；"report failed (403): permission denied" → tool_permission）钉死，test-fleet-turn-events 9/9。
 
 **配方增量**：sub2api 管理面路由考古法（管理台 SPA chunk grep `/assets/SubscriptionsView-*.js` 拿 assign 载荷形状）；车道 403 三层定位链（pod 内 curl 无 key 401 → 带 key 403 SUBSCRIPTION_NOT_FOUND → findUserByKey 定属主 → 订阅表对差）。
+
+### §15.40 迭代：L1 召回深度三连修（top-5+统一 gist+窗口无关），基准 hit 终达 5/5（2026-10-26，用户令「继续迭代」）
+
+**证据链起点**：run10 wx 场景 titles 臂胜 digest 臂（re 5 vs 1-2）——深挖 transcript 定位：关键背景住在新近排名 4-5 的 note（标题本身携带信号），digest 臂 L1 段 top-3 不可见；基准 A 唯一 miss（宏观研究员）同因。claim-rate 复查=39%（139/353，较 S0 时代 21% 显著改善——digest 注入的 handoffs 通知段带起曝光），降优先级。
+
+**三班滚产**（2f512b6→cbf1119→f074f49，各钉一修）：①L1 段 top-3→top-5+行级 gist（标题+100 字）+份额 200→400；②L2 摘录 400→150 字（3 条肥行 ≈350 token/条吃掉大半预算、份额被行宽架空——统一 gist 后块承载 8-10 行，「多而短」与 titles 臂胜因一致）；③**L1 取数改 note 专用查询**——recentPages(20) 类型盲，蒸馏回写的新鲜 L2+handoff churn 把旧 note 挤出窗口致 notes=0（cbf1119 生产块实锤：8 条 L2 全出自当日蒸馏、5 条 note 无一进块）；recentNotes(project,5) 直查类型，召回不随其他页型活动漂移。59/59 绿（含窗口无关回归：25 张新鲜 L2 churn 压不住旧 note）。
+
+**终测**：基准 5/5 全中、notes=4 每 query 在块——且全部在 keyword 降级档达成（韧性设计兑现：dense gist 让 keyword 档也满命中）。
+
+**观察项（侧车线，不在本仓）**：embed 冷崖 122.7s（首次 idle 后）+ 当晚 p50>3.5s（deadline 频繁降级 keyword）——LLM/embed 模型共享 GPU 换入换出所致，属 fd-memory-distiller 镜像策略问题；建议侧车线评估 embed 常驻或独立卡。eval run11（L1 top-5 版）在途。

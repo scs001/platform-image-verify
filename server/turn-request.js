@@ -24,6 +24,9 @@ export const RESERVED_RESULT_SINKS = {
 // graph-validated chains) is bounded by the fleet's declared maxChainDepth.
 export const DISPATCH_DEPTH_BOUND = 1;
 export const DEFAULT_MAX_CHAIN_DEPTH = 8;
+// Chain edge kinds (agent-fleet-runs): how a downstream turn was ignited.
+// Stamped by the igniting side on the task's origin.fleet.chain; read here.
+export const EDGE_KINDS = ["dispatch", "handoff", "fanout"];
 
 // Engine trigger kinds (task-engine.js): "schedule" = cron-armed, "manual" =
 // bridge-created. A scheduled task is cron-sourced with or without a fleet
@@ -34,6 +37,20 @@ export function buildTurnRequest(job) {
   const origin = job?.origin ?? null;
   const initiator = job?.initiator ?? null;
   const event = origin?.event ?? null;
+  // Chain position (agent-fleet-runs): the igniting side stamps
+  // origin.fleet.chain = { runId, parentTurnId, edgeKind } on a dispatched /
+  // handed-off / fanned-out task; a root turn carries none. Read-only by
+  // contract — this derivation never mints an id (the run ledger does, at the
+  // root turn's start), so deriving twice yields the same value object.
+  const rawChain = origin?.fleet?.chain ?? null;
+  const chain =
+    rawChain && typeof rawChain.runId === "string" && rawChain.runId
+      ? {
+          runId: rawChain.runId,
+          parentTurnId: typeof rawChain.parentTurnId === "string" ? rawChain.parentTurnId : null,
+          edgeKind: EDGE_KINDS.includes(rawChain.edgeKind) ? rawChain.edgeKind : null,
+        }
+      : null;
   // Event wakes (add-fleet-event-wake) outrank everything: an external
   // signal source (bot inbound) originated the turn, depth 0 by definition.
   // Initiator then outranks origin: a dispatched turn carries BOTH (the
@@ -72,6 +89,7 @@ export function buildTurnRequest(job) {
     budget: Number.isFinite(job?.executionPolicy?.timeoutMinutes)
       ? { minutes: job.executionPolicy.timeoutMinutes }
       : null,
+    chain,
   };
 }
 

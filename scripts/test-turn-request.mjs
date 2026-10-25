@@ -208,3 +208,49 @@ test("one rule, two doors: turnSourceFor and recordTurnEvent agree per lane", ()
   // zero disturbance stays: a stranger turn derives, records nothing
   assert.equal(recordTurnEvent(fleetDb, { trigger: "manual", preset: "stranger" }, { ok: true }, { startedAt: 1, endedAt: 2 }), null);
 });
+
+// ── chain (agent-fleet-runs / agent-turn-contract v2) ───────────────────────
+
+test("derive: root cron turn carries no chain; derivation mints nothing", () => {
+  const job = { trigger: "schedule", sourceTag: { fleetId: "f1", memberId: "m_root" } };
+  const a = buildTurnRequest(job);
+  const b = buildTurnRequest(job);
+  assert.equal(a.chain, null);
+  assert.deepEqual(a, b, "pure: deriving twice yields the same value object");
+  assert.equal(a.source, "cron");
+});
+
+test("derive: dispatched task carries chain edgeKind=dispatch, source=delegation", () => {
+  const job = {
+    trigger: "manual",
+    preset: "persona-passive",
+    initiator: "sess-dispatcher",
+    origin: { fleet: { fleetId: "f1", memberId: "m_target", depth: 1, chain: { runId: "run_abc", parentTurnId: "turn_up", edgeKind: "dispatch" } } },
+  };
+  const r = buildTurnRequest(job);
+  assert.equal(r.source, "delegation");
+  assert.deepEqual(r.chain, { runId: "run_abc", parentTurnId: "turn_up", edgeKind: "dispatch" });
+  assert.equal(r.resultSink, "caller");
+});
+
+test("derive: handoff task inherits the upstream run and names edgeKind=handoff", () => {
+  const job = {
+    trigger: "manual",
+    preset: "persona-b",
+    origin: { fleet: { fleetId: "f1", memberId: "m_down", depth: 2, chain: { runId: "run_abc", parentTurnId: "turn_up", edgeKind: "handoff" } } },
+  };
+  const r = buildTurnRequest(job);
+  assert.equal(r.chain.runId, "run_abc");
+  assert.equal(r.chain.parentTurnId, "turn_up");
+  assert.equal(r.chain.edgeKind, "handoff");
+  assert.equal(r.depth, 2);
+});
+
+test("derive: malformed chain is dropped, unknown edgeKind reads null; event wake is a root", () => {
+  assert.equal(buildTurnRequest({ trigger: "manual", origin: { fleet: { fleetId: "f1", memberId: "m", chain: { parentTurnId: "x" } } } }).chain, null, "no runId → no chain");
+  const odd = buildTurnRequest({ trigger: "manual", origin: { fleet: { fleetId: "f1", memberId: "m", chain: { runId: "run_1", edgeKind: "teleport" } } } });
+  assert.deepEqual(odd.chain, { runId: "run_1", parentTurnId: null, edgeKind: null });
+  const wake = buildTurnRequest({ trigger: "manual", origin: { fleet: { fleetId: "f1", memberId: "m", depth: 0 }, event: { botId: "b1" } } });
+  assert.equal(wake.source, "event");
+  assert.equal(wake.chain, null);
+});

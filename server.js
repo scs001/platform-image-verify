@@ -68,6 +68,7 @@ import { reconcileAllFleets, deriveMemberStatus } from "./server/fleet-reconcile
 import { buildFleetContext } from "./server/fleet-context.js";
 import { derivedReportFromTask, fleetIdentityFor, fleetModelFor } from "./server/fleet-reports.js";
 import { recordTurnEvent } from "./server/fleet-events.js";
+import { createFleetTurnLedger } from "./server/fleet-runs.js";
 import { outgoingHandoffs, outgoingFanouts, constraintsOf } from "./server/fleet-orchestration.js";
 import { triggerFleetEventWake } from "./server/fleet-event-wake.js";
 import * as engine from "./task-engine.js";
@@ -1063,13 +1064,36 @@ ctx.takeFleetModelNotices = (memberId) => {
   return notices;
 };
 
+// Run ledger (agent-fleet-runs): the execution instance behind the cockpit's
+// live canvas and replay timeline. begin/end/settle are called from the
+// cron-runner seam; dispatch (routes/fleets.js) and the handoff trigger below
+// read it to stamp chain positions on the tasks they ignite. Hourly sweep ages
+// closed headers and over-floor turn rows out (dual-condition retention).
+ctx.fleetTurnLedger = createFleetTurnLedger({
+  db: getFleetDatabase(),
+  broadcast: (msg) => ctx.broadcast(msg),
+  engineRecords: () => engine.allRecords(),
+  trace,
+  rosterPresetId,
+});
+setInterval(() => {
+  try {
+    getFleetDatabase().pruneRuns();
+  } catch (e) {
+    console.warn(`[fleet-runs] prune failed: ${e?.message || e}`);
+  }
+}, 60 * 60 * 1000).unref();
+
 // Turn result events (add-fleet-turn-events D1/D2): the cron-runner seam calls
 // this after every member turn; recordTurnEvent resolves attribution
 // (sourceTag → origin.fleet → persona scan) and appends the event, returning
-// null for non-fleet turns. Degrade open here too — the warn is the whole
-// blast radius.
+// null for non-fleet turns. When the seam opened a ledger handle for the turn
+// the ledger's end() writes the row instead (same recorder underneath, plus
+// turnId/runId/chain/trace key and the fleet_turn_ended broadcast). Degrade
+// open here too — the warn is the whole blast radius.
 ctx.recordFleetTurnEvent = (job, outcome, meta) => {
   try {
+    if (meta?.ledgerTurn) return ctx.fleetTurnLedger.end(job, meta.ledgerTurn, outcome, meta);
     return recordTurnEvent(getFleetDatabase(), job, outcome, { ...meta, rosterPresetId });
   } catch (e) {
     console.warn(`[fleets] turn event record failed: ${e?.message || e}`);
@@ -1094,9 +1118,18 @@ ctx.triggerFleetEventWake = (botId, meta) => {
 // from the chain position in origin.fleet. Over-bound hops create nothing
 // but leave an honest event row. Cluster posts have no manual lane: skipped,
 // their next cadence/delegation turn carries the work.
-ctx.triggerFleetHandoffs = async (job, out) => {
+ctx.triggerFleetHandoffs = async (job, out, ledgerTurn = null) => {
   try {
     const db = getFleetDatabase();
+    // Chain position for every task ignited here (agent-fleet-runs): the
+    // upstream turn's run + turn id, named by edge kind. Null when the ledger
+    // did not open this turn (non-fleet, or ledger absent) — the downstream
+    // then starts a root run, honestly.
+    const chainFor = (edgeKind) => ctx.fleetTurnLedger?.chainFor?.(ledgerTurn, edgeKind) ?? null;
+    const withChain = (fleet, edgeKind) => {
+      const chain = chainFor(edgeKind);
+      return chain ? { ...fleet, chain } : fleet;
+    };
     let fleetId = null;
     let memberId = null;
     let chainDepth = 0;
@@ -1157,7 +1190,7 @@ ctx.triggerFleetHandoffs = async (job, out) => {
           prompt: JSON.stringify(e.args),
           tool: target.targetId,
           sessionTitle: `接棒 · ${target.title}`,
-          origin: { fleet: { fleetId, memberId: target.id, depth: nextDepth } },
+          origin: { fleet: withChain({ fleetId, memberId: target.id, depth: nextDepth }, "handoff") },
           executionPolicy: { timeoutMinutes: constraints.budgetPerEdgeMin },
         });
         dispatched.push({ to: target.id, taskId: task.id });
@@ -1172,7 +1205,7 @@ ctx.triggerFleetHandoffs = async (job, out) => {
           `上游结果:\n${summary}`,
         ...(target.targetKind === "a2a" ? { agent: target.targetId } : { persona: rosterPresetId(target.targetId) }),
         sessionTitle: `接棒 · ${target.title}`,
-        origin: { fleet: { fleetId, memberId: target.id, depth: nextDepth } },
+        origin: { fleet: withChain({ fleetId, memberId: target.id, depth: nextDepth }, "handoff") },
         executionPolicy: { timeoutMinutes: constraints.budgetPerEdgeMin },
       });
       dispatched.push({ to: target.id, taskId: task.id });
@@ -1221,7 +1254,7 @@ ctx.triggerFleetHandoffs = async (job, out) => {
             `上游结果:\n${summary}`,
           ...(target.targetKind === "a2a" ? { agent: target.targetId } : { persona: rosterPresetId(target.targetId) }),
           sessionTitle: `扇出 · ${target.title}`,
-          origin: { fleet: { fleetId, memberId: target.id, depth: nextDepth, wave: 1 } },
+          origin: { fleet: withChain({ fleetId, memberId: target.id, depth: nextDepth, wave: 1 }, "fanout") },
           ...(judge
             ? { initiator: `fleet:${fleetId}:${judge.id}`, initiatorPreset: rosterPresetId(judge.targetId) }
             : { initiator: job.sessionId ?? null }),

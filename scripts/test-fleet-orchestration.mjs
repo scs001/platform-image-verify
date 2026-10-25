@@ -47,6 +47,7 @@ const {
 } = await import("../server/fleet-orchestration.js");
 const { attachCronRunner } = await import("../server/cron-runner.js");
 const { createFleetRoutes } = await import("../server/routes/fleets.js");
+const { createFleetTurnLedger } = await import("../server/fleet-runs.js");
 
 await initDb();
 await chatHistory.initChatHistory();
@@ -205,6 +206,9 @@ test("dispatch bridge: guards and the delegation-lane task shape", async () => {
     assert.equal(task.origin.fleet.depth, 1);
     assert.equal(task.origin.fleet.memberId, "m_exec");
     assert.equal(task.initiator, "sess-sup");
+    // No ledger on this ctx → no chain stamped; the target will open a root
+    // run of its own (agent-fleet-runs: honest degradation, never a guess).
+    assert.equal(task.origin.fleet.chain, undefined);
     assert.ok(task.prompt.includes("m_sup".replace("m_", "") === "sup" ? "舰队派发" : "舰队派发"), "dispatcher identity rides the prompt");
     assert.ok(task.prompt.includes("sup"), "the dispatcher's post identity names the brief");
 
@@ -237,6 +241,35 @@ test("dispatch bridge: no edge and no mode ⇒ 403", async () => {
     const r = await fetch(`${base}/api/fleets/dispatch`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ to: "m_b", brief: "x" }) });
     assert.equal(r.status, 403);
     assert.ok((await r.json()).error.includes("declare the edge"));
+  } finally {
+    server.close();
+  }
+});
+
+test("dispatch bridge: an in-flight upstream turn stamps chain on the task (agent-fleet-runs)", async () => {
+  fixtureFleet(fleetDb, {
+    id: "f_chain_disp",
+    members: [P("m_sup"), P("m_exec")],
+    orchestration: { mode: "supervisor" },
+  });
+  chatHistory.setSessionManager({ getSessionId: () => "sess-sup" });
+  const ledger = createFleetTurnLedger({ db: fleetDb, engineRecords: () => engine.allRecords() });
+  // The dispatcher's turn is mid-flight (cron lane) when dispatch_post lands.
+  const upstreamJob = { id: "j_sup", trigger: "schedule", targetType: "persona", preset: "t-m_sup", sessionId: "cron-j_sup", sourceTag: { fleetId: "f_chain_disp", memberId: "m_sup" } };
+  const handle = ledger.begin(upstreamJob, { startedAt: Date.now(), sessionIds: ["cron-j_sup#r1"] });
+  const { server, base } = await startServer({
+    authEnabled: false,
+    cellUserEmail: "owner@test",
+    currentPreset: "t-m_sup",
+    fleetTargetResolver: (m) => ({ alive: true, label: m.targetId }),
+    fleetTurnLedger: ledger,
+  });
+  try {
+    const r = await fetch(`${base}/api/fleets/dispatch`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ to: "m_exec", brief: "干活" }) });
+    assert.equal(r.status, 201);
+    const task = engine.getTaskRecord((await r.json()).taskId);
+    assert.deepEqual(task.origin.fleet.chain, { runId: handle.runId, parentTurnId: handle.turnId, edgeKind: "dispatch" });
+    ledger.end(upstreamJob, handle, { ok: true }, { startedAt: handle.startedAt, endedAt: Date.now() });
   } finally {
     server.close();
   }

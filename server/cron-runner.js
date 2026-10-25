@@ -81,6 +81,11 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
     });
 
     collectors.set(sessionId, (notif) => {
+      // Run ledger trace tap (agent-fleet-runs D4): a fleet turn never crosses
+      // handleDshEvent — this collector is its only observer — so the trace
+      // store is fed from here, keyed by the ledger's turn id. No-op for
+      // non-fleet turns and when the tap is off.
+      ctx.fleetTurnLedger?.tap?.(notif, sessionId, mirrorSessionId);
       const { method, params } = notif;
       if (method === "session.status" && params.status === "idle") {
         return settle(resolve, { text, error, usage });
@@ -273,6 +278,22 @@ async function disposeRoundChild(ctx, childSessionId, mirrorSessionId) {
   } catch { /* best-effort: the id is never resumed either way */ }
 }
 
+// Fleet round statelessness (fix-fleet-round-discipline D4/D7): the design
+// re-renders {{fleetContext}} every round — history contributes nothing —
+// yet the dsh child resumes its persisted conversation by session id, so a
+// stable id accumulated every round's history (2.3MB in 5 rounds; the
+// compaction ate the 600s budget before any work started). The child
+// conversation id therefore ROTATES per round; the mirror keeps the stable
+// id (collectTurn's mirrorSessionId) so the sidebar stays one readable
+// session and the evidence trail keeps accumulating. Non-fleet jobs keep
+// the byte-for-byte pre-change shape: the child id IS the mirror id.
+// One formula, two readers: runPersonaTurn prompts under it, the run ledger
+// registers it (so the collector tap can find the turn by that key).
+export function roundChildSessionId(job, startedAt) {
+  const sessionId = job.sessionId || `cron-${job.id}`;
+  return Boolean(job.sourceTag?.fleetId) ? `${sessionId}#r${startedAt}` : sessionId;
+}
+
 async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Date.now() } = {}) {
   if (!ctx.dshBridge?.isReady()) {
     return { ok: false, error: "the agent runtime is not ready" };
@@ -304,18 +325,7 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
   }
 
   const sessionId = job.sessionId || `cron-${job.id}`;
-
-  // Fleet round statelessness (fix-fleet-round-discipline D4/D7): the design
-  // re-renders {{fleetContext}} every round — history contributes nothing —
-  // yet the dsh child resumes its persisted conversation by session id, so a
-  // stable id accumulated every round's history (2.3MB in 5 rounds; the
-  // compaction ate the 600s budget before any work started). The child
-  // conversation id therefore ROTATES per round; the mirror keeps the stable
-  // id (collectTurn's mirrorSessionId) so the sidebar stays one readable
-  // session and the evidence trail keeps accumulating. Non-fleet jobs keep
-  // the byte-for-byte pre-change shape: the child id IS the mirror id.
-  const fleetRound = Boolean(job.sourceTag?.fleetId);
-  const childSessionId = fleetRound ? `${sessionId}#r${startedAt}` : sessionId;
+  const childSessionId = roundChildSessionId(job, startedAt);
 
   // Fleet post identity (enable-wire-content-fleet D1): a member turn tells the
   // agent which post it executes, so it can name its own production source
@@ -726,6 +736,18 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
     const timeoutMs = turnTimeoutMs || 10 * 60 * 1000;
     const startedAt = Date.now();
 
+    // Run ledger (agent-fleet-runs D2): the turn's id — and for a root turn
+    // its run id — exist from the START, because a mid-turn dispatch_post must
+    // stamp the upstream turn id on the task it creates. Registered under the
+    // mirror session and the rotated child id so the collector tap can find
+    // it. Degrade open: a ledger failure never touches the turn.
+    let ledgerTurn = null;
+    try {
+      ledgerTurn = ctx.fleetTurnLedger?.begin(job, { startedAt, sessionIds: [roundChildSessionId(job, startedAt)] }) ?? null;
+    } catch (e) {
+      console.warn(`[fleet-runs] ledger begin failed for ${job.id}: ${e?.message || e}`);
+    }
+
     // Pre-round credential renewal (add-line-credential-renewal D3 trigger ①):
     // an unattended fleet post must never run on an expired line token. Degrade
     // open — a renewal failure never fails the turn (the round then reports the
@@ -786,17 +808,30 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
             : out?.usage?.model ??
               ctx.session?.model?.id ??
               (out?.models ? Object.values(out.models)[0] ?? null : null),
+        // The ledger handle opened above (null for non-fleet turns or when the
+        // ledger is absent): the recorder then writes turnId/runId/chain/
+        // trace key on the row and broadcasts fleet_turn_ended.
+        ledgerTurn,
       });
     } catch (e) {
       console.warn(`[fleets] turn event record failed for ${job.id}: ${e?.message || e}`);
     }
     // Handoff edges (agent-fleet-orchestration): the same seam, AFTER the
     // outcome event — upstream completion (ok or failed, both honestly)
-    // triggers each declared downstream turn. Degrade open likewise.
+    // triggers each declared downstream turn. Degrade open likewise. The
+    // ledger handle rides along so every ignited task inherits this run.
     try {
-      await ctx.triggerFleetHandoffs?.(job, out);
+      await ctx.triggerFleetHandoffs?.(job, out, ledgerTurn);
     } catch (e) {
       console.warn(`[fleets] handoff trigger failed for ${job.id}: ${e?.message || e}`);
+    }
+    // Settle the run AFTER the handoffs are queued: the header closes only
+    // when nothing of this run is in flight or waiting (agent-fleet-runs).
+    // This job is excluded — the engine marks it done after we return.
+    try {
+      ctx.fleetTurnLedger?.settle(ledgerTurn?.runId ?? null, { excludeTaskId: job.id });
+    } catch (e) {
+      console.warn(`[fleet-runs] settle failed for ${job.id}: ${e?.message || e}`);
     }
     return out;
   };

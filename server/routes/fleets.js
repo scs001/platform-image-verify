@@ -570,6 +570,99 @@ export function createFleetRoutes(app, ctx = null) {
     }
   });
 
+  // ── Run read face (agent-fleet-runs, add-fleet-cockpit-v2) ─────────────────
+  //
+  // The execution instance behind the timeline: paged run list (filters:
+  // status / root source / started-at window) and one run's ordered turn
+  // detail — the chain (parentTurnId × edgeKind) reconstructs from the rows.
+  // System facts only: ids, outcome, timing, usage; no credentials, no
+  // session bodies. Owner scope identical to every other fleet read.
+
+  const RUN_STATUSES = ["open", "ok", "failed", "partial"];
+  const TURN_SOURCES = ["cron", "manual", "delegation", "event"];
+
+  function runListEntry(run, memberTitles) {
+    return {
+      runId: run.runId,
+      rootSource: run.rootSource,
+      rootMemberId: run.rootMemberId,
+      rootMemberTitle: memberTitles.get(run.rootMemberId) ?? null,
+      startedAt: run.startedAt,
+      endedAt: run.endedAt,
+      durationMs: run.endedAt != null ? run.endedAt - run.startedAt : null,
+      status: run.status,
+      turns: run.turns,
+      okCount: run.okCount,
+      failedCount: run.failedCount,
+      usage: run.usage,
+    };
+  }
+
+  function runTurnEntry(event) {
+    return {
+      ...turnTimelineEntry(event),
+      turnId: event.turnId,
+      runId: event.runId,
+      parentTurnId: event.parentTurnId,
+      edgeKind: event.edgeKind,
+      usage: event.usage,
+      traceTurnId: event.traceTurnId,
+    };
+  }
+
+  router.get("/:id/runs", (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const status = req.query.status ?? null;
+      const source = req.query.source ?? null;
+      if (status && !RUN_STATUSES.includes(status)) {
+        return res.status(400).json({ error: `status must be one of ${RUN_STATUSES.join("|")}` });
+      }
+      if (source && !TURN_SOURCES.includes(source)) {
+        return res.status(400).json({ error: `source must be one of ${TURN_SOURCES.join("|")}` });
+      }
+      const parseMs = (v) => {
+        const n = Number(v);
+        return Number.isFinite(n) && n >= 0 ? n : null;
+      };
+      const since = parseMs(req.query.since);
+      const until = parseMs(req.query.until);
+      if ((req.query.since != null && since == null) || (req.query.until != null && until == null)) {
+        return res.status(400).json({ error: "since/until must be epoch milliseconds" });
+      }
+      const limit = Math.min(Number(req.query.limit) || 50, 100);
+      const offset = Math.max(Number(req.query.offset) || 0, 0);
+      const db = getFleetDatabase();
+      const { total, runs } = db.listRuns(owned.fleet.id, { status, source, since, until, limit, offset });
+      const memberTitles = new Map(db.listMembers(owned.fleet.id).map((m) => [m.id, m.title]));
+      res.json({ total, runs: runs.map((r) => runListEntry(r, memberTitles)) });
+    } catch (err) {
+      console.error("[fleets] runs list error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  router.get("/:id/runs/:runId", (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const db = getFleetDatabase();
+      const run = db.getRun(req.params.runId);
+      if (!run || run.fleetId !== owned.fleet.id) {
+        return res.status(404).json({ error: "Run not found" });
+      }
+      const memberTitles = new Map(db.listMembers(owned.fleet.id).map((m) => [m.id, m.title]));
+      res.json({
+        run: runListEntry(run, memberTitles),
+        turns: db.listRunTurns(run.runId).map(runTurnEntry),
+      });
+    } catch (err) {
+      console.error("[fleets] run detail error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
   // ── Dispatch bridge (agent-fleet-orchestration O3) ────────────────────────
   //
   // A member turn's dispatch_post lands here: the running post (server-side
@@ -669,8 +762,14 @@ export function createFleetRoutes(app, ctx = null) {
 
       // Dispatch rides the delegation lane: initiator = the dispatcher's
       // session (the aggregator delivers the summary back there), origin.fleet
-      // carries the target post + depth 1 for the turn contract.
+      // carries the target post + depth 1 for the turn contract. The chain
+      // position (agent-fleet-runs) comes from the dispatcher's in-flight turn
+      // — looked up by POST, since attribution above is post-level; a dispatch
+      // from a non-fleet conversation finds none and the target starts a root
+      // run, honestly.
       const prompt = dispatchPrompt;
+      const upstream = ctx?.fleetTurnLedger?.lookupByMember?.(from.id) ?? null;
+      const chain = ctx?.fleetTurnLedger?.chainFor?.(upstream, "dispatch") ?? null;
       const task = engine.createManualTask({
         prompt,
         ...(target.targetKind === "a2a"
@@ -680,7 +779,7 @@ export function createFleetRoutes(app, ctx = null) {
             : { persona: rosterPresetId(target.targetId) }),
         sessionTitle: `派发 · ${target.title}`,
         initiator: chatHistory.currentSessionId(),
-        origin: { fleet: { fleetId: fleet.id, memberId: target.id, depth: 1 } },
+        origin: { fleet: { fleetId: fleet.id, memberId: target.id, depth: 1, ...(chain ? { chain } : {}) } },
       });
       res.status(201).json({
         dispatched: true,
@@ -758,6 +857,11 @@ export function createFleetRoutes(app, ctx = null) {
               edges: expandedEdges({ members, orchestration: owned.fleet.orchestration }),
             }
           : null,
+        // Edge traffic (agent-fleet-runs): hops in the last 24h grouped by
+        // (from post, to post, edge kind) with the outcome split — the canvas
+        // weighs edges by it. Pre-v2 rows carry no chain and simply do not
+        // appear (honest absence, not a zero).
+        edgeTraffic: db.edgeTraffic(owned.fleet.id),
         health: {
           onDuty: statusCounts.on_duty ?? 0,
           paused: statusCounts.paused ?? 0,

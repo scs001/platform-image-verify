@@ -196,6 +196,48 @@ export function createFleetDatabase({ file } = {}) {
   db.exec(`CREATE INDEX IF NOT EXISTS idx_turn_events_member ON member_turn_events(member_id, id)`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_turn_events_fleet ON member_turn_events(fleet_id, status, id)`);
 
+  // Run ledger (add-fleet-cockpit-v2, agent-fleet-runs D1/D2): the execution
+  // instance. One header row per run; the turn rows carry run_id plus their
+  // chain position (parent_turn_id × edge_kind), so an edge instance IS the
+  // downstream turn row — no hops table. `turn_id` is minted when the turn
+  // STARTS (dispatch happens mid-turn and needs the upstream id before the row
+  // exists) and is distinct from the autoincrement `id`, which keeps the table
+  // append-only. Everything is additive and nullable: pre-v2 rows read as v1
+  // history (run_id null), a rollback needs no down-migration.
+  db.exec(`CREATE TABLE IF NOT EXISTS fleet_runs (
+    run_id TEXT PRIMARY KEY,
+    fleet_id TEXT NOT NULL,
+    root_source TEXT NOT NULL,
+    root_member_id TEXT NOT NULL,
+    started_at INTEGER NOT NULL,
+    ended_at INTEGER,
+    status TEXT NOT NULL DEFAULT 'open',
+    turns INTEGER NOT NULL DEFAULT 0,
+    ok_count INTEGER NOT NULL DEFAULT 0,
+    failed_count INTEGER NOT NULL DEFAULT 0,
+    usage_input INTEGER,
+    usage_output INTEGER
+  )`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_fleet_runs_fleet ON fleet_runs(fleet_id, started_at)`);
+  for (const col of [
+    "turn_id TEXT",
+    "run_id TEXT",
+    "parent_turn_id TEXT",
+    "edge_kind TEXT",
+    "usage_input INTEGER",
+    "usage_output INTEGER",
+    "trace_turn_id TEXT",
+  ]) {
+    try {
+      db.exec(`ALTER TABLE member_turn_events ADD COLUMN ${col}`);
+    } catch {
+      /* column already exists */
+    }
+  }
+  db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_turn_events_turn_id ON member_turn_events(turn_id)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_turn_events_run ON member_turn_events(run_id, started_at)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_turn_events_member_ended ON member_turn_events(member_id, ended_at)`);
+
   db.exec(`CREATE INDEX IF NOT EXISTS idx_fleet_members_fleet ON fleet_members(fleet_id)`);
   // Unique-post check (design D8): "is this persona/cluster on duty anywhere?"
   // scans by target, so index the pair.
@@ -591,12 +633,22 @@ export function createFleetDatabase({ file } = {}) {
     const n = Number(process.env.FLEET_TURN_EVENTS_KEEP);
     return Number.isFinite(n) && n > 0 ? Math.floor(n) : 200;
   }
+  // Time window of the run ledger (agent-fleet-runs D10). A turn row is pruned
+  // only when it is BOTH older than this window AND past the member's newest-N
+  // floor — so a quiet post keeps its last 200 forever and a busy post keeps a
+  // full month, whichever is more.
+  function runRetentionMs() {
+    const n = Number(process.env.FLEET_RUNS_RETENTION_DAYS);
+    const days = Number.isFinite(n) && n >= 0 ? n : 30;
+    return days * 86_400_000;
+  }
 
   function appendTurnEvent(event) {
     const out = db
       .prepare(`
-        INSERT INTO member_turn_events (fleet_id, member_id, source, status, error_kind, error, model, started_at, ended_at, session_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO member_turn_events (fleet_id, member_id, source, status, error_kind, error, model, started_at, ended_at, session_id,
+                                        turn_id, run_id, parent_turn_id, edge_kind, usage_input, usage_output, trace_turn_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .run(
         event.fleetId,
@@ -609,18 +661,31 @@ export function createFleetDatabase({ file } = {}) {
         event.startedAt,
         event.endedAt,
         event.sessionId ?? null,
+        event.turnId ?? null,
+        event.runId ?? null,
+        event.parentTurnId ?? null,
+        event.edgeKind ?? null,
+        usageInt(event.usage?.input),
+        usageInt(event.usage?.output),
+        event.traceTurnId ?? null,
       );
-    // Rolling prune: keep the newest N rows for this member only — the
-    // oldest overflow goes; reports/decisions live in their own tables.
+    // Dual-condition prune (agent-fleet-core, v2): only rows that are both
+    // past the retention window AND beyond the member's newest-N floor go.
     db.prepare(`
       DELETE FROM member_turn_events
-      WHERE member_id = ? AND id NOT IN (
+      WHERE member_id = ? AND ended_at < ? AND id NOT IN (
         SELECT id FROM member_turn_events WHERE member_id = ? ORDER BY id DESC LIMIT ?
       )
-    `).run(event.memberId, event.memberId, turnEventKeep());
+    `).run(event.memberId, Date.now() - runRetentionMs(), event.memberId, turnEventKeep());
     return deserializeTurnEvent(
       db.prepare("SELECT * FROM member_turn_events WHERE id = ?").get(out.lastInsertRowid),
     );
+  }
+
+  function getTurnEvent(turnId) {
+    if (!turnId) return null;
+    const row = db.prepare("SELECT * FROM member_turn_events WHERE turn_id = ?").get(turnId);
+    return row ? deserializeTurnEvent(row) : null;
   }
 
   // Timeline page, newest first; `beforeId` (exclusive) pages via the last
@@ -672,6 +737,155 @@ export function createFleetDatabase({ file } = {}) {
     return n;
   }
 
+  // ── run ledger (agent-fleet-runs) ─────────────────────────────────────────
+
+  // Header row for a root turn. INSERT OR IGNORE: a run that was already
+  // opened (a late downstream turn re-opening a closed one goes through
+  // reopenRun) is left alone.
+  function insertRun({ runId, fleetId, rootSource, rootMemberId, startedAt }) {
+    db.prepare(`
+      INSERT OR IGNORE INTO fleet_runs (run_id, fleet_id, root_source, root_member_id, started_at, status)
+      VALUES (?, ?, ?, ?, ?, 'open')
+    `).run(runId, fleetId, rootSource, rootMemberId, startedAt);
+    return getRun(runId);
+  }
+
+  function getRun(runId) {
+    const row = db.prepare("SELECT * FROM fleet_runs WHERE run_id = ?").get(runId);
+    return row ? deserializeRun(row) : null;
+  }
+
+  // A downstream turn arriving after the header closed (a queued handoff that
+  // waited behind other work) re-opens it; finalizeRun recomputes everything
+  // from the turn rows, so the header is always a projection, never a counter.
+  function reopenRun(runId) {
+    db.prepare("UPDATE fleet_runs SET status = 'open', ended_at = NULL WHERE run_id = ?").run(runId);
+    return getRun(runId);
+  }
+
+  // Close the header from its turn rows (SUM, not increment — idempotent by
+  // construction: calling it twice yields the same row). Status: ok when every
+  // turn succeeded, failed when none did, partial otherwise; interrupted turns
+  // count as not-ok but not failed.
+  function finalizeRun(runId, { endedAt = null } = {}) {
+    const agg = db
+      .prepare(`
+        SELECT COUNT(*) AS turns,
+               SUM(CASE WHEN status = 'ok' THEN 1 ELSE 0 END) AS ok_count,
+               SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) AS failed_count,
+               SUM(usage_input) AS usage_input,
+               SUM(usage_output) AS usage_output,
+               MAX(ended_at) AS last_ended
+        FROM member_turn_events WHERE run_id = ?
+      `)
+      .get(runId);
+    const turns = agg?.turns ?? 0;
+    const okCount = agg?.ok_count ?? 0;
+    const failedCount = agg?.failed_count ?? 0;
+    const status = turns === 0 ? "open" : okCount === turns ? "ok" : okCount === 0 && failedCount > 0 ? "failed" : "partial";
+    db.prepare(`
+      UPDATE fleet_runs
+      SET ended_at = ?, status = ?, turns = ?, ok_count = ?, failed_count = ?, usage_input = ?, usage_output = ?
+      WHERE run_id = ?
+    `).run(
+      endedAt ?? agg?.last_ended ?? Date.now(),
+      status,
+      turns,
+      okCount,
+      failedCount,
+      agg?.usage_input ?? null,
+      agg?.usage_output ?? null,
+      runId,
+    );
+    return getRun(runId);
+  }
+
+  // Paged list, newest first. `since`/`until` bound started_at; `source`
+  // filters root_source; `status` filters the header status.
+  function listRuns(fleetId, { status = null, source = null, since = null, until = null, limit = 50, offset = 0 } = {}) {
+    const where = ["fleet_id = ?"];
+    const args = [fleetId];
+    if (status) {
+      where.push("status = ?");
+      args.push(status);
+    }
+    if (source) {
+      where.push("root_source = ?");
+      args.push(source);
+    }
+    if (Number.isFinite(since)) {
+      where.push("started_at >= ?");
+      args.push(since);
+    }
+    if (Number.isFinite(until)) {
+      where.push("started_at <= ?");
+      args.push(until);
+    }
+    const total = db.prepare(`SELECT COUNT(*) AS n FROM fleet_runs WHERE ${where.join(" AND ")}`).get(...args).n;
+    const rows = db
+      .prepare(`SELECT * FROM fleet_runs WHERE ${where.join(" AND ")} ORDER BY started_at DESC LIMIT ? OFFSET ?`)
+      .all(...args, limit, offset);
+    return { total, runs: rows.map(deserializeRun) };
+  }
+
+  // The run's turn rows in start order — the timeline's waterfall input. The
+  // chain is reconstructed by the reader from parentTurnId × edgeKind.
+  function listRunTurns(runId) {
+    return db
+      .prepare("SELECT * FROM member_turn_events WHERE run_id = ? ORDER BY started_at ASC, id ASC")
+      .all(runId)
+      .map(deserializeTurnEvent);
+  }
+
+  // Edge traffic for the canvas (cockpit D9): hops in the window grouped by
+  // (from post, to post, edge kind), with the outcome split. The parent turn
+  // row supplies the from post; a parent already pruned leaves the hop out,
+  // honestly (the window is shorter than retention, so this is rare).
+  function edgeTraffic(fleetId, { sinceMs = Date.now() - 86_400_000 } = {}) {
+    return db
+      .prepare(`
+        SELECT p.member_id AS from_member, c.member_id AS to_member, c.edge_kind AS edge_kind,
+               COUNT(*) AS turns,
+               SUM(CASE WHEN c.status = 'ok' THEN 1 ELSE 0 END) AS ok_count,
+               SUM(CASE WHEN c.status = 'failed' THEN 1 ELSE 0 END) AS failed_count,
+               MAX(c.ended_at) AS last_ended
+        FROM member_turn_events c
+        JOIN member_turn_events p ON p.turn_id = c.parent_turn_id
+        WHERE c.fleet_id = ? AND c.edge_kind IS NOT NULL AND c.started_at >= ?
+        GROUP BY p.member_id, c.member_id, c.edge_kind
+      `)
+      .all(fleetId, sinceMs)
+      .map((r) => ({
+        from: r.from_member,
+        to: r.to_member,
+        kind: r.edge_kind,
+        turns: r.turns,
+        ok: r.ok_count ?? 0,
+        failed: r.failed_count ?? 0,
+        lastEndedAt: r.last_ended ?? null,
+      }));
+  }
+
+  // Hourly sweep (D10): closed headers past the window go; open ones never.
+  // Turn rows are pruned on their own dual condition at append time and here
+  // (a quiet cell with no new turns still ages out). Returns counts.
+  function pruneRuns({ now = Date.now() } = {}) {
+    const cutoff = now - runRetentionMs();
+    const runs = db.prepare("DELETE FROM fleet_runs WHERE status != 'open' AND ended_at IS NOT NULL AND ended_at < ?").run(cutoff).changes;
+    const members = db.prepare("SELECT DISTINCT member_id FROM member_turn_events WHERE ended_at < ?").all(cutoff);
+    let turns = 0;
+    const stmt = db.prepare(`
+      DELETE FROM member_turn_events
+      WHERE member_id = ? AND ended_at < ? AND id NOT IN (
+        SELECT id FROM member_turn_events WHERE member_id = ? ORDER BY id DESC LIMIT ?
+      )
+    `);
+    for (const { member_id } of members) {
+      turns += stmt.run(member_id, cutoff, member_id, turnEventKeep()).changes;
+    }
+    return { runs, turns };
+  }
+
   // Unique-post lookup (design D8): where is this persona/cluster on duty?
   // Cell-global across LIVE fleets; a2a targets never call this (multi-post).
   // Archived (incl. dissolved) fleets release their incumbents — their member
@@ -714,10 +928,19 @@ export function createFleetDatabase({ file } = {}) {
     listReports,
     countReportsSince,
     appendTurnEvent,
+    getTurnEvent,
     listTurnEvents,
     listFleetTurnEvents,
     latestTurnFor,
     consecutiveFailures,
+    insertRun,
+    getRun,
+    reopenRun,
+    finalizeRun,
+    listRuns,
+    listRunTurns,
+    edgeTraffic,
+    pruneRuns,
     appendDecision,
     getDecision,
     listDecisions,
@@ -807,6 +1030,17 @@ function deserializeReport(row) {
   };
 }
 
+// Token counts land as integers or not at all: a provider that reports no
+// usage leaves NULL, never a guessed zero (spec: 用量缺失不虚构).
+function usageInt(v) {
+  return Number.isFinite(v) ? Math.max(0, Math.round(v)) : null;
+}
+
+function usageOf(row) {
+  if (row.usage_input == null && row.usage_output == null) return null;
+  return { input: row.usage_input ?? null, output: row.usage_output ?? null };
+}
+
 function deserializeTurnEvent(row) {
   return {
     id: row.id,
@@ -820,6 +1054,28 @@ function deserializeTurnEvent(row) {
     startedAt: row.started_at,
     endedAt: row.ended_at,
     sessionId: row.session_id ?? null,
+    turnId: row.turn_id ?? null,
+    runId: row.run_id ?? null,
+    parentTurnId: row.parent_turn_id ?? null,
+    edgeKind: row.edge_kind ?? null,
+    usage: usageOf(row),
+    traceTurnId: row.trace_turn_id ?? null,
+  };
+}
+
+function deserializeRun(row) {
+  return {
+    runId: row.run_id,
+    fleetId: row.fleet_id,
+    rootSource: row.root_source,
+    rootMemberId: row.root_member_id,
+    startedAt: row.started_at,
+    endedAt: row.ended_at ?? null,
+    status: row.status,
+    turns: row.turns ?? 0,
+    okCount: row.ok_count ?? 0,
+    failedCount: row.failed_count ?? 0,
+    usage: usageOf(row),
   };
 }
 

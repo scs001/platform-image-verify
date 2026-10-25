@@ -80,6 +80,7 @@ test("wake: declared edge creates the post's turn with both origin segments", ()
   const request = buildTurnRequest(task);
   assert.equal(request.source, "event");
   assert.equal(request.depth, 0);
+  assert.equal(request.chain, null, "an event wake is a ROOT turn — it opens its own run (agent-fleet-runs)");
   assert.equal(assertTurnRequest(request), null, "event is a legal source now");
   assert.ok(SOURCES.includes("event"));
   assert.deepEqual(Object.keys(RESERVED_SOURCES), ["peer"], "only peer stays reserved");

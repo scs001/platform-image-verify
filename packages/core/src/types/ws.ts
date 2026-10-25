@@ -167,6 +167,14 @@ export type ServerMessage =
   // Rejected cron action (e.g. invalid cron expression in cron_add) — scoped
   // to the action so it can render in the owning view instead of a toast.
   | { type: "cron_error"; action: string; message: string }
+  // Fleet run ledger (agent-fleet-runs, add-fleet-cockpit-v2): live turn and
+  // run lifecycle for the cockpit canvas. started/ended carry the chain
+  // position (parentTurnId × edgeKind; null on a root); runUpdated fires on
+  // header open and every close. Fleet-domain fields only — ids, outcome,
+  // timing; never a credential, never a session body.
+  | { type: "fleet_turn_started"; fleetId: string; memberId: string; runId: string; turnId: string; parentTurnId: string | null; edgeKind: string | null; source: string; sessionId: string | null; startedAt: number }
+  | { type: "fleet_turn_ended"; fleetId: string; memberId: string; runId: string; turnId: string; parentTurnId: string | null; edgeKind: string | null; source: string; sessionId: string | null; startedAt: number; endedAt: number; status: string | null; errorKind: string | null; model: string | null; usage: { input: number | null; output: number | null } | null }
+  | { type: "fleet_run_updated"; run: FleetRunSummary }
   // Cluster session binding (agent-cluster-platform): a dynamic cluster was
   // attached to a session (header shows the cluster; messages run under the
   // lead agent), and a bound cluster was terminated (the session falls back
@@ -450,6 +458,24 @@ export type ClientMessage =
   | { type: "answer_question"; askId: string; answers?: AskAnswerItem[]; cancelled?: boolean };
 
 // ── Scheduled tasks ─────────────────────────────────────────────────────────
+
+/** Fleet run header (agent-fleet-runs): one execution instance's projection. */
+export interface FleetRunSummary {
+  runId: string;
+  fleetId: string;
+  /** Root source — cron | manual | delegation | event (the root turn's lane). */
+  rootSource: string;
+  rootMemberId: string;
+  startedAt: number;
+  endedAt: number | null;
+  /** open while anything of the run is in flight; ok | failed | partial closed. */
+  status: "open" | "ok" | "failed" | "partial";
+  turns: number;
+  okCount: number;
+  failedCount: number;
+  /** Token totals summed from the run's turn rows; null when nothing reported. */
+  usage: { input: number | null; output: number | null } | null;
+}
 
 export interface CronJobHistoryEntry {
   time: string;

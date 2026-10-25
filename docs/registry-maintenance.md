@@ -1868,3 +1868,13 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **机理增量两枚**：①**首部署 register 504 ≠ 失败**——新建 entry 触发 nginx 全量重载超网关 60s，但服务端实际完成（entry 落库为 draft）；**重试走更新路径 1.5s 过**，幂等安全。②**新 entry 的 health 探针先于 runner 接棒会留 unknown**（§15.36 自愈机理对新 entry 同样成立）——runner 起服务后**再 toggle 一次**触发重探，块即渲染（16→17 A2A blocks 眼见）。
 
 **v2 余项**：壹座「自建预设一键发布」流挂 facade 复选框（preset→分身 GUI 化）——工坊对话路径已通，GUI 路径待立 change。
+
+### §15.41 预设发布流分身开关上产（add-preset-facade-publish，2026-10-25）
+
+**能力**：壹座自建预设「发布并部署」确认步新增「作为 AI 分身发布」开关——开启时 manifest 携带 `facade` 块（reception=本流服务面角色、corpus=全部技能名、纯接待、hosted），经既有发布门校验；无服务面角色/无技能时开关禁用+就地原因（引导不阻断），发布照常为普通功能集；多服务面角色给接待选定。**零服务端改动**——GUI 路径与手写/工坊路径过同一道门，范例同径纪律保持。分身创建从此收敛为「勾一个框」。
+
+**验证**：e2e preset-publish-flow 4/4（新两案=挂块正例断言 mock 捕获的发布体全等+零技能禁用反例；旧两案零回归；**坑=web/dist 未重建先跑 e2e 必假红**，重建后过）；typecheck/biome/check-locales 1919×5 绿。
+
+**列车**：快照 `44951c3`（paas 9c588a74）→ image 绿 → relay → digest `d82753dd` ccr 实证 → GitOps `a23b059` 三面滚 platform/platform-demo/facet（**并行会话交织实录**：chat-memory 班已把 platform 滚到其 sha-d3721f3，我的快照基于 9c588a74=其超集，两步 bump 归三代同 sha，无内容丢失）；runner 留钉。in-pod 双 bundle 含「作为 AI 分身发布」实证。
+
+**顺带修复**：`make-public-snapshot` 删除清单补 `.github/workflows/image-publish.yml`——并行会话 d3721f3b 把发布管线收进主仓（意图=verify 仓永久保留）但漏配排除项，快照扫到内部 registry 引用即红；补行后发布流从主仓拷回该文件（不再依赖 gh api 取回，remote 被冲掉也不怕）。

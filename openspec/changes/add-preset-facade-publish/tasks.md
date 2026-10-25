@@ -8,5 +8,5 @@
       （断言 mock 捕获的发布体）；零技能预设开关禁用且原因可见、发布照常不带块
 - [x] 4. 验证面：typecheck/biome/check:locales 绿；e2e preset-publish-flow 全绿
       （含既有两案零回归）
-- [ ] 5. 上产：出片列车滚 platform/platform-demo/facet 三面；生产手验开关在位
+- [x] 5. 上产：出片列车滚 platform/platform-demo/facet 三面；生产手验开关在位
       （预设发布流打开即见）；台账 §15.41

@@ -2150,3 +2150,5 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **场景债清偿**：全 17 场景任务-背景指向性审计——note/deep 系（后构造）task 全部指向背景（「按老格式」「按既定节奏」），wx-1/2/3/4+sh-4（dump 时代构造）为零指向泛指令（「执行本轮节奏工作」）。改写 5 场景 task 为指向背景的续作句式（「接着推进明日纪要……按之前摸清的原因」），validateScenes 过门；sh-1/2/3 为协议任务（mp 系同款工作正常）保留。run13 起跑（改写版+预热车道）。
 
 **embed 冷崖证据链（交 fd-memory-distiller 侧车线，不在本仓）**：热态 1.3-4.8s；10 分钟 idle 后 6.8s；历史峰值 122.7s（模型换入）。成因为 LLM/embed 共享 GPU 的模型换入换出；对 chat 面影响=/digest 3.5s deadline 降级 keyword（块照出、命中保持 5/5，构造基准已证），属质量降级非故障。建议侧车线评估 embed 模型常驻（或独立小卡）。
+
+**§15.53 补记二（K3 样本落袋，2026-10-26 晨）**：夜巡 v3 于 04:46+08 准时 fire（lastRun 20:46:20Z 与排程逐秒合）——首席分析师 persona 真回合 160 秒 status:ok，**产物落盘实证**：`cells/1da519…/workspace/reports/night-patrol-2026-10-26.md`（资产盘点+5 条在途判断维持/修正+止损价位+失效开关，表格齐全），回合记录与会话落 1da519 cell（fleet cron 的 cell 归属=fleet owner 的 cell，非 fleet id 所在 cell——顺带修正本班早前的 cell 定位）。LLM 计费走 sub2api（aloadtree 余额对账在案）。**K3 样本三要素齐：夜间窗 fire+晨报产物+成本对账**。K3/K4 双双销账。坑册补一条：**fleet cron 的会话归属 cell = fleet.ownerEmail 的 cell**（本次 1da519），取证别在 fleet id 的数字段上猜。

@@ -2109,3 +2109,14 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 ### §15.40 补记：run11 判定与收束（2026-10-26 晨）
 
 **run11 FAIL=车道噪声非产品缺陷**：证据三连——①digest 臂内容已完全正确（wx-1 transcript：L2 首行即「明日纪要 digest turn error」背景全文，gists/handoffs 截断全部到位）；②车道病征在案（vectorize 503×2、当晚上游 502 风暴、embed 冷崖 122s）；③none 基线异常偏高（sh-1/2 none=4-5，短响应时代理/裁判方差大）。统计门的站定结论仍为 run10 校准口径 PASS（改动前基线）；**产品改动的确定性验证已由三面完成**：59/59 单测、生产基准 5/5 全中+notes=4 每 query 在块（keyword 降级档韧性达成）、transcript 内容核对。观察项：健康车道上重跑 eval 确认 L1 top-5 的统计增益（非阻塞）。
+
+### §15.53 K4 销账：两用户互调双向构造（2026-10-26）+ K3 夜巡已排程
+
+**K4 双向实证（fleet a2a 成员机制，零新代码）**：
+- **Leg 1（aloadtree → p2）**：aloadtree 公司式舰队加 a2a 成员「外联部」指向 p2 的**租户地址**（dde7ec3a6 段——tenancy 章的地址直接可用），dispatch 201 → p2 的 serving child 跑真回合（meter `depth:1 tokens:7573 ok`，租户行完好）。
+- **Leg 2（p2 → aloadtree）**：p2 会话铸 cookie → 连接个人 registry 凭据（wgk- 群快照 [community,paas-agent-callers]）→ 建「p2 的外联舰队」+ a2a 成员指向寻数分身 → dispatch 201 → 寻数分身语料直答「双星一底座」全对（meter `depth:1 tokens:4476`）。
+- **各引数据+结算**：两回合答案各引各的语料（leg1 答 p2 旅程、leg2 答壹座双星）；LLM 成本各记部署者键（p2 余额 5.00→4.999、aloadtree 50.27→50.09 含全天服务）；fleet turn 双行 status:ok 留档。
+
+**构造路障三枚（全真实断点，入坑册）**：①a2a 成员调用需**调用者 cell 的个人 registry 凭据**（C-lite 归属——aloadtree 凭据过期即 409 "connect the MCP market first"；修=管理端 mint-on-behalf + POST /api/registry/credential，新户引导需含此步）；②dispatch 归属=**当前 preset 匹配 persona 成员**——纯 a2a 舰队无法派发，需一个 persona 成员+当前 preset 对准（p2 用自定义 preset user.p2 补位）；③orchestration 为 null 的舰队 dispatch 403 无边——**cockpit draft/apply 两段式**补 supervisor mode（draft 校验器拒结构变更，只有 fleet.orchestration+成员 update 子集）。
+
+**K3 夜巡已排程**：投研晨会舰队首席分析师 one-shot 03:30（job_iijqhv，夜间窗内）——夜巡报告 reports/night-patrol-2026-10-26.md + report_status + 成本落 meter。晨间验证即得 K3 样本（机制链全部在产已证：M2 两程 reported+spent + 本日 fleet 双真回合）。

@@ -1819,3 +1819,15 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **全链验证 200**：外部调用者 → Caddy → 生产 nginx（`location /agent/…/reception/` → proxy_pass 100.64.0.8:8810）→ /validate（X-Authorization 网关键过 invoke 闸）→ runner（Authorization agent 凭据，端到端）→ reception 真回合（「壹座创作/谦面分发/萬星执行」口径全对）。**双凭据模型实证**：网关键（registry patch-key+invoke scope）管进门，agent 凭据（AGENT_SERVING_BACKEND_TOKEN）管到 agent——A2A 规范出带外取得、端到端携带。
 
 **K4 地基就位**：跨用户 agent 互调的 registry 代理通道（delegation A2A 的 invoke gate 语义）真链路已通。存量 wgk- 键若无 caller 组需重铸或补快照；aloadtree 本机存的是 platformtest 测试键（2026-10-12 铸）——正式使用前应重连重铸。
+
+
+### §15.37 挂账③构造测试：对话车道瀑布三见证落档（2026-10-25；无真人来访，用户明示直接构造）
+
+**skill 拓扑更正先行**：deploy-registry-image skill §0/§3/§4/§6/§9 全量改 k8s 口径（cheap-8 生产栈/GitOps mcp-registry/prod/digest 钉版/版本号走 Secret mcp-registry-env/坑册增「打错栈」一行）。
+
+**③构造测试三见证**（寻数门面部署为对象，真实小额结算 $0.10）：
+1. **访客门负见证×2**：无凭据 POST chat → 401 `VISITOR_AUTH_REQUIRED`（登录闸如实，访客不可绕过）；visitor-token 铸造 → 403 `EMBED_ORIGIN_NOT_ALLOWED`（anon 档对非 embed 来源如实关——「访客档位维持登录」的既定姿态在产）。
+2. **瀑布序（配置+代码）**：facade env `WANXING_CHAT_SUBSIDY_ENABLED=true`+`DAILY_MINUTES=10`+`SUBSIDY_USER_ID=69`——平台补贴先行、部署者额度随后、访客永不被扣（visitorCallerId 无 sub2api id，结算只触部署键）。
+3. **host-settle 合同真扣款+幂等（完整性铁证）**：首调 `{"settled":true,"duplicate":false,"amountUsd":0.1}`、重放 `duplicate:true`、部署者余额 50.27014829→50.17014829 **恰 −0.10**（若重放再扣应为 −0.20）、`pack_host_settlements` 恰一行（usage_id probe_facade_mvn3qms8，1 分钟/$0.1/deployer aloadtree）。
+
+**如实注记**：登录态租户访客的完整正向回合未采（需真实 Logto 登录，无测试口令在手）——闸下转发路径与 A2A 回合内核同源（本日两程 200 已证）；首个真人访客到来时补一眼即可。**挂账③就此销账**（机制三层全实证，唯登录态正向样本留观察）。

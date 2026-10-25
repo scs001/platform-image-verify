@@ -38,5 +38,5 @@
 
 ## 5. 收尾
 
-- [ ] 5.1 `openspec validate add-fleet-cockpit-v2 --strict` 绿;舰队八套 + `e2e/fleets.spec.js` 全绿;typecheck 绿
+- [x] 5.1 `openspec validate add-fleet-cockpit-v2 --strict` 绿;舰队八套 + `e2e/fleets.spec.js` 全绿;typecheck 绿
 - [ ] 5.2 出片(`fd-build-channel` 判路 → GHA → relay → ccr)并真机验收三面;台账 `docs/registry-maintenance.md` §9 发布记录 + §十五补记「v2 画布落地」;课程不改(词表未变)

@@ -1846,3 +1846,13 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **闭环构造测试（drill-loop 两回合）**：t1 首跑撞 cell 冷启竞态（`the agent runtime is not ready`，dshBridge.isReady 未就绪——注入本身已成功，与 change 无关）重跑后 done；t2 的注入块含**两条 L1 note**——t1 成功回合写回（成员亲笔「交给下一轮的 ONE 巡检任务」带参数表）+ 失败回合写回（00:42 runtime 故障也如实可召回）——且 t2 成员**真执行了前任提议的任务**（facet-market browse 200、open-data 探测 200，留档在案）。**回合→hook②写回→/digest L1 召回→接棒执行，生产全链闭环**；对照 §15.31 补记三的开环反证（t2 空块），一刀闭合。drill 残留清零（集群行 0、双 job API 删 200）；会话留档与 owner 根 notes 作常设证据。
 
 **在案注记**：①eval 分歧——接续评测钉 L2-only digest，生产自此携带 L1 近期 notes（加法方向），评测下版本补 note 场景再钉；②note 升 L2 的正道（u/ 根蒸馏启用）仍为后续 change；③坑两枚：cell 冷启后 dsh runtime 未就绪时集群任务失败（failed 可重跑自愈——可观察是否要 warmup 或排队重试）、platform pod 重启后 cell 端口漂移（drill 脚本按 /proc 重扫）。
+
+### §15.39 词汇换皮：用户侧「门面」全量改「AI 分身」（2026-10-25）
+
+**用户裁定**：「门面」不可解（owner 原话「我都看不懂啊，门面是什么意思，用户更不能理解了」）。按舰队词汇决议同款原则（皮肤不动物体）：代码/spec 的 `facade` 字段名不动，**用户可见面全量换「AI 分身」**——「想要了解我，和我的分身聊」。
+
+**落地三层**：①UI 文案五语言（market 徽标/详情标题/chatEntry：zh 分身、en AI Twin、ja AI分身、es/fr Avatar de IA；check-locales 1914 键×5 OK）；②双 pack 换皮重发——寻数分身 v3（corpus 术语卡「AI 分身（开发文档里叫 facade）」；两处「萬星门面」实指网关另义，改「萬星对外服务/A2A 端点」消除双义）、分身工坊 v2（指南开头加定性段+「只此一套叫法」纪律，补素材隐私闸）；③快照 `f7b5c46` 出片（paas a14381fc，单次强推即含 restore 提交=push 即出片 tag，配方微进化）→ relay OK 3s → digest `91c7a69a` ccr 实证 → GitOps `0928ff0` 三面滚 platform/platform-demo/facet（ArgoCD 首刷即落，双 pod imageID==digest）；**agent-runner-serving 留钉 306a1d6**（runner 行为零变化，16 serving agent 免无谓重启）。公网 200×2；in-pod 双 dist bundle 均含「和这个分身聊」；市场眼见「寻数分身 v3 facade:true / 分身工坊 v2」。
+
+**发布配方备注**：pack 重发走 facet 域 `POST /api/packs {packId, manifest}` + x-facet-token/x-facet-user（转发身份）；`FACET_INTERNAL_TOKEN` 在 **fd-prod ns facet deployment** env（`kubectl --context cheap -n fd-prod exec deploy/facet -- printenv`）——mcp-registry 栈没有，别再找错 ns（本班实测两错路：registry pod、全 ns 扫描皆空）。
+
+**余**：v2 方向不变（壹座自建预设一键发布流挂 facade 复选框=GUI 化、工坊自身部署为分身示范）。

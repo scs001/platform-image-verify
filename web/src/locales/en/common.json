@@ -2500,7 +2500,8 @@
       ]
     },
     "canvas": {
-      "loading": "Loading canvas…"
+      "loading": "Loading canvas…",
+      "reset": "Reset layout"
     },
     "runs": {
       "title": "Execution timeline",

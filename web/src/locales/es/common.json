@@ -2500,7 +2500,8 @@
       ]
     },
     "canvas": {
-      "loading": "Cargando lienzo…"
+      "loading": "Cargando lienzo…",
+      "reset": "Restablecer diseño"
     },
     "runs": {
       "title": "Cronología de ejecuciones",

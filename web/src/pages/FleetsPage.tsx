@@ -792,6 +792,7 @@ export function FleetsPage() {
                         }
                       >
                         <FleetCanvas
+                          fleetId={detail.fleet.id}
                           members={detail.members.map((m) => ({
                             id: m.id,
                             title: m.title,

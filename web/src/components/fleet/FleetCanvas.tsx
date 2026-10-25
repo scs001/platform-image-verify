@@ -3,15 +3,18 @@
 // Posts as cards, declared orchestration edges as kind-colored curves, cron
 // and external signal sources as virtual nodes; zoom/pan/minimap; in-flight
 // turns (the live store) pulse their node and animate the edge that ignited
-// them; edge weight rides the cockpit's 24h edgeTraffic. Read-only for now —
-// design mode (face 4) reuses this canvas with an edit layer on top.
+// them; edge weight rides the cockpit's 24h edgeTraffic. Design mode (face 4)
+// reuses this canvas with an edit layer on top.
+//
+// Nodes are draggable (add-fleet-canvas-drag): dragging rearranges THIS
+// browser's view only — positions persist per fleet in localStorage and never
+// touch fleet declaration data. Layout seeds come from the pure fleet-layout
+// layerer; stored overrides win per node, and a node without an override (new
+// post, cleared storage, unparseable archive) falls back to its seed.
 //
 // Route-level lazy chunk: @xyflow/react rides this file's import graph only.
-// Layout seeds come from the pure fleet-layout layerer (same algorithm as the
-// v1 graph); positions recompute ONLY when the member/edge signature changes,
-// so a live event flips data and never shuffles the board.
 
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Background,
@@ -21,8 +24,10 @@ import {
   MiniMap,
   Position,
   ReactFlow,
+  applyNodeChanges,
   type Edge,
   type Node,
+  type NodeChange,
   type NodeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -216,6 +221,7 @@ export function FleetCanvas({
   edges,
   traffic,
   liveTurns,
+  fleetId,
   designMode = false,
   draftEdges = [],
   removedEdgeKeys = [],
@@ -228,6 +234,8 @@ export function FleetCanvas({
   edges: GraphEdge[];
   traffic: CanvasTraffic[];
   liveTurns: LiveTurn[];
+  /** Owner fleet — keys the local position archive (add-fleet-canvas-drag). */
+  fleetId: string;
   /** Design mode (face 4): enable connect handles + draft visuals. */
   designMode?: boolean;
   /** Draft (not-yet-applied) edges, drawn dashed. */
@@ -278,6 +286,54 @@ export function FleetCanvas({
     return computeGraph(graphMembers, allEdges);
   }, [signature]);
 
+  // ── local position archive (add-fleet-canvas-drag) ─────────────────────────
+  // Dragging rearranges THIS browser's view: overrides win per node over the
+  // layout seed and persist per fleet in localStorage. Declaration data is
+  // never touched; a corrupt/absent archive silently falls back to the seed.
+
+  const storageKey = `platform.fleetCanvas.${fleetId}`;
+
+  const loadOverrides = useCallback((): Record<string, { x: number; y: number }> => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) return {};
+      const parsed = JSON.parse(raw) as { v?: number; p?: Record<string, { x: number; y: number }> };
+      if (parsed?.v !== 1 || !parsed.p || typeof parsed.p !== "object") return {};
+      const out: Record<string, { x: number; y: number }> = {};
+      for (const [id, pos] of Object.entries(parsed.p)) {
+        if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) out[id] = { x: pos.x, y: pos.y };
+      }
+      return out;
+    } catch {
+      return {};
+    }
+  }, [storageKey]);
+
+  const [overrides, setOverrides] = useState<Record<string, { x: number; y: number }>>(loadOverrides);
+  useEffect(() => {
+    setOverrides(loadOverrides());
+  }, [loadOverrides]);
+
+  const persistNodePosition = useCallback(
+    (id: string, pos: { x: number; y: number }) => {
+      setOverrides((prev) => {
+        const next = { ...prev, [id]: pos };
+        try {
+          localStorage.setItem(storageKey, JSON.stringify({ v: 1, p: next }));
+        } catch { /* quota/private mode: the drag still applies for this visit */ }
+        return next;
+      });
+    },
+    [storageKey],
+  );
+
+  const resetLayout = useCallback(() => {
+    try {
+      localStorage.removeItem(storageKey);
+    } catch { /* nothing to clean up */ }
+    setOverrides({});
+  }, [storageKey]);
+
   const liveByMember = useMemo(() => {
     const map = new Map<string, LiveTurn>();
     for (const lt of liveTurns) map.set(lt.memberId, lt);
@@ -300,21 +356,41 @@ export function FleetCanvas({
     return map;
   }, [traffic]);
 
-  const nodes: Node[] = useMemo(
+  // Controlled nodes: the layout seed (signature-keyed) plus the drag
+  // overrides feed a state that onNodesChange mutates while dragging — a live
+  // event still only flips node data, never positions (spec: 实时更新不重排).
+  const seededNodes: Node[] = useMemo(
     () =>
       laid.nodes.map((n) => {
         const isPost = members.some((m) => m.id === n.id);
         const live = liveByMember.has(n.id);
+        const position = overrides[n.id] ?? { x: n.x, y: n.y };
         return {
           id: n.id,
           type: isPost ? "post" : "source",
-          position: { x: n.x, y: n.y },
+          position,
           data: isPost
             ? ({ post: members.find((m) => m.id === n.id)!, live, connectable: designMode } satisfies PostData as PostData)
             : ({ label: n.label, kind: n.kind, live, connectable: designMode } satisfies SourceData as SourceData),
         };
       }),
-    [laid, members, liveByMember, designMode],
+    [laid, members, liveByMember, designMode, overrides],
+  );
+
+  const [nodes, setNodes] = useState<Node[]>(seededNodes);
+  useEffect(() => {
+    setNodes(seededNodes);
+  }, [seededNodes]);
+
+  const onNodesChange = useCallback((changes: NodeChange[]) => {
+    setNodes((ns) => applyNodeChanges(changes, ns));
+  }, []);
+
+  const onNodeDragStop = useCallback(
+    (_e: unknown, node: Node) => {
+      persistNodePosition(node.id, node.position);
+    },
+    [persistNodePosition],
   );
 
   const rfEdges: Edge[] = useMemo(
@@ -388,16 +464,28 @@ export function FleetCanvas({
             {t(`fleets.orch.edge.${k}`)}
           </span>
         ))}
+        {Object.keys(overrides).length > 0 ? (
+          <button
+            type="button"
+            className="ml-auto rounded-md border border-border px-2 py-px hover:bg-muted"
+            onClick={resetLayout}
+            data-testid="canvas-reset-layout"
+          >
+            {t("fleets.canvas.reset")}
+          </button>
+        ) : null}
       </div>
       <div className="h-[380px] overflow-hidden rounded-md border border-border">
         <ReactFlow
           nodes={nodes}
           edges={rfEdges}
           nodeTypes={nodeTypes}
+          onNodesChange={onNodesChange}
+          onNodeDragStop={onNodeDragStop}
           fitView
           minZoom={0.2}
           maxZoom={1.75}
-          nodesDraggable={false}
+          nodesDraggable
           nodesConnectable={designMode}
           elementsSelectable
           onConnect={handleConnect}

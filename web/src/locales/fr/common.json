@@ -2500,7 +2500,8 @@
       ]
     },
     "canvas": {
-      "loading": "Chargement du canevas…"
+      "loading": "Chargement du canevas…",
+      "reset": "Réinitialiser la disposition"
     },
     "runs": {
       "title": "Chronique d'exécution",

@@ -632,6 +632,41 @@ test.describe("fleet canvas", () => {
     await expect(canvas.locator(".react-flow__controls")).toBeVisible();
   });
 
+  test("node drag persists per fleet locally; reset restores the seed layout", async ({ page }) => {
+    await page.goto(`/fleets/${FLEET_ID}`);
+    const canvas = page.getByTestId("fleet-canvas");
+    await expect(canvas.getByTestId("canvas-node-ceo")).toBeVisible({ timeout: 15000 });
+
+    const posOf = (id) => canvas.locator(`.react-flow__node[data-id="${id}"]`).evaluate((el) => el.style.transform);
+    const before = await posOf("ceo");
+
+    // Drag the CEO card by its header (avoid the drag-handle handles).
+    const box = await canvas.getByTestId("canvas-node-ceo").boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + 8);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 120, box.y + 8 + 90, { steps: 6 });
+    await page.mouse.up();
+    await expect(canvas.locator("[data-testid='canvas-reset-layout']")).toBeVisible({ timeout: 5000 });
+    const afterDrag = await posOf("ceo");
+    expect(afterDrag).not.toEqual(before);
+
+    // Reload: the archived position wins over the layout seed.
+    await page.reload();
+    const canvas2 = page.getByTestId("fleet-canvas");
+    await expect(canvas2.getByTestId("canvas-node-ceo")).toBeVisible({ timeout: 15000 });
+    const afterReload = await posOf("ceo");
+    expect(afterReload).toEqual(afterDrag);
+
+    // Reset: back to the seed transform, archive cleared (button disappears).
+    await canvas2.getByTestId("canvas-reset-layout").click();
+    await expect(canvas2.getByTestId("canvas-reset-layout")).toHaveCount(0);
+    await expect.poll(async () => posOf("ceo"), { timeout: 5000 }).toEqual(before);
+    await page.reload();
+    const canvas3 = page.getByTestId("fleet-canvas");
+    await expect(canvas3.getByTestId("canvas-node-ceo")).toBeVisible({ timeout: 15000 });
+    expect(await posOf("ceo")).toEqual(before);
+  });
+
   test("fleet_turn_started pulses the node and animates the igniting edge; ended retires both", async ({ page }) => {
     let client = null;
     await page.routeWebSocket(/.*/, (ws) => {
@@ -864,11 +899,11 @@ test.describe("fleet inspector & design mode", () => {
     await insp.getByTestId("inspector-close").click();
     await expect(insp).toBeHidden();
 
-    // Click the edge's midpoint (between the two node cards) — SVG paths have
-    // off-viewport bboxes under the flow transform, so aim between the nodes.
-    const cb = await canvas.getByTestId("canvas-node-ceo").boundingBox();
-    const ib = await canvas.getByTestId("canvas-node-inv").boundingBox();
-    await page.mouse.click((cb.x + cb.width + ib.x) / 2, (cb.y + ib.y + cb.height) / 2 - cb.height / 2 + cb.height / 2);
+    // Dispatch a bubbling click on the edge's <g> — coordinates are unreliable
+    // now that nodes are draggable (a midpoint can land on a draggable card).
+    await canvas
+      .locator('.react-flow__edge[data-id="ceo→inv:handoff"]')
+      .evaluate((el) => el.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     const edgeInsp = page.getByTestId("edge-inspector");
     await expect(edgeInsp).toBeVisible();
     await expect(edgeInsp).toContainText("handoff");

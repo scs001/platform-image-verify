@@ -1968,3 +1968,13 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **生产双会话实证**（演示分身）：会话 A 开串 mt_372c3b16… → 会话 B read=404/list=0 个 → A read 全见 → B 猜号同形 404。**顺手逮住并修**：边界 404 的失败返回带数字 status 撞 open 成功形状的字符串 status → 工具校验拒（模型只见 validator 噪音）——executor 改 httpStatus + schema 增可选字段（ceb7ae73，runner 6/0），二次上产后 B 读到干净的工具错误"no such matter"。
 
 **列车**：801447a（digest 3d6622d6，facet+runner 同代；platform×2 留钉 bcee756——改动不涉 web 面）→ 794c5bc（digest 12ea1f76，仅 runner）。gateway 4/0（+1 边界四案）、runner 6/0（+1 scope 供给）、agent-runner 67/0、agent-serving 66/0。
+
+### §15.48 V2 第二刀：访客事项面板上产（2026-10-25 同日，双仓联滚）
+
+**能力**：聊天页「我的事项」折叠面板（默认展开）——访客不开口也能看到自己事项的状态与主人回应。三件套：①paas scope 语义升级（访客登录身份 sha256(visitor:sub) 前 32 优先于会话派生——同一访客跨会话聚合，不同访客仍隔离；facade 在 chat 回合 message.metadata 携带，明文 sub 不过服务面）；②wanxing-facade 新端点 GET /chat/:slug/matters（登录访客鉴权+访客安全字段）；③wanxing-web ChatView 面板（回合后+挂载时刷新）。
+
+**生产终验（浏览器全真）**：登录 platform-test → 开串 mt_956316c2… → 面板眼见 4 条（新开置顶待回应/上一轮面板班 1 条/无界存量 1 条——**跨会话同访客聚合生效**）；matters 端点未登录 401 如实拒。
+
+**列车与坑**：paas 9b381f4（digest e318721e，runner）；fd-wanxing ba0787e→7dc12ee 双镜像（facade digest ae532e2f / web digest 211e1658）。**坑三枚**：①fd-build-snapshot 的 origin-clone 模式同受「先推再出」纪律——首出 74978f7 是旧树（容器 grep matters=0 逮住），推齐重出；②同池第二镜像=BUILD_DOCKERFILE 变量切换（§15.38 律再现：首次 dispatch 用了根 Dockerfile，同 tag 错构建先完成被正确产物覆盖——用完还原已守）；③镜像 tag=快照仓 commit 非源 sha（944700f≠7dc12ee——relay/bump 对 tag 别想当然，以构建日志推送行为准）。
+
+**V2 余项**：无（披露边界第一二刀+面板全落；事项推送随真访客信号再议）。

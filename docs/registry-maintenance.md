@@ -1890,3 +1890,27 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **两枚上线拦截（双双钉进回归测试）**：①matter_read 输出 schema 的 matter 对象缺 `additionalProperties`——defineTool 严格校验抛错被 inject 回调吞掉，桥干净启动但三工具**静默不注册**（构造回归测试钉死该类）；②harness registry create() 解构白名单漏 onMatter——manager 挂了、registry 转发时**静默丢弃**，所有调用 decline『not configured』而执行器从未到达（转发契约测试钉死）。**取证坑**：kubectl exec 内 `/proc` 扫描 kill 时，脚本文本自身匹配匹配模式（含"dsh""vcfZzux"字样）→ **kill 的是执行 shell 自己**（exit 143），孩子从未被杀、修复从未加载，制造两轮假阴性——正解=排除自身 pid 的 node 脚本杀法（入配方）。
 
 **机理增量**：dsh 桥类「干净启动+工具静默缺失」的取证三件套=①/proc cmdline 对拍 patch argv ②--dump-config 验组合 ③模块足迹探针（appendFileSync 落 ctor 痕）；工具 schema 严格校验（additionalProperties 必须显式）是 dsh-tools 的硬约束。
+
+### §15.36 发布记录：主聊天记忆注入三档阶梯+note 写纪律（add-chat-memory-injection，2026-10-25）
+
+**镜像**：双端三班——platform `sha-d3721f3`（源 8a80f7de，scs001 公开仓；sha tag 7 位少一位=假阴性教训再犯一次）→ 总闸修复班 `sha-6106897`（源 619d95d8）；fd-memory `sha-8abbb61`（源 9dc529c）→ 饿死修复班 `sha-98dd6bf`（源 8d405f6，ccr 硬门 digest fa682362）。GitOps e261408/924aab3/1a40ceb/0292ee0/9dafee3/59a814e 全绿滚。
+
+**实现**：ws.js expandDocRefs 后挂 chat 阶梯（project=`default` 读面=写面——person token MCP 写回落点 fd-memory auth.ts:260，读错即开环）；cluster-memory 抽 digestLadder 共享，cluster 语义零变化既有测试钉死；MEMORY_DISCIPLINE 加 note 触发行（memory_write_page，双面单一来源）。
+
+**生产 drill 全链 witness（platform-test root，pod 内 gateway 身份 header 直连 cell WS）**：①回合①令记 note→agent 亲笔调 memory_write_page→owner root default/notes/93471f17.md 落盘；②回合② prompt 尾 digest 档注入块「相关记忆」段第一条=〔L1·note〕周报口径全文（表头中文/#ops/akshare），同根读写闭合；③中间还眼见 titles 档降级块（embed 5s 超时落 titles，阶梯真跑）。**期间 LLM 上游 502/503 风暴约 40 分钟**（真实用户同撞），多回合被截，非注入面缺陷。
+
+**两枚演练逼出的真修复**：①/digest open-handoffs 采样限 3（fd-memory 8d405f6）——owner root 一日 fleet 演练堆积 handoff，handoffs-first 预算把 L1 notes 饿死到零（集群面无感=集群 root 仅 0-2 条）；饿死回归测试入 digest-lane。②CELL_MEMORY_CHAT_DIGEST=0 升格总闸（paas 619d95d8）——原实现镜像集群杆只跳 digest 档，OFF 下 titles 照跑（193 字节带块 vs 修后 8 字节裸 prompt 同根对照），违 spec 字节等同场景；测试钉死双面零调用。
+
+**eval（15 场景×3 臂）**：三跑 FAIL（win 60%<70%）诊断为 harness 缺陷——deepseek-v4.1-flash 空响应 31%（reasoning 烧满 1600 无 content，note-1 digest 臂也空手）；修 harness（agent 4000+空响应 8000 重试）。终值见补记。
+
+**观察项**：chat 注入每回合 +1 次 /digest（5s 预算）；note 写频次（纪律行生效的间接证据）；embed 延迟（10.9s 观察项延续——titles 降级首例已在案）。
+
+### §15.43 访客正向样本补采 + 接待泄露事件修复（寻数分身 v4，2026-10-25）
+
+**§15.37 最后一条如实注记销账**：登录态租户访客完整正向回合已采（aloadtree 经 Logto 表单登录 → auth/exchange 200 → 聊天 POST → SSE delta 流 → **回复渲染** → 免费额度计量 10→7 分钟 → 无付费墙）。车道配方入 `scripts/verify-live-facade-visitor.mjs`（凭据只走 .env/VISITOR_* 覆盖；改名后占位符随卡片名变——选择器用 /说点什么/ 宽配）。
+
+**过程中逮住并修掉一起接待泄露事件（本班最大收获）**：问「你们和谦面、萬星是什么关系」（corpus 本有原答案），寻数分身 v2 接待**没有用语料，而是 grep /app/server.js 翻运行时文件**，且 `<thinking>` 思考流原样直泄访客（内部路径 /app/… 全见）——「皮肤不动物体」的披露边界在单包内被工具面击穿。修复=manifest v4 接待硬纪律：**答案只出语料技能；禁用文件/搜索/bash 翻找（运行环境不是知识源）；直答不展示思考；越界 matter_open 开事项转主人**。v4 上产后复测：直答/如实答不了+当场开事项（mt_5b9df8c3… 落队，访客线索如实写「未提供姓名或联系方式」）+请访客补场景——转人工闭环从访客侧真跑通。**平台级教训**：persona 纪律是当前唯一闸（dsh 内建工具不经 mcpTools 白名单），内建工具面约束列入 backlog（fd-wanxing/runner 侧议题）。
+
+**顺带两枚 fd-wanxing 车道缺陷证据在案（跨仓 backlog，非本仓管辖）**：①失控长回合（v2 时代）回复永不渲染+访客锁楔死（runner meter ok=true×2 vs 浏览器「回复中…」无限+409 TURN_IN_FLIGHT 越过回合完成 25 分钟+）；②锁释放/回合超时呈现语义待修。短回合（v4 后 ~40s）渲染正常，车道内核无恙。另：寻数分身卡片名/占位符已随 v3 改名传播至萬星目录（「与 寻数分身 对话」）。
+
+**发布**：寻数分身 v4（validatePackManifest 零错；v3=上午换皮版）→ 部署 v4 → 物化眼见（v4, 3 skills）。工坊侧无改（其指南 v4 已含事项纪律）。

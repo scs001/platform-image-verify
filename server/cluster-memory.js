@@ -116,11 +116,13 @@ export async function memoryInjectionFor(clusterMemory, clusterId, prompt, env =
 // Chat lane (add-chat-memory-injection D2/D3): same ladder over the owner's
 // memory root, project fixed to "default" — the project person tokens' MCP
 // writes land in (fd-memory namespaceParts) — so the read face equals the
-// write face. Independent kill switch CELL_MEMORY_CHAT_DIGEST=0; k/budget
-// shared with the cluster lane.
+// write face. CELL_MEMORY_CHAT_DIGEST=0 is the chat lane's TOTAL kill switch
+// (spec: byte-identical prompt, zero fd-memory requests) — unlike the cluster
+// lever, which skips only the digest rung; k/budget shared with the cluster.
 export async function chatMemoryInjectionFor(clusterMemory, prompt, env = process.env) {
+  if (env.CELL_MEMORY_CHAT_DIGEST === "0") return { prompt, source: "none" };
   return digestLadder(clusterMemory, "default", prompt, {
-    digestOn: env.CELL_MEMORY_CHAT_DIGEST !== "0",
+    digestOn: true,
     ...ladderEnv(env),
     titlesLabel: "【工作记忆】此前会话的沉淀，供参考：",
     warnTag: "chat-memory",

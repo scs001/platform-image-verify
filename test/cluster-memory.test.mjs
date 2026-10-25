@@ -209,21 +209,22 @@ test("chat ladder: digest read targets project default; k/budget ride the shared
   assert.ok(out.prompt.startsWith("帮我继续昨天的事"), "injection appends, never rewrites the user text");
 });
 
-test("chat ladder: CELL_MEMORY_CHAT_DIGEST=0 → byte-identical prompt, digest face untouched", async () => {
-  let digestCalls = 0;
+test("chat ladder: CELL_MEMORY_CHAT_DIGEST=0 → byte-identical prompt, zero fd-memory calls", async () => {
+  let anyCall = 0;
   const mem = {
     async readDigest() {
-      digestCalls += 1;
+      anyCall += 1;
       return { digest: "## 记忆摘要" };
     },
     async readShared() {
-      return [];
+      anyCall += 1;
+      return [{ title: "旧沉淀", updated_at: "2026-10-24T00:00:00.000Z" }];
     },
   };
   const out = await chatMemoryInjectionFor(mem, "原文照旧", { CELL_MEMORY_CHAT_DIGEST: "0" });
   assert.equal(out.source, "none");
   assert.equal(out.prompt, "原文照旧");
-  assert.equal(digestCalls, 0, "digest face not called when the chat switch is off");
+  assert.equal(anyCall, 0, "total kill switch: neither digest nor titles face runs");
 });
 
 test("chat ladder: digest failure → generic working-memory title rung; both fail → unchanged", async () => {

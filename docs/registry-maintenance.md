@@ -2144,3 +2144,9 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **余项**：真舰队一日 `fleet_runs` 收口一致性核对（1.9 尾项，次日看）；run 详情瀑布的多跳链位连线（本 cell 尚无 ≥2 跳 run 样本，e2e 夹具已证）；OTLP 导出（字段已按 OTel 命名，何时接另议）。
 
 **§15.53 补记（K3 夜巡 v3 再排 + 出片让路注记）**：v1（03:30+08）与 v2（04:20+08）均 status:"expired" 未 fire——机理=夜间窗内**并行会话（fleet cockpit v2）滚产 platform pod 两次**（20:06Z/20:22Z），once 定时器在重启中丢失、加载回放按已过期标定（cron.js 415-426 重载分支无 missed 补偿 for once 型——recurring 有 countMissedOccurrences，once 只标 expired；**once 型 downtime 无补偿是既有行为**，非本班引入）。v3 已排 04:40+08（job_jlzl2o）——夜巡 prompt 不含时间敏感内容可随时重放，且后续滚版前 `kubectl get pods -n fd-prod` 核对 once 型任务窗口。夜间窗 00:00-05:00 CST 是全舰队的常规滚版静默区（对话车道也在此最低峰），后续出片列车尽量避开该窗或滚后核对一次型任务。
+
+### §15.41 补记：挂账处理——场景设计债清偿 + embed 冷崖证据链（2026-10-26）
+
+**场景债清偿**：全 17 场景任务-背景指向性审计——note/deep 系（后构造）task 全部指向背景（「按老格式」「按既定节奏」），wx-1/2/3/4+sh-4（dump 时代构造）为零指向泛指令（「执行本轮节奏工作」）。改写 5 场景 task 为指向背景的续作句式（「接着推进明日纪要……按之前摸清的原因」），validateScenes 过门；sh-1/2/3 为协议任务（mp 系同款工作正常）保留。run13 起跑（改写版+预热车道）。
+
+**embed 冷崖证据链（交 fd-memory-distiller 侧车线，不在本仓）**：热态 1.3-4.8s；10 分钟 idle 后 6.8s；历史峰值 122.7s（模型换入）。成因为 LLM/embed 共享 GPU 的模型换入换出；对 chat 面影响=/digest 3.5s deadline 降级 keyword（块照出、命中保持 5/5，构造基准已证），属质量降级非故障。建议侧车线评估 embed 模型常驻（或独立小卡）。

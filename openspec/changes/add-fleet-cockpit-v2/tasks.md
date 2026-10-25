@@ -18,14 +18,14 @@
 - [x] 2.2 `PostNode`(状态环/脉冲/槽位摘要/生效模型/失效回落)、`FlowEdge`(类型色/在途动画/粗细=24h 回合数)、虚拟源节点(定时/信号源)、MiniMap/Controls、多根分区、暗色跟随;验证:`e2e/fleets.spec.js` 新用例 画布节点数=岗位数+源节点数、边数=声明边展开数、隐式派发不画边仅一行聚合
 - [x] 2.3 `useFleetStore`(zustand):订阅三事件增量更新 `liveTurns`、节流 ≥2s 整体重拉自愈、位置仅成员/边签名变化时重算;验证:e2e 注入 started 事件→节点在途+入边动效;ended→收束呈结果;模拟漏事件后重拉收敛;新增岗位触发重排而回合事件不重排
 - [x] 2.4 结构视图(组织树)降级为折叠区保留;i18n 五语言新键(图例/状态环/源节点);退役 `FleetGraph.tsx`;验证:既有 `fleets.spec` 绿,术语卡词表与 §十五一致,`{{fleetContext}}` 注入测试不变
-- [ ] 2.5 浏览器眼见:公司式(CEO+三部门)与投研(pipeline+fanout+judge)两型舰队,截图入台账
+- [x] 2.5 浏览器眼见:公司式(CEO+三部门)与投研(pipeline+fanout+judge)两型舰队,截图入台账
 
 ## 3. 回放时间线(C)
 
 - [x] 3.1 `web/src/api/fleets-api.ts` 封装 run 读面;run 列表区(过滤 status/source/时段、分页、空态、v1 无 runId 回合不入列);验证:e2e 过滤 failed 仅红行、空舰队呈空态文案、含 v1 回合夹具不出现于列表
 - [x] 3.2 瀑布泳道(岗位×回合条、链位连线自上游条末至下游条起、回合条可读 status/errorKind/model/usage/会话链接、工具调用嵌套 span 取 trace、无 trace 标注缺失);验证:e2e 固定夹具 run(定时→CEO→投资部→开源部,投资部两次工具调用)呈三泳道两连线两 span;去 trace 夹具呈缺失标注
 - [x] 3.3 游标回放:`replayAt` 入 store,画布以 `clockAt = replayAt ?? now` 派生节点/边态;释放置 null;验证:e2e 拖至投资部进行中时刻 → 投资部运行态/CEO→投资部边在途/开源部未开始;释放后恢复实时
-- [ ] 3.4 浏览器眼见 + 高频舰队一日 `trace.db` 行数评估记录(决定是否建议关 `FLEET_TRACE_TAP`)
+- [x] 3.4 浏览器眼见 + 高频舰队一日 `trace.db` 行数评估记录(决定是否建议关 `FLEET_TRACE_TAP`)
 
 ## 4. 检查器与设计模式(D)
 
@@ -34,9 +34,9 @@
 - [x] 4.3 检查器抽屉五页签(概况/配置/回合/产出/审批)+ 边检查器(类型/两端/约束/edgeTraffic 成败分布);换防/暂停/调速/补岗/审批面板抽为可嵌入组件复用;验证:e2e 抽屉内换防含清史重开勾选完成;配置页改 cron 走既有路径且 <10min 触发确认;边检查器呈 24h 计数
 - [x] 4.4 设计模式:开关(默认关)、拖线/断边/改类型约束生成草稿(视觉区分)、调 draft 呈 diff 面、成环等阻断禁用确认、确认→apply→草稿边转落地、退出丢弃;验证:e2e 拖线→diff→确认→库中出现边且列表同步;成环草稿确认按钮禁用;退出后草稿消失库无变化
 - [x] 4.5 退役卡片上下文菜单与独立 decisions dialog 入口(迁入抽屉);验证:`fleets.spec` 更新后绿,无死入口
-- [ ] 4.6 浏览器眼见:三面齐备 + 设计模式一次真改(加一条 handoff 并确认)截图入台账
+- [x] 4.6 浏览器眼见:三面齐备 + 设计模式一次真改(加一条 handoff 并确认)截图入台账
 
 ## 5. 收尾
 
 - [x] 5.1 `openspec validate add-fleet-cockpit-v2 --strict` 绿;舰队八套 + `e2e/fleets.spec.js` 全绿;typecheck 绿
-- [ ] 5.2 出片(`fd-build-channel` 判路 → GHA → relay → ccr)并真机验收三面;台账 `docs/registry-maintenance.md` §9 发布记录 + §十五补记「v2 画布落地」;课程不改(词表未变)
+- [x] 5.2 出片(`fd-build-channel` 判路 → GHA → relay → ccr)并真机验收三面;台账 `docs/registry-maintenance.md` §9 发布记录 + §十五补记「v2 画布落地」;课程不改(词表未变)

@@ -2128,3 +2128,17 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **终裁（消融 transcript 铁证）**：wx 系场景任务-背景脱钩——期望背景（明日纪要失败史等）是 task 文本「继续工作」没指向的观测史；消融版块带着全部背景内容而响应如实答「现有记忆未提供本轮明确待办」；judge 度量的是场景设计张力非注入缺陷。titles 臂赢只因标题行少而近任务。
 
 **处置**：四修各自独立成立且生产有益（块更干净/更密/陈旧交接不再注入），随裁定版滚产；EVAL_NO_HANDOFFS 开关保留作常设消融工具；wx 系场景列为场景设计债（task 须改写为指向背景的续作句式）下一轮场景迭代处理；生产 digest 面以构造基准为准（5/5 hit+notes=4）。59-61/61 单测全程绿。
+
+### §15.52 驾驶舱 v2 全链上产（add-fleet-cockpit-v2 四列车，2026-10-26，用户令「出片出片」）
+
+**能力**：舰队可观测三层补齐——①**执行实例账本**（`fleet_runs` 头表+回合事件扩 7 列 runId/parentTurnId/edgeKind/usage×2/traceTurnId；回合开始铸 id、单缝落行、SUM 收口；三点火点盖链位；舰队回合 trace tap 进 collector——此前舰队回合从不进 trace.db；WS 三事件 fleet_turn_started/ended/run_updated；30 天+每岗 200 双条件保留）；②**活画布**（@xyflow/react 懒块 191KB 主包持平；9 节点状态环/在途脉冲/边粗细=24h 流量/MiniMap；实时事件点亮不重排）；③**回放时间线**（run 列表过滤分页+泳道瀑布+工具 span 配对 trace+滑杆回放=画布换时钟点亮）；④**检查器五页签+设计模式**（驾驶舱 draft/apply 路由与架构师桥两门一判，子集闸 orchestration+cadence/model；拖线→dry-run→确认落地/退出丢弃；卡片内联动作退役入抽屉）。
+
+**出片线**：`scs001/platform-image-verify` 公开仓免费线两班——班一 paas `5ae69ce2`（A-D 四组）+lint 清偿 `20908593`+边界清单 `5bf8fbf7` → 快照 c1869e5+image.yml 恢复提交 **c09b848**（digest `878371a3`）；班二收口兜底 `0f1a3367` → 快照 **f0a70db**（digest `d149afdc`）。`image-build-check` 两班绿；**CI 工作流红为既有红**（role-gated 8+pack-registry 1+round-rotation 毫秒 flake 1，与本地双树对照逐条同 identificar）。快照 scrub 老坑三现：image.yml 被删需手动恢复（tag=恢复提交 sha，非源 sha）；本轮新律——**快照 CI 是全仓 lint/边界门**（biome check . + ADR-0023 适配器边界），本地只 lint 自己文件会漏（agent-serving mySlice 死行/matters 两桥入清单均 CI 逮住）。
+
+**滚动**：fd-infra-deploy `f2f15c1`（c09b848）→ `7cf574a`（f0a70db），platform/platform-demo/facet/agent-runner-serving 五行同代（serving 含 init+main 双行），ArgoCD 两轮 Synced，四 deploy ready。
+
+**真机验收（aloadtree cell，公司式舰队 9 岗）**：①画布 9 节点+声明 handoff 边+MiniMap+Controls；隐式 supervisor 全对派发照旧聚合一行不画边；②时间线 7 runs（成功/失败/进行中+来源+时长），CEO run 瀑布条带 **1400+519 tok**、errorKind、时长；**滑杆回放点亮**——拖至中点「回放中」徽章+游标线+CEO 节点蓝脉冲（时刻 4:00:35），释放回实时；③检查器五页签（概况=状态依据/模型解析链/KPI 槽位抽真报数摘要）；④设计模式拖线 CEO→开源部→草稿虚线边+dry-run 过→确认解锁→**退出丢弃零落地**（画布回声明态、库 orchestration 原样）。**旁证**：p2walk1025 在自家 cell 已真用设计模式（pod 日志 orchestration/draft+apply 多次，K8 租户化清单新流量）。
+
+**真机揪出真缺陷一枚+当日修复**：链上任务在**引擎层**死掉（排程侧失败，不进回合单缝）时链头表泄漏 open（CEO run_806f 实证 47min 不收口）→ `engine.addOnFinished` 挂 settle 兜底（paas `0f1a3367`，回归 19/19），随班二上产；两条旧 pod 泄漏头表按账本投影规则手动收口（SUM 自明细，等价兜底行为）。
+
+**余项**：真舰队一日 `fleet_runs` 收口一致性核对（1.9 尾项，次日看）；run 详情瀑布的多跳链位连线（本 cell 尚无 ≥2 跳 run 样本，e2e 夹具已证）；OTLP 导出（字段已按 OTel 命名，何时接另议）。

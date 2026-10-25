@@ -1897,6 +1897,11 @@
     "description": "Descripción",
     "notes": "Nota de versión (opcional, ≤500 caracteres)",
     "parts": "{{skills}} skill(s) · {{mcp}} MCP · {{agents}} agente(s)",
+    "facadeToggle": "Publicar como avatar de IA",
+    "facadeHint": "Tras publicar, este paquete es tu avatar de IA: al desplegar la recepción, los visitantes conversan gratis desde el catálogo — responde con honestidad usando todas las habilidades del paquete y lo dice cuando no puede. El coste va en tu cupo (hosted).",
+    "facadeNeedServing": "Un avatar de IA necesita un agente con servicio — este borrador no tiene ninguno con contrato de servicio.",
+    "facadeNeedSkill": "Un avatar de IA necesita al menos una habilidad como corpus — este borrador no lleva habilidades.",
+    "facadeReception": "Agente de recepción",
     "reportTitle": "No se transfirió — completa o sustituye en el editor de borradores tras publicar si hace falta:",
     "publish": "Publicar",
     "step": {

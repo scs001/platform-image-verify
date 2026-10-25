@@ -1897,6 +1897,11 @@
     "description": "Description",
     "notes": "Version note (optional, ≤500 chars)",
     "parts": "{{skills}} skill(s) · {{mcp}} MCP · {{agents}} agent(s)",
+    "facadeToggle": "Publish as an AI twin",
+    "facadeHint": "Once published, this pack is your AI twin: after you deploy the reception agent, visitors chat with it for free from the catalog — it answers honestly from all skills in this pack and says so when it can't. Costs ride your quota (hosted).",
+    "facadeNeedServing": "An AI twin needs a serving agent — this draft has none with a serving contract.",
+    "facadeNeedSkill": "An AI twin needs at least one skill as its corpus — this draft carries no skills.",
+    "facadeReception": "Reception agent",
     "reportTitle": "Not carried over — complete or replace in the draft editor after publishing if needed:",
     "publish": "Publish",
     "step": {

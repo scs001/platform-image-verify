@@ -56,12 +56,12 @@ function installGatewayMock(page, state) {
   });
 }
 
-async function createPreset(page) {
+async function createPreset(page, { skills = [USER_SKILL] } = {}) {
   const r = await page.request.post("/api/agent/presets", {
     data: {
       name: "Flow E2E",
       persona: "你是流转测试的角色。",
-      skills: [USER_SKILL],
+      skills,
       mcpServers: [],
       tags: ["流转"],
     },
@@ -174,4 +174,76 @@ test("publish failure stops the flow with the failing step named", async ({ page
   // The composed draft survives for the editor path — nothing was lost.
   const drafts = await page.request.get("/api/pack-drafts").then((r) => r.json());
   expect(drafts.drafts.some((d) => d.name === "Flow E2E")).toBe(true);
+});
+// ── Facade attach (add-preset-facade-publish) ────────────────────────────────
+//
+// The toggle stamps a facade block on the published manifest: reception from
+// the bridge's serving agent, corpus = every carried skill, pure reception,
+// hosted — validated by the publish gate like any hand-written block. The
+// disabled case (no corpus skills) keeps the flow publishable as an ordinary
+// pack with the reason shown in place.
+
+test("facade toggle publishes the pack with a facade block", async ({ page }) => {
+  test.setTimeout(180_000);
+  const state = gatewayState();
+  await installGatewayMock(page, state);
+  const skill = await page.request.post("/api/extensions/skills", {
+    data: { name: USER_SKILL, description: "流转技能", content: "# 流转。\n正文。" },
+  });
+  expect(skill.ok(), await skill.text()).toBeTruthy();
+  const preset = await createPreset(page);
+
+  await page.goto("/agents?tab=agents");
+  await expect(page.getByTestId("custom-presets-page")).toBeVisible({ timeout: 15_000 });
+  await page.getByTestId(`preset-publish-${preset.id}`).click();
+  await expect(page.getByTestId("preset-publish-name")).toHaveValue("Flow E2E", { timeout: 15_000 });
+
+  // The toggle is offered and enabled (bridge composed a serving agent + the
+  // carried skill); turning it on is all the user does.
+  const toggle = page.getByTestId("preset-publish-facade-toggle");
+  await expect(toggle).toBeEnabled();
+  await toggle.check();
+  await expect(page.getByTestId("preset-publish-facade-hint")).toBeVisible();
+
+  await page.getByTestId("preset-publish-submit").click();
+  await expect(page.getByTestId("preset-publish-done")).toBeVisible({ timeout: 15_000 });
+  expect(state.packs).toHaveLength(1);
+
+  // The published manifest carries a legal facade block: reception = this
+  // flow's serving agent, corpus = every skill name, pure reception, hosted.
+  const m = state.packs[0].manifest;
+  const serving = m.agents.find((a) => a.serving);
+  expect(serving).toBeTruthy();
+  expect(m.facade).toEqual({
+    reception: serving.id,
+    corpus: m.skills.map((s) => s.name),
+    delegation: [],
+    stance: "hosted",
+  });
+});
+
+test("facade toggle disabled without corpus skills; publish stays ordinary", async ({ page }) => {
+  test.setTimeout(180_000);
+  const state = gatewayState();
+  await installGatewayMock(page, state);
+  // A preset with no skills: the bridge still composes the serving agent, but
+  // there is no corpus — the toggle must refuse with the reason in place.
+  const preset = await createPreset(page, { skills: [] });
+
+  await page.goto("/agents?tab=agents");
+  await expect(page.getByTestId("custom-presets-page")).toBeVisible({ timeout: 15_000 });
+  await page.getByTestId(`preset-publish-${preset.id}`).click();
+  await expect(page.getByTestId("preset-publish-name")).toHaveValue("Flow E2E", { timeout: 15_000 });
+
+  const toggle = page.getByTestId("preset-publish-facade-toggle");
+  await expect(toggle).toBeDisabled();
+  const note = page.getByTestId("preset-publish-facade-note");
+  await expect(note).toBeVisible();
+  await expect(note).toContainText("技能");
+
+  // Disabled is guidance, not a block: the publish proceeds as a normal pack.
+  await page.getByTestId("preset-publish-submit").click();
+  await expect(page.getByTestId("preset-publish-done")).toBeVisible({ timeout: 15_000 });
+  expect(state.packs).toHaveLength(1);
+  expect(state.packs[0].manifest.facade).toBeUndefined();
 });

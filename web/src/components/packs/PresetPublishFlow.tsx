@@ -51,6 +51,12 @@ export function PresetPublishFlow({
   // Optional version note (add-facet-version-history): rides the published
   // manifest under the notes contract; empty = the manifest omits the field.
   const [notes, setNotes] = useState("");
+  // Facade attach (add-preset-facade-publish): the toggle stamps a facade
+  // block on the published manifest — reception from this flow's serving
+  // agent(s), corpus = all carried skills, pure reception, hosted. Off =
+  // byte-identical manifest to the pre-toggle flow.
+  const [asFacade, setAsFacade] = useState(false);
+  const [receptionPick, setReceptionPick] = useState<string | null>(null);
   const [busy, setBusy] = useState<FlowStep | null>("compose");
   const [failed, setFailed] = useState<{ step: FlowStep; message: string } | null>(null);
   const [published, setPublished] = useState<{ packId: string; version: number; manifest: PackManifest } | null>(null);
@@ -84,6 +90,14 @@ export function PresetPublishFlow({
 
   const servingAgents: PackManifestAgent[] = (published?.manifest.agents ?? []).filter((a) => a.serving);
 
+  // Facade feasibility reads the DRAFT (the compose result), not the
+  // published manifest: the bridge composes the agent WITH a serving
+  // contract, so the binding constraint is corpus — at least one skill.
+  const draftServing: PackManifestAgent[] = (draft?.entries.agents ?? []).filter((a) => a.serving);
+  const draftSkillCount = draft?.entries.skills?.length ?? 0;
+  const canFacade = draftServing.length >= 1 && draftSkillCount >= 1;
+  const reception = receptionPick ?? draftServing[0]?.id ?? "";
+
   // Billing state gates the deploy step's key inputs (same three-state readout
   // as the pack detail surface); absent routes degrade to no readout.
   useEffect(() => {
@@ -107,6 +121,19 @@ export function PresetPublishFlow({
         skills: updated.entries.skills ?? [],
         mcpServers: updated.entries.mcpServers ?? [],
         agents: updated.entries.agents ?? [],
+        // The facade block rides the manifest only when the toggle is on and
+        // the compose result can carry it — the publish gate validates the
+        // block exactly as a hand-written one (same-path discipline).
+        ...(asFacade && canFacade
+          ? {
+              facade: {
+                reception,
+                corpus: (updated.entries.skills ?? []).map((s) => s.name),
+                delegation: [],
+                stance: "hosted" as const,
+              },
+            }
+          : {}),
       };
       const r = await packsApi.publishPack({ packId: draft.publishedPackId, manifest });
       if (!draft.publishedPackId) await packsApi.markDraftPublished(draft.id, r.id);
@@ -226,6 +253,54 @@ export function PresetPublishFlow({
                 agents: draft.entries.agents?.length ?? 0,
               })}
             </p>
+            <section className="border border-border rounded-md p-3 space-y-2" data-testid="preset-publish-facade">
+              <div className="flex items-start gap-2">
+                <input
+                  id="preset-publish-facade-toggle"
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={asFacade && canFacade}
+                  disabled={!canFacade || busy !== null}
+                  onChange={(e) => setAsFacade(e.target.checked)}
+                  data-testid="preset-publish-facade-toggle"
+                />
+                <div className="space-y-1">
+                  <label htmlFor="preset-publish-facade-toggle" className="text-xs font-medium cursor-pointer select-none">
+                    {t("presetPublish.facadeToggle")}
+                  </label>
+                  <p
+                    className="text-xs text-muted-foreground"
+                    data-testid={canFacade ? "preset-publish-facade-hint" : "preset-publish-facade-note"}
+                  >
+                    {canFacade
+                      ? t("presetPublish.facadeHint")
+                      : draftServing.length === 0
+                        ? t("presetPublish.facadeNeedServing")
+                        : t("presetPublish.facadeNeedSkill")}
+                  </p>
+                </div>
+              </div>
+              {asFacade && canFacade && draftServing.length > 1 && (
+                <div>
+                  <Label htmlFor="preset-publish-facade-reception" className="text-xs text-muted-foreground">
+                    {t("presetPublish.facadeReception")}
+                  </Label>
+                  <select
+                    id="preset-publish-facade-reception"
+                    className="mt-1 w-full rounded-md border border-border bg-transparent px-2 py-1 text-xs"
+                    value={reception}
+                    onChange={(e) => setReceptionPick(e.target.value)}
+                    data-testid="preset-publish-facade-reception"
+                  >
+                    {draftServing.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name || a.id}（{a.id}）
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </section>
             {(pendingSkills.length > 0 || pendingServers.length > 0) && (
               <div className="border border-amber-500/40 bg-amber-500/5 rounded-md p-3 space-y-1" data-testid="preset-publish-report">
                 <p className="text-xs font-medium text-foreground">{t("presetPublish.reportTitle")}</p>

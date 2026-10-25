@@ -1897,6 +1897,11 @@
     "description": "描述",
     "notes": "版本说明（可选，≤500 字）",
     "parts": "{{skills}} 个技能 · {{mcp}} 个 MCP · {{agents}} 个角色",
+    "facadeToggle": "作为 AI 分身发布",
+    "facadeHint": "发布后这个功能集就是你的 AI 分身：部署接待角色后，访客从目录点「和这个分身聊」免费和你聊；接待用包内全部技能作语料如实回答，答不了的如实说。费用走你的额度（hosted）。",
+    "facadeNeedServing": "成为分身需要一个服务面角色——当前草稿没有带服务契约的角色。",
+    "facadeNeedSkill": "成为分身需要至少一个技能作语料——当前草稿没有可带入的技能。",
+    "facadeReception": "接待角色",
     "reportTitle": "以下内容未随转换带入——如需补齐，发布后可到草稿编辑器中处理：",
     "publish": "发布",
     "step": {

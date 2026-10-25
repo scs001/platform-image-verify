@@ -1897,6 +1897,11 @@
     "description": "Description",
     "notes": "Note de version (facultatif, ≤500 caractères)",
     "parts": "{{skills}} skill(s) · {{mcp}} MCP · {{agents}} agent(s)",
+    "facadeToggle": "Publier comme avatar IA",
+    "facadeHint": "Après publication, ce paquet est votre avatar IA : une fois la réception déployée, les visiteurs discutent gratuitement depuis le catalogue — elle répond honnêtement à partir de toutes les compétences du paquet et le dit quand elle ne peut pas. Le coût va sur votre quota (hosted).",
+    "facadeNeedServing": "Un avatar IA nécessite un agent de service — ce brouillon n'en a aucun avec contrat de service.",
+    "facadeNeedSkill": "Un avatar IA nécessite au moins une compétence comme corpus — ce brouillon n'en emporte aucune.",
+    "facadeReception": "Agent de réception",
     "reportTitle": "Non repris — à compléter ou remplacer dans l'éditeur de brouillons après publication si besoin :",
     "publish": "Publier",
     "step": {

@@ -2142,3 +2142,5 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 **真机揪出真缺陷一枚+当日修复**：链上任务在**引擎层**死掉（排程侧失败，不进回合单缝）时链头表泄漏 open（CEO run_806f 实证 47min 不收口）→ `engine.addOnFinished` 挂 settle 兜底（paas `0f1a3367`，回归 19/19），随班二上产；两条旧 pod 泄漏头表按账本投影规则手动收口（SUM 自明细，等价兜底行为）。
 
 **余项**：真舰队一日 `fleet_runs` 收口一致性核对（1.9 尾项，次日看）；run 详情瀑布的多跳链位连线（本 cell 尚无 ≥2 跳 run 样本，e2e 夹具已证）；OTLP 导出（字段已按 OTel 命名，何时接另议）。
+
+**§15.53 补记（K3 夜巡 v3 再排 + 出片让路注记）**：v1（03:30+08）与 v2（04:20+08）均 status:"expired" 未 fire——机理=夜间窗内**并行会话（fleet cockpit v2）滚产 platform pod 两次**（20:06Z/20:22Z），once 定时器在重启中丢失、加载回放按已过期标定（cron.js 415-426 重载分支无 missed 补偿 for once 型——recurring 有 countMissedOccurrences，once 只标 expired；**once 型 downtime 无补偿是既有行为**，非本班引入）。v3 已排 04:40+08（job_jlzl2o）——夜巡 prompt 不含时间敏感内容可随时重放，且后续滚版前 `kubectl get pods -n fd-prod` 核对 once 型任务窗口。夜间窗 00:00-05:00 CST 是全舰队的常规滚版静默区（对话车道也在此最低峰），后续出片列车尽量避开该窗或滚后核对一次型任务。

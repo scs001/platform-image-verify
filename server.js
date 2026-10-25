@@ -1076,6 +1076,16 @@ ctx.fleetTurnLedger = createFleetTurnLedger({
   trace,
   rosterPresetId,
 });
+// Settle backstop (agent-fleet-runs): the seam settles after each TURN, but a
+// chained task can die at the ENGINE layer without ever entering the turn seam
+// (schedule-side block, pre-execution failure) — its run's header would leak
+// open forever. Every engine-terminal task carrying a chain re-runs settle;
+// idempotent, and a no-op while anything of that run is genuinely in flight.
+engine.addOnFinished((t) => {
+  try {
+    ctx.fleetTurnLedger?.settle(t?.origin?.fleet?.chain?.runId ?? null, { excludeTaskId: t?.id ?? null });
+  } catch { /* the engine hook must never throw into the lifecycle */ }
+});
 setInterval(() => {
   try {
     getFleetDatabase().pruneRuns();

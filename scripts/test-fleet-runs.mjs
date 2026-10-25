@@ -584,3 +584,33 @@ test("routes: cockpit carries edgeTraffic with the 24h hop split", async () => {
     server.close();
   }
 });
+
+// ── 10. settle backstop via engine addOnFinished (prod leak, 2026-10-26) ────
+
+test("backstop: a chained task that dies at the ENGINE layer (never enters the seam) still closes the run header", () => {
+  fixtureFleet(fleetDb, { members: [member("m_up"), member("m_exec")] });
+  const ledger = createFleetTurnLedger({ db: fleetDb, engineRecords: () => engine.allRecords() });
+  const job = rootJob("f_run", "m_up", "j_backstop");
+  const h = ledger.begin(job, { startedAt: 1 });
+  // The upstream turn ends and queues a chained dispatch task…
+  ledger.end(job, h, { ok: true }, { startedAt: 1, endedAt: 2 });
+  engine.createManualTask({
+    prompt: "派发",
+    persona: "p-m_exec",
+    origin: { fleet: { fleetId: "f_run", memberId: "m_exec", depth: 1, chain: { runId: h.runId, parentTurnId: h.turnId, edgeKind: "dispatch" } } },
+  });
+  const chained = engine.allRecords().find((t) => t.origin?.fleet?.chain?.runId === h.runId);
+  assert.ok(chained, "chained task exists");
+  // While the chained task is queued/running, the seam settle keeps it open.
+  chained.state = "queued";
+  assert.equal(ledger.settle(h.runId, { excludeTaskId: job.id }), null, "queued downstream keeps the header open");
+  // The task then dies at the ENGINE layer WITHOUT ever entering the turn seam
+  // (schedule-side failure): terminal record, no turn row, no seam settle.
+  // The engine's on-finished hook (server wiring) re-runs settle — and now
+  // with every chained record terminal, the header closes honestly.
+  chained.state = "failed";
+  const finished = ledger.settle(chained.origin.fleet.chain.runId, { excludeTaskId: chained.id });
+  assert.equal(finished.status, "ok");
+  assert.equal(finished.turns, 1, "only the upstream turn row exists — the engine-layer death is honest absence");
+  assert.equal(fleetDb.getRun(h.runId).status, "ok");
+});

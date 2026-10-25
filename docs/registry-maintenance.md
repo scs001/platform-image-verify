@@ -1923,4 +1923,4 @@ fd-wire `wire-content-fleet` 交接的四件需求（P0 安装闸 / P1 fleet 行
 
 **列车**：快照 bcee756 → digest 2c493418 ccr 实证 → GitOps 四面滚（runner 必滚）。**本班翻车一枚（GitOps regex bug）**：bump 脚本 `m.group(0).split(" #")[0]` 只换注释不换 tag——四面 spec 全指旧 sha 但注释全是新的，ArgoCD「滚成功」假象（rollout status 验的是旧 spec）；修=完整正则替换（tag+注释一体）+眼见四 deploy image 行。教训：**bump 后必眼见 image 行本身，rollout success 不算数**。另：relay 手动补单撞 cron 全量轮长尾（PASS 行滞后），双仓 list-tags 对拍才是判据。
 
-**验证**：agent-runner 66/0（+3：chat 面物化清单/未声明零变化/未知档位拒）、agent-serving 66/0（+1 枚举校验）、双 manifest 零错、pack lint 6/0、facade 20/0。
+**验证**：agent-runner 66/0（+3：chat 面物化清单/未声明零变化/未知档位拒）、agent-serving 66/0（+1 枚举校验）、双 manifest 零错、pack lint 6/0、facade 20/0。（更正：归档提交信息误写 183/183，实际 validate --specs **182/182**。）

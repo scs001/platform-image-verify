@@ -2426,3 +2426,15 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **铁证**：下一轮自然 cron 蒸馏（mission-planner，19:46）写 23 张新 L2，**每张都 supersedes 前缀同义旧页**（接替枚数 1/1/1/1/1/2/8/1/3/23/6 不等）——主题组「如何巡检 mission-planner 的活跃任务状态」一接替直接折叠 23 张旧页。信息零堆积、脉络被折叠晋升，文件保留可查。
 
 至此蒸馏经济闭环三件套：产出侧停未来（dbec138）+ 存量清理（320 张）+ 真机 witness（本轮）。
+
+### §15.61 壹座舰队驾驶舱镜像（add-fleet-cockpit-projection，2026-10-27 凌晨）：萬星半边全产 + 平台镜像被 TCR 100-tag 上限拦停
+
+**双仓实现**：explore 报告（docs/explore-wanxing-cockpit-projection.md，六决策点用户照办=A1 事件流延伸/compact 卡/只采活 cell//api/fleets/overview/OpsView 段/ops 面）→ change 立项 validate 绿。paas：新聚合端点 `GET /api/fleets/overview`（50 舰队硬界、题面≤80/摘要≤120/槽≤4、v:1+sampledAt、非舱主 403）+cell-sampler 第二路 tick（`FLEET_CELL_FLEETS_SAMPLE_SECS`默认60s/`FLEET_CELL_FLEETS_ENABLE=0`关断）。萬星：`cell_fleets` 品种进 EVENT_KINDS 白名单+读点 `GET /api/fleet/v1/cell-fleets`（raw 窗最新快照+3×tick stale）+facade 转发路径+OpsView「壹座舰队镜像」段（observer 404/空→整段隐去）。测试：paas 20/20+7/7、wanxing 202/202、stub-console-web 三态浏览器眼见（卡片/待拍板/stale/深链/隐去两律）、wanxing-web build 绿。
+
+**上产（观察者→平台→facade/web 顺序纪律）**：三池并发——observer=池 testaction001 ce91eaf(digest 01ebd97f✓滚)、facade=池 002 6fa63a5(sha tag)、web=池 004 5091e84（首挂 BUILD_DOCKERFILE 相对-context 解析坑：须写 `Dockerfile.web` 相对默认 CTX，非 `wanxing-web/Dockerfile.web`；模板默认 `{CTX}/Dockerfile` 只对了 CTX="." 的场景）。平台镜像公开线 scs001 快照：先被并行会话同一 mirror 强推撞车取消（我 b0fd268），乘其 2335a038 超集（c6244fe 含我两路采样）随滚一轮，真机直证以下两条回链缺陷——修复后再出两轮：
+
+**两个生产直证真 bug（III 上产空窗根因）**：①**身份分流**：cell registry key=`userIdFor(email)=sha256(email)[:16]` 是 **hex**不是邮箱——fleet-cells.js 初版把 hex 当 x-forwarded-email 转发（/api/tasks/stats 无属主闸门所以没暴露），overview 的 ownerEmail==cellUserEmail 必然 403；修复=sampleCell 收 forwardedIdentity，tickFleets 用 `cell.email ?? userId`（事件 agent 仍 hex 与统计道对键）。②**超时分流**：overview 对每岗跑 memberView（latest/prev/timeline/turn 查询），20 舰队实测 **2579ms**，与统计道共享的 `SAMPLE_TIMEOUT_MS=2000` **每 tick 必 abort 且静默 null**（surface=零事件零日志）；修复=`FLEETS_SAMPLE_TIMEOUT_MS=10000` 独立预算。教训=**采样道的 payload 轻重比与超时要独立核算，本道理同样适用于将来任何「借道同活 cell 的另一端点」**。
+
+**阻塞（用户件）**：两轮修复后的快照 59701c2 构建绿但 push 被 DENIED：`The repository yizuo/platform's tag has reached its limit(100)`（TCR 个人版单仓 100 标签硬顶，26 天日更积满）。本机/relay 上 v2 DELETE 双 401、无 Tencent 云 API 凭据——**需要用户在 TCR 控制台清 yizuo/platform 的旧 sha-* 标签（保 main+最新 1-2 个）**。解禁=一条命令（快照已在 mirror 上到 59701c2，直接 dispatch 重建推镜像 tag 不变）：`gh workflow run image.yml -R scs001/platform-image-verify` → relay 上门后滚三清单（fd-infra-deploy 现行已是同 lineage 熟推样例）+ ArgoCD refresh → 镜像段即见活卡。期间观察端点 `GET /api/fleet/v1/cell-fleets` 有输出=链已通。**注意禁做**：dispatch 前若 mirror 又被并行会话覆盖，须先按老配方恢复 image.yml（scs001 仓 image.yml seed 只来自 paas 树 git archive，v1 次即定）。
+
+**至今形态**：observer 新 kind 白名单在位+读点 200 空窗、facade 与 OpsView 段已上（隐去律生效：空窗不渲染）、platform 镜像仍 aca121cd（含本体但无采样修复——链未到腹）。镜像段与 paas cockpit 数实的全面眼证留待解禁后 10 分钟。**坑册入律**：fd-wanxing 仓正分支是 **master**（一次误推 origin HEAD:main 靠 new branch 原位 delete 收场）。

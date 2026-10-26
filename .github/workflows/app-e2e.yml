@@ -1,9 +1,13 @@
 name: app-e2e
 
 # The mobile client's Maestro gate (add-mobile-app 6.1/6.2). Android is the
-# enforced lane (emulator on ubuntu); iOS runs nightly on a macOS runner —
-# heavy, advisory until it proves stable. Lint/typecheck/unit run on every
-# push; they are cheap and catch the cross-platform typing drift early.
+# enforced lane (emulator on ubuntu); the iOS leg runs MANUAL-DISPATCH ONLY —
+# nightly macOS billing (10x) is the structural quota killer that took the
+# private CI down mid-Oct 2026 (revive-nonweb-ci channel division: private
+# repo = ubuntu budget gates; macOS/Windows heavy legs run on the public
+# build-pool side-branch channel, see docs/registry-maintenance.md). Lint/
+# typecheck/unit run on every push; they are cheap and catch the
+# cross-platform typing drift early.
 #
 # The android lane is split in two jobs because gradle and the emulator
 # cannot share a runner: assembleDebug ran 42m next to the idling emulator
@@ -34,8 +38,6 @@ on:
   push:
     branches: [main]
     paths: ["app/**", "packages/core/**", ".github/workflows/app-e2e.yml"]
-  schedule:
-    - cron: "0 3 * * *" # nightly: the iOS leg
   workflow_dispatch:
 
 concurrency:
@@ -71,6 +73,8 @@ jobs:
           mkdir -p packages/core/node_modules
           ln -sfn ../../../app/node_modules/zustand packages/core/node_modules/zustand
 
+      - name: Lint (Biome, repo-pinned; covers shared core)
+        run: npx biome check app/ packages/core/
       - name: Typecheck
         run: npm --prefix app run typecheck
       - name: Unit tests (incl. integration smoke + i18n CJK gate)
@@ -217,8 +221,8 @@ jobs:
           if-no-files-found: ignore
 
   ios-nightly:
-    name: Maestro (iOS simulator, nightly)
-    if: github.event_name == 'schedule'
+    name: Maestro (iOS simulator, manual dispatch)
+    if: github.event_name == 'workflow_dispatch'
     needs: gates
     runs-on: macos-latest
     timeout-minutes: 60

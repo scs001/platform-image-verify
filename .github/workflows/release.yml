@@ -1,3 +1,9 @@
+# ── 通道注记（revive-nonweb-ci，2026-10-27）──────────────────────────────
+# 本 workflow 的 macOS/Windows 矩阵**只走公开池侧分支通道**运行：
+# `testaction003/build-pool` 侧分支 `desktop-release/<ver>`（gitleaks 零泄漏
+# 快照 + workflow 修剪至本文件 + win-install-smoke），tag 触发。本私有仓的
+# 私有 minute 不为它付费 —— 见 docs/registry-maintenance.md「非 web 端通道」。
+#
 # ── Release: build .dmg (mac arm64 + x64) + .exe (win x64) on tag / dispatch ───
 #
 # Triggers:

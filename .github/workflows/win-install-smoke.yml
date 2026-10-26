@@ -1,3 +1,7 @@
+# 通道注记（revive-nonweb-ci，2026-10-27）：本档仅 workflow_dispatch，且实跑
+# 走公开池（池 main 有复用副本，`-f tag=vX.Y.Z`）——Windows ×2 分钟不吃私仓额度。
+# 详见 docs/registry-maintenance.md「非 web 端通道」。
+#
 # Windows install smoke — the beta-promotion evidence for add-desktop-release 4.2.
 #
 #   workflow_dispatch with a release tag → downloads the PUBLISHED .exe from

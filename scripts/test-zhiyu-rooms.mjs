@@ -187,6 +187,17 @@ test("3.6 replyCap two-level config: patch honors bounds, clear falls back to de
   srv.close();
 });
 
+test("3.9 ref case rules: emails lowercase, deployment refs keep case", async () => {
+  const { srv, base } = await boot();
+  const a = cli(base, "a@x");
+  const roomId = (await a.post("/api/zhiyu/rooms", { title: "" })).body.room.id;
+  const inv = await a.post(`/api/zhiyu/rooms/${roomId}/invites`, { kind: "user", ref: "  MixEd@Corp.com " });
+  assert.equal(inv.body.invite.ref, "mixed@corp.com");
+  const dep = await a.post(`/api/zhiyu/rooms/${roomId}/invites`, { kind: "agent", ref: "Ut_bJMuW5KxAD83KImPmlg:reception", onBehalfOf: "c@x" });
+  assert.equal(dep.body.invite.ref, "Ut_bJMuW5KxAD83KImPmlg:reception", "mixed-case deployment ref preserved verbatim");
+  srv.close();
+});
+
 test("3.8 owner removes a member: removed seat loses read access, stranger cannot remove", async () => {
   const { srv, base } = await boot();
   const a = cli(base, "a@x");

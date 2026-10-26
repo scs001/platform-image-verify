@@ -384,11 +384,16 @@ export function registerZhiyuRoutes(app, {
 
     const kind = String(req.body?.kind ?? "");
     if (!["user", "facade", "agent"].includes(kind)) return res.status(400).json({ error: "kind must be user|facade|agent" });
-    const ref = String(req.body?.ref ?? "").trim().toLowerCase();
+    // Case rules: user refs are emails (canonical lowercase); facade/agent
+    // refs are deployment ids `${packId}:${agentId}` and are CASE-SENSITIVE —
+    // deployment bookkeeping matches by exact packId (learned the hard way on
+    // the first live dispatch: lowercasing broke resolution for mixed-case
+    // pack ids).
+    const ref = kind === "user" ? String(req.body?.ref ?? "").trim().toLowerCase() : String(req.body?.ref ?? "").trim();
     if (!ref) return res.status(400).json({ error: "ref required" });
     const onBehalfOf = req.body?.onBehalfOf ? String(req.body.onBehalfOf).trim().toLowerCase() : null;
     if (kind === "facade" && !onBehalfOf) return res.status(400).json({ error: "facade invites require onBehalfOf (the principal)" });
-    if (!/^[a-z0-9._:@/-]+$/.test(ref)) return res.status(400).json({ error: "ref has invalid characters" });
+    if (!/^[A-Za-z0-9._:@/-]+$/.test(ref)) return res.status(400).json({ error: "ref has invalid characters" });
     const historyGrant = req.body?.historyGrant === "full" ? "full" : "join_from";
     const display = String(req.body?.display ?? ref).slice(0, 120);
 

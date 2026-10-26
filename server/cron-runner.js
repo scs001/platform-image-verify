@@ -22,7 +22,14 @@ import { clusterMemoryFor, memoryInjectionFor } from "./cluster-memory.js";
 import { runToolTurn as runToolTurnDefault } from "./tool-turn.js";
 
 const IDLE_POLL_MS = 250;
+// Monotonic round sequence (unique rotated child ids even within one ms).
+let roundSeqCounter = 0;
 const PRESET_SWITCH_ATTEMPTS = 3;
+// Fleet rounds wait this long for a cold cell's dsh child to finish booting
+// (2026-10-25 live: a daily patrol fired 17s after platform start and failed
+// `runtime_not_ready`; nothing retried, so that day's patrol was simply lost).
+const RUNTIME_READY_WAIT_MS = 120_000;
+const RUNTIME_READY_POLL_MS = 1_000;
 
 // Resolve when the live web turn finishes (ctx.isStreaming drops). The engine
 // queued this job; "skip because busy" is not an option, so busy means wait.
@@ -289,15 +296,49 @@ async function disposeRoundChild(ctx, childSessionId, mirrorSessionId) {
 // the byte-for-byte pre-change shape: the child id IS the mirror id.
 // One formula, two readers: runPersonaTurn prompts under it, the run ledger
 // registers it (so the collector tap can find the turn by that key).
-export function roundChildSessionId(job, startedAt) {
+//
+// `seq` breaks the same-millisecond tie. Timestamps alone collide whenever two
+// rounds of one post start inside the same ms (retry storms, catch-up racing a
+// scheduled fire) — and a colliding id would silently resume the very history
+// the rotation exists to drop. The engine's own execution counter rides in, so
+// the id is unique per execution without any extra bookkeeping.
+export function roundChildSessionId(job, startedAt, seq = 0) {
   const sessionId = job.sessionId || `cron-${job.id}`;
-  return Boolean(job.sourceTag?.fleetId) ? `${sessionId}#r${startedAt}` : sessionId;
+  if (!job.sourceTag?.fleetId) return sessionId;
+  return `${sessionId}#r${startedAt}${seq ? `-${seq}` : ""}`;
+}
+
+// Fleet rounds land on cold cells: the platform boots its dsh child in the
+// background, so a 09:00 cron can fire before the runtime is ready. Waiting
+// is bounded and fleet-only — ordinary cron keeps the immediate refusal.
+// Exported so the gate itself is testable without a live dsh bridge.
+export async function awaitRuntimeReadyForJob(ctx, job, {
+  waitMs = RUNTIME_READY_WAIT_MS,
+  pollMs = RUNTIME_READY_POLL_MS,
+  now = () => Date.now(),
+} = {}) {
+  if (ctx.dshBridge?.isReady()) return { ok: true };
+  if (!job.sourceTag?.fleetId) {
+    return { ok: false, error: "the agent runtime is not ready" };
+  }
+  const deadline = now() + waitMs;
+  while (!ctx.dshBridge?.isReady() && now() < deadline) {
+    await new Promise((r) => setTimeout(r, pollMs));
+  }
+  if (!ctx.dshBridge?.isReady()) {
+    return { ok: false, error: "the agent runtime is not ready (waited for fleet round)" };
+  }
+  return { ok: true };
 }
 
 async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Date.now() } = {}) {
-  if (!ctx.dshBridge?.isReady()) {
-    return { ok: false, error: "the agent runtime is not ready" };
-  }
+  // Unattended fleet rounds land on cold cells: the platform boots its dsh
+  // child in the background, so a 09:00 cron can fire before the runtime is
+  // ready and the whole patrol is lost (2026-10-25 live: one daily patrol
+  // failed `runtime_not_ready` and nothing retried).
+  const ready = await awaitRuntimeReadyForJob(ctx, job);
+  if (!ready.ok) return ready;
+
 
   // preset binding: a job without one (legacy record) runs under whatever
   // preset is live, matching its pre-change behavior.
@@ -325,7 +366,7 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
   }
 
   const sessionId = job.sessionId || `cron-${job.id}`;
-  const childSessionId = roundChildSessionId(job, startedAt);
+  const childSessionId = roundChildSessionId(job, startedAt, job.roundSeq ?? 0);
 
   // Fleet post identity (enable-wire-content-fleet D1): a member turn tells the
   // agent which post it executes, so it can name its own production source
@@ -734,7 +775,12 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
   // the turn it observed.
   ctx.runCronJobTurn = async (job, { turnTimeoutMs } = {}) => {
     const timeoutMs = turnTimeoutMs || 10 * 60 * 1000;
+    // Monotonic per-cell sequence alongside the wall clock (retry storms and
+    // catch-up runs can start two executions inside one millisecond — the
+    // rotated child id must stay unique or the round resumes stale history).
     const startedAt = Date.now();
+    const roundSeq = ++roundSeqCounter;
+    job = { ...job, roundSeq };
 
     // Run ledger (agent-fleet-runs D2): the turn's id — and for a root turn
     // its run id — exist from the START, because a mid-turn dispatch_post must
@@ -743,7 +789,7 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
     // it. Degrade open: a ledger failure never touches the turn.
     let ledgerTurn = null;
     try {
-      ledgerTurn = ctx.fleetTurnLedger?.begin(job, { startedAt, sessionIds: [roundChildSessionId(job, startedAt)] }) ?? null;
+      ledgerTurn = ctx.fleetTurnLedger?.begin(job, { startedAt, sessionIds: [roundChildSessionId(job, startedAt, roundSeq)] }) ?? null;
     } catch (e) {
       console.warn(`[fleet-runs] ledger begin failed for ${job.id}: ${e?.message || e}`);
     }

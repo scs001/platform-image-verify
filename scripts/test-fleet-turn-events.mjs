@@ -37,7 +37,7 @@ const { initDb } = await import("../db.js");
 const engine = await import("../task-engine.js");
 const { createFleetDatabase, setFleetDatabase } = await import("../server/routes/fleets-db.js");
 const { classifyErrorKind, turnSourceFor, recordTurnEvent, ERROR_KINDS } = await import("../server/fleet-events.js");
-const { attachCronRunner } = await import("../server/cron-runner.js");
+const { attachCronRunner, awaitRuntimeReadyForJob } = await import("../server/cron-runner.js");
 
 await initDb();
 await chatHistory.initChatHistory();
@@ -291,6 +291,41 @@ test("runCronJobTurn seam: three target kinds record one event each; recorder fa
   });
   const r = await boom.runCronJobTurn({ id: "j4", targetType: "persona", preset: "x" });
   assert.equal(r.ok, true, "turn result passes through untouched");
+});
+
+// ── 4b. cold-cell runtime readiness for fleet rounds ───────────────────────
+
+test("fleet round waits for a cold runtime instead of failing runtime_not_ready", async () => {
+  let ready = false;
+  setTimeout(() => { ready = true; }, 30);
+  const out = await awaitRuntimeReadyForJob(
+    { dshBridge: { isReady: () => ready } },
+    { sourceTag: { fleetId: "f1", memberId: "m1" } },
+    { waitMs: 3_000, pollMs: 10 },
+  );
+  assert.equal(out.ok, true, "fleet round survives a cold cell instead of being lost");
+});
+
+test("fleet round gives up after the wait budget and names the wait", async () => {
+  const out = await awaitRuntimeReadyForJob(
+    { dshBridge: { isReady: () => false } },
+    { sourceTag: { fleetId: "f1", memberId: "m1" } },
+    { waitMs: 60, pollMs: 10 },
+  );
+  assert.equal(out.ok, false);
+  assert.match(out.error, /waited for fleet round/);
+});
+
+test("non-fleet cron keeps the byte-identical immediate refusal", async () => {
+  let ticked = 0;
+  const out = await awaitRuntimeReadyForJob(
+    { dshBridge: { isReady: () => false } },
+    { id: "plain-job" },
+    { waitMs: 5_000, pollMs: 10, now: () => { ticked += 1; return ticked * 1000; } },
+  );
+  assert.equal(out.ok, false);
+  assert.equal(out.error, "the agent runtime is not ready", "no waiting was added for ordinary cron");
+  assert.equal(ticked, 0, "the refusal short-circuits before any poll");
 });
 
 // ── 5. routes + cockpit face ────────────────────────────────────────────────

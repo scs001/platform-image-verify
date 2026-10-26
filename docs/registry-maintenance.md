@@ -2262,3 +2262,13 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **真机验收**：构造 3 发 digest 后单次 POST 即得——total 3、vector 1/keyword 2（ratio 0.333）、embed failed 3（2× deadline + 1× cooling_down）。过去需要 grep 日志才能拿到的判断，现一条 curl 到位。
 
 **用途**：后续任何记忆面优化的 baseline/对比都走这个面；日常巡检（vector_ratio 掉、embed failed 涨、distill failures 涨）也可以直接告警判据。
+
+### §15.54 星研教程上架：「AI 分身」使用课（2026-10-26）
+
+**内容**：中英双语课程《AI 分身：把你的知识变成一个可以直接聊的人》（en: Your AI Twin），level=use、order 12，canonical 在 `~/finddata/docs/xingyan/academy/{zh,en}/ai-twin-your-knowledge-to-chat.md`。结构：学完能做什么→为什么需要分身→五步（装工坊/接受采访/拿配置/发布+部署/发链接）→「答不了的问题会怎样」（事项转人工三态）→自检→四问 FAQ→下一步。写作用客户语言：不出现任何内部坐标、域名、控制台路径、错误码。
+
+**发布链**：脱敏机检 67 文件 0 命中 → 星研 CMS（Strapi）zh 建文 + 发布 201/200，en 走同 documentId 变体（`uavzohbeszkzjkrgodlzkm82`），两 locale status=published → 官网仓落快照 `src/content/academy/{zh,en}/`（**Dockerfile 不传 STRAPI_URL，镜像构建走仓内快照而非在线拉取**——本题第一坑）→ 内容门 189 文件 0 命中 → astro build 199 页 → push github（**origin 是 github、gitee 是第二远端**，只推 gitee 不触发 image——第二坑；且 github 已有并行会话的 baiye 入口提交，需 stash+rebase）→ image run 绿 sha-3a817ff → relay 4s → fd-web.yaml bump `ac466ce` → ArgoCD 硬刷新（`--context tencent -n fd-web`，不在 cheap 集群）→ rollout 绿。
+
+**验证三层**：pod 内 `grep AI 分身…` 与 `Your AI Twin` 双命中 → 公网 `/zh/research/academy/ai-twin-your-knowledge-to-chat/` 与无前缀英文页均 200，`eo-cache-status: MISS`（刚回源，非旧缓存）。
+
+**两条 CMS 备忘**：①`locale=*` 集合视图对 en 行显示 "modified"，但 `locale=en` 视图 status=published——判发布态用单 locale 视图；②en 变体必须显式带 zh 的 documentId + 全部非本地化字段，否则成为独立新文档。

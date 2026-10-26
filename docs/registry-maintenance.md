@@ -2202,3 +2202,11 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **实现**（fd-memory 5d1631a，滚产 sha-7b09bdb）：db `queryNotes`（title+body 词重叠评分，同 L2 关键词路径规则）；/digest L1 段双维合并——相关匹配≤3 在前+新近填补≤5（按 path 去重），空 q 纯新近字节等同；harness 镜像。62/62 绿（相关在前排序/空 q 回归双测）。
 
 **生产构造验收**：bench 根三条深背景老 note（排名 4-6）相关 query 3/3 即达（数据导出对账/演示恢复顺序/报表脱敏）；空 q recency-only 等同；基准 A 5/5 保持。记忆面自此闭环为三层即时性：新近 note（当回合）→ 相关 note（直查即达）→ 蒸馏 L2（语义泛化），外加 handoffs 通知段。
+
+### §15.44 整合回归 drill：九班滚产后的真 chat lane 全链 witness（2026-10-26 深夜，用户令「继续优化」）
+
+**动机**：§15.36 后 fd-memory 九班滚产（gist/窗口无关/去重帽/双维召回/写触发…），个体全测、组合行为无 witness——做一次真实 lane 整合回归。
+
+**全链 witness（aloadtree 真根，即最厚生产根：47 L2+39 handoffs）**：回合①真 agent 经 MCP 写 note「项目代号青鸾」→ **写触发蒸馏自动开火**（notify→60s 去抖→分批蒸馏产出 L2·experience 置信 1.00）→ 回合②（新会话，仅隔数分钟）问「对外演示该用什么代号」→ /digest 检索首位即青鸾 L2（gist 形态：标题…：摘录分明+boundary_envs/search_keys 可见，memory-first 段序）→ **assistant 答：「青鸾」**。写→蒸→检→答四环在真实最厚根上数分钟内闭环，全部由本轮九班的个体改进复合而成。
+
+**运营注意（入配方）**：drill 身份连错 cell 时（PORT 多 cell 复用扫描误配），note 会落进**真实用户根**——本例落在 aloadtree；清残必须三级追（note 页+蒸馏 L2 experience+L2 fact 各自 forget，页面面 /pages 查不到 title 含关键词的 L2 需根内直查 recentPages+readPageByRel body）。终验零残留。附带澄清：memory_query 走 FTS 全页型（note 可查）、memory_recent 为新近面按契约——MCP 交互脸无类型盲缺陷。

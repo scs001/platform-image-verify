@@ -2194,3 +2194,11 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **出片**：快照 **59c0e8e**（源 paas 1721c70f，digest 2dc6c50b ccr 实证）四面同代滚（GitOps 572cdbb）。e2e +2=19 条全绿。
 
 **真机构造验收（aloadtree cell）**：检查器点「立即交付」→「交付已开始」提示→CEO 回合真跑落行（ok，612+464 tok）→派发下游 萬星机群席→运营简报岗 回合（edgeKind=dispatch 继承，failed）→**头表自动收口 partial（1 ok 1 failed）**——交付→执行→派发→继承→收口全链账本自证。
+
+### §15.43 note 双维召回：相关即达（2026-10-26 深夜续，用户令「继续优化」）
+
+**缺口**：notes 此前只有新近排序（top-5）——旧于 rank-5 且相关的 note 只能等蒸馏兜底（时延+有损）；「三天前记住的那条」需要的是相关性不是新近性。调查实锤：hybridCandidates 两路（关键词/向量）候选对象只有 fact/experience，note 页在页索引存在但召回路径查不到。
+
+**实现**（fd-memory 5d1631a，滚产 sha-7b09bdb）：db `queryNotes`（title+body 词重叠评分，同 L2 关键词路径规则）；/digest L1 段双维合并——相关匹配≤3 在前+新近填补≤5（按 path 去重），空 q 纯新近字节等同；harness 镜像。62/62 绿（相关在前排序/空 q 回归双测）。
+
+**生产构造验收**：bench 根三条深背景老 note（排名 4-6）相关 query 3/3 即达（数据导出对账/演示恢复顺序/报表脱敏）；空 q recency-only 等同；基准 A 5/5 保持。记忆面自此闭环为三层即时性：新近 note（当回合）→ 相关 note（直查即达）→ 蒸馏 L2（语义泛化），外加 handoffs 通知段。

@@ -2408,3 +2408,21 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **复验**：召回 top-8 全部是不同语义的 mission-protocol 任务指令（score 0.78-0.80），不再是 45 张同前缀重复页——**召回质量决定性改善**。退役计数与引擎历史自带 supersede 叠加核对一致（mission-planner 0.211w、spider-heal 0.161w、wx-alpha 0.90w，均含引擎原有退役集）。
 
 至此蒸馏经济闭环：产出侧去重（§15.53 停未来）+ 存量清理（§15.54 治历史）。
+
+### §15.60 agent/bot 配置维度上产（add-agent-config-dims，2026-10-27，八班夜航收口）
+
+**能力**：岗位/bot 可声明**思考深度**（effort，岗位声明>舰队默认>cell 默认覆盖链）与**上下文预算**（contextBudget，回合收口按实际上报用量判定，超限记 `context_budget` 失败并附实际/上限两数；无用量不判不虚构）。effort 经回合起点 live 切换；写面三门一判（member/fleet/bots PATCH 共用 `validateConfigDims`，effort 判已知模型档位并集、budget 判 [1024,2M]）；检查器与 BotsPage 控件（effort 下拉仅当生效模型声明档位时渲染）。
+
+**真机揪出真缺陷+当日修（2335a038）**：CEO 岗 effort=high 落库+cordis.patch 投影 `reasoning: high` 均实证，但回合 trace `request/header reasoningEffort=null`——本 runtime **无 model/set RPC**（全包 grep 零命中），switchEffortTo 走 legacy 重启路径而 `restart/initialize` 均不携带 effort → 新 child 起始即无档位；路由级 `reasoning` 对已声明 `reasoningEfforts` 的模型只是能力默认（dsh-llm-pi-ai materialize 为 `reasoning: true`，route 级默认被忽略）。修复：dsh-bridge 构造器/restart/initialize 三处透传 effort（runtime initialize 原生接受 `reasoningEffort`）+ boot bridge 传恢复值。**决定性验证（bridge 级本地实测）**：initialize effort=high → 请求头 `reasoningEffort: "high"` ✓（同 runtime 版本）。
+
+**出片（三班连发实录）**：31e3963（config-dims 主体）→ 并行会话 22c8deb/4b502c9 交错（failure-visibility+turn-attribution+veracity 同 main 竞发，一度四面两代切分，4b502c9 ⊇ 2335a038 确认后收拢）→ **99e6aaf 统一代**（paas 5f1b0e6b 全代并集；digest aca121cd ccr 实证；快照 CI 逮住并行 veracity 的 zh-CN-only locale 漂移，四语补齐 63ce2b6d 后过闸）。
+
+**生产闭环验证挂起（如实记）**：CEO 交付回合两次被**共享 child 模型竞争**打死（`model_not_available: qwen3.8-flash`——并行会话同时在测其它岗位，单 child 模型态是 child 全局，回合间互踩；§15.51 D1 忙谓词管「不并发执行」，不管「模型态不被对方切走」）。本地 bridge 级证明已闭环；生产 header 观察待并行测试静默窗口补验。**挂账**：共享 child 的模型态互踩是独立架构债（per-turn 模型隔离或 runtime 多会话模型态）。
+
+**新律（快照 CI 全仓门）+1**：locale 键漂移会拦**整条出片线**（zh-CN 先行提交 extra 键即挂）——多会话并行期 locale 提交必须五语言同波。
+
+### §15.54 补记：真机 witness——dedupe 在自然 cron 里满功率折叠（2026-10-26 夜）
+
+**铁证**：下一轮自然 cron 蒸馏（mission-planner，19:46）写 23 张新 L2，**每张都 supersedes 前缀同义旧页**（接替枚数 1/1/1/1/1/2/8/1/3/23/6 不等）——主题组「如何巡检 mission-planner 的活跃任务状态」一接替直接折叠 23 张旧页。信息零堆积、脉络被折叠晋升，文件保留可查。
+
+至此蒸馏经济闭环三件套：产出侧停未来（dbec138）+ 存量清理（320 张）+ 真机 witness（本轮）。

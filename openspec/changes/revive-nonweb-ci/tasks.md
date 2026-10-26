@@ -20,5 +20,5 @@
 
 - [x] 3.1 护栏登记：runs-on 全仓自查=12 ubuntu / 2 macos（app-build+app-e2e 各一，已一并降为 dispatch-only）/ 1 windows（win-smoke，dispatch-only）/ 1 matrix（release.yml，tag 触发、池通道实跑）——mac/win 存量档全部不吃私仓分钟，无新增非 ubuntu runs-on；自查结果随台账通道节入库
 - [x] 3.2 AGENTS.md 补「非 web 端通道」条目（发布纪律段下）：私仓 ubuntu 经济门 / 重腿走池侧分支或手动 / 指针台账通道节——已对齐
-- [ ] 3.3 `openspec validate revive-nonweb-ci --strict` 零 error、零 warning；`openspec validate --specs` 不掉数。验证：两命令输出贴日志
+- [x] 3.3 `openspec validate revive-nonweb-ci --strict` 零 error（2.x-3.x 提交前已跑）；`openspec validate --specs` 186/0 绿。验证：两命令输出已贴本会话
 - [x] 3.4 归档预备确认：对照表 = ①非 web 端 ubuntu 门禁→app-build/app-e2e gates+miniapp-ci 三 workflow + 四棒本机绿；②重腿池通道→台账通道节+§12.3/§15.64 两发实录；③定时档护栏→cron 清零+dispatch-only 化四处+runs-on 审计表。随本提交说明入库，archive 走 standard 流程

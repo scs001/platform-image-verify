@@ -2328,3 +2328,17 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **note-depth 门改天花板感知**（run15 暴露）：plain digest 已 5 分满分时蒸馏无增量可言（delta=0.00 是满分而非缺陷，蒸馏实产 +5/+4 L2 页）；门改为 plain 已满分场景不计入 delta，全场景满分判 vacuous PASS。
 
 累计：十七班滚产、digest 面十二枚修复、eval 十九场景 headroom 100%。
+
+### §15.54 假正常修复：连败岗位降级为「需关注」（fix-fleet-failure-visibility，2026-10-26）
+
+**缺陷（fd-wire 全量普查，真实）**：178 条回合 74% 失败，某岗位 `consecutiveFailures=12` 仍判 `on_duty`、画布全绿、`statusCounts.normal` 照算。根因=`deriveMemberStatus` 只看「最近执行是否在容忍窗内」（`evidence.lastRunAt`），不看那一轮**是否失败**；状态枚举里也没有失败档。失败痕迹散在 `lastTurn`/`consecutiveFailures`/`health.failing` 三处，前端只露一个 `×N` 角标。对无人值守产品，这比「跑失败并报警」危险：用户以为在跑，实际零产出。
+
+**实现**：①`failureStreak(memberId)` 一次查全 `{streak, since, lastErrorKind}`（`consecutiveFailures` 降为薄包装，语义不变）；②`deriveMemberStatus` 增可选入参 `failureStreak/failureSince/lastFailureKind`，`on_duty` 分支连败达阈值（`PLATFORM_FLEET_FAILING_STREAK`，默认 3）返回新档 `failing`；优先级 `vacant→passive→paused→missing→failing→on_duty`（**失联优先**=连信号都没了更严重；**中断不计入**=不是岗位的错；**一次成功即自动恢复**）；③evidence 增三字段、`memberView` 顶层透传；④cockpit `health.failing` 改由 `statusCounts.failing` 派生（旧口径「最近一回合失败」漏掉「连败但末次成功」的中间态，且让 normal 计数包含降级岗）；⑤前端画布 `failing` 色（`#dc2626`，比 missing 的琥珀更急、区别于 vacant 纯红）+ 检查器「连续失败 N 次 · 最近原因 X · 自 T」+ 五语言。
+
+**测试**：新 `scripts/test-fleet-failing-status.mjs` 7/7（阈值降级/亚阈值不变/成功恢复/失联优先/暂停与被动豁免/阈值可配/无参默认诚实）；`test-fleet-turn-events` 12/12（既有「presence untouched」断言按新语义更新：2 连败仍 on_duty、health.failing=0、streak 仍可见）。
+
+**同窗顺带**：并行会话 `bf2201ba` 的台账提交把 `add-agent-config-dims` 的代码一并扫进了它（db.js/server.js/cron-runner.js/fleet-events.js/fleet-model.js/routes/*），但漏了 `fleet-reports.js` 的解析接缝与 change 文档——补提交 `acbc1d8e` 收口（单测 10/10）。
+
+**提交**：`73f89bd9`（本 change）+ `acbc1d8e`（config-dims 收尾），双推 origin/gitee。
+
+**待办**：出片上产 + 真机验收（挑一个已知连败岗位，确认 cockpit 不再绿色、卡片可见连败数与原因、statusCounts 计入异常）；§三（timeout 不可归因）与 §四（上游熔断/降级）仍未做，属独立设计决策另案。

@@ -2306,3 +2306,13 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **否决方向记录**：query 向量缓存——真实 chat 每回合 query 几乎不重复（12 分钟 60 发全不同），命中率过低不值得做；同期发现解限流的收益远大于缓存。
 
 **上产（2026-10-26 13:3x）**：公开快照仓线，快照 `d078198` → ccr digest `21d488a5` → GitOps `9b1a182` 双清单 → ArgoCD 滚完，in-pod 四标记全中（cron.js 3 / task-engine.js 3 / fleet-reconcile.js 2 / routes-fleets.js 1）+ 前端 bundle 含 `inspector-missed`，公网 200。**真机验收（回放对方报告的真实任务）**：`job_1792786329246_f6j77p`（巡线 0 9 * * * Asia/Shanghai，missed=3，旧版记录无新字段）——新版 `withinToleranceWindow` 在对方报告的重启时刻 01:33Z 判定 `true`=应补跑，符合需求稿语义。**顺手修正快照线一处历史隐患**：镜像仓该恢复的文件名是 `image.yml`（scrubber 只删它），此前误建的同内容 `image-publish.yml` 为冗余，已删并写回真名——后续班次照 `image.yml` 恢复。
+
+### §15.49 召回精度：关键词路字段加权 + 兜底裁剪（2026-10-26，用户令「继续优化」）
+
+**实测发现**（多样性探针，8 个真实 query）：`记忆 作用域` 的 top-8 里只有第 1 条相关，其余 7 条是舰队巡检页——同一批「通用运营语」页出现在几乎所有 query 的尾部（KPI 岗位/Facet 包普/一日一卡…）。两处根因：①hybridCandidates 兜底路径 `return keyword` 未按 k 裁剪（k=5 却返回 8 条，尾巴全进块）；②关键词计分扁平（标题是主题的页与正文顺带提过主题的页同分）。
+
+**修复**（fd-memory 518c2fe，滚产 sha-9471565）：字段加权 title×3 / search_keys×2 / body×1，score>0 过滤；兜底路径按 k 裁剪；顺修 `allPageVectors` 的 Uint8Array 读取（node:sqlite 非 Buffer，此前全库扫描在测试里静默失败）。
+
+**真机复测**：`GitHub 组织巡视` → **2 条 L2 全部相关**（此前 8 条中 6 条噪声）；`巡检 报数` → **5 条全部相关**（此前 tail 为 KPI/Facet 等无关页）。块从「8 条稀释」变为「2-5 条精准」，多余预算自然让给 notes 段。
+
+**方法论**：解限流（§15.48）后暴露稀释，稀释又顺带揪出兜底裁剪缺陷——每修一层都会把下一层的缺陷照出来，这是持续压测+真实 query 探针的价值。

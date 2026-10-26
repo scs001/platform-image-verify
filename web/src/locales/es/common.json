@@ -2338,7 +2338,10 @@
     "evidence": {
       "lastRun": "Última ejecución",
       "nextRun": "Próxima",
-      "staleWindow": "Tolerancia"
+      "staleWindow": "Tolerancia",
+      "missedRounds": "Omitidas (parada)",
+      "catchUpPending": "Recuperación en curso",
+      "missedUnit": "ronda(s)"
     },
     "swap": "Cambiar titular",
     "swapLine": {

@@ -2338,7 +2338,10 @@
     "evidence": {
       "lastRun": "上次执行",
       "nextRun": "下次执行",
-      "staleWindow": "容忍窗口"
+      "staleWindow": "容忍窗口",
+      "missedRounds": "停机错过",
+      "catchUpPending": "补跑执行中",
+      "missedUnit": "轮"
     },
     "swap": "换人",
     "swapLine": {

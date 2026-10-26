@@ -2272,3 +2272,13 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **验证三层**：pod 内 `grep AI 分身…` 与 `Your AI Twin` 双命中 → 公网 `/zh/research/academy/ai-twin-your-knowledge-to-chat/` 与无前缀英文页均 200，`eo-cache-status: MISS`（刚回源，非旧缓存）。
 
 **两条 CMS 备忘**：①`locale=*` 集合视图对 en 行显示 "modified"，但 `locale=en` 视图 status=published——判发布态用单 locale 视图；②en 变体必须显式带 zh 的 documentId + 全部非本地化字段，否则成为独立新文档。
+
+### §15.53 P2 上产准备：停机错过的 cron 轮次补跑 + missed 三面可见（wire 需求稿 §五，2026-10-26）
+
+**缺陷（对方实测，真实）**：platform pod 01:33Z 重启，巡线 `0 9 * * *`（=01:00Z）那轮落在停机窗内 → 只写一条 `[cron] Task … missed 1 occurrence(s) during downtime` 日志，不补跑，nextRun 直接跳 10-27 → 巡线岗被判 `missing`（超 48h 容忍窗），全靠人发现。**无人值守舰队的静默丢单**。
+
+**实现（a+b 双做，前者为主）**：①**catch-up**——boot 调度 pass 里 `countMissedOccurrences` 返回 missed 数（原返回 bool），任务未暂停且 `withinToleranceWindow`（=max(2×周期, 6h)，与岗位 presence 同形；`PLATFORM_CRON_CATCHUP=0` 可关）即补跑一次，走同一串行链排队；补跑带**显式标记**（prompt 前缀「【补跑】…」+ `catchUpPending` 标志 + history `catchUp:true`），窗口外不补（迟到的巡逻只会误导）。②**可见**——`clientShape` 增 `lastMissedAt/lastMissedReason/catchUpPending`（原 `missed` 已有）；`deriveMemberStatus.evidence` 增 `missedRounds/lastMissedAt/lastMissedReason/catchUpPending`；`memberView` 提顶层三字段；`missing` 的 reason 在停机所致时追加「N round(s) skipped by platform downtime(+ catch-up in flight)」；检查器抽屉新增琥珀色停机行（5 语言键齐）。③**顺手加固**：轮换子进程 id 原用纯时间戳，同毫秒双触发（重试风暴/补跑撞上排程）会撞 id 并静默续上本该丢弃的历史 → 加每 cell 单调 `roundSeq` 后缀。
+
+**测试**：新 `scripts/test-cron-catchup.mjs` 5/5（视图字段默认值/evidence 三面/停机 reason 措辞/无停机史逐字节不变/容忍窗判定+kill switch）；`test-cron-round-rotation` 5/5（同毫秒唯一性由 seq 保证）；全量 2082/2091（9 红=既有 extension/manifest 族，与本变更零交集）；web typecheck 绿、locale 5×1989 键齐。
+
+**待办**：出片上产（含 web 面，需 web:build）；上产后人为在触发点前后重启 platform 做验收（需求稿口径：要么看到带补跑标记的回合，要么 cockpit 明示 missed 计数）。

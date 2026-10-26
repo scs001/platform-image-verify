@@ -2338,7 +2338,10 @@
     "evidence": {
       "lastRun": "前回実行",
       "nextRun": "次回",
-      "staleWindow": "許容窓"
+      "staleWindow": "許容窓",
+      "missedRounds": "停止で欠落",
+      "catchUpPending": "追い実行中",
+      "missedUnit": "回"
     },
     "swap": "担当者変更",
     "swapLine": {

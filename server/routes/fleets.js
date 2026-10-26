@@ -245,6 +245,13 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
     status: derived.status,
     statusReason: derived.reason,
     evidence: derived.evidence,
+    // Downtime loss, top-level for the post card (P2, 2026-10-26): `missed -->
+    // 0` means a platform restart covered one or more of this post's triggers.
+    // `catchUpPending` says a make-up round is in flight right now, so a
+    // returning owner reads "already being made up", not "still broken".
+    missedRounds: derived.evidence.missedRounds ?? 0,
+    lastMissedAt: derived.evidence.lastMissedAt ?? null,
+    catchUpPending: derived.evidence.catchUpPending === true,
     latestReport: buildLatestView({ report: latest, previous, kpiSlots: member.kpiSlots }),
     reportTimeline: db.listReports(member.id, { limit: 5 }).map(reportTimelineEntry),
     lastTurn: lastTurn

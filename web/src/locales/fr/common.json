@@ -2338,7 +2338,10 @@
     "evidence": {
       "lastRun": "Dernier tour",
       "nextRun": "Prochain",
-      "staleWindow": "Tolérance"
+      "staleWindow": "Tolérance",
+      "missedRounds": "Manquées (arrêt)",
+      "catchUpPending": "Rattrapage en cours",
+      "missedUnit": "tour(s)"
     },
     "swap": "Changer le titulaire",
     "swapLine": {

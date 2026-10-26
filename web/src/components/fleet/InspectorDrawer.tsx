@@ -36,6 +36,10 @@ export interface InspectorMember {
   modelNotice: string | null;
   status: string;
   statusReason: string;
+  // Downtime loss (P2, 2026-10-26): rounds a platform restart swallowed, and
+  // whether a make-up run is in flight right now.
+  missedRounds?: number;
+  catchUpPending?: boolean;
   evidence: { lastRunAt: string | null; nextRunAt: string | null; staleWindowMs: number | null; latestReportAt: number | null; hitWindow: string | null };
   latestReport: { at: number; summary: string; source: string; sessionId: string | null; slots: { key: string; label: string; unit: string | null; value: string | number; trend: { direction: string; deltaValue: number | null } | null }[] } | null;
   lastTurn: { status: string; errorKind: string | null; error: string | null; endedAt: number; sessionId: string | null } | null;
@@ -261,6 +265,13 @@ export function MemberInspector({
               {member.evidence.staleWindowMs ? (
                 <p className="text-muted-foreground">
                   {t("fleets.evidence.staleWindow")}: {Math.round(member.evidence.staleWindowMs / 3_600_000)}h
+                </p>
+              ) : null}
+              {(member.missedRounds ?? 0) > 0 ? (
+                <p className="text-amber-600" data-testid="inspector-missed">
+                  {t("fleets.evidence.missedRounds")}: {member.missedRounds}{" "}
+                  {t("fleets.evidence.missedUnit")}
+                  {member.catchUpPending ? ` · ${t("fleets.evidence.catchUpPending")}` : ""}
                 </p>
               ) : null}
             </div>

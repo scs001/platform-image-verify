@@ -220,6 +220,15 @@ export function deriveMemberStatus({ member, fleet, task, targetAlive, latestRep
     memberPaused: member.cadence ? member.cadence.enabled === false : false,
     latestReportAt: latestReport?.createdAt ?? null,
     hitWindow: null,
+    // Downtime accounting (P2, 2026-10-26): a trigger covered by a platform
+    // restart used to be a log line and nothing else — an unattended post
+    // silently lost a round and later read `missing` with no explanation. The
+    // count, its reason and whether a make-up run is in flight ride the
+    // evidence so the cockpit and the post card can SAY it.
+    missedRounds: task?.missed ?? 0,
+    lastMissedAt: task?.lastMissedAt ?? null,
+    lastMissedReason: task?.lastMissedReason ?? null,
+    catchUpPending: task?.catchUpPending === true,
   };
 
   if (targetAlive === false) {
@@ -252,7 +261,13 @@ export function deriveMemberStatus({ member, fleet, task, targetAlive, latestRep
   if (lastRunMs != null && Number.isFinite(lastRunMs)) {
     if (executionStale(lastRunMs)) {
       evidence.hitWindow = "execution";
-      return { status: "missing", reason: `no execution for over the tolerance window (${Math.round(window / 3_600_000)}h)`, evidence };
+      // A gap caused by downtime reads differently from a post that simply
+      // stopped working (P2, 2026-10-26): name the cause and the pending
+      // make-up so triage does not chase a healthy post.
+      const downtimeNote = evidence.lastMissedReason === "downtime"
+        ? ` — ${evidence.missedRounds} round(s) skipped by platform downtime${evidence.catchUpPending ? ", catch-up run in flight" : ""}`
+        : "";
+      return { status: "missing", reason: `no execution for over the tolerance window (${Math.round(window / 3_600_000)}h)${downtimeNote}`, evidence };
     }
   } else {
     // Never ran: on-duty until the first occurrence is due AND the window has

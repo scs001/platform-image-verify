@@ -33,11 +33,20 @@ async function initCron({ broadcast, runJobTurn, isBusy, workerStats, renderFlee
   // Scheduling pass over the engine's loaded records: downtime accounting
   // before rescheduling, then arm timers / mark expiry. Afterwards the engine
   // re-enqueues executions that were persisted as queued at load.
+  const catchUp = []; // tasks whose downtime gap still deserves one make-up run
   for (const j of engine.allRecords()) {
     if (j.type === "recurring" && j.cron) {
       // Downtime accounting happens before rescheduling: occurrences entirely
-      // covered by the downtime window are recorded as missed, never replayed.
-      if (countMissedOccurrences(j)) void engine.saveTasks();
+      // covered by the downtime window are recorded as missed. A DELIVERY task
+      // inside its tolerance window then gets ONE catch-up run (P2, 2026-10-26:
+      // an unattended fleet silently lost a patrol when a restart covered its
+      // trigger — a counter in a log nobody reads is not a delivery guarantee).
+      // Outside the window the gap is past saving: record and move on.
+      const missed = countMissedOccurrences(j);
+      if (missed > 0) {
+        void engine.saveTasks();
+        if (!j.paused && withinToleranceWindow(j)) catchUp.push(j.id);
+      }
       scheduleJob(j);
     } else if (j.type === "once" && !j.paused) {
       const scheduledAt = new Date(j.when);
@@ -50,6 +59,25 @@ async function initCron({ broadcast, runJobTurn, isBusy, workerStats, renderFlee
         void engine.saveTasks();
       }
     }
+  }
+  // Catch-up runs are enqueued on the same serial chain as scheduled fires, so
+  // they queue behind (never interleave with) whatever boot is already doing.
+  // The marker rides the task record for the duration of that run: prompt
+  // prefix + cockpit/report evidence show this was a make-up, never a normal
+  // patrol (a caught-up round must not read as "the 09:00 patrol happened").
+  for (const id of catchUp) {
+    const t = engine.getRecord(id);
+    if (!t) continue;
+    t.catchUpPending = true;
+    const base = t.promptOverride ?? t.prompt;
+    if (typeof base === "string") {
+      engine.setPromptOverride(
+        id,
+        `【补跑】上一轮因平台停机被跳过，本次为补跑（正常节奏不受影响）。\n\n${base}`,
+      );
+    }
+    console.log(`[cron] Task ${id} catch-up run enqueued (downtime gap, still inside the tolerance window)`);
+    void fireTask(id);
   }
   engine.drainRepairQueue();
 }
@@ -106,14 +134,43 @@ function validateCron(cron, tz) {
   }
 }
 
+// Tolerance window for a downtime gap (P2 catch-up): the same shape the fleet
+// presence derivation uses — 2 × cadence period, floored at 6h — computed here
+// so cron.js stays free of the fleet layer. A gap older than this is past
+// saving: the post would read `missing` anyway and a late patrol would only
+// mislead. Unparseable rules fall back to the floor (never suppress a catch-up
+// on a rule the scheduler itself accepted).
+const CATCH_UP_FLOOR_MS = 6 * 60 * 60 * 1000;
+function withinToleranceWindow(task, now = Date.now()) {
+  if (process.env.PLATFORM_CRON_CATCHUP === "0") return false; // kill switch
+  try {
+    const iter = cronParser.parseExpression(task.cron, { tz: task.tz || undefined });
+    const a = iter.next().toDate();
+    const b = iter.next().toDate();
+    const period = b - a;
+    const window = Number.isFinite(period) && period > 0
+      ? Math.max(2 * period, CATCH_UP_FLOOR_MS)
+      : CATCH_UP_FLOOR_MS;
+    const lastMs = task.lastRun ? Date.parse(task.lastRun) : null;
+    // A task that never ran has no "missed round" to make up — it is simply
+    // starting (its first occurrence is still ahead).
+    if (lastMs == null || !Number.isFinite(lastMs)) return false;
+    return now - lastMs <= window;
+  } catch {
+    return true;
+  }
+}
+
 // Count occurrences strictly between lastRun and now for a recurring task that
 // was NOT running (load-time gap). Increments the missed counter and appends a
-// history marker so the UI can show why a task skipped. Returns true when the
-// record changed (caller persists).
+// history marker so the UI can show why a task skipped. Returns the number of
+// occurrences recorded as missed (0 when the record did not change) — the
+// caller persists, and the boot pass uses it to decide on a catch-up run
+// (2026-10-26 P2: a downtime-covered trigger silently lost one delivery).
 function countMissedOccurrences(task) {
   const now = new Date();
   const from = task.lastRun ? new Date(task.lastRun) : null;
-  if (!from || Number.isNaN(from.getTime())) return false;
+  if (!from || Number.isNaN(from.getTime())) return 0;
   try {
     const iter = parseRule(task.cron, task.tz);
     let missed = 0;
@@ -127,15 +184,19 @@ function countMissedOccurrences(task) {
     }
     if (missed > 0) {
       task.missed = (task.missed || 0) + missed;
+      // Stamp the reason on the record so every surface that shows a task can
+      // say WHY it skipped, not just that a counter moved (P2 visibility).
+      task.lastMissedAt = now.toISOString();
+      task.lastMissedReason = "downtime";
       task.history = task.history || [];
       task.history.push({ time: now.toISOString(), missed, success: null });
       console.log(`[cron] Task ${task.id} missed ${missed} occurrence(s) during downtime`);
-      return true;
+      return missed;
     }
   } catch (err) {
     console.warn(`[cron] missed-count failed for ${task.id}: ${err.message}`);
   }
-  return false;
+  return 0;
 }
 
 // ── Schedule management ──────────────────────────────────────────────────────
@@ -536,5 +597,8 @@ export {
   runJobNow,
   getDashboardState,
   validateCron,
+  // Downtime catch-up decision (P2, 2026-10-26) — exported so the window and
+  // the kill switch are pinned by a test rather than only exercised at boot.
+  withinToleranceWindow,
   shutdown,
 };

@@ -2338,7 +2338,10 @@
     "evidence": {
       "lastRun": "Last run",
       "nextRun": "Next run",
-      "staleWindow": "Tolerance"
+      "staleWindow": "Tolerance",
+      "missedRounds": "Skipped (downtime)",
+      "catchUpPending": "Catch-up running",
+      "missedUnit": "round(s)"
     },
     "swap": "Change assignee",
     "swapLine": {

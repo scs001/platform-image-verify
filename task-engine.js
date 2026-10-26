@@ -321,7 +321,13 @@ function clientShape(t) {
     createdAt: t.createdAt,
     lastRun: t.lastRun,
     nextRun: t.nextRun,
+    // Downtime accounting (P2, 2026-10-26): the counter alone stayed in logs
+    // nobody reads — the reason and timestamp ride the task so cockpit and
+    // post cards can say "skipped N rounds: platform was down".
     missed: t.missed ?? 0,
+    lastMissedAt: t.lastMissedAt ?? null,
+    lastMissedReason: t.lastMissedReason ?? null,
+    catchUpPending: t.catchUpPending === true,
     history: t.history.slice(-20), // Last 20 executions
   };
 }
@@ -484,12 +490,16 @@ function finishExecution(t, startTime, result) {
   t.error = ok ? null : result?.error || (interrupted ? "execution was interrupted" : "execution failed");
   // The per-fire fleet-context override is spent with this execution.
   t.promptOverride = null;
+  // A catch-up run is spent too — the marker must not outlive the make-up (P2).
+  const wasCatchUp = t.catchUpPending === true;
+  t.catchUpPending = false;
 
   t.history.push({
     time: startTime,
     duration: Date.now() - new Date(startTime).getTime(),
     state: t.state,
     success: ok,
+    ...(wasCatchUp ? { catchUp: true } : {}),
     ...(t.error ? { error: t.error } : {}),
     // The collected assistant text (remote a2a turns and cluster digests
     // return it). The report lane reads the last a2a turn's text to build the

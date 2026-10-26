@@ -52,6 +52,7 @@ export async function runA2aTurn(url, text, {
   onDelta,
   signal,
   timeoutMs = 300_000,
+  metadata = null, // optional A2A message.metadata (e.g. visitor_scope — add-zhiyu-room)
 } = {}) {
   if (!gatewayToken) {
     throw new Error("no registry service credential configured (MARKET_REGISTRY_TOKEN) — cannot call the A2A gateway");
@@ -80,7 +81,14 @@ export async function runA2aTurn(url, text, {
         jsonrpc: "2.0",
         id: 1,
         method: "message/stream",
-        params: { message: { role: "user", parts: [{ kind: "text", text }], context_id: contextId } },
+        params: {
+          message: {
+            role: "user",
+            parts: [{ kind: "text", text }],
+            context_id: contextId,
+            ...(metadata && typeof metadata === "object" ? { metadata } : {}),
+          },
+        },
       }),
       signal,
     });

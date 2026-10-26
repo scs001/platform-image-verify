@@ -48,6 +48,8 @@ export const NAV_SURFACES: RegistryEntry[] = [
   // clusters and a2a services. Plain web surface — no predicate (unlike the
   // desktop-only runner console `fleet`).
   { container: "nav", slug: "fleets", i18nKey: "nav.fleets", testId: "nav-fleets" },
+  // 萬星·智语 (add-zhiyu-room): multi-human × multi-agent rooms. Web surface.
+  { container: "nav", slug: "zhiyu", i18nKey: "nav.zhiyu", testId: "nav-zhiyu" },
   { container: "nav", slug: "fleet", i18nKey: "nav.fleet", testId: "nav-fleet", predicates: { desktopOnly: true } },
 ];
 

@@ -34,6 +34,8 @@ import { createLayoutStore } from "./layout.js";
 import { GATEWAY_SECRET_HEADER, secretMatches } from "../server/auth.js";
 import { isBusinessRole } from "../server/roles.js";
 import { registerWanxingRoutes } from "./wanxing/index.js";
+import { registerZhiyuRoutes } from "./zhiyu/index.js";
+import { createZhiyuAgentLane } from "./zhiyu/agent-lane.js";
 import { createCellFleetReporter } from "./fleet-cells.js";
 import { createBotWebhookRouter } from "./bot-webhooks.js";
 import Database from "better-sqlite3";
@@ -536,6 +538,50 @@ async function readSessionFromCell(user, sessionId) {
   }
 }
 
+// Zhiyu hatch export (add-zhiyu-room): pulls a transcript window out of the
+// CALLER's own cell session — same ensure+impersonate shape as
+// readSessionFromCell, but against the new /export route. Ownership proof is
+// the cell's own gate: nothing this side sends can export a stranger's
+// session, because the impersonated identity IS the caller's.
+async function exportSessionFromCell(user, sessionId, window) {
+  const cell = await registry.ensure(user);
+  const r = await new Promise((resolve) => {
+    const upstream = http.request(
+      {
+        host: "127.0.0.1",
+        port: cell.port,
+        method: "GET",
+        path: `/api/chat-history/sessions/${encodeURIComponent(sessionId)}/export?window=${encodeURIComponent(window)}`,
+        headers: forwardedHeaders({ headers: {} }, user, SECRET),
+        timeout: 15_000,
+      },
+      (up) => {
+        let raw = "";
+        up.setEncoding("utf8");
+        up.on("data", (c) => (raw += c));
+        up.on("end", () => {
+          let body = null;
+          try {
+            body = JSON.parse(raw);
+          } catch {
+            /* non-JSON */
+          }
+          resolve({ status: up.statusCode, body });
+        });
+      },
+    );
+    upstream.on("timeout", () => upstream.destroy(new Error("cell timeout")));
+    upstream.on("error", (err) => resolve({ status: 0, error: err.message }));
+    upstream.end();
+  });
+  if (r.status !== 200 || !r.body) {
+    const err = new Error(r.body?.error || r.error || `cell answered ${r.status}`);
+    err.status = r.status || 502;
+    throw err;
+  }
+  return r.body;
+}
+
 // Create a share. The session must exist in the CALLER's own cell — the
 // create-time fetch is the ownership proof (D3); the fetched title is stored
 // denormalized for the revoke-list UI.
@@ -633,7 +679,7 @@ if (facetBase) {
 // packs.db (ledger + allowlist + idempotency). Deployment bookkeeping is
 // read over the packs internal API (add-facet-platform S0) — loopback to
 // this process by default, PACKS_INTERNAL_BASE_URL repoints it.
-registerWanxingRoutes(app, {
+const wanxing = registerWanxingRoutes(app, {
   dataRoot: DATA_ROOT,
   resolveUser,
   rejectUnauthenticated,
@@ -643,6 +689,29 @@ registerWanxingRoutes(app, {
     .filter(Boolean),
   adminGroups: ADMIN_GROUPS,
   env: process.env,
+});
+
+// ── Zhiyu room kernel (add-zhiyu-room) ──────────────────────────────────────
+// 萬星·智语 phase 1: multi-human × multi-agent rooms. Lives at the gateway
+// because rooms are cross-user objects (cells are per-user); owns the whole
+// /api/zhiyu prefix before the cell-proxy catch-all. Agent seats dispatch
+// through wanxing's deployment bookkeeping onto the registry-proxy a2a lane.
+const zhiyuLane = createZhiyuAgentLane({
+  bookings: wanxing.bookkeeping,
+  registryUrl: () => (process.env.AGENT_SERVING_REGISTRY_URL || process.env.REGISTRY_URL || "").replace(/\/+$/, ""),
+  registryToken: () => process.env.AGENT_SERVING_REGISTRY_TOKEN || process.env.MARKET_REGISTRY_TOKEN || "",
+  backendToken: () => process.env.AGENT_SERVING_BACKEND_TOKEN || "",
+  packsInternalBase: () =>
+    (process.env.PACKS_INTERNAL_BASE_URL || `http://127.0.0.1:${process.env.GATEWAY_PORT || 3080}`).replace(/\/+$/, ""),
+});
+const zhiyu = registerZhiyuRoutes(app, {
+  dataRoot: DATA_ROOT,
+  resolveUser,
+  rejectUnauthenticated,
+  env: process.env,
+  callAgent: zhiyuLane.callAgent,
+  settleTurn: zhiyuLane.settleTurn,
+  cellExport: exportSessionFromCell,
 });
 
 // ── Bot webhooks: machine callers with no platform identity ────────────────
@@ -890,6 +959,7 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
     console.log(`[gateway] ${signal} — stopping ${registry.cells.size} cell(s)`);
     try { shareRegistry.close(); } catch (e) { console.error(`[gateway] share registry close failed: ${e.message}`); }
     try { if (packRegistry) packRegistry.close(); } catch (e) { console.error(`[gateway] pack registry close failed: ${e.message}`); }
+    try { zhiyu.close(); } catch (e) { console.error(`[gateway] zhiyu close failed: ${e.message}`); }
     try { cellFleetReporter?.stop(); } catch { /* telemetry timer; unref'd anyway */ }
     await registry.shutdown();
     server.close(() => process.exit(0));

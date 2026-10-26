@@ -23,7 +23,8 @@
     "tasks": "Automation",
     "fleets": "Fleets",
     "apps": "Apps",
-    "fleet": "Runner Fleet"
+    "fleet": "Runner Fleet",
+    "zhiyu": "Zhiyu"
   },
   "trace": {
     "title": "Trace",
@@ -2636,5 +2637,128 @@
     "notJson": "not valid JSON",
     "packIdWord": "pack id",
     "visibility": "Visibility"
+  },
+  "zhiyu": {
+    "title": "Zhiyu · Rooms",
+    "unavailable": "Zhiyu rooms are not enabled on this deployment ({{error}})",
+    "createRoom": "New room",
+    "rooms": {
+      "meta": "{{status}} · cap {{cap}} · {{at}}",
+      "empty": "No rooms yet — open one and bring people, proxies and agents in."
+    },
+    "status": {
+      "active": "Active",
+      "ended": "Ended"
+    },
+    "kind": {
+      "user": "Member",
+      "facade": "Proxy",
+      "agent": "Agent"
+    },
+    "invites": {
+      "title": "Pending invites",
+      "accept": "Accept",
+      "decline": "Decline",
+      "from": "invited by {{by}}"
+    },
+    "notices": {
+      "title": "Activity",
+      "call": "{{from}} called you in “{{room}}”",
+      "minutes": "“{{room}}” ended — minutes are ready",
+      "invite": "You were invited to “{{room}}”"
+    },
+    "form": {
+      "title": "Room name",
+      "titlePlaceholder": "e.g. Q3 review",
+      "replyCap": "Reply cap",
+      "replyCapPlaceholder": "empty = deployment default",
+      "budget": "Daily answer budget",
+      "budgetPlaceholder": "empty = unlimited",
+      "submit": "Create"
+    },
+    "room": {
+      "back": "Back to Zhiyu",
+      "headerMeta": "Reply cap {{cap}} · {{status}}",
+      "roster": "Present ({{count}})",
+      "call": "Call",
+      "takeOver": "I’m here",
+      "handBack": "Hand back",
+      "remove": "Remove",
+      "invite": "Invite",
+      "settings": "Settings",
+      "privateWindow": "Private window",
+      "privateEmpty": "Your private side-channel with your proxy (only visible to you two).",
+      "composerPlaceholder": "Say something… @name to address an agent",
+      "send": "Send",
+      "answering": "answering",
+      "hatchedSender": "(carried history)",
+      "memberFallback": "member",
+      "agentFallback": "agent",
+      "systemLabel": "system",
+      "facadeLabel": "{{name}} (for {{owner}})",
+      "presence": {
+        "active": "present",
+        "away": "away",
+        "on_duty": "on duty",
+        "listening": "listening",
+        "seated": "seated"
+      }
+    },
+    "invite": {
+      "title": "Invite into room",
+      "refUser": "Member email",
+      "refAgent": "Deployment ref (pack:agent)",
+      "onBehalfOf": "Principal email",
+      "display": "Display name",
+      "displayPlaceholder": "How they appear in the room",
+      "historyGrant": "History access",
+      "grant": {
+        "join_from": "From join time",
+        "full": "Full history"
+      },
+      "submit": "Send invite"
+    },
+    "settings": {
+      "title": "Room settings",
+      "cap": "Reply cap",
+      "budget": "Daily answer budget",
+      "budgetPlaceholder": "empty = unlimited",
+      "save": "Save",
+      "end": "End room",
+      "endConfirm": "The room becomes read-only and minutes go to all members. End it?"
+    },
+    "event": {
+      "member_joined": "{{name}} joined the room",
+      "member_left": "{{name}} left the room",
+      "member_removed": "{{name}} was removed",
+      "invite_sent": "Invite sent to {{name}}",
+      "invite_accepted": "{{name}} accepted the invite",
+      "invite_declined": "{{name}} declined the invite",
+      "invite_auto_declined": "{{name}}’s invite was auto-declined by policy",
+      "room_ended": "The room ended",
+      "room_hatched": "Hatched from a chat session",
+      "reply_cap_changed": "Reply cap set to {{value}}",
+      "budget_changed": "Daily budget changed ({{value}})",
+      "reply_cap_hit": "Reply cap reached ({{value}}); other agents stay silent",
+      "budget_exhausted": "Daily budget reached ({{value}}); agents paused",
+      "agent_busy": "{{name}} is answering; call it later",
+      "agent_failed": "{{name}} failed to answer",
+      "agent_declined_insolvent": "{{name}} declined — billing key insolvent",
+      "pass": "{{name}} passed",
+      "all_passed": "No agent answered this round",
+      "needs_you": "You are needed here",
+      "take_over": "{{name}} took over",
+      "hand_back": "{{name}} handed back to the proxy",
+      "owner_transferred": "Ownership transferred to {{name}}",
+      "room_renamed": "Room renamed"
+    },
+    "hatch": {
+      "menuItem": "Hatch into a room…",
+      "title": "Hatch into a room",
+      "hint": "Carry this session into a Zhiyu room. The session is only read, never changed.",
+      "none": "No history",
+      "last20": "Last 20",
+      "all": "All history"
+    }
   }
 }

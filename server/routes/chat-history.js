@@ -53,6 +53,48 @@ export function registerChatHistoryRoutes(ctx) {
     }
   });
 
+  // Read-only export for zhiyu room hatching (add-zhiyu-room group 2): the
+  // owner (or admin) pulls a bounded transcript window out of a session; the
+  // gateway's room router seeds the new room from this. The session is only
+  // ever READ here — hatching never writes back into the 1:1 stack.
+  // window=last:<N> (1..1000) or window=all; a missing/malformed window is a
+  // readable 400, because silently exporting "something" would hide the
+  // caller's choice of what history to carry.
+  app.get("/api/chat-history/sessions/:id/export", async (req, res) => {
+    const denial = gate(req, req.params.id);
+    if (denial) return res.status(denial.status).json(denial.body);
+    const raw = String(req.query.window ?? "").trim();
+    let window = null;
+    if (raw === "all") {
+      window = { kind: "all" };
+    } else {
+      const m = /^last:(\d+)$/.exec(raw);
+      if (m) {
+        const n = Number(m[1]);
+        if (n >= 1 && n <= 1000) window = { kind: "last", n };
+      }
+    }
+    if (!window) {
+      return res.status(400).json({ error: "window required: 'all' or 'last:<1..1000>'" });
+    }
+    try {
+      const sess = await chatHistory.getSession(req.params.id);
+      if (!sess) return res.status(404).json({ error: "Not found" });
+      const all = sess.messages ?? [];
+      const messages = window.kind === "last" ? all.slice(-window.n) : all;
+      res.json({
+        sessionId: sess.id,
+        title: sess.title,
+        window,
+        totalMessages: all.length,
+        messages,
+      });
+    } catch (err) {
+      console.error("[chat-history] export error:", err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.post("/api/chat-history/sessions", async (req, res) => {
     try {
       // Stamp the requester as owner (add-session-ownership): an ownerless

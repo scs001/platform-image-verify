@@ -23,7 +23,8 @@
     "tasks": "自动化",
     "fleets": "舰队",
     "apps": "应用",
-    "fleet": "机群"
+    "fleet": "机群",
+    "zhiyu": "智语"
   },
   "trace": {
     "title": "调用追踪",
@@ -2636,5 +2637,128 @@
     "notJson": "不是合法 JSON",
     "packIdWord": "功集id",
     "visibility": "可见性"
+  },
+  "zhiyu": {
+    "title": "智语 · 空间",
+    "unavailable": "本部署未开启智语房间（{{error}}）",
+    "createRoom": "开空间",
+    "rooms": {
+      "meta": "{{status}} · 上限 {{cap}} · {{at}}",
+      "empty": "还没有空间 — 开一间，把人、分身和智能体拉进来。"
+    },
+    "status": {
+      "active": "进行中",
+      "ended": "已结束"
+    },
+    "kind": {
+      "user": "成员",
+      "facade": "分身",
+      "agent": "智能体"
+    },
+    "invites": {
+      "title": "待处理邀请",
+      "accept": "接受",
+      "decline": "拒绝",
+      "from": "由 {{by}} 邀请"
+    },
+    "notices": {
+      "title": "动静",
+      "call": "「{{room}}」里 {{from}} 呼叫了你",
+      "minutes": "「{{room}}」已结束 — 纪要已生成",
+      "invite": "「{{room}}」邀请了你"
+    },
+    "form": {
+      "title": "空间名称",
+      "titlePlaceholder": "比如：Q3 复盘",
+      "replyCap": "应答上限",
+      "replyCapPlaceholder": "留空用部署默认",
+      "budget": "每日发言预算",
+      "budgetPlaceholder": "留空不限",
+      "submit": "开空间"
+    },
+    "room": {
+      "back": "回到智语",
+      "headerMeta": "应答上限 {{cap}} · {{status}}",
+      "roster": "在场（{{count}}）",
+      "call": "呼叫",
+      "takeOver": "我来",
+      "handBack": "交还",
+      "remove": "移除",
+      "invite": "邀请",
+      "settings": "设置",
+      "privateWindow": "私窗",
+      "privateEmpty": "你和你的分身在这里的私下对话（仅你们可见）。",
+      "composerPlaceholder": "说点什么…@名字点名智能体",
+      "send": "发送",
+      "answering": "正在作答",
+      "hatchedSender": "（升房历史）",
+      "memberFallback": "成员",
+      "agentFallback": "智能体",
+      "systemLabel": "系统",
+      "facadeLabel": "{{name}}（代 {{owner}} 出席）",
+      "presence": {
+        "active": "在场",
+        "away": "不在场",
+        "on_duty": "值守中",
+        "listening": "旁听",
+        "seated": "就席"
+      }
+    },
+    "invite": {
+      "title": "邀请进空间",
+      "refUser": "成员邮箱",
+      "refAgent": "部署标识（pack:agent）",
+      "onBehalfOf": "主人邮箱",
+      "display": "显示名",
+      "displayPlaceholder": "在空间里的称呼",
+      "historyGrant": "历史可见",
+      "grant": {
+        "join_from": "加入后可见",
+        "full": "全部历史"
+      },
+      "submit": "发出邀请"
+    },
+    "settings": {
+      "title": "空间设置",
+      "cap": "应答上限",
+      "budget": "每日发言预算",
+      "budgetPlaceholder": "留空不限",
+      "save": "保存",
+      "end": "结束空间",
+      "endConfirm": "结束后空间只读，纪要会推给在场成员。确认结束？"
+    },
+    "event": {
+      "member_joined": "{{name}} 进入了空间",
+      "member_left": "{{name}} 离开了空间",
+      "member_removed": "{{name}} 被移出了空间",
+      "invite_sent": "已向 {{name}} 发出邀请",
+      "invite_accepted": "{{name}} 接受了邀请",
+      "invite_declined": "{{name}} 谢绝了邀请",
+      "invite_auto_declined": "{{name}} 的邀请被其策略自动谢绝",
+      "room_ended": "空间已结束",
+      "room_hatched": "已从会话升为空间",
+      "reply_cap_changed": "应答上限已调整为 {{value}}",
+      "budget_changed": "每日发言预算已调整（{{value}}）",
+      "reply_cap_hit": "已达应答上限（{{value}}），其余智能体本轮静默",
+      "budget_exhausted": "已达每日发言预算（{{value}}），智能体暂停应答",
+      "agent_busy": "{{name}} 正在作答，稍后再点它",
+      "agent_failed": "{{name}} 作答失败",
+      "agent_declined_insolvent": "{{name}} 因计费键余额不足谢绝发言",
+      "pass": "{{name}} 选择「过」",
+      "all_passed": "本轮没有智能体作答",
+      "needs_you": "你被呼叫了 — 「需要你」",
+      "take_over": "{{name}} 接管了发言权",
+      "hand_back": "{{name}} 把发言权交还给分身",
+      "owner_transferred": "主办已移交给 {{name}}",
+      "room_renamed": "空间已改名"
+    },
+    "hatch": {
+      "menuItem": "升为空间…",
+      "title": "升为空间",
+      "hint": "把这个会话带进一间智语空间：会话本身只被读取，不会改动。",
+      "none": "不带历史",
+      "last20": "带近 20 条",
+      "all": "带全部历史"
+    }
   }
 }

@@ -10,6 +10,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { createShare, listShares, revokeShare, type ShareInfo } from "@platform/core";
 import { useChatStore } from "@platform/core";
@@ -41,6 +42,11 @@ export function ChatSessionMenu({ sessionId, isCurrent, onDelete, triggerRef, on
   // session into a custom preset. The session's starting preset feeds the
   // wizard's prefill; absent metadata still works (persona hand-written).
   const [solutionOpen, setSolutionOpen] = useState(false);
+  // Hatch into a zhiyu room (add-zhiyu-room): carries an OPTIONAL transcript
+  // window; the session itself is only ever read.
+  const [hatchOpen, setHatchOpen] = useState(false);
+  const [hatchBusy, setHatchBusy] = useState(false);
+  const navigate = useNavigate();
   const sessionMeta = useChatStore((s) => s.sessions.find((x) => x.id === sessionId));
   // Delete is also blocked for a background turn (concurrent-chat-sessions):
   // the server 409s it (its delete guard covers running/queued, not just the
@@ -72,11 +78,11 @@ export function ChatSessionMenu({ sessionId, isCurrent, onDelete, triggerRef, on
     // overlay/Escape handling dismisses it — an outside click here must not
     // unmount the component out from under the dialog.
     const onDown = (e: MouseEvent) => {
-      if (confirmOpen || sharesOpen || solutionOpen) return;
+      if (confirmOpen || sharesOpen || solutionOpen || hatchOpen) return;
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (confirmOpen || sharesOpen || solutionOpen) return;
+      if (confirmOpen || sharesOpen || solutionOpen || hatchOpen) return;
       if (e.key === "Escape") onClose();
     };
     document.addEventListener("mousedown", onDown);
@@ -85,7 +91,7 @@ export function ChatSessionMenu({ sessionId, isCurrent, onDelete, triggerRef, on
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [onClose, confirmOpen, sharesOpen, solutionOpen]);
+  }, [onClose, confirmOpen, sharesOpen, solutionOpen, hatchOpen]);
 
   if (!pos) return null;
 
@@ -142,6 +148,32 @@ export function ChatSessionMenu({ sessionId, isCurrent, onDelete, triggerRef, on
     }
   };
 
+  // Hatch: create the room with the chosen window ("none" skips the transcript
+  // entirely — the carry choice must be an explicit act, never a default).
+  const handleHatch = async (window: "none" | "last:20" | "all") => {
+    setHatchBusy(true);
+    setError(null);
+    try {
+      const r = await fetch("/api/zhiyu/rooms", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: sessionMeta?.title ?? "",
+          ...(window === "none" ? {} : { hatch: { sessionId, window } }),
+        }),
+      });
+      const data = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(data?.error ?? `HTTP ${r.status}`);
+      setHatchOpen(false);
+      onClose();
+      navigate(`/zhiyu/${data.room.id}`);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setHatchBusy(false);
+    }
+  };
+
   const handleRevoke = async (token: string) => {
     try {
       await revokeShare(token);
@@ -157,7 +189,7 @@ export function ChatSessionMenu({ sessionId, isCurrent, onDelete, triggerRef, on
           shares / solution capture) — the component must stay MOUNTED so the
           dialog survives, but the little fixed panel would otherwise sit on
           top of the dialog and swallow its clicks. */}
-      {!confirmOpen && !sharesOpen && !solutionOpen && (
+      {!confirmOpen && !sharesOpen && !solutionOpen && !hatchOpen && (
       <div
         ref={menuRef}
         role="menu"
@@ -210,6 +242,15 @@ export function ChatSessionMenu({ sessionId, isCurrent, onDelete, triggerRef, on
           className="block w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-muted"
         >
           {t("sessionSolution.menuItem")}
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          data-testid="session-menu-hatch"
+          onClick={() => setHatchOpen(true)}
+          className="block w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-muted"
+        >
+          {t("zhiyu.hatch.menuItem")}
         </button>
         <button
           type="button"
@@ -313,6 +354,53 @@ export function ChatSessionMenu({ sessionId, isCurrent, onDelete, triggerRef, on
           if (!o) onClose();
         }}
       />
+
+      {/* Hatch into a zhiyu room (add-zhiyu-room): the session is only read;
+          the optional transcript window lands with provenance. */}
+      <Dialog
+        open={hatchOpen}
+        onOpenChange={(o) => {
+          setHatchOpen(o);
+          if (!o) onClose();
+        }}
+      >
+        <DialogContent data-testid="session-hatch-dialog">
+          <DialogHeader>
+            <DialogTitle>{t("zhiyu.hatch.title")}</DialogTitle>
+            <DialogDescription>{t("zhiyu.hatch.hint")}</DialogDescription>
+          </DialogHeader>
+          {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+          <DialogFooter className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={hatchBusy}
+              data-testid="session-hatch-none"
+              onClick={() => void handleHatch("none")}
+              className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50"
+            >
+              {t("zhiyu.hatch.none")}
+            </button>
+            <button
+              type="button"
+              disabled={hatchBusy}
+              data-testid="session-hatch-last20"
+              onClick={() => void handleHatch("last:20")}
+              className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50"
+            >
+              {t("zhiyu.hatch.last20")}
+            </button>
+            <button
+              type="button"
+              disabled={hatchBusy}
+              data-testid="session-hatch-all"
+              onClick={() => void handleHatch("all")}
+              className="rounded-md border border-border px-3 py-1.5 text-xs hover:bg-muted disabled:opacity-50"
+            >
+              {t("zhiyu.hatch.all")}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

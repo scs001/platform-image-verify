@@ -30,6 +30,7 @@ import {
   LayoutGrid,
   Loader2,
   MessageSquare,
+  MessagesSquare,
   Network,
   PanelLeftClose,
   Search,
@@ -72,6 +73,7 @@ const NAV_ICONS: Record<string, typeof MessageSquare> = {
   tasks: Clock,
   fleets: Network,
   fleet: Ship,
+  zhiyu: MessagesSquare,
 };
 
 // Route for a nav slug (the registry slug IS the route segment — the R1
@@ -356,6 +358,31 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
     };
   }, [location.pathname]);
 
+  // Zhiyu unread (add-zhiyu-room): the in-app notification lane's unread
+  // counter over the 智语 nav item. Same light-poll posture as the fleets
+  // badge; on non-zhiyu deployments the route 404s and the badge stays silent.
+  const [zhiyuUnread, setZhiyuUnread] = useState(0);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: location.pathname re-arms the poll on navigation — an intentional trigger, not a value this effect reads
+  useEffect(() => {
+    let alive = true;
+    const fetchUnread = async () => {
+      try {
+        const r = await fetch("/api/zhiyu/notifications?unread=1");
+        if (!r.ok) return;
+        const body = await r.json();
+        if (alive) setZhiyuUnread(body.unread ?? 0);
+      } catch {
+        /* an unreachable server keeps the last count */
+      }
+    };
+    void fetchUnread();
+    const timer = setInterval(fetchUnread, 60_000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [location.pathname]);
+
 
   return (
     <nav className="relative flex h-screen flex-col border-r border-border bg-card" data-testid="sidebar">
@@ -409,6 +436,15 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
                   title={t("fleets.decisions.waitingBadge", { count: fleetOpenDecisions })}
                 >
                   {fleetOpenDecisions}
+                </span>
+              ) : null}
+              {n.to === "/zhiyu" && zhiyuUnread > 0 ? (
+                <span
+                  className="ml-auto rounded-full bg-destructive/15 px-2 py-0.5 text-xs font-medium text-destructive"
+                  data-testid="nav-zhiyu-badge"
+                  title={t("zhiyu.notices.title")}
+                >
+                  {zhiyuUnread}
                 </span>
               ) : null}
             </NavLink>

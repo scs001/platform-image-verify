@@ -46,6 +46,8 @@ const ExternalServicePage = lazy(() =>
 );
 const AppCenterPage = lazy(() => import("@/pages/AppCenterPage").then((m) => ({ default: m.AppCenterPage })));
 const BoardsPage = lazy(() => import("@/pages/BoardsPage").then((m) => ({ default: m.BoardsPage })));
+const ZhiyuPage = lazy(() => import("@/pages/ZhiyuPage").then((m) => ({ default: m.ZhiyuPage })));
+const ZhiyuRoomPage = lazy(() => import("@/pages/ZhiyuRoomPage").then((m) => ({ default: m.ZhiyuRoomPage })));
 const CopilotDock = lazy(() => import("@/components/CopilotDock").then((m) => ({ default: m.CopilotDock })));
 // The preview drawer is code-split for the same reason as the pages above, and
 // one more: a session that never previews a file should not download the
@@ -263,6 +265,10 @@ export default function App() {
                 (single-page merge, D6). */}
             <Route path="/fleets" element={<FleetsPage />} />
             <Route path="/fleets/:fleetId" element={<FleetsPage />} />
+
+            {/* 萬星·智语 (add-zhiyu-room): rooms list + the room itself. */}
+            <Route path="/zhiyu" element={<ZhiyuPage />} />
+            <Route path="/zhiyu/:roomId" element={<ZhiyuRoomPage />} />
 
             {/* Line boards (add-line-boards-and-action-gate): /boards/:line renders
                 a board for each integrated product line (facet/wanxing). */}

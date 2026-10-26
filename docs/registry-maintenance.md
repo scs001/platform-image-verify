@@ -2388,3 +2388,13 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **上产与真机验收（2026-10-27 02:3x）**：快照 `4b502c9` → ccr digest `0e5e6894` → GitOps `fd70469`/随后同代收拢 → 双 deploy 滚完，in-pod 五标记全中。真机三项：①turns 时间线带 detail 字段（旧行诚实 null）；②status 枚举含 skipped（API 400 文案实证）；③pod 内真模块 drill——5 次上游失败开窗、成功即关闸、车道 id 不含 key 材料。公网 200。**观察项**：skipped 与 detail 的自然流量实证待下一次真实上游故障窗/超时回合（车道 10-25 型 5xx 窗）。
 
 **归属与余项**：veracity 主体（presence 只读真实回合/skip 计数徽章/pre-gate）归并行会话的 fix-fleet-turn-veracity change；本 change 归档后，§六 四缺口全部有主（§一 failing ✓ / §二 pre-gate ✓（veracity）/ §三 本 change ✓ / §四 本 change ✓，唯 §四 的 per-agent 车道**配置面**属 add-agent-config-dims 后续刀）。
+
+### §15.53 巡检回声去重：蒸馏产出侧的重复治理（2026-10-26，用户令「继续优化」）
+
+**产出率审计（真实数据）**：mission-planner 根 605k tokens/日触顶（§15.51），277 条 L2 几乎全是「按 mission-protocol 巡检」变体（最近 8 条全是，标题前 12 字相同页对 2795 个）——**cron 每回合巡检 → 每回合蒸馏 → 每回合产出「又巡检了一遍」**。引擎拿 candidates 却从不自去重。
+
+**修复**（fd-memory dbec138，滚产 sha-35c6867）：产出侧去重——新 L2 与同 project 同 kind 既有页 title 前 16 字一致即自动 supersedes 旧页（文件保留读面退役，复用 §15.51 刚修好的 supersededIds 全库过滤——零新增读面机制）。74/74 绿。
+
+**共享池坑双复发+真凶**：BUILD_DOCKERFILE 改回后仍失败——真凶是并行会话留下的 **BUILD_CONTEXT=wanxing-web**（第二个变量）。两个变量都复位后一次绿。共享池纪律：用完复位**所有** BUILD_* 变量，不只 DOCKERFILE。
+
+**存量清理**：mission-planner 等根的历史重复 L2 未动（supersede 只影响未来蒸馏产出）；如需清理可构造同前缀分组脚本批量 supersede，等用户决定。

@@ -2453,3 +2453,15 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **至今形态**：observer 新 kind 白名单在位+读点 200 空窗、facade 与 OpsView 段已上（隐去律生效：空窗不渲染）、platform 镜像仍 aca121cd（含本体但无采样修复——链未到腹）。镜像段与 paas cockpit 数实的全面眼证留待解禁后 10 分钟。**坑册入律**：fd-wanxing 仓正分支是 **master**（一次误推 origin HEAD:main 靠 new branch 原位 delete 收场）。
 
 **解禁终态（2026-10-27，用户清 TCR 旧 sha-* tags 后）**：`gh workflow run image.yml -R scs001/platform-image-verify` 直出（59701c2 tag 不变）→ relay→platform+platform-demo+facet+agent-runner-serving 四行 bump **sha-59701c2（digest 3e75e807）**，rollout×4 绿+pods digest 全等。**生产眼见全过**：sampler 事件抵 observer（cell:1da519d4c1c0bf89 快照含 counts/openDecisions/stream/sampledAt）→OpsView 镜像段活卡——aloadtree「公司式舰队」卡 `active|onDuty 5|passive 3|failing 1|total 9`（含并行会话后加两岗的数实，failing=回数窗同源）+待拍板 chips×4+样龄 56s 零 stale 徽+双 cell 卡并存+深链 paas 驾驶舱。ops token 用后已清。change 归档 `archive/2026-10-27-add-fleet-cockpit-projection`（185/0）。
+
+### §15.55 上游模型故障应急：free 模型救急免充值（2026-10-26，用户令「glm/mini 系列不要动，用 free」）
+
+**故障定型（实测链）**：metrics 5 连失败暴露 → 直调上游（distiller pod Python）确认 deepseek-v4.1-flash 别名映射下的 **qwen3.8-flash 对该子账号不可用**（`model_not_available`）；备选实测 deepseek-flash/v4-flash/glm-5.3-flash/glm-4.6 全挂；`/models` 正常返回 87 个但任何调用都失败（账户权限问题非模型问题）。
+
+**应急切换（用户指令）**：`MEMORY_LLM_MODEL` 换 `dots-studio/dots-3-note-preview:free`（free 层、与笔记总结语义相关）→ 滚产 distiller → **蒸馏复产 44k tokens 成功**。failures=9 全为旧故障（真实发生于 v4.1-flash 时代），不再增长。
+
+**检验方式**：metrics 面第一次成运维判据——distill failures 停止增长即证明恢复。
+
+**回切挂账**：deepseek-v4.1-flash 映射恢复后建议回切（蒸馏质量历史评估基于它；dots-3-note-preview 为应急替代品，eval 场景自适应已验证能容纳不同引擎但本批未重测）。
+
+**用户同时提示**：glm-5.3-flash / glm-4.6 / MiniMax 留给其他负载不要动。

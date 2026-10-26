@@ -15,6 +15,7 @@ import { mkdir, rm } from "node:fs/promises";
 import { createServer, connect } from "node:net";
 import path from "node:path";
 import { bundledJson } from "../paths.js";
+import Database from "better-sqlite3";
 import { newRegistryRow } from "../lib/cell-registry.js";
 
 // A stable, filesystem-safe per-user directory name. Derived by hashing rather
@@ -111,16 +112,28 @@ export function createCellRegistry(config) {
     }
   }
 
-  // Boot catch-up: rows for every data-root the registry has never seen.
-  // ownerEmail is unrecoverable from the hash — traffic or the first duty
-  // wake fills it; until then the row is a valid `suspended` + on_demand
-  // standing order (wake only once an email is known). Runs synchronously at
-  // construct so no spawn/ring tick can out-run it (spec D1: restart = full
-  // demand-surface rebuild, zero traffic required).
+  // Boot catch-up: rows for every data-root the registry has never seen —
+  // seeded as `suspended` (the pre-roll world had processes down with demand
+  // standing), NOT `unbound` (never-bound), so the duty ring can wake them.
+  // ownerEmail rides out of the cell's own app.db user_registry_credentials
+  // when the hash can't tell — otherwise the first traffic binds it.
   // Reader with failure isolation: a wedged store must not close the door —
   // callers degrade to in-memory rules instead of refusing traffic.
   function registryRowForSafe(userId) {
     try { return registryDb?.get(userId) ?? null; } catch { return null; }
+  }
+
+  // Read-only owner recovery: <root>/data/data/app.db → user_registry_credentials.
+  // Unknown/blank answers never fake a binding; every existing fleet cell has
+  // connected the platform registry at least once (§量产实证 2026-10-27).
+  function backfillOwnerEmail(root) {
+    try {
+      const db = new Database(path.join(root, "data", "data", "app.db"), { readonly: true });
+      try {
+        const row = db.prepare("SELECT email FROM user_registry_credentials WHERE email IS NOT NULL AND email != '' ORDER BY rowid LIMIT 1").get();
+        return row?.email ?? null;
+      } finally { db.close(); }
+    } catch { return null; }
   }
 
   function backfillRegistry() {
@@ -129,9 +142,15 @@ export function createCellRegistry(config) {
       if (!entry.isDirectory()) continue;
       const cellId = entry.name;
       if (!/^[0-9a-f]{16}$/i.test(cellId)) continue;
-      if (registryDb.get(cellId)) continue;
-      try { registryDb.fire(cellId, { type: "register", now: Date.now() }, { policy: initialPolicy }); }
-      catch (e) { console.warn(`[gateway] registry backfill failed for ${cellId}: ${e?.message || e}`); }
+      const email = backfillOwnerEmail(path.join(dataRoot, cellId));
+      const current = registryDb.get(cellId);
+      // Idempotent rescue pass: a row that an earlier boot seeded blind
+      // (unbound + no email) upgrades to the same suspended standing order.
+      if (current && !(current.ownerEmail == null || current.state === "unbound")) continue;
+      try {
+        registryDb.fire(cellId, { type: "register", ownerEmail: email, now: Date.now() }, { policy: current?.policy ?? initialPolicy });
+        registryDb.fire(cellId, { type: "down", now: Date.now() });
+      } catch (e) { console.warn(`[gateway] registry backfill failed for ${cellId}: ${e?.message || e}`); }
     }
   }
   if (registryDb) {

@@ -167,3 +167,51 @@ document.getElementById('wanxingPairBtn').addEventListener('click', async () => 
     btn.disabled = false;
   }
 });
+
+// ── Resident steward tab (add-cell-lifecycle, chapter 2) ───────────────────
+const stewardConsentEl = document.getElementById('stewardConsent');
+const stewardStatusTextEl = document.getElementById('stewardStatusText');
+const stewardInstallBtn = document.getElementById('stewardInstallBtn');
+const stewardUninstallBtn = document.getElementById('stewardUninstallBtn');
+
+async function refreshStewardPanel() {
+  if (!window.platform.getStewardConsent) return;
+  const consent = await window.platform.getStewardConsent();
+  stewardConsentEl.textContent = consent.consentText;
+  const st = await window.platform.getStewardStatus();
+  if (st.running) {
+    stewardStatusTextEl.textContent = `运行中 (pid ${st.pid}, protocol v${st.protocolVersion})`;
+    stewardInstallBtn.style.display = 'none';
+    stewardUninstallBtn.style.display = '';
+  } else if (st.installed) {
+    stewardStatusTextEl.textContent = `已注册未在运行${st.error ? `（${st.error}）` : ''}`;
+    stewardInstallBtn.style.display = 'none';
+    stewardUninstallBtn.style.display = '';
+  } else {
+    stewardStatusTextEl.textContent = '未安装 — 退出应用窗口后舰队与定时任务不会继续运行';
+    stewardInstallBtn.style.display = '';
+    stewardUninstallBtn.style.display = 'none';
+  }
+}
+
+document.getElementById('stewardInstallBtn').addEventListener('click', async () => {
+  const statusEl = document.getElementById('stewardStatus');
+  statusEl.className = '';
+  statusEl.textContent = '安装中…';
+  const r = await window.platform.installSteward();
+  statusEl.className = r.ok ? 'success' : 'error';
+  statusEl.textContent = r.ok ? '✓ 后台管家已安装并启动' : `✗ 安装失败：${r.error || 'unknown'}`;
+  await refreshStewardPanel();
+});
+
+document.getElementById('stewardUninstallBtn').addEventListener('click', async () => {
+  const statusEl = document.getElementById('stewardStatus');
+  statusEl.className = '';
+  statusEl.textContent = '卸载中…';
+  const r = await window.platform.uninstallSteward();
+  statusEl.className = r.ok ? 'success' : 'error';
+  statusEl.textContent = r.ok ? '✓ 已卸载（运行时随之停排，数据与设置保留）' : `✗ 卸载失败：${r.error || 'unknown'}`;
+  await refreshStewardPanel();
+});
+
+refreshStewardPanel();

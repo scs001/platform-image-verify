@@ -229,6 +229,9 @@ const config = {
     allowToChangeInstallationDirectory: true,
     allowElevation: true,
     deleteAppDataOnUninstall: false,
+    // Drain-before-swap + uninstall deregistration hooks for the resident
+    // steward (add-cell-lifecycle 2.3) — pid-precise, never /IM on node.exe.
+    include: "electron/installer.nsh",
   },
 };
 

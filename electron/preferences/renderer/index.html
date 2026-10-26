@@ -120,6 +120,7 @@
   <div class="tabs">
     <div class="tab active" data-tab="general">General</div>
     <div class="tab" data-tab="wanxing">Wanxing Fleet</div>
+    <div class="tab" data-tab="steward">后台管家</div>
   </div>
 
   <div class="tab-panel active" data-panel="general">
@@ -181,6 +182,23 @@
     <div class="actions">
       <button id="saveWanxing">Save Wanxing Settings</button>
       <span id="wanxingStatus"></span>
+    </div>
+  </div>
+
+  <div class="tab-panel" data-panel="steward">
+    <div class="form-group">
+      <label>常驻后台管家（Resident steward）</label>
+      <p class="hint">装上后，退出应用窗口舰队与定时任务也继续运行；在「用户自己的机器上跑无人值守舰队」的本机车道（add-cell-lifecycle）。</p>
+      <pre id="stewardConsent" style="white-space:pre-wrap;font-size:12px;background:#1118;padding:10px;border-radius:8px;line-height:1.6"></pre>
+    </div>
+    <div class="form-group">
+      <label>状态</label>
+      <p id="stewardStatusText" class="hint">查询中…</p>
+    </div>
+    <div class="actions">
+      <button id="stewardInstallBtn">同意并安装后台管家</button>
+      <button id="stewardUninstallBtn" class="secondary" style="display:none">卸载后台管家</button>
+      <span id="stewardStatus"></span>
     </div>
   </div>
 

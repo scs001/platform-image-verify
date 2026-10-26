@@ -14,7 +14,9 @@ import { fileURLToPath } from "node:url";
 import "dotenv/config"; // read .env for dev config
 import { Supervisor } from "./supervisor/lifecycle.js";
 import { registerStatusIpc } from "./supervisor/status.js";
+import { attachSteward } from "../supervisor/steward-client.js";
 import { resolveEnv } from "./config/settings.js";
+import { registerStewardIpc } from "./steward-ipc.js";
 import { runFirstRun } from "./bootstrap/first-run.js";
 import { openPreferencesWindow, registerPreferencesIpc } from "./preferences/window.js";
 import { setSupervisor } from "./preferences/ipc.js";
@@ -119,7 +121,10 @@ if (!gotLock) {
     if (stopping) return;
     event.preventDefault();
     stopping = true;
-    try { if (supervisor) await supervisor.stop(); }
+    // Attached = resident steward owns the stack: quitting the UI detaches,
+    // it never drains (the exit-safety override is the tray Quit → steward's
+    // own drainQuit path, driven by policy, not by window lifecycle).
+    try { if (supervisor && !supervisor.attached) await supervisor.stop(); }
     catch (e) { console.error("[electron] supervisor stop error:", e); }
     app.quit();
   });
@@ -176,17 +181,64 @@ async function boot() {
   }
   const serverPort = agentEnv.DESKTOP_SERVER_PORT ? Number(agentEnv.DESKTOP_SERVER_PORT) : null;
 
-  supervisor = new Supervisor({
-    nodeBin,
-    projectRoot: PROJECT_ROOT,
-    dataDir,
-    agentEnv,
-    serverPort,
-  });
+  // Attach-first (add-cell-lifecycle): when a resident steward owns this data
+  // root, the app becomes its client — UI exit must NOT drain the runtime.
+  // Embedded stays the default world (no steward installed → manual policy).
+  // A steward that is registered but won't answer is repaired, never
+  // duplicated: two supervisors on one data root is the one topology this
+  // mechanism exists to prevent.
+  let attached = false;
+  if (dataDir) {
+    const att = await attachSteward(dataDir).catch(() => ({ ok: false, reason: "attach-error" }));
+    if (att.ok) {
+      supervisor = {
+        attached: true,
+        restart: (id) => att.client.request("restart", { id }).then((r) => r?.restarted !== false),
+        status: () => att.client.request("status").then((r) => (Array.isArray(r?.servers) ? r.servers : [])),
+        // Detach semantics: quitting the UI leaves the resident stack alone.
+        stop: async () => {},
+        start: () => att.client.request("start"),
+        waitForHealthy: async (id, ms = 30000) => {
+          const deadline = Date.now() + ms;
+          for (;;) {
+            const r = await att.client.request("status").catch(() => ({}));
+            const s = (r.servers ?? []).find((x) => x.id === id);
+            if (s?.state === "healthy") return;
+            if (Date.now() > deadline) throw new Error(`timeout waiting for ${id}`);
+            await new Promise((r2) => setTimeout(r2, 300));
+          }
+        },
+        get serverPort() { return this._port ?? null; },
+        set serverPort(v) { this._port = v; },
+      };
+      attached = true;
+      console.log(`[electron] attached to resident steward (${att.discovery.socket})`);
+    } else if (att.reason !== "no-steward-json") {
+      const alive = att.discovery?.pid && (() => { try { process.kill(att.discovery.pid, 0); return true; } catch { return false; } })();
+      if (alive) {
+        console.error(`[electron] steward pid ${att.discovery.pid} alive but socket dead (${att.reason}) — NOT starting a second stack on the same data root; repair via tray/app restart`);
+        return openErrorWindow?.(`后台管家进程异常（${att.reason}）。请退出并重新打开应用以修复。`);
+      }
+      // Stale discovery from a dead steward: clean it and run embedded.
+      try { fs.rmSync(path.join(dataDir, "steward.json"), { force: true }); } catch { /* best-effort */ }
+      console.warn(`[electron] stale steward discovery removed (${att.reason}) — embedded fallback`);
+    }
+  }
+
+  if (!supervisor) {
+    supervisor = new Supervisor({
+      nodeBin,
+      projectRoot: PROJECT_ROOT,
+      dataDir,
+      agentEnv,
+      serverPort,
+    });
+  }
   setSupervisor(supervisor);
   registerStatusIpc(supervisor);
   registerPreferencesIpc(supervisor);
-  console.log("[electron] boot: supervisor constructed, starting…");
+  registerStewardIpc({ dataDir, nodeBin, projectRoot: PROJECT_ROOT, isPackaged: app.isPackaged });
+  console.log(`[electron] boot: supervisor ${attached ? "ATTACHED to steward" : "constructed embedded"}, starting…`);
 
   // Folder picker for the chat working directory (main window).
   ipcMain.handle("workdir:pick", async () => {
@@ -234,7 +286,14 @@ async function boot() {
 
   try {
     await supervisor.start();
-    const port = supervisor.serverPort;
+    // Attached mode: the steward-supervised port rides the status rows, not a
+    // property set by this process's constructor.
+    let port = supervisor.serverPort;
+    if (attached && !port) {
+      const rows = await supervisor.status().catch(() => []);
+      port = rows.find((r) => r.id === "server-js")?.port ?? null;
+      supervisor.serverPort = port;
+    }
     if (!port) throw new Error("no server port assigned");
     // Tray parks the app on window close (spec: desktop-fleet-console).
     ensureTray();

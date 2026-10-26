@@ -13,4 +13,10 @@ contextBridge.exposeInMainWorld("platform", {
 
   // Restart a service after changes
   restartService: (id) => ipcRenderer.invoke("service:restart", { id }),
+
+  // Resident steward (后台管家): consent text, install/uninstall, live status.
+  getStewardConsent: () => ipcRenderer.invoke("steward:consent"),
+  getStewardStatus: () => ipcRenderer.invoke("steward:status"),
+  installSteward: () => ipcRenderer.invoke("steward:install"),
+  uninstallSteward: () => ipcRenderer.invoke("steward:uninstall"),
 });

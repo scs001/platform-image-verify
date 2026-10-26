@@ -614,3 +614,24 @@ test("backstop: a chained task that dies at the ENGINE layer (never enters the s
   assert.equal(finished.turns, 1, "only the upstream turn row exists — the engine-layer death is honest absence");
   assert.equal(fleetDb.getRun(h.runId).status, "ok");
 });
+
+// ── 11. trace fleet annotation (add-cockpit-ux-polish) ──────────────────────
+
+test("annotateFleetTurns: hits get post attribution, misses stay untouched", async () => {
+  const { annotateFleetTurns } = await import("../server/routes/trace.js");
+  const rows = [
+    { trace_turn_id: "turn_hit1", fleet_id: "f1", member_id: "m_ceo", member_title: "CEO" },
+    { trace_turn_id: "turn_hit2", fleet_id: "f1", member_id: "m_gone", member_title: null },
+  ];
+  const turns = [
+    { turnId: "turn_hit1", sessionId: "s1" },
+    { turnId: "turn_web", sessionId: "live-1" },
+    { turnId: "turn_hit2", sessionId: "s2" },
+  ];
+  const out = annotateFleetTurns(turns, rows);
+  assert.deepEqual(out[0].fleet, { fleetId: "f1", memberId: "m_ceo", memberTitle: "CEO" });
+  assert.equal(out[1].fleet, undefined, "web turns carry no fleet attribution");
+  assert.deepEqual(out[2].fleet, { fleetId: "f1", memberId: "m_gone", memberTitle: null }, "deleted post keeps ids, title null");
+  // pure: input rows untouched
+  assert.equal(turns[0].fleet, undefined);
+});

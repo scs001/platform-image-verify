@@ -93,6 +93,20 @@ function TurnList() {
                     {turn.sessionId}
                   </td>
                   <td className="py-2">
+                    {turn.fleet && (
+                      <button
+                        type="button"
+                        className="rounded bg-blue-500/15 px-1.5 py-0.5 text-xs text-blue-600 dark:text-blue-400 hover:bg-blue-500/25"
+                        title={t("trace.fleetBadge")}
+                        data-testid={`trace-fleet-badge-${turn.turnId}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/fleets/${encodeURIComponent(turn.fleet!.fleetId)}`);
+                        }}
+                      >
+                        {t("trace.fleetBadge")}: {turn.fleet.memberTitle ?? turn.fleet.memberId}
+                      </button>
+                    )}
                     {turn.hasError && (
                       <span className="rounded bg-destructive/15 px-1.5 py-0.5 text-xs text-destructive">
                         {t("trace.errorBadge")}

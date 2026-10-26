@@ -11,7 +11,7 @@
 //
 // Self-drawn CSS grid + SVG (D7): no second graph lib.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   getRun,
@@ -64,6 +64,17 @@ export function RunTimeline({ fleetId, memberTitles }: { fleetId: string; member
   const [spans, setSpans] = useState<Record<string, ToolSpan[]>>({});
   const [error, setError] = useState<string | null>(null);
 
+  // Auto-select the newest run on the FIRST successful list load only
+  // (add-cockpit-ux-polish): the waterfall is immediately visible without an
+  // extra click; later runs arriving (runsVersion bumps) never jump the
+  // user's current selection. The gate resets when the fleet changes.
+  const didAutoSelect = useRef(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fleetId is the reset trigger — a fleet switch must clear the gate and the selection even though the effect body reads neither
+  useEffect(() => {
+    didAutoSelect.current = false;
+    setSelected(null);
+  }, [fleetId]);
+
   const title = useCallback((id: string) => memberTitles.get(id) ?? id, [memberTitles]);
 
   // List refresh: on mount, on filter/page change, and whenever a run header
@@ -77,6 +88,11 @@ export function RunTimeline({ fleetId, memberTitles }: { fleetId: string; member
           setRuns(body.runs);
           setTotal(body.total);
           setError(null);
+          if (!didAutoSelect.current && body.runs.length > 0) {
+            didAutoSelect.current = true;
+            const newest = body.runs[0];
+            if (newest) setSelected((cur) => cur ?? newest.runId);
+          }
         })
         .catch((e) => alive && setError(String(e?.message ?? e)));
     return () => {
@@ -277,7 +293,7 @@ export function RunTimeline({ fleetId, memberTitles }: { fleetId: string; member
                   {t(`fleets.runs.status.${r.status}`)}
                 </span>
                 <span className="text-muted-foreground">{t(`fleets.runs.source.${r.rootSource}`)}</span>
-                <span className="font-medium">{r.rootMemberTitle ? `${r.rootMemberTitle} →` : ""} {title(r.rootMemberId)}</span>
+                <span className="font-medium">{r.rootMemberTitle ?? title(r.rootMemberId)}</span>
                 <span className="ml-auto text-muted-foreground">{fmtDur(r.durationMs)}</span>
                 <span className="text-muted-foreground" data-testid={`run-turns-${r.runId}`}>
                   {r.turns}

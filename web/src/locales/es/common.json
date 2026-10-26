@@ -44,7 +44,8 @@
       "duration": "Duración",
       "events": "Eventos",
       "session": "Sesión"
-    }
+    },
+    "fleetBadge": "Flota"
   },
   "agentsPage": {
     "title": "Agentes",

@@ -632,6 +632,19 @@ test.describe("fleet canvas", () => {
     await expect(canvas.locator(".react-flow__controls")).toBeVisible();
   });
 
+  test("cockpit first-fetch failure self-heals without a manual reload", async ({ page }) => {
+    let calls = 0;
+    await page.route(`**/api/fleets/${FLEET_ID}/cockpit`, (route) => {
+      calls += 1;
+      if (calls === 1) return route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "boom" }) });
+      return route.fulfill({ contentType: "application/json", body: JSON.stringify(CANVAS_FLEET) });
+    });
+    await page.goto(`/fleets/${FLEET_ID}`);
+    const canvas = page.getByTestId("fleet-canvas");
+    await expect(canvas.getByTestId("canvas-node-ceo")).toBeVisible({ timeout: 10000 });
+    await expect.poll(() => calls, { timeout: 8000 }).toBeGreaterThanOrEqual(2);
+  });
+
   test("node drag persists per fleet locally; reset restores the seed layout", async ({ page }) => {
     await page.goto(`/fleets/${FLEET_ID}`);
     const canvas = page.getByTestId("fleet-canvas");
@@ -784,6 +797,17 @@ test.describe("fleet runs timeline", () => {
     await page.route(`**/api/fleets/${FLEET_ID}/runs/run_ok`, (route) =>
       route.fulfill({ contentType: "application/json", body: JSON.stringify(RUN_DETAIL) }),
     );
+    await page.route(`**/api/fleets/${FLEET_ID}/runs/run_fail`, (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          run: RUNS_BODY.runs[0],
+          turns: [
+            { id: 9, memberId: "inv", source: "manual", status: "failed", errorKind: "timeout", error: "timed out", model: null, startedAt: 0, endedAt: 500, sessionId: "task-9", turnId: "t_fail", runId: "run_fail", parentTurnId: null, edgeKind: null, usage: { input: 5, output: 1 }, traceTurnId: null },
+          ],
+        }),
+      }),
+    );
     await page.route("**/api/trace/turns/tr_inv", (route) =>
       route.fulfill({ contentType: "application/json", body: JSON.stringify({ turnId: "tr_inv", events: TRACE_INV }) }),
     );
@@ -845,6 +869,14 @@ test.describe("fleet runs timeline", () => {
     await expect(canvas.getByTestId("canvas-node-inv")).not.toHaveClass(/border-blue-500/, { timeout: 5000 });
   });
 
+  test("timeline auto-selects the newest run on first render", async ({ page }) => {
+    await page.goto(`/fleets/${FLEET_ID}`);
+    const runs = page.getByTestId("fleet-runs");
+    await expect(runs).toBeVisible({ timeout: 15000 });
+    // No click — the newest run's waterfall renders by itself.
+    await expect(runs.getByTestId("run-waterfall")).toBeVisible({ timeout: 5000 });
+  });
+
   test("a fleet with no runs shows the empty state, not an error", async ({ page }) => {
     await page.route(`**/api/fleets/${FLEET_ID}/runs?**`, (route) =>
       route.fulfill({ contentType: "application/json", body: JSON.stringify({ total: 0, runs: [] }) }),
@@ -898,13 +930,22 @@ test.describe("fleet inspector & design mode", () => {
     }
     await insp.getByTestId("inspector-close").click();
     await expect(insp).toBeHidden();
+    // Let the timeline's auto-select detail fetch settle — its setState wave
+    // can replace canvas DOM between query and dispatch.
+    await expect(page.getByTestId("fleet-runs").getByTestId("run-waterfall").or(page.getByTestId("runs-empty"))).toBeVisible({ timeout: 5000 }).catch(() => {});
 
     // Dispatch a bubbling click on the edge's <g> — coordinates are unreliable
     // now that nodes are draggable (a midpoint can land on a draggable card).
-    await canvas
-      .locator('.react-flow__edge[data-id="ceo→inv:handoff"]')
-      .evaluate((el) => el.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    // The canvas may re-render between query and dispatch (auto-select detail
+    // fetch), so retry until the drawer opens.
     const edgeInsp = page.getByTestId("edge-inspector");
+    for (let i = 0; (await edgeInsp.count()) === 0 && i < 4; i++) {
+      await canvas
+        .locator('.react-flow__edge[data-id="ceo→inv:handoff"]')
+        .evaluate((el) => el.dispatchEvent(new MouseEvent("click", { bubbles: true })))
+        .catch(() => {});
+      await page.waitForTimeout(400);
+    }
     await expect(edgeInsp).toBeVisible();
     await expect(edgeInsp).toContainText("handoff");
     await expect(edgeInsp.getByTestId("edge-inspector-traffic")).toContainText("24h: 4");

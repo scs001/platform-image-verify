@@ -11,6 +11,9 @@ export interface TraceTurnSummary {
   hasError: boolean;
   model: string | null;
   provider: string | null;
+  /** Fleet attribution (agent-fleet-runs): present when the trace key hits the
+      run ledger — the turn was executed by a fleet post. */
+  fleet?: { fleetId: string; memberId: string; memberTitle: string | null } | null;
 }
 
 export interface TraceEvent {

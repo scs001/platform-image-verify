@@ -44,7 +44,8 @@
       "duration": "时长",
       "events": "事件数",
       "session": "会话"
-    }
+    },
+    "fleetBadge": "舰队"
   },
   "agentsPage": {
     "title": "智能体",

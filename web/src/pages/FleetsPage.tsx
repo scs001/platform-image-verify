@@ -266,13 +266,28 @@ export function FleetsPage() {
   // The cockpit aggregate (agent-fleet-templates): one round-trip carrying
   // the tree + slots + statuses + decisions + daily stream + health + template
   // notice — the field contracts are the previous knives' read faces verbatim.
-  const loadDetail = useCallback(async (id: string) => {
+  // Self-heal (add-cockpit-ux-polish): a failed fetch (session re-cast, network
+  // blip) retries on a 2s/4s ladder, at most twice; the retry is guarded by the
+  // still-selected fleet so a fleet/account switch cancels it. A hone stale
+  // empty state (the walkthrough papercut) never needs a manual reload again.
+  const selectedRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedRef.current = selectedId;
+  }, [selectedId]);
+  const loadDetail = useCallback(async (id: string, attempt = 0) => {
     try {
       const r = await fetch(`/api/fleets/${encodeURIComponent(id)}/cockpit`);
       if (!r.ok) throw new Error(`cockpit ${r.status}`);
-      setDetail(await r.json());
+      const body = await r.json();
+      if (selectedRef.current === id) setDetail(body);
     } catch (e) {
+      if (selectedRef.current !== id) return;
       setError(String((e as Error).message ?? e));
+      if (attempt < 2) {
+        setTimeout(() => {
+          if (selectedRef.current === id) void loadDetail(id, attempt + 1);
+        }, attempt === 0 ? 2000 : 4000);
+      }
     }
   }, []);
 

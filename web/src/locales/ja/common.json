@@ -44,7 +44,8 @@
       "duration": "所要時間",
       "events": "イベント数",
       "session": "セッション"
-    }
+    },
+    "fleetBadge": "艦隊"
   },
   "agentsPage": {
     "title": "エージェント",

@@ -2290,6 +2290,14 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 
 **挂账**：真机验收（滚一支 fd-prod 班：第一节拍无到访自动重建+wake 无 0 秒失败潮）；桌面③配对上行与④⑤销毁三路 owner-offline 合龙（Q22 末棒）。
 
+### §15.64 cell 生命周期上产与真机验收 (add-cell-lifecycle 3.x 落地段，2026-10-27)
+
+**发布链（T1 免费线全路）**：scrub（make-public-snapshot，1315 文件零泄漏扫）→ 镜仓 scs001/platform-image-verify push（tag `sha-ebbb112`）→ 构建绿 → relay → ccr（digest `339f1b14`）→ GitOps `175b653` → ArgoCD 硬刷滚完。插曲纪实（按判路法没有冤案）：第一次 backfill 实产即发现 seeded 全 unbound 值班环唤不醒（语义口误）；修第一刀改 suspended+从 cell app.db 读回 email，第二刀发现 `register` 事件对存量行拒斥→改走 put+down 救援分道；第三班截图撞过一次快照截料瞬态（web locale 门 3 键缺=工件即批次性，重建即复绿），末班 `exit-status` 不识本班 run 一度照"上一条成功清单"判 7m3s——**镜仓清单与 ccr digest 才是出片事实稽核点**，别信自己挑的 run 头。
+
+**真机验收五项**：①in-pod 四标记（duty-ring/cell_destroyed/latestRealTurnFor（§15.59 veracity 同仓代）+bundle 语键）；②`cells-registry.db` 在产——boot 播种 23→**21 suspended+3 running、7/24 email 回读出**，盲行如实留 email=null 候流量（运行表现与 spec 完全一致）；③**值班环自转实证**：`[duty-ring] waking suspended cell 3fdc7b8e8ac03b68 / 6db2b1b4b490223b (due schedule)`——wire 的柏讯情报舆情舰队 cell 在其主人一次回访都没有的情况下被唤醒续跑（后一行 email 缺失则 warn 降级不盲拉）；④回合真相健康线：续跑回合 `ok` 88s/318s/183s + 真实 606-620s timeout 连败各显 detail 列（§15.55 归因已产）——**零秒 runtime_not_ready 暴发=0**（等待吸收了滚版窗，§15.59 语义在产压制复发）；⑤veracity/API 面回吐顺利（status=skipped 200 与 memberView 字段在产，前一日证据链不脱代）。
+
+**归档口径**：本 change 待到「四件全链」（①②+3.x 已产、④⑤待末棒：桌面③配对上行+销毁三路合龙）后才归档 sync；台账承旨 keep alive。wire 根因函（§15.59 末班拉）可发——wire 起泡处的「无重试」「失败徽标残血版」两校正信息，在今天全部上产的语义面前已全对应。
+
 ### §15.46 /admin/metrics 运维快照面（2026-10-26，用户令「继续优化」）
 
 **动机**：本轮 embed 车道三修（§15.45）全程靠 grep 日志+临时探针诊断，每次都要进 pod 跑脚本——把同一批信号做成一条 POST。

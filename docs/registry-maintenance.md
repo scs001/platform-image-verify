@@ -2304,3 +2304,5 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **真机验收**：①纯语义 query「手下不交作业怎么按规矩催」→ **vector 档命中 report_status 页**（词面零重合，解限流前不可达）；②回归基准 5/5 命中且 **vector 5/5**（此前同轮多为 keyword 档）；③metrics ratio 0.75 在冷却扰动下保持。
 
 **否决方向记录**：query 向量缓存——真实 chat 每回合 query 几乎不重复（12 分钟 60 发全不同），命中率过低不值得做；同期发现解限流的收益远大于缓存。
+
+**上产（2026-10-26 13:3x）**：公开快照仓线，快照 `d078198` → ccr digest `21d488a5` → GitOps `9b1a182` 双清单 → ArgoCD 滚完，in-pod 四标记全中（cron.js 3 / task-engine.js 3 / fleet-reconcile.js 2 / routes-fleets.js 1）+ 前端 bundle 含 `inspector-missed`，公网 200。**真机验收（回放对方报告的真实任务）**：`job_1792786329246_f6j77p`（巡线 0 9 * * * Asia/Shanghai，missed=3，旧版记录无新字段）——新版 `withinToleranceWindow` 在对方报告的重启时刻 01:33Z 判定 `true`=应补跑，符合需求稿语义。**顺手修正快照线一处历史隐患**：镜像仓该恢复的文件名是 `image.yml`（scrubber 只删它），此前误建的同内容 `image-publish.yml` 为冗余，已删并写回真名——后续班次照 `image.yml` 恢复。

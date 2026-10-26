@@ -2210,3 +2210,15 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **全链 witness（aloadtree 真根，即最厚生产根：47 L2+39 handoffs）**：回合①真 agent 经 MCP 写 note「项目代号青鸾」→ **写触发蒸馏自动开火**（notify→60s 去抖→分批蒸馏产出 L2·experience 置信 1.00）→ 回合②（新会话，仅隔数分钟）问「对外演示该用什么代号」→ /digest 检索首位即青鸾 L2（gist 形态：标题…：摘录分明+boundary_envs/search_keys 可见，memory-first 段序）→ **assistant 答：「青鸾」**。写→蒸→检→答四环在真实最厚根上数分钟内闭环，全部由本轮九班的个体改进复合而成。
 
 **运营注意（入配方）**：drill 身份连错 cell 时（PORT 多 cell 复用扫描误配），note 会落进**真实用户根**——本例落在 aloadtree；清残必须三级追（note 页+蒸馏 L2 experience+L2 fact 各自 forget，页面面 /pages 查不到 title 含关键词的 L2 需根内直查 recentPages+readPageByRel body）。终验零残留。附带澄清：memory_query 走 FTS 全页型（note 可查）、memory_recent 为新近面按契约——MCP 交互脸无类型盲缺陷。
+
+### §15.56 K10 判明：双库迁移窗口症状，非 SQLite 读抖动（2026-10-26 调查，无代码改动）
+
+**§15.49 遗留的 K10**（facet 写的 deployment 行在 platform 读视图间歇消失 20↔19 → wanxing 间歇 AGENT_NOT_FOUND）本轮架构级调查关账：
+
+**架构事实（生产实证）**：部署权威库 = facet 进程的 `/data/facet/packs.db`（**21 行**，hostPath /opt/platform/facet）；platform 的 `/api/packs/*` 为**全前缀代理**（facet-proxy: `app.all("/api/packs", forward)`，FACET_BASE_URL 已设），wanxing facade 经它 15s serve-stale 快照。platform 进程内的 `/data/data/packs.db`（**仅 1 行**）是 FACET_BASE_URL 未设时的本地回退面，生产不启用。
+
+**判读**：§15.49 的"20↔19 波动"期（10-25）与 facet cutover 窗口重合（facet.yaml:32 注释 packs.db 已于 cutover 自 /opt/platform/data/ 迁入）——双库并存窗口内部分读面回落 platform 本地库（1 行 demo 基准 vs facet 20 行部署），数量级完全吻合。cutover 完成即症状消除，**不是跨进程 SQLite 读事务问题**。
+
+**现状证据**：wanxing-facade 20h 日志仅 7 次 bookkeeping diff（6×~n 内容变更 = port_override 挪槽期，1×+1 新部署），**零消失型**；行数稳定 21。静止期无写入本无抖动诱因。
+
+**处置**：不改代码。K10 降级为「迁移窗口症状，已随 cutover+五班滚产消失」；观察项一条——若再现**消失型** diff，优先查双库读面（谁在读 platform 本地 packs.db）而非 SQLite 层。K10 销账，四断点（K7✓ K8 立项中 K9✓ K10✓）仅余 K8 部署租户化在途（并行线 add-deploy-tenancy）。

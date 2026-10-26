@@ -2571,7 +2571,12 @@
       "effortInherit": "Heredar (flota/celda)",
       "contextBudget": "Presupuesto de contexto (tokens/turno)",
       "contextBudgetUnlimited": "Sin límite",
-      "contextBudgetInvalid": "El presupuesto debe ser un entero positivo (tokens por turno)"
+      "contextBudgetInvalid": "El presupuesto debe ser un entero positivo (tokens por turno)",
+      "botChannel": "Canal bot",
+      "botInbound": "última entrada",
+      "botOutbound": "última salida",
+      "botLastError": "último error",
+      "botOpenPage": "Abrir página de Bots"
     },
     "design": {
       "enter": "Diseñar",
@@ -2591,6 +2596,29 @@
       "budget": "Presupuesto agotado ({n} llamadas de herramienta)",
       "degradedTo": "Degradado a",
       "skipped": "Esta ronda fue omitida por la plataforma (cortecircuito del carril de modelo) — no cuenta como fallo, la cadencia no se ve afectada"
+    },
+    "configBar": {
+      "models": "Modelos",
+      "effort": "Profundidad",
+      "budget": "Presupuesto",
+      "traffic": "Tráfico de aristas (24h)",
+      "unset": "sin definir",
+      "noTraffic": "sin aristas declaradas",
+      "trafficNone": "sin tráfico en 24h",
+      "turnsSuffix": "rondas",
+      "budgetHint": "Uso de la última ronda real como fracción del presupuesto declarado; los puestos sin presupuesto quedan fuera",
+      "budgetNoData": "sin uso",
+      "budgetNoDataHint": "La última ronda real no informó uso: es ausencia, no estar dentro de cuota",
+      "effortLevel": {
+        "low": "baja",
+        "medium": "media",
+        "high": "alta"
+      }
+    },
+    "miniSpan": {
+      "failed": "fallido",
+      "errorKind": "fallido: {kind}",
+      "source": "abrir trace"
     }
   },
   "facetCurate": {

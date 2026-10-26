@@ -2571,7 +2571,12 @@
       "effortInherit": "継承（艦隊/セル既定）",
       "contextBudget": "コンテキスト予算（トークン/ターン）",
       "contextBudgetUnlimited": "無制限",
-      "contextBudgetInvalid": "予算は正の整数で指定してください（ターンあたりトークン）"
+      "contextBudgetInvalid": "予算は正の整数で指定してください（ターンあたりトークン）",
+      "botChannel": "Bot チャネル",
+      "botInbound": "直近の受信",
+      "botOutbound": "直近の発信",
+      "botLastError": "直近のエラー",
+      "botOpenPage": "アプリページを開く"
     },
     "design": {
       "enter": "設計",
@@ -2591,6 +2596,29 @@
       "budget": "ステップ使い切り（ツール呼び出し {n} 回）",
       "degradedTo": "縮退先",
       "skipped": "この回はプラットフォームがスキップ（モデル経路ブレーカ作動）— 失敗に含まれず、周期は影響なし"
+    },
+    "configBar": {
+      "models": "モデル分布",
+      "effort": "思考深度",
+      "budget": "コンテキスト予算",
+      "traffic": "辺トラフィック（24h）",
+      "unset": "未設定",
+      "noTraffic": "宣言された辺なし",
+      "trafficNone": "24h 内のトラフィックなし",
+      "turnsSuffix": "ラウンド",
+      "budgetHint": "直近の実ラウンド使用量 / 宣言予算でバケット化；予算未宣言のポストは除外",
+      "budgetNoData": "使用量なし",
+      "budgetNoDataHint": "直近の実ラウンドが使用量を報告していません——欠落であり、未超過ではありません",
+      "effortLevel": {
+        "low": "低",
+        "medium": "中",
+        "high": "高"
+      }
+    },
+    "miniSpan": {
+      "failed": "失敗",
+      "errorKind": "失敗：{kind}",
+      "source": "トレースを開く"
     }
   },
   "facetCurate": {

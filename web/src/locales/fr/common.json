@@ -2571,7 +2571,12 @@
       "effortInherit": "Hériter (flotte/cellule)",
       "contextBudget": "Budget de contexte (tokens/tour)",
       "contextBudgetUnlimited": "Illimité",
-      "contextBudgetInvalid": "Le budget doit être un entier positif (tokens par tour)"
+      "contextBudgetInvalid": "Le budget doit être un entier positif (tokens par tour)",
+      "botChannel": "Canal bot",
+      "botInbound": "dernière entrée",
+      "botOutbound": "dernière sortie",
+      "botLastError": "dernière erreur",
+      "botOpenPage": "Ouvrir la page Bots"
     },
     "design": {
       "enter": "Concevoir",
@@ -2591,6 +2596,29 @@
       "budget": "Budget épuisé ({n} appels d'outil)",
       "degradedTo": "Dégradé vers",
       "skipped": "Ce tour a été ignoré par la plateforme (disjoncteur du couloir de modèle ouvert) — pas un échec, la cadence est inchangée"
+    },
+    "configBar": {
+      "models": "Modèles",
+      "effort": "Profondeur",
+      "budget": "Budget contextuel",
+      "traffic": "Trafic des liens (24h)",
+      "unset": "non défini",
+      "noTraffic": "aucun lien déclaré",
+      "trafficNone": "aucun trafic en 24h",
+      "turnsSuffix": "tours",
+      "budgetHint": "Usage du dernier tour réel en proportion du budget déclaré ; les postes sans budget sont exclus",
+      "budgetNoData": "sans usage",
+      "budgetNoDataHint": "Le dernier tour réel n'a pas rapporté d'usage : c'est une absence, pas un quota respecté",
+      "effortLevel": {
+        "low": "basse",
+        "medium": "moyenne",
+        "high": "haute"
+      }
+    },
+    "miniSpan": {
+      "failed": "échec",
+      "errorKind": "échec : {kind}",
+      "source": "ouvrir la trace"
     }
   },
   "facetCurate": {

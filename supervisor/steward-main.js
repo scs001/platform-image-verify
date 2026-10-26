@@ -27,7 +27,12 @@ function defaultDataDir() {
 }
 
 const dataDir = defaultDataDir();
-const nodeBin = process.env.PLATFORM_NODE_BIN || "node";
+// launchd/schtasks give the resident steward a bare PATH (no "node" on it):
+// falling back to `"node"` here spawned every child service into
+// "command not found" restart loops on real installs (v1.3.19 first-trial).
+// The steward itself already runs under the bundled node (packaged) whose
+// ABI matches the children's native addons — reuse that binary by default.
+const nodeBin = process.env.PLATFORM_NODE_BIN || process.execPath;
 
 // Orphaned-steward self-clean (add-cell-lifecycle 2.1): on macOS a
 // drag-deleted .app runs no uninstaller, so the LaunchAgent would respawn a

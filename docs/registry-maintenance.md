@@ -2278,6 +2278,18 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 
 **挂账（按 Q22 次序）**：云端章（spawner 注册表+值班环唤醒+销毁，§15.59 的滚版全黑是其头号动机）、桌面③（device-pairing 配对+presence/manifest 白名单上行）与 ④（销毁三路合龙+owner-offline 读面）、真机八幕验收链（Mac/Win 装/跑/关 UI/睡眠/关机/卸载/撤销）——均属后续棒；真机首裁应先装一台 steward 试 attach 三分支。
 
+### §15.63 cell 生命周期云端章落地：滚版不再静默停舰队 (add-cell-lifecycle 3.x，2026-10-27)
+
+**头病**：滚版杀光所有 cell、注册面又是内存 Map、只有流量能拉起 cell——无人值守舰队的回合在每个用户的下一次回访前全部不发射（§15.59 的 runtime_not_ready 爆发与滚版时段同族）。**用户原话定调**：「有些 cell 不该常驻、有些创建后应该解绑等新的需求」。
+
+**实现（随桌面章①②同根立案的云端半边）**：①**持久注册表** `gateway/cell-registry.js`——SQLite `cells-registry.db` 一行一 cell（state/policy/workload/lastBoundAt/destroy），行 schema+transition 纯函与桌面 `lib/cell-lifecycle.js` 单源；②**boot 重建**——spawner 构造同步扫 `CELL_DATA_ROOT/<hex>` 目录播种 suspended/on_demand 行（ownerEmail 靠首次流量/值班环回填，注册表权威，不依赖到访）；③**值班环** `gateway/duty-ring.js`——只做持久判据扫描（jobs.json 经 lib 共享数学，**零探针零拉起**）→ 到期 spawn（gate 4 并发+失败冷却 10min）+ workload 账面刷新；④**豁免条款退役**——residency 取代「有任何 cron/bot 就不回收」：always=常驻，on_demand 静默即挂起（值班环负责下一发），`CELL_REGISTRY_DISABLE=1` 整仓恢复旧语义（过渡桥，测试锁旧世界）；⑤**销毁三路之一落地**——admin `DELETE /api/gateway/cells/:userId`（live 拒绝、?force=1 放行、tombstone 先行再删数据根），`ensure` 遇墓碑拒 `cell_destroyed`（spec：销毁流量不再重生 cell）。
+
+**测试**：新 **19/19**（registry-db 3：行往返+墓碑跨 close+reopen+roll 复现；duty-ring 5：到期唤醒/无 email 拒盲拉/冷却单败一次/三类行各安其分/workload 账面；spawner-registry 3：墓碑拒 ensure/生命周期节拍落账/on_demand 豁免退役而 always 驻留）+ 本族全案 **33/33**（含桌面章 lib/steward 既有 14）+ gateway 邻域 8/8 不回归。
+
+**面验**：fd-prod 滚动后 `cells-registry.db` 落 /opt/platform/cells 旁（CELL_DATA_ROOT 同目录、SQLite WAL 本地盘约束不变）；部署注记随 `.env.example`（CELL_DUTY_SPAWN_GATE/TICK_MS）。
+
+**挂账**：真机验收（滚一支 fd-prod 班：第一节拍无到访自动重建+wake 无 0 秒失败潮）；桌面③配对上行与④⑤销毁三路 owner-offline 合龙（Q22 末棒）。
+
 ### §15.46 /admin/metrics 运维快照面（2026-10-26，用户令「继续优化」）
 
 **动机**：本轮 embed 车道三修（§15.45）全程靠 grep 日志+临时探针诊断，每次都要进 pod 跑脚本——把同一批信号做成一条 POST。

@@ -10,11 +10,12 @@
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { mkdir, rm } from "node:fs/promises";
 import { createServer, connect } from "node:net";
 import path from "node:path";
 import { bundledJson } from "../paths.js";
+import { newRegistryRow } from "../lib/cell-registry.js";
 
 // A stable, filesystem-safe per-user directory name. Derived by hashing rather
 // than by sanitizing the email so a hostile address can never contribute a path
@@ -75,6 +76,12 @@ export function createCellRegistry(config) {
     // of the deployment-wide reap setting.
     demoMaxCells = 3,
     demoIdleReapSecs = 900,
+    // add-cell-lifecycle 3.x: the DURABLE registry. When present, spawn /
+    // suspend / destroy decisions ride it (and a gateway restart rebuilds the
+    // demand surface from it, not from traffic); when absent the module runs
+    // byte-for-byte legacy (unit tests keep the in-memory world).
+    registryDb = null,
+    initialPolicy = "on_demand",
   } = config;
   const cells = new Map();
   // In-flight spawns, keyed by userId. Registered BEFORE spawnCell() is called
@@ -86,6 +93,57 @@ export function createCellRegistry(config) {
   const inflight = new Map();
   let shuttingDown = false;
   let reaper = null;
+
+  // ── Durable registry glue (add-cell-lifecycle 3.1/3.2) ───────────────────
+  // One transition call per lifecycle beat; the executor side effects stay
+  // here (spawn/kill), the durable truth rides registryDb. A registry write
+  // failure never blocks a spawn — demand surface first, at its own truth
+  // catch-up next boot (and the duty-ring tick refreshes workload anyway).
+  function reg(cellId, event, opts = {}) {
+    if (!registryDb) return null;
+    try {
+      const r = registryDb.fire(cellId, event, opts);
+      if (r?.error) console.warn(`[gateway] cell registry ${event.type} refused for ${cellId}: ${r.error}`);
+      return r;
+    } catch (e) {
+      console.warn(`[gateway] cell registry write failed for ${cellId}: ${e?.message || e}`);
+      return null;
+    }
+  }
+
+  // Boot catch-up: rows for every data-root the registry has never seen.
+  // ownerEmail is unrecoverable from the hash — traffic or the first duty
+  // wake fills it; until then the row is a valid `suspended` + on_demand
+  // standing order (wake only once an email is known). Runs synchronously at
+  // construct so no spawn/ring tick can out-run it (spec D1: restart = full
+  // demand-surface rebuild, zero traffic required).
+  // Reader with failure isolation: a wedged store must not close the door —
+  // callers degrade to in-memory rules instead of refusing traffic.
+  function registryRowForSafe(userId) {
+    try { return registryDb?.get(userId) ?? null; } catch { return null; }
+  }
+
+  function backfillRegistry() {
+    if (!registryDb) return;
+    for (const entry of readdirSync(dataRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const cellId = entry.name;
+      if (!/^[0-9a-f]{16}$/i.test(cellId)) continue;
+      if (registryDb.get(cellId)) continue;
+      try { registryDb.fire(cellId, { type: "register", now: Date.now() }, { policy: initialPolicy }); }
+      catch (e) { console.warn(`[gateway] registry backfill failed for ${cellId}: ${e?.message || e}`); }
+    }
+  }
+  if (registryDb) {
+    const n = (() => {
+      try {
+        const before = registryDb.all().length;
+        backfillRegistry();
+        return registryDb.all().length - before;
+      } catch { return 0; }
+    })();
+    if (n > 0) console.log(`[gateway] cell registry backfill: ${n} row(s) seeded from data root`);
+  }
 
   function record(user) {
     const userId = userIdFor(user.email);
@@ -100,6 +158,13 @@ export function createCellRegistry(config) {
     return n;
   }
 
+  // ── Durable registry bridge (add-cell-lifecycle 3.1/3.4) ─────────────────
+  //
+  // When registryDb is present, spawn/suspend/destroy decisions also LAND in
+  // the persistent store: a rolled gateway rebuilds who exists, what they
+  // owe, and what must re-arm — without waiting for anyone to come back.
+  // Legacy deployments (no registryDb) keep the byte-for-byte pre-change
+  // behavior, including the scheduled-work reaping exemption.
   // Terminate a cell process and wait for it to actually exit: SIGTERM first,
   // escalating to SIGKILL once the grace period lapses. A cell that ignores
   // SIGTERM (wedged dsh child) must not keep the host's memory — or the cell's
@@ -141,6 +206,10 @@ export function createCellRegistry(config) {
     const userId = userIdFor(user.email);
     const root = path.join(dataRoot, userId);
     const demo = Boolean(user.groups?.includes?.("demo"));
+    // Lifecycle beat ①: unbound/suspended → starting. Demo cells stand as
+    // ephemeral policy; everyone else inherits `initialPolicy` (spec default
+    // on_demand — a new cell waits for demand, never resident by default).
+    reg(userId, { type: "bindRequested", ownerEmail: user.email, now: Date.now() }, { policy: demo ? "ephemeral" : initialPolicy });
     return (async () => {
       const port = await freePort();
       await mkdir(root, { recursive: true });
@@ -233,6 +302,13 @@ export function createCellRegistry(config) {
           void rm(root, { recursive: true, force: true }).catch((e) =>
             console.warn(`[gateway] demo cell ${userId} data cleanup failed: ${e.message}`)
           );
+          reg(userId, { type: "destroyRequested", reason: "demo-expiry", now: Date.now() });
+        } else if (cell.state === "stopping") {
+          reg(userId, { type: "down", now: Date.now() });
+        } else {
+          // Unexpected exit: not a destroy — the standing order stays,
+          // presence only degrades. Next demand re-binds.
+          reg(userId, { type: "down", now: Date.now() });
         }
         if (cell.state === "stopping") {
           cells.delete(userId);
@@ -255,9 +331,11 @@ export function createCellRegistry(config) {
         cell.error = err.message;
         await terminateChild(child, userId);
         if (cells.get(userId) === cell) cells.delete(userId);
+        reg(userId, { type: "bindFailed", now: Date.now() });
         throw err;
       }
       cell.state = "running";
+      reg(userId, { type: "up", now: Date.now() });
       console.log(`[gateway] cell ${userId} running on 127.0.0.1:${port} (pid ${cell.pid})`);
       return cell;
     })();
@@ -270,9 +348,22 @@ export function createCellRegistry(config) {
   // two parallel requests would both observe.
   function ensure(user) {
     const userId = userIdFor(user.email);
+    // Tombstone suppression (add-cell-lifecycle 3.3): a destroyed cell never
+    // re-binds on traffic — the standing order is dead until an operator
+    // explicitly clears the row.
+    const tomb = registryRowForSafe(userId);
+    if (tomb?.destroy || tomb?.state === "destroyed") {
+      const err = new Error("cell destroyed");
+      err.code = "cell_destroyed";
+      return Promise.reject(err);
+    }
     const existing = cells.get(userId);
     if (existing && existing.state === "running") {
       existing.lastTraffic = Date.now();
+      if (registryDb) {
+        const row = tomb ?? newRegistryRow({ cellId: userId, ownerEmail: user.email });
+        registryDb.put({ ...row, ownerEmail: row.ownerEmail ?? user.email, lastUserTrafficAt: Date.now() });
+      }
       return Promise.resolve(existing);
     }
     const pending = inflight.get(userId);
@@ -330,6 +421,18 @@ export function createCellRegistry(config) {
         continue;
       }
       if (idleReapSecs <= 0 || cell.lastTraffic > accountCutoff) continue;
+      // Residency policy governs reaping (3.4 transition bridge):
+      //   always      never reaped (the explicit-resident tier)
+      //   on_demand   reaped on quiet — NO scheduled-work exemption: the duty
+      //               ring owns its resumption now, suspension is no longer a
+      //               schedule miss. The legacy branch (no registryDb) keeps
+      //               the exemption byte-for-byte.
+      if (registryDb) {
+        const policy = (registryRowForSafe(cell.userId)?.policy ?? initialPolicy);
+        if (policy === "always") continue;
+        stop(cell.userId, "idle (on_demand)");
+        continue;
+      }
       let work;
       try {
         work = await enabledScheduledWork(cell);
@@ -368,6 +471,7 @@ export function createCellRegistry(config) {
       lastTraffic: new Date(cell.lastTraffic).toISOString(),
       uptimeMs: Date.now() - cell.startedAt,
       error: cell.error,
+      ...(registryDb ? { registry: (registryRowForSafe(cell.userId)?.state ?? null), policy: (registryRowForSafe(cell.userId)?.policy ?? null) } : {}),
     }));
   }
 
@@ -379,6 +483,14 @@ export function createCellRegistry(config) {
     await new Promise((r) => setTimeout(r, 800));
     for (const cell of cells.values()) {
       if (cell.child && cell.child.exitCode === null) cell.child.kill("SIGKILL");
+    }
+    // Every non-destroyed row parks as `suspended` across the roll — the duty
+    // ring rebuilds obligations from persistence on the next boot (3.1 spec).
+    if (registryDb) {
+      for (const row of registryDb.all()) {
+        if (row.destroy || row.state === "destroyed") continue;
+        reg(row.cellId, { type: "down", now: Date.now() });
+      }
     }
   }
 
@@ -400,5 +512,5 @@ export function createCellRegistry(config) {
     return cells.delete(userId);
   }
 
-  return { ensure, record, status, stop, drop, shutdown, cells };
+  return { ensure, record, status, stop, drop, shutdown, cells, reapIdle };
 }

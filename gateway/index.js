@@ -22,6 +22,9 @@ import { createLogtoAuth } from "../server/logto-auth.js";
 import { resolveSessionSecret, verifyEmbedToken } from "../server/session.js";
 const sessionHelpers = { verifyEmbedToken };
 import { createCellRegistry, userIdFor } from "./spawner.js";
+import { createCellRegistryDb } from "./cell-registry.js";
+import { createDutyRing } from "./duty-ring.js";
+import { rm } from "node:fs/promises";
 import { forwardedHeaders, machineHeaders, proxyHttp, proxyUpgrade } from "./proxy.js";
 import { createMpAuth } from "./mp-auth.js";
 import { createMpBindings } from "./mp-bindings.js";
@@ -69,6 +72,15 @@ const logtoAuth = await createLogtoAuth({
   resolveSessionSecret: () => resolveSessionSecret({ env: process.env }),
 });
 
+// add-cell-lifecycle 3.x: the durable store, constructed once and shared by
+// the spawner (spawn/suspend/destroy beats) and the duty ring (wake). A
+// rolled gateway rebuilds the demand surface from it — rolling no longer
+// silences fleets until their owners return. CELL_REGISTRY_DISABLE=1 keeps
+// the byte-for-byte legacy world (tests pinning the old spawner behavior).
+const cellRegistryDb = process.env.CELL_REGISTRY_DISABLE === "1"
+  ? null
+  : createCellRegistryDb({ file: path.join(DATA_ROOT, "cells-registry.db") });
+
 const registry = createCellRegistry({
   dataRoot: DATA_ROOT,
   secret: SECRET,
@@ -87,7 +99,23 @@ const registry = createCellRegistry({
   // writes are confined to their own data root (proven by
   // scripts/test-cell-containment.mjs).
   env: process.env,
+  ...(cellRegistryDb ? { registryDb: cellRegistryDb, initialPolicy: "on_demand" } : {}),
 });
+
+// Duty ring (add-cell-lifecycle 3.2): suspended on_demand cells wake when
+// their persisted schedules come due — the cron-exemption that used to pin
+// every fleet cell resident is superseded (spec 3.4 transition bridge).
+// Decisions read persistence only; spawning stays spawner's business.
+const dutyRing = cellRegistryDb
+  ? createDutyRing({
+      registryDb: cellRegistryDb,
+      dataRoot: DATA_ROOT,
+      ensure: (user) => registry.ensure(user),
+      spawnGate: Number(process.env.CELL_DUTY_SPAWN_GATE || 4),
+      tickMs: Number(process.env.CELL_DUTY_TICK_MS || 60_000),
+    })
+  : null;
+dutyRing?.start();
 
 // Cell fleet telemetry (unify-wanxing-management-plane): read-only short-term
 // execution visibility for the 萬星 board. The gateway samples each live
@@ -457,8 +485,46 @@ app.get("/api/gateway/status", (req, res) => {
     idleReapSecs: IDLE_REAP_SECS,
     dataRoot: DATA_ROOT,
     uptimeMs: Date.now() - startedAt,
+    ...(cellRegistryDb ? { registryRows: cellRegistryDb.all().length } : {}),
   });
 });
+
+// Operator-driven cell destroy (add-cell-lifecycle 3.3): refuse over live
+// work unless forced, stop the cell, remove its data root, and leave a
+// tombstone that suppresses every future spawn/wake for this user (spec:
+// destroyed traffic must not respawn the cell until the row is cleared).
+app.delete("/api/gateway/cells/:userId", async (req, res) => {
+  const user = logtoAuth.userFromCookie(req.headers.cookie);
+  if (!user) return rejectUnauthenticated(req, res);
+  if (!isAdminUser(user)) return res.status(403).json({ error: "Admin group required" });
+  if (!cellRegistryDb) return res.status(503).json({ error: "cell registry disabled" });
+  const userId = req.params.userId;
+  const row = cellRegistryDb.get(userId);
+  const live = registry.cells.get(userId);
+  const force = req.query.force === "1" || req.query.force === "true";
+  if (!row && !live) return res.status(404).json({ error: "cell not found" });
+  if (live && live.state === "running" && !force) {
+    return res.status(409).json({ error: "cell has a live process; retry with ?force=1 to stop it" });
+  }
+  if (live) registry.stop(userId, force ? "operator destroy (forced)" : "operator destroy");
+  // The durable beat: tombstone BEFORE data removal, so a crash mid-way
+  // still suppresses respawn — the root is re-removed idempotently on retry.
+  registryDbFire(cellRegistryDb, userId, { type: "destroyRequested", reason: `operator:${user.email}`, now: Date.now() });
+  try {
+    await rm(path.join(DATA_ROOT, userId), { recursive: true, force: true });
+  } catch (e) {
+    return res.status(500).json({ error: `data root removal failed: ${e.message}` });
+  }
+  res.json({ destroyed: true, userId, force });
+});
+
+function registryDbFire(db, cellId, event) {
+  try {
+    db.fire(cellId, event);
+  } catch (e) {
+    console.warn(`[gateway] registry destroy write failed for ${cellId}: ${e?.message || e}`);
+  }
+}
 
 // ── Session sharing (openspec: add-session-share) ───────────────────────────
 // The gateway brokers every share: it mints tokens for authenticated owners
@@ -961,6 +1027,7 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
     try { if (packRegistry) packRegistry.close(); } catch (e) { console.error(`[gateway] pack registry close failed: ${e.message}`); }
     try { zhiyu.close(); } catch (e) { console.error(`[gateway] zhiyu close failed: ${e.message}`); }
     try { cellFleetReporter?.stop(); } catch { /* telemetry timer; unref'd anyway */ }
+    try { dutyRing?.stop(); } catch { /* ring timer; unref'd anyway */ }
     await registry.shutdown();
     server.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 3000).unref();

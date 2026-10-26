@@ -31,6 +31,12 @@ const PRESET_SWITCH_ATTEMPTS = 3;
 // (2026-10-25 live: a daily patrol fired 17s after platform start and failed
 // `runtime_not_ready`; nothing retried, so that day's patrol was simply lost).
 const RUNTIME_READY_WAIT_MS = 120_000;
+// Deployment override (fix-fleet-turn-veracity design: grey-rollback valve).
+// `FLEET_TURN_READY_WAIT_MS=0` restores the pre-e3396 immediate refusal.
+function readyWaitMs() {
+  const n = Number(process.env.FLEET_TURN_READY_WAIT_MS);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : RUNTIME_READY_WAIT_MS;
+}
 const RUNTIME_READY_POLL_MS = 1_000;
 
 // Resolve when the live web turn finishes (ctx.isStreaming drops). The engine
@@ -373,7 +379,7 @@ export function roundChildSessionId(job, startedAt, seq = 0) {
 // is bounded and fleet-only — ordinary cron keeps the immediate refusal.
 // Exported so the gate itself is testable without a live dsh bridge.
 export async function awaitRuntimeReadyForJob(ctx, job, {
-  waitMs = RUNTIME_READY_WAIT_MS,
+  waitMs = readyWaitMs(),
   pollMs = RUNTIME_READY_POLL_MS,
   now = () => Date.now(),
 } = {}) {
@@ -899,6 +905,30 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
     const startedAt = Date.now();
     const roundSeq = ++roundSeqCounter;
     job = { ...job, roundSeq };
+
+    // Not-executed short-circuit (fix-fleet-turn-veracity D1): a fleet persona
+    // round whose runtime never becomes ready inside the bounded wait is
+    // skipped, not failed — and the skip lands BEFORE the ledger opens, so the
+    // round leaves no run instance, no handoffs, no settle behind it. The
+    // inner gate in runPersonaTurn stays as the race fallback (bridge flapping
+    // between this pre-gate and the turn itself records failed, honestly).
+    if (job.targetType === "persona" && job.sourceTag?.fleetId) {
+      let ready;
+      try {
+        ready = await awaitRuntimeReadyForJob(ctx, job);
+      } catch (e) {
+        ready = { ok: false, error: `readiness pre-gate failed: ${e?.message || e}` };
+      }
+      if (!ready.ok) {
+        const skippedOut = { ok: false, skipped: true, error: ready.error };
+        try {
+          ctx.recordFleetTurnEvent?.(job, skippedOut, { startedAt, endedAt: Date.now(), model: null, ledgerTurn: null });
+        } catch (e) {
+          console.warn(`[fleets] skipped turn record failed for ${job.id}: ${e?.message || e}`);
+        }
+        return skippedOut;
+      }
+    }
 
     // Run ledger (agent-fleet-runs D2): the turn's id — and for a root turn
     // its run id — exist from the START, because a mid-turn dispatch_post must

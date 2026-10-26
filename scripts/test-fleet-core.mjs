@@ -947,3 +947,73 @@ test("audit: orchestration reset to null warns outside the owner's HTTP session,
     .all(fleet.id);
   assert.equal(resets.length, 3);
 });
+
+// ── projection overview (add-fleet-cockpit-projection) ──────────────────────
+
+test("overview: owner projection bounded + non-owner 403", async () => {
+  const universe = { "persona-a": { name: "甲" }, "persona-b": { name: "乙" } };
+
+  // Fleet A: one hourly post (missing — never materialized here), one passive
+  // post with a report, two open decisions (high beats normal regardless of
+  // expiry).
+  const fleetA = fleetDb.createFleet({ id: "fa", name: "甲队", ownerEmail: "owner@test" });
+  fleetDb.createMember({ id: "ma1", fleetId: fleetA.id, title: "电商部", parentId: null, targetKind: "persona", targetId: "persona-a", kpiSlots: [{ key: "sales", label: "销售额" }], cadence: HOURLY });
+  fleetDb.createMember({ id: "ma2", fleetId: fleetA.id, title: "内容部", parentId: "ma1", targetKind: "persona", targetId: "persona-b", kpiSlots: [{ key: "videos", label: "本周视频" }], cadence: null });
+  fleetDb.appendReport({
+    id: "r1", fleetId: fleetA.id, memberId: "ma2", sessionId: "s",
+    metrics: { videos: { value: 0, delta: "持平" }, extra: { value: "x" } },
+    resources: [], blockers: [],
+    summary: "x".repeat(200), source: "self", createdAt: Date.now() - 3600_000,
+  });
+  fleetDb.appendDecision({
+    id: "d_normal", fleetId: fleetA.id, memberId: "ma2", question: "早到期普通", options: [],
+    severity: "normal", submittedAt: Date.now() - 3600_000,
+  });
+  fleetDb.appendDecision({
+    id: "d_high", fleetId: fleetA.id, memberId: "ma1", question: "y".repeat(200), options: [],
+    severity: "high", submittedAt: Date.now() - 7200_000,
+  });
+  // Fleet B on the same owner rides along.
+  fleetDb.createFleet({ id: "fb", name: "乙队", ownerEmail: "owner@test" });
+
+  // auth-on, cell pinned to owner@test: header user drives identity.
+  const { server, call } = await startServer(
+    { authEnabled: true, cellUserEmail: "owner@test", fleetTargetResolver: makeResolver(universe) },
+    { userHeader: true },
+  );
+  try {
+    const anon = await call("GET", "/api/fleets/overview");
+    assert.equal(anon.status, 401);
+    const stranger = await call("GET", "/api/fleets/overview", undefined, { "x-test-user": "other@test" });
+    assert.equal(stranger.status, 403);
+
+    const r = await call("GET", "/api/fleets/overview", undefined, { "x-test-user": "owner@test" });
+    assert.equal(r.status, 200);
+    assert.equal(r.body.v, 1);
+    assert.ok(Number.isFinite(r.body.sampledAt));
+    assert.equal(r.body.fleets.length, 2);
+
+    const a = r.body.fleets.find((f) => f.id === "fa");
+    assert.ok(a.counts.missing >= 1, "hourly post with no task reads missing");
+    assert.equal(a.counts.passive, 1);
+    assert.equal(a.counts.total, 2);
+
+    // Decisions: high first regardless of expiry; snips bounded; member title.
+    assert.equal(a.openDecisions.count, 2);
+    assert.equal(a.openDecisions.top.length, 2);
+    assert.equal(a.openDecisions.top[0].severity, "high");
+    assert.ok(a.openDecisions.top[0].question.length <= 81, "question snipped to ≤80+ellipsis");
+    assert.equal(a.openDecisions.top[0].memberTitle, "电商部");
+    assert.ok(a.openDecisions.top.every((d) => Number.isFinite(d.expiresAt)));
+
+    // Stream: one line per member; summary snipped; declared slots only (≤4).
+    const shop = a.stream.find((s) => s.title === "内容部");
+    assert.equal(shop.status, "passive");
+    assert.ok(shop.summarySnip.length <= 121);
+    assert.deepEqual(Object.keys(shop.metrics), ["videos"]);
+    assert.equal(shop.at > 0, true);
+    assert.equal(shop.source, "self");
+  } finally {
+    server.close();
+  }
+});

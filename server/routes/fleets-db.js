@@ -742,6 +742,25 @@ export function createFleetDatabase({ file } = {}) {
       .map(deserializeTurnEvent);
   }
 
+  // Presence cares about REAL rounds only (fix-fleet-turn-veracity D3): a
+  // skipped row must never read as "the post just worked". Null when the
+  // stream holds only skips (a presence that then rightfully goes stale).
+  function latestRealTurnFor(memberId) {
+    const row = db
+      .prepare("SELECT * FROM member_turn_events WHERE member_id = ? AND status IN ('ok','failed','interrupted') ORDER BY id DESC LIMIT 1")
+      .get(memberId);
+    return row ? deserializeTurnEvent(row) : null;
+  }
+
+  // Skipped rounds inside a window — the "第 k 次" counter for the card badge
+  // and the missing-reason count (same read-time aggregate, two consumers).
+  function skippedCount(memberId, { sinceMs = null } = {}) {
+    const row = sinceMs == null
+      ? db.prepare("SELECT COUNT(*) AS n FROM member_turn_events WHERE member_id = ? AND status = 'skipped'").get(memberId)
+      : db.prepare("SELECT COUNT(*) AS n FROM member_turn_events WHERE member_id = ? AND status = 'skipped' AND ended_at >= ?").get(memberId, sinceMs);
+    return row?.n ?? 0;
+  }
+
   function latestTurnFor(memberId) {
     const row = db
       .prepare("SELECT * FROM member_turn_events WHERE member_id = ? ORDER BY id DESC LIMIT 1")
@@ -761,7 +780,11 @@ export function createFleetDatabase({ file } = {}) {
   // say WHY and SINCE WHEN, not just that a number is high. `since` is the
   // oldest failure still in the streak; `lastErrorKind` is the newest one's
   // category (the one an operator acts on first). Interrupted rounds are not
-  // failures — they stop the streak like any other non-failed row.
+  // failures — they stop the streak like any other non-failed row. Skipped
+  // rounds (fix-fleet-turn-veracity D2 — runtime never ready, or the lane
+  // breaker open) are transparent: never counted, never breaking the chain,
+  // never touching since/lastErrorKind (the platform's outage neither poisons
+  // nor heals the post's own streak).
   function failureStreak(memberId) {
     const rows = db
       .prepare(
@@ -772,6 +795,7 @@ export function createFleetDatabase({ file } = {}) {
     let since = null;
     let lastErrorKind = null;
     for (const r of rows) {
+      if (r.status === "skipped") continue;
       if (r.status !== "failed") break;
       if (streak === 0) lastErrorKind = r.error_kind ?? null;
       since = r.started_at ?? since;
@@ -998,6 +1022,8 @@ export function createFleetDatabase({ file } = {}) {
     listTurnEvents,
     listFleetTurnEvents,
     latestTurnFor,
+    latestRealTurnFor,
+    skippedCount,
     consecutiveFailures,
     failureStreak,
     insertRun,

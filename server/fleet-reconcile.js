@@ -233,6 +233,16 @@ export function deriveMemberStatus({
   failureStreak = 0,
   failureSince = null,
   lastFailureKind = null,
+  // Presence reads REAL rounds only (fix-fleet-turn-veracity D3): the caller
+  // passes the newest real turn's endedAt when the turn stream holds any
+  // events; undefined = fall back to the engine's task.lastRun (pre-stream
+  // history), null = the stream exists but holds only skips — presence MUST
+  // NOT advance on skipped rounds (a platform outage is not "the post just
+  // worked"; sustained skips degrade to missing with the count named).
+  effectiveLastRunAt = undefined,
+  // Skipped rounds inside the tolerance window — evidence for the
+  // missing-reason note (skipped = fired but never ran ≠ missed = never fired).
+  skippedRounds = 0,
 }) {
   const evidence = {
     lastRunAt: task?.lastRun ?? null,
@@ -256,6 +266,7 @@ export function deriveMemberStatus({
     failureStreak: failureStreak ?? 0,
     failingSince: failureSince ?? null,
     lastErrorKind: lastFailureKind ?? null,
+    skippedRounds: skippedRounds ?? 0,
   };
 
   if (targetAlive === false) {
@@ -282,7 +293,12 @@ export function deriveMemberStatus({
   }
 
   const window = evidence.staleWindowMs;
-  const lastRunMs = task.lastRun ? Date.parse(task.lastRun) : null;
+  const skippedNote = evidence.skippedRounds > 0
+    ? ` — ${evidence.skippedRounds} round(s) skipped: runtime unavailable or lane breaker open`
+    : "";
+  const lastRunMs = effectiveLastRunAt !== undefined
+    ? (Number.isFinite(effectiveLastRunAt) ? effectiveLastRunAt : null)
+    : (task.lastRun ? Date.parse(task.lastRun) : null);
   const executionStale = (ms) => ms != null && Number.isFinite(ms) && now - ms > window;
 
   if (lastRunMs != null && Number.isFinite(lastRunMs)) {
@@ -294,7 +310,7 @@ export function deriveMemberStatus({
       const downtimeNote = evidence.lastMissedReason === "downtime"
         ? ` — ${evidence.missedRounds} round(s) skipped by platform downtime${evidence.catchUpPending ? ", catch-up run in flight" : ""}`
         : "";
-      return { status: "missing", reason: `no execution for over the tolerance window (${Math.round(window / 3_600_000)}h)${downtimeNote}`, evidence };
+      return { status: "missing", reason: `no execution for over the tolerance window (${Math.round(window / 3_600_000)}h)${downtimeNote}${skippedNote}`, evidence };
     }
   } else {
     // Never ran: on-duty until the first occurrence is due AND the window has
@@ -302,7 +318,7 @@ export function deriveMemberStatus({
     const createdMs = task.createdAt ? Date.parse(task.createdAt) : null;
     if (createdMs != null && Number.isFinite(createdMs) && now - createdMs > window) {
       evidence.hitWindow = "execution";
-      return { status: "missing", reason: "materialized but never executed past the tolerance window", evidence };
+      return { status: "missing", reason: `materialized but never executed past the tolerance window${skippedNote}`, evidence };
     }
     return { status: "on_duty", reason: "awaiting first scheduled run", evidence };
   }

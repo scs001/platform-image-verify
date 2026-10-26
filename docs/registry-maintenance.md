@@ -2186,3 +2186,11 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **流程**：快照 **0dcb853**（源 paas 0acd86c6，digest 0a2f8800 ccr 实证）四面同代滚（GitOps 5529134）。e2e +2=17 条；fleet-runs 单测 20/20。稳定化两处：five-tab 边点击加重试循环+等重渲染源耗尽（节点可拖后 dispatch 落重渲染窗口的间歇 flake）、自愈断言改 poll。
 
 **三连刀节奏**：v2 归档 → canvas-drag（拖拽持久化）→ ux-polish（本刀）——当日立项即实施即出片即归档 ×2，e2e 从 14 条扩到 17 条。
+
+### §15.55 检查器运营闭环三件套上产（add-cockpit-ops-loop，2026-10-26，v2.1 第三刀）
+
+**能力**：①检查器「立即交付」——配置页签直发该岗既定任务（复用 POST /api/cron/:id/run，member.taskId 缺失的被动岗诚实不渲染，already 同步提示）；②抽屉自刷新——打开期间该岗回合结束自动重拉回合/产出/审批页签（订阅 fleet store version）；③兜底轮询——页面可见期 60s 整体重拉+切回补拉，WS 断流最终一致。零后端改动。
+
+**出片**：快照 **59c0e8e**（源 paas 1721c70f，digest 2dc6c50b ccr 实证）四面同代滚（GitOps 572cdbb）。e2e +2=19 条全绿。
+
+**真机构造验收（aloadtree cell）**：检查器点「立即交付」→「交付已开始」提示→CEO 回合真跑落行（ok，612+464 tok）→派发下游 萬星机群席→运营简报岗 回合（edgeKind=dispatch 继承，failed）→**头表自动收口 partial（1 ok 1 failed）**——交付→执行→派发→继承→收口全链账本自证。

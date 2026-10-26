@@ -2528,7 +2528,10 @@
       "replaying": "Replaying",
       "replay": "Replay cursor",
       "live": "Live",
-      "noTrace": "no trace"
+      "noTrace": "no trace",
+      "filterMember": "Filter by post",
+      "allMembers": "All posts",
+      "noMatch": "No runs match this post on this page"
     },
     "inspector": {
       "open": "Details",

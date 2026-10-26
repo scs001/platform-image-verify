@@ -869,6 +869,43 @@ test.describe("fleet runs timeline", () => {
     await expect(canvas.getByTestId("canvas-node-inv")).not.toHaveClass(/border-blue-500/, { timeout: 5000 });
   });
 
+  test("long free-form slot values never blow the node card open", async ({ page }) => {
+    const LONG = "5 席已报（开源/投资/助理/电商/内容）；CEO 侧复核：26 条连接全为公开数据源，无 github/店铺/券商，但目录中这些服务均存在可执行";
+    await page.route(`**/api/fleets/${FLEET_ID}/cockpit`, (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          ...CANVAS_FLEET,
+          members: CANVAS_FLEET.members.map((m) =>
+            m.id === "ceo"
+              ? { ...m, kpiSlots: [{ key: "digest", label: "巡视要点" }], latestReport: { id: "r", at: 1, summary: "s", source: "self", sessionId: null, slots: [{ key: "digest", label: "巡视要点", unit: null, value: LONG, trend: null }], undeclaredKeys: [] } }
+              : m,
+          ),
+        }),
+      }),
+    );
+    await page.goto(`/fleets/${FLEET_ID}`);
+    const card = page.getByTestId("canvas-node-ceo");
+    await expect(card).toBeVisible({ timeout: 15000 });
+    const box = await card.boundingBox();
+    expect(box.width).toBeLessThanOrEqual(240); // the card's fixed 220px + slack
+    // The chip stays one line; the full text rides the title.
+    await expect(card.locator("[title*='5 席已报']")).toHaveCount(1);
+  });
+
+  test("runs list filters by post", async ({ page }) => {
+    await page.goto(`/fleets/${FLEET_ID}`);
+    const runs = page.getByTestId("fleet-runs");
+    await expect(runs).toBeVisible({ timeout: 15000 });
+    await expect(runs.getByTestId("run-row-run_ok")).toBeVisible();
+    // run_fail's root post is inv; picking CEO leaves only run_ok (ceo).
+    await runs.getByTestId("runs-member-filter").selectOption("ceo");
+    await expect(runs.getByTestId("run-row-run_ok")).toBeVisible();
+    await expect(runs.getByTestId("run-row-run_fail")).toHaveCount(0);
+    await runs.getByTestId("runs-member-filter").selectOption("");
+    await expect(runs.getByTestId("run-row-run_fail")).toBeVisible();
+  });
+
   test("timeline auto-selects the newest run on first render", async ({ page }) => {
     await page.goto(`/fleets/${FLEET_ID}`);
     const runs = page.getByTestId("fleet-runs");

@@ -2528,7 +2528,10 @@
       "replaying": "Lecture",
       "replay": "Curseur de relecture",
       "live": "Direct",
-      "noTrace": "sans trace"
+      "noTrace": "sans trace",
+      "filterMember": "Filtrer par poste",
+      "allMembers": "Tous les postes",
+      "noMatch": "Aucune exécution de ce poste sur cette page"
     },
     "inspector": {
       "open": "Détails",

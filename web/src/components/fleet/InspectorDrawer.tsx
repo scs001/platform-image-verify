@@ -302,9 +302,15 @@ export function MemberInspector({
                 <div className="mt-1 flex flex-wrap gap-1">
                   {member.kpiSlots.map((s) => {
                     const latest = member.latestReport?.slots.find((x) => x.key === s.key);
+                    // Slot values are free-form — an agent may report prose
+                    // into one; the chip stays one line, full text on hover.
+                    const full = `${s.label}: ${latest ? `${latest.value}${latest.unit ?? ""}` : "—"}${s.target != null ? ` / ${s.target}` : ""}`;
+                    const raw = latest ? `${latest.value}${latest.unit ?? ""}` : "—";
+                    const short = raw.length > 24 ? `${raw.slice(0, 23)}…` : raw;
                     return (
-                      <span key={s.key} className="rounded-full bg-muted px-2 py-0.5">
-                        {s.label}: {latest ? `${latest.value}${latest.unit ?? ""}` : "—"}
+                      <span key={s.key} className="max-w-full min-w-0 rounded-full bg-muted px-2 py-0.5" title={full}>
+                        <span className="shrink-0">{s.label}: </span>
+                        <span className="font-medium">{short}</span>
                         {s.target != null ? ` / ${s.target}` : ""}
                       </span>
                     );

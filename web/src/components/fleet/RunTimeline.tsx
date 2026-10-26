@@ -59,6 +59,7 @@ export function RunTimeline({ fleetId, memberTitles }: { fleetId: string; member
   const [offset, setOffset] = useState(0);
   const [status, setStatus] = useState("");
   const [source, setSource] = useState("");
+  const [memberFilter, setMemberFilter] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<RunDetail | null>(null);
   const [spans, setSpans] = useState<Record<string, ToolSpan[]>>({});
@@ -190,6 +191,10 @@ export function RunTimeline({ fleetId, memberTitles }: { fleetId: string; member
 
   const cursorPct = replayAt != null && window ? pct(replayAt) : null;
   const pages = Math.max(1, Math.ceil(total / PAGE));
+  const visibleRuns = useMemo(
+    () => (memberFilter ? runs.filter((r) => r.rootMemberId === memberFilter) : runs),
+    [runs, memberFilter],
+  );
 
   return (
     <details className="mt-4" open data-testid="fleet-runs">
@@ -236,6 +241,23 @@ export function RunTimeline({ fleetId, memberTitles }: { fleetId: string; member
           <span className="text-muted-foreground" data-testid="runs-total">
             {total}
           </span>
+          {/* Post filter (client-side over the loaded page): the operator's
+              most common question is "what did THIS post run?", and scans a
+              page of mixed-post runs badly. */}
+          <select
+            aria-label={t("fleets.runs.filterMember")}
+            className="rounded-md border border-border bg-card px-2 py-1"
+            value={memberFilter}
+            onChange={(e) => setMemberFilter(e.target.value)}
+            data-testid="runs-member-filter"
+          >
+            <option value="">{t("fleets.runs.allMembers")}</option>
+            {[...memberTitles.entries()].map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
+          </select>
           {pages > 1 ? (
             <span className="ml-auto flex items-center gap-1">
               <button
@@ -263,13 +285,13 @@ export function RunTimeline({ fleetId, memberTitles }: { fleetId: string; member
           ) : null}
         </div>
 
-        {runs.length === 0 ? (
+        {visibleRuns.length === 0 ? (
           <p className="text-xs text-muted-foreground" data-testid="runs-empty">
-            {t("fleets.runs.empty")}
+            {runs.length === 0 ? t("fleets.runs.empty") : t("fleets.runs.noMatch")}
           </p>
         ) : (
           <div className="flex flex-col gap-1" data-testid="runs-list">
-            {runs.map((r) => (
+            {visibleRuns.map((r) => (
               <button
                 type="button"
                 key={r.runId}

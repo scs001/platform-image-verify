@@ -2528,7 +2528,10 @@
       "replaying": "再生中",
       "replay": "再生カーソル",
       "live": "ライブ",
-      "noTrace": "trace なし"
+      "noTrace": "trace なし",
+      "filterMember": "ポストで絞り込み",
+      "allMembers": "すべてのポスト",
+      "noMatch": "このページに該当ポストの実行なし"
     },
     "inspector": {
       "open": "詳細",

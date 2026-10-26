@@ -2528,7 +2528,10 @@
       "replaying": "回放中",
       "replay": "回放游标",
       "live": "实时",
-      "noTrace": "无 trace"
+      "noTrace": "无 trace",
+      "filterMember": "按岗位过滤",
+      "allMembers": "全部岗位",
+      "noMatch": "本页无该岗位的 run"
     },
     "inspector": {
       "open": "详情",

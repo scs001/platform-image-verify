@@ -2528,7 +2528,10 @@
       "replaying": "Reproduciendo",
       "replay": "Cursor de repetición",
       "live": "En vivo",
-      "noTrace": "sin trace"
+      "noTrace": "sin trace",
+      "filterMember": "Filtrar por puesto",
+      "allMembers": "Todos los puestos",
+      "noMatch": "Ninguna ejecución de este puesto en esta página"
     },
     "inspector": {
       "open": "Detalles",

@@ -148,23 +148,31 @@ function PostNodeView({ data, id }: NodeProps<Node<PostData>>) {
         <span className="ml-auto rounded-full bg-muted px-1.5 py-px text-[10px] text-muted-foreground">{t(`fleets.kind.${post.kind}`)}</span>
       </div>
       {post.slots.length > 0 ? (
-        <div className="mt-1 flex flex-wrap gap-1">
-          {post.slots.slice(0, 4).map((s) => (
-            <span
-              key={s.key}
-              className="inline-flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-px text-[10px]"
-              title={s.unit ? `${s.label} (${s.unit})` : s.label}
-            >
-              <span className="text-muted-foreground">{s.label}</span>
-              <span className="font-medium">{String(s.value)}</span>
-              {s.trend ? (
-                <span className={trendClass(s.trend)}>
-                  {trendGlyph(s.trend)}
-                  {s.trend.deltaValue != null && s.trend.direction !== "flat" ? `${s.trend.deltaValue > 0 ? "+" : ""}${s.trend.deltaValue}` : ""}
-                </span>
-              ) : null}
-            </span>
-          ))}
+        <div className="mt-1 flex min-w-0 flex-wrap gap-1 overflow-hidden">
+          {post.slots.slice(0, 4).map((s) => {
+            // Slot values are free-form: an agent may report a prose summary
+            // into a slot, which would blow the card wide open. Chips stay
+            // one line — the full text rides the hover title.
+            const full = `${s.label}: ${s.value}${s.unit ?? ""}`;
+            const raw = String(s.value);
+            const short = raw.length > 16 ? `${raw.slice(0, 15)}…` : raw;
+            return (
+              <span
+                key={s.key}
+                className="inline-flex max-w-full min-w-0 items-center gap-0.5 rounded-full bg-muted px-1.5 py-px text-[10px]"
+                title={full}
+              >
+                <span className="shrink-0 text-muted-foreground">{s.label}</span>
+                <span className="min-w-0 truncate font-medium">{short}</span>
+                {s.trend ? (
+                  <span className={`shrink-0 ${trendClass(s.trend)}`}>
+                    {trendGlyph(s.trend)}
+                    {s.trend.deltaValue != null && s.trend.direction !== "flat" ? `${s.trend.deltaValue > 0 ? "+" : ""}${s.trend.deltaValue}` : ""}
+                  </span>
+                ) : null}
+              </span>
+            );
+          })}
           {post.slots.length > 4 ? <span className="rounded-full bg-muted px-1.5 py-px text-[10px] text-muted-foreground">+{post.slots.length - 4}</span> : null}
         </div>
       ) : null}

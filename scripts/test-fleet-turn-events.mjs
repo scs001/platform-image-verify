@@ -265,6 +265,10 @@ test("runCronJobTurn seam: three target kinds record one event each; recorder fa
     },
     session: { model: { id: "boot-model" } },
     taskTurnRegistry: new Map(),
+    // fix-fleet-turn-veracity D1 pre-gate: this fake represents an UP runtime
+    // — without a ready bridge the persona pre-check waits out its full 120s
+    // budget and skips the round instead of recording it.
+    dshBridge: { isReady: () => true },
   };
   attachCronRunner(ctx, {
     runPersona: async () => ({ ok: true, usage: null, text: "done" }),

@@ -149,7 +149,7 @@ test("shapeTurnOutcome: skipped is its own status, errorKind null, detail rides"
 
 // ── failureStreak ignores skipped ────────────────────────────────────────────
 
-test("failureStreak: a skipped round stops the streak (platform's fault, not the post's)", async () => {
+test("failureStreak: a skipped round is transparent (neither counts nor breaks the run)", async () => {
   const { createFleetDatabase, setFleetDatabase } = fleetsDbMod;
   const db = createFleetDatabase({ file: path.join(tmpRoot, `fleets-${Date.now()}.db`) });
   setFleetDatabase(db);
@@ -170,7 +170,10 @@ test("failureStreak: a skipped round stops the streak (platform's fault, not the
   db.appendTurnEvent({ fleetId: fleet.id, memberId: member.id, source: "cron", status: "skipped", startedAt: base + 200, endedAt: base + 201 });
   db.appendTurnEvent({ fleetId: fleet.id, memberId: member.id, source: "cron", status: "failed", errorKind: "model_upstream", startedAt: base + 300, endedAt: base + 400 });
 
-  assert.equal(db.failureStreak(member.id).streak, 1, "the skipped round breaks the walk");
+  // The walk SKIPS OVER skipped rows (fix-fleet-turn-veracity D4, transparent
+  // crossing): the post's two REAL failures stay visible across the platform's
+  // skip instead of the skip "healing" the streak.
+  assert.equal(db.failureStreak(member.id).streak, 2, "skipped is transparent — real failures stay counted");
   const last = db.latestTurnFor(member.id);
   assert.equal(last.status, "failed");
   assert.equal(last.detail, null, "pre-attribution rows read honest absence");

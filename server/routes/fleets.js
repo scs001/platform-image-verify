@@ -18,7 +18,7 @@ import {
   FLEET_STATES,
   MEMBER_TARGET_KINDS,
 } from "./fleets-db.js";
-import { reconcileFleet, deriveMemberStatus, cronPeriodMs } from "../fleet-reconcile.js";
+import { reconcileFleet, deriveMemberStatus, cronPeriodMs, staleWindowMs } from "../fleet-reconcile.js";
 import { validateOrchestration, expandedEdges, dispatchAllowed, constraintsOf } from "../fleet-orchestration.js";
 import { validateFleetDraft, applyFleetDraft } from "../fleet-architect.js";
 import { splitToolTarget } from "../tool-turn.js";
@@ -212,6 +212,14 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
   // D3): one pass gives the count, when it started and what the newest
   // failure was. Read BEFORE the derivation because it is an input to it.
   const streak = db.failureStreak(member.id);
+  // Presence reads REAL rounds only (fix-fleet-turn-veracity D3): once the
+  // turn stream holds any events, the plain latest row settles whether the
+  // stream exists, and the newest REAL turn (skips excluded) is what may
+  // advance presence — a skip-only history reads as never ran. The in-window
+  // skip count doubles as the card badge's "第 k 次" below.
+  const lastTurn = db.latestTurnFor(member.id);
+  const skipWindowMs = member.cadence ? staleWindowMs(member.cadence.cron, member.cadence.tz) : null;
+  const skippedRounds = db.skippedCount(member.id, skipWindowMs ? { sinceMs: now - skipWindowMs } : {});
   const derived = deriveMemberStatus({
     member,
     fleet,
@@ -222,12 +230,9 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
     failureStreak: streak.streak,
     failureSince: streak.since,
     lastFailureKind: streak.lastErrorKind,
+    effectiveLastRunAt: lastTurn ? (db.latestRealTurnFor(member.id)?.endedAt ?? null) : undefined,
+    skippedRounds,
   });
-  // Turn outcome (add-fleet-turn-events D5): a SECOND dimension next to the
-  // presence derivation above. Since fix-fleet-failure-visibility the streak
-  // also feeds the STATUS (a failed post no longer reads on_duty); these fields
-  // remain the raw facts for the card.
-  const lastTurn = db.latestTurnFor(member.id);
   // Post model (add-fleet-post-model F1/F3): declared values verbatim plus the
   // advisory effective model — what this post's NEXT turn would run on, given
   // the chain and the roster as of this read. Advisory because the roster at
@@ -276,6 +281,10 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
     failureStreak: derived.evidence.failureStreak ?? 0,
     failingSince: derived.evidence.failingSince ?? null,
     lastErrorKind: derived.evidence.lastErrorKind ?? null,
+    // In-window skip count (fix-fleet-turn-veracity): the post card's
+    // 「本轮未执行（第 k 次）」 badge reads this; sustained skips show up in
+    // `status` (missing with the count named), not here.
+    skippedRounds: derived.evidence.skippedRounds ?? 0,
     latestReport: buildLatestView({ report: latest, previous, kpiSlots: member.kpiSlots }),
     reportTimeline: db.listReports(member.id, { limit: 5 }).map(reportTimelineEntry),
     lastTurn: lastTurn
@@ -551,6 +560,9 @@ export function createFleetRoutes(app, ctx = null) {
       startedAt: event.startedAt,
       endedAt: event.endedAt,
       sessionId: event.sessionId,
+      // Timeout/degrade/lane attribution (fix-fleet-turn-attribution): the
+      // timeline carries the summary verbatim; legacy rows read null.
+      detail: event.detail ?? null,
     };
   }
 
@@ -590,8 +602,8 @@ export function createFleetRoutes(app, ctx = null) {
       if (!owned) return;
       const status = req.query.status ?? null;
       const source = req.query.source ?? null;
-      if (status && !["ok", "failed", "interrupted"].includes(status)) {
-        return res.status(400).json({ error: "status must be one of ok|failed|interrupted" });
+      if (status && !["ok", "failed", "interrupted", "skipped"].includes(status)) {
+        return res.status(400).json({ error: "status must be one of ok|failed|interrupted|skipped" });
       }
       if (source && !["cron", "manual", "delegation", "event"].includes(source)) {
         return res.status(400).json({ error: "source must be one of cron|manual|delegation" });
@@ -893,6 +905,95 @@ export function createFleetRoutes(app, ctx = null) {
   });
 
   // ── Cockpit aggregate + template lifecycle (agent-fleet-templates) ────────
+
+  // Compact per-cell projection of every fleet the caller owns
+  // (agent-fleet-cockpit-projection): ONE round-trip the gateway cell sampler
+  // folds into cell_fleets events. Same read contracts as the list/cockpit
+  // faces — the payload is a bounded VIEW, never raw cockpit trees (50 fleets
+  // cap; decision snips ≤80 chars; report snips ≤120; slots ≤4).
+  router.get("/overview", (req, res) => {
+    try {
+      const user = resolveUser(req);
+      if (!user) return res.status(401).json({ error: "Authentication required" });
+      // Hosted cells are single-owner: anyone but the cell owner (or an admin
+      // probing the cell) gets nothing — the sampler carries the cell owner's
+      // identity by construction.
+      if (ctx?.authEnabled && ctx?.cellUserEmail && user.email !== ctx.cellUserEmail
+          && !ctx?.isAdminUser?.(user)) {
+        return res.status(403).json({ error: "Admin group or cell ownership required" });
+      }
+      const db = getFleetDatabase();
+      const clip = (s, n) =>
+        typeof s === "string" ? (s.length > n ? s.slice(0, Math.max(0, n - 1)) + "…" : s) : (s ?? null);
+      const fleets = db
+        .listFleets({ ownerEmail: user.email })
+        .slice(0, 50)
+        .map((fleet) => {
+          db.expireOpenDecisions(fleet.id);
+          const tasks = taskIndexFor(fleet.id);
+          const members = db.listMembers(fleet.id).map((m) =>
+            memberView(db, fleet, m, tasks, { resolver: targetResolver, model: modelCtx() }),
+          );
+          const counts = { onDuty: 0, paused: 0, missing: 0, vacant: 0, passive: 0, failing: 0 };
+          for (const v of members) {
+            const k = v.status === "on_duty" ? "onDuty" : v.status;
+            if (k in counts) counts[k] += 1;
+          }
+          // Decisions: open, severity first then closest to policy expiry —
+          // the cockpit's ordering, verbatim.
+          const policy = fleet.decisionPolicy ?? { expiryHours: 72 };
+          const expiryMs = policy.expiryHours > 0 ? policy.expiryHours * 3600_000 : null;
+          const decisions = db
+            .listDecisions({ fleetId: fleet.id, state: "open" })
+            .map((item) => ({
+              ...item,
+              memberTitle: members.find((m) => m.id === item.memberId)?.title ?? null,
+              expiresAt: expiryMs ? item.submittedAt + expiryMs : null,
+            }))
+            .sort((a, b) => {
+              const sev = { high: 0, normal: 1, low: 2 };
+              if (sev[a.severity] !== sev[b.severity]) return sev[a.severity] - sev[b.severity];
+              return (a.expiresAt ?? Infinity) - (b.expiresAt ?? Infinity);
+            });
+          const stream = members.map((m) => {
+            const latest = m.latestReport;
+            const metrics = {};
+            for (const s of (latest?.slots ?? []).slice(0, 4)) {
+              metrics[s.key] = clip(String(s.value), 24);
+            }
+            return {
+              title: m.title,
+              status: m.status,
+              reasonSnip: m.statusReason ? clip(m.statusReason, 80) : null,
+              at: latest?.at ?? null,
+              source: latest?.source ?? null,
+              metrics,
+              summarySnip: latest?.summary ? clip(latest.summary, 120) : null,
+            };
+          });
+          return {
+            id: fleet.id,
+            name: clip(fleet.name, 60),
+            state: fleet.state,
+            counts: { ...counts, total: members.length },
+            openDecisions: {
+              count: decisions.length,
+              top: decisions.slice(0, 3).map((d) => ({
+                question: clip(d.question, 80),
+                severity: d.severity,
+                expiresAt: d.expiresAt,
+                memberTitle: d.memberTitle,
+              })),
+            },
+            stream,
+          };
+        });
+      res.json({ v: 1, sampledAt: Date.now(), fleets });
+    } catch (err) {
+      console.error("[fleets] overview error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
 
   // One round-trip for the whole cockpit (design: no four-fetch flicker).
   // Every segment reuses the previous knives' read contracts verbatim —

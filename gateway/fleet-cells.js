@@ -21,6 +21,12 @@ import { randomUUID } from "node:crypto";
 import { GATEWAY_SECRET_HEADER } from "../server/auth.js";
 
 const SAMPLE_TIMEOUT_MS = 2_000;
+// The fleets lane's overview endpoint is HEAVY (one memberView per post per
+// fleet — big owners hold 20 fleets and answer in 2.5s+). Stats needs a fast
+// fail; the projection lane needs enough room to actually get one — its
+// silence was the fleets-lane-never-emits defect (2026-10-27, measured: a
+// 2579ms cell answer aborting against the shared 2000ms budget every tick).
+const FLEETS_SAMPLE_TIMEOUT_MS = 10_000;
 
 export function createCellFleetReporter({
   registry,
@@ -62,7 +68,7 @@ export function createCellFleetReporter({
     }
   }
 
-  async function sampleCell(forwardedIdentity, port, path) {
+  async function sampleCell(forwardedIdentity, port, path, timeoutMs = SAMPLE_TIMEOUT_MS) {
     try {
       const res = await fetchImpl(`http://127.0.0.1:${port}${path}`, {
         headers: {
@@ -71,7 +77,7 @@ export function createCellFleetReporter({
           "x-forwarded-email": forwardedIdentity,
           [GATEWAY_SECRET_HEADER]: secret,
         },
-        signal: AbortSignal.timeout(SAMPLE_TIMEOUT_MS),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       if (!res.ok) return null; // dead or erroring cell → absence this tick
       const payload = await res.json();
@@ -106,7 +112,7 @@ export function createCellFleetReporter({
   async function tickFleets() {
     const events = [];
     for (const [userId, cell] of liveCells()) {
-      const payload = await sampleCell(cell.email ?? userId, cell.port, "/api/fleets/overview");
+      const payload = await sampleCell(cell.email ?? userId, cell.port, "/api/fleets/overview", FLEETS_SAMPLE_TIMEOUT_MS);
       if (!payload) continue;
       events.push({
         id: randomUUID(),

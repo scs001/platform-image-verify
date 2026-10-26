@@ -78,7 +78,7 @@ app-e2e 现四条腿拆法：「app lint→typecheck→unit」与「android APK�
 4. 全绿后 `openspec validate`、归档；台账补通道制度一节。
 5. 回滚：workflow 改动均为可 git revert 的单文件；池侧不动私仓即可。
 
-## Open Questions
+## Open Questions（收口实录 2026-10-27）
 
-- android APK 腿与 Maestro android 档的实测分钟数，等一次真跑后定「留私仓还是迁池」（不影响 spec——护栏场景已覆盖两种结局）。
-- miniapp 将来要不要接微信 CI 上传管线（mp 上传 key 管理问题），留观察项。
+- ~~android APK 腿与 Maestro 档的实测分钟数~~ **已定案**：全腿实测 80-170 分钟/次，paths 触发接 `packages/core/**` 日频变更=与 iOS cron 并列的出血口。裁剪=APK/Maestro 双腿在私仓全部降为 workflow_dispatch 手动挂载（ubuntu 经济门只留 gates 三棒）；重腿池侧排程作为挂账观察项（不再需要时自然死亡）。
+- miniapp 接微信 CI 上传管线（mp 上传 key 管理）——维持观察项，本 change 不做。

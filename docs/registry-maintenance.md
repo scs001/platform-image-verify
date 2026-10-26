@@ -2554,3 +2554,21 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **验收**：e2e fleet-ops-canvas.spec.js 4/4 过（粒子两并发、失败染红衰减、hover 迷你 span、配置栏四件派生、bot 图标+检查器）；单元 5/5；fleets 回归 22/22、config-dims 回归绿；typecheck+check-locales 过。**坑证（§15.61 律第二次自证）**：i18n 先行只落 en/zh-CN 即出片，被快照 CI 漂移闸拦截（ebbb112 前序 5b42b8d 班 exit 1）——es/fr/ja 补齐 522a2202 后过。
 
 **挂账**：浏览器会话失效间 5.4 真机眼见未做——等服务化浏览器重登或下一次出片窗口补晚辈。
+
+## 非 web 端通道（建制，2026-10-27 立，revive-nonweb-ci）
+
+**分工铁律**：私仓（fd-craw-private）只跑 ubuntu 经济门；一切 macOS/Windows/模拟器重腿走公开池侧分支通道，永不吃私仓 2000 分钟/月。
+
+| 面 | 私仓（ubuntu ×1） | 公开池 `testaction003/build-pool` |
+|---|---|---|
+| web 六门 | 每次 push/PR 全量（lint→typecheck→unit→locales→web build→e2e fast） | — |
+| 移动 app | 每次 push/PR（paths `app/**|packages/core/**`）：biome→typecheck→unit | — |
+| 微信 miniapp | 每次 push/PR（paths `miniapp/**|packages/core/**`，`miniapp-ci.yml`）：biome→typecheck→markdown | — |
+| APK + Maestro android + Maestro iOS | **仅 workflow_dispatch 手动**（实测全腿 80-170 分钟，paths 触发=出血口） | 可排程（建制后） |
+| 桌面 release 矩阵/Win-smoke/dl-publish | 本仓里只是定义 — 实跑在池仓 | 侧分支 `desktop-release/<ver>`：干净快照（gitleaks 零泄漏硬门）→ `--keep-workflows` 推 → 修剪至 release+win-smoke → tag 触发；dl-publish 走 `hkccr/yizuo/desktop-installers:<ver>` 镜像轨落 cheap3 `/srv/dl/platform/<ver>/` |
+
+**快照纪律（永不入快照名单）**：`.env*`、`cell-data/`、`data/`、`uploads/`、`agents.local.json`、本地凭据；快照=源仓 origin/main 干净 clone 天然只含 tracked 文件；gitleaks 零报才可推；`.github` 修剪律=侧分支只留当次所需 workflow（防误触 mac/win 腿——`app-e2e`/`win-install-smoke` 快照进全 workflow 曾误烧 80-170 分钟）。
+
+**实测分钟（2026-10-27 定案班，池仓私有分钟）**：桌面全套（矩阵 arm64 47+x64 64+exe 19+publish 1+win-smoke 6+dl-publish 2）≈ **139 分钟/次**；私仓侧新政下每次 push ≤ web 六门（~15-25）+ 命中 paths 时 app/miniapp 门（~10/~3）。池额度台账=fd-build-channel（24h 缓存）。
+
+**判红两分法延伸**：私仓 run 3 秒即终+payments failed=额度死（等月初或走池）；池仓 run 业务步红=真缺陷必查 log。

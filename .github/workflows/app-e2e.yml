@@ -1,13 +1,14 @@
 name: app-e2e
 
 # The mobile client's Maestro gate (add-mobile-app 6.1/6.2). Android is the
-# enforced lane (emulator on ubuntu); the iOS leg runs MANUAL-DISPATCH ONLY —
-# nightly macOS billing (10x) is the structural quota killer that took the
-# private CI down mid-Oct 2026 (revive-nonweb-ci channel division: private
-# repo = ubuntu budget gates; macOS/Windows heavy legs run on the public
-# build-pool side-branch channel, see docs/registry-maintenance.md). Lint/
-# typecheck/unit run on every push; they are cheap and catch the
-# cross-platform typing drift early.
+# Lint/typecheck/unit run on every push (ubuntu, ~10 min — the budget gate).
+# ALL heavy legs (APK build ~25-40m, Maestro android emulator ~30m, Maestro
+# iOS on macOS 10x billing) are MANUAL-DISPATCH ONLY since the nonweb-CI
+# revival (2026-10-27): nightly macOS cron + heavy legs firing on every
+# packages/core change is the structural quota-killer combo that took the
+# private CI down mid-Oct (revive-nonweb-ci channel division: private repo =
+# ubuntu budget gates; heavy legs on demand or pool-side, measured minutes
+# in docs/registry-maintenance.md §「非 web 端通道」).
 #
 # The android lane is split in two jobs because gradle and the emulator
 # cannot share a runner: assembleDebug ran 42m next to the idling emulator
@@ -83,6 +84,10 @@ jobs:
 
   apk:
     name: android APK (release, bundled JS)
+    # 重腿改手动挂载（revive-nonweb-ci）：本档与模拟器档全腿实测 80-170 分钟，
+    # paths 触发 × 每日 core 变更 = 私仓额度第二出血口（第一是已删的 iOS
+    # nightly cron）。日常门禁由 gates 三棒承担；真腿需要时 dispatch。
+    if: github.event_name == 'workflow_dispatch'
     needs: gates
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -141,6 +146,7 @@ jobs:
 
   android:
     name: Maestro (android emulator)
+    if: github.event_name == 'workflow_dispatch' # 同 apk 档口径（见上注）
     needs: apk
     runs-on: ubuntu-latest
     timeout-minutes: 40

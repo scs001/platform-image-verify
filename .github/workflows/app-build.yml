@@ -97,6 +97,11 @@ jobs:
 
   ios-simulator:
     name: iOS simulator app (unsigned)
+    # revive-nonweb-ci（2026-10-27）：mac ×10 计费腿改手动挂载 —— public-repo
+    # 免费论在私仓不成立，本档与已删的 app-e2e nightly cron 是同一结构性
+    # 死因。需要时 workflow_dispatch。ubuntu 的 APK 档维持 paths 触发
+    # （「装得上」钉在每次 app/core 变更上，实测分钟见台账通道节）。
+    if: github.event_name == 'workflow_dispatch'
     # macOS runners are free on public repos. Unsigned = simulator-only: a
     # device/TestFlight build needs the Apple Developer Program (certs), which
     # is the standing action item — this lane proves the app compiles and runs

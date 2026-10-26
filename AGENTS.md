@@ -30,6 +30,11 @@ fd-build-snapshot <源码仓URL或本地路径> -R <org>/build-pool --namespace 
 **纪律（用户 2026-10-11 明令）**：镜像**永远走 GitHub Actions 构建**，禁止在节点上本地
 `docker build`；链路一律 `GHA → hkccr.ccs.tencentyun.com → cheap-3 tcr-relay → ccr`，**禁止 US runner 直推 ccr**。
 
+- **非 web 端通道（2026-10-27 建制，revive-nonweb-ci）**：私仓只跑 ubuntu 经济门
+  （web 六门 / app 三棒 / miniapp 三棒）；桌面 release 矩阵、win-smoke、APK/Maestro/iOS
+  一切 mac/win/模拟器重腿一律走池侧分支通道或手动 dispatch，**不吃私仓分钟**。
+  分工表+快照纪律+实测分钟见 `docs/registry-maintenance.md`「非 web 端通道」节。
+
 ## 判红两分法（额度 vs 真缺陷）
 
 - run **5-10 秒即终、注解 payments failed** → 额度用尽：换有余额的池，或走公开仓线。

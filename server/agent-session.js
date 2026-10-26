@@ -232,7 +232,10 @@ async function switchEffortToInner(effort) {
         sessionId: ctx.dshSessionId ?? undefined,
       });
     } else {
-      await ctx.dshBridge.restart({ provider, model: modelId });
+      // Legacy runtimes (no model/set): the effort must ride the restart's
+      // initialize handshake — a restart without it would silently drop the
+      // level we just persisted (add-agent-config-dims, live 2026-10-27).
+      await ctx.dshBridge.restart({ provider, model: modelId, effort: level });
     }
     ctx.currentEffort = level;
     ctx.broadcast({ type: "effort_changed", effort: level });

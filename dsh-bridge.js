@@ -95,6 +95,7 @@ export class DshBridge {
   #onEvent = () => {};
   #provider;
   #model;
+  #effort;
   #cwd;
   #mcpPatchPath;
   #skillsPatchPath;
@@ -116,10 +117,14 @@ export class DshBridge {
   #restarting = false;
   #generation = 0;
 
-  constructor({ onEvent, provider, model, cwd, mcpPatchPath, skillsPatchPath, presetsPatchPath, permissionsPatchPath, toolSearchPatchPath, chartBindPatchPath, userQuestionsPatchPath, saveLibraryPatchPath, agentPreset, env } = {}) {
+  constructor({ onEvent, provider, model, effort, cwd, mcpPatchPath, skillsPatchPath, presetsPatchPath, permissionsPatchPath, toolSearchPatchPath, chartBindPatchPath, userQuestionsPatchPath, saveLibraryPatchPath, agentPreset, env } = {}) {
     if (onEvent) this.#onEvent = onEvent;
     this.#provider = provider || "deepseek-official";
     this.#model = model || "deepseek-v4-flash";
+    // Thinking depth baked into the initialize handshake (add-agent-config-
+    // dims): runtimes without the live model/set RPC can only take the effort
+    // at initialize, so it must survive restarts like provider/model do.
+    this.#effort = effort || null;
     this.#cwd = cwd || process.cwd();
     this.#mcpPatchPath = mcpPatchPath || null;
     this.#skillsPatchPath = skillsPatchPath || null;
@@ -228,6 +233,7 @@ export class DshBridge {
           cwd: this.#cwd,
           provider: this.#provider,
           model: this.#model,
+          ...(this.#effort ? { reasoningEffort: this.#effort } : {}),
           ...(this.#agentPreset ? { agentPreset: this.#agentPreset } : {}),
           // Session-gated MCP servers (live-runtime-control): default-closed
           // per-session servers the child's tools/set gate enforces.
@@ -391,7 +397,7 @@ export class DshBridge {
   // child.
   // ponytail: this drops the child's in-memory session state (v1 ceiling); a
   // non-disruptive switch needs a custom dsh RPC.
-  async restart({ provider, model, cwd, mcpPatchPath, agentPreset } = {}) {
+  async restart({ provider, model, effort, cwd, mcpPatchPath, agentPreset } = {}) {
     if (this.#restarting) {
       throw new Error("dsh restart already in progress");
     }
@@ -403,6 +409,9 @@ export class DshBridge {
       this.#restarts = 0;
       if (provider) this.#provider = provider;
       if (model) this.#model = model;
+      // effort rides restarts too (add-agent-config-dims): undefined = keep,
+      // null = clear back to the deployment default.
+      if (effort !== undefined) this.#effort = effort || null;
       // Stored on the instance, so the unexpected-exit backoff path respawns
       // in the switched directory rather than reverting to the startup one.
       if (cwd) this.#cwd = cwd;

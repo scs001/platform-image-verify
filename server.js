@@ -693,6 +693,9 @@ async function initDshAgent() {
   ctx.dshBridge = new DshBridge({
     provider,
     model,
+    // Boot-restored thinking depth (add-agent-config-dims): the initialize
+    // handshake is the only channel a no-model/set runtime has for it.
+    effort: ctx.currentEffort ?? null,
     cwd: bootWorkspace.path,
     onEvent: ctx.handleDshEvent,
     mcpPatchPath,

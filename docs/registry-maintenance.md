@@ -2476,7 +2476,9 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 
 **陈年悬案（非本 change 根因，走查揭发）**：sub2api 全组/路由表查无 qwen3.8-flash，usage_logs 该模型最后成功=2026-09-18——**一切未显式 pin 模型的 a2a serving 调用（含 mission-planner 自有节奏回合）至少 10-26 起即全线失败**，是给养平面而非 zhiyu 管线。离奇的二阶：把两座显式 pin 到当今活车道 deepseek-v4.1-flash（service-config PUT 生效值已转 override）后 runner **rollover 仍报同名旧模型**——疑 child 既存活器取不到新描述（entry refresh/rollover 顺序）或 cordis 路由文件另有默认映射，待 lane 主人核（线索：runner 日志 `[dsh-profile] wrote finddata route(s), 8 model(s)` + rollover failed 行；db groups/routes 里 deepseek-v4.1-flash 在别处活的证据=usage_logs 3772/day）。**走查顺手件的处置**：两座部署的 model override 留在 deepseek-v4.1-flash（其 lane 验证放行了它，意味更新路径本身通），模型平面对账由 owning 会话接力，本班不追。
 
-**发布纪律增量**：出片→commit 1390f837/0e6a66b（含并行会话 veracity 两提交合流）；GitOps roll 2747c09/94815f5；ArgoCD hard-refresh ×2；四上线清单 **敢 tag+注释同体换**（旧 regex 坑已防）。change 上产状态=代码全产、走查阻塞项=模型平面；archive 待「serving 首答」补目击后进行（openspec archive 预检当前 `--strict` 绿）。
+**发布纪律增量**：出片→commit 1390f837/0e6a66b（含并行会话 veracity 两提交合流）；GitOps roll 2747c09/94815f5；ArgoCD hard-refresh ×2；四上线清单 **敢 tag+注释同体换**（旧 regex 坑已防）。
+
+**§15.62 续·直接测闭环（2026-10-27，阻塞件溶解）**：根因链定案与初判不同——qwen3.8-flash 被模型平面对账后，部署时 pin 在部署描述符 `effective_model` 里的旧值一直无人刷（只有显式 service-config 写或重部署才换），**未 pin 的部署走 runner 默认 deepseek-v4.1-flash 反而不受影响**；两座走查座恰是部署代老到那批。直测路径瓦解过程：service-config PUT→registry entry `effective_model` 即刻更新（roster 三闸齐验：lane 名单/hosting-runner 团体表/admitted）→ reconcile 的 identityOf 含 `effective_model`，flip 即触发 drain+in-place 重铸（日志实证 "descriptor changed; draining old runtime"；gemma↔deepseek 两轮回弹按名验证）→ 首次 PUT 后未见 drain 的真因=我等 log 窗口太短+会话旧 home 的日 rollover 与直探探针拼时差。最终证据四连：①a2a 直连 fresh contextID `probe:direct-2` 答 "在吗"；②房间点名 `@智库副驾` 全链真答落流（seq 8 agent 行带部署归因）；③答后即结算，`pack_host_settlements` 行 `zyr-zy_97a8e69ce5af785f9b-8-mem_69268439a8aa98a6d3` 1min×$0.1（usage 幂等键格式自证来自本房间）；④广播征询中「过」零计费如初。**平台侧意义**：服务配置改模型→runner 热重铸链设计内工作正常；平台隐患不在机制在于**部署时快照 vs 平面对账的漂移静默**——建议 lane 主人对存量部署做一遍 roster闸复核（老的 descriptor.effective_model 若已不在 roster，考虑运行时 session 创建时拒其请求并告警给部署者，而不是到回合那一刻才 400）。change 全部 38/38、walkthrough 欠项清零，可进 archive。
 
 ### §15.55 上游模型故障应急：free 模型救急免充值（2026-10-26，用户令「glm/mini 系列不要动，用 free」）
 

@@ -65,6 +65,6 @@
 ## 11. 发布与走查
 
 - [x] 11.1 出片走既定镜像链路（fd-build-channel 判路），验证：digest 落 `/api/ready`
-- [x] 11.2 真机多账号眼见：生产 admin+真部署双座逐项眼见（建房/策略入场/dispatch 到 runner/takeover-handback-call 四态/idle 自终/三路通知/失败如实归类），验证：走查记录落台账 §15.62（**欠项**：真机首答首结算被模型平面陈年悬案(qwen3.8-flash 9-18 下架)卡住，非本 change 根因，补目击后再 archive；外部通道推送为无订阅故未验，站内未读全过）
+- [x] 11.2 真机多账号眼见：生产 admin+真部署双座逐项眼见（建房/策略入场/dispatch 到 runner/takeover-handback-call 四态/idle 自终/三路通知/失败如实归类），验证：走查记录落台账 §15.62（欠项已清：**真机首答首结算目击达成**——fresh context 直答+房间点名真答落流+pack_host_settlements `zyr-zy_97a8e69ce5af785f9b-8-*` 1min×$0.1；模型平面属老部署描述符快照漂移,设计内机制 drain+重铸验证；外部通道推送为无订阅故未验，站内未读全过）
 - [x] 11.3 `openspec validate add-zhiyu-room --strict` 过，验证：validate 输出零 error
 - [x] 11.4 更新 `docs/registry-maintenance.md`（§1 运行表+§9 发布记录），验证：台账条目含 sha/digest/走查结论

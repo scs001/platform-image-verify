@@ -2583,6 +2583,12 @@
       "streak": "{n} consecutive failed rounds",
       "lastKind": "last cause",
       "since": "since"
+    },
+    "turnDetail": {
+      "stalled": "Stalled on {tool} for {wait}s",
+      "budget": "Budget exhausted ({n} tool calls)",
+      "degradedTo": "Degraded to",
+      "skipped": "This round was skipped by the platform (model-lane breaker open) — not a failure, cadence unaffected"
     }
   },
   "facetCurate": {

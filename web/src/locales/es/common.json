@@ -2583,6 +2583,12 @@
       "streak": "{n} rondas fallidas seguidas",
       "lastKind": "última causa",
       "since": "desde"
+    },
+    "turnDetail": {
+      "stalled": "Atascado en {tool} durante {wait}s",
+      "budget": "Presupuesto agotado ({n} llamadas de herramienta)",
+      "degradedTo": "Degradado a",
+      "skipped": "Esta ronda fue omitida por la plataforma (cortecircuito del carril de modelo) — no cuenta como fallo, la cadencia no se ve afectada"
     }
   },
   "facetCurate": {

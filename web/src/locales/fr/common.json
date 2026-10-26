@@ -2583,6 +2583,12 @@
       "streak": "{n} tours échoués d'affilée",
       "lastKind": "dernière cause",
       "since": "depuis"
+    },
+    "turnDetail": {
+      "stalled": "Bloqué sur {tool} pendant {wait}s",
+      "budget": "Budget épuisé ({n} appels d'outil)",
+      "degradedTo": "Dégradé vers",
+      "skipped": "Ce tour a été ignoré par la plateforme (disjoncteur du couloir de modèle ouvert) — pas un échec, la cadence est inchangée"
     }
   },
   "facetCurate": {

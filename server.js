@@ -78,6 +78,7 @@ import { rosterPresetId } from "./dsh-profile.js";
 import * as lineTokenRenewal from "./server/line-token-renewal.js";
 import * as lineCredentialsLib from "./line-credentials.js";
 import { createCredentialDelivery } from "./server/dsh-mcp-delivery.js";
+import { buildLaneLookup } from "./server/llm-lane.js";
 import { createMonitoringRoutes } from "./server/routes/monitoring.js";
 import { createAdminRoutes } from "./server/routes/admin.js";
 import { registerExternalServiceRoutes } from "./server/routes/external-services.js";
@@ -498,8 +499,13 @@ async function initDshAgent() {
   // loads the Volces routes at initialize. The generator's declared
   // list IS the dsh model list (no stock listModels RPC); server.js sources
   // the selector from it (Task 3.3). Empty list = dormant (Task 3.6).
-  const { models } = await writeLlmProfile();
+  const { providers, models } = await writeLlmProfile();
   ctx.dshModels = models;
+  // Lane lookup for the model-lane breaker (fix-fleet-turn-attribution D2):
+  // model id → the provider route that serves it → the lane fingerprint. The
+  // breaker keys on THIS, so per-agent providers (already expressible in the
+  // profile) each get their own circuit with zero semantic change.
+  ctx.llmLaneForModel = buildLaneLookup(providers, models);
   // Effort declarations for the resolver (add-agent-config-dims): model id →
   // the levels it accepts. Kept out of fleet-model.js's own imports so that
   // module stays dependency-free and unit-testable.

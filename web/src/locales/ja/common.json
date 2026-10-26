@@ -2583,6 +2583,12 @@
       "streak": "{n} 回連続で失敗",
       "lastKind": "直近の原因",
       "since": "開始"
+    },
+    "turnDetail": {
+      "stalled": "{tool} で {wait} 秒停止",
+      "budget": "ステップ使い切り（ツール呼び出し {n} 回）",
+      "degradedTo": "縮退先",
+      "skipped": "この回はプラットフォームがスキップ（モデル経路ブレーカ作動）— 失敗に含まれず、周期は影響なし"
     }
   },
   "facetCurate": {

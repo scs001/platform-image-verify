@@ -20,6 +20,8 @@ import { getClusterDatabase } from "./routes/clusters-db.js";
 import { runA2aTurn, resolveGatewayCredential } from "./a2a-client.js";
 import { clusterMemoryFor, memoryInjectionFor } from "./cluster-memory.js";
 import { runToolTurn as runToolTurnDefault } from "./tool-turn.js";
+import { classifyErrorKind } from "./fleet-events.js";
+import { breakerState, recordUpstreamFailure, recordUpstreamSuccess } from "./llm-lane.js";
 
 const IDLE_POLL_MS = 250;
 // Monotonic round sequence (unique rotated child ids even within one ms).
@@ -74,8 +76,9 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
       ctx.onRuntimeIdle?.();
       fn(arg);
     };
+    const startedAtMs = Date.now();
     const timer = setTimeout(
-      () => settle(reject, new Error("turn timed out")),
+      () => settle(reject, timeoutError(toolBlocks, startedAtMs)),
       timeoutMs,
     );
     activeTurns.set(sessionId, (reason) => {
@@ -146,11 +149,18 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
           id: ev.data.callId,
           name: ev.data.name,
           args: (() => { try { return JSON.parse(ev.data.arguments); } catch { return ev.data.arguments; } })(),
+          // fix-fleet-turn-attribution D1: the timeout summary needs WHEN a
+          // call started and whether it ever returned — two fields now, so a
+          // stalled call is distinguishable from a budget that simply ran out.
+          at: Date.now(),
         });
       } else if (ev.type === "tool/result") {
         const { callId, resultText } = parseToolResult(ev);
         const acc = toolBlocks.find((b) => b.id === callId);
-        if (acc) acc.result = resultText;
+        if (acc) {
+          acc.result = resultText;
+          acc.resultAt = Date.now();
+        }
       }
     });
   });
@@ -164,6 +174,31 @@ export function collectTurn(ctx, sessionId, timeoutMs, activeTurns, collectors =
   // interruption there.
   collected.catch(() => {});
   return collected;
+}
+
+// Timeout attribution (fix-fleet-turn-attribution D1): the collector's
+// closure knows what the turn was doing when the budget ran out — the reject
+// just never said so. A call still awaiting its result reads `stalled` (fix
+// the tool); all calls returned and the steps simply ran out reads
+// `turn_budget_exceeded` (raise the budget or shorten the work). A turn with
+// no tool history at all summarizes honestly empty — the model may have been
+// thinking, and an invented tool name would misdirect triage.
+export function timeoutError(toolBlocks, startedAtMs, now = Date.now()) {
+  const err = new Error("turn timed out");
+  const pending = [...toolBlocks].reverse().find((b) => b.result === undefined);
+  err.detail = pending
+    ? {
+        kind: "stalled",
+        steps: toolBlocks.length,
+        lastTool: pending.name ?? null,
+        lastToolWaitedMs: Math.max(0, now - (pending.at ?? startedAtMs)),
+      }
+    : {
+        kind: "turn_budget_exceeded",
+        steps: toolBlocks.length,
+        lastTool: toolBlocks.length ? toolBlocks[toolBlocks.length - 1].name ?? null : null,
+      };
+  return err;
 }
 
 async function switchPresetForJob(ctx, preset, timeoutMs) {
@@ -212,6 +247,9 @@ async function normalizeModelForJob(ctx, preset) {
       error: `no runnable model for this post (${notices.length ? notices.join("; ") : "no model declared and no default available"})`,
     };
   }
+  // fix-fleet-turn-attribution D5: the retry loop walks the SAME candidates
+  // from where selection landed — the chain's order IS the degrade order.
+  const landedIndex = plan.candidates.findIndex((hop) => hop.model === landed);
   if (notices.length) {
     console.warn(`[fleets] post model fallback for ${plan.memberId}: ${notices.join("; ")}`);
     ctx.recordFleetModelNotices?.(plan.memberId, notices);
@@ -232,7 +270,15 @@ async function normalizeModelForJob(ctx, preset) {
     }
   }
   if (effortNotices.length) console.warn(`[fleets] post config for ${plan.memberId}: ${effortNotices.join("; ")}`);
-  return { ok: true, effort: plan.effort ?? null, effortNotices, contextBudget: plan.contextBudget ?? null };
+  return {
+    ok: true,
+    effort: plan.effort ?? null,
+    effortNotices,
+    contextBudget: plan.contextBudget ?? null,
+    candidates: plan.candidates.map((hop) => hop.model),
+    landedIndex,
+    landed,
+  };
 }
 
 // ── Member executors ─────────────────────────────────────────────────────────
@@ -362,6 +408,9 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
   // Without the reservation a queued web prompt would be dispatched into the
   // restart this job is about to use.
   let releaseReservation = null;
+  // Hoisted for the lane pre-check and the retry walk below: a legacy job
+  // without a preset never normalizes, and its turn runs on whatever is live.
+  let modeled = null;
   if (job.preset) {
     releaseReservation = ctx.reserveRuntime?.("cron-preset-switch") ?? null;
     const switched = await switchPresetForJob(ctx, job.preset, timeoutMs);
@@ -373,7 +422,7 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
     // the two switches short-circuit independently, so a same-persona model
     // change is never swallowed, and switchModelTo's live path flips the model
     // without a second restart when the bridge declares model/set.
-    const modeled = await normalizeModelForJob(ctx, job.preset);
+    modeled = await normalizeModelForJob(ctx, job.preset);
     if (!modeled.ok) {
       releaseReservation?.();
       return modeled;
@@ -404,20 +453,71 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
     } catch { /* sanitize failure leaves the prompt-derived title */ }
   }
 
-  const collected = collectTurn(ctx, childSessionId, timeoutMs, activeTurns, ctx.sessionCollectors, sessionId);
-  // The collector is now the visible trace of this turn — hand the runtime
-  // over to it and drop the preset-switch reservation.
-  releaseReservation?.();
-  let result;
-  try {
-    await ctx.dshBridge.prompt(childSessionId, [{ type: "text", text: prompt }]);
-    result = await collected;
-  } catch (e) {
-    ctx.sessionCollectors.delete(childSessionId);
-    activeTurns.delete(childSessionId);
-    ctx.onRuntimeIdle?.();
-    await disposeRoundChild(ctx, childSessionId, sessionId);
-    return { ok: false, error: e.message, interrupted: e.interrupted === true };
+  // Lane breaker pre-check (fix-fleet-turn-attribution D3/D6): judged AFTER
+  // model normalization — that is the first point where the lane this turn
+  // would use is known. An open lane skips the round rather than feeding it
+  // to a wall (the wall counts failures; the skip does not).
+  const laneId = typeof ctx.llmLaneForModel === "function" ? ctx.llmLaneForModel(modeled?.landed ?? ctx.session?.model?.id ?? null) : null;
+  if (laneId) {
+    const br = breakerState(laneId);
+    if (br.open) {
+      releaseReservation?.();
+      return {
+        ok: false,
+        skipped: true,
+        error: `llm lane ${laneId} open until ${new Date(br.openUntil).toISOString()} — round skipped (${br.failures}/${br.threshold} upstream failures in window)`,
+      };
+    }
+  }
+
+  // fix-fleet-turn-attribution D5: prompt+collect extracted so the candidate
+  // walk can retry ONCE on a fast upstream failure. Everything per-attempt is
+  // inside; the breaker/ledger/handoffs stay at the seam, once per turn.
+  const attempt = async (attemptModel) => {
+    const collected = collectTurn(ctx, childSessionId, timeoutMs, activeTurns, ctx.sessionCollectors, sessionId);
+    // The collector is now the visible trace of this turn — hand the runtime
+    // over to it and drop the preset-switch reservation.
+    releaseReservation?.();
+    try {
+      await ctx.dshBridge.prompt(childSessionId, [{ type: "text", text: prompt }]);
+      return { ok: true, ...(await collected) };
+    } catch (e) {
+      ctx.sessionCollectors.delete(childSessionId);
+      activeTurns.delete(childSessionId);
+      ctx.onRuntimeIdle?.();
+      return { ok: false, error: e.message, interrupted: e.interrupted === true, detail: e.detail ?? null };
+    }
+  };
+
+  const candidates = modeled?.candidates ?? null;
+  const landedIndex = Number.isInteger(modeled?.landedIndex) ? modeled.landedIndex : 0;
+  const startedWall = Date.now();
+  let result = await attempt(modeled?.landed ?? null);
+  let degradedTo = null;
+  // One retry, only for a FAST upstream-class failure while the chain still
+  // has an untried hop. Timeouts and tool failures are the work's own shape —
+  // another model would hit them too. The fast-failure window bounds the
+  // double-budget risk (upstream 5xx answers in seconds; a real turn doesn't).
+  const retryFastMs = Number(process.env.PLATFORM_LLM_RETRY_FAST_MS) > 0 ? Number(process.env.PLATFORM_LLM_RETRY_FAST_MS) : 60_000;
+  if (
+    result.ok === false &&
+    !result.interrupted &&
+    classifyErrorKind(result.error) === "model_upstream" &&
+    Date.now() - startedWall < retryFastMs &&
+    Array.isArray(candidates) &&
+    landedIndex + 1 < candidates.length
+  ) {
+    const nextModel = candidates[landedIndex + 1];
+    try {
+      const switched = await ctx.switchModelTo?.(nextModel);
+      if (switched?.ok !== false) {
+        console.warn(`[fleets] post model degraded for ${job.id}: ${modeled?.landed ?? "?"} → ${nextModel} (upstream failure)`);
+        degradedTo = nextModel;
+        result = await attempt(nextModel);
+        if (result.ok && !result.detail) result.detail = { degradedTo: nextModel };
+        else if (result.detail) result.detail = { ...result.detail, degradedTo: nextModel };
+      }
+    } catch { /* switch failure: the original result stands */ }
   }
 
   // Round-scoped child disposal (fix-fleet-round-discipline D5): the rotated
@@ -440,8 +540,8 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
     })
     .catch((e) => console.error("[cron] sessions refresh failed:", e.message));
 
-  if (result.error) return { ok: false, error: result.error };
-  return { ok: true, usage: result.usage ?? null, text: result.text ?? null, contextBudget };
+  if (result.error) return { ok: false, error: result.error, detail: result.detail ?? null };
+  return { ok: true, usage: result.usage ?? null, text: result.text ?? null, contextBudget, detail: result.detail ?? null, degradedTo };
 }
 
 // ── Cluster task orchestration (agent-cluster-platform) ─────────────────────
@@ -883,14 +983,31 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
     } catch (e) {
       console.warn(`[fleets] turn event record failed for ${job.id}: ${e?.message || e}`);
     }
+    // Lane breaker accounting (fix-fleet-turn-attribution D3): the seam knows
+    // the model the turn ACTUALLY ran on — a degraded retry already moved the
+    // runtime, so ctx.session reflects the last hop. A skipped turn records
+    // nothing (the wall was never hit this round). Any successful turn closes
+    // the breaker — the half-open probe IS this success.
+    try {
+      const laneModel = job.targetType === "tool" ? null : (out?.usage?.model ?? ctx.session?.model?.id ?? null);
+      const laneId = typeof ctx.llmLaneForModel === "function" ? ctx.llmLaneForModel(laneModel) : null;
+      if (laneId && !out?.skipped) {
+        if (out?.ok === true) recordUpstreamSuccess(laneId);
+        else if (classifyErrorKind(out?.error) === "model_upstream") recordUpstreamFailure(laneId);
+      }
+    } catch { /* breaker accounting must never fail the turn it observed */ }
     // Handoff edges (agent-fleet-orchestration): the same seam, AFTER the
     // outcome event — upstream completion (ok or failed, both honestly)
     // triggers each declared downstream turn. Degrade open likewise. The
     // ledger handle rides along so every ignited task inherits this run.
-    try {
-      await ctx.triggerFleetHandoffs?.(job, out, ledgerTurn);
-    } catch (e) {
-      console.warn(`[fleets] handoff trigger failed for ${job.id}: ${e?.message || e}`);
+    // A SKIPPED round produced no upstream work — igniting downstream turns
+    // on it would cascade emptiness down the chain.
+    if (!out?.skipped) {
+      try {
+        await ctx.triggerFleetHandoffs?.(job, out, ledgerTurn);
+      } catch (e) {
+        console.warn(`[fleets] handoff trigger failed for ${job.id}: ${e?.message || e}`);
+      }
     }
     // Settle the run AFTER the handoffs are queued: the header closes only
     // when nothing of this run is in flight or waiting (agent-fleet-runs).

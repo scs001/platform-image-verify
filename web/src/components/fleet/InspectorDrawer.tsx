@@ -52,7 +52,14 @@ export interface InspectorMember {
   lastErrorKind?: string | null;
   evidence: { lastRunAt: string | null; nextRunAt: string | null; staleWindowMs: number | null; latestReportAt: number | null; hitWindow: string | null };
   latestReport: { at: number; summary: string; source: string; sessionId: string | null; slots: { key: string; label: string; unit: string | null; value: string | number; trend: { direction: string; deltaValue: number | null } | null }[] } | null;
-  lastTurn: { status: string; errorKind: string | null; error: string | null; endedAt: number; sessionId: string | null } | null;
+  lastTurn: {
+    status: string;
+    errorKind: string | null;
+    error: string | null;
+    endedAt: number;
+    sessionId: string | null;
+    detail?: { kind?: string; steps?: number; lastTool?: string | null; lastToolWaitedMs?: number; degradedTo?: string | null } | null;
+  } | null;
   consecutiveFailures: number;
   /** The post's materialized task — null on taskless (passive) posts, where 立即交付 honestly doesn't render. */
   taskId?: string | null;
@@ -320,11 +327,32 @@ export function MemberInspector({
             {member.lastTurn ? (
               <div>
                 <p className="font-medium">{t("fleets.inspector.lastTurn")}</p>
-                <p className={`mt-1 ${member.lastTurn.status !== "ok" ? "text-destructive" : "text-success"}`}>
+                <p className={`mt-1 ${member.lastTurn.status === "ok" ? "text-success" : member.lastTurn.status === "skipped" ? "text-amber-600 dark:text-amber-400" : "text-destructive"}`}>
                   {member.lastTurn.status}
                   {member.lastTurn.errorKind ? ` · ${member.lastTurn.errorKind}` : ""}
                   {member.consecutiveFailures >= 3 ? ` · ${t("fleets.turn.consecutive")} ×${member.consecutiveFailures}` : ""}
                 </p>
+                {/* Timeout attribution (fix-fleet-turn-attribution D1): the row
+                    says WHAT to do next — stalled = fix the tool, budget =
+                    raise the budget or shorten the work. */}
+                {member.lastTurn.status === "failed" && member.lastTurn.detail?.kind ? (
+                  <p className="mt-1 text-muted-foreground" data-testid="inspector-turn-detail">
+                    {member.lastTurn.detail.kind === "stalled"
+                      ? t("fleets.turnDetail.stalled", {
+                          tool: member.lastTurn.detail.lastTool ?? "—",
+                          wait: Math.round((member.lastTurn.detail.lastToolWaitedMs ?? 0) / 1000),
+                        })
+                      : t("fleets.turnDetail.budget", { n: member.lastTurn.detail.steps ?? 0 })}
+                    {member.lastTurn.detail.degradedTo
+                      ? ` · ${t("fleets.turnDetail.degradedTo")}: ${member.lastTurn.detail.degradedTo}`
+                      : ""}
+                  </p>
+                ) : null}
+                {member.lastTurn.status === "skipped" ? (
+                  <p className="mt-1 text-muted-foreground" data-testid="inspector-skipped">
+                    {t("fleets.turnDetail.skipped")}
+                  </p>
+                ) : null}
                 {/* A downgraded post must say WHY in the same breath as the
                     colour (fix-fleet-failure-visibility): streak, cause, since. */}
                 {member.status === "failing" ? (

@@ -243,6 +243,10 @@ export function createFleetDatabase({ file } = {}) {
     "usage_input INTEGER",
     "usage_output INTEGER",
     "trace_turn_id TEXT",
+    // fix-fleet-turn-attribution D1: per-turn attribution summary (timeout
+    // stalled/budget shape, degradedTo, laneId) as one JSON column — it is
+    // read by row, never queried, and old rows read as honest absence.
+    "detail TEXT",
   ]) {
     try {
       db.exec(`ALTER TABLE member_turn_events ADD COLUMN ${col}`);
@@ -669,8 +673,8 @@ export function createFleetDatabase({ file } = {}) {
     const out = db
       .prepare(`
         INSERT INTO member_turn_events (fleet_id, member_id, source, status, error_kind, error, model, started_at, ended_at, session_id,
-                                        turn_id, run_id, parent_turn_id, edge_kind, usage_input, usage_output, trace_turn_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                        turn_id, run_id, parent_turn_id, edge_kind, usage_input, usage_output, trace_turn_id, detail)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
       .run(
         event.fleetId,
@@ -690,6 +694,7 @@ export function createFleetDatabase({ file } = {}) {
         usageInt(event.usage?.input),
         usageInt(event.usage?.output),
         event.traceTurnId ?? null,
+        event.detail ? JSON.stringify(event.detail) : null,
       );
     // Dual-condition prune (agent-fleet-core, v2): only rows that are both
     // past the retention window AND beyond the member's newest-N floor go.
@@ -1127,7 +1132,20 @@ function deserializeTurnEvent(row) {
     edgeKind: row.edge_kind ?? null,
     usage: usageOf(row),
     traceTurnId: row.trace_turn_id ?? null,
+    detail: parseDetail(row.detail),
   };
+}
+
+// fix-fleet-failure-visibility-era rows predate the detail column; a corrupt
+// payload reads as honest absence rather than throwing into every reader.
+function parseDetail(raw) {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw);
+    return v && typeof v === "object" ? v : null;
+  } catch {
+    return null;
+  }
 }
 
 function deserializeRun(row) {

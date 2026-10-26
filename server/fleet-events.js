@@ -113,15 +113,23 @@ export function normalizeUsage(u) {
 export function shapeTurnOutcome(outcome, { model = null, contextBudget = null } = {}) {
   const ok = outcome?.ok === true;
   const interrupted = outcome?.interrupted === true;
+  // fix-fleet-turn-attribution D4: a platform-skipped round (lane breaker
+  // open) is its own ending — neither a failure nor a success. The streak
+  // never counts it, presence advances, and the UI can tell it apart.
+  const skipped = outcome?.skipped === true;
   const usage = normalizeUsage(outcome?.usage);
   // Context budget (add-agent-config-dims D3): judged at settlement, from the
   // usage the runtime actually reported. No usage → no basis → never judged
   // (an invented zero would fail turns nobody measured).
   const spent = usage && (usage.input != null || usage.output != null) ? (usage.input ?? 0) + (usage.output ?? 0) : null;
   const overBudget = ok && Number.isFinite(contextBudget) && spent != null && spent > contextBudget;
+  // Detail (fix-fleet-turn-attribution D1): the executor's own attribution
+  // (timeout shape, degradedTo) rides the row verbatim — the recorder adds
+  // nothing it did not observe.
+  const detail = outcome?.detail && typeof outcome.detail === "object" ? outcome.detail : null;
   return {
-    status: overBudget ? "failed" : ok ? "ok" : interrupted ? "interrupted" : "failed",
-    errorKind: overBudget ? "context_budget" : ok ? null : classifyErrorKind(outcome?.error),
+    status: skipped ? "skipped" : overBudget ? "failed" : ok ? "ok" : interrupted ? "interrupted" : "failed",
+    errorKind: skipped ? null : overBudget ? "context_budget" : ok ? null : classifyErrorKind(outcome?.error),
     error: overBudget
       ? `context budget exceeded: spent ${spent} tokens, budget ${contextBudget}`
       : ok
@@ -129,6 +137,7 @@ export function shapeTurnOutcome(outcome, { model = null, contextBudget = null }
         : String(outcome?.error ?? "execution failed").slice(0, 500),
     model: model ?? outcome?.usage?.model ?? null,
     usage,
+    detail,
   };
 }
 

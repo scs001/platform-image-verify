@@ -485,8 +485,12 @@ async function beginExecution(id, turnFn) {
 
 function finishExecution(t, startTime, result) {
   const interrupted = result?.interrupted === true;
-  const ok = result?.ok !== false && !interrupted;
-  t.state = interrupted ? "interrupted" : ok ? "done" : "failed";
+  // fix-fleet-turn-attribution D4: a platform-skipped round (lane breaker
+  // open) is its own state — NOT failed (it would poison the re-run surface
+  // and the failure counts for work the platform chose not to start).
+  const skipped = result?.skipped === true;
+  const ok = result?.ok !== false && !interrupted && !skipped;
+  t.state = skipped ? "skipped" : interrupted ? "interrupted" : ok ? "done" : "failed";
   t.error = ok ? null : result?.error || (interrupted ? "execution was interrupted" : "execution failed");
   // The per-fire fleet-context override is spent with this execution.
   t.promptOverride = null;

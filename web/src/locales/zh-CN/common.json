@@ -2583,6 +2583,12 @@
       "streak": "连续失败 {n} 次",
       "lastKind": "最近原因",
       "since": "自"
+    },
+    "turnDetail": {
+      "stalled": "卡在 {tool} 已等 {wait} 秒",
+      "budget": "步数耗尽（{n} 次工具调用）",
+      "degradedTo": "降级接棒",
+      "skipped": "本轮被平台跳过（模型车道熔断开窗）——不计入失败，节奏不受影响"
     }
   },
   "facetCurate": {

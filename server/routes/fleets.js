@@ -285,6 +285,9 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
           error: lastTurn.error,
           endedAt: lastTurn.endedAt,
           sessionId: lastTurn.sessionId,
+          // Timeout/degrade attribution (fix-fleet-turn-attribution): the
+          // card renders stalled-vs-budget and the degraded hop verbatim.
+          detail: lastTurn.detail ?? null,
         }
       : null,
     consecutiveFailures: lastTurn ? db.consecutiveFailures(member.id) : 0,

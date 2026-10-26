@@ -36,6 +36,11 @@ function memberFixture(id, over = {}) {
     evidence: over.evidence ?? { lastRunAt: null, nextRunAt: null, staleWindowMs: null, latestReportAt: null, hitWindow: null },
     latestReport: over.latestReport ?? null,
     reportTimeline: over.reportTimeline ?? [],
+    // Turn outcome + skip evidence (fix-fleet-turn-veracity): null/zero by
+    // default so existing fixtures stay byte-identical.
+    lastTurn: over.lastTurn ?? null,
+    consecutiveFailures: over.consecutiveFailures ?? 0,
+    skippedRounds: over.skippedRounds ?? 0,
   };
 }
 
@@ -1129,5 +1134,65 @@ test.describe("fleet inspector & design mode", () => {
     await page.getByTestId("design-exit").click();
     await expect(canvas.locator(".react-flow__edge")).toHaveCount(2);
     expect(applies.length).toBe(1);
+  });
+});
+
+// ── post card skipped badge (fix-fleet-turn-veracity) ───────────────────────
+// A skipped newest turn (runtime never ready / lane breaker open) is its own
+// muted chip — never the destructive failure tone, with the in-window count.
+
+test.describe("post card skipped round", () => {
+  test("skipped newest turn renders its own chip with the window count", async ({ page }) => {
+    await pinLocaleEn(page);
+    const skippedMember = memberFixture("skippy", {
+      title: "Skippy",
+      status: "on_duty",
+      statusReason: "recent execution within tolerance",
+      lastTurn: {
+        status: "skipped",
+        errorKind: "runtime_not_ready",
+        error: "the agent runtime is not ready (waited for fleet round)",
+        endedAt: 1790000200000,
+        sessionId: null,
+      },
+      skippedRounds: 2,
+    });
+    const failingMember = memberFixture("faily", {
+      title: "Faily",
+      status: "failing",
+      statusReason: "3 consecutive failed rounds (last: model_upstream)",
+      lastTurn: { status: "failed", errorKind: "model_upstream", error: "503 upstream", endedAt: 1790000100000, sessionId: "cron-faily" },
+      consecutiveFailures: 3,
+    });
+    const DETAIL = {
+      fleet: { id: FLEET_ID, name: "Demo Fleet", state: "active", createdAt: 0, updatedAt: 0 },
+      members: [skippedMember, failingMember],
+      statusCounts: { on_duty: 1, failing: 1 },
+      openDecisions: 0,
+    };
+    await page.route("**/api/fleets", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ fleets: [{ id: FLEET_ID, name: "Demo Fleet", state: "active", memberCount: 2, statusCounts: DETAIL.statusCounts }] }),
+      }),
+    );
+    await page.route(`**/api/fleets/${FLEET_ID}/cockpit`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify(DETAIL) }),
+    );
+    await page.route(`**/api/fleets/${FLEET_ID}/runs**`, (route) =>
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ total: 0, runs: [] }) }),
+    );
+
+    await page.goto("/fleets");
+    const tree = page.getByTestId("fleets-tree");
+    await expect(tree.getByTestId("member-card-skippy")).toBeVisible({ timeout: 15000 });
+
+    // skipped = muted own chip with the in-window count, never the failure chip
+    await expect(tree.getByTestId("member-turn-skipped-skippy")).toHaveText(/round not executed · runtime_not_ready ×2/);
+    await expect(tree.getByTestId("member-turn-skippy")).toHaveCount(0);
+
+    // the failing member keeps the destructive chip — the two tones must not merge
+    await expect(tree.getByTestId("member-turn-faily")).toContainText("turn failed · model_upstream");
+    await expect(tree.getByTestId("member-consecutive-faily")).toBeVisible();
   });
 });

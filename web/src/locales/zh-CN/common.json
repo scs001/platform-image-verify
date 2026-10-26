@@ -2414,7 +2414,8 @@
       "failed": "回合失败",
       "interrupted": "回合中断",
       "consecutive": "连续失败",
-      "neverRun": "尚未执行"
+      "neverRun": "尚未执行",
+      "skipped": "本轮未执行"
     },
     "health": {
       "onDuty": "正常",

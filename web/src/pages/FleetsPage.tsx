@@ -97,13 +97,16 @@ interface MemberView {
   // Turn outcome (add-fleet-turn-events): a second dimension next to the
   // presence status — the last finished turn's facts, never merged into it.
   lastTurn: {
-    status: "ok" | "failed" | "interrupted";
+    status: "ok" | "failed" | "interrupted" | "skipped";
     errorKind: string | null;
     error: string | null;
     endedAt: number;
     sessionId: string | null;
   } | null;
   consecutiveFailures: number;
+  // In-window skipped rounds (fix-fleet-turn-veracity): the post card badge's
+  // 「本轮未执行 ×k」 count; sustained skips show up in `status`, not here.
+  skippedRounds: number;
 }
 
 interface FleetRow {
@@ -850,6 +853,8 @@ export function FleetsPage() {
                             modelNotice: m.modelNotice,
                             lastTurnFailed: m.lastTurn ? m.lastTurn.status !== "ok" : false,
                             consecutiveFailures: m.consecutiveFailures,
+                            lastTurnSkipped: m.lastTurn ? m.lastTurn.status === "skipped" : false,
+                            skippedRounds: m.skippedRounds ?? 0,
                           }))}
                           edges={detail.orchestration!.edges.filter((e) => !(e.kind === "dispatch" && e.implicit))}
                           traffic={detail.edgeTraffic ?? []}
@@ -963,8 +968,22 @@ export function FleetsPage() {
                         {/* Turn outcome (add-fleet-turn-events): failure facts
                             ride alongside the presence badge — never replace
                             it. Interrupted reads warning-tone, failed reads
-                            destructive; the reason sits in the title. */}
-                        {member.lastTurn && member.lastTurn.status !== "ok" ? (
+                            destructive; the reason sits in the title. A skipped
+                            round (fix-fleet-turn-veracity) is its own chip —
+                            muted, never destructive: nothing ran, nothing
+                            failed, and the badge says which time this is. */}
+                        {member.lastTurn && member.lastTurn.status === "skipped" ? (
+                          <span
+                            className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                            data-testid={`member-turn-skipped-${member.id}`}
+                            title={member.lastTurn.error ?? undefined}
+                          >
+                            {t("fleets.turn.skipped")}
+                            {member.lastTurn.errorKind ? ` · ${member.lastTurn.errorKind}` : ""}
+                            {(member.skippedRounds ?? 0) > 0 ? ` ×${member.skippedRounds}` : ""}
+                          </span>
+                        ) : null}
+                        {member.lastTurn && member.lastTurn.status !== "ok" && member.lastTurn.status !== "skipped" ? (
                           <>
                             <span
                               className={`rounded-full px-2 py-0.5 text-xs font-medium ${

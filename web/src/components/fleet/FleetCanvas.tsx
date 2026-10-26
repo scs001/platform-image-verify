@@ -64,6 +64,11 @@ export interface CanvasPost {
   modelNotice: string | null;
   lastTurnFailed: boolean;
   consecutiveFailures: number;
+  // Skipped rounds (fix-fleet-turn-veracity): the newest turn was a skip and
+  // how many sit inside the tolerance window — a muted chip, never the
+  // destructive failure tone.
+  lastTurnSkipped: boolean;
+  skippedRounds: number;
 }
 
 export interface CanvasTraffic {
@@ -181,7 +186,13 @@ function PostNodeView({ data, id }: NodeProps<Node<PostData>>) {
         </div>
       ) : null}
       <div className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground">
-        {post.lastTurnFailed ? (
+        {post.lastTurnSkipped ? (
+          <span className="rounded-full bg-muted px-1.5 py-px text-muted-foreground" data-testid={`canvas-turn-skipped-${post.id}`}>
+            {t("fleets.turn.skipped")}
+            {post.skippedRounds > 0 ? ` ×${post.skippedRounds}` : ""}
+          </span>
+        ) : null}
+        {post.lastTurnFailed && !post.lastTurnSkipped ? (
           <span className="rounded-full bg-destructive/15 px-1.5 py-px text-destructive">
             {t("fleets.turn.failed")}
             {post.consecutiveFailures >= 3 ? ` ×${post.consecutiveFailures}` : ""}

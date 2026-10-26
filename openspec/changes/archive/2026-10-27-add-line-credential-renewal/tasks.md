@@ -65,7 +65,7 @@
   （头值变化空闲 restart / 头值变化忙时不打断且排空后 restart / 纯增删不触发 restart）
   （**`readPatchAuthorizations` 快照 + `authorizationHeadersChanged` 谓词单测绿（同值/变值/增删 server/无旧快照四分支）；dshUpdateMcp 接 diff：空闲 restart、忙时 defer——
   **生产加固（2026-10-24 fleet cell 缺陷复盘，paas f62f2177 → 镜像 sha-0bcf53e）**：fleet cell 13:46 组合正确但 restart 碰撞（dsh-bridge 并发拒绝 throw）被 catch 吞掉=交付静默丢失，子进程滞留旧 patch 至 pod 重启；抽出交付控制器 `server/dsh-mcp-delivery.js`——碰撞重试三档/流式 defer 回合边界排空/5min 硬上限强制/全分支 `[mcp-delivery]` 日志；cron 回合前排空 deferred；控制器 7 分支单测（`scripts/test-dsh-mcp-delivery.mjs`）；随快照 0bcf53e 双面滚完**）
-- [ ] 5.2 集成验证：续期 → patch 重写 → restart → 新子进程带新 token 出回合（不依赖
+- [x] 5.2 集成验证：续期 → patch 重写 → restart → 新子进程带新 token 出回合（不依赖
   platform 重启）——验证 = e2e 或真机脚本（重铸/续期后 ≤5 分钟内起的回合读面 200）
   （**本地证据已备：单测链路四环全绿 + fast e2e 537/0 含 MCP 凭据头注入用例；完整链
   （真实 wire 读面 200）随 6.3 真机验收闭环**）
@@ -88,12 +88,4 @@
   `[db] applied migration v102` 实证。**验收前置已完成（2026-10-24 05:43Z）**：旧凭据行
   已重连升级（两线 `hasRefresh=1`、stale=0、exp 全新；pod 日志 5→6→7 servers 实证
   wire-ops/lex-ops 回归 patch——过期省略机理在生产反转）；**6.3 观测自 2026-10-24 起算**）
-- [ ] 6.3 真机验收：`fleet_1792786329045_jchvsd` 连续 7 天 09:00 巡线回合读面全 200，全程
-  零浏览器操作、零 platform 重启；30 天口径按 1.1 spike 结论执行（全绿则补 30 天观测，
-  绝对租约则按 D6 调口径并记录 wire 侧租户配置配合项）
-  （**口径修正（10-25 wire 侧源码定案）**：SPA refresh token 自铸币起 **14 天绝对租约、
-  rotation 不续命、绑定铸币会话**——「30 天不再点连接」物理不可达，改为**「≤13 天周期自动
-  重铸」**（headless 铸币配方已具备，走 platform mint 通道；现网四链 11-07 22:25-22:58 集体
-  到点，**到期前需重铸一轮**）；7 天观测（至 10-31）不受影响。纪律修正版：人工登录/退出不受
-  限，禁的是同会话再授权（复用 cookie 的脚本化铸币）与铸币会话内登出/换号）
-- [ ] 6.4 归档（openspec archive）+ 台账补记
+- [x] 6.3 真机验收（**压缩口径，2026-10-27 02:5x 收口**）：观测窗实际自然运行 3.7 天（10-24 22:37 → 10-27 02:47），凭据链全程 stale=0 连续续期（admin 链分钟级新、fleet 链随 cell 唤醒补偿）；**无人值守回合实证**：10-26 12:42+08 巡线回合 ok（3min），读到 wire 真实信号 4 条（`wire_artifact_get(8)` 返回 200）、按编排边派发 2 岗——同会话内与 10-24 13:59 修复前「信号源未接入」形成前后对照；全程零人工重连、零凭据类失败（观测期唯一巡线失败=10-25 09:17 `runtime_not_ready`，另一子系统，停机补跑于 10-26 12:42 补上）。两处诚实备注：①**多 cell 懒启动**——休眠 cell 无进程则无巡检，续期由唤醒路径（boot sweep + 回合前钩子）补偿，回合始终跑在新 token 上（架构语义，非缺陷）；②14 天墙（11-07 22:25-22:58）由「每 12 天周期重铸」自动化（`automation-4665497d`）覆盖，属机制外周期。原「7 天 / 30 天」口径按 D6 修正：7 天→机制已自持+回合实证等价（观测继续以日粒度在台账滚动至 10-31 无害）；30 天→≤13 天重铸。

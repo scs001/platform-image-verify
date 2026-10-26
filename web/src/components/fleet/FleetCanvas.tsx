@@ -16,8 +16,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { MiniSpan } from "@/components/fleet/MiniSpan";
+import { BotPlatformIcon } from "@/components/bots/BotPlatformIcons";
 import {
   Background,
+  BaseEdge,
   Controls,
   Handle,
   MarkerType,
@@ -25,7 +28,9 @@ import {
   Position,
   ReactFlow,
   applyNodeChanges,
+  getBezierPath,
   type Edge,
+  type EdgeProps,
   type Node,
   type NodeChange,
   type NodeProps,
@@ -38,7 +43,7 @@ import {
   type GraphEdge,
   type GraphMember,
 } from "@/lib/fleet-layout";
-import type { LiveTurn } from "@/store/fleet-store";
+import type { LiveTurn, TurnResultEntry } from "@/store/fleet-store";
 
 // ── input shapes (MemberView projections; kept local so the page owns less) ──
 
@@ -69,6 +74,8 @@ export interface CanvasPost {
   // destructive failure tone.
   lastTurnSkipped: boolean;
   skippedRounds: number;
+  /** Bot platform for bot-kind posts (fleet-ops-canvas native icon). */
+  botType?: string | null;
 }
 
 export interface CanvasTraffic {
@@ -84,6 +91,10 @@ type PostData = {
   post: CanvasPost;
   live: boolean;
   connectable: boolean;
+  /** Fleet id for the mini span's turn lookup (fleet-ops-canvas). */
+  fleetId: string;
+  /** Ledger/trace turn id of the in-flight turn on this post, if any. */
+  liveTraceTurnId: string | null;
 } & Record<string, unknown>;
 
 type SourceData = {
@@ -129,18 +140,113 @@ function fmtClock(v: string | null, locale: string): string {
 // read mode blocks connections via nodesConnectable instead).
 const HIDDEN_HANDLE = { style: { opacity: 0, width: 8, height: 8 } } as const;
 
-function PostNodeView({ data, id }: NodeProps<Node<PostData>>) {
+// ── Runtime particle overlay (fleet-ops-canvas) ──────────────────────────────
+//
+// A custom edge wrapper: the edge itself keeps its existing look/flow dashes
+// (React Flow `animated`), while a `<g>` of tiny circles animates along the
+// SAME bezier path via CSS offset-path — live turns ride it now, just-ended
+// turns fade out within a short decay window (failed → red). The overlay is a
+// sibling layer: if offset-path is unsupported (older Safari) or the kill
+// switch is on, the group renders nothing and the base edge is unaffected.
+
+const FAIL_RED = "#ef4444";
+const DECAY_WINDOW_MS = 2_500;
+const MAX_PARTICLES_PER_EDGE = 6;
+
+const offsetPathSupported =
+  typeof CSS !== "undefined" && typeof CSS.supports === "function" && CSS.supports("offset-path", "path('M0,0 h1')");
+const overlayEnabled = import.meta.env.VITE_FLEET_OPS_OVERLAY !== "off" && offsetPathSupported;
+
+type ParticleData = {
+  activeCount: number;
+  /** Just-ended outcomes inside the decay window (failed first). */
+  fading: { status: string; endedAt: number }[];
+  color: string;
+};
+
+function ParticleEdge(props: EdgeProps) {
+  const [path] = getBezierPath({
+    sourceX: props.sourceX,
+    sourceY: props.sourceY,
+    sourcePosition: props.sourcePosition,
+    targetX: props.targetX,
+    targetY: props.targetY,
+    targetPosition: props.targetPosition,
+  });
+  const data = (props.data ?? {}) as ParticleData;
+  const live = Math.min(MAX_PARTICLES_PER_EDGE, data.activeCount ?? 0);
+  const fading = (data.fading ?? []).slice(0, MAX_PARTICLES_PER_EDGE - live);
+  const offsetStyle = { offsetPath: `path("${path}")` } as React.CSSProperties;
+  const edgeKey = String(props.data?.edgeKey ?? props.id);
+  return (
+    <>
+      <BaseEdge id={props.id} path={path} style={props.style} markerEnd={props.markerEnd} />
+      {overlayEnabled && (live > 0 || fading.length > 0) ? (
+        <g data-testid={`edge-particles-${edgeKey}`} className={fading.some((f) => f.status !== "ok") ? "failing" : undefined}>
+          {["p0", "p1", "p2", "p3", "p4", "p5"].slice(0, live).map((pid, i) => (
+            <circle
+              key={`${edgeKey}-${pid}`}
+              r={2.5}
+              fill={data.color}
+              className="fleet-particle-live"
+              style={{ ...offsetStyle, animationDelay: `${(i * 1.8) / live}s` }}
+            />
+          ))}
+          {fading.map((f, i) => (
+            <circle
+              key={`${edgeKey}-f${f.endedAt}-${f.status}`}
+              r={2.5}
+              fill={f.status === "ok" ? data.color : FAIL_RED}
+              className="fleet-particle-fade"
+              style={{ ...offsetStyle, animationDelay: `${Math.min(1.2, i * 0.35)}s` }}
+            />
+          ))}
+        </g>
+      ) : null}
+    </>
+  );
+}
+
+// Shared keyframes — inline styles carry the per-edge path and the per-particle
+// delay, so a single document-level style block serves every edge.
+const PARTICLE_CSS = `
+.fleet-particle-live, .fleet-particle-fade { pointer-events: none; }
+.fleet-particle-live { animation: fleet-particle-run 1.8s linear infinite; }
+.fleet-particle-fade { animation: fleet-particle-fadeout 2.5s ease-out forwards; }
+@keyframes fleet-particle-run {
+  0% { offset-distance: 0%; opacity: 0.9; }
+  90% { opacity: 0.9; }
+  100% { offset-distance: 100%; opacity: 0; }
+}
+@keyframes fleet-particle-fadeout {
+  0% { offset-distance: 0%; opacity: 0.95; }
+  55% { offset-distance: 55%; opacity: 0.8; }
+  100% { offset-distance: 75%; opacity: 0; }
+}
+`;
+
+const edgeTypes = { particle: ParticleEdge };
+
+function PostNodeView({ data, id, selected }: NodeProps<Node<PostData>>) {
   const { t, i18n } = useTranslation();
   const post = data.post;
   const ring = STATUS_RING[post.status] ?? "#94a3b8";
+  const [hovered, setHovered] = useState(false);
   return (
     <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       data-testid={`canvas-node-${id}`}
       className={`w-[220px] rounded-lg border bg-card p-2 text-left shadow-sm transition-shadow ${
         data.live ? "border-blue-500/60 shadow-[0_0_0_3px_rgba(59,130,246,0.25)]" : "border-border"
       }`}
     >
       <div className="flex items-center gap-1.5">
+        {post.kind === "bot" ? (
+          <span className="shrink-0" data-testid={`canvas-bot-icon-${id}`}>
+            <BotPlatformIcon type={post.botType ?? ""} className="h-3.5 w-3.5" />
+          </span>
+        ) : null}
         <span className="relative flex h-2.5 w-2.5 shrink-0" title={post.statusReason}>
           {data.live ? (
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ background: "#3b82f6" }} />
@@ -210,6 +316,15 @@ function PostNodeView({ data, id }: NodeProps<Node<PostData>>) {
           {fmtClock(post.lastRunAt, i18n.language)} · {fmtClock(post.nextRunAt, i18n.language)}
         </span>
       </div>
+      {(hovered || selected) ? (
+        <MiniSpan
+          fleetId={data.fleetId}
+          memberId={post.id}
+          liveTraceTurnId={data.liveTraceTurnId}
+          lastTurnFailed={post.lastTurnFailed}
+          lastTurnSkipped={post.lastTurnSkipped}
+        />
+      ) : null}
       <Handle type="target" position={Position.Left} isConnectable={data.connectable} {...HIDDEN_HANDLE} />
       <Handle type="source" position={Position.Right} isConnectable={data.connectable} {...HIDDEN_HANDLE} />
     </div>
@@ -244,6 +359,7 @@ export function FleetCanvas({
   edges,
   traffic,
   liveTurns,
+  recentResults = [],
   fleetId,
   designMode = false,
   draftEdges = [],
@@ -257,6 +373,8 @@ export function FleetCanvas({
   edges: GraphEdge[];
   traffic: CanvasTraffic[];
   liveTurns: LiveTurn[];
+  /** Recent turn outcomes for the decay lane of the particle overlay. */
+  recentResults?: TurnResultEntry[];
   /** Owner fleet — keys the local position archive (add-fleet-canvas-drag). */
   fleetId: string;
   /** Design mode (face 4): enable connect handles + draft visuals. */
@@ -364,14 +482,42 @@ export function FleetCanvas({
   }, [liveTurns]);
 
   // An edge is in flight when a live turn was ignited along it (parent post →
-  // post, by kind). Root turns (no chain) light their node only.
-  const liveEdgeKeys = useMemo(() => {
-    const keys = new Set<string>();
+  // post, by kind). Count per edge — the particle density is proportional to
+  // concurrent turn instances on the same edge (fleet-ops-canvas).
+  const liveEdgeCounts = useMemo(() => {
+    const counts = new Map<string, number>();
     for (const lt of liveTurns) {
-      if (lt.parentMemberId && lt.edgeKind) keys.add(`${lt.parentMemberId}→${lt.memberId}:${lt.edgeKind}`);
+      if (lt.parentMemberId && lt.edgeKind) {
+        const k = `${lt.parentMemberId}→${lt.memberId}:${lt.edgeKind}`;
+        counts.set(k, (counts.get(k) ?? 0) + 1);
+      }
     }
-    return keys;
+    return counts;
   }, [liveTurns]);
+
+  // Decay lane: outcomes whose endedAt sits inside the fade window paint the
+  // edge once more (failed red) before it returns to static. The window's
+  // expiry needs ONE tick while decays are on screen — nothing else re-renders
+  // the layer after the last WS event lands.
+  const [decayTick, setDecayTick] = useState(0);
+  const decayEdges = useMemo(() => {
+    void decayTick; // re-derives as the fade window rolls past each outcome
+    const byEdge = new Map<string, { status: string; endedAt: number }[]>();
+    const now = Date.now();
+    for (const r of recentResults) {
+      if (!r.parentMemberId || !r.edgeKind) continue;
+      if (now - r.endedAt > DECAY_WINDOW_MS) continue;
+      const k = `${r.parentMemberId}→${r.memberId}:${r.edgeKind}`;
+      if (!byEdge.has(k)) byEdge.set(k, []);
+      byEdge.get(k)!.push({ status: r.status ?? "ok", endedAt: r.endedAt });
+    }
+    return byEdge;
+  }, [recentResults, decayTick]);
+  useEffect(() => {
+    if (decayEdges.size === 0) return;
+    const timer = setInterval(() => setDecayTick((x) => x + 1), 500);
+    return () => clearInterval(timer);
+  }, [decayEdges.size]);
 
   const trafficByKey = useMemo(() => {
     const map = new Map<string, number>();
@@ -386,18 +532,25 @@ export function FleetCanvas({
     () =>
       laid.nodes.map((n) => {
         const isPost = members.some((m) => m.id === n.id);
-        const live = liveByMember.has(n.id);
+        const liveTurn = liveByMember.get(n.id);
+        const live = liveTurn != null;
         const position = overrides[n.id] ?? { x: n.x, y: n.y };
         return {
           id: n.id,
           type: isPost ? "post" : "source",
           position,
           data: isPost
-            ? ({ post: members.find((m) => m.id === n.id)!, live, connectable: designMode } satisfies PostData as PostData)
+            ? ({
+                post: members.find((m) => m.id === n.id)!,
+                live,
+                connectable: designMode,
+                fleetId,
+                liveTraceTurnId: liveTurn?.turnId ?? null,
+              } satisfies PostData as PostData)
             : ({ label: n.label, kind: n.kind, live, connectable: designMode } satisfies SourceData as SourceData),
         };
       }),
-    [laid, members, liveByMember, designMode, overrides],
+    [laid, members, liveByMember, designMode, overrides, fleetId],
   );
 
   const [nodes, setNodes] = useState<Node[]>(seededNodes);
@@ -422,13 +575,16 @@ export function FleetCanvas({
         const key = `${l.from}→${l.to}:${l.kind}`;
         const color = KIND_COLORS[l.kind] ?? "#94a3b8";
         const turns = trafficByKey.get(key) ?? 0;
-        const live = liveEdgeKeys.has(key);
+        const liveCount = liveEdgeCounts.get(key) ?? 0;
+        const fading = decayEdges.get(key) ?? [];
         const draft = draftKeySet.has(key);
         return {
           id: key,
+          type: "particle",
           source: l.from,
           target: l.to,
-          animated: live,
+          animated: liveCount > 0,
+          data: { activeCount: liveCount, fading, color: draft ? "#3b82f6" : color, edgeKey: key },
           style: {
             stroke: draft ? "#3b82f6" : color,
             strokeWidth: 1.5 + Math.min(2.5, Math.sqrt(turns) * 0.5),
@@ -437,7 +593,7 @@ export function FleetCanvas({
           markerEnd: { type: MarkerType.ArrowClosed, color: draft ? "#3b82f6" : color, width: 16, height: 16 },
         };
       }),
-    [laid, liveEdgeKeys, trafficByKey, draftKeySet],
+    [laid, liveEdgeCounts, trafficByKey, draftKeySet, decayEdges],
   );
 
   const legendKinds = useMemo(() => [...new Set(laid.links.map((l) => l.kind))], [laid]);
@@ -480,6 +636,7 @@ export function FleetCanvas({
 
   return (
     <div className="mt-1" data-testid="fleet-canvas">
+      <style>{PARTICLE_CSS}</style>
       <div className="mb-1 flex flex-wrap gap-2 text-[10px] text-muted-foreground">
         {legendKinds.map((k) => (
           <span key={k} className="inline-flex items-center gap-1">
@@ -503,6 +660,7 @@ export function FleetCanvas({
           nodes={nodes}
           edges={rfEdges}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
           onNodeDragStop={onNodeDragStop}
           fitView

@@ -2864,6 +2864,23 @@ export function listRelayLog(limit = 50) {
     .all(Math.max(1, Number(limit) || 50));
 }
 
+// Bot activity sidecar for the fleet cockpit (fleet-ops-canvas): the newest
+// inbound sighting across the bot's chats plus the relay log's newest row.
+// Honest absence — a bot that never saw a message or never relayed returns
+// nulls, never a fabricated "quiet" timestamp.
+export function botActivitySummary(botId) {
+  if (!dbReady) return null;
+  const id = String(botId);
+  const inbound = stmt("SELECT MAX(last_seen_at) AS lastAt FROM bot_chats WHERE bot_id = ?").get(id);
+  const relayOk = stmt("SELECT ts FROM bot_relay_log WHERE bot_id = ? AND outcome = 'ok' ORDER BY ts DESC LIMIT 1").get(id);
+  const relayErr = stmt("SELECT error, outcome FROM bot_relay_log WHERE bot_id = ? AND outcome != 'ok' ORDER BY ts DESC LIMIT 1").get(id);
+  return {
+    lastInboundAt: inbound?.lastAt ?? null,
+    lastOutboundAt: relayOk?.ts ?? null,
+    lastError: relayErr ? (relayErr.error ?? relayErr.outcome) : null,
+  };
+}
+
 // ── Resource library ────────────────────────────────────────────────────────
 //
 // Rows for chat-produced artifacts (openspec: add-resource-library). The

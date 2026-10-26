@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useFleetStore } from "@/store/fleet-store";
 import type { CanvasTraffic } from "@/components/fleet/FleetCanvas";
+import { BotPlatformIcon } from "@/components/bots/BotPlatformIcons";
 import { useChatStore } from "@platform/core";
 
 // ── shapes (mirrors of the page's MemberView slices, kept local) ────────────
@@ -63,6 +64,9 @@ export interface InspectorMember {
   consecutiveFailures: number;
   /** The post's materialized task — null on taskless (passive) posts, where 立即交付 honestly doesn't render. */
   taskId?: string | null;
+  /** Bot sidecar (fleet-ops-canvas): bot-kind posts carry their channel's
+      runtime story read-only; absent columns surface as null. */
+  bot?: { type: string; enabled: boolean; lastInboundAt: string | null; lastOutboundAt: string | null; lastError: string | null } | null;
 }
 
 export interface InspectorDecision {
@@ -269,7 +273,10 @@ export function MemberInspector({
       <div className="flex items-center gap-2 border-b border-border p-3">
         <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{t(`fleets.status.${member.status}`)}</span>
         <span className="truncate text-sm font-medium">{member.title}</span>
-        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">{t(`fleets.kind.${member.target.kind}`)}</span>
+        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+          {member.target.kind === "bot" && member.bot ? <BotPlatformIcon type={member.bot.type} className="mr-1 inline-block h-3 w-3 align-[-2px]" /> : null}
+          {t(`fleets.kind.${member.target.kind}`)}
+        </span>
         <button type="button" className="ml-auto rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted" onClick={onClose} data-testid="inspector-close">
           ✕
         </button>
@@ -322,6 +329,28 @@ export function MemberInspector({
                   </span>
                   {member.modelNotice ? ` (${member.modelNotice})` : ""}
                 </p>
+              </div>
+            ) : null}
+            {member.target.kind === "bot" && member.bot ? (
+              <div data-testid="inspector-bot-summary">
+                <p className="font-medium">{t("fleets.inspector.botChannel")}</p>
+                <p className="mt-1 text-muted-foreground">
+                  {t(`botsPage.types.${member.bot.type}`, member.bot.type)} ·{" "}
+                  <span className={member.bot.enabled ? "text-success" : "text-muted-foreground"}>
+                    {member.bot.enabled ? t("botsPage.enabled") : t("botsPage.disabled", "disabled")}
+                  </span>
+                </p>
+                <p className="text-muted-foreground">
+                  {t("fleets.inspector.botInbound")}: {fmtTime(member.bot.lastInboundAt, locale)} · {t("fleets.inspector.botOutbound")}: {fmtTime(member.bot.lastOutboundAt, locale)}
+                </p>
+                {member.bot.lastError ? (
+                  <p className="text-destructive" title={member.bot.lastError}>
+                    {t("fleets.inspector.botLastError")}: {member.bot.lastError}
+                  </p>
+                ) : null}
+                <a className="mt-0.5 inline-block text-primary underline-offset-2 hover:underline" href="/bots" data-testid="inspector-bot-link">
+                  {t("fleets.inspector.botOpenPage")}
+                </a>
               </div>
             ) : null}
             {member.lastTurn ? (
@@ -484,7 +513,7 @@ export function MemberInspector({
             {turns.length === 0 ? <p className="text-muted-foreground">{t("fleets.turn.neverRun")}</p> : null}
             {turns.map((tu) => (
               <div key={tu.id} className="flex items-center gap-2 rounded-md border border-border px-2 py-1" data-testid={`inspector-turn-${tu.id}`}>
-                <span className={tu.status === "ok" ? "text-success" : tu.status === "failed" ? "text-destructive" : "text-amber-600 dark:text-amber-400"}>{tu.status}</span>
+                <span className={tu.status === "ok" ? "text-success" : tu.status === "failed" ? "text-destructive" : tu.status === "skipped" ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}>{tu.status}</span>
                 <span className="text-muted-foreground">{t(`fleets.runs.source.${tu.source}`)}</span>
                 <span className="ml-auto text-muted-foreground">{fmtTime(tu.endedAt, locale)}</span>
                 {tu.sessionId ? (

@@ -2571,7 +2571,12 @@
       "effortInherit": "继承（舰队/工位默认）",
       "contextBudget": "上下文预算（token/回合）",
       "contextBudgetUnlimited": "不限",
-      "contextBudgetInvalid": "上下文预算必须是正整数（每回合 token）"
+      "contextBudgetInvalid": "上下文预算必须是正整数（每回合 token）",
+      "botChannel": "Bot 通道",
+      "botInbound": "最近入站",
+      "botOutbound": "最近出站",
+      "botLastError": "最近错误",
+      "botOpenPage": "打开频道页"
     },
     "design": {
       "enter": "设计",
@@ -2591,6 +2596,29 @@
       "budget": "步数耗尽（{n} 次工具调用）",
       "degradedTo": "降级接棒",
       "skipped": "本轮被平台跳过（模型车道熔断开窗）——不计入失败，节奏不受影响"
+    },
+    "configBar": {
+      "models": "模型分布",
+      "effort": "思考深度",
+      "budget": "上下文预算",
+      "traffic": "边流量（24h）",
+      "unset": "未设",
+      "noTraffic": "无声明边",
+      "trafficNone": "24h 无流量",
+      "turnsSuffix": "回合",
+      "budgetHint": "按最近一次真实回合用量 / 岗位声明预算分桶；未声明预算的岗位不入直方图",
+      "budgetNoData": "无用量",
+      "budgetNoDataHint": "最近一次真实回合未上报用量——是缺数，不是未超预算",
+      "effortLevel": {
+        "low": "低",
+        "medium": "中",
+        "high": "高"
+      }
+    },
+    "miniSpan": {
+      "failed": "失败",
+      "errorKind": "失败：{kind}",
+      "source": "打开 trace"
     }
   },
   "facetCurate": {

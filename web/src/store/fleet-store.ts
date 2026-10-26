@@ -8,6 +8,9 @@
 
 import { create } from "zustand";
 import type { ServerMessage } from "@platform/core";
+import { pruneResults, type TurnResultEntry } from "@/lib/fleet-recent-results";
+
+export type { TurnResultEntry } from "@/lib/fleet-recent-results";
 
 export interface LiveTurn {
   turnId: string;
@@ -24,6 +27,8 @@ export interface LiveTurn {
 interface FleetLiveState {
   /** In-flight turns keyed by turnId. */
   liveTurns: Record<string, LiveTurn>;
+  /** Newest turn outcomes, pruned to RECENT_RESULTS_MAX / TTL (fleet-ops-canvas). */
+  recentResults: Record<string, TurnResultEntry>;
   /** Bumped on every fleet event — the cockpit's throttled refetch trigger. */
   version: number;
   /** Bumped on fleet_run_updated — the run timeline's refresh trigger (face 2). */
@@ -49,6 +54,7 @@ interface FleetLiveState {
 
 export const useFleetStore = create<FleetLiveState>((set, get) => ({
   liveTurns: {},
+  recentResults: {},
   version: 0,
   runsVersion: 0,
   replayAt: null,
@@ -77,8 +83,25 @@ export const useFleetStore = create<FleetLiveState>((set, get) => ({
       }
       if (m.type === "fleet_turn_ended") {
         const next = { ...state.liveTurns };
+        // The ended event carries the chain facts (fleet-runs turnWire), so
+        // the outcome ring never has to look the turn back up.
+        const ended = next[m.turnId];
         delete next[m.turnId];
-        return { liveTurns: next, version: state.version + 1 };
+        const result: TurnResultEntry = {
+          turnId: m.turnId,
+          fleetId: m.fleetId,
+          memberId: m.memberId,
+          parentMemberId: m.parentMemberId ?? ended?.parentMemberId ?? null,
+          edgeKind: m.edgeKind ?? ended?.edgeKind ?? null,
+          status: m.status ?? (ended ? "ok" : "unknown"),
+          errorKind: m.errorKind ?? null,
+          endedAt: m.endedAt ?? Date.now(),
+        };
+        return {
+          liveTurns: next,
+          recentResults: pruneResults({ ...state.recentResults, [m.turnId]: result }, result.endedAt),
+          version: state.version + 1,
+        };
       }
       if (m.type === "fleet_run_updated") {
         return { runsVersion: state.runsVersion + 1 };

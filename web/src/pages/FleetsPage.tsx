@@ -71,7 +71,7 @@ interface MemberView {
   fleetId: string;
   title: string;
   parentId: string | null;
-  target: { kind: "persona" | "cluster" | "a2a"; id: string; label: string };
+  target: { kind: "persona" | "cluster" | "a2a" | "tool" | "bot"; id: string; label: string };
   kpiSlots: KpiSlot[];
   cadence: Cadence | null;
   // Post model (add-fleet-post-model): declared values plus the advisory
@@ -81,6 +81,10 @@ interface MemberView {
   fallbackModel: string | null;
   effort: string | null;
   contextBudget: number | null;
+  // fleet-ops-canvas: newest real turn's usage (drives the config bar's
+  // budget histogram) and the bot sidecar for bot-kind posts.
+  latestTurnUsage?: { input: number | null; output: number | null } | null;
+  bot?: { type: string; enabled: boolean; lastInboundAt: string | null; lastOutboundAt: string | null; lastError: string | null } | null;
   effectiveModel: string | null;
   modelNotice: string | null;
   status: "on_duty" | "paused" | "missing" | "vacant" | "passive";
@@ -154,6 +158,8 @@ interface FleetDetail {
 const FleetCanvas = lazy(() => import("@/components/fleet/FleetCanvas"));
 // The run timeline (face 2) rides its own chunk too (trace join + waterfall).
 const RunTimeline = lazy(() => import("@/components/fleet/RunTimeline"));
+// The read-only config aggregate bar rides the canvas's chunk family (ops-canvas).
+const FleetConfigBar = lazy(() => import("@/components/fleet/FleetConfigBar").then((m) => ({ default: m.FleetConfigBar })));
 // The inspector drawer (face 3) — member tabs + edge inspector.
 const MemberInspector = lazy(() => import("@/components/fleet/InspectorDrawer").then((m) => ({ default: m.MemberInspector })));
 const EdgeInspector = lazy(() => import("@/components/fleet/InspectorDrawer").then((m) => ({ default: m.EdgeInspector })));
@@ -352,6 +358,13 @@ export function FleetsPage() {
     if (replayAt != null) return replayTurns.filter((lt) => lt.fleetId === detail?.fleet.id);
     return detail ? Object.values(liveTurnsAll).filter((lt) => lt.fleetId === detail.fleet.id) : [];
   }, [liveTurnsAll, replayAt, replayTurns, detail]);
+  // Just-ended outcomes for the particle decay lane (fleet-ops-canvas); the
+  // replay clock never produces results (回放不记结局), so feed it an empty lane.
+  const recentResultsAll = useFleetStore((st) => st.recentResults);
+  const recentResults = useMemo(() => {
+    if (replayAt != null || !detail) return [];
+    return Object.values(recentResultsAll).filter((r) => r.fleetId === detail.fleet.id);
+  }, [recentResultsAll, replayAt, detail]);
   const memberTitles = useMemo(
     () => new Map((detail?.members ?? []).map((m) => [m.id, m.title])),
     [detail],
@@ -819,6 +832,26 @@ export function FleetsPage() {
                           </Button>
                         )}
                       </div>
+                      {/* Fleet config bar (fleet-config-overview): read-only
+                          aggregate above the canvas — model/effort/budget
+                          histograms + 24h edge traffic heatmap, all deriving
+                          from this same cockpit aggregate. */}
+                      {detail.orchestration ? (
+                        <Suspense fallback={null}>
+                          <FleetConfigBar
+                            members={detail.members.map((m) => ({
+                              id: m.id,
+                              title: m.title,
+                              effectiveModel: m.effectiveModel,
+                              effort: m.effort,
+                              contextBudget: m.contextBudget,
+                              latestTurnUsage: m.latestTurnUsage ?? null,
+                            }))}
+                            edges={detail.orchestration.edges.filter((e) => !(e.kind === "dispatch" && (e as { implicit?: boolean }).implicit))}
+                            traffic={detail.edgeTraffic ?? []}
+                          />
+                        </Suspense>
+                      ) : null}
                       {/* The live canvas (agent-fleet-cockpit v2): posts as
                           cards, declared edges as kind-colored curves, cron /
                           signal sources as dashed virtual nodes; in-flight
@@ -855,10 +888,12 @@ export function FleetsPage() {
                             consecutiveFailures: m.consecutiveFailures,
                             lastTurnSkipped: m.lastTurn ? m.lastTurn.status === "skipped" : false,
                             skippedRounds: m.skippedRounds ?? 0,
+                            botType: m.target.kind === "bot" ? (m.bot?.type ?? null) : null,
                           }))}
                           edges={detail.orchestration!.edges.filter((e) => !(e.kind === "dispatch" && e.implicit))}
                           traffic={detail.edgeTraffic ?? []}
                           liveTurns={liveTurns}
+                          recentResults={recentResults}
                           designMode={design}
                           draftEdges={draftEdges}
                           removedEdgeKeys={removedEdgeKeys}
@@ -1830,7 +1865,11 @@ function MemberComposerDialog({
 function SwapDialog({ member, onClose, onDone }: { member: MemberView; onClose: () => void; onDone: () => void }) {
   const { t } = useTranslation();
   const targets = useTargets();
-  const [kind, setKind] = useState<CatalogTarget["kind"]>(member.target.kind);
+  // tool/bot kinds (fleet-ops-canvas widened the MemberView union) aren't
+  // swappable catalog targets — the dialog opens on the closest legal kind.
+  const [kind, setKind] = useState<CatalogTarget["kind"]>(
+    (["persona", "cluster", "a2a"].includes(member.target.kind) ? member.target.kind : "persona") as CatalogTarget["kind"],
+  );
   const [targetId, setTargetId] = useState("");
   const [freshSession, setFreshSession] = useState(false);
   const [error, setError] = useState<string | null>(null);

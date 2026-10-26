@@ -220,6 +220,9 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
   const lastTurn = db.latestTurnFor(member.id);
   const skipWindowMs = member.cadence ? staleWindowMs(member.cadence.cron, member.cadence.tz) : null;
   const skippedRounds = db.skippedCount(member.id, skipWindowMs ? { sinceMs: now - skipWindowMs } : {});
+  // Newest REAL turn (fleet-ops-canvas): skips never carry usage, so the
+  // context-budget histogram reads this row, not the plain latest.
+  const latestRealTurn = lastTurn ? db.latestRealTurnFor(member.id) : null;
   const derived = deriveMemberStatus({
     member,
     fleet,
@@ -230,7 +233,7 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
     failureStreak: streak.streak,
     failureSince: streak.since,
     lastFailureKind: streak.lastErrorKind,
-    effectiveLastRunAt: lastTurn ? (db.latestRealTurnFor(member.id)?.endedAt ?? null) : undefined,
+    effectiveLastRunAt: lastTurn ? (latestRealTurn?.endedAt ?? null) : undefined,
     skippedRounds,
   });
   // Post model (add-fleet-post-model F1/F3): declared values verbatim plus the
@@ -259,6 +262,10 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
     // turn time (against the landed model) and recorded on the turn event.
     effort: member.effort ?? null,
     contextBudget: member.contextBudget ?? null,
+    // Latest real turn's usage (fleet-ops-canvas): the config bar's context
+    // budget histogram buckets by this over the declared budget. null = the
+    // newest real round reported none (用量字段缺失 ≠ 未超预算).
+    latestTurnUsage: latestRealTurn?.usage ?? null,
     effectiveModel: resolution.effective,
     modelNotice: resolution.notices.length ? resolution.notices.join("; ") : null,
     sortKey: member.sortKey,
@@ -285,6 +292,25 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
     // 「本轮未执行（第 k 次）」 badge reads this; sustained skips show up in
     // `status` (missing with the count named), not here.
     skippedRounds: derived.evidence.skippedRounds ?? 0,
+    // Bot sidecar (fleet-ops-canvas, agent-fleet-core): target kind `bot`
+    // posts carry the channel's runtime story as a read-only object —
+    // enabled from the bot row, inbound/outbound/error as best-effort
+    // timestamps (columns absent → null, never fabricated).
+    ...(member.targetKind === "bot"
+      ? {
+          bot: (() => {
+            const bot = dbModule.getBot(member.targetId);
+            const activity = dbModule.botActivitySummary(member.targetId) ?? {};
+            return {
+              type: bot?.type ?? member.targetId,
+              enabled: bot ? !!bot.enabled : false,
+              lastInboundAt: activity?.lastInboundAt ?? null,
+              lastOutboundAt: activity?.lastOutboundAt ?? null,
+              lastError: activity?.lastError ?? null,
+            };
+          })(),
+        }
+      : {}),
     latestReport: buildLatestView({ report: latest, previous, kpiSlots: member.kpiSlots }),
     reportTimeline: db.listReports(member.id, { limit: 5 }).map(reportTimelineEntry),
     lastTurn: lastTurn

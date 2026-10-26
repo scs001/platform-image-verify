@@ -2571,7 +2571,12 @@
       "effortInherit": "Inherit (fleet/cell default)",
       "contextBudget": "Context budget (tokens/turn)",
       "contextBudgetUnlimited": "Unlimited",
-      "contextBudgetInvalid": "Context budget must be a positive integer (tokens per turn)"
+      "contextBudgetInvalid": "Context budget must be a positive integer (tokens per turn)",
+      "botChannel": "Bot channel",
+      "botInbound": "last inbound",
+      "botOutbound": "last outbound",
+      "botLastError": "last error",
+      "botOpenPage": "Open Bots page"
     },
     "design": {
       "enter": "Design",
@@ -2591,6 +2596,29 @@
       "budget": "Budget exhausted ({n} tool calls)",
       "degradedTo": "Degraded to",
       "skipped": "This round was skipped by the platform (model-lane breaker open) — not a failure, cadence unaffected"
+    },
+    "configBar": {
+      "models": "Models",
+      "effort": "Effort",
+      "budget": "Context budget",
+      "traffic": "Edge traffic (24h)",
+      "unset": "unset",
+      "noTraffic": "no declared edges",
+      "trafficNone": "no traffic in 24h",
+      "turnsSuffix": "turns",
+      "budgetHint": "Newest real turn's usage as a fraction of each post's declared budget; posts without a declared budget are excluded",
+      "budgetNoData": "no usage",
+      "budgetNoDataHint": "The newest real turn reported no usage — absence, not under quota",
+      "effortLevel": {
+        "low": "low",
+        "medium": "medium",
+        "high": "high"
+      }
+    },
+    "miniSpan": {
+      "failed": "failed",
+      "errorKind": "failed: {kind}",
+      "source": "open trace"
     }
   },
   "facetCurate": {

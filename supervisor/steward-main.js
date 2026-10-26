@@ -54,7 +54,13 @@ const nodeBin = process.env.PLATFORM_NODE_BIN || process.execPath;
   }
 }
 
-const supervisor = new Supervisor({ nodeBin, projectRoot: PROJECT_ROOT, dataDir, agentEnv: process.env });
+// Mirror the Electron desktop's loopback pin: descriptors default HOST to
+// "localhost", which on this Mac resolves to ::1 first — the child then binds
+// IPv6 loopback only, the attached UI's http://127.0.0.1:<port> load spins on
+// ERR_CONNECTION_REFUSED, and the supervisor's own localhost probe reports
+// healthy (a textbook fake-green). An explicit env HOST still wins.
+const agentEnv = { ...process.env, HOST: process.env.HOST || "127.0.0.1" };
+const supervisor = new Supervisor({ nodeBin, projectRoot: PROJECT_ROOT, dataDir, agentEnv });
 const steward = createSteward({ supervisor, dataDir });
 
 // Residency policy engine (chapter 2): always keeps the stack up; on_demand

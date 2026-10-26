@@ -2344,3 +2344,13 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **待办**：出片上产 + 真机验收（挑一个已知连败岗位，确认 cockpit 不再绿色、卡片可见连败数与原因、statusCounts 计入异常）；§三（timeout 不可归因）与 §四（上游熔断/降级）仍未做，属独立设计决策另案。
 
 **上产与真机验收（2026-10-26 18:3x）**：快照 `22c8deb` → ccr digest `b8d938c2` → GitOps `4b1e428` 双清单 → ArgoCD 滚完；in-pod 四标记（`failingThreshold`×2、`failureStreak`×3、前端 `inspector-failing` 与 `"failing"` 键）全中，公网 200。**真机验收（生产 API 实测，非构造）**：跨境电商政策盯梢舰队·投稿岗 → `status=failing`、`failureStreak=3`、`lastErrorKind=runtime_not_ready`、`health.failing=1`、`statusCounts={"on_duty":2,"failing":1}`——**从「绿色正常」变「需关注」，连败数与原因一眼可见**。全库扫描另有 6 个连败≥3 的岗位（最严重 12 轮）在下一次读取时同样生效（读时派生，无迁移）。归档 `2026-10-26-fix-fleet-failure-visibility`。
+
+### §15.51 supersede 闭环验证 + 磁盘发现式扫描（2026-10-26，用户令「继续优化」；L3/L4 入长期路线）
+
+**①supersede 闭环（构造：同主题 note v1→v2 两轮蒸馏）**：引擎标记**正确**——v2 蒸馏产出单张 fact 合并两轮信息（「最初 cheap-4→更正 cheap-8，cheap-4 退役」）且 supersedes 指回旧版。但召回消费端抓出真缺陷：**全库向量扫描绕过退役标记**，旧版照样复活进块（生产实锤 fact_3ce65cb2 第 3 位）。修复（ea0ce85，滚产 sha-e18c071）：supersededIds() 集合+向量扫描跳过；真机复验退役页消失、新版第一。73/73 绿。
+
+**②磁盘发现式扫描**（验证途中抓出）：惰性 roots map 真缺口——滚产后没被流量碰过的根**永不进扫描集**（bench 根 40 分钟未扫实锤；§15.36 当时靠手工激活绕过）。修复（6d95743/12ec25e，随 bfec085 上产）：Service 供 owner 目录清单，fallback 扫描先开未缓存根（map 即缓存每进程一次）。真机：bench 根无人碰也进扫描集，note_cursor 推进。
+
+**③日预算护栏首次真实触发**：mission-planner 根 605344/600000 超限即停+缺口入账（§预算设计按预期工作，随观察项）。
+
+**L3/L4 长期路线（用户定调长期要做）**：L3=画像层（聚合各 project 的 notes/L2 中关于用户偏好的条目→按 owner 聚合→注入时供「这个用户是谁」段）；L4 待用户定义（可能方向：记忆主动性——agent 主动检索而非被动注入；或跨根联邦）。**容量治理**（L2 无限增长）随 L3 立项一并考虑。本会话内不再展开。

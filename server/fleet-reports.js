@@ -9,7 +9,7 @@
 // Storage lives in fleets-db; the HTTP/tool faces live in routes/fleets.js
 // and server/fleet-mcp.js.
 
-import { resolveModelChain } from "./fleet-model.js";
+import { resolveModelChain, resolveAgentEffort } from "./fleet-model.js";
 
 const SUMMARY_MAX = 4000;
 const METRIC_VALUE_MAX = 300;
@@ -192,7 +192,8 @@ export function fleetModelFor(db, presetId, { rosterPresetId = (id) => id, roste
   if (attribution.kind !== "preset") return null;
   const member = db.getMember(attribution.memberId);
   if (!member) return null;
-  const fleetDefault = db.getFleet(member.fleetId)?.defaultModel ?? null;
+  const fleet = db.getFleet(member.fleetId);
+  const fleetDefault = fleet?.defaultModel ?? null;
   const plan = resolveModelChain({
     model: member.model,
     fallbackModel: member.fallbackModel,
@@ -200,7 +201,25 @@ export function fleetModelFor(db, presetId, { rosterPresetId = (id) => id, roste
     cellDefault,
     roster,
   });
-  return { memberId: member.id, fleetDefault, ...plan };
+  // Config dimensions (add-agent-config-dims): the SAME post the model chain
+  // resolved, so effort/budget can never point at a different post than the
+  // model does. Judged against the effective model — a level the landed model
+  // does not declare falls through with a notice.
+  const effort = resolveAgentEffort({
+    agentEffort: member.effort ?? null,
+    fleetEffort: fleet?.effort ?? null,
+    model: plan.effective,
+    roster,
+  });
+  return {
+    memberId: member.id,
+    fleetDefault,
+    ...plan,
+    effort: effort.effort,
+    effortSource: effort.source,
+    effortNotices: effort.notices,
+    contextBudget: member.contextBudget ?? fleet?.contextBudget ?? null,
+  };
 }
 
 // ── Flood control ────────────────────────────────────────────────────────────

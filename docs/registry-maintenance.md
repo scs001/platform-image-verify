@@ -2342,3 +2342,5 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **提交**：`73f89bd9`（本 change）+ `acbc1d8e`（config-dims 收尾），双推 origin/gitee。
 
 **待办**：出片上产 + 真机验收（挑一个已知连败岗位，确认 cockpit 不再绿色、卡片可见连败数与原因、statusCounts 计入异常）；§三（timeout 不可归因）与 §四（上游熔断/降级）仍未做，属独立设计决策另案。
+
+**上产与真机验收（2026-10-26 18:3x）**：快照 `22c8deb` → ccr digest `b8d938c2` → GitOps `4b1e428` 双清单 → ArgoCD 滚完；in-pod 四标记（`failingThreshold`×2、`failureStreak`×3、前端 `inspector-failing` 与 `"failing"` 键）全中，公网 200。**真机验收（生产 API 实测，非构造）**：跨境电商政策盯梢舰队·投稿岗 → `status=failing`、`failureStreak=3`、`lastErrorKind=runtime_not_ready`、`health.failing=1`、`statusCounts={"on_duty":2,"failing":1}`——**从「绿色正常」变「需关注」，连败数与原因一眼可见**。全库扫描另有 6 个连败≥3 的岗位（最严重 12 轮）在下一次读取时同样生效（读时派生，无迁移）。归档 `2026-10-26-fix-fleet-failure-visibility`。

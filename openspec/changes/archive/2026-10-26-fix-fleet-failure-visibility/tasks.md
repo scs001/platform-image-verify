@@ -20,6 +20,6 @@
 
 ## 5. 收口
 
-- [ ] 5.1 全量单测 `node --test --test-concurrency=1 scripts/test-*.mjs`（红名单须仍只有既有 extension/manifest 族）；`openspec validate fix-fleet-failure-visibility` 通过
-- [ ] 5.2 出片上产（`fd-build-channel` → 快照 → relay → skopeo → GitOps → ArgoCD）+ in-pod 标记实证
-- [ ] 5.3 真机验收（需求稿口径）：挑一个已知连败岗位，其 cockpit 状态不再是绿色正常、卡片可见「连续失败 N 次 · 最近原因」、`statusCounts` 计入异常；台账 §15.54 + 归档
+- [x] 5.1 全量单测 `node --test --test-concurrency=1 scripts/test-*.mjs`2108 测试 2099 绿；9 红全在既有 extension/manifest 族（HEAD 干净工作树复现证实为既有红）；`openspec validate` 通过
+- [x] 5.2 出片上产sha-22c8deb（digest b8d938c2），GitOps 4b1e428 双清单滚完；in-pod 四标记 + 前端 bundle `inspector-failing` 全中，公网 200
+- [x] 5.3 真机验收（需求稿口径）：生产 API 实测：跨境电商政策盯梢舰队·投稿岗 status=failing、streak=3、kind=runtime_not_ready、health.failing=1、statusCounts 从 normal 移出；台账 §15.54

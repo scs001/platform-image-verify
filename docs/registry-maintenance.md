@@ -2454,6 +2454,18 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 
 **解禁终态（2026-10-27，用户清 TCR 旧 sha-* tags 后）**：`gh workflow run image.yml -R scs001/platform-image-verify` 直出（59701c2 tag 不变）→ relay→platform+platform-demo+facet+agent-runner-serving 四行 bump **sha-59701c2（digest 3e75e807）**，rollout×4 绿+pods digest 全等。**生产眼见全过**：sampler 事件抵 observer（cell:1da519d4c1c0bf89 快照含 counts/openDecisions/stream/sampledAt）→OpsView 镜像段活卡——aloadtree「公司式舰队」卡 `active|onDuty 5|passive 3|failing 1|total 9`（含并行会话后加两岗的数实，failing=回数窗同源）+待拍板 chips×4+样龄 56s 零 stale 徽+双 cell 卡并存+深链 paas 驾驶舱。ops token 用后已清。change 归档 `archive/2026-10-27-add-fleet-cockpit-projection`（185/0）。
 
+### §15.62 萬星·智语一期站内空间上产（add-zhiyu-room，2026-10-27）：真机走查逮 ref 大小写真 bug + serving 车道陈年模型悬案
+
+**立项与实现**：探索三轮（多人×多 agent 房间 vacuum 实证/hermes-agent 实证五件套回合协议）→ 用户拍板代席制（分身默认出席/人可缺席被召回）→ change 四工件（9 需求 30 场景，回合熔断上限两级可配为唯一回改）→ apply 全 38 任务。代码=新模块 `gateway/zhiyu/`（store/路由/router/agent-lane 四件+zy_* 五表）立于 gateway 层（房间=跨用户对象，cell 单用户进程装不下）；回合路由器无 LLM（@定向/广播可「过」/agent 回复永不连环/上限两级可配）；代席回路（发言即隐式接管+takeover/handback/call；语境构造器只挂共享窗+主人私窗——私域记忆代码层零通道）；发言计费 host-settle usage 幂等；升房=cell 只读导出+gateway 播种；站内 UI /zhiyu 两页+nav+ChatSessionMenu 升为空间出入口+五 locale。验证=zhiyu 八套 44/44（含两用户三座链套件）+全仓 2179 测 18 红全部在 pristine HEAD 同点复现（并行会话在途态，本变更零新增红）+validate --strict 零 error。
+
+**上产两班**：①snapshot 928945a（源 1390f837，digest d34e18a0）四面滚（platform/platform-demo/facet/agent-runner-serving）→ **GitOps origin=github 而 ArgoCD 真源=gitee 教训重演**（Synced 假象=只推了 github，补推 gitee 即滚动；本纪与 fd-wire §15 系列「gitee=真源」同款，后续 bump 一律双推再 refresh）；真机首答逮 **ref 大小写 bug**——邀请路由把部署座 ref 一律小写化，packId 混合大小写的部署解析全灭（部署簿记精确匹配 packId）；修=user 邮箱小写/facade+agent 保持原样+回归 3.9。②snapshot 9588c7d（源 0e6a66b，digest f1bae252）四面重滚、pods digest 全等。relay 长尾照旧以 skopeo 判。
+
+**真机走查（生产 admin 账号+真部署双座）**：模块在线（/api/zhiyu/health 200）↣ 建房/分身策略 auto_accept 入场/服务座代邀代接/effectiveReplyCap=3 ↣ @点名两连派发——**管线端到端打通到 runner 子进程**（gateway→registry proxy→agent serving），失败以 room 事件如实归类（agent_failed 带原因）↣ takeover/handback/call 四态翻转眼见（on_duty↔listening、away、needs_you）↣ 空闲自动结束（idleMinutes=1 实测 95s）↣ 纪要+邀请+呼叫三路通知落站内未读（unread=7）↣ 失败与「过」零计费（构造保证+失败案例实测无 settlement）。**未达项（外部卡住）**：真机"首答首结算"目击——两座部署应答均败于 `model_not_available: qwen3.8-flash`。
+
+**陈年悬案（非本 change 根因，走查揭发）**：sub2api 全组/路由表查无 qwen3.8-flash，usage_logs 该模型最后成功=2026-09-18——**一切未显式 pin 模型的 a2a serving 调用（含 mission-planner 自有节奏回合）至少 10-26 起即全线失败**，是给养平面而非 zhiyu 管线。离奇的二阶：把两座显式 pin 到当今活车道 deepseek-v4.1-flash（service-config PUT 生效值已转 override）后 runner **rollover 仍报同名旧模型**——疑 child 既存活器取不到新描述（entry refresh/rollover 顺序）或 cordis 路由文件另有默认映射，待 lane 主人核（线索：runner 日志 `[dsh-profile] wrote finddata route(s), 8 model(s)` + rollover failed 行；db groups/routes 里 deepseek-v4.1-flash 在别处活的证据=usage_logs 3772/day）。**走查顺手件的处置**：两座部署的 model override 留在 deepseek-v4.1-flash（其 lane 验证放行了它，意味更新路径本身通），模型平面对账由 owning 会话接力，本班不追。
+
+**发布纪律增量**：出片→commit 1390f837/0e6a66b（含并行会话 veracity 两提交合流）；GitOps roll 2747c09/94815f5；ArgoCD hard-refresh ×2；四上线清单 **敢 tag+注释同体换**（旧 regex 坑已防）。change 上产状态=代码全产、走查阻塞项=模型平面；archive 待「serving 首答」补目击后进行（openspec archive 预检当前 `--strict` 绿）。
+
 ### §15.55 上游模型故障应急：free 模型救急免充值（2026-10-26，用户令「glm/mini 系列不要动，用 free」）
 
 **故障定型（实测链）**：metrics 5 连失败暴露 → 直调上游（distiller pod Python）确认 deepseek-v4.1-flash 别名映射下的 **qwen3.8-flash 对该子账号不可用**（`model_not_available`）；备选实测 deepseek-flash/v4-flash/glm-5.3-flash/glm-4.6 全挂；`/models` 正常返回 87 个但任何调用都失败（账户权限问题非模型问题）。

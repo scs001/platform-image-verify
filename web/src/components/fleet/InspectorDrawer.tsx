@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useFleetStore } from "@/store/fleet-store";
 import type { CanvasTraffic } from "@/components/fleet/FleetCanvas";
 
 // ── shapes (mirrors of the page's MemberView slices, kept local) ────────────
@@ -39,6 +40,8 @@ export interface InspectorMember {
   latestReport: { at: number; summary: string; source: string; sessionId: string | null; slots: { key: string; label: string; unit: string | null; value: string | number; trend: { direction: string; deltaValue: number | null } | null }[] } | null;
   lastTurn: { status: string; errorKind: string | null; error: string | null; endedAt: number; sessionId: string | null } | null;
   consecutiveFailures: number;
+  /** The post's materialized task — null on taskless (passive) posts, where 立即交付 honestly doesn't render. */
+  taskId?: string | null;
 }
 
 export interface InspectorDecision {
@@ -158,6 +161,40 @@ export function MemberInspector({
     void loadReports(null);
     void loadDecisions();
   }, [loadTurns, loadReports, loadDecisions]);
+
+  // Drawer self-refresh (add-cockpit-ops-loop): while open, any fleet event
+  // (a turn of this post ending among them) re-pulls the data tabs — the
+  // overview rides the page's member prop via the throttled refetch.
+  const fleetVersion = useFleetStore((s) => s.version);
+  const [runNote, setRunNote] = useState<string | null>(null);
+  const [running, setRunning] = useState(false);
+  useEffect(() => {
+    if (fleetVersion === 0) return;
+    void loadTurns(null);
+    void loadReports(null);
+    void loadDecisions();
+  }, [fleetVersion, loadTurns, loadReports, loadDecisions]);
+
+  const runNow = async () => {
+    if (!member.taskId) return;
+    setRunning(true);
+    setRunNote(null);
+    try {
+      const r = await fetch(`/api/cron/${encodeURIComponent(member.taskId)}/run`, { method: "POST" });
+      const body = await r.json().catch(() => ({}));
+      setRunNote(
+        r.ok
+          ? body.already
+            ? t("fleets.inspector.alreadyRunning")
+            : t("fleets.inspector.runStarted")
+          : (body.error ?? `${r.status}`),
+      );
+    } catch (e) {
+      setRunNote(String((e as Error).message ?? e));
+    } finally {
+      setRunning(false);
+    }
+  };
 
   const saveConfig = async () => {
     setConfigError(null);
@@ -289,7 +326,13 @@ export function MemberInspector({
                   {member.cadence.enabled ? t("fleets.member.pause") : t("fleets.member.resume")}
                 </Button>
               ) : null}
+              {member.taskId ? (
+                <Button variant="outline" size="sm" className="w-fit" disabled={running} onClick={() => void runNow()} data-testid="inspector-run-now">
+                  {t("fleets.inspector.runNow")}
+                </Button>
+              ) : null}
             </div>
+            {runNote ? <p className="text-muted-foreground" data-testid="inspector-run-note">{runNote}</p> : null}
             {member.target.kind === "persona" ? (
               <div className="flex flex-col gap-1">
                 <Label htmlFor="ins-model">{t("fleets.inspector.declared")}</Label>

@@ -2550,7 +2550,10 @@
         "turns": "ターン",
         "reports": "産出",
         "decisions": "承認"
-      }
+      },
+      "runNow": "今すぐ納品",
+      "runStarted": "納品開始——ターンはタイムラインに現れます",
+      "alreadyRunning": "実行中のターンがあります——今回の納品はそれに同行します"
     },
     "design": {
       "enter": "設計",

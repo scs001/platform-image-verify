@@ -2550,7 +2550,10 @@
         "turns": "Turns",
         "reports": "Reports",
         "decisions": "Decisions"
-      }
+      },
+      "runNow": "Deliver now",
+      "runStarted": "Delivery started — the turn lands in the timeline",
+      "alreadyRunning": "A turn is already in flight — delivery rides it"
     },
     "design": {
       "enter": "Design",

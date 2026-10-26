@@ -456,6 +456,26 @@ export function FleetsPage() {
     setInspectorFor(member);
   };
 
+  // Bottom-up poll (add-cockpit-ops-loop): while the page is visible and a
+  // fleet is selected, one full refetch a minute keeps the board convergent
+  // even when the WS is down (event-driven self-heal needs events to fire).
+  // Hidden tabs pause; returning to the tab refetches immediately.
+  useEffect(() => {
+    if (!selectedId) return;
+    const tick = () => {
+      if (document.visibilityState === "visible") void loadDetail(selectedId);
+    };
+    const timer = setInterval(tick, 60_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [selectedId, loadDetail]);
+
   // Autofollow the first fleet when the list arrives and nothing is selected.
   useEffect(() => {
     const first = fleets[0];

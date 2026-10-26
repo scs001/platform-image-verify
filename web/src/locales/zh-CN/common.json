@@ -2550,7 +2550,10 @@
         "turns": "回合",
         "reports": "产出",
         "decisions": "审批"
-      }
+      },
+      "runNow": "立即交付",
+      "runStarted": "交付已开始——回合将出现在时间线",
+      "alreadyRunning": "已有回合在执行——本次交付随行"
     },
     "design": {
       "enter": "设计",

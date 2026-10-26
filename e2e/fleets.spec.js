@@ -951,6 +951,76 @@ test.describe("fleet inspector & design mode", () => {
     await expect(edgeInsp.getByTestId("edge-inspector-traffic")).toContainText("24h: 4");
   });
 
+  test("inspector turns tab refreshes when the post's turn ends", async ({ page }) => {
+    let turnFetches = 0;
+    await page.route(`**/api/fleets/${FLEET_ID}/members/**/turns**`, (route) => {
+      turnFetches += 1;
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ turns: [{ id: 1, source: "cron", status: "ok", errorKind: null, error: null, model: null, startedAt: 1, endedAt: 2, sessionId: "s" }], nextBefore: null }) });
+    });
+    let client = null;
+    await page.routeWebSocket(/.*/, (ws) => {
+      client = ws;
+      const server = ws.connectToServer();
+      ws.onMessage((data) => server.send(data));
+      server.onMessage((data) => ws.send(data));
+    });
+    await page.goto(`/fleets/${FLEET_ID}`);
+    const canvas = page.getByTestId("fleet-canvas");
+    await expect(canvas.getByTestId("canvas-node-inv")).toBeVisible({ timeout: 15000 });
+    await canvas.getByTestId("canvas-node-inv").click();
+    const insp = page.getByTestId("inspector-inv");
+    await expect(insp).toBeVisible();
+    await insp.getByTestId("inspector-tab-turns").click();
+    const baseline = turnFetches;
+
+    client?.send(JSON.stringify({
+      type: "fleet_turn_ended",
+      fleetId: FLEET_ID, memberId: "inv", runId: "run_e2e", turnId: "turn_e2e",
+      parentTurnId: null, parentMemberId: null, edgeKind: null, source: "manual",
+      sessionId: "s", startedAt: Date.now() - 1000, endedAt: Date.now(),
+      status: "ok", errorKind: null, model: null, usage: null,
+    }));
+    await expect.poll(() => turnFetches, { timeout: 5000 }).toBeGreaterThan(baseline);
+  });
+
+  test("inspector delivers now via the task run channel", async ({ page }) => {
+    const runs = [];
+    await page.route("**/api/cron/cron_task_x/run", (route) => {
+      runs.push(route.request().url());
+      route.fulfill({ contentType: "application/json", body: JSON.stringify({ ok: true, state: "queued" }) });
+    });
+    await page.goto(`/fleets/${FLEET_ID}`);
+    const canvas = page.getByTestId("fleet-canvas");
+    await expect(canvas.getByTestId("canvas-node-inv")).toBeVisible({ timeout: 15000 });
+
+    // CANVAS_FLEET members are fixtures without taskId — inject one on inv's
+    // cockpit payload for this test, then open her inspector.
+    const insp = page.getByTestId("inspector-inv");
+    await canvas.getByTestId("canvas-node-inv").click();
+    await expect(insp).toBeVisible();
+    await insp.getByTestId("inspector-tab-config").click();
+    // taskId is absent on the fixture → the button honestly doesn't render.
+    await expect(insp.getByTestId("inspector-run-now")).toHaveCount(0);
+    await insp.getByTestId("inspector-close").click();
+
+    // With a taskId the button shows and calls the run channel.
+    await page.route(`**/api/fleets/${FLEET_ID}/cockpit`, (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ ...CANVAS_FLEET, members: CANVAS_FLEET.members.map((m) => (m.id === "inv" ? { ...m, taskId: "cron_task_x" } : m)) }),
+      }),
+    );
+    await page.reload();
+    await expect(page.getByTestId("fleet-canvas").getByTestId("canvas-node-inv")).toBeVisible({ timeout: 15000 });
+    const insp2 = page.getByTestId("inspector-inv");
+    await page.getByTestId("fleet-canvas").getByTestId("canvas-node-inv").click();
+    await expect(insp2).toBeVisible();
+    await insp2.getByTestId("inspector-tab-config").click();
+    await insp2.getByTestId("inspector-run-now").click();
+    await expect(insp2.getByTestId("inspector-run-note")).toContainText("started");
+    expect(runs.length).toBe(1);
+  });
+
   test("design mode: drag-connect drafts an edge, dry-run gates confirm, apply lands it", async ({ page }) => {
     const applies = [];
     let draftOk = true;

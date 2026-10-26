@@ -2550,7 +2550,10 @@
         "turns": "Tours",
         "reports": "Rapports",
         "decisions": "Décisions"
-      }
+      },
+      "runNow": "Livrer maintenant",
+      "runStarted": "Livraison lancée — le tour apparaîtra dans la chronique",
+      "alreadyRunning": "Un tour est déjà en cours — la livraison s'y joint"
     },
     "design": {
       "enter": "Concevoir",

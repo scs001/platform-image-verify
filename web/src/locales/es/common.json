@@ -2550,7 +2550,10 @@
         "turns": "Turnos",
         "reports": "Informes",
         "decisions": "Decisiones"
-      }
+      },
+      "runNow": "Entregar ahora",
+      "runStarted": "Entrega iniciada — el turno aparecerá en la cronología",
+      "alreadyRunning": "Ya hay un turno en curso — la entrega lo acompaña"
     },
     "design": {
       "enter": "Diseñar",

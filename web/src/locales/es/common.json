@@ -2414,7 +2414,8 @@
       "failed": "turno fallido",
       "interrupted": "turno interrumpido",
       "consecutive": "fallos consecutivos",
-      "neverRun": "sin ejecuciones"
+      "neverRun": "sin ejecuciones",
+      "skipped": "ronda no ejecutada"
     },
     "health": {
       "onDuty": "Normal",

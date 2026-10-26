@@ -2414,7 +2414,8 @@
       "failed": "turn failed",
       "interrupted": "turn interrupted",
       "consecutive": "consecutive failures",
-      "neverRun": "never run"
+      "neverRun": "never run",
+      "skipped": "round not executed"
     },
     "health": {
       "onDuty": "OK",

@@ -2414,7 +2414,8 @@
       "failed": "tour échoué",
       "interrupted": "tour interrompu",
       "consecutive": "échecs consécutifs",
-      "neverRun": "jamais exécuté"
+      "neverRun": "jamais exécuté",
+      "skipped": "tour non exécuté"
     },
     "health": {
       "onDuty": "Normal",

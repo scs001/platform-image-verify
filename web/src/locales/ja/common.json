@@ -2414,7 +2414,8 @@
       "failed": "ターン失敗",
       "interrupted": "ターン中断",
       "consecutive": "連続失敗",
-      "neverRun": "未実行"
+      "neverRun": "未実行",
+      "skipped": "今回は未実行"
     },
     "health": {
       "onDuty": "正常",

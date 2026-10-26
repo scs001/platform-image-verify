@@ -2465,3 +2465,28 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **回切挂账**：deepseek-v4.1-flash 映射恢复后建议回切（蒸馏质量历史评估基于它；dots-3-note-preview 为应急替代品，eval 场景自适应已验证能容纳不同引擎但本批未重测）。
 
 **用户同时提示**：glm-5.3-flash / glm-4.6 / MiniMax 留给其他负载不要动。
+
+### §15.61 effort 生产终验达成 + 两处认知修正（2026-10-27 凌晨续 §15.60）
+
+**终验 PASS**：05:00 巡逻阵（turn_163）`ok`（usage 1924/448），trace `request/header` 实证 `reasoningEffort: "high"` 随请求成型；同次收紧证据链中的 turn_159（新代重启后首阵）起即携 high——effort 声明→cordis 投影→逐请求档位**全链在生产成立**。
+
+**修正①（我自己的提取路径错）**：前几轮"reasoningEffort 全 null"全部是探针路径写错——事件真实形状是 `payload.event.data.header.config`（`event` 包装一层），我按 `payload.header.config` 取 → 画出假 null 图景。**教训**：trace.db 里存的是 dsh notification params（含 sessionId/event 壳），不是裸 event.data。**修正②（设计期路由级分析错了一半）**：headers 的 `adapterDefaults.reasoningEffort: true` 证明 dsh-llm-pi-ai 适配器**把路由级 `reasoning: high` 作为逐请求默认注入**（对已声明 reasoningEfforts 的模型同样生效）——即 §15.60 的 initialize 透传修复生效前，适配器默认通道已能搬档；两通道现于新代同存（重叠无害，adapter 默认是兜底）。turn_157（null）vs turn_159（high）的分界=**patch 写时点与 child spawn 先后**（cordis.patch 只在 spawn 时读，后写的 patch 对老 child 惰性）。
+
+**另案（已如实独立挂账——共享 child 模型态漂移中毒）**：03:39–04:00 巡逻三连 failed，`400 model_not_available: qwen3.8-flash is not available`，三阵 member.model 都记 deepseek——child 被 out-of-band 通道切走模型（无 RPC、无盘持久化），而 `switchModelToInner` 早退判据用我们自己记的 `ctx.session.model`（agent-session.js:297）→ `normalizeModelForJob` 逢阵"切换成功"实际没切 → 每一阵自困于中毒态且本 lane 永远修不好自己。**治疗=pod 重启（04:21，重 spawn 从 prefs/链首解析）**，05:00 patrol 即复绿。**自愈关账挂账**：`model_not_available` 类失败 → force restart 重断言 post 模型后重走链一次（成本下界于"只在漂移时做一次重 spawn"）；源头堵漏（定位并同步 ctx 的 out-of-band 写模型通道，最疑 dsh 原生 /model slash 或 settings configEditor）另立题。
+
+### §15.56 开源首班车 + 就绪度审计（2026-10-26，用户定调「核心组件要支撑多平台多 agent，我希望也是开源的」）
+
+**框架变化**：从内部修复转外启/开源——核心件要支撑多平台与多 agent 运行，开放部署是下一方向。本节是首班车与就绪度审计。
+
+**就绪度审计结论（全部有证据）**：
+- ✅ 代码极简：3341 行 TS，dep 唯一 `yaml`，内置 node:sqlite / node:test，零外部依赖
+- ✅ src/ 零内部硬编码：无内部 IP、秘密、内部项目名（sanitize.ts 的凭据正则是泄漏防护件，不是泄漏）
+- ✅ 本地一条命令起得来：`dist/index.js serve`（healthz 200）
+- ✅ bootstrap 环完整：`fd-memory token mint --kind platform --namespace '*'` 发第一枚 → 用它 HTTP `/admin/mint` 再发 person token → person 直接调 `/digest` 200 返回。新外部部署无任何外部依赖即自举
+- ✅ `npm pack` 一件交付（56 文件 / v0.1.0 / `private: true`——改为公开即可首发 `@deepseek-ai/fd-memory`）
+
+**开源路线（从大到小）**：
+1. ✅ README.md + LICENSE（MIT）（本节首班车交付）
+2. ⏳ 公开 CI 通到公开镜像仓库（ghcr.io / Docker Hub）——`Dockerfile` / `Dockerfile.registry` 已有，CI 面改公开即可
+3. ⏳ L0–L2 公开开发文档（当前 docs/ 是生产 runbook，需按开发视角重写）
+4. ⏳ 公开 NPM 包（`private: true` 转公开 + 定型包名 `@deepseek-ai/fd-memory`）

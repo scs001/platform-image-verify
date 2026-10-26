@@ -6,6 +6,11 @@
 // fleet ingest — the same observation plane runner heartbeats use. Management
 // actions stay runner-side; nothing here can steer a cell, and cells hold no
 // new credential (the gateway is the only one talking to the observer).
+//   SECOND LANE (agent-fleet-cockpit-projection): a slower, separate tick
+// samples each live cell's /api/fleets/overview and relays it verbatim as a
+// `cell_fleets` event — the compact fleet mirror for the 萬星 ops board. Own
+// interval + kill switch; identical fault model (log-only, no replay, live
+// cells only — a sleeping cell simply reports nothing this tick).
 //
 // Deliberately NOT durable: cell_stats are periodic snapshots, not an event
 // stream — a dropped tick reads as one sample late, which the board's window
@@ -30,34 +35,19 @@ export function createCellFleetReporter({
   const token = String(env.FLEET_INGEST_TOKEN || "").trim();
   const intervalMs = Math.max(5, Number(env.FLEET_CELL_SAMPLE_SECS || 30)) * 1000;
   if (!baseUrl || !token) return null; // unconfigured = the reporter does not exist
+  const fleetsIntervalMs = Math.max(5, Number(env.FLEET_CELL_FLEETS_SAMPLE_SECS || 60)) * 1000;
+  const fleetsEnabled = String(env.FLEET_CELL_FLEETS_ENABLE ?? "1") !== "0";
 
-  async function tick() {
-    const events = [];
+  function liveCells() {
+    const out = [];
     for (const [userId, cell] of registry.cells) {
       if (!cell || cell.state === "stopping" || !cell.port) continue;
-      try {
-        const res = await fetchImpl(`http://127.0.0.1:${cell.port}/api/tasks/stats`, {
-          headers: {
-            // The gateway's own forged-identity channel: owner identity plus
-            // the shared secret cells require before trusting the headers.
-            "x-forwarded-email": userId,
-            [GATEWAY_SECRET_HEADER]: secret,
-          },
-          signal: AbortSignal.timeout(SAMPLE_TIMEOUT_MS),
-        });
-        if (!res.ok) continue; // dead or erroring cell → absence this tick
-        const payload = await res.json();
-        if (!payload || typeof payload !== "object") continue;
-        events.push({
-          id: randomUUID(),
-          source: "cell-sampler",
-          agent: `cell:${userId}`,
-          kind: "cell_stats",
-          ts: now(),
-          payload,
-        });
-      } catch { /* a cell that cannot answer reports nothing */ }
+      out.push([userId, cell]);
     }
+    return out;
+  }
+
+  async function postIngest(events) {
     if (events.length === 0) return;
     try {
       const res = await fetchImpl(`${baseUrl}/ingest`, {
@@ -72,13 +62,77 @@ export function createCellFleetReporter({
     }
   }
 
+  async function sampleCell(userId, port, path) {
+    try {
+      const res = await fetchImpl(`http://127.0.0.1:${port}${path}`, {
+        headers: {
+          // The gateway's own forged-identity channel: owner identity plus
+          // the shared secret cells require before trusting the headers.
+          "x-forwarded-email": userId,
+          [GATEWAY_SECRET_HEADER]: secret,
+        },
+        signal: AbortSignal.timeout(SAMPLE_TIMEOUT_MS),
+      });
+      if (!res.ok) return null; // dead or erroring cell → absence this tick
+      const payload = await res.json();
+      return payload && typeof payload === "object" ? payload : null;
+    } catch { /* a cell that cannot answer reports nothing */ return null; }
+  }
+
+  async function tick() {
+    const events = [];
+    for (const [userId, cell] of liveCells()) {
+      const payload = await sampleCell(userId, cell.port, "/api/tasks/stats");
+      if (!payload) continue;
+      events.push({
+        id: randomUUID(),
+        source: "cell-sampler",
+        agent: `cell:${userId}`,
+        kind: "cell_stats",
+        ts: now(),
+        payload,
+      });
+    }
+    await postIngest(events);
+  }
+
+  // Projection lane (agent-fleet-cockpit-projection): relay each live cell's
+  // fleet overview verbatim. The cell-side endpoint already bounds payload
+  // (50 fleets cap, snipped text); nothing here truncates further.
+  async function tickFleets() {
+    const events = [];
+    for (const [userId, cell] of liveCells()) {
+      const payload = await sampleCell(userId, cell.port, "/api/fleets/overview");
+      if (!payload) continue;
+      events.push({
+        id: randomUUID(),
+        source: "cell-sampler",
+        agent: `cell:${userId}`,
+        kind: "cell_fleets",
+        ts: now(),
+        payload,
+      });
+    }
+    await postIngest(events);
+  }
+
   const timer = setInterval(() => {
     void tick();
   }, intervalMs);
   timer.unref?.();
   if (startImmediate) void tick(); // first sample without waiting out a full interval
+
+  let fleetsTimer = null;
+  if (fleetsEnabled) {
+    fleetsTimer = setInterval(() => {
+      void tickFleets();
+    }, fleetsIntervalMs);
+    fleetsTimer.unref?.();
+    if (startImmediate) void tickFleets();
+  }
   return {
     tick,
-    stop: () => clearInterval(timer),
+    tickFleets,
+    stop: () => { clearInterval(timer); if (fleetsTimer) clearInterval(fleetsTimer); },
   };
 }

@@ -135,3 +135,64 @@ test("ingest failure is log-only and never throws", async () => {
   assert.equal(logs.filter((l) => l.includes("503") || l.includes("dropping")).length, 1);
   r.stop();
 });
+
+// ── projection lane (add-fleet-cockpit-projection) ──────────────────────────
+
+test("cell_fleets: overview relayed verbatim per live cell; stats lane untouched", async () => {
+  const fetchImpl = recordingFetch({
+    cells: {
+      "http://127.0.0.1:4001/api/tasks/stats": { jobs: 1 },
+      "http://127.0.0.1:4001/api/fleets/overview": { v: 1, sampledAt: 1_700_000_000_000, fleets: [{ id: "f1", name: "甲队", state: "active", counts: {}, openDecisions: { count: 2, top: [] }, stream: [] }] },
+      "http://127.0.0.1:4002/api/tasks/stats": { jobs: 0 },
+    },
+  });
+  const r = createCellFleetReporter({
+    registry: fakeRegistry([
+      ["a@x.test", { port: 4001, state: "running" }],
+      ["b@x.test", { port: 4002, state: "running" }], // overview 404 → absent this tick
+    ]),
+    secret: "gw-secret",
+    fetchImpl,
+    env: { ...ENV, FLEET_CELL_FLEETS_SAMPLE_SECS: "17" },
+    startImmediate: false,
+  });
+  await r.tickFleets();
+
+  // Identity channel, per-cell.
+  const samples = fetchImpl.calls.filter((c) => c.url.includes("/api/fleets/overview"));
+  assert.equal(samples.length, 2);
+  for (const s of samples) {
+    assert.equal(s.opts.headers["x-cloud-gateway-secret"], "gw-secret");
+    assert.ok(String(s.opts.headers["x-forwarded-email"]).endsWith("@x.test"));
+  }
+
+  const ingest = fetchImpl.calls.find((c) => c.url.endsWith("/ingest"));
+  const events = JSON.parse(ingest.opts.body).events;
+  assert.equal(events.length, 1);
+  const e = events[0];
+  assert.equal(e.kind, "cell_fleets");
+  assert.equal(e.source, "cell-sampler");
+  assert.equal(e.agent, "cell:a@x.test");
+  assert.equal(e.payload.fleets[0].id, "f1", "overview payload relayed verbatim");
+  assert.equal(e.payload.fleets[0].openDecisions.count, 2);
+
+  // The stats lane is untouched by the new one.
+  assert.equal(fetchImpl.calls.filter((c) => c.url.includes("/api/tasks/stats")).length, 0, "tickFleets does not resample stats");
+  r.stop();
+});
+
+test("cell_fleets kill switch: enable=0 → no overview traffic at all", async () => {
+  const fetchImpl = recordingFetch({
+    cells: { "http://127.0.0.1:4001/api/tasks/stats": { jobs: 1 } },
+  });
+  const r = createCellFleetReporter({
+    registry: fakeRegistry([["a@x.test", { port: 4001, state: "running" }]]),
+    secret: "s",
+    fetchImpl,
+    env: { ...ENV, FLEET_CELL_FLEETS_ENABLE: "0" },
+    startImmediate: true,
+  });
+  await new Promise((res) => setTimeout(res, 25));
+  assert.equal(fetchImpl.calls.filter((c) => c.url.includes("/api/fleets/overview")).length, 0);
+  r.stop();
+});

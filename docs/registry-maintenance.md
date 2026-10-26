@@ -2532,3 +2532,17 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 | 验证 | dl 三直链 200 且 content-length 精确；官网 `/products/base/` **v1.3.19 眼见**（07:20:32）；本机包机三形态实证如上 |
 | 私仓手术同班 | `b7f792ce`：app-e2e 砍每晚 iOS cron 改手动 dispatch、gates 补 biome 棒（lint→typecheck→unit 三棒本机 14/14+41 件净）、新建 miniapp-ci 经济门（71 件净+10/10）、release/win-smoke 头注池通道指路 |
 | 挂账 | 八幕人工走查（Mac+Win 装/跑/关 UI/关屏息/关机/卸载/撤销）仍未做；Maestro 双腿实测分钟数与 android 档最终归属（留私仓 or 迁池）随 2.3 收口；miniapp CI 上传管线留观察 |
+
+### §15.62 驾驶舱运行时运维面上产（add-fleet-ops-canvas，2026-10-27 上午，班十一）
+
+**内容**：运行时数据流粒子层 + 节点内嵌迷你 span + 配置栏 + bot 一等公民四件同代上产（688fbc72 + 522a2202 i18n 补三语；快照 ebbb112）；四面同代滚产验证：platform/platform-demo/facet/agent-runner-serving = `sha-ebbb112`，digest 339f1b14 ccr 实证。
+
+**细节**：
+- 粒子层=自定义 React Flow 边组件内嵌 `<g>`（CSS offset-path；滚动器设计 D1 由「absolute SVG overlay」实现期改为自定义边寄宿——理由随设计档锚定）。store 增 recentResults 环（TTL 60s/基数 40，纯助手 web/src/lib/fleet-recent-results.ts 可单测）；Safari 降级 = `CSS.supports("offset-path")` false 时整层隐藏 + `VITE_FLEET_OPS_OVERLAY=off` 闸。
+- 迷你 span 两跳现成端点（/turns?limit=5 挑非 skipped 最近阵 + /api/trace/turns/:traceTurnId），工具事件配对 `tool/call.callId ↔ tool/result.message.toolCallId`，在途→蹲到 result 才记时长；无工具不渲染（spec 条款）。
+- 配置栏唯一数据面动刀 = cockpit 聚合 members[] 增 `latestTurnUsage`（最新真实回合 usage；skip 不算）；热度图读既有 edgeTraffic，四件全部纯读。
+- bot 一等公民 = memberView 对 target.kind=bot 附只读 sidecar（db.botActivitySummary 读 bot_chats∩bot_relay_log，列缺→null 不虚构）；画布 BotPlatformIcons 原生图标 + 检查器顶部 bot 摘要块直链 /bots。
+
+**验收**：e2e fleet-ops-canvas.spec.js 4/4 过（粒子两并发、失败染红衰减、hover 迷你 span、配置栏四件派生、bot 图标+检查器）；单元 5/5；fleets 回归 22/22、config-dims 回归绿；typecheck+check-locales 过。**坑证（§15.61 律第二次自证）**：i18n 先行只落 en/zh-CN 即出片，被快照 CI 漂移闸拦截（ebbb112 前序 5b42b8d 班 exit 1）——es/fr/ja 补齐 522a2202 后过。
+
+**挂账**：浏览器会话失效间 5.4 真机眼见未做——等服务化浏览器重登或下一次出片窗口补晚辈。

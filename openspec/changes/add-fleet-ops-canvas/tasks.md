@@ -34,4 +34,4 @@
   - c. 迷你 span：hover 节点断言两行工具条目（无工具的岗位不渲染）；
   - d. 配置栏：单模型 + 双 effort 混合舰队，断言 pills/直方图/热度图的 DOM 路径。
 - [x] 5.3 单元：fleet-store recentResults 环修剪；edgeTraffic 空集灰态；latestTurnUsage 注列注入。
-- [ ] 5.4 真机走查：一轮 dispatch + 一轮失败 + 一轮无工具，三眼见在画布上呈现；检查器 bot 摘要行点击通向 BotsPage。
+- [ ] 5.4 真机走查（挂账——服务化浏览器会话失效间未做；等服务化浏览器重登或下一出片窗口补晚辈：一轮 dispatch + 一轮失败 + 一轮无工具三眼见 + 检查器 bot 摘要行点击通向 BotsPage。

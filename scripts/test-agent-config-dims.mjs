@@ -90,3 +90,106 @@ test("context budget: no reported usage is never judged", () => {
   const shaped = shapeTurnOutcome({ ok: true }, { contextBudget: 100 });
   assert.equal(shaped.status, "ok", "no basis → no verdict, never an invented zero");
 });
+
+// ── write-face gate (add-agent-config-dims 1.5): one rule, three doors ──────
+
+test("write gate: fleet member PATCH rejects an illegal effort and an out-of-range budget, then accepts and clears", async () => {
+  const { createFleetRoutes } = await import("../server/routes/fleets.js");
+  const express = (await import("express")).default;
+  const { setEffortDeclarations } = await import("../server/fleet-model.js");
+  setEffortDeclarations({ "m-x": ["low", "medium", "high"] });
+  const path = await import("node:path");
+  const os = await import("node:os");
+  const fs = await import("node:fs");
+
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "dims-write-"));
+  const { createFleetDatabase, setFleetDatabase } = await import("../server/routes/fleets-db.js");
+  const fleetDb = createFleetDatabase({ file: path.join(tmpRoot, "fleets.db") });
+  setFleetDatabase(fleetDb);
+  const fleet = fleetDb.createFleet({ id: "f_dims", name: "dims", ownerEmail: "owner@test" });
+  fleetDb.createMember({ id: "m1", fleetId: fleet.id, title: "岗", targetKind: "persona", targetId: "p1", kpiSlots: [], cadence: null });
+
+  const app = express();
+  app.use(express.json());
+  createFleetRoutes(app, { authEnabled: false, cellUserEmail: "owner@test", fleetTargetResolver: (m) => ({ alive: true, label: m.targetId }), dshModels: [{ id: "m-x", reasoningEfforts: ["low", "medium", "high"] }] });
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((r) => server.once("listening", r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const patch = (body) => fetch(`${base}/api/fleets/f_dims/members/m1`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+
+  try {
+    // illegal effort
+    const bad = await patch({ effort: "ultra" });
+    assert.equal(bad.status, 400);
+    assert.match((await bad.json()).error, /choose one of: low, medium, high/);
+    // out-of-range budget
+    const badB = await patch({ contextBudget: 10 });
+    assert.equal(badB.status, 400);
+    // legal lands
+    const ok = await patch({ effort: "high", contextBudget: 16000 });
+    assert.equal(ok.status, 200);
+    const body = await ok.json();
+    assert.equal(body.member.effort, "high");
+    assert.equal(body.member.contextBudget, 16000);
+    // clear
+    const clr = await patch({ effort: null, contextBudget: null });
+    assert.equal((await clr.json()).member.effort, null);
+    // fleet PATCH carries the same gate
+    const badF = await fetch(`${base}/api/fleets/f_dims`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ effort: "ultra" }) });
+    assert.equal(badF.status, 400);
+    const okF = await fetch(`${base}/api/fleets/f_dims`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ effort: "low", contextBudget: 32000 }) });
+    assert.equal((await okF.json()).fleet.effort, "low");
+  } finally {
+    server.close();
+    fleetDb.close();
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test("write gate: bots PATCH validates effort/budget through the same union", async () => {
+  const { registerBotRoutes } = await import("../server/routes/bots.js");
+  const express = (await import("express")).default;
+  const { setEffortDeclarations } = await import("../server/fleet-model.js");
+  setEffortDeclarations({ "m-x": ["low", "high"] });
+  const path = await import("node:path");
+  const os = await import("node:os");
+  const fs = await import("node:fs");
+
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "dims-bot-"));
+  process.env.DB_PATH = path.join(tmpRoot, "app.db");
+  process.env.PLATFORM_DATA_DIR = tmpRoot;
+  const { initDb } = await import("../db.js");
+  await initDb();
+  const dbMod = await import("../db.js");
+  const bot = dbMod.addBot({ id: "b_dims", type: "generic", name: "B", credentials: {}, secret: "s" });
+
+  const app = express();
+  app.use(express.json());
+  registerBotRoutes({ app, db: dbMod, requireAdmin: () => true, dshModels: [{ id: "m-x", reasoningEfforts: ["low", "high"] }] });
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((r) => server.once("listening", r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const patch = (body) => fetch(`${base}/api/bots/b_dims`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+
+  try {
+    const bad = await patch({ effort: "medium" });
+    assert.equal(bad.status, 400);
+    const ok = await patch({ effort: "high", contextBudget: 4096 });
+    assert.equal(ok.status, 200);
+    const saved = dbMod.getBot("b_dims");
+    assert.equal(saved.effort, "high");
+    assert.equal(saved.contextBudget, 4096);
+  } finally {
+    server.close();
+    dbMod.deleteBot(bot.id);
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+});
+
+test.after(async () => {
+  // db.js starts schedulers/flush timers at import; without this the runner
+  // never exits (same cleanup the other fleet suites carry).
+  try { const cron = await import("../cron.js"); cron.shutdown?.(); } catch {}
+  try { const engine = await import("../task-engine.js"); await engine.idle?.(); } catch {}
+  await new Promise((r) => setTimeout(r, 100));
+});

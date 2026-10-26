@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useFleetStore } from "@/store/fleet-store";
 import type { CanvasTraffic } from "@/components/fleet/FleetCanvas";
+import { useChatStore } from "@platform/core";
 
 // ── shapes (mirrors of the page's MemberView slices, kept local) ────────────
 
@@ -32,6 +33,10 @@ export interface InspectorMember {
   cadence: { cron: string; tz: string | null; promptTemplate: string; enabled: boolean } | null;
   model: string | null;
   fallbackModel: string | null;
+  /** Declared thinking depth (add-agent-config-dims); null = inherit. */
+  effort: string | null;
+  /** Declared per-turn context budget; null = unlimited. */
+  contextBudget: number | null;
   effectiveModel: string | null;
   modelNotice: string | null;
   status: string;
@@ -126,8 +131,18 @@ export function MemberInspector({
   const [promptTemplate, setPromptTemplate] = useState(member.cadence?.promptTemplate ?? "");
   const [model, setModel] = useState(member.model ?? "");
   const [fallbackModel, setFallbackModel] = useState(member.fallbackModel ?? "");
+  const [effort, setEffort] = useState(member.effort ?? "");
+  const [contextBudget, setContextBudget] = useState(member.contextBudget != null ? String(member.contextBudget) : "");
   const [denseConfirmed, setDenseConfirmed] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
+  // Effort levels of the member's effective model (add-agent-config-dims D6):
+  // the dropdown renders ONLY when the model that would run declares levels;
+  // an unknown model (roster drift) hides the control instead of lying.
+  const modelRoster = useChatStore((st) => st.models);
+  const effortLevels = useMemo(
+    () => modelRoster.find((m) => m.id === (member.effectiveModel ?? member.model))?.reasoningEfforts ?? [],
+    [modelRoster, member.effectiveModel, member.model],
+  );
 
   const loadTurns = useCallback(
     async (before: number | null) => {
@@ -220,10 +235,17 @@ export function MemberInspector({
         return;
       }
     }
+    const budgetNum = contextBudget.trim() === "" ? null : Number(contextBudget.trim());
+    if (contextBudget.trim() !== "" && (!Number.isInteger(budgetNum) || (budgetNum ?? 0) <= 0)) {
+      setConfigError(t("fleets.inspector.contextBudgetInvalid"));
+      return;
+    }
     await onAction(base, "PATCH", {
       ...(cadence ? { cadence } : {}),
       model: model.trim() || null,
       fallbackModel: fallbackModel.trim() || null,
+      ...(effortLevels.length ? { effort: effort || null } : {}),
+      contextBudget: budgetNum,
     });
   };
 
@@ -370,6 +392,35 @@ export function MemberInspector({
                 <Input id="ins-model" value={model} onChange={(e) => setModel(e.target.value)} data-testid="inspector-model" />
                 <Label htmlFor="ins-fallback">{t("fleets.inspector.fallback")}</Label>
                 <Input id="ins-fallback" value={fallbackModel} onChange={(e) => setFallbackModel(e.target.value)} />
+                {effortLevels.length ? (
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="ins-effort">{t("fleets.inspector.effort")}</Label>
+                    <select
+                      id="ins-effort"
+                      value={effort}
+                      onChange={(e) => setEffort(e.target.value)}
+                      data-testid="inspector-effort"
+                      className="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+                    >
+                      <option value="">{t("fleets.inspector.effortInherit")}</option>
+                      {effortLevels.map((l) => (
+                        <option key={l} value={l}>
+                          {l}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : null}
+                <Label htmlFor="ins-budget">{t("fleets.inspector.contextBudget")}</Label>
+                <Input
+                  id="ins-budget"
+                  type="number"
+                  min={1024}
+                  value={contextBudget}
+                  placeholder={t("fleets.inspector.contextBudgetUnlimited")}
+                  onChange={(e) => setContextBudget(e.target.value)}
+                  data-testid="inspector-context-budget"
+                />
                 <p className="text-muted-foreground">
                   {t("fleets.inspector.effective")}: {member.effectiveModel || "—"}
                 </p>

@@ -249,6 +249,11 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
     cadence: member.cadence,
     model: member.model ?? null,
     fallbackModel: member.fallbackModel ?? null,
+    // Config dimensions (add-agent-config-dims): declared values verbatim.
+    // `effort` here is the DECLARED level; the effective level is resolved at
+    // turn time (against the landed model) and recorded on the turn event.
+    effort: member.effort ?? null,
+    contextBudget: member.contextBudget ?? null,
     effectiveModel: resolution.effective,
     modelNotice: resolution.notices.length ? resolution.notices.join("; ") : null,
     sortKey: member.sortKey,

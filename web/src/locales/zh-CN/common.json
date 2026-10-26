@@ -826,7 +826,11 @@
       "feishu": "飞书",
       "wecom": "企业微信",
       "wechat-oa": "微信公众号"
-    }
+    },
+    "effort": "思考深度",
+    "effortInherit": "继承（部署默认）",
+    "contextBudget": "上下文预算（token/回合）",
+    "contextBudgetUnlimited": "不限"
   },
   "assistant": {
     "name": "{{brand}} 助手",
@@ -2560,7 +2564,12 @@
       },
       "runNow": "立即交付",
       "runStarted": "交付已开始——回合将出现在时间线",
-      "alreadyRunning": "已有回合在执行——本次交付随行"
+      "alreadyRunning": "已有回合在执行——本次交付随行",
+      "effort": "思考深度",
+      "effortInherit": "继承（舰队/工位默认）",
+      "contextBudget": "上下文预算（token/回合）",
+      "contextBudgetUnlimited": "不限",
+      "contextBudgetInvalid": "上下文预算必须是正整数（每回合 token）"
     },
     "design": {
       "enter": "设计",

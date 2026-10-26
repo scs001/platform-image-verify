@@ -826,7 +826,11 @@
       "feishu": "Feishu / Lark",
       "wecom": "WeCom",
       "wechat-oa": "WeChat Official Account"
-    }
+    },
+    "effort": "Thinking depth",
+    "effortInherit": "Inherit (deployment default)",
+    "contextBudget": "Context budget (tokens/turn)",
+    "contextBudgetUnlimited": "Unlimited"
   },
   "assistant": {
     "name": "{{brand}} Assistant",
@@ -2560,7 +2564,12 @@
       },
       "runNow": "Deliver now",
       "runStarted": "Delivery started — the turn lands in the timeline",
-      "alreadyRunning": "A turn is already in flight — delivery rides it"
+      "alreadyRunning": "A turn is already in flight — delivery rides it",
+      "effort": "Thinking depth",
+      "effortInherit": "Inherit (fleet/cell default)",
+      "contextBudget": "Context budget (tokens/turn)",
+      "contextBudgetUnlimited": "Unlimited",
+      "contextBudgetInvalid": "Context budget must be a positive integer (tokens per turn)"
     },
     "design": {
       "enter": "Design",

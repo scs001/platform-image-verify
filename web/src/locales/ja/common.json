@@ -826,7 +826,11 @@
       "feishu": "Feishu / Lark",
       "wecom": "WeCom",
       "wechat-oa": "WeChat 公式アカウント"
-    }
+    },
+    "effort": "思考深度",
+    "effortInherit": "継承（既定）",
+    "contextBudget": "コンテキスト予算（トークン/ターン）",
+    "contextBudgetUnlimited": "無制限"
   },
   "assistant": {
     "name": "{{brand}} アシスタント",
@@ -2560,7 +2564,12 @@
       },
       "runNow": "今すぐ納品",
       "runStarted": "納品開始——ターンはタイムラインに現れます",
-      "alreadyRunning": "実行中のターンがあります——今回の納品はそれに同行します"
+      "alreadyRunning": "実行中のターンがあります——今回の納品はそれに同行します",
+      "effort": "思考深度",
+      "effortInherit": "継承（艦隊/セル既定）",
+      "contextBudget": "コンテキスト予算（トークン/ターン）",
+      "contextBudgetUnlimited": "無制限",
+      "contextBudgetInvalid": "予算は正の整数で指定してください（ターンあたりトークン）"
     },
     "design": {
       "enter": "設計",

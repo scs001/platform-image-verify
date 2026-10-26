@@ -36,6 +36,10 @@ export interface Bot {
   createdAt: string;
   configuredCredentials: string[];
   webhookUrl: string;
+  /** Declared thinking depth (add-agent-config-dims); null = inherit. */
+  effort: string | null;
+  /** Declared per-turn context budget; null = unlimited. */
+  contextBudget: number | null;
 }
 
 // GET /api/bots/:id/qr — exactly one of the panel states, derived in the UI:
@@ -80,7 +84,7 @@ export async function createBot(input: {
 
 export async function updateBot(
   id: string,
-  patch: { name?: string; credentials?: Record<string, string>; enabled?: boolean },
+  patch: { name?: string; credentials?: Record<string, string>; enabled?: boolean; effort?: string | null; contextBudget?: number | null },
 ): Promise<Bot> {
   return jsonOrThrow(await send(`/api/bots/${encodeURIComponent(id)}`, "PATCH", patch));
 }

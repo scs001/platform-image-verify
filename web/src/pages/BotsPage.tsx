@@ -25,6 +25,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { showToast } from "@/components/Toast";
+import { useChatStore } from "@platform/core";
 import { BotPlatformIcon } from "@/components/bots/BotPlatformIcons";
 import { BotQrPanel } from "@/components/bots/BotQrPanel";
 import {
@@ -246,8 +247,14 @@ function BotForm({
   const [type, setType] = useState(bot?.type ?? fixedType ?? types[0]?.type ?? "");
   const [name, setName] = useState(bot?.name ?? "");
   const [credentials, setCredentials] = useState<Record<string, string>>({});
+  const [effort, setEffort] = useState(bot?.effort ?? "");
+  const [contextBudget, setContextBudget] = useState(bot?.contextBudget != null ? String(bot.contextBudget) : "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A bot's effective model varies turn to turn — the dropdown offers the
+  // UNION of levels any known model declares (add-agent-config-dims D6).
+  const modelRoster = useChatStore((st) => st.models);
+  const effortUnion = [...new Set(modelRoster.flatMap((m) => m.reasoningEfforts ?? []))];
 
   const fields = types.find((x) => x.type === type)?.credentialFields ?? [];
 
@@ -256,7 +263,11 @@ function BotForm({
     setError(null);
     try {
       const saved = savedBot
-        ? await updateBot(savedBot.id, { name, credentials })
+        ? await updateBot(savedBot.id, {
+            name,
+            credentials,
+            ...(savedBot ? { effort: effort || null, contextBudget: contextBudget.trim() === "" ? null : Number(contextBudget.trim()) } : {}),
+          })
         : await createBot({ type, name, credentials });
       setSavedBot(saved);
       // Stored server-side now; blanks must mean "keep" on any further save.
@@ -304,6 +315,40 @@ function BotForm({
             <Label htmlFor="bot-name">{t("botsPage.name")}</Label>
             <Input id="bot-name" value={name} onChange={(e) => setName(e.target.value)} data-testid="bot-name" />
           </div>
+
+          {savedBot && effortUnion.length ? (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="bot-effort">{t("botsPage.effort")}</Label>
+              <select
+                id="bot-effort"
+                value={effort}
+                onChange={(e) => setEffort(e.target.value)}
+                data-testid="bot-effort"
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+              >
+                <option value="">{t("botsPage.effortInherit")}</option>
+                {effortUnion.map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+          {savedBot ? (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="bot-budget">{t("botsPage.contextBudget")}</Label>
+              <Input
+                id="bot-budget"
+                type="number"
+                min={1024}
+                value={contextBudget}
+                placeholder={t("botsPage.contextBudgetUnlimited")}
+                onChange={(e) => setContextBudget(e.target.value)}
+                data-testid="bot-context-budget"
+              />
+            </div>
+          ) : null}
 
           {fields.map((f) => (
             <div key={f.key} className="flex flex-col gap-1.5">

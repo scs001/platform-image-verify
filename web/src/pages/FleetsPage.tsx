@@ -79,6 +79,8 @@ interface MemberView {
   // hop already fell out of the roster, the notice naming it.
   model: string | null;
   fallbackModel: string | null;
+  effort: string | null;
+  contextBudget: number | null;
   effectiveModel: string | null;
   modelNotice: string | null;
   status: "on_duty" | "paused" | "missing" | "vacant" | "passive";

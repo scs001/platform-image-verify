@@ -110,6 +110,10 @@ export function maskBot(bot) {
     createdAt: bot.createdAt,
     configuredCredentials: configured,
     webhookUrl: webhookUrlFor(bot),
+    // Config dimensions (add-agent-config-dims): declared effort/budget ride
+    // the masked row so the edit form can prefill; null = not declared.
+    effort: bot.effort ?? null,
+    contextBudget: bot.context_budget ?? null,
   };
   if (meta) {
     mask.pack = { packId: meta.packId, skill: meta.skill ?? null, generic: meta.generic ?? bot.type };

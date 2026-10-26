@@ -826,7 +826,11 @@
       "feishu": "Feishu / Lark",
       "wecom": "WeCom",
       "wechat-oa": "Cuenta Oficial de WeChat"
-    }
+    },
+    "effort": "Profundidad de razonamiento",
+    "effortInherit": "Heredar (predeterminado)",
+    "contextBudget": "Presupuesto de contexto (tokens/turno)",
+    "contextBudgetUnlimited": "Sin límite"
   },
   "assistant": {
     "name": "Asistente de {{brand}}",
@@ -2560,7 +2564,12 @@
       },
       "runNow": "Entregar ahora",
       "runStarted": "Entrega iniciada — el turno aparecerá en la cronología",
-      "alreadyRunning": "Ya hay un turno en curso — la entrega lo acompaña"
+      "alreadyRunning": "Ya hay un turno en curso — la entrega lo acompaña",
+      "effort": "Profundidad de razonamiento",
+      "effortInherit": "Heredar (flota/celda)",
+      "contextBudget": "Presupuesto de contexto (tokens/turno)",
+      "contextBudgetUnlimited": "Sin límite",
+      "contextBudgetInvalid": "El presupuesto debe ser un entero positivo (tokens por turno)"
     },
     "design": {
       "enter": "Diseñar",

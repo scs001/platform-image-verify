@@ -2516,3 +2516,19 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 2. ⏳ 公开 CI 通到公开镜像仓库（ghcr.io / Docker Hub）——`Dockerfile` / `Dockerfile.registry` 已有，CI 面改公开即可
 3. ⏳ L0–L2 公开开发文档（当前 docs/ 是生产 runbook，需按开发视角重写）
 4. ⏳ 公开 NPM 包（`private: true` 转公开 + 定型包名 `@deepseek-ai/fd-memory`）
+
+### §15.64 非 web 端复活起棒：桌面 v1.3.19 备仓追版全链 + steward 首裁两刀实证（revive-nonweb-ci，2026-10-27）
+
+**背景（用户定调）**：非 web 三端断更探明——私仓额度 2011/2000 耗尽扼杀全部 CI（3 秒即终、payments failed 注解实锤），结构性死因=mac ×10 计费的 app-e2e 每晚 iOS cron（单月烧穿 2000）；桌面安装包冻在 v1.3.18（10-21），steward 常驻化①②（客户 deadline）与智语/驾驶舱 v2 等 21 commit 全未进包。**治理立案同日先行**（`revive-nonweb-ci`：私仓 ubuntu 经济门 + 重腿建制化走池侧分支，本棒先落 1.1-1.4 私仓手术，详见 change）。
+
+| 项 | 值 |
+|---|---|
+| 出片通道 | 备用仓照 §12.3 再演：bump `de2aec7d` → gitleaks 零泄漏 → `fd-build-snapshot --keep-workflows` 推 `testaction003/build-pool` 侧分支 `desktop-release/v1.3.19`（修剪至 release+win-smoke 两 workflow）→ tag `v1.3.19` 触发 |
+| release 矩阵 | 三班：首班 `40408099324` 4/4 绿即被首裁推翻（见下两刀）；二班 `40412110145` 4/4 绿（nodeBin 修复代）；**三班 `40415133309` 4/4 绿定案**（双修复代，arm64 332MB/x64 343MB/exe 261MB） |
+| win-smoke | `40416774945` success（定案 exe 三相过；注意其不覆盖 steward 路径——首裁是 steward 唯一门） |
+| **steward 首裁两刀**（§15.62 挂账「先装一台试 attach 三分支」兑现） | ①steward 子进程裸 `node` spawn 在 launchd 裸 PATH 下全灭（restartCount≥12）→ `137d9697` nodeBin 回退 `process.execPath`；②子进程 HOST 默认 `localhost` 本机解 ::1→IPv4 127.0.0.1 UI 拒连而 localhost 探活假绿→`1f32042b` 默认改钉 127.0.0.1（env HOST 仍优先）。双修复进包后实证：IPv4 LISTEN+ready 200/restartCount=0。四套单测 22/22 两刀皆不破 |
+| 首裁三分支（固定代包机过） | 幕0 零 admin LaunchAgent bootstrap→steward.json/控制面 ✓；幕A attach 行+退 UI 后端不死（after-quit ready=200）✓；幕B pid 活 socket 死→明示拒起第二栈 ✓；幕C bootout 后 stale 自清回退 embedded（ready=200）✓。裁毕 LaunchAgent 卸载清场，/Applications 保留 1.3.19 供八幕人工走查（挂账照旧） |
+| 上架（首裁过后才走，用户钦定） | dl-publish 镜像轨 ` hkccr/yizuo/desktop-installers:1.3.19`（digest `871930c2`）→ cheap3 pull+cp 落 `/srv/dl/platform/1.3.19/`，**三产物 sha256 与 GitHub Release 资产逐一相等**（13d5218b/3312e88c/34f451dc），prune 1.3.13 留 1.3.18/1.3.19；release-sync 数据 `GH_REPO=testaction003/build-pool --dl-live --skip-rsync` 双端推 |
+| 验证 | dl 三直链 200 且 content-length 精确；官网 `/products/base/` **v1.3.19 眼见**（07:20:32）；本机包机三形态实证如上 |
+| 私仓手术同班 | `b7f792ce`：app-e2e 砍每晚 iOS cron 改手动 dispatch、gates 补 biome 棒（lint→typecheck→unit 三棒本机 14/14+41 件净）、新建 miniapp-ci 经济门（71 件净+10/10）、release/win-smoke 头注池通道指路 |
+| 挂账 | 八幕人工走查（Mac+Win 装/跑/关 UI/关屏息/关机/卸载/撤销）仍未做；Maestro 双腿实测分钟数与 android 档最终归属（留私仓 or 迁池）随 2.3 收口；miniapp CI 上传管线留观察 |

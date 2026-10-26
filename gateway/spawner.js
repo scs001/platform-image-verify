@@ -144,11 +144,15 @@ export function createCellRegistry(config) {
       if (!/^[0-9a-f]{16}$/i.test(cellId)) continue;
       const email = backfillOwnerEmail(path.join(dataRoot, cellId));
       const current = registryDb.get(cellId);
-      // Idempotent rescue pass: a row that an earlier boot seeded blind
-      // (unbound + no email) upgrades to the same suspended standing order.
+      // Idempotent rescue: an earlier blind seed (unbound, no email) upgrades
+      // by put + down — `register` is refused on existing rows by design.
       if (current && !(current.ownerEmail == null || current.state === "unbound")) continue;
       try {
-        registryDb.fire(cellId, { type: "register", ownerEmail: email, now: Date.now() }, { policy: current?.policy ?? initialPolicy });
+        if (!current) {
+          registryDb.fire(cellId, { type: "register", ownerEmail: email, now: Date.now() }, { policy: initialPolicy });
+        } else if (email && !current.ownerEmail) {
+          registryDb.put({ ...current, ownerEmail: email });
+        }
         registryDb.fire(cellId, { type: "down", now: Date.now() });
       } catch (e) { console.warn(`[gateway] registry backfill failed for ${cellId}: ${e?.message || e}`); }
     }

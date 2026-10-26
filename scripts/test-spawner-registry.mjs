@@ -68,6 +68,29 @@ test("backfill seeds suspended rows and recovers ownerEmail from the cell's own 
   db.close();
 });
 
+test("rescue pass: a blind-seeded unbound row upgrades to suspended with the recovered email", async () => {
+  const db = tmpDb();
+  const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "dataroot-rsc-"));
+  const { createHash } = await import("node:crypto");
+  const email = "rescue@cell.test";
+  const cellId = createHash("sha256").update(email).digest("hex").slice(0, 16);
+  const appDir = path.join(dataRoot, cellId, "data", "data");
+  fs.mkdirSync(appDir, { recursive: true });
+  const cellDb = new (await import("better-sqlite3")).default(path.join(appDir, "app.db"));
+  cellDb.exec("CREATE TABLE user_registry_credentials (email TEXT, token TEXT)");
+  cellDb.prepare("INSERT INTO user_registry_credentials (email, token) VALUES (?, '')").run(email);
+  cellDb.close();
+  // Pre-seed the exact stale shape the first live roll left behind.
+  db.put({ ...newRegistryRow({ cellId }), state: "unbound", ownerEmail: null });
+
+  const spawner = createCellRegistry(spawnerConfig(db, { dataRoot }));
+  const row = db.get(cellId);
+  assert.equal(row.state, "suspended", "down beat fires even on pre-existing rows");
+  assert.equal(row.ownerEmail, email, "owner email upgraded through put (register refuses on existing rows)");
+  await spawner.shutdown().catch(() => {});
+  db.close();
+});
+
 test("ensure rejects a tombstoned cell (traffic never resurrects it)", async () => {
   const db = tmpDb();
   const userId = userIdFor("x@y.z");

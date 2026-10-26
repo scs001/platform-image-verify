@@ -883,7 +883,30 @@ export function createFleetDatabase({ file } = {}) {
     for (const { member_id } of members) {
       turns += stmt.run(member_id, cutoff, member_id, turnEventKeep()).changes;
     }
-    return { runs, turns };
+    const orphans = reclaimOrphanRuns({ now });
+    return { runs, turns, orphans };
+  }
+
+  // Orphan-open sweep (add-cockpit-run-reclaim): a header opened by begin()
+  // whose turn never wrote a row leaves an `open` run that NO future event can
+  // close — the settle backstop fires on engine-terminal tasks, and a lost
+  // turn produces none. Left alone these squat the list forever (prod
+  // 2026-10-26: run_d92b41 sat open 7 hours with zero turns, from a pod roll
+  // mid-turn). A header with no turn rows, still open past the grace window,
+  // is closed as `failed` — honest: something started and never finished.
+  function reclaimOrphanRuns({ now = Date.now(), graceMs = 30 * 60_000 } = {}) {
+    const cutoff = now - graceMs;
+    const rows = db
+      .prepare(`
+        SELECT r.run_id, r.started_at FROM fleet_runs r
+        WHERE r.status = 'open' AND r.started_at < ?
+          AND NOT EXISTS (SELECT 1 FROM member_turn_events e WHERE e.run_id = r.run_id)
+      `)
+      .all(cutoff);
+    for (const r of rows) {
+      db.prepare("UPDATE fleet_runs SET status = 'failed', ended_at = ?, turns = 0 WHERE run_id = ?").run(r.started_at, r.run_id);
+    }
+    return rows.length;
   }
 
   // Unique-post lookup (design D8): where is this persona/cluster on duty?
@@ -941,6 +964,7 @@ export function createFleetDatabase({ file } = {}) {
     listRunTurns,
     edgeTraffic,
     pruneRuns,
+    reclaimOrphanRuns,
     appendDecision,
     getDecision,
     listDecisions,

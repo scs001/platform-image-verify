@@ -635,3 +635,23 @@ test("annotateFleetTurns: hits get post attribution, misses stay untouched", asy
   // pure: input rows untouched
   assert.equal(turns[0].fleet, undefined);
 });
+
+// ── 12. orphan-open reclaim (add-cockpit-run-reclaim) ──────────────────────
+
+test("orphan sweep: a header whose turn never wrote a row is closed past grace; a live one is untouched", () => {
+  fixtureFleet(fleetDb, { members: [member("m_up")] });
+  const ledger = createFleetTurnLedger({ db: fleetDb });
+  const stale = ledger.begin(rootJob("f_run", "m_up", "j_gone"), { startedAt: Date.now() - 3 * 3600_000 });
+  const live = ledger.begin(rootJob("f_run", "m_up", "j_live"), { startedAt: Date.now() });
+  assert.equal(fleetDb.getRun(stale.runId).status, "open");
+  assert.equal(fleetDb.reclaimOrphanRuns(), 1, "only the stale zero-turn header is reclaimed");
+  const gone = fleetDb.getRun(stale.runId);
+  assert.equal(gone.status, "failed");
+  assert.equal(gone.turns, 0);
+  assert.equal(gone.endedAt, stale.startedAt, "closed at its own start — nothing ever happened");
+  assert.equal(fleetDb.getRun(live.runId).status, "open", "in-flight stays open");
+  // A run WITH turn rows is never reclaimed by this sweep (settle owns it).
+  const withTurn = ledger.begin(rootJob("f_run", "m_up", "j_turn"), { startedAt: Date.now() - 3 * 3600_000 });
+  fleetDb.appendTurnEvent({ fleetId: "f_run", memberId: "m_up", source: "cron", status: "ok", startedAt: 1, endedAt: 2, runId: withTurn.runId, turnId: withTurn.turnId });
+  assert.equal(fleetDb.reclaimOrphanRuns(), 0, "a run with rows is not an orphan");
+});

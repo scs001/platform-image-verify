@@ -1086,13 +1086,21 @@ engine.addOnFinished((t) => {
     ctx.fleetTurnLedger?.settle(t?.origin?.fleet?.chain?.runId ?? null, { excludeTaskId: t?.id ?? null });
   } catch { /* the engine hook must never throw into the lifecycle */ }
 });
-setInterval(() => {
+// Run-ledger hygiene: prune ages closed headers and over-floor turn rows out;
+// reclaimOrphanRuns closes headers whose turn never wrote a row (a pod roll
+// mid-turn leaves one, and no future engine event can ever settle it —
+// add-cockpit-run-reclaim). Both run at boot and hourly: boot catches what the
+// previous process leaked, since the leak predates this process's listeners.
+const sweepRuns = () => {
   try {
-    getFleetDatabase().pruneRuns();
+    const swept = getFleetDatabase().pruneRuns();
+    if (swept.orphans) console.warn(`[fleet-runs] reclaimed ${swept.orphans} orphan open run(s)`);
   } catch (e) {
-    console.warn(`[fleet-runs] prune failed: ${e?.message || e}`);
+    console.warn(`[fleet-runs] sweep failed: ${e?.message || e}`);
   }
-}, 60 * 60 * 1000).unref();
+};
+sweepRuns();
+setInterval(sweepRuns, 60 * 60 * 1000).unref();
 
 // Turn result events (add-fleet-turn-events D1/D2): the cron-runner seam calls
 // this after every member turn; recordTurnEvent resolves attribution

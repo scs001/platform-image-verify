@@ -2252,3 +2252,13 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **出片与验证**：快照 **f5b99a2**(源 paas 4026e7a6,digest 44af1685 ccr 实证)四面同代滚(GitOps a93cab6)。**滚完启动即验**:日志 `[fleet-runs] reclaimed 3 orphan open run(s)` / `reclaimed 1 orphan open run(s)`(两 cell 共 4 条历史遗留),该舰队 open 归零,run_d92b41 落 failed/0 回合/endedAt=startedAt。
 
 **顺带判明**：时间线半数 run 无 usage **不是 bug**——usage 缺失与 trace 缺失严格对应,全部是 v2 上线前(id ≤62)的旧回合;v2 之后每个回合 usage 齐全(如 8545+994/612+464)。诚实缺失,不回填。
+
+### §15.46 /admin/metrics 运维快照面（2026-10-26，用户令「继续优化」）
+
+**动机**：本轮 embed 车道三修（§15.45）全程靠 grep 日志+临时探针诊断，每次都要进 pod 跑脚本——把同一批信号做成一条 POST。
+
+**实现**（fd-memory 06270d5，滚产 sha-e6777c3）：进程内计数器 + `POST /admin/metrics`（runner/platform 令牌可读，person 拒；沿 admin 面 POST 惯例）——digest rung 分布（vector/keyword/冷却+占比）、embed 延迟 p50/p90/max+失败原因分桶（deadline/cooling_down/具体错误）、蒸馏产出率（runs/pages/tokens/failures/last_error）。进程生命周期窗口计数，日志仍是审计真源（不落库、不加表）。70/70 绿（分位/分桶/权限双测）。
+
+**真机验收**：构造 3 发 digest 后单次 POST 即得——total 3、vector 1/keyword 2（ratio 0.333）、embed failed 3（2× deadline + 1× cooling_down）。过去需要 grep 日志才能拿到的判断，现一条 curl 到位。
+
+**用途**：后续任何记忆面优化的 baseline/对比都走这个面；日常巡检（vector_ratio 掉、embed failed 涨、distill failures 涨）也可以直接告警判据。

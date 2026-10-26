@@ -2333,7 +2333,8 @@
       "paused": "En pause",
       "missing": "En retard",
       "vacant": "Vacant",
-      "passive": "En attente"
+      "passive": "En attente",
+      "failing": "À surveiller"
     },
     "evidence": {
       "lastRun": "Dernier tour",
@@ -2568,6 +2569,11 @@
       "confirm": "Appliquer le brouillon",
       "edgeKind": "Type de nouvelle arête",
       "removed": "{{n}} arête(s) à retirer"
+    },
+    "failure": {
+      "streak": "{n} tours échoués d'affilée",
+      "lastKind": "dernière cause",
+      "since": "depuis"
     }
   },
   "facetCurate": {

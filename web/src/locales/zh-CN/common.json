@@ -2333,7 +2333,8 @@
       "paused": "已暂停",
       "missing": "超时未报",
       "vacant": "空缺",
-      "passive": "待命"
+      "passive": "待命",
+      "failing": "需关注"
     },
     "evidence": {
       "lastRun": "上次执行",
@@ -2568,6 +2569,11 @@
       "confirm": "落地草稿",
       "edgeKind": "新边类型",
       "removed": "标记移除 {{n}} 条边"
+    },
+    "failure": {
+      "streak": "连续失败 {n} 次",
+      "lastKind": "最近原因",
+      "since": "自"
     }
   },
   "facetCurate": {

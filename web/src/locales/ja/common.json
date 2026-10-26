@@ -2333,7 +2333,8 @@
       "paused": "停止中",
       "missing": "未報告",
       "vacant": "欠員",
-      "passive": "待機"
+      "passive": "待機",
+      "failing": "要注意"
     },
     "evidence": {
       "lastRun": "前回実行",
@@ -2568,6 +2569,11 @@
       "confirm": "ドラフトを適用",
       "edgeKind": "新しい辺の種類",
       "removed": "{{n}} 本の辺を削除指定"
+    },
+    "failure": {
+      "streak": "{n} 回連続で失敗",
+      "lastKind": "直近の原因",
+      "since": "開始"
     }
   },
   "facetCurate": {

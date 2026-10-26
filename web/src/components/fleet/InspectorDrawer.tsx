@@ -40,6 +40,11 @@ export interface InspectorMember {
   // whether a make-up run is in flight right now.
   missedRounds?: number;
   catchUpPending?: boolean;
+  // Failure attribution (fix-fleet-failure-visibility): why a post reads
+  // `failing` — streak length, newest failure kind, and when the run started.
+  failureStreak?: number;
+  failingSince?: string | null;
+  lastErrorKind?: string | null;
   evidence: { lastRunAt: string | null; nextRunAt: string | null; staleWindowMs: number | null; latestReportAt: number | null; hitWindow: string | null };
   latestReport: { at: number; summary: string; source: string; sessionId: string | null; slots: { key: string; label: string; unit: string | null; value: string | number; trend: { direction: string; deltaValue: number | null } | null }[] } | null;
   lastTurn: { status: string; errorKind: string | null; error: string | null; endedAt: number; sessionId: string | null } | null;
@@ -298,6 +303,15 @@ export function MemberInspector({
                   {member.lastTurn.errorKind ? ` · ${member.lastTurn.errorKind}` : ""}
                   {member.consecutiveFailures >= 3 ? ` · ${t("fleets.turn.consecutive")} ×${member.consecutiveFailures}` : ""}
                 </p>
+                {/* A downgraded post must say WHY in the same breath as the
+                    colour (fix-fleet-failure-visibility): streak, cause, since. */}
+                {member.status === "failing" ? (
+                  <p className="mt-1 text-amber-600 dark:text-amber-400" data-testid="inspector-failing">
+                    {t("fleets.failure.streak", { n: member.failureStreak ?? member.consecutiveFailures ?? 0 })}
+                    {member.lastErrorKind ? ` · ${t("fleets.failure.lastKind")}: ${member.lastErrorKind}` : ""}
+                    {member.failingSince ? ` · ${t("fleets.failure.since")}: ${fmtTime(member.failingSince, locale)}` : ""}
+                  </p>
+                ) : null}
                 {member.lastTurn.sessionId ? (
                   <button type="button" className="mt-1 rounded-md border border-border px-1.5 py-px hover:bg-muted" onClick={() => navigate(`/chat/${encodeURIComponent(member.lastTurn!.sessionId!)}`)}>
                     {t("fleets.report.openSession")}

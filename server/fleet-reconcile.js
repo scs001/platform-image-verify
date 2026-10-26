@@ -205,13 +205,35 @@ export async function reconcileAllFleets({ db, cronApi, resolveTarget, rosterPre
 // ── On-duty derivation (read-time, never stored) ─────────────────────────────
 
 // Precedence: vacant (incumbent object gone) → passive (no cadence) → paused
-// (either pause layer) → missing (no task / beyond tolerance window) → on_duty.
+// (either pause layer) → missing (no task / beyond tolerance window) →
+// failing (consecutive failed rounds) → on_duty.
 // The tolerance is DUAL-WINDOW once the report lane exists (agent-fleet-
 // report-lane): an execution beyond the window OR a report beyond the window
 // (when the post has ever reported) both read 失联 — evidence names which
 // window fired. The evidence fields explain WHY a post reads the way it does
 // (design D5).
-export function deriveMemberStatus({ member, fleet, task, targetAlive, latestReport = null, now = Date.now() }) {
+//
+// `failureStreak`/`failureSince`/`lastFailureKind` come from the turn stream
+// (fix-fleet-failure-visibility D3): the function stays pure, the caller has
+// already read the streak. Without them a post that failed twelve rounds in a
+// row still read `on_duty` — the console was green while nothing was produced.
+const FAILING_STREAK_DEFAULT = 3;
+function failingThreshold() {
+  const raw = Number(process.env.PLATFORM_FLEET_FAILING_STREAK);
+  return Number.isFinite(raw) && raw > 0 ? raw : FAILING_STREAK_DEFAULT;
+}
+
+export function deriveMemberStatus({
+  member,
+  fleet,
+  task,
+  targetAlive,
+  latestReport = null,
+  now = Date.now(),
+  failureStreak = 0,
+  failureSince = null,
+  lastFailureKind = null,
+}) {
   const evidence = {
     lastRunAt: task?.lastRun ?? null,
     nextRunAt: task?.nextRun ?? null,
@@ -229,6 +251,11 @@ export function deriveMemberStatus({ member, fleet, task, targetAlive, latestRep
     lastMissedAt: task?.lastMissedAt ?? null,
     lastMissedReason: task?.lastMissedReason ?? null,
     catchUpPending: task?.catchUpPending === true,
+    // Failure dimension (fix-fleet-failure-visibility D4): the streak and its
+    // attribution ride every read, so a downgraded post can always say why.
+    failureStreak: failureStreak ?? 0,
+    failingSince: failureSince ?? null,
+    lastErrorKind: lastFailureKind ?? null,
   };
 
   if (targetAlive === false) {
@@ -285,6 +312,22 @@ export function deriveMemberStatus({ member, fleet, task, targetAlive, latestRep
   if (evidence.latestReportAt != null && now - evidence.latestReportAt > window) {
     evidence.hitWindow = "report";
     return { status: "missing", reason: `no report for over the tolerance window (${Math.round(window / 3_600_000)}h)`, evidence };
+  }
+
+  // Failure dimension (fix-fleet-failure-visibility D2/D5): a recent execution
+  // is not the same as a WORKING post. Consecutive failed rounds downgrade the
+  // status — a green console over twelve failed rounds is the one failure mode
+  // an unattended product cannot afford. `missing` keeps precedence above
+  // (losing the signal entirely is worse than failing repeatedly); `interrupted`
+  // rounds never count as failures, and one successful round clears this.
+  const threshold = failingThreshold();
+  if (evidence.failureStreak >= threshold) {
+    const kind = evidence.lastErrorKind ? ` (last: ${evidence.lastErrorKind})` : "";
+    return {
+      status: "failing",
+      reason: `${evidence.failureStreak} consecutive failed rounds${kind}`,
+      evidence,
+    };
   }
   return { status: "on_duty", reason: "recent execution within tolerance", evidence };
 }

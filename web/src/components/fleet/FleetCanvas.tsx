@@ -94,6 +94,10 @@ const STATUS_RING: Record<string, string> = {
   missing: "#f59e0b",
   vacant: "#ef4444",
   passive: "#94a3b8",
+  // fix-fleet-failure-visibility: a post whose rounds keep failing produces
+  // NOTHING while its trigger keeps firing — louder than `missing` (which at
+  // least means "no signal"), distinct from the vacancy red.
+  failing: "#dc2626",
 };
 
 function trendGlyph(t: CanvasSlot["trend"]): string {

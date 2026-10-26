@@ -2333,7 +2333,8 @@
       "paused": "En pausa",
       "missing": "Atrasado",
       "vacant": "Vacante",
-      "passive": "En espera"
+      "passive": "En espera",
+      "failing": "Requiere atención"
     },
     "evidence": {
       "lastRun": "Última ejecución",
@@ -2568,6 +2569,11 @@
       "confirm": "Aplicar borrador",
       "edgeKind": "Tipo de arista nueva",
       "removed": "{{n}} arista(s) marcadas para quitar"
+    },
+    "failure": {
+      "streak": "{n} rondas fallidas seguidas",
+      "lastKind": "última causa",
+      "since": "desde"
     }
   },
   "facetCurate": {

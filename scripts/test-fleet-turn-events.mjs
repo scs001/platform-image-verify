@@ -366,7 +366,13 @@ test("memberView/cockpit: lastTurn + consecutiveFailures ride along; presence un
     assert.equal(view.lastTurn.errorKind, "timeout");
     assert.equal(view.lastTurn.sessionId, "s-2");
     assert.equal(view.consecutiveFailures, 2);
-    assert.equal(cock.health.failing, 1, "on-duty post with a failed latest turn counts");
+    // fix-fleet-failure-visibility: health.failing derives from the STATUS,
+    // so a two-round streak (below the default threshold of 3) is still a
+    // working post — it keeps its colour and does not count as failing.
+    assert.equal(cock.health.failing, 0, "a sub-threshold streak does not downgrade the post");
+    assert.equal(view.status, "on_duty", "two failed rounds stay on duty");
+    assert.equal(view.failureStreak, 2, "the streak itself is always visible");
+    assert.equal(view.lastErrorKind, "timeout", "attribution names the newest failure");
     assert.equal(cock.health.total, cock.members.length);
 
     const tl = await (await fetch(`${base}/api/fleets/${fleet.id}/members/m_view/turns?limit=1`)).json();

@@ -2333,7 +2333,8 @@
       "paused": "Paused",
       "missing": "Overdue",
       "vacant": "Vacant",
-      "passive": "On call"
+      "passive": "On call",
+      "failing": "Needs attention"
     },
     "evidence": {
       "lastRun": "Last run",
@@ -2568,6 +2569,11 @@
       "confirm": "Apply draft",
       "edgeKind": "New edge kind",
       "removed": "{{n}} edge(s) marked removed"
+    },
+    "failure": {
+      "streak": "{n} consecutive failed rounds",
+      "lastKind": "last cause",
+      "since": "since"
     }
   },
   "facetCurate": {

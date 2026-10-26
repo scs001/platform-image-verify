@@ -2398,3 +2398,13 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **共享池坑双复发+真凶**：BUILD_DOCKERFILE 改回后仍失败——真凶是并行会话留下的 **BUILD_CONTEXT=wanxing-web**（第二个变量）。两个变量都复位后一次绿。共享池纪律：用完复位**所有** BUILD_* 变量，不只 DOCKERFILE。
 
 **存量清理**：mission-planner 等根的历史重复 L2 未动（supersede 只影响未来蒸馏产出）；如需清理可构造同前缀分组脚本批量 supersede，等用户决定。
+
+### §15.54 存量清理：320 张重复 L2 读面退役（2026-10-26，用户令「继续优化」）
+
+**干跑报告**：mission-planner 62% / spider-heal 60% 是重复（279→106、209→83 的价值区间），wx-alpha 14%。
+
+**执行**：23+19+13=55 张最新 page 的 frontmatter.supersedes 汇总 320 张旧页 id——文件保留、读面退役（复用 §15.51 全库过滤，零新增机制）。audit 记账 principal=maintenance:patrol-echo-cleanup。
+
+**复验**：召回 top-8 全部是不同语义的 mission-protocol 任务指令（score 0.78-0.80），不再是 45 张同前缀重复页——**召回质量决定性改善**。退役计数与引擎历史自带 supersede 叠加核对一致（mission-planner 0.211w、spider-heal 0.161w、wx-alpha 0.90w，均含引擎原有退役集）。
+
+至此蒸馏经济闭环：产出侧去重（§15.53 停未来）+ 存量清理（§15.54 治历史）。

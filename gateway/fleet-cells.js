@@ -62,13 +62,13 @@ export function createCellFleetReporter({
     }
   }
 
-  async function sampleCell(userId, port, path) {
+  async function sampleCell(forwardedIdentity, port, path) {
     try {
       const res = await fetchImpl(`http://127.0.0.1:${port}${path}`, {
         headers: {
           // The gateway's own forged-identity channel: owner identity plus
           // the shared secret cells require before trusting the headers.
-          "x-forwarded-email": userId,
+          "x-forwarded-email": forwardedIdentity,
           [GATEWAY_SECRET_HEADER]: secret,
         },
         signal: AbortSignal.timeout(SAMPLE_TIMEOUT_MS),
@@ -99,10 +99,14 @@ export function createCellFleetReporter({
   // Projection lane (agent-fleet-cockpit-projection): relay each live cell's
   // fleet overview verbatim. The cell-side endpoint already bounds payload
   // (50 fleets cap, snipped text); nothing here truncates further.
+  // IDENTITY SPLIT: the registry key is userIdFor(email) = a hex id, while
+  // /api/fleets/overview gates on the OWNER EMAIL (cell users are single-
+  // owner) — so this lane forwards cell.email (the stats lane's hex identity
+  // would 403). The event agent keeps the hex userId so the two lanes join.
   async function tickFleets() {
     const events = [];
     for (const [userId, cell] of liveCells()) {
-      const payload = await sampleCell(userId, cell.port, "/api/fleets/overview");
+      const payload = await sampleCell(cell.email ?? userId, cell.port, "/api/fleets/overview");
       if (!payload) continue;
       events.push({
         id: randomUUID(),

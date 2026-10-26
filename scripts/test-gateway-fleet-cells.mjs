@@ -196,3 +196,32 @@ test("cell_fleets kill switch: enable=0 → no overview traffic at all", async (
   assert.equal(fetchImpl.calls.filter((c) => c.url.includes("/api/fleets/overview")).length, 0);
   r.stop();
 });
+
+test("projection lane: hex registry key + cell.email forwards owner email; email-less falls back to hex", async () => {
+  const fetchImpl = recordingFetch({
+    cells: {
+      "http://127.0.0.1:4001/api/fleets/overview": { v: 1, sampledAt: 1_700_000_000_000, fleets: [{ id: "fx" }] },
+      "http://127.0.0.1:4002/api/fleets/overview": { v: 1, sampledAt: 1_700_000_000_000, fleets: [{ id: "fy" }] },
+    },
+  });
+  const r = createCellFleetReporter({
+    registry: fakeRegistry([
+      ["3fdc7b8e8ac03b68", { port: 4001, state: "running", email: "alice@test" }],
+      ["1da519d4c1c0bf89", { port: 4002, state: "running" }], // no email → hex fallback (old behavior for stats-shaped endpoints)
+    ]),
+    secret: "gw-secret",
+    fetchImpl,
+    env: ENV,
+    startImmediate: false,
+  });
+  await r.tickFleets();
+  const samples = fetchImpl.calls.filter((c) => c.url.includes("/api/fleets/overview"));
+  const byPort = new Map(samples.map((s) => [s.url.match(/:(\d+)/)[1], s]));
+  assert.equal(byPort.get("4001").opts.headers["x-forwarded-email"], "alice@test", "owner email forwarded (overview gates on it)");
+  assert.equal(byPort.get("4002").opts.headers["x-forwarded-email"], "1da519d4c1c0bf89", "email-less cell keeps hex fallback");
+  // Event identity stays the hex userId so both lanes join on board.cells keys.
+  const ingest = fetchImpl.calls.find((c) => c.url.endsWith("/ingest"));
+  const events = JSON.parse(ingest.opts.body).events;
+  assert.deepEqual(events.map((e) => e.agent).sort(), ["cell:1da519d4c1c0bf89", "cell:3fdc7b8e8ac03b68"]);
+  r.stop();
+});

@@ -2265,6 +2265,19 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 
 **上产与真机验收（2026-10-27）**：后端主体随 attribution 班 sha-4b502c9 先行上产;前端配套随统一代收拢 `sha-99e6aaf`(GitOps `05216e9`,注释「config-dims+effort+turn-attribution+veracity+locale 补齐全代并集」)滚完。in-pod 四标记全中:`latestRealTurnFor`/`readyWaitMs`(后端 2 处各中)、bundle 含「本轮未执行」(前端五语打包实证)。生产 API 实证:`turns?status=skipped` 200(过滤接受新枚举)、bogus 值 400 文案列出 skipped、投稿岗 memberView 带齐 `failing/failureStreak=3/failingSince/lastErrorKind=runtime_not_ready/skippedRounds=0`(§一在场、读面字段在产)。skipped 自然行暂为零(120s 等待吸收了滚版窗=设计目的),**观察项**:下一次真实长故障窗应见 skipped≤1/窗的实证而非 0 秒失败潮。wire 根因函 `docs/fleet-turn-reliability-response.md` 可发;归档前 sync 时折叠 attribution 案 spec 文本(presence 行须对齐仲裁)。
 
+
+### §15.62 cell 生命周期落地起棒：桌面 steward 常驻化 (add-cell-lifecycle 桌面章①②，2026-10-27)
+
+**背景（前一棒立案）**：用户定调「多 agents 系统里有些 cell 不该常驻、有些创建后应解绑等需求」——cell 生命周期机制立案（注册/居住策略/唤醒/销毁三路，词汇单源云端桌面两执行体）。当日 wire 四缺口另线全案上产（§一 failure-visibility / §二 veracity / §三四 attribution），本案按 Q22 排棒从桌面章①②起（supervisor 常驻化是客户 deadline 的硬需求）。**仲裁留名**：三会并行期本会话 veracity 后端两截被 lapel 会话 f2495b17 扫入、af3b8615 如实补回（§15.55 已记）——提交纪律再重申：入袋前 `git status 只核本文件清单`。
+
+**实现（d6e7375e，19 件）**：①`supervisor/steward-main.js` 常驻宿主=同一 Electron-无关 Supervisor+控制面（mac Unix sock / Win named pipe，JSON-lines，帧带 protocolVersion 不符显式拒），discovery=steward.json(0600)+steward.pid 纯数字孪生（NSIS 免解析 JSON）；②`electron/main.js` attach 优先三分支（steward 在→shim 代理全 IPC、UI 退出不排干；无 steward→嵌入式原样；pid 活 socket 死→显式拒第二栈——本机制防的就是一根数据根两栈）；③零 admin 自启：mac LaunchAgent+KeepAlive、Win schtasks ONLOGON LIMITED，安装=Preferences「后台管家」tab 明示步骤+三事同意文案（常驻/自启/配对后心跳），卸载 drainQuit→解注册+孤儿自净（.app 拖删自检退出）；④居住策略引擎 `supervisor/steward-policy.js`：always=栈活、on_demand=读 `data/cron-store/jobs.json` 时刻表唤醒+control 活动/最后执行静默 15min 排干、manual=不装管家的世界；⑤排干更新链：steward.pid+NSIS include customInit/customUnInstall pid 精确 taskkill（绝不 /IM node.exe），自启路径稳定版跨包。
+
+**词汇基座**：`lib/cell-lifecycle.js`（状态机 unbound→destroyed/策略三档/白名单字段/transition 纯函）+`lib/cell-registry.js`（行 schema v1+幂等迁移+JSON-ledger 原子写）——云端章同引用，spec 单源不分叉。
+
+**测试**：四套新单测 **22/22**（cell-lifecycle 6/steward-control 5/steward-policy 6/steward-install 5：状态机迁移表/握手与 major 拒斥/drainQuit 退出/策略持久/唤醒静默排干/挂起不可见/consent 文案三事/零 admin 断言）+ web typecheck 绿。
+
+**挂账（按 Q22 次序）**：云端章（spawner 注册表+值班环唤醒+销毁，§15.59 的滚版全黑是其头号动机）、桌面③（device-pairing 配对+presence/manifest 白名单上行）与 ④（销毁三路合龙+owner-offline 读面）、真机八幕验收链（Mac/Win 装/跑/关 UI/睡眠/关机/卸载/撤销）——均属后续棒；真机首裁应先装一台 steward 试 attach 三分支。
+
 ### §15.46 /admin/metrics 运维快照面（2026-10-26，用户令「继续优化」）
 
 **动机**：本轮 embed 车道三修（§15.45）全程靠 grep 日志+临时探针诊断，每次都要进 pod 跑脚本——把同一批信号做成一条 POST。

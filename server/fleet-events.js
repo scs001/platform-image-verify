@@ -24,6 +24,10 @@ export const ERROR_KINDS = [
   "tool_permission",
   "model_upstream",
   "business_refused",
+  // A turn that ran fine but exceeded its post's declared context budget
+  // (add-agent-config-dims): its own kind, because the remedy is "raise the
+  // budget or shorten the work", not "fix a provider or a permission".
+  "context_budget",
   "other",
 ];
 
@@ -106,15 +110,25 @@ export function normalizeUsage(u) {
 
 // The outcome → event-field shaping (status/errorKind/error/model/usage),
 // pure, shared with the ledger.
-export function shapeTurnOutcome(outcome, { model = null } = {}) {
+export function shapeTurnOutcome(outcome, { model = null, contextBudget = null } = {}) {
   const ok = outcome?.ok === true;
   const interrupted = outcome?.interrupted === true;
+  const usage = normalizeUsage(outcome?.usage);
+  // Context budget (add-agent-config-dims D3): judged at settlement, from the
+  // usage the runtime actually reported. No usage → no basis → never judged
+  // (an invented zero would fail turns nobody measured).
+  const spent = usage && (usage.input != null || usage.output != null) ? (usage.input ?? 0) + (usage.output ?? 0) : null;
+  const overBudget = ok && Number.isFinite(contextBudget) && spent != null && spent > contextBudget;
   return {
-    status: ok ? "ok" : interrupted ? "interrupted" : "failed",
-    errorKind: ok ? null : classifyErrorKind(outcome?.error),
-    error: ok ? null : String(outcome?.error ?? "execution failed").slice(0, 500),
+    status: overBudget ? "failed" : ok ? "ok" : interrupted ? "interrupted" : "failed",
+    errorKind: overBudget ? "context_budget" : ok ? null : classifyErrorKind(outcome?.error),
+    error: overBudget
+      ? `context budget exceeded: spent ${spent} tokens, budget ${contextBudget}`
+      : ok
+        ? null
+        : String(outcome?.error ?? "execution failed").slice(0, 500),
     model: model ?? outcome?.usage?.model ?? null,
-    usage: normalizeUsage(outcome?.usage),
+    usage,
   };
 }
 
@@ -124,7 +138,7 @@ export function shapeTurnOutcome(outcome, { model = null } = {}) {
 // ledger opened this turn, `ledgerTurn` — the handle whose turnId/runId/chain
 // position/trace key land on the row. Returns the stored event, or null when
 // the turn carries no fleet attribution.
-export function recordTurnEvent(db, job, outcome, { startedAt, endedAt, model = null, rosterPresetId = (id) => id, ledgerTurn = null } = {}) {
+export function recordTurnEvent(db, job, outcome, { startedAt, endedAt, model = null, rosterPresetId = (id) => id, ledgerTurn = null, contextBudget = null } = {}) {
   // Single derivation source (agent-turn-contract): attribution and source
   // both read off the same turnRequest — one rule for both doors.
   const request = buildTurnRequest(job);
@@ -133,7 +147,7 @@ export function recordTurnEvent(db, job, outcome, { startedAt, endedAt, model = 
     : resolveTurnPost(db, request, rosterPresetId);
   if (!post?.fleetId || !post?.memberId) return null;
 
-  const shaped = shapeTurnOutcome(outcome, { model });
+  const shaped = shapeTurnOutcome(outcome, { model, contextBudget });
   return db.appendTurnEvent({
     fleetId: post.fleetId,
     memberId: post.memberId,

@@ -218,7 +218,21 @@ async function normalizeModelForJob(ctx, preset) {
   } else {
     ctx.recordFleetModelNotices?.(plan.memberId, []);
   }
-  return { ok: true };
+  // Thinking depth (add-agent-config-dims D1): applied per turn through the
+  // LIVE model/set path — no child restart. Same-value switches are skipped
+  // (the runtime is already there). A failed effort switch degrades open: the
+  // turn runs on whatever level is live rather than failing over a knob.
+  const effortNotices = [...(plan.effortNotices ?? [])];
+  if (plan.effort && plan.effort !== (ctx.currentEffort ?? null)) {
+    try {
+      const r = await ctx.switchEffortTo?.(plan.effort);
+      if (r && r.ok === false) effortNotices.push(`thinking level switch to '${plan.effort}' failed: ${r.error ?? "unknown error"}`);
+    } catch (e) {
+      effortNotices.push(`thinking level switch to '${plan.effort}' failed: ${e?.message || e}`);
+    }
+  }
+  if (effortNotices.length) console.warn(`[fleets] post config for ${plan.memberId}: ${effortNotices.join("; ")}`);
+  return { ok: true, effort: plan.effort ?? null, effortNotices, contextBudget: plan.contextBudget ?? null };
 }
 
 // ── Member executors ─────────────────────────────────────────────────────────
@@ -332,6 +346,7 @@ export async function awaitRuntimeReadyForJob(ctx, job, {
 }
 
 async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Date.now() } = {}) {
+  let contextBudget = null;
   // Unattended fleet rounds land on cold cells: the platform boots its dsh
   // child in the background, so a 09:00 cron can fire before the runtime is
   // ready and the whole patrol is lost (2026-10-25 live: one daily patrol
@@ -363,6 +378,9 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
       releaseReservation?.();
       return modeled;
     }
+    // Carry the post's context budget to the settlement seam (add-agent-config-dims):
+    // the budget is a property of THIS turn's post, so it rides the turn result.
+    if (Number.isFinite(modeled.contextBudget)) contextBudget = modeled.contextBudget;
   }
 
   const sessionId = job.sessionId || `cron-${job.id}`;
@@ -423,7 +441,7 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
     .catch((e) => console.error("[cron] sessions refresh failed:", e.message));
 
   if (result.error) return { ok: false, error: result.error };
-  return { ok: true, usage: result.usage ?? null, text: result.text ?? null };
+  return { ok: true, usage: result.usage ?? null, text: result.text ?? null, contextBudget };
 }
 
 // ── Cluster task orchestration (agent-cluster-platform) ─────────────────────
@@ -844,6 +862,9 @@ export function attachCronRunner(ctx, { runPersona = null, runA2a = null, runToo
       ctx.recordFleetTurnEvent?.(job, out, {
         startedAt,
         endedAt: Date.now(),
+        // The post's context budget (add-agent-config-dims): judged at
+        // settlement from the usage the runtime actually reported.
+        contextBudget: Number.isFinite(out?.contextBudget) ? out.contextBudget : null,
         // Best-effort model metadata: providers that stamp usage win, else
         // the runtime's landed model (persona turns leave it where they
         // landed — add-fleet-post-model D6), else the cluster's first member.

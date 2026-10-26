@@ -125,6 +125,22 @@ export function createFleetDatabase({ file } = {}) {
   } catch {
     /* column already exists */
   }
+  // Config dimensions beyond the model (add-agent-config-dims): thinking depth
+  // and a per-turn context budget, declared at post AND fleet level with the
+  // same inherit-down semantics as models. Nullable by design — unset = inherit
+  // = byte-identical to before, and a rollback needs no data migration.
+  for (const col of [
+    "ALTER TABLE fleet_members ADD COLUMN effort TEXT",
+    "ALTER TABLE fleet_members ADD COLUMN context_budget INTEGER",
+    "ALTER TABLE fleets ADD COLUMN effort TEXT",
+    "ALTER TABLE fleets ADD COLUMN context_budget INTEGER",
+  ]) {
+    try {
+      db.exec(col);
+    } catch {
+      /* column already exists */
+    }
+  }
   // Orchestration section (add-fleet-orchestration): the declarative edge
   // grammar — nullable, JSON, validated at the route write face. Unset =
   // schedule = byte-identical behavior.
@@ -248,8 +264,8 @@ export function createFleetDatabase({ file } = {}) {
   function createFleet(fleet) {
     const now = Date.now();
     db.prepare(`
-      INSERT INTO fleets (id, name, owner_email, state, decision_policy, source_template, default_model, orchestration, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO fleets (id, name, owner_email, state, decision_policy, source_template, default_model, effort, context_budget, orchestration, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       fleet.id,
       fleet.name,
@@ -258,6 +274,8 @@ export function createFleetDatabase({ file } = {}) {
       fleet.decisionPolicy ? JSON.stringify(fleet.decisionPolicy) : null,
       fleet.sourceTemplate ? JSON.stringify(fleet.sourceTemplate) : null,
       fleet.defaultModel ?? null,
+      fleet.effort ?? null,
+      Number.isFinite(fleet.contextBudget) ? fleet.contextBudget : null,
       fleet.orchestration ? JSON.stringify(fleet.orchestration) : null,
       now,
       now,
@@ -271,7 +289,7 @@ export function createFleetDatabase({ file } = {}) {
   }
 
   function updateFleet(id, updates, meta = null) {
-    const COLUMNS = { name: "name", state: "state", defaultModel: "default_model" };
+    const COLUMNS = { name: "name", state: "state", defaultModel: "default_model", effort: "effort", contextBudget: "context_budget" };
     const setParts = [];
     const values = [];
     for (const [key, value] of Object.entries(updates)) {
@@ -350,8 +368,8 @@ export function createFleetDatabase({ file } = {}) {
   function createMember(member) {
     const now = Date.now();
     db.prepare(`
-      INSERT INTO fleet_members (id, fleet_id, title, parent_id, target_kind, target_id, kpi_slots, cadence, model, fallback_model, sort_key, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO fleet_members (id, fleet_id, title, parent_id, target_kind, target_id, kpi_slots, cadence, model, fallback_model, effort, context_budget, sort_key, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       member.id,
       member.fleetId,
@@ -363,6 +381,8 @@ export function createFleetDatabase({ file } = {}) {
       member.cadence ? JSON.stringify(member.cadence) : null,
       member.model ?? null,
       member.fallbackModel ?? null,
+      member.effort ?? null,
+      Number.isFinite(member.contextBudget) ? member.contextBudget : null,
       Number.isFinite(member.sortKey) ? member.sortKey : now,
       now,
       now,
@@ -394,6 +414,8 @@ export function createFleetDatabase({ file } = {}) {
       targetId: "target_id",
       model: "model",
       fallbackModel: "fallback_model",
+      effort: "effort",
+      contextBudget: "context_budget",
     };
     const setParts = [];
     const values = [];
@@ -726,15 +748,31 @@ export function createFleetDatabase({ file } = {}) {
   // (ok/interrupted) stops the run. Aggregated from the stream by design —
   // no counter storage (spec: 不要求独立计数).
   function consecutiveFailures(memberId) {
+    return failureStreak(memberId).streak;
+  }
+
+  // The failure streak AND its attribution in ONE pass (fix-fleet-failure-
+  // visibility D4): a post that has failed N rounds in a row must be able to
+  // say WHY and SINCE WHEN, not just that a number is high. `since` is the
+  // oldest failure still in the streak; `lastErrorKind` is the newest one's
+  // category (the one an operator acts on first). Interrupted rounds are not
+  // failures — they stop the streak like any other non-failed row.
+  function failureStreak(memberId) {
     const rows = db
-      .prepare("SELECT status FROM member_turn_events WHERE member_id = ? ORDER BY id DESC")
+      .prepare(
+        "SELECT status, started_at, error_kind FROM member_turn_events WHERE member_id = ? ORDER BY id DESC",
+      )
       .all(memberId);
-    let n = 0;
+    let streak = 0;
+    let since = null;
+    let lastErrorKind = null;
     for (const r of rows) {
       if (r.status !== "failed") break;
-      n += 1;
+      if (streak === 0) lastErrorKind = r.error_kind ?? null;
+      since = r.started_at ?? since;
+      streak += 1;
     }
-    return n;
+    return { streak, since: streak > 0 ? since : null, lastErrorKind };
   }
 
   // ── run ledger (agent-fleet-runs) ─────────────────────────────────────────
@@ -956,6 +994,7 @@ export function createFleetDatabase({ file } = {}) {
     listFleetTurnEvents,
     latestTurnFor,
     consecutiveFailures,
+    failureStreak,
     insertRun,
     getRun,
     reopenRun,
@@ -987,6 +1026,8 @@ function deserializeFleet(row) {
     decisionPolicy: decisionPolicyOfRow(row),
     sourceTemplate: row.source_template ? JSON.parse(row.source_template) : null,
     defaultModel: row.default_model ?? null,
+    effort: row.effort ?? null,
+    contextBudget: row.context_budget ?? null,
     orchestration: row.orchestration ? JSON.parse(row.orchestration) : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -1033,6 +1074,8 @@ function deserializeMember(row) {
     cadence: row.cadence ? JSON.parse(row.cadence) : null,
     model: row.model ?? null,
     fallbackModel: row.fallback_model ?? null,
+    effort: row.effort ?? null,
+    contextBudget: row.context_budget ?? null,
     sortKey: row.sort_key,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

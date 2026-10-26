@@ -23,7 +23,7 @@ import { validateOrchestration, expandedEdges, dispatchAllowed, constraintsOf } 
 import { validateFleetDraft, applyFleetDraft } from "../fleet-architect.js";
 import { splitToolTarget } from "../tool-turn.js";
 import { resolveServerEndpoint, resolveStdioServerConfig } from "../../lib/action-executor.js";
-import { fleetModelChoiceError, resolveModelChain } from "../fleet-model.js";
+import { fleetModelChoiceError, resolveModelChain, validateConfigDims, effortUnionFrom } from "../fleet-model.js";
 import {
   validateReportPayload,
   resolveAttribution,
@@ -45,7 +45,6 @@ import * as dbModule from "../../db.js";
 
 const DENSE_CADENCE_MS = 10 * 60 * 1000; // design D7: <10min cadence needs confirmation
 const KPI_SLOT_LIMIT = 8;
-
 function resolveUserFactory(ctx) {
   return (req) =>
     req.user ?? (ctx?.authEnabled ? null : { email: ctx?.cellUserEmail || "owner@local", groups: [] });
@@ -209,11 +208,25 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
   // timestamp too); timeline preview is the first page — the drawer pages.
   const latest = db.latestReportFor(member.id);
   const previous = latest ? db.previousReport(member.id, latest.createdAt) : null;
-  const derived = deriveMemberStatus({ member, fleet, task, targetAlive: target.alive, latestReport: latest, now });
+  // Failure streak feeds the status derivation (fix-fleet-failure-visibility
+  // D3): one pass gives the count, when it started and what the newest
+  // failure was. Read BEFORE the derivation because it is an input to it.
+  const streak = db.failureStreak(member.id);
+  const derived = deriveMemberStatus({
+    member,
+    fleet,
+    task,
+    targetAlive: target.alive,
+    latestReport: latest,
+    now,
+    failureStreak: streak.streak,
+    failureSince: streak.since,
+    lastFailureKind: streak.lastErrorKind,
+  });
   // Turn outcome (add-fleet-turn-events D5): a SECOND dimension next to the
-  // presence derivation above — derived status stays byte-identical, the last
-  // turn's facts ride alongside. Passive posts read their latest wake turn;
-  // no turns yet reads as 尚未执行 in the UI, never as failure.
+  // presence derivation above. Since fix-fleet-failure-visibility the streak
+  // also feeds the STATUS (a failed post no longer reads on_duty); these fields
+  // remain the raw facts for the card.
   const lastTurn = db.latestTurnFor(member.id);
   // Post model (add-fleet-post-model F1/F3): declared values verbatim plus the
   // advisory effective model — what this post's NEXT turn would run on, given
@@ -252,6 +265,12 @@ function memberView(db, fleet, member, tasks, { now = Date.now(), resolver = res
     missedRounds: derived.evidence.missedRounds ?? 0,
     lastMissedAt: derived.evidence.lastMissedAt ?? null,
     catchUpPending: derived.evidence.catchUpPending === true,
+    // Failure attribution, top-level for the card (fix-fleet-failure-visibility):
+    // the streak is what downgraded the status — the card says so in the same
+    // breath as the colour, never a bare red dot.
+    failureStreak: derived.evidence.failureStreak ?? 0,
+    failingSince: derived.evidence.failingSince ?? null,
+    lastErrorKind: derived.evidence.lastErrorKind ?? null,
     latestReport: buildLatestView({ report: latest, previous, kpiSlots: member.kpiSlots }),
     reportTimeline: db.listReports(member.id, { limit: 5 }).map(reportTimelineEntry),
     lastTurn: lastTurn
@@ -882,10 +901,11 @@ export function createFleetRoutes(app, ctx = null) {
       );
       const statusCounts = {};
       for (const v of members) statusCounts[v.status] = (statusCounts[v.status] ?? 0) + 1;
-      // Failure dimension (add-fleet-turn-events D5): on-duty posts whose
-      // latest turn did not end ok. Presence counts below stay untouched —
-      // a missing post with a failed last turn counts in both dimensions.
-      const failing = members.filter((m) => m.status === "on_duty" && m.lastTurn && m.lastTurn.status !== "ok").length;
+      // Failure dimension: derived from the STATUS now (fix-fleet-failure-
+      // visibility D5). The old "latest turn !== ok" reading missed the case
+      // that matters most — a post that failed many rounds but happened to
+      // succeed last — and let `normal` count downgraded posts.
+      const failing = statusCounts.failing ?? 0;
 
       // Decisions: open, severity first then closest to policy expiry.
       const policy = owned.fleet.decisionPolicy ?? { expiryHours: 72 };
@@ -1394,7 +1414,7 @@ export function createFleetRoutes(app, ctx = null) {
       const owned = requireOwnedFleet(req, res);
       if (!owned) return;
       const { fleet } = owned;
-      const { name, state, defaultModel } = req.body ?? {};
+      const { name, state, defaultModel, effort, contextBudget } = req.body ?? {};
       const updates = {};
 
       if (name !== undefined) {
@@ -1430,6 +1450,13 @@ export function createFleetRoutes(app, ctx = null) {
         }
         updates.orchestration = orch;
       }
+
+      // Config dimensions at fleet level (add-agent-config-dims D4): the fleet
+      // default an undeclared post inherits. Same shape gate as the post PATCH.
+      const dims = validateConfigDims({ effort, contextBudget }, effortUnionFrom(ctx?.dshModels));
+      if (dims.error) return res.status(400).json({ error: dims.error });
+      if (effort !== undefined) updates.effort = dims.effort;
+      if (contextBudget !== undefined) updates.contextBudget = dims.contextBudget;
 
       const updated = getFleetDatabase().updateFleet(fleet.id, updates, auditMeta(req, `PATCH /api/fleets/${fleet.id}`));
       const reconcile = await runReconcile(fleet.id);
@@ -1551,7 +1578,7 @@ export function createFleetRoutes(app, ctx = null) {
       }
 
       const updates = {};
-      const { title, parentId, cadence, kpiSlots, model, fallbackModel } = req.body ?? {};
+      const { title, parentId, cadence, kpiSlots, model, fallbackModel, effort, contextBudget } = req.body ?? {};
 
       if (title !== undefined) {
         if (!title || typeof title !== "string" || !title.trim()) {
@@ -1597,6 +1624,15 @@ export function createFleetRoutes(app, ctx = null) {
         if (model !== undefined) updates.model = model;
         if (fallbackModel !== undefined) updates.fallbackModel = fallbackModel;
       }
+
+      // Config dimensions (add-agent-config-dims D5): the SAME shape gates as
+      // the model — an effort must be a level SOME known model declares (the
+      // union, since the effective model may change later), a budget must be a
+      // sane positive integer. null/"" clears a declaration.
+      const dims = validateConfigDims({ effort, contextBudget }, effortUnionFrom(ctx?.dshModels));
+      if (dims.error) return res.status(400).json({ error: dims.error });
+      if (effort !== undefined) updates.effort = dims.effort;
+      if (contextBudget !== undefined) updates.contextBudget = dims.contextBudget;
 
       const updated = db.updateMember(member.id, updates);
       const reconcile = await runReconcile(fleet.id);

@@ -15,6 +15,7 @@ import * as bots from "../bots.js";
 import { BOT_TYPES, credentialFieldsFor, qrCapabilityFor, adapterForBot } from "../bots/adapter.js";
 import { qrSvg } from "../bots/qr.js";
 import { GENERIC_BOT_TYPES } from "../../lib/generic-bot-types.js";
+import { validateConfigDims, effortUnionFrom } from "../fleet-model.js";
 
 // The webhook path prefix, shared with the forward-auth exemption in auth.js.
 export const WEBHOOK_PREFIX = "/api/bots/webhook/";
@@ -161,7 +162,11 @@ export function registerBotRoutes(ctx) {
     if (!ctx.requireAdmin(req, res) || !requireDb(res)) return;
     const existing = db.getBot(req.params.id);
     if (!existing) return res.status(404).json({ error: "Bot not found" });
-    const { name, credentials, enabled } = req.body || {};
+    const { name, credentials, enabled, effort, contextBudget } = req.body || {};
+    // Config dimensions (add-agent-config-dims D5): the same shape gate the
+    // fleet PATCH uses — a bot inherits the same effort/budget semantics.
+    const dims = validateConfigDims({ effort, contextBudget }, effortUnionFrom(ctx?.dshModels));
+    if (dims.error) return res.status(400).json({ error: dims.error });
     if (credentials !== undefined) {
       // Merge over the stored values so the UI can save a form whose secret
       // fields were left blank without wiping the credentials behind them.
@@ -178,7 +183,13 @@ export function registerBotRoutes(ctx) {
       const invalid = bots.validateCredentials(existing.type, existing.credentials);
       if (invalid) return res.status(400).json({ error: invalid });
     }
-    const bot = db.updateBot(req.params.id, { name, credentials: req.body.credentials, enabled });
+    const bot = db.updateBot(req.params.id, {
+      name,
+      credentials: req.body.credentials,
+      enabled,
+      ...(effort !== undefined ? { effort: dims.effort } : {}),
+      ...(contextBudget !== undefined ? { contextBudget: dims.contextBudget } : {}),
+    });
     bots.reload(bot);
     res.json(bots.maskBot(bot));
   });

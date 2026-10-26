@@ -850,6 +850,17 @@ const MIGRATIONS = [
     version: 102,
     statements: [`ALTER TABLE user_line_credentials ADD COLUMN refresh_token TEXT`],
   },
+  {
+    // add-agent-config-dims: the two configuration dimensions beyond the model
+    // (thinking depth, per-turn context budget), declarable per bot. Nullable
+    // by design — unset = inherit the deployment default = byte-identical to
+    // before; rollback needs no data migration.
+    version: 103,
+    statements: [
+      `ALTER TABLE bots ADD COLUMN effort TEXT`,
+      `ALTER TABLE bots ADD COLUMN context_budget INTEGER`,
+    ],
+  },
 ];
 
 function nowIso() {
@@ -2687,7 +2698,7 @@ export function deleteUserPreset(id) {
 // server/bots.js — never hand a row straight to res.json().
 
 const BOT_COLS =
-  "id, type, name, enabled, secret, credentials, created_at AS createdAt";
+  "id, type, name, enabled, secret, credentials, effort, context_budget AS contextBudget, created_at AS createdAt";
 
 function hydrateBot(row) {
   if (!row) return null;
@@ -2706,11 +2717,11 @@ export function getBot(id) {
   return hydrateBot(stmt(`SELECT ${BOT_COLS} FROM bots WHERE id = ?`).get(id));
 }
 
-export function addBot({ id, type, name, credentials, secret, enabled = true, ownerEmail = null }) {
+export function addBot({ id, type, name, credentials, secret, enabled = true, ownerEmail = null, effort = null, contextBudget = null }) {
   if (!dbReady) return null;
   stmt(
-    `INSERT INTO bots (id, type, name, enabled, secret, credentials, created_at, owner_email)
-     VALUES (@id, @type, @name, @enabled, @secret, @credentials, @created_at, @owner_email)`
+    `INSERT INTO bots (id, type, name, enabled, secret, credentials, effort, context_budget, created_at, owner_email)
+     VALUES (@id, @type, @name, @enabled, @secret, @credentials, @effort, @context_budget, @created_at, @owner_email)`
   ).run({
     id,
     type,
@@ -2718,13 +2729,15 @@ export function addBot({ id, type, name, credentials, secret, enabled = true, ow
     enabled: enabled ? 1 : 0,
     secret,
     credentials: JSON.stringify(credentials ?? {}),
+    effort: effort ?? null,
+    context_budget: Number.isFinite(contextBudget) ? contextBudget : null,
     created_at: nowIso(),
     owner_email: ownerEmail ?? null,
   });
   return getBot(id);
 }
 
-export function updateBot(id, { name, credentials, enabled }) {
+export function updateBot(id, { name, credentials, enabled, effort, contextBudget }) {
   if (!dbReady) return null;
   const updates = [];
   const params = { id };
@@ -2734,6 +2747,11 @@ export function updateBot(id, { name, credentials, enabled }) {
     params.credentials = JSON.stringify(credentials);
   }
   if (enabled !== undefined) { updates.push("enabled = @enabled"); params.enabled = enabled ? 1 : 0; }
+  if (effort !== undefined) { updates.push("effort = @effort"); params.effort = effort || null; }
+  if (contextBudget !== undefined) {
+    updates.push("context_budget = @context_budget");
+    params.context_budget = Number.isFinite(contextBudget) ? contextBudget : null;
+  }
   if (updates.length) stmt(`UPDATE bots SET ${updates.join(", ")} WHERE id = @id`).run(params);
   return getBot(id);
 }

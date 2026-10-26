@@ -67,3 +67,108 @@ export function resolveModelChain({ model = null, fallbackModel = null, fleetDef
   }
   return { effective: candidates[0]?.model ?? null, candidates, notices };
 }
+
+// ── Agent effort resolution (add-agent-config-dims) ──────────────────────────
+//
+// The thinking depth has the same inherit-down shape as the model chain, but a
+// DIFFERENT predicate: a model hop is valid when it is in the roster, an effort
+// hop is valid when the EFFECTIVE MODEL declares that level. Kept as its own
+// pure function rather than folded into resolveModelChain — one function
+// carrying two predicates invites exactly the drift the chain was built to
+// prevent.
+//
+// Why the declaration never reaches the dsh profile: dsh reads effort
+// per-PROVIDER (dsh-profile.js), so writing per-agent levels into the profile
+// would make two agents on the same provider overwrite each other. The level
+// is applied per turn through the live model/set path instead.
+export function resolveAgentEffort({ agentEffort = null, fleetEffort = null, cellEffort = null, model = null, roster = null } = {}) {
+  const declared = [
+    { effort: agentEffort, source: "post" },
+    { effort: fleetEffort, source: "fleet" },
+    { effort: cellEffort, source: "cell" },
+  ].filter((h) => typeof h.effort === "string" && h.effort.length > 0);
+
+  if (!declared.length) return { effort: null, source: null, notices: [] };
+
+  const supported = supportedEffortsFor(model, roster);
+  // Unknown model (not in the roster) means we cannot judge: pass the first
+  // declaration through and let the runtime refuse honestly. Inventing a
+  // "not supported" verdict here would block a turn over a roster hiccup.
+  if (supported === null) return { effort: declared[0].effort, source: declared[0].source, notices: [] };
+
+  const notices = [];
+  for (const hop of declared) {
+    if (supported.includes(hop.effort)) return { effort: hop.effort, source: hop.source, notices };
+    notices.push(`declared ${hop.source} thinking level '${hop.effort}' is not supported by model '${model ?? "?"}' — falling through`);
+  }
+  return { effort: null, source: null, notices };
+}
+
+// The levels a model declares, or null when the model is unknown to the roster
+// (callers must treat null as "cannot judge", not "supports nothing").
+function supportedEffortsFor(model, roster) {
+  if (!model) return null;
+  if (Array.isArray(roster) && !roster.includes(model)) return null;
+  return EFFORT_DECLARATIONS.get(model) ?? null;
+}
+
+// Model id → declared levels. Populated by the profile writer / model list
+// builder, so this module stays dependency-free and unit-testable.
+const EFFORT_DECLARATIONS = new Map();
+export function setEffortDeclarations(map) {
+  EFFORT_DECLARATIONS.clear();
+  for (const [id, levels] of Object.entries(map ?? {})) {
+    if (Array.isArray(levels) && levels.length) EFFORT_DECLARATIONS.set(id, levels);
+  }
+}
+export function effortDeclarationsFor(model) {
+  return EFFORT_DECLARATIONS.get(model) ?? null;
+}
+
+// ── Config-dimension write gate (add-agent-config-dims D5) ──────────────────
+//
+// The ONE shape gate for effort and context budget, shared by the fleet member
+// PATCH, the fleet PATCH and the bot PATCH so all three refuse illegal values
+// with a single voice (same discipline as the model chain: one rule, every
+// door). Returns { error } or the normalized pair (null = clear the
+// declaration). `effortUnion` is the set of levels ANY known model declares —
+// validated against the union, not one model, because the effective model can
+// change after the write.
+export const CONTEXT_BUDGET_FLOOR = 1024;
+export const CONTEXT_BUDGET_CEILING = 2_000_000;
+
+export function validateConfigDims({ effort, contextBudget } = {}, effortUnion = new Set()) {
+  const out = { effort: null, contextBudget: null };
+  if (effort !== undefined) {
+    if (effort === null || effort === "") {
+      out.effort = null;
+    } else if (typeof effort !== "string") {
+      return { error: "effort must be a string or null" };
+    } else if (!effortUnion.size) {
+      return { error: "no model on this deployment declares thinking levels — effort cannot be set" };
+    } else if (!effortUnion.has(effort)) {
+      return { error: `effort '${effort}' is not a level any known model declares (choose one of: ${[...effortUnion].join(", ")})` };
+    } else {
+      out.effort = effort;
+    }
+  }
+  if (contextBudget !== undefined) {
+    if (contextBudget === null) {
+      out.contextBudget = null;
+    } else if (!Number.isInteger(contextBudget) || contextBudget < CONTEXT_BUDGET_FLOOR || contextBudget > CONTEXT_BUDGET_CEILING) {
+      return { error: `contextBudget must be an integer between ${CONTEXT_BUDGET_FLOOR} and ${CONTEXT_BUDGET_CEILING}, or null` };
+    } else {
+      out.contextBudget = contextBudget;
+    }
+  }
+  return out;
+}
+
+// Every level any known model declares, from a dshModels list (ctx.dshModels).
+export function effortUnionFrom(models) {
+  const set = new Set();
+  for (const m of models ?? []) {
+    for (const l of m?.reasoningEfforts ?? []) set.add(l);
+  }
+  return set;
+}

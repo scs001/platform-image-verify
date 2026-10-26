@@ -68,6 +68,7 @@ import { reconcileAllFleets, deriveMemberStatus } from "./server/fleet-reconcile
 import { buildFleetContext } from "./server/fleet-context.js";
 import { derivedReportFromTask, fleetIdentityFor, fleetModelFor } from "./server/fleet-reports.js";
 import { recordTurnEvent } from "./server/fleet-events.js";
+import { setEffortDeclarations } from "./server/fleet-model.js";
 import { createFleetTurnLedger } from "./server/fleet-runs.js";
 import { outgoingHandoffs, outgoingFanouts, constraintsOf } from "./server/fleet-orchestration.js";
 import { triggerFleetEventWake } from "./server/fleet-event-wake.js";
@@ -499,6 +500,12 @@ async function initDshAgent() {
   // the selector from it (Task 3.3). Empty list = dormant (Task 3.6).
   const { models } = await writeLlmProfile();
   ctx.dshModels = models;
+  // Effort declarations for the resolver (add-agent-config-dims): model id →
+  // the levels it accepts. Kept out of fleet-model.js's own imports so that
+  // module stays dependency-free and unit-testable.
+  setEffortDeclarations(
+    Object.fromEntries(models.filter((m) => m.reasoningEfforts?.length).map((m) => [m.id, m.reasoningEfforts])),
+  );
 
   // Seed the dsh-credentials-local store from process.env (design D3) and build
   // a scrubbed child env so the file is the winning key-resolution layer.

@@ -2253,6 +2253,16 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 
 **顺带判明**：时间线半数 run 无 usage **不是 bug**——usage 缺失与 trace 缺失严格对应,全部是 v2 上线前(id ≤62)的旧回合;v2 之后每个回合 usage 齐全(如 8545+994/612+464)。诚实缺失,不回填。
 
+### §15.59 「本轮未执行」收口：fix-fleet-turn-veracity 落地（wire §二，2026-10-27）
+
+**缺陷（fd-wire 普查残余 P0）**：39% 失败是 0 秒 `runtime_not_ready`——没启动的回合被记成正式失败,污染连败与 presence。立项期间两波前置先行落地:e339636e(就绪等待 120s)、74a0d342(归因+skipped 第四结局+熔断,并行会话);本 change 是收口残件。用户仲裁两条:attribution 提交后接力实施;presence 语义**两案统一「不推进」**(持续不可用超窗→失联写明原因,否决其草案「照常推进」——否则平台故障期绿灯不灭,§一假正常换马甲复发)。
+
+**实现(5 处残余补丁)**：①`runCronJobTurn` persona 分支 ledger begin **前**增就绪预检,耗尽→recordFleetTurnEvent 记 skipped(无实例/无接棒/同批≤1)——runPersonaTurn 内 e3396 等待留为竞态兜底;②`failureStreak` 走查加一行 `skipped→continue`(透明跨过:不计入/不打断/不重置,since 与 lastErrorKind 不被触碰,与 interrupted「中断链条归零」明分);③presence 改口:effectiveLastRun=最新真实回合优先、无事件回退 task.lastRun,两个失联分支都挂 skipped 计数次序文案「N 轮未执行」;④就绪等待 env `FLEET_TURN_READY_WAIT_MS`(0=退回 fail-fast 灰度阀);⑤前端岗位卡/画布专属徽标「本轮未执行 · kind ×k」+ 五语键。
+
+**测试**：新 `scripts/test-fleet-turn-veracity.mjs` 8/8(短路无 ledger/就绪放行/走查跨过/纯跳过零连败/跳过窗判失联/回退分支/优先级不回退);邻域回归 48/48;web typecheck 绿;新增 e2e「post card skipped round」(skipped 徽标×k、与失败色调分色)随 fleets 全套 22/22。
+
+**待办**：出片上产+真机验收(构造桥重启窗:turns 里至多 1 条 skipped、连败不放大、卡片徽标、下一周期自恢复——wire §二验收原文);wire 根因函 `docs/fleet-turn-reliability-response.md` 随发布同发;归档前 sync 时折叠 attribution 案 spec 文本(presence 行须对齐仲裁)。
+
 ### §15.46 /admin/metrics 运维快照面（2026-10-26，用户令「继续优化」）
 
 **动机**：本轮 embed 车道三修（§15.45）全程靠 grep 日志+临时探针诊断，每次都要进 pod 跑脚本——把同一批信号做成一条 POST。
@@ -2362,3 +2372,17 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **note 查重纪律**（paas b0001ba7，滚产随下一班）：MEMORY_DISCIPLINE 加「写前 memory_query 查重，更新写更正 note」——重复写同主题 note 稀释开场记忆（L1 原文持久、蒸馏自动接替），与 supersede 闭环配套。
 
 **诚实盘点（主干收敛声明）**：检索→注入→蒸馏→观测四层全部打通且有门守护；本会话十九班滚产、digest 面十三枚修复、embed 车道四修、eval 十九场景 headroom 100%。剩余项全部是中大型或不在本仓：L3 画像层+容量治理（长期路线 §15.51）、eval v3 工具环境化、侧车线双挂账（§15.45）、claim-rate 行为面。**建议停在此处等真实信号**——metrics 面已可观测，数据会指出下一个该动的地方。
+
+### §15.55 回合可归因 + 车道键控熔断（fix-fleet-turn-attribution，2026-10-27 凌晨，用户拍板「摘要列为主 + 车道键控、为 per-agent 车道留形」）
+
+**两决策点定案**（需求稿 §六 ⑤⑥）：timeout 归因**摘要在采集点落列**（join 会因双表保留期独立而静默 NULL——摘要是承诺、trace 是深挖）；熔断**按车道身份键控**而非钉死 cell——设计依据是用户明示的未来：LLM_API_KEY 将不再共享，不同 agent 各配 key/baseURL（profile 层多 provider 已在位，`buildUserProviderEntries` 每条自带 baseURL+独立 apiKeyEnv，只是回合层从未感知车道）。**机制以 lane 为一等实体：今天全 cell 解析到同一 provider 自然退化为 cell 级，明天 per-agent 配置落地日零迁移。**
+
+**实现四件**：①`collectTurn` toolBlocks 加 `at`/`resultAt`，超时 reject 构建摘要（`stalled`=最后无 result 的调用+等待时长 / `turn_budget_exceeded`=步数耗尽 / 无工具史诚实空缺）→ `member_turn_events.detail` JSON 列（幂等 ALTER）；②`server/llm-lane.js`——`laneKeyFor`=sha256(providerId|baseURL|apiKey) 前 16 位（无明文密钥）+ 按 laneId 滑动窗熔断（10min 内 ≥5 次上游失败→开窗 10min，`PLATFORM_LLM_BREAKER*` 三旋钮+总闸），成功即关闸；③开窗期回合 **skipped 第四结局**——不计连败、不判 failing、presence 照常推进、handoffs 不点火（不级联空转），与停机补跑/failing 档同族口径；④上游快速失败（<60s）沿解析链**降级重试一次**，`detail.degradedTo` 留痕。
+
+**测试**：新 `scripts/test-fleet-turn-attribution.mjs` 11/11（stalled/budget/空缺三形态、指纹稳定无密钥泄漏、判开/关闸/总闸/窗口扫掠、skipped 映射、streak 透明、重试/不重试/熔断跳过/缝上记账）。全量 2125/2135（10 红=9 既有 extension 族+demo-reap 串跑污染单跑绿）。
+
+**事故两起如实记（同一教训二犯）**：①我提交 timeline 透传时把并行会话 `fix-fleet-turn-veracity` 的 fleets.js 在途改动一并扫入（f2495b17），而其 fleets-db/cron-runner 配套还在工作树——**HEAD 一度引用不存在的 db.skippedCount**；补提交 af3b8615 配套收口恢复自洽（stash 残余验证 43/43 绿后 pop 归还）。②其间并行会话也把我先前的 failureStreak 语义演进为「skipped 透明跨过」（veracity D4）——测试断言随之对齐。教训重申：**提交前 `git diff --cached --name-only` 逐条核对归属；发现混入时不要硬拆，确认缺哪半补哪半**。
+
+**上产与真机验收（2026-10-27 02:3x）**：快照 `4b502c9` → ccr digest `0e5e6894` → GitOps `fd70469`/随后同代收拢 → 双 deploy 滚完，in-pod 五标记全中。真机三项：①turns 时间线带 detail 字段（旧行诚实 null）；②status 枚举含 skipped（API 400 文案实证）；③pod 内真模块 drill——5 次上游失败开窗、成功即关闸、车道 id 不含 key 材料。公网 200。**观察项**：skipped 与 detail 的自然流量实证待下一次真实上游故障窗/超时回合（车道 10-25 型 5xx 窗）。
+
+**归属与余项**：veracity 主体（presence 只读真实回合/skip 计数徽章/pre-gate）归并行会话的 fix-fleet-turn-veracity change；本 change 归档后，§六 四缺口全部有主（§一 failing ✓ / §二 pre-gate ✓（veracity）/ §三 本 change ✓ / §四 本 change ✓，唯 §四 的 per-agent 车道**配置面**属 add-agent-config-dims 后续刀）。

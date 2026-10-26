@@ -2263,7 +2263,7 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 
 **测试**：新 `scripts/test-fleet-turn-veracity.mjs` 8/8(短路无 ledger/就绪放行/走查跨过/纯跳过零连败/跳过窗判失联/回退分支/优先级不回退);邻域回归 48/48;web typecheck 绿;新增 e2e「post card skipped round」(skipped 徽标×k、与失败色调分色)随 fleets 全套 22/22。
 
-**待办**：出片上产+真机验收(构造桥重启窗:turns 里至多 1 条 skipped、连败不放大、卡片徽标、下一周期自恢复——wire §二验收原文);wire 根因函 `docs/fleet-turn-reliability-response.md` 随发布同发;归档前 sync 时折叠 attribution 案 spec 文本(presence 行须对齐仲裁)。
+**上产与真机验收（2026-10-27）**：后端主体随 attribution 班 sha-4b502c9 先行上产;前端配套随统一代收拢 `sha-99e6aaf`(GitOps `05216e9`,注释「config-dims+effort+turn-attribution+veracity+locale 补齐全代并集」)滚完。in-pod 四标记全中:`latestRealTurnFor`/`readyWaitMs`(后端 2 处各中)、bundle 含「本轮未执行」(前端五语打包实证)。生产 API 实证:`turns?status=skipped` 200(过滤接受新枚举)、bogus 值 400 文案列出 skipped、投稿岗 memberView 带齐 `failing/failureStreak=3/failingSince/lastErrorKind=runtime_not_ready/skippedRounds=0`(§一在场、读面字段在产)。skipped 自然行暂为零(120s 等待吸收了滚版窗=设计目的),**观察项**:下一次真实长故障窗应见 skipped≤1/窗的实证而非 0 秒失败潮。wire 根因函 `docs/fleet-turn-reliability-response.md` 可发;归档前 sync 时折叠 attribution 案 spec 文本(presence 行须对齐仲裁)。
 
 ### §15.46 /admin/metrics 运维快照面（2026-10-26，用户令「继续优化」）
 

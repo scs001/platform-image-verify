@@ -42,7 +42,11 @@ test("discovery file lands after listen; hello answers the protocol version; sta
   const disc = readStewardDiscovery(dataDir);
   assert.equal(disc.socket, info.socket);
   assert.equal(disc.protocolVersion, 1);
-  assert.equal((fs.statSync(path.join(dataDir, "steward.json")).mode & 0o777), 0o600, "discovery file is owner-only");
+  if (process.platform !== "win32") {
+    // POSIX-only claim: Windows has no modes (stat reports 0o666 for every
+    // file) — custody there is DPAPI sealing + the profile ACL, not chmod.
+    assert.equal((fs.statSync(path.join(dataDir, "steward.json")).mode & 0o777), 0o600, "discovery file is owner-only");
+  }
 
   const attached = await attachSteward(dataDir);
   assert.equal(attached.ok, true, attached.reason);

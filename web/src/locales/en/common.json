@@ -57,8 +57,8 @@
     "connect": "Connect",
     "connecting": "Connecting…",
     "loadFailed": "Failed to load catalog: {{error}}",
-    "myClusters": "My Arrays",
-    "clustersEmpty": "No arrays yet — use \"+ Create Array\" to group agents into a team.",
+    "myClusters": "My arrays",
+    "clustersEmpty": "No arrays yet — use \"+ Create array\" to group agents into a team.",
     "clusterDetail": "Array details",
     "clusterAgents": "Agents in this array",
     "clusterStatus": "Status",
@@ -2261,7 +2261,7 @@
   },
   "clusters": {
     "composer": {
-      "title": "Create Array",
+      "title": "Create array",
       "clusterName": "Array name",
       "description": "Description",
       "selectAgents": "Select agents",
@@ -2272,7 +2272,7 @@
       "noAgents": "No agents available. Install some packs first.",
       "creating": "Creating array...",
       "created": "Array created",
-      "createCluster": "Create Array",
+      "createCluster": "Create array",
       "creatingBtn": "Creating...",
       "cancel": "Cancel",
       "nameRequired": "Array name is required",

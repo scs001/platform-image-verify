@@ -303,7 +303,7 @@ jobs:
           $probe | Out-File -FilePath "$env:TEMP\steward-status.mjs" -Encoding utf8
           $ok = $false
           for ($i = 0; $i -lt 45 -and -not $ok; $i++) {
-            & $env:STEWARD_NODE "$env:TEMP\steward-status.mjs"
+            & $node "$env:TEMP\steward-status.mjs"
             if ($LASTEXITCODE -eq 0) { $ok = $true } else { Start-Sleep -Seconds 2 }
           }
           if (-not $ok) { throw "steward stack never became healthy (nodeBin/PATH regression?)" }

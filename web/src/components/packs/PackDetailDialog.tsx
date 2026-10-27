@@ -349,6 +349,11 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
         <DialogHeader>
           <DialogTitle>
             {pack?.name ?? (error ? t("packs.detail.notFound") : "")}
+            {pack?.badge && (
+              <span data-testid="pack-type-badge" className="ml-2 rounded-full bg-muted px-2 py-0.5 text-xs font-normal text-muted-foreground align-middle">
+                {t(`packs.badge.${pack.badge}`)}
+              </span>
+            )}
             {pack?.visibility === "private" && (
               <span data-testid="pack-private-badge" className="ml-2 rounded-sm border border-amber-500/50 bg-amber-500/10 px-1.5 py-0.5 text-xs text-amber-700 align-middle">
                 {t("packs.detail.private")}

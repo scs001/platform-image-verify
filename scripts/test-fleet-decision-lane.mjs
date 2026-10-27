@@ -289,7 +289,7 @@ test("patrol context: decision segment rides along; absent when nothing to deliv
   };
   const withDecision = await buildFleetContext({ fleetId: fleet.id, memberId: ceo.id }, {}, deps);
   assert.match(withDecision, /CEO 自己的拍板/, "the firing post's own resolutions ride its patrol context");
-  assert.match(withDecision, /【舰队巡视上下文】/);
+  assert.match(withDecision, /【集群巡视上下文】/);
 
   // Nothing to deliver → the segment is entirely absent (no empty block).
   const childContext = await buildFleetContext({ fleetId: fleet.id, memberId: child.id }, {}, deps);

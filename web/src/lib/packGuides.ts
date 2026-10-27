@@ -148,13 +148,13 @@ export const PACK_GUIDES: Record<string, PackGuide> = {
     ],
   },
 
-  // 数据研究·生态版：官方功能集
+  // 数据研究·生态版：官方能力包
   "Aqag8Mky4ksoPmwRDMCVYw": {
     name: "数据研究 · 生态版",
     steps: [
       {
         title: "确认数据范围",
-        body: "这套官方功能集接的是 FindData 数据底座（宏观、金融等真数据源）。先告诉专家你关心的主题和时间段。",
+        body: "这套官方能力包接的是 FindData 数据底座（宏观、金融等真数据源）。先告诉专家你关心的主题和时间段。",
       },
       {
         title: "直接提问",

@@ -1,14 +1,14 @@
 {
-  "name": "公司式舰队（官方种子）",
+  "name": "AI 公司（官方种子）",
   "version": "1.0.0",
-  "description": "官方舰队模板样板：CEO 巡视（{{fleetContext}} 注入）+ 三真数据岗（开源/投资）+ 助理引用岗 + 两连接器空态岗（电商/内容，演示待补岗降级）+ 萬星集群 a2a optional 成员（演示依赖缺位降级）。pack 自带 agents 上限 3（铸造实证），故助理为 existing-persona 引用岗；编导段为 supervisor 式 dispatch——CEO 可向各部门派活（显式 dispatch 边，非全舰 implicit）。铸造上架时 packId/占位符按铸造脚本补齐；本文件是清单真源，测试钉住其必须通过 fleet 段预校验。",
+  "description": "官方集群模板样板：CEO 巡视（{{fleetContext}} 注入）+ 三真数据岗（开源/投资）+ 助理引用岗 + 两连接器空态岗（电商/内容，演示待补岗降级）+ 萬星集群 a2a optional 成员（演示依赖缺位降级）。pack 自带 agents 上限 3（铸造实证），故助理为 existing-persona 引用岗；编导段为 supervisor 式 dispatch——CEO 可向各部门派活（显式 dispatch 边，非全舰 implicit）。铸造上架时 packId/占位符按铸造脚本补齐；本文件是清单真源，测试钉住其必须通过 fleet 段预校验。",
   "agents": [
-    { "id": "company-ceo", "name": "CEO", "description": "每小时巡视全队、汇总裁决", "persona": "你是公司式舰队的 CEO。你每小时巡视各部门：读取系统注入的巡视上下文（各部门最新报数与主人拍板结果），汇总异常、追问失联部门、对超出权限的事项用 escalate 提交主人拍板，并在收尾调用 report_status 报数（槽位：patrol_notes）。" },
+    { "id": "company-ceo", "name": "CEO", "description": "每小时巡视全队、汇总裁决", "persona": "你是AI 公司的 CEO。你每小时巡视各部门：读取系统注入的巡视上下文（各部门最新报数与主人拍板结果），汇总异常、追问失联部门、对超出权限的事项用 escalate 提交主人拍板，并在收尾调用 report_status 报数（槽位：patrol_notes）。" },
     { "id": "company-oss", "name": "开源部", "description": "GitHub 仓库指标巡视", "persona": "你是开源部负责人。你每天巡视所辖 GitHub 仓库的 star/fork/issue 指标，用可用的抓取工具取真数据，收尾调用 report_status 报数（槽位：stars_week、issues_open）。数据取不到时如实报「未取得」，绝不编造。" },
     { "id": "company-invest", "name": "投资部", "description": "模拟盘观察哨", "persona": "你是投资部分析师。你每天巡视模拟盘持仓与观察标的，收尾调用 report_status 报数（槽位：pnl_day、watch_count）。没有真实数据支撑时不给结论。" }
   ],
   "fleet": {
-    "name": "公司式舰队",
+    "name": "AI 公司",
     "members": [
       {
         "ref": "ceo",

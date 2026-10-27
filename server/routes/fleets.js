@@ -887,7 +887,7 @@ export function createFleetRoutes(app, ctx = null) {
         }
       } else {
         dispatchPrompt =
-          `【舰队派发】来自同舰队岗位「${from.title}」的派发(回执将自动送回其下一回合):\n${brief.trim().slice(0, 4000)}`;
+          `【集群派发】来自同集群岗位「${from.title}」的派发(回执将自动送回其下一回合):\n${brief.trim().slice(0, 4000)}`;
       }
       // Guard 5: rate caps — per member per turn-proxy window, per fleet per hour.
       if (!budgetTake(`m:${from.id}`, 15 * 60_000, dispatchCap("PER_TURN", 3))) {

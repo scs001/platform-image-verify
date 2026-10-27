@@ -309,7 +309,7 @@ test("fleet-context: renders child slots, blockers, overview; no-children segmen
   fixtureReport(fleetDb, fleetDb.getMember("m_far"), { summary: "孙岗报数", metrics: {} });
 
   const text = await buildFleetContext({ fleetId: fleet.id, memberId: "m_ceo" }, {}, contextDeps(fleetDb));
-  assert.match(text, /【舰队巡视上下文】舰队「试验舰队」在岗 1\/3/);
+  assert.match(text, /【集群巡视上下文】集群「试验舰队」在岗 1\/3/);
   assert.match(text, /### 电商部/);
   assert.match(text, /本周销售额（\$）: \$309/);
   assert.match(text, /库存告急/);
@@ -370,10 +370,10 @@ test("fire chain: non-fleet prompt byte-identical; fleet template renders per fi
     sourceTag: { fleetId: fleet.id, memberId: member.id },
   };
   const task = await cron.addJob(spec);
-  cron.setFleetContextRenderer(async () => "【舰队巡视上下文】在岗 3/3");
+  cron.setFleetContextRenderer(async () => "【集群巡视上下文】在岗 3/3");
   await cron.fireTask(task.id);
   await engine.idle();
-  assert.equal(firedPrompts[firedPrompts.length - 1], "巡视下属。【舰队巡视上下文】在岗 3/3");
+  assert.equal(firedPrompts[firedPrompts.length - 1], "巡视下属。【集群巡视上下文】在岗 3/3");
   // The STORED prompt stays the template — the render was per-fire only.
   assert.equal(cron.getJob(task.id).prompt, "巡视下属。{{fleetContext}}");
 
@@ -624,7 +624,7 @@ function identityCtx(resolveFleetIdentity) {
 }
 
 test("member turn gets the identity prefix; non-member turn is byte-identical", async () => {
-  const identity = "【舰队岗位身份】fleet=f_1; post=m_1; title=巡线岗; target=persona:persona-a";
+  const identity = "【集群岗位身份】fleet=f_1; post=m_1; title=巡线岗; target=persona:persona-a";
 
   const memberCtx = identityCtx((p) => (p === "persona-a" ? identity : null));
   await memberCtx.runCronJobTurn(

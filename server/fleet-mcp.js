@@ -109,12 +109,12 @@ const TOOLS = [
   {
     name: "dispatch_post",
     description:
-      "Dispatch a self-contained task to ANOTHER post of YOUR fleet (舰队派发, supervisor pattern). Async by construction: this returns immediately, the target post runs its turn, and the summary arrives in YOUR next turn — never wait. " +
-      "Only pairs your fleet's orchestration allows (a declared dispatch edge, or supervisor mode). Refused: cross-fleet, self, cluster posts, depth>0 turns, over the per-post/per-fleet caps.",
+      "Dispatch a self-contained task to ANOTHER post of YOUR cluster (集群派发, supervisor pattern). Async by construction: this returns immediately, the target post runs its turn, and the summary arrives in YOUR next turn — never wait. " +
+      "Only pairs your cluster's orchestration allows (a declared dispatch edge, or supervisor mode). Refused: cross-cluster, self, array posts, depth>0 turns, over the per-post/per-cluster caps.",
     inputSchema: {
       type: "object",
       properties: {
-        to: { type: "string", description: "Target post ref (memberId) within the same fleet." },
+        to: { type: "string", description: "Target post ref (memberId) within the same cluster." },
         brief: { type: "string", description: "Self-contained task brief (≤4000 chars) — the target may know nothing about this conversation." },
       },
       required: ["to", "brief"],

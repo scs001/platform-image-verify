@@ -5,16 +5,16 @@
 
 ## 1. 形状与校验器(A/D · lib 层)
 
-- [ ] 1.1 `lib/pack-manifest.js` 增 `i18n` overlay 校验段:locale 键形(`/^[a-z]{2,3}(-[a-zA-Z0-9]{2,8})*$/` 且 ≠zh)、白名单键、数组索引越界与未声明命名实体拒绝、逐 locale 长度帽(复用 PACK_LIMITS 同常数)、guide.steps 整组一致性;报错沿 `fail(errors, msg, entry)` 逐字段点名(`i18n.en.guide.steps[1].title` 形制)。验证:新增单测逐条覆盖 spec pack-locale-tracks R1 各 scenario + pack-marketplace R1 各 scenario,全绿且既有单测零改动
-- [ ] 1.2 长文比率门(description、guide.steps[].body,双向 ≤3:1,短字段豁免)。验证:spec pack-marketplace R2「长度比率越界被拒/短字段豁免」scenario 测试通过
-- [ ] 1.3 en 副轨禁辞扫描:从 finddata `docs/marketing/audit.py:131` 移植 ABSOLUTE_CLAIM_RE(注释互链两仓路径),对 `i18n` 块全部英文字符串施扫,zh 基字段不扫。验证:spec pack-marketplace R2「en 绝对化表述被拦」scenario 测试通过;zh 同文案不误报
-- [ ] 1.4 既有纯字符串 manifest 回归:含 bots/serving/cluster/facade 的现存 fixtures 不加 `i18n` 全量复跑。验证:pack-manifest 既有测试套件逐字节等结论(零新增错误)
+- [x] 1.1 `lib/pack-manifest.js` 增 `i18n` overlay 校验段:locale 键形(`/^[a-z]{2,3}(-[a-zA-Z0-9]{2,8})*$/` 且 ≠zh)、白名单键、数组索引越界与未声明命名实体拒绝、逐 locale 长度帽(复用 PACK_LIMITS 同常数)、guide.steps 整组一致性;报错沿 `fail(errors, msg, entry)` 逐字段点名(`i18n.en.guide.steps[1].title` 形制)。验证:新增单测逐条覆盖 spec pack-locale-tracks R1 各 scenario + pack-marketplace R1 各 scenario,全绿且既有单测零改动
+- [x] 1.2 长文比率门(description、guide.steps[].body,双向 ≤3:1,短字段豁免)。验证:spec pack-marketplace R2「长度比率越界被拒/短字段豁免」scenario 测试通过
+- [x] 1.3 en 副轨禁辞扫描:从 finddata `docs/marketing/audit.py:131` 移植 ABSOLUTE_CLAIM_RE(注释互链两仓路径),对 `i18n` 块全部英文字符串施扫,zh 基字段不扫。验证:spec pack-marketplace R2「en 绝对化表述被拦」scenario 测试通过;zh 同文案不误报
+- [x] 1.4 既有纯字符串 manifest 回归:含 bots/serving/cluster/facade 的现存 fixtures 不加 `i18n` 全量复跑。验证:pack-manifest 既有测试套件逐字节等结论(零新增错误)
 
 ## 2. 解析模块与读面投影(B · gateway/cell)
 
 - [ ] 2.1 新增 `lib/pack-locale.js` 零依赖 leaf:`resolveLocale`(`?locale=` > `Accept-Language` 首项 > zh,`zh*` 归一)、`pickLocalized`、`projectManifestForLocale`(基字段被覆盖、`i18n` 原块随行透传)。验证:模块单测覆盖 spec pack-locale-tracks R2 各 scenario(命中/未覆盖回落/无参等价/逐键回落)
 - [ ] 2.2 `gateway/packs.js`:`summaryOf()` 与详情投影接 locale 解析(冗余列继续写 zh,读时覆盖);列表/详情端点接受 `locale` 查询参数 + Accept-Language。验证:gateway 邻域测试——双语条目列表行按 locale 呈现、无 locale 响应字节等价(spec pack-marketplace R3)
-- [ ] 2.3 cell 读面 `server/routes/packs.js` mypacks 安装包列表同接 `projectManifestForLocale`。验证:cell 侧测试——壹座「设置→功能集」数据源按 locale 呈现且缺省回落 zh
+- [ ] 2.3 cell 读面 `server/routes/packs.js` mypacks 安装包列表同接 `projectManifestForLocale`。验证:cell 侧测试——壹座「设置→能力包」数据源按 locale 呈现且缺省回落 zh
 - [ ] 2.4 搜索面确认:`search`/`tag` 参数仍在 zh 冗余列,带 locale 不扩检索域。验证:带 `locale=en&search=<英文>` 的集成测试断言检索行为与无参一致
 
 ## 3. fleet 模板显示字段(C)

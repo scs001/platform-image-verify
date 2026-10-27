@@ -259,7 +259,11 @@ export function PackMarketView({
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium text-foreground flex items-center gap-1.5">
                         {p.name}
-                        {p.facade && <Badge data-testid={`pack-facade-badge-${p.id}`}>{t("packs.market.facade")}</Badge>}
+                        {p.badge ? (
+                          <Badge data-testid={`pack-type-badge-${p.id}`}>{t(`packs.badge.${p.badge}`)}</Badge>
+                        ) : (
+                          p.facade && <Badge data-testid={`pack-facade-badge-${p.id}`}>{t("packs.market.facade")}</Badge>
+                        )}
                       </span>
                       <span className="text-xs text-muted-foreground">v{p.version}</span>
                     </div>
@@ -293,7 +297,11 @@ export function PackMarketView({
             <div className="flex items-center justify-between gap-2">
               <span className="font-medium text-foreground flex items-center gap-1.5">
                 {pack.name}
-                {pack.facade && <Badge data-testid={`pack-facade-badge-${pack.id}`}>{t("packs.market.facade")}</Badge>}
+                {pack.badge ? (
+                  <Badge data-testid={`pack-type-badge-${pack.id}`}>{t(`packs.badge.${pack.badge}`)}</Badge>
+                ) : (
+                  pack.facade && <Badge data-testid={`pack-facade-badge-${pack.id}`}>{t("packs.market.facade")}</Badge>
+                )}
               </span>
               <span className="text-xs text-muted-foreground">v{pack.version}</span>
             </div>

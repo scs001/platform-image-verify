@@ -74,7 +74,7 @@ export async function buildFleetContext(sourceTag, _task, deps) {
   const statuses = deriveStatuses(fleet.id);
   const onDuty = [...statuses.values()].filter((s) => s === "on_duty").length;
 
-  const header = `【舰队巡视上下文】舰队「${fleet.name}」在岗 ${onDuty}/${members.length}`;
+  const header = `【集群巡视上下文】集群「${fleet.name}」在岗 ${onDuty}/${members.length}`;
   const sections = [header];
 
   if (children.length === 0) {

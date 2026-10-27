@@ -328,7 +328,7 @@ test("the pack dialog carries an always-visible action bar with close, and anony
   const barBox = await page.getByTestId("pack-action-bar").boundingBox();
   expect(Math.abs(dialogBox.y + dialogBox.height - (barBox.y + barBox.height))).toBeLessThanOrEqual(1);
   // The facet shell omits the goto-mine affordance (no installed-packs surface).
-  await expect(page.getByRole("button", { name: /我的功能集|My packs/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /我的能力包|My packs/ })).toHaveCount(0);
 
   // Anonymous subscribe: no raw error — the guidance row appears.
   await page.getByTestId("pack-subscribe").click();
@@ -352,7 +352,7 @@ test("the pack dialog carries an always-visible action bar with close, and anony
   // (no silent no-op, no navigation).
   await page.locator('[data-testid^="pack-card-"]').first().click();
   await expect(page.getByTestId("pack-action-bar")).toBeVisible();
-  await page.getByRole("button", { name: /我的功能集|View my packs|Mis packs|Mes packs|マイ機能集/ }).click();
+  await page.getByRole("button", { name: /我的能力包|View my packs|Mis packs|Mes packs|マイ能力パック/ }).click();
   await expect(page.getByTestId("pack-login-guidance")).toBeVisible();
 
   expect(pageErrors, pageErrors.join(" | ")).toEqual([]);

@@ -64,14 +64,14 @@ projectManifestForLocale(manifest, locale)     → 展示用 manifest 副本(基
 2. 每 locale 块只许白名单键;数组 overlay 引用越界/命名实体引用不存在 → 点名非法(防「翻了一个不存在的岗位」);
 3. 每个被覆盖值:非空字符串,遵守**与基字段相同**的长度帽(复用 PACK_LIMITS 同一常数,一帽两轨);
 4. 结构一致性:`guide.steps` 在某 locale 下要么三步 title+body 全有,要么整组缺省(回落 zh);半步散件 → 报错——需求书「回落表断裂」即此;skills/agents/bots/card.skills 的数组 overlay 不受整组规则约束(逐项独立回落);
-5. en/zh 长度比率:对 `description`、`guide.steps[].body` 两处长文,`|en| ≤ 3 × |zh|` 且 `|zh| ≤ 3 × |en|`,越界报错(3:1 理据:英译正常膨胀 1.5–2.5×,3 倍只拦「贴错内容/语种错位」,不伤合法翻译);短字段(name/title/label)帽已足够,不设比率;
+5. en/zh 长度比率:对 `description`、`guide.steps[].body` 两处长文,`|en| ≤ 3 × |zh|` 且 `|zh| ≤ 3 × |en|`,越界报错(3:1 理据:英译正常膨胀 1.5–2.5×,3 倍只拦「贴错内容/语种错位」,不伤合法翻译);短字段(name/title/label)帽已足够,不设比率。实施补丁(1.1 落地实证):比率设 20 字符**地板**——任一侧短于 20 字符即跳过比率(3 字 zh 标签合法译成 12 字),否则极短字段被系统误伤;spec 场景同步;同时适用于任意 locale 块(非仅 en);
 6. **en 副轨禁辞同扫**:对 en 块全部字符串跑 ABSOLUTE_CLAIM_RE 同款(从 finddata `docs/marketing/audit.py:131` 移植,绝对化替代表述中英同轨——需求书 §5);违例逐字段点名。zh 基字段本版本不扫(proposal 偏差记录)。
 
 `validate_manifest.py`:真校验器自动获得规则(shell 透传),mirror 段同步镜像(沿既有 lockstep 注释纪律);`publish_pack.py` 纯 JSON 透传,零改动(勘察实证)。
 
 ### D5 — fleet 模板:`fleet.i18n` 同构 overlay,Key 机制不动
 
-`fleet` 段新增可选 `i18n`:`{ <locale>: { name?, members: { <ref>: { title?, kpiSlots: { <key>: { label? } } } } } }`,按 ref/key 定向,成员级逐项回落。`parseFleetTemplate` 现状是「取串即显」(`name ?? nameKey`),改为:模板返回的规范化显示字段仍是 zh 基串,overlay 由 `projectManifestForLocale` 同一路径在展示投影时套用——模板校验只增形状门(ref/key 必须存在、值非空、长度帽),不做解析。**内置模板的 `nameKey/titleKey/labelKey` 原样保留**(i18next bundle 层机制,与内容层 overlay 是两个通道,不合并不互转)。`exportFleetToTemplate` 导出现役舰队时 overlay 随行(现役显示字段已物化为 zh 串,导出即基字段;无 overlay 可导——导出物天然合法)。
+`fleet` 段新增可选 `i18n`:`{ <locale>: { name?, members: { <ref>: { title?, kpiSlots: { <key>: { label? } } } } } }`,按 ref/key 定向,成员级逐项回落。`parseFleetTemplate` 现状是「取串即显」(`name ?? nameKey`),改为:模板返回的规范化显示字段仍是 zh 基串,overlay 由 `projectManifestForLocale` 同一路径在展示投影时套用——模板校验只增形状门(ref/key 必须存在、值非空、长度帽),不做解析。**内置模板的 `nameKey/titleKey/labelKey` 原样保留**(i18next bundle 层机制,与内容层 overlay 是两个通道,不合并不互转)。`exportFleetToTemplate` 导出现役集群时 overlay 随行(现役显示字段已物化为 zh 串,导出即基字段;无 overlay 可导——导出物天然合法)。
 
 需求书 §2C 的「岗位/拍板描述」落点即 members[].title 与 kpiSlots[].label;`promptTemplate` 属内容层(岗位工作内容,同 persona 待遇)不进 overlay。blueprints/schema.md 的 `vertical.name/tagline`、`boards[].title` 是 fleet-packs 仓文档形状,同构约定写进该文档(任务级),不在本仓校验器内(蓝图书不经 validatePackManifest)。
 

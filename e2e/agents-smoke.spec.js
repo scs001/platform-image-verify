@@ -31,7 +31,7 @@ test("@smoke agents page renders (no white screen)", async ({ page }) => {
   const empty = page.getByTestId("clusters-empty");
   if (await empty.count()) {
     const txt = await empty.innerText();
-    expect(txt, "clusters empty state must mention clusters").toMatch(/cluster|集群|clúster/i);
+    expect(txt, "arrays empty state must mention arrays").toMatch(/cluster|array|阵列|clúster/i);
     expect(txt, "must not reuse the composer's no-agents line").not.toMatch(/No agents available/i);
   }
 

@@ -4,7 +4,7 @@
 
 ### Requirement: 模板显示字段的多语言叠加
 
-舰队模板 manifest 的 `fleet` 段 SHALL 可选携带 `i18n` 块,形状为 `{ <locale>: { name?, members?: { <memberRef>: { title?, kpiSlots?: { <slotKey>: { label? } } } } } }`,用于覆盖模板名、岗位显示名与 KPI 槽位 label 的副语言文本;每个覆盖值 SHALL 为非空字符串。模板预校验 SHALL 拒绝引用不存在成员 ref 或不存在槽位 key 的覆盖,并以结构化错误指明该 locale 与成员路径。模板 `fleet` 段内部字段(members/cadence 结构、kpiSlots 键集、orchestration 边集)形状 SHALL 与变更前完全一致;岗位 `promptTemplate` 与 persona 属内容层,SHALL NOT 进入 overlay。内置模板的 `nameKey`/`titleKey`/`labelKey` 机制 SHALL 原样保留,与 overlay 并存不互换。
+集群模板 manifest 的 `fleet` 段 SHALL 可选携带 `i18n` 块,形状为 `{ <locale>: { name?, members?: { <memberRef>: { title?, kpiSlots?: { <slotKey>: { label? } } } } } }`,用于覆盖模板名、岗位显示名与 KPI 槽位 label 的副语言文本;每个覆盖值 SHALL 为非空字符串。模板预校验 SHALL 拒绝引用不存在成员 ref 或不存在槽位 key 的覆盖,并以结构化错误指明该 locale 与成员路径。模板 `fleet` 段内部字段(members/cadence 结构、kpiSlots 键集、orchestration 边集)形状 SHALL 与变更前完全一致;岗位 `promptTemplate` 与 persona 属内容层,SHALL NOT 进入 overlay。内置模板的 `nameKey`/`titleKey`/`labelKey` 机制 SHALL 原样保留,与 overlay 并存不互换。
 
 #### Scenario: 双语集群模板按 locale 显示
 

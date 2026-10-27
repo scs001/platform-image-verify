@@ -12,6 +12,7 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
 
 const {
   STEWARD_CONSENT_TEXT,
@@ -51,9 +52,11 @@ test("scheduled task: ONLOGON LIMITED, idempotent create", () => {
 
 test("entry path: packaged resolves under the bundle, dev under the repo", () => {
   const packed = stewardEntryPath({ isPackaged: true, resourcesDir: "/Applications/Platform.app/Contents/Resources" });
-  assert.ok(packed.includes("steward-main.js"));
+  assert.ok(packed.endsWith(path.join("app", "supervisor", "steward-main.js")), "packaged entry sits at resources/app");
   const dev = stewardEntryPath({ isPackaged: false, projectRoot: "/repo" });
-  assert.equal(dev, "/repo/supervisor/steward-main.js");
+  // Compare via path.join: the implementation is path.join'd too, and a POSIX
+  // literal would assert backslashes are wrong on Windows — they are not.
+  assert.equal(dev, path.join("/repo", "supervisor", "steward-main.js"));
 });
 
 test("uninstall plan deregisters the launch mechanism on both platforms", () => {

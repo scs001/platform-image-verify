@@ -209,6 +209,9 @@ test.describe("fleet ops canvas — mini span", () => {
     await expect(span.getByTestId("mini-span-tool")).toHaveCount(1);
     await expect(span.locator("text=web_search")).toBeVisible();
     await expect(span.getByTestId("mini-span-source")).toBeVisible();
+    // The row-sourced error line renders INTERPOLATED (single-brace "{kind}"
+    // shipped once and showed the literal placeholder — production catch).
+    await expect(span.getByTestId("mini-span-error")).toContainText("failed: tool_permission");
     await unhover("inv");
 
     // A tool-less healthy post embeds nothing on hover.

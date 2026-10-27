@@ -1721,7 +1721,18 @@
           "reply": "Réponse",
           "close": "Clôture"
         }
-      }
+      },
+      "buyPack": "Acheter ${{price}}",
+      "oneOff": " (achat unique)",
+      "perPeriod": " / {{days}} jours",
+      "purchase": {
+        "insufficient": "Solde insuffisant — rechargez dans le panneau de tokens puis réessayez.",
+        "noBilling": "Aucun compte de facturation sub2api lié — terminez la liaison avant dacheter.",
+        "required": "Achetez ce pack avant de linstaller.",
+        "settlementFailed": "La transaction nest pas finalisée — en attente ; réessayez bientôt depuis Mes packs."
+      },
+      "purchased": "acheté",
+      "vendorBy": "par {{name}}"
     },
     "report": {
       "title": "Résultat d'installation de « {{name}} »",
@@ -1867,6 +1878,31 @@
       "facade": "Façade",
       "assistant": "Assistant",
       "toolkit": "Outils"
+    },
+    "earnings": {
+      "title": "Liquidation fournisseur",
+      "settled": "Part liquidée",
+      "pending": "En attente",
+      "credit": "Crédit disponible",
+      "creditSpent": "Crédit consumido",
+      "myPurchases": "Mes achats récents"
+    },
+    "wizard": {
+      "title": "Provisionnement de modèle de cluster",
+      "cancel": "Annuler",
+      "doneBtn": "Terminé",
+      "donePaused": "Cluster provisionné (en pause) — allumez quand vous êtes prêt.",
+      "igniteBtn": "Allumer la première exécution",
+      "lit": "Allumé — le cluster tourne.",
+      "missingParam": "Le paramètre obligatoire « {{name}} » est vide.",
+      "missingTargets": "({{n}} poste(s) né(s) vacant(s) — à pourvoir plus tard)",
+      "conflictTargets": "({{n}} cible(s) déjà occupée(s) — deviennent vacantes)",
+      "noParams": "Aucun emplacement de paramètre — provisionnez directement.",
+      "paramInvalidServer": "Paramètre « {{name}} » invalide : {{reason}}",
+      "runBtn": "Provisionner le cluster",
+      "stepInstall": "Abonnement et installation…",
+      "stepPay": "Finalisation de lachat…",
+      "stepProvision": "Provisionnement du cluster…"
     }
   },
   "overlay": {
@@ -2626,6 +2662,31 @@
       "failed": "échec",
       "errorKind": "échec : {{kind}}",
       "source": "ouvrir la trace"
+    },
+    "board": {
+      "billingError": "Échec de lecture de la facturation : {{error}}",
+      "billingTitle": "Dépenses (niveau compte, approximatif)",
+      "billingUnlinked": "Aucun compte sub2api lié — liez-le dans le panneau pour voir le relevé.",
+      "cellLastTraffic": "dernier trafic {{at}}",
+      "cellSleeping": "en veille (placeholder)",
+      "deltaUnknown": "—",
+      "digestDaily": "Quotidien",
+      "digestWeekly": "Hebdomadaire",
+      "failingBadge": "en échec {{count}}",
+      "iterationsBtn": "Itérations",
+      "loadError": "Échec du tableau : {{error}}",
+      "marketSpend": "marché {{amount}}",
+      "newVersion": "nouvelle v{{version}}",
+      "onDutyLine": "en poste {{on}}/{{total}}",
+      "proposalEmpty": "Les modifications ne peuvent pas être vides",
+      "proposalInvalidJson": "Les modifications ne sont pas un JSON valide",
+      "proposalPlaceholder": "Doc de modifications (JSON, ex. {\"cadenceDaily\":\"0 10 * * *\"})",
+      "proposalQueued": "En file pour validation — une fois approuvée, une nouvelle version est publiée sur le marché",
+      "proposalSubmit": "Soumettre à la file",
+      "proposeIteration": "Proposer une itération",
+      "retry": "Réessayer",
+      "title": "Mes clusters",
+      "turnsLine": "{{turns}} tours·{{runs}} exécutions"
     }
   },
   "facetCurate": {

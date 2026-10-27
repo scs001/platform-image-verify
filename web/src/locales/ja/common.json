@@ -1721,7 +1721,18 @@
           "reply": "返信",
           "close": "終了"
         }
-      }
+      },
+      "buyPack": "${{price}} で購入",
+      "oneOff": "（買い切り）",
+      "perPeriod": " / {{days}} 日",
+      "purchase": {
+        "insufficient": "残高不足——トークンパネルでチャージしてから再試行してください。",
+        "noBilling": "課金アカウント（sub2api）未連携——先に連携を完了してから購入してください。",
+        "required": "このパックは購入後にインストールできます。",
+        "settlementFailed": "決済が未完了——保留中です。少し後に「マイパック」から再試行してください。"
+      },
+      "purchased": "購入済み",
+      "vendorBy": "{{name}} 提供"
     },
     "report": {
       "title": "「{{name}}」のインストール結果",
@@ -1867,6 +1878,31 @@
       "facade": "分身",
       "assistant": "アシスタント",
       "toolkit": "ツール"
+    },
+    "earnings": {
+      "title": "ベンダー精算",
+      "settled": "精算済みシェア",
+      "pending": "精算待ち",
+      "credit": "利用可能クレジット",
+      "creditSpent": "消費済みクレジット",
+      "myPurchases": "最近の購入"
+    },
+    "wizard": {
+      "title": "クラスターテンプレートのプロビジョニング",
+      "cancel": "キャンセル",
+      "doneBtn": "完了",
+      "donePaused": "クラスタを実体化しました（全員一時停止）——確認して点火してください。",
+      "igniteBtn": "初回実行に点火",
+      "lit": "点火しました。クラスタが稼働中です。",
+      "missingParam": "必須パラメータ「{{name}}」が未入力です。",
+      "missingTargets": "（{{n}} ポストは目標欠如のため空席で誕生——後で補充できます）",
+      "conflictTargets": "（{{n}} ポストの目標は既に在役——空席として誕生）",
+      "noParams": "パラメータスロットなし——そのまま実体化できます。",
+      "paramInvalidServer": "パラメータ「{{name}}」が不正：{{reason}}",
+      "runBtn": "クラスタを実体化",
+      "stepInstall": "購読してインストール中…",
+      "stepPay": "購入手続きを完了中…",
+      "stepProvision": "パラメータに従いクラスタを実体化中…"
     }
   },
   "overlay": {
@@ -2626,6 +2662,31 @@
       "failed": "失敗",
       "errorKind": "失敗：{{kind}}",
       "source": "トレースを開く"
+    },
+    "board": {
+      "billingError": "課金データの読み取りに失敗：{{error}}",
+      "billingTitle": "支出（アカウント単位の概算）",
+      "billingUnlinked": "sub2api アカウント未連携——パネルで連携するとここに明細が出ます。",
+      "cellLastTraffic": "最終トラフィック {{at}}",
+      "cellSleeping": "休眠中（プレースホルダー）",
+      "deltaUnknown": "—",
+      "digestDaily": "日報",
+      "digestWeekly": "週報",
+      "failingBadge": "故障 {{count}}",
+      "iterationsBtn": "イテレーション",
+      "loadError": "ボードの読み取りに失敗：{{error}}",
+      "marketSpend": "マーケット取引 {{amount}}",
+      "newVersion": "新版 v{{version}}",
+      "onDutyLine": "稼働 {{on}}/{{total}}",
+      "proposalEmpty": "変更内容が空です",
+      "proposalInvalidJson": "変更内容が有効な JSON ではありません",
+      "proposalPlaceholder": "変更案（JSON、例 {\"cadenceDaily\":\"0 10 * * *\"}）",
+      "proposalQueued": "承認待ちキューに入れました——承認後にマーケットへ新版を公開します",
+      "proposalSubmit": "承認へ提出",
+      "proposeIteration": "イテレーションを提案",
+      "retry": "再試行",
+      "title": "マイクラスター",
+      "turnsLine": "{{turns}} ターン·{{runs}} 実行"
     }
   },
   "facetCurate": {

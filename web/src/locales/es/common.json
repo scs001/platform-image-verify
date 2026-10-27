@@ -1721,7 +1721,18 @@
           "reply": "Respuesta",
           "close": "Cierre"
         }
-      }
+      },
+      "buyPack": "Comprar ${{price}}",
+      "oneOff": " (pago único)",
+      "perPeriod": " / {{days}} días",
+      "purchase": {
+        "insufficient": "Saldo insuficiente — recarga en el panel de tokens y reintenta.",
+        "noBilling": "Sin cuenta de facturación sub2api vinculada — completa la vinculación antes de comprar.",
+        "required": "Compra este pack antes de instalarlo.",
+        "settlementFailed": "La liquidación no se completó — quedó pendiente; reintenta pronto desde Mis packs."
+      },
+      "purchased": "comprado",
+      "vendorBy": "de {{name}}"
     },
     "report": {
       "title": "Resultado de instalación de «{{name}}»",
@@ -1867,6 +1878,31 @@
       "facade": "Fachada",
       "assistant": "Asistente",
       "toolkit": "Herramientas"
+    },
+    "earnings": {
+      "title": "Liquidación de proveedor",
+      "settled": "Parte liquidada",
+      "pending": "Pendiente",
+      "credit": "Crédito disponible",
+      "creditSpent": "Crédito gastado",
+      "myPurchases": "Mis compras recientes"
+    },
+    "wizard": {
+      "title": "Aprovisionamiento de plantilla de clúster",
+      "cancel": "Cancelar",
+      "doneBtn": "Listo",
+      "donePaused": "Clúster aprovisionado (en pausa) — enciéndelo cuando quieras.",
+      "igniteBtn": "Encender primera ejecución",
+      "lit": "Encendido — el clúster está en marcha.",
+      "missingParam": "El parámetro obligatorio «{{name}}» está vacío.",
+      "missingTargets": "({{n}} puesto(s) nacieron vacantes — cubrir después)",
+      "conflictTargets": "({{n}} destino(s) ya ocupados — nacen como vacantes)",
+      "noParams": "Sin ranuras de parámetros — aprovisiona directamente.",
+      "paramInvalidServer": "Parámetro «{{name}}» no válido: {{reason}}",
+      "runBtn": "Aprovisionar clúster",
+      "stepInstall": "Suscibiendo e instalando…",
+      "stepPay": "Completando la compra…",
+      "stepProvision": "Aprovisionando el clúster…"
     }
   },
   "overlay": {
@@ -2626,6 +2662,31 @@
       "failed": "fallido",
       "errorKind": "falló: {{kind}}",
       "source": "abrir trace"
+    },
+    "board": {
+      "billingError": "Error al leer la facturación: {{error}}",
+      "billingTitle": "Gasto (nivel de cuenta, aproximado)",
+      "billingUnlinked": "No hay cuenta sub2api vinculada — vincúlala en el panel para ver el estado de cuentas.",
+      "cellLastTraffic": "último tráfico {{at}}",
+      "cellSleeping": "en reposo (marcador)",
+      "deltaUnknown": "—",
+      "digestDaily": "Diario",
+      "digestWeekly": "Semanal",
+      "failingBadge": "fallando {{count}}",
+      "iterationsBtn": "Iteraciones",
+      "loadError": "Error del tablero: {{error}}",
+      "marketSpend": "mercado {{amount}}",
+      "newVersion": "nueva v{{version}}",
+      "onDutyLine": "en servicio {{on}}/{{total}}",
+      "proposalEmpty": "Los cambios no pueden estar vacíos",
+      "proposalInvalidJson": "Los cambios no son JSON válido",
+      "proposalPlaceholder": "Doc de cambios (JSON, p. ej. {\"cadenceDaily\":\"0 10 * * *\"})",
+      "proposalQueued": "En cola para aprobación — al aprobarse se publica una versión nueva en el mercado",
+      "proposalSubmit": "Enviar a la cola",
+      "proposeIteration": "Proponer iteración",
+      "retry": "Reintentar",
+      "title": "Mis clústeres",
+      "turnsLine": "{{turns}} turnos·{{runs}} ejecuciones"
     }
   },
   "facetCurate": {

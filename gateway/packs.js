@@ -30,6 +30,7 @@ import { parseFleetTemplate } from "../server/fleet-template.js";
 import { safePackagePath } from "../lib/skill-files.js";
 import { declaredToolsByServer, toolGateErrors, probeMcpToolNames, toolFaceErrors, toolClosureErrors } from "../lib/publish-tool-gate.js";
 import { registryServerIndex } from "../registry-bridge.js";
+import { deriveBadge, badgeFromFlags } from "../lib/pack-badge.js";
 import { deployToRegistry, setAgentPaused, modelChoiceError, resolveServiceConfig, resolveAgentPort, NOTIFY_CHANNEL_RE, SECRET_NAME_RE, SECRET_LIMITS, maskSecretRef } from "../lib/agent-serving.js";
 import { createFleetScheduler } from "./fleet-scheduler.js";
 import { createSub2apiClient } from "../lib/sub2api-admin.js";
@@ -415,6 +416,13 @@ export function createPackRegistry({ file }) {
       ...(version.is_facade !== undefined && version.is_facade !== null
         ? { facade: Boolean(version.is_facade) }
         : {}),
+      // Type badge (add-ai-native-lexicon): structure-derived at read time —
+      // authors neither set nor override it. Present on list rows whose SQL
+      // projected the structure flags; the detail read attaches its own from
+      // the parsed manifest, both through lib/pack-badge's one precedence.
+      ...(version.has_fleet !== undefined && version.has_fleet !== null
+        ? { badge: badgeFromFlags(version) }
+        : {}),
     };
   }
 
@@ -548,7 +556,10 @@ export function createPackRegistry({ file }) {
       if (pack.unlisted && !includeUnlisted) return null;
       const version = latestVersionRow(id);
       if (!version) return null;
-      return { ...summaryOf(pack, version), manifest: JSON.parse(version.manifest) };
+      const manifest = JSON.parse(version.manifest);
+      // The detail read carries the same structure-derived badge the list
+      // shows (add-ai-native-lexicon) — one derivation, no drift.
+      return { ...summaryOf(pack, version), badge: deriveBadge(manifest), manifest };
     },
 
     // Stored versions are always retrievable — "immutable" includes the
@@ -618,7 +629,11 @@ export function createPackRegistry({ file }) {
       const rows = db.prepare(
         `SELECT p.*, v.version, v.name, v.description, v.tags, v.published_at,
                 json_array_length(v.manifest, '$.agents') AS agent_count,
-                CAST(json_extract(v.manifest, '$.facade') IS NOT NULL AS INTEGER) AS is_facade
+                CAST(json_extract(v.manifest, '$.facade') IS NOT NULL AS INTEGER) AS is_facade,
+                CAST(json_extract(v.manifest, '$.fleet') IS NOT NULL AS INTEGER) AS has_fleet,
+                CAST(json_extract(v.manifest, '$.cluster') IS NOT NULL AS INTEGER) AS has_cluster,
+                EXISTS(SELECT 1 FROM json_each(v.manifest, '$.agents') je
+                       WHERE json_extract(je.value, '$.serving') IS NOT NULL) AS has_serving
          FROM packs p JOIN pack_versions v
            ON v.pack_id = p.id AND v.version = (SELECT MAX(version) FROM pack_versions WHERE pack_id = p.id)
          WHERE ${whereSql}

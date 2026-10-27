@@ -37,7 +37,7 @@
       "args": [
         "server/fleet-architect-mcp.js"
       ],
-      "_comment": "舰队架构师工具面(agent-fleet-architect):读态/草稿/落地三段五工具,bundled 种子自激活,loopback 桥身份=cell owner"
+      "_comment": "集群架构师工具面(agent-fleet-architect):读态/草稿/落地三段五工具,bundled 种子自激活,loopback 桥身份=cell owner"
     },
     "playwright": {
       "command": "node",

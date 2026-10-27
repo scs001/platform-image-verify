@@ -8,7 +8,7 @@
 
 ### Requirement: 架构师工具面以三段分离暴露舰队编排能力
 
-系统 SHALL 向对话 persona 暴露舰队架构师工具面,含五工具:`fleet_list`(owner 舰队名册:标识、名称、状态、岗数、健康概要)、`fleet_spec_read`(单舰队完整 spec:组织树、岗位 targetRef、节奏、模型声明,只读)、`fleet_draft`(草稿 dry-run:校验 + 归一化 diff + 成本预估,不落库)、`fleet_apply`(执行草稿,写走既有舰队写路径)、`fleet_turns_read`(回合事件读:舰队级 status/source 过滤,数据源与 O1 读面同源)。工具桥 SHALL 仅接受 loopback 调用,身份 SHALL 由服务端解析为 cell owner;读写作用域 SHALL 与舰队 owner 门等价。草稿 SHALL 同时支持新建舰队与既有舰队的成员操作集(建/改/停/复/删岗与舰队改名)。
+系统 SHALL 向对话 persona 暴露集群架构师工具面,含五工具:`fleet_list`(owner 舰队名册:标识、名称、状态、岗数、健康概要)、`fleet_spec_read`(单舰队完整 spec:组织树、岗位 targetRef、节奏、模型声明,只读)、`fleet_draft`(草稿 dry-run:校验 + 归一化 diff + 成本预估,不落库)、`fleet_apply`(执行草稿,写走既有舰队写路径)、`fleet_turns_read`(回合事件读:舰队级 status/source 过滤,数据源与 O1 读面同源)。工具桥 SHALL 仅接受 loopback 调用,身份 SHALL 由服务端解析为 cell owner;读写作用域 SHALL 与舰队 owner 门等价。草稿 SHALL 同时支持新建舰队与既有舰队的成员操作集(建/改/停/复/删岗与舰队改名)。
 
 草稿与执行两段 SHALL 另经 owner 鉴权的驾驶舱路由对浏览器会话开放(供驾驶舱设计模式使用):该路由与工具面 SHALL 共用同一校验、diff、成本预估与落地逻辑,语义(校验必经、阻断错误、成本预估触发条件、apply 重校验与漂移拒绝)逐项等价;该路由 SHALL 仅接受 owner 鉴权的会话、作用域限于该 owner 的舰队、不暴露任何凭据;工具桥的 loopback-only 与 cell owner 身份解析 SHALL 不变。
 

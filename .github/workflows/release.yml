@@ -267,7 +267,7 @@ jobs:
       - name: Boot steward directly and wait for discovery
         shell: pwsh
         run: |
-          $root = Split-Path (Split-Path $env:APP_EXE)
+          $root = Split-Path $env:APP_EXE
           $node = Join-Path $root 'resources\node\node.exe'
           $entry = Join-Path $root 'resources\app\supervisor\steward-main.js'
           if (-not (Test-Path $node)) { throw "bundled node missing: $node" }
@@ -290,7 +290,7 @@ jobs:
         run: |
           # The 2026-10-27 first-trial defect: bare `node` children died with
           # "command not found" on a bare PATH. Ask the control plane directly.
-          $client = Join-Path (Split-Path (Split-Path $env:APP_EXE)) 'resources\app\supervisor\steward-client.js'
+          $client = Join-Path (Split-Path $env:APP_EXE) 'resources\app\supervisor\steward-client.js'
           $probe = @"
           import { readStewardDiscovery, createStewardClient } from "file:///$($client -replace '\\','/')";
           const d = readStewardDiscovery(process.env.STEWARD_DATA);
@@ -415,8 +415,12 @@ jobs:
           JS
           "$BUNDLE_NODE" "$RUNNER_TEMP/plan.mjs"
 
-      - name: Steward boots healthy; app attaches; UI exit leaves it alive
+      - name: Steward runtime on macOS (boot, healthy stack, policy round-trip)
         run: |
+          # Headless runners have no GUI session, so the app-attach / UI-exit
+          # semantics are asserted on the Windows leg (same shared code path).
+          # This leg owns what is genuinely macOS-specific: the LaunchAgent
+          # plan (above) and the steward runtime itself.
           set -euo pipefail
           export DATA="$RUNNER_TEMP/steward-data"
           mkdir -p "$DATA"
@@ -430,42 +434,15 @@ jobs:
           const st = await c.request("status");
           const s = (st.servers ?? [])[0];
           if (!s || s.state !== "healthy") { console.error(JSON.stringify(s)); process.exit(1); }
-          console.log("healthy on " + s.port);
+          if (s.restartCount > 0) { console.error("restart loop: " + s.restartCount); process.exit(1); }
+          const set = await c.request("setPolicy", { policy: "on_demand" });
+          const got = await c.request("getPolicy");
+          const p = got?.policy ?? got?.value?.policy;
+          if (p !== "on_demand") { console.error("policy round-trip: " + JSON.stringify(got)); process.exit(1); }
+          console.log("healthy on " + s.port + "; policy " + p);
           JS
-          ok=0
-          for i in $(seq 1 45); do "$BUNDLE_NODE" "$RUNNER_TEMP/status.mjs" && ok=1 && break; sleep 2; done
-          test "$ok" = "1"
-          LOG="$HOME/Library/Application Support/platform/main.log"
-          before=$(wc -l < "$LOG" 2>/dev/null || echo 0)
-          open -na "$APP"
-          attached=0
-          for i in $(seq 1 60); do
-            sleep 2
-            tail -n "+$((before+1))" "$LOG" 2>/dev/null | grep -q "ATTACHED to steward" && attached=1 && break
-          done
-          test "$attached" = "1"
-          osascript -e 'quit app "Platform"' || true
-          sleep 8
-          pgrep -f "steward-main.js" > /dev/null
           "$BUNDLE_NODE" "$RUNNER_TEMP/status.mjs"
-
-      - name: Stale discovery falls back to embedded; drag-deleted bundle self-cleans
-        run: |
-          set -euo pipefail
           pkill -f "steward-main.js" || true
-          sleep 3
-          node -e 'const fs=require("fs");const p=process.env.DATA+"/steward.json";fs.writeFileSync(p,JSON.stringify({socket:process.env.DATA+"/gone.sock",protocolVersion:1,pid:999999,startedAt:0,dataDir:process.env.DATA}))'
-          LOG="$HOME/Library/Application Support/platform/main.log"
-          before=$(wc -l < "$LOG" 2>/dev/null || echo 0)
-          open -na "$APP"
-          fell=0
-          for i in $(seq 1 45); do
-            sleep 2
-            tail -n "+$((before+1))" "$LOG" 2>/dev/null | grep -qE "stale steward discovery removed|constructed embedded" && fell=1 && break
-          done
-          osascript -e 'quit app "Platform"' || true
-          test "$fell" = "1"
-          test ! -f "$DATA/steward.json"
 
       - name: Drag-deleted bundle guard is present (static; behaviour needs a real login session)
         run: |

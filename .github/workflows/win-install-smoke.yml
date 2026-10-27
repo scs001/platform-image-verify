@@ -273,9 +273,15 @@ jobs:
           $strays = @()
           foreach ($p in $procs) {
             Write-Host "node pid $($p.ProcessId) parent $($p.ParentProcessId)"
+            # Walk up to the resident steward: the walk STOPS at $sw.Id (its own
+            # parent — this shell — is outside the stack and must not be taken
+            # for the root).
             $cur = [int]$p.ProcessId
             $guard = 0
-            while ($byPid.ContainsKey($cur) -and $guard -lt 20) { $cur = [int]$byPid[$cur].ParentProcessId; $guard += 1 }
+            while ($cur -ne $sw.Id -and $byPid.ContainsKey($cur) -and $guard -lt 20) {
+              $cur = [int]$byPid[$cur].ParentProcessId
+              $guard += 1
+            }
             if ($cur -ne $sw.Id) { $strays += $p }
           }
           if (-not ($procs | Where-Object { $_.ProcessId -eq $sw.Id })) { throw "resident steward process vanished" }

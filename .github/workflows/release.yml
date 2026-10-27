@@ -298,13 +298,20 @@ jobs:
           const st = await c.request("status");
           console.log(JSON.stringify(st.servers ?? []));
           const s = (st.servers ?? [])[0];
-          if (!s || s.state !== "healthy") { console.error("not healthy: " + JSON.stringify(s)); process.exit(1); }
+          console.log("STATE=" + JSON.stringify({ state: s?.state, pid: s?.pid, port: s?.port, restartCount: s?.restartCount, lastError: s?.lastError, logTail: (s?.logs ?? []).slice(-6) }));
+          if (!s || s.state !== "healthy") process.exit(1);
           "@
           $probe | Out-File -FilePath "$env:TEMP\steward-status.mjs" -Encoding utf8
           $ok = $false
           for ($i = 0; $i -lt 45 -and -not $ok; $i++) {
-            & $node "$env:TEMP\steward-status.mjs"
+            & $node "$env:TEMP\steward-status.mjs" *>> "$env:TEMP\probe.log"
             if ($LASTEXITCODE -eq 0) { $ok = $true } else { Start-Sleep -Seconds 2 }
+          }
+          Get-Content "$env:TEMP\probe.log" -Tail 30
+          if (-not $ok) {
+            "---- steward.log ----" | Write-Host
+            Get-ChildItem (Join-Path $data 'logs') -ErrorAction SilentlyContinue | Select-Object Name, Length
+            Get-Content (Join-Path $data 'logs\steward.log') -Tail 40 -ErrorAction SilentlyContinue
           }
           if (-not $ok) { throw "steward stack never became healthy (nodeBin/PATH regression?)" }
 

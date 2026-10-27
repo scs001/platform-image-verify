@@ -27,6 +27,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      artifact_run_id:
+        description: "复用既有 build 产物（run id；填了则跳过 build 只跑 installer-e2e）"
+        required: false
+        default: ""
 
 permissions:
   contents: write # softprops/action-gh-release creates/edits the Release
@@ -34,6 +39,7 @@ permissions:
 jobs:
   build:
     name: build (${{ matrix.artifact }})
+    if: ${{ github.event.inputs.artifact_run_id == '' }}
     strategy:
       fail-fast: false
       matrix:
@@ -214,3 +220,134 @@ jobs:
           echo "::notice::Public download page: $PAGE_URL"
           echo "Public download page: $PAGE_URL"
           mc ls minio/"$MINIO_BUCKET"/
+
+  # ── 装机 e2e（automate-nonweb-acceptance 4.1）─────────────────────────────
+  # 把 2026-10-27 v1.3.19 首裁的三分支固化为每次发布自动断言：装 → 起管家
+  # （bundled node 直启，避开 GUI/launchctl 在 runner 的确定性赤字）→ 开 app
+  # 断 ATTACHED → 杀 UI 断管家栈仍 healthy → 杀管家+死 pid 断 stale 自清回退
+  # embedded → 卸载断清场。资产走 build 的 workflow artifact（tag 与 dispatch
+  # 同一路径，不依赖 GitHub Release 已生成）。
+  installer-e2e:
+    name: installer e2e (windows)
+    needs: build
+    # always(): build 可能在「复用产物」dispatch 里被跳过——此时仍需执行。
+    if: ${{ always() && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/download-artifact@v4
+        if: ${{ github.event.inputs.artifact_run_id == '' }}
+        with:
+          name: exe
+          path: installer
+
+      - name: Fetch exe from a previous run (reuse mode)
+        if: ${{ github.event.inputs.artifact_run_id != '' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          New-Item -ItemType Directory -Force -Path installer | Out-Null
+          gh run download ${{ github.event.inputs.artifact_run_id }} -n exe -D installer -R ${{ github.repository }}
+
+      - name: Install silently (NSIS /S, per-user)
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem installer -Filter *.exe | Select-Object -First 1
+          Start-Process -FilePath $exe.FullName -ArgumentList '/S' -Wait
+          $app = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter 'Platform.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $app) { throw "installed Platform.exe not found" }
+          "APP_EXE=$($app.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Boot steward directly and wait for discovery
+        shell: pwsh
+        run: |
+          $root = Split-Path (Split-Path $env:APP_EXE)
+          $node = Join-Path $root 'resources\node\node.exe'
+          $entry = Join-Path $root 'resources\app\supervisor\steward-main.js'
+          if (-not (Test-Path $node)) { throw "bundled node missing: $node" }
+          if (-not (Test-Path $entry)) { throw "steward entry missing: $entry" }
+          $data = Join-Path $env:TEMP 'steward-e2e/data'
+          New-Item -ItemType Directory -Force -Path $data | Out-Null
+          "STEWARD_DATA=$data" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "STEWARD_NODE=$node" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $env:PLATFORM_DATA_DIR = $data
+          Start-Process -FilePath $node -ArgumentList @($entry) -NoNewWindow
+          $json = Join-Path $data 'steward.json'
+          for ($i = 0; $i -lt 60 -and -not (Test-Path $json); $i++) { Start-Sleep -Seconds 2 }
+          if (-not (Test-Path $json)) { throw "steward.json never appeared (control plane did not boot)" }
+          $disc = Get-Content $json -Raw | ConvertFrom-Json
+          "STEWARD_PID=$($disc.pid)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          if (-not (Get-Process -Id $disc.pid -ErrorAction SilentlyContinue)) { throw "steward pid $($disc.pid) not alive" }
+
+      - name: Steward stack must reach healthy (bundled-node children spawn)
+        shell: pwsh
+        run: |
+          # The 2026-10-27 first-trial defect: bare `node` children died with
+          # "command not found" on a bare PATH. Ask the control plane directly.
+          $client = Join-Path (Split-Path (Split-Path $env:APP_EXE)) 'resources\app\supervisor\steward-client.js'
+          $probe = @"
+          import { readStewardDiscovery, createStewardClient } from "file:///$($client -replace '\\','/')";
+          const d = readStewardDiscovery(process.env.STEWARD_DATA);
+          const c = createStewardClient({ socket: d.socket, timeoutMs: 5000 });
+          const st = await c.request("status");
+          console.log(JSON.stringify(st.servers ?? []));
+          const s = (st.servers ?? [])[0];
+          if (!s || s.state !== "healthy") { console.error("not healthy: " + JSON.stringify(s)); process.exit(1); }
+          "@
+          $probe | Out-File -FilePath "$env:TEMP\steward-status.mjs" -Encoding utf8
+          $ok = $false
+          for ($i = 0; $i -lt 45 -and -not $ok; $i++) {
+            & $env:STEWARD_NODE "$env:TEMP\steward-status.mjs"
+            if ($LASTEXITCODE -eq 0) { $ok = $true } else { Start-Sleep -Seconds 2 }
+          }
+          if (-not $ok) { throw "steward stack never became healthy (nodeBin/PATH regression?)" }
+
+      - name: App attaches; UI exit leaves the resident stack alive
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:APPDATA 'platform\main.log'
+          $before = if (Test-Path $log) { (Get-Content $log).Count } else { 0 }
+          Start-Process -FilePath $env:APP_EXE
+          $attached = $false
+          for ($i = 0; $i -lt 60 -and -not $attached; $i++) {
+            Start-Sleep -Seconds 2
+            $tail = if (Test-Path $log) { Get-Content $log | Select-Object -Skip $before } else { @() }
+            if ($tail -match 'ATTACHED to steward') { $attached = $true }
+          }
+          if (-not $attached) { throw "app never attached to the resident steward" }
+          Get-Process -Name 'Platform' -ErrorAction SilentlyContinue | Stop-Process -Force
+          Start-Sleep -Seconds 8
+          if (-not (Get-Process -Id $env:STEWARD_PID -ErrorAction SilentlyContinue)) { throw "steward died with the UI — resident semantics broken" }
+          & $env:STEWARD_NODE "$env:TEMP\steward-status.mjs"
+          if ($LASTEXITCODE -ne 0) { throw "resident stack not healthy after UI exit" }
+
+      - name: Stale discovery falls back to embedded (never a second stack)
+        shell: pwsh
+        run: |
+          Stop-Process -Id $env:STEWARD_PID -Force -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 4
+          $json = Join-Path $env:STEWARD_DATA 'steward.json'
+          @{ socket = "$env:STEWARD_DATA\gone.sock"; protocolVersion = 1; pid = 999999; startedAt = 0; dataDir = $env:STEWARD_DATA } |
+            ConvertTo-Json | Set-Content $json
+          $log = Join-Path $env:APPDATA 'platform\main.log'
+          $before = if (Test-Path $log) { (Get-Content $log).Count } else { 0 }
+          Start-Process -FilePath $env:APP_EXE
+          $fellBack = $false
+          for ($i = 0; $i -lt 45 -and -not $fellBack; $i++) {
+            Start-Sleep -Seconds 2
+            $tail = if (Test-Path $log) { Get-Content $log | Select-Object -Skip $before } else { @() }
+            if ($tail -match 'stale steward discovery removed|constructed embedded') { $fellBack = $true }
+          }
+          Get-Process -Name 'Platform' -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (-not $fellBack) { throw "stale steward.json did not fall back to embedded" }
+          if (Test-Path $json) { throw "stale steward.json was not cleaned up" }
+
+      - name: Uninstall leaves the machine clean
+        shell: pwsh
+        run: |
+          $un = Get-ChildItem (Split-Path $env:APP_EXE) -Filter 'Uninstall*.exe' | Select-Object -First 1
+          Start-Process -FilePath $un.FullName -ArgumentList '/S' -Wait
+          Start-Sleep -Seconds 10
+          if (Test-Path $env:APP_EXE) { throw "app files survived the uninstaller" }
+          "uninstall clean" | Write-Host

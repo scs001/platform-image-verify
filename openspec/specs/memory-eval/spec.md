@@ -78,7 +78,7 @@ digest 注入块 SHALL 由一个可独立单测的渲染器生成，并满足：
 
 ### Requirement: 老 note 深度场景度量蒸馏召回增量
 
-续作评测场景集 SHALL 含不少于 2 个「老 note」场景：期望背景全部存于同 project 按新近排序排名 >3 的 note 页——现 digest 读面（L1 段至多 3 条）不可达、唯蒸馏后经 L2 检索可达的背景。harness SHALL 对该类场景先经真实蒸馏路径（与生产同契约的侧车 /distill 调用）准备种子根，再渲染 digest 臂，并以不经蒸馏的同根渲染为对照；老.note 场景子集上蒸馏臂对现 digest 臂 SHALL 保持不劣（重推导度均值差 ≥1 分），结果记入 continue-baseline。
+续作评测场景集 SHALL 含不少于 2 个「老 note」场景：期望背景全部存于同 project 按新近排序排名 >5 的 note 页——现 digest 读面（L1 段至多 5 条）不可达、唯蒸馏后经 L2 检索可达的背景。harness SHALL 对该类场景先经真实蒸馏路径（与生产同契约的侧车 /distill 调用）准备种子根，再渲染 digest 臂，并以不经蒸馏的同根渲染为对照；老.note 场景子集上蒸馏臂对现 digest 臂 SHALL 保持不劣（重推导度均值差 ≥1 分），结果记入 continue-baseline。
 
 #### Scenario: 老 note 背景唯蒸馏可达
 

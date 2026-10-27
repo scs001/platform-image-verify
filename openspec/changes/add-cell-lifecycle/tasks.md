@@ -60,6 +60,11 @@
 - [ ] 5.2 平台读面：owner offline 命名（管家在线=在线、离线=owner offline 不计异常）；
   未注册=诚实缺席
 - [ ] 5.3 真机验收链：Mac+Win 双形态装/跑/关 UI/关屏息/关机/卸载/撤销八幕
+  - [x] 五幕 CI 化（2026-10-27）：跑/排干/撤销自焚（二次 401）上 `steward-smoke.yml`（三 OS，含
+    win32 真机 DPAPI 钥匙托管）；装/关 UI 存活/卸载 pid 排干 + 任务档销上 `win-install-smoke`
+    Phase D，对真实打包版 v1.3.19 跑出绿（管家 pid → 子 server-js → 孙链实测，attach 非双栈）
+  - [ ] 人工残留：关屏息、关机重启存活（runner 不会打盹）、Mac/Win 双形态真机眼见
+  - [ ] DPAPI + reporter 静默死修复的**打包态**覆盖：随下一班桌面版（≥ v1.3.20）的 Phase D 跑出
 
 ## 6 · 收尾
 

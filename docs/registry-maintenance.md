@@ -2739,3 +2739,24 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **发包件定型（publish 被登录挡）**：`npm pack` 审出 `files:["README.md"]` 会发**空壳**（dist 不进包）→ files 补 `dist`（30 文件 78.6kB）+ `prepublishOnly: build` + repository/license/keywords 元数据；bin 缺 shebang 全局装即废 → `src/index.ts` 加 `#!/usr/bin/env node`；CLI help 面改 yongyi（env 名/代码键零改老律不动）；单测 74/74 绿。**`npm publish --access public` 待属主 npm 登录**（E401，用户明示「要登录和我说」）。
 
 **部署文档定稿**：待拍标记全清——双域分工确认（memory 双面：落地页+API）、EdgeOne 暂不加（先直连观测，>1.5s 再挂，www 域有现成先例）、证书走雷池既有流程。fd-memory `873f5f4`。
+
+### §15.67 桌面管家五幕 CI 化：DPAPI 钥匙托管 +  Packaging 装置三幕（add-cell-lifecycle 5.3 可自动化半，2026-10-27 夜）
+
+**触发**：用户言「应该可以实现 github 来 test 吧，我好像在另一个 session 实现了这点」——另一本会话铺的 `win-install-smoke`（B/C 三相）在位但不覆盖 steward 常驻面。本批把八幕里五幕固化成 GitHub 可跑的证据链。
+
+**① DPAPI 钥匙托管**（supervisor/steward-identity.js）：win32 私钥以 DPAPI（CryptProtectData / CurrentUser scope，零依赖 PowerShell EncodedCommand、载荷走 stdin 不进 argv）封存入 `<dataDir>/.steward-keyv1.dpapi`；旧明文文件首读自动迁移（封后删明文）；DPAPI 不可用降级 0600 文件；密文被篡改⇒identity 视为已失（绝不用残留明文兜底）。注入式单测 5 例任意 OS 绿；**Windows 真机 DPAPI 2 例 在 GitHub windows-latest 上验证打开/篡改全绿**。
+
+**② 车道揪出的真缺陷（本机体系救出来的，只有上 GitHub 才看得见）**
+- **reporter 静默死（生产级）**：`tick()` 里 `manifestFn().catch()`——生产的 manifestFn 是**同步函数**，对普通对象调 `.catch` 抛 TypeError 被 `void tick().catch(()=>{})` 静默吞掉 ⇒ **v1.3.19 打包版里配对后的行报一次都发不出去**（默认 OFF 救了一命：未配对零上行）。本次冒烟「撤销」幕在 TrueBoot 里揪到；已修 `try/await` + 两回归测试；**打包态覆盖随 v1.3.20 的 win-smoke Phase D 验收**。
+- **policy 单测时区隐含输入**：每日槽 not-due 断言隐含本机时区（UTC runner 同函数恰好边界真 due）；改为按用例钉 tz（Asia/Shanghai×UTC 正反判），UTC/Shanghai/New York 三时区 7/7 全等。
+- **两例测试口径 Windows 不兼容**：discovery 文件 0o600 mode 断言限 POSIX；entry path 断言 `$(".../supervisor/steward-main.js")` 跨平台写死 `/`——各修一例。
+
+**③ 证据链（全绿）**
+- `steward-smoke.yml`（公开仓，三 OS，dispatch-only）：run **40590465073** 3 腿全绿——每腿 7 组家人（lifecycle/control/install/policy/keycustody/uplink）+ 真入口三幕（跑/排干/撤销 401 自焚）ALL ACTS PASS；Windows 腿含真机 DPAPI（ok 6/7）与钥匙串/sock 路径各面。**过程纠偏**：初跑 20min job 门会被超时记 cancelled、第二跑 install 路径断言假红——单测套件已逐文件超时（--test-timeout 60s，卡死点名而不再吃到 39 分钟），并去掉多余 `npm rebuild`（better-sqlite3 v13 预编译件随包）。
+- `win-install-smoke.yml` + **Phase D**（池仓 Windows ×2）：run **40555609494** 全相绿——打包版 v1.3.19 装后管家 resident（pid→子 server-js healthy→孙链=app 经 attach 走 op start），UI 发「Client connected/disconnected」确认 attach 非双栈（判据=以管家为唯一根的树走，直接子判据与孙进程误伤自纠两版），卸载器按 `$APPDATA\Platform\steward.pid` taskkill 排干+任务档销（假红一枚：schtasks 原生命令的退出码残留导致 PASS 行后仍 exit 1，改 Get-ScheduledTask+显式 exit 0）。
+
+**观察（挂账收规格主语）**：无 tz 的 cron 行被「机器本地时区」解释（MCP 工具文档原话），但云侧 duty ring 用同一仓码跑在 UTC——同一份 jobs.json 两执行器上的 due 时刻差一个时区偏移，影响=唤醒时刻漂移（cell 自补跑跑不丢）。建议：创建时物化 tz 进 jobs，或 spec 里择 tz-less=cell-local 并为 0 态显式设计。
+
+**纪律留名**：本轮我的 6 个在途文件被并行会话的提交（ad24a3f7「修剪 workflow」）整体扫入口袋（内容无损、HEAD 已核）；**第三次同类事件**。规则补一条：编辑完立即提交，在途文件绝不隔夜。
+
+**tasks 5.3 收口到户**：五幕已 CI 化马拉松-green；人工残留=关屏息、关机重启存活、Mac/Win 双形态真机眼见；DPAPI+reporter 修复的打包态覆盖随下一版 win-smoke 验收。

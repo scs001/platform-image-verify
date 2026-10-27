@@ -277,7 +277,10 @@ jobs:
           "STEWARD_DATA=$data" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "STEWARD_NODE=$node" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           $env:PLATFORM_DATA_DIR = $data
-          Start-Process -FilePath $node -ArgumentList @($entry) -NoNewWindow
+          # -WindowStyle Hidden = a detached console: a -NoNewWindow child dies
+          # when this step's console closes (test-harness artifact only —
+          # production launches via schtasks, which is detached by nature).
+          Start-Process -FilePath $node -ArgumentList @($entry) -WindowStyle Hidden
           $json = Join-Path $data 'steward.json'
           for ($i = 0; $i -lt 60 -and -not (Test-Path $json); $i++) { Start-Sleep -Seconds 2 }
           if (-not (Test-Path $json)) { throw "steward.json never appeared (control plane did not boot)" }
@@ -285,9 +288,6 @@ jobs:
           "STEWARD_PID=$($disc.pid)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           if (-not (Get-Process -Id $disc.pid -ErrorAction SilentlyContinue)) { throw "steward pid $($disc.pid) not alive" }
 
-      - name: Steward stack must reach healthy (bundled-node children spawn)
-        shell: pwsh
-        run: |
           # The 2026-10-27 first-trial defect: bare `node` children died with
           # "command not found" on a bare PATH. Ask the control plane directly.
           $client = Join-Path (Split-Path $env:APP_EXE) 'resources\app\supervisor\steward-client.js'

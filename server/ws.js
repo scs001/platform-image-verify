@@ -59,7 +59,7 @@ export const SANDBOX_LIMIT_REPLY = {
 
 export function authorizeUpgrade(ctx, req) {
   return ctx.authMode === "forward_auth"
-    ? Boolean(userFromHeaders(req.headers, ctx.headerTrust))
+    ? Boolean(userFromHeaders(req.headers, ctx.headerTrust) ?? mpUserFromToken(ctx, req))
     : ctx.authMode === "logto"
       ? Boolean(logtoUser(ctx, req))
       : true;
@@ -67,7 +67,7 @@ export function authorizeUpgrade(ctx, req) {
 
 export function userForConnection(ctx, req) {
   return ctx.authMode === "forward_auth"
-    ? userFromHeaders(req.headers, ctx.headerTrust)
+    ? (userFromHeaders(req.headers, ctx.headerTrust) ?? mpUserFromToken(ctx, req))
     : ctx.authMode === "logto"
       ? logtoUser(ctx, req)
       : null;
@@ -787,6 +787,35 @@ ctx.wss.on("connection", (ws, req) => {
         // (streaming guard, unknown name, bridge error) is an orphan error →
         // renders as a toast; the previous preset stays reported as current.
         const r = await ctx.switchPermissionTo(data.name);
+        if (!r.ok && r.error) ws.send(JSON.stringify({ type: "error", message: r.error }));
+        break;
+      }
+
+      case "list_plugins": {
+        if (!ctx.ready.dsh) {
+          ws.send(JSON.stringify({ type: "error", message: "Agent is still initializing" }));
+          break;
+        }
+        // Read-only inventory of the profile's whitelisted dsh bundles
+        // (add-dsh-plugin-supply). `available:false` means the roster is the
+        // last known (or empty) snapshot — the Plugins section renders it
+        // without erroring.
+        const { available, bundles } = await ctx.getPluginBundles();
+        ws.send(JSON.stringify({ type: "plugins", bundles, available }));
+        break;
+      }
+
+      case "set_plugin_enabled": {
+        if (!ctx.ready.dsh) {
+          ws.send(JSON.stringify({ type: "error", message: "Agent is still initializing" }));
+          break;
+        }
+        // Composition change: the child persists the bundle-layer selection
+        // and either recomposes live (HMR) or the bridge restarts (sessions
+        // resume by id). A failure (streaming guard, unknown bundle, version
+        // gate, bridge error) is an orphan error → renders as a toast, and the
+        // roster keeps its previous state.
+        const r = await ctx.togglePluginBundle(data.id, data.enabled === true);
         if (!r.ok && r.error) ws.send(JSON.stringify({ type: "error", message: r.error }));
         break;
       }

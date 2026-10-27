@@ -301,12 +301,17 @@ export function registerAuth(ctx) {  ctx.app.use((req, res, next) => {
     }
 
     if (ctx.authEnabled) {
+      // The app's paired-device Bearer is a second door into the same
+      // identity under forward_auth too (logto's gate already does this;
+      // without it, a forward_auth deployment can't serve the app at all —
+      // first acceptance run, 2026-10-27).
+      const user = headerUser ?? mpUserFromToken(ctx, req);
       if (isPublicRequest(req) || isExempt(req.path)) {
-        if (headerUser) req.user = withRoles(ctx, headerUser);
+        if (user) req.user = withRoles(ctx, user);
         return next();
       }
-      if (!headerUser) return res.status(401).json({ error: "Authentication required" });
-      req.user = withRoles(ctx, headerUser);
+      if (!user) return res.status(401).json({ error: "Authentication required" });
+      req.user = withRoles(ctx, user);
       return next();
     }
     // Optional SSO is an identity overlay only. It never turns auth off into

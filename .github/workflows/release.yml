@@ -243,7 +243,7 @@ jobs:
       - uses: actions/download-artifact@v4
         if: ${{ github.event.inputs.artifact_run_id == '' }}
         with:
-          name: exe
+          name: platform-exe
           path: installer
 
       - name: Fetch exe from a previous run (reuse mode)
@@ -253,7 +253,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           New-Item -ItemType Directory -Force -Path installer | Out-Null
-          gh run download ${{ github.event.inputs.artifact_run_id }} -n exe -D installer -R ${{ github.repository }}
+          gh run download ${{ github.event.inputs.artifact_run_id }} -n platform-exe -D installer -R ${{ github.repository }}
 
       - name: Install silently (NSIS /S, per-user)
         shell: pwsh
@@ -368,7 +368,7 @@ jobs:
       - uses: actions/download-artifact@v4
         if: ${{ github.event.inputs.artifact_run_id == '' }}
         with:
-          name: dmg-arm64
+          name: platform-dmg-arm64
           path: installer
 
       - name: Fetch dmg from a previous run (reuse mode)
@@ -377,7 +377,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           mkdir -p installer
-          gh run download ${{ github.event.inputs.artifact_run_id }} -n dmg-arm64 -D installer -R ${{ github.repository }}
+          gh run download ${{ github.event.inputs.artifact_run_id }} -n platform-dmg-arm64 -D installer -R ${{ github.repository }}
 
       - name: Mount dmg and extract the app (no /Applications write, no launchctl)
         run: |

@@ -2732,3 +2732,10 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 - 数据面：sub2api 真状态在 Postgres（cheap-6，未损）；旧 local-path 卷里的本地目录（日志/临时层）留在坏盘上，节点修复后评估回迁；`sub2api-data-2` PVC 暂留勿删。
 
 **教训三条**：①GitOps 收编时的 hostname 钉是定时炸弹——节点一旦异常即把服务锁死在死地，钉节点必须连同「节点失能时的逃生路径」一起评审；②local-path PVC 是节点粘合剂，多副本服务慎用（本次 kubectl 直改全被 selfHeal 秒回，**一切修复必须走 gitee 源头**第三次实证）；③盘满节点的 kubelet 连 system-node-critical 救援 pod 的沙箱都起不来（pause blob 损坏），k8s API 侧无解——**节点 SSH/云控制台凭据必须入运维钥匙库**。
+### §15.60 永忆开源落地：fd-memory 开仓 PUBLIC + 发包件定型（2026-10-27，用户拍「开仓吧/先不加 EdgeOne/发吧」）
+
+**开仓链（公开不可逆，先清后开）**：① gitleaks 全历史 69 commit 无泄漏；② 定向补扫揪出**信息面泄漏**——eval 夹具 `continue-scenes.json` 内嵌壹座平台鉴权勘察叙述 371+ 处（server/auth.js·logto-auth.js 文件路径、管理门契约+管理员判定式、forward_auth 白名单行为、缺陷 #20 迁移登记/#22 Host 派生 origin 完整叙述）→ 解析态清洗器通用化（机理保留、产品/符号/路径清除），validateScenes 19 场全过；③ `git filter-repo` 把夹具旧版从**全历史**摘除+清洗版重落（中间坑：filter 后 HEAD 文件随史消失→从私有远端旧 master 取回重放清洗器；再坑：语法修复串误入正则表 `||` 成空匹配分支包卷所有字符致 118MB 废件——字面替换与正则替换分道后重生成）；④ 残留全零复验+gitleaks 复扫过；⑤ 强推 `adcad78→9a9f8fb`；⑥ `gh repo edit --visibility public` 开仓，**github.com/FindDataTechnology/fd-memory 现 PUBLIC**，官网 4 处 GitHub 链接随通。
+
+**发包件定型（publish 被登录挡）**：`npm pack` 审出 `files:["README.md"]` 会发**空壳**（dist 不进包）→ files 补 `dist`（30 文件 78.6kB）+ `prepublishOnly: build` + repository/license/keywords 元数据；bin 缺 shebang 全局装即废 → `src/index.ts` 加 `#!/usr/bin/env node`；CLI help 面改 yongyi（env 名/代码键零改老律不动）；单测 74/74 绿。**`npm publish --access public` 待属主 npm 登录**（E401，用户明示「要登录和我说」）。
+
+**部署文档定稿**：待拍标记全清——双域分工确认（memory 双面：落地页+API）、EdgeOne 暂不加（先直连观测，>1.5s 再挂，www 域有现成先例）、证书走雷池既有流程。fd-memory `873f5f4`。

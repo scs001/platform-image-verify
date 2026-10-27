@@ -2691,3 +2691,18 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **欠项**：① CMS 双语图解课程改版（清单在 `openspec/changes/add-ai-native-lexicon/lexicon-map.md`）待内容侧重发；② 徽章暂未入市场搜索过滤（open question，可另立）；③ 本班回归扫修掉的两处断言（【集群巡视上下文】/【集群岗位身份】）+ e2e 三处（facet-shell 按钮名 / agents-smoke 空态正则 / ja 機能集）已随 `809623f4` 入库。
 
 **§15.67 补记（2026-10-27 深夜，词典抛光二班上产）**：镜像 `sha-fe68a72`（paas `c09d6682`，digest `f160ec3b`，testaction002 池构建绿，GitOps `005347d` ×5 行、ArgoCD 一个轮询内滚完）。本班内容=真机走查后续穷举的三类瑕疵——zh 量词「创建第一支」→**「创建第一个」**（fleets.empty / detail.empty，「选择或创建一支集群」同案）、ja `機能セット` ×25 → **能力パック**（zh 词族漏网的变体，保留「フル機能/拡張機能/機能マトリクス」等通用词）、en 动态组统一小写 **Create array / My arrays**（对齐 fleets 句面）。公网 bundle 实证：创建第一个 1 命中/第一支 0、能力パック 25、Create array 3、My arrays 1、我的阵列 1。locale 闸 5/5、与 e2e 断言兼容（array 大小写不敏感）。
+
+### §15.64 ops-canvas 真机走查（第二轮，服务化浏览器登录后）——四拍四修 + 班十三/十四/十五
+
+**用户授凭据直登后**（aloadtree@gmail.com），在 in-app browser 对生产舰队 fleet_1792719144128_qap1vx 走查，**拍出四个真缺陷**（全部当日修完滚产）：
+
+1. **`/members/:mid/turns` 从未带 `traceTurnId`**——MiniSpan 第二跳永远 undefined（e2e fixture 手造字段掩盖）。修：turnTimelineEntry 补字段 + unit 断言（05170645，班十三）。
+2. **trace payload 真型是对象**（API 已解析）非字符串——MiniSpan `JSON.parse` 抛错被 catch 吞成零工具（e2e fixture 用字符串掩盖）。修：两种形状都容（d70ecd4e，班十四）。
+3. **i18next 插值单花括号**——`失败：{kind}` 字面量上屏（此处同仓 242 处均为 `{{}}`，我写新键时没对齐）。修：五语言改双括号 + e2e 钉插值结果（30643638，班十五）。
+4. **errorKind 取自易失 WS recents**——会把旧阵失败误贴给在途回合。修：改从同回合行取（同班，扫描进并行会话 ad24a3f7 提交，归属错记、内容正确）。
+
+**生产见证（本轮 PASS）**：配置栏真数据（模型×9/effort 高×1/预算桶/边流量）；hover 失败岗 span 呈现「失败：model_upstream · 打开 trace」（插值+同回合归因双修实证）；`/turns` API 返回 traceTurnId；trace 端点对在途 turn 返回 209 事件含 13 tool/call（第二跳数据面成立）。**未能眼见**：边回合粒子（本舰队 root 巡逻不触边；机制由 e2e 覆盖）、bot 岗摘要（生产无 bot 岗车队，e2e 覆盖）。
+
+**出片链三修（本轮连带）**：①快照 scrub 闸逮 HANDOFF-*.md 内情 → 排除表加 `HANDOFF-*.md` 通配 + browser-mcp 注释去 DEPLOY.md 引用；②gitleaks 逮 steward 测试假钥匙（base64「private-key-material-for-tests」+DPAPI 目录名常量）→ 白名单三处；③image smoke `browser-lane-smoke` 对「镜像未烘 lane」的已声明缺席硬等 60s 超时 → 改为见信号即 SKIP。终产 sha-513cc75（digest 46576d9a），四面同代。
+
+**并联抢跑第三次实录**：并行会话以 ad24a3f7 把我的未提交 MiniSpan/locale 改动扫进其提交（内容正确、归属错记）——老陷阱复现，提交纪律重申：`git add` 逐文件，禁 `-A`。

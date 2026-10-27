@@ -120,6 +120,19 @@ if (endpoint) {
   };
 }
 
+// Output dir (resource-library walkthrough defect, 2026-10-28): by default
+// @playwright/mcp writes screenshots/downloads under os.tmpdir()/.playwright-mcp,
+// outside the user's workspace — so the cell's file-capture hook rejected them
+// with invalid_path (and the agent's artifacts can't be served via /api/files
+// or offered as save-to-library). Point the lane's outputs at the workspace:
+// explicit BROWSER_OUTPUT_DIR wins, else the AGENT_WORKSPACE pin the deployment
+// sets, else this process's own cwd (a dsh-mcp-client child launches in the
+// session's validated workspace).
+browserConfig.browser.outputDir =
+  (process.env.BROWSER_OUTPUT_DIR || "").trim() ||
+  (process.env.AGENT_WORKSPACE || "").trim() ||
+  process.cwd();
+
 const configDir = mkdtempSync(join(tmpdir(), "browser-mcp-"));
 const configPath = join(configDir, "config.json");
 writeFileSync(configPath, JSON.stringify(browserConfig));

@@ -21,7 +21,7 @@
     "trace": "调用追踪",
     "openMenu": "打开导航菜单",
     "tasks": "自动化",
-    "fleets": "舰队",
+    "fleets": "集群",
     "apps": "应用",
     "fleet": "机群",
     "zhiyu": "智语"
@@ -46,25 +46,25 @@
       "events": "事件数",
       "session": "会话"
     },
-    "fleetBadge": "舰队"
+    "fleetBadge": "集群"
   },
   "agentsPage": {
     "title": "智能体",
     "agents": "专家",
-    "market": "功能集",
+    "market": "能力包",
     "create": "新建专家",
     "myExperts": "我的专家",
     "connect": "连接",
     "connecting": "连接中…",
     "loadFailed": "加载目录失败：{{error}}",
-    "myClusters": "我的集群",
-    "clustersEmpty": "还没有集群 —— 点右上「+ 创建集群」把多个角色编成一组。",
-    "clusterDetail": "集群详情",
-    "clusterAgents": "集群内的角色",
+    "myClusters": "我的阵列",
+    "clustersEmpty": "还没有阵列 —— 点右上「+ 创建阵列」把多个角色编成一组。",
+    "clusterDetail": "阵列详情",
+    "clusterAgents": "阵列内的角色",
     "clusterStatus": "状态",
     "clusterCreated": "创建时间",
-    "clusterTerminate": "解散集群",
-    "clusterTerminateHint": "解散后集群停止；已安装的角色和功能集不受影响。",
+    "clusterTerminate": "解散阵列",
+    "clusterTerminateHint": "解散后阵列停止；已安装的角色和能力包不受影响。",
     "close": "关闭"
   },
   "sidebar": {
@@ -227,9 +227,9 @@
       "websearchHint": "为本会话开启联网搜索（默认关闭）",
       "ctx": "上下文 {{pct}}%",
       "ctxHint": "已用 {{tokens}} / {{window}} tokens",
-      "clusterLoad": "载入集群",
+      "clusterLoad": "载入阵列",
       "clusterLoading": "载入中…",
-      "clusterLoadHint": "把该集群绑定为当前会话的运行编队：切到首个默认成员，成员间可随时切换；扇出执行走集群任务。",
+      "clusterLoadHint": "把该阵列绑定为当前会话：切到首个默认成员，成员间可随时切换；扇出执行走阵列任务。",
       "workspaceAdvanced": "高级"
     },
     "sending": "发送中…",
@@ -326,8 +326,8 @@
       "titlePlaceholder": "对话标题",
       "rename": "保存新标题",
       "sessionActions": "会话操作",
-      "clusterBound": "运行于集群「{{name}}」",
-      "clusterExpiring": "运行于集群「{{name}}」——闲置将于 {{time}} 自动清退，此前使用即保留"
+      "clusterBound": "运行于阵列「{{name}}」",
+      "clusterExpiring": "运行于阵列「{{name}}」——闲置将于 {{time}} 自动清退，此前使用即保留"
     },
     "titleTooLong": "标题不能超过 200 个字符",
     "connectionLost": "连接已断开，正在自动重连…",
@@ -349,18 +349,18 @@
     "queuedCancel": "取消",
     "queuedPreempt": "停止它并立即执行",
     "cluster": {
-      "terminatedNotice": "集群「{{name}}」已解散，已切回内置助手"
+      "terminatedNotice": "阵列「{{name}}」已解散，已切回内置助手"
     },
     "presetLink": {
       "pending": "正在切换到 {{name}}…",
       "rejected": "切换被拒——助手正在回答，可稍后重试",
       "retry": "重试",
-      "missing": "{{name}} 已不在（功能集可能已卸载），保持当前助手"
+      "missing": "{{name}} 已不在（能力包可能已卸载），保持当前助手"
     },
     "assistant": {
       "label": "与谁对话",
       "standardSection": "标准助手",
-      "packSection": "功能集角色",
+      "packSection": "能力包角色",
       "mineSection": "我的专家",
       "otherSection": "其他助手",
       "composeLocked": "会话已开始，运行模式固定；新建对话可换。"
@@ -532,7 +532,7 @@
       "addButton": "添加工具",
       "empty": "暂无外部工具。添加一个，智能体就多一套本领。",
       "fullSurface": "完整工具面",
-      "fullSurfaceHint": "标记后该服务在完整模式与聚焦模式都暴露全部工具，优先于功能集的工具声明。下次合成生效。",
+      "fullSurfaceHint": "标记后该服务在完整模式与聚焦模式都暴露全部工具，优先于能力包的工具声明。下次合成生效。",
       "addTitle": "添加工具",
       "editTitle": "编辑工具",
       "confirmDelete": "移除 \"{{name}}\"？",
@@ -859,7 +859,7 @@
       "wechat-app": "微信小程序",
       "branding": "部署品牌",
       "status": "系统状态",
-      "packs": "功能集",
+      "packs": "能力包",
       "presets": "自建预设",
       "devices": "已配对设备",
       "roles": "用户角色",
@@ -1040,7 +1040,7 @@
         },
         "facet": {
           "name": "谦面",
-          "desc": "功能集市场——技能、MCP 与角色打包发布的地方。"
+          "desc": "能力市场——技能、MCP 与角色打包发布的地方。"
         },
         "connector": {
           "name": "萬星·连接器",
@@ -1216,7 +1216,7 @@
       "missedTotal": "累计错过 {{count}} 次",
       "lastOk": "成功",
       "lastFailed": "失败",
-      "cluster": "集群 {{name}} · {{count}} agents"
+      "cluster": "阵列 {{name}} · {{count}} agents"
     },
     "schedule": {
       "daily": "每天 {{time}}",
@@ -1429,9 +1429,9 @@
   "facetShell": {
     "tabs": {
       "intro": "介绍",
-      "packs": "功能集",
+      "packs": "能力包",
       "mcp": "MCP 服务",
-      "mine": "我的功能集",
+      "mine": "我的能力包",
       "curate": "策展",
       "docs": "文档"
     },
@@ -1448,7 +1448,7 @@
   },
   "facetDocs": {
     "title": "使用文档",
-    "subtitle": "从一个功能集 id 到装好可用，这里都有——安装、接入、创作。",
+    "subtitle": "从一个能力包 id 到装好可用，这里都有——安装、接入、创作。",
     "packageNote": "已发布的 CLI 包名：",
     "nav": {
       "install": "安装",
@@ -1456,16 +1456,16 @@
       "create": "创作"
     },
     "install": {
-      "title": "安装功能集",
+      "title": "安装能力包",
       "lead": "在市场订阅，然后把某个版本的快照装进你实际使用的工具。壹座是第一公民路径——不需要命令行；CLI 覆盖五个编辑器目标。",
-      "marketNote": "市场——浏览并复制功能集 id：",
+      "marketNote": "市场——浏览并复制能力包 id：",
       "yizuoTab": "壹座（免命令行）",
       "yizuo": {
         "title": "壹座——第一公民路径",
-        "body": "用与本市场相同的身份登录壹座，订阅功能集，然后一键装进你的对话运行时——MCP 凭据已接线。",
-        "step1": "在本市场浏览并订阅一个功能集。",
-        "step2": "在壹座打开 设置 → 功能集 → 我的功能集。",
-        "step3": "安装已订阅的功能集——技能、MCP 引用与 agent 角色一起到位。"
+        "body": "用与本市场相同的身份登录壹座，订阅能力包，然后一键装进你的对话运行时——MCP 凭据已接线。",
+        "step1": "在本市场浏览并订阅一个能力包。",
+        "step2": "在壹座打开 设置 → 能力包 → 我的能力包。",
+        "step3": "安装已订阅的能力包——技能、MCP 引用与 agent 角色一起到位。"
       },
       "client": {
         "skillDir": "技能写入：",
@@ -1476,7 +1476,7 @@
     "clients": {
       "claude-code": {
         "label": "Claude Code",
-        "body": "技能以版本快照安装；存好调用键后，功能集的 MCP 引用可写进其原生 MCP 配置。"
+        "body": "技能以版本快照安装；存好调用键后，能力包的 MCP 引用可写进其原生 MCP 配置。"
       },
       "cursor": {
         "label": "Cursor",
@@ -1497,7 +1497,7 @@
     },
     "mcp": {
       "title": "接入 MCP 服务",
-      "lead": "功能集引用的 MCP 服务经注册处网关调用。连接有两条路——通用的调用键路径，与客户端原生的 OAuth 发现路径。",
+      "lead": "能力包引用的 MCP 服务经注册处网关调用。连接有两条路——通用的调用键路径，与客户端原生的 OAuth 发现路径。",
       "keyPath": {
         "title": "调用键（通用）",
         "body": "在注册处控制台铸取 wgk- 调用键；CLI 验活并存本地（0600）。之后 install 可把该键写进各客户端原生的 MCP 配置。",
@@ -1516,11 +1516,11 @@
       }
     },
     "create": {
-      "title": "创作与发布功能集",
+      "title": "创作与发布能力包",
       "lead": "发布需要 creators 组。三条组装路径，最终都过同一道发布门；版本一经发布不可变。",
       "routesTitle": "三条组装路径",
-      "route1": "壹座内：设置 → 功能集 → 新建功能集——以草稿形式组装技能、MCP 引用与角色。",
-      "route2": "一键转换：把自建预设转成功能集草稿（设置 → 自建预设 → 发布并部署），附「带走了什么、还需替换什么」的报告。",
+      "route1": "壹座内：设置 → 能力包 → 新建能力包——以草稿形式组装技能、MCP 引用与角色。",
+      "route2": "一键转换：把自建预设转成能力包草稿（设置 → 自建预设 → 发布并部署），附「带走了什么、还需替换什么」的报告。",
       "route3": "作者面（#/mine）：把 manifest 直发发布端点；校验错误原样呈现。",
       "disciplineTitle": "发布纪律",
       "versions": "每次发布追加一个不可变版本；每版可带一段简短说明（≤500 字）。",
@@ -1542,14 +1542,14 @@
     }
   },
   "facetIntro": {
-    "title": "千人千面 —— AI 编辑器的功能集与工具分发市场",
-    "subtitle": "功能集把技能、MCP 引用与 Agent 人格打包上架——浏览、订阅、发布；一行命令装进 Claude Code / Cursor",
+    "title": "千人千面 —— AI 编辑器的能力包与工具分发市场",
+    "subtitle": "能力包把技能、MCP 引用与 Agent 人格打包上架——浏览、订阅、发布；一行命令装进 Claude Code / Cursor",
     "factRow": "匿名可浏览，登录后可发布与订阅（与壹座同一套身份）",
-    "ctaPacks": "浏览功能集",
+    "ctaPacks": "浏览能力包",
     "ctaMcp": "查看 MCP 服务",
     "card": {
       "contents": {
-        "title": "功能集里有什么",
+        "title": "能力包里有什么",
         "body": "技能原文、MCP 引用、Agent 人格，外加版本、标签与作者；详情页可读每个技能的全文与历史版本。"
       },
       "install": {
@@ -1563,7 +1563,7 @@
     },
     "pathTitle": "工作原理",
     "quickTitle": "快速开始",
-    "quickArg": "<功能集 id 或含 id 的 URL>",
+    "quickArg": "<能力包 id 或含 id 的 URL>",
     "quickNote": "默认装到 Claude Code；--target cursor、--project <dir> 可选。",
     "quickHelpPrefix": "更多用法：",
     "lineLink": "寻数官网 · 谦面线页 →",
@@ -1580,7 +1580,7 @@
     }
   },
   "facetFooter": {
-    "tagline": "AI 编辑器的功能集与工具分发市场",
+    "tagline": "AI 编辑器的能力包与工具分发市场",
     "contactLabel": "联系",
     "linesLabel": "寻数产品线",
     "lines": {
@@ -1593,7 +1593,7 @@
     "current": "当前站点",
     "entriesLabel": "入口",
     "entries": {
-      "packs": "功能集市场",
+      "packs": "能力市场",
       "mcp": "MCP 服务目录",
       "line": "谦面线页"
     },
@@ -1606,9 +1606,9 @@
       "mine": "我的"
     },
     "market": {
-      "searchPlaceholder": "搜索功能集名称…",
+      "searchPlaceholder": "搜索能力包名称…",
       "search": "搜索",
-      "empty": "市场暂无功能集。",
+      "empty": "市场暂无能力包。",
       "allCategories": "全部垂类",
       "featured": "精选",
       "facade": "分身",
@@ -1618,7 +1618,7 @@
       "assistantHint": "市场向导：右下角副驾以「谦面助手」聚焦应答。当前 cell 未安装助手 pack——安装后向导自动聚焦。"
     },
     "detail": {
-      "notFound": "功能集不存在或已下架",
+      "notFound": "能力包不存在或已下架",
       "skills": "技能",
       "mcp": "外部工具",
       "toolFaceDeclared": "声明 {{declared}} / 全量 {{total}} 工具",
@@ -1631,7 +1631,7 @@
       "agents": "角色",
       "requiresGroup": "需要组 {{group}}",
       "cluster": {
-        "title": "集群信息",
+        "title": "阵列信息",
         "agentCount": "{{count}} 个角色",
         "agents": "角色组成",
         "showOptional": "显示可选角色",
@@ -1662,7 +1662,7 @@
         }
       },
       "subscribe": "订阅并安装",
-      "gotoMine": "查看我的功能集",
+      "gotoMine": "查看我的能力包",
       "deployTitle": "部署为服务",
       "deployBtn": "部署为服务",
       "deployOnline": "已上线",
@@ -1692,12 +1692,12 @@
       },
       "downloadSkill": "下载 SKILL.md",
       "manifestJson": "清单 JSON",
-      "selfhostTitle": "把这个功能集部署到官方云",
-      "selfhostBody": "本自部署实例未启用 agent 服务。要让这个功能集的 agent 上线（可分享页面、按回合计量、创作者分成），请发布到官方市场——一键部署流程在官方侧运行。",
+      "selfhostTitle": "把这个能力包部署到官方云",
+      "selfhostBody": "本自部署实例未启用 agent 服务。要让这个能力包的 agent 上线（可分享页面、按回合计量、创作者分成），请发布到官方市场——一键部署流程在官方侧运行。",
       "selfhostMarketBtn": "打开官方市场",
       "selfhostCreatingBtn": "发布指南",
       "selfhostNote": "也可以自建服务栈（见仓库文档）；走官方市场无需任何额外基础设施。",
-      "deploySummary": "部署 = 把此功能集的 agent 上线为可对话服务：得到可分享的公开对话页，访客按回合计量，你（部署者）拿分成。",
+      "deploySummary": "部署 = 把此能力包的 agent 上线为可对话服务：得到可分享的公开对话页，访客按回合计量，你（部署者）拿分成。",
       "keySubtitle": "计量 key = 访客聊天的买单额度：访客免费聊，回合费走你粘贴的 key（先垫后分成）。",
       "rhythmSubtitle": "节奏 = 要不要让它自己干活：不加条目 = 纯应答（有人来才说话）；加了 = 平台定时唤醒它自主跑（消耗你的额度）。",
       "modelSubtitle": "模型 = 它用哪个模型想事：留空 = 维持现状（既有覆盖，否则包声明的默认）。",
@@ -1718,7 +1718,7 @@
       "loginGo": "去登录",
       "close": "关闭",
       "skillFiles": "技能包 {{count}} 个辅助文件",
-      "scriptGateTitle": "此功能集包含可执行脚本",
+      "scriptGateTitle": "此能力包包含可执行脚本",
       "scriptGateBody": "以下技能携带脚本文件，安装后会落盘到你的运行时；确认后才会安装（仅此一次确认）。",
       "scriptGateConfirm": "确认安装"
     },
@@ -1746,7 +1746,7 @@
       "bot": "机器人"
     },
     "mine": {
-      "empty": "还没有订阅任何功能集。去市场看看。",
+      "empty": "还没有订阅任何能力包。去市场看看。",
       "updateAvailable": "可更新到 v{{version}}",
       "upgrade": "升级",
       "uninstall": "退订"
@@ -1761,15 +1761,15 @@
     },
     "drafts": {
       "title": "我的创作",
-      "create": "新建功能集",
+      "create": "新建能力包",
       "empty": "还没有草稿。",
-      "defaultName": "未命名功能集",
+      "defaultName": "未命名能力包",
       "published": "已发布",
       "draft": "草稿",
       "partCounts": "{{skills}} 个技能 · {{mcp}} 个工具 · {{agents}} 个角色"
     },
     "editor": {
-      "title": "编辑功能集",
+      "title": "编辑能力包",
       "save": "保存草稿",
       "publish": "发布",
       "publishOk": "已发布 v{{version}}。",
@@ -1784,7 +1784,7 @@
       "skillContent": "SKILL.md 正文",
       "remove": "移除",
       "mcp": "外部工具引用",
-      "mcpHint": "只能从市场目录中选取 registry 服务；功能集不能自带端点。",
+      "mcpHint": "只能从市场目录中选取 registry 服务；能力包不能自带端点。",
       "mcpEmpty": "市场目录暂无 registry 服务。",
       "agents": "角色",
       "addAgent": "添加角色",
@@ -1826,7 +1826,7 @@
     "bridge": {
       "title": "已从预设转入 {{skills}} 个技能、{{servers}} 个服务器；以下引用未迁移：",
       "reason": {
-        "pack": "来自功能集 {{pack}}，内容非你所有",
+        "pack": "来自能力包 {{pack}}，内容非你所有",
         "unavailable": "当前不可用",
         "operator": "部署级运维服务器，无市场对应",
         "local": "本地配置的服务器，无市场对应"
@@ -1860,6 +1860,12 @@
     "mineSections": {
       "installed": "已安装",
       "creations": "我的创作"
+    },
+    "badge": {
+      "blueprint": "蓝图",
+      "facade": "分身",
+      "assistant": "助手",
+      "toolkit": "工具"
     }
   },
   "overlay": {
@@ -1891,7 +1897,7 @@
     "tags": "标签",
     "tagsPlaceholder": "逗号分隔",
     "skills": "技能引用",
-    "skillHint": "从本地可用技能中选择（含已安装功能集的技能）。不可用的引用会被跳过，恢复可用后自动生效。",
+    "skillHint": "从本地可用技能中选择（含已安装能力包的技能）。不可用的引用会被跳过，恢复可用后自动生效。",
     "mcp": "外部工具引用",
     "mcpHint": "从已启用的服务中选择；引用不会重新启用你已停用的服务。",
     "noSkills": "本单元格暂无可用技能。",
@@ -1905,23 +1911,23 @@
     "unavailable": "当前不可用",
     "shadowed": "被覆盖",
     "shadowedHint": "同名条目由 agents.json 或云端配置覆盖，当前以覆盖方角色运行。",
-    "toPackDraft": "转为功能集草稿",
-    "bridgeDenied": "转换需要部署管理权限（管理员或 cell 所有者）——可先在功能集草稿中手工创作",
+    "toPackDraft": "转为能力包草稿",
+    "bridgeDenied": "转换需要部署管理权限（管理员或 cell 所有者）——可先在能力包草稿中手工创作",
     "examples": "示例提问",
-    "examplesHint": "最多 3 条；发布为功能集后成为试问示例",
+    "examplesHint": "最多 3 条；发布为能力包后成为试问示例",
     "examplePlaceholder": "示例 {{n}}（可选）"
   },
   "presetPublish": {
     "action": "发布并部署",
     "title": "发布并部署 — {{name}}",
-    "compose": "正在组装功能集草稿…",
-    "confirmHint": "确认组装好的功能集：名称与描述可直接修改；技能、MCP 引用与角色按转换结果带入。",
-    "name": "功能集名称",
+    "compose": "正在组装能力包草稿…",
+    "confirmHint": "确认组装好的能力包：名称与描述可直接修改；技能、MCP 引用与角色按转换结果带入。",
+    "name": "能力包名称",
     "description": "描述",
     "notes": "版本说明（可选，≤500 字）",
     "parts": "{{skills}} 个技能 · {{mcp}} 个 MCP · {{agents}} 个角色",
     "facadeToggle": "作为 AI 分身发布",
-    "facadeHint": "发布后这个功能集就是你的 AI 分身：部署接待角色后，访客从目录点「和这个分身聊」免费和你聊；接待用包内全部技能作语料如实回答，答不了的如实说。费用走你的额度（hosted）。",
+    "facadeHint": "发布后这个能力包就是你的 AI 分身：部署接待角色后，访客从目录点「和这个分身聊」免费和你聊；接待用包内全部技能作语料如实回答，答不了的如实说。费用走你的额度（hosted）。",
     "facadeNeedServing": "成为分身需要一个服务面角色——当前草稿没有带服务契约的角色。",
     "facadeNeedSkill": "成为分身需要至少一个技能作语料——当前草稿没有可带入的技能。",
     "facadeReception": "接待角色",
@@ -1936,7 +1942,7 @@
     "publishDenied": "发布被拒绝——需要创作者（creator）成员资格（403）",
     "publishedBadge": "已发布",
     "published": "已发布 v{{version}}——市场可见。",
-    "noServing": "该功能集没有带服务契约的角色，无需部署。",
+    "noServing": "该能力包没有带服务契约的角色，无需部署。",
     "deployTitle": "部署为 Agent 服务",
     "deployHint": "角色带服务契约——部署后即可经 A2A 调用。",
     "deploy": "立即部署",
@@ -1984,7 +1990,7 @@
   "mcp": {
     "narrative": {
       "title": "平台基建 vs 包内容",
-      "body": "本页的 MCP 服务与 skills 是平台提供的基础设施：接入你的 MCP 客户端或 agent 后直接使用。pack（功能集）是内容捆绑——把技能、MCP 引用与 agent 角色打包成一个可安装单元，装一个包，它的部件一起到位。"
+      "body": "本页的 MCP 服务与 skills 是平台提供的基础设施：接入你的 MCP 客户端或 agent 后直接使用。pack（能力包）是内容捆绑——把技能、MCP 引用与 agent 角色打包成一个可安装单元，装一个能力包，它的部件一起到位。"
     },
     "tabs": {
       "servers": "MCP 服务",
@@ -2043,7 +2049,7 @@
       },
       "facet": {
         "name": "谦面",
-        "tagline": "packs 市场——发现、安装与创作 AI 能力包"
+        "tagline": "能力市场——发现、安装与创作能力包"
       },
       "wanxing": {
         "name": "萬星",
@@ -2067,9 +2073,9 @@
     "openOrigin": "打开原站",
     "tab": {
       "overview": "概览",
-      "my-packs": "我的包",
+      "my-packs": "我的能力包",
       "publish-history": "发布记录",
-      "fleet-summary": "舰队概况",
+      "fleet-summary": "集群概况",
       "missions": "任务",
       "deployments": "部署",
       "datasets": "我的数据",
@@ -2149,7 +2155,7 @@
     "tooLong": "（超 200 字，保存时将跳过此条）",
     "needNamePersona": "请填写名称和角色设定",
     "save": "保存方案",
-    "savedAs": "已保存「{{name}}」。可以在“我的专家”里继续编辑，或一键发布到功能集市场。",
+    "savedAs": "已保存「{{name}}」。可以在“我的专家”里继续编辑，或一键发布到能力市场。",
     "goPublish": "去发布",
     "modeCreate": "新建方案",
     "modeUpdate": "更新已有",
@@ -2254,35 +2260,35 @@
   },
   "clusters": {
     "composer": {
-      "title": "创建集群",
-      "clusterName": "集群名称",
+      "title": "创建阵列",
+      "clusterName": "阵列名称",
       "description": "描述",
       "selectAgents": "选择角色",
-      "addAllFromPack": "添加该功能集所有角色",
+      "addAllFromPack": "添加该能力包所有角色",
       "defaultAgent": "默认",
       "activateAllOnCreation": "创建时激活所有角色",
       "bindToCurrentSession": "绑定到当前会话",
-      "noAgents": "暂无可用角色。请先安装一些功能集。",
-      "creating": "正在创建集群...",
-      "created": "集群已创建",
-      "createCluster": "创建集群",
+      "noAgents": "暂无可用角色。请先安装一些能力包。",
+      "creating": "正在创建阵列...",
+      "created": "阵列已创建",
+      "createCluster": "创建阵列",
       "creatingBtn": "创建中...",
       "cancel": "取消",
-      "nameRequired": "请输入集群名称",
-      "nameTooLong": "集群名称不能超过 100 个字符",
+      "nameRequired": "请输入阵列名称",
+      "nameTooLong": "阵列名称不能超过 100 个字符",
       "atLeastOneAgent": "请至少选择一个角色",
       "manage": "管理"
     }
   },
   "fleets": {
-    "title": "舰队",
-    "create": "创建舰队",
-    "empty": "还没有舰队，点右上角创建第一支",
-    "nameLabel": "舰队名称",
+    "title": "集群",
+    "create": "创建集群",
+    "empty": "还没有集群，点右上角创建第一支",
+    "nameLabel": "集群名称",
     "namePlaceholder": "如：内容工作室",
     "membersCount": "{{count}} 个岗位",
     "detail": {
-      "empty": "选择或创建一支舰队"
+      "empty": "选择或创建一支集群"
     },
     "state": {
       "active": "运行中",
@@ -2298,7 +2304,7 @@
       "confirmDissolve": "解散将移除全部物化任务，历史行保留。继续？"
     },
     "tree": {
-      "empty": "还没有岗位，点「建岗」开始编队",
+      "empty": "还没有岗位，点「建岗」开始组建",
       "structure": "结构视图"
     },
     "addMember": "建岗",
@@ -2320,7 +2326,7 @@
     },
     "kind": {
       "persona": "角色",
-      "cluster": "集群",
+      "cluster": "阵列",
       "a2a": "Agent 服务",
       "tool": "工具"
     },
@@ -2403,8 +2409,8 @@
       "memberGone": "（岗位已删）"
     },
     "tpl": {
-      "awaitStart": "舰队已按模板组建（全队暂停）——确认组织与节奏后启动",
-      "start": "启动舰队",
+      "awaitStart": "集群已按模板组建（全队暂停）——确认组织与节奏后启动",
+      "start": "启动集群",
       "newer": "模板有新版 v{{v}}（现役不受影响，可手动对齐）"
     },
     "stream": {
@@ -2459,7 +2465,7 @@
     },
     "hints": {
       "on_duty": "一切正常:岗位有人、按排班干活",
-      "paused": "舰队或该岗位被暂停,到点不干活",
+      "paused": "集群或该岗位被暂停,到点不干活",
       "missing": "到点了但没按时交汇报(超过容忍窗口)",
       "vacant": "职位空缺:还没绑执行者,或绑的角色已不存在",
       "passive": "不排班、不烧钱,等被派活或审批唤醒",
@@ -2517,7 +2523,7 @@
     "runs": {
       "title": "执行时间线",
       "loading": "时间线加载中…",
-      "empty": "暂无执行实例——舰队跑起来后回合在此成串",
+      "empty": "暂无执行实例——集群跑起来后回合在此成串",
       "filterStatus": "按状态过滤",
       "allStatuses": "全部状态",
       "filterSource": "按来源过滤",
@@ -2568,7 +2574,7 @@
       "runStarted": "交付已开始——回合将出现在时间线",
       "alreadyRunning": "已有回合在执行——本次交付随行",
       "effort": "思考深度",
-      "effortInherit": "继承（舰队/工位默认）",
+      "effortInherit": "继承（集群/工位默认）",
       "contextBudget": "上下文预算（token/回合）",
       "contextBudgetUnlimited": "不限",
       "contextBudgetInvalid": "上下文预算必须是正整数（每回合 token）",
@@ -2625,7 +2631,7 @@
     "title": "策展板",
     "subtitle": "垂类与精选是呈现层管理（不影响可见性/版本/可安装）；用量来自壹座网关聚合（近 7 天）。",
     "loading": "策展板加载中…",
-    "empty": "板上还没有功集——发布的功集会出现在这里。",
+    "empty": "板上还没有能力包——发布的能力包会出现在这里。",
     "errorLoad": "列表加载失败：{{message}}",
     "saved": "已保存：{{name}}",
     "saveFailed": "保存失败：{{name}} — {{message}}",
@@ -2639,10 +2645,10 @@
     "unfeature": "取消精选"
   },
   "facetMine": {
-    "title": "我的功集",
-    "subtitle": "管理你发布的功集：版本、上下架、可见性。安装到运行时请在壹座内完成（设置 → 功集 → 我的功能集）。带服务契约（serving）的公开功集会进入萬星目录——外部调用者一键部署、按回合计量，你按分成获得收益（发布即全链打通，无需额外配置）。",
-    "loading": "我的功集加载中…",
-    "empty": "还没有发布的功集——用下面的发布框开始。",
+    "title": "我的能力包",
+    "subtitle": "管理你发布的能力包：版本、上下架、可见性。安装到运行时请在壹座内完成（设置 → 能力包 → 我的能力包）。带服务契约（serving）的公开能力包会进入萬星目录——外部调用者一键部署、按回合计量，你按分成获得收益（发布即全链打通，无需额外配置）。",
+    "loading": "我的能力包加载中…",
+    "empty": "还没有发布的能力包——用下面的发布框开始。",
     "emptyGuide": "第一次发布？看创作指南（manifest 写法、serving 契约、版本纪律）：",
     "errorLoad": "加载失败：{{message}}",
     "public": "公开",
@@ -2655,7 +2661,7 @@
     "done": "{{label}} 完成",
     "failed": "{{label}} 失败：{{message}}",
     "publishTitle": "从清单发布",
-    "publishHint": "粘贴或编辑功集 manifest JSON（facet-pack-builder 产物）。留空功集 id = 新功集；填已有 id = 发布新版本。",
+    "publishHint": "粘贴或编辑能力包 manifest JSON（facet-pack-builder 产物）。留空能力包 id = 新能力包；填已有 id = 发布新版本。",
     "publishCliHint": "包在自有实例上？用 CLI 一键回流官方市场（配对一次，之后静默续登）：",
     "publishIdPlaceholder": "pack id（可选，新版本时填写）",
     "publishing": "发布中…",
@@ -2663,7 +2669,7 @@
     "publishedResult": "已发布：{{id}} v{{version}}",
     "publishFailed": "发布失败：{{message}}",
     "notJson": "不是合法 JSON",
-    "packIdWord": "功集id",
+    "packIdWord": "能力包 id",
     "visibility": "可见性"
   },
   "zhiyu": {
@@ -2787,6 +2793,20 @@
       "none": "不带历史",
       "last20": "带近 20 条",
       "all": "带全部历史"
+    },
+    "widget": {
+      "title": "网站嵌入",
+      "publicClosed": "公共嵌入通道当前由部署关闭（ZHIYU_WIDGET）——可预配置，开门即生效。",
+      "statusOn": "嵌入已开启（令牌指纹 {{fp}}）",
+      "statusOff": "嵌入未开启——先在下方填站点白名单（每行一个域），再开启。",
+      "allowlist": "站点白名单（每行一个域，支持 *.example.com 通配）",
+      "enable": "开启嵌入",
+      "saveAllowlist": "保存白名单",
+      "copySnippet": "复制 snippet",
+      "rotate": "轮换站点密钥",
+      "revoke": "吊销嵌入",
+      "makeLink": "生成进房链接",
+      "onceOnly": "下面两样只显示这一次，复制收好："
     }
   }
 }

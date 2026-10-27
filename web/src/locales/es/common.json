@@ -21,9 +21,9 @@
     "trace": "Traza",
     "openMenu": "Abrir menú de navegación",
     "tasks": "Automatización",
-    "fleets": "Flotas",
+    "fleets": "Clústeres",
     "apps": "Apps",
-    "fleet": "Flota de runners",
+    "fleet": "Clúster de runners",
     "zhiyu": "Zhiyu"
   },
   "trace": {
@@ -46,7 +46,7 @@
       "events": "Eventos",
       "session": "Sesión"
     },
-    "fleetBadge": "Flota"
+    "fleetBadge": "Clúster"
   },
   "agentsPage": {
     "title": "Agentes",
@@ -57,14 +57,14 @@
     "connect": "Conectar",
     "connecting": "Conectando…",
     "loadFailed": "Error al cargar el catálogo: {{error}}",
-    "myClusters": "Mis clústeres",
-    "clustersEmpty": "Aún no hay clústeres — usa \"+ Crear clúster\" para agrupar agentes en un equipo.",
-    "clusterDetail": "Detalles del clúster",
-    "clusterAgents": "Agentes del clúster",
+    "myClusters": "Mis arrays",
+    "clustersEmpty": "Aún no hay arrays — usa \"+ Crear array\" para agrupar agentes en un equipo.",
+    "clusterDetail": "Detalles del array",
+    "clusterAgents": "Agentes del array",
     "clusterStatus": "Estado",
     "clusterCreated": "Creado",
-    "clusterTerminate": "Terminar clúster",
-    "clusterTerminateHint": "Terminar detiene el clúster; los agentes y paquetes siguen instalados.",
+    "clusterTerminate": "Terminar array",
+    "clusterTerminateHint": "Terminar detiene el array; los agentes y paquetes siguen instalados.",
     "close": "Cerrar"
   },
   "sidebar": {
@@ -227,9 +227,9 @@
       "websearchHint": "Activa la búsqueda web para esta conversación (desactivada por defecto)",
       "ctx": "ctx {{pct}}%",
       "ctxHint": "{{tokens}} / {{window}} tokens",
-      "clusterLoad": "Cargar clúster",
+      "clusterLoad": "Cargar array",
       "clusterLoading": "Cargando…",
-      "clusterLoadHint": "Vincula este clúster a la sesión actual: cambia al primer miembro predeterminado; el fan-out va por tareas de clúster.",
+      "clusterLoadHint": "Vincula este array a la sesión actual: cambia al primer miembro predeterminado; el fan-out va por tareas de array.",
       "workspaceAdvanced": "Avanzado"
     },
     "sending": "Enviando…",
@@ -326,8 +326,8 @@
       "titlePlaceholder": "Título de la sesión",
       "rename": "Guardar nuevo título",
       "sessionActions": "Acciones de sesión",
-      "clusterBound": "Ejecutando con el clúster {{name}}",
-      "clusterExpiring": "Ejecutando con el clúster {{name}} — inactivo, se terminará a las {{time}} salvo que se use antes"
+      "clusterBound": "Ejecutando con el array {{name}}",
+      "clusterExpiring": "Ejecutando con el array {{name}} — inactivo, se terminará a las {{time}} salvo que se use antes"
     },
     "titleTooLong": "El título debe tener 200 caracteres o menos",
     "connectionLost": "Conexión perdida — reconectando…",
@@ -349,7 +349,7 @@
     "queuedCancel": "Cancelar",
     "queuedPreempt": "Detenerlo y ejecutar esto ahora",
     "cluster": {
-      "terminatedNotice": "El clúster '{{name}}' fue terminado; se cambió al agente integrado"
+      "terminatedNotice": "El array '{{name}}' fue terminado; se cambió al agente integrado"
     },
     "presetLink": {
       "pending": "Cambiando a {{name}}…",
@@ -1216,7 +1216,7 @@
       "missedTotal": "{{count}} omitidas",
       "lastOk": "correcto",
       "lastFailed": "fallido",
-      "cluster": "Clúster {{name}} · {{count}} agentes"
+      "cluster": "Array {{name}} · {{count}} agentes"
     },
     "schedule": {
       "daily": "cada día a las {{time}}",
@@ -1691,7 +1691,7 @@
       "scriptGateBody": "Las habilidades siguientes contienen archivos de script que se depositarán en tu runtime al instalar; nada se instala sin tu confirmación (única).",
       "scriptGateConfirm": "Confirmar instalación",
       "cluster": {
-        "title": "Información del clúster",
+        "title": "Información del array",
         "agentCount": "{{count}} agentes",
         "agents": "Composición de agentes",
         "showOptional": "Mostrar agentes opcionales",
@@ -1860,6 +1860,12 @@
     "mineSections": {
       "installed": "Instalados",
       "creations": "Mis creaciones"
+    },
+    "badge": {
+      "blueprint": "Plano",
+      "facade": "Fachada",
+      "assistant": "Asistente",
+      "toolkit": "Herramientas"
     }
   },
   "overlay": {
@@ -2179,8 +2185,8 @@
   },
   "clusters": {
     "composer": {
-      "title": "Crear clúster",
-      "clusterName": "Nombre del clúster",
+      "title": "Crear array",
+      "clusterName": "Nombre del array",
       "description": "Descripción",
       "selectAgents": "Seleccionar agentes",
       "addAllFromPack": "Añadir todos del paquete",
@@ -2188,13 +2194,13 @@
       "activateAllOnCreation": "Activar todos los agentes al crear",
       "bindToCurrentSession": "Vincular a la sesión actual",
       "noAgents": "No hay agentes disponibles. Instala algún paquete primero.",
-      "creating": "Creando clúster...",
-      "created": "Clúster creado",
-      "createCluster": "Crear clúster",
+      "creating": "Creando array...",
+      "created": "Array creado",
+      "createCluster": "Crear array",
       "creatingBtn": "Creando...",
       "cancel": "Cancelar",
-      "nameRequired": "El nombre del clúster es obligatorio",
-      "nameTooLong": "El nombre del clúster debe tener 100 caracteres o menos",
+      "nameRequired": "El nombre del array es obligatorio",
+      "nameTooLong": "El nombre del array debe tener 100 caracteres o menos",
       "atLeastOneAgent": "Selecciona al menos un agente",
       "manage": "Gestionar"
     }
@@ -2206,7 +2212,7 @@
       "overview": "Resumen",
       "my-packs": "Mis packs",
       "publish-history": "Historial de publicación",
-      "fleet-summary": "Resumen de flota",
+      "fleet-summary": "Resumen del clúster",
       "missions": "Misiones",
       "deployments": "Despliegues",
       "datasets": "Mis datos",
@@ -2275,14 +2281,14 @@
     }
   },
   "fleets": {
-    "title": "Flotas",
-    "create": "Crear flota",
-    "empty": "Aún no hay flotas: crea la primera",
+    "title": "Clústeres",
+    "create": "Crear clúster",
+    "empty": "Aún no hay clústeres: crea el primero",
     "nameLabel": "Nombre",
     "namePlaceholder": "p. ej. Estudio de contenido",
     "membersCount": "{{count}} puestos",
     "detail": {
-      "empty": "Selecciona o crea una flota"
+      "empty": "Selecciona o crea un clúster"
     },
     "state": {
       "active": "Activa",
@@ -2320,7 +2326,7 @@
     },
     "kind": {
       "persona": "Persona",
-      "cluster": "Clúster",
+      "cluster": "Array",
       "a2a": "Servicio de agentes",
       "tool": "Herramienta"
     },
@@ -2403,9 +2409,9 @@
       "memberGone": "(puesto eliminado)"
     },
     "tpl": {
-      "awaitStart": "Flota montada desde la plantilla (todo en pausa) — revisa y arranca",
+      "awaitStart": "Clúster montado desde la plantilla (todo en pausa) — revisa y arranca",
       "start": "Arrancar",
-      "newer": "La plantilla tiene una versión nueva v{{v}} (la flota activa no cambia; alinea a mano)"
+      "newer": "La plantilla tiene una versión nueva v{{v}} (el clúster activo no cambia; alinea a mano)"
     },
     "stream": {
       "title": "Últimas entregas",
@@ -2459,7 +2465,7 @@
     },
     "hints": {
       "on_duty": "Todo bien: cubierto y ejecutando su horario",
-      "paused": "La flota o el puesto está en pausa — no se ejecuta nada",
+      "paused": "El clúster o el puesto está en pausa — no se ejecuta nada",
       "missing": "No corrió/informó a tiempo (ventana de tolerancia superada)",
       "vacant": "El puesto no tiene titular (o su titular ya no existe)",
       "passive": "Sin horario ni coste en reposo; actúa al recibir tareas",
@@ -2517,7 +2523,7 @@
     "runs": {
       "title": "Cronología de ejecuciones",
       "loading": "Cargando cronología…",
-      "empty": "Aún no hay ejecuciones — los turnos aparecerán aquí cuando la flota se ejecute",
+      "empty": "Aún no hay ejecuciones — los turnos aparecerán aquí cuando el clúster se ejecute",
       "filterStatus": "Filtrar por estado",
       "allStatuses": "Todos los estados",
       "filterSource": "Filtrar por origen",
@@ -2568,7 +2574,7 @@
       "runStarted": "Entrega iniciada — el turno aparecerá en la cronología",
       "alreadyRunning": "Ya hay un turno en curso — la entrega lo acompaña",
       "effort": "Profundidad de razonamiento",
-      "effortInherit": "Heredar (flota/celda)",
+      "effortInherit": "Heredar (clúster/celda)",
       "contextBudget": "Presupuesto de contexto (tokens/turno)",
       "contextBudgetUnlimited": "Sin límite",
       "contextBudgetInvalid": "El presupuesto debe ser un entero positivo (tokens por turno)",
@@ -2787,6 +2793,20 @@
       "none": "No history",
       "last20": "Last 20",
       "all": "All history"
+    },
+    "widget": {
+      "title": "Website embed",
+      "publicClosed": "The public embed lane is closed at the deployment level (ZHIYU_WIDGET) — you can preconfigure; it takes effect once opened.",
+      "statusOn": "Embed enabled (token fingerprint {{fp}})",
+      "statusOff": "Embed disabled — add site domains below (one per line), then enable.",
+      "allowlist": "Site allowlist (one domain per line, *.example.com wildcards OK)",
+      "enable": "Enable embed",
+      "saveAllowlist": "Save allowlist",
+      "copySnippet": "Copy snippet",
+      "rotate": "Rotate site secret",
+      "revoke": "Revoke embed",
+      "makeLink": "Create join link",
+      "onceOnly": "Shown only once — copy and keep these:"
     }
   }
 }

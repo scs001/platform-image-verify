@@ -110,6 +110,18 @@ export function ZhiyuRoomPage() {
   const [inviteForm, setInviteForm] = useState({ kind: "user", ref: "", onBehalfOf: "", display: "", historyGrant: "join_from" });
   const [capForm, setCapForm] = useState("");
   const [budgetForm, setBudgetForm] = useState("");
+  // Website-embed management (add-zhiyu-website-embed group 5, owner only).
+  const [widgetStatus, setWidgetStatus] = useState<{
+    enabled: boolean;
+    publicOpen: boolean;
+    token: { fingerprint: string; allowlist: string[]; createdAt: number; revoked: boolean } | null;
+    linkToken: { fingerprint: string; createdAt: number } | null;
+  } | null>(null);
+  const [widgetDomainInput, setWidgetDomainInput] = useState("");
+  const [widgetIssued, setWidgetIssued] = useState<{ token: string; siteSecret: string; snippet: string } | null>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [widgetBusy, setWidgetBusy] = useState(false);
+  const [widgetNote, setWidgetNote] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const membersRef = useRef<MemberRow[]>([]);
   membersRef.current = members;
@@ -131,6 +143,92 @@ export function ZhiyuRoomPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Widget status loads lazily with the settings dialog (owner-only surface).
+  useEffect(() => {
+    if (!settingsOpen) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const st = await jcall<typeof widgetStatus>("GET", `/api/zhiyu/rooms/${roomId}/widget`);
+        if (!cancelled) {
+          setWidgetStatus(st);
+          if (st?.token?.allowlist) setWidgetDomainInput(st.token.allowlist.join("\n"));
+        }
+      } catch {
+        if (!cancelled) setWidgetStatus(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [settingsOpen, roomId]);
+
+  const widgetEnable = async () => {
+    setWidgetBusy(true);
+    setWidgetNote(null);
+    try {
+      const allowlist = widgetDomainInput.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+      const out = await jcall<{ token: string; siteSecret: string; snippet: string } & Record<string, unknown>>(
+        "POST",
+        `/api/zhiyu/rooms/${roomId}/widget`,
+        { allowlist },
+      );
+      setWidgetIssued({ token: out.token, siteSecret: out.siteSecret, snippet: out.snippet });
+      const st = await jcall<typeof widgetStatus>("GET", `/api/zhiyu/rooms/${roomId}/widget`);
+      setWidgetStatus(st);
+    } catch (err) {
+      setWidgetNote((err as Error).message);
+    } finally {
+      setWidgetBusy(false);
+    }
+  };
+
+  const widgetAction = async (action: "patch" | "rotate-secret" | "revoke" | "share-link" | "share-link/revoke") => {
+    setWidgetBusy(true);
+    setWidgetNote(null);
+    try {
+      if (action === "patch") {
+        const allowlist = widgetDomainInput.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+        await jcall("PATCH", `/api/zhiyu/rooms/${roomId}/widget`, { allowlist });
+        setWidgetNote("白名单已更新");
+      } else if (action === "rotate-secret") {
+        const out = await jcall<{ siteSecret: string }>("POST", `/api/zhiyu/rooms/${roomId}/widget/rotate-secret`);
+        setWidgetIssued({ token: "", siteSecret: out.siteSecret, snippet: "" });
+        setWidgetNote("站点密钥已轮换（旧密钥即刻失效）");
+      } else if (action === "revoke") {
+        await jcall("POST", `/api/zhiyu/rooms/${roomId}/widget/revoke`);
+        setWidgetIssued(null);
+        setWidgetStatus(null);
+        const st = await jcall<typeof widgetStatus>("GET", `/api/zhiyu/rooms/${roomId}/widget`);
+        setWidgetStatus(st);
+      } else if (action === "share-link") {
+        const out = await jcall<{ url: string }>("POST", `/api/zhiyu/rooms/${roomId}/share-link`);
+        setShareUrl(out.url);
+      } else if (action === "share-link/revoke") {
+        await jcall("POST", `/api/zhiyu/rooms/${roomId}/share-link/revoke`);
+        setShareUrl(null);
+        setWidgetNote("进房链接已吊销");
+      }
+      if (action !== "revoke" && action !== "share-link/revoke") {
+        const st = await jcall<typeof widgetStatus>("GET", `/api/zhiyu/rooms/${roomId}/widget`);
+        setWidgetStatus(st);
+      }
+    } catch (err) {
+      setWidgetNote((err as Error).message);
+    } finally {
+      setWidgetBusy(false);
+    }
+  };
+
+  const copyText = async (text: string, note: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setWidgetNote(note);
+    } catch {
+      setWidgetNote("复制失败，请手动选择复制");
+    }
+  };
 
   // SSE pump + overlay events.
   useEffect(() => {
@@ -519,6 +617,69 @@ export function ZhiyuRoomPage() {
               >
                 {t("zhiyu.settings.end")}
               </Button>
+            </div>
+
+            {/* Website embed (add-zhiyu-website-embed). Owner-only surface; the
+                public lane reports separately whether it is deployment-open. */}
+            <div className="border-t pt-4">
+              <h3 className="mb-2 text-sm font-medium">{t("zhiyu.widget.title")}</h3>
+              {widgetStatus && !widgetStatus.publicOpen && (
+                <p className="mb-2 rounded-md bg-muted px-2.5 py-1.5 text-xs text-muted-foreground">{t("zhiyu.widget.publicClosed")}</p>
+              )}
+              <p className="mb-2 text-xs text-muted-foreground">
+                {widgetStatus?.enabled
+                  ? t("zhiyu.widget.statusOn", { fp: widgetStatus.token?.fingerprint ?? "" })
+                  : t("zhiyu.widget.statusOff")}
+              </p>
+              <div className="space-y-2">
+                <Label className="text-xs">{t("zhiyu.widget.allowlist")}</Label>
+                <Textarea
+                  value={widgetDomainInput}
+                  onChange={(e) => setWidgetDomainInput(e.target.value)}
+                  placeholder={"shop.example.com\n*.partner.com"}
+                  className="min-h-[64px] text-xs"
+                />
+                <div className="flex flex-wrap gap-2">
+                  {!widgetStatus?.enabled ? (
+                    <Button size="sm" disabled={widgetBusy} onClick={() => void widgetEnable()} data-testid="zy-widget-enable">
+                      {t("zhiyu.widget.enable")}
+                    </Button>
+                  ) : (
+                    <>
+                      <Button size="sm" variant="outline" disabled={widgetBusy} onClick={() => void widgetAction("patch")}>
+                        {t("zhiyu.widget.saveAllowlist")}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => void copyText(`<script src="${location.origin}/zhiyu/widget.js" data-room="${widgetIssued?.token ?? ""}" async></script>`, "已复制 snippet")}>
+                        {t("zhiyu.widget.copySnippet")}
+                      </Button>
+                      <Button size="sm" variant="outline" disabled={widgetBusy} onClick={() => void widgetAction("rotate-secret")}>
+                        {t("zhiyu.widget.rotate")}
+                      </Button>
+                      <Button size="sm" variant="destructive" disabled={widgetBusy} onClick={() => void widgetAction("revoke")}>
+                        {t("zhiyu.widget.revoke")}
+                      </Button>
+                    </>
+                  )}
+                </div>
+                {widgetIssued?.token && (
+                  <div className="rounded-md bg-amber-50 px-2.5 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+                    <div className="font-medium">{t("zhiyu.widget.onceOnly")}</div>
+                    <code className="mt-1 block break-all">{widgetIssued.snippet}</code>
+                    <code className="mt-1 block break-all">site-secret: {widgetIssued.siteSecret}</code>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" disabled={widgetBusy} onClick={() => void widgetAction("share-link")}>
+                    {t("zhiyu.widget.makeLink")}
+                  </Button>
+                  {shareUrl && (
+                    <button type="button" className="truncate text-xs text-primary hover:underline" onClick={() => void copyText(shareUrl, "链接已复制")}>
+                      {shareUrl}
+                    </button>
+                  )}
+                </div>
+                {widgetNote && <p className="text-xs text-muted-foreground">{widgetNote}</p>}
+              </div>
             </div>
           </div>
         </DialogContent>

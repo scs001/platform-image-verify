@@ -278,7 +278,11 @@ app.get("/api/auth/me", (req, res, next) => {
 // the product's own login surface is unreachable on a hosted deployment.
 const WEB_DIST = path.join(REPO, "web", "dist");
 app.use(express.static(WEB_DIST));
-app.get(/^\/(?!api\/|external\/|auth\/|healthz$|assets\/).*/, (_req, res) => {
+// zhiyu/embed + zhiyu/join + zhiyu/widget are gateway-served lanes with their
+// OWN headers (dynamic CSP, loader MIME) — the SPA fallback must not swallow
+// them before the zhiyu module answers. The member-facing /zhiyu page route
+// stays on the SPA fallback in the same breath.
+app.get(/^\/(?!api\/|external\/|auth\/|healthz$|assets\/|zhiyu\/embed\/|zhiyu\/join\/|zhiyu\/widget).*/, (_req, res) => {
   res.sendFile(path.join(WEB_DIST, "index.html"));
 });
 
@@ -786,6 +790,8 @@ const zhiyu = registerZhiyuRoutes(app, {
   resolveUser,
   rejectUnauthenticated,
   env: process.env,
+  secret: SECRET,
+  webDist: WEB_DIST,
   callAgent: zhiyuLane.callAgent,
   settleTurn: zhiyuLane.settleTurn,
   cellExport: exportSessionFromCell,

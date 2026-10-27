@@ -21,9 +21,9 @@
     "trace": "Traçage",
     "openMenu": "Ouvrir le menu de navigation",
     "tasks": "Automatisation",
-    "fleets": "Flottes",
+    "fleets": "Clusters",
     "apps": "Apps",
-    "fleet": "Flotte de runners",
+    "fleet": "Cluster de runners",
     "zhiyu": "Zhiyu"
   },
   "trace": {
@@ -46,7 +46,7 @@
       "events": "Événements",
       "session": "Session"
     },
-    "fleetBadge": "Flotte"
+    "fleetBadge": "Cluster"
   },
   "agentsPage": {
     "title": "Agents",
@@ -57,14 +57,14 @@
     "connect": "Connecter",
     "connecting": "Connexion…",
     "loadFailed": "Échec du chargement du catalogue : {{error}}",
-    "myClusters": "Mes clusters",
-    "clustersEmpty": "Aucun cluster — utilisez « + Créer un cluster » pour regrouper des agents.",
-    "clusterDetail": "Détails du cluster",
-    "clusterAgents": "Agents du cluster",
+    "myClusters": "Mes arrays",
+    "clustersEmpty": "Aucun array — utilisez « + Créer un array » pour regrouper des agents.",
+    "clusterDetail": "Détails de l'array",
+    "clusterAgents": "Agents de l'array",
     "clusterStatus": "Statut",
     "clusterCreated": "Créé",
-    "clusterTerminate": "Dissoudre le cluster",
-    "clusterTerminateHint": "La dissolution arrête le cluster ; les agents et packs restent installés.",
+    "clusterTerminate": "Dissoudre l'array",
+    "clusterTerminateHint": "La dissolution arrête l'array ; les agents et packs restent installés.",
     "close": "Fermer"
   },
   "sidebar": {
@@ -227,9 +227,9 @@
       "websearchHint": "Active la recherche web pour cette conversation (désactivée par défaut)",
       "ctx": "ctx {{pct}}%",
       "ctxHint": "{{tokens}} / {{window}} tokens",
-      "clusterLoad": "Charger le cluster",
+      "clusterLoad": "Charger l'array",
       "clusterLoading": "Chargement…",
-      "clusterLoadHint": "Lie ce cluster à la session active : bascule sur le premier membre par défaut ; le fan-out passe par les tâches de cluster.",
+      "clusterLoadHint": "Lie cet array à la session active : bascule sur le premier membre par défaut ; le fan-out passe par les tâches d'array.",
       "workspaceAdvanced": "Avancé"
     },
     "sending": "Envoi…",
@@ -326,8 +326,8 @@
       "titlePlaceholder": "Titre de la session",
       "rename": "Enregistrer le nouveau titre",
       "sessionActions": "Actions de session",
-      "clusterBound": "Exécution avec le cluster {{name}}",
-      "clusterExpiring": "Exécution avec le cluster {{name}} — inactif, fin automatique à {{time}} sauf utilisation avant"
+      "clusterBound": "Exécution avec l'array {{name}}",
+      "clusterExpiring": "Exécution avec l'array {{name}} — inactif, fin automatique à {{time}} sauf utilisation avant"
     },
     "titleTooLong": "Le titre doit comporter 200 caractères ou moins",
     "connectionLost": "Connexion perdue — reconnexion en cours…",
@@ -349,7 +349,7 @@
     "queuedCancel": "Annuler",
     "queuedPreempt": "L'arrêter et exécuter ceci maintenant",
     "cluster": {
-      "terminatedNotice": "Le cluster « {{name}} » a été terminé ; retour à l'agent intégré"
+      "terminatedNotice": "L'array « {{name}} » a été terminé ; retour à l'agent intégré"
     },
     "presetLink": {
       "pending": "Bascule vers {{name}}…",
@@ -1216,7 +1216,7 @@
       "missedTotal": "{{count}} manquées",
       "lastOk": "réussie",
       "lastFailed": "échouée",
-      "cluster": "Cluster {{name}} · {{count}} agents"
+      "cluster": "Array {{name}} · {{count}} agents"
     },
     "schedule": {
       "daily": "chaque jour à {{time}}",
@@ -1691,7 +1691,7 @@
       "scriptGateBody": "Les compétences ci-dessous contiennent des scripts qui seront déposés dans votre runtime ; rien ne s'installe avant votre confirmation (unique).",
       "scriptGateConfirm": "Confirmer l'installation",
       "cluster": {
-        "title": "Informations du cluster",
+        "title": "Informations de l'array",
         "agentCount": "{{count}} agents",
         "agents": "Composition des agents",
         "showOptional": "Afficher les agents optionnels",
@@ -1860,6 +1860,12 @@
     "mineSections": {
       "installed": "Installés",
       "creations": "Mes créations"
+    },
+    "badge": {
+      "blueprint": "Plan",
+      "facade": "Façade",
+      "assistant": "Assistant",
+      "toolkit": "Outils"
     }
   },
   "overlay": {
@@ -2179,8 +2185,8 @@
   },
   "clusters": {
     "composer": {
-      "title": "Créer un cluster",
-      "clusterName": "Nom du cluster",
+      "title": "Créer un array",
+      "clusterName": "Nom de l'array",
       "description": "Description",
       "selectAgents": "Sélectionner des agents",
       "addAllFromPack": "Ajouter tous du pack",
@@ -2188,13 +2194,13 @@
       "activateAllOnCreation": "Activer tous les agents à la création",
       "bindToCurrentSession": "Lier à la session actuelle",
       "noAgents": "Aucun agent disponible. Installez d'abord des packs.",
-      "creating": "Création du cluster...",
-      "created": "Cluster créé",
-      "createCluster": "Créer le cluster",
+      "creating": "Création de l'array...",
+      "created": "Array créé",
+      "createCluster": "Créer l'array",
       "creatingBtn": "Création...",
       "cancel": "Annuler",
-      "nameRequired": "Le nom du cluster est requis",
-      "nameTooLong": "Le nom du cluster doit contenir au plus 100 caractères",
+      "nameRequired": "Le nom de l'array est requis",
+      "nameTooLong": "Le nom de l'array doit contenir au plus 100 caractères",
       "atLeastOneAgent": "Sélectionnez au moins un agent",
       "manage": "Gérer"
     }
@@ -2206,7 +2212,7 @@
       "overview": "Aperçu",
       "my-packs": "Mes packs",
       "publish-history": "Historique de publication",
-      "fleet-summary": "Résumé de la flotte",
+      "fleet-summary": "Résumé du cluster",
       "missions": "Missions",
       "deployments": "Déploiements",
       "datasets": "Mes données",
@@ -2275,14 +2281,14 @@
     }
   },
   "fleets": {
-    "title": "Flottes",
-    "create": "Créer une flotte",
-    "empty": "Aucune flotte — créez la première",
+    "title": "Clusters",
+    "create": "Créer un cluster",
+    "empty": "Aucun cluster — créez le premier",
     "nameLabel": "Nom",
     "namePlaceholder": "ex. Studio de contenu",
     "membersCount": "{{count}} postes",
     "detail": {
-      "empty": "Sélectionnez ou créez une flotte"
+      "empty": "Sélectionnez ou créez un cluster"
     },
     "state": {
       "active": "Active",
@@ -2320,7 +2326,7 @@
     },
     "kind": {
       "persona": "Persona",
-      "cluster": "Cluster",
+      "cluster": "Array",
       "a2a": "Service d'agents",
       "tool": "Outil"
     },
@@ -2403,9 +2409,9 @@
       "memberGone": "(poste supprimé)"
     },
     "tpl": {
-      "awaitStart": "Flotte montée depuis le gabarit (tout en pause) — vérifiez puis démarrez",
+      "awaitStart": "Cluster monté depuis le gabarit (tout en pause) — vérifiez puis démarrez",
       "start": "Démarrer",
-      "newer": "Le gabarit a une version plus récente v{{v}} (la flotte active n'est pas touchée)"
+      "newer": "Le gabarit a une version plus récente v{{v}} (le cluster actif n'est pas touché)"
     },
     "stream": {
       "title": "Dernières livraisons",
@@ -2459,7 +2465,7 @@
     },
     "hints": {
       "on_duty": "Tout va bien : pourvu et actif selon ses horaires",
-      "paused": "La flotte ou le poste est en pause — rien ne s'exécute",
+      "paused": "Le cluster ou le poste est en pause — rien ne s'exécute",
       "missing": "N'a pas tourné/rapporté à temps (fenêtre de tolérance dépassée)",
       "vacant": "Le poste n'a pas de titulaire (ou son titulaire n'existe plus)",
       "passive": "Sans horaire ni coût au repos ; agit sur demande",
@@ -2517,7 +2523,7 @@
     "runs": {
       "title": "Chronique d'exécution",
       "loading": "Chargement de la chronique…",
-      "empty": "Aucune exécution — les tours apparaîtront ici dès que la flotte s'exécute",
+      "empty": "Aucune exécution — les tours apparaîtront ici dès que le cluster s'exécute",
       "filterStatus": "Filtrer par état",
       "allStatuses": "Tous les états",
       "filterSource": "Filtrer par source",
@@ -2568,7 +2574,7 @@
       "runStarted": "Livraison lancée — le tour apparaîtra dans la chronique",
       "alreadyRunning": "Un tour est déjà en cours — la livraison s'y joint",
       "effort": "Profondeur de raisonnement",
-      "effortInherit": "Hériter (flotte/cellule)",
+      "effortInherit": "Hériter (cluster/cellule)",
       "contextBudget": "Budget de contexte (tokens/tour)",
       "contextBudgetUnlimited": "Illimité",
       "contextBudgetInvalid": "Le budget doit être un entier positif (tokens par tour)",
@@ -2787,6 +2793,20 @@
       "none": "No history",
       "last20": "Last 20",
       "all": "All history"
+    },
+    "widget": {
+      "title": "Website embed",
+      "publicClosed": "The public embed lane is closed at the deployment level (ZHIYU_WIDGET) — you can preconfigure; it takes effect once opened.",
+      "statusOn": "Embed enabled (token fingerprint {{fp}})",
+      "statusOff": "Embed disabled — add site domains below (one per line), then enable.",
+      "allowlist": "Site allowlist (one domain per line, *.example.com wildcards OK)",
+      "enable": "Enable embed",
+      "saveAllowlist": "Save allowlist",
+      "copySnippet": "Copy snippet",
+      "rotate": "Rotate site secret",
+      "revoke": "Revoke embed",
+      "makeLink": "Create join link",
+      "onceOnly": "Shown only once — copy and keep these:"
     }
   }
 }

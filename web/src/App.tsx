@@ -48,6 +48,7 @@ const AppCenterPage = lazy(() => import("@/pages/AppCenterPage").then((m) => ({ 
 const BoardsPage = lazy(() => import("@/pages/BoardsPage").then((m) => ({ default: m.BoardsPage })));
 const ZhiyuPage = lazy(() => import("@/pages/ZhiyuPage").then((m) => ({ default: m.ZhiyuPage })));
 const ZhiyuRoomPage = lazy(() => import("@/pages/ZhiyuRoomPage").then((m) => ({ default: m.ZhiyuRoomPage })));
+const ZhiyuEmbedPage = lazy(() => import("@/pages/ZhiyuEmbedPage").then((m) => ({ default: m.ZhiyuEmbedPage })));
 const CopilotDock = lazy(() => import("@/components/CopilotDock").then((m) => ({ default: m.CopilotDock })));
 // The preview drawer is code-split for the same reason as the pages above, and
 // one more: a session that never previews a file should not download the
@@ -168,6 +169,17 @@ export default function App() {
     return (
       <Suspense fallback={<RouteFallback />}>
         <SharePage />
+      </Suspense>
+    );
+  }
+
+  // Zhiyu visitor lanes (add-zhiyu-website-embed): the widget iframe shell and
+  // the join-link full page render STANDALONE — guests hold no platform login,
+  // and the host-page rail would be nonsense inside an iframe.
+  if (location.pathname.startsWith("/zhiyu/embed/") || location.pathname.startsWith("/zhiyu/join/")) {
+    return (
+      <Suspense fallback={<RouteFallback />}>
+        <ZhiyuEmbedPage />
       </Suspense>
     );
   }

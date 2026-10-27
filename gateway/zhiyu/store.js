@@ -102,6 +102,28 @@ export function createZhiyuStore({ file }) {
   )`);
   db.exec(`CREATE INDEX IF NOT EXISTS idx_zy_notifications_email ON zy_notifications(email, created_at)`);
 
+  // Widget tokens (add-zhiyu-website-embed D-B): one row per issued embed
+  // permit for a room. `wtr_<id>.<sec>` — id is the lookup, only the sec's
+  // HASH is kept (no plaintext at rest). identify's site-secret likewise
+  // travels as a presented bearer and is stored hashed. allowlist JSON.
+  db.exec(`CREATE TABLE IF NOT EXISTS zy_widget_tokens (
+    id TEXT PRIMARY KEY,
+    room_id TEXT NOT NULL,
+    sec_hash TEXT NOT NULL,
+    fingerprint TEXT NOT NULL,
+    allowlist TEXT NOT NULL DEFAULT '[]',
+    site_secret_hash TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'embed',
+    revoked_at INTEGER,
+    created_at INTEGER NOT NULL
+  )`);
+  // One-shot identify nonces (design D-B): presented once, stored hashed.
+  db.exec(`CREATE TABLE IF NOT EXISTS zy_widget_nonces (
+    nonce TEXT PRIMARY KEY,
+    token_id TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  )`);
+
   // Messages: seq is per-room monotonic (allocated max+1 inside the append
   // transaction) so the SSE replay contract (D-E) is trivially honorrable.
   // kind: human | agent | system | event — system/event rows are the stream
@@ -339,6 +361,17 @@ export function createZhiyuStore({ file }) {
       if (existing) return memberPublic(existing);
       return this.memberAdd(args);
     },
+    // Guest → user merge (website-embed identify): keep the SAME row id so
+    // message attribution history carries over byte-for-byte; the room's
+    // (kind, ref) uniqueness still guards the seat.
+    memberUpgradeToUser(memberId, { email, display }) {
+      db.prepare(`UPDATE zy_room_members SET kind = 'user', ref = ?, display = ?, presence = 'active' WHERE id = ?`).run(
+        email,
+        display,
+        memberId,
+      );
+      return memberPublic(q.memberById.get(memberId));
+    },
     membersOf(roomId) {
       return q.membersByRoom.all(roomId).map(memberPublic);
     },
@@ -435,6 +468,69 @@ export function createZhiyuStore({ file }) {
     },
     notificationMarkRead(email, nid) {
       db.prepare(`UPDATE zy_notifications SET read_at = ? WHERE id = ? AND email = ? AND read_at IS NULL`).run(now(), nid, email);
+    },
+
+    // ── Widget tokens (website embed) ────────────────────────────────────────
+    widgetTokenCreate({ rowId = null, roomId, secHash, fingerprint, allowlist = [], siteSecretHash, kind = "embed" }) {
+      const tid = rowId ?? id("wti");
+      db.prepare(
+        `INSERT INTO zy_widget_tokens (id, room_id, sec_hash, fingerprint, allowlist, site_secret_hash, kind, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(tid, roomId, secHash, fingerprint, JSON.stringify(allowlist), siteSecretHash, kind, now());
+      return this.widgetTokenGet(tid);
+    },
+    widgetTokenGet(tid) {
+      const r = db.prepare(`SELECT * FROM zy_widget_tokens WHERE id = ?`).get(tid);
+      return r && {
+        id: r.id,
+        roomId: r.room_id,
+        secHash: r.sec_hash,
+        fingerprint: r.fingerprint,
+        allowlist: JSON.parse(r.allowlist),
+        siteSecretHash: r.site_secret_hash,
+        kind: r.kind,
+        revokedAt: r.revoked_at,
+        createdAt: r.created_at,
+      };
+    },
+    widgetTokensForRoom(roomId) {
+      return db
+        .prepare(`SELECT * FROM zy_widget_tokens WHERE room_id = ? ORDER BY created_at DESC`)
+        .all(roomId)
+        .map((r) => ({
+          id: r.id,
+          roomId: r.room_id,
+          secHash: r.sec_hash,
+          fingerprint: r.fingerprint,
+          allowlist: JSON.parse(r.allowlist),
+          siteSecretHash: r.site_secret_hash,
+          kind: r.kind,
+          createdAt: r.created_at,
+          revokedAt: r.revoked_at,
+        }));
+    },
+    widgetTokenSetAllowlist(tid, allowlist) {
+      db.prepare(`UPDATE zy_widget_tokens SET allowlist = ? WHERE id = ? AND revoked_at IS NULL`).run(JSON.stringify(allowlist), tid);
+      return this.widgetTokenGet(tid);
+    },
+    widgetTokenRevoke(tid) {
+      db.prepare(`UPDATE zy_widget_tokens SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL`).run(now(), tid);
+    },
+    widgetTokenRotateSecret(tid, siteSecretHash) {
+      db.prepare(`UPDATE zy_widget_tokens SET site_secret_hash = ? WHERE id = ? AND revoked_at IS NULL`).run(siteSecretHash, tid);
+      return this.widgetTokenGet(tid);
+    },
+    widgetNonceBurn(nonce, tokenId) {
+      // Single-use: returned true only the first time a nonce is seen.
+      try {
+        db.prepare(`INSERT INTO zy_widget_nonces (nonce, token_id, created_at) VALUES (?, ?, ?)`).run(nonce, tokenId, now());
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    widgetNoncePurgeOlderThan(thresholdTs) {
+      db.prepare(`DELETE FROM zy_widget_nonces WHERE created_at < ?`).run(thresholdTs);
     },
 
     // ── Messages ────────────────────────────────────────────────────────────

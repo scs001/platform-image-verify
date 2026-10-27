@@ -21,6 +21,7 @@ export function createRoomRouter({
   effectiveCap,
   callAgent, // (member, { text, contextId, onDelta }) → { text }
   settleTurn = null, // (member, { usageId, minutes }) → void — per-DEPLOYMENT billing (group 7)
+  onBudgetWarning = null, // (room, dayTurns, budget) → void — 80% daily-budget nudge (website-embed)
   bus = null, // EventEmitter for ephemeral overlay events (deltas/lifecycle)
   contextWindow = 40,
 }) {
@@ -160,11 +161,25 @@ export function createRoomRouter({
       // usage id is idempotency-keyed upstream, so a redelivered settle is
       // safe. Failure here must not eat the answer — it settles as usage
       // that the ops sweep handles, with a loud warn.
-      store.roomConsumeTurnBudget(room.id);
+      const dayTurns = store.roomConsumeTurnBudget(room.id);
+      if (room.dailyBudgetTurns != null && onBudgetWarning) {
+        const pct = dayTurns / room.dailyBudgetTurns;
+        if (pct >= 0.8 && pct < 1 + 1 / room.dailyBudgetTurns) {
+          try {
+            onBudgetWarning(room, dayTurns, room.dailyBudgetTurns);
+          } catch (err) {
+            console.warn(`[zhiyu] budget warning hook failed for ${room.id}: ${err.message}`);
+          }
+        }
+      }
       if (settleTurn) {
         const minutes = Math.max(1, Math.ceil((Date.now() - startedAt) / 60_000));
+        // usage id carries the guest scope explicitly (spec: 计费归属与熔断) —
+        // a guest-triggered answer is traceable to the guest seat via the
+        // trigger seq AND the seat's own suffix.
+        const guestTag = sender?.kind === "guest" ? "-guest" : "";
         try {
-          await settleTurn(target, { usageId: `zyr-${room.id}-${row.seq}-${target.id}`, minutes });
+          await settleTurn(target, { usageId: `zyr-${room.id}-${row.seq}-${target.id}${guestTag}`, minutes });
         } catch (err) {
           console.warn(`[zhiyu] settle failed for ${target.ref} in ${room.id} (seq ${row.seq}): ${err.message}`);
         }

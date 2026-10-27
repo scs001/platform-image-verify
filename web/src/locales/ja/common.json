@@ -21,9 +21,9 @@
     "trace": "トレース",
     "openMenu": "ナビゲーションメニューを開く",
     "tasks": "自動化",
-    "fleets": "艦隊",
+    "fleets": "クラスター",
     "apps": "アプリ",
-    "fleet": "機群",
+    "fleet": "Runner クラスター",
     "zhiyu": "Zhiyu"
   },
   "trace": {
@@ -46,7 +46,7 @@
       "events": "イベント数",
       "session": "セッション"
     },
-    "fleetBadge": "艦隊"
+    "fleetBadge": "クラスター"
   },
   "agentsPage": {
     "title": "エージェント",
@@ -57,14 +57,14 @@
     "connect": "接続",
     "connecting": "接続中…",
     "loadFailed": "カタログの読み込みに失敗しました: {{error}}",
-    "myClusters": "マイクラスター",
-    "clustersEmpty": "クラスターはまだありません — 「+ クラスターを作成」でエージェントをまとめられます。",
-    "clusterDetail": "クラスター詳細",
-    "clusterAgents": "このクラスターのエージェント",
+    "myClusters": "マイアレイ",
+    "clustersEmpty": "アレイはまだありません — 「+ アレイを作成」でエージェントをまとめられます。",
+    "clusterDetail": "アレイ詳細",
+    "clusterAgents": "このアレイのエージェント",
     "clusterStatus": "ステータス",
     "clusterCreated": "作成日時",
-    "clusterTerminate": "クラスターを解散",
-    "clusterTerminateHint": "解散するとクラスターは停止します。エージェントとパックは残ります。",
+    "clusterTerminate": "アレイを解散",
+    "clusterTerminateHint": "解散するとアレイは停止します。エージェントとパックは残ります。",
     "close": "閉じる"
   },
   "sidebar": {
@@ -227,9 +227,9 @@
       "websearchHint": "この会話でウェブ検索を有効化（デフォルトはオフ）",
       "ctx": "ctx {{pct}}%",
       "ctxHint": "{{tokens}} / {{window}} tokens",
-      "clusterLoad": "クラスターを読み込む",
+      "clusterLoad": "アレイを読み込む",
       "clusterLoading": "読み込み中…",
-      "clusterLoadHint": "このクラスターを現在のセッションにバインドし、先頭の既定メンバーへ切り替えます。ファンアウトはクラスタータスクで。",
+      "clusterLoadHint": "このアレイを現在のセッションにバインドし、先頭の既定メンバーへ切り替えます。ファンアウトはアレイタスクで。",
       "workspaceAdvanced": "詳細"
     },
     "sending": "送信中…",
@@ -326,8 +326,8 @@
       "titlePlaceholder": "セッション名",
       "rename": "新しい名前を保存",
       "sessionActions": "セッション操作",
-      "clusterBound": "クラスター「{{name}}」で実行中",
-      "clusterExpiring": "クラスター「{{name}}」で実行中 — アイドルのため {{time}} に自動終了（それまでに使用すれば維持）"
+      "clusterBound": "アレイ「{{name}}」で実行中",
+      "clusterExpiring": "アレイ「{{name}}」で実行中 — アイドルのため {{time}} に自動終了（それまでに使用すれば維持）"
     },
     "titleTooLong": "タイトルは 200 文字以下にしてください",
     "connectionLost": "接続が切断されました。自動的に再接続しています…",
@@ -349,7 +349,7 @@
     "queuedCancel": "キャンセル",
     "queuedPreempt": "停止してこれを実行",
     "cluster": {
-      "terminatedNotice": "クラスター「{{name}}」が終了しました。内蔵エージェントに切り替えました"
+      "terminatedNotice": "アレイ「{{name}}」が終了しました。内蔵エージェントに切り替えました"
     },
     "presetLink": {
       "pending": "{{name}} へ切り替え中…",
@@ -1216,7 +1216,7 @@
       "missedTotal": "合計 {{count}} 回スキップ",
       "lastOk": "成功",
       "lastFailed": "失敗",
-      "cluster": "クラスター {{name}} · {{count}} agents"
+      "cluster": "アレイ {{name}} · {{count}} agents"
     },
     "schedule": {
       "daily": "毎日 {{time}}",
@@ -1691,7 +1691,7 @@
       "scriptGateBody": "以下のスキルはスクリプトファイルを含み、インストール時にランタイムへ展開されます。確認後のみインストールされます（一度だけ）。",
       "scriptGateConfirm": "インストールを確認",
       "cluster": {
-        "title": "クラスター情報",
+        "title": "アレイ情報",
         "agentCount": "{{count}} エージェント",
         "agents": "エージェント構成",
         "showOptional": "オプションのエージェントを表示",
@@ -1860,6 +1860,12 @@
     "mineSections": {
       "installed": "インストール済み",
       "creations": "自分の作品"
+    },
+    "badge": {
+      "blueprint": "ブループリント",
+      "facade": "分身",
+      "assistant": "アシスタント",
+      "toolkit": "ツール"
     }
   },
   "overlay": {
@@ -2179,8 +2185,8 @@
   },
   "clusters": {
     "composer": {
-      "title": "クラスターを作成",
-      "clusterName": "クラスター名",
+      "title": "アレイを作成",
+      "clusterName": "アレイ名",
       "description": "説明",
       "selectAgents": "エージェントを選択",
       "addAllFromPack": "パックからすべて追加",
@@ -2188,13 +2194,13 @@
       "activateAllOnCreation": "作成時にすべてのエージェントを有効化",
       "bindToCurrentSession": "現在のセッションにバインド",
       "noAgents": "利用可能なエージェントがありません。先にパックをインストールしてください。",
-      "creating": "クラスターを作成中...",
-      "created": "クラスターを作成しました",
-      "createCluster": "クラスターを作成",
+      "creating": "アレイを作成中...",
+      "created": "アレイを作成しました",
+      "createCluster": "アレイを作成",
       "creatingBtn": "作成中...",
       "cancel": "キャンセル",
-      "nameRequired": "クラスター名は必須です",
-      "nameTooLong": "クラスター名は100文字以内で入力してください",
+      "nameRequired": "アレイ名は必須です",
+      "nameTooLong": "アレイ名は100文字以内で入力してください",
       "atLeastOneAgent": "少なくとも1つのエージェントを選択してください",
       "manage": "管理"
     }
@@ -2206,7 +2212,7 @@
       "overview": "概要",
       "my-packs": "マイパック",
       "publish-history": "公開履歴",
-      "fleet-summary": "フリート概要",
+      "fleet-summary": "クラスター概要",
       "missions": "ミッション",
       "deployments": "デプロイ",
       "datasets": "マイデータ",
@@ -2275,14 +2281,14 @@
     }
   },
   "fleets": {
-    "title": "艦隊",
-    "create": "艦隊を作成",
-    "empty": "艦隊がありません。右上から作成してください",
-    "nameLabel": "艦隊名",
+    "title": "クラスター",
+    "create": "クラスターを作成",
+    "empty": "クラスターがありません。右上から作成してください",
+    "nameLabel": "クラスター名",
     "namePlaceholder": "例：コンテンツスタジオ",
     "membersCount": "{{count}} ポスト",
     "detail": {
-      "empty": "艦隊を選択または作成してください"
+      "empty": "クラスターを選択または作成してください"
     },
     "state": {
       "active": "稼働中",
@@ -2320,7 +2326,7 @@
     },
     "kind": {
       "persona": "ペルソナ",
-      "cluster": "クラスタ",
+      "cluster": "アレイ",
       "a2a": "エージェントサービス",
       "tool": "ツール"
     },
@@ -2404,7 +2410,7 @@
     },
     "tpl": {
       "awaitStart": "テンプレートから編成済み（全停止）——確認して起動",
-      "start": "艦隊を起動",
+      "start": "クラスターを起動",
       "newer": "テンプレートに新版 v{{v}} あり（現役は不変・手動で揃えられます）"
     },
     "stream": {
@@ -2459,7 +2465,7 @@
     },
     "hints": {
       "on_duty": "正常:担当がおり定時に稼働",
-      "paused": "艦隊または該当ポストは停止中 — 何も実行しない",
+      "paused": "クラスターまたは該当ポストは停止中 — 何も実行しない",
       "missing": "定時に実行・報告なし(許容窓超過)",
       "vacant": "ポストに担当がいない(または担当が既に不存在)",
       "passive": "定時なし・待機コストなし。依頼時にのみ実行",
@@ -2517,7 +2523,7 @@
     "runs": {
       "title": "実行タイムライン",
       "loading": "タイムライン読み込み中…",
-      "empty": "実行なし——艦隊の実行開始後にここに並びます",
+      "empty": "実行なし——クラスターの実行開始後にここに並びます",
       "filterStatus": "状態で絞り込み",
       "allStatuses": "すべての状態",
       "filterSource": "発生源で絞り込み",
@@ -2568,7 +2574,7 @@
       "runStarted": "納品開始——ターンはタイムラインに現れます",
       "alreadyRunning": "実行中のターンがあります——今回の納品はそれに同行します",
       "effort": "思考深度",
-      "effortInherit": "継承（艦隊/セル既定）",
+      "effortInherit": "継承（クラスター/セル既定）",
       "contextBudget": "コンテキスト予算（トークン/ターン）",
       "contextBudgetUnlimited": "無制限",
       "contextBudgetInvalid": "予算は正の整数で指定してください（ターンあたりトークン）",
@@ -2787,6 +2793,20 @@
       "none": "No history",
       "last20": "Last 20",
       "all": "All history"
+    },
+    "widget": {
+      "title": "Website embed",
+      "publicClosed": "The public embed lane is closed at the deployment level (ZHIYU_WIDGET) — you can preconfigure; it takes effect once opened.",
+      "statusOn": "Embed enabled (token fingerprint {{fp}})",
+      "statusOff": "Embed disabled — add site domains below (one per line), then enable.",
+      "allowlist": "Site allowlist (one domain per line, *.example.com wildcards OK)",
+      "enable": "Enable embed",
+      "saveAllowlist": "Save allowlist",
+      "copySnippet": "Copy snippet",
+      "rotate": "Rotate site secret",
+      "revoke": "Revoke embed",
+      "makeLink": "Create join link",
+      "onceOnly": "Shown only once — copy and keep these:"
     }
   }
 }

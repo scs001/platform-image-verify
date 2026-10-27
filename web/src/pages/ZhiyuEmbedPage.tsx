@@ -1,0 +1,211 @@
+// ZhiyuEmbedPage.tsx — the visitor-facing room: the widget iframe shell AND
+// the full-page join-link view (add-zhiyu-website-embed group 5/6).
+//
+// Auth comes from the widget lane only (no platform login): on load the page
+// POSTs a visit with the URL token and persists the issued tty in
+// sessionStorage (per tab — guests never silently merge strangers). Everything
+// the visitor sees is one banner line, the shared stream they were here for,
+// and a composer capped by the same room's honesty system-events.
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useParams } from "react-router-dom";
+
+interface EmbedRow {
+  seq: number;
+  kind: "human" | "agent" | "system" | "event";
+  senderMemberId?: string | null;
+  fromAgent?: boolean;
+  visibility: string;
+  content: string;
+  meta: Record<string, unknown> | null;
+  provenance?: string | null;
+  createdAt: number;
+  sender?: unknown;
+}
+
+interface VisitState {
+  ref: string;
+  display: string;
+  memberId: string;
+  roomId: string;
+  title: string;
+}
+
+const EVENT_LABEL: Record<string, string> = {
+  room_ended: "本次会话已结束",
+  budget_exhausted: "今日接待额度已用完，请稍后再来或留言等真人",
+  reply_cap_hit: "本轮席位已满员作答，其余席位保持静默",
+  agent_failed: "接待席位暂时出了点问题",
+  agent_declined_insolvent: "接待席位暂时无法应答",
+  agent_busy: "接待席位正在回答，请稍候",
+  needs_you: "已为你呼叫真人",
+  member_joined: "有人来到了会话",
+  guest_joined: "一位访客进入了会话",
+  guest_identified: "访客身份已确认",
+  reply_cap_changed: "应答上限已调整",
+  budget_changed: "每日预算已调整",
+};
+
+export function ZhiyuEmbedPage() {
+  const { token = "" } = useParams();
+  const fullPage = typeof window !== "undefined" && window.location.pathname.startsWith("/zhiyu/join/");
+  const [visit, setVisit] = useState<VisitState | null>(null);
+  const [tty, setTty] = useState<string | null>(null);
+  const [rows, setRows] = useState<EmbedRow[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [ended, setEnded] = useState(false);
+  const [composer, setComposer] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [metaBanner, setMetaBanner] = useState<string>("");
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  const ttyKey = useMemo(() => `zy-tty:${token}`, [token]);
+  const withTty = useCallback(
+    (p: string) => (tty ? `${p}${p.includes("?") ? "&" : "?"}tty=${encodeURIComponent(tty)}` : p),
+    [tty],
+  );
+
+  // Visit → persist tty per tab.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const cached = sessionStorage.getItem(ttyKey);
+        const v = await fetch(`/zhiyu/widget/${encodeURIComponent(token)}/visit${cached ? `?tty=${encodeURIComponent(cached)}` : ""}`, { method: "POST" });
+        if (!v.ok) {
+          setError(v.status === 404 ? "这间会话不存在或已下架" : `无法进入会话（${v.status}）`);
+          return;
+        }
+        const data = (await v.json()) as VisitState & { tty: string | null };
+        if (cancelled) return;
+        setVisit(data);
+        const t = data.tty ?? cached ?? null;
+        if (t) {
+          setTty(t);
+          sessionStorage.setItem(ttyKey, t);
+        }
+        const m = await fetch(`/zhiyu/widget/meta?token=${encodeURIComponent(token)}&host=${encodeURIComponent(location.host)}`);
+        if (m.ok) {
+          const mj = await m.json();
+          if (!cancelled) setMetaBanner(mj.banner ?? "");
+        }
+      } catch (err) {
+        if (!cancelled) setError((err as Error).message);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, ttyKey]);
+
+  // SSE stream.
+  useEffect(() => {
+    if (!tty) return;
+    const es = new EventSource(withTty(`/api/zhiyu/widget/${encodeURIComponent(token)}/events`));
+    es.onmessage = (ev) => {
+      try {
+        const row = JSON.parse(ev.data) as EmbedRow;
+        if (row.kind === "system" && row.meta?.event === "room_ended") setEnded(true);
+        setRows((prev) => (prev.some((r) => r.seq === row.seq) ? prev : [...prev, row]));
+      } catch { /* malformed frame */ }
+    };
+    return () => es.close();
+  }, [tty, token, withTty]);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: rows is an intentional re-scroll trigger, not a value the effect body reads
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [rows]);
+
+  const send = async () => {
+    const content = composer.trim();
+    if (!content || !tty || busy) return;
+    setBusy(true);
+    try {
+      const r = await fetch(withTty(`/api/zhiyu/widget/${encodeURIComponent(token)}/messages`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      });
+      if (r.status === 429) {
+        setError("你说得有点快，请慢一点再来");
+        return;
+      }
+      if (!r.ok) {
+        setError(r.status === 409 ? "本次会话已结束" : `发送失败（${r.status}）`);
+        return;
+      }
+      setComposer("");
+      setError(null);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (error && !visit) {
+    return <div className="flex h-dvh items-center justify-center bg-background p-8 text-sm text-muted-foreground">{error}</div>;
+  }
+
+  const visible = rows.filter((r) => r.kind !== "event" || EVENT_LABEL[String(r.meta?.event ?? "")]);
+
+  return (
+    <div className={`flex h-dvh flex-col bg-background text-foreground ${fullPage ? "mx-auto w-full max-w-3xl" : ""}`}>
+      <header className="border-b px-4 py-2.5">
+        <div className="truncate text-sm font-semibold">{visit?.title ?? "接待会话"}</div>
+        <div className="truncate text-xs text-muted-foreground">{metaBanner || "你是访客身份，由值守分身接待"}</div>
+      </header>
+
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+        {visible.map((row) => {
+          if (row.kind === "system" || row.kind === "event") {
+            const key = String(row.meta?.event ?? "");
+            return (
+              <div key={row.seq} className="my-1.5 text-center text-xs text-muted-foreground">
+                {EVENT_LABEL[key] ?? key}
+              </div>
+            );
+          }
+          const mine = row.kind === "human";
+          return (
+            <div key={row.seq} className={`mb-3 flex ${mine ? "flex-row-reverse" : ""}`}>
+              <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm ${mine ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                <div className={`mb-0.5 text-xs ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{mine ? "我" : "接待"}</div>
+                <div className="whitespace-pre-wrap break-words">{row.content}</div>
+              </div>
+            </div>
+          );
+        })}
+        <div ref={bottomRef} />
+      </div>
+
+      {error && <div className="mx-3 mb-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</div>}
+
+      {!ended ? (
+        <div className="flex items-end gap-2 border-t p-3">
+          <textarea
+            value={composer}
+            onChange={(e) => setComposer(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void send();
+              }
+            }}
+            placeholder="输入消息…可直接 @接待分身"
+            className="min-h-[44px] flex-1 rounded-md border bg-background px-3 py-2 text-sm"
+          />
+          <button
+            type="button"
+            disabled={!composer.trim() || busy}
+            onClick={() => void send()}
+            className="rounded-md bg-primary px-4 py-2 text-sm text-primary-foreground disabled:opacity-50"
+          >
+            发送
+          </button>
+        </div>
+      ) : (
+        <div className="border-t px-4 py-3 text-center text-xs text-muted-foreground">本次会话已结束 — 感谢你的到访</div>
+      )}
+    </div>
+  );
+}

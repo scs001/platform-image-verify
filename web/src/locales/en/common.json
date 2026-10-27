@@ -21,9 +21,9 @@
     "trace": "Trace",
     "openMenu": "Open navigation menu",
     "tasks": "Automation",
-    "fleets": "Fleets",
+    "fleets": "Clusters",
     "apps": "Apps",
-    "fleet": "Runner Fleet",
+    "fleet": "Runner Cluster",
     "zhiyu": "Zhiyu"
   },
   "trace": {
@@ -46,7 +46,7 @@
       "events": "Events",
       "session": "Session"
     },
-    "fleetBadge": "Fleet"
+    "fleetBadge": "Cluster"
   },
   "agentsPage": {
     "title": "Agents",
@@ -57,14 +57,14 @@
     "connect": "Connect",
     "connecting": "Connecting…",
     "loadFailed": "Failed to load catalog: {{error}}",
-    "myClusters": "My Clusters",
-    "clustersEmpty": "No clusters yet — use \"+ Create Cluster\" to group agents into a team.",
-    "clusterDetail": "Cluster details",
-    "clusterAgents": "Agents in this cluster",
+    "myClusters": "My Arrays",
+    "clustersEmpty": "No arrays yet — use \"+ Create Array\" to group agents into a team.",
+    "clusterDetail": "Array details",
+    "clusterAgents": "Agents in this array",
     "clusterStatus": "Status",
     "clusterCreated": "Created",
-    "clusterTerminate": "Terminate cluster",
-    "clusterTerminateHint": "Terminating stops the cluster; agents and packs stay installed.",
+    "clusterTerminate": "Terminate array",
+    "clusterTerminateHint": "Terminating stops the array; agents and packs stay installed.",
     "close": "Close"
   },
   "sidebar": {
@@ -227,9 +227,9 @@
       "websearchHint": "Enable web search for this conversation (off by default)",
       "ctx": "ctx {{pct}}%",
       "ctxHint": "{{tokens}} / {{window}} tokens",
-      "clusterLoad": "Load cluster",
+      "clusterLoad": "Load array",
       "clusterLoading": "Loading…",
-      "clusterLoadHint": "Bind this cluster to the current session: switches to the lead default member; use cluster tasks for fan-out.",
+      "clusterLoadHint": "Bind this array to the current session: switches to the lead default member; use array tasks for fan-out.",
       "workspaceAdvanced": "Advanced"
     },
     "sending": "Sending…",
@@ -326,8 +326,8 @@
       "titlePlaceholder": "Session title",
       "rename": "Save new title",
       "sessionActions": "Session actions",
-      "clusterBound": "Running with cluster {{name}}",
-      "clusterExpiring": "Running with cluster {{name}} — idle, auto-terminates at {{time}} unless used before then"
+      "clusterBound": "Running with array {{name}}",
+      "clusterExpiring": "Running with array {{name}} — idle, auto-terminates at {{time}} unless used before then"
     },
     "titleTooLong": "Title must be 200 characters or fewer",
     "connectionLost": "Connection lost — reconnecting…",
@@ -349,7 +349,7 @@
     "queuedCancel": "Cancel",
     "queuedPreempt": "Stop it and run this now",
     "cluster": {
-      "terminatedNotice": "Cluster '{{name}}' was terminated; switched to the built-in agent"
+      "terminatedNotice": "Array '{{name}}' was terminated; switched to the built-in agent"
     },
     "presetLink": {
       "pending": "Switching to {{name}}…",
@@ -1216,7 +1216,7 @@
       "missedTotal": "{{count}} missed",
       "lastOk": "ok",
       "lastFailed": "failed",
-      "cluster": "Cluster {{name}} · {{count}} agents"
+      "cluster": "Array {{name}} · {{count}} agents"
     },
     "schedule": {
       "daily": "daily at {{time}}",
@@ -1631,7 +1631,7 @@
       "agents": "Agents",
       "requiresGroup": "requires group {{group}}",
       "cluster": {
-        "title": "Cluster Info",
+        "title": "Array Info",
         "agentCount": "{{count}} agents",
         "agents": "Agent Composition",
         "showOptional": "Show optional agents",
@@ -1860,6 +1860,12 @@
     "mineSections": {
       "installed": "Installed",
       "creations": "My creations"
+    },
+    "badge": {
+      "blueprint": "Blueprint",
+      "facade": "Facade",
+      "assistant": "Assistant",
+      "toolkit": "Toolkit"
     }
   },
   "overlay": {
@@ -2069,7 +2075,7 @@
       "overview": "Overview",
       "my-packs": "My Packs",
       "publish-history": "Publish History",
-      "fleet-summary": "Fleet Summary",
+      "fleet-summary": "Cluster Summary",
       "missions": "Missions",
       "deployments": "Deployments",
       "datasets": "My data",
@@ -2254,8 +2260,8 @@
   },
   "clusters": {
     "composer": {
-      "title": "Create Cluster",
-      "clusterName": "Cluster name",
+      "title": "Create Array",
+      "clusterName": "Array name",
       "description": "Description",
       "selectAgents": "Select agents",
       "addAllFromPack": "Add all from pack",
@@ -2263,26 +2269,26 @@
       "activateAllOnCreation": "Activate all agents on creation",
       "bindToCurrentSession": "Bind to current session",
       "noAgents": "No agents available. Install some packs first.",
-      "creating": "Creating cluster...",
-      "created": "Cluster created",
-      "createCluster": "Create Cluster",
+      "creating": "Creating array...",
+      "created": "Array created",
+      "createCluster": "Create Array",
       "creatingBtn": "Creating...",
       "cancel": "Cancel",
-      "nameRequired": "Cluster name is required",
-      "nameTooLong": "Cluster name must be 100 characters or less",
+      "nameRequired": "Array name is required",
+      "nameTooLong": "Array name must be 100 characters or less",
       "atLeastOneAgent": "Select at least one agent",
       "manage": "Manage"
     }
   },
   "fleets": {
-    "title": "Fleets",
-    "create": "Create fleet",
-    "empty": "No fleets yet — create your first one",
-    "nameLabel": "Fleet name",
+    "title": "Clusters",
+    "create": "Create cluster",
+    "empty": "No clusters yet — create your first one",
+    "nameLabel": "Cluster name",
     "namePlaceholder": "e.g. Content Studio",
     "membersCount": "{{count}} posts",
     "detail": {
-      "empty": "Select or create a fleet"
+      "empty": "Select or create a cluster"
     },
     "state": {
       "active": "Active",
@@ -2320,7 +2326,7 @@
     },
     "kind": {
       "persona": "Persona",
-      "cluster": "Cluster",
+      "cluster": "Array",
       "a2a": "Agent service",
       "tool": "Tool"
     },
@@ -2403,9 +2409,9 @@
       "memberGone": "(post deleted)"
     },
     "tpl": {
-      "awaitStart": "Fleet assembled from the template (all paused) — review, then start",
-      "start": "Start fleet",
-      "newer": "Template has a newer version v{{v}} (live fleet untouched; align manually)"
+      "awaitStart": "Cluster assembled from the template (all paused) — review, then start",
+      "start": "Start cluster",
+      "newer": "Template has a newer version v{{v}} (live cluster untouched; align manually)"
     },
     "stream": {
       "title": "Latest outputs",
@@ -2459,7 +2465,7 @@
     },
     "hints": {
       "on_duty": "All good: staffed and running on schedule",
-      "paused": "The fleet or this post is paused — nothing fires",
+      "paused": "The cluster or this post is paused — nothing fires",
       "missing": "Missed its scheduled run/report past the tolerance window",
       "vacant": "The post has no assignee (or its assignee no longer exists)",
       "passive": "No schedule, no idle cost; runs when tasked or woken",
@@ -2517,7 +2523,7 @@
     "runs": {
       "title": "Execution timeline",
       "loading": "Loading timeline…",
-      "empty": "No runs yet — turns land here once the fleet executes",
+      "empty": "No runs yet — turns land here once the cluster executes",
       "filterStatus": "Filter by status",
       "allStatuses": "All statuses",
       "filterSource": "Filter by source",
@@ -2568,7 +2574,7 @@
       "runStarted": "Delivery started — the turn lands in the timeline",
       "alreadyRunning": "A turn is already in flight — delivery rides it",
       "effort": "Thinking depth",
-      "effortInherit": "Inherit (fleet/cell default)",
+      "effortInherit": "Inherit (cluster/cell default)",
       "contextBudget": "Context budget (tokens/turn)",
       "contextBudgetUnlimited": "Unlimited",
       "contextBudgetInvalid": "Context budget must be a positive integer (tokens per turn)",
@@ -2787,6 +2793,20 @@
       "none": "No history",
       "last20": "Last 20",
       "all": "All history"
+    },
+    "widget": {
+      "title": "Website embed",
+      "publicClosed": "The public embed lane is closed at the deployment level (ZHIYU_WIDGET) — you can preconfigure; it takes effect once opened.",
+      "statusOn": "Embed enabled (token fingerprint {{fp}})",
+      "statusOff": "Embed disabled — add site domains below (one per line), then enable.",
+      "allowlist": "Site allowlist (one domain per line, *.example.com wildcards OK)",
+      "enable": "Enable embed",
+      "saveAllowlist": "Save allowlist",
+      "copySnippet": "Copy snippet",
+      "rotate": "Rotate site secret",
+      "revoke": "Revoke embed",
+      "makeLink": "Create join link",
+      "onceOnly": "Shown only once — copy and keep these:"
     }
   }
 }

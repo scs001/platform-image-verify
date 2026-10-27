@@ -13,16 +13,20 @@
 // 404 same-as-nonexistent shape.
 
 import path from "node:path";
+import { readFileSync } from "node:fs";
 import express from "express";
 import { EventEmitter } from "node:events";
 import { createZhiyuStore } from "./store.js";
 import { createRoomRouter } from "./room-router.js";
+import { newWidgetToken, newSiteSecret, verifyWidgetToken, hostAllowed, signGuestPass, verifyGuestPass, verifyIdentify, guestRefFor } from "./guest-auth.js";
 
 export function registerZhiyuRoutes(app, {
   dataRoot,
   resolveUser,
   rejectUnauthenticated,
   env = process.env,
+  secret = "", // HMAC anchor for guest passes (the gateway's CELL_GATEWAY_SECRET)
+  webDist = null, // web/dist dir for the embed shell (dynamic CSP route)
   // Injection seams for tests.
   store: storeOpt = null,
   cellExport = null, // (user, sessionId, window) → cell hatch export payload
@@ -54,8 +58,109 @@ export function registerZhiyuRoutes(app, {
   const missingLane = async () => {
     throw new Error("agent lane not configured on this deployment");
   };
-  const router = createRoomRouter({ store, effectiveCap, callAgent: callAgent ?? missingLane, settleTurn, bus });
+  const router = createRoomRouter({
+    store,
+    effectiveCap,
+    callAgent: callAgent ?? missingLane,
+    settleTurn,
+    onBudgetWarning: (room, dayTurns, budget) =>
+      notifyUser("budget_warning", {
+        to: room.ownerEmail,
+        roomId: room.id,
+        roomTitle: room.title,
+        dayTurns,
+        budget,
+      }),
+    bus,
+  });
   const humanMessageHook = onHumanMessage ?? router.onHumanMessage;
+
+  // Website-embed posture (add-zhiyu-website-embed): every PUBLIC widget lane
+  // is inert until the deployment opts in. Management routes stay live so
+  // rooms can be configured before the public door opens.
+  const widgetEnabled = ["1", "true", "yes"].includes(String(env.ZHIYU_WIDGET || "").toLowerCase());
+  const guestSecret = secret || env.ZHIYU_GUEST_SECRET || "";
+  const guestTtlSec = clampInt(env.ZHIYU_GUEST_TTL_HOURS, 72, 1, 720) * 3600;
+  const siteBase = () => (env.PAAS_BASE_URL || "").replace(/\/+$/, "");
+
+  // Rate buckets: widget loads per IP, guest messages per seat. Same in-memory
+  // token-bucket posture as share.js (local to one gateway process).
+  const buckets = new Map();
+  function takeToken(key, limit, windowMs) {
+    const now = Date.now();
+    const b = buckets.get(key) ?? { n: limit, at: now };
+    if (now - b.at >= windowMs) {
+      b.n = limit;
+      b.at = now;
+    }
+    if (b.n <= 0) {
+      buckets.set(key, b);
+      return false;
+    }
+    b.n -= 1;
+    buckets.set(key, b);
+    return true;
+  }
+  setInterval(() => {
+    const cutoff = Date.now() - 10 * 60_000;
+    for (const [k, b] of buckets) if (b.at < cutoff) buckets.delete(k);
+    store.widgetNoncePurgeOlderThan(cutoff);
+  }, 60_000).unref?.();
+
+  const cookieHost = (req) => {
+    const ref = String(req.headers.referer ?? req.headers.origin ?? "");
+    try {
+      return ref ? new URL(ref).host : null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Public widget auth wrapper: widget token → room → allowlist-by-referer.
+  // Returns { row, room } or null after answering.
+  function authorizeWidget(req, res, { requireHost = true } = {}) {
+    if (!widgetEnabled) {
+      res.status(404).json({ error: "not found" });
+      return null;
+    }
+    const row = verifyWidgetToken(store, req.params.token);
+    if (!row) {
+      res.status(404).json({ error: "not found" });
+      return null;
+    }
+    if (row.kind === "embed" && requireHost && !hostAllowed(row.allowlist, cookieHost(req) ?? req.body?.host)) {
+      res.status(403).json({ error: "host not allowed" });
+      return null;
+    }
+    const room = store.roomGet(row.roomId);
+    if (!room) {
+      res.status(404).json({ error: "not found" });
+      return null;
+    }
+    return { row, room };
+  }
+
+  // Guest seat by pass (cookie first, tty fallback): returns { member, tty }.
+  // Member presence is derived from the pass signature — the pass names the
+  // seat ref, we look it up; a stale or absent pass mints a NEW seat at visit
+  // time (never silently merges two visitors).
+  function guestSeat(req, row) {
+    const cookie = (req.headers.cookie || "");
+    const m = /(?:^|;\s*)zy_guest=([^;]+)/.exec(cookie);
+    const presented = (m ? decodeURIComponent(m[1]) : null) ?? req.query.tty ?? req.body?.tty ?? null;
+    const pass = presented && guestSecret ? verifyGuestPass(guestSecret, presented) : null;
+    if (pass && pass.roomId === row.roomId) {
+      const member = store.memberFor(row.roomId, "guest", pass.ref);
+      if (member && member.state === "active") return { member, tty: presented, reused: true };
+    }
+    return null;
+  }
+
+  function serveGuestPass(roomId, ref) {
+    const exp = Math.floor(Date.now() / 1000) + guestTtlSec;
+    const tty = signGuestPass(guestSecret, { roomId, ref, expSec: exp });
+    return { tty, setCookie: `zy_guest=${encodeURIComponent(tty)}; Path=/; Max-Age=${guestTtlSec}; SameSite=None; Secure; HttpOnly` };
+  }
 
   function clampInt(v, dflt, lo, hi) {
     const n = Number.parseInt(String(v ?? ""), 10);
@@ -692,6 +797,310 @@ export function registerZhiyuRoutes(app, {
   };
   const sweepTimer = startTimers ? setInterval(sweep, sweepMs) : null;
   sweepTimer?.unref?.();
+
+  // ── Widget embed: owner management (add-zhiyu-website-embed group 1/5) ─────
+
+  const widgetRowFor = (roomId, kind = "embed") => store.widgetTokensForRoom(roomId).find((t) => !t.revokedAt && (kind ? t.kind === kind : true)) ?? null;
+  const snippetFor = (token) => `<script src="${siteBase()}/zhiyu/widget.js" data-room="${token}" async></script>`;
+
+  app.get("/api/zhiyu/rooms/:id/widget", (req, res) => {
+    const auth = authorize(req, res, req.params.id);
+    if (!auth) return;
+    if (!auth.isOwner) return res.status(403).json({ error: "room owner required" });
+    const row = widgetRowFor(auth.room.id);
+    res.json({
+      enabled: Boolean(row),
+      publicOpen: widgetEnabled,
+      token: row ? { fingerprint: row.fingerprint, allowlist: row.allowlist, createdAt: row.createdAt, revoked: Boolean(row.revokedAt) } : null,
+      linkToken: (() => {
+        const l = widgetRowFor(auth.room.id, "link");
+        return l ? { fingerprint: l.fingerprint, createdAt: l.createdAt } : null;
+      })(),
+    });
+  });
+
+  app.post("/api/zhiyu/rooms/:id/widget", express.json({ limit: "8kb" }), (req, res) => {
+    const auth = authorize(req, res, req.params.id);
+    if (!auth) return;
+    if (!auth.isOwner) return res.status(403).json({ error: "room owner required" });
+    const allowlist = Array.isArray(req.body?.allowlist)
+      ? req.body.allowlist.map((s) => String(s).trim().toLowerCase()).filter(Boolean).slice(0, 10)
+      : [];
+    if (!allowlist.length) return res.status(400).json({ error: "allowlist requires at least one domain" });
+    const existing = widgetRowFor(auth.room.id);
+    if (existing) {
+      store.widgetTokenRevoke(existing.id);
+    }
+    const t = newWidgetToken();
+    const sk = newSiteSecret();
+    const row = store.widgetTokenCreate({
+      rowId: t.id,
+      roomId: auth.room.id,
+      secHash: t.secHash,
+      fingerprint: t.fingerprint,
+      allowlist,
+      siteSecretHash: sk.secretHash,
+      kind: "embed",
+    });
+    res.json({
+      token: t.token, // shown exactly once
+      siteSecret: sk.secret, // shown exactly once
+      fingerprint: row.fingerprint,
+      snippet: snippetFor(t.token),
+      embedUrl: `${siteBase()}/zhiyu/embed/${t.token}`,
+    });
+  });
+
+  app.patch("/api/zhiyu/rooms/:id/widget", express.json({ limit: "8kb" }), (req, res) => {
+    const auth = authorize(req, res, req.params.id);
+    if (!auth) return;
+    if (!auth.isOwner) return res.status(403).json({ error: "room owner required" });
+    const row = widgetRowFor(auth.room.id);
+    if (!row) return res.status(404).json({ error: "widget not enabled" });
+    const allowlist = Array.isArray(req.body?.allowlist)
+      ? req.body.allowlist.map((s) => String(s).trim().toLowerCase()).filter(Boolean).slice(0, 10)
+      : null;
+    if (allowlist && !allowlist.length) return res.status(400).json({ error: "allowlist may not be emptied while enabled" });
+    const updated = allowlist ? store.widgetTokenSetAllowlist(row.id, allowlist) : row;
+    res.json({ token: { fingerprint: updated.fingerprint, allowlist: updated.allowlist } });
+  });
+
+  app.post("/api/zhiyu/rooms/:id/widget/rotate-secret", (req, res) => {
+    const auth = authorize(req, res, req.params.id);
+    if (!auth) return;
+    if (!auth.isOwner) return res.status(403).json({ error: "room owner required" });
+    const row = widgetRowFor(auth.room.id);
+    if (!row) return res.status(404).json({ error: "widget not enabled" });
+    const sk = newSiteSecret();
+    store.widgetTokenRotateSecret(row.id, sk.secretHash);
+    res.json({ siteSecret: sk.secret, fingerprint: row.fingerprint });
+  });
+
+  app.post("/api/zhiyu/rooms/:id/widget/revoke", (req, res) => {
+    const auth = authorize(req, res, req.params.id);
+    if (!auth) return;
+    if (!auth.isOwner) return res.status(403).json({ error: "room owner required" });
+    for (const t of store.widgetTokensForRoom(auth.room.id)) {
+      if (!t.revokedAt) store.widgetTokenRevoke(t.id);
+    }
+    res.json({ ok: true });
+  });
+
+  // Share-link weak lane (group 6): same token model, kind='link', no iframe.
+  app.post("/api/zhiyu/rooms/:id/share-link", express.json({ limit: "4kb" }), (req, res) => {
+    const auth = authorize(req, res, req.params.id);
+    if (!auth) return;
+    if (!auth.isOwner) return res.status(403).json({ error: "room owner required" });
+    const existing = widgetRowFor(auth.room.id, "link");
+    if (existing) store.widgetTokenRevoke(existing.id);
+    const t = newWidgetToken();
+    const sk = newSiteSecret();
+    store.widgetTokenCreate({ rowId: t.id, roomId: auth.room.id, secHash: t.secHash, fingerprint: t.fingerprint, allowlist: [], siteSecretHash: sk.secretHash, kind: "link" });
+    res.json({ url: `${siteBase()}/zhiyu/join/${t.token}`, token: t.token, fingerprint: t.fingerprint });
+  });
+
+  app.post("/api/zhiyu/rooms/:id/share-link/revoke", (req, res) => {
+    const auth = authorize(req, res, req.params.id);
+    if (!auth) return;
+    if (!auth.isOwner) return res.status(403).json({ error: "room owner required" });
+    const row = widgetRowFor(auth.room.id, "link");
+    if (row) store.widgetTokenRevoke(row.id);
+    res.json({ ok: true });
+  });
+
+  // ── Widget public lanes ────────────────────────────────────────────────────
+
+  // Loader meta: the script's allowlist double-check + room banner data.
+  app.get("/zhiyu/widget/meta", (req, res) => {
+    const token = String(req.query.token ?? "");
+    const row = widgetEnabled ? verifyWidgetToken(store, token) : null;
+    if (!row) return res.status(404).json({ error: "not found" });
+    if (!hostAllowed(row.allowlist, String(req.query.host ?? ""))) return res.status(403).json({ error: "host not allowed" });
+    const room = store.roomGet(row.roomId);
+    const host = (room?.ownerEmail ?? "").split("@")[1] ?? "host";
+    res.json({ title: room?.title ?? "", host, banner: `你是访客身份，由 ${room?.ownerEmail ?? host} 的值守分身接待` });
+  });
+
+  // The loader itself: static ESM string (no env interpolation), serves one
+  // preflight meta call and mounts the iframe on allowlist hit.
+  const WIDGET_JS = `(() => {
+  const me = document.currentScript;
+  const token = me.getAttribute("data-room") || "";
+  const origin = new URL(me.src).origin;
+  const host = location.host;
+  fetch(origin + "/zhiyu/widget/meta?token=" + encodeURIComponent(token) + "&host=" + encodeURIComponent(host))
+    .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+    .then((meta) => {
+      const root = document.createElement("div");
+      root.id = "zhiyu-widget-root";
+      root.style.cssText = "position:fixed;right:16px;bottom:16px;z-index:2147483000;width:min(380px,92vw);height:min(560px,80vh);box-shadow:0 8px 30px rgba(0,0,0,.18);border-radius:12px;overflow:hidden;background:#fff;display:flex;flex-direction:column";
+      const bar = document.createElement("div");
+      bar.style.cssText = "padding:6px 10px;font:12px system-ui;background:#111827;color:#fff;cursor:pointer;user-select:none";
+      bar.textContent = "会话 · " + meta.title;
+      const iframe = document.createElement("iframe");
+      iframe.src = origin + "/zhiyu/embed/" + encodeURIComponent(token) + "?host=" + encodeURIComponent(host);
+      iframe.style.cssText = "border:0;flex:1;width:100%";
+      iframe.allow = "clipboard-write";
+      let openFlag = true;
+      const setOpen = (v) => { openFlag = v; iframe.style.display = v ? "" : "none"; };
+      bar.onclick = () => setOpen(!openFlag);
+      root.appendChild(bar);
+      root.appendChild(iframe);
+      document.body.appendChild(root);
+      window.addEventListener("message", (ev) => {
+        if (ev.origin !== origin) return;
+        const d = ev.data || {};
+        if (d.type === "zhiyu:ready") iframe.contentWindow.postMessage({ type: "zhiyu:init" }, origin);
+      });
+    })
+    .catch(() => { /* silently inert off-allowlist */ });
+})();
+`;
+
+  app.get("/zhiyu/widget.js", (_req, res) => {
+    if (!widgetEnabled) return res.status(404).end();
+    res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.end(WIDGET_JS);
+  });
+
+  // The embed shell: dynamic frame-ancestors per token's allowlist, else 404.
+  app.get("/zhiyu/embed/:token", (req, res) => {
+    const row = widgetEnabled ? verifyWidgetToken(store, req.params.token) : null;
+    if (!row) return res.status(404).json({ error: "not found" });
+    const room = store.roomGet(row.roomId);
+    if (!room || !webDist) return res.status(404).json({ error: "not found" });
+    const allow = ["'self'", ...row.allowlist.flatMap((h) => (h.startsWith("*.") ? [`https://${h}`, `https://*.${h.slice(2)}`] : [`https://${h}`, `http://${h}`]))];
+    res.setHeader("Content-Security-Policy", `frame-ancestors ${allow.join(" ")}`);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    try {
+      res.end(readFileSync(path.join(webDist, "index.html"), "utf8"));
+    } catch {
+      res.status(502).end("widget shell unavailable");
+    }
+  });
+
+  // Join-link shell (group 6): top-level full page; same token lane, no
+  // frame-ancestors requirement (these links are opened, never embedded).
+  app.get("/zhiyu/join/:token", (req, res) => {
+    const row = widgetEnabled ? verifyWidgetToken(store, req.params.token) : null;
+    if (!row || row.kind !== "link") return res.status(404).json({ error: "not found" });
+    const room = store.roomGet(row.roomId);
+    if (!room || !webDist) return res.status(404).json({ error: "not found" });
+    res.setHeader("Content-Security-Policy", "frame-ancestors 'self'");
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    try {
+      res.end(readFileSync(path.join(webDist, "index.html"), "utf8"));
+    } catch {
+      res.status(502).end("page unavailable");
+    }
+  });
+
+  // visit: mint/reuse a guest seat on this room's token.
+  app.post("/zhiyu/widget/:token/visit", express.json({ limit: "8kb" }), (req, res) => {
+    const ctx = authorizeWidget(req, res);
+    if (!ctx) return;
+    const { row, room } = ctx;
+    if (!takeToken(`visit:${req.ip}`, 20, 60_000)) return res.status(429).json({ error: "rate limited" });
+    let seat = guestSeat(req, row);
+    let ttyOut = null;
+    if (!seat) {
+      const ref = guestRefFor();
+      const member = store.memberAdd({ roomId: row.roomId, kind: "guest", ref, display: `访客 · ${(cookieHost(req) ?? "guest").split(":")[0]}`, historyGrant: "join_from", invitedBy: "widget" });
+      emit(row.roomId, "system", "", { event: "guest_joined", member: { id: member.id, display: member.display } });
+      seat = { member };
+      const issued = serveGuestPass(row.roomId, ref);
+      res.setHeader("Set-Cookie", issued.setCookie);
+      ttyOut = issued.tty;
+    }
+    res.json({ ok: true, ref: seat.member.ref, display: seat.member.display, memberId: seat.member.id, tty: ttyOut ?? req.query.tty ?? null, roomId: row.roomId, title: room.title });
+  });
+
+  const widgetMessageShape = (m) => m;
+  app.get("/api/zhiyu/widget/:token/messages", (req, res) => {
+    const ctx = authorizeWidget(req, res, { requireHost: false });
+    if (!ctx) return;
+    const seat = guestSeat(req, ctx.row);
+    if (!seat) return res.status(401).json({ error: "guest pass required" });
+    const after = Number(req.query.after ?? 0) || 0;
+    const messages = store
+      .messagesAfter(ctx.row.roomId, after, { viewerMemberId: seat.member.id, limit: 1000 })
+      .filter((m) => m.visibility === "shared" || m.visibility === `private:${seat.member.id}`)
+      .map(widgetMessageShape);
+    res.json({ messages });
+  });
+
+  app.post("/api/zhiyu/widget/:token/messages", express.json({ limit: "16kb" }), (req, res) => {
+    const ctx = authorizeWidget(req, res);
+    if (!ctx) return;
+    const { row, room } = ctx;
+    if (room.status !== "active") return res.status(409).json({ error: "room ended" });
+    const seat = guestSeat(req, row);
+    if (!seat) return res.status(401).json({ error: "guest pass required" });
+    if (!takeToken(`msg:${seat.member.id}`, 8, 60_000)) return res.status(429).json({ error: "rate limited, slow down" });
+    const content = String(req.body?.content ?? "").trim();
+    if (!content) return res.status(400).json({ error: "content required" });
+    if (content.length > 16_000) return res.status(400).json({ error: "content too long" });
+    const { row: appended } = store.messageAppend({ roomId: room.id, kind: "human", senderMemberId: seat.member.id, content });
+    void Promise.resolve(humanMessageHook({ room, member: seat.member, message: appended })).catch((err) =>
+      console.error(`[zhiyu] widget round router failed for ${room.id}:`, err),
+    );
+    res.json({ message: appended });
+  });
+
+  app.get("/api/zhiyu/widget/:token/events", (req, res) => {
+    const ctx = authorizeWidget(req, res, { requireHost: false });
+    if (!ctx) return;
+    const seat = guestSeat(req, ctx.row);
+    if (!seat) return res.status(401).json({ error: "guest pass required" });
+    const roomId = ctx.row.roomId;
+    let last = Number(req.query.after ?? req.headers["last-event-id"] ?? 0) || 0;
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    });
+    res.flushHeaders?.();
+    res.write(`retry: 1000\n\n`);
+    const pump = () => {
+      try {
+        for (const m of store.messagesAfter(roomId, last, { viewerMemberId: seat.member.id })) {
+          last = m.seq;
+          res.write(`id: ${m.seq}\ndata: ${JSON.stringify(m)}\n\n`);
+        }
+      } catch (err) {
+        console.error(`[zhiyu] widget SSE pump failed for ${roomId}:`, err.message);
+      }
+    };
+    pump();
+    const poll = setInterval(pump, ssePollMs);
+    const keepalive = setInterval(() => res.write(`:ka\n\n`), 25_000);
+    req.on("close", () => {
+      clearInterval(poll);
+      clearInterval(keepalive);
+    });
+  });
+
+  app.post("/api/zhiyu/widget/:token/identify", express.json({ limit: "8kb" }), (req, res) => {
+    const ctx = authorizeWidget(req, res);
+    if (!ctx) return;
+    const { row, room } = ctx;
+    const seat = guestSeat(req, row);
+    if (!seat) return res.status(401).json({ error: "guest pass required" });
+    const email = String(req.body?.email ?? "").trim().toLowerCase();
+    const displayName = String(req.body?.displayName ?? email).slice(0, 80);
+    if (!/^[^@\s]+@[^@\s]+$/.test(email)) return res.status(400).json({ error: "email required" });
+    if (!verifyIdentify(store, row, { presentedSecret: req.body?.secret, ts: req.body?.ts, nonce: req.body?.nonce })) {
+      return res.status(403).json({ error: "identify refused" });
+    }
+    // Merge: the guest member row becomes the user row (same id → message
+    // attribution history carries over byte-for-byte).
+    const member = store.memberUpgradeToUser(seat.member.id, { email, display: displayName });
+    emit(room.id, "system", "", { event: "guest_identified", member: { id: member.id, display: member.display } });
+    res.setHeader("Set-Cookie", `zy_guest=; Path=/; Max-Age=0; SameSite=None; Secure; HttpOnly`);
+    res.json({ ok: true, member });
+  });
 
   // The prefix is owned: unmatched /api/zhiyu/* paths must 404 here (JSON),
   // never proxy into a cell where a same-named route could answer with a

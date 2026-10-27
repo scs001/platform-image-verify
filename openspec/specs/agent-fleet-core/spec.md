@@ -412,3 +412,74 @@ fleets 表每次 UPDATE SHALL 在 fleet_row_audit 落一行审计记录（时间
 
 - WHEN owner 修改舰队名或状态等常规字段
 - THEN 更新行为与审计前完全一致,仅追加审计行,无额外拒绝或延迟语义
+
+### Requirement: 岗位可声明思考深度并按回合生效
+
+舰队岗位 SHALL 可声明思考深度(effort),与模型声明同形的覆盖语义:岗位声明优先于舰队默认,舰队默认优先于 cell 默认;三者皆无声明时 SHALL 保持现状(沿用既有的 provider 级全局思考深度),行为与本次变更前逐字节等价。声明的值 SHALL 在写面校验为该 cell 已知模型所支持档位的并集内,非法值 SHALL 被结构化拒绝并提示可选值。回合执行时 SHALL 按解析出的生效值切换运行时思考深度,且该切换 SHALL NOT 重启运行时进程;生效值与运行中值相同时 SHALL 跳过切换。声明了却被当前模型不支持时 SHALL 回落上一层声明并留下可读提示,回合 SHALL NOT 因此失败。
+
+#### Scenario: 岗位声明生效
+
+- **WHEN** 某岗位声明思考深度为 high 且其生效模型支持该档
+- **THEN** 该岗位回合在 high 档执行,且执行期间运行时进程未重启
+
+#### Scenario: 未声明零变化
+
+- **WHEN** 岗位与舰队均未声明思考深度
+- **THEN** 回合沿用 provider 级全局思考深度,行为与变更前一致
+
+#### Scenario: 不支持的档位回落
+
+- **WHEN** 岗位声明 high 但其生效模型只支持 low 与 medium
+- **THEN** 回合按上一层声明(或全局值)执行,并在回合记录中留下该声明不可用的提示,回合不失败
+
+#### Scenario: 非法值写面拒绝
+
+- **WHEN** 以任何已知模型都不支持的档位更新岗位
+- **THEN** 写面返回结构化错误并列出可选档位
+
+### Requirement: 岗位可声明上下文使用上限并如实判定
+
+舰队岗位 SHALL 可声明单回合上下文使用上限(context budget),与思考深度同形的覆盖语义;未声明 SHALL 表示不限,行为与变更前一致。上限 SHALL 在回合收口时依据运行时上报的用量判定:用量存在且超出上限时,该回合 SHALL 记为失败并归类为上下文超预算,错误摘要 SHALL 同时给出实际用量与上限;运行时不报用量时 SHALL NOT 判定(不得以虚构用量判失败)。系统 SHALL NOT 为该上限静默截断对话或改写既有回合内容。
+
+#### Scenario: 超预算回合如实失败
+
+- **WHEN** 某岗位声明上限 8000 而该回合上报用量 9000
+- **THEN** 该回合记为失败、归类为上下文超预算、摘要含 9000 与 8000
+
+#### Scenario: 未声明不限
+
+- **WHEN** 岗位未声明上限
+- **THEN** 任何用量都不触发该判定,行为与变更前一致
+
+#### Scenario: 无用量不判
+
+- **WHEN** 运行时为该回合未上报用量
+- **THEN** 不进行超预算判定,不回填虚构用量,回合结果只取决于其真实执行状态
+
+### Requirement: MemberView 对 bot 类岗位附只读 bot 摘要
+
+MemberView SHALL 在 `target.kind === "bot"` 的岗位附带只读 `bot` 摘要子对象：`{ enabled, lastInboundAt, lastOutboundAt, lastError }`。摘要 SHALL 从 bot 通道存储做 best-effort 映射：列缺 → null，`enabled` 反映 bot 配置开关（false ≠ 红）。该字段 SHALL NOT 引入新 bot 采集机制，亦 SHALL NOT 触发 bot 写操作。
+
+#### Scenario: bot 类岗位带摘要
+
+- **WHEN** cockpit 聚合返回一个 target.kind=bot 的岗位，其所绑 bot 已上线并最近收到一条入站消息
+- **THEN** MemberView.bot.enabled=true，lastInboundAt 为该消息时刻，画布对节点呈现 bot 原生图标 + presence 状态点
+
+#### Scenario: bot 通道未配置
+
+- **WHEN** bot 通道从未启用或从未收到任何消息
+- **THEN** MemberView.bot.lastInboundAt 为 null，节点图标设灰阶，不渲染状态红点
+
+### Requirement: 画布与检查器以 bot 原生形态呈现 bot 类岗位
+
+fleet 画布与 post 检查器 SHALL 将 `target.kind === "bot"` 的岗位显示为 bot 原生图标（与 BotsPage 单源 BotPlatformIcons），并附通道专属状态点（presence 聚合态）。其余 kind（persona/cluster/a2a/tool/cron/event）图标语义 SHALL NOT 因本 change 改变。
+
+#### Scenario: bot 节点图标原生
+
+- **WHEN** 舰队含 bot 类岗位与 persona 类岗位
+- **THEN** bot 节点与 persona 节点分别用 BotPlatformIcon 与既有 NODE_COLORS.persona 渲染，可一眼区分
+
+#### Scenario: 检查器 top 卡呈现 bot 摘要
+
+- **WHEN** 用户打开一个 bot 类岗位的检查器
+- **THEN** config tab 顶部呈现 bot 摘要行（enabled、最近入站时刻、最近错误若有），且点击直达 BotsPage 对应 bot 卡

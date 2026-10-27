@@ -2584,3 +2584,14 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **实测分钟（2026-10-27 定案班，池仓私有分钟）**：桌面全套（矩阵 arm64 47+x64 64+exe 19+publish 1+win-smoke 6+dl-publish 2）≈ **139 分钟/次**；app 全腿实测定案（gates 2.3+apk 23.7+Maestro android 5.5）≈ **32 分钟/次**（`40425053536`，比历史 80-170 估值便宜数倍——修剪/init 优化已生效，dispatch-only 裁断不改判）；私仓侧新政下每次 push ≤ web 六门（~15-25）+ 命中 paths 时 app/miniapp 门（~10/~3）。池额度台账=fd-build-channel（24h 缓存）。
 
 **判红两分法延伸**：私仓 run 3 秒即终+payments failed=额度死（等月初或走池）；池仓 run 业务步红=真缺陷必查 log。
+
+### §15.57 永忆品牌化 + 官网首班（2026-10-26~27，用户定调「核心组件要支撑多平台多 agent，我希望也是开源的；项目名永忆，官网用 impeccable」）
+
+**品牌化定案**：fd-memory 公开品牌 = **永忆（YongYi）**（用户定调，替代我先前的「平台系 fd-xxx」提法；「客元」是我的笔误而非名字）。定型面：`@deepseek-ai/yongyi@0.2.0` `private: false`（与 `@deepseek-ai/dsh`/`@deepseek-ai/dsh-mcp-client` 同组织约定）；README/README 文件名按永忆形成面修改（品牌化名说明、fd-memory 保留为仓库字段 root/Docker image 过渡性名）。发布面：`npm i @deepseek-ai/yongyi`。
+
+**开源就绪度审计**（全证据）：代码 3341 行 TS、dep 唯一 yaml、零内部硬编码/秘密/内部项目名、本地一条命令起跑（healthz 200）、CLI bootstrap 环完整（platform → HTTP mint → person → /digest 200）、NPM pack 一件交付 56 文件。
+
+**官网首班方向**：漂浮星群修复程序（concept-seed dealt #7/#1/#6 三卡中选，用户锁定）——深空 navy + cyan 点 + amber 只作 live-write；单文件 HTML/CSS/JS（自绘 SVG 星座面布、权利幕 digest flow、supersede 悬停链发光）；抽签评审要求组装组由一次 orchestrated flash。自检 + finish reviewer 二轮流程已走通：五项 FIX（移动密度/对比度/ hover 链/DESIGN.md+provenance/死代码）全批修，v3 双截图已送 verdict。
+
+**artifacts**：fd-memory/site/{index.html,style.css,script.js} + DESIGN.md + .impeccable/{provenance.md,surfaces/site.md}。MIT License 有效。
+

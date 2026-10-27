@@ -2789,3 +2789,4 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **端到端现状**：LLM 车道恢复（真实 completion「收到」✓）；但车队**流式大包**（131KB prompt）仍被 windows 上游（account 46=100.64.0.10）回 503——小包非流式可过，大流式挂，属 windows 盒子自身稳定性/账户层（§15.65 剩余①的同族）。车道熔断与漂移自愈在整场事故中行为正确（model_not_available 类才自愈重断言；503/Connection error 诚实失败+熔断计数）。
 
 **新律**：①regcache 是集群拉取咽喉且与工作负载同节点混布——它挂=全网拉取挂，考虑迁去 control-plane 或加健康探针；②NAT VPS 的 SSH 分流端口凭据在 `~/finddata/ssh-config.json`（OPS.md 只存引用不存密码）；③k3s agent 的 content store 清空+重启不解决「缓存源损坏」——先查 regcache 再疑 containerd。
+**§15.60 续记二（memory-landing 补过成品评审，2026-10-28）**：用户问「官网还没用 impeccable 设计吗」→核账=主站全链在案，落地页此前只程序化验收（评审员限流）→补送 finish reviewer：**SHIP 8/8**（世界观一致/首屏层级/版式地板/代码面板/双语排版/移动端/文案/档次全 pass），一条非阻塞备忘入 DESIGN.md surface 节（琥珀兼「注意」角色=精神内合，收口选项一行 CSS）；provenance 补三截图行。至此官网两块面（主站+落地页）全部有 impeccable 裁决在案。

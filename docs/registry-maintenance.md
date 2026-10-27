@@ -2839,3 +2839,5 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 
 **§15.68 补记（限流窗口与两笔延后）**：发布限流=**每作者 10 次/小时滑窗**（`createPublishRateLimiter` windowMs=60min, max=10），本班 aloadtree@gmail.com 面正好用满 → 两笔**描述层**残留（`内容流水线（官方种子）` desc/fleet.name、`柏讯 · 产物构建` desc/fleet.name）未能在窗口内清完。处置：已挂后台延后任务（每 60s 试探一次、无 429 即完成），脚本 `/tmp/deferred-clean.sh` + `/tmp/final-clean.b64`（走同一 pod 内 facet 通道，不含任何凭据）；**包名层已零残留**，这两笔只影响搜索/详情里的描述文本。另注：`内容流水线` 的种子文件在本仓已是新措辞，**下次铸造会自然覆盖**，延后任务只是提前对齐。
 **凭据清理**：本批为改名铸造的 3 个 creators 会话（`admin@finddatatech.cloud`/`aloadtree@finddatatech.cloud`/`aloadtree@gmail.com`）、pod 会话密钥副本、CMS admin JWT 均已从本机 /tmp 删除（用完即清律）。
+
+**§15.68 终态（07:10 复核）**：延后任务在限流窗口过期后一次通过（`内容流水线（官方种子）` v4、`柏讯 · 产物构建` v3）。**市场 89 包实测：包名 0 处「舰队/fleet」、搜索「舰队」0 命中**；类目分面 = wire 25 / facet 7 / facade 6 / doc-studio 1 / fleet 15 / fleet-shared 5 / legal 7 / 其余既有——`daas/company/docs/data/authoring` 五类彻底消失。

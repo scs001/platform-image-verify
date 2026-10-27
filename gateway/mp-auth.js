@@ -98,7 +98,14 @@ export function verifyMpJwt(token, secret) {
 
 export function createMpAuth(config) {
   const { appid, mpSecret, tokenSecret, ttlHours, codeUrl, bindings, demoMode = false } = config;
+  // `configured` gates the wx.login flow (code2Session needs the WeChat
+  // triple). TOKEN VERIFICATION needs only the secret — gating it on the
+  // triple locked every app/paired-device Bearer out of deployments without
+  // WeChat credentials, i.e. the standard forward_auth single-process cell
+  // the universal client pairs to (WS upgrade 401 → app permanently
+  // "Disconnected"; first acceptance run, 2026-10-27).
   const configured = Boolean(appid && mpSecret && tokenSecret);
+  const tokenVerifyConfigured = Boolean(tokenSecret);
 
   async function code2Session(code) {
     const url = `${codeUrl}?appid=${encodeURIComponent(appid)}&secret=${encodeURIComponent(mpSecret)}&js_code=${encodeURIComponent(code)}&grant_type=authorization_code`;
@@ -179,7 +186,7 @@ export function createMpAuth(config) {
   }
 
   function verifyToken(token) {
-    if (!configured) return null;
+    if (!tokenVerifyConfigured) return null;
     return verifyMpJwt(token, tokenSecret);
   }
 

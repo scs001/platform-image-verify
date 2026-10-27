@@ -136,6 +136,7 @@ function fixtureTurn(db, member, over = {}) {
     startedAt: over.startedAt ?? Date.now() - 60_000,
     endedAt: over.endedAt ?? Date.now(),
     sessionId: over.sessionId ?? null,
+    traceTurnId: over.traceTurnId ?? null,
   });
 }
 
@@ -153,6 +154,26 @@ test("latestTurnUsage: newest REAL turn's usage rides the member view", async ()
   assert.deepEqual(view.latestTurnUsage, { input: 12_000, output: 3_000 });
   const plain = cock.members.find((x) => x.id === "m1");
   assert.equal(plain.latestTurnUsage, null);
+});
+
+test("member turns endpoint exposes traceTurnId — the mini span's second hop", async () => {
+  const fleet = fixtureFleet(fleetDb);
+  const m = fixtureMember(fleetDb, fleet.id, { id: "m-trace" });
+  fixtureTurn(fleetDb, m, { traceTurnId: "turn_abc123" });
+  const { createFleetRoutes } = await import("../server/routes/fleets.js");
+  const express = (await import("express")).default;
+  const app = express();
+  app.use(express.json());
+  createFleetRoutes(app, { authEnabled: false, cellUserEmail: "owner@test", fleetTargetResolver: (x) => ({ alive: true, label: x.targetId }) });
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((r) => server.once("listening", r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    const body = await (await fetch(`${base}/api/fleets/${fleet.id}/members/m-trace/turns?limit=5`)).json();
+    assert.equal(body.turns[0].traceTurnId, "turn_abc123");
+  } finally {
+    server.close();
+  }
 });
 
 test("bot sidecar: type/enabled + honest nulls; inbound/relay rides when seen", async () => {

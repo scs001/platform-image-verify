@@ -589,6 +589,10 @@ export function createFleetRoutes(app, ctx = null) {
       // Timeout/degrade/lane attribution (fix-fleet-turn-attribution): the
       // timeline carries the summary verbatim; legacy rows read null.
       detail: event.detail ?? null,
+      // fleet-ops-canvas mini span: the client joins this to the trace store
+      // for the tool waterfall — without it every non-live span lookup fell
+      // through (live-found in production walkthrough 2026-10-27).
+      traceTurnId: event.traceTurnId ?? null,
     };
   }
 

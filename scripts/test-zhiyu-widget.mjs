@@ -17,7 +17,7 @@ import { registerZhiyuRoutes } from "../gateway/zhiyu/index.js";
 
 const SECRET = "test-gateway-secret";
 
-async function boot({ agentAnswer = "副驾占位回答" } = {}) {
+async function boot({ agentAnswer = "副驾占位回答", moduleOpts = {} } = {}) {
   const express = (await import("express")).default;
   const app = express();
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "zhiyu-widget-"));
@@ -39,6 +39,7 @@ async function boot({ agentAnswer = "副驾占位回答" } = {}) {
     settleTurn: async (member, usage) => settles.push({ ref: member.ref, ...usage }),
     ssePollMs: 60,
     startTimers: false,
+    ...moduleOpts,
   });
   const srv = await new Promise((resolve) => {
     const s = app.listen(0, () => resolve(s));
@@ -293,5 +294,44 @@ test("4.2 daily budget gates guests honestly; 4.3 80% nudge lands in the in-app 
   const warnings = inbox.filter((n) => n.type === "budget_warning");
   assert.equal(warnings.length, 1);
   assert.equal(warnings[0].payload.budget, 2);
+  close();
+});
+
+test("item3 proactive greeting: silent visitor gets greeted by a duty seat", async () => {
+  const dirs = [];
+  const { cli, zhiyu, calls, close } = await boot({ moduleOpts: { proactiveDelayMs: 60 } });
+  const a = cli("a@x");
+  const roomId = (await a.post("/api/zhiyu/rooms", { title: "", proactiveGreeting: undefined })).json.room.id;
+  zhiyu.store.memberAdd({ roomId, kind: "agent", ref: "pk:agent", display: "值班分身" });
+  // Opt in via patch (owner).
+  await a.patch(`/api/zhiyu/rooms/${roomId}`, { proactiveGreeting: true });
+  const en = await a.post(`/api/zhiyu/rooms/${roomId}/widget`, { allowlist: ["shop.example.com"] });
+  const token = en.json.token;
+  await a.post(`/zhiyu/widget/${token}/visit`, undefined, { referer: "https://shop.example.com/" });
+  // Directive turn settles as the duty seat's own in-room line within the beat.
+  await waitFor(() => zhiyu.store.messagesAfter(roomId, 0, {}).some((m) => m.kind === "agent"), { tries: 60, ms: 50 });
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].text, /欢迎|温暖|简洁/);
+  close();
+});
+
+test("item3 proactive greeting: skipped when the visitor speaks first; off by default", async () => {
+  const { cli, zhiyu, calls, close } = await boot({ moduleOpts: { proactiveDelayMs: 60 } });
+  const a = cli("a@x");
+  const roomId = (await a.post("/api/zhiyu/rooms", { title: "" })).json.room.id;
+  zhiyu.store.memberAdd({ roomId, kind: "agent", ref: "pk:agent", display: "值班分身" });
+  const en = await a.post(`/api/zhiyu/rooms/${roomId}/widget`, { allowlist: ["shop.example.com"] });
+  const token = en.json.token;
+  // Default: proactive greeting OFF — no directive even when silent.
+  await a.post(`/zhiyu/widget/${token}/visit`, undefined, { referer: "https://shop.example.com/" });
+  await new Promise((r) => setTimeout(r, 150));
+  assert.equal(calls.length, 0, "default stays quiet");
+
+  // Opt in, then speak immediately — the greeter must stand down.
+  await a.patch(`/api/zhiyu/rooms/${roomId}`, { proactiveGreeting: true });
+  const v2 = await a.post(`/zhiyu/widget/${token}/visit`, undefined, { referer: "https://shop.example.com/" });
+  await a.post(`/api/zhiyu/widget/${token}/messages?tty=${encodeURIComponent(v2.json.tty)}`, { content: "我自己先说什么" }, { referer: "https://shop.example.com/" });
+  await new Promise((r) => setTimeout(r, 150));
+  assert.equal(calls.filter((c) => /欢迎/.test(c.text)).length, 0, "greeter stands down when the visitor spoke");
   close();
 });

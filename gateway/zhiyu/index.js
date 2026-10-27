@@ -38,6 +38,7 @@ export function registerZhiyuRoutes(app, {
   ssePollMs = 1000,
   sweepMs = 30_000,
   startTimers = true,
+  proactiveDelayMs = 20_000, // deliberate pause before a duty seat greets an unanswered visitor (opt-in per room)
 }) {
   const store = storeOpt ?? createZhiyuStore({ file: path.join(dataRoot, "zhiyu.db") });
 
@@ -461,6 +462,12 @@ export function registerZhiyuRoutes(app, {
         events.push({ event: "budget_changed", dailyBudgetTurns: b });
       }
     }
+    if (req.body?.proactiveGreeting !== undefined) {
+      const v = req.body.proactiveGreeting;
+      if (typeof v !== "boolean") return res.status(400).json({ error: "proactiveGreeting must be boolean" });
+      store.roomSetProactiveGreeting(auth.room.id, v);
+      events.push({ event: "proactive_greeting_toggled", enabled: v });
+    }
     const room = store.roomPatch(auth.room.id, patch);
     for (const meta of events) emit(auth.room.id, "system", "", meta);
     res.json({ room: { ...room, effectiveReplyCap: effectiveCap(room) } });
@@ -797,6 +804,9 @@ export function registerZhiyuRoutes(app, {
   };
   const sweepTimer = startTimers ? setInterval(sweep, sweepMs) : null;
   sweepTimer?.unref?.();
+  // One-shot proactive greeter timers live here so close() can cancel them
+  // without dangling across a module reload.
+  const proactiveTimers = new Set();
 
   // ── Widget embed: owner management (add-zhiyu-website-embed group 1/5) ─────
 
@@ -910,7 +920,8 @@ export function registerZhiyuRoutes(app, {
 
   // ── Widget public lanes ────────────────────────────────────────────────────
 
-  // Loader meta: the script's allowlist double-check + room banner data.
+  // Loader meta: the script's allowlist double-check + room banner data +
+  // the callable seat lineup (displays power the visitor's @ completion).
   app.get("/zhiyu/widget/meta", (req, res) => {
     const token = String(req.query.token ?? "");
     const row = widgetEnabled ? verifyWidgetToken(store, token) : null;
@@ -918,7 +929,13 @@ export function registerZhiyuRoutes(app, {
     if (!hostAllowed(row.allowlist, String(req.query.host ?? ""))) return res.status(403).json({ error: "host not allowed" });
     const room = store.roomGet(row.roomId);
     const host = (room?.ownerEmail ?? "").split("@")[1] ?? "host";
-    res.json({ title: room?.title ?? "", host, banner: `你是访客身份，由 ${room?.ownerEmail ?? host} 的值守分身接待` });
+    const agents = room
+      ? store
+          .membersOf(room.id)
+          .filter((m) => (m.kind === "agent" || m.kind === "facade") && m.state === "active")
+          .map((m) => ({ kind: m.kind, display: m.display || m.ref }))
+      : [];
+    res.json({ title: room?.title ?? "", host, agents, banner: `你是访客身份，由 ${room?.ownerEmail ?? host} 的值守分身接待` });
   });
 
   // The loader itself: static ESM string (no env interpolation), serves one
@@ -1022,6 +1039,36 @@ export function registerZhiyuRoutes(app, {
           content: `欢迎——我是值班席位。你可以直接说事，或点名：${agents.map((n) => `@${n}`).join(" ")}。`,
           meta: { event: "guest_greeting", agents },
         });
+      }
+      // Proactive greeting (opt-in per room): if nobody has spoken after a
+      // deliberate beat, a duty seat introduces itself. The visitor shouldn't
+      // have to break the ice alone; skipping is automatic if someone has.
+      if (Array.isArray(agents) && agents.length && room.proactiveGreeting) {
+        const pending = setTimeout(() => {
+          proactiveTimers.delete(pending);
+          try {
+            const fresh = store.roomGet(row.roomId);
+            if (!fresh || fresh.status !== "active") return;
+            const laterRows = store.messagesAfter(row.roomId, 0, { viewerMemberId: null, limit: 1000 });
+            const guestSeq = laterRows.findLast?.((m) => m.meta?.event === "guest_joined")?.seq ?? null;
+            const since = guestSeq == null ? [] : laterRows.filter((m) => m.seq > guestSeq && (m.kind === "human" || m.kind === "agent"));
+            if (since.length) return;
+            const duty = store
+              .membersOf(row.roomId)
+              .find((m) => (m.kind === "facade" || m.kind === "agent") && m.state === "active");
+            if (!duty) return;
+            void Promise.resolve(
+              router.directiveTurn({
+                room: fresh,
+                targetRef: duty.ref,
+                directive: `一位访客刚进来,暂时还没有人说话。请你以自己的身份,用一两句温暖简洁的话欢迎他/她,并说出你能帮上什么(不要追问他答复,不要说教或念规则)。`,
+              }),
+            ).catch((err) => console.error(`[zhiyu] proactive greeting failed for ${row.roomId}:`, err.message));
+          } catch (err) {
+            console.error("[zhiyu] proactive greeting timer failed:", err.message);
+          }
+        }, proactiveDelayMs);
+        proactiveTimers.add(pending);
       }
       seat = { member };
       const issued = serveGuestPass(row.roomId, ref);
@@ -1156,9 +1203,14 @@ export function registerZhiyuRoutes(app, {
     effectiveCap,
     router,
     bus,
+    // One-shot proactive greeter timers (visits opt-in per room); cleared at
+    // shutdown so a roll never fires a turn into thin air.
+    proactiveTimers,
     sweep,
     close() {
       if (sweepTimer) clearInterval(sweepTimer);
+      for (const t of proactiveTimers) clearTimeout(t);
+      proactiveTimers.clear();
       bus.removeAllListeners();
       if (!storeOpt) store.close();
     },

@@ -33,10 +33,15 @@ export function createZhiyuStore({ file }) {
     daily_budget_turns INTEGER,
     day_stamp TEXT,
     day_turns INTEGER NOT NULL DEFAULT 0,
+    proactive_greeting INTEGER NOT NULL DEFAULT 0,
     last_activity_at INTEGER NOT NULL,
     created_at INTEGER NOT NULL,
     ended_at INTEGER
   )`);
+  // Pre-existing files lack the column (added 2026-10-27, polish batch 3).
+  if (!db.prepare(`SELECT 1 FROM pragma_table_info('zy_rooms') WHERE name = 'proactive_greeting'`).get()) {
+    db.exec(`ALTER TABLE zy_rooms ADD COLUMN proactive_greeting INTEGER NOT NULL DEFAULT 0`);
+  }
 
   // Members: the authorization carrier (D-D). kind user|facade|agent; ref is
   // the email (user), deployment ref pack:agent:deployer (facade), or
@@ -191,6 +196,7 @@ export function createZhiyuStore({ file }) {
       sourceSession: r.source_session,
       dailyBudgetTurns: r.daily_budget_turns,
       dayTurns: r.day_turns,
+      proactiveGreeting: Boolean(r.proactive_greeting),
       lastActivityAt: r.last_activity_at,
       createdAt: r.created_at,
       endedAt: r.ended_at,
@@ -286,6 +292,10 @@ export function createZhiyuStore({ file }) {
     },
     roomSetDailyBudget(roomId, turns) {
       db.prepare(`UPDATE zy_rooms SET daily_budget_turns = ? WHERE id = ?`).run(turns, roomId);
+      return roomPublic(q.roomById.get(roomId));
+    },
+    roomSetProactiveGreeting(roomId, enabled) {
+      db.prepare(`UPDATE zy_rooms SET proactive_greeting = ? WHERE id = ?`).run(enabled ? 1 : 0, roomId);
       return roomPublic(q.roomById.get(roomId));
     },
     roomTransferOwner(roomId, email) {

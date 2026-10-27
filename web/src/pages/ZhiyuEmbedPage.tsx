@@ -63,6 +63,7 @@ export function ZhiyuEmbedPage() {
   const [composer, setComposer] = useState("");
   const [busy, setBusy] = useState(false);
   const [metaBanner, setMetaBanner] = useState<string>("");
+  const [agents, setAgents] = useState<{ kind: string; display: string }[]>([]);
   const [overlays, setOverlays] = useState<Record<string, { display: string; text: string }>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -94,7 +95,10 @@ export function ZhiyuEmbedPage() {
         const m = await fetch(`/zhiyu/widget/meta?token=${encodeURIComponent(token)}&host=${encodeURIComponent(location.host)}`);
         if (m.ok) {
           const mj = await m.json();
-          if (!cancelled) setMetaBanner(mj.banner ?? "");
+          if (!cancelled) {
+            setMetaBanner(mj.banner ?? "");
+            if (Array.isArray(mj.agents)) setAgents(mj.agents);
+          }
         }
       } catch (err) {
         if (!cancelled) setError((err as Error).message);
@@ -154,6 +158,21 @@ export function ZhiyuEmbedPage() {
     bottomRef.current?.scrollIntoView({ block: "end" });
   }, [rows]);
 
+  // @mention completion on the last @ fragment — names come from the widget
+  // meta lineup (guests should never have to guess who answers).
+  const mentionFragment = useMemo(() => {
+    const m = /(^|\s)@([^\s@]{0,30})$/.exec(composer);
+    return m?.[2] ?? null;
+  }, [composer]);
+  const mentionCandidates = useMemo(() => {
+    if (mentionFragment === null) return [];
+    const frag = mentionFragment.toLowerCase();
+    return agents.filter((a) => a.display.toLowerCase().includes(frag)).slice(0, 6);
+  }, [mentionFragment, agents]);
+  const completeMention = (display: string) => {
+    setComposer((prev) => prev.replace(/@([^\s@]{0,30})$/, `@${display} `));
+  };
+
   const send = async () => {
     const content = composer.trim();
     if (!content || !tty || busy) return;
@@ -196,9 +215,11 @@ export function ZhiyuEmbedPage() {
         {visible.map((row) => {
           if (row.kind === "system" || row.kind === "event") {
             const key = String(row.meta?.event ?? "");
+            // A system row whose content IS the message (the greeting is the
+            // flagship case) renders its text; meta-only rows keep their label.
             return (
               <div key={row.seq} className="my-1.5 text-center text-xs text-muted-foreground">
-                {EVENT_LABEL[key] ?? key}
+                {row.content?.trim() ? row.content : (EVENT_LABEL[key] ?? key)}
               </div>
             );
           }
@@ -233,7 +254,21 @@ export function ZhiyuEmbedPage() {
       {error && <div className="mx-3 mb-2 rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">{error}</div>}
 
       {!ended ? (
-        <div className="flex items-end gap-2 border-t p-3">
+        <div className="relative flex items-end gap-2 border-t p-3">
+          {mentionCandidates.length > 0 && (
+            <div className="absolute bottom-full left-3 mb-1 w-64 rounded-md border bg-popover p-1 shadow-md">
+              {mentionCandidates.map((a) => (
+                <button
+                  key={a.display}
+                  type="button"
+                  className="block w-full rounded px-2 py-1 text-left text-sm hover:bg-muted"
+                  onClick={() => completeMention(a.display)}
+                >
+                  @{a.display} <span className="text-xs text-muted-foreground">{a.kind === "facade" ? "（分身）" : ""}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <textarea
             value={composer}
             onChange={(e) => setComposer(e.target.value)}

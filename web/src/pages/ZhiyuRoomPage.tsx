@@ -402,14 +402,18 @@ export function ZhiyuRoomPage() {
           {visibleRows.map((row) => {
             if (row.kind === "system" || row.kind === "event") {
               const key = String(row.meta?.event ?? "");
+              // A system row whose content IS the message (e.g. the guest
+              // greeting) renders its text; meta-only rows keep the label.
               return (
                 <div key={row.seq} className="my-1.5 text-center text-xs text-muted-foreground" data-testid={`zy-event-${key}`}>
-                  {t(`zhiyu.event.${key}`, {
-                    name: String(
-                      row.meta?.display ?? (row.meta?.member as { display?: string } | undefined)?.display ?? row.meta?.by ?? row.meta?.to ?? "",
-                    ),
-                    value: String(row.meta?.effective ?? row.meta?.replyCap ?? row.meta?.dailyBudgetTurns ?? ""),
-                  })}
+                  {row.content?.trim()
+                    ? row.content
+                    : t(`zhiyu.event.${key}`, {
+                        name: String(
+                          row.meta?.display ?? (row.meta?.member as { display?: string } | undefined)?.display ?? row.meta?.by ?? row.meta?.to ?? "",
+                        ),
+                        value: String(row.meta?.effective ?? row.meta?.replyCap ?? row.meta?.dailyBudgetTurns ?? ""),
+                      })}
                 </div>
               );
             }
@@ -679,6 +683,11 @@ export function ZhiyuRoomPage() {
                   )}
                 </div>
                 {widgetNote && <p className="text-xs text-muted-foreground">{widgetNote}</p>}
+                <p className="border-t pt-3 text-xs text-muted-foreground">
+                  老客服台（Chatwoot）商家两条线可并行：既有会话继续走{" "}
+                  <a className="text-primary hover:underline" href="/external/crm-desk/sso">客服台</a>
+                  ，新接待访客可从本房间的嵌入或进房链接起线，分期迁移互不打断。
+                </p>
               </div>
             </div>
           </div>

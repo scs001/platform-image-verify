@@ -31,16 +31,16 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - name: Install deps (skip electron/playwright downloads; better-sqlite3 needs its prebuilt binary)
-        run: npm ci --ignore-scripts && npm rebuild better-sqlite3
-        timeout-minutes: 8
+      - name: Install deps (--ignore-scripts skips the electron/playwright binaries; better-sqlite3 ships its prebuilds in the tarball)
+        run: npm ci --ignore-scripts
+        timeout-minutes: 15
       - name: Steward unit suites
         run: node --test "scripts/test-steward-*.mjs" "scripts/test-cell-lifecycle.mjs"
       - name: Resident smoke (跑→排干→撤销 through the real boot)

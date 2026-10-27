@@ -257,18 +257,41 @@ jobs:
           }
           Write-Host "steward resident: pid $($sw.Id)"
 
-          # 关 UI: the app attaches instead of double-stacking, then dies
+          # 关 UI: the app attaches instead of double-stacking, then dies.
+          # "No double stack" = exactly ONE stack, rooted at the resident
+          # steward: every node.exe under the install dir must reach $sw.Id by
+          # walking ParentProcessId (the attached UI asks the steward to start
+          # the stack, so backends — and their own children — hang off the
+          # steward). A node whose root is anything else is an embedded second
+          # stack (the app fell back instead of attaching).
           Start-Process -FilePath "$env:APP_DIR\Platform.exe"
           Start-Sleep -Seconds 18
-          $backends = Get-Process node -ErrorAction SilentlyContinue | Where-Object { $_.Path -like "$env:APP_DIR\resources\node*" -and $_.Id -ne $sw.Id }
-          if ($backends) {
-            $backends | Stop-Process -Force
-            throw "app spawned an embedded backend despite a resident steward (never-double-stack guard failed)"
+          $procs = Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
+            Where-Object { $_.ExecutablePath -like "$env:APP_DIR\resources\node*" }
+          $byPid = @{}
+          foreach ($p in $procs) { $byPid[[int]$p.ProcessId] = $p }
+          $strays = @()
+          foreach ($p in $procs) {
+            Write-Host "node pid $($p.ProcessId) parent $($p.ParentProcessId)"
+            $cur = [int]$p.ProcessId
+            $guard = 0
+            while ($byPid.ContainsKey($cur) -and $guard -lt 20) { $cur = [int]$byPid[$cur].ParentProcessId; $guard += 1 }
+            if ($cur -ne $sw.Id) { $strays += $p }
+          }
+          if (-not ($procs | Where-Object { $_.ProcessId -eq $sw.Id })) { throw "resident steward process vanished" }
+          if ($strays) {
+            $strays | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+            throw "found a stack the resident steward does not root (embedded double stack)"
           }
           Get-Process Platform -ErrorAction SilentlyContinue | Stop-Process -Force
           Start-Sleep -Seconds 5
           if (-not (Get-Process -Id $sw.Id -ErrorAction SilentlyContinue)) { throw "steward died with the UI" }
-          & $node "$appRoot\scripts\smoke-steward-resident.mjs" --status $dataDir
+          # Inline probe via the PACKAGED steward-client (no dependency on any
+          # helper script version inside the release): attach + status over the
+          # named pipe, exit non-zero if the resident is not answering.
+          $env:STEWARD_APP_ROOT = $appRoot
+          $env:STEWARD_DATA_DIR = $dataDir
+          & $node -e "const {pathToFileURL}=require('node:url'); import(pathToFileURL(process.env.STEWARD_APP_ROOT + '/supervisor/steward-client.js').href).then(async (m) => { const a = await m.attachSteward(process.env.STEWARD_DATA_DIR); if (!a.ok) { console.error('attach failed: ' + a.reason); process.exit(1); } const s = await a.client.request('status'); console.log('steward status: ' + JSON.stringify(s)); process.exit(0); }).catch((e) => { console.error(e.message); process.exit(1); });"
           if ($LASTEXITCODE -ne 0) { throw "steward stopped answering after the UI exit" }
           Write-Host "steward outlived the UI exit"
 

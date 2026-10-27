@@ -90,6 +90,9 @@ const EXCLUDE_PATHS = new Set([
   "Makefile", // k8s/argocd deploy wrapper + prod live-service URL
   "Jenkinsfile",
   ".github/workflows/image.yml", // internal TCR/Harbor image pipeline
+  // 供给开放 owner 验收的内部 workflow（312a8a0d）：通篇引用 cheap-8 节点名与
+  // 内部车道开关，公开仓跑不了也读不得——同 Makefile/deploy 脚本一类，整体排除。
+  ".github/workflows/live-supply-owner-acceptance.yml",
   // The hkccr publish pipeline lives in the paas tree so the verify repo can
   // always re-seed it (d3721f3b), but its internal registry references must
   // never ship — the release flow copies it back in after the export.

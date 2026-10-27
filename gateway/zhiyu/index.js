@@ -926,7 +926,11 @@ export function registerZhiyuRoutes(app, {
     const token = String(req.query.token ?? "");
     const row = widgetEnabled ? verifyWidgetToken(store, token) : null;
     if (!row) return res.status(404).json({ error: "not found" });
-    if (!hostAllowed(row.allowlist, String(req.query.host ?? ""))) return res.status(403).json({ error: "host not allowed" });
+    // Link tokens (join links) are OPENED, never embedded — the host gate is
+    // an embed-lane rule only, matching authorizeWidget's kind check.
+    if (row.kind !== "link" && !hostAllowed(row.allowlist, String(req.query.host ?? ""))) {
+      return res.status(403).json({ error: "host not allowed" });
+    }
     const room = store.roomGet(row.roomId);
     const host = (room?.ownerEmail ?? "").split("@")[1] ?? "host";
     const agents = room

@@ -261,8 +261,11 @@ test("6.1 share-link lane: issue → guest entry → independent revoke", async 
   const sl = await a.post("/api/zhiyu/rooms/" + (await a.get("/api/zhiyu/rooms")).json.rooms[0].id + "/share-link");
   assert.equal(sl.status, 200);
   assert.ok(sl.json.url.includes("/zhiyu/join/"));
-  // Link token also mints guests (host check skipped for kind:link).
+  // Link token also mints guests (host check skipped for kind:link) — and
+  // it must pass META too (the browser-eye caught meta gating link tokens).
   const linkToken = sl.json.url.split("/zhiyu/join/")[1];
+  const metaForLink = await a.get(`/zhiyu/widget/meta?token=${linkToken}&host=anywhere.example.com`);
+  assert.equal(metaForLink.status, 200, "link tokens skip the embed host gate on meta");
   const v = await a.post(`/zhiyu/widget/${linkToken}/visit`);
   assert.equal(v.status, 200);
   // Revoking the link does not kill the embed token.

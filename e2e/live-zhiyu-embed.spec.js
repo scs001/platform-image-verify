@@ -67,16 +67,29 @@ test("zhiyu widget guest lane, browser eye @live @live-smoke", async ({ browser 
     const agentInvite = (invites.invites ?? []).find((v) => v.kind === "agent" && v.roomId === roomId);
     if (!agentInvite) throw new Error("agent invite for the new room not found");
     await post(`/api/zhiyu/invites/${agentInvite.id}/accept`);
-    const widgetRes = await post(`/api/zhiyu/rooms/${roomId}/widget`, { allowlist: [new URL(location.href).host] });
+    const allowHost = new URL(location.href).host;
+    const widgetRes = await post(`/api/zhiyu/rooms/${roomId}/widget`, { allowlist: [allowHost] });
+    const status = await fetch(`/api/zhiyu/rooms/${roomId}/widget`).then((r) => r.json());
     const shareRes = await post(`/api/zhiyu/rooms/${roomId}/share-link`);
-    return { roomId, embedToken: widgetRes.token, joinUrl: shareRes.url };
+    return { roomId, embedToken: widgetRes.token, joinUrl: shareRes.url, allowHost, storedAllowlist: status.token?.allowlist };
   });
 
+  console.log("[setup] allowHost=", setup.allowHost, "stored=", JSON.stringify(setup.storedAllowlist));
   const guestCtx = await browser.newContext();
   let embedCheckStatus = 0;
   try {
     // ── Guest context: anonymous, no platform login.
     const guest = await guestCtx.newPage();
+    guest.on("requestfailed", (r) => console.log("[guest] REQFAIL", r.url(), r.failure()?.errorText));
+    guest.on("response", async (r) => {
+      if (r.status() >= 400) {
+        const body = await r.text().catch(() => "");
+        console.log("[guest] HTTP", r.status(), r.url(), "BODY:", body.slice(0, 200));
+      }
+    });
+    guest.on("console", (m) => {
+      if (m.type() === "error") console.log("[guest] console.error:", m.text().slice(0, 200));
+    });
     await guest.goto(setup.joinUrl, { waitUntil: "domcontentloaded" });
 
     // Banner honesty: the visitor learns immediately whose room this is.

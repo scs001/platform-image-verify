@@ -38,8 +38,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - name: Install deps (better-sqlite3 needs its prebuilt binary)
-        run: npm ci
+      - name: Install deps (skip electron/playwright downloads; better-sqlite3 needs its prebuilt binary)
+        run: npm ci --ignore-scripts && npm rebuild better-sqlite3
         timeout-minutes: 8
       - name: Steward unit suites
         run: node --test "scripts/test-steward-*.mjs" "scripts/test-cell-lifecycle.mjs"

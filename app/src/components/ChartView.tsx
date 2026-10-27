@@ -8,30 +8,26 @@ import { useEffect, useRef, useState } from "react";
 import { WebView } from "react-native-webview";
 import { Text, View, StyleSheet } from "react-native";
 import { palette } from "./palette";
+import { CHART_SHELL } from "@/lib/chart-shell";
 
-const SHELL = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:transparent}</style></head><body><div id="c" style="width:100vw;height:100vh"></div>
-<script src="https://cdn.jsdelivr.net/npm/echarts@6/dist/echarts.min.js" onerror="window.__fail=1"></script>
-<script>
-window.addEventListener('message', function(e){ try { render(JSON.parse(e.data)); } catch(err){ window.__fail=1; } });
-function render(option){
-  if (window.__fail || !window.echarts) { document.title='fail'; return; }
-  var chart = echarts.init(document.getElementById('c'));
-  chart.setOption(option);
-  document.title='ok';
-}
-document.addEventListener('DOMContentLoaded', function(){ if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('ready'); });
-</script></body></html>`;
+const SHELL = CHART_SHELL;
 
 export function ChartView({ option, height = 220 }: { option: unknown; height?: number }) {
   const webRef = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Settled by the shell's postMessage('ok'|'fail') after setOption; without
+  // it the 4s degrade timer flipped every healthy chart to the fallback.
+  const settled = useRef(false);
 
   useEffect(() => {
     if (!ready || failed) return;
+    settled.current = false;
     webRef.current?.postMessage(JSON.stringify(option));
     // The degrade contract: no confirmation within 4s = treat as failure.
-    const t = setTimeout(() => setFailed(true), 4000);
+    const t = setTimeout(() => {
+      if (!settled.current) setFailed(true);
+    }, 4000);
     return () => clearTimeout(t);
   }, [ready, option, failed]);
 
@@ -55,7 +51,11 @@ export function ChartView({ option, height = 220 }: { option: unknown; height?: 
         onMessage={(e) => {
           const data = String(e.nativeEvent.data);
           if (data === "ready") setReady(true);
-          if (data.includes("fail")) setFailed(true);
+          if (data === "ok") settled.current = true;
+          if (data.includes("fail")) {
+            settled.current = true;
+            setFailed(true);
+          }
         }}
         onError={() => setFailed(true)}
         style={{ backgroundColor: "transparent" }}

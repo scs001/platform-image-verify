@@ -42,6 +42,6 @@
 
 ## 8. 发布与走查
 
-- [ ] 8.1 出片四清单同代滚版（fd-build-channel 判路 + skopeo 硬门 + digest 全等），验证：镜像 tag 与注释同体换
-- [ ] 8.2 生产真机走查：开嵌入→白名单外拒框/test 页加载→guest 点名真答→identify→预算触顶提示→吊销 403，验证：走查录落台账 §15；ZHIYU_WIDGET 默认开后再验收
-- [ ] 8.3 `openspec validate add-zhiyu-website-embed --strict` 零 error；台账 §1 与 §15 记录
+- [x] 8.1 出片四清单同代滚版（fd-build-channel 判路 + skopeo 硬门 + digest 全等），验证：镜像 tag 与注释同体换
+- [x] 8.2 生产真机走查：开嵌入→白名单外拒框/test 页加载→guest 点名真答→identify→预算触顶提示→吊销 403，验证：走查录落台账 §15；ZHIYU_WIDGET 默认开后再验收
+- [x] 8.3 `openspec validate add-zhiyu-website-embed --strict` 零 error；台账 §1 与 §15 记录

@@ -2500,6 +2500,18 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 
 **§15.62 续·直接测闭环（2026-10-27，阻塞件溶解）**：根因链定案与初判不同——qwen3.8-flash 被模型平面对账后，部署时 pin 在部署描述符 `effective_model` 里的旧值一直无人刷（只有显式 service-config 写或重部署才换），**未 pin 的部署走 runner 默认 deepseek-v4.1-flash 反而不受影响**；两座走查座恰是部署代老到那批。直测路径瓦解过程：service-config PUT→registry entry `effective_model` 即刻更新（roster 三闸齐验：lane 名单/hosting-runner 团体表/admitted）→ reconcile 的 identityOf 含 `effective_model`，flip 即触发 drain+in-place 重铸（日志实证 "descriptor changed; draining old runtime"；gemma↔deepseek 两轮回弹按名验证）→ 首次 PUT 后未见 drain 的真因=我等 log 窗口太短+会话旧 home 的日 rollover 与直探探针拼时差。最终证据四连：①a2a 直连 fresh contextID `probe:direct-2` 答 "在吗"；②房间点名 `@智库副驾` 全链真答落流（seq 8 agent 行带部署归因）；③答后即结算，`pack_host_settlements` 行 `zyr-zy_97a8e69ce5af785f9b-8-mem_69268439a8aa98a6d3` 1min×$0.1（usage 幂等键格式自证来自本房间）；④广播征询中「过」零计费如初。**平台侧意义**：服务配置改模型→runner 热重铸链设计内工作正常；平台隐患不在机制在于**部署时快照 vs 平面对账的漂移静默**——建议 lane 主人对存量部署做一遍 roster闸复核（老的 descriptor.effective_model 若已不在 roster，考虑运行时 session 创建时拒其请求并告警给部署者，而不是到回合那一刻才 400）。change 全部 38/38、walkthrough 欠项清零，可进 archive。
 
+### §15.63 萬星·智语二期：网站嵌入+游客进房上产（add-zhiyu-website-embed，2026-10-27）
+
+**范围**：接待台 2.0——商家开嵌入→站点访客以 guest 席位与值守分身同房对话；guest 触发应答计 host 部署账（usage `-guest` 后缀可追）；授权链接进房为同机弱化档。四层实现：`guest-auth.js` 三件套分面（`wtr_<id>.<sec>` 装载令牌存哈希、`zy_guest` HMAC 身份牌 cookie(SameSite=None)+URL tty 双轨、`sk` bearer identify+5min窗+nonce 一次性）；装载器 `widget.js`（preflight meta 双保险按 host 注 iframe）+`/zhiyu/embed/:token` 动态 `frame-ancestors`（**SPA fallback 正则须排除 zhiyu/embed|join|widget——本班已加**）；guest=席位（续访同席、无 PII 代号、join_from、私窗绝缘、消息限速 8/min/座+访客加载限速）；identify 同 row 换 kind（消息归因无损）；预算闸对 guest 同罚+80% 站内提醒；站内设置嵌入对话框（白名单/复制/吊销/轮换/进房链接）+独立 ZhiyuEmbedPage+五 locale。
+
+**本班真 bug（测试自逮）**：令牌行主键与 `wtr_<id>` 签发 id 两套生成（store 自造 id ≠ guest-auth 的 id）→ visit 恒 404；修=create 接受 rowId。另有 String.raw(fn) 误用（loader 空回）与双子块重复删改各一，均已在测试前修。
+
+**上产**：commit c78cddbf → snapshot bc2747d（digest 1e123a4a）四面滚（platform/platform-demo/facet/agent-runner-serving，pods digest 全等）；`ZHIYU_WIDGET=1` 走 **ConfigMap**（platform-config）——**坑：ConfigMap 变更不触发滚动，须 `kubectl rollout restart deployment/platform` 一次**才吃 envFrom。
+
+**真机走查（生产全链眼见）**：loader `/zhiyu/widget.js` 200 application/javascript；meta allow(platform 域) 200 / deny(evil) 403；`/zhiyu/embed/<token>` 200 且 `Content-Security-Policy: frame-ancestors 'self' https://platform.finddatatech.cloud`；伪令牌 404；visit 铸席 `g_9c83…` display「访客 · platform.finddatatech.cloud」+tty；**访客点名 `@智库副驾` → 真答 seq7**（首回合冷启动 ~70s）；结算行 `zyr-zy_a7a321af289804286d-7-mem_…-guest` 2min×$0.1；identify(secret/ts/nonce) → 席位并轨 `vip@corp.com/VIP客户`；share-link 页面 200+链接游客 `g_813c…`；吊销后 embed 404。**回归**：zhiyu 九套 53/53；树上残红=并行会话未提交 `gateway/packs.js→./vendor-onboarding.js`（不存在，gateway-boot 类测试皆红——**干净提交 c78cddbf worktree 里 test-app-pairing 15/15 全过**，非本班回归）+ 既有 fleet/role-gated 座席。
+
+**遗留/建议**：①ZHIYU_WIDGET 现为开——公共门由部署配置控制，商家自房间白名单是第二闸；②es/fr/ja 嵌入词条=英文占位（照一期纪律）；③widget 页面尚未做浏览器真眼见（curl 级全链已过，iframe 渲染拟下一班随 UX 抛光）；④Chatwoot 商家共存转接链接=Open Question 未做。change 待 archive（validate --strict 绿）。
+
 ### §15.55 上游模型故障应急：free 模型救急免充值（2026-10-26，用户令「glm/mini 系列不要动，用 free」）
 
 **故障定型（实测链）**：metrics 5 连失败暴露 → 直调上游（distiller pod Python）确认 deepseek-v4.1-flash 别名映射下的 **qwen3.8-flash 对该子账号不可用**（`model_not_available`）；备选实测 deepseek-flash/v4-flash/glm-5.3-flash/glm-4.6 全挂；`/models` 正常返回 87 个但任何调用都失败（账户权限问题非模型问题）。

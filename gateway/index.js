@@ -191,8 +191,12 @@ function resolveUser(req) {
   if (cookieUser) return cookieUser;
   const auth = req.headers.authorization;
   if (typeof auth === "string" && auth.startsWith("Bearer ")) {
-    const payload = mpAuth.verifyToken(auth.slice(7));
-    if (payload) return { email: payload.email, groups: payload.groups ?? [], mp: true };
+    // Credential-domain polity (add-cell-lifecycle 4.1): steward-kind device
+    // tokens authenticate on the REPORTING DOOR ONLY — never as a user
+    // session on any gateway-routed surface (found live: steward token
+    // answered 200 on /api/auth/me before this filter).
+    const session = appAuth.sessionEligibleToken(auth.slice(7));
+    if (session) return session;
   }
   return null;
 }

@@ -209,6 +209,16 @@ export function createAppAuth(config) {
     return { email: payload.email, groups: payload.groups ?? [], did: payload.did };
   }
 
+  // Session eligibility (add-cell-lifecycle 4.1): which device tokens may
+  // become an ACCOUNT session on gateway-routed surfaces. app and mini-program
+  // tokens qualify; steward-kind tokens do NOT — they open the reporting door
+  // and nothing else (live acceptance caught the unfiltered path).
+  function sessionEligibleToken(token) {
+    const payload = verifyToken(token);
+    if (!payload || payload.kind === "steward") return null;
+    return { email: payload.email, groups: payload.groups ?? [], mp: true };
+  }
+
   // Steward-kind identity (add-cell-lifecycle 4.1): reporting-door ONLY —
   // this credential deliberately cannot speak for the account anywhere else.
   function stewardFromToken(token) {
@@ -224,5 +234,5 @@ export function createAppAuth(config) {
     return verifyMpJwt(token, tokenSecret);
   }
 
-  return { pair, challenge, login, revoke, devicesFor: bindings.devicesFor, accountFromToken, stewardFromToken, configured };
+  return { pair, challenge, login, revoke, devicesFor: bindings.devicesFor, accountFromToken, stewardFromToken, sessionEligibleToken, configured };
 }

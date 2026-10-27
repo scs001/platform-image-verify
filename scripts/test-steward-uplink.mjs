@@ -59,6 +59,26 @@ test("steward-kind pair: token carries kind, accountFromToken refuses, stewardFr
 });
 
 
+test("credential-domain polity: steward token never becomes an account session", async () => {
+  const { bindings, appAuth } = setupAuth();
+  const seed = Buffer.alloc(32, 11);
+  const pub = crypto.createPublicKey(privFromSeed(seed)).export({ format: "jwk" });
+  // steward pair
+  const code1 = bindings.issueBindCode("u@x.test", []).code;
+  const st = await appAuth.pair({ code: code1, deviceId: "steward-pol", pubkey: pub.x, label: null, kind: "steward" });
+  assert.equal(st.ok, true);
+  assert.equal(appAuth.sessionEligibleToken(st.token), null, "steward token refused on user surfaces");
+  assert.equal(appAuth.accountFromToken(st.token), null);
+  assert.ok(appAuth.stewardFromToken(st.token), "…but speaks on the reporting door");
+  // app pair (regression): still session-eligible
+  const code2 = bindings.issueBindCode("u@x.test", []).code;
+  const ap = await appAuth.pair({ code: code2, deviceId: "app-pol", pubkey: pub.x, label: null });
+  assert.equal(ap.ok, true);
+  const session = appAuth.sessionEligibleToken(ap.token);
+  assert.equal(session?.email, "u@x.test");
+  assert.equal(session?.mp, true);
+});
+
 // ── reporting door ─────────────────────────────────────────────────────────
 
 test("reporting door: whitelist shape only, ingest relay carries source+kind verbatim", async () => {

@@ -310,9 +310,14 @@ jobs:
             Stop-Process -Id $sw.Id -Force
             throw "steward survived the uninstaller (pid drain failed)"
           }
-          & schtasks /Query /TN "PlatformSteward" *>$null
-          if ($LASTEXITCODE -eq 0) { throw "scheduled task PlatformSteward still registered after uninstall" }
+          # Pure PowerShell lookups: a native schtasks /Query that fails on the
+          # (correctly) absent task would leave $LASTEXITCODE=1 and pwsh would
+          # exit non-zero even after the PASS line — a pass reported as red.
+          if (Get-ScheduledTask -TaskName "PlatformSteward" -ErrorAction SilentlyContinue) {
+            throw "scheduled task PlatformSteward still registered after uninstall"
+          }
           Write-Host "::notice::Phase D PASS — resident steward outlived the UI, uninstaller drained it (pid $($sw.Id))"
+          exit 0
 
       - name: Stop processes
         if: always()

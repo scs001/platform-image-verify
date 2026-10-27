@@ -2595,3 +2595,11 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 
 **artifacts**：fd-memory/site/{index.html,style.css,script.js} + DESIGN.md + .impeccable/{provenance.md,surfaces/site.md}。MIT License 有效。
 
+### §15.58 永忆官网首版收官：finish reviewer 三轮 FIX → SHIP（2026-10-27，§15.57 续）
+
+**终审链**（每次都喂双截图、只收 verdict+证据单）：轮 1 五项 FIX（移动密度/对比度/hover 链/DESIGN+provenance/死代码）；轮 2 verdict=FIX 一处——supersede 链（v1 标签 CX+250）越过星图区压进「记忆河」面板、与首行 digest 文字碰撞成「supshared」；最小清单=节点/标签左收进图内 + `.hero-sky{overflow:hidden}` 兜底。轮 3 verdict=**SHIP**（五目全 pass：链不压面板/面板文字完整/移动端单列/topnav 可导航/无新回归）。
+
+**三轮教训**（入谱）：① pointer-events 检查不能只盯「面板不挡图」——hero-sky 整层 `pointer-events:none` 把 SVG hover 链一并打死，正确解是图可点、只读面板透传（`.digest{pointer-events:none}`）；② 绝对坐标 SVG 要在最终视口下验宽度碰撞，不能只看全图坐标系；③ finish reviewer method=「每次一张边看一张边记」的双截图裁决，比自审快且不留情面——视觉类交付以后默认走这条链。
+
+**定型件**：fd-memory master @ `c86dc5e`（site/{index.html,style.css,script.js} + DESIGN.md + PRODUCT.md + .impeccable/{provenance.md 10 行截图谱系,surfaces/site.md}）；final 截图 /tmp/yongyi-{desktop,mobile}-final2.png。品牌包 `@deepseek-ai/yongyi@0.2.0`(private:false)+MIT 就绪；对外挂站（域名/托管）属另一棒，待用户拍。
+

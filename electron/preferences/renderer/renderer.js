@@ -215,3 +215,46 @@ document.getElementById('stewardUninstallBtn').addEventListener('click', async (
 });
 
 refreshStewardPanel();
+
+// ── Steward pairing (add-cell-lifecycle chapter 4) ─────────────────────────
+async function refreshPairPanel(st) {
+  const pairGroup = document.getElementById('stewardPairGroup');
+  const pairedGroup = document.getElementById('stewardPairedGroup');
+  if (!pairGroup || !pairedGroup) return;
+  if (st?.paired) {
+    pairGroup.style.display = 'none';
+    pairedGroup.style.display = '';
+    document.getElementById('stewardPairedText').textContent =
+      `配对码设备 ${st.pairDeviceId} — 仅上报在线状态与计数摘要，内容零出机`;
+  } else {
+    pairGroup.style.display = st?.running ? '' : 'none';
+    pairedGroup.style.display = 'none';
+  }
+}
+
+document.getElementById('stewardPairBtn')?.addEventListener('click', async () => {
+  const statusEl = document.getElementById('stewardStatus');
+  const code = document.getElementById('stewardPairCode').value.trim();
+  const label = document.getElementById('stewardPairLabel').value.trim() || null;
+  if (!/^\d{6}$/.test(code)) { statusEl.className = 'error'; statusEl.textContent = '✗ 配对码是六位数字'; return; }
+  statusEl.textContent = '配对中…';
+  const r = await window.platform.pairSteward(code, label);
+  statusEl.className = r.ok ? 'success' : 'error';
+  statusEl.textContent = r.ok ? `✓ 配对完成${r.email ? `（${r.email}）` : ''}，上行即刻开始` : `✗ 配对失败：${r.error}`;
+  await refreshStewardPanel();
+});
+
+document.getElementById('stewardUnpairBtn')?.addEventListener('click', async () => {
+  const statusEl = document.getElementById('stewardStatus');
+  const r = await window.platform.unpairSteward();
+  statusEl.className = r.ok ? 'success' : 'error';
+  statusEl.textContent = r.ok ? '✓ 已解除配对并停上报（凭据已焚毁）' : `✗ 解配失败：${r.error}`;
+  await refreshStewardPanel();
+});
+
+const _origRefreshStewardPanel = refreshStewardPanel;
+refreshStewardPanel = async function () {
+  await _origRefreshStewardPanel();
+  const st = await window.platform.getStewardStatus();
+  await refreshPairPanel(st);
+};

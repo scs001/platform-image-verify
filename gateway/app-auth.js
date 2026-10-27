@@ -37,6 +37,12 @@ const CHALLENGE_MAX_OUTSTANDING = 10_000;
 // Self-reported device label: display-only, never parsed, capped.
 const LABEL_MAX_CHARS = 64;
 
+// Device kinds (add-cell-lifecycle 4.1): the universal client pairs as "app"
+// (default) — a desktop steward pairs as the reporting-only "steward" kind,
+// whose Bearer token opens exactly one door (cell lifecycle reporting) and
+// shall NOT authorize user sessions, pack operations, or control actions.
+const DEVICE_KINDS = ["app", "steward"];
+
 // base64url raw 32 bytes is exactly 43 chars (no padding) — reject anything
 // else before decoding, so malformed keys never reach KeyObject wrapping.
 const PUBKEY_RE = /^[A-Za-z0-9_-]{43}$/;
@@ -65,10 +71,10 @@ export function createAppAuth(config) {
     }
   }
 
-  function mintToken(deviceId, email, groups) {
+  function mintToken(deviceId, email, groups, kind = "app") {
     const now = Math.floor(Date.now() / 1000);
     return signMpJwt(
-      { sub: deviceId, did: deviceId, kind: "app", email, groups, iat: now, exp: now + ttlHours * 3600 },
+      { sub: deviceId, did: deviceId, kind, email, groups, iat: now, exp: now + ttlHours * 3600 },
       tokenSecret,
     );
   }
@@ -77,8 +83,14 @@ export function createAppAuth(config) {
   // device's identifier and public key. Mirrors mp-auth's loginWithBindCode
   // contract: 400 for malformed input, 401 for a wrong/expired/reused code,
   // and never a binding on failure.
-  async function pair({ code, deviceId, pubkey, label }) {
+  async function pair({ code, deviceId, pubkey, label, kind }) {
     if (!configured) return { ok: false, status: 503, error: "App pairing is not configured" };
+    // Device kinds beyond the universal app get validated FIRST, before any
+    // code is touched (a rejected kind must never burn the bind code).
+    const deviceKind = kind == null ? "app" : String(kind);
+    if (!DEVICE_KINDS.includes(deviceKind)) {
+      return { ok: false, status: 400, error: `无效的设备类型（仅接受 ${DEVICE_KINDS.join("/")}）` };
+    }
     const normalizedCode = typeof code === "string" ? code.trim() : "";
     if (!/^\d{6}$/.test(normalizedCode)) return { ok: false, status: 400, error: "请输入 6 位绑定码" };
     if (typeof deviceId !== "string" || !DEVICE_ID_RE.test(deviceId)) {
@@ -104,8 +116,9 @@ export function createAppAuth(config) {
       groups: entry.groups,
       pubkey,
       label: trimmedLabel,
+      kind: deviceKind,
     });
-    return { ok: true, token: mintToken(deviceId, entry.email, entry.groups), email: entry.email };
+    return { ok: true, token: mintToken(deviceId, entry.email, entry.groups, deviceKind), email: entry.email };
   }
 
   // Challenge issuance. Unbound/revoked devices get the same answer whether
@@ -164,7 +177,9 @@ export function createAppAuth(config) {
       valid = false;
     }
     if (!valid) return { ok: false, status: 401, error: "签名验证失败" };
-    return { ok: true, token: mintToken(deviceId, binding.email, binding.groups), email: binding.email };
+    // Silent re-login re-mints the SAME device kind as first pairing —
+    // steward tokens never become app tokens through the challenge path.
+    return { ok: true, token: mintToken(deviceId, binding.email, binding.groups, binding.kind ?? "app"), email: binding.email };
   }
 
   // The web-side management surface. `devicesFor` lives on the bindings
@@ -194,10 +209,20 @@ export function createAppAuth(config) {
     return { email: payload.email, groups: payload.groups ?? [], did: payload.did };
   }
 
+  // Steward-kind identity (add-cell-lifecycle 4.1): reporting-door ONLY —
+  // this credential deliberately cannot speak for the account anywhere else.
+  function stewardFromToken(token) {
+    const payload = verifyToken(token);
+    if (!payload || payload.kind !== "steward" || typeof payload.did !== "string") return null;
+    const binding = bindings.get(APP_KEY_PREFIX + payload.did);
+    if (!binding) return null; // revoked → dead credential → 401 self-destruct
+    return { email: binding.email ?? payload.email, did: payload.did, deviceKind: "steward" };
+  }
+
   function verifyToken(token) {
     if (!configured) return null;
     return verifyMpJwt(token, tokenSecret);
   }
 
-  return { pair, challenge, login, revoke, devicesFor: bindings.devicesFor, accountFromToken, configured };
+  return { pair, challenge, login, revoke, devicesFor: bindings.devicesFor, accountFromToken, stewardFromToken, configured };
 }

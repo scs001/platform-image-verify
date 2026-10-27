@@ -22,6 +22,8 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { STEWARD_PROTOCOL_VERSION } from "../lib/cell-lifecycle.js";
 import { newRegistryRow, createJsonRegistry, migrateRegistryRow } from "../lib/cell-registry.js";
+import { createKeyStorage, pairSteward } from "./steward-identity.js";
+import { createStewardReporter, readPairFile } from "./steward-reporter.js";
 
 export function stewardSocketTarget(dataDir) {
   if (process.platform === "win32") {
@@ -31,7 +33,7 @@ export function stewardSocketTarget(dataDir) {
   return path.join(dataDir, "steward.sock");
 }
 
-const OPS = new Set(["hello", "status", "start", "stop", "drainQuit", "getPolicy", "setPolicy", "restart"]);
+const OPS = new Set(["hello", "status", "start", "stop", "drainQuit", "getPolicy", "setPolicy", "restart", "pair", "unpair", "pairStatus"]);
 
 export function createSteward({ supervisor, dataDir, policyEngine: initialEngine = null, onExit = (code) => process.exit(code) } = {}) {
   const socketTarget = stewardSocketTarget(dataDir);
@@ -49,6 +51,25 @@ export function createSteward({ supervisor, dataDir, policyEngine: initialEngine
   let running = false;
   let policy = loadPolicy();
   let policyEngine = initialEngine;
+
+  // ── Uplink client (add-cell-lifecycle 4.3) ────────────────────────────────
+  // Only exists after an explicit pair (pair file = opt-in proof). Manifest
+  // stitches fleet numbers from the cell's own persisted stores — read-only,
+  // never touching the runtime.
+  let reporter = null;
+  function manifestFnFactory() {
+    return () => readBeaconManifest(dataDir);
+  }
+  function startReporter() {
+    if (reporter) reporter.stop();
+    const storage = createKeyStorage({ cellId, dataDir });
+    reporter = createStewardReporter({ steward: stewardApi, dataDir, storage, appVersion: process.env.APP_VERSION ?? null, manifestFn: manifestFnFactory() });
+    reporter.start();
+  }
+  async function stopReporter() {
+    reporter?.stop();
+    reporter = null;
+  }
 
   function loadPolicy() {
     try {
@@ -101,6 +122,40 @@ export function createSteward({ supervisor, dataDir, policyEngine: initialEngine
           try { send({ restarted: await supervisor.restart(params.id) }); }
           catch (e) { send({ error: e.message }); }
         })();
+      case "pair": {
+        // Explicit-opt-in action (add-cell-lifecycle 4.1/4.3): entering a
+        // bind code IS the uplink consent — pairing starts the reporter.
+        return void (async () => {
+          try {
+            const storage = createKeyStorage({ cellId, dataDir });
+            const gatewayUrl = (process.env.STEWARD_GATEWAY_URL || "https://platform.finddatatech.cloud").replace(/\/+$/, "");
+            const deviceId = cellId;
+            const r = await pairSteward({ gatewayUrl, code: params.code, deviceId, label: params.label ?? null, storage });
+            if (!r.ok) return send({ error: r.error ?? "pair failed" });
+            fs.writeFileSync(
+              path.join(dataDir, "steward-pair.json"),
+              JSON.stringify({ token: r.token, email: r.email ?? null, deviceId, gatewayUrl }, null, 2),
+              { mode: 0o600 },
+            );
+            startReporter();
+            send({ paired: true, deviceId, email: r.email ?? null });
+          } catch (e) { send({ error: e?.message || String(e) }); }
+        })();
+      }
+      case "unpair":
+        return void (async () => {
+          await stopReporter().catch(() => {});
+          try {
+            const storage = createKeyStorage({ cellId, dataDir });
+            await storage.remove();
+          } catch { /* */ }
+          try { fs.rmSync(path.join(dataDir, "steward-pair.json"), { force: true }); } catch { /* */ }
+          send({ unpaired: true });
+        })();
+      case "pairStatus": {
+        const pf = readPairFile(dataDir);
+        return send({ paired: Boolean(pf?.token), deviceId: pf?.deviceId ?? null, gatewayUrl: pf?.gatewayUrl ?? null, email: pf?.email ?? null });
+      }
       case "getPolicy":
         return send({ policy });
       case "setPolicy": {
@@ -166,7 +221,7 @@ export function createSteward({ supervisor, dataDir, policyEngine: initialEngine
     if (server) await new Promise((r) => server.close(r));
   }
 
-  return {
+  const stewardApi = {
     start,
     shutdown,
     socket: socketTarget,
@@ -177,5 +232,37 @@ export function createSteward({ supervisor, dataDir, policyEngine: initialEngine
     get running() { return running; },
     set running(v) { running = v; },
     setPolicyEngine(engine) { policyEngine = engine; },
+    startReporter,
+    stopReporter,
   };
+  // Uplink self-start: a pair file left by an earlier boot is the still-valid
+  // opt-in; reporter starts quietly beside the stack (degrade-open).
+  if (readPairFile(dataDir)?.token) startReporter();
+  return stewardApi;
+}
+
+// Manifest gatherer (add-cell-lifecycle 4.3): fleet facts from the cell's own
+// persisted stores — sqlite read-only, never via the runtime.
+import { DatabaseSync } from "node:sqlite";
+import { readCronJobs, cellJobsFile } from "../lib/cell-lifecycle.js";
+
+function readBeaconManifest(dataDir) {
+  const jobs = readCronJobs(cellJobsFile(dataDir));
+  const out = {
+    fleetCount: 0,
+    memberCount: 0,
+    enabledTaskCount: jobs.filter((j) => j?.cron && !j?.paused).length,
+    labels: [],
+  };
+  try {
+    const db = new DatabaseSync(`file:${path.join(dataDir, "data", "data", "fleets.db")}?mode=ro`, { readOnly: true });
+    const fleets = db.prepare("SELECT id, name FROM fleets").all();
+    out.fleetCount = fleets.length;
+    out.labels = fleets.map((f) => f.name).filter(Boolean).slice(0, 32);
+    for (const f of fleets) {
+      out.memberCount += db.prepare("SELECT COUNT(*) AS n FROM members WHERE fleet_id = ?").get(f.id)?.n ?? 0;
+    }
+    db.close();
+  } catch { /* no fleet store — counters read honestly as job-count-only */ }
+  return out;
 }

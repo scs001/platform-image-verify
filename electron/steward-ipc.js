@@ -28,13 +28,44 @@ export function registerStewardIpc({ dataDir, nodeBin, projectRoot, isPackaged }
 
   ipcMain.handle("steward:status", async () => {
     const att = await attachSteward(dataDir).catch(() => ({ ok: false }));
+    if (att.ok) {
+      const ps = await att.client.request("pairStatus").catch(() => ({}));
+      return {
+        installed: true,
+        running: true,
+        protocolVersion: att.discovery?.protocolVersion ?? null,
+        pid: att.discovery?.pid ?? null,
+        paired: ps.paired === true,
+        pairDeviceId: ps.deviceId ?? null,
+        error: null,
+      };
+    }
     return {
       installed: installed(),
-      running: att.ok === true,
+      running: false,
       protocolVersion: att.discovery?.protocolVersion ?? null,
       pid: att.discovery?.pid ?? null,
-      error: att.ok ? null : (att.reason ?? null),
+      paired: false,
+      pairDeviceId: null,
+      error: att.reason ?? null,
     };
+  });
+
+  // Pairing = the explicit opt-in for uplink (add-cell-lifecycle 4.1/4.3).
+  // The control plane validates and stores the identity; the renderer passes a
+  // six-digit bind code + a display label.
+  ipcMain.handle("steward:pair", async (_ev, { code, label }) => {
+    const att = await attachSteward(dataDir).catch(() => null);
+    if (!att?.ok) return { ok: false, error: "后台管家不在运行——先安装并启动" };
+    const r = await att.client.request("pair", { code, label }).catch((e) => ({ error: e.message }));
+    return r.error ? { ok: false, error: r.error } : { ok: true, email: r.email ?? null };
+  });
+
+  ipcMain.handle("steward:unpair", async () => {
+    const att = await attachSteward(dataDir).catch(() => null);
+    if (!att?.ok) return { ok: false, error: "后台管家不在运行" };
+    const r = await att.client.request("unpair").catch((e) => ({ error: e.message }));
+    return r.error ? { ok: false, error: r.error } : { ok: true };
   });
 
   ipcMain.handle("steward:install", async () => {

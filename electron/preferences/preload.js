@@ -19,4 +19,7 @@ contextBridge.exposeInMainWorld("platform", {
   getStewardStatus: () => ipcRenderer.invoke("steward:status"),
   installSteward: () => ipcRenderer.invoke("steward:install"),
   uninstallSteward: () => ipcRenderer.invoke("steward:uninstall"),
+  // Uplink pairing (add-cell-lifecycle chapter 4): bind-code pair + unpair.
+  pairSteward: (code, label) => ipcRenderer.invoke("steward:pair", { code, label }),
+  unpairSteward: () => ipcRenderer.invoke("steward:unpair"),
 });

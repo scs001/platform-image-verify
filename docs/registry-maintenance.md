@@ -2298,6 +2298,18 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 
 **归档口径**：本 change 待到「四件全链」（①②+3.x 已产、④⑤待末棒：桌面③配对上行+销毁三路合龙）后才归档 sync；台账承旨 keep alive。wire 根因函（§15.59 末班拉）可发——wire 起泡处的「无重试」「失败徽标残血版」两校正信息，在今天全部上产的语义面前已全对应。
 
+### §15.65 cell 桌面③配对上行落地 (add-cell-lifecycle 4.x，2026-10-27)
+
+**成形**：桌面 steward 经既有 device-pairing 协议接入平台（bind 码赎回、Ed25519 密钥、一次性挑战静默重登），新增**设备种类 steward**——`appAuth.pair` 接受 `kind:"steward"`（默认 app 零扰动）、binding 记 kind、静默重登按 binding.kind 复铸（steward token 永不变 app token）、`stewardFromToken` 只走到 `POST /api/gateway/cell-report` 这一扇门（`accountFromToken` 照旧只认 kind=app）。**上行门白名单按 shape 防**：presence/manifest 各自字段集（计数+状态+版本+名称标签）之外的 key 结构上不过——prompt/会话/工具参数不是"纪律禁止"而是"类型空间不存在"。
+
+**行为面**：上报门鉴权=steward-kind Bearer（401=配对吊销信号）→ 白名单 shape → 转发萬星 ingest（`source: cell-steward`、`agent: cell-steward:<did>`、kind=cell_presence/cell_manifest）；FLEET_INGEST_* 未配=accept-and-drop(202)，degrade-open 一字不阻塞。桌面上行客户端：未配对=零上行（默认关），绑码配对成功即明式开关（RICS——绑定动作本身同意心跳③）；环形缓冲 cap 100+平台不通不阻塞；**二次 401 自毁**（配对失效即刻焚毁本地密钥+pair 文件+停报——销毁协议通道③的本机半）→ 重现需重新绑码（设计如此）。
+
+**UI**：Preferences「后台管家」tab 配对面（6 位码+机器名输入+配对/解配+状态回显+凭据焚毁案文）。钥匙串：macOS security CLI（service=platform-steward），其余平台送入 dataDir vault 0600（Windows DPAPI 后续刀记挂账）。
+
+**测试**：**40/40**（新增 uplink 5：kind 铸账/门 shape 内容键不过/非 steward 拒/ingest 未配 accept-drop/二次 401 自毁焚账），app-pairing 模块矩阵 11/11 保持（kind=app 默认零扰动；HTTP 层 4 红另有归属，见下）。
+
+**如实记一则**（不属本案）：另一个 tenancy 会话的工作树此刻多了一笔悬空的 `gateway/vendor-onboarding.js` import 使其本地 gateway 无法起跳（vendor 文件不在树里；vendors.js 存在但未追踪）——曾导致 app-pairing 的 4 个 HTTP 层用例红，已核对与本案零交集（其生产不受影响：出片只打已入袋的树）。予其会话的便条：入口别丢 vendor-onboarding 文件名（或把 import 改成真身 vendor store 名）。
+
 ### §15.46 /admin/metrics 运维快照面（2026-10-26，用户令「继续优化」）
 
 **动机**：本轮 embed 车道三修（§15.45）全程靠 grep 日志+临时探针诊断，每次都要进 pod 跑脚本——把同一批信号做成一条 POST。

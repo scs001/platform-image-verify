@@ -24,6 +24,7 @@ const sessionHelpers = { verifyEmbedToken };
 import { createCellRegistry, userIdFor } from "./spawner.js";
 import { createCellRegistryDb } from "./cell-registry.js";
 import { createDutyRing } from "./duty-ring.js";
+import { createCellReportDoor } from "./cell-report.js";
 import { rm } from "node:fs/promises";
 import { forwardedHeaders, machineHeaders, proxyHttp, proxyUpgrade } from "./proxy.js";
 import { createMpAuth } from "./mp-auth.js";
@@ -340,6 +341,12 @@ app.delete("/api/mp/bind", async (req, res) => {
 // take any resolveUser identity — a browser cookie OR an app Bearer token
 // (which carries the account email), so the app's Settings can list and
 // unbind its own device without a browser nearby.
+// Steward reporting door (add-cell-lifecycle 4.2): the steward-kind device
+// credential opens exactly this one door — a whitelisted shape unto the same
+// fleet ingest the gateway's own sampler relays into (degrade-open relay).
+const cellReportDoor = createCellReportDoor({ appAuth });
+app.post("/api/gateway/cell-report", express.json(), (req, res) => void cellReportDoor.handle(req, res));
+
 app.post("/api/app/pair", express.json(), async (req, res) => {
   const r = await appAuth.pair(req.body ?? {});
   if (!r.ok) return res.status(r.status).json({ error: r.error });

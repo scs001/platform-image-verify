@@ -2518,6 +2518,10 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 
 **验证**：widget 套件加归因断言 8/8 全绿；web typecheck/build 绿；生产冒烟（新房间+智库副驾）眼见——guest 行 `sender=访客 · platform.finddatatech.cloud`、agent 行 `sender=智库副驾`（含真实作答 seq7）+在答气泡逻辑同成员页。**上产**：832ac071 → snapshot 1faab60（digest e844037a）四面滚全等；ArgoCD spec 切换与 pod 刷新又遇「Synced 假象读早数」老坑，二轮 refresh+n 轮核清（教训：Synced 后先核 deploy 再看 pod，别用一份 pod 列表下结论）。
 
+### §15.65 智语二期抛光第二班（2026-10-27，非 openspec 直通班）
+
+**五项打包**（都源自走查证实的疤）：①**访客欢迎行**——guest 铸席时发一条 AI 免費的系统行「欢迎——我是值班席位。你可以直接说事，或点名：@智库副驾」，带前三个在场座席名（教 @ 点名，同步同时教 broadcast），只造一次（同席续访不重刷）；②**通配白名单纳 apex**——`*.partner.com` 原本只认子域、不认 apex 本身（违背了通配的直觉），修=wildcard 命中 apex 或其后缀；③**embed 页品牌脚**（「由 壹座·萬星智语 提供」一行）；④**es/fr/ja 词条真翻**——zhiyu 全节 + widget 小节的完整五语翻译（含 guest_* 三枚事件键五语对齐；check-locales 全 5 绿）；⑤顺修 guest_joined 在 embed 页已有标签对齐。**验证**：widget 套件 9/9（新增问候行与通配断言）；生产冒烟一问即见 `欢迎——我是值班席位……@智库副驾` + `agents meta` 正确。**上产**：4797b43f → snapshot 4987f00（digest 27039726）四面滚全等。坑：抛光期间手误删 /tmp/mint-paas-cookie.mjs（幕后配方文件）——已按记忆配方立刻重建原样（教训：ops 配方所在目录与走查临时件要分开）。
+
 ### §15.55 上游模型故障应急：free 模型救急免充值（2026-10-26，用户令「glm/mini 系列不要动，用 free」）
 
 **故障定型（实测链）**：metrics 5 连失败暴露 → 直调上游（distiller pod Python）确认 deepseek-v4.1-flash 别名映射下的 **qwen3.8-flash 对该子账号不可用**（`model_not_available`）；备选实测 deepseek-flash/v4-flash/glm-5.3-flash/glm-4.6 全挂；`/models` 正常返回 87 个但任何调用都失败（账户权限问题非模型问题）。

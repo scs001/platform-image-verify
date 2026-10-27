@@ -105,9 +105,14 @@ export function createStewardReporter({
         return;
       }
     }
-    const base = manifestFn
-      ? await manifestFn().catch(() => ({}))
-      : defaultManifest();
+    // manifestFn is synchronous by design (reads the cell's own stores); a
+    // sync throw must reach tick's catch as a rejection, not a TypeError on
+    // `.catch` of a plain value — the silent-dead-uplink bug (smoke-caught).
+    let base = null;
+    if (manifestFn) {
+      try { base = await manifestFn(); } catch { base = null; }
+    }
+    if (!base) base = defaultManifest();
     const presence = { state: steward.running ? "running" : "suspended", os: process.platform, appVersion, protocolVersion: STEWARD_PROTOCOL_VERSION, at: Date.now() };
     await postOnce("presence", presence);
     const manifest = {

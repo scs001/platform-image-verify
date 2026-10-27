@@ -154,3 +154,38 @@ test("second 401 burns the identity and stops reporting", async () => {
   assert.equal(await storage.get(), null, "private key burned");
   assert.equal(rep.state.token, null, "in-memory credential burned too");
 });
+
+test("sync manifestFn (the production shape) must not silently kill the tick", async () => {
+  // Regression: the caller's manifestFn in steward.js is SYNCHRONOUS; tick used
+  // to call manifestFn().catch() — a TypeError on a plain object — and every
+  // production tick died before posting anything (smoke smoke-caught upstream).
+  const dataDir = tmpDir();
+  fs.writeFileSync(path.join(dataDir, "steward-pair.json"), JSON.stringify({ token: "t", deviceId: "d", gatewayUrl: "https://g.test", email: "e" }, null, 2), { mode: 0o600 });
+  const storage = createKeyStorage({ cellId: "d", dataDir });
+  let posts = 0;
+  const rep = createStewardReporter({
+    steward: { registry: { get: () => null, put: () => {} }, running: true, cellId: "d" },
+    dataDir,
+    storage,
+    manifestFn: () => ({ fleetCount: 2, labels: [3] }), // sync, plain object
+    fetchImpl: async () => { posts += 1; return { status: 202, body: {} }; },
+  });
+  await rep.tick();
+  assert.ok(posts >= 2, `presence+manifest posted through the sync manifestFn (${posts})`);
+});
+
+test("throwing sync manifestFn degrades to the default manifest, never a dead tick", async () => {
+  const dataDir = tmpDir();
+  fs.writeFileSync(path.join(dataDir, "steward-pair.json"), JSON.stringify({ token: "t", deviceId: "d", gatewayUrl: "https://g.test", email: "e" }, null, 2), { mode: 0o600 });
+  const storage = createKeyStorage({ cellId: "d", dataDir });
+  let posts = 0;
+  const rep = createStewardReporter({
+    steward: { registry: { get: () => null, put: () => {} }, running: true, cellId: "d" },
+    dataDir,
+    storage,
+    manifestFn: () => { throw new Error("beacon store unreadable"); },
+    fetchImpl: async () => { posts += 1; return { status: 202, body: {} }; },
+  });
+  await rep.tick();
+  assert.ok(posts >= 2, `tick survived a throwing manifestFn (${posts})`);
+});

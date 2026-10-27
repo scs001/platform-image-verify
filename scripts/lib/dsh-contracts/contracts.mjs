@@ -17,6 +17,7 @@
 import {
   chmodSync,
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -41,6 +42,10 @@ const MATRIX_DIR = join(REPO_ROOT, "dsh-matrix");
 // keyed by a hash of everything that defines the tree. `--fresh` rebuilds.
 const CACHE_ROOT = join(REPO_ROOT, "node_modules", ".cache", "dsh-contracts-tree");
 const MATRIX_FILES = ["package.json", "package-lock.json", ".npmrc"];
+// file: dependency sources (the plugin-supply sample bundle): the lock records
+// them as links into dsh-matrix/samples, so the scratch tree needs the real
+// directory beside the copied manifest for its npm ci.
+const MATRIX_SAMPLE_DIR = join(MATRIX_DIR, "samples");
 
 // The four scaffold files a profile boots from (same list the Dockerfile
 // copies into /opt/dsh-home/profiles/platform — dsh-profile.js SCAFFOLD_FILES).
@@ -225,6 +230,7 @@ export function ensureScratchTree({ fresh = false } = {}) {
   rmSync(tree, { recursive: true, force: true });
   mkdirSync(tree, { recursive: true });
   for (const f of MATRIX_FILES) copyFileSync(join(MATRIX_DIR, f), join(tree, f));
+  if (existsSync(MATRIX_SAMPLE_DIR)) cpSync(MATRIX_SAMPLE_DIR, join(tree, "samples"), { recursive: true });
   console.log(`[dsh-contracts] scratch tree ${key}: npm ci from dsh-matrix (a few minutes on a cold cache)…`);
   const res = spawnSync("npm", ["ci", "--prefix", tree], { stdio: "inherit" });
   if (res.error) throw res.error;
@@ -1507,6 +1513,96 @@ async function contractMultiSessionCloseInterleave(ctx) {
   return "both turns closed without a cancel — close-under-concurrency holds";
 }
 
+// ── Contract ⑱ (add-dsh-plugin-supply) ──────────────────────────────────────
+// The plugin-supply bridge surface: `plugins/list` serves the profile's
+// whitelisted bundle roster through the pluginManager service, and
+// `plugins/set_enabled` toggles a bundle LAYER through the service's own write
+// semantics (profile manifest bundles-list edit + reload). The scratch tree
+// ships the sample bundle (@platform/supply-probe-bundle via dsh-matrix), so
+// the default matrix run exercises the full persisted round-trip; candidate
+// trees without a removable bundle still pin the shape and refusal semantics.
+
+async function contractPluginSupply(ctx) {
+  requireHandshake(ctx);
+
+  // (a) Roster shape — the Plugins section's contract.
+  const listed = await ctx.client.request("plugins/list", {});
+  const bundles = Array.isArray(listed?.bundles) ? listed.bundles : null;
+  if (!bundles) {
+    throw new Error(`plugins/list returned ${JSON.stringify(listed)?.slice(0, 140)} — expected {bundles: [...]}`);
+  }
+  if (bundles.length === 0) {
+    throw new Error("plugins/list returned an empty roster — the profile composes dsh-base, so at least its bundle must be listed");
+  }
+  for (const b of bundles) {
+    if (typeof b?.id !== "string" || b.id === "" || typeof b?.enabled !== "boolean") {
+      throw new Error(`plugins/list row breaks the {id:string, enabled:boolean} shape: ${JSON.stringify(b)}`);
+    }
+  }
+
+  // (b) Unknown bundle names must REJECT (the UI renders the refusal reason).
+  let unknownRejected = false;
+  try {
+    await ctx.client.request("plugins/set_enabled", { name: "contracts-no-such-bundle", enabled: true });
+  } catch {
+    unknownRejected = true;
+  }
+  if (!unknownRejected) {
+    throw new Error('plugins/set_enabled accepted unknown bundle "contracts-no-such-bundle" — the refusal contract is gone');
+  }
+
+  // (c) Persisted round-trip on a removable bundle, when the tree ships one.
+  // readOnlyReason already excludes management-protected bundles (dsh-base is
+  // "management-required" — disabling it would take the manager itself down).
+  const target = bundles.find(
+    (b) => b.enabled && !b.readOnlyReason && b.error === undefined && b.id !== "@deepseek-ai/dsh-base",
+  );
+  if (!target) {
+    return `plugins/list → ${bundles.length} bundle(s); unknown-name refusal holds; no removable bundle in this tree — toggle round-trip skipped`;
+  }
+  const manifestPath = join(ctx.profileDir, "package.json");
+  const manifestBundles = () => JSON.parse(readFileSync(manifestPath, "utf8"))?.dsh?.profile?.bundles ?? [];
+  if (!manifestBundles().includes(target.id)) {
+    throw new Error(`bundle "${target.id}" reports enabled but the profile manifest does not list it`);
+  }
+
+  const off = await ctx.client.request("plugins/set_enabled", { name: target.id, enabled: false });
+  if (off?.application !== "applied" && off?.application !== "restart-required") {
+    throw new Error(
+      `plugins/set_enabled(off) returned application=${JSON.stringify(off?.application)} — expected "applied"|"restart-required"`,
+    );
+  }
+  const afterOff = (await ctx.client.request("plugins/list", {})).bundles.find((b) => b.id === target.id);
+  if (afterOff?.enabled !== false) {
+    throw new Error(`bundle "${target.id}" still reports enabled after set_enabled(false)`);
+  }
+  if (manifestBundles().includes(target.id)) {
+    throw new Error(`disabling "${target.id}" did not persist — the profile manifest still lists it`);
+  }
+
+  const on = await ctx.client.request("plugins/set_enabled", { name: target.id, enabled: true });
+  if (on?.application !== "applied" && on?.application !== "restart-required") {
+    throw new Error(
+      `plugins/set_enabled(on) returned application=${JSON.stringify(on?.application)} — expected "applied"|"restart-required"`,
+    );
+  }
+  const afterOn = (await ctx.client.request("plugins/list", {})).bundles.find((b) => b.id === target.id);
+  if (afterOn?.enabled !== true) {
+    throw new Error(`bundle "${target.id}" still reports disabled after set_enabled(true)`);
+  }
+  if (!manifestBundles().includes(target.id)) {
+    throw new Error(`re-enabling "${target.id}" did not persist — the profile manifest does not list it`);
+  }
+
+  // The composition survives a toggle: the preset roster still answers.
+  const presets = await ctx.client.request("presets/list", {});
+  if (!Array.isArray(presets) || presets.length === 0) {
+    throw new Error("presets/list broke after the bundle round-trip — the composition did not survive the toggle");
+  }
+
+  return `plugins/list → ${bundles.length} bundle(s); unknown-name refusal holds; "${target.id}" round-tripped off→on (application=${on.application}) with the manifest persisted both ways`;
+}
+
 // ── The table ────────────────────────────────────────────────────────────────
 
 export const CONTRACTS = [
@@ -1535,6 +1631,7 @@ export const CONTRACTS = [
   { id: "assistant-stream-forward", title: "⑮ assistant-stream forward (live delta lane)", run: contractAssistantStreamForward },
   { id: "pod-cohost-shape", title: "⑯ pod co-host shape (parked persona+model per member)", run: contractPodCoHost },
   { id: "acp-adapter-mapping", title: "⑰ ACP adapter mapping face", run: contractAcpAdapterMapping },
+  { id: "plugin-supply", title: "⑱ plugin supply (bundle roster + persisted toggle)", run: contractPluginSupply },
 ];
 
 // ── Contract ⑰ (add-harness-adapter): ACP adapter mapping face ───────────────

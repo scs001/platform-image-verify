@@ -95,6 +95,10 @@ COPY dsh-profile-template/ ./dsh-profile-template/
 # binaries, dsh's own UI chrome — see dsh-matrix/prune.json), and the boot
 # gate passes exactly those absences.
 COPY dsh-matrix/package.json dsh-matrix/package-lock.json dsh-matrix/.npmrc dsh-matrix/prune.json dsh-matrix/prune.mjs ./dsh-matrix/
+# file: dependency sources for the matrix (the plugin-supply sample bundle):
+# the lock records them as links into dsh-matrix/samples, so npm ci — and the
+# later /opt/dsh copy — need the real directory beside the manifest.
+COPY dsh-matrix/samples/ ./dsh-matrix/samples/
 
 # One npm ci from the frozen matrix into /opt/dsh — the ONLY real tree (the
 # old second install under /opt/dsh-home/profiles/platform is gone; that
@@ -130,6 +134,7 @@ COPY dsh-matrix/package.json dsh-matrix/package-lock.json dsh-matrix/.npmrc dsh-
 # install; the app tree is the fourth site and was the one missing.
 RUN mkdir -p /opt/dsh \
     && cp dsh-matrix/package.json dsh-matrix/package-lock.json dsh-matrix/.npmrc /opt/dsh/ \
+    && cp -r dsh-matrix/samples /opt/dsh/samples \
     && NODE_OPTIONS=--max-old-space-size=8192 npm ci --prefix /opt/dsh \
     && node dsh-matrix/prune.mjs --tree /opt/dsh \
     && node dsh-matrix/prune.mjs --tree /app \

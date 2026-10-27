@@ -514,6 +514,38 @@ const PROFILE_BRIDGE_PACKAGES = [
   "@deepseek-ai/dsh-tools",
   "@deepseek-ai/dsh-sdk-jsonrpc-server",
 ];
+
+// Whitelisted bundles (add-dsh-plugin-supply) resolve through the profile's own
+// module chain like everything else the profile composes. The image layout gets
+// that for free (profiles/<name>/node_modules is ONE symlink to the whole
+// matrix tree), but the packaged-desktop layout links package-by-package — so
+// every bundle the template declares beyond the six shipped names joins the
+// pinned link set here, sourced from the runtime tree exactly like the bridge
+// packages. Read from the template (never a frozen list): the operator's
+// whitelist edit is the template's bundles list itself.
+const BUILTIN_PROFILE_BUNDLES = new Set([
+  "@deepseek-ai/dsh-base",
+  "@deepseek-ai/dsh-web-app",
+  "@deepseek-ai/dsh-headless",
+  "@deepseek-ai/dsh-sdk-app",
+  "@deepseek-ai/dsh-sdk-minimal",
+  "@deepseek-ai/dsh-acp-app",
+]);
+
+function declaredWhitelistBundles() {
+  try {
+    const manifest = JSON.parse(readFileSync(join(TEMPLATE_DIR, "package.json"), "utf8"));
+    const bundles = manifest?.dsh?.profile?.bundles;
+    if (!Array.isArray(bundles)) return [];
+    return bundles.filter((b) => typeof b === "string" && b !== "" && !BUILTIN_PROFILE_BUNDLES.has(b));
+  } catch {
+    return [];
+  }
+}
+
+function pinnedProfilePackages() {
+  return [...new Set([...PROFILE_BRIDGE_PACKAGES, ...declaredWhitelistBundles()])];
+}
 const PROFILE_MODULE_DIR = join("profiles", PROFILE_NAME, "node_modules");
 const APP_NODE_MODULES = join(dirname(fileURLToPath(import.meta.url)), "node_modules");
 // The tree the dsh binary actually runs from — DSH_BIN's own node_modules
@@ -581,7 +613,7 @@ function linkProfilePinnedModules() {
     const appRoot = realpathSync(APP_NODE_MODULES);
     const runtimeRoot = realpathSync(RUNTIME_NODE_MODULES);
     if (appRoot === runtimeRoot) return; // desktop layout: nothing of ours can be poison here
-    for (const pkg of PROFILE_BRIDGE_PACKAGES) {
+    for (const pkg of pinnedProfilePackages()) {
       const link = join(moduleDir, pkg);
       let st = null;
       try {
@@ -607,7 +639,7 @@ function linkProfilePinnedModules() {
     }
     return;
   }
-  for (const pkg of PROFILE_BRIDGE_PACKAGES) {
+  for (const pkg of pinnedProfilePackages()) {
     const link = join(moduleDir, pkg);
     const source = join(RUNTIME_NODE_MODULES, pkg);
     if (!existsSync(source)) continue;
@@ -918,6 +950,30 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
     if (present.length === 0) {
       delete servers[name];
       console.log(`[dsh-profile] omitting MCP server "${name}": requiresEnv [${required.join(", ")}] all unset in this deployment`);
+    }
+  }
+
+  // Browser lane supply gate (add-browser-use-lane, design D2): the lane is
+  // composed only where the deployment actually supplies a browser runtime
+  // (BROWSER_RUNTIME_PATH exists) or a remote endpoint (BROWSER_CDP_ENDPOINT);
+  // BROWSER_LANE=off vetoes both. Otherwise the entry is omitted entirely —
+  // the tools simply do not appear in the roster ("模型看不到不存在的腿"),
+  // same silent-normal omission family as requiresEnv above. A hand-added
+  // DB/mcp.json row without the marker is a deliberate override and skips
+  // this gate.
+  for (const [name, config] of Object.entries(servers)) {
+    if (config?.laneGate !== "browser") continue;
+    const off = (process.env.BROWSER_LANE || "").trim().toLowerCase() === "off";
+    const runtimePath = (process.env.BROWSER_RUNTIME_PATH || "").trim();
+    const endpoint = (process.env.BROWSER_CDP_ENDPOINT || "").trim();
+    const hasRuntime = runtimePath !== "" && existsSync(runtimePath);
+    if (off || (!hasRuntime && !endpoint)) {
+      delete servers[name];
+      console.log(
+        `[dsh-profile] omitting MCP server "${name}": browser lane ${
+          off ? "disabled by BROWSER_LANE=off" : "unsupplied (no BROWSER_RUNTIME_PATH, no BROWSER_CDP_ENDPOINT)"
+        }`,
+      );
     }
   }
 
@@ -2058,6 +2114,64 @@ export function writeUserQuestionsPatch() {
   atomicWriteTextSync(USER_QUESTIONS_PATCH_PATH, yaml.dump(patch));
   console.log(`[dsh-profile] wrote user-questions bridge patch → ${USER_QUESTIONS_PATCH_PATH}`);
   return USER_QUESTIONS_PATCH_PATH;
+}
+
+// ── Plugin-supply bridge patch (add-dsh-plugin-supply) ──────────────────────
+// The dsh-layer plugin supply face: platform-plugin-supply-bridge.js subclasses
+// the user-questions bridge and exposes the profile's `pluginManager` service
+// (composed by the dsh-base bundle) as `plugins/list` + `plugins/set_enabled`.
+// Toggles are BUNDLE-layer only and ride the service's own write semantics
+// (manifest bundles-list edit + reload: "applied" under HMR,
+// "restart-required" otherwise — the host then restarts the child through the
+// established path). Runtime package installation is deliberately not exposed:
+// v1 supply is the deployment whitelist (matrix bake + template bundles), never
+// a runtime installer (design D2).
+//
+// Swap mechanics mirror the user-questions overlay: this patch disables the
+// `platform-user-questions-server` row and inserts the subclass under a fresh
+// `platform-plugin-supply-server` row. Layer order: AFTER
+// user-questions.patch.yml (it swaps the row that overlay inserted) and BEFORE
+// save-library.patch.yml (insert-only, so order vs it is immaterial) — fixed by
+// dsh-bridge.js's patchArgs.
+const PLUGIN_SUPPLY_PATCH_PATH = join(DSH_HOME, "profiles", PROFILE_NAME, "plugin-supply.patch.yml");
+const PLUGIN_SUPPLY_BRIDGE_SOURCE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "dsh-profile-template",
+  "platform-plugin-supply-bridge.js",
+);
+const PLUGIN_SUPPLY_BRIDGE_FILE = "platform-plugin-supply-bridge.js";
+
+// Write the plugin-supply bridge file + plugin-supply.patch.yml into the
+// profile dir. The bridge imports the user-questions bridge (its subclass
+// parent), so that file (and its own permission parent) is re-written beside it
+// — same idempotent-copy shape the user-questions overlay uses. Returns the
+// patch path for the --patch args. Unconditional like its predecessors: an
+// absent pluginManager service degrades to an empty roster inside the bridge
+// (Plugins section renders "no bundles supplied", chat unaffected).
+export function writePluginSupplyPatch() {
+  mkdirSync(dirname(PLUGIN_SUPPLY_PATCH_PATH), { recursive: true });
+  const profileDir = dirname(PLUGIN_SUPPLY_PATCH_PATH);
+  atomicWriteTextSync(
+    join(profileDir, USER_QUESTIONS_BRIDGE_FILE),
+    readFileSync(USER_QUESTIONS_BRIDGE_SOURCE, "utf8"),
+  );
+  atomicWriteTextSync(
+    join(profileDir, PERMISSION_BRIDGE_FILE),
+    readFileSync(PERMISSION_BRIDGE_SOURCE, "utf8"),
+  );
+  atomicWriteTextSync(
+    join(profileDir, PLUGIN_SUPPLY_BRIDGE_FILE),
+    readFileSync(PLUGIN_SUPPLY_BRIDGE_SOURCE, "utf8"),
+  );
+  const patch = [
+    { id: "platform-user-questions-server", disabled: true },
+    {
+      insert: [{ id: "platform-plugin-supply-server", name: `./${PLUGIN_SUPPLY_BRIDGE_FILE}` }],
+    },
+  ];
+  atomicWriteTextSync(PLUGIN_SUPPLY_PATCH_PATH, yaml.dump(patch));
+  console.log(`[dsh-profile] wrote plugin supply bridge patch → ${PLUGIN_SUPPLY_PATCH_PATH}`);
+  return PLUGIN_SUPPLY_PATCH_PATH;
 }
 
 // ── Notify bridge patch (add-agent-notifications D1/D3) ─────────────────────

@@ -26,6 +26,7 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import express from "express";
 import { PACK_LIMITS, packLimits, validatePackManifest as validateManifest, validateRhythm, budgetMinutesError, modelIdError } from "../lib/pack-manifest.js";
+import { resolveLocale, projectManifestForLocale, applyLocaleToSummary } from "../lib/pack-locale.js";
 import { parseFleetTemplate } from "../server/fleet-template.js";
 import { safePackagePath } from "../lib/skill-files.js";
 import { declaredToolsByServer, toolGateErrors, probeMcpToolNames, toolFaceErrors, toolClosureErrors } from "../lib/publish-tool-gate.js";
@@ -33,6 +34,8 @@ import { registryServerIndex } from "../registry-bridge.js";
 import { deriveBadge, badgeFromFlags } from "../lib/pack-badge.js";
 import { deployToRegistry, setAgentPaused, modelChoiceError, resolveServiceConfig, resolveAgentPort, NOTIFY_CHANNEL_RE, SECRET_NAME_RE, SECRET_LIMITS, maskSecretRef } from "../lib/agent-serving.js";
 import { createFleetScheduler } from "./fleet-scheduler.js";
+import { installVendorTables, createVendorStore } from "./vendors.js";
+import { createOnboardingStore } from "./vendor-onboarding.js";
 import { createSub2apiClient } from "../lib/sub2api-admin.js";
 
 // Re-exported for the gateway's own consumers (tests import from here).
@@ -115,6 +118,17 @@ async function collectPublishVerdict(manifest, { shortCircuit = false } = {}) {
   const structural = validateManifest(manifest);
   if (structural.length > 0) {
     push("structural", 400, { error: "Invalid manifest", errors: structural });
+    if (shortCircuit) return items;
+  }
+  // Attribution discipline (pack-marketplace delta): vendor署名 is stamped
+  // server-side from the verified binding, NEVER written into the manifest —
+  // a manifest's vendor key is an author-controlled identity claim and fails
+  // the gate outright (same for legacy packs: they simply never carry one).
+  if (manifest && Object.prototype.hasOwnProperty.call(manifest, "vendor")) {
+    push("attribution", 400, {
+      error: "Manifests may not carry a vendor attribution claim — attribute at publish time with the verified vendor slug",
+      code: "manifest-attribution-forbidden",
+    });
     if (shortCircuit) return items;
   }
   // Explicit tool-face gate (pack-tool-declaration-gate D1/D2): every reference
@@ -362,6 +376,19 @@ export function createPackRegistry({ file }) {
     db.exec("ALTER TABLE matters ADD COLUMN scope_key TEXT");
   } catch { /* column already present */ }
 
+  // Vendor supply-open (add-vendor-supply-open): vendor profiles/bindings/
+  // onboarding rows live in THIS file — they are marketplace-plane data and
+  // must outlive and cross cells by the same isolation argument as packs.
+  installVendorTables(db);
+  // Vendor attribution stamp on published versions (pack-marketplace delta):
+  // the SLUG is immutable with the version; the display name is always
+  // projected from the live profile at read time (design D4).
+  try {
+    db.exec("ALTER TABLE pack_versions ADD COLUMN vendor TEXT");
+  } catch { /* column already present */ }
+  const vendors = createVendorStore(db);
+  const onboarding = createOnboardingStore(db);
+
   const now = () => Date.now();
   const mintId = () => randomBytes(16).toString("base64url");
 
@@ -388,10 +415,22 @@ export function createPackRegistry({ file }) {
     ...(r.scope_key != null ? { scopeKey: r.scope_key } : {}),
   });
 
+  // Vendor attribution projection (pack-marketplace delta "市场条目承载供应商署名"):
+  // the version carries an immutable slug stamp; the display name is resolved
+  // from the LIVE profile so a rename updates every surface at once — the
+  // stamp itself never rewrites, and manifests carry no author-written
+  // attribution claims. Absent slug ⇒ no `vendor` key at all (无归属不署名).
+  const vendorAttribution = (version) => {
+    const slug = typeof version?.vendor === "string" && version.vendor ? version.vendor : null;
+    if (!slug) return null;
+    return { slug, name: vendors.attributionName(slug) ?? slug };
+  };
+
   function summaryOf(pack, version) {
     return {
       id: pack.id,
       authorEmail: pack.author_email,
+      ...(vendorAttribution(version) ? { vendor: vendorAttribution(version) } : {}),
       createdAt: pack.created_at,
       version: version.version,
       name: version.name,
@@ -426,6 +465,22 @@ export function createPackRegistry({ file }) {
     };
   }
 
+  // Locale-tinted list row (add-pack-locale-tracks D3): the denormalized
+  // columns stay the zh main track (search semantics unchanged), so a non-zh
+  // request overlays the version's i18n block onto name/description here, at
+  // read time. A row whose manifest is unreadable falls back to the columns.
+  function localizedSummary(pack, version, locale) {
+    const summary = summaryOf(pack, version);
+    if (typeof version.manifest !== "string") return summary;
+    let manifest;
+    try {
+      manifest = JSON.parse(version.manifest);
+    } catch {
+      return summary;
+    }
+    return applyLocaleToSummary(summary, manifest, locale);
+  }
+
   // Private packs are owner-scoped (openspec: pack-visibility): invisible to
   // everyone but the author and admins, with the same not-found answer a
   // nonexistent pack gives — probing teaches nothing. Closure-level so the
@@ -452,8 +507,9 @@ export function createPackRegistry({ file }) {
 
     visibleTo,
 
-    // First publish: mint an id and store version 1.
-    publish({ email, manifest }) {
+    // First publish: mint an id and store version 1. `vendor` is the verified
+    // attribution slug the route resolved (null ⇒ no attribution stamp).
+    publish({ email, manifest, vendor = null }) {
       const id = mintId();
       const visibility = manifest.visibility === "private" ? "private" : "public";
       // Author-declared category (add-facet-content-management) rides the
@@ -461,15 +517,15 @@ export function createPackRegistry({ file }) {
       const category = typeof manifest.category === "string" ? manifest.category : "";
       db.prepare(`INSERT INTO packs (id, author_email, created_at, visibility, category) VALUES (?, ?, ?, ?, ?)`).run(id, email, now(), visibility, category);
       db.prepare(
-        `INSERT INTO pack_versions (pack_id, version, name, description, tags, manifest, author_email, published_at)
-         VALUES (?, 1, ?, ?, ?, ?, ?, ?)`,
-      ).run(id, manifest.name, manifest.description || "", JSON.stringify(manifest.tags ?? []), JSON.stringify(manifest), email, now());
+        `INSERT INTO pack_versions (pack_id, version, name, description, tags, manifest, author_email, published_at, vendor)
+         VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(id, manifest.name, manifest.description || "", JSON.stringify(manifest.tags ?? []), JSON.stringify(manifest), email, now(), vendor);
       return { id, version: 1 };
     },
 
     // Subsequent publish: author-checked append of the next version. Stored
     // versions are immutable — this is the only write path that touches one.
-    publishVersion({ email, id, manifest }) {
+    publishVersion({ email, id, manifest, vendor = null }) {
       const pack = packRow(id);
       if (!pack) return { error: "not_found" };
       if (pack.author_email !== email) return { error: "forbidden" };
@@ -478,9 +534,9 @@ export function createPackRegistry({ file }) {
       const latest = latestVersionRow(id);
       const version = (latest?.version ?? 0) + 1;
       db.prepare(
-        `INSERT INTO pack_versions (pack_id, version, name, description, tags, manifest, author_email, published_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(id, version, manifest.name, manifest.description || "", JSON.stringify(manifest.tags ?? []), JSON.stringify(manifest), email, now());
+        `INSERT INTO pack_versions (pack_id, version, name, description, tags, manifest, author_email, published_at, vendor)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(id, version, manifest.name, manifest.description || "", JSON.stringify(manifest.tags ?? []), JSON.stringify(manifest), email, now(), vendor);
       // A redeclared category updates the pack row; absence keeps the
       // curated value (admin retargets survive version bumps).
       if (typeof manifest.category === "string" && manifest.category) {
@@ -585,9 +641,16 @@ export function createPackRegistry({ file }) {
     // `category` filters the curation column; `author` (the viewer's own
     // email, enforced by the route) widens the unlisted clause so the creator
     // console sees their unpublished packs too.
-    list({ search = "", tag = "", category = "", author = "", page = 1, pageSize = 50, viewer = null } = {}) {
+    list({ search = "", tag = "", category = "", author = "", page = 1, pageSize = 50, viewer = null, locale = "zh" } = {}) {
       const size = Math.min(Math.max(1, Number(pageSize) || 50), 100);
       const pageNum = Math.max(1, Number(page) || 1);
+      // Locale track (add-pack-locale-tracks D2/D3): a non-zh request overlays
+      // the version's i18n block on the denormalized zh columns at READ time —
+      // the columns keep the zh main track, so the search clause below is
+      // untouched. The manifest blob is only selected when a locale actually
+      // needs it (a zh request keeps the pre-change query byte-for-byte).
+      const displayLocale = resolveLocale({ locale });
+      const wantLocale = displayLocale !== "zh";
       // The unlisted-widening is author-self only (or admin): the route
       // coerces author to the viewer's email, but the registry defends the
       // invariant on its own — a stranger's author filter still hides
@@ -627,7 +690,8 @@ export function createPackRegistry({ file }) {
          WHERE ${whereSql}`,
       ).get(...params).n;
       const rows = db.prepare(
-        `SELECT p.*, v.version, v.name, v.description, v.tags, v.published_at,
+        `SELECT p.*, v.version, v.name, v.description, v.tags, v.published_at, v.vendor,
+                ${wantLocale ? "v.manifest AS manifest," : ""}
                 json_array_length(v.manifest, '$.agents') AS agent_count,
                 CAST(json_extract(v.manifest, '$.facade') IS NOT NULL AS INTEGER) AS is_facade,
                 CAST(json_extract(v.manifest, '$.fleet') IS NOT NULL AS INTEGER) AS has_fleet,
@@ -643,7 +707,7 @@ export function createPackRegistry({ file }) {
         total,
         page: pageNum,
         pageSize: size,
-        packs: rows.map((r) => summaryOf(r, r)),
+        packs: rows.map((r) => (wantLocale ? localizedSummary(r, r, displayLocale) : summaryOf(r, r))),
       };
     },
 
@@ -890,6 +954,12 @@ export function createPackRegistry({ file }) {
       return r ? { packId: r.pack_id, agentId: r.agent_id, name: r.name, secretRef: r.secret_ref, secretValue: r.secret_value } : null;
     },
 
+    // Vendor supply-open stores (identity + onboarding): same file, same
+    // lifecycle unit as the pack registry — handed to the route layers that
+    // mount after this registry.
+    vendors,
+    onboarding,
+
     close() {
       db.close();
     },
@@ -945,6 +1015,10 @@ export function registerPackRoutes(app, {
   // The 壹座-embedded mount leaves this off: behind the Logto session the
   // wall costs nothing and the pre-facet spec posture holds there.
   anonymousRead = false,
+  // Vendor supply-open (add-vendor-supply-open): the identity store for the
+  // vendor-binding publish lane and attribution stamps. When null (legacy
+  // mounts/tests), the contract is byte-identical to the pre-vendor one.
+  vendors = null,
 }) {
   // Agent-serving wiring (3.2): injected config wins (tests), env falls back
   // to the dedicated AGENT_SERVING_* names, then the market-bridge vars —
@@ -1057,7 +1131,11 @@ export function registerPackRoutes(app, {
   // byte-for-byte; open admits any authenticated user to publish/deploy —
   // the billing-key economic gate stays the real abuse bound either way.
   const accessMode = String(process.env.PACK_ACCESS_MODE || "").toLowerCase() === "open" ? "open" : "closed";
-  const mayPublish = (user) => accessMode === "open" || isCreator(user);
+  // Publish admission (add-vendor-supply-open, pack-marketplace delta): open
+  // mode, creator group, OR an active binding to a complete vendor profile.
+  // Store absent ⇒ creator-group gate byte-for-byte as before.
+  const mayPublish = (user) =>
+    accessMode === "open" || isCreator(user) || Boolean(vendors?.eligibleVendor?.(user.email));
   // Capacity waterline (add-opening-gates): a NEW child is refused when the
   // best target runner's headroom is below the line. Redeploys/upgrades of an
   // in-service pack skip it (capacity pressure must never wedge a live
@@ -1095,6 +1173,18 @@ export function registerPackRoutes(app, {
     if (!mayPublish(user)) return res.status(403).json({ error: CREATOR_GROUP_REQUIRED });
     const manifest = req.body?.manifest;
     const packId = typeof req.body?.packId === "string" ? req.body.packId : null;
+    // Vendor attribution (pack-marketplace delta): declared at publish time,
+    // verified against the caller's binding server-side — the manifest itself
+    // never carries writeable attribution (design D4). The stamp rides the
+    // stored VERSION row; display names resolve from the live profile at read.
+    let vendorSlug = null;
+    const vendorInput = typeof req.body?.vendor === "string" ? req.body.vendor.trim() : "";
+    if (vendorInput) {
+      if (!vendors) return res.status(400).json({ error: "Vendor attribution is not supported by this deployment", code: "vendor-unsupported" });
+      const attr = vendors.attributionFor(user, vendorInput);
+      if (attr.error) return res.status(attr.status).json(attr.body);
+      vendorSlug = attr.slug;
+    }
     // The gate sequence lives in collectPublishVerdict (creator-pack-forge-
     // support D1): publish answers the FIRST failing gate — status and body
     // byte-identical to the pre-extraction early returns — while the validate
@@ -1109,8 +1199,8 @@ export function registerPackRoutes(app, {
     // must not ride the public anti-abuse budget (10/h shipped default).
     if (!isAdmin(user) && !publishAllowed(user.email)) return res.status(429).json({ error: "Too many publishes, try again later" });
     const result = packId
-      ? registry.publishVersion({ email: user.email, id: packId, manifest })
-      : registry.publish({ email: user.email, manifest });
+      ? registry.publishVersion({ email: user.email, id: packId, manifest, vendor: vendorSlug })
+      : registry.publish({ email: user.email, manifest, vendor: vendorSlug });
     if (result?.error === "not_found") return res.status(404).json({ error: "Pack not found" });
     if (result?.error === "forbidden") return res.status(403).json({ error: "Only the pack author may publish new versions" });
     res.json(result);
@@ -1165,6 +1255,10 @@ export function registerPackRoutes(app, {
       author: author === "" ? "" : user.email,
       page, pageSize,
       viewer: { email: user.email, admin: isAdmin(user) },
+      // Display locale (add-pack-locale-tracks B): explicit ?locale= first,
+      // then Accept-Language's first tag, then zh. A zh (or absent) request
+      // returns exactly the pre-change payload.
+      locale: resolveLocale({ locale: req.query.locale, acceptLanguage: req.headers["accept-language"] }),
     }));
   });
 
@@ -1253,6 +1347,17 @@ export function registerPackRoutes(app, {
       return res.status(404).json({ error: "Pack not found" });
     }
     if (isAuthor) pack.subscriberCount = registry.subscriberCount(id);
+    // Locale track (add-pack-locale-tracks B/D3): the browsing detail renders
+    // in the requested locale — the top-level zh columns and the manifest's
+    // display fields are overlaid together so a card and its dialog agree.
+    // Stored-version reads below stay untouched: those are the install truth.
+    const displayLocale = resolveLocale({ locale: req.query.locale, acceptLanguage: req.headers["accept-language"] });
+    if (displayLocale !== "zh") {
+      const projected = projectManifestForLocale(pack.manifest, displayLocale);
+      if (typeof projected.name === "string" && projected.name.trim()) pack.name = projected.name;
+      if (typeof projected.description === "string") pack.description = projected.description;
+      pack.manifest = projected;
+    }
     // Read projection (add-packaged-skills D4): the detail payload carries the
     // file inventory, not the tree's contents — browsing stays cheap; the
     // per-file route below serves each body on demand.

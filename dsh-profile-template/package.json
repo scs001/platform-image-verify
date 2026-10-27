@@ -2,11 +2,14 @@
   "name": "dsh-profile-platform",
   "private": true,
   "type": "module",
-  "dependencies": {},
+  "dependencies": {
+    "@platform/supply-probe-bundle": "*"
+  },
   "dsh": {
     "profile": {
       "bundles": [
-        "@deepseek-ai/dsh-base"
+        "@deepseek-ai/dsh-base",
+        "@platform/supply-probe-bundle"
       ]
     }
   }

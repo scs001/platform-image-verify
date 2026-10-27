@@ -69,9 +69,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // MUST come before the MCP overlay — the preset bridge's plugin start installs
 // the registration-time tool-scope shadow (add-tool-scope-register-shadow),
 // which misses dsh-mcp-client's first generation if it loads first — and the
-// permission overlay MUST come after the preset overlay (it swaps the preset
-// bridge's loader row); the remaining bridge rows insert one fresh row each
-// and touch nothing else. Mirrors agent-runner/compose.js's ordering.
+// row-swapping overlays MUST come after the row they disable: permissions after
+// presets (swaps the preset bridge), user-questions after permissions (swaps
+// that row), plugin-supply after user-questions (swaps THAT row). The
+// insert-only overlays (tool-search, chart-bind, save-library) touch no
+// existing row. Mirrors agent-runner/compose.js's ordering.
 export function patchArgs(paths = {}) {
   const order = [
     paths.presetsPatchPath,
@@ -81,6 +83,7 @@ export function patchArgs(paths = {}) {
     paths.toolSearchPatchPath,
     paths.chartBindPatchPath,
     paths.userQuestionsPatchPath,
+    paths.pluginSupplyPatchPath,
     paths.saveLibraryPatchPath,
   ];
   return order.filter(Boolean).flatMap((p) => ["--patch", p]);
@@ -104,6 +107,7 @@ export class DshBridge {
   #toolSearchPatchPath;
   #chartBindPatchPath;
   #userQuestionsPatchPath;
+  #pluginSupplyPatchPath;
   #saveLibraryPatchPath;
   #agentPreset;
   #env;
@@ -117,7 +121,7 @@ export class DshBridge {
   #restarting = false;
   #generation = 0;
 
-  constructor({ onEvent, provider, model, effort, cwd, mcpPatchPath, skillsPatchPath, presetsPatchPath, permissionsPatchPath, toolSearchPatchPath, chartBindPatchPath, userQuestionsPatchPath, saveLibraryPatchPath, agentPreset, env } = {}) {
+  constructor({ onEvent, provider, model, effort, cwd, mcpPatchPath, skillsPatchPath, presetsPatchPath, permissionsPatchPath, toolSearchPatchPath, chartBindPatchPath, userQuestionsPatchPath, pluginSupplyPatchPath, saveLibraryPatchPath, agentPreset, env } = {}) {
     if (onEvent) this.#onEvent = onEvent;
     this.#provider = provider || "deepseek-official";
     this.#model = model || "deepseek-v4-flash";
@@ -133,6 +137,7 @@ export class DshBridge {
     this.#toolSearchPatchPath = toolSearchPatchPath || null;
     this.#chartBindPatchPath = chartBindPatchPath || null;
     this.#userQuestionsPatchPath = userQuestionsPatchPath || null;
+    this.#pluginSupplyPatchPath = pluginSupplyPatchPath || null;
     this.#saveLibraryPatchPath = saveLibraryPatchPath || null;
     this.#agentPreset = agentPreset || null;
     // When provided, the dsh child is spawned with this env instead of the
@@ -292,6 +297,27 @@ export class DshBridge {
     return this.#client.request("permissions/set", { sessionId, name });
   }
 
+  // Read the profile's whitelisted dsh bundle roster (`plugins/list`,
+  // add-dsh-plugin-supply). The bridge answers an empty roster when the
+  // deployment composes no plugin-manager service — the Plugins section then
+  // renders "no bundles supplied" rather than erroring.
+  async listPluginBundles() {
+    this.#requireReady();
+    return this.#client.request("plugins/list", {});
+  }
+
+  // Toggle one bundle LAYER (`plugins/set_enabled`). The child writes through
+  // the plugin-manager service's own semantics (profile manifest bundles-list
+  // edit + reload) and reports `application`: "applied" when the HMR reload
+  // reconciled the live composition in place, "restart-required" when no HMR
+  // is present (the caller then restarts this bridge through restart()), and
+  // "failed"/"cancelled" with an error otherwise. Unknown bundles and
+  // version-gate refusals throw → JSON-RPC error to the caller.
+  async setPluginBundleEnabled(name, enabled) {
+    this.#requireReady();
+    return this.#client.request("plugins/set_enabled", { name, enabled });
+  }
+
   // Drain notifications until the runtime dies; a rejection (TransportClosed)
   // from subscription.next() is the exit signal — HarnessClient fails all
   // subscriptions when the child exits.
@@ -437,6 +463,7 @@ export class DshBridge {
       toolSearchPatchPath: this.#toolSearchPatchPath,
       chartBindPatchPath: this.#chartBindPatchPath,
       userQuestionsPatchPath: this.#userQuestionsPatchPath,
+      pluginSupplyPatchPath: this.#pluginSupplyPatchPath,
       saveLibraryPatchPath: this.#saveLibraryPatchPath,
     };
   }

@@ -483,7 +483,7 @@ function seedStartupMcpConfigs(mcpJsonServers) {
 // now it only emits `done` on turn completion (the 1.5 round-trip placeholder).
 async function initDshAgent() {
   const { DshBridge } = await import("./dsh-bridge.js");
-  const { writeLlmProfile, writeMcpPatch, writeSkillsPatch, writePresetsPatch, writePermissionsPatch, writeToolSearchPatch, writeChartBindPatch, writeUserQuestionsPatch, writeSaveLibraryPatch, ensureCredentialsStore, ensureDshHome, buildScrubbedEnv, knownPresetIds, DEFAULT_AGENT_PRESET, readPatchAuthorizations, authorizationHeadersChanged } = await import("./dsh-profile.js");
+  const { writeLlmProfile, writeMcpPatch, writeSkillsPatch, writePresetsPatch, writePermissionsPatch, writeToolSearchPatch, writeChartBindPatch, writeUserQuestionsPatch, writePluginSupplyPatch, writeSaveLibraryPatch, ensureCredentialsStore, ensureDshHome, buildScrubbedEnv, knownPresetIds, DEFAULT_AGENT_PRESET, readPatchAuthorizations, authorizationHeadersChanged } = await import("./dsh-profile.js");
 
   // Scaffold $DSH_HOME if it is fresh — a hosted cell's per-user home always
   // is, and dsh refuses to boot a profile that was never materialized.
@@ -626,6 +626,12 @@ async function initDshAgent() {
   // (add-save-to-library-tool). Static and always written — its absence merely
   // removes the model's explicit save channel, never the runtime.
   const saveLibraryPatchPath = writeSaveLibraryPatch();
+  // The plugin-supply overlay swaps the server row to the subclass that also
+  // serves plugins/list + plugins/set_enabled over the profile's pluginManager
+  // service (add-dsh-plugin-supply). Static; always written — an absent service
+  // degrades to an empty roster inside the bridge (Plugins section renders
+  // "no bundles supplied", chat unaffected).
+  const pluginSupplyPatchPath = writePluginSupplyPatch();
 
   // Default model: in a cell the user's saved binding wins (it IS this
   // runtime's configuration); otherwise the persisted Models-page pointer,
@@ -705,6 +711,7 @@ async function initDshAgent() {
     toolSearchPatchPath,
     chartBindPatchPath,
     userQuestionsPatchPath,
+    pluginSupplyPatchPath,
     saveLibraryPatchPath,
     agentPreset: ctx.currentPreset,
     env: dshChildEnv,
@@ -722,6 +729,7 @@ async function initDshAgent() {
     toolSearchPatchPath,
     chartBindPatchPath,
     userQuestionsPatchPath,
+    pluginSupplyPatchPath,
     saveLibraryPatchPath,
     env: dshChildEnv,
   };

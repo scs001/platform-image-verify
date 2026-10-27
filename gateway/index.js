@@ -32,6 +32,8 @@ import { createMpBindings } from "./mp-bindings.js";
 import { createAppAuth } from "./app-auth.js";
 import { createShareRegistry, createRateLimiter } from "./share.js";
 import { createPackRegistry, registerPackRoutes } from "./packs.js";
+import { registerVendorRoutes } from "./vendors.js";
+import { registerOnboardingRoutes } from "./vendor-onboarding.js";
 import { registerFacetProxy } from "./facet-proxy.js";
 import { createRoleStore, makeIsAdminUser } from "./roles.js";
 import { createLayoutStore } from "./layout.js";
@@ -749,6 +751,18 @@ if (facetBase) {
       .filter(Boolean),
     adminGroups: ADMIN_GROUPS,
     rateMax: Number(process.env.PACK_PUBLISH_RATE_MAX || 10),
+    vendors: packRegistry.vendors,
+  });
+  // Vendor supply-open (add-vendor-supply-open): identity + 供方上牌闸 ride
+  // the same registry file and identity seam — the embedded (壹座 local-mount)
+  // mount carries the same vendor lanes as the facet service.
+  registerVendorRoutes(app, { vendors: packRegistry.vendors, resolveUser, rejectUnauthenticated, adminGroups: ADMIN_GROUPS });
+  registerOnboardingRoutes(app, {
+    vendors: packRegistry.vendors,
+    onboarding: packRegistry.onboarding,
+    resolveUser,
+    rejectUnauthenticated,
+    adminGroups: ADMIN_GROUPS,
   });
 }
 

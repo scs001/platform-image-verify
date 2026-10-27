@@ -22,6 +22,8 @@
 import path from "node:path";
 import express from "express";
 import { createPackRegistry, registerPackRoutes } from "../gateway/packs.js";
+import { registerVendorRoutes } from "../gateway/vendors.js";
+import { registerOnboardingRoutes } from "../gateway/vendor-onboarding.js";
 import { createLogtoAuth } from "../server/logto-auth.js";
 import { resolveSessionSecret } from "../server/session.js";
 import { createResolveUser } from "./identity.js";
@@ -103,7 +105,7 @@ app.get("/api/health", (_req, res) => res.json({ ok: true, service: "facet" }));
 const accessMode = String(process.env.PACK_ACCESS_MODE || "").toLowerCase() === "open" ? "open" : "closed";
 app.get("/api/whoami", (req, res) => {
   const user = resolveUser(req);
-  if (!user) return res.json({ email: null, groups: [], creator: false, admin: false, accessMode });
+  if (!user) return res.json({ email: null, groups: [], creator: false, admin: false, accessMode, vendors: [] });
   const groups = user.groups ?? [];
   res.json({
     email: user.email,
@@ -111,6 +113,10 @@ app.get("/api/whoami", (req, res) => {
     creator: creatorGroups.some((g) => groups.includes(g)),
     admin: adminGroups.some((g) => groups.includes(g)),
     accessMode,
+    // Vendor supply-open: active bindings for the SPA's publish attribution
+    // picker and the onboarding console. Capability stays server判定 — this
+    // is a display projection only (design D1).
+    vendors: (registry.vendors?.bindingsFor(user.email) ?? []).map((b) => ({ slug: b.slug, displayName: b.displayName, role: b.role })),
   });
 });
 
@@ -150,6 +156,18 @@ registerPackRoutes(app, {
   creatorGroups,
   adminGroups,
   anonymousRead: true,
+  vendors: registry.vendors,
+});
+
+// Vendor supply-open (add-vendor-supply-open): identity + 供方上牌闸 — both
+// marketplace-plane, mounted BEFORE the SPA fallback so /api/vendors is real.
+registerVendorRoutes(app, { vendors: registry.vendors, resolveUser, rejectUnauthenticated, adminGroups });
+registerOnboardingRoutes(app, {
+  vendors: registry.vendors,
+  onboarding: registry.onboarding,
+  resolveUser,
+  rejectUnauthenticated,
+  adminGroups,
 });
 
 // Pack usage aggregate (add-facet-content-management): read-only proxy to the

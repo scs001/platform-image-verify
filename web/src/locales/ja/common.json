@@ -2624,7 +2624,7 @@
     },
     "miniSpan": {
       "failed": "失敗",
-      "errorKind": "失敗：{kind}",
+      "errorKind": "失敗：{{kind}}",
       "source": "トレースを開く"
     }
   },

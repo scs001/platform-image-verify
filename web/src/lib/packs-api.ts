@@ -9,6 +9,22 @@
 // (pack-install-server-side-manifest — the browser never carries manifest
 // bodies, which the edge WAF rejects).
 
+import i18n from "@/i18n";
+
+// Display locale for market/installed reads (add-pack-locale-tracks B): the
+// server owns resolution and the zh fallback; the client only states its UI
+// locale — no component ever picks fields or falls back on its own.
+function localeQuery(): string {
+  const lang = i18n?.language;
+  return lang ? `?locale=${encodeURIComponent(lang)}` : "";
+}
+
+function withLocale(q: URLSearchParams): URLSearchParams {
+  const lang = i18n?.language;
+  if (lang) q.set("locale", lang);
+  return q;
+}
+
 export interface PackSummary {
   id: string;
   authorEmail: string;
@@ -96,6 +112,40 @@ export interface PackGuide {
   steps: [PackGuideStep, PackGuideStep, PackGuideStep];
 }
 
+// Locale overlay (add-pack-locale-tracks): the base display fields ARE the zh
+// main track; this block carries secondary-language overrides. The MARKET
+// projects it server-side and answers in the requested locale — clients only
+// send their UI locale and never resolve fields themselves.
+export interface PackLocaleOverrides {
+  name?: string;
+  description?: string;
+  notes?: string;
+  guide?: PackGuide;
+  skills?: Record<string, { description?: string }>;
+  agents?: Record<
+    string,
+    {
+      name?: string;
+      serving?: {
+        card?: {
+          name?: string;
+          description?: string;
+          skills?: Record<string, { name?: string; description?: string }>;
+        };
+      };
+    }
+  >;
+  bots?: Record<string, { name?: string; description?: string }>;
+  cluster?: { name?: string; description?: string };
+}
+
+// Fleet template display overlay (same change, D5): display fields only —
+// structure (members/cadence/kpiSlots keys/edges) is never localized.
+export interface FleetLocaleOverrides {
+  name?: string;
+  members?: Record<string, { title?: string; kpiSlots?: Record<string, { label?: string }> }>;
+}
+
 export interface PackManifest {
   name: string;
   visibility?: "public" | "private";
@@ -134,6 +184,19 @@ export interface PackManifest {
     corpus: string[];
     delegation?: { kind: "in-pack" | "a2a"; ref: string }[];
     stance?: "hosted";
+  };
+  // Secondary-language display overrides (add-pack-locale-tracks): absent on
+  // every pre-change manifest. Base fields above are the zh main track; the
+  // server overlays this block when a locale is requested (the block itself
+  // rides along untouched, so author tools can render the multi-locale source).
+  i18n?: Record<string, PackLocaleOverrides>;
+  // Fleet template section (agent-fleet-templates): display names + the
+  // template's own display overlay; structure is validated server-side.
+  fleet?: {
+    name?: string;
+    nameKey?: string;
+    members?: { ref: string; title?: string; titleKey?: string }[];
+    i18n?: Record<string, FleetLocaleOverrides>;
   };
 }
 
@@ -229,7 +292,7 @@ export function listPacks(
   if (params.author) q.set("author", params.author);
   if (params.page) q.set("page", String(params.page));
   if (params.pageSize) q.set("pageSize", String(params.pageSize));
-  return fetch(`/api/packs?${q}`).then(json) as Promise<{
+  return fetch(`/api/packs?${withLocale(q)}`).then(json) as Promise<{
     total: number;
     page: number;
     pageSize: number;
@@ -238,7 +301,7 @@ export function listPacks(
 }
 
 export function getPack(id: string) {
-  return fetch(`/api/packs/${encodeURIComponent(id)}`).then(json) as Promise<PackDetail>;
+  return fetch(`/api/packs/${encodeURIComponent(id)}${localeQuery()}`).then(json) as Promise<PackDetail>;
 }
 
 // Deploy the version's serving-contract roles as Agent Services
@@ -446,7 +509,7 @@ export function unsubscribePackRecord(id: string) {
 // ── Cell (installed state + materialization) ─────────────────────────────────
 
 export function listInstalledPacks() {
-  return fetch("/api/mypacks").then(json) as Promise<{ packs: InstalledPack[] }>;
+  return fetch(`/api/mypacks${localeQuery()}`).then(json) as Promise<{ packs: InstalledPack[] }>;
 }
 
 // Install = materialize the version into this cell. Only {packId, version}

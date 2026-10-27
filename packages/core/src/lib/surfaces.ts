@@ -64,6 +64,10 @@ export const SETTINGS_SURFACES: RegistryEntry[] = [
   { container: "settings", slug: "devices", i18nKey: "settings.sections.devices", testId: "settings-section-devices" },
   { container: "settings", slug: "connections", i18nKey: "settings.sections.connections", testId: "settings-section-connections" },
   { container: "settings", slug: "mcp", i18nKey: "settings.sections.mcp", testId: "settings-section-mcp" },
+  // dsh plugin supply (add-dsh-plugin-supply): the whitelisted bundle roster.
+  // Lives in the registry so the factory layout preset carries it — the
+  // Settings nav renders ONLY server-resolved slugs.
+  { container: "settings", slug: "plugins", i18nKey: "settings.sections.plugins", testId: "settings-section-plugins" },
   { container: "settings", slug: "models", i18nKey: "settings.sections.models", testId: "settings-section-models" },
   { container: "settings", slug: "roles", i18nKey: "settings.sections.roles", testId: "settings-section-roles", predicates: { adminOnly: true } },
   { container: "settings", slug: "layout", i18nKey: "settings.sections.layout", testId: "settings-section-layout", predicates: { adminOnly: true } },

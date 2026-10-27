@@ -80,6 +80,46 @@
 约束速查：技能 ≤10（名 `[A-Za-z0-9._-]`，描述 ≤300 字，正文 ≤64KB）；MCP ≤5；
 角色 ≤3（id 不得落在 `user.` 保留命名空间）；标签 ≤10；`notes` ≤500 字。
 
+### 3.1 多语言显示（可选，add-pack-locale-tracks）
+
+**中文是主轨**：上面所有显示字段的字符串就是中文，永远必填；旧包零改动。
+
+要出英文副轨，加一个**顶层 `i18n` 叠加块**——基字段形状不变，只覆盖想翻的显示字段；
+缺某语言或某字段一律回落中文，不需要写回落表：
+
+```json
+{
+  "name": "政心盯梢集群",
+  "description": "……",
+  "guide": { "steps": [{ "title": "准备", "body": "…" }, { "title": "提问", "body": "…" }, { "title": "获得", "body": "…" }] },
+  "i18n": {
+    "en": {
+      "name": "Policy Sentinel Cluster",
+      "description": "…",
+      "guide": { "steps": [{ "title": "Prepare", "body": "…" }, { "title": "Ask", "body": "…" }, { "title": "Get", "body": "…" }] },
+      "skills": { "intel": { "description": "Collects intelligence" } },
+      "agents": { "watch": { "name": "Watch Post" } }
+    }
+  }
+}
+```
+
+规则（发布门逐字段点名报错）：
+
+- locale 键为小写 BCP-47（`en`、`en-US`、`ja`…），**不得写 `zh`**（中文在基字段）；
+- 只能覆盖已声明的字段/实体：`guide.steps` 按索引且**三步整组翻或整组不翻**；
+  `skills` 按技能名、`agents`/`bots` 按 id、`card.skills` 按能力 id；
+- 覆盖值遵守与基字段相同的长度帽；`description` 与 `guide` 正文另受 **3:1 长度比率**约束
+  （任一侧不足 20 字符不施比率）——防「贴错语种/贴错内容」，正常翻译不受限；
+- **en 副轨禁辞同扫**：绝对化替代宣告（如 "replace all human work"）会被发布门拒绝
+  （与营销物料审计同一规则）；中文基轨本版本不扫。
+- 集群模板的显示字段走 `fleet.i18n`（`{ "en": { "name": …, "members": { "<ref>": { "title": …,
+  "kpiSlots": { "<slotKey>": { "label": … } } } } } }`）；岗位 `promptTemplate`/persona 属内容层，不可本地化。
+
+**消费方接法**：市场与安装读面接受 `?locale=<tag>`（无参时看 `Accept-Language`，再缺省中文）。
+未覆盖的语言永远得到中文——旧客户端不传 locale 的响应与今天逐字节一致；谦面市场页等外部
+消费方零改动可用，需要副轨时自己带上 `?locale=`。搜索本版本仍是中文检索（英文文本不建索引）。
+
 ## 4. 发布纪律
 
 - **版本不可变**：每次发布追加 vN+1，内容冻结；要改内容就发新版本。

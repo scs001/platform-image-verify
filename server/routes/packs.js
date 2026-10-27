@@ -11,7 +11,14 @@
 
 import * as packStore from "../../pack-store.js";
 import { fetchMarketManifest } from "../pack-manifest-source.js";
+import { projectPackList } from "../../lib/pack-locale.js";
 
+// Locale track (add-pack-locale-tracks B): installed-pack cards render under
+// the SAME rules as the market — the zh base fields are the main track, a
+// requested locale overlays the stored manifest's i18n block (lib/pack-locale
+// owns the strategy). The stored row is never rewritten; only this response
+// copy is projected, and a projected manifest is still a legal manifest (base
+// strings + i18n block intact), so a client round-trip stays valid.
 export function registerPackRoutes(ctx) {
   const { app, db, broadcast } = ctx;
 
@@ -82,7 +89,12 @@ export function registerPackRoutes(ctx) {
 
   app.get("/api/mypacks", (req, res) => {
     if (!requireGate(req, res)) return;
-    respond(res, () => ({ packs: db.listInstalledPacks() }));
+    respond(res, () => ({
+      packs: projectPackList(db.listInstalledPacks(), {
+        locale: req.query.locale,
+        acceptLanguage: req.headers["accept-language"],
+      }),
+    }));
   });
 
   // Materialize a pack version snapshot. Two accepted request shapes

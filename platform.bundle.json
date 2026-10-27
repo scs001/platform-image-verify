@@ -38,6 +38,14 @@
         "server/fleet-architect-mcp.js"
       ],
       "_comment": "舰队架构师工具面(agent-fleet-architect):读态/草稿/落地三段五工具,bundled 种子自激活,loopback 桥身份=cell owner"
+    },
+    "playwright": {
+      "command": "node",
+      "args": [
+        "server/browser-mcp.js"
+      ],
+      "_comment": "浏览器操作车道（add-browser-use-lane）：first-party 薄启动器拉起钉版 @playwright/mcp（headless；BROWSER_CDP_ENDPOINT 时 attach 远程浏览器）。laneGate=browser 供给门在 patch 生成期裁决：无本地 runtime（BROWSER_RUNTIME_PATH 不存在）且无远程端点、或 BROWSER_LANE=off ⇒ 整条省略（requiresEnv 省略同族，info 日志）。工具名 mcp__playwright__*，走既有 tool 渲染链。",
+      "laneGate": "browser"
     }
   },
   "skills": [

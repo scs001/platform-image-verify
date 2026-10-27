@@ -2624,7 +2624,7 @@
     },
     "miniSpan": {
       "failed": "失败",
-      "errorKind": "失败：{kind}",
+      "errorKind": "失败：{{kind}}",
       "source": "打开 trace"
     }
   },

@@ -101,6 +101,12 @@ export type ServerMessage =
   | { type: "current_preset"; id: string }
   | { type: "permissions"; options: PermissionOption[]; current: string | null }
   | { type: "current_permission"; name: string }
+  // dsh plugin supply (add-dsh-plugin-supply): the profile's whitelisted
+  // bundle roster and its post-apply pulse. `available:false` means the child
+  // is not ready or the bridge call failed — `bundles` is then the last known
+  // snapshot.
+  | { type: "plugins"; bundles: PluginBundleInfo[]; available: boolean }
+  | { type: "plugins_changed"; bundles: PluginBundleInfo[] }
   | { type: "todos"; todos: TodoItem[]; counts: TodoCounts }
   // A pending user-question ask (add-user-questions): broadcast when the
   // runtime parks on ask_user_question, re-pushed on reconnect/session sync
@@ -320,6 +326,25 @@ export interface PermissionOption {
   description: string;
 }
 
+// One whitelisted dsh plugin bundle in the profile roster
+// (add-dsh-plugin-supply). `id` is the bundle package name; `enabled` is the
+// profile's own selection (the persisted packages are a separate fact —
+// disabling never uninstalls). `readOnlyReason` marks management-protected
+// bundles the toggle must not touch; `error` names a bundle that failed to
+// resolve/patch and therefore cannot be enabled.
+export interface PluginBundleInfo {
+  id: string;
+  name: string;
+  version?: string;
+  description?: string;
+  enabled: boolean;
+  installed: boolean;
+  optional: boolean;
+  removable: boolean;
+  readOnlyReason?: string;
+  error?: { code?: string; message?: string };
+}
+
 // One entry in the agent's plan, mirroring the dsh `todo/write` snapshot shape
 // verbatim (no renaming, so raw payloads pass through). The list is replaced
 // wholesale on every write — entries carry no stable id by design.
@@ -439,6 +464,8 @@ export type ClientMessage =
   | { type: "set_preset"; id: string }
   | { type: "list_permissions" }
   | { type: "set_permission"; name: string }
+  | { type: "list_plugins" }
+  | { type: "set_plugin_enabled"; id: string; enabled: boolean }
   | { type: "list_skills" }
   | { type: "list_sessions" }
   | { type: "new_session" }

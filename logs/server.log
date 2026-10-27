@@ -9,3 +9,5 @@
 
 [local-services] Press Ctrl+C to stop.
 
+
+[local-services] SIGTERM received, shutting down...

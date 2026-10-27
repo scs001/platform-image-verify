@@ -122,4 +122,10 @@ export function registerFacetProxy(app, {
   // the wanxing facade keep addressing through 壹座).
   app.all("/api/packs", forward);
   app.all("/api/packs/*", forward);
+  // Vendor supply-open (add-vendor-supply-open): the same facet-owned plane —
+  // 壹座-origin browsers must reach vendor identity + onboarding routes when
+  // the marketplace is proxied, so the prefix rides the identical channel
+  // (identity headers are injected by `forward`, same credential, same seam).
+  app.all("/api/vendors", forward);
+  app.all("/api/vendors/*", forward);
 }

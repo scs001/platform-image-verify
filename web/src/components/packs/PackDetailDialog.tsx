@@ -396,8 +396,10 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
 
             {/* Usage guide (add-onboarding-tutorial): three steps from the
                 client content module — informational only, purely absent when
-                the module has no entry for this pack id. Guide bodies are the
-                pack's own-language content (zh); the chrome labels are i18n. */}
+                the module has no entry for this pack id. Guide bodies render
+                in the requested locale: the market answers in the UI locale
+                (zh main track when nothing covers it), so no client-side
+                fallback happens here. Chrome labels are i18n as always. */}
             {guide && (
               <section
                 className="rounded-md border border-primary/30 bg-primary/5 p-3"

@@ -56,6 +56,12 @@ for (const f of ["package.json", "package-lock.json", ".npmrc"]) {
   const src = path.join(MATRIX_DIR, f);
   if (existsSync(src)) cpSync(src, path.join(STAGING, f));
 }
+// file: dependency sources (the plugin-supply sample bundle's whitelist row)
+// resolve relative to the staging manifest exactly as they do inside
+// dsh-matrix/ — the lock records them as links, so npm ci reads the real
+// directory from here (add-dsh-plugin-supply).
+const samplesSrc = path.join(MATRIX_DIR, "samples");
+if (existsSync(samplesSrc)) cpSync(samplesSrc, path.join(STAGING, "samples"), { recursive: true });
 try {
   // shell:true so Windows resolves `npm` → npm.cmd (a .cmd batch file that
   // execFileSync cannot exec without a shell; same trap postinstall-web.js
@@ -90,13 +96,13 @@ let skipped = 0;
 
 const stagedTop = path.join(STAGING, "node_modules");
 for (const entry of readdirSync(stagedTop, { withFileTypes: true })) {
-  if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
+  if ((!entry.isDirectory() && !entry.isSymbolicLink()) || entry.name.startsWith(".")) continue;
   if (entry.name.startsWith("@")) {
     const scopeSrc = path.join(stagedTop, entry.name);
     const scopeDest = path.join(TOP, entry.name);
     mkdirSync(scopeDest, { recursive: true });
     for (const pkg of readdirSync(scopeSrc, { withFileTypes: true })) {
-      if (!pkg.isDirectory()) continue;
+      if (!pkg.isDirectory() && !pkg.isSymbolicLink()) continue;
       merge(path.join(scopeSrc, pkg.name), path.join(scopeDest, pkg.name));
     }
   } else {
@@ -111,7 +117,10 @@ function merge(src, dest) {
     skipped++;
     return;
   }
-  cpSync(src, dest, { recursive: true });
+  // dereference: file: dependencies arrive as links into the staging dir;
+  // the packaged app must carry real files (the staging dir is deleted at the
+  // end of this script and never ships) — add-dsh-plugin-supply.
+  cpSync(src, dest, { recursive: true, dereference: true });
   copied++;
 }
 

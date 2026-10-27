@@ -49,6 +49,14 @@ const TARGET_KIND_TO_MEMBER_KIND = {
 const TOOL_TARGET_SHAPE_RE = /^([A-Za-z0-9][A-Za-z0-9._-]*)::([A-Za-z0-9][A-Za-z0-9._-]*)$/;
 export const TEMPLATE_MEMBER_LIMIT = 50;
 
+// Display-locale overlay shape (add-pack-locale-tracks D5) — same locale-tag
+// rule as the pack manifest overlay (lib/pack-manifest.js LOCALE_KEY_RE).
+const LOCALE_KEY_RE = /^[a-z]{2,3}(-[a-zA-Z0-9]{2,8})*$/;
+// Overlay values are display text (a template name, a post title, a slot
+// label) — a generous single cap keeps abuse out without policing wording.
+const LOCALE_DISPLAY_CHARS = 200;
+const displayOverride = (v) => typeof v === "string" && !!v.trim() && v.length <= LOCALE_DISPLAY_CHARS;
+
 // Parse + validate a manifest's fleet section. Returns
 // { ok: true, template } | { ok: false, error } — never throws.
 export function parseFleetTemplate(manifest) {
@@ -159,6 +167,88 @@ export function parseFleetTemplate(manifest) {
     for (const r of requires) {
       if (!r || typeof r.name !== "string" || !r.name.trim()) {
         return { ok: false, error: "each require needs a name" };
+      }
+    }
+  }
+
+  // Display locale overlay (add-pack-locale-tracks D5): `fleet.i18n` carries
+  // secondary-language text for the template's DISPLAY fields only — name,
+  // member titles, KPI slot labels. Structure (members/cadence/kpiSlots keys/
+  // orchestration edges) is untouched, and content-layer text (promptTemplate,
+  // persona) may never ride here. Built-in templates keep their nameKey/
+  // titleKey/labelKey mechanism — the two channels coexist, never merge.
+  if (section.i18n !== undefined) {
+    const i18n = section.i18n;
+    if (!i18n || typeof i18n !== "object" || Array.isArray(i18n)) {
+      return { ok: false, error: "fleet.i18n must be an object mapping locale tags to display-field overrides" };
+    }
+    const locales = Object.keys(i18n);
+    if (locales.length === 0) {
+      return { ok: false, error: "fleet.i18n must carry at least one locale block (omit the key instead)" };
+    }
+    for (const locale of locales) {
+      if (!LOCALE_KEY_RE.test(locale)) {
+        return { ok: false, error: `fleet.i18n locale '${locale}' must be a lower-case BCP-47 tag` };
+      }
+      if (locale === "zh" || locale.startsWith("zh-")) {
+        return { ok: false, error: `fleet.i18n may not declare '${locale}' — Chinese is the main track` };
+      }
+      const block = i18n[locale];
+      if (!block || typeof block !== "object" || Array.isArray(block)) {
+        return { ok: false, error: `fleet.i18n.${locale} must be an object of display-field overrides` };
+      }
+      for (const key of Object.keys(block)) {
+        if (key !== "name" && key !== "members") {
+          return { ok: false, error: `fleet.i18n.${locale} has unknown key '${key}' (only name, members)` };
+        }
+      }
+      if (block.name !== undefined && !displayOverride(block.name)) {
+        return { ok: false, error: `fleet.i18n.${locale}.name must be a non-empty string of at most ${LOCALE_DISPLAY_CHARS} characters` };
+      }
+      if (block.members === undefined) continue;
+      if (!block.members || typeof block.members !== "object" || Array.isArray(block.members)) {
+        return { ok: false, error: `fleet.i18n.${locale}.members must be an object mapping member refs to overrides` };
+      }
+      for (const [ref, ov] of Object.entries(block.members)) {
+        const member = byRef.get(ref);
+        if (!member) {
+          return { ok: false, error: `fleet.i18n.${locale}.members references '${ref}', which the template does not declare` };
+        }
+        if (!ov || typeof ov !== "object" || Array.isArray(ov)) {
+          return { ok: false, error: `fleet.i18n.${locale}.members['${ref}'] must be an object of { title, kpiSlots }` };
+        }
+        for (const key of Object.keys(ov)) {
+          if (key !== "title" && key !== "kpiSlots") {
+            return {
+              ok: false,
+              error: `fleet.i18n.${locale}.members['${ref}'] has unknown key '${key}' (only title, kpiSlots — cadence/promptTemplate are content and not localizable)`,
+            };
+          }
+        }
+        if (ov.title !== undefined && !displayOverride(ov.title)) {
+          return { ok: false, error: `fleet.i18n.${locale}.members['${ref}'].title must be a non-empty string of at most ${LOCALE_DISPLAY_CHARS} characters` };
+        }
+        if (ov.kpiSlots === undefined) continue;
+        if (!ov.kpiSlots || typeof ov.kpiSlots !== "object" || Array.isArray(ov.kpiSlots)) {
+          return { ok: false, error: `fleet.i18n.${locale}.members['${ref}'].kpiSlots must be an object mapping slot keys to { label }` };
+        }
+        const slotKeys = new Set((member.kpiSlots ?? []).map((s) => s?.key).filter((k) => typeof k === "string"));
+        for (const [slotKey, slotOv] of Object.entries(ov.kpiSlots)) {
+          if (!slotKeys.has(slotKey)) {
+            return { ok: false, error: `fleet.i18n.${locale}.members['${ref}'].kpiSlots references '${slotKey}', which member '${ref}' does not declare` };
+          }
+          if (!slotOv || typeof slotOv !== "object" || Array.isArray(slotOv)) {
+            return { ok: false, error: `fleet.i18n.${locale}.members['${ref}'].kpiSlots['${slotKey}'] must be an object of { label }` };
+          }
+          for (const key of Object.keys(slotOv)) {
+            if (key !== "label") {
+              return { ok: false, error: `fleet.i18n.${locale}.members['${ref}'].kpiSlots['${slotKey}'] has unknown key '${key}' (only label)` };
+            }
+          }
+          if (slotOv.label !== undefined && !displayOverride(slotOv.label)) {
+            return { ok: false, error: `fleet.i18n.${locale}.members['${ref}'].kpiSlots['${slotKey}'].label must be a non-empty string of at most ${LOCALE_DISPLAY_CHARS} characters` };
+          }
+        }
       }
     }
   }

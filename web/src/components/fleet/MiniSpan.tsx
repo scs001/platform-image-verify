@@ -11,7 +11,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useFleetStore } from "@/store/fleet-store";
 
 interface ToolEntry {
   callId: string;
@@ -22,7 +21,15 @@ interface ToolEntry {
 
 type SpanState =
   | { kind: "loading" }
-  | { kind: "ready"; traceTurnId: string; tools: ToolEntry[] };
+  | {
+      kind: "ready";
+      traceTurnId: string;
+      tools: ToolEntry[];
+      /** The SAME turn's recorded failure kind (from its row, not the
+          ephemeral WS store — a stale store entry attributed an older
+          failure to the in-flight turn in the 2026-10-27 walkthrough). */
+      errorKind: string | null;
+    };
 
 const CACHE_TTL_MS = 30_000;
 const cache = new Map<string, { at: number; state: SpanState }>();
@@ -103,16 +110,19 @@ export function MiniSpan({
     (async () => {
       try {
         let traceTurnId = liveTraceTurnId;
+        let rowErrorKind: string | null = null;
         if (!traceTurnId) {
           const r = await fetch(`/api/fleets/${encodeURIComponent(fleetId)}/members/${encodeURIComponent(memberId)}/turns?limit=5`);
           if (!r.ok) return;
-          const body = (await r.json()) as { turns?: { traceTurnId: string | null; status: string }[] };
-          traceTurnId = (body.turns ?? []).find((x) => x.status !== "skipped" && x.traceTurnId)?.traceTurnId ?? null;
+          const body = (await r.json()) as { turns?: { traceTurnId: string | null; status: string; errorKind?: string | null }[] };
+          const row = (body.turns ?? []).find((x) => x.status !== "skipped" && x.traceTurnId);
+          traceTurnId = row?.traceTurnId ?? null;
+          rowErrorKind = row?.errorKind ?? null;
         }
         if (!traceTurnId) return;
         const key = cacheKey(fleetId, memberId, traceTurnId);
         const hit = cache.get(key);
-        if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
+        if (hit && Date.now() - hit.at < CACHE_TTL_MS && hit.state.kind === "ready" && hit.state.errorKind != null) {
           if (alive) setState(hit.state);
           return;
         }
@@ -120,7 +130,7 @@ export function MiniSpan({
         if (!r2.ok) return;
         const body2 = (await r2.json()) as { events?: TraceEvent[] };
         const tools = deriveTools(body2.events ?? []);
-        const next: SpanState = { kind: "ready", traceTurnId, tools };
+        const next: SpanState = { kind: "ready", traceTurnId, tools, errorKind: rowErrorKind };
         cache.set(key, { at: Date.now(), state: next });
         if (alive) setState(next);
       } catch {
@@ -132,19 +142,12 @@ export function MiniSpan({
     };
   }, [eligible, fleetId, memberId, liveTraceTurnId]);
 
-  const errorKind = useFleetStore((st) => {
-    for (const r of Object.values(st.recentResults)) {
-      if (r.memberId === memberId && r.status !== "ok") return r.errorKind;
-    }
-    return null;
-  });
-
   const visible = useMemo(() => {
     if (!eligible) return null;
     if (!state || state.kind !== "ready") return null;
-    if (state.tools.length === 0 && !errorKind) return null;
+    if (state.tools.length === 0 && !state.errorKind) return null;
     return state;
-  }, [eligible, state, errorKind]);
+  }, [eligible, state]);
 
   if (!visible) return null;
 
@@ -168,9 +171,9 @@ export function MiniSpan({
           </div>
         ))}
         {visible.tools.length > 5 ? <div className="text-[10px] text-muted-foreground">+{visible.tools.length - 5} …</div> : null}
-        {errorKind ? (
-          <div className="truncate text-[10px] text-destructive" title={errorKind} data-testid="mini-span-error">
-            {t("fleets.miniSpan.errorKind", { kind: errorKind })}
+        {visible.errorKind ? (
+          <div className="truncate text-[10px] text-destructive" title={visible.errorKind} data-testid="mini-span-error">
+            {t("fleets.miniSpan.errorKind", { kind: visible.errorKind })}
           </div>
         ) : null}
         {visible.traceTurnId ? (

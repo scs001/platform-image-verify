@@ -18,6 +18,7 @@
 import { lazy } from "react";
 import {
   Activity,
+  Blocks,
   Bot,
   Cable,
   LayoutPanelLeft,
@@ -54,6 +55,9 @@ const ConnectionsSection = lazy(() =>
 );
 const ExtensionsPage = lazy(() =>
   import("@/pages/ExtensionsPage").then((m) => ({ default: m.ExtensionsPage })),
+);
+const PluginsSection = lazy(() =>
+  import("@/components/settings/PluginsSection").then((m) => ({ default: m.PluginsSection })),
 );
 const DashboardPage = lazy(() =>
   import("@/pages/DashboardPage").then((m) => ({ default: m.DashboardPage })),
@@ -158,6 +162,18 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     icon: Plug,
     Component: ExtensionsPage as SettingsSectionComponent,
     props: { type: "mcp" },
+  },
+  {
+    // dsh plugin supply (add-dsh-plugin-supply): the deployment-whitelisted
+    // bundle roster with one enable/disable toggle per row. Read-only
+    // inventory by design — bundles are supplied by the deployment (matrix
+    // bake + template bundle declaration), never installed at runtime.
+    slug: "plugins",
+    group: "capabilities",
+    labelKey: "settings.sections.plugins",
+    testId: "settings-section-plugins",
+    icon: Blocks,
+    Component: PluginsSection as SettingsSectionComponent,
   },
   {
     slug: "models",

@@ -494,6 +494,41 @@ root, then fetch it through an authenticated browser session —
 保存到资源库 succeeds. Sessions whose files were written to `/tmp` under the
 old layout stay dead (accepted; nothing worth rescuing).
 
+### dsh plugin supply (whitelisted bundles) — add-dsh-plugin-supply
+
+The deployment can ship **dsh plugin bundles** (npm packages that declare a
+`dsh.bundle` patch) and let each user enable or disable them from
+**Settings → Plugins** (`/settings/plugins`). Supply is whitelist-only and
+build-time-only: there is no runtime installer, no pnpm in the cell, and no
+agent-facing install tool.
+
+Operator steps to supply one bundle (all three, same review):
+
+1. `dsh-matrix/package.json`: add the package as a dependency (registry spec for
+   a public bundle, `file:` for an in-repo sample) and regenerate the lock
+   (`npm install --package-lock-only` in `dsh-matrix/`). The image install and
+   the desktop predist both `npm ci` from this manifest — that install is the
+   supply-chain review point (a bundle's build scripts run during the bake).
+2. `prune.json`: confirm the new bundle's closure is not pruned (matches no
+   `match` pattern, or add an exemption with evidence — the boot gate
+   `lib/dsh-matrix-verify.js` treats an unlisted absence as drift).
+3. `dsh-profile-template/package.json`: declare it in **both** places —
+   `dependencies` (keeps the row in the roster so a disabled bundle can be
+   re-enabled) and `dsh.profile.bundles` (the ordered composition layer).
+
+`@platform/supply-probe-bundle` (`dsh-matrix/samples/`) is the shipped inert
+sample that proves the chain; remove it from the template once real bundles
+arrive, or keep it as a deploy-time self-test row.
+
+Runtime behavior: a toggle persists to that profile's own
+`package.json` bundle list (per-user in a hosted cell, per-installation on
+desktop). Under the profile's live HMR the composition recomposes in place
+(`application: "applied"`); without HMR the bridge restarts and sessions resume
+by id. Toggles are refused while a turn is in flight. The client surface is WS
+(`list_plugins` / `set_plugin_enabled` client→server; `plugins` /
+`plugins_changed` server→client) — same family as the model/permission
+switches, no new REST routes.
+
 ### Web search relay (operator-side service)
 
 The agent's web search ships **inside the app** — `platform.bundle.json` mounts

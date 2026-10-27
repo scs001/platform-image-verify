@@ -20,6 +20,7 @@ import type {
   ModelInfo,
   PresetInfo,
   PermissionOption,
+  PluginBundleInfo,
   QueuedTurn,
   RuntimeModel,
   ServerMessage,
@@ -130,6 +131,12 @@ interface State {
   // permissions roster (whose current is the post-restart deployment default).
   permissionOptions: PermissionOption[];
   currentPermission: string | null;
+  // dsh plugin supply (add-dsh-plugin-supply): the whitelisted bundle roster
+  // and whether the last read reached the runtime. The Plugins settings
+  // section renders from these; a toggle's completion arrives as
+  // `plugins_changed` with the fresh roster.
+  pluginBundles: PluginBundleInfo[];
+  pluginsAvailable: boolean;
   // Identity-scoped runtime bindings (optional SSO only). `userBindings` is the
   // requesting socket's own profile; `runtimeBinding` is the shared runtime the
   // one dsh child is actually configured with; `runtimePending` is a saved
@@ -482,6 +489,8 @@ export const useChatStore = create<State>((set) => ({
   currentPreset: null,
   permissionOptions: [],
   currentPermission: null,
+  pluginBundles: [],
+  pluginsAvailable: false,
   userBindings: null,
   runtimeBinding: null,
   runtimePending: null,
@@ -983,6 +992,12 @@ export const useChatStore = create<State>((set) => ({
 
         case "current_permission":
           return { currentPermission: m.name };
+
+        case "plugins":
+          return { pluginBundles: m.bundles, pluginsAvailable: m.available };
+
+        case "plugins_changed":
+          return { pluginBundles: m.bundles, pluginsAvailable: true };
 
         case "todos":
           // Whole-list replacement, live write and rehydration push alike.

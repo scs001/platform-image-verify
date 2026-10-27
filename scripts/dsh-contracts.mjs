@@ -179,7 +179,7 @@ async function main() {
     // 9/9 green because that overlay was never loaded. A gate that omits a
     // plugin cannot gate it.
     const extraPatchPaths = [];
-    for (const write of ["writeToolSearchPatch", "writeChartBindPatch", "writeUserQuestionsPatch", "writeSaveLibraryPatch"]) {
+    for (const write of ["writeToolSearchPatch", "writeChartBindPatch", "writeUserQuestionsPatch", "writePluginSupplyPatch", "writeSaveLibraryPatch"]) {
       if (typeof dshProfile[write] !== "function") continue;
       try {
         const p = await dshProfile[write]();

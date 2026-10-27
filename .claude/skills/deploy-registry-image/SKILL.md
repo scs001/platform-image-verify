@@ -14,13 +14,14 @@ metadata:
 | 项 | 值 |
 |---|---|
 | fork 仓 | `/Users/chengsishi/code/mcp-gateway-registry`（remotes: origin=github org / gitee / scs001 / upstream） |
-| 生产栈 | cheap-1（ssh 别名 `cheap1`，注意无连字符）`/opt/mcp-gateway-registry/`，compose 文件 `docker-compose.prebuilt.yml`，项目名 `mcp-gateway-registry` |
-| 运行容器 | `mcp-gateway-registry-registry-1`、`mcp-gateway-registry-auth-server-1`、`mcp-mongodb`、`mcp-gateway-registry-mcpgw-server-1` |
+| **生产栈** | **cheap-8 k8s**（`kubectl --context cheap -n mcp-registry`：deploy `registry`/`auth-server`/`mcpgw`/`mongodb`，hostNetwork）。**2026-10-25 双宿主更正**：公网 mcp.finddatatech.cloud → Caddy → 100.64.0.15:18080 = cheap-8；cheap-1 compose 栈（`/opt/mcp-gateway-registry/`）**已退役、无公网流量**——别再对它取证/修复（2026-10-25 §15.36 教训：同名容器，ssh 可达，误入歧途半天） |
+| GitOps | `~/finddata/fd-infra-deploy/mcp-registry/prod/`（registry.yaml/auth-server.yaml/mongodb.yaml/mcpgw.yaml/landing-config.yaml）+ `argocd/app-mcp-registry.yaml`；registry 镜像按 **digest 钉**（防 IfNotPresent 吃缓存），注释写真 sha |
 | 镜像仓库 | `hkccr.ccs.tencentyun.com/yizuo/{mcp-registry,mcp-auth-server}`（构建推此）→ relay → `ccr.ccs.tencentyun.com/yizuo/...`（部署拉此） |
 | relay | cheap-3 `（ssh 别名 cheap3）` `/usr/local/bin/tcr-relay-sync.sh`，cron */5，清单 `/etc/tcr-relay/repos.conf`，日志 `/var/log/tcr-relay.log` |
-| Mongo | 容器 `mcp-mongodb`，凭据在部署树 `.env`（DOCUMENTDB_*），库名 `mcp_registry`，语义向量集合 `mcp_embeddings_384_default`（集合名内嵌维度） |
-| 台账 | paas `docs/registry-maintenance.md`（§1 运行表 + §9 起发布记录） |
-| ssh 别名全集 | `cheap1` / `cheap3` / `fd-deploy`（无 cheap-1/cheap-3 写法，写错=莫名 Connection closed） |
+| Mongo | k8s pod `mongodb`（hostNetwork=node IP），**凭据在 registry pod env**（`DOCUMENTDB_USERNAME/PASSWORD`，kubectl exec printenv 取；mongo pod 自身无该 env）；库名 `mcp_registry`，语义向量集合 `mcp_embeddings_384_default`（集合名内嵌维度） |
+| 版本号 | 外建 Secret `mcp-registry-env` 的 `BUILD_VERSION`（`kubectl patch secret` + `rollout restart`），镜像 ENV 不改 |
+| 台账 | paas `docs/registry-maintenance.md`（§1 运行表 + §9 起发布记录 + §15.x 发布/事故实录） |
+| ssh 别名全集 | `cheap1` / `cheap3` / `fd-deploy`（无 cheap-1/cheap-3 写法，写错=莫名 Connection closed）。**cheap-8 无 ssh 别名也不需要**——一切 kubectl 直达 |
 
 ## 1. 管线决策树（构建走哪条线）
 
@@ -72,42 +73,45 @@ ssh cheap3 'grep sha-XXXXXXX /var/log/tcr-relay.log | tail -1'   # 期望 "OK yi
 - 循环一轮可能超 5 分钟（tag 多），日志出现 `SKIP: 上次同步仍在运行` 是正常锁竞争，不是故障。
 - TCR 个人版有 **tag 总量上限**历史事故：推新 tag 失败而更新旧 tag（如 main）成功 = 撞上限，去控制台删（v2 API 删不回收配额，必须控制台删）。
 
-## 3. cheap-1 切换（钉版换镜像）
+## 3. 滚版（k8s，GitOps 线）
 
 ```bash
-# 3.0 换版前检查
-ssh cheap1 'df -h / | tail -1'                      # 30G 小盘，历史只剩 1.5G 事故
-ssh cheap1 'docker ps --format "{{.Image}}" | grep mcp-registry'   # 当前运行版本
-# ⚠️ 并行会话交错检查：diff compose 文件里的 image 行 vs 运行中容器。
-#    文件里若已指向一个【未在运行】的新 sha（如 sha-68e95e2 品牌线），那是别的会话的待发布，
-#    先确认归属再决定覆盖还是等待——不要盲目 sed。
+# 3.0 换版前检查：当前运行的 digest/tag
+kubectl --context cheap -n mcp-registry get deploy registry auth-server -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.spec.template.spec.containers[0].image}{"\n"}{end}'
+# ⚠️ 并行会话检查：GitOps 里的 image 若指向一个【未在运行】的新 sha/digest，那是别的会话的待发布，先确认归属。
 
-# 3.1 备份（每次必做，slug 用日期+主题）
-ssh cheap1 'cd /opt/mcp-gateway-registry && cp docker-compose.prebuilt.yml docker-compose.prebuilt.yml.bak-<slug> && cp .env .env.bak-<slug>'
+# 3.1 ccr 硬门（没落地就 bump = 停机事故，mcp-registry ns 同样适用）
+ssh cheap3 'source /etc/tcr-relay/env && skopeo inspect --creds "$TCR_USER:$TCR_PASS" docker://ccr.ccs.tencentyun.com/yizuo/mcp-registry:sha-<tag>'
 
-# 3.2 改两个旋钮（sed 或手编）
-#    compose: image: ccr.../yizuo/mcp-registry:sha-旧 → sha-新（7 位）
-#    .env:    功能相关变量（如 EMBEDDINGS_PROVIDER=fastembed）
+# 3.2 GitOps bump（registry 按 digest 钉，auth-server 按 sha tag 钉；注释写真 sha）
+cd ~/finddata/fd-infra-deploy && git pull    # 并行会话也在推，必先 pull
+#   编辑 mcp-registry/prod/registry.yaml（或 auth-server.yaml）的 image 行
+git add mcp-registry/prod/<file>.yaml && git commit -m "..." && git push gitee main
 
-# 3.3 滚动（--no-deps 必须！）
-ssh cheap1 'cd /opt/mcp-gateway-registry && docker compose -f docker-compose.prebuilt.yml up -d --no-deps registry'
+# 3.3 ArgoCD 对齐滚动（app: mcp-registry，独立于 all-services-prod）
+kubectl --context cheap -n argocd annotate application mcp-registry argocd.argoproj.io/refresh=hard --overwrite
+kubectl --context cheap -n mcp-registry rollout status deploy/registry --timeout=420s
+
+# 3.4 版本号（fd-x.y.z 语义：minor=可见变化，patch=修复）——外建 Secret，不动镜像
+kubectl --context cheap -n mcp-registry patch secret mcp-registry-env -p '{"stringData":{"BUILD_VERSION":"fd-x.y.z"}}'
+kubectl --context cheap -n mcp-registry rollout restart deploy/registry
 ```
 
-- **`--no-deps` 的原因**：不带会连带解析 `mongodb-init`/`mongodb-keyfile-init` 等一次性服务的 `python:3.14-slim`/`alpine:3.21`（docker.io），cheap-1 直连 Docker Hub 超时 → 整个 up 中止。
-- auth-server 换版同款命令，服务名换 `auth-server`。
+- Recreate/滚动窗口内公网有秒级中断，settle 30s 再验。
+- cheap-1 compose 栈已退役（无公网流量）——**不要**再去 cheap-1 改 compose；它还在跑只占 100.64.0.11:18080，与公网无关。
 
 ## 4. 验证证据链（无鉴权也能全验）
 
 ```bash
 # 4.1 启动日志：三行全中才算过
-ssh cheap1 'docker logs mcp-gateway-registry-registry-1 2>&1 | grep -iE "ONNX embeddings|fastembed model loaded|Failed to load"'
+kubectl --context cheap -n mcp-registry logs deploy/registry --tail=200 | grep -iE "ONNX embeddings|fastembed model loaded|Failed to load" || echo "(boot logs may have rotated — check startup-era logs)" 
 #    期望：ONNX embeddings model found / fastembed model loaded successfully. Dimension: 384 / 无 Failed
 
 # 4.2 健康
-ssh cheap1 'docker exec mcp-gateway-registry-registry-1 curl -sf -m 5 http://127.0.0.1:7860/health'
+kubectl --context cheap -n mcp-registry exec deploy/registry -- curl -sf -m 5 http://127.0.0.1:7860/health
 
 # 4.3 容器内功能实测（embedding 类变更时）
-ssh cheap1 'docker exec mcp-gateway-registry-registry-1 /app/.venv/bin/python -c "
+kubectl --context cheap -n mcp-registry exec deploy/registry -- /app/.venv/bin/python -c ""
 from pathlib import Path
 from registry.embeddings import create_embeddings_client
 import numpy as np
@@ -117,8 +121,9 @@ v = c.encode([\"中文测试\",\"english test\"]); print(v.shape, float(np.linal
 #    期望：(2, 384) 1.0
 
 # 4.4 数据面不动核对（Mongo 向量条数前后一致；凭据在部署树 .env）
-ssh cheap1 'docker exec mcp-mongodb mongosh -u admin -p <DOCUMENTDB_PASSWORD> --authenticationDatabase admin --quiet \
-  --eval "print(db.getSiblingDB(\"mcp_registry\").mcp_embeddings_384_default.countDocuments())"'
+# 凭据从 registry pod env 取（mongo pod 自己没有）
+PW=$(kubectl --context cheap -n mcp-registry exec deploy/registry -- printenv DOCUMENTDB_PASSWORD)
+kubectl --context cheap -n mcp-registry exec deploy/mongodb -- mongosh -u admin -p "$PW" --authenticationDatabase admin --quiet mcp_registry --eval 'print(db.mcp_embeddings_384_default.countDocuments())'
 
 # 4.5 公网
 curl -s -o /dev/null -w "%{http_code}\n" https://mcp.finddatatech.cloud/     # 200
@@ -128,7 +133,7 @@ curl -s -o /dev/null -w "%{http_code}\n" "https://mcp.finddatatech.cloud/api/v1/
 **换 embedding 引擎时追加：向量级等价对比**（换 embedding 引擎时的权威方法）
 
 **日常换版更便宜的一招——仓库层语义抽检**（无鉴权，容器内直接跑，不经过 HTTP 网关）：
-写个 .py 用 scp 传进容器再 `docker exec ... /app/.venv/bin/python`（**不要 ssh 内联多层引号的 python -c**，转义必崩）：
+写个 .py 经 `kubectl cp` 进 registry pod 再 `kubectl exec ... /app/.venv/bin/python`（**不要 kubectl exec 内联多层引号的 python -c**，转义必崩）：
 ```
 from registry.repositories.factory import get_search_repository
 repo = get_search_repository()
@@ -145,16 +150,18 @@ r = await repo.search(query="weather", max_results=3)   # 注意：签名是 max
 - **放兄弟目录 `-onnx`，绝不与 torch 权重混放**——两边 config.json/tokenizer 同名但 md5 不同，混放会互相污染。FastembedClient 探测顺序：本体目录 → `-onnx` 兄弟 → HF 懒下载（尊重 HF_ENDPOINT 镜像）。
 - 生成载荷的最快方法：本地 venv `TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2", cache_dir=/tmp/fe-cache)` 下载一次，拷 `models--Qdrant--all-MiniLM-L6-v2-onnx/snapshots/<hash>/` 下五文件。bare 模型名（不带 `sentence-transformers/` 前缀）会被 fastembed 注册表拒收，客户端内已做归一化。
 
-## 6. 回滚（单 compose 滚动，无数据迁移）
+## 6. 回滚（GitOps revert，无数据迁移）
 
 ```bash
-ssh cheap1 'cd /opt/mcp-gateway-registry'
-# compose image 行改回旧 sha（不可变 tag 永远可拉）或直接恢复备份：
-#   cp docker-compose.prebuilt.yml.bak-<slug> docker-compose.prebuilt.yml && cp .env.bak-<slug> .env
-docker compose -f docker-compose.prebuilt.yml up -d --no-deps registry
+cd ~/finddata/fd-infra-deploy
+# registry.yaml 的 image 行 revert 到上一个 digest/tag（旧镜像都还在 ccr；节点有缓存秒恢复）
+git revert <commit>   # 或手动改回 image 行
+git push gitee main
+kubectl --context cheap -n argocd annotate application mcp-registry argocd.argoproj.io/refresh=hard --overwrite
+kubectl --context cheap -n mcp-registry rollout status deploy/registry --timeout=420s
 ```
 
-旧镜像内旧栈完整保留（如 fd-1.2.0 之前的 torch 栈），回滚即原样可用；新旧权重目录并存互不影响。
+旧权重目录并存互不影响（bind mount 侧语义不变）。
 
 ## 7. 本地测试配方（fork 仓）
 
@@ -187,7 +194,8 @@ PATH="$PWD/.venv/bin:$PATH" .venv/bin/python scripts/test.py unit -n 8
 | 本地 yara 构建失败 OpenSSL 头 | cp314 无 wheel+homebrew OpenSSL 3.5 | `--no-install-package yara-python`，CI 覆盖 |
 | relay 日志 SKIP | 上一轮循环还没跑完（tag 多） | 等或手动补单 |
 | 推新 tag 失败但 main tag 更新成功 | TCR 个人版 tag 上限 | 控制台删旧 tag（API 删不回收） |
-| scp/ssh 莫名 Connection closed | 主机别名写错（cheap-1 ≠ cheap1） | 用 `cheap1`/`cheap3` |
+| scp/ssh 莫名 Connection closed | 主机别名写错（cheap-1 ≠ cheap1） | 用 `cheap1`/`cheap3`；cheap-8 无 ssh，全走 kubectl |
+| 对 registry「取证/修复」却现象对不上 | **打错了栈**：cheap-1 compose 旧栈还活着（同名容器、独立旧 Mongo），公网流量全在 cheap-8 k8s（2026-10-25 §15.36 教训） | 先 `curl -s http://100.64.0.15:18080/health` 对 worker_id；取证/修复一律 kubectl -n mcp-registry |
 | 容器内 python 报 SyntaxError 反斜杠 | ssh 内联多层引号转义崩溃 | 本地写 .py → scp → docker cp → docker exec |
 | `search() got unexpected kwarg 'limit'` | 仓库层签名是 `max_results` | 换参数名；结果名字字段是 `server_name`/`skill_name` |
-| compose 文件里的 sha 和运行容器不一致 | 并行会话预指了待发布镜像 | §3.0 先查归属再动 |
+| GitOps 里的 sha/digest 和运行容器不一致 | 并行会话预指了待发布镜像 | §3.0 先查归属再动 |

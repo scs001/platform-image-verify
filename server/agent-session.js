@@ -983,6 +983,66 @@ async function switchPermissionTo(name) {
   }
 }
 
+// ── dsh plugin supply (add-dsh-plugin-supply) ───────────────────────────────
+
+// Read the profile's whitelisted dsh bundle roster. Returns
+// { available, bundles } — `available:false` means the child is not ready or
+// the bridge call failed; the Plugins section then renders the last known
+// roster (or "no bundles supplied") without erroring.
+async function getPluginBundles() {
+  if (!ctx.dshBridge?.isReady?.()) return { available: false, bundles: ctx.pluginBundles ?? [] };
+  try {
+    const r = await ctx.dshBridge.listPluginBundles();
+    ctx.pluginBundles = Array.isArray(r?.bundles) ? r.bundles : [];
+    return { available: true, bundles: ctx.pluginBundles };
+  } catch (err) {
+    console.warn("[dsh] plugins/list failed:", err.message);
+    return { available: false, bundles: ctx.pluginBundles ?? [] };
+  }
+}
+
+// Toggle one whitelisted dsh bundle LAYER (add-dsh-plugin-supply). The child
+// writes through the plugin-manager service's own semantics; the result's
+// `application` decides the follow-up:
+//   "applied"          → HMR reconciled the live composition in place — done.
+//   "restart-required" → no HMR in this child: restart the bridge through the
+//                        established path (sessions resume by id, same family
+//                        as a model switch). The patch files on disk are the
+//                        truth the fresh child boots with.
+//   "failed"/"cancelled" → return the error; the roster stays as it was.
+// The streaming guard matches set_model: a composition change must never
+// interleave with a turn it was not visible to.
+async function togglePluginBundle(name, enabled) {
+  if (typeof name !== "string" || !name) {
+    return { ok: false, error: "A bundle name is required" };
+  }
+  if (!ctx.dshBridge?.isReady?.()) {
+    return { ok: false, error: "Agent is still initializing" };
+  }
+  if (ctx.isStreaming) {
+    return { ok: false, error: "Cannot change plugins while the agent is responding" };
+  }
+  try {
+    const r = await ctx.dshBridge.setPluginBundleEnabled(name, Boolean(enabled));
+    if (r?.application === "failed" || r?.application === "cancelled") {
+      return { ok: false, error: r?.error || `Plugin change ${r.application}` };
+    }
+    if (r?.application === "restart-required") {
+      // The service persisted the manifest edit but the live child cannot
+      // recompose without HMR — restart so the next generation boots with the
+      // new bundle selection. A restart already in flight surfaces as an error
+      // from restart(); the persisted edit still lands on the next restart.
+      await ctx.dshBridge.restart({});
+    }
+    const { bundles } = await getPluginBundles();
+    ctx.broadcast({ type: "plugins_changed", bundles });
+    return { ok: true, application: r?.application ?? "applied" };
+  } catch (err) {
+    console.error("[dsh] plugin toggle failed:", err.message);
+    return { ok: false, error: err.message };
+  }
+}
+
 // ── Workspace (dsh cwd) ─────────────────────────────────────────────────────
 
 const WORKSPACE_RECENTS_KEY = "workspace.recents";
@@ -1093,6 +1153,9 @@ function listWorkspaces() {
   ctx.switchPresetTo = switchPresetTo;
   ctx.getPermissionPresets = getPermissionPresets;
   ctx.switchPermissionTo = switchPermissionTo;
+  ctx.getPluginBundles = getPluginBundles;
+  ctx.togglePluginBundle = togglePluginBundle;
+  ctx.pluginBundles = ctx.pluginBundles ?? [];
   // Live-control flags (live-runtime-control): which custom bridge RPCs the
   // current child answers. Shared by the WS layer (models payload for client
   // affordances) and any surface that needs to degrade the same way.

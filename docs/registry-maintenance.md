@@ -2522,6 +2522,14 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 
 **五项打包**（都源自走查证实的疤）：①**访客欢迎行**——guest 铸席时发一条 AI 免費的系统行「欢迎——我是值班席位。你可以直接说事，或点名：@智库副驾」，带前三个在场座席名（教 @ 点名，同步同时教 broadcast），只造一次（同席续访不重刷）；②**通配白名单纳 apex**——`*.partner.com` 原本只认子域、不认 apex 本身（违背了通配的直觉），修=wildcard 命中 apex 或其后缀；③**embed 页品牌脚**（「由 壹座·萬星智语 提供」一行）；④**es/fr/ja 词条真翻**——zhiyu 全节 + widget 小节的完整五语翻译（含 guest_* 三枚事件键五语对齐；check-locales 全 5 绿）；⑤顺修 guest_joined 在 embed 页已有标签对齐。**验证**：widget 套件 9/9（新增问候行与通配断言）；生产冒烟一问即见 `欢迎——我是值班席位……@智库副驾` + `agents meta` 正确。**上产**：4797b43f → snapshot 4987f00（digest 27039726）四面滚全等。坑：抛光期间手误删 /tmp/mint-paas-cookie.mjs（幕后配方文件）——已按记忆配方立刻重建原样（教训：ops 配方所在目录与走查临时件要分开）。
 
+### §15.66 智语访客体验三班 + live 浏览器眼落地（2026-10-27，四擒真 bug）
+
+**五项并行**：①房级**主动招呼**开关（`proactive_greeting`，默认关；新访客静默 beat 后值班席一句温暖自我介绍——LLM 真回合，host 付费，访客先说话即自动退让，测试四场景全绿）；②widget meta 带**座席名单** + embed 页 `@` 补全下拉；③设置对话框**客服台共存脚注**（两条线并行、分期迁移）；④es/fr/ja 早前已翻完；⑤**live Playwright 器件** `e2e/live-zhiyu-embed.spec.js`（登录→建房→装座→开嵌→链接→**匿名访客上下文**全链：横幅/问候/@补全/在答气泡/真答归因/清理/吊销 404）——该器件一次就把生产打了三个照面：
+
+**浏览器眼擒获的四个真 bug（curl 级永远看不见）**：①**欢迎行不渲染**——kind=system 消息两页都按"事件标签"渲染，内容文本被吞；修=system 有内容优先显示内容（两页同修）；②**访客页在生产完全打不开**——组件挂在 React Router 之外却用 `useParams` 取 token（永为空串），生产表现="Failed to fetch"；修=pathname 解析（SharePage 同款注释律：Route 外不用 useParams）；③**link 令牌被 meta 的嵌入宿主闸误杀 403**——join 链接是"被打开"不是"被嵌"，meta 应如 visit 一样按 kind 豁免；修+断言（`pack_host_settlements` 对照式的库存直查判明：库内每房两行 token，embed 行白名单正确、link 行 `[]` 被闸）；④首轮失败运行给生产**留了孤儿房间+同名待答邀请**，后续 accept 拿错房——器件改 try/finally 清理 + 按 roomId 认邀请；另赛后清场两枚存量孤儿房。
+
+**上产**：三度出片 4d9a56d→6c8aeda→aa71c92（digest bf024606/64c00679/8a9319bd）四面滚全等+双推 gitee（并行会话同窗连 bump 数次，Synced/读早数问题均值勤核 deploy 现行）；**live 器件最终一跑 40s 全绿**（含一次真 LLM 应答，冷启动未重现——child 暖）。zhiyu 全九套 57/57。ops 配方件挪 `~/.local/bin/mint-paas-cookie.mjs`（/tmp 被例行清理两次，教训入册）。
+
 ### §15.55 上游模型故障应急：free 模型救急免充值（2026-10-26，用户令「glm/mini 系列不要动，用 free」）
 
 **故障定型（实测链）**：metrics 5 连失败暴露 → 直调上游（distiller pod Python）确认 deepseek-v4.1-flash 别名映射下的 **qwen3.8-flash 对该子账号不可用**（`model_not_available`）；备选实测 deepseek-flash/v4-flash/glm-5.3-flash/glm-4.6 全挂；`/models` 正常返回 87 个但任何调用都失败（账户权限问题非模型问题）。

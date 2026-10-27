@@ -213,6 +213,17 @@ jobs:
             (cd app && MAESTRO_DRIVER_STARTUP_TIMEOUT=300000 $HOME/.maestro/bin/maestro test .maestro/tabs.yaml) || { adb logcat -d > /tmp/app-mock/logcat.txt; exit 1; }
             (cd app && MAESTRO_DRIVER_STARTUP_TIMEOUT=300000 $HOME/.maestro/bin/maestro test .maestro/language-switch.yaml) || { adb logcat -d > /tmp/app-mock/logcat.txt; exit 1; }
             (cd app && MAESTRO_DRIVER_STARTUP_TIMEOUT=300000 $HOME/.maestro/bin/maestro test .maestro/chat-stream.yaml) || { adb logcat -d > /tmp/app-mock/logcat.txt; exit 1; }
+            # 4) Charts lane (automate-nonweb-acceptance): a chaos LLM that
+            #    answers ```echarts fences + a SECOND mock pointed at it. The
+            #    9411 instance above keeps its dead-LLM contract — the two
+            #    expectations are mutually exclusive, hence two instances.
+            (CHAOS_LLM_PORT=3288 nohup node e2e/chaos-llm.js > /tmp/app-mock/chaos.log 2>&1 &)
+            for i in $(seq 1 30); do curl -sf -m 2 -X POST http://127.0.0.1:3288/__chaos/control -H 'content-type: application/json' -d '{"mode":"chart"}' -o /dev/null && break; sleep 1; done
+            mkdir -p /tmp/app-mock2/data
+            (PORT=9412 HOST=0.0.0.0 PLATFORM_DATA_DIR=/tmp/app-mock2/data DSH_HOME=/tmp/app-mock2/dsh MCP_CONFIG_PATH=/tmp/app-mock2/data/mcp.json LLM_API_KEY=chaos LLM_BASE_URL=http://127.0.0.1:3288/v1 AUTH_MODE=forward_auth MP_TOKEN_SECRET=app-mock-secret nohup node server.js > /tmp/app-mock2/server.log 2>&1 &)
+            for i in $(seq 1 60); do curl -sf -m 2 -H "x-forwarded-email: mobile@corp.com" -H "x-forwarded-groups: users" -H "accept: application/json" http://127.0.0.1:9412/api/mp/bindcode -o /tmp/app-mock2/code.json && break; sleep 1; done
+            cat /tmp/app-mock2/code.json
+            (cd app && MAESTRO_DRIVER_STARTUP_TIMEOUT=300000 $HOME/.maestro/bin/maestro test -e CHARTS_INSTANCE=http://10.0.2.2:9412 -e CHARTS_CODE=$(python3 -c 'import json;print(json.load(open("/tmp/app-mock2/code.json"))["code"])') .maestro/charts.yaml) || { adb logcat -d > /tmp/app-mock/charts-logcat.txt; exit 1; }
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -222,6 +233,10 @@ jobs:
             /tmp/app-mock/server.log
             /tmp/app-mock/code.json
             /tmp/app-mock/logcat.txt
+            /tmp/app-mock/charts-logcat.txt
+            /tmp/app-mock/chaos.log
+            /tmp/app-mock2/server.log
+            /tmp/app-mock2/code.json
             /home/runner/.maestro/tests/
           retention-days: 7
           if-no-files-found: ignore

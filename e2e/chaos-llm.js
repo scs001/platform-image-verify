@@ -20,6 +20,11 @@
 //                                 INVALID_REQUEST — permanently fatal even
 //                                 with the retry policy on; drives the
 //                                 subagent-failure-card scenario).
+//     mode "chart"              → the answer is an ```echarts fence (a live
+//                                 chart for the mobile/web chart lanes); the
+//                                 series comes from the control `shape`
+//                                 (bar|line|pie|scatter) or, absent that, the
+//                                 last user turn's wording; default bar.
 //     mode "slow"               → every answer is delayed by `delayMs`
 //                                 (default 8000) before the normal text
 //                                 completion. Gives a spec a deterministically
@@ -53,6 +58,37 @@ function textChunk(id, text) {
     { id, object: "chat.completion.chunk", choices: [{ index: 0, delta: { role: "assistant", content: text }, finish_reason: null }] },
     { id, object: "chat.completion.chunk", choices: [{ index: 0, delta: {}, finish_reason: "stop" }] },
   ];
+}
+
+// One deterministic echarts option per series — the mobile chart lane asserts
+// chart-ok/!chart-fallback per prompt, so these must render with a default
+// echarts build (no plugins, no dataZoom).
+export function chartOption(series) {
+  const base = { animation: false };
+  if (series === "line") {
+    return { ...base, xAxis: { type: "category", data: ["Mon", "Tue", "Wed", "Thu"] }, yAxis: { type: "value" }, series: [{ type: "line", smooth: true, data: [120, 200, 150, 280] }] };
+  }
+  if (series === "pie") {
+    return { ...base, series: [{ type: "pie", radius: "70%", data: [{ name: "A", value: 40 }, { name: "B", value: 32 }, { name: "C", value: 28 }] }] };
+  }
+  if (series === "scatter") {
+    return { ...base, xAxis: { type: "value" }, yAxis: { type: "value" }, series: [{ type: "scatter", data: [[10, 8], [8, 5], [13, 12], [9, 9], [11, 6]] }] };
+  }
+  return { ...base, xAxis: { type: "category", data: ["a", "b", "c"] }, yAxis: { type: "value" }, series: [{ type: "bar", data: [1, 2, 3] }] };
+}
+
+export function chartFence(series) {
+  return "```echarts\n" + JSON.stringify(chartOption(series)) + "\n```";
+}
+
+function chartSeriesFrom(state, messages) {
+  if (["bar", "line", "pie", "scatter"].includes(state.shape)) return state.shape;
+  const lastUser = [...messages].reverse().find((m) => m?.role === "user");
+  const text = typeof lastUser?.content === "string" ? lastUser.content.toLowerCase() : "";
+  if (/line|折线/.test(text)) return "line";
+  if (/pie|饼/.test(text)) return "pie";
+  if (/scatter|散点/.test(text)) return "scatter";
+  return "bar";
 }
 
 function toolCallsChunk(id) {
@@ -163,18 +199,19 @@ export function startChaosLlm({ port = 0, host = "127.0.0.1" } = {}) {
       const isDelegateFirst =
         state.mode === "delegate2" && !state.delegatedThisArm && lastRole === "user" && hasSubagentTool;
       if (isDelegateFirst) state.delegatedThisArm = true;
+      const answerText = state.mode === "chart" ? chartFence(chartSeriesFrom(state, messages)) : "ok";
       if (state.mode === "slow" && state.delayMs > 0) {
-        setTimeout(() => answerNow(res, stream, isDelegateFirst, served), state.delayMs);
+        setTimeout(() => answerNow(res, stream, isDelegateFirst, served, answerText), state.delayMs);
         return;
       }
-      answerNow(res, stream, isDelegateFirst, served);
+      answerNow(res, stream, isDelegateFirst, served, answerText);
     });
   });
 
   // One success answer — factored out so the slow mode can defer it.
-  function answerNow(res, stream, isDelegateFirst, served) {
+  function answerNow(res, stream, isDelegateFirst, served, answerText = "ok") {
     if (stream) {
-      sse(res, isDelegateFirst ? toolCallsChunk(`chaos-${served}`) : textChunk(`chaos-${served}`, "ok"));
+      sse(res, isDelegateFirst ? toolCallsChunk(`chaos-${served}`) : textChunk(`chaos-${served}`, answerText));
     } else {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(
@@ -195,7 +232,7 @@ export function startChaosLlm({ port = 0, host = "127.0.0.1" } = {}) {
                   },
                   finish_reason: "tool_calls",
                 }
-              : { index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" },
+              : { index: 0, message: { role: "assistant", content: answerText }, finish_reason: "stop" },
           ],
           usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
         }),

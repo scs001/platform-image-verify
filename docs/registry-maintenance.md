@@ -2776,3 +2776,16 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 ①**课程文案漂移已校正并重发**（zh/en）：词汇对照表第三组旧词按界面实况改为「失联→超时未报」（en 表九组全部换成界面原文 report/decision/missing/vacant post/passive/swap/cadence/daily stream/handoff）；岗位卡按钮描述改为実况「产出 / 详情」，并说明「详情」侧栏含「概况·配置·回合·产出·审批」五页签、换人/暂停/删岗在「配置」内；建岗弹窗补「回合提示词模板」一栏。
 ②**baiye 两课（百席）双语改版就绪**：虽属百席计划，但通篇教壹座界面且自称与图解课表述一致，故同批归一（舰队→集群/Cluster；「舰队架构师」→「集群架构师」）；其一标题更名《百席集群搭建》/ "Baiye Cluster Build"。**这两课只存在于 canonical 草稿层**（CMS 7 门课与官网仓均无），发布时随批带走；百席侧课表/营销物料若引用旧课名需另同步（非本仓）。
 ③**审批队列截图（04）未重拍——遇到平台侧故障**：为造真实审批，给演示集群「巡线岗」写入「必须 escalate 提请审批」的提示词并手动触发回合（模型已指到 roster 内的 glm-5.3-flash），**三次全部 503**（`model_upstream`/api_error 直传上游）；同期**正式集群「公司式舰队」CEO 回合在 22:00Z 亦同款 503** → 判定为**该 cell 的模型上游/车道故障，与本变更配置无关**；`sub2api` 部署 1/1 健康（`ContainerStatusUnknown` 副本均属 0-desired 旧 RS 噪声）。**影响面**：该 cell 上所有集群回合当前全部失败（非仅演示集群），建议车道侧排查上游可用性。恢复后按现成条件重跑即可补齐 04（提示词/模型/触发/截图脚本均已就绪）。
+
+### §15.66 china-cheap-2 复活战：真根因二段 + 上机实录（2026-10-28 凌晨续 §15.65）
+
+**用户指路（ssh-config.json 凭据库）后 SSH 上机**（`sshpass root@103.236.94.58` = china-cheap-2 = liuliangDmH1XR0w9RYU；tailscale 名 china-cheap-2，SSH 经 NAT 网关 103.236.89.174 按端口分流）。**§15.65 的「pause blob 损坏」诊断是错的**——真根因两段：
+
+1. **盘满真凶 = vaas 音频拼装失控**：`vaas-deploy_vaas-downloads/_data/audio/assemble-*.mp3` 三只怪物 8.3+5.2+4.1=17.5GB（assemble 管道跑飞，非正常产物）；删除后盘 92%→37%。fd-file-service/vaas-wanxing/4×regcache/蜜罐在本节点以 docker 原生双栖运行——它不是废墟，是「docker 原生服务 + k3s agent」混布节点。
+2. **pull short-read 真凶 = regcache 缓存了截断 manifest**：盘满期间本机 regcache（registry:2 ×4，集群拉取缓存基础设施就跑在这台节点上）把 pause 的 manifest 缓存成截断块；content store 清空+k3s agent 重启无效（病不在容器数据层）；**清空 regcache-docker 存储（`/opt/regcache/docker`）重启后 pull 即通**。坏节点 registries.yaml 的 endpoint 顺序把 regcache 排前放大了命中。
+
+**结果**：disk-pressure taint 自动解除 → zhengxin-api / fd-zhesi-reference / law-bench-mcp 全部回 Running（7h+ 下线结束）→ 两轮共清 ~3300 死壳 pod 对象（第一轮 2320+第二轮 997 的 ContainerStatusUnknown 翻面壳）→ 节点现存 3 pod 零尸骸。
+
+**端到端现状**：LLM 车道恢复（真实 completion「收到」✓）；但车队**流式大包**（131KB prompt）仍被 windows 上游（account 46=100.64.0.10）回 503——小包非流式可过，大流式挂，属 windows 盒子自身稳定性/账户层（§15.65 剩余①的同族）。车道熔断与漂移自愈在整场事故中行为正确（model_not_available 类才自愈重断言；503/Connection error 诚实失败+熔断计数）。
+
+**新律**：①regcache 是集群拉取咽喉且与工作负载同节点混布——它挂=全网拉取挂，考虑迁去 control-plane 或加健康探针；②NAT VPS 的 SSH 分流端口凭据在 `~/finddata/ssh-config.json`（OPS.md 只存引用不存密码）；③k3s agent 的 content store 清空+重启不解决「缓存源损坏」——先查 regcache 再疑 containerd。

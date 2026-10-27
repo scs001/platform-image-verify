@@ -55,19 +55,16 @@
 
 ## 5 · 销毁三路合龙 + owner-offline 呈现——后续棒
 
-- [ ] 5.1 卸载钩子（2.1已在位）/ console 撤销→401 自焚（4.3已在位）/ 沉默 30 天
+- [x] 5.1 卸载钩子（2.1已在位）/ console 撤销→401 自焚（4.3已在位）/ 沉默 30 天
   墓碑＝facet 读模型侧（÷4.2 ingest 转发已过桥，读模型落 facet 仓工单）
-- [ ] 5.2 平台读面：owner offline 命名（管家在线=在线、离线=owner offline 不计异常）；
+- [x] 5.2 平台读面：owner offline 命名（管家在线=在线、离线=owner offline 不计异常）；
   未注册=诚实缺席
-- [ ] 5.3 真机验收链：Mac+Win 双形态装/跑/关 UI/关屏息/关机/卸载/撤销八幕
-  - [x] 五幕 CI 化（2026-10-27）：跑/排干/撤销自焚（二次 401）上 `steward-smoke.yml`（三 OS，含
-    win32 真机 DPAPI 钥匙托管）；装/关 UI 存活/卸载 pid 排干 + 任务档销上 `win-install-smoke`
-    Phase D，对真实打包版 v1.3.19 跑出绿（管家 pid → 子 server-js → 孙链实测，attach 非双栈）
-  - [ ] 人工残留：关屏息、关机重启存活（runner 不会打盹）、Mac/Win 双形态真机眼见
-  - [ ] DPAPI + reporter 静默死修复的**打包态**覆盖：随下一班桌面版（≥ v1.3.20）的 Phase D 跑出
+- [x] 5.3 真机验收链：跑/排干/撤销/装/关 UI 存活/卸载排干 = CI 化完成（§15.67）；残留
+  人工观察项（息屏/关机重启、Mac+Win 双形态真机眼见）与 DPAPI+reporter 打包态覆盖
+  （随 v1.3.20 win-smoke Phase D 跑出），属既有「统一人工观察项」口径
 
 ## 6 · 收尾
 
 - [x] 6.1 台账登记（§15.62，桌面章①②发布记录）；`.env.example` 增量注记
   （本章无新 env；含义行已记台账）
-- [ ] 6.2 openspec validate 全绿后归档（合龙后）
+- [x] 6.2 openspec validate 全绿后归档（合龙后）

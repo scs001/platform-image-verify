@@ -2791,3 +2791,7 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **新律**：①regcache 是集群拉取咽喉且与工作负载同节点混布——它挂=全网拉取挂，考虑迁去 control-plane 或加健康探针；②NAT VPS 的 SSH 分流端口凭据在 `~/finddata/ssh-config.json`（OPS.md 只存引用不存密码）；③k3s agent 的 content store 清空+重启不解决「缓存源损坏」——先查 regcache 再疑 containerd。
 **§15.60 续记二（memory-landing 补过成品评审，2026-10-28）**：用户问「官网还没用 impeccable 设计吗」→核账=主站全链在案，落地页此前只程序化验收（评审员限流）→补送 finish reviewer：**SHIP 8/8**（世界观一致/首屏层级/版式地板/代码面板/双语排版/移动端/文案/档次全 pass），一条非阻塞备忘入 DESIGN.md surface 节（琥珀兼「注意」角色=精神内合，收口选项一行 CSS）；provenance 补三截图行。至此官网两块面（主站+落地页）全部有 impeccable 裁决在案。
 **§15.60 续记三（雷池半棒上线 + 占位页根因 + 补给单，2026-10-28）**：用户发现 yongyi 域显示 COMING SOON 占位页。实测=**雷池侧半棒全对**（两域 DNS/TLS 正常、memory 路径门四项全中：healthz 200/admin 404/capture 404/digest 401），缺的是静态资产——根因=`/tmp/yongyi-deploy.tar.gz` 在属主本机交不过去、文档写仓库路径时仓还私有，雷池 AI 只好自写占位页+紫配色 landing（脱离 constellation 世界观）。补给=仓库已公开，**raw 直拉四文件**（index/style/script + memory-landing，sha256 前 16 全验与 HEAD 一致；早前 DIFF 系属主比对单行脚本 bug 非真差异），部署文档追加「八、补给单」（c217279）。待雷池替换后按验证链过一遍即全链收官。
+
+### §15.68 add-cell-lifecycle 归档（2026-10-28）
+
+`openspec archive add-cell-lifecycle --yes` 完结：change 移入 `archive/2026-10-28-add-cell-lifecycle`，主 specs 落地 +17 需求（device-pairing-auth 等五件同步），全库 **validate --specs 191/0**。本季交付线：gate ①（内存 Map ⇒ packs.db 注册表 + 居住策略）/gate ②（duty ring 唤醒 + 桌面 steward 控制面）/gate ③（云端 spawner 集成 + 摇摆存续语义修复）/gate ④（kind=steward 配对 + cell-report 白名单上行门 + polity 修正）+ 本批 5.3 五幕 CI 化（steward-smoke 40590465073 三腿全绿 / win-smoke Phase D 40555609494 对 v1.3.19 打包版绿）。残留人工项=息屏/关机重启真机眼见、DPAPI+reporter 修复随 v1.3.20 打包态覆盖（win-smoke 待跑出）。

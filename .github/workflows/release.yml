@@ -397,10 +397,7 @@ jobs:
       - name: LaunchAgent plan assertions (registration correctness without a GUI session)
         run: |
           set -euo pipefail
-          cat > "$RUNNER_TEMP/plan.mjs" <<'JS'
-          import { installPlan } from process.env.APP + "/Contents/Resources/app/electron/steward-install.js";
-          JS
-          # The import path is dynamic — write the real script with the env inlined.
+          # The import path must be a literal — inline $APP into the script.
           cat > "$RUNNER_TEMP/plan.mjs" <<JS
           import { installPlan } from "${APP}/Contents/Resources/app/electron/steward-install.js";
           const plan = installPlan({

@@ -73,6 +73,7 @@ export function Markdown({ text }: { text: string }) {
     if (token.kind === "code") {
       const option = chartOptionFromFence(token);
       if (option) {
+        // biome-ignore lint/suspicious/noArrayIndexKey: token index is the stable identity of a fence block
         parts.push(<ChartView key={`chart-${i}`} option={option} />);
         return;
       }

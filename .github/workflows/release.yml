@@ -35,6 +35,7 @@ on:
 
 permissions:
   contents: write # softprops/action-gh-release creates/edits the Release
+  actions: read # installer-e2e reuse mode: gh run download of a prior run's artifact
 
 jobs:
   build:

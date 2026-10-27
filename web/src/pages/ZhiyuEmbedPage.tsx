@@ -10,6 +10,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 
+interface EmbedSender {
+  kind: "user" | "facade" | "agent" | "guest";
+  display: string;
+  onBehalfOf: string | null;
+}
+
 interface EmbedRow {
   seq: number;
   kind: "human" | "agent" | "system" | "event";
@@ -20,7 +26,7 @@ interface EmbedRow {
   meta: Record<string, unknown> | null;
   provenance?: string | null;
   createdAt: number;
-  sender?: unknown;
+  sender?: EmbedSender | null;
 }
 
 interface VisitState {
@@ -57,6 +63,7 @@ export function ZhiyuEmbedPage() {
   const [composer, setComposer] = useState("");
   const [busy, setBusy] = useState(false);
   const [metaBanner, setMetaBanner] = useState<string>("");
+  const [overlays, setOverlays] = useState<Record<string, { display: string; text: string }>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const ttyKey = useMemo(() => `zy-tty:${token}`, [token]);
@@ -98,7 +105,7 @@ export function ZhiyuEmbedPage() {
     };
   }, [token, ttyKey]);
 
-  // SSE stream.
+  // SSE stream + overlay (answering bubble and live deltas).
   useEffect(() => {
     if (!tty) return;
     const es = new EventSource(withTty(`/api/zhiyu/widget/${encodeURIComponent(token)}/events`));
@@ -107,8 +114,38 @@ export function ZhiyuEmbedPage() {
         const row = JSON.parse(ev.data) as EmbedRow;
         if (row.kind === "system" && row.meta?.event === "room_ended") setEnded(true);
         setRows((prev) => (prev.some((r) => r.seq === row.seq) ? prev : [...prev, row]));
+        if (row.kind === "agent" && row.senderMemberId) {
+          const sid = row.senderMemberId;
+          setOverlays((prev) => {
+            if (!prev[sid]) return prev;
+            const next = { ...prev };
+            delete next[sid];
+            return next;
+          });
+        }
       } catch { /* malformed frame */ }
     };
+    es.addEventListener("overlay", (ev) => {
+      try {
+        const o = JSON.parse((ev as MessageEvent).data) as { type: string; memberId: string; display?: string; delta?: string };
+        if (o.type === "agent_start") {
+          setOverlays((prev) => ({ ...prev, [o.memberId]: { display: o.display ?? "", text: "" } }));
+        } else if (o.type === "agent_delta") {
+          setOverlays((prev) => {
+            const cur = prev[o.memberId];
+            if (!cur) return prev;
+            return { ...prev, [o.memberId]: { ...cur, text: cur.text + (o.delta ?? "") } };
+          });
+        } else if (o.type === "agent_done") {
+          setOverlays((prev) => {
+            if (!prev[o.memberId]) return prev;
+            const next = { ...prev };
+            delete next[o.memberId];
+            return next;
+          });
+        }
+      } catch { /* malformed overlay */ }
+    });
     return () => es.close();
   }, [tty, token, withTty]);
 
@@ -165,16 +202,31 @@ export function ZhiyuEmbedPage() {
               </div>
             );
           }
-          const mine = row.kind === "human";
+          const mine = row.kind === "human" && row.fromAgent !== true;
+          const senderLabel = mine
+            ? "我"
+            : row.sender
+              ? row.sender.kind === "facade"
+                ? `${row.sender.display}（代 ${row.sender.onBehalfOf} 出席）`
+                : row.sender.display || "接待"
+              : "接待";
           return (
             <div key={row.seq} className={`mb-3 flex ${mine ? "flex-row-reverse" : ""}`}>
               <div className={`max-w-[85%] rounded-2xl px-3.5 py-2 text-sm ${mine ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                <div className={`mb-0.5 text-xs ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{mine ? "我" : "接待"}</div>
+                <div className={`mb-0.5 text-xs ${mine ? "text-primary-foreground/70" : "text-muted-foreground"}`}>{senderLabel}</div>
                 <div className="whitespace-pre-wrap break-words">{row.content}</div>
               </div>
             </div>
           );
         })}
+        {Object.entries(overlays).map(([memberId, o]) => (
+          <div key={memberId} className="mb-3 flex">
+            <div className="max-w-[85%] rounded-2xl bg-muted px-3.5 py-2 text-sm opacity-80">
+              <div className="mb-0.5 text-xs text-muted-foreground">{o.display} · 正在作答</div>
+              <div className="whitespace-pre-wrap break-words">{o.text || "…"}</div>
+            </div>
+          </div>
+        ))}
         <div ref={bottomRef} />
       </div>
 

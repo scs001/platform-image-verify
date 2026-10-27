@@ -1016,17 +1016,32 @@ export function registerZhiyuRoutes(app, {
     res.json({ ok: true, ref: seat.member.ref, display: seat.member.display, memberId: seat.member.id, tty: ttyOut ?? req.query.tty ?? null, roomId: row.roomId, title: room.title });
   });
 
-  const widgetMessageShape = (m) => m;
+  // Widget message enrichment: rows carry enough attribution for the visitor
+  // page to say WHO answered (display + 代 X 出席), not a muted "接待" blob.
+  const widgetSenderOf = (roomId) => {
+    const members = new Map(store.membersOf(roomId).map((m) => [m.id, m]));
+    return (m) => {
+      const sender = m.senderMemberId ? members.get(m.senderMemberId) : null;
+      return {
+        ...m,
+        sender: sender
+          ? { kind: sender.kind, display: sender.display || sender.ref, onBehalfOf: sender.onBehalfOf ?? null }
+          : null,
+      };
+    };
+  };
+
   app.get("/api/zhiyu/widget/:token/messages", (req, res) => {
     const ctx = authorizeWidget(req, res, { requireHost: false });
     if (!ctx) return;
     const seat = guestSeat(req, ctx.row);
     if (!seat) return res.status(401).json({ error: "guest pass required" });
     const after = Number(req.query.after ?? 0) || 0;
+    const enrich = widgetSenderOf(ctx.row.roomId);
     const messages = store
       .messagesAfter(ctx.row.roomId, after, { viewerMemberId: seat.member.id, limit: 1000 })
       .filter((m) => m.visibility === "shared" || m.visibility === `private:${seat.member.id}`)
-      .map(widgetMessageShape);
+      .map(enrich);
     res.json({ messages });
   });
 
@@ -1065,9 +1080,10 @@ export function registerZhiyuRoutes(app, {
     res.write(`retry: 1000\n\n`);
     const pump = () => {
       try {
+        const enrich = widgetSenderOf(roomId);
         for (const m of store.messagesAfter(roomId, last, { viewerMemberId: seat.member.id })) {
           last = m.seq;
-          res.write(`id: ${m.seq}\ndata: ${JSON.stringify(m)}\n\n`);
+          res.write(`id: ${m.seq}\ndata: ${JSON.stringify(enrich(m))}\n\n`);
         }
       } catch (err) {
         console.error(`[zhiyu] widget SSE pump failed for ${roomId}:`, err.message);
@@ -1075,10 +1091,20 @@ export function registerZhiyuRoutes(app, {
     };
     pump();
     const poll = setInterval(pump, ssePollMs);
+    // Ephemeral overlay (answering bubble + deltas) — guests get the same
+    // honesty overlay station users have, or a 70s cold start reads as dead air.
+    const onOverlay = (ev) => {
+      try {
+        if (ev.visibility && ev.visibility !== "shared") return;
+        res.write(`event: overlay\ndata: ${JSON.stringify(ev)}\n\n`);
+      } catch { /* client gone */ }
+    };
+    bus.on(roomId, onOverlay);
     const keepalive = setInterval(() => res.write(`:ka\n\n`), 25_000);
     req.on("close", () => {
       clearInterval(poll);
       clearInterval(keepalive);
+      bus.off(roomId, onOverlay);
     });
   });
 

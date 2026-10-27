@@ -157,7 +157,13 @@ test("3.2 guest message routes through the real router and settles with guest sc
   assert.ok(settles[0].usageId.endsWith("-guest"), `usage id carries guest scope: ${settles[0].usageId}`);
   const msgs = await a.get(`/api/zhiyu/widget/${token}/messages?tty=${encodeURIComponent(tty)}`);
   const rows = msgs.json.messages;
-  assert.ok(rows.some((m) => m.kind === "agent" && m.content === "副驾占位回答"));
+  const answered = rows.find((m) => m.kind === "agent" && m.content === "副驾占位回答");
+  assert.ok(answered, "agent row present");
+  // Attribution enrichment (polish batch): the visitor sees WHO answered.
+  assert.equal(answered.sender?.display, "接待分身");
+  assert.equal(answered.sender?.kind, "agent");
+  const mine = rows.find((m) => m.content === "@接待分身 你好");
+  assert.equal(mine?.sender?.display?.startsWith("访客"), true);
   close();
 });
 

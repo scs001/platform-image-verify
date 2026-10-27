@@ -66,13 +66,29 @@ test("on_demand wakes on a persisted due schedule, drains after quiet", async ()
   assert.deepEqual(calls, ["start", "stop"]);
 });
 
-test("no due occurrence keeps the stack asleep", async () => {
+test("no due occurrence keeps the stack asleep (tz pinned so the assertion is portable)", async () => {
   const { engine, calls } = setup({
     policy: "on_demand",
-    jobs: [job({ cron: "0 9 * * *", lastRun: new Date(NOW - 600_000).toISOString() })],
+    // A tz-less row is interpreted in the MACHINE's local time (the same rule
+    // the cell's own scheduler follows), so an unpinned fixture would assert
+    // one thing on a +08 laptop and another on a UTC runner. Pin the row's tz
+    // — 16:50 local fire, next slot tomorrow 09:00 local — and the assertion
+    // means the same thing everywhere.
+    jobs: [job({ cron: "0 9 * * *", tz: "Asia/Shanghai", lastRun: new Date(NOW - 600_000).toISOString() })],
   });
   await engine.tick();
-  assert.deepEqual(calls, [], "daily job fired 10m ago — nothing due, nothing starts");
+  assert.deepEqual(calls, [], "the day's only slot is past — nothing due, nothing starts");
+});
+
+test("a row's tz is honored: a UTC slot landing right now wakes the stack", async () => {
+  const { engine, calls } = setup({
+    policy: "on_demand",
+    // 08:50Z anchor, 09:00Z slot == NOW: the occurrence is inclusive ⇒ wake.
+    // Same cron as the case above, opposite verdict, purely by zone.
+    jobs: [job({ cron: "0 9 * * *", tz: "UTC", lastRun: new Date(NOW - 600_000).toISOString() })],
+  });
+  await engine.tick();
+  assert.deepEqual(calls, ["start"], "the 09:00Z occurrence is inside the window ⇒ wake");
 });
 
 test("recent control-plane activity blocks the quiet drain", async () => {

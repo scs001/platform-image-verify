@@ -13,7 +13,7 @@
 //           on stdio-adjacent stderr so the MCP client's degrade path shows the
 //           reason instead of a silent dead tool surface.
 //
-// Env contract (see .env.example / DEPLOY.md):
+// Env contract (see .env.example):
 //   BROWSER_MCP_CLI        absolute path to @playwright/mcp's cli.js (image
 //                          bakes /opt/browser-mcp/...; desktop opt-in sets it)
 //   BROWSER_CDP_ENDPOINT   attach to this browser instead of launching

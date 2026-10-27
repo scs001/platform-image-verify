@@ -161,6 +161,7 @@ const EXCLUDE_PREFIXES = [
 ];
 
 const EXCLUDE_GLOBS = [
+  "HANDOFF-*.md", // cross-session handoffs: live host facts, paths, deploy plumbing
   "scripts/probe-*.mjs", // live probes against company deployments
   "scripts/verify-*live*.mjs", // live verification against company deployments
   "scripts/push_audit_to_wire.py", // internal metering bridge (tailnet fd-wire endpoint)

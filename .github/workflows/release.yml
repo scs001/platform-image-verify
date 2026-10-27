@@ -272,7 +272,10 @@ jobs:
           $entry = Join-Path $root 'resources\app\supervisor\steward-main.js'
           if (-not (Test-Path $node)) { throw "bundled node missing: $node" }
           if (-not (Test-Path $entry)) { throw "steward entry missing: $entry" }
-          $data = Join-Path $env:TEMP 'steward-e2e/data'
+          # The PACKAGED app resolves its data root to app.getPath('userData')
+          # — the steward must live in that SAME directory or the app never
+          # sees steward.json and silently boots embedded (attach step 2).
+          $data = Join-Path $env:APPDATA 'platform'
           New-Item -ItemType Directory -Force -Path $data | Out-Null
           $env:STEWARD_DATA = $data   # same-step use (GITHUB_ENV only affects later steps)
           "STEWARD_DATA=$data" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8

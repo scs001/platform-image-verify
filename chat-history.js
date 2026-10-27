@@ -502,6 +502,51 @@ export async function getSessionPath(id) {
   return db.getSessionPath(id);
 }
 
+// ── Windowed transcript (openspec: polish-web-surfaces, web-chat-server) ─────
+//
+// A long session's first `session_loaded` must not carry the whole transcript:
+// the client renders one turn per persisted message and only ever shows the
+// tail, so the payload is bounded to TRANSCRIPT_WINDOW messages plus the counts
+// needed to page backwards. Earlier pages come from getEarlierMessages.
+export const TRANSCRIPT_WINDOW = 50;
+
+// The tail window + counts for the WS payload. `fallbackMessages`/`fallbackTitle`
+// cover the not-yet-mirrored case (a live session whose rows have not landed):
+// they are windowed in memory, with paging disabled (nothing older on disk).
+export async function getSessionWindow(id, { limit = TRANSCRIPT_WINDOW, fallbackMessages = null, fallbackTitle = null } = {}) {
+  if (!id) return null;
+  const fallback = () => {
+    const all = fallbackMessages ?? [];
+    const messages = all.slice(-limit);
+    return { id, title: fallbackTitle || "Chat", messages, totalTurns: all.length, hasMore: false };
+  };
+  if (!db.isDbReady()) return fallback();
+  const meta = db.getSessionMeta(id);
+  if (!meta) return fallbackMessages ? fallback() : null;
+  const total = db.countChatMessages(id);
+  if (total === 0) return fallback();
+  const messages = db.getChatMessagesTail(id, limit);
+  return {
+    id,
+    title: meta.title || "Untitled",
+    messages,
+    totalTurns: total,
+    hasMore: total > messages.length,
+  };
+}
+
+// The page of messages immediately older than `beforeSeq` (the earliest loaded
+// message's seq), ascending, plus whether even older ones remain.
+export async function getEarlierMessages(id, beforeSeq, { limit = TRANSCRIPT_WINDOW } = {}) {
+  if (!id || typeof beforeSeq !== "number" || !db.isDbReady()) return { messages: [], hasMore: false };
+  const messages = db.getChatMessagesBefore(id, beforeSeq, limit);
+  const oldest = messages[0]?.seq;
+  return {
+    messages,
+    hasMore: oldest === undefined ? false : db.countChatMessagesBefore(id, oldest) > 0,
+  };
+}
+
 // ── One-time legacy import ────────────────────────────────────────────────────
 //
 // Legacy chat-history-store/*.json sessions are imported straight into SQLite by

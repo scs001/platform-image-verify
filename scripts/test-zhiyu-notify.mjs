@@ -45,7 +45,7 @@ async function boot() {
   return { srv, base, cli, zhiyu, close: () => srv.close() };
 }
 
-test("8.1 invite + call land unread rows; mark-read keeps the counter honest", async () => {
+test("8.1 invite + call land unread rows; accept clears the invite notice; mark-read honest", async () => {
   const { cli, close } = await boot();
   const a = cli("a@x");
   const b = cli("b@x");
@@ -56,23 +56,47 @@ test("8.1 invite + call land unread rows; mark-read keeps the counter honest", a
   assert.equal(inbox.notifications[0].type, "invite");
   assert.equal(inbox.notifications[0].payload.roomTitle, "铃");
 
+  // Accepting the invite clears its own notice (polish-web-surfaces: the badge
+  // must not stay lit after the decision).
   const inviteId = (await b.get("/api/zhiyu/invites")).body.invites[0].id;
   await b.post(`/api/zhiyu/invites/${inviteId}/accept`);
+  inbox = (await b.get("/api/zhiyu/notifications")).body;
+  assert.equal(inbox.unread, 0, "accepting the invite must clear its notice");
+
   await a.post(`/api/zhiyu/rooms/${roomId}/call`, { target: "b@x" });
   inbox = (await b.get("/api/zhiyu/notifications")).body;
-  assert.equal(inbox.unread, 2);
+  assert.equal(inbox.unread, 1);
   assert.ok(inbox.notifications.some((n) => n.type === "call"));
 
   // Mark-read is scoped to the owner and idempotent.
-  const nid = inbox.notifications[0].id;
+  const nid = inbox.notifications.find((n) => n.type === "call").id;
   await a.post(`/api/zhiyu/notifications/${nid}/read`); // foreign: no-op at b's counter
-  assert.equal((await b.get("/api/zhiyu/notifications")).body.unread, 2);
+  assert.equal((await b.get("/api/zhiyu/notifications")).body.unread, 1);
   const after = await b.post(`/api/zhiyu/notifications/${nid}/read`);
-  assert.equal(after.body.unread, 1);
+  assert.equal(after.body.unread, 0);
   // unreadOnly view filters settled rows.
   const unreadOnly = (await b.get("/api/zhiyu/notifications?unread=1")).body;
-  assert.equal(unreadOnly.notifications.length, 1);
+  assert.equal(unreadOnly.notifications.length, 0);
   close();
+});
+
+test("8.3 read-all clears the lane in one call and stays per-user", async (t) => {
+  const { cli, close } = await boot();
+  t.after(close);
+  const a = cli("a@x");
+  const b = cli("b@x");
+  const r1 = (await a.post("/api/zhiyu/rooms", { title: "甲" })).body.room.id;
+  const r2 = (await a.post("/api/zhiyu/rooms", { title: "乙" })).body.room.id;
+  await a.post(`/api/zhiyu/rooms/${r1}/invites`, { kind: "user", ref: "b@x" });
+  await a.post(`/api/zhiyu/rooms/${r2}/invites`, { kind: "user", ref: "b@x" });
+  assert.equal((await b.get("/api/zhiyu/notifications")).body.unread, 2);
+
+  const aBefore = (await a.get("/api/zhiyu/notifications")).body.unread;
+  const out = await b.post("/api/zhiyu/notifications/read-all");
+  assert.equal(out.body.unread, 0, "read-all returns the fresh count");
+  assert.equal((await b.get("/api/zhiyu/notifications")).body.unread, 0);
+  assert.equal((await a.get("/api/zhiyu/notifications")).body.unread, aBefore, "another user's lane is untouched");
+  assert.equal((await b.post("/api/zhiyu/notifications/read-all")).body.unread, 0, "read-all is idempotent");
 });
 
 test("8.2 room end delivers a minutes digest to members and facade principals", async () => {

@@ -146,6 +146,13 @@ export type ServerMessage =
       id: string;
       title?: string;
       messages: ChatMessage[];
+      // Windowed transcript (polish-web-surfaces, web-chat-server): the first
+      // frame carries at most the tail window. `totalTurns` is the session's
+      // full persisted count and `hasMore` says whether earlier messages remain
+      // to page in. Absent on older servers — the client then treats the
+      // received list as complete (today's behavior).
+      totalTurns?: number;
+      hasMore?: boolean;
       // Reconnect resync (add-reconnect-resync): a turn is in flight for this
       // session. With `turnEvents` the client rebuilds the open turn by
       // folding the server's replay log; without it (buffer miss — overflow
@@ -160,6 +167,9 @@ export type ServerMessage =
       // history row. Absent/null = nothing queued for this session.
       queued?: QueuedTurn | null;
     }
+  // A page of earlier transcript (polish-web-surfaces): the answer to
+  // `load_earlier`, ascending, with whether even older messages remain.
+  | { type: "session_page"; id: string; messages: ChatMessage[]; hasMore: boolean }
   | { type: "session_renamed"; id: string; title: string }
   | { type: "cron_jobs"; jobs: CronJob[] }
   | { type: "cron_status"; job: CronJob }
@@ -435,6 +445,9 @@ export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   blocks?: PersistedBlock[];
+  // Row position within the session (polish-web-surfaces): the paging cursor for
+  // "load earlier". Absent on older servers and on live (unmirrored) messages.
+  seq?: number;
 }
 
 // ── Client → server ─────────────────────────────────────────────────────────
@@ -471,6 +484,10 @@ export type ClientMessage =
   | { type: "new_session" }
   | { type: "switch_session"; id: string; resync?: boolean }
   | { type: "rename_session"; id: string; title: string }
+  // Page backwards through a long transcript (polish-web-surfaces): ask for the
+  // messages immediately older than `beforeSeq` (the earliest loaded message's
+  // seq). Answered with a `session_page`.
+  | { type: "load_earlier"; id: string; beforeSeq: number }
   // Scheduled tasks (spec: cron-module). The client-facing job shape mirrors
   // cron.js clientShape().
   | { type: "cron_list" }

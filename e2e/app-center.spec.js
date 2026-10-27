@@ -50,6 +50,28 @@ test("nav item reaches the app center", async ({ page }) => {
   await expect(page.getByTestId("app-center-page")).toBeVisible();
 });
 
+test("a revisit paints the catalog in full from cache — no placeholders (polish-web-surfaces)", async ({
+  page,
+}) => {
+  await pinLocaleEn(page);
+  await page.goto("/chat");
+  await expect(page.getByTestId("nav-apps")).toBeVisible({ timeout: 15000 });
+
+  // First visit: the catalog lands and the product placeholders clear.
+  await page.getByTestId("nav-apps").click();
+  await expect(page.getByTestId("app-card-skeleton")).toHaveCount(0, { timeout: 15000 });
+  await expect(page.getByTestId("app-card-yizuo-packs")).toBeVisible();
+
+  // Leave and return WITHOUT a page reload (the client cache is what is under
+  // test): the product cards paint immediately, so no placeholder frame shows.
+  await page.getByTestId("nav-chat").click();
+  await expect(page.getByTestId("app-center-page")).toHaveCount(0);
+  await page.getByTestId("nav-apps").click();
+  await expect(page.getByTestId("app-center-page")).toBeVisible();
+  await expect(page.getByTestId("app-card-yizuo-packs")).toBeVisible();
+  await expect(page.getByTestId("app-card-skeleton")).toHaveCount(0);
+});
+
 test("one grid renders eight cards in brand order, retired sections gone", async ({ page }) => {
   await pinLocaleEn(page);
   await page.goto("/apps");
@@ -58,6 +80,11 @@ test("one grid renders eight cards in brand order, retired sections gone", async
   // The two retired section containers must not come back.
   await expect(page.getByTestId("app-center-lines")).toHaveCount(0);
   await expect(page.getByTestId("app-center-platform-apps")).toHaveCount(0);
+
+  // Cached-first paint (polish-web-surfaces): while the catalog lands the
+  // product slots are placeholders, so wait for them to settle before reading
+  // the final card order.
+  await expect(page.getByTestId("app-card-skeleton")).toHaveCount(0, { timeout: 15000 });
 
   const ids = await page.getByTestId("app-center-grid").evaluate((el) =>
     Array.from(el.children).map((c) => (c.dataset.testid ?? "").replace(/^app-card-/, "")),

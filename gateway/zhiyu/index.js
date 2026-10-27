@@ -19,6 +19,7 @@ import { EventEmitter } from "node:events";
 import { createZhiyuStore } from "./store.js";
 import { createRoomRouter } from "./room-router.js";
 import { newWidgetToken, newSiteSecret, verifyWidgetToken, hostAllowed, signGuestPass, verifyGuestPass, verifyIdentify, guestRefFor } from "./guest-auth.js";
+import { registerZhiyuImBridge } from "./im-bridge.js";
 
 export function registerZhiyuRoutes(app, {
   dataRoot,
@@ -563,10 +564,14 @@ export function registerZhiyuRoutes(app, {
     if (verdict === "accepted") {
       const member = acceptSeats(invite);
       store.inviteResolve(invite.id, "accepted");
+      // The invite's own notice clears with the decision (polish-web-surfaces,
+      // zhiyu-room 通知与触达) — resolving the invite must not leave the badge lit.
+      store.notificationMarkReadBy(user.email, { type: "invite", roomId: invite.roomId });
       emit(invite.roomId, "system", "", { event: "invite_accepted", kind: invite.kind, ref: invite.ref });
       return res.json({ invite: store.inviteGet(invite.id), member });
     }
     store.inviteResolve(invite.id, "declined");
+    store.notificationMarkReadBy(user.email, { type: "invite", roomId: invite.roomId });
     emit(invite.roomId, "event", "", { event: "invite_declined", kind: invite.kind, ref: invite.ref, by: user.email });
     res.json({ invite: store.inviteGet(invite.id) });
   };
@@ -656,6 +661,17 @@ export function registerZhiyuRoutes(app, {
     const user = resolveUser(req);
     if (!user) return rejectUnauthenticated(req, res);
     store.notificationMarkRead(user.email, req.params.nid);
+    res.json({ ok: true, unread: store.notificationUnreadCount(user.email) });
+  });
+
+  // Clear the whole unread lane (openspec: polish-web-surfaces, zhiyu-room
+  // 通知与触达). The client calls this on entering the zhiyu page, so the nav
+  // badge has a deterministic path to zero. Returns the fresh count so the
+  // client can clear the badge immediately instead of waiting for a poll.
+  app.post("/api/zhiyu/notifications/read-all", (req, res) => {
+    const user = resolveUser(req);
+    if (!user) return rejectUnauthenticated(req, res);
+    store.notificationMarkAllRead(user.email);
     res.json({ ok: true, unread: store.notificationUnreadCount(user.email) });
   });
 
@@ -1193,6 +1209,12 @@ export function registerZhiyuRoutes(app, {
     res.setHeader("Set-Cookie", `zy_guest=; Path=/; Max-Age=0; SameSite=None; Secure; HttpOnly`);
     res.json({ ok: true, member });
   });
+
+  // ── IM bridge machine lanes (add-zhiyu-im-bridge) ──────────────────────────
+  // The cell-side bridge calls these with the gateway secret: ingest of IM
+  // group messages as room guest rows, and a bot-scoped read-only event
+  // subscription face back to the cell. Registered before the 404 catch-all.
+  registerZhiyuImBridge(app, { store, humanMessageHook, secret: guestSecret || secret });
 
   // The prefix is owned: unmatched /api/zhiyu/* paths must 404 here (JSON),
   // never proxy into a cell where a same-named route could answer with a

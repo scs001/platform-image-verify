@@ -59,3 +59,28 @@ test("@smoke agents page renders (no white screen)", async ({ page }) => {
   expect(mine.json, "/api/clusters/mine must answer JSON, not the SPA fallback").toBe(true);
   expect([200, 401], "/api/clusters/mine must not 404 (route order)").toContain(mine.status);
 });
+
+test("a delayed cluster read shows no empty copy until it lands (polish-web-surfaces)", async ({
+  page,
+}) => {
+  // Hold the clusters read so the loading frame is observable.
+  await page.route("**/api/clusters/mine", async (route) => {
+    await new Promise((r) => setTimeout(r, 1500));
+    await route.continue();
+  });
+
+  await page.goto("/agents?tab=agents");
+  await expect(page.locator('[data-testid="agents-section"]')).toBeVisible({ timeout: 15000 });
+
+  // In flight: the section is mounted, but the empty copy must not be there.
+  await expect(page.getByTestId("clusters-empty")).toHaveCount(0);
+
+  // Once it lands, the section is either populated or honestly empty.
+  await expect
+    .poll(
+      async () =>
+        (await page.getByTestId("clusters-empty").count()) + (await page.getByTestId("cluster-row").count()),
+      { timeout: 15000 },
+    )
+    .toBeGreaterThan(0);
+});

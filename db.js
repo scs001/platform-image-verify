@@ -861,6 +861,16 @@ const MIGRATIONS = [
       `ALTER TABLE bots ADD COLUMN context_budget INTEGER`,
     ],
   },
+  {
+    // add-zhiyu-im-bridge: optional room binding for a bot (`zhiRoomId`, null
+    // = legacy per-chat agent session, byte-identical) plus the output bridge's
+    // restart-safe last-sent cursor (`zhiBridgeCursor`, room message seq).
+    version: 104,
+    statements: [
+      `ALTER TABLE bots ADD COLUMN zhi_room_id TEXT`,
+      `ALTER TABLE bots ADD COLUMN zhi_bridge_cursor INTEGER NOT NULL DEFAULT 0`,
+    ],
+  },
 ];
 
 function nowIso() {
@@ -1092,6 +1102,58 @@ export function getChatMessages(sessionId) {
       // Block structure (nullable JSON; absent on pre-migration rows).
       ...(row.blocks ? { blocks: JSON.parse(row.blocks) } : {}),
     }));
+}
+
+// ── Windowed transcript reads (openspec: polish-web-surfaces) ────────────────
+// The WS `session_loaded` payload carries only a tail window; these are the
+// bounded reads behind it and the paging that walks backwards. `seq` rides
+// along so the client always has a cursor for "load earlier".
+
+function mapChatMessageRow(row) {
+  return {
+    role: row.role,
+    content: row.content,
+    ...(row.blocks ? { blocks: JSON.parse(row.blocks) } : {}),
+    seq: row.seq,
+  };
+}
+
+export function countChatMessages(sessionId) {
+  if (!dbReady) return 0;
+  return db.prepare("SELECT COUNT(*) AS n FROM chat_messages WHERE session_id = ?").get(sessionId)?.n ?? 0;
+}
+
+export function countChatMessagesBefore(sessionId, beforeSeq) {
+  if (!dbReady) return 0;
+  return (
+    db
+      .prepare("SELECT COUNT(*) AS n FROM chat_messages WHERE session_id = ? AND seq < ?")
+      .get(sessionId, beforeSeq)?.n ?? 0
+  );
+}
+
+// The most recent `limit` messages, ascending (the transcript tail).
+export function getChatMessagesTail(sessionId, limit) {
+  if (!dbReady) return [];
+  return db
+    .prepare(
+      "SELECT role, content, blocks, seq FROM chat_messages WHERE session_id = ? ORDER BY seq DESC LIMIT ?"
+    )
+    .all(sessionId, limit)
+    .reverse()
+    .map(mapChatMessageRow);
+}
+
+// Up to `limit` messages immediately older than `beforeSeq`, ascending.
+export function getChatMessagesBefore(sessionId, beforeSeq, limit) {
+  if (!dbReady) return [];
+  return db
+    .prepare(
+      "SELECT role, content, blocks, seq FROM chat_messages WHERE session_id = ? AND seq < ? ORDER BY seq DESC LIMIT ?"
+    )
+    .all(sessionId, beforeSeq, limit)
+    .reverse()
+    .map(mapChatMessageRow);
 }
 
 export function countChatSessions() {
@@ -2698,7 +2760,7 @@ export function deleteUserPreset(id) {
 // server/bots.js — never hand a row straight to res.json().
 
 const BOT_COLS =
-  "id, type, name, enabled, secret, credentials, effort, context_budget AS contextBudget, created_at AS createdAt";
+  "id, type, name, enabled, secret, credentials, effort, context_budget AS contextBudget, zhi_room_id AS zhiRoomId, zhi_bridge_cursor AS zhiBridgeCursor, created_at AS createdAt";
 
 function hydrateBot(row) {
   if (!row) return null;
@@ -2737,7 +2799,7 @@ export function addBot({ id, type, name, credentials, secret, enabled = true, ow
   return getBot(id);
 }
 
-export function updateBot(id, { name, credentials, enabled, effort, contextBudget }) {
+export function updateBot(id, { name, credentials, enabled, effort, contextBudget, zhiRoomId }) {
   if (!dbReady) return null;
   const updates = [];
   const params = { id };
@@ -2752,8 +2814,16 @@ export function updateBot(id, { name, credentials, enabled, effort, contextBudge
     updates.push("context_budget = @context_budget");
     params.context_budget = Number.isFinite(contextBudget) ? contextBudget : null;
   }
+  if (zhiRoomId !== undefined) { updates.push("zhi_room_id = @zhiRoomId"); params.zhiRoomId = zhiRoomId || null; }
   if (updates.length) stmt(`UPDATE bots SET ${updates.join(", ")} WHERE id = @id`).run(params);
   return getBot(id);
+}
+
+// add-zhiyu-im-bridge: the output bridge's restart-safe cursor (room message
+// seq of the last row successfully delivered to IM).
+export function setBotBridgeCursor(botId, seq) {
+  if (!dbReady) return false;
+  return stmt("UPDATE bots SET zhi_bridge_cursor = ? WHERE id = ?").run(Number(seq) || 0, botId).changes > 0;
 }
 
 export function deleteBot(id) {

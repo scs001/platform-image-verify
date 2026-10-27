@@ -76,7 +76,10 @@ export function ZhiyuPage() {
       ]);
       setRooms(r.rooms);
       setInvites(i.invites);
-      setNotices(n.notifications.filter((x) => x.type !== "invite").slice(0, 20));
+      // Show every notification type (invites included) so the panel's row set
+      // matches the unread count exactly — a badge can never point at nothing
+      // (openspec: polish-web-surfaces, zhiyu-room 通知与触达).
+      setNotices(n.notifications.slice(0, 20));
       setEnabled(true);
       setError(null);
     } catch (err) {
@@ -88,6 +91,26 @@ export function ZhiyuPage() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Viewing this page clears the user's unread lane (openspec:
+  // polish-web-surfaces, zhiyu-room 通知与触达). The fresh count is broadcast so
+  // the nav badge clears at once — not on the sidebar's next 60s poll.
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const out = await jcall<{ unread: number }>("POST", "/api/zhiyu/notifications/read-all");
+        if (alive) {
+          window.dispatchEvent(new CustomEvent("zhiyu:unread", { detail: { unread: out.unread } }));
+        }
+      } catch {
+        /* unreachable server: the badge simply stays until the next poll */
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const create = async () => {
     setBusy(true);

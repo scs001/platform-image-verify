@@ -121,6 +121,27 @@ test.describe("fleets board", () => {
     await expect(page.getByTestId("fleets-page")).toBeVisible();
   });
 
+  test("cold load shows placeholders, never the empty copy (polish-web-surfaces)", async ({ page }) => {
+    // Same stub as the shared beforeEach, but DELAYED so the loading frame is
+    // observable. (continue() would bypass the stub and hit the real server,
+    // which has no demo fleet.)
+    await page.route("**/api/fleets", async (route) => {
+      await new Promise((r) => setTimeout(r, 1200));
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ fleets: [{ id: FLEET_ID, name: "Demo Fleet", state: "active", memberCount: 4, statusCounts: DEMO_DETAIL.statusCounts }] }),
+      });
+    });
+    await page.goto("/fleets");
+    await expect(page.getByTestId("fleets-page")).toBeVisible({ timeout: 15000 });
+    // In flight: placeholders stand in; the empty copy must not appear.
+    await expect(page.getByTestId("fleets-loading")).toBeVisible();
+    await expect(page.getByTestId("fleets-empty")).toHaveCount(0);
+    // Once it lands: the list replaces the placeholders.
+    await expect(page.getByTestId("fleet-card-fleet_demo")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("fleets-loading")).toHaveCount(0);
+  });
+
   test("org tree renders depth-ordered posts with derived badges", async ({ page }) => {
     await page.goto("/fleets");
     await expect(page.getByTestId("fleets-page")).toBeVisible({ timeout: 15000 });

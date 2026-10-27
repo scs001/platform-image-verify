@@ -12,8 +12,10 @@ import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router-dom";
 import { useCronStore } from "@platform/core";
 import { useFleetStore } from "@/store/fleet-store";
+import { useListCache } from "@/hooks/useListCache";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { OwnerBoardStrip } from "@/components/fleet/OwnerBoardStrip";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -235,13 +237,45 @@ function cadenceText(t: (k: string, opts?: Record<string, unknown>) => string, c
   return cadence.cron;
 }
 
+const LAST_FLEET_KEY = "fleets.lastSelectedId";
+
+function readRememberedFleet(): string | null {
+  try {
+    return localStorage.getItem(LAST_FLEET_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberFleet(id: string | null): void {
+  try {
+    if (id) localStorage.setItem(LAST_FLEET_KEY, id);
+    else localStorage.removeItem(LAST_FLEET_KEY);
+  } catch {
+    /* storage blocked — the selection just stops persisting */
+  }
+}
+
+async function fetchFleets(): Promise<{ fleets?: FleetRow[] }> {
+  const r = await fetch("/api/fleets");
+  if (!r.ok) throw new Error(`list ${r.status}`);
+  return r.json();
+}
+
 export function FleetsPage() {
   const { t, i18n } = useTranslation();
   const locale = i18n.language;
-  const [fleets, setFleets] = useState<FleetRow[]>([]);
+  // Cached list read (openspec: polish-web-surfaces, web-list-surfaces): the
+  // list paints from cache on re-entry and revalidates in the background, so a
+  // revisit never flashes「还没有集群」. The selection is remembered across
+  // navigations too, so the detail pane does not reset to its empty state.
+  const listCache = useListCache("fleets", fetchFleets);
+  const fleets = listCache.data?.fleets ?? [];
+  const fleetsLoading = listCache.status === "loading";
   const [detail, setDetail] = useState<FleetDetail | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(() => readRememberedFleet());
   const [error, setError] = useState<string | null>(null);
+  const listError = error ?? listCache.error;
   const [createOpen, setCreateOpen] = useState(false);
   const [composerFor, setComposerFor] = useState<string | null>(null); // fleet id
   const [swapFor, setSwapFor] = useState<MemberView | null>(null);
@@ -261,18 +295,6 @@ export function FleetsPage() {
   const [applying, setApplying] = useState(false);
   const [designError, setDesignError] = useState<string | null>(null);
   const navigate = useNavigate();
-
-  const loadList = useCallback(async () => {
-    try {
-      const r = await fetch("/api/fleets");
-      if (!r.ok) throw new Error(`list ${r.status}`);
-      const body = await r.json();
-      setFleets(body.fleets ?? []);
-      setError(null);
-    } catch (e) {
-      setError(String((e as Error).message ?? e));
-    }
-  }, []);
 
   // The cockpit aggregate (agent-fleet-templates): one round-trip carrying
   // the tree + slots + statuses + decisions + daily stream + health + template
@@ -308,9 +330,16 @@ export function FleetsPage() {
     if (routeFleetId && routeFleetId !== selectedId) setSelectedId(routeFleetId);
   }, [routeFleetId, selectedId]);
 
+  // Remember the selection across navigations (the deep link above still wins).
   useEffect(() => {
-    void loadList();
-  }, [loadList]);
+    rememberFleet(selectedId);
+  }, [selectedId]);
+  // A remembered fleet that no longer exists is dropped rather than shown as a
+  // broken selection — the loaded list is the source of truth.
+  useEffect(() => {
+    if (listCache.status !== "loaded") return;
+    if (selectedId && !fleets.some((f) => f.id === selectedId)) setSelectedId(null);
+  }, [listCache.status, fleets, selectedId]);
 
   useEffect(() => {
     if (selectedId) void loadDetail(selectedId);
@@ -501,9 +530,9 @@ export function FleetsPage() {
   }, [fleets, selectedId]);
 
   const refresh = useCallback(async () => {
-    await loadList();
+    await listCache.refresh();
     if (selectedId) await loadDetail(selectedId);
-  }, [loadList, loadDetail, selectedId]);
+  }, [listCache.refresh, loadDetail, selectedId]);
 
   // ── fleet-level ops ───────────────────────────────────────────────────────
 
@@ -523,7 +552,7 @@ export function FleetsPage() {
     if (!r.ok) setError((await r.json().catch(() => ({}))).error ?? `delete ${r.status}`);
     setSelectedId(null);
     setDetail(null);
-    await loadList();
+    await listCache.refresh();
   };
 
   const memberAction = async (path: string, method: "POST" | "DELETE" | "PATCH", body?: Record<string, unknown>) => {
@@ -567,17 +596,15 @@ export function FleetsPage() {
           {t("fleets.create")}
         </Button>
       </div>
-      {error ? (
+      {listError ? (
         <p className="px-4 py-2 text-sm text-destructive" data-testid="fleets-error">
-          {error}
+          {listError}
         </p>
       ) : null}
       <div className="flex min-h-0 flex-1">
         {/* fleet list */}
         <div className="w-64 shrink-0 overflow-y-auto border-r border-border p-3" data-testid="fleet-list">
-          {fleets.length === 0 ? (
-            <p className="px-1 py-4 text-sm text-muted-foreground">{t("fleets.empty")}</p>
-          ) : (
+          {fleets.length > 0 ? (
             fleets.map((f) => (
               <button
                 key={f.id}
@@ -599,13 +626,29 @@ export function FleetsPage() {
                 </span>
               </button>
             ))
+          ) : fleetsLoading ? (
+            // Cold load: placeholders instead of the empty copy, so the list
+            // never claims "还没有集群" before the answer has landed.
+            <div className="space-y-2 px-1 py-2" aria-hidden="true" data-testid="fleets-loading">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="h-16 animate-pulse rounded-md border border-border bg-muted/40" />
+              ))}
+            </div>
+          ) : (
+            <p className="px-1 py-4 text-sm text-muted-foreground" data-testid="fleets-empty">
+              {t("fleets.empty")}
+            </p>
           )}
         </div>
 
         {/* detail */}
         <div className="min-w-0 flex-1 overflow-y-auto p-4" data-testid="fleet-detail">
           {!detail || !selected ? (
-            <p className="text-sm text-muted-foreground">{t("fleets.detail.empty")}</p>
+            <OwnerBoardStrip
+              onSelect={(fleetId) => {
+                setSelectedId(fleetId);
+              }}
+            />
           ) : (
             <>
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1164,7 +1207,7 @@ export function FleetsPage() {
           onClose={() => setCreateOpen(false)}
           onCreated={async (id) => {
             setCreateOpen(false);
-            await loadList();
+            await listCache.refresh();
             setSelectedId(id);
           }}
         />

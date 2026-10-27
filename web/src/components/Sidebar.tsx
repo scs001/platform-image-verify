@@ -383,6 +383,18 @@ export function Sidebar({ send, onNavigate, onCollapse }: Props) {
     };
   }, [location.pathname]);
 
+  // Immediate badge clear (openspec: polish-web-surfaces, zhiyu-room 通知与触达):
+  // the zhiyu page marks the lane read on view and broadcasts the fresh count,
+  // so the badge drops the moment the user looks — no waiting for the 60s poll.
+  useEffect(() => {
+    const onUnread = (e: Event) => {
+      const unread = (e as CustomEvent<{ unread?: number }>).detail?.unread;
+      if (typeof unread === "number") setZhiyuUnread(unread);
+    };
+    window.addEventListener("zhiyu:unread", onUnread);
+    return () => window.removeEventListener("zhiyu:unread", onUnread);
+  }, []);
+
 
   return (
     <nav className="relative flex h-screen flex-col border-r border-border bg-card" data-testid="sidebar">

@@ -211,6 +211,15 @@ interface State {
   // session leaves the `sessions` list. In state (not module scope) only so
   // tests and the e2e seam can inspect it.
   sessionCache: Map<string, Turn[]>;
+  // ── Windowed transcript (polish-web-surfaces) ────────────────────────────
+  // The store holds the LOADED window, not the whole session: `totalTurns` is
+  // the session's full persisted count, `hasMore` says earlier messages remain
+  // to page in, and `oldestSeq` is the paging cursor (seq of the earliest
+  // loaded message). Absent/0 on older servers = treat the loaded list as
+  // complete, today's behavior.
+  transcriptTotal: number;
+  transcriptHasMore: boolean;
+  transcriptOldestSeq: number | null;
   // Optimistic activation: flip the view to the target immediately (pending
   // skeleton, or the cached transcript on re-entry), stash the outgoing view
   // for the failure restore, and fold the outgoing turns into the cache. The
@@ -476,6 +485,56 @@ function snapshotTurns(turns: Turn[]): Turn[] {
   );
 }
 
+// Map a persisted transcript window (or an earlier page) into render turns
+// (polish-web-surfaces): one turn per message, exactly as a load always has.
+// Extracted so `session_loaded` and the paged `session_page` share one shape.
+function turnsFromMessages(messages: ChatMessage[] | undefined): Turn[] {
+  return (messages || []).map<Turn>((msg: ChatMessage) =>
+    msg.role === "user"
+      ? {
+          id: nextId(),
+          role: "user",
+          text: msg.content,
+          // The delegation aggregator's injected summaries carry a leading
+          // task_summary block — keep the styling on reload.
+          ...(msg.blocks?.[0]?.kind === "task_summary" ? { taskSummary: true } : {}),
+        }
+      : {
+          id: nextId(),
+          role: "assistant",
+          // Restore the persisted block structure when present (tool calls
+          // intact, collapsed — an errored one stays open, as it streamed);
+          // plain content is the legacy fallback for pre-migration rows.
+          blocks: msg.blocks?.length
+            ? msg.blocks.map((b) =>
+                b.kind === "tool"
+                  ? {
+                      kind: "tool" as const,
+                      id: b.id,
+                      name: b.name,
+                      args: b.args,
+                      result: b.result,
+                      state: b.state ?? ("done" as const),
+                      open: b.state === "error",
+                    }
+                  : // task_summary markers (user-message injected turns)
+                    // and text blocks: keep the text, drop the marker —
+                    // the flag on the user turn carries the styling.
+                    { kind: "text" as const, text: b.kind === "text" ? b.text : "" },
+              )
+            : [{ kind: "text", text: msg.content }],
+          streaming: false,
+        },
+  );
+}
+
+// The paging cursor of a loaded window: the seq of its earliest message (rows
+// are seq-ordered), or null when the server sent none (older server / live rows).
+function firstSeq(messages: ChatMessage[] | undefined): number | null {
+  const first = (messages || []).find((m) => typeof m.seq === "number");
+  return first?.seq ?? null;
+}
+
 export const useChatStore = create<State>((set) => ({
   status: "connecting",
   models: [],
@@ -522,6 +581,9 @@ export const useChatStore = create<State>((set) => ({
   optimisticSessions: false,
   sessionSwitchBackup: null,
   sessionCache: new Map(),
+  transcriptTotal: 0,
+  transcriptHasMore: false,
+  transcriptOldestSeq: null,
 
   activateSession: (id) =>
     set((state) => {
@@ -1053,46 +1115,14 @@ export const useChatStore = create<State>((set) => ({
           };
 
         case "session_loaded": {
-          const mapped = (m.messages || []).map<Turn>((msg: ChatMessage) =>
-            msg.role === "user"
-              ? {
-                  id: nextId(),
-                  role: "user",
-                  text: msg.content,
-                  // The delegation aggregator's injected summaries carry a
-                  // leading task_summary block — keep the styling on reload.
-                  ...(msg.blocks?.[0]?.kind === "task_summary" ? { taskSummary: true } : {}),
-                }
-              : {
-                  id: nextId(),
-                  role: "assistant",
-                  // Restore the persisted block structure when present (tool
-                  // calls intact, collapsed — an errored one stays open, as it
-                  // streamed); plain content is the legacy fallback for
-                  // pre-migration rows. Reasoning is deliberately NOT persisted
-                  // (see chat-history recordMessage), so a reloaded turn is the
-                  // answer plus the tools that produced it.
-                  blocks: msg.blocks?.length
-                    ? msg.blocks.map((b) =>
-                        b.kind === "tool"
-                          ? {
-                              kind: "tool" as const,
-                              id: b.id,
-                              name: b.name,
-                              args: b.args,
-                              result: b.result,
-                              state: b.state ?? ("done" as const),
-                              open: b.state === "error",
-                            }
-                          : // task_summary markers (user-message injected turns)
-                            // and text blocks: keep the text, drop the marker —
-                            // the flag on the user turn carries the styling.
-                            { kind: "text" as const, text: b.kind === "text" ? b.text : "" },
-                      )
-                    : [{ kind: "text", text: msg.content }],
-                  streaming: false,
-                },
-          );
+          const mapped = turnsFromMessages(m.messages);
+          // Windowed transcript (polish-web-surfaces): a server that pages sends
+          // the counts; an older server omits them (treat the list as complete).
+          const transcript = {
+            transcriptTotal: m.totalTurns ?? mapped.length,
+            transcriptHasMore: m.hasMore ?? false,
+            transcriptOldestSeq: firstSeq(m.messages),
+          };
           // The new-session handshake resolves on structure, not id: the id
           // was minted server-side, and the load that carries it is empty and
           // for a session the client wasn't viewing.
@@ -1127,6 +1157,7 @@ export const useChatStore = create<State>((set) => ({
               return {
                 currentSessionId: m.id,
                 isStreaming: true,
+                ...transcript,
                 todos: [],
                 todoCounts: NO_TODOS,
                 pendingQuestion: null,
@@ -1149,6 +1180,7 @@ export const useChatStore = create<State>((set) => ({
             turns: mapped,
             isStreaming: running,
             suppressed: state.suppressed,
+            ...transcript,
             // A plan belongs to its session: clear on load, then the server's
             // snapshot push (when the target session has one) repopulates it.
             todos: [],
@@ -1166,6 +1198,20 @@ export const useChatStore = create<State>((set) => ({
             // it — the load restores the pending bubble explicitly
             // (concurrent-chat-sessions D4). Absent/null clears it.
             queuedTurn: m.queued ?? null,
+          };
+        }
+
+        case "session_page": {
+          // An earlier page arrived (polish-web-surfaces): prepend it to the
+          // loaded window of the session the client is viewing, and advance the
+          // paging cursor. A page for another session is dropped — the client
+          // only ever asked for its own view.
+          if (m.id !== state.currentSessionId) return {};
+          const page = turnsFromMessages(m.messages);
+          return {
+            turns: [...page, ...state.turns],
+            transcriptHasMore: m.hasMore,
+            transcriptOldestSeq: firstSeq(m.messages) ?? state.transcriptOldestSeq,
           };
         }
 

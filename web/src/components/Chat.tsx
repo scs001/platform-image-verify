@@ -22,10 +22,11 @@ interface Props {
 // noise on a conversation the user can see whole (spec: threshold).
 const OUTLINE_MIN_USER_TURNS = 3;
 
-// Render windowing (perf-session-open): only the transcript's tail mounts on
-// open — Markdown/chart mount cost per turn is what makes a several-hundred-
-// turn session janky. The store keeps the complete list (outline, export,
-// last-turn actions all read it); this slice is a render concern only.
+// Render windowing (perf-session-open; now data-backed by polish-web-surfaces):
+// only the transcript's tail mounts on open — Markdown/chart mount cost per turn
+// is what makes a several-hundred-turn session janky. The store holds the LOADED
+// window (the server sends the tail on open); "load earlier" either grows this
+// window within the loaded turns or fetches the previous page from the server.
 const WINDOW_INITIAL = 50;
 const WINDOW_STEP = 50;
 
@@ -39,6 +40,11 @@ export function Chat({ send, onPrefill }: Props) {
   const queuedTurn = useChatStore((s) => s.queuedTurn);
   const pendingSession = useChatStore((s) => s.pendingSession);
   const currentSessionId = useChatStore((s) => s.currentSessionId);
+  // Windowed transcript (polish-web-surfaces): the loaded window's paging state.
+  const transcriptHasMore = useChatStore((s) => s.transcriptHasMore);
+  const transcriptTotal = useChatStore((s) => s.transcriptTotal);
+  const transcriptOldestSeq = useChatStore((s) => s.transcriptOldestSeq);
+  const [loadingEarlier, setLoadingEarlier] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const stickToBottomRef = useRef(true);
   const flashTimerRef = useRef<number | null>(null);
@@ -86,11 +92,35 @@ export function Chat({ send, onPrefill }: Props) {
   const loadEarlier = () => {
     const el = containerRef.current;
     if (el) prependAnchorRef.current = { height: el.scrollHeight, top: el.scrollTop };
+    // The server still holds earlier messages (windowed payload, polish-web-surfaces):
+    // fetch the previous page. The local render window grows with it so the page
+    // actually mounts.
+    if (transcriptHasMore && currentSessionId && transcriptOldestSeq !== null) {
+      setLoadingEarlier(true);
+      setWindowSize((n) => n + WINDOW_STEP);
+      send({ type: "load_earlier", id: currentSessionId, beforeSeq: transcriptOldestSeq });
+      return;
+    }
+    // Everything is loaded: expand the local render window only.
     setWindowSize((n) => n + WINDOW_STEP);
   };
 
+  // A page (session_page) prepends turns; clear the pending flag when the window
+  // grows (or the session changes) so the affordance never sticks disabled.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: turns.length/currentSessionId are the deliberate triggers for a settled page
+  useEffect(() => {
+    setLoadingEarlier(false);
+  }, [turns.length, currentSessionId]);
+
   const hiddenCount = Math.max(0, turns.length - windowSize);
   const visible = hiddenCount > 0 ? turns.slice(turns.length - windowSize) : turns;
+  // What "load earlier" would reveal: turns scrolled out of the local window
+  // PLUS turns the server has not sent yet (windowed payload). Older servers
+  // send no counts, so transcriptTotal falls back to the loaded length and this
+  // reduces to hiddenCount — today's behavior.
+  const visibleCount = Math.min(windowSize, turns.length);
+  const remaining = Math.max(hiddenCount, Math.max(0, transcriptTotal - visibleCount));
+  const showLoadEarlier = transcriptHasMore || remaining > 0;
 
   // Last-of-role flags over the COMPLETE list (edit/regenerate target the
   // actual last turns even when earlier ones are windowed out) — one O(n)
@@ -152,7 +182,18 @@ export function Chat({ send, onPrefill }: Props) {
     const el = document.getElementById(`turn-${id}`);
     if (!el) {
       const idx = turns.findIndex((t) => t.id === id);
-      if (idx < 0) return;
+      if (idx < 0) {
+        // Not in the loaded window (windowed payload, polish-web-surfaces): pull
+        // the previous page and retry — the pending jump survives the prepend
+        // and the layout effect completes it once the target mounts.
+        if (transcriptHasMore && currentSessionId && transcriptOldestSeq !== null) {
+          pendingJumpRef.current = id;
+          setLoadingEarlier(true);
+          setWindowSize((n) => n + WINDOW_STEP);
+          send({ type: "load_earlier", id: currentSessionId, beforeSeq: transcriptOldestSeq });
+        }
+        return;
+      }
       pendingJumpRef.current = id;
       setWindowSize((n) => Math.max(n, turns.length - idx));
       return;
@@ -207,14 +248,15 @@ export function Chat({ send, onPrefill }: Props) {
           )
         ) : (
           <div className="mx-auto flex max-w-4xl flex-col gap-6">
-            {hiddenCount > 0 && (
+            {showLoadEarlier && (
               <button
                 type="button"
                 onClick={loadEarlier}
+                disabled={loadingEarlier}
                 data-testid="load-earlier"
-                className="mx-auto rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                className="mx-auto rounded-full border border-border bg-card px-3 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
               >
-                {t("chat.loadEarlier", { count: hiddenCount })}
+                {t("chat.loadEarlier", { count: remaining })}
               </button>
             )}
             {visible.map((t, vi) => {

@@ -13,11 +13,11 @@
 // the pack marketplace (moved out of Settings) on deployments that report it.
 // Featured items appear first; entries sort by id within their tier.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
-import { useChatStore } from "@platform/core";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import { useListCache } from "@/hooks/useListCache";
 import { AGENTS_TAB_SURFACES } from "@platform/core";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
@@ -29,6 +29,32 @@ import type { AgentInfo } from "@platform/core";
 
 type Tab = "agents" | "market";
 
+// A dynamic cluster row; shape mirrors GET /api/clusters/mine exactly.
+interface MineCluster {
+  clusterId: string;
+  name: string;
+  agentCount: number;
+  status: string;
+}
+
+// Module-level fetchers: stable identities for useListCache. Non-JSON (an SPA
+// fallback or an older server without the route) means "no clusters", never a
+// thrown parse error.
+async function fetchCatalogPage(): Promise<{ agents?: AgentInfo[] }> {
+  const r = await fetch("/api/catalog");
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+async function fetchMineClusters(): Promise<{ clusters: MineCluster[] }> {
+  const r = await fetch("/api/clusters/mine");
+  if (!r.ok || !(r.headers.get("content-type") || "").includes("application/json")) {
+    return { clusters: [] };
+  }
+  const data = await r.json();
+  return { clusters: data.clusters ?? [] };
+}
+
 // The tab label keys live client-side (the registry carries slugs/testids —
 // labels are presentation). One map, so a new tab cannot land with a missing
 // label silently.
@@ -39,22 +65,18 @@ const TAB_LABEL_KEYS: Record<string, string> = {
 
 export function AgentsPage() {
   const { t } = useTranslation();
-  const catalogVersion = useChatStore((s) => s.catalogVersion);
   const { packMarketplace, resolvedLayout } = useAppConfig();
-  const [agents, setAgents] = useState<AgentInfo[]>([]);
-  const [error, setError] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
-  
-  // Dynamic clusters (agent-cluster-platform)
-  // Shape mirrors GET /api/clusters/mine exactly. `clusterId` (not `id`) — the
-  // mismatch silently produced GET /api/clusters/undefined.
-  const [dynamicClusters, setDynamicClusters] = useState<Array<{
-    clusterId: string;
-    name: string;
-    agentCount: number;
-    status: string;
-  }>>([]);
-  const [loadingClusters, setLoadingClusters] = useState(false);
+
+  // Both reads are cached (openspec: polish-web-surfaces, web-list-surfaces):
+  // a revisit paints instantly from cache and revalidates in the background,
+  // instead of showing an empty grid / clusters area and waiting for a refetch.
+  const catalog = useListCache("catalog", fetchCatalogPage);
+  const mine = useListCache("clusters.mine", fetchMineClusters);
+  const agents = catalog.data?.agents ?? [];
+  const error = catalog.error;
+  const dynamicClusters = mine.data?.clusters ?? [];
+
   const [composerOpen, setComposerOpen] = useState(false);
   // Cluster detail (Manage): the summary row carries no agent list, so the full
   // record is fetched on open. Terminate is the one lifecycle action here.
@@ -67,25 +89,6 @@ export function AgentsPage() {
     agents?: Array<{ agentId: string; packId: string; status: string }>;
   } | null>(null);
   const [detailBusy, setDetailBusy] = useState(false);
-  
-  const loadUserClusters = async () => {
-    setLoadingClusters(true);
-    try {
-      const r = await fetch("/api/clusters/mine");
-      // Non-JSON (SPA fallback / older server without the route) is "no clusters",
-      // never a thrown parse error in the console.
-      if (!r.ok || !(r.headers.get("content-type") || "").includes("application/json")) {
-        setDynamicClusters([]);
-        return;
-      }
-      const data = await r.json();
-      setDynamicClusters(data.clusters ?? []);
-    } catch {
-      setDynamicClusters([]);
-    } finally {
-      setLoadingClusters(false);
-    }
-  };
 
   // The tab set comes from the server-resolved layout (layout-configuration);
   // without it (older server) the client falls back to the factory set with
@@ -139,37 +142,12 @@ export function AgentsPage() {
       const r = await fetch(`/api/clusters/${encodeURIComponent(clusterId)}`, { method: "DELETE" });
       if (r.ok) {
         setDetail(null);
-        void loadUserClusters();
+        void mine.refresh();
       }
     } finally {
       setDetailBusy(false);
     }
   };
-
-  // Dynamic clusters (agent-cluster-platform): load once per tab entry. Declared
-  // AFTER activeTab — referencing it earlier is a TDZ crash that unmounts the tree.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: loadUserClusters is stable-by-intent; activeTab is the trigger
-  useEffect(() => {
-    if (activeTab === "agents") void loadUserClusters();
-  }, [activeTab]);
-
-  // catalogVersion bumps on `catalog_changed` — refetch so cloud edits show up live.
-  const refresh = useCallback(async () => {
-    try {
-      const r = await fetch("/api/catalog");
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const c = await r.json();
-      setAgents(c.agents ?? []);
-      setError(null);
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }, []);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `catalogVersion` is the deliberate trigger — refetch when the catalog change broadcast bumps it
-  useEffect(() => {
-    refresh();
-  }, [refresh, catalogVersion]);
 
   const switchTab = (next: Tab) => {
     const sp = new URLSearchParams(searchParams);
@@ -271,13 +249,11 @@ export function AgentsPage() {
                     />
                   ))}
                 </div>
-              ) : (
-                !loadingClusters && (
-                  <p className="text-xs text-muted-foreground" data-testid="clusters-empty">
-                    {t("agentsPage.clustersEmpty")}
-                  </p>
-                )
-              )}
+              ) : mine.status === "loaded" ? (
+                <p className="text-xs text-muted-foreground" data-testid="clusters-empty">
+                  {t("agentsPage.clustersEmpty")}
+                </p>
+              ) : null}
             </div>
             
             {/* Catalog experts grid */}
@@ -300,7 +276,7 @@ export function AgentsPage() {
               onOpenChange={setComposerOpen}
               onSuccess={() => {
                 setComposerOpen(false);
-                void loadUserClusters();
+                void mine.refresh();
               }}
             />
 

@@ -479,6 +479,18 @@ export function createZhiyuStore({ file }) {
     notificationMarkRead(email, nid) {
       db.prepare(`UPDATE zy_notifications SET read_at = ? WHERE id = ? AND email = ? AND read_at IS NULL`).run(now(), nid, email);
     },
+    // Bulk clear (openspec: polish-web-surfaces, zhiyu-room 通知与触达): viewing
+    // the zhiyu page marks the user's whole unread lane read in one statement.
+    notificationMarkAllRead(email) {
+      db.prepare(`UPDATE zy_notifications SET read_at = ? WHERE email = ? AND read_at IS NULL`).run(now(), email);
+    },
+    // Clear the notifications a specific room produced for a user of a given
+    // type — used when an invite is accepted/declined so its notice clears too.
+    notificationMarkReadBy(email, { type, roomId = null }) {
+      db.prepare(
+        `UPDATE zy_notifications SET read_at = ? WHERE email = ? AND type = ? AND room_id IS ? AND read_at IS NULL`,
+      ).run(now(), email, type, roomId);
+    },
 
     // ── Widget tokens (website embed) ────────────────────────────────────────
     widgetTokenCreate({ rowId = null, roomId, secHash, fingerprint, allowlist = [], siteSecretHash, kind = "embed" }) {

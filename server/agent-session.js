@@ -145,10 +145,27 @@ async function createNewSession(ownerEmail = null) {
 // that file and reload the agent's in-memory messages from it so the conversation
 // continues with full context. A live response is stopped after the target is
 // validated, so a bad target never costs the in-flight turn.
+// Session-open cost probe (openspec: polish-web-surfaces, task 3.1): one line
+// per switch carrying the wall time and the serialized transcript size, so the
+// payload lever is MEASURED on real data instead of guessed (the perf-session-open
+// lesson: it optimized the client because only the client was measured).
+function logSwitchCost(id, startedAt, messages) {
+  try {
+    const rows = messages ?? [];
+    console.log(
+      `[session-open] switch ${id} ms=${Date.now() - startedAt} messages=${rows.length} bytes=${Buffer.byteLength(JSON.stringify(rows))}`,
+    );
+  } catch {
+    /* a probe must never break the switch */
+  }
+}
+
 async function switchToSession(id) {
+  const startedAt = Date.now();
   const currentId = chatHistory.currentSessionId();
   if (id === currentId) {
     const sess = await chatHistory.getSession(id);
+    logSwitchCost(id, startedAt, sess?.messages);
     return { id, title: sess?.title || "Chat", messages: sess?.messages || [] };
   }
 
@@ -158,6 +175,7 @@ async function switchToSession(id) {
   const sess = await chatHistory.getSession(id);
   if (ctx.sessionVersion !== version) throw new Error("Session changed while loading");
   if (!sess) throw new Error(`session ${id} not found`);
+  logSwitchCost(id, startedAt, sess.messages);
   await stopStreamingForSessionNavigation();
   ctx.session.sessionManager.setSessionId(id);
   bumpSessionVersion();

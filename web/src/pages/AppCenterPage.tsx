@@ -12,11 +12,12 @@
 //     null independently: no products without a catalog, no badges or
 //     connect actions without a status projection — never a broken page.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { ExternalLink, Layers, Scale, Store, Orbit, Database, Package, Coins, Plug, PlugZap, ShieldAlert } from "lucide-react";
 import { useAppConfig } from "@/hooks/useAppConfig";
+import { useListCache } from "@/hooks/useListCache";
 import {
   APP_LINES,
   buildAppGrid,
@@ -237,34 +238,37 @@ function AppCard({ entry, states }: { entry: AppGridEntry; states: Record<string
   );
 }
 
+// Module-level fetchers: stable identities for useListCache.
+async function fetchCatalog(): Promise<{ apps?: CatalogApp[] }> {
+  const r = await fetch("/api/catalog");
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+async function fetchConnectionStates(): Promise<Record<string, string>> {
+  const r = await fetch("/api/connections");
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  const c = await r.json();
+  const byId: Record<string, string> = {};
+  for (const item of c.connections ?? []) byId[item.id] = item.state;
+  return byId;
+}
+
 export function AppCenterPage() {
   const { t } = useTranslation();
-  // null = the fetch failed or hasn't landed; brand cards render regardless.
-  const [apps, setApps] = useState<CatalogApp[] | null>(null);
-  const [states, setStates] = useState<Record<string, string> | null>(null);
-
-  const load = useCallback(async () => {
-    // Parallel and independent: a dead catalog keeps badges, a dead
-    // /api/connections keeps the cards — neither blocks the other.
-    fetch("/api/catalog")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((c) => setApps(c.apps ?? []))
-      .catch(() => setApps(null));
-    fetch("/api/connections")
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((c) => {
-        const byId: Record<string, string> = {};
-        for (const item of c.connections ?? []) byId[item.id] = item.state;
-        setStates(byId);
-      })
-      .catch(() => setStates(null));
-  }, []);
-
-  useEffect(() => {
-    load();
-  }, [load]);
-
+  // Two independent cached reads (openspec: polish-web-surfaces,
+  // web-list-surfaces): a dead /api/catalog keeps the brand cards, a dead
+  // /api/connections keeps the cards — neither blocks the other. Both are
+  // seeded from cache, so a revisit paints the full grid instead of flashing
+  // the five static brand cards and then growing into the products.
+  const catalog = useListCache("catalog", fetchCatalog);
+  const connections = useListCache("connections", fetchConnectionStates);
+  const apps = catalog.data?.apps ?? null;
+  const states = connections.data;
   const grid = useMemo(() => buildAppGrid(APP_LINES, apps), [apps]);
+  // Cold load (no cache yet): the product slots are unknown, so placeholder
+  // tiles stand in — the grid never reads as "complete at five" and then grows.
+  const showProductSkeleton = catalog.status === "loading" && apps === null;
 
   return (
     <main className="h-full overflow-y-auto bg-background" data-testid="app-center-page">
@@ -276,6 +280,15 @@ export function AppCenterPage() {
           {grid.map((entry) => (
             <AppCard key={entry.id} entry={entry} states={states} />
           ))}
+          {showProductSkeleton &&
+            [0, 1, 2].map((i) => (
+              <div
+                key={`app-card-skeleton-${i}`}
+                data-testid="app-card-skeleton"
+                aria-hidden="true"
+                className="h-[152px] animate-pulse rounded-lg border border-border bg-muted/40"
+              />
+            ))}
         </div>
       </div>
     </main>

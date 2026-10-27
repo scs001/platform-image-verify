@@ -166,6 +166,23 @@ const sendIfOpen = (ws, payload) => {
   }
 };
 
+// Windowed transcript for `session_loaded` (openspec: polish-web-surfaces,
+// web-chat-server): only the tail window rides the first frame, plus the counts
+// the client pages backwards with. Falls back to the switch result's messages
+// when the session has no mirrored rows yet (paging then disabled — nothing
+// older exists on disk).
+const windowTranscript = async (result) => {
+  const win = await chatHistory
+    .getSessionWindow(result.id, { fallbackMessages: result.messages, fallbackTitle: result.title })
+    .catch(() => null);
+  return {
+    title: win?.title ?? result.title,
+    messages: win?.messages ?? result.messages ?? [],
+    totalTurns: win?.totalTurns ?? (result.messages ?? []).length,
+    hasMore: win?.hasMore ?? false,
+  };
+};
+
 const syncPermissionState = async (ws) => {
   const { options, current } = await ctx.getPermissionPresets();
   sendIfOpen(ws, { type: "permissions", options, current });
@@ -1021,13 +1038,20 @@ ctx.wss.on("connection", (ws, req) => {
         // of the session would clobber co-viewing pages' live state, and
         // refreshes carry no list-wide change worth a sessions broadcast.
         if (data.resync === true && !ctx.isStreamingFor(data.id)) {
+          // Windowed read, with the live-session fallback preserved: getSession
+          // still provides the in-memory messages for the not-yet-mirrored case.
           const sess = await chatHistory.getSession(data.id).catch(() => null);
+          const win = await chatHistory
+            .getSessionWindow(data.id, { fallbackMessages: sess?.messages, fallbackTitle: sess?.title })
+            .catch(() => null);
           ws.viewedSession = data.id;
           sendIfOpen(ws, {
             type: "session_loaded",
             id: data.id,
-            title: sess?.title || "Chat",
-            messages: sess?.messages || [],
+            title: win?.title || "Chat",
+            messages: win?.messages || [],
+            totalTurns: win?.totalTurns ?? 0,
+            hasMore: win?.hasMore ?? false,
             running: false,
             queued: ctx.queuedViewFor?.(data.id) ?? null,
           });
@@ -1052,11 +1076,14 @@ ctx.wss.on("connection", (ws, req) => {
               running && buf && !buf.overflow && buf.events.length > 0
                 ? buf.events.map((e) => ({ ...e }))
                 : undefined;
+            const win = await windowTranscript(result);
             sendIfOpen(ws, {
               type: "session_loaded",
               id: result.id,
-              title: result.title,
-              messages: result.messages,
+              title: win.title,
+              messages: win.messages,
+              totalTurns: win.totalTurns,
+              hasMore: win.hasMore,
               running,
               ...(turnEvents ? { turnEvents } : {}),
               queued: ctx.queuedViewFor?.(result.id) ?? null,
@@ -1084,11 +1111,14 @@ ctx.wss.on("connection", (ws, req) => {
           // Per-viewer delivery: the requester (now viewing the target) plus
           // any other connection already viewing it. Foreign clients keep
           // their own view and their own transcript.
+          const win = await windowTranscript(result);
           ctx.sendToViewers(result.id, {
             type: "session_loaded",
             id: result.id,
-            title: result.title,
-            messages: result.messages,
+            title: win.title,
+            messages: win.messages,
+            totalTurns: win.totalTurns,
+            hasMore: win.hasMore,
             running,
             ...(turnEvents ? { turnEvents } : {}),
             queued: ctx.queuedViewFor?.(result.id) ?? null,
@@ -1110,6 +1140,40 @@ ctx.wss.on("connection", (ws, req) => {
           ctx.sendToViewers(result.id, ctx.toolGateMessage(result.id));
           ctx.sendToViewers(result.id, { type: "session_changed", id: result.id });
           void ctx.broadcastSessions();
+        } catch (err) {
+          ws.send(JSON.stringify({ type: "error", message: err.message }));
+        }
+        break;
+      }
+
+      case "load_earlier": {
+        // Page backwards through a long transcript (openspec: polish-web-surfaces,
+        // web-chat-server). Same ownership gate as switch_session; the page goes
+        // to the REQUESTER only (paging is a per-viewer read, not a broadcast).
+        const access = chatHistory.accessSession(ws.user, data.id, {
+          authEnabled: ctx.authEnabled,
+          isAdmin: ctx.isAdminUser?.(ws.user),
+        });
+        if (!access.ok) {
+          ws.send(
+            JSON.stringify({
+              type: "error",
+              message:
+                access.reason === "forbidden"
+                  ? "You do not have access to this session"
+                  : `session ${data.id} not found`,
+            })
+          );
+          break;
+        }
+        try {
+          const page = await chatHistory.getEarlierMessages(data.id, data.beforeSeq);
+          sendIfOpen(ws, {
+            type: "session_page",
+            id: data.id,
+            messages: page.messages,
+            hasMore: page.hasMore,
+          });
         } catch (err) {
           ws.send(JSON.stringify({ type: "error", message: err.message }));
         }

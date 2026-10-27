@@ -17,6 +17,7 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-
 import { useTranslation } from "react-i18next";
 import { PanelLeft } from "lucide-react";
 import { useChatStore } from "@platform/core";
+import { listCacheClear, listCacheInvalidate } from "@/lib/listCache";
 import { usePreviewStore } from "@/hooks/usePreviewStore";
 import { useAuthStore } from "@/hooks/useAuth";
 import { useWebSocket } from "@/hooks/useWebSocket";
@@ -96,6 +97,22 @@ export default function App() {
   useEffect(() => {
     void auth.refresh();
   }, [auth.refresh]);
+
+  // List-cache wiring (openspec: polish-web-surfaces, web-list-surfaces). The
+  // catalog is role-filtered per user, so the cache must never cross identities:
+  // clear it whenever the authenticated identity changes. window-focus
+  // revalidation lives in the hook itself.
+  const catalogVersion = useChatStore((s) => s.catalogVersion);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `identityKey` is the deliberate trigger — an identity switch invalidates everything cached for the previous one
+  useEffect(() => {
+    listCacheClear();
+  }, [identityKey]);
+  // `catalog_changed` (cloud catalog edits, catalogVersion bump) invalidates the
+  // catalog read so live edits show up without a manual reload.
+  useEffect(() => {
+    if (catalogVersion === 0) return;
+    listCacheInvalidate("catalog");
+  }, [catalogVersion]);
 
   const authReady = !auth.loading;
   const loginRequired = authEnabled && !auth.authenticated;

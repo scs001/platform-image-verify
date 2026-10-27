@@ -48,6 +48,9 @@ function reset() {
     optimisticSessions: false,
     sessionSwitchBackup: null,
     sessionCache: new Map(),
+    transcriptTotal: 0,
+    transcriptHasMore: false,
+    transcriptOldestSeq: null,
     isStreaming: false,
     todos: [],
     todoCounts: { pending: 0, inProgress: 0, completed: 0 },
@@ -227,4 +230,71 @@ test("2.1 a done while viewing refreshes the viewed session's entry", () => {
   apply(loaded("B", ["b1"]));
   state().activateSession("A");
   assert.equal(state().turns.length, 3);
+});
+
+// ── Windowed transcript + paging (polish-web-surfaces) ───────────────────────
+
+// A windowed load: messages carry their paging cursor, plus the counts.
+const windowed = (id, texts, { totalTurns, hasMore } = {}) => ({
+  type: "session_loaded",
+  id,
+  title: id,
+  messages: texts.map((t, i) => ({ role: "user", content: t, seq: (hasMore ? 51 : 1) + i })),
+  totalTurns: totalTurns ?? texts.length,
+  hasMore: hasMore ?? false,
+});
+
+test("3.2 a windowed load records the counts and the earliest cursor", () => {
+  reset();
+  apply(windowed("L", ["m51", "m52"], { totalTurns: 80, hasMore: true }));
+  assert.equal(state().turns.length, 2, "only the window is in the store");
+  assert.equal(state().transcriptTotal, 80, "the full count rides the load");
+  assert.equal(state().transcriptHasMore, true);
+  assert.equal(state().transcriptOldestSeq, 51, "cursor = the earliest loaded seq");
+});
+
+test("3.5 a pre-windowing load (no counts) reads as complete", () => {
+  reset();
+  apply(loaded("A", ["a1", "a2"]));
+  assert.equal(state().transcriptTotal, 2, "falls back to the loaded length");
+  assert.equal(state().transcriptHasMore, false, "older servers have nothing to page");
+  assert.equal(state().transcriptOldestSeq, null, "no seq on legacy messages");
+});
+
+// User turns carry `text`; assistant turns carry content in `blocks` — read
+// whichever the role uses.
+const textOf = (t) => (t.role === "user" ? t.text : (t.blocks?.[0]?.text ?? ""));
+
+test("3.4 a session_page prepends the earlier turns and advances the cursor", () => {
+  reset();
+  apply(windowed("L", ["m51", "m52"], { totalTurns: 80, hasMore: true }));
+  apply({
+    type: "session_page",
+    id: "L",
+    messages: [
+      { role: "user", content: "m49", seq: 49 },
+      { role: "assistant", content: "m50", seq: 50 },
+    ],
+    hasMore: true,
+  });
+  assert.deepEqual(
+    state().turns.map(textOf),
+    ["m49", "m50", "m51", "m52"],
+    "the page mounts above the existing window",
+  );
+  assert.equal(state().transcriptOldestSeq, 49, "the cursor moves to the page's first seq");
+  assert.equal(state().transcriptHasMore, true);
+
+  // The oldest page ends the paging.
+  apply({ type: "session_page", id: "L", messages: [{ role: "user", content: "m1", seq: 1 }], hasMore: false });
+  assert.equal(state().transcriptHasMore, false);
+  assert.equal(textOf(state().turns[0]), "m1");
+});
+
+test("3.4 a page for a session the client is not viewing is dropped", () => {
+  reset();
+  apply(windowed("L", ["m51"], { totalTurns: 80, hasMore: true }));
+  apply({ type: "session_page", id: "OTHER", messages: [{ role: "user", content: "x", seq: 1 }], hasMore: false });
+  assert.equal(state().turns.length, 1, "the viewed transcript is untouched");
+  assert.equal(state().transcriptHasMore, true, "and its paging state is untouched");
 });

@@ -54,16 +54,22 @@ jobs:
 
       - name: Push snapshot and dispatch the pool run
         if: env.POOL_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ secrets.BUILD_POOL_TOKEN }}
         run: |
           set -euo pipefail
+          # OAuth tokens (gho_) reject the x-access-token: URL form — go
+          # through gh's own credential helper instead (Basic auth, the same
+          # path gh itself uses for git over HTTPS).
+          gh auth setup-git
           cd "$RUNNER_TEMP/snap"
           git init -q -b "$SNAP_BRANCH"
           git add -A
           git -c user.name='nonweb-daily' -c user.email='ci@finddata.local' \
             commit -qm "paas @ ${GITHUB_SHA} — daily acceptance snapshot"
-          git push -q -f "https://x-access-token:${POOL_TOKEN}@github.com/${POOL_REPO}.git" "HEAD:${SNAP_BRANCH}"
-          GH_TOKEN="$POOL_TOKEN" gh workflow run app-e2e.yml -R "$POOL_REPO" --ref "$SNAP_BRANCH"
+          git push -q -f "https://github.com/${POOL_REPO}.git" "HEAD:${SNAP_BRANCH}"
+          gh workflow run app-e2e.yml -R "$POOL_REPO" --ref "$SNAP_BRANCH"
           sleep 10
-          GH_TOKEN="$POOL_TOKEN" gh run list -R "$POOL_REPO" --workflow app-e2e.yml --limit 1 \
+          gh run list -R "$POOL_REPO" --workflow app-e2e.yml --limit 1 \
             --json databaseId,status,headBranch,url \
             --jq '.[] | "\(.url) [\(.headBranch)] \(.status)"' | tee -a "$GITHUB_STEP_SUMMARY"

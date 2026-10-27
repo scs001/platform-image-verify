@@ -18,7 +18,7 @@ import os from "node:os";
 import path from "node:path";
 
 const { createSteward } = await import("../supervisor/steward.js");
-const { attachSteward, createStewardClient, readStewardDiscovery } = await import("../supervisor/steward-client.js");
+const { attachSteward, readStewardDiscovery } = await import("../supervisor/steward-client.js");
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "steward-"));
 

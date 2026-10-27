@@ -11,7 +11,6 @@
 //     bind code, by design (see cell-lifecycle destroy protocol)
 
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { STEWARD_PROTOCOL_VERSION } from "../lib/cell-lifecycle.js";
 import { readCronJobs, cellJobsFile } from "../lib/cell-lifecycle.js";

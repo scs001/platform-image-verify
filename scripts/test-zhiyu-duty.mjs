@@ -78,7 +78,7 @@ test("6.1 prompt partition: own private window in, other members' out", async ()
 });
 
 test("6.2 takeover/handback flip presences and stream events", async () => {
-  const { base, cli, zhiyu, close } = await boot({ calls: [] });
+  const { cli, zhiyu, close } = await boot({ calls: [] });
   const a = cli("a@x");
   const c = cli("c@x");
   const roomId = (await a.post("/api/zhiyu/rooms", { title: "" })).body.room.id;
@@ -107,7 +107,7 @@ test("6.2 takeover/handback flip presences and stream events", async () => {
 test("6.3 呼叫: needs_you streams, notify fires, on-duty facade speaks the call line", async () => {
   const calls = [];
   const notifyCalls = [];
-  const { base, cli, zhiyu, close } = await boot({ calls, notifyCalls });
+  const { cli, zhiyu, close } = await boot({ calls, notifyCalls });
   const a = cli("a@x");
   const c = cli("c@x");
   const roomId = (await a.post("/api/zhiyu/rooms", { title: "呼叫房" })).body.room.id;
@@ -139,7 +139,7 @@ test("6.4 live lane stamps visitor_scope = sha256(room×asker)32 on facade turns
   });
   const seen = {};
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (url, init) => {
+  globalThis.fetch = async (_url, init) => {
     seen.body = JSON.parse(init.body);
     seen.headers = init.headers;
     const sse = `event: message\ndata: ${JSON.stringify({ parts: [{ kind: "text", text: "收到" }] })}\n\n`;

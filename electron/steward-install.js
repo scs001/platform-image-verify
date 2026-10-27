@@ -9,7 +9,6 @@
 // path deregisters AND stops; on macOS a drag-deleted .app can't run hooks,
 // so the steward also self-cleans when its bundle is gone (see steward-main).
 
-import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 

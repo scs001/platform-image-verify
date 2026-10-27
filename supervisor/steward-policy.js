@@ -53,7 +53,7 @@ export function createPolicyEngine({
 
   // Next due moment across enabled rows. Parses cron+tz from the persisted
   // record itself — no engine, no process, no probe (spec-canon).
-  function nextDueAt(jobs, fromMs) {
+  function _nextDueAt(jobs, fromMs) {
     let next = null;
     for (const j of jobs) {
       if (j?.paused || !j?.cron || j?.type !== "recurring") continue;

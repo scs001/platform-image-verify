@@ -46,7 +46,7 @@ async function boot() {
 }
 
 test("8.1 invite + call land unread rows; mark-read keeps the counter honest", async () => {
-  const { base, cli, close } = await boot();
+  const { cli, close } = await boot();
   const a = cli("a@x");
   const b = cli("b@x");
   const roomId = (await a.post("/api/zhiyu/rooms", { title: "铃" })).body.room.id;
@@ -76,7 +76,7 @@ test("8.1 invite + call land unread rows; mark-read keeps the counter honest", a
 });
 
 test("8.2 room end delivers a minutes digest to members and facade principals", async () => {
-  const { base, cli, close } = await boot();
+  const { cli, close } = await boot();
   const a = cli("a@x");
   const b = cli("b@x");
   const c = cli("c@x");

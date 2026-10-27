@@ -45,7 +45,7 @@ export function breakerConfig() {
 
 const lanes = new Map(); // laneId -> { failures: number[], openUntil: number|null }
 
-function stateOf(laneId, now) {
+function stateOf(laneId, _now) {
   let s = lanes.get(laneId);
   if (!s) {
     s = { failures: [], openUntil: null };

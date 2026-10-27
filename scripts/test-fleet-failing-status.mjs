@@ -20,7 +20,7 @@ import assert from "node:assert/strict";
 
 const { deriveMemberStatus } = await import("../server/fleet-reconcile.js");
 
-const HOUR = 60 * 60 * 1000;
+const _HOUR = 60 * 60 * 1000;
 const NOW = Date.parse("2026-10-26T12:00:00Z");
 
 const member = (over = {}) => ({

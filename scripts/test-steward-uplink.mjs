@@ -24,7 +24,7 @@ const { createMpBindings, APP_KEY_PREFIX } = await import("../gateway/mp-binding
 const { createAppAuth } = await import("../gateway/app-auth.js");
 const { verifyMpJwt } = await import("../gateway/mp-auth.js");
 const { createCellReportDoor } = await import("../gateway/cell-report.js");
-const { createKeyStorage, generateDeviceKeypair } = await import("../supervisor/steward-identity.js");
+const { createKeyStorage } = await import("../supervisor/steward-identity.js");
 const { createStewardReporter } = await import("../supervisor/steward-reporter.js");
 
 const ED25519_PKCS8_PREFIX = Buffer.from("302e020100300506032b657004220420", "hex");

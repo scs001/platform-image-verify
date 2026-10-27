@@ -19,9 +19,9 @@ import assert from "node:assert/strict";
 
 const { deriveMemberStatus } = await import("../server/fleet-reconcile.js");
 const { withinToleranceWindow } = await import("../cron.js");
-const engine = await import("../task-engine.js");
+const _engine = await import("../task-engine.js");
 
-const HOUR = 60 * 60 * 1000;
+const _HOUR = 60 * 60 * 1000;
 const member = (over = {}) => ({
   id: "m_1",
   fleetId: "f_1",

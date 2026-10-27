@@ -15,7 +15,7 @@
 //
 // Run: node --test scripts/test-fleet-turn-attribution.mjs
 
-import { test, beforeEach } from "node:test";
+import { test, } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import os from "node:os";
@@ -32,7 +32,7 @@ const chatHistory = await import("../chat-history.js");
 const { initDb } = await import("../db.js");
 const { attachCronRunner } = await import("../server/cron-runner.js");
 const { timeoutError } = await import("../server/cron-runner.js");
-const { laneKeyFor, breakerConfig, recordUpstreamFailure, recordUpstreamSuccess, breakerState, resetLanes } = await import("../server/llm-lane.js");
+const { laneKeyFor, recordUpstreamFailure, recordUpstreamSuccess, breakerState, resetLanes } = await import("../server/llm-lane.js");
 const { shapeTurnOutcome } = await import("../server/fleet-events.js");
 const fleetsDbMod = await import("../server/routes/fleets-db.js");
 

@@ -192,6 +192,7 @@ async function refreshStewardPanel() {
     stewardInstallBtn.style.display = '';
     stewardUninstallBtn.style.display = 'none';
   }
+  await refreshPairPanel(st);
 }
 
 document.getElementById('stewardInstallBtn').addEventListener('click', async () => {
@@ -251,10 +252,3 @@ document.getElementById('stewardUnpairBtn')?.addEventListener('click', async () 
   statusEl.textContent = r.ok ? '✓ 已解除配对并停上报（凭据已焚毁）' : `✗ 解配失败：${r.error}`;
   await refreshStewardPanel();
 });
-
-const _origRefreshStewardPanel = refreshStewardPanel;
-refreshStewardPanel = async function () {
-  await _origRefreshStewardPanel();
-  const st = await window.platform.getStewardStatus();
-  await refreshPairPanel(st);
-};

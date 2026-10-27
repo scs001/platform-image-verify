@@ -8,7 +8,6 @@
 
 import { ipcMain } from "electron";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";

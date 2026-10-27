@@ -16,6 +16,10 @@ export function ChartView({ option, height = 220 }: { option: unknown; height?: 
   const webRef = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Render outcome, exposed as native testIDs (chart-loading|ok|fallback) so
+  // device lanes can assert "the chart rendered, the fallback never showed"
+  // without reaching inside the WebView (automate-nonweb-acceptance 1.3).
+  const [ok, setOk] = useState(false);
   // Settled by the shell's postMessage('ok'|'fail') after setOption; without
   // it the 4s degrade timer flipped every healthy chart to the fallback.
   const settled = useRef(false);
@@ -23,6 +27,7 @@ export function ChartView({ option, height = 220 }: { option: unknown; height?: 
   useEffect(() => {
     if (!ready || failed) return;
     settled.current = false;
+    setOk(false);
     webRef.current?.postMessage(JSON.stringify(option));
     // The degrade contract: no confirmation within 4s = treat as failure.
     const t = setTimeout(() => {
@@ -33,7 +38,7 @@ export function ChartView({ option, height = 220 }: { option: unknown; height?: 
 
   if (failed) {
     return (
-      <View style={[styles.fallback, { height }]}>
+      <View testID="chart-fallback" style={[styles.fallback, { height }]}>
         <Text style={styles.fallbackText} selectable>
           {JSON.stringify(option, null, 1).slice(0, 600)}
         </Text>
@@ -42,7 +47,10 @@ export function ChartView({ option, height = 220 }: { option: unknown; height?: 
   }
 
   return (
-    <View style={{ height, borderRadius: 12, overflow: "hidden", backgroundColor: palette.card, borderWidth: 1, borderColor: palette.line }}>
+    <View
+      testID={ok ? "chart-ok" : "chart-loading"}
+      style={{ height, borderRadius: 12, overflow: "hidden", backgroundColor: palette.card, borderWidth: 1, borderColor: palette.line }}
+    >
       <WebView
         ref={webRef}
         source={{ html: SHELL }}
@@ -51,7 +59,10 @@ export function ChartView({ option, height = 220 }: { option: unknown; height?: 
         onMessage={(e) => {
           const data = String(e.nativeEvent.data);
           if (data === "ready") setReady(true);
-          if (data === "ok") settled.current = true;
+          if (data === "ok") {
+            settled.current = true;
+            setOk(true);
+          }
           if (data.includes("fail")) {
             settled.current = true;
             setFailed(true);

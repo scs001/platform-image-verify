@@ -2,10 +2,14 @@
 // this is the streaming-safe core the chat lane needs from day one):
 // fenced code blocks render monospace with a background, everything else
 // renders as paragraph text with simple heading/list emphasis. The parsing
-// convention matches the other clients: fences are ``` blocks.
+// convention matches the other clients: fences are ``` blocks, and an
+// `echarts` fence becomes a live chart (automate-nonweb-acceptance 1.2) —
+// same contract as the web client's chat-chart-rendering.
 
 import { Text, View, StyleSheet } from "react-native";
 import { palette } from "./palette";
+import { ChartView } from "./ChartView";
+import { chartOptionFromFence, tokenizeFences } from "@/lib/markdown-fences";
 
 function renderLine(line: string, key: string) {
   const heading = line.match(/^(#{1,4})\s+(.*)$/);
@@ -65,23 +69,26 @@ function renderLine(line: string, key: string) {
 
 export function Markdown({ text }: { text: string }) {
   const parts: ReturnType<typeof renderLine>[] = [];
-  // Split on fenced blocks; even indexes are prose, odd are code.
-  const segments = text.split(/```(?:[a-zA-Z0-9_-]*\n)?/);
-  segments.forEach((segment, i) => {
-    if (i % 2 === 1) {
+  tokenizeFences(text).forEach((token, i) => {
+    if (token.kind === "code") {
+      const option = chartOptionFromFence(token);
+      if (option) {
+        parts.push(<ChartView key={`chart-${i}`} option={option} />);
+        return;
+      }
       parts.push(
-        // biome-ignore lint/suspicious/noArrayIndexKey: fenced segment index is the stable identity of a code block
+        // biome-ignore lint/suspicious/noArrayIndexKey: token index is the stable identity of a code block
         <View key={`code-${i}`} style={styles.codeBlock}>
           <Text style={styles.code} selectable>
-            {segment.replace(/\n$/, "")}
+            {token.body.replace(/\n$/, "")}
           </Text>
         </View>,
       );
-    } else {
-      segment.split("\n").forEach((line, j) => {
-        parts.push(renderLine(line, `${i}-${j}`));
-      });
+      return;
     }
+    token.body.split("\n").forEach((line, j) => {
+      parts.push(renderLine(line, `${i}-${j}`));
+    });
   });
   return <View style={styles.wrap}>{parts}</View>;
 }

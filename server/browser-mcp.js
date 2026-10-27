@@ -23,9 +23,10 @@
 // stdout belongs to the MCP protocol: every diagnostic goes to stderr.
 
 import { spawn } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 function resolveCli() {
   const configured = (process.env.BROWSER_MCP_CLI || "").trim();
@@ -84,13 +85,24 @@ if (!cli) {
   process.exit(1);
 }
 
-const args = [];
-// Headless is the default; BROWSER_HEADLESS=0 is the desktop local-use escape.
-if (process.env.BROWSER_HEADLESS !== "0") args.push("--headless");
+// Launch configuration goes through the CLI's --config file, not flags: the
+// chromium ARGS we need (see the sandbox note) have no CLI passthrough, and
+// browser.launchOptions is the supported surface (config.d.ts).
+// Container reality: the runtime image runs as the non-root `node` user and
+// Chromium's sandbox needs root or a configured user-namespace profile — the
+// headless launch died with "Chromium sandboxing failed!" (2026-10-28 image
+// smoke). Default to the standard containerized-headless posture
+// (--no-sandbox + --disable-dev-shm-usage, the latter for the small /dev/shm
+// containers normally have); BROWSER_SANDBOX=1 keeps the sandbox on for
+// deployments that configure userns/seccomp and a sized /dev/shm. The browser
+// browses untrusted pages, so this is a real trade-off — taken deliberately
+// and visible here rather than buried in a run script.
 const endpoint = (process.env.BROWSER_CDP_ENDPOINT || "").trim();
+const headless = process.env.BROWSER_HEADLESS !== "0";
+const browserConfig = { browser: {} };
 if (endpoint) {
   // Attach mode: an existing browser at the endpoint; no local binary needed.
-  args.push("--cdp-endpoint", endpoint);
+  browserConfig.browser.cdpEndpoint = endpoint;
 } else {
   const chromium = resolveChromium();
   if (!chromium) {
@@ -101,14 +113,32 @@ if (endpoint) {
     );
     process.exit(1);
   }
-  args.push("--executable-path", chromium);
+  browserConfig.browser.launchOptions = {
+    executablePath: chromium,
+    headless,
+    ...(process.env.BROWSER_SANDBOX === "1" ? {} : { args: ["--no-sandbox", "--disable-dev-shm-usage"] }),
+  };
 }
+
+const configDir = mkdtempSync(join(tmpdir(), "browser-mcp-"));
+const configPath = join(configDir, "config.json");
+writeFileSync(configPath, JSON.stringify(browserConfig));
+const args = ["--config", configPath];
 
 const child = spawn(process.execPath, [cli, ...args], {
   stdio: "inherit",
   // The CLI must see the deployment's chromium/sandbox paths (PLAYWRIGHT_*).
   env: process.env,
 });
+const cleanupConfig = () => {
+  try {
+    rmSync(configDir, { recursive: true, force: true });
+  } catch {
+    /* best-effort */
+  }
+};
+child.on("exit", cleanupConfig);
+process.on("exit", cleanupConfig);
 child.on("error", (err) => {
   console.error(`[browser-mcp] failed to start @playwright/mcp: ${err?.message || err}`);
   process.exit(1);

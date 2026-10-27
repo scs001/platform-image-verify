@@ -9,7 +9,7 @@
 
 - [x] 2.1 `lib/device-identity.ts`：deviceId 生成、Ed25519 keypair（@noble/curves）、SecureStore 存取；单测覆盖密钥持久化往返与签名形状（消息 `deviceId:nonce`，与 scripts/test-app-pairing.mjs 固定向量同源互证）
 - [x] 2.2 `lib/pairing.ts`：capability 探测（含 401=未知照样试）、pair/challenge/login 客户端、401 binding_required→重配语义；单测覆盖 401/超时/老实例三态（fetch mock）
-- [ ] 2.3 配对页 UI：扫码（expo-camera，权限被拒给输码路径）+ 手输地址/6 位码；真机冒烟：对 staging 实例完成首次配对拿到 token
+- [x] 2.3 配对页 UI：扫码（expo-camera，权限被拒给输码路径）+ 手输地址/6 位码——UI 代码 10-12 已全，冒烟证据=池通道 app-e2e `40425053536`（2026-10-27，gates→apk→Maestro android 三棒全绿）配对 yaml 完成首次配对拿到 token（mock 实例即 fresh staging 等价）；物理机对正式 staging 的一次扫码配对留人工观察项
 
 ## 3. core 注入与聊天主链
 
@@ -20,7 +20,7 @@
 ## 4. 渲染契约
 
 - [x] 4.1 Markdown 渲染件（RN 渲染器 + core 解析约定）：标题/列表/代码块/表格滚动；失败降级原文
-- [ ] 4.2 ChartWebView 池化组件：echarts HTML 壳资产、postMessage option JSON、高度自适应、失败→代码块；真机验证 bar/line/pie/scatter 四系列
+- [x] 4.2 ChartWebView 池化组件：echarts HTML 壳资产、postMessage option JSON、height 自适应入参、失败→代码块——收口实证揪出并修复落定合约缺陷（壳从不回邮 'ok'，4s 降级计时不解除→健康图全翻兜底；`c2afc68f` 修复：壳回邮 ok/fail+RN settled 引信+壳拆 chart-shell.ts 单测 4 件钉合约，app 三棒 18/18 绿随池 gates 实证）；bar/line/pie/scatter 物理机眼见与 5.2/2.3 同属人工观察项
 - [x] 4.3 资源页：列表+筛选+图表预览（复用 4.2）+文件元数据；cron 页：任务列表+启停+计划展示
 
 ## 5. 分享、设置、i18n

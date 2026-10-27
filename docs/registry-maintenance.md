@@ -2581,6 +2581,6 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 
 **快照纪律（永不入快照名单）**：`.env*`、`cell-data/`、`data/`、`uploads/`、`agents.local.json`、本地凭据；快照=源仓 origin/main 干净 clone 天然只含 tracked 文件；gitleaks 零报才可推；`.github` 修剪律=侧分支只留当次所需 workflow（防误触 mac/win 腿——`app-e2e`/`win-install-smoke` 快照进全 workflow 曾误烧 80-170 分钟）。
 
-**实测分钟（2026-10-27 定案班，池仓私有分钟）**：桌面全套（矩阵 arm64 47+x64 64+exe 19+publish 1+win-smoke 6+dl-publish 2）≈ **139 分钟/次**；私仓侧新政下每次 push ≤ web 六门（~15-25）+ 命中 paths 时 app/miniapp 门（~10/~3）。池额度台账=fd-build-channel（24h 缓存）。
+**实测分钟（2026-10-27 定案班，池仓私有分钟）**：桌面全套（矩阵 arm64 47+x64 64+exe 19+publish 1+win-smoke 6+dl-publish 2）≈ **139 分钟/次**；app 全腿实测定案（gates 2.3+apk 23.7+Maestro android 5.5）≈ **32 分钟/次**（`40425053536`，比历史 80-170 估值便宜数倍——修剪/init 优化已生效，dispatch-only 裁断不改判）；私仓侧新政下每次 push ≤ web 六门（~15-25）+ 命中 paths 时 app/miniapp 门（~10/~3）。池额度台账=fd-build-channel（24h 缓存）。
 
 **判红两分法延伸**：私仓 run 3 秒即终+payments failed=额度死（等月初或走池）；池仓 run 业务步红=真缺陷必查 log。

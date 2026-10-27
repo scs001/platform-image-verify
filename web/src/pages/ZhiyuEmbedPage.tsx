@@ -8,7 +8,7 @@
 // and a composer capped by the same room's honesty system-events.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 
 interface EmbedSender {
   kind: "user" | "facade" | "agent" | "guest";
@@ -53,8 +53,11 @@ const EVENT_LABEL: Record<string, string> = {
 };
 
 export function ZhiyuEmbedPage() {
-  const { token = "" } = useParams();
-  const fullPage = typeof window !== "undefined" && window.location.pathname.startsWith("/zhiyu/join/");
+  // Mounted from App's standalone branch (like SharePage), NOT under a
+  // <Route path>: the token comes from the URL path, not useParams.
+  const { pathname } = useLocation();
+  const token = pathname.split("/")[3] ?? "";
+  const fullPage = pathname.startsWith("/zhiyu/join/");
   const [visit, setVisit] = useState<VisitState | null>(null);
   const [tty, setTty] = useState<string | null>(null);
   const [rows, setRows] = useState<EmbedRow[]>([]);

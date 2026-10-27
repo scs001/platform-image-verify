@@ -5,8 +5,10 @@ name: nonweb-daily
 # 错误面/图表四系列全跑）。私仓只花 ubuntu 1-2 分钟，重腿全在池。
 #
 # arm-ready：需要 secret BUILD_POOL_TOKEN（对 testaction003/build-pool 有
-# contents:write 的 PAT/细粒度令牌）。缺失时本 job 显式输出 SKIPPED 并以 0
+# contents:write + workflow 的令牌）。缺失时本 job 显式输出 SKIPPED 并以 0
 # 退出——绝不产生"验收通过"的信号；配好后无需改代码即自动生效。
+#
+# 诊断：本私仓 job 日志常取不到（BlobNotFound）——脚本输出 tee 到工件上传。
 
 on:
   schedule:
@@ -43,33 +45,45 @@ jobs:
       - name: Export clean snapshot (tracked files only) + trim workflows
         if: env.POOL_TOKEN != ''
         run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/snap"
-          git archive HEAD | tar -x -C "$RUNNER_TEMP/snap"
-          cd "$RUNNER_TEMP/snap"
-          # 池侧只跑 app-e2e；其余 workflow 一律不进快照（修剪律）。
-          find .github/workflows -type f ! -name app-e2e.yml -delete
-          gitleaks dir . --redact --no-banner
-          echo "gitleaks: zero findings"
+          {
+            set -euo pipefail
+            mkdir -p "$RUNNER_TEMP/snap"
+            git archive HEAD | tar -x -C "$RUNNER_TEMP/snap"
+            cd "$RUNNER_TEMP/snap"
+            find .github/workflows -type f ! -name app-e2e.yml -delete
+            gitleaks dir . --redact --no-banner
+            echo "gitleaks: zero findings"
+          } 2>&1 | tee -a /tmp/daily.log
 
       - name: Push snapshot and dispatch the pool run
         if: env.POOL_TOKEN != ''
         env:
           GH_TOKEN: ${{ secrets.BUILD_POOL_TOKEN }}
         run: |
-          set -euo pipefail
-          # OAuth tokens (gho_) reject the x-access-token: URL form — go
-          # through gh's own credential helper instead (Basic auth, the same
-          # path gh itself uses for git over HTTPS).
-          gh auth setup-git
-          cd "$RUNNER_TEMP/snap"
-          git init -q -b "$SNAP_BRANCH"
-          git add -A
-          git -c user.name='nonweb-daily' -c user.email='ci@finddata.local' \
-            commit -qm "paas @ ${GITHUB_SHA} — daily acceptance snapshot"
-          git push -q -f "https://github.com/${POOL_REPO}.git" "HEAD:${SNAP_BRANCH}"
-          gh workflow run app-e2e.yml -R "$POOL_REPO" --ref "$SNAP_BRANCH"
-          sleep 10
-          gh run list -R "$POOL_REPO" --workflow app-e2e.yml --limit 1 \
-            --json databaseId,status,headBranch,url \
-            --jq '.[] | "\(.url) [\(.headBranch)] \(.status)"' | tee -a "$GITHUB_STEP_SUMMARY"
+          {
+            set -euo pipefail
+            # OAuth tokens (gho_) reject the x-access-token: URL form (locally
+            # reproduced "Authentication failed") — go through gh's own
+            # credential helper (Basic auth) instead.
+            gh auth setup-git
+            cd "$RUNNER_TEMP/snap"
+            git init -q -b "$SNAP_BRANCH"
+            git add -A
+            git -c user.name='nonweb-daily' -c user.email='ci@finddata.local' \
+              commit -qm "paas @ ${GITHUB_SHA} — daily acceptance snapshot"
+            git push -q -f "https://github.com/${POOL_REPO}.git" "HEAD:${SNAP_BRANCH}"
+            gh workflow run app-e2e.yml -R "$POOL_REPO" --ref "$SNAP_BRANCH"
+            sleep 10
+            gh run list -R "$POOL_REPO" --workflow app-e2e.yml --limit 1 \
+              --json databaseId,status,headBranch,url \
+              --jq '.[] | "\(.url) [\(.headBranch)] \(.status)"' | tee -a "$GITHUB_STEP_SUMMARY"
+          } 2>&1 | tee -a /tmp/daily.log
+
+      - name: Upload diagnostics (this repo's job logs are often unreadable)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nonweb-daily-diagnostics
+          path: /tmp/daily.log
+          retention-days: 7
+          if-no-files-found: ignore

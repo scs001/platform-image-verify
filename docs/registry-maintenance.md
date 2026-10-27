@@ -2880,3 +2880,19 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 - **paas 侧合流**：`gateway/vendor-onboarding.js` defaultWriter 支持 `REGISTRY_VENDOR_LANE=service-token` + `VENDOR_LANE_TOKEN` 切换 → Bearer 通道直击 fork 新端点；其余保持控制台 cookie+CSRF 兜底（fallback 不变）；套件扩展 21/21 绿（两通道请求形状实测）。
 - **live 验收件**：`scripts/test-supply-owner-acceptance-live.mjs`（10 步全真：vendor 注册/署名/价格闸/免费链/owner board+机位/花销投影/迭代簿 digest）+ `.github/workflows/live-supply-owner-acceptance.yml`（**workflow_dispatch 手动起**；公开仓 runner 免费；A 档默认跑、B 档-onboarding 写入+付费环 以 `inputs.accept_token_lane=1` 唤入）。走车三前提 secrets：FACET_BASE_URL / FACET_INTERNAL_TOKEN / TEST_EMAIL。
 - **部署窗指令（待凭裁）**：①fork registry-test 落绿后 `fd-build-snapshot /Users/chengsishi/.cache/gc-fork(fd-vendor-lane) -R testaction001/build-pool --namespace yizuo --image mcp-registry`；②cheap-8 ArgoCD cutover（台账 §6 换版配方 compose --no-deps 新镜像）→ ③生产窗注入 `VENDOR_LANE_TOKEN` + paas env切 `REGISTRY_VENDOR_LANE=service-token` → ④ cookie 兜底 disarm week-after；⑤GHA 手动 live-supply-owner-acceptance accept_token_lane=1 走全真旅程。
+
+### §15.69 生产 502 事故：镜像启动即崩（im-bridge 未入库）→ 补提交 + GitOps 回滚（2026-10-28 07:4x）
+
+**现象**：`platform-575c89b7b6`（镜像 `sha-62b001f`，源 paas `b39d9903`）**CrashLoopBackOff**（3 次重启），公网 `/api/version` 502、SPA 全挂；历时约 10 分钟。
+
+**根因**：崩栈 `ERR_MODULE_NOT_FOUND: /app/gateway/zhiyu/im-bridge.js imported from gateway/zhiyu/index.js`——并行 zhiyu 泳道**先提交了 import 侧**（`gateway/zhiyu/index.js` 第 22 行），而模块本体 `gateway/zhiyu/im-bridge.js` 一直处于**工作树未跟踪态**（`?? gateway/zhiyu/im-bridge.js`）。committed main 自相矛盾 → **任何从 main 出的快照镜像启动即崩**。快照链（干净 clone 只含 tracked）天然看不见未跟踪文件，而 platform 镜像的 smoke gate 是 `smoke=skip`，两道都没拦住。
+
+**止血（两步）**：
+1. **补提交** `d103f0bb`（`fix(zhiyu): 补提交 im-bridge.js`）——先核其依赖仅 `node:crypto`/`express`/`server/auth.js`（均在库），文件内容属该泳道原样，本笔只补入库。
+2. **GitOps 回滚** `ae0171e`（platform + platform-demo 两行 → `sha-bbf73ea`，上一版好镜像，活 RS 与 GitOps 历史双证）；ArgoCD 一个轮询内同步，`rollout status` 成功，公网 `/` 200。**双远端已推**（gitee/github 均 `ae0171e`）。
+
+**教训（新增两律）**：
+- **「main 可启动」必须是提交前门**：跨模块 import 的新文件必须先 `git add` 再提交；另建议镜像 CI 加一条 `node --input-type=module -e "import('/app/gateway/index.js')"` 式启动探针（platform 的 smoke 目前 skip，等于裸奔）。
+- 并行泳道共享工作树时，**未跟踪的新模块是隐形雷**：收尾前 `git status --short | grep '^??'` 扫一眼本域新文件。
+
+**待办**：`sha-bbf73ea` 是上一版好镜像，**b39d9903 那批内容（列表缓存/智语未读归零/长会话窗口化）需在 main（现 `d103f0bb`）重新出片再滚**——属该泳道发布动作，本班不代滚。

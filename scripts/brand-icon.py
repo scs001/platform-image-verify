@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
 # ── 寻数壹座 图标资产生成器 ─────────────────────────────────────────────────
 #
-# 源真值（唯一一处可改）：白底 + 黑色「壹座」字标 + 一根横线。文字经
-# fontTools 从系统 PingFang.ttc 提取字形轮廓写成 path —— 任何机器跑出来的
-# 位图/矢量完全一致，不依赖渲染方是否有中文字体。
+# 两种标（决议 2026-10-28，用户亲授）：
+#   大图标/品牌面   = 白底 + 黑色「壹座」字标 + 一根横线（assets/brand/icon.svg）
+#   软件图标本体     = 白底 + 一根粗些的「一」横线，不要名字（所有打包/安装/层级切换图）
+#
+# 字标经 fontTools 从系统 PingFang/Hiragino 提取字形轮廓写成 path —— 任何
+# 机器跑出来的位图/矢量完全一致，不依赖渲染方是否有中文字体。
 #
 # 产出（都是被 git 跟踪或构建消费的既有路径，本脚本全面覆写）：
-#   assets/brand/icon.svg                 主矢量（白底，文档用）
-#   assets/brand/icon-mark.svg            纯标记矢量（无背景，SVG 源）
-#   build/icon.png                        1024（electron-builder win/lin 源）
-#   build/icon.icns                       macOS 全套 iconutil
-#   app/assets/images/icon.png                             1024
-#   app/assets/images/android-icon-foreground.png          1024（安全区 centred）
-#   app/assets/images/android-icon-background.png          1024（纯白）
-#   app/assets/images/android-icon-monochrome.png          1024（黑 mark，透明底）
-#   app/assets/images/favicon.png                          64
-#   app/assets/images/splash-icon.png                      1024（安全区 centred）
-#   app/assets/expo.icon/Assets/expo-symbol 2.svg          纯标记矢量（iOS 用）
-#   web/public/icon.svg                   favicon（白底 96 viewBox 缩略）
+#   assets/brand/icon.svg                 大图标主矢量（白底，带名字，品牌/文档用）
+#   assets/brand/icon-mark.svg            大图标纯标记矢量（无背景）
+#   assets/brand/icon-app.svg             软件图标主矢量（白底，只一根「一」）
+#   build/icon.png                        1024 软件图标（electron-builder win/lin 源）
+#   build/icon.icns                       macOS 全套（iconutil；gitignored，本地 dist 用）
+#   app/assets/images/icon.png                             1024 软件图标
+#   app/assets/images/android-icon-foreground.png          1024 安全区（仅一根「一」）
+#   app/assets/images/android-icon-background.png          1024 纯白
+#   app/assets/images/android-icon-monochrome.png          1024 黑「一」，透明底
+#   app/assets/images/favicon.png                          64 软件图标
+#   app/assets/images/splash-icon.png                      1024 安全区（仅一根「一」）
+#   app/assets/expo.icon/Assets/expo-symbol 2.svg          纯「一」矢量（iOS 用）
+#   web/public/icon.svg                   favicon（软件图标=一根「一」）
 #
 # 用法：python3 scripts/brand-icon.py         （需要 PIL、fontTools、rsvg-convert、iconutil）
 
@@ -52,9 +56,16 @@ BAR_GAP = 0.115 * CANVAS     # 字标底线到横线顶的距离
 EXPORTS = {
     "master_svg": "assets/brand/icon.svg",
     "mark_svg": "assets/brand/icon-mark.svg",
+    "app_svg": "assets/brand/icon-app.svg",
     "symbol_svg": "app/assets/expo.icon/Assets/expo-symbol 2.svg",
     "favicon_svg": "web/public/icon.svg",
 }
+
+# 软件图标本体（决议：不要名字）——一根粗横线「一」，x 居中，y 落在品牌
+# 基准线（即字标图里横线的同一位置），保证小尺寸依然可读。
+APP_BAR_WIDE = 0.58 * CANVAS
+APP_BAR_HIGH = 0.11 * CANVAS
+APP_BAR_Y = 0.635 * CANVAS  # 粗线中心 y ≈ 与主图标横线同一水平线
 
 
 def pick_font():
@@ -190,6 +201,21 @@ def bbox_of_png(png_path):
     return inverse.getbbox(), img.size
 
 
+def app_bar_svg(ground=GROUND, show_ground=True):
+    """软件图标本体：居中一根「一」。safe 变体靠调用方给的透明度/尺寸。"""
+    x = CANVAS / 2.0 - APP_BAR_WIDE / 2.0
+    y = APP_BAR_Y - APP_BAR_HIGH / 2.0
+    parts = [f'<rect x="{x:.2f}" y="{y:.2f}" width="{APP_BAR_WIDE:.2f}" height="{APP_BAR_HIGH:.2f}" fill="{BLOCK}"/>']
+    if show_ground:
+        parts.insert(0, f'<rect width="{CANVAS}" height="{CANVAS}" fill="{ground}"/>')
+    return (
+        '<?xml version="1.0" encoding="UTF-8"?>\n'
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {CANVAS} {CANVAS}">\n'
+        + "\n".join(parts)
+        + "\n</svg>\n"
+    )
+
+
 def main():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     os.chdir(root)
@@ -197,48 +223,38 @@ def main():
     comp = compose(WORD, font, WORDS_WIDE, BAR_WIDE, BAR_HIGH, BAR_GAP)
 
     os.makedirs("assets/brand", exist_ok=True)
-    symbol_only = svg_doc(comp, ground=GROUND, show_ground=False)
     full = svg_doc(comp, ground=GROUND, show_ground=True)
+    mark = svg_doc(comp, ground=GROUND, show_ground=False)
     for path, text in (
         (EXPORTS["master_svg"], full),
-        (EXPORTS["mark_svg"], symbol_only),
-        (EXPORTS["symbol_svg"], symbol_only),
-        (EXPORTS["favicon_svg"], full.replace(f"viewBox=\"0 0 {CANVAS} {CANVAS}\"", 'viewBox="0 0 1024 1024"')),
+        (EXPORTS["mark_svg"], mark),
+        (EXPORTS["app_svg"], app_bar_svg()),
+        (EXPORTS["symbol_svg"], app_bar_svg(show_ground=False)),
+        (EXPORTS["favicon_svg"], app_bar_svg()),
     ):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as fh:
             fh.write(text)
 
-    # 1) 桌面：icon.png（白底）+ icon.icns
+    # 1) 桌面：软件图标（一根「一」，白底）
     os.makedirs("build", exist_ok=True)
-    rasterize(EXPORTS["master_svg"], "build/icon.png", CANVAS)
+    rasterize(EXPORTS["app_svg"], "build/icon.png", CANVAS)
     icns_from_square("build/icon.png", "build/icon.icns", "build")
 
-    # 2) App：主图标 + adaptive（安全区内）+ monochrome + favicon + splash
+    # 2) App 全家桶（软件图标同样不要名字）
     app_dir = "app/assets/images"
     os.makedirs(app_dir, exist_ok=True)
-    # 主图标与主矢量一致
-    rasterize(EXPORTS["master_svg"], f"{app_dir}/icon.png", CANVAS)
-    # adaptive：同 composition 改用安全区布局
-    safe = compose(
-        WORD, font,
-        target_width=0.42 * CANVAS,
-        bar_width=0.5 * CANVAS,
-        bar_thickness=0.055 * CANVAS,
-        gap_above_bar=0.09 * CANVAS,
-    )
-    safe_svg = "build/.icon-safe.svg"
+    rasterize(EXPORTS["app_svg"], f"{app_dir}/icon.png", CANVAS)
+    safe_svg = "build/.icon-app-safe.svg"
     with open(safe_svg, "w", encoding="utf-8") as fh:
-        fh.write(svg_doc(safe, show_ground=False))
+        fh.write(app_bar_svg(show_ground=False))
     rasterize(safe_svg, f"{app_dir}/android-icon-foreground.png", CANVAS)
     rasterize(safe_svg, f"{app_dir}/android-icon-monochrome.png", CANVAS)
     rasterize(safe_svg, f"{app_dir}/splash-icon.png", CANVAS)
-    # adaptive background = 纯白
     Image.new("RGB", (CANVAS, CANVAS), GROUND).save(f"{app_dir}/android-icon-background.png")
-    # favicon：白底主图缩略
-    rasterize(EXPORTS["master_svg"], f"{app_dir}/favicon.png", 64)
+    rasterize(EXPORTS["app_svg"], f"{app_dir}/favicon.png", 64)
 
-    # 3）保守的验证输出：尺寸 + 绾合区，供下方手工查討
+    # 3) 保守的验证输出
     bbox, sz = bbox_of_png("build/icon.png")
     print(f"build/icon.png {sz}, ink bbox={bbox}")
     for f in ["icon.png", "icon.icns"]:

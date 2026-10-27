@@ -2841,3 +2841,5 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **凭据清理**：本批为改名铸造的 3 个 creators 会话（`admin@finddatatech.cloud`/`aloadtree@finddatatech.cloud`/`aloadtree@gmail.com`）、pod 会话密钥副本、CMS admin JWT 均已从本机 /tmp 删除（用完即清律）。
 
 **§15.68 终态（07:10 复核）**：延后任务在限流窗口过期后一次通过（`内容流水线（官方种子）` v4、`柏讯 · 产物构建` v3）。**市场 89 包实测：包名 0 处「舰队/fleet」、搜索「舰队」0 命中**；类目分面 = wire 25 / facet 7 / facade 6 / doc-studio 1 / fleet 15 / fleet-shared 5 / legal 7 / 其余既有——`daas/company/docs/data/authoring` 五类彻底消失。
+
+**§15.68 补记二（类目词归一，2026-10-28 07:20）**：`fleet`→**cluster**（15 包）、`fleet-shared`→**cluster-shared**（5 包）共 20 笔 curation；市场类目芯片实测 = business/cluster/cluster-shared/crm/doc-studio/facade/facet/legal/operations/research/text/wanxing/wire，**旧词族芯片全部消失**；89 包名层仍零残留。**描述层「fleet」判定为不改**（有意保留）：它们是代码契约与包 id——`{{fleetContext}}`（引擎按字面注入的占位符）、`fleets.db`（库文件名）、`fleet-intel-gather` 等共用层包 id、以及蓝图描述里的仓内路径 `fleet-packs/blueprints/…`；按「键/契约零改」老律，改散文会与实际契约不符，故只洗类目词。附带结论：市场搜索 「fleet」 会命中这些契约串属正常现象，验收口径应限定在**包名**与**类目芯片**两层。

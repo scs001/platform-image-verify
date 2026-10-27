@@ -36,6 +36,7 @@ import { deployToRegistry, setAgentPaused, modelChoiceError, resolveServiceConfi
 import { createFleetScheduler } from "./fleet-scheduler.js";
 import { installVendorTables, createVendorStore } from "./vendors.js";
 import { createOnboardingStore } from "./vendor-onboarding.js";
+import { installMarketTables, createMarketStore, parsePricing } from "./market.js";
 import { createSub2apiClient } from "../lib/sub2api-admin.js";
 
 // Re-exported for the gateway's own consumers (tests import from here).
@@ -389,6 +390,30 @@ export function createPackRegistry({ file }) {
   const vendors = createVendorStore(db);
   const onboarding = createOnboardingStore(db);
 
+  // Market revenue share (add-market-revenue-share): append-only成交记, same
+  // isolation argument as packs (a purchase must outlive and cross cells).
+  installMarketTables(db);
+  // 版本级价格声明（服务端字段, manifest 不承载）: NULL=免费为默认, 加列
+  // 后旧版行天然免费 — 与「落地前行为逐字节」同构。
+  try {
+    db.exec("ALTER TABLE pack_versions ADD COLUMN price_usd REAL");
+    db.exec("ALTER TABLE pack_versions ADD COLUMN price_kind TEXT");
+    db.exec("ALTER TABLE pack_versions ADD COLUMN period_days INTEGER");
+  } catch { /* columns already present */ }
+  const market = createMarketStore(db);
+
+  // Billing snapshots (fleet-owner-surface 花销(c) 粗粒度金额): 账户级
+  // sub2api 余额周期快照。粒度=账户 (deployer), 不是集群 — 读面带口径文案,
+  // 与既有 billing/* 读面同一 db 生命周期单元。
+  db.exec(`CREATE TABLE IF NOT EXISTS billing_snapshots (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL,
+    user_id INTEGER NOT NULL,
+    balance_usd REAL NOT NULL,
+    sampled_at INTEGER NOT NULL
+  )`);
+  db.exec(`CREATE INDEX IF NOT EXISTS billing_snapshots_email ON billing_snapshots(email, sampled_at)`);
+
   const now = () => Date.now();
   const mintId = () => randomBytes(16).toString("base64url");
 
@@ -431,6 +456,17 @@ export function createPackRegistry({ file }) {
       id: pack.id,
       authorEmail: pack.author_email,
       ...(vendorAttribution(version) ? { vendor: vendorAttribution(version) } : {}),
+      // 价格呈现（market-revenue-share）：版本级服务端字段，免费=无 key（与
+      // 落地前 payload 逐字节一致），订阅期形态带期长。
+      ...(version.price_usd != null && version.price_usd > 0
+        ? {
+            pricing: {
+              priceUsd: version.price_usd,
+              kind: version.price_kind === "period" ? "period" : "once",
+              ...(version.price_kind === "period" ? { periodDays: version.period_days } : {}),
+            },
+          }
+        : {}),
       createdAt: pack.created_at,
       version: version.version,
       name: version.name,
@@ -508,8 +544,9 @@ export function createPackRegistry({ file }) {
     visibleTo,
 
     // First publish: mint an id and store version 1. `vendor` is the verified
-    // attribution slug the route resolved (null ⇒ no attribution stamp).
-    publish({ email, manifest, vendor = null }) {
+    // attribution slug, `pricing` the validated 版本级价格声明 (both null ⇒
+    // 与落地前行为逐字节一致).
+    publish({ email, manifest, vendor = null, pricing = null }) {
       const id = mintId();
       const visibility = manifest.visibility === "private" ? "private" : "public";
       // Author-declared category (add-facet-content-management) rides the
@@ -517,15 +554,27 @@ export function createPackRegistry({ file }) {
       const category = typeof manifest.category === "string" ? manifest.category : "";
       db.prepare(`INSERT INTO packs (id, author_email, created_at, visibility, category) VALUES (?, ?, ?, ?, ?)`).run(id, email, now(), visibility, category);
       db.prepare(
-        `INSERT INTO pack_versions (pack_id, version, name, description, tags, manifest, author_email, published_at, vendor)
-         VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(id, manifest.name, manifest.description || "", JSON.stringify(manifest.tags ?? []), JSON.stringify(manifest), email, now(), vendor);
+        `INSERT INTO pack_versions (pack_id, version, name, description, tags, manifest, author_email, published_at, vendor, price_usd, price_kind, period_days)
+         VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        id,
+        manifest.name,
+        manifest.description || "",
+        JSON.stringify(manifest.tags ?? []),
+        JSON.stringify(manifest),
+        email,
+        now(),
+        vendor,
+        pricing?.priceUsd ?? null,
+        pricing?.kind ?? null,
+        pricing?.kind === "period" ? pricing?.periodDays ?? null : null,
+      );
       return { id, version: 1 };
     },
 
     // Subsequent publish: author-checked append of the next version. Stored
     // versions are immutable — this is the only write path that touches one.
-    publishVersion({ email, id, manifest, vendor = null }) {
+    publishVersion({ email, id, manifest, vendor = null, pricing = null }) {
       const pack = packRow(id);
       if (!pack) return { error: "not_found" };
       if (pack.author_email !== email) return { error: "forbidden" };
@@ -534,9 +583,22 @@ export function createPackRegistry({ file }) {
       const latest = latestVersionRow(id);
       const version = (latest?.version ?? 0) + 1;
       db.prepare(
-        `INSERT INTO pack_versions (pack_id, version, name, description, tags, manifest, author_email, published_at, vendor)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).run(id, version, manifest.name, manifest.description || "", JSON.stringify(manifest.tags ?? []), JSON.stringify(manifest), email, now(), vendor);
+        `INSERT INTO pack_versions (pack_id, version, name, description, tags, manifest, author_email, published_at, vendor, price_usd, price_kind, period_days)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).run(
+        id,
+        version,
+        manifest.name,
+        manifest.description || "",
+        JSON.stringify(manifest.tags ?? []),
+        JSON.stringify(manifest),
+        email,
+        now(),
+        vendor,
+        pricing?.priceUsd ?? null,
+        pricing?.kind ?? null,
+        pricing?.kind === "period" ? pricing?.periodDays ?? null : null,
+      );
       // A redeclared category updates the pack row; absence keeps the
       // curated value (admin retargets survive version bumps).
       if (typeof manifest.category === "string" && manifest.category) {
@@ -748,6 +810,39 @@ export function createPackRegistry({ file }) {
       ).get(id, email) ?? null;
     },
 
+    // 订阅者跟新读面 (fleet-owner-iteration / pack-marketplace 订阅跟新提示):
+    // 订阅有效且最新版最新发布于订阅版本之后的行, 每行携 latest notes(从
+    // latest manifest 读字段, 不落第二份副本)。呈现时取 CURRENT 版 — 提示
+    // 永远只交通不升级。
+    subscriptionsFor(email) {
+      return db
+        .prepare(
+          `SELECT s.pack_id AS packId, s.version AS subscribedVersion, s.subscribed_at AS subscribedAt,
+                  p.id AS p_id, v.version AS latestVersion, v.name AS latestName,
+                  v.published_at AS latestPublishedAt, v.manifest AS latestManifest
+           FROM subscriptions s
+           JOIN packs p ON p.id = s.pack_id
+           JOIN pack_versions v ON v.pack_id = p.id AND v.version = (SELECT MAX(version) FROM pack_versions WHERE pack_id = p.id)
+           WHERE s.email = ? AND s.unsubscribed_at IS NULL
+           ORDER BY v.published_at DESC`,
+        )
+        .all(String(email))
+        .map((r) => {
+          let notes = null;
+          try {
+            notes = JSON.parse(r.latestManifest)?.notes ?? null;
+          } catch { /* manifest 非 JSON — 旧形态的容错同样一开始就走 */ }
+          return {
+            packId: r.packId,
+            subscribedVersion: r.subscribedVersion,
+            latestVersion: r.latestVersion,
+            name: r.latestName,
+            publishedAt: r.latestPublishedAt,
+            notes: typeof notes === "string" && notes.trim() ? notes : null,
+          };
+        });
+    },
+
     subscriberCount(id) {
       return db.prepare(
         `SELECT COUNT(*) AS n FROM subscriptions WHERE pack_id = ? AND unsubscribed_at IS NULL`,
@@ -802,6 +897,24 @@ export function createPackRegistry({ file }) {
     // ── Platform billing bookkeeping (add-agent-platform-ops) ─────────────
     billingAccount(email) {
       return db.prepare(`SELECT * FROM sub2api_accounts WHERE email = ?`).get(email) ?? null;
+    },
+    // Billing snapshots (fleet-owner-surface 花销(c)): 快照 = 事实投影的原料,
+    // 读取侧节流写下 (≥55min 间隔), 只增多数, 过量行按保留窗修剪。
+    recordBillingSnapshot({ email, userId, balanceUsd, at = null }) {
+      const t = at ?? Date.now();
+      db.prepare(`INSERT INTO billing_snapshots (email, user_id, balance_usd, sampled_at) VALUES (?, ?, ?, ?)`)
+        .run(String(email), Number(userId), Number(balanceUsd), t);
+      // 保留窗: 单账户 400 行上线 (快照粒度粗放, 远超两年日窗所需)。
+      db.prepare(
+        `DELETE FROM billing_snapshots WHERE email = ? AND id NOT IN
+           (SELECT id FROM billing_snapshots WHERE email = ? ORDER BY sampled_at DESC LIMIT 400)`,
+      ).run(String(email), String(email));
+    },
+    billingSnapshots(email, { limit = 400 } = {}) {
+      return db
+        .prepare(`SELECT email, user_id AS userId, balance_usd AS balanceUsd, sampled_at AS sampledAt
+                  FROM billing_snapshots WHERE email = ? ORDER BY sampled_at DESC LIMIT ?`)
+        .all(String(email), Math.min(400, Math.max(1, Number(limit) || 400)));
     },
     // ── Fleet runners (add-runner-fleet-sharding D2) ────────────────────────
     runnerList() {
@@ -959,6 +1072,9 @@ export function createPackRegistry({ file }) {
     // mount after this registry.
     vendors,
     onboarding,
+    // Market revenue share (add-market-revenue-share): append-only成交记 +
+    // 收益 projection, same file/lifecycle unit.
+    market,
 
     close() {
       db.close();
@@ -1019,6 +1135,10 @@ export function registerPackRoutes(app, {
   // vendor-binding publish lane and attribution stamps. When null (legacy
   // mounts/tests), the contract is byte-identical to the pre-vendor one.
   vendors = null,
+  // Market revenue share (add-market-revenue-share): entitlement projection
+  // for the detail route's `purchased` flag (install gate reads it). When
+  // null, the flag is omitted — behavior byte-identical to pre-market.
+  market = null,
 }) {
   // Agent-serving wiring (3.2): injected config wins (tests), env falls back
   // to the dedicated AGENT_SERVING_* names, then the market-bridge vars —
@@ -1185,6 +1305,14 @@ export function registerPackRoutes(app, {
       if (attr.error) return res.status(attr.status).json(attr.body);
       vendorSlug = attr.slug;
     }
+    // 价格声明（market-revenue-share, 版本级服务端字段）: pricing 块随发布
+    // 提交、随版本 immutable 锁定——改价=新版本。合法性与署名同缝校验。
+    let pricing = null;
+    if (req.body?.pricing != null) {
+      const parsed = parsePricing(req.body.pricing);
+      if (parsed.error) return res.status(400).json({ error: `Invalid pricing: ${parsed.error}`, code: "invalid-pricing" });
+      pricing = parsed.pricing;
+    }
     // The gate sequence lives in collectPublishVerdict (creator-pack-forge-
     // support D1): publish answers the FIRST failing gate — status and body
     // byte-identical to the pre-extraction early returns — while the validate
@@ -1199,8 +1327,8 @@ export function registerPackRoutes(app, {
     // must not ride the public anti-abuse budget (10/h shipped default).
     if (!isAdmin(user) && !publishAllowed(user.email)) return res.status(429).json({ error: "Too many publishes, try again later" });
     const result = packId
-      ? registry.publishVersion({ email: user.email, id: packId, manifest, vendor: vendorSlug })
-      : registry.publish({ email: user.email, manifest, vendor: vendorSlug });
+      ? registry.publishVersion({ email: user.email, id: packId, manifest, vendor: vendorSlug, pricing })
+      : registry.publish({ email: user.email, manifest, vendor: vendorSlug, pricing });
     if (result?.error === "not_found") return res.status(404).json({ error: "Pack not found" });
     if (result?.error === "forbidden") return res.status(403).json({ error: "Only the pack author may publish new versions" });
     res.json(result);
@@ -1345,6 +1473,11 @@ export function registerPackRoutes(app, {
     // indistinguishable from a nonexistent pack (openspec: pack-visibility).
     if (!pack || !registry.visibleTo({ visibility: pack.visibility, author_email: pack.authorEmail }, user, { admin: isAdmin(user) })) {
       return res.status(404).json({ error: "Pack not found" });
+    }
+    // 装前闸数据源（market-revenue-share）：付费条目对调用者诚实呈现其
+    // 当前权益——匿名/免费条目不置键；market store 缺席（legacy mount）亦缺省。
+    if (pack.pricing && market && user.email) {
+      pack.purchased = Boolean(market.activeEntitlement(user.email, id));
     }
     if (isAuthor) pack.subscriberCount = registry.subscriberCount(id);
     // Locale track (add-pack-locale-tracks B/D3): the browsing detail renders
@@ -2196,6 +2329,64 @@ export function registerPackRoutes(app, {
     }
   });
 
+  // 花销读数(c) — 账户级粗粒度金额 (fleet-owner-surface C / design D3):
+  // 部署者 sub2api 余额快照的窗口差消费。粒度刻意是账户级 —— 逐集群精算
+  // 不属本平台（价格权在 sub2api 侧），口径随读面如实标注。快照读取侧
+  // 节流写下 (≥55min), 差值 = 基线余额 − 当前余额 (正=期内消耗)。
+  app.get("/api/packs/billing/snapshot", async (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    const cfg = deployConfig();
+    const panelUrl = process.env.SUB2API_PANEL_URL || "https://token.finddatatech.cloud";
+    const sub2api = cfg.sub2api ? createSub2apiClient(cfg.sub2api) : null;
+    if (!sub2api || sub2api.degraded()) {
+      return res.status(503).json({ error: "billing snapshot source not configured", code: "billing-unavailable" });
+    }
+    let account = registry.billingAccount(user.email);
+    if (!account) {
+      try {
+        const found = await sub2api.findUserByEmail(user.email);
+        if (found) {
+          registry.saveBillingAccount({ email: user.email, userId: found.userId });
+          account = registry.billingAccount(user.email);
+        }
+      } catch (e) {
+        return res.status(502).json({ error: e.message });
+      }
+    }
+    if (!account) return res.json({ linked: true, balance: null, accountState: "none", snapshots: [], deltas: null, panelUrl });
+    let balance = null;
+    try {
+      balance = (await sub2api.readUser(account.user_id)).balance;
+    } catch (e) {
+      return res.status(502).json({ error: e.message });
+    }
+    const t = Date.now();
+    const latest = registry.billingSnapshots(user.email, { limit: 1 })[0] ?? null;
+    if (!latest || t - latest.sampledAt >= 55 * 60_000) {
+      registry.recordBillingSnapshot({ email: user.email, userId: account.user_id, balanceUsd: balance, at: t });
+    }
+    const history = registry.billingSnapshots(user.email);
+    const latestAt = history[0]?.sampledAt ?? null;
+    const deltaFor = (windowMs) => {
+      // 基线 = 最后一个早于窗口边界的快照; 无基线则如实 null（窗口未满）。
+      const baseline = history.find((s) => s.sampledAt <= t - windowMs);
+      if (!baseline) return null;
+      return { spentUsd: Math.round((baseline.balanceUsd - balance) * 100) / 100, baselineAt: baseline.sampledAt };
+    };
+    const day = 24 * 3600_000;
+    res.json({
+      linked: true,
+      balance,
+      accountState: "ok",
+      basis: "sub2api account ledger delta — 账户级粗粒度, 非集群级精算",
+      sampledAt: latestAt,
+      deltas: { "24h": deltaFor(day), "7d": deltaFor(7 * day), "30d": deltaFor(30 * day) },
+      snapshots: history.slice(0, 30).map((s) => ({ balanceUsd: s.balanceUsd, sampledAt: s.sampledAt })),
+      panelUrl,
+    });
+  });
+
   // Per-pack key binding state for the deploy surface: which of the pack's
   // currently-serving agents have a bound key. Booleans only — key values
   // and references never leave the platform.
@@ -2888,5 +3079,16 @@ export function registerPackRoutes(app, {
     if (!user) return;
     registry.unsubscribe({ email: user.email, id: req.params.id });
     res.json({ ok: true });
+  });
+
+  // 订阅跟新提示读面 (fleet-owner-iteration): 只交通不升级——订阅者看见的是
+  //「有新版本」状态与变更摘要, 已装内容由既有显式升级语义管理。
+  app.get("/api/packs/subscriptions/updates", (req, res) => {
+    const user = auth(req, res);
+    if (!user) return;
+    const rows = registry
+      .subscriptionsFor(user.email)
+      .filter((r) => (r.latestVersion ?? 0) > (r.subscribedVersion ?? 0));
+    res.json({ updates: rows });
   });
 }

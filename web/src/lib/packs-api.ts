@@ -49,6 +49,12 @@ export interface PackSummary {
    *  agent; assistant = agents only; toolkit = no agents. Computed by the
    *  registry at read time — authors cannot set or override it. */
   badge?: "blueprint" | "facade" | "assistant" | "toolkit";
+  /** Vendor supply-open: server-projected attribution (present ONLY when the
+   *  publisher declared a verified vendor binding; value comes from the live
+   *  profile, never pack content). */
+  vendor?: { slug: string; name: string };
+  /** Market revenue share: 版本级价格声明(免费=无键, 与落地前逐字节). */
+  pricing?: { priceUsd: number; kind: "once" | "period"; periodDays?: number };
 }
 
 export interface PackManifestSkill {
@@ -213,6 +219,8 @@ export interface PackManifestBot {
 
 export interface PackDetail extends PackSummary {
   manifest: PackManifest;
+  /** Market revenue share: 登录调用者对当前版本的购买权益(付费条目才有键)。 */
+  purchased?: boolean;
 }
 
 export type PackPartStatus =
@@ -615,4 +623,59 @@ export function createDynamicCluster(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),
   }).then(json) as Promise<CreateDynamicClusterResponse>;
+}
+
+// ── Market revenue share (add-market-revenue-share) ──────────────────────────
+// 价格与成交是版本级/服务端字段：免费条目无 pricing 键（落地前 payload
+// 逐字节）。purchased 只在详情面（登录调用者）出现。
+
+export interface PackPricing {
+  priceUsd: number;
+  kind: "once" | "period";
+  periodDays?: number;
+}
+
+export interface MarketPurchase {
+  id: string;
+  packId: string;
+  version: number;
+  kind: "once" | "period";
+  periodDays?: number | null;
+  priceUsd: number;
+  vendorSlug: string | null;
+  vendorEarnedUsd: number;
+  chargeUsd: number;
+  creditUsd: number;
+  direction: "purchase" | "refund";
+  status: "pending" | "settled" | "failed";
+  createdAt: number;
+  note: string | null;
+}
+
+export interface VendorEarnings {
+  earnings: { settledUsd: number; pendingUsd: number; creditSpentUsd: number; availableCreditUsd: number };
+  purchases: MarketPurchase[];
+}
+
+export function purchasePack(id: string, useCredit = true) {
+  return fetch(`/api/packs/${encodeURIComponent(id)}/purchase`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ useCredit }),
+  }).then(json) as Promise<{ purchase: MarketPurchase; note?: string }>;
+}
+
+export function myMarketPurchases() {
+  return fetch("/api/market/purchases/mine").then(json) as Promise<{
+    purchases: MarketPurchase[];
+    creditPools: { slug: string; settledUsd: number; availableCreditUsd: number }[];
+  }>;
+}
+
+export function vendorEarnings(slug: string) {
+  return fetch(`/api/vendors/${encodeURIComponent(slug)}/earnings`).then(json) as Promise<VendorEarnings>;
+}
+
+export function whoamiVendors() {
+  return fetch("/api/whoami").then(json) as Promise<{ vendors: { slug: string; displayName: string; role: string }[] }>;
 }

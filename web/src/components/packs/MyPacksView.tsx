@@ -9,6 +9,7 @@ import * as api from "@/lib/packs-api";
 import type { InstalledPack } from "@/lib/packs-api";
 import { Button } from "@/components/ui/button";
 import { Badge } from "./Badge";
+import { VendorEarningsPanel } from "./VendorEarningsPanel";
 
 interface UninstallPreview {
   packId: string;
@@ -118,12 +119,12 @@ export function MyPacksView() {
       </div>
     );
   }
-  if (packs.length === 0) {
-    return <p className="text-sm text-muted-foreground">{t("packs.mine.empty")}</p>;
-  }
-
   return (
     <section data-testid="my-packs-section" className="space-y-3">
+      {/* 供应结算（add-market-revenue-share 4.3）：无 vendor 绑定的作者整段
+          不渲染 — 市场面对免费创作者的既有视觉合同零变更。 */}
+      <VendorEarningsPanel />
+      {packs.length === 0 && <p className="text-sm text-muted-foreground">{t("packs.mine.empty")}</p>}
       {packs.map((pack) => {
         const hasUpdate = (latest[pack.packId] ?? pack.version) > pack.version;
         return (

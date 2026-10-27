@@ -40,6 +40,8 @@ import {
 } from "../fleet-decisions.js";
 import * as engine from "../../task-engine.js";
 import { exportFleetToTemplate } from "../fleet-template.js";
+import { createConfigChangeProposal, runIterationCast, retryIterationCast } from "../fleet-iteration.js";
+import { runDueDigests } from "../fleet-digest.js";
 import { provisionFleetFromTemplate } from "../fleet-provisioner.js";
 import * as dbModule from "../../db.js";
 
@@ -448,6 +450,41 @@ export function createFleetRoutes(app, ctx = null) {
       return { error: err.message };
     }
   };
+
+  // 迭代回调的默认运输（fleet-owner-iteration）：附体身份=当下决策 req 的
+  // cookie 转交。安装/预检 = 同源 /api/packs*/validate；发布 = /api/packs 以
+  // 操作者凭据上场 — 两门与人工 UI 上提交逐字节同缝；测试经 ctx 注入替身。
+  const defaultInstallFn = () => ctx?.iterationsInstallFn ?? ((packId) => dbModule.getInstalledPack(packId));
+  const defaultPublishFn = (req) =>
+    ctx?.iterationsPublisher ??
+    (async ({ packId, manifest }) => {
+      const base = `${req.protocol || "http"}://${req.get("host") ?? "127.0.0.1"}`;
+      const r = await fetch(`${base}/api/packs`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(req.headers.cookie ? { cookie: req.headers.cookie } : {}),
+        },
+        body: JSON.stringify({ packId, manifest }),
+      });
+      const body = await r.json().catch(() => ({}));
+      return r.ok ? body : { error: body?.error ?? `HTTP ${r.status}` };
+    });
+  const defaultValidateFn = (req) =>
+    ctx?.iterationsValidator ??
+    (async ({ packId, manifest }) => {
+      const base = `${req.protocol || "http"}://${req.get("host") ?? "127.0.0.1"}`;
+      const r = await fetch(`${base}/api/packs/validate`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(req.headers.cookie ? { cookie: req.headers.cookie } : {}),
+        },
+        body: JSON.stringify({ packId, manifest }),
+      });
+      const body = await r.json().catch(() => ({}));
+      return r.ok ? body : { valid: false, errors: [body?.error ?? `HTTP ${r.status}`] };
+    });
 
   // ── Report lane (agent-fleet-report-lane) ─────────────────────────────────
   //
@@ -1025,6 +1062,157 @@ export function createFleetRoutes(app, ctx = null) {
     }
   });
 
+  // ── 主人经营坞总览 (fleet-owner-surface A/B/C) ────────────────────────────
+  // 一屏读面: 集群清单+聚合状态+异常告警计数+花销(a)投影, 与 overview/cockpit
+  // 契约同源重算 (不另造状态机)。仅自有组织的集群 (与 list 面同一 scope)。
+  router.get("/owner/board", (req, res) => {
+    try {
+      const user = resolveUser(req);
+      if (!user) return res.status(401).json({ error: "Authentication required" });
+      const db = getFleetDatabase();
+      const fleets = db.listFleets({ ownerEmail: user.email }).map((fleet) => {
+        db.expireOpenDecisions(fleet.id);
+        const members = db.listMembers(fleet.id).map((m) =>
+          memberView(db, fleet, m, taskIndexFor(fleet.id), { resolver: targetResolver, model: modelCtx() }),
+        );
+        const counts = { onDuty: 0, paused: 0, missing: 0, vacant: 0, passive: 0, failing: 0 };
+        for (const v of members) {
+          const k = v.status === "on_duty" ? "onDuty" : v.status;
+          if (k in counts) counts[k] += 1;
+        }
+        const openDecisions = db.listDecisions({ fleetId: fleet.id, state: "open" }).length;
+        const policy = fleet.decisionPolicy ?? { expiryHours: 72 };
+        const lastActivity = Math.max(
+          0,
+          ...members.map((m) => m.latestReport?.at ?? 0),
+        );
+        return {
+          id: fleet.id,
+          name: fleet.name,
+          state: fleet.state,
+          sourceTemplate: fleet.sourceTemplate ?? null,
+          counts: { ...counts, total: members.length },
+          // 告警入口的两个聚合 — 坞面行直达对应面 (decisions / failing)。
+          openDecisions,
+          failing: counts.failing,
+          decisionPolicy: policy,
+          lastActivityAt: lastActivity || null,
+          spend: db.spendProjection(fleet.id),
+        };
+      });
+      res.json({ v: 1, sampledAt: Date.now(), fleets });
+    } catch (err) {
+      console.error("[fleets] owner-board error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // 花销读数(a) — 单集群的回合/token 事实投影 (fleet-owner-surface C)。
+  router.get("/:id/spend", (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const db = getFleetDatabase();
+      res.json({ fleetId: owned.fleet.id, ...db.spendProjection(owned.fleet.id) });
+    } catch (err) {
+      console.error("[fleets] spend error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // ── 迭代回路 (fleet-owner-iteration) ─────────────────────────────────────
+  // 提议入口: 配置改动主张 → 决策车道（批准前零生效）。
+  router.post("/:id/iterations/propose", (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const db = getFleetDatabase();
+      const out = createConfigChangeProposal({
+        db,
+        fleet: owned.fleet,
+        ownerEmail: owned.user.email,
+        changeDoc: req.body ?? {},
+      });
+      if (!out.ok) return res.status(400).json({ error: out.error });
+      res.status(201).json(out);
+    } catch (err) {
+      console.error("[fleets] propose error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  router.get("/:id/iterations", (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      res.json({ iterations: getFleetDatabase().listIterations(owned.fleet.id) });
+    } catch (err) {
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // 从失败环重试: 不重跑整链 (published = 幂等返回)。
+  router.post("/:id/iterations/:itId/retry", async (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const out = await retryIterationCast({
+        db: getFleetDatabase(),
+        iterationId: req.params.itId,
+        ownerEmail: owned.user.email,
+        installFn: defaultInstallFn(),
+        publishFn: defaultPublishFn(req),
+        validateFn: defaultValidateFn(req),
+        log: console,
+      });
+      if (!out.ok && !out.already) return res.status(out.error?.includes("not approved") ? 409 : 502).json({ error: out.error ?? "retry failed", iteration: out.iteration ?? null });
+      res.json(out);
+    } catch (err) {
+      console.error("[fleets] iteration retry error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // ── Digest 订阅 (fleet-owner-iteration) ──────────────────────────────────
+  const DIGEST_KINDS = new Set(["daily", "weekly"]);
+  router.post("/:id/digest-subscribe", (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const cadence = String(req.body?.cadence ?? "");
+      if (!DIGEST_KINDS.has(cadence)) return res.status(400).json({ error: "cadence must be daily|weekly" });
+      const row = getFleetDatabase().upsertDigestSub({ id: `dg_${Math.random().toString(36).slice(2, 10)}`, fleetId: owned.fleet.id, ownerEmail: owned.user.email, cadence });
+      res.status(201).json({ subscription: row });
+    } catch (err) {
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  router.delete("/:id/digest-subscribe/:cadence", (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      getFleetDatabase().removeDigestSub(owned.fleet.id, owned.user.email, req.params.cadence);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  router.get("/owner/digest-subscriptions", (req, res) => {
+    try {
+      const user = resolveUser(req);
+      if (!user) return res.status(401).json({ error: "Authentication required" });
+      const db = getFleetDatabase();
+      const names = Object.fromEntries(db.listFleets({ ownerEmail: user.email }).map((f) => [f.id, f.name]));
+      res.json({
+        subscriptions: db.listDigestSubscriptions({ ownerEmail: user.email }).map((s) => ({ ...s, fleetName: names[s.fleetId] ?? null })),
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
   // One round-trip for the whole cockpit (design: no four-fetch flicker).
   // Every segment reuses the previous knives' read contracts verbatim —
   // statuses/evidence/latest from the detail face, decisions from the queue
@@ -1132,6 +1320,9 @@ export function createFleetRoutes(app, ctx = null) {
         version: installed.version ?? null,
         manifest: installed.manifest,
         ownerEmail: user.email,
+        // 参数槽（agent-fleet-templates delta）：向导提供的值；必填缺失/
+        // 类型不符 → params-invalid 422 指名缺失槽，零实化痕迹。
+        params: req.body?.params && typeof req.body.params === "object" && !Array.isArray(req.body.params) ? req.body.params : null,
         deps: {
           db,
           catalogAgentIds: () => new Set(catalog.getChatAgentEntries().map((e) => e.id)),
@@ -1153,7 +1344,13 @@ export function createFleetRoutes(app, ctx = null) {
             reconcileFleet({ fleetId, db, cronApi: cron, resolveTarget: targetResolver, rosterPresetId }),
         },
       });
-      if (!out.ok) return res.status(400).json({ error: out.error });
+      if (!out.ok) {
+        // params-invalid 是 422 口径（参数不合 ≠ 请求畸形），其余与既往一致。
+        if (out.code === "params-invalid") {
+          return res.status(422).json({ error: out.error, code: "params-invalid", errors: out.errors ?? [] });
+        }
+        return res.status(400).json({ error: out.error });
+      }
       res.status(out.deduped ? 200 : 201).json(out);
     } catch (err) {
       console.error("[fleets] from-template error:", err.message);
@@ -1463,7 +1660,30 @@ export function createFleetRoutes(app, ctx = null) {
       if (!updated) {
         return res.status(409).json({ error: "first resolution wins — another decision just landed" });
       }
-      res.json({ decision: updated });
+      // 迭代回路回调 (fleet-owner-iteration): approved 的 config-change 拍板项
+      // 触发铸版链——结论先行落审计, 链在后台写轴迭代行, 链路失败不翻盘。
+      // 结果随响应附在 iteration 键下 (additive, 既有响应语义逐字节)。
+      let iteration = null;
+      if (op === "approve" && (updated.itemType === "config-change" || item?.itemType === "config-change")) {
+        try {
+          const fleet = owned.fleet;
+          const it = (db.listIterations(fleet.id) ?? []).find((x) => x.decisionId === updated.id) ?? null;
+          if (it) {
+            iteration = await runIterationCast({
+              db,
+              iteration: it,
+              ownerEmail: owned.user.email,
+              installFn: defaultInstallFn(),
+              publishFn: defaultPublishFn(req),
+              validateFn: defaultValidateFn(req),
+              log: console,
+            });
+          }
+        } catch (e) {
+          console.warn(`[fleets] iteration cast callback failed (decision kept): ${e?.message || e}`);
+        }
+      }
+      res.json(iteration ? { decision: updated, iteration } : { decision: updated });
     } catch (err) {
       console.error("[fleets] decision op error:", err.message);
       res.status(500).json({ error: err.message || "internal error" });

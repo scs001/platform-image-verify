@@ -128,4 +128,8 @@ export function registerFacetProxy(app, {
   // (identity headers are injected by `forward`, same credential, same seam).
   app.all("/api/vendors", forward);
   app.all("/api/vendors/*", forward);
+  // Market revenue share (add-market-revenue-share): 买家成交读面/装前闸读值
+  // 同样经 facet 面 — 与 /api/packs 同一条 identity 通道。
+  app.all("/api/market", forward);
+  app.all("/api/market/*", forward);
 }

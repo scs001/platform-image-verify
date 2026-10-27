@@ -386,8 +386,11 @@ if (process.env.PACK_MARKETPLACE === "1") {
       if (!visible && !subscriber) return null;
       const detail = packRegistry.get?.(packId, { includeUnlisted: subscriber });
       if (!detail?.version || !detail?.manifest) return null;
-      return { version: detail.version, manifest: detail.manifest };
+      return { version: detail.version, manifest: detail.manifest, pricing: detail.pricing ?? null };
     },
+    // 装前闸权益投影的本地证词源（add-market-revenue-share）：与远端
+    // /api/packs/:id 的 purchased 同一个 store，只经 fetchMarketDetail 读。
+    market: packRegistry.market ?? null,
     // Name lookup for curated recipe references (intent-onboarding): the
     // recipe names a pack by its authored display name because ids are minted
     // randomly per deployment. Goes through the registry's own listing, so the

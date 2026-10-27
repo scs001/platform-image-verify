@@ -34,6 +34,7 @@ import { createShareRegistry, createRateLimiter } from "./share.js";
 import { createPackRegistry, registerPackRoutes } from "./packs.js";
 import { registerVendorRoutes } from "./vendors.js";
 import { registerOnboardingRoutes } from "./vendor-onboarding.js";
+import { registerMarketRoutes } from "./market.js";
 import { registerFacetProxy } from "./facet-proxy.js";
 import { createRoleStore, makeIsAdminUser } from "./roles.js";
 import { createLayoutStore } from "./layout.js";
@@ -43,6 +44,7 @@ import { registerWanxingRoutes } from "./wanxing/index.js";
 import { registerZhiyuRoutes } from "./zhiyu/index.js";
 import { createZhiyuAgentLane } from "./zhiyu/agent-lane.js";
 import { createCellFleetReporter } from "./fleet-cells.js";
+import { registerOwnerCellsRoute } from "./fleet-board.js";
 import { createBotWebhookRouter } from "./bot-webhooks.js";
 import Database from "better-sqlite3";
 
@@ -752,6 +754,7 @@ if (facetBase) {
     adminGroups: ADMIN_GROUPS,
     rateMax: Number(process.env.PACK_PUBLISH_RATE_MAX || 10),
     vendors: packRegistry.vendors,
+    market: packRegistry.market,
   });
   // Vendor supply-open (add-vendor-supply-open): identity + 供方上牌闸 ride
   // the same registry file and identity seam — the embedded (壹座 local-mount)
@@ -760,6 +763,16 @@ if (facetBase) {
   registerOnboardingRoutes(app, {
     vendors: packRegistry.vendors,
     onboarding: packRegistry.onboarding,
+    resolveUser,
+    rejectUnauthenticated,
+    adminGroups: ADMIN_GROUPS,
+  });
+  // Market revenue share (add-market-revenue-share): 成交/结算/收益读面 ride
+  // the same registry file — sub2api 客户端内置默认（SUB2API_* env）。
+  registerMarketRoutes(app, {
+    registry: packRegistry,
+    vendors: packRegistry.vendors,
+    market: packRegistry.market,
     resolveUser,
     rejectUnauthenticated,
     adminGroups: ADMIN_GROUPS,
@@ -999,6 +1012,11 @@ if (DESK_EMBED_HOST) {
     });
   });
 }
+
+// 主人经营的跨机占位 (fleet-owner-surface)：坞面渲染的「机位行」读面 —
+// cells-registry 的 durable 行 × 在线判定, 必须在 cell-proxy catch-all 之前
+// 落, 否则请求会被转给单台 cell、永远看不到机位全局视角。
+registerOwnerCellsRoute(app, { registryDb: cellRegistryDb, resolveUser, rejectUnauthenticated });
 
 app.use(async (req, res) => {
   const user = resolveUser(req);

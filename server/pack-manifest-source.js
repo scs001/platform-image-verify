@@ -70,6 +70,59 @@ export async function fetchMarketManifest({
 
   throw fail(503, "pack marketplace is not configured on this deployment");
 }
+
+// 装前闸的证词源（add-market-revenue-share）：详情面读数 = 价格 + 该 viewer
+// 的当前权益。两条来源与 manifest fetch 同缝（facet 远端 / in-process 本地
+// 市场），不得让安装面绕过市场面自行推断「买过没有」。
+// Returns { pricing?, purchased } or throws { status }.
+export async function fetchMarketDetail({
+  packId,
+  viewer,
+  localMarket = null,
+  env = process.env,
+  fetchImpl = fetch,
+  timeoutMs = 30_000,
+}) {
+  const base = (env.FACET_BASE_URL || "").replace(/\/+$/, "");
+  if (base) {
+    let upstream;
+    try {
+      upstream = await facetRequest({
+        base,
+        token: env.FACET_INTERNAL_TOKEN || "",
+        user: viewer,
+        path: `/api/packs/${encodeURIComponent(packId)}`,
+        fetchImpl,
+        timeoutMs,
+      });
+    } catch (e) {
+      throw fail(502, `pack marketplace unreachable: ${e?.message || e}`);
+    }
+    if (upstream.status === 404) throw fail(404, VERSION_NOT_FOUND);
+    if (!upstream.ok) throw fail(502, `pack marketplace fetch failed (HTTP ${upstream.status})`);
+    const body = await upstream.json().catch(() => null);
+    if (!body) throw fail(502, "pack marketplace returned no detail");
+    return { pricing: body.pricing ?? null, purchased: body.purchased === true };
+  }
+
+  if (localMarket?.getLatest) {
+    const found = localMarket.getLatest(packId, viewer);
+    if (!found) throw fail(404, VERSION_NOT_FOUND);
+    // 本地面的等价物：in-process 挂载的 market store 直接出权益投影,
+    // pricing 字段若本地包装未给出则视为免费（与外端缺省同语义）。
+    return {
+      pricing: found.pricing ?? null,
+      purchased:
+        found.pricing && localMarket.market && viewer?.email
+          ? Boolean(localMarket.market.activeEntitlement(viewer.email, packId))
+          : found.pricing
+            ? false
+            : undefined,
+    };
+  }
+
+  throw fail(503, "pack marketplace is not configured on this deployment");
+}
 // Latest-version lookup for SERVER-DRIVEN installs (intent-onboarding): the
 // provisioning action knows the pack id from the recipe but has no version —
 // the browser is not in the loop, so nothing supplies one. Resolves over the

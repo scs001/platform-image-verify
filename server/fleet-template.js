@@ -57,8 +57,135 @@ const LOCALE_KEY_RE = /^[a-z]{2,3}(-[a-zA-Z0-9]{2,8})*$/;
 const LOCALE_DISPLAY_CHARS = 200;
 const displayOverride = (v) => typeof v === "string" && !!v.trim() && v.length <= LOCALE_DISPLAY_CHARS;
 
-// Parse + validate a manifest's fleet section. Returns
-// { ok: true, template } | { ok: false, error } — never throws.
+// ── 参数槽 (agent-fleet-templates delta: 模板可声明默认参数槽) ────────────────
+// `fleet.params` 是可选扩展段 — 旧模板不声明时一切行为逐字节。占位引用形如
+// `${name}` 只允许出现在白名单位置（fleet.name / member.target.{id,packId,
+// presetId} / member.cadence.{cron,promptTemplate}）——参数不能改写结构
+// （成员数/边/槽位键），只能调「值」。
+export const TEMPLATE_PARAM_TYPES = ["string", "number", "boolean", "enum"];
+const PARAM_NAME_RE = /^[a-z][a-zA-Z0-9_]{0,31}$/;
+const PLACEHOLDER_RE = /\$\{([a-z][a-zA-Z0-9_]{0,31})\}/g;
+
+function validateParamShape(p) {
+  if (!p || typeof p !== "object" || Array.isArray(p)) return "each param must be an object";
+  if (typeof p.name !== "string" || !PARAM_NAME_RE.test(p.name)) return "each param needs a name matching /^[a-z][a-zA-Z0-9_]{0,31}$/";
+  if (!TEMPLATE_PARAM_TYPES.includes(p.type)) return `param '${p.name}' type must be one of ${TEMPLATE_PARAM_TYPES.join(", ")}`;
+  if (p.type === "enum") {
+    if (!Array.isArray(p.options) || p.options.length === 0 || p.options.some((o) => typeof o !== "string" || !o.trim())) {
+      return `param '${p.name}' enum needs a non-empty options array of strings`;
+    }
+  } else if (p.options !== undefined) return `param '${p.name}' options only meaningful for enum`;
+  if (p.default !== undefined) {
+    const err = valueFitsType(p.default, p);
+    if (err) return `param '${p.name}' default ${err}`;
+    // 嵌套占位不解析（单遍替换纪律）：默认值里再引槽位 = 声明期就拒, 不让
+    // 半成品出到运行面 (形状诚实胜过语法糖)。
+    if ((p.type === "string" || p.type === "enum") && /\$\{/.test(String(p.default))) {
+      return `param '${p.name}' default may not itself reference a parameter (nesting is not substituted)`;
+    }
+  }
+  if (p.label !== undefined && (typeof p.label !== "string" || !p.label.trim())) return `param '${p.name}' label must be a non-empty string`;
+  return null;
+}
+
+function valueFitsType(value, p) {
+  if (p.type === "string" && typeof value !== "string") return `must be a string`;
+  if (p.type === "number" && (typeof value !== "number" || !Number.isFinite(value))) return `must be a finite number`;
+  if (p.type === "boolean" && typeof value !== "boolean") return `must be a boolean`;
+  if (p.type === "enum" && (typeof value !== "string" || !(p.options ?? []).includes(value))) {
+    return `must be one of ${(p.options ?? []).join(", ")}`;
+  }
+  return null;
+}
+
+const PARAM_SLOTS = 16;
+
+// Params normalization used by the parse output. Returns
+// { ok, params } | { ok: false, error }.
+function parseParams(params) {
+  if (params === undefined || params === null) return { ok: true, params: null };
+  if (!Array.isArray(params)) return { ok: false, error: "fleet.params must be an array" };
+  if (params.length > PARAM_SLOTS) return { ok: false, error: `fleet.params is capped at ${PARAM_SLOTS}` };
+  const seen = new Set();
+  const out = [];
+  for (const p of params) {
+    const err = validateParamShape(p);
+    if (err) return { ok: false, error: err };
+    if (seen.has(p.name)) return { ok: false, error: `duplicate param '${p.name}'` };
+    seen.add(p.name);
+    out.push({
+      name: p.name,
+      type: p.type,
+      ...(p.options ? { options: p.options } : {}),
+      ...(p.default !== undefined ? { default: p.default } : {}),
+      ...(p.required === true ? { required: true } : {}),
+      ...(typeof p.label === "string" ? { label: p.label } : {}),
+    });
+  }
+  return { ok: true, params: out.length ? out : null };
+}
+
+// 占位引用的登记: the string contains ${…} refs → each must name a declared
+// param. Presence short-circuits the position's own shape checks at parse
+// time (post-substitution re-parse is the structural gate).
+function collectPlaceholderError(str, declared) {
+  PLACEHOLDER_RE.lastIndex = 0;
+  let match;
+  while ((match = PLACEHOLDER_RE.exec(str))) {
+    if (!declared.has(match[1])) return `references undeclared param '${match[1]}'`;
+  }
+  return null;
+}
+
+// Resolve a normalized template against caller-provided values: coerce + 必填
+// gate + default backfill, then substitute EVERY whitelisted placeholder. Post-
+// substitution structure is the caller's job to re-parse (provisioner 同缝).
+// Returns { ok, errors: [{name, error}] , resolved } — resolved = {
+//   template: substituted template object (deep clone), values }.
+export function resolveFleetTemplateParams(template, provided = {}) {
+  const params = template.params ?? [];
+  const errors = [];
+  const values = {};
+  for (const p of params) {
+    const raw = provided ? provided[p.name] : undefined;
+    if (raw === undefined || raw === null || raw === "") {
+      if (p.required === true && p.default === undefined) {
+        errors.push({ name: p.name, error: "required" });
+        continue;
+      }
+      values[p.name] = p.default !== undefined ? p.default : undefined;
+    } else {
+      const fit = valueFitsType(raw, p);
+      if (fit) {
+        errors.push({ name: p.name, error: fit });
+        continue;
+      }
+      values[p.name] = raw;
+    }
+  }
+  if (errors.length) return { ok: false, errors };
+
+  const substitute = (str) =>
+    String(str).replace(PLACEHOLDER_RE, (_, name) => {
+      const v = values[name];
+      if (v === undefined || v === null) return "";
+      return typeof v === "boolean" || typeof v === "number" ? String(v) : String(v);
+    });
+  const clone = JSON.parse(JSON.stringify(template));
+  if (typeof clone.name === "string") clone.name = substitute(clone.name);
+  for (const m of clone.members ?? []) {
+    if (typeof m.title === "string") m.title = substitute(m.title);
+    for (const key of ["id", "packId", "presetId"]) {
+      if (m.target && typeof m.target[key] === "string") m.target[key] = substitute(m.target[key]);
+    }
+    if (m.cadence) {
+      if (typeof m.cadence.cron === "string") m.cadence.cron = substitute(m.cadence.cron);
+      if (typeof m.cadence.promptTemplate === "string") m.cadence.promptTemplate = substitute(m.cadence.promptTemplate);
+    }
+  }
+  delete clone.params;
+  return { ok: true, resolved: { template: clone, values } };
+}
 export function parseFleetTemplate(manifest) {
   if (!manifest || typeof manifest !== "object") return { ok: false, error: "manifest must be an object" };
   const section = manifest.fleet;
@@ -68,9 +195,16 @@ export function parseFleetTemplate(manifest) {
   }
   const { name, nameKey, cover, members, requires } = section;
   const display = name ?? nameKey;
+  // 参数槽段先行 — 成员的占位引用只许指向已声明槽位（占位不过关参数本身
+  // 也过不了声明期）。
+  const paramsParsed = parseParams(section.params);
+  if (!paramsParsed.ok) return { ok: false, error: `fleet.params: ${paramsParsed.error}` };
+  const declaredParams = new Set((paramsParsed.params ?? []).map((p) => p.name));
   if (typeof display !== "string" || !display.trim()) {
     return { ok: false, error: "fleet.name (or nameKey) is required" };
   }
+  const namePlaceholderError = declaredParams.size ? collectPlaceholderError(display, declaredParams) : null;
+  if (namePlaceholderError) return { ok: false, error: `fleet.name ${namePlaceholderError}` };
   if (!Array.isArray(members) || members.length === 0) {
     return { ok: false, error: "fleet.members must be a non-empty array" };
   }
@@ -95,14 +229,27 @@ export function parseFleetTemplate(manifest) {
     if (!TEMPLATE_TARGET_KINDS.includes(target.kind)) {
       return { ok: false, error: `member '${ref}' target.kind must be one of ${TEMPLATE_TARGET_KINDS.join(", ")}` };
     }
+    // 参数占位（agent-fleet-templates delta）：白名单位置里的 ${param} 引用
+    // 只许指向已声明槽位；占位在场的位置其形状检查后置到替换后重解析。
+    for (const key of ["id", "packId", "presetId"]) {
+      if (typeof target[key] === "string" && PLACEHOLDER_RE.test(target[key])) {
+        PLACEHOLDER_RE.lastIndex = 0;
+        const err = collectPlaceholderError(target[key], declaredParams);
+        if (err) return { ok: false, error: `member '${ref}' target.${key} ${err}` };
+      }
+    }
+    const hasPlaceholder = (s) => typeof s === "string" && (PLACEHOLDER_RE.lastIndex = 0, PLACEHOLDER_RE.test(s));
     if (target.kind === "pack-preset") {
-      if (typeof target.packId !== "string" || !target.packId.trim() || typeof target.presetId !== "string" || !target.presetId.trim()) {
+      if (
+        typeof target.packId !== "string" || !target.packId.trim() ||
+        typeof target.presetId !== "string" || !target.presetId.trim()
+      ) {
         return { ok: false, error: `member '${ref}' pack-preset target needs packId and presetId` };
       }
     } else if (typeof target.id !== "string" || !target.id.trim()) {
       return { ok: false, error: `member '${ref}' ${target.kind} target needs an id` };
     }
-    if (target.kind === "tool" && !TOOL_TARGET_SHAPE_RE.test(target.id)) {
+    if (target.kind === "tool" && !hasPlaceholder(target.id) && !TOOL_TARGET_SHAPE_RE.test(target.id)) {
       // Shape gate only (mirrors the live face's 'server::tool' contract);
       // whether the server is routable stays an instantiation-time fact.
       return { ok: false, error: `member '${ref}' tool target.id must be 'server::tool' (got '${target.id}')` };
@@ -123,15 +270,24 @@ export function parseFleetTemplate(manifest) {
       if (typeof c !== "object" || typeof c.cron !== "string") {
         return { ok: false, error: `member '${ref}' cadence must be {cron, tz?, promptTemplate}` };
       }
-      const invalid = validateCron(c.cron, c.tz ?? null);
-      if (invalid) return { ok: false, error: `member '${ref}': ${invalid}` };
+      if (!hasPlaceholder(c.cron)) {
+        const invalid = validateCron(c.cron, c.tz ?? null);
+        if (invalid) return { ok: false, error: `member '${ref}': ${invalid}` };
+      } else {
+        const err = collectPlaceholderError(c.cron, declaredParams);
+        if (err) return { ok: false, error: `member '${ref}' cadence.cron ${err}` };
+      }
       if (typeof c.promptTemplate !== "string" || !c.promptTemplate.trim()) {
         return { ok: false, error: `member '${ref}' cadence needs a promptTemplate` };
+      }
+      if (hasPlaceholder(c.promptTemplate)) {
+        const err = collectPlaceholderError(c.promptTemplate, declaredParams);
+        if (err) return { ok: false, error: `member '${ref}' cadence.promptTemplate ${err}` };
       }
       // Tool posts (add-tool-posts): the cadence prompt IS the tool's
       // arguments — a JSON object, deterministically (mirror of the live
       // write face's toolCadenceError; kept local for gateway purity).
-      if (target.kind === "tool") {
+      if (target.kind === "tool" && !hasPlaceholder(c.promptTemplate)) {
         try {
           const parsed = JSON.parse(c.promptTemplate);
           if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
@@ -276,6 +432,8 @@ export function parseFleetTemplate(manifest) {
     template: {
       name: String(display).trim(),
       ...(cover ? { cover: String(cover) } : {}),
+      // 参数槽（无声明段 = null, 与无参数旧模板逐字节同形）。
+      ...(paramsParsed.params ? { params: paramsParsed.params } : {}),
       members: pending.map((m) => ({
         ref: m.ref,
         title: String(m.title ?? m.titleKey).trim(),

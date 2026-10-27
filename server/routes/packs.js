@@ -10,7 +10,7 @@
 // bodies through the edge.
 
 import * as packStore from "../../pack-store.js";
-import { fetchMarketManifest } from "../pack-manifest-source.js";
+import { fetchMarketManifest, fetchMarketDetail } from "../pack-manifest-source.js";
 import { projectPackList } from "../../lib/pack-locale.js";
 
 // Locale track (add-pack-locale-tracks B): installed-pack cards render under
@@ -112,6 +112,31 @@ export function registerPackRoutes(ctx) {
     if (!requireGate(req, res)) return;
     const { packId, version, manifest: bodyManifest } = req.body || {};
     let manifest = bodyManifest;
+    // 装前闸（add-market-revenue-share）：市场面证词说「付费且未成交」的
+    // 条目不得物化——闸与详情/购买状态同源（fetchMarketDetail）；价格为空
+    // = 免费条目不拦；市场暂不可达时如实降级为既往行为（详情/购买两道
+    // 写面在同台市场，不可用者自见，不虚构成交）。
+    if (packId) {
+      const viewer = req.user ?? (ctx.authEnabled ? null : { email: ctx.cellUserEmail || "owner@local", groups: [] });
+      try {
+        const detail = await fetchMarketDetail({ packId, viewer, localMarket: ctx.localPackMarket ?? null });
+        if (detail?.pricing && !detail.purchased) {
+          return res.status(402).json({
+            error: "This pack is not in your purchases — buy it on the market first",
+            code: "market-purchase-required",
+          });
+        }
+      } catch (e) {
+        if (e?.status === 404) {
+          if (!bodyManifest) return res.status(404).json({ error: "Pack version not found" });
+          // body-manifest rolling compat: market says the id does not exist —
+          // the legacy manifest-in-body path unchanged (visibility is the
+          // market's call at read time, install validation owns the rest).
+        } else {
+          console.warn(`[packs] install purchase gate degraded (${e?.message || e}); proceeding with legacy flow`);
+        }
+      }
+    }
     try {
       if (!manifest) {
         if (!packId || version === undefined || version === null || !Number.isInteger(Number(version))) {

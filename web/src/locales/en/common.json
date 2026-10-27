@@ -1721,7 +1721,18 @@
       "skillFiles": "{{count}} auxiliary files",
       "scriptGateTitle": "This pack carries executable scripts",
       "scriptGateBody": "The skills below carry script files that will land in your runtime when installed; nothing installs until you confirm (one-time).",
-      "scriptGateConfirm": "Confirm install"
+      "scriptGateConfirm": "Confirm install",
+      "vendorBy": "from {{name}}",
+      "perPeriod": " / {{days}} days",
+      "oneOff": " (one-time)",
+      "purchased": "purchased",
+      "buyPack": "Buy ${{price}}",
+      "purchase": {
+        "insufficient": "Insufficient balance — top up in the ciyuan panel and retry.",
+        "noBilling": "No sub2api billing account linked — finish linking first, then buy.",
+        "settlementFailed": "Settlement did not complete — held for retry; try again from My Packs shortly.",
+        "required": "Buy this pack before installing it."
+      }
     },
     "report": {
       "title": "Install result for “{{name}}”",
@@ -1867,6 +1878,31 @@
       "facade": "Facade",
       "assistant": "Assistant",
       "toolkit": "Toolkit"
+    },
+    "earnings": {
+      "title": "Vendor settlement",
+      "settled": "Settled share",
+      "pending": "Pending",
+      "credit": "Credit available",
+      "creditSpent": "Credit spent",
+      "myPurchases": "My recent purchases"
+    },
+    "wizard": {
+      "title": "Fleet template provisioning",
+      "cancel": "Cancel",
+      "noParams": "No parameter slots — provision directly.",
+      "missingParam": "Required slot \"{{name}}\" is empty.",
+      "paramInvalidServer": "Slot \"{{name}}\" invalid: {{reason}}",
+      "runBtn": "Provision fleet",
+      "stepPay": "Completing the purchase…",
+      "stepInstall": "Subscribing & installing…",
+      "stepProvision": "Provisioning fleet…",
+      "missingTargets": "({{n}} post(s) born vacant — staff them later)",
+      "conflictTargets": "({{n}} target(s) already held — born vacant)",
+      "donePaused": "Fleet provisioned (all paused) — ignite when ready.",
+      "igniteBtn": "Ignite first run",
+      "lit": "Lit — fleet is now running.",
+      "doneBtn": "Done"
     }
   },
   "overlay": {
@@ -2626,6 +2662,31 @@
       "failed": "failed",
       "errorKind": "failed: {{kind}}",
       "source": "open trace"
+    },
+    "board": {
+      "title": "My fleets",
+      "loadError": "Board failed: {{error}}",
+      "cellSleeping": "sleeping (placeholder)",
+      "cellLastTraffic": "last traffic {{at}}",
+      "failingBadge": "failing {{count}}",
+      "onDutyLine": "on-duty {{on}}/{{total}}",
+      "turnsLine": "{{turns}} turns·{{runs}} runs",
+      "marketSpend": "market {{amount}}",
+      "billingTitle": "Spend (coarse account-level)",
+      "billingError": "Billing view failed: {{error}}",
+      "billingUnlinked": "No linked sub2api account — link in the panel to see the ledger.",
+      "deltaUnknown": "—",
+      "newVersion": "new v{{version}}",
+      "digestDaily": "Daily",
+      "digestWeekly": "Weekly",
+      "proposeIteration": "Propose iteration",
+      "iterationsBtn": "Iterations",
+      "proposalPlaceholder": "Change doc (JSON, e.g. {\"cadenceDaily\":\"0 10 * * *\"})",
+      "proposalInvalidJson": "Changes is not valid JSON",
+      "proposalEmpty": "Changes cannot be empty",
+      "proposalSubmit": "Submit to queue",
+      "proposalQueued": "Queued for sign-off — approved ships a new market version",
+      "retry": "Retry"
     }
   },
   "facetCurate": {

@@ -22,6 +22,7 @@ import { Badge } from "./Badge";
 import { FacadeMattersPanel } from "./FacadeMattersPanel";
 import { RhythmEditor, rhythmEntryValid } from "./RhythmEditor";
 import { PackVersionList } from "./PackVersionList";
+import { FleetTemplateWizard } from "./FleetTemplateWizard";
 import { guideFor, promptsFor, type PackGuide } from "@/lib/packGuides";
 import type { RhythmEntry } from "./RhythmEditor";
 
@@ -91,6 +92,9 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
   const [pack, setPack] = useState<PackDetail | null>(null);
   const [subscribing, setSubscribing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 装作路径（add-fleet-owner-surface）：模板 pack (manifest.fleet) 的
+  // 参数向导开闸 — 只在壹座宿主开放（facet 匿名壳不装本机）。
+  const [showFleetWizard, setShowFleetWizard] = useState(false);
   const [deployments, setDeployments] = useState<PackDeployment[]>([]);
   const [deploying, setDeploying] = useState(false);
   const [deployNote, setDeployNote] = useState<string | null>(null);
@@ -159,6 +163,11 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
     setSubscribing(true);
     setError(null);
     try {
+      // 装前闸镜像（add-market-revenue-share）：付费条目先成交再订阅。闸的
+      // 本义在市场侧（未成交→402）；客户端只在顺路上先买单，失败如实呈现。
+      if (pack.pricing && pack.purchased !== true) {
+        await api.purchasePack(packId, true);
+      }
       const sub = await api.subscribePack(packId);
       // Only the reference crosses the wire: the cell fetches the manifest
       // server-side (pack-install-server-side-manifest). A script-bearing
@@ -172,6 +181,24 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
       onSubscribed(report, pack.name, packId);
     } catch (err) {
       const e = err as Error & { body?: { code?: string; details?: { name: string; scriptFiles: string[] }[] } };
+      // 购买/装闸的失败如实分类（add-market-revenue-share）：错误体里的
+      // code 是市场面的分类, 直接给用户下一步出路, 不静默吞错。
+      if (e.body?.code === "insufficient-balance") {
+        setError(t("packs.detail.purchase.insufficient"));
+        return;
+      }
+      if (e.body?.code === "billing-account-required") {
+        setError(t("packs.detail.purchase.noBilling"));
+        return;
+      }
+      if (e.body?.code === "settlement-failed") {
+        setError(t("packs.detail.purchase.settlementFailed"));
+        return;
+      }
+      if (e.body?.code === "market-purchase-required") {
+        setError(t("packs.detail.purchase.required"));
+        return;
+      }
       if (e.body?.code === "script-confirm-required") {
         // Map the server's refusal to the one-time acknowledgment; the retry
         // carries confirm=true (task 5.1).
@@ -362,6 +389,22 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
           </DialogTitle>
           <DialogDescription>
             {pack ? `${pack.authorEmail} · v${pack.version}` : ""}
+            {/* 署名与价格（add-vendor-supply-open / add-market-revenue-share）:
+                投影字段存在才渲染 — 免费且无归属的条目与落地前逐字节一致。 */}
+            {pack?.vendor && (
+              <span className="ml-2 text-primary" data-testid="pack-vendor-badge">
+                · {t("packs.detail.vendorBy", { name: pack.vendor.name })}
+              </span>
+            )}
+            {pack?.pricing && (
+              <span className="ml-2 font-medium" data-testid="pack-pricing-badge">
+                · ${pack.pricing.priceUsd.toFixed(2)}
+                {pack.pricing.kind === "period"
+                  ? t("packs.detail.perPeriod", { days: pack.pricing.periodDays })
+                  : t("packs.detail.oneOff")}
+                {pack.purchased === true && <span className="ml-1 text-primary">· {t("packs.detail.purchased")}</span>}
+              </span>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -925,10 +968,30 @@ export function PackDetailDialog({ packId, onOpenChange, onSubscribed, onGotoMin
               )}
             </div>
           )}
+          {showFleetWizard && pack && (
+            <div className="mb-2">
+              <FleetTemplateWizard
+                pack={pack}
+                onCancel={() => setShowFleetWizard(false)}
+                onDone={() => setShowFleetWizard(false)}
+              />
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <Button onClick={() => void subscribe()} disabled={subscribing} data-testid="pack-subscribe">
-              {subscribing ? t("common.loading") : t("packs.detail.subscribe")}
+              {subscribing
+                ? t("common.loading")
+                : pack?.pricing && pack.purchased !== true
+                  ? t("packs.detail.buyPack", { price: pack.pricing.priceUsd.toFixed(2) })
+                  : t("packs.detail.subscribe")}
             </Button>
+            {/* 装作路径（add-fleet-owner-surface）：模板 pack 一键装作 — 付费
+                闸仍在向导内复验; 只在壹座宿主开放(facet 匿名壳无安装面)。 */}
+            {pack?.manifest?.fleet && !onRequireLogin && !showFleetWizard && (
+              <Button variant="outline" onClick={() => setShowFleetWizard(true)} data-testid="pack-fleet-wizard-open">
+                {t("packs.detail.fleetWizardBtn")}
+              </Button>
+            )}
             {onGotoMine &&
               (onRequireLogin ? (
                 // Facet shell: no installed-packs surface for an anonymous

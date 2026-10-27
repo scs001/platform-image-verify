@@ -24,6 +24,7 @@ import express from "express";
 import { createPackRegistry, registerPackRoutes } from "../gateway/packs.js";
 import { registerVendorRoutes } from "../gateway/vendors.js";
 import { registerOnboardingRoutes } from "../gateway/vendor-onboarding.js";
+import { registerMarketRoutes } from "../gateway/market.js";
 import { createLogtoAuth } from "../server/logto-auth.js";
 import { resolveSessionSecret } from "../server/session.js";
 import { createResolveUser } from "./identity.js";
@@ -157,6 +158,7 @@ registerPackRoutes(app, {
   adminGroups,
   anonymousRead: true,
   vendors: registry.vendors,
+  market: registry.market,
 });
 
 // Vendor supply-open (add-vendor-supply-open): identity + 供方上牌闸 — both
@@ -165,6 +167,17 @@ registerVendorRoutes(app, { vendors: registry.vendors, resolveUser, rejectUnauth
 registerOnboardingRoutes(app, {
   vendors: registry.vendors,
   onboarding: registry.onboarding,
+  resolveUser,
+  rejectUnauthenticated,
+  adminGroups,
+});
+
+// Market revenue share (add-market-revenue-share): 成交/结算/收益读面 —
+// 同 packs.db 生命周期单元, sub2api 客户端内置默认（SUB2API_* env）。
+registerMarketRoutes(app, {
+  registry,
+  vendors: registry.vendors,
+  market: registry.market,
   resolveUser,
   rejectUnauthenticated,
   adminGroups,

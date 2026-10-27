@@ -19,7 +19,7 @@
 //              owner's later rewrites are never clobbered
 //   paused   : the fleet is created all-paused; materialized tasks park too;
 //              the owner starts it explicitly (install never auto-runs)
-import { parseFleetTemplate } from "./fleet-template.js";
+import { parseFleetTemplate, resolveFleetTemplateParams } from "./fleet-template.js";
 import { validateOrchestration } from "./fleet-orchestration.js";
 
 // deps: { db, resolveExisting({kind,id}) => boolean|object, rosterPresetId,
@@ -31,10 +31,25 @@ export async function provisionFleetFromTemplate({
   ownerEmail,
   deps,
   now = Date.now(),
+  // 参数槽（agent-fleet-templates delta）：调用者提供 {name: value}；缺省槽
+  // 走默认值、必填槽缺失按 params-invalid 如实 422（分类留在 error 字段，
+  // 层路由转成口径）。无参数槽的模板 behavior 与落地前逐字节一致。
+  params = null,
 }) {
-  const parsed = parseFleetTemplate(manifest);
+  let parsed = parseFleetTemplate(manifest);
   if (!parsed.ok) return { ok: false, error: `invalid fleet template: ${parsed.error}` };
-  const template = parsed.template;
+  let template = parsed.template;
+  if (template.params) {
+    const resolved = resolveFleetTemplateParams(template, params ?? {});
+    if (!resolved.ok) {
+      return { ok: false, code: "params-invalid", error: "invalid template params", errors: resolved.errors };
+    }
+    // 结构闸后置：替换后的模板必须自己重新通过整条解析链（cron/形状/编排
+    // 各项位置检查都是在 placeholder 处被有意延期的）。
+    parsed = parseFleetTemplate({ ...manifest, fleet: resolved.resolved.template });
+    if (!parsed.ok) return { ok: false, code: "params-invalid", error: `template params leave an invalid template: ${parsed.error}` };
+    template = parsed.template;
+  }
 
   // Dedup anchor (D5): same pack + same owner + still live → the existing
   // fleet is the answer; re-installing a pack must not mint a twin.

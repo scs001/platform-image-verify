@@ -1721,7 +1721,18 @@
       "skillFiles": "技能包 {{count}} 个辅助文件",
       "scriptGateTitle": "此能力包包含可执行脚本",
       "scriptGateBody": "以下技能携带脚本文件，安装后会落盘到你的运行时；确认后才会安装（仅此一次确认）。",
-      "scriptGateConfirm": "确认安装"
+      "scriptGateConfirm": "确认安装",
+      "vendorBy": "{{name}} 提供",
+      "perPeriod": " / {{days}} 天",
+      "oneOff": "（买断）",
+      "purchased": "已购",
+      "buyPack": "购买 ${{price}}",
+      "purchase": {
+        "insufficient": "余额不足——请先到词元面板充值后重试。",
+        "noBilling": "尚未绑定词元宝账——请先完成绑定再购买。",
+        "settlementFailed": "结算未完成——已挂账，稍后在我的能力包里重试。",
+        "required": "该条目需要先购买再安装。"
+      }
     },
     "report": {
       "title": "「{{name}}」安装结果",
@@ -1867,6 +1878,31 @@
       "facade": "分身",
       "assistant": "助手",
       "toolkit": "工具"
+    },
+    "earnings": {
+      "title": "供应结算",
+      "settled": "已结分成",
+      "pending": "待结算",
+      "credit": "可抵扣",
+      "creditSpent": "已耗抵扣",
+      "myPurchases": "我的近期成交"
+    },
+    "wizard": {
+      "title": "集群模板装作",
+      "cancel": "取消",
+      "noParams": "此模板没有参数槽，直接实化即可。",
+      "missingParam": "必填参数槽「{{name}}」未填。",
+      "paramInvalidServer": "参数槽「{{name}}」不合：{{reason}}",
+      "runBtn": "实化集群",
+      "stepPay": "先完成付费成交…",
+      "stepInstall": "订阅并安装模板…",
+      "stepProvision": "按参数实化集群…",
+      "missingTargets": "（{{n}} 个岗位因目标缺位降生为空岗，可后补）",
+      "conflictTargets": "（{{n}} 个岗位目标已有岗在役，降为空岗）",
+      "donePaused": "集群已实化（全暂停）——确认无误后点燃。",
+      "igniteBtn": "点燃首跑",
+      "lit": "已点燃，集群进入在跑。",
+      "doneBtn": "完成"
     }
   },
   "overlay": {
@@ -2626,6 +2662,31 @@
       "failed": "失败",
       "errorKind": "失败：{{kind}}",
       "source": "打开 trace"
+    },
+    "board": {
+      "title": "我的集群",
+      "loadError": "坞面读取失败：{{error}}",
+      "cellSleeping": "休眠中（占位）",
+      "cellLastTraffic": "最近流量 {{at}}",
+      "failingBadge": "故障 {{count}}",
+      "onDutyLine": "在岗 {{on}}/{{total}}",
+      "turnsLine": "{{turns}} 回合·{{runs}} 实例",
+      "marketSpend": "市场成交 {{amount}}",
+      "billingTitle": "花销（账户级粗对账）",
+      "billingError": "对账读取失败：{{error}}",
+      "billingUnlinked": "未绑定词元宝账——面板内绑定后此处呈现对账。",
+      "deltaUnknown": "—",
+      "newVersion": "新版 v{{version}}",
+      "digestDaily": "日报",
+      "digestWeekly": "周报",
+      "proposeIteration": "提出迭代",
+      "iterationsBtn": "迭代队列",
+      "proposalPlaceholder": "改动主张（JSON 键值, 如 {\"cadenceDaily\":\"0 10 * * *\"} ）",
+      "proposalInvalidJson": "改动参数不是合法 JSON",
+      "proposalEmpty": "主张不能为空（白名单键集至少一项）",
+      "proposalSubmit": "提交拍板",
+      "proposalQueued": "已落入拍板队列 — 批准后经市场发新版",
+      "retry": "重试"
     }
   },
   "facetCurate": {

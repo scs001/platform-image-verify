@@ -106,6 +106,47 @@ export function createFleetDatabase({ file } = {}) {
     /* column already exists */
   }
 
+  // 迭代回路 (fleet-owner-iteration): 提议型拍板项的类型键与附件（diff/
+  // changes/callbackResult）——旧行向后兼容 (NULL='decision'，与既有语义
+  // 零差异）。decision lane 是唯一审批面，这是“审批单不另建表”的落点。
+  try {
+    db.exec(`ALTER TABLE decision_items ADD COLUMN item_type TEXT`);
+    db.exec(`ALTER TABLE decision_items ADD COLUMN detail TEXT`);
+  } catch {
+    /* columns already exist */
+  }
+
+  // 迭代链状态 (fleet-owner-iteration): 现行实例白名单导出→既有发布链的
+  // 编排器状态行——提出的改动链路全部事实源都在这里。
+  db.exec(`CREATE TABLE IF NOT EXISTS fleet_iterations (
+    id TEXT PRIMARY KEY,
+    fleet_id TEXT NOT NULL,
+    pack_id TEXT NOT NULL,
+    decision_id TEXT,
+    state TEXT NOT NULL,
+    axis TEXT,
+    note TEXT NOT NULL DEFAULT '',
+    notes TEXT,
+    published_version INTEGER,
+    created_by TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_fleet_iterations_fleet ON fleet_iterations(fleet_id, created_at)`);
+
+  // 报数 digest 订阅 (fleet-owner-iteration): 决定性渲染+账内 unread 语义
+  // (session last-updated 派生) ，last_sent_at 为停机补跑的窗口事实源。
+  db.exec(`CREATE TABLE IF NOT EXISTS fleet_digest_subscriptions (
+    id TEXT PRIMARY KEY,
+    fleet_id TEXT NOT NULL,
+    owner_email TEXT NOT NULL,
+    cadence TEXT NOT NULL,
+    last_run_at INTEGER,
+    last_sent_at INTEGER,
+    created_at INTEGER NOT NULL,
+    UNIQUE (fleet_id, owner_email, cadence)
+  )`);
+
   // Post-level models (add-fleet-post-model D9): nullable declarations — the
   // member's primary + fallback and the fleet default that doubles as the
   // availability fallback. Nullable by design: unset = inherit down the
@@ -520,8 +561,8 @@ export function createFleetDatabase({ file } = {}) {
 
   function appendDecision(item) {
     db.prepare(`
-      INSERT INTO decision_items (id, fleet_id, member_id, question, options, severity, suggested_deadline, recommendation, state, resolution, source_session_id, submitted_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', NULL, ?, ?)
+      INSERT INTO decision_items (id, fleet_id, member_id, question, options, severity, suggested_deadline, recommendation, state, resolution, source_session_id, submitted_at, item_type, detail)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', NULL, ?, ?, ?, ?)
     `).run(
       item.id,
       item.fleetId,
@@ -533,6 +574,8 @@ export function createFleetDatabase({ file } = {}) {
       item.recommendation ?? null,
       item.sourceSessionId ?? null,
       item.submittedAt ?? Date.now(),
+      item.itemType ?? null,
+      item.detail ? JSON.stringify(item.detail) : null,
     );
     return getDecision(item.id);
   }
@@ -904,6 +947,40 @@ export function createFleetDatabase({ file } = {}) {
       .map(deserializeTurnEvent);
   }
 
+  // 花销读数(a)：回合/token 事实投影 (fleet-owner-surface)。与 fleet_runs 同
+  // 纪律 —— always a projection (SUM 现算, 不落计数器), usage 缺失的行如实进
+  // 缺数（NULL 合计不虚构 token）。
+  function spendProjection(fleetId, { now = Date.now() } = {}) {
+    const windowAgg = (sinceMs) => {
+      const agg = db
+        .prepare(
+          `SELECT COUNT(*) AS runs,
+                  COALESCE(SUM(turns), 0) AS turns,
+                  SUM(usage_input) AS usage_input,
+                  SUM(usage_output) AS usage_output
+           FROM fleet_runs WHERE fleet_id = ? AND started_at >= ?`,
+        )
+        .get(fleetId, sinceMs);
+      return {
+        runs: agg.runs ?? 0,
+        turns: agg.turns ?? 0,
+        usageInput: agg.usage_input ?? null,
+        usageOutput: agg.usage_output ?? null,
+      };
+    };
+    const day = 24 * 3600_000;
+    return {
+      baseline: "fleet_runs projection (usage 缺失如实记 null)",
+      sampledAt: now,
+      windows: {
+        "24h": windowAgg(now - day),
+        "7d": windowAgg(now - 7 * day),
+        "30d": windowAgg(now - 30 * day),
+      },
+      allTime: windowAgg(0),
+    };
+  }
+
   // Edge traffic for the canvas (cockpit D9): hops in the window grouped by
   // (from post, to post, edge kind), with the outcome split. The parent turn
   // row supplies the from post; a parent already pruned leaves the hop out,
@@ -994,6 +1071,76 @@ export function createFleetDatabase({ file } = {}) {
     return { member: deserializeMember(hit), fleet };
   }
 
+  // ── 迭代链 (fleet-owner-iteration) ────────────────────────────────────────
+  function appendIteration({ id, fleetId, packId, decisionId = null, state = "proposed", axis = null, note = "", notes = null, createdBy }) {
+    const t = Date.now();
+    db.prepare(
+      `INSERT INTO fleet_iterations (id, fleet_id, pack_id, decision_id, state, axis, note, notes, published_version, created_by, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
+    ).run(id, fleetId, packId, decisionId, state, axis, note, notes, createdBy, t, t);
+    return getIteration(id);
+  }
+
+  function getIteration(id) {
+    const row = db.prepare(`SELECT * FROM fleet_iterations WHERE id = ?`).get(id);
+    return row ? deserializeIteration(row) : null;
+  }
+
+  function listIterations(fleetId, { limit = 20 } = {}) {
+    return db
+      .prepare(`SELECT * FROM fleet_iterations WHERE fleet_id = ? ORDER BY created_at DESC LIMIT ?`)
+      .all(fleetId, Math.min(100, Math.max(1, Number(limit) || 20)))
+      .map(deserializeIteration);
+  }
+
+  function transitionIteration(id, patch) {
+    const sets = [];
+    const vals = [];
+    for (const [col, v] of Object.entries({ state: patch.state, axis: patch.axis, note: patch.note, notes: patch.notes, published_version: patch.publishedVersion, decision_id: patch.decisionId })) {
+      if (v === undefined) continue;
+      sets.push(`${col} = ?`);
+      vals.push(v);
+    }
+    if (sets.length === 0) return getIteration(id);
+    vals.push(Date.now(), id);
+    db.prepare(`UPDATE fleet_iterations SET ${sets.join(", ")}, updated_at = ? WHERE id = ?`).run(...vals);
+    return getIteration(id);
+  }
+
+  // ── Digest 订阅 (fleet-owner-iteration) ──────────────────────────────────
+  function upsertDigestSub({ id, fleetId, ownerEmail, cadence }) {
+    db.prepare(
+      `INSERT INTO fleet_digest_subscriptions (id, fleet_id, owner_email, cadence, created_at)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (fleet_id, owner_email, cadence) DO NOTHING`,
+    ).run(id, fleetId, ownerEmail, cadence, Date.now());
+    return db.prepare(`SELECT * FROM fleet_digest_subscriptions WHERE fleet_id = ? AND owner_email = ? AND cadence = ?`)
+      .get(fleetId, ownerEmail, cadence) ?? null;
+  }
+
+  function listDigestSubscriptions({ ownerEmail = null } = {}) {
+    const where = [];
+    const args = [];
+    if (ownerEmail) {
+      where.push("owner_email = ?");
+      args.push(ownerEmail);
+    }
+    return db
+      .prepare(`SELECT * FROM fleet_digest_subscriptions ${where.length ? `WHERE ${where.join(" AND ")}` : ""} ORDER BY created_at`)
+      .all(...args)
+      .map(deserializeDigestSub);
+  }
+
+  function removeDigestSub(fleetId, ownerEmail, cadence) {
+    db.prepare(`DELETE FROM fleet_digest_subscriptions WHERE fleet_id = ? AND owner_email = ? AND cadence = ?`).run(fleetId, ownerEmail, cadence);
+  }
+
+  function touchDigestRun(id, { at = null, sent = false } = {}) {
+    const t = at ?? Date.now();
+    db.prepare(`UPDATE fleet_digest_subscriptions SET last_run_at = ?${sent ? ", last_sent_at = ?" : ""} WHERE id = ?`)
+      .run(...(sent ? [t, t, id] : [t, id]));
+  }
+
   function close() {
     db.close();
   }
@@ -1033,6 +1180,7 @@ export function createFleetDatabase({ file } = {}) {
     listRuns,
     listRunTurns,
     edgeTraffic,
+    spendProjection,
     pruneRuns,
     reclaimOrphanRuns,
     appendDecision,
@@ -1040,6 +1188,14 @@ export function createFleetDatabase({ file } = {}) {
     listDecisions,
     countOpenDecisions,
     countDecisionsByMemberSince,
+    appendIteration,
+    getIteration,
+    listIterations,
+    transitionIteration,
+    upsertDigestSub,
+    listDigestSubscriptions,
+    removeDigestSub,
+    touchDigestRun,
     transitionDecision,
     findFleetByTemplate,
     expireOpenDecisions,
@@ -1199,7 +1355,7 @@ function deserializeDecision(row) {
     options: JSON.parse(row.options || "[]"),
     severity: row.severity || "normal",
     suggestedDeadline: row.suggested_deadline ?? null,
-    recommendation: row.recommendation ?? null,
+    recommendation: row.resolution ?? null,
     state: row.state || "open",
     resolution: row.resolution ? JSON.parse(row.resolution) : null,
     sourceSessionId: row.source_session_id ?? null,
@@ -1207,6 +1363,40 @@ function deserializeDecision(row) {
     resolvedAt: row.resolved_at ?? null,
     deliveredAt: row.delivered_at ?? null,
     deliveredSessionId: row.delivered_session_id ?? null,
+    // 迭代回路扩展 (fleet-owner-iteration)：旧行无列值 ⇒ 'decision'/无附件，
+    // 与既有语义零差异。
+    itemType: row.item_type ?? "decision",
+    detail: parseDetail(row.detail),
+  };
+}
+
+// Iteration chain rows (fleet-owner-iteration): 链状态机的持久化投影。
+function deserializeIteration(row) {
+  return {
+    id: row.id,
+    fleetId: row.fleet_id,
+    packId: row.pack_id,
+    decisionId: row.decision_id ?? null,
+    state: row.state,
+    axis: row.axis ?? null,
+    note: row.note || null,
+    notes: row.notes ?? null,
+    publishedVersion: row.published_version ?? null,
+    createdBy: row.created_by,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function deserializeDigestSub(row) {
+  return {
+    id: row.id,
+    fleetId: row.fleet_id,
+    ownerEmail: row.owner_email,
+    cadence: row.cadence,
+    lastRunAt: row.last_run_at ?? null,
+    lastSentAt: row.last_sent_at ?? null,
+    createdAt: row.created_at,
   };
 }
 

@@ -2689,3 +2689,5 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 - 真机揪出并修：`还没有集群，点右上角创建第一支`——量词「支」是舰队遗留，改「创建一个」；五语种量词复查零疑点。
 
 **欠项**：① CMS 双语图解课程改版（清单在 `openspec/changes/add-ai-native-lexicon/lexicon-map.md`）待内容侧重发；② 徽章暂未入市场搜索过滤（open question，可另立）；③ 本班回归扫修掉的两处断言（【集群巡视上下文】/【集群岗位身份】）+ e2e 三处（facet-shell 按钮名 / agents-smoke 空态正则 / ja 機能集）已随 `809623f4` 入库。
+
+**§15.67 补记（2026-10-27 深夜，词典抛光二班上产）**：镜像 `sha-fe68a72`（paas `c09d6682`，digest `f160ec3b`，testaction002 池构建绿，GitOps `005347d` ×5 行、ArgoCD 一个轮询内滚完）。本班内容=真机走查后续穷举的三类瑕疵——zh 量词「创建第一支」→**「创建第一个」**（fleets.empty / detail.empty，「选择或创建一支集群」同案）、ja `機能セット` ×25 → **能力パック**（zh 词族漏网的变体，保留「フル機能/拡張機能/機能マトリクス」等通用词）、en 动态组统一小写 **Create array / My arrays**（对齐 fleets 句面）。公网 bundle 实证：创建第一个 1 命中/第一支 0、能力パック 25、Create array 3、My arrays 1、我的阵列 1。locale 闸 5/5、与 e2e 断言兼容（array 大小写不敏感）。

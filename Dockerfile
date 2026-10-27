@@ -164,16 +164,22 @@ RUN mkdir -p /opt/harness-acp \
 # (not part of the dsh version discipline). The pin matches the version the
 # upstream dsh provider ships (0.2.1 line pins @playwright/mcp 0.0.80), so the
 # future A2 official bundle swaps implementation, not tool semantics.
-# --with-deps brings the chromium system libraries (image runs as root).
-# ~170-250MB; the gate BROWSER_RUNTIME_PATH below is what makes the lane
-# composed only here and omitted everywhere else.
+#
+# STAGE SPLIT (2026-10-28, first roll caught it): this stage installs the
+# BROWSER BINARIES only; both the prefix and the three BROWSER_* env vars must
+# land in the RUNTIME stage (see its COPY/ENV block) — an ENV here or a missing
+# COPY ships an image that declares no lane, which the image smoke then
+# honestly SKIPs instead of failing. The chromium SYSTEM libraries come from
+# `playwright install-deps chromium` in the runtime stage (apt state does not
+# cross stages). ~170-250MB.
 ENV BROWSER_MCP_CLI=/opt/browser-mcp/node_modules/@playwright/mcp/cli.js \
     BROWSER_RUNTIME_PATH=/opt/browser-mcp/ms-playwright \
     PLAYWRIGHT_BROWSERS_PATH=/opt/browser-mcp/ms-playwright
 RUN mkdir -p /opt/browser-mcp \
     && npm install --prefix /opt/browser-mcp --omit=dev --ignore-scripts --no-audit --no-fund \
           @playwright/mcp@0.0.80 \
-    && /opt/browser-mcp/node_modules/.bin/playwright install --with-deps chromium
+    && PLAYWRIGHT_BROWSERS_PATH=/opt/browser-mcp/ms-playwright \
+         /opt/browser-mcp/node_modules/.bin/playwright install chromium
 
 # Copy the rest of the source. resources/ is .dockerignored: it holds only the
 # platform-specific standalone Node that predist downloads, which this image does
@@ -223,8 +229,19 @@ COPY --chown=node:node --from=builder /opt/dsh /opt/dsh
 COPY --chown=node:node --from=builder /opt/dsh-home /opt/dsh-home
 # Second harness (add-harness-adapter D3): the ACP agent prefix + its PATH link.
 COPY --chown=node:node --from=builder /opt/harness-acp /opt/harness-acp
+# Browser lane (add-browser-use-lane): the prefix AND its env vars land HERE,
+# never in the builder stage — an image whose runtime stage lacks them declares
+# no lane and the image smoke honestly skips it (the 2026-10-28 first roll
+# shipped exactly that: lane installed in builder, invisible in runtime). The
+# system libraries ride install-deps in this stage's own layer.
+COPY --chown=node:node --from=builder /opt/browser-mcp /opt/browser-mcp
+RUN /opt/browser-mcp/node_modules/.bin/playwright install-deps chromium \
+    && rm -rf /var/lib/apt/lists/*
 ENV PATH="/opt/dsh/node_modules/.bin:/opt/harness-acp/node_modules/.bin:${PATH}" \
-    DSH_HOME="/opt/dsh-home"
+    DSH_HOME="/opt/dsh-home" \
+    BROWSER_MCP_CLI="/opt/browser-mcp/node_modules/@playwright/mcp/cli.js" \
+    BROWSER_RUNTIME_PATH="/opt/browser-mcp/ms-playwright" \
+    PLAYWRIGHT_BROWSERS_PATH="/opt/browser-mcp/ms-playwright"
 COPY --chown=node:node --from=builder /app/web/dist ./web/dist
 # Facet service + its built thin SPA (same-image second role; see builder note).
 # mcp-catalog.js is imported by facet/index.js (S2 registry 聚合读面); pairing.js

@@ -66,7 +66,23 @@ const answer = new Promise((resolve, reject) => {
       });
       child.stdin.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\n");
       const tools = await call("tools/list", {});
-      resolve(Array.isArray(tools?.tools) ? tools.tools.length : -1);
+      const count = Array.isArray(tools?.tools) ? tools.tools.length : -1;
+      if (count <= 0) {
+        resolve({ tools: count, navigation: "skipped" });
+        return;
+      }
+      // Launch the browser for real: about:blank needs no outbound network and
+      // is exactly the step that catches an image whose browser binaries exist
+      // but whose SYSTEM libraries do not (apt state does not cross Docker
+      // stages — the 2026-10-28 first roll shipped the lane's files in the
+      // builder stage only). A tool that answers without launching would not
+      // have caught it, so the gate navigates.
+      const nav = await call("tools/call", { name: "browser_navigate", arguments: { url: "about:blank" } });
+      const text = JSON.stringify(nav ?? {}).slice(0, 300);
+      if (!nav || nav.isError === true || /error/i.test(nav?.content?.[0]?.text ?? "") && !/about:blank/.test(text)) {
+        throw new Error(`browser_navigate(about:blank) did not launch a browser: ${text}`);
+      }
+      resolve({ tools: count, navigation: "about:blank ok" });
     } catch (err) {
       reject(err);
     }
@@ -103,14 +119,14 @@ const timeout = setTimeout(() => {
 }, TIMEOUT_MS);
 
 try {
-  const n = await answer;
+  const out = await answer;
   clearTimeout(timeout);
   child.kill("SIGTERM");
-  if (n <= 0) {
-    console.error(`browser-lane-smoke: tools/list returned ${n} tools — expected a non-empty browser tool surface`);
+  if (!out || out.tools <= 0) {
+    console.error(`browser-lane-smoke: tools/list returned ${out?.tools} tools — expected a non-empty browser tool surface`);
     process.exit(1);
   }
-  console.log(`browser-lane-smoke: MCP handshake + tools/list ok (${n} tools)`);
+  console.log(`browser-lane-smoke: MCP handshake + tools/list ok (${out.tools} tools); browser_navigate → ${out.navigation}`);
   process.exit(0);
 } catch (err) {
   clearTimeout(timeout);

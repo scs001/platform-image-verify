@@ -2855,3 +2855,5 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
   3. digest 外发推送通道（邮件/IM）= v2 意向，本版账内 unread 即终态。
 
 **终态补记（07:10）**：用户修好 windows 盒子后车道全通；停机补跑机制自动入队 catch-up 阵 → **turn 228 ok**（usage 6843/1945，381s）——§15.65/66 事故全链闭环。Turn 227 的 `turn_budget_exceeded steps=24 lastTool=report_status` 是诚实归因样本（车道在回合中途恢复、agent 干满 24 步、预算从死车道时刻起算耗尽——fix-fleet-turn-attribution 精准落账）。**无需换模型**：车队本就请求 deepseek-v4.1-flash，windows 盒子恢复后 stream+非 stream 全通。
+
+**收尾补记（07:25）**：①归档 `add-agent-config-dims` 与 `add-fleet-ops-canvas`（主 spec 同步：agent-fleet-core/cockpit/bot-relay 合并 + fleet-config-overview 新建；validate --specs 192/0；config-dims 的 tasks 勾选曾被并行提交冲掉，按实绩还原）；②china-cheap-2 落 **vaas 音频复发闸**（`/usr/local/bin/vaas-audio-prune.sh` cron 每 6h：>200MB 的 assemble MP3 按失控产物清、assemble 工作目录 14 天清——防 §15.66 的盘满根源复发；node 侧日志 /var/log/vaas-audio-prune.log）；③`fix-fleet-model-drift` 保持 open（5.2 待真实中毒复发的 modelRectified 生产目击）。

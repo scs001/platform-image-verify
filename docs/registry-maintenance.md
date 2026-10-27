@@ -2843,3 +2843,15 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **§15.68 终态（07:10 复核）**：延后任务在限流窗口过期后一次通过（`内容流水线（官方种子）` v4、`柏讯 · 产物构建` v3）。**市场 89 包实测：包名 0 处「舰队/fleet」、搜索「舰队」0 命中**；类目分面 = wire 25 / facet 7 / facade 6 / doc-studio 1 / fleet 15 / fleet-shared 5 / legal 7 / 其余既有——`daas/company/docs/data/authoring` 五类彻底消失。
 
 **§15.68 补记二（类目词归一，2026-10-28 07:20）**：`fleet`→**cluster**（15 包）、`fleet-shared`→**cluster-shared**（5 包）共 20 笔 curation；市场类目芯片实测 = business/cluster/cluster-shared/crm/doc-studio/facade/facet/legal/operations/research/text/wanxing/wire，**旧词族芯片全部消失**；89 包名层仍零残留。**描述层「fleet」判定为不改**（有意保留）：它们是代码契约与包 id——`{{fleetContext}}`（引擎按字面注入的占位符）、`fleets.db`（库文件名）、`fleet-intel-gather` 等共用层包 id、以及蓝图描述里的仓内路径 `fleet-packs/blueprints/…`；按「键/契约零改」老律，改散文会与实际契约不符，故只洗类目词。附带结论：市场搜索 「fleet」 会命中这些契约串属正常现象，验收口径应限定在**包名**与**类目芯片**两层。
+
+### §15.69 供给开放+主人经营四棒落地（add-vendor-supply-open / add-market-revenue-share / add-fleet-owner-surface / add-fleet-owner-iteration，2026-10-28 午）
+
+- **四棒终态**：供给开放 15/17、分成账 15/15、主人坞 16/16（1.3 种子补槽后集齐）、迭代回路 14/14；四套自研测试 49/49 绿（vendor 20/market 14/owner 9/iteration 6），邻居回归（fleet-templates 19、publish-gate/validate 24）无感；变更归档分别于 `ee6bd55f / 609670e5 / 6f42b1a3 / d5e8deb3 / fcc4f020 / ede844e6`（openspec 目录四棒 + 本体系 code 一统 + 种子补槽）。
+- **行走面**：vendor 注册即得+上牌闸（console cookie 受控通道：defaultWriter 读 `REGISTRY_COOKIE/REGISTRY_CSRF`，同既有 refresh-registry-tool-list 纪律）+署名投影；市场成交记 append-only（`market_purchases` 幂等两键 buyer|pack|version、结算 `mkt_<id>`、refund `mkt_ref_<id>`）；装前闸 cell `POST /api/mypacks/install` 未成交 402 `market-purchase-required`；owner/board + 跨机占位（cells-registry 非 running 行显式休眼，detached=空板）；花销三读数（fleet_runs 投影/成交并联/账户级 `billing_snapshots` 窗口差，口径注「非集群级精算」）；模板参数槽（白名单位置 `${param}`、嵌套声明期拒收）；迭代链（config-change 决策回调→铸版→重试轴）；跟新读面（subscriptions/updates 只交通不升级）；digest（决定性渲染+未读派生投递）。
+- **并行泳道纪律实录**：本系各棒在工作树与 zhiyu-im-bridge/polish-web-surfaces/品牌线/locale 线四道同树——按纪律只提本系核名路径；FleetsPage 坞面挂载点（OwnerBoardStrip import）仍留在树内（polish-web-surfaces 会话正在该文件作业），归并时按 rebase 序归。
+- **外部依赖挂账（不会话内可闭）**：
+  1. vendor 4.2 registry fork 受控注册通道=fork patch 档随后登记于 `docs/registry-fork-patches/` 并推 fd-* 分支走标准 TCR 线上 cheap-8（注册 register/toggle 依旧控制台 cookie+CSRF 机械通道兜底）；deploy 窗=待 cheap-8 在生产窗走《标准线》。
+  2. PCA 真机全真旅程（装→跑→KPI→拍板→花销→迭代→跟新六步）= 随 release 走批次，与 vendor 4.2 同窗验收。
+  3. digest 外发推送通道（邮件/IM）= v2 意向，本版账内 unread 即终态。
+
+**终态补记（07:10）**：用户修好 windows 盒子后车道全通；停机补跑机制自动入队 catch-up 阵 → **turn 228 ok**（usage 6843/1945，381s）——§15.65/66 事故全链闭环。Turn 227 的 `turn_budget_exceeded steps=24 lastTool=report_status` 是诚实归因样本（车道在回合中途恢复、agent 干满 24 步、预算从死车道时刻起算耗尽——fix-fleet-turn-attribution 精准落账）。**无需换模型**：车队本就请求 deepseek-v4.1-flash，windows 盒子恢复后 stream+非 stream 全通。

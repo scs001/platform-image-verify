@@ -89,11 +89,15 @@ const TURNS_INV = {
   nextBefore: null,
 };
 
+// Production shape: /api/trace/turns parses payloads already — the events
+// arrive with OBJECT payloads (a raw JSON string here once masked exactly this
+// bug: 2026-10-27 production walkthrough). The first row keeps the raw-string
+// form on purpose so MiniSpan's tolerance for both stays pinned.
 const TRACE_INV_LIVE = {
   turnId: "tr_inv_live",
   events: [
     { seq: 1, event_type: "tool/call", payload: JSON.stringify({ event: { type: "tool/call", seq: 1, time: Date.now() - 2000, data: { callId: "c1", name: "web_search", arguments: "{}" } } }) },
-    { seq: 2, event_type: "tool/result", payload: JSON.stringify({ event: { type: "tool/result", seq: 2, time: Date.now() - 500, data: { callId: "c1", message: { isError: true, toolCallId: "c1", content: [{ type: "text", text: "denied" }] } } } }) },
+    { seq: 2, event_type: "tool/result", payload: { event: { type: "tool/result", seq: 2, time: Date.now() - 500, data: { callId: "c1", message: { isError: true, toolCallId: "c1", content: [{ type: "text", text: "denied" }] } } } } },
   ],
 };
 

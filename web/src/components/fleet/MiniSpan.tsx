@@ -33,17 +33,23 @@ function cacheKey(fleetId: string, memberId: string, traceTurnId: string) {
 
 interface TraceEvent {
   event_type: string;
-  payload: string;
+  /** The trace API already JSON.parses payloads (object in production); the
+      e2e/replay fixtures carry the raw string. Accept both. */
+  payload: string | { event?: { type?: string; time?: number; data?: Record<string, unknown> } };
 }
 
 function deriveTools(events: TraceEvent[]): ToolEntry[] {
   const calls = new Map<string, ToolEntry & { startedAt: number }>();
   for (const row of events) {
-    let parsed: { event?: { type?: string; time?: number; data?: Record<string, unknown> } };
-    try {
-      parsed = JSON.parse(row.payload);
-    } catch {
-      continue;
+    let parsed: { event?: { type?: string; time?: number; data?: Record<string, unknown> } } | null = null;
+    if (typeof row.payload === "string") {
+      try {
+        parsed = JSON.parse(row.payload);
+      } catch {
+        continue;
+      }
+    } else if (row.payload && typeof row.payload === "object") {
+      parsed = row.payload;
     }
     const ev = parsed?.event;
     if (!ev || typeof ev.type !== "string") continue;

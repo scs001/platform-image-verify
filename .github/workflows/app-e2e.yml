@@ -221,9 +221,12 @@ jobs:
             for i in $(seq 1 30); do curl -sf -m 2 -X POST http://127.0.0.1:3288/__chaos/control -H 'content-type: application/json' -d '{"mode":"chart"}' -o /dev/null && break; sleep 1; done
             mkdir -p /tmp/app-mock2/data
             (PORT=9412 HOST=0.0.0.0 PLATFORM_DATA_DIR=/tmp/app-mock2/data DSH_HOME=/tmp/app-mock2/dsh MCP_CONFIG_PATH=/tmp/app-mock2/data/mcp.json LLM_API_KEY=chaos LLM_BASE_URL=http://127.0.0.1:3288/v1 AUTH_MODE=forward_auth MP_TOKEN_SECRET=app-mock-secret nohup node server.js > /tmp/app-mock2/server.log 2>&1 &)
+            # The bind code answers before the dsh agent finishes booting; a
+            # turn sent too early dies silently (first charts run, 2026-10-27).
+            for i in $(seq 1 120); do curl -sf -m 2 -o /dev/null http://127.0.0.1:9412/api/ready && break; sleep 1; done
             for i in $(seq 1 60); do curl -sf -m 2 -H "x-forwarded-email: mobile@corp.com" -H "x-forwarded-groups: users" -H "accept: application/json" http://127.0.0.1:9412/api/mp/bindcode -o /tmp/app-mock2/code.json && break; sleep 1; done
             cat /tmp/app-mock2/code.json
-            (cd app && MAESTRO_DRIVER_STARTUP_TIMEOUT=300000 $HOME/.maestro/bin/maestro test -e CHARTS_INSTANCE=http://10.0.2.2:9412 -e CHARTS_CODE=$(python3 -c 'import json;print(json.load(open("/tmp/app-mock2/code.json"))["code"])') .maestro/charts.yaml) || { adb exec-out screencap -p > /tmp/app-mock/charts-fail.png; adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; adb pull /sdcard/ui.xml /tmp/app-mock/charts-ui.xml >/dev/null 2>&1; adb logcat -d > /tmp/app-mock/charts-logcat.txt; exit 1; }
+            (cd app && MAESTRO_DRIVER_STARTUP_TIMEOUT=300000 $HOME/.maestro/bin/maestro test -e CHARTS_INSTANCE=http://10.0.2.2:9412 -e CHARTS_CODE=$(python3 -c 'import json;print(json.load(open("/tmp/app-mock2/code.json"))["code"])') .maestro/charts.yaml) || { adb exec-out screencap -p > /tmp/app-mock/charts-fail.png; adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; adb pull /sdcard/ui.xml /tmp/app-mock/charts-ui.xml >/dev/null 2>&1; curl -s http://127.0.0.1:3288/__chaos/requests -o /tmp/app-mock/chaos-requests.json; adb logcat -d > /tmp/app-mock/charts-logcat.txt; exit 1; }
       - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
@@ -236,6 +239,7 @@ jobs:
             /tmp/app-mock/charts-logcat.txt
             /tmp/app-mock/charts-fail.png
             /tmp/app-mock/charts-ui.xml
+            /tmp/app-mock/chaos-requests.json
             /tmp/app-mock/chaos.log
             /tmp/app-mock2/server.log
             /tmp/app-mock2/code.json

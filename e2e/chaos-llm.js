@@ -181,6 +181,7 @@ export function startChaosLlm({ port = 0, host = "127.0.0.1" } = {}) {
       const served = requests.length;
       requests.push({ t: Date.now(), mode: state.mode, model: json?.model ?? null, stream, rejected: null, lastRole, hasSubagentTool });
       state.servedThisArm += 1;
+      console.log(`[chaos] req #${served} mode=${state.mode} shape=${state.shape} stream=${stream} role=${lastRole}`);
 
       // Armed rejections burn after the skip window (any request kind —
       // parent or child). `skip` lets a scenario spare the early requests

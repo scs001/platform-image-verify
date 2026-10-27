@@ -274,6 +274,7 @@ jobs:
           if (-not (Test-Path $entry)) { throw "steward entry missing: $entry" }
           $data = Join-Path $env:TEMP 'steward-e2e/data'
           New-Item -ItemType Directory -Force -Path $data | Out-Null
+          $env:STEWARD_DATA = $data   # same-step use (GITHUB_ENV only affects later steps)
           "STEWARD_DATA=$data" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           "STEWARD_NODE=$node" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           $env:PLATFORM_DATA_DIR = $data

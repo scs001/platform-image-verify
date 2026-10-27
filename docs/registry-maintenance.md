@@ -2603,3 +2603,16 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 
 **定型件**：fd-memory master @ `c86dc5e`（site/{index.html,style.css,script.js} + DESIGN.md + PRODUCT.md + .impeccable/{provenance.md 10 行截图谱系,surfaces/site.md}）；final 截图 /tmp/yongyi-{desktop,mobile}-final2.png。品牌包 `@deepseek-ai/yongyi@0.2.0`(private:false)+MIT 就绪；对外挂站（域名/托管）属另一棒，待用户拍。
 
+### §15.63 模型态漂移自愈+强制断言上产（fix-fleet-model-drift，2026-10-27 上班，班十二）
+
+**病源（凌晨多场景联合实证）**：dsh SDK jsonrpc 只答 initialize/session/prompt/shutdown——无 model/get，孩子真实选择外收补单缺陷；switchModelToInner 早退判据用自家 ctx.session.model，孩子会话被 out-of-band 车道改写无视。「00:39–04:00 巡逻 400 model_not_available:qwen3.8-flash，我们账上证 deepseek」——pod 重启才治、预防=零。
+
+**修复（三联）**：
+- 显式链岗位每阵 force 断言：switchModelTo(id,{force}) 跳过账本早退，force=true 走 initialize/重 spawn，重 5ml 稳定（无显式链路子照旧）。
+- ledger.end 对比 trace `payload.event.data.header.config.model` 与 meta.model，不一致写 detail.modelMismatch={declared,observedHeader} （§15.61 批量探测路径教训同选择延伸，该缺陷临时上线后运维才可读出「假一致」）。
+- 自愈重走：回合失败判定 isModelUnavailableError(model_not_available/INVALID_MODEL/cannot find model) 且有显式链 → force 重断言 landed 重跑一次，recover 写 detail.modelRectified=true；只 recover 一次不再冗余重试（同降重语言的 fail-fast）。
+- 回滚门：FLEET_MODEL_ASSERT_SOFT=1 旧行为。
+
+**无声干验**：unit 4/4（explicitChain、modelMismatch 路径、isModelUnavailableError、ledger trace 互容）+ fleets 22/22、ops 5/5、config-dims 直驱 0 regression。**生产顺势反例（最强证据）**：14:00 巡逻 turn 185 一次性 502（header 稳定 deepseek-v4.1-flash+effort high——迫断言+effort 落地例证），非模型不静，自愈误应未触（头图要求）。**待证中毒场景复发**：相对 CRM 肺热没跑晚——**取证 06:00 前后（cell 重启后）每阵 hostname 与 header 模型走过**，开着浮标即可。
+
+**出片二连打**：6e38598 前班被并行 b242fe6 占头（源仓重复 ss 的 cancel-in-progress 语义），重推快照 = 16179e1 班十二（CR digest fbba3e81）→ platform/platform-demo/facet/agent-runner-serving 统一。「快照同步 relay 无 tag」 SIG 辨位：是推上 hkccr 的路被抢位而不是 relay 问题——看图先查源 tag list。

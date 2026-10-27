@@ -20,6 +20,13 @@ useDefault = true
     # in a node:test stub (siblings "lane-static-token" / "standby-key-1" against
     # https://ciyuan.unit.test); the sk- prefix trips generic-api-key.
     '''scripts/test-search-relay-lane\.mjs''',
+    # Steward custody test material (add-cell-lifecycle): the base64 constant
+    # decodes to "private-key-material-for-tests" — a fixture, never a key.
+    '''scripts/smoke-steward-resident\.mjs''',
+    '''scripts/test-steward-keycustody\.mjs''',
+    # DPAPI entropy/file-name constants ("platform-steward-v1") trip the
+    # entropy heuristic; they name a custody folder, not a credential.
+    '''supervisor/steward-identity\.js''',
   ]
   # Docker rollback tag in the registry-fork patch README — tag-shaped, not a
   # credential (its entropy trips the generic-api-key rule).

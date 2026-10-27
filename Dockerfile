@@ -159,6 +159,22 @@ RUN mkdir -p /opt/harness-acp \
           @zed-industries/claude-code-acp@0.16.2 \
     && ln -s /opt/harness-acp/node_modules/.bin/claude-code-acp /usr/local/bin/claude-code-acp
 
+# Browser lane (add-browser-use-lane): @playwright/mcp + chromium in their own
+# prefix — the same pattern as /opt/harness-acp, never merged into /opt/dsh
+# (not part of the dsh version discipline). The pin matches the version the
+# upstream dsh provider ships (0.2.1 line pins @playwright/mcp 0.0.80), so the
+# future A2 official bundle swaps implementation, not tool semantics.
+# --with-deps brings the chromium system libraries (image runs as root).
+# ~170-250MB; the gate BROWSER_RUNTIME_PATH below is what makes the lane
+# composed only here and omitted everywhere else.
+ENV BROWSER_MCP_CLI=/opt/browser-mcp/node_modules/@playwright/mcp/cli.js \
+    BROWSER_RUNTIME_PATH=/opt/browser-mcp/ms-playwright \
+    PLAYWRIGHT_BROWSERS_PATH=/opt/browser-mcp/ms-playwright
+RUN mkdir -p /opt/browser-mcp \
+    && npm install --prefix /opt/browser-mcp --omit=dev --ignore-scripts --no-audit --no-fund \
+          @playwright/mcp@0.0.80 \
+    && /opt/browser-mcp/node_modules/.bin/playwright install --with-deps chromium
+
 # Copy the rest of the source. resources/ is .dockerignored: it holds only the
 # platform-specific standalone Node that predist downloads, which this image does
 # not build and does not use.

@@ -529,6 +529,36 @@ by id. Toggles are refused while a turn is in flight. The client surface is WS
 `plugins_changed` server→client) — same family as the model/permission
 switches, no new REST routes.
 
+### Browser lane (Playwright MCP) — add-browser-use-lane
+
+The bundled `playwright` MCP server (bundled+locked via `platform.bundle.json`)
+gives the agent browser operations: `server/browser-mcp.js`, a first-party
+thin launcher, execs the pinned `@playwright/mcp@0.0.80` CLI headlessly.
+The lane is **supply-gated** at patch-write time (`laneGate: "browser"` in
+`writeMcpPatch`): it composes only where the deployment supplies a browser
+runtime (`BROWSER_RUNTIME_PATH` exists) or a remote endpoint
+(`BROWSER_CDP_ENDPOINT`); `BROWSER_LANE=off` vetoes both. Everywhere else the
+entry is omitted as a silent normal state (info log) and the tools simply do
+not appear.
+
+The hosted-cell image bakes the runtime in its own prefix
+(`/opt/browser-mcp`, module discipline like `/opt/harness-acp`) and presets the
+three env vars (`BROWSER_MCP_CLI` / `BROWSER_RUNTIME_PATH` /
+`PLAYWRIGHT_BROWSERS_PATH`), so cells get the lane with zero action. Desktop
+installers deliberately do not carry chromium — desktop is documented opt-in
+(global `@playwright/mcp` + `BROWSER_MCP_CLI`, see `mcp.example.json`'s block).
+
+Truth of the shared state: one dsh runtime = one MCP sidecar per server
+(contract ⑭), so within a cell the browser (tabs, cookies, login state) is
+shared by that user's sessions — intended, not a bug. Cross-cell isolation is
+structural (separate processes). No fallback from a configured-but-dead remote
+endpoint to local launch; a dead endpoint fails visibly.
+
+Follow-ups (out of scope here): A2 — the official `dsh-browser-use` family as a
+dsh layer bundle (pair with `port-dsh-0.2.1`, replacing this A1 MCP lane with
+the same tool semantics); the browser viewer panel (needs the app's own shell
+UI — dsh-web-app ships one but is out of scope); computer use.
+
 ### Web search relay (operator-side service)
 
 The agent's web search ships **inside the app** — `platform.bundle.json` mounts

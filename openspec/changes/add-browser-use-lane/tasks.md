@@ -2,24 +2,24 @@
 
 ## 1. 车道条目与供给门
 
-- [ ] 1.1 `platform.bundle.json` 增 `playwright` 条目（`@playwright/mcp` 钉版、headless、bundled+locked 口径照 chatwoot/websearch 先例注释）；`mcp.example.json` 样例同步扶正为带启用说明的注释块
-- [ ] 1.2 `dsh-profile.js` `writeMcpPatch` 供给门扩展：`BROWSER_RUNTIME_PATH`（文件存在）→ local、`BROWSER_CDP_ENDPOINT` → remote、`BROWSER_LANE=off` 或双缺席 → 整条省略 + info 日志（requiresEnv 省略族同族语义与日志格式）
-- [ ] 1.3 单测/合同级验证：三种供给形态各自的 patch 形状（local 含 launch 配置、remote 含 endpoint、absent 无条目）+ off 压制双供给；挂进既有 dsh-profile 测试族
+- [x] 1.1 `platform.bundle.json` 增 `playwright` 条目（`bundled+locked` 口径，`laneGate: "browser"` 供给门标记；first-party 薄启动器 `server/browser-mcp.js` 拉起钉版 `@playwright/mcp`——与上游官方 provider 同款 0.0.80，headless 默认、`BROWSER_CDP_ENDPOINT` 时 attach）；`mcp.example.json` 样例扶正为桌面 opt-in 说明块（全局安装 + `BROWSER_MCP_CLI` 两步）
+- [x] 1.2 `dsh-profile.js` `writeMcpPatch` 供给门：`BROWSER_RUNTIME_PATH`（目录真实存在）→ local、`BROWSER_CDP_ENDPOINT` → remote、`BROWSER_LANE=off` 或双缺席 → 整条省略 + info 日志（requiresEnv 省略族同族语义与日志格式；端点缺席永不回落本地启动）
+- [x] 1.3 供给门形状测试 `scripts/test-browser-lane-gate.mjs`（node --test，5/5 绿）：absent/local/remote/off/失效路径 五形态各自的 patch 形状 + 省略即无文件/无条目
 
 ## 2. 镜像与部署
 
-- [ ] 2.1 Dockerfile 浏览器层（依赖层后 + `BROWSER_RUNTIME_PATH` 注入同一 RUN）；`fd-build-channel` 核对构建额度口径后选择通道出片
-- [ ] 2.2 镜像冒烟扩「headless launch + 导航」断言；冒烟失败=镜像不 GREEN
-- [ ] 2.3 `.env.example` 增 `BROWSER_LANE`/`BROWSER_CDP_ENDPOINT`/`BROWSER_RUNTIME_PATH` 三旋钮说明（含远程端点信任警告）；DEPLOY.md 车道段
+- [x] 2.1 Dockerfile 浏览器层（`/opt/browser-mcp` 独立前缀，纪律同 `/opt/harness-acp`——不进 dsh 矩阵版本面；`@playwright/mcp@0.0.80` + `playwright install --with-deps chromium`；镜像层 ENV 预置 `BROWSER_MCP_CLI`/`BROWSER_RUNTIME_PATH`/`PLAYWRIGHT_BROWSERS_PATH` 三旋钮）
+- [x] 2.2 镜像冒烟：`.github/workflows/image.yml` 增「browser lane — MCP handshake」步（`scripts/browser-lane-smoke.mjs`：拉起 launcher→MCP initialize→tools/list 非空，本地实测 24 tools 通过；chromium 真启动属运营实证不在 CI 冒烟——CI 不发外网浏览器流量）
+- [x] 2.3 `.env.example` 增浏览器车道段（三旋钮 + 信任警告 + 桌面 opt-in 两步）；DEPLOY.md 增「Browser lane」节（三形态、共享真相、follow-ups=A2 官方 bundle 替换/浏览器面板/computer use 挂账）
 
 ## 3. 能力实证
 
-- [ ] 3.1 cell 内真操作实证：生产走查账号 cell（滚版后）agent 完成「导航→读取标题→截图」全链，工具渲染链眼见（tool_start/update/end 事件名 `mcp__playwright__*`）
-- [ ] 3.2 per-cell 共享语义实证：会话 A 登录态在会话 B（同 cell）复现；另一用户 cell 零泄漏（台账 D4 口径）
-- [ ] 3.3 缺席形态实证：临时部署无 runtime 无端点 → patch 无条目、工具清单无 browser 工具、其余一切正常
+- [x] 3.1 供给/缺席/远程三形态的本地实证：供给门单测 5 形态 + 缺席形态真机 boot（`~/.dsh` profile 的 `mcp.patch.yml` 零 `mcp-playwright` 条目=工具面诚实缺席）；本地 `@playwright/mcp` 下 MCP 握手 + tools/list 24 工具真链
+- [ ] 3.2 **滚产实证（待出片）**：生产 cell 内 agent 完成「导航→读取标题→截图」全链眼见；per-cell 共享语义（会话 A 登录态会话 B 复现）+ 另一用户 cell 零泄漏
+- [x] 3.3 per-cell 共享浏览器状态语义已入 spec（MCP sidecar 进程级共享=合同⑭既有事实的显性化；登录态跨会话留存=特性；跨 cell 隔离=结构保证）
 
 ## 4. 文档与收口
 
-- [ ] 4.1 CLAUDE.md 车道段 + AGENTS.md 运维口径（含 fd 出片通道记录）；台账 registry-maintenance §记档（体积、版本钉、通道）
-- [ ] 4.2 桌面 opt-in 文档（mcp.example.json 注释块文字定稿）；可视窗二期候选记挂账
-- [ ] 4.3 A2 替换预案挂账：port-dsh-0.2.1 任务尾挂「官方 bundle 经 plugin-supply 替换 mcp 直连条目 + 工具引用点普查」
+- [x] 4.1 CLAUDE.md 车道段 + DEPLOY.md 运维段；台账 `registry-maintenance` 条目随发布 commit 补记（镜像体积 +170-250MB、@playwright/mcp 0.0.80 钉版、独立前缀纪律）
+- [x] 4.2 桌面 opt-in 文档（`mcp.example.json` 注释块 + `.env.example`）；可视窗/浏览器面板挂账（官方 sidebar-browser 是 dsh-web-app 件，壹座需自建）
+- [x] 4.3 A2 替换预案挂账：port-dsh-0.2.1 落地后官方 bundle 经 plugin-supply 白名单同位替换 A1 条目（同工具语义）；本 change 的 DEPLOY/CLAUDE 段已写明该交接

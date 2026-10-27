@@ -18,13 +18,11 @@
       }
     },
     "playwright": {
-      "_comment": "Playwright browser automation tools. Enable for browser control (navigate, screenshots, form filling, element extraction). Run `npx playwright install chromium` first.",
-      "command": "npx",
+      "_comment": "浏览器操作车道（add-browser-use-lane）。桌面/本地 opt-in 启用步骤：① `npm install -g @playwright/mcp@0.0.80`（或装进任意目录），运行一次 `npx playwright install chromium` 装浏览器；② 在 .env 设置 BROWSER_MCP_CLI=<该包的 cli.js 绝对路径>（+ PLAYWRIGHT_BROWSERS_PATH=<浏览器目录>）；③ 车道本身随 platform.bundle.json 的 playwright 条目供给，无需在此再声明——本块只是说明；供给门三形态与 BROWSER_LANE=off 见 .env.example。确认 MCP 市场里启用了条目。",
+      "_disabled": true,
+      "command": "node",
       "args": [
-        "-y",
-        "@playwright/mcp-server",
-        "--launch-options",
-        "{'headless': true}"
+        "server/browser-mcp.js"
       ]
     },
     "fleet": {

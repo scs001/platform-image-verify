@@ -73,16 +73,26 @@ const answer = new Promise((resolve, reject) => {
   })();
 });
 
-// An image deliberately built without the browser lane says so on stderr
-// ("@playwright/mcp is not installed in this deployment"). That is a declared
-// absence, not a broken lane: skip honestly instead of failing the release on
-// a gate the deployment opted out of (2026-10-27: the timeout used to bury
-// this signal and blocked the image job).
+// An image built WITHOUT the browser lane says so on stderr
+// ("@playwright/mcp is not installed in this deployment"). Absence is fine —
+// but only when the image does not CLAIM the lane: the Dockerfile that bakes
+// it also exports BROWSER_MCP_CLI, so a claimed-but-missing runtime is a broken
+// bake and must fail. (2026-10-27: a build that predated the Dockerfile layer
+// hit the 60s timeout; distinguishing "declared absent" from "claimed but
+// broken" keeps the release unblocked AND keeps the gate's teeth.)
 const LANE_ABSENT = /@playwright\/mcp is not installed in this deployment/;
+const LANE_CLAIMED = Boolean((process.env.BROWSER_MCP_CLI || "").trim());
 const skipIfLaneAbsent = () => {
   if (!LANE_ABSENT.test(stderr)) return false;
-  console.log("browser-lane-smoke: SKIP — this image has no browser lane (launcher reports @playwright/mcp not installed)");
-  return true;
+  if (LANE_CLAIMED) {
+    console.error(
+      "browser-lane-smoke: FAIL — this image claims the browser lane (BROWSER_MCP_CLI is set) " +
+        `but the runtime is missing: ${process.env.BROWSER_MCP_CLI}`,
+    );
+    process.exit(1);
+  }
+  console.log("browser-lane-smoke: SKIP — this image declares no browser lane (BROWSER_MCP_CLI unset)");
+  process.exit(0);
 };
 
 const timeout = setTimeout(() => {

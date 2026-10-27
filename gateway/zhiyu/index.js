@@ -1008,6 +1008,21 @@ export function registerZhiyuRoutes(app, {
       const ref = guestRefFor();
       const member = store.memberAdd({ roomId: row.roomId, kind: "guest", ref, display: `访客 · ${(cookieHost(req) ?? "guest").split(":")[0]}`, historyGrant: "join_from", invitedBy: "widget" });
       emit(row.roomId, "system", "", { event: "guest_joined", member: { id: member.id, display: member.display } });
+      // AI-free greeting (polish batch): first contact names the callable seats
+      // — the visitor learns `@` exists without burning a model turn.
+      const agents = store
+        .membersOf(row.roomId)
+        .filter((m) => (m.kind === "agent" || m.kind === "facade") && m.state === "active")
+        .map((m) => m.display || m.ref)
+        .slice(0, 3);
+      if (agents.length) {
+        store.messageAppend({
+          roomId: row.roomId,
+          kind: "system",
+          content: `欢迎——我是值班席位。你可以直接说事，或点名：${agents.map((n) => `@${n}`).join(" ")}。`,
+          meta: { event: "guest_greeting", agents },
+        });
+      }
       seat = { member };
       const issued = serveGuestPass(row.roomId, ref);
       res.setHeader("Set-Cookie", issued.setCookie);

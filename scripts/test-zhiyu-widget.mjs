@@ -231,6 +231,28 @@ test("3.4 identify merges guest into user; old tty dies; history preserved", asy
   close();
 });
 
+test("guest join: greeting names callable seats once; apex wildcard matches", async () => {
+  const { cli, zhiyu, close } = await boot();
+  const { roomId, token } = await seed(cli, zhiyu);
+  const a = cli("a@x");
+  const { hostAllowed } = await import("../gateway/zhiyu/guest-auth.js");
+  assert.equal(hostAllowed(["*.partner.com"], "partner.com"), true, "apex included by wildcard");
+  assert.equal(hostAllowed(["*.partner.com"], "x.partner.com"), true);
+  assert.equal(hostAllowed(["*.partner.com"], "evil-partner.com"), false);
+
+  const room = zhiyu.store.roomGet(roomId);
+  const v = await a.post(`/zhiyu/widget/${token}/visit`, undefined, { referer: "https://shop.example.com/" });
+  assert.equal(v.status, 200);
+  const msgs = zhiyu.store.messagesAfter(room.id, 0, {});
+  const greet = msgs.find((m) => m.meta?.event === "guest_greeting");
+  assert.ok(greet, "greeting row landed on first mint");
+  assert.ok(greet.content.includes("@接待分身"));
+  // Reused seat does NOT re-greet.
+  await a.post(`/zhiyu/widget/${token}/visit?tty=${encodeURIComponent(v.json.tty)}`, undefined, { referer: "https://shop.example.com/" });
+  assert.equal(zhiyu.store.messagesAfter(room.id, 0, {}).filter((m) => m.meta?.event === "guest_greeting").length, 1);
+  close();
+});
+
 test("6.1 share-link lane: issue → guest entry → independent revoke", async () => {
   const { cli, zhiyu, close } = await boot();
   const { token } = await seed(cli, zhiyu);

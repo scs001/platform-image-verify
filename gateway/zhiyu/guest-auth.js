@@ -42,15 +42,19 @@ export function verifyWidgetToken(store, rawToken) {
   return row;
 }
 
-// Host allowlist: exact host or *.suffix. The loader supplies the page's real
-// location host — we never trust the iframe URL alone (double-check E).
+// Host allowlist: exact host or *.suffix (apex INCLUDED — users expect
+// *.partner.com to also cover partner.com itself). The loader supplies the
+// page's real location host — we never trust the iframe URL alone (D-E).
 export function hostAllowed(allowlist, pageHost) {
   if (!pageHost) return false;
   const h = String(pageHost).toLowerCase();
   return (allowlist ?? []).some((w) => {
     const x = String(w).toLowerCase().trim();
     if (!x) return false;
-    if (x.startsWith("*.")) return h.endsWith(x.slice(1)) && h.length > x.length - 1;
+    if (x.startsWith("*.")) {
+      const apex = x.slice(2);
+      return h === apex || (h.endsWith(`.${apex}`) && h.length > apex.length);
+    }
     return h === x;
   });
 }

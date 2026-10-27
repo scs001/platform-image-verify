@@ -258,6 +258,9 @@ export function ZhiyuEmbedPage() {
       ) : (
         <div className="border-t px-4 py-3 text-center text-xs text-muted-foreground">本次会话已结束 — 感谢你的到访</div>
       )}
+      <footer className="px-4 py-1.5 text-center text-[11px] text-muted-foreground/60">
+        由 壹座·萬星智语 提供
+      </footer>
     </div>
   );
 }

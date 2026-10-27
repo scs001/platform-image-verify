@@ -877,7 +877,8 @@
       "devices": "Paired devices",
       "roles": "User roles",
       "layout": "Workbench layout",
-      "connections": "Connections"
+      "connections": "Connections",
+      "plugins": "Plugins"
     },
     "groups": {
       "basics": "Basics",
@@ -2784,7 +2785,10 @@
       "take_over": "{{name}} took over",
       "hand_back": "{{name}} handed back to the proxy",
       "owner_transferred": "Ownership transferred to {{name}}",
-      "room_renamed": "Room renamed"
+      "room_renamed": "Room renamed",
+      "guest_joined": "A visitor joined the room",
+      "guest_identified": "Visitor identity confirmed",
+      "guest_greeting": "Welcome — the duty seats are here for your questions"
     },
     "hatch": {
       "menuItem": "Hatch into a room…",
@@ -2808,5 +2812,18 @@
       "makeLink": "Create join link",
       "onceOnly": "Shown only once — copy and keep these:"
     }
+  },
+  "plugins": {
+    "title": "Plugins",
+    "description": "dsh plugin bundles supplied by this deployment. Inspect their state and enable or disable them here; bundles are supplied by the deployment and cannot be installed or removed from this pane.",
+    "suppliedHint": "Bundles are supplied by the deployment (image bake + manifest declaration). This pane only enables or disables them — nothing is installed.",
+    "unavailable": "The agent is still initializing; the plugin roster is not available yet.",
+    "empty": "This deployment supplies no dsh plugin bundles yet.",
+    "protected": "Required by management",
+    "failed": "Bundle failed to load: {{reason}}",
+    "applying": "Applying…",
+    "toggleLabel": "Toggle {{name}}",
+    "applyHint": "Enabling or disabling persists to this workspace. It applies immediately while the agent is idle (live recompose, or a restart that resumes sessions); a toggle is refused while the agent is responding.",
+    "busyHint": "The agent is responding; toggles unlock when the turn ends."
   }
 }

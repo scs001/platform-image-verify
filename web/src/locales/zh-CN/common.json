@@ -864,7 +864,8 @@
       "devices": "已配对设备",
       "roles": "用户角色",
       "layout": "工作面布局",
-      "connections": "连接"
+      "connections": "连接",
+      "plugins": "插件"
     },
     "groups": {
       "basics": "常规",
@@ -2784,7 +2785,10 @@
       "take_over": "{{name}} 接管了发言权",
       "hand_back": "{{name}} 把发言权交还给分身",
       "owner_transferred": "主办已移交给 {{name}}",
-      "room_renamed": "空间已改名"
+      "room_renamed": "空间已改名",
+      "guest_joined": "一位访客进入了空间",
+      "guest_identified": "访客身份已确认",
+      "guest_greeting": "欢迎——值班席位等你来问"
     },
     "hatch": {
       "menuItem": "升为空间…",
@@ -2808,5 +2812,18 @@
       "makeLink": "生成进房链接",
       "onceOnly": "下面两样只显示这一次，复制收好："
     }
+  },
+  "plugins": {
+    "title": "插件",
+    "description": "部署已供应的 dsh 插件包。在这里查看状态并启用或停用；插件由部署方统一供给，不能在此安装或移除。",
+    "suppliedHint": "插件由部署统一供给（镜像烘焙 + 清单声明）。这里只能启用或停用，不会安装任何东西。",
+    "unavailable": "agent 正在初始化，插件清单暂不可用。",
+    "empty": "此部署尚未供应任何 dsh 插件包。",
+    "protected": "管理必需",
+    "failed": "插件加载失败：{{reason}}",
+    "applying": "应用中…",
+    "toggleLabel": "切换 {{name}}",
+    "applyHint": "启用或停用会持久化到本工作区。agent 空闲时立即生效（热重组，或重启后会话自动恢复）；回复过程中无法切换。",
+    "busyHint": "agent 正在回复，回复结束后可切换。"
   }
 }

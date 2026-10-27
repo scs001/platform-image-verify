@@ -2512,6 +2512,12 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 
 **遗留/建议**：①ZHIYU_WIDGET 现为开——公共门由部署配置控制，商家自房间白名单是第二闸；②es/fr/ja 嵌入词条=英文占位（照一期纪律）；③widget 页面尚未做浏览器真眼见（curl 级全链已过，iframe 渲染拟下一班随 UX 抛光）；④Chatwoot 商家共存转接链接=Open Question 未做。change 待 archive（validate --strict 绿）。
 
+### §15.64 智语访客体验抛光直通班（2026-10-27，非 openspec、直接小修班）
+
+**背景**：二期走查实证的三个疤——①embed 页不接 overlay，首回合冷启动 ~70s 对访客纯死寂；②widget 流无 sender 归因，一切答案只写「接待」；③座席归一不可辨（分身/服务智能体混写）。**修法**：widget 消息上传 sender 元数据（join 房间在场名单：display/kind/onBehalfOf）；embed 页接入 overlay 轴（在答气泡+增量流，与成员页同机制）；发送者与座席在 UI 分行呈现（分身自动展开「代 X 出席」）。零新客户侧依赖，网关与 SPA 内改动。
+
+**验证**：widget 套件加归因断言 8/8 全绿；web typecheck/build 绿；生产冒烟（新房间+智库副驾）眼见——guest 行 `sender=访客 · platform.finddatatech.cloud`、agent 行 `sender=智库副驾`（含真实作答 seq7）+在答气泡逻辑同成员页。**上产**：832ac071 → snapshot 1faab60（digest e844037a）四面滚全等；ArgoCD spec 切换与 pod 刷新又遇「Synced 假象读早数」老坑，二轮 refresh+n 轮核清（教训：Synced 后先核 deploy 再看 pod，别用一份 pod 列表下结论）。
+
 ### §15.55 上游模型故障应急：free 模型救急免充值（2026-10-26，用户令「glm/mini 系列不要动，用 free」）
 
 **故障定型（实测链）**：metrics 5 连失败暴露 → 直调上游（distiller pod Python）确认 deepseek-v4.1-flash 别名映射下的 **qwen3.8-flash 对该子账号不可用**（`model_not_available`）；备选实测 deepseek-flash/v4-flash/glm-5.3-flash/glm-4.6 全挂；`/models` 正常返回 87 个但任何调用都失败（账户权限问题非模型问题）。

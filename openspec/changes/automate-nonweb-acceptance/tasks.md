@@ -11,11 +11,11 @@
 ## 2 · 图表桩与移动端流
 
 - [x] 2.1 `e2e/chaos-llm.js` `chart` 模式（控制面 `shape` 优先/提示词兜底路由；bar 默认、line/pie/scatter 按词判断；SSE 与 stream:false 双形；另 `console.log` 请求账本）控制面 `shape` 选系列（bar/line/pie/scatter），请求末条 user 文本含 `line|pie|scatter` 词时对应系列；SSE 与 stream:false 均返回含 ```echarts 围栏的 assistant 文本。验证：本机 `node e2e/chaos-llm.js` + curl 控制面设 shape=pie 后请求一次，肉眼断围栏 JSON 可被 echarts 接受（4 例各一次）
-- [ ] 2.2 新增 `app/.maestro/charts.yaml`：clearState → 对 `-e CHARTS_INSTANCE` 手输配对（复用 pairing testID 手法）→ 依次 4 提示词 → 每次断言 `chart-ok` 可见且 `chart-fallback` 不存在。验证：首跑在 3.x 池轨上执行（本机无模拟器，证据以池运行为准）
+- [ ] 2.2 新增 `app/.maestro/charts.yaml`（已落地并随池轨实跑 5+ 轮：清态→第二实例配对→四提示词→chart-ok/chart-fallback 双断言）——**断言未绿**：卡在 RN/Hermes 设备特有缺陷（见 3.1 注），流本身工作正常且是全部三个真缺陷的捕获者
 
 ## 3 · 移动端验收轨上池（跑绿为准）
 
-- [ ] 3.1 `app-e2e.yml` android 腿扩：起 chaos 桩（3288）+ 第二 mock（9412，`LLM_BASE_URL=127.0.0.1:3288/v1`）→ 铸 9412 bind code → 跑 charts.yaml（`CHARTS_INSTANCE=http://10.0.2.2:9412`）；失败时把第二 mock 日志与截屏一并上传。验证：池 dispatch 全绿（含既有四流）
+- [ ] 3.1 android 腿扩已落地并实跑（chaos 桩+9412 第二 mock+失败三证抓取+logcat 清缓冲）：**既有四流全绿**（pairing/tabs/language/chat-stream 随每轮跑过）；图表腿未绿——真缺陷三连已被此腿捕获并回修（forward_auth bearer 门/mpAuth verifyToken 微信三件套门/FlatList extraData），残余=「flush 落账后 ~40ms 内 turns 读回空」的 Hermes 设备特有问题，证据链与仪器全部就位于池分支 `nonweb-e2e/2026-10-27c`（wsdbg/evlog/qdbg/setdbg 四层探针），交接下一棒续查
 - [ ] 3.2 快照重铺 `nonweb-e2e/<date>` 侧分支 + 复跑：确认四流+图表流同趟绿、记录计费分钟入台账通道节。验证：run 结论 + 分钟数
 - [ ] 3.3 iOS 腿同接入（dispatch 月频）：`clearState` 若不可用则记录并将 iOS 腿降级为非图表流。验证：一次 dispatch 运行结论 + Open Question 收口
 
@@ -27,7 +27,7 @@
 
 ## 5 · 排程开关 + 收口
 
-- [ ] 5.1 私仓新增 `.github/workflows/nonweb-daily.yml`：`schedule`（每日一次）+ 手动；ubuntu 单 job（~1-2 私仓分钟）做干净快照推池 + 池 dispatch app-e2e；`BUILD_POOL_TOKEN` 缺失时 job 显式 `SKIPPED: BUILD_POOL_TOKEN missing` 后退出 0。验证：`workflow_dispatch` 空跑一次（无 secret）产出 skip 摘要
+- [x] 5.1 私仓新增 `.github/workflows/nonweb-daily.yml`（已入库 9162314a）:`schedule`（每日一次）+ 手动；ubuntu 单 job（~1-2 私仓分钟）做干净快照推池 + 池 dispatch app-e2e；`BUILD_POOL_TOKEN` 缺失时 job 显式 `SKIPPED: BUILD_POOL_TOKEN missing` 后退出 0。验证：`workflow_dispatch` 空跑一次（无 secret）产出 skip 摘要
 - [ ] 5.2 台账：通道节补「验收轨」小节（移动验收轨分钟/桌面 installer-e2e/排程开关状态与 secret 名）+ §15.65 发布记录（本 change 全链）。验证：台账两处可见
 - [ ] 5.3 `openspec validate automate-nonweb-acceptance --strict` 零 error；`openspec validate --specs` 不掉数。验证：命令输出
 - [ ] 5.4 归档（全勾后）+ 记忆更新（含判路：图表围栏/验收轨/secret 名）。验证：archive 目录 + validate --specs 计数

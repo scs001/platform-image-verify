@@ -2795,3 +2795,18 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 ### §15.68 add-cell-lifecycle 归档（2026-10-28）
 
 `openspec archive add-cell-lifecycle --yes` 完结：change 移入 `archive/2026-10-28-add-cell-lifecycle`，主 specs 落地 +17 需求（device-pairing-auth 等五件同步），全库 **validate --specs 191/0**。本季交付线：gate ①（内存 Map ⇒ packs.db 注册表 + 居住策略）/gate ②（duty ring 唤醒 + 桌面 steward 控制面）/gate ③（云端 spawner 集成 + 摇摆存续语义修复）/gate ④（kind=steward 配对 + cell-report 白名单上行门 + polity 修正）+ 本批 5.3 五幕 CI 化（steward-smoke 40590465073 三腿全绿 / win-smoke Phase D 40555609494 对 v1.3.19 打包版绿）。残留人工项=息屏/关机重启真机眼见、DPAPI+reporter 修复随 v1.3.20 打包态覆盖（win-smoke 待跑出）。
+
+### §15.65 验收自动化起棒：桌面两腿全绿 + 移动端真缺陷三连（automate-nonweb-acceptance，2026-10-27/28）
+
+**立案与形态**：`automate-nonweb-acceptance`（proposal/design/spec(ci-pipeline+mobile-app delta)/tasks 四件 validate 绿）——桌面装机 e2e 轨 + 移动端验收轨 + 图表桩 + 排程开关，全部跑在池通道（私仓只花 ubuntu 分钟）。
+
+| 项 | 值 |
+|---|---|
+| 桌面装机 e2e（4.1/4.2） | `release.yml` 增 `installer-e2e`（windows，tag 自动）+ `installer-e2e-mac`（opt-in）：装 exe → bundled node 直启 steward → 断 healthy（restartCount=0，nodeBin/HOST 两修复跨平台成立）→ 开 app 断 ATTACHED → 杀 UI 断存活 → 死 pid 断 stale 回退 → 卸载断清场；**windows 腿全绿（run 40485481556）**、mac 腿绿（plan 断言+运行时+策略往返；GUI attach 归 windows 腿——headless runner 无 GUI 会话）；`artifact_run_id` 复用模式免 mac×10 重烧；坑修三发（actions:read 403 / 工件实名 platform-* / `-WindowStyle Hidden` 防 -NoNewWindow 子进程随步骤控制台被收） |
+| 移动端验收轨 | app-e2e android 腿扩：chaos 桩（chart 模式：控制面 shape 优先/提示词路由）+ 第二 mock（9412，LLM_BASE_URL 指 chaos；9411 维持 dead-LLM 契约）+ charts.yaml（clearState 重配对+四系列 chart-ok/chart-fallback 双断言）；**既有四流每轮全绿**（gates 2.3min/apk 23.7min/android 5.5min 实测钉台账通道节） |
+| 真缺陷①（验收轨首功） | forward_auth 门不认 paired-device Bearer：WS upgrade 与 HTTP 门都只看 forward headers → app 在标准部署上永远 401/Disconnected → `6c57164e` 给两门补 `mpUserFromToken` fallback（logto 门早有此律，镜像补齐） |
+| 真缺陷② | `mpAuth.verifyToken` 被 `configured=Boolean(appid&&mpSecret&&tokenSecret)` 微信三件套门死——无微信凭据的标准部署里 app token 永验不过 → `244174ed` verifyToken 只需 tokenSecret；**本地全链复现修前 401/修后 UPGRADED**；此缺陷单靠单测/本地 typecheck 永不可见，是验收轨存在的意义 |
+| 真缺陷③ | 聊天 FlatList 无 `extraData`——store flush 原地变异 assistant turn（引用不变）被 VirtualizedList 行判等跳过重渲染 → `8a9d9219` 补一行 |
+| 图表腿残余（**未绿，交接**） | chart-ok 永不出现：证据链已闭环到「flushIntoTurns 落账 `[["text",149]]` → ~40ms 内 turns 读回空」，echarts 已钉 5.5.1（WebView 83 解析不了 v6）、extraData 已修、双实例已排除（inst=1）、本地全时序回放全部存活 → **Hermes/设备特有**。四层探针（wsdbg 全量事件镜像/evlog 内存时间线/qdbg store 三点/setdbg setState 包装）全部就位于池分支 `nonweb-e2e/2026-10-27c`，下一棒续查（RN DevTools 或最小 Hermes repro） |
+| 排程开关 | `nonweb-daily.yml`（每日 03:30 北京时间）：HEAD 干净快照（gitleaks 硬门+修剪至 app-e2e）→ 推池 `nonweb-daily` 固定分支 → dispatch；**arm-ready**：secret `BUILD_POOL_TOKEN`（对 testaction003/build-pool contents:write 的 PAT）缺失时显式 SKIPPED，配上即生效 |
+| 事故留名 | ①并行派发互抵：app-e2e concurrency 组 cancel-in-progress 把在途诊断轮砍了（次序改串行）；②fd-build-snapshot 在后台壳 PATH 缺失（用绝对路径）；③logcat 环形缓冲冲时间线（改内存镜像 globalThis.__evlog）；④探针 TS 缩窄两发被门逮住（门在干活） |

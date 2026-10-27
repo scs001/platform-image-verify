@@ -4,7 +4,7 @@
 
 - [x] 1.1 `manifest.fleet.params` 可选段 schema（槽名/类型/默认值/必填）+ 校验器（`server/fleet-template.js`：白名单位置 `${param}` 占位只许指向已声明槽位；嵌套默认按「不替换」拒收声明期；非法槽如实拒的单测；无槽模板逐字节）
 - [x] 1.2 实例化器按槽消费入参（`server/fleet-provisioner.js` `resolveFleetTemplateParams` 消费 + 替换后整条链重解析兜底，结构不合= params-invalid 零实化）；单测全覆盖
-- [ ] 1.3 官方种子模板补参数槽（守恒纪律：只加槽不改岗位语义）——留随下一棒种子线处理（docs/fleet-templates 种子在别会话变更中，本棒不动以免撞车）
+- [x] 1.3 官方种子模板补参数槽（守恒纪律：只加槽不改岗位语义）——五个 docs/fleet-templates 种子同式补槽（周期 cron×枚举声明+默认与原值逐字节；种子回归 19/19 全绿，lint 渠道自建 BRACE 占位互不踩标）
 
 ## 2. 装作路径
 

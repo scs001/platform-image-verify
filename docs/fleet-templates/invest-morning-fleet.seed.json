@@ -46,7 +46,7 @@
           }
         ],
         "cadence": {
-          "cron": "30 9 * * 1-5",
+          "cron": "${chiefCron}",
           "tz": "Asia/Shanghai",
           "promptTemplate": "主持晨会：阅读宏观与行业研究员的最新报数与主人拍板结果，核对矛盾与共识，超出权限的仓位或方向问题合并为一条 escalate 提交主人。收尾务必调用 report_status 报数。{{fleetContext}}"
         }
@@ -72,7 +72,7 @@
           }
         ],
         "cadence": {
-          "cron": "0 9 * * 1-5",
+          "cron": "${macroCron}",
           "tz": "Asia/Shanghai",
           "promptTemplate": "开盘前宏观面晨检：巡视政策、利率汇率、大宗商品与外围市场，形成当日宏观判断。取不到的数据如实标注。收尾调用 report_status。{{fleetContext}}"
         }
@@ -97,7 +97,7 @@
           }
         ],
         "cadence": {
-          "cron": "10 9 * * 1-5",
+          "cron": "${sectorCron}",
           "tz": "Asia/Shanghai",
           "promptTemplate": "开盘前行业与标的晨检：巡视重点行业与观察标的，核对模拟盘持仓（如可用）。取不到的数据如实标注。收尾调用 report_status。{{fleetContext}}"
         }
@@ -123,13 +123,57 @@
     "requires": [],
     "orchestration": {
       "edges": [
-        { "kind": "trigger", "to": "macro", "cron": "0 9 * * 1-5" },
-        { "kind": "trigger", "to": "sector", "cron": "10 9 * * 1-5" },
-        { "kind": "trigger", "to": "chief", "cron": "30 9 * * 1-5" },
-        { "kind": "handoff", "from": "macro", "to": "chief" },
-        { "kind": "handoff", "from": "sector", "to": "chief" },
-        { "kind": "dispatch", "from": "chief", "to": "risk" }
+        {
+          "kind": "trigger",
+          "to": "macro",
+          "cron": "0 9 * * 1-5"
+        },
+        {
+          "kind": "trigger",
+          "to": "sector",
+          "cron": "10 9 * * 1-5"
+        },
+        {
+          "kind": "trigger",
+          "to": "chief",
+          "cron": "30 9 * * 1-5"
+        },
+        {
+          "kind": "handoff",
+          "from": "macro",
+          "to": "chief"
+        },
+        {
+          "kind": "handoff",
+          "from": "sector",
+          "to": "chief"
+        },
+        {
+          "kind": "dispatch",
+          "from": "chief",
+          "to": "risk"
+        }
       ]
-    }
+    },
+    "params": [
+      {
+        "name": "chiefCron",
+        "type": "string",
+        "default": "30 9 * * 1-5",
+        "label": "晨报合成时刻"
+      },
+      {
+        "name": "macroCron",
+        "type": "string",
+        "default": "0 9 * * 1-5",
+        "label": "宏观晨检时刻"
+      },
+      {
+        "name": "sectorCron",
+        "type": "string",
+        "default": "10 9 * * 1-5",
+        "label": "板块晨检时刻"
+      }
+    ]
   }
 }

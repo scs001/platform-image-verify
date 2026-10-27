@@ -187,6 +187,7 @@ export default function ChatScreen() {
         <FlatList
           ref={listRef}
           data={turns}
+          extraData={turns}
           keyExtractor={key}
           renderItem={renderItem}
           contentContainerStyle={styles.transcript}

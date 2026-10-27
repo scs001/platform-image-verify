@@ -2857,3 +2857,18 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **终态补记（07:10）**：用户修好 windows 盒子后车道全通；停机补跑机制自动入队 catch-up 阵 → **turn 228 ok**（usage 6843/1945，381s）——§15.65/66 事故全链闭环。Turn 227 的 `turn_budget_exceeded steps=24 lastTool=report_status` 是诚实归因样本（车道在回合中途恢复、agent 干满 24 步、预算从死车道时刻起算耗尽——fix-fleet-turn-attribution 精准落账）。**无需换模型**：车队本就请求 deepseek-v4.1-flash，windows 盒子恢复后 stream+非 stream 全通。
 
 **收尾补记（07:25）**：①归档 `add-agent-config-dims` 与 `add-fleet-ops-canvas`（主 spec 同步：agent-fleet-core/cockpit/bot-relay 合并 + fleet-config-overview 新建；validate --specs 192/0；config-dims 的 tasks 勾选曾被并行提交冲掉，按实绩还原）；②china-cheap-2 落 **vaas 音频复发闸**（`/usr/local/bin/vaas-audio-prune.sh` cron 每 6h：>200MB 的 assemble MP3 按失控产物清、assemble 工作目录 14 天清——防 §15.66 的盘满根源复发；node 侧日志 /var/log/vaas-audio-prune.log）；③`fix-fleet-model-drift` 保持 open（5.2 待真实中毒复发的 modelRectified 生产目击）。
+
+### §15.70 插件供给面 + 浏览器车道滚产（add-dsh-plugin-supply + add-browser-use-lane，2026-10-28）
+
+| 项 | 值 |
+|---|---|
+| 生产镜像 | `ccr.../yizuo/platform:sha-bbf73ea`（digest `7a31f9b2`；快照 651adf5 → verify 恢复提交 bbf73ea；paas aeefa697；体积 **2.47GB**（chromium 层 +~250MB）） |
+| 出片线 | scs001/platform-image-verify 公开仓免费线；本版**三轮**才绿，每轮都被镜像自己的门逮住一个真缺陷（见下） |
+| 滚动 | fd-infra-deploy `113c2dd`（platform×4：platform.yaml:54 + platform-demo.yaml:71 + facet.yaml:66 + agent-runner-serving.yaml:54/63）→ gitee/github 双端 → ArgoCD hard-refresh（annotation）→ 四 deploy rollout 全绿 |
+| 六道门 | /api/config、/api/ready、dsh contracts（**18 条**，含新增 ⑱ plugin-supply）、**browser lane 真启 chromium（24 工具 + about:blank ok）**、module identity |
+| ① 插件供给面 | cell 日志实证 `wrote plugin supply bridge patch`（`/data/cells/<hash>/dsh/profiles/platform/plugin-supply.patch.yml`）；生产 UI 真机走查：Settings→Plugins 区块在位（CAPABILITIES 组）、9 条 roster、`dsh-base` 保护置灰、供给提示条在位（截图 /tmp/wt-plugins-roster.png）；既有 cell 的样包行缺席=旧 scaffold 物化（新 cell/桌面才有） |
+| ② 浏览器车道 | **部署 pod 内跑镜像自身冒烟绿**：`kubectl exec <pod> -- node /app/scripts/browser-lane-smoke.mjs` → 24 工具 + 真 chromium 导航；in-pod env/`/opt/browser-mcp`（chromium-1243 + headless-shell）齐 |
+| 三轮真缺陷（都是门逮住） | ① **层错阶段**：ENV/RUN 落 builder 而 runtime 只 COPY 白名单 → 镜像无 lane（冒烟按「未声明缺席」正确 SKIP，故首版镜像 sha-2c7806d 看似绿）；② **chrome 渠道**：@playwright/mcp 默认找系统 /opt/google/chrome → 真启动报 `Chromium distribution 'chrome' is not found`；③ **容器沙箱**：非 root + 无 userns → `Chromium sandboxing failed`，改 `--config` 传 `launchOptions.args=[--no-sandbox,--disable-dev-shm-usage]`（`BROWSER_SANDBOX=1` 可保留沙箱） |
+| 供给门四形态 | local(BROWSER_RUNTIME_PATH 存在)/remote(BROWSER_CDP_ENDPOINT，永不回落本地)/off(BROWSER_LANE=off 压制)/双缺席→整条省略 + info 日志；单测 `scripts/test-browser-lane-gate.mjs` 5/5 |
+| 待办（产品决定） | **pack 聚焦会收窄工具面**：cell 聚焦 pack persona 时 `keep = mcp.json + PACK_BASELINE_MCP + 该包 refs`，`playwright`/`websearch` 被 drop（fd-prod `PACK_BASELINE_MCP=fleet`）→ 想让 pack 人格也能浏览，加一行 env `PACK_BASELINE_MCP=fleet,playwright`（未擅自放宽：会扩每个客户人格的工具面）；② 的 agent 回合级眼见（非 pack 会话）待该决定后补做 |
+| 旁证 | 本滚期间并行会话亦在同镜像名出片（tag sha-aa71c92 ≙ paas 91ddd30a，含本变更代码但**未烘 lane**）——双链重叠已现，后续出片建议先 `gh run list -R scs001/platform-image-verify` 对表 |

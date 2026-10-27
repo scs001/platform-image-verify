@@ -2616,3 +2616,13 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **无声干验**：unit 4/4（explicitChain、modelMismatch 路径、isModelUnavailableError、ledger trace 互容）+ fleets 22/22、ops 5/5、config-dims 直驱 0 regression。**生产顺势反例（最强证据）**：14:00 巡逻 turn 185 一次性 502（header 稳定 deepseek-v4.1-flash+effort high——迫断言+effort 落地例证），非模型不静，自愈误应未触（头图要求）。**待证中毒场景复发**：相对 CRM 肺热没跑晚——**取证 06:00 前后（cell 重启后）每阵 hostname 与 header 模型走过**，开着浮标即可。
 
 **出片二连打**：6e38598 前班被并行 b242fe6 占头（源仓重复 ss 的 cancel-in-progress 语义），重推快照 = 16179e1 班十二（CR digest fbba3e81）→ platform/platform-demo/facet/agent-runner-serving 统一。「快照同步 relay 无 tag」 SIG 辨位：是推上 hkccr 的路被抢位而不是 relay 问题——看图先查源 tag list。
+### §15.59 永忆公网两域名上线：需求文档交付雷池侧 + PORTS 31899 补录（2026-10-27，用户定「memory./yongyi.finddatatech.cloud + 我有雷池做防护」）
+
+**域名分工（推荐口径，需求文档内标 ⚠️待拍）**：`yongyi.finddatatech.cloud`=官网纯静态（雷池机本地 Caddy file_server）；`memory.finddatatech.cloud`=永忆服务公网 API 面（→ NodePort 31899）。边界事实沿用既有拓扑：两域 A 记录 → 103.236.89.212（雷池，DNSPod 由属主加、TTL 先 600s）→ safeline-tengine :443 → 本机 Caddy :8080 每域一块 → 后端。
+
+**需求文档**：fd-memory `docs/site-deploy-requirements.md`（+ `/tmp/yongyi-site.tar.gz` 三文件随手包，@ `b21cccb`）。要点：① memory 域路径门强制表——`/healthz /digest /mcp` 放行，`/admin/* /capture` 边缘 404（服务侧虽自带 Bearer 鉴权，公网仍边缘封）；② `/mcp` streamable-http 必须注 `proxy_buffering off; proxy_request_buffering off; proxy_send_timeout 600s`（site 31/21 先例，否则复现 10-21 攒包事故），Caddy 侧 `flush_interval -1`；③ 请求体 ≥8MB + per-IP 60rpm 起步；④ 五步 curl 验证链 + DNS 级回滚。**未做**：DNS/证书/雷池站点条目——按用户指示交雷池那台机器的 AI 执行。
+
+**顺账**：PORTS.md 补 31899 行（fd-infra-deploy `c0c880c` 推 gitee+github）——add-memory-federation-v1 当初清单注释申报「双实探」但台账漏行，kubectl 实证 NodePort 31899→49375、pod Running 10h。
+
+**待用户动作**：① DNSPod 加两条 A 记录 → 103.236.89.212；② 把需求文档+资产包交雷池 AI；③ 拍两处 ⚠️（两域角色分工 / 证书流程）。
+

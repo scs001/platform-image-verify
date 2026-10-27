@@ -2896,3 +2896,14 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 - 并行泳道共享工作树时，**未跟踪的新模块是隐形雷**：收尾前 `git status --short | grep '^??'` 扫一眼本域新文件。
 
 **待办**：`sha-bbf73ea` 是上一版好镜像，**b39d9903 那批内容（列表缓存/智语未读归零/长会话窗口化）需在 main（现 `d103f0bb`）重新出片再滚**——属该泳道发布动作，本班不代滚。
+
+### §15.65 补：验收排程器迁居池仓（testaction004）与三则硬发现（2026-10-28 凌晨）
+
+| 项 | 值 |
+|---|---|
+| 拓扑（终态） | **排程器住池仓** `testaction004/build-pool/.github/workflows/nonweb-daily.yml`（每日 03:30 北京，ubuntu ~40s）：克隆私仓 HEAD → gitleaks 硬门 → 修剪（仅 app-e2e，**awk 截断剥 ios 腿**）→ 推本仓 `nonweb-daily` 分支 → dispatch `app-e2e --ref nonweb-daily`。secret `BUILD_POOL_TOKEN` 已设（004 与私仓各一份；值=当前 gh 登录凭据，可用细粒度 PAT 轮换）。私仓版 workflow 已删、003 版已 disable；004 桩（app-e2e.yml dispatch-only）+ 排程器均已 active |
+| 首日验收（run 40601833232） | gates ✓ apk ✓；图表腿红（Hermes 残余，交接见 change tasks 3.1）；该轮还混进 ios 腿（执行工件来自私仓文件，桩修剪管不到）→ 已由排程器修剪步补剥 |
+| 硬发现① | **私仓额度耗尽时连 ubuntu runner 都不启动**（job `startedAt=null`、零步骤、注解 payments failed）——"把排程器放私仓"从根上不可行，验收基础设施必须住在额度免疫的池仓 |
+| 硬发现② | **gho_ OAuth 令牌拒绝 `https://x-access-token:TOKEN@` URL 形态**（本地复现 Authentication failed）——推池走 `gh auth setup-git` 凭据助手（Basic auth） |
+| 硬发现③ | **fd-build-channel 读数是 24h 缓存**——今日十几轮验证把 testaction003 从 287 烧到上限（注解实锤），缓存仍显示 969/还有 1031 分钟，判路时勿全信 |
+| 纪律升级 | **共享工作树 `git commit` 会带上他人已暂存的在途件**（本日两犯）——一律 `git commit <pathspec>` 限定提交，`git add` 不够 |

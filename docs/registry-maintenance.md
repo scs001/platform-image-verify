@@ -2714,3 +2714,21 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **§15.67 补记四（内容存量第二批扫完）**：四篇课程双语改版并 CMS 重发（各 zh/en 两条，全部 published 回读实证、正文旧词 0 命中）：`yizuo-getting-started`（gfl4q8bvtzrfon8p2hn84hza）、`wanxing-facet-workflow`（tfw7obuv0a5red7qvrt2x1gz）、`ai-twin-your-knowledge-to-chat`（uavzohbeszkzjkrgodlzkm82）、`yizuo-install-pack`（qtxblsq0uyvv16doa2t3laha，原为站点独有，本批补入 canonical 并同步 CMS）。改法：功能集→能力包、舰队→集群；en 侧随 UI 大小写（My packs）与徽章名（Facade）；`install-pack` 标题「装上第一个能力包」。官网仓 7 文件同步（`bd6f963`，本地未推）。**新坑回写工具**：Strapi 逐 locale 编辑会把另一侧翻回 `modified` 草稿态 → `publish_course.py` 增「全 PUT 后再循环 publish 直到各 locale 均 published」收敛环（install-pack 首轮即被此坑咬到，二轮收敛）。
 
 **§15.67 补记五（阅读器口径小修）**：`yizuo-getting-started` 台词「装上一个行业功能集」等显式 UI 引用已随正文改；《壹座与萬星使用手册》技能名与 `pack_url` 保持原样（slug/包名不改）。**仍待**：`baiye-*` 两篇（百业线用词自成体系，15+1 处）与 `briefings/zh/2026-10-15`（1 处历史内参，倾向冻结不翻）；课程 6 张截图待补拍。
+
+### §15.65 P0 双层事故：liuliangdmh1xr0w9ryu 节点砖化 → 全平台 LLM 车道断供 3h+（2026-10-28 凌晨，班十五连带揭出）
+
+**链路（逐层实证）**：①zhengxin 风暴 14:44 UTC 把 liuliangdmh1xr0w9ryu 盘打满 → kubelet 打 disk-pressure taint 并开始硬驱逐；②该节点上 2320 个 Evicted/死壳 pod 遗骸（zhengxin-api ×百计）+ 日志把盘吃死；③containerd 的 pause blob 被满盘写损（`short read: expected 892 bytes got 0`）→ **任何新容器（含沙箱）都无法在该节点启动**；④sub2api 的 GitOps manifest 自 10-01 收编起就钉 `hostname=liuliangdmh1xr0w9ryu`（data PVC sub2api-data-2 local-path 也绑死该节点）→ 旧 pod Error 后新 pod 永久 Pending；⑤platform hostNetwork=true → 127.0.0.1:32080（NodePort）无后端 → **全平台 LLM 车道断**（fleet 回合全线 "Connection error."，同类伤 zhengxin/lex/chatwoot/facet-mcp/cert-manager——它们也被钉在那个节点）。
+
+**修复四刀（全部走 gitee 源头 + ArgoCD，kubectl 直改均被 selfHeal 秒回）**：
+1. `a79e544` 摘 hostname 钉（arch-only）——不足：data PVC 仍绑死坏节点。
+2. `0a0440b` 加 disk-pressure 容忍——不足：kubelet 硬驱逐照旧（盘是真满）。
+3. 清遗骸：**2320 个死壳 pod 对象**批量 force-delete（API 侧能做的全做了）——腾出对象但字节未动，仍 Evicted。
+4. `e34a8fa`+`b76a003` 数据卷改挂新 PVC `sub2api-data-rescue` + 临时钉 **cheap-5**；并给 PVC 打 `selected-node=cheap-5` 注解（StorageClass 是 Immediate 绑定，provisioner 随机选节点曾命中坏节点）→ **sub2api 在 cheap-5 复活**，`/v1/models` 200。
+
+**恢复态与剩余问题**：
+- ✅ 网关层：sub2api Running（cheap-5，新卷），lane 不再 connection refused。
+- ⚠️ **上游账户层仍红**：deepseek-v4.1-flash 被路由到 account 46（windwos-sub2api=100.64.0.10:32080），其上游回 `400 model_not_available: deepseek-flash is not available for the selected accounts`——即**词元配额事故同族**（windows 盒子的 deepseek-flash alias 账户层耗尽/不可用）。core 组另有 openrouter-main/new（14/15）可用但未承接此模型。**待主处置**：windows 盒子账户充值/换号，或把 deepseek 映射切到 14/15。
+- ⚠️ **节点 liuliangdmh1xr0w9ryu 仍砖**：盘满+pause blob 损坏+零活容器+SSH 无凭据（root 被 reset/ubuntu 无 key）。需要云控制台（Aliyun 发送命令/VNC）或节点 SSH key 才能清盘（journalctl vacuum + /var/log/pods 清理 + containerd 内容store 校验/重置）。**zhengxin/lex/chatwoot/facet-mcp/cert-manager 在该节点上的服务仍下线**。
+- 数据面：sub2api 真状态在 Postgres（cheap-6，未损）；旧 local-path 卷里的本地目录（日志/临时层）留在坏盘上，节点修复后评估回迁；`sub2api-data-2` PVC 暂留勿删。
+
+**教训三条**：①GitOps 收编时的 hostname 钉是定时炸弹——节点一旦异常即把服务锁死在死地，钉节点必须连同「节点失能时的逃生路径」一起评审；②local-path PVC 是节点粘合剂，多副本服务慎用（本次 kubectl 直改全被 selfHeal 秒回，**一切修复必须走 gitee 源头**第三次实证）；③盘满节点的 kubelet 连 system-node-critical 救援 pod 的沙箱都起不来（pause blob 损坏），k8s API 侧无解——**节点 SSH/云控制台凭据必须入运维钥匙库**。

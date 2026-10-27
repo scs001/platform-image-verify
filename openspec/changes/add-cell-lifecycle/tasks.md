@@ -3,8 +3,8 @@
 > 交付次序（Q22 定稿）：桌面章 ①② 先行（客户 deadline）→ 舰队 A change 并行 →
 > 云端章随后接续 → 桌面章 ③④ 与云端章合龙。词汇（cell-lifecycle spec）为共同前置，
 > 已随本 change 立卷。
-> **实施链状态（2026-10-27）**：①② 两棒+云端章（3.x）代码面完成（33/33 单测绿），
-> 真机/发行线验收与 ④⑤⑥ 挂账后续。
+> **实施链状态（2026-10-27）**：①②+3.x+4.x 代码面完成（40/40 单测绿），上产验收已过（sha-ebbb112）；
+> ④读模型/owner-offline、5.3 真机八幕、⑥归档挂账后续。
 
 ## 0 · 共同前置（词汇与测试基座）
 
@@ -47,16 +47,16 @@
 
 ## 4 · 桌面章③配对 + 上行——后续棒
 
-- [ ] 4.1 steward 配对：复用 device-pairing 通道（bind 码→公钥→挑战），kind 标记；
+- [x] 4.1 steward 配对：复用 device-pairing 通道（bind 码→公钥→挑战），kind 标记；
   私钥入 OS 钥匙串；上行门断言（凭据域最小化测试：非上行端点一律拒绝）
-- [ ] 4.2 ingest 侧 event 种 cell_presence/cell_manifest + facet 读模型派生（窗口语义，
+- [x] 4.2 ingest 侧 event 种 cell_presence/cell_manifest + facet 读模型派生（窗口语义，
   同 runner board）；白名单 schema（shape 层无内容字段）
-- [ ] 4.3 桌面上行客户端：默认关、明式开关、同意文案逐条白名单、环形缓冲 degrade-open
+- [x] 4.3 桌面上行客户端：默认关、明式开关、同意文案逐条白名单、环形缓冲 degrade-open
 
 ## 5 · 销毁三路合龙 + owner-offline 呈现——后续棒
 
-- [ ] 5.1 卸载钩子（尽力 destroy intent）/ console 撤销→上行 401→自毁 / 沉默 30 天
-  墓碑（授权即作废、行留审计、不复活）
+- [ ] 5.1 卸载钩子（2.1已在位）/ console 撤销→401 自焚（4.3已在位）/ 沉默 30 天
+  墓碑＝facet 读模型侧（÷4.2 ingest 转发已过桥，读模型落 facet 仓工单）
 - [ ] 5.2 平台读面：owner offline 命名（管家在线=在线、离线=owner offline 不计异常）；
   未注册=诚实缺席
 - [ ] 5.3 真机验收链：Mac+Win 双形态装/跑/关 UI/关屏息/关机/卸载/撤销八幕

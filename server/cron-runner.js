@@ -239,8 +239,14 @@ async function normalizeModelForJob(ctx, preset) {
   if (!plan) return { ok: true };
   const notices = [...plan.notices];
   let landed = null;
+  // fix-fleet-model-drift: a post with an explicit chain cannot trust the
+  // session ledger's early return — the child can be holding a model some
+  // other lane wrote. Force the assertion every round; chain-less posts keep
+  // the cheap path unchanged.
+  const assertSoft = process.env.FLEET_MODEL_ASSERT_SOFT === "1";
+  const force = plan.explicitChain === true && !assertSoft;
   for (const hop of plan.candidates) {
-    const r = await ctx.switchModelTo(hop.model);
+    const r = await ctx.switchModelTo(hop.model, force ? { force: true } : undefined);
     if (r?.ok) {
       landed = hop.model;
       break;
@@ -374,6 +380,16 @@ export function roundChildSessionId(job, startedAt, seq = 0) {
   return `${sessionId}#r${startedAt}${seq ? `-${seq}` : ""}`;
 }
 
+
+// fix-fleet-model-drift: model-not-available upstream rejection — the child's
+// persisted session can carry a model no lane wrote recently (out-of-band
+// compaction/agent-team). When that signature shows up the fleet post SHOULD
+// re-assert its declared model with force, not walk the degrade chain.
+export function isModelUnavailableError(text) {
+  const s = typeof text === "string" ? text : text == null ? "" : String(text);
+  return /model_not_available|INVALID_MODEL|cannot find model|no available model|model unavailable/i.test(s);
+}
+
 // Fleet rounds land on cold cells: the platform boots its dsh child in the
 // background, so a 09:00 cron can fire before the runtime is ready. Waiting
 // is bounded and fleet-only — ordinary cron keeps the immediate refusal.
@@ -478,8 +494,10 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
 
   // fix-fleet-turn-attribution D5: prompt+collect extracted so the candidate
   // walk can retry ONCE on a fast upstream failure. Everything per-attempt is
-  // inside; the breaker/ledger/handoffs stay at the seam, once per turn.
-  const attempt = async (attemptModel) => {
+  // inside; the breaker/ledger/handoffs stay at the seam, once per turn. The
+  // model value is pre-positioned into the runtime before each attempt — the
+  // param rides for call-site documentation only.
+  const attempt = async (_attemptModel) => {
     const collected = collectTurn(ctx, childSessionId, timeoutMs, activeTurns, ctx.sessionCollectors, sessionId);
     // The collector is now the visible trace of this turn — hand the runtime
     // over to it and drop the preset-switch reservation.
@@ -500,6 +518,30 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
   const startedWall = Date.now();
   let result = await attempt(modeled?.landed ?? null);
   let degradedTo = null;
+
+  // fix-fleet-model-drift: when a fleet post carries an explicit chain and the
+  // turn dies with an upstream model_not_available (or INVALID_MODEL), the
+  // child's saved selection drifted away from what our ledger says — do NOT
+  // walk the degrade chain yet. Force re-assert the declared hop (fresh
+  // initialize), re-run ONCE, and only fall through to the degrade lane below
+  // if that didn't recover.
+  if (
+    result.ok === false &&
+    !result.interrupted &&
+    isModelUnavailableError(result.error) &&
+    modeled?.explicitChain === true &&
+    modeled?.landed
+  ) {
+    try {
+      const rectifiedSwitch = await ctx.switchModelTo?.(modeled.landed, { force: true });
+      if (rectifiedSwitch?.ok !== false) {
+        const retry = await attempt(modeled.landed);
+        if (retry.ok) {
+          result = { ...retry, detail: { ...(retry.detail ?? {}), modelRectified: modeled.landed } };
+        }
+      }
+    } catch { /* the original failure stands; degrade lane below runs */ }
+  }
   // One retry, only for a FAST upstream-class failure while the chain still
   // has an untried hop. Timeouts and tool failures are the work's own shape —
   // another model would hit them too. The fast-failure window bounds the

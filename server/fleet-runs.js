@@ -156,6 +156,26 @@ export function createFleetTurnLedger({
 
   function end(job, handle, outcome, meta = {}) {
     if (!handle) return null;
+    // fix-fleet-model-drift: the trace carries the model the CHILD actually
+    // emitted on its request header; when it disagrees with what the turn
+    // thought it landed, stamp the mismatch into the row instead of trusting
+    // the accounting side (the child's selection can drift out-of-band).
+    if (trace && handle?.traceTurnId && meta?.model != null && outcome?.detail?.modelMismatch == null) {
+      try {
+        const turns = trace.getTurn(handle.traceTurnId);
+        const headerEvent = turns?.find((t) => t.eventType === "request/header");
+        const observed = headerEvent?.payload?.event?.data?.header?.config?.model ?? null;
+        if (observed && observed !== meta.model) {
+          outcome = {
+            ...outcome,
+            detail: {
+              ...(outcome?.detail ?? {}),
+              modelMismatch: { declared: meta.model, observedHeader: observed },
+            },
+          };
+        }
+      } catch { /* never fail the seam on the observation */ }
+    }
     let event = null;
     try {
       event = recordTurnEvent(db, job, outcome, { ...meta, rosterPresetId, ledgerTurn: handle });

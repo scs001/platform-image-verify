@@ -136,7 +136,7 @@ export function resolveAttribution({ currentPreset, runningTasks = [], personaMe
 // construction — ids and a title, nothing else — and never written to the
 // catalog or an AgentCard.
 export function renderFleetIdentity({ fleetId, memberId, title, targetKind, targetId }) {
-  return `【舰队岗位身份】fleet=${fleetId}; post=${memberId}; title=${title ?? ""}; target=${targetKind ?? ""}:${targetId ?? ""}`;
+  return `【集群岗位身份】fleet=${fleetId}; post=${memberId}; title=${title ?? ""}; target=${targetKind ?? ""}:${targetId ?? ""}`;
 }
 
 // The post a persona is on duty for → its turn identity line, or null.
@@ -215,6 +215,10 @@ export function fleetModelFor(db, presetId, { rosterPresetId = (id) => id, roste
     memberId: member.id,
     fleetDefault,
     ...plan,
+    // fix-fleet-model-drift: a declared chain on the post flags whether the
+    // turn MUST re-assert its model each round (no session-ledger early
+    // return — that ledger can drift away from the child's own selection).
+    explicitChain: Boolean(member.model || member.fallbackModel),
     effort: effort.effort,
     effortSource: effort.source,
     effortNotices: effort.notices,

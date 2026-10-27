@@ -278,7 +278,7 @@ async function refreshDshModels() {
 // command_use block FIRST so the error attaches to that turn, while `set_model`
 // sends it bare (the client shows it as a toast: no run is open). Shared by
 // the `set_model` WS handler and the `/model` command.
-async function switchModelToInner(id) {
+async function switchModelToInner(id, { force = false } = {}) {
   // Live control (live-runtime-control): with model/set the switch is a live
   // selection flip — dsh snapshots the current step's selection, so a mid-run
   // switch lands on the next step and the streaming guard is lifted. Without
@@ -294,7 +294,13 @@ async function switchModelToInner(id) {
   if (!target) {
     return { ok: false, error: `Unknown model: ${id}` };
   }
-  if (ctx.session?.model?.id === id) return { ok: true };
+  // fix-fleet-model-drift: the early return trusts OUR ledger (ctx.session.model).
+  // But this runtime exposes no model/get RPC — the child's own selection can
+  // drift out-of-band (session persistence, in-process writers) while our
+  // ledger keeps saying "already right". Posts with an explicit model chain
+  // are the patrols that MUST land their declared model: force bypasses the
+  // shortcut so the assertion reaches the child through a real initialize.
+  if (!force && ctx.session?.model?.id === id) return { ok: true };
   // The persisted effort belongs to a provider, but the offered set is the new
   // model's. An incompatible level falls back to the provider default rather
   // than reaching dispatch as UNSUPPORTED_REASONING_EFFORT.
@@ -331,11 +337,11 @@ async function switchModelToInner(id) {
   }
 }
 
-async function switchModelTo(id) {
+async function switchModelTo(id, opts = {}) {
   if (ctx.runExclusiveRuntimeMutation) {
-    return ctx.runExclusiveRuntimeMutation(() => switchModelToInner(id));
+    return ctx.runExclusiveRuntimeMutation(() => switchModelToInner(id, opts));
   }
-  return switchModelToInner(id);
+  return switchModelToInner(id, opts);
 }
 
 // ── Catalog agent switching (mirrors the model-selection messages) ───────────

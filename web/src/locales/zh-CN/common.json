@@ -2284,12 +2284,12 @@
   "fleets": {
     "title": "集群",
     "create": "创建集群",
-    "empty": "还没有集群，点右上角创建第一支",
+    "empty": "还没有集群，点右上角创建第一个",
     "nameLabel": "集群名称",
     "namePlaceholder": "如：内容工作室",
     "membersCount": "{{count}} 个岗位",
     "detail": {
-      "empty": "选择或创建一支集群"
+      "empty": "选择或创建一个集群"
     },
     "state": {
       "active": "运行中",

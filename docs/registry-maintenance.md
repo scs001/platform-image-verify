@@ -2655,3 +2655,33 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 
 **挂账**：`FLEET_INGEST_URL` 未配进 fd-prod env（pod 内 printenv 无），上行门走设计降级 accept-and-drop；ingest 转发面等 facet 侧 owner-offline 读模型（tasks 5.2）就绪后再接。Windows DPAPI 钥匙串升级（4.x 注记）、真机八幕（tasks 5.3）仍开。
 **§15.59 补记（2026-10-27，用户令「memory 也要能跳转到官网，这样不太好，我们会做海外客户」）**：memory 域原设计=裸 API 面（打开即 401），用户否掉。改为**双面**：根路径与一切非 API 路径落**人类入口页**（中英双语、讲清「本域是 API 端点」、大按钮回官网、三端点+Bearer 提示），仅 `/healthz /digest /mcp` 反代到 31899。新资产 `site/memory-landing/index.html`（单文件自足：CSS 内联、零外部字体请求，海外首屏快）。验收=程序化（视觉评审员连撞上游限流改无头实测）：双视口无横向溢出、对比度 6.46–16.27:1 全 PASS、按钮 49px 高、移动端 pre 内滚不撑破——首跑揪出 grid 子项 `min-width:auto` 被长 URL 撑破（docW 532>390），修 `main{min-width:0}`+`pre{max-width:100%}` 后双 PASS。文档同步升级：memory 路由表+Caddyfile `handle @api/handle` 双分支、新增「C. 海外客户访问」（EdgeOne CDN 先例：www 域已在用，源站仍指 212）、新增「四、上线前置条件」——**仓库仍 private 而官网 4 处 GitHub 链接会被海外客户点到 404（需开仓或改链接）**、npm 包未发布（不阻塞上线）。打包 `/tmp/yongyi-deploy.tar.gz`（yongyi/ 三文件 + memory/ 一文件）。fd-memory `adcad78`。
+
+### §16 入库记录：pack 多语言轨道 add-pack-locale-tracks（2026-10-27，不出片，随改名批）
+
+**结论**：pack/集群市场的**多语言结构**与发布门入库（`add-pack-locale-tracks`，规格 validate --strict 绿）。本单只交付形状+闸门，**不触发现网滚版**；存量显示名的多语言录入（八舰+六包）与 finddata 根 change `cluster-vocabulary-and-pack-taxonomy` 的改名批**同车一次做完**（design D6），避免两轮作者编辑。
+
+**形状（六决策，用户 2026-10-27 拍板）**：中文为主轨，住在既有字符串字段（形状零改）；副轨用**顶层 `i18n` 叠加块**（否决逐字段 `string|object` union——旧客户端渲染 object 会崩，违反兼容验收；overlay 使兼容由构造保证）。`tagline` 剔除（manifest 本无此字段，需求书误植 blueprint `vertical.tagline`）。解析序 `?locale=` > Accept-Language 首项 > zh，**zh 是唯一回落终点**（无处 `en*` 链）。发布门：locale 键小写 BCP-47 且 ≠zh、只覆盖已声明字段/实体、`guide.steps` 三步整组、逐 locale 长度帽、`description`/guide 正文双向 **3:1 比率（20 字符地板）**、**en 副轨禁辞同扫**（ABSOLUTE_CLAIM_RE 与营销审计同规则；zh 轨本版不扫）。fleet 段显示字段走 `fleet.i18n` 按 ref/槽位 key 定向，`promptTemplate`/persona 内容层不翻；内置模板 `nameKey/titleKey/labelKey` 机制不动。
+
+**落点**：`lib/pack-manifest.js`（validateLocaleOverlay）、**新** `lib/pack-locale.js`（resolveLocale/pickLocalized/projectManifestForLocale/applyLocaleToSummary/projectPackList，零依赖 leaf，gateway-safe）、`gateway/packs.js`（summaryOf 邻位 localizedSummary + 列表/详情接 locale，冗余列仍存 zh、搜索面不变）、`server/routes/packs.js`（/api/mypacks 读面）、`server/fleet-template.js`（fleet.i18n 形状门）、`web/src/lib/packs-api.ts`（类型 + 三处 fetch 带 locale）、`docs/creating-packs.md` §3.1（作者面向 + 消费方接法）。
+
+**铸造链（skill 仓外）**：`facet-pack-builder/scripts/validate_manifest.py` 镜像段同步（真校验器经 shell 自动获得新规则）；`publish_pack.py` 纯 JSON 透传，零改动；`SKILL.md` 补 overlay 写法与门规则。`finddata/fleet-packs/blueprints/schema.md` 补多语言约定段。
+
+**验证证据**：单测 4 套新增——`test-pack-locale-validation` 21/21、`test-pack-locale` 17/17、`test-fleet-template-locale` 10/10、`test-pack-locale-routes` 1/1（HTTP 级：列表/详情 en 呈现、zh 无参字节等价、ja 回落、Accept-Language 通道、**stored-version 保持 zh 安装真值**、搜索仍 zh-only）、`test-pack-mypacks-locale` 1/1（cell 读面，且存储行不被改写）。既有套件回归：pack-manifest 系（guide/skill-files/bot-units/facade/serving/validate/cell）全绿、fleet-templates 19/19、agent-serving 71/71。镜像 vs 真校验器对拍：同一批合法/非法 overlay manifest 逐条同结论。
+
+**归档（2026-10-27，用户点名）**：规格 sync 入主 spec——新建 `openspec/specs/pack-locale-tracks`（3 需求）、`pack-marketplace` +3 需求（26）、`agent-fleet-templates` +1 需求（7），三者各自 `--type spec --strict` 绿；change 落 `openspec/changes/archive/2026-10-27-add-pack-locale-tracks`。5.4 改判：改名内容批由 finddata 改名线另一 proposal 承担，**其未带 en 副轨——en 副轨作者编辑由用户后续另开新需求**（本变更只交形状与闸门，已达成）。
+
+**未过项与挂账**：① `tasks.md` 5.4（存量改名录入）已改判交他单/后续新需求（见上）；② 谦面市场页零改动可用（服务端默认 zh），要副轨自行带 `?locale=`（接法已写入 creating-packs §3.1）；③ 本机**全量单测**（`npm run test:unit`）中 fleet 域数套超时红（dispatch/handoff/fanout/runs，120s 特征+east「dispatcher identity rides the prompt」断言），经查其 import 面不含本变更任何文件、且本机并行会话在途改动多（db.js/task-engine/gateway 等均在工作区改动中），判为**并行会话在途所致，非本变更**；本变更相关的 8 套件与 2 台新套件全绿。
+
+### §15.67 AI-native 词典 + 市场徽章上产眼见（add-ai-native-lexicon，2026-10-27 下午）
+
+**上产事实**：现役 `ccr…/yizuo/platform:sha-dc0792b`（digest `ed795a89`，源 paas `d70ecd4e`）——含本变更全部提交（`809623f4` 词值/种子/文档/前端徽章 · `57f33095` 服务端徽章接线 · 以及被并行会话扫入的 zh/en/es/fr/ja 词值批量）。GitOps 提交 `1493f21`（platform×5 行）由并行会话滚动完成；**本班自建快照 `sha-4168f72`（同源 d70ecd4e，digest `b93f9cdc`，testaction002 池 18m9s，smoke=skip）未滚，留作备用**。
+
+**中途插曲（记录在案）**：`1faab60`/`934dcee` 两代镜像已把**前端**词位与徽章键带上产（快照从共享工作树/已提交 main 攫取所致），但服务端徽章缺位（`gateway/packs.js` 当时未提交）→ 卡片无类型徽章。本班把最后半截以**外科提交**（`git hash-object` + `update-index --cacheinfo`，只入 4 处接线、不挟并行泳道的在途改动）落 main，detached worktree 重建版 `test-pack-badge` 12/12（registry 直测从记名跳过转实跑）。
+
+**验收证据（程序化 + 真机眼见）**：
+- API：`/api/packs` 匿名面 76 条目**全部带 badge**——blueprint 14 / assistant 24 / toolkit 6 / facade 6；详情端点优先级实证（fleet 块 → blueprint）。
+- 前端：公网 bundle 五语种徽章标签齐（zh 蓝图/分身/助手/工具；en Blueprint/Facade/Assistant/Toolkit；es/fr/ja 各自成套）；`舰队`/`功能集` 字样 0 命中、`阵列` 23 处。
+- 真机走查（platform.finddatatech.cloud，aloadtree 会话，IAB）：导航 **集群**(/fleets) → 页标题「集群」；智能体页页签「能力包」、区块「**我的阵列**」、按钮「+ 创建阵列」；应用中心行「能力市场——发现、安装与创作能力包」；谦面市场卡片四类徽章眼见（模板类=蓝图、分身工坊=分身、策略工坊/轮动套件=助手、工具类=工具；截图 `artifacts/…call_00_…png`）。
+- 真机揪出并修：`还没有集群，点右上角创建第一支`——量词「支」是舰队遗留，改「创建一个」；五语种量词复查零疑点。
+
+**欠项**：① CMS 双语图解课程改版（清单在 `openspec/changes/add-ai-native-lexicon/lexicon-map.md`）待内容侧重发；② 徽章暂未入市场搜索过滤（open question，可另立）；③ 本班回归扫修掉的两处断言（【集群巡视上下文】/【集群岗位身份】）+ e2e 三处（facet-shell 按钮名 / agents-smoke 空态正则 / ja 機能集）已随 `809623f4` 入库。

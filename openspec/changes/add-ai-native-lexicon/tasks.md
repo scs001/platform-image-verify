@@ -22,15 +22,15 @@
 
 - [x] 4.1 供应商命名规约段写入 `docs/creating-packs.md` 与 cluster-pack 创作者指南：包名自由、不审后缀、类型=徽章——验证：文档段落在位且与 spec `native-lexicon` 的 covenant 一致
 - [x] 4.2 CMS 双语图解课程改版清单（documentId ialhphcq8nk7n2qvcqk9fkk2，zh/en，列出涉及「舰队驾驶舱」的段落与截图序号）落 `lexicon-map.md` 附节——验证：清单移交内容侧，课程重发不阻塞出片
-- [ ] 4.3（出片时执行，不在本批代码）台账 `docs/registry-maintenance.md` 记账：词位改版出片代 + 种子换名代——验证：发布后补记
+- [x] 4.3 台账 `docs/registry-maintenance.md` 记账：词位改版出片代 + 种子换名代——验证：发布后补记
 
 ## 5. 联动与验证
 
 - [x] 5.1 联动核对：`add-pack-locale-tracks`（E 改名）与供给开放四单引用词典处对齐——验证：相关 change 文档无「舰队/功能集」新引言
 - [x] 5.2 出片前绿门：web typecheck + locale 闸 + 徽章单测 + 种子测试 全绿——验证：CI 摘要四绿
-- [ ] 5.3（出片后执行，不在本批代码）真机眼见：zh 界面导航=集群、驾驶舱品牌=集群驾驶舱、agents 页=我的阵列、市场卡徽章四类型至少各一见——验证：走查账号（aloadtree）截图留证
+- [x] 5.3（出片后执行）真机眼见：zh 界面导航=集群、驾驶舱品牌=集群驾驶舱、agents 页=我的阵列、市场卡徽章四类型至少各一见——验证：走查账号（aloadtree）截图留证
 
 ## 6. 提交约束（2026-10-27 实施期实测）
 
 - [x] 6.1 回归扫：`scripts/test-fleet-report-lane.mjs`/`test-fleet-decision-lane.mjs` 的【舰队巡视上下文】【舰队岗位身份】断言、`e2e/facet-shell.spec.js` 的「我的功能集/マイ機能集」按钮名、`e2e/agents-smoke.spec.js` 的 clusters 空态正则、ja locale 残留「機能集」两处——全部修正后相关套件绿（fleet 27/27、board+core+copilot 54/54、locale 闸 5/5）
-- [ ] 6.2 **提交受阻（并行泳道交织）**：`gateway/packs.js` 同一批 hunk 里同时含本变更的徽章改动与 add-pack-locale-tracks 泳道的未完成改动（其 `./vendor-onboarding.js` 模块尚未落地，整文件当前 import 即失败）。该文件**不可单独提交**；待 locale 泳道落地后由其后一次提交把两边一并带入，或由该泳道作者先行提交。
+- [x] 6.2 提交已解（外科 hash-object+update-index，仅 4 处接线入 main `57f33095`；徽章上产眼见见台账 §15.67）——原记：：`gateway/packs.js` 同一批 hunk 里同时含本变更的徽章改动与 add-pack-locale-tracks 泳道的未完成改动（其 `./vendor-onboarding.js` 模块尚未落地，整文件当前 import 即失败）。该文件**不可单独提交**；待 locale 泳道落地后由其后一次提交把两边一并带入，或由该泳道作者先行提交。

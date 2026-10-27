@@ -265,7 +265,9 @@ const SCRUBS = [
     "gateway/packs.js",
     "https://token\\.finddatatech\\.cloud",
     "https://your-billing-panel.example",
-    2,
+    // 3× since the vendor revenue-share lines (fcc4f020) added a third
+    // SUB2API_PANEL_URL fallback beside the two settlement readers.
+    3,
   ],
   [
     "gateway/wanxing/index.js",

@@ -323,3 +323,31 @@ test("发布门对 vendor 同轨：manifest 校验在 vendor 发布者身上同�
   assert.equal(r.status, 400);
   assert.match(JSON.stringify(await r.json()), /Invalid manifest|manifest/);
 });
+
+// ── 写入通道 env 切换 (vendor 4.2 fork lane) ──────────────────────────────────
+test("defaultWriter: service-token 车道跨 bearer 与路径 (fork 车道), cookie 兜底不变", async () => {
+  const { defaultWriter } = await import("../gateway/vendor-onboarding.js");
+  const requests = [];
+  const ok = () => new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json" } });
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { requests.push({ url, init }); return ok(); };
+  try {
+    const w1 = defaultWriter({ MARKET_REGISTRY_URL: "https://mcp.example", REGISTRY_VENDOR_LANE: "service-token", VENDOR_LANE_TOKEN: "srf_tok123" });
+    await w1.write({ serverName: "acme-tools", endpoint: "https://mcp.acme.test/mcp", surface: { description: "d", tools: [{ name: "t1" }], commercialTools: ["t1"] }, vendorSlug: "acme" });
+    assert.equal(requests.length, 2);
+    assert.match(requests[0].url, /api\/vendor-servers\/register$/);
+    assert.match(requests[1].url, /api\/vendor-servers\/toggle$/);
+    assert.equal(requests[0].init.headers.Authorization, "Bearer srf_tok123");
+    requests.length = 0;
+    const w2 = defaultWriter({ MARKET_REGISTRY_URL: "https://mcp.example", REGISTRY_COOKIE: "c=1", REGISTRY_CSRF: "tok" });
+    await w2.write({ serverName: "acme-tools", endpoint: "https://mcp.acme.test/mcp", surface: { description: "d", tools: [{ name: "t1" }], commercialTools: ["t1"] }, vendorSlug: "acme" });
+    assert.match(requests[0].url, /api\/servers\/register$/);
+    assert.equal(requests[0].init.headers["X-CSRF-Token"], "tok");
+    assert.equal(requests[0].init.headers.Cookie, "c=1");
+    // 未配配置的通道如实不可用（如实降级由冲 in_review 挂账承担, 写入口直接抛错）
+    const w3 = defaultWriter({ MARKET_REGISTRY_URL: "https://mcp.example", REGISTRY_VENDOR_LANE: "service-token" });
+    assert.equal(w3.configured, false);
+  } finally {
+    globalThis.fetch = oldFetch;
+  }
+});

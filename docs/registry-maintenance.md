@@ -2872,3 +2872,11 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 | 供给门四形态 | local(BROWSER_RUNTIME_PATH 存在)/remote(BROWSER_CDP_ENDPOINT，永不回落本地)/off(BROWSER_LANE=off 压制)/双缺席→整条省略 + info 日志；单测 `scripts/test-browser-lane-gate.mjs` 5/5 |
 | 待办（产品决定） | **pack 聚焦会收窄工具面**：cell 聚焦 pack persona 时 `keep = mcp.json + PACK_BASELINE_MCP + 该包 refs`，`playwright`/`websearch` 被 drop（fd-prod `PACK_BASELINE_MCP=fleet`）→ 想让 pack 人格也能浏览，加一行 env `PACK_BASELINE_MCP=fleet,playwright`（未擅自放宽：会扩每个客户人格的工具面）；② 的 agent 回合级眼见（非 pack 会话）待该决定后补做 |
 | 旁证 | 本滚期间并行会话亦在同镜像名出片（tag sha-aa71c92 ≙ paas 91ddd30a，含本变更代码但**未烘 lane**）——双链重叠已现，后续出片建议先 `gh run list -R scs001/platform-image-verify` 对表 |
+
+### §15.70 供方通道 fork 落地（fd-vendor-lane）+ 私有仓额度阻塞实录（2026-10-28）
+
+- **fork 分支**：`fd-vendor-lane` commit `8969382` — 新增 `registry/api/vendor_lane_routes.py`（bearer 服务令牌 `/api/vendor-servers/register|toggle`，remote register 与 console 链路同 server_service 调用+policy gate，registered_by="vendor-lane" 可审；写令牌=VENDOR_LANE_TOKEN env 共享密钥）+ `registry/main.py` include + `tests/unit/api/test_vendor_lane_routes.py`（本地 7/7 过）。
+- **GHA 阻塞单**：push 触发 registry-test+frontend-test 两组 status=failure，错误注解 「recent account payments have failed」 **属台账判红两分法同签名=该 fork 仓私有分钟欠款**（FDT 早已过 2000 cap，月底前不会解禁）；非代码红。验证出路=build-pool 线出片（公开仓 runner 免费）+cheap-8 ArgoCD 部署窗。
+- **paas 侧合流**：`gateway/vendor-onboarding.js` defaultWriter 支持 `REGISTRY_VENDOR_LANE=service-token` + `VENDOR_LANE_TOKEN` 切换 → Bearer 通道直击 fork 新端点；其余保持控制台 cookie+CSRF 兜底（fallback 不变）；套件扩展 21/21 绿（两通道请求形状实测）。
+- **live 验收件**：`scripts/test-supply-owner-acceptance-live.mjs`（10 步全真：vendor 注册/署名/价格闸/免费链/owner board+机位/花销投影/迭代簿 digest）+ `.github/workflows/live-supply-owner-acceptance.yml`（**workflow_dispatch 手动起**；公开仓 runner 免费；A 档默认跑、B 档-onboarding 写入+付费环 以 `inputs.accept_token_lane=1` 唤入）。走车三前提 secrets：FACET_BASE_URL / FACET_INTERNAL_TOKEN / TEST_EMAIL。
+- **部署窗指令（待凭裁）**：①fork registry-test 落绿后 `fd-build-snapshot /Users/chengsishi/.cache/gc-fork(fd-vendor-lane) -R testaction001/build-pool --namespace yizuo --image mcp-registry`；②cheap-8 ArgoCD cutover（台账 §6 换版配方 compose --no-deps 新镜像）→ ③生产窗注入 `VENDOR_LANE_TOKEN` + paas env切 `REGISTRY_VENDOR_LANE=service-token` → ④ cookie 兜底 disarm week-after；⑤GHA 手动 live-supply-owner-acceptance accept_token_lane=1 走全真旅程。

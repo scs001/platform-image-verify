@@ -27,8 +27,8 @@
 ## 4. spec 裁决与收尾
 
 - [x] 4.1 `ecosystem-curation` delta 内容核对落地：匿名提交面无、vendor 提交仍过审、mirror shelf 语义不污染（无代码触及该区），validate --strict 绿
-- [ ] 4.2 registry fork 侧受控通道启用（**外部依赖：cheap-8 部署窗 + fork 自助注册面裁决**），改动清单届时入 `docs/registry-maintenance.md` 台账，遵守 `registry-lineage` 纪律
-- [ ] 4.3 `openspec validate add-vendor-supply-open --strict` 全绿（✅ 已过）；验收口径全真走查待 4.2 通道落地后做：非内部供应商账号仅经公开入口完成 登记→上牌→铸造→上架→被引用安装 全链（自动化套件已覆盖链上各环节，真 registry 车道联调属 4.2 后置）
+- [ ] 4.2 registry fork 侧受控通道启用（**外部依赖：cheap-8 部署窗 + fork 自助注册面裁决**）：fork patch 已落并推 `fd-vendor-lane`（vendor_lane_routes 机器令牌 register/toggle+7 测本地绿，GHA 被该仓私有分钟欠款阻塞已台账挂账）；`docs/registry-fork-patches/2026-10-28-vendor-onboarding-lane.md`登记协议；paas writer env 开关 `REGISTRY_VENDOR_LANE=service-token` 已并入 21/21 绿——**部署窗+分支验收走批**让外部窗统一点检
+- [ ] 4.3 `openspec validate add-vendor-supply-open --strict` 全绿（✅ 已过）；真机全真行走已编入 `scripts/test-supply-owner-acceptance-live.mjs` + `.github/workflows/live-supply-owner-acceptance.yml`（workflow_dispatch，公开仓 runner 免费跑；A 档=vendor/署名/价格/坞面/digest 全链可跑，B 档=onboarding 写入+付费环待 REGISTRY_VENDOR_LANE 部署窗 `inputs.accept_token_lane=1` 放行）— **等用户发车令走生产批次**
 
 ## 实施注记（2026-10-27 起棒实录）
 

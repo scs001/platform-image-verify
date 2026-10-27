@@ -56,16 +56,35 @@ const tierQuotas = () => {
 // register API is the future replacement — swapping reach is a one-file change,
 // never a pipeline change. Absent credentials degrade to registry_write_failed
 // with a truthful note (the row stays in_review, resubmittable — design D5).
-function defaultWriter(env = process.env) {
+export function defaultWriter(env = process.env) {
   const url = (env.MARKET_REGISTRY_URL || env.REGISTRY_URL || "").replace(/\/+$/, "");
+  // 通道一（目标车道）: fork vendor-lane 机器令牌通道 (fd-vendor-lane 分支,
+  // 台账 §15.69 挂账1; Bearer service token)。通道二（兜底车道）: 控制台
+  // cookie+CSRF（与 refresh-registry-tool-list 同一纪律）。env 切换:
+  // REGISTRY_VENDOR_LANE=service-token → 走令牌通道; 其余=兜底 cookie。
+  const laneToken = (env.VENDOR_LANE_TOKEN || "").trim();
+  const laneMode = String(env.REGISTRY_VENDOR_LANE || "").trim() === "service-token";
   const cookie = env.REGISTRY_COOKIE || "";
   const csrf = env.REGISTRY_CSRF || "";
-  const configured = Boolean(url && cookie && csrf);
+  const cookieConfigured = Boolean(url && cookie && csrf);
+  const tokenConfigured = Boolean(url && laneToken);
+  const configured = laneMode ? tokenConfigured : cookieConfigured;
+  const makeHeaders = () =>
+    laneMode
+      ? { "Content-Type": "application/json", Authorization: `Bearer ${laneToken}` }
+      : { "Content-Type": "application/json", "X-CSRF-Token": csrf, Cookie: cookie };
   return {
     configured,
+    lane: laneMode ? "service-token" : "console-cookie",
     async write({ serverName, endpoint, surface, vendorSlug }) {
-      if (!configured) throw new Error("registry write channel not configured (REGISTRY_COOKIE/REGISTRY_CSRF)");
-      const headers = { "Content-Type": "application/json", "X-CSRF-Token": csrf, Cookie: cookie };
+      if (!configured) {
+        throw new Error(
+          laneMode
+            ? "registry write channel not configured (VENDOR_LANE_TOKEN / MARKET_REGISTRY_URL)"
+            : "registry write channel not configured (REGISTRY_COOKIE/REGISTRY_CSRF)",
+        );
+      }
+      const headers = makeHeaders();
       const entry = {
         name: serverName,
         path: `/${serverName}/`,
@@ -79,11 +98,11 @@ function defaultWriter(env = process.env) {
           credential_ref: surface.credentialRef ?? null,
         },
       };
-      // Register then toggle — a fresh entry lands disabled by registry design
-      // (台账 §6: register 默认 disabled，必须 toggle 且触发健康检查).
+      const regPath = laneMode ? "/api/vendor-servers/register" : "/api/servers/register";
+      const togglePath = laneMode ? "/api/vendor-servers/toggle" : "/api/servers/toggle";
       for (const [method, path, body] of [
-        ["POST", "/api/servers/register", entry],
-        ["POST", "/api/servers/toggle", { path: `/${serverName}/`, new_state: true }],
+        ["POST", regPath, entry],
+        ["POST", togglePath, { path: `/${serverName}/`, new_state: true }],
       ]) {
         const r = await fetch(url + path, { method, headers, body: JSON.stringify(body) });
         if (!r.ok) throw new Error(`registry ${path} HTTP ${r.status}: ${(await r.text().catch(() => "")).slice(0, 160)}`);

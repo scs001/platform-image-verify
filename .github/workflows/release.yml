@@ -32,6 +32,10 @@ on:
         description: "复用既有 build 产物（run id；填了则跳过 build 只跑 installer-e2e）"
         required: false
         default: ""
+      installer_e2e_mac:
+        description: "同时跑 macOS 装机 e2e 腿（默认关：mac ×10 计费，月频显式开）"
+        required: false
+        default: "false"
 
 permissions:
   contents: write # softprops/action-gh-release creates/edits the Release
@@ -352,3 +356,124 @@ jobs:
           Start-Sleep -Seconds 10
           if (Test-Path $env:APP_EXE) { throw "app files survived the uninstaller" }
           "uninstall clean" | Write-Host
+
+  # ── 装机 e2e · macOS 腿（4.2，显式开启；launchctl 用 installPlan 断言替身）──
+  installer-e2e-mac:
+    name: installer e2e (macOS, opt-in)
+    needs: build
+    if: ${{ always() && inputs.installer_e2e_mac == 'true' }}
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/download-artifact@v4
+        if: ${{ github.event.inputs.artifact_run_id == '' }}
+        with:
+          name: dmg-arm64
+          path: installer
+
+      - name: Fetch dmg from a previous run (reuse mode)
+        if: ${{ github.event.inputs.artifact_run_id != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p installer
+          gh run download ${{ github.event.inputs.artifact_run_id }} -n dmg-arm64 -D installer -R ${{ github.repository }}
+
+      - name: Mount dmg and extract the app (no /Applications write, no launchctl)
+        run: |
+          set -euo pipefail
+          DMG=$(ls installer/*.dmg | head -1)
+          mnt=$(mktemp -d)
+          hdiutil attach "$DMG" -nobrowse -quiet -mountpoint "$mnt"
+          mkdir -p "$RUNNER_TEMP/apps"
+          cp -R "$mnt/Platform.app" "$RUNNER_TEMP/apps/"
+          hdiutil detach "$mnt" -quiet
+          APP="$RUNNER_TEMP/apps/Platform.app"
+          test -x "$APP/Contents/Resources/node/bin/node"
+          test -f "$APP/Contents/Resources/app/supervisor/steward-main.js"
+          echo "APP=$APP" >> "$GITHUB_ENV"
+          echo "BUNDLE_NODE=$APP/Contents/Resources/node/bin/node" >> "$GITHUB_ENV"
+
+      - name: LaunchAgent plan assertions (registration correctness without a GUI session)
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/plan.mjs" <<'JS'
+          import { installPlan } from process.env.APP + "/Contents/Resources/app/electron/steward-install.js";
+          JS
+          # The import path is dynamic — write the real script with the env inlined.
+          cat > "$RUNNER_TEMP/plan.mjs" <<JS
+          import { installPlan } from "${APP}/Contents/Resources/app/electron/steward-install.js";
+          const plan = installPlan({
+            isPackaged: true,
+            nodeBin: "${BUNDLE_NODE}",
+            dataDir: process.env.RUNNER_TEMP + "/steward-data",
+            resourcesDir: "${APP}/Contents/Resources",
+          });
+          if (plan.platform !== "darwin") throw new Error("plan platform: " + plan.platform);
+          if (!plan.plistContent.includes("RunAtLoad") || !plan.plistContent.includes("KeepAlive")) throw new Error("plist missing login/KeepAlive semantics");
+          if (!plan.plistContent.includes("${BUNDLE_NODE}")) throw new Error("plist does not point at the bundled node");
+          if (!plan.plistContent.includes("/supervisor/steward-main.js")) throw new Error("plist does not point at the packaged steward entry");
+          if (!plan.plistPath.includes("LaunchAgents")) throw new Error("plist not per-user LaunchAgents");
+          console.log("plan ok: " + plan.plistPath);
+          JS
+          "$BUNDLE_NODE" "$RUNNER_TEMP/plan.mjs"
+
+      - name: Steward boots healthy; app attaches; UI exit leaves it alive
+        run: |
+          set -euo pipefail
+          export DATA="$RUNNER_TEMP/steward-data"
+          mkdir -p "$DATA"
+          PLATFORM_DATA_DIR="$DATA" "$BUNDLE_NODE" "$APP/Contents/Resources/app/supervisor/steward-main.js" > "$RUNNER_TEMP/steward.log" 2>&1 &
+          for i in $(seq 1 60); do [ -f "$DATA/steward.json" ] && break; sleep 2; done
+          test -f "$DATA/steward.json"
+          cat > "$RUNNER_TEMP/status.mjs" <<JS
+          import { readStewardDiscovery, createStewardClient } from "${APP}/Contents/Resources/app/supervisor/steward-client.js";
+          const d = readStewardDiscovery(process.env.DATA);
+          const c = createStewardClient({ socket: d.socket, timeoutMs: 5000 });
+          const st = await c.request("status");
+          const s = (st.servers ?? [])[0];
+          if (!s || s.state !== "healthy") { console.error(JSON.stringify(s)); process.exit(1); }
+          console.log("healthy on " + s.port);
+          JS
+          ok=0
+          for i in $(seq 1 45); do "$BUNDLE_NODE" "$RUNNER_TEMP/status.mjs" && ok=1 && break; sleep 2; done
+          test "$ok" = "1"
+          LOG="$HOME/Library/Application Support/platform/main.log"
+          before=$(wc -l < "$LOG" 2>/dev/null || echo 0)
+          open -na "$APP"
+          attached=0
+          for i in $(seq 1 60); do
+            sleep 2
+            tail -n "+$((before+1))" "$LOG" 2>/dev/null | grep -q "ATTACHED to steward" && attached=1 && break
+          done
+          test "$attached" = "1"
+          osascript -e 'quit app "Platform"' || true
+          sleep 8
+          pgrep -f "steward-main.js" > /dev/null
+          "$BUNDLE_NODE" "$RUNNER_TEMP/status.mjs"
+
+      - name: Stale discovery falls back to embedded; drag-deleted bundle self-cleans
+        run: |
+          set -euo pipefail
+          pkill -f "steward-main.js" || true
+          sleep 3
+          node -e 'const fs=require("fs");const p=process.env.DATA+"/steward.json";fs.writeFileSync(p,JSON.stringify({socket:process.env.DATA+"/gone.sock",protocolVersion:1,pid:999999,startedAt:0,dataDir:process.env.DATA}))'
+          LOG="$HOME/Library/Application Support/platform/main.log"
+          before=$(wc -l < "$LOG" 2>/dev/null || echo 0)
+          open -na "$APP"
+          fell=0
+          for i in $(seq 1 45); do
+            sleep 2
+            tail -n "+$((before+1))" "$LOG" 2>/dev/null | grep -qE "stale steward discovery removed|constructed embedded" && fell=1 && break
+          done
+          osascript -e 'quit app "Platform"' || true
+          test "$fell" = "1"
+          test ! -f "$DATA/steward.json"
+
+      - name: Drag-deleted bundle guard is present (static; behaviour needs a real login session)
+        run: |
+          # Triggering the guard needs the entry to run from inside a live .app and
+          # then the bundle to vanish — not reproducible on an ephemeral runner.
+          # We pin the guard's presence instead; true login-respawn coverage stays
+          # in the monthly human spot-check (design D7 / Non-Goals).
+          grep -q "self-deregistering" "$APP/Contents/Resources/app/supervisor/steward-main.js"

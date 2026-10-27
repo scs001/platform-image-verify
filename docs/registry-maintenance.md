@@ -2638,3 +2638,13 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 
 **待用户动作**：① DNSPod 加两条 A 记录 → 103.236.89.212；② 把需求文档+资产包交雷池 AI；③ 拍两处 ⚠️（两域角色分工 / 证书流程）。
 
+
+### §15.66 GitHub 全 CI 首绿 + cell 4.x polity 实产复验（add-cell-lifecycle 4.x 收尾，2026-10-27）
+
+**CI 口径落地**（用户令「要测试的话最好是直接用 github 测」）：公开快照线 `scs001/platform-image-verify` 的 `image.yml` 已含全门（lint→typecheck→unit→locales→build→e2e），本轮 lint 修整（biome 16：mixed ownership 文件 `--write --unsafe` + renderer 重赋值折叠成 `refreshStewardPanel` 内追加）后 **sha-651af61 全绿**——GitHub 免费线自此兼作全 CI，本地只留快速回路。
+
+**实产**：relay 后 GitOps `c120700` bump，rollout 完成；运行面 `platform-77dc9d659c-7tnm7`（起 08:01:23Z）镜像 `ccr.ccs.tencentyun.com/yizuo/platform@sha256:1e123a4a…636f`，pod 内 `sessionEligibleToken` 在位（gateway/index.js + app-auth.js）。
+
+**polity 复验（探针修正后）**：首轮验收 `me=200 fleets=200` 复核为**脚本假象**——`j()` 助手给每个请求都带 operator cookie，`resolveUser` cookie 优先，故 200 与 steward token 无关。改用 bearer-only 裸探针重跑：bindcode 200 → pair 200（token `kind=steward`）→ `cell-report` **202 accepted,relayed:false**（正向对照）→ **`/api/fleets` 401**（polity 生效）→ revoke 200 → **post-revoke report 401**（自毁信号）。`/api/auth/me` 匿名即 200 `{authenticated:false,email:null}` 是设计形状，steward bearer 得完全相同的匿名体，**无身份泄露**——验收期望应写「me=200 匿名体 / fleets=401」，非 401/401。
+
+**挂账**：`FLEET_INGEST_URL` 未配进 fd-prod env（pod 内 printenv 无），上行门走设计降级 accept-and-drop；ingest 转发面等 facet 侧 owner-offline 读模型（tasks 5.2）就绪后再接。Windows DPAPI 钥匙串升级（4.x 注记）、真机八幕（tasks 5.3）仍开。

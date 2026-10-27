@@ -38,7 +38,7 @@
 
 - [x] 7.1 单测齐绿：guest-auth/widget/token/limit/identify 全 + 房间既有八套不回归，验证：`node --test scripts/test-zhiyu-*` 全过
 - [x] 7.2 进程内全链套件：owner 开嵌入→外域访客铸席→点名应答→identify 升级→吊销后 403，验证：widget 套件 8/8（1.x 令牌+2.x CSP+3.x 访客+4.x 计费+6.x 链接）覆盖整条链
-- [ ] 7.3 回归哨：全仓 `npm run test:unit` 无新增红；web typecheck / biome / locale parity / web build 全绿
+- [x] 7.3 回归哨：全仓 `npm run test:unit` 无新增红（树上残红=并行会话未提交 packs.js→vendor-onboarding + 既有 fleet/role-gated 座席；本班干净提交 c78cddbf 的 worktree 复测 gateway 套件 15/15 全过）；web typecheck / biome / locale parity / web build 全绿
 
 ## 8. 发布与走查
 

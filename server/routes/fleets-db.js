@@ -1053,6 +1053,24 @@ export function createFleetDatabase({ file } = {}) {
     return rows.length;
   }
 
+  // Still-open run headers, oldest first — the sweep's worklist. The header
+  // is a projection over its turn rows, so an open header past its grace
+  // window is a header nobody closed (the settle backstop is in-memory and
+  // dies with the pod), not a run that is still working. Which of the two it
+  // is CANNOT be decided from the rows alone: a chain whose upstream turn
+  // ended and whose downstream turn has not started yet looks exactly like a
+  // leaked header. That judgment lives with the ledger (it knows the in-flight
+  // handles and the queued engine tasks), so this list is deliberately raw —
+  // see fleet-runs.js sweepOpenRuns.
+  function listOpenRuns({ before = null, limit = 200 } = {}) {
+    const args = [];
+    let where = "status = 'open'";
+    if (before != null) { where += " AND started_at < ?"; args.push(before); }
+    return db
+      .prepare(`SELECT run_id, fleet_id, root_source, root_member_id, started_at, turns FROM fleet_runs WHERE ${where} ORDER BY started_at ASC LIMIT ?`)
+      .all(...args, limit);
+  }
+
   // Unique-post lookup (design D8): where is this persona/cluster on duty?
   // Cell-global across LIVE fleets; a2a targets never call this (multi-post).
   // Archived (incl. dissolved) fleets release their incumbents — their member
@@ -1183,6 +1201,7 @@ export function createFleetDatabase({ file } = {}) {
     spendProjection,
     pruneRuns,
     reclaimOrphanRuns,
+    listOpenRuns,
     appendDecision,
     getDecision,
     listDecisions,

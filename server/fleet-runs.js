@@ -216,6 +216,59 @@ export function createFleetTurnLedger({
     return run;
   }
 
+  // Leaked-header sweep (fix-fleet-run-header-settle): a run whose turn row
+  // was written but whose settle never ran stays `open` forever. The settle
+  // backstop is IN-MEMORY (the handle map dies with the pod) and the DB-level
+  // orphan sweep deliberately skips any run WITH rows ("settle owns it"), so
+  // a pod roll between the row write and the settle leaves a header that no
+  // future event will ever close. Prod 2026-10-28: four headers sat open
+  // 6–30 hours with one finished turn each, and the cockpit timeline showed
+  // them as still running.
+  //
+  // The judgment lives HERE, not in the DB layer: a chain whose upstream turn
+  // ended and whose downstream turn has not started yet looks exactly like a
+  // leaked header when you only read the rows. The ledger knows the in-flight
+  // handles (open map) and the queued engine tasks, so it can tell "still
+  // working" from "nobody will ever close this".
+  //
+  // Only headers past the grace window are considered — a header that opened
+  // seconds ago is simply a run that is running.
+  function sweepOpenRuns({ now = Date.now(), graceMs = 30 * 60_000 } = {}) {
+    const rows = db.listOpenRuns?.({ before: now - graceMs }) ?? [];
+    let closed = 0;
+    for (const r of rows) {
+      // A run with an in-flight turn or a queued task is still working.
+      let live = false;
+      for (const h of open.values()) {
+        if (h.runId === r.run_id) { live = true; break; }
+      }
+      if (!live) {
+        for (const t of engineRecords()) {
+          if (t?.origin?.fleet?.chain?.runId !== r.run_id) continue;
+          if (t.state === "queued" || t.state === "running") { live = true; break; }
+        }
+      }
+      if (live) continue;
+      // Quiescent: finalize from the rows. Zero rows means the turn never
+      // wrote anything — the DB-level orphan sweep owns that case (it closes
+      // it as failed); here it stays open so that sweep's verdict stands.
+      // The header's own `turns` column cannot be used for this test: a
+      // leaked header was never finalized, so it still reads 0.
+      if (!hasTurnRows(r.run_id)) continue;
+      const run = settle(r.run_id);
+      if (run && run.status !== "open") closed += 1;
+    }
+    return closed;
+  }
+
+  function hasTurnRows(runId) {
+    try {
+      return db.db?.prepare?.("SELECT COUNT(*) AS n FROM member_turn_events WHERE run_id = ?").get(runId)?.n > 0;
+    } catch {
+      return false;
+    }
+  }
+
   // The chain a downstream task should carry when `handle`'s turn ignites it.
   function chainFor(handle, edgeKind) {
     if (!handle?.runId || !handle?.turnId) return null;
@@ -253,5 +306,5 @@ export function createFleetTurnLedger({
     return [...open.values()];
   }
 
-  return { begin, end, settle, chainFor, lookupBySession, lookupByMember, tap, openTurns, tapEnabled: traceTapEnabled };
+  return { begin, end, settle, sweepOpenRuns, chainFor, lookupBySession, lookupByMember, tap, openTurns, tapEnabled: traceTapEnabled };
 }

@@ -655,3 +655,58 @@ test("orphan sweep: a header whose turn never wrote a row is closed past grace; 
   fleetDb.appendTurnEvent({ fleetId: "f_run", memberId: "m_up", source: "cron", status: "ok", startedAt: 1, endedAt: 2, runId: withTurn.runId, turnId: withTurn.turnId });
   assert.equal(fleetDb.reclaimOrphanRuns(), 0, "a run with rows is not an orphan");
 });
+
+// ── 13. leaked-header settle (fix-fleet-run-header-settle) ──────────────────
+
+test("leaked header: a run whose turn finished but never settled is closed by the ledger sweep; a live one is not", () => {
+  fixtureFleet(fleetDb, { members: [member("m_up")] });
+  // The prod shape is a POD ROLL: the ledger that opened the header is gone,
+  // and a fresh process (empty handle map, empty engine) sweeps the DB. So the
+  // headers are opened by `before` and swept by `after`.
+  const before = createFleetTurnLedger({ db: fleetDb, engineRecords: () => [] });
+  const after = createFleetTurnLedger({ db: fleetDb, engineRecords: () => [] });
+
+  // A run whose turn row landed but whose settle never ran.
+  const leaked = before.begin(rootJob("f_run", "m_up", "j_leak"), { startedAt: Date.now() - 3 * 3600_000 });
+  fleetDb.appendTurnEvent({
+    fleetId: "f_run", memberId: "m_up", source: "cron", status: "ok",
+    startedAt: leaked.startedAt, endedAt: leaked.startedAt + 1000,
+    runId: leaked.runId, turnId: leaked.turnId,
+  });
+  assert.equal(fleetDb.getRun(leaked.runId).status, "open", "still open before the sweep");
+  assert.equal(after.sweepOpenRuns(), 1, "the leaked header is closed by the new process");
+  const closed = fleetDb.getRun(leaked.runId);
+  assert.equal(closed.status, "ok", "closed from the rows, not as a failure");
+  assert.equal(closed.turns, 1);
+  assert.ok(closed.endedAt >= leaked.startedAt);
+
+  // A header whose turn is still IN FLIGHT in the sweeping ledger is left
+  // alone — that is the "chain waiting to hand off" case.
+  const inflight = after.begin(rootJob("f_run", "m_up", "j_fly"), { startedAt: Date.now() - 3 * 3600_000 });
+  fleetDb.appendTurnEvent({
+    fleetId: "f_run", memberId: "m_up", source: "cron", status: "ok",
+    startedAt: inflight.startedAt, endedAt: inflight.startedAt + 1000,
+    runId: inflight.runId, turnId: inflight.turnId,
+  });
+  assert.equal(after.sweepOpenRuns(), 0, "a run with an in-flight turn is not swept");
+  assert.equal(fleetDb.getRun(inflight.runId).status, "open");
+
+  // A header younger than the grace window is not swept either.
+  const fresh = before.begin(rootJob("f_run", "m_up", "j_fresh"), { startedAt: Date.now() - 60_000 });
+  fleetDb.appendTurnEvent({
+    fleetId: "f_run", memberId: "m_up", source: "cron", status: "ok",
+    startedAt: fresh.startedAt, endedAt: fresh.startedAt + 1000,
+    runId: fresh.runId, turnId: fresh.turnId,
+  });
+  assert.equal(after.sweepOpenRuns(), 0, "a recent header is not swept");
+  assert.equal(fleetDb.getRun(fresh.runId).status, "open");
+
+  // A zero-row header stays open here — the DB-level orphan sweep owns that
+  // verdict (it closes it as failed); the ledger must not second-guess it.
+  const zeroRow = before.begin(rootJob("f_run", "m_up", "j_zero"), { startedAt: Date.now() - 3 * 3600_000 });
+  assert.equal(after.sweepOpenRuns(), 0, "a zero-row header is left to the orphan sweep");
+  assert.equal(fleetDb.getRun(zeroRow.runId).status, "open");
+  // …and the orphan sweep does close it, at its own start, as failed.
+  assert.equal(fleetDb.reclaimOrphanRuns(), 1);
+  assert.equal(fleetDb.getRun(zeroRow.runId).status, "failed");
+});

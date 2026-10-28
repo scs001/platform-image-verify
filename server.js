@@ -1161,6 +1161,11 @@ const sweepRuns = () => {
   try {
     const swept = getFleetDatabase().pruneRuns();
     if (swept.orphans) console.warn(`[fleet-runs] reclaimed ${swept.orphans} orphan open run(s)`);
+    // Leaked headers: a turn whose row landed but whose settle never ran
+    // (the settle backstop is in-memory; a pod roll in between leaves the
+    // header open forever). The ledger knows whether a run is still working.
+    const settled = ctx.fleetTurnLedger?.sweepOpenRuns?.() ?? 0;
+    if (settled) console.warn(`[fleet-runs] settled ${settled} leaked open run header(s)`);
   } catch (e) {
     console.warn(`[fleet-runs] sweep failed: ${e?.message || e}`);
   }
@@ -1403,10 +1408,16 @@ await Promise.all([
       // post stops firing. Gated on engine readiness: this hook can fire
       // during boot while initCron (same Promise.all) is still loading.
       if (cron.isEngineInitialized()) {
+        // One catalog snapshot for the whole converge pass: the pass resolves
+        // one target per member, and resolving against the live catalog
+        // re-merges it per member (~30ms each → ~1.8s of blocked event loop
+        // for a 60-member account, which delays every other request in the
+        // cell). One view for the pass keeps every post on the same snapshot.
+        const view = catalog.mergedView();
         void reconcileAllFleets({
           db: getFleetDatabase(),
           cronApi: cron,
-          resolveTarget: resolveFleetTarget,
+          resolveTarget: (member) => resolveFleetTarget(member, view),
           rosterPresetId,
         }).catch((e) => console.warn(`[fleets] catalog-change reconcile failed: ${e.message}`));
       }

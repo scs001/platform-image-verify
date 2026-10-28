@@ -351,3 +351,26 @@ test("defaultWriter: service-token 车道跨 bearer 与路径 (fork 车道), coo
     globalThis.fetch = oldFetch;
   }
 });
+
+// ── 缺陷回归（2026-10-28 真机 A3 逮住）: 空 env 的 tierQuotas 必须走内置档 ──
+test("tierQuotas: 空/非法/部分覆盖 env 都不产生空档 (quota.servers 崩溃回归)", async () => {
+  const { tierQuotas } = await import("../gateway/vendor-onboarding.js");
+  const old = process.env.VENDOR_TIER_QUOTAS;
+  try {
+    delete process.env.VENDOR_TIER_QUOTAS;
+    let t = tierQuotas();
+    assert.equal(t.free.servers, 3, "空 env=内置 free 档");
+    process.env.VENDOR_TIER_QUOTAS = "{}";
+    t = tierQuotas();
+    assert.equal(t.free.servers, 3, "显式空对象也保内置档");
+    process.env.VENDOR_TIER_QUOTAS = "{bad json";
+    t = tierQuotas();
+    assert.equal(t.free.servers, 3, "非法 JSON 保内置档");
+    process.env.VENDOR_TIER_QUOTAS = '{"tiny":{"servers":1}}';
+    t = tierQuotas();
+    assert.equal(t.tiny.servers, 1);
+    assert.equal(t.free.servers, 3, "部分覆盖不吞默认档");
+  } finally {
+    if (old === undefined) delete process.env.VENDOR_TIER_QUOTAS; else process.env.VENDOR_TIER_QUOTAS = old;
+  }
+});

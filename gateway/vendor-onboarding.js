@@ -39,15 +39,22 @@ const LICENSE_NEEDLE = (s) => String(s || "").trim();
 // profile, overridable per tenant via VENDOR_TIER_QUOTAS JSON. publish rate
 // rides the existing packs limiter; the server quota is enforced HERE because
 // onboarding is where the anti-squat bound belongs (design D1 note).
-const tierQuotas = () => {
+const TIER_DEFAULTS = { free: { servers: 3, publishesPerHour: 10 }, pro: { servers: 50, publishesPerHour: 60 } };
+export const tierQuotas = () => {
+  // 缺陷回归（2026-10-28 真机）：空 env 经 "{}" 解析成功 → 返回空对象 → 桩内
+  // quota=undefined 崩溃（`.servers`）。语义必须是「有配置才覆盖，缺省落到
+  // 内置档，且内置档永远兜底 free」。
+  let raw = null;
   try {
-    const raw = JSON.parse(process.env.VENDOR_TIER_QUOTAS || "{}");
-    if (raw && typeof raw === "object") return raw;
-  } catch { /* fall through to defaults */ }
-  return {
-    free: { servers: 3, publishesPerHour: 10 },
-    pro: { servers: 50, publishesPerHour: 60 },
-  };
+    raw = JSON.parse(process.env.VENDOR_TIER_QUOTAS || "null");
+  } catch { /* 非法 JSON → 内置档 */ }
+  const merged = { ...TIER_DEFAULTS };
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    for (const [k, v] of Object.entries(raw)) {
+      if (v && typeof v === "object") merged[k] = { ...(TIER_DEFAULTS[k] ?? {}), ...v };
+    }
+  }
+  return merged;
 };
 
 // The registry write lane (design D2, user 10-27 ruling: registry 保持内部使用).
@@ -233,7 +240,10 @@ async function review({ store, vendor, row, deps }) {
   if (LICENSE_BAN.test(license)) return { status: "rejected", axis: AXIS.LICENSE_PROHIBITED, note: license };
 
   // 2. Quota (配额过闸 in the需求书 vocabulary).
-  const quota = tiers[vendor.quotaTier] ?? tiers.free;
+  const quota = tiers[vendor.quotaTier] ?? tiers.free ?? TIER_DEFAULTS.free;
+  if (!quota || typeof quota.servers !== "number") {
+    return { status: "rejected", axis: AXIS.QUOTA_EXCEEDED, note: `tier '${vendor.quotaTier}' has no usable quota config` };
+  }
   const used = store.quotaUsed(row.vendorId, { excludeId: row.id });
   if (used >= quota.servers) {
     return { status: "rejected", axis: AXIS.QUOTA_EXCEEDED, note: `tier '${vendor.quotaTier}' servers ${used}/${quota.servers}` };

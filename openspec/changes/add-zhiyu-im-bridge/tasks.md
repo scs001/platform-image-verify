@@ -38,9 +38,16 @@
 
 ## 8. Release & walkthrough
 
-- [ ] 8.1 Snapshot build → four-manifest roll (digests identical); `ZHIYU_IM_BRIDGE_*` gates stay off until verified, then enabled in ConfigMap with a pod restart.
-- [ ] 8.2 Production walkthrough on a real Telegram test group: group message lands in room, room answer returns to group, unbind restores the legacy path; walkthrough notes land in the ledger.
-- [ ] 8.3 `openspec validate add-zhiyu-im-bridge --strict` passes with zero errors; §15 ledger + memory updated.
+- [x] 8.1 Snapshot build → four-manifest roll (digests identical); gates stay off until verified, then enabled in ConfigMap with a pod restart. Verify: **sha-56b34db / digest 60f66990 / GitOps ec2fcf8**, four manifests (platform, platform-demo, facet, agent-runner-serving) all on that tag; pod `platform-59d84858f-kbqs7` runs `sha256:60f66990…`; `ZHIYU_IM_BRIDGE_ON=1` set in ConfigMap `platform-config` + `kubectl rollout restart deployment/platform`. In-image proof: `grep -c` in the running container found `owner_email AS ownerEmail` (db.js), `ownerFromRegistry` (gateway/bot-webhooks.js), `reloadBot` (server/routes/zhiyu-im-bridge.js), `sendFailures` (server/zhiyu-im-bridge.js).
+- [x] 8.2 Production walkthrough on a **real signed WeChat-OA webhook** (the only webhook platform bot in prod; no Telegram test group exists). Verify, all in the ledger §15.73: (a) a real signed webhook returns 200 and lands in the room as `seq 2 human` with `meta.im{platform,chatKey,senderName}` and seat `im_6c64d841de65`; (b) the bot-scoped read face answers `{"rows":[]}` — no echo of what IM already said; (c) `room_ended` surfaces on that read face so IM is told; (d) the cell then makes a **real WeChat API call** (answered `40003 invalid openid` because the test recipient is fabricated) — the outbound lane is genuinely wired; (e) bounded retry observed live: `attempt 1/3` → `2/3` → `send failed 3x … SKIPPING that answer to unblock the stream`, cursor advanced 0→3, no further attempts; (f) unbind → next signed webhook is a plain `[bots] "test" inbound` with no bridge line, i.e. the legacy path is restored.
+- [x] 8.3 `openspec validate add-zhiyu-im-bridge --strict` passes with zero errors; §15 ledger + memory updated.
+
+### Defects this walkthrough caught (all fixed and shipped in the same train)
+
+- **Binding needed a pod restart** (`332d68d9`): the management REST wrote the row but `state.bots` is built at boot, so the inbound hook read `zhiRoomId: null` until restart — violating the spec's "the bot's NEXT group message takes the bridge". Fixed with `reloadBot(updated)` after both PUT and DELETE.
+- **Empty machine actor → 401** (`fa306bfc`): `BOT_COLS` never selected `owner_email`, so `bot.ownerEmail` was `undefined`; the bridge sent an empty `x-actor-email` and the gateway answered exactly `{"error":"machine credential required"}`, silently degrading every message to the legacy path. Fixed by selecting the column plus a `CELL_USER_EMAIL` fallback, and by draining non-2xx bodies (an unread body poisoned the keep-alive socket, which is what the log's misleading `fetch failed` really was).
+- **Legacy bot webhooks routed to the wrong cell** (`fa306bfc`): with `owner_email` NULL, the gateway's resolver fell back to "first session owner in the cell", which on a mixed-history cell was a DIFFERENT person → webhook delivered to their cell and refused as unknown. Fixed by consulting `cells-registry.db` (the authoritative cell owner) before session inference.
+- **Unbounded outbound retry** (`9b1b5e38`): a permanently failing send re-attempted the same row every 2.5 s forever and pinned the cursor, blocking every later answer. Fixed with the design's own retry-three discipline: three attempts, then skip loudly and advance the cursor.
 
 ## 9. Follow-ups (NOT this change)
 

@@ -3244,3 +3244,46 @@ server.js=1 ✓。
 （它们共用本 pod 的新镜像，无需人工动库，也无需额外出片）。
 ——若将来希望「pod 重启即全 cell 收口」，可考虑让主进程开机时遍历 `/data/cells/*/data/data/fleets.db` 各扫一遍；
 本轮不做：跨 cell 直写会引入多写者竞争，而泄漏的可见代价只是时间线里一条陈旧的「进行中」。
+
+### §15.77 智语 IM 群桥上产 + 真机走查（add-zhiyu-im-bridge，2026-10-28 傍晚）
+
+**产物**：镜像 `sha-56b34db` / digest `60f66990cac5f46e8b556bd8a0bde79adadc2521659161f9ae910370791ffe9f` / GitOps `ec2fcf8`；
+四面（platform、platform-demo、facet、agent-runner-serving）同 tag；源 `paas 9b1b5e38`。pod `platform-59d84858f-kbqs7`
+运行该 digest。`ZHIYU_IM_BRIDGE_ON=1` 写入 ConfigMap `platform-config` 并 rollout restart。
+
+**出片线**：`make-public-snapshot --init` 裁开源树 → 补一笔 `ci: keep repo-side image.yml`（该脚本**故意剔除** image.yml，
+不补就只有 build-check、不推送）→ 推 `scs001/platform-image-verify` → `image` workflow 绿 → relay ≤5min →
+skopeo digest 硬门 → 四面 bump → origin + gitee 双推（gitee 侧已自动跟到同一 commit）→ ArgoCD hard refresh → rollout。
+镜像仓 CI 的 lint 红（15 错）来自并行泳道已提交的代码，与本次四文件无关（本文件 biome 仅 1 条 unused-param 警告），
+且 lint 不是 publish 门。
+
+**真机走查（真签名 WeChat-OA webhook，生产同一 pod 内发起）**
+1. 绑定：匿名 401 / 属主 200 / 非法 roomId 400 / 不存在的合法 roomId 404；绑定与解绑各留审计行。
+2. 入站：签名 webhook 返回 200，房间落到 `seq 2 human`，`meta.im{platform,chatKey,senderName}`，座位 `im_6c64d841de65`。
+3. 回响闸：bot 侧读面答 `{"rows":[]}`——IM 自己说过的话不回灌。
+4. 出站：`room_ended` 出现在 bot 侧读面（IM 会被告知）；cell 随后发出**真实微信 API 调用**，因测试收件人是编造的，
+   微信回 `40003 invalid openid`——这条错误恰证明出站链路真的接到了平台。
+5. 有界重试（本次新修）：日志 `attempt 1/3` → `2/3` → `send failed 3x … SKIPPING … to unblock the stream`，
+   游标 0→3，此后不再尝试。
+6. 解绑：下一条签名 webhook 只有 `[bots] "test" inbound`，无任何桥日志——旧会话路恢复。
+
+**走查当场揪出并随本班修掉的四个真缺陷**
+1. `332d68d9` 绑/解绑要重启才生效：管理 REST 只写库，`state.bots` 在 boot 建，入站钩子仍读旧 `zhiRoomId`——
+   违反 spec「该 bot 的下一条群消息走桥径」。修为写库后 `reloadBot(updated)`。
+2. `fa306bfc` 空 actor → 401：`BOT_COLS` 从未取 `owner_email`，`bot.ownerEmail` 恒 undefined，桥发出空的
+   `x-actor-email`，网关按设计回 `machine credential required`，于是每条群消息静默退回旧路。修为补列 +
+   `CELL_USER_EMAIL` 回落 + 非 2xx 时读掉错误体（不读会污染 keep-alive 连接，日志里那条误导性的 `fetch failed` 就是它）。
+3. `fa306bfc` legacy bot webhook 送错 cell：`owner_email` 为 NULL 时会话推断取到同 cell 另一个用户，
+   webhook 被送到对方 cell 后按「unknown」拒掉。修为在会话推断之前先查 `cells-registry.db`（cell 属主权威）。
+4. `9b1b5e38` 出站无限重试：永久失败（凭据吊销/被踢出群）每 2.5s 重发同一条，游标钉死、后续答案全堵。
+   修为 design D-E 本就要求的 retry-three：三次即跳过并响亮落日志、游标前移。
+
+**测试**：桥套件 8/8（含新增：空 owner_email 回落、401 读体、有界重试三跳）；网关 webhook 套件 5/5（含注册表优先于会话推断）；
+受影响面 8 套全绿（bots 12、bots-event-wake 3、gateway-fleet-cells 7、cell-registry-db 3、bot-relay 14、pack-bot-units 18 等）；
+`check-import-integrity` 176 模块全解析。全量 `test:unit` 在本机跑到 `test-local-fleet-turn-death.mjs` 处挂住近 2 小时
+（该文件属并行泳道已提交内容，与本次改动无关），故以受影响面定向回归为准。
+
+**挂账**：① 真实 IM 群往返还需一个有真实收件人的群（测试 bot 的 openid 是编造的，故第 4 步止于平台真实留痕）；
+② `ZHIYU_IM_BRIDGE_ON` 现为常开——只有显式绑定了房间的 bot 才走桥，未绑定的 bot 行为不变。
+**回滚**：四面 tag 退回 `sha-3029330`（同四缺陷中的前三个已含），或 `kubectl -n fd-prod set env` 摘掉
+`ZHIYU_IM_BRIDGE_ON`（ConfigMap 改后需 rollout restart）。

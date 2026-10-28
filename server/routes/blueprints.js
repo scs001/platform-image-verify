@@ -251,7 +251,16 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
     const owned = requireOwnedBlueprint(req, res);
     if (!owned) return;
     const { user, blueprint } = owned;
-    if (blueprint.status !== "approved") {
+    // 重新封印（add-blueprint-llm-assertions）：可售闸读的是 manifest 里的试跑报告，
+    // 而试跑必须在铸造之后（先有包才能装台）——签完字若不重铸，市场里那份永远没有
+    // 签字。故允许铸造态下再铸一版，条件是：草稿自批准后未改（version 未变）、
+    // 批准人就是本人、且报告已由本人签过名。其余情形一律仍要求先批准。
+    const reseal =
+      blueprint.status === "cast" &&
+      blueprint.approvedBy === user.email &&
+      blueprint.trialReport?.signoff?.by === user.email &&
+      blueprint.trialReport.signoff.reportRanAt === blueprint.trialReport.ranAt;
+    if (blueprint.status !== "approved" && !reseal) {
       return res.status(409).json({ error: `blueprint is '${blueprint.status}' — approval must come first` });
     }
     if (blueprint.approvedBy !== user.email) {

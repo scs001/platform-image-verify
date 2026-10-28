@@ -637,3 +637,47 @@ test("铸造嵌试跑报告：_casting.trialReport 带 green/judged/signoff（�
     await close(server);
   }
 });
+
+test("重新封印：铸造态下内容未变+报告已签 → 允许再铸一版带上签字", async () => {
+  const publishCalls = [];
+  const trialDeps = {
+    now: () => 1000,
+    fetchManifest: async () => ({ fleet: { name: "x", members: [] } }),
+    install: async () => {},
+    provision: async () => ({ ok: true, fleetId: "f1" }),
+    startFleet: async () => {},
+    productionLanes: async () => [{ providerId: "p", model: "producer" }],
+    fireRound: async () => [{ jobId: "j1", memberId: "m1", at: 1010 }],
+    collectAndWait: async ({ since }) => ({
+      members: [{ memberId: "m1", title: "简报岗", targetId: "brief" }],
+      turns: [{ memberId: "m1", at: since + 1, jobId: "j1" }],
+      reports: [{ memberId: "m1", reportId: "r1", createdAt: since + 2 }],
+      escalations: 0,
+    }),
+    judge: async () => ({ verdict: "pass", reason: "", audit: { model: "judge-1", verdict: "pass" } }),
+  };
+  const { server, base } = mount({ publishCalls, trialDeps });
+  try {
+    const content = { ...VALID_CONTENT, acceptance: [{ id: "sem", kind: "llm-judged", rubric: "有简报" }] };
+    const created = await fetch(`${base}/api/blueprints`, as("alice@x", { method: "POST", body: JSON.stringify({ content }) })).then(j);
+    const id = created.blueprint.id;
+    await fetch(`${base}/api/blueprints/${id}/approve`, as("alice@x", { method: "POST", body: JSON.stringify({ expectVersion: 1 }) }));
+    await fetch(`${base}/api/blueprints/${id}/cast`, as("alice@x", { method: "POST" }));
+    await fetch(`${base}/api/blueprints/${id}/trial`, as("alice@x", { method: "POST" }));
+
+    // 未签字时不允许重铸（防绕过双钥匙）。
+    assert.equal((await fetch(`${base}/api/blueprints/${id}/cast`, as("alice@x", { method: "POST" }))).status, 409);
+
+    await fetch(`${base}/api/blueprints/${id}/trial-signoff`, as("alice@x", { method: "POST" }));
+    const reseal = await fetch(`${base}/api/blueprints/${id}/cast`, as("alice@x", { method: "POST" }));
+    assert.equal(reseal.status, 200);
+    const last = publishCalls[publishCalls.length - 1].manifest;
+    assert.equal(last._casting.trialReport.signoff.by, "alice@x");
+    assert.equal(last._casting.trialReport.green, true);
+
+    // 他人不能重铸（批准人/签字人都得是本人）。
+    assert.equal((await fetch(`${base}/api/blueprints/${id}/cast`, as("bob@x", { method: "POST" }))).status, 404);
+  } finally {
+    await close(server);
+  }
+});

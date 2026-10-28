@@ -3636,3 +3636,15 @@ change 3 的真机睡眠/唤醒一幕。
 **附带发现（未改）**：一是 `notes_after` 默认排除 `修正：` 前缀后，修正笔记仍通过 `correctionsAfter()` 喂给打标词表，语义不变；二是 is 向量道 6 次 digest 里 3 次 `embed deadline 3500ms exceeded` 回落关键词，属预算边缘的已知抖动，本次未动。
 
 **测试**：fd-memory 81 → **83 全绿**（新增「打标走生产路径（notifyCapture→drain→真被调用 + 游标前进后不重打，用可控时钟跨 60s 去抖窗）」与「修正笔记不进蒸馏素材」）；distiller 新增 4 条引擎测试（随镜像在容器内跑：纯 JSON / 脏 JSON / 套对象 / 截断降级）。**上一版测试直调 `distillNow`，正是这个盲区让缺陷 1 活了 24 小时**——教训：测试要打生产入口，不是打内部函数。
+
+### §15.80 事故与回滚：registry 滚版丢掉自报车道（2026-10-28 夜，本会话自伤，已止血）
+
+**事故**：把 vendor-lane 镜像（源 `8969382`，基于**私有陈旧 main**）滚上生产后，四条服务的工具面自报端点消失（`registry/api/surface_report_routes.py` 在该基座不存在）。
+
+**为什么基建没拦住**：本会话先据「私有 main 与公开 main 分叉」判断，误以为公开 main 是旁支；实际**反过来**——公开仓 `main` 才是陈旧旁支（落后 `feat/self-reported-tool-surface` **2581 笔**），生产一直从该分支出片。没有逐条核「现役镜像源是否为我镜像源的祖先」就滚了版，踩了纪律明文（§ gitops-bump-ancestry-check）。
+
+**影响面（已核实）**：数据未损——`wire-build-mcp`(17 工具)/`wire-ops-mcp`(13)/`wanxing-ops-mcp`(8) 条目仍在、enabled、tool_list 快照完整；仅自报端点 404、`metadata.surface_source` 字段空。paper-trading 条目本就不在此库（另有归属）。
+
+**止血**：GitOps 回滚 `registry.yaml` 至 `sha256:22e27f38…`（原片）→ ArgoCD sync → 滚完；pod 内 `surface_report_routes.py` 恢复在场，自报端点由 404 转为 **422**（路由活、缺参）。
+
+**待办（重滚正确版）**：以生产线 `feat/self-reported-tool-surface` 为基 + cherry-pick 车道（`8969382`）重建超集镜像，验证「自报路由 + vendor lane」双在，再滚。**纪律补强**：bump 前必须核「现役镜像源的 commit 是否为我镜像源的祖先」，本仓的「生产线」是 `feat/self-reported-tool-surface`，不是 `main`。

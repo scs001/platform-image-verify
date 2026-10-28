@@ -12,8 +12,8 @@
 //             path, end to end, through the real boot
 //
 // What stays human: sleep/wake and reboot survival (no CI runner can nap), and
-// the attach-from-UI half — that one lives in win-install-smoke Phase D, where a
-// real installer + real Platform.exe are on disk.
+// the attach-from-UI half — that one lives in `release.yml`'s `installer e2e
+// (windows)`, where a real installer + real Platform.exe are on disk.
 //
 // Run: node scripts/smoke-steward-resident.mjs
 
@@ -150,25 +150,6 @@ async function actRevoke() {
   }
 }
 
-// `--status <dataDir>` — probe mode used by win-install-smoke Phase D: print the
-// resident steward's own status through its control plane, exit 0 only if it
-// answers. Lets the CI assert "the steward outlived the UI" with the packaged
-// node, no extra tooling.
-async function probeMode(dataDir) {
-  const attached = await attachSteward(dataDir);
-  if (!attached.ok) {
-    console.error(`probe: attach failed: ${attached.reason}`);
-    process.exit(1);
-  }
-  const status = await attached.client.request("status");
-  console.log(JSON.stringify({ pid: attached.discovery?.pid ?? null, state: status.state, policy: status.policy }));
-}
-
-const [mode, arg] = process.argv.slice(2);
-if (mode === "--status") {
-  await probeMode(arg ?? process.env.PLATFORM_DATA_DIR);
-} else {
-  await actResident();
-  await actRevoke();
-  console.log("[smoke] steward resident smoke: ALL ACTS PASS");
-}
+await actResident();
+await actRevoke();
+console.log("[smoke] steward resident smoke: ALL ACTS PASS");

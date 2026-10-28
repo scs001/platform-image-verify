@@ -3030,3 +3030,9 @@ main 那份才是手动 dispatch 真正跑的文件，不同步等于没消重�
 **挂账**：`/T` 随下一次 installer 构建才进产物，v1.3.20 的 exe 仍是旧钩子；等下次重建后，把卸载步的
 `manual` 策略换成 `always`（真实客户态：卸载时栈在跑），断言「栈内卸载也不留孤儿」——现在还不能断言，
 因为测的是旧钩子。另：本次未动 `automate-nonweb-acceptance`（他人在途，4.1/4.2 已勾），其 change 文档无需改。
+
+**§15.73 续（清尾）**：删完 Phase D 又扫出三处「活文档」还指着它——`scripts/smoke-steward-resident.mjs`
+头注（attach-from-UI 半在哪跑）、`.github/workflows/steward-smoke.yml` 同一句、以及脚本里的
+`--status <dataDir>` 探针模式（唯一调用方就是 Phase D）。注释改指 `installer e2e (windows)`；
+探针模式直接删（无人调用的推理代码不留）。本地真跑三幕（跑/排干/撤销）全 PASS、exit 0 为证。
+台账旧节（§15.67/§15.69 等处提到 Phase D）按日期记录原样保留，本节即其迁址说明。

@@ -13,8 +13,8 @@
 #     排干: drainQuit removes discovery+pid and exits 0
 #     撤销: a 401-everything platform burns the steward's own identity
 # What stays human/elsewhere: sleep & reboot survival (no runner naps), and
-# attach-from-installed-UI + uninstaller drain — both live in win-install-smoke
-# Phase D against a real installer.
+# attach-from-installed-UI + uninstaller drain — both live in release.yml's
+# `installer e2e (windows)` against a real installer.
 
 name: steward-smoke
 

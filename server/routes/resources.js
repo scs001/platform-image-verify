@@ -380,12 +380,15 @@ export function registerResourceRoutes(ctx) {
       const refs = await import("../memory-refs.js");
       const cli = await refs.memoryRefClientFor(process.env, req.user?.email ?? null);
       if (!cli) return res.status(503).json({ error: "记忆服务未配置，手势不可用", code: "memory_unavailable" });
-      const slugPath = resource.memoryRefPath ?? `default/references/${refs.memoryRefSlug(resource.id)}.md`;
-      await cli.mutateReference({ path: slugPath, op: "set_tier", tier, origin: "human" });
+      const path = await refs.ensureReference(cli, resource);
+      if (!path) return res.status(503).json({ error: "记忆服务写入失败", code: "memory_unavailable" });
+      await cli.mutateReference({ path, op: "set_tier", tier, origin: "human" });
       db.setResourceTier(resource.id, tier, new Date().toISOString());
-      if (!resource.memoryRefPath) db.setResourceMemoryRef(resource.id, slugPath, new Date().toISOString());
       res.json({ resource: db.getResource(req.params.id) });
-    } catch (err) { errorResponse(res, err); }
+    } catch (err) {
+      if (err?.status === 404) return res.status(404).json({ error: "记忆条目不存在", code: "reference_missing" });
+      errorResponse(res, err);
+    }
   });
 
   app.post("/api/resources/:id/tags", async (req, res) => {
@@ -398,11 +401,15 @@ export function registerResourceRoutes(ctx) {
       const refs = await import("../memory-refs.js");
       const cli = await refs.memoryRefClientFor(process.env, req.user?.email ?? null);
       if (!cli) return res.status(503).json({ error: "记忆服务未配置，手势不可用", code: "memory_unavailable" });
-      const slugPath = resource.memoryRefPath ?? `default/references/${refs.memoryRefSlug(resource.id)}.md`;
-      await cli.mutateReference({ path: slugPath, op: "set_tags", tags, origin });
+      const path = await refs.ensureReference(cli, resource);
+      if (!path) return res.status(503).json({ error: "记忆服务写入失败", code: "memory_unavailable" });
+      await cli.mutateReference({ path, op: "set_tags", tags, origin });
       db.setResourceTags(resource.id, tags, new Date().toISOString());
       res.json({ resource: db.getResource(req.params.id) });
-    } catch (err) { errorResponse(res, err); }
+    } catch (err) {
+      if (err?.status === 404) return res.status(404).json({ error: "记忆条目不存在", code: "reference_missing" });
+      errorResponse(res, err);
+    }
   });
 
   app.delete("/api/resources/:id", async (req, res) => {

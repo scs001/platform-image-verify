@@ -43,7 +43,11 @@ export async function memoryRefClientFor(env, ownerEmail, fetchImpl = fetch) {
           method: "POST", headers: authH,
           body: JSON.stringify({ path, op, tier, tags, origin }),
         });
-        if (!r.ok) throw new Error(`pages/mutate HTTP ${r.status}`);
+        if (!r.ok) {
+          const err = new Error(`pages/mutate HTTP ${r.status}`);
+          err.status = r.status;
+          throw err;
+        }
         return await r.json(); // { changed }
       },
     };
@@ -51,6 +55,24 @@ export async function memoryRefClientFor(env, ownerEmail, fetchImpl = fetch) {
     console.warn(`[memory-refs] unavailable (degrade open): ${e?.message || e}`);
     return null;
   }
+}
+
+// Reference page must exist before a tier/tag gesture can mutate it. The page
+// is a mirror of the same resource, so registering it on demand IS the
+// remember gesture — a user marking 正典 never has to click 记住 first.
+export async function ensureReference(cli, resource) {
+  if (resource.memoryRefPath) return resource.memoryRefPath;
+  const out = await cli.writeReference({
+    title: resource.title,
+    summary: summaryForResource(resource),
+    tier: resource.tier ?? "draft",
+    tags: Array.isArray(resource.tags) ? resource.tags : JSON.parse(resource.tags || "[]"),
+    source_ref: `resource:${resource.id}`,
+    slug: memoryRefSlug(resource.id),
+  });
+  const path = out?.path ?? null;
+  if (path) dbSetMemoryRef(resource, path);
+  return path;
 }
 
 // Fire-and-forget the mirror for a freshly saved resource — the caller

@@ -180,6 +180,8 @@ test("desktop shell: at capacity the deploy action is PREVENTED, with the reason
   const deploy = page.getByTestId("fleet-candidate-deploy");
   await expect(deploy).toBeDisabled();
   await expect(deploy).toHaveAttribute("title", /runtime groups are in use/i);
+  // The reason must be VISIBLE, not hover-only.
+  await expect(page.getByTestId("fleet-candidate-capacity-note")).toContainText("runtime groups are in use");
   await page.screenshot({ path: "test-results/fleet-local-capacity.png", fullPage: true });
 });
 

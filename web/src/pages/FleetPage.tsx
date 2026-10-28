@@ -333,6 +333,13 @@ export function FleetPage() {
                       </div>
                       <p className="mt-1 truncate text-xs text-muted-foreground" title={c.path}>{c.packId} / {c.agentId}</p>
                       {c.description ? <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{c.description}</p> : null}
+                      {!c.deployed && atCapacity && (
+                        // Visible guidance beats a hover-only title: the reason
+                        // a deploy is prevented should be readable, not hidden.
+                        <p className="mt-2 text-xs text-warning" data-testid="fleet-candidate-capacity-note">
+                          {t("fleet.local.capacityHint")}
+                        </p>
+                      )}
                       <div className="mt-3 flex gap-2">
                         {!c.deployed || !c.enabled ? (
                           <button

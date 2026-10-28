@@ -3083,8 +3083,7 @@ Cluster→Array、Role→Persona、Standby→On call、Add post 等界面标签�
 提交 `e4c6a0e7`（**已被并行车道随 push 带进 origin/main**，非我推送）。
 
 **挂账**：
-- 修复**未上产**：线上 `sha-03687ea` 的源提交 d5db06de 早于 e4c6a0e7，本批未出片（另一车道刚滚 sha-03687ea，
-  抢跑会互相踩；等下一班出片时随行）。
+- ~~修复**未上产**~~ → **已上产**（见下「§15.74 续」）。
 - 巡线岗回合三次卡住不落产出（`llm-guard default probe inconclusive (network_error): probe timed out after 10s`，
   平台→模型上游探针超时）；该岗 cron 会话已 64 条消息 / 2.0MB，每轮重放很重——疑为回合可靠性老问题，
   本轮只记录不处置（另车道在跟）。
@@ -3107,3 +3106,28 @@ Cluster→Array、Role→Persona、Standby→On call、Add post 等界面标签�
 | 桌面 opt-in 复核 | ✅ 验过（含一个真缺口已修） | ① 复核时发现**文档与门不一致**：桌面按 `.env.example` 只设 `BROWSER_MCP_CLI`，而供给门只认 `BROWSER_RUNTIME_PATH` → 照文档做**组不出车道**；已改为 local 供给证据 = 运行时目录 **或** `BROWSER_CHROMIUM_PATH` **或** CLI 文件存在（单测 5→7 例，新增两例桌面形态）② 桌面形态本地实跑（`npm start` + 该 env，隔离数据目录）：profile patch 组出 `serverName: playwright` + `BROWSER_OUTPUT_DIR=<工作区>` + `cwd=<工作区>` ③ agent 实调 `mcp__playwright__browser_navigate` + `browser_take_screenshot`，产物 `lane-desktop.png`（79KB，1280×775 真 PNG）落工作区 ④ 安装包不含 runner：`dsh-matrix` 零 playwright 依赖、根 manifest 仅测试用 `@playwright/test`、chromium 只烘在镜像 `/opt/browser-mcp` |
 | 跨 cell 隔离对拍 | ✅ 验过（真实 server+桥+服务，双隔离实例） | A/B 两实例（各自 `PLATFORM_DATA_DIR`+`DSH_HOME`，共享同一 app 树）：B 名单 `sample=true` → **A 关样包**（`plugins_changed` → `enabled=false`，A manifest 变 `[dsh-base]`）→ **B 名单仍 `true`、B manifest 未动** → **共享树指纹 `5042a1c9…` 前后一致**；随后 A 复原为 `true`。生产侧旁证：同一 pod 内 7 个 cell 目录各持独立 DSH home/patch，keep 集随各自 pack 不同 |
 | 附带发现 | 本地 dev 实例带仓内 `egobrowser` 技能会把 agent 引向技能而非 MCP 车道（dev 专属形态，生产中 pack 技能面已收窄）；不影响结论 |
+
+**§15.74 续：出片带修复上产（13:0x–13:2x）**
+- 判路 `fd-build-channel`：公开仓免费线可读；通用池 testaction002/build-pool 余 1812 分钟可用；
+  池内**无在途构建**（最近一次是 00:42 的 paas 快照）→ 不与并行车道抢跑。
+- 快照：`fd-build-snapshot /Users/chengsishi/paas -R testaction002/build-pool --namespace yizuo --image platform`
+  → 池仓 commit `sha-0a57ae1`（源真 sha **3ac825f7**，即含 e4c6a0e7 的 HEAD）。
+  纪律遵守：干净 clone（不扫并行车道工作树残留）、exclude 锚定根、快照排除 `/.github`（免触发 mac/win 重腿）。
+- 构建 run **40635962861 绿**（约 5 分钟）：`Resolve target` 行核对 `hkccr.ccs.tencentyun.com/yizuo/platform:sha-0a57ae1` ✓；
+  **注意：该 target 的 `SMOKE_MODE=skip`**——即池侧不做启动冒烟（平台仓无 scripts/ci-smoke.sh），
+  所以「镜像起得来」这一关仍靠部署后 pod 观察兜底（见下 restartCount=0）。
+- relay：`ssh cheap3 tcr-relay-sync.sh yizuo/platform sha-0a57ae1` → `OK yizuo/platform:sha-0a57ae1 (21s)`；
+  ccr 硬门 `skopeo inspect` → digest `sha256:96205cd6b800…`、Created 05:09:04Z ✓。
+- GitOps：`~/finddata/fd-infra-deploy` bump `all-services/prod/platform.yaml`（**只滚主 platform**，
+  platform-demo / facet / agent-runner-* 是别的车道在管，sha 各自不同，不越界动），commit `88e75f1`，推 gitee+github；
+  ArgoCD `all-services-prod` 源是 gitee，poll 后起新 pod `platform-78c7bcbdcc-sbqv2`（sha-0a57ae1），
+  `rollout status` 成功、**1/1 Running、restartCount=0**（没起不来）。
+- 生产验证：公网 `/` 200；pod 内 `/ready` `/healthz` 200（`/api/ready` 404 是路径不是健康口，别当故障）；
+  镜像内 `server/fleet-architect.js` 已是 `memberOps` 口径 ✓；
+  **修复实测**：用驾驶舱「设计」确认按钮同款 body（`{fleet:{orchestration:{mode,constraints}}}`，无 members）
+  打 `/orchestration/draft` → 200 ok、`/orchestration/apply` → **200 ok（此前必 409）**，且三个岗位行原样未动。
+  （UI 的「拖一条边」手势未在真机复现——IAB 合成拖拽拖不动 React Flow 节点；但确认按钮发的 body 与上面逐字一致，
+  服务端同一路径同一鉴权，已构成服务端证据。）
+- 全站复核：新镜像下 21 个集群、集群名无「舰队」；市场 89 包零「舰队」命名；旧类目 daas/company/docs/data/authoring 归零；
+  徽章分布 assistant 22 / blueprint 14 / facade 7 / toolkit 7；**残留一处待拍板**：
+  「官网内容集群（模板）」的 category 仍是 `fleet`（名字已是集群，类目词待用户定）。

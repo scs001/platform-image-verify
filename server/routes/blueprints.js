@@ -34,19 +34,26 @@ function blueprintId() {
 // （POST {FACET_BASE_URL}/api/packs，x-facet-token + x-facet-user）。铸造上架
 // 只有这一道门（design D5）——本地不做 registry 直写回退，直写会绕过发布门
 // 闸序（collectPublishVerdict 的工具面/商业集闸）。通道未配置答诚实 503。
-function createFacetPublishClient({ env = process.env, fetchImpl = fetch } = {}) {
+export function createFacetPublishClient({ env = process.env, fetchImpl = fetch } = {}) {
   return {
     async publish({ manifest, packId, user }) {
       const base = (env.FACET_BASE_URL || "").replace(/\/+$/, "");
       if (!base) {
         return { ok: false, status: 503, error: "market publish channel is not configured (FACET_BASE_URL)" };
       }
+      // facetForwardHeaders 的身份头是 base64url({email, groups})——必须传对象；
+      // 传裸邮箱串会让 identity 解码出 undefined 邮箱、facet 判匿名 401
+      // （2026-10-28 生产走查逮住）。
+      const identity = typeof user === "string" ? { email: user, groups: [] } : { email: user?.email, groups: user?.groups ?? [] };
+      if (!identity.email) {
+        return { ok: false, status: 401, error: "cast needs a resolved caller identity (no email on the request user)" };
+      }
       let upstream;
       try {
         upstream = await facetRequest({
           base,
           token: env.FACET_INTERNAL_TOKEN || "",
-          user: user?.email ?? user,
+          user: identity,
           path: "/api/packs",
           method: "POST",
           contentType: "application/json",

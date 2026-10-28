@@ -433,3 +433,27 @@ test("4.1 试跑闸：非铸造态 409；铸造后装一台跑一轮并落报告
     await close(server);
   }
 });
+
+test("3.3 发布客户端身份头：user 必须是对象（base64url 身份契约回归）", async () => {
+  // 2026-10-28 生产走查逮住的真缺陷：传裸邮箱串 → facetForwardHeaders 取
+  // user.email 得 undefined → 身份头空 → facet 判匿名 401。此处锁住形状：
+  // 无论收到串还是对象，发出去的必须是 {email, groups} 对象。
+  const { createFacetPublishClient } = await import("../server/routes/blueprints.js");
+  const seen = [];
+  const fakeFetch = async (url, init) => {
+    seen.push({ url, headers: init.headers, body: JSON.parse(init.body) });
+    return { ok: true, status: 200, json: async () => ({ id: "pk_x", version: 1 }) };
+  };
+  const client = createFacetPublishClient({ env: { FACET_BASE_URL: "http://facet.test", FACET_INTERNAL_TOKEN: "tok" }, fetchImpl: fakeFetch });
+  const out = await client.publish({ manifest: { name: "m" }, user: "a@b.c" });
+  assert.equal(out.ok, true);
+  const decoded = JSON.parse(Buffer.from(seen[0].headers["x-facet-user"], "base64url").toString("utf8"));
+  assert.deepEqual(decoded, { email: "a@b.c", groups: [] });
+  assert.equal(seen[0].headers["x-facet-token"], "tok");
+
+  // 无邮箱的身份 → 401，不发请求。
+  const before = seen.length;
+  const anon = await client.publish({ manifest: { name: "m" }, user: { groups: [] } });
+  assert.equal(anon.status, 401);
+  assert.equal(seen.length, before);
+});

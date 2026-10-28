@@ -3450,3 +3450,32 @@ B1（付费+credit 环）/B2（车道 live-write 全链）/B3（v2 跟新回放�
 **教训（入谱）**：bump `deploy/k8s/fd-web.yaml` 时 tag 用**7 位短 sha**（CI 推的是 `sha-6354126`）；我写成 8 位 `sha-63541266` 直接 `ImagePullBackOff`，靠 pod 状态才逮住——`head_sha[0:8]` 与镜像 tag 判据不同源，别混。
 
 **公网眼见**：`/products/base`（en）与 `/zh/products/base`（zh）均列出 `Platform-1.3.24-arm64.dmg` + `Platform.Setup.1.3.24.exe`，链接指向 `https://platform.finddatatech.cloud/dl/platform/1.3.24/…`（非 github）；三件 `HEAD` 均 **200**，range 请求 **206**。
+
+### §15.79 蓝图构造间（add-blueprint-studio）上产 — 2026-10-28
+
+**范围**：16/16 任务全勾。垂直蓝图对象+工作室面（编辑→校验→diff→批准→铸造→上架→试跑）从内部手艺变客户面产品；与 `agent-fleet-architect` 边界铁定（studio 治包、architect 治舰，零互引写路径）。
+
+**四件服务端 + 一面 UI + 一道市场闸**：
+- `server/routes/blueprints-db.js` 实体库（构造器注入、凭据存储硬拒 422、编辑=版本+1 并清旧批准）
+- `server/blueprint-validate.js` 四段校验链（shape→parseFleetTemplate 零翻译→validatePackManifest→publish-tool-gate 同步 consult），错误一律既有校验器原文
+- `server/routes/blueprints.js` REST 面（owner 作用域/expectVersion 409/approve 422/cast 两段纪律+facet 发布客户端+试跑路由）
+- `server/blueprint-trial.js` 试跑执行器（市场读→装作→装台器 dedup→同 /start 点火→cron.runJobNow 一轮→收证→断言闭集判绿→落账）
+- `web/src/pages/BlueprintStudioPage.tsx` + `blueprint-api.ts`（三轨：表单/JSON/起草提示词桥，五语言 2338 键）
+- `gateway/pack-sellability-gate.js` 可售态闸（**收费上架必须绿报告**；免费放行记 note——闸随定价自动生效，无需二次改造）
+
+**生产走查逮出的三个真缺陷（全部随班修+回归测试）**：
+1. **铸造身份头传错形状**：`facetForwardHeaders` 契约是 `base64url({email,groups})`，发布客户端传裸邮箱串 → identity 解出 `email: undefined` → facet 判匿名 401，铸造全链断在最后一步。修=`{email,groups}` 对象 + 缺邮箱本地 401 短路。
+2. **试跑收证不接点火记录**：实盘 `collectAndWait` 的 `turns` 恒返回空数组（`fireRound` 结果未透传）→ `first-round-fired` 断言在生产**永远判不绿**、试跑永不可售。修=fired 透传进收证并映射成 turns 证据。
+3. 试跑断言选岗纪律（非代码缺陷，记入设计）：无 cadence 的岗位恒 `passive` 不排产，断言须指向被 `runJobNow` 点燃的岗位。
+
+**出片与滚版**：私有仓额度耗尽（run 5-14s 即终 + payments 注解=额度非欠费）→ 走 `fd-build-snapshot` 通用池（testaction001）。三次出片 `sha-3fcc981`→`sha-268ec76`→`sha-28a1089`（末版对应 paas `23bd7cc9`），relay 回灌 ccr，GitOps 滚 platform+facet+agent-runner-serving 三面，ArgoCD Synced|Healthy。
+
+**生产实证（真 pod 内直打真 API，非模拟）**：
+- 七步旅程：① 场景→草稿 201 ② 校验 ok=true 零错 ③ 批准 200 approved ④ 铸造上架 200（castPackId `_PGsJcBwYoeZU0kCfU-2Qg`）⑤ 追溯落账 status=cast ⑥ 试跑 `green: true`（`post-materialized` + `first-round-fired` 双双 pass，fired job `job_1793191666213_k8g86b`）
+- 可售闸四分支：免费 200 / 收费缺追溯 400 `priced-template-without-casting` / 缺报告 400 `priced-template-without-trial-report` / 全齐 200
+- 反向断言锁（4 则静态审计测试）：无第二校验器/第二上架通道/第二调度器；执行器只点火不铸表
+- 单测 27 例全绿（blueprints 12 + trial 6 + reverse 4 + sellability 6 中的主线）；locale 闸 2338 键；typecheck/biome 净
+
+**测试遗留**：`aloadtree` 名下两条探针包（`3wZGhtEU2owoe9qgt4cyig`、`TfptBrLm7MxQIbFx9zczug`）已置 private；一条试跑舰 `fleet_1793191666163_2v8iws`（政策盯梢集群，active）保留作复跑锚。
+
+**待拍板（未做）**：LLM 判断言（自由文本断言）破坏「断言全绿才可售」的确定性，须单独立项；断言 kind 与 finddata `blueprints/schema.md` 契约的跨仓对账。

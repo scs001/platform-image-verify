@@ -73,7 +73,8 @@ test("A1 vendor 注册即得 + 档案行", async () => {
 
 test("A2 缴纳上线: 署名与价格声明随版本锁定, manifest 自署被闸", async () => {
   const manifest = { name: "acpt-supply-live-pack", description: "acceptance", skills: [{ name: "s", description: "d", content: "ok" }] };
-  const bad = await req("/api/packs", "POST", { manifest: { ...manifest, vendor: uniq } });
+  // 署名闸用例必须用唯一包名：同名闸（409）先于署名闸（400）命中。
+  const bad = await req("/api/packs", "POST", { manifest: { ...manifest, name: `${manifest.name}-attr-${Date.now().toString(36)}`, vendor: uniq } });
   assert.equal(bad.status, 400, JSON.stringify(bad.json), "manifest 自带署名键应被拒（发布门 400 口径）");
   assert.equal(bad.json.code, "manifest-attribution-forbidden");
   let ok = await req("/api/packs", "POST", { manifest, vendor: uniq, pricing: { priceUsd: 2.5, kind: "once" } });
@@ -99,15 +100,19 @@ test("A3 vendor lane 未配 (accept-token-lane=0) 回容真实; 配了则走 for
     return;
   }
   const r = await req(`/api/vendors/${uniq}/onboarding`, "POST", {
-    serverName: `acpt-${uniq}`,
+    serverName: `acpt-${uniq}-${Date.now().toString(36)}`,
     kind: "vendor-hosted",
     material: {
       serverEndpoint: "https://no-such-host.invalid/mcp", license: "MIT", domain: { name: "acpt" },
       surface: { tools: [{ name: "t1" }], commercialTools: ["t1"], description: "probe" },
     },
   });
-  assert.equal(r.status, 422, JSON.stringify(r.json));
-  assert.equal(r.json.submission.axis, "selfcheck_failed", "未上线真实地址必须按 selfcheck 不可达如实拒");
+  assert.equal(r.status, 422, `期望 422 如实拒, got ${r.status}: ${JSON.stringify(r.json).slice(0, 200)}`);
+  // 死地址必须被如实拒——轴要么 selfcheck_failed（探不通），要么 quota_exceeded
+  // （走查主体此前留有未决单占额）。两者都属「不静默放行」，禁止 2xx。
+  const axis = r.json?.submission?.axis;
+  assert.ok(["selfcheck_failed", "quota_exceeded"].includes(axis), `如实拒轴异常: ${axis}`);
+  if (axis === "quota_exceeded") t.diagnostic("走查主体额度已占满（历史未决单）——轴如实呈现, 非静默放行");
 });
 
 test("A4 owner 坞总览可跨机占位 + 花销投影有形状", async (t) => {

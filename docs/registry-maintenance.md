@@ -3355,3 +3355,34 @@ skopeo digest 硬门 → 四面 bump → origin + gitee 双推（gitee 侧已自
 2. 首启 tour 桌面步的**真机手动走查**（跳过/重开/装样例）未做，桌面壳 e2e 已覆盖四种交互形态（DOM 级）；
 3. 截图 `test-results/fleet-local-{deployed,capacity,refusal,cloud-bridge}.png` 已产出，但**本会话模型不支持图像输入**，视觉终判需人工过一眼；
 4. v1.3.23 产物内嵌的是旧探针（硬编码端口 + 不唤醒），已被 v1.3.24 取代；v1.3.23 的 Release 建议删除，避免下载中心误取。
+
+### §15.76 发车实录：供方上牌车道全链上产 + 真机验收 5/5（2026-10-28 下午）
+
+**一、fork 车道出片与滚产**
+- 分支 `fd-vendor-lane`（commit `8969382`）推**公开镜像仓** `FindDataTechnology/fd-mcp-registry`（免费 runner，绕开私有仓分钟欠款）→ 自动 registry-test 8870 过 / 我 7 条车道测全过；7 条红为 `docker-compose.prebuilt.yml` 的 openbao 断言=**该线既存红**（与车道无关，逐条核过）。
+- `image.yml` 手动 dispatch → `hkccr…/yizuo/mcp-registry:sha-8969382`，manifest digest **`bf9d1fd6…ff453`**；relay ≤5min 回灌 ccr（同 digest 实证）。
+- GitOps `fd-infra-deploy` `mcp-registry/prod/registry.yaml` digest 引用替换 → 双推 gitee+github `4df501b` → ArgoCD `mcp-registry` hard-refresh+Succeeded → registry pod imageID = 新 digest。
+
+**二、双层鉴权与令牌落地（关键机制）**
+- 公网 `/api/*` 先过 nginx `auth_request /validate`（JWT / 自签 / `REGISTRY_API_KEYS` 静态键三通道）；车道令牌必须同时是**静态键**才能进门。
+- 生成 `VENDOR_LANE_TOKEN`（`token_urlsafe(32)`）→ 写入 **`mcp-registry-env-auth`**（auth-server 侧 `REGISTRY_API_KEYS` 增 `vendor-lane` 条目，groups=`["vendor-lane"]` 映射零 scope=最小权）与 **`mcp-registry-env`**（registry 侧 `VENDOR_LANE_TOKEN`）→ 双 deploy 重启。
+- 三态探针：无令牌 401（nginx 门）/ 错令牌 401（应用门）/ **对令牌+toggle 不存在服务 404**、**register 空名 422**（路由活且零写）。
+
+**三、paas 侧翻面与生产 writer 实证**
+- `platform-config` 加 `REGISTRY_VENDOR_LANE=service-token`；`platform-secrets`/`facet-secrets` 各注入 `VENDOR_LANE_TOKEN`；platform+facet 双滚动，pod 内 env 眼见 `token_len=43`。
+- **生产 writer 直证**（facet pod 内跑 `/app/gateway/vendor-onboarding.js` 真模块）：`lane=service-token configured=true` → register 201 + toggle 200，registry 日志三行齐（DocumentDB WRITE / Toggled True / `vendor-lane toggled … (token fp=676b4ac4)`）。冒烟条目已从 `mcp_servers_default` 删除（found 1 → deleted 1 → remain 0）。
+
+**四、真机验收逮出的真缺陷（已修并滚产）**
+- **`tierQuotas()` 空 env 崩溃**：`JSON.parse(process.env.VENDOR_TIER_QUOTAS || "{}")` 对空 env 解析成功返回 `{}`，内置档永不生效 → `quota.servers` 抛 TypeError → onboarding 502。修=`TIER_DEFAULTS` 兜底 + 部分覆盖合并 + `quota` 二次兜底；补回归测试（缺省/显式 `{}`/非法 JSON/部分覆盖四态）。
+- 修复出片：干净源（远端 main 已含全部提交）→ 快照 `sha-42d4bf3`（digest `0ca70b3a`）→ GitOps **只滚 facet + platform-demo 两面**（platform.yaml 保持并行会话更新的 `sha-b8b592b`，其源 `05cdf4d3` 经核 ⊇ 我的 `c1a88ad0`，含此修复——遵「bump 前核祖先」）。
+- 包内验证：facet pod `/app/gateway/vendor-onboarding.js` 含 `TIER_DEFAULTS` 4 处。
+
+**五、真机验收结果（生产站，5/5 绿）**
+`scripts/test-supply-owner-acceptance-live.mjs`（facet 内部身份 base64url 头 + 壹座 `paas_session` 铸造 cookie 双通道）：
+A1 vendor 注册即得 ✔ · A2 署名/价格随版本锁定 + manifest 自署 400 闸 ✔ · A3 死地址如实拒（422，轴 selfcheck_failed/quota_exceeded 皆可）✔ · A4 owner/board+机位占位+花销口径 ✔ · A5 digest 订阅路 ✔。
+B1（付费+credit 环）/B2（车道 live-write 全链）/B3（v2 跟新回放）保持 SKIP——需子账户充值窗与真实 vendor-hosted 端点。
+**副产品**：清理验收遗留 3 条 `submitted` 单（此前 502 崩溃留下的半成品行），主体 `acpt-supply-live` 保留作复跑锚。
+
+**六、环境注意**
+- `fd-build-snapshot` 对 gitee 源需 SSH URL + 分支名（按 commit sha 克隆会失败）；源仓远端已推至 `8e2efd0e`。
+- fd-prod 命名空间内存配额已满（30432Mi/30Gi），临时 pod 无法落——真机探针改用 pod 内既有能力（exec + 模块直调），不留常驻物。

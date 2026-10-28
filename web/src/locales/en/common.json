@@ -831,7 +831,14 @@
     "effort": "Thinking depth",
     "effortInherit": "Inherit (deployment default)",
     "contextBudget": "Context budget (tokens/turn)",
-    "contextBudgetUnlimited": "Unlimited"
+    "contextBudgetUnlimited": "Unlimited",
+    "roomBinding": {
+      "label": "Room binding (Zhiyu)",
+      "hint": "Route this bot's group messages into the room; the room's answers come back with seat attribution.",
+      "placeholder": "room id starting with zy_",
+      "bind": "Bind",
+      "unbind": "Unbind"
+    }
   },
   "assistant": {
     "name": "{{brand}} Assistant",

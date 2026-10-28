@@ -831,7 +831,14 @@
     "effort": "思考深度",
     "effortInherit": "继承（部署默认）",
     "contextBudget": "上下文预算（token/回合）",
-    "contextBudgetUnlimited": "不限"
+    "contextBudgetUnlimited": "不限",
+    "roomBinding": {
+      "label": "房间挂接（智语）",
+      "hint": "把群消息接到这个房间，房间的回答署名寄回群里。",
+      "placeholder": "zy_ 开头的房间 ID",
+      "bind": "绑定",
+      "unbind": "解绑"
+    }
   },
   "assistant": {
     "name": "{{brand}} 助手",

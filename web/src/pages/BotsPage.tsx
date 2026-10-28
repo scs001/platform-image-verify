@@ -366,6 +366,8 @@ function BotForm({
             </div>
           ))}
 
+          {savedBot && <RoomBindingSection bot={savedBot} onChanged={onSaved} />}
+
           {savedBot && <BotQrPanel bot={savedBot} onSaved={onSaved} />}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
@@ -381,5 +383,64 @@ function BotForm({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// Zhiyu IM bridge binding panel (add-zhiyu-im-bridge): bind this bot to a
+// room or clear it. Separate from the main save flow — the binding lives in
+// its own REST on the cell (it depends only on the bot row, not credentials).
+function RoomBindingSection({ bot, onChanged }: { bot: { id: string; zhiRoomId?: string | null }; onChanged: () => void }) {
+  const { t } = useTranslation();
+  const [roomInput, setRoomInput] = useState(bot.zhiRoomId ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const bound = Boolean(bot.zhiRoomId);
+
+  const call = async (method: string, body?: unknown) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await fetch(`/api/zhiyu-im-bridge/bots/${encodeURIComponent(bot.id)}/room`, {
+        method,
+        headers: body !== undefined ? { "Content-Type": "application/json" } : {},
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+      const data = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(data?.error ?? `HTTP ${r.status}`);
+      onChanged();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5 rounded-md border border-border p-3">
+      <Label>{t("botsPage.roomBinding.label")}</Label>
+      {bound ? (
+        <div className="flex items-center justify-between gap-2 text-sm">
+          <code className="truncate text-xs">{bot.zhiRoomId}</code>
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => void call("DELETE")}>
+            {t("botsPage.roomBinding.unbind")}
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <Input
+            value={roomInput}
+            onChange={(e) => setRoomInput(e.target.value)}
+            placeholder={t("botsPage.roomBinding.placeholder")}
+            className="flex-1"
+            data-testid="bot-room-binding-input"
+          />
+          <Button size="sm" variant="outline" disabled={busy || !/^zy_[0-9a-f]+$/.test(roomInput.trim())} onClick={() => void call("PUT", { zhiRoomId: roomInput.trim() })} data-testid="bot-room-binding-save" className="shrink-0">
+            {t("botsPage.roomBinding.bind")}
+          </Button>
+        </div>
+      )}
+      <p className="text-xs text-muted-foreground">{t("botsPage.roomBinding.hint")}</p>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
   );
 }

@@ -831,7 +831,14 @@
     "effort": "Profundidad de razonamiento",
     "effortInherit": "Heredar (predeterminado)",
     "contextBudget": "Presupuesto de contexto (tokens/turno)",
-    "contextBudgetUnlimited": "Sin límite"
+    "contextBudgetUnlimited": "Sin límite",
+    "roomBinding": {
+      "label": "Room binding (Zhiyu)",
+      "hint": "Route this bot's group messages into the room; the room's answers come back with seat attribution.",
+      "placeholder": "room id starting with zy_",
+      "bind": "Bind",
+      "unbind": "Unbind"
+    }
   },
   "assistant": {
     "name": "Asistente de {{brand}}",

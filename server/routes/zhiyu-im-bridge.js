@@ -6,6 +6,7 @@
 // (secret-shared), which itself checks the actor's access to the room.
 // Foreign/unknown reading answers the same 404: never a leak of what exists.
 
+import express from "express";
 import { GATEWAY_SECRET_HEADER } from "../auth.js";
 
 export function registerZhiyuImBridgeRoutes(ctx) {
@@ -35,7 +36,7 @@ export function registerZhiyuImBridgeRoutes(ctx) {
     res.json({ botId: bot.id, name: bot.name, zhiRoomId: bot.zhiRoomId ?? null, enabled: bot.enabled });
   });
 
-  app.put("/api/zhiyu-im-bridge/bots/:botId/room", async (req, res) => {
+  app.put("/api/zhiyu-im-bridge/bots/:botId/room", express.json({ limit: "8kb" }), async (req, res) => {
     const email = emailOf(req);
     if (!email) return res.status(401).json({ error: "sign-in required" });
     const bot = botKnown(req.params.botId);

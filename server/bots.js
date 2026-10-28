@@ -469,6 +469,22 @@ export async function handleMessage(botId, { chatKey, senderName, text }) {
     }
   } catch { /* the wake's own guard already logged; the chat turn proceeds */ }
 
+  // Zhiyu IM bridge (add-zhiyu-im-bridge): a bound bot routes to the room
+  // instead of founding a bot session. When the bridge declines (gate off,
+  // outbound fetch failure), the legacy session path continues — the message
+  // degrades honestly instead of vanishing.
+  if (bot.zhiRoomId) {
+    let bridged = false;
+    try {
+      state.ctx?.zhiyuImBridge?.noteInboundChat(bot.id, chatKey);
+      bridged = Boolean(await state.ctx?.zhiyuImBridge?.handleInbound({ bot, chatKey, senderName, text }));
+    } catch (err) {
+      console.warn(`[bots] zhiyu-im-bridge erred for "${bot.name}": ${err.message}; legacy path continues`);
+      bridged = false;
+    }
+    if (bridged) return;
+  }
+
   const sessionId = sessionIdFor(botId, chatKey);
   // A question waiting in this chat? The message is its answer attempt, not a
   // new turn (add-user-questions). The guards above still applied — answering

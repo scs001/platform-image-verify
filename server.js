@@ -63,6 +63,7 @@ import { registerBotRoutes, WEBHOOK_PREFIX } from "./server/routes/bots.js";
 import { registerBotRelayRoutes, RELAY_PREFIX } from "./server/routes/bot-relay.js";
 import { createClusterRoutes, startAutoTerminationJob } from "./server/routes/clusters.js";
 import { createFleetRoutes, resolveFleetTarget } from "./server/routes/fleets.js";
+import { createBlueprintRoutes } from "./server/routes/blueprints.js";
 import { getFleetDatabase } from "./server/routes/fleets-db.js";
 import { reconcileAllFleets, deriveMemberStatus } from "./server/fleet-reconcile.js";
 import { buildFleetContext } from "./server/fleet-context.js";
@@ -282,6 +283,10 @@ createClusterRoutes(app, ctx);
 // Agent fleets (agent-fleet-core): fleet/post CRUD + materialization
 // reconcile over the task engine. Same auth semantics as clusters.
 createFleetRoutes(app, ctx);
+// Blueprint studio (add-blueprint-studio): vertical blueprint entity +
+// validate/approve/cast routes. 治包不治舰（design D1）——与 architect 的
+// 活舰编排互不引写路径；auth 语义与 fleets 同款（owner 作用域资产）。
+createBlueprintRoutes(app, ctx);
 // Cluster monitoring (agent-cluster-platform). The Phase 4/5/8/10 siblings
 // this shipped with (model-binding provider routes, the hardcoded template
 // "marketplace", the optimization endpoints with fabricated cache metrics)
@@ -1040,6 +1045,17 @@ if (dshReadyOk) {
 // Chat-platform bots. Starts after the bridge so a polled message never
 // arrives before there is an agent to answer it; inert with no bots configured.
 bots.initBots(ctx);
+
+// Zhiyu IM bridge (add-zhiyu-im-bridge): bound bots route their group
+// messages into rooms through the gateway; the outbound polled lane replays
+// room answers back into IM, restarting cursor-safe. Inert off by default.
+{
+  const { createZhiyuImBridge } = await import("./server/zhiyu-im-bridge.js");
+  const { registerZhiyuImBridgeRoutes } = await import("./server/routes/zhiyu-im-bridge.js");
+  ctx.zhiyuImBridge = createZhiyuImBridge({ db: ctx.db });
+  ctx.zhiyuImBridge.startOutbounds();
+  registerZhiyuImBridgeRoutes(ctx);
+}
 
 // Cron turn executor: mounted before cron.initCron loads jobs, so a restored
 // job that comes due immediately finds its runner attached.

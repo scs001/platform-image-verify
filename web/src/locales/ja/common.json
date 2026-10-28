@@ -831,7 +831,14 @@
     "effort": "思考深度",
     "effortInherit": "継承（既定）",
     "contextBudget": "コンテキスト予算（トークン/ターン）",
-    "contextBudgetUnlimited": "無制限"
+    "contextBudgetUnlimited": "無制限",
+    "roomBinding": {
+      "label": "Room binding (Zhiyu)",
+      "hint": "Route this bot's group messages into the room; the room's answers come back with seat attribution.",
+      "placeholder": "room id starting with zy_",
+      "bind": "Bind",
+      "unbind": "Unbind"
+    }
   },
   "assistant": {
     "name": "{{brand}} アシスタント",

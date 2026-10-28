@@ -3781,3 +3781,31 @@ change 3 的真机睡眠/唤醒一幕。
 - ArgoCD：hard refresh → `Synced Healthy`；`rollout status` 两 deploy 均 successfully rolled out；新 pod `facet-6fddcb5f44-gp994` @21:33Z。
 - **in-pod 行为实证**（拿生产库副本 `/tmp/verify.db` 跑真实 `gateway/packs.js`，不碰线上数据）：publish → `setUnlisted` → `get()`=null 且不在列表 → `publishVersion` → v2 且 `get()` 可见、列表含该 id → 非作者 `publishVersion` = `forbidden` 且仍 unlisted。四态全对。
 - 线上复核：`grep "unlisted = 0 WHERE id" /app/gateway/packs.js` = 1 处（第 599 行）；`ADMIN_GROUPS=platform` 仍在；facet 伺服 `index-DOTZJRjY.js` 含 `Scan to bind`（英文修复在线）、`萬星` 6 处；`C8wx14-4h7zJ0N19-J4NwQ` 仍 `unlisted=false / public`。
+
+### §15.84 常务岗桥面鉴权缺口（真机走查揪出，2026-10-29）
+
+**发现方式**：§15.82 留下的「留给 owner：真机 deputy 巡逻回合」——本次真机跑了一轮。常务岗自己的回合报告原文：
+
+> `mcp__fleet__decision_queue` 连续 2 次返回 `Error: Authentication required`（稳定复现）…… **同一个 fleet MCP 的 `escalate` 调用成功了**，服务端明确回「queued for the owner … from post 「常务岗」」。所以舰队凭据本身有效，故障只在 `decision_queue` 这一条路由。
+
+**根因**：`server/auth.js` 的 `isInternalFleetBridge` 是**显式名单**，add-deputy-decision-delegate 新增 `/api/fleets/deputy/{queue,resolve,escalate-to-owner}` 三条桥面时没同步入列。logto 模式下这些请求落进 `logtoAuth.authenticate()` → null → 401。同一子进程的 `escalate` 在名单里，所以「凭据有效但只有新路由不通」这个性状是名单缺项的唯一合理形状。
+
+**为什么测试全绿**：`scripts/test-fleet-delegation.mjs` 的 19 条用例全部 `createFleetRoutes(app, ctx)` 直接挂载路由，**绕过了 `registerAuth` 中间件**——桥面鉴权从来没有被任何用例覆盖过。这与「§15.82 生产验证是 API 级 owner cookie」同源：owner cookie 走的是另一条鉴权道，永远看不见 MCP 子进程那条道。
+
+**修法**（`7d88e06e`）：名单抽成 `FLEET_BRIDGE_PATHS` 常量集合（新增桥面从此只有一处要改），三条 deputy 路由入列。安全性不变——loopback 是凭据，且三条都过 `deputyGuard`（归因岗位必须 = 本舰队策略的 `deputyMemberId`），伪造 loopback 仍不能替他人裁决。
+
+**回归用例**：新增一条**用真 `registerAuth`（logto 模式 + `authenticate()` 恒 null）**的用例：三条 deputy 路由在 loopback 上不得 401；`/api/fleets/deputy/not-a-bridge` 仍须 401（钉住「名单制，不是前缀放行」）。**突变验证**：摘掉任一路径条目该用例即红（实测 19/20）。`test-fleet-delegation` 20/20；`fleet-core`+`report-lane`+`auth-mode` 三套 46/46；typecheck 绿。
+
+**方法论**（第三次同类）：桥面路由是「服务端自己人」的第三道门，新增一条就多一个静默 401 面。**只要 `fleet-mcp.js` 里加一条 `bridgePost(...)`，`FLEET_BRIDGE_PATHS` 必须同时加**。同族既有条目：`save-declared` / `bind-declared` / `/api/ops/` 全部在名单上，本次是唯一漏项。
+
+**上产与真机终验（同日）**：修 `7d88e06e` → 公开快照 `80c1d5b/783bf24` → run 40776264069 绿（`image size: 2.47GB (sha-783bf24)`）→ relay → ccr skopeo digest `9267ede2f18e76e6a9b6a56c89aaa1e8a639161f29e0cefd894222167ed8bd29`（与出片一致）→ GitOps `380fcbd`（platform×2）→ ArgoCD hard refresh → `Synced Healthy` → 两面 `sha-783bf24` 1/1。bump 前核祖先：prod 源 `2aad2cb8` 是本镜像源 `7d88e06e` 的祖先，非回退。
+
+**真机终验（修后同 pod 复跑常务岗巡逻，四轮轨迹可查）**：
+1. 第 2 轮（修前，`22:00:42` 始）：报告「`decision_queue` 仍被服务端拒绝（`Authentication required`，第 3 次稳定复现）……本轮 0 条可裁、**未做任何裁决、未虚构数据**；同一认证故障不再重复 escalate」——代理在断供下守住了「不编造」。
+2. 第 3 轮（修后，`22:15:32` 始）：`Queue reads successfully this round — the first time after 4 stable Authentication required failures`。
+3. 裁决落库：`d_1793219379758_eh6yw0` → `state=approved / route=deputy / resolved_by=deputy`，`resolution={kind:approve, choice:a, by:"deputy:常务岗", at:…}`，`ruling_evidence` 里带**本轮政策回显**（max severity normal / budget 20 / routine-ops→deputy / 本日 0/20）并**如实声明「主人过往判例中没有同类裁决」**——判例缺失没有被编造。
+4. 角标口径：DB `open route=owner` 41 条与 API `openDecisions=41 / deputyOpen=0` 完全一致（委托项裁完不再计主人）。
+5. 记忆镜像：`default/references/r-deputy-ruling-d_17932193.md`，`tier=draft`、`source_ref=decision:fleet_1792719144128_qap1vx:d_1793219379758_eh6yw0`、标题「常务岗裁决 · m_2719144128_q6kygg · 批准」——主人可在记忆里查证代理判了什么、依据是什么。
+6. 报告管线：`member_reports` 两轮如实报数（断供轮报 0 条、修复轮报 1 条裁决），`member_turn_events` 四轮全 `status=ok`。
+
+**未覆盖的一项**（诚实挂账）：执行事实 `executed_at` 仍为空——`markDelivered` 只在**送达回合完成**时回填，而该条目的送达回合（助理部的下一轮）尚未发生。链路代码在产且单测覆盖（`test-fleet-delegation`「执行事实」用例），生产实证需等助理部下一轮自然回合。

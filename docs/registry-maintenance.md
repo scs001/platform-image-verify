@@ -3679,6 +3679,18 @@ change 3 的真机睡眠/唤醒一幕。
 
 **顺带运维两记**：① 三个重启的新 pod 落到 `liuliangdmh1xr0w9ryu`——10-28 盘满砖化过的节点已复活回轮转（sub2api 那次的后续，暂无异常，值得留意）；② `fd-prod` 的 `compute-quota` 一度顶满（limits.cpu 22800m/23、内存 30688Mi/30Gi），`fd-paper-trading` 新 pod 首两次 FailedCreate 被配额拒，RS 自动重试待 cronjob 释放后落位——RollingUpdate 全程零中断，但**在配额紧的命名空间做 rollout 要预期延迟而非失败**。
 
+### §15.84 续：供应商车道+验收残留物同规格验证（2026-10-29 晨，用户令「也验证下吧」）
+
+**壹座侧账本四件齐（SQLite `facet:/data/facet/packs.db`）**：① vendor `acpt-supply-live`（验收供应商·ACPT）在册；② onboarding 三态样本完好——`onboarded`（b2-vendor-srv-1793212938，端点 100.64.0.12:18101）+ 两枚**如实失败**（127.0.0.1 被 SSRF 拒 `axis=registry_write_failed`、配额满 `quota_exceeded`）；③ vendor 署名 pack ×2 各 v1（`acpt-supply-live-pack` $2.5 探针包、`b1-paid-1793212752` $3 真购买包 v1+v2），订阅行 version=1 vs pack v2 =「待跟新」态在案（B3 锚）；④ 真购买行 ×1：$3.0 = 供方 2.1 + 平台 0.9（share_rate 0.3）settled，幂等键 `aloadtree@gmail.com|Pq5…|1`（重放不产新行=幂等实证）。均与验收当时逐字段一致。
+
+**registry 侧取证：B2 上牌的 MCP 条目没了（真相还原）**——`b2-vendor-srv-1793212938` 不在 `mcp_servers_default`，全域（列全部库）皆无、scope 影子亦无。取证链：`audit_events_default` 是 MCP 访问账非管理账（零行）→ **oplog**（`local.oplog.rs`，可见窗自 10:59:46Z）恰一条 delete `{_id:"/b2-vendor-srv-1793212938/"}`，时间 **18:43:28Z = 创建后 52 秒** → 该秒应用零日志、`mcp_security_scans_default` 无其扫描记录、而 repo `delete()` 必打 INFO `DocumentDB DELETE` → **结论：直连 Mongo 的客户端所为，绕过应用**。最可能是上一段会话我在验收期间的 mongosh 操作（无法从转录证实，如实记）；**与 §15.80 事故无关**（早于滚版 ~1.5h）、与任何镜像无关、paas 侧零 Mongo 直连（代码核过）。
+
+**车道在终版镜像上的端到端实证（公网全链 SafeLine→nginx auth_request→应用门→Mongo）**：无令牌 401 / 错令牌 401 / 真令牌注册 **201** `{"path":"/acpt-lane-verify-1793240/","id":"f35e1665…","ok":true}` → toggle True → Mongo 行 `registered_by=vendor-lane, is_enabled=true, deployment=remote` → 日志 `vendor-lane toggled … (token fp=676b4ac4)` **与 B2 生产写入同指纹** → 探针条目显式 mongosh 清理（主行+`mcp_embeddings_384` 各 1 行），复检零残留。register 契约备忘：落库即 `registered_by=vendor-lane`、**注册永远 disabled、由 paas 流水线 toggle**（lane 设计原文）。
+
+**教训**：① 直连 Mongo 的运维操作**零审计痕迹**——本次靠 oplog 才还原一条删除的真身与时刻；正式删除应走应用 API（日志+审计+级联清理三齐），mongosh 直删只配探针级一次性物且必须当次留痕；② `audit_events_default` 是 MCP 访问账，管理动作审计要找别处（本项目管理动作只在应用日志+oplog 可追）。
+
+**残留物现状（刻意保留作重跑锚）**：vendor `acpt-supply-live` + 两 pack + 购买行 + onboarding 三态样本；registry 侧无锚（b2 条目已灭，重跑 B2 时 lane 会重新上牌新名）。要清随时说。
+
 ### §15.78 续五（2026-10-29）——优化复查五项收口（三修两记）
 
 **修一：草稿→manifest 编译抽单源**（发布与导出曾各持一份，导出侧漏 bots/guide

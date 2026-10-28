@@ -144,17 +144,25 @@ const isInternalSaveBridge = (req) =>
 const isInternalActionsBridge = (req) =>
   req.method === "POST" && req.path === "/api/actions/propose" && isLoopback(req.socket?.remoteAddress);
 
-// The fleet bridges (`report_status` / `escalate`, openspec:
-// agent-fleet-report-lane + agent-fleet-decision-lane) — the in-cell fleet MCP
-// child reporting for, or escalating from, the post the CURRENT turn runs
-// under. Loopback is their credential; both routes attribute SERVER-side
-// (running cluster task or live preset — the caller cannot name a post), so a
-// forged loopback caller still cannot act as another member; everyone else
-// faces the full gate.
+// The fleet bridges (`report_status` / `escalate` / `dispatch` / the deputy
+// decision tools, openspec: agent-fleet-report-lane + agent-fleet-decision-lane
+// + agent-fleet-decision-delegate) — the in-cell fleet MCP child reporting for,
+// escalating from, dispatching as, or ruling as the post the CURRENT turn runs
+// under. Loopback is their credential; every route attributes SERVER-side
+// (running cluster task or live preset — the caller cannot name a post), and
+// the deputy routes additionally require the attributed post to BE the fleet's
+// configured deputy (deputyGuard), so a forged loopback caller still cannot act
+// as another member; everyone else faces the full gate.
+const FLEET_BRIDGE_PATHS = new Set([
+  "/api/fleets/report",
+  "/api/fleets/escalate",
+  "/api/fleets/dispatch",
+  "/api/fleets/deputy/queue",
+  "/api/fleets/deputy/resolve",
+  "/api/fleets/deputy/escalate-to-owner",
+]);
 const isInternalFleetBridge = (req) =>
-  req.method === "POST" &&
-  (req.path === "/api/fleets/report" || req.path === "/api/fleets/escalate" || req.path === "/api/fleets/dispatch") &&
-  isLoopback(req.socket?.remoteAddress);
+  req.method === "POST" && FLEET_BRIDGE_PATHS.has(req.path) && isLoopback(req.socket?.remoteAddress);
 
 // The header the gateway injects alongside the identity headers in hosted mode.
 export const GATEWAY_SECRET_HEADER = "x-cloud-gateway-secret";

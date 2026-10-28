@@ -478,3 +478,47 @@ test("triage：重路由存量并按主题归并，第二次调用不再变化",
     server.close();
   }
 });
+
+// ── 桥面鉴权（真机回归：生产 401） ──────────────────────────────────────────
+//
+// 2026-10-29 真机走查抓到的生产真缺陷：isInternalFleetBridge 的豁免名单
+// 只列了 report/escalate/dispatch，新加的三条 deputy 路由没进去——常务岗的
+// MCP 子进程调 decision_queue 一律 401「Authentication required」，而同一
+// 子进程的 escalate 却通。上面所有用例都直接挂载路由、绕过了鉴权中间件，
+// 所以单元测试全绿而生产全红。这条用例把真闸门也钉进来。
+test("桥面鉴权：deputy 三条路由在 loopback 上被豁免，非桥面路径仍被挡", async () => {
+  const { registerAuth } = await import("../server/auth.js");
+  const app = express();
+  app.use(express.json());
+  const authCtx = {
+    app,
+    authEnabled: true,
+    authMode: "logto",
+    headerTrust: null,
+    // 匿名：任何非豁免路径都拿不到身份，与生产里 MCP 子进程的处境一致。
+    logtoAuth: { authenticate: () => null },
+    ssoEnabled: false,
+  };
+  registerAuth(authCtx);
+  const routeCtx = { authEnabled: false, cellUserEmail: OWNER, currentPreset: "preset-deputy" };
+  createFleetRoutes(app, routeCtx);
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((r) => server.once("listening", r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const post = (p) =>
+    fetch(`${base}${p}`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })
+      .then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }));
+  try {
+    for (const p of ["/api/fleets/deputy/queue", "/api/fleets/deputy/resolve", "/api/fleets/deputy/escalate-to-owner"]) {
+      const r = await post(p);
+      assert.notEqual(r.status, 401, `${p} 必须不被鉴权闸挡下（生产 2026-10-29 真缺陷）`);
+      assert.equal(r.body?.error === "Authentication required", false, `${p} 不得返回鉴权错误`);
+    }
+    // 反向断言：豁免是名单制，不是 /api/fleets 前缀放行——否则任何新加的无鉴权
+    // 路由都会被动继承一个后门。
+    const control = await post("/api/fleets/deputy/not-a-bridge");
+    assert.equal(control.status, 401, "名单外的路径仍要过完整鉴权");
+  } finally {
+    server.close();
+  }
+});

@@ -3570,3 +3570,22 @@ change 3 的真机睡眠/唤醒一幕。
 **顺手记录**：测试台把 `AGENT_RUNNER_PORT` 设成 8792 后，cell 的 live 代理
 （默认 `WANXING_RUNNER_URL=:8790`）就够不着 runner——桌面默认两键同为 8790 所以
 从不触发，但这是两处需手工同步的默认值（潜在坑，记一笔）。
+
+### §15.79 公开出片线并车道的推进与止损（2026-10-28 夜）
+
+**目标**：把车道并入公开线 main（出片线），使后续从 main 构建不再丢车道。
+
+**先纠正一个先前误判**：`§15.77` 曾判断「公开线 tier-gate 领先私有线」——**错**。逐文件核验：两线 `auth_server/server.py` 均含 `TIER_REQUIRED`（各 4 处），生产 registry 与 auth-server pod 也都含（各 4 处）。公开线那 6 笔是把同一套逻辑**重构得更细**的后续修订（56+/233-），属版本精细度差异，不是功能缺失。**生产鉴权无回退。**
+
+**已推进（提交在分支 `fd-vendor-lane-pub` = `c51ea1c`，基于公开 main rebase）**：
+1. 车道 3 文件 rebase 到公开基线，车道 7 条测试全 PASSED（公开线跑）。
+2. **修掉公开线两个真缺陷**（其自身 6 笔修订时漏掉的导入）：`test_call_grant.py` 缺 `PATCH_KEY_STATUS_ACTIVE` 与 `TestClient` 导入 → 原先 4 条红中的 2 条（`NameError`）因此转绿。
+3. 全树 `ruff format` + `I001`/`UP017` 安全自动修（34 处）。
+4. **Code Quality 门已转绿**（此前红）。
+
+**止损与未做（需该线自决，我不越界）**：
+- 剩余 18 处 `UP042`（`class X(str, Enum)` → `StrEnum`）：涉及 auth/schema 的**序列化语义**（`str(x)`/比较行为可能变），非机械可改，留该线决策。
+- 剩余 2 条测试红（`tests/auth_server/unit/test_call_grant.py`）：`test_non_patch_key_caller_skips`（社区组 oauth2 调用者是否消费免费池）、`test_tier_gate_skips_untargeted_servers_and_lanes`（tier 门对 oauth2/未定向 server 是否生效）——**付费档业务口径分歧**，属产品裁决，不由我单方面改断言或改实现。
+- 因此**未合并到公开 main**。车道在公开线以分支待命；私有 main 已含车道（§15.77）。
+
+**结论**：车道工程侧全部就绪且已上产（digest `bf9d1fd6`）；「进公开出片线 main」卡在两处非工程问题（StrEnum 迁移口径 + 付费档语义裁决），需 owner 拍板。

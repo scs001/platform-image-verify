@@ -3434,3 +3434,19 @@ B1（付费+credit 环）/B2（车道 live-write 全链）/B3（v2 跟新回放�
 2. `tests/auth_server/unit/test_call_grant.py` 4 条红（`PATCH_KEY_STATUS_ACTIVE` NameError / tier-gate 断言），同属公开线 tier-gate 系列的既有缺陷。
 
 **车道自身验证（两条线都过）**：私有基线分支 8870 条测试全过（含我 7 条车道测）；公开基线 rebase 分支上 **7 条车道测全 PASSED**（8757 passed / 4 failed = 上述既有红）。
+
+**§15.78 续（2026-10-28 夜）——官网下载中心上架 v1.3.24（走镜像轨，绕开限速直拉）**
+
+**直拉不可行的实证**：本机 `curl` 拉池仓 Release 资产 **82 KB/s**、dl 主机（cheap3）**8 KB/s**——940MB 三件套按此速率要数小时。这正是 `dl-publish` 工作流注释里写过的老问题（v1.3.18 实测 ~20 KB/s），故按设计走**镜像轨**：
+1. `dl-publish`（本池 main 补桩，与 testaction003 同源）dispatch tag=v1.3.24 → `hkccr/yizuo/desktop-installers:1.3.24`（digest `44e05889`，run `40690967730` 绿）；
+2. cheap3 `docker pull` + `docker cp` 落 `/srv/dl/platform/1.3.24/`；
+3. **sha256 硬门**：三件与 GitHub Release 资产逐一相等（`de91c55b` arm64 / `e3590005` x64 / `93990f8a` exe），字节数 332525143 / 343982379 / 261755343；
+4. prune 只留最新两版 → `1.3.20` + `1.3.24`（磁盘 81%→70%）。
+
+**数据面**：`release-sync v1.3.24 --dl-live` 写入 `fd-official-web/src/data/desktop-releases.json`（`official_url` 已填 `/dl/platform/1.3.24/…`）+ 双端推（commit `6354126`）。脚本的 rsync 步因限速未走完——**已被镜像轨取代**，`--prune` 手工补做。
+
+**静态线上架（§15.70 口径复演）**：官网 CI 出片 `fd-web/official-web:sha-6354126`（digest `e08d2029`，run `40686078193`）→ 站点宿主 124.220.7.175 从 hkccr pull（root docker config 有 hkccr 凭据）→ `docker create`+`cp` 抽 dist（**227 文件齐**，从 pod 直抽两次都被流截断只拿到 103——宿主本地抽才是对的）→ 备份 `dist.bak-20261028-2137` → 替换并**保留 live `data/calibers.json`（728B，镜像内是 138B）** → `nginx -t` + reload。
+
+**教训（入谱）**：bump `deploy/k8s/fd-web.yaml` 时 tag 用**7 位短 sha**（CI 推的是 `sha-6354126`）；我写成 8 位 `sha-63541266` 直接 `ImagePullBackOff`，靠 pod 状态才逮住——`head_sha[0:8]` 与镜像 tag 判据不同源，别混。
+
+**公网眼见**：`/products/base`（en）与 `/zh/products/base`（zh）均列出 `Platform-1.3.24-arm64.dmg` + `Platform.Setup.1.3.24.exe`，链接指向 `https://platform.finddatatech.cloud/dl/platform/1.3.24/…`（非 github）；三件 `HEAD` 均 **200**，range 请求 **206**。

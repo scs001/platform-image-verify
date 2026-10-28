@@ -349,6 +349,23 @@ async function deliverAskAttempt(entry, text) {
   );
 }
 
+// Strip reasoning markup that a model sometimes emits INSIDE a plain text block
+// (prod 2026-10-29: a WeCom reply began literally with "<thinking>The user is
+// asking me to…"). The clean path puts reasoning in its own `reasoning` block
+// and the collector already drops those; this is the defensive net for models
+// that fold the trace into text. Chat platforms have no collapsible UI, so any
+// surviving trace is user-visible noise.
+const REASONING_BLOCK_RE = /<(thinking|reasoning|thought)>[\s\S]*?<\/\1>/gi;
+const REASONING_OPEN_RE = /<(thinking|reasoning|thought)>[\s\S]*$/i;
+function stripReasoningLeak(body) {
+  let s = String(body ?? "");
+  s = s.replace(REASONING_BLOCK_RE, "");
+  // An unterminated trace (stream cut mid-thought) swallows the rest of the
+  // message: drop from the stray open tag to the end rather than leak it.
+  s = s.replace(REASONING_OPEN_RE, "");
+  return s.trim();
+}
+
 // Collect one turn's outcome off the session's notification stream. Registered
 // BEFORE prompt() so no early event is missed; always unregistered. With
 // {bot, adapter, chatKey} the collector also serves as this turn's ask
@@ -578,6 +595,16 @@ function mountedSkillPreamble(bot) {
 async function runTurn({ bot, adapter }, sessionId, chatKey, text) {
   const ctx = state.ctx;
   const reply = async (body) => {
+    const clean = stripReasoningLeak(body);
+    if (!clean) {
+      // Nothing but reasoning came back: answer honestly instead of sending a
+      // bare "<thinking>…" wall to the chat platform.
+      console.warn(`[bots] "${bot.name}" dropped a reasoning-only reply to ${chatKey}`);
+      return replyRaw("Sorry — I could not put that answer into words. Please ask again.");
+    }
+    return replyRaw(clean);
+  };
+  const replyRaw = async (body) => {
     try { await adapter.sendText(bot.credentials, chatKey, body); }
     catch (e) { console.warn(`[bots] "${bot.name}" send failed: ${e.message}`); return; }
     // A SUCCESSFUL send is otherwise silent — "did the reply land" was

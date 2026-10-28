@@ -398,3 +398,27 @@ test("a successful reply is logged (send-success must not be silent)", async () 
   assert.ok(replied, `a replied-to line must be logged; got: ${JSON.stringify(logs)}`);
   assert.ok(replied.includes("echo probe"), "the logged line carries the reply head");
 });
+
+test("reasoning markup folded into a text block never reaches the chat", async () => {
+  // fd-prod 2026-10-29: a WeCom reply began literally with
+  // "<thinking>The user is asking me to respond with a single wor…" — the model
+  // folded its trace into the text block, and chat platforms have no collapsible
+  // reasoning UI, so the user saw raw chain-of-thought.
+  sent.length = 0;
+  scriptedTurn = [assistantText("<thinking>The user wants one word.\n</thinking>pong")];
+  const bot = await makeBot("think");
+  const res = await deliver(bot, secretOf(bot), update(5152, "one word please"));
+  assert.equal(res.status, 200);
+  assert.deepEqual(sent, [{ chatKey: "5152", text: "pong" }], "the trace is stripped, the answer survives");
+});
+
+test("a reasoning-only reply is replaced with an honest fallback, not a trace wall", async () => {
+  sent.length = 0;
+  scriptedTurn = [assistantText("<thinking>Hmm, still thinking</thinking>")];
+  const bot = await makeBot("thinkonly");
+  const res = await deliver(bot, secretOf(bot), update(5153, "answer please"));
+  assert.equal(res.status, 200);
+  assert.equal(sent.length, 1);
+  assert.ok(!/<thinking>/i.test(sent[0].text), "no trace may reach the chat");
+  assert.match(sent[0].text, /Please ask again/);
+});

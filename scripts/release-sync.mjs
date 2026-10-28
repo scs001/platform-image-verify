@@ -20,7 +20,7 @@
 // Run from a dev machine holding gh + gitee + ssh credentials — never CI.
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
@@ -136,6 +136,28 @@ function run(cmd, args, opts = {}) {
   return res.stdout;
 }
 
+// ── Cache-state decision (exported for tests) ───────────────────────────────
+//
+// A cached release asset is only trusted when its byte size matches the
+// GitHub asset exactly. A truncated file (interrupted download, full disk)
+// used to be treated as cached and RSYNCED TO THE DL HOST — publishing a
+// broken installer to the download center (found live 2026-10-29: a 96MB
+// remnant of a 332MB dmg).
+export function cacheState(file, expectSize, statFn = defaultStat) {
+  let size = null;
+  try {
+    size = statFn(file);
+  } catch {
+    return "absent";
+  }
+  if (expectSize == null) return "unverifiable";
+  return size === expectSize ? "ok" : "truncated";
+}
+
+function defaultStat(file) {
+  return statSync(file).size;
+}
+
 async function main() {
   const tag = process.argv[2];
   if (!tag || !/^v\d/.test(tag)) {
@@ -188,16 +210,29 @@ async function main() {
   const cacheDir = path.join(homedir(), ".cache", "fd-release-sync", entry.version);
   mkdirSync(cacheDir, { recursive: true });
   const wanted = [entry.platforms.macos.filename, entry.platforms.windows.filename, ...entry._syncOnlyAssets];
+  const assetSizes = new Map(release.assets.map((a) => [a.name, a.size]));
   for (const name of wanted) {
     const file = path.join(cacheDir, name);
-    const url = `https://github.com/${repo}/releases/download/${tag}/${encodeURIComponent(name)}`;
+    const expectSize = assetSizes.get(name) ?? null;
+    const state = cacheState(file, expectSize);
+    if (state === "truncated") {
+      // A partial download is WORSE than none: rsyncing it would publish a
+      // broken installer. Delete and fetch again.
+      console.log(`      cached ${name} is truncated (${statSync(file).size} != ${expectSize}) — re-downloading`);
+      rmSync(file, { force: true });
+    }
     if (!existsSync(file)) {
       console.log(`      downloading ${name} …`);
       execFileSync("gh", ["release", "download", tag, "--repo", repo, "--pattern", name, "--dir", cacheDir], { stdio: "inherit" });
     } else {
       console.log(`      cached ${name}`);
     }
-    void url;
+    if (cacheState(file, expectSize) === "truncated") {
+      const actual = statSync(file).size;
+      throw new Error(
+        `${name} failed its size check (${actual} != ${expectSize}) — refusing to publish a truncated artifact`,
+      );
+    }
   }
   const dest = `${dlHost}:${dlRoot}/platform/${entry.version}/`;
   run("rsync", ["-c", "--progress", ...wanted.map((n) => path.join(cacheDir, n)), dest]);

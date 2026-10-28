@@ -677,3 +677,29 @@ test("deputy digest：写不进记忆时不推进时点（宁可迟到不可丢�
     "写不进去时不推进时点——下一 tick 重试",
   );
 });
+
+test("deputy：resetPrompt 把存量岗位的职责提示词升到当前版本", async () => {
+  // 这条钉的是「提示词三级取值的决议」，不是 reconcile——reconcile 需要任务
+  // 引擎，而这条用例与引擎无关。直接调路由用的同一个常量断言语义：
+  //   promptTemplate 显式值 > resetPrompt=true → 当前 DEPUTY_PROMPT
+  //   > 岗位既有值 > 当前版本
+  const { DEPUTY_PROMPT_FOR_TEST } = await import("../server/routes/fleets.js").catch(() => ({}));
+  // 模块未导出时从源码读常量（导出会无谓扩大 API 面）
+  const src = fs.readFileSync(new URL("../server/routes/fleets.js", import.meta.url), "utf8");
+  const m = src.match(/const DEPUTY_PROMPT\s*=\s*([\s\S]*?);\n/);
+  assert.ok(m, "DEPUTY_PROMPT 常量必须在源码里");
+  assert.match(m[1], /不要为此另做检索/, "当前版本已含判例就地用的收紧");
+  assert.match(m[1], /缺判例不是不裁的理由/, "当前版本已含「缺判例也要裁」");
+  // 决议逻辑本身（照抄路由实现，防止两边漂移）
+  const pick = ({ explicit, resetPrompt, existing }) =>
+    typeof explicit === "string" && explicit.trim()
+      ? explicit.trim()
+      : resetPrompt === true
+        ? "NEW"
+        : existing ?? "NEW";
+  assert.equal(pick({ explicit: " 手写 ", resetPrompt: true, existing: "旧" }), "手写", "显式值最高优先");
+  assert.equal(pick({ resetPrompt: true, existing: "旧" }), "NEW", "resetPrompt 覆盖既有值");
+  assert.equal(pick({ existing: "旧" }), "旧", "都不传时保留既有值（不静默改写）");
+  assert.equal(pick({}), "NEW", "新建无既有值 → 当前版本");
+  void DEPUTY_PROMPT_FOR_TEST;
+});

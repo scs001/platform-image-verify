@@ -2022,10 +2022,16 @@ export function createFleetRoutes(app, ctx = null) {
         return res.status(400).json({ error: "the deputy must be a persona post" });
       }
       const cadence = req.body?.cadence ?? member.cadence ?? null;
+      // 提示词三级：显式传值 > 显式 resetPrompt（升到当前版本的 DEPUTY_PROMPT）
+      // > 岗位既有值 > 当前版本。resetPrompt 是存量岗位的升级通道——没有它，
+      // 服务端改了职责提示词，已建成的常务岗永远拿不到（它的 cadence 是副本），
+      // 只能改库；而「重新指定一次」按旧值兜底，形同没刷。
       const promptTemplate =
         typeof req.body?.promptTemplate === "string" && req.body.promptTemplate.trim()
           ? req.body.promptTemplate.trim()
-          : member.cadence?.promptTemplate ?? DEPUTY_PROMPT;
+          : req.body?.resetPrompt === true
+            ? DEPUTY_PROMPT
+            : member.cadence?.promptTemplate ?? DEPUTY_PROMPT;
       if (cadence && typeof cadence.cron === "string" && cadence.cron.trim()) {
         db.updateMember(member.id, { cadence: { ...cadence, promptTemplate } });
       }

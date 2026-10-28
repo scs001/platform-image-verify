@@ -15,6 +15,9 @@ function walk(dir, out = []) {
     const full = path.join(dir, name);
     if (statSync(full).isDirectory()) {
       if (name === "i18n") continue; // the bundles themselves
+      // vendor/ holds third-party sources verbatim (echarts ships its own
+      // zh labels) — not our copy, never rewritten.
+      if (name === "vendor") continue;
       walk(full, out);
     } else if (/\.(ts|tsx)$/.test(name)) {
       out.push(full);

@@ -8,9 +8,11 @@ import { useEffect, useRef, useState } from "react";
 import { WebView } from "react-native-webview";
 import { Text, View, StyleSheet } from "react-native";
 import { palette } from "./palette";
-import { CHART_SHELL } from "@/lib/chart-shell";
+import { chartShellHtml } from "@/lib/chart-shell";
+import { ECHARTS_SOURCE } from "@/lib/vendor/echarts-source";
 
-const SHELL = CHART_SHELL;
+// Built once per process: the shell embeds ~1MB of echarts source.
+const SHELL = chartShellHtml(ECHARTS_SOURCE);
 
 export function ChartView({ option, height = 220 }: { option: unknown; height?: number }) {
   const webRef = useRef<WebView>(null);

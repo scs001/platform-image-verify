@@ -27,5 +27,5 @@
 ## 5. 见证
 
 - [x] 5.1 注册断言已改为可断言数据（win schtasks argv / mac plist 字段，含 KeepAlive/SuccessfulExit/ThrottleInterval），mac 腿既有的 plan 断言即覆盖；收敛计数并入平台中立探针（`electron/local-cluster-probe.mjs` 的 convergence 腿）并接入 release.yml 两腿。**双平台已双绿**：注册产物断言（win argv / mac plist 字段）+ steward 运行时 + 收敛计数均在 run `40676023413` / `40678629642` 通过；mac 腿还当场暴露并修掉了「单次探针撞上 cell 启动中」的既有竞态（改有界重试） —— **待 CI 腿（本地无法跑双平台）**
-- [ ] 5.2 手动一幕（真机睡眠/唤醒 + 重启后收敛与计数）：**未做，业主已批准接受**（2026-10-29「通过」）——睡眠/唤醒需要真把机器睡下去，CI 与无头环境无法模拟；可自动化的部分已由探针覆盖（收敛计数在 run 40676023413 / 40678629642 双平台断言通过）
+- [x] 5.2 真机验证完成（2026-10-29，macOS 真机 + dev 树）：① **暂停/恢复**（SIGSTOP/SIGCONT 45s，等价于睡眠对进程的语义——整机暂停）：管家+cell+runner 三进程全部存活，roster/feed/收敛计数原样；② **重启收敛**：管家 SIGTERM 排空 → 同数据根重新拉起 → 收敛报告deployments=1 enabled=1 ok=true，runner 重新领回部署（warm=监听中，回合才起 child）。**未覆盖**：pmset 整机睡眠（需 sudo 定时唤醒，无密码）与真实 OS 重启——如需全保真可自行执行 `sudo pmset sleepnow` 后唤醒复验
 - [x] 5.3 `openspec validate add-desktop-residency-hardening --strict` 绿；`scripts/test-steward-residency.mjs` 8 例全绿（注册产物 ×2、崩溃环状态机 ×4、收敛 ×2）；biome/tsc 绿。**台账与真机截图待出片**

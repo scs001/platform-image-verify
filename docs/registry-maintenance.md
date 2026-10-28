@@ -3550,3 +3550,23 @@ change 3 的真机睡眠/唤醒一幕。
 **清理**：B2 上牌条目已从 `mcp_servers_default` 删除（1→0）；桩进程已停；临时凭据文件全清。
 
 **至此 vendor 4.2/4.3 与 market 验收口径全部闭环**。残留仅两处走查锚（非缺陷）：生产市场留 `acpt-supply-live` 主体 + 其付费包（含 v2），可作复跑锚点或按需 unlist。
+
+### §15.78 续三（2026-10-29）——常驻硬化「睡眠/唤醒 + 重启收敛」真机验证补齐（change 3 最后一项）
+
+**测试台**：macOS 真机 + dev 树，独立数据根 `/tmp/sleep-data`（插件开 + feed 令牌 + 席位），
+管家 + cell + runner 三进程 + 一个已部署 agent（sleep-fleet/sleep-worker）。
+
+**① 暂停/恢复（等价于睡眠对进程的语义）**：三进程 `SIGSTOP` 45s → `SIGCONT`。
+全部存活；runner 名册原样（sleep-worker/warm）；feed 照常应答（令牌 200）；
+收敛计数 deployments=1 enabled=1。
+
+**② 重启收敛（本任务的另一半）**：管家 SIGTERM 排空（cell/runner 随之退）→ 同数据根
+重新拉起 → 收敛报告 `deployments=1 enabled=1 pruned=0 ok=true` → runner 重新领回部署
+（warm = 监听中，回合才起 child，符合「子进程只在首触时拉起」的语义）。
+
+**未覆盖（如实）**：`pmset` 整机睡眠（定时唤醒需 sudo，本机无免密）与真实 OS 重启；
+需要全保真可自行 `sudo pmset sleepnow` 后唤醒复验。**change 3 任务账至此全勾**。
+
+**顺手记录**：测试台把 `AGENT_RUNNER_PORT` 设成 8792 后，cell 的 live 代理
+（默认 `WANXING_RUNNER_URL=:8790`）就够不着 runner——桌面默认两键同为 8790 所以
+从不触发，但这是两处需手工同步的默认值（潜在坑，记一笔）。

@@ -3320,3 +3320,38 @@ skopeo digest 硬门 → 四面 bump → origin + gitee 双推（gitee 侧已自
 **滚产**：`fd-build-snapshot` → tag **sha-b8b592b**（源 05cdf4d3，run 40673469765 绿，`target: …/yizuo/platform:sha-b8b592b`）；ccr 硬门 digest `sha256:38ae73bb…`；GitOps `68e4427`（只滚主 platform）→ ArgoCD 同步 → pod `platform-54978c684f-fxkch` 1/1 Running。**并行会话协同**：GitOps 已被推进到 sha-56b34db（源 9b1b5e38 智语群桥终版），核 `git merge-base` 确认该源是本镜像源的祖先（我的镜像已含其全部修复），故不抢滚不回滚，只在其上叠一层。
 
 **镜像内自证**：pod 内 `grep` 到 `chatMemoryBlockFor`/`zhiyu-memory` 三处标记；记忆环境齐（`CELL_MEMORY_ENABLED=1`、URL/TOKEN 在位、总闸未关）。
+
+### §15.78 本地多智能体集群四单上产（2026-10-28 晚）——双平台装机腿双绿 + F3 根因修复
+
+**用户定调**：「用户能本地运行和管理多智能体集群，Win/Mac，必须实现」；五决策：A/B 两系同批、离线供给要、隐私档不立专项（既有 baseURL 泄洪道不回归）、常驻纳入、双平台眼见才算过。
+
+**四单（openspec，`validate --strict` 全绿）**
+| change | 落点 |
+|---|---|
+| `add-local-fleet-control-plane` | cell 本地 roster 表 + registry 兼容 feed（`server/local-agent-feed.js`）+ 部署写面三闸 + 舰队页 read→write |
+| `add-offline-pack-supply` | `.yizpack` 单文件容器（sha256 整体闸/路径穿越闸/确定性打包）+ `import-bundle` 走同一 installPack 管线 + `installed_packs.source`(market|bundle) + 导出 CLI + predist 烘焙 |
+| `add-desktop-residency-hardening` | 崩溃环守卫（阈值→冷却窗→不起栈，`steward-health.js`）+ 注册产物可断言 + 三态状态面与修复动作 + 恢复即收敛 |
+| `polish-desktop-fleet-parity` | 首启 tour 桌面第四步 + 预装包登记（登记≠安装）+ 离线来源徽标 + 五项桌面差异点判定入案 |
+
+**关键手法（spike 先行，GO 后动码）**：本地 feed 与公网 registry **同构**——条目由「部署表 × 已装 manifest」经 `composeDescriptor/composeAgentCard` 合成（与云 deploy 同一函数，漂移在源头被杀），agent-runner **一行未改**，只换 URL 指针。spike 证据在 change 目录（金样/日志/崩溃摘录）。
+
+**F3 根因（现场逮住 → 定位 → 修复 `bd5a085f`）**：`harness/dsh.js` 的 `turn()` 先建 `collected` Promise、再 `await client.prompt()`、最后才 `return`。child 在 prompt 在途时死亡 → pump 的 `_child_exit` 分支 reject 时**无人挂 handler** → Node 判 unhandled rejection → **整个 runner 退出，本机所有 agent 陪葬**。修法三处：立即挂 no-op catch、prompt 与 collected 竞速、settle 幂等。单测栈与现场摘录逐帧一致，去掉修复必红；真机 SIGKILL 复核：调用方拿 `-32002`、runner 存活。
+
+**装机探针（`electron/local-cluster-probe.mjs`，随包发布，两腿共用）逮出三处真缺口**
+1. `WANXING_LOCAL_FEED_TOKEN` 不在 `SETTING_KEYS` → 不进 `resolveEnv()` → feed 退化为「无令牌=开放」（错 bearer 也 200）；
+2. launchd/schtasks 以**裸 env** 拉起 steward → 常驻 cell/runner 看不到 settings.json（插件开关/令牌/LLM 凭据）；steward-main 现按同键表合并；
+3. 探针自身三坑（硬编码 47600 / 站在 stale-discovery 之后 / 单次探针）：改动态端口发现、前置到栈活着时、有界重试；另加「按需唤醒」（`on_demand` 策略下先请管家 start，与 app attach 同姿态）与**自建夹具包**（CI 无已装包时现场铸包走真实导入端点，末尾卸载干净）。
+
+**出片与双平台实证（池仓 `testaction005/build-pool`，侧分支 `desktop-release/v1.3.24`）**
+- 矩阵：dmg-arm64 3m6s / dmg-x64 6m1s / exe 11m34s 全绿；`publish GitHub Release` 绿。
+- **Windows 腿**（run `40676023413`）：`cell port discovered — 56043` → feed 200/错 bearer 401 → 夹具导入 → 部署 → **runner 领回** → 停/启/移 → 夹具卸载 → 收敛报告，全项 ✓。
+- **macOS 腿**（dispatch run `40678629642`，复用产物）：LaunchAgent 产物断言 + steward 运行时 + 探针（`cell port discovered — 49179`，同上全项 ✓）。
+- 池分钟：本轮 testaction005 累计 Linux 286 / Windows 82 / macOS 47（mac ×10 计费口径下约 470 当量），额度 2000/月仍充裕；testaction003 首试被**账户级 payments 闸**拦（5s 即终，非本池用量），换池即通——判红两分法再次生效。
+
+**测试**：新增 51 例全绿（本地 feed 13 / 离线 bundle 9+6 / 常驻 8 / 预装 6 / child 死亡 3 / 桌面壳舰队页 e2e 5），既有 agent-runner 67 与 pack/market/registry/serving 全套绿；`validate --strict` 四单绿；biome/tsc/locale 闸绿。两处红（`test-pack-install-fetch` 3 / `test-pack-registry` 1）经 HEAD 工作树对跑归因为树上既有。
+
+**挂账**
+1. 真机**睡眠/唤醒**一幕（change 3 任务 5.2）未做——需要把机器睡下去再唤醒，CI 无法模拟；
+2. 首启 tour 桌面步的**真机手动走查**（跳过/重开/装样例）未做，桌面壳 e2e 已覆盖四种交互形态（DOM 级）；
+3. 截图 `test-results/fleet-local-{deployed,capacity,refusal,cloud-bridge}.png` 已产出，但**本会话模型不支持图像输入**，视觉终判需人工过一眼；
+4. v1.3.23 产物内嵌的是旧探针（硬编码端口 + 不唤醒），已被 v1.3.24 取代；v1.3.23 的 Release 建议删除，避免下载中心误取。

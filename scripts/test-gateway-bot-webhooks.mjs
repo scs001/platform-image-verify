@@ -74,3 +74,18 @@ test("caching: a miss is remembered briefly, then a later write is found", () =>
   const fresh = createBotWebhookRouter({ dataRoot: tmp, openDb: (p) => new Database(p, { readonly: true }) });
   assert.equal(fresh.resolve("bot-late").email, "late@example.com");
 });
+
+test("the registry's owner of the cell beats session inference", () => {
+  // fd-prod: a legacy bot (owner_email NULL) sat in a cell that ALSO held
+  // another user's session. Inference picked that other person, so the
+  // webhook was routed to their cell and refused as "unknown". The registry
+  // knows the cell's real owner.
+  const userId = "ffffffffffffffff";
+  makeCell(userId, { bots: ["bot-4444"], owner: "stale-session@example.com" });
+  const reg = new Database(path.join(tmp, "cells-registry.db"));
+  reg.exec("CREATE TABLE IF NOT EXISTS cell_registry (cell_id TEXT PRIMARY KEY, owner_email TEXT)");
+  reg.prepare("INSERT OR REPLACE INTO cell_registry (cell_id, owner_email) VALUES (?, ?)").run(userId, "real-owner@example.com");
+  reg.close();
+  const router = createBotWebhookRouter({ dataRoot: tmp, openDb: (p) => new Database(p, { readonly: true }) });
+  assert.equal(router.resolve("bot-4444").email, "real-owner@example.com");
+});

@@ -178,6 +178,35 @@ test("4.x cell inbound: bound posts, gate-off legacy, unreachable degrades prope
   // Unreachable gateway → degrade (false), never swallow.
   const bridgeC = createZhiyuImBridge({ db: mkDb(), env: { ...env, CELL_GATEWAY_SECRET: SECRET }, fetchImpl: async () => { throw new Error("ECONNREFUSED"); } });
   assert.equal(await bridgeC.handleInbound({ bot, chatKey: "-1", senderName: "张三", text: "hi" }), false);
+
+  // A bot row whose owner_email is NULL must still carry a REAL actor: the
+  // gateway answers "machine credential required" to an empty x-actor-email,
+  // and the cell's own user (CELL_USER_EMAIL) owns the bot's cell. Prod
+  // evidence: every bridged message got 401 and silently degraded to legacy.
+  const legacyBot = { id: "b2", name: "旧行", ownerEmail: null, zhiRoomId: "zy_abc", enabled: true };
+  const bridgeD = createZhiyuImBridge({
+    db: mkDb(),
+    env: { ...env, CELL_USER_EMAIL: "owner@x" },
+    fetchImpl: async (url, init) => {
+      fetches.push({ url: String(url), init });
+      return new Response(JSON.stringify({ seq: 6 }), { status: 200 });
+    },
+  });
+  assert.equal(await bridgeD.handleInbound({ bot: legacyBot, chatKey: "-1", senderName: "张三", text: "hi" }), true);
+  assert.equal(fetches.at(-1).init.headers["x-actor-email"], "owner@x", "empty owner_email falls back to the cell's user");
+
+  // No owner anywhere → the actor stays empty and the gateway decides; the
+  // bridge must not invent an identity of its own.
+  const bridgeE = createZhiyuImBridge({
+    db: mkDb(),
+    env: { ...env, CELL_USER_EMAIL: "" },
+    fetchImpl: async (url, init) => {
+      fetches.push({ url: String(url), init });
+      return new Response(JSON.stringify({ seq: 7 }), { status: 200 });
+    },
+  });
+  assert.equal(await bridgeE.handleInbound({ bot: { ...legacyBot, ownerEmail: "" }, chatKey: "-1", senderName: "张三", text: "hi" }), true);
+  assert.equal(fetches.at(-1).init.headers["x-actor-email"], "");
 });
 
 test("5.x cell outbound: attribution prefix, chunked long answer, cursor advance", async () => {
@@ -222,6 +251,27 @@ test("5.x cell outbound: attribution prefix, chunked long answer, cursor advance
   const before = sends.length;
   await bridge.tickBot(bot);
   assert.equal(sends.length, before, "second poll idles: no duplicates");
+});
+
+test("5.y cell outbound: a rejected poll drains the error body and keeps the actor real", async () => {
+  const logs = [];
+  const heads = [];
+  const bridge = createZhiyuImBridge({
+    db: { setBotBridgeCursor: () => true },
+    env: { ZHIYU_IM_BRIDGE_ON: "1", CELL_GATEWAY_SECRET: SECRET, GATEWAY_INTERNAL_URL: "http://gw.local", ZHIYU_IM_BRIDGE_POLL_MS: 999_999, CELL_USER_EMAIL: "owner@x" },
+    log: { warn: (m) => logs.push(String(m)), info: () => {}, error: () => {} },
+    fetchImpl: async (url, init) => {
+      heads.push(init?.headers);
+      return new Response(JSON.stringify({ error: "machine credential required" }), { status: 401 });
+    },
+    adapterForBotFn: () => ({ sendText: async () => {} }),
+  });
+  const bot = { id: "b1", name: "代销", credentials: {}, type: "telegram", ownerEmail: null, zhiRoomId: "zy_abc", enabled: true, zhiBridgeCursor: 0 };
+  bridge.noteInboundChat(bot.id, "-100123");
+  await bridge.tickBot(bot);
+  assert.equal(heads[0]["x-actor-email"], "owner@x", "events lane uses the same resolved actor");
+  assert.ok(logs.some((l) => l.includes("401")), "the rejection is logged with its status, not swallowed");
+  assert.ok(logs.some((l) => l.includes("machine credential required")), "the error body is drained and reported");
 });
 
 test("6.x management REST: 404-shapes, PUT validates room through gateway, DELETE clears", async () => {

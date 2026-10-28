@@ -25,6 +25,35 @@ const CELL_DIR = /^[0-9a-f]{16}$/;
 export function createBotWebhookRouter({ dataRoot, openDb }) {
   const cache = new Map(); // botId → { email, userId, at } (email null = miss)
 
+  // The registry knows which USER owns which cell — exact, and independent of
+  // whatever sign-in history a cell's session rows happen to carry. It is the
+  // authority the registry exists for; the session inference below is only a
+  // fallback for cells that predate the registry.
+  const registryOwners = new Map(); // cellId → owner_email
+  let registryRead = false;
+  function ownerFromRegistry(cellId) {
+    if (!registryRead) {
+      registryRead = true;
+      try {
+        const db = openDb(path.join(dataRoot, "cells-registry.db"));
+        try {
+          for (const row of db.prepare("SELECT cell_id, owner_email FROM cell_registry WHERE owner_email IS NOT NULL").all()) {
+            registryOwners.set(row.cell_id, row.owner_email);
+          }
+        } finally {
+          try {
+            db.close();
+          } catch {
+            /* already closed */
+          }
+        }
+      } catch {
+        /* no registry on this deployment: fall through to inference */
+      }
+    }
+    return registryOwners.get(cellId) ?? null;
+  }
+
   function ownerEmailOf(db) {
     const session = db
       .prepare("SELECT owner FROM chat_sessions WHERE owner IS NOT NULL LIMIT 1")
@@ -66,8 +95,11 @@ export function createBotWebhookRouter({ dataRoot, openDb }) {
         if (!bot) continue;
         // Creator identity first (fix-gateway-bot-owner): the row records who
         // created the bot, which is exact even on cells with mixed sign-in
-        // history. Session inference is the legacy-row fallback.
-        const email = bot.owner_email || ownerEmailOf(db);
+        // history. Next the registry's owner of THIS cell. Session inference is
+        // the legacy-row fallback — it picks the first session owner, which on
+        // a mixed cell is a DIFFERENT person (fd-prod: a legacy bot's webhook
+        // was routed to another user's cell and refused as "unknown").
+        const email = bot.owner_email || ownerFromRegistry(dir) || ownerEmailOf(db);
         if (!email) continue; // a bot without a resolvable owner is unrouteable
         entry = { email, userId: dir, at: now };
         break;

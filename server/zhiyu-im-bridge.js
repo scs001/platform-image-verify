@@ -28,6 +28,16 @@ export function createZhiyuImBridge({ db, env = process.env, fetchImpl = null, l
     "x-actor-email": email || "",
   });
 
+  // The actor identity the gateway's machine lane attributes the call to. The
+  // gateway answers "machine credential required" to an EMPTY actor, so the
+  // email must be real: the bot row's own owner, else the cell's single user
+  // (a cell hosts exactly one user, and a bot lives in its owner's cell).
+  const actorFor = (bot) => {
+    const explicit = String(bot?.ownerEmail ?? "").trim().toLowerCase();
+    if (explicit) return explicit;
+    return String(env.CELL_USER_EMAIL ?? "").trim().toLowerCase();
+  };
+
   const buckets = new Map();
   const take = (key, limit, windowMs) => {
     const now = Date.now();
@@ -62,7 +72,7 @@ export function createZhiyuImBridge({ db, env = process.env, fetchImpl = null, l
     try {
       const r = await doFetch(`${gatewayBase()}/api/zhiyu/im-bridge/rooms/${encodeURIComponent(bot.zhiRoomId)}/messages`, {
         method: "POST",
-        headers: machineHeaders(bot.ownerEmail),
+        headers: machineHeaders(actorFor(bot)),
         body: JSON.stringify({ content: text, chatKey, senderName, imUserId: imUserId ?? senderName }),
       });
       if (!r.ok) {
@@ -126,13 +136,20 @@ export function createZhiyuImBridge({ db, env = process.env, fetchImpl = null, l
     try {
       r = await doFetch(
         `${gatewayBase()}/api/zhiyu/im-bridge/rooms/${encodeURIComponent(bot.zhiRoomId)}/events?after=${Number(bot.zhiBridgeCursor || 0)}`,
-        { headers: machineHeaders(bot.ownerEmail) },
+        { headers: machineHeaders(actorFor(bot)) },
       );
     } catch (err) {
       log.warn(`[zhiyu-im-bridge] events fetch failed for bot "${bot.name}": ${err.message}`);
       return;
     }
-    if (!r.ok) return;
+    if (!r.ok) {
+      // Drain the error body: an unread response leaves the connection unusable
+      // and the NEXT poll fails with a transport error instead of the real
+      // cause (observed in prod: a silent 401 turned into "fetch failed").
+      const body = await r.text().catch(() => "");
+      log.warn(`[zhiyu-im-bridge] events ${r.status} for bot "${bot.name}": ${body.slice(0, 160)}`);
+      return;
+    }
     const { rows = [] } = await r.json().catch(() => ({ rows: [] }));
     if (!rows.length) return;
     if (!take(`out:${bot.id}`, OUTBOUND_PER_MIN, 60_000)) {

@@ -1104,7 +1104,7 @@ attachCronRunner(ctx);
 // identity. Same attribution the report lane uses; a persona holding no post,
 // or several (ambiguous), yields null so the turn runs unchanged. Cluster
 // posts are out of scope — the fan-out picks the member after this seam runs.
-ctx.resolveFleetIdentity = (presetId) => fleetIdentityFor(getFleetDatabase(), presetId, { rosterPresetId });
+ctx.resolveFleetIdentity = (presetId, { turn } = {}) => fleetIdentityFor(getFleetDatabase(), presetId, { rosterPresetId, turn });
 
 // Fleet post model (add-fleet-post-model D3): the persona turn path asks for
 // this post's resolution plan (chain candidates + notices) right before the

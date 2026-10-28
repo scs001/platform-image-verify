@@ -625,15 +625,20 @@ function identityCtx(resolveFleetIdentity) {
 
 test("member turn gets the identity prefix; non-member turn is byte-identical", async () => {
   const identity = "【集群岗位身份】fleet=f_1; post=m_1; title=巡线岗; target=persona:persona-a";
+  // The real resolver renders the turn segment from the option its caller
+  // hands in; the stub mirrors renderFleetIdentity's contract exactly.
+  const render = (turn) => (turn ? `${identity}; turn=${turn}` : identity);
 
-  const memberCtx = identityCtx((p) => (p === "persona-a" ? identity : null));
+  const memberCtx = identityCtx((p, { turn } = {}) => (p === "persona-a" ? render(turn) : null));
   await memberCtx.runCronJobTurn(
     { id: "job_m", sessionId: "sess_m", prompt: "巡视一下", preset: "persona-a", sessionTitle: "岗" },
     { turnTimeoutMs: 2000 },
   );
-  assert.equal(memberCtx.prompts[0], `${identity}\n\n巡视一下`, "identity prefixes the dispatched prompt");
+  // A manual/dispatch-shaped job (no sourceTag.fleetId) lands its stable
+  // session id as the turn segment — add-fleet-identity-turn 1.3.
+  assert.equal(memberCtx.prompts[0], `${render("sess_m")}\n\n巡视一下`, "identity prefixes the dispatched prompt, turn = landed session id");
   const hist = await chatHistory.getSession("sess_m");
-  assert.equal(hist.messages[0].content, `${identity}\n\n巡视一下`, "session history keeps the same line");
+  assert.equal(hist.messages[0].content, `${render("sess_m")}\n\n巡视一下`, "session history keeps the same line");
 
   // Non-member (resolver returns null) — the delegation/manual lane and plain
   // persona turns both land here; prompt must not be touched.
@@ -643,6 +648,29 @@ test("member turn gets the identity prefix; non-member turn is byte-identical", 
     { turnTimeoutMs: 2000 },
   );
   assert.equal(plainCtx.prompts[0], "随便聊聊", "non-member turn unchanged");
+});
+
+test("identity turn segment follows the round: two cadence rounds carry distinct landed ids", async () => {
+  const identity = "【集群岗位身份】fleet=f_1; post=m_1; title=巡线岗; target=persona:persona-a";
+  const seen = [];
+  const memberCtx = identityCtx((p, { turn } = {}) => {
+    if (p !== "persona-a") return null;
+    seen.push(turn);
+    return turn ? `${identity}; turn=${turn}` : identity;
+  });
+  const job = {
+    id: "job_f", sessionId: "cron-job_f", prompt: "巡视", preset: "persona-a",
+    targetType: "persona", sourceTag: { fleetId: "f_1", memberId: "m_1" },
+  };
+  await memberCtx.runCronJobTurn(job, { turnTimeoutMs: 2000 });
+  await memberCtx.runCronJobTurn(job, { turnTimeoutMs: 2000 });
+
+  assert.equal(seen.length, 2);
+  assert.notEqual(seen[0], seen[1], "each round's turn id is its own (per-round rotation)");
+  assert.match(seen[0], /^cron-job_f#r/, "cadence rounds land the rotated child id");
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  assert.match(memberCtx.prompts[0], new RegExp(`turn=${esc(seen[0])}`), "round 1's prompt names the id it was dispatched under");
+  assert.match(memberCtx.prompts[1], new RegExp(`turn=${esc(seen[1])}`), "round 2's prompt names the id it was dispatched under");
 });
 
 test("cadence read contract: rhythm + target only, passive post answers null", async () => {
@@ -698,6 +726,13 @@ test("fleetIdentityFor: unique post resolves; no post and ambiguity yield null",
   assert.equal(line, renderFleetIdentity({
     fleetId: fleet.id, memberId: post.id, title: "巡线岗", targetKind: "persona", targetId: "persona-a",
   }));
+
+  // add-fleet-identity-turn: the turn option rides through verbatim; callers
+  // that hand none keep the byte-identical four-field line.
+  assert.equal(
+    fleetIdentityFor(fleetDb, "persona-a", { turn: "cron-f1#r1761" }),
+    `${line}; turn=cron-f1#r1761`,
+  );
 
   assert.equal(fleetIdentityFor(fleetDb, "persona-zz"), null, "no post → null");
   assert.equal(fleetIdentityFor(fleetDb, null), null, "no preset → null");

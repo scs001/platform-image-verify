@@ -463,7 +463,11 @@ async function runPersonaTurn(ctx, job, timeoutMs, activeTurns, { startedAt = Da
   // fires and delegation wakes both land here — which is why identity rides the
   // prompt instead of a {{...}} template placeholder (passive posts carry no
   // placeholder at all). Null for non-member turns: prompt stays byte-for-byte.
-  const identity = ctx.resolveFleetIdentity?.(job.preset) ?? null;
+  // The turn segment (add-fleet-identity-turn) completes the deploy/post/round
+  // triple with THIS round's landed child id — cadence rounds rotate it,
+  // manual dispatches carry their session id; it is the same value the prompt
+  // is dispatched under, so the ledger and the recited source_ref agree.
+  const identity = ctx.resolveFleetIdentity?.(job.preset, { turn: childSessionId }) ?? null;
   const prompt = identity ? `${identity}\n\n${job.prompt}` : job.prompt;
 
   // The bound session is a normal session: the user can open it, and rows

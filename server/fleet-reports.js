@@ -131,18 +131,23 @@ export function resolveAttribution({ currentPreset, runningTasks = [], personaMe
 
 // The one-line post identity a fleet member's turn carries at the head of its
 // prompt (enable-wire-content-fleet D1), so an agent can NAME its own
-// production source instead of inventing a string. Attribution decides who
-// (resolveAttribution above); this only formats. Credential-free by
-// construction — ids and a title, nothing else — and never written to the
-// catalog or an AgentCard.
-export function renderFleetIdentity({ fleetId, memberId, title, targetKind, targetId }) {
-  return `【集群岗位身份】fleet=${fleetId}; post=${memberId}; title=${title ?? ""}; target=${targetKind ?? ""}:${targetId ?? ""}`;
+// production source instead of inventing a string. `turn` (add-fleet-identity-turn)
+// completes the deploy/post/round triple external consumers recite as
+// source_ref — the caller hands in the round's landed child session id; absent
+// turn keeps the line byte-identical (non-turn callers never grow a segment).
+// Attribution decides who (resolveAttribution above); this only formats.
+// Credential-free by construction — ids and a title, nothing else — and never
+// written to the catalog or an AgentCard.
+export function renderFleetIdentity({ fleetId, memberId, title, targetKind, targetId, turn }) {
+  const base = `【集群岗位身份】fleet=${fleetId}; post=${memberId}; title=${title ?? ""}; target=${targetKind ?? ""}:${targetId ?? ""}`;
+  return turn ? `${base}; turn=${turn}` : base;
 }
 
 // The post a persona is on duty for → its turn identity line, or null.
 // Attribution is the report bridge's own (resolveAttribution): no post or
 // several posts (ambiguous) both yield null, so the turn runs unchanged.
-export function fleetIdentityFor(db, presetId, { rosterPresetId = (id) => id } = {}) {
+// `turn` rides through to renderFleetIdentity verbatim.
+export function fleetIdentityFor(db, presetId, { rosterPresetId = (id) => id, turn = null } = {}) {
   if (!presetId) return null;
   const personaMembers = [];
   for (const f of db.listFleets()) {
@@ -165,6 +170,7 @@ export function fleetIdentityFor(db, presetId, { rosterPresetId = (id) => id } =
     title: member.title,
     targetKind: member.targetKind,
     targetId: member.targetId,
+    turn,
   });
 }
 

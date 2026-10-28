@@ -373,8 +373,9 @@ function PackDraftEditor({
               setExporting(true);
               setError(null);
               try {
-                await save();
-                const updated = await api.getPackDraft(draft.id);
+                // save() returns the persisted draft — no second fetch needed.
+                const updated = await save();
+                if (!updated) return; // save() already surfaced the error
                 const manifest: PackManifest = {
                   name: updated.name,
                   description: updated.description,
@@ -395,7 +396,11 @@ function PackDraftEditor({
                 const a = document.createElement("a");
                 a.href = url;
                 a.download = r.fileName;
+                // Attach before clicking: headless Chromium does not reliably
+                // start a download from a detached anchor.
+                document.body.appendChild(a);
                 a.click();
+                a.remove();
                 URL.revokeObjectURL(url);
                 setExportResult(t("packs.editor.exportOk", { file: r.fileName }));
               } catch (err) {

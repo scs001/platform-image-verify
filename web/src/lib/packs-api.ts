@@ -611,10 +611,6 @@ export function deletePackDraft(id: string) {
   return fetch(`/api/pack-drafts/${encodeURIComponent(id)}`, { method: "DELETE" }).then(json);
 }
 
-export function getPackDraft(id: string): Promise<PackDraft> {
-  return fetch(`/api/pack-drafts/${encodeURIComponent(id)}`).then(json) as Promise<PackDraft>;
-}
-
 export function markDraftPublished(id: string, packId: string) {
   return fetch(`/api/pack-drafts/${encodeURIComponent(id)}/published`, {
     method: "POST",

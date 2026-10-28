@@ -206,3 +206,17 @@ L0 观测形状（v2.0 起）：`{session, agent, event: turn_start|tool_call|to
 - 「存储为 OKF 兼容真源且派生索引可重建」→ 不变；新增页型（v2.1）与向量列（v2.2）为 ADDED。
 - `agent-runner`「部署 agent 的工作记忆经平台缝代采与挂载」→ MODIFIED：观测形状、pod 挂载、错投修复。
 - 新能力：`memory-distiller`（v2.1）、`memory-visibility`（console，v2.1）。
+
+---
+
+## 13. v2.1 增补：记忆与产出的统一体（add-unified-memory-and-outputs，2026-10-28）
+
+**一句话**：库不收编，缝统一——四平面仍物理正交，但写入手势、记忆服务、读取车道、浏览界面在所有产品上收敛到同一套。
+
+1. **名份引用页（reference）**：资料库文档、成果文件、舰队交付物在 fd-memory 里只留薄索引页（title/summary/tags/tier/source_ref），正文不进记忆库。digest 命中渲染「见资料库《标题》」，token 成本由此可控（§3 原则 3 的延伸）。
+2. **三级分层 draft|stable|canonical**：自动捕获默认 draft；被 open/改名/引用升级 stable；钉住/分享/召回/同题终审胜出进 canonical。**canonical 永仅经人类手势或信号授予，AI 打标最高 stable**；降级只走 supersede 链。
+3. **单写纪律**：tier/tags 真源 = fd-memory reference 页（`/pages/write` 建页、`/pages/mutate` 改页）；成果行 `resources.tier/tags` 只是镜像，只由服务端受信写面同步，客户端无直改路径。
+4. **打标支线**：蒸馏器 `/tag` 端点按 owner 日预算门提议 tags/tier（标 `AI 提议`）；人类修正在 UI 一键完成、写为「修正：」note，后续打标读它适配词表。
+5. **读取面两端共用**：壹座「记忆」面板（person 令牌）与萬星 console 部署者抽屉（platform lane + rootKey `d-<packId>`、project=agentId）吃同一张 `/memory` 可见性读面，筛选语义 scope/layer/tier/tag/time 全同。
+6. **四平面边界不变**：转录/轨迹/资料库/工作记忆仍不合并；本增补只新增「资料库/成果在记忆里的名份投影」与「读缝/浏览面的统一」。
+7. **已知受阻项**：facade/智语房间宿主的 prompt 装配不在 paas 仓，digest 读缝能力已备（platform token + rootKey），接线改动需在 zhiyu 服务仓完成。

@@ -72,6 +72,16 @@ export function ChartView({ option, height = 220 }: { option: unknown; height?: 
           }
         }}
         onError={() => setFailed(true)}
+        // The shell's DOMContentLoaded 'ready' postMessage races the native
+        // onMessage binding on Android (early messages are silently dropped —
+        // the whole chart went dark because of it). onLoadEnd re-arms the
+        // handshake: inject a check and re-post if the shell is ready but the
+        // host never saw it.
+        onLoadEnd={() => {
+          webRef.current?.injectJavaScript(
+            "if (window.__chartShellReady && !window.__chartReadySent) { window.__chartReadySent = true; window.ReactNativeWebView.postMessage('ready'); } true;",
+          );
+        }}
         style={{ backgroundColor: "transparent" }}
       />
     </View>

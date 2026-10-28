@@ -36,6 +36,10 @@ function render(option){
     if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('fail');
   }
 }
-document.addEventListener('DOMContentLoaded', function(){ if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('ready'); });
+window.__chartShellReady = false;
+document.addEventListener('DOMContentLoaded', function(){
+  window.__chartShellReady = true;
+  if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('ready');
+});
 </script></body></html>`;
 }

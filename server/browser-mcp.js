@@ -129,12 +129,18 @@ if (endpoint) {
 // sets, else this process's own cwd (a dsh-mcp-client child launches in the
 // session's validated workspace).
 // Resolve an output dir, or leave it UNSET: the CLI's own default (a writable
-// temp dir) beats a cwd that may be a read-only /app — the first version
-// fell back to process.cwd() and the image smoke promptly died with
-// "EACCES: open '/app/page-….yml'" (2026-10-28). The platform injects
-// BROWSER_OUTPUT_DIR = the session workspace per cell (dsh-profile lane entry),
-// which is the only value that routes artifacts into the user's workspace for
-// resource capture.
+// temp dir) beats a cwd that may be a read-only /app — an early version fell
+// back to process.cwd() and the image smoke died with "EACCES: open
+// '/app/page-….yml'" (2026-10-28). The platform injects BROWSER_OUTPUT_DIR =
+// the session workspace per cell (dsh-profile lane entry), which is the only
+// value that routes artifacts into the user's workspace for resource capture.
+//
+// It must configure BOTH channels, learned the hard way in the image smoke:
+//   - config `outputDir`     → auto page snapshots / downloads
+//   - the CLI's process CWD  → `browser_take_screenshot`'s filename, which the
+//                              CLI resolves relative to its own cwd ("EACCES:
+//                              open '/app/browser-lane-smoke.png'" in CI, where
+//                              cwd=/app is read-only)
 const laneOutputDir =
   (process.env.BROWSER_OUTPUT_DIR || "").trim() || (process.env.AGENT_WORKSPACE || "").trim();
 if (laneOutputDir) browserConfig.outputDir = laneOutputDir;
@@ -148,6 +154,9 @@ const child = spawn(process.execPath, [cli, ...args], {
   stdio: "inherit",
   // The CLI must see the deployment's chromium/sandbox paths (PLAYWRIGHT_*).
   env: process.env,
+  // Screenshots resolve against the CLI's cwd (see above); pin it to the
+  // resolved output dir when we have one, else inherit.
+  ...(laneOutputDir && existsSync(laneOutputDir) ? { cwd: laneOutputDir } : {}),
 });
 const cleanupConfig = () => {
   try {

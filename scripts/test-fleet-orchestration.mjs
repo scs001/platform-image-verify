@@ -586,6 +586,16 @@ test("cockpit draft/apply: same judgment as the bridge, subset-guarded, owner-ga
     const drifted = await post("/api/fleets/f_dm/orchestration/apply", driftDraft);
     assert.equal(drifted.status, 409);
     assert.ok(JSON.stringify(drifted.body.errors).includes("m_c"));
+
+    // Cockpit design mode edits orchestration only: the body carries no
+    // `members` at all, and that must not read as a broken draft.
+    const beforePosts = fleetDb.listMembers("f_dm").map((m) => m.id).sort();
+    const orchOnly = { fleet: { orchestration: { mode: "supervisor", constraints: { maxChainDepth: 2, budgetPerEdgeMin: 10 } } } };
+    assert.equal((await post("/api/fleets/f_dm/orchestration/draft", orchOnly)).body.ok, true);
+    const orchApplied = await post("/api/fleets/f_dm/orchestration/apply", orchOnly);
+    assert.equal(orchApplied.status, 200, JSON.stringify(orchApplied.body.errors ?? []));
+    assert.equal(fleetDb.getFleet("f_dm").orchestration.mode, "supervisor");
+    assert.deepEqual(fleetDb.listMembers("f_dm").map((m) => m.id).sort(), beforePosts, "posts untouched by an orchestration-only draft");
   } finally {
     server.close();
   }

@@ -445,6 +445,9 @@ export async function applyFleetDraft(db, draft, { ownerEmail, resolver = resolv
   }
   const now = Date.now();
   const fleetId = draft.mode === "create" ? `fleet_${now}_${Math.random().toString(36).slice(2, 8)}` : draft.fleetId;
+  // Same reading as validateFleetDraft: an absent member list means "no member
+  // ops", which is how the cockpit's design mode edits orchestration only.
+  const memberOps = Array.isArray(draft.members) ? draft.members : [];
 
   try {
     if (draft.mode === "create") {
@@ -454,7 +457,7 @@ export async function applyFleetDraft(db, draft, { ownerEmail, resolver = resolv
       let sortKey = now;
       let addSeq = 0;
       const idMap = new Map(); // draft-<n> → minted id (same counting as virtualApply)
-      for (const op of draft.members) {
+      for (const op of memberOps) {
         const minted = `m_${now}_${Math.random().toString(36).slice(2, 8)}`;
         if (op.op === "add") {
           addSeq += 1;
@@ -487,7 +490,7 @@ export async function applyFleetDraft(db, draft, { ownerEmail, resolver = resolv
     const applied = [];
     let editAddSeq = 0;
     const idMap = new Map(); // draft-<n> → minted id (same counting as virtualApply)
-    for (const op of draft.members) {
+    for (const op of memberOps) {
       if (op.op === "add") {
         editAddSeq += 1;
         const minted = `m_${now}_${Math.random().toString(36).slice(2, 8)}`;

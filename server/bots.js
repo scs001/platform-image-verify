@@ -394,6 +394,7 @@ function collectTurn(ctx, sessionId, { bot = null, adapter = null, chatKey = nul
         }, ASK_WAIT_MS);
         adapter
           .sendText(bot.credentials, chatKey, renderQuestionText(questions))
+          .then(() => console.log(`[bots] "${bot.name}" asked ${chatKey} a question (${questions.length} q)`))
           .catch((e) => console.warn(`[bots] "${bot.name}" send failed: ${e.message}`));
         return;
       }
@@ -538,7 +539,12 @@ async function runTurn({ bot, adapter }, sessionId, chatKey, text) {
   const ctx = state.ctx;
   const reply = async (body) => {
     try { await adapter.sendText(bot.credentials, chatKey, body); }
-    catch (e) { console.warn(`[bots] "${bot.name}" send failed: ${e.message}`); }
+    catch (e) { console.warn(`[bots] "${bot.name}" send failed: ${e.message}`); return; }
+    // A SUCCESSFUL send is otherwise silent — "did the reply land" was
+    // indistinguishable from "the turn never ran" (fd-prod 2026-10-29: the
+    // WeCom loop looked dead for an hour while it was answering fine). Mirror
+    // the inbound line's shape; same 60-char trim, same content policy.
+    console.log(`[bots] "${bot.name}" replied to ${chatKey}: "${String(body).slice(0, 60)}"`);
   };
   if (!ctx?.dshBridge?.isReady()) return reply("The assistant is starting up. Please try again shortly.");
 

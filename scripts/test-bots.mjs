@@ -373,3 +373,28 @@ test("the streaming flag is held for the duration of a bot turn (mcp-delivery gu
   assert.equal(ctx.sessionCollectors.size, 0);
   ctx.dshBridge.prompt = origPrompt;
 });
+
+test("a successful reply is logged (send-success must not be silent)", async () => {
+  // fd-prod 2026-10-29: a successful sendText logs NOTHING, so "did the reply
+  // land" was indistinguishable from "the turn never ran" — the WeCom loop
+  // looked dead for an hour while it was answering fine. The reply path must
+  // emit one line naming the bot, the chat and the reply head.
+  sent.length = 0;
+  scriptedTurn = [assistantText("echo probe")];
+  const bot = await makeBot("echo");
+
+  const logs = [];
+  const origLog = console.log;
+  console.log = (...a) => logs.push(a.join(" "));
+  try {
+    const res = await deliver(bot, secretOf(bot), update(5151, "echo check"));
+    assert.equal(res.status, 200);
+    assert.deepEqual(sent, [{ chatKey: "5151", text: "echo probe" }]);
+  } finally {
+    console.log = origLog;
+  }
+
+  const replied = logs.find((l) => l.includes('"echo" replied to 5151'));
+  assert.ok(replied, `a replied-to line must be logged; got: ${JSON.stringify(logs)}`);
+  assert.ok(replied.includes("echo probe"), "the logged line carries the reply head");
+});

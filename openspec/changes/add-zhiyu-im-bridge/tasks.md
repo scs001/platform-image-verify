@@ -47,3 +47,24 @@
 - [ ] 9.1 IM-native @-for-agents (Telegram @bot semantics vs. plain-text parsing) — apply-time decision.
 - [ ] 9.2 Guest display refresh when an IM user renames.
 - [ ] 9.3 External A2A seats (3B) as the next change.
+
+
+
+## Appendix — release-train state as of 2026-10-28
+
+- The snapshot `sha-5e4d680` (source `658552ad`) built fine, but the smoke gate
+  refused the image: the container booted and died on
+  `ERR_MODULE_NOT_FOUND: /app/server/routes/blueprints.js`.
+- Root cause (confirmed): a parallel session merged an `import .../routes/blueprints.js`
+  into server.js, but its three source files — `server/routes/blueprints.js`,
+  `server/routes/blueprints-db.js`, `server/blueprint-validate.js` — are
+  still **untracked** in the working tree, so the clean-clone snapshot
+  (tracked files only) cannot contain them. The smoke gate caught it
+  exactly as designed; production was never at risk.
+- Verdict on ownership: **not this change.** Every file of phase 3
+  (im-bridge) is tracked; node-level regressions all pass
+  (10/10 suites green including the im-bridge suite itself).
+  gate protection did its job.
+- Handoff to the owner session: commit the three blueprint files, or revert
+  the server.js import — either unblocks the whole release train for every
+  session, not just this one.

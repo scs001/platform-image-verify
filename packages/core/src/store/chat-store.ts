@@ -804,6 +804,14 @@ export const useChatStore = create<State>((set) => ({
     set((state) => {
       const pre = flushIntoTurns(state);
       const turns = pre ? pre.turns : state.turns.slice();
+      // The fold's output MUST survive every case, not just the turn-lifecycle
+      // ones. `resources_changed` — emitted exactly as a run's answer lands
+      // (chart/resource capture → library refresh) — fell through a `return {}`
+      // arm and silently dropped the just-folded streamed answer, blanking
+      // fast turns on the RN client (2026-10-27/28 forensics: the emulator's
+      // single-delta answers vanished whole; the web only ever lost a trailing
+      // fragment to the same hole, which is why it never surfaced there).
+      const out = ((): Partial<State> | undefined => {
       switch (m.type) {
         case "user":
           turns.push({
@@ -1353,6 +1361,9 @@ export const useChatStore = create<State>((set) => ({
           // undefined"). Ignore unknown types instead.
           return {};
       }
+      })();
+      if (pre && out && typeof out === "object" && !("turns" in out)) return { ...out, turns };
+      return out ?? {};
     });
 
     // Reconnect resync replay (add-reconnect-resync): the sync answer's

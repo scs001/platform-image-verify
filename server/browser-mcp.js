@@ -128,7 +128,7 @@ if (endpoint) {
 // explicit BROWSER_OUTPUT_DIR wins, else the AGENT_WORKSPACE pin the deployment
 // sets, else this process's own cwd (a dsh-mcp-client child launches in the
 // session's validated workspace).
-browserConfig.browser.outputDir =
+browserConfig.outputDir =
   (process.env.BROWSER_OUTPUT_DIR || "").trim() ||
   (process.env.AGENT_WORKSPACE || "").trim() ||
   process.cwd();

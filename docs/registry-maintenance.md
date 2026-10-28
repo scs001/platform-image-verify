@@ -3180,3 +3180,62 @@ Cluster→Array、Role→Persona、Standby→On call、Add post 等界面标签�
 | 连带 TDZ | 某快照里 `writeMcpPatch(workspace: bootWorkspace.path)` 在 `const bootWorkspace` 声明前 122 行（用 579/声明 701）→ agent init 必崩 `Cannot access 'bootWorkspace' before initialization` → /api/ready 永 503。**main 已由并行会话修正**（声明 587→使用 594 序已正）；本次以「旧序快照」行刑，教训=取快照时核 agent 就绪日志 |
 | 流程加固 | ①mock2 就绪**硬断言**（此前等待无断言，agent 崩了也硬跑成 still-initializing 假失败）+失败吐 server.log 尾；②`dsh` init catch 补 `err.stack` 打印（TDZ 类模块序故障仅凭 message 无法定部，正是本案卡点） |
 | 遗留 | 修复码+探针车（run 40640907793，支 `nonweb-e2e/probe-fixed`）在验：若仍空，则按该轮 evlog 的 device 事件流继续；pool 侧收尾（tasks 2.2/3.x 勾单、change 归档）待绿 |
+
+### §15.76 类目归位收尾 + run 头泄漏真缺陷（2026-10-28 傍晚，sha-a38dd87）
+
+**一、市场类目归位收尾（用户「可以处理」）**
+上一节留下唯一一处 `fleet` 类目——「官网内容集群（模板）」（作者 aloadtree@gmail.com，正好是当时会话身份）。
+走**作者面发布新版本**把 manifest.category 改成 `cluster`（`POST /api/packs` 带 packId；`gateway/packs.js:602`
+的「重声明即更新包行」路径）：先 `/api/packs/validate` 干跑无错，再发布 → **v6**。
+复核市场 89 包：类目集合现为 `cluster / cluster-shared / facade / facet / operations / wire`，**`fleet` 已消失**；
+**零个包的「名字」含舰队/fleet**。描述里余下命中全是契约与标识——`{{fleetContext}}` 模板占位、
+`fleets.db` 文件名、`fleet-intel-gather` 等共用层包 ID、蓝图路径 `fleet-packs/blueprints/…`、
+以及「必须通过 fleet 段预校验」里的 manifest `fleet` 结构键——按「零键/API 零改」一律不动。
+
+**二、诊断：巡线岗「三次回合卡死」其实是我误判**
+- 三次 run **全部完成**（04:17→04:19 2min、04:40→04:44 4min、04:46→04:52 5.5min，status=ok、turns=1）；
+  全平台近 6h 回合时长 **p50=236s、p90=2497s**——几分钟一轮是常态，长轮不是卡死。
+- 第三次没写出新产出，真因是**报数防洪窗口**（`server/fleet-reports.js`：3 次/窗口，
+  窗口 = max(cron 周期/2, 10min)，日粒度岗即 12h 窗口）。我在半小时内手打三轮 → 触顶被拒，
+  岗位随即自己 escalate「确认本轮已报数并记录频次窗口限制」。**设计内行为，不是缺陷**。
+- `llm-guard default probe inconclusive (network_error): probe timed out after 10s` 是模型上游探针超时的
+  降级（保留 last-good 模型），瞬时噪声。
+- 会话过重也不成立：fleet 回合每轮用**轮转子会话** `…​#r<startedAt>`，镜像会话虽累积到 64 条/2.0MB，
+  但切面耗时仅 26ms（`[session-open]` 探针）。
+
+**三、真缺陷：run 头泄漏（本班主项）**
+探查中扫出平台里 **6 个头永远 open**，分两类：
+1. **4 个「有回合行、但头没收口」**（cell 3fdc7b8e / 6db2b1b4，挂了 6–30 小时，各含一条已结束回合）。
+   根因：`settle()` 是**内存兜底**（ledger 的句柄表随 pod 消失），而库侧 `reclaimOrphanRuns` 按设计
+   跳过「有回合行」的 run（测试还钉着这条契约：「a run with rows is not an orphan」）。于是 pod 在
+   「写回合行」与「收口」之间滚动，就留下**没有任何未来事件会关掉**的头。**症状**：驾驶舱执行时间线
+   把它们一直显示成「进行中」——状态真实性缺陷（与 fix-fleet-failure-visibility 同族）。
+2. **2 个零回合行孤儿**（cell 6db2b1b4，173/189min）：这类归既有 `reclaimOrphanRuns` 管，
+   但那种 cell 的运行时当前没起（进程表里只有 2 个 dsh 子进程、1 个 server 持库），清扫要等它下次启动。
+
+**修法（`eda8fd24`）**：判断必须放在 **ledger 层**，不能放库层——只看行的话，「上游已结束、下游还没起」
+的链与「没人会再来收」的泄漏**长得一模一样**；ledger 知道在飞行的句柄（open map）与引擎里排队/运行的任务，
+所以能分辨。
+- `db.listOpenRuns({before})`：暴露仍 open 的头（raw 清单，不裁判）。
+- `ledger.sweepOpenRuns({graceMs=30min})`：对过宽限期的头，若有在飞行句柄或 queued/running 任务 → 跳过；
+  否则走既有 `settle` 口径 finalize（**状态由行算出**：ok/partial/failed，不是新判决）。零回合行的头留给
+  既有孤儿口径（判 failed），互不抢判。
+- `server.js` 启动与每小时的 sweep 调它 → **启动即自愈存量泄漏**。
+测试 5/5（新增 4 情形：泄漏收口 / 在飞行不动 / 宽限期内不动 / 零行让位；`--test-name-pattern` 单跑 10ms）。
+本文件其余 8 个 120s 超时失败**经 HEAD 对照为既有**（引擎 seam 类，与本改动无关）。
+
+**四、出片与归属核对（这一班差点踩的坑）**
+`fd-build-snapshot` → 池仓 `sha-a38dd87`（源 eda8fd24）→ 构建 run **40647308003 绿** → relay
+`OK yizuo/platform:sha-a38dd87 (22s)` → ccr 硬门 digest `388f0ead…` → GitOps bump（commit 46595be）→ pod
+`platform-7ddf77cb66-nc4lt` 1/1 Running、restartCount=0；镜像内 `grep -c sweepOpenRuns` server/fleet-runs.js=2、
+server.js=1 ✓。
+**教训（新律候选）**：bump 前发现我替换掉的是**并行车道 15 分钟前刚滚的 `sha-3029330`**（智语 IM 群桥修复）。
+逐条核了归属：`sha-3029330` 的源 `fa306bfc` **是我构建源的祖先**（我的镜像包含它，未回退任何已部署修复）；
+而 origin/main 更新的 `9b1b5e38`（智语出站有界重试）当时**尚未部署**、不在我镜像里，由那条车道下一滚带上。
+→ **律：bump GitOps 前必须核「被替换镜像的源提交是否为我的祖先」，否则可能把别人刚上的修复打回去。**
+
+**五、存量泄漏的收口路径（挂账，写清依据）**
+我这次只滚了主 `platform`（其他三面由各自车道管）。各 cell 的 fleets 库由**该 cell 自己的 server 进程**
+持有与清扫（`PLATFORM_DATA_DIR=/data/cells/<sha>/data`），所以：主 platform 这一班已带修复、其 cell
+（1da519d4…，实测无 open run）自愈无碍；**带泄漏的 3fdc7b8e / 6db2b1b4 属别的部署/cell 运行时，等它们
+各自滚到含本修复的镜像、或其运行时下次启动时由启动清扫收掉**（无需人工动库）。

@@ -214,6 +214,11 @@ const SCRUBS = [
   // real node name as a sample runner id — scrub to a neutral id; the test
   // semantics are name-agnostic.
   ["scripts/test-agent-runner.mjs", "cheap-1", "runner-a", 6],
+  // Blueprint 走查夹具 (blueprint-studio) 同样把真实节点名当样例 runner——
+  // 语义与名字无关，抹成中性 id（与上一条同批，2026-10-28）。
+  ["scripts/test-blueprints.mjs", "cheap-1", "runner-a", 2],
+  ["scripts/test-blueprint-trial.mjs", "cheap-1", "runner-a", 2],
+  ["scripts/test-blueprint-judge.mjs", "cheap-1", "runner-a", 3],
   // Same change: the legacy single-runner seed's default id is a node name in
   // our fleet; a self-hosted install should see a neutral default.
   ["gateway/packs.js", 'AGENT_SERVING_DEFAULT_RUNNER_ID \\|\\| "cheap-1"', 'AGENT_SERVING_DEFAULT_RUNNER_ID || "default-runner"', 1],

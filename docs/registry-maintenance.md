@@ -3386,3 +3386,25 @@ B1（付费+credit 环）/B2（车道 live-write 全链）/B3（v2 跟新回放�
 **六、环境注意**
 - `fd-build-snapshot` 对 gitee 源需 SSH URL + 分支名（按 commit sha 克隆会失败）；源仓远端已推至 `8e2efd0e`。
 - fd-prod 命名空间内存配额已满（30432Mi/30Gi），临时 pod 无法落——真机探针改用 pod 内既有能力（exec + 模块直调），不留常驻物。
+
+### §15.77 记忆线最后一挂账：facade 1:1 会话接入同一 digest 缝（2026-10-28 深夜，fd-wanxing `2306514` / wanxing-facade `sha-602b1a2`）
+
+§15.76 收口时留下的「facade 1:1 会话在外仓」已按用户指示接上。设计依据仍是归档 D7 原话——「facade/智语走 chat-memory 同一条缝，不分不帕；登入=本 owner，游客=不注入」，智语半边在 §15.76 已落本仓，这次是 facade 那半边。
+
+**改法（fd-wanxing 仓）**
+
+| 文件 | 改动 |
+|---|---|
+| `services/wanxing-facade/memory.js`（新） | 读 fd-memory `/digest`（`project=default`、`q=`用户原话、`k=5`/`budget=1500` 与壹座 chat 同参）；person 令牌经 `/admin/mint` 铸 `u/<email>`，进程内按 email 缓存；5s 超时；任何失败返回空串 |
+| `services/wanxing-facade/chat.js` | 回合文本发出前注入：`tier=tenant`（登录访客）用本人 owner 的块；`tier=anon` 恒不注入且**零记忆请求**；`message/send` 与 `message/stream` 两路同源（注入在 `textOf()` 之后统一发生） |
+| 环境 | 复用该部署**既有**的 `FD_MEMORY_URL` / `FD_MEMORY_PLATFORM_TOKEN`（visibility 控制台那对凭据，同一 secret），不新增第二份令牌；新增开关 `WANXING_FACADE_MEMORY_DIGEST`（`"0"`=关，免换镜像回滚） |
+
+**为什么是 `FD_MEMORY_*` 不是 `CELL_MEMORY_*`**：facade 早前接 visibility 控制台时就带这对凭据了，接缝里做了两种拼法兼容（`CELL_MEMORY_* || FD_MEMORY_*`），避免同一令牌在部署里存两份。
+
+**证据**：`scripts/test-wanxing-facade.mjs` **55 测全绿**（既有 50 零回归 + 新增 5）——登录访客带本人 digest（mint 命名空间=`u/<visitor>`、query=原话而非转录、project=default）/ 匿名零请求且文本逐字不变 / 总闸零请求 / 未配置即 inert / 记忆挂了回合照答。**匿名用例是真跑**：早期版本在拿不到匿名票据时会静默早退，改成直接 `signEphemeral` 签票据并打开 per-agent 匿名闸（双闸：全局开关 + `embedSettingsSet(slug,{anonymous:true})`），断言才有效。
+
+**上产链**：`fd-build-snapshot` → 快照 `testaction002/build-pool` sha **602b1a2**（源 2306514）。**坑**：源仓分支是 `master`，而池 workflow 只监听 `main`——快照推到 master 后**不触发构建**；解法=把同一快照提交用 `gh api -X PATCH .../git/refs/heads/main -f sha=<master sha> -F force=true` 指到 main（单槽位仓的既有模式）。构建 run 40685676979 绿、`target: hkccr…/yizuo/wanxing-facade:sha-602b1a2`；ccr digest `sha256:bb330199…`；GitOps `6a2e5ca` → ArgoCD → pod `wanxing-facade-8ff45585b-h2wff` 1/1 Running。
+
+**生产实证（pod 内，真凭据真 fd-memory）**：`createMemorySeam()` → `enabled=true`；`blockFor({email:"aloadtree@gmail.com"})` 返回 **1292 字**块（含 `〔L2·reference〕见资料库《2026-10-28-巡视记录.md》`）；`promptWithMemory({email:"", text:"你好"})` 原样返回 `"你好"`。镜像内自证：`memory.js` 的 `createMemorySeam`、`chat.js` 的 `promptWithMemory` 各命中，`WANXING_FACADE_MEMORY_DIGEST=1`、URL/TOKEN 在位。
+
+**至此 4.3 两条车道（智语房间 + facade 1:1）全部接通**，D7 收口。

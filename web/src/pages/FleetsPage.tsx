@@ -1339,7 +1339,11 @@ function DecisionsDrawer({
 
   const load = useCallback(async () => {
     try {
-      const r = await fetch(`/api/fleets/${encodeURIComponent(fleetId)}/decisions?state=${showAll ? "all" : "open"}`);
+      // 常务岗视图要「裁决中/已裁决/跟踪中」三态都在（spec「角标只计需要主人
+      // 的事项」），所以视图本身就把 state 放宽到 all——只拉 open 会让已裁决项
+      // 在 deputy 视图里凭空消失，主人看不到常务岗到底判了什么。
+      const state = showAll || view === "deputy" ? "all" : "open";
+      const r = await fetch(`/api/fleets/${encodeURIComponent(fleetId)}/decisions?state=${state}`);
       const body = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(body.error ?? `list ${r.status}`);
       setItems(body.decisions ?? []);
@@ -1352,7 +1356,7 @@ function DecisionsDrawer({
     } catch (e) {
       setError(String((e as Error).message ?? e));
     }
-  }, [fleetId, showAll]);
+  }, [fleetId, showAll, view]);
 
   useEffect(() => {
     void load();
@@ -1468,6 +1472,7 @@ function DecisionsDrawer({
                       {item.resolvedBy === "deputy" ? (
                         <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
                           {t("fleets.decisions.ruledByDeputy")}
+                          {item.resolvedByModel ? ` · ${item.resolvedByModel}` : ""}
                         </span>
                       ) : null}
                     </div>
@@ -1476,6 +1481,18 @@ function DecisionsDrawer({
                   {item.rulingEvidence ? (
                     <p className="mt-1 text-xs text-muted-foreground" data-testid={`decision-evidence-${item.id}`}>
                       {t("fleets.decisions.evidence")}: {item.rulingEvidence}
+                    </p>
+                  ) : null}
+                  {/* 执行事实 (spec「委托裁决的执行进度可追踪」)：已裁决但未回填
+                      executed_at = 批了还没执行，主人必须能一眼分辨，而不是去查库。 */}
+                  {item.state !== "open" && item.state !== "expired" ? (
+                    <p
+                      className="mt-1 text-xs text-muted-foreground"
+                      data-testid={`decision-execution-${item.id}`}
+                    >
+                      {item.executedAt
+                        ? `${t("fleets.decisions.executed")}: ${new Date(item.executedAt).toLocaleString(locale)}`
+                        : t("fleets.decisions.notExecuted")}
                     </p>
                   ) : null}
                   {item.suggestedDeadline ? (

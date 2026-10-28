@@ -77,6 +77,8 @@ import { outgoingHandoffs, outgoingFanouts, constraintsOf } from "./server/fleet
 import { triggerFleetEventWake } from "./server/fleet-event-wake.js";
 import * as engine from "./task-engine.js";
 import { renderDecisionSegment } from "./server/fleet-decisions.js";
+import { runDueDeputyDigests } from "./server/fleet-delegation-digest.js";
+import { memoryRefClientFor } from "./server/memory-refs.js";
 import { rosterPresetId } from "./dsh-profile.js";
 import * as lineTokenRenewal from "./server/line-token-renewal.js";
 import * as lineCredentialsLib from "./line-credentials.js";
@@ -1509,6 +1511,16 @@ attachDelegationAggregator(ctx).rearm();
     } catch (e) {
       console.warn(`[fleets] expiry sweep failed: ${e.message}`);
     }
+    // Deputy digest (add-deputy-decision-delegate D7 周期侧): the per-ruling
+    // mirror already lands a page at ruling time; this pass folds a window of
+    // them into one owner-memory summary at the policy's cadence. Same hourly
+    // tick as the expiry backstop — the cadence gate itself is daily/weekly,
+    // so an hourly check is pure granularity, and a pod restart makes up on
+    // the next tick (last-run lives in cell_settings).
+    void runDueDeputyDigests({
+      db: fleetLanesDb,
+      memoryClientFor: (ownerEmail) => memoryRefClientFor(process.env, ownerEmail),
+    }).catch((e) => console.warn(`[deputy-digest] tick failed: ${e?.message || e}`));
   }, 60 * 60 * 1000).unref();
 }
 // Worker pool (TASK_WORKER_MAX; 0 = inert, exactly today's serial semantics).

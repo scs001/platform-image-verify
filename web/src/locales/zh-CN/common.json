@@ -1176,7 +1176,14 @@
       "maxSeverity": "可委托的最高严重度",
       "dailyBudget": "每日裁决上限",
       "save": "保存",
-      "saved": "已保存"
+      "saved": "已保存",
+      "digest": "摘要频率",
+      "digestDaily": "每日",
+      "digestWeekly": "每周",
+      "digestOff": "关闭",
+      "model": "裁决所用模型",
+      "modelInherit": "留空则继承",
+      "modelHint": "留空即跟随舰队/cell 默认模型；填了会对常务岗岗位生效（下一轮巡逻起）。"
     }
   },
   "bindings": {
@@ -2552,7 +2559,9 @@
       "escalatedTimes": "重复升级 {{count}} 次",
       "ruledByDeputy": "常务岗裁决",
       "evidence": "依据",
-      "recall": "收回（自己裁）"
+      "recall": "收回（自己裁）",
+      "executed": "已执行",
+      "notExecuted": "批了未执行"
     },
     "tpl": {
       "awaitStart": "集群已按模板组建（全队暂停）——确认组织与节奏后启动",

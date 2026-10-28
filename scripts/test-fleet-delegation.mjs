@@ -290,9 +290,48 @@ test("deputy:预算内的裁决生效并记录身份与依据", async () => {
     const after = fleetDb.getDecision(item.id);
     assert.equal(after.state, "approved");
     assert.equal(after.resolvedBy, "deputy");
-    assert.equal(after.resolvedByModel, "deepseek-v4.1-flash");
     assert.match(after.rulingEvidence, /判例/);
     assert.equal(after.resolution.choice, "yes");
+    // 裁决模型只由服务端从本回合子进程的 request/header 取——这个 ctx 没有
+    // 回合账本，所以如实为空。请求体自报的 "deepseek-v4.1-flash" MUST NOT 落库
+    // （生产 2026-10-29 实证：照抄自报值会让审计记录变成代理的自我声明）。
+    assert.equal(after.resolvedByModel, null, "自报的 model 不得被当作裁决事实");
+  } finally {
+    server.close();
+  }
+});
+
+test("deputy:裁决模型取自本回合真实 header，不信调用方自报", async () => {
+  // 一个最小的回合账本替身：observedModelFor 返回子进程实际发出的模型。
+  const ledger = { observedModelFor: (memberId) => (memberId === DEPUTY ? "observed-real-model" : null) };
+  const app = express();
+  app.use(express.json());
+  createFleetRoutes(app, { authEnabled: false, cellUserEmail: OWNER, currentPreset: "preset-deputy", fleetTurnLedger: ledger });
+  const server = app.listen(0, "127.0.0.1");
+  await new Promise((r) => server.once("listening", r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const call = (method, p, body) =>
+    fetch(`${base}${p}`, {
+      method, headers: { "content-type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }).then(async (r) => ({ status: r.status, body: await r.json().catch(() => ({})) }));
+  try {
+    fleetDb.setFleetDelegationPolicy(FLEET, {
+      enabled: true, deputyMemberId: DEPUTY, routes: { "routine-ops": "deputy" }, maxSeverity: "high", dailyBudget: 20,
+    });
+    const item = fleetDb.appendDecision({
+      id: "d_model_src", fleetId: FLEET, memberId: WORKER, question: "裁决模型的来源校验",
+      options: [{ value: "a", label: "A" }], severity: "normal", route: "deputy", category: "routine-ops",
+    });
+    ctx.currentPreset = "preset-deputy";
+    const r = await call("POST", "/api/fleets/deputy/resolve", {
+      itemId: item.id, kind: "approve", choice: "a", evidence: "依据",
+      model: "caller-claims-this-model", // 必须被忽略
+    });
+    assert.equal(r.status, 200);
+    const after = fleetDb.getDecision(item.id);
+    assert.equal(after.resolvedByModel, "observed-real-model", "落库的是 header 观测值");
+    assert.notEqual(after.resolvedByModel, "caller-claims-this-model", "调用方自报的值不得生效");
   } finally {
     server.close();
   }
@@ -521,4 +560,120 @@ test("桥面鉴权：deputy 三条路由在 loopback 上被豁免，非桥面路
   } finally {
     server.close();
   }
+});
+
+// ── 策略字段的落点（不留假旋钮） ────────────────────────────────────────────
+
+test("policy.model：写进策略即落到常务岗岗位的 model（真正的解析链首跳）", async () => {
+  const { server, call } = await startServer();
+  try {
+    // 先把常务岗指定出来，策略才有落点。
+    fleetDb.setFleetDelegationPolicy(FLEET, {
+      enabled: true, deputyMemberId: DEPUTY, routes: { "routine-ops": "deputy" }, maxSeverity: "high", dailyBudget: 20,
+    });
+    const r = await call("PUT", "/api/fleets/delegation-policy", {
+      scope: "fleet", fleetId: FLEET,
+      policy: { enabled: true, deputyMemberId: DEPUTY, model: "policy-declared-model" },
+    });
+    assert.equal(r.status, 200);
+    assert.equal(fleetDb.getMember(DEPUTY).model, "policy-declared-model", "策略声明落到岗位 model");
+    // 清空声明 = 回到继承链（岗位 model 清空），不是留一个陈旧值。
+    const cleared = await call("PUT", "/api/fleets/delegation-policy", {
+      scope: "fleet", fleetId: FLEET,
+      policy: { enabled: true, deputyMemberId: DEPUTY, model: null },
+    });
+    assert.equal(cleared.status, 200);
+    assert.equal(fleetDb.getMember(DEPUTY).model, null, "清空即回到继承");
+  } finally {
+    server.close();
+  }
+});
+
+test("deputy digest：按策略频率渲染裁决摘要，空窗口不写空页", async () => {
+  const { renderDeputyDigest, determineDueDeputyDigests } = await import("../server/fleet-delegation-digest.js");
+  const fleetId = "fleet_digest";
+  fleetDb.createFleet({ id: fleetId, name: "摘要舰队", ownerEmail: OWNER });
+  fleetDb.createMember({
+    id: "m_dg_worker", fleetId, title: "投稿岗", targetKind: "persona", targetId: "preset-dgw",
+    cadence: { cron: "0 9 * * *", tz: "Asia/Shanghai", enabled: true },
+  });
+  fleetDb.createMember({
+    id: "m_dg_deputy", fleetId, title: "常务", targetKind: "persona", targetId: "preset-dgd",
+    cadence: { cron: "0 * * * *", tz: "Asia/Shanghai", enabled: true },
+  });
+  const fleet = fleetDb.getFleet(fleetId);
+
+  // 空窗口：没裁决也没跟踪项 → null（不写空摘要页）
+  assert.equal(renderDeputyDigest({ db: fleetDb, fleet, since: 0 }), null, "空窗口返回 null");
+
+  // 一条已裁决（批了没执行）+ 一条跟踪中
+  const now = Date.now();
+  const ruled = fleetDb.appendDecision({
+    id: "d_dg_ruled", fleetId, memberId: "m_dg_worker", question: "周报是否附图",
+    options: [{ value: "yes", label: "附图" }], severity: "normal", route: "deputy", category: "routine-ops",
+  });
+  fleetDb.transitionDecision(ruled.id, "open", {
+    state: "approved", resolution: { kind: "approve", choice: "yes", note: null, by: "deputy:常务", at: now },
+    resolvedAt: now, resolvedBy: "deputy", resolvedByModel: "observed-x", rulingEvidence: "主人 10 月判例：一律附图",
+  });
+  fleetDb.appendDecision({
+    id: "d_dg_track", fleetId, memberId: "m_dg_worker", question: "排班是否改两班制",
+    options: [{ value: "a", label: "A" }], severity: "normal", route: "deputy", category: "routine-ops",
+  });
+
+  const body = renderDeputyDigest({ db: fleetDb, fleet: fleetDb.getFleet(fleetId), since: now - 3600_000, now });
+  assert.ok(body, "有内容时必须渲染");
+  assert.match(body, /本期裁决 1 条/, "裁决计数");
+  assert.match(body, /待执行 1 条/, "批了没执行可见");
+  assert.match(body, /附图/, "批的选项 label");
+  assert.match(body, /一律附图/, "依据摘要");
+  assert.match(body, /跟踪中的问题单 1 条/, "跟踪项计数");
+  assert.match(body, /最老一条已待/, "最老未决多久（spec 明写）");
+
+  // 频率门：digest=off 不排期；daily 且刚跑过不排期；时点推进后到期
+  fleetDb.setFleetDelegationPolicy(fleetId, {
+    enabled: true, deputyMemberId: "m_dg_deputy", digest: "off", routes: { "routine-ops": "deputy" },
+  });
+  assert.equal(determineDueDeputyDigests({ db: fleetDb, now }).filter((d) => d.fleet.id === fleetId).length, 0, "off 不排期");
+  fleetDb.setFleetDelegationPolicy(fleetId, {
+    enabled: true, deputyMemberId: "m_dg_deputy", digest: "daily", routes: { "routine-ops": "deputy" },
+  });
+  assert.equal(determineDueDeputyDigests({ db: fleetDb, now }).filter((d) => d.fleet.id === fleetId).length, 1, "从未跑过即到期");
+  fleetDb.setCellSetting("delegationDigestAt:" + fleetId, now);
+  assert.equal(determineDueDeputyDigests({ db: fleetDb, now }).filter((d) => d.fleet.id === fleetId).length, 0, "刚跑过不到期");
+  assert.equal(
+    determineDueDeputyDigests({ db: fleetDb, now: now + 25 * 3600_000 }).filter((d) => d.fleet.id === fleetId).length,
+    1, "过一天到期（停机后补跑语义）",
+  );
+});
+
+test("deputy digest：写不进记忆时不推进时点（宁可迟到不可丢）", async () => {
+  const { runDueDeputyDigests } = await import("../server/fleet-delegation-digest.js");
+  const fleetId = "fleet_digest_fail";
+  fleetDb.createFleet({ id: fleetId, name: "摘要失败舰队", ownerEmail: OWNER });
+  fleetDb.createMember({
+    id: "m_dgf_worker", fleetId, title: "岗", targetKind: "persona", targetId: "preset-dgfw",
+    cadence: { cron: "0 9 * * *", tz: "Asia/Shanghai", enabled: true },
+  });
+  fleetDb.createMember({
+    id: "m_dgf_deputy", fleetId, title: "常务", targetKind: "persona", targetId: "preset-dgfd",
+    cadence: { cron: "0 * * * *", tz: "Asia/Shanghai", enabled: true },
+  });
+  fleetDb.setFleetDelegationPolicy(fleetId, {
+    enabled: true, deputyMemberId: "m_dgf_deputy", digest: "daily", routes: { "routine-ops": "deputy" },
+  });
+  fleetDb.appendDecision({
+    id: "d_dgf_1", fleetId, memberId: "m_dgf_worker", question: "有一条跟踪项就够渲染",
+    options: [{ value: "a", label: "A" }], severity: "normal", route: "deputy", category: "routine-ops",
+  });
+  const now = Date.now();
+  const out = await runDueDeputyDigests({
+    db: fleetDb, now, log: { warn: () => {} },
+    memoryClientFor: async () => null, // 记忆未配置
+  });
+  assert.equal(out.written, 0);
+  assert.equal(
+    Number(fleetDb.getCellSetting("delegationDigestAt:" + fleetId)) || 0, 0,
+    "写不进去时不推进时点——下一 tick 重试",
+  );
 });

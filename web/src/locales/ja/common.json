@@ -1176,7 +1176,14 @@
       "maxSeverity": "委任できる最大深刻度",
       "dailyBudget": "1 日の決裁上限",
       "save": "保存",
-      "saved": "保存しました"
+      "saved": "保存しました",
+      "digest": "サマリー頻度",
+      "digestDaily": "毎日",
+      "digestWeekly": "毎週",
+      "digestOff": "オフ",
+      "model": "判断に使うモデル",
+      "modelInherit": "空欄＝継承",
+      "modelHint": "空欄なら艦隊／セルの既定モデルに従います。値を入れると常務ポストに適用され、次回パトロールから有効になります。"
     }
   },
   "bindings": {
@@ -2552,7 +2559,9 @@
       "escalatedTimes": "再エスカレ {{count}} 回",
       "ruledByDeputy": "常務の裁定",
       "evidence": "根拠",
-      "recall": "取り戻す（自分で裁く）"
+      "recall": "取り戻す（自分で裁く）",
+      "executed": "実行済み",
+      "notExecuted": "承認済み・未実行"
     },
     "tpl": {
       "awaitStart": "テンプレートから編成済み（全停止）——確認して起動",

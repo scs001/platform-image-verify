@@ -1189,7 +1189,14 @@
       "maxSeverity": "Max delegable severity",
       "dailyBudget": "Daily ruling budget",
       "save": "Save",
-      "saved": "Saved"
+      "saved": "Saved",
+      "digest": "Digest cadence",
+      "digestDaily": "Daily",
+      "digestWeekly": "Weekly",
+      "digestOff": "Off",
+      "model": "Ruling model",
+      "modelInherit": "Blank = inherit",
+      "modelHint": "Blank follows the fleet/cell default model; a value is applied to the deputy post and takes effect from its next patrol."
     }
   },
   "preview": {
@@ -2552,7 +2559,9 @@
       "escalatedTimes": "Re-escalated ×{{count}}",
       "ruledByDeputy": "Ruled by deputy",
       "evidence": "Basis",
-      "recall": "Recall (decide myself)"
+      "recall": "Recall (decide myself)",
+      "executed": "Executed",
+      "notExecuted": "Ruled but not executed"
     },
     "tpl": {
       "awaitStart": "Cluster assembled from the template (all paused) — review, then start",

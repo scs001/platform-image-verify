@@ -12,6 +12,7 @@ type Policy = {
   maxSeverity: "low" | "normal" | "high";
   dailyBudget: number;
   digest: "daily" | "weekly" | "off";
+  model: string | null;
 };
 
 const CATEGORIES = ["routine-ops", "infra-ticket", "config-change", "hr", "spend"];
@@ -136,6 +137,34 @@ export function DelegationSection() {
           />
         </label>
       </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <label className="flex flex-col gap-1 text-sm">
+          <span>{t("settings.delegation.digest")}</span>
+          <select
+            data-testid="delegation-digest"
+            className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+            value={policy.digest}
+            onChange={(e) => patch({ digest: e.target.value as Policy["digest"] })}
+          >
+            <option value="daily">{t("settings.delegation.digestDaily")}</option>
+            <option value="weekly">{t("settings.delegation.digestWeekly")}</option>
+            <option value="off">{t("settings.delegation.digestOff")}</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span>{t("settings.delegation.model")}</span>
+          <input
+            type="text"
+            data-testid="delegation-model"
+            placeholder={t("settings.delegation.modelInherit")}
+            className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+            value={policy.model ?? ""}
+            onChange={(e) => patch({ model: e.target.value.trim() || null })}
+          />
+        </label>
+      </div>
+      <p className="text-xs text-muted-foreground">{t("settings.delegation.modelHint")}</p>
 
       <div className="flex items-center gap-3">
         <button

@@ -288,6 +288,25 @@ export function createFleetTurnLedger({
     return open.get(stack[stack.length - 1]) ?? null;
   }
 
+  // The model the post's in-flight turn is ACTUALLY running on, read from the
+  // child's own `request/header` trace rather than from any declared value.
+  // Used by the deputy ruling to stamp `resolved_by_model` server-side: a
+  // ruling agent's self-report is not evidence, and the declared chain can
+  // drift out-of-band (fix-fleet-model-drift). Null when the turn carries no
+  // trace, the child has not sent a header yet, or the trace is off — an
+  // honest null beats a guess, and the caller must not substitute one.
+  function observedModelFor(memberId) {
+    const handle = lookupByMember(memberId);
+    if (!handle || !trace || !handle.traceTurnId) return null;
+    try {
+      const turns = trace.getTurn(handle.traceTurnId);
+      const headerEvent = turns?.find((t) => t.eventType === "request/header");
+      return headerEvent?.payload?.event?.data?.header?.config?.model ?? null;
+    } catch {
+      return null; // observation never fails the caller
+    }
+  }
+
   // Collector hook (design D4). `sessionId` is the collector key (rotated child
   // id for fleet rounds); the rows land under the stable mirror session.
   function tap(notif, sessionId, mirrorSessionId = sessionId) {
@@ -306,5 +325,5 @@ export function createFleetTurnLedger({
     return [...open.values()];
   }
 
-  return { begin, end, settle, sweepOpenRuns, chainFor, lookupBySession, lookupByMember, tap, openTurns, tapEnabled: traceTapEnabled };
+  return { begin, end, settle, sweepOpenRuns, chainFor, lookupBySession, lookupByMember, observedModelFor, tap, openTurns, tapEnabled: traceTapEnabled };
 }

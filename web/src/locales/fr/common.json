@@ -1176,7 +1176,14 @@
       "maxSeverity": "Gravité max délégable",
       "dailyBudget": "Budget quotidien de décisions",
       "save": "Enregistrer",
-      "saved": "Enregistré"
+      "saved": "Enregistré",
+      "digest": "Fréquence du résumé",
+      "digestDaily": "Quotidien",
+      "digestWeekly": "Hebdomadaire",
+      "digestOff": "Désactivé",
+      "model": "Modèle de décision",
+      "modelInherit": "Vide = hériter",
+      "modelHint": "Vide suit le modèle par défaut du cluster/cellule ; une valeur s'applique au poste d'adjoint dès sa prochaine ronde."
     }
   },
   "bindings": {
@@ -2552,7 +2559,9 @@
       "escalatedTimes": "Réescaladé ×{{count}}",
       "ruledByDeputy": "Tranché par l'adjoint",
       "evidence": "Fondement",
-      "recall": "Reprendre (je tranche)"
+      "recall": "Reprendre (je tranche)",
+      "executed": "Exécuté",
+      "notExecuted": "Décidé mais non exécuté"
     },
     "tpl": {
       "awaitStart": "Cluster monté depuis le gabarit (tout en pause) — vérifiez puis démarrez",

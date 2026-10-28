@@ -1176,7 +1176,14 @@
       "maxSeverity": "Severidad máxima delegable",
       "dailyBudget": "Presupuesto diario de resoluciones",
       "save": "Guardar",
-      "saved": "Guardado"
+      "saved": "Guardado",
+      "digest": "Frecuencia del resumen",
+      "digestDaily": "Diario",
+      "digestWeekly": "Semanal",
+      "digestOff": "Desactivado",
+      "model": "Modelo para decidir",
+      "modelInherit": "Vacío = heredar",
+      "modelHint": "Vacío sigue el modelo por defecto del clúster/celda; un valor se aplica al puesto de adjunto desde su próxima ronda."
     }
   },
   "bindings": {
@@ -2552,7 +2559,9 @@
       "escalatedTimes": "Reescalado ×{{count}}",
       "ruledByDeputy": "Resuelto por el adjunto",
       "evidence": "Fundamento",
-      "recall": "Reclamar (decido yo)"
+      "recall": "Reclamar (decido yo)",
+      "executed": "Ejecutado",
+      "notExecuted": "Resuelto pero no ejecutado"
     },
     "tpl": {
       "awaitStart": "Clúster montado desde la plantilla (todo en pausa) — revisa y arranca",

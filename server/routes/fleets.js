@@ -1619,6 +1619,21 @@ export function createFleetRoutes(app, ctx = null) {
     return { fleet, deputy, policy };
   }
 
+  // 策略里的「裁决所用模型」落到常务岗这个岗位的 model 字段上——策略是声明，
+  // 岗位 model 才是回合实际解析链的第一跳（fleetModelFor → resolveModelChain）。
+  // 不这样做 policy.model 就是一只没接线的旋钮：存了、看得见、不影响任何行为。
+  // 声明为空则清掉岗位 model，回到继承（舰队默认 → cell 默认）。
+  function applyDeputyModel(db, fleetId, policy) {
+    const deputyId = policy?.deputyMemberId;
+    if (!deputyId) return null;
+    const member = db.getMember(deputyId);
+    if (!member || member.fleetId !== fleetId) return null;
+    const next = typeof policy.model === "string" && policy.model ? policy.model : null;
+    if ((member.model ?? null) === next) return member;
+    db.updateMember(deputyId, { model: next });
+    return db.getMember(deputyId);
+  }
+
   // Deputy 队列：route=deputy 的 open 项 + 每项的来源岗位上下文（标题/状态/
   // 近期报数摘要）与主人过往同类判例（resolved_by=owner 的历史裁决）。
   router.post("/deputy/queue", async (req, res) => {
@@ -1699,7 +1714,7 @@ export function createFleetRoutes(app, ctx = null) {
       if (guard.error) return res.status(guard.status).json({ error: guard.error });
       const { fleet, deputy, policy } = guard;
 
-      const { itemId, kind, choice, note, evidence, model } = req.body ?? {};
+      const { itemId, kind, choice, note, evidence } = req.body ?? {};
       if (!["approve", "reject"].includes(kind)) {
         return res.status(400).json({ error: "kind must be approve or reject (amend is owner-only)" });
       }
@@ -1730,12 +1745,17 @@ export function createFleetRoutes(app, ctx = null) {
       resolution.resolution.by = `deputy:${deputy.title ?? deputy.id}`;
       resolution.resolution.at = Date.now();
 
+      // 裁决所用模型 SHALL 由服务端取（spec「裁决携带身份与依据」）：读本回合
+      // 子进程自己发出的 request/header，而不是请求体自报，也不是声明的
+      // 模型链（后者会 out-of-band 漂移）。取不到就如实留空，不猜。
+      const rulingModel = ctx?.fleetTurnLedger?.observedModelFor?.(deputy.id) ?? null;
+
       const updated = db.transitionDecision(itemId, "open", {
         state: kind === "reject" ? "rejected" : "approved",
         resolution: resolution.resolution,
         resolvedAt: Date.now(),
         resolvedBy: "deputy",
-        resolvedByModel: typeof model === "string" ? model.slice(0, 120) : null,
+        resolvedByModel: rulingModel ? String(rulingModel).slice(0, 120) : null,
         rulingEvidence: typeof evidence === "string" ? evidence.slice(0, 2000) : null,
       });
       if (!updated) return res.status(409).json({ error: "first resolution wins — another decision just landed" });
@@ -1912,6 +1932,9 @@ export function createFleetRoutes(app, ctx = null) {
         db.setCellSetting("delegationPolicy", body.policy ?? null);
       } else {
         db.setFleetDelegationPolicy(body.fleetId, body.policy ?? null);
+        // 裁决所用模型是声明，真正的生效点是常务岗岗位的 model——
+        // 策略写入即同步（写空 = 回到继承链）。
+        applyDeputyModel(db, body.fleetId, db.getFleetDelegationPolicy(body.fleetId));
       }
       const effective = body.fleetId
         ? db.getFleetDelegationPolicy(body.fleetId)
@@ -1962,6 +1985,7 @@ export function createFleetRoutes(app, ctx = null) {
         });
         const policy = db.getFleetDelegationPolicy(owned.fleet.id);
         db.setFleetDelegationPolicy(owned.fleet.id, { ...policy, enabled: true, deputyMemberId: created.id });
+        applyDeputyModel(db, owned.fleet.id, db.getFleetDelegationPolicy(owned.fleet.id));
         const reconcile = await reconcileFleet({
           fleetId: owned.fleet.id,
           db,
@@ -1994,6 +2018,7 @@ export function createFleetRoutes(app, ctx = null) {
       }
       const policy = db.getFleetDelegationPolicy(owned.fleet.id);
       db.setFleetDelegationPolicy(owned.fleet.id, { ...policy, enabled: true, deputyMemberId: member.id });
+      applyDeputyModel(db, owned.fleet.id, db.getFleetDelegationPolicy(owned.fleet.id));
       const reconcile = await reconcileFleet({
         fleetId: owned.fleet.id,
         db,

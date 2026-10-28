@@ -448,6 +448,22 @@ test("schedule math: period + floor", () => {
   assert.equal(staleWindowMs("0 */6 * * *", null), 12 * 3600_000, "2× period above the floor");
 });
 
+test("schedule math: memoized period keeps its value and its null", () => {
+  // Memoized per (cron, tz, day): the roster derives a stale window per member
+  // and the derivation asks again, so an uncached parse cost ~40ms per call
+  // with a tz (a 60-post fleet paid seconds per read). The cache must not
+  // change the answer — including the null for an unparseable expression.
+  const tz = "Asia/Shanghai";
+  const first = cronPeriodMs("0 9 * * *", tz);
+  const second = cronPeriodMs("0 9 * * *", tz);
+  assert.equal(first, 24 * 3600_000);
+  assert.equal(second, first, "the cached value equals the computed one");
+  assert.equal(cronPeriodMs("not a cron", tz), null);
+  assert.equal(cronPeriodMs("not a cron", tz), null, "a null result is cached too");
+  // A distinct tz is a distinct key (no cross-timezone bleed).
+  assert.equal(typeof cronPeriodMs("0 9 * * *", "UTC"), "number");
+});
+
 // ── routes ──────────────────────────────────────────────────────────────────
 
 async function startServer(ctx, { userHeader = null } = {}) {

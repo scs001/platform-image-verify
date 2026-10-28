@@ -2940,4 +2940,4 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 - **智能体页**：加载中无空态闪现，落地诚实空态正常，回访 60 专家卡即时。
 - **长会话**：探针读数 `[session-open] ms=137 messages=51 bytes=1710034`（服务端 137ms、首帧钉在窗口）；挂载恰 50 条 + load-earlier 按需翻页 50→54、最老页按钮消失；in-pod drill 证 total=54/hasMore=true/分页 4 条即尽；缓存回访 ~0.9s 即时渲染。
 
-**挂账**：① 缓存回访瞬间 transcript 计数属上一会话（activateSession 未随缓存携带窗口元数据），后台校验落地自愈——秒级瞬时态，后续把字段随 sessionCache 一并缓存即可；② 重块会话（≈33KB/条，tool 产物为主）客户端挂载仍 3-7s，窗口 N 调参或块裁剪留待实测数据（探针已在产常驻）。
+**挂账**：~~① 缓存回访瞬间 transcript 计数属上一会话~~ **已清账**（9efc7339：`sessionWindowMeta` 与 `sessionCache` 同步键控——activateSession 出站写入/入站恢复、session_loaded 两分支与 done 站点写入、sessions 删除连同回收；store 测试 18/18；**随下一班快照上产**，本班不单滚）；② 重块会话（≈33KB/条，tool 产物为主）客户端挂载仍 3-7s，窗口 N 调参或块裁剪留待实测数据（探针已在产常驻）。

@@ -3021,7 +3021,8 @@
     },
     "tabs": {
       "form": "Form",
-      "json": "JSON"
+      "json": "JSON",
+      "draft": "Draft"
     },
     "fields": {
       "name": "Scene name",
@@ -3059,6 +3060,18 @@
       "load": "Load",
       "none": "No report recorded yet."
     },
-    "castPack": "pack {{packId}}"
+    "castPack": "pack {{packId}}",
+    "draft": {
+      "hint": "Hand the prompt to the blueprint-constructor capability pack in a chat, then paste its JSON back — it lands in the same draft pool (same validation chain).",
+      "copy": "Copy prompt",
+      "copied": "Copied",
+      "copyFailed": "Clipboard unavailable — select the prompt and copy it manually.",
+      "promptIntro": "You are a blueprint constructor. Draft a vertical blueprint for the scene \"{{name}}\" and output ONE JSON object only (no prose, no code fences), shaped exactly like:",
+      "constraints": "Constraints: data sources are registry server names or internal-library logical names only (no endpoints, no credentials); keep pack-preset packId exactly as the PACK_ID placeholder shown in the skeleton and point presetId at an id you declare under agents; a discipline-pack dependency uses the dependency placeholder {{dep}}.",
+      "pastePlaceholder": "Paste the returned JSON here…",
+      "apply": "Load draft",
+      "applied": "Draft loaded into the same pool.",
+      "invalid": "That JSON is not a blueprint object."
+    }
   }
 }

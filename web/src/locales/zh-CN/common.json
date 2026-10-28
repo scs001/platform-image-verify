@@ -3021,7 +3021,8 @@
     },
     "tabs": {
       "form": "表单",
-      "json": "JSON"
+      "json": "JSON",
+      "draft": "起草"
     },
     "fields": {
       "name": "场景名",
@@ -3059,6 +3060,18 @@
       "load": "载入",
       "none": "尚未落报告。"
     },
-    "castPack": "包 {{packId}}"
+    "castPack": "包 {{packId}}",
+    "draft": {
+      "hint": "把提示词交给会话里的蓝图构造师能力包，再把返回的 JSON 粘回来——落进同一草稿池，走同一校验链。",
+      "copy": "复制提示词",
+      "copied": "已复制",
+      "copyFailed": "剪贴板不可用——请选中提示词手动复制。",
+      "promptIntro": "你是蓝图构造师。请为场景「{{name}}」起草一份垂直蓝图，只输出一个 JSON 对象（不要解释、不要代码围栏），结构严格如下：",
+      "constraints": "约束：数据来源只写 registry 在册 server 名或内部库逻辑名（禁端点、禁凭据）；pack-preset 成员的 packId 保持骨架里那个 PACK_ID 自引用占位，presetId 指向你在 agents 里声明的条目 id；纪律包依赖用依赖占位 {{dep}}。",
+      "pastePlaceholder": "把返回的 JSON 粘到这里…",
+      "apply": "载入草稿",
+      "applied": "草稿已载入同一草稿池。",
+      "invalid": "该 JSON 不是蓝图对象。"
+    }
   }
 }

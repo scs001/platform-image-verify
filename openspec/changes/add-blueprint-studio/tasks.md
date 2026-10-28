@@ -10,7 +10,7 @@
 
 - [x] 2.1 owner 面新增「蓝图构造间」入口（与 owner surface 在途 change 分栏一致）。
 - [x] 2.2 表单+JSON 双轨编辑，提交前全套校验链（parseFleetTemplate→validatePackManifest→allowTools⊆商业集）与归一化 diff；草稿**不允许**产生任何实体（市场/铸造仓/集群库零副作用）。
-- [ ] 2.3 NL→草稿轨：承袭构造师 pack 能力（仅作草拟输入渠道），落点与 2.2 同一草稿池。
+- [x] 2.3 NL→草稿轨：承袭构造师 pack 能力（仅作草拟输入渠道），落点与 2.2 同一草稿池。
 
 ## 3. 批准-铸造-上架
 

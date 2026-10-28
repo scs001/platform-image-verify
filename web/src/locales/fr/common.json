@@ -3021,7 +3021,8 @@
     },
     "tabs": {
       "form": "Formulaire",
-      "json": "JSON"
+      "json": "JSON",
+      "draft": "Esquisse"
     },
     "fields": {
       "name": "Nom de la scène",
@@ -3059,6 +3060,18 @@
       "load": "Charger",
       "none": "Aucun rapport pour l'instant."
     },
-    "castPack": "paquet {{packId}}"
+    "castPack": "paquet {{packId}}",
+    "draft": {
+      "hint": "Confiez le prompt au paquet de capacité de construction de plans dans un chat, puis recollez son JSON : il atterrit dans le même brouillon (même chaîne de validation).",
+      "copy": "Copier le prompt",
+      "copied": "Copié",
+      "copyFailed": "Presse-papiers indisponible : sélectionnez le prompt et copiez-le à la main.",
+      "promptIntro": "Tu es constructeur de plans. Rédige un plan vertical pour la scène « {{name}} » et renvoie UN SEUL objet JSON (sans prose, sans balises de code), de forme exacte :",
+      "constraints": "Contraintes : les sources de données sont uniquement des noms de serveurs du registre ou des noms logiques de la bibliothèque interne (ni endpoints ni identifiants) ; gardez le packId des membres pack-preset tel quel (le marqueur PACK_ID du squelette) et pointez presetId vers un id déclaré dans agents ; une dépendance de paquet de discipline utilise le marqueur de dépendance {{dep}}.",
+      "pastePlaceholder": "Collez ici le JSON renvoyé…",
+      "apply": "Charger l'esquisse",
+      "applied": "Esquisse chargée dans le même brouillon.",
+      "invalid": "Ce JSON n'est pas un objet de plan."
+    }
   }
 }

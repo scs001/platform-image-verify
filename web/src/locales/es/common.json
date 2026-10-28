@@ -3021,7 +3021,8 @@
     },
     "tabs": {
       "form": "Formulario",
-      "json": "JSON"
+      "json": "JSON",
+      "draft": "Esbozo"
     },
     "fields": {
       "name": "Nombre de la escena",
@@ -3059,6 +3060,18 @@
       "load": "Cargar",
       "none": "Aún no hay informe."
     },
-    "castPack": "paquete {{packId}}"
+    "castPack": "paquete {{packId}}",
+    "draft": {
+      "hint": "Entregue el prompt al paquete de capacidad de construcción de planos en un chat y pegue de vuelta su JSON: aterriza en el mismo borrador (misma cadena de validación).",
+      "copy": "Copiar prompt",
+      "copied": "Copiado",
+      "copyFailed": "Portapapeles no disponible: seleccione el prompt y cópielo a mano.",
+      "promptIntro": "Eres un constructor de planos. Redacta un plano vertical para la escena «{{name}}» y devuelve UN solo objeto JSON (sin prosa, sin vallas de código), con esta forma exacta:",
+      "constraints": "Restricciones: las fuentes de datos son solo nombres de servidores del registro o nombres lógicos de la biblioteca interna (sin endpoints ni credenciales); mantenga packId de los miembros pack-preset como el marcador PACK_ID del esqueleto y apunte presetId a un id declarado en agents; una dependencia de paquete de disciplina usa el marcador de dependencia {{dep}}.",
+      "pastePlaceholder": "Pegue aquí el JSON devuelto…",
+      "apply": "Cargar borrador",
+      "applied": "Borrador cargado en el mismo grupo.",
+      "invalid": "Ese JSON no es un objeto de plano."
+    }
   }
 }

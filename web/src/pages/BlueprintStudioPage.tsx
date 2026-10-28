@@ -32,6 +32,31 @@ const STATUS_TONE: Record<string, string> = {
   cast: "border-emerald-500/50 bg-emerald-500/10 text-emerald-600",
 };
 
+// 起草提示词里的结构骨架（代码常量，非本地化串——`{{PACK_ID}}` 若走 locale
+// 会被 i18next 当插值吃掉）。内容层文字由提示词正文承载。
+const DRAFT_SCHEMA = `{
+  "boundary": { "name": "", "oneLine": "", "outOfScope": "" },
+  "dataSources": [{ "ref": "" }],
+  "fleet": {
+    "name": "",
+    "members": [
+      {
+        "ref": "",
+        "title": "",
+        "parentRef": null,
+        "target": { "kind": "pack-preset", "packId": "{{PACK_ID}}", "presetId": "" },
+        "kpiSlots": [{ "key": "", "label": "" }],
+        "cadence": { "cron": "0 9 * * *", "tz": "Asia/Shanghai", "promptTemplate": "" }
+      }
+    ]
+  },
+  "agents": [{ "id": "", "name": "", "persona": "" }],
+  "mcpServers": [],
+  "monitoring": {},
+  "acceptance": [],
+  "board": {}
+}`;
+
 // 内容派生键（仓俗：数组下标不作 React key）——重复项以出现序数去重。
 function keyed<T>(rows: T[], base: (row: T) => string): { key: string; row: T; index: number }[] {
   const seen = new Map<string, number>();
@@ -66,12 +91,15 @@ export function BlueprintStudioPage() {
   const [content, setContent] = useState<BlueprintContent | null>(null);
   const [jsonText, setJsonText] = useState("");
   const [jsonError, setJsonError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"form" | "json">("form");
+  const [tab, setTab] = useState<"form" | "json" | "draft">("form");
   const [verdict, setVerdict] = useState<ValidationVerdict | null>(null);
   const [verdictStale, setVerdictStale] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [trial, setTrial] = useState<unknown>(null);
+  const [draftPaste, setDraftPaste] = useState("");
+  const [draftError, setDraftError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const refreshList = useCallback(async () => {
     const out = await listBlueprints();
@@ -161,6 +189,47 @@ export function BlueprintStudioPage() {
 
   const sceneName = content?.boundary?.name ?? detail?.name ?? "";
   const status = detail?.status ?? "draft";
+
+  // ── 起草轨（task 2.3，提示词桥）─────────────────────────────────────────
+  // NL→草稿承袭构造师 pack 能力的编译产物：提示词给会话里的能力包，返回的
+  // JSON 粘回同一草稿池（与 2.2 双轨同源），不引第二个编译源、不新造端点。
+  const draftPrompt = useMemo(
+    () =>
+      `${t("blueprints.draft.promptIntro", { name: sceneName || t("blueprints.untitled") })}\n\n${DRAFT_SCHEMA}\n\n${t("blueprints.draft.constraints", { dep: "{{PACK_ID:<name>}}" })}`,
+    [sceneName, t],
+  );
+
+  const copyPrompt = async () => {
+    try {
+      await navigator.clipboard.writeText(draftPrompt);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setDraftError(t("blueprints.draft.copyFailed"));
+    }
+  };
+
+  const applyDraft = () => {
+    try {
+      const parsed = JSON.parse(draftPaste) as unknown;
+      const wrapped = parsed as { content?: unknown };
+      const candidate =
+        parsed && typeof parsed === "object" && !Array.isArray(parsed) && wrapped.content && typeof wrapped.content === "object"
+          ? wrapped.content
+          : parsed;
+      if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+        setDraftError(t("blueprints.draft.invalid"));
+        return;
+      }
+      applyContent(candidate as BlueprintContent);
+      setDraftError(null);
+      setDraftPaste("");
+      setTab("form");
+      setNotice({ kind: "ok", text: t("blueprints.draft.applied") });
+    } catch (e) {
+      setDraftError(String((e as Error).message));
+    }
+  };
 
   const run = async (key: string, fn: () => Promise<void>) => {
     setBusy(key);
@@ -347,7 +416,7 @@ export function BlueprintStudioPage() {
             </header>
 
             <div className="flex items-center gap-1 border-b border-border px-5 pt-2">
-              {(["form", "json"] as const).map((key) => (
+              {(["form", "json", "draft"] as const).map((key) => (
                 <button
                   key={key}
                   type="button"
@@ -420,7 +489,7 @@ export function BlueprintStudioPage() {
                   </div>
                   <p className="text-[11px] text-muted-foreground">{t("blueprints.fields.jsonHint")}</p>
                 </div>
-              ) : (
+              ) : tab === "json" ? (
                 <div className="flex h-full flex-col gap-2" data-testid="blueprint-json-track">
                   <textarea
                     className="min-h-[320px] flex-1 rounded-md border border-border bg-background p-3 font-mono text-xs"
@@ -435,6 +504,48 @@ export function BlueprintStudioPage() {
                   <div>
                     <button type="button" className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted" onClick={applyJson} data-testid="blueprint-json-apply">
                       {t("blueprints.json.apply")}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="max-w-2xl space-y-3" data-testid="blueprint-draft-track">
+                  <p className="text-xs text-muted-foreground">{t("blueprints.draft.hint")}</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted"
+                      onClick={() => void copyPrompt()}
+                      data-testid="blueprint-draft-copy"
+                    >
+                      {copied ? t("blueprints.draft.copied") : t("blueprints.draft.copy")}
+                    </button>
+                  </div>
+                  <textarea
+                    readOnly
+                    className="h-44 w-full rounded-md border border-border bg-muted/40 p-2 font-mono text-[11px]"
+                    value={draftPrompt}
+                    data-testid="blueprint-draft-prompt"
+                  />
+                  <textarea
+                    className="h-44 w-full rounded-md border border-border bg-background p-2 font-mono text-[11px]"
+                    value={draftPaste}
+                    placeholder={t("blueprints.draft.pastePlaceholder")}
+                    onChange={(e) => {
+                      setDraftPaste(e.target.value);
+                      setDraftError(null);
+                    }}
+                    data-testid="blueprint-draft-paste"
+                  />
+                  {draftError ? <div className="text-xs text-destructive" data-testid="blueprint-draft-error">{draftError}</div> : null}
+                  <div>
+                    <button
+                      type="button"
+                      className="rounded-md border border-border px-2.5 py-1 text-xs hover:bg-muted disabled:opacity-40"
+                      onClick={applyDraft}
+                      disabled={!draftPaste.trim()}
+                      data-testid="blueprint-draft-apply"
+                    >
+                      {t("blueprints.draft.apply")}
                     </button>
                   </div>
                 </div>

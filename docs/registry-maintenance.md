@@ -3518,3 +3518,14 @@ B1（付费+credit 环）/B2（车道 live-write 全链）/B3（v2 跟新回放�
 **方法论沉淀**：①「某页面慢」先分**固定成本 vs 逐元素成本**——单舰队详情 127ms vs 全列表 2s 就是「随舰队数增长」的铁证；②共享事件循环的进程里，一个慢 HTTP 端点会顶住 WS 握手——侧栏/驾驶舱类常驻轮询是首要嫌疑；③带时区的 cron 解析是暗坑（cron-parser 每次构造 Luxon zone），纯函数一律按天键记忆化；④supervisor 吞 stdout 的话，**进程内计数器**（`catalogMergeCount()`）才是可达的探针；⑤生产数据副本上跑组件探针 + 真 owner 身份跑 HTTP 探针，两段拼出完整归因。
 
 **挂账**：无（挂账② 以实测收口；本地集群四单与蓝图线由各自会话收口）。
+
+### §15.78 续二（2026-10-29）——舰队页视觉验收补做（模型可读图后）
+
+四张走查截图逐张过目，**视觉验收通过**：已部署态（容量行 1/4、resident 徽章、Stop/Remove 三键）、
+满载态（部署动作禁用+悬停原因）、409 态（琥珀横幅「All 4 runtime groups are in use (4 used) —
+remove a deployment to free one」）、云目录只读态（卡片无部署入口）。逮出一处英文单复数小疵
+（「1 agents · 1 runtime processes」）当场修掉——`fleet.live.summary` 拆 i18next 复数键
+（summary_one/other，en/es/fr 双形态、zh/ja 单形态 + key parity，locale 闸 2339 key × 5 绿），
+桌面壳 e2e 重跑 5/5 绿、截图更新（`~/paas-artifacts/v1.3.24/fleet-ui/`）。归档账
+（polish-desktop-fleet-parity 5.2）同步改为「人工肉眼走查已完成」。剩余肉眼项只剩
+change 3 的真机睡眠/唤醒一幕。

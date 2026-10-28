@@ -14,4 +14,4 @@
 ## 3. 归档与出片
 
 - [x] 3.1 `openspec validate --change add-fleet-identity-turn` 绿；archive 后主 spec `agent-fleet-report-lane` 需求文本与在产格式逐字对齐（含 `target=` key 名与示例校正）
-- [ ] 3.2 出片走查：server/ 改动随镜像上车，真机起一个成员回合，身份行五字段眼见（台账：回合身份五段）
+- [x] 3.2 出片走查：server/ 改动随镜像上车，真机起一个成员回合，身份行五字段眼见（台账：回合身份五段）

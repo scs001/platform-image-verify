@@ -53,20 +53,27 @@ function checkSignature(cred, query, ciphertext) {
   if (query.msg_signature !== expected) throw new Error("bad msg_signature");
 }
 
-const tokens = new Map(); // corpId:agentId → tokenCache
+const tokens = new Map(); // corpId:agentId → { cred, cache }
 function tokenFor(cred) {
   const k = `${cred.corpId}:${cred.agentId}`;
-  let cache = tokens.get(k);
-  if (!cache) {
-    cache = tokenCache(async () => {
-      const url = `${BASE}/cgi-bin/gettoken?corpid=${encodeURIComponent(cred.corpId)}&corpsecret=${encodeURIComponent(cred.corpSecret)}`;
+  let entry = tokens.get(k);
+  if (!entry) {
+    entry = { cred, cache: null };
+    entry.cache = tokenCache(async () => {
+      // Read the cred through the holder, not the closure argument: credential
+      // rotation (PATCH with a new corpSecret) replaces the bot row, and a
+      // closure captured at first use would keep fetching with the OLD secret
+      // forever — observed in prod as 40001 after a rotation despite a
+      // working direct gettoken with the same values.
+      const url = `${BASE}/cgi-bin/gettoken?corpid=${encodeURIComponent(entry.cred.corpId)}&corpsecret=${encodeURIComponent(entry.cred.corpSecret)}`;
       const j = await (await fetch(url)).json();
       if (j.errcode) throw new Error(`gettoken: ${j.errcode} ${j.errmsg}`);
       return { token: j.access_token, expiresInSec: j.expires_in };
     });
-    tokens.set(k, cache);
+    tokens.set(k, entry);
   }
-  return cache;
+  entry.cred = cred; // the latest credentials always win
+  return entry.cache;
 }
 
 export const registry = {

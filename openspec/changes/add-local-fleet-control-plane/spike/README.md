@@ -40,7 +40,7 @@ profile 种子——桌面路径已成立；打包内置 Node 的 DSH_BIN 注入
 「运行时组」（pod: 每 pack 组 1；solo: 每 agent 1）计，写面返回的 used/cap 以
 组为单位并在 UI 文案里说明。
 
-### F3（真缺陷，进本 change）child 中途退出曾把 runner 整体打死
+### F3（真缺陷 → 已修，commit bd5a085f）child 中途退出曾把 runner 整体打死
 
 首轮 spike（seed 后首条报文）日志序列：`cold-starting` → `child exited
 unexpectedly` → 进程级 fatal（`Error: agent runtime exited mid-turn` 逃逸为
@@ -50,8 +50,26 @@ runner 进程。**含义**：本地集群里一个坏 child 即可让整个 runn
 「一个 listener 失败不得打死进程」同精神，但 turn 路径未覆盖。
 复现受 dev 环境 child 不稳干扰（后续观测到 `-32603 inactive context` /
 `cannot read properties of undefined` 两种 child 自身失败，此时 runner 存活、
-调用方拿到结构化错误）。**处置**：新增任务 5.5（可控假 child 单测复现并修到
-绿），不以「dev 环境不稳」为由挂账。
+调用方拿到结构化错误）。**处置（已完成）**：任务 5.5 落了根因修复，详见下节。
+
+#### F3 根因（已定位并修复）
+
+`agent-runner/harness/dsh.js` 的 `turn()` **先建 `collected` Promise，再
+`await client.prompt(...)`，最后才 `return collected`**。child 在 prompt 在途
+时死亡 → pump 的 `_child_exit` 分支 `reject(collected)` —— 此刻**还没有任何
+handler 挂在它身上** → Node 判定 unhandled rejection（默认
+`--unhandled-rejections=throw`）→ 整个 runner 退出 → 本机所有 hosted agent
+陪葬，直到 supervisor 重启。
+
+复现与验证（`scripts/test-local-fleet-turn-death.mjs`，栈与现场摘录逐帧一致）：
+- 去掉修复 → 该用例以现场同款 `Error: agent runtime exited mid-turn` 红；
+- 装上修复 → 3/3 绿（含「在途死亡」「prompt 拒绝」「回合中死亡」三种形态）；
+- 真机（真实 dsh 子进程）SIGKILL 复核：调用方拿到结构化 `-32002`，runner 存活。
+
+修法三处：`collected` 立即挂 no-op catch（拒绝永不再无人处理，调用方仍收到
+同一个拒绝）；prompt 与 collected **竞速**（child 已死时在途写入可能永不完成，
+回合不能陪挂）；`settle` 幂等（collector 路径与 prompt 失败路径可能各触发
+一次，第二次不得再减 activeTurns）。
 
 ## 未覆盖
 

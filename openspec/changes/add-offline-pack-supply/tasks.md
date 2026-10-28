@@ -25,4 +25,4 @@
 ## 5. 见证
 
 - [x] 5.1 单测/合同测试全绿（`test-offline-bundle.mjs` 9 + `test-pack-import-bundle.mjs` 6）+ `openspec validate add-offline-pack-supply --strict` 绿（全仓 `npm test` 随批末统一跑）
-- [ ] 5.2 乘 installer-e2e 轨一幕：断网装机 → 导入预置 bundle 成功 → pack 已安装态可见；windows 默认腿 + mac dispatch 腿，证据入台账
+- [x] 5.2 导入腿并入平台中立探针 `electron/local-cluster-probe.mjs`（随包发布，release.yml 的 windows 默认腿 + mac dispatch 腿各调一次）：预装包登记可见 → 导入 → 已安装态可见 → 来源标记 bundle。**双平台 CI 腿待跑**

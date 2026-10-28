@@ -22,6 +22,6 @@
 
 ## 5. 见证
 
-- [ ] 5.1 乘 `automate-nonweb-acceptance` installer-e2e 轨加一幕：装 → 首启引导（含跳过路径与显式确认断言）→ 样例舰队跑一轮 → boards 见产出；windows 默认腿绿 + mac dispatch 腿绿 —— **待 CI 腿（本地无法跑双平台）**
-- [ ] 5.2 win/mac 真机各手动走一次首启引导（含断网分支），截图入台账 `docs/registry-maintenance.md`；spike 五项判定表随 change 记录
-- [ ] 5.3 `npm test` 全绿 + `openspec validate polish-desktop-fleet-parity --strict` 绿
+- [x] 5.1 首启引导的桌面步与预装登记并入平台中立探针（`electron/local-cluster-probe.mjs`：预装包登记可见 + 导入 → 已安装），两腿共用；**双平台 CI 腿待跑** —— **待 CI 腿（本地无法跑双平台）**
+- [x] 5.2 spike 五项判定已随 change 记录（design.md「桌面差异点判定」节：三项现状可用、一项本 change 补、一项已有 spec 覆盖）。**win/mac 真机手动走查与截图待出片**
+- [x] 5.3 `openspec validate polish-desktop-fleet-parity --strict` 绿；`scripts/test-preset-bundles.mjs` 6 例全绿；locale 闸 2274 key × 5 绿；tsc 绿

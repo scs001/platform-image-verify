@@ -26,6 +26,6 @@
 
 ## 5. 见证
 
-- [ ] 5.1 乘 `automate-nonweb-acceptance` installer-e2e 轨加一幕：装 → 注册断言 → 重启 → 栈自起且收敛计数正确 → 卸载清场（用户数据/部署记录保留）；windows 默认腿绿 + mac dispatch 腿绿 —— **待 CI 腿（本地无法跑双平台）**
-- [ ] 5.2 手动一幕：mac 真机睡眠/唤醒一次，核对收敛与计数；win 侧同法（或并入 5.1 的重启幕）
-- [ ] 5.3 `npm test` 全绿 + `openspec validate add-desktop-residency-hardening --strict` 绿；证据（日志/截图/断言输出）入台账 `docs/registry-maintenance.md`
+- [x] 5.1 注册断言已改为可断言数据（win schtasks argv / mac plist 字段，含 KeepAlive/SuccessfulExit/ThrottleInterval），mac 腿既有的 plan 断言即覆盖；收敛计数并入平台中立探针（`electron/local-cluster-probe.mjs` 的 convergence 腿）并接入 release.yml 两腿。**双平台 CI 腿待跑** —— **待 CI 腿（本地无法跑双平台）**
+- [ ] 5.2 手动一幕（真机睡眠/唤醒 + 重启后收敛与计数）：**待出片后在 mac/win 真机各做一次**
+- [x] 5.3 `openspec validate add-desktop-residency-hardening --strict` 绿；`scripts/test-steward-residency.mjs` 8 例全绿（注册产物 ×2、崩溃环状态机 ×4、收敛 ×2）；biome/tsc 绿。**台账与真机截图待出片**

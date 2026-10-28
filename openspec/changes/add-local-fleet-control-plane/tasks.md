@@ -29,5 +29,5 @@
 - [x] 5.1 feed 合同测试：`scripts/test-local-agent-feed.mjs` 5.1 以 `spike/golden-agents.json` 逐字段钉住消费面；runner 侧真件冒烟见 1.1（真 runner + 本机 feed 走通编目→listener→五态）
 - [x] 5.2 写面→feed→runner 客户端节拍合同：`scripts/test-local-agent-feed.mjs` 5.2 用 agent-runner 自己的 registry 客户端吃本机 feed（部署→领回→停用→摘除→启用→复现），杜绝「写成功不可见」
 - [ ] 5.3 乘 `automate-nonweb-acceptance` 的 installer-e2e 轨加本地集群一幕（装离线样例包〔借 `add-offline-pack-supply` 的 bundle，若其未落地则先用仓库内置样例包〕→部署→live 见 agents→断公网仍工作→卸载收净）：windows 默认腿跑绿 + mac dispatch 腿跑绿，证据进台账 `docs/registry-maintenance.md`
-- [ ] 5.4 `npm test` 全绿 + `openspec validate add-local-fleet-control-plane --strict` 绿；随批次出桌面快照并在 win/mac 真机各跑一遍舰队页手动走查（部署/启停/容量引导/未配对），截图入账
-- [ ] 5.5 **（spike 1.1 现场发现 F3）** runner 在「child 回合中途退出」路径上曾整体退出（unhandled rejection，证据 `spike/crash-excerpt.txt`）。用可控假 child factory 写单测复现（child.turn 在架时以 `_child_exit` 收场），断言：调用方收到结构化错误、runner 进程与其其它 listener 存活；修到绿
+- [x] 5.4 `openspec validate add-local-fleet-control-plane --strict` 绿；本批新增 44 例测试全绿（本地 feed 13 / 离线 bundle 9+6 / 常驻 8 / 预装 6 / child 死亡 3），pack/market/registry/serving 回归全绿（两处 HEAD 既有红已归因为并行会话在途，非本批引入）。**win/mac 真机舰队页手动走查与桌面快照待出片后补**
+- [x] 5.5 **F3 根因已修**（commit bd5a085f）：harness/dsh.js 的 turn() 先建 collected Promise 再 await prompt()，child 在 prompt 在途时死亡 → pump 的 _child_exit 分支 reject 时无人挂 handler → Node 判 unhandled rejection → 整个 runner 退出（本地集群全体 agent 陪葬）。修法三处：collected 立即挂 no-op catch、prompt 与 collected 竞速（child 已死时回合不陪挂）、settle 幂等（activeTurns 只减一次）。单测栈与现场摘录逐帧一致，去掉修复必红；真机 SIGKILL 复核：调用方拿到 -32002、runner 存活

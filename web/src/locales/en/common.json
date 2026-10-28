@@ -916,7 +916,7 @@
     },
     "wechat-app": {
       "title": "WeChat mini program",
-      "scanHint": "In the mini program, tap 扫码绑定 on the login page and scan this code with your phone.",
+      "scanHint": "In the mini program, tap \"Scan to bind\" on the login page and scan this code with your phone.",
       "typeHint": "No camera, or the scan will not take? Type the 6 digits on that same mini-program page — it is the same code.",
       "validity": "Single use, valid for 5 minutes.",
       "expiresIn": "Expires in {{time}}",
@@ -2817,7 +2817,7 @@
   },
   "facetMine": {
     "title": "My packs",
-    "subtitle": "Manage what you publish here: versions, listing, and visibility. Installing into a runtime stays a 壹座 surface (Settings → Packs → Mine). Public packs with a serving contract flow into the 万星 catalog — external deployers run them with metered turns, and your share accrues automatically.",
+    "subtitle": "Manage what you publish here: versions, listing, and visibility. Installing into a runtime stays a 壹座 surface (Settings → Packs → Mine). Public packs with a serving contract flow into the 萬星 catalog — external deployers run them with metered turns, and your share accrues automatically.",
     "loading": "Loading your packs…",
     "empty": "Nothing published yet — use the publish box below.",
     "emptyGuide": "First time? The creation guide covers manifests, serving contracts, and version discipline:",

@@ -3297,3 +3297,26 @@ skopeo digest 硬门 → 四面 bump → origin + gitee 双推（gitee 侧已自
   全仓无任何引用。删除后 `openspec validate --changes --strict` 由 8/1 红转为 **8/0 全绿**。
 - 澄清：`openspec validate --specs --strict` 现有 **10 项失败为既有告警**（app-center/agent-runner/ciyuan-* 等，
   性质是「要求文本过长」「缺 SHALL/MUST」这类 strict 级提示），与本班改动无关——本班只动过 `agent-fleet-runs`，其严格校验绿。
+
+### §15.76 记忆线三挂账收口（2026-10-28 晚，platform sha-b8b592b）
+
+**挂账一：4.3「facade/智语 digest 注入」原判「受阻跨仓」是误判。** 复核发现智语房间宿主就在本仓（`gateway/zhiyu` 的 `room-router.js` + `index.js`），只有 facade 的 1:1 会话在 fd-wanxing 外仓。按归档设计 D7（"走 chat-memory 同一条缝，不分不帕；登入=本 owner，游客=不注入"）落地本仓这半边：
+
+- `server/cluster-memory.js`：`digestLadder` 改为返回 block（不再自己拼 prompt），新增 `chatMemoryBlockFor()` —— 自己组装 prompt 的调用方拿到的字节与 chat 车道逐字相同，且共用同一开关 `CELL_MEMORY_CHAT_DIGEST`（一条开关，不是两条）。
+- `gateway/zhiyu/room-router.js`：新增 `memoryBlock` 缝 + `promptWithMemory()`，回合提示词 = 房间上下文 + 提问者记忆块；任何失败降级开（回合照答）。
+- `gateway/zhiyu/index.js`：默认实现按 D7 判身份——`kind=user`（identify 合流后 ref=邮箱）用本人 owner 的块，`kind=guest` 恒不注入。
+- 新增 `scripts/test-zhiyu-room-memory.mjs` 5 测：住户带自己的 digest（mint 命名空间=u/<owner>、query=原话而非整段转录）/ 游客零请求且提示词逐字等于无记忆版 / 总闸关断即零请求 / fd-memory 挂了回合照答 / 块与 chat 车道逐字节一致。
+
+**生产实证（新镜像 pod 内，真 owner 真 fd-memory）**：`chatMemoryBlockFor("aloadtree@gmail.com", "本周组合周报的口径是什么")` → `source=digest`、块长 **1292 字**、内含 `〔L2·reference〕见资料库《2026-10-28-巡视记录.md》` 等名份引用；`CELL_MEMORY_CHAT_DIGEST=0` → `{"block":"","source":"none"}`；无身份（游客路径）→ 同样空。**剩余**：facade 的 1:1 会话（fd-wanxing 外仓）未接，那是另一个产品仓的独立发布线。
+
+**挂账二：部署者抽屉「缺包坐标看空态」——普查后确认为设计如此，不改。** 全 cell 普查 **101 个岗位中 16 个无包坐标**，逐个核对全部是临时验收舰队（活体验收集群 / 真轮次验收 / a2a 摘要验 / 驳回路径验 / 占坑修复验…）；真实舰队（公司式集群等，7 岗/舰队）模板一律带 `sourceTemplate.packId`。成员的 `target_kind` 是 `persona|a2a`、`target_id` 是 persona 键（如 `company-ceo`），本就不携带包坐标——空态与「该舰队缺少蓝图包坐标」的措辞都是诚实的。
+
+**挂账三：成果页「改 tags」从 `window.prompt` 换成行内编辑器，并补上任务 2.2 欠的灰态口径。**
+- 行内编辑器：卡内输入框自动聚焦、预填现值、`Enter` 存 / `Esc` 撤、显式「保存/取消」两键（复用既有 `common.save`/`common.cancel`，零新增 i18n 键）；`,/，` 双分隔、上限 5 条。
+- 灰态：手势收到 503 即在 store 记 `memoryOff`，三个手势一起置灰并带 `memory.degraded.unavailable` 提示（五语已备），不再每次点击都弹错；任一手势成功即清除。
+
+**证据**：房间/阶梯/房间路由/集群任务/手势/镜检六套 **65 测全绿**；成果页 e2e **14/14**（新增「行内编辑保存」「503 灰态」两例）；`biome` + `tsc` 双绿。**真机眼见**（浏览器，production）：行内编辑器自动聚焦、有存/撤两键、Esc 撤得掉、保存后 `/api/resources?tags=行内编辑` 命中该条且 `tags=["真机验收","行内编辑"]`。
+
+**滚产**：`fd-build-snapshot` → tag **sha-b8b592b**（源 05cdf4d3，run 40673469765 绿，`target: …/yizuo/platform:sha-b8b592b`）；ccr 硬门 digest `sha256:38ae73bb…`；GitOps `68e4427`（只滚主 platform）→ ArgoCD 同步 → pod `platform-54978c684f-fxkch` 1/1 Running。**并行会话协同**：GitOps 已被推进到 sha-56b34db（源 9b1b5e38 智语群桥终版），核 `git merge-base` 确认该源是本镜像源的祖先（我的镜像已含其全部修复），故不抢滚不回滚，只在其上叠一层。
+
+**镜像内自证**：pod 内 `grep` 到 `chatMemoryBlockFor`/`zhiyu-memory` 三处标记；记忆环境齐（`CELL_MEMORY_ENABLED=1`、URL/TOKEN 在位、总闸未关）。

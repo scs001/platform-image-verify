@@ -14,18 +14,25 @@
 
 export function chartShellHtml(echartsUrl: string): string {
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:transparent}</style></head><body><div id="c" style="width:100vw;height:100vh"></div>
-<script src="${echartsUrl}" onerror="window.__fail=1"></script>
 <script>
+function __dbg(m){ try { if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('dbg:'+m); } catch(e){} }
+__dbg('shell-start url=${echartsUrl}');
+</script>
+<script src="${echartsUrl}" onerror="__dbg('script-load-error')"></script>
+<script>
+__dbg('echarts-typeof=' + (typeof window.echarts));
 window.addEventListener('message', function(e){ try { render(JSON.parse(e.data)); } catch(err){ window.__fail=1; } });
 function render(option){
-  if (window.__fail || !window.echarts) { document.title='fail'; if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('fail'); return; }
+  if (window.__fail || !window.echarts) { document.title='fail'; __dbg('render-fail __fail=' + window.__fail + ' echarts=' + (typeof window.echarts)); if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('fail'); return; }
   try {
     var chart = echarts.init(document.getElementById('c'));
     chart.setOption(option);
     document.title='ok';
+    __dbg('render-ok');
     if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('ok');
   } catch (err) {
     document.title='fail';
+    __dbg('render-throw ' + (err && err.message));
     if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('fail');
   }
 }

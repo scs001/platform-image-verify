@@ -3838,3 +3838,26 @@ change 3 的真机睡眠/唤醒一幕。
 **滚版**：`sha-1ec7d03` → `sha-669e942` → `sha-27c7dc4` → `sha-39fb568` → `sha-86212b7` → `sha-7b73802`（末版 paas `e847f3aa`），ArgoCD Synced|Healthy。judge 模型经 GitOps env 钉（`BLUEPRINT_JUDGE_MODEL`）。
 
 **测试**：50 例绿（blueprints 18 + judge 10 + trial 9 + gate 8 + reverse 5）；strict 绿。**清理**：探针蓝图（已铸造，拒删符合设计）与试跑舰已归档。
+
+### §15.85 add-fleet-identity-turn：成员回合身份行补回合段（2026-10-29 上午）
+
+**来源**：柏讯跨线需求 wire-domain-actions R1（台账 `docs/wire-domain-actions-paas-review.md` §二）——`source_ref` 要部署/岗位/回合三元组，身份行只给了前两腿。
+
+**前提更正（评审发现）**：身份注入本身 2026-10-23 已在产（enable-wire-content-fleet D1，§15.16）；柏讯需求书「至今未落地」是过时信息。真缺口=回合腿。
+
+**实现**：`renderFleetIdentity` 增可选 `turn`（缺省时该行逐字节不变，非成员/既有调用零影响）；`runPersonaTurn` 装配处传本轮实际落地的 `childSessionId`（节奏/委托轮次=逐轮轮换 id，手动派发=会话 id）。主 spec `agent-fleet-report-lane` 需求同步五字段，并校正示例 key 名（spec 原写 `ref=`，在产实为 `target=`）。
+
+**测试**：fleet-report-lane 18/18、core+round-rotation+attribution+events 49/49、cluster-tasks/event-wake/model-drift 绿。`test-fleet-orchestration` 三红经 **stash 归因**（HEAD 同红）=并行在途既有失败，非本班回归。
+
+**出片**：快照门逮住 6 处内部 IP 泄漏（`docs/yongyi-*` 两份内部运维文档带 tailnet `100.64.0.8` / 公网 IP）→ 补入快照排除表（同 registry-maintenance 一类）→ 1469 文件禁模式全过 + gitleaks 清。构建 `sha-f7aa81b`（源 paas `38ff135d`，digest `64be5125`，体积 2.47GB）；ccr 硬门 digest 双向一致。
+
+**滚版**：GitOps `da7407d` 滚 platform / platform-demo / agent-runner-serving 三面。**竞速实录**：8 分钟后并行车道滚 `sha-4c06405`（paas `eeadf232`）覆盖其上；核对 `38ff135d ∈ eeadf232`（祖先链通过）+ 容器内 `turn: childSessionId` 在场 → 本班改动仍在产，无需回滚。
+
+**真机眼见（现跑 sha-4c06405）**：公司式集群三条真实回合身份行五字段齐全，同岗两轮 turn 互异（轮换语义生产实证）：
+```
+turn=cron-job_1793223622581_g7cews#r1793228400027-1   （23:00:00 常务岗）
+turn=cron-job_1793223622581_g7cews#r1793228544407-3   （23:02:30 常务岗）
+turn=cron-job_1792719144227_3lpcem#r1793228411907-2   （23:00:18 CEO）
+```
+
+**跨线影响**：柏讯 `wire_action_propose` 的 `source_ref` 现可由身份行逐字复述完整三元组。两项待柏讯回执的补账（registry 快照重烘焙 / `tool_risk` 标签契约）见评审回复 §六。

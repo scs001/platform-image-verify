@@ -99,6 +99,10 @@ const EXCLUDE_PATHS = new Set([
   ".github/workflows/image-publish.yml",
   // internal ops artifacts
   "docs/vertical-packs.md", // market-registration runbook (internal registry)
+  // yongyi 公开面脱敏善后（820cfc9d）：真源在私有仓，这两份仍带 tailnet/公网 IP
+  // 与运维路径，属内部运维文档——与 registry-maintenance 同类，不入公开快照。
+  "docs/yongyi-federation-recipe.production.md",
+  "docs/yongyi-site-deploy-requirements.md",
   // internal handoff / acceptance material for add-line-boards-and-action-gate
   // (2026-10-20): live cluster node names, fd-infra-deploy paths, internal TCR
   // URLs, private repo names — same class as the roadmap/handoff exclusions.

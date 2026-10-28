@@ -3099,3 +3099,11 @@ Cluster→Array、Role→Persona、Standby→On call、Add post 等界面标签�
 **spec 主镜同步**：新增 `market-revenue-share`/`vendor-identity`/`vendor-server-onboarding`/`fleet-owner-surface`/`fleet-owner-iteration` 五个能力；修改 `pack-marketplace`（Publishing 门扩 vendor+署名投影+付费呈现+跟新提示四段并）、`platform-billing`（内账结算）、`ecosystem-curation`（无匿名面→注册 vendor 过审）、`agent-fleet-templates`（参数槽）、`agent-fleet-decision-lane`（config-change 型拍板）；`validate --specs` **200/0**。MODIFIED 两处（Publishing/No-open-submission）按新文本整块替换并逐项复核。
 
 **归档携带挂账（转生产外部窗追踪）**：vendor 4.2（fork 车道部署窗：镜像出片+cheap-8+k8s 注入 `VENDOR_LANE_TOKEN`，协议档 `docs/registry-fork-patches/2026-10-28-vendor-onboarding-lane.md`；该 fork 仓 GHA 私有分钟欠款在案）+ 4.3（`live-supply-owner-acceptance` 手动批次：A 档现可跑，B 档 `accept_token_lane=1` 放行）。
+
+**§15.70 续2（2026-10-28）——两件挂账余项均已验证**
+
+| 余项 | 结论 | 证据 |
+|---|---|---|
+| 桌面 opt-in 复核 | ✅ 验过（含一个真缺口已修） | ① 复核时发现**文档与门不一致**：桌面按 `.env.example` 只设 `BROWSER_MCP_CLI`，而供给门只认 `BROWSER_RUNTIME_PATH` → 照文档做**组不出车道**；已改为 local 供给证据 = 运行时目录 **或** `BROWSER_CHROMIUM_PATH` **或** CLI 文件存在（单测 5→7 例，新增两例桌面形态）② 桌面形态本地实跑（`npm start` + 该 env，隔离数据目录）：profile patch 组出 `serverName: playwright` + `BROWSER_OUTPUT_DIR=<工作区>` + `cwd=<工作区>` ③ agent 实调 `mcp__playwright__browser_navigate` + `browser_take_screenshot`，产物 `lane-desktop.png`（79KB，1280×775 真 PNG）落工作区 ④ 安装包不含 runner：`dsh-matrix` 零 playwright 依赖、根 manifest 仅测试用 `@playwright/test`、chromium 只烘在镜像 `/opt/browser-mcp` |
+| 跨 cell 隔离对拍 | ✅ 验过（真实 server+桥+服务，双隔离实例） | A/B 两实例（各自 `PLATFORM_DATA_DIR`+`DSH_HOME`，共享同一 app 树）：B 名单 `sample=true` → **A 关样包**（`plugins_changed` → `enabled=false`，A manifest 变 `[dsh-base]`）→ **B 名单仍 `true`、B manifest 未动** → **共享树指纹 `5042a1c9…` 前后一致**；随后 A 复原为 `true`。生产侧旁证：同一 pod 内 7 个 cell 目录各持独立 DSH home/patch，keep 集随各自 pack 不同 |
+| 附带发现 | 本地 dev 实例带仓内 `egobrowser` 技能会把 agent 引向技能而非 MCP 车道（dev 专属形态，生产中 pack 技能面已收窄）；不影响结论 |

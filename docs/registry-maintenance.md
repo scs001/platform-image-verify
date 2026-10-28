@@ -3287,3 +3287,13 @@ skopeo digest 硬门 → 四面 bump → origin + gitee 双推（gitee 侧已自
 ② `ZHIYU_IM_BRIDGE_ON` 现为常开——只有显式绑定了房间的 bot 才走桥，未绑定的 bot 行为不变。
 **回滚**：四面 tag 退回 `sha-3029330`（同四缺陷中的前三个已含），或 `kubectl -n fd-prod set env` 摘掉
 `ZHIYU_IM_BRIDGE_ON`（ConfigMap 改后需 rollout restart）。
+
+**§15.76 补（OpenSpec 收口）**：本班那两处改动此前没有对应 change，已按流程补齐并归档：
+- 新增 `fix-fleet-run-header-settle`（2026-10-28 归档）：proposal + delta（`agent-fleet-runs` **MODIFIED** 孤儿收口一条 +
+  **ADDED** 「泄漏执行实例头表被收口」一条，四个场景：泄漏收口/下游未起不误收/零明细让位孤儿判定/重启自愈）；
+  主 spec 已同步（`agent-fleet-runs` 严格校验绿）。任务账 4.1–4.3 全勾（含出片证据与 bump 归属核对）。
+- 清掉残留空目录 `openspec/changes/fix-fleet-round-discipline/`：只剩一份早期 proposal 草稿、无 specs 无 `.openspec.yaml`，
+  是 2026-10-27 `add-mobile-app` 归档操作时被带回来的残留；同一 change 已于 2026-10-26 归档（14/14 全勾、已实现上产），
+  全仓无任何引用。删除后 `openspec validate --changes --strict` 由 8/1 红转为 **8/0 全绿**。
+- 澄清：`openspec validate --specs --strict` 现有 **10 项失败为既有告警**（app-center/agent-runner/ciyuan-* 等，
+  性质是「要求文本过长」「缺 SHALL/MUST」这类 strict 级提示），与本班改动无关——本班只动过 `agent-fleet-runs`，其严格校验绿。

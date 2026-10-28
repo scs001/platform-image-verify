@@ -3419,3 +3419,18 @@ B1（付费+credit 环）/B2（车道 live-write 全链）/B3（v2 跟新回放�
 | fd-wanxing | `add-facade-chat-memory-seam` | 1:1 会话读缝的 proposal/design/tasks 三件；`wanxing-facade` 新增两条需求（登录访客带本人块+匿名零请求；单一开关+降级开） | `archive/2026-10-28-add-facade-chat-memory-seam` |
 
 **教训（记入纪律）**：change 归档前必须把「本单实际改了但没写进 tasks 的东西」逐条核一遍；归档后再改代码，要开新单，不能只在台账里写。我这次是先写了台账 §15.76/§15.77 才发现没有 spec 记录——顺序反了。
+
+### §15.77 车道入主线与公开线门况（2026-10-28 晚）
+
+**车道入私有 main**：`fd-vendor-lane`（8969382）已并 `FindDataTechnology/mcp-gateway-registry` main（`6947b83..8969382`，纯增量 3 文件）。此前分支独有，若不并，下次从 main 出片会静默丢掉车道。
+
+**公开线（出片线）未并——因两线已分叉**：`fd-mcp-registry` main（`63126fe`）与私有 main 差异是**真实的双线漂移**，非 SHA 差异：
+- 公开独有 6 笔（tier-gate/auth 系列：`2cc4adf`/`fa1cd50`/`89a11ed`/`681817c`/`aac6a86`/`63126fe`），私有侧无同内容（`auth_server/server.py` 差 289 行）。
+- 私有独有：i18n-ui 合并、identity_forwarding、车道等。
+→ 合并方向属 fork 谱系治理决策，未擅自做。车道在公开线以 rebase 分支 `fd-vendor-lane-pub`（`d908ee8`）待命（已按公开基线 rebase 并过 format/lint）。
+
+**公开线 CI 现状（两条既有红，均与车道无关）**：
+1. `ruff format --check` 漂移：公开线 14 个文件未格式化，其中 2 个是我的车道文件（**已修**），余 11 个属公开线自有漂移（`registry/services/call_grant_service.py`、`registry/utils/iam_manager.py`、`registry/utils/logto_admin.py`、两个 README、`tests/auth_server/unit/*` 等），未越界修改。
+2. `tests/auth_server/unit/test_call_grant.py` 4 条红（`PATCH_KEY_STATUS_ACTIVE` NameError / tier-gate 断言），同属公开线 tier-gate 系列的既有缺陷。
+
+**车道自身验证（两条线都过）**：私有基线分支 8870 条测试全过（含我 7 条车道测）；公开基线 rebase 分支上 **7 条车道测全 PASSED**（8757 passed / 4 failed = 上述既有红）。

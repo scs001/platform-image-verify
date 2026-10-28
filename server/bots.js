@@ -124,15 +124,55 @@ export function maskBot(bot) {
 
 // ── Lifecycle ────────────────────────────────────────────────────────────────
 
+// Boot latch (2026-10-29 fd-prod): `server.listen` runs BEFORE `bots.initBots`
+// — db open and the dsh handshake sit between them. The gateway proxies a bot
+// webhook as soon as the cell's port answers, so a message landing in that
+// window found an EMPTY registry and got a fast 403 "unknown"; the chat
+// platform treats a definite refusal as final and the message is LOST (two
+// observed drops). The webhook route therefore waits on this latch instead of
+// answering prematurely: a genuinely unknown bot still gets the identical 403
+// once boot completes, so the attack surface is unchanged.
+let bootSettled = false;
+let bootResolve;
+const bootPromise = new Promise((resolve) => { bootResolve = resolve; });
+
+export function bootPending() {
+  return !bootSettled;
+}
+
+// Resolves true when the registry is loaded, false when the budget ran out.
+// The timer is deliberately NOT unref'd: this wait is bounded by the live
+// webhook request that called it, and a ref'd timer keeps the answer honest
+// even when nothing else is scheduled.
+export function whenBooted(timeoutMs) {
+  if (bootSettled) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), timeoutMs);
+    bootPromise.then(() => { clearTimeout(timer); resolve(true); });
+  });
+}
+
+function settleBoot() {
+  if (bootSettled) return;
+  bootSettled = true;
+  bootResolve?.();
+}
+
 export function initBots(ctx) {
   state.ctx = ctx;
-  if (!ctx.db.isDbReady()) {
-    console.warn("[bots] disabled: database unavailable");
-    return;
+  try {
+    if (!ctx.db.isDbReady()) {
+      console.warn("[bots] disabled: database unavailable");
+      return;
+    }
+    for (const bot of ctx.db.listBots()) reload(bot);
+    const live = [...state.bots.values()].filter((e) => e.bot.enabled).length;
+    if (live) console.log(`[bots] ${live} bot(s) active`);
+  } finally {
+    // Always release waiting webhooks: a half-loaded or broken registry must
+    // cost one 403, never a 4s stall on every message for the process lifetime.
+    settleBoot();
   }
-  for (const bot of ctx.db.listBots()) reload(bot);
-  const live = [...state.bots.values()].filter((e) => e.bot.enabled).length;
-  if (live) console.log(`[bots] ${live} bot(s) active`);
 }
 
 // (Re)build one bot's runtime entry from its row: stop whatever was running,

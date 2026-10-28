@@ -20,6 +20,13 @@ import { validateConfigDims, effortUnionFrom } from "../fleet-model.js";
 // The webhook path prefix, shared with the forward-auth exemption in auth.js.
 export const WEBHOOK_PREFIX = "/api/bots/webhook/";
 
+// How long a webhook may wait for the bot registry during boot. Bounded by the
+// chat platform's own callback budget, not by us: WeCom/WeChat give roughly 5s
+// and treat a timeout as "server is down" (then retry, or drop). The observed
+// boot gap (db open + dsh handshake before bots.initBots) is 3-10s, so a short
+// wait converts "certainly lost" into "usually delivered, otherwise retried".
+const WEBHOOK_BOOT_WAIT_MS = Number(process.env.BOTS_WEBHOOK_BOOT_WAIT_MS) || 4_000;
+
 export function registerBotRoutes(ctx) {
   const { app, db } = ctx;
 
@@ -36,7 +43,18 @@ export function registerBotRoutes(ctx) {
     `${WEBHOOK_PREFIX}:botId/:secret`,
     express.raw({ type: "*/*", limit: "1mb" }),
     async (req, res) => {
-      const entry = bots.getEntry(req.params.botId);
+      // Boot window: the cell listens before bots.initBots runs (db open + dsh
+      // handshake sit between), and the gateway proxies as soon as the port
+      // answers. An empty registry here is "not loaded YET", not "unknown bot"
+      // — a definite 403 makes the chat platform drop the message for good
+      // (fd-prod 2026-10-29: two messages lost this way right after a roll).
+      // Wait for the registry instead; a genuinely unknown bot still gets the
+      // identical 403 once boot settles, so nothing is revealed either way.
+      let entry = bots.getEntry(req.params.botId);
+      if (!entry && bots.bootPending()) {
+        await bots.whenBooted(WEBHOOK_BOOT_WAIT_MS);
+        entry = bots.getEntry(req.params.botId);
+      }
       // Same 403 for unknown bot, disabled bot, and bad secret: an attacker
       // learns nothing about which bot ids exist. timingSafeEqual guards the
       // secret compare; unequal lengths are a mismatch by definition.

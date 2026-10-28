@@ -12,6 +12,8 @@
 import * as packStore from "../../pack-store.js";
 import { fetchMarketManifest, fetchMarketDetail } from "../pack-manifest-source.js";
 import { projectPackList } from "../../lib/pack-locale.js";
+import { fromBase64, readBundle } from "../offline-bundle.js";
+import express from "express";
 
 // Locale track (add-pack-locale-tracks B): installed-pack cards render under
 // the SAME rules as the market — the zh base fields are the main track, a
@@ -192,6 +194,89 @@ export function registerPackRoutes(ctx) {
     if (!requireGate(req, res)) return;
     respond(res, () => packStore.uninstallPreview(req.params.packId));
   });
+
+  // ── Offline bundle import (add-offline-pack-supply) ─────────────────────
+  //
+  // The AIRGAPPED supply shape: the client hands us a `.yizpack` (raw
+  // octet-stream, or base64 inside JSON — the global parser owns /api/mypacks
+  // JSON bodies). After the bundle's own integrity gates, the manifest takes
+  // the IDENTICAL installPack pipeline as a market install: offline never
+  // means unchecked, and the purchase gate keeps its existing semantics (a
+  // reachable market still refuses an unpurchased paid pack; an unreachable
+  // one degrades exactly like the body-manifest compatibility path).
+  app.post(
+    "/api/mypacks/import-bundle",
+    express.raw({ type: ["application/octet-stream", "application/zip"], limit: "64mb" }),
+    async (req, res) => {
+      if (!requireGate(req, res)) return;
+      try {
+        const bytes = Buffer.isBuffer(req.body) && req.body.length > 0
+          ? req.body
+          : fromBase64(req.body?.bundle ?? req.body?.bundleBase64);
+        const { meta, manifest } = await readBundle(bytes);
+        const packId = String(req.body?.packId || meta.packId);
+        const version = Number(req.body?.version ?? meta.version);
+        if (packId !== meta.packId || version !== meta.version) {
+          return res.status(400).json({
+            error: "bundle does not match the requested packId/version",
+            code: "bundle_target_mismatch",
+            bundle: { packId: meta.packId, version: meta.version },
+            requested: { packId, version },
+          });
+        }
+
+        // Purchase-gate parity with /api/mypacks/install: same query, same
+        // 402, same degrade when the market cannot answer.
+        const viewer = req.user ?? (ctx.authEnabled ? null : { email: ctx.cellUserEmail || "owner@local", groups: [] });
+        try {
+          const detail = await fetchMarketDetail({ packId, viewer, localMarket: ctx.localPackMarket ?? null });
+          if (detail?.pricing && !detail.purchased) {
+            return res.status(402).json({
+              error: "This pack is not in your purchases — buy it on the market first",
+              code: "market-purchase-required",
+            });
+          }
+        } catch (e) {
+          if (e?.status === 404) {
+            // Market reachable and says the id does not exist: the bundle may
+            // still install (it carries its own manifest) — same rolling
+            // compatibility the body-manifest shape has always had.
+          } else {
+            console.warn(`[packs] import purchase gate degraded (${e?.message || e}); proceeding offline`);
+          }
+        }
+
+        const { report, installed } = await packStore.installPack({
+          packId,
+          version,
+          manifest,
+          user: req.user,
+          confirm: req.body?.confirm === true || meta?.confirm === true,
+          source: "bundle",
+          hooks: {
+            onMcpChanged: () => {
+              broadcast({ type: "extensions_changed", resource: "mcp", action: "pack-import", name: manifest?.name || packId });
+              ctx.dshUpdateMcp?.(ctx.runtimeMcpOverlay, req.user?.groups ?? null, req.user?.email ?? undefined)
+                .catch((e) => console.warn(`[packs] dsh MCP update failed: ${e.message}`));
+            },
+            onCatalogChanged: () => {
+              broadcast({ type: "catalog_changed" });
+              void ctx.syncCatalogAgentPresets?.();
+            },
+          },
+        });
+        await ctx.dshUpdateSkills?.().catch((e) => console.warn(`[packs] skills patch update failed: ${e.message}`));
+        return res.json({ report, installed, bundle: { packId: meta.packId, version: meta.version, origin: meta.origin ?? null } });
+      } catch (err) {
+        return res.status(err.status || 500).json({
+          error: err.message,
+          ...(err.code ? { code: err.code } : {}),
+          ...(err.details ? { details: err.details } : {}),
+          ...(err.path ? { path: err.path } : {}),
+        });
+      }
+    },
+  );
 
   // Uninstall removes pack-owned skills and agent entries. A modified pack
   // skill forces an explicit ?force=1 (the server-side half of the warning

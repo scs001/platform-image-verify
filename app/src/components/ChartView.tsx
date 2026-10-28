@@ -60,7 +60,6 @@ export function ChartView({ option, height = 220 }: { option: unknown; height?: 
         javaScriptEnabled
         onMessage={(e) => {
           const data = String(e.nativeEvent.data);
-          if (data.startsWith("dbg:")) console.log(`[wvdbg] ${data.slice(4)}`);
           if (data === "ready") setReady(true);
           if (data === "ok") {
             settled.current = true;

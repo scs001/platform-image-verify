@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { test, expect } from "@playwright/test";
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -386,4 +387,67 @@ test("a graded output shows its own tier badge and the unpin gesture", async ({ 
   await page.getByTestId("resources-tier-canonical").click();
   await expect(page.getByTestId("resource-card")).toHaveCount(1);
   await expect(page.getByTestId("resource-card").first()).toContainText("graded.md");
+});
+
+// The tag gesture edits IN PLACE (add-unified-memory-and-outputs 3.2 follow-up:
+// window.prompt blocked the page and could not be styled or cancelled with Esc).
+test("the tag gesture edits in place and saves the parsed set", async ({ page }) => {
+  const row = insertResource({ type: "file", title: "tagged.md", source: "manual", file_path: `${crypto.randomUUID()}/tagged.md`, tags: JSON.stringify(["旧标签"]) });
+  await gotoResources(page);
+  const card = page.locator(`[data-resource-id="${row.id}"]`);
+  await expect(card.getByTestId("resource-tag-旧标签")).toBeVisible();
+
+  await card.getByTestId("resource-tag-edit").click();
+  const input = card.getByTestId("resource-tag-input");
+  await expect(input).toBeVisible();
+  await expect(input).toHaveValue("旧标签");
+
+  // Esc closes without saving.
+  await input.press("Escape");
+  await expect(card.getByTestId("resource-tag-input")).toHaveCount(0);
+  await expect(card.getByTestId("resource-tag-旧标签")).toBeVisible();
+
+  // Enter saves: the client POSTs the parsed set (both , and ， split, capped
+  // at five) and the chip row re-renders from the row it gets back. The route's
+  // own write-to-fd-memory-then-mirror contract is covered by
+  // scripts/test-resource-memory-gestures.mjs; here the write master is faked so
+  // the CLIENT's payload and re-render are the thing under test.
+  const posted = [];
+  await page.route("**/api/resources/*/tags", async (route) => {
+    posted.push(JSON.parse(route.request().postData() ?? "{}"));
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ resource: { ...row, tags: JSON.stringify(["行业政策", "跨境电商"]) } }),
+    });
+  });
+  await card.getByTestId("resource-tag-edit").click();
+  await card.getByTestId("resource-tag-input").fill("行业政策，跨境电商");
+  await card.getByTestId("resource-tag-input").press("Enter");
+  await expect(card.getByTestId("resource-tag-input")).toHaveCount(0);
+  assert.equal(posted.length, 1);
+  assert.deepEqual(posted[0].tags, ["行业政策", "跨境电商"]);
+  await expect(card.getByTestId("resource-tag-行业政策")).toBeVisible();
+  await expect(card.getByTestId("resource-tag-跨境电商")).toBeVisible();
+  await expect(card.getByTestId("resource-tag-旧标签")).toHaveCount(0);
+});
+
+// A deployment without a memory service: the first refused gesture greys all
+// three with the degraded sentence (task 2.2's "灰态走降级句"), instead of
+// throwing an error toast on every click.
+test("a 503 from the memory gesture greys the gestures with the reason", async ({ page }) => {
+  const row = insertResource({ type: "file", title: "nomemory.md", source: "manual", file_path: `${crypto.randomUUID()}/nomemory.md` });
+  await page.route("**/api/resources/*/memory-remember", (route) =>
+    route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "memory unavailable", code: "memory_unavailable" }) }),
+  );
+  await gotoResources(page);
+  const card = page.locator(`[data-resource-id="${row.id}"]`);
+  const remember = card.getByTestId("resource-remember");
+  await expect(remember).toBeEnabled();
+
+  await remember.click();
+  await expect(remember).toBeDisabled();
+  await expect(card.getByTestId("resource-tier-toggle")).toBeDisabled();
+  await expect(card.getByTestId("resource-tag-edit")).toBeDisabled();
+  await expect(remember).toHaveAttribute("title", /memory service/i);
 });

@@ -47,6 +47,10 @@ interface ResourcesState {
   // status questions when this moves, without waiting for or depending on the
   // list refetch (add-artifact-delivery).
   eventSeq: number;
+  // Set when a memory gesture answers 503 (memory_unavailable): the deployment
+  // has no fd-memory wired, so the three gestures render greyed with the
+  // degraded sentence instead of failing on every click. Cleared on success.
+  memoryOff: boolean;
 
   setTypeFilter: (filter: ResourceTypeFilter) => void;
   setSearch: (search: string) => void;
@@ -63,6 +67,21 @@ interface ResourcesState {
   setTier: (id: string, tier: ResourceTier) => Promise<void>;
   setTags: (id: string, tags: string[]) => Promise<void>;
   applyEvent: (msg: ServerMessage) => void;
+}
+
+// Every memory gesture answers 503 exactly when this deployment has no usable
+// memory service (unconfigured, or a page write that failed) — the same
+// condition, so the three gestures share one rule: record it for the grey
+// rendering, keep the error for the caller's toast, and clear it on success.
+async function memoryGesture<T>(run: () => Promise<T>, set: (patch: { memoryOff: boolean }) => void): Promise<T> {
+  try {
+    const out = await run();
+    set({ memoryOff: false });
+    return out;
+  } catch (err) {
+    if ((err as { status?: number }).status === 503) set({ memoryOff: true });
+    throw err;
+  }
 }
 
 let eventTimer: ReturnType<typeof setTimeout> | null = null;
@@ -101,6 +120,7 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
   groups: [...DEFAULT_GROUPS],
   facets: { chart: 0, document: 0, spreadsheet: 0, image: 0, slideshow: 0, archive: 0, web: 0, data: 0, other: 0 },
   eventSeq: 0,
+  memoryOff: false,
 
   setTypeFilter: (typeFilter) => {
     set({ typeFilter });
@@ -202,19 +222,19 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
   },
 
   remember: async (id) => {
-    const out = await api.rememberResource(id);
+    const out = await memoryGesture(() => api.rememberResource(id), set);
     const r = out.resource as Resource & { memoryRefPath?: string | null };
     set({ items: get().items.map((r2) => (r2.id === id ? ({ ...r2, ...r } as Resource) : r2)) });
   },
 
   setTier: async (id, tier) => {
-    const out = await api.setResourceTier(id, tier);
+    const out = await memoryGesture(() => api.setResourceTier(id, tier), set);
     const r = out.resource as Resource & { tier?: string };
     set({ items: get().items.map((r2) => (r2.id === id ? ({ ...r2, ...r } as Resource) : r2)) });
   },
 
   setTags: async (id, tags) => {
-    const out = await api.setResourceTags(id, tags);
+    const out = await memoryGesture(() => api.setResourceTags(id, tags), set);
     const r = out.resource as Resource & { tags?: string };
     set({ items: get().items.map((r2) => (r2.id === id ? ({ ...r2, ...r } as Resource) : r2)) });
   },

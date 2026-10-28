@@ -97,8 +97,13 @@ function ResourceCard({
   const remember = useResourcesStore((s) => s.remember);
   const setTier = useResourcesStore((s) => s.setTier);
   const setTags = useResourcesStore((s) => s.setTags);
+  const memoryOff = useResourcesStore((s) => s.memoryOff);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(resource.title);
+  // Inline tag editor (the surface's own row, not a window.prompt): the
+  // draft lives here so opening it never mutates the row until 保存.
+  const [editingTags, setEditingTags] = useState(false);
+  const [tagsDraft, setTagsDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [periodWindow, setPeriodWindow] = useState<PeriodWindow | null>(null);
   const [timelineOpen, setTimelineOpen] = useState(false);
@@ -297,12 +302,36 @@ function ResourceCard({
         const tier = parseTier(resource.tier);
         const onRemember = async () => { try { await remember(resource.id); } catch (e) { showToast((e as Error).message); } };
         const onToggleCanon = async () => { try { await setTier(resource.id, tier === "canonical" ? "stable" : "canonical"); } catch (e) { showToast((e as Error).message); } };
-        const onEditTags = async () => {
-          const next = window.prompt(t("resources.memory.tags.prompt"), tags.join(", "));
-          if (next === null) return;
-          try { await setTags(resource.id, next.split(/[,，]/).map((x) => x.trim()).filter(Boolean).slice(0, 5)); } catch (e) { showToast((e as Error).message); }
+        const openTagEditor = () => {
+          setTagsDraft(tags.join(", "));
+          setEditingTags(true);
         };
-        return (
+        const onSaveTags = async () => {
+          setEditingTags(false);
+          try { await setTags(resource.id, tagsDraft.split(/[,，]/).map((x) => x.trim()).filter(Boolean).slice(0, 5)); } catch (e) { showToast((e as Error).message); }
+        };
+        return editingTags ? (
+          <div className="mt-1 flex flex-wrap items-center gap-1" data-testid="resource-memory-row">
+            <input
+              autoFocus
+              value={tagsDraft}
+              onChange={(ev) => setTagsDraft(ev.target.value)}
+              onKeyDown={(ev) => {
+                if (ev.key === "Enter") void onSaveTags();
+                if (ev.key === "Escape") setEditingTags(false);
+              }}
+              placeholder={t("resources.memory.tags.prompt")}
+              className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-0.5 text-xs"
+              data-testid="resource-tag-input"
+            />
+            <button type="button" className="rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted" onClick={() => void onSaveTags()} data-testid="resource-tag-save">
+              {t("common.save")}
+            </button>
+            <button type="button" className="rounded-md px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted" onClick={() => setEditingTags(false)} data-testid="resource-tag-cancel">
+              {t("common.cancel")}
+            </button>
+          </div>
+        ) : (
           <div className="mt-1 flex flex-wrap items-center gap-1" data-testid="resource-memory-row">
             {[...new Set(tags)].map((tag) => (
               <span key={tag} className="rounded-full bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground" data-testid={`resource-tag-${tag}`}>
@@ -310,13 +339,36 @@ function ResourceCard({
                 {(resource as Resource & { tagsOrigin?: string }).tagsOrigin === "ai" ? <span className="ml-1 opacity-70">·AI</span> : null}
               </span>
             ))}
-            <button type="button" className="ml-auto rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted" onClick={() => void onRemember()} data-testid="resource-remember">
+            {/* No memory service on this deployment: the gestures say so once
+                instead of failing on every click (the 503 rule lives in the store). */}
+            <button
+              type="button"
+              disabled={memoryOff}
+              title={memoryOff ? t("memory.degraded.unavailable") : undefined}
+              className="ml-auto rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => void onRemember()}
+              data-testid="resource-remember"
+            >
               {t("resources.memory.actions.remember")}
             </button>
-            <button type="button" className="rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted" onClick={() => void onToggleCanon()} data-testid="resource-tier-toggle">
+            <button
+              type="button"
+              disabled={memoryOff}
+              title={memoryOff ? t("memory.degraded.unavailable") : undefined}
+              className="rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => void onToggleCanon()}
+              data-testid="resource-tier-toggle"
+            >
               {tier === "canonical" ? t("resources.memory.actions.unpinCanonical") : t("resources.memory.actions.pinCanonical")}
             </button>
-            <button type="button" className="rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted" onClick={() => void onEditTags()} data-testid="resource-tag-edit">
+            <button
+              type="button"
+              disabled={memoryOff}
+              title={memoryOff ? t("memory.degraded.unavailable") : undefined}
+              className="rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={openTagEditor}
+              data-testid="resource-tag-edit"
+            >
               {t("resources.memory.actions.editTags")}
             </button>
           </div>

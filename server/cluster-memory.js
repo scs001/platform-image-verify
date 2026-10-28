@@ -74,12 +74,17 @@ export async function clusterMemoryFor(env, ownerEmail, fetchImpl = fetch) {
 // memory never fails a turn. Extracted at project level (add-chat-memory-
 // injection D3) so the chat lane runs the same ladder under its own switch;
 // the cluster wrapper keeps its exact historical bytes (pinned by tests).
+// Returns the block alone (empty string when memory is off/unavailable) so a
+// caller that assembles its OWN prompt can append the identical text the chat
+// lane would have produced — the room lane does (add-unified-memory-and-outputs
+// D7: facade/智语 ride the same seam, not a parallel one). Every rung keeps the
+// chat lane's exact bytes; the prompt-composing wrappers below are the proof.
 async function digestLadder(cm, project, prompt, { digestOn, k, budget, titlesLabel, warnTag, warnName }) {
-  if (!cm) return { prompt, source: "none" };
+  if (!cm) return { block: "", source: "none" };
   if (digestOn) {
     try {
       const d = await cm.readDigest(project, prompt, { k, budget });
-      if (d?.digest) return { prompt: `${prompt}\n\n${d.digest}`, source: "digest" };
+      if (d?.digest) return { block: d.digest, source: "digest" };
     } catch (e) {
       console.warn(`[${warnTag}] digest read failed for ${warnName} (fallback to titles): ${e?.message || e}`);
     }
@@ -87,13 +92,13 @@ async function digestLadder(cm, project, prompt, { digestOn, k, budget, titlesLa
   try {
     const sharedPages = await cm.readShared(project, 5);
     if (sharedPages.length) {
-      const block = sharedPages.map((p) => `- ${p.title}（${String(p.updated_at ?? "").slice(0, 10)}）`).join("\n");
-      return { prompt: `${prompt}\n\n${titlesLabel}\n${block}`, source: "titles" };
+      const lines = sharedPages.map((p) => `- ${p.title}（${String(p.updated_at ?? "").slice(0, 10)}）`).join("\n");
+      return { block: `${titlesLabel}\n${lines}`, source: "titles" };
     }
   } catch (e) {
     console.warn(`[${warnTag}] shared-memory read failed for ${warnName} (degrade open): ${e?.message || e}`);
   }
-  return { prompt, source: "none" };
+  return { block: "", source: "none" };
 }
 
 const ladderEnv = (env) => ({
@@ -101,16 +106,29 @@ const ladderEnv = (env) => ({
   budget: Number(env.CELL_MEMORY_DIGEST_BUDGET ?? 1500) || 1500,
 });
 
+// Chat-lane ladder config, shared by the prompt wrapper and the block reader
+// so the two can never drift (the room lane reads the block from here).
+const CHAT_TITLES_LABEL = "【工作记忆】此前会话的沉淀，供参考：";
+const chatLadder = (cm, query, env) =>
+  digestLadder(cm, "default", String(query ?? ""), {
+    digestOn: true,
+    ...ladderEnv(env),
+    titlesLabel: CHAT_TITLES_LABEL,
+    warnTag: "chat-memory",
+    warnName: "default",
+  });
+
 // Cluster lane: CELL_MEMORY_DIGEST=0 is the rollback lever that skips the
 // digest rung only. Signature and behavior unchanged.
 export async function memoryInjectionFor(clusterMemory, clusterId, prompt, env = process.env) {
-  return digestLadder(clusterMemory, clusterProjectId(clusterId), prompt, {
+  const { block, source } = await digestLadder(clusterMemory, clusterProjectId(clusterId), prompt, {
     digestOn: env.CELL_MEMORY_DIGEST !== "0",
     ...ladderEnv(env),
     titlesLabel: "【集群共享记忆】本集群此前回合的沉淀，供参考：",
     warnTag: "cluster",
     warnName: clusterId,
   });
+  return { prompt: block ? `${prompt}\n\n${block}` : prompt, source };
 }
 
 // Chat lane (add-chat-memory-injection D2/D3): same ladder over the owner's
@@ -121,13 +139,24 @@ export async function memoryInjectionFor(clusterMemory, clusterId, prompt, env =
 // lever, which skips only the digest rung; k/budget shared with the cluster.
 export async function chatMemoryInjectionFor(clusterMemory, prompt, env = process.env) {
   if (env.CELL_MEMORY_CHAT_DIGEST === "0") return { prompt, source: "none" };
-  return digestLadder(clusterMemory, "default", prompt, {
-    digestOn: true,
-    ...ladderEnv(env),
-    titlesLabel: "【工作记忆】此前会话的沉淀，供参考：",
-    warnTag: "chat-memory",
-    warnName: "default",
-  });
+  const { block, source } = await chatLadder(clusterMemory, prompt, env);
+  return { prompt: block ? `${prompt}\n\n${block}` : prompt, source };
+}
+
+// The block face of the chat lane (add-unified-memory-and-outputs D7): callers
+// that assemble their own prompt (the 智语 room turn) get the identical text
+// and the identical switch, so their lanes can never diverge from chat. "" on
+// off/kill/unavailable — never throws.
+export async function chatMemoryBlockFor(ownerEmail, query, env = process.env, fetchImpl = fetch) {
+  if (!ownerEmail || env.CELL_MEMORY_CHAT_DIGEST === "0") return { block: "", source: "none" };
+  try {
+    const cm = await chatMemoryClientFor(ownerEmail, env, fetchImpl);
+    if (!cm) return { block: "", source: "none" };
+    return await chatLadder(cm, query, env);
+  } catch (e) {
+    console.warn(`[chat-memory] block read failed for ${ownerEmail} (degrade open): ${e?.message || e}`);
+    return { block: "", source: "none" };
+  }
 }
 
 // Client cache for the ws chat lane: one memory client per owner email.

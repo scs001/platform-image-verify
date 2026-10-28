@@ -24,11 +24,29 @@ export function createRoomRouter({
   onBudgetWarning = null, // (room, dayTurns, budget) → void — 80% daily-budget nudge (website-embed)
   bus = null, // EventEmitter for ephemeral overlay events (deltas/lifecycle)
   contextWindow = 40,
+  // Memory seam (unified-memory-and-outputs D7): ({ sender, query, room, target })
+  // → the block to append, or "" for none. The wiring decides identity (guests
+  // never inject); this file only appends, and any failure degrades open.
+  memoryBlock = null,
 }) {
   const overlay = bus ?? new EventEmitter();
   const inFlight = new Set(); // `${roomId}:${memberId}`
 
   const PASS_MARK = "「过」";
+
+  // The prompt the seat is asked with = room context + the asking party's
+  // memory block (when the wiring offers one). Memory never fails a turn.
+  async function promptWithMemory({ room, target, sender, message, mode }) {
+    const base = buildPrompt({ room, agentMember: target, sender, message, mode });
+    if (!memoryBlock) return base;
+    try {
+      const block = await memoryBlock({ sender, query: message?.content ?? "", room, target });
+      return block ? `${base}\n\n${block}` : base;
+    } catch (e) {
+      console.warn(`[zhiyu-memory] injection failed (degrade open): ${e?.message || e}`);
+      return base;
+    }
+  }
 
   function namesFor(member) {
     const names = [member.display, member.alias]
@@ -128,7 +146,7 @@ export function createRoomRouter({
     const startedAt = Date.now();
     try {
       const { text } = await callAgent(target, {
-        text: buildPrompt({ room, agentMember: target, sender, message, mode }),
+        text: await promptWithMemory({ room, target, sender, message, mode }),
         contextId: roomContextId(room.id, target),
         // The asking party's visitor scope (design D-C): matters a facade
         // opens from this turn bind to (room, asker).
@@ -280,5 +298,5 @@ export function createRoomRouter({
     return outcome === "answered";
   }
 
-  return { onHumanMessage, directiveTurn, resolveMentions, buildPrompt, roomContextId, overlay, PASS_MARK };
+  return { onHumanMessage, directiveTurn, resolveMentions, buildPrompt, promptWithMemory, roomContextId, overlay, PASS_MARK };
 }

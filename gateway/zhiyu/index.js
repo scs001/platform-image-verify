@@ -18,6 +18,7 @@ import express from "express";
 import { EventEmitter } from "node:events";
 import { createZhiyuStore } from "./store.js";
 import { createRoomRouter } from "./room-router.js";
+import { chatMemoryBlockFor } from "../../server/cluster-memory.js";
 import { newWidgetToken, newSiteSecret, verifyWidgetToken, hostAllowed, signGuestPass, verifyGuestPass, verifyIdentify, guestRefFor } from "./guest-auth.js";
 import { registerZhiyuImBridge } from "./im-bridge.js";
 
@@ -34,6 +35,7 @@ export function registerZhiyuRoutes(app, {
   callAgent = null, // (member, { text, contextId, onDelta }) → { text } — the live agent lane
   settleTurn = null, // (member, { usageId, minutes }) → void — per-deployment billing (group 7)
   onHumanMessage = null, // round-router override hook (whole-sale test seam)
+  memoryBlock = null, // room-turn memory seam override (see the wired default below)
   notify = null, // notification lanes hook (task group 8)
   onRoomEnded = null, // minutes generation hook (task group 8)
   ssePollMs = 1000,
@@ -60,11 +62,23 @@ export function registerZhiyuRoutes(app, {
   const missingLane = async () => {
     throw new Error("agent lane not configured on this deployment");
   };
+  // Room-turn memory (unified-memory-and-outputs D7): the asking party's own
+  // memory rides the chat lane's seam and switch — a signed-in member answers
+  // as their owner (kind=user, ref=email), a guest never injects. Env-off or
+  // any failure returns "" and the turn proceeds byte-identically.
+  const wiredMemoryBlock =
+    memoryBlock ??
+    (async ({ sender, query }) => {
+      if (!sender || sender.kind !== "user" || !sender.ref) return "";
+      const { block } = await chatMemoryBlockFor(sender.ref, query, env);
+      return block;
+    });
   const router = createRoomRouter({
     store,
     effectiveCap,
     callAgent: callAgent ?? missingLane,
     settleTurn,
+    memoryBlock: wiredMemoryBlock,
     onBudgetWarning: (room, dayTurns, budget) =>
       notifyUser("budget_warning", {
         to: room.ownerEmail,

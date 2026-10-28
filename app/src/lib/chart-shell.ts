@@ -21,7 +21,12 @@ __dbg('shell-start url=${echartsUrl}');
 <script src="${echartsUrl}" onerror="__dbg('script-load-error')"></script>
 <script>
 __dbg('echarts-typeof=' + (typeof window.echarts));
-window.addEventListener('message', function(e){ try { render(JSON.parse(e.data)); } catch(err){ window.__fail=1; } });
+// RN-to-JS messages arrive on the DOCUMENT on Android and on window on iOS —
+// listening on window alone made the option post invisible to the render
+// path on every Android device (the chart acceptance lane's final bug).
+function __onHostMessage(e){ try { render(JSON.parse(e.data)); } catch(err){ window.__fail=1; } }
+document.addEventListener('message', __onHostMessage);
+window.addEventListener('message', __onHostMessage);
 function render(option){
   if (window.__fail || !window.echarts) { document.title='fail'; __dbg('render-fail __fail=' + window.__fail + ' echarts=' + (typeof window.echarts)); if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage('fail'); return; }
   try {

@@ -342,3 +342,34 @@ test("qr endpoint: telegram resolves server-side, failures fall back to manual, 
     await api(`/api/bots/${bot.id}`, { method: "DELETE" });
   }
 });
+
+test("the streaming flag is held for the duration of a bot turn (mcp-delivery guard)", async () => {
+  // Prod root cause: the bot lane bypasses ctx.session.prompt (which sets the
+  // flag for web turns), so dsh-mcp-delivery's isStreaming() read "idle" and a
+  // credential-change restart killed the runtime MID-TURN; the collector then
+  // waited for a session.status idle that never came and died on the timeout.
+  sent.length = 0;
+  scriptedTurn = [assistantText("flag probe")];
+  const bot = await makeBot("flag");
+
+  // While the prompt is in flight (the stub resolves it in a microtask), the
+  // flag must already be observable as streaming — that is the window the
+  // mcp-delivery decision reads.
+  let sawStreamingDuringPrompt = null;
+  const origPrompt = ctx.dshBridge.prompt.bind(ctx.dshBridge);
+  ctx.dshBridge.prompt = async (sessionId, blocks) => {
+    sawStreamingDuringPrompt = ctx.isStreaming === true;
+    const r = await origPrompt(sessionId, blocks);
+    sawStreamingDuringPrompt = ctx.isStreaming === true;
+    return r;
+  };
+
+  const res = await deliver(bot, secretOf(bot), update(5150, "flag check"));
+  assert.equal(res.status, 200);
+  assert.deepEqual(sent, [{ chatKey: "5150", text: "flag probe" }]);
+
+  assert.equal(sawStreamingDuringPrompt, true, "isStreaming must be true while the bot turn is in flight");
+  assert.equal(ctx.isStreaming, false, "the flag clears when the turn settles");
+  assert.equal(ctx.sessionCollectors.size, 0);
+  ctx.dshBridge.prompt = origPrompt;
+});

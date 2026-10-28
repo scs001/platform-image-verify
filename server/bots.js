@@ -551,6 +551,13 @@ async function runTurn({ bot, adapter }, sessionId, chatKey, text) {
   if (skillPreamble) blocks.push({ type: "text", text: skillPreamble });
   blocks.push({ type: "text", text: prompt });
   let result;
+  // The streaming flag is what dsh-mcp-delivery's isStreaming() reads and what
+  // bridge.exit's fan-out enumerates: the bot lane bypasses ctx.session.prompt
+  // (which is what sets this flag for web turns), so without it a credential-
+  // change restart sees "idle" and kills the runtime MID-TURN — the collector
+  // then waits for a session.status idle that never comes and dies on the
+  // 180s timeout (prod: every bot turn died this way).
+  ctx.setStreaming?.(sessionId, true);
   try {
     await ctx.dshBridge.prompt(sessionId, blocks);
     result = await collected;
@@ -558,6 +565,8 @@ async function runTurn({ bot, adapter }, sessionId, chatKey, text) {
     ctx.sessionCollectors.delete(sessionId);
     console.warn(`[bots] "${bot.name}" turn failed: ${e.message}`);
     return reply("Sorry — I could not complete that request.");
+  } finally {
+    ctx.setStreaming?.(sessionId, false);
   }
 
   if (result.error) return reply(`Sorry — ${result.error}`);

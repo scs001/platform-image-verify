@@ -121,28 +121,63 @@ export function TurnView({ turn }: { turn: Turn }) {
     );
   }
   const textAll = turn.blocks.filter((b) => b.kind === "text").map((b) => (b as { text: string }).text).join("\n");
+  // Iterate BLOCKS, not groups (mirrors the web's AssistantTurn): groups exist
+  // only to fold machinery (thinking/tool/skill), so walking them alone skipped
+  // every text block — a plain-prose answer rendered as an EMPTY bubble on the
+  // mobile client while the web (which walks blocks and folds groups in place)
+  // was fine. Found by the chart acceptance lane: the answer arrived
+  // (blocks=[["text",149]] in store) and vanished at render (2026-10-28).
+  const groupByStart = new Map(groups.map((g) => [g.startIndex, g]));
+  const grouped = new Set<number>();
+  for (const g of groups) {
+    for (let i = g.startIndex; i < g.startIndex + g.blocks.length; i++) grouped.add(i);
+  }
   return (
     <View style={styles.assistantRow}>
-      {groups.map((g, i) => {
+      {turn.blocks.map((b, i) => {
+        if (grouped.has(i)) return null;
+        const g = groupByStart.get(i);
+        if (!g) {
+          if (b.kind === "text") {
+            // biome-ignore lint/suspicious/noArrayIndexKey: append-only transcript blocks, never reordered
+            return <Markdown key={`t-${i}`} text={b.text} />;
+          }
+          if (b.kind === "error") {
+            return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: append-only transcript blocks, never reordered
+              <Text key={`e-${i}`} style={styles.errorText}>
+                {b.message}
+              </Text>
+            );
+          }
+          if (b.kind === "thinking") {
+            return (
+              // biome-ignore lint/suspicious/noArrayIndexKey: append-only transcript blocks, never reordered
+              <Text key={`k-${i}`} style={styles.thinking} numberOfLines={b.open ? undefined : 1}>
+                {b.open ? b.text : t("turn.thinking", { text: b.text.slice(0, 60) })}
+              </Text>
+            );
+          }
+          // Anything else (command echo, ask, …) has no standalone rendering in
+          // v1 — the group fold below still covers machinery.
+          return null;
+        }
         const first = g.blocks[0];
         // Groups derive from the turn's fixed block stream (append-only,
         // never reordered) — the position is the identity for every branch.
         if (g.blocks.length === 1 && first.kind === "text") {
-          // biome-ignore lint/suspicious/noArrayIndexKey: append-only groups, never reordered
-          return <Markdown key={i} text={first.text} />;
+          return <Markdown key={g.startIndex} text={first.text} />;
         }
         if (g.blocks.length === 1 && first.kind === "error") {
           return (
-            // biome-ignore lint/suspicious/noArrayIndexKey: append-only groups, never reordered
-            <Text key={i} style={styles.errorText}>
+            <Text key={g.startIndex} style={styles.errorText}>
               {first.message}
             </Text>
           );
         }
         if (g.blocks.length === 1 && first.kind === "thinking") {
           return (
-            // biome-ignore lint/suspicious/noArrayIndexKey: append-only groups, never reordered
-            <Text key={i} style={styles.thinking} numberOfLines={first.open ? undefined : 1}>
+            <Text key={g.startIndex} style={styles.thinking} numberOfLines={first.open ? undefined : 1}>
               {first.open ? first.text : t("turn.thinking", { text: first.text.slice(0, 60) })}
             </Text>
           );
@@ -151,20 +186,15 @@ export function TurnView({ turn }: { turn: Turn }) {
         // generic collapse would bury their identity).
         if (g.blocks.length === 1 && first.kind === "tool" && first.name.endsWith("__cron_create")) {
           return (
-            // biome-ignore lint/suspicious/noArrayIndexKey: append-only groups, never reordered
-            <ToolCard key={i} name={first.name} title={t("turn.cronCard")} args={first.args} />
+            <ToolCard key={g.startIndex} name={first.name} title={t("turn.cronCard")} args={first.args} />
           );
         }
         if (g.blocks.length === 1 && first.kind === "tool" && first.name.endsWith("__delegate_task")) {
           return (
-            // biome-ignore lint/suspicious/noArrayIndexKey: append-only groups, never reordered
-            <ToolCard key={i} name={first.name} title={t("turn.delegationCard")} args={first.args} />
+            <ToolCard key={g.startIndex} name={first.name} title={t("turn.delegationCard")} args={first.args} />
           );
         }
-        return (
-          // biome-ignore lint/suspicious/noArrayIndexKey: append-only groups, never reordered
-          <ToolGroupRow key={i} turn={turn} group={g} />
-        );
+        return <ToolGroupRow key={g.startIndex} turn={turn} group={g} />;
       })}
       <ArtifactStrip text={textAll} />
       {turn.streaming && <Text style={styles.cursor}>▍</Text>}

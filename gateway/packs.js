@@ -593,6 +593,10 @@ export function createPackRegistry({ file }) {
       if (pack.author_email !== email) return { error: "forbidden" };
       // Visibility is a PACK-level attribute (owner-scoped everywhere); a
       // version cannot flip it — publish a new pack to change exposure.
+      // A fresh version restores listing (facetMine.unpublishNote promises
+      // exactly this); without it an unlisted pack can never come back —
+      // found live 2026-10-28 (C8wx14 stuck unlisted through v2→v3).
+      if (pack.unlisted) db.prepare(`UPDATE packs SET unlisted = 0 WHERE id = ?`).run(id);
       const latest = latestVersionRow(id);
       const version = (latest?.version ?? 0) + 1;
       db.prepare(

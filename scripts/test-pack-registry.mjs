@@ -19,6 +19,7 @@ import {
   createPublishRateLimiter,
   validateManifest,
 } from "../gateway/packs.js";
+import { PACK_LIMITS } from "../lib/pack-manifest.js";
 
 function validManifest(overrides = {}) {
   return {
@@ -106,6 +107,55 @@ test("list, search, and tag filter see only live packs", async () => {
   }
 });
 
+test("a new version restores listing (fix-pack-relist-on-publish)", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "pack-relist-"));
+  const reg = createPackRegistry({ file: path.join(dir, "packs.db") });
+  try {
+    const author = "author@example.com";
+
+    // Author unlists, then publishes the next version: listing comes back.
+    // The facetMine.unpublishNote copy and the hygiene-baseline scenario both
+    // promise exactly this — before the fix nothing could clear the flag.
+    const a = reg.publish({ email: author, manifest: validManifest({ name: "盯梢模板" }) });
+    assert.ok(reg.setUnlisted({ email: author, id: a.id }));
+    assert.equal(reg.get(a.id), null); // invisible while unlisted
+    assert.equal(reg.list({}).packs.some((p) => p.id === a.id), false);
+
+    const next = reg.publishVersion({ email: author, id: a.id, manifest: validManifest({ name: "盯梢模板 v2" }) });
+    assert.equal(next.version, 2);
+    assert.ok(reg.get(a.id), "publishing a new version must restore listing");
+    assert.equal(reg.list({}).packs.some((p) => p.id === a.id), true);
+    // Versions stay immutable through the relist — v1 is untouched.
+    assert.equal(reg.getVersion(a.id, 1).manifest.name, "盯梢模板");
+
+    // A non-author publishing against an unlisted pack stays forbidden and the
+    // pack stays unlisted (the author check precedes every pack-level write).
+    const b = reg.publish({ email: author, manifest: validManifest({ name: "他家包" }) });
+    assert.ok(reg.setUnlisted({ email: author, id: b.id }));
+    assert.equal(reg.publishVersion({ email: "other@example.com", id: b.id, manifest: validManifest() }).error, "forbidden");
+    assert.equal(reg.list({}).packs.some((p) => p.id === b.id), false);
+
+    // Publishing never flips the visibility class: a private pack's new
+    // version keeps it out of the public listing.
+    const p = reg.publish({ email: author, manifest: validManifest({ name: "私人包", visibility: "private" }) });
+    assert.equal(reg.get(p.id).visibility, "private");
+    reg.publishVersion({ email: author, id: p.id, manifest: validManifest({ name: "私人包 v2", visibility: "private" }) });
+    assert.equal(reg.get(p.id).visibility, "private");
+    assert.equal(reg.list({}).packs.some((x) => x.id === p.id), false);
+
+    // A listed pack publishing a new version behaves exactly as before.
+    const c = reg.publish({ email: author, manifest: validManifest({ name: "常驻包" }) });
+    const before = reg.get(c.id).visibility;
+    reg.publishVersion({ email: author, id: c.id, manifest: validManifest({ name: "常驻包 v2" }) });
+    assert.equal(reg.get(c.id).version, 2);
+    assert.equal(reg.get(c.id).visibility, before);
+    assert.equal(reg.list({}).packs.some((x) => x.id === c.id), true);
+  } finally {
+    reg.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("subscribe records the latest version; unsubscribe is explicit", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "pack-registry-"));
   const reg = createPackRegistry({ file: path.join(dir, "packs.db") });
@@ -166,10 +216,16 @@ test("validateManifest enforces the v1 content boundary", () => {
   assert.ok(validateManifest(dup).some((e) => /duplicate skill name/.test(e.error)));
   assert.ok(validateManifest(validManifest({ skills: [{ name: "ok", description: "d", content: "x".repeat(64 * 1024 + 1) }] })).length > 0);
 
-  // A pack must have at least one part; counts and tags are capped.
+  // A pack must have at least one part; counts and tags are capped. The caps
+  // are read from PACK_LIMITS: the MCP-ref ceiling has been raised once already
+  // (5 → 6, add-fleet-post-model) and a hardcoded number goes stale silently.
   assert.ok(validateManifest({ name: "empty", skills: [], mcpServers: [], agents: [] }).length > 0);
-  assert.ok(validateManifest(validManifest({ mcpServers: Array.from({ length: 6 }, () => ({ registryName: "x" })) })).length > 0);
-  assert.ok(validateManifest(validManifest({ tags: Array.from({ length: 11 }, (_, i) => `t${i}`) })).length > 0);
+  assert.ok(
+    validateManifest(
+      validManifest({ mcpServers: Array.from({ length: PACK_LIMITS.maxMcpRefs + 1 }, () => ({ registryName: "x" })) }),
+    ).length > 0,
+  );
+  assert.ok(validateManifest(validManifest({ tags: Array.from({ length: PACK_LIMITS.maxTags + 1 }, (_, i) => `t${i}`) })).length > 0);
   assert.ok(validateManifest({ name: 42 }).length > 0);
 });
 

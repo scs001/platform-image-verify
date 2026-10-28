@@ -3731,3 +3731,21 @@ change 3 的真机睡眠/唤醒一幕。
 **归档**：change `2026-10-29-fix-pack-relist-on-publish`；主 spec `pack-marketplace` 的 hygiene 需求补「publish restores listing」句 + 四条场景（恢复上架 / 非作者不可借道 / 发版不改可见类 / 既有卫生场景）。commit `9355ab90`。
 
 **待办**：随下一次 facet/platform 出片生效（当前现役 facet 镜像 `sha-268ec76` 源 `447c6b92`，**不含本次**）。出片走 `fd-build-channel` 判路——私有池 FDT 已尽（2011/2000），公开仓免费线是 `scs001/platform-image-verify`。
+
+### §15.79 向量检索断链十几小时的真相：不是模型没了，是账号绑了一个坏代理（2026-10-28 深夜）
+
+**我怎么判错的（记录在案，避免重犯）**：先看到 sub2api 日志 `upstream request failed: Post "https://openrouter.ai/api/v1/embeddings": EOF`，又看到 OpenRouter `/models` 列表里没有任何 embedding 模型，就下了「OpenRouter 已下线 embedding、模型不可用」的结论，还准备提议换模型（那会作废全部历史向量）。用户一句「embedding 的模型不大可能用不了」把我拉回正轨——**OpenRouter 的 `/models` 本来就不列 embedding 模型，但直接调 `/embeddings` 是通的**（本机实测三种写法全部返回 4096 维）。我把「列表里没有」当成了「能力没有」，这是硬错。
+
+**真因**：sub2api 的 embedding 账号（32 `openrouter-new (Copy)`、47 `nebius-embedding-bulk`，后者是前者的克隆）**都绑在代理 35 `fx28-美国30`（100.64.0.10:31098）**，而这个代理节点坏了。全池 31 个代理实测：**22 可用 / 9 不可用**，账号 32/47 恰好撞在坏的 35 上，于是整条 embedding 车道哑了十几个小时（最后一次成功 embedding 是 06:54）。
+
+**为什么是代理坏而不是网络断**：从 pod 直连 `openrouter.ai` 是 `Network is unreachable`（集群无境外直连，本该走代理），经可用代理 20/24/25/27 打 `/embeddings` 全部 **dim=4096 OK**，只有经 35 报 `SSL: UNEXPECTED_EOF`。代理端口本身 TCP 可连、CONNECT 能建隧道（407 要认证），坏在隧道内的 TLS 握手中断。
+
+**修复**：`UPDATE accounts SET proxy_id=11 WHERE id IN (32,47)` —— 换成 11 `fx04-美国01`（x1.0 最低倍率、美国节点，且正是 `fd-health-proxy` 长期在用的那个）。**没动模型、没动 key、没动向量空间**。
+
+**顺带修的第二处**：digest 的 query embedding 死线 3500ms 偏紧。走代理绕行后实测 p50≈1.6s、p90 偶发 4-12s，3500ms 频繁撞线 → 静默回落关键词道（生产 6 次里 3 次）。已在 `fd-infra-deploy` 配 `FD_MEMORY_DIGEST_EMBED_DEADLINE_MS=8000`（代码本来就有这个口子，纯配置改动，不需出片）。
+
+**恢复实证（生产）**：单条 embed dim=4096 ✅；`POST /admin/reembed {rootKey:u-aloadtree@gmail.com}` → `reembedded=65 failed=0 committed=true`，重建后 `[{"Qwen/Qwen3-Embedding-8B": 65}]`；全 19 个有向量的根**模型集合只有一家 `Qwen/Qwen3-Embedding-8B`、多模型根 0 个**（零污染）；digest 两次实测均 `rung=vector`、items 0→8、无降级注记。
+
+**词元站自身缺陷（留待其修，不改本仓）**：① 组 8 `embedding-interactive` / 组 12 `embedding-bulk` 的 `model_allowlist` 装的是 gpt-5.x / gpt-image 系列，**没有任何 embedding 模型且 `enabled:false`**，所以 admin 后台按组展示模型支持时列表是空的；② 账号 32/47 没有 `model_mapping` 字段（能用的 34 有），后台读映射时就渲染不出这些行。这是用户报的「admin 里看不到 embedding 账号和模型列表」的机制。
+
+**教训**：① provider 的 `/models` 目录不等于能力目录，判可用性必须实打一次端点；② 「上游 EOF」先怀疑链路（代理/隧道），再怀疑能力下线；③ 账号级代理是词元站的多代理池设计，坏一个节点只影响绑它的账号——**排障第一步应是逐代理并发实测，而不是给 pod 加环境变量代理**（我一开始就想错了方向，被用户纠正）。

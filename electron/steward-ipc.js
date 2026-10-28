@@ -16,38 +16,87 @@ import {
   installPlan,
   uninstallPlan,
   launchAgentPlistPath,
+  registrationArtifacts,
+  stewardEntryPath,
   WIN_TASK_NAME,
 } from "./steward-install.js";
 import { attachSteward } from "../supervisor/steward-client.js";
+import { createCrashGuard } from "../supervisor/steward-health.js";
 
 const execFileP = promisify(execFile);
 
 export function registerStewardIpc({ dataDir, nodeBin, projectRoot, isPackaged }) {
   ipcMain.handle("steward:consent", () => ({ consentText: STEWARD_CONSENT_TEXT }));
 
+  // Crash-loop history (add-desktop-residency-hardening 2.x): the same guard
+  // the resident entry uses, read from the data root — the UI never guesses.
+  const crashGuard = createCrashGuard({ dataDir });
+  const crash = () => crashGuard.status();
+
   ipcMain.handle("steward:status", async () => {
     const att = await attachSteward(dataDir).catch(() => ({ ok: false }));
+    const health = crash();
+    // Three honest states: registered+healthy / registered+unhealthy / not
+    // registered. "Registered" is NEVER derived from a file alone — a plist
+    // that exists while the process is dead is the unhealthy state, and the
+    // UI must say so (spec: 注册在而进程死显示未健康).
     if (att.ok) {
       const ps = await att.client.request("pairStatus").catch(() => ({}));
       return {
         installed: true,
         running: true,
+        state: "healthy",
         protocolVersion: att.discovery?.protocolVersion ?? null,
         pid: att.discovery?.pid ?? null,
         paired: ps.paired === true,
         pairDeviceId: ps.deviceId ?? null,
         error: null,
+        crash: health,
       };
     }
+    const registered = installed();
     return {
-      installed: installed(),
+      installed: registered,
       running: false,
+      state: registered ? (health.coolingDown ? "unhealthy" : "unhealthy") : "not_installed",
       protocolVersion: att.discovery?.protocolVersion ?? null,
       pid: att.discovery?.pid ?? null,
       paired: false,
       pairDeviceId: null,
       error: att.reason ?? null,
+      crash: health,
     };
+  });
+
+  // Repair (add-desktop-residency-hardening 3.x): re-register the autostart
+  // (idempotent — replace, never duplicate) and clear the crash history so
+  // the next boot is a fresh attempt. The human is in the loop, so the guard
+  // stands down for this attempt.
+  ipcMain.handle("steward:repair", async () => {
+    const plan = installPlan({ isPackaged, nodeBin, dataDir, projectRoot });
+    if (plan.platform === "unsupported") return { ok: false, error: `unsupported platform: ${process.platform}` };
+    try {
+      if (plan.platform === "darwin") {
+        fs.mkdirSync(path.join(dataDir, "logs"), { recursive: true });
+        fs.writeFileSync(plan.plistPath, plan.plistContent);
+        await execFileP("launchctl", plan.bootstrappArgs ?? plan.bootstrapArgs).catch(async () => {
+          await execFileP("launchctl", ["kickstart", "-k", `gui/${String(process.getuid())}/com.earendil.platform.steward`]);
+        });
+      } else {
+        // /F replaces an existing task — the idempotent path.
+        await execFileP("schtasks", plan.taskArgs);
+        await execFileP("schtasks", ["/Run", "/TN", WIN_TASK_NAME]).catch(() => {});
+      }
+    } catch (e) {
+      return { ok: false, error: e?.message || String(e) };
+    }
+    crashGuard.clear();
+    return { ok: true, artifacts: registrationArtifacts({
+      platform: process.platform,
+      nodeBin,
+      entryPath: stewardEntryPath({ isPackaged, projectRoot, resourcesDir: process.resourcesPath }),
+      logDir: path.join(dataDir, "logs"),
+    }) };
   });
 
   // Pairing = the explicit opt-in for uplink (add-cell-lifecycle 4.1/4.3).

@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld("platform", {
   getStewardConsent: () => ipcRenderer.invoke("steward:consent"),
   getStewardStatus: () => ipcRenderer.invoke("steward:status"),
   installSteward: () => ipcRenderer.invoke("steward:install"),
+  // Repair (add-desktop-residency-hardening): re-register the autostart
+  // idempotently and clear the crash history.
+  repairSteward: () => ipcRenderer.invoke("steward:repair"),
   uninstallSteward: () => ipcRenderer.invoke("steward:uninstall"),
   // Uplink pairing (add-cell-lifecycle chapter 4): bind-code pair + unpair.
   pairSteward: (code, label) => ipcRenderer.invoke("steward:pair", { code, label }),

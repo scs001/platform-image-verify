@@ -64,6 +64,15 @@ export function runFirstRun(opts) {
     merged.WANXING_PLUGIN_RUNNER_ID = `desktop-${crypto.randomBytes(4).toString("hex")}`;
   }
 
+  // Local roster feed credential (openspec: add-local-fleet-control-plane):
+  // minted in the SAME bootstrap pass as the seat id, for the same reason —
+  // stable across restarts so the runner's env injection never diverges from
+  // the cell's verifier. Loopback-only, unreadable from the renderer; not an
+  // account credential (it never leaves this machine).
+  if (!merged.WANXING_LOCAL_FEED_TOKEN) {
+    merged.WANXING_LOCAL_FEED_TOKEN = crypto.randomBytes(24).toString("hex");
+  }
+
   // Write settings atomically if we changed it OR it didn't exist
   if (!settingsExists || Object.keys(settings).length !== Object.keys(merged).length) {
     atomicWriteJsonSync(settingsPath, merged);

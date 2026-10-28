@@ -317,7 +317,7 @@ async function installMcpRef(ref, { user }) {
 // add-packaged-skills: a pack whose skills carry script files installs only
 // with an explicit `confirm` (D5 — one upfront acknowledgment, enforced here
 // so both request shapes, body manifest and server-side fetch, are gated).
-export async function installPack({ packId, version, manifest, user, confirm = false, hooks = {} }) {
+export async function installPack({ packId, version, manifest, user, confirm = false, hooks = {}, source = "market" }) {
   if (!packId || !manifest?.name || !Number.isInteger(Number(version))) {
     throw Object.assign(new Error("packId, version, and manifest are required"), { status: 400 });
   }
@@ -409,7 +409,19 @@ export async function installPack({ packId, version, manifest, user, confirm = f
     effects.botsChanged = true;
   }
 
-  const installed = db.upsertInstalledPack({ packId, name: manifest.name, version: ver, manifest, report });
+  // Provenance (add-offline-pack-supply): the record AND the returned report
+  // carry where the pack came from — market or an offline bundle. Default
+  // keeps every existing caller's behaviour identical.
+  const provenance = source === "bundle" ? "bundle" : "market";
+  report.source = provenance;
+  const installed = db.upsertInstalledPack({
+    packId,
+    name: manifest.name,
+    version: ver,
+    manifest,
+    report,
+    source: provenance,
+  });
 
   // Downstream refreshes: MCP configs reach dsh through the profile patch;
   // pack agents reach the picker through the catalog's pack source, and their

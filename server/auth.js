@@ -49,6 +49,11 @@ const AUTH_EXEMPT_PREFIXES = [
   // ops-console data source on the internal network — same convention as the
   // bot prefixes above, the route carries its own bearer credential.
   "/api/ops/",
+  // Local roster feed (add-local-fleet-control-plane): the agent-runner child
+  // polls it over loopback with its OWN bearer (WANXING_LOCAL_FEED_TOKEN),
+  // exactly like the cron/ops bridges above — the route verifies that token
+  // itself, so the session gate must not intercept it first.
+  "/local-registry/",
 ];
 
 export function normalizeAuthPath(value, fallback) {

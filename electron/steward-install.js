@@ -95,3 +95,53 @@ export function uninstallPlan() {
   if (process.platform === "win32") return { platform: "win32", taskArgs: ["/Delete", "/TN", WIN_TASK_NAME, "/F"] };
   return { platform: "unsupported" };
 }
+
+// ── Assertable registration artifacts (add-desktop-residency-hardening 1.x) ─
+//
+// The registration must be verifiable WITHOUT driving the OS: launchctl is
+// not deterministic on a CI runner, and schtasks output differs across
+// Windows builds. So the plan is described as DATA: the exact argv, the exact
+// plist fields, and the stable target path. Tests assert this shape; a
+// real-machine run (win-smoke) then asserts the OS agrees with it.
+export function registrationArtifacts({ platform = process.platform, nodeBin, entryPath, logDir } = {}) {
+  if (platform === "darwin") {
+    const plist = buildLaunchAgentPlist({ nodeBin, entryPath, logDir });
+    return {
+      platform: "darwin",
+      kind: "launch-agent",
+      path: launchAgentPlistPath(),
+      // Parsed from the artifact itself — the test asserts the artifact, not a
+      // second description of it.
+      fields: {
+        runAtLoad: /<key>RunAtLoad<\/key>\s*<true\/>/.test(plist),
+        // KeepAlive ships as a dict ({SuccessfulExit: false}) — "respawn
+        // unless the process exited cleanly" — not as a bare <true/>.
+        keepAlive: /<key>KeepAlive<\/key>/.test(plist),
+        keepAliveOnSuccessfulExit: /<key>SuccessfulExit<\/key>\s*<false\/>/.test(plist),
+        throttleInterval: Number((plist.match(/<key>ThrottleInterval<\/key>\s*<integer>(\d+)<\/integer>/) ?? [])[1] ?? 0),
+        programArguments: (plist.match(/<string>[^<]*<\/string>/g) ?? []).map((s) => s.replace(/<\/?string>/g, "")),
+        logDir: logDir ?? null,
+      },
+      targetPath: entryPath ?? null,
+      plist,
+    };
+  }
+  if (platform === "win32") {
+    const args = schtasksCreateArgs({ nodeBin, entryPath });
+    const flag = (name) => {
+      const i = args.indexOf(`/${name}`);
+      return i >= 0 ? args[i + 1] : null;
+    };
+    return {
+      platform: "win32",
+      kind: "scheduled-task",
+      taskName: flag("TN"),
+      trigger: flag("SC"),
+      runLevel: flag("RL"),
+      force: args.includes("/F"),
+      args,
+      targetPath: entryPath ?? null,
+    };
+  }
+  return { platform: "unsupported", kind: null };
+}

@@ -40,6 +40,7 @@ import { registerUserBindingRoutes } from "./server/routes/user-bindings.js";
 import { registerCronRoutes } from "./server/routes/cron.js";
 import { registerTaskRoutes } from "./server/routes/tasks.js";
 import { registerWanxingFleetRoutes } from "./server/routes/wanxing-fleet.js";
+import { convergeLocalCluster, createLocalAgentFeed, LOCAL_FEED_BASE } from "./server/local-agent-feed.js";
 import { registerDelegationRoutes } from "./server/routes/delegation.js";
 import { registerFleetArchitectRoutes } from "./server/fleet-architect.js";
 import { attachDelegationAggregator } from "./server/delegation-aggregator.js";
@@ -265,6 +266,20 @@ registerTaskRoutes(ctx);
 // Desktop fleet console lane (add-desktop-fleet-console): local runner live
 // snapshot + public registry catalog, both proxied behind standard cell auth.
 registerWanxingFleetRoutes(ctx);
+// Local roster feed (add-local-fleet-control-plane): registry-shaped entries
+// composed from this machine's deployments × installed packs, so the LOCAL
+// agent-runner polls its roster from loopback instead of the public registry.
+// Own Bearer (WANXING_LOCAL_FEED_TOKEN); mounted outside /api so the session
+// gate never sees it (see AUTH_EXEMPT_PREFIXES).
+ctx.app.use(
+  LOCAL_FEED_BASE,
+  createLocalAgentFeed({ env: ctx.env ?? process.env, runnerId: process.env.WANXING_PLUGIN_RUNNER_ID ?? null }),
+);
+// Convergence on boot (add-desktop-residency-hardening 4.x): the cell is what
+// the resident steward starts, so a login / wake / post-update restart lands
+// here — and the local cluster is put back on its declared state (orphan
+// deployments pruned, the expectation re-derived) before the runner polls it.
+convergeLocalCluster({ env: ctx.env ?? process.env });
 // Delegation REST bridge (loopback delegation MCP child; manual-trigger tasks).
 registerDelegationRoutes(ctx);
 registerFleetArchitectRoutes(ctx);
@@ -1032,7 +1047,11 @@ const dshInit = initDshAgent()
   .then(() => { dshReadyOk = true; })
   .catch((err) => {
     ctx.dshInitError = err?.message || String(err);
-    console.error(`[dsh] agent init failed — server continues without the agent runtime: ${ctx.dshInitError}`);
+    // The stack is the whole diagnosis for init crashes (a TDZ like
+    // "Cannot access 'bootWorkspace' before initialization" is a module-order
+    // fault whose fix lives at the throwing frame) — the message alone left a
+    // CI-only failure unfixable from logs (nonweb acceptance, 2026-10-28).
+    console.error(`[dsh] agent init failed — server continues without the agent runtime: ${ctx.dshInitError}\n${err?.stack || "(no stack)"}`);
   });
 await Promise.all([documentsInit, dshInit]);
 await trace.initTrace();

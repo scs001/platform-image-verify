@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import { Supervisor } from "./lifecycle.js";
 import { createSteward } from "./steward.js";
 import { createPolicyEngine } from "./steward-policy.js";
+import { CRASH_DEFAULTS, createCrashGuard } from "./steward-health.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
@@ -59,7 +60,17 @@ const nodeBin = process.env.PLATFORM_NODE_BIN || process.execPath;
 // IPv6 loopback only, the attached UI's http://127.0.0.1:<port> load spins on
 // ERR_CONNECTION_REFUSED, and the supervisor's own localhost probe reports
 // healthy (a textbook fake-green). An explicit env HOST still wins.
-const agentEnv = { ...process.env, HOST: process.env.HOST || "127.0.0.1" };
+// The installer's bundled assets (preinstalled starter bundles) sit beside
+// the app bundle: <resources>/app/… → <resources>. The pointer lets the cell
+// find them in the resident world too, where nobody typed a path.
+const resourcesDir =
+  process.env.PLATFORM_RESOURCES_DIR ||
+  (PROJECT_ROOT.split(path.sep).some((seg) => seg.endsWith(".app")) ? path.resolve(PROJECT_ROOT, "..") : "");
+const agentEnv = {
+  ...process.env,
+  HOST: process.env.HOST || "127.0.0.1",
+  ...(resourcesDir ? { PLATFORM_RESOURCES_DIR: resourcesDir } : {}),
+};
 const supervisor = new Supervisor({ nodeBin, projectRoot: PROJECT_ROOT, dataDir, agentEnv });
 const steward = createSteward({ supervisor, dataDir });
 
@@ -70,14 +81,58 @@ const steward = createSteward({ supervisor, dataDir });
 const engine = createPolicyEngine({ supervisor, steward, dataDir });
 steward.setPolicyEngine(engine);
 
-const info = await steward.start();
-console.log(`[steward] control plane on ${info.socket} (protocolVersion ${info.protocolVersion})`);
+// Crash-loop guard (add-desktop-residency-hardening 2.x): the OS respawns
+// this process unconditionally, so a broken build would loop forever without
+// saying anything. The guard counts failed boots, opens a cooldown once the
+// threshold is reached (the stack stays DARK and the failure is reported
+// instead of hidden), and clears on a healthy boot.
+const crashGuard = createCrashGuard({
+  dataDir,
+  threshold: Number(process.env.STEWARD_CRASH_THRESHOLD) || CRASH_DEFAULTS.threshold,
+  cooldownMs: Number(process.env.STEWARD_CRASH_COOLDOWN_MS) || CRASH_DEFAULTS.cooldownMs,
+  resetMs: Number(process.env.STEWARD_CRASH_RESET_MS) || CRASH_DEFAULTS.resetMs,
+});
 
-engine.start();
+const gate = crashGuard.recordStart();
+if (!gate.allowed) {
+  // Stay alive WITHOUT starting the stack: the OS has nothing to respawn, so
+  // the loop stops, and the reason stays visible in the status surface.
+  console.error(
+    `[steward] boot suppressed by the crash guard (${gate.status.failures} failed boots, retry in ${Math.ceil(gate.retryAfterMs / 1000)}s): ${gate.status.lastFailure?.message ?? "unknown"}`,
+  );
+  const retry = setTimeout(() => {
+    // The window elapsed: leave with a non-zero code so the registration
+    // restarts us — the next attempt is a fresh one (the counter was reset by
+    // the cooldown, per the guard's contract).
+    console.warn("[steward] cooldown elapsed — exiting so the registration retries the boot");
+    process.exit(75); // EX_TEMPFAIL
+  }, Math.max(1000, gate.retryAfterMs));
+  retry.unref?.();
+  // Stay resident (unref'd timer + an open handle) until the window ends.
+  setInterval(() => {}, 60_000);
+} else {
+  try {
+    const info = await steward.start();
+    console.log(`[steward] control plane on ${info.socket} (protocolVersion ${info.protocolVersion})`);
 
-const quit = async (code = 0) => {
-  await steward.shutdown({ removeDiscovery: true });
-  process.exit(code);
-};
-process.on("SIGTERM", () => void quit(0));
-process.on("SIGINT", () => void quit(0));
+    engine.start();
+    // The stack is up: clear the failure history (a healthy boot proves the
+    // build works again) and re-arm the uptime-based reset.
+    crashGuard.recordHealthy();
+    const uptimeTimer = setInterval(() => crashGuard.maybeResetByUptime(), 60_000);
+    uptimeTimer.unref?.();
+
+    const quit = async (code = 0) => {
+      await steward.shutdown({ removeDiscovery: true });
+      process.exit(code);
+    };
+    process.on("SIGTERM", () => void quit(0));
+    process.on("SIGINT", () => void quit(0));
+  } catch (err) {
+    // A failed boot counts against the guard: the next respawn is the second
+    // strike, and the third opens the cooldown.
+    crashGuard.recordFailure(err?.message || err);
+    console.error("[steward] boot failed:", err?.message || err);
+    process.exit(1);
+  }
+}

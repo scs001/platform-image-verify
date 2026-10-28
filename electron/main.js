@@ -154,6 +154,10 @@ async function boot() {
     LOGTO_CLIENT_TYPE: "public",
     SESSION_TTL_HRS: "720",
     DESKTOP_SERVER_PORT: "47600",
+    // The installer's bundled assets (preinstalled starter bundles under
+    // resources/bundles) live beside the app bundle, not inside the data
+    // root — the cell reads them through this pointer.
+    PLATFORM_RESOURCES_DIR: process.resourcesPath,
     // Pin the backend to IPv4 loopback (v1.3.5 black screen): with the
     // "localhost" default, Node on Windows/macOS resolves it to ::1 ONLY —
     // the health probe (same host string) stays green while the window's

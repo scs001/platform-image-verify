@@ -63,7 +63,7 @@ test("runner down degrades to 503 runner_not_running", async () => {
   assert.equal(body.error, "runner_not_running");
 });
 
-test("catalog projects the registry directory read-only", async () => {
+test("catalog projects the registry directory read-only (explicit bridge)", async () => {
   const dir = {
     agents: [
       { path: "/a", name: "A", description: "d", version: "2", tags: ["t"], is_enabled: true, supported_protocol: "a2a", metadata: { secret: "x" } },
@@ -75,14 +75,26 @@ test("catalog projects the registry directory read-only", async () => {
     env: { AGENT_SERVING_REGISTRY_URL: "https://reg.example.test", AGENT_SERVING_REGISTRY_TOKEN: "tok" },
     fetchImpl: okJson(dir),
   });
-  const { status, body } = await handle(app, "/api/wanxing/fleet/catalog");
+  // add-local-fleet-control-plane: the public directory is now the EXPLICIT
+  // bridge (source=registry); the default source is this machine's feed.
+  const { status, body } = await handle(app, "/api/wanxing/fleet/catalog?source=registry");
   assert.equal(status, 200);
+  assert.equal(body.source, "registry");
   assert.deepEqual(body.agents, [{ path: "/a", name: "A", description: "d", version: "2", tags: ["t"] }]);
 });
 
-test("unconfigured registry degrades to 503 registry_not_configured", async () => {
+test("catalog defaults to the local feed (no registry configured is fine)", async () => {
   const app = appWith({ env: {}, fetchImpl: okJson({ agents: [] }) });
   const { status, body } = await handle(app, "/api/wanxing/fleet/catalog");
+  assert.equal(status, 200);
+  assert.equal(body.source, "local");
+  assert.deepEqual(body.agents, []); // no deployments on a fresh store
+  assert.ok(body.capacity && typeof body.capacity.cap === "number");
+});
+
+test("registry bridge without configuration degrades to 503 registry_not_configured", async () => {
+  const app = appWith({ env: {}, fetchImpl: okJson({ agents: [] }) });
+  const { status, body } = await handle(app, "/api/wanxing/fleet/catalog?source=registry");
   assert.equal(status, 503);
   assert.equal(body.error, "registry_not_configured");
 });
@@ -92,7 +104,7 @@ test("registry failure surfaces as 502 registry_unreachable", async () => {
     env: { AGENT_SERVING_REGISTRY_URL: "https://reg.example.test" },
     fetchImpl: async () => ({ ok: false, status: 500, json: async () => ({}) }),
   });
-  const { status, body } = await handle(app, "/api/wanxing/fleet/catalog");
+  const { status, body } = await handle(app, "/api/wanxing/fleet/catalog?source=registry");
   assert.equal(status, 502);
   assert.equal(body.error, "registry_unreachable");
 });

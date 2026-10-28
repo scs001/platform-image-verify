@@ -885,6 +885,39 @@ const MIGRATIONS = [
       `ALTER TABLE resources ADD COLUMN tier_origin TEXT NOT NULL DEFAULT ''`,
     ],
   },
+  {
+    // add-local-fleet-control-plane: the local roster truth. One row per
+    // deployed serving agent on THIS machine; the local feed
+    // (server/local-agent-feed.js) synthesizes registry-shaped entries from
+    // these rows × the installed pack manifest, so agent-runner needs no
+    // code change — only a feed pointer. `agent_path` is the stable identity
+    // across stop/start (stop removes the entry from the feed, keeps the row).
+    version: 106,
+    statements: [
+      `CREATE TABLE IF NOT EXISTS local_fleet_deployments (
+        agent_path TEXT PRIMARY KEY,
+        pack_id TEXT NOT NULL,
+        agent_id TEXT NOT NULL,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        config_overrides TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        UNIQUE (pack_id, agent_id)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_local_fleet_deployments_pack
+        ON local_fleet_deployments(pack_id)`,
+    ],
+  },
+  {
+    // add-offline-pack-supply: an installed pack remembers where it came from
+    // (market | bundle). Historical rows default to 'market' — the only source
+    // that existed before bundles — so no backfill pass is needed and old
+    // readers that ignore the column are unaffected.
+    version: 107,
+    statements: [
+      `ALTER TABLE installed_packs ADD COLUMN source TEXT NOT NULL DEFAULT 'market'`,
+    ],
+  },
 ];
 
 function nowIso() {
@@ -2579,7 +2612,7 @@ export function listInstalledPacks() {
   if (!dbReady) return [];
   return db
     .prepare(
-      "SELECT pack_id AS packId, name, version, manifest, report, installed_at AS installedAt, updated_at FROM installed_packs ORDER BY installed_at DESC"
+      "SELECT pack_id AS packId, name, version, manifest, report, source, installed_at AS installedAt, updated_at FROM installed_packs ORDER BY installed_at DESC"
     )
     .all()
     .map(hydrateInstalled);
@@ -2590,30 +2623,32 @@ export function getInstalledPack(packId) {
   return hydrateInstalled(
     db
       .prepare(
-        "SELECT pack_id AS packId, name, version, manifest, report, installed_at AS installedAt, updated_at FROM installed_packs WHERE pack_id = ?"
+        "SELECT pack_id AS packId, name, version, manifest, report, source, installed_at AS installedAt, updated_at FROM installed_packs WHERE pack_id = ?"
       )
       .get(packId),
   );
 }
 
-export function upsertInstalledPack({ packId, name, version, manifest, report }) {
+export function upsertInstalledPack({ packId, name, version, manifest, report, source = "market" }) {
   if (!dbReady) return null;
   const existing = getInstalledPack(packId);
   const now = nowIso();
   stmt(
-    `INSERT INTO installed_packs (pack_id, name, version, manifest, report, installed_at, updated_at)
-     VALUES (@packId, @name, @version, @manifest, @report, @now, @now)
+    `INSERT INTO installed_packs (pack_id, name, version, manifest, report, source, installed_at, updated_at)
+     VALUES (@packId, @name, @version, @manifest, @report, @source, @now, @now)
      ON CONFLICT (pack_id) DO UPDATE SET
-       name = @name, version = @version, manifest = @manifest, report = @report, updated_at = @now`
+       name = @name, version = @version, manifest = @manifest, report = @report,
+       source = @source, updated_at = @now`
   ).run({
     packId,
     name,
     version,
     manifest: JSON.stringify(manifest ?? {}),
     report: JSON.stringify(report ?? {}),
+    source: source === "bundle" ? "bundle" : "market",
     now,
   });
-  return { ...existing, packId, name, version, manifest, report, updatedAt: now };
+  return { ...existing, packId, name, version, manifest, report, source, updatedAt: now };
 }
 
 export function deleteInstalledPack(packId) {
@@ -2774,7 +2809,7 @@ export function deleteUserPreset(id) {
 // server/bots.js — never hand a row straight to res.json().
 
 const BOT_COLS =
-  "id, type, name, enabled, secret, credentials, effort, context_budget AS contextBudget, zhi_room_id AS zhiRoomId, zhi_bridge_cursor AS zhiBridgeCursor, created_at AS createdAt";
+  "id, type, name, enabled, secret, credentials, effort, context_budget AS contextBudget, zhi_room_id AS zhiRoomId, zhi_bridge_cursor AS zhiBridgeCursor, owner_email AS ownerEmail, created_at AS createdAt";
 
 function hydrateBot(row) {
   if (!row) return null;

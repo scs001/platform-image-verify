@@ -66,6 +66,20 @@ export function getDescriptors({ serverPort, projectRoot, nodeBin, dataDir, agen
     AGENT_RUNNER_DESKTOP: "1",
     ...(agentEnv.AGENT_RUNNER_FLEET_URL ? { AGENT_RUNNER_FLEET_URL: agentEnv.AGENT_RUNNER_FLEET_URL } : {}),
     ...(agentEnv.AGENT_RUNNER_FLEET_TOKEN ? { AGENT_RUNNER_FLEET_TOKEN: agentEnv.AGENT_RUNNER_FLEET_TOKEN } : {}),
+    // Local roster source (add-local-fleet-control-plane, spec: local roster
+    // zero-config default): with no external registry configured, the seat
+    // polls THIS cell's own feed — the desktop is a real cluster out of the
+    // box instead of a healthy runner with an empty catalog. An external
+    // AGENT_SERVING_REGISTRY_URL wins verbatim (cloud deployments and paired
+    // seats keep their exact pre-change environment).
+    ...(agentEnv.AGENT_SERVING_REGISTRY_URL
+      ? {}
+      : {
+          AGENT_SERVING_REGISTRY_URL: `http://${childEnv.HOST || "127.0.0.1"}:${serverPort}/local-registry`,
+          ...(agentEnv.WANXING_LOCAL_FEED_TOKEN
+            ? { AGENT_SERVING_REGISTRY_TOKEN: agentEnv.WANXING_LOCAL_FEED_TOKEN }
+            : {}),
+        }),
     // Profile scaffold source: the same shared dsh home the chat cell uses
     // (~/.dsh — the cell's ensureDshHome establishes it on first boot).
     // Cloud images keep their baked /opt/dsh-home default by never running

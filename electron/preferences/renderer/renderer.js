@@ -173,27 +173,47 @@ const stewardConsentEl = document.getElementById('stewardConsent');
 const stewardStatusTextEl = document.getElementById('stewardStatusText');
 const stewardInstallBtn = document.getElementById('stewardInstallBtn');
 const stewardUninstallBtn = document.getElementById('stewardUninstallBtn');
+const stewardRepairBtn = document.getElementById('stewardRepairBtn');
 
+// Three honest states (add-desktop-residency-hardening 3.x): registered and
+// healthy / registered but NOT healthy (the crash loop's last reason travels
+// with it) / not registered. A registration file alone is never "healthy".
 async function refreshStewardPanel() {
   if (!window.platform.getStewardConsent) return;
   const consent = await window.platform.getStewardConsent();
   stewardConsentEl.textContent = consent.consentText;
   const st = await window.platform.getStewardStatus();
-  if (st.running) {
+  const crash = st.crash || {};
+  if (st.state === 'healthy' || st.running) {
     stewardStatusTextEl.textContent = `运行中 (pid ${st.pid}, protocol v${st.protocolVersion})`;
     stewardInstallBtn.style.display = 'none';
     stewardUninstallBtn.style.display = '';
-  } else if (st.installed) {
-    stewardStatusTextEl.textContent = `已注册未在运行${st.error ? `（${st.error}）` : ''}`;
+    stewardRepairBtn.style.display = 'none';
+  } else if (st.state === 'unhealthy' || st.installed) {
+    const why = crash.lastFailure?.message || st.error || '进程未响应';
+    const cooling = crash.coolingDown ? `（崩溃保护冷却中，${Math.ceil((crash.retryAfterMs || 0) / 1000)}s 后自动重试）` : '';
+    stewardStatusTextEl.textContent = `已注册未在运行 — ${why}${cooling}`;
     stewardInstallBtn.style.display = 'none';
     stewardUninstallBtn.style.display = '';
+    stewardRepairBtn.style.display = '';
   } else {
     stewardStatusTextEl.textContent = '未安装 — 退出应用窗口后舰队与定时任务不会继续运行';
     stewardInstallBtn.style.display = '';
     stewardUninstallBtn.style.display = 'none';
+    stewardRepairBtn.style.display = 'none';
   }
   await refreshPairPanel(st);
 }
+
+document.getElementById('stewardRepairBtn')?.addEventListener('click', async () => {
+  const statusEl = document.getElementById('stewardStatus');
+  statusEl.className = '';
+  statusEl.textContent = '重新注册中…';
+  const r = await window.platform.repairSteward();
+  statusEl.className = r.ok ? 'success' : 'error';
+  statusEl.textContent = r.ok ? '✓ 已重新注册自启并重置崩溃计数' : `✗ 重新注册失败：${r.error || 'unknown'}`;
+  await refreshStewardPanel();
+});
 
 document.getElementById('stewardInstallBtn').addEventListener('click', async () => {
   const statusEl = document.getElementById('stewardStatus');

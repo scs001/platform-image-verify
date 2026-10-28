@@ -1,18 +1,39 @@
 // ── Desktop fleet console lane (add-desktop-fleet-console) ───────────────────
 //
 // The desktop fleet page's read face: the cell server proxies the LOCAL
-// runner's /health (loopback, same machine) and the PUBLIC registry's a2a
-// directory (with the seat's existing registry credential). No new desktop
-// credentials are introduced and the renderer never crosses origins.
+// runner's /health (loopback, same machine) and — since
+// add-local-fleet-control-plane — reads its CATALOG from the cell's own local
+// roster feed by default, with the public registry kept as an explicit
+// read-only bridge. No new desktop credentials are introduced and the renderer
+// never crosses origins.
 //
-// Both endpoints degrade honestly: a runner that is not enabled/running and a
-// registry that is not configured are 503 + a machine-readable code the page
-// renders as guidance, not an error toast.
+// Write face (add-local-fleet-control-plane): deploy / stop / start / remove
+// all land on the local deployment store via server/local-agent-feed.js and
+// become visible through the same feed the runner polls — never a direct
+// runner call, never a cloud write.
+//
+// Every endpoint degrades honestly: a runner that is not enabled/running, a
+// registry that is not configured, or a local store without deployments are
+// 503/empty + a machine-readable code the page renders as guidance.
 
 import { Router } from "express";
 import fs from "node:fs";
 import path from "node:path";
 import { atomicWriteJsonSync } from "../../lib/persistence.js";
+import { listInstalledPacks } from "../../db.js";
+import { listServingAgents } from "../../lib/agent-serving.js";
+import {
+  composeLocalEntries,
+  convergeLocalCluster,
+  convergenceReport,
+  deployLocalAgent,
+  listDeployments,
+  localFleetSnapshot,
+  removeDeployment,
+  setDeploymentEnabled,
+} from "../local-agent-feed.js";
+import { importPresetBundle, listPresetBundles, presetBundlesDir } from "../preset-bundles.js";
+import * as packStore from "../../pack-store.js";
 
 const RUNNER_TIMEOUT_MS = 2000;
 
@@ -26,6 +47,7 @@ export function registerWanxingFleetRoutes(ctx) {
   const registryBase = () =>
     String(env.AGENT_SERVING_REGISTRY_URL || "").replace(/\/+$/, "");
   const registryToken = () => String(env.AGENT_SERVING_REGISTRY_TOKEN || "");
+  const seatId = () => String(env.WANXING_PLUGIN_RUNNER_ID || "") || null;
   // The Wanxing console the desktop pairs against (slice ③): the redeem call
   // carries no console session — the six-digit code is the entire proof, so
   // the server-side call never needs a forwarded identity.
@@ -50,7 +72,49 @@ export function registerWanxingFleetRoutes(ctx) {
     }
   });
 
-  router.get("/catalog", async (_req, res) => {
+  // Catalog source selection (design D5): the local feed is the default —
+  // management of THIS machine's cluster must not depend on any cloud
+  // reachability. The public directory stays available as a read-only bridge
+  // when a registry credential is configured AND the caller asks for it.
+  router.get("/catalog", async (req, res) => {
+    const source = String(req.query.source || "local");
+
+    if (source !== "registry") {
+      // Local roster: what is deployed here + what COULD be deployed from the
+      // already-installed packs (the write face's candidate list). Registry
+      // metadata internals never reach the renderer.
+      const deployed = composeLocalEntries({ runnerId: seatId() });
+      const deployedByPath = new Set(listDeployments().filter((d) => d.enabled).map((d) => d.agentPath));
+      const deployedAll = new Set(listDeployments().map((d) => d.agentPath));
+      const candidates = [];
+      for (const pack of listInstalledPacks()) {
+        for (const agent of listServingAgents(pack.manifest)) {
+          const agentPath = `packs/${pack.packId}/${agent.id}`;
+          candidates.push({
+            path: agentPath,
+            packId: pack.packId,
+            agentId: agent.id,
+            name: agent.name ?? agent.id,
+            description: agent.serving?.card?.description ?? null,
+            deployed: deployedAll.has(agentPath),
+            enabled: deployedByPath.has(agentPath),
+          });
+        }
+      }
+      return res.json({
+        source: "local",
+        agents: deployed.map((a) => ({
+          path: a.path ?? null,
+          name: a.name ?? null,
+          description: a.description ?? null,
+          version: a.version ?? null,
+          tags: Array.isArray(a.tags) ? a.tags : [],
+        })),
+        candidates,
+        capacity: localFleetSnapshot({ env }).capacity,
+      });
+    }
+
     if (!registryBase()) {
       return res.status(503).json({ error: "registry_not_configured" });
     }
@@ -107,10 +171,102 @@ export function registerWanxingFleetRoutes(ctx) {
           version: a.version ?? null,
           tags: Array.isArray(a.tags) ? a.tags : [],
         }));
-      return res.json({ agents });
+      return res.json({ source: "registry", agents });
     } catch {
       return res.status(502).json({ error: "registry_unreachable" });
     }
+  });
+
+  // ── Local deployment write face (add-local-fleet-control-plane 3.1) ──────
+  //
+  // All four actions mutate the local store only; the runner converges on its
+  // next poll (same cadence as the cloud path). Responses carry the LANDED
+  // fact, never a runtime state — the UI reads /live for that (no fake green).
+
+  // Preinstalled starter bundles (change 4): the installer may ship official
+  // starters. REGISTERING them is not installing them — the list is a
+  // catalogue, and the import below is the explicit user action.
+  router.get("/presets", async (_req, res) => {
+    try {
+      const bundles = await listPresetBundles({ env });
+      return res.json({ bundles, dir: presetBundlesDir(env) });
+    } catch (e) {
+      return res.status(503).json({ error: "presets_unavailable", message: e?.message });
+    }
+  });
+
+  router.post("/presets/import", async (req, res) => {
+    const file = String(req.body?.file || "");
+    if (!file) return res.status(400).json({ error: "file is required" });
+    try {
+      const out = await importPresetBundle({
+        file,
+        env,
+        user: req.user ?? null,
+        installPack: packStore.installPack,
+        hooks: {
+          onMcpChanged: () => ctx.broadcast?.({ type: "extensions_changed", resource: "mcp", action: "pack-import", name: file }),
+          onCatalogChanged: () => {
+            ctx.broadcast?.({ type: "catalog_changed" });
+            void ctx.syncCatalogAgentPresets?.();
+          },
+        },
+      });
+      await ctx.dshUpdateSkills?.().catch((e) => console.warn(`[wanxing-fleet] skills patch update failed: ${e.message}`));
+      return res.json(out);
+    } catch (e) {
+      return res.status(e?.status || 500).json({ error: e?.code || "preset_import_failed", message: e?.message });
+    }
+  });
+
+  // Convergence report (add-desktop-residency-hardening 4.x): what the last
+  // resident boot restored/pruned, plus the current expectation.
+  router.get("/convergence", (_req, res) => {
+    try {
+      return res.json({ last: convergenceReport(), current: convergeLocalCluster({ env }) });
+    } catch (e) {
+      return res.status(e?.status || 503).json({ error: e?.code || "convergence_unavailable", message: e?.message });
+    }
+  });
+
+  router.get("/deployments", (_req, res) => {
+    try {
+      return res.json(localFleetSnapshot({ env }));
+    } catch (e) {
+      return res.status(e?.status || 503).json({ error: e?.code || "local_store_unavailable", message: e?.message });
+    }
+  });
+
+  router.post("/deployments", (req, res) => {
+    const { packId, agentId, runnerId } = req.body || {};
+    if (!packId || !agentId) {
+      return res.status(400).json({ error: "packId and agentId are required" });
+    }
+    const out = deployLocalAgent({
+      packId: String(packId),
+      agentId: String(agentId),
+      externalRunnerId: runnerId && runnerId !== seatId() ? String(runnerId) : null,
+    });
+    if (out.error) return res.status(out.error.status ?? 400).json(out.error);
+    return res.status(out.reused ? 200 : 201).json({ deployment: out.deployment, reused: out.reused, capacity: localFleetSnapshot({ env }).capacity });
+  });
+
+  const enabledChange = (enabled) => (req, res) => {
+    const agentPath = String(req.body?.agentPath || "");
+    if (!agentPath) return res.status(400).json({ error: "agentPath is required" });
+    const out = setDeploymentEnabled(agentPath, enabled);
+    if (out.error) return res.status(out.error.status ?? 400).json(out.error);
+    return res.json({ deployment: out.deployment, capacity: localFleetSnapshot({ env }).capacity });
+  };
+  router.post("/deployments/stop", enabledChange(false));
+  router.post("/deployments/start", enabledChange(true));
+
+  router.post("/deployments/remove", (req, res) => {
+    const agentPath = String(req.body?.agentPath || "");
+    if (!agentPath) return res.status(400).json({ error: "agentPath is required" });
+    const out = removeDeployment(agentPath);
+    if (out.error) return res.status(out.error.status ?? 400).json(out.error);
+    return res.json({ removed: out.removed, capacity: localFleetSnapshot({ env }).capacity });
   });
 
   // Pairing (slice ③): the user pastes a six-digit code minted in the Wanxing

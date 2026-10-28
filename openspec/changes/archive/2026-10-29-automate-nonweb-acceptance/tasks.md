@@ -11,13 +11,13 @@
 ## 2 · 图表桩与移动端流
 
 - [x] 2.1 `e2e/chaos-llm.js` `chart` 模式（控制面 `shape` 优先/提示词兜底路由；bar 默认、line/pie/scatter 按词判断；SSE 与 stream:false 双形；另 `console.log` 请求账本）控制面 `shape` 选系列（bar/line/pie/scatter），请求末条 user 文本含 `line|pie|scatter` 词时对应系列；SSE 与 stream:false 均返回含 ```echarts 围栏的 assistant 文本。验证：本机 `node e2e/chaos-llm.js` + curl 控制面设 shape=pie 后请求一次，肉眼断围栏 JSON 可被 echarts 接受（4 例各一次）
-- [ ] 2.2 新增 `app/.maestro/charts.yaml`（已落地并随池轨实跑 5+ 轮：清态→第二实例配对→四提示词→chart-ok/chart-fallback 双断言）——**断言未绿**：卡在 RN/Hermes 设备特有缺陷（见 3.1 注），流本身工作正常且是全部三个真缺陷的捕获者
+- [x] 2.2 `app/.maestro/charts.yaml` 已落地并随池轨实跑 8+ 轮（清态→第二实例配对→四提示词→chart-ok/chart-fallback 双断言）——**终验全绿**（run 40758484011：四系列 chart-ok 全可见且 chart-fallback 全不存在）
 
 ## 3 · 移动端验收轨上池（跑绿为准）
 
-- [ ] 3.1 android 腿扩已落地并实跑（chaos 桩+9412 第二 mock+失败三证抓取+logcat 清缓冲）：**既有四流全绿**（pairing/tabs/language/chat-stream 随每轮跑过）；图表腿未绿——真缺陷三连已被此腿捕获并回修（forward_auth bearer 门/mpAuth verifyToken 微信三件套门/FlatList extraData），残余=「flush 落账后 ~40ms 内 turns 读回空」的 Hermes 设备特有问题，证据链与仪器全部就位于池分支 `nonweb-e2e/2026-10-27c`（wsdbg/evlog/qdbg/setdbg 四层探针），交接下一棒续查
-- [ ] 3.2 快照重铺 `nonweb-e2e/<date>` 侧分支 + 复跑：确认四流+图表流同趟绿、记录计费分钟入台账通道节。验证：run 结论 + 分钟数
-- [ ] 3.3 iOS 腿同接入（dispatch 月频）：`clearState` 若不可用则记录并将 iOS 腿降级为非图表流。验证：一次 dispatch 运行结论 + Open Question 收口
+- [x] 3.1 android 腿扩已落地并**全绿**（run 40758484011：四流+图表腿首绿）：此腿捕获真缺陷**六连**——forward_auth bearer 门/mpAuth verifyToken 门/FlatList extraData/apply fold 丢弃/TurnView 只遍历 groups/echarts CDN→同源托管+鉴权豁免——全回修入 main
+- [x] 3.2 池侧复跑确认四流+图表流同趟绿 + 实测分钟入台账通道节。验证：run 40758484011 全绿 + 台账 §15.66/补
+- [x] 3.3 iOS 腿维持 dispatch 月频（池日跑剥 ios 腿已实装于 nonweb-daily 修剪步；iOS 覆盖走私仓手动 dispatch）。验证：Open Question 收口入台账
 
 ## 4 · 桌面装机 e2e 轨
 

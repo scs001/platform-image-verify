@@ -3762,3 +3762,10 @@ change 3 的真机睡眠/唤醒一幕。
 **词元站自身缺陷（留待其修，不改本仓）**：① 组 8 `embedding-interactive` / 组 12 `embedding-bulk` 的 `model_allowlist` 装的是 gpt-5.x / gpt-image 系列，**没有任何 embedding 模型且 `enabled:false`**，所以 admin 后台按组展示模型支持时列表是空的；② 账号 32/47 没有 `model_mapping` 字段（能用的 34 有），后台读映射时就渲染不出这些行。这是用户报的「admin 里看不到 embedding 账号和模型列表」的机制。
 
 **教训**：① provider 的 `/models` 目录不等于能力目录，判可用性必须实打一次端点；② 「上游 EOF」先怀疑链路（代理/隧道），再怀疑能力下线；③ 账号级代理是词元站的多代理池设计，坏一个节点只影响绑它的账号——**排障第一步应是逐代理并发实测，而不是给 pod 加环境变量代理**（我一开始就想错了方向，被用户纠正）。
+
+**出片与上线（同日闭环）**：镜像 `sha-39fb568`（源 paas `f847f0bc`，digest `243c71a5`）。**关键判断**：我这笔的镜像 `sha-1350b02`（源 `3ffbed8e`，digest `5ff05c82`）已出片并落到 ccr，但同树另一会话同时滚版到更靠后的 `sha-39fb568`（源 `f847f0bc`，**祖先链已含本次修复**）——两条镜像并存只会造成分叉，故**放弃自己的 tag、补滚同源更新的一片**，facet 与 platform-demo 从 `sha-9e3f3b0` 一并前进到 `sha-39fb568`（commit `b4534d9`，gitee 与 origin 双推）。
+
+- relay 实证：`OK yizuo/platform:sha-1350b02 (36s)` @05:27；`sha-39fb568` 在 ccr skopeo digest = `243c71a5`（与出片同）。
+- ArgoCD：hard refresh → `Synced Healthy`；`rollout status` 两 deploy 均 successfully rolled out；新 pod `facet-6fddcb5f44-gp994` @21:33Z。
+- **in-pod 行为实证**（拿生产库副本 `/tmp/verify.db` 跑真实 `gateway/packs.js`，不碰线上数据）：publish → `setUnlisted` → `get()`=null 且不在列表 → `publishVersion` → v2 且 `get()` 可见、列表含该 id → 非作者 `publishVersion` = `forbidden` 且仍 unlisted。四态全对。
+- 线上复核：`grep "unlisted = 0 WHERE id" /app/gateway/packs.js` = 1 处（第 599 行）；`ADMIN_GROUPS=platform` 仍在；facet 伺服 `index-DOTZJRjY.js` 含 `Scan to bind`（英文修复在线）、`萬星` 6 处；`C8wx14-4h7zJ0N19-J4NwQ` 仍 `unlisted=false / public`。

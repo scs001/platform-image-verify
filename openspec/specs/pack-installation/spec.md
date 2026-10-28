@@ -29,6 +29,7 @@ Subscribing to a pack SHALL be a single user action that installs the subscribed
 
 - **WHEN** a user subscribes to a pack whose skills carry no executable-content files
 - **THEN** the install proceeds exactly as before with no acknowledgment step
+
 ### Requirement: Installed content is a version snapshot
 
 Installed skills, MCP references, and agent entries SHALL come from the manifest of the version that was subscribed. They SHALL keep working unchanged regardless of later marketplace events: the author publishing newer versions, or unpublishing the pack entirely.
@@ -61,6 +62,7 @@ A pack skill whose name collides with an existing skill not owned by that pack (
 
 - **WHEN** a pack's new version removes an auxiliary file that the previous version had installed
 - **THEN** the materialized skill directory no longer contains that file
+
 ### Requirement: MCP references resolve through the subscriber's own credentials
 
 Each MCP reference SHALL resolve through the existing registry-market install path using the subscriber's own registry credential; the pack SHALL NOT carry or transfer any secret. A server already installed in the cell SHALL be reused, not duplicated. A reference whose name matches a locally installed server row (a user-deployed server, not a registry-market entry) SHALL bind to that local row: the binding is recorded with the pack's installed state, the local row's configuration is neither overwritten nor extended by the install, and no group gate applies to a local binding. A reference that resolves to neither — no registry catalog entry and no local row of that name — SHALL be reported as awaiting-local-binding in the install report without blocking the other parts; it becomes a bound reference when a server of that name is later installed or connected in the cell, with no reinstall of the pack required. A reference that names a registry entry the subscriber cannot use — the server is no longer in the visible catalog, or the subscriber's groups do not grant access — SHALL be reported as unavailable in the install report without blocking the other parts. An allowlist declared on the reference SHALL travel with the resolution: reused, bound, and awaiting-local-binding references all keep their declared tool names in the installed record, to take effect in focused mode (openspec: pack-agent-scoping).
@@ -118,6 +120,7 @@ Every subscribe, upgrade, and unsubscribe action SHALL produce a per-part report
 
 - **WHEN** a subscribe completes with a skill that installed six auxiliary files, two of them scripts
 - **THEN** that skill's report row states six files and names the two script files
+
 ### Requirement: Pack agents run as local personas
 
 A subscribed pack's agent entries SHALL appear in the subscriber's agent picker and, when selected, SHALL run as a local persona in the subscriber's runtime — the platform's currently selected model with the pack persona's behavior — composed with the pack's resource set and the deployment baseline (openspec: pack-agent-scoping): the pack's own skills and MCP references plus the deployment's always-on baseline, not the subscriber's entire installed surface. Switching back to a shipped mode or the built-in agent restores the full surface.
@@ -169,6 +172,7 @@ Unsubscribing SHALL remove the pack's owned skills and agent entries. It SHALL w
 
 - **WHEN** a subscriber unsubscribes from a pack whose MCP reference was installed by the subscribe action
 - **THEN** the MCP server configuration remains installed and connectable
+
 ### Requirement: The cell records installed packs
 
 The cell SHALL record each installed pack (identifier, version, per-part state) and expose the list to the user. This installed-pack state — not the gateway's subscription records — is what determines what is materialized in the cell and what the update and unsubscribe flows act on.
@@ -180,7 +184,18 @@ The cell SHALL record each installed pack (identifier, version, per-part state) 
 
 ### Requirement: Manifest retrieval is server-side
 
-Installing a pack SHALL NOT require the client to transmit the pack manifest. The install endpoint SHALL accept `{packId, version}` and retrieve that version's manifest from the marketplace server-side before running the existing validation and materialization pipeline. A request that still carries a manifest body SHALL continue to be accepted and SHALL be validated by the same rules (rolling compatibility). Retrieval SHALL be performed under the calling user's identity so that private-pack visibility semantics are unchanged. If the manifest cannot be retrieved, the install SHALL fail with a clear error and materialize nothing.
+Installing a pack SHALL NOT require the client to transmit the pack manifest.
+The install endpoint SHALL accept `{packId, version}` and retrieve that
+version's manifest from the marketplace server-side before running the existing
+validation and materialization pipeline. A request that still carries a
+manifest body SHALL continue to be accepted and SHALL be validated by the same
+rules (rolling compatibility). **A third shape SHALL be accepted: a locally
+supplied offline bundle, whose manifest snapshot and resource files enter the
+identical pipeline through `POST /api/mypacks/import-bundle` (`offline-pack-supply`
+capability) — no separate validation chain, identical rules.** Retrieval SHALL
+be performed under the calling user's identity so that private-pack visibility
+semantics are unchanged. If the manifest cannot be retrieved, the install SHALL
+fail with a clear error and materialize nothing.
 
 #### Scenario: Client sends only packId and version
 
@@ -201,3 +216,19 @@ Installing a pack SHALL NOT require the client to transmit the pack manifest. Th
 
 - **WHEN** a request includes a manifest body during the compatibility window
 - **THEN** it is processed through the identical validation pipeline as a server-retrieved manifest
+
+#### Scenario: Offline bundle enters the same pipeline
+
+- **WHEN** a valid `.yizpack` is imported on a machine with the marketplace unreachable
+- **THEN** the pack installs through the identical validation and materialization pipeline, and the install record and report mark the source as `bundle`
+
+### Requirement: 安装来源可区分
+
+安装记录与安装报告 SHALL 记录来源字段（`market` | `bundle`；历史行缺省视为
+`market`）。SHALL 保持向后兼容：既有读面与客户端不识别该字段时行为不变，
+不因来源字段产生新的安装门。
+
+#### Scenario: 老读面不受影响
+
+- **WHEN** 一个只认识既有字段的读面列举已安装 pack
+- **THEN** 输出与引入来源字段前等价，仅多出可忽略字段

@@ -6,7 +6,6 @@
 
 ## Requirements
 
-
 ### Requirement: 模板清单是自描述的岗位骨架
 
 舰队模板 SHALL 以结构化清单声明：岗位骨架集（岗位名、组织关系、targetRef 类别与来源说明、KPI 槽位、节奏默认值、prompt 模板）、所需 pack/预设清单、模板元数据（名称/描述/封面）。targetRef 类别 SHALL 为以下之一：pack 预设、既有 persona、既有 cluster、既有 a2a、bot（引用 pack bot 或既有 bot，见 pack-bot-units）、tool（既有工具名）。模板 SHALL 可选携带 `orchestration` 编导声明段（边集与约束，代数与活舰队编导同源：trigger/report/dispatch/handoff/fanout/event 六种边），段内边引用的岗位 SHALL 在模板成员集内，编导形状校验（环、链深、边目标类型合法性）SHALL 与活舰队写面共用同一校验器、仅以模板成员集替代现役岗位集。清单 SHALL 不含任何凭据或所有者身份。非法清单（缺岗位名、成环、非法 cron、编导边引用成员集外岗位）SHALL 在预校验阶段以结构化错误拒绝且不上架。
@@ -30,9 +29,15 @@
 
 - **WHEN** 模板 orchestration 段的一条 handoff 边引用未在 members 声明的岗位
 - **THEN** 预校验以结构化错误拒绝并指名该边与缺失岗位
+
 ### Requirement: 模板以 pack 形态经市场分发
 
-舰队模板 SHALL 作为 pack 载体经既有市场安装链分发（列表、详情、安装、凭据链零改动语义）；应用中心 SHALL 提供「舰队」类目入口聚合模板。安装模板 SHALL 不自动启动任何回合（实例化后处于待确认启动态）。
+舰队模板 SHALL 作为 pack 载体经既有市场安装链分发（列表、详情、安装、凭据链
+零改动语义）；应用中心 SHALL 提供「舰队」类目入口聚合模板。安装模板 SHALL
+不自动启动任何回合（实例化后处于待确认启动态）。**模板供给道 SHALL 扩出离线
+bundle 一路：经 `offline-pack-supply` 导入的模板 pack 与市场安装的模板 pack
+SHALL 同等地出现在应用中心舰队类目、同等地可被实例化器消费，且实例化降级
+规则逐条相同（依赖缺位逐项降级，不因来源不同而分叉）。**
 
 #### Scenario: 市场安装模板
 
@@ -44,6 +49,10 @@
 - **WHEN** 模板实例化完成
 - **THEN** 全部物化任务处于暂停态，驾驶舱提示待主人确认启动
 
+#### Scenario: 离线导入的模板同等可用
+
+- **WHEN** 断网机器经 bundle 导入一个含 fleet 段的模板 pack
+- **THEN** 应用中心舰队类目可见该模板，实例化器以与市场来源逐条相同的规则建队与降级
 
 ### Requirement: 实例化器编排建队且依赖缺位逐项降级
 
@@ -99,6 +108,7 @@
 
 - **WHEN** 导出的模板被安装实例化
 - **THEN** 新舰队按骨架建立，节奏、槽位与编导边与导出时一致，历史数据不迁移（新舰队从零开始报数）
+
 ### Requirement: 模板新版不自动迁移现役舰队
 
 模板 pack 发布新版 SHALL 只影响其后的新实例化；由旧版实例化的现役舰队 SHALL 不被自动迁移或改写。当现役舰队的来源模板存在更新版本时，管理面 SHALL 呈现「模板有新版」提示；对齐 SHALL 由主人显式完成（换防/调速/重建），系统不提供自动骨架合并。
@@ -108,10 +118,20 @@
 - **WHEN** 某模板发布 v2，而一支按 v1 实例化的舰队正在运行
 - **THEN** 该舰队的岗位、节奏与槽位保持不变，仅驾驶舱呈现模板有新版提示
 
-
 ### Requirement: 官方种子库守恒
 
-官方舰队模板种子 SHALL 以清单文件随仓分发（种子库目录），每份种子清单 SHALL 全部通过与上架同源的 fleet 段预校验（含 orchestration 段）；该守恒 SHALL 由自动化测试钉住——任一官方种子清单变为非法（缺岗位名、组织关系成环、非法 cron、坏 target、编导边引用成员集外岗位）时测试 SHALL 失败。流水线叙事的官方种子 SHALL 携带与其叙事一致的编导（如内容工厂的 trigger+handoff/dispatch 链）；入站唤醒叙事的种子 SHALL 携带 event 边。官方种子铸造上架为市场 pack 后，仓内种子文件 SHALL 仍是该模板的清单真源（再版发布以仓内文件为基准，market 侧不产生第二个编辑入口）。
+官方舰队模板种子 SHALL 以清单文件随仓分发（种子库目录），每份种子清单 SHALL
+全部通过与上架同源的 fleet 段预校验（含 orchestration 段）；该守恒 SHALL 由
+自动化测试钉住——任一官方种子清单变为非法（缺岗位名、组织关系成环、非法
+cron、坏 target、编导边引用成员集外岗位）时测试 SHALL 失败。流水线叙事的
+官方种子 SHALL 携带与其叙事一致的编导（如内容工厂的 trigger+handoff/dispatch
+链）；入站唤醒叙事的种子 SHALL 携带 event 边。官方种子铸造上架为市场 pack
+后，仓内种子文件 SHALL 仍是该模板的清单真源（再版发布以仓内文件为基准，
+market 侧不产生第二个编辑入口）。**桌面安装包 SHALL 从这些仓内种子真源烘焙
+一份入门种子 bundle（`installer-distribution` 的 `resources/bundles/`），
+cell 首启 SHALL 把预置 bundle 登记为可导入源——登记 SHALL NOT 等于安装
+（安装仍是用户显式动作/引导步内确认）；预置与市场两来源的模板语义 SHALL 一致
+（同一份仓内清单真源，无第二编辑入口）。**
 
 #### Scenario: 全库过预校验
 
@@ -127,6 +147,16 @@
 
 - **WHEN** 一份官方种子铸造上架为市场 pack
 - **THEN** 所上 pack 的 fleet 段与仓内种子文件的 fleet 段语义一致（铸造占位符补齐除外）
+
+#### Scenario: 预置登记不等于安装
+
+- **WHEN** 首启完成且安装包含预置入门种子 bundle
+- **THEN** cell 登记该 bundle 为可导入源，pack 列表仍为空，直到用户显式确认安装
+
+#### Scenario: 预置种子与仓内真源一致
+
+- **WHEN** 构建期烘焙预置种子 bundle
+- **THEN** 其 fleet 段与仓内种子清单真源语义一致，坏包在构建期失败
 
 ### Requirement: 模板显示字段的多语言叠加
 

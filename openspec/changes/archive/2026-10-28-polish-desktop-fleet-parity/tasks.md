@@ -22,6 +22,6 @@
 
 ## 5. 见证
 
-- [x] 5.1 首启引导的桌面步与预装登记并入平台中立探针（`electron/local-cluster-probe.mjs`：预装包登记可见 + 导入 → 已安装），两腿共用；**双平台 CI 腿待跑** —— **待 CI 腿（本地无法跑双平台）**
+- [x] 5.1 首启引导的桌面步与预装登记并入平台中立探针（`electron/local-cluster-probe.mjs`：预装包登记可见 + 导入 → 已安装），两腿共用；**双平台已双绿**：预装包登记与导入在两腿通过（run `40676023413` / `40678629642`） —— **待 CI 腿（本地无法跑双平台）**
 - [x] 5.2 spike 五项判定已随 change 记录（design.md「桌面差异点判定」节：三项现状可用、一项本 change 补、一项已有 spec 覆盖）。**win/mac 真机手动走查与截图待出片**
 - [x] 5.3 `openspec validate polish-desktop-fleet-parity --strict` 绿；`scripts/test-preset-bundles.mjs` 6 例全绿；locale 闸 2274 key × 5 绿；tsc 绿

@@ -576,6 +576,18 @@ async function initDshAgent() {
   // The effective availability the runtime composes with (truthful for the
   // preset-switch patch rewrite, which reproduces the boot profile).
   ctx.runtimeMcpOverlay = cellMcpOverlay || {};
+  // Boot workspace (fix-agent-workspace): AGENT_WORKSPACE pin > persisted
+  // current > process.cwd(). fd-prod's /app is root-owned and unwritable —
+  // without a pin or a persisted switch every boot lands there and produced
+  // files become unservable (/api/files and the resource save both key off
+  // the runtime cwd). Rejections log loudly with the fallback actually used.
+  const bootWorkspace = await resolveBootWorkspace({
+    env: process.env,
+    getPreference: db.isDbReady() ? (k) => db.getPreference(k) : null,
+  });
+  for (const r of bootWorkspace.rejected) console.warn(`[workspace] ${r}; falling back`);
+  console.log(`[workspace] boot workspace: ${bootWorkspace.path} (source=${bootWorkspace.source})`);
+
   const mcpPatchPath = await writeMcpPatch({ mcpOverlay: cellMcpOverlay, userGroups: cellOwnerGroups, ownerEmail: ctx.runtimeOwnerEmail, agentPreset: ctx.currentPreset, workspace: bootWorkspace.path });
 
   // Write the skill-filesystem config override (customSkillDirs). The dir
@@ -693,17 +705,6 @@ async function initDshAgent() {
   }
 
   ctx.dshSessionId = "platform-" + randomUUID();
-  // Boot workspace (fix-agent-workspace): AGENT_WORKSPACE pin > persisted
-  // current > process.cwd(). fd-prod's /app is root-owned and unwritable —
-  // without a pin or a persisted switch every boot lands there and produced
-  // files become unservable (/api/files and the resource save both key off
-  // the runtime cwd). Rejections log loudly with the fallback actually used.
-  const bootWorkspace = await resolveBootWorkspace({
-    env: process.env,
-    getPreference: db.isDbReady() ? (k) => db.getPreference(k) : null,
-  });
-  for (const r of bootWorkspace.rejected) console.warn(`[workspace] ${r}; falling back`);
-  console.log(`[workspace] boot workspace: ${bootWorkspace.path} (source=${bootWorkspace.source})`);
   ctx.dshBridge = new DshBridge({
     provider,
     model,

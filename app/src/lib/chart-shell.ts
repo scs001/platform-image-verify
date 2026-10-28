@@ -3,17 +3,18 @@
 //   posts 'ready' once the shell can receive options (DOMContentLoaded),
 //   posts 'ok'   after a successful echarts.setOption,
 //   posts 'fail' on any render error (and stops trusting itself via __fail).
-// echarts is VENDORED (app/src/lib/vendor/echarts-source.ts, 5.5.1) and inlined
-// into the shell — no CDN. Two findings forced this: the acceptance emulator's
-// WebView is Chrome 83 (echarts 6 fails to parse there, 2026-10-27) and its
-// outbound network is unreliable (the CDN fetch failed → every chart degraded
-// to the fallback state, 2026-10-28). A chart that needs the network is not a
-// chart a customer can rely on, so the design's offline hardening path is now
-// the default.
+// echarts is served BY THE PLATFORM the app is paired to
+// (`/chart-assets/echarts.min.js`, resources/chart-assets), not a CDN. Two
+// findings forced this: the acceptance emulator's WebView is Chrome 83
+// (echarts 6 fails to parse there, 2026-10-27) and its outbound network is
+// unreliable (CDN fetch failed → every chart degraded to the fallback state,
+// 2026-10-28). Inlining the 1MB bundle instead crashed the emulator's WebView
+// renderer process (2026-10-28) — same-origin hosting is the one path that is
+// offline-safe, bundle-free and cheap for the WebView.
 
-export function chartShellHtml(echartsSource: string): string {
+export function chartShellHtml(echartsUrl: string): string {
   return `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;background:transparent}</style></head><body><div id="c" style="width:100vw;height:100vh"></div>
-<script>${echartsSource}</script>
+<script src="${echartsUrl}" onerror="window.__fail=1"></script>
 <script>
 window.addEventListener('message', function(e){ try { render(JSON.parse(e.data)); } catch(err){ window.__fail=1; } });
 function render(option){

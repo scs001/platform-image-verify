@@ -4,15 +4,12 @@
 // echarts from a CDN — charts only exist for data a reachable server sent —
 // with a vendored offline copy as the v1.x hardening path.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { WebView } from "react-native-webview";
 import { Text, View, StyleSheet } from "react-native";
 import { palette } from "./palette";
 import { chartShellHtml } from "@/lib/chart-shell";
-import { ECHARTS_SOURCE } from "@/lib/vendor/echarts-source";
-
-// Built once per process: the shell embeds ~1MB of echarts source.
-const SHELL = chartShellHtml(ECHARTS_SOURCE);
+import { useAppStore } from "@/store/app-store";
 
 export function ChartView({ option, height = 220 }: { option: unknown; height?: number }) {
   const webRef = useRef<WebView>(null);
@@ -25,6 +22,9 @@ export function ChartView({ option, height = 220 }: { option: unknown; height?: 
   // Settled by the shell's postMessage('ok'|'fail') after setOption; without
   // it the 4s degrade timer flipped every healthy chart to the fallback.
   const settled = useRef(false);
+  // echarts rides the platform we are already paired to (same origin, offline).
+  const baseUrl = useAppStore((s) => s.baseUrl);
+  const shell = useMemo(() => chartShellHtml(`${String(baseUrl ?? "").replace(/\/+$/, "")}/chart-assets/echarts.min.js`), [baseUrl]);
 
   useEffect(() => {
     if (!ready || failed) return;
@@ -55,7 +55,7 @@ export function ChartView({ option, height = 220 }: { option: unknown; height?: 
     >
       <WebView
         ref={webRef}
-        source={{ html: SHELL }}
+        source={{ html: shell }}
         originWhitelist={["*"]}
         javaScriptEnabled
         onMessage={(e) => {

@@ -4,6 +4,9 @@
 // composition root can place it after the app's /api routes.
 
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 import fs from "node:fs";
 import express from "express";
 import { WEB_DIST } from "../context.js";
@@ -849,6 +852,17 @@ export function registerMiscRoutes(ctx) {
 // /api routes and before the /external/:appId proxies (so dist files win).
 export function registerStaticAndFallback(ctx) {
   const { app } = ctx;
+  // Chart rendering assets for the mobile client's WebView (ChartView). The
+  // universal app renders charts inside a WebView, and that WebView cannot
+  // reach a CDN in CI/offline deployments — nor can it hold a 1MB inline copy
+  // (the emulator's renderer process crashed on it, 2026-10-28). Serving the
+  // library from the platform the app is already paired to keeps charts
+  // same-origin, offline and out of the JS bundle.
+  app.get("/chart-assets/echarts.min.js", (_req, res) => {
+    res.sendFile(path.join(PROJECT_ROOT, "resources", "chart-assets", "echarts.min.js"), {
+      headers: { "cache-control": "public, max-age=31536000, immutable" },
+    });
+  });
   app.use(express.static(WEB_DIST));
   // SPA fallback: any GET that isn't an API route, proxy path, or static asset
   // serves index.html so the client router handles it. `assets/` stays excluded

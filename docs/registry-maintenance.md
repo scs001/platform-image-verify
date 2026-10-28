@@ -2989,3 +2989,44 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 | 真机眼见（agent 回合级） | 走查账号 cell（pack 聚焦「柏讯·产物构建/巡线岗」）内 agent 实调 `mcp__playwright__browser_navigate` → 标题 `Example Domain`；`browser_take_screenshot` 落 `/data/cells/<hash>/workspace/example_com_20261028.png`（71KB，node 属主）；**`invalid_path` 计数 0**；live patch 条目带 `BROWSER_OUTPUT_DIR: /data/cells/<hash>/workspace` |
 | env | `PACK_BASELINE_MCP=fleet,playwright`（platform×3 清单，用户 2026-10-28 明令 pack 人格也可浏览；websearch 保持 2026-10-14 的会话级单控不动） |
 | 待办 | per-cell 共享登录态复现/跨 cell 零泄漏（需第二个活 cell）；桌面 opt-in 复核 |
+
+### §15.73 装机 e2e 消重：单条 canonical 车道（2026-10-28 午后）
+
+**问题**：同一块验收有两份实现，都跑 Windows（×2 计费）。
+`release.yml` 的 `installer e2e (windows)`（automate-nonweb-acceptance 4.1，另有会话所建，每次 tag 自动跑）
+与 `win-install-smoke.yml` 的 Phase D（add-cell-lifecycle 5.3 的装/跑/关UI/卸载幕，v1.3.20 手动 dispatch）
+覆盖重叠：装 → 起管家 → 开 app → 杀 UI 断存活 → 卸载。v1.3.20 发版时两条腿都绿，等于双倍烧分钟。
+
+**裁决**：`installer-e2e` 作**唯一**装机 e2e 车道，Phase D 并入其中后删除。
+理由三条：① 它每次 tag 自动跑，不靠人记得手动 dispatch；② 有 `artifact_run_id` 复用模式，改断言可在不重建矩阵的前提下复跑；
+③ 它已覆盖 Phase D 没有的 stale-discovery 自清回退。
+
+**移植进来的两条独有断言**（Phase D 的真正价值，不是重复劳动）：
+1. **单栈树断言**（attach 之后）：装好的 bundled `node.exe` 全部沿 `ParentProcessId` 上溯必须到达 `STEWARD_PID`
+   （走查在管家处**停**——管家自己的父进程是 shell，不能当根）。任一根不在管家上 = app 没 attach、回落 embedded 起了第二条栈，
+   而 `ATTACHED to steward` 日志行**看不见**这件事。
+2. **卸载排干常驻管家**（卸载步重写）：先按 `manual` 策略重起一个活着的管家（上一幕故意杀了它），再 `/S` 卸载，
+   断 `steward.pid` 排干 + `PlatformSteward` 计划任务注销 + 文件清场。用 `Get-ScheduledTask` 而非 `schtasks /Query`：
+   后者在任务（正确地）不存在时留 `$LASTEXITCODE=1`，pwsh 会在 PASS 行之后整体退出非零 —— 绿报成红。
+
+**顺带修的真缺陷**：`electron/installer.nsh` 两处 `taskkill /PID $1` 加 `/T`。
+管家被杀但其托管的 backend 是它的子进程，只按 pid 杀会留孤儿、继续锁住安装目录里的 `node.exe`：
+升级（customInit）换文件时锁，卸载（customUnInstall）留残骸。`/T` 连树收掉，`/IM` 的误杀风险不变。
+
+**证据**（都在池仓 testaction002/build-pool）：
+- `installer e2e (windows)` 复用 v1.3.20 产物复跑 → run **40631530466 绿**（3m22s，build/publish/mac 腿全 skipped）。
+  日志眼见：`node pid 4088 parent 7584` / `node pid 3440 parent 4088` / `node pid 9204 parent 3440` →
+  `single stack rooted at the steward (4088)`；`resident steward 8728 alive; uninstalling` →
+  `uninstall clean — resident drained, task deregistered, files removed`。
+- 删 Phase D 后的 win-smoke → run **40631939672 绿**（3m34s），A/B/C 三幕全在、`Stop processes` 正常收尾；
+  超时 28→20（28 是当初为 Phase D 抬的，删后全程约 4 分钟）。
+
+**池仓同步**：`desktop-release/v1.3.20` @ `669c7f2`（release+win-smoke+nsh）、`main` @ `d034d2b`（只 win-smoke——
+main 那份才是手动 dispatch 真正跑的文件，不同步等于没消重）。
+
+**判路新知**：`release.yml` **不在**池仓 main 上也能 dispatch——`gh workflow run release.yml --ref <分支>`
+实测可用（本仓旧注记「dispatch 只认默认分支」对本例不成立）。省掉给 main 加桩这一步。
+
+**挂账**：`/T` 随下一次 installer 构建才进产物，v1.3.20 的 exe 仍是旧钩子；等下次重建后，把卸载步的
+`manual` 策略换成 `always`（真实客户态：卸载时栈在跑），断言「栈内卸载也不留孤儿」——现在还不能断言，
+因为测的是旧钩子。另：本次未动 `automate-nonweb-acceptance`（他人在途，4.1/4.2 已勾），其 change 文档无需改。

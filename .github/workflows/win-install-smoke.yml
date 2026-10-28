@@ -19,6 +19,14 @@
 #       for GET /api/ready 200 on the desktop port. Same surface as the mac
 #       install smoke (tasks 1.2). stderr streams into the CI log, so a crash
 #       names its own cause (v1.3.0's ERR_MODULE_NOT_FOUND showed here).
+#     Phase C (window renders): the app self-tests its own renderer
+#       (did-finish-load + mounted DOM + capturePage) and exits 0/1.
+#
+# Scope note (2026-10-28): this lane judges ONE thing — does the PUBLISHED
+# artifact install and run. The steward residency chain (attach → UI exit →
+# stale-discovery fallback → uninstall drains the resident) lives in
+# release.yml `installer e2e (windows)`, which runs on every tag; the Phase D
+# that used to duplicate it here was folded into that job.
 #
 # A green run is the smoke record that lets release-sync drop --beta=windows.
 
@@ -38,7 +46,7 @@ permissions:
 jobs:
   smoke:
     runs-on: windows-latest
-    timeout-minutes: 28
+    timeout-minutes: 20
     steps:
       - name: Download the published installer
         shell: pwsh
@@ -213,111 +221,6 @@ jobs:
             ${{ runner.temp }}\selftest-report.json
             ${{ runner.temp }}\selftest-window.png
           if-no-files-found: warn
-
-      # ── Phase D: the steward is RESIDENT — closing the app kills nothing ───
-      # add-cell-lifecycle 5.3, the installer half of the eight acts. The whole
-      # point of the steward: the customer closes the software and the runtime
-      # lives on. Chain proven here:
-      #   装  silent install (above) leaves the packaged steward entry on disk
-      #   跑  the PACKAGED steward-main.js boots on the app's own userData root
-      #   关 UI the app attaches (never-double-stack), dies, steward answers
-      #   卸载  NSIS customUnInstall drains the steward by pid (steward.pid)
-      - name: Phase D — resident steward outlives the UI; uninstaller drains it
-        shell: pwsh
-        run: |
-          $dataDir = "$env:APPDATA\platform"
-          New-Item -ItemType Directory -Force -Path $dataDir | Out-Null
-          $node = "$env:APP_DIR\resources\node\node.exe"
-          $appRoot = "$env:APP_DIR\resources\app"
-
-          # Manual policy: this phase proves stewardship, not a backend boot
-          # (the stack's own proof is Phase B). cellId mirrors steward.js:
-          # sha256(dataDir)[:16].
-          $bytes = [Text.Encoding]::UTF8.GetBytes($dataDir)
-          $hash = (New-Object System.Security.Cryptography.SHA256Managed).ComputeHash($bytes)
-          $cellId = ([BitConverter]::ToString($hash)).Replace("-","").ToLower().Substring(0,16)
-          # Single-quoted JSON + concatenation: a PowerShell here-string's closing
-          # line would sit at column 1, which YAML block scalars cannot accept.
-          $json = '[{"schemaVersion":1,"cellId":"' + $cellId + '","ownerEmail":null,"state":"unbound","policy":"manual","workload":{"cronCount":0,"botCount":0,"fleetCount":0,"nextDueAt":null},"lastUserTrafficAt":null,"lastDutyRunAt":null,"lastBoundAt":null,"destroy":null,"createdAt":0,"updatedAt":0}]'
-          [IO.File]::WriteAllText("$dataDir\steward-registry.json", $json)
-
-          # 跑: boot the packaged steward itself
-          $env:PLATFORM_DATA_DIR = $dataDir
-          $sw = Start-Process -FilePath $node -ArgumentList "supervisor\steward-main.js" -WorkingDirectory $appRoot `
-                -RedirectStandardOutput "$env:RUNNER_TEMP\steward-out.log" `
-                -RedirectStandardError "$env:RUNNER_TEMP\steward-err.log" -PassThru
-          $deadline = (Get-Date).AddMinutes(1)
-          while (-not (Test-Path "$dataDir\steward.pid")) {
-            if ((Get-Date) -gt $deadline -or $sw.HasExited) {
-              Write-Host "--- steward stdout ---"; Get-Content "$env:RUNNER_TEMP\steward-out.log" -ErrorAction SilentlyContinue | Write-Host
-              Write-Host "--- steward stderr ---"; Get-Content "$env:RUNNER_TEMP\steward-err.log" -ErrorAction SilentlyContinue | Write-Host
-              throw "packaged steward did not write steward.pid"
-            }
-            Start-Sleep -Seconds 1
-          }
-          Write-Host "steward resident: pid $($sw.Id)"
-
-          # 关 UI: the app attaches instead of double-stacking, then dies.
-          # "No double stack" = exactly ONE stack, rooted at the resident
-          # steward: every node.exe under the install dir must reach $sw.Id by
-          # walking ParentProcessId (the attached UI asks the steward to start
-          # the stack, so backends — and their own children — hang off the
-          # steward). A node whose root is anything else is an embedded second
-          # stack (the app fell back instead of attaching).
-          Start-Process -FilePath "$env:APP_DIR\Platform.exe"
-          Start-Sleep -Seconds 18
-          $procs = Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
-            Where-Object { $_.ExecutablePath -like "$env:APP_DIR\resources\node*" }
-          $byPid = @{}
-          foreach ($p in $procs) { $byPid[[int]$p.ProcessId] = $p }
-          $strays = @()
-          foreach ($p in $procs) {
-            Write-Host "node pid $($p.ProcessId) parent $($p.ParentProcessId)"
-            # Walk up to the resident steward: the walk STOPS at $sw.Id (its own
-            # parent — this shell — is outside the stack and must not be taken
-            # for the root).
-            $cur = [int]$p.ProcessId
-            $guard = 0
-            while ($cur -ne $sw.Id -and $byPid.ContainsKey($cur) -and $guard -lt 20) {
-              $cur = [int]$byPid[$cur].ParentProcessId
-              $guard += 1
-            }
-            if ($cur -ne $sw.Id) { $strays += $p }
-          }
-          if (-not ($procs | Where-Object { $_.ProcessId -eq $sw.Id })) { throw "resident steward process vanished" }
-          if ($strays) {
-            $strays | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
-            throw "found a stack the resident steward does not root (embedded double stack)"
-          }
-          Get-Process Platform -ErrorAction SilentlyContinue | Stop-Process -Force
-          Start-Sleep -Seconds 5
-          if (-not (Get-Process -Id $sw.Id -ErrorAction SilentlyContinue)) { throw "steward died with the UI" }
-          # Inline probe via the PACKAGED steward-client (no dependency on any
-          # helper script version inside the release): attach + status over the
-          # named pipe, exit non-zero if the resident is not answering.
-          $env:STEWARD_APP_ROOT = $appRoot
-          $env:STEWARD_DATA_DIR = $dataDir
-          & $node -e "const {pathToFileURL}=require('node:url'); import(pathToFileURL(process.env.STEWARD_APP_ROOT + '/supervisor/steward-client.js').href).then(async (m) => { const a = await m.attachSteward(process.env.STEWARD_DATA_DIR); if (!a.ok) { console.error('attach failed: ' + a.reason); process.exit(1); } const s = await a.client.request('status'); console.log('steward status: ' + JSON.stringify(s)); process.exit(0); }).catch((e) => { console.error(e.message); process.exit(1); });"
-          if ($LASTEXITCODE -ne 0) { throw "steward stopped answering after the UI exit" }
-          Write-Host "steward outlived the UI exit"
-
-          # 卸载: NSIS drains the resident steward by pid before removing files
-          $uninst = Get-ChildItem "$env:APP_DIR" -Filter "Uninstall*.exe" | Select-Object -First 1
-          if (-not $uninst) { throw "uninstaller not found under $env:APP_DIR" }
-          Start-Process -FilePath $uninst.FullName -ArgumentList "/S" -Wait
-          Start-Sleep -Seconds 10
-          if (Get-Process -Id $sw.Id -ErrorAction SilentlyContinue) {
-            Stop-Process -Id $sw.Id -Force
-            throw "steward survived the uninstaller (pid drain failed)"
-          }
-          # Pure PowerShell lookups: a native schtasks /Query that fails on the
-          # (correctly) absent task would leave $LASTEXITCODE=1 and pwsh would
-          # exit non-zero even after the PASS line — a pass reported as red.
-          if (Get-ScheduledTask -TaskName "PlatformSteward" -ErrorAction SilentlyContinue) {
-            throw "scheduled task PlatformSteward still registered after uninstall"
-          }
-          Write-Host "::notice::Phase D PASS — resident steward outlived the UI, uninstaller drained it (pid $($sw.Id))"
-          exit 0
 
       - name: Stop processes
         if: always()

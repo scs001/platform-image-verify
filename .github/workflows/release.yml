@@ -229,9 +229,12 @@ jobs:
   # ── 装机 e2e（automate-nonweb-acceptance 4.1）─────────────────────────────
   # 把 2026-10-27 v1.3.19 首裁的三分支固化为每次发布自动断言：装 → 起管家
   # （bundled node 直启，避开 GUI/launchctl 在 runner 的确定性赤字）→ 开 app
-  # 断 ATTACHED → 杀 UI 断管家栈仍 healthy → 杀管家+死 pid 断 stale 自清回退
-  # embedded → 卸载断清场。资产走 build 的 workflow artifact（tag 与 dispatch
-  # 同一路径，不依赖 GitHub Release 已生成）。
+  # 断 ATTACHED + 单栈（bundled node 全部上溯到管家 pid，无 embedded 第二条栈）
+  # → 杀 UI 断管家栈仍 healthy → 杀管家+死 pid 断 stale 自清回退 embedded →
+  # 重起常驻管家再卸载，断 pid 排干 + 计划任务注销 + 文件清场。资产走 build 的
+  # workflow artifact（tag 与 dispatch 同一路径，不依赖 GitHub Release 已生成）。
+  # 2026-10-28 消重：本作业是**唯一**装机 e2e 车道（win-install-smoke 的 Phase D
+  # 曾重复同一幕，已并入这里——那边保留 A/B/C 的「发布产物能不能装能跑」冒烟）。
   installer-e2e:
     name: installer e2e (windows)
     needs: build
@@ -332,6 +335,41 @@ jobs:
             if ($tail -match 'ATTACHED to steward') { $attached = $true }
           }
           if (-not $attached) { throw "app never attached to the resident steward" }
+
+          # Exactly ONE stack, rooted at the resident steward (moved here from
+          # win-install-smoke Phase D, 2026-10-28 consolidation): the attached
+          # app asks the steward to start the stack, so every bundled node.exe
+          # must reach STEWARD_PID by walking ParentProcessId. A node whose root
+          # is anything else is an embedded second stack — the app fell back
+          # instead of attaching, which the ATTACHED log line alone cannot see.
+          $sw = [int]$env:STEWARD_PID
+          $nodeRoot = Join-Path (Split-Path $env:APP_EXE) 'resources\node'
+          $bundled = Get-CimInstance Win32_Process -Filter "Name='node.exe'" |
+            Where-Object { $_.ExecutablePath -like "$nodeRoot*" }
+          $byPid = @{}
+          foreach ($p in $bundled) { $byPid[[int]$p.ProcessId] = $p }
+          $strays = @()
+          foreach ($p in $bundled) {
+            Write-Host "node pid $($p.ProcessId) parent $($p.ParentProcessId)"
+            # The walk STOPS at the steward: its own parent (this shell) is
+            # outside the stack and must not be taken for the root.
+            $cur = [int]$p.ProcessId
+            $guard = 0
+            while ($cur -ne $sw -and $byPid.ContainsKey($cur) -and $guard -lt 20) {
+              $cur = [int]$byPid[$cur].ParentProcessId
+              $guard += 1
+            }
+            if ($cur -ne $sw) { $strays += $p }
+          }
+          if (-not (Get-Process -Id $sw -ErrorAction SilentlyContinue)) {
+            throw "resident steward pid $sw vanished before the stack check"
+          }
+          if ($strays) {
+            $strays | ForEach-Object { Write-Host "stray node pid $($_.ProcessId) parent $($_.ParentProcessId)" }
+            throw "found a stack the resident steward does not root (embedded double stack)"
+          }
+          Write-Host "single stack rooted at the steward ($sw)"
+
           Get-Process -Name 'Platform' -ErrorAction SilentlyContinue | Stop-Process -Force
           Start-Sleep -Seconds 8
           if (-not (Get-Process -Id $env:STEWARD_PID -ErrorAction SilentlyContinue)) { throw "steward died with the UI — resident semantics broken" }
@@ -359,14 +397,48 @@ jobs:
           if (-not $fellBack) { throw "stale steward.json did not fall back to embedded" }
           if (Test-Path $json) { throw "stale steward.json was not cleaned up" }
 
-      - name: Uninstall leaves the machine clean
+      - name: Uninstall drains the resident steward and leaves the machine clean
         shell: pwsh
         run: |
+          # The stale-discovery step above killed the steward on purpose; a real
+          # customer uninstalls with the resident RUNNING — that is the act this
+          # step judges (add-cell-lifecycle 卸载幕, moved here from
+          # win-install-smoke Phase D). Policy manual: the point is the pid
+          # drain, not a backend boot (the stack's own proof is the boot step).
+          $data = $env:STEWARD_DATA
+          $appRoot = Join-Path (Split-Path $env:APP_EXE) 'resources\app'
+          $bytes = [Text.Encoding]::UTF8.GetBytes($data)
+          $hash = (New-Object System.Security.Cryptography.SHA256Managed).ComputeHash($bytes)
+          $cellId = ([BitConverter]::ToString($hash)).Replace('-','').ToLower().Substring(0,16)
+          # Single-quoted JSON + concatenation: a here-string's closing line
+          # would sit at column 1, which YAML block scalars cannot accept.
+          $row = '[{"schemaVersion":1,"cellId":"' + $cellId + '","ownerEmail":null,"state":"unbound","policy":"manual","workload":{"cronCount":0,"botCount":0,"fleetCount":0,"nextDueAt":null},"lastUserTrafficAt":null,"lastDutyRunAt":null,"lastBoundAt":null,"destroy":null,"createdAt":0,"updatedAt":0}]'
+          [IO.File]::WriteAllText((Join-Path $data 'steward-registry.json'), $row)
+          Remove-Item (Join-Path $data 'steward.json') -ErrorAction SilentlyContinue
+          $env:PLATFORM_DATA_DIR = $data
+          Start-Process -FilePath $env:STEWARD_NODE -ArgumentList @((Join-Path $appRoot 'supervisor\steward-main.js')) -WindowStyle Hidden
+          $disc = Join-Path $data 'steward.json'
+          for ($i = 0; $i -lt 60 -and -not (Test-Path $disc); $i++) { Start-Sleep -Seconds 2 }
+          if (-not (Test-Path $disc)) { throw "resident steward did not come back before the uninstall" }
+          $resident = (Get-Content $disc -Raw | ConvertFrom-Json).pid
+          if (-not (Get-Process -Id $resident -ErrorAction SilentlyContinue)) { throw "resident pid $resident not alive before the uninstall" }
+          Write-Host "resident steward $resident alive; uninstalling"
+
           $un = Get-ChildItem (Split-Path $env:APP_EXE) -Filter 'Uninstall*.exe' | Select-Object -First 1
           Start-Process -FilePath $un.FullName -ArgumentList '/S' -Wait
           Start-Sleep -Seconds 10
+          if (Get-Process -Id $resident -ErrorAction SilentlyContinue) {
+            Stop-Process -Id $resident -Force -ErrorAction SilentlyContinue
+            throw "uninstaller did not drain the resident steward (pid $resident survived)"
+          }
+          # Get-ScheduledTask, not schtasks /Query: a native call that fails on
+          # the (correctly) absent task leaves $LASTEXITCODE=1 and pwsh exits
+          # non-zero after the PASS line — a pass reported as red.
+          if (Get-ScheduledTask -TaskName 'PlatformSteward' -ErrorAction SilentlyContinue) {
+            throw "scheduled task PlatformSteward still registered after uninstall"
+          }
           if (Test-Path $env:APP_EXE) { throw "app files survived the uninstaller" }
-          "uninstall clean" | Write-Host
+          Write-Host "::notice::uninstall clean — resident drained, task deregistered, files removed"
 
   # ── 装机 e2e · macOS 腿（4.2，显式开启；launchctl 用 installPlan 断言替身）──
   installer-e2e-mac:

@@ -3589,3 +3589,9 @@ change 3 的真机睡眠/唤醒一幕。
 - 因此**未合并到公开 main**。车道在公开线以分支待命；私有 main 已含车道（§15.77）。
 
 **结论**：车道工程侧全部就绪且已上产（digest `bf9d1fd6`）；「进公开出片线 main」卡在两处非工程问题（StrEnum 迁移口径 + 付费档语义裁决），需 owner 拍板。
+
+### §15.78 续四（2026-10-29）——本批遗留优化三件收口（全是实踩的坑）
+
+1. **runner 端口单源**（`944ed1d2`）：`AGENT_RUNNER_PORT` 与 cell live 代理的 `:8790` 默认是两处需人肉同步的值——测试台改 8792 当场撞出假 `runner_not_running`。改为 descriptor 派生注入 `WANXING_RUNNER_URL`，三态测试（跟随/回落/不注入）。
+2. **SETTING_KEYS 三份漂移收敛**（`151b4a93`）：electron resolveEnv / steward readSettingsEnv / local-services 各持一份且已互异（launcher 缺全部桌面键、steward 缺 launcher extras）——收敛为 `lib/settings-keys.js` 单源（union），守卫测试扫全仓**拒绝第二份定义**、三消费方必须 import。
+3. **release-sync 缓存尺寸硬门**（`d7fae79b`）：上架时 900s 超时把 dmg 截成 96MB 残件，`existsSync` 判据会把残件 **rsync 上官网**（本次手工删残件躲过）。改 `cacheState` 三态（absent/ok/truncated）+ 下载后复检，truncated 拒发；四例单测含现场形态。

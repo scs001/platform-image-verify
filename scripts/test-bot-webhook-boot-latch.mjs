@@ -1,13 +1,15 @@
 // Regression for the fd-prod 2026-10-29 message loss: the cell calls
-// server.listen BEFORE bots.initBots (db open + dsh handshake sit between), and
-// the gateway proxies a bot webhook as soon as the port answers. A message
+// server.listen 8.2s BEFORE bots.initBots finishes (db open + dsh handshake),
+// and the gateway proxies a bot webhook as soon as the port answers. A message
 // landing in that window found an EMPTY registry and got a definite 403
 // "unknown bot" — which the chat platform treats as final, so the message was
 // dropped (observed twice right after a roll).
 //
-// The webhook route must WAIT for the boot latch instead of refusing: a bot
-// that loads a moment later is served normally; a genuinely unknown bot still
-// gets the identical 403 once boot settles (same attack surface, no oracle).
+// Waiting is not an option either: WeCom/WeChat drop a callback at ~5s, well
+// inside that 8s boot. So the boot window ACKS AT ONCE and replays the buffered
+// request through the FULL pipeline (signature check included) once the
+// registry loads. A forged request earns a bare 200 and is never dispatched;
+// a genuinely unknown bot still gets the same 403 once boot settles.
 
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -70,29 +72,49 @@ after(async () => {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
 });
 
-test("a webhook arriving before the registry loads waits for it instead of 403", async () => {
+const updateFor = (chatId, text) => ({
+  update_id: Math.floor(Math.random() * 1e6),
+  message: { message_id: 1, chat: { id: chatId }, from: { username: "u" }, date: 0, text },
+});
+
+test("a webhook arriving before the registry loads is acked at once, then processed", async () => {
   assert.equal(bots.bootPending(), true, "the fixture must be inside the boot window");
   assert.equal(bots.getEntry(botRow.id), null, "registry is still empty at this point");
 
-  const update = {
-    update_id: 1,
-    message: { message_id: 1, chat: { id: 777 }, from: { username: "u" }, date: 0, text: "boot race" },
-  };
-
-  // Fire the webhook while the registry is empty, then load the registry a
-  // moment later — the same order the real cell produces.
-  const pending = fetch(`${base}${WEBHOOK_PREFIX}${botRow.id}/${botRow.secret}`, {
+  // The platform gets its "success" immediately — it will not retry or judge
+  // the endpoint dead, which is the whole point (the old code answered 403).
+  const t0 = Date.now();
+  const res = await fetch(`${base}${WEBHOOK_PREFIX}${botRow.id}/${botRow.secret}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(update),
+    body: JSON.stringify(updateFor(777, "boot race")),
   });
-
-  await new Promise((r) => setTimeout(r, 250));
-  bots.initBots(ctx); // the boot completing
-
-  const res = await pending;
-  assert.equal(res.status, 200, "the waiting webhook must be served, not refused");
+  const elapsed = Date.now() - t0;
+  assert.equal(res.status, 200, "the boot-window webhook must be acked, not refused");
   assert.equal(await res.text(), "success");
+  assert.ok(elapsed < 1000, `the ack must not wait for boot (took ${elapsed}ms)`);
+  assert.equal(sent.length, 0, "nothing is dispatched before the registry loads");
+
+  // The boot completes: the buffered request is replayed through the full
+  // pipeline (verification included) and the turn runs.
+  bots.initBots(ctx);
+  await new Promise((r) => setTimeout(r, 300));
+  assert.equal(sent.length, 1, "the buffered webhook must be replayed after boot");
+  assert.deepEqual(sent[0], { chatKey: "777", text: "Sorry — I could not complete that request." });
+});
+
+test("a buffered webhook with a BAD secret is refused on replay, never dispatched", async () => {
+  // Fresh boot window is not available here (latch already settled), so this
+  // asserts the pipeline itself: a wrong secret cannot reach handleMessage.
+  sent.length = 0;
+  const res = await fetch(`${base}${WEBHOOK_PREFIX}${botRow.id}/wrong-secret`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(updateFor(888, "forged")),
+  });
+  assert.equal(res.status, 403);
+  await new Promise((r) => setTimeout(r, 100));
+  assert.equal(sent.length, 0, "a forged webhook must never dispatch");
 });
 
 test("a genuinely unknown bot still gets the same 403 once boot settles", async () => {

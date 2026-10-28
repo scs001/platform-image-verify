@@ -20,12 +20,17 @@ import { validateConfigDims, effortUnionFrom } from "../fleet-model.js";
 // The webhook path prefix, shared with the forward-auth exemption in auth.js.
 export const WEBHOOK_PREFIX = "/api/bots/webhook/";
 
-// How long a webhook may wait for the bot registry during boot. Bounded by the
-// chat platform's own callback budget, not by us: WeCom/WeChat give roughly 5s
-// and treat a timeout as "server is down" (then retry, or drop). The observed
-// boot gap (db open + dsh handshake before bots.initBots) is 3-10s, so a short
-// wait converts "certainly lost" into "usually delivered, otherwise retried".
-const WEBHOOK_BOOT_WAIT_MS = Number(process.env.BOTS_WEBHOOK_BOOT_WAIT_MS) || 4_000;
+// Boot window handling. Measured 2026-10-29 in fd-prod: the cell calls
+// server.listen 8.2s BEFORE bots.initBots finishes (db open + dsh handshake),
+// while WeCom/WeChat drop a callback at roughly 5s. Waiting therefore loses
+// either way — so during boot the webhook is ACKED at once and buffered, and
+// the buffered request is replayed through the FULL pipeline (signature check
+// included) once the registry is up. A forged request earns a bare 200 and no
+// processing; nothing is dispatched before verification still.
+const BOOT_REPLAY_WAIT_MS = Number(process.env.BOTS_WEBHOOK_BOOT_WAIT_MS) || 30_000;
+// Bounded: a boot lasting longer than this is broken, and an unbounded buffer
+// is a memory sink under a webhook flood.
+const BOOT_BUFFER_MAX = Number(process.env.BOTS_WEBHOOK_BOOT_BUFFER_MAX) || 20;
 
 export function registerBotRoutes(ctx) {
   const { app, db } = ctx;
@@ -36,6 +41,10 @@ export function registerBotRoutes(ctx) {
     return false;
   };
 
+  // Buffered boot-window webhooks, drained once bots.initBots settles.
+  const bootBuffer = [];
+  let bootDrainArmed = false;
+
   // ── Inbound webhook ────────────────────────────────────────────────────────
   // Raw body: WeCom/WeChat send XML and every platform signs the bytes as sent,
   // so the payload must not be re-serialized by express.json() before checking.
@@ -43,88 +52,128 @@ export function registerBotRoutes(ctx) {
     `${WEBHOOK_PREFIX}:botId/:secret`,
     express.raw({ type: "*/*", limit: "1mb" }),
     async (req, res) => {
-      // Boot window: the cell listens before bots.initBots runs (db open + dsh
-      // handshake sit between), and the gateway proxies as soon as the port
-      // answers. An empty registry here is "not loaded YET", not "unknown bot"
-      // — a definite 403 makes the chat platform drop the message for good
-      // (fd-prod 2026-10-29: two messages lost this way right after a roll).
-      // Wait for the registry instead; a genuinely unknown bot still gets the
-      // identical 403 once boot settles, so nothing is revealed either way.
-      let entry = bots.getEntry(req.params.botId);
-      if (!entry && bots.bootPending()) {
-        await bots.whenBooted(WEBHOOK_BOOT_WAIT_MS);
-        entry = bots.getEntry(req.params.botId);
-      }
-      // Same 403 for unknown bot, disabled bot, and bad secret: an attacker
-      // learns nothing about which bot ids exist. timingSafeEqual guards the
-      // secret compare; unequal lengths are a mismatch by definition.
-      const secret = entry ? Buffer.from(entry.bot.secret) : null;
-      const given = Buffer.from(String(req.params.secret));
-      const ok =
-        entry?.bot.enabled &&
-        secret.length === given.length &&
-        crypto.timingSafeEqual(secret, given);
-      // The reply stays identical for unknown/disabled/bad-secret (attackers
-        // learn nothing), but a mismatch is LOGGED: "arrived and was refused"
-        // and "never arrived" must be distinguishable when debugging a
-        // platform whose console shows the config as saved (fd-prod lesson,
-        // add-user-questions).
-      if (!ok) {
-        console.warn(
-          `[bots] webhook refused: botId=${req.params.botId}${entry ? ` (${entry.bot.name}, enabled=${entry.bot.enabled})` : " unknown"}`,
-        );
-        return res.sendStatus(403);
-      }
-
       const raw = Buffer.isBuffer(req.body) ? req.body.toString("utf8") : "";
       let json;
       try { json = JSON.parse(raw); } catch { /* XML platforms: adapters read .raw */ }
       const adapterReq = { method: req.method, query: req.query, headers: req.headers, raw, json };
+      const botId = req.params.botId;
+      const given = req.params.secret;
 
-      // Platform verification. A throw here means the request is forged or
-      // undecryptable — 403, and the content is never logged (design D3.1).
-      let challenge;
-      try {
-        challenge = await entry.adapter.verifyWebhook(adapterReq, entry.bot.credentials);
-      } catch (err) {
-        console.warn(`[bots] "${entry.bot.name}" rejected an unverified webhook request: ${err.message}`);
-        return res.sendStatus(403);
-      }
-      // The platform's URL-verification handshake wants its literal echo.
-      // Logged: a SILENT success is indistinguishable from "the platform
-      // never called" when debugging why a saved console config delivers
-      // nothing (fd-prod lesson, add-user-questions).
-      if (challenge !== null) {
-        console.log(`[bots] "${entry.bot.name}" handshake verified and echoed`);
-        return res.type("text/plain").send(challenge);
+      // Boot window: registry not loaded yet and the bot is not in it. Ack and
+      // buffer — see the BOOT_* block above for the measured numbers.
+      if (bots.bootPending() && !bots.getEntry(botId)) {
+        if (bootBuffer.length >= BOOT_BUFFER_MAX) {
+          console.warn(`[bots] boot buffer full (${BOOT_BUFFER_MAX}); dropping a webhook for ${botId}`);
+          return res.sendStatus(503);
+        }
+        bootBuffer.push({ botId, given, adapterReq });
+        console.log(`[bots] webhook for ${botId} buffered until the registry loads (${bootBuffer.length} queued)`);
+        res.type("text/plain").send("success");
+        armBootDrain();
+        return;
       }
 
-      let message;
-      try {
-        message = await entry.adapter.parseMessage(adapterReq, entry.bot.credentials);
-      } catch (err) {
-        console.warn(`[bots] "${entry.bot.name}" could not parse a verified payload: ${err.message}`);
-        return res.sendStatus(400);
-      }
-
-      // Ack immediately: every one of these platforms retries on a slow reply,
-      // and an agent turn takes far longer than their timeout.
-      res.type("text/plain").send("success");
-      if (message) {
-        console.log(`[bots] "${entry.bot.name}" inbound from ${message.chatKey}: "${String(message.text).slice(0, 60)}"`);
-        bots.handleMessage(entry.bot.id, message).catch((e) =>
-          console.warn(`[bots] "${entry.bot.name}" turn failed: ${e.message}`),
-        );
-      } else {
-        // Forensics (fd-prod lesson): the canonical text XML parsed locally but
-        // not in prod — the length, content-type and first bytes name the
-        // culprit (empty body vs gzip magic vs unexpected shape).
-        console.log(
-          `[bots] "${entry.bot.name}" non-text payload ignored (len=${raw.length} ct=${req.headers["content-type"] ?? "?"} head=${JSON.stringify(raw.slice(0, 40))})`,
-        );
-      }
+      await handleVerifiedWebhook(botId, given, adapterReq, res);
     },
   );
+
+  function armBootDrain() {
+    if (bootDrainArmed) return;
+    bootDrainArmed = true;
+    void bots.whenBooted(BOOT_REPLAY_WAIT_MS).then(async (ready) => {
+      bootDrainArmed = false;
+      const queued = bootBuffer.splice(0, bootBuffer.length);
+      if (!queued.length) return;
+      if (!ready) {
+        console.warn(`[bots] registry still not loaded after ${BOOT_REPLAY_WAIT_MS}ms; dropping ${queued.length} buffered webhook(s)`);
+        return;
+      }
+      for (const item of queued) {
+        try {
+          await handleVerifiedWebhook(item.botId, item.given, item.adapterReq, null);
+        } catch (e) {
+          console.warn(`[bots] buffered webhook replay failed for ${item.botId}: ${e.message}`);
+        }
+      }
+    });
+  }
+
+  // The verification + dispatch pipeline. `res` null = replay (no HTTP reply).
+  async function handleVerifiedWebhook(botId, given, adapterReq, res) {
+    const done = (code, body, type = "text/plain") => {
+      if (!res) {
+        if (code >= 400) console.warn(`[bots] buffered webhook for ${botId} refused (${code})`);
+        return;
+      }
+      if (type === "json") return res.status(code).json(body);
+      res.status(code).type(type).send(body);
+    };
+
+    const entry = bots.getEntry(botId);
+    // Same 403 for unknown bot, disabled bot, and bad secret: an attacker
+    // learns nothing about which bot ids exist. timingSafeEqual guards the
+    // secret compare; unequal lengths are a mismatch by definition.
+    const secret = entry ? Buffer.from(entry.bot.secret) : null;
+    const submitted = Buffer.from(String(given));
+    const ok =
+      entry?.bot.enabled &&
+      secret.length === submitted.length &&
+      crypto.timingSafeEqual(secret, submitted);
+    // The reply stays identical for unknown/disabled/bad-secret (attackers
+    // learn nothing), but a mismatch is LOGGED: "arrived and was refused"
+    // and "never arrived" must be distinguishable when debugging a
+    // platform whose console shows the config as saved (fd-prod lesson,
+    // add-user-questions).
+    if (!ok) {
+      console.warn(
+        `[bots] webhook refused: botId=${botId}${entry ? ` (${entry.bot.name}, enabled=${entry.bot.enabled})` : " unknown"}`,
+      );
+      return done(403, "Forbidden");
+    }
+
+    // Platform verification. A throw here means the request is forged or
+    // undecryptable — 403, and the content is never logged (design D3.1).
+    let challenge;
+    try {
+      challenge = await entry.adapter.verifyWebhook(adapterReq, entry.bot.credentials);
+    } catch (err) {
+      console.warn(`[bots] "${entry.bot.name}" rejected an unverified webhook request: ${err.message}`);
+      return done(403, "Forbidden");
+    }
+    // The platform's URL-verification handshake wants its literal echo.
+    // Logged: a SILENT success is indistinguishable from "the platform
+    // never called" when debugging why a saved console config delivers
+    // nothing (fd-prod lesson, add-user-questions).
+    if (challenge !== null) {
+      console.log(`[bots] "${entry.bot.name}" handshake verified and echoed`);
+      return done(200, challenge);
+    }
+
+    let message;
+    try {
+      message = await entry.adapter.parseMessage(adapterReq, entry.bot.credentials);
+    } catch (err) {
+      console.warn(`[bots] "${entry.bot.name}" could not parse a verified payload: ${err.message}`);
+      return done(400, "Bad Request");
+    }
+
+    // Ack immediately: every one of these platforms retries on a slow reply,
+    // and an agent turn takes far longer than their timeout.
+    done(200, "success");
+    if (message) {
+      console.log(`[bots] "${entry.bot.name}" inbound from ${message.chatKey}: "${String(message.text).slice(0, 60)}"`);
+      bots.handleMessage(entry.bot.id, message).catch((e) =>
+        console.warn(`[bots] "${entry.bot.name}" turn failed: ${e.message}`),
+      );
+    } else {
+      // Forensics (fd-prod lesson): the canonical text XML parsed locally but
+      // not in prod — the length, content-type and first bytes name the
+      // culprit (empty body vs gzip magic vs unexpected shape).
+      console.log(
+        `[bots] "${entry.bot.name}" non-text payload ignored (len=${adapterReq.raw.length} ct=${adapterReq.headers["content-type"] ?? "?"} head=${JSON.stringify(adapterReq.raw.slice(0, 40))})`,
+      );
+    }
+  }
 
   // ── Generic bot types (read-only registry face) ────────────────────────────
   // The platform-hosted generic bot type set (pack-bot-units): the same

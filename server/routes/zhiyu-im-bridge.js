@@ -8,6 +8,7 @@
 
 import express from "express";
 import { GATEWAY_SECRET_HEADER } from "../auth.js";
+import { reload as reloadBot } from "../bots.js";
 
 export function registerZhiyuImBridgeRoutes(ctx) {
   const { app } = ctx;
@@ -49,7 +50,11 @@ export function registerZhiyuImBridgeRoutes(ctx) {
       const r = await fetch(`${gatewayBase()}/api/zhiyu/im-bridge/rooms/${encodeURIComponent(roomId)}`, { headers: machineHeaders(email) });
       if (!r.ok) return res.status(r.status === 404 || r.status === 401 ? 404 : 502).json({ error: "room unavailable" });
       const room = await r.json();
-      ctx.db.updateBot(bot.id, { zhiRoomId: roomId });
+      const updated = ctx.db.updateBot(bot.id, { zhiRoomId: roomId });
+      // The inbound hook reads the binding off the RUNNING bot entry, not the
+      // row: without the reload a fresh binding would only take effect at the
+      // next boot (the runtime entry is built there).
+      if (updated) reloadBot(updated);
       console.log(`[zhiyu-im-bridge] bot "${bot.name}" bound to room ${roomId} by ${email}`);
       res.json({ botId: bot.id, zhiRoomId: roomId, room });
     } catch (err) {
@@ -62,7 +67,8 @@ export function registerZhiyuImBridgeRoutes(ctx) {
     if (!email) return res.status(401).json({ error: "sign-in required" });
     const bot = botKnown(req.params.botId);
     if (!bot) return res.status(404).json({ error: "not found" });
-    ctx.db.updateBot(bot.id, { zhiRoomId: null, });
+    const updated = ctx.db.updateBot(bot.id, { zhiRoomId: null });
+    if (updated) reloadBot(updated);
     console.log(`[zhiyu-im-bridge] bot "${bot.name}" unbound by ${email}`);
     res.json({ ok: true });
   });

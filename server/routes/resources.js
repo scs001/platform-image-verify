@@ -46,7 +46,7 @@ export function registerResourceRoutes(ctx) {
   // with a reason code, never a silent empty page: a client sending garbage
   // must learn it, not wonder where its resources went.
   app.get("/api/resources", (req, res) => {
-    const { type, q, limit, offset, groups, since, until } = req.query ?? {};
+    const { type, q, limit, offset, groups, since, until, tier, tags } = req.query ?? {};
     let parsedGroups = null;
     let parsedSince = null;
     let parsedUntil = null;
@@ -76,6 +76,8 @@ export function registerResourceRoutes(ctx) {
       if (name === "since") parsedSince = value;
       else parsedUntil = value;
     }
+    const tierFilter = typeof tier === "string" && ["draft", "stable", "canonical"].includes(tier) ? tier : null;
+    const tagsFilter = typeof tags === "string" && tags.trim() ? tags.split(",").map((t) => t.trim()).filter(Boolean) : null;
     res.json(
       resources.list({
         type: typeof type === "string" && type ? type : null,
@@ -83,6 +85,8 @@ export function registerResourceRoutes(ctx) {
         groups: parsedGroups,
         since: parsedSince,
         until: parsedUntil,
+        tier: tierFilter,
+        tags: tagsFilter,
         limit,
         offset,
       })
@@ -345,6 +349,60 @@ export function registerResourceRoutes(ctx) {
     } catch (err) {
       errorResponse(res, err);
     }
+  });
+
+  // Unified memory & outputs: tier/tags gesture write face. True source is
+  // the fd-memory reference page; the local row mirror follows it (never the
+  // other way around). memoryRefPath missing → register the page first.
+  app.post("/api/resources/:id/memory-remember", async (req, res) => {
+    try {
+      const resource = db.getResource(req.params.id);
+      if (!resource) return notFound(res);
+      const refs = await import("../memory-refs.js");
+      const cli = await refs.memoryRefClientFor(process.env, req.user?.email ?? null);
+      if (!cli) return res.status(503).json({ error: "记忆服务未配置，手势不可用", code: "memory_unavailable" });
+      let path = resource.memoryRefPath ?? null;
+      if (!path) {
+        const out = await cli.writeReference({ title: resource.title, summary: refs.summaryForResource(resource), tier: resource.tier ?? "draft", tags: JSON.parse(resource.tags || "[]"), source_ref: `resource:${resource.id}`, slug: refs.memoryRefSlug(resource.id) });
+        path = out?.path;
+        if (path) db.setResourceMemoryRef(resource.id, path, new Date().toISOString());
+      }
+      res.json({ resource: db.getResource(req.params.id), memoryRefPath: path });
+    } catch (err) { errorResponse(res, err); }
+  });
+
+  app.post("/api/resources/:id/tier", async (req, res) => {
+    try {
+      const resource = db.getResource(req.params.id);
+      if (!resource) return notFound(res);
+      const tier = String(req.body?.tier ?? "");
+      if (!["draft", "stable", "canonical"].includes(tier)) return res.status(400).json({ error: "invalid tier", code: "invalid_tier" });
+      const refs = await import("../memory-refs.js");
+      const cli = await refs.memoryRefClientFor(process.env, req.user?.email ?? null);
+      if (!cli) return res.status(503).json({ error: "记忆服务未配置，手势不可用", code: "memory_unavailable" });
+      const slugPath = resource.memoryRefPath ?? `default/references/${refs.memoryRefSlug(resource.id)}.md`;
+      await cli.mutateReference({ path: slugPath, op: "set_tier", tier, origin: "human" });
+      db.setResourceTier(resource.id, tier, new Date().toISOString());
+      if (!resource.memoryRefPath) db.setResourceMemoryRef(resource.id, slugPath, new Date().toISOString());
+      res.json({ resource: db.getResource(req.params.id) });
+    } catch (err) { errorResponse(res, err); }
+  });
+
+  app.post("/api/resources/:id/tags", async (req, res) => {
+    try {
+      const resource = db.getResource(req.params.id);
+      if (!resource) return notFound(res);
+      const tags = Array.isArray(req.body?.tags) ? req.body.tags.map(String).slice(0, 5) : null;
+      if (!tags) return res.status(400).json({ error: "tags must be array", code: "invalid_tags" });
+      const origin = String(req.body?.origin ?? "human");
+      const refs = await import("../memory-refs.js");
+      const cli = await refs.memoryRefClientFor(process.env, req.user?.email ?? null);
+      if (!cli) return res.status(503).json({ error: "记忆服务未配置，手势不可用", code: "memory_unavailable" });
+      const slugPath = resource.memoryRefPath ?? `default/references/${refs.memoryRefSlug(resource.id)}.md`;
+      await cli.mutateReference({ path: slugPath, op: "set_tags", tags, origin });
+      db.setResourceTags(resource.id, tags, new Date().toISOString());
+      res.json({ resource: db.getResource(req.params.id) });
+    } catch (err) { errorResponse(res, err); }
   });
 
   app.delete("/api/resources/:id", async (req, res) => {

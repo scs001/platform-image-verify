@@ -24,7 +24,8 @@
     "fleets": "Clústeres",
     "apps": "Apps",
     "fleet": "Clúster de runners",
-    "zhiyu": "Zhiyu"
+    "zhiyu": "Zhiyu",
+    "memory": "Memoria"
   },
   "trace": {
     "title": "Traza",
@@ -1432,6 +1433,25 @@
       "web": "Web",
       "data": "Datos",
       "other": "Otros"
+    },
+    "memory": {
+      "tier": {
+        "label": "Nivel",
+        "all": "Todos",
+        "draft": "Borrador",
+        "stable": "Listo",
+        "canonical": "Canónico"
+      },
+      "tags": {
+        "label": "Etiquetas",
+        "prompt": "Edit tags (comma-separated)"
+      },
+      "actions": {
+        "remember": "Remember",
+        "pinCanonical": "Pin as canonical",
+        "unpinCanonical": "Unpin",
+        "editTags": "Edit tags"
+      }
     }
   },
   "facetShell": {
@@ -2893,5 +2913,20 @@
     "toggleLabel": "Alternar {{name}}",
     "applyHint": "Activar o desactivar se guarda en este espacio de trabajo. Se aplica de inmediato mientras el agente está inactivo (recomposición en vivo, o un reinicio que reanuda las sesiones); el cambio se rechaza mientras el agente responde.",
     "busyHint": "El agente está respondiendo; los interruptores se desbloquean al terminar el turno."
+  },
+  "memory": {
+    "title": "Memoria",
+    "subtitle": "Todo lo que tus agentes recuerdan",
+    "all": "Todo",
+    "layerLabel": "Capa",
+    "tierLabel": "Nivel",
+    "scopePlaceholder": "Filtrar por proyecto",
+    "loading": "Leyendo memoria…",
+    "empty": "Aún no hay memoria. Di «recuerda esto» en el chat.",
+    "degraded": {
+      "unavailable": "Esta instancia aún no tiene servicio de memoria."
+    },
+    "openInLibrary": "Abrir en la biblioteca",
+    "projects": "Proyectos"
   }
 }

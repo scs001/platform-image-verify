@@ -871,6 +871,20 @@ const MIGRATIONS = [
       `ALTER TABLE bots ADD COLUMN zhi_bridge_cursor INTEGER NOT NULL DEFAULT 0`,
     ],
   },
+  {
+    // add-unified-memory-and-outputs: resources carry a denormalized mirror of
+    // the fd-memory reference page's tier/tags for fast list filtering. Truth
+    // lives in fd-memory; these columns only ever move via the gesture write
+    // face — never by direct client writes.
+    version: 105,
+    statements: [
+      `ALTER TABLE resources ADD COLUMN tier TEXT NOT NULL DEFAULT 'draft'`,
+      `ALTER TABLE resources ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'`,
+      `ALTER TABLE resources ADD COLUMN memory_ref_path TEXT`,
+      `ALTER TABLE resources ADD COLUMN tags_origin TEXT NOT NULL DEFAULT ''`,
+      `ALTER TABLE resources ADD COLUMN tier_origin TEXT NOT NULL DEFAULT ''`,
+    ],
+  },
 ];
 
 function nowIso() {
@@ -2964,7 +2978,8 @@ const RESOURCE_COLS = `id, type, title, source, session_id AS sessionId,
   file_path AS filePath, file_size AS fileSize, file_mime AS fileMime,
   content_hash AS contentHash, created_at AS createdAt,
   updated_at AS updatedAt, last_seen_at AS lastSeenAt, seeded,
-  binding_refs AS bindingRefs`;
+  binding_refs AS bindingRefs, tier, tags, memory_ref_path AS memoryRefPath,
+  tags_origin AS tagsOrigin, tier_origin AS tierOrigin`;
 
 // LIKE needs the query's own wildcards neutralized: a search for "50%" must
 // not turn into "match everything".
@@ -3094,24 +3109,38 @@ export function listResources({
   groups = null,
   since = null,
   until = null,
+  tier = null,
+  tags = null,
   limit = 50,
   offset = 0,
 } = {}) {
   if (!dbReady) return { items: [], total: 0, limit, offset, facets: emptyFacets() };
   const group = groupPredicate(groups);
+  // tier filter (single) + tags（多选以 LIKE 在 JSON 数组里匹）；未识别值收窄为无筛选而不是报错，
+  // 与 groupPredicate 的语义保持一致。
+  const tierValid = tier && ["draft", "stable", "canonical"].includes(tier) ? tier : null;
+  const wantedTags = (Array.isArray(tags) ? tags : []).map(String).filter(Boolean);
+  const tagClause = wantedTags.length
+    ? "AND (" + wantedTags.map((_, i) => `tags LIKE @tag${i}`).join(" OR ") + ")"
+    : "";
+  const tagParams = Object.fromEntries(wantedTags.map((t, i) => [`tag${i}`, `%"${t}"%`]));
   const params = {
     type: type || null,
     q: q ? `%${escapeLike(q)}%` : null,
     since: since || null,
     until: until || null,
+    tier: tierValid,
     limit: Math.max(1, Number(limit) || 50),
     offset: Math.max(0, Number(offset) || 0),
     ...group.params,
+    ...tagParams,
   };
   const where = `WHERE (@type IS NULL OR type = @type)
       AND (@q IS NULL OR title LIKE @q ESCAPE '\\')
       AND (@since IS NULL OR created_at >= @since)
       AND (@until IS NULL OR created_at <= @until)
+      AND (@tier IS NULL OR ${tierValid ? "tier = @tier" : "1=1"})
+      ${tagClause}
       ${group.clause}`;
   const items = db
     .prepare(
@@ -3150,6 +3179,26 @@ function countGroups({ q = null, since = null, until = null } = {}) {
     facets[row.g] = row.n;
   }
   return facets;
+}
+
+// add-unified-memory-and-outputs: memory mirror is fd-memory-write主-under;
+// these setters are ONLY for the gesture write face syncing the local mirror —
+// never bypass to let the index drift from the reference page.
+export function setResourceTier(id, tier, updatedAt, origin = "human") {
+  if (!dbReady) return false;
+  const t = ["draft", "stable", "canonical"].includes(tier) ? tier : "draft";
+  return stmt("UPDATE resources SET tier=?, tier_origin=?, updated_at=? WHERE id=?").run(t, origin, updatedAt, String(id)).changes > 0;
+}
+
+export function setResourceTags(id, tags, updatedAt, origin = "human") {
+  if (!dbReady) return false;
+  const arr = Array.isArray(tags) ? tags.map(String).slice(0, 5) : [];
+  return stmt("UPDATE resources SET tags=?, tags_origin=?, updated_at=? WHERE id=?").run(JSON.stringify(arr), origin, updatedAt, String(id)).changes > 0;
+}
+
+export function setResourceMemoryRef(id, memoryRefPath, updatedAt) {
+  if (!dbReady) return false;
+  return stmt("UPDATE resources SET memory_ref_path=?, updated_at=? WHERE id=?").run(memoryRefPath ? String(memoryRefPath) : null, updatedAt, String(id)).changes > 0;
 }
 
 export function renameResource(id, title, updatedAt) {

@@ -83,6 +83,10 @@ export interface Resource {
   lastSeenAt: string | null;
   /** 1 when the row came from the one-time history seeding pass. */
   seeded: number;
+  /** Unified memory & outputs：fd-memory reference 页的 tier/tags 镜像 + 页路径。 */
+  tier?: string;
+  tags?: string;
+  memoryRefPath?: string | null;
   /** Which series render from which binding (empty for unbound charts). */
   bindingRefs?: ResourceBindingRef[];
   /** The binding views, one per referenced series (empty for unbound charts). */
@@ -175,6 +179,10 @@ export interface ResourceListQuery {
   since?: string;
   /** Inclusive ISO 8601 upper bound on creation time. */
   until?: string;
+  /** Memory tier （草稿 draft / 成果 stable / 正典 canonical）. */
+  tier?: string;
+  /** tag 筛选（多选任一匹）。 */
+  tags?: string[];
   limit?: number;
   offset?: number;
 }
@@ -226,10 +234,30 @@ export async function listResources(query: ResourceListQuery = {}): Promise<Reso
   if (query.groups?.length) params.set("groups", query.groups.join(","));
   if (query.since) params.set("since", query.since);
   if (query.until) params.set("until", query.until);
+  if (query.tier) params.set("tier", query.tier);
+  if (query.tags?.length) params.set("tags", query.tags.join(","));
   if (query.limit != null) params.set("limit", String(query.limit));
   if (query.offset != null) params.set("offset", String(query.offset));
   const qs = params.toString();
   return jsonOrThrow<ResourceList>(http(`/api/resources${qs ? `?${qs}` : ""}`));
+}
+
+// ── Unified memory gestures (add-unified-memory-and-outputs) ──────────────
+
+export async function rememberResource(id: string): Promise<{ resource: Resource; memoryRefPath: string | null }> {
+  return jsonOrThrow(http(`/api/resources/${encodeURIComponent(id)}/memory-remember`, { method: "POST" }));
+}
+
+export async function setResourceTier(id: string, tier: string): Promise<{ resource: Resource }> {
+  return jsonOrThrow(http(`/api/resources/${encodeURIComponent(id)}/tier`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tier }),
+  }));
+}
+
+export async function setResourceTags(id: string, tags: string[]): Promise<{ resource: Resource }> {
+  return jsonOrThrow(http(`/api/resources/${encodeURIComponent(id)}/tags`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tags }),
+  }));
 }
 
 // Save a workspace file. `inserted: false` is a success that means "the same

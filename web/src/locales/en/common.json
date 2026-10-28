@@ -24,7 +24,8 @@
     "fleets": "Clusters",
     "apps": "Apps",
     "fleet": "Runner Cluster",
-    "zhiyu": "Zhiyu"
+    "zhiyu": "Zhiyu",
+    "memory": "Memory"
   },
   "trace": {
     "title": "Trace",
@@ -1432,6 +1433,25 @@
       "web": "Web",
       "data": "Data",
       "other": "Other"
+    },
+    "memory": {
+      "tier": {
+        "label": "Tier",
+        "all": "All",
+        "draft": "Draft",
+        "stable": "Ready",
+        "canonical": "Canonical"
+      },
+      "tags": {
+        "label": "Tags",
+        "prompt": "Edit tags (comma-separated)"
+      },
+      "actions": {
+        "remember": "Remember",
+        "pinCanonical": "Pin as canonical",
+        "unpinCanonical": "Unpin",
+        "editTags": "Edit tags"
+      }
     }
   },
   "facetShell": {
@@ -2893,5 +2913,20 @@
     "toggleLabel": "Toggle {{name}}",
     "applyHint": "Enabling or disabling persists to this workspace. It applies immediately while the agent is idle (live recompose, or a restart that resumes sessions); a toggle is refused while the agent is responding.",
     "busyHint": "The agent is responding; toggles unlock when the turn ends."
+  },
+  "memory": {
+    "title": "Memory",
+    "subtitle": "Everything your agents remember",
+    "all": "All",
+    "layerLabel": "Layer",
+    "tierLabel": "Tier",
+    "scopePlaceholder": "Filter by project",
+    "loading": "Reading memory…",
+    "empty": "No memory yet. Say “remember this” in chat, or give it work to do.",
+    "degraded": {
+      "unavailable": "This deployment has no memory service connected yet."
+    },
+    "openInLibrary": "Open in library",
+    "projects": "Projects"
   }
 }

@@ -15,6 +15,8 @@ import type { Resource, ResourceFacets, ResourceGroup, ServerMessage } from "@pl
 
 export type ResourceTypeFilter = "all" | "chart" | "file";
 export type ResourceTimePreset = "all" | "today" | "7d" | "30d";
+export type ResourceTier = "draft" | "stable" | "canonical";
+export const RESOURCE_TIERS: ResourceTier[] = ["draft", "stable", "canonical"];
 
 const PAGE = 60;
 // Capture bursts (a turn with several charts, a seeding run) collapse into one
@@ -36,6 +38,8 @@ interface ResourcesState {
   typeFilter: ResourceTypeFilter;
   search: string;
   timePreset: ResourceTimePreset;
+  tierFilter: ResourceTier | null;
+  tagFilter: string[];
   groups: ResourceGroup[];
   facets: ResourceFacets;
   // Bumped on every resources_changed, before the coalesced refetch settles —
@@ -47,12 +51,17 @@ interface ResourcesState {
   setTypeFilter: (filter: ResourceTypeFilter) => void;
   setSearch: (search: string) => void;
   setTimePreset: (preset: ResourceTimePreset) => void;
+  setTierFilter: (tier: ResourceTier | null) => void;
+  toggleTagFilter: (tag: string) => void;
   toggleGroup: (group: ResourceGroup) => void;
   resetFilters: () => void;
   load: () => Promise<void>;
   loadMore: () => Promise<void>;
   rename: (id: string, title: string) => Promise<void>;
   remove: (id: string) => Promise<void>;
+  remember: (id: string) => Promise<void>;
+  setTier: (id: string, tier: ResourceTier) => Promise<void>;
+  setTags: (id: string, tags: string[]) => Promise<void>;
   applyEvent: (msg: ServerMessage) => void;
 }
 
@@ -87,6 +96,8 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
   typeFilter: "all",
   search: "",
   timePreset: "all",
+  tierFilter: null,
+  tagFilter: [],
   groups: [...DEFAULT_GROUPS],
   facets: { chart: 0, document: 0, spreadsheet: 0, image: 0, slideshow: 0, archive: 0, web: 0, data: 0, other: 0 },
   eventSeq: 0,
@@ -112,8 +123,19 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
     void get().load();
   },
 
+  setTierFilter: (tierFilter) => {
+    set({ tierFilter });
+    void get().load();
+  },
+
+  toggleTagFilter: (tag) => {
+    const { tagFilter } = get();
+    set({ tagFilter: tagFilter.includes(tag) ? tagFilter.filter((t) => t !== tag) : [...tagFilter, tag] });
+    void get().load();
+  },
+
   resetFilters: () => {
-    set({ typeFilter: "all", search: "", timePreset: "all", groups: [...DEFAULT_GROUPS] });
+    set({ typeFilter: "all", search: "", timePreset: "all", tierFilter: null, tagFilter: [], groups: [...DEFAULT_GROUPS] });
     void get().load();
   },
 
@@ -122,12 +144,15 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
     const win = windowFor(timePreset);
     set({ loading: true, error: null });
     try {
+      const { tierFilter, tagFilter } = get();
       const page = await api.listResources({
         type: typeFilter === "all" ? undefined : typeFilter,
         q: search.trim() || undefined,
         groups: groupsForQuery(typeFilter, groups),
         since: win.since,
         until: win.until,
+        tier: tierFilter ?? undefined,
+        tags: tagFilter.length ? tagFilter : undefined,
         limit: PAGE,
         offset: 0,
       });
@@ -138,7 +163,7 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
   },
 
   loadMore: async () => {
-    const { typeFilter, search, timePreset, groups, items, loadingMore, loading } = get();
+    const { typeFilter, search, timePreset, groups, items, loadingMore, loading, tierFilter, tagFilter } = get();
     if (loadingMore || loading) return;
     const win = windowFor(timePreset);
     set({ loadingMore: true });
@@ -149,6 +174,8 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
         groups: groupsForQuery(typeFilter, groups),
         since: win.since,
         until: win.until,
+        tier: tierFilter ?? undefined,
+        tags: tagFilter.length ? tagFilter : undefined,
         limit: PAGE,
         offset: items.length,
       });
@@ -172,6 +199,24 @@ export const useResourcesStore = create<ResourcesState>((set, get) => ({
   remove: async (id) => {
     await api.deleteResource(id);
     await get().load();
+  },
+
+  remember: async (id) => {
+    const out = await api.rememberResource(id);
+    const r = out.resource as Resource & { memoryRefPath?: string | null };
+    set({ items: get().items.map((r2) => (r2.id === id ? ({ ...r2, ...r } as Resource) : r2)) });
+  },
+
+  setTier: async (id, tier) => {
+    const out = await api.setResourceTier(id, tier);
+    const r = out.resource as Resource & { tier?: string };
+    set({ items: get().items.map((r2) => (r2.id === id ? ({ ...r2, ...r } as Resource) : r2)) });
+  },
+
+  setTags: async (id, tags) => {
+    const out = await api.setResourceTags(id, tags);
+    const r = out.resource as Resource & { tags?: string };
+    set({ items: get().items.map((r2) => (r2.id === id ? ({ ...r2, ...r } as Resource) : r2)) });
   },
 
   applyEvent: (msg) => {

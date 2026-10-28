@@ -24,7 +24,8 @@
     "fleets": "Clusters",
     "apps": "Apps",
     "fleet": "Cluster de runners",
-    "zhiyu": "Zhiyu"
+    "zhiyu": "Zhiyu",
+    "memory": "Mémoire"
   },
   "trace": {
     "title": "Traçage",
@@ -1432,6 +1433,25 @@
       "web": "Web",
       "data": "Données",
       "other": "Autres"
+    },
+    "memory": {
+      "tier": {
+        "label": "Niveau",
+        "all": "Tous",
+        "draft": "Brouillon",
+        "stable": "Prêt",
+        "canonical": "Canonique"
+      },
+      "tags": {
+        "label": "Tags",
+        "prompt": "Edit tags (comma-separated)"
+      },
+      "actions": {
+        "remember": "Remember",
+        "pinCanonical": "Pin as canonical",
+        "unpinCanonical": "Unpin",
+        "editTags": "Edit tags"
+      }
     }
   },
   "facetShell": {
@@ -2893,5 +2913,20 @@
     "toggleLabel": "Basculer {{name}}",
     "applyHint": "L’activation ou la désactivation est enregistrée dans cet espace de travail. Elle s’applique immédiatement lorsque l’agent est inactif (recomposition à chaud, ou redémarrage qui reprend les sessions) ; le changement est refusé pendant une réponse.",
     "busyHint": "L’agent répond ; les interrupteurs se débloquent à la fin du tour."
+  },
+  "memory": {
+    "title": "Mémoire",
+    "subtitle": "Tout ce que vos agents retiennent",
+    "all": "Tout",
+    "layerLabel": "Couche",
+    "tierLabel": "Niveau",
+    "scopePlaceholder": "Filtrer par projet",
+    "loading": "Lecture de la mémoire…",
+    "empty": "Pas encore de mémoire. Dites « retiens ceci » dans le chat.",
+    "degraded": {
+      "unavailable": "Ce déploiement n'a pas encore de service de mémoire."
+    },
+    "openInLibrary": "Ouvrir dans la bibliothèque",
+    "projects": "Projets"
   }
 }

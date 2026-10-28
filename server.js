@@ -59,6 +59,7 @@ import { registerVoiceRoutes } from "./server/routes/voice.js";
 import { registerPackUsageRoutes } from "./server/routes/pack-usage.js";
 import { registerFileRoutes } from "./server/routes/files.js";
 import { registerResourceRoutes } from "./server/routes/resources.js";
+import { registerMemoryRoutes } from "./server/routes/memory.js";
 import { registerBotRoutes, WEBHOOK_PREFIX } from "./server/routes/bots.js";
 import { registerBotRelayRoutes, RELAY_PREFIX } from "./server/routes/bot-relay.js";
 import { createClusterRoutes, startAutoTerminationJob } from "./server/routes/clusters.js";
@@ -326,6 +327,8 @@ registerBotRoutes(ctx);
 registerFileRoutes(ctx);
 // Resource library (charts + saved files) — same placement rule as /api/files.
 registerResourceRoutes(ctx);
+// 记忆读面（add-unified-memory-and-outputs 3.3/4.1）：owner 面板 + 部署者视角。
+registerMemoryRoutes(ctx);
 // Pack marketplace cell side (drafts + subscribe/upgrade/uninstall) — a plain
 // /api route family, before the static fallback.
 registerCellPackRoutes(ctx);

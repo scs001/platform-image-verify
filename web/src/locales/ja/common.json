@@ -24,7 +24,8 @@
     "fleets": "クラスター",
     "apps": "アプリ",
     "fleet": "Runner クラスター",
-    "zhiyu": "Zhiyu"
+    "zhiyu": "Zhiyu",
+    "memory": "記憶"
   },
   "trace": {
     "title": "トレース",
@@ -1432,6 +1433,25 @@
       "web": "Web",
       "data": "データ",
       "other": "その他"
+    },
+    "memory": {
+      "tier": {
+        "label": "階層",
+        "all": "すべて",
+        "draft": "下書き",
+        "stable": "完成",
+        "canonical": "正典"
+      },
+      "tags": {
+        "label": "タグ",
+        "prompt": "Edit tags (comma-separated)"
+      },
+      "actions": {
+        "remember": "Remember",
+        "pinCanonical": "Pin as canonical",
+        "unpinCanonical": "Unpin",
+        "editTags": "Edit tags"
+      }
     }
   },
   "facetShell": {
@@ -2893,5 +2913,20 @@
     "toggleLabel": "{{name}} を切り替え",
     "applyHint": "有効化・無効化はこのワークスペースに保存されます。エージェントがアイドルの間は即時に適用されます（ホット再構成、または再起動後にセッションを復元）。応答中は切り替えできません。",
     "busyHint": "エージェントが応答中です。ターン終了後に切り替えできます。"
+  },
+  "memory": {
+    "title": "記憶",
+    "subtitle": "エージェントが覚えているすべて",
+    "all": "すべて",
+    "layerLabel": "層",
+    "tierLabel": "階層",
+    "scopePlaceholder": "プロジェクトで絞り込み",
+    "loading": "記憶を読み込み中…",
+    "empty": "まだ記憶はありません。チャットで「覚えておいて」と言ってみてください。",
+    "degraded": {
+      "unavailable": "この環境には記憶サービスが未接続です。"
+    },
+    "openInLibrary": "成果で開く",
+    "projects": "プロジェクト"
   }
 }

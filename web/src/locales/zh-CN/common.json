@@ -24,7 +24,8 @@
     "fleets": "集群",
     "apps": "应用",
     "fleet": "机群",
-    "zhiyu": "智语"
+    "zhiyu": "智语",
+    "memory": "记忆"
   },
   "trace": {
     "title": "调用追踪",
@@ -1432,6 +1433,25 @@
       "web": "网页",
       "data": "数据",
       "other": "其他"
+    },
+    "memory": {
+      "tier": {
+        "label": "层级",
+        "all": "全部",
+        "draft": "草稿",
+        "stable": "成果",
+        "canonical": "正典"
+      },
+      "tags": {
+        "label": "标签",
+        "prompt": "编辑 tags（逗号分隔）"
+      },
+      "actions": {
+        "remember": "记住",
+        "pinCanonical": "标为正典",
+        "unpinCanonical": "取消正典",
+        "editTags": "改 tags"
+      }
     }
   },
   "facetShell": {
@@ -2893,5 +2913,20 @@
     "toggleLabel": "切换 {{name}}",
     "applyHint": "启用或停用会持久化到本工作区。agent 空闲时立即生效（热重组，或重启后会话自动恢复）；回复过程中无法切换。",
     "busyHint": "agent 正在回复，回复结束后可切换。"
+  },
+  "memory": {
+    "title": "记忆",
+    "subtitle": "智能体记得的一切，都在这里",
+    "all": "全部",
+    "layerLabel": "层",
+    "tierLabel": "层级",
+    "scopePlaceholder": "按项目筛选",
+    "loading": "正在读取记忆…",
+    "empty": "还没有记忆。在对话里对它说「记住…」，或让它多做几件事。",
+    "degraded": {
+      "unavailable": "此部署尚未接入记忆服务。"
+    },
+    "openInLibrary": "在成果中打开",
+    "projects": "项目"
   }
 }

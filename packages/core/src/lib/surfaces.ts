@@ -41,6 +41,9 @@ export const NAV_SURFACES: RegistryEntry[] = [
   { container: "nav", slug: "chat", i18nKey: "nav.chat", testId: "nav-chat" },
   { container: "nav", slug: "knowledge", i18nKey: "nav.knowledge", testId: "nav-knowledge" },
   { container: "nav", slug: "resources", i18nKey: "nav.resources", testId: "nav-resources" },
+  // 记忆面板（add-unified-memory-and-outputs 3.3）：owner 看自己 u/ 记忆的浏览面，
+  // 与资源/成果同族；萬星 console 的部署者视角经同一读取面（rootKey lane）。
+  { container: "nav", slug: "memory", i18nKey: "nav.memory", testId: "nav-memory" },
   { container: "nav", slug: "agents", i18nKey: "nav.agents", testId: "nav-agents" },
   { container: "nav", slug: "apps", i18nKey: "nav.apps", testId: "nav-apps" },
   { container: "nav", slug: "tasks", i18nKey: "nav.tasks", testId: "nav-tasks" },
@@ -176,7 +179,7 @@ export const FACTORY_PRESETS: PresetCatalog = {
     // 词元 account binding), and the business-role recipes are exactly the
     // users who must reach it (role-nav-apps, 2026-10-18). `tasks`/`fleet`
     // stay technical.
-    nav: ["chat", "knowledge", "resources", "agents", "apps"],
+    nav: ["chat", "knowledge", "resources", "memory", "agents", "apps"],
     // `connections` rides in the non-technical skeleton: it is where a user
     // makes their tools and search work at all, and the business-role recipes
     // (legal/stock/economic) all resolve to this preset. Leaving it out made

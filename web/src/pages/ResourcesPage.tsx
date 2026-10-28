@@ -42,6 +42,18 @@ export interface ResourcesPageProps {
 
 const FILTERS: ResourceTypeFilter[] = ["all", "chart", "file"];
 const TIME_PRESETS: ResourceTimePreset[] = ["all", "today", "7d", "30d"];
+// Unified memory & outputs: tier filter row + per-card badge/gestures.
+const TIERS = ["draft", "stable", "canonical"] as const;
+function parseTags(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.map(String).filter(Boolean).slice(0, 5);
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return arr.map(String).filter(Boolean).slice(0, 5);
+    } catch { /* malformed */ }
+  }
+  return [];
+}
 // The chip row mirrors the server's group list, minus the chart group when the
 // files tab already means "files only".
 const FILE_GROUPS: ResourceGroup[] = RESOURCE_GROUPS.filter((g) => g !== "chart");
@@ -75,6 +87,9 @@ function ResourceCard({
   const rename = useResourcesStore((s) => s.rename);
   const remove = useResourcesStore((s) => s.remove);
   const load = useResourcesStore((s) => s.load);
+  const remember = useResourcesStore((s) => s.remember);
+  const setTier = useResourcesStore((s) => s.setTier);
+  const setTags = useResourcesStore((s) => s.setTags);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(resource.title);
   const [busy, setBusy] = useState(false);
@@ -248,8 +263,58 @@ function ResourceCard({
             <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
               {t(`resources.kind.${resource.type === "chart" ? "chart" : "file"}`)}
             </span>
+            {(() => {
+              const tier = parseTags(resource.tier)[0] ?? "draft";
+              return (
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs border ${
+                    tier === "canonical"
+                      ? "border-amber-500/50 bg-amber-500/10 text-amber-500"
+                      : tier === "stable"
+                        ? "border-primary/40 bg-primary/10 text-primary"
+                        : "border-border bg-muted/40 text-muted-foreground"
+                  }`}
+                  data-testid={`resource-tier-${tier}`}
+                  title={`tier: ${tier}`}
+                >
+                  {t(`resources.memory.tier.${tier}`)}
+                </span>
+              );
+            })()}
           </>
         )}
+
+      {/* Tags chips（AI 提议/人类确认区别徽标）与三手势：记住、钉为正典、改 tag */}
+      {(() => {
+        const tags = parseTags(resource.tags);
+        const tier = parseTags(resource.tier)[0] ?? "draft";
+        const onRemember = async () => { try { await remember(resource.id); } catch (e) { showToast((e as Error).message); } };
+        const onToggleCanon = async () => { try { await setTier(resource.id, tier === "canonical" ? "stable" : "canonical"); } catch (e) { showToast((e as Error).message); } };
+        const onEditTags = async () => {
+          const next = window.prompt(t("resources.memory.tags.prompt"), tags.join(", "));
+          if (next === null) return;
+          try { await setTags(resource.id, next.split(/[,，]/).map((x) => x.trim()).filter(Boolean).slice(0, 5)); } catch (e) { showToast((e as Error).message); }
+        };
+        return (
+          <div className="mt-1 flex flex-wrap items-center gap-1" data-testid="resource-memory-row">
+            {tags.map((tag, i) => (
+              <span key={`${tag}-${i}`} className="rounded-full bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground" data-testid={`resource-tag-${tag}`}>
+                {tag}
+                {(resource as Resource & { tagsOrigin?: string }).tagsOrigin === "ai" ? <span className="ml-1 opacity-70">·AI</span> : null}
+              </span>
+            ))}
+            <button type="button" className="ml-auto rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted" onClick={() => void onRemember()} data-testid="resource-remember">
+              {t("resources.memory.actions.remember")}
+            </button>
+            <button type="button" className="rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted" onClick={() => void onToggleCanon()} data-testid="resource-tier-toggle">
+              {tier === "canonical" ? t("resources.memory.actions.unpinCanonical") : t("resources.memory.actions.pinCanonical")}
+            </button>
+            <button type="button" className="rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted" onClick={() => void onEditTags()} data-testid="resource-tag-edit">
+              {t("resources.memory.actions.editTags")}
+            </button>
+          </div>
+        );
+      })()}
       </div>
 
       {/* Creation time on every card (openspec: add-resource-filters). Short and
@@ -465,6 +530,15 @@ export function ResourcesPage({ send }: ResourcesPageProps) {
     void load();
   }, [load]);
 
+  const tierFilterState = useResourcesStore((s) => s.tierFilter);
+  const setTierFilter = useResourcesStore((s) => s.setTierFilter);
+  const tagFilterState = useResourcesStore((s) => s.tagFilter);
+  const toggleTagFilter = useResourcesStore((s) => s.toggleTagFilter);
+  const unionTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of items) for (const tag of parseTags(r.tags)) set.add(tag);
+    return [...set].slice(0, 8);
+  }, [items]);
   // Debounced so every keystroke is not a request; the store refetches.
   useEffect(() => {
     const id = setTimeout(() => setSearch(searchInput), 300);
@@ -508,6 +582,41 @@ export function ResourcesPage({ send }: ResourcesPageProps) {
               data-testid="resources-search"
             />
           </div>
+        </div>
+
+        {/* Memory tier + tag filters (add-unified-memory-and-outputs): draft/
+            stable/canonical（草稿/成果/正典）三档与 tags 芯片筛选，服务端过滤。 */}
+        <div className="mt-3 flex flex-wrap items-center gap-2" data-testid="resources-tier-row">
+          <span className="text-xs text-muted-foreground">{t("resources.memory.tier.label")}</span>
+          {([null, ...TIERS] as const).map((tier) => (
+            <button
+              key={`tier-${tier ?? "all"}`}
+              className={`shrink-0 rounded-md px-2.5 py-1 text-xs ${
+                tierFilterState === tier ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-muted"
+              }`}
+              onClick={() => setTierFilter(tier)}
+              data-testid={`resources-tier-${tier ?? "all"}`}
+            >
+              {tier === null ? t("resources.memory.tier.all") : t(`resources.memory.tier.${tier}`)}
+            </button>
+          ))}
+          {unionTags.length > 0 && (
+            <>
+              <span className="ml-2 text-xs text-muted-foreground">{t("resources.memory.tags.label")}</span>
+              {unionTags.map((tag) => (
+                <button
+                  key={`tag-${tag}`}
+                  className={`shrink-0 rounded-md px-2 py-0.5 text-xs border ${
+                    tagFilterState.includes(tag) ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground hover:bg-muted"
+                  }`}
+                  onClick={() => toggleTagFilter(tag)}
+                  data-testid={`resources-tag-${tag}`}
+                >
+                  {tag}
+                </button>
+              ))}
+            </>
+          )}
         </div>
 
         {/* Time window and file-kind groups (openspec: add-resource-filters).

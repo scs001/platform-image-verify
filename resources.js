@@ -24,6 +24,7 @@ import path from "node:path";
 import * as bindings from "./chart-bindings.js";
 import * as db from "./db.js";
 import { storeDir } from "./paths.js";
+import { mirrorReferenceForResource } from "./server/memory-refs.js";
 
 // Module-specific store override, the paths.js contract (cf. CRON_STORAGE_PATH).
 const STORAGE_PATH = process.env.RESOURCES_STORAGE_PATH || "";
@@ -202,7 +203,12 @@ export function captureFromMessage({ sessionId, messageId, sessionTitle, text, b
         console.warn(`[resources] inference failed for ${target.id}: ${err.message}`);
       }
     }
-    if (inserted) created.push(target);
+    if (inserted) {
+      created.push(target);
+      // Unified memory & outputs: every captured artifact joins the memory
+      // index as a thin reference page (fire-and-forget; never blocks save).
+      mirrorReferenceForResource({ ownerEmail: process.env.CELL_USER_EMAIL ?? null, resource: target });
+    }
     else db.touchResourceSeen(target.id, now);
   });
   for (const resource of created) {

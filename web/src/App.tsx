@@ -42,6 +42,7 @@ const FleetsPage = lazy(() => import("@/pages/FleetsPage").then((m) => ({ defaul
 const ResourcesPage = lazy(() =>
   import("@/pages/ResourcesPage").then((m) => ({ default: m.ResourcesPage })),
 );
+const MemoryPage = lazy(() => import("@/pages/MemoryPage").then((m) => ({ default: m.MemoryPage })));
 const ExternalServicePage = lazy(() =>
   import("@/pages/EmbeddedServicePages").then((m) => ({ default: m.ExternalServicePage })),
 );
@@ -279,6 +280,7 @@ export default function App() {
                 stays a top-level page — chat turn deep links land on it. */}
             <Route path="/knowledge" element={<DocumentsPage send={send} />} />
             <Route path="/resources" element={<ResourcesPage send={send} />} />
+            <Route path="/memory" element={<MemoryPage />} />
             <Route path="/agents" element={<AgentsPage />} />
             <Route path="/apps" element={<AppCenterPage />} />
             <Route path="/bots" element={<Navigate to={settingsPath("channels")} replace />} />

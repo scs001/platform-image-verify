@@ -23,6 +23,7 @@ import { getClusterDatabase } from "./routes/clusters-db.js";
 import { resolveFleetTarget } from "./routes/fleets.js";
 import { normalizeAcceptance } from "./blueprint-validate.js";
 import { judgeAssertion, laneForModel } from "./blueprint-judge.js";
+import { getDefault } from "../llm-providers.js";
 
 function membersFor(assertion, members) {
   if (!assertion.target) return members;
@@ -269,12 +270,13 @@ export function createLiveTrialDeps() {
     productionLanes: async (fleetId) => {
       const db = getFleetDatabase();
       const fleet = db.getFleet(fleetId);
-      const cellDefault = process.env.LLM_MODEL || null;
+      const cellDefault = process.env.LLM_MODEL || getDefault()?.modelId || null;
       return db
         .listMembers(fleetId)
         // effectiveModel 是路由层的视图字段，DB 行里没有——按真实解析链算：
         // 岗位 model → 舰队 defaultModel → cell 默认（与 fleet-reports 同序）。
-        .map((m) => m.model || fleet?.defaultModel || cellDefault)
+        // cell 默认取自 llm-providers 的 default 指针（生产没有 LLM_MODEL env）。
+        .map((m) => m.model || fleet?.defaultModel || cellDefault || getDefault()?.modelId)
         .filter(Boolean)
         .map((modelId) => {
           const resolved = laneForModel(modelId);

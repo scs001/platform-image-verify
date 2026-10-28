@@ -211,6 +211,9 @@ interface State {
   // session leaves the `sessions` list. In state (not module scope) only so
   // tests and the e2e seam can inspect it.
   sessionCache: Map<string, Turn[]>;
+  // Paging metadata per cached session (see SessionWindowMeta) — keyed in
+  // lockstep with sessionCache.
+  sessionWindowMeta: Map<string, SessionWindowMeta>;
   // ── Windowed transcript (polish-web-surfaces) ────────────────────────────
   // The store holds the LOADED window, not the whole session: `totalTurns` is
   // the session's full persisted count, `hasMore` says earlier messages remain
@@ -470,6 +473,42 @@ function cacheWrite(
   return next;
 }
 
+// Windowed-transcript metadata (polish-web-surfaces): rides the turn cache so
+// a cached re-entry restores the session's OWN paging state instantly — never
+// the previously-viewed session's counts or cursor (a stale cursor would page
+// the NEW session with the OLD session's seq and could prepend wrong turns).
+export interface SessionWindowMeta {
+  total: number;
+  hasMore: boolean;
+  oldestSeq: number | null;
+}
+
+function metaWrite(
+  meta: Map<string, SessionWindowMeta>,
+  id: string | null,
+  entry: SessionWindowMeta | null,
+): Map<string, SessionWindowMeta> {
+  if (!id || !entry) return meta;
+  const next = new Map(meta);
+  next.delete(id);
+  next.set(id, entry);
+  while (next.size > SESSION_CACHE_CAP) next.delete(next.keys().next().value as string);
+  return next;
+}
+
+// The metadata describing a `session_loaded`-shaped payload. Older servers
+// send no counts: the loaded list reads as complete (today's behavior).
+function metaOf(
+  m: { totalTurns?: number; hasMore?: boolean },
+  messages: ChatMessage[] | undefined,
+): SessionWindowMeta {
+  return {
+    total: m.totalTurns ?? (messages || []).length,
+    hasMore: m.hasMore ?? false,
+    oldestSeq: firstSeq(messages),
+  };
+}
+
 // Snapshot a live view for stash (backup + cache): streaming turns close as
 // interrupted — the server stops the run on switch, so an unfinished answer
 // must never read as complete, here or on later cached re-entry.
@@ -581,6 +620,7 @@ export const useChatStore = create<State>((set) => ({
   optimisticSessions: false,
   sessionSwitchBackup: null,
   sessionCache: new Map(),
+  sessionWindowMeta: new Map(),
   transcriptTotal: 0,
   transcriptHasMore: false,
   transcriptOldestSeq: null,
@@ -591,8 +631,10 @@ export const useChatStore = create<State>((set) => ({
       // load can't come back would strand the pending skeleton.
       if (useChatStore.getState().status !== "connected") return {};
       discardDeltas();
-      // The outgoing view feeds the cache (finalized — see snapshotTurns).
-      const cache =
+      // The outgoing view feeds the cache (finalized — see snapshotTurns);
+      // its paging metadata rides along so a later re-entry of THIS session
+      // restores its own window state.
+      const outgoing =
         state.currentSessionId && state.turns.length > 0
           ? cacheWrite(
               state.sessionCache,
@@ -600,7 +642,16 @@ export const useChatStore = create<State>((set) => ({
               snapshotTurns(state.turns),
             )
           : state.sessionCache;
-      const cached = cache.get(id);
+      const outgoingMeta: SessionWindowMeta | null =
+        state.currentSessionId && state.turns.length > 0
+          ? {
+              total: state.transcriptTotal,
+              hasMore: state.transcriptHasMore,
+              oldestSeq: state.transcriptOldestSeq,
+            }
+          : null;
+      const cached = outgoing.get(id);
+      const cachedMeta = cached ? (state.sessionWindowMeta.get(id) ?? null) : null;
       // Only the FIRST snapshot of a rapid click chain survives: A→B→C before
       // any load lands restores A — the last view the user actually had.
       const backup =
@@ -616,6 +667,11 @@ export const useChatStore = create<State>((set) => ({
         pendingNewSession: state.pendingNewSession,
         // Cached re-entry renders instantly; a miss clears to the skeleton.
         turns: cached ?? [],
+        // The target session's OWN paging state — a miss resets to "unknown",
+        // never the previous session's counts or cursor.
+        transcriptTotal: cached ? (cachedMeta?.total ?? cached.length) : 0,
+        transcriptHasMore: cached ? (cachedMeta?.hasMore ?? false) : false,
+        transcriptOldestSeq: cached ? (cachedMeta?.oldestSeq ?? null) : null,
         isStreaming: false,
         todos: [],
         todoCounts: NO_TODOS,
@@ -624,7 +680,12 @@ export const useChatStore = create<State>((set) => ({
         // tool_gate push restates the target session's real position.
         websearchEnabled: false,
         // Re-entry is itself a use — bump recency.
-        sessionCache: cached ? cacheWrite(cache, id, cached) : cache,
+        sessionCache: cached ? cacheWrite(outgoing, id, cached) : outgoing,
+        sessionWindowMeta: metaWrite(
+          metaWrite(state.sessionWindowMeta, state.currentSessionId, outgoingMeta),
+          id,
+          cachedMeta,
+        ),
       };
     }),
 
@@ -932,6 +993,15 @@ export const useChatStore = create<State>((set) => ({
                 suppressed: false,
                 pendingQuestion: null,
                 sessionCache: cacheWrite(state.sessionCache, state.currentSessionId, turns),
+                sessionWindowMeta: metaWrite(
+                  state.sessionWindowMeta,
+                  state.currentSessionId,
+                  {
+                    total: state.transcriptTotal,
+                    hasMore: state.transcriptHasMore,
+                    oldestSeq: state.transcriptOldestSeq,
+                  },
+                ),
               }
             : { turns, isStreaming: false, suppressed: false, pendingQuestion: null };
         }
@@ -1093,16 +1163,22 @@ export const useChatStore = create<State>((set) => ({
           // of a stale row. The list is the same user-scoped payload the
           // sidebar groups, so every cache key is accountable to it.
           let sessionCache = state.sessionCache;
+          let sessionWindowMeta = state.sessionWindowMeta;
           for (const id of state.sessionCache.keys()) {
             if (!m.sessions.some((s) => s.id === id)) {
               if (sessionCache === state.sessionCache) sessionCache = new Map(sessionCache);
               sessionCache.delete(id);
+              if (sessionWindowMeta === state.sessionWindowMeta) {
+                sessionWindowMeta = new Map(sessionWindowMeta);
+              }
+              sessionWindowMeta.delete(id);
             }
           }
           return {
             sessions: m.sessions,
             currentSessionId: m.current ?? state.currentSessionId,
             sessionCache,
+            sessionWindowMeta,
           };
         }
 
@@ -1138,7 +1214,10 @@ export const useChatStore = create<State>((set) => ({
           const applies =
             !state.optimisticSessions || isNewChatArrival || m.id === state.currentSessionId;
           if (!applies) {
-            return { sessionCache: cacheWrite(state.sessionCache, m.id, mapped) };
+            return {
+              sessionCache: cacheWrite(state.sessionCache, m.id, mapped),
+              sessionWindowMeta: metaWrite(state.sessionWindowMeta, m.id, metaOf(m, m.messages)),
+            };
           }
           // Reconnect resync (add-reconnect-resync): branch on the server's
           // running flag. A dismissed run resists the resync — the user
@@ -1193,6 +1272,9 @@ export const useChatStore = create<State>((set) => ({
             pendingNewSession: isNewChatArrival ? false : state.pendingNewSession,
             sessionSwitchBackup: null,
             sessionCache: running ? state.sessionCache : cacheWrite(state.sessionCache, m.id, mapped),
+            sessionWindowMeta: running
+              ? state.sessionWindowMeta
+              : metaWrite(state.sessionWindowMeta, m.id, metaOf(m, m.messages)),
             websearchEnabled: false,
             // A queued prompt is not history, so the transcript cannot carry
             // it — the load restores the pending bubble explicitly

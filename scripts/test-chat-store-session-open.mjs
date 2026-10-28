@@ -48,6 +48,7 @@ function reset() {
     optimisticSessions: false,
     sessionSwitchBackup: null,
     sessionCache: new Map(),
+    sessionWindowMeta: new Map(),
     transcriptTotal: 0,
     transcriptHasMore: false,
     transcriptOldestSeq: null,
@@ -207,6 +208,7 @@ test("2.1 a session leaving the sessions list drops its cache entry", () => {
 
   apply({ type: "sessions", sessions: [{ id: "B", title: "b" }] });
   assert.equal(state().sessionCache.has("A"), false, "deleted sessions are evicted");
+  assert.equal(state().sessionWindowMeta.has("A"), false, "and their window meta goes with them");
   assert.deepEqual(
     state().sessions.map((s) => s.id),
     ["B"],
@@ -297,4 +299,41 @@ test("3.4 a page for a session the client is not viewing is dropped", () => {
   apply({ type: "session_page", id: "OTHER", messages: [{ role: "user", content: "x", seq: 1 }], hasMore: false });
   assert.equal(state().turns.length, 1, "the viewed transcript is untouched");
   assert.equal(state().transcriptHasMore, true, "and its paging state is untouched");
+});
+
+test("3.4 a cached re-entry restores the session's OWN paging state (hangbook fix)", () => {
+  reset();
+  apply(windowed("L", ["m51", "m52"], { totalTurns: 80, hasMore: true }));
+  apply(loaded("B", ["b1"]));
+
+  // Re-enter L from cache — BEFORE any background refresh lands, the paging
+  // state must already be L's own: its total, its flag, and crucially its own
+  // cursor. (This was the lived gap: the fields stayed B's for the whole
+  // reconcile window, and a click could page L with B's seq.)
+  state().activateSession("L");
+  assert.equal(state().transcriptTotal, 80, "L's own total, not B's 1");
+  assert.equal(state().transcriptHasMore, true, "L still has earlier pages cached-side");
+  assert.equal(state().transcriptOldestSeq, 51, "L's own cursor — never B's");
+  assert.equal(state().turns.length, 2, "L's cached turns render instantly");
+  assert.deepEqual(
+    state().sessionWindowMeta.get("L"),
+    { total: 80, hasMore: true, oldestSeq: 51 },
+    "L's metadata rides the cache entry",
+  );
+
+  // ...and B's state survives inside ITS entry for its own re-entry.
+  state().activateSession("B");
+  assert.equal(state().transcriptTotal, 1, "B's own total");
+  assert.equal(state().transcriptHasMore, false, "B reads as complete");
+  assert.equal(state().transcriptOldestSeq, null, "B had no seq to restore");
+});
+
+test("3.4 an uncached switch never keeps the previous session's paging state", () => {
+  reset();
+  apply(windowed("L", ["m51", "m52"], { totalTurns: 80, hasMore: true }));
+  state().activateSession("EMPTY");
+  assert.equal(state().transcriptTotal, 0, "a skeleton is not a transcript");
+  assert.equal(state().transcriptHasMore, false);
+  assert.equal(state().transcriptOldestSeq, null);
+  assert.ok(state().sessionWindowMeta.has("L"), "but L's meta stays in the cache for its re-entry");
 });

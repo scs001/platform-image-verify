@@ -561,7 +561,21 @@ jobs:
           if (p !== "on_demand") { console.error("policy round-trip: " + JSON.stringify(got)); process.exit(1); }
           console.log("healthy on " + s.port + "; policy " + p);
           JS
-          "$BUNDLE_NODE" "$RUNNER_TEMP/status.mjs"
+          # A fresh data root boots the whole cell (migrations, dsh profile,
+          # skills patch) — a SINGLE probe races that. Retry boundedly, the
+          # same shape the Windows leg uses, and print the last state on give-up.
+          ok=0
+          for i in $(seq 1 45); do
+            if "$BUNDLE_NODE" "$RUNNER_TEMP/status.mjs" >> "$RUNNER_TEMP/status.log" 2>&1; then ok=1; break; fi
+            sleep 3
+          done
+          tail -5 "$RUNNER_TEMP/status.log" || true
+          if [ "$ok" -ne 1 ]; then
+            echo "---- steward.log ----"
+            tail -40 "$RUNNER_TEMP/steward.log" || true
+            echo "steward stack never became healthy"
+            exit 1
+          fi
           pkill -f "steward-main.js" || true
 
       - name: Local cluster is runnable AND manageable (write-face probe)

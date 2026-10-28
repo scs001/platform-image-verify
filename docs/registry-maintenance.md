@@ -3689,3 +3689,16 @@ change 3 的真机睡眠/唤醒一幕。
 
 **测试**：`test-offline-pack-authoring` 9 例全绿（新增 1.4 已装版本优先序 /
 1.5 显式 version 优先）；`validate --specs` 205/0。
+
+### §15.66 终：图表腿全绿——apply 折丢弃 + TurnView 空白气泡 + WebView 消息双目标 三真缺陷终账（automate-nonweb-acceptance，2026-10-28）
+
+**run 40758484011 全绿**（gates ✓ APK ✓ Maestro ✓）：图表腿四系列 bar/line/pie/scatter 断言全过（`chart-ok` 可见且 `chart-fallback` 不存在 ×4），既有四流照常绿。整条 app-e2e 首次全绿。
+
+**终账三刀（全入 main）**：
+1. **`apply()` fold 丢弃**（c275b897）：非 turns 臂 `return {}` 吃掉刚折入的流式答复——快回合全灭、web 只丢尾颗粒
+2. **`TurnView` 只遍历 groups**（e7e90cc7）：纯文本块无渲染入口=空气泡；改 blocks 索引遍历（镜像 web）
+3. **WebView 消息双目标**（228e12f5）：react-native-webview 在 **Android** 上把 RN→JS 消息投递到 `document` 而非 `window`——只挂 window 使 option 永远不可见。此为 Android/iOS 的经典差异，shell→RN 方向（dbg 探针）一直通所以此前误判为时序竞态
+
+**echarts 离线**（a0eb1cfd + 39b1ece8）：同源托管 `/chart-assets/echarts.min.js`（resources/chart-assets）+ 鉴权豁免。
+
+**教训（方法论沉淀补充）**：WebView 双向消息的目标不同（Android=document/iOS=window）——shell→RN 方向一直通导致误判为时序竞态白白烧了两轮；debug 探针要么双向都装，要么先查平台差异表。

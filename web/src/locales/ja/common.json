@@ -1862,7 +1862,13 @@
         "stepBody": "ステップ {{n}} の説明"
       },
       "uploadSkillPackage": "パッケージをアップロード",
-      "skillFiles": "補助ファイル {{count}} 件：{{paths}}"
+      "skillFiles": "補助ファイル {{count}} 件：{{paths}}",
+      "export": ".yizpack を書き出す",
+      "exporting": "書き出し中…",
+      "exportOk": "{file} を書き出しました",
+      "import": "パッケージを読み込む",
+      "importing": "読み込み中…",
+      "importOk": "下書き「{name}」として読み込みました"
     },
     "bridge": {
       "title": "プリセットから移行：スキル {{skills}} 件、サーバー {{servers}} 件。移行されなかった項目：",

@@ -100,6 +100,12 @@ export function PackDraftsView({ onPublished }: { onPublished?: () => void }) {
           setEditing(d);
           onPublished?.();
         }}
+        onImported={(d) => {
+          // A bundle came back as a NEW draft: open it for editing and
+          // refresh the list behind the dialog.
+          void refresh();
+          setEditing(d);
+        }}
       />
     );
   }
@@ -152,11 +158,13 @@ function PackDraftEditor({
   bridgeReport,
   onClose,
   onPublished,
+  onImported,
 }: {
   draft: PackDraft;
   bridgeReport?: BridgeReport | null;
   onClose: () => void;
   onPublished: (updated: PackDraft) => void;
+  onImported?: (draft: PackDraft) => void;
 }) {
   const { t } = useTranslation();
   const { marketCatalog, refreshMarketCatalog } = useExtensionsStore();
@@ -201,6 +209,10 @@ function PackDraftEditor({
   const [agents, setAgents] = useState(() => withKeys(draft.entries.agents ?? []));
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportResult, setExportResult] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [publishResult, setPublishResult] = useState<string | null>(null);
 
@@ -348,6 +360,87 @@ function PackDraftEditor({
           <Button size="sm" variant="outline" onClick={() => void save()} disabled={saving}>
             {t("packs.editor.save")}
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={saving || publishing}
+            data-testid="pack-draft-export"
+            onClick={async () => {
+              // Offline authoring (add-offline-pack-authoring): the SAME
+              // manifest the publish path would carry, validated server-side,
+              // returned as a `.yizpack` download. Export is NOT publish —
+              // nothing is minted, frozen, or gated.
+              setExporting(true);
+              setError(null);
+              try {
+                await save();
+                const updated = await api.getPackDraft(draft.id);
+                const manifest: PackManifest = {
+                  name: updated.name,
+                  description: updated.description,
+                  visibility,
+                  tags: updated.tags,
+                  skills: updated.entries.skills ?? [],
+                  mcpServers: updated.entries.mcpServers ?? [],
+                  agents: updated.entries.agents ?? [],
+                };
+                const r = await api.exportPackDraft(draft.id, {
+                  manifest,
+                  ...(draft.publishedPackId ? { packId: draft.publishedPackId } : {}),
+                });
+                const bin = atob(r.bundle);
+                const bytes = new Uint8Array(bin.length);
+                for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+                const url = URL.createObjectURL(new Blob([bytes], { type: "application/zip" }));
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = r.fileName;
+                a.click();
+                URL.revokeObjectURL(url);
+                setExportResult(t("packs.editor.exportOk", { file: r.fileName }));
+              } catch (err) {
+                setExportResult((err as Error).message);
+              } finally {
+                setExporting(false);
+              }
+            }}
+          >
+            {exporting ? t("packs.editor.exporting") : t("packs.editor.export")}
+          </Button>
+          <label className="cursor-pointer">
+            <input
+              type="file"
+              accept=".yizpack,application/zip"
+              className="hidden"
+              data-testid="pack-draft-import-input"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (!file) return;
+                setImporting(true);
+                setError(null);
+                try {
+                  const buf = new Uint8Array(await file.arrayBuffer());
+                  const bin = Array.from(buf, (b) => String.fromCharCode(b)).join("");
+                  const r = await api.importPackDraftBundle({ bundle: btoa(bin) });
+                  setImportResult(t("packs.editor.importOk", { name: r.draft.name }));
+                  onImported?.(r.draft);
+                } catch (err) {
+                  setImportResult((err as Error).message);
+                } finally {
+                  setImporting(false);
+                }
+              }}
+            />
+            <span
+              role="button"
+              tabIndex={0}
+              className="inline-flex h-8 items-center rounded-md border border-input bg-transparent px-3 text-sm font-medium hover:bg-muted"
+              data-testid="pack-draft-import"
+            >
+              {importing ? t("packs.editor.importing") : t("packs.editor.import")}
+            </span>
+          </label>
           <Button size="sm" onClick={() => void publish()} disabled={publishing} data-testid="pack-draft-publish">
             {t("packs.editor.publish")}
           </Button>
@@ -361,6 +454,16 @@ function PackDraftEditor({
       {publishResult && (
         <div className="bg-primary/10 text-primary px-4 py-3 rounded-md" data-testid="pack-publish-ok">
           {publishResult}
+        </div>
+      )}
+      {exportResult && (
+        <div className="bg-muted px-4 py-3 rounded-md text-sm" data-testid="pack-export-result">
+          {exportResult}
+        </div>
+      )}
+      {importResult && (
+        <div className="bg-muted px-4 py-3 rounded-md text-sm" data-testid="pack-import-result">
+          {importResult}
         </div>
       )}
 

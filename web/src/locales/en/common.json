@@ -1862,7 +1862,13 @@
         "stepBody": "Step {{n}} description"
       },
       "uploadSkillPackage": "Upload package",
-      "skillFiles": "{{count}} auxiliary files: {{paths}}"
+      "skillFiles": "{{count}} auxiliary files: {{paths}}",
+      "export": "Export .yizpack",
+      "exporting": "Exporting…",
+      "exportOk": "Exported {file}",
+      "import": "Import bundle",
+      "importing": "Importing…",
+      "importOk": "Imported as draft “{name}”"
     },
     "bridge": {
       "title": "Carried over from the preset: {{skills}} skills, {{servers}} servers. Not migrated:",

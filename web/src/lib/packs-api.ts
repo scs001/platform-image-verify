@@ -457,6 +457,32 @@ export function publishPack(body: { packId?: string | null; manifest: PackManife
 
 // ── Creator console + curation (add-facet-content-management) ────────────────
 
+// Offline authoring (add-offline-pack-authoring): a draft exits as a
+// `.yizpack` (base64 in JSON — the client turns it into a download), and a
+// bundle comes back as a NEW editable draft. Export is NOT publish: no packId,
+// no version freeze, no creator gate.
+export function exportPackDraft(
+  id: string,
+  body: { manifest: PackManifest; packId?: string; version?: number },
+): Promise<{ bundle: string; fileName: string; meta: { packId: string; version: number } }> {
+  return fetch(`/api/pack-drafts/${encodeURIComponent(id)}/export-bundle`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  }).then(json) as Promise<{ bundle: string; fileName: string; meta: { packId: string; version: number } }>;
+}
+
+export function importPackDraftBundle(body: { bundle: string }): Promise<{
+  draft: PackDraft;
+  bundle: { packId: string; version: number; origin: string | null };
+}> {
+  return fetch("/api/pack-drafts/import-bundle", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  }).then(json) as Promise<{ draft: PackDraft; bundle: { packId: string; version: number; origin: string | null } }>;
+}
+
 export function unpublishPack(id: string) {
   return fetch(`/api/packs/${encodeURIComponent(id)}/unpublish`, { method: "POST" }).then(json);
 }
@@ -583,6 +609,10 @@ export function updatePackDraft(id: string, patch: Partial<PackDraft>) {
 
 export function deletePackDraft(id: string) {
   return fetch(`/api/pack-drafts/${encodeURIComponent(id)}`, { method: "DELETE" }).then(json);
+}
+
+export function getPackDraft(id: string): Promise<PackDraft> {
+  return fetch(`/api/pack-drafts/${encodeURIComponent(id)}`).then(json) as Promise<PackDraft>;
 }
 
 export function markDraftPublished(id: string, packId: string) {

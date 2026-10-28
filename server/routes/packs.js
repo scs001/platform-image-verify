@@ -12,7 +12,8 @@
 import * as packStore from "../../pack-store.js";
 import { fetchMarketManifest, fetchMarketDetail } from "../pack-manifest-source.js";
 import { projectPackList } from "../../lib/pack-locale.js";
-import { fromBase64, readBundle } from "../offline-bundle.js";
+import { buildBundle, bundleFileName, fromBase64, readBundle, toBase64 } from "../offline-bundle.js";
+import { validatePackManifest } from "../../lib/pack-manifest.js";
 import express from "express";
 
 // Locale track (add-pack-locale-tracks B): installed-pack cards render under
@@ -86,6 +87,105 @@ export function registerPackRoutes(ctx) {
     if (!packId) return res.status(400).json({ error: "packId required" });
     respond(res, () => ({ draft: db.setDraftPublishedPack(req.params.id, packId) }));
   });
+
+  // ── Draft export/import (add-offline-pack-authoring) ─────────────────────
+  //
+  // The AUTHORING half of the offline loop: a draft is cell-local, and its
+  // only exit used to be the online gateway publish. Now a draft can be
+  // compiled by the editor into a manifest, validated server-side by the SAME
+  // rules an install applies, and packed into a `.yizpack` — deliverable to
+  // any machine with no network. And a bundle can come back as a NEW editable
+  // draft (round-trip), without installing anything.
+  //
+  // Semantics red line: EXPORT IS NOT PUBLISH. No packId minting, no version
+  // freeze, no creator gate, no skill/MCP/agent materialization, and the
+  // draft stays editable throughout.
+
+  app.post("/api/pack-drafts/:id/export-bundle", async (req, res) => {
+    if (!requireGate(req, res)) return;
+    try {
+      const draft = packStore.getDraft(req.params.id);
+      const manifest = req.body?.manifest;
+      if (!manifest?.name) {
+        return res.status(400).json({ error: "manifest with a name is required" });
+      }
+      // Same validator the install path applies — offline authoring is never
+      // exempt from the pack rules.
+      const errors = validatePackManifest(manifest);
+      if (errors.length > 0) {
+        return res.status(400).json({ error: "Invalid manifest", details: errors });
+      }
+      // Identity for the artifact: an already-published draft keeps its pack
+      // id (the bundle then installs as an upgrade on other machines); a
+      // never-published draft derives one from the manifest name.
+      const packId =
+        (typeof req.body?.packId === "string" && req.body.packId) ||
+        draft.publishedPackId ||
+        String(manifest.name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") ||
+        "draft-pack";
+      const version = Number(req.body?.version ?? manifest.version ?? 1);
+      if (!Number.isInteger(version) || version < 1) {
+        return res.status(400).json({ error: "version must be a positive integer" });
+      }
+      const bytes = await buildBundle({
+        packId,
+        version,
+        manifest,
+        origin: `draft export (${draft.name})`,
+      });
+      return res.json({
+        bundle: toBase64(bytes),
+        fileName: bundleFileName(packId, version),
+        meta: { packId, version },
+      });
+    } catch (err) {
+      return res.status(err.status || 500).json({ error: err.message });
+    }
+  });
+
+  app.post(
+    "/api/pack-drafts/import-bundle",
+    express.raw({ type: ["application/octet-stream", "application/zip"], limit: "64mb" }),
+    async (req, res) => {
+      if (!requireGate(req, res)) return;
+      try {
+        const bytes = Buffer.isBuffer(req.body) && req.body.length > 0
+          ? req.body
+          : fromBase64(req.body?.bundle ?? req.body?.bundleBase64);
+        const { meta, manifest } = await readBundle(bytes);
+        if (!manifest?.name) {
+          return res.status(400).json({ error: "bundle manifest carries no name", code: "bundle_manifest_invalid" });
+        }
+        // Reverse-compile: manifest → editable draft entries. IMPORT IS
+        // EDITING, NOT INSTALLING — nothing is materialized (no skills, no
+        // MCP, no agents rows, no installed_packs). bots ride the entries so
+        // a round-trip loses nothing the editor can carry.
+        const entries = {
+          skills: manifest.skills ?? [],
+          mcpServers: manifest.mcpServers ?? [],
+          agents: manifest.agents ?? [],
+          ...(manifest.bots ? { bots: manifest.bots } : {}),
+          ...(manifest.guide ? { guide: manifest.guide } : {}),
+        };
+        const draft = packStore.createDraft({
+          name: String(manifest.name),
+          description: manifest.description ?? "",
+          tags: Array.isArray(manifest.tags) ? manifest.tags : [],
+          entries,
+        });
+        return res.json({
+          draft,
+          bundle: { packId: meta.packId, version: meta.version, origin: meta.origin ?? null },
+        });
+      } catch (err) {
+        return res.status(err.status || 500).json({
+          error: err.message,
+          ...(err.code ? { code: err.code } : {}),
+          ...(err.path ? { path: err.path } : {}),
+        });
+      }
+    },
+  );
 
   // ── Installed packs ────────────────────────────────────────────────────────
 

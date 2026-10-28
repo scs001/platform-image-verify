@@ -1862,7 +1862,13 @@
         "stepBody": "Description de l’étape {{n}}"
       },
       "uploadSkillPackage": "Téléverser le paquet",
-      "skillFiles": "{{count}} fichiers auxiliaires : {{paths}}"
+      "skillFiles": "{{count}} fichiers auxiliaires : {{paths}}",
+      "export": "Exporter .yizpack",
+      "exporting": "Exportation…",
+      "exportOk": "Exporté {file}",
+      "import": "Importer le paquet",
+      "importing": "Importation…",
+      "importOk": "Importé comme brouillon « {name} »"
     },
     "bridge": {
       "title": "Importé depuis le preset : {{skills}} compétences, {{servers}} serveurs. Non migré :",

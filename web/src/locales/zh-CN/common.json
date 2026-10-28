@@ -1862,7 +1862,13 @@
         "stepBody": "第 {{n}} 步说明"
       },
       "uploadSkillPackage": "上传技能包",
-      "skillFiles": "含 {{count}} 个辅助文件：{{paths}}"
+      "skillFiles": "含 {{count}} 个辅助文件：{{paths}}",
+      "export": "导出安装包",
+      "exporting": "导出中…",
+      "exportOk": "已导出 {file}",
+      "import": "导入安装包",
+      "importing": "导入中…",
+      "importOk": "已导入为草稿「{name}」"
     },
     "bridge": {
       "title": "已从预设转入 {{skills}} 个技能、{{servers}} 个服务器；以下引用未迁移：",

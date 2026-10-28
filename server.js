@@ -576,7 +576,7 @@ async function initDshAgent() {
   // The effective availability the runtime composes with (truthful for the
   // preset-switch patch rewrite, which reproduces the boot profile).
   ctx.runtimeMcpOverlay = cellMcpOverlay || {};
-  const mcpPatchPath = await writeMcpPatch({ mcpOverlay: cellMcpOverlay, userGroups: cellOwnerGroups, ownerEmail: ctx.runtimeOwnerEmail, agentPreset: ctx.currentPreset });
+  const mcpPatchPath = await writeMcpPatch({ mcpOverlay: cellMcpOverlay, userGroups: cellOwnerGroups, ownerEmail: ctx.runtimeOwnerEmail, agentPreset: ctx.currentPreset, workspace: bootWorkspace.path });
 
   // Write the skill-filesystem config override (customSkillDirs). The dir
   // list is the resource scope (add-pack-agent-scoping): the writer derives
@@ -798,7 +798,7 @@ async function initDshAgent() {
       // so CRUD while focused (add/disable a server, a pack upgrade adding an
       // MCP ref) rewrites the patch focused — the focus survives every
       // mutation without extra bookkeeping (add-pack-agent-scoping D1).
-      const patchPath = await writeMcpPatch({ mcpOverlay, userGroups, ownerEmail: ctx.runtimeOwnerEmail, agentPreset: ctx.currentPreset });
+      const patchPath = await writeMcpPatch({ mcpOverlay, userGroups, ownerEmail: ctx.runtimeOwnerEmail, agentPreset: ctx.currentPreset, workspace: ctx.dshBridge?.getCwd?.() ?? null });
       const credentialChanged = Boolean(
         prevAuth && patchPath && authorizationHeadersChanged(prevAuth, readPatchAuthorizations(patchPath)),
       );

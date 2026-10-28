@@ -894,7 +894,7 @@ export function authorizationHeadersChanged(prev, next) {
   return false;
 }
 
-export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail = null, agentPreset = null, noOverlay = false } = {}) {
+export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail = null, agentPreset = null, noOverlay = false, workspace = null } = {}) {
   // 1. mcp.json (operator config, base layer).
   let mcpJsonServers = {};
   try {
@@ -974,6 +974,22 @@ export async function writeMcpPatch({ mcpOverlay, userGroups = null, ownerEmail 
           off ? "disabled by BROWSER_LANE=off" : "unsupplied (no BROWSER_RUNTIME_PATH, no BROWSER_CDP_ENDPOINT)"
         }`,
       );
+      continue;
+    }
+    // Route the lane's artifacts (page snapshots, screenshots, downloads) into
+    // the SESSION's workspace so /api/files can serve them and the resource
+    // capture hook accepts them. The MCP sidecar's cwd is not trustworthy for
+    // this (it can be a read-only /app), and a per-user cell workspace varies —
+    // so the path is injected here, at patch-write time, from the resolved
+    // session workspace (add-browser-use-lane; walkthrough 2026-10-28).
+    const outputDir =
+      (process.env.BROWSER_OUTPUT_DIR || "").trim() ||
+      (process.env.AGENT_WORKSPACE || "").trim() ||
+      (typeof workspace === "string" ? workspace.trim() : "");
+    if (outputDir) {
+      servers[name] = { ...config, env: { ...(config.env ?? {}), BROWSER_OUTPUT_DIR: outputDir } };
+    } else {
+      console.log(`[dsh-profile] browser lane "${name}": no session workspace resolved — outputs fall back to the MCP default dir`);
     }
   }
 

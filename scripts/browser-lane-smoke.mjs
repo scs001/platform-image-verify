@@ -12,14 +12,25 @@
 // Exit 0 = the lane speaks MCP; anything else prints the reason and exits 1.
 
 import { spawn } from "node:child_process";
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const LAUNCHER = join(REPO_ROOT, "server", "browser-mcp.js");
 const TIMEOUT_MS = Number(process.env.BROWSER_SMOKE_TIMEOUT_MS) || 60_000;
 
-const child = spawn(process.execPath, [LAUNCHER], { stdio: ["pipe", "pipe", "pipe"] });
+// The smoke OWNS an output dir and passes it as the production wiring does
+// (BROWSER_OUTPUT_DIR): a deployment that routes lane artifacts somewhere
+// unwritable (the first version fell back to a read-only cwd: "EACCES: open
+// '/app/page-….yml'") fails here, and an unconfigured default is exercised by
+// whatever the CLI picks — never a path this script cannot assert on.
+const SMOKE_OUT = mkdtempSync(join(tmpdir(), "browser-lane-smoke-out-"));
+const child = spawn(process.execPath, [LAUNCHER], {
+  stdio: ["pipe", "pipe", "pipe"],
+  env: { ...process.env, BROWSER_OUTPUT_DIR: SMOKE_OUT },
+});
 let stderr = "";
 child.stderr.on("data", (c) => (stderr += String(c)));
 
@@ -82,7 +93,21 @@ const answer = new Promise((resolve, reject) => {
       if (!nav || nav.isError === true || /error/i.test(nav?.content?.[0]?.text ?? "") && !/about:blank/.test(text)) {
         throw new Error(`browser_navigate(about:blank) did not launch a browser: ${text}`);
       }
-      resolve({ tools: count, navigation: "about:blank ok" });
+      // The report path must never be the OS temp dir: @playwright/mcp's own
+      // default is a query against its config wiring (2026-10-28: a wrong
+      // `browser.outputDir` nesting put screenshots at /tmp/.playwright-mcp,
+      // where the cell's capture hook rejected them with invalid_path). A file
+      // written under tmpdir reproduces under every CI worker too.
+      const shot = await call("tools/call", { name: "browser_take_screenshot", arguments: { filename: "browser-lane-smoke.png" } });
+      const shotText = JSON.stringify(shot ?? {}).slice(0, 400);
+      if (!shot || shot.isError === true) {
+        throw new Error(`browser_take_screenshot failed: ${shotText}`);
+      }
+      const written = existsSync(SMOKE_OUT) ? readdirSync(SMOKE_OUT) : [];
+      if (!written.length) {
+        throw new Error(`no artifact landed in the configured BROWSER_OUTPUT_DIR (${SMOKE_OUT}); response: ${shotText}`);
+      }
+      resolve({ tools: count, navigation: `about:blank ok; ${written.length} artifact(s) in outputDir` });
     } catch (err) {
       reject(err);
     }
@@ -127,6 +152,7 @@ try {
     process.exit(1);
   }
   console.log(`browser-lane-smoke: MCP handshake + tools/list ok (${out.tools} tools); browser_navigate → ${out.navigation}`);
+  rmSync(SMOKE_OUT, { recursive: true, force: true });
   process.exit(0);
 } catch (err) {
   clearTimeout(timeout);

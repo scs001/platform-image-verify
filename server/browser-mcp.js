@@ -128,10 +128,16 @@ if (endpoint) {
 // explicit BROWSER_OUTPUT_DIR wins, else the AGENT_WORKSPACE pin the deployment
 // sets, else this process's own cwd (a dsh-mcp-client child launches in the
 // session's validated workspace).
-browserConfig.outputDir =
-  (process.env.BROWSER_OUTPUT_DIR || "").trim() ||
-  (process.env.AGENT_WORKSPACE || "").trim() ||
-  process.cwd();
+// Resolve an output dir, or leave it UNSET: the CLI's own default (a writable
+// temp dir) beats a cwd that may be a read-only /app — the first version
+// fell back to process.cwd() and the image smoke promptly died with
+// "EACCES: open '/app/page-….yml'" (2026-10-28). The platform injects
+// BROWSER_OUTPUT_DIR = the session workspace per cell (dsh-profile lane entry),
+// which is the only value that routes artifacts into the user's workspace for
+// resource capture.
+const laneOutputDir =
+  (process.env.BROWSER_OUTPUT_DIR || "").trim() || (process.env.AGENT_WORKSPACE || "").trim();
+if (laneOutputDir) browserConfig.outputDir = laneOutputDir;
 
 const configDir = mkdtempSync(join(tmpdir(), "browser-mcp-"));
 const configPath = join(configDir, "config.json");

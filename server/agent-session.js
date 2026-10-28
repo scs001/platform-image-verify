@@ -915,6 +915,9 @@ async function switchPresetToInner(id) {
       userGroups: ctx.runtimeOwnerGroups ?? null,
       ownerEmail: ctx.runtimeOwnerEmail,
       agentPreset: id,
+      // The lane's outputs must land in the workspace the runtime actually
+      // serves from (it can change); the bridge's cwd IS that value.
+      workspace: ctx.dshBridge?.getCwd?.() ?? null,
     });
     await dshProfile.writeSkillsPatch({ agentPreset: id });
     await ctx.dshBridge.restart({ agentPreset: id });

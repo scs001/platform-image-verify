@@ -9,9 +9,12 @@ providers (`GET/POST /api/llm/providers`, `PUT/DELETE /api/llm/providers/:id`).
 A provider record SHALL carry `name`, `baseUrl`, `type` (`openai-completions`),
 a model roster, and **an `auth` form: `"bearer"` (default) or `"none"`**. When
 `auth` is `"bearer"`, creation SHALL require an API key (existing behaviour);
-when `auth` is `"none"`, the API key SHALL be optional AND every outbound
-request to that provider (probe, sync, inference) SHALL omit the
-`Authorization` header entirely. Records written before this change (no `auth`
+when `auth` is `"none"`, the API key SHALL be optional AND the credential
+store SHALL hold an EMPTY value for that provider (the env ref stays resolvable
+for the dsh route, but no key material exists to leak). The server's own
+outbound requests (probe, sync) SHALL omit the `Authorization` header entirely;
+inference requests go through dsh's credential resolution with the empty value
+(local model servers ignore the empty Bearer). Records written before this change (no `auth`
 field) SHALL be treated as `"bearer"` with zero migration. Providers whose
 `baseUrl` points at loopback (127.0.0.1/localhost) SHALL be legal first-class
 lanes — the local model lane — with the same CRUD, probe, sync, and
@@ -110,7 +113,8 @@ provider 路由），而非仅文档说明。
 
 - **WHEN** 一个 `auth: "none"` 的本地 provider 被设为默认模型车道
 - **THEN** runner 侧（共享 dsh profile/种子 home）的路由文件包含该 provider 的
-  baseUrl 与模型清单，且不带任何该 provider 的凭据条目（none 无凭据可写）
+  baseUrl 与模型清单，且凭据存储中该 provider 的条目为**空值**（路由可解析、
+  无任何密钥材料）
 
 #### Scenario: chat 车道与舰队车道同源
 

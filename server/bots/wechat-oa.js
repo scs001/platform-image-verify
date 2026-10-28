@@ -23,19 +23,26 @@ function checkSignature(cred, query) {
   if (query.signature !== expected) throw new Error("bad signature");
 }
 
-const tokens = new Map(); // appId → tokenCache
+const tokens = new Map(); // appId → { cred, cache }
 function tokenFor(cred) {
-  let cache = tokens.get(cred.appId);
-  if (!cache) {
-    cache = tokenCache(async () => {
-      const url = `${BASE}/cgi-bin/token?grant_type=client_credential&appid=${encodeURIComponent(cred.appId)}&secret=${encodeURIComponent(cred.appSecret)}`;
+  let entry = tokens.get(cred.appId);
+  if (!entry) {
+    entry = { cred, cache: null };
+    entry.cache = tokenCache(async () => {
+      // Read the cred through the holder, not the closure argument: a
+      // credential rotation (PATCH with a new appSecret) replaces the bot row,
+      // and a closure captured at first use would keep fetching with the OLD
+      // secret forever (the wecom adapter hit exactly this — 40001 after a
+      // rotation despite a working direct token call with the same values).
+      const url = `${BASE}/cgi-bin/token?grant_type=client_credential&appid=${encodeURIComponent(entry.cred.appId)}&secret=${encodeURIComponent(entry.cred.appSecret)}`;
       const j = await (await fetch(url)).json();
       if (j.errcode) throw new Error(`token: ${j.errcode} ${j.errmsg}`);
       return { token: j.access_token, expiresInSec: j.expires_in };
     });
-    tokens.set(cred.appId, cache);
+    tokens.set(cred.appId, entry);
   }
-  return cache;
+  entry.cred = cred; // the latest credentials always win
+  return entry.cache;
 }
 
 export const registry = {

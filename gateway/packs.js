@@ -30,6 +30,7 @@ import { resolveLocale, projectManifestForLocale, applyLocaleToSummary } from ".
 import { parseFleetTemplate } from "../server/fleet-template.js";
 import { safePackagePath } from "../lib/skill-files.js";
 import { declaredToolsByServer, toolGateErrors, probeMcpToolNames, toolFaceErrors, toolClosureErrors } from "../lib/publish-tool-gate.js";
+import { sellabilityGate } from "./pack-sellability-gate.js";
 import { registryServerIndex } from "../registry-bridge.js";
 import { deriveBadge, badgeFromFlags } from "../lib/pack-badge.js";
 import { deployToRegistry, setAgentPaused, modelChoiceError, resolveServiceConfig, resolveAgentPort, NOTIFY_CHANNEL_RE, SECRET_NAME_RE, SECRET_LIMITS, maskSecretRef } from "../lib/agent-serving.js";
@@ -109,7 +110,7 @@ async function runPublishToolGate(manifest) {
 // shortCircuit=false (validate) collects every gate's verdict in one pass.
 const CREATOR_GROUP_REQUIRED = "Creator group required";
 
-async function collectPublishVerdict(manifest, { shortCircuit = false } = {}) {
+async function collectPublishVerdict(manifest, { shortCircuit = false, pricing = null } = {}) {
   const items = [];
   const push = (stage, status, body) => items.push({ stage, status, body });
   if (!manifest) {
@@ -200,6 +201,18 @@ async function collectPublishVerdict(manifest, { shortCircuit = false } = {}) {
       return items;
     }
     if (gate.errors.length > 0) push("tools", 400, { error: "Invalid manifest", errors: gate.errors, toolGate: true });
+  }
+  // Sellability gate (add-blueprint-studio 4.2): a PRICED cluster template must
+  // carry its casting provenance and a GREEN trial report — assertion-green is
+  // the only source of sellability. Free publishes pass (internal distribution
+  // is free today, 2026-10-28 decision) but the gap is reported as a note, so
+  // the day distribution turns paid the gate bites without a second rewrite.
+  const sellability = sellabilityGate(manifest, { pricing });
+  if (sellability.errors.length > 0) {
+    push("sellability", 400, { error: sellability.errors[0].error, code: sellability.errors[0].code, errors: sellability.errors });
+  }
+  for (const note of sellability.notes) {
+    console.warn(`[publish-sellability-gate] ${note}`);
   }
   return items;
 }
@@ -1318,7 +1331,7 @@ export function registerPackRoutes(app, {
     // byte-identical to the pre-extraction early returns — while the validate
     // route reports every item from the same collector. shortCircuit keeps
     // the pre-existing property that a rejection costs no registry round-trip.
-    const verdict = await collectPublishVerdict(manifest, { shortCircuit: true });
+    const verdict = await collectPublishVerdict(manifest, { shortCircuit: true, pricing });
     if (verdict.length > 0) return res.status(verdict[0].status).json(verdict[0].body);
     // Only publishes that pass validation count against the author's budget —
     // iterating on a manifest must not exhaust it. Invalid attempts store

@@ -2941,3 +2941,13 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 - **长会话**：探针读数 `[session-open] ms=137 messages=51 bytes=1710034`（服务端 137ms、首帧钉在窗口）；挂载恰 50 条 + load-earlier 按需翻页 50→54、最老页按钮消失；in-pod drill 证 total=54/hasMore=true/分页 4 条即尽；缓存回访 ~0.9s 即时渲染。
 
 **挂账**：~~① 缓存回访瞬间 transcript 计数属上一会话~~ **已清账**（9efc7339：`sessionWindowMeta` 与 `sessionCache` 同步键控——activateSession 出站写入/入站恢复、session_loaded 两分支与 done 站点写入、sessions 删除连同回收；store 测试 18/18；**随下一班快照上产**，本班不单滚）；② 重块会话（≈33KB/条，tool 产物为主）客户端挂载仍 3-7s，窗口 N 调参或块裁剪留待实测数据（探针已在产常驻）。
+
+### §15.70 官网下载中心上架 v1.3.20（2026-10-28，fd-official-web）
+
+**规范口径澄清（本轮核出的关键事实）**：`~/.zcode/skills/paas-release` 讲的是**服务端镜像线**；桌面客户端上架官网另有既有流程，在官网仓 `fd-official-web`：
+- 数据面：`src/data/desktop-releases.json` 数组头插新版本（`official_url` 走 `https://platform.finddatatech.cloud/dl/platform/<ver>/<file>`——平台域名 `/dl/` 反代到 cheap3 `/srv/dl`；`github_url` 指池仓 release）。提交形态：`chore(data): desktop-releases v<ver> (release-sync)` → 双推 github（触发官网 `image.yml` 出片 `fd-web/official-web:sha-<HEAD>`）+ gitee（ArgoCD 源）。
+- **发布线已于 2026-10-16 切换**：`www` 的 nginx `location /` 指向静态 `root /opt/fd/web/dist`（配置注释原文：「镜像/Pod 线（30442）自 09-10 政策已停更；构建机 build-deploy.sh 的 rsync 静态路径为在役发布线」），pod 线留回退（`.bak-pod-20261016`）。**上架 = 把新镜像的构建产物铺进静态目录**，OPS.md 旧述（pod 为主）已在本次提交对齐。
+
+**本轮执行**：data json 插 1.3.20（`3499e93`）→ 官网 CI 绿 → relay 验 ccr（`sha-3499e93` digest cbf47f8e，bump 硬门）→ **顺带 bump `deploy/k8s/fd-web.yaml`**（对齐 pod 回退线；ArgoCD auto-sync 已滚，pod 2/2 running 新镜像）→ 从**运行中的新镜像 pod** `kubectl cp` 抽 dist（ccr 匿名 pull 401，pod 抽产物最省且与镜像一致）→ 备份旧目录 `dist.bak-20261028` → 替换并**保留 live `data/calibers.json`**（首次替换曾漏带，已从备份恢复——替换脚本该把 live 文件显式并入）→ 公网眼见：中英下载页均列出 `Platform-1.3.20-arm64.dmg` / `Platform.Setup.1.3.20.exe`，下载 URL range 请求 206。
+
+**回滚**：`sudo mv /opt/fd/web/dist.bak-20261028 /opt/fd/web/dist`（静态线）；或切回 pod（`.bak-pod-20261016`）。

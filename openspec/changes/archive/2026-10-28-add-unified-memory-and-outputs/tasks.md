@@ -24,7 +24,7 @@
 
 - [x] 4.1 萬星 console 部署者记忆浏览入口（FleetsPage 成员行「记忆」抽屉 → /api/memory/deployer-entries，platform lane + rootKey d-<packId>，层筛选同族）
 - [x] 4.2 fleet deliverable → reference 镜像（拍板送达时落 draft 层名份，source_ref=deliverable:<fleet>:<member>:<decision>；徽章读同一 tier 语义）
-- [ ] 4.3 facade/智语回合同一 digest 读缝接线——**受阻于跨仓**：room 宿主不在本仓（本仓只有 zhiyu-im-bridge 与 paas 侧 /digest platform 车道）；能力已备（platform token + rootKey 可直接调 /digest），接线改动需在 zhiyu 服务仓落，待该仓开工时接
+- [x] 4.3 facade/智语回合同一 digest 读缝接线——**归档后翻案并收口（2026-10-28 晚，§15.76）**：原判「受阻跨仓」为误判，智语房间宿主就在本仓 `gateway/zhiyu`（`room-router.js` 的 `buildPrompt`/`runTurn`），只有 facade 1:1 会话在 fd-wanxing 外仓。按 D7 落地智语半边：`chatMemoryBlockFor()`（与 chat 车道逐字节同块、共用 `CELL_MEMORY_CHAT_DIGEST`）+ room-router `memoryBlock` 缝 + 身份门（`kind=user` 用本人 owner 块、`kind=guest` 恒不注入）；5 测 + 生产实证真块 1292 字。**余**：facade 1:1 会话（fd-wanxing 独立发布线）仍待该仓接线
 
 ## 5. 文档与验收
 

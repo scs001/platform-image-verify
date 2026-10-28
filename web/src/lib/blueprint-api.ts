@@ -49,6 +49,8 @@ export interface ValidationVerdict {
   ok: boolean;
   errors: ValidationError[];
   findings: {
+    // v1 方言命中时只有这一段有内容（其余为空）——见 remove-blueprint-v1-compat。
+    v1: ValidationError[];
     shape: ValidationError[];
     fleet: ValidationError[];
     manifest: ValidationError[];

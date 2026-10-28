@@ -458,11 +458,11 @@ test("3.3 发布客户端身份头：user 必须是对象（base64url 身份契�
   assert.equal(seen.length, before);
 });
 
-test("跨仓契约兼容：finddata 蓝图格式 v1 原样粘入即可编辑/校验/铸造", async () => {
-  // 2026-10-28 跨仓对账：finddata fleet-packs/blueprints/schema.md 的字段名
-  // （vertical/sources/boards）与本仓（boundary/dataSources/board）不同。归一化
-  // 保证按他们 schema 写的蓝图不会静默变空壳；自由文本断言如实指名不支持。
-  const finddata = {
+test("v1 方言如实拒绝：粘入即被指名拒绝（不归一化、不落库、只报一条根因）", async () => {
+  // remove-blueprint-v1-compat：平台只接受 v2。v1（vertical/sources/boards +
+  // 自由文本 acceptance）不再被归一化接受——写入层硬拒 422，校验链短路只报
+  // 一条根因，不掺派生的 acceptance 形状错与无 entry 的包级错。
+  const v1 = {
     vertical: { name: "跨境电商政策盯梢", tagline: "盯四路政策与公告面，异动即报", non_goals: ["商品价格监控", "汇率预测"] },
     sources: [{ registryName: "fd-info", purpose: "部委公告与政策流", allowTools: ["list_since", "get_item"] }],
     fleet: {
@@ -475,28 +475,44 @@ test("跨仓契约兼容：finddata 蓝图格式 v1 原样粘入即可编辑/校
     acceptance: ["巡检员一个成功回合", "主编日报合成"],
     _casting: { source_blueprint: "fleet-packs/blueprints/x/blueprint.json", packDependencies: {} },
   };
+  const { server, base, store } = mount();
+  try {
+    // 写入层硬拒：POST 422，body.error 指名 v1，findings 携带完整迁移指引。
+    const res = await fetch(`${base}/api/blueprints`, as("alice@x", { method: "POST", body: JSON.stringify({ content: v1 }) }));
+    assert.equal(res.status, 422);
+    const body = await res.json();
+    assert.match(body.error, /蓝图格式为 v1/);
+    assert.ok(Array.isArray(body.findings) && body.findings.length === 1, "只报一条根因错");
+    assert.match(body.findings[0].error, /本平台只接受 v2/);
+    assert.match(body.findings[0].error, /sources\[\]\.registryName 换成 dataSources\[\]\.ref/, "带 v1→v2 迁移指引");
+
+    // 不落库。
+    const list = await fetch(`${base}/api/blueprints`, as("alice@x")).then(j);
+    assert.equal(list.blueprints.length, 0, "v1 蓝图不得落库");
+
+    // 校验链短路：直接喂 validateBlueprint，只返回一条错（不是 4 条 acceptance
+    // 形状错 + 一条无 entry 包级错）。
+    const { validateBlueprint } = await import("../server/blueprint-validate.js");
+    const verdict = validateBlueprint(v1);
+    assert.equal(verdict.errors.length, 1);
+    assert.equal(verdict.errors[0].entry, "content");
+    assert.match(verdict.errors[0].error, /蓝图格式为 v1/);
+  } finally {
+    await close(server);
+  }
+});
+
+test("v1 判别不误伤：合规 v2 蓝图另带无害旧键仍正常通过", async () => {
+  // design D2 合取判别：v1 独有键存在 **且** 对应 v2 键缺位才触发。一份自带
+  // boundary/dataSources/board 的 v2 文档，即便另带一个未使用的 sources 旧键也
+  // 不得被拒。
+  const v2WithStray = { ...VALID_CONTENT, sources: [{ registryName: "stray", purpose: "遗留附注" }] };
   const { server, base } = mount();
   try {
-    const created = await fetch(`${base}/api/blueprints`, as("alice@x", { method: "POST", body: JSON.stringify({ content: finddata }) })).then(j);
-    // 名从 vertical.name 归一到 boundary.name。
-    assert.equal(created.blueprint.name, "跨境电商政策盯梢");
-    assert.equal(created.blueprint.content.boundary.oneLine, "盯四路政策与公告面，异动即报");
-    assert.match(created.blueprint.content.boundary.outOfScope, /商品价格监控/);
-    assert.equal(created.blueprint.content.dataSources[0].ref, "fd-info");
-    assert.equal(created.blueprint.content.dataSources[0].note, "部委公告与政策流");
-    assert.ok(Array.isArray(created.blueprint.content.board));
-
-    // 断言：自由文本按 D7 归一成 llm-judged（rubric 即原文），成为可判条目。
-    const acc = created.blueprint.content.acceptance;
-    assert.equal(acc.length, 2);
-    assert.ok(acc.every((a) => a.kind === "llm-judged"));
-    assert.equal(acc[0].rubric, "巡检员一个成功回合");
-    assert.equal(created.blueprint.content.acceptance[1].rubric, "主编日报合成");
-
-    // 校验：断言段零错误（llm-judged 合法）；fleet 段也零错误。
+    const created = await fetch(`${base}/api/blueprints`, as("alice@x", { method: "POST", body: JSON.stringify({ content: v2WithStray }) })).then(j);
+    assert.equal(created.blueprint.name, "政策盯梢");
     const verdict = await fetch(`${base}/api/blueprints/${created.blueprint.id}/validate`, as("alice@x", { method: "POST" })).then(j);
-    assert.equal(verdict.errors.some((e) => /unsupported assertion kind/.test(e.error)), false);
-    assert.equal(verdict.errors.some((e) => e.entry === "fleet"), false, "fleet 段必须零错误");
+    assert.equal(verdict.errors.some((e) => /蓝图格式为 v1/.test(e.error)), false, "不得误判为 v1");
   } finally {
     await close(server);
   }

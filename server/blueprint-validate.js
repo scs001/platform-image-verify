@@ -1,4 +1,5 @@
-// Blueprint validation bridge (add-blueprint-studio Slice 1, design D3/D5).
+// 蓝图校验桥（add-blueprint-studio Slice 1, design D3/D5；v1 兼容层已摘除——
+// remove-blueprint-v1-compat）。
 //
 // 零第二造：本模块的每一则校验错误都来自既有校验器原文——
 //   parseFleetTemplate      fleet 段（server/fleet-template.js，含编排成环）
@@ -92,6 +93,33 @@ export function shapeFindings(content) {
   return [...credentialFindings(content), ...dataSourceFindings(content)];
 }
 
+// ── Shape gate: v1 方言如实拒绝（remove-blueprint-v1-compat, design D1/D2） ──
+//
+// 平台只接受蓝图格式 v2。收到 v1 方言——出现 v1 独有键（vertical / sources /
+// boards）而对应 v2 键（boundary / dataSources / board）缺位——时如实指名拒绝，
+// 不归一化、不猜测。与「未知断言 kind 拒绝而非猜测」同族。
+//
+// 判别与 v2 键成对比较：一份合规的 v2 文档即便另带一个无害旧键也不触发（对应
+// v2 键在场）。命中即返回唯一一条根因错误；调用方（validateBlueprint / 存储层）
+// 须短路或硬拒，不得再叠加方言错位派生的散错。
+const V1_FORMAT_ERROR = [
+  "蓝图格式为 v1（vertical/sources/boards + 自由文本 acceptance），本平台只接受 v2。",
+  "v2 字段：boundary{name, oneLine, outOfScope} / dataSources[{ref, note?}] / board[] / acceptance[{id, kind, target?, expect?, rubric?}]。",
+  "格式真源：finddata fleet-packs/blueprints/schema.md（v2）。",
+  "迁移：把 vertical{name,tagline,non_goals[]} 换成 boundary{name, oneLine, outOfScope}、sources[].registryName 换成 dataSources[].ref、boards 换 board、自由文本断言换成五型结构化条目。",
+].join("\n");
+
+export function v1FormatFindings(content) {
+  if (!content || typeof content !== "object" || Array.isArray(content)) return [];
+  const has = (k) => Object.prototype.hasOwnProperty.call(content, k) && content[k] !== undefined;
+  const v1Shaped =
+    (has("vertical") && !has("boundary")) ||
+    (has("sources") && !has("dataSources")) ||
+    (has("boards") && !has("board"));
+  if (!v1Shaped) return [];
+  return [{ error: V1_FORMAT_ERROR, entry: "content" }];
+}
+
 // ── Manifest 组装与全链校验 ────────────────────────────────────────────────
 
 export const MACHINE_ASSERTION_KINDS = ["post-materialized", "first-round-fired", "report-landed", "escalate-bounded"];
@@ -147,53 +175,6 @@ export function normalizeAcceptance(acceptance) {
   return { assertions, errors };
 }
 
-// ── 跨仓契约兼容层（finddata fleet-packs/blueprints/schema.md → 本仓形状） ──
-//
-// 2026-10-28 跨仓对账：finddata 的蓝图格式 v1 与本仓落地形状字段名不同
-// （vertical/sources/boards ←→ boundary/dataSources/board）。不改本仓形状
-// （改键=破坏已上产契约），在读入侧做单向归一化：按 finddata schema 写的蓝图
-// 粘进构造间不会静默变空壳，能编辑、能校验、能铸造。
-//
-// 断言分歧（有意保留）：finddata 的 acceptance 是自由文本串数组，本仓要求可
-// 执行的结构化条目 {id, kind, target?}。自由文本不静默通过、也不静默丢弃——
-// 归一成 { id, kind: "free-text", text } 让校验链如实指名「不支持、待立项」，
-// 与 D8「未知 kind 拒绝而非猜测」一致。
-export function normalizeIncomingContent(content) {
-  if (!content || typeof content !== "object" || Array.isArray(content)) return content;
-  const c = { ...content };
-
-  // vertical{name,tagline,non_goals} → boundary{name,oneLine,outOfScope}
-  if (c.vertical && typeof c.vertical === "object" && !c.boundary) {
-    const v = c.vertical;
-    c.boundary = {
-      name: v.name ?? "",
-      oneLine: v.tagline ?? "",
-      outOfScope: Array.isArray(v.non_goals) ? v.non_goals.filter((x) => typeof x === "string").join("、") : (v.non_goals ?? ""),
-    };
-  }
-  // sources[] → dataSources[]（registryName 即 ref；purpose/allowTools 保留为附注）
-  if (Array.isArray(c.sources) && !Array.isArray(c.dataSources)) {
-    c.dataSources = c.sources
-      .filter((s) => s && typeof s === "object")
-      .map((s) => ({
-        ref: typeof s.registryName === "string" ? s.registryName : "",
-        ...(typeof s.purpose === "string" ? { note: s.purpose } : {}),
-      }));
-  }
-  // boards[] → board（保留原数组，只是键名对齐）
-  if (Array.isArray(c.boards) && c.board === undefined) c.board = c.boards;
-  // acceptance 自由文本串 → llm-judged（rubric 即原文）：finddata 蓝图 v1 的
-  // acceptance 就是自由文本，旧文件不改即可进入可判状态（design D7）。
-  if (Array.isArray(c.acceptance)) {
-    c.acceptance = c.acceptance.map((a, i) =>
-      typeof a === "string" ? { id: `legacy-${i + 1}`, kind: "llm-judged", rubric: a } : a,
-    );
-  }
-  // _casting.source_blueprint / packDependencies 保留原样（铸造时只用本仓字段，
-  // 外部追溯不丢）。
-  return c;
-}
-
 // 铸造时喂给既有校验器的 manifest：名字取场景中文主名（类型由「集群模板」
 // 专辑位/徽章承载，名字不背类型——产品命名决议）；category 钉 "fleet"
 // （代码键零改老律：专辑显示名是市场层的词，键不动）。
@@ -216,9 +197,20 @@ export function assembleManifest(content, { name } = {}) {
 // （既有校验器原文逐字段）+ manifestPreview 供编辑面/铸造复用。
 export function validateBlueprint(content) {
   const manifestPreview = assembleManifest(content);
+  // v1 方言前置短路（design D1）：错方言的派生发现（逐条 acceptance 形状错、
+  // 无字段归属的包级错）会淹没根因——命中即只报这一条。
+  const v1 = v1FormatFindings(content);
+  if (v1.length) {
+    return {
+      ok: false,
+      errors: v1,
+      findings: { v1, shape: [], acceptance: [], fleet: [], manifest: [], toolFace: [], toolClosure: [] },
+      manifestPreview,
+    };
+  }
   const shape = shapeFindings(content ?? {});
-  // 验收断言段也进校验链：试跑只有四类可判绿的断言，未知 kind（含 finddata
-  // 的自由文本串）在此就指名，不留到试跑才暴露。
+  // 验收断言段也进校验链：试跑只有五类可判绿的断言，未知 kind 在此就指名，
+  // 不留到试跑才暴露。
   const acceptance = normalizeAcceptance(content?.acceptance).errors;
   const fleetParsed = parseFleetTemplate(manifestPreview);
   const fleet = fleetParsed.ok ? [] : [{ error: fleetParsed.error, entry: "fleet" }];
@@ -229,7 +221,7 @@ export function validateBlueprint(content) {
   return {
     ok: errors.length === 0,
     errors,
-    findings: { shape, acceptance, fleet, manifest, toolFace, toolClosure },
+    findings: { v1: [], shape, acceptance, fleet, manifest, toolFace, toolClosure },
     manifestPreview,
   };
 }

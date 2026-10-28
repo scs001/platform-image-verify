@@ -78,7 +78,7 @@ function ErrorList({ errors, empty }: { errors: ValidationError[]; empty: string
   return (
     <ul className="space-y-1" data-testid="blueprint-errors">
       {keyed(errors, (e) => `${e.entry ?? "-"}:${e.error}`).map(({ key, row: e }) => (
-        <li key={key} className="rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1 text-xs">
+        <li key={key} className="rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1 text-xs whitespace-pre-line">
           {e.entry ? <span className="mr-2 font-mono text-[11px] text-destructive">{t("blueprints.error.entry", { entry: e.entry })}</span> : null}
           <span>{e.error}</span>
         </li>
@@ -244,8 +244,12 @@ export function BlueprintStudioPage() {
       if (e instanceof BlueprintApiError) {
         if (e.status === 409) setNotice({ kind: "err", text: `${t("blueprints.notice.conflict")} ${String(e.body.currentVersion ?? "")}` });
         else {
+          // 校验/写入失败：优先逐项 errors；仅带 findings（如存储层 v1 方言硬拒）时
+          // 用其 error 原文——含多行迁移指引，notice 以 pre-line 呈现。
           const errors = (e.body.errors as ValidationError[] | undefined) ?? [];
-          setNotice({ kind: "err", text: errors.length ? `${e.message} — ${errors.map((x) => x.error).join("; ")}` : e.message });
+          const findings = (e.body.findings as ValidationError[] | undefined) ?? [];
+          const items = errors.length ? errors : findings;
+          setNotice({ kind: "err", text: items.length ? `${e.message} — ${items.map((x) => x.error).join("\n")}` : e.message });
         }
       } else {
         setNotice({ kind: "err", text: String((e as Error).message) });
@@ -453,7 +457,7 @@ export function BlueprintStudioPage() {
                 </div>
               </div>
               {notice ? (
-                <div className={`mt-2 text-xs ${notice.kind === "ok" ? "text-emerald-600" : "text-destructive"}`} data-testid="blueprint-notice">
+                <div className={`mt-2 text-xs whitespace-pre-line ${notice.kind === "ok" ? "text-emerald-600" : "text-destructive"}`} data-testid="blueprint-notice">
                   {notice.text}
                 </div>
               ) : null}

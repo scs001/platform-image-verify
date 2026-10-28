@@ -13,14 +13,25 @@ import Database from "better-sqlite3";
 import path from "node:path";
 import fs from "node:fs";
 import { storeDir } from "../../paths.js";
-import { credentialFindings } from "../blueprint-validate.js";
+import { credentialFindings, v1FormatFindings } from "../blueprint-validate.js";
 
 export const BLUEPRINT_STATUSES = ["draft", "approved", "cast"];
 
-// Stored blueprints NEVER contain credentials (spec scenario 蓝图不含凭据) —
-// this is the storage-layer enforcement; route-layer reporting is advisory
-// only. Throws a status-marked error the routes map to 422.
+// Stored blueprints NEVER contain credentials (spec scenario 蓝图不含凭据) and are
+// always the v2 shape (remove-blueprint-v1-compat) — this is the storage-layer
+// enforcement; route-layer reporting is advisory only. v1 dialect is not "an
+// unfilled WIP draft" but a different set of key names the form can never fill in,
+// so it is structurally unstorable too. Throws a status-marked error the routes
+// map to 422.
 function assertStorable(content) {
+  const v1 = v1FormatFindings(content);
+  if (v1.length) {
+    throw Object.assign(
+      // 只取首行：多行迁移指引走 findings，message 保持单行可读。
+      new Error(v1[0].error.split("\n")[0]),
+      { status: 422, findings: v1 },
+    );
+  }
   const findings = credentialFindings(content);
   if (findings.length) {
     throw Object.assign(

@@ -9,6 +9,7 @@
 - [x] 1.7 编排草稿校验 / apply（cockpit 面）改用 `rosterResolver()` 产出的 resolver
 - [x] 1.8 `server/fleet-architect.js`：`requestResolver()` 每请求一份快照（draft/apply）
 - [x] 1.9 `server.js`：catalog 变更后的 `reconcileAllFleets` 用一份快照（60 岗位曾是 60 次合并）
+- [x] 1.10 （实测追加）`server/fleet-reconcile.js`：`cronPeriodMs` 按 (cron, tz, 日) 记忆化——实测发现名册读真凶是带时区的 cron 解析（40ms/次 × 岗位 × 2-3 次询问），比目录合并更重；spec 补「节奏周期计算按 (cron, 时区) 记忆化」需求
 
 ## 2. 名册行补待拍板计数
 
@@ -26,6 +27,6 @@
 - [x] 4.2 既有 fleet 套件回归：core 20/20、architect 11/11、failing-status 7/7、owner-surface 9/9、decision-lane 10/10、ops-canvas 6/6；orchestration 3 失败在 HEAD 同样复现，非本变更引入
 - [x] 4.3 语法检查（`node --check`）四个改动文件
 - [x] 4.4 openspec validate --specs（202/0）+ change archive 绿
-- [ ] 4.5 出片（GHA 公开线）+ GitOps bump + ArgoCD 滚版
-- [ ] 4.6 生产复测：`/api/fleets` 延迟、轮询在飞时的会话切换耗时、首帧字节数/耗时
+- [x] 4.5 出片（GHA 公开线 sha-25d7244，digest fa93f154）+ GitOps bump（platform×2）+ ArgoCD 滚版
+- [x] 4.6 生产复测：`/api/fleets` 2065-4110ms → **110-170ms**（22 行全带 openDecisions，合计 66）；WS 切换重会话 1204→763ms、轻会话 790→347ms；wire 字节同载荷 482→156KB（3.1×）；`Sec-WebSocket-Extensions` 端到端协商实证（101 响应带 permessage-deflate; no-context-takeover）；侧栏角标首次渲染（集群 66）
 - [ ] 4.7 台账 §15.73 + 记忆落盘

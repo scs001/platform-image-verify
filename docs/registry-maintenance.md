@@ -3408,3 +3408,14 @@ B1（付费+credit 环）/B2（车道 live-write 全链）/B3（v2 跟新回放�
 **生产实证（pod 内，真凭据真 fd-memory）**：`createMemorySeam()` → `enabled=true`；`blockFor({email:"aloadtree@gmail.com"})` 返回 **1292 字**块（含 `〔L2·reference〕见资料库《2026-10-28-巡视记录.md》`）；`promptWithMemory({email:"", text:"你好"})` 原样返回 `"你好"`。镜像内自证：`memory.js` 的 `createMemorySeam`、`chat.js` 的 `promptWithMemory` 各命中，`WANXING_FACADE_MEMORY_DIGEST=1`、URL/TOKEN 在位。
 
 **至此 4.3 两条车道（智语房间 + facade 1:1）全部接通**，D7 收口。
+
+**§15.76/§15.77 补账：归档后才做的工作已补立案并归档（2026-10-28 深夜）**
+
+自查发现流程缺口：`add-unified-memory-and-outputs` 归档时把 4.3 标为「受阻跨仓」，而随后的智语接缝、facade 接缝、成果页两处手势收口都是**归档之后**落的，没有 change 记录。补两份立案（均已 validate 绿、主 spec 已同步、已归档）：
+
+| 仓 | change | 内容 | 归档位置 |
+|---|---|---|---|
+| paas | `polish-memory-gestures-and-room-seam` | 4.3 误判成因与更正；D1-D5 五条决策；`resource-library-ui` MODIFIED（改 tag「弹窗」→「编辑面」，并修掉既有两处错字 `AI 发发`/`备ಿ`，新增「放弃编辑不改动数据」场景）；`memory-portal-ui` MODIFIED（写明灰态判据=503，新增对应场景） | `archive/2026-10-28-polish-memory-gestures-and-room-seam` |
+| fd-wanxing | `add-facade-chat-memory-seam` | 1:1 会话读缝的 proposal/design/tasks 三件；`wanxing-facade` 新增两条需求（登录访客带本人块+匿名零请求；单一开关+降级开） | `archive/2026-10-28-add-facade-chat-memory-seam` |
+
+**教训（记入纪律）**：change 归档前必须把「本单实际改了但没写进 tasks 的东西」逐条核一遍；归档后再改代码，要开新单，不能只在台账里写。我这次是先写了台账 §15.76/§15.77 才发现没有 spec 记录——顺序反了。

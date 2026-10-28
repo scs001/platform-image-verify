@@ -3615,3 +3615,24 @@ change 3 的真机睡眠/唤醒一幕。
 **滚版**：`sha-20ac541`（跨仓兼容+断言进链+试跑舰命名）→ `sha-0ba1be9`（补删除），GitOps 滚 platform+agent-runner-serving，ArgoCD Synced|Healthy。
 
 **仍待立项**：LLM 判断言（自由文本断言的机器判据）——它破坏「断言全绿才可售」的确定性，须单独立项；届时 finddata 四条 free-text 断言才可机械判绿。
+
+### §15.78 打标车道「等于没上线」——四个真 bug 连坐（2026-10-28 深夜，fd-memory `sha-0cde373` / distiller `sha-264e099`）
+
+问题由用户一句「fd-memory 还有要迭代优化的地方吗」触发，核查生产后发现「AI 提议 tags + 人类修正」这个本次变更的门面功能**一次都没真正生效过**：24h 内 `[tag]` 日志 0 条、四个 project 的 `tag_cursor` 全空、148 页仅 2 页有 tags（都是我在浏览器手输的）、distiller 24h 只收到 1 次 `/tag`（还是我的 401 探测）。
+
+四层根因，逐层剥出来的：
+
+| # | 缺陷 | 证据 | 修法 |
+|---|---|---|---|
+| 1 | **打标钩子挂在死路** | 生产唯一触发链是 `capture → notifyCapture → drain → distillOne`；`tagPass` 却挂在 `distillNow()`，而 `distillNow` 全仓只有测试在调 | 钩子移进 `distillOne` 的 `finally`（早退也打标——reference 页本就不需要蒸馏素材），另抽 `tagPassSafe` 吞异常保证打标永不让蒸馏失败 |
+| 2 | **`tag_cursor` 写不进库** | migration 加了该列，但 `upsertDistillState` 的 INSERT/UPDATE 列清单都没列它 → 每次写入静默丢弃，即便车道跑起来也每轮重复打标同一批页 | 补进两个列清单 + 参数 |
+| 3 | **`/tag` 恒返回空结果** | 直调 distiller：`{"results": [], "tokens": 1278, "llm_calls":[{...,"ok":true,"completion_tokens":1103}]}` —— LLM 成功、token 真花、结果空。根因=`json_repair.repair_json()` 返回 **JSON 字符串**，代码却 `isinstance(parsed, list)` 当已解析对象判（本文件其它三处都是把返回值喂给文本解析器，用法正确） | 先 `json.loads`，失败再 `json.loads(repair_json(...))`，并容忍模型套一层对象 |
+| 4 | **输出上限撞顶截断** | 修完 3 后仍有偶发空结果，实测 `completion_tokens=1200` 恰好等于 `max_tokens=1200`（12 条/批的列表，模型话多就截断） | 1200 → 4000 |
+
+**出片事故（值得单记）**：`fd-memory-distiller:sha-0b7f768` 第一次构建打出来的是 **Node 主镜像**（`Cmd: node dist/index.js serve`、49375 端口）——池变量 `BUILD_DOCKERFILE` 停在默认 `Dockerfile`（根），而根 Dockerfile 是 fd-memory 主服务；历史 distiller 出片用的是 `distiller/Dockerfile`。若照原计划滚上去会把蒸馏器直接打死。发现方式=对比两仓 digest 相同（不同 Dockerfile 不可能同 digest）。修法=`BUILD_DOCKERFILE=distiller/Dockerfile` + `gh workflow run image.yml` 覆盖同名 tag。**第二个坑**：relay 有「已见 tag 跳过」机制，覆盖后的同 tag 不会被自动重传 → 必须手动 `skopeo copy --all` 强制推一次。**变量已还原为 `Dockerfile`**。
+
+**生产端到端实证**：在产 pod 内造一条无 tags 的 reference（车规级芯片认证要点），走真实链 `notifyCapture → drain → distillOne → tagPass`，日志 `[tag] u-aloadtree@gmail.com/default: tagged=1/1 tokens=1295`，页面落库 `tags=["车规级芯片","AEC-Q100","认证","温度循环","湿度偏压"]`、`tier=stable`、`tags_origin=ai`、`tag_cursor` 前进。**探针页已 forget 清理**（逻辑删，markdown 真源与审计保留）。
+
+**附带发现（未改）**：一是 `notes_after` 默认排除 `修正：` 前缀后，修正笔记仍通过 `correctionsAfter()` 喂给打标词表，语义不变；二是 is 向量道 6 次 digest 里 3 次 `embed deadline 3500ms exceeded` 回落关键词，属预算边缘的已知抖动，本次未动。
+
+**测试**：fd-memory 81 → **83 全绿**（新增「打标走生产路径（notifyCapture→drain→真被调用 + 游标前进后不重打，用可控时钟跨 60s 去抖窗）」与「修正笔记不进蒸馏素材」）；distiller 新增 4 条引擎测试（随镜像在容器内跑：纯 JSON / 脏 JSON / 套对象 / 截断降级）。**上一版测试直调 `distillNow`，正是这个盲区让缺陷 1 活了 24 小时**——教训：测试要打生产入口，不是打内部函数。

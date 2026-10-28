@@ -157,7 +157,10 @@
     "overrideBaseUrlPlaceholder": "ベース URL オーバーライド（空欄で無効）",
     "overrideSave": "URL を保存",
     "overrideClear": "オーバーライドを解除",
-    "modelFallbackToast": "既定モデル {{from}} が応答しないため {{to}} に切替えました"
+    "modelFallbackToast": "既定モデル {{from}} が応答しないため {{to}} に切替えました",
+    "localPresets": "ローカル推論サーバー：",
+    "localAuthHint": "ローカルサーバーにキーは不要",
+    "keyNotNeeded": "ローカル推論サーバーに API キーは不要です。"
   },
   "status": {
     "connected": "接続済み",
@@ -1865,10 +1868,10 @@
       "skillFiles": "補助ファイル {{count}} 件：{{paths}}",
       "export": ".yizpack を書き出す",
       "exporting": "書き出し中…",
-      "exportOk": "{file} を書き出しました",
+      "exportOk": "{{file}} を書き出しました",
       "import": "パッケージを読み込む",
       "importing": "読み込み中…",
-      "importOk": "下書き「{name}」として読み込みました"
+      "importOk": "下書き「{{name}}」として読み込みました"
     },
     "bridge": {
       "title": "プリセットから移行：スキル {{skills}} 件、サーバー {{servers}} 件。移行されなかった項目：",
@@ -2521,7 +2524,14 @@
       "awaitDelivery": "配達待ち",
       "awaitMember": "ポスト復帰待ち",
       "delivered": "配達済み",
-      "memberGone": "（ポスト削除済み）"
+      "memberGone": "（ポスト削除済み）",
+      "viewOwner": "あなた宛",
+      "viewDeputy": "常務",
+      "routedDeputy": "常務に委任済み",
+      "escalatedTimes": "再エスカレ {{count}} 回",
+      "ruledByDeputy": "常務の裁定",
+      "evidence": "根拠",
+      "recall": "取り戻す（自分で裁く）"
     },
     "tpl": {
       "awaitStart": "テンプレートから編成済み（全停止）——確認して起動",

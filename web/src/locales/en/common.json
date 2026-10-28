@@ -157,7 +157,10 @@
     "overrideBaseUrlPlaceholder": "Base URL override (blank = none)",
     "overrideSave": "Save URL",
     "overrideClear": "Clear override",
-    "modelFallbackToast": "Default model {{from}} is dark; switched to {{to}}"
+    "modelFallbackToast": "Default model {{from}} is dark; switched to {{to}}",
+    "localPresets": "Local model servers:",
+    "localAuthHint": "no key needed for local servers",
+    "keyNotNeeded": "Local model servers need no API key."
   },
   "status": {
     "connected": "Connected",
@@ -1865,10 +1868,10 @@
       "skillFiles": "{{count}} auxiliary files: {{paths}}",
       "export": "Export .yizpack",
       "exporting": "Exporting…",
-      "exportOk": "Exported {file}",
+      "exportOk": "Exported {{file}}",
       "import": "Import bundle",
       "importing": "Importing…",
-      "importOk": "Imported as draft “{name}”"
+      "importOk": "Imported as draft “{{name}}”"
     },
     "bridge": {
       "title": "Carried over from the preset: {{skills}} skills, {{servers}} servers. Not migrated:",
@@ -2521,7 +2524,14 @@
       "awaitDelivery": "awaiting delivery",
       "awaitMember": "awaiting post restore",
       "delivered": "delivered",
-      "memberGone": "(post deleted)"
+      "memberGone": "(post deleted)",
+      "viewOwner": "Yours",
+      "viewDeputy": "Deputy",
+      "routedDeputy": "Delegated to deputy",
+      "escalatedTimes": "Re-escalated ×{{count}}",
+      "ruledByDeputy": "Ruled by deputy",
+      "evidence": "Basis",
+      "recall": "Recall (decide myself)"
     },
     "tpl": {
       "awaitStart": "Cluster assembled from the template (all paused) — review, then start",

@@ -157,7 +157,10 @@
     "overrideBaseUrlPlaceholder": "Surcharge d'URL de base (vide = aucune)",
     "overrideSave": "Enregistrer l'URL",
     "overrideClear": "Effacer la surcharge",
-    "modelFallbackToast": "Le modèle par défaut {{from}} est éteint ; basculé sur {{to}}"
+    "modelFallbackToast": "Le modèle par défaut {{from}} est éteint ; basculé sur {{to}}",
+    "localPresets": "Serveurs locaux :",
+    "localAuthHint": "les serveurs locaux n'ont pas besoin de clé",
+    "keyNotNeeded": "Les serveurs locaux n'ont pas besoin de clé API."
   },
   "status": {
     "connected": "Connecté",
@@ -1865,10 +1868,10 @@
       "skillFiles": "{{count}} fichiers auxiliaires : {{paths}}",
       "export": "Exporter .yizpack",
       "exporting": "Exportation…",
-      "exportOk": "Exporté {file}",
+      "exportOk": "Exporté {{file}}",
       "import": "Importer le paquet",
       "importing": "Importation…",
-      "importOk": "Importé comme brouillon « {name} »"
+      "importOk": "Importé comme brouillon « {{name}} »"
     },
     "bridge": {
       "title": "Importé depuis le preset : {{skills}} compétences, {{servers}} serveurs. Non migré :",
@@ -2521,7 +2524,14 @@
       "awaitDelivery": "en attente de livraison",
       "awaitMember": "en attente de poste",
       "delivered": "délivrée",
-      "memberGone": "(poste supprimé)"
+      "memberGone": "(poste supprimé)",
+      "viewOwner": "À toi",
+      "viewDeputy": "Adjoint",
+      "routedDeputy": "Délégué à l'adjoint",
+      "escalatedTimes": "Réescaladé ×{{count}}",
+      "ruledByDeputy": "Tranché par l'adjoint",
+      "evidence": "Fondement",
+      "recall": "Reprendre (je tranche)"
     },
     "tpl": {
       "awaitStart": "Cluster monté depuis le gabarit (tout en pause) — vérifiez puis démarrez",

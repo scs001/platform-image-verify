@@ -157,7 +157,10 @@
     "overrideBaseUrlPlaceholder": "Anular base URL (vacío = ninguna)",
     "overrideSave": "Guardar URL",
     "overrideClear": "Quitar anulación",
-    "modelFallbackToast": "El modelo por defecto {{from}} no responde; cambiado a {{to}}"
+    "modelFallbackToast": "El modelo por defecto {{from}} no responde; cambiado a {{to}}",
+    "localPresets": "Servidores locales:",
+    "localAuthHint": "los servidores locales no necesitan clave",
+    "keyNotNeeded": "Los servidores locales no necesitan clave API."
   },
   "status": {
     "connected": "Conectado",
@@ -1865,10 +1868,10 @@
       "skillFiles": "{{count}} archivos auxiliares: {{paths}}",
       "export": "Exportar .yizpack",
       "exporting": "Exportando…",
-      "exportOk": "Exportado {file}",
+      "exportOk": "Exportado {{file}}",
       "import": "Importar paquete",
       "importing": "Importando…",
-      "importOk": "Importado como borrador «{name}»"
+      "importOk": "Importado como borrador «{{name}}»"
     },
     "bridge": {
       "title": "Traído del preset: {{skills}} habilidades, {{servers}} servidores. No migrado:",
@@ -2521,7 +2524,14 @@
       "awaitDelivery": "pendiente de entrega",
       "awaitMember": "pendiente de repuesto",
       "delivered": "entregada",
-      "memberGone": "(puesto eliminado)"
+      "memberGone": "(puesto eliminado)",
+      "viewOwner": "Tuyas",
+      "viewDeputy": "Delegado",
+      "routedDeputy": "Delegado al adjunto",
+      "escalatedTimes": "Reescalado ×{{count}}",
+      "ruledByDeputy": "Resuelto por el adjunto",
+      "evidence": "Fundamento",
+      "recall": "Reclamar (decido yo)"
     },
     "tpl": {
       "awaitStart": "Clúster montado desde la plantilla (todo en pausa) — revisa y arranca",

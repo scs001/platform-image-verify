@@ -213,13 +213,17 @@ export class ProviderError extends Error {
 
 const URL_RE = /^https?:\/\/[^\s]+$/i;
 
-function validateInput({ name, baseUrl, apiKey, reasoningEfforts }, { requireKey }) {
+function validateInput({ name, baseUrl, apiKey, reasoningEfforts, auth }, { requireKey }) {
   const errors = [];
   const cleanName = String(name || "").trim();
   if (cleanName.length < 1) errors.push("name is required");
   if (cleanName.length > 60) errors.push("name must be 60 characters or fewer");
   if (!URL_RE.test(String(baseUrl || "").trim())) errors.push("baseUrl must be a valid http(s) URL");
-  if (requireKey && !String(apiKey || "").trim()) errors.push("apiKey is required");
+  // Auth form (add-local-model-lane): "bearer" (default) needs a key;
+  // "none" (local model servers) may omit it entirely.
+  const cleanAuth = auth === undefined || auth === null || auth === "" ? "bearer" : String(auth);
+  if (cleanAuth !== "bearer" && cleanAuth !== "none") errors.push('auth must be "bearer" or "none"');
+  if (requireKey && cleanAuth === "bearer" && !String(apiKey || "").trim()) errors.push("apiKey is required");
   // Optional thinking levels: accepted verbatim (identity wire values). We only
   // reject shapes we cannot write, not level names — the operator knows their
   // gateway better than we do.
@@ -231,6 +235,7 @@ function validateInput({ name, baseUrl, apiKey, reasoningEfforts }, { requireKey
     baseUrl: normalizeBaseUrl(String(baseUrl).trim()),
     apiKey: String(apiKey || "").trim(),
     reasoningEfforts: levels,
+    auth: cleanAuth,
   };
 }
 
@@ -252,6 +257,7 @@ export function listUserProviders() {
     name: p.name,
     baseUrl: p.baseUrl,
     type: "openai-completions",
+    auth: p.auth === "none" ? "none" : "bearer",
     hasKey: Boolean(p.apiKey),
     models: (p.models || DEFAULT_MODELS).map((m) => m.id),
     reasoningEfforts: p.reasoningEfforts || [],
@@ -267,7 +273,8 @@ export function getProviderRecord(id) {
 }
 
 export function createProvider(input) {
-  const { name, baseUrl, apiKey, reasoningEfforts } = validateInput(input, { requireKey: true });
+  const clean = validateInput(input, { requireKey: true });
+  const { name, baseUrl, apiKey, reasoningEfforts } = clean;
   const doc = readProvidersDoc();
   const existing = new Set(doc.providers.map((p) => p.id));
   if (doc.providers.some((p) => p.name.toLowerCase() === name.toLowerCase())) {
@@ -279,6 +286,7 @@ export function createProvider(input) {
     name,
     baseUrl,
     apiKey,
+    auth: clean.auth,
     type: "openai-completions",
     models: DEFAULT_MODELS,
     reasoningEfforts,
@@ -306,8 +314,9 @@ export function updateProvider(id, input) {
     apiKey: input.apiKey && String(input.apiKey).trim() ? String(input.apiKey).trim() : current.apiKey,
     reasoningEfforts:
       input.reasoningEfforts !== undefined ? input.reasoningEfforts : current.reasoningEfforts,
+    auth: input.auth !== undefined ? input.auth : current.auth,
   };
-  const clean = validateInput(merged, { requireKey: true });
+  const clean = validateInput(merged, { requireKey: (merged.auth ?? "bearer") === "bearer" });
 
   // A `models` array replaces the whole roster (add-llm-model-discovery):
   // ids must be unique non-empty strings; absent per-entry fields fall back
@@ -328,6 +337,7 @@ export function updateProvider(id, input) {
     name: clean.name,
     baseUrl: clean.baseUrl,
     apiKey: clean.apiKey,
+    auth: clean.auth,
     reasoningEfforts: clean.reasoningEfforts,
     ...(models !== undefined ? { models } : {}),
     updatedAt: new Date().toISOString(),
@@ -425,6 +435,7 @@ function clientRecord(p) {
     name: p.name,
     baseUrl: p.baseUrl,
     type: "openai-completions",
+    auth: p.auth === "none" ? "none" : "bearer",
     hasKey: Boolean(p.apiKey),
     models: (p.models || DEFAULT_MODELS).map((m) => m.id),
     reasoningEfforts: p.reasoningEfforts || [],
@@ -485,11 +496,17 @@ function effortLevelsOf(model) {
 }
 
 // The {refName: value} pairs to seed into .credentials.yaml so the per-provider
-// env refs resolve. Only providers with a key are included.
+// env refs resolve. Keyless providers (add-local-model-lane, auth "none") are
+// seeded with an EMPTY value: the route's env ref stays resolvable for dsh, but
+// no key material exists to leak. Only providers with a key would have been
+// excluded before this.
 export function credentialRefsForUserProviders() {
   const refs = {};
   for (const p of readProvidersDoc().providers) {
-    if (p.apiKey) refs[envRefForProvider(p.id)] = p.apiKey;
+    // Keyless lane: an EMPTY value keeps the env ref resolvable without any
+    // key material. Auth-less records (pre-lane) count as bearer → skipped.
+    if (p.auth === "none") refs[envRefForProvider(p.id)] = "";
+    else if (p.apiKey) refs[envRefForProvider(p.id)] = p.apiKey;
   }
   return refs;
 }
@@ -529,7 +546,11 @@ function sanitizeError(text, key) {
 export async function testProvider(id, { fetchImpl = global.fetch } = {}) {
   const record = getProviderRecord(id);
   if (!record) throw new ProviderError("not_found", `provider ${id} not found`);
-  if (!record.apiKey) throw new ProviderError("invalid", "provider has no API key configured");
+  // The local model lane (add-local-model-lane): auth "none" providers (Ollama,
+  // LM Studio) carry no key — the probe simply goes out WITHOUT Authorization
+  // instead of refusing.
+  const keyless = record.auth === "none";
+  if (!record.apiKey && !keyless) throw new ProviderError("invalid", "provider has no API key configured");
 
   const probeUrl = record.baseUrl.replace(/\/+$/, "") + "/models";
   const start = Date.now();
@@ -538,7 +559,9 @@ export async function testProvider(id, { fetchImpl = global.fetch } = {}) {
   try {
     const res = await fetchImpl(probeUrl, {
       method: "GET",
-      headers: { Authorization: `Bearer ${record.apiKey}`, Accept: "application/json" },
+      headers: keyless
+        ? { Accept: "application/json" }
+        : { Authorization: `Bearer ${record.apiKey}`, Accept: "application/json" },
       signal: controller.signal,
     });
     const latencyMs = Date.now() - start;
@@ -593,14 +616,17 @@ function normalizeText(s) {
 
 // Fetch the full id list from GET <baseUrl>/models. The gateway treats this as
 // "recognized ids", not "serving ids" — that is exactly why sync probes.
-async function fetchModelIds(baseUrl, apiKey, { fetchImpl = global.fetch } = {}) {
+async function fetchModelIds(baseUrl, apiKey, { fetchImpl = global.fetch, auth = "bearer" } = {}) {
   const url = String(baseUrl).replace(/\/+$/, "") + "/models";
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
   try {
     const res = await fetchImpl(url, {
       method: "GET",
-      headers: { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
+      headers:
+        auth === "none"
+          ? { Accept: "application/json" }
+          : { Authorization: `Bearer ${apiKey}`, Accept: "application/json" },
       signal: controller.signal,
     });
     if (!res.ok) {
@@ -651,7 +677,7 @@ export function classifyResponse(status, body, apiKey) {
 // Probe one id with a single minimal chat completion (design D1: the list
 // endpoint cannot distinguish serving from recognized). One retry for
 // rate_limited / network failures only (D3).
-async function probeModel(baseUrl, apiKey, id, { fetchImpl, timeoutMs }) {
+async function probeModel(baseUrl, apiKey, id, { fetchImpl, timeoutMs, auth = "bearer" }) {
   const url = String(baseUrl).replace(/\/+$/, "") + "/chat/completions";
   const attempt = async () => {
     const controller = new AbortController();
@@ -660,7 +686,7 @@ async function probeModel(baseUrl, apiKey, id, { fetchImpl, timeoutMs }) {
       const res = await fetchImpl(url, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          ...(auth === "none" ? {} : { Authorization: `Bearer ${apiKey}` }),
           "Content-Type": "application/json",
           Accept: "application/json",
         },
@@ -698,14 +724,14 @@ async function probeModel(baseUrl, apiKey, id, { fetchImpl, timeoutMs }) {
 
 // Classify every id: bounded-concurrency probes (4), per-probe 30s timeout.
 // Returns { [id]: { status, error? } } covering every id.
-export async function classifyModels(baseUrl, apiKey, ids, { fetchImpl = global.fetch, timeoutMs = PROBE_TIMEOUT_MS } = {}) {
+export async function classifyModels(baseUrl, apiKey, ids, { fetchImpl = global.fetch, timeoutMs = PROBE_TIMEOUT_MS, auth = "bearer" } = {}) {
   const results = {};
   const queue = [...ids];
   const workers = Array.from({ length: Math.min(PROBE_CONCURRENCY, Math.max(1, ids.length)) }, async () => {
     for (;;) {
       const id = queue.shift();
       if (id === undefined) return;
-      results[id] = await probeModel(baseUrl, apiKey, id, { fetchImpl, timeoutMs });
+      results[id] = await probeModel(baseUrl, apiKey, id, { fetchImpl, timeoutMs, auth });
     }
   });
   await Promise.all(workers);
@@ -766,13 +792,14 @@ export async function syncProvider(id, { fetchImpl = global.fetch, reload } = {}
 
   const record = getProviderRecord(id);
   if (!record) throw new ProviderError("not_found", `provider ${id} not found`);
-  if (!record.apiKey) throw new ProviderError("invalid", "provider has no API key configured");
+  const keyless = record.auth === "none";
+  if (!record.apiKey && !keyless) throw new ProviderError("invalid", "provider has no API key configured");
 
   syncInFlight = true;
   let classified;
   try {
-    const ids = await fetchModelIds(record.baseUrl, record.apiKey, { fetchImpl });
-    classified = await classifyModels(record.baseUrl, record.apiKey, ids, { fetchImpl });
+    const ids = await fetchModelIds(record.baseUrl, record.apiKey, { fetchImpl, auth: record.auth });
+    classified = await classifyModels(record.baseUrl, record.apiKey, ids, { fetchImpl, auth: record.auth });
   } finally {
     syncInFlight = false;
   }

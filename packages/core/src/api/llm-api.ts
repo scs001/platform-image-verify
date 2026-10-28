@@ -28,6 +28,8 @@ export interface DiscoveryStatus {
 }
 
 export interface LlmProvider {
+  /** Auth form (add-local-model-lane): "bearer" (default) | "none" (local model servers). */
+  auth?: "bearer" | "none";
   id: string;
   name: string;
   baseUrl: string;
@@ -128,6 +130,7 @@ export async function createProvider(input: {
   baseUrl: string;
   apiKey: string;
   reasoningEfforts?: string;
+  auth?: "bearer" | "none";
 }): Promise<LlmProvider> {
   const r = await http("/api/llm/providers", {
     method: "POST",
@@ -148,6 +151,7 @@ export async function updateProvider(
     apiKey?: string;
     reasoningEfforts?: string;
     models?: ModelEntryInput[];
+    auth?: "bearer" | "none";
   },
 ): Promise<LlmProvider> {
   const r = await http(`/api/llm/providers/${encodeURIComponent(id)}`, {

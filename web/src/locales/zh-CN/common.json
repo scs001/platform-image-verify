@@ -157,7 +157,10 @@
     "overrideBaseUrlPlaceholder": "Base URL 覆盖（留空不覆盖）",
     "overrideSave": "保存 URL",
     "overrideClear": "清除覆盖",
-    "modelFallbackToast": "默认模型 {{from}} 当前不可用，已自动切换到 {{to}}"
+    "modelFallbackToast": "默认模型 {{from}} 当前不可用，已自动切换到 {{to}}",
+    "localPresets": "本机推理服务：",
+    "localAuthHint": "本机服务无需密钥",
+    "keyNotNeeded": "本机推理服务不需要 API key。"
   },
   "status": {
     "connected": "已连接",
@@ -1865,10 +1868,10 @@
       "skillFiles": "含 {{count}} 个辅助文件：{{paths}}",
       "export": "导出安装包",
       "exporting": "导出中…",
-      "exportOk": "已导出 {file}",
+      "exportOk": "已导出 {{file}}",
       "import": "导入安装包",
       "importing": "导入中…",
-      "importOk": "已导入为草稿「{name}」"
+      "importOk": "已导入为草稿「{{name}}」"
     },
     "bridge": {
       "title": "已从预设转入 {{skills}} 个技能、{{servers}} 个服务器；以下引用未迁移：",
@@ -2521,7 +2524,14 @@
       "awaitDelivery": "待送达",
       "awaitMember": "待岗位恢复",
       "delivered": "已送达",
-      "memberGone": "（岗位已删）"
+      "memberGone": "（岗位已删）",
+      "viewOwner": "等你",
+      "viewDeputy": "常务岗",
+      "routedDeputy": "已委托常务岗",
+      "escalatedTimes": "重复升级 {{count}} 次",
+      "ruledByDeputy": "常务岗裁决",
+      "evidence": "依据",
+      "recall": "收回（自己裁）"
     },
     "tpl": {
       "awaitStart": "集群已按模板组建（全队暂停）——确认组织与节奏后启动",

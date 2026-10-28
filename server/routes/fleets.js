@@ -68,9 +68,16 @@ function memberId(_id) {
 // post can never be BUILT dangling — 待补岗 only ever comes from the target
 // being deleted afterwards (design: 对象模型).
 
-function resolveTarget(member) {
+// `view` is a request-scoped catalog snapshot (catalog.mergedView): a roster
+// read resolves one target per member, and resolving against the LIVE catalog
+// re-merges it per member — 60 merges × ~30ms of blocked event loop on one
+// request, which delayed every other request in the cell including the chat
+// WebSocket handshake. One view per request keeps every member of that
+// request on the same snapshot AND costs one merge.
+function resolveTarget(member, view = null) {
   if (member.targetKind === "persona") {
-    const entry = catalog.getChatAgentEntries().find((e) => e.id === member.targetId) || null;
+    const entries = view ? view.chatAgentEntries : catalog.getChatAgentEntries();
+    const entry = entries.find((e) => e.id === member.targetId) || null;
     // Empty targetId = provisioner conflict sentinel — no label, the vacant
     // badge and its reason carry the story.
     return { alive: !!entry, label: entry?.name ?? (member.targetId || null), clusterName: null };
@@ -96,7 +103,7 @@ function resolveTarget(member) {
     const bot = dbModule.getBot(member.targetId);
     return { alive: !!bot, label: bot?.name ?? (member.targetId || null), clusterName: null };
   }
-  const entry = catalog.getAgentEntry(member.targetId);
+  const entry = view ? view.agentEntry(member.targetId) : catalog.getAgentEntry(member.targetId);
   const alive = !!entry && entry.mode === "a2a";
   return { alive, label: entry?.name ?? (member.targetId || null), clusterName: null };
 }
@@ -196,9 +203,12 @@ function wouldCycle(db, member, newParentId) {
 
 // ── Derived read faces ───────────────────────────────────────────────────────
 
-function taskIndexFor(fleetId) {
+// `jobs` is the already-listed cron job set: a roster read lists the jobs
+// once and indexes them per fleet, instead of re-listing every job for every
+// fleet (21 fleets × the whole job table).
+function taskIndexFor(fleetId, jobs = cron.listJobs()) {
   const map = new Map();
-  for (const job of cron.listJobs()) {
+  for (const job of jobs) {
     if (job?.sourceTag?.fleetId === fleetId) map.set(job.sourceTag.memberId, job);
   }
   return map;
@@ -393,6 +403,17 @@ export function createFleetRoutes(app, ctx = null) {
   // care). Null (tests without a runtime) degrades every roster gate open.
   const modelRoster = () => (Array.isArray(ctx?.dshModels) ? ctx.dshModels.map((m) => m.id) : null);
   const modelCtx = () => ({ roster: modelRoster(), cellDefault: ctx?.bootModel?.id ?? null });
+
+  // A per-request target resolver: a roster read resolves one target per
+  // member across every fleet, and the default resolver re-merges the catalog
+  // each time (~30ms × 60 members ≈ 1.8s of blocked event loop — long enough
+  // to delay the chat WebSocket handshake in the same cell, measured at
+  // 1.2s→3.9s). One view per request means one merge. A test-injected
+  // resolver ignores the second argument, so it passes straight through.
+  const rosterResolver = () => {
+    const view = targetResolver === resolveTarget ? catalog.mergedView() : null;
+    return (m) => targetResolver(m, view);
+  };
 
   // Write gate, evaluated against the RESULTING row (not the patch alone):
   // the fallback⇒primary constraint and the persona-only rule must hold after
@@ -816,7 +837,7 @@ export function createFleetRoutes(app, ctx = null) {
       if (!owned) return;
       const subset = cockpitDraftSubsetError(req.body);
       if (subset) return res.status(400).json({ error: subset });
-      res.json(validateFleetDraft(getFleetDatabase(), toCockpitDraft(req.body, owned.fleet.id), { resolver: targetResolver }));
+      res.json(validateFleetDraft(getFleetDatabase(), toCockpitDraft(req.body, owned.fleet.id), { resolver: rosterResolver() }));
     } catch (err) {
       console.error("[fleets] orchestration draft error:", err.message);
       res.status(500).json({ error: err.message || "internal error" });
@@ -832,7 +853,7 @@ export function createFleetRoutes(app, ctx = null) {
       // Revalidation happens inside (drift fails honestly, same as the bridge).
       const out = await applyFleetDraft(getFleetDatabase(), toCockpitDraft(req.body, owned.fleet.id), {
         ownerEmail: owned.fleet.ownerEmail,
-        resolver: targetResolver,
+        resolver: rosterResolver(),
       });
       if (!out.ok) return res.status(409).json(out);
       res.json(out);
@@ -993,14 +1014,20 @@ export function createFleetRoutes(app, ctx = null) {
       const db = getFleetDatabase();
       const clip = (s, n) =>
         typeof s === "string" ? (s.length > n ? s.slice(0, Math.max(0, n - 1)) + "…" : s) : (s ?? null);
+      // One catalog merge + one job list for the whole projection: this route
+      // walks every member of every fleet (the cell reporter samples it on a
+      // timer), so a per-member merge dominated its cost.
+      const resolveMember = rosterResolver();
+      const jobs = cron.listJobs();
+      const model = modelCtx();
       const fleets = db
         .listFleets({ ownerEmail: user.email })
         .slice(0, 50)
         .map((fleet) => {
           db.expireOpenDecisions(fleet.id);
-          const tasks = taskIndexFor(fleet.id);
+          const tasks = taskIndexFor(fleet.id, jobs);
           const members = db.listMembers(fleet.id).map((m) =>
-            memberView(db, fleet, m, tasks, { resolver: targetResolver, model: modelCtx() }),
+            memberView(db, fleet, m, tasks, { resolver: resolveMember, model }),
           );
           const counts = { onDuty: 0, paused: 0, missing: 0, vacant: 0, passive: 0, failing: 0 };
           for (const v of members) {
@@ -1071,10 +1098,16 @@ export function createFleetRoutes(app, ctx = null) {
       const user = resolveUser(req);
       if (!user) return res.status(401).json({ error: "Authentication required" });
       const db = getFleetDatabase();
+      // One catalog merge + one job list for the whole board (same roster
+      // shape as the list route — this face walks every member too).
+      const resolveMember = rosterResolver();
+      const jobs = cron.listJobs();
+      const model = modelCtx();
       const fleets = db.listFleets({ ownerEmail: user.email }).map((fleet) => {
         db.expireOpenDecisions(fleet.id);
+        const tasks = taskIndexFor(fleet.id, jobs);
         const members = db.listMembers(fleet.id).map((m) =>
-          memberView(db, fleet, m, taskIndexFor(fleet.id), { resolver: targetResolver, model: modelCtx() }),
+          memberView(db, fleet, m, tasks, { resolver: resolveMember, model }),
         );
         const counts = { onDuty: 0, paused: 0, missing: 0, vacant: 0, passive: 0, failing: 0 };
         for (const v of members) {
@@ -1224,8 +1257,11 @@ export function createFleetRoutes(app, ctx = null) {
       if (!owned) return;
       const db = getFleetDatabase();
       db.expireOpenDecisions(owned.fleet.id);
+      const resolveMember = rosterResolver();
+      const tasks = taskIndexFor(owned.fleet.id);
+      const model = modelCtx();
       const members = db.listMembers(owned.fleet.id).map((m) =>
-        memberView(db, owned.fleet, m, taskIndexFor(owned.fleet.id), { resolver: targetResolver, model: modelCtx() }),
+        memberView(db, owned.fleet, m, tasks, { resolver: resolveMember, model }),
       );
       const statusCounts = {};
       for (const v of members) statusCounts[v.status] = (statusCounts[v.status] ?? 0) + 1;
@@ -1717,14 +1753,23 @@ export function createFleetRoutes(app, ctx = null) {
       const user = resolveUser(req);
       if (!user) return res.status(401).json({ error: "Authentication required" });
       const db = getFleetDatabase();
+      // One request, one snapshot of everything the roster read touches:
+      // the catalog (merged once — see rosterResolver), the cron job list, and
+      // the model roster. Previously each of the 60 members re-merged the
+      // catalog and re-listed every cron job, so one roster read blocked the
+      // cell's event loop for ~2.8s — long enough to delay the chat WebSocket
+      // handshake that carries the transcript.
+      const resolveMember = rosterResolver();
+      const jobs = cron.listJobs();
+      const model = modelCtx();
       const fleets = db
         .listFleets({ ownerEmail: user.email })
         .map((fleet) => {
           const members = db.listMembers(fleet.id);
-          const tasks = taskIndexFor(fleet.id);
+          const tasks = taskIndexFor(fleet.id, jobs);
           const counts = {};
           for (const m of members) {
-            const view = memberView(db, fleet, m, tasks, { resolver: targetResolver, model: modelCtx() });
+            const view = memberView(db, fleet, m, tasks, { resolver: resolveMember, model });
             counts[view.status] = (counts[view.status] ?? 0) + 1;
           }
           return {
@@ -1733,6 +1778,11 @@ export function createFleetRoutes(app, ctx = null) {
             state: fleet.state,
             memberCount: members.length,
             statusCounts: counts,
+            // The pending-decision count the nav badge reads (add-fleet-decision-lane
+            // 刀3): the badge is derived from this list, so the number has to
+            // ride here — a badge computed from a field the list never carried
+            // is a badge that can never appear.
+            openDecisions: db.countOpenDecisions(fleet.id),
             createdAt: fleet.createdAt,
             updatedAt: fleet.updatedAt,
           };
@@ -1771,7 +1821,9 @@ export function createFleetRoutes(app, ctx = null) {
       const db = getFleetDatabase();
       const members = db.listMembers(owned.fleet.id);
       const tasks = taskIndexFor(owned.fleet.id);
-      const views = members.map((m) => memberView(db, owned.fleet, m, tasks, { resolver: targetResolver, model: modelCtx() }));
+      const resolveMember = rosterResolver();
+      const model = modelCtx();
+      const views = members.map((m) => memberView(db, owned.fleet, m, tasks, { resolver: resolveMember, model }));
       const statusCounts = {};
       for (const v of views) statusCounts[v.status] = (statusCounts[v.status] ?? 0) + 1;
       db.expireOpenDecisions(owned.fleet.id);

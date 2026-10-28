@@ -18,6 +18,7 @@
 import { Router } from "express";
 import { getFleetDatabase } from "./routes/fleets-db.js";
 import { resolveFleetTarget } from "./routes/fleets.js";
+import * as catalog from "../catalog.js";
 import { reconcileFleet, cronPeriodMs } from "./fleet-reconcile.js";
 import { splitToolTarget } from "./tool-turn.js";
 import { rosterPresetId } from "../dsh-profile.js";
@@ -563,8 +564,15 @@ export function registerFleetArchitectRoutes(ctx) {
     if (!email) throw new Error("no cell owner on this context");
     return email;
   };
-  const resolver = ctx?.fleetTargetResolver ?? resolveFleetTarget;
-
+  // One catalog snapshot per request. The draft/apply paths resolve one
+  // target per member, and resolving against the live catalog re-merges it
+  // per member (~30ms each) — a per-request view keeps one merge and puts
+  // every post of that request on the same snapshot.
+  const requestResolver = () => {
+    if (ctx?.fleetTargetResolver) return ctx.fleetTargetResolver;
+    const view = catalog.mergedView();
+    return (member) => resolveFleetTarget(member, view);
+  };
   // Read: the owner's fleet roster (counts + failing, no credentials).
   router.get("/fleets", (_req, res) => {
     try {
@@ -653,7 +661,7 @@ export function registerFleetArchitectRoutes(ctx) {
   // Draft: dry-run — validate + diff + estimate, nothing persisted.
   router.post("/draft", (req, res) => {
     try {
-      res.json(validateFleetDraft(getFleetDatabase(), req.body, { resolver }));
+      res.json(validateFleetDraft(getFleetDatabase(), req.body, { resolver: requestResolver() }));
     } catch (err) {
       console.error("[fleet-architect] draft error:", err.message);
       res.status(500).json({ error: err.message || "internal error" });
@@ -663,7 +671,7 @@ export function registerFleetArchitectRoutes(ctx) {
   // Apply: revalidate first — drift fails honestly.
   router.post("/apply", async (req, res) => {
     try {
-      const out = await applyFleetDraft(getFleetDatabase(), req.body, { ownerEmail: ownerEmail(), resolver });
+      const out = await applyFleetDraft(getFleetDatabase(), req.body, { ownerEmail: ownerEmail(), resolver: requestResolver() });
       if (!out.ok) return res.status(409).json(out);
       res.json(out);
     } catch (err) {

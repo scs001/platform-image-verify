@@ -126,9 +126,27 @@ async function discoverCellPort() {
         conn.write(`${JSON.stringify({ id: "probe", op, protocolVersion: Number(doc.protocolVersion) || 1, params })}\n`);
       });
     });
-  const status = await request("status").catch(() => null);
-  const servers = Array.isArray(status?.servers) ? status.servers : [];
-  const cell = servers.find((s) => s?.id === "server-js" || s?.name === "Platform backend") ?? servers[0];
+  const pick = (status) => {
+    const servers = Array.isArray(status?.servers) ? status.servers : [];
+    const cell = servers.find((s) => s?.id === "server-js" || s?.name === "Platform backend") ?? servers[0];
+    return cell ?? null;
+  };
+
+  let cell = pick(await request("status").catch(() => null));
+  // A resident cell may legitimately be DARK: the residency policy can be
+  // `on_demand` (or `manual`), in which case nothing runs until someone asks.
+  // The desktop app does exactly that when it attaches — start the stack, then
+  // use it. The probe must do the same, or it would call a sleeping machine
+  // broken.
+  if (!cell || Number(cell.port) <= 0 || ["stopped", "failed"].includes(String(cell.state))) {
+    await request("start").catch(() => null);
+    const deadline = Date.now() + 60_000;
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 2000));
+      cell = pick(await request("status").catch(() => null));
+      if (cell && Number(cell.port) > 0) break;
+    }
+  }
   return Number(cell?.port) > 0 ? Number(cell.port) : null;
 }
 

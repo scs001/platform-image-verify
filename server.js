@@ -137,7 +137,22 @@ const app = express();
 const server = http.createServer(app);
 // noServer + manual handleUpgrade so WS upgrades pass the same forward-auth
 // gate as HTTP requests (missing identity ⇒ handshake rejected with 401).
-const wss = new WebSocketServer({ noServer: true });
+//
+// permessage-deflate: the transcript first frame is a JSON blob dominated by
+// collapsed tool payloads (a 50-turn window measured 1.0–1.35 MB, of which
+// 99.2% is `blocks` the UI renders folded). Compression is negotiated by the
+// browser natively and relayed opaquely by the gateway's byte pipe, so the
+// payload shrinks on the wire with no protocol or client change. The
+// threshold skips small frames (no zlib context is created for them);
+// no-context-takeover bounds per-connection memory.
+const wss = new WebSocketServer({
+  noServer: true,
+  perMessageDeflate: {
+    threshold: 1024,
+    clientNoContextTakeover: true,
+    serverNoContextTakeover: true,
+  },
+});
 
 // Shared application context: config + services + agent-session state.
 // Every handler below reads/writes through ctx (see server/context.js).

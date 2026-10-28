@@ -39,6 +39,15 @@ let lastSignature = null;
 let timer = null;
 let broadcastFn = null;
 let changeFn = null;
+// Merge counter: the merge re-reads the registry, the installed-pack manifests
+// and the user presets, so "how many merges did that request cost" is the
+// number that decides whether a read face blocks the event loop. The roster
+// test pins it; ops can read it too.
+let mergedCalls = 0;
+
+export function catalogMergeCount() {
+  return mergedCalls;
+}
 
 // The last-good cloud document, durably. "Cloud outage never empties the
 // catalog" must survive a process restart too: a cell that boots while
@@ -273,6 +282,7 @@ function customPresetDoc() {
 }
 
 function merged() {
+  mergedCalls += 1;
   const byId = new Map();
   const registryDoc = validateDoc(
     { agents: getAgentEntries(), apps: [] },
@@ -385,6 +395,30 @@ export function listAgents() {
 
 export function getChatAgentEntries() {
   return merged().agents.filter((a) => a.type === "agent-remote" && a.mode === "chat");
+}
+
+// One merged catalog, read once and reused. `merged()` re-reads the registry
+// snapshot, the installed packs and the user presets, so a caller that
+// resolved one target per member paid that read PER MEMBER: a 60-post fleet
+// roster cost ~1.8s of blocked event loop — long enough to delay every
+// other request in the cell, including the chat WebSocket handshake that
+// carries the transcript (measured: same transcript switch, 1.2s idle vs
+// 3.9s while the roster read was in flight). A view snapshots ONE merge and
+// answers the same two lookups, so a roster costs one merge per request.
+export function mergedView() {
+  const cat = merged();
+  const byId = new Map(cat.agents.map((a) => [a.id, a]));
+  return {
+    chatAgentEntries: cat.agents.filter((a) => a.type === "agent-remote" && a.mode === "chat"),
+    agentEntry(id) {
+      const e = byId.get(id) || null;
+      if (!e) return null;
+      if (e.type === "agent-remote" && e.mode === "chat") {
+        return { ...e, apiKey: e.apiKey || (e.apiKeyEnv ? process.env[e.apiKeyEnv] : undefined) };
+      }
+      return e;
+    },
+  };
 }
 
 export function getAppEntry(id) {

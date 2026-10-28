@@ -15,6 +15,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 
 const {
+  FLEET_DETAIL_NOTICE_TEXT,
   STEWARD_CONSENT_TEXT,
   stewardEntryPath,
   buildLaunchAgentPlist,
@@ -30,6 +31,20 @@ test("consent text names all three facts", () => {
   assert.match(STEWARD_CONSENT_TEXT, /常驻后台服务/);
   assert.match(STEWARD_CONSENT_TEXT, /开机自启动/);
   assert.match(STEWARD_CONSENT_TEXT, /配对.*上报心跳|心跳/);
+});
+
+// add-unified-fleet-console: the consent copy and the gateway's cell_detail
+// whitelist must not drift — the copy names every metadata lane the door
+// accepts (heartbeats / counts / run detail with deployment identity, source,
+// merge outcome). A new whitelisted field requires a copy edit to pass this.
+test("consent text enumerates the cell_detail metadata lanes", () => {
+  assert.match(STEWARD_CONSENT_TEXT, /运行状态/);
+  assert.match(STEWARD_CONSENT_TEXT, /包名\/名称\/版本\/启用状态|包名/);
+  assert.match(STEWARD_CONSENT_TEXT, /运行时组占用/);
+  assert.match(STEWARD_CONSENT_TEXT, /期望态合并结果/);
+  assert.match(STEWARD_CONSENT_TEXT, /绝不含会话/);
+  assert.match(FLEET_DETAIL_NOTICE_TEXT, /运行明细/);
+  assert.match(FLEET_DETAIL_NOTICE_TEXT, /本机手动操作永远优先/);
 });
 
 test("launch agent: per-user, zero-admin, bundled node + stable entry path", () => {

@@ -42,18 +42,23 @@ function requireDb() {
 
 // ── Deployment rows ─────────────────────────────────────────────────────────
 
+// source (add-unified-fleet-console): 'manual' = established by a user action
+// on this machine (wins over the cloud desired set, forever, until the row is
+// removed); 'cloud' = applied by the desired-state merge and still following
+// the cloud's expectation. v108 defaults existing rows to 'manual' — the only
+// source that existed before the merge.
 export function listDeployments() {
   if (!isDbReady()) return [];
   return getDb()
     .prepare(
       `SELECT agent_path AS agentPath, pack_id AS packId, agent_id AS agentId,
-              enabled, config_overrides AS configOverrides,
+              enabled, config_overrides AS configOverrides, source,
               created_at AS createdAt, updated_at AS updatedAt
          FROM local_fleet_deployments
         ORDER BY created_at ASC`,
     )
     .all()
-    .map((r) => ({ ...r, enabled: r.enabled !== 0 }));
+    .map((r) => ({ ...r, enabled: r.enabled !== 0, source: r.source === "cloud" ? "cloud" : "manual" }));
 }
 
 export function getDeployment(agentPath) {
@@ -61,12 +66,12 @@ export function getDeployment(agentPath) {
   const row = getDb()
     .prepare(
       `SELECT agent_path AS agentPath, pack_id AS packId, agent_id AS agentId,
-              enabled, config_overrides AS configOverrides,
+              enabled, config_overrides AS configOverrides, source,
               created_at AS createdAt, updated_at AS updatedAt
          FROM local_fleet_deployments WHERE agent_path = ?`,
     )
     .get(String(agentPath ?? ""));
-  return row ? { ...row, enabled: row.enabled !== 0 } : null;
+  return row ? { ...row, enabled: row.enabled !== 0, source: row.source === "cloud" ? "cloud" : "manual" } : null;
 }
 
 // The runner's capacity unit is the CHILD PROCESS, not the deployment row
@@ -89,7 +94,7 @@ function groupKeyOf(packId, agentPath, podMode) {
   return podMode ? `pack:${packId}` : `agent:${agentPath}`;
 }
 
-function agentPathFor(packId, agentId) {
+export function agentPathFor(packId, agentId) {
   // Same convention the cloud deploy path writes (unique across deployments).
   return `packs/${packId}/${agentId}`;
 }
@@ -115,13 +120,19 @@ function resolveDeployable({ packId, agentId }) {
 // The target seat is the local one by construction (the route refuses any
 // other runner before calling here), so no seat parameter is needed: entries
 // are tagged at COMPOSE time with the env's seat id.
-export function deployLocalAgent({ packId, agentId, externalRunnerId = null }) {
+// `source: "cloud"` is reserved for the desired-state merge (it deploys or
+// reconciles WITHOUT touching the row's source). Any caller that omits it is
+// a user action: a UI deploy of an existing cloud row ADOPTS it — source
+// flips to 'manual' and the cloud expectation stops steering this entry
+// (local-manual-wins, spec cell-lifecycle delta).
+export function deployLocalAgent({ packId, agentId, externalRunnerId = null, source = null }) {
   if (externalRunnerId) {
     // v1 serves exactly this seat. A caller naming another runner is a
     // mistake (or a forged write): refuse rather than mint a local entry the
     // mesh would mis-route.
     return { error: { status: 400, code: "external_runner_unsupported", message: "the local control plane only deploys to this machine's seat" } };
   }
+  const mergeMode = source === "cloud";
   const db = requireDb();
   const resolved = resolveDeployable({ packId, agentId });
   if (resolved.error) return resolved;
@@ -135,7 +146,12 @@ export function deployLocalAgent({ packId, agentId, externalRunnerId = null }) {
       db.prepare("UPDATE local_fleet_deployments SET enabled = 1, updated_at = ? WHERE agent_path = ?")
         .run(nowIso(), agentPath);
     }
-    return { deployment: { ...existing, enabled: true }, reused: true };
+    if (!mergeMode && existing.source === "cloud") {
+      // Adoption: the user re-deployed by hand — the cloud no longer steers it.
+      db.prepare("UPDATE local_fleet_deployments SET source = 'manual', updated_at = ? WHERE agent_path = ?")
+        .run(nowIso(), agentPath);
+    }
+    return { deployment: getDeployment(agentPath), reused: true };
   }
 
   const cap = capacityInfo();
@@ -160,13 +176,13 @@ export function deployLocalAgent({ packId, agentId, externalRunnerId = null }) {
 
   const ts = nowIso();
   db.prepare(
-    `INSERT INTO local_fleet_deployments (agent_path, pack_id, agent_id, enabled, created_at, updated_at)
-     VALUES (?, ?, ?, 1, ?, ?)`,
-  ).run(agentPath, packId, agentId, ts, ts);
+    `INSERT INTO local_fleet_deployments (agent_path, pack_id, agent_id, enabled, config_overrides, source, created_at, updated_at)
+     VALUES (?, ?, ?, 1, ?, ?, ?, ?)`,
+  ).run(agentPath, packId, agentId, null, mergeMode ? "cloud" : "manual", ts, ts);
   return { deployment: getDeployment(agentPath), reused: false };
 }
 
-export function setDeploymentEnabled(agentPath, enabled) {
+export function setDeploymentEnabled(agentPath, enabled, { source = null } = {}) {
   const db = requireDb();
   const existing = getDeployment(agentPath);
   if (!existing) {
@@ -192,8 +208,16 @@ export function setDeploymentEnabled(agentPath, enabled) {
       };
     }
   }
-  db.prepare("UPDATE local_fleet_deployments SET enabled = ?, updated_at = ? WHERE agent_path = ?")
-    .run(enabled ? 1 : 0, nowIso(), agentPath);
+  // User action (no explicit source) on a cloud row = adoption → 'manual'.
+  // The merge passes source:'cloud' and reconciles without flipping.
+  const adopt = source !== "cloud" && existing.source === "cloud";
+  if (adopt) {
+    db.prepare("UPDATE local_fleet_deployments SET enabled = ?, source = 'manual', updated_at = ? WHERE agent_path = ?")
+      .run(enabled ? 1 : 0, nowIso(), agentPath);
+  } else {
+    db.prepare("UPDATE local_fleet_deployments SET enabled = ?, updated_at = ? WHERE agent_path = ?")
+      .run(enabled ? 1 : 0, nowIso(), agentPath);
+  }
   return { deployment: getDeployment(agentPath) };
 }
 

@@ -26,7 +26,8 @@
     "fleet": "机群",
     "zhiyu": "智语",
     "memory": "记忆",
-    "blueprints": "蓝图构造间"
+    "blueprints": "蓝图构造间",
+    "machines": "机器"
   },
   "trace": {
     "title": "调用追踪",
@@ -2352,7 +2353,10 @@
       "deploy": "部署",
       "stop": "停用",
       "start": "启用",
-      "remove": "移除"
+      "remove": "移除",
+      "sourceCloud": "云期望",
+      "sourceManual": "本地手动",
+      "diverged": "背离"
     }
   },
   "roles": {
@@ -3157,6 +3161,67 @@
         "deployment": "部署默认",
         "fallback": "回落"
       }
+    }
+  },
+  "machines": {
+    "title": "机器",
+    "adminView": "管理员视角",
+    "empty": "还没有配对的机器——在桌面应用的偏好设置里用六位配对码完成配对后，机器会出现在这里。",
+    "rosterError": "名册暂不可达（未登录或服务未开启）",
+    "health": {
+      "online": "在线",
+      "silent": "沉默",
+      "neverReported": "未上报"
+    },
+    "alerts": {
+      "silent": "沉默超时",
+      "divergence": "期望与实况背离",
+      "crashLoop": "崩溃保护",
+      "pullFailures": "期望拉取连续失败",
+      "mergeRejects": "合并被拒",
+      "other": "异常"
+    },
+    "summary": {
+      "fleets": "舰队 {{n}}",
+      "members": "岗位 {{n}}",
+      "deployments": "部署 {{n}}"
+    },
+    "age": {
+      "seconds": "{{n}} 秒前",
+      "minutes": "{{n}} 分钟前",
+      "hours": "{{n}} 小时前"
+    },
+    "detailLoading": "加载中…",
+    "detail": {
+      "deployments": "部署条目",
+      "noDeployments": "本机尚无部署",
+      "agents": "Agent 运行状态",
+      "noAgents": "Runner 未运行",
+      "mergeRejects": "期望态合并被拒",
+      "neverReported": "该机器尚未上报过运行明细",
+      "fresh": "明细为最新",
+      "stale": "明细已陈旧",
+      "close": "关闭"
+    },
+    "source": {
+      "cloud": "云期望",
+      "manual": "本地手动"
+    },
+    "diverged": "背离",
+    "state": {
+      "enabled": "启用",
+      "disabled": "停用"
+    },
+    "desired": {
+      "title": "部署期望（云端）",
+      "hint": "修改只落云端期望集；机器按自身节拍拉取并收敛，本机手动操作永远优先。",
+      "empty": "尚无期望条目——可从下方部署条目加入。",
+      "enabled": "期望启用",
+      "disabled": "期望停用",
+      "enable": "改为启用",
+      "disable": "改为停用",
+      "remove": "移除期望",
+      "saveError": "保存失败，请重试"
     }
   }
 }

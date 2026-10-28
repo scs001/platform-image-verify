@@ -24,7 +24,9 @@ const sessionHelpers = { verifyEmbedToken };
 import { createCellRegistry, userIdFor } from "./spawner.js";
 import { createCellRegistryDb } from "./cell-registry.js";
 import { createDutyRing } from "./duty-ring.js";
-import { createCellReportDoor } from "./cell-report.js";
+import { createCellReportDoor, createDesiredFleetDoor } from "./cell-report.js";
+import { createFleetMachinesStore } from "./fleet-machines-store.js";
+import { registerFleetMachineRoutes } from "./fleet-machines-routes.js";
 import { rm } from "node:fs/promises";
 import { forwardedHeaders, machineHeaders, proxyHttp, proxyUpgrade } from "./proxy.js";
 import { createMpAuth } from "./mp-auth.js";
@@ -353,11 +355,25 @@ app.delete("/api/mp/bind", async (req, res) => {
 // take any resolveUser identity — a browser cookie OR an app Bearer token
 // (which carries the account email), so the app's Settings can list and
 // unbind its own device without a browser nearby.
-// Steward reporting door (add-cell-lifecycle 4.2): the steward-kind device
-// credential opens exactly this one door — a whitelisted shape unto the same
-// fleet ingest the gateway's own sampler relays into (degrade-open relay).
-const cellReportDoor = createCellReportDoor({ appAuth });
+// Steward reporting + desired-state doors (add-cell-lifecycle 4.2,
+// add-unified-fleet-console): the steward-kind device credential opens
+// exactly these two doors — the whitelisted reporting shapes (presence /
+// manifest relay onward; detail lands in the machines store only) and the
+// self-scoped desired-state pull. The machines store backs the web machines
+// console with the same JSON-file convention as mp-bindings.
+const fleetMachinesStore = createFleetMachinesStore({ file: path.join(DATA_ROOT, "fleet-machines.json") });
+await fleetMachinesStore.load();
+const cellReportDoor = createCellReportDoor({ appAuth, machines: fleetMachinesStore });
 app.post("/api/gateway/cell-report", express.json(), (req, res) => void cellReportDoor.handle(req, res));
+const desiredFleetDoor = createDesiredFleetDoor({ appAuth, machines: fleetMachinesStore });
+app.get("/api/gateway/desired-fleet", (req, res) => void desiredFleetDoor.handle(req, res));
+registerFleetMachineRoutes({
+  app,
+  appAuth,
+  machines: fleetMachinesStore,
+  callerEmail: (req) => resolveUser(req)?.email ?? null,
+  isAdmin: (req) => isAdminUser(resolveUser(req)),
+});
 
 app.post("/api/app/pair", express.json(), async (req, res) => {
   const r = await appAuth.pair(req.body ?? {});

@@ -26,7 +26,8 @@
     "fleet": "Runner クラスター",
     "zhiyu": "Zhiyu",
     "memory": "記憶",
-    "blueprints": "ブループリント工房"
+    "blueprints": "ブループリント工房",
+    "machines": "マシン"
   },
   "trace": {
     "title": "トレース",
@@ -2277,7 +2278,10 @@
       "deploy": "デプロイ",
       "stop": "停止",
       "start": "開始",
-      "remove": "削除"
+      "remove": "削除",
+      "sourceCloud": "クラウド期待",
+      "sourceManual": "ローカル手動",
+      "diverged": "不一致"
     }
   },
   "roles": {
@@ -3157,6 +3161,67 @@
         "deployment": "デプロイ既定",
         "fallback": "フォールバック"
       }
+    }
+  },
+  "machines": {
+    "title": "マシン",
+    "adminView": "管理者ビュー",
+    "empty": "ペアリング済みのマシンはまだありません。デスクトップアプリの設定で6桁のコードを入力すると表示されます。",
+    "rosterError": "ロスターを取得できません（未ログインまたはサービス無効）",
+    "health": {
+      "online": "オンライン",
+      "silent": "無応答",
+      "neverReported": "未報告"
+    },
+    "alerts": {
+      "silent": "無応答タイムアウト",
+      "divergence": "期待状態と実態の不一致",
+      "crashLoop": "クラッシュガード",
+      "pullFailures": "期待状態の取得に連続失敗",
+      "mergeRejects": "マージ拒否",
+      "other": "異常"
+    },
+    "summary": {
+      "fleets": "艦隊 {{n}}",
+      "members": "メンバー {{n}}",
+      "deployments": "デプロイ {{n}}"
+    },
+    "age": {
+      "seconds": "{{n}}秒前",
+      "minutes": "{{n}}分前",
+      "hours": "{{n}}時間前"
+    },
+    "detailLoading": "読み込み中…",
+    "detail": {
+      "deployments": "デプロイ",
+      "noDeployments": "このマシンにはデプロイがありません",
+      "agents": "エージェント状態",
+      "noAgents": "ランナーが未起動",
+      "mergeRejects": "マージ拒否",
+      "neverReported": "このマシンからはまだ詳細が報告されていません",
+      "fresh": "最新",
+      "stale": "古い情報",
+      "close": "閉じる"
+    },
+    "source": {
+      "cloud": "クラウド期待",
+      "manual": "ローカル手動"
+    },
+    "diverged": "不一致",
+    "state": {
+      "enabled": "有効",
+      "disabled": "停止"
+    },
+    "desired": {
+      "title": "デプロイ期待状態（クラウド）",
+      "hint": "変更はクラウドの期待セットにのみ反映されます。マシンは自分のペースで取得して収束し、ローカルの手動操作が常に優先されます。",
+      "empty": "期待エントリはまだありません。下のデプロイから追加できます。",
+      "enabled": "期待: 有効",
+      "disabled": "期待: 無効",
+      "enable": "有効にする",
+      "disable": "無効にする",
+      "remove": "削除",
+      "saveError": "保存に失敗しました。再試行してください"
     }
   }
 }

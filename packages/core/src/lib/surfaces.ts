@@ -51,6 +51,10 @@ export const NAV_SURFACES: RegistryEntry[] = [
   // clusters and a2a services. Plain web surface — no predicate (unlike the
   // desktop-only runner console `fleet`).
   { container: "nav", slug: "fleets", i18nKey: "nav.fleets", testId: "nav-fleets" },
+  // Machines console (add-unified-fleet-console): steward-paired machines
+  // with derived health + desired-state editing. Plain web surface — the
+  // roster is account-scoped; admins see every machine the store knows.
+  { container: "nav", slug: "machines", i18nKey: "nav.machines", testId: "nav-machines" },
   // 萬星·智语 (add-zhiyu-room): multi-human × multi-agent rooms. Web surface.
   { container: "nav", slug: "zhiyu", i18nKey: "nav.zhiyu", testId: "nav-zhiyu" },
   // 蓝图构造间 (add-blueprint-studio): the vertical-package authoring surface —

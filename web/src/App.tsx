@@ -39,6 +39,7 @@ const SharePage = lazy(() => import("@/pages/SharePage").then((m) => ({ default:
 const TasksPage = lazy(() => import("@/pages/TasksPage").then((m) => ({ default: m.TasksPage })));
 const FleetPage = lazy(() => import("@/pages/FleetPage").then((m) => ({ default: m.FleetPage })));
 const FleetsPage = lazy(() => import("@/pages/FleetsPage").then((m) => ({ default: m.FleetsPage })));
+const MachinesPage = lazy(() => import("@/pages/MachinesPage").then((m) => ({ default: m.MachinesPage })));
 const BlueprintStudioPage = lazy(() =>
   import("@/pages/BlueprintStudioPage").then((m) => ({ default: m.BlueprintStudioPage })),
 );
@@ -299,6 +300,11 @@ export default function App() {
                 (single-page merge, D6). */}
             <Route path="/fleets" element={<FleetsPage />} />
             <Route path="/fleets/:fleetId" element={<FleetsPage />} />
+
+            {/* Machines console (add-unified-fleet-console): steward-paired
+                machines, derived health, desired-state editing. Read-mostly:
+                edits land in the cloud desired set; machines pull and apply. */}
+            <Route path="/machines" element={<MachinesPage />} />
 
             {/* 蓝图构造间 (add-blueprint-studio): the vertical-package authoring
                 surface (blueprint → cluster template → market). */}

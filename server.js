@@ -48,6 +48,10 @@ import { attachWorkerPool } from "./server/worker-slots.js";
 import { attachMcBridge } from "./server/mc-bridge.js";
 import { registerMpRoutes } from "./server/routes/mp.js";
 import { registerAppRoutes } from "./server/routes/app.js";
+import { createCellReportDoor, createDesiredFleetDoor } from "./gateway/cell-report.js";
+import { createFleetMachinesStore } from "./gateway/fleet-machines-store.js";
+import { registerFleetMachineRoutes } from "./gateway/fleet-machines-routes.js";
+import { startDesiredMergeLoop } from "./server/fleet-desired-merge.js";
 import { registerRegistryRoutes } from "./server/routes/registry.js";
 import { registerConnectorRoutes } from "./server/routes/connector.js";
 import { registerFacetMarketRoutes } from "./server/routes/facet-market.js";
@@ -297,6 +301,10 @@ ctx.app.use(
 // here — and the local cluster is put back on its declared state (orphan
 // deployments pruned, the expectation re-derived) before the runner polls it.
 convergeLocalCluster({ env: ctx.env ?? process.env });
+// Desired-state merge + detail beacon (add-unified-fleet-console): the cell's
+// single-writer merge of the steward's desired beacon, plus the detail beacon
+// the steward relays as cell_detail. Degrade-open; no-op without a data dir.
+startDesiredMergeLoop({ env: ctx.env ?? process.env });
 // Delegation REST bridge (loopback delegation MCP child; manual-trigger tasks).
 registerDelegationRoutes(ctx);
 registerFleetArchitectRoutes(ctx);
@@ -305,6 +313,29 @@ registerFleetArchitectRoutes(ctx);
 registerMpRoutes(ctx);
 // App device-pairing endpoints (pair / challenge / login / devices / revoke).
 registerAppRoutes(ctx);
+// Steward doors + machines console (add-unified-fleet-console): single-process
+// deployments mount the same shared doors the gateway serves — reporting
+// (presence/manifest/detail) and the self-scoped desired-state pull — plus the
+// web machines routes. The store rides the same JSON-file convention as
+// mp-bindings.json in this deployment's data dir.
+{
+  ctx.fleetMachinesStore = createFleetMachinesStore({ file: path.join(storeDir("data"), "fleet-machines.json") });
+  await ctx.fleetMachinesStore.load();
+  const cellReportDoor = createCellReportDoor({ appAuth: ctx.appAuth, machines: ctx.fleetMachinesStore });
+  app.post("/api/gateway/cell-report", (req, res) => void cellReportDoor.handle(req, res));
+  const desiredFleetDoor = createDesiredFleetDoor({ appAuth: ctx.appAuth, machines: ctx.fleetMachinesStore });
+  app.get("/api/gateway/desired-fleet", (req, res) => void desiredFleetDoor.handle(req, res));
+  registerFleetMachineRoutes({
+    app,
+    appAuth: ctx.appAuth,
+    machines: ctx.fleetMachinesStore,
+    callerEmail: (req) =>
+      req.user?.email ??
+      ctx.appAuth.accountFromToken(String(req.headers.authorization || "").startsWith("Bearer ") ? req.headers.authorization.slice(7) : "")?.email ??
+      null,
+    isAdmin: (req) => (ctx.isAdminUser ? ctx.isAdminUser(req.user ?? {}) : false),
+  });
+}
 registerRegistryRoutes(ctx);
 registerPackUsageRoutes(ctx);
 // 萬星 connector PAT (connector-credentials) — same route family as the

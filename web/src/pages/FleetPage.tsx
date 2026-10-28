@@ -48,6 +48,12 @@ interface Candidate {
   description: string | null;
   deployed: boolean;
   enabled: boolean;
+  // add-unified-fleet-console provenance: `source` is the deployment row's
+  // origin (null when not deployed); `desiredEnabled` is the cloud desired
+  // state — null when the machine is unpaired or the uplink is off, which is
+  // exactly when NO provenance badge may render (spec delta).
+  source: "manual" | "cloud" | null;
+  desiredEnabled: boolean | null;
 }
 
 interface Capacity {
@@ -332,6 +338,20 @@ export function FleetPage() {
                         </span>
                       </div>
                       <p className="mt-1 truncate text-xs text-muted-foreground" title={c.path}>{c.packId} / {c.agentId}</p>
+                      {c.desiredEnabled !== null && (c.source !== null || c.desiredEnabled !== c.enabled) ? (
+                        <div className="mt-1 flex items-center gap-1.5" data-testid="fleet-candidate-provenance">
+                          {c.source !== null && (
+                            <span className={`rounded px-1.5 py-0.5 text-xs ${c.source === "cloud" ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground"}`}>
+                              {t(c.source === "cloud" ? "fleet.local.sourceCloud" : "fleet.local.sourceManual")}
+                            </span>
+                          )}
+                          {c.desiredEnabled !== c.enabled && (
+                            <span className="rounded bg-warning/15 px-1.5 py-0.5 text-xs text-warning" data-testid="fleet-candidate-diverged">
+                              {t("fleet.local.diverged")}
+                            </span>
+                          )}
+                        </div>
+                      ) : null}
                       {c.description ? <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{c.description}</p> : null}
                       {!c.deployed && atCapacity && (
                         // Visible guidance beats a hover-only title: the reason

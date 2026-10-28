@@ -343,13 +343,10 @@ if (catalog.status !== 200) {
       if (gone) ok("remove clears the deployment", agentPath);
       else bad("remove clears the deployment", `${agentPath} is still published`);
 
-      // Leave the machine as we found it: when the pack was OUR fixture, take
-      // it out again (an installed starter bundle stays — the user may want it).
-      if (importedPackId === "acceptance-fixture") {
-        const del = await fetch(`${BASE}/api/mypacks/${encodeURIComponent(importedPackId)}?force=1`, { method: "DELETE" });
-        if (del.ok) ok("fixture pack uninstalled", importedPackId);
-        else bad("fixture pack uninstall", `status ${del.status}`);
-      }
+      // Leave the machine as we found it — EXCEPT the acceptance fixture,
+      // which the desired-state leg below still needs as its deployable
+      // candidate (uninstalled there). An installed starter bundle stays.
+      void importedPackId;
     } else if (res.status === 409 && body.code === "capacity_exceeded") {
       ok("deploy refused with a structured capacity answer", `used ${body.used}/${body.cap}`);
     } else {
@@ -365,6 +362,103 @@ if (convergence.status === 200) {
   ok("convergence reports", `deployments=${cur.deployments} enabled=${cur.enabled} pruned=${cur.pruned}`);
 } else {
   bad("convergence", `status ${convergence.status}`);
+}
+
+// 5b. Desired-state beacon handshake (add-unified-fleet-console): stage the
+// beacon the steward would write after a cloud edit, wait for the cell's
+// merge beat, and prove the three core rules end-to-end on a real cell —
+// cloud-desired lands tagged `cloud`, a user stop ADOPTS the row (local
+// wins, the cloud cannot resurrect it), and the detail beacon the steward
+// relays carries the merge outcome.
+const desiredFile = `${DATA_DIR}/fleet-desired.json`;
+const detailFile = `${DATA_DIR}/fleet-detail.json`;
+let desiredTarget = null; // set by the deploy leg below when it found one
+{
+  const target = catalog.status === 200 ? (catalog.body?.candidates ?? []).find((c) => c.packId === importedPackId) ?? (catalog.body?.candidates ?? [])[0] : null;
+  if (target) desiredTarget = { packId: target.packId, agentId: target.agentId };
+}
+
+async function waitForMergeBeat(prevVersion, timeoutMs = 90_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const doc = JSON.parse(await (await import("node:fs")).promises.readFile(detailFile, "utf8"));
+      if (doc?.merge?.desiredVersionSeen === prevVersion) return doc;
+    } catch { /* not written yet */ }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+  return null;
+}
+
+if (!desiredTarget) {
+  notes.push("  · no deployable candidate — the desired-state beacon leg is skipped");
+} else {
+  const { packId, agentId } = desiredTarget;
+  const fsPromises = (await import("node:fs")).promises;
+  const path1 = `packs/${packId}/${agentId}`;
+
+  // (a) Cloud adds the entry → merge deploys it tagged `cloud`.
+  await fsPromises.writeFile(desiredFile, JSON.stringify({ version: 901, entries: [{ packId, agentId, enabled: true }], pulledAt: Date.now() }));
+  const beat1 = await waitForMergeBeat(901);
+  if (!beat1) {
+    bad("desired merge lands", `detail beacon never reported version 901 (90s)`);
+  } else {
+    const row = (await getJson("/api/wanxing/fleet/deployments")).body?.deployments?.find((d) => d.agentPath === path1);
+    if (row && row.enabled && row.source === "cloud") ok("cloud desired lands tagged cloud", `${path1} enabled by the merge`);
+    else bad("cloud desired lands", `row is ${JSON.stringify(row)}`);
+  }
+
+  // (b) User stops it → adoption flips source to manual; the cloud cannot
+  // resurrect it even though the desired set still says enabled.
+  await fetch(`${BASE}/api/wanxing/fleet/deployments/stop`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ agentPath: path1 }),
+  });
+  await fsPromises.writeFile(desiredFile, JSON.stringify({ version: 902, entries: [{ packId, agentId, enabled: true }], pulledAt: Date.now() }));
+  const beat2 = await waitForMergeBeat(902);
+  if (!beat2) {
+    bad("local manual wins", `detail beacon never reported version 902 (90s)`);
+  } else {
+    const row = (await getJson("/api/wanxing/fleet/deployments")).body?.deployments?.find((d) => d.agentPath === path1);
+    if (row && !row.enabled && row.source === "manual") ok("local manual wins over the cloud desired set", `${path1} stays stopped after v902`);
+    else bad("local manual wins", `row is ${JSON.stringify(row)}`);
+  }
+
+  // (c) The detail beacon (what the steward relays as cell_detail) carries
+  // the deployments with their source and the merge outcome.
+  try {
+    const detail = JSON.parse(await fsPromises.readFile(detailFile, "utf8"));
+    const carried = (detail.deployments ?? []).some((d) => d.agentPath === path1 && d.source === "manual");
+    const merged = detail.merge?.desiredVersionSeen === 902;
+    if (carried && merged) ok("detail beacon carries source + merge outcome", `v902, ${detail.deployments?.length ?? 0} deployment(s)`);
+    else bad("detail beacon carries source + merge outcome", JSON.stringify(detail).slice(0, 200));
+  } catch (e) {
+    bad("detail beacon", e?.message || String(e));
+  }
+
+  // Cleanup: withdraw the expectation (cloud remove) and leave no beacon.
+  await fsPromises.writeFile(desiredFile, JSON.stringify({ version: 903, entries: [], pulledAt: Date.now() }));
+  await waitForMergeBeat(903);
+  await fsPromises.rm(desiredFile, { force: true });
+  const row = (await getJson("/api/wanxing/fleet/deployments")).body?.deployments?.find((d) => d.agentPath === path1);
+  if (!row) ok("withdrawn desired removes the cloud row", path1);
+  else {
+    // An adopted (manual) row survives withdrawal by design — remove it by hand.
+    await fetch(`${BASE}/api/wanxing/fleet/deployments/remove`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ agentPath: path1 }),
+    });
+    ok("adopted manual row survives withdrawal (removed by hand)", path1);
+  }
+
+  // Now the machine is quiet again: take our acceptance fixture out.
+  if (importedPackId === "acceptance-fixture") {
+    const del = await fetch(`${BASE}/api/mypacks/${encodeURIComponent(importedPackId)}?force=1`, { method: "DELETE" });
+    if (del.ok) ok("fixture pack uninstalled", importedPackId);
+    else bad("fixture pack uninstall", `status ${del.status}`);
+  }
 }
 
 // 6. The local runner — only when the fleet plugin is on. When it is up, the

@@ -12,11 +12,30 @@
 import os from "node:os";
 import path from "node:path";
 
+// Consent names the three facts (spec: resident service, launch-at-login, and
+// — once paired — the three metadata lanes it may report). add-unified-fleet-
+// console expanded lane ③ to name every cell_detail field individually: the
+// whitelist text and the actual whitelist must not drift.
 export const STEWARD_CONSENT_TEXT =
   "安装后台管家将开启三件事：\n" +
   "1. 一个常驻后台服务（退出应用后，舰队与定时任务继续运行）；\n" +
   "2. 开机自启动（登录本机后自动拉起，不需要管理员权限）；\n" +
-  "3. 若之后完成配对，将向平台上报心跳（在线状态与需求计数，绝不含会话内容）。";
+  "3. 若之后完成配对，将向平台上报三类纯元数据（绝不含会话、提示词或工具内容）：\n" +
+  "   · 心跳——在线状态、系统形态、应用版本；\n" +
+  "   · 需求计数——舰队数、岗位数、启用任务数与名称标签；\n" +
+  "   · 运行明细——机上 agent 的运行状态、部署条目的包名/名称/版本/启用状态、\n" +
+  "     运行时组占用、期望态合并结果与拒绝原因。配对后平台可下发本机的部署期望，\n" +
+  "     由本机收敛执行（本机手动操作永远优先）。";
+
+// Already-paired installs learned about the 运行明细 lane after the fact:
+// the preferences page shows this notice once on the first launch after the
+// update (design D7) — informational, not a gate, because every listed field
+// is still content-free metadata inside the consented trust boundary.
+export const FLEET_DETAIL_NOTICE_TEXT =
+  "本次更新后，配对设备将额外上报「运行明细」纯元数据：机上 agent 的运行状态、部署条目的" +
+  "包名/名称/版本/启用状态、运行时组占用、期望态合并结果与拒绝原因；同时平台可为这台机器" +
+  "下发部署期望（由本机收敛执行，本机手动操作永远优先）。绝不上报会话、提示词或工具内容。" +
+  "如不希望上报，可解除配对或关闭后台管家。";
 
 export function stewardEntryPath({ isPackaged, resourcesDir = process.resourcesPath, projectRoot }) {
   return isPackaged

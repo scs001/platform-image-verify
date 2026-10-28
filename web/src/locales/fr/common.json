@@ -26,7 +26,8 @@
     "fleet": "Cluster de runners",
     "zhiyu": "Zhiyu",
     "memory": "Mémoire",
-    "blueprints": "Studio de plans"
+    "blueprints": "Studio de plans",
+    "machines": "Machines"
   },
   "trace": {
     "title": "Traçage",
@@ -2277,7 +2278,10 @@
       "deploy": "Déployer",
       "stop": "Arrêter",
       "start": "Démarrer",
-      "remove": "Retirer"
+      "remove": "Retirer",
+      "sourceCloud": "Souhaité (cloud)",
+      "sourceManual": "Manuel local",
+      "diverged": "Divergence"
     }
   },
   "roles": {
@@ -3157,6 +3161,67 @@
         "deployment": "valeur par défaut",
         "fallback": "repli"
       }
+    }
+  },
+  "machines": {
+    "title": "Machines",
+    "adminView": "Vue administrateur",
+    "empty": "Aucune machine appairée pour l'instant — appairez une application de bureau avec un code à six chiffres dans ses préférences.",
+    "rosterError": "Annuaire indisponible (non connecté ou service désactivé)",
+    "health": {
+      "online": "En ligne",
+      "silent": "Silencieuse",
+      "neverReported": "Jamais signalée"
+    },
+    "alerts": {
+      "silent": "Silence prolongé",
+      "divergence": "L'état souhaité diverge du réel",
+      "crashLoop": "Garde anti-crash",
+      "pullFailures": "Échecs répétés de récupération",
+      "mergeRejects": "Fusion refusée",
+      "other": "Anormale"
+    },
+    "summary": {
+      "fleets": "{{n}} flottes",
+      "members": "{{n}} membres",
+      "deployments": "{{n}} déploiements"
+    },
+    "age": {
+      "seconds": "il y a {{n}} s",
+      "minutes": "il y a {{n}} min",
+      "hours": "il y a {{n}} h"
+    },
+    "detailLoading": "Chargement…",
+    "detail": {
+      "deployments": "Déploiements",
+      "noDeployments": "Aucun déploiement sur cette machine",
+      "agents": "État des agents",
+      "noAgents": "Runner inactif",
+      "mergeRejects": "Fusions refusées",
+      "neverReported": "Cette machine n'a jamais signalé de détails",
+      "fresh": "Détails à jour",
+      "stale": "Détails obsolètes",
+      "close": "Fermer"
+    },
+    "source": {
+      "cloud": "Souhaité (cloud)",
+      "manual": "Manuel local"
+    },
+    "diverged": "Divergence",
+    "state": {
+      "enabled": "Actif",
+      "disabled": "Arrêté"
+    },
+    "desired": {
+      "title": "Ensemble souhaité (cloud)",
+      "hint": "Les modifications ne touchent que l'ensemble souhaité côté cloud ; la machine le récupère et converge à son rythme. Le manuel local gagne toujours.",
+      "empty": "Aucune entrée souhaitée — ajoutez-en une depuis les déploiements ci-dessous.",
+      "enabled": "Souhaité : actif",
+      "disabled": "Souhaité : inactif",
+      "enable": "Activer",
+      "disable": "Désactiver",
+      "remove": "Retirer",
+      "saveError": "Échec de l'enregistrement — réessayez"
     }
   }
 }

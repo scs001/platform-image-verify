@@ -26,7 +26,8 @@
     "fleet": "Runner Cluster",
     "zhiyu": "Zhiyu",
     "memory": "Memory",
-    "blueprints": "Blueprint Studio"
+    "blueprints": "Blueprint Studio",
+    "machines": "Machines"
   },
   "trace": {
     "title": "Trace",
@@ -2352,7 +2353,10 @@
       "deploy": "Deploy",
       "stop": "Stop",
       "start": "Start",
-      "remove": "Remove"
+      "remove": "Remove",
+      "sourceCloud": "Cloud desired",
+      "sourceManual": "Local manual",
+      "diverged": "Diverged"
     }
   },
   "roles": {
@@ -3157,6 +3161,67 @@
         "deployment": "deployment default",
         "fallback": "fallback"
       }
+    }
+  },
+  "machines": {
+    "title": "Machines",
+    "adminView": "Admin view",
+    "empty": "No paired machines yet — pair a desktop app with a six-digit code in its preferences and it will appear here.",
+    "rosterError": "Roster unavailable (not signed in, or the service is off)",
+    "health": {
+      "online": "Online",
+      "silent": "Silent",
+      "neverReported": "Never reported"
+    },
+    "alerts": {
+      "silent": "Silence timeout",
+      "divergence": "Desired diverges from actual",
+      "crashLoop": "Crash guard",
+      "pullFailures": "Desired pulls failing",
+      "mergeRejects": "Merge rejected",
+      "other": "Unhealthy"
+    },
+    "summary": {
+      "fleets": "{{n}} fleets",
+      "members": "{{n}} members",
+      "deployments": "{{n}} deployments"
+    },
+    "age": {
+      "seconds": "{{n}}s ago",
+      "minutes": "{{n}}m ago",
+      "hours": "{{n}}h ago"
+    },
+    "detailLoading": "Loading…",
+    "detail": {
+      "deployments": "Deployments",
+      "noDeployments": "No deployments on this machine",
+      "agents": "Agent states",
+      "noAgents": "Runner not running",
+      "mergeRejects": "Merge rejections",
+      "neverReported": "This machine has never reported detail",
+      "fresh": "Detail is fresh",
+      "stale": "Detail is stale",
+      "close": "Close"
+    },
+    "source": {
+      "cloud": "Cloud desired",
+      "manual": "Local manual"
+    },
+    "diverged": "Diverged",
+    "state": {
+      "enabled": "Enabled",
+      "disabled": "Stopped"
+    },
+    "desired": {
+      "title": "Deployment desired set (cloud)",
+      "hint": "Edits land in the cloud desired set only; the machine pulls and converges on its own beat. Local manual actions always win.",
+      "empty": "No desired entries yet — add one from the deployments below.",
+      "enabled": "Desired on",
+      "disabled": "Desired off",
+      "enable": "Enable",
+      "disable": "Disable",
+      "remove": "Remove",
+      "saveError": "Save failed — try again"
     }
   }
 }

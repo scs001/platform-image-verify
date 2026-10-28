@@ -121,6 +121,10 @@ export function createMpBindings({ file }) {
           deviceId: key.slice(APP_KEY_PREFIX.length),
           label: value.label ?? "",
           boundAt: value.boundAt,
+          // add-unified-fleet-console: the machines roster filters steward
+          // pairings; absent kind on historical rows means the original
+          // "app" kind, matching app-auth's default at pair time.
+          kind: value.kind ?? "app",
         }))
         .sort((a, b) => b.boundAt - a.boundAt),
     issueBindCode,

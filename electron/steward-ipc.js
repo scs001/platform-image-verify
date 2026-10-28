@@ -12,6 +12,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import {
+  FLEET_DETAIL_NOTICE_TEXT,
   STEWARD_CONSENT_TEXT,
   installPlan,
   uninstallPlan,
@@ -26,7 +27,12 @@ import { createCrashGuard } from "../supervisor/steward-health.js";
 const execFileP = promisify(execFile);
 
 export function registerStewardIpc({ dataDir, nodeBin, projectRoot, isPackaged }) {
-  ipcMain.handle("steward:consent", () => ({ consentText: STEWARD_CONSENT_TEXT }));
+  ipcMain.handle("steward:consent", () => ({
+    consentText: STEWARD_CONSENT_TEXT,
+    // add-unified-fleet-console D7: already-paired installs learn about the
+    // 运行明细 lane via a one-time preferences notice (informational).
+    fleetDetailNoticeText: FLEET_DETAIL_NOTICE_TEXT,
+  }));
 
   // Crash-loop history (add-desktop-residency-hardening 2.x): the same guard
   // the resident entry uses, read from the data root — the UI never guesses.

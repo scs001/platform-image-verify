@@ -26,7 +26,8 @@
     "fleet": "Clúster de runners",
     "zhiyu": "Zhiyu",
     "memory": "Memoria",
-    "blueprints": "Estudio de planos"
+    "blueprints": "Estudio de planos",
+    "machines": "Máquinas"
   },
   "trace": {
     "title": "Traza",
@@ -2277,7 +2278,10 @@
       "deploy": "Desplegar",
       "stop": "Detener",
       "start": "Iniciar",
-      "remove": "Eliminar"
+      "remove": "Eliminar",
+      "sourceCloud": "Deseado en la nube",
+      "sourceManual": "Manual local",
+      "diverged": "Divergencia"
     }
   },
   "roles": {
@@ -3157,6 +3161,67 @@
         "deployment": "valor por defecto",
         "fallback": "reserva"
       }
+    }
+  },
+  "machines": {
+    "title": "Máquinas",
+    "adminView": "Vista de administrador",
+    "empty": "Aún no hay máquinas emparejadas: empareja una app de escritorio con un código de seis dígitos en sus preferencias y aparecerá aquí.",
+    "rosterError": "Lista no disponible (sesión no iniciada o servicio desactivado)",
+    "health": {
+      "online": "En línea",
+      "silent": "Silenciosa",
+      "neverReported": "Sin informes"
+    },
+    "alerts": {
+      "silent": "Silencio prolongado",
+      "divergence": "Lo deseado diverge de lo real",
+      "crashLoop": "Protección contra fallos",
+      "pullFailures": "Fallos al obtener lo deseado",
+      "mergeRejects": "Fusión rechazada",
+      "other": "Anómala"
+    },
+    "summary": {
+      "fleets": "{{n}} flotas",
+      "members": "{{n}} miembros",
+      "deployments": "{{n}} despliegues"
+    },
+    "age": {
+      "seconds": "hace {{n}} s",
+      "minutes": "hace {{n}} min",
+      "hours": "hace {{n}} h"
+    },
+    "detailLoading": "Cargando…",
+    "detail": {
+      "deployments": "Despliegues",
+      "noDeployments": "Esta máquina no tiene despliegues",
+      "agents": "Estado de agentes",
+      "noAgents": "Runner no activo",
+      "mergeRejects": "Fusiones rechazadas",
+      "neverReported": "Esta máquina nunca ha informado detalles",
+      "fresh": "Detalle reciente",
+      "stale": "Detalle obsoleto",
+      "close": "Cerrar"
+    },
+    "source": {
+      "cloud": "Deseado en la nube",
+      "manual": "Manual local"
+    },
+    "diverged": "Divergencia",
+    "state": {
+      "enabled": "Activo",
+      "disabled": "Detenido"
+    },
+    "desired": {
+      "title": "Conjunto deseado (nube)",
+      "hint": "Los cambios solo se guardan en la nube; la máquina los descarga y converge a su ritmo. Lo manual local siempre gana.",
+      "empty": "Aún no hay entradas deseadas: añade una desde los despliegues de abajo.",
+      "enabled": "Deseado: activo",
+      "disabled": "Deseado: inactivo",
+      "enable": "Activar",
+      "disable": "Desactivar",
+      "remove": "Quitar",
+      "saveError": "Error al guardar; reintenta"
     }
   }
 }

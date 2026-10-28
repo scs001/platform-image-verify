@@ -918,6 +918,19 @@ const MIGRATIONS = [
       `ALTER TABLE installed_packs ADD COLUMN source TEXT NOT NULL DEFAULT 'market'`,
     ],
   },
+  {
+    // add-unified-fleet-console: a deployment row remembers WHO established it
+    // — 'manual' (user action on this machine, wins over cloud desired state)
+    // or 'cloud' (applied by the desired-state merge, keeps following the
+    // cloud's desired set until a manual action adopts it). Historical rows
+    // default to 'manual' — the only source that existed before the merge —
+    // so no backfill pass is needed and old readers that ignore the column
+    // are unaffected (same convention as installed_packs.source v107).
+    version: 108,
+    statements: [
+      `ALTER TABLE local_fleet_deployments ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'`,
+    ],
+  },
 ];
 
 function nowIso() {

@@ -22,6 +22,7 @@ import path from "node:path";
 import { atomicWriteJsonSync } from "../../lib/persistence.js";
 import { listInstalledPacks } from "../../db.js";
 import { listServingAgents } from "../../lib/agent-serving.js";
+import { readDesiredBeacon } from "../fleet-desired-merge.js";
 import {
   composeLocalEntries,
   convergeLocalCluster,
@@ -82,10 +83,20 @@ export function registerWanxingFleetRoutes(ctx) {
     if (source !== "registry") {
       // Local roster: what is deployed here + what COULD be deployed from the
       // already-installed packs (the write face's candidate list). Registry
-      // metadata internals never reach the renderer.
+      // metadata internals never reach the renderer. add-unified-fleet-
+      // console: each candidate also carries its row's `source` and the
+      // cloud-desired state when the machine is paired+pulling (the desired
+      // beacon is null otherwise) — the page renders provenance and the
+      // desired-vs-actual divergence marker from these two fields.
       const deployed = composeLocalEntries({ runnerId: seatId() });
-      const deployedByPath = new Set(listDeployments().filter((d) => d.enabled).map((d) => d.agentPath));
-      const deployedAll = new Set(listDeployments().map((d) => d.agentPath));
+      const deploymentRows = listDeployments();
+      const deployedByPath = new Set(deploymentRows.filter((d) => d.enabled).map((d) => d.agentPath));
+      const deployedAll = new Set(deploymentRows.map((d) => d.agentPath));
+      const rowByPath = new Map(deploymentRows.map((d) => [d.agentPath, d]));
+      const desiredBeacon = readDesiredBeacon(env);
+      const desiredByPath = new Map(
+        (desiredBeacon?.entries ?? []).map((e) => [`packs/${e.packId}/${e.agentId}`, e.enabled !== false]),
+      );
       const candidates = [];
       for (const pack of listInstalledPacks()) {
         for (const agent of listServingAgents(pack.manifest)) {
@@ -98,6 +109,8 @@ export function registerWanxingFleetRoutes(ctx) {
             description: agent.serving?.card?.description ?? null,
             deployed: deployedAll.has(agentPath),
             enabled: deployedByPath.has(agentPath),
+            source: rowByPath.get(agentPath)?.source ?? null,
+            desiredEnabled: desiredByPath.has(agentPath) ? desiredByPath.get(agentPath) : null,
           });
         }
       }

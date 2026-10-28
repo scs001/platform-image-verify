@@ -182,6 +182,19 @@ async function refreshStewardPanel() {
   if (!window.platform.getStewardConsent) return;
   const consent = await window.platform.getStewardConsent();
   stewardConsentEl.textContent = consent.consentText;
+  // add-unified-fleet-console D7: already-paired installs see the 运行明细
+  // lane notice once on the first launch after the update (informational —
+  // every listed field is still content-free metadata).
+  const noticeEl = document.getElementById('fleetDetailNotice');
+  if (noticeEl && consent.fleetDetailNoticeText) {
+    const paired = currentSettings.AGENT_RUNNER_FLEET_TOKEN_SET || currentSettings.AGENT_RUNNER_FLEET_TOKEN;
+    const flagKey = 'fleetDetailNoticeSeen.v1';
+    if (paired && !localStorage.getItem(flagKey)) {
+      noticeEl.textContent = consent.fleetDetailNoticeText;
+      noticeEl.style.display = '';
+      localStorage.setItem(flagKey, '1');
+    }
+  }
   const st = await window.platform.getStewardStatus();
   const crash = st.crash || {};
   if (st.state === 'healthy' || st.running) {

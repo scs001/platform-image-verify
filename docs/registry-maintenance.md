@@ -3595,3 +3595,23 @@ change 3 的真机睡眠/唤醒一幕。
 1. **runner 端口单源**（`944ed1d2`）：`AGENT_RUNNER_PORT` 与 cell live 代理的 `:8790` 默认是两处需人肉同步的值——测试台改 8792 当场撞出假 `runner_not_running`。改为 descriptor 派生注入 `WANXING_RUNNER_URL`，三态测试（跟随/回落/不注入）。
 2. **SETTING_KEYS 三份漂移收敛**（`151b4a93`）：electron resolveEnv / steward readSettingsEnv / local-services 各持一份且已互异（launcher 缺全部桌面键、steward 缺 launcher extras）——收敛为 `lib/settings-keys.js` 单源（union），守卫测试扫全仓**拒绝第二份定义**、三消费方必须 import。
 3. **release-sync 缓存尺寸硬门**（`d7fae79b`）：上架时 900s 超时把 dmg 截成 96MB 残件，`existsSync` 判据会把残件 **rsync 上官网**（本次手工删残件躲过）。改 `cacheState` 三态（absent/ok/truncated）+ 下载后复检，truncated 拒发；四例单测含现场形态。
+
+#### §15.79 补记 — 遗留项处理（2026-10-28 晚）
+
+**跨仓对账（真缺口，已修）**：finddata `fleet-packs/blueprints/schema.md` v1 与本仓落地形状**字段名系统性不同**——`vertical{name,tagline,non_goals}` / `sources[]{registryName,purpose,allowTools}` / `boards[]` 对应本仓 `boundary` / `dataSources[]{ref,note}` / `board`。按他们 schema 写的蓝图此前粘进构造间会**静默变空壳**。修=读入侧单向归一化 `normalizeIncomingContent`（POST/PUT 都走），本仓键不动（已上产契约）。生产实证：finddata 原始 `cross-border-ecom-policy/blueprint.json` 直接 POST → 201，边界/一句话/不做什么/数据源全部正态落地。
+
+**断言段进校验链（真缺口，已修）**：断言 kind 此前只在试跑执行器里校验，`/validate` 完全不管——作者看不到「不支持」直到试跑。修=`normalizeAcceptance` 移入 `blueprint-validate.js` 并挂进 `validateBlueprint` 错误链（shape→acceptance→fleet→manifest→toolFace→toolClosure）。生产实证：finddata 蓝图校验 `ok:false`，fleet/manifest 段**零错误**（格式完全兼容），四条自由文本断言逐条指名 `unsupported assertion kind 'free-text'` 并列出支持闭集。
+
+**试跑舰命名（D8 缺口，已修）**：约定 `${场景}·试跑` 此前未落——生产试跑建出的舰与正式集群同名（`fleet_1793191666163_2v8iws` 名为「政策盯梢集群」）。修=`ensureTrialFleetName`（建舰改名一次、dedup 复用不叠加、舰不存在静默跳过）。
+
+**补删除能力（产品缺口，已修）**：构造间只能建不能删。补 `DELETE /api/blueprints/:id`——owner 作用域；**已铸造的拒删**（409 携 castPackId，市场里的包才是账，删蓝图会留孤儿包）；只删从未铸造的草稿/已批准稿。UI 加删除按钮（铸造后置灰给理由）。
+
+**生产残留清理**：
+- 删 2 条测试蓝图（`bp_1793213721893_qamop3` 跨仓探针草稿、`bp_1793189883663_ye81dp` 首次铸造失败的已批准稿）→ 200
+- 已铸造的实证蓝图 `bp_1793191639268_dxi7sx`（cast v2，试跑 green）**保留**作复跑锚，删除请求正确拒 409
+- 试跑舰 `fleet_1793191666163_2v8iws` 归档（200，cron 随 reconcile 撤）
+- 两条探针包（`3wZGhtEU…`、`TfptBrLm…`）置 private；市场无删除路由（版本不可变的既有设计），保持不可见即可
+
+**滚版**：`sha-20ac541`（跨仓兼容+断言进链+试跑舰命名）→ `sha-0ba1be9`（补删除），GitOps 滚 platform+agent-runner-serving，ArgoCD Synced|Healthy。
+
+**仍待立项**：LLM 判断言（自由文本断言的机器判据）——它破坏「断言全绿才可售」的确定性，须单独立项；届时 finddata 四条 free-text 断言才可机械判绿。

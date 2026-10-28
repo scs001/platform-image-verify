@@ -267,6 +267,26 @@ jobs:
           if (-not $app) { throw "installed Platform.exe not found" }
           "APP_EXE=$($app.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+      - name: Seed settings (fleet plugin on + local feed token)
+        shell: pwsh
+        run: |
+          # The resident steward reads settings.json at ITS start (launchd/
+          # schtasks give it a bare env), so the seam must exist BEFORE the
+          # boot — otherwise the cell and the runner it spawns would see an
+          # empty feed bearer and no plugin switch. The app's first-run later
+          # merges without overwriting these keys.
+          $data = Join-Path $env:APPDATA 'platform'
+          New-Item -ItemType Directory -Force -Path $data | Out-Null
+          $token = -join (1..48 | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) })
+          $doc = [ordered]@{
+            WANXING_PLUGIN_ENABLED = '1'
+            WANXING_PLUGIN_RUNNER_ID = 'desktop-ciwin01'
+            WANXING_LOCAL_FEED_TOKEN = $token
+            AGENT_RUNNER_PORT = '8790'
+          }
+          $doc | ConvertTo-Json | Set-Content -Path (Join-Path $data 'settings.json') -Encoding utf8
+          Write-Host "settings seeded (plugin on, feed token minted)"
+
       - name: Boot steward directly and wait for discovery
         shell: pwsh
         run: |
@@ -376,6 +396,23 @@ jobs:
           & $env:STEWARD_NODE "$env:TEMP\steward-status.mjs"
           if ($LASTEXITCODE -ne 0) { throw "resident stack not healthy after UI exit" }
 
+      - name: Local cluster is runnable AND manageable (write-face probe)
+        shell: pwsh
+        run: |
+          # The batch's promise, asserted against THIS installed app: the local
+          # roster feed answers with its own bearer, the write face deploys /
+          # stops / starts / removes an agent, the feed publishes exactly the
+          # deployed entries, and the convergence report answers. The probe
+          # is platform-neutral (scripts/desktop-local-cluster-probe.mjs) — the
+          # leg only locates the app and the data root.
+          $appRoot = Join-Path (Split-Path $env:APP_EXE) 'resources\app'
+          $probe = Join-Path $appRoot 'electron\local-cluster-probe.mjs'
+          if (-not (Test-Path $probe)) { throw "probe missing from the installed app: $probe" }
+          $env:PLATFORM_DATA_DIR = $env:STEWARD_DATA
+          $env:PLATFORM_RESOURCES_DIR = Join-Path (Split-Path $env:APP_EXE) 'resources'
+          & $env:STEWARD_NODE $probe
+          if ($LASTEXITCODE -ne 0) { throw "local cluster probe failed (the desktop cannot run/manage a cluster locally)" }
+
       - name: Stale discovery falls back to embedded (never a second stack)
         shell: pwsh
         run: |
@@ -396,23 +433,6 @@ jobs:
           Get-Process -Name 'Platform' -ErrorAction SilentlyContinue | Stop-Process -Force
           if (-not $fellBack) { throw "stale steward.json did not fall back to embedded" }
           if (Test-Path $json) { throw "stale steward.json was not cleaned up" }
-
-      - name: Local cluster is runnable AND manageable (write-face probe)
-        shell: pwsh
-        run: |
-          # The batch's promise, asserted against THIS installed app: the local
-          # roster feed answers with its own bearer, the write face deploys /
-          # stops / starts / removes an agent, the feed publishes exactly the
-          # deployed entries, and the convergence report answers. The probe
-          # is platform-neutral (scripts/desktop-local-cluster-probe.mjs) — the
-          # leg only locates the app and the data root.
-          $appRoot = Join-Path (Split-Path $env:APP_EXE) 'resources\app'
-          $probe = Join-Path $appRoot 'electron\local-cluster-probe.mjs'
-          if (-not (Test-Path $probe)) { throw "probe missing from the installed app: $probe" }
-          $env:PLATFORM_DATA_DIR = $env:STEWARD_DATA
-          $env:PLATFORM_RESOURCES_DIR = Join-Path (Split-Path $env:APP_EXE) 'resources'
-          & $env:STEWARD_NODE $probe
-          if ($LASTEXITCODE -ne 0) { throw "local cluster probe failed (the desktop cannot run/manage a cluster locally)" }
 
       - name: Uninstall drains the resident steward and leaves the machine clean
         shell: pwsh
@@ -553,6 +573,14 @@ jobs:
           export DATA="$RUNNER_TEMP/steward-data"
           export PLATFORM_DATA_DIR="$DATA"
           export PLATFORM_RESOURCES_DIR="$APP/Contents/Resources"
+          mkdir -p "$DATA"
+          # Seed the seam BEFORE the boot: the resident steward reads
+          # settings.json at start (launchd gives it a bare env), so the plugin
+          # switch and the feed bearer must be on disk first.
+          TOKEN=$(od -An -tx1 -N24 /dev/urandom | tr -d ' \n')
+          cat > "$DATA/settings.json" <<JSON
+          {"WANXING_PLUGIN_ENABLED":"1","WANXING_PLUGIN_RUNNER_ID":"desktop-cimac01","WANXING_LOCAL_FEED_TOKEN":"$TOKEN","AGENT_RUNNER_PORT":"8790"}
+          JSON
           PLATFORM_DATA_DIR="$DATA" "$BUNDLE_NODE" "$APP/Contents/Resources/app/supervisor/steward-main.js" > "$RUNNER_TEMP/steward-probe.log" 2>&1 &
           for i in $(seq 1 60); do [ -f "$DATA/steward.json" ] && break; sleep 2; done
           test -f "$DATA/steward.json"

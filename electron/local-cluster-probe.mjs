@@ -197,9 +197,39 @@ if (presets.status !== 200) {
   }
 }
 
-// 3. Import a starter bundle (or any pack we can install) → source=bundle.
+// 3. Supply: import a starter bundle when the installer ships one; otherwise
+// build a minimal ACCEPTANCE FIXTURE pack here and import it through the very
+// same endpoint. Either way the probe exercises the offline path and ends up
+// with a deployable candidate — a CI machine starts with no packs at all, and
+// skipping the deploy half would leave the batch's promise unasserted.
 let importedPackId = null;
 const bundles = presets.body?.bundles ?? [];
+if (bundles.length === 0) {
+  try {
+    const { buildBundle, toBase64 } = await import("../server/offline-bundle.js");
+    const fixture = {
+      name: "Acceptance Fixture",
+      description: "Local-cluster acceptance fixture (installed and removed by the probe)",
+      skills: [{ name: "acceptance-fixture-skill", description: "fixture", content: "# fixture\n" }],
+      agents: [{ id: "acceptance-worker", name: "Acceptance Worker", persona: "fixture", serving: { protocol: "a2a" } }],
+    };
+    const bytes = await buildBundle({ packId: "acceptance-fixture", version: 1, manifest: fixture, origin: "acceptance-probe" });
+    const res = await fetch(`${BASE}/api/mypacks/import-bundle`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ bundle: toBase64(bytes), confirm: true }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (res.status === 200) {
+      ok("fixture pack imports through the offline path", `${body.bundle?.packId} v${body.bundle?.version}`);
+      importedPackId = body.bundle?.packId ?? "acceptance-fixture";
+    } else {
+      bad("fixture pack import", `status ${res.status} ${JSON.stringify(body).slice(0, 160)}`);
+    }
+  } catch (e) {
+    bad("fixture pack import", `the probe could not build/import its fixture: ${e?.message || e}`);
+  }
+}
 if (bundles.length > 0) {
   const res = await fetch(`${BASE}/api/wanxing/fleet/presets/import`, {
     method: "POST",
@@ -294,6 +324,14 @@ if (catalog.status !== 200) {
       const gone = !(afterRemove.body?.agents ?? []).some((a) => a.path === agentPath);
       if (gone) ok("remove clears the deployment", agentPath);
       else bad("remove clears the deployment", `${agentPath} is still published`);
+
+      // Leave the machine as we found it: when the pack was OUR fixture, take
+      // it out again (an installed starter bundle stays — the user may want it).
+      if (importedPackId === "acceptance-fixture") {
+        const del = await fetch(`${BASE}/api/mypacks/${encodeURIComponent(importedPackId)}?force=1`, { method: "DELETE" });
+        if (del.ok) ok("fixture pack uninstalled", importedPackId);
+        else bad("fixture pack uninstall", `status ${del.status}`);
+      }
     } else if (res.status === 409 && body.code === "capacity_exceeded") {
       ok("deploy refused with a structured capacity answer", `used ${body.used}/${body.cap}`);
     } else {

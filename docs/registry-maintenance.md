@@ -3861,3 +3861,54 @@ turn=cron-job_1792719144227_3lpcem#r1793228411907-2   （23:00:18 CEO）
 ```
 
 **跨线影响**：柏讯 `wire_action_propose` 的 `source_ref` 现可由身份行逐字复述完整三元组。两项待柏讯回执的补账（registry 快照重烘焙 / `tool_risk` 标签契约）见评审回复 §六。
+
+### §15.85 委托「勾了没到位」五处收口 + 常务岗提示词停摆（2026-10-29 深夜）
+
+用户追问「还有没有完成或者要优化的地方」，逐条核对 archived 的 add-deputy-decision-delegate，发现**五处 `[x]` 与实现不符**——全部是我自己勾的。
+
+**① `resolved_by_model` 恒空（真缺陷，最重）**
+规格「裁决携带身份与依据」明写要记录「deputy 裁决时所用模型」。裁决路由读 `req.body.model`，而 `decision_resolve` 工具**既没声明也没传**该参数——单测里手写 `model:` 就绿了，生产链路永远拿不到。真机数据 `resolved_by_model = NULL` 实证。
+修：新增 `ledger.observedModelFor(memberId)`，从**本回合子进程自己发出的 `request/header`** 取模型。不取请求体（代理自报不是证据）、不取声明的模型链（会 out-of-band 漂移，fix-fleet-model-drift 的同源教训），取不到就如实留空。
+
+**② `policy.model` 空转**
+全仓零消费者——存了、看得见、不影响任何行为。修：写策略时经 `applyDeputyModel` 落到常务岗岗位的 `model`（这才是解析链首跳 `fleetModelFor → resolveModelChain` 的输入）；声明清空即回继承，不留陈旧值。设岗两条路径（新建/指定）同挂。真机实证：`PUT model=deepseek-v4.1-flash` → 岗位行 `model` 从 NULL 变该值。
+
+**③ `policy.digest` 空转**
+规格要求「按策略频率汇总为摘要」，此前只有逐条裁决的即时镜像（那一半是真的）。新增 `server/fleet-delegation-digest.js`：**决定性渲染**（不经 LLM，摘要不会编造也不会因模型抖动变形）把窗口内裁决 + 跟踪中问题单（含最老未决多久，spec 明写）合成一页 reference，按 daily/weekly 排期，挂既有每小时 tick。空窗口不写空页；**记忆写不进去时不推进时点**（宁可迟到不可丢，下一 tick 重试）。
+
+**④ `executedAt` 服务端在吐、前端从不渲染**
+规格「管理面能回答批了没执行」——实际只能查库。修：已裁决且非 expired 的条目显示执行事实行（已执行=时刻／未执行=「批了未执行」）；裁决徽标同时显示所用模型。
+
+**⑤ 常务岗视图只显示 open**
+裁决后 `route` 仍是 `deputy`，所以已裁决项在 deputy 视图里凭空消失。修：deputy 视图请求 `state=all`，三态（裁决中/已裁决/跟踪中）都在，符合 spec。
+
+**真机再抓一个行为缺陷：常务岗读完队列后停摆**
+修完上面五处、滚上 `sha-4c06405` 后，真机新建一条 routine-ops 条目并触发巡逻。常务岗**成功读到队列**（桥面鉴权已通），随后把整轮 **8 分钟**花在 `grep` 工作区 / `memory_query` / `read` 里翻「判例」，同一句
+> The workspace contains weekly report docs (china-economy-2026.md, index.md, docs/index.md) that include charts (echarts). This confirms the precedent…
+
+重复三次，直到回合结束，**一条都没裁**（trace 实证：tool/call 序列只有 tool_search / memory_handoff_list / decision_queue / grep×2 / memory_query×2 / read，**零 decision_resolve**）。
+
+根因是提示词把「找判例」写成了前置条件——而队列每项**本来就带着**服务端给的 `precedents`（同类历史裁决连人带理由）。改三处：① 明写「每项已附判例，就地使用，不要为此另做检索」；② 明写「缺判例不是不裁的理由——按事实与策略自己裁，并在 evidence 里如实写明无同类判例与理由」（这一点它在旧提示词下**做到过**：上一轮的证据里就写着「主人过往判例中没有同类裁决」，值得固化）；③ 明写「一轮之内把队列处理完，每条要么裁要么上报，不要不了了之」。只影响新建/显式重设的岗位（提示词是岗位 cadence 的一部分，不静默改写既有岗位）。
+
+**同窗口的方法论**:「勾选」是自证，不是验收。这五处全部通过 19-24 条单测、也通过了上一轮的「API 级生产验证」——因为单测直接挂路由（绕过鉴权中间件）、API 验证走 owner cookie（走不到 MCP 子进程那条道）。**只有真机跑一轮代理回合才能看见**。这是本 change 第二次由真机（而非测试）抓出生产缺陷（第一次是桥面鉴权 401）。
+
+**测试**：test-fleet-delegation 24/24（新增 policy.model 落点 / 摘要渲染与频率门 / 记忆失败不推进时点 / 裁决模型来源校验含「自报值不得生效」反向断言）；fleet+auth 五套 74/74；typecheck 绿；locale 2398 keys 五语全绿。
+**已知既有红**：`test-fleet-runs` 的「seam: handoff → fanout three hops」120s 超时——**剥掉本次改动跑基线同样超时**，非本 change 引入。
+
+**真机复测（提示词修后，`sha-462899d`）**：存量常务岗的提示词用 `PATCH /:id/members/:mid` 升到新版（服务端 `resetPrompt` 通道随下一片出片），再触发一轮巡逻：
+
+| 断言 | 生产实测 |
+|---|---|
+| 读到队列 | ✓（桥面鉴权已通） |
+| 本回合裁决 | ✓ `state=approved / route=deputy / resolved_by=deputy` |
+| **裁决所用模型** | **✓ `resolved_by_model = deepseek-v4.1-flash`**（服务端从 request/header 取，非自报） |
+| 依据含判例引用 | ✓「Prior precedent: d_1793219379758_eh6yw0 …; owner 过往同类批准 3 次」——**它自己引用了上一轮的裁决当判例**，旧提示词下找了 8 分钟没找到，新提示词下就地引用 |
+| 决策不再停摆 | ✓ 单轮内完成裁决（上一轮 8 分钟零裁决） |
+| 角标口径 | ✓ API `openDecisions=40 / deputyOpen=0` |
+| 记忆镜像 | ✓ `default/references/r-deputy-ruling-d_17932284.md`（tier=draft，source_ref 指向真实条目） |
+| 执行事实 | ✓ API 暴露 `executedAt=null`（送达回合未发生，前端据此显示「批了未执行」） |
+
+**又一处缺口（随本班修）**：服务端改了 `DEPUTY_PROMPT` 后，**已建成的常务岗拿不到**——它的 `cadence.promptTemplate` 是建岗那一刻的副本，而「重新指定一次」在未显式传值时按 `member.cadence` 兜底，等于把旧值再抄一遍。修：指定路径支持 `resetPrompt:true` 升到当前版本；三级取值 = 显式值 > resetPrompt > 岗位既有值 > 当前版本（既有岗位仍不被静默改写，升级是显式动作）。**这是本 change 第三次由真机（而非测试）抓出的缺陷。**
+
+**方法论（本 change 三次实证）**：`[x]` 是自证不是验收。单测直接挂路由（绕过鉴权中间件）、API 走 owner cookie（走不到 MCP 子进程那条道）、而**代理的真实行为只能在真机跑一轮回合才看得见**——桥面鉴权 401、找判例停摆、提示词升不上去，三条无一能被当时那套「19 条全绿 + API 级生产验证」发现。
+

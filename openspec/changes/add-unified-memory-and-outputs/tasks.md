@@ -22,9 +22,9 @@
 
 ## 4. 萬星接入
 
-- [ ] 4.1 萬星 console 部署者记忆浏览入口（fleet/agent 直进 d/ 经 platform lane），筛选语义与壹座同族
-- [ ] 4.2 fleet deliverable 同款 tier/tags 镜像与徽章；打标与晋级复用同一 reference 页语义
-- [ ] 4.3 facade/智语回合同一 digest 读缝接线（游客不注入；登入主户同预算同降级）；真机顶走 logged-in 与 guest 两路验收
+- [x] 4.1 萬星 console 部署者记忆浏览入口（FleetsPage 成员行「记忆」抽屉 → /api/memory/deployer-entries，platform lane + rootKey d-<packId>，层筛选同族）
+- [x] 4.2 fleet deliverable → reference 镜像（拍板送达时落 draft 层名份，source_ref=deliverable:<fleet>:<member>:<decision>；徽章读同一 tier 语义）
+- [ ] 4.3 facade/智语回合同一 digest 读缝接线——**受阻于跨仓**：room 宿主不在本仓（本仓只有 zhiyu-im-bridge 与 paas 侧 /digest platform 车道）；能力已备（platform token + rootKey 可直接调 /digest），接线改动需在 zhiyu 服务仓落，待该仓开工时接
 
 ## 5. 文档与验收
 

@@ -2927,6 +2927,14 @@
       "unavailable": "This deployment has no memory service connected yet."
     },
     "openInLibrary": "Open in library",
-    "projects": "Projects"
+    "projects": "Projects",
+    "deployer": {
+      "open": "Memory",
+      "openHint": "View this post's memory",
+      "title": "Post memory (deployer view)",
+      "close": "Close",
+      "empty": "No memory distilled for this post yet.",
+      "noPack": "This fleet has no blueprint pack coordinate; cannot locate its memory root."
+    }
   }
 }

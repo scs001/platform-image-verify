@@ -2927,6 +2927,14 @@
       "unavailable": "Ce déploiement n'a pas encore de service de mémoire."
     },
     "openInLibrary": "Ouvrir dans la bibliothèque",
-    "projects": "Projets"
+    "projects": "Projets",
+    "deployer": {
+      "open": "Mémoire",
+      "openHint": "Voir la mémoire de ce poste",
+      "title": "Mémoire du poste (vue déployeur)",
+      "close": "Fermer",
+      "empty": "Pas encore de mémoire pour ce poste.",
+      "noPack": "Cette flotte n'a pas de coordonnée de pack."
+    }
   }
 }

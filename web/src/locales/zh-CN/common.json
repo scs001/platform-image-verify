@@ -2927,6 +2927,14 @@
       "unavailable": "此部署尚未接入记忆服务。"
     },
     "openInLibrary": "在成果中打开",
-    "projects": "项目"
+    "projects": "项目",
+    "deployer": {
+      "open": "记忆",
+      "openHint": "查看该岗位的记忆",
+      "title": "岗位记忆（部署者视角）",
+      "close": "关闭",
+      "empty": "该岗位还没有记忆沉淀。",
+      "noPack": "该舰队缺少蓝图包坐标，无法定位记忆根。"
+    }
   }
 }

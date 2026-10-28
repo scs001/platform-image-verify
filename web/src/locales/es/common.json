@@ -2927,6 +2927,14 @@
       "unavailable": "Esta instancia aún no tiene servicio de memoria."
     },
     "openInLibrary": "Abrir en la biblioteca",
-    "projects": "Proyectos"
+    "projects": "Proyectos",
+    "deployer": {
+      "open": "Memoria",
+      "openHint": "Ver la memoria de este puesto",
+      "title": "Memoria del puesto (vista del despliegue)",
+      "close": "Cerrar",
+      "empty": "Este puesto aún no tiene memoria.",
+      "noPack": "Esta flota no tiene coordenada de pack."
+    }
   }
 }

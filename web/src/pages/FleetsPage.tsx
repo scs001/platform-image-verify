@@ -165,6 +165,7 @@ const FleetConfigBar = lazy(() => import("@/components/fleet/FleetConfigBar").th
 // The inspector drawer (face 3) — member tabs + edge inspector.
 const MemberInspector = lazy(() => import("@/components/fleet/InspectorDrawer").then((m) => ({ default: m.MemberInspector })));
 const EdgeInspector = lazy(() => import("@/components/fleet/InspectorDrawer").then((m) => ({ default: m.EdgeInspector })));
+const FleetMemoryDrawer = lazy(() => import("@/components/fleet/MemoryDrawer").then((m) => ({ default: m.MemoryDrawer })));
 
 interface DecisionItem {
   id: string;
@@ -280,6 +281,8 @@ export function FleetsPage() {
   const [composerFor, setComposerFor] = useState<string | null>(null); // fleet id
   const [swapFor, setSwapFor] = useState<MemberView | null>(null);
   const [drawerFor, setDrawerFor] = useState<MemberView | null>(null);
+  // 萬星 console 部署者记忆浏览（add-unified-memory-and-outputs 4.1）
+  const [memoryFor, setMemoryFor] = useState<MemberView | null>(null);
   const [decisionsOpen, setDecisionsOpen] = useState(false);
   // Inspector drawer (v2 face 3): the one place for a post's detail + actions.
   const [inspectorFor, setInspectorFor] = useState<MemberView | null>(null);
@@ -1112,6 +1115,15 @@ export function FleetsPage() {
                         <button
                           type="button"
                           className="ml-auto rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted"
+                          data-testid={`member-memory-drawer-${member.id}`}
+                          onClick={() => setMemoryFor(member)}
+                          title={t("memory.deployer.openHint")}
+                        >
+                          {t("memory.deployer.open")}
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-md border border-border px-2 py-0.5 text-xs hover:bg-muted"
                           data-testid={`member-report-drawer-${member.id}`}
                           onClick={() => setDrawerFor(member)}
                         >
@@ -1232,6 +1244,15 @@ export function FleetsPage() {
             await refresh();
           }}
         />
+      ) : null}
+      {memoryFor ? (
+        <Suspense fallback={null}>
+          <FleetMemoryDrawer
+            agentId={memoryFor.target?.id ?? null}
+            packId={((detail?.fleet as unknown as { sourceTemplate?: { packId?: string } | null } | null)?.sourceTemplate?.packId) ?? null}
+            onClose={() => setMemoryFor(null)}
+          />
+        </Suspense>
       ) : null}
       {drawerFor ? (
         <ReportDrawer

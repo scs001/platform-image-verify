@@ -38,6 +38,7 @@ import {
   buildExecuteNowPrompt,
   OPEN_QUEUE_LIMIT,
 } from "../fleet-decisions.js";
+import { memoryRefClientFor, memoryRefSlug } from "../memory-refs.js";
 import * as engine from "../../task-engine.js";
 import { exportFleetToTemplate } from "../fleet-template.js";
 import { createConfigChangeProposal, runIterationCast, retryIterationCast } from "../fleet-iteration.js";
@@ -1582,6 +1583,25 @@ export function createFleetRoutes(app, ctx = null) {
         // honest refusal; delivery rides its next delegated turn instead.
         const task = taskIndexFor(fleet.id).get(item.memberId) ?? null;
         const deliverable = db.listDecisions({ fleetId: fleet.id, pendingDeliveryFor: item.memberId });
+        // 拍板送达即落记忆名份（add-unified-memory-and-outputs 4.2）：交付物是
+        // 「做过什么」的最强信号，进 owner 记忆的 reference 页（草稿层，fire-and-forget）。
+        {
+          const ownerEmail = fleet.ownerEmail ?? fleet.owner_email ?? null;
+          const seg = renderDecisionSegment(deliverable);
+          if (ownerEmail && seg) {
+            const cli = await memoryRefClientFor(process.env, ownerEmail).catch(() => null);
+            if (cli) {
+              const refId = `deliv-${fleet.id}-${item.memberId}-${item.id}`;
+              cli.writeReference({
+                title: `拍板送达 · ${member?.title ?? item.memberTitle ?? item.memberId}`,
+                summary: String(seg).replace(/\s+/g, " ").slice(0, 200),
+                source_ref: `deliverable:${fleet.id}:${item.memberId}:${item.id}`,
+                slug: memoryRefSlug(refId),
+                tier: "draft",
+              }).catch((e) => console.warn(`[fleet-memory] deliverable mirror failed (degrade open): ${e?.message || e}`));
+            }
+          }
+        }
         if (task) {
           const digest = renderDecisionSegment(deliverable);
           const base = task.prompt?.includes("{{fleetContext}}") && digest

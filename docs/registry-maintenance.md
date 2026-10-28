@@ -2968,3 +2968,24 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 - **分页回合**：点「加载更早的消息」→ 4 条补入（`article` 47→49），按钮消失（`hasMore=false`），与 in-pod drill（total=54 / window=50 / page=4）一致。
 
 **仍挂账**：② 重块会话首帧 3-7s 挂载（本次复现=reload 后按钮 4-8s 才稳定）——窗口 N 调参或 tool 产物块裁剪，待探针数据积累后定。
+
+**§15.70 续（2026-10-28 午后）——出片共六轮，每轮被镜像自己的门逮住一个真缺陷；终版滚产**
+
+| 轮 | 被逮住的真缺陷 | 修 |
+|---|---|---|
+| 1 | ENV/RUN 落 **builder** 阶段而 runtime 只 COPY 白名单 → 镜像无 lane（冒烟按「未声明缺席」正确 SKIP，看似绿） | 层入 runtime + `install-deps` |
+| 2 | `@playwright/mcp` 默认 **chrome 渠道**（找系统 /opt/google/chrome） | `--executable-path` 指向烘入 chromium |
+| 3 | 容器非 root → **Chromium sandboxing failed** | `--config` 传 `launchOptions.args=[--no-sandbox,--disable-dev-shm-usage]`（`BROWSER_SANDBOX=1` 留沙箱） |
+| 4 | 截图/快照落 `/tmp/.playwright-mcp`（工作区外）→ 资源钩 `invalid_path` | 平台在 patch 写入期注入 `BROWSER_OUTPUT_DIR`=会话工作区（`writeMcpPatch` 新 `workspace` 形参；三处调用点接线） |
+| 5 | `outputDir` 被放在 config 的 `browser.*` **错层** → 失效；修到生效后立刻暴露 **cwd 只读 /app** EACCES | 顶层 `outputDir`；撤 cwd 兜底 |
+| 6 | 启动期把 `bootWorkspace.path` 用在定义之前 → **boot ReferenceError** → 镜像门「agent liveness /api/ready」红 | 解析块上提至 patch 写入之前（单一来源） |
+| 7 | `browser_take_screenshot` 的文件名按 **CLI 进程 cwd** 解析（config.outputDir 只管自动快照/下载） | launcher 把 **cwd 一并钉**到输出目录（两通道同源） |
+
+| 终态项 | 值 |
+|---|---|
+| 生产镜像 | `ccr.../yizuo/platform:sha-c4d0ce9`（digest `831ae713`；paas 054dc944；2.47GB） |
+| 滚动 | fd-infra-deploy `12187b1`（platform×4）→ 双端 → ArgoCD → 四 deploy rollout 全绿，四处 image 字段同为 `sha-c4d0ce9` |
+| 六道门 | /api/config、/api/ready、dsh contracts 18 条、browser lane（**24 工具 + 真启 chromium + 2 件产物落 outputDir**）、module identity |
+| 真机眼见（agent 回合级） | 走查账号 cell（pack 聚焦「柏讯·产物构建/巡线岗」）内 agent 实调 `mcp__playwright__browser_navigate` → 标题 `Example Domain`；`browser_take_screenshot` 落 `/data/cells/<hash>/workspace/example_com_20261028.png`（71KB，node 属主）；**`invalid_path` 计数 0**；live patch 条目带 `BROWSER_OUTPUT_DIR: /data/cells/<hash>/workspace` |
+| env | `PACK_BASELINE_MCP=fleet,playwright`（platform×3 清单，用户 2026-10-28 明令 pack 人格也可浏览；websearch 保持 2026-10-14 的会话级单控不动） |
+| 待办 | per-cell 共享登录态复现/跨 cell 零泄漏（需第二个活 cell）；桌面 opt-in 复核 |

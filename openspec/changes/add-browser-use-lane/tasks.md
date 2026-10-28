@@ -15,7 +15,7 @@
 ## 3. 能力实证
 
 - [x] 3.1 供给/缺席/远程三形态的本地实证：供给门单测 5 形态 + 缺席形态真机 boot（`~/.dsh` profile 的 `mcp.patch.yml` 零 `mcp-playwright` 条目=工具面诚实缺席）；本地 `@playwright/mcp` 下 MCP 握手 + tools/list 24 工具真链
-- [x] 3.2 滚产实证（sha-bbf73ea，2026-10-28）：**部署 pod 内跑镜像自身冒烟绿**（24 工具 + 真 chromium 导航 about:blank ok）；in-pod env/`/opt/browser-mcp`（chromium-1243+headless-shell）齐；**欠**：agent 回合级眼见（「导航→读标题→截图」）——走查账号 cell 聚焦 pack persona，工具面被 pack 收窄（设计如此，见台账 §15.70 待办），需先决定 `PACK_BASELINE_MCP` 是否加 `playwright`；per-cell 共享/跨 cell 零泄漏待有第二个活 cell 时补
+- [x] 3.2 滚产实证（sha-c4d0ce9，2026-10-28）：**agent 回合级全链真机**——pack 聚焦 cell 内 agent 实调 `mcp__playwright__browser_navigate` 读得标题 `Example Domain`、`browser_take_screenshot` 产物落 `/data/cells/<hash>/workspace/example_com_20261028.png`（71KB）且资源钩 `invalid_path` 零；live patch 条目带 `BROWSER_OUTPUT_DIR=会话工作区`；`PACK_BASELINE_MCP=fleet,playwright` 已放行 pack 人格使用车道。**欠**：per-cell 共享登录态复现 + 跨 cell 零泄漏（需第二个活 cell）+ 桌面 opt-in 复核
 - [x] 3.3 per-cell 共享浏览器状态语义已入 spec（MCP sidecar 进程级共享=合同⑭既有事实的显性化；登录态跨会话留存=特性；跨 cell 隔离=结构保证）
 
 ## 4. 文档与收口

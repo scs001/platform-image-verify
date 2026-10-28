@@ -17,7 +17,7 @@
 import { parseFleetTemplate } from "./fleet-template.js";
 import { validatePackManifest } from "../lib/pack-manifest.js";
 import { toolFaceErrors, toolClosureErrors } from "../lib/publish-tool-gate.js";
-import { buildUserProviderEntries } from "../llm-providers.js";
+import { buildUserProviderEntries, getDefault } from "../llm-providers.js";
 
 // ── Shape gate: 凭据扫描（存储层与 validate 路由共用） ─────────────────────
 
@@ -100,14 +100,29 @@ export function shapeFindings(content) {
 export function judgeModelFindings(content) {
   const wanted = content?.judgeModel;
   if (typeof wanted !== "string" || !wanted.trim()) return [];
-  let models = null;
+  // 名册来源（2026-10-29 生产实证）：cell 进程有自己的 PLATFORM_DATA_DIR，
+  // 其 llm-providers.json 常为空（模型配置在网关/部署侧）→ 只读 cell 名册会把
+  // 「不在册」误判成「在册」。补两个来源：部署 env 的 BLUEPRINT_JUDGE_MODEL 与
+  // default 指针。三者全不可知才降级为不校验（存储问题不该阻塞全部批准）。
+  const known = new Set();
   try {
-    models = buildUserProviderEntries().models;
+    for (const m of buildUserProviderEntries().models ?? []) {
+      known.add(m.id);
+      if (m.name) known.add(m.name);
+    }
   } catch {
-    return [];
+    // ignore — 走下面的补充来源
   }
-  if (!Array.isArray(models) || models.length === 0) return [];
-  if (models.some((m) => m.id === wanted || m.name === wanted)) return [];
+  try {
+    const d = getDefault();
+    if (d?.modelId) known.add(d.modelId);
+  } catch {
+    // ignore
+  }
+  const deployed = (process.env.BLUEPRINT_JUDGE_MODEL || "").trim();
+  if (deployed) known.add(deployed);
+  if (known.size === 0) return [];
+  if (known.has(wanted)) return [];
   return [
     {
       error: `judgeModel '${wanted}' is not in this deployment's model roster — pick one on the model settings page, or clear the field to follow the deployment default`,

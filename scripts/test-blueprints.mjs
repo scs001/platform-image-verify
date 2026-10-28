@@ -709,3 +709,20 @@ test("评审模型选择：在册放行、不在册校验面指名、向后兼�
     await close(server);
   }
 });
+
+test("名册来源：cell 名册为空时回落 default 指针/部署 env，不静默放过", async () => {
+  const { judgeModelFindings } = await import("../server/blueprint-validate.js");
+  // 断言至少有一条路径认得部署 env 里的模型（生产 cell 名册常为空）。
+  const deployed = process.env.BLUEPRINT_JUDGE_MODEL;
+  const prev = deployed;
+  try {
+    process.env.BLUEPRINT_JUDGE_MODEL = "deployed-model-abc";
+    assert.equal(judgeModelFindings({ judgeModel: "deployed-model-abc" }).length, 0, "部署 env 的模型应视为在册");
+    assert.equal(judgeModelFindings({ judgeModel: "ghost-xyz-123" }).length, 1, "真不在册要报");
+  } finally {
+    if (prev === undefined) delete process.env.BLUEPRINT_JUDGE_MODEL;
+    else process.env.BLUEPRINT_JUDGE_MODEL = prev;
+  }
+  // 未声明 → 不校验（向后兼容）
+  assert.deepEqual(judgeModelFindings({}), []);
+});

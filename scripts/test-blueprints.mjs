@@ -57,7 +57,7 @@ const VALID_CONTENT = {
   board: { sections: ["daily"] },
 };
 
-function mount({ db, publishCalls = [], resolverResult = {} } = {}) {
+function mount({ db, publishCalls = [], resolverResult = {}, trialDeps = undefined } = {}) {
   const store = db ?? createBlueprintDatabase({ file: path.join(mkdtempSync(path.join(tmp, "db-")), "blueprints.db") });
   const app = express();
   app.use(express.json({ limit: "1mb" }));
@@ -75,7 +75,7 @@ function mount({ db, publishCalls = [], resolverResult = {} } = {}) {
   };
   const packResolver = async ({ refs }) =>
     Object.fromEntries(refs.filter((r) => resolverResult[r] !== null).map((r) => [r, resolverResult[r] ?? { packId: `pk_${r}`, name: r }]));
-  createBlueprintRoutes(app, { authEnabled: true }, { db: store, publishClient, packResolver });
+  createBlueprintRoutes(app, { authEnabled: true }, { db: store, publishClient, packResolver, trialDeps });
   const server = http.createServer(app);
   server.listen(0);
   return { server, store, publishCalls, base: `http://127.0.0.1:${server.address().port}` };
@@ -381,6 +381,53 @@ test("试跑报告位：铸造前拒落，铸造后落/读（Slice 3 执行器�
     assert.equal(saved.status, 200);
     const readBack = await fetch(`${base}/api/blueprints/${id}/trial-report`, as("alice@x")).then(j);
     assert.deepEqual(readBack.report, report);
+    assert.equal((await fetch(`${base}/api/blueprints/${id}/trial-report`, as("bob@x"))).status, 404);
+  } finally {
+    await close(server);
+  }
+});
+
+test("4.1 试跑闸：非铸造态 409；铸造后装一台跑一轮并落报告（注入执行器）", async () => {
+  const trialDeps = {
+    now: () => 1000,
+    fetchManifest: async () => ({ fleet: { name: "政策盯梢", members: [] } }),
+    install: async () => {},
+    provision: async () => ({ ok: true, fleetId: "fleet_trial_1" }),
+    startFleet: async () => {},
+    fireRound: async () => [{ jobId: "job_1", memberId: "m1", at: 1010 }],
+    collectAndWait: async ({ since }) => ({
+      members: [{ memberId: "m1", title: "简报岗", targetId: "brief-agent" }],
+      turns: [{ memberId: "m1", at: since + 1, jobId: "job_1", turnId: "turn_1" }],
+      reports: [{ memberId: "m1", reportId: "report_1", createdAt: since + 2, turnId: "turn_1" }],
+      escalations: 0,
+    }),
+  };
+  const { server, base } = mount({ trialDeps });
+  try {
+    const withGrammar = {
+      ...VALID_CONTENT,
+      acceptance: [{ id: "first-brief", kind: "report-landed", target: "简报岗" }],
+    };
+    const created = await fetch(`${base}/api/blueprints`, as("alice@x", { method: "POST", body: JSON.stringify({ content: withGrammar }) })).then(j);
+    const id = created.blueprint.id;
+
+    // 非铸造态：409（草稿阶段任何实体零副作用，试跑也不许开跑）。
+    assert.equal((await fetch(`${base}/api/blueprints/${id}/trial`, as("alice@x", { method: "POST" }))).status, 409);
+
+    await fetch(`${base}/api/blueprints/${id}/approve`, as("alice@x", { method: "POST", body: JSON.stringify({ expectVersion: 1 }) }));
+    await fetch(`${base}/api/blueprints/${id}/cast`, as("alice@x", { method: "POST" }));
+
+    const trial = await fetch(`${base}/api/blueprints/${id}/trial`, as("alice@x", { method: "POST" })).then(j);
+    assert.equal(trial.report.green, true);
+    assert.equal(trial.report.fleetId, "fleet_trial_1");
+    assert.deepEqual(trial.report.assertions[0].evidence.reportIds, ["report_1"]);
+
+    // 报告落账（既有存储位）并可读回。
+    const readBack = await fetch(`${base}/api/blueprints/${id}/trial-report`, as("alice@x")).then(j);
+    assert.equal(readBack.report.green, true);
+    assert.equal(readBack.report.fleetId, "fleet_trial_1");
+
+    // 他人读同一报告 404（owner 作用域）。
     assert.equal((await fetch(`${base}/api/blueprints/${id}/trial-report`, as("bob@x"))).status, 404);
   } finally {
     await close(server);

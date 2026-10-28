@@ -68,3 +68,17 @@ test("6.3 ③ 无第二调度器：三模块零 cron / 任务引擎 / reconcile 
     assert.equal(/cron\.schedule|engine\.enqueue|reconcileFleet\(/.test(src), false, `${rel} must not drive scheduling`);
   }
 });
+
+test("6.3 ④ 试跑执行器只点火不铸表：用既有 cron 作业，零建/改/删调度", () => {
+  const TRIAL = "server/blueprint-trial.js";
+  const src = code(TRIAL);
+  // 允许：点火既有作业（runJobNow）、既有 reconcile、既有装台/装作。
+  assert.match(src, /cron\.runJobNow\(/);
+  assert.match(src, /reconcileFleet\(/);
+  assert.match(src, /provisionFleetFromTemplate\(/);
+  assert.match(src, /installPack\(/);
+  // 禁止：自建/自改/自删调度，或直连任务引擎入队。
+  assert.equal(/cron\.(addJob|updateJob|removeJob)\(/.test(src), false);
+  assert.equal(/from ".*task-engine/.test(src), false);
+  assert.equal(/engine\.enqueue|enqueueExecution\(/.test(src), false);
+});

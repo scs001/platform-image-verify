@@ -71,6 +71,20 @@ spec「校验链含 allowTools ⊆ 商业集」与指引「勿复制发布门闸
 
 Slice 1（任务 1.1-1.3 + 3.1-3.3 服务端脊柱）先行——挂载窗口为 `server.js:284` 之后两行，当前 HEAD 干净；Slice 2（UI）等 `polish-web-surfaces` / `add-fleet-owner-surface` 收口（两案正改 `App.tsx`/`Sidebar.tsx`/`FleetsPage.tsx`）；Slice 3（试跑/可售态，任务 4.x）待 `add-vendor-supply-open` 准入字段收口后对齐，且试跑执行器形状需单独一轮探索。finddata 原型底稿（非权威）复产落点约定为 `docs/blueprint-studio-prototype/`。
 
+### D8 试跑执行器形状（2026-10-28 勘察定案，Slice 3 实施口径）
+
+「装一台跑一轮」= 既有链的**编排**，不新增第二调度器、不新增第二写路径：
+
+1. **装台**：`fetchMarketManifest({packId, version, viewer})`（既有市场读面）取铸造版 manifest → `provisionFleetFromTemplate`（既有装台器；dedup：同 pack+owner 复用既有试跑舰，重跑不铸双舰）。试跑舰命名 `${场景}·试跑`，与正式装作可区分。
+2. **点火**：走与 `POST /api/fleets/:id/start` **同一代码路径**（抽 helper 复用，state→active + cadence 启用 + reconcile），不复制启动逻辑；装台器本身"装不自动跑"的纪律不变——点火是试跑的显式动作。
+3. **跑一轮**：reconcile 物化的 cron 作业逐个 `cron.runJobNow(jobId)`（既有触发面；这不是第二调度器，是把既有调度器点火一次）；逐岗记录 turnId。
+4. **收证**：窗口内轮询 `member_reports`（source=self/derived）与 trace——证据三元组 = `{turnIds, reportIds, sourceRefs}`，逐断言落。
+5. **判绿（断言闭集，确定性优先）**：`post-materialized`（成员落位非空）/ `first-round-fired`（指定岗位窗口内有回合）/ `report-landed`（指定岗位窗口内有报数）/ `escalate-bounded`（升级数 ≤ 阈值）。**未知 kind 判不绿并如实报**——不许静默通过（4.2 的结构性闸从这里来）。
+6. **落账**：`trial_report_json`（既有存储位）= `{ ranAt, fleetId, assertions:[{id,kind,pass,detail,evidence}], green }`；报告全量落盘可查。
+7. **可售态（4.2 的 paas 半）**：blueprint 侧 `trialReport.green` 是唯一真源；市场侧「可售」呈现字段随 `add-vendor-supply-open` 的 vendor 准入位落——跨仓缝，本 change 只保证 paas 半的真相源与 API 形状，不越仓造字段。
+
+**待决/挂后**：LLM 判断言（自由文本断言）不在本片——它破坏「断言全绿才可售」的确定性，须单独立项；断言 kind 的跨仓对齐（finddata `blueprints/schema.md` 契约）在 Slice 3 实施时对账，paas 侧闭集先落地、未知 kind 拒绝而非猜测。
+
 ## 验收闸
 
 - `openspec validate add-blueprint-studio --strict` 全绿。

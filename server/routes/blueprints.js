@@ -17,6 +17,7 @@ import {
   buildCastManifest,
 } from "../blueprint-validate.js";
 import { resolvePackReferences } from "../pack-manifest-source.js";
+import { runTrial, createLiveTrialDeps } from "../blueprint-trial.js";
 
 // Same factory semantics as fleets.js resolveUserFactory — 本地一份小拷贝，
 // 与 routes 家族各面一致（fleets/clusters 同款）。
@@ -71,11 +72,14 @@ function createFacetPublishClient({ env = process.env, fetchImpl = fetch } = {})
 
 const defaultPackResolver = ({ refs, viewer }) => resolvePackReferences({ refs, viewer });
 
-export function createBlueprintRoutes(app, ctx = null, { db = null, publishClient = null, packResolver = null } = {}) {
+export function createBlueprintRoutes(app, ctx = null, { db = null, publishClient = null, packResolver = null, trialDeps = null } = {}) {
   const resolveUser = resolveUserFactory(ctx);
   const store = db ?? getBlueprintDatabase();
   const publisher = publishClient ?? createFacetPublishClient({});
   const resolveRefs = packResolver ?? defaultPackResolver;
+  const trial = trialDeps ?? createLiveTrialDeps();
+  // 同一蓝图同时只跑一场试跑（进程内锁——试跑是重动作，重复触发只会烧额度）。
+  const trialRunning = new Set();
   const router = Router();
 
   // Write-path access log (fleet-access 同款)：读面静默，写面留方法行。
@@ -266,7 +270,30 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
     res.json({ blueprint: cast, cast: { packId: published.packId, version: published.version, selfPending } });
   });
 
-  // ── 试跑报告位（task 4.x 存储半；执行器随 Slice 3） ──────────────────────
+  // ── 试跑（task 4.1 执行器，design D8）：装一台跑一轮 → 断言判绿 → 报告落账 ──
+
+  router.post("/:id/trial", async (req, res) => {
+    const owned = requireOwnedBlueprint(req, res);
+    if (!owned) return;
+    if (owned.blueprint.status !== "cast") {
+      return res.status(409).json({ error: "trial run requires a cast blueprint — cast before running the trial" });
+    }
+    if (trialRunning.has(owned.blueprint.id)) {
+      return res.status(409).json({ error: "a trial run is already in progress for this blueprint" });
+    }
+    trialRunning.add(owned.blueprint.id);
+    try {
+      const report = await runTrial({ blueprint: owned.blueprint, deps: trial });
+      const updated = store.saveTrialReport(owned.blueprint.id, report);
+      res.json({ report, blueprint: updated });
+    } catch (err) {
+      res.status(500).json({ error: err?.message || "trial run failed" });
+    } finally {
+      trialRunning.delete(owned.blueprint.id);
+    }
+  });
+
+  // ── 试跑报告位（task 4.x 存储半） ─────────────────────────────────────────
 
   router.get("/:id/trial-report", (req, res) => {
     const owned = requireOwnedBlueprint(req, res);

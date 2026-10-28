@@ -1944,8 +1944,10 @@ export function createFleetRoutes(app, ctx = null) {
         if (db.findPostByTarget("persona", targetId)) {
           return res.status(409).json({ error: "that persona already holds a post — designate it with memberId instead" });
         }
+        // 注意：本路由下方声明了 const memberId（请求体字段），会遮蔽模块级
+        // 的 memberId() 造号函数——这里直接内联同一造号模式。
         const created = db.createMember({
-          id: memberId(),
+          id: `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
           fleetId: owned.fleet.id,
           title: typeof req.body?.title === "string" && req.body.title.trim() ? req.body.title.trim().slice(0, 40) : "常务",
           targetKind: "persona",

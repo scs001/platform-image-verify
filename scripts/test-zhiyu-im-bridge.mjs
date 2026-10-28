@@ -253,6 +253,40 @@ test("5.x cell outbound: attribution prefix, chunked long answer, cursor advance
   assert.equal(sends.length, before, "second poll idles: no duplicates");
 });
 
+test("5.z cell outbound: a permanently failing send is retried thrice, then skipped so the stream resumes", async () => {
+  // Prod evidence: the test bot's WeChat credential was revoked (40003 invalid
+  // openid), so the same answer was re-attempted every 2.5s forever and the
+  // cursor stayed pinned — blocking every later answer behind it.
+  const attempts = [];
+  const cursorWrites = [];
+  const logs = [];
+  const bot = { id: "b1", name: "代销", credentials: {}, type: "wechat-oa", ownerEmail: "alice@x", zhiRoomId: "zy_abc", enabled: true, zhiBridgeCursor: 0 };
+  const bridge = createZhiyuImBridge({
+    // Production reads the row fresh from the DB on every tick (startOutbounds
+    // → listBots), so a cursor write is visible to the next poll. Mirror that.
+    db: { setBotBridgeCursor: (botId, seq) => { cursorWrites.push(seq); bot.zhiBridgeCursor = seq; return true; } },
+    env: { ZHIYU_IM_BRIDGE_ON: "1", CELL_GATEWAY_SECRET: SECRET, GATEWAY_INTERNAL_URL: "http://gw.local", ZHIYU_IM_BRIDGE_POLL_MS: 999_999 },
+    log: { warn: (m) => logs.push(String(m)), info: () => {}, error: () => {} },
+    fetchImpl: async (url) => {
+      const after = Number(new URL(String(url)).searchParams.get("after") ?? 0) || 0;
+      const rows = 7 > after ? [{ seq: 7, kind: "agent", content: "答", sender: { display: "分身", kind: "agent", onBehalfOf: null } }] : [];
+      return new Response(JSON.stringify({ rows }), { status: 200 });
+    },
+    adapterForBotFn: () => ({ sendText: async () => { attempts.push(1); throw new Error("40003 invalid openid"); } }),
+  });
+  bridge.noteInboundChat(bot.id, "wxid_1");
+  await bridge.tickBot(bot); // attempt 1 → retry, cursor held
+  await bridge.tickBot(bot); // attempt 2 → retry, cursor held
+  assert.equal(attempts.length, 2);
+  assert.ok(!cursorWrites.includes(7), "the failing row is not skipped while inside the retry budget");
+  await bridge.tickBot(bot); // attempt 3 → give up on that row, cursor advances
+  assert.equal(attempts.length, 3);
+  assert.ok(cursorWrites.includes(7), "after three failures the row is skipped so later answers are not blocked");
+  assert.ok(logs.some((l) => l.includes("SKIPPING")), "the skip is logged loudly, not silent");
+  await bridge.tickBot(bot); // cursor now past that row: no further attempts, no re-send
+  assert.equal(attempts.length, 3, "the skipped answer is not re-attempted forever (stream unblocked)");
+});
+
 test("5.y cell outbound: a rejected poll drains the error body and keeps the actor real", async () => {
   const logs = [];
   const heads = [];

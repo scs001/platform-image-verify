@@ -39,6 +39,7 @@ export function createZhiyuImBridge({ db, env = process.env, fetchImpl = null, l
   };
 
   const buckets = new Map();
+  const sendFailures = new Map(); // "botId:seq" → consecutive failed attempts
   const take = (key, limit, windowMs) => {
     const now = Date.now();
     const b = buckets.get(key) ?? { n: limit, at: now };
@@ -158,6 +159,7 @@ export function createZhiyuImBridge({ db, env = process.env, fetchImpl = null, l
     }
     let lastSeq = Number(bot.zhiBridgeCursor || 0);
     let failed = null;
+    let failedSeq = null;
     for (const row of rows) {
       const text = formatRow(row);
       if (!text.trim()) {
@@ -170,13 +172,35 @@ export function createZhiyuImBridge({ db, env = process.env, fetchImpl = null, l
         }
       } catch (err) {
         failed = err;
+        failedSeq = Number(row.seq) || null;
         break;
       }
       lastSeq = Math.max(lastSeq, Number(row.seq) || lastSeq);
     }
     if (failed) {
-      log.warn(`[zhiyu-im-bridge] send failed for bot "${bot.name}" at seq ${lastSeq}: ${failed.message}`);
+      // Bounded retry (design D-E: "retry-three with an honest log, never queue
+      // unbounded"). A permanently-failing send — a revoked platform credential,
+      // a chat the bot was removed from — would otherwise re-attempt the same row
+      // on every poll forever, hammering the platform API and pinning the cursor
+      // so every later answer is blocked behind it. After three attempts the row
+      // is skipped LOUDLY so the stream resumes.
+      const key = `${bot.id}:${failedSeq ?? "?"}`;
+      const seen = (sendFailures.get(key) ?? 0) + 1;
+      sendFailures.set(key, seen);
+      if (seen < 3) {
+        log.warn(`[zhiyu-im-bridge] send failed for bot "${bot.name}" at seq ${failedSeq} (attempt ${seen}/3): ${failed.message}`);
+      } else {
+        sendFailures.delete(key);
+        if (failedSeq) lastSeq = Math.max(lastSeq, failedSeq);
+        log.warn(`[zhiyu-im-bridge] send failed 3x for bot "${bot.name}" at seq ${failedSeq}; SKIPPING that answer to unblock the stream: ${failed.message}`);
+      }
+    } else if (failedSeq === null) {
+      // A clean pass clears any stale counters for this bot.
+      for (const k of sendFailures.keys()) if (k.startsWith(`${bot.id}:`)) sendFailures.delete(k);
     }
+    // lastSeq only ever covers rows that were actually SENT (or deliberately
+    // skipped), so persisting it here is duplicate-safe: the failed row keeps
+    // seq > lastSeq and stays queued for the next poll.
     if (lastSeq !== Number(bot.zhiBridgeCursor || 0)) {
       try {
         db.setBotBridgeCursor(bot.id, lastSeq);

@@ -14,8 +14,11 @@
 // 成本闸（D6）在调用方钳制（条数/字符），这里只保证「超字符即如实拒」。
 
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { load as loadYaml } from "js-yaml";
 import { laneKeyFor } from "./llm-lane.js";
 import { buildUserProviderEntries } from "../llm-providers.js";
+import { targetPaths } from "../dsh-profile.js";
 
 export const JUDGE_VERDICTS = ["pass", "fail", "insufficient-evidence"];
 
@@ -26,6 +29,39 @@ export const JUDGE_LIMITS = {
 };
 
 const sha = (s) => createHash("sha256").update(String(s)).digest("hex");
+
+// 密钥解析（2026-10-28 生产实证）：user-route 的 key 不在 server 进程的 env 里——
+// 它落在 dsh 的 .credentials.yaml（dsh-credentials-local 的 refs 段），那是给
+// dsh 子进程用的，server 侧读不到 env。所以按 dsh 自己的层次来：
+//   进程 env > .credentials.yaml refs > LLM_API_KEY 兜底。
+// 全读不到就返回空串（判据会在调用前因无 key 而失败，如实报 insufficient）。
+let credCache = null; // { at, refs } —— 文件热更新，缓存 5s
+function credentialRefs(now = Date.now()) {
+  if (credCache && now - credCache.at < 5000) return credCache.refs;
+  let refs = {};
+  try {
+    const doc = loadYaml(readFileSync(targetPaths().credentials, "utf8"));
+    if (doc && typeof doc === "object" && doc.refs && typeof doc.refs === "object") refs = doc.refs;
+  } catch {
+    refs = {};
+  }
+  credCache = { at: now, refs };
+  return refs;
+}
+
+export function __testApiKeyFor(provider) {
+  return apiKeyFor(provider);
+}
+
+function apiKeyFor(provider) {
+  const envName = provider?.apiKeyEnv;
+  const fromEnv = envName ? process.env[envName] : "";
+  if (fromEnv) return fromEnv;
+  const fromFile = envName ? credentialRefs()[envName] : "";
+  if (fromFile) return String(fromFile);
+  const fallback = process.env.LLM_API_KEY || credentialRefs().LLM_API_KEY || "";
+  return fallback ? String(fallback) : "";
+}
 
 // ── 车道解析 ────────────────────────────────────────────────────────────────
 
@@ -38,7 +74,7 @@ export function resolveJudgeLane({ entries = null } = {}) {
   if (!model) return null;
   const provider = doc.providers?.[model.provider];
   if (!provider) return null;
-  const apiKey = provider.apiKey || provider.apiKeyValue || process.env[provider.apiKeyEnv] || "";
+  const apiKey = apiKeyFor(provider);
   const baseUrl = provider.baseURL || provider.baseUrl || "";
   if (!baseUrl) return null;
   return {
@@ -50,15 +86,29 @@ export function resolveJudgeLane({ entries = null } = {}) {
   };
 }
 
-// 产出车道：某模型 id 落在哪条 lane。解析不出返回 null（调用方据此拒判）。
+// 产出主体：某模型 id 落在哪条 lane、哪个 provider、模型本身叫什么。
+// 解析不出返回 null（调用方据此拒判）。
 export function laneForModel(modelId, { entries = null } = {}) {
   const doc = entries ?? buildUserProviderEntries();
   const model = doc.models.find((m) => m.id === modelId);
   if (!model) return null;
   const provider = doc.providers?.[model.provider];
   if (!provider) return null;
-  const apiKey = provider.apiKey || provider.apiKeyValue || process.env[provider.apiKeyEnv] || "";
-  return laneKeyFor({ id: model.provider, baseURL: provider.baseURL || provider.baseUrl, apiKey });
+  const apiKey = apiKeyFor(provider);
+  return {
+    laneId: laneKeyFor({ id: model.provider, baseURL: provider.baseURL || provider.baseUrl, apiKey }),
+    providerId: model.provider,
+    model: model.id,
+  };
+}
+
+// D4 的判定口径（2026-10-28 生产实证修正）：同一条 lane ≠ 同一个判断主体。
+// 单个 provider 承载全模型名册是常态（生产：finddata-token 下 14 个模型），
+// 按 lane 判会把「换一个模型来复核」全部误拒。真正要禁的是**同一个模型给自己
+// 打分**，所以判据是 provider+model 双同，而非 lane 指纹相同。
+export function isSelfGrading(judge, producer) {
+  if (!judge || !producer) return true; // 解析不出即拒（宁可判不了，不可自评）
+  return judge.providerId === producer.providerId && judge.model === producer.model;
 }
 
 // ── 提示词（D3 证据接地：只喂已收证据，不喂蓝图自述） ──────────────────────
@@ -127,19 +177,21 @@ export async function judgeAssertion({ assertionId, rubric, evidenceText, produc
     };
   }
 
-  // D4 禁自证：judge 车道不得与任何产出车道相同；产出车道解析不出也拒判。
-  const production = productionLanes.filter(Boolean);
-  if (production.length === 0) {
+  // D4 禁自证：judge 不得是产出方的同一个模型（provider+model 双同）；产出方
+  // 解析不出也拒判。同 provider 换模型是允许的——那正是「换一个模型复核」。
+  const producers = productionLanes.filter(Boolean);
+  if (producers.length === 0) {
     return {
       verdict: "insufficient-evidence",
-      reason: "cannot resolve the production lane — refusing to let the producing model grade itself",
+      reason: "cannot resolve the producing model — refusing to let a model grade its own work",
       audit: { ...auditBase, verdict: "insufficient-evidence", model: resolved.model, endpointDigest: sha(resolved.baseUrl).slice(0, 16), promptHash: null, rawVerdict: null },
     };
   }
-  if (production.includes(resolved.laneId)) {
+  const judgeSubject = { providerId: resolved.providerId, model: resolved.model };
+  if (producers.some((p) => isSelfGrading(judgeSubject, p))) {
     return {
       verdict: "insufficient-evidence",
-      reason: "judge lane is the same lane that produced the work — self-grading is refused; pin a different BLUEPRINT_JUDGE_MODEL",
+      reason: "the judge model is the same model that produced the work — self-grading is refused; pin a different BLUEPRINT_JUDGE_MODEL",
       audit: { ...auditBase, verdict: "insufficient-evidence", model: resolved.model, endpointDigest: sha(resolved.baseUrl).slice(0, 16), promptHash: null, rawVerdict: null },
     };
   }

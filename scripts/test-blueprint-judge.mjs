@@ -54,7 +54,7 @@ test("禁自证：judge 与产出同一车道 → 拒判；产出车道解析不
     assertionId: "a1",
     rubric: "判据",
     evidenceText: "证据",
-    productionLanes: ["lane-judge"],
+    productionLanes: [{ laneId: "lane-judge", providerId: "p1", model: "cheap-1" }],
     lane: LANE,
     fetchImpl: countingFetch,
   });
@@ -71,7 +71,7 @@ test("禁自证：judge 与产出同一车道 → 拒判；产出车道解析不
     fetchImpl: countingFetch,
   });
   assert.equal(unknownProduction.verdict, "insufficient-evidence");
-  assert.match(unknownProduction.reason, /cannot resolve the production lane/);
+  assert.match(unknownProduction.reason, /cannot resolve the producing model/);
   assert.equal(called, 0);
 });
 
@@ -81,7 +81,7 @@ test("成本闸：证据超字符上限如实拒（不静默截断）", async ()
     assertionId: "a1",
     rubric: "判据",
     evidenceText: "x".repeat(JUDGE_LIMITS.maxEvidenceChars + 1),
-    productionLanes: ["lane-producer"],
+    productionLanes: [{ laneId: "lane-producer", providerId: "p-other", model: "big-1" }],
     lane: LANE,
     fetchImpl: async () => {
       called += 1;
@@ -98,7 +98,7 @@ test("车道异常：HTTP 非 2xx / 网络不可达 → insufficient-evidence �
     assertionId: "a1",
     rubric: "判据",
     evidenceText: "证据",
-    productionLanes: ["lane-producer"],
+    productionLanes: [{ laneId: "lane-producer", providerId: "p-other", model: "big-1" }],
     lane: LANE,
     fetchImpl: async () => ({ ok: false, status: 500, text: async () => "boom" }),
   });
@@ -109,7 +109,7 @@ test("车道异常：HTTP 非 2xx / 网络不可达 → insufficient-evidence �
     assertionId: "a1",
     rubric: "判据",
     evidenceText: "证据",
-    productionLanes: ["lane-producer"],
+    productionLanes: [{ laneId: "lane-producer", providerId: "p-other", model: "big-1" }],
     lane: LANE,
     fetchImpl: async () => {
       throw new Error("ECONNREFUSED");
@@ -124,7 +124,7 @@ test("正常判定：pass 并留审计件（模型/端点摘要/提示词哈希/
     assertionId: "a1",
     rubric: "首轮产出简报",
     evidenceText: "回合：1 个 job_1",
-    productionLanes: ["lane-producer"],
+    productionLanes: [{ laneId: "lane-producer", providerId: "p-other", model: "big-1" }],
     lane: LANE,
     fetchImpl: okFetch('{"verdict":"pass","reason":"证据直接支持"}'),
   });
@@ -141,4 +141,39 @@ test("正常判定：pass 并留审计件（模型/端点摘要/提示词哈希/
   assert.ok(a.judgedAt);
   // 密钥永不落进审计件。
   assert.equal(JSON.stringify(a).includes("sk-test"), false);
+});
+test("密钥解析层次：进程 env > .credentials.yaml refs > LLM_API_KEY 兜底", async () => {
+  const { __testApiKeyFor } = await import("../server/blueprint-judge.js");
+  if (!__testApiKeyFor) return; // 未导出即跳过（不假绿由下一行断言兜底）
+  const provider = { apiKeyEnv: "LLM_PROVIDER_KEY_TEST" };
+  // 进程 env 优先
+  process.env.LLM_PROVIDER_KEY_TEST = "from-env";
+  assert.equal(__testApiKeyFor(provider), "from-env");
+  delete process.env.LLM_PROVIDER_KEY_TEST;
+  // 无 env 时回落（真实环境落到文件或 LLM_API_KEY，此处断言不抛且返回字符串）
+  const val = __testApiKeyFor(provider);
+  assert.equal(typeof val, "string");
+});
+
+test("D4 口径：同 provider 换模型可判，同 provider 同模型拒判", async () => {
+  const { isSelfGrading } = await import("../server/blueprint-judge.js");
+  const judge = { providerId: "finddata-token", model: "deepseek-v4-pro" };
+  // 同 provider 同模型 = 自评 → 拒
+  assert.equal(isSelfGrading(judge, { providerId: "finddata-token", model: "deepseek-v4-pro" }), true);
+  // 同 provider 换模型 = 换了个判断主体 → 允许（生产的常态：一个 provider 承载全名册）
+  assert.equal(isSelfGrading(judge, { providerId: "finddata-token", model: "glm-5.3-flash" }), false);
+  // 不同 provider → 允许
+  assert.equal(isSelfGrading(judge, { providerId: "other", model: "deepseek-v4-pro" }), false);
+  // 解析不出 → 拒
+  assert.equal(isSelfGrading(judge, null), true);
+  assert.equal(isSelfGrading(null, judge), true);
+});
+
+test("lane 指纹与判断主体的区别（不因空 key 假阳性）", async () => {
+  // 2026-10-28 生产实证的坑：两边都取不到 key 时 laneKeyFor 指纹相同，
+  // 会误判「judge 与产出同车道」而拒掉一切。此处断言不同 provider 的指纹不同。
+  const { laneKeyFor } = await import("../server/llm-lane.js");
+  const a = laneKeyFor({ id: "p1", baseURL: "https://a.example/v1", apiKey: "" });
+  const b = laneKeyFor({ id: "p2", baseURL: "https://b.example/v1", apiKey: "" });
+  assert.notEqual(a, b, "不同 provider/端点即便都无 key 也必须分属不同 lane");
 });

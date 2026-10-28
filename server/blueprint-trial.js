@@ -261,7 +261,7 @@ export function createLiveTrialDeps() {
       }
       await reconcileFleet({ fleetId, db, cronApi: cron, resolveTarget: resolveFleetTarget, rosterPresetId });
     },
-    // 产出车道（D4 禁自证）：试跑舰各岗位解析到的模型 → lane id。
+    // 产出主体（D4 禁自证）：试跑舰各岗位解析到的 { laneId, providerId, model }。
     productionLanes: async (fleetId) => {
       const db = getFleetDatabase();
       return db

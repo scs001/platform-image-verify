@@ -31,9 +31,13 @@ import path from "node:path";
 
 const DATA_DIR = process.env.PLATFORM_DATA_DIR || "";
 const RESOURCES = process.env.PLATFORM_RESOURCES_DIR || "";
-const PORT = Number(process.env.DESKTOP_SERVER_PORT || 47600);
 const HOST = "127.0.0.1";
-const BASE = `http://${HOST}:${PORT}`;
+// The cell's port is NOT a constant in the resident world: the steward picks a
+// free one at stack start (only the EMBEDDED desktop pins DESKTOP_SERVER_PORT).
+// So discover it — ask the steward's control plane, which is the same source
+// the app itself uses — and fall back to the pinned default.
+let PORT = Number(process.env.DESKTOP_SERVER_PORT || 0) || 47600;
+let BASE = `http://${HOST}:${PORT}`;
 
 const failures = [];
 const notes = [];
@@ -71,12 +75,61 @@ function readSettings() {
   }
 }
 
-// The cell's own view of what is deployed (the write face's truth) — read
-// LIVE, so deployments that predate this probe are cross-checked too.
-async function listDeploymentsFromCell() {
-  const res = await getJson("/api/wanxing/fleet/deployments");
-  const rows = res.body?.deployments ?? [];
-  return rows.filter((d) => d.enabled).map((d) => d.agentPath);
+// Discover the stack's cell port through the resident steward (its control
+// plane is a line-delimited JSON socket, and `status` carries the servers with
+// their ports). Best-effort: an embedded/standalone cell simply stays on the
+// pinned port.
+async function discoverCellPort() {
+  const discovery = path.join(DATA_DIR, "steward.json");
+  let doc = null;
+  try {
+    doc = JSON.parse(fs.readFileSync(discovery, "utf8"));
+  } catch {
+    return null; // no resident steward — keep the pinned port
+  }
+  if (!doc?.socket) return null;
+  const net = await import("node:net");
+  const request = (op, params = {}) =>
+    new Promise((resolve) => {
+      const conn = net.createConnection(doc.socket);
+      let buf = "";
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        try {
+          conn.destroy();
+        } catch { /* already gone */ }
+        resolve(value);
+      };
+      const timer = setTimeout(() => finish(null), 5000);
+      conn.on("error", () => {
+        clearTimeout(timer);
+        finish(null);
+      });
+      conn.on("data", (chunk) => {
+        buf += chunk;
+        const nl = buf.indexOf("\n");
+        if (nl < 0) return;
+        clearTimeout(timer);
+        try {
+          const msg = JSON.parse(buf.slice(0, nl));
+          finish(msg.ok === false ? null : (msg.result ?? msg));
+        } catch {
+          finish(null);
+        }
+      });
+      conn.on("connect", () => {
+        // The steward REFUSES a request whose protocol major does not match
+        // (supervisor/steward.js) — take the version from its own discovery
+        // document, exactly like the desktop client does.
+        conn.write(`${JSON.stringify({ id: "probe", op, protocolVersion: Number(doc.protocolVersion) || 1, params })}\n`);
+      });
+    });
+  const status = await request("status").catch(() => null);
+  const servers = Array.isArray(status?.servers) ? status.servers : [];
+  const cell = servers.find((s) => s?.id === "server-js" || s?.name === "Platform backend") ?? servers[0];
+  return Number(cell?.port) > 0 ? Number(cell.port) : null;
 }
 
 async function waitForCell(timeoutMs = 60_000) {
@@ -100,6 +153,13 @@ if (!DATA_DIR) {
   process.exit(2);
 }
 
+// Ask the steward where the cell actually listens, then wait for it.
+const discovered = await discoverCellPort();
+if (discovered) {
+  PORT = discovered;
+  BASE = `http://${HOST}:${PORT}`;
+  ok("cell port discovered from the steward", String(PORT));
+}
 if (!(await waitForCell())) {
   console.error(`[probe] the cell never answered on ${BASE}`);
   process.exit(1);
@@ -184,6 +244,25 @@ if (catalog.status !== 200) {
       if (published) ok("feed publishes the deployment", agentPath);
       else bad("feed publishes the deployment", `${agentPath} is absent from the feed`);
 
+      // …and the LOCAL RUNNER must pick it up (the whole promise). The runner
+      // polls on its own cadence (AGENT_RUNNER_POLL_SECS, 60s by default), so
+      // this waits bounded — and only when the plugin is actually on, since a
+      // seat with the fleet plugin off serves nothing by design.
+      const liveNow = await getJson("/api/wanxing/fleet/live");
+      if (liveNow.status === 200) {
+        const deadline = Date.now() + 90_000;
+        let inRoster = false;
+        while (Date.now() < deadline && !inRoster) {
+          const snapshot = await getJson("/api/wanxing/fleet/live");
+          inRoster = (snapshot.body?.agents ?? []).some((a) => a.path === agentPath);
+          if (!inRoster) await new Promise((r) => setTimeout(r, 3000));
+        }
+        if (inRoster) ok("the runner picked the deployment up", agentPath);
+        else bad("the runner picks the deployment up", `${agentPath} never appeared in the runner roster (90s)`);
+      } else {
+        notes.push("  · the fleet plugin is off here — the runner pickup check is skipped for this deployment");
+      }
+
       // stop → out of the feed, identity kept; start → back.
       await fetch(`${BASE}/api/wanxing/fleet/deployments/stop`, {
         method: "POST",
@@ -240,13 +319,6 @@ const live = await getJson("/api/wanxing/fleet/live");
 if (live.status === 200) {
   const agents = live.body?.agents ?? [];
   ok("local runner is healthy", `${agents.length} agent(s), ${live.body?.children ?? 0} runtime process(es)`);
-  const roster = agents.map((a) => a.path).filter(Boolean);
-  const deployed = await listDeploymentsFromCell();
-  for (const path of deployed) {
-    if (roster.includes(path)) ok("the runner serves the local deployment", path);
-    else bad("the runner serves the local deployment", `${path} is deployed but absent from the runner roster`);
-  }
-  if (deployed.length === 0) notes.push("  · nothing deployed at this moment — the roster cross-check is skipped");
 } else {
   notes.push(`  · the fleet plugin is off on this machine (live: ${live.body?.error ?? live.status}) — the runner leg is skipped`);
 }

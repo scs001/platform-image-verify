@@ -25,7 +25,8 @@
     "apps": "アプリ",
     "fleet": "Runner クラスター",
     "zhiyu": "Zhiyu",
-    "memory": "記憶"
+    "memory": "記憶",
+    "blueprints": "ブループリント工房"
   },
   "trace": {
     "title": "トレース",
@@ -2979,5 +2980,85 @@
       "empty": "このポストにはまだ記憶がありません。",
       "noPack": "このフリートにはパック座標がありません。"
     }
+  },
+  "blueprints": {
+    "title": "ブループリント工房",
+    "new": "新規",
+    "untitled": "無題のシーン",
+    "list": {
+      "empty": "ブループリントはまだありません。新規作成して垂直パッケージを起草しましょう。",
+      "version": "v{{version}}"
+    },
+    "status": {
+      "draft": "下書き",
+      "approved": "承認済み",
+      "cast": "鋳造済み"
+    },
+    "approved": {
+      "by": "{{who}} が承認 · {{when}}"
+    },
+    "save": "保存",
+    "saving": "保存中…",
+    "validate": "検証",
+    "validating": "検証中…",
+    "approve": "承認",
+    "approving": "承認中…",
+    "cast": "鋳造",
+    "casting": "鋳造中…",
+    "notice": {
+      "created": "下書きを作成しました。",
+      "saved": "v{{version}} として保存しました。",
+      "validated": "検証はすべて合格です。",
+      "invalid": "検証に失敗しました。下記の指摘をご覧ください。",
+      "approved": "承認済み。鋳造が解錠されました。",
+      "cast": "マーケットへ鋳造しました（パッケージ {{packId}}）。",
+      "conflict": "バージョン競合：ブループリントを再読み込みしてください。"
+    },
+    "editor": {
+      "pick": "左からブループリントを選ぶか、新規作成してください。",
+      "unsaved": "未保存の編集",
+      "synced": "同期済み"
+    },
+    "tabs": {
+      "form": "フォーム",
+      "json": "JSON"
+    },
+    "fields": {
+      "name": "シーン名",
+      "oneLine": "一行の用途",
+      "outOfScope": "やらないこと",
+      "jsonHint": "ポスト構成・リズム・KPI スロット・受入アサーション・ボードは JSON トラックで編集します。"
+    },
+    "sources": {
+      "title": "データソース",
+      "add": "追加",
+      "hint": "レジストリ登録のサーバー名または内部ライブラリの論理名のみ。エンドポイントと認証情報は禁止です。",
+      "placeholder": "例：policy-feed",
+      "remove": "削除"
+    },
+    "json": {
+      "apply": "JSON を適用",
+      "notObject": "JSON はオブジェクトである必要があります。"
+    },
+    "verify": {
+      "title": "検証",
+      "notRun": "まだ検証していません。",
+      "ok": "すべて合格です。",
+      "fail": "{{count}} 件の指摘。以下は既存検証器の原文です。",
+      "stale": "最後の検証以降に下書きが変更されています。"
+    },
+    "error": {
+      "entry": "[{{entry}}]"
+    },
+    "diff": {
+      "title": "前回編集の diff",
+      "none": "記録された diff はありません。"
+    },
+    "trial": {
+      "title": "試走レポート",
+      "load": "読み込む",
+      "none": "まだレポートがありません。"
+    },
+    "castPack": "パッケージ {{packId}}"
   }
 }

@@ -39,6 +39,7 @@ const NAV_LABEL_KEYS: Record<string, string> = {
   apps: "nav.apps",
   tasks: "nav.tasks",
   fleet: "nav.fleet",
+  blueprints: "nav.blueprints",
 };
 
 export function LayoutSection() {

@@ -25,7 +25,8 @@
     "apps": "Apps",
     "fleet": "Cluster de runners",
     "zhiyu": "Zhiyu",
-    "memory": "Mémoire"
+    "memory": "Mémoire",
+    "blueprints": "Studio de plans"
   },
   "trace": {
     "title": "Traçage",
@@ -2979,5 +2980,85 @@
       "empty": "Pas encore de mémoire pour ce poste.",
       "noPack": "Cette flotte n'a pas de coordonnée de pack."
     }
+  },
+  "blueprints": {
+    "title": "Studio de plans",
+    "new": "Nouveau",
+    "untitled": "Scène sans titre",
+    "list": {
+      "empty": "Pas encore de plans : créez-en un pour esquisser un paquet vertical.",
+      "version": "v{{version}}"
+    },
+    "status": {
+      "draft": "Brouillon",
+      "approved": "Approuvé",
+      "cast": "Forgé"
+    },
+    "approved": {
+      "by": "Approuvé par {{who}} · {{when}}"
+    },
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "validate": "Valider",
+    "validating": "Validation…",
+    "approve": "Approuver",
+    "approving": "Approbation…",
+    "cast": "Forger",
+    "casting": "Forge…",
+    "notice": {
+      "created": "Brouillon créé.",
+      "saved": "Enregistré en v{{version}}.",
+      "validated": "Validation au vert.",
+      "invalid": "Validation échouée : voir les problèmes ci-dessous.",
+      "approved": "Approuvé : la forge est déverrouillée.",
+      "cast": "Forgé vers le marché (paquet {{packId}}).",
+      "conflict": "Conflit de version : rechargez le plan pour continuer."
+    },
+    "editor": {
+      "pick": "Choisissez un plan à gauche, ou créez-en un.",
+      "unsaved": "Modifications non enregistrées",
+      "synced": "Synchronisé"
+    },
+    "tabs": {
+      "form": "Formulaire",
+      "json": "JSON"
+    },
+    "fields": {
+      "name": "Nom de la scène",
+      "oneLine": "Objet en une ligne",
+      "outOfScope": "Hors périmètre",
+      "jsonHint": "Les postes, la cadence, les emplacements de KPI, les assertions d'acceptation et le tableau vivent dans la piste JSON."
+    },
+    "sources": {
+      "title": "Sources de données",
+      "add": "Ajouter",
+      "hint": "Uniquement des noms de serveurs du registre ou des noms logiques de la bibliothèque interne : ni endpoints ni identifiants.",
+      "placeholder": "p. ex. policy-feed",
+      "remove": "Retirer"
+    },
+    "json": {
+      "apply": "Appliquer le JSON",
+      "notObject": "Le JSON doit être un objet."
+    },
+    "verify": {
+      "title": "Validation",
+      "notRun": "Pas encore validé.",
+      "ok": "Toutes les vérifications au vert.",
+      "fail": "{{count}} problème(s) : ci-dessous les textes du validateur existant.",
+      "stale": "Le brouillon a changé depuis la dernière validation."
+    },
+    "error": {
+      "entry": "[{{entry}}]"
+    },
+    "diff": {
+      "title": "Diff de la dernière édition",
+      "none": "Aucun diff enregistré."
+    },
+    "trial": {
+      "title": "Rapport d'essai",
+      "load": "Charger",
+      "none": "Aucun rapport pour l'instant."
+    },
+    "castPack": "paquet {{packId}}"
   }
 }

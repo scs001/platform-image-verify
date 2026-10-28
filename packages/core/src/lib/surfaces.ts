@@ -53,6 +53,9 @@ export const NAV_SURFACES: RegistryEntry[] = [
   { container: "nav", slug: "fleets", i18nKey: "nav.fleets", testId: "nav-fleets" },
   // 萬星·智语 (add-zhiyu-room): multi-human × multi-agent rooms. Web surface.
   { container: "nav", slug: "zhiyu", i18nKey: "nav.zhiyu", testId: "nav-zhiyu" },
+  // 蓝图构造间 (add-blueprint-studio): the vertical-package authoring surface —
+  // 蓝图→集群模板→上架（治包不治舰，design D1）. Plain web surface like fleets.
+  { container: "nav", slug: "blueprints", i18nKey: "nav.blueprints", testId: "nav-blueprints" },
   { container: "nav", slug: "fleet", i18nKey: "nav.fleet", testId: "nav-fleet", predicates: { desktopOnly: true } },
 ];
 

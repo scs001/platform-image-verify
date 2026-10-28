@@ -112,8 +112,10 @@ test("role preset narrows within the deployment default", () => {
     deployment: { preset: factoryPreset(FACTORY_PRESET_SLUG) },
     role: { preset: factoryPreset("simple") },
   });
-  assert.deepEqual(r.nav, ["chat", "knowledge", "resources", "agents", "apps"]);
-  // `connections` rides in the simple skeleton (2026-10-18).
+  assert.deepEqual(r.nav, ["chat", "knowledge", "resources", "memory", "agents", "apps"]);
+  // `connections` rides in the simple skeleton (2026-10-18); `memory` since
+  // add-unified-memory-and-outputs (the panel is a work surface for the same
+  // non-technical users the skeleton serves).
   assert.deepEqual(r.settings, ["general", "account", "wechat-app", "devices", "connections"]);
 });
 
@@ -155,7 +157,7 @@ test("an admin with a business role resolves to the deployment default", () => {
   assert.deepEqual(admin.agentsTabs, ["agents", "market"]); // the deployment default retires apps
   // The same input for a non-admin still narrows to the simple skeleton.
   const user = resolveLayout(layers, { authOn: true, isAdmin: false });
-  assert.deepEqual(user.nav, ["chat", "knowledge", "resources", "agents", "apps"]);
+  assert.deepEqual(user.nav, ["chat", "knowledge", "resources", "memory", "agents", "apps"]);
   assert.equal(user.settings.includes("models"), false);
 });
 
@@ -177,7 +179,7 @@ test("auth off keeps role narrowing (local preview / hermetic runs)", () => {
     { deployment: { preset: factoryPreset(FACTORY_PRESET_SLUG) }, role: { preset: factoryPreset("simple") } },
     { authOn: false },
   );
-  assert.deepEqual(r.nav, ["chat", "knowledge", "resources", "agents", "apps"]);
+  assert.deepEqual(r.nav, ["chat", "knowledge", "resources", "memory", "agents", "apps"]);
 });
 
 test("user adjustments still apply on top for an exempt admin", () => {

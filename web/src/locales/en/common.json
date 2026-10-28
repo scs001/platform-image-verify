@@ -25,7 +25,8 @@
     "apps": "Apps",
     "fleet": "Runner Cluster",
     "zhiyu": "Zhiyu",
-    "memory": "Memory"
+    "memory": "Memory",
+    "blueprints": "Blueprint Studio"
   },
   "trace": {
     "title": "Trace",
@@ -2979,5 +2980,85 @@
       "empty": "No memory distilled for this post yet.",
       "noPack": "This fleet has no blueprint pack coordinate; cannot locate its memory root."
     }
+  },
+  "blueprints": {
+    "title": "Blueprint Studio",
+    "new": "New",
+    "untitled": "Untitled scene",
+    "list": {
+      "empty": "No blueprints yet — create one to draft a vertical package.",
+      "version": "v{{version}}"
+    },
+    "status": {
+      "draft": "Draft",
+      "approved": "Approved",
+      "cast": "Cast"
+    },
+    "approved": {
+      "by": "Approved by {{who}} · {{when}}"
+    },
+    "save": "Save",
+    "saving": "Saving…",
+    "validate": "Validate",
+    "validating": "Validating…",
+    "approve": "Approve",
+    "approving": "Approving…",
+    "cast": "Cast",
+    "casting": "Casting…",
+    "notice": {
+      "created": "Draft created.",
+      "saved": "Saved as v{{version}}.",
+      "validated": "Validation green.",
+      "invalid": "Validation failed — see the issues below.",
+      "approved": "Approved — casting is unlocked.",
+      "cast": "Cast to the market (pack {{packId}}).",
+      "conflict": "Version conflict — reload the blueprint to continue."
+    },
+    "editor": {
+      "pick": "Pick a blueprint on the left, or create one.",
+      "unsaved": "Unsaved edits",
+      "synced": "Synced"
+    },
+    "tabs": {
+      "form": "Form",
+      "json": "JSON"
+    },
+    "fields": {
+      "name": "Scene name",
+      "oneLine": "One-line purpose",
+      "outOfScope": "Out of scope",
+      "jsonHint": "Posts, cadence, KPI slots, acceptance assertions and the board live in the JSON track."
+    },
+    "sources": {
+      "title": "Data sources",
+      "add": "Add",
+      "hint": "Registry server names or internal-library logical names only — no endpoints, no credentials.",
+      "placeholder": "e.g. policy-feed",
+      "remove": "Remove"
+    },
+    "json": {
+      "apply": "Apply JSON",
+      "notObject": "JSON must be an object."
+    },
+    "verify": {
+      "title": "Validation",
+      "notRun": "Not validated yet.",
+      "ok": "All checks green.",
+      "fail": "{{count}} issue(s) — existing validator texts below.",
+      "stale": "The draft changed since the last validation."
+    },
+    "error": {
+      "entry": "[{{entry}}]"
+    },
+    "diff": {
+      "title": "Last edit diff",
+      "none": "No recorded diff."
+    },
+    "trial": {
+      "title": "Trial report",
+      "load": "Load",
+      "none": "No report recorded yet."
+    },
+    "castPack": "pack {{packId}}"
   }
 }

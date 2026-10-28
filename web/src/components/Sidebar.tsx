@@ -24,6 +24,7 @@ import {
   ChevronDown,
   ChevronRight,
   Clock,
+  DraftingCompass,
   Folder,
   FolderOpen,
   FolderPlus,
@@ -76,6 +77,7 @@ const NAV_ICONS: Record<string, typeof MessageSquare> = {
   fleets: Network,
   fleet: Ship,
   zhiyu: MessagesSquare,
+  blueprints: DraftingCompass,
 };
 
 // Route for a nav slug (the registry slug IS the route segment — the R1

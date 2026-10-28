@@ -25,7 +25,8 @@
     "apps": "应用",
     "fleet": "机群",
     "zhiyu": "智语",
-    "memory": "记忆"
+    "memory": "记忆",
+    "blueprints": "蓝图构造间"
   },
   "trace": {
     "title": "调用追踪",
@@ -2979,5 +2980,85 @@
       "empty": "该岗位还没有记忆沉淀。",
       "noPack": "该舰队缺少蓝图包坐标，无法定位记忆根。"
     }
+  },
+  "blueprints": {
+    "title": "蓝图构造间",
+    "new": "新建",
+    "untitled": "未命名场景",
+    "list": {
+      "empty": "还没有蓝图——新建一份，起草一个垂直包。",
+      "version": "v{{version}}"
+    },
+    "status": {
+      "draft": "草稿",
+      "approved": "已批准",
+      "cast": "已铸造"
+    },
+    "approved": {
+      "by": "由 {{who}} 批准 · {{when}}"
+    },
+    "save": "保存",
+    "saving": "保存中…",
+    "validate": "校验",
+    "validating": "校验中…",
+    "approve": "批准",
+    "approving": "批准中…",
+    "cast": "铸造上架",
+    "casting": "铸造中…",
+    "notice": {
+      "created": "草稿已建。",
+      "saved": "已保存为 v{{version}}。",
+      "validated": "校验全绿。",
+      "invalid": "校验未过——见下方未过项。",
+      "approved": "已批准，铸造闸已解锁。",
+      "cast": "已铸造上架（包 {{packId}}）。",
+      "conflict": "版本冲突——重新载入蓝图后继续。"
+    },
+    "editor": {
+      "pick": "从左侧选一份蓝图，或新建一份。",
+      "unsaved": "有未保存的编辑",
+      "synced": "已同步"
+    },
+    "tabs": {
+      "form": "表单",
+      "json": "JSON"
+    },
+    "fields": {
+      "name": "场景名",
+      "oneLine": "一句话用途",
+      "outOfScope": "不做什么",
+      "jsonHint": "岗位编制、节奏、KPI 槽位、验收断言与看板骨架在 JSON 轨编辑。"
+    },
+    "sources": {
+      "title": "数据来源",
+      "add": "添加",
+      "hint": "只收 registry 在册 server 名或内部库逻辑名——禁端点、禁凭据。",
+      "placeholder": "如 policy-feed",
+      "remove": "移除"
+    },
+    "json": {
+      "apply": "应用 JSON",
+      "notObject": "JSON 需为一个对象。"
+    },
+    "verify": {
+      "title": "校验",
+      "notRun": "尚未校验。",
+      "ok": "全部通过。",
+      "fail": "{{count}} 项未过——以下为既有校验器原文。",
+      "stale": "草稿在上次校验后有改动。"
+    },
+    "error": {
+      "entry": "[{{entry}}]"
+    },
+    "diff": {
+      "title": "本次编辑 diff",
+      "none": "无 diff 记录。"
+    },
+    "trial": {
+      "title": "试跑报告",
+      "load": "载入",
+      "none": "尚未落报告。"
+    },
+    "castPack": "包 {{packId}}"
   }
 }

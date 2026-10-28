@@ -25,7 +25,8 @@
     "apps": "Apps",
     "fleet": "Clúster de runners",
     "zhiyu": "Zhiyu",
-    "memory": "Memoria"
+    "memory": "Memoria",
+    "blueprints": "Estudio de planos"
   },
   "trace": {
     "title": "Traza",
@@ -2979,5 +2980,85 @@
       "empty": "Este puesto aún no tiene memoria.",
       "noPack": "Esta flota no tiene coordenada de pack."
     }
+  },
+  "blueprints": {
+    "title": "Estudio de planos",
+    "new": "Nuevo",
+    "untitled": "Escena sin título",
+    "list": {
+      "empty": "Aún no hay planos: cree uno para esbozar un paquete vertical.",
+      "version": "v{{version}}"
+    },
+    "status": {
+      "draft": "Borrador",
+      "approved": "Aprobado",
+      "cast": "Forjado"
+    },
+    "approved": {
+      "by": "Aprobado por {{who}} · {{when}}"
+    },
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "validate": "Validar",
+    "validating": "Validando…",
+    "approve": "Aprobar",
+    "approving": "Aprobando…",
+    "cast": "Forjar",
+    "casting": "Forjando…",
+    "notice": {
+      "created": "Borrador creado.",
+      "saved": "Guardado como v{{version}}.",
+      "validated": "Validación en verde.",
+      "invalid": "Validación fallida: vea los problemas abajo.",
+      "approved": "Aprobado: la forja está desbloqueada.",
+      "cast": "Forjado al mercado (paquete {{packId}}).",
+      "conflict": "Conflicto de versión: recargue el plano para continuar."
+    },
+    "editor": {
+      "pick": "Elija un plano a la izquierda o cree uno.",
+      "unsaved": "Cambios sin guardar",
+      "synced": "Sincronizado"
+    },
+    "tabs": {
+      "form": "Formulario",
+      "json": "JSON"
+    },
+    "fields": {
+      "name": "Nombre de la escena",
+      "oneLine": "Propósito en una línea",
+      "outOfScope": "Fuera de alcance",
+      "jsonHint": "Los puestos, la cadencia, los slots de KPI, las aserciones de aceptación y el tablero viven en la pista JSON."
+    },
+    "sources": {
+      "title": "Fuentes de datos",
+      "add": "Añadir",
+      "hint": "Solo nombres de servidores del registro o nombres lógicos de la biblioteca interna: sin endpoints ni credenciales.",
+      "placeholder": "p. ej. policy-feed",
+      "remove": "Quitar"
+    },
+    "json": {
+      "apply": "Aplicar JSON",
+      "notObject": "El JSON debe ser un objeto."
+    },
+    "verify": {
+      "title": "Validación",
+      "notRun": "Aún sin validar.",
+      "ok": "Todas las comprobaciones en verde.",
+      "fail": "{{count}} problema(s): abajo los textos del validador existente.",
+      "stale": "El borrador cambió desde la última validación."
+    },
+    "error": {
+      "entry": "[{{entry}}]"
+    },
+    "diff": {
+      "title": "Diff de la última edición",
+      "none": "Sin diff registrado."
+    },
+    "trial": {
+      "title": "Informe de prueba",
+      "load": "Cargar",
+      "none": "Aún no hay informe."
+    },
+    "castPack": "paquete {{packId}}"
   }
 }

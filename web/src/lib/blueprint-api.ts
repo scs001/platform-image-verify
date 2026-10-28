@@ -1,0 +1,137 @@
+// blueprint-api.ts — 蓝图构造间的 typed client (add-blueprint-studio, Slice 2).
+//   - 资产面：清单/详情/创建/编辑（expectVersion 乐观锁）；
+//   - 闸位：validate（全链校验，错误为既有校验器原文）/approve/cast；
+//   - 试跑报告位：读（执行器随 Slice 3）。
+// 错误体随行（409 携 currentVersion、422 携 errors/findings），页面直出原文。
+
+export type BlueprintStatus = "draft" | "approved" | "cast";
+
+export interface BlueprintContent {
+  boundary?: { name?: string; oneLine?: string; outOfScope?: string };
+  dataSources?: { ref: string; note?: string }[];
+  fleet?: Record<string, unknown>;
+  agents?: unknown[];
+  mcpServers?: unknown[];
+  monitoring?: Record<string, unknown>;
+  acceptance?: unknown[];
+  board?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface BlueprintSummary {
+  id: string;
+  name: string;
+  oneLine: string;
+  status: BlueprintStatus;
+  version: number;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  castPackId: string | null;
+  castPackVersion: number | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface Blueprint extends BlueprintSummary {
+  ownerEmail: string;
+  outOfScope: string;
+  content: BlueprintContent;
+  diffSummary: string | null;
+  trialReport: unknown;
+}
+
+export interface ValidationError {
+  error: string;
+  entry?: string;
+}
+
+export interface ValidationVerdict {
+  ok: boolean;
+  errors: ValidationError[];
+  findings: {
+    shape: ValidationError[];
+    fleet: ValidationError[];
+    manifest: ValidationError[];
+    toolFace: ValidationError[];
+    toolClosure: ValidationError[];
+  };
+  manifestPreview: Record<string, unknown>;
+}
+
+export class BlueprintApiError extends Error {
+  status: number;
+  body: Record<string, unknown>;
+  constructor(status: number, body: Record<string, unknown>) {
+    super(typeof body?.error === "string" ? body.error : `HTTP ${status}`);
+    this.status = status;
+    this.body = body;
+  }
+}
+
+async function call<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(path, {
+    ...init,
+    headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+  });
+  const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) throw new BlueprintApiError(res.status, body);
+  return body as T;
+}
+
+export function listBlueprints() {
+  return call<{ blueprints: BlueprintSummary[] }>("/api/blueprints");
+}
+
+export function getBlueprint(id: string) {
+  return call<{ blueprint: Blueprint }>(`/api/blueprints/${encodeURIComponent(id)}`);
+}
+
+export function createBlueprint(content: BlueprintContent, name?: string) {
+  return call<{ blueprint: Blueprint; warnings?: ValidationError[] }>("/api/blueprints", {
+    method: "POST",
+    body: JSON.stringify({ content, ...(name ? { name } : {}) }),
+  });
+}
+
+export function updateBlueprint(id: string, expectVersion: number, content: BlueprintContent) {
+  return call<{ blueprint: Blueprint; warnings?: ValidationError[] }>(`/api/blueprints/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: JSON.stringify({ expectVersion, content }),
+  });
+}
+
+export function validateBlueprint(id: string) {
+  return call<ValidationVerdict>(`/api/blueprints/${encodeURIComponent(id)}/validate`, { method: "POST" });
+}
+
+export function approveBlueprint(id: string, expectVersion: number) {
+  return call<{ blueprint: Blueprint }>(`/api/blueprints/${encodeURIComponent(id)}/approve`, {
+    method: "POST",
+    body: JSON.stringify({ expectVersion }),
+  });
+}
+
+export function castBlueprint(id: string) {
+  return call<{ blueprint: Blueprint; cast: { packId: string | null; version: number | null; selfPending: boolean } }>(
+    `/api/blueprints/${encodeURIComponent(id)}/cast`,
+    { method: "POST" },
+  );
+}
+
+export function getTrialReport(id: string) {
+  return call<{ report: unknown }>(`/api/blueprints/${encodeURIComponent(id)}/trial-report`);
+}
+
+// 新草稿骨架：六段在场、结构可编辑；场景名占位（创建后于表单轨改名）。
+export function skeletonContent(name: string): BlueprintContent {
+  return {
+    boundary: { name, oneLine: "", outOfScope: "" },
+    dataSources: [],
+    fleet: { name, members: [] },
+    agents: [],
+    mcpServers: [],
+    monitoring: {},
+    acceptance: [],
+    board: {},
+  };
+}

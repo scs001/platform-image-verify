@@ -8,8 +8,8 @@
 
 ## 2. 工作室界面
 
-- [ ] 2.1 owner 面新增「蓝图构造间」入口（与 owner surface 在途 change 分栏一致）。
-- [ ] 2.2 表单+JSON 双轨编辑，提交前全套校验链（parseFleetTemplate→validatePackManifest→allowTools⊆商业集）与归一化 diff；草稿**不允许**产生任何实体（市场/铸造仓/集群库零副作用）。
+- [x] 2.1 owner 面新增「蓝图构造间」入口（与 owner surface 在途 change 分栏一致）。
+- [x] 2.2 表单+JSON 双轨编辑，提交前全套校验链（parseFleetTemplate→validatePackManifest→allowTools⊆商业集）与归一化 diff；草稿**不允许**产生任何实体（市场/铸造仓/集群库零副作用）。
 - [ ] 2.3 NL→草稿轨：承袭构造师 pack 能力（仅作草拟输入渠道），落点与 2.2 同一草稿池。
 
 ## 3. 批准-铸造-上架
@@ -25,8 +25,8 @@
 
 ## 5. 词表与命名
 
-- [ ] 5.1 studio 全部客面名词中文主轨（蓝图构造间/构造位/主人闸/遥测槽位），英文等义副轨；小范围内零「舰队」字样。
-- [ ] 5.2 与 `add-pack-locale-tracks` 的多语言形态对齐，不本 change 新增多语言字段再造层。
+- [x] 5.1 studio 全部客面名词中文主轨（蓝图构造间/构造位/主人闸/遥测槽位），英文等义副轨；小范围内零「舰队」字样。
+- [x] 5.2 与 `add-pack-locale-tracks` 的多语言形态对齐，不本 change 新增多语言字段再造层。
 
 ## 6. 验收
 

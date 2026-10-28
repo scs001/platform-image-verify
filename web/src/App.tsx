@@ -39,6 +39,9 @@ const SharePage = lazy(() => import("@/pages/SharePage").then((m) => ({ default:
 const TasksPage = lazy(() => import("@/pages/TasksPage").then((m) => ({ default: m.TasksPage })));
 const FleetPage = lazy(() => import("@/pages/FleetPage").then((m) => ({ default: m.FleetPage })));
 const FleetsPage = lazy(() => import("@/pages/FleetsPage").then((m) => ({ default: m.FleetsPage })));
+const BlueprintStudioPage = lazy(() =>
+  import("@/pages/BlueprintStudioPage").then((m) => ({ default: m.BlueprintStudioPage })),
+);
 const ResourcesPage = lazy(() =>
   import("@/pages/ResourcesPage").then((m) => ({ default: m.ResourcesPage })),
 );
@@ -296,6 +299,10 @@ export default function App() {
                 (single-page merge, D6). */}
             <Route path="/fleets" element={<FleetsPage />} />
             <Route path="/fleets/:fleetId" element={<FleetsPage />} />
+
+            {/* 蓝图构造间 (add-blueprint-studio): the vertical-package authoring
+                surface (blueprint → cluster template → market). */}
+            <Route path="/blueprints" element={<BlueprintStudioPage />} />
 
             {/* 萬星·智语 (add-zhiyu-room): rooms list + the room itself. */}
             <Route path="/zhiyu" element={<ZhiyuPage />} />

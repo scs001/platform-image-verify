@@ -3131,3 +3131,52 @@ Cluster→Array、Role→Persona、Standby→On call、Add post 等界面标签�
 - 全站复核：新镜像下 21 个集群、集群名无「舰队」；市场 89 包零「舰队」命名；旧类目 daas/company/docs/data/authoring 归零；
   徽章分布 assistant 22 / blueprint 14 / facade 7 / toolkit 7；**残留一处待拍板**：
   「官网内容集群（模板）」的 category 仍是 `fleet`（名字已是集群，类目词待用户定）。
+
+### §15.75 记忆与产出统一面上产（add-unified-memory-and-outputs）——真机验收揪出两处真缺陷并当场上产
+
+**上产矩阵**（三镜像，一条纪律链 GHA→hkccr→cheap-3 relay→ccr）
+
+| 镜像 | tag | 源 | 池/run |
+|---|---|---|---|
+| yizuo/fd-memory | sha-53d79b5 | fd-memory（reference 页型/tier/tags/`/pages/write`/`/pages/mutate`/打标支线） | testaction005 / run 40632360251 绿 |
+| yizuo/fd-memory-distiller | sha-53d79b5 | 同源（`/tag` 端点） | 同 run |
+| yizuo/platform | sha-03687ea → **sha-2800926** | paas d5db06de → 3aefe183 | run 40635425497 / 40638819514 绿 |
+
+**GitOps**：`fd-infra-deploy` commit `52a3a20`（bump `all-services/prod/platform.yaml` → sha-2800926，**只滚主 platform**，demo/facet/runner-* 是别车道不越界），推 gitee+github；ArgoCD `all-services-prod` 硬刷新后新 pod `platform-5858dd8d96-8pwwk` 1/1 Running、rollout 成功。
+**ccr 硬门**：`skopeo inspect`（relay 机带 creds）→ sha-2800926 digest `sha256:67a417a3…` ✓。
+
+**真机验收（浏览器 + pod 内 API）四场景全过**
+
+| 场景 | 判据 | 证据 |
+|---|---|---|
+| 成果页三层收纳 + 手势修正 | 层级筛选 全部/草稿/成果/正典 可用；正典条目显示「正典」徽章 + 「取消正典」手势；未分级条目「草稿」+「标为正典」 | 生产页 8 张卡逐张读 badge/toggle；`/api/resources?tier=canonical` 命中 2 条 |
+| digest canonical 优先 + 名份引用 | 引用车道出「见资料库《标题》」 | pod 内 `/digest` 返回 `见资料库《验收引用甲》`，rung=vector/keyword 双跑通 |
+| 记忆面板 owner 数据一致 | 面板 200、条目带 layer/tier/tag、层级与层级筛选齐 | 生产 `/api/memory/entries` 200；面板 testid 齐（memory-layer-L0..L2 / memory-tier-*） |
+| facade guest 不注入 | **受阻跨仓**（room 宿主不在本仓） | 能力已备（platform token + rootKey 可直调 `/digest`），接线待 zhiyu 仓开工 |
+
+**真机揪出两处真缺陷（当场上产，非挂账）**
+
+1. **未「记住」的产出直接改级 → 500**。手势按 slug 猜路径直接 mutate，而 reference 页是镜像、只有点「记住」才建；用户被迫多点一步，错误面还是 500。修法：`server/memory-refs.js` 新增 `ensureReference()`（页不存在就按同一 slug 补写，写主在 fd-memory），`/tier` 与 `/tags` 先补页再改级；fd-memory 404 归 **404 `reference_missing`**，写页失败归 503。新增 `scripts/test-resource-memory-gestures.mjs` 6 测钉死「write→mutate 顺序 / tags 上限 5 / 非法 tier 不出站」，产出库四套 52 测全绿。
+2. **层级徽章恒写「草稿」，正典摘不掉**。卡片用 `parseTags()` 解析 tier——那是给 JSON 数组用的，tier 列是普通字符串，`JSON.parse` 失败即回落 draft。后果：徽章永远说谎；「取消正典」按回落值取档，canonical 条目点「取消」仍写 canonical。修法：新增 `parseTier()` 按枚举读，徽章与手势两处改用；`e2e/resources-page.spec.js` 新增用例钉死「已分级条目显示自己的徽章 + 出现 Unpin + 层级筛选只剩一条」（12/12 绿）。
+
+**单写纪律采样器（任务 5.3）**：新增 `scripts/check-memory-mirror.mjs` + 10 测——比对成果行镜像与 fd-memory 真源页，四类漂移逐条判定（镜像有值无页 / 页丢失 / 层不一致 / 标签不一致 / 路径出 reference 车道）。**生产采样实证：242 行 · 144 页 · 漂移 0**（owner=aloadtree，DB 副本上跑，不动生产库）。
+
+**产出面真机实证（浏览器会话）**：未记住条目点「标为正典」→ HTTP 200、tier=canonical、记忆页自动补齐 `default/references/r-95854701….md`；再点「取消正典」→ tier=stable、DOM 徽章即时变「成果」、按钮翻回「标为正典」。部署者抽屉（`fleet-memory-drawer`）开合正常，空态文案「该舰队缺少蓝图包坐标，无法定位记忆根。」。
+
+**并行会话协同（纪律留痕）**：本次滚产窗口内并行会话已把 GitOps 推到 `sha-0a57ae1`（源 3ac825f7）。核源真 sha 后确认该 tag **已含本会话的 f673c47d 修复**（3ac825f7 是其后代），故不抢滚、不回滚，改为在其上再叠一层；`git pull --rebase gitee main` 后推（gitee 源真，github 镜像同收）。`fd-build-snapshot` 一律**干净 clone 远端**（不扫并行车道工作树），排掉「本地工作树含他人在途改动」这类污染。
+
+**挂账**：① 4.3 facade/智语 digest 注入跨仓受阻（待 zhiyu 仓）；② 部署者记忆根依赖蓝图包坐标，无包坐标的岗位看空态（设计如此，词已给）；③ 成果页「改 tags」走 `window.prompt`，后续可换行内编辑器（本版不扩）。
+
+### §15.66 图表空气泡追凶全链：apply 折丢弃真因（+三个连带真缺陷与一个 TDZ）
+
+**背景**：移动验收轨图表腿 `chart-ok` 永不出现（助手气泡空、有 Regenerate）。池上十余轮取证（事件镜像/内存时间线/store 三点/setState 包装四层探针）收敛后，**本地 22 事件全序回放一次复现**，分钟级二分定案。
+
+| 项 | 值 |
+|---|---|
+| **真因** | `chat-store.apply()` 每个非 delta 事件先 `flushIntoTurns` 折缓冲，但 **switch 里只有回合生命周期 case 会把折后的 turns 带上**；`resources_changed`（dsh 回合产出落资源库触发）走 `return {}` 臂——**刚折入的整条流式答复被丢弃**。web 流式几十秒只丢看不见的尾颗粒（故从未暴露）；chaos 桩毫秒级整答=全灭。修复：switch 统一收敛为 `out`，`pre && out && !("turns" in out)` 时兜底合并（c275b897） |
+| 连带真缺陷② | forward_auth 门不认 paired-device Bearer（WS+HTTP）→ 补 mpUserFromToken fallback（6c57164e） |
+| 连带真缺陷③ | `mpAuth.verifyToken` 被微信三件套 configured 门死——标准部署 app 永验不通（244174ed，本地 401→UPGRADED 实证） |
+| 连带真缺陷④ | 聊天 FlatList 缺 extraData（流式原地变异被行判等冻结）→ 8a9d9219 |
+| 连带 TDZ | 某快照里 `writeMcpPatch(workspace: bootWorkspace.path)` 在 `const bootWorkspace` 声明前 122 行（用 579/声明 701）→ agent init 必崩 `Cannot access 'bootWorkspace' before initialization` → /api/ready 永 503。**main 已由并行会话修正**（声明 587→使用 594 序已正）；本次以「旧序快照」行刑，教训=取快照时核 agent 就绪日志 |
+| 流程加固 | ①mock2 就绪**硬断言**（此前等待无断言，agent 崩了也硬跑成 still-initializing 假失败）+失败吐 server.log 尾；②`dsh` init catch 补 `err.stack` 打印（TDZ 类模块序故障仅凭 message 无法定部，正是本案卡点） |
+| 遗留 | 修复码+探针车（run 40640907793，支 `nonweb-e2e/probe-fixed`）在验：若仍空，则按该轮 evlog 的 device 事件流继续；pool 侧收尾（tasks 2.2/3.x 勾单、change 归档）待绿 |

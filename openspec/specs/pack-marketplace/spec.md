@@ -7,7 +7,7 @@ A gateway-level registry where identity-gated creators publish versioned capabil
 
 ### Requirement: Publishing is identity-gated
 
-Publishing SHALL be allowed only for authenticated users whose platform groups include the configured creator group (default `creators`), unless the deployment's access mode is `open`. The access mode SHALL be read from `PACK_ACCESS_MODE` with `closed` as the default; in `closed` mode the creator-group gate applies exactly as before (byte-identical refusals), and in `open` mode any authenticated user MAY publish — the creator group remains required for nothing on this path. Every other user SHALL receive a rejection. The gateway SHALL stamp the publishing user's identity and the publish time onto the stored version; the manifest itself SHALL NOT carry author-controlled identity claims. Both arrival surfaces — the cell-assembled flow on 壹座 and the publish-from-manifest flow on the facet surface — SHALL pass through the same gate and the same manifest validation.
+Publishing SHALL be allowed for authenticated users who satisfy at least one of: platform groups include the configured creator group (default `creators`); the deployment's access mode is `open`; or the user is bound to a registered vendor whose profile mandatory fields are complete (openspec: vendor-identity). The access mode SHALL be read from `PACK_ACCESS_MODE` with `closed` as the default; in `open` mode any authenticated user MAY publish, in `closed` mode admission is the creator group OR a registered vendor binding. Every other user SHALL receive a rejection. The gateway SHALL stamp the publishing user's identity and the publish time onto the stored version; the manifest itself SHALL NOT carry author-controlled identity claims (vendor attribution rides the stamped identity, not the manifest text — see the vendor-attribution requirement in this capability). Both arrival surfaces — the cell-assembled flow on 壹座 and the publish-from-manifest flow on the facet surface — SHALL pass through the same gate and the same manifest validation, and every publish-side rule (rate limiter, manifest validation, tool-surface closure gate) SHALL apply to vendor publishers identically: no lane is relaxed for vendors.
 
 #### Scenario: Creator publishes
 
@@ -16,23 +16,38 @@ Publishing SHALL be allowed only for authenticated users whose platform groups i
 
 #### Scenario: Non-creator is rejected
 
-- **WHEN** a user without the creator group submits a manifest to the publish endpoint in `closed` mode
+- **WHEN** a user with neither the creator group nor a registered vendor binding submits a manifest to the publish endpoint in `closed` mode
 - **THEN** the gateway rejects the request with an authorization error and stores nothing
+
+#### Scenario: Bound vendor publishes
+
+- **WHEN** a user bound to a registered vendor with a complete profile submits a valid pack manifest in `closed` mode
+- **THEN** the pack is stored and the stamped identity records the vendor attribution input for the attribution requirement to resolve
+
+#### Scenario: Vendor with incomplete profile is rejected at the gate
+
+- **WHEN** a vendor-bound user whose profile mandatory fields are incomplete submits a manifest
+- **THEN** the gateway rejects with the eligibility classification naming the missing profile fields and stores nothing
 
 #### Scenario: Manifest publish and cell-assembled publish share the gate
 
-- **WHEN** the same creator publishes the same manifest shape via the facet console and via the 壹座 cell-assembled flow
+- **WHEN** the same publisher (creator or bound vendor) publishes the same manifest shape via the facet console and via the 壹座 cell-assembled flow
 - **THEN** both pass the identical identity gate and manifest validation, and both store versions stamped with the same author identity
 
 #### Scenario: Open access mode admits any authenticated user
 
-- **WHEN** `PACK_ACCESS_MODE=open` and a user without the creator group submits a valid manifest
+- **WHEN** `PACK_ACCESS_MODE=open` and a user with neither creator group nor vendor binding submits a valid manifest
 - **THEN** the pack is stored under that user's identity — the same rate limiter, manifest validation, and tool gate apply unchanged
 
 #### Scenario: Closed remains the default
 
-- **WHEN** `PACK_ACCESS_MODE` is unset (or any value other than `open`) and a non-creator publishes
+- **WHEN** `PACK_ACCESS_MODE` is unset (or any value other than `open`) and a non-creator without a vendor binding publishes
 - **THEN** the refusal is byte-identical to the pre-change contract
+
+#### Scenario: Publish-side rules hold identically for vendors
+
+- **WHEN** a bound vendor's pack declares a tool surface that fails the closure gate or exceeds rate limits
+- **THEN** the refusal classification and shape are identical to those a creator would receive
 
 ### Requirement: Published versions are immutable
 
@@ -734,3 +749,55 @@ The badge SHALL be computed by the platform — authors MUST NOT be able to set 
 
 - **WHEN** the badge derivation ships
 - **THEN** already-published entries (e.g. CRM 客服套件 → 工具, 分身工坊 → 助手, 寻数分身 → 分身) display correct badges with no republish required, since derivation is structural and applies at read time
+
+### Requirement: 付费条目呈现与购买动作
+
+市场列表与详情视图 SHALL 如实呈现条目的价格与计费形态（一次性买断/订阅期），免费条目不渲染价格区。详情视图 SHALL 对已登录买家提供购买动作入口；购买完成前安装付费条目 SHALL 以「未成交」分类如实拒绝并指引购买，免费条目安装行为不变。购买动作 SHALL 只对已登录用户可用，匿名访问保持只读。
+
+#### Scenario: 付费条目价格可见
+
+- **WHEN** 用户打开一个声明价格的条目详情
+- **THEN** 价格与计费形态随详情一并呈现，值与版本级价格声明一致
+
+#### Scenario: 未成交安装被如实挡
+
+- **WHEN** 用户安装一个自己未成交的付费条目
+- **THEN** 安装以未成交分类拒绝并指引购买路径，不物化任何内容
+
+#### Scenario: 免费条目安装不变
+
+- **WHEN** 用户安装一个免费条目
+- **THEN** 行为与引入付费能力之前完全一致
+
+### Requirement: 市场条目承载供应商署名
+
+发布者 SHALL 可在发布时声明包归属于其绑定的某个供应商主体；网关 SHALL 校验该绑定真实存在后，把供应商主体署名（公开署名字段）投影进市场条目与详情视图——署名来自服务端档案，manifest 文本与包内容 SHALL NOT 承载可自行编写的署名声明。未声明归属的条目不署供应商名（仅作者身份呈现），未绑定主体的发布者提供归属声明 SHALL 以资格分类如实拒绝。供应商主体的公开署名变更 SHALL 使条目呈现随之更新（呈现时取当前档案值），已发布版本的历史归档不变更。
+
+#### Scenario: 归属声明进条目
+
+- **WHEN** 绑定供应商甲的发布者发布 pack 并声明归属甲
+- **THEN** 市场列表与详情视图对该条目呈现甲的公开署名，署名值取自供应商档案而非 manifest
+
+#### Scenario: 无权署名如实拒
+
+- **WHEN** 发布者声明的供应商主体并非其绑定主体
+- **THEN** 发布以资格分类拒绝并说明绑定关系不成立，不产生条目
+
+#### Scenario: 无归属声明不署名
+
+- **WHEN** 未声明归属的发布（内部作者或不带归属的 vendor 发布）上架
+- **THEN** 条目仅呈现既有作者身份，不虚构供应商署名
+
+### Requirement: 订阅跟新提示
+
+一条目发布新版本后，该条目的订阅者 SHALL 收到账内跟新提示（版本号与变更摘要，经既有账内 unread 提示通道送达）；提示为纯通知，SHALL NOT 触发任何形式的自动升级、自动重装或已装内容变更。订阅者可在市场面与管理面看到「有新版」状态并显式选择升级（既有显式更新语义不变）。提示对免费与付费条目同轨；付费条目的新版本可见性遵循其成交范围语义。
+
+#### Scenario: 发新版得提示
+
+- **WHEN** 已订阅条目发布新版本
+- **THEN** 订阅者账内出现跟新提示，订阅条目呈现有新版状态，已装内容原样不动
+
+#### Scenario: 提示不升任何装
+
+- **WHEN** 订阅者未做任何显式升级动作
+- **THEN** 其已装快照与订阅关系逐字节不变，仅提示与状态标记存在

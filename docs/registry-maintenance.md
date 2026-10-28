@@ -3089,3 +3089,13 @@ Cluster→Array、Role→Persona、Standby→On call、Add post 等界面标签�
   平台→模型上游探针超时）；该岗 cron 会话已 64 条消息 / 2.0MB，每轮重放很重——疑为回合可靠性老问题，
   本轮只记录不处置（另车道在跟）。
 - 生产 platform pod 12 分钟前一次 **OOMKilled(137)** 重启（12:39 前），当前 1/1 Running；未追查。
+
+### §15.74 供应开放+主人经营四单归档（2026-10-28 午后）——已在产复核 + spec 主镜同步 200/0
+
+**在产事实（in-pod 眼见，非推论）**：现役 `ccr…/yizuo/platform:sha-c4d0ce9`（digest 831ae713，platform+facet 同 tag）源 `054dc944` ⊇ 本系三笔终版提交（`fcc4f020`/`ede844e6`/`312a8a0d`），故四棒代码随 11:56 那片滚产上车。**包内标记全中**（platform pod）：fleets.js 坞/迭代/digest 4 处、fleets-db 14 处、fleet-iteration/fleet-digest 两模块在场、参数槽 resolve 在场、market_purchases 18 处、packs.js 快照/跟新端点 7 处、vendor/fleet-board 三件在场、fork 车道切换 4 处；**前端 bundle 亦命中 fleet-owner-board**（坞面挂载随共享工作树攫入该片）。facet pod：三路由挂载 6 处 + fork 车道标记 2 处。
+
+**归档四单**（`openspec/changes/archive/2026-10-28-*`）：add-vendor-supply-open（15/17）、add-market-revenue-share（15/15）、add-fleet-owner-surface（16/16）、add-fleet-owner-iteration（14/14）。
+
+**spec 主镜同步**：新增 `market-revenue-share`/`vendor-identity`/`vendor-server-onboarding`/`fleet-owner-surface`/`fleet-owner-iteration` 五个能力；修改 `pack-marketplace`（Publishing 门扩 vendor+署名投影+付费呈现+跟新提示四段并）、`platform-billing`（内账结算）、`ecosystem-curation`（无匿名面→注册 vendor 过审）、`agent-fleet-templates`（参数槽）、`agent-fleet-decision-lane`（config-change 型拍板）；`validate --specs` **200/0**。MODIFIED 两处（Publishing/No-open-submission）按新文本整块替换并逐项复核。
+
+**归档携带挂账（转生产外部窗追踪）**：vendor 4.2（fork 车道部署窗：镜像出片+cheap-8+k8s 注入 `VENDOR_LANE_TOKEN`，协议档 `docs/registry-fork-patches/2026-10-28-vendor-onboarding-lane.md`；该 fork 仓 GHA 私有分钟欠款在案）+ 4.3（`live-supply-owner-acceptance` 手动批次：A 档现可跑，B 档 `accept_token_lane=1` 放行）。

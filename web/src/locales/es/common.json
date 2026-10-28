@@ -1788,7 +1788,8 @@
       "empty": "Aún no hay suscripciones. Explora el mercado.",
       "updateAvailable": "actualizar a v{{version}}",
       "upgrade": "Actualizar",
-      "uninstall": "Cancelar suscripción"
+      "uninstall": "Cancelar suscripción",
+      "sourceBundle": "instalado sin conexión"
     },
     "uninstall": {
       "title": "Cancelar suscripción de «{{name}}»",
@@ -2049,7 +2050,33 @@
     "reopenHint": "Cambia tus áreas de trabajo: se añaden recursos nuevos y no se elimina nada de lo ya instalado.",
     "reopen": "Elegir áreas de nuevo",
     "doneIssues": "No se configuró esta vez: {{items}}. Puedes añadirlo más tarde desde el mercado.",
-    "doneExpertUnavailable": "El asistente predeterminado de este ámbito aún no está disponible en este despliegue."
+    "doneExpertUnavailable": "El asistente predeterminado de este ámbito aún no está disponible en este despliegue.",
+    "tour": {
+      "stepLabel": "Paso {{n}}",
+      "skip": "Omitir",
+      "next": "Siguiente",
+      "finish": "Finalizar",
+      "step1": {
+        "title": "Elige un experto",
+        "body": "Elige el asistente que encaja con la tarea: este paso se ancla en el selector."
+      },
+      "step2": {
+        "title": "Expón tu petición",
+        "body": "Escríbela o elige una sugerencia: este paso se ancla en el compositor."
+      },
+      "step3": {
+        "title": "Mira los resultados",
+        "body": "Los resultados llegan a Resultados: este paso se ancla en la entrada de navegación."
+      },
+      "stepFleet": {
+        "title": "Ejecuta tu primer clúster local",
+        "body": "Instala el paquete inicial incluido y abre la consola de flotas para desplegar agentes y verlos trabajar en este equipo.",
+        "install": "Instalar el paquete inicial",
+        "installing": "Instalando…",
+        "installed": "Instalado: abre la consola de flotas",
+        "failed": "Falló la instalación: reinténtalo desde la consola de flotas"
+      }
+    }
   },
   "mcp": {
     "narrative": {
@@ -2189,13 +2216,29 @@
       "title": "Catálogo",
       "refresh": "Actualizar",
       "empty": "El catálogo está vacío",
-      "deploy": "Desplegar aquí",
-      "deployPending": "Esperando el plano de gestión de dispositivos (slice ③)",
-      "deployNote": "Los despliegues se abren con la gestión de dispositivos: este asiento será entonces un destino válido.",
       "guide": {
         "notConfigured": "Registro sin configurar (Preferencias → Wanxing Fleet)",
         "unreachable": "El catálogo no responde"
-      }
+      },
+      "idle": "Carga el directorio de la nube (solo lectura) cuando lo necesites",
+      "readOnlyNote": "El directorio de la nube es un puente de solo lectura: los despliegues ocurren en el clúster local de arriba."
+    },
+    "local": {
+      "capacity": "Grupos de ejecución: {{used}} / {{cap}}",
+      "capacityHint": "Todos los grupos están en uso: detén o elimina un despliegue primero",
+      "capacityExceeded": "Los {{cap}} grupos de ejecución están en uso ({{used}} usados): elimina uno para liberar",
+      "actionFailed": "La acción falló: {{code}}",
+      "candidatesTitle": "Desplegar desde paquetes instalados",
+      "candidatesEmpty": "Aún no hay agentes servibles en los paquetes instalados: instala un paquete",
+      "candidatesNote": "Los despliegues se ejecutan solo en esta máquina. Un grupo de ejecución es un proceso hijo; en modo pod todos los agentes de un paquete comparten uno.",
+      "unavailable": "El almacén del clúster local no está disponible",
+      "stateRunning": "en ejecución",
+      "stateStopped": "detenido",
+      "stateNotDeployed": "sin desplegar",
+      "deploy": "Desplegar",
+      "stop": "Detener",
+      "start": "Iniciar",
+      "remove": "Eliminar"
     }
   },
   "roles": {

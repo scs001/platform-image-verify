@@ -1788,7 +1788,8 @@
       "empty": "No packs subscribed yet. Browse the market.",
       "updateAvailable": "update to v{{version}}",
       "upgrade": "Upgrade",
-      "uninstall": "Unsubscribe"
+      "uninstall": "Unsubscribe",
+      "sourceBundle": "offline"
     },
     "uninstall": {
       "title": "Unsubscribe “{{name}}”",
@@ -2049,7 +2050,33 @@
     "reopenHint": "Change the areas you work in — new resources are added, nothing already installed is removed.",
     "reopen": "Choose areas again",
     "doneIssues": "Not set up this time: {{items}}. You can add these from the marketplace later.",
-    "doneExpertUnavailable": "The default assistant for this domain is not available on this deployment yet."
+    "doneExpertUnavailable": "The default assistant for this domain is not available on this deployment yet.",
+    "tour": {
+      "stepLabel": "Step {{n}}",
+      "skip": "Skip",
+      "next": "Next",
+      "finish": "Finish",
+      "step1": {
+        "title": "Pick an expert",
+        "body": "Choose the assistant that fits the job — the picker anchors this step."
+      },
+      "step2": {
+        "title": "State your request",
+        "body": "Type it or pick a suggestion — the composer anchors this step."
+      },
+      "step3": {
+        "title": "See the results",
+        "body": "Results land in Outputs — the nav entry anchors this step."
+      },
+      "stepFleet": {
+        "title": "Run your first local cluster",
+        "body": "Install the bundled starter pack, then open the fleet console to deploy agents and watch them run on this machine.",
+        "install": "Install the starter pack",
+        "installing": "Installing…",
+        "installed": "Installed — open the fleet console",
+        "failed": "Install failed — open the fleet console to retry"
+      }
+    }
   },
   "mcp": {
     "narrative": {
@@ -2264,13 +2291,29 @@
       "title": "Market catalog",
       "refresh": "Refresh",
       "empty": "The catalog is empty",
-      "deploy": "Deploy here",
-      "deployPending": "Waiting for the device-management plane (slice ③)",
-      "deployNote": "Deploys open once the device-management plane lands — this seat then becomes a deploy target.",
       "guide": {
         "notConfigured": "Registry not configured (Preferences → Wanxing Fleet)",
         "unreachable": "The catalog service is unreachable"
-      }
+      },
+      "idle": "Load the cloud directory (read-only) when you need it",
+      "readOnlyNote": "The cloud directory is a read-only bridge — deployments happen in the local cluster above."
+    },
+    "local": {
+      "capacity": "Runtime groups: {{used}} / {{cap}}",
+      "capacityHint": "All runtime groups are in use — stop or remove a deployment first",
+      "capacityExceeded": "All {{cap}} runtime groups are in use ({{used}} used) — remove a deployment to free one",
+      "actionFailed": "Action failed: {{code}}",
+      "candidatesTitle": "Deploy from installed packs",
+      "candidatesEmpty": "No serving agents in the installed packs yet — install a pack first",
+      "candidatesNote": "Deployments run on this machine only. A runtime group is one child process; in pod mode every agent of a pack shares one.",
+      "unavailable": "The local fleet store is unavailable",
+      "stateRunning": "running",
+      "stateStopped": "stopped",
+      "stateNotDeployed": "not deployed",
+      "deploy": "Deploy",
+      "stop": "Stop",
+      "start": "Start",
+      "remove": "Remove"
     }
   },
   "roles": {

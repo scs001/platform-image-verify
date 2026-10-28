@@ -1788,7 +1788,8 @@
       "empty": "还没有订阅任何能力包。去市场看看。",
       "updateAvailable": "可更新到 v{{version}}",
       "upgrade": "升级",
-      "uninstall": "退订"
+      "uninstall": "退订",
+      "sourceBundle": "离线安装"
     },
     "uninstall": {
       "title": "退订「{{name}}」",
@@ -2049,7 +2050,33 @@
     "reopenHint": "更换你的工作领域——只会新增资源，不会卸载已装的内容。",
     "reopen": "重新选择领域",
     "doneIssues": "这次没能装上：{{items}}。之后可以在市场中添加。",
-    "doneExpertUnavailable": "该领域的默认助手在本部署上暂不可用。"
+    "doneExpertUnavailable": "该领域的默认助手在本部署上暂不可用。",
+    "tour": {
+      "stepLabel": "第 {{n}} 步",
+      "skip": "跳过",
+      "next": "下一步",
+      "finish": "完成",
+      "step1": {
+        "title": "挑一位专家",
+        "body": "选一个合适的助手——这一步锚在助手选择器上。"
+      },
+      "step2": {
+        "title": "说出你要什么",
+        "body": "直接打字或选一个建议——这一步锚在输入框上。"
+      },
+      "step3": {
+        "title": "看结果",
+        "body": "成果会落在「成果」里——这一步锚在导航入口上。"
+      },
+      "stepFleet": {
+        "title": "跑起你的第一支本地集群",
+        "body": "装上随附的入门包，再打开舰队面板部署 agent，看着它们在这台机器上跑起来。",
+        "install": "装上入门包",
+        "installing": "安装中…",
+        "installed": "已安装——去舰队面板看看",
+        "failed": "安装失败——去舰队面板重试"
+      }
+    }
   },
   "mcp": {
     "narrative": {
@@ -2264,13 +2291,29 @@
       "title": "市场目录",
       "refresh": "刷新",
       "empty": "目录为空",
-      "deploy": "部署到本机",
-      "deployPending": "待设备管理面（切片③）解锁",
-      "deployNote": "部署动作将在设备管理面落地后开放：届时本机机位可作为部署目标。",
       "guide": {
         "notConfigured": "未配置 registry（偏好设置 → Wanxing Fleet）",
         "unreachable": "目录服务暂不可达"
-      }
+      },
+      "idle": "需要时再加载云目录（只读）",
+      "readOnlyNote": "云目录是只读桥——部署发生在上方的本机集群。"
+    },
+    "local": {
+      "capacity": "运行时组：{{used}} / {{cap}}",
+      "capacityHint": "运行时组已用满——请先停用或移除一个部署",
+      "capacityExceeded": "{{cap}} 个运行时组已全部占用（已用 {{used}}）——移除一个部署腾出",
+      "actionFailed": "操作失败：{{code}}",
+      "candidatesTitle": "从已安装的包部署",
+      "candidatesEmpty": "已安装的包里还没有可服务的 agent——请先安装一个包",
+      "candidatesNote": "部署只在本机运行。运行时组 = 一个子进程；pod 模式下同一个包的所有 agent 共宿一个。",
+      "unavailable": "本地集群存储不可用",
+      "stateRunning": "运行中",
+      "stateStopped": "已停用",
+      "stateNotDeployed": "未部署",
+      "deploy": "部署",
+      "stop": "停用",
+      "start": "启用",
+      "remove": "移除"
     }
   },
   "roles": {

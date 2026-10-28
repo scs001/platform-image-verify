@@ -254,6 +254,10 @@ export interface InstalledPack {
   report: PackReport;
   installedAt: string;
   updatedAt: string;
+  /** Where it came from: market | bundle (offline import / preinstalled
+   *  starter). Absent on rows written before the column existed — read it as
+   *  "market" and never block on it. */
+  source?: string;
 }
 
 export interface PackDraft {

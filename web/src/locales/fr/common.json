@@ -1788,7 +1788,8 @@
       "empty": "Aucun abonnement pour l'instant. Parcourez le marché.",
       "updateAvailable": "mise à jour vers v{{version}}",
       "upgrade": "Mettre à jour",
-      "uninstall": "Se désabonner"
+      "uninstall": "Se désabonner",
+      "sourceBundle": "installé hors ligne"
     },
     "uninstall": {
       "title": "Se désabonner de « {{name}} »",
@@ -2049,7 +2050,33 @@
     "reopenHint": "Changez vos domaines de travail — de nouvelles ressources s'ajoutent, rien de ce qui est installé n'est supprimé.",
     "reopen": "Choisir à nouveau",
     "doneIssues": "Non installé cette fois : {{items}}. Vous pourrez l'ajouter plus tard depuis le marché.",
-    "doneExpertUnavailable": "L'assistant par défaut de ce domaine n'est pas encore disponible sur ce déploiement."
+    "doneExpertUnavailable": "L'assistant par défaut de ce domaine n'est pas encore disponible sur ce déploiement.",
+    "tour": {
+      "stepLabel": "Étape {{n}}",
+      "skip": "Passer",
+      "next": "Suivant",
+      "finish": "Terminer",
+      "step1": {
+        "title": "Choisissez un expert",
+        "body": "Choisissez l'assistant adapté à la tâche — cette étape s'ancre sur le sélecteur."
+      },
+      "step2": {
+        "title": "Formulez votre demande",
+        "body": "Écrivez-la ou choisissez une suggestion — cette étape s'ancre sur le composeur."
+      },
+      "step3": {
+        "title": "Voyez les résultats",
+        "body": "Les résultats arrivent dans Sorties — cette étape s'ancre sur l'entrée de navigation."
+      },
+      "stepFleet": {
+        "title": "Lancez votre premier cluster local",
+        "body": "Installez le pack de démarrage fourni, puis ouvrez la console de flottes pour déployer des agents et les voir tourner sur cette machine.",
+        "install": "Installer le pack de démarrage",
+        "installing": "Installation…",
+        "installed": "Installé — ouvrez la console de flottes",
+        "failed": "Échec de l'installation — réessayez depuis la console de flottes"
+      }
+    }
   },
   "mcp": {
     "narrative": {
@@ -2189,13 +2216,29 @@
       "title": "Catalogue",
       "refresh": "Actualiser",
       "empty": "Le catalogue est vide",
-      "deploy": "Déployer ici",
-      "deployPending": "En attente du plan de gestion des appareils (slice ③)",
-      "deployNote": "Les déploiements s'ouvriront avec la gestion des appareils — ce poste deviendra une cible valide.",
       "guide": {
         "notConfigured": "Registre non configuré (Préférences → Wanxing Fleet)",
         "unreachable": "Le catalogue est injoignable"
-      }
+      },
+      "idle": "Chargez l'annuaire cloud (lecture seule) si nécessaire",
+      "readOnlyNote": "L'annuaire cloud est un pont en lecture seule — les déploiements se font dans le cluster local ci-dessus."
+    },
+    "local": {
+      "capacity": "Groupes d'exécution : {{used}} / {{cap}}",
+      "capacityHint": "Tous les groupes sont utilisés — arrêtez ou retirez un déploiement d'abord",
+      "capacityExceeded": "Les {{cap}} groupes d'exécution sont utilisés ({{used}} utilisés) — retirez un déploiement pour en libérer un",
+      "actionFailed": "Échec de l'action : {{code}}",
+      "candidatesTitle": "Déployer depuis les paquets installés",
+      "candidatesEmpty": "Aucun agent servable dans les paquets installés — installez d'abord un paquet",
+      "candidatesNote": "Les déploiements s'exécutent uniquement sur cette machine. Un groupe d'exécution est un processus enfant ; en mode pod, tous les agents d'un paquet partagent le même.",
+      "unavailable": "Le stockage du cluster local est indisponible",
+      "stateRunning": "en cours",
+      "stateStopped": "arrêté",
+      "stateNotDeployed": "non déployé",
+      "deploy": "Déployer",
+      "stop": "Arrêter",
+      "start": "Démarrer",
+      "remove": "Retirer"
     }
   },
   "roles": {

@@ -132,6 +132,19 @@ export function MyPacksView() {
             <div className="flex items-center gap-2">
               <span className="font-medium text-foreground">{pack.name}</span>
               <span className="text-xs text-muted-foreground">v{pack.version}</span>
+              {pack.source === "bundle" && (
+                // Provenance badge (add-offline-pack-supply): a pack that came
+                // from an offline bundle (imported by hand or from the
+                // installer's starters) is NOT on the market — the upgrade
+                // action below would have nowhere to fetch from, so the badge
+                // says where it came from instead of pretending it is current.
+                <span
+                  className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                  data-testid={`pack-source-badge-${pack.packId}`}
+                >
+                  {t("packs.mine.sourceBundle")}
+                </span>
+              )}
               {hasUpdate && (
                 <span
                   className="inline-flex items-center rounded-full bg-primary/15 px-2 py-0.5 text-xs text-primary"

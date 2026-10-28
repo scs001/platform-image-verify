@@ -3648,3 +3648,20 @@ change 3 的真机睡眠/唤醒一幕。
 **止血**：GitOps 回滚 `registry.yaml` 至 `sha256:22e27f38…`（原片）→ ArgoCD sync → 滚完；pod 内 `surface_report_routes.py` 恢复在场，自报端点由 404 转为 **422**（路由活、缺参）。
 
 **待办（重滚正确版）**：以生产线 `feat/self-reported-tool-surface` 为基 + cherry-pick 车道（`8969382`）重建超集镜像，验证「自报路由 + vendor lane」双在，再滚。**纪律补强**：bump 前必须核「现役镜像源的 commit 是否为我镜像源的祖先」，本仓的「生产线」是 `feat/self-reported-tool-surface`，不是 `main`。
+
+### §15.81 事故修正落地：车道建于生产线基座，双在滚产（2026-10-28 深夜）
+
+**重做路径（修正 §15.80 的基座错误）**：
+1. 基座改为**生产线** `feat/self-reported-tool-surface`（HEAD=`e8cf7292`，即现役镜像源本身）→ cherry-pick 车道提交 → 分支 `fd-vendor-lane-prod`（头部 `3085fb7`）。
+2. 校验源树：`registry/api/surface_report_routes.py` 与 `registry/api/vendor_lane_routes.py` **双在**，`registry/main.py` 两处挂载齐；`Dockerfile.registry` 是 `COPY registry/ /app/registry/` 整目录 → 双文件必进镜像。
+3. 出片（公开仓免费 runner）→ **`hkccr…/yizuo/mcp-registry:sha-3085fb7`，digest `sha256:90d68b20…f36767`**（注意：该仓 tag 是 **7 位短 SHA**，我第一次按 8 位查空转了十分钟）。
+4. relay ≤5min 回灌 ccr（同 digest 实证）→ GitOps `12df631` 双推 → ArgoCD sync Succeeded → rollout 完成。
+
+**生产双在实证（关键，非推论）**：
+- `deploy registry` image = `@sha256:90d68b20…`；
+- pod 内两文件都在（`surface_report_routes.py` / `vendor_lane_routes.py`），`main.py` 挂载数 5；
+- **自报端点** `POST /api/surface-report/servers/wire-build-mcp/tool-list` → **422**（路由活，缺参）；
+- **车道端点** 无令牌 → **401**（门在）；带令牌 + 不存在的服务 → **404 `Service path not registered`**（路由活、零写）；
+- 生产 writer 直证：facet 内真模块 `lane=service-token configured=true`。
+
+**纪律补强（已入 §15.80 并重申）**：本仓有**两条线**——`main`（陈旧旁支，落后 2581 笔）与 `feat/self-reported-tool-surface`（**生产线**，生产镜像源的出处）。bump 前必核「现役镜像源 commit 是否为我源的祖先」；本仓默认以**生产线**为基座。tag 形态是 7 位短 SHA。

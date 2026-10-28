@@ -3666,6 +3666,19 @@ change 3 的真机睡眠/唤醒一幕。
 
 **纪律补强（已入 §15.80 并重申）**：本仓有**两条线**——`main`（陈旧旁支，落后 2581 笔）与 `feat/self-reported-tool-surface`（**生产线**，生产镜像源的出处）。bump 前必核「现役镜像源 commit 是否为我源的祖先」；本仓默认以**生产线**为基座。tag 形态是 7 位短 SHA。
 
+### §15.84 事故终账：终版滚产 + 计费语义回退 + 自报车道四服务全量补报实证（2026-10-29 晨，§15.80/81 关账）
+
+**终版镜像（生产线直出，取代 §15.81 的过渡版）**：把 `prodline` 快进到生产线头 `feat/self-reported-tool-surface`（`e8cf7292..506f127d`），**直接从生产线自身**出片 `hkccr…/yizuo/mcp-registry:sha-506f127`（registry digest `sha256:d009f4b0…a779`，auth-server `sha256:5da8391a…8b38`）→ relay 回灌 → GitOps `137a2c1` 双推 → ArgoCD sync → pod `1/1 Running`。pod 内 `surface_report_routes.py` + `vendor_lane_routes.py` 双在；生产三探针：自报端点 422（活）/ 车道无令牌 401 / 带令牌不存在服务 404。今后该仓出片**一律从生产线出**，不再走旁支拼装。
+
+**计费语义回退（记录在案）**：我曾在公开 `main` 把 `auth_server/call_grant.py::_is_patch_key_caller` 的 `return bool(claims.get("groups"))` 当 bug「修」掉——但生产线的自有测试**刻意断言相反语义**（`# Deployed semantics (ecosystem-bridge 3.3, aligned 2026-10-13): a non-empty groups claim IS the free-tier population signal`）。生产线基座上它是**有测试背书的既定行为**，不是缺陷。已在生产线 `506f127d` 保持原语义并在分支上回退我的改动。教训：**跨线改 fork 代码前先查该线自己的测试对这段代码的断言**——公开线的「现状」不等于生产线的「意图」。
+
+**自报车道端到端实证（四服务全量补报，事故零数据损的最终确认）**：
+- **422 归因实验**：滚版后 registry 日志唯一一条 `surface-report` 请求（`04:50:38` 来自 `100.64.0.11`）曾疑似服务上报被拒。重放同探针 → 日志出现**一模一样的 `100.64.0.11:0` 422 行** → 那是我自己的存活探针（ingress 节点出口 IP），**不是**服务上报。滚版后本无任何服务上报（它们只在启动/首请求时报，四个 pod 都已跑 43h~3d4h）。
+- **强制补报**：`rollout restart` 四服务 → 四条 `last_surface_report_at` 全部刷新为当日（UTC `21:22:05 / 21:22:53 / 21:23:13 / 21:29:30`），`surface_source=self_report` ×4 不变，tool_list 17/13/8/19 原样。registry 日志直证两条：`Self-reported tool surface for /wire-build-mcp: 17 tool(s), updated=True (changed)` + `200 OK`，`/fd-paper-trading: 19 tool(s)…` + `200 OK`；wire-ops/wanxing-ops 两条以 **Mongo 写入戳 + `/health` 的 `last_surface_report:"ok"`** 双证收口（其访问日志行不可见不影响地面真值）。
+- **机制存档**（`wire_ops_mcp/surface_report.py`）：上报**不是字面启动即发**，是 `ensure_started(mcp)` 挂在每个 HTTP 请求（含 `/health`）上的首请求触发；有界退避 15s/1m/5m/30m ×4，成功即停，失败不阻塞启动；`/health` 专门暴露 `last_surface_report: ok|failed|not_configured` 状态位——**查车道是否通，先看 /health 这个位，再对 Mongo `mcp_servers_default.last_surface_report_at`**（注意集合名带 `_default` 后缀、键是 `server_name` **不带前导斜杠**）。
+
+**顺带运维两记**：① 三个重启的新 pod 落到 `liuliangdmh1xr0w9ryu`——10-28 盘满砖化过的节点已复活回轮转（sub2api 那次的后续，暂无异常，值得留意）；② `fd-prod` 的 `compute-quota` 一度顶满（limits.cpu 22800m/23、内存 30688Mi/30Gi），`fd-paper-trading` 新 pod 首两次 FailedCreate 被配额拒，RS 自动重试待 cronjob 释放后落位——RollingUpdate 全程零中断，但**在配额紧的命名空间做 rollout 要预期延迟而非失败**。
+
 ### §15.78 续五（2026-10-29）——优化复查五项收口（三修两记）
 
 **修一：草稿→manifest 编译抽单源**（发布与导出曾各持一份，导出侧漏 bots/guide

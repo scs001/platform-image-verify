@@ -17,7 +17,7 @@
 
 ## 3. 长会话打开载荷（web-chat-server / web-chat-ui）
 
-- [ ] 3.1 插测量：`switchToSession` 记录耗时与 `messages` 序列化字节数（一行日志）。代码已落（`server/agent-session.js` `logSwitchCost`），**真机读取待 4.4**（本地无 dsh 常驻会话，无法产生真实读数）。
+- [x] 3.1 插测量：`switchToSession` 记录耗时与 `messages` 序列化字节数（一行日志）。验证：生产真机读数 `[session-open] switch cron-job_1793138268104_ixzde6 ms=137 messages=51 bytes=1710034`——服务端切换 137ms、首帧被窗口钉在 51 条/1.7MB（该会话全量 54 条；字节≈33KB/条，重块为主），窗口化生效。
 - [x] 3.2 服务端首帧窗口化：`session_loaded`（`running: false`）只携带最近 N 轮 + `totalTurns` + `hasMore`；N 与客户端渲染开窗共用同一常量（`TRANSCRIPT_WINDOW = 50`）。验证：`test-transcript-window.mjs` 6/6 + e2e `session-open.spec.js`「a long session loaded from the server opens windowed」通过。
 - [x] 3.3 服务端按需分页：新增 `load_earlier`（游标 = 最早已载 `seq`，返回上一批升序 + `hasMore`），复用 `switch_session` 的所有权校验。验证：`test-transcript-window.mjs` 逐页回溯/最老页终止/空页如实/未知输入降级 全通过。
 - [x] 3.4 客户端接入：store 持有已载窗口；顶部「加载更早」改为向服务端取上一页并前插；已含首轮时隐藏入口；outline/export 不报错。验证：`test-chat-store-session-open.mjs` 3.4（前插 + 游标推进 + 异会话丢弃）4 例通过；e2e `session-open.spec.js` 渲染开窗/outline 跳转全通过。
@@ -25,7 +25,12 @@
 
 ## 4. 收口与出片
 
-- [ ] 4.1 新增文案（加载中/骨架等）补齐五语言，复用既有「加载更早」。**本变更零新增 key**（骨架无文案、`chat.loadEarlier` 复用），因此无需补译；locale 闸当前红是并行会话在途的 `packs.detail.*`/`packs.earnings.*` 只补了 en+zh-CN，与本案无关。
-- [ ] 4.2 全量门：`npm run test:unit` 与相关 e2e 全绿。**我方全绿**（4 个测试文件 + session/store/history + zhiyu 家族）；全量门 31 例红全部来自并行会话在途（`server/fleet-digest.js` 曾缺失、pack/extension 契约）与 HEAD 既有（app-center `GRID_ORDER` 未含已入仓的 `crm-desk`），非本案文件。
+- [x] 4.1 新增文案（加载中/骨架等）补齐五语言，复用既有「加载更早」。验证：`check:locales` 五语言全 OK（es/fr/ja 补译 53 key，镜像构建硬门实证拦下后补齐）。
+- [x] 4.2 全量门：`npm run test:unit` 与相关 e2e 全绿。验证：本变更 4 测试文件 33/33 + session/store/history 域 42/42；e2e `session-open` 全过 + 新增 `zhiyu-unread-badge`/`agents` 延迟读/`fleets` 冷启动三条时序用例通过（app-center GRID_ORDER 一例红为 HEAD 既有：`agents.json` 已含 `crm-desk` 而期望表未更新，与本变更无关）。
 - [x] 4.3 `openspec validate --specs` 全量为 0 失败。验证：`190 passed, 0 failed`。
-- [ ] 4.4 出片并真机眼见五项（集群空态不闪、应用中心即时全量、智能体不空刷、智语角标可归零、长会话打开变快）。**待部署**（需用户出片到生产后走查；与 3.1 的真机读数同批）。
+- [x] 4.4 出片并真机眼见五项（集群空态不闪、应用中心即时全量、智能体不空刷、智语角标可归零、长会话打开变快）。验证（生产 `platform.finddatatech.cloud`，镜像 sha-bbe86c4/digest 5fc4479d，aloadtree 会话实走）：
+  - #4 角标：进页前 45 → 进 `/zhiyu` 后侧栏角标元素 0 个且不再复现；动静面板可见邀请类通知（口径一致同屏可见）。
+  - #1 集群：首访 loading 占位（`fleets-loading=1`）全程无空文案；列表落地 21 卡；选中→切走→切回，卡片高亮恢复且「选择或创建一个集群」0 次。
+  - #2 应用中心：冷加载即全量 22 卡（骨架窗口小于采样粒度），回访零骨架、产品卡即时在位。
+  - #3 智能体：加载中无空态闪现，落地后诚实空态（「还没有阵列…」）正常呈现，回访 60 专家卡即时。
+  - #5 长会话：窗口化实证（50 条挂载 + load-earlier 按需翻页 50→54、最老页按钮消失；in-pod drill 证 total=54/hasMore=true/分页 4 条）；缓存回访 ~0.9s 无骨架即时渲染；服务端探针 137ms/1.7MB。已知余量：重块会话（≈33KB/条）客户端挂载仍 3-7s，属 N 调参与块裁剪的后续优化空间，台账挂账。

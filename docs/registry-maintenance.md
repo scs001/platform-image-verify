@@ -2923,3 +2923,21 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **dl 链**：dl-publish（002 main 补桩）→ hkccr/yizuo/desktop-installers:**1.3.20**（**tag 无 v 前缀**——relay 手动单/dl 目录同名口径）digest ac011971 → relay 手动单 → ccr 同 digest → cheap3 docker pull+cp → `/srv/dl/platform/1.3.20/` 三件套 → dl-caddy 内网 200。公网 DNS/443 仍 pending（Caddyfile 既有挂账，非本班）。
 
 **池额度**：003 烧穿（desktop 矩阵 mac×10 计费 + 多班 win-smoke 叠加；fd-build-channel 余额是 24h 缓存，判池以 run 实况为准）；002 接棒剩 ~1700 计费分钟。002 main 补两枚 workflow 桩（win-install-smoke/dl-publish，合「池 main 放桩」建制）。
+
+### §15.71 polish-web-surfaces 代滚上产 + 五项真机眼见（2026-10-28 上午）
+
+§15.69 事故挂账的「待新片」由本班代滚完结。**镜像 sha-bbe86c4 / digest 5fc4479d / GitOps bump 8786845**，内容=paas `c6c3ed40`（polish-web-surfaces 全量：列表面缓存+空态时序三面 / 智语未读归零回路 / 长会话首帧窗口化+load_earlier 分页 + im-bridge 三件套入库 + es/fr/ja 补译 53 key + scrub 表两处；并行会话 browser-lane 输出路由同树随班）。
+
+**出片线实录（三回合，两坑两律）**
+1. 首片 `sha-62b001f` 即 §15.69 的崩片，运营会话回滚止血；本班补提交 `server/{,routes/}zhiyu-im-bridge.js`（08f62949）后自制**快照级相对导入预检**（扫 737 文件，逮住且仅逮住 dsh-profile-template 两条生成期导入=已知误报）——随后并行会话把它落成常设门 `scripts/check-import-integrity.mjs`（201f11fa），预检纪律闭环。
+2. 二片 `sha-89ee830` 恢复提交出片中被**并行会话的快照强推 cancel**（image.yml `concurrency.cancel-in-progress`）——共享工作树下两会话先后出片必然竞速，后推者携带前者全部提交；**让最后者赢、自己转去验它**是唯一不烧构建分钟的做法。终片 bbe86c4 正是含双班工作树的快照。
+3. Docker 构建的 `check:locales` 是**硬门**（mirror 的 CI lint 红不拦 publish，别混两个门）：es/fr/ja 缺 53 key 三语补译后过。scrub rot 再证其「expected count 失配即拒」设计——gateway/packs.js token 域名 2→3、live-supply-owner-acceptance.yml 整文件排除（内部验收 workflow 不该进公开快照）。
+
+**五项真机眼见**（生产站，aloadtree 会话，DOM 断言为证）
+- **智语角标**：进页前 45 → 进 `/zhiyu` 即清零且不复现；动静面板可见邀请类通知（计数与面板口径一致同屏成立）。
+- **集群页**：首访 `fleets-loading=1` 全程无空文案闪现；选中→切走→切回，卡片高亮恢复、「选择或创建一个集群」零次。
+- **应用中心**：冷加载即全量 22 卡，回访零骨架（「永远 5 个再突增」终结）。
+- **智能体页**：加载中无空态闪现，落地诚实空态正常，回访 60 专家卡即时。
+- **长会话**：探针读数 `[session-open] ms=137 messages=51 bytes=1710034`（服务端 137ms、首帧钉在窗口）；挂载恰 50 条 + load-earlier 按需翻页 50→54、最老页按钮消失；in-pod drill 证 total=54/hasMore=true/分页 4 条即尽；缓存回访 ~0.9s 即时渲染。
+
+**挂账**：① 缓存回访瞬间 transcript 计数属上一会话（activateSession 未随缓存携带窗口元数据），后台校验落地自愈——秒级瞬时态，后续把字段随 sessionCache 一并缓存即可；② 重块会话（≈33KB/条，tool 产物为主）客户端挂载仍 3-7s，窗口 N 调参或块裁剪留待实测数据（探针已在产常驻）。

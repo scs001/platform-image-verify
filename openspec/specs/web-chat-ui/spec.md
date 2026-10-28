@@ -4,6 +4,7 @@
 The browser chat surface: the conversation view, its composer and controls, the WebSocket-driven message lifecycle, and session navigation affordances.
 
 ## Requirements
+
 ### Requirement: Chat UI displays messages in a conversation view
 The chat UI SHALL display user messages and assistant responses in a scrollable conversation area with distinct styling for each role.
 
@@ -102,7 +103,7 @@ The client SHALL retain the rendered turn list of sessions it has loaded and SHA
 
 ### Requirement: Transcript rendering is windowed
 
-The conversation view SHALL mount only the most recent N turns on session open, with an affordance to load earlier turns in batches. Turn data in the store SHALL remain complete — windowing is a render-layer concern — so features that read the full turn list (outline navigation, export) keep operating on the complete session.
+The conversation view SHALL mount only the most recent N turns on session open, with an affordance to load earlier turns in batches. The store SHALL hold the **loaded window** of turns — initially the N most recent, as delivered by the server's first-frame window — and the load-earlier affordance SHALL fetch the preceding page from the server and prepend it, extending the loaded window. Features that read the turn list (outline navigation, export) SHALL keep operating without error over the loaded window, and MAY request all pages when they require the complete transcript. N SHALL be the same constant the server uses for its first-frame window.
 
 #### Scenario: long session opens without mounting everything
 
@@ -113,7 +114,12 @@ The conversation view SHALL mount only the most recent N turns on session open, 
 #### Scenario: loading earlier turns prepends history
 
 - **WHEN** the user activates the load-earlier affordance
-- **THEN** the previous batch of turns mounts above the current window without losing scroll position
+- **THEN** the previous batch of turns is fetched from the server and mounts above the current window without losing scroll position
+
+#### Scenario: the affordance disappears at the oldest turn
+
+- **WHEN** the loaded window already includes the session's first turn
+- **THEN** the load-earlier affordance SHALL NOT be presented
 
 ### Requirement: File previews and downloads show busy states
 

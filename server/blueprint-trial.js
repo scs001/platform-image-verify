@@ -170,7 +170,7 @@ export async function runTrial({ blueprint, deps, timeoutMs = 10 * 60_000, pollM
     report.fired = await deps.fireRound(provisioned.fleetId);
 
     // 收证：窗口内轮询直到可判或超时（超时者按无证判不绿并如实标）。
-    const evidence = await deps.collectAndWait({ fleetId: provisioned.fleetId, since, assertions: normalized.assertions, timeoutMs, pollMs });
+    const evidence = await deps.collectAndWait({ fleetId: provisioned.fleetId, since, assertions: normalized.assertions, timeoutMs, pollMs, fired: report.fired });
     report.assertions = evaluateTrial({ assertions: normalized.assertions, evidence, since });
     report.green = report.assertions.length > 0 && report.assertions.every((a) => a.pass);
     report.evidenceWindow = { since, until: now() };
@@ -241,7 +241,7 @@ export function createLiveTrialDeps() {
       }
       return fired;
     },
-    collectAndWait: async ({ fleetId, since, assertions, timeoutMs, pollMs }) => {
+    collectAndWait: async ({ fleetId, since, assertions, timeoutMs, pollMs, fired = [] }) => {
       const db = getFleetDatabase();
       const collect = () => {
         const members = db.listMembers(fleetId);
@@ -251,11 +251,12 @@ export function createLiveTrialDeps() {
             if ((r.createdAt ?? 0) >= since) reports.push({ memberId: m.id, reportId: r.id, createdAt: r.createdAt, turnId: r.sessionId ?? null });
           }
         }
-        // 回合证据由 fireRound 提供（作业触发即算首轮；turnId 待 trace tap 补齐）。
-        const fired = cron.listJobs().filter((j) => j?.sourceTag?.fleetId === fleetId);
+        // 回合证据 = fireRound 的点火记录（作业触发即算首轮已发；turnId 待 trace
+        // tap 补齐）。2026-10-28 生产走查逮住：此前这里恒返回空 turns，
+        // first-round-fired 断言永远判不绿——点火事实必须进收证。
         return {
           members: members.map((m) => ({ memberId: m.id, title: m.title, targetId: m.targetId })),
-          turns: fired.length ? [] : [],
+          turns: fired.filter((f) => !f.error).map((f) => ({ memberId: f.memberId, at: f.at, jobId: f.jobId, turnId: null })),
           reports,
           escalations: db.countOpenDecisions(fleetId) ?? 0,
         };

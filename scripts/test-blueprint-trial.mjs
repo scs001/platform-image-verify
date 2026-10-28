@@ -153,3 +153,28 @@ test("runTrial：收证无报数（超时）→ 不绿且如实标；装台失�
   assert.equal(provisionFailed.green, false);
   assert.deepEqual(provisionFailed.errors, ["pack not installed"]);
 });
+test("实盘收证接 fired → turns：first-round-fired 可判绿（生产走查逮住的回归）", async () => {
+  // 2026-10-28 生产：实盘 collectAndWait 恒返回空 turns，first-round-fired 永不绿。
+  // 此处用「只注入收证层」的最小宇宙复现该形状并锁死修复。
+  const { createLiveTrialDeps } = await import("../server/blueprint-trial.js");
+  const deps = createLiveTrialDeps();
+  // 不触真 cron/db：只验证 collectAndWait 对 fired 的映射（用空 fleetId 让 db 查询返回空集）。
+  const evidence = await deps.collectAndWait({
+    fleetId: "fleet_does_not_exist",
+    since: Date.now() - 1000,
+    assertions: [{ id: "a1", kind: "first-round-fired", target: null }],
+    timeoutMs: 0,
+    pollMs: 1,
+    fired: [{ jobId: "j1", memberId: "m1", at: Date.now() }],
+  });
+  assert.equal(evidence.turns.length, 1);
+  assert.equal(evidence.turns[0].jobId, "j1");
+  assert.equal(evidence.turns[0].memberId, "m1");
+  // 判绿环节单独验（成员集来自 db，此处手工给出同一个 m1）。
+  const judged = evaluateTrial({
+    assertions: [{ id: "a1", kind: "first-round-fired", target: null, expect: null }],
+    evidence: { ...evidence, members: [{ memberId: "m1", title: "岗", targetId: "t" }] },
+    since: Date.now() - 5000,
+  });
+  assert.equal(judged[0].pass, true);
+});

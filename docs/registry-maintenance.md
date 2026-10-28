@@ -3495,3 +3495,26 @@ B1（付费+credit 环）/B2（车道 live-write 全链）/B3（v2 跟新回放�
 **当前状态**：链路已全通到 ChartView 挂载（UI 树里出现 `chart-fallback` 节点，此前根本无 chart 节点），但脚本仍未成功加载 → 兜底。剩余一环在**模拟器 WebView 的 script 加载**（WebView 83 / cleartext / 内存），需真机或 RN DevTools 级别调试；`/chart-assets/` 本地已实证匿名可取，故嫌疑集中在 WebView 侧而非服务端。
 
 **方法论沉淀（写给下一棒）**：①"空气泡"类症状先分 store/渲染两段取证（evlog vs tvdbg），别一上来怀疑网络；②logcat 环形缓冲会吞时间线 → 事件镜像进 globalThis；③8 字符截断 id 会让不同会话"看起来匹配"（本案浪费两轮）；④快照必须核 agent 就绪日志（TDZ 车空跑一轮）；⑤私仓 job 日志常 BlobNotFound → 诊断一律 tee 到工件。
+
+### §15.79 fix-session-open-latency：打开历史对话慢的真凶三连（实测证伪挂账② 假设）
+
+**背景**：polish-web-surfaces 挂账② 记的是「重块会话客户端挂载 3-7s，窗口 N 调参或块裁剪待实测」。本次把三段都量了，**假设被证伪**：客户端渲染不是瓶颈（46 篇 → 1659 节点 / 7.5KB 文本 / `JSON.parse` 4ms / 无 long task）。真凶在服务端三连，全部实测定位：
+
+1. **名册读 N+1**：`GET /api/fleets` 21 舰队 × 60 岗位，每岗位 `resolveTarget` → `catalog.getChatAgentEntries()` → `merged()`（重读注册表 + 已装包 + 用户预设，~30ms/次）≈ **1.8s**；外加每舰队重列 `cron.listJobs()`。同进程 HTTP 与聊天 WS 共用一个事件循环 → 同一会话切换实测「空闲 1204ms vs 轮询在飞 3911ms」。侧栏**每次进页 + 每 60s** 都打这条路由。
+2. **cron 时区解析**（实测追加的真凶，比目录合并更重）：名册为每岗位推导容忍窗口（`skippedCount`）、在岗派生再问一次 `cronPeriodMs`——而 `cron-parser` 带时区单次 **40.7ms**（无时区 9.3ms）。60 岗位 ≈ 数秒纯日历运算。
+3. **首帧未压缩**：1.0–1.35MB/50 帧，`blocks` 占 99.2%（折叠工具载荷，可见文本仅 8.5KB）。
+
+**修复**（sha-25d7244 / digest fa93f154，源 53eba313，含蓝图铸造身份头修复 447c6b92）：
+- `catalog.mergedView()`：一次 merge → `chatAgentEntries` + `agentEntry(id)`（语义与 live 访问器等价）；`resolveTarget(member, view)` 接受快照；`rosterResolver()` 每请求一份，覆盖列表/overview/owner-board/:id/cockpit/草稿/apply；`taskIndexFor(fleetId, jobs)` 复用一份 job 表；catalog 变更 reconcile 同样一份快照。
+- `cronPeriodMs` 按 **(cron, tz, 日)** 记忆化（键含日期以免冻结夏令时；null 也缓存）。
+- `WebSocketServer` 开 `perMessageDeflate`（threshold 1024、双 no-context-takeover）——网关 `proxyUpgrade` 是裸 socket 双向 pipe，协商在浏览器↔cell 端到端完成（`forwardedHeaders` 不剔 `sec-websocket-extensions`），101 响应带扩展实证。
+- `GET /api/fleets` 行补 `openDecisions`（侧栏「集群 66」角标首次真正出现——此前该字段从未返回，角标恒 0 空转）。
+
+**验证链**：
+- 单测：新增 `scripts/test-fleet-roster-cost.mjs` 3/3（24 岗 1 merge / openDecisions / view=live）；fleet core 21/21（新增记忆化用例）、architect 11/11、failing-status 7/7、owner-surface 9/9、decision-lane 10/10、ops-canvas 6/6；openspec 204/0。
+- 生产：`/api/fleets` **2065-4110ms → 110-170ms**（5 连测，22 行全带 openDecisions 合计 66）；WS 切换重会话 **1204→763ms**、轻会话 **790→347ms**；同载荷 wire 字节 **482→156KB**（3.1×，532→336ms）；侧栏角标「集群 66」真机眼见。
+- 组件级（真机数据副本）：`mergedView` 42ms、旧路径逐岗位查询 1102ms→view 查询 0ms；cron 记忆化 60 次同键 2400ms→55ms。
+
+**方法论沉淀**：①「某页面慢」先分**固定成本 vs 逐元素成本**——单舰队详情 127ms vs 全列表 2s 就是「随舰队数增长」的铁证；②共享事件循环的进程里，一个慢 HTTP 端点会顶住 WS 握手——侧栏/驾驶舱类常驻轮询是首要嫌疑；③带时区的 cron 解析是暗坑（cron-parser 每次构造 Luxon zone），纯函数一律按天键记忆化；④supervisor 吞 stdout 的话，**进程内计数器**（`catalogMergeCount()`）才是可达的探针；⑤生产数据副本上跑组件探针 + 真 owner 身份跑 HTTP 探针，两段拼出完整归因。
+
+**挂账**：无（挂账② 以实测收口；本地集群四单与蓝图线由各自会话收口）。

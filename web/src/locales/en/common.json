@@ -2266,7 +2266,6 @@
     },
     "live": {
       "title": "This machine",
-      "summary": "{{agents}} agents · {{children}} runtime processes",
       "budget": "Memory footprint",
       "agent": "Agent",
       "state": "State",
@@ -2286,7 +2285,9 @@
         "draining": "draining",
         "paused": "paused",
         "warm": "warm"
-      }
+      },
+      "summary_one": "{{agents}} agent · {{children}} runtime process(es)",
+      "summary_other": "{{agents}} agents · {{children}} runtime processes"
     },
     "catalog": {
       "title": "Market catalog",

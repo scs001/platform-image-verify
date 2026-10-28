@@ -2191,7 +2191,6 @@
     },
     "live": {
       "title": "Esta máquina",
-      "summary": "{{agents}} agents · {{children}} procesos",
       "budget": "Memoria",
       "agent": "Agent",
       "state": "Estado",
@@ -2211,7 +2210,9 @@
         "draining": "purgando",
         "paused": "en pausa",
         "warm": "templado"
-      }
+      },
+      "summary_one": "{{agents}} agente · {{children}} proceso(s) de ejecución",
+      "summary_other": "{{agents}} agentes · {{children}} procesos de ejecución"
     },
     "catalog": {
       "title": "Catálogo",

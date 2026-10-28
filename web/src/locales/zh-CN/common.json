@@ -2266,7 +2266,6 @@
     },
     "live": {
       "title": "本机机群",
-      "summary": "{{agents}} 个 agents · {{children}} 个运行时进程",
       "budget": "内存足迹",
       "agent": "Agent",
       "state": "状态",
@@ -2286,7 +2285,9 @@
         "draining": "排空中",
         "paused": "已暂停",
         "warm": "温态"
-      }
+      },
+      "summary_other": "{{agents}} 个 agent · {{children}} 个运行时进程",
+      "summary_one": "{{agents}} 个 agent · {{children}} 个运行时进程"
     },
     "catalog": {
       "title": "市场目录",

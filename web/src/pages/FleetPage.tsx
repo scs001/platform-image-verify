@@ -215,7 +215,7 @@ export function FleetPage() {
                 )}
                 {live && (
                   <span className="text-xs text-muted-foreground" data-testid="fleet-live-summary">
-                    {t("fleet.live.summary", { agents: live.agents.length, children: live.children })}
+                    {t("fleet.live.summary", { agents: live.agents.length, children: live.children, count: live.agents.length })}
                   </span>
                 )}
               </div>

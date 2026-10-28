@@ -2191,7 +2191,6 @@
     },
     "live": {
       "title": "Cette machine",
-      "summary": "{{agents}} agents · {{children}} processus",
       "budget": "Empreinte mémoire",
       "agent": "Agent",
       "state": "État",
@@ -2211,7 +2210,9 @@
         "draining": "purge",
         "paused": "en pause",
         "warm": "tiède"
-      }
+      },
+      "summary_one": "{{agents}} agent · {{children}} processus d'exécution",
+      "summary_other": "{{agents}} agents · {{children}} processus d'exécution"
     },
     "catalog": {
       "title": "Catalogue",

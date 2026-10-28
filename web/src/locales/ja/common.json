@@ -2191,7 +2191,6 @@
     },
     "live": {
       "title": "このマシン",
-      "summary": "{{agents}} agents · {{children}} プロセス",
       "budget": "メモリ使用量",
       "agent": "Agent",
       "state": "状態",
@@ -2211,7 +2210,9 @@
         "draining": "排出中",
         "paused": "一時停止",
         "warm": "温態"
-      }
+      },
+      "summary_other": "エージェント {{agents}} · ランタイムプロセス {{children}}",
+      "summary_one": "エージェント {{agents}} · ランタイムプロセス {{children}}"
     },
     "catalog": {
       "title": "マーケットカタログ",

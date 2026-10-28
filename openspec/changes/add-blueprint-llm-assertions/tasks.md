@@ -3,7 +3,7 @@
 ## 1. 断言闭集与归一化
 
 - [x] 1.1 `server/blueprint-validate.js`：`TRIAL_ASSERTION_KINDS` 增 `llm-judged`；`normalizeAcceptance` 接受 `{ id, kind: "llm-judged", rubric, target? }`，`rubric` 必填非空串（缺则逐条指名拒）；`llm-judged` 否则不参与 `expect` 校验。
-- [x] 1.2 `normalizeIncomingContent`：finddata 自由文本 `acceptance: ["…"]` 归一为 `{ id, kind: "llm-judged", rubric: <原文> }`（原先是 `kind: "free-text"`），旧蓝图不改文件即可判。
+- [x] 1.2 ~~`normalizeIncomingContent`：finddata 自由文本归一为 llm-judged~~ **随 remove-blueprint-v1-compat 撤销**（2026-10-29 并行会话裁决：v1 方言如实拒绝、不归一化；自由文本断言须由作者显式改写为 `{kind:"llm-judged", rubric}`，平台不代转）
 - [x] 1.3 上限常量与校验：单次试跑 `llm-judged` 条数（默认 8）、单条证据字符（默认 6000），超限在校验面即指名。
 
 ## 2. judge 实现（server/blueprint-judge.js）
@@ -43,4 +43,4 @@
 - [x] 6.5 跨仓：finddata 试点蓝图四条 free-text 归一后可判（假 judge 全 pass → 机器+模型绿；签字后收费上架放行）。
 - [x] 6.6 反向断言扩展：judge 不新增 provider 通道（`scripts/test-blueprint-reverse-assertions.mjs` 加一则：`blueprint-judge.js` 只 import 既有 lane/model 解析，不自建 fetch 配置表）。
 - [x] 6.7 `openspec validate add-blueprint-llm-assertions --strict` 全绿。
-- [ ] 6.8 生产实证：一条含 `llm-judged` 的蓝图跑完 → 审计件可读 → 未签字时收费上架 400 → 签字后 200。
+- [x] 6.8 生产实证：一条含 `llm-judged` 的蓝图跑完 → 审计件可读 → 未签字时收费上架 400 → 签字后 200。

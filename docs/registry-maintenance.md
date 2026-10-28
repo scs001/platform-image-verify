@@ -3809,3 +3809,32 @@ change 3 的真机睡眠/唤醒一幕。
 6. 报告管线：`member_reports` 两轮如实报数（断供轮报 0 条、修复轮报 1 条裁决），`member_turn_events` 四轮全 `status=ok`。
 
 **未覆盖的一项**（诚实挂账）：执行事实 `executed_at` 仍为空——`markDelivered` 只在**送达回合完成**时回填，而该条目的送达回合（助理部的下一轮）尚未发生。链路代码在产且单测覆盖（`test-fleet-delegation`「执行事实」用例），生产实证需等助理部下一轮自然回合。
+
+#### §15.80 LLM 判断言（add-blueprint-llm-assertions）上产 — 2026-10-28
+
+**范围**：27/27 任务全勾。finddata 蓝图 v1 的 `acceptance` 是自由文本（试点四条语义断言），跨仓兼容层此前把它们归一成 `free-text` 并如实拒——蓝图能加载但永不能批准。本片上模型判据，但**不把确定性交给模型**。
+
+**双钥匙闸（核心裁决）**：① 机器断言全绿 + `llm-judged` 断言模型判 `pass` 是**证据**；② owner 对该报告显式签字是**终审**。两把齐才可售。被否方案=只靠「温度 0 + 固定模型」——那是自欺。配套 `isReportSignedThisRun` 口径：重跑覆盖报告后旧签字自动失效。
+
+**四道防线**：三态判决（`pass`/`fail`/`insufficient-evidence`，解析不出/超时/不可达/越界一律不充分、绝不重试到绿）；证据接地（只喂已收证据，不喂蓝图自述，防回声）；**禁自证**（judge 与产出不得是同一模型；同 provider 换模型允许）；判决留原件（模型/端点摘要/提示词哈希/证据摘要/原始输出，apiKey 只进哈希）。成本闸：条数 8 / 证据 6000 字符 / 固定便宜档，超限如实拒。
+
+**生产走查逮出六处真缺陷（全部随班修+回归测试）**：
+1. **judge 取不到密钥** — user-route key 不在 server env，且在 `credentialRefsForUserProviders()[apiKeyEnv]`（Models 页绑定）而非 `LLM_API_KEY`（另一套上游钥匙，两者同 30 字符、内容不同，用错 502/401）。修=providers doc refs > env[apiKeyEnv] > 凭据文件 > LLM_API_KEY 兜底。
+2. **D4 禁自证判据过宽** — 原按 lane 指纹，生产单 provider 承载 14 模型 → 指纹全同 → 换任何模型都拒。改判据=provider+model 双同，且**同模型名一律拒**（跨 provider 别名同权重亦不得自评）。
+3. **judge 车道解析失败无诊断** — 只报「没配」。修=no-lane 分支带出 wanted/docModels/docError/envBase/envKey/envModel。
+4. **providers doc 读不到则判定整体失能** — 加部署 env 路由（`LLM_BASE_URL`+`LLM_API_KEY`+`BLUEPRINT_JUDGE_MODEL`）回落。
+5. **产出模型解析不依赖 doc** — `db.listMembers()` 的原始行没有 `effectiveModel`（那是路由层 `fleetModelFor` 算的视图字段）→ 产出侧永远解析不出。修=按真实解析链：岗位 `model` → 舰队 `defaultModel` → `getDefault().modelId`（生产无 `LLM_MODEL` env）。
+6. **闭环缺口：签完字没法更新已发版本** — 闸读 manifest 里的报告，而试跑必须在铸造之后（先有包才能装台）→ 签完字市场那份永远没签字。补 **reseal**：铸造态 + 草稿自批准未变 + 批准人=签字人=本人 + 报告已签（`ranAt` 对齐）→ 允许再铸 v+1；未签字仍 409。
+
+**judge 模型选型（生产实测）**：`glm-5.3-flash` 上游 503、`nvidia/*:free` 404（需付费）、`deepseek-v4-pro`/`deepseek-v4.1-flash`/`cohere/north-mini-code:free` 均 200。产出默认 `deepseek-v4.1-flash` → judge 钉 `cohere/north-mini-code:free`（不同模型、可用、便宜）。
+
+**生产实证（真 LLM，非模拟）**：
+- 三态区分：同一份证据下「两岗已落位」→ `pass`；「十页政策报告并附图」→ `insufficient-evidence`（模型回「证据中未提及…」）——判得准，且**不绿即拒售**（`priced-template-trial-not-green`）
+- 全绿：机器断言 + 两条模型断言全 `pass` → `green: true`
+- 双钥匙：绿+签字 → 收费闸 PASS；同一 manifest 去掉签字 → `priced-template-trial-not-signed`；免费上架两态皆 PASS（记 note）
+- 审计件：`model`/`endpointDigest`/`promptHash`/`evidenceDigest`/`rawVerdict`/`judgedAt` 齐，apiKey 不入盘
+- UI：试跑面板逐条三态徽标 + 证据 + 审计件可展开 + 签字/撤签按钮；五语言 21 键（locale 闸 2362）
+
+**滚版**：`sha-1ec7d03` → `sha-669e942` → `sha-27c7dc4` → `sha-39fb568` → `sha-86212b7` → `sha-7b73802`（末版 paas `e847f3aa`），ArgoCD Synced|Healthy。judge 模型经 GitOps env 钉（`BLUEPRINT_JUDGE_MODEL`）。
+
+**测试**：50 例绿（blueprints 18 + judge 10 + trial 9 + gate 8 + reverse 5）；strict 绿。**清理**：探针蓝图（已铸造，拒删符合设计）与试跑舰已归档。

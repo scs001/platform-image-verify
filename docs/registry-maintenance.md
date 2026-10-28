@@ -3702,3 +3702,12 @@ change 3 的真机睡眠/唤醒一幕。
 **echarts 离线**（a0eb1cfd + 39b1ece8）：同源托管 `/chart-assets/echarts.min.js`（resources/chart-assets）+ 鉴权豁免。
 
 **教训（方法论沉淀补充）**：WebView 双向消息的目标不同（Android=document/iOS=window）——shell→RN 方向一直通导致误判为时序竞态白白烧了两轮；debug 探针要么双向都装，要么先查平台差异表。
+
+### §15.82 add-deputy-decision-delegate：拍板委托（常务岗）全链上产
+
+拍板队列「只进不出」的结构性收口（探索→apply 当日闭环，commit bbc10e9a；出片 **sha-3eea0ee / digest ffe9f5bd**，GitOps platform×2 滚版 Synced）。委托策略（cell 默认 + 舰队覆写，`config-change`/人事/花费**硬闸不可委托**——归一化即强制）→ escalate 同步路由（route=owner|deputy）+ **归并**（同岗位近 7 天 topicKey/相似 → 关联既有项，不落新行，治 CEO 逐轮重复升级的膨胀引擎）→ 常务岗（舰队内 opt-in persona，MCP 工具面 decision_queue/resolve/escalate_to_owner）→ **服务端强制授权逐项校验**（deputy 身份/route/类别/严重度/日预算，越权 403 转 owner；闸在代码不在提示词）→ 裁决身份与判例入审计（resolved_by/model/evidence；判例只取主人裁决，防自我强化）→ executed_at/outcome 执行追踪（送达回合完成即回填，「批了没执行」可见）→ 裁决即时镜像主人记忆 + 角标口径改 route=owner（deputyOpen 另计）。
+
+- 测试：`test-fleet-delegation` 19/19（策略归一硬闸/路由/归并不误并/防洪含归并/强制授权四态/预算/上报/收回/角标/执行回填/存量 triage 幂等）；fleet 套件 84/84 绿；typecheck/locale（2389 keys）绿。
+- 生产验证（API 级 owner cookie）：策略读写 ✓、escalate 带 category 落 route=deputy（响应+DB 双证）✓、角标口径 ownerOpen=61 / deputyOpen=1 分计 ✓、收回 ✓、triage 幂等（35 扫描 0 改动=保守正确）✓。
+- 留给 owner：真机 deputy 巡逻回合（需回合归因）与存量 66→唯一事项集（语义级去重=常务岗职责）。
+- 快照 scrub 表补 blueprint 三夹具真实节点名（cheap-1→runner-a，语义无关；count 写少会被 scrub-rot 门拦——这是门的第三次实证）。

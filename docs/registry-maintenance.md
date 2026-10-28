@@ -3235,7 +3235,12 @@ server.js=1 ✓。
 → **律：bump GitOps 前必须核「被替换镜像的源提交是否为我的祖先」，否则可能把别人刚上的修复打回去。**
 
 **五、存量泄漏的收口路径（挂账，写清依据）**
-我这次只滚了主 `platform`（其他三面由各自车道管）。各 cell 的 fleets 库由**该 cell 自己的 server 进程**
-持有与清扫（`PLATFORM_DATA_DIR=/data/cells/<sha>/data`），所以：主 platform 这一班已带修复、其 cell
-（1da519d4…，实测无 open run）自愈无碍；**带泄漏的 3fdc7b8e / 6db2b1b4 属别的部署/cell 运行时，等它们
-各自滚到含本修复的镜像、或其运行时下次启动时由启动清扫收掉**（无需人工动库）。
+我这次只滚了主 `platform`（其他三面由各自车道管，没越界）。实测澄清了「谁扫谁」：
+两个带泄漏的 cell（3fdc7b8e / 6db2b1b4）**库就在本 pod** `/data/cells/<sha>/data/data/fleets.db`，
+但**每个 cell 的 fleets 库由该 cell 自己的 server 子进程持有与清扫**（`PLATFORM_DATA_DIR=/data/cells/<sha>/data`；
+进程表里此刻只有 1da519d4 的 server 子进程 + 2 个 dsh 子进程，两个泄漏 cell 的子进程没起）。
+所以该 pod 的**主进程清扫只落在 `/data/data/fleets.db`（本 pod 自己的库）**——本轮 15 分钟的 pod 滚动
+并没有顺手扫到那两个 cell 库。**存量泄漏会在那两个 cell 的 server 子进程下次启动时由启动清扫收掉**
+（它们共用本 pod 的新镜像，无需人工动库，也无需额外出片）。
+——若将来希望「pod 重启即全 cell 收口」，可考虑让主进程开机时遍历 `/data/cells/*/data/data/fleets.db` 各扫一遍；
+本轮不做：跨 cell 直写会引入多写者竞争，而泄漏的可见代价只是时间线里一条陈旧的「进行中」。

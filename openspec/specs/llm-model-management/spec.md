@@ -284,7 +284,10 @@ provider 保持既有行为（带 key）。其余探活/同步语义（5s 超时
 即一个 `auth: "none"` 的本地 provider 在被设为默认（或被角色/部署引用）后，
 fleet runner 拉起的子进程 dsh home SHALL 能解析到该 provider 的路由与模型。
 该要求 SHALL 以可自动断言的方式落地（runner 种子 home 的路由文件包含该
-provider 路由），而非仅文档说明。
+provider 路由），而非仅文档说明。**本要求的覆盖面是 dsh harness 的部署**
+（runner 种子 home 即 dsh profile 的消费方）；ACP harness 的部署沿用其自身
+的凭据解析（`compose-acp`），不在本要求范围内——若未来 ACP 部署需要本地
+车道，按同一「路由可解析、无密钥材料」的口径另立断言。
 
 #### Scenario: 舰队子进程解析本地路由
 

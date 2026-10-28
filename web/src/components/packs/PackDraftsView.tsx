@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import * as api from "@/lib/packs-api";
-import type { PackDraft, PackManifest, PackManifestAgent, PackManifestSkill } from "@/lib/packs-api";
+import type { PackDraft, PackManifest, PackManifestAgent, PackManifestBot, PackManifestSkill } from "@/lib/packs-api";
 import { takeBridgeHandoff } from "@/lib/pack-draft-bridge";
 import type { BridgeReport } from "@/lib/pack-draft-bridge";
 import { RhythmEditor } from "./RhythmEditor";
@@ -153,6 +153,40 @@ export function PackDraftsView({ onPublished }: { onPublished?: () => void }) {
   );
 }
 
+// The ONE draft → manifest compiler (add-offline-pack-authoring).
+//
+// Publish and export must carry the SAME manifest — the export path used to
+// assemble its own (and silently dropped bots/guide), which broke the very
+// "single assembly source" rule this change set out to honour. Both callers
+// now go through here.
+export function compileDraftManifest(
+  draft: PackDraft,
+  visibility: "public" | "private",
+): PackManifest {
+  const entries = draft.entries as PackDraft["entries"] & {
+    guide?: { steps: { title: string; body: string }[] };
+    bots?: PackManifestBot[];
+  };
+  // The guide travels ONLY when all three steps are complete — the server
+  // validator rejects a malformed one outright.
+  const [s0, s1, s2] = entries.guide?.steps ?? [];
+  const completeGuide =
+    s0 && s1 && s2 && s0.title && s1.title && s2.title && s0.body && s1.body && s2.body
+      ? { guide: { steps: [s0, s1, s2] as [{ title: string; body: string }, { title: string; body: string }, { title: string; body: string }] } }
+      : {};
+  return {
+    name: draft.name,
+    description: draft.description,
+    visibility,
+    tags: draft.tags,
+    ...completeGuide,
+    skills: entries.skills ?? [],
+    mcpServers: entries.mcpServers ?? [],
+    agents: entries.agents ?? [],
+    ...(Array.isArray(entries.bots) && entries.bots.length > 0 ? { bots: entries.bots } : {}),
+  };
+}
+
 function PackDraftEditor({
   draft,
   bridgeReport,
@@ -283,27 +317,8 @@ function PackDraftEditor({
     try {
       const updated = await save();
       if (!updated) return;
-      const entriesWithGuide = updated.entries as typeof updated.entries & {
-        guide?: { steps: { title: string; body: string }[] };
-      };
-      // Publish carries the guide ONLY when all three steps are complete —
-      // the server validator would reject a malformed one outright.
-      const draftSteps = entriesWithGuide.guide?.steps ?? [];
-      const [s0, s1, s2] = draftSteps;
-      const completeGuide =
-        s0 && s1 && s2 && s0.title && s1.title && s2.title && s0.body && s1.body && s2.body
-          ? { guide: { steps: [s0, s1, s2] as [ { title: string; body: string }, { title: string; body: string }, { title: string; body: string } ] } }
-          : {};
-      const manifest: PackManifest = {
-        name: updated.name,
-        description: updated.description,
-        visibility,
-        tags: updated.tags,
-        ...completeGuide,
-        skills: updated.entries.skills ?? [],
-        mcpServers: updated.entries.mcpServers ?? [],
-        agents: updated.entries.agents ?? [],
-      };
+      // ONE compiler for publish and export (see compileDraftManifest).
+      const manifest = compileDraftManifest(updated, visibility);
       const r = await api.publishPack({ packId: draft.publishedPackId, manifest });
       if (!draft.publishedPackId) {
         const { draft: marked } = await api.markDraftPublished(draft.id, r.id);
@@ -376,15 +391,13 @@ function PackDraftEditor({
                 // save() returns the persisted draft — no second fetch needed.
                 const updated = await save();
                 if (!updated) return; // save() already surfaced the error
-                const manifest: PackManifest = {
-                  name: updated.name,
-                  description: updated.description,
-                  visibility,
-                  tags: updated.tags,
-                  skills: updated.entries.skills ?? [],
-                  mcpServers: updated.entries.mcpServers ?? [],
-                  agents: updated.entries.agents ?? [],
-                };
+                // Same compiler as publish — bots/guide included, no second
+                // assembly path to drift from.
+                const manifest = compileDraftManifest(updated, visibility);
+                // An already-published draft exports under its pack id; the
+                // SERVER resolves the version from this machine's installed
+                // snapshot (a bundle that dropped back to 1 would install as a
+                // silent downgrade elsewhere).
                 const r = await api.exportPackDraft(draft.id, {
                   manifest,
                   ...(draft.publishedPackId ? { packId: draft.publishedPackId } : {}),

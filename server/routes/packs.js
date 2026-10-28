@@ -123,7 +123,15 @@ export function registerPackRoutes(ctx) {
         draft.publishedPackId ||
         String(manifest.name).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") ||
         "draft-pack";
-      const version = Number(req.body?.version ?? manifest.version ?? 1);
+      // Version semantics (precedence): an explicit request wins; then — for
+      // a draft that has already been published — the version this machine has
+      // INSTALLED for that pack (the durable snapshot), so the bundle installs
+      // as an upgrade elsewhere rather than a silent downgrade to 1; then the
+      // manifest's own version; then 1 for a never-published draft.
+      const installedRow = draft.publishedPackId ? db.getInstalledPack(packId) : null;
+      const version = Number(
+        req.body?.version ?? installedRow?.version ?? manifest.version ?? 1,
+      );
       if (!Number.isInteger(version) || version < 1) {
         return res.status(400).json({ error: "version must be a positive integer" });
       }

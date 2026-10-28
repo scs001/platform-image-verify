@@ -218,3 +218,32 @@ test("2.4 import needs the draft editor shape, not an install", async () => {
   assert.ok(body.draft.entries.bots, "bots stay editable in the draft");
   assert.equal(db.listInstalledPacks().length, 0);
 });
+
+test("1.4 a published draft exports at the INSTALLED version (no silent downgrade)", async () => {
+  // Mask an already-published draft whose pack this machine has at v3.
+  const draft = packStore.createDraft({ name: "Published Demo", description: "", tags: [], entries: FULL_ENTRIES });
+  db.getDb().prepare("UPDATE pack_drafts SET published_pack_id = ? WHERE id = ?").run("published-demo", draft.id);
+  db.upsertInstalledPack({
+    packId: "published-demo", name: "Published Demo", version: 3,
+    manifest: { name: "Published Demo", description: "", skills: [], agents: [] }, report: {},
+  });
+
+  const app = makeApp();
+  const { status, body } = await post(app, `/api/pack-drafts/${draft.id}/export-bundle`, {
+    manifest: compileManifest(FULL_ENTRIES, { version: undefined }),
+  });
+  assert.equal(status, 200, JSON.stringify(body).slice(0, 200));
+  assert.equal(body.meta.version, 3, "exports at the installed version, not 1");
+  assert.equal(body.meta.packId, "published-demo", "keeps the published pack id");
+});
+
+test("1.5 an explicit version still wins", async () => {
+  const draft = packStore.createDraft({ name: "Explicit", description: "", tags: [], entries: FULL_ENTRIES });
+  const app = makeApp();
+  const { status, body } = await post(app, `/api/pack-drafts/${draft.id}/export-bundle`, {
+    manifest: compileManifest(FULL_ENTRIES),
+    version: 7,
+  });
+  assert.equal(status, 200);
+  assert.equal(body.meta.version, 7);
+});

@@ -3665,3 +3665,27 @@ change 3 的真机睡眠/唤醒一幕。
 - 生产 writer 直证：facet 内真模块 `lane=service-token configured=true`。
 
 **纪律补强（已入 §15.80 并重申）**：本仓有**两条线**——`main`（陈旧旁支，落后 2581 笔）与 `feat/self-reported-tool-surface`（**生产线**，生产镜像源的出处）。bump 前必核「现役镜像源 commit 是否为我源的祖先」；本仓默认以**生产线**为基座。tag 形态是 7 位短 SHA。
+
+### §15.78 续五（2026-10-29）——优化复查五项收口（三修两记）
+
+**修一：草稿→manifest 编译抽单源**（发布与导出曾各持一份，导出侧漏 bots/guide
+——「导出→导入→再导出」在编辑器路径上丢 bots，违背本批自己立的「组装源唯一」）。
+`compileDraftManifest` 模块级导出，publish/export 两路同源；guide 三元组类型
+对齐（tsc 曾红在 steps 元组）。
+
+**修二：导出 version 优先序**（`server/routes/packs.js`）：显式请求 → **已发布
+草稿的本机已装版本**（持久快照，杜绝装到别机变成静默降级到 v1）→ manifest 自带
+→ 1。注意实现细节：installedRow 只对**已发布**草稿查（`draft.publishedPackId`
+在才查），manifest 自带的 version 不得抢占已装版本（测试 1.4 正是抓这个顺序）。
+
+**修三（spec 划界）**：本地车道要求显式声明覆盖面 = **dsh harness**（runner
+种子 home 即 dsh profile 消费方）；ACP harness 沿用 `compose-acp` 自身凭据解析，
+不在范围内——未来 ACP 需要本地车道时按「路由可解析、无密钥材料」另立断言。
+`validate --specs` 205/0。
+
+**记账不修（三项，各有判断）**：①导出端点不走创作者门——导出≠发布，能读草稿
+即能导出，无越权面；②预设无「自定义 URL」项——选预设后手改 URL 即可，够用；
+③导出下载走内存 Blob——当前 pack 体量上限内（几十 MB）不成问题，超限再流式。
+
+**测试**：`test-offline-pack-authoring` 9 例全绿（新增 1.4 已装版本优先序 /
+1.5 显式 version 优先）；`validate --specs` 205/0。

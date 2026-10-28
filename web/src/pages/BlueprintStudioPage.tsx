@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import {
   approveBlueprint,
   BlueprintApiError,
+  deleteBlueprint,
   castBlueprint,
   createBlueprint,
   getBlueprint,
@@ -298,6 +299,18 @@ export function BlueprintStudioPage() {
       setNotice({ kind: "ok", text: t("blueprints.notice.cast", { packId: cast.packId ?? "" }) });
     });
 
+  const onDelete = () =>
+    run("delete", async () => {
+      if (!detail) return;
+      await deleteBlueprint(detail.id);
+      const rest = (await refreshList()).filter((x) => x.id !== detail.id);
+      setDetail(null);
+      setContent(null);
+      setSelectedId(null);
+      const next = rest[0];
+      if (next) await open(next.id);
+    });
+
   const onLoadTrial = () =>
     run("trial", async () => {
       if (!detail) return;
@@ -405,6 +418,16 @@ export function BlueprintStudioPage() {
                     data-testid="blueprint-cast"
                   >
                     {busy === "cast" ? t("blueprints.casting") : t("blueprints.cast")}
+                  </button>
+                  <button
+                    type="button"
+                    className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:bg-muted disabled:opacity-40"
+                    onClick={onDelete}
+                    disabled={Boolean(detail.castPackId) || busy !== null}
+                    title={detail.castPackId ? t("blueprints.delete.castLocked") : undefined}
+                    data-testid="blueprint-delete"
+                  >
+                    {t("blueprints.delete.label")}
                   </button>
                 </div>
               </div>

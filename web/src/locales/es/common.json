@@ -3073,6 +3073,10 @@
       "apply": "Cargar borrador",
       "applied": "Borrador cargado en el mismo grupo.",
       "invalid": "Ese JSON no es un objeto de plano."
+    },
+    "delete": {
+      "label": "Eliminar",
+      "castLocked": "Los planos forjados no se pueden eliminar: el paquete del mercado es el registro"
     }
   }
 }

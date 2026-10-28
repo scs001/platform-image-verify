@@ -201,6 +201,21 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
     res.json({ blueprint: updated, warnings: dataSourceFindings(content) });
   });
 
+  // ── 删除（构造间卫生）：从未铸造的草稿/已批准稿可删；已铸造的拒 ──────────
+
+  router.delete("/:id", (req, res) => {
+    const owned = requireOwnedBlueprint(req, res);
+    if (!owned) return;
+    if (owned.blueprint.castPackId) {
+      return res.status(409).json({
+        error: "this blueprint was cast — the market pack is the record; archive or unpublish the pack instead of deleting the blueprint",
+        castPackId: owned.blueprint.castPackId,
+      });
+    }
+    store.deleteBlueprint(owned.blueprint.id);
+    res.json({ ok: true, id: owned.blueprint.id });
+  });
+
   // ── 全链校验（task 2.2 的服务端半） ─────────────────────────────────────
 
   router.post("/:id/validate", (req, res) => {

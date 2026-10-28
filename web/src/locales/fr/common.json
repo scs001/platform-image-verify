@@ -3073,6 +3073,10 @@
       "apply": "Charger l'esquisse",
       "applied": "Esquisse chargée dans le même brouillon.",
       "invalid": "Ce JSON n'est pas un objet de plan."
+    },
+    "delete": {
+      "label": "Supprimer",
+      "castLocked": "Un plan forgé ne peut pas être supprimé : le paquet du marché fait foi"
     }
   }
 }

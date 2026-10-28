@@ -3073,6 +3073,10 @@
       "apply": "Load draft",
       "applied": "Draft loaded into the same pool.",
       "invalid": "That JSON is not a blueprint object."
+    },
+    "delete": {
+      "label": "Delete",
+      "castLocked": "Cast blueprints cannot be deleted — the market pack is the record"
     }
   }
 }

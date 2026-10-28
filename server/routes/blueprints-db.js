@@ -169,6 +169,16 @@ export function createBlueprintDatabase({ file } = {}) {
       return deserialize(db.prepare("SELECT * FROM blueprints WHERE id = ?").get(id));
     },
 
+    // 删除（构造间卫生）：只许删「从未铸造」的草稿/已批准稿——一旦有
+    // cast_pack_id，市场里的包才是账，删蓝图会留下孤儿包（路由层拦）。
+    deleteBlueprint(id) {
+      const row = db.prepare("SELECT cast_pack_id FROM blueprints WHERE id = ?").get(id);
+      if (!row) return false;
+      if (row.cast_pack_id) return false;
+      db.prepare("DELETE FROM blueprints WHERE id = ?").run(id);
+      return true;
+    },
+
     // 试跑报告位（task 4.x 的存储半）——执行器随 Slice 3 接入，这里只落/读。
     saveTrialReport(id, report) {
       db.prepare(`UPDATE blueprints SET trial_report_json = ?, updated_at = ? WHERE id = ?`).run(

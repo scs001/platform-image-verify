@@ -495,3 +495,28 @@ test("跨仓契约兼容：finddata 蓝图格式 v1 原样粘入即可编辑/校
     await close(server);
   }
 });
+
+test("删除：从未铸造的草稿可删；已铸造的拒删（市场包才是账）", async () => {
+  const { server, base } = mount();
+  try {
+    const a = await fetch(`${base}/api/blueprints`, as("alice@x", { method: "POST", body: JSON.stringify({ content: VALID_CONTENT }) })).then(j);
+    const draftId = a.blueprint.id;
+    assert.equal((await fetch(`${base}/api/blueprints/${draftId}`, as("bob@x", { method: "DELETE" }))).status, 404);
+    const del = await fetch(`${base}/api/blueprints/${draftId}`, as("alice@x", { method: "DELETE" }));
+    assert.equal(del.status, 200);
+    assert.equal((await fetch(`${base}/api/blueprints/${draftId}`, as("alice@x"))).status, 404);
+
+    // 已铸造：拒删并指名 castPackId。
+    const b = await fetch(`${base}/api/blueprints`, as("alice@x", { method: "POST", body: JSON.stringify({ content: VALID_CONTENT }) })).then(j);
+    const id = b.blueprint.id;
+    await fetch(`${base}/api/blueprints/${id}/approve`, as("alice@x", { method: "POST", body: JSON.stringify({ expectVersion: 1 }) }));
+    await fetch(`${base}/api/blueprints/${id}/cast`, as("alice@x", { method: "POST" }));
+    const refused = await fetch(`${base}/api/blueprints/${id}`, as("alice@x", { method: "DELETE" }));
+    assert.equal(refused.status, 409);
+    assert.ok((await refused.json()).castPackId);
+    // 仍在。
+    assert.equal((await fetch(`${base}/api/blueprints/${id}`, as("alice@x"))).status, 200);
+  } finally {
+    await close(server);
+  }
+});

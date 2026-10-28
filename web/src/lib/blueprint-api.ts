@@ -118,6 +118,10 @@ export function castBlueprint(id: string) {
   );
 }
 
+export function deleteBlueprint(id: string) {
+  return call<{ ok: boolean; id: string }>(`/api/blueprints/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
 export function getTrialReport(id: string) {
   return call<{ report: unknown }>(`/api/blueprints/${encodeURIComponent(id)}/trial-report`);
 }

@@ -21,34 +21,7 @@ import { reconcileFleet } from "./fleet-reconcile.js";
 import { getFleetDatabase } from "./routes/fleets-db.js";
 import { getClusterDatabase } from "./routes/clusters-db.js";
 import { resolveFleetTarget } from "./routes/fleets.js";
-
-export const TRIAL_ASSERTION_KINDS = ["post-materialized", "first-round-fired", "report-landed", "escalate-bounded"];
-
-// 断言条目形状：{ id, kind, target?, expect? }。target = 岗位 title（缺省=全岗）。
-export function normalizeAcceptance(acceptance) {
-  const list = Array.isArray(acceptance) ? acceptance : [];
-  const assertions = [];
-  const errors = [];
-  list.forEach((item, i) => {
-    if (!item || typeof item !== "object" || Array.isArray(item)) {
-      errors.push({ error: `acceptance[${i}] must be an object of { id, kind, target?, expect? }`, entry: `acceptance[${i}]` });
-      return;
-    }
-    const id = typeof item.id === "string" && item.id.trim() ? item.id : `a${i + 1}`;
-    const kind = item.kind;
-    if (!TRIAL_ASSERTION_KINDS.includes(kind)) {
-      errors.push({ error: `acceptance[${i}] '${id}' declares unsupported assertion kind '${kind ?? "(none)"}' (supported: ${TRIAL_ASSERTION_KINDS.join(", ")})`, entry: `acceptance[${i}].kind` });
-    }
-    if (item.target !== undefined && typeof item.target !== "string") {
-      errors.push({ error: `acceptance[${i}] '${id}' target must be a post title when present`, entry: `acceptance[${i}].target` });
-    }
-    if (kind === "escalate-bounded" && item.expect !== undefined && !Number.isFinite(item.expect)) {
-      errors.push({ error: `acceptance[${i}] '${id}' expect must be a number for escalate-bounded`, entry: `acceptance[${i}].expect` });
-    }
-    assertions.push({ id, kind, target: item.target ?? null, expect: item.expect ?? null });
-  });
-  return { assertions, errors };
-}
+import { TRIAL_ASSERTION_KINDS, normalizeAcceptance } from "./blueprint-validate.js";
 
 function membersFor(assertion, members) {
   if (!assertion.target) return members;

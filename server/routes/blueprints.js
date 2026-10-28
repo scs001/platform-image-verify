@@ -10,6 +10,7 @@ import { Router } from "express";
 import { facetRequest } from "../../gateway/facet-proxy.js";
 import { getBlueprintDatabase } from "./blueprints-db.js";
 import {
+  normalizeIncomingContent,
   validateBlueprint,
   dataSourceFindings,
   diffBlueprint,
@@ -131,7 +132,9 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
   router.post("/", (req, res) => {
     const user = requireUser(req, res);
     if (!user) return;
-    const { name, oneLine, outOfScope, content } = req.body ?? {};
+    const raw = req.body ?? {};
+    const content = normalizeIncomingContent(raw.content);
+    const { name, oneLine, outOfScope } = raw;
     if (!isPlainObject(content)) {
       return res.status(400).json({ error: "content must be a blueprint object (boundary/dataSources/fleet/agents/mcpServers/monitoring/acceptance/board)" });
     }
@@ -168,7 +171,9 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
   router.put("/:id", (req, res) => {
     const owned = requireOwnedBlueprint(req, res);
     if (!owned) return;
-    const { expectVersion, name, oneLine, outOfScope, content } = req.body ?? {};
+    const raw = req.body ?? {};
+    const content = normalizeIncomingContent(raw.content);
+    const { expectVersion, name, oneLine, outOfScope } = raw;
     if (!Number.isInteger(expectVersion)) {
       return res.status(400).json({ error: "expectVersion (integer) is required" });
     }

@@ -9,7 +9,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-const { normalizeAcceptance, evaluateTrial, runTrial } = await import("../server/blueprint-trial.js");
+const { evaluateTrial, runTrial } = await import("../server/blueprint-trial.js");
+const { normalizeAcceptance } = await import("../server/blueprint-validate.js");
 
 const content = (acceptance) => ({ boundary: { name: "政策盯梢" }, acceptance });
 

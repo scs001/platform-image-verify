@@ -53,7 +53,7 @@ const VALID_CONTENT = {
   agents: [{ id: "brief-agent", name: "简报岗", persona: "你是简报岗，汇总盯梢结果出晨报。" }],
   mcpServers: [],
   monitoring: { escalate: { threshold: 3 } },
-  acceptance: [{ id: "first-brief", assert: "首轮产出一份简报" }],
+  acceptance: [{ id: "first-brief", kind: "report-landed", target: "简报岗" }],
   board: { sections: ["daily"] },
 };
 
@@ -456,4 +456,42 @@ test("3.3 发布客户端身份头：user 必须是对象（base64url 身份契�
   const anon = await client.publish({ manifest: { name: "m" }, user: { groups: [] } });
   assert.equal(anon.status, 401);
   assert.equal(seen.length, before);
+});
+
+test("跨仓契约兼容：finddata 蓝图格式 v1 原样粘入即可编辑/校验/铸造", async () => {
+  // 2026-10-28 跨仓对账：finddata fleet-packs/blueprints/schema.md 的字段名
+  // （vertical/sources/boards）与本仓（boundary/dataSources/board）不同。归一化
+  // 保证按他们 schema 写的蓝图不会静默变空壳；自由文本断言如实指名不支持。
+  const finddata = {
+    vertical: { name: "跨境电商政策盯梢", tagline: "盯四路政策与公告面，异动即报", non_goals: ["商品价格监控", "汇率预测"] },
+    sources: [{ registryName: "fd-info", purpose: "部委公告与政策流", allowTools: ["list_since", "get_item"] }],
+    fleet: {
+      name: "政策盯梢集群",
+      members: [{ ref: "watch", title: "盯梢岗", target: { kind: "tool", id: "websearch::web_search" },
+        cadence: { cron: "0 9 * * *", tz: "Asia/Shanghai", promptTemplate: "{\"query\":\"policy\"}" } }],
+    },
+    boards: [{ artifact: "doc", title: "政策日报", discipline: "draft+提案制" }],
+    monitoring: { anomaly_criteria: ["部委公告异动"], escalate: { threshold: 3 }, notify: "proposal-channel" },
+    acceptance: ["巡检员一个成功回合", "主编日报合成"],
+    _casting: { source_blueprint: "fleet-packs/blueprints/x/blueprint.json", packDependencies: {} },
+  };
+  const { server, base } = mount();
+  try {
+    const created = await fetch(`${base}/api/blueprints`, as("alice@x", { method: "POST", body: JSON.stringify({ content: finddata }) })).then(j);
+    // 名从 vertical.name 归一到 boundary.name。
+    assert.equal(created.blueprint.name, "跨境电商政策盯梢");
+    assert.equal(created.blueprint.content.boundary.oneLine, "盯四路政策与公告面，异动即报");
+    assert.match(created.blueprint.content.boundary.outOfScope, /商品价格监控/);
+    assert.equal(created.blueprint.content.dataSources[0].ref, "fd-info");
+    assert.equal(created.blueprint.content.dataSources[0].note, "部委公告与政策流");
+    assert.ok(Array.isArray(created.blueprint.content.board));
+
+    // 校验：fleet 段过既有链，自由文本断言被如实指名（不静默通过）。
+    const verdict = await fetch(`${base}/api/blueprints/${created.blueprint.id}/validate`, as("alice@x", { method: "POST" })).then(j);
+    assert.equal(verdict.ok, false);
+    assert.ok(verdict.errors.some((e) => /unsupported assertion kind 'free-text'/.test(e.error)));
+    assert.equal(verdict.errors.some((e) => e.entry === "fleet"), false, "fleet 段必须零错误");
+  } finally {
+    await close(server);
+  }
 });

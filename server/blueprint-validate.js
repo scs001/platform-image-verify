@@ -94,6 +94,80 @@ export function shapeFindings(content) {
 
 // ── Manifest 组装与全链校验 ────────────────────────────────────────────────
 
+export const TRIAL_ASSERTION_KINDS = ["post-materialized", "first-round-fired", "report-landed", "escalate-bounded"];
+
+// 断言条目形状：{ id, kind, target?, expect? }。target = 岗位 title（缺省=全岗）。
+export function normalizeAcceptance(acceptance) {
+  const list = Array.isArray(acceptance) ? acceptance : [];
+  const assertions = [];
+  const errors = [];
+  list.forEach((item, i) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      errors.push({ error: `acceptance[${i}] must be an object of { id, kind, target?, expect? }`, entry: `acceptance[${i}]` });
+      return;
+    }
+    const id = typeof item.id === "string" && item.id.trim() ? item.id : `a${i + 1}`;
+    const kind = item.kind;
+    if (!TRIAL_ASSERTION_KINDS.includes(kind)) {
+      errors.push({ error: `acceptance[${i}] '${id}' declares unsupported assertion kind '${kind ?? "(none)"}' (supported: ${TRIAL_ASSERTION_KINDS.join(", ")})`, entry: `acceptance[${i}].kind` });
+    }
+    if (item.target !== undefined && typeof item.target !== "string") {
+      errors.push({ error: `acceptance[${i}] '${id}' target must be a post title when present`, entry: `acceptance[${i}].target` });
+    }
+    if (kind === "escalate-bounded" && item.expect !== undefined && !Number.isFinite(item.expect)) {
+      errors.push({ error: `acceptance[${i}] '${id}' expect must be a number for escalate-bounded`, entry: `acceptance[${i}].expect` });
+    }
+    assertions.push({ id, kind, target: item.target ?? null, expect: item.expect ?? null });
+  });
+  return { assertions, errors };
+}
+
+// ── 跨仓契约兼容层（finddata fleet-packs/blueprints/schema.md → 本仓形状） ──
+//
+// 2026-10-28 跨仓对账：finddata 的蓝图格式 v1 与本仓落地形状字段名不同
+// （vertical/sources/boards ←→ boundary/dataSources/board）。不改本仓形状
+// （改键=破坏已上产契约），在读入侧做单向归一化：按 finddata schema 写的蓝图
+// 粘进构造间不会静默变空壳，能编辑、能校验、能铸造。
+//
+// 断言分歧（有意保留）：finddata 的 acceptance 是自由文本串数组，本仓要求可
+// 执行的结构化条目 {id, kind, target?}。自由文本不静默通过、也不静默丢弃——
+// 归一成 { id, kind: "free-text", text } 让校验链如实指名「不支持、待立项」，
+// 与 D8「未知 kind 拒绝而非猜测」一致。
+export function normalizeIncomingContent(content) {
+  if (!content || typeof content !== "object" || Array.isArray(content)) return content;
+  const c = { ...content };
+
+  // vertical{name,tagline,non_goals} → boundary{name,oneLine,outOfScope}
+  if (c.vertical && typeof c.vertical === "object" && !c.boundary) {
+    const v = c.vertical;
+    c.boundary = {
+      name: v.name ?? "",
+      oneLine: v.tagline ?? "",
+      outOfScope: Array.isArray(v.non_goals) ? v.non_goals.filter((x) => typeof x === "string").join("、") : (v.non_goals ?? ""),
+    };
+  }
+  // sources[] → dataSources[]（registryName 即 ref；purpose/allowTools 保留为附注）
+  if (Array.isArray(c.sources) && !Array.isArray(c.dataSources)) {
+    c.dataSources = c.sources
+      .filter((s) => s && typeof s === "object")
+      .map((s) => ({
+        ref: typeof s.registryName === "string" ? s.registryName : "",
+        ...(typeof s.purpose === "string" ? { note: s.purpose } : {}),
+      }));
+  }
+  // boards[] → board（保留原数组，只是键名对齐）
+  if (Array.isArray(c.boards) && c.board === undefined) c.board = c.boards;
+  // acceptance 自由文本串 → 结构化占位（kind=free-text，校验链会指名不支持）
+  if (Array.isArray(c.acceptance)) {
+    c.acceptance = c.acceptance.map((a, i) =>
+      typeof a === "string" ? { id: `legacy-${i + 1}`, kind: "free-text", text: a } : a,
+    );
+  }
+  // _casting.source_blueprint / packDependencies 保留原样（铸造时只用本仓字段，
+  // 外部追溯不丢）。
+  return c;
+}
+
 // 铸造时喂给既有校验器的 manifest：名字取场景中文主名（类型由「集群模板」
 // 专辑位/徽章承载，名字不背类型——产品命名决议）；category 钉 "fleet"
 // （代码键零改老律：专辑显示名是市场层的词，键不动）。
@@ -117,16 +191,19 @@ export function assembleManifest(content, { name } = {}) {
 export function validateBlueprint(content) {
   const manifestPreview = assembleManifest(content);
   const shape = shapeFindings(content ?? {});
+  // 验收断言段也进校验链：试跑只有四类可判绿的断言，未知 kind（含 finddata
+  // 的自由文本串）在此就指名，不留到试跑才暴露。
+  const acceptance = normalizeAcceptance(content?.acceptance).errors;
   const fleetParsed = parseFleetTemplate(manifestPreview);
   const fleet = fleetParsed.ok ? [] : [{ error: fleetParsed.error, entry: "fleet" }];
   const manifest = validatePackManifest(manifestPreview);
   const toolFace = toolFaceErrors(manifestPreview);
   const toolClosure = toolClosureErrors(manifestPreview);
-  const errors = [...shape, ...fleet, ...manifest, ...toolFace, ...toolClosure];
+  const errors = [...shape, ...acceptance, ...fleet, ...manifest, ...toolFace, ...toolClosure];
   return {
     ok: errors.length === 0,
     errors,
-    findings: { shape, fleet, manifest, toolFace, toolClosure },
+    findings: { shape, acceptance, fleet, manifest, toolFace, toolClosure },
     manifestPreview,
   };
 }

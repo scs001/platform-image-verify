@@ -681,3 +681,31 @@ test("重新封印：铸造态下内容未变+报告已签 → 允许再铸一�
     await close(server);
   }
 });
+
+test("评审模型选择：在册放行、不在册校验面指名、向后兼容", async () => {
+  const { server, base } = mount();
+  try {
+    // 未声明 judgeModel：校验行为不变（既有蓝图兼容）。
+    const plain = await fetch(`${base}/api/blueprints`, as("alice@x", { method: "POST", body: JSON.stringify({ content: VALID_CONTENT }) })).then(j);
+    const v1 = await fetch(`${base}/api/blueprints/${plain.blueprint.id}/validate`, as("alice@x", { method: "POST" })).then(j);
+    assert.equal(v1.findings.judgeModel.length, 0, "未声明不做额外校验");
+
+    // 声明一个名册里没有的模型 → 校验面逐字段指名。
+    const ghost = await fetch(`${base}/api/blueprints`, as("alice@x", {
+      method: "POST",
+      body: JSON.stringify({ content: { ...VALID_CONTENT, judgeModel: "definitely-not-a-model-xyz" } }),
+    })).then(j);
+    const v2 = await fetch(`${base}/api/blueprints/${ghost.blueprint.id}/validate`, as("alice@x", { method: "POST" })).then(j);
+    assert.equal(v2.ok, false);
+    const jm = v2.findings.judgeModel;
+    assert.equal(jm.length, 1);
+    assert.equal(jm[0].entry, "judgeModel");
+    assert.match(jm[0].error, /not in this deployment's model roster/);
+
+    // 批准也被同一条件短路。
+    const ap = await fetch(`${base}/api/blueprints/${ghost.blueprint.id}/approve`, as("alice@x", { method: "POST", body: JSON.stringify({ expectVersion: 1 }) }));
+    assert.equal(ap.status, 422);
+  } finally {
+    await close(server);
+  }
+});

@@ -17,7 +17,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { load as loadYaml } from "js-yaml";
 import { laneKeyFor } from "./llm-lane.js";
-import { buildUserProviderEntries } from "../llm-providers.js";
+import { buildUserProviderEntries, credentialRefsForUserProviders } from "../llm-providers.js";
 import { targetPaths } from "../dsh-profile.js";
 
 export const JUDGE_VERDICTS = ["pass", "fail", "insufficient-evidence"];
@@ -53,12 +53,25 @@ export function __testApiKeyFor(provider) {
   return apiKeyFor(provider);
 }
 
+// 2026-10-28 生产实证：provider 的真密钥在 credentialRefsForUserProviders()[apiKeyEnv]
+// （Models 页写入的绑定），而 LLM_API_KEY 是另一套上游钥匙——两者都 30 字符但内容
+// 不同，用错会 502/401。顺序：providers doc 的 refs > env[apiKeyEnv] > 凭据文件 >
+// LLM_API_KEY 兜底。
 function apiKeyFor(provider) {
   const envName = provider?.apiKeyEnv;
-  const fromEnv = envName ? process.env[envName] : "";
-  if (fromEnv) return fromEnv;
-  const fromFile = envName ? credentialRefs()[envName] : "";
-  if (fromFile) return String(fromFile);
+  if (envName) {
+    try {
+      const refs = credentialRefsForUserProviders();
+      const fromDoc = refs?.[envName];
+      if (fromDoc) return String(fromDoc);
+    } catch {
+      // doc 不可读 → 继续往下试
+    }
+    const fromEnv = process.env[envName];
+    if (fromEnv) return String(fromEnv);
+    const fromFile = credentialRefs()[envName];
+    if (fromFile) return String(fromFile);
+  }
   const fallback = process.env.LLM_API_KEY || credentialRefs().LLM_API_KEY || "";
   return fallback ? String(fallback) : "";
 }
@@ -71,8 +84,13 @@ function apiKeyFor(provider) {
 // 两条来源（2026-10-28 生产实证）：① 部署的 env 路由 LLM_BASE_URL/LLM_API_KEY
 // 是权威且总在场；② providers doc（Models 页）补充 provider 标识与更多模型。
 // doc 读不到时不得让判定整体失能——回落到 env 路由。
-export function resolveJudgeLane({ entries = null } = {}) {
-  const wanted = (process.env.BLUEPRINT_JUDGE_MODEL || "").trim();
+// 三层解析（add-blueprint-judge-model-choice D1）：蓝图 judgeModel → 部署 env →
+// 名册首个。回落必须留痕（judgeSource/fallbackReason），否则事后无法解释
+// 「为什么这份报告用的不是我选的模型」。
+export function resolveJudgeLane({ entries = null, preferredModel = null } = {}) {
+  const deployDefault = (process.env.BLUEPRINT_JUDGE_MODEL || "").trim();
+  const blueprintPick = (preferredModel || "").trim();
+  const wanted = blueprintPick || deployDefault;
   const doc = (() => {
     try {
       return entries ?? buildUserProviderEntries();
@@ -80,8 +98,27 @@ export function resolveJudgeLane({ entries = null } = {}) {
       return { providers: {}, models: [] };
     }
   })();
-  const model = (wanted && doc.models?.find((m) => m.id === wanted || m.name === wanted)) || doc.models?.[0];
+  const hit = wanted ? doc.models?.find((m) => m.id === wanted || m.name === wanted) : null;
+  // 蓝图显式选了但名册里没有 → 不静默回落（与 D3 同族：错配置不猜）。
+  if (blueprintPick && !hit) {
+    return {
+      unavailable: true,
+      requestedModel: blueprintPick,
+      reason: `the blueprint's judgeModel '${blueprintPick}' is not in this deployment's model roster — pick one from the model settings page`,
+    };
+  }
+  const model = hit || doc.models?.[0];
   const provider = model ? doc.providers?.[model.provider] : null;
+  // judgeSource 按**最终命中**判，不按"有没有配"判：配了但不在册只能算 fallback
+  // （2026-10-29 测试逮住：原写法把"配了但落空"错标成 deployment，事后无法解释
+  // 为什么实际用的不是配的那个）。
+  const judgeSource = blueprintPick ? "blueprint" : deployDefault && hit ? "deployment" : "fallback";
+  const fallbackReason =
+    judgeSource === "fallback"
+      ? deployDefault
+        ? `deployment default '${deployDefault}' is not in the roster; fell back to the first listed model`
+        : "no blueprint judgeModel and no deployment default; fell back to the first listed model"
+      : null;
 
   if (model && provider) {
     const apiKey = apiKeyFor(provider);
@@ -93,6 +130,8 @@ export function resolveJudgeLane({ entries = null } = {}) {
         apiKey,
         model: model.id,
         laneId: laneKeyFor({ id: model.provider, baseURL: baseUrl, apiKey }),
+        judgeSource,
+        fallbackReason,
       };
     }
   }
@@ -108,6 +147,8 @@ export function resolveJudgeLane({ entries = null } = {}) {
     apiKey,
     model: envModel,
     laneId: laneKeyFor({ id: "env-route", baseURL: envBase, apiKey }),
+    judgeSource,
+    fallbackReason,
   };
 }
 
@@ -198,7 +239,7 @@ export function parseJudgeOutput(raw) {
 
 // deps: { lane, entries, fetchImpl, timeoutMs } —— 测试全注入，零真模型调用。
 // 返回 { verdict, reason, audit }；audit 是报告里留档的那一份。
-export async function judgeAssertion({ assertionId, rubric, evidenceText, productionLanes = [], lane = null, fetchImpl = fetch, timeoutMs = JUDGE_LIMITS.timeoutMs }) {
+export async function judgeAssertion({ assertionId, rubric, evidenceText, productionLanes = [], lane = null, judgeModel = null, fetchImpl = fetch, timeoutMs = JUDGE_LIMITS.timeoutMs }) {
   const evidence = String(evidenceText ?? "");
   const auditBase = {
     assertionId,
@@ -215,12 +256,29 @@ export async function judgeAssertion({ assertionId, rubric, evidenceText, produc
     };
   }
 
-  const resolved = lane ?? resolveJudgeLane();
+  const resolved = lane ?? resolveJudgeLane({ preferredModel: judgeModel });
   if (!resolved) {
     return {
       verdict: "insufficient-evidence",
       reason: `no judge lane is configured on this deployment (LLM route missing) ${laneDiagnostics()}`,
       audit: { ...auditBase, verdict: "insufficient-evidence", model: null, endpointDigest: null, promptHash: null, rawVerdict: null },
+    };
+  }
+  // 蓝图选了一个名册里没有的模型 → 不静默回落，如实指名（D1/D3）。
+  if (resolved.unavailable) {
+    return {
+      verdict: "insufficient-evidence",
+      reason: resolved.reason,
+      audit: {
+        ...auditBase,
+        verdict: "insufficient-evidence",
+        model: resolved.requestedModel ?? null,
+        judgeSource: "blueprint",
+        judgeFallbackReason: null,
+        endpointDigest: null,
+        promptHash: null,
+        rawVerdict: null,
+      },
     };
   }
 
@@ -248,6 +306,8 @@ export async function judgeAssertion({ assertionId, rubric, evidenceText, produc
   const audit = {
     ...auditBase,
     model: resolved.model,
+    judgeSource: resolved.judgeSource ?? null,
+    judgeFallbackReason: resolved.fallbackReason ?? null,
     endpointDigest: sha(resolved.baseUrl).slice(0, 16),
     promptHash,
   };

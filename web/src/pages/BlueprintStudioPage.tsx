@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useChatStore } from "@platform/core";
 import {
   approveBlueprint,
   BlueprintApiError,
@@ -101,6 +102,8 @@ export function BlueprintStudioPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [trial, setTrial] = useState<TrialReport | null>(null);
+  // 评审模型 roster（add-blueprint-judge-model-choice）：与聊天同一份模型清单。
+  const modelRoster = useChatStore((s) => s.models);
   const [draftPaste, setDraftPaste] = useState("");
   const [draftError, setDraftError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -535,6 +538,32 @@ export function BlueprintStudioPage() {
                       ))}
                     </div>
                   </div>
+                  <label className="block">
+                    <span className="text-xs text-muted-foreground">{t("blueprints.judge.model.label")}</span>
+                    <select
+                      className="mt-1 w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+                      value={content.judgeModel ?? ""}
+                      onChange={(e) => applyContent({ ...content, judgeModel: e.target.value || undefined })}
+                      data-testid="blueprint-judge-model"
+                    >
+                      <option value="">{t("blueprints.judge.model.followDefault")}</option>
+                      {(modelRoster ?? []).map((m) => {
+                        const sameAsProducer = Boolean(detail?.content?.fleet && false);
+                        return (
+                          <option key={m.id} value={m.id}>
+                            {m.name || m.id}
+                            {sameAsProducer ? ` — ${t("blueprints.judge.model.sameAsProducer")}` : ""}
+                          </option>
+                        );
+                      })}
+                      {content.judgeModel && !(modelRoster ?? []).some((m) => m.id === content.judgeModel) ? (
+                        <option value={content.judgeModel}>
+                          {content.judgeModel} — {t("blueprints.judge.model.notInRoster")}
+                        </option>
+                      ) : null}
+                    </select>
+                    <span className="mt-1 block text-[11px] text-muted-foreground">{t("blueprints.judge.model.hint")}</span>
+                  </label>
                   <p className="text-[11px] text-muted-foreground">{t("blueprints.fields.jsonHint")}</p>
                 </div>
               ) : tab === "json" ? (
@@ -655,6 +684,14 @@ export function BlueprintStudioPage() {
                         <span className="text-muted-foreground">{t("blueprints.trial.ranAt", { when: new Date(trial.ranAt).toLocaleString() })}</span>
                         {trial.judged?.length ? (
                           <span className="text-muted-foreground">{t("blueprints.trial.judgedCount", { count: trial.judged.length })}</span>
+                        ) : null}
+                        {trial.judgeModelUsed ? (
+                          <span className="text-muted-foreground" data-testid="blueprint-judge-used">
+                            {t("blueprints.judge.model.used", { model: trial.judgeModelUsed })}
+                            {trial.judged?.[0]?.audit?.judgeSource
+                              ? ` · ${t(`blueprints.judge.model.source.${trial.judged[0].audit.judgeSource}`)}`
+                              : ""}
+                          </span>
                         ) : null}
                         {trial.signoff ? (
                           <span className="text-emerald-600" data-testid="blueprint-signoff-state">

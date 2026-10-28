@@ -17,6 +17,7 @@
 import { parseFleetTemplate } from "./fleet-template.js";
 import { validatePackManifest } from "../lib/pack-manifest.js";
 import { toolFaceErrors, toolClosureErrors } from "../lib/publish-tool-gate.js";
+import { buildUserProviderEntries } from "../llm-providers.js";
 
 // ── Shape gate: 凭据扫描（存储层与 validate 路由共用） ─────────────────────
 
@@ -91,6 +92,28 @@ export function dataSourceFindings(content) {
 
 export function shapeFindings(content) {
   return [...credentialFindings(content), ...dataSourceFindings(content)];
+}
+
+// 判定模型在册校验（add-blueprint-judge-model-choice D3）：错配置要在校验面就暴露，
+// 不放试跑到「装台+点火+一轮」之后才说模型不存在。名册读不到时降级为不校验
+// （存储问题不该让所有蓝图无法批准）。
+export function judgeModelFindings(content) {
+  const wanted = content?.judgeModel;
+  if (typeof wanted !== "string" || !wanted.trim()) return [];
+  let models = null;
+  try {
+    models = buildUserProviderEntries().models;
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(models) || models.length === 0) return [];
+  if (models.some((m) => m.id === wanted || m.name === wanted)) return [];
+  return [
+    {
+      error: `judgeModel '${wanted}' is not in this deployment's model roster — pick one on the model settings page, or clear the field to follow the deployment default`,
+      entry: "judgeModel",
+    },
+  ];
 }
 
 // ── Shape gate: v1 方言如实拒绝（remove-blueprint-v1-compat, design D1/D2） ──
@@ -212,16 +235,17 @@ export function validateBlueprint(content) {
   // 验收断言段也进校验链：试跑只有五类可判绿的断言，未知 kind 在此就指名，
   // 不留到试跑才暴露。
   const acceptance = normalizeAcceptance(content?.acceptance).errors;
+  const judgeModel = judgeModelFindings(content);
   const fleetParsed = parseFleetTemplate(manifestPreview);
   const fleet = fleetParsed.ok ? [] : [{ error: fleetParsed.error, entry: "fleet" }];
   const manifest = validatePackManifest(manifestPreview);
   const toolFace = toolFaceErrors(manifestPreview);
   const toolClosure = toolClosureErrors(manifestPreview);
-  const errors = [...shape, ...acceptance, ...fleet, ...manifest, ...toolFace, ...toolClosure];
+  const errors = [...shape, ...judgeModel, ...acceptance, ...fleet, ...manifest, ...toolFace, ...toolClosure];
   return {
     ok: errors.length === 0,
     errors,
-    findings: { v1: [], shape, acceptance, fleet, manifest, toolFace, toolClosure },
+    findings: { v1: [], shape, judgeModel, acceptance, fleet, manifest, toolFace, toolClosure },
     manifestPreview,
   };
 }

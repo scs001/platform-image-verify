@@ -3144,6 +3144,19 @@
       "by": "Firmado por {{who}} · {{when}}",
       "clear": "Retirar firma",
       "cleared": "Firma retirada."
+    },
+    "model": {
+      "label": "Modelo revisor",
+      "followDefault": "Seguir el valor por defecto",
+      "hint": "Qué modelo juzga las aserciones llm-judged de este plano. Debe diferir de los modelos de tus puestos: un modelo no puede calificar su propio trabajo.",
+      "sameAsProducer": "igual que un puesto — se rechazará",
+      "notInRoster": "no está en el catálogo de este despliegue",
+      "used": "Revisado por {{model}}",
+      "source": {
+        "blueprint": "elegido por este plano",
+        "deployment": "valor por defecto",
+        "fallback": "reserva"
+      }
     }
   }
 }

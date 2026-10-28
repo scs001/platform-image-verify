@@ -119,7 +119,7 @@ export function evidenceTextFor(assertion, evidence) {
 }
 
 // 判定阶段（design D8）：只判 llm-judged 条目；deps.judge 可注入（测试零真模型）。
-async function judgeAll({ assertions, evidence, fleetId, deps }) {
+async function judgeAll({ assertions, evidence, fleetId, deps, contentJudgeModel = null }) {
   const targets = assertions.filter((a) => a.kind === "llm-judged");
   if (!targets.length) return [];
   const productionLanes = await (deps.productionLanes ? deps.productionLanes(fleetId) : Promise.resolve([]));
@@ -130,6 +130,7 @@ async function judgeAll({ assertions, evidence, fleetId, deps }) {
       rubric: a.rubric,
       evidenceText: evidenceTextFor(a, evidence),
       productionLanes,
+      judgeModel: contentJudgeModel,
     });
     out.push({
       id: a.id,
@@ -193,9 +194,12 @@ export async function runTrial({ blueprint, deps, timeoutMs = 10 * 60_000, pollM
     const machine = normalized.assertions.filter((a) => a.kind !== "llm-judged");
     const machineJudged = evaluateTrial({ assertions: machine, evidence, since });
     // 判定阶段（design D8）：机器判绿之后、落报告之前。
-    const judged = deps.judge ? await judgeAll({ assertions: normalized.assertions, evidence, fleetId: provisioned.fleetId, deps }) : [];
+    const judged = deps.judge
+      ? await judgeAll({ assertions: normalized.assertions, evidence, fleetId: provisioned.fleetId, deps, contentJudgeModel: view.content?.judgeModel ?? null })
+      : [];
     report.assertions = [...machineJudged, ...judged];
     report.judged = judged;
+    if (judged.length) report.judgeModelUsed = judged[0]?.audit?.model ?? null;
     report.green = report.assertions.length > 0 && report.assertions.every((a) => a.pass);
     report.evidenceWindow = { since, until: now() };
   } catch (err) {

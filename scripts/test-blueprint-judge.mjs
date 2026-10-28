@@ -189,3 +189,79 @@ test("禁自证不依赖 providers doc：只有模型名也能判（生产实证
   // 不同模型 → 放行（即便产出侧 provider 未知）
   assert.equal(isSelfGrading({ providerId: "env-route", model: "glm-5.3-flash" }, producer), false);
 });
+
+test("三层解析：蓝图指定 / 部署默认 / 名册首个，judgeSource 各正确", async () => {
+  const { resolveJudgeLane } = await import("../server/blueprint-judge.js");
+  const entries = {
+    providers: { p1: { baseURL: "https://x/v1", apiKeyEnv: "K1", models: [] } },
+    models: [{ id: "m-a", provider: "p1" }, { id: "m-b", provider: "p1" }],
+  };
+  const prev = process.env.BLUEPRINT_JUDGE_MODEL;
+  try {
+    // 蓝图指定
+    process.env.BLUEPRINT_JUDGE_MODEL = "m-b";
+    const byBlueprint = resolveJudgeLane({ entries, preferredModel: "m-a" });
+    assert.equal(byBlueprint.model, "m-a");
+    assert.equal(byBlueprint.judgeSource, "blueprint");
+
+    // 未指定 → 部署默认
+    const byDeploy = resolveJudgeLane({ entries });
+    assert.equal(byDeploy.model, "m-b");
+    assert.equal(byDeploy.judgeSource, "deployment");
+
+    // 部署默认不在册 → 回落名册首个并留痕
+    process.env.BLUEPRINT_JUDGE_MODEL = "nope";
+    const byFallback = resolveJudgeLane({ entries });
+    assert.equal(byFallback.model, "m-a");
+    assert.equal(byFallback.judgeSource, "fallback");
+    assert.match(String(byFallback.fallbackReason), /not in the roster/);
+  } finally {
+    if (prev === undefined) delete process.env.BLUEPRINT_JUDGE_MODEL;
+    else process.env.BLUEPRINT_JUDGE_MODEL = prev;
+  }
+});
+
+test("蓝图指定了不在册的模型 → unavailable，不静默回落", async () => {
+  const { resolveJudgeLane } = await import("../server/blueprint-judge.js");
+  const entries = { providers: { p1: { baseURL: "https://x/v1", apiKeyEnv: "K1", models: [] } }, models: [{ id: "m-a", provider: "p1" }] };
+  const r = resolveJudgeLane({ entries, preferredModel: "ghost" });
+  assert.equal(r.unavailable, true);
+  assert.equal(r.requestedModel, "ghost");
+  assert.match(r.reason, /not in this deployment's model roster/);
+});
+
+test("蓝图指定与产出同模型 → 拒判并指名（不自动换模型）", async () => {
+  const { judgeAssertion } = await import("../server/blueprint-judge.js");
+  let called = 0;
+  const lane = { providerId: "p1", baseUrl: "https://j/v1", apiKey: "k", model: "same-1", laneId: "lane-j", judgeSource: "blueprint" };
+  const out = await judgeAssertion({
+    assertionId: "a1",
+    rubric: "判据",
+    evidenceText: "证据",
+    productionLanes: [{ providerId: "p1", model: "same-1" }],
+    lane,
+    fetchImpl: async () => {
+      called += 1;
+      return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '{"verdict":"pass"}' } }] }) };
+    },
+  });
+  assert.equal(out.verdict, "insufficient-evidence");
+  assert.match(out.reason, /self-grading/);
+  assert.equal(called, 0, "拒判必须在发请求之前");
+});
+
+test("审计件带 judgeSource / judgeFallbackReason", async () => {
+  const { judgeAssertion } = await import("../server/blueprint-judge.js");
+  const lane = { providerId: "p1", baseUrl: "https://j/v1", apiKey: "k", model: "judge-1", laneId: "lane-j", judgeSource: "blueprint", fallbackReason: null };
+  const out = await judgeAssertion({
+    assertionId: "a1",
+    rubric: "判据",
+    evidenceText: "证据",
+    productionLanes: [{ providerId: "p2", model: "other" }],
+    lane,
+    fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '{"verdict":"pass"}' } }] }) }),
+  });
+  assert.equal(out.verdict, "pass");
+  assert.equal(out.audit.judgeSource, "blueprint");
+  assert.equal(out.audit.judgeFallbackReason, null);
+});

@@ -8,6 +8,8 @@ export type BlueprintStatus = "draft" | "approved" | "cast";
 
 export interface BlueprintContent {
   boundary?: { name?: string; oneLine?: string; outOfScope?: string };
+  /** 判定该蓝图 llm-judged 断言的模型 id（空=跟随部署默认）。 */
+  judgeModel?: string;
   dataSources?: { ref: string; note?: string }[];
   fleet?: Record<string, unknown>;
   agents?: unknown[];
@@ -135,6 +137,8 @@ export interface TrialJudgement {
     promptHash?: string | null;
     evidenceDigest?: string | null;
     rawVerdict?: string | null;
+    judgeSource?: "blueprint" | "deployment" | "fallback" | null;
+    judgeFallbackReason?: string | null;
     judgedAt?: string;
   };
 }
@@ -152,6 +156,7 @@ export interface TrialReport {
   assertions: TrialJudgement[];
   judged?: TrialJudgement[];
   signoff?: TrialSignoff;
+  judgeModelUsed?: string | null;
   errors?: string[];
   [key: string]: unknown;
 }

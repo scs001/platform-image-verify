@@ -54,6 +54,13 @@ function parseTags(raw: unknown): string[] {
   }
   return [];
 }
+// The tier column is a plain string, NOT a JSON array like tags — parsing it
+// with parseTags read every graded output as "draft", so the badge lied and
+// "取消正典" could never fire. Read it as the enum it is.
+function parseTier(raw: unknown): (typeof TIERS)[number] {
+  const t = typeof raw === "string" ? raw.trim() : "";
+  return (TIERS as readonly string[]).includes(t) ? (t as (typeof TIERS)[number]) : "draft";
+}
 // The chip row mirrors the server's group list, minus the chart group when the
 // files tab already means "files only".
 const FILE_GROUPS: ResourceGroup[] = RESOURCE_GROUPS.filter((g) => g !== "chart");
@@ -264,7 +271,7 @@ function ResourceCard({
               {t(`resources.kind.${resource.type === "chart" ? "chart" : "file"}`)}
             </span>
             {(() => {
-              const tier = parseTags(resource.tier)[0] ?? "draft";
+              const tier = parseTier(resource.tier);
               return (
                 <span
                   className={`shrink-0 rounded-full px-2 py-0.5 text-xs border ${
@@ -287,7 +294,7 @@ function ResourceCard({
       {/* Tags chips（AI 提议/人类确认区别徽标）与三手势：记住、钉为正典、改 tag */}
       {(() => {
         const tags = parseTags(resource.tags);
-        const tier = parseTags(resource.tier)[0] ?? "draft";
+        const tier = parseTier(resource.tier);
         const onRemember = async () => { try { await remember(resource.id); } catch (e) { showToast((e as Error).message); } };
         const onToggleCanon = async () => { try { await setTier(resource.id, tier === "canonical" ? "stable" : "canonical"); } catch (e) { showToast((e as Error).message); } };
         const onEditTags = async () => {
@@ -297,8 +304,8 @@ function ResourceCard({
         };
         return (
           <div className="mt-1 flex flex-wrap items-center gap-1" data-testid="resource-memory-row">
-            {tags.map((tag, i) => (
-              <span key={`${tag}-${i}`} className="rounded-full bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground" data-testid={`resource-tag-${tag}`}>
+            {[...new Set(tags)].map((tag) => (
+              <span key={tag} className="rounded-full bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground" data-testid={`resource-tag-${tag}`}>
                 {tag}
                 {(resource as Resource & { tagsOrigin?: string }).tagsOrigin === "ai" ? <span className="ml-1 opacity-70">·AI</span> : null}
               </span>

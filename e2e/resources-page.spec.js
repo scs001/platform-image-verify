@@ -46,14 +46,20 @@ function insertResource(row) {
     updated_at: now,
     last_seen_at: now,
     seeded: 0,
+    // Unified memory & outputs: tier is a plain string and tags a JSON array
+    // string — the card reads them differently (task 3.1).
+    tier: "draft",
+    tags: "[]",
     ...row,
   };
   handle
     .prepare(
       `INSERT INTO resources (id, type, title, source, session_id, session_title, message_id,
-         payload, file_path, file_size, file_mime, content_hash, created_at, updated_at, last_seen_at, seeded)
+         payload, file_path, file_size, file_mime, content_hash, created_at, updated_at, last_seen_at, seeded,
+         tier, tags)
        VALUES (@id, @type, @title, @source, @session_id, @session_title, @message_id,
-         @payload, @file_path, @file_size, @file_mime, @content_hash, @created_at, @updated_at, @last_seen_at, @seeded)`,
+         @payload, @file_path, @file_size, @file_mime, @content_hash, @created_at, @updated_at, @last_seen_at, @seeded,
+         @tier, @tags)`,
     )
     .run(full);
   handle.close();
@@ -342,4 +348,42 @@ test("the filter rows survive a narrow viewport", async ({ page }) => {
   // A chip on the wrapped row is still clickable at this width.
   await page.getByTestId("resources-group-document").click();
   await expect(page.getByTestId("resource-card")).toHaveCount(2);
+});
+
+// The tier badge must read the row's own tier (add-unified-memory-and-outputs
+// task 3.1). The card used to parse the tier column as a JSON array — every
+// graded output then read "Draft" and "Unpin" never appeared.
+test("a graded output shows its own tier badge and the unpin gesture", async ({ page }) => {
+  const canonical = insertResource({
+    type: "file",
+    title: "graded.md",
+    source: "manual",
+    file_path: `${crypto.randomUUID()}/graded.md`,
+    tier: "canonical",
+    tags: JSON.stringify(["行业政策"]),
+  });
+  const draft = insertResource({
+    type: "file",
+    title: "plain.md",
+    source: "manual",
+    file_path: `${crypto.randomUUID()}/plain.md`,
+  });
+  await gotoResources(page);
+
+  const canonicalCard = page.locator(`[data-resource-id="${canonical.id}"]`);
+  await expect(canonicalCard.getByTestId("resource-tier-canonical")).toBeVisible();
+  await expect(canonicalCard.getByTestId("resource-tier-draft")).toHaveCount(0);
+  await expect(canonicalCard.getByTestId("resource-tier-toggle")).toHaveText(/Unpin/i);
+  // Its tag chip shows the tag the row carries.
+  await expect(canonicalCard.getByTestId("resource-tag-行业政策")).toBeVisible();
+
+  // An untouched row still reads Draft and offers the pin gesture.
+  const draftCard = page.locator(`[data-resource-id="${draft.id}"]`);
+  await expect(draftCard.getByTestId("resource-tier-draft")).toBeVisible();
+  await expect(draftCard.getByTestId("resource-tier-toggle")).toHaveText(/Pin as canonical/i);
+
+  // The tier row filters by the same value.
+  await page.getByTestId("resources-tier-canonical").click();
+  await expect(page.getByTestId("resource-card")).toHaveCount(1);
+  await expect(page.getByTestId("resource-card").first()).toContainText("graded.md");
 });

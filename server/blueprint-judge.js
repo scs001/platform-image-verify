@@ -67,23 +67,67 @@ function apiKeyFor(provider) {
 
 // 可用的 judge 模型 → { providerId, baseUrl, apiKey, model, laneId }。
 // 选型顺序：BLUEPRINT_JUDGE_MODEL 指定 → 否则取第一个在册模型（便宜档由环境定）。
+//
+// 两条来源（2026-10-28 生产实证）：① 部署的 env 路由 LLM_BASE_URL/LLM_API_KEY
+// 是权威且总在场；② providers doc（Models 页）补充 provider 标识与更多模型。
+// doc 读不到时不得让判定整体失能——回落到 env 路由。
 export function resolveJudgeLane({ entries = null } = {}) {
-  const doc = entries ?? buildUserProviderEntries();
   const wanted = (process.env.BLUEPRINT_JUDGE_MODEL || "").trim();
-  const model = (wanted && doc.models.find((m) => m.id === wanted || m.name === wanted)) || doc.models[0];
-  if (!model) return null;
-  const provider = doc.providers?.[model.provider];
-  if (!provider) return null;
-  const apiKey = apiKeyFor(provider);
-  const baseUrl = provider.baseURL || provider.baseUrl || "";
-  if (!baseUrl) return null;
+  const doc = (() => {
+    try {
+      return entries ?? buildUserProviderEntries();
+    } catch {
+      return { providers: {}, models: [] };
+    }
+  })();
+  const model = (wanted && doc.models?.find((m) => m.id === wanted || m.name === wanted)) || doc.models?.[0];
+  const provider = model ? doc.providers?.[model.provider] : null;
+
+  if (model && provider) {
+    const apiKey = apiKeyFor(provider);
+    const baseUrl = provider.baseURL || provider.baseUrl || "";
+    if (baseUrl) {
+      return {
+        providerId: model.provider,
+        baseUrl,
+        apiKey,
+        model: model.id,
+        laneId: laneKeyFor({ id: model.provider, baseURL: baseUrl, apiKey }),
+      };
+    }
+  }
+
+  // 回落：部署 env 路由（模型名取 BLUEPRINT_JUDGE_MODEL 或 LLM_MODEL）。
+  const envBase = (process.env.LLM_BASE_URL || "").replace(/\/+$/, "");
+  const envModel = wanted || (process.env.LLM_MODEL || "").trim();
+  if (!envBase || !envModel) return null;
+  const apiKey = apiKeyFor({ apiKeyEnv: "LLM_API_KEY" });
   return {
-    providerId: model.provider,
-    baseUrl,
+    providerId: "env-route",
+    baseUrl: envBase,
     apiKey,
-    model: model.id,
-    laneId: laneKeyFor({ id: model.provider, baseURL: baseUrl, apiKey }),
+    model: envModel,
+    laneId: laneKeyFor({ id: "env-route", baseURL: envBase, apiKey }),
   };
+}
+
+// 诊断串（no-lane 分支带出来，免得生产上只有一句"没配"看不出根因）。
+function laneDiagnostics(entries) {
+  const doc = (() => {
+    try {
+      return entries ?? buildUserProviderEntries();
+    } catch (err) {
+      return { error: err?.message || String(err), providers: {}, models: [] };
+    }
+  })();
+  return JSON.stringify({
+    wanted: process.env.BLUEPRINT_JUDGE_MODEL || null,
+    docModels: doc.models?.length ?? 0,
+    docError: doc.error ?? null,
+    envBase: Boolean(process.env.LLM_BASE_URL),
+    envKey: Boolean(process.env.LLM_API_KEY),
+    envModel: process.env.LLM_MODEL || null,
+  });
 }
 
 // 产出主体：某模型 id 落在哪条 lane、哪个 provider、模型本身叫什么。
@@ -108,6 +152,9 @@ export function laneForModel(modelId, { entries = null } = {}) {
 // 打分**，所以判据是 provider+model 双同，而非 lane 指纹相同。
 export function isSelfGrading(judge, producer) {
   if (!judge || !producer) return true; // 解析不出即拒（宁可判不了，不可自评）
+  // 同一模型名一律算自证（跨 provider 别名指向同一权重时同样不得自评）；
+  // 否则按 provider+model 双同判。
+  if (judge.model && producer.model && judge.model === producer.model) return true;
   return judge.providerId === producer.providerId && judge.model === producer.model;
 }
 
@@ -172,7 +219,7 @@ export async function judgeAssertion({ assertionId, rubric, evidenceText, produc
   if (!resolved) {
     return {
       verdict: "insufficient-evidence",
-      reason: "no judge lane is configured on this deployment (LLM route missing)",
+      reason: `no judge lane is configured on this deployment (LLM route missing) ${laneDiagnostics()}`,
       audit: { ...auditBase, verdict: "insufficient-evidence", model: null, endpointDigest: null, promptHash: null, rawVerdict: null },
     };
   }

@@ -162,8 +162,10 @@ test("D4 口径：同 provider 换模型可判，同 provider 同模型拒判", 
   assert.equal(isSelfGrading(judge, { providerId: "finddata-token", model: "deepseek-v4-pro" }), true);
   // 同 provider 换模型 = 换了个判断主体 → 允许（生产的常态：一个 provider 承载全名册）
   assert.equal(isSelfGrading(judge, { providerId: "finddata-token", model: "glm-5.3-flash" }), false);
-  // 不同 provider → 允许
-  assert.equal(isSelfGrading(judge, { providerId: "other", model: "deepseek-v4-pro" }), false);
+  // 同一模型名（跨 provider 别名指向同一权重）→ 仍算自证，拒
+  assert.equal(isSelfGrading(judge, { providerId: "other", model: "deepseek-v4-pro" }), true);
+  // 不同 provider 且不同模型 → 允许
+  assert.equal(isSelfGrading(judge, { providerId: "other", model: "gpt-x" }), false);
   // 解析不出 → 拒
   assert.equal(isSelfGrading(judge, null), true);
   assert.equal(isSelfGrading(null, judge), true);

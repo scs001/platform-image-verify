@@ -153,6 +153,14 @@ export async function runTrial({ blueprint, deps, timeoutMs = 10 * 60_000, pollM
   return report;
 }
 
+// D8 约定：试跑舰命名 `${场景}·试跑`，与正式装作可区分。首铸建舰改名一次，
+// dedup 复用既有舰不重复改名（后缀已在则不动）；舰不存在时静默跳过。
+export function ensureTrialFleetName(db, fleetId) {
+  const fleet = db.getFleet(fleetId);
+  if (!fleet || String(fleet.name).endsWith("·试跑")) return;
+  db.updateFleet(fleetId, { name: `${fleet.name}·试跑` }, { actor: "blueprint-trial", via: "POST /api/blueprints/:id/trial" });
+}
+
 // ── 生产装配（与 routes/fleets.js from-template 路由逐字同源） ──────────────
 
 export function createLiveTrialDeps() {
@@ -187,7 +195,9 @@ export function createLiveTrialDeps() {
         },
       });
       if (!out.ok) return out;
-      return { ok: true, fleetId: out.fleet?.id ?? out.fleetId, deduped: out.deduped };
+      const fleetId = out.fleet?.id ?? out.fleetId;
+      ensureTrialFleetName(db, fleetId);
+      return { ok: true, fleetId, deduped: out.deduped };
     },
     // 起点火：与 POST /api/fleets/:id/start 的写面一致（state→active、cadence 启用、
     // 再 reconcile 一次让物化作业跟上）。

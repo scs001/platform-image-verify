@@ -179,3 +179,26 @@ test("实盘收证接 fired → turns：first-round-fired 可判绿（生产走�
   });
   assert.equal(judged[0].pass, true);
 });
+
+test("D8 试跑舰命名：建舰即带 `·试跑` 后缀，复用不重复改名", async () => {
+  const { ensureTrialFleetName } = await import("../server/blueprint-trial.js");
+  const calls = [];
+  const fakeDb = {
+    getFleet: (id) => ({ id, name: "政策盯梢集群" }),
+    updateFleet: (id, updates) => calls.push([id, updates]),
+  };
+  // 首建：改名一次，加后缀。
+  ensureTrialFleetName(fakeDb, "fleet_1");
+  assert.deepEqual(calls, [["fleet_1", { name: "政策盯梢集群·试跑" }]]);
+
+  // 已有后缀：不改名（dedup 复用不叠加）。
+  calls.length = 0;
+  const already = { getFleet: (id) => ({ id, name: "政策盯梢集群·试跑" }), updateFleet: (...a) => calls.push(a) };
+  ensureTrialFleetName(already, "fleet_1");
+  assert.equal(calls.length, 0);
+
+  // 舰不存在：不炸不改。
+  calls.length = 0;
+  ensureTrialFleetName({ getFleet: () => null, updateFleet: (...a) => calls.push(a) }, "gone");
+  assert.equal(calls.length, 0);
+});

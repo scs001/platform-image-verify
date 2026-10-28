@@ -51,6 +51,26 @@ studio UI 的客面名词以中文主轨（蓝图构造间/构造位/主人闸/�
 | 试跑样件 | finddata `fleet-packs/blueprints/cross-border-ecom-policy`（断言/证据/`_casting` 可参照） |
 | 词表 | finddata 根 spec `pack-taxonomy-and-naming`（「构造位/主人闸」骨词） |
 
+## 实施口径对账（2026-10-28 explore 补记）
+
+paas 侧对 finddata《blueprint-studio-implementation-notes》逐条复核（7 条断言 5 条全准）后的口径修正——apply 时以本节为准：
+
+### D3 补充：商业集腿的 consult 复用
+
+spec「校验链含 allowTools ⊆ 商业集」与指引「勿复制发布门闸」并不冲突：`lib/publish-tool-gate.js` 的同步导出（`toolFaceErrors` / `toolClosureErrors`）就是发布门同源闸的纯函数部分，`/validate` 以 consult 模式直接 import 复用——复用不是第二套校验器；异步全量 `toolGateErrors`（含探针）仍只由发布门执行，终闸不变。
+
+### 蓝图库注入随仓俗
+
+`server/routes/blueprints-db.js` 沿 `fleets-db.js` / `clusters-db.js` 同款构造器注入（`file || path.join(storeDir("data"), "blueprints.db")`），测试以参数重指到 tmp——指引的 `BLUEPRINT_DB_PATH` 环境变量方案不采用。
+
+### 校验函数两形状陷阱
+
+`server/fleet-template.js` 同文件两个导出形状不同：`parseFleetTemplate` 返单对象 `{ ok:false, error }`；`resolveFleetTemplateParams` 返数组 `{ ok:false, errors:[{name,error}] }`。蓝图链只用前者（参数槽到铸造/装台时方才 resolve），实现勿混抄。
+
+### 切片落法（用户 2026-10-28 拍板）
+
+Slice 1（任务 1.1-1.3 + 3.1-3.3 服务端脊柱）先行——挂载窗口为 `server.js:284` 之后两行，当前 HEAD 干净；Slice 2（UI）等 `polish-web-surfaces` / `add-fleet-owner-surface` 收口（两案正改 `App.tsx`/`Sidebar.tsx`/`FleetsPage.tsx`）；Slice 3（试跑/可售态，任务 4.x）待 `add-vendor-supply-open` 准入字段收口后对齐，且试跑执行器形状需单独一轮探索。finddata 原型底稿（非权威）复产落点约定为 `docs/blueprint-studio-prototype/`。
+
 ## 验收闸
 
 - `openspec validate add-blueprint-studio --strict` 全绿。

@@ -41,6 +41,14 @@ export function getDescriptors({ serverPort, projectRoot, nodeBin, dataDir, agen
   // cloud default "runner-1" — a desktop must never host the untagged slice.
   const seatId = agentEnv.WANXING_PLUGIN_RUNNER_ID || `desktop-ephemeral-${process.pid}`;
   const runnerPort = Number(agentEnv.AGENT_RUNNER_PORT || 8790);
+  // Single source for the runner's port (add-local-fleet-control-plane finding):
+  // the cell's fleet-page proxy used to carry its OWN default (:8790) — change
+  // AGENT_RUNNER_PORT in settings and the runner moves while the proxy keeps
+  // knocking on 8790, showing a false `runner_not_running`. Derive the proxy
+  // target from the runner's port instead of ever syncing two defaults by hand.
+  if (wanxingEnabled) {
+    childEnv.WANXING_RUNNER_URL = `http://127.0.0.1:${runnerPort}`;
+  }
   // Same recipe dsh-bridge uses for the packaged layout: run the dependency
   // tree's dsh Node entry through the bundled Node — spawnable on Windows
   // (extensionless .bin shims are not) and ABI-consistent for native addons.

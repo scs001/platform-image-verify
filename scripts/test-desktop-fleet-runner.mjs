@@ -33,6 +33,24 @@ function descriptorsFor(agentEnv = {}) {
   });
 }
 
+test("fleet proxy: WANXING_RUNNER_URL derives from AGENT_RUNNER_PORT (single source)", () => {
+  // add-local-fleet-control-plane finding: two defaults (:8790) that had to be
+  // synced by hand — change AGENT_RUNNER_PORT and the cell's live proxy kept
+  // knocking on the old port, showing a false runner_not_running.
+  const on = descriptorsFor({ WANXING_PLUGIN_ENABLED: "1", AGENT_RUNNER_PORT: "8792" });
+  const cell = on.find((d) => d.id === "server-js");
+  assert.equal(cell.start.env.WANXING_RUNNER_URL, "http://127.0.0.1:8792",
+    "the proxy follows the runner's actual port");
+
+  const def = descriptorsFor({ WANXING_PLUGIN_ENABLED: "1" });
+  assert.equal(def.find((d) => d.id === "server-js").start.env.WANXING_RUNNER_URL,
+    "http://127.0.0.1:8790", "unset falls back to the historical default");
+
+  const off = descriptorsFor({});
+  assert.equal(off.find((d) => d.id === "server-js").start.env.WANXING_RUNNER_URL, undefined,
+    "plugin off → no injection (the proxy default stands)");
+});
+
 test("default install: runner descriptor present but disabled", () => {
   const list = descriptorsFor({});
   const runner = list.find((d) => d.id === "agent-runner-js");

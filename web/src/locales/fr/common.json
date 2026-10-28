@@ -877,7 +877,8 @@
       "roles": "Rôles utilisateur",
       "layout": "Disposition de l'espace",
       "connections": "Connexions",
-      "plugins": "Extensions"
+      "plugins": "Extensions",
+      "delegation": "Délégation des décisions"
     },
     "groups": {
       "basics": "Général",
@@ -1156,6 +1157,26 @@
       "pasteInstead": "Vous avez déjà une clé ? Collez-la",
       "probe": "Sonde",
       "footnote": "Un 401 marque la clé comme à reconnecter ; relier émet une nouvelle clé. Le compte lié prime sur une clé collée."
+    },
+    "delegation": {
+      "hint": "Déléguez une partie de la file à l'adjoint de la flotte ; le reste reste pour vous. Les catégories sensibles sont toujours tranchées par vous.",
+      "enabled": "Activer la délégation",
+      "routes": "Routage par catégorie",
+      "category": {
+        "routine-ops": "Opérations courantes",
+        "infra-ticket": "Incidents d'infrastructure",
+        "config-change": "Changements de config.",
+        "hr": "RH",
+        "spend": "Dépenses"
+      },
+      "ownerOnly": "non délégable",
+      "routeOwner": "Propriétaire",
+      "routeDeputy": "Adjoint",
+      "routeTriage": "Adjoint (suivi)",
+      "maxSeverity": "Gravité max délégable",
+      "dailyBudget": "Budget quotidien de décisions",
+      "save": "Enregistrer",
+      "saved": "Enregistré"
     }
   },
   "bindings": {

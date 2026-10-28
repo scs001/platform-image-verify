@@ -185,6 +185,14 @@ interface DecisionItem {
   submittedAt: number;
   resolvedAt: number | null;
   deliveredAt: number | null;
+  // 委托扩展 (add-deputy-decision-delegate)
+  route?: "owner" | "deputy";
+  category?: string | null;
+  resolvedBy?: "owner" | "deputy" | null;
+  resolvedByModel?: string | null;
+  rulingEvidence?: string | null;
+  escalations?: number;
+  executedAt?: number | null;
 }
 
 interface CatalogTarget {
@@ -1319,8 +1327,11 @@ function DecisionsDrawer({
   const locale = i18n.language;
   const navigate = useNavigate();
   const [showAll, setShowAll] = useState(false);
+  // 委托分视 (add-deputy-decision-delegate)：主人待办 / 常务岗队列。
+  const [view, setView] = useState<"owner" | "deputy">("owner");
   const [items, setItems] = useState<DecisionItem[]>([]);
   const [openCount, setOpenCount] = useState(0);
+  const [counts, setCounts] = useState({ owner: 0, deputy: 0 });
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   // Per-item draft: the chosen option value + note (approve/amend/reject).
@@ -1333,6 +1344,10 @@ function DecisionsDrawer({
       if (!r.ok) throw new Error(body.error ?? `list ${r.status}`);
       setItems(body.decisions ?? []);
       setOpenCount(body.openCount ?? 0);
+      setCounts({
+        owner: body.ownerOpenCount ?? body.openCount ?? 0,
+        deputy: body.deputyOpenCount ?? 0,
+      });
       setError(null);
     } catch (e) {
       setError(String((e as Error).message ?? e));
@@ -1378,6 +1393,24 @@ function DecisionsDrawer({
             {openCount > 0 ? ` · ${t("fleets.decisions.waitingBadge", { count: openCount })}` : ""}
           </DialogTitle>
         </DialogHeader>
+        <div className="flex flex-wrap items-center gap-2" data-testid="decisions-view-switch">
+          <button
+            type="button"
+            data-testid="decisions-view-owner"
+            onClick={() => setView("owner")}
+            className={`rounded-md border px-2 py-1 text-xs ${view === "owner" ? "border-primary bg-primary/10 font-medium" : "border-border"}`}
+          >
+            {t("fleets.decisions.viewOwner")} · {counts.owner}
+          </button>
+          <button
+            type="button"
+            data-testid="decisions-view-deputy"
+            onClick={() => setView("deputy")}
+            className={`rounded-md border px-2 py-1 text-xs ${view === "deputy" ? "border-primary bg-primary/10 font-medium" : "border-border"}`}
+          >
+            {t("fleets.decisions.viewDeputy")} · {counts.deputy}
+          </button>
+        </div>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
           <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} data-testid="decisions-show-all" />
           {t("fleets.decisions.showAll")}
@@ -1387,7 +1420,9 @@ function DecisionsDrawer({
           {items.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("fleets.decisions.empty")}</p>
           ) : (
-            items.map((item) => {
+            items
+              .filter((item) => (showAll ? true : (item.route ?? "owner") === view))
+              .map((item) => {
               const draft = draftFor(item);
               return (
                 <div
@@ -1418,7 +1453,31 @@ function DecisionsDrawer({
                       </button>
                     ) : null}
                   </div>
+                  {item.route === "deputy" || item.resolvedBy === "deputy" || (item.escalations ?? 0) > 0 ? (
+                    <div className="mt-1 flex flex-wrap items-center gap-2" data-testid={`decision-meta-${item.id}`}>
+                      {item.route === "deputy" ? (
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+                          {t("fleets.decisions.routedDeputy")}
+                        </span>
+                      ) : null}
+                      {(item.escalations ?? 0) > 0 ? (
+                        <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs text-warning">
+                          {t("fleets.decisions.escalatedTimes", { count: item.escalations })}
+                        </span>
+                      ) : null}
+                      {item.resolvedBy === "deputy" ? (
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs">
+                          {t("fleets.decisions.ruledByDeputy")}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
                   <p className="mt-2 text-sm font-medium" data-testid={`decision-question-${item.id}`}>{item.question}</p>
+                  {item.rulingEvidence ? (
+                    <p className="mt-1 text-xs text-muted-foreground" data-testid={`decision-evidence-${item.id}`}>
+                      {t("fleets.decisions.evidence")}: {item.rulingEvidence}
+                    </p>
+                  ) : null}
                   {item.suggestedDeadline ? (
                     <p className="mt-1 text-xs text-muted-foreground">
                       {t("fleets.decisions.suggested")}: {item.suggestedDeadline}
@@ -1428,6 +1487,16 @@ function DecisionsDrawer({
                     <p className="text-xs text-muted-foreground">
                       {t("fleets.decisions.recommendation")}: {item.options.find((o) => o.value === item.recommendation)?.label ?? item.recommendation}
                     </p>
+                  ) : null}
+                  {item.state === "open" && item.route === "deputy" ? (
+                    <button
+                      type="button"
+                      data-testid={`decision-recall-${item.id}`}
+                      className="mt-2 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"
+                      onClick={() => void act(item, "recall")}
+                    >
+                      {t("fleets.decisions.recall")}
+                    </button>
                   ) : null}
                   {item.state === "open" ? (
                     <div className="mt-2 flex flex-col gap-2">

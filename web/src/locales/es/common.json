@@ -877,7 +877,8 @@
       "roles": "Roles de usuario",
       "layout": "Diseño del espacio",
       "connections": "Conexiones",
-      "plugins": "Complementos"
+      "plugins": "Complementos",
+      "delegation": "Delegación de decisiones"
     },
     "groups": {
       "basics": "Básico",
@@ -1156,6 +1157,26 @@
       "pasteInstead": "¿Ya tienes una clave? Pégala",
       "probe": "Sonda",
       "footnote": "Un 401 marca la clave como pendiente de reconexión; volver a vincular emite una clave nueva. La cuenta vinculada tiene prioridad sobre una clave pegada."
+    },
+    "delegation": {
+      "hint": "Delegue parte de la cola al adjunto de la flota; el resto sigue con usted. Las categorías de alto riesgo siempre las decide usted.",
+      "enabled": "Activar delegación",
+      "routes": "Enrutado por categoría",
+      "category": {
+        "routine-ops": "Operaciones rutinarias",
+        "infra-ticket": "Incidencias de infraestructura",
+        "config-change": "Cambios de configuración",
+        "hr": "RR. HH.",
+        "spend": "Gastos"
+      },
+      "ownerOnly": "no delegable",
+      "routeOwner": "Propietario",
+      "routeDeputy": "Adjunto",
+      "routeTriage": "Adjunto (seguimiento)",
+      "maxSeverity": "Severidad máxima delegable",
+      "dailyBudget": "Presupuesto diario de resoluciones",
+      "save": "Guardar",
+      "saved": "Guardado"
     }
   },
   "bindings": {

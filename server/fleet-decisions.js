@@ -66,6 +66,20 @@ export function validateEscalatePayload(payload) {
       return { ok: false, error: "recommendation must name one of the submitted option values" };
     }
   }
+  // 委托扩展 (add-deputy-decision-delegate)：可选类别（策略路由的依据）与可选
+  // topicKey（提交方声明的去重主题）。显式校验——非法值报错而非静默降级。
+  const optionalText = (value, max, name) => {
+    if (value === undefined || value === null) return null;
+    if (typeof value !== "string") return { error: `${name} must be a string` };
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    if (trimmed.length > max) return { error: `${name} exceeds ${max} characters` };
+    return trimmed;
+  };
+  const category = optionalText(payload.category, 40, "category");
+  if (category && category.error) return category;
+  const topicKey = optionalText(payload.topicKey, 120, "topicKey");
+  if (topicKey && topicKey.error) return topicKey;
   return {
     ok: true,
     item: {
@@ -74,6 +88,8 @@ export function validateEscalatePayload(payload) {
       severity: severity ?? "normal",
       suggestedDeadline: suggestedDeadline ?? null,
       recommendation: recommendation ?? null,
+      category,
+      topicKey,
     },
   };
 }

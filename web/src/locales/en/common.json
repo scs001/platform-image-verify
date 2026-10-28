@@ -890,7 +890,8 @@
       "roles": "User roles",
       "layout": "Workbench layout",
       "connections": "Connections",
-      "plugins": "Plugins"
+      "plugins": "Plugins",
+      "delegation": "Decision delegation"
     },
     "groups": {
       "basics": "Basics",
@@ -1169,6 +1170,26 @@
       "pasteInstead": "Already have a key? Paste it",
       "probe": "Probe",
       "footnote": "A 401 marks the key as needing re-connect; re-binding mints a fresh key. A bound account takes precedence over a pasted key."
+    },
+    "delegation": {
+      "hint": "Delegate part of the decision queue to the fleet's deputy; the rest stays with you. High-stakes categories (config changes, HR, spend) are always decided by you.",
+      "enabled": "Enable delegation",
+      "routes": "Category routing",
+      "category": {
+        "routine-ops": "Routine operations",
+        "infra-ticket": "Infrastructure tickets",
+        "config-change": "Config changes",
+        "hr": "HR",
+        "spend": "Spend"
+      },
+      "ownerOnly": "not delegable",
+      "routeOwner": "Owner",
+      "routeDeputy": "Deputy",
+      "routeTriage": "Deputy (triage)",
+      "maxSeverity": "Max delegable severity",
+      "dailyBudget": "Daily ruling budget",
+      "save": "Save",
+      "saved": "Saved"
     }
   },
   "preview": {

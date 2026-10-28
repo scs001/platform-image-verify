@@ -38,6 +38,14 @@ import {
   buildExecuteNowPrompt,
   OPEN_QUEUE_LIMIT,
 } from "../fleet-decisions.js";
+import {
+  DEFAULT_DELEGATION_POLICY,
+  DELEGATION_CATEGORIES,
+  normalizeDelegationPolicy,
+  normalizeQuestion,
+  routeForItem,
+  SEVERITY_RANK,
+} from "./fleets-db.js";
 import { memoryRefClientFor, memoryRefSlug } from "../memory-refs.js";
 import * as engine from "../../task-engine.js";
 import { exportFleetToTemplate } from "../fleet-template.js";
@@ -56,6 +64,15 @@ function resolveUserFactory(ctx) {
 function fleetId(_id) {
   return `fleet_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
+
+// 常务岗职责（DEPUTY_PROMPT）：加岗时就写进 cadence.promptTemplate——职责是
+// 岗位声明的一部分，不是一个隐藏开关。措辞点明「越权会被服务端拒绝，然后
+// 转主人」，因为闸在服务端，这段只影响模型行为、不构成授权。
+const DEPUTY_PROMPT =
+  "你是本舰队的常务岗（决策代理）。每一轮：1) 用 decision_queue 读取待裁项；" +
+  "2) 按主人过往判例与委托策略逐项裁决（decision_resolve，必须附 evidence；approve 必须选一个选项 value）；" +
+  "3) 判不了的用 decision_escalate_to_owner 附分析上报；4) 问题单做归并与跟踪，不重复上报；" +
+  "5) 裁决与进度写记忆，让主人可查证。绝不越出策略授权——被服务端拒绝就转主人，不要重试。";
 
 function memberId(_id) {
   return `m_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -1481,7 +1498,10 @@ export function createFleetRoutes(app, ctx = null) {
       db.expireOpenDecisions(fleet.id, { now });
       const dayStart = new Date(now);
       dayStart.setHours(0, 0, 0, 0);
-      const dailyCount = db.countDecisionsByMemberSince(member.id, dayStart.getTime());
+      // 防洪口径改为升级流水（add-deputy-decision-delegate）：归并不落新行，
+      // 但每次 escalate 都是一次升级事件——上限必须把归并也算进去，否则重复
+      // 升级绕开防洪。
+      const dailyCount = db.countEscalationsByMemberSince(member.id, dayStart.getTime());
       const cap = fleet.decisionPolicy?.dailyCapPerMember ?? 10;
       if (dailyCount >= cap) {
         return res.status(429).json({ error: `daily escalation limit reached (${cap}/day for this post)`, dailyRemaining: 0 });
@@ -1493,6 +1513,46 @@ export function createFleetRoutes(app, ctx = null) {
 
       const sessionId =
         attribution.task?.sessionId ?? chatHistory.currentSessionId?.() ?? null;
+
+      // 归并检查 (design D5)：同岗位近 7 天的相似 open 项——topicKey 精确命中
+      // 或问题归一化文本相同。归并 = 既有项升级次数 +1（审计流水记 merged），
+      // 不落新行。不跨岗位、不改问题文本与过期基准。
+      const dedupeWindowStart = now - 7 * 86_400_000;
+      const similar = db.findSimilarOpenDecision({
+        memberId: member.id,
+        topicKey: payload.item.topicKey,
+        question: payload.item.question,
+        sinceMs: dedupeWindowStart,
+      });
+      if (similar) {
+        const mergedItem = db.mergeDecisionEscalation(similar.id, { now, sessionId });
+        db.recordEscalation({
+          id: `e_${now}_${Math.random().toString(36).slice(2, 8)}`,
+          fleetId: fleet.id,
+          memberId: member.id,
+          decisionId: similar.id,
+          merged: 1,
+          sourceSessionId: sessionId,
+          now,
+        });
+        return res.status(200).json({
+          ok: true,
+          merged: true,
+          itemId: mergedItem?.id ?? similar.id,
+          escalations: mergedItem?.escalations ?? (similar.escalations ?? 0) + 1,
+          memberTitle: member.title,
+          note: "an open item for this topic already exists — this escalation was merged into it",
+        });
+      }
+
+      // 委托路由 (design D2/D3)：escalate 时按当次生效策略同步打 route——
+      // 规则先行（确定性、可解释），deputy 不参与路由。
+      const delegationPolicy = db.getFleetDelegationPolicy(fleet.id);
+      const route = routeForItem(
+        { category: payload.item.category, itemType: payload.item.itemType, severity: payload.item.severity },
+        delegationPolicy,
+      );
+
       const item = db.appendDecision({
         id: `d_${now}_${Math.random().toString(36).slice(2, 8)}`,
         fleetId: fleet.id,
@@ -1504,6 +1564,18 @@ export function createFleetRoutes(app, ctx = null) {
         recommendation: payload.item.recommendation,
         sourceSessionId: sessionId,
         submittedAt: now,
+        route,
+        category: payload.item.category,
+        topicKey: payload.item.topicKey,
+      });
+      db.recordEscalation({
+        id: `e_${now}_${Math.random().toString(36).slice(2, 8)}`,
+        fleetId: fleet.id,
+        memberId: member.id,
+        decisionId: item.id,
+        merged: 0,
+        sourceSessionId: sessionId,
+        now,
       });
       // Best-effort out-of-band ping seam (WeChat envelope et al.): mounted
       // by the deployment when a provider exists; absent = in-app badge only.
@@ -1516,9 +1588,425 @@ export function createFleetRoutes(app, ctx = null) {
         memberTitle: member.title,
         queuePosition: openCount + 1,
         dailyRemaining: cap - dailyCount - 1,
+        route,
       });
     } catch (err) {
       console.error("[fleets] escalate error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // ── Deputy bridge (add-deputy-decision-delegate) ──────────────────────────
+  //
+  // 常务岗的工具面（fleet MCP → bridge）：身份归因与 escalate 同构
+  // （currentPreset → 岗位），服务端强制授权在这里逐项执行——**闸在代码不在
+  // 提示词**。所有路由都要求：归因成功、归因岗位 = 舰队策略的 deputyMemberId。
+
+  // 校验归因岗位是否为本舰队委托策略的 deputy。返回 { fleet, deputy, policy }
+  // 或 { error }。
+  function deputyGuard({ db, attribution }) {
+    if (attribution.kind === "none" || attribution.kind === "ambiguous") {
+      return { error: attribution.error || "deputy identity could not be attributed", status: 409 };
+    }
+    const deputy = db.getMember(attribution.memberId);
+    if (!deputy) return { error: "the attributed post no longer exists", status: 409 };
+    const fleet = db.getFleet(deputy.fleetId);
+    if (!fleet) return { error: "the deputy's fleet no longer exists", status: 409 };
+    const policy = db.getFleetDelegationPolicy(fleet.id);
+    if (!policy.enabled || policy.deputyMemberId !== deputy.id) {
+      return { error: "this post is not the fleet's delegated deputy", status: 403 };
+    }
+    return { fleet, deputy, policy };
+  }
+
+  // Deputy 队列：route=deputy 的 open 项 + 每项的来源岗位上下文（标题/状态/
+  // 近期报数摘要）与主人过往同类判例（resolved_by=owner 的历史裁决）。
+  router.post("/deputy/queue", async (req, res) => {
+    try {
+      const db = getFleetDatabase();
+      const personaMembers = [];
+      for (const f of db.listFleets()) {
+        if (f.state === "archived") continue;
+        for (const m of db.listMembers(f.id)) {
+          if (m.targetKind === "persona") personaMembers.push(m);
+        }
+      }
+      const attribution = resolveAttribution({
+        currentPreset: ctx?.currentPreset ?? null,
+        runningTasks: cron.listJobs(),
+        personaMembers,
+        rosterPresetId,
+      });
+      const guard = deputyGuard({ db, attribution });
+      if (guard.error) return res.status(guard.status).json({ error: guard.error });
+      const { fleet, policy } = guard;
+      db.expireOpenDecisions(fleet.id, { now: Date.now() });
+      const items = db.listDecisions({ fleetId: fleet.id, state: "open", route: "deputy" });
+      const memberOf = (id) => db.getMember(id);
+      const queue = items.map((item) => {
+        const m = memberOf(item.memberId);
+        const recent = m ? db.listReports(m.id, { limit: 1 }) : [];
+        // 判例：主人过往对同一岗位/同类别的裁决（resolved_by=owner）。
+        const precedents = db
+          .listDecisions({ fleetId: fleet.id, memberId: item.memberId })
+          .filter((d) => d.resolvedBy === "owner" && d.state === "delivered")
+          .slice(0, 3)
+          .map((d) => ({ id: d.id, question: d.question, resolution: d.resolution, resolvedAt: d.resolvedAt }));
+        return {
+          id: item.id,
+          question: item.question,
+          options: item.options,
+          severity: item.severity,
+          category: item.category,
+          submittedAt: item.submittedAt,
+          escalations: item.escalations ?? 0,
+          member: m ? { id: m.id, title: m.title, status: m.status ?? null } : { id: item.memberId, title: null },
+          recentReport: recent[0]?.summary?.slice(0, 300) ?? null,
+          precedents,
+        };
+      });
+      res.json({
+        fleet: { id: fleet.id, name: fleet.name },
+        policy: { maxSeverity: policy.maxSeverity, dailyBudget: policy.dailyBudget, routes: policy.routes },
+        queue,
+      });
+    } catch (err) {
+      console.error("[fleets] deputy queue error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // Deputy 裁决：approve/reject + 依据。强制授权逐项校验——顺序：deputy 身份
+  // → 条目 route=deputy → 类别硬闸 → severity 上限 → 日预算。裁决落
+  // resolved_by=deputy + 模型 + 依据，走既有 approved/rejected 管线送达。
+  router.post("/deputy/resolve", async (req, res) => {
+    try {
+      const db = getFleetDatabase();
+      const personaMembers = [];
+      for (const f of db.listFleets()) {
+        if (f.state === "archived") continue;
+        for (const m of db.listMembers(f.id)) {
+          if (m.targetKind === "persona") personaMembers.push(m);
+        }
+      }
+      const attribution = resolveAttribution({
+        currentPreset: ctx?.currentPreset ?? null,
+        runningTasks: cron.listJobs(),
+        personaMembers,
+        rosterPresetId,
+      });
+      const guard = deputyGuard({ db, attribution });
+      if (guard.error) return res.status(guard.status).json({ error: guard.error });
+      const { fleet, deputy, policy } = guard;
+
+      const { itemId, kind, choice, note, evidence, model } = req.body ?? {};
+      if (!["approve", "reject"].includes(kind)) {
+        return res.status(400).json({ error: "kind must be approve or reject (amend is owner-only)" });
+      }
+      const item = db.getDecision(itemId);
+      if (!item || item.fleetId !== fleet.id) return res.status(404).json({ error: "Decision not found" });
+      if (item.state !== "open") return res.status(409).json({ error: `already ${item.state}` });
+      if (item.route !== "deputy") {
+        return res.status(403).json({ error: "beyond delegation mandate — this item is routed to the owner" });
+      }
+      const category = item.category ?? "routine-ops";
+      const route = policy.routes[category] ?? policy.routes.default;
+      if (route !== "deputy") {
+        return res.status(403).json({ error: `beyond delegation mandate — category '${category}' is routed to ${route}` });
+      }
+      if ((SEVERITY_RANK[item.severity] ?? 1) > (SEVERITY_RANK[policy.maxSeverity] ?? 1)) {
+        return res.status(403).json({ error: `beyond delegation mandate — severity ${item.severity} exceeds the policy cap (${policy.maxSeverity})` });
+      }
+      const dayStart = new Date(Date.now());
+      dayStart.setHours(0, 0, 0, 0);
+      const ruled = db
+        .listDecisions({ fleetId: fleet.id })
+        .filter((d) => d.resolvedBy === "deputy" && (d.resolvedAt ?? 0) > dayStart.getTime()).length;
+      if (ruled >= policy.dailyBudget) {
+        return res.status(429).json({ error: `deputy daily ruling budget reached (${policy.dailyBudget}/day) — remaining items roll to the owner` });
+      }
+      const resolution = validateResolution(kind, { choice, note }, item);
+      if (!resolution.ok) return res.status(400).json({ error: resolution.error });
+      resolution.resolution.by = `deputy:${deputy.title ?? deputy.id}`;
+      resolution.resolution.at = Date.now();
+
+      const updated = db.transitionDecision(itemId, "open", {
+        state: kind === "reject" ? "rejected" : "approved",
+        resolution: resolution.resolution,
+        resolvedAt: Date.now(),
+        resolvedBy: "deputy",
+        resolvedByModel: typeof model === "string" ? model.slice(0, 120) : null,
+        rulingEvidence: typeof evidence === "string" ? evidence.slice(0, 2000) : null,
+      });
+      if (!updated) return res.status(409).json({ error: "first resolution wins — another decision just landed" });
+      // 记忆镜像 (design D7 写侧)：代理裁决即时进主人记忆 reference 层——
+      // 主人能在记忆里查证"常务岗判了什么、依据是什么"。fire-and-forget，
+      // 失败降级不影响裁决本身（裁决已落审计）。
+      try {
+        const ownerEmail = fleet.ownerEmail ?? fleet.owner_email ?? null;
+        if (ownerEmail) {
+          const cli = await memoryRefClientFor(process.env, ownerEmail).catch(() => null);
+          if (cli) {
+            const label = item.options.find((o) => o.value === choice)?.label ?? choice ?? "";
+            cli.writeReference({
+              title: `常务岗裁决 · ${updated.memberId} · ${kind === "reject" ? "驳回" : "批准"}`,
+              summary: `${String(item.question).slice(0, 120)} → ${kind === "reject" ? "驳回" : label}${evidence ? `（依据：${String(evidence).slice(0, 120)}）` : ""}`,
+              source_ref: `decision:${fleet.id}:${item.id}`,
+              slug: memoryRefSlug(`deputy-ruling-${item.id}`),
+              tier: "draft",
+            }).catch((e) => console.warn(`[fleet-memory] deputy ruling mirror failed (degrade open): ${e?.message || e}`));
+          }
+        }
+      } catch (e) {
+        console.warn(`[fleet-memory] deputy ruling mirror failed (degrade open): ${e?.message || e}`);
+      }
+      res.json({ ok: true, decision: updated });
+    } catch (err) {
+      console.error("[fleets] deputy resolve error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // Deputy 上报：判不了的条目转路由 owner 并携带分析——强判比不判糟。
+  router.post("/deputy/escalate-to-owner", async (req, res) => {
+    try {
+      const db = getFleetDatabase();
+      const personaMembers = [];
+      for (const f of db.listFleets()) {
+        if (f.state === "archived") continue;
+        for (const m of db.listMembers(f.id)) {
+          if (m.targetKind === "persona") personaMembers.push(m);
+        }
+      }
+      const attribution = resolveAttribution({
+        currentPreset: ctx?.currentPreset ?? null,
+        runningTasks: cron.listJobs(),
+        personaMembers,
+        rosterPresetId,
+      });
+      const guard = deputyGuard({ db, attribution });
+      if (guard.error) return res.status(guard.status).json({ error: guard.error });
+      const { fleet } = guard;
+      const { itemId, analysis } = req.body ?? {};
+      const item = db.getDecision(itemId);
+      if (!item || item.fleetId !== fleet.id) return res.status(404).json({ error: "Decision not found" });
+      if (item.state !== "open" || item.route !== "deputy") {
+        return res.status(409).json({ error: "only open deputy-routed items can be escalated to the owner" });
+      }
+      const detail = {
+        ...(item.detail ?? {}),
+        deputyAnalysis: {
+          at: Date.now(),
+          analysis: typeof analysis === "string" ? analysis.slice(0, 2000) : null,
+        },
+      };
+      const updated = db.transitionDecision(itemId, "open", { detail });
+      if (!updated) return res.status(409).json({ error: "concurrent change — reload and retry" });
+      const routed = db.setDecisionRoute(itemId, "owner");
+      res.json({ ok: true, decision: routed ?? updated });
+    } catch (err) {
+      console.error("[fleets] deputy escalate-to-owner error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // 存量 triage (design D5 / 角标口径迁移)：发布委托功能时对既有 open 项做
+  // 一次性重路由——按当次策略给每项算 route，并把同岗位同主题的重复项归并
+  // 到最早一条。幂等：第二次调用不再产生变化（已归并的项 escalations>0 且
+  // 状态不变，已路由的项 route 相同）。
+  //
+  // 返回 {scanned, rerouted, merged}。
+  router.post("/:id/decisions/triage", (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const db = getFleetDatabase();
+      const fleet = owned.fleet;
+      const policy = db.getFleetDelegationPolicy(fleet.id);
+      const open = db.listDecisions({ fleetId: fleet.id, state: "open" });
+      let rerouted = 0;
+      let merged = 0;
+      const seen = new Map(); // `${memberId}::${topic}` -> 最早条目
+      // 按提交时间升序：最早的条目是归并的落点。
+      for (const item of [...open].sort((a, b) => (a.submittedAt ?? 0) - (b.submittedAt ?? 0))) {
+        const route = routeForItem(
+          { category: item.category, itemType: item.itemType, severity: item.severity },
+          policy,
+        );
+        if (route !== item.route) {
+          db.setDecisionRoute(item.id, route);
+          rerouted += 1;
+        }
+        // 归并键：优先提交方声明的 topicKey，否则问题归一化文本。
+        const key = `${item.memberId}::${item.topicKey ?? normalizeQuestion(item.question) ?? item.id}`;
+        const first = seen.get(key);
+        if (!first) {
+          seen.set(key, item.id);
+          continue;
+        }
+        const mergedItem = db.mergeDecisionEscalation(first, { now: Date.now() });
+        if (mergedItem) {
+          db.transitionDecision(item.id, "open", {
+            state: "expired",
+            resolution: { kind: "dedup", note: `merged into ${first}`, by: null, at: Date.now() },
+          });
+          merged += 1;
+        }
+      }
+      res.json({ scanned: open.length, rerouted, merged, policy });
+    } catch (err) {
+      console.error("[fleets] decision triage error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // 主人收回委托：route=deputy 的 open 条目转回 owner（design：主人可随时
+  // 收回；deputy 队列随之移除）。
+  router.post("/:id/decisions/:itemId/recall", (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const db = getFleetDatabase();
+      const item = db.getDecision(req.params.itemId);
+      if (!item || item.fleetId !== owned.fleet.id) return res.status(404).json({ error: "Decision not found" });
+      if (item.state !== "open" || item.route !== "deputy") {
+        return res.status(409).json({ error: "only open deputy-routed items can be recalled" });
+      }
+      const updated = db.setDecisionRoute(item.id, "owner");
+      res.json({ decision: updated });
+    } catch (err) {
+      console.error("[fleets] decision recall error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // 委托策略设置面 (design：cell 默认 + 舰队覆写)。读 = 生效合并结果（+
+  // cell 默认与覆写原文）；写 = 各自一路。高风险类别（config-change/hr/spend）
+  // 的委托路由 SHALL 被归一化硬闸覆盖——写进来也会被归一成 owner。
+  router.get("/delegation-policy", (req, res) => {
+    try {
+      const user = resolveUser(req);
+      if (!user) return res.status(401).json({ error: "Authentication required" });
+      const db = getFleetDatabase();
+      const cellDefault = db.getCellSetting("delegationPolicy");
+      const fleetId = req.query.fleetId ? String(req.query.fleetId) : null;
+      const override = fleetId ? db.getFleetDelegationPolicyRaw(fleetId) : null;
+      const effective = fleetId ? db.getFleetDelegationPolicy(fleetId) : normalizeDelegationPolicy(cellDefault, null);
+      res.json({ cellDefault: cellDefault ?? null, override, effective });
+    } catch (err) {
+      console.error("[fleets] delegation policy read error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  router.put("/delegation-policy", (req, res) => {
+    try {
+      const user = resolveUser(req);
+      if (!user) return res.status(401).json({ error: "Authentication required" });
+      const db = getFleetDatabase();
+      const body = req.body ?? {};
+      // 归一化即硬闸：routes 里的 config-change/hr/spend 会被强制归一为 owner
+      // （normalizeRoutes），无需在此逐项拒绝。
+      const scope = body.scope === "fleet" && body.fleetId ? "fleet" : "cell";
+      if (scope === "cell") {
+        db.setCellSetting("delegationPolicy", body.policy ?? null);
+      } else {
+        db.setFleetDelegationPolicy(body.fleetId, body.policy ?? null);
+      }
+      const effective = body.fleetId
+        ? db.getFleetDelegationPolicy(body.fleetId)
+        : normalizeDelegationPolicy(scope === "cell" ? db.getCellSetting("delegationPolicy") : null, null);
+      res.json({ ok: true, scope, effective });
+    } catch (err) {
+      console.error("[fleets] delegation policy write error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // 常务岗设立：两种形态——指定既有 persona 岗位，或（不传 memberId 而传
+  // targetId）新建一个专属常务岗。两种都设策略 deputyMemberId + 挂巡逻节奏
+  // 与职责提示。已存在 cadence 的岗位 SHALL NOT 被静默改写（显式传 cadence
+  // 才覆盖）。
+  router.post("/:id/deputy", async (req, res) => {
+    try {
+      const owned = requireOwnedFleet(req, res);
+      if (!owned) return;
+      const db = getFleetDatabase();
+      // 新建路径：没有 memberId 但有 targetId（一个 persona 预设 id）。
+      if (!req.body?.memberId && typeof req.body?.targetId === "string" && req.body.targetId) {
+        if (owned.fleet.state === "archived") {
+          return res.status(409).json({ error: "This fleet is archived — no new posts" });
+        }
+        const targetId = req.body.targetId;
+        if (!targetResolver({ targetKind: "persona", targetId }).alive) {
+          return res.status(400).json({ error: invalidTargetMessage("persona", targetId) });
+        }
+        if (db.findPostByTarget("persona", targetId)) {
+          return res.status(409).json({ error: "that persona already holds a post — designate it with memberId instead" });
+        }
+        const created = db.createMember({
+          id: memberId(),
+          fleetId: owned.fleet.id,
+          title: typeof req.body?.title === "string" && req.body.title.trim() ? req.body.title.trim().slice(0, 40) : "常务",
+          targetKind: "persona",
+          targetId,
+          cadence: {
+            cron: "0 * * * *",
+            tz: req.body?.tz ?? "Asia/Shanghai",
+            enabled: true,
+            promptTemplate: DEPUTY_PROMPT,
+            ...(req.body?.cadence ?? {}),
+          },
+        });
+        const policy = db.getFleetDelegationPolicy(owned.fleet.id);
+        db.setFleetDelegationPolicy(owned.fleet.id, { ...policy, enabled: true, deputyMemberId: created.id });
+        const reconcile = await reconcileFleet({
+          fleetId: owned.fleet.id,
+          db,
+          cronApi: cron,
+          resolveTarget: targetResolver,
+          rosterPresetId,
+        });
+        return res.status(201).json({
+          fleet: db.getFleet(owned.fleet.id),
+          member: db.getMember(created.id),
+          delegationPolicy: db.getFleetDelegationPolicy(owned.fleet.id),
+          reconcile,
+        });
+      }
+      const memberId = req.body?.memberId;
+      const member = memberId ? db.getMember(memberId) : null;
+      if (!member || member.fleetId !== owned.fleet.id) {
+        return res.status(404).json({ error: "Member not found in this fleet" });
+      }
+      if (member.targetKind !== "persona") {
+        return res.status(400).json({ error: "the deputy must be a persona post" });
+      }
+      const cadence = req.body?.cadence ?? member.cadence ?? null;
+      const promptTemplate =
+        typeof req.body?.promptTemplate === "string" && req.body.promptTemplate.trim()
+          ? req.body.promptTemplate.trim()
+          : member.cadence?.promptTemplate ?? DEPUTY_PROMPT;
+      if (cadence && typeof cadence.cron === "string" && cadence.cron.trim()) {
+        db.updateMember(member.id, { cadence: { ...cadence, promptTemplate } });
+      }
+      const policy = db.getFleetDelegationPolicy(owned.fleet.id);
+      db.setFleetDelegationPolicy(owned.fleet.id, { ...policy, enabled: true, deputyMemberId: member.id });
+      const reconcile = await reconcileFleet({
+        fleetId: owned.fleet.id,
+        db,
+        cronApi: cron,
+        resolveTarget: targetResolver,
+        rosterPresetId,
+      });
+      res.json({
+        fleet: db.getFleet(owned.fleet.id),
+        member: db.getMember(member.id),
+        delegationPolicy: db.getFleetDelegationPolicy(owned.fleet.id),
+        reconcile,
+      });
+    } catch (err) {
+      console.error("[fleets] designate deputy error:", err.message);
       res.status(500).json({ error: err.message || "internal error" });
     }
   });
@@ -1548,7 +2036,12 @@ export function createFleetRoutes(app, ctx = null) {
       res.json({
         decisions: items,
         openCount: db.countOpenDecisions(owned.fleet.id),
+        // 委托分视 (add-deputy-decision-delegate)：主人视图与常务岗视图各自
+        // 计数——角标口径是 route=owner，deputy 队列另计。
+        ownerOpenCount: db.countOwnerOpenDecisions(owned.fleet.id),
+        deputyOpenCount: db.countDeputyOpenDecisions(owned.fleet.id),
         decisionPolicy: owned.fleet.decisionPolicy,
+        delegationPolicy: db.getFleetDelegationPolicy(owned.fleet.id),
       });
     } catch (err) {
       console.error("[fleets] decisions list error:", err.message);
@@ -1712,6 +2205,7 @@ export function createFleetRoutes(app, ctx = null) {
         state: op === "reject" ? "rejected" : "approved",
         resolution: resolution.resolution,
         resolvedAt: now,
+        resolvedBy: "owner",
       });
       if (!updated) {
         return res.status(409).json({ error: "first resolution wins — another decision just landed" });
@@ -1782,7 +2276,10 @@ export function createFleetRoutes(app, ctx = null) {
             // 刀3): the badge is derived from this list, so the number has to
             // ride here — a badge computed from a field the list never carried
             // is a badge that can never appear.
-            openDecisions: db.countOpenDecisions(fleet.id),
+            // 角标口径 (add-deputy-decision-delegate)：「等你 N 件」只计
+            // route=owner——委托给常务岗的不再算主人头上。
+            openDecisions: db.countOwnerOpenDecisions(fleet.id),
+            deputyOpen: db.countDeputyOpenDecisions(fleet.id),
             createdAt: fleet.createdAt,
             updatedAt: fleet.updatedAt,
           };

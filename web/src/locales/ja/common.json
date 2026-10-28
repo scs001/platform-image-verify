@@ -877,7 +877,8 @@
       "roles": "ユーザーロール",
       "layout": "ワークスペース配置",
       "connections": "接続",
-      "plugins": "プラグイン"
+      "plugins": "プラグイン",
+      "delegation": "決裁の委任"
     },
     "groups": {
       "basics": "基本",
@@ -1156,6 +1157,26 @@
       "pasteInstead": "キーをお持ちですか？直接貼り付け",
       "probe": "プローブ",
       "footnote": "401 で再接続が必要と表示され、再連携すると新しいキーが発行されます。連携アカウントは貼り付けたキーより優先されます。"
+    },
+    "delegation": {
+      "hint": "キューの一部を艦隊の常務に委任します。それ以外はあなたが処理します。高リスクのカテゴリは常にあなたが決裁します。",
+      "enabled": "委任を有効化",
+      "routes": "カテゴリ別の振り分け",
+      "category": {
+        "routine-ops": "定期運用",
+        "infra-ticket": "インフラ起票",
+        "config-change": "設定変更",
+        "hr": "人事",
+        "spend": "支出"
+      },
+      "ownerOnly": "委任不可",
+      "routeOwner": "オーナー",
+      "routeDeputy": "常務",
+      "routeTriage": "常務（追跡）",
+      "maxSeverity": "委任できる最大深刻度",
+      "dailyBudget": "1 日の決裁上限",
+      "save": "保存",
+      "saved": "保存しました"
     }
   },
   "bindings": {

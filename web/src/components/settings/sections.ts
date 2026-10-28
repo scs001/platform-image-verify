@@ -23,6 +23,7 @@ import {
   Cable,
   LayoutPanelLeft,
   MonitorSmartphone,
+  Scale,
   Paintbrush,
   Plug,
   SlidersHorizontal,
@@ -36,6 +37,9 @@ import {
 
 const GeneralSection = lazy(() =>
   import("@/components/settings/GeneralSection").then((m) => ({ default: m.GeneralSection })),
+);
+const DelegationSection = lazy(() =>
+  import("@/components/settings/DelegationSection").then((m) => ({ default: m.DelegationSection })),
 );
 const AccountSection = lazy(() =>
   import("@/components/settings/AccountSection").then((m) => ({ default: m.AccountSection })),
@@ -110,6 +114,14 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
     testId: "settings-section-general",
     icon: SlidersHorizontal,
     Component: GeneralSection as SettingsSectionComponent,
+  },
+  {
+    slug: "delegation",
+    group: "management",
+    labelKey: "settings.sections.delegation",
+    testId: "settings-section-delegation",
+    icon: Scale,
+    Component: DelegationSection as SettingsSectionComponent,
   },
   {
     slug: "account",

@@ -877,7 +877,8 @@
       "roles": "用户角色",
       "layout": "工作面布局",
       "connections": "连接",
-      "plugins": "插件"
+      "plugins": "插件",
+      "delegation": "拍板委托"
     },
     "groups": {
       "basics": "常规",
@@ -1156,6 +1157,26 @@
       "pasteInstead": "已有调用键？直接粘贴",
       "probe": "探测",
       "footnote": "调用键 401 时标记为需重连，重新绑定即铸新键；绑定的账号优先于手动粘贴的键。"
+    },
+    "delegation": {
+      "hint": "把部分拍板项委托给舰队的常务岗裁决；其余仍由你处理。高风险类别（配置改动/人事/花费）永远由你裁决。",
+      "enabled": "启用委托",
+      "routes": "类别路由",
+      "category": {
+        "routine-ops": "例行运营",
+        "infra-ticket": "基础设施问题单",
+        "config-change": "配置改动",
+        "hr": "人事",
+        "spend": "花费"
+      },
+      "ownerOnly": "不可委托",
+      "routeOwner": "主人",
+      "routeDeputy": "常务岗",
+      "routeTriage": "常务岗（跟踪）",
+      "maxSeverity": "可委托的最高严重度",
+      "dailyBudget": "每日裁决上限",
+      "save": "保存",
+      "saved": "已保存"
     }
   },
   "bindings": {

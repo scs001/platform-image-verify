@@ -116,6 +116,59 @@ export function createFleetDatabase({ file } = {}) {
     /* columns already exist */
   }
 
+  // 拍板委托 (add-deputy-decision-delegate): 路由与裁决者维度。
+  //   route        — owner|deputy：这条 open 项等谁（escalate 时按委托策略
+  //                  同步打上；策略只影响路由，不改变状态机）。
+  //   resolved_by  — owner|deputy：谁裁的（审计的根；此前无从得知）。
+  //   resolved_by_model / ruling_evidence — deputy 裁决所用模型与依据（含
+  //                  引用的主人判例）。既有行 route='owner' 回填，与未启用
+  //                  委托前语义逐字段一致。
+  //   executed_at / executed_session_id — 送达回合完成时回填的执行事实；
+  //                  delivered 且无 executed_at = 「批了没执行」。
+  try {
+    db.exec(`ALTER TABLE decision_items ADD COLUMN route TEXT NOT NULL DEFAULT 'owner'`);
+    db.exec(`ALTER TABLE decision_items ADD COLUMN resolved_by TEXT`);
+    db.exec(`ALTER TABLE decision_items ADD COLUMN resolved_by_model TEXT`);
+    db.exec(`ALTER TABLE decision_items ADD COLUMN ruling_evidence TEXT`);
+    db.exec(`ALTER TABLE decision_items ADD COLUMN executed_at INTEGER`);
+    db.exec(`ALTER TABLE decision_items ADD COLUMN executed_session_id TEXT`);
+    db.exec(`ALTER TABLE decision_items ADD COLUMN category TEXT`);
+    db.exec(`ALTER TABLE decision_items ADD COLUMN topic_key TEXT`);
+    db.exec(`ALTER TABLE decision_items ADD COLUMN escalations INTEGER NOT NULL DEFAULT 0`);
+    db.exec(`ALTER TABLE decision_items ADD COLUMN last_escalated_at INTEGER`);
+  } catch {
+    /* columns already exist */
+  }
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_decision_items_route ON decision_items(fleet_id, route, state)`);
+
+  // 委托审计流水：每次 escalate（新建或归并）一行——防洪上限与"这条阻塞被升级
+  // 过几次"都从这里读，而不是从拍板项行数推断（归并不落新行）。
+  db.exec(`CREATE TABLE IF NOT EXISTS decision_escalations (
+    id TEXT PRIMARY KEY,
+    fleet_id TEXT NOT NULL,
+    member_id TEXT NOT NULL,
+    decision_id TEXT NOT NULL,
+    merged INTEGER NOT NULL DEFAULT 0,
+    source_session_id TEXT,
+    created_at INTEGER NOT NULL
+  )`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_decision_escalations_member ON decision_escalations(member_id, created_at)`);
+  db.exec(`CREATE INDEX IF NOT EXISTS idx_decision_escalations_decision ON decision_escalations(decision_id)`);
+
+  // cell 级设置（委托策略等）：同库同迁移路径的最小 KV——value 为 JSON 文本。
+  db.exec(`CREATE TABLE IF NOT EXISTS cell_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  )`);
+
+  // 舰队级委托覆写（add-deputy-decision-delegate）：JSON 列，NULL = 全用 cell 默认。
+  try {
+    db.exec(`ALTER TABLE fleets ADD COLUMN delegation_policy TEXT`);
+  } catch {
+    /* column already exists */
+  }
+
   // 迭代链状态 (fleet-owner-iteration): 现行实例白名单导出→既有发布链的
   // 编排器状态行——提出的改动链路全部事实源都在这里。
   db.exec(`CREATE TABLE IF NOT EXISTS fleet_iterations (
@@ -561,8 +614,8 @@ export function createFleetDatabase({ file } = {}) {
 
   function appendDecision(item) {
     db.prepare(`
-      INSERT INTO decision_items (id, fleet_id, member_id, question, options, severity, suggested_deadline, recommendation, state, resolution, source_session_id, submitted_at, item_type, detail)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', NULL, ?, ?, ?, ?)
+      INSERT INTO decision_items (id, fleet_id, member_id, question, options, severity, suggested_deadline, recommendation, state, resolution, source_session_id, submitted_at, item_type, detail, route, category, topic_key)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', NULL, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       item.id,
       item.fleetId,
@@ -576,6 +629,9 @@ export function createFleetDatabase({ file } = {}) {
       item.submittedAt ?? Date.now(),
       item.itemType ?? null,
       item.detail ? JSON.stringify(item.detail) : null,
+      item.route || "owner",
+      item.category ?? null,
+      item.topicKey ?? null,
     );
     return getDecision(item.id);
   }
@@ -585,12 +641,16 @@ export function createFleetDatabase({ file } = {}) {
     return row ? deserializeDecision(row) : null;
   }
 
-  function listDecisions({ fleetId, state = null, memberId = null, pendingDeliveryFor = null } = {}) {
+  function listDecisions({ fleetId, state = null, memberId = null, pendingDeliveryFor = null, route = null } = {}) {
     const where = ["fleet_id = ?"];
     const args = [fleetId];
     if (state) {
       where.push("state = ?");
       args.push(state);
+    }
+    if (route) {
+      where.push("route = ?");
+      args.push(route);
     }
     if (memberId) {
       where.push("member_id = ?");
@@ -618,6 +678,20 @@ export function createFleetDatabase({ file } = {}) {
       .get(fleetId).n;
   }
 
+  // 角标口径 (add-deputy-decision-delegate)：「等你 N 件」只计 route=owner 的
+  // open 项——委托给常务岗的不算主人头上。
+  function countOwnerOpenDecisions(fleetId) {
+    return db
+      .prepare("SELECT COUNT(*) AS n FROM decision_items WHERE fleet_id = ? AND state = 'open' AND route = 'owner'")
+      .get(fleetId).n;
+  }
+
+  function countDeputyOpenDecisions(fleetId) {
+    return db
+      .prepare("SELECT COUNT(*) AS n FROM decision_items WHERE fleet_id = ? AND state = 'open' AND route = 'deputy'")
+      .get(fleetId).n;
+  }
+
   function countDecisionsByMemberSince(memberId, sinceMs) {
     return db
       .prepare("SELECT COUNT(*) AS n FROM decision_items WHERE member_id = ? AND submitted_at > ?")
@@ -630,8 +704,8 @@ export function createFleetDatabase({ file } = {}) {
   function transitionDecision(id, expectedState, patch, { expectDeliveredNull = false } = {}) {
     const setParts = [];
     const values = [];
-    const JSON_COLS = { resolution: "resolution" };
-    const PLAIN_COLS = { state: "state", deliveredAt: "delivered_at", deliveredSessionId: "delivered_session_id", resolvedAt: "resolved_at", submittedAt: "submitted_at", recommendation: "recommendation" };
+    const JSON_COLS = { resolution: "resolution", detail: "detail" };
+    const PLAIN_COLS = { state: "state", deliveredAt: "delivered_at", deliveredSessionId: "delivered_session_id", resolvedAt: "resolved_at", submittedAt: "submitted_at", recommendation: "recommendation", resolvedBy: "resolved_by", resolvedByModel: "resolved_by_model", rulingEvidence: "ruling_evidence", executedAt: "executed_at", executedSessionId: "executed_session_id", escalations: "escalations", lastEscalatedAt: "last_escalated_at" };
     for (const [key, value] of Object.entries(patch)) {
       const jsonCol = JSON_COLS[key];
       const plainCol = PLAIN_COLS[key];
@@ -674,6 +748,11 @@ export function createFleetDatabase({ file } = {}) {
   // at most `limit` per finished turn, oldest resolution first, matching the
   // injector's per-turn cap (the rest roll to the next turn). Flips state to
   // `delivered` (delivery is a fact, not a new decision).
+  //
+  // 执行事实同笔回填 (add-deputy-decision-delegate, design D6)：本函数只在
+  // 舰队回合完成钩子上调用——送达回合的完成就是"执行"这一事实，所以
+  // executed_at/executed_session_id 与 delivered 一起落（design D6 拒绝了
+  // 新状态迁移，事实即字段）。
   function markDelivered(memberId, { now = Date.now(), sessionId = null, limit = 5 } = {}) {
     const ids = db
       .prepare(
@@ -687,11 +766,136 @@ export function createFleetDatabase({ file } = {}) {
     const placeholders = ids.map(() => "?").join(",");
     const result = db
       .prepare(
-        `UPDATE decision_items SET state = 'delivered', delivered_at = ?, delivered_session_id = ?
+        `UPDATE decision_items SET state = 'delivered', delivered_at = ?, delivered_session_id = ?,
+         executed_at = ?, executed_session_id = ?
          WHERE id IN (${placeholders}) AND delivered_at IS NULL`,
       )
-      .run(now, sessionId, ...ids);
+      .run(now, sessionId, now, sessionId, ...ids);
     return result.changes;
+  }
+
+  // ── delegation (add-deputy-decision-delegate) ─────────────────────────────
+
+  // 委托审计流水：每次 escalate 一行（merged=1 表示归并到既有项）。防洪上限
+  // 与「被升级过几次」从这读，拍板项行数不再承担这两个职责。
+  function recordEscalation({ id, fleetId, memberId, decisionId, merged = 0, sourceSessionId = null, now = Date.now() }) {
+    db.prepare(
+      `INSERT INTO decision_escalations (id, fleet_id, member_id, decision_id, merged, source_session_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(id, fleetId, memberId, decisionId, merged ? 1 : 0, sourceSessionId, now);
+  }
+
+  function countEscalationsByMemberSince(memberId, sinceMs) {
+    return db
+      .prepare("SELECT COUNT(*) AS n FROM decision_escalations WHERE member_id = ? AND created_at > ?")
+      .get(memberId, sinceMs).n;
+  }
+
+  // 归并查找 (design D5)：同岗位近 N 天内的相似 open 项——topicKey 精确命中
+  // 或问题归一化文本相同。语义相似度（embedding）留 v2，先不引进新依赖。
+  function findSimilarOpenDecision({ memberId, topicKey = null, question = null, sinceMs }) {
+    const norm = normalizeQuestion(question);
+    if (topicKey) {
+      const hit = db
+        .prepare(
+          `SELECT * FROM decision_items
+           WHERE member_id = ? AND state = 'open' AND topic_key = ? AND submitted_at > ?
+           ORDER BY submitted_at DESC LIMIT 1`,
+        )
+        .get(memberId, topicKey, sinceMs);
+      if (hit) return deserializeDecision(hit);
+    }
+    if (norm) {
+      const rows = db
+        .prepare(
+          `SELECT * FROM decision_items
+           WHERE member_id = ? AND state = 'open' AND submitted_at > ? ORDER BY submitted_at DESC`,
+        )
+        .all(memberId, sinceMs);
+      for (const row of rows) {
+        if (normalizeQuestion(row.question) === norm) return deserializeDecision(row);
+      }
+    }
+    return null;
+  }
+
+  // 归并落点：既有项升级次数 +1、最近升级时刻刷新，来源会话追加进 detail
+  // （截断到 5 条，防长尾）。SHALL NOT 改写问题文本或过期基准（submitted_at）。
+  function mergeDecisionEscalation(id, { now = Date.now(), sessionId = null } = {}) {
+    const item = getDecision(id);
+    if (!item || item.state !== "open") return null;
+    const sessions = Array.isArray(item.detail?.escalationSessions) ? item.detail.escalationSessions : [];
+    const detail = {
+      ...(item.detail ?? {}),
+      escalationSessions: [...sessions, sessionId].filter(Boolean).slice(-5),
+    };
+    return transitionDecision(
+      id,
+      "open",
+      { escalations: (item.escalations ?? 0) + 1, lastEscalatedAt: now, detail },
+      { },
+    );
+  }
+
+  function setDecisionRoute(id, route) {
+    if (route !== "owner" && route !== "deputy") return null;
+    return db.prepare("UPDATE decision_items SET route = ? WHERE id = ?").run(route, id).changes > 0
+      ? getDecision(id)
+      : null;
+  }
+
+  // 执行事实回填 (design D6)：仅 delivered 态可回填（deliver 是既定事实）。
+  function recordDecisionExecution(id, { now = Date.now(), sessionId = null } = {}) {
+    const item = getDecision(id);
+    if (!item || item.state !== "delivered") return null;
+    const out = transitionDecision(id, "delivered", { executedAt: now, executedSessionId: sessionId });
+    return out;
+  }
+
+  // ── cell 设置 KV（委托策略等）：同库同迁移路径的最小存储。 ─────────────────
+  function getCellSetting(key) {
+    const row = db.prepare("SELECT value FROM cell_settings WHERE key = ?").get(key);
+    if (!row) return null;
+    try {
+      return JSON.parse(row.value);
+    } catch {
+      return null;
+    }
+  }
+
+  function setCellSetting(key, value) {
+    db.prepare(
+      `INSERT INTO cell_settings (key, value, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+    ).run(key, JSON.stringify(value), Date.now());
+  }
+
+  function getFleetDelegationPolicyRaw(fleetId) {
+    const row = db.prepare("SELECT delegation_policy FROM fleets WHERE id = ?").get(fleetId);
+    if (!row || typeof row.delegation_policy !== "string" || !row.delegation_policy) return null;
+    try {
+      const parsed = JSON.parse(row.delegation_policy);
+      return parsed && typeof parsed === "object" ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function setFleetDelegationPolicy(fleetId, policy) {
+    db.prepare("UPDATE fleets SET delegation_policy = ?, updated_at = ? WHERE id = ?").run(
+      policy == null ? null : JSON.stringify(policy),
+      Date.now(),
+      fleetId,
+    );
+    return getFleet(fleetId);
+  }
+
+  // 生效策略 = cell 默认 + 舰队覆写 (design：两层配置)。cell 默认存
+  // cell_settings['delegationPolicy']。
+  function getFleetDelegationPolicy(fleetId) {
+    const cellPolicy = getCellSetting("delegationPolicy");
+    const override = getFleetDelegationPolicyRaw(fleetId);
+    return normalizeDelegationPolicy(cellPolicy, override);
   }
 
   // ── turn result events (append-only, pruned) ──────────────────────────────
@@ -1219,6 +1423,20 @@ export function createFleetDatabase({ file } = {}) {
     findFleetByTemplate,
     expireOpenDecisions,
     markDelivered,
+    recordEscalation,
+    countEscalationsByMemberSince,
+    findSimilarOpenDecision,
+    mergeDecisionEscalation,
+    setDecisionRoute,
+    recordDecisionExecution,
+    countOwnerOpenDecisions,
+    countDeputyOpenDecisions,
+    getCellSetting,
+    setCellSetting,
+    getFleetDelegationPolicyRaw,
+    setFleetDelegationPolicy,
+    getFleetDelegationPolicy,
+    routeForItem,
     close,
   };
 }
@@ -1230,6 +1448,7 @@ function deserializeFleet(row) {
     ownerEmail: row.owner_email,
     state: row.state,
     decisionPolicy: decisionPolicyOfRow(row),
+    delegationPolicy: row.delegation_policy ? JSON.parse(row.delegation_policy) : null,
     sourceTemplate: row.source_template ? JSON.parse(row.source_template) : null,
     defaultModel: row.default_model ?? null,
     effort: row.effort ?? null,
@@ -1243,6 +1462,86 @@ function deserializeFleet(row) {
 // The fleet-level decision policy: default 72h expiry, 10 escalations per
 // post per day. `0` expiryHours disables expiry outright.
 export const DEFAULT_DECISION_POLICY = { expiryHours: 72, dailyCapPerMember: 10 };
+
+// ── 委托策略 (add-deputy-decision-delegate, design D/D3) ─────────────────────
+//
+// routes 的值: 'owner' | 'deputy' | 'deputy-triage'。
+//   deputy         — 常务岗可独立裁决（approve/reject）
+//   deputy-triage  — 常务岗只做归并/跟踪/上报，不算裁决（问题单类）
+//   owner          — 永远主人
+// config-change / hr / spend 三类 SHALL NOT 委托（硬编码，见 normalizeRoutes）。
+export const DELEGATION_CATEGORIES = ["routine-ops", "infra-ticket", "config-change", "hr", "spend"];
+const HARD_OWNER_CATEGORIES = ["config-change", "hr", "spend"];
+const DELEGATION_ROUTES = ["owner", "deputy", "deputy-triage"];
+export const SEVERITY_RANK = { low: 0, normal: 1, high: 2 };
+
+export const DEFAULT_DELEGATION_POLICY = {
+  enabled: false,
+  routes: { "routine-ops": "deputy", "infra-ticket": "deputy-triage", default: "owner" },
+  maxSeverity: "normal",
+  dailyBudget: 20,
+  model: null,
+  digest: "daily",
+  deputyMemberId: null,
+};
+
+function normalizeRoutes(routes) {
+  const out = {};
+  if (routes && typeof routes === "object") {
+    for (const [k, v] of Object.entries(routes)) {
+      if (!DELEGATION_ROUTES.includes(v)) continue;
+      if (k === "default") out.default = v;
+      else if (DELEGATION_CATEGORIES.includes(k)) out[k] = HARD_OWNER_CATEGORIES.includes(k) ? "owner" : v;
+    }
+  }
+  // 硬闸：三类高风险永远 owner，策略里写了也会被归一化覆盖。
+  for (const k of HARD_OWNER_CATEGORIES) out[k] = "owner";
+  if (!out.default) out.default = "owner";
+  return out;
+}
+
+// cell 级默认 + 舰队覆写：浅合并（覆写同键生效，routes 整体替换后归一化）。
+export function normalizeDelegationPolicy(cellPolicy, fleetOverride) {
+  const base = {
+    ...DEFAULT_DELEGATION_POLICY,
+    routes: { ...DEFAULT_DELEGATION_POLICY.routes },
+    ...(cellPolicy && typeof cellPolicy === "object" ? cellPolicy : {}),
+  };
+  base.routes = normalizeRoutes(base.routes);
+  base.maxSeverity = SEVERITY_RANK[base.maxSeverity] !== undefined ? base.maxSeverity : DEFAULT_DELEGATION_POLICY.maxSeverity;
+  base.dailyBudget = Number.isFinite(base.dailyBudget) && base.dailyBudget > 0 ? Math.floor(base.dailyBudget) : DEFAULT_DELEGATION_POLICY.dailyBudget;
+  base.digest = ["daily", "weekly", "off"].includes(base.digest) ? base.digest : DEFAULT_DELEGATION_POLICY.digest;
+  base.deputyMemberId = typeof base.deputyMemberId === "string" && base.deputyMemberId ? base.deputyMemberId : null;
+  if (!fleetOverride || typeof fleetOverride !== "object") return base;
+  const merged = { ...base };
+  if (fleetOverride.enabled !== undefined) merged.enabled = !!fleetOverride.enabled;
+  if (fleetOverride.routes && typeof fleetOverride.routes === "object") merged.routes = normalizeRoutes({ ...base.routes, ...fleetOverride.routes });
+  if (fleetOverride.maxSeverity && SEVERITY_RANK[fleetOverride.maxSeverity] !== undefined) merged.maxSeverity = fleetOverride.maxSeverity;
+  if (Number.isFinite(fleetOverride.dailyBudget) && fleetOverride.dailyBudget > 0) merged.dailyBudget = Math.floor(fleetOverride.dailyBudget);
+  if (fleetOverride.model !== undefined) merged.model = typeof fleetOverride.model === "string" && fleetOverride.model ? fleetOverride.model : null;
+  if (fleetOverride.digest && ["daily", "weekly", "off"].includes(fleetOverride.digest)) merged.digest = fleetOverride.digest;
+  if (fleetOverride.deputyMemberId !== undefined) {
+    merged.deputyMemberId = typeof fleetOverride.deputyMemberId === "string" && fleetOverride.deputyMemberId ? fleetOverride.deputyMemberId : null;
+  }
+  return merged;
+}
+
+// 拍板项按策略计算路由 (design D2/D3)。escalate 落库前调用——同步、可解释。
+// 顺序: 硬闸类别 → item_type=config-change → severity 上限 → 类别映射 → default。
+export function routeForItem({ category = null, itemType = null, severity = "normal" }, policy) {
+  const cat = category || (itemType === "config-change" ? "config-change" : null);
+  if (cat && HARD_OWNER_CATEGORIES.includes(cat)) return "owner";
+  if ((SEVERITY_RANK[severity] ?? 1) > (SEVERITY_RANK[policy.maxSeverity] ?? 1)) return "owner";
+  if (cat && policy.routes[cat]) return policy.routes[cat];
+  return policy.routes.default || "owner";
+}
+
+// 问题归一化（去重辅助）：空白折叠 + 去尾标点。语义相似度（embedding）留 v2。
+export function normalizeQuestion(question) {
+  if (typeof question !== "string") return null;
+  const norm = question.replace(/\s+/g, " ").trim().replace(/[。.!?！？]+$/, "");
+  return norm.length >= 8 ? norm : null;
+}
 
 function decisionPolicyOfRow(row) {
   let parsed = null;
@@ -1386,6 +1685,18 @@ function deserializeDecision(row) {
     // 与既有语义零差异。
     itemType: row.item_type ?? "decision",
     detail: parseDetail(row.detail),
+    // 委托扩展 (add-deputy-decision-delegate)：旧行 route='owner'、无裁决者
+    // 身份——与未启用委托前语义一致。
+    route: row.route || "owner",
+    category: row.category ?? null,
+    topicKey: row.topic_key ?? null,
+    resolvedBy: row.resolved_by ?? null,
+    resolvedByModel: row.resolved_by_model ?? null,
+    rulingEvidence: row.ruling_evidence ?? null,
+    escalations: row.escalations ?? 0,
+    lastEscalatedAt: row.last_escalated_at ?? null,
+    executedAt: row.executed_at ?? null,
+    executedSessionId: row.executed_session_id ?? null,
   };
 }
 

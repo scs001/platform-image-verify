@@ -120,6 +120,45 @@ const TOOLS = [
       required: ["to", "brief"],
     },
   },
+  {
+    name: "decision_queue",
+    description:
+      "常务岗（决策代理）专用：读取本舰队 route=deputy 的待裁队列。每项带来源岗位、近期报数摘要与主人过往同类判例。" +
+      "非本舰队常务岗调用会被服务端拒绝（403）。读之前先看 policy：它给出可委托的类别、严重度上限与今日裁决预算。",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "decision_resolve",
+    description:
+      "常务岗裁决一条待裁项。kind=approve 需给 choice（必须是该项 options 里的 value）；kind=reject 需给 note。" +
+      "必须附 evidence（依据：引用判例或说明理由，≤2000 字）。越出委托授权（类别/严重度/预算）时服务端拒绝并提示转主人。" +
+      "amend（改批）是主人专属，这里不支持。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        itemId: { type: "string", description: "Decision item id from decision_queue." },
+        kind: { type: "string", enum: ["approve", "reject"] },
+        choice: { type: "string", description: "Required for approve: one of the item's option values." },
+        note: { type: "string", description: "Required for reject (the reason); optional note for approve." },
+        evidence: { type: "string", description: "Your reasoning: which precedent or fact supports this ruling (≤2000 chars)." },
+      },
+      required: ["itemId", "kind", "evidence"],
+    },
+  },
+  {
+    name: "decision_escalate_to_owner",
+    description:
+      "常务岗判不了时向上升级：把该条目转回主人队列并附你的分析。强判比不判糟——" +
+      "遇到超授权、事实不足、或需要主人偏好/价值观的问题，用这个而不是硬裁。",
+    inputSchema: {
+      type: "object",
+      properties: {
+        itemId: { type: "string", description: "Decision item id from decision_queue." },
+        analysis: { type: "string", description: "What you found, why you can't rule, and what you recommend (≤2000 chars)." },
+      },
+      required: ["itemId", "analysis"],
+    },
+  },
 ];
 
 function textOut(text) {
@@ -175,6 +214,97 @@ const server = new Server({ name: "fleet", version: "1.0.0" }, { capabilities: {
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 
+// ── deputy bridge (add-deputy-decision-delegate) ─────────────────────────────
+//
+// 委托裁决的授权闸在服务端（/api/fleets/deputy/*）：这里只负责调用与把拒因
+// 原样交回模型——"被服务端拒绝就转主人"是提示词里的行为要求，而权限本身由
+// 服务端的逐项校验保证。
+
+async function bridgePost(path, body) {
+  const res = await fetch(`${bridgeOrigin()}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body ?? {}),
+    signal: AbortSignal.timeout(20_000),
+  });
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, data };
+}
+
+async function toolDecisionQueue() {
+  const { ok, status, data } = await bridgePost("/api/fleets/deputy/queue", {});
+  if (!ok) return errOut(data.error || `decision_queue failed (${status})`);
+  const q = data.queue ?? [];
+  if (q.length === 0) {
+    return textOut(
+      `No deputy-routed items pending in fleet 「${data.fleet?.name ?? ""}」. ` +
+        `Policy: delegable categories ${JSON.stringify(data.policy?.routes ?? {})}, ` +
+        `max severity ${data.policy?.maxSeverity}, daily budget ${data.policy?.dailyBudget}.`,
+    );
+  }
+  const lines = [
+    `Deputy queue for fleet 「${data.fleet?.name ?? ""}」 — ${q.length} item(s).`,
+    `Policy: max severity ${data.policy?.maxSeverity}; daily budget ${data.policy?.dailyBudget}; routes ${JSON.stringify(data.policy?.routes ?? {})}.`,
+    "",
+  ];
+  for (const it of q) {
+    lines.push(`### ${it.id}  [${it.severity}] ${it.category ?? "(uncategorised)"}${it.escalations ? ` · escalated ×${it.escalations}` : ""}`);
+    lines.push(`Q: ${it.question}`);
+    lines.push(`options: ${(it.options ?? []).map((o) => `${o.value}=${o.label}`).join(" | ")}`);
+    if (it.member?.title) lines.push(`post: ${it.member.title}${it.member.status ? ` (${it.member.status})` : ""}`);
+    if (it.recentReport) lines.push(`latest report: ${it.recentReport}`);
+    if (it.precedents?.length) {
+      for (const p of it.precedents) {
+        lines.push(
+          `precedent ${p.id}: "${String(p.question).slice(0, 80)}" → owner ${
+            p.resolution?.kind === "reject" ? "rejected" : `approved ${p.resolution?.choice ?? ""}`
+          }${p.resolution?.note ? ` (note: ${String(p.resolution.note).slice(0, 80)})` : ""}`,
+        );
+      }
+    }
+    lines.push("");
+  }
+  lines.push(
+    "Rule what the mandate covers (cite a precedent in `evidence`); escalate to the owner what it doesn't. " +
+      "A server refusal is the mandate talking — escalate rather than retry.",
+  );
+  return textOut(lines.join("\n"));
+}
+
+async function toolDecisionResolve({ itemId, kind, choice, note, evidence }) {
+  const { ok, status, data } = await bridgePost("/api/fleets/deputy/resolve", {
+    itemId,
+    kind,
+    choice,
+    note,
+    evidence,
+  });
+  if (!ok) {
+    return errOut(
+      `${data.error || `decision_resolve failed (${status})`}` +
+        (status === 403 || status === 429
+          ? " — this is beyond your delegation mandate: escalate it to the owner (decision_escalate_to_owner) instead of retrying."
+          : ""),
+    );
+  }
+  const d = data.decision ?? {};
+  const label = d.options?.find((o) => o.value === d.resolution?.choice)?.label ?? d.resolution?.choice ?? "";
+  return textOut(
+    `Ruled ${d.id}: ${d.state}${label ? ` — ${label}` : ""}. ` +
+      `Delivery rides the post's next turn (or the owner's execute-now). ` +
+      `Record what you did and why in memory so the owner can audit it later.`,
+  );
+}
+
+async function toolDecisionEscalateToOwner({ itemId, analysis }) {
+  const { ok, status, data } = await bridgePost("/api/fleets/deputy/escalate-to-owner", { itemId, analysis });
+  if (!ok) return errOut(data.error || `decision_escalate_to_owner failed (${status})`);
+  return textOut(
+    `Escalated ${itemId} to the owner with your analysis. It now counts in the owner's queue. ` +
+      `Write a one-line entry to memory (what you found + why you couldn't rule) so the owner sees it there too.`,
+  );
+}
+
 async function toolDispatch({ to, brief }) {
   const res = await fetch(`${bridgeOrigin()}/api/fleets/dispatch`, {
     method: "POST",
@@ -198,6 +328,9 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
       case "report_status": return await toolReport(args);
       case "escalate": return await toolEscalate(args);
       case "dispatch_post": return await toolDispatch(args);
+      case "decision_queue": return await toolDecisionQueue();
+      case "decision_resolve": return await toolDecisionResolve(args);
+      case "decision_escalate_to_owner": return await toolDecisionEscalateToOwner(args);
       default: return errOut(`unknown tool: ${name}`);
     }
   } catch (err) {

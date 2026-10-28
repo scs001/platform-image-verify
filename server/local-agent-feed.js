@@ -354,7 +354,17 @@ function tokenMatches(expected, received) {
 // OPEN on loopback only, exactly like the pre-change desktop dev posture.
 export function createLocalAgentFeed({ env = process.env, runnerId = null, seatTag = true } = {}) {
   const router = express.Router();
+  // The bearer comes from the SETTINGS the cell was given. On a packaged
+  // desktop that is settings.json (electron/config/settings.js injects it
+  // into the child's env). When it is missing — a dev/headless cell that was
+  // never bootstrapped — the feed keeps its loopback-open dev posture, and
+  // says so in the log rather than pretending it is protected.
   const expected = String(env.WANXING_LOCAL_FEED_TOKEN || "");
+  if (!expected) {
+    console.warn(
+      "[local-feed] no WANXING_LOCAL_FEED_TOKEN in this cell's env — the roster feed is OPEN on loopback (dev posture)",
+    );
+  }
 
   router.use((req, res, next) => {
     if (!expected) return next(); // dev posture: loopback, no token minted

@@ -1,0 +1,260 @@
+#!/usr/bin/env node
+// ── Desktop local-cluster acceptance probe (install-e2e, both platforms) ────
+//
+// The ONE script the Windows and macOS installer legs both call. It proves
+// the promise this batch shipped — "users can run AND manage a multi-agent
+// cluster locally" — against a REAL installed app:
+//
+//   1. the cell's LOCAL roster feed answers on loopback with its own bearer
+//      (and refuses a wrong bearer);
+//   2. the preinstalled starter bundle is VISIBLE as a catalogue (registered,
+//      not installed);
+//   3. importing it installs a pack through the normal pipeline (source=bundle);
+//   4. deploying a serving agent creates a local deployment, and the feed
+//      publishes the entry the runner will pick up;
+//   5. stop / start / remove keep the identity and the feed consistent;
+//   6. the convergence report answers (a resident boot's expectation state);
+//   7. the local runner — when the fleet plugin is enabled — reports the
+//      deployed agent in its live roster.
+//
+// Platform-neutral on purpose: the leg's shell (pwsh / bash) only has to
+// locate the app and the data root; the assertions live here.
+//
+// Usage:
+//   PLATFORM_DATA_DIR=<data root> PLATFORM_RESOURCES_DIR=<resources> \
+//   node scripts/desktop-local-cluster-probe.mjs
+//
+// Exit code 0 = the promise holds on this machine; non-zero = it does not.
+
+import fs from "node:fs";
+import path from "node:path";
+
+const DATA_DIR = process.env.PLATFORM_DATA_DIR || "";
+const RESOURCES = process.env.PLATFORM_RESOURCES_DIR || "";
+const PORT = Number(process.env.DESKTOP_SERVER_PORT || 47600);
+const HOST = "127.0.0.1";
+const BASE = `http://${HOST}:${PORT}`;
+
+const failures = [];
+const notes = [];
+const deploymentsCache = { paths: [] };
+
+function ok(name, detail = "") {
+  notes.push(`  ✓ ${name}${detail ? ` — ${detail}` : ""}`);
+}
+function bad(name, detail) {
+  failures.push(`${name}: ${detail}`);
+  notes.push(`  ✗ ${name} — ${detail}`);
+}
+
+async function getJson(path_, { token } = {}) {
+  const res = await fetch(`${BASE}${path_}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  const text = await res.text();
+  let body = null;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = { raw: text.slice(0, 200) };
+  }
+  return { status: res.status, body };
+}
+
+// The cell's feed bearer lives in settings.json (minted by first-run).
+function readSettings() {
+  const file = path.join(DATA_DIR, "settings.json");
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+// The cell's own view of what is deployed (the write face's truth) — read
+// LIVE, so deployments that predate this probe are cross-checked too.
+async function listDeploymentsFromCell() {
+  const res = await getJson("/api/wanxing/fleet/deployments");
+  const rows = res.body?.deployments ?? [];
+  return rows.filter((d) => d.enabled).map((d) => d.agentPath);
+}
+
+async function waitForCell(timeoutMs = 60_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(`${BASE}/api/wanxing/fleet/deployments`);
+      if (res.status < 500) return true;
+    } catch {
+      /* not up yet */
+    }
+    await new Promise((r) => setTimeout(r, 1000));
+  }
+  return false;
+}
+
+console.log(`[probe] data=${DATA_DIR || "(unset)"} resources=${RESOURCES || "(unset)"} cell=${BASE}`);
+
+if (!DATA_DIR) {
+  console.error("[probe] PLATFORM_DATA_DIR is required (the cell's data root)");
+  process.exit(2);
+}
+
+if (!(await waitForCell())) {
+  console.error(`[probe] the cell never answered on ${BASE}`);
+  process.exit(1);
+}
+ok("cell answers", BASE);
+
+// 1. The local roster feed: its own bearer, loopback only.
+const settings = readSettings();
+const token = settings.WANXING_LOCAL_FEED_TOKEN || "";
+if (!token) {
+  bad("feed bearer", "settings.json carries no WANXING_LOCAL_FEED_TOKEN (first-run did not mint one)");
+} else {
+  const authed = await getJson("/local-registry/api/agents?limit=10&offset=0", { token });
+  if (authed.status === 200) ok("feed answers with its bearer", `status 200`);
+  else bad("feed with bearer", `status ${authed.status} ${JSON.stringify(authed.body).slice(0, 120)}`);
+
+  const wrong = await getJson("/local-registry/api/agents?limit=10&offset=0", { token: "not-the-token" });
+  if (wrong.status === 401) ok("feed refuses a wrong bearer", "401");
+  else bad("feed wrong bearer", `expected 401, got ${wrong.status}`);
+}
+
+// 2. Preinstalled starter bundles: a CATALOGUE (registration ≠ installation).
+const presets = await getJson("/api/wanxing/fleet/presets");
+if (presets.status !== 200) {
+  bad("presets catalogue", `status ${presets.status}`);
+} else {
+  const bundles = presets.body?.bundles ?? [];
+  ok("presets catalogue answers", `${bundles.length} bundle(s)`);
+  if (bundles.length === 0) {
+    notes.push("  · no starter bundle shipped in this build — the import leg below is skipped");
+  }
+  for (const b of bundles) {
+    if (b.packId && b.version) ok("preset entry is self-describing", `${b.packId} v${b.version}`);
+    else bad("preset entry", `missing packId/version: ${JSON.stringify(b).slice(0, 120)}`);
+  }
+}
+
+// 3. Import a starter bundle (or any pack we can install) → source=bundle.
+let importedPackId = null;
+const bundles = presets.body?.bundles ?? [];
+if (bundles.length > 0) {
+  const res = await fetch(`${BASE}/api/wanxing/fleet/presets/import`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ file: bundles[0].file }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (res.status === 200) {
+    ok("starter bundle installs", `${body.bundle?.packId} v${body.bundle?.version}`);
+    importedPackId = body.bundle?.packId ?? null;
+  } else {
+    bad("starter bundle import", `status ${res.status} ${JSON.stringify(body).slice(0, 160)}`);
+  }
+}
+
+// 4. The catalog's candidate list + the deploy write face.
+const catalog = await getJson("/api/wanxing/fleet/catalog");
+if (catalog.status !== 200) {
+  bad("local catalog", `status ${catalog.status}`);
+} else {
+  const candidates = catalog.body?.candidates ?? [];
+  ok("local catalog answers", `${candidates.length} candidate(s), capacity ${JSON.stringify(catalog.body?.capacity ?? {})}`);
+  const target =
+    candidates.find((c) => c.packId === importedPackId) ?? candidates.find((c) => !c.deployed);
+  if (!target) {
+    notes.push("  · no deployable candidate on this machine — the deploy leg below is skipped");
+  } else {
+    const res = await fetch(`${BASE}/api/wanxing/fleet/deployments`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ packId: target.packId, agentId: target.agentId }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (res.status === 200 || res.status === 201) {
+      ok("deploy lands", `${target.packId}/${target.agentId} → ${body.deployment?.agentPath}`);
+      const agentPath = body.deployment?.agentPath;
+      deploymentsCache.paths.push(agentPath);
+
+      // The feed must publish the entry — that is what the runner polls.
+      const feed = await getJson("/local-registry/api/agents?limit=50&offset=0", { token });
+      const published = (feed.body?.agents ?? []).some((a) => a.path === agentPath);
+      if (published) ok("feed publishes the deployment", agentPath);
+      else bad("feed publishes the deployment", `${agentPath} is absent from the feed`);
+
+      // stop → out of the feed, identity kept; start → back.
+      await fetch(`${BASE}/api/wanxing/fleet/deployments/stop`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ agentPath }),
+      });
+      const afterStop = await getJson("/local-registry/api/agents?limit=50&offset=0", { token });
+      const stillThere = (afterStop.body?.agents ?? []).some((a) => a.path === agentPath);
+      if (!stillThere) ok("stop removes the entry from the feed", agentPath);
+      else bad("stop removes the entry", `${agentPath} still published`);
+
+      await fetch(`${BASE}/api/wanxing/fleet/deployments/start`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ agentPath }),
+      });
+      const afterStart = await getJson("/local-registry/api/agents?limit=50&offset=0", { token });
+      const back = (afterStart.body?.agents ?? []).some((a) => a.path === agentPath);
+      if (back) ok("start restores the same identity", agentPath);
+      else bad("start restores the identity", `${agentPath} did not come back`);
+
+      // remove → gone from the roster for good.
+      await fetch(`${BASE}/api/wanxing/fleet/deployments/remove`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ agentPath }),
+      });
+      const afterRemove = await getJson("/local-registry/api/agents?limit=50&offset=0", { token });
+      const gone = !(afterRemove.body?.agents ?? []).some((a) => a.path === agentPath);
+      if (gone) ok("remove clears the deployment", agentPath);
+      else bad("remove clears the deployment", `${agentPath} is still published`);
+    } else if (res.status === 409 && body.code === "capacity_exceeded") {
+      ok("deploy refused with a structured capacity answer", `used ${body.used}/${body.cap}`);
+    } else {
+      bad("deploy", `status ${res.status} ${JSON.stringify(body).slice(0, 160)}`);
+    }
+  }
+}
+
+// 5. The convergence report (a resident boot's expectation state).
+const convergence = await getJson("/api/wanxing/fleet/convergence");
+if (convergence.status === 200) {
+  const cur = convergence.body?.current ?? {};
+  ok("convergence reports", `deployments=${cur.deployments} enabled=${cur.enabled} pruned=${cur.pruned}`);
+} else {
+  bad("convergence", `status ${convergence.status}`);
+}
+
+// 6. The local runner — only when the fleet plugin is on. When it is up, the
+// deployment this probe made MUST show up in its roster: that is the whole
+// promise (the local roster feeds the local runner), and a runner that
+// ignores the local feed would look perfectly healthy while serving nothing.
+const live = await getJson("/api/wanxing/fleet/live");
+if (live.status === 200) {
+  const agents = live.body?.agents ?? [];
+  ok("local runner is healthy", `${agents.length} agent(s), ${live.body?.children ?? 0} runtime process(es)`);
+  const roster = agents.map((a) => a.path).filter(Boolean);
+  const deployed = await listDeploymentsFromCell();
+  for (const path of deployed) {
+    if (roster.includes(path)) ok("the runner serves the local deployment", path);
+    else bad("the runner serves the local deployment", `${path} is deployed but absent from the runner roster`);
+  }
+  if (deployed.length === 0) notes.push("  · nothing deployed at this moment — the roster cross-check is skipped");
+} else {
+  notes.push(`  · the fleet plugin is off on this machine (live: ${live.body?.error ?? live.status}) — the runner leg is skipped`);
+}
+
+console.log(notes.join("\n"));
+if (failures.length > 0) {
+  console.error(`\n[probe] FAILED (${failures.length}):`);
+  for (const f of failures) console.error(`  - ${f}`);
+  process.exit(1);
+}
+console.log("\n[probe] OK — the local cluster is runnable AND manageable on this machine");

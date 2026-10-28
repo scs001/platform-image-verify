@@ -36,6 +36,12 @@ export const SETTING_KEYS = [
   "AGENT_SERVING_REGISTRY_URL",
   "AGENT_SERVING_REGISTRY_TOKEN",
   "AGENT_RUNNER_PORT",
+  // Local roster feed credential (openspec: add-local-fleet-control-plane):
+  // minted by first-run next to the seat id; the CELL verifies it and the
+  // runner presents it. Both live in the same settings file, and both are
+  // injected from here — without this key the feed would fall back to its
+  // open-on-loopback dev posture (no bearer at all).
+  "WANXING_LOCAL_FEED_TOKEN",
   // Fleet uplink (slice ③): where this seat reports runner_stats/state events
   // (the customer's Wanxing observer). Absent = the seat is board-invisible.
   "AGENT_RUNNER_FLEET_URL",

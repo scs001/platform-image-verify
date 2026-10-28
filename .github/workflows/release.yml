@@ -397,6 +397,23 @@ jobs:
           if (-not $fellBack) { throw "stale steward.json did not fall back to embedded" }
           if (Test-Path $json) { throw "stale steward.json was not cleaned up" }
 
+      - name: Local cluster is runnable AND manageable (write-face probe)
+        shell: pwsh
+        run: |
+          # The batch's promise, asserted against THIS installed app: the local
+          # roster feed answers with its own bearer, the write face deploys /
+          # stops / starts / removes an agent, the feed publishes exactly the
+          # deployed entries, and the convergence report answers. The probe
+          # is platform-neutral (scripts/desktop-local-cluster-probe.mjs) — the
+          # leg only locates the app and the data root.
+          $appRoot = Join-Path (Split-Path $env:APP_EXE) 'resources\app'
+          $probe = Join-Path $appRoot 'electron\local-cluster-probe.mjs'
+          if (-not (Test-Path $probe)) { throw "probe missing from the installed app: $probe" }
+          $env:PLATFORM_DATA_DIR = $env:STEWARD_DATA
+          $env:PLATFORM_RESOURCES_DIR = Join-Path (Split-Path $env:APP_EXE) 'resources'
+          & $env:STEWARD_NODE $probe
+          if ($LASTEXITCODE -ne 0) { throw "local cluster probe failed (the desktop cannot run/manage a cluster locally)" }
+
       - name: Uninstall drains the resident steward and leaves the machine clean
         shell: pwsh
         run: |
@@ -525,6 +542,21 @@ jobs:
           console.log("healthy on " + s.port + "; policy " + p);
           JS
           "$BUNDLE_NODE" "$RUNNER_TEMP/status.mjs"
+          pkill -f "steward-main.js" || true
+
+      - name: Local cluster is runnable AND manageable (write-face probe)
+        run: |
+          # Same platform-neutral probe as the Windows leg: the local roster
+          # feed, the deploy/stop/start/remove write face, and the convergence
+          # report, asserted against the extracted .app on this machine.
+          set -euo pipefail
+          export DATA="$RUNNER_TEMP/steward-data"
+          export PLATFORM_DATA_DIR="$DATA"
+          export PLATFORM_RESOURCES_DIR="$APP/Contents/Resources"
+          PLATFORM_DATA_DIR="$DATA" "$BUNDLE_NODE" "$APP/Contents/Resources/app/supervisor/steward-main.js" > "$RUNNER_TEMP/steward-probe.log" 2>&1 &
+          for i in $(seq 1 60); do [ -f "$DATA/steward.json" ] && break; sleep 2; done
+          test -f "$DATA/steward.json"
+          "$BUNDLE_NODE" "$APP/Contents/Resources/app/electron/local-cluster-probe.mjs"
           pkill -f "steward-main.js" || true
 
       - name: Drag-deleted bundle guard is present (static; behaviour needs a real login session)

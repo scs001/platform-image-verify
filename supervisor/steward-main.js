@@ -66,9 +66,48 @@ const nodeBin = process.env.PLATFORM_NODE_BIN || process.execPath;
 const resourcesDir =
   process.env.PLATFORM_RESOURCES_DIR ||
   (PROJECT_ROOT.split(path.sep).some((seg) => seg.endsWith(".app")) ? path.resolve(PROJECT_ROOT, "..") : "");
+
+// The resident world must see the SAME settings the desktop app sees.
+// launchd/schtasks start this process with a BARE environment (no .env, no
+// inherited app env), so without this merge the cell and the runner it
+// spawns would miss every user-level key — the fleet plugin switch, the
+// local feed bearer, the LLM credentials. The Electron path gets them from
+// electron/config/settings.js#resolveEnv; the resident path gets them from
+// the same settings.json, read here (the key list is duplicated on purpose:
+// the Electron module imports `electron`, which the headless steward cannot).
+const SETTINGS_KEYS = [
+  "LLM_API_KEY", "LLM_BASE_URL", "DEFAULT_MODEL", "AUTH_MODE", "LOGTO_ENDPOINT",
+  "LOGTO_APP_ID", "LOGTO_CLIENT_TYPE", "SESSION_TTL_HRS", "DESKTOP_SERVER_PORT",
+  "SEARCH_RELAY_URL", "SEARCH_RELAY_TOKEN",
+  "WANXING_PLUGIN_ENABLED", "WANXING_PLUGIN_RUNNER_ID", "AGENT_SERVING_REGISTRY_URL",
+  "AGENT_SERVING_REGISTRY_TOKEN", "AGENT_RUNNER_PORT", "WANXING_LOCAL_FEED_TOKEN",
+  "AGENT_RUNNER_FLEET_URL", "AGENT_RUNNER_FLEET_TOKEN",
+];
+
+function readSettingsEnv() {
+  const file = path.join(dataDir, "settings.json");
+  let doc = {};
+  try {
+    doc = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return {};
+  }
+  const out = {};
+  for (const key of SETTINGS_KEYS) {
+    const value = doc[key] ?? process.env[key];
+    if (value != null && value !== "") out[key] = String(value);
+  }
+  return out;
+}
+
+const settingsEnv = readSettingsEnv();
+if (Object.keys(settingsEnv).length === 0) {
+  console.warn(`[steward] no settings.json under ${dataDir} — the resident stack runs on defaults`);
+}
 const agentEnv = {
   ...process.env,
   HOST: process.env.HOST || "127.0.0.1",
+  ...settingsEnv,
   ...(resourcesDir ? { PLATFORM_RESOURCES_DIR: resourcesDir } : {}),
 };
 const supervisor = new Supervisor({ nodeBin, projectRoot: PROJECT_ROOT, dataDir, agentEnv });

@@ -24,25 +24,9 @@ dotenv.config({ override: true });
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = __dirname;
 
-// Keys forwarded from .env into the agent env. Mirrors SETTING_KEYS in
-// electron/config/settings.js. Keep in sync.
-const SETTING_KEYS = [
-  "LLM_API_KEY",
-  "LLM_BASE_URL",
-  "DATABASE_URL",
-  "DEFAULT_MODEL",
-  "AUTH_MODE",
-  "PAAS_BASE_URL",
-  "SESSION_TTL_HRS",
-  "LOGTO_ENDPOINT",
-  "LOGTO_APP_ID",
-  "LOGTO_APP_SECRET",
-  "LOGTO_CLIENT_TYPE",
-  "LOGTO_END_SESSION",
-  // Search relay (websearch MCP); both set or web_search degrades explicitly.
-  "SEARCH_RELAY_URL",
-  "SEARCH_RELAY_TOKEN",
-];
+// Keys forwarded from .env into the agent env — the SHARED list
+// (lib/settings-keys.js); the desktop and resident consumers use the same one.
+import { SETTING_KEYS } from "./lib/settings-keys.js";
 
 const DEV_SETTINGS_FILE = "dev-settings.json";
 

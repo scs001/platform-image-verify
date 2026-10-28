@@ -13,40 +13,10 @@
 import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
-
-export const SETTING_KEYS = [
-  "LLM_API_KEY",
-  "LLM_BASE_URL",
-  "DEFAULT_MODEL",
-  "AUTH_MODE",
-  "LOGTO_ENDPOINT",
-  "LOGTO_APP_ID",
-  "LOGTO_CLIENT_TYPE",
-  "SESSION_TTL_HRS",
-  "DESKTOP_SERVER_PORT",
-  // Search relay (websearch MCP): both must be set or web_search degrades to
-  // an explicit "not configured" tool error.
-  "SEARCH_RELAY_URL",
-  "SEARCH_RELAY_TOKEN",
-  // Wanxing fleet plugin (openspec: desktop-fleet-runner). The runner id is
-  // minted by first-run bootstrap and rides the same settings file; the
-  // switch + registry wiring are user-editable in Preferences.
-  "WANXING_PLUGIN_ENABLED",
-  "WANXING_PLUGIN_RUNNER_ID",
-  "AGENT_SERVING_REGISTRY_URL",
-  "AGENT_SERVING_REGISTRY_TOKEN",
-  "AGENT_RUNNER_PORT",
-  // Local roster feed credential (openspec: add-local-fleet-control-plane):
-  // minted by first-run next to the seat id; the CELL verifies it and the
-  // runner presents it. Both live in the same settings file, and both are
-  // injected from here — without this key the feed would fall back to its
-  // open-on-loopback dev posture (no bearer at all).
-  "WANXING_LOCAL_FEED_TOKEN",
-  // Fleet uplink (slice ③): where this seat reports runner_stats/state events
-  // (the customer's Wanxing observer). Absent = the seat is board-invisible.
-  "AGENT_RUNNER_FLEET_URL",
-  "AGENT_RUNNER_FLEET_TOKEN",
-];
+// The key list lives in lib/settings-keys.js — ONE definition shared with the
+// resident steward and the headless launcher (it drifted three ways before;
+// the guard test refuses a second copy).
+import { SETTING_KEYS } from "../../lib/settings-keys.js";
 
 function settingsFile() {
   return path.join(app.getPath("userData"), "settings.json");

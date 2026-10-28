@@ -15,6 +15,7 @@ import { Supervisor } from "./lifecycle.js";
 import { createSteward } from "./steward.js";
 import { createPolicyEngine } from "./steward-policy.js";
 import { CRASH_DEFAULTS, createCrashGuard } from "./steward-health.js";
+import { SETTING_KEYS } from "../lib/settings-keys.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = path.resolve(__dirname, "..");
@@ -73,16 +74,8 @@ const resourcesDir =
 // spawns would miss every user-level key — the fleet plugin switch, the
 // local feed bearer, the LLM credentials. The Electron path gets them from
 // electron/config/settings.js#resolveEnv; the resident path gets them from
-// the same settings.json, read here (the key list is duplicated on purpose:
-// the Electron module imports `electron`, which the headless steward cannot).
-const SETTINGS_KEYS = [
-  "LLM_API_KEY", "LLM_BASE_URL", "DEFAULT_MODEL", "AUTH_MODE", "LOGTO_ENDPOINT",
-  "LOGTO_APP_ID", "LOGTO_CLIENT_TYPE", "SESSION_TTL_HRS", "DESKTOP_SERVER_PORT",
-  "SEARCH_RELAY_URL", "SEARCH_RELAY_TOKEN",
-  "WANXING_PLUGIN_ENABLED", "WANXING_PLUGIN_RUNNER_ID", "AGENT_SERVING_REGISTRY_URL",
-  "AGENT_SERVING_REGISTRY_TOKEN", "AGENT_RUNNER_PORT", "WANXING_LOCAL_FEED_TOKEN",
-  "AGENT_RUNNER_FLEET_URL", "AGENT_RUNNER_FLEET_TOKEN",
-];
+// the same settings.json, read here. The key list is SHARED
+// (lib/settings-keys.js) — the guard test refuses a second copy.
 
 function readSettingsEnv() {
   const file = path.join(dataDir, "settings.json");

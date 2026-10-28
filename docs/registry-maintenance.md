@@ -2940,7 +2940,7 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 - **智能体页**：加载中无空态闪现，落地诚实空态正常，回访 60 专家卡即时。
 - **长会话**：探针读数 `[session-open] ms=137 messages=51 bytes=1710034`（服务端 137ms、首帧钉在窗口）；挂载恰 50 条 + load-earlier 按需翻页 50→54、最老页按钮消失；in-pod drill 证 total=54/hasMore=true/分页 4 条即尽；缓存回访 ~0.9s 即时渲染。
 
-**挂账**：~~① 缓存回访瞬间 transcript 计数属上一会话~~ **已清账**（9efc7339：`sessionWindowMeta` 与 `sessionCache` 同步键控——activateSession 出站写入/入站恢复、session_loaded 两分支与 done 站点写入、sessions 删除连同回收；store 测试 18/18；**随下一班快照上产**，本班不单滚）；② 重块会话（≈33KB/条，tool 产物为主）客户端挂载仍 3-7s，窗口 N 调参或块裁剪留待实测数据（探针已在产常驻）。
+**挂账**：~~① 缓存回访瞬间 transcript 计数属上一会话~~ **已清账**（9efc7339：`sessionWindowMeta` 与 `sessionCache` 同步键控——activateSession 出站写入/入站恢复、session_loaded 两分支与 done 站点写入、sessions 删除连同回收；store 测试 18/18；**随下一班快照上产**，本班不单滚；**已在产复核=见文末 §15.72**）；② 重块会话（≈33KB/条，tool 产物为主）客户端挂载仍 3-7s，窗口 N 调参或块裁剪留待实测数据（探针已在产常驻）。
 
 ### §15.70 官网下载中心上架 v1.3.20（2026-10-28，fd-official-web）
 
@@ -2951,3 +2951,20 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 **本轮执行**：data json 插 1.3.20（`3499e93`）→ 官网 CI 绿 → relay 验 ccr（`sha-3499e93` digest cbf47f8e，bump 硬门）→ **顺带 bump `deploy/k8s/fd-web.yaml`**（对齐 pod 回退线；ArgoCD auto-sync 已滚，pod 2/2 running 新镜像）→ 从**运行中的新镜像 pod** `kubectl cp` 抽 dist（ccr 匿名 pull 401，pod 抽产物最省且与镜像一致）→ 备份旧目录 `dist.bak-20261028` → 替换并**保留 live `data/calibers.json`**（首次替换曾漏带，已从备份恢复——替换脚本该把 live 文件显式并入）→ 公网眼见：中英下载页均列出 `Platform-1.3.20-arm64.dmg` / `Platform.Setup.1.3.20.exe`，下载 URL range 请求 206。
 
 **回滚**：`sudo mv /opt/fd/web/dist.bak-20261028 /opt/fd/web/dist`（静态线）；或切回 pod（`.bak-pod-20261016`）。
+
+### §15.72 polish-web-surfaces 挂账① 在产复核（2026-10-28 午后，sha-c4d0ce9）
+
+**结论先行**：§15.71 挂账①（缓存回访瞬间 transcript 计数属上一会话）的修复**已在生产运行**，并已按原始症状真机复现路径复核通过。
+
+**在产归属**：并行会话的 browser-lane 终版提交 `c4d0ce9` 恢复了被快照冲掉的 `image.yml` → 公开线出片 `sha-c4d0ce9`（digest `831ae713`）→ relay 11:56 回灌 `OK yizuo/platform:sha-c4d0ce9 (4s)` → GitOps `12187b1` 双清单 bump（platform.yaml:54 / platform-demo.yaml:71，注释记 paas `054dc944`）→ ArgoCD 滚完，`platform` 与 `platform-demo` 均 1/1。`9efc7339`（挂账① 修复）是 `054dc944` 的祖先，故随此片入产。
+
+**in-pod 代码在位**（不看 logs）：
+- `/app/web/dist/index.html` 引 `index-MokEBkbV.js`，该 bundle 含 `sessionWindowMeta`（grep 命中=修复在包内）与 `load_earlier`。
+- `/app/server/ws.js` 含 `load_earlier`；`/app/chat-history.js` 的 `TRANSCRIPT_WINDOW = 50`。
+
+**真机走查**（生产站，`内容集群（课例）· 巡线岗` 会话 / `cron-job_1793138268104_ixzde6`，DOM 断言为证）：
+- **冷加载**：页面 reload 后按钮出现「加载更早的消息（还有 4 条）」——但**首帧不稳定**：reload 后 4s 内 `btn=0`，再等 2-4s 才出按钮（重块挂载所致，属挂账②，非回归）。
+- **缓存回访（挂账① 原症状）**：从该会话 SPA 切走到另一会话、再经搜索面板切回（同一 page 实例=命中 `sessionCache`），按钮**仍在**且文案仍为「还有 4 条」——修复前此路径因 meta 被重置为 `0/false/null` 而丢失按钮，现按 `sessionWindowMeta` 恢复。
+- **分页回合**：点「加载更早的消息」→ 4 条补入（`article` 47→49），按钮消失（`hasMore=false`），与 in-pod drill（total=54 / window=50 / page=4）一致。
+
+**仍挂账**：② 重块会话首帧 3-7s 挂载（本次复现=reload 后按钮 4-8s 才稳定）——窗口 N 调参或 tool 产物块裁剪，待探针数据积累后定。

@@ -15,7 +15,7 @@
 ## 3. 能力实证
 
 - [x] 3.1 供给/缺席/远程三形态的本地实证：供给门单测 5 形态 + 缺席形态真机 boot（`~/.dsh` profile 的 `mcp.patch.yml` 零 `mcp-playwright` 条目=工具面诚实缺席）；本地 `@playwright/mcp` 下 MCP 握手 + tools/list 24 工具真链
-- [x] 3.2 滚产实证（sha-c4d0ce9，2026-10-28）：**agent 回合级全链真机**——pack 聚焦 cell 内 agent 实调 `mcp__playwright__browser_navigate` 读得标题 `Example Domain`、`browser_take_screenshot` 产物落 `/data/cells/<hash>/workspace/example_com_20261028.png`（71KB）且资源钩 `invalid_path` 零；live patch 条目带 `BROWSER_OUTPUT_DIR=会话工作区`；`PACK_BASELINE_MCP=fleet,playwright` 已放行 pack 人格使用车道。**欠**：per-cell 共享登录态复现 + 跨 cell 零泄漏（需第二个活 cell）+ 桌面 opt-in 复核
+- [x] 3.2 滚产实证（sha-c4d0ce9，2026-10-28）：**agent 回合级全链真机**——pack 聚焦 cell 内 agent 实调 `mcp__playwright__browser_navigate` 读得标题 `Example Domain`、`browser_take_screenshot` 产物落 `/data/cells/<hash>/workspace/example_com_20261028.png`（71KB）且资源钩 `invalid_path` 零；live patch 条目带 `BROWSER_OUTPUT_DIR=会话工作区`；`PACK_BASELINE_MCP=fleet,playwright` 已放行 pack 人格使用车道。**已补验（2026-10-28 晚，台账 §15.70 续2）**：桌面 opt-in —— 复核逮出文档与供给门不一致（只设 `BROWSER_MCP_CLI` 不被认作供给）→ 门已拓宽（运行时目录 | `BROWSER_CHROMIUM_PATH` | CLI 文件，单测 7/7）+ 桌面形态本地实跑组出 lane、agent 实调 navigate+take_screenshot 得 79KB 真 PNG 落工作区 + 安装包确认不含 runner；跨 cell 零泄漏 —— 双隔离实例 A/B 对拍：A 关样包后 A 变 `[dsh-base]`、B 仍 `enabled=true`、共享树指纹 `5042a1c9…` 前后一致（A 已复原）
 - [x] 3.3 per-cell 共享浏览器状态语义已入 spec（MCP sidecar 进程级共享=合同⑭既有事实的显性化；登录态跨会话留存=特性；跨 cell 隔离=结构保证）
 
 ## 4. 文档与收口

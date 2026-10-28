@@ -28,5 +28,5 @@
 
 - [x] 5.1 e2e：`e2e/plugins-supply.spec.js` 4/4 绿（roster 保护/失败呈现、toggle applying→plugins_changed 落地、流式置灰、空清单）；踩坑=section 自身 `list_plugins` 的真 roster 晚到会覆盖注入态，已加「等首次真回答再注入」
 - [x] 5.2 服务端真机冒烟（本地）：roster 11 项、样例 on→off→on 两次 `plugins_changed`（application=applied，HMR 热重组零重启）、dsh-base 拒绝（`management-required`）
-- [x] 5.3 滚产走查（sha-bbf73ea，2026-10-28）：生产 UI 真机——Settings→Plugins 区块在位（CAPABILITIES 组）、9 条 roster、`dsh-base` 保护置灰、供给提示条（截图 /tmp/wt-plugins-roster.png）；in-pod `wrote plugin supply bridge patch` 实证；**欠**：样包行（既有 cell 旧 scaffold 物化，新 cell/桌面才有）、跨 cell 隔离（当时仅 1 个活 cell）、桌面 predist 同源复核（矩阵安装解引用已本地实证）
+- [x] 5.3 滚产走查（sha-bbf73ea，2026-10-28）：生产 UI 真机——Settings→Plugins 区块在位（CAPABILITIES 组）、9 条 roster、`dsh-base` 保护置灰、供给提示条（截图 /tmp/wt-plugins-roster.png）；in-pod `wrote plugin supply bridge patch` 实证；**已补验（2026-10-28 晚，台账 §15.70 续2）**：跨 cell 隔离 —— 双隔离实例 A/B（真实 server+桥+服务）：A 关掉样包 → A manifest 变 `[dsh-base]`、**B 名单仍 `enabled=true`、B manifest 未动**、**共享 module 树指纹前后一致**（`5042a1c9…`），A 事后复原；生产旁证＝同 pod 内 7 个 cell 目录各持独立 DSH home/patch。**仍欠**：样包行只在新 cell/桌面出现（既有 cell 的 scaffold 不覆写，按设计）
 - [x] 5.4 CLAUDE.md 能力段 + 合同 18/18 记录（供 `port-dsh-0.2.1` 引用）；台账 `registry-maintenance` 条目随发布 commit 补记

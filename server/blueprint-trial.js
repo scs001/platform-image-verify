@@ -268,14 +268,18 @@ export function createLiveTrialDeps() {
     // doc 能解析时补 providerId 以支持"同 provider 换模型"的更精确判断。
     productionLanes: async (fleetId) => {
       const db = getFleetDatabase();
+      const fleet = db.getFleet(fleetId);
+      const cellDefault = process.env.LLM_MODEL || null;
       return db
         .listMembers(fleetId)
-        .map((m) => {
-          if (!m.effectiveModel) return null;
-          const resolved = laneForModel(m.effectiveModel);
-          return resolved ?? { laneId: null, providerId: null, model: m.effectiveModel };
-        })
-        .filter(Boolean);
+        // effectiveModel 是路由层的视图字段，DB 行里没有——按真实解析链算：
+        // 岗位 model → 舰队 defaultModel → cell 默认（与 fleet-reports 同序）。
+        .map((m) => m.model || fleet?.defaultModel || cellDefault)
+        .filter(Boolean)
+        .map((modelId) => {
+          const resolved = laneForModel(modelId);
+          return resolved ?? { laneId: null, providerId: null, model: modelId };
+        });
     },
     // 判定（D1-D6）：生产实现走既有 LLM 车道，不新造 provider 通道。
     judge: (args) => judgeAssertion(args),

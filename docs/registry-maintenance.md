@@ -3912,3 +3912,5 @@ turn=cron-job_1792719144227_3lpcem#r1793228411907-2   （23:00:18 CEO）
 
 **方法论（本 change 三次实证）**：`[x]` 是自证不是验收。单测直接挂路由（绕过鉴权中间件）、API 走 owner cookie（走不到 MCP 子进程那条道）、而**代理的真实行为只能在真机跑一轮回合才看得见**——桥面鉴权 401、找判例停摆、提示词升不上去，三条无一能被当时那套「19 条全绿 + API 级生产验证」发现。
 
+
+**最终上产（`sha-a52efc0` / digest `6a427063` / GitOps `5034df1`，源 `3bc3db01`）**：两面跑 `sha-a52efc0`，ArgoCD Synced Healthy。`resetPrompt` 生产实证：先用 `PATCH members` 人为写回「旧版职责：按判例裁决」模拟存量岗位 → `POST /:id/deputy {memberId, resetPrompt:true}` 返回 200 且岗位提示词升到新版（`contains新规范: true / 旧文本还在: false`），连测三次稳定。首次调用返回 500「task engine is still starting」是 cell 刚起、引擎未就绪的既有契约（不是本次缺陷），退避重试即过。策略终态：`enabled=true / routine-ops→deputy / maxSeverity=normal / dailyBudget=20 / model=deepseek-v4.1-flash / digest=daily / deputyMemberId=m_1793223622441_akv3fj`。

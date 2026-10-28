@@ -68,6 +68,127 @@ function fakeClient() {
   };
 }
 
+test("a child dying while the prompt is IN FLIGHT does not leak an unhandled rejection", async () => {
+  // The exact F3 window (spike 1.1, crash-excerpt.txt): harness/dsh.js's
+  // turn() creates the `collected` promise, THEN awaits client.prompt(), and
+  // only returns `collected` afterwards. If the child dies while the prompt
+  // is in flight, the pump's `_child_exit` branch rejects `collected` BEFORE
+  // any handler is attached to it — Node then treats it as an unhandled
+  // rejection and (default --unhandled-rejections=throw) takes the whole
+  // runner down. On a desktop seat that kills every hosted agent.
+  //
+  // The fix must keep the rejection visible to the caller (the turn still
+  // fails) while making sure the promise is never UNHANDLED.
+  process.env.DSH_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "f3c-dsh-"));
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "f3c-home-"));
+  const config = {
+    homeRoot: home,
+    registryUrl: "https://registry.example.test",
+    registryToken: "t",
+    backendToken: "bt",
+    maxChildren: 2,
+    drainMs: 100,
+    // A short turn budget: the in-flight prompt never settles, so the turn's
+    // own budget is what ends it — the assertion is the SHAPE (a bounded
+    // failure instead of a hang), not the wall clock.
+    turnTimeoutMs: 1200,
+    dshProfile: "platform",
+    cwd: home,
+    provider: "p",
+    model: "m",
+    portBase: 9240,
+    portSpan: 40,
+    budgetMb: 1024,
+    agentCostMb: 96,
+    respawnAttempts: 0,
+    respawnBackoffMs: [1],
+  };
+
+  const clients = [];
+  const manager = new ChildManager({
+    config,
+    registryClient: {
+      listServedAgents: async () => [ENTRY],
+      fetchSkillContent: async () => "# s",
+      mcpUrlFor: (name) => `https://registry.example.test/${name}/mcp`,
+    },
+    clientFactory: () => () => {
+      const listeners = [];
+      let died = false;
+      let failPrompt = null;
+      const client = {
+        __die() {
+          died = true;
+          // The transport fails BOTH lanes: the subscription (the pump wakes
+          // and takes the _child_exit path) and the in-flight request. The
+          // subscription wake is queued FIRST, so the pump's settle runs
+          // before turn()'s own catch — which is the exact ordering of the
+          // spike crash (the rejection lands while `collected` has no
+          // handler yet).
+          for (const wake of listeners.splice(0)) wake();
+        },
+        start() {},
+        async initialize() {
+          return { ok: true };
+        },
+        async request() {
+          return { accepted: true };
+        },
+        subscribe() {
+          return {
+            next: async () => {
+              for (;;) {
+                if (died) throw new Error("child gone");
+                await new Promise((r) => listeners.push(r));
+              }
+            },
+          };
+        },
+        // The prompt is IN FLIGHT when the child dies and NEVER settles: the
+        // bytes are already buffered, the process is gone, and nothing
+        // completes the request. The subscription's EOF (the pump's
+        // `_child_exit` branch) is the only signal — and it lands on
+        // `collected` while turn() is still suspended on this await, which is
+        // the unhandled-rejection window the spike crashed on.
+        async prompt() {
+          return new Promise(() => {});
+        },
+        async stop() {},
+        child: { pid: null },
+      };
+      clients.push(client);
+      return client;
+    },
+    log: { log() {}, warn() {}, error() {} },
+  });
+
+  const unhandled = [];
+  const onUnhandled = (e) => unhandled.push(e);
+  process.on("unhandledRejection", onUnhandled);
+  try {
+    const pending = manager.turn(ENTRY, "s1", "hi").then(() => null, (e) => e);
+    for (let i = 0; i < 100 && manager.children.size === 0; i += 1) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    assert.equal(manager.children.size, 1, "the child is live with a prompt in flight");
+    await new Promise((r) => setTimeout(r, 150));
+
+    clients[0].__die(); // death while the prompt is still in flight
+    const err = await pending;
+    assert.ok(err, "the caller gets a bounded failure");
+    assert.equal(err.code, -32002, "and it is the structured child-exit error");
+    await new Promise((r) => setTimeout(r, 120));
+    assert.equal(
+      unhandled.length,
+      0,
+      `the rejection must never be unhandled (this is what killed the spike runner): ${unhandled.map((e) => e?.message).join("; ")}`,
+    );
+  } finally {
+    process.off("unhandledRejection", onUnhandled);
+    await manager.stopAll();
+  }
+});
+
 test("a child whose prompt() rejects (transport already closed) does not leak an unhandled rejection", async () => {
   // The second death shape: the process is gone BEFORE the prompt reaches the
   // wire, so `prompt()` itself rejects. In dsh.js's turn() this path settles

@@ -330,7 +330,13 @@ export class DshHarnessAdapter {
       let graceTimer = null;
       let askTimer = null;
       const turnStartedAt = Date.now();
+      // Settle ONCE (the contract above): the collector path (`_child_exit`)
+      // and the prompt-failure path can both fire for the same turn — the
+      // second one must not decrement the active-turn counter again.
+      let settled = false;
       const done = (fn, arg) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timer);
         clearTimeout(graceTimer);
         clearTimeout(askTimer);
@@ -468,11 +474,29 @@ export class DshHarnessAdapter {
         }
       });
     });
-    try {
-      await this.client.prompt(wireId, [{ type: "text", text }]);
-    } catch (e) {
-      settle(false, e);
-    }
+    // The rejection must never be UNHANDLED, and the turn must never HANG
+    // (add-local-fleet-control-plane F3 — spike 1.1 crash-excerpt.txt:
+    // "agent runtime exited mid-turn" at this file's `_child_exit` branch
+    // killed the whole runner, taking every hosted agent with it):
+    //
+    //   1. `collected` is created here but only RETURNED after the prompt
+    //      resolves — so a rejection landing in that window (the child died
+    //      mid-request) had no handler attached and Node took the process
+    //      down. The no-op catch marks it handled; the caller still receives
+    //      the rejection when it awaits `collected` below.
+    //   2. When the child dies, the outstanding write may never complete (the
+    //      bytes are buffered, the process is gone) — so the prompt promise
+    //      can stay pending FOREVER while the outcome is already known from
+    //      the subscription's EOF. Racing the two means the turn ends on
+    //      whichever settles first, instead of hanging until the caller gives
+    //      up.
+    collected.catch(() => {});
+    const promptOutcome = this.client
+      .prompt(wireId, [{ type: "text", text }])
+      .catch((e) => {
+        settle(false, e);
+      });
+    await Promise.race([promptOutcome, collected.catch(() => {})]);
     return collected;
   }
 

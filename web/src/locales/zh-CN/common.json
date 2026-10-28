@@ -3065,7 +3065,13 @@
     "trial": {
       "title": "试跑报告",
       "load": "载入",
-      "none": "尚未落报告。"
+      "none": "尚未落报告。",
+      "green": "全绿",
+      "notGreen": "未全绿",
+      "pass": "通过",
+      "fail": "未过",
+      "ranAt": "跑于 {{when}}",
+      "judgedCount": "{{count}} 条模型判据"
     },
     "castPack": "包 {{packId}}",
     "draft": {
@@ -3083,6 +3089,21 @@
     "delete": {
       "label": "删除",
       "castLocked": "已铸造的蓝图不可删除——市场里的包才是账"
+    },
+    "judge": {
+      "audit": "判决记录",
+      "verdict": {
+        "pass": "模型：判绿",
+        "fail": "模型：判不绿",
+        "insufficient-evidence": "模型：证据不足"
+      }
+    },
+    "signoff": {
+      "sign": "对报告签字",
+      "signed": "报告已签字。",
+      "by": "由 {{who}} 签字 · {{when}}",
+      "clear": "撤签",
+      "cleared": "已撤签。"
     }
   }
 }

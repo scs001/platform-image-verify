@@ -94,7 +94,13 @@ export function shapeFindings(content) {
 
 // ── Manifest 组装与全链校验 ────────────────────────────────────────────────
 
-export const TRIAL_ASSERTION_KINDS = ["post-materialized", "first-round-fired", "report-landed", "escalate-bounded"];
+export const MACHINE_ASSERTION_KINDS = ["post-materialized", "first-round-fired", "report-landed", "escalate-bounded"];
+// llm-judged（add-blueprint-llm-assertions）：自由文本 rubric 交 judge 车道三态判定
+// （pass/fail/insufficient-evidence），判绿还须 owner 签报告——双钥匙，见 design D1。
+export const TRIAL_ASSERTION_KINDS = [...MACHINE_ASSERTION_KINDS, "llm-judged"];
+
+// 成本闸（design D6）：超限如实拒，不静默截断。
+export const JUDGE_ASSERTION_CAP = Number(process.env.BLUEPRINT_JUDGE_MAX || 8);
 
 // 断言条目形状：{ id, kind, target?, expect? }。target = 岗位 title（缺省=全岗）。
 export function normalizeAcceptance(acceptance) {
@@ -117,8 +123,27 @@ export function normalizeAcceptance(acceptance) {
     if (kind === "escalate-bounded" && item.expect !== undefined && !Number.isFinite(item.expect)) {
       errors.push({ error: `acceptance[${i}] '${id}' expect must be a number for escalate-bounded`, entry: `acceptance[${i}].expect` });
     }
-    assertions.push({ id, kind, target: item.target ?? null, expect: item.expect ?? null });
+    // llm-judged：rubric 是判据原文，必须非空——空判据等于没判据。
+    let rubric = null;
+    if (kind === "llm-judged") {
+      if (typeof item.rubric !== "string" || !item.rubric.trim()) {
+        errors.push({
+          error: `acceptance[${i}] '${id}' llm-judged needs a non-empty rubric (the acceptance text the judge reads)`,
+          entry: `acceptance[${i}].rubric`,
+        });
+      } else {
+        rubric = item.rubric.trim();
+      }
+    }
+    assertions.push({ id, kind, target: item.target ?? null, expect: item.expect ?? null, ...(rubric ? { rubric } : {}) });
   });
+  const judged = assertions.filter((a) => a.kind === "llm-judged");
+  if (judged.length > JUDGE_ASSERTION_CAP) {
+    errors.push({
+      error: `this blueprint declares ${judged.length} llm-judged assertions, over the cap of ${JUDGE_ASSERTION_CAP} (each one is a model call) — merge or drop some`,
+      entry: "acceptance",
+    });
+  }
   return { assertions, errors };
 }
 
@@ -157,10 +182,11 @@ export function normalizeIncomingContent(content) {
   }
   // boards[] → board（保留原数组，只是键名对齐）
   if (Array.isArray(c.boards) && c.board === undefined) c.board = c.boards;
-  // acceptance 自由文本串 → 结构化占位（kind=free-text，校验链会指名不支持）
+  // acceptance 自由文本串 → llm-judged（rubric 即原文）：finddata 蓝图 v1 的
+  // acceptance 就是自由文本，旧文件不改即可进入可判状态（design D7）。
   if (Array.isArray(c.acceptance)) {
     c.acceptance = c.acceptance.map((a, i) =>
-      typeof a === "string" ? { id: `legacy-${i + 1}`, kind: "free-text", text: a } : a,
+      typeof a === "string" ? { id: `legacy-${i + 1}`, kind: "llm-judged", rubric: a } : a,
     );
   }
   // _casting.source_blueprint / packDependencies 保留原样（铸造时只用本仓字段，
@@ -293,5 +319,16 @@ export function buildCastManifest({ content, resolved = {}, selfPackId = null, c
     approvedAt: casting.approvedAt,
     diffSummary: casting.diffSummary ?? null,
   };
+  // 试跑报告随铸造追溯走（可售闸只读 manifest，不跨服务查）：只带判绿所需的
+  // 三件——green / 模型判决 / 签字，不塞全量证据（体积与泄密面）。
+  if (casting.trialReport) {
+    const r = casting.trialReport;
+    manifest._casting.trialReport = {
+      green: r.green === true,
+      ranAt: r.ranAt ?? null,
+      ...(Array.isArray(r.judged) && r.judged.length ? { judged: r.judged.map((j) => ({ id: j.id, verdict: j.verdict, pass: j.pass })) } : {}),
+      ...(r.signoff ? { signoff: r.signoff } : {}),
+    };
+  }
   return { manifest, missing, selfPending };
 }

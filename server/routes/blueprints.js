@@ -284,6 +284,8 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
         approvedBy: blueprint.approvedBy,
         approvedAt: blueprint.approvedAt,
         diffSummary: blueprint.diffSummary,
+        // 可售闸读的就是这一份：绿 + 模型判决 + 主人签字（add-blueprint-llm-assertions）。
+        trialReport: blueprint.trialReport ?? null,
       },
     });
     if (missing.length) {
@@ -318,6 +320,33 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
     } finally {
       trialRunning.delete(owned.blueprint.id);
     }
+  });
+
+  // ── 试跑签字（add-blueprint-llm-assertions D1 双钥匙：模型判绿是证据，
+  // owner 签字是终审）。签字对象是整份报告；重跑覆盖报告后旧签字作废。 ──────
+
+  router.post("/:id/trial-signoff", (req, res) => {
+    const owned = requireOwnedBlueprint(req, res);
+    if (!owned) return;
+    const report = owned.blueprint.trialReport;
+    if (!report || !report.ranAt) {
+      return res.status(409).json({ error: "no trial report to sign — run the trial first" });
+    }
+    const signed = store.saveTrialReport(owned.blueprint.id, {
+      ...report,
+      signoff: { by: owned.user.email, at: new Date().toISOString(), reportRanAt: report.ranAt },
+    });
+    res.json({ blueprint: signed, report: signed.trialReport });
+  });
+
+  router.delete("/:id/trial-signoff", (req, res) => {
+    const owned = requireOwnedBlueprint(req, res);
+    if (!owned) return;
+    const report = owned.blueprint.trialReport;
+    if (!report) return res.status(409).json({ error: "no trial report" });
+    const { signoff: _drop, ...rest } = report;
+    const cleared = store.saveTrialReport(owned.blueprint.id, rest);
+    res.json({ blueprint: cleared, report: cleared.trialReport });
   });
 
   // ── 试跑报告位（task 4.x 存储半） ─────────────────────────────────────────

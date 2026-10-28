@@ -118,12 +118,66 @@ export function castBlueprint(id: string) {
   );
 }
 
+export interface TrialJudgement {
+  id: string;
+  kind: string;
+  pass: boolean;
+  verdict?: "pass" | "fail" | "insufficient-evidence";
+  detail?: string;
+  audit?: {
+    assertionId?: string;
+    rubric?: string;
+    verdict?: string;
+    model?: string | null;
+    endpointDigest?: string | null;
+    promptHash?: string | null;
+    evidenceDigest?: string | null;
+    rawVerdict?: string | null;
+    judgedAt?: string;
+  };
+}
+
+export interface TrialSignoff {
+  by: string;
+  at: string;
+  reportRanAt: number;
+}
+
+export interface TrialReport {
+  ranAt: number;
+  fleetId: string | null;
+  green: boolean;
+  assertions: TrialJudgement[];
+  judged?: TrialJudgement[];
+  signoff?: TrialSignoff;
+  errors?: string[];
+  [key: string]: unknown;
+}
+
+export function signTrialReport(id: string) {
+  return call<{ blueprint: Blueprint; report: TrialReport }>(`/api/blueprints/${encodeURIComponent(id)}/trial-signoff`, {
+    method: "POST",
+  });
+}
+
+export function unsignTrialReport(id: string) {
+  return call<{ blueprint: Blueprint; report: TrialReport }>(`/api/blueprints/${encodeURIComponent(id)}/trial-signoff`, {
+    method: "DELETE",
+  });
+}
+
 export function deleteBlueprint(id: string) {
   return call<{ ok: boolean; id: string }>(`/api/blueprints/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
 export function getTrialReport(id: string) {
-  return call<{ report: unknown }>(`/api/blueprints/${encodeURIComponent(id)}/trial-report`);
+  return call<{ report: TrialReport | null }>(`/api/blueprints/${encodeURIComponent(id)}/trial-report`);
+}
+
+export function runTrial(id: string) {
+  return call<{ report: TrialReport; blueprint: Blueprint }>(`/api/blueprints/${encodeURIComponent(id)}/trial`, {
+    method: "POST",
+  });
 }
 
 // 新草稿骨架：六段在场、结构可编辑；场景名占位（创建后于表单轨改名）。

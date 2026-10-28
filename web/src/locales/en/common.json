@@ -3065,7 +3065,13 @@
     "trial": {
       "title": "Trial report",
       "load": "Load",
-      "none": "No report recorded yet."
+      "none": "No report recorded yet.",
+      "green": "Green",
+      "notGreen": "Not green",
+      "pass": "Pass",
+      "fail": "Fail",
+      "ranAt": "ran {{when}}",
+      "judgedCount": "{{count}} model-judged"
     },
     "castPack": "pack {{packId}}",
     "draft": {
@@ -3083,6 +3089,21 @@
     "delete": {
       "label": "Delete",
       "castLocked": "Cast blueprints cannot be deleted — the market pack is the record"
+    },
+    "judge": {
+      "audit": "Judgement record",
+      "verdict": {
+        "pass": "Model: pass",
+        "fail": "Model: fail",
+        "insufficient-evidence": "Model: insufficient evidence"
+      }
+    },
+    "signoff": {
+      "sign": "Sign off the report",
+      "signed": "Report signed.",
+      "by": "Signed by {{who}} · {{when}}",
+      "clear": "Withdraw",
+      "cleared": "Signature withdrawn."
     }
   }
 }

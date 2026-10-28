@@ -17,12 +17,15 @@ import {
   getBlueprint,
   getTrialReport,
   listBlueprints,
+  signTrialReport,
   skeletonContent,
+  unsignTrialReport,
   updateBlueprint,
   validateBlueprint,
   type Blueprint,
   type BlueprintContent,
   type BlueprintSummary,
+  type TrialReport,
   type ValidationError,
   type ValidationVerdict,
 } from "@/lib/blueprint-api";
@@ -97,7 +100,7 @@ export function BlueprintStudioPage() {
   const [verdictStale, setVerdictStale] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
-  const [trial, setTrial] = useState<unknown>(null);
+  const [trial, setTrial] = useState<TrialReport | null>(null);
   const [draftPaste, setDraftPaste] = useState("");
   const [draftError, setDraftError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -120,7 +123,7 @@ export function BlueprintStudioPage() {
       setVerdict(null);
       setVerdictStale(false);
       setNotice(null);
-      setTrial(blueprint.trialReport ?? null);
+      setTrial((blueprint.trialReport as TrialReport | null) ?? null);
     } catch (e) {
       setNotice({ kind: "err", text: String((e as Error).message) });
     } finally {
@@ -311,11 +314,29 @@ export function BlueprintStudioPage() {
       if (next) await open(next.id);
     });
 
+  const onSign = () =>
+    run("sign", async () => {
+      if (!detail) return;
+      const out = await signTrialReport(detail.id);
+      setTrial(out.report);
+      setDetail(out.blueprint);
+      setNotice({ kind: "ok", text: t("blueprints.signoff.signed") });
+    });
+
+  const onUnsign = () =>
+    run("sign", async () => {
+      if (!detail) return;
+      const out = await unsignTrialReport(detail.id);
+      setTrial(out.report);
+      setDetail(out.blueprint);
+      setNotice({ kind: "ok", text: t("blueprints.signoff.cleared") });
+    });
+
   const onLoadTrial = () =>
     run("trial", async () => {
       if (!detail) return;
       const out = await getTrialReport(detail.id);
-      setTrial(out.report);
+      setTrial(out.report ?? null);
     });
 
   const canApprove = Boolean(verdict?.ok) && !verdictStale && !dirty && status !== "cast";
@@ -619,7 +640,72 @@ export function BlueprintStudioPage() {
                       <span className="text-[11px] text-muted-foreground">{t("blueprints.castPack", { packId: detail.castPackId })}</span>
                     ) : null}
                   </div>
-                  <pre className="mt-2 max-h-48 overflow-auto rounded-md bg-muted/40 p-2 text-[11px]">{trial ? JSON.stringify(trial, null, 2) : t("blueprints.trial.none")}</pre>
+                  {!trial ? (
+                    <div className="mt-2 text-[11px] text-muted-foreground">{t("blueprints.trial.none")}</div>
+                  ) : (
+                    <div className="mt-2 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                        <span className={trial.green ? "text-emerald-600" : "text-destructive"}>
+                          {trial.green ? t("blueprints.trial.green") : t("blueprints.trial.notGreen")}
+                        </span>
+                        <span className="text-muted-foreground">{t("blueprints.trial.ranAt", { when: new Date(trial.ranAt).toLocaleString() })}</span>
+                        {trial.judged?.length ? (
+                          <span className="text-muted-foreground">{t("blueprints.trial.judgedCount", { count: trial.judged.length })}</span>
+                        ) : null}
+                        {trial.signoff ? (
+                          <span className="text-emerald-600" data-testid="blueprint-signoff-state">
+                            {t("blueprints.signoff.by", { who: trial.signoff.by, when: String(trial.signoff.at).slice(0, 19) })}
+                            <button type="button" className="ml-2 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground hover:bg-muted" onClick={onUnsign} disabled={busy !== null}>
+                              {t("blueprints.signoff.clear")}
+                            </button>
+                          </span>
+                        ) : trial.judged?.length ? (
+                          <button
+                            type="button"
+                            className="rounded-md bg-primary/90 px-2 py-0.5 text-[11px] text-primary-foreground hover:bg-primary disabled:opacity-40"
+                            onClick={onSign}
+                            disabled={busy !== null}
+                            data-testid="blueprint-signoff"
+                          >
+                            {t("blueprints.signoff.sign")}
+                          </button>
+                        ) : null}
+                      </div>
+                      <ul className="space-y-1">
+                        {trial.assertions.map((a) => (
+                          <li key={`${a.id}-${a.kind}`} className="rounded-md border border-border px-2 py-1 text-[11px]" data-testid={`blueprint-assert-${a.id}`}>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span
+                                className={`rounded-full border px-1.5 py-0.5 text-[10px] ${
+                                  a.pass
+                                    ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-600"
+                                    : "border-destructive/40 bg-destructive/5 text-destructive"
+                                }`}
+                              >
+                                {a.kind === "llm-judged" ? t(`blueprints.judge.verdict.${a.verdict ?? "insufficient-evidence"}`) : a.pass ? t("blueprints.trial.pass") : t("blueprints.trial.fail")}
+                              </span>
+                              <span className="font-mono text-muted-foreground">{a.id}</span>
+                              <span className="text-muted-foreground">{a.kind}</span>
+                              <span className="min-w-0 flex-1 truncate text-muted-foreground">{a.detail}</span>
+                            </div>
+                            {a.audit ? (
+                              <details className="mt-1">
+                                <summary className="cursor-pointer text-[10px] text-muted-foreground">{t("blueprints.judge.audit")}</summary>
+                                <pre className="mt-1 max-h-32 overflow-auto rounded bg-muted/40 p-1.5 text-[10px]">{JSON.stringify(a.audit, null, 2)}</pre>
+                              </details>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                      {trial.errors?.length ? (
+                        <ul className="space-y-1 text-[11px] text-destructive">
+                          {keyed(trial.errors, (e) => e).map(({ key, row: e }) => (
+                            <li key={key}>{e}</li>
+                          ))}
+                        </ul>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
               ) : null}
             </div>

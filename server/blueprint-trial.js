@@ -21,7 +21,8 @@ import { reconcileFleet } from "./fleet-reconcile.js";
 import { getFleetDatabase } from "./routes/fleets-db.js";
 import { getClusterDatabase } from "./routes/clusters-db.js";
 import { resolveFleetTarget } from "./routes/fleets.js";
-import { TRIAL_ASSERTION_KINDS, normalizeAcceptance } from "./blueprint-validate.js";
+import { normalizeAcceptance } from "./blueprint-validate.js";
+import { judgeAssertion, laneForModel } from "./blueprint-judge.js";
 
 function membersFor(assertion, members) {
   if (!assertion.target) return members;
@@ -98,6 +99,50 @@ export function evaluateTrial({ assertions, evidence, since }) {
   });
 }
 
+// 一条断言可见的证据文本（design D3：只喂已收证据，不含蓝图自述）。
+export function evidenceTextFor(assertion, evidence) {
+  const members = membersFor(assertion, evidence.members ?? []);
+  const ids = new Set(members.map((m) => m.memberId));
+  const lines = [];
+  if (members.length) {
+    lines.push(`岗位：${members.map((m) => `${m.title}(${m.targetId ? "已落位" : "空缺"})`).join("、")}`);
+  }
+  const turns = (evidence.turns ?? []).filter((t) => ids.size === 0 || ids.has(t.memberId));
+  if (turns.length) lines.push(`回合：${turns.length} 个（${turns.slice(0, 5).map((t) => t.jobId ?? t.memberId).join(", ")}）`);
+  const reports = (evidence.reports ?? []).filter((r) => ids.size === 0 || ids.has(r.memberId));
+  for (const r of reports.slice(0, 5)) {
+    lines.push(`报数 ${r.reportId ?? ""}（${new Date(r.createdAt ?? 0).toISOString()}）：${String(r.summary ?? r.metrics ?? "").slice(0, 600)}`);
+  }
+  if (Number.isFinite(evidence.escalations)) lines.push(`未决升级项：${evidence.escalations} 件`);
+  return lines.join("\n");
+}
+
+// 判定阶段（design D8）：只判 llm-judged 条目；deps.judge 可注入（测试零真模型）。
+async function judgeAll({ assertions, evidence, fleetId, deps }) {
+  const targets = assertions.filter((a) => a.kind === "llm-judged");
+  if (!targets.length) return [];
+  const productionLanes = await (deps.productionLanes ? deps.productionLanes(fleetId) : Promise.resolve([]));
+  const out = [];
+  for (const a of targets) {
+    const judged = await deps.judge({
+      assertionId: a.id,
+      rubric: a.rubric,
+      evidenceText: evidenceTextFor(a, evidence),
+      productionLanes,
+    });
+    out.push({
+      id: a.id,
+      kind: "llm-judged",
+      pass: judged.verdict === "pass",
+      verdict: judged.verdict,
+      detail: `${judged.verdict} — ${judged.reason || ""}`.trim(),
+      evidence: { turnIds: [], reportIds: [], sourceRefs: [] },
+      audit: judged.audit,
+    });
+  }
+  return out;
+}
+
 // 主流程：装台→点火→跑一轮→收证→判绿。任何装配失败如实进 errors，不抛。
 export async function runTrial({ blueprint, deps, timeoutMs = 10 * 60_000, pollMs = 15_000 } = {}) {
   const now = deps.now ?? Date.now;
@@ -144,7 +189,12 @@ export async function runTrial({ blueprint, deps, timeoutMs = 10 * 60_000, pollM
 
     // 收证：窗口内轮询直到可判或超时（超时者按无证判不绿并如实标）。
     const evidence = await deps.collectAndWait({ fleetId: provisioned.fleetId, since, assertions: normalized.assertions, timeoutMs, pollMs, fired: report.fired });
-    report.assertions = evaluateTrial({ assertions: normalized.assertions, evidence, since });
+    const machine = normalized.assertions.filter((a) => a.kind !== "llm-judged");
+    const machineJudged = evaluateTrial({ assertions: machine, evidence, since });
+    // 判定阶段（design D8）：机器判绿之后、落报告之前。
+    const judged = deps.judge ? await judgeAll({ assertions: normalized.assertions, evidence, fleetId: provisioned.fleetId, deps }) : [];
+    report.assertions = [...machineJudged, ...judged];
+    report.judged = judged;
     report.green = report.assertions.length > 0 && report.assertions.every((a) => a.pass);
     report.evidenceWindow = { since, until: now() };
   } catch (err) {
@@ -211,6 +261,16 @@ export function createLiveTrialDeps() {
       }
       await reconcileFleet({ fleetId, db, cronApi: cron, resolveTarget: resolveFleetTarget, rosterPresetId });
     },
+    // 产出车道（D4 禁自证）：试跑舰各岗位解析到的模型 → lane id。
+    productionLanes: async (fleetId) => {
+      const db = getFleetDatabase();
+      return db
+        .listMembers(fleetId)
+        .map((m) => laneForModel(m.effectiveModel))
+        .filter(Boolean);
+    },
+    // 判定（D1-D6）：生产实现走既有 LLM 车道，不新造 provider 通道。
+    judge: (args) => judgeAssertion(args),
     fireRound: async (fleetId) => {
       const jobs = cron.listJobs().filter((j) => j?.sourceTag?.fleetId === fleetId);
       const fired = [];

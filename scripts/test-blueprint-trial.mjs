@@ -22,9 +22,12 @@ test("normalizeAcceptance：闭集解析；未知 kind 逐条指名；空清单�
   assert.deepEqual(ok.errors, []);
   assert.deepEqual(ok.assertions.map((a) => a.kind), ["post-materialized", "escalate-bounded"]);
 
-  const bad = normalizeAcceptance([{ id: "x", kind: "llm-judged" }, { id: "y", kind: "escalate-bounded", expect: "two" }]);
+  const bad = normalizeAcceptance([{ id: "x", kind: "made-up" }, { id: "y", kind: "escalate-bounded", expect: "two" }]);
   assert.equal(bad.errors.length, 2);
-  assert.match(bad.errors[0].error, /unsupported assertion kind 'llm-judged'/);
+  assert.match(bad.errors[0].error, /unsupported assertion kind 'made-up'/);
+  // llm-judged 是合法 kind，但必须带非空 rubric。
+  const judged = normalizeAcceptance([{ id: "j1", kind: "llm-judged" }]);
+  assert.match(judged.errors[0].error, /llm-judged needs a non-empty rubric/);
   assert.match(bad.errors[1].error, /expect must be a number/);
 
   assert.deepEqual(normalizeAcceptance(undefined).assertions, []);
@@ -201,4 +204,83 @@ test("D8 试跑舰命名：建舰即带 `·试跑` 后缀，复用不重复改�
   calls.length = 0;
   ensureTrialFleetName({ getFleet: () => null, updateFleet: (...a) => calls.push(a) }, "gone");
   assert.equal(calls.length, 0);
+});
+
+test("judge 阶段：llm-judged 非 pass 即不绿；全 pass 才绿（双钥匙第一把）", async () => {
+  const base = {
+    now: () => 1000,
+    fetchManifest: async () => ({ fleet: { name: "x", members: [] } }),
+    install: async () => {},
+    provision: async () => ({ ok: true, fleetId: "f1" }),
+    startFleet: async () => {},
+    productionLanes: async () => ["lane-producer"],
+    fireRound: async () => [{ jobId: "j1", memberId: "m1", at: 1010 }],
+    collectAndWait: async ({ since }) => ({
+      members: [{ memberId: "m1", title: "简报岗", targetId: "brief" }],
+      turns: [{ memberId: "m1", at: since + 1, jobId: "j1" }],
+      reports: [{ memberId: "m1", reportId: "r1", createdAt: since + 2, summary: "首轮简报完成" }],
+      escalations: 0,
+    }),
+  };
+  const acceptance = [{ id: "semantic", kind: "llm-judged", rubric: "首轮产出简报且口径可对账" }];
+
+  const pass = await runTrial({
+    blueprint: { ownerEmail: "a@x", castPackId: "pk", castPackVersion: 1, content: { acceptance } },
+    deps: {
+      ...base,
+      judge: async () => ({ verdict: "pass", reason: "证据支持", audit: { assertionId: "semantic", model: "cheap-1", verdict: "pass" } }),
+    },
+  });
+  assert.equal(pass.green, true);
+  assert.equal(pass.judged.length, 1);
+  assert.equal(pass.judged[0].verdict, "pass");
+  assert.equal(pass.judged[0].audit.model, "cheap-1");
+
+  const insufficient = await runTrial({
+    blueprint: { ownerEmail: "a@x", castPackId: "pk", castPackVersion: 1, content: { acceptance } },
+    deps: {
+      ...base,
+      judge: async () => ({ verdict: "insufficient-evidence", reason: "证据不足以判断", audit: {} }),
+    },
+  });
+  assert.equal(insufficient.green, false);
+  assert.equal(insufficient.judged[0].pass, false);
+});
+
+test("judge 阶段：证据只含已收证据文本（不含蓝图自述）", async () => {
+  let seen = null;
+  await runTrial({
+    blueprint: {
+      ownerEmail: "a@x",
+      castPackId: "pk",
+      castPackVersion: 1,
+      content: {
+        boundary: { name: "自述不该出现", oneLine: "自述也不该出现" },
+        acceptance: [{ id: "sem", kind: "llm-judged", rubric: "有简报" }],
+      },
+    },
+    deps: {
+      now: () => 1000,
+      fetchManifest: async () => ({ fleet: { name: "x", members: [] } }),
+      install: async () => {},
+      provision: async () => ({ ok: true, fleetId: "f1" }),
+      startFleet: async () => {},
+      productionLanes: async () => ["lane-producer"],
+      fireRound: async () => [{ jobId: "j1", memberId: "m1", at: 1010 }],
+      collectAndWait: async ({ since }) => ({
+        members: [{ memberId: "m1", title: "简报岗", targetId: "brief" }],
+        turns: [{ memberId: "m1", at: since + 1, jobId: "j1" }],
+        reports: [{ memberId: "m1", reportId: "r1", createdAt: since + 2, summary: "简报已出" }],
+        escalations: 0,
+      }),
+      judge: async (args) => {
+        seen = args;
+        return { verdict: "pass", reason: "", audit: {} };
+      },
+    },
+  });
+  assert.ok(seen, "judge 必须被调用");
+  assert.equal(seen.evidenceText.includes("自述不该出现"), false);
+  assert.match(seen.evidenceText, /简报已出/);
+  assert.deepEqual(seen.productionLanes, ["lane-producer"]);
 });

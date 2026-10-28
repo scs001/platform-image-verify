@@ -3065,7 +3065,13 @@
     "trial": {
       "title": "試走レポート",
       "load": "読み込む",
-      "none": "まだレポートがありません。"
+      "none": "まだレポートがありません。",
+      "green": "全緑",
+      "notGreen": "未緑",
+      "pass": "合格",
+      "fail": "不合格",
+      "ranAt": "実行 {{when}}",
+      "judgedCount": "モデル判定 {{count}} 件"
     },
     "castPack": "パッケージ {{packId}}",
     "draft": {
@@ -3083,6 +3089,21 @@
     "delete": {
       "label": "削除",
       "castLocked": "鋳造済みのブループリントは削除できません。マーケットのパッケージが記録です"
+    },
+    "judge": {
+      "audit": "判定記録",
+      "verdict": {
+        "pass": "モデル：合格",
+        "fail": "モデル：不合格",
+        "insufficient-evidence": "モデル：証拠不十分"
+      }
+    },
+    "signoff": {
+      "sign": "レポートに署名",
+      "signed": "署名しました。",
+      "by": "{{who}} が署名 · {{when}}",
+      "clear": "撤回",
+      "cleared": "署名を撤回しました。"
     }
   }
 }

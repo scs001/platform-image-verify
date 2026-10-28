@@ -16,6 +16,9 @@ export const TRIAL_GATE_CODES = {
   missingCasting: "priced-template-without-casting",
   missingTrial: "priced-template-without-trial-report",
   trialNotGreen: "priced-template-trial-not-green",
+  // add-blueprint-llm-assertions：双钥匙闸的另两项缺位。
+  llmNotPass: "priced-template-llm-assertions-not-pass",
+  signoffMissing: "priced-template-trial-not-signed",
 };
 
 const isTemplateManifest = (manifest) => Boolean(manifest && manifest.fleet && typeof manifest.fleet === "object");
@@ -55,17 +58,43 @@ export function sellabilityGate(manifest, { pricing = null } = {}) {
       return { errors, notes };
     }
     if (report.green !== true) {
-      const failed = Array.isArray(report.assertions)
-        ? report.assertions.filter((a) => !a?.pass).map((a) => a?.id ?? "(unnamed)")
-        : [];
+      const failed = Array.isArray(report.judged)
+        ? report.judged.filter((j) => j && j.pass !== true).map((j) => `${j.id ?? "(unnamed)"}=${j.verdict ?? "?"}`)
+        : Array.isArray(report.assertions)
+          ? report.assertions.filter((a) => !a?.pass).map((a) => a?.id ?? "(unnamed)")
+          : [];
       errors.push({
         error:
           failed.length > 0
-            ? `trial report is not green — failing assertion(s): ${failed.join(", ")}; a non-green template cannot be sold`
+            ? `trial report is not green — failing item(s): ${failed.join(", ")}; a non-green template cannot be sold`
             : "trial report is not green (no assertion evidence) — a non-green template cannot be sold",
         code: TRIAL_GATE_CODES.trialNotGreen,
         entry: "_casting.trialReport.green",
       });
+      return { errors, notes };
+    }
+    // 双钥匙（design D1）：有模型判据的包，除机器/模型判绿外还必须由 owner
+    // 签过这份报告——模型给的是证据，人担的是终审。纯机器包不需要签字
+    // （向后兼容：既有已上产报告没有 judged 数组）。
+    if (Array.isArray(report.judged) && report.judged.length > 0) {
+      const notPass = report.judged.filter((j) => j?.pass !== true || j?.verdict !== "pass");
+      if (notPass.length > 0) {
+        errors.push({
+          error: `llm-judged assertion(s) did not pass: ${notPass.map((j) => `${j?.id ?? "(unnamed)"}=${j?.verdict ?? "?"}`).join(", ")} — a template with unproven model-judged assertions cannot be sold`,
+          code: TRIAL_GATE_CODES.llmNotPass,
+          entry: "_casting.trialReport.judged",
+        });
+      }
+      const sign = report.signoff;
+      const signedThisRun = Boolean(sign && sign.by && sign.reportRanAt != null && sign.reportRanAt === report.ranAt);
+      if (!signedThisRun) {
+        errors.push({
+          error:
+            "this trial carries model-judged assertions and has not been signed off by the owner — model verdicts are evidence, the owner's signature is the final word; sign the trial report before pricing it",
+          code: TRIAL_GATE_CODES.signoffMissing,
+          entry: "_casting.trialReport.signoff",
+        });
+      }
     }
     return { errors, notes };
   }

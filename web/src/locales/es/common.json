@@ -3065,7 +3065,13 @@
     "trial": {
       "title": "Informe de prueba",
       "load": "Cargar",
-      "none": "Aún no hay informe."
+      "none": "Aún no hay informe.",
+      "green": "En verde",
+      "notGreen": "No verde",
+      "pass": "Cumple",
+      "fail": "No cumple",
+      "ranAt": "ejecutado {{when}}",
+      "judgedCount": "{{count}} evaluadas por modelo"
     },
     "castPack": "paquete {{packId}}",
     "draft": {
@@ -3083,6 +3089,21 @@
     "delete": {
       "label": "Eliminar",
       "castLocked": "Los planos forjados no se pueden eliminar: el paquete del mercado es el registro"
+    },
+    "judge": {
+      "audit": "Registro del juicio",
+      "verdict": {
+        "pass": "Modelo: cumple",
+        "fail": "Modelo: no cumple",
+        "insufficient-evidence": "Modelo: evidencia insuficiente"
+      }
+    },
+    "signoff": {
+      "sign": "Firmar el informe",
+      "signed": "Informe firmado.",
+      "by": "Firmado por {{who}} · {{when}}",
+      "clear": "Retirar firma",
+      "cleared": "Firma retirada."
     }
   }
 }

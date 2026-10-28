@@ -486,10 +486,16 @@ test("跨仓契约兼容：finddata 蓝图格式 v1 原样粘入即可编辑/校
     assert.equal(created.blueprint.content.dataSources[0].note, "部委公告与政策流");
     assert.ok(Array.isArray(created.blueprint.content.board));
 
-    // 校验：fleet 段过既有链，自由文本断言被如实指名（不静默通过）。
+    // 断言：自由文本按 D7 归一成 llm-judged（rubric 即原文），成为可判条目。
+    const acc = created.blueprint.content.acceptance;
+    assert.equal(acc.length, 2);
+    assert.ok(acc.every((a) => a.kind === "llm-judged"));
+    assert.equal(acc[0].rubric, "巡检员一个成功回合");
+    assert.equal(created.blueprint.content.acceptance[1].rubric, "主编日报合成");
+
+    // 校验：断言段零错误（llm-judged 合法）；fleet 段也零错误。
     const verdict = await fetch(`${base}/api/blueprints/${created.blueprint.id}/validate`, as("alice@x", { method: "POST" })).then(j);
-    assert.equal(verdict.ok, false);
-    assert.ok(verdict.errors.some((e) => /unsupported assertion kind 'free-text'/.test(e.error)));
+    assert.equal(verdict.errors.some((e) => /unsupported assertion kind/.test(e.error)), false);
     assert.equal(verdict.errors.some((e) => e.entry === "fleet"), false, "fleet 段必须零错误");
   } finally {
     await close(server);
@@ -516,6 +522,101 @@ test("删除：从未铸造的草稿可删；已铸造的拒删（市场包才�
     assert.ok((await refused.json()).castPackId);
     // 仍在。
     assert.equal((await fetch(`${base}/api/blueprints/${id}`, as("alice@x"))).status, 200);
+  } finally {
+    await close(server);
+  }
+});
+
+test("签字：只模型判绿未签字不可售；签字后放行；重跑覆盖即失效", async () => {
+  const trialDeps = {
+    now: () => 1000,
+    fetchManifest: async () => ({ fleet: { name: "x", members: [] } }),
+    install: async () => {},
+    provision: async () => ({ ok: true, fleetId: "f_trial" }),
+    startFleet: async () => {},
+    productionLanes: async () => ["lane-producer"],
+    fireRound: async () => [{ jobId: "j1", memberId: "m1", at: 1010 }],
+    collectAndWait: async ({ since }) => ({
+      members: [{ memberId: "m1", title: "简报岗", targetId: "brief" }],
+      turns: [{ memberId: "m1", at: since + 1, jobId: "j1" }],
+      reports: [{ memberId: "m1", reportId: "r1", createdAt: since + 2, summary: "简报已出" }],
+      escalations: 0,
+    }),
+    judge: async () => ({ verdict: "pass", reason: "证据支持", audit: { model: "cheap-1", verdict: "pass" } }),
+  };
+  const { server, base } = mount({ trialDeps });
+  try {
+    const content = {
+      ...VALID_CONTENT,
+      acceptance: [{ id: "sem", kind: "llm-judged", rubric: "首轮产出简报" }],
+    };
+    const created = await fetch(`${base}/api/blueprints`, as("alice@x", { method: "POST", body: JSON.stringify({ content }) })).then(j);
+    const id = created.blueprint.id;
+    await fetch(`${base}/api/blueprints/${id}/approve`, as("alice@x", { method: "POST", body: JSON.stringify({ expectVersion: 1 }) }));
+    await fetch(`${base}/api/blueprints/${id}/cast`, as("alice@x", { method: "POST" }));
+
+    // 未签字时签不了？——先跑试跑，再有报告可签。
+    assert.equal((await fetch(`${base}/api/blueprints/${id}/trial-signoff`, as("alice@x", { method: "POST" }))).status, 409);
+
+    const trial = await fetch(`${base}/api/blueprints/${id}/trial`, as("alice@x", { method: "POST" })).then(j);
+    assert.equal(trial.report.green, true, "机器绿 + 模型绿");
+    assert.equal(trial.report.signoff, undefined, "未签字");
+
+    // 签字。
+    const signed = await fetch(`${base}/api/blueprints/${id}/trial-signoff`, as("alice@x", { method: "POST" })).then(j);
+    assert.equal(signed.report.signoff.by, "alice@x");
+    assert.equal(signed.report.signoff.reportRanAt, trial.report.ranAt);
+
+    // 重跑覆盖 → 旧签字失效（ranAt 变了）。
+    const rerun = await fetch(`${base}/api/blueprints/${id}/trial`, as("alice@x", { method: "POST" })).then(j);
+    assert.equal(rerun.report.signoff, undefined);
+
+    // 撤签路径。
+    await fetch(`${base}/api/blueprints/${id}/trial-signoff`, as("alice@x", { method: "POST" }));
+    const cleared = await fetch(`${base}/api/blueprints/${id}/trial-signoff`, as("alice@x", { method: "DELETE" })).then(j);
+    assert.equal(cleared.report.signoff, undefined);
+  } finally {
+    await close(server);
+  }
+});
+
+test("铸造嵌试跑报告：_casting.trialReport 带 green/judged/signoff（可售闸只读 manifest）", async () => {
+  const publishCalls = [];
+  const trialDeps = {
+    now: () => 1000,
+    fetchManifest: async () => ({ fleet: { name: "x", members: [] } }),
+    install: async () => {},
+    provision: async () => ({ ok: true, fleetId: "f1" }),
+    startFleet: async () => {},
+    productionLanes: async () => ["lane-producer"],
+    fireRound: async () => [{ jobId: "j1", memberId: "m1", at: 1010 }],
+    collectAndWait: async ({ since }) => ({
+      members: [{ memberId: "m1", title: "简报岗", targetId: "brief" }],
+      turns: [{ memberId: "m1", at: since + 1, jobId: "j1" }],
+      reports: [{ memberId: "m1", reportId: "r1", createdAt: since + 2, summary: "简报已出" }],
+      escalations: 0,
+    }),
+    judge: async () => ({ verdict: "pass", reason: "", audit: { model: "cheap-1", verdict: "pass" } }),
+  };
+  const { server, base } = mount({ publishCalls, trialDeps });
+  try {
+    const content = { ...VALID_CONTENT, acceptance: [{ id: "sem", kind: "llm-judged", rubric: "有简报" }] };
+    const created = await fetch(`${base}/api/blueprints`, as("alice@x", { method: "POST", body: JSON.stringify({ content }) })).then(j);
+    const id = created.blueprint.id;
+    await fetch(`${base}/api/blueprints/${id}/approve`, as("alice@x", { method: "POST", body: JSON.stringify({ expectVersion: 1 }) }));
+    await fetch(`${base}/api/blueprints/${id}/cast`, as("alice@x", { method: "POST" }));
+    await fetch(`${base}/api/blueprints/${id}/trial`, as("alice@x", { method: "POST" }));
+    await fetch(`${base}/api/blueprints/${id}/trial-signoff`, as("alice@x", { method: "POST" }));
+
+    // 再编辑→重批→重铸：这份 manifest 才该带报告。
+    await fetch(`${base}/api/blueprints/${id}`, as("alice@x", { method: "PUT", body: JSON.stringify({ expectVersion: 1, content }) }));
+    await fetch(`${base}/api/blueprints/${id}/approve`, as("alice@x", { method: "POST", body: JSON.stringify({ expectVersion: 2 }) }));
+    await fetch(`${base}/api/blueprints/${id}/cast`, as("alice@x", { method: "POST" }));
+
+    const last = publishCalls[publishCalls.length - 1].manifest;
+    assert.equal(last._casting.trialReport.green, true);
+    assert.equal(last._casting.trialReport.judged[0].verdict, "pass");
+    assert.equal(last._casting.trialReport.signoff.by, "alice@x");
   } finally {
     await close(server);
   }

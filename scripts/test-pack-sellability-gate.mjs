@@ -97,3 +97,60 @@ test("4.2 非集群模板（无 fleet 段）跳过可售闸", () => {
   assert.equal(result.errors.length, 0);
   assert.equal(result.notes.length, 0);
 });
+
+test("4.2+ 双钥匙：模型断言未全 pass → llmNotPass；未签字 → signoffMissing；齐了放行", () => {
+  const base = {
+    name: "政策盯哨",
+    fleet: { name: "x", members: [] },
+    _casting: {
+      source: "fleet-blueprint-studio",
+      version: 1,
+      approvedBy: "a@x",
+      approvedAt: "2026-10-28T00:00:00Z",
+    },
+  };
+  const pricing = { priceUsd: 9, kind: "once" };
+
+  // 绿但模型断言有一条 fail → llmNotPass
+  const notPass = sellabilityGate(
+    { ...base, _casting: { ...base._casting, trialReport: { green: true, ranAt: 1, judged: [{ id: "sem", verdict: "fail", pass: false }], signoff: { by: "a@x", at: "x", reportRanAt: 1 } } } },
+    { pricing },
+  );
+  assert.equal(notPass.errors.length, 1);
+  assert.equal(notPass.errors[0].code, TRIAL_GATE_CODES.llmNotPass);
+  assert.match(notPass.errors[0].error, /sem=fail/);
+
+  // 全 pass 但未签字 → signoffMissing
+  const unsigned = sellabilityGate(
+    { ...base, _casting: { ...base._casting, trialReport: { green: true, ranAt: 1, judged: [{ id: "sem", verdict: "pass", pass: true }] } } },
+    { pricing },
+  );
+  assert.equal(unsigned.errors.length, 1);
+  assert.equal(unsigned.errors[0].code, TRIAL_GATE_CODES.signoffMissing);
+
+  // 签字但针对旧一轮（reportRanAt 不匹配）→ 同样缺签
+  const stale = sellabilityGate(
+    { ...base, _casting: { ...base._casting, trialReport: { green: true, ranAt: 2, judged: [{ id: "sem", verdict: "pass", pass: true }], signoff: { by: "a@x", at: "x", reportRanAt: 1 } } } },
+    { pricing },
+  );
+  assert.equal(stale.errors[0].code, TRIAL_GATE_CODES.signoffMissing);
+
+  // 三件齐 → 放行
+  const ok = sellabilityGate(
+    { ...base, _casting: { ...base._casting, trialReport: { green: true, ranAt: 1, judged: [{ id: "sem", verdict: "pass", pass: true }], signoff: { by: "a@x", at: "x", reportRanAt: 1 } } } },
+    { pricing },
+  );
+  assert.equal(ok.errors.length, 0);
+});
+
+test("4.2 后兼容：无 judged 数组的旧报告（纯机器绿）仍只看 green", () => {
+  const legacy = sellabilityGate(
+    {
+      name: "旧包",
+      fleet: { name: "x", members: [] },
+      _casting: { source: "fleet-blueprint-studio", version: 1, approvedBy: "a@x", approvedAt: "x", trialReport: { green: true, ranAt: 1 } },
+    },
+    { pricing: { priceUsd: 9, kind: "once" } },
+  );
+  assert.equal(legacy.errors.length, 0);
+});

@@ -82,3 +82,17 @@ test("6.3 ④ 试跑执行器只点火不铸表：用既有 cron 作业，零建
   assert.equal(/from ".*task-engine/.test(src), false);
   assert.equal(/engine\.enqueue|enqueueExecution\(/.test(src), false);
 });
+test("6.3 ⑤ 判据不新造 provider 通道：只复用既有 lane/模型解析", () => {
+  const JUDGE = "server/blueprint-judge.js";
+  const src = code(JUDGE);
+  // 必须复用既有车道与 provider 解析。
+  assert.match(src, /from "\.\/llm-lane\.js"/);
+  assert.match(src, /from "\.\.\/llm-providers\.js"/);
+  assert.match(src, /laneKeyFor\(/);
+  // 不得自建 provider/凭证表或直读环境里的密钥拼表。
+  assert.equal(/new Map\(\).*provider/i.test(src), false);
+  assert.equal(/readProvidersDoc/.test(src), false);
+  // 只打 /chat/completions 一个端点（与聊天同源，不新造通道）。
+  const endpoints = [...src.matchAll(/\/chat\/completions/g)];
+  assert.equal(endpoints.length, 1);
+});

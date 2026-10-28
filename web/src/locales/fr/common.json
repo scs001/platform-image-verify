@@ -3065,7 +3065,13 @@
     "trial": {
       "title": "Rapport d'essai",
       "load": "Charger",
-      "none": "Aucun rapport pour l'instant."
+      "none": "Aucun rapport pour l'instant.",
+      "green": "Au vert",
+      "notGreen": "Pas au vert",
+      "pass": "Conforme",
+      "fail": "Non conforme",
+      "ranAt": "exécuté {{when}}",
+      "judgedCount": "{{count}} évaluées par le modèle"
     },
     "castPack": "paquet {{packId}}",
     "draft": {
@@ -3083,6 +3089,21 @@
     "delete": {
       "label": "Supprimer",
       "castLocked": "Un plan forgé ne peut pas être supprimé : le paquet du marché fait foi"
+    },
+    "judge": {
+      "audit": "Journal du jugement",
+      "verdict": {
+        "pass": "Modèle : conforme",
+        "fail": "Modèle : non conforme",
+        "insufficient-evidence": "Modèle : preuves insuffisantes"
+      }
+    },
+    "signoff": {
+      "sign": "Signer le rapport",
+      "signed": "Rapport signé.",
+      "by": "Signé par {{who}} · {{when}}",
+      "clear": "Retirer",
+      "cleared": "Signature retirée."
     }
   }
 }

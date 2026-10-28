@@ -38,6 +38,11 @@ import {
 //     browser session; each call authenticates through the bind code or the
 //     device key's challenge signature. Inert (503) without MP_TOKEN_SECRET.
 const AUTH_EXEMPT_PREFIXES = [
+  // Chart rendering asset for the mobile client's WebView (ChartView): a
+  // <script src> fetch carries no Authorization header and no session cookie,
+  // so an authenticated gate 401s it and every chart silently degrades
+  // (acceptance lane, 2026-10-28). It is a public library file — no data.
+  "/chart-assets/",
   "/api/bots/webhook/",
   "/api/bots/relay/",
   "/api/mp/login",

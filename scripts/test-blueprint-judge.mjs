@@ -179,3 +179,13 @@ test("lane 指纹与判断主体的区别（不因空 key 假阳性）", async (
   const b = laneKeyFor({ id: "p2", baseURL: "https://b.example/v1", apiKey: "" });
   assert.notEqual(a, b, "不同 provider/端点即便都无 key 也必须分属不同 lane");
 });
+
+test("禁自证不依赖 providers doc：只有模型名也能判（生产实证）", async () => {
+  const { isSelfGrading } = await import("../server/blueprint-judge.js");
+  // 产出侧只给出模型名（providerId=null，doc 读不到时的回落形状）
+  const producer = { laneId: null, providerId: null, model: "deepseek-v4.1-flash" };
+  // 同模型 → 自证（拒）
+  assert.equal(isSelfGrading({ providerId: "env-route", model: "deepseek-v4.1-flash" }, producer), true);
+  // 不同模型 → 放行（即便产出侧 provider 未知）
+  assert.equal(isSelfGrading({ providerId: "env-route", model: "glm-5.3-flash" }, producer), false);
+});

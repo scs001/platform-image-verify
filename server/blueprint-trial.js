@@ -261,12 +261,20 @@ export function createLiveTrialDeps() {
       }
       await reconcileFleet({ fleetId, db, cronApi: cron, resolveTarget: resolveFleetTarget, rosterPresetId });
     },
-    // 产出主体（D4 禁自证）：试跑舰各岗位解析到的 { laneId, providerId, model }。
+    // 产出主体（D4 禁自证）：试跑舰各岗位的产出模型。
+    // 2026-10-28 生产实证：laneForModel 依赖 providers doc，而 server 进程里
+    // 该 doc 可能读不到（Models 页存储缺失）→ 返回 null → 判定整体拒。禁自证
+    // 只需要「模型名」这一件事实，岗位行上就有（effectiveModel），不依赖 doc。
+    // doc 能解析时补 providerId 以支持"同 provider 换模型"的更精确判断。
     productionLanes: async (fleetId) => {
       const db = getFleetDatabase();
       return db
         .listMembers(fleetId)
-        .map((m) => laneForModel(m.effectiveModel))
+        .map((m) => {
+          if (!m.effectiveModel) return null;
+          const resolved = laneForModel(m.effectiveModel);
+          return resolved ?? { laneId: null, providerId: null, model: m.effectiveModel };
+        })
         .filter(Boolean);
     },
     // 判定（D1-D6）：生产实现走既有 LLM 车道，不新造 provider 通道。

@@ -3036,3 +3036,56 @@ main 那份才是手动 dispatch 真正跑的文件，不同步等于没消重�
 `--status <dataDir>` 探针模式（唯一调用方就是 Phase D）。注释改指 `installer e2e (windows)`；
 探针模式直接删（无人调用的推理代码不留）。本地真跑三幕（跑/排干/撤销）全 PASS、exit 0 为证。
 台账旧节（§15.67/§15.69 等处提到 Phase D）按日期记录原样保留，本节即其迁址说明。
+
+### §15.74 图解驾驶舱课程八图重拍 + 揪出「设计模式确认必 409」真缺陷（2026-10-28 午后）
+
+**起因**：上一节挂的「审批队列截图」只是冰山一角。OCR 机检现有六张课程图（`tesseract chi_sim+eng`）
+才发现**六张全部过期**：图里仍是退役词「舰队 / 创建舰队 / 功能集」，并漏进内部集群名（柏讯内容舰队、
+验收-EventE2E）与一段内部技术文本（`fleet_members.target_id=packs-…`、
+`@fleets.orchestration 在 supervisor 与 None 之间反复`）。课程正文早已改到现行词（集群/岗位/在岗者），
+只有图还在教旧词——图文自相矛盾。
+
+**重拍（八张，全新 UI，逐张 OCR 机检）**：
+| 图 | 内容 | 来源 |
+| --- | --- | --- |
+| 00-fleet-list | 集群列表 + 右上「创建集群」 | 内容集群（课例） |
+| 01-cockpit-top | 健康块/词汇卡/编排(主管模式)/配置栏/画布 | 内容集群（课例） |
+| 02-post-cards | 结构视图三张岗位卡 | 政策巡检集群（摘要干净的那套） |
+| 03-vocabulary-card | 词汇对照九组 | 内容集群（课例） |
+| 04-approval-queue | 审批抽屉：一条**示例**待裁请求 | 内容集群（课例） |
+| 05-create-post | 建岗弹窗 | 内容集群（课例） |
+| 06-execution-timeline | 执行时间线 + 泳道瀑布（新增区块） | 内容集群（课例） |
+| 07-latest-outputs | 最新产出 | 政策巡检集群 |
+
+**课程正文同步改写（zh+en 双语）**：新增「执行时间线」一节（三个过滤下拉 + 泳道瀑布 + 实时/回放游标）；
+编排一节改写为「编排区 = 模式与护栏 + 派发许可 + 配置栏（模型分布/思考深度/上下文预算/边流量）+ 画布 + 设计按钮」；
+岗位卡按钮按现界面更正为「产出 / 详情（配置·产出·审批 三页签，换人/暂停/删岗在配置里）」；
+目标类型按现枚举更正为「角色 / 阵列 / Agent 服务」（旧文写的 Cluster）；英文侧同步把
+Cluster→Array、Role→Persona、Standby→On call、Add post 等界面标签对齐现 i18n。
+
+**演示数据治理（走查账号 `1da519d4c1c0bf89`）**：
+1. 10 个演示集群的**显示名**「舰队」→「集群」（含内容工厂/投研晨会/客服护航/情报站/跨境电商盯梢/
+   萬星·集群运营/公司式×3/活体验收）；只改 name，fleet id 不动。
+2. 演示集群 `fleet_1793137932644_dido6e` 的 orchestration 由 null 落成主管模式
+   （链深上限 2 / 每跳预算 10min）——**进程外直写** cell 库 `/data/cells/1da519d4c1c0bf89/data/data/fleets.db`。
+   库内 `fleets_audit_after_update` 触发器照记（actor/via 为空 = 进程外写入，正是它设计的归因信号）。
+   走应用面写不了：驾驶舱「设计」确认就是下面那个坏掉的按钮。
+3. 审批队列那条示例待裁请求 `d_1793163528809_demo01` 亦为手工插入的**示例数据**（问题/两个选项/时限皆干净，
+   无内部标识）。图注已写明「示例请求」，台账在此留痕——它是给教学用的样本，不是真实岗位提请。
+
+**真缺陷（本节主项）**：驾驶舱「设计」模式点确认 → **必 409** `draft.members is not iterable`。
+根因两行不一致——`validateFleetDraft` 把缺省的 `draft.members` 读成 `[]`（编排专属草稿合法），
+`applyFleetDraft` 却直接 `for (const op of draft.members)` → TypeError 被兜成 409。
+而驾驶舱确认按钮发的 body 正是 `{fleet:{orchestration}}`（无 members），所以**生产必挂**。
+两道门都没拦住：服务端测试的草稿总带 members，e2e 把 apply 路由 mock 掉了。
+修法：apply 侧按校验器同一口径读缺省（`memberOps`），create/edit 两处遍历同源；
+回归断言=只带 `fleet.orchestration` 也能 dry-run 通过并落地、且不动任何岗位行。
+提交 `e4c6a0e7`（**已被并行车道随 push 带进 origin/main**，非我推送）。
+
+**挂账**：
+- 修复**未上产**：线上 `sha-03687ea` 的源提交 d5db06de 早于 e4c6a0e7，本批未出片（另一车道刚滚 sha-03687ea，
+  抢跑会互相踩；等下一班出片时随行）。
+- 巡线岗回合三次卡住不落产出（`llm-guard default probe inconclusive (network_error): probe timed out after 10s`，
+  平台→模型上游探针超时）；该岗 cron 会话已 64 条消息 / 2.0MB，每轮重放很重——疑为回合可靠性老问题，
+  本轮只记录不处置（另车道在跟）。
+- 生产 platform pod 12 分钟前一次 **OOMKilled(137)** 重启（12:39 前），当前 1/1 Running；未追查。

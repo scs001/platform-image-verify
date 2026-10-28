@@ -3711,3 +3711,23 @@ change 3 的真机睡眠/唤醒一幕。
 - 生产验证（API 级 owner cookie）：策略读写 ✓、escalate 带 category 落 route=deputy（响应+DB 双证）✓、角标口径 ownerOpen=61 / deputyOpen=1 分计 ✓、收回 ✓、triage 幂等（35 扫描 0 改动=保守正确）✓。
 - 留给 owner：真机 deputy 巡逻回合（需回合归因）与存量 66→唯一事项集（语义级去重=常务岗职责）。
 - 快照 scrub 表补 blueprint 三夹具真实节点名（cheap-1→runner-a，语义无关；count 写少会被 scrub-rot 门拦——这是门的第三次实证）。
+
+### §15.83 fix-pack-relist-on-publish：发布新版本恢复上架（2026-10-29）
+
+**缺陷**：作者主动下架后**没有任何路径能恢复上架**——`setUnlisted` 只写 `unlisted = 1`，全仓零反向写入点，管理面也无 relist 端点。而客户端下架说明 `facetMine.unpublishNote` **五语齐平**地写着「恢复上架不可用（发布新版本即恢复）」，主 spec「Marketplace hygiene baseline」场景也写着 "the pack can be re-listed later"——**界面与 spec 都承诺了这条路，代码没实现**。
+
+**真机实证**：包 `C8wx14-4h7zJ0N19-J4NwQ`（跨境电商政策盯梢集群模板）从 v2 到 v3 两次发版始终 `unlisted=true`，2026-10-28 只能手工改库才回到公开列表。10-29 复核已恢复（`unlisted=false / visibility=public / category=fleet`）。
+
+**修法**：`publishVersion` 追加版本前，若该 pack 当前 `unlisted` 则同处置回 `0`（与既有 category 覆盖写法并列，commit `9491b474`）。
+- **边界一**：不触碰 `visibility`——private 包发版仍 private。这是 pack 级属性，只能靠建新包改变；把两者混在一条写路径上会让私人包在下次发版意外公开。
+- **边界二**：鉴权顺序不变，非作者仍在任何包级写入之前被 `forbidden` 挡下，包保持 unlisted。
+- **边界三**：已发布版本与订阅者快照照旧不动（unlisting 从不删版本）。
+- 刻意**不做**独立 relist 端点：卫生下架的价值在于「上架需要一次实质发布」，给一条不产生版本的捷径等于把卫生闸打回可随手翻转。
+
+**顺带修一处过期断言（HEAD 上本就红）**：`PACK_LIMITS.maxMcpRefs` 由 5 提到 6（`add-fleet-post-model`），而 `test-pack-registry` 仍硬编码「6 条应被拒」。改为从 `PACK_LIMITS` 推导（`maxTags` 一并），同类天花板以后不再静默走偏。**这是本仓第三类「常量上调而测试硬编码跟着腐烂」的样本**——天花板类断言一律读常量。
+
+**测试**：`test-pack-registry` 9/9（含新增恢复上架用例）；`test-facet-publish-gate` 6/6；`test-pack-marketplace` 8/8；locale 两组 22/22；badge+cell+mypacks+sellability+locale 61/61。`openspec validate --specs` **205/0**。
+
+**归档**：change `2026-10-29-fix-pack-relist-on-publish`；主 spec `pack-marketplace` 的 hygiene 需求补「publish restores listing」句 + 四条场景（恢复上架 / 非作者不可借道 / 发版不改可见类 / 既有卫生场景）。commit `9355ab90`。
+
+**待办**：随下一次 facet/platform 出片生效（当前现役 facet 镜像 `sha-268ec76` 源 `447c6b92`，**不含本次**）。出片走 `fd-build-channel` 判路——私有池 FDT 已尽（2011/2000），公开仓免费线是 `scs001/platform-image-verify`。

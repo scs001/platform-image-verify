@@ -37,5 +37,7 @@
 - [x] 6.1 决策车道既有合同回归（首裁定局/过期/送达/分段注入/队列防洪）
 - [x] 6.2 新增：策略路由（类别/严重度/预算）、强制授权越权 403、归并（含不误并）、收回、执行回填、判例引用、角标口径
 - [x] 6.3 deputy 提示注入防线：拍板项文本不可驱动 deputy 越权（工具白名单 + 输出 schema 校验）
-- [x] 6.4 生产 API 级走查（owner cookie）：策略读写/escalate 带 category 落 route=deputy/角标口径 ownerOpen=61+deputyOpen=1 分计/收回/triage 幂等（35 扫描 0 改动=保守正确）；**deputy 真机巡逻回合与存量 66→唯一事项集留给 owner**（需要真实 deputy 岗位的回合归因，API 无法模拟；归并的语义级去重=常务岗本体职责，文本级 triage 在 LLM 改写下按设计保守不动）
+- [x] 6.4 生产 API 级走查（owner cookie）：策略读写/escalate 带 category 落 route=deputy/角标口径 ownerOpen=61+deputyOpen=1 分计/收回/triage 幂等（35 扫描 0 改动=保守正确）；**deputy 真机巡逻回合已补**（2026-10-29 同日）：自建常务岗 preset → `POST /:id/deputy` 新建路径设岗 → 触发巡逻 → 读队列并按授权裁决 → 记忆镜像落页 → 报告管线报数。走查当场揪出并修掉「deputy 三路由不在桥面豁免名单」的生产真缺陷（台账 §15.84，修 `7d88e06e` / 镜像 `sha-783bf24`）。**存量 66→唯一事项集仍留给 owner**：归并的语义级去重=常务岗本体职责，需多轮巡逻自然积累；文本级 triage 在 LLM 改写下按设计保守不动
 - [x] 6.5 出片 + GitOps bump + 生产验证
+- [ ] 6.6 执行事实生产实证**挂账**：`executed_at` 只在送达回合完成时回填，该条目的送达回合（助理部下一轮）尚未发生；链路代码在产且单测覆盖（`test-fleet-delegation`「执行事实」用例）
+- [x] 6.7 桥面鉴权回归用例（真 `registerAuth` + logto 匿名）：deputy 三路由在 loopback 不得 401、名单外路径仍须 401；突变验证摘任一条该用例即红

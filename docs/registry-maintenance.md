@@ -2907,3 +2907,19 @@ run13（场景改写+预热车道）仍 FAIL，但 transcript 终局证据改写
 | 硬发现② | **gho_ OAuth 令牌拒绝 `https://x-access-token:TOKEN@` URL 形态**（本地复现 Authentication failed）——推池走 `gh auth setup-git` 凭据助手（Basic auth） |
 | 硬发现③ | **fd-build-channel 读数是 24h 缓存**——今日十几轮验证把 testaction003 从 287 烧到上限（注解实锤），缓存仍显示 969/还有 1031 分钟，判路时勿全信 |
 | 纪律升级 | **共享工作树 `git commit` 会带上他人已暂存的在途件**（本日两犯）——一律 `git commit <pathspec>` 限定提交，`git add` 不够 |
+
+### §15.69 桌面 v1.3.20 发布：DPAPI+reporter 修复+寻数壹座新图标随班（2026-10-28）
+
+**版本内容**：DPAPI 钥匙托管（win 私钥封站）、reporter 静默死修复（§15.67 揪出）、软件图标=一根「一」/大图标=「壹座」+横线（全端资产替换）。bump e896fd38。
+
+**通道曲折实录（三班定案，钱与教训都记）**
+1. **003 池首班**：desktop-release/v1.3.20 三腿 build 全绿但**产物名是 1.3.19**——fd-build-snapshot「从远端 clone」在 bump 推送的**时序竞态**里拿到了前一瞬的树（工具报告「源真 sha=e896fd38」与树内容不符）。产物内嵌 app.getVersion()=1.3.19 会污染 auto-update 链，整班作废（tag 删）。**新律：快照推送后、打 tag 前必须验树内关键文件（版本号/关键修复/资源），不能信工具的 sha 标注**。
+2. **002 池二班**：快照树=并行会话在途 fcc4f020（supply+owner 面改组件、en/zh 衞词未补 es 等三语）→ `check-locales` **drift** 三腿 3 分钟内红（~60 计费分钟，不幸中万幸）。发版基线不该是 main 头。
+3. **绿树组装法（定型）**：`c09d6682`（locale 全 5 绿 + DPAPI/reporter 修复在位）+ 路径级 checkout 图标批 047ca697 与 bump e896fd38 → 发版树 `5c9b6b39` → `fd-build-snapshot --ref 5c9b6b39` → 快照树五件套验死（version=1.3.20/icon=5420B「一」/DPAPI/reporter/expo 白底/locale 绿）→ 修剪 → tag。
+4. **002 三班全绿**（run 40603278499）：build dmg-arm64/dmg-x64/exe + publish GitHub Release + installer e2e (windows) 全 success，Release v1.3.20 三件套（Platform-1.3.20-{arm64,x64}.dmg + Platform.Setup.1.3.20.exe）。
+
+**验证链**：win-smoke Phase D 绿（装后管家常驻→关 UI 存活→卸载 pid 排干，对 v1.3.20 打包版）——§15.67 挂账的「DPAPI+reporter 打包态覆盖」**清账**；mac 本机首裁：dmg 挂载 CFBundleShortVersionString=1.3.20、icns 渲染=单横条（ink h=112 与生成器一致）、bundle 内两修复 grep 在位、启动冒烟 bundled node+dsh child 九 patch+窗口目标 47600/api/config→200、未装管家 embedded 正常。
+
+**dl 链**：dl-publish（002 main 补桩）→ hkccr/yizuo/desktop-installers:**1.3.20**（**tag 无 v 前缀**——relay 手动单/dl 目录同名口径）digest ac011971 → relay 手动单 → ccr 同 digest → cheap3 docker pull+cp → `/srv/dl/platform/1.3.20/` 三件套 → dl-caddy 内网 200。公网 DNS/443 仍 pending（Caddyfile 既有挂账，非本班）。
+
+**池额度**：003 烧穿（desktop 矩阵 mac×10 计费 + 多班 win-smoke 叠加；fd-build-channel 余额是 24h 缓存，判池以 run 实况为准）；002 接棒剩 ~1700 计费分钟。002 main 补两枚 workflow 桩（win-install-smoke/dl-publish，合「池 main 放桩」建制）。

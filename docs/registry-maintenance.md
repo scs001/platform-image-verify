@@ -3479,3 +3479,19 @@ B1（付费+credit 环）/B2（车道 live-write 全链）/B3（v2 跟新回放�
 **测试遗留**：`aloadtree` 名下两条探针包（`3wZGhtEU2owoe9qgt4cyig`、`TfptBrLm7MxQIbFx9zczug`）已置 private；一条试跑舰 `fleet_1793191666163_2v8iws`（政策盯梢集群，active）保留作复跑锚。
 
 **待拍板（未做）**：LLM 判断言（自由文本断言）破坏「断言全绿才可售」的确定性，须单独立项；断言 kind 与 finddata `blueprints/schema.md` 契约的跨仓对账。
+
+### §15.66 补：图表链再进一层——五个真缺陷已修，剩 WebView 脚本加载一环（2026-10-28 夜）
+
+**本轮比 §15.66 更深的五刀（全部已入 main）**：
+
+| # | 缺陷 | 修法 | 证据 |
+|---|---|---|---|
+| 1 | `apply()` fold 丢弃 | switch 统一收敛 `out`，非 turns 臂兜底合并（c275b897） | 本地 22 事件全序复现→修复后存活；设备 evlog 实证 `blocks=[["text",149]]` |
+| 2 | TurnView 只遍历 groups | 改按 blocks 索引遍历（镜像 web AssistantTurn，e7e90cc7） | 设备 tvdbg：`blocks=[["text",149]] groups=0` → 文本块无渲染入口 |
+| 3 | 快照 TDZ | `writeMcpPatch(bootWorkspace.path)` 用在声明前；main 已由并行会话修正 | agent init `Cannot access 'bootWorkspace'` → ready 永 503 |
+| 4 | echarts 走 CDN | 改**平台同源托管** `/chart-assets/echarts.min.js`（9cbb8d1c）；内联 1MB 曾把模拟器 WebView 渲染进程打崩（`Renderer process crash code -1`） | 兜底态实测 + chromium crash 日志 |
+| 5 | `/chart-assets/` 被会话门 401 | 进 `AUTH_EXEMPT_PREFIXES`（39b1ece8） | 本地实证：豁免后匿名 200 / 1,030,855 bytes |
+
+**当前状态**：链路已全通到 ChartView 挂载（UI 树里出现 `chart-fallback` 节点，此前根本无 chart 节点），但脚本仍未成功加载 → 兜底。剩余一环在**模拟器 WebView 的 script 加载**（WebView 83 / cleartext / 内存），需真机或 RN DevTools 级别调试；`/chart-assets/` 本地已实证匿名可取，故嫌疑集中在 WebView 侧而非服务端。
+
+**方法论沉淀（写给下一棒）**：①"空气泡"类症状先分 store/渲染两段取证（evlog vs tvdbg），别一上来怀疑网络；②logcat 环形缓冲会吞时间线 → 事件镜像进 globalThis；③8 字符截断 id 会让不同会话"看起来匹配"（本案浪费两轮）；④快照必须核 agent 就绪日志（TDZ 车空跑一轮）；⑤私仓 job 日志常 BlobNotFound → 诊断一律 tee 到工件。

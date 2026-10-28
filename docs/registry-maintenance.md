@@ -3529,3 +3529,24 @@ remove a deployment to free one」）、云目录只读态（卡片无部署入�
 桌面壳 e2e 重跑 5/5 绿、截图更新（`~/paas-artifacts/v1.3.24/fleet-ui/`）。归档账
 （polish-desktop-fleet-parity 5.2）同步改为「人工肉眼走查已完成」。剩余肉眼项只剩
 change 3 的真机睡眠/唤醒一幕。
+
+### §15.78 B 档真机验收全绿（2026-10-28 晚）——付费闭环/上牌全链/跟新提示
+
+用户指示「直接去词元站构造」后补完 B 档三项，全部生产真跑（无 mock）：
+
+**B1 付费 + 分成 + 抵扣闭环**（买家 `aloadtree@gmail.com` userId=2，真实余额）：
+- 发布付费包（$3 once，归 `acpt-supply-live`）→ 购买 **201 settled**，现金 3 / 抵扣 0 / 供方 2.1 / 平台 0.9（70/30 快照生效）。
+- 余额实证 **49.59424243 → 46.59424243**（差 $3，真扣减）。
+- 详情面 `purchased=true`；**幂等重放 200 `already-entitled`**（不重复扣费）。
+- 供应商收益账 `settledUsd=2.1 / availableCreditUsd=2.1 / 成交 1 笔`。
+
+**B2 供方上牌全链 onboarded**（真 selfcheck + 真写 registry）：
+- 端点 = facet pod（hostNetwork）内起的最小 MCP 桩，绑 `0.0.0.0:18101`，节点 tailnet `100.64.0.12`（在 registry SSRF 白名单 `100.64.0.0/10` 内）。
+- **一次有教益的失败**：先用 `127.0.0.1` 提交 → selfcheck 过、写到 registry 时被 **SSRF 策略如实拒**（`URL rejected by security policy: targets blocked/private IP`），提交落 `in_review / axis=registry_write_failed`——安全边界正确，且失败被诚实分类非静默。
+- 换 tailnet 地址重提 → **200 onboarded**，registry 日志三行齐（DocumentDB WRITE / Indexed / Toggled True）+ `vendor-lane toggled … (token fp=676b4ac4)`；Mongo 条目核验：`metadata.vendor=acpt-supply-live`、`metadata.surface.commercial_tools=[vendor_echo]`、`surface_source=vendor_onboarding`、`is_enabled=true`。
+
+**B3 订阅跟新提示**：订阅 v1 → 发 v2（带 `notes`）→ `/api/packs/subscriptions/updates` 命中 `subscribedVersion=1 / latestVersion=2 / notes="v2 · 走查跟新提示"`（只交通不升级语义成立）。
+
+**清理**：B2 上牌条目已从 `mcp_servers_default` 删除（1→0）；桩进程已停；临时凭据文件全清。
+
+**至此 vendor 4.2/4.3 与 market 验收口径全部闭环**。残留仅两处走查锚（非缺陷）：生产市场留 `acpt-supply-live` 主体 + 其付费包（含 v2），可作复跑锚点或按需 unlist。

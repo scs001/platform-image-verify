@@ -3931,6 +3931,27 @@ budget = clamp( max(p90_success × headroom , maxTimeoutElapsed × 1.2) , floor 
 
 **遗留**：②③ 两个 change 已立案待 apply；②的真根因（`referencesNeedingTags` 只覆盖 reference 且只挑无 tag→2435 draft 空转）已在 design 写明，等用户令再实施。
 
+#### §15.79 续五：晋升提议车道全链上产——出片「clone from remote」时序坑实撞（2026-10-30，源 13533c9 / fd-memory+distiller `sha-ea3fb14` / paas 6b68a9ed / platform `sha-bc742b8`）
+
+change ②`add-tier-promotion-candidates` 按用户「继续」令实施并当班上产（tasks 22/23，⑥真机四项见下）。
+
+**实现六件**：
+- **fd-memory**：`promotion_cursor` 独立游标（CREATE+migration+**upsert 语句三处齐备**——tag_cursor 当年丢列的坑按在案教训先堵）；`promotionCandidates`（fact/experience/reference × draft × cursor，**不以 tag 为门**）；`tier_proposals` 表（提议≠改页）；`promotionPass`+`promotionPassSafe`（挂 distillOne finally，与 tagPassSafe 同姿态：失败只 warn、预算共用打标日门、`FD_MEMORY_PROMOTION_ENABLED=0` 零调用=回滚闸）；`/memory/promotions` 读面+accept/ignore（rootKey 平台缝与 /memory 同鉴权；**接受才翻 tier 且 origin=human**；忽略 14 天冷却 `FD_MEMORY_PROMOTION_IGNORE_COOLDAYS`）；metrics `promotion:{candidates,proposed,accepted,ignored}`。104 测绿。
+- **distiller**：新端点 `/promote`（`/tag` 逐字节不动）；**封顶写在解析器不在 prompt**——模型输出 canonical 一律降 stable、脏输出容忍（repair_json 同骨架）、上游失败 200+errors 结构化不抛。pytest 15 绿（本机 /tmp/hyvenv 装钉版 hy-memory 跑的：`pip install "hy-memory @ git+…@0244ebe"`）。
+- **paas**：`/api/memory/promotions` 三代理（未登录零上敲、409 stale 原样透出不launder、其余 502）+ MemoryPage 待确认区块（tier 箭头+理由+接受/忽略，接受后重拉列表复用既有 tier 徽章零新解析）+ 五语键；`node scripts/check-locales.js` 与 web tsc 全绿；代理面新钉 5 测。
+
+**出片时序坑（新，必须记）**：`fd-build-snapshot` 是**从远端 clone 干净副本**再 rsync——首班 `sha-bcc3324` 出片时 13533c9 还没推 origin master（push 在构建之后），结果**构建的是旧码 a47c9ee**，且工具回显「源真 sha=13533c9」具有误导性。真机 pod 特征串 grep 全 0 才暴露。**律：出片前先 push 源，出片后以 pod grep 特征串为准不看 tag**。distiller 同池二镜像=BUILD_DOCKERFILE 切 `distiller/Dockerfile`+dispatch，两趟用完即还原（已在案）。重出 `sha-ea3fb14`：fd-memory digest `4fc4da08` / distiller digest `d34eb405`，skopeo 硬门三绿。
+
+**GitOps**：91e9a67 四清单同代（fd-memory 两处+distiller=ea3fb14；platform/demo=bc742b8，源 6b68a9ed 含 judge `20f304c3` 与超时腿 `4ff0a80d` 全部祖先——bump 前核祖先律执行）。ArgoCD hard-refresh，四路 rollout 完，pod grep 三面特征串全在位。
+
+**真机验收四项**：
+- **6.3 候选与观测** ✓：standalone 触发晋升车道跑通选材——promotion_cursor 空→`2026-10-25T18:24`、生产 `/admin/metrics`（POST 面）读到 `promotion:{candidates:126,…}`。**token 消耗眼见待车道**：distiller 在用的 `dots-studio/dots-3-note-preview:free` 上游 503（判红两分法=上游非本变更；tag_cursor 昨日 01:20 才推进=车道此前健康），`/promote` 直探如实回 200+errors 结构化——**失败姿态当场实证**。车道恢复后主进程 fallback/drain 会自然产出首批真提议。
+- **6.4 人批链** ✓：合成提议行（reason 写明合成）驱动生产面全链——`/memory/promotions` 读得到 → accept 200 且页 `tier=stable, tier_origin=human` 落盘 → 双 accept 404 → ignore 200 `ignored_at` 置位、页不动 → metrics `accepted:1/ignored:1`。
+- **6.5 零 canonical** ✓（单测+形状双证）：解析器降级单测钉死（canonical→stable）；车道真产出因 503 未落提议，现网 `tier_proposals` 无任何 canonical 行（表空+面读空）。
+- **6.6 文档** ✓：本节 + memory-architecture-v2.md 新增 §9.1 晋升通道。
+
+**遗留**：①车道恢复后首批**真 AI 提议**落库与 UI 区块眼见（走查账号 u-aloadtree@gmail.com 有 135 draft L2 页，首班自然可见）；②`harden-memory-surfaces`（change ③）仍待 apply；③本 change 待 archive（用户令后）。测试残留说明：aloadtree 根内两页为验收探针所动（fact_3dddaa72 经人批面转 stable/origin=human；fact_8b085c53 提议 ignored_at 置位），走查账号可复核。
+
 ### §15.84 常务岗桥面鉴权缺口（真机走查揪出，2026-10-29）
 
 **发现方式**：§15.82 留下的「留给 owner：真机 deputy 巡逻回合」——本次真机跑了一轮。常务岗自己的回合报告原文：

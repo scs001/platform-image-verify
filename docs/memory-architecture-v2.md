@@ -169,6 +169,16 @@ L0 观测形状（v2.0 起）：`{session, agent, event: turn_start|tool_call|to
 - **#1 Hy-Memory working**：`hy_memory.coding.extractor.CodingMemoryExtractor(llm_provider).extract(messages, history_messages, ...)` → `(CodingMemoryDraft[], WorkingFactDraft[])`；reconcile 用 `build_experience_reconcile_prompt()` + `_parse_ops` 对我方 candidates 出 ADD/UPDATE/DELETE/SKIP → 映射为 supersedes。sidecar = Python 容器，词元车道 DeepSeek 端点，每会话 3-4 次 LLM 调用（中文 working 提示约 1 万字）。专训 30B-A3B 可选（Apache-2.0；FP8/GGUF Q4 18GB）。
 - **#2 mem0 单遍**：成本最低的备选；**#3 自研启发式**：工具调用频次/文件触达统计，零 LLM 兜底；**（远）graphiti**：实体关系与双时态，法条 KG 线复用；**（备）TencentDB memory-core**：按 owner instanceId 跑其 L1/L2 管线（25 万行，S1 不过门才考虑）。
 
+### 9.1 晋升通道（add-tier-promotion-candidates，2026-10-30）
+
+tier 阶梯曾 99.8% 停在 draft（2435/2/4），根因是打标车道选材过窄（仅无 tag 的 reference）。本通道修正选材并确立人机分工：
+
+- **选材** `promotionCandidates`：`type IN (fact, experience, reference) AND tier='draft' AND updated_at > promotion_cursor`，**不以「是否已有 tag」为排除条件**；独立 `promotion_cursor`（打标游标推进不牵制晋升）。
+- **`/promote` 端点**（distiller 新缝，`/tag` 逐字节不动）：入 `{scope, items:[{idx,title,summary,current_tier}]}`，出 `{results:[{idx,suggest_tier,reason}], tokens, errors[]}`。**封顶写在解析器里**：模型输出 canonical → 降为 stable；无法识别 → none。prompt 只允许 stable/none 两答。
+- **提议 ≠ 晋级**：AI 判断只落 `tier_proposals` 表（proposed_tier/reason/by=ai/at/accepted_at/ignored_at），页 tier 纹丝不动；owner 经 `/memory/promotions` 读面 **接受**（此时才翻 tier，且 `tier_origin=human`）或 **忽略**（`FD_MEMORY_PROMOTION_IGNORE_COOLDAYS`，默认 14 天冷却防骚扰）。
+- **预算与观测**：与打标共用 per-owner 日预算门（超限即停提议，已有提议仍可批）；`/admin/metrics` 的 `promotion: {candidates, proposed, accepted, ignored}` 使通道是否真在流动一目了然。回滚闸 `FD_MEMORY_PROMOTION_ENABLED=0`＝零调用。
+- **canonical 铁律不变**：仅经人类手势（`/pages/mutate`）或受信信号授予；晋升面连读都读不到 canonical 这一档。
+
 ## 10. 评测
 
 - fixture：spider-heal 与集群回合的脱敏真实转录（20 段起），随 change 入 `fd-memory/fixtures/eval/`。

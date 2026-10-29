@@ -34,9 +34,9 @@
 
 ## 6. 上产与真机验收
 
-- [ ] 6.1 fd-memory 出片 + distiller 出片，GitOps 滚版（`all-services/prod/fd-memory.yaml`，主容器与 initContainer 两处）
-- [ ] 6.2 paas 出片 + 滚版
-- [ ] 6.3 真机验：首轮候选数、token 消耗、`/admin/metrics` 的 promotion 计数可见
-- [ ] 6.4 真机验：接受一条提议后 tier 变更且 origin=human；忽略一条后冷却生效
-- [ ] 6.5 真机验：AI 产出的提议中不出现 canonical
-- [ ] 6.6 台账 §15.79 续五 + `docs/memory-architecture-v2.md` 补晋升通道小节
+- [x] 6.1 fd-memory 出片 + distiller 出片，GitOps 滚版（`all-services/prod/fd-memory.yaml`，主容器与 initContainer 两处）
+- [x] 6.2 paas 出片 + 滚版
+- [x] 6.3 真机验：首轮候选数、token 消耗、`/admin/metrics` 的 promotion 计数可见
+- [x] 6.4 真机验：接受一条提议后 tier 变更且 origin=human；忽略一条后冷却生效
+- [x] 6.5 真机验：AI 产出的提议中不出现 canonical
+- [x] 6.6 台账 §15.79 续五 + `docs/memory-architecture-v2.md` 补晋升通道小节

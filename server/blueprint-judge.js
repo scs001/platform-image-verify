@@ -99,8 +99,13 @@ export function resolveJudgeLane({ entries = null, preferredModel = null } = {})
     }
   })();
   const hit = wanted ? doc.models?.find((m) => m.id === wanted || m.name === wanted) : null;
-  // 蓝图显式选了但名册里没有 → 不静默回落（与 D3 同族：错配置不猜）。
-  if (blueprintPick && !hit) {
+  // 蓝图显式选了但名册里没有：**名册本身可能不可见**（2026-10-29 生产实证——
+  // cell 进程有自己的 PLATFORM_DATA_DIR，其 llm-providers.json 常为空，模型
+  // 配置在网关侧）。所以只有「名册可见且确实不含」才判 unavailable；名册为空
+  // 但有部署 env 路由时，照发一次、让上游如实回答（真错就是 404/502 →
+  // insufficient-evidence 带原因），不因为看不见名册就整体失能。
+  const rosterVisible = Array.isArray(doc.models) && doc.models.length > 0;
+  if (blueprintPick && !hit && rosterVisible) {
     return {
       unavailable: true,
       requestedModel: blueprintPick,

@@ -265,3 +265,29 @@ test("审计件带 judgeSource / judgeFallbackReason", async () => {
   assert.equal(out.audit.judgeSource, "blueprint");
   assert.equal(out.audit.judgeFallbackReason, null);
 });
+
+test("名册不可见时不整体失能：蓝图指定照发，让上游如实回答", async () => {
+  const { resolveJudgeLane } = await import("../server/blueprint-judge.js");
+  // 名册空（cell 进程的真实形状）
+  const emptyEntries = { providers: {}, models: [] };
+  const prevBase = process.env.LLM_BASE_URL;
+  const prevModel = process.env.BLUEPRINT_JUDGE_MODEL;
+  try {
+    process.env.LLM_BASE_URL = "http://127.0.0.1:32080";
+    process.env.BLUEPRINT_JUDGE_MODEL = "some-default";
+    const r = resolveJudgeLane({ entries: emptyEntries, preferredModel: "picked-model" });
+    assert.equal(r.model, "picked-model", "名册不可见时按指定模型发");
+    assert.equal(r.judgeSource, "blueprint");
+    assert.notEqual(r.unavailable, true);
+  } finally {
+    if (prevBase === undefined) delete process.env.LLM_BASE_URL; else process.env.LLM_BASE_URL = prevBase;
+    if (prevModel === undefined) delete process.env.BLUEPRINT_JUDGE_MODEL; else process.env.BLUEPRINT_JUDGE_MODEL = prevModel;
+  }
+});
+
+test("名册可见且确实不含 → unavailable（不猜）", async () => {
+  const { resolveJudgeLane } = await import("../server/blueprint-judge.js");
+  const entries = { providers: { p1: { baseURL: "https://x/v1", apiKeyEnv: "K1", models: [] } }, models: [{ id: "m-a", provider: "p1" }] };
+  const r = resolveJudgeLane({ entries, preferredModel: "ghost" });
+  assert.equal(r.unavailable, true);
+});

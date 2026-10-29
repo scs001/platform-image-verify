@@ -492,6 +492,7 @@ const SEED_ORCHESTRATION_NARRATIVE = {
   "intel-brief-fleet.seed.json": { trigger: 1, handoff: 1 }, // patrol→handoff→digest chain
   "invest-morning-fleet.seed.json": { trigger: 1, handoff: 1 }, // cascade morning meeting
   "service-desk-fleet.seed.json": { trigger: 1, event: 1 }, // inbound bot wake
+  "product-intro-fleet.seed.json": { dispatch: 5 }, // receptionist star: guide→5 line experts (add-product-intro-team)
 };
 
 test("official seed library: every manifest passes the fleet-section gate", async () => {

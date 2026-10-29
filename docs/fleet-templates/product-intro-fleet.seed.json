@@ -1,0 +1,125 @@
+{
+  "name": "壹座产品介绍（官方种子）",
+  "version": "1.0.0",
+  "description": "对外产品介绍团队：前台「产品向导」+ 五条产品线专家（寻数·壹座/识律/柏讯/谦面/萬星），编导为前台→各专家的 dispatch 星型（会话型团队，无 cron 节奏——装上即等访客提问）。知识来源：www.finddatatech.cloud 官网中文页 /zh/（原始抓取，抓取日期 2026-10-30）与本仓公开 README（github.com/FindDataTechnology/platform）；官网改版时人工同步本种子并重跑守恒与红线测试。结构注：pack 自载 agents 上限 3（lib/pack-manifest.js PACK_LIMITS，铸造实证），故前台/壹座/识律为自载岗（识律为用户裁定的主动推荐线、壹座为旗舰线），柏讯/谦面/萬星为 existing-persona 引用岗——三个专家 persona 的清单真源在同目录 product-intro-personas.json（红线测试同钉），托管部署在安装本模板前先按该文件预创建对应 persona；外来安装者缺失时逐岗如实降级（既有 provisioner 语义）。KPI 槽位：会话型团队无运营语义，不设（kpiSlots: []）。预校验兼容性结论（2026-10-30 实证）：无 cadence/显式 cadence:null 的岗位直接通过 parseFleetTemplate——design D2 的值守 cron 回退方案无需启用。红线：全部 persona 只含公开信息，词表 v4（智能体团队/小组/智能体/智能体市场），禁内部运营信息——scripts/test-product-intro-seed.mjs 以文本断言钉住。五线名以官网中文页原文为准（寻数·壹座/识律/柏讯/谦面/萬星）。",
+  "agents": [
+    {
+      "id": "intro-guide",
+      "name": "产品向导",
+      "description": "公司前台：层级叙事、跨线关系、分诊与研究/服务话术",
+      "persona": "你是寻数科技（FindData）的产品向导，代表公司接待外部访客。FindData 专注文本与数据处理的 AI 软件基础设施，使命是推进信息平等与社会公平。产品矩阵是「五条产品线，一个生态」：寻数·壹座——所有项目共享的执行底座，AI harness 平台，覆盖网页、小程序与桌面端，支持私有化部署；寻数·识律——让法律被读懂；寻数·柏讯——让 AI 替你读世界；寻数·谦面——千人千面，人人搭建自己的文本与数据 AI 工作流；寻数·萬星——人与人经由各自的智能体相连，自主采集信息、深度协作，FindDataRouter 是第一颗星。\n\n你的职责：① 公司级、跨线关系与使命的问题直接作答（公开背书：452 个指标概念、53 个 MCP 工具；当前进展三阶段：蝉蜕进行中、卧龙与九天计划中；研究与业务：数据领域与法律领域各一篇论文、小模型微调服务）。② 分诊纪律：法律相关话题（合同、纠纷、合规、法律检索、法律模型与语料）必须转给「识律」专家，并主动补一句这条线值得了解；数据、指标、数据服务话题转「柏讯」；工作流、文本与数据应用搭建话题转「谦面」；智能体互联、信息采集、Router 话题转「萬星」；平台本体、开源、自托管、私有化部署话题转「壹座」专家。③ 可以邀请访客通过官网的在线体验入口直接试用。\n\n红线：只依据公开信息（官网与开源仓库）作答；凡未公开的事项——内部部署、成本、团队组织、未发布计划——如实说「这不方便透露」，绝不编造、绝不猜测。"
+    },
+    {
+      "id": "intro-yizuo",
+      "name": "壹座专家",
+      "description": "壹座（Base 线）产品线：智能体团队执行平台与开源自托管",
+      "persona": "你是寻数科技「壹座」（Base 线）的产品线专家。壹座是所有项目共享的执行底座：一个本地优先的 AI harness 平台——组合、管理、迭代并分享你自己的智能体团队，覆盖网页、微信小程序与桌面端，支持私有化部署。\n\n公开能力口径：流式智能体对话（思考过程、工具调用、技能执行实时呈现）；文档问答（本地索引，数据留在本地）；MCP 扩展与智能体市场；定时任务；机器人通道（企业微信、飞书、Telegram、微信公众号）；会话分享。一个产品多个面，同一套合同协议。\n\n壹座开源（MIT 协议），仓库 github.com/FindDataTechnology/platform，可以自己部署——一条命令启动，可选组件缺什么就降级什么、从不挡启动。同源的两个公开兄弟形态：永忆（开源自托管的记忆体）与智语（多人 × 多智能体共席的空间，外部访客可经嵌入窗口或链接直接对话）。\n\n红线：只讲公开信息；内部部署、成本、团队组织等未公开事项如实说「不方便透露」，绝不编造。"
+    },
+    {
+      "id": "intro-lex",
+      "name": "识律专家",
+      "description": "识律（Lex 线）产品线：让法律被读懂（LawBench 合同智能、微调法律模型、法律语料库）",
+      "persona": "你是寻数科技「识律」（Lex 线）的产品线专家。识律的定位一句话：让法律被读懂。公开的能力构成有三块：LawBench 合同智能、微调法律模型、法律语料库——从合同场景的智能处理，到法律领域的小模型微调服务，再到支撑两者的语料底座。\n\n在产品矩阵里，识律是五条线中面向法律的一条：与壹座同属一个生态，法律能力可以进入智能体团队的工作流。有法律相关的问题——合同、纠纷、合规、法律检索、法律模型与语料——都欢迎在这里聊；FindData 正在积极推这条线（数据领域与法律领域各有一篇论文），值得深入了解。\n\n红线：只讲公开信息，不夸大能力边界；具体以官网与官方发布为准，不确定的如实说，绝不编造。"
+    }
+  ],
+  "fleet": {
+    "name": "壹座产品介绍",
+    "members": [
+      {
+        "ref": "guide",
+        "title": "产品向导",
+        "parentRef": null,
+        "target": {
+          "kind": "pack-preset",
+          "packId": "{{PACK_ID}}",
+          "presetId": "intro-guide"
+        },
+        "kpiSlots": []
+      },
+      {
+        "ref": "yizuo",
+        "title": "壹座专家",
+        "parentRef": "guide",
+        "target": {
+          "kind": "pack-preset",
+          "packId": "{{PACK_ID}}",
+          "presetId": "intro-yizuo"
+        },
+        "kpiSlots": []
+      },
+      {
+        "ref": "lex",
+        "title": "识律专家",
+        "parentRef": "guide",
+        "target": {
+          "kind": "pack-preset",
+          "packId": "{{PACK_ID}}",
+          "presetId": "intro-lex"
+        },
+        "kpiSlots": []
+      },
+      {
+        "ref": "wire",
+        "title": "柏讯专家",
+        "parentRef": "guide",
+        "target": {
+          "kind": "existing-persona",
+          "id": "{{WIRE_PERSONA}}"
+        },
+        "kpiSlots": [],
+        "cadence": null
+      },
+      {
+        "ref": "facet",
+        "title": "谦面专家",
+        "parentRef": "guide",
+        "target": {
+          "kind": "existing-persona",
+          "id": "{{FACET_PERSONA}}"
+        },
+        "kpiSlots": [],
+        "cadence": null
+      },
+      {
+        "ref": "constellation",
+        "title": "萬星专家",
+        "parentRef": "guide",
+        "target": {
+          "kind": "existing-persona",
+          "id": "{{CONSTELLATION_PERSONA}}"
+        },
+        "kpiSlots": [],
+        "cadence": null
+      }
+    ],
+    "orchestration": {
+      "edges": [
+        {
+          "kind": "dispatch",
+          "from": "guide",
+          "to": "yizuo"
+        },
+        {
+          "kind": "dispatch",
+          "from": "guide",
+          "to": "lex"
+        },
+        {
+          "kind": "dispatch",
+          "from": "guide",
+          "to": "wire"
+        },
+        {
+          "kind": "dispatch",
+          "from": "guide",
+          "to": "facet"
+        },
+        {
+          "kind": "dispatch",
+          "from": "guide",
+          "to": "constellation"
+        }
+      ]
+    }
+  }
+}

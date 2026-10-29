@@ -27,7 +27,9 @@ import { registry as wecom, decrypt, encrypt, signature } from "./wecom.js";
 import { xmlField } from "./adapter.js";
 
 const DEBUG = String(process.env.WECOM_BOT_DEBUG || "").trim() === "1";
-const RESPONSE_URL_TTL_MS = 6 * 60_000; // official passive-reply window
+// response_url: one call per url, valid 1h (official 主动回复消息 doc). The
+// "6 minutes" figure is the passive-reply wait, not this window.
+const RESPONSE_URL_TTL_MS = 60 * 60_000;
 
 // chatKey → { url, at }. Latest callback wins: a group reply always goes to
 // the same chat, so a slightly mismatched url still lands in the right place.
@@ -193,10 +195,14 @@ export const registry = {
         "proactive sends to this channel are not supported)",
       );
     }
+    // 主动回复 only accepts markdown / template_card — a "text" msgtype is
+    // rejected with 40008 invalid message type (prod-verified). Plain text is
+    // valid markdown, so text rides the markdown channel; in groups the reply
+    // also quotes the triggering message (platform behavior, free win).
     const res = await fetch(entry.url, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ msgtype: "text", text: { content: text } }),
+      body: JSON.stringify({ msgtype: "markdown", markdown: { content: text } }),
     });
     const j = await res.json().catch(() => ({}));
     if (!res.ok || (j.errcode && j.errcode !== 0)) {
@@ -270,7 +276,7 @@ if (process.argv[1]?.endsWith("wecom-bot.js")) {
   };
   await registry.sendText(cred, "wrAAAA1111", "看完条款了：付款周期 30 天。");
   assert.equal(posted.url, groupMsg.response_url);
-  assert.deepEqual(posted.body, { msgtype: "text", text: { content: "看完条款了：付款周期 30 天。" } });
+  assert.deepEqual(posted.body, { msgtype: "markdown", markdown: { content: "看完条款了：付款周期 30 天。" } });
 
   // Send with no live response_url fails loudly.
   resetResponseUrlsForTest();

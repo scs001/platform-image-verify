@@ -177,7 +177,7 @@ test("group chats enjoy the SAME guards as private chats — no exemption", asyn
   // The tool-derived answer never went out; the platform-honest fallback did.
   const repliesToGuard = replies.filter((r) => r.url.includes("wrGUARD02"));
   assert.equal(repliesToGuard.length, 1, "one reply for the guarded turn");
-  assert.match(repliesToGuard[0].body.text.content, /cannot answer that from this channel/);
-  const leaked = replies.some((r) => r.body?.text?.content === "带工具的回答");
+  assert.match(repliesToGuard[0].body.markdown.content, /cannot answer that from this channel/);
+  const leaked = replies.some((r) => r.body?.markdown?.content === "带工具的回答");
   assert.equal(leaked, false, "tool-derived answer must be withheld in groups too");
 });

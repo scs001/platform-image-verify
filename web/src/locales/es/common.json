@@ -21,7 +21,7 @@
     "trace": "Traza",
     "openMenu": "Abrir menú de navegación",
     "tasks": "Automatización",
-    "fleets": "Clústeres",
+    "fleets": "Equipos de agentes",
     "apps": "Apps",
     "fleet": "Clúster de runners",
     "zhiyu": "Zhiyu",
@@ -49,25 +49,25 @@
       "events": "Eventos",
       "session": "Sesión"
     },
-    "fleetBadge": "Clúster"
+    "fleetBadge": "Equipo de agentes"
   },
   "agentsPage": {
     "title": "Agentes",
     "agents": "Expertos",
-    "market": "Paquetes",
+    "market": "Agentes",
     "create": "Nuevo experto",
     "myExperts": "Mis expertos",
     "connect": "Conectar",
     "connecting": "Conectando…",
     "loadFailed": "Error al cargar el catálogo: {{error}}",
-    "myClusters": "Mis arrays",
-    "clustersEmpty": "Aún no hay arrays — usa \"+ Crear array\" para agrupar agentes en un equipo.",
-    "clusterDetail": "Detalles del array",
-    "clusterAgents": "Agentes del array",
+    "myClusters": "Mis grupos",
+    "clustersEmpty": "Aún no hay grupos — usa \"+ Crear grupo\" para agrupar agentes en un equipo.",
+    "clusterDetail": "Detalles del grupo",
+    "clusterAgents": "Agentes del grupo",
     "clusterStatus": "Estado",
     "clusterCreated": "Creado",
-    "clusterTerminate": "Terminar array",
-    "clusterTerminateHint": "Terminar detiene el array; los agentes y paquetes siguen instalados.",
+    "clusterTerminate": "Terminar grupo",
+    "clusterTerminateHint": "Terminar detiene el grupo; los agentes instalados permanecen.",
     "close": "Cerrar"
   },
   "sidebar": {
@@ -206,7 +206,7 @@
       "effortDefault": "Predeterminado",
       "agent": "Agente",
       "agentUnset": "Predeterminado",
-      "agentFocused": "Enfocado · {{pack}} · {{skills}} habilidades · {{mcp}} MCP",
+      "agentFocused": "Enfocado · {{agente}} · {{skills}} habilidades · {{mcp}} MCP",
       "agentFocusedCustom": "Enfocado · propio · {{skills}} habilidades · {{mcp}} MCP",
       "permission": "Permisos",
       "permissionUnset": "Predeterminado",
@@ -233,9 +233,9 @@
       "websearchHint": "Activa la búsqueda web para esta conversación (desactivada por defecto)",
       "ctx": "ctx {{pct}}%",
       "ctxHint": "{{tokens}} / {{window}} tokens",
-      "clusterLoad": "Cargar array",
+      "clusterLoad": "Cargar grupo",
       "clusterLoading": "Cargando…",
-      "clusterLoadHint": "Vincula este array a la sesión actual: cambia al primer miembro predeterminado; el fan-out va por tareas de array.",
+      "clusterLoadHint": "Vincula este grupo a la sesión actual: cambia al primer miembro predeterminado; el fan-out va por tareas de grupo.",
       "workspaceAdvanced": "Avanzado"
     },
     "sending": "Enviando…",
@@ -332,8 +332,8 @@
       "titlePlaceholder": "Título de la sesión",
       "rename": "Guardar nuevo título",
       "sessionActions": "Acciones de sesión",
-      "clusterBound": "Ejecutando con el array {{name}}",
-      "clusterExpiring": "Ejecutando con el array {{name}} — inactivo, se terminará a las {{time}} salvo que se use antes"
+      "clusterBound": "Ejecutando con el grupo {{name}}",
+      "clusterExpiring": "Ejecutando con el grupo {{name}} — inactivo, se terminará a las {{time}} salvo que se use antes"
     },
     "titleTooLong": "El título debe tener 200 caracteres o menos",
     "connectionLost": "Conexión perdida — reconectando…",
@@ -355,18 +355,18 @@
     "queuedCancel": "Cancelar",
     "queuedPreempt": "Detenerlo y ejecutar esto ahora",
     "cluster": {
-      "terminatedNotice": "El array '{{name}}' fue terminado; se cambió al agente integrado"
+      "terminatedNotice": "El grupo '{{name}}' fue terminado; se cambió al agente integrado"
     },
     "presetLink": {
       "pending": "Cambiando a {{name}}…",
       "rejected": "Cambio rechazado: el asistente está respondiendo; reintenta en breve",
       "retry": "Reintentar",
-      "missing": "{{name}} ya no está disponible (es posible que el pack se haya desinstalado); se mantiene el asistente actual"
+      "missing": "{{name}} ya no está disponible (es posible que el agente se haya desinstalado); se mantiene el asistente actual"
     },
     "assistant": {
       "label": "Hablar con",
       "standardSection": "Estándar",
-      "packSection": "Roles de packs",
+      "packSection": "Roles de agentes",
       "mineSection": "Mis expertos",
       "otherSection": "Otros asistentes",
       "composeLocked": "Esta sesión ya comenzó y su modo está fijado; abre un chat nuevo para cambiar."
@@ -538,7 +538,7 @@
       "addButton": "Agregar MCP",
       "empty": "No hay MCP configurado. Agrega uno para extender tu agente.",
       "fullSurface": "Superficie completa",
-      "fullSurfaceHint": "Los servidores marcados exponen todas sus herramientas en modo completo y enfocado, por encima de las listas de los paquetes. Se aplica en la próxima composición.",
+      "fullSurfaceHint": "Los servidores marcados exponen todas sus herramientas en modo completo y enfocado, por encima de las listas de los agentes. Se aplica en la próxima composición.",
       "addTitle": "Agregar MCP",
       "editTitle": "Editar MCP",
       "confirmDelete": "¿Eliminar \"{{name}}\"?",
@@ -583,16 +583,16 @@
         "contentRequired": "El contenido es requerido"
       },
       "package": {
-        "title": "Subir paquete de habilidad",
-        "subtitle": "Sube un paquete zip de habilidad (SKILL.md + referencias y scripts); se instala como una habilidad utilizable en conversaciones.",
-        "uploadButton": "Subir paquete",
-        "pick": "Elegir un paquete zip de habilidad",
+        "title": "Subir agente de habilidad",
+        "subtitle": "Sube un agente zip de habilidad (SKILL.md + referencias y scripts); se instala como una habilidad utilizable en conversaciones.",
+        "uploadButton": "Subir agente",
+        "pick": "Elegir un agente zip de habilidad",
         "bodyLabel": "Vista previa del cuerpo de la habilidad",
         "filesLabel": "Archivos ({{count}} almacenados / {{total}} en total)",
         "omittedBinary": "binario, no se almacena",
         "omittedLarge": "demasiado grande, no se almacena",
-        "scriptWarning": "Entiendo que este paquete contiene archivos de script ejecutables",
-        "install": "Instalar paquete",
+        "scriptWarning": "Entiendo que este agente contiene archivos de script ejecutables",
+        "install": "Instalar agente",
         "success": "Habilidad {{name}} instalada ({{count}} archivos auxiliares)",
         "successReplaced": "Habilidad {{name}} reemplazada por completo",
         "normalizedAs": "se normalizará a {{name}} (origen: {{upstream}})",
@@ -693,7 +693,7 @@
         "button": "Instalar esta skill",
         "title": "Instalar {{name}}",
         "bodyLabel": "Cuerpo de la skill (extracto)",
-        "filesLabel": "Archivos del paquete ({{count}})",
+        "filesLabel": "Archivos del agente ({{count}})",
         "omittedBinary": "no almacenado (binario)",
         "omittedLarge": "no almacenado (demasiado grande)",
         "normalizedAs": "se instala como: {{name}}",
@@ -776,7 +776,7 @@
     },
     "start": {
       "title": "Tres pasos para empezar",
-      "s1": "Elige un experto: con el selector de arriba en Conversación, o instala un pack sectorial en Agentes.",
+      "s1": "Elige un experto: con el selector de arriba en Conversación, o instala un agente sectorial en Agentes.",
       "s2": "Di lo que necesitas: pídelo como a un colega y suelta los archivos en el cuadro de entrada.",
       "s3": "Recoge los resultados: lo que produzca el agente se guarda automáticamente en Resultados.",
       "replay": "Ver la guía de nuevo",
@@ -785,7 +785,7 @@
         "library": "Biblioteca — los materiales que le das al agente; las respuestas los citan.",
         "outputs": "Resultados — gráficos y archivos que el agente produce para ti, guardados automáticamente.",
         "experts": "Expertos — roles de conversación que conocen un oficio; elígelos o créalos en Agentes.",
-        "packs": "Packs sectoriales — conjuntos de experto y herramientas en un clic."
+        "packs": "Agentes sectoriales — conjuntos de experto y herramientas en un clic."
       }
     },
     "guidesEmpty": "Aún no hay guías por escenario."
@@ -872,7 +872,7 @@
       "wechat-app": "Mini programa de WeChat",
       "branding": "Marca del despliegue",
       "status": "Estado del sistema",
-      "packs": "Paquetes",
+      "packs": "Agentes",
       "presets": "Preajustes propios",
       "devices": "Dispositivos vinculados",
       "roles": "Roles de usuario",
@@ -1055,7 +1055,7 @@
         },
         "facet": {
           "name": "Facet",
-          "desc": "El mercado de paquetes: donde se publican skills, servidores MCP y personas."
+          "desc": "El mercado de agentes: donde se publican skills, servidores MCP y personas."
         },
         "connector": {
           "name": "Conector de Wanxing",
@@ -1097,7 +1097,7 @@
           "subtitle": "Credenciales y cableado de la búsqueda web: tu clave y el servicio compartido (admin)."
         },
         "chatwoot": {
-          "subtitle": "Tu propio tenant de Chatwoot: pega tu token; el pack y el escritorio usan tu cuenta"
+          "subtitle": "Tu propio tenant de Chatwoot: pega tu token; el agente y el escritorio usan tu cuenta"
         }
       }
     },
@@ -1160,7 +1160,7 @@
       "footnote": "Un 401 marca la clave como pendiente de reconexión; volver a vincular emite una clave nueva. La cuenta vinculada tiene prioridad sobre una clave pegada."
     },
     "delegation": {
-      "hint": "Delegue parte de la cola al adjunto de la flota; el resto sigue con usted. Las categorías de alto riesgo siempre las decide usted.",
+      "hint": "Delegue parte de la cola al adjunto del equipo de agentes; el resto sigue con usted. Las categorías de alto riesgo (cambios de configuración, personal, gasto) siempre las decide usted.",
       "enabled": "Activar delegación",
       "routes": "Enrutado por categoría",
       "category": {
@@ -1184,7 +1184,7 @@
       "digestOff": "Desactivado",
       "model": "Modelo para decidir",
       "modelInherit": "Vacío = heredar",
-      "modelHint": "Vacío sigue el modelo por defecto del clúster/celda; un valor se aplica al puesto de adjunto desde su próxima ronda."
+      "modelHint": "Vacío sigue el modelo por defecto del equipo/celda; un valor se aplica al puesto de adjunto desde su próxima ronda."
     }
   },
   "bindings": {
@@ -1258,7 +1258,7 @@
       "missedTotal": "{{count}} omitidas",
       "lastOk": "correcto",
       "lastFailed": "fallido",
-      "cluster": "Array {{name}} · {{count}} agentes"
+      "cluster": "Grupo {{name}} · {{count}} agentes"
     },
     "schedule": {
       "daily": "cada día a las {{time}}",
@@ -1490,9 +1490,9 @@
   "facetShell": {
     "tabs": {
       "intro": "Introducción",
-      "packs": "Packs",
+      "packs": "Agentes",
       "mcp": "Servicios MCP",
-      "mine": "Mis packs",
+      "mine": "Mis agentes",
       "curate": "Curaduría",
       "docs": "Docs"
     },
@@ -1509,7 +1509,7 @@
   },
   "facetDocs": {
     "title": "Documentación",
-    "subtitle": "Todo lo necesario desde un id de paquete hasta una instalación funcionando: instalar, conectar y crear.",
+    "subtitle": "Todo lo necesario desde un id de agente hasta una instalación funcionando: instalar, conectar y crear.",
     "packageNote": "Paquete CLI publicado:",
     "nav": {
       "install": "Instalar",
@@ -1517,16 +1517,16 @@
       "create": "Crear"
     },
     "install": {
-      "title": "Instalar un paquete",
+      "title": "Instalar un agente",
       "lead": "Suscríbete en el mercado y luego instala la instantánea de una versión en la herramienta que uses. 壹座 es la vía de primera clase — sin línea de comandos. La CLI cubre cinco editores.",
-      "marketNote": "Mercado: explora y copia el id del paquete en",
+      "marketNote": "Mercado: explora y copia el id del agente en",
       "yizuoTab": "壹座 (sin CLI)",
       "yizuo": {
         "title": "壹座 — la vía de primera clase",
-        "body": "Inicia sesión en 壹座 con la misma identidad que este mercado, suscríbete a un paquete e instálalo en tu runtime de conversación con un clic — las credenciales MCP ya están conectadas.",
-        "step1": "Explora el mercado y suscríbete a un paquete.",
-        "step2": "En 壹座, abre Ajustes → Paquetes → Mis paquetes.",
-        "step3": "Instala el paquete suscrito: sus habilidades, referencias MCP y personas de agente llegan juntas."
+        "body": "Inicia sesión en 壹座 con la misma identidad que este mercado, suscríbete a un agente e instálalo en tu runtime de conversación con un clic — las credenciales MCP ya están conectadas.",
+        "step1": "Explora el mercado y suscríbete a un agente.",
+        "step2": "En 壹座, abre Ajustes → Agentes → Mis agentes.",
+        "step3": "Instala el agente suscrito: sus habilidades, referencias MCP y personas de agente llegan juntas."
       },
       "client": {
         "skillDir": "Las habilidades se escriben en",
@@ -1537,7 +1537,7 @@
     "clients": {
       "claude-code": {
         "label": "Claude Code",
-        "body": "Las habilidades se instalan como instantánea de versión; con una clave de llamada guardada, las referencias MCP del paquete pueden escribirse en su configuración MCP nativa."
+        "body": "Las habilidades se instalan como instantánea de versión; con una clave de llamada guardada, las referencias MCP del agente pueden escribirse en su configuración MCP nativa."
       },
       "cursor": {
         "label": "Cursor",
@@ -1558,7 +1558,7 @@
     },
     "mcp": {
       "title": "Conectar servicios MCP",
-      "lead": "Los paquetes referencian servidores MCP que se ejecutan a través de la pasarela del registro. Hay dos vías de conexión: la universal con clave de llamada y la nativa del cliente por descubrimiento OAuth.",
+      "lead": "Los agentes referencian servidores MCP que se ejecutan a través de la pasarela del registro. Hay dos vías de conexión: la universal con clave de llamada y la nativa del cliente por descubrimiento OAuth.",
       "keyPath": {
         "title": "Clave de llamada (universal)",
         "body": "Crea una clave wgk- en la consola del registro; la CLI la verifica y la guarda localmente (0600). Después, install puede escribir la configuración MCP nativa de cada destino con esa clave.",
@@ -1577,11 +1577,11 @@
       }
     },
     "create": {
-      "title": "Crear y publicar un paquete",
+      "title": "Crear y publicar un agente",
       "lead": "Publicar requiere el grupo creators. Hay tres vías de creación; todas pasan por la misma puerta de publicación y las versiones publicadas son inmutables.",
       "routesTitle": "Tres vías de creación",
-      "route1": "En 壹座: Ajustes → Paquetes → Nuevo paquete — compón habilidades, referencias MCP y personas como borrador.",
-      "route2": "Conversión con un clic: convierte un preset propio en borrador de paquete (Ajustes → Presets personalizados → Publicar), con un informe de lo transferido y lo pendiente.",
+      "route1": "En 壹座: Ajustes → Agentes → Nuevo agente — compón habilidades, referencias MCP y personas como borrador.",
+      "route2": "Conversión con un clic: convierte un preset propio en borrador de agente (Ajustes → Presets personalizados → Publicar), con un informe de lo transferido y lo pendiente.",
       "route3": "Desde la consola del autor (#/mine): envía un manifest directamente al endpoint de publicación; los errores de validación aparecen tal cual.",
       "disciplineTitle": "Disciplina de publicación",
       "versions": "Cada publicación añade una versión inmutable; cada versión puede llevar una nota breve (≤500 caracteres).",
@@ -1603,14 +1603,14 @@
     }
   },
   "facetIntro": {
-    "title": "Mil facetas — el mercado de packs y herramientas para editores de IA",
-    "subtitle": "Los packs reúnen habilidades, referencias MCP y personas de agentes — explora, suscríbete, publica e instala en Claude Code / Cursor con una sola línea",
+    "title": "Mil facetas — el mercado de agentes y herramientas para editores de IA",
+    "subtitle": "Un agente reúne habilidades, referencias MCP y personas — explora, suscríbete, publica e instala en Claude Code / Cursor con una sola línea",
     "factRow": "Navegación anónima; inicia sesión para publicar y suscribirte (la misma identidad que Platform)",
-    "ctaPacks": "Explorar packs",
+    "ctaPacks": "Explorar agentes",
     "ctaMcp": "Ver servicios MCP",
     "card": {
       "contents": {
-        "title": "Qué contiene un pack",
+        "title": "Qué contiene un agente",
         "body": "Habilidades, referencias MCP y personas de agentes, además de versión, etiquetas y autor. La vista de detalle muestra el texto completo de cada habilidad y el historial de versiones."
       },
       "install": {
@@ -1624,7 +1624,7 @@
     },
     "pathTitle": "Cómo funciona",
     "quickTitle": "Inicio rápido",
-    "quickArg": "<id del pack o una URL que contenga el id>",
+    "quickArg": "<id del agente o una URL que contenga el id>",
     "quickNote": "Se instala en Claude Code por defecto; --target cursor y --project <dir> son opcionales.",
     "quickHelpPrefix": "Más usos:",
     "lineLink": "Sitio oficial de FindData — línea Facet →",
@@ -1641,7 +1641,7 @@
     }
   },
   "facetFooter": {
-    "tagline": "El mercado de packs y herramientas para editores de IA",
+    "tagline": "El mercado de agentes y herramientas para editores de IA",
     "contactLabel": "Contacto",
     "linesLabel": "Líneas de producto FindData",
     "lines": {
@@ -1654,7 +1654,7 @@
     "current": "Sitio actual",
     "entriesLabel": "Accesos",
     "entries": {
-      "packs": "Mercado de packs",
+      "packs": "Mercado de agentes",
       "mcp": "Catálogo de servicios MCP",
       "line": "Página de la línea Facet"
     },
@@ -1667,16 +1667,16 @@
       "mine": "Mío"
     },
     "market": {
-      "searchPlaceholder": "Buscar paquetes…",
+      "searchPlaceholder": "Buscar agentes…",
       "search": "Buscar",
-      "empty": "Aún no hay paquetes en el mercado.",
+      "empty": "Aún no hay agentes en el mercado.",
       "allCategories": "Todas",
       "featured": "Destacados",
       "facade": "Avatar de IA",
       "agentSize": "Filtrar por número de agentes",
       "agentSizeAny": "Cualquiera",
       "agentSizeValue": "{{value}} agentes",
-      "assistantHint": "Guía del mercado: el copiloto (abajo a la derecha) responde con 谦面助手 enfocado. El paquete asistente no está instalado en esta celda — instálalo para enfocar la guía."
+      "assistantHint": "Guía del mercado: el copiloto (abajo a la derecha) responde con 谦面助手 enfocado. El agente asistente no está instalado en esta celda — instálalo para enfocar la guía."
     },
     "detail": {
       "notFound": "Paquete no encontrado o retirado",
@@ -1692,7 +1692,7 @@
       "agents": "Agentes",
       "requiresGroup": "requiere el grupo {{group}}",
       "subscribe": "Suscribir e instalar",
-      "gotoMine": "Ver mis paquetes",
+      "gotoMine": "Ver mis agentes",
       "deployTitle": "Desplegar como servicio",
       "deployBtn": "Desplegar",
       "deployOnline": "en línea",
@@ -1712,25 +1712,25 @@
       "keyPasteLabel": "Clave de medición para @{{id}} — créala en el panel y pégala aquí",
       "keyPastePlaceholder": "sk-…",
       "keyBoundBadge": "clave vinculada",
-      "keyRequired": "Este paquete sirve agentes — cada uno necesita una clave de medición creada en tu panel de facturación (inicio Logto), pegada arriba.",
+      "keyRequired": "Este agente da servicio a roles — cada uno necesita una clave de medición creada en tu panel de facturación (inicio Logto), pegada arriba.",
       "keyInvalid": {
         "shape": "Eso no parece una clave de sub2api (debe empezar por sk-).",
-        "unknown-agent": "Se pegó una clave para un rol que no es agente de servicio de este paquete.",
-        "duplicate": "Una clave no puede servir a dos agentes del mismo paquete — crea una por agente en el panel.",
+        "unknown-agent": "Se pegó una clave para un rol que no es agente de servicio de este agente.",
+        "duplicate": "Una clave no puede servir a dos agentes del mismo agente — crea una por agente en el panel.",
         "liveness": "El panel de facturación rechazó esa clave (eliminada, deshabilitada o sin cuota) — créala de nuevo en el panel.",
         "ownership": "Esa clave pertenece a otra cuenta de sub2api — pega una clave creada en tu propia cuenta."
       },
       "downloadSkill": "Descargar SKILL.md",
       "manifestJson": "Manifiesto JSON",
-      "selfhostTitle": "Despliega este paquete en la nube oficial",
-      "selfhostBody": "Esta instancia autoalojada no ejecuta el servicio de agentes. Para poner en línea los agentes de este paquete —páginas compartibles, medición por turno, ingresos para creadores— publícalo en el mercado oficial; el despliegue de un clic se ejecuta allí.",
+      "selfhostTitle": "Despliega este agente en la nube oficial",
+      "selfhostBody": "Esta instancia autoalojada no ejecuta el servicio de agentes. Para poner en línea los roles de este agente —páginas compartibles, medición por turno, ingresos para creadores— publícalo en el mercado oficial; el despliegue de un clic se ejecuta allí.",
       "selfhostMarketBtn": "Abrir el mercado oficial",
       "selfhostCreatingBtn": "Guía de publicación",
       "selfhostNote": "Autoalojar la pila de servicio también es posible —consulta la documentación del repositorio—; la ruta del mercado no requiere infraestructura adicional.",
-      "deploySummary": "Desplegar pone los agentes de este pack en vivo como un servicio de conversación: obtienes una página de chat pública para compartir, los visitantes se miden por ronda y tú (el desplegador) recibes una participación de ingresos.",
+      "deploySummary": "Desplegar pone los roles de este agente en vivo como un servicio de conversación: obtienes una página de chat pública para compartir, los visitantes se miden por ronda y tú (el desplegador) recibes una participación de ingresos.",
       "keySubtitle": "Clave de medición = la cuota que paga las rondas de los visitantes: los visitantes chatean gratis, las rondas se cobran a la clave que pegues aquí.",
       "rhythmSubtitle": "Ritmo = si trabaja por su cuenta: sin entradas solo responde cuando se le addressa; con entradas la plataforma lo despierta según horario (gastando tu cuota).",
-      "modelSubtitle": "Modelo = con qué modelo piensa: vacío mantiene lo vigente (un override existente o, si no, el predeterminado declarado del paquete).",
+      "modelSubtitle": "Modelo = con qué modelo piensa: vacío mantiene lo vigente (un override existente o, si no, el predeterminado declarado del agente).",
       "budgetSubtitle": "Presupuesto = cuánto puede durar una ronda: vacío mantiene lo vigente (un override existente o, si no, el límite declarado o el predeterminado de la plataforma).",
       "modelOverride": "Modelo (opcional, @{{id}})",
       "budgetOverride": "Presupuesto por ronda · minutos (opcional, @{{id}})",
@@ -1748,11 +1748,11 @@
       "loginGo": "Iniciar sesión",
       "close": "Cerrar",
       "skillFiles": "{{count}} archivos auxiliares",
-      "scriptGateTitle": "Este paquete contiene scripts ejecutables",
+      "scriptGateTitle": "Este agente contiene scripts ejecutables",
       "scriptGateBody": "Las habilidades siguientes contienen archivos de script que se depositarán en tu runtime al instalar; nada se instala sin tu confirmación (única).",
       "scriptGateConfirm": "Confirmar instalación",
       "cluster": {
-        "title": "Información del array",
+        "title": "Información del grupo",
         "agentCount": "{{count}} agentes",
         "agents": "Composición de agentes",
         "showOptional": "Mostrar agentes opcionales",
@@ -1788,8 +1788,8 @@
       "purchase": {
         "insufficient": "Saldo insuficiente — recarga en el panel de tokens y reintenta.",
         "noBilling": "Sin cuenta de facturación sub2api vinculada — completa la vinculación antes de comprar.",
-        "required": "Compra este pack antes de instalarlo.",
-        "settlementFailed": "La liquidación no se completó — quedó pendiente; reintenta pronto desde Mis packs."
+        "required": "Compra este agente antes de instalarlo.",
+        "settlementFailed": "La liquidación no se completó — quedó pendiente; reintenta pronto desde Mis agentes."
       },
       "purchased": "comprado",
       "vendorBy": "de {{name}}"
@@ -1834,7 +1834,7 @@
     },
     "drafts": {
       "title": "Mis creaciones",
-      "create": "Nuevo paquete",
+      "create": "Nuevo agente",
       "empty": "Aún no hay borradores.",
       "defaultName": "Paquete sin título",
       "published": "Publicado",
@@ -1842,7 +1842,7 @@
       "partCounts": "{{skills}} habilidades · {{mcp}} MCP · {{agents}} agentes"
     },
     "editor": {
-      "title": "Editar paquete",
+      "title": "Editar agente",
       "save": "Guardar borrador",
       "publish": "Publicar",
       "publishOk": "Publicado v{{version}}.",
@@ -1857,23 +1857,23 @@
       "skillContent": "Cuerpo del SKILL.md",
       "remove": "Quitar",
       "mcp": "Referencias MCP",
-      "mcpHint": "Elige solo servidores del registro del catálogo; los paquetes no llevan endpoints.",
+      "mcpHint": "Elige solo servidores del registro del catálogo; los agentes no llevan endpoints.",
       "mcpEmpty": "No hay servidores del registro en el catálogo.",
       "agents": "Agentes",
       "addAgent": "Añadir agente",
       "agentHint": "Los agentes son personas locales: sin endpoints, modelos ni credenciales.",
-      "agentId": "Id del agente (p. ej. pack-reviewer)",
+      "agentId": "Id del agente (p. ej. agente-reviewer)",
       "agentName": "Nombre del agente",
       "agentPersona": "Texto de la persona",
       "personaCost": "Persona {{chars}} caracteres ≈ {{tokens}} tokens/turno (~3 caracteres/token, estimación; se cobra en cada turno)",
       "resourceSet": "Conjunto de recursos (opcional)",
-      "resourceHint": "Sin marcar = usa todos los recursos del pack; marcado, solo carga el subconjunto elegido (ninguno = solo línea base). Solo se ofrecen las habilidades y referencias MCP del propio pack.",
+      "resourceHint": "Sin marcar = usa todos los recursos del agente; marcado, solo carga el subconjunto elegido (ninguno = solo línea base). Solo se ofrecen las habilidades y referencias MCP del propio agente.",
       "limitSkills": "Limitar habilidades",
       "limitMcp": "Limitar servidores MCP",
       "resourceEmptySkills": "El borrador aún no declara habilidades — añade alguna arriba.",
       "resourceEmptyMcp": "El borrador aún no elige referencias MCP — elige alguna arriba.",
       "agentServing": "Desplegar como servicio de agente (A2A)",
-      "agentServingHint": "Tras publicar, despliega en un clic desde la página del pack; el servicio responde por A2A a través del gateway.",
+      "agentServingHint": "Tras publicar, despliega en un clic desde la página del agente; el servicio responde por A2A a través del gateway.",
       "visibility": "Visibilidad",
       "visibilityPublic": "Público (listado)",
       "visibilityPrivate": "Privado (solo propietario)",
@@ -1889,11 +1889,11 @@
       "toolsFaceRequired": "Estas referencias MCP aún no tienen superficie de herramientas: {{servers}}. Selecciona sus herramientas o marca superficie completa con un motivo.",
       "guide": {
         "title": "Guía de uso (tres pasos)",
-        "hint": "Escribe “qué preparar → qué decir → qué obtienes”; se muestra en la página de detalle. Los tres pasos son obligatorios para publicarla con el pack.",
+        "hint": "Escribe “qué preparar → qué decir → qué obtienes”; se muestra en la página de detalle. Los tres pasos son obligatorios para publicarla con el agente.",
         "stepTitle": "Título del paso {{n}}",
         "stepBody": "Descripción del paso {{n}}"
       },
-      "uploadSkillPackage": "Subir paquete",
+      "uploadSkillPackage": "Subir agente",
       "skillFiles": "{{count}} archivos auxiliares: {{paths}}",
       "export": "Exportar .yizpack",
       "exporting": "Exportando…",
@@ -1905,7 +1905,7 @@
     "bridge": {
       "title": "Traído del preset: {{skills}} habilidades, {{servers}} servidores. No migrado:",
       "reason": {
-        "pack": "pertenece al paquete {{pack}}, no es tu contenido",
+        "pack": "pertenece al agente {{agente}}, no es tu contenido",
         "unavailable": "no disponible actualmente",
         "operator": "servidor de nivel de despliegue, sin contraparte en el mercado",
         "local": "servidor configurado localmente, sin contraparte en el mercado"
@@ -1923,7 +1923,7 @@
       "hint": "Declarar ritmo concede autonomía; sin ritmo solo responde."
     },
     "guide": {
-      "title": "Cómo usar este pack",
+      "title": "Cómo usar este agente",
       "step": "Paso {{n}}",
       "hint": "Tras instalarlo, vuelve a Conversación y elige este experto en el selector.",
       "examples": "Prueba a preguntar"
@@ -1955,21 +1955,21 @@
       "myPurchases": "Mis compras recientes"
     },
     "wizard": {
-      "title": "Aprovisionamiento de plantilla de clúster",
+      "title": "Aprovisionamiento de plantilla de equipo de agentes",
       "cancel": "Cancelar",
       "doneBtn": "Listo",
-      "donePaused": "Clúster aprovisionado (en pausa) — enciéndelo cuando quieras.",
+      "donePaused": "Equipo aprovisionado (en pausa) — enciéndelo cuando quieras.",
       "igniteBtn": "Encender primera ejecución",
-      "lit": "Encendido — el clúster está en marcha.",
+      "lit": "Encendido — el equipo está en marcha.",
       "missingParam": "El parámetro obligatorio «{{name}}» está vacío.",
       "missingTargets": "({{n}} puesto(s) nacieron vacantes — cubrir después)",
       "conflictTargets": "({{n}} destino(s) ya ocupados — nacen como vacantes)",
       "noParams": "Sin ranuras de parámetros — aprovisiona directamente.",
       "paramInvalidServer": "Parámetro «{{name}}» no válido: {{reason}}",
-      "runBtn": "Aprovisionar clúster",
+      "runBtn": "Aprovisionar equipo",
       "stepInstall": "Suscibiendo e instalando…",
       "stepPay": "Completando la compra…",
-      "stepProvision": "Aprovisionando el clúster…"
+      "stepProvision": "Aprovisionando el equipo…"
     }
   },
   "overlay": {
@@ -2001,7 +2001,7 @@
     "tags": "Etiquetas",
     "tagsPlaceholder": "separadas por comas",
     "skills": "Referencias de habilidades",
-    "skillHint": "Se eligen entre las habilidades disponibles localmente (tuyas o de cualquier pack instalado). Las referencias no disponibles se omiten y vuelven a surtir efecto automáticamente.",
+    "skillHint": "Se eligen entre las habilidades disponibles localmente (tuyas o de cualquier agente instalado). Las referencias no disponibles se omiten y vuelven a surtir efecto automáticamente.",
     "mcp": "Referencias de servidores MCP",
     "mcpHint": "Se eligen entre los servidores habilitados; una referencia nunca reactiva un servidor que hayas deshabilitado.",
     "noSkills": "No hay habilidades disponibles en esta celda.",
@@ -2015,7 +2015,7 @@
     "unavailable": "no disponible",
     "shadowed": "sobrescrito",
     "shadowedHint": "El archivo del operador o la nube define el mismo id; el rol se compone ahora con la entrada que lo sobrescribe.",
-    "toPackDraft": "Convertir en borrador de paquete",
+    "toPackDraft": "Convertir en borrador de agente",
     "bridgeDenied": "La conversión requiere permisos de gestión del despliegue (admin o propietario del cell); también puedes crear el borrador a mano",
     "examples": "Preguntas de ejemplo",
     "examplesHint": "Hasta 3; al publicar se convierten en ejemplos de prueba",
@@ -2024,14 +2024,14 @@
   "presetPublish": {
     "action": "Publicar y desplegar",
     "title": "Publicar y desplegar — {{name}}",
-    "compose": "Componiendo el borrador del pack…",
-    "confirmHint": "Revisa el pack compuesto antes de publicar. El nombre y la descripción son editables; las skills, las referencias MCP y el agente se incluyen tal como se convirtieron.",
-    "name": "Nombre del pack",
+    "compose": "Componiendo el borrador del agente…",
+    "confirmHint": "Revisa el agente compuesto antes de publicar. El nombre y la descripción son editables; las skills, las referencias MCP y el agente se incluyen tal como se convirtieron.",
+    "name": "Nombre del agente",
     "description": "Descripción",
     "notes": "Nota de versión (opcional, ≤500 caracteres)",
     "parts": "{{skills}} skill(s) · {{mcp}} MCP · {{agents}} agente(s)",
     "facadeToggle": "Publicar como avatar de IA",
-    "facadeHint": "Tras publicar, este paquete es tu avatar de IA: al desplegar la recepción, los visitantes conversan gratis desde el catálogo — responde con honestidad usando todas las habilidades del paquete y lo dice cuando no puede. El coste va en tu cupo (hosted).",
+    "facadeHint": "Tras publicar, este agente es tu avatar de IA: al desplegar la recepción, los visitantes conversan gratis desde el catálogo — responde con honestidad usando todas las habilidades del agente y lo dice cuando no puede. El coste va en tu cupo (hosted).",
     "facadeNeedServing": "Un avatar de IA necesita un agente con servicio — este borrador no tiene ninguno con contrato de servicio.",
     "facadeNeedSkill": "Un avatar de IA necesita al menos una habilidad como corpus — este borrador no lleva habilidades.",
     "facadeReception": "Agente de recepción",
@@ -2046,7 +2046,7 @@
     "publishDenied": "la publicación fue rechazada — se requiere membresía de creador (403)",
     "publishedBadge": "Publicado",
     "published": "Publicado v{{version}} — visible en el mercado.",
-    "noServing": "Este pack no tiene un agente con contrato de servicio — nada que desplegar.",
+    "noServing": "Este agente no tiene un agente con contrato de servicio — nada que desplegar.",
     "deployTitle": "Desplegar como Agent Service",
     "deployHint": "El agente tiene contrato de servicio — despliega para hacerlo invocable por A2A.",
     "deploy": "Desplegar ahora",
@@ -2108,19 +2108,19 @@
         "body": "Los resultados llegan a Resultados: este paso se ancla en la entrada de navegación."
       },
       "stepFleet": {
-        "title": "Ejecuta tu primer clúster local",
-        "body": "Instala el paquete inicial incluido y abre la consola de flotas para desplegar agentes y verlos trabajar en este equipo.",
-        "install": "Instalar el paquete inicial",
+        "title": "Ejecuta tu primer clúster de runners local",
+        "body": "Instala el agente inicial incluido y abre la consola de runners para desplegar agentes y verlos trabajar en esta máquina.",
+        "install": "Instalar el agente inicial",
         "installing": "Instalando…",
-        "installed": "Instalado: abre la consola de flotas",
-        "failed": "Falló la instalación: reinténtalo desde la consola de flotas"
+        "installed": "Instalado: abre la consola de runners",
+        "failed": "Falló la instalación: reinténtalo desde la consola de runners"
       }
     }
   },
   "mcp": {
     "narrative": {
-      "title": "Infraestructura de la plataforma vs contenido de packs",
-      "body": "Los servidores MCP y las skills de esta página son infraestructura de la plataforma: conéctalos a tu cliente MCP o agente y úsalos directamente. Los packs son paquetes de contenido que combinan skills, referencias MCP y personas de agente en una unidad instalable."
+      "title": "Infraestructura de la plataforma vs contenido de agentes",
+      "body": "Los servidores MCP y las skills de esta página son infraestructura de la plataforma: conéctalos a tu cliente MCP o agente y úsalos directamente. Un agente agrupa skills, referencias MCP y personas en una unidad instalable."
     },
     "tabs": {
       "servers": "Servidores MCP",
@@ -2178,7 +2178,7 @@
       },
       "facet": {
         "name": "Facet",
-        "tagline": "Mercado de packs: descubre, instala y crea paquetes de capacidades de IA"
+        "tagline": "Mercado de agentes: descubre, instala y crea agentes de IA"
       },
       "wanxing": {
         "name": "Wanxing",
@@ -2268,9 +2268,9 @@
       "capacityHint": "Todos los grupos están en uso: detén o elimina un despliegue primero",
       "capacityExceeded": "Los {{cap}} grupos de ejecución están en uso ({{used}} usados): elimina uno para liberar",
       "actionFailed": "La acción falló: {{code}}",
-      "candidatesTitle": "Desplegar desde paquetes instalados",
-      "candidatesEmpty": "Aún no hay agentes servibles en los paquetes instalados: instala un paquete",
-      "candidatesNote": "Los despliegues se ejecutan solo en esta máquina. Un grupo de ejecución es un proceso hijo; en modo pod todos los agentes de un paquete comparten uno.",
+      "candidatesTitle": "Desplegar desde agentes instalados",
+      "candidatesEmpty": "Aún no hay roles servibles entre los agentes instalados: instala un agente",
+      "candidatesNote": "Los despliegues se ejecutan solo en esta máquina. Un grupo de ejecución es un proceso hijo; en modo pod todos los roles del mismo agente comparten uno.",
       "unavailable": "El almacén del clúster local no está disponible",
       "stateRunning": "en ejecución",
       "stateStopped": "detenido",
@@ -2335,22 +2335,22 @@
   },
   "clusters": {
     "composer": {
-      "title": "Crear array",
-      "clusterName": "Nombre del array",
+      "title": "Crear grupo",
+      "clusterName": "Nombre del grupo",
       "description": "Descripción",
       "selectAgents": "Seleccionar agentes",
-      "addAllFromPack": "Añadir todos del paquete",
+      "addAllFromPack": "Añadir todos los roles del agente",
       "defaultAgent": "Predeterminado",
       "activateAllOnCreation": "Activar todos los agentes al crear",
       "bindToCurrentSession": "Vincular a la sesión actual",
-      "noAgents": "No hay agentes disponibles. Instala algún paquete primero.",
-      "creating": "Creando array...",
-      "created": "Array creado",
-      "createCluster": "Crear array",
+      "noAgents": "No hay agentes disponibles. Instala algún agente primero.",
+      "creating": "Creando grupo...",
+      "created": "Grupo creado",
+      "createCluster": "Crear grupo",
       "creatingBtn": "Creando...",
       "cancel": "Cancelar",
-      "nameRequired": "El nombre del array es obligatorio",
-      "nameTooLong": "El nombre del array debe tener 100 caracteres o menos",
+      "nameRequired": "El nombre del grupo es obligatorio",
+      "nameTooLong": "El nombre del grupo debe tener 100 caracteres o menos",
       "atLeastOneAgent": "Selecciona al menos un agente",
       "manage": "Gestionar"
     }
@@ -2360,7 +2360,7 @@
     "openOrigin": "Abrir sitio original",
     "tab": {
       "overview": "Resumen",
-      "my-packs": "Mis packs",
+      "my-packs": "Mis agentes",
       "publish-history": "Historial de publicación",
       "fleet-summary": "Resumen del clúster",
       "missions": "Misiones",
@@ -2390,7 +2390,7 @@
     "focusPending": "Cambiando al preajuste enfocado…",
     "focusRejected": "El chat principal está respondiendo; aún sin enfocar",
     "focusRetry": "Reintentar",
-    "unfocused": "Sin enfocar: el pack de asistente de esta línea no está instalado",
+    "unfocused": "Sin enfocar: el agente de asistente de esta línea no está instalado",
     "pack": "Inspeccionando"
   },
   "action": {
@@ -2431,14 +2431,14 @@
     }
   },
   "fleets": {
-    "title": "Clústeres",
-    "create": "Crear clúster",
-    "empty": "Aún no hay clústeres: crea el primero",
+    "title": "Equipos de agentes",
+    "create": "Crear equipo",
+    "empty": "Aún no hay equipos de agentes: crea el primero",
     "nameLabel": "Nombre",
     "namePlaceholder": "p. ej. Estudio de contenido",
     "membersCount": "{{count}} puestos",
     "detail": {
-      "empty": "Selecciona o crea un clúster"
+      "empty": "Selecciona o crea un equipo de agentes"
     },
     "state": {
       "active": "Activa",
@@ -2476,7 +2476,7 @@
     },
     "kind": {
       "persona": "Persona",
-      "cluster": "Array",
+      "cluster": "Grupo",
       "a2a": "Servicio de agentes",
       "tool": "Herramienta"
     },
@@ -2568,9 +2568,9 @@
       "notExecuted": "Resuelto pero no ejecutado"
     },
     "tpl": {
-      "awaitStart": "Clúster montado desde la plantilla (todo en pausa) — revisa y arranca",
+      "awaitStart": "Equipo de agentes montado desde la plantilla (todo en pausa) — revisa y arranca",
       "start": "Arrancar",
-      "newer": "La plantilla tiene una versión nueva v{{v}} (el clúster activo no cambia; alinea a mano)"
+      "newer": "La plantilla tiene una versión nueva v{{v}} (el equipo activo no cambia; alinea a mano)"
     },
     "stream": {
       "title": "Últimas entregas",
@@ -2624,7 +2624,7 @@
     },
     "hints": {
       "on_duty": "Todo bien: cubierto y ejecutando su horario",
-      "paused": "El clúster o el puesto está en pausa — no se ejecuta nada",
+      "paused": "El equipo o el puesto está en pausa — no se ejecuta nada",
       "missing": "No corrió/informó a tiempo (ventana de tolerancia superada)",
       "vacant": "El puesto no tiene titular (o su titular ya no existe)",
       "passive": "Sin horario ni coste en reposo; actúa al recibir tareas",
@@ -2682,7 +2682,7 @@
     "runs": {
       "title": "Cronología de ejecuciones",
       "loading": "Cargando cronología…",
-      "empty": "Aún no hay ejecuciones — los turnos aparecerán aquí cuando el clúster se ejecute",
+      "empty": "Aún no hay ejecuciones — los turnos aparecerán aquí cuando el equipo se ejecute",
       "filterStatus": "Filtrar por estado",
       "allStatuses": "Todos los estados",
       "filterSource": "Filtrar por origen",
@@ -2733,7 +2733,7 @@
       "runStarted": "Entrega iniciada — el turno aparecerá en la cronología",
       "alreadyRunning": "Ya hay un turno en curso — la entrega lo acompaña",
       "effort": "Profundidad de razonamiento",
-      "effortInherit": "Heredar (clúster/celda)",
+      "effortInherit": "Heredar (equipo/celda)",
       "contextBudget": "Presupuesto de contexto (tokens/turno)",
       "contextBudgetUnlimited": "Sin límite",
       "contextBudgetInvalid": "El presupuesto debe ser un entero positivo (tokens por turno)",
@@ -2807,7 +2807,7 @@
       "proposalSubmit": "Enviar a la cola",
       "proposeIteration": "Proponer iteración",
       "retry": "Reintentar",
-      "title": "Mis clústeres",
+      "title": "Mis equipos",
       "turnsLine": "{{turns}} turnos·{{runs}} ejecuciones"
     }
   },
@@ -2815,7 +2815,7 @@
     "title": "Panel de curaduría",
     "subtitle": "La categoría y la destacada son de nivel de presentación (no afectan visibilidad, versiones ni instalabilidad); el uso proviene del agregado de la plataforma (últimos 7 días).",
     "loading": "Cargando el panel…",
-    "empty": "Aún no hay paquetes en el panel — los paquetes publicados aparecerán aquí.",
+    "empty": "El panel está vacío por ahora — los agentes publicados aparecerán aquí.",
     "errorLoad": "Error al listar: {{message}}",
     "saved": "Guardado: {{name}}",
     "saveFailed": "Error al guardar: {{name}} — {{message}}",
@@ -2829,9 +2829,9 @@
     "unfeature": "Quitar destacado"
   },
   "facetMine": {
-    "title": "Mis paquetes",
-    "subtitle": "Gestiona aquí lo que publicas: versiones, listado y visibilidad. La instalación en un entorno sigue siendo una función de 壹座 (Ajustes → Paquetes → Míos). Los paquetes públicos con contrato de servicio pasan al catálogo de 万星 — los desplegadores externos los ejecutan con turnos medidos y tu participación se acumula automáticamente.",
-    "loading": "Cargando tus paquetes…",
+    "title": "Mis agentes",
+    "subtitle": "Gestiona aquí lo que publicas: versiones, listado y visibilidad. La instalación en un entorno sigue siendo una función de 壹座 (Ajustes → Agentes → Míos). Los agentes públicos con contrato de servicio pasan al catálogo de 万星 — los desplegadores externos los ejecutan con turnos medidos y tu participación se acumula automáticamente.",
+    "loading": "Cargando tus agentes…",
     "empty": "Nada publicado aún — usa el cuadro de publicación de abajo.",
     "emptyGuide": "¿Primera vez? La guía de creación cubre manifiestos, contratos de servicio y disciplina de versiones:",
     "errorLoad": "Error al cargar: {{message}}",
@@ -2845,15 +2845,15 @@
     "done": "{{label}} — listo",
     "failed": "{{label}} — error: {{message}}",
     "publishTitle": "Publicar desde manifiesto",
-    "publishHint": "Pega o edita un JSON de manifiesto de paquete (salida de facet-pack-builder). Deja el id vacío para un paquete nuevo; rellena un id existente para publicar una nueva versión.",
+    "publishHint": "Pega o edita un JSON de manifiesto de agente (salida de facet-agente-builder). Deja el id vacío para un agente nuevo; rellena un id existente para publicar una nueva versión.",
     "publishCliHint": "¿Publicado en tu propia instancia? Devuélvelo al mercado oficial con la CLI — empareja una vez con un código, sesiones silenciosas después.",
-    "publishIdPlaceholder": "id de paquete (opcional, para una nueva versión)",
+    "publishIdPlaceholder": "id de agente (opcional, para una nueva versión)",
     "publishing": "Publicando…",
     "publish": "Publicar",
     "publishedResult": "Publicado: {{id}} v{{version}}",
     "publishFailed": "Error al publicar: {{message}}",
     "notJson": "JSON no válido",
-    "packIdWord": "id de paquete",
+    "packIdWord": "id de agente",
     "visibility": "Visibilidad"
   },
   "zhiyu": {
@@ -2925,7 +2925,7 @@
     "invite": {
       "title": "Invitar a la sala",
       "refUser": "Email del miembro",
-      "refAgent": "Ref. de despliegue (pack:agent)",
+      "refAgent": "Ref. de despliegue (agente:agent)",
       "onBehalfOf": "Email del titular",
       "display": "Nombre visible",
       "displayPlaceholder": "Cómo aparece en la sala",
@@ -2998,18 +2998,23 @@
   },
   "plugins": {
     "title": "Complementos",
-    "description": "Paquetes de complementos dsh suministrados por este despliegue. Consulta su estado y actívalos o desactívalos aquí; los paquetes los suministra el despliegue y no pueden instalarse ni eliminarse desde este panel.",
-    "suppliedHint": "Los paquetes los suministra el despliegue (horneado en la imagen + declaración en el manifiesto). Este panel solo los activa o desactiva — no se instala nada.",
+    "description": "Agentes de complementos dsh suministrados por este despliegue. Consulta su estado y actívalos o desactívalos aquí; los agentes los suministra el despliegue y no pueden instalarse ni eliminarse desde este panel.",
+    "suppliedHint": "Los agentes los suministra el despliegue (horneado en la imagen + declaración en el manifiesto). Este panel solo los activa o desactiva — no se instala nada.",
     "unavailable": "El agente todavía se está inicializando; la lista de complementos aún no está disponible.",
     "empty": "Este despliegue aún no suministra paquetes de complementos dsh.",
     "protected": "Requerido por la gestión",
-    "failed": "El paquete no se pudo cargar: {{reason}}",
+    "failed": "El agente no se pudo cargar: {{reason}}",
     "applying": "Aplicando…",
     "toggleLabel": "Alternar {{name}}",
     "applyHint": "Activar o desactivar se guarda en este espacio de trabajo. Se aplica de inmediato mientras el agente está inactivo (recomposición en vivo, o un reinicio que reanuda las sesiones); el cambio se rechaza mientras el agente responde.",
     "busyHint": "El agente está respondiendo; los interruptores se desbloquean al terminar el turno."
   },
   "memory": {
+      "promotions": {
+        "title": "Ascensos por confirmar",
+        "accept": "Aceptar",
+        "ignore": "Ignorar"
+      },
     "title": "Memoria",
     "subtitle": "Todo lo que tus agentes recuerdan",
     "all": "Todo",
@@ -3029,7 +3034,7 @@
       "title": "Memoria del puesto (vista del despliegue)",
       "close": "Cerrar",
       "empty": "Este puesto aún no tiene memoria.",
-      "noPack": "Esta flota no tiene coordenada de pack."
+      "noPack": "Este equipo de agentes no tiene coordenada de agente."
     }
   },
   "blueprints": {
@@ -3037,7 +3042,7 @@
     "new": "Nuevo",
     "untitled": "Escena sin título",
     "list": {
-      "empty": "Aún no hay planos: cree uno para esbozar un paquete vertical.",
+      "empty": "Aún no hay planos: cree uno para esbozar un agente vertical.",
       "version": "v{{version}}"
     },
     "status": {
@@ -3062,7 +3067,7 @@
       "validated": "Validación en verde.",
       "invalid": "Validación fallida: vea los problemas abajo.",
       "approved": "Aprobado: la forja está desbloqueada.",
-      "cast": "Forjado al mercado (paquete {{packId}}).",
+      "cast": "Forjado al mercado (agente {{packId}}).",
       "conflict": "Conflicto de versión: recargue el plano para continuar."
     },
     "editor": {
@@ -3117,14 +3122,14 @@
       "ranAt": "ejecutado {{when}}",
       "judgedCount": "{{count}} evaluadas por modelo"
     },
-    "castPack": "paquete {{packId}}",
+    "castPack": "agente {{packId}}",
     "draft": {
-      "hint": "Entregue el prompt al paquete de capacidad de construcción de planos en un chat y pegue de vuelta su JSON: aterriza en el mismo borrador (misma cadena de validación).",
+      "hint": "Entregue el prompt al agente de capacidad de construcción de planos en un chat y pegue de vuelta su JSON: aterriza en el mismo borrador (misma cadena de validación).",
       "copy": "Copiar prompt",
       "copied": "Copiado",
       "copyFailed": "Portapapeles no disponible: seleccione el prompt y cópielo a mano.",
       "promptIntro": "Eres un constructor de planos. Redacta un plano vertical para la escena «{{name}}» y devuelve UN solo objeto JSON (sin prosa, sin vallas de código), con esta forma exacta:",
-      "constraints": "Restricciones: las fuentes de datos son solo nombres de servidores del registro o nombres lógicos de la biblioteca interna (sin endpoints ni credenciales); mantenga packId de los miembros pack-preset como el marcador PACK_ID del esqueleto y apunte presetId a un id declarado en agents; una dependencia de paquete de disciplina usa el marcador de dependencia {{dep}}.",
+      "constraints": "Restricciones: las fuentes de datos son solo nombres de servidores del registro o nombres lógicos de la biblioteca interna (sin endpoints ni credenciales); mantenga packId de los miembros agente-preset como el marcador PACK_ID del esqueleto y apunte presetId a un id declarado en agents; una dependencia de agente de disciplina usa el marcador de dependencia {{dep}}.",
       "pastePlaceholder": "Pegue aquí el JSON devuelto…",
       "apply": "Cargar borrador",
       "applied": "Borrador cargado en el mismo grupo.",
@@ -3132,7 +3137,7 @@
     },
     "delete": {
       "label": "Eliminar",
-      "castLocked": "Los planos forjados no se pueden eliminar: el paquete del mercado es el registro"
+      "castLocked": "Los planos forjados no se pueden eliminar: el agente del mercado es el registro"
     },
     "judge": {
       "audit": "Registro del juicio",
@@ -3185,7 +3190,7 @@
       "other": "Anómala"
     },
     "summary": {
-      "fleets": "{{n}} flotas",
+      "fleets": "{{n}} equipos de agentes",
       "members": "{{n}} miembros",
       "deployments": "{{n}} despliegues"
     },

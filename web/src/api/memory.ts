@@ -58,3 +58,51 @@ export async function listDeployerMemoryEntries(rootKey: string, q: MemoryQuery 
   const doc = (await res.json()) as { items?: MemoryEntry[] };
   return { items: Array.isArray(doc.items) ? doc.items : [] };
 }
+
+// Tier promotion proposals (add-tier-promotion-candidates 5.1): AI proposes
+// draft→stable but never applies it — the owner sees each pending proposal
+// here and accepts or ignores. Reusing the /api/memory proxy identity seam.
+export interface PromotionProposal {
+  path: string;
+  project?: string;
+  type?: string;
+  title: string;
+  current_tier: string;
+  proposed_tier: string;
+  reason: string;
+  proposed_by: string;
+  proposed_at: string;
+}
+
+export async function listPromotions(scope?: string): Promise<{ proposals: PromotionProposal[] }> {
+  const u = new URL("/api/memory/promotions");
+  if (scope?.trim()) u.searchParams.set("scope", scope.trim());
+  const res = await fetch(u.toString(), { credentials: "same-origin" });
+  if (!res.ok) {
+    let code = "memory_read_failed";
+    try { code = ((await res.json()) as { code?: string }).code ?? code; } catch { /* non-JSON */ }
+    throw Object.assign(new Error(code), { code });
+  }
+  const doc = (await res.json()) as { proposals?: PromotionProposal[] };
+  return { proposals: Array.isArray(doc.proposals) ? doc.proposals : [] };
+}
+
+async function promotionGesture(kind: "accept" | "ignore", path: string): Promise<{ ok: boolean; stale?: boolean; tier?: string }> {
+  const res = await fetch(`/api/memory/promotions/${kind}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ path }),
+  });
+  if (res.status === 409) return { ok: false, stale: true };
+  if (!res.ok) {
+    let code = "memory_gesture_failed";
+    try { code = ((await res.json()) as { code?: string }).code ?? code; } catch { /* non-JSON */ }
+    throw Object.assign(new Error(code), { code });
+  }
+  const doc = (await res.json()) as { tier?: string };
+  return { ok: true, tier: doc.tier };
+}
+
+export const acceptPromotion = (path: string) => promotionGesture("accept", path);
+export const ignorePromotion = (path: string) => promotionGesture("ignore", path);

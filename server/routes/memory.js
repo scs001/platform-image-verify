@@ -53,6 +53,66 @@ export function registerMemoryRoutes(ctx) {
     }
   });
 
+  // GET /api/memory/promotions — 待确认晋升面（add-tier-promotion-candidates
+  // 5.1）：AI 只提议，人接受/忽略。owner 身份走 person 令牌，与 /entries 同缝。
+  app.get("/api/memory/promotions", async (req, res) => {
+    try {
+      const cfg = cellMemoryConfig(process.env);
+      if (!cfg) return res.status(503).json({ error: "记忆服务未配置", code: "memory_unavailable" });
+      const email = req.user?.email ?? null;
+      if (!email) return res.status(401).json({ error: "未登录", code: "unauthenticated" });
+      const token = await personTokenFor(cfg, email);
+      if (!token) return res.status(503).json({ error: "记忆令牌不可用", code: "memory_unavailable" });
+      const u = new URL(`${cfg.url}/memory/promotions`);
+      if (typeof req.query?.scope === "string" && req.query.scope.trim()) u.searchParams.set("scope", req.query.scope.trim());
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 5000);
+      try {
+        const r = await fetch(u, { headers: { authorization: `Bearer ${token}` }, signal: controller.signal });
+        if (!r.ok) return res.status(502).json({ error: `晋升读面 HTTP ${r.status}`, code: "memory_read_failed" });
+        return res.json(await r.json());
+      } finally {
+        clearTimeout(timer);
+      }
+    } catch (err) {
+      return res.status(503).json({ error: String(err?.message ?? err), code: "memory_unavailable" });
+    }
+  });
+
+  // POST /api/memory/promotions/{accept,ignore} — 人的手势。接受才翻 tier
+  // （且 tier_origin=human，fd-memory 侧强制）；忽略进冷却。body {path}。
+  for (const gesture of ["accept", "ignore"]) {
+    app.post(`/api/memory/promotions/${gesture}`, async (req, res) => {
+      try {
+        const cfg = cellMemoryConfig(process.env);
+        if (!cfg) return res.status(503).json({ error: "记忆服务未配置", code: "memory_unavailable" });
+        const email = req.user?.email ?? null;
+        if (!email) return res.status(401).json({ error: "未登录", code: "unauthenticated" });
+        const token = await personTokenFor(cfg, email);
+        if (!token) return res.status(503).json({ error: "记忆令牌不可用", code: "memory_unavailable" });
+        const path = typeof req.body?.path === "string" ? req.body.path.trim() : "";
+        if (!path) return res.status(400).json({ error: "path_required", code: "path_required" });
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 8000);
+        try {
+          const r = await fetch(`${cfg.url}/memory/promotions/${gesture}`, {
+            method: "POST",
+            headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+            body: JSON.stringify({ path }),
+            signal: controller.signal,
+          });
+          const doc = await r.json().catch(() => ({}));
+          if (!r.ok && r.status !== 409) return res.status(502).json({ error: `晋升手势 HTTP ${r.status}`, code: "memory_gesture_failed", ...doc });
+          return res.status(r.status === 409 ? 409 : 200).json(doc);
+        } finally {
+          clearTimeout(timer);
+        }
+      } catch (err) {
+        return res.status(503).json({ error: String(err?.message ?? err), code: "memory_unavailable" });
+      }
+    });
+  }
+
   // GET /api/memory/deployer-entries?rootKey=d-<packId>-<agentId> — 万星 console
   // 部署者视角：platform lane + 显式 rootKey（与 fd-memory 的 rootKey 语义一致），
   // 只有受信面调用（fleet/agent 详情），不暴露给普通用户会话。

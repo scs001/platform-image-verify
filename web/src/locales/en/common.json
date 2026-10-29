@@ -21,7 +21,7 @@
     "trace": "Trace",
     "openMenu": "Open navigation menu",
     "tasks": "Automation",
-    "fleets": "Clusters",
+    "fleets": "Agent Teams",
     "apps": "Apps",
     "fleet": "Runner Cluster",
     "zhiyu": "Zhiyu",
@@ -49,25 +49,25 @@
       "events": "Events",
       "session": "Session"
     },
-    "fleetBadge": "Cluster"
+    "fleetBadge": "Agent Team"
   },
   "agentsPage": {
     "title": "Agents",
     "agents": "Experts",
-    "market": "Packs",
+    "market": "Agents",
     "create": "New expert",
     "myExperts": "My experts",
     "connect": "Connect",
     "connecting": "Connecting…",
     "loadFailed": "Failed to load catalog: {{error}}",
-    "myClusters": "My arrays",
-    "clustersEmpty": "No arrays yet — use \"+ Create array\" to group agents into a team.",
-    "clusterDetail": "Array details",
-    "clusterAgents": "Agents in this array",
+    "myClusters": "My groups",
+    "clustersEmpty": "No groups yet — use \"+ Create group\" to bundle agents into one.",
+    "clusterDetail": "Group details",
+    "clusterAgents": "Agents in this group",
     "clusterStatus": "Status",
     "clusterCreated": "Created",
-    "clusterTerminate": "Terminate array",
-    "clusterTerminateHint": "Terminating stops the array; agents and packs stay installed.",
+    "clusterTerminate": "Terminate group",
+    "clusterTerminateHint": "Terminating stops the group; installed agents stay put.",
     "close": "Close"
   },
   "sidebar": {
@@ -206,7 +206,7 @@
       "effortDefault": "Default",
       "agent": "Agent",
       "agentUnset": "Default",
-      "agentFocused": "Focused · {{pack}} · {{skills}} skills · {{mcp}} MCP",
+      "agentFocused": "Focused · {{agent}} · {{skills}} skills · {{mcp}} MCP",
       "agentFocusedCustom": "Focused · self-built · {{skills}} skills · {{mcp}} MCP",
       "permission": "Permissions",
       "permissionUnset": "Default",
@@ -233,9 +233,9 @@
       "websearchHint": "Enable web search for this conversation (off by default)",
       "ctx": "ctx {{pct}}%",
       "ctxHint": "{{tokens}} / {{window}} tokens",
-      "clusterLoad": "Load array",
+      "clusterLoad": "Load group",
       "clusterLoading": "Loading…",
-      "clusterLoadHint": "Bind this array to the current session: switches to the lead default member; use array tasks for fan-out.",
+      "clusterLoadHint": "Bind this group to the current session: switches to the lead default member; use group tasks for fan-out.",
       "workspaceAdvanced": "Advanced"
     },
     "sending": "Sending…",
@@ -332,8 +332,8 @@
       "titlePlaceholder": "Session title",
       "rename": "Save new title",
       "sessionActions": "Session actions",
-      "clusterBound": "Running with array {{name}}",
-      "clusterExpiring": "Running with array {{name}} — idle, auto-terminates at {{time}} unless used before then"
+      "clusterBound": "Running with group {{name}}",
+      "clusterExpiring": "Running with group {{name}} — idle, auto-terminates at {{time}} unless used before then"
     },
     "titleTooLong": "Title must be 200 characters or fewer",
     "connectionLost": "Connection lost — reconnecting…",
@@ -355,18 +355,18 @@
     "queuedCancel": "Cancel",
     "queuedPreempt": "Stop it and run this now",
     "cluster": {
-      "terminatedNotice": "Array '{{name}}' was terminated; switched to the built-in agent"
+      "terminatedNotice": "Group '{{name}}' was terminated; switched to the built-in agent"
     },
     "presetLink": {
       "pending": "Switching to {{name}}…",
       "rejected": "Switch refused — the assistant is mid-answer; retry shortly",
       "retry": "Retry",
-      "missing": "{{name}} is no longer available (its pack may be uninstalled); keeping the current assistant"
+      "missing": "{{name}} is no longer available (its agent may be uninstalled); keeping the current assistant"
     },
     "assistant": {
       "label": "Talk to",
       "standardSection": "Standard",
-      "packSection": "Pack roles",
+      "packSection": "Agent roles",
       "mineSection": "My experts",
       "otherSection": "Other assistants",
       "composeLocked": "This session already started, so its mode is fixed; start a new chat to switch."
@@ -538,7 +538,7 @@
       "addButton": "Add MCP",
       "empty": "No MCP configured. Add one to extend your agent.",
       "fullSurface": "Full tool surface",
-      "fullSurfaceHint": "Marked servers expose every tool in full and focused modes, overriding pack allowlists. Applied on the next composition.",
+      "fullSurfaceHint": "Marked servers expose every tool in full and focused modes, overriding agent allowlists. Applied on the next composition.",
       "addTitle": "Add MCP",
       "editTitle": "Edit MCP",
       "confirmDelete": "Remove \"{{name}}\"?",
@@ -776,7 +776,7 @@
     },
     "start": {
       "title": "Three steps to start",
-      "s1": "Pick an expert: use the picker at the top of Chat, or install an Industry Pack on the Agents page.",
+      "s1": "Pick an expert: use the picker at the top of Chat, or install an Industry Agent on the Agents page.",
       "s2": "State the request: brief it like a colleague and drop files into the input.",
       "s3": "Collect the outputs: charts and files the agent makes are saved to Outputs automatically.",
       "replay": "Replay the tour",
@@ -785,7 +785,7 @@
         "library": "Library — the materials you give the agent; answers cite them.",
         "outputs": "Outputs — charts and files the agent produces for you, saved automatically.",
         "experts": "Experts — conversational roles that know a trade; pick or create them on the Agents page.",
-        "packs": "Industry Packs — one-click bundles of an expert plus tools."
+        "packs": "Industry Agents — one-click bundles of an expert plus tools."
       }
     },
     "guidesEmpty": "No scenario guides yet."
@@ -885,7 +885,7 @@
       "wechat-app": "WeChat App",
       "branding": "Deployment branding",
       "status": "System Status",
-      "packs": "Packs",
+      "packs": "Agents",
       "presets": "Custom presets",
       "devices": "Paired devices",
       "roles": "User roles",
@@ -1068,7 +1068,7 @@
         },
         "facet": {
           "name": "Facet",
-          "desc": "The pack market — where skills, MCP servers, and personas are published."
+          "desc": "The agent market — where skills, MCP servers, and personas are published."
         },
         "connector": {
           "name": "Wanxing Connector",
@@ -1110,7 +1110,7 @@
           "subtitle": "Web-search credentials and wiring: your own key, and the shared service (admin)."
         },
         "chatwoot": {
-          "subtitle": "Your own Chatwoot tenant — paste your token; the pack and the desk embed run on your account"
+          "subtitle": "Your own Chatwoot tenant — paste your token; the agent and the desk embed run on your account"
         }
       }
     },
@@ -1173,7 +1173,7 @@
       "footnote": "A 401 marks the key as needing re-connect; re-binding mints a fresh key. A bound account takes precedence over a pasted key."
     },
     "delegation": {
-      "hint": "Delegate part of the decision queue to the fleet's deputy; the rest stays with you. High-stakes categories (config changes, HR, spend) are always decided by you.",
+      "hint": "Delegate part of the decision queue to the team's deputy; the rest stays with you. High-risk categories (config changes, staffing, spend) are always yours to decide.",
       "enabled": "Enable delegation",
       "routes": "Category routing",
       "category": {
@@ -1197,7 +1197,7 @@
       "digestOff": "Off",
       "model": "Ruling model",
       "modelInherit": "Blank = inherit",
-      "modelHint": "Blank follows the fleet/cell default model; a value is applied to the deputy post and takes effect from its next patrol."
+      "modelHint": "Blank follows the team/cell default model; a value is applied to the deputy post and takes effect from its next patrol."
     }
   },
   "preview": {
@@ -1258,7 +1258,7 @@
       "missedTotal": "{{count}} missed",
       "lastOk": "ok",
       "lastFailed": "failed",
-      "cluster": "Array {{name}} · {{count}} agents"
+      "cluster": "Group {{name}} · {{count}} agents"
     },
     "schedule": {
       "daily": "daily at {{time}}",
@@ -1490,9 +1490,9 @@
   "facetShell": {
     "tabs": {
       "intro": "Intro",
-      "packs": "Packs",
+      "packs": "Agents",
       "mcp": "MCP services",
-      "mine": "My packs",
+      "mine": "My agents",
       "curate": "Curation",
       "docs": "Docs"
     },
@@ -1509,7 +1509,7 @@
   },
   "facetDocs": {
     "title": "Documentation",
-    "subtitle": "Everything from a pack id to a working setup — install, connect, and create.",
+    "subtitle": "Everything from an agent id to a working setup — install, connect, and create.",
     "packageNote": "Published CLI package:",
     "nav": {
       "install": "Install",
@@ -1517,16 +1517,16 @@
       "create": "Create"
     },
     "install": {
-      "title": "Install a pack",
+      "title": "Install an agent",
       "lead": "Subscribe in the market, then install a version snapshot into the tool you actually use. 壹座 is the first-citizen path — no command line. The CLI covers five editor targets.",
-      "marketNote": "Market — browse and copy a pack id at",
+      "marketNote": "Market — browse and copy an agent id at",
       "yizuoTab": "壹座 (no CLI)",
       "yizuo": {
         "title": "壹座 — the first-citizen path",
-        "body": "Sign in to 壹座 with the same identity as this market, subscribe to a pack, then install it into your conversation runtime in one click — MCP credentials are already wired.",
-        "step1": "Browse the market here and subscribe to a pack.",
-        "step2": "In 壹座, open Settings → Packs → My packs.",
-        "step3": "Install the subscribed pack — its skills, MCP references, and agent personas arrive together."
+        "body": "Sign in to 壹座 with the same identity as this market, subscribe to an agent, then install it into your conversation runtime in one click — MCP credentials are already wired.",
+        "step1": "Browse the market here and subscribe to an agent.",
+        "step2": "In 壹座, open Settings → Agents → My agents.",
+        "step3": "Install the subscribed agent — its skills, MCP references, and agent personas arrive together."
       },
       "client": {
         "skillDir": "Skills are written to",
@@ -1537,7 +1537,7 @@
     "clients": {
       "claude-code": {
         "label": "Claude Code",
-        "body": "Skills install as a version snapshot; once a caller key is stored, the pack's MCP references can be written into the native MCP configuration."
+        "body": "Skills install as a version snapshot; once a caller key is stored, the agent's MCP references can be written into the native MCP configuration."
       },
       "cursor": {
         "label": "Cursor",
@@ -1558,7 +1558,7 @@
     },
     "mcp": {
       "title": "Connect MCP services",
-      "lead": "Packs reference MCP servers that run through the registry gateway. Two connection paths exist — the universal caller-key path and the client-native OAuth discovery path.",
+      "lead": "Agents reference MCP servers that run through the registry gateway. Two connection paths exist — the universal caller-key path and the client-native OAuth discovery path.",
       "keyPath": {
         "title": "Caller key (universal)",
         "body": "Mint a wgk- caller key in the registry console; the CLI verifies it and stores it locally (0600). After that, install can write each target's native MCP configuration carrying that key.",
@@ -1577,12 +1577,12 @@
       }
     },
     "create": {
-      "title": "Create and publish a pack",
+      "title": "Create and publish an agent",
       "lead": "Publishing requires the creators group. Three authoring routes exist; all of them end at the same publish gate, and published versions are immutable.",
       "routesTitle": "Three authoring routes",
-      "route1": "In 壹座: Settings → Packs → New pack — compose skills, MCP references, and personas as a draft.",
-      "route2": "One-click conversion: turn a custom preset into a pack draft (Settings → Custom presets → Publish), with a report of what was carried and what needs replacing.",
-      "route3": "From the creator console (#/mine): submit a pack manifest directly to the publish endpoint; validation errors surface verbatim.",
+      "route1": "In 壹座: Settings → Agents → New agent — compose skills, MCP references, and personas as a draft.",
+      "route2": "One-click conversion: turn a custom preset into an agent draft (Settings → Custom presets → Publish), with a report of what was carried and what needs replacing.",
+      "route3": "From the creator console (#/mine): submit an agent manifest directly to the publish endpoint; validation errors surface verbatim.",
       "disciplineTitle": "Publishing discipline",
       "versions": "Every publish appends an immutable version; each version may carry a short note (≤500 characters).",
       "subscribe": "Subscribe and install are two acts: a subscription is recorded in the market; installing takes a definite version snapshot.",
@@ -1603,14 +1603,14 @@
     }
   },
   "facetIntro": {
-    "title": "A thousand facets — the pack-and-tool marketplace for AI editors",
-    "subtitle": "Packs bundle skills, MCP references, and agent personas — browse, subscribe, publish, and install into Claude Code / Cursor in one line",
+    "title": "A thousand facets — the agent-and-tool marketplace for AI editors",
+    "subtitle": "An Agent bundles skills, MCP references, and personas — browse, subscribe, publish, and install into Claude Code / Cursor in one line",
     "factRow": "Anonymous browsing; sign in to publish and subscribe (same identity as Platform)",
-    "ctaPacks": "Browse packs",
+    "ctaPacks": "Browse agents",
     "ctaMcp": "View MCP services",
     "card": {
       "contents": {
-        "title": "What a pack holds",
+        "title": "What an agent holds",
         "body": "Skill sources, MCP references, and agent personas, plus version, tags, and author. The detail view exposes every skill's full text and the version history."
       },
       "install": {
@@ -1624,7 +1624,7 @@
     },
     "pathTitle": "How it works",
     "quickTitle": "Quick start",
-    "quickArg": "<pack id or a URL containing the id>",
+    "quickArg": "<agent id or a URL containing the id>",
     "quickNote": "Installs to Claude Code by default; --target cursor and --project <dir> are optional.",
     "quickHelpPrefix": "More usage:",
     "lineLink": "FindData official — Facet line →",
@@ -1641,7 +1641,7 @@
     }
   },
   "facetFooter": {
-    "tagline": "The pack-and-tool marketplace for AI editors",
+    "tagline": "The agent-and-tool marketplace for AI editors",
     "contactLabel": "Contact",
     "linesLabel": "FindData product lines",
     "lines": {
@@ -1654,7 +1654,7 @@
     "current": "This site",
     "entriesLabel": "Entries",
     "entries": {
-      "packs": "Pack market",
+      "packs": "Agent Market",
       "mcp": "MCP service catalog",
       "line": "Facet line page"
     },
@@ -1667,19 +1667,19 @@
       "mine": "Mine"
     },
     "market": {
-      "searchPlaceholder": "Search packs…",
+      "searchPlaceholder": "Search agents…",
       "search": "Search",
-      "empty": "No packs in the market yet.",
+      "empty": "No agents in the market yet.",
       "allCategories": "All",
       "featured": "Featured",
       "facade": "AI Twin",
       "agentSize": "Filter by agent count",
       "agentSizeAny": "Any count",
       "agentSizeValue": "{{value}} agents",
-      "assistantHint": "Market guide: the copilot (bottom-right) answers with 谦面助手 focused. The assistant pack is not installed on this cell — install it to focus the guide."
+      "assistantHint": "Market guide: the copilot (bottom-right) answers with 谦面助手 focused. The assistant agent is not installed on this cell — install it to focus the guide."
     },
     "detail": {
-      "notFound": "Pack not found or unlisted",
+      "notFound": "Agent not found or unlisted",
       "skills": "Skills",
       "mcp": "MCP Servers",
       "toolFaceDeclared": "{{declared}} / {{total}} tools declared",
@@ -1692,7 +1692,7 @@
       "agents": "Agents",
       "requiresGroup": "requires group {{group}}",
       "cluster": {
-        "title": "Array Info",
+        "title": "Group Info",
         "agentCount": "{{count}} agents",
         "agents": "Agent Composition",
         "showOptional": "Show optional agents",
@@ -1723,7 +1723,7 @@
         }
       },
       "subscribe": "Subscribe & Install",
-      "gotoMine": "View my packs",
+      "gotoMine": "View my agents",
       "deployTitle": "Deploy as service",
       "deployBtn": "Deploy",
       "deployOnline": "online",
@@ -1743,25 +1743,25 @@
       "keyPasteLabel": "Metered key for @{{id}} — create it in the panel, paste here",
       "keyPastePlaceholder": "sk-…",
       "keyBoundBadge": "key bound",
-      "keyRequired": "This pack serves agents — each needs a metered key from your billing panel (Logto sign-in), pasted above.",
+      "keyRequired": "This agent serves roles — each needs a metered key from your billing panel (Logto sign-in), pasted above.",
       "keyInvalid": {
         "shape": "That key doesn't look like a sub2api key (must start with sk-).",
-        "unknown-agent": "A key was pasted for an agent that isn't a serving agent of this pack.",
-        "duplicate": "One key can't serve two agents of the same pack — create one per agent in the panel.",
+        "unknown-agent": "A key was pasted for an agent that isn't a serving agent of this agent.",
+        "duplicate": "One key can't serve two agents of the same agent — create one per agent in the panel.",
         "liveness": "The billing panel refused that key (dead, disabled, or out of quota) — create a fresh one in the panel.",
         "ownership": "That key belongs to a different sub2api account — paste a key created under your own account."
       },
       "downloadSkill": "Download SKILL.md",
       "manifestJson": "Manifest JSON",
-      "selfhostTitle": "Deploy this pack on the official cloud",
-      "selfhostBody": "This self-hosted instance doesn't run agent serving. To put this pack's agents online — shareable pages, metered turns, earnings — publish it to the official marketplace; the one-click deploy flow runs there.",
+      "selfhostTitle": "Deploy this agent on the official cloud",
+      "selfhostBody": "This self-hosted instance doesn't run agent serving. To put this agent's roles online — shareable pages, metered turns, earnings — publish it to the official marketplace; the one-click deploy flow runs there.",
       "selfhostMarketBtn": "Open the official marketplace",
       "selfhostCreatingBtn": "Publishing guide",
       "selfhostNote": "Self-hosting the serving stack yourself is possible — see the repository docs; the marketplace route needs no extra infrastructure.",
-      "deploySummary": "Deploying puts this pack's agents live as a conversation service: you get a shareable public chat page, visitors are metered per round, and you (the deployer) take a revenue share.",
+      "deploySummary": "Deploying takes the roles inside this agent and puts them live as a conversation service: you get a shareable public chat page, visitors are metered per round, and you (the deployer) take a revenue share.",
       "keySubtitle": "Metering key = the quota that pays for visitor rounds: visitors chat free, rounds are billed to the key you paste here.",
       "rhythmSubtitle": "Rhythm = whether it works on its own: no entries means it only answers when addressed; entries have the platform wake it on schedule (spending your quota).",
-      "modelSubtitle": "Model = which model it thinks with: empty keeps the standing setting (an existing override, else the pack's declared default).",
+      "modelSubtitle": "Model = which model it thinks with: empty keeps the standing setting (an existing override, else the agent's declared default).",
       "budgetSubtitle": "Budget = how long one round may run: empty keeps the standing setting (an existing override, else the declared ceiling or the platform default).",
       "modelOverride": "Model (optional, @{{id}})",
       "budgetOverride": "Turn budget · minutes (optional, @{{id}})",
@@ -1779,7 +1779,7 @@
       "loginGo": "Sign in",
       "close": "Close",
       "skillFiles": "{{count}} auxiliary files",
-      "scriptGateTitle": "This pack carries executable scripts",
+      "scriptGateTitle": "This agent carries executable scripts",
       "scriptGateBody": "The skills below carry script files that will land in your runtime when installed; nothing installs until you confirm (one-time).",
       "scriptGateConfirm": "Confirm install",
       "vendorBy": "from {{name}}",
@@ -1790,8 +1790,8 @@
       "purchase": {
         "insufficient": "Insufficient balance — top up in the ciyuan panel and retry.",
         "noBilling": "No sub2api billing account linked — finish linking first, then buy.",
-        "settlementFailed": "Settlement did not complete — held for retry; try again from My Packs shortly.",
-        "required": "Buy this pack before installing it."
+        "settlementFailed": "Settlement did not complete — held for retry; try again from My Agents shortly.",
+        "required": "Buy this agent before installing it."
       }
     },
     "report": {
@@ -1818,7 +1818,7 @@
       "bot": "Bot"
     },
     "mine": {
-      "empty": "No packs subscribed yet. Browse the market.",
+      "empty": "No agents subscribed yet. Browse the market.",
       "updateAvailable": "update to v{{version}}",
       "upgrade": "Upgrade",
       "uninstall": "Unsubscribe",
@@ -1834,15 +1834,15 @@
     },
     "drafts": {
       "title": "My Creations",
-      "create": "New Pack",
+      "create": "New Agent",
       "empty": "No drafts yet.",
-      "defaultName": "Untitled Pack",
+      "defaultName": "Untitled Agent",
       "published": "Published",
       "draft": "Draft",
       "partCounts": "{{skills}} skills · {{mcp}} MCP · {{agents}} agents"
     },
     "editor": {
-      "title": "Edit Pack",
+      "title": "Edit Agent",
       "save": "Save Draft",
       "publish": "Publish",
       "publishOk": "Published v{{version}}.",
@@ -1857,23 +1857,23 @@
       "skillContent": "SKILL.md body",
       "remove": "Remove",
       "mcp": "MCP References",
-      "mcpHint": "Pick registry servers from the market catalog only; packs cannot carry endpoints.",
+      "mcpHint": "Pick registry servers from the market catalog only; agents cannot carry endpoints.",
       "mcpEmpty": "No registry servers in the market catalog.",
       "agents": "Agents",
       "addAgent": "Add Agent",
       "agentHint": "Agents are local personas — no endpoints, models, or credentials.",
-      "agentId": "Agent id (e.g. pack-reviewer)",
+      "agentId": "Agent id (e.g. agent-reviewer)",
       "agentName": "Agent name",
       "agentPersona": "Persona text",
       "personaCost": "Persona {{chars}} chars ≈ {{tokens}} tokens/turn (~3 chars/token estimate; billed on every turn)",
       "resourceSet": "Resource set (optional)",
-      "resourceHint": "Leave unchecked to use the whole pack's resources; checked, only the selected subset loads (none selected = baseline only). Only this pack's own skills and MCP references are offered.",
+      "resourceHint": "Leave unchecked to use the whole agent's resources; checked, only the selected subset loads (none selected = baseline only). Only this agent's own skills and MCP references are offered.",
       "limitSkills": "Limit skills",
       "limitMcp": "Limit MCP servers",
       "resourceEmptySkills": "The draft declares no skills yet — add some above first.",
       "resourceEmptyMcp": "The draft picks no MCP references yet — pick some above first.",
       "agentServing": "Deploy as an Agent Service (A2A)",
-      "agentServingHint": "After publishing, deploy in one click from the pack page; the service answers over A2A through the registry gateway.",
+      "agentServingHint": "After publishing, deploy in one click from the agent page; the service answers over A2A through the registry gateway.",
       "visibility": "Visibility",
       "visibilityPublic": "Public (listed)",
       "visibilityPrivate": "Private (owner only)",
@@ -1889,7 +1889,7 @@
       "toolsFaceRequired": "These MCP references have no tool face yet: {{servers}}. Select their tools, or mark full surface with a reason.",
       "guide": {
         "title": "Usage guide (three steps)",
-        "hint": "Write “what to prepare → what to say → what you get”; it shows on the detail page. All three steps are required to publish with the pack.",
+        "hint": "Write “what to prepare → what to say → what you get”; it shows on the detail page. All three steps are required to publish with the agent.",
         "stepTitle": "Step {{n}} title",
         "stepBody": "Step {{n}} description"
       },
@@ -1905,7 +1905,7 @@
     "bridge": {
       "title": "Carried over from the preset: {{skills}} skills, {{servers}} servers. Not migrated:",
       "reason": {
-        "pack": "belongs to pack {{pack}} — not your content",
+        "pack": "belongs to agent {{agent}} — not your content",
         "unavailable": "currently unavailable",
         "operator": "deployment-level operator server, no market counterpart",
         "local": "locally configured server, no market counterpart"
@@ -1923,7 +1923,7 @@
       "hint": "A rhythm grants autonomy — the platform injects self-turns on cadence; none means answering-only."
     },
     "guide": {
-      "title": "How to use this pack",
+      "title": "How to use this agent",
       "step": "Step {{n}}",
       "hint": "Once installed, go back to Chat and pick this expert in the picker above.",
       "examples": "Try asking"
@@ -1955,20 +1955,20 @@
       "myPurchases": "My recent purchases"
     },
     "wizard": {
-      "title": "Fleet template provisioning",
+      "title": "Agent team template provisioning",
       "cancel": "Cancel",
       "noParams": "No parameter slots — provision directly.",
       "missingParam": "Required slot \"{{name}}\" is empty.",
       "paramInvalidServer": "Slot \"{{name}}\" invalid: {{reason}}",
-      "runBtn": "Provision fleet",
+      "runBtn": "Provision team",
       "stepPay": "Completing the purchase…",
       "stepInstall": "Subscribing & installing…",
-      "stepProvision": "Provisioning fleet…",
+      "stepProvision": "Provisioning team…",
       "missingTargets": "({{n}} post(s) born vacant — staff them later)",
       "conflictTargets": "({{n}} target(s) already held — born vacant)",
-      "donePaused": "Fleet provisioned (all paused) — ignite when ready.",
+      "donePaused": "Team provisioned (all paused) — ignite when ready.",
       "igniteBtn": "Ignite first run",
-      "lit": "Lit — fleet is now running.",
+      "lit": "Lit — team is now running.",
       "doneBtn": "Done"
     }
   },
@@ -2001,7 +2001,7 @@
     "tags": "Tags",
     "tagsPlaceholder": "comma-separated",
     "skills": "Skill references",
-    "skillHint": "Picked from locally-available skills (yours or any installed pack's). Unavailable references are skipped at runtime and take effect again automatically once available.",
+    "skillHint": "Picked from locally-available skills (yours or any installed agent's). Unavailable references are skipped at runtime and take effect again automatically once available.",
     "mcp": "MCP server references",
     "mcpHint": "Picked from the enabled servers; a reference never re-enables a server you disabled.",
     "noSkills": "No skills available in this cell.",
@@ -2015,8 +2015,8 @@
     "unavailable": "unavailable",
     "shadowed": "overridden",
     "shadowedHint": "An operators-file or cloud entry holds the same id; the role currently composes under the overriding entry's persona.",
-    "toPackDraft": "Convert to pack draft",
-    "bridgeDenied": "Conversion requires deployment manage rights (admin or cell owner) — you can still hand-author a pack draft",
+    "toPackDraft": "Convert to agent draft",
+    "bridgeDenied": "Conversion requires deployment manage rights (admin or cell owner) — you can still hand-author an agent draft",
     "examples": "Example prompts",
     "examplesHint": "Up to 3; they become the try-it examples once published",
     "examplePlaceholder": "Example {{n}} (optional)"
@@ -2024,14 +2024,14 @@
   "presetPublish": {
     "action": "Publish & deploy",
     "title": "Publish & deploy — {{name}}",
-    "compose": "Composing the pack draft…",
-    "confirmHint": "Review the composed pack before publishing. Name and description are editable; skills, MCP references, and the agent ride as converted.",
-    "name": "Pack name",
+    "compose": "Composing the agent draft…",
+    "confirmHint": "Review the composed agent before publishing. Name and description are editable; skills, MCP references, and the agent ride as converted.",
+    "name": "Agent name",
     "description": "Description",
     "notes": "Version note (optional, ≤500 chars)",
     "parts": "{{skills}} skill(s) · {{mcp}} MCP · {{agents}} agent(s)",
     "facadeToggle": "Publish as an AI twin",
-    "facadeHint": "Once published, this pack is your AI twin: after you deploy the reception agent, visitors chat with it for free from the catalog — it answers honestly from all skills in this pack and says so when it can't. Costs ride your quota (hosted).",
+    "facadeHint": "Once published, this agent is your AI twin: after you deploy the reception agent, visitors chat with it for free from the catalog — it answers honestly from all skills in this agent and says so when it can't. Costs ride your quota (hosted).",
     "facadeNeedServing": "An AI twin needs a serving agent — this draft has none with a serving contract.",
     "facadeNeedSkill": "An AI twin needs at least one skill as its corpus — this draft carries no skills.",
     "facadeReception": "Reception agent",
@@ -2046,7 +2046,7 @@
     "publishDenied": "publishing was refused — creator membership is required (403)",
     "publishedBadge": "Published",
     "published": "Published v{{version}} — visible in the marketplace.",
-    "noServing": "This pack has no serving-contract agent — nothing to deploy.",
+    "noServing": "This agent has no serving-contract agent — nothing to deploy.",
     "deployTitle": "Deploy as Agent Service",
     "deployHint": "The agent entry carries a serving contract — deploy to make it callable over A2A.",
     "deploy": "Deploy now",
@@ -2108,19 +2108,19 @@
         "body": "Results land in Outputs — the nav entry anchors this step."
       },
       "stepFleet": {
-        "title": "Run your first local cluster",
-        "body": "Install the bundled starter pack, then open the fleet console to deploy agents and watch them run on this machine.",
-        "install": "Install the starter pack",
+        "title": "Run your first local runner cluster",
+        "body": "Install the bundled starter agent, then open the runner console to deploy agents and watch them run on this machine.",
+        "install": "Install the starter agent",
         "installing": "Installing…",
-        "installed": "Installed — open the fleet console",
-        "failed": "Install failed — open the fleet console to retry"
+        "installed": "Installed — open the runner console",
+        "failed": "Install failed — open the runner console to retry"
       }
     }
   },
   "mcp": {
     "narrative": {
-      "title": "Platform infrastructure vs pack content",
-      "body": "MCP servers and skills on this page are platform-provided infrastructure: connect them to your MCP client or agent and use them directly. Packs are content bundles that combine skills, MCP references, and agent personas into one installable unit — install a pack and its parts arrive together."
+      "title": "Platform infrastructure vs agent content",
+      "body": "MCP servers and skills on this page are platform-provided infrastructure: connect them to your MCP client or agent and use them directly. An Agent is a content bundle that combines skills, MCP references, and personas into one installable unit — install it and its parts arrive together."
     },
     "tabs": {
       "servers": "MCP servers",
@@ -2179,7 +2179,7 @@
       },
       "facet": {
         "name": "Facet",
-        "tagline": "Packs marketplace — discover, install, and author AI capability packs"
+        "tagline": "Agent marketplace — discover, install, and author AI agents"
       },
       "wanxing": {
         "name": "Wanxing",
@@ -2203,7 +2203,7 @@
     "openOrigin": "Open Origin Site",
     "tab": {
       "overview": "Overview",
-      "my-packs": "My Packs",
+      "my-packs": "My Agents",
       "publish-history": "Publish History",
       "fleet-summary": "Cluster Summary",
       "missions": "Missions",
@@ -2233,7 +2233,7 @@
     "focusPending": "Switching to the focused preset…",
     "focusRejected": "Main chat is answering; not focused yet",
     "focusRetry": "Retry",
-    "unfocused": "Unfocused: this line's assistant pack is not installed",
+    "unfocused": "Unfocused: this line's assistant agent is not installed",
     "pack": "Inspecting"
   },
   "action": {
@@ -2285,7 +2285,7 @@
     "tooLong": "(over 200 chars — will be skipped on save)",
     "needNamePersona": "Name and persona are required",
     "save": "Save solution",
-    "savedAs": "Saved \"{{name}}\". Continue editing it in My Experts, or publish it to the packs marketplace in one click.",
+    "savedAs": "Saved \"{{name}}\". Continue editing it in My Experts, or publish it to the agents marketplace in one click.",
     "goPublish": "Publish",
     "modeCreate": "New solution",
     "modeUpdate": "Update existing",
@@ -2343,9 +2343,9 @@
       "capacityHint": "All runtime groups are in use — stop or remove a deployment first",
       "capacityExceeded": "All {{cap}} runtime groups are in use ({{used}} used) — remove a deployment to free one",
       "actionFailed": "Action failed: {{code}}",
-      "candidatesTitle": "Deploy from installed packs",
-      "candidatesEmpty": "No serving agents in the installed packs yet — install a pack first",
-      "candidatesNote": "Deployments run on this machine only. A runtime group is one child process; in pod mode every agent of a pack shares one.",
+      "candidatesTitle": "Deploy from installed agents",
+      "candidatesEmpty": "No serving roles among installed agents yet — install an agent first",
+      "candidatesNote": "Deployments run on this machine only. A runtime group is one child process; in pod mode every role of the same agent shares one.",
       "unavailable": "The local fleet store is unavailable",
       "stateRunning": "running",
       "stateStopped": "stopped",
@@ -2410,35 +2410,35 @@
   },
   "clusters": {
     "composer": {
-      "title": "Create array",
-      "clusterName": "Array name",
+      "title": "Create group",
+      "clusterName": "Group name",
       "description": "Description",
       "selectAgents": "Select agents",
-      "addAllFromPack": "Add all from pack",
+      "addAllFromPack": "Add all roles from this agent",
       "defaultAgent": "Default",
       "activateAllOnCreation": "Activate all agents on creation",
       "bindToCurrentSession": "Bind to current session",
-      "noAgents": "No agents available. Install some packs first.",
-      "creating": "Creating array...",
-      "created": "Array created",
-      "createCluster": "Create array",
+      "noAgents": "No agents available. Install some agents first.",
+      "creating": "Creating group...",
+      "created": "Group created",
+      "createCluster": "Create group",
       "creatingBtn": "Creating...",
       "cancel": "Cancel",
-      "nameRequired": "Array name is required",
-      "nameTooLong": "Array name must be 100 characters or less",
+      "nameRequired": "Group name is required",
+      "nameTooLong": "Group name must be 100 characters or less",
       "atLeastOneAgent": "Select at least one agent",
       "manage": "Manage"
     }
   },
   "fleets": {
-    "title": "Clusters",
-    "create": "Create cluster",
-    "empty": "No clusters yet — create your first one",
-    "nameLabel": "Cluster name",
+    "title": "Agent Teams",
+    "create": "Create team",
+    "empty": "No agent teams yet — create your first one",
+    "nameLabel": "Team name",
     "namePlaceholder": "e.g. Content Studio",
     "membersCount": "{{count}} posts",
     "detail": {
-      "empty": "Select or create a cluster"
+      "empty": "Select or create an agent team"
     },
     "state": {
       "active": "Active",
@@ -2476,7 +2476,7 @@
     },
     "kind": {
       "persona": "Persona",
-      "cluster": "Array",
+      "cluster": "Group",
       "a2a": "Agent service",
       "tool": "Tool"
     },
@@ -2568,9 +2568,9 @@
       "notExecuted": "Ruled but not executed"
     },
     "tpl": {
-      "awaitStart": "Cluster assembled from the template (all paused) — review, then start",
-      "start": "Start cluster",
-      "newer": "Template has a newer version v{{v}} (live cluster untouched; align manually)"
+      "awaitStart": "Agent team assembled from the template (all paused) — review, then start",
+      "start": "Start team",
+      "newer": "Template has a newer version v{{v}} (live team untouched; align manually)"
     },
     "stream": {
       "title": "Latest outputs",
@@ -2624,7 +2624,7 @@
     },
     "hints": {
       "on_duty": "All good: staffed and running on schedule",
-      "paused": "The cluster or this post is paused — nothing fires",
+      "paused": "The team or this post is paused — nothing fires",
       "missing": "Missed its scheduled run/report past the tolerance window",
       "vacant": "The post has no assignee (or its assignee no longer exists)",
       "passive": "No schedule, no idle cost; runs when tasked or woken",
@@ -2682,7 +2682,7 @@
     "runs": {
       "title": "Execution timeline",
       "loading": "Loading timeline…",
-      "empty": "No runs yet — turns land here once the cluster executes",
+      "empty": "No runs yet — turns land here once the team executes",
       "filterStatus": "Filter by status",
       "allStatuses": "All statuses",
       "filterSource": "Filter by source",
@@ -2733,7 +2733,7 @@
       "runStarted": "Delivery started — the turn lands in the timeline",
       "alreadyRunning": "A turn is already in flight — delivery rides it",
       "effort": "Thinking depth",
-      "effortInherit": "Inherit (cluster/cell default)",
+      "effortInherit": "Inherit (team/cell default)",
       "contextBudget": "Context budget (tokens/turn)",
       "contextBudgetUnlimited": "Unlimited",
       "contextBudgetInvalid": "Context budget must be a positive integer (tokens per turn)",
@@ -2786,7 +2786,7 @@
       "source": "open trace"
     },
     "board": {
-      "title": "My fleets",
+      "title": "My teams",
       "loadError": "Board failed: {{error}}",
       "cellSleeping": "sleeping (placeholder)",
       "cellLastTraffic": "last traffic {{at}}",
@@ -2815,7 +2815,7 @@
     "title": "Curation board",
     "subtitle": "Category & featured are presentation-level (visibility, versions, and installability are untouched); usage reads the platform aggregate (last 7 days).",
     "loading": "Loading the board…",
-    "empty": "No packs on the board yet — published packs appear here.",
+    "empty": "No agents on the board yet — published agents appear here.",
     "errorLoad": "Listing failed: {{message}}",
     "saved": "Saved: {{name}}",
     "saveFailed": "Save failed: {{name}} — {{message}}",
@@ -2829,9 +2829,9 @@
     "unfeature": "Unfeature"
   },
   "facetMine": {
-    "title": "My packs",
-    "subtitle": "Manage what you publish here: versions, listing, and visibility. Installing into a runtime stays a 壹座 surface (Settings → Packs → Mine). Public packs with a serving contract flow into the 萬星 catalog — external deployers run them with metered turns, and your share accrues automatically.",
-    "loading": "Loading your packs…",
+    "title": "My agents",
+    "subtitle": "Manage what you publish here: versions, listing, and visibility. Installing into a runtime stays a 壹座 surface (Settings → Agents → Mine). Public agents with a serving contract flow into the 萬星 catalog — external deployers run them with metered turns, and your share accrues automatically.",
+    "loading": "Loading your agents…",
     "empty": "Nothing published yet — use the publish box below.",
     "emptyGuide": "First time? The creation guide covers manifests, serving contracts, and version discipline:",
     "errorLoad": "Loading failed: {{message}}",
@@ -2845,15 +2845,15 @@
     "done": "{{label}} — done",
     "failed": "{{label}} — failed: {{message}}",
     "publishTitle": "Publish from manifest",
-    "publishHint": "Paste or edit a pack manifest JSON (facet-pack-builder output). Leave the pack id empty for a new pack; fill an existing id to publish a new version.",
+    "publishHint": "Paste or edit an agent manifest JSON (facet-agent-builder output). Leave the agent id empty for a new agent; fill an existing id to publish a new version.",
     "publishCliHint": "Published on your own instance? Return it to the official market with the CLI — pair once via a bind code, silent logins after.",
-    "publishIdPlaceholder": "pack id (optional, for a new version)",
+    "publishIdPlaceholder": "agent id (optional, for a new version)",
     "publishing": "Publishing…",
     "publish": "Publish",
     "publishedResult": "Published: {{id}} v{{version}}",
     "publishFailed": "Publish failed: {{message}}",
     "notJson": "not valid JSON",
-    "packIdWord": "pack id",
+    "packIdWord": "agent id",
     "visibility": "Visibility"
   },
   "zhiyu": {
@@ -2925,7 +2925,7 @@
     "invite": {
       "title": "Invite into room",
       "refUser": "Member email",
-      "refAgent": "Deployment ref (pack:agent)",
+      "refAgent": "Deployment ref (agent:agent)",
       "onBehalfOf": "Principal email",
       "display": "Display name",
       "displayPlaceholder": "How they appear in the room",
@@ -3010,6 +3010,11 @@
     "busyHint": "The agent is responding; toggles unlock when the turn ends."
   },
   "memory": {
+      "promotions": {
+        "title": "Pending promotions",
+        "accept": "Accept",
+        "ignore": "Ignore"
+      },
     "title": "Memory",
     "subtitle": "Everything your agents remember",
     "all": "All",
@@ -3029,7 +3034,7 @@
       "title": "Post memory (deployer view)",
       "close": "Close",
       "empty": "No memory distilled for this post yet.",
-      "noPack": "This fleet has no blueprint pack coordinate; cannot locate its memory root."
+      "noPack": "This team has no blueprint agent coordinate; cannot locate its memory root."
     }
   },
   "blueprints": {
@@ -3037,7 +3042,7 @@
     "new": "New",
     "untitled": "Untitled scene",
     "list": {
-      "empty": "No blueprints yet — create one to draft a vertical package.",
+      "empty": "No blueprints yet — create one to draft a vertical agent.",
       "version": "v{{version}}"
     },
     "status": {
@@ -3062,7 +3067,7 @@
       "validated": "Validation green.",
       "invalid": "Validation failed — see the issues below.",
       "approved": "Approved — casting is unlocked.",
-      "cast": "Cast to the market (pack {{packId}}).",
+      "cast": "Cast to the market (agent {{packId}}).",
       "conflict": "Version conflict — reload the blueprint to continue."
     },
     "editor": {
@@ -3117,14 +3122,14 @@
       "ranAt": "ran {{when}}",
       "judgedCount": "{{count}} model-judged"
     },
-    "castPack": "pack {{packId}}",
+    "castPack": "agent {{packId}}",
     "draft": {
-      "hint": "Hand the prompt to the blueprint-constructor capability pack in a chat, then paste its JSON back — it lands in the same draft pool (same validation chain).",
+      "hint": "Hand the prompt to the blueprint-constructor capability agent in a chat, then paste its JSON back — it lands in the same draft pool (same validation chain).",
       "copy": "Copy prompt",
       "copied": "Copied",
       "copyFailed": "Clipboard unavailable — select the prompt and copy it manually.",
       "promptIntro": "You are a blueprint constructor. Draft a vertical blueprint for the scene \"{{name}}\" and output ONE JSON object only (no prose, no code fences), shaped exactly like:",
-      "constraints": "Constraints: data sources are registry server names or internal-library logical names only (no endpoints, no credentials); keep pack-preset packId exactly as the PACK_ID placeholder shown in the skeleton and point presetId at an id you declare under agents; a discipline-pack dependency uses the dependency placeholder {{dep}}.",
+      "constraints": "Constraints: data sources are registry server names or internal-library logical names only (no endpoints, no credentials); keep agent-preset packId exactly as the PACK_ID placeholder shown in the skeleton and point presetId at an id you declare under agents; a discipline-agent dependency uses the dependency placeholder {{dep}}.",
       "pastePlaceholder": "Paste the returned JSON here…",
       "apply": "Load draft",
       "applied": "Draft loaded into the same pool.",
@@ -3132,7 +3137,7 @@
     },
     "delete": {
       "label": "Delete",
-      "castLocked": "Cast blueprints cannot be deleted — the market pack is the record"
+      "castLocked": "Cast blueprints cannot be deleted — the market agent is the record"
     },
     "judge": {
       "audit": "Judgement record",
@@ -3185,7 +3190,7 @@
       "other": "Unhealthy"
     },
     "summary": {
-      "fleets": "{{n}} fleets",
+      "fleets": "{{n}} teams",
       "members": "{{n}} members",
       "deployments": "{{n}} deployments"
     },

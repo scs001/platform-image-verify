@@ -7,6 +7,7 @@
 - [x] 1.3 超时分支在 reject 前记录真实 `elapsed`，样本写 `reason: "timeout"`（与 `cooling_down`、上游错误可区分）
 - [x] 1.4 单测：快样本→预算收紧；慢样本→预算放宽但不超上限；无样本→默认；样本自强化不发生（p90 只吃成功样本）
 - [x] 1.5 `npm test` 全绿 + `npx tsc --noEmit` 零错误
+- [x] 1.6 **真机验收推翻 D1 的修正**：超时是右删失观测（「真实延迟 ≥ 当时预算」），必须为预算提供下界——双峰车道下纯 p90 会塌缩饿死慢请求。`budget = clamp(max(p90×headroom, maxTimeoutElapsed×1.2), floor, cap)`；非超时失败不提供下界（design D1'）
 
 ## 2. paas：调用方超时可配
 

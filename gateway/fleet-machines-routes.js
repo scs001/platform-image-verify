@@ -15,6 +15,8 @@
 // Health is derived read-only from already-reported data: zero outbound
 // probes, ever (spec fleet-machine-console).
 
+import express from "express";
+
 const DEFAULT_SILENCE_MS = 30 * 60 * 1000;
 const DEFAULT_ALERT_THRESHOLD = 3;
 const DESIRED_LIMITS = { entries: 64, str: 200 };
@@ -127,7 +129,12 @@ export function registerFleetMachineRoutes({
   // Whole-set replace: the editor sends the complete desired list (add /
   // remove / toggle are all one shape), the machine applies it wholesale on
   // its next pull. Validation is strict — identity fields plus enabled only.
-  app.put("/api/machines/:deviceId/desired", (req, res) => {
+  //
+  // express.json() rides THIS registration: both mount sites register bare
+  // handlers (no parser), so without it req.body is undefined and every
+  // write 400s "entries must be an array". Live walkthrough caught it —
+  // unit tests hand the handler a pre-parsed body and never see the gap.
+  app.put("/api/machines/:deviceId/desired", express.json(), (req, res) => {
     const email = callerEmail(req);
     if (!email) return res.status(401).json({ error: "Authentication required" });
     if (!ownDeviceOr404(req, res, email)) return undefined;

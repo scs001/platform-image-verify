@@ -213,6 +213,38 @@ test("3.2 desired door answers 401 without a steward credential", async () => {
 
 // ── 4.x console routes ───────────────────────────────────────────────────────
 
+// Both production entrypoints register these routes on an app WITHOUT a global
+// body parser (gateway/index.js and server.js attach express.json per route),
+// so a PUT that reaches the handler with req.body undefined 400s every write.
+// The suite above mounts app.use(express.json()) and therefore hid it — this
+// stack is bare on purpose (live walkthrough, 2026-10-29).
+let bareServer;
+let bareBase;
+await new Promise((resolve) => {
+  const bare = express();
+  registerFleetMachineRoutes({
+    app: bare,
+    appAuth,
+    machines: store,
+    callerEmail: (req) => req.headers["x-test-email"] ?? null,
+    isAdmin: () => false,
+  });
+  bareServer = bare.listen(0, "127.0.0.1", resolve);
+});
+bareBase = `http://127.0.0.1:${bareServer.address().port}`;
+
+test("4.0 PUT desired parses its own body on an app with no global JSON parser", async () => {
+  const r = await fetch(`${bareBase}/api/machines/dev-dog/desired`, {
+    method: "PUT",
+    headers: { "content-type": "application/json", "x-test-email": "owner@test" },
+    body: JSON.stringify({ entries: [{ packId: "p1", agentId: "a1", enabled: true }] }),
+  });
+  const body = await r.json().catch(() => ({}));
+  assert.equal(r.status, 200, `bare-mount PUT must succeed, got ${r.status} ${JSON.stringify(body)}`);
+  assert.equal(body.desired.entries[0].packId, "p1");
+  assert.equal(store.get("dev-dog").desired.entries[0].agentId, "a1");
+});
+
 test("4.1 roster requires an identity and lists steward pairings only", async () => {
   const unauth = await call("GET", "/api/machines");
   assert.equal(unauth.status, 401);
@@ -274,5 +306,6 @@ test("4.6 revoked pairing drops out of the roster automatically", async () => {
 
 test("9.9 teardown closes the http server", () => {
   httpServer.close();
+  bareServer.close();
   assert.ok(true);
 });

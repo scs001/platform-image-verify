@@ -307,10 +307,25 @@ jobs:
           # -WindowStyle Hidden = a detached console: a -NoNewWindow child dies
           # when this step's console closes (test-harness artifact only —
           # production launches via schtasks, which is detached by nature).
-          Start-Process -FilePath $node -ArgumentList @($entry) -WindowStyle Hidden
+          # Capture the resident host's stdout/stderr so a failed boot is
+          # DIAGNOSABLE: the hidden window discards it otherwise (the v1.3.25
+          # SETTINGS_KEYS ReferenceError was invisible until this was added).
+          $bootOut = Join-Path $data 'steward-boot.out.log'
+          $bootErr = Join-Path $data 'steward-boot.err.log'
+          Start-Process -FilePath $node -ArgumentList @($entry) -WindowStyle Hidden -RedirectStandardOutput $bootOut -RedirectStandardError $bootErr
           $json = Join-Path $data 'steward.json'
-          for ($i = 0; $i -lt 60 -and -not (Test-Path $json); $i++) { Start-Sleep -Seconds 2 }
-          if (-not (Test-Path $json)) { throw "steward.json never appeared (control plane did not boot)" }
+          # 180s: comfortably exceeds the supervisor's own 120s health window, so a
+          # slow-but-successful cold start is not mistaken for a dead control plane.
+          for ($i = 0; $i -lt 90 -and -not (Test-Path $json); $i++) { Start-Sleep -Seconds 2 }
+          if (-not (Test-Path $json)) {
+            "---- steward boot stdout (tail) ----" | Write-Host
+            Get-Content $bootOut -Tail 80 -ErrorAction SilentlyContinue | Write-Host
+            "---- steward boot stderr (tail) ----" | Write-Host
+            Get-Content $bootErr -Tail 80 -ErrorAction SilentlyContinue | Write-Host
+            "---- captured service logs ----" | Write-Host
+            Get-ChildItem (Join-Path $data 'logs') -ErrorAction SilentlyContinue | Select-Object Name, Length | Write-Host
+            throw "steward.json never appeared (control plane did not boot)"
+          }
           $disc = Get-Content $json -Raw | ConvertFrom-Json
           "STEWARD_PID=$($disc.pid)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           if (-not (Get-Process -Id $disc.pid -ErrorAction SilentlyContinue)) { throw "steward pid $($disc.pid) not alive" }

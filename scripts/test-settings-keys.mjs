@@ -18,6 +18,32 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const { SETTING_KEYS } = await import("../lib/settings-keys.js");
 
+// The consolidation (151b4a93) renamed the shared list to SETTING_KEYS. The
+// shipped v1.3.25 desktop died at resident-boot with "ReferenceError:
+// SETTINGS_KEYS is not defined" — a consumer kept looping the OLD plural name,
+// invisible to typecheck (plain JS) and to the "no second definition" guard
+// above (an undefined reference is not a definition). This assertion pins the
+// class: every consumer of the single source must reference the shared name
+// and must NOT mention the pre-consolidation one.
+test("consumers reference the shared name, never the pre-consolidation SETTINGS_KEYS", () => {
+  const consumers = [
+    "supervisor/steward-main.js",
+    "electron/config/settings.js",
+    "local-services.js",
+  ];
+  for (const rel of consumers) {
+    const src = fs.readFileSync(path.join(ROOT, rel), "utf8");
+    assert.ok(
+      !/\bSETTINGS_KEYS\b/.test(src),
+      `${rel} references SETTINGS_KEYS (the removed inline list) — boot crashes with a ReferenceError`,
+    );
+    assert.ok(
+      src.includes("SETTING_KEYS"),
+      `${rel} must consume the shared SETTING_KEYS list`,
+    );
+  }
+});
+
 test("the shared list carries the keys each consumer actually needs", () => {
   const required = [
     "LLM_API_KEY",

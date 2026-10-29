@@ -86,7 +86,7 @@ function readSettingsEnv() {
     return {};
   }
   const out = {};
-  for (const key of SETTINGS_KEYS) {
+  for (const key of SETTING_KEYS) {
     const value = doc[key] ?? process.env[key];
     if (value != null && value !== "") out[key] = String(value);
   }

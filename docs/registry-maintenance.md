@@ -4328,3 +4328,62 @@ laneError 双向也各验一次：真判时 `laneError=null`；车道超时时 `
 - `deepseek-v4-pro` 不在 cell 名册（`judge-default` 回显 `judgeSource: fallback` + 「deployment default 不在名册」），走的是部署 env 路由。功能正确，但**「回落」这个词会误导读者以为配置没生效**——实际是 cell 名册为空导致的正常路径。若要消掉这行提示，需把该模型加进 cell 的 `llm-providers.json`（跨面，未做）。
 
 **测试**：蓝图 6 套 **82/82 绿**（新增 laneError 3 条：429→rate-limited、503→upstream、网络异常→unreachable，外加反向断言「模型真判 insufficient-evidence 时不得带 laneError」）。typecheck 绿，biome 绿，locale 五语绿（+`blueprints.judge.verdict.laneError`）。
+
+### §15.91 评审模型二换：pro → minimax-3.1-flash（用户 2026-10-30 拍板），并查清「在哪自己配」
+
+用户令「用 minimax-3.1-flash 做评审，不要用 deepseek-v4-pro」。
+
+#### 先拦下一处硬冲突（不拦就会把功能钉坏）
+
+`deepseek-v4.1-flash` **不能当评审**，原因与车道无关：本部署 cell 默认产出模型就是它
+（`getDefault()` 实测 `volces/deepseek-v4.1-flash`），而禁自证闸对同名一律拒——跨
+provider 同名的判据同样判 `isSelfGrading: true`。在生产镜像里用真实 cell 的
+`productionLanes` 直接调用 `judgeAssertion(judgeModel="deepseek-v4.1-flash")`，
+发请求之前就拒：
+
+```
+真实 productionLanes(cell 视角) = [{model:"deepseek-v4.1-flash"}, {model:"deepseek-v4.1-flash"}]
+→ verdict: insufficient-evidence
+→ reason: the judge model is the same model that produced the work —
+  self-grading is refused; pin a different BLUEPRINT_JUDGE_MODEL
+```
+
+**结论：评审模型必须「≠ cell 默认产出模型」**。所以用户上一轮点的 deepseek-v4.1-flash
+结构上不可用（不是它弱，是它跟产出撞名）。用户改点 minimax-3.1-flash 正好绕开这层冲突
+（与 deepseek-v4.1-flash 不同名），是可行的。
+
+#### 换型与回滚记录（GitOps `3e05269`）
+
+| 项 | 值 |
+|---|---|
+| 镜像 tag | 不动（沿用并行会话的 `sha-42834d6` 系，已含全部判据代码祖先） |
+| 改的 | 两面 env `BLUEPRINT_JUDGE_MODEL`：deepseek-v4-pro → minimax-3.1-flash |
+| GitOps | `3e05269`（rebase 到 gitee 最新 `4bb99e0` 后改，未回退别人的镜像） |
+| 真机 | ArgoCD `Synced`；platform + agent-runner-serving 两面 env 均实测 = minimax-3.1-flash |
+| judge-default 端点 | 真机回显 `resolved.model = minimax-3.1-flash`（judgeSource=fallback，因不在 cell 名册，走部署 env 路由——预期行为） |
+
+**例外记录**：词元配额事故（2026-10-27）曾拍板「MiniMax 保留不碰」，本次为用户主动开的
+例外，已在 GitOps 注释里写明。
+
+**遗留（诚实挂账）**：minimax 的**三态区分力尚未测成**。原因是此刻 chat 车道整体 503
+（minimax/deepseek 同挂，非配置问题）。车道恢复后需跑
+`CANDIDATES=minimax-3.1-flash node scripts/probe-blueprint-judge-model.mjs` 补验——
+达标（≥8/9）才留，不达标再换。上一轮 pro 是 14/14，这一轮 minimax 没有样本。
+
+#### 用户在哪可以自己配（查代码得出，非记忆）
+
+三层，从具体到全局：
+
+1. **单个蓝图的评审模型（用户面，最常用）**：蓝图构造间编辑页的「评审模型」下拉
+   （`BlueprintStudioPage.tsx`，`data-testid="blueprint-judge-model"`），写入蓝图
+   `content.judgeModel`；空值=跟随部署默认。下拉候选来自该 cell 的名册
+   （`useChatStore` 的 models）。若所选模型不在名册，下拉会**保留该值并追加提示**
+   「不在本部署模型名册里」（`judge.model.notInRoster` 键，五语言已就位）。
+2. **该 cell 的名册与默认（管理员面）**：「模型」页（`ModelsPage.tsx`）——增删改 provider、
+   设默认模型。写的是 cell 的 `llm-providers.json`，hot-reload。这是下拉候选和判据
+   名册校验的真正来源（`buildUserProviderEntries`）。
+3. **部署默认（运维面）**：GitOps `fd-infra-deploy` 的 `BLUEPRINT_JUDGE_MODEL` env
+   ——就是本次改的那个，只有「跟随部署默认」的空值落到它。
+
+**注意**：cell 名册空时（生产现状 40/41 cell 无 `llm-providers.json`），第 1 层下拉几乎
+没候选、第 2 层是唯一能填的入口；此时判据走部署 env 路由（`providerId: env-route`）。

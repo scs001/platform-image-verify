@@ -93,6 +93,12 @@ function buildCtx(db, { runPersona, trace = null, broadcast = () => {} } = {}) {
     taskTurnRegistry: new Map(),
     sessionCollectors: new Map(),
     broadcast,
+    // 运行时就绪门（cron-runner 的 awaitRuntimeReadyForJob）：舰队任务在
+    // dshBridge 缺席时会按 RUNTIME_READY_WAIT_MS = 120s 空等到上限——那正好
+    // 等于本文件的测试超时，于是多跳链路用例永远 120s 红（这是本文件长期
+    // 的「既有红」，不是链路逻辑坏了）。其他所有 fleet 测试都挂了 bridge
+    // 替身，这里漏了；补一个「恒就绪」，门直接放行。
+    dshBridge: { isReady: () => true },
   };
   ctx.fleetTurnLedger = createFleetTurnLedger({ db, broadcast: (m) => ctx.broadcast(m), engineRecords: () => engine.allRecords(), trace });
   ctx.recordFleetTurnEvent = (job, out, meta) =>

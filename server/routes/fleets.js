@@ -50,7 +50,6 @@ import { memoryRefClientFor, memoryRefSlug } from "../memory-refs.js";
 import * as engine from "../../task-engine.js";
 import { exportFleetToTemplate } from "../fleet-template.js";
 import { createConfigChangeProposal, runIterationCast, retryIterationCast } from "../fleet-iteration.js";
-import { runDueDigests } from "../fleet-digest.js";
 import { provisionFleetFromTemplate } from "../fleet-provisioner.js";
 import * as dbModule from "../../db.js";
 

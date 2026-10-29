@@ -82,6 +82,7 @@ import { triggerFleetEventWake } from "./server/fleet-event-wake.js";
 import * as engine from "./task-engine.js";
 import { renderDecisionSegment } from "./server/fleet-decisions.js";
 import { runDueDeputyDigests } from "./server/fleet-delegation-digest.js";
+import { runDueDigests } from "./server/fleet-digest.js";
 import { memoryRefClientFor } from "./server/memory-refs.js";
 import { rosterPresetId } from "./dsh-profile.js";
 import * as lineTokenRenewal from "./server/line-token-renewal.js";
@@ -1534,6 +1535,30 @@ attachDelegationAggregator(ctx).rearm();
   });
   // Fleet-policy expiry backstop (lazy sweeps run on every queue read; this
   // hourly pass covers fleets nobody is reading).
+  // Deputy digest (add-deputy-decision-delegate D7 周期侧): the per-ruling
+  // mirror already lands a page at ruling time; this pass folds a window of
+  // them into one owner-memory summary at the policy's cadence. Same hourly
+  // tick as the expiry backstop — the cadence gate itself is daily/weekly,
+  // so an hourly check is pure granularity (last-run lives in cell_settings,
+  // so a restart neither double-sends nor loses a period).
+  //
+  // ⚠️ 只能 setInterval 是不够的：cell 是按需启动的，一个频繁滚版的 cell
+  // 可能活不过一个 60 分钟的间隔——日摘要会永远轮不到（2026-10-29 生产实证：
+  // pod 一天滚了 7 次，tick 一次没跑）。所以先跑一次再挂表。
+  //
+  // 报数 digest（fleet-owner-iteration）同理接在这里：`startDigestRunner` 写了
+  // 却从来没有被任何地方调用——订阅入口在 OwnerBoardStrip 上是活的，点了却
+  // 永远收不到东西。两个 digest 共用同一 tick，语义一致（时点事实源都在库里）。
+  const runFleetDigestPass = () => {
+    void runDueDeputyDigests({
+      db: fleetLanesDb,
+      memoryClientFor: (ownerEmail) => memoryRefClientFor(process.env, ownerEmail),
+    }).catch((e) => console.warn(`[deputy-digest] tick failed: ${e?.message || e}`));
+    void runDueDigests({ db: fleetLanesDb, chatHistory }).catch((e) =>
+      console.warn(`[fleet-digest] tick failed: ${e?.message || e}`),
+    );
+  };
+  runFleetDigestPass();
   setInterval(() => {
     try {
       for (const fleet of fleetLanesDb.listFleets()) {
@@ -1542,16 +1567,7 @@ attachDelegationAggregator(ctx).rearm();
     } catch (e) {
       console.warn(`[fleets] expiry sweep failed: ${e.message}`);
     }
-    // Deputy digest (add-deputy-decision-delegate D7 周期侧): the per-ruling
-    // mirror already lands a page at ruling time; this pass folds a window of
-    // them into one owner-memory summary at the policy's cadence. Same hourly
-    // tick as the expiry backstop — the cadence gate itself is daily/weekly,
-    // so an hourly check is pure granularity, and a pod restart makes up on
-    // the next tick (last-run lives in cell_settings).
-    void runDueDeputyDigests({
-      db: fleetLanesDb,
-      memoryClientFor: (ownerEmail) => memoryRefClientFor(process.env, ownerEmail),
-    }).catch((e) => console.warn(`[deputy-digest] tick failed: ${e?.message || e}`));
+    runFleetDigestPass();
   }, 60 * 60 * 1000).unref();
 }
 // Worker pool (TASK_WORKER_MAX; 0 = inert, exactly today's serial semantics).

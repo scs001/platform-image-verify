@@ -210,7 +210,9 @@ test("dispatch bridge: guards and the delegation-lane task shape", async () => {
     // No ledger on this ctx → no chain stamped; the target will open a root
     // run of its own (agent-fleet-runs: honest degradation, never a guess).
     assert.equal(task.origin.fleet.chain, undefined);
-    assert.ok(task.prompt.includes("m_sup".replace("m_", "") === "sup" ? "舰队派发" : "舰队派发"), "dispatcher identity rides the prompt");
+    // 派发提示的词头是「集群派发」（产品词汇终词：舰队→集群；本断言曾写
+    // 「舰队派发」，改名后一直红着）。三目表达式两支同值是死代码，一并清掉。
+    assert.ok(task.prompt.includes("集群派发"), "dispatcher identity rides the prompt");
     assert.ok(task.prompt.includes("sup"), "the dispatcher's post identity names the brief");
 
     // guards: cross-fleet ref (foreign post id), self, cluster post, permission-less
@@ -289,6 +291,9 @@ test("handoff: ok and failed upstreams both relay; depth/budget ride origin; bou
   const ctx = {
     session: { model: { id: "m0" } },
     taskTurnRegistry: new Map(),
+    // 运行时就绪门替身：舰队任务在 dshBridge 缺席时按 RUNTIME_READY_WAIT_MS
+    // = 120s 空等（正好撞上测试超时）。链路语义与就绪门无关，恒就绪即放行。
+    dshBridge: { isReady: () => true },
     recordFleetTurnEvent: () => ({}),
     triggerFleetHandoffs: async (job, out) => {
       // mirror the server wiring against this fixture db
@@ -336,6 +341,8 @@ test("handoff: ok and failed upstreams both relay; depth/budget ride origin; bou
   const failCtx = {
     session: { model: { id: "m0" } },
     taskTurnRegistry: new Map(),
+    // 运行时就绪门替身（同上）：缺席会按 120s 空等，撞上测试超时。
+    dshBridge: { isReady: () => true },
     recordFleetTurnEvent: () => ({}),
     triggerFleetHandoffs: (job, out) => ctx.triggerFleetHandoffs(job, out),
   };
@@ -444,6 +451,9 @@ test("fanout seam: wave creation, initiator wiring both modes, failure relay, de
   const ctx = {
     session: { model: { id: "m0" } },
     taskTurnRegistry: new Map(),
+    // 运行时就绪门替身：舰队任务在 dshBridge 缺席时按 RUNTIME_READY_WAIT_MS
+    // = 120s 空等（正好撞上测试超时）。链路语义与就绪门无关，恒就绪即放行。
+    dshBridge: { isReady: () => true },
     recordFleetTurnEvent: () => ({}),
     triggerFleetHandoffs: async (job, out) => {
       // mirror the server wiring (fanout half)
@@ -504,7 +514,9 @@ test("fanout seam: wave creation, initiator wiring both modes, failure relay, de
   ], constraints: { maxChainDepth: 2, budgetPerEdgeMin: 10 } } });
   created.length = 0;
   const _failCtx = { ...ctx, triggerFleetHandoffs: (job, out) => ctx.triggerFleetHandoffs(job, out) };
-  const failBind = {};
+  // 运行时就绪门替身：failBind 是全新对象（不继承 ctx），缺席会按
+  // RUNTIME_READY_WAIT_MS = 120s 空等，正好撞上测试超时。
+  const failBind = { dshBridge: { isReady: () => true } };
   attachCronRunner(failBind, {
     runPersona: async () => ({ ok: false, error: "429 upstream gone" }),
     runA2a: async () => ({ ok: true }),

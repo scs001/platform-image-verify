@@ -3995,3 +3995,43 @@ turn=cron-job_1792719144227_3lpcem#r1793228411907-2   （23:00:18 CEO）
 **一次 bump 事故（纪律再次生效）**：并行会话在同一时间窗基于 `a96074c4` 出片并滚，把已滚的我的 `sha-2c1bc92` 盖掉（其源不含我的修复）。按「bump 前核祖先」重出基于最新主干（`8f44901`，同时含双方）的 `sha-0e54d99` 才对齐。**教训**：并发出片窗口里，滚版前必须核「我这条修复是否在候选镜像的源提交祖先链里」，不能只看时间新旧。
 
 **滚版**：`sha-c54390a` → `sha-2c1bc92`（被盖）→ `sha-0e54d99` → `sha-7bbd62e`（终版，paas `aa5a1380`）。测试 58/58，strict 绿，locale 闸 2407。
+
+#### §15.86 统一舰队总控（add-unified-fleet-console）上产 — 2026-10-29
+
+**是什么**：三向合并的最后一块主体——①一屏管全部集群（云 cell + N 台桌面机）；②agent 7×24（地基已在产，本片补机器健康哨）；③产品化（客户在云上管自己机器的舰队）。前案 `unify-wanxing-management-plane`（2026-10-15）定调：**管理=只覆盖 runner 舰队、永不伸进用户 cell（ADR-0008）；监控=统一只读、无控制回程**。本片在纪律内补上「机器」这一维度。
+
+**apply 时推翻的两条 design 假设（实证）**：
+- D4 原写「机器明细/期望态进 db.js 迁移」**不成立**——hosted 拓扑里 SQL 库是各 cell 私有的（`/data/cells/<hash>/data/app.db`），gateway 够不着；平台级状态（bindings）的既建制就是 **gateway 进程的 JSON 文件仓**（`mp-bindings.json` 原子 temp+rename）。改为 `gateway/fleet-machines-store.js`（`DATA_ROOT/fleet-machines.json`），db.js 只留 v108（`local_fleet_deployments` 加 `source` 列）。
+- D2 原写「supervisor 调 cell 写端点合并」改为**信标握手**：steward 与 cell 本就共 dataDir，且 steward 读 cell 事实的既有惯例是**只读直开 SQLite**（`fleets.db?mode=ro`）。故 steward 拉云期望写 `fleet-desired.json` → **cell 是部署表唯一写者**（`server/fleet-desired-merge.js` 60s 节拍合并）→ cell 写 `fleet-detail.json` → steward 只读转运 `cell_detail`。零新凭据、零跨进程 HTTP 写。
+
+**核心语义=source 钉死（本地手动赢）**：部署行 `source=manual|cloud`；合并只推进 `cloud` 行；用户手动动作把 `cloud` 行**领养**翻 `manual`（云永不打回——7×24 现场救火不被收敛环打回是硬需求）；云从期望集撤掉某条目只删 `cloud` 行。`source` 是显式状态机（不用时间戳仲裁——时钟漂移/离线补缓冲会静默覆写）。
+
+**拉取门自 scope**：目标机恒等于 token 内 `did`，端点**不接受任何设备参数**——跨机读取在构造上不可能。上报门扩 `cell_detail` **深白名单**（部署名/包/版本/启用/source、五态、运行时组占用、合并拒绝、崩溃计数）——内容类字段在 sanitize 的**类型空间里不存在**，会话/提示词/工具结果进不了仓。
+
+**双入口同挂（shared module 同律）**：`gateway/fleet-machines-routes.js` 由 gateway/index.js（hosted）与 server.js（单进程）各挂一份，与 mp-auth/app-auth 同模式。
+
+**交付面**：云 `MachinesPage`（名册/详情抽屉/期望态编辑三态/健康哨：沉默/背离连击/自报异常，读时派生零出站探测）+ FleetPage 来源徽标与背离标记（未配对不显示）+ 导航注册（surfaces 注册律）+ 五语言（2454×5）；桌面 v108 迁移、合并循环、拉取/转运同环、同意文案逐条列三类元数据 + 存量一次性提示；探针加 desired 握手腿。
+
+**测试**：云 16/16（test-fleet-machines）+ 桌 13/13（test-fleet-desired-merge）+ 同意文案 2/2 + e2e 5/5（machines-console.spec）+ locale 2454×5 + biome/tsc 绿 + `validate --strict` 绿；邻域回归 62/62 零扰动。
+
+**apply 中抓的三处真缺陷（测试自身也是缺陷源）**：①解构默认值写成 `now = Date.now()`（调用结果是数字）应为 `Date.now`——健康派生全线 500；②steward-reporter 的 `enabled` 原是构造时静态快照，401 自焚后仍报 true→改 getter；③合并模块 `agentPath` 推导用 `${packId}/${agentId}`，与既有 `agentPathFor`（`packs/<p>/<a>`）不一致→导出既有函数复用。
+
+**本机冒烟（真 server.js）**：temp store 起真 cell，staged 一个不可部署的 desired → 合并循环真转、`pack_not_installed` 结构化拒绝如实落 `fleet-detail.json` 信标。
+
+**出片链**：`fd-build-channel` 判路=公开仓免费线（私有池 FindDataTechnology 2011/2000 已耗尽、testaction003 亦耗尽）。快照 `make-public-snapshot --init`（HEAD `37965fa4`）→ 工作流修剪（快照默认剔除 image.yml 但留下 ci/app-build/app-e2e/image-build-check 四个 push-main 即触发的额度陷阱，**只留 image.yml 并补回**）→ `git push --force mirror` → run `40794607003` 绿 → `hkccr yizuo/platform:sha-49e24df` / digest `sha256:1f03e9ca…`。relay 08:46:34 落地 ccr、skopeo 硬门 digest 一致。
+
+**一次 bump 事故（自查自纠）**：首次 GitOps `840d837` 的 python 替换把 `image:` 键吃掉（行首直接是镜像地址）→ ArgoCD `ComparisonError: Failed to unmarshal platform-demo.yaml`。revert（`5ce18fa`）后重做（`ce1ff8c`，行级精确替换 + `yaml.safe_load_all` 自检两面 → `[('platform', …49e24df)]`）。
+
+**滚版**：`ce1ff8c` → 双清单同 tag `sha-49e24df`（祖先链已核：demo 源 `076a0409` 与 prod 源 `aa5a1380` 均为新镜像源 `37965fa4` 的祖先，不回退任何在跑修复）→ ArgoCD hard refresh 拾取 → 两面 `successfully rolled out`。
+
+**生产实证（in-pod）**：
+| 断言 | 实测 |
+|---|---|
+| 三模块在位 | ✓ `gateway/fleet-machines-store.js` `gateway/fleet-machines-routes.js` `server/fleet-desired-merge.js` |
+| web 机器段 bundle | ✓ `MachinesPage-zl8QvD1b.js` |
+| `/api/machines` 无凭据 | ✓ 401 |
+| `/api/gateway/desired-fleet` 无凭据 | ✓ 401 |
+| `/api/gateway/cell-report` 无凭据 | ✓ 401 `{"error":"steward credential required"}` |
+| 迁移 v108 | ✓ 两个 cell 的 app.db 达 v108，`local_fleet_deployments` 列含 `source` |
+
+**挂账**：①双平台 CI 腿（探针已扩腿，随下次安装包 snapshot 出片跑）；②真机走查（真配对→云上编辑期望→机器节拍内领取，需桌面 v1.3.25）；③台账本行。

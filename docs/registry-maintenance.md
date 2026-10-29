@@ -4057,6 +4057,6 @@ turn=cron-job_1792719144227_3lpcem#r1793228411907-2   （23:00:18 CEO）
 **`executed_at` 挂账判定（收尾结论）**：两条 deputy 裁决的 `delivered_at` / `executed_at` 仍为 0。查实的原因是**投递目标岗的回合没跑成**，不是回填代码有问题：
 
 - `d_1799219379758…` 属于助理部（cron `30 9 * * *`，每日一轮，当日的还没到）。
-- `d_1793228497338…` 属于 CEO（cron 每小时）。手动触发 CEO 那一轮（`POST /api/cron/job_1792719144227_3lpcem/run`）后：job 停在 `state=running` 12 分钟不退，会话里只落了 4 条**空 assistant 消息**（内容就是 `\n\n\n\n`），`member_turn_events` 没有新行——**上游流层空转**，与本 change 的代码无关。
+- `d_1793228497338…` 属于 CEO（cron 每小时）。手动触发 CEO 那一轮（`POST /api/cron/job_1792719144227_3lpcem/run`）后：job 卡 `state=running` 约 10 分钟后终态为 **`failed / error_kind=timeout / "turn timed out"`**（回合 10 分钟预算耗尽）；会话里只落了 4 条**空 assistant 消息**（内容就是 `\n\n\n\n`），最后一句可见输出是「Let me explore the workspace for recent patrol files…」，`member_turn_events` 只补了一行 failed——**代理空输出空转**，与本 change 的代码无关（CEO 岗 20:00 那轮同样 `turn timed out`，早于本日首次出片）。旁证：CEO 岗现 `failureStreak=2`（连续失败 ≥3 才降级 `failing`，既有机制正常工作），同期其他岗位回合多为 ok。
 - 回填链路本身在产且有单测覆盖（`test-fleet-delegation`「执行事实：送达即回填 executed_at」）；`markDelivered` 的触发条件是 `engine.addOnFinished` 且 `task.state === 'done'`，即「送达回合真的成功跑完」。
 - **结论**：这是「等一个健康的自然回合」，不是缺陷。不造数据、不伪造时间戳。同时记一笔**舰队回合在空输出下的空转**现象（`stream closed with reason: error` / 连续空 assistant 消息）——它属既有的回合可靠性议题，不并入本 change。

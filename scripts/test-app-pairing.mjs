@@ -84,6 +84,13 @@ test("bindings: app: entry persists pubkey/label and round-trips through reload"
     label: "Pixel 8",
   });
   await a.set("o-OPENID-1", { email: "alpha@example.com", groups: ["users"] });
+  await a.set(APP_KEY_PREFIX + "steward-1", {
+    email: "alpha@example.com",
+    groups: [],
+    pubkey: VECTOR.pubkey,
+    label: "Walkthrough Mac",
+    kind: "steward",
+  });
 
   const b = createMpBindings({ file });
   await b.load();
@@ -91,6 +98,14 @@ test("bindings: app: entry persists pubkey/label and round-trips through reload"
   assert.equal(appEntry.pubkey, VECTOR.pubkey);
   assert.equal(appEntry.label, "Pixel 8");
   assert.equal(appEntry.email, "alpha@example.com");
+  // Device kind survives the restart round-trip: losing it silently degrades
+  // steward bindings to "app" on every deploy and empties the machines roster
+  // (the live walkthrough's defect, 2026-10-29).
+  const stewardEntry = b.get(APP_KEY_PREFIX + "steward-1");
+  assert.equal(stewardEntry.kind, "steward", "kind survives reload");
+  const devices = b.devicesFor("alpha@example.com");
+  assert.ok(devices.some((d) => d.deviceId === "steward-1" && d.kind === "steward"), "devicesFor carries steward kind");
+  assert.equal(devices.find((d) => d.deviceId === "device-1").kind, "app");
   // The openid entry keeps its historical shape: no pubkey/label keys at all.
   const openidEntry = b.get("o-OPENID-1");
   assert.equal(openidEntry.pubkey, undefined);

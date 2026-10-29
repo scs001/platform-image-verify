@@ -78,6 +78,12 @@ export function createMpBindings({ file }) {
             // keys on rewrite).
             if (typeof value.pubkey === "string") entry.pubkey = value.pubkey;
             if (typeof value.label === "string") entry.label = value.label;
+            // Device kind survives the round-trip: the machines roster filters
+            // on kind === "steward" (add-unified-fleet-console). Without this,
+            // every restart degrades steward bindings to "app" and the roster
+            // silently empties (a rolling deploy was the first time we hit it —
+            // live walkthrough, 2026-10-29).
+            if (typeof value.kind === "string") entry.kind = value.kind;
             bindings.set(openid, entry);
           }
         }

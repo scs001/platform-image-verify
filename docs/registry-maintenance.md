@@ -3820,6 +3820,31 @@ change 3 的真机睡眠/唤醒一幕。
 
 **遗留**：组 8/12 的 `model_allowlist.enabled` 仍是 `false`（模型候选可见≠白名单启用）；如需按组收紧到只允许 embedding，需在后台勾选保存——这是策略选择，留给 owner。
 
+#### §15.79 续二：embedding 车道仍有单点结构——组 8 上游 429 即整组 503（2026-10-29 上午，**未修，留待决策**）
+
+上产验收后继续追查「还有没有要处理的」，在产日志抓到正在发生的实证：
+
+```
+WARN openai_embeddings.upstream_failover_switching  {group_id: 8, account_id: 32, upstream_status: 429, switch_count: 1, max_switches: 10}
+WARN openai_embeddings.account_select_failed        {error: "no available OpenAI accounts supporting model: Qwen/Qwen3-Embedding-8B (pool=1, filtered: excluded=1)"}
+HTTP 503 -> fd-memory: "[hybrid] embed query failed — keyword-only candidates: InternalServerError: Error code: 503"
+```
+
+**频率**：近 60 分钟 `account_select_failed` **16 次**，形态三类：`pool=0` 10 次、`excluded=1` 4 次、`not_schedulable=1` 2 次；近 2h 账号 32 的 429 换号 5 次；fd-memory 侧近 1h digest 降级 4 次、6h 8 次。
+
+**机制**：组 8 `embedding-interactive` **只绑一个账号**（32 `openrouter-new (Copy)`），组 12 `embedding-bulk` 也只绑一个（47）。上游 OpenRouter 对 `Qwen/Qwen3-Embedding-8B` 返 429 时，网关按 failover 排除该账号 → 组内无第二候选 → 503 → fd-memory 的 digest 静默回落到关键词召回（**不报错、界面无感知**，只有 rung 变化）。这与 §15.79 原案（两账号同绑坏代理 35）是**同一形态：单点结构 + 静默降级**。
+
+**不是本轮引入的**（已核）：`git diff 76b4a7430 4c48d27c9` 只动 `account_test_service.go`（1 行出口补行）、`embedding_model_catalog.go`（新增文件）、测试、`ciyuan-tag`；grep 调度/转发/`IsModelSupported`/pool 相关符号零命中——纯 admin 读取面改动。旧 pod 运行仅 70 秒无从比对，但代码面可证无关联。
+
+**根因是结构性缺口，不是 bug**：组 8 单账号 + 上游限流 = 该组在 429 窗口内整体不可用；且 `rpm_limit` 组 8 为 **0（不限流）**、组 12 为 600——组 8 面向交互式调用却无自身限流，完全暴露在上游 429 之下。
+
+**候选处置（三选，需 owner 拍板）**：
+1. **加冗余账号**（治本）：组 8 再绑一个 embedding 账号（可用 47 或新克隆），failover 有第二候选；但**必须同 provider 钉扎 Nebius**，否则跨渠道换向量空间（用户已明示不可换）。
+2. **组级限流**（治标）：给组 8 配 `rpm_limit`（如 48，对齐交互组设计），把上游 429 挡在网关侧、避免被上游判罚；不解决 429 后无候选的问题。
+3. **降级可观测化**（必做，最小）：`digest` 的 `model_note` 已有「vector lane unavailable — keyword-only recall」，但**生产无人看**。应把「embed 降级」计入监控/告警（如连续 N 次降级提级），让「静默漂移」变得可见。
+
+**注**：向量一致性本身是干净的——全 57 根 1039 条向量**全部来自 `Qwen/Qwen3-Embedding-8B` 一家，多模型污染 0 个**（本日在产 pod 直读 `page_vectors` 全量扫描）。降级只影响**召回档位**（vector→keyword），不改写任何已有向量，故不构成空间漂移。
+
 ### §15.84 常务岗桥面鉴权缺口（真机走查揪出，2026-10-29）
 
 **发现方式**：§15.82 留下的「留给 owner：真机 deputy 巡逻回合」——本次真机跑了一轮。常务岗自己的回合报告原文：

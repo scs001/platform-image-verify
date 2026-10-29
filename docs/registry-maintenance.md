@@ -3845,6 +3845,60 @@ HTTP 503 -> fd-memory: "[hybrid] embed query failed — keyword-only candidates:
 
 **注**：向量一致性本身是干净的——全 57 根 1039 条向量**全部来自 `Qwen/Qwen3-Embedding-8B` 一家，多模型污染 0 个**（本日在产 pod 直读 `page_vectors` 全量扫描）。降级只影响**召回档位**（vector→keyword），不改写任何已有向量，故不构成空间漂移。
 
+#### §15.79 续三：用户令「直接处理」——代理分离 + 组内冗余 + 降级可观测化三件落地，另揪出两个新真缺陷（2026-10-29 上午）
+
+续二留下三个候选处置，用户拍板「我们有两个 openrouter 账号，直接处理；为防止风控，最好把 openrouter 账号的代理 ip 各自统一下」。执行中发现两个**新的**真缺陷。
+
+**一、代理按真实上游身份分离（风控向）**
+
+先纠正一个前提：4 个 OpenRouter 账号（14/15/32/47）**并非 4 个上游身份**。按 `md5(api_key)` 指纹聚类只有 **2 个真身份**：
+
+| 身份 | 账号 | 原代理 |
+|---|---|---|
+| key A `b6b85d9a3c` | 14 `openrouter-main` | 11 |
+| key B `c5640d50f6` | 15 / 32 / 47（互为克隆，同一把 key） | 11 |
+
+**全部挤在代理 11 一个出口**——这正是风控最敏感的特征（同 key 多账号、且两个 key 同 IP）。处置：key A 系 → 代理 34（fx27-美国29），key B 系 → 保留 11（fx04-美国01）。**一把 key 一个 IP，两组 IP 不同**。
+
+动手前先真机实测候选代理（带 `proxies.username/password` 走 CONNECT，6 个全部 `200`，含当前在用的 11），避免重演 10-28 坏代理事故。
+
+**坑在案**：`kubectl exec` 缺 `-i` 时 SQL 完全不传、静默无输出——第一次迁移脚本「成功」返回却什么都没发生（`UPDATE 1`/`INSERT 0 1` 都没打印）。这是记忆里已有的坑，又踩一次。
+
+**二、组 8 冗余：新建 key A 专用克隆账号（治本续二的结构缺口）**
+
+续二查明组 8 只绑账号 32，上游一 429 就整组 503。新建账号 **48 `nebius-embedding-interactive-a`**：key A、代理 34、只映射 `Qwen/Qwen3-Embedding-8B`、`embedding_provider_only=Nebius`、绑组 8 优先级 60（32 为 50 主用）。**关键纪律：新账号必须同钉 Nebius**，否则组内出现两个向量空间——那正是用户明令不能碰的。
+
+**真机验证**：组 8 连打 5 次全部 4096 维；网关日志显示请求**分别落在 32 和 48 两个账号**（32×4 / 48×7）；跨这两个不同上游（key A / key B）的向量 **余弦 = 1.000000000**——双上游双 IP 且仍是同一向量空间。
+
+**三、降级可观测化：`scripts/probe-embedding-lane.mjs`（paas 仓）**
+
+三道门：①**live probe**（唯一真判据）带 q 打一次 `/digest`，看回包有没有 `model_note`；②向量空间纯净度（扫全 root 的 `page_vectors`，出现第二个 model 直接红）；③无 live probe 时输出 `WEAK PASS` 而非假装健康。
+
+**为什么累计计数器不能当判据**：它们不自愈。实测故障恢复后 `vector_ratio` 仍停在 71.4% 并持续报 DEGRADED——**一个只会喊狼来了的探头比没有探头更糟**。故 metrics 只作 `HISTORICAL:` 说明，不参与判定。
+
+**真机双向验证**（生产 pod 内跑，非 mock）：健康态 exit 0；制造真实故障（组 8 两候选举置 `schedulable=false`）后 live probe 精确抓到 `model_note: embed HTTP 400`、exit 1；恢复后立即回 exit 0。
+
+**四、新真缺陷①：空查询被报成「向量车道故障」（fd-memory `b5476d2`，已上产 `sha-0aa8f52`）**
+
+生产 6 小时窗口：`rung=keyword` 3 次**全部**带 `note="vector lane unavailable — keyword-only recall (embed HTTP 400)"`，而同窗口直打 distiller `/embed` 是 200。追下去 400 的真身是 `{"error":"texts_required"}`——**不是车道故障，是空输入**。
+
+链路：`/digest` 的 `q` 默认 `searchParams.get("q") ?? ""` → 空串传到 `hybridCandidates` → 无条件 `embed([queryFor])` → distiller 返 400 → `http.ts` 的 catch 写成「vector lane unavailable」。**一次空查询被记成一次向量车道事故，而且进的正是运维判断车道健康用的 `vector_ratio`。**
+
+修法三处：空查询直接返回关键词候选不调 embed；新增 `rung=empty` 第三档；metrics 的 `empty` 单独计数且**不进分母**（否则空调用会稀释 ratio，正是这次误报的形态）。测试 88→90 全绿、tsc 零错误。
+
+**上产踩坑**：`kubectl set image` 后又被 ArgoCD 回滚——fd-memory 归 `all-services-prod` 应用管（清单 `all-services/prod/fd-memory.yaml`，**主容器与 initContainer 两处**都要改）。走 GitOps `410842d` 后才稳。生产验证：空 q（`""` / `"   "` / `"\n\t"`）三档全部 `note=absent`、`empty: 5` 计数正确。
+
+**五、新真缺陷②（未修，留待决策）：调用方 5s 预算 < fd-memory 8s 死线**
+
+上产验证时正常 q 也撞降级，量得 **embed 实际延迟 5.5–13s**（直打网关同样 1.6–10.8s），是**上游 Nebius 自身排队**，不是死线或 keepwarm 问题（keepwarm 默认在跑）。但暴露出配置矛盾：
+
+- fd-memory `FD_MEMORY_DIGEST_EMBED_DEADLINE_MS=8000`（`fd-infra-deploy` 配的）
+- 调用方 paas `server/cluster-memory.js:55` 硬编码 `setTimeout(..., 5000)` 断开
+
+**调用方 5 秒就放弃，fd-memory 却在等 8 秒**——embed 慢时 digest 永远拿不到结果，白白多占 3 秒连接。修法两选（需拍板）：把调用方预算提到与死线一致（如 9s），或把死线压回 3.5s 并接受关键词降级（更快但召回档位低）。**这条没动，因为改的是平台镜像、影响面比词元/记忆面大。**
+
+**当日终态**：词元 `sha-2faf622`（GitOps `e68ccec`）+ fd-memory `sha-0aa8f52`（GitOps `410842d`）双在产；embedding 双上游双 IP 同向量空间；探针可 gate。
+
 ### §15.84 常务岗桥面鉴权缺口（真机走查揪出，2026-10-29）
 
 **发现方式**：§15.82 留下的「留给 owner：真机 deputy 巡逻回合」——本次真机跑了一轮。常务岗自己的回合报告原文：

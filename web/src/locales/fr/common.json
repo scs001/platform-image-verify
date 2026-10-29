@@ -3140,6 +3140,21 @@
         "pass": "Modèle : conforme",
         "fail": "Modèle : non conforme",
         "insufficient-evidence": "Modèle : preuves insuffisantes"
+      },
+      "model": {
+        "label": "Modèle évaluateur",
+        "followDefault": "Suivre la valeur par défaut",
+        "hint": "Quel modèle juge les assertions llm-judged de ce plan. Il doit différer des modèles de vos postes : un modèle ne peut pas noter son propre travail.",
+        "sameAsProducer": "identique à un poste — sera refusé",
+        "notInRoster": "absent du catalogue de ce déploiement",
+        "used": "Évalué par {{model}}",
+        "source": {
+          "blueprint": "choisi par ce plan",
+          "deployment": "valeur par défaut",
+          "fallback": "repli"
+        },
+        "followDefaultResolves": "Suivre la valeur par défaut du déploiement — résout en {{model}}",
+        "followDefaultUnknown": "Suivre la valeur par défaut du déploiement — aucun canal d'évaluation n'est configuré ; l'essai signalerait des preuves insuffisantes"
       }
     },
     "signoff": {
@@ -3148,19 +3163,6 @@
       "by": "Signé par {{who}} · {{when}}",
       "clear": "Retirer",
       "cleared": "Signature retirée."
-    },
-    "model": {
-      "label": "Modèle évaluateur",
-      "followDefault": "Suivre la valeur par défaut",
-      "hint": "Quel modèle juge les assertions llm-judged de ce plan. Il doit différer des modèles de vos postes : un modèle ne peut pas noter son propre travail.",
-      "sameAsProducer": "identique à un poste — sera refusé",
-      "notInRoster": "absent du catalogue de ce déploiement",
-      "used": "Évalué par {{model}}",
-      "source": {
-        "blueprint": "choisi par ce plan",
-        "deployment": "valeur par défaut",
-        "fallback": "repli"
-      }
     }
   },
   "machines": {

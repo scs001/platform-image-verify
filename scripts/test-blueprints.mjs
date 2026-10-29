@@ -726,3 +726,29 @@ test("名册来源：cell 名册为空时回落 default 指针/部署 env，不�
   // 未声明 → 不校验（向后兼容）
   assert.deepEqual(judgeModelFindings({}), []);
 });
+
+// ── 优化③：「跟随部署默认」解析探测（不是 id 路由的误吞） ──────────────────
+test("judge-default：静态路由不被 /:id 吞掉，如实回解析结果", async () => {
+  const { server, base } = mount();
+  try {
+    // 未登录 401（与其他读面同权限）
+    assert.equal((await fetch(`${base}/api/blueprints/judge-default`, as(null))).status, 401);
+
+    const res = await fetch(`${base}/api/blueprints/judge-default`, as("alice@x"));
+    assert.equal(res.status, 200, "静态路由必须排在 /:id 之前，否则会被当成蓝图 id");
+    const body = await res.json();
+    // 形状契约：要么给出解析到的模型，要么如实说明为什么没有
+    assert.ok("resolved" in body, "必须带 resolved 字段（null 表示本部署没有评审车道）");
+    if (body.resolved) {
+      assert.equal(typeof body.resolved.model, "string");
+      assert.ok(body.resolved.model.length > 0);
+    } else {
+      assert.equal(typeof body.reason, "string");
+    }
+    // 指定一个不在册的模型：有可见名册时应判 unavailable；名册不可见时按指定模型发。
+    const asked = await fetch(`${base}/api/blueprints/judge-default?for=definitely-not-a-model`, as("alice@x")).then(j);
+    assert.ok("resolved" in asked || "unavailable" in asked);
+  } finally {
+    await close(server);
+  }
+});

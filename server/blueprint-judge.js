@@ -28,6 +28,93 @@ export const JUDGE_LIMITS = {
   timeoutMs: Number(process.env.BLUEPRINT_JUDGE_TIMEOUT_MS || 60_000),
 };
 
+// ── 判据结果缓存（优化①） ─────────────────────────────────────────────────
+//
+// 键 = provider + 模型 + promptHash。promptHash 已覆盖「提示词模板 + 判据原文 +
+// 证据全文」，所以判据改一个字、证据多一行，键就变——不存在「旧判决冒充新判决」
+// 的窗口；不需要额外的失效逻辑，TTL 只用来防止内存无限长。
+//
+// 只缓存**模型真给出的确定判决**（pass / fail）。基础设施类失败（车道不可达、
+// HTTP 5xx、超时、输出不可解析）一律不缓存——那不是对这个判据的判断，缓存住
+// 会把它冻成永久结论。
+//
+// 命中时审计件标 cached:true 并保留原始 judgedAt，另记 cacheAgeMs——事后看得
+// 出「这一条不是这次判的」。
+const CACHE_TTL_MS = Number(process.env.BLUEPRINT_JUDGE_CACHE_TTL_MS || 7 * 24 * 3600 * 1000);
+const CACHE_MAX = Number(process.env.BLUEPRINT_JUDGE_CACHE_MAX ?? 500);
+const judgeCache = new Map(); // key → { verdict, reason, audit, at, hits }
+
+function cacheKeyFor({ providerId, model, promptHash }) {
+  return `${providerId ?? "-"}|${model ?? "-"}|${promptHash}`;
+}
+
+function cacheGet(key, now) {
+  const hit = judgeCache.get(key);
+  if (!hit) return null;
+  if (now - hit.at > CACHE_TTL_MS) {
+    judgeCache.delete(key);
+    return null;
+  }
+  // LRU touch：删了再塞回，Map 保持「最近用过的在尾」。
+  judgeCache.delete(key);
+  hit.hits += 1;
+  judgeCache.set(key, hit);
+  return hit;
+}
+
+function cachePut(key, { verdict, reason, audit }, now) {
+  if (!Number.isFinite(CACHE_MAX) || CACHE_MAX <= 0) return; // 0/负 = 关闭缓存
+  while (judgeCache.size >= CACHE_MAX) {
+    const oldest = judgeCache.keys().next().value;
+    if (oldest === undefined) break;
+    judgeCache.delete(oldest);
+  }
+  judgeCache.set(key, { verdict, reason, audit, at: now, hits: 0 });
+}
+
+// ── 判据日配额（优化②） ───────────────────────────────────────────────────
+//
+// 单条试跑已有条数/字符上限，但那只是「一次」的成本闸；同一 owner 反复剪草
+// 仍能无限烧。按 owner × 天（UTC）计**真实模型调用次数**：缓存命中不算、
+// 基础设施失败不算（没花成钱不算用量，只是不计入——宁可少记不可多记）。
+//
+// 进程内计数。壹座每个 owner 在自己的 cell 进程里跑，所以这份计数天然是按
+// owner 隔离的；同一进程多 owner 的情形键里也带了 owner，不会串账。
+const DAILY_QUOTA_DEFAULT = 200;
+// 每次调用现读 env：部署侧改值不必等进程重启才能被测试/诊断观测到，也让
+// 「超限拒绝」这条分支在单测里可被真实走到。
+function dailyQuota() {
+  return Number(process.env.BLUEPRINT_JUDGE_DAILY_QUOTA ?? DAILY_QUOTA_DEFAULT);
+}
+const quotaLedger = new Map(); // `${owner}|${day}` → count
+
+function quotaDay(now) {
+  return new Date(now).toISOString().slice(0, 10); // UTC 日
+}
+
+function quotaUsed(owner, now) {
+  if (!owner) return 0;
+  return quotaLedger.get(`${owner}|${quotaDay(now)}`) ?? 0;
+}
+
+function quotaConsume(owner, now) {
+  if (!owner) return;
+  const key = `${owner}|${quotaDay(now)}`;
+  quotaLedger.set(key, (quotaLedger.get(key) ?? 0) + 1);
+}
+
+// 观测口（测试与运维诊断用；不对外暴露路由）。
+export function __judgeCacheStats() {
+  return { size: judgeCache.size, ttlMs: CACHE_TTL_MS, max: CACHE_MAX, dailyQuota: dailyQuota() };
+}
+export function __judgeQuotaUsed(owner, now = Date.now()) {
+  return quotaUsed(owner, now);
+}
+export function __resetJudgeState() {
+  judgeCache.clear();
+  quotaLedger.clear();
+}
+
 const sha = (s) => createHash("sha256").update(String(s)).digest("hex");
 
 // 密钥解析（2026-10-28 生产实证）：user-route 的 key 不在 server 进程的 env 里——
@@ -220,19 +307,35 @@ export function buildJudgePrompt({ rubric, evidenceText }) {
 
 // ── 判决解析（D2 三态；越界一律 insufficient-evidence） ────────────────────
 
+// 从任意文本里取出第一个能解析成对象的 JSON 片段。
+// 2026-10-29 生产实证（12 次采样）：判据模型常在本该只有 JSON 的输出尾部多吐
+// 引号——`{"verdict":"pass",...}"}"`。原先取「第一个 { 到最后一个 }」会把尾部
+// 垃圾一并切片，JSON.parse 失败 → 按不足证据判不绿，于是一份本该全绿的试跑
+// 随机变红（实测 3/8）。改为：从第一个 { 起，逐个 } 位置**由后向前**试解析，
+// 取第一个成功者。尾部垃圾不再影响判决，且仍不放宽「内容必须是 JSON 对象」。
+function extractJsonObject(text) {
+  const start = text.indexOf("{");
+  if (start < 0) return null;
+  const endPositions = [];
+  for (let i = text.length - 1; i > start; i -= 1) {
+    if (text[i] === "}") endPositions.push(i);
+  }
+  for (const end of endPositions) {
+    try {
+      const parsed = JSON.parse(text.slice(start, end + 1));
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed;
+    } catch {
+      // 这个 } 切出来不是合法 JSON，继续往前找
+    }
+  }
+  return null;
+}
+
 export function parseJudgeOutput(raw) {
   const text = String(raw ?? "").trim();
   if (!text) return { verdict: "insufficient-evidence", reason: "judge returned empty output" };
-  // 容忍围栏/多余文字：取第一个 { 到最后一个 }。
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start < 0 || end <= start) return { verdict: "insufficient-evidence", reason: "judge output is not JSON" };
-  let parsed;
-  try {
-    parsed = JSON.parse(text.slice(start, end + 1));
-  } catch {
-    return { verdict: "insufficient-evidence", reason: "judge output is not valid JSON" };
-  }
+  const parsed = extractJsonObject(text);
+  if (!parsed) return { verdict: "insufficient-evidence", reason: "judge output is not JSON" };
   const verdict = String(parsed?.verdict ?? "").trim();
   if (!JUDGE_VERDICTS.includes(verdict)) {
     return { verdict: "insufficient-evidence", reason: `judge returned an unknown verdict '${verdict}'` };
@@ -244,7 +347,8 @@ export function parseJudgeOutput(raw) {
 
 // deps: { lane, entries, fetchImpl, timeoutMs } —— 测试全注入，零真模型调用。
 // 返回 { verdict, reason, audit }；audit 是报告里留档的那一份。
-export async function judgeAssertion({ assertionId, rubric, evidenceText, productionLanes = [], lane = null, judgeModel = null, fetchImpl = fetch, timeoutMs = JUDGE_LIMITS.timeoutMs }) {
+// ownerEmail：判据日配额的计量主体（优化②）；缺省不计配额。
+export async function judgeAssertion({ assertionId, rubric, evidenceText, productionLanes = [], lane = null, judgeModel = null, ownerEmail = null, fetchImpl = fetch, timeoutMs = JUDGE_LIMITS.timeoutMs, now = Date.now() }) {
   const evidence = String(evidenceText ?? "");
   const auditBase = {
     assertionId,
@@ -317,6 +421,31 @@ export async function judgeAssertion({ assertionId, rubric, evidenceText, produc
     promptHash,
   };
 
+  // 缓存命中（优化①）：同一判据 + 同一证据 + 同一模型 = 同一个问题，不必再花
+  // 一次调用。命中件保留原始 judgedAt 并标 cached，绝不冒充本次新判。
+  const key = cacheKeyFor({ providerId: resolved.providerId, model: resolved.model, promptHash });
+  const cached = cacheGet(key, now);
+  if (cached) {
+    return {
+      verdict: cached.verdict,
+      reason: cached.reason,
+      audit: { ...cached.audit, cached: true, cacheAgeMs: now - cached.at, hits: cached.hits },
+    };
+  }
+
+  // 日配额（优化②）：超限如实拒，不静默降级、不排队重试。
+  const quota = dailyQuota();
+  if (ownerEmail && quota > 0) {
+    const used = quotaUsed(ownerEmail, now);
+    if (used >= quota) {
+      return {
+        verdict: "insufficient-evidence",
+        reason: `daily judge quota exhausted for ${ownerEmail} (${used}/${quota} today) — retry tomorrow or raise BLUEPRINT_JUDGE_DAILY_QUOTA`,
+        audit: { ...audit, verdict: "insufficient-evidence", rawVerdict: null, quotaExceeded: true },
+      };
+    }
+  }
+
   let raw = "";
   try {
     const res = await fetchImpl(`${resolved.baseUrl.replace(/\/+$/, "")}/chat/completions`, {
@@ -355,9 +484,17 @@ export async function judgeAssertion({ assertionId, rubric, evidenceText, produc
   }
 
   const parsed = parseJudgeOutput(raw);
+  const finalAudit = { ...audit, verdict: parsed.verdict, rawVerdict: String(raw).slice(0, 2000) };
+  // 只有模型真给出了确定判决（pass/fail）才记账、才缓存：evidence 不足属于
+  // 「这次没判出来」，能不能判出来取决于下次的证据，冻住它等于把偶发问题
+  // 变成永久结论。
+  quotaConsume(ownerEmail, now);
+  if (parsed.verdict === "pass" || parsed.verdict === "fail") {
+    cachePut(key, { verdict: parsed.verdict, reason: parsed.reason, audit: finalAudit }, now);
+  }
   return {
     verdict: parsed.verdict,
     reason: parsed.reason,
-    audit: { ...audit, verdict: parsed.verdict, rawVerdict: String(raw).slice(0, 2000) },
+    audit: finalAudit,
   };
 }

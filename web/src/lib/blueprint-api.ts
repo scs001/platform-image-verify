@@ -181,6 +181,19 @@ export function getTrialReport(id: string) {
   return call<{ report: TrialReport | null }>(`/api/blueprints/${encodeURIComponent(id)}/trial-report`);
 }
 
+// 「跟随部署默认」实际解析到谁（优化③）。服务端用与判据同一个解析函数回答，
+// 所以这里看到的就是试跑时真正会用的那条车道。
+export interface JudgeDefaultProbe {
+  resolved: { model: string; providerId?: string | null; judgeSource?: string | null } | null;
+  unavailable?: boolean;
+  reason?: string | null;
+}
+
+export function getJudgeDefault(forModel?: string) {
+  const q = forModel?.trim() ? `?for=${encodeURIComponent(forModel.trim())}` : "";
+  return call<JudgeDefaultProbe>(`/api/blueprints/judge-default${q}`);
+}
+
 export function runTrial(id: string) {
   return call<{ report: TrialReport; blueprint: Blueprint }>(`/api/blueprints/${encodeURIComponent(id)}/trial`, {
     method: "POST",

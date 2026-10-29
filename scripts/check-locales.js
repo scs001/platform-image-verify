@@ -100,4 +100,67 @@ if (errors) {
   console.error(`\n[check-locales] ${errors} locale(s) with drift. Fix the above.`);
   process.exit(1);
 }
+
+// ── 代码侧键存在性（2026-10-29 增补） ─────────────────────────────────────
+//
+// 上面的比对只证「各语言之间一致」——**一致地缺失**照样全绿。真实事故：
+// BlueprintStudioPage 用的是 `blueprints.judge.model.*`，而资源里那批键躺在
+// `blueprints.model.*` 下（无人引用的孤儿块），于是评审模型下拉的标签与提示
+// 全渲染成原始键名，而 locale 门五语「OK (2456 keys)」照过。
+//
+// 分级处置：
+//   · 本清单覆盖的界面（ENFORCED_PREFIXES）——缺键即失败，因为那是我改的，
+//     必须当场补齐；
+//   · 其余界面——只列报告警，不判红。它们属并行会话在途的车道，替人补文案
+//     会与其改动抢同一份资源文件（仓律：别 -A、别扫走别人的改动）。
+const webSrc = path.join(root, "web", "src");
+const LITERAL_T_RE = /\bt\(\s*["'`]([A-Za-z0-9_$][A-Za-z0-9_$.\-]*)["'`]/g;
+const KEY_ALLOWLIST = new Set();
+// 本 change（蓝图构造间）负责的界面键前缀。
+const ENFORCED_PREFIXES = ["blueprints."];
+
+function* walk(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === "node_modules" || entry.name === "dist") continue;
+      yield* walk(full);
+    } else if (/\.(ts|tsx|js|jsx|mjs)$/.test(entry.name)) {
+      yield full;
+    }
+  }
+}
+
+const unknownKeys = new Map(); // key → Set(files)
+if (fs.existsSync(webSrc)) {
+  for (const file of walk(webSrc)) {
+    const text = fs.readFileSync(file, "utf8");
+    for (const m of text.matchAll(LITERAL_T_RE)) {
+      const key = m[1];
+      // 只审「像资源键」的字面量（含点）；纯单词多为变量名或非 i18n 调用。
+      if (!key.includes(".")) continue;
+      if (KEY_ALLOWLIST.has(key)) continue;
+      if (sourceKeys.has(key)) continue;
+      if (!unknownKeys.has(key)) unknownKeys.set(key, new Set());
+      unknownKeys.get(key).add(path.relative(root, file));
+    }
+  }
+}
+
+const enforced = [...unknownKeys.entries()].filter(([k]) => ENFORCED_PREFIXES.some((p) => k.startsWith(p)));
+const others = [...unknownKeys.entries()].filter(([k]) => !ENFORCED_PREFIXES.some((p) => k.startsWith(p)));
+
+if (others.length) {
+  console.warn(`\n[check-locales] warning: ${others.length} key(s) referenced in code but absent from '${SOURCE}' (outside this change's scope — not failing):`);
+  for (const [key, files] of others) console.warn(`  - ${key}  ← ${[...files].join(", ")}`);
+}
+
+if (enforced.length) {
+  console.error(`\n[check-locales] ${enforced.length} key(s) referenced in code but absent from '${SOURCE}':`);
+  for (const [key, files] of enforced) console.error(`  - ${key}  ← ${[...files].join(", ")}`);
+  console.error("\nThese would render as raw key strings at runtime.");
+  process.exit(1);
+}
+console.log(`[check-locales] code-side key references OK (${ENFORCED_PREFIXES.join(", ")}).`);
+
 console.log(`[check-locales] all ${locales.length} locales OK.`);

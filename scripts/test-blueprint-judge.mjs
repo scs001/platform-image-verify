@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-const { parseJudgeOutput, judgeAssertion, buildJudgePrompt, JUDGE_LIMITS, JUDGE_VERDICTS } =
+const { parseJudgeOutput, judgeAssertion, buildJudgePrompt, JUDGE_LIMITS, JUDGE_VERDICTS, __judgeQuotaUsed, __resetJudgeState } =
   await import("../server/blueprint-judge.js");
 
 const LANE = { providerId: "p1", baseUrl: "https://judge.example/v1", apiKey: "sk-test", model: "cheap-1", laneId: "lane-judge" };
@@ -33,6 +33,19 @@ test("三态解析：合法三态原样；越界一律 insufficient-evidence", (
   assert.equal(parseJudgeOutput("").verdict, "insufficient-evidence");
   assert.equal(parseJudgeOutput(null).verdict, "insufficient-evidence");
   assert.deepEqual(JUDGE_VERDICTS, ["pass", "fail", "insufficient-evidence"]);
+});
+
+test("三态解析：容忍尾部多余引号（2026-10-29 生产实测 3/8 命中）", () => {
+  // 判据模型常在本该只有 JSON 的输出尾部多吐引号/括号。原先「第一个 { 到最后一个 }」
+  // 会把尾部垃圾切进去 → 解析失败 → 按不足证据判不绿 → 一份本该全绿的试跑随机变红。
+  assert.equal(parseJudgeOutput('{"verdict":"pass","reason":"ok"}""').verdict, "pass");
+  assert.equal(parseJudgeOutput('{"verdict":"pass","reason":"ok"}"}').verdict, "pass");
+  assert.equal(parseJudgeOutput('{"verdict":"pass","reason":"ok"}"}"').verdict, "pass");
+  assert.equal(parseJudgeOutput('{"verdict":"fail","reason":"x"}{"').verdict, "fail");
+  // 正文里带 } 也不误伤
+  assert.equal(parseJudgeOutput('{"verdict":"pass","reason":"a}b"}').verdict, "pass");
+  // 真不是 JSON 的仍然不许混过
+  assert.equal(parseJudgeOutput("我判 pass").verdict, "insufficient-evidence");
 });
 
 test("提示词：只含判据与证据，不含蓝图自述（D3 防回声）", () => {
@@ -290,4 +303,113 @@ test("名册可见且确实不含 → unavailable（不猜）", async () => {
   const entries = { providers: { p1: { baseURL: "https://x/v1", apiKeyEnv: "K1", models: [] } }, models: [{ id: "m-a", provider: "p1" }] };
   const r = resolveJudgeLane({ entries, preferredModel: "ghost" });
   assert.equal(r.unavailable, true);
+});
+
+// ── 优化①：判据结果缓存 ────────────────────────────────────────────────────
+// 键=provider+模型+promptHash（已含判据与证据全文），所以判据改一字/证据多一行
+// 就必然换键；命中件标 cached 并保留原始 judgedAt，不冒充新判。
+
+test("缓存：同判据+同证据+同模型 → 第二次不再发请求", async () => {
+  __resetJudgeState();
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '{"verdict":"pass","reason":"ok"}' } }] }) };
+  };
+  const base = { assertionId: "a1", rubric: "判据甲", evidenceText: "证据甲", productionLanes: [{ providerId: "prod", model: "producer" }], lane: LANE, fetchImpl, now: 1000 };
+  const first = await judgeAssertion(base);
+  const second = await judgeAssertion({ ...base, now: 2000 });
+  assert.equal(first.verdict, "pass");
+  assert.equal(second.verdict, "pass");
+  assert.equal(calls, 1, "第二次必须走缓存，不发请求");
+  assert.equal(second.audit.cached, true);
+  assert.equal(second.audit.cacheAgeMs, 1000);
+  assert.equal(second.audit.judgedAt, first.audit.judgedAt, "缓存件保留原始判定时间");
+});
+
+test("缓存：判据或证据变了 → 换键，不复用旧判决", async () => {
+  __resetJudgeState();
+  let calls = 0;
+  const mk = (v) => async () => {
+    calls += 1;
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: JSON.stringify({ verdict: v, reason: "" }) } }] }) };
+  };
+  const base = { assertionId: "a1", productionLanes: [{ providerId: "prod", model: "producer" }], lane: LANE, now: 1000 };
+  await judgeAssertion({ ...base, rubric: "判据甲", evidenceText: "证据甲", fetchImpl: mk("pass") });
+  const differentRubric = await judgeAssertion({ ...base, rubric: "判据乙", evidenceText: "证据甲", fetchImpl: mk("fail") });
+  const differentEvidence = await judgeAssertion({ ...base, rubric: "判据甲", evidenceText: "证据乙", fetchImpl: mk("fail") });
+  assert.equal(differentRubric.verdict, "fail");
+  assert.equal(differentEvidence.verdict, "fail");
+  assert.equal(calls, 3);
+});
+
+test("缓存：证据不足不缓存（否则偶发问题被冻成永久结论）", async () => {
+  __resetJudgeState();
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '{"verdict":"insufficient-evidence","reason":"x"}' } }] }) };
+  };
+  const base = { assertionId: "a1", rubric: "判据甲", evidenceText: "证据甲", productionLanes: [{ providerId: "prod", model: "producer" }], lane: LANE, fetchImpl, now: 1000 };
+  await judgeAssertion(base);
+  await judgeAssertion({ ...base, now: 2000 });
+  assert.equal(calls, 2, "insufficient-evidence 不该被缓存");
+});
+
+test("缓存：基础设施失败（HTTP 5xx）不缓存、不计配额", async () => {
+  __resetJudgeState();
+  let calls = 0;
+  const fetchImpl = async () => {
+    calls += 1;
+    return { ok: false, status: 503, text: async () => "upstream down" };
+  };
+  const base = { assertionId: "a1", rubric: "判据甲", evidenceText: "证据甲", productionLanes: [{ providerId: "prod", model: "producer" }], lane: LANE, fetchImpl, ownerEmail: "o@x", now: 1000 };
+  const r = await judgeAssertion(base);
+  assert.equal(r.verdict, "insufficient-evidence");
+  assert.equal(__judgeQuotaUsed("o@x", 1000), 0, "没花成的钱不算用量");
+  await judgeAssertion({ ...base, now: 2000 });
+  assert.equal(calls, 2, "失败不缓存");
+});
+
+// ── 优化②：判据日配额 ──────────────────────────────────────────────────────
+
+test("配额：超出后如实拒并指名额度，不静默降级", async () => {
+  __resetJudgeState();
+  const prev = process.env.BLUEPRINT_JUDGE_DAILY_QUOTA;
+  process.env.BLUEPRINT_JUDGE_DAILY_QUOTA = "2";
+  try {
+    // 配额在模块加载时读取，这里直接验证记账 + 拒绝分支依赖的用量口径。
+    const fetchImpl = async () => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '{"verdict":"pass","reason":""}' } }] }) });
+    const base = { productionLanes: [{ providerId: "prod", model: "producer" }], lane: LANE, fetchImpl, ownerEmail: "quota@x", now: 1_700_000_000_000 };
+    await judgeAssertion({ ...base, assertionId: "a1", rubric: "甲", evidenceText: "e1" });
+    await judgeAssertion({ ...base, assertionId: "a2", rubric: "乙", evidenceText: "e2" });
+    assert.equal(__judgeQuotaUsed("quota@x", 1_700_000_000_000), 2, "两次确定判决各记一次");
+    // 第三次超限：如实拒并指名额度，不再发请求
+    let calls = 0;
+    const counting = async () => {
+      calls += 1;
+      return { ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '{"verdict":"pass","reason":""}' } }] }) };
+    };
+    const refused = await judgeAssertion({ ...base, assertionId: "a3", rubric: "丙", evidenceText: "e3", fetchImpl: counting });
+    assert.equal(refused.verdict, "insufficient-evidence");
+    assert.match(refused.reason, /daily judge quota exhausted/);
+    assert.match(refused.reason, /2\/2 today/);
+    assert.equal(refused.audit.quotaExceeded, true);
+    assert.equal(calls, 0, "超限后不得再发请求");
+    // 次日归零
+    assert.equal(__judgeQuotaUsed("quota@x", 1_700_000_000_000 + 86_400_000), 0);
+  } finally {
+    if (prev === undefined) delete process.env.BLUEPRINT_JUDGE_DAILY_QUOTA;
+    else process.env.BLUEPRINT_JUDGE_DAILY_QUOTA = prev;
+  }
+});
+
+test("配额：缓存命中不消耗配额", async () => {
+  __resetJudgeState();
+  const fetchImpl = async () => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '{"verdict":"pass","reason":""}' } }] }) });
+  const base = { assertionId: "a1", rubric: "甲", evidenceText: "e1", productionLanes: [{ providerId: "prod", model: "producer" }], lane: LANE, fetchImpl, ownerEmail: "q2@x", now: 1000 };
+  await judgeAssertion(base);
+  await judgeAssertion({ ...base, now: 2000 });
+  await judgeAssertion({ ...base, now: 3000 });
+  assert.equal(__judgeQuotaUsed("q2@x", 1000), 1, "只第一次真调了模型");
 });

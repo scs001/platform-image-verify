@@ -16,6 +16,7 @@ import {
   castBlueprint,
   createBlueprint,
   getBlueprint,
+  getJudgeDefault,
   getTrialReport,
   listBlueprints,
   signTrialReport,
@@ -26,6 +27,7 @@ import {
   type Blueprint,
   type BlueprintContent,
   type BlueprintSummary,
+  type JudgeDefaultProbe,
   type TrialReport,
   type ValidationError,
   type ValidationVerdict,
@@ -104,6 +106,22 @@ export function BlueprintStudioPage() {
   const [trial, setTrial] = useState<TrialReport | null>(null);
   // 评审模型 roster（add-blueprint-judge-model-choice）：与聊天同一份模型清单。
   const modelRoster = useChatStore((s) => s.models);
+  // 「跟随部署默认」实际解析到哪个模型（优化③）：cell 进程的名册常为空，界面
+  // 单看 roster 无从得知空选项会落到谁——向服务端问一次真实解析结果。
+  const [judgeDefault, setJudgeDefault] = useState<JudgeDefaultProbe | null>(null);
+  useEffect(() => {
+    let alive = true;
+    getJudgeDefault()
+      .then((p) => {
+        if (alive) setJudgeDefault(p);
+      })
+      .catch(() => {
+        if (alive) setJudgeDefault(null);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [draftPaste, setDraftPaste] = useState("");
   const [draftError, setDraftError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
@@ -558,7 +576,15 @@ export function BlueprintStudioPage() {
                         </option>
                       ) : null}
                     </select>
-                    <span className="mt-1 block text-[11px] text-muted-foreground">{t("blueprints.judge.model.hint")}</span>
+                    <span className="mt-1 block text-[11px] text-muted-foreground">
+                      {content.judgeModel?.trim()
+                        ? t("blueprints.judge.model.hint")
+                        : judgeDefault?.resolved
+                          ? t("blueprints.judge.model.followDefaultResolves", { model: judgeDefault.resolved.model })
+                          : judgeDefault
+                            ? t("blueprints.judge.model.followDefaultUnknown")
+                            : t("blueprints.judge.model.hint")}
+                    </span>
                   </label>
                   <p className="text-[11px] text-muted-foreground">{t("blueprints.fields.jsonHint")}</p>
                 </div>

@@ -284,3 +284,45 @@ test("judge 阶段：证据只含已收证据文本（不含蓝图自述）", as
   assert.match(seen.evidenceText, /简报已出/);
   assert.deepEqual(seen.productionLanes, ["lane-producer"]);
 });
+
+test("judge 阶段：证据带集群身份（2026-10-29 生产首次真跑逮住）", async () => {
+  // 判据常写「在试跑集群中均已落位」这类带载体的口径。证据若只说「岗位已落位」，
+  // 模型如实答 insufficient-evidence（证据没说这是哪个集群）→ 本应判绿的断言
+  // 永远判不绿。集群名/id 属运行事实（源自装台结果），必须进证据。
+  let seen = null;
+  await runTrial({
+    blueprint: {
+      ownerEmail: "a@x",
+      castPackId: "pk",
+      castPackVersion: 1,
+      content: {
+        boundary: { name: "x", oneLine: "y" },
+        acceptance: [{ id: "sem", kind: "llm-judged", rubric: "在试跑集群中均已落位" }],
+      },
+    },
+    deps: {
+      now: () => 1000,
+      fetchManifest: async () => ({ fleet: { name: "x", members: [] } }),
+      install: async () => {},
+      provision: async () => ({ ok: true, fleetId: "f1" }),
+      startFleet: async () => {},
+      productionLanes: async () => ["lane-producer"],
+      fireRound: async () => [],
+      collectAndWait: async ({ fleetId }) => ({
+        fleetId,
+        fleetName: "工单分诊集群·试跑",
+        members: [{ memberId: "m1", title: "分诊岗", targetId: "t" }],
+        turns: [],
+        reports: [],
+        escalations: 0,
+      }),
+      judge: async (args) => {
+        seen = args;
+        return { verdict: "pass", reason: "", audit: {} };
+      },
+    },
+  });
+  assert.ok(seen, "judge 必须被调用");
+  assert.match(seen.evidenceText, /试跑集群：工单分诊集群·试跑/);
+  assert.match(seen.evidenceText, /f1/);
+});

@@ -3140,6 +3140,21 @@
         "pass": "模型：判绿",
         "fail": "模型：判不绿",
         "insufficient-evidence": "模型：证据不足"
+      },
+      "model": {
+        "label": "评审模型",
+        "followDefault": "跟随部署默认",
+        "hint": "用哪个模型来判定本蓝图的 llm-judged 断言。它必须与岗位实际跑的模型不同——同一个模型不能给自己打分。",
+        "sameAsProducer": "与某岗位模型相同——会被拒判",
+        "notInRoster": "不在本部署的模型名册里",
+        "used": "由 {{model}} 评审",
+        "source": {
+          "blueprint": "本蓝图指定",
+          "deployment": "部署默认",
+          "fallback": "回落"
+        },
+        "followDefaultResolves": "跟随部署默认——实际解析为 {{model}}",
+        "followDefaultUnknown": "跟随部署默认——本部署当前没有可用的评审车道，试跑会判证据不足"
       }
     },
     "signoff": {
@@ -3148,19 +3163,6 @@
       "by": "由 {{who}} 签字 · {{when}}",
       "clear": "撤签",
       "cleared": "已撤签。"
-    },
-    "model": {
-      "label": "评审模型",
-      "followDefault": "跟随部署默认",
-      "hint": "用哪个模型来判定本蓝图的 llm-judged 断言。它必须与岗位实际跑的模型不同——同一个模型不能给自己打分。",
-      "sameAsProducer": "与某岗位模型相同——会被拒判",
-      "notInRoster": "不在本部署的模型名册里",
-      "used": "由 {{model}} 评审",
-      "source": {
-        "blueprint": "本蓝图指定",
-        "deployment": "部署默认",
-        "fallback": "回落"
-      }
     }
   },
   "machines": {

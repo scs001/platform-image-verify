@@ -3140,6 +3140,21 @@
         "pass": "Model: pass",
         "fail": "Model: fail",
         "insufficient-evidence": "Model: insufficient evidence"
+      },
+      "model": {
+        "label": "Reviewer model",
+        "followDefault": "Follow deployment default",
+        "hint": "Which model judges this blueprint's llm-judged assertions. It must differ from the models your posts run — a model cannot grade its own work.",
+        "sameAsProducer": "same as a working post — will be refused",
+        "notInRoster": "not in this deployment's roster",
+        "used": "Reviewed by {{model}}",
+        "source": {
+          "blueprint": "chosen by this blueprint",
+          "deployment": "deployment default",
+          "fallback": "fallback"
+        },
+        "followDefaultResolves": "Follow deployment default — resolves to {{model}}",
+        "followDefaultUnknown": "Follow deployment default — no judge lane is configured on this deployment; a trial would report insufficient evidence"
       }
     },
     "signoff": {
@@ -3148,19 +3163,6 @@
       "by": "Signed by {{who}} · {{when}}",
       "clear": "Withdraw",
       "cleared": "Signature withdrawn."
-    },
-    "model": {
-      "label": "Reviewer model",
-      "followDefault": "Follow deployment default",
-      "hint": "Which model judges this blueprint's llm-judged assertions. It must differ from the models your posts run — a model cannot grade its own work.",
-      "sameAsProducer": "same as a working post — will be refused",
-      "notInRoster": "not in this deployment's roster",
-      "used": "Reviewed by {{model}}",
-      "source": {
-        "blueprint": "chosen by this blueprint",
-        "deployment": "deployment default",
-        "fallback": "fallback"
-      }
     }
   },
   "machines": {

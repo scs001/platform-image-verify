@@ -18,6 +18,7 @@ import {
 } from "../blueprint-validate.js";
 import { resolvePackReferences } from "../pack-manifest-source.js";
 import { runTrial, createLiveTrialDeps } from "../blueprint-trial.js";
+import { resolveJudgeLane } from "../blueprint-judge.js";
 
 // Same factory semantics as fleets.js resolveUserFactory — 本地一份小拷贝，
 // 与 routes 家族各面一致（fleets/clusters 同款）。
@@ -161,12 +162,35 @@ export function createBlueprintRoutes(app, ctx = null, { db = null, publishClien
     res.status(201).json({ blueprint: created, warnings });
   });
 
+  // ── 评审模型解析探测（优化③）────────────────────────────────────────────
+  //
+  // 「跟随部署默认」原来对用户是个黑盒：界面只知道本 cell 的名册，而 cell 的
+  // llm-providers.json 常为空（模型配置在网关/部署侧），于是下拉里的空选项
+  // 解析成谁无从得知。这里如实报出**试跑时真正会用的那条车道**——与判据同一
+  // 个解析函数（resolveJudgeLane），不另立第二套口径。
+  // 必须在 /:id 之前注册，否则 'judge-default' 会被当成 id。
+  router.get("/judge-default", (req, res) => {
+    const user = requireUser(req, res);
+    if (!user) return;
+    const resolved = resolveJudgeLane({ preferredModel: (req.query.for || "").trim() || null });
+    if (!resolved) {
+      return res.json({
+        resolved: null,
+        reason: "no judge lane is configured on this deployment (LLM route missing) — a trial with llm-judged assertions would report insufficient-evidence",
+      });
+    }
+    res.json({
+      resolved: { model: resolved.model, providerId: resolved.providerId ?? null, judgeSource: resolved.judgeSource ?? null },
+      unavailable: resolved.unavailable === true,
+      reason: resolved.unavailable ? resolved.reason : (resolved.fallbackReason ?? null),
+    });
+  });
+
   router.get("/:id", (req, res) => {
     const owned = requireOwnedBlueprint(req, res);
     if (!owned) return;
     res.json({ blueprint: owned.blueprint });
   });
-
   router.put("/:id", (req, res) => {
     const owned = requireOwnedBlueprint(req, res);
     if (!owned) return;

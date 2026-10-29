@@ -105,6 +105,13 @@ export function evidenceTextFor(assertion, evidence) {
   const members = membersFor(assertion, evidence.members ?? []);
   const ids = new Set(members.map((m) => m.memberId));
   const lines = [];
+  // 集群身份（2026-10-29 生产首次真跑逮住）：判据常写「在试跑集群中均已落位」
+  // 这类带载体的口径，而证据原先把「岗位已落位」当成自足事实——模型如实答
+  // insufficient-evidence（证据没说这是哪个集群），于是一条本应判绿的断言永远
+  // 判不绿。集群名与 id 是运行事实（源自装台结果，非蓝图自述），必须进证据。
+  if (evidence.fleetName || evidence.fleetId) {
+    lines.push(`试跑集群：${evidence.fleetName || "(未命名)"}（${evidence.fleetId ?? "-"}）`);
+  }
   if (members.length) {
     lines.push(`岗位：${members.map((m) => `${m.title}(${m.targetId ? "已落位" : "空缺"})`).join("、")}`);
   }
@@ -119,7 +126,7 @@ export function evidenceTextFor(assertion, evidence) {
 }
 
 // 判定阶段（design D8）：只判 llm-judged 条目；deps.judge 可注入（测试零真模型）。
-async function judgeAll({ assertions, evidence, fleetId, deps, contentJudgeModel = null }) {
+async function judgeAll({ assertions, evidence, fleetId, deps, contentJudgeModel = null, ownerEmail = null }) {
   const targets = assertions.filter((a) => a.kind === "llm-judged");
   if (!targets.length) return [];
   const productionLanes = await (deps.productionLanes ? deps.productionLanes(fleetId) : Promise.resolve([]));
@@ -131,6 +138,8 @@ async function judgeAll({ assertions, evidence, fleetId, deps, contentJudgeModel
       evidenceText: evidenceTextFor(a, evidence),
       productionLanes,
       judgeModel: contentJudgeModel,
+      // 判据日配额的计量主体（优化②）。
+      ownerEmail,
     });
     out.push({
       id: a.id,
@@ -195,7 +204,7 @@ export async function runTrial({ blueprint, deps, timeoutMs = 10 * 60_000, pollM
     const machineJudged = evaluateTrial({ assertions: machine, evidence, since });
     // 判定阶段（design D8）：机器判绿之后、落报告之前。
     const judged = deps.judge
-      ? await judgeAll({ assertions: normalized.assertions, evidence, fleetId: provisioned.fleetId, deps, contentJudgeModel: view.content?.judgeModel ?? null })
+      ? await judgeAll({ assertions: normalized.assertions, evidence, fleetId: provisioned.fleetId, deps, contentJudgeModel: view.content?.judgeModel ?? null, ownerEmail: blueprint.ownerEmail ?? null })
       : [];
     report.assertions = [...machineJudged, ...judged];
     report.judged = judged;
@@ -306,16 +315,22 @@ export function createLiveTrialDeps() {
       const db = getFleetDatabase();
       const collect = () => {
         const members = db.listMembers(fleetId);
+        const fleetRow = db.getFleet(fleetId);
         const reports = [];
         for (const m of members) {
           for (const r of db.listReports(m.id, { limit: 20 })) {
-            if ((r.createdAt ?? 0) >= since) reports.push({ memberId: m.id, reportId: r.id, createdAt: r.createdAt, turnId: r.sessionId ?? null });
+            if ((r.createdAt ?? 0) >= since) {
+              reports.push({ memberId: m.id, reportId: r.id, createdAt: r.createdAt, turnId: r.sessionId ?? null, summary: r.summary ?? null });
+            }
           }
         }
         // 回合证据 = fireRound 的点火记录（作业触发即算首轮已发；turnId 待 trace
         // tap 补齐）。2026-10-28 生产走查逮住：此前这里恒返回空 turns，
         // first-round-fired 断言永远判不绿——点火事实必须进收证。
         return {
+          // 集群身份进证据（判据常带「在试跑集群中」这类载体口径）。
+          fleetId,
+          fleetName: fleetRow?.name ?? null,
           members: members.map((m) => ({ memberId: m.id, title: m.title, targetId: m.targetId })),
           turns: fired.filter((f) => !f.error).map((f) => ({ memberId: f.memberId, at: f.at, jobId: f.jobId, turnId: null })),
           reports,

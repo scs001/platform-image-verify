@@ -547,15 +547,11 @@ export function BlueprintStudioPage() {
                       data-testid="blueprint-judge-model"
                     >
                       <option value="">{t("blueprints.judge.model.followDefault")}</option>
-                      {(modelRoster ?? []).map((m) => {
-                        const sameAsProducer = Boolean(detail?.content?.fleet && false);
-                        return (
-                          <option key={m.id} value={m.id}>
-                            {m.name || m.id}
-                            {sameAsProducer ? ` — ${t("blueprints.judge.model.sameAsProducer")}` : ""}
-                          </option>
-                        );
-                      })}
+                      {(modelRoster ?? []).map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name || m.id}
+                        </option>
+                      ))}
                       {content.judgeModel && !(modelRoster ?? []).some((m) => m.id === content.judgeModel) ? (
                         <option value={content.judgeModel}>
                           {content.judgeModel} — {t("blueprints.judge.model.notInRoster")}

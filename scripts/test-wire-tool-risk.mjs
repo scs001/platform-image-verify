@@ -53,13 +53,25 @@ test("A: the eight wire actions exist, line=wire, and match the snapshot tool + 
   assert.deepEqual(mismatches, [], `risk/tool drift:\n  ${mismatches.join("\n  ")}`);
 });
 
-test("A: snapshot covers exactly the 12 declared write tools and every action tool is one of them", () => {
-  assert.equal(snapshot.WIRE_WRITE_TOOLS.length, 16, "write-tool universe size (12 + 源包订阅/退订 add-pack-subscribe-actions + 产物看板/文档构建 add-wire-artifact-build-surface)");
+test("A: snapshot covers exactly the 17 declared write tools and every action tool is one of them", () => {
+  assert.equal(snapshot.WIRE_WRITE_TOOLS.length, 17, "write-tool universe size (12 + 源包订阅/退订 add-pack-subscribe-actions + 产物看板/文档构建 add-wire-artifact-build-surface + 客户域动作提议 wire-domain-actions)");
   assert.deepEqual(snapshot.WIRE_WRITE_TOOLS, [...snapshot.WIRE_WRITE_TOOLS].sort(), "sorted");
   for (const [action, tool] of Object.entries(snapshot.WIRE_ACTION_TOOLS)) {
     assert.ok(snapshot.isWireWriteTool(tool), `${action} → ${tool} missing from tool_risk`);
     assert.equal(snapshot.WIRE_TOOL_RISK[tool].server === "wire-ops-mcp" || snapshot.WIRE_TOOL_RISK[tool].server === "wire-build-mcp", true);
   }
+  // Deliberate gap, pinned so a future "helpful" refresh cannot close it:
+  // wire_action_propose IS in the write universe (a pack declaring it cannot
+  // become a focused copilot face), but it has NO paas action-registry entry.
+  // Registering it would grow a second confirmation face for domain actions —
+  // the cross-line ruling forbids that (wire-domain-actions R2,
+  // docs/wire-domain-actions-paas-review.md §三): the confirm card lives in the
+  // wire console, exactly once. The read pair stays outside the gate entirely.
+  assert.equal(snapshot.isWireWriteTool("wire_action_propose"), true, "propose is a gated write tool");
+  assert.equal(snapshot.toolForAction("wire.action.propose"), null, "propose has no paas action id");
+  assert.equal(registry.listActions({ line: "wire" }).some((a) => a.tool === "wire_action_propose"), false, "no wire action names propose");
+  assert.equal(snapshot.isWireWriteTool("wire_action_list"), false, "action_list is read");
+  assert.equal(snapshot.isWireWriteTool("wire_action_status"), false, "action_status is read");
   // The script's authored mapping and the generated module must agree.
   assert.deepEqual(snapshot.WIRE_ACTION_TOOLS, refresh.WIRE_ACTION_TOOLS);
 });

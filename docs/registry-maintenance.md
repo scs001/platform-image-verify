@@ -4405,3 +4405,80 @@ provider 同名的判据同样判 `isSelfGrading: true`。在生产镜像里用�
 
 **注意**：cell 名册空时（生产现状 40/41 cell 无 `llm-providers.json`），第 1 层下拉几乎
 没候选、第 2 层是唯一能填的入口；此时判据走部署 env 路由（`providerId: env-route`）。
+
+## WorkBuddy / CodeBuddy 市场仓通道（建制，2026-10-30，add-pack-marketplace-git-channel）
+
+**为什么是仓**：该客户端家族的 URL 型市场是 catalog 分发——只取 `marketplace.json` 与相对路径条目的
+`plugin.json`，**无法递归镜像插件文件**（其插件市场文档原文）。含技能的插件在 URL 型市场里装上去没内容，
+整仓 Git 源才能把文件带下去。
+
+**刷新动作（运营）**：
+
+```bash
+# 生成到工作树（默认 ./marketplace-repo），自检通过才替换；无变化不产生提交
+node scripts/export-marketplace-repo.mjs --db <facet 的 packs.db> --out <仓目录>
+
+# 生成 + 提交 + 推送（内容无变化时不产空提交，但远端落后时仍会推）
+node scripts/export-marketplace-repo.mjs --db <packs.db> --out <仓目录> --push --remote origin
+
+# 只看会收录什么、自检是否过（零写盘）
+node scripts/export-marketplace-repo.mjs --db <packs.db> --dry-run
+```
+
+**收录口径**：与 Claude 端点**同一个函数**（`facet/marketplace-json.js` 的 `loadListedPacks`）——
+公开 ∧ 非 unlisted ∧ 已策展（`category` 非空 ∨ `featured`），`FACET_MARKETPLACE_PACK_IDS` 白名单
+**覆写**而非求交。两面不一致由测试直接钉死（仓库清单集合 == 端点清单集合，走真 HTTP）。
+
+**时效上界**：不实时。发布 / 下架 / 改策展都在**下一次刷新**后反映；刷新是运营动作（发布请求路径上
+不推仓——发布要快，推仓要慢且要推送凭据）。建议在发布班或改策展后跟一次，低频定时亦可。
+
+**last-good 契约**：生成先落 staging 目录并自检（清单可解析、每个条目目录存在、无路径逃逸、
+**仓内目录全部在册**——反向断言防下架后残留），通过才原子替换工作树。任何失败保留上一份，
+客户端继续拿到旧快照。凭据形态串（`wgk-` / `sk-` / `skh_`）出现在包内容里即**拒绝导出**（拒绝而非清洗）。
+
+**下架的诚实边界**：unlist 后新用户装不到，但**已装到用户机器的副本收不回来**（客户端插件物化是本地副本）。
+
+**用户面指引**：`docs/ecosystem/workbuddy-marketplace.md`（添加地址 → 浏览 → 安装 → 更新 → 下架语义）。
+
+**测试**：`node --test scripts/test-facet-marketplace-repo.mjs`（12 项：清单/插件树/同源/白名单/指引边界/
+路径安全/凭据扫描/自检三态/落盘/HTTP 跨面一致 + 三个端到端 git 用例）。
+
+**已抓到的三个真缺陷（都在端到端用例里钉住）**：
+1. 按字节比对判"无变化" → 空仓（无 HEAD）首跑永不提交。改成以 `git status --porcelain` 为准。
+2. `--push` 在"无新提交但远端落后"时静默不推 → 首推无声失败。改成无变化分支也执行 push（对已同步仓库是 no-op）。
+3. 自检缺反向断言 → 下架包的旧目录会留在仓里继续分发。已加"孤儿目录"判红。
+
+### §15.91 补记：模型名写错导致假 503，改正后三态 9/9 全过（2026-10-30）
+
+上一节按用户点名的 `minimax-3.1-flash` 钉上后，探针 0/9 全 503、**平均 87ms 极快失败**。
+这个「快」是关键信号——真上游抖动通常是秒级超时，不会 87ms 就回来。查 sub2api 日志，
+原因写在明面上：
+
+```
+openai_chat_completions.account_select_failed
+  error: "no available OpenAI accounts supporting model: minimax-3.1-flash
+          (pool=2, filtered: model_not_supported=2)"
+```
+
+**`minimax-3.1-flash` 是本部署名册里的展示名，组 3 绑的账号根本不支持这个名字。**逐个
+试四种写法，只有一个是通的：
+
+| 写法 | 结果 |
+|---|---|
+| `minimax-3.1-flash` | 503（无账号支持，~90ms 快失败） |
+| **`minimax-m3.1-flash`** | **200，正常返回** ← 正确的那个 |
+| `minimax/minimax-m3.1-flash:free` | 502 upstream |
+| `MiniMax-M3.1-Flash` | 502 upstream |
+
+改钉 `minimax-m3.1-flash`（GitOps `4198285`，两面 env）后：
+
+- 三态区分力探针：**9/9 全判对，平均 2.1 秒**（比上轮 deepseek-v4-pro 的 3.9s 更快）
+- 真机三态全部走过，理由均直接引用证据：
+  - `pass` — 证据明确显示选题岗与初稿岗均为「已落位」，且有 2 个回合运行、未决升级项 0 件
+  - `fail` — 运行证据显示试跑集群中有选题岗和初稿岗两个岗位，不符合「只有一个岗位」
+  - `insufficient-evidence` — 证据仅显示选题岗、初稿岗已落位，未提供审校岗已落位的直接证据
+- 期间一次车道超时被 `laneError: {kind:"unreachable"}` 如实标出（不冒充证据不足），
+  重跑即得到真判——这正是 §15.90 那个字段的用处。
+
+**新律：判据 503 + 极快失败（<200ms）先怀疑「模型名无账号支持」，不要当车道抖动。**
+真抖动的特征是秒级超时或 429 限流；90ms 的 503 一定是路由层选不到账号。

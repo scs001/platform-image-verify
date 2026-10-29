@@ -33,6 +33,7 @@ import {
   removeDeployment,
   setDeploymentEnabled,
 } from "./local-agent-feed.js";
+import { isDbReady } from "../db.js";
 
 const DESIRED_FILE = "fleet-desired.json";
 const DETAIL_FILE = "fleet-detail.json";
@@ -105,6 +106,12 @@ export function writeDetailBeacon({ env = process.env, mergeState = null, agents
 export function mergeDesired({ env = process.env, now = Date.now } = {}) {
   const beacon = readDesiredBeacon(env);
   if (!beacon) return null; // no expectation on this machine (uplink off, or never pulled)
+  // A merge run against a closed database is a NO-OP that must not be recorded
+  // as applied: listDeployments() silently answers [] when the db is not ready,
+  // so the withdrawal sweep would sweep nothing yet still stamp this version
+  // as seen — and the next (ready) beat would skip it, leaving cloud rows
+  // behind forever. Boot beats race db.initDb() in single-process mode.
+  if (!isDbReady()) return null;
   const detail = readJsonSafe(detailBeaconPath(env));
   const lastApplied = detail?.merge?.desiredVersionSeen ?? null;
   const rejects = [];
@@ -152,17 +159,37 @@ export function startDesiredMergeLoop({ env = process.env, intervalMs = 60_000, 
   async function beat() {
     try {
       const mergeState = mergeDesired({ env });
+      // null = nothing merged (no beacon, or the db is not open yet). Not a
+      // success for the caller's purposes: the boot retry must keep trying
+      // until a real merge pass lands, otherwise "converge on restart" waits
+      // for the 60s interval (measured).
+      if (mergeState === null) return false;
       const agents = await runnerAgents(env, doFetch);
       writeDetailBeacon({ env, mergeState, agents });
+      return true;
     } catch {
       // degrade-open: the cell's other duties never wait on this loop
+      return false;
     }
   }
   // First beat: on boot the cluster converges via convergeLocalCluster; the
   // merge rides the first tick so a desired edit made while the machine was
   // offline lands immediately after restart.
+  //
+  // That first tick fires during module init, BEFORE db.initDb() opens the
+  // project database (server.js starts this loop early, the db much later), so
+  // mergeDesired throws "database not ready" and the promise of "lands right
+  // after restart" silently degraded to "lands up to a minute later" —
+  // measured: exactly 60s, i.e. the retry never happened and the interval did
+  // the work. Keep retrying until the db is open; the steady interval carries
+  // on regardless.
   timer = setInterval(() => void beat(), intervalMs);
   timer.unref?.();
-  void beat();
+  (async () => {
+    for (let attempt = 0; attempt < 120; attempt++) {
+      if (await beat()) return;
+      await new Promise((r) => { const t = setTimeout(r, 1000); t.unref?.(); });
+    }
+  })();
   return { stop: () => timer && clearInterval(timer), beat };
 }

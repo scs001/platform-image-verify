@@ -134,7 +134,7 @@ export function registerFleetMachineRoutes({
   // handlers (no parser), so without it req.body is undefined and every
   // write 400s "entries must be an array". Live walkthrough caught it —
   // unit tests hand the handler a pre-parsed body and never see the gap.
-  app.put("/api/machines/:deviceId/desired", express.json(), (req, res) => {
+  app.put("/api/machines/:deviceId/desired", express.json(), async (req, res) => {
     const email = callerEmail(req);
     if (!email) return res.status(401).json({ error: "Authentication required" });
     if (!ownDeviceOr404(req, res, email)) return undefined;
@@ -154,6 +154,9 @@ export function registerFleetMachineRoutes({
       entries.push({ packId, agentId, enabled: e?.enabled !== false });
     }
     const row = machines.recordDesired(deviceId, entries, { ownerEmail: email });
+    // Answer only once the expectation is on disk: a 200 that a gateway
+    // restart can erase is a lie the user acts on.
+    await machines.flush;
     return res.json({
       desired: { version: row.desired.version, entries: row.desired.entries, updatedAt: row.desired.at },
       health: deriveMachineHealth(row, { now, silenceMs, alertThreshold }),

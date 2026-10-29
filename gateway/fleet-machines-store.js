@@ -88,6 +88,13 @@ export function createFleetMachinesStore({ file, now = Date.now }) {
     return row;
   }
 
+  // The cloud-authored expectation is the ONE piece of this store that cannot
+  // self-heal: liveness and detail both arrive again on the next steward beat,
+  // but a desired set only exists because a human edited it. Losing it to a
+  // gateway restart (hosted pods roll constantly) silently reverts every
+  // machine to "no expectation" and the next merge deletes its cloud rows —
+  // so these two mutations write through. Callers that must answer only after
+  // durability await `flush`.
   function recordDesired(deviceId, entries, { ownerEmail = null } = {}) {
     const key = String(deviceId);
     const row = machines[key] ?? { ownerEmail: null, lastSeenAt: null, presence: null, detail: null, divergenceStreak: 0, desired: null };
@@ -95,6 +102,7 @@ export function createFleetMachinesStore({ file, now = Date.now }) {
     const prev = row.desired?.version ?? 0;
     row.desired = { version: prev + 1, entries, at: now() };
     machines[key] = row;
+    void persist();
     return row;
   }
 
@@ -104,6 +112,7 @@ export function createFleetMachinesStore({ file, now = Date.now }) {
     row.desired = null;
     row.divergenceStreak = 0;
     machines[String(deviceId)] = row;
+    void persist();
     return row;
   }
 

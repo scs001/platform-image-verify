@@ -95,7 +95,10 @@ test("1.3 desired edits bump the version and persist across reload", async () =>
   const v1 = store.recordDesired("dev-cat", [{ packId: "p2", agentId: "b1", enabled: true }], { ownerEmail: "other@test" }).desired.version;
   const v2 = store.recordDesired("dev-cat", [{ packId: "p2", agentId: "b1", enabled: false }]).desired.version;
   assert.equal(v2, v1 + 1);
-  await store.persist();
+  // No explicit persist() here on purpose: the write must be self-persisting.
+  // This test used to call it itself, which is exactly why a gateway restart
+  // silently wiped every expectation in production (2026-10-30 walkthrough).
+  await store.flush;
   const reloaded = createFleetMachinesStore({ file: STORE_FILE, now: () => now });
   await reloaded.load();
   assert.equal(reloaded.get("dev-cat").desired.version, v2);

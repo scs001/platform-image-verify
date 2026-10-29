@@ -40,6 +40,7 @@ import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
 import express from "express";
+import { PACK_LIMITS } from "../lib/pack-manifest.js";
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "fleet-tpl-"));
 process.env.CRON_STORAGE_PATH = tmpRoot;
@@ -515,9 +516,9 @@ test("official seed library: every manifest passes the fleet-section gate", asyn
     const parsed = parseFleetTemplate(filled);
     assert.equal(parsed.ok, true, `${file}: ${parsed.error}`);
 
-    // Self-carried agents cap (company-seed casting proved the market-side
-    // limit of 3): extra posts must be reference/passive/cluster/a2a posts.
-    assert.ok(Array.isArray(raw.agents) && raw.agents.length <= 3, `${file}: pack agents must be at most 3, found ${raw.agents?.length}`);
+    // Self-carried agents cap — the market-policy ceiling (PACK_LIMITS,
+    // raised 3 → 50 on 2026-10-30), not a hard-coded guess.
+    assert.ok(Array.isArray(raw.agents) && raw.agents.length <= PACK_LIMITS.maxAgents, `${file}: pack agents must be at most ${PACK_LIMITS.maxAgents}, found ${raw.agents?.length}`);
 
     // Every pack-preset post names a self-carried agent, and every self-carried
     // agent is referenced by exactly one pack-preset post (1:1, no orphans).

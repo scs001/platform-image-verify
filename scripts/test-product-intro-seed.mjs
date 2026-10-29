@@ -2,7 +2,7 @@
 // (add-product-intro-team): the team faces EXTERNAL visitors, so its every
 // persona text must stay public-only, speak the v4 lexicon, and the front
 // desk must carry the explicit legal→Lex routing. Asserted against the seed
-// JSON text (plus the reference-personas sibling file) — no runtime needed.
+// JSON text — no runtime needed.
 //
 // Run: node --test scripts/test-product-intro-seed.mjs
 
@@ -14,18 +14,10 @@ import { fileURLToPath } from "node:url";
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
 const seedPath = path.join(dir, "..", "docs", "fleet-templates", "product-intro-fleet.seed.json");
-const personasPath = path.join(dir, "..", "docs", "fleet-templates", "product-intro-personas.json");
-
 const seed = JSON.parse(fs.readFileSync(seedPath, "utf8"));
-const siblings = JSON.parse(fs.readFileSync(personasPath, "utf8"));
 
-// All persona-bearing text: self-carried agents + sibling reference personas.
-const texts = [
-  ...seed.agents.map((a) => ({ from: `seed.agents[${a.id}]`, text: `${a.name}\n${a.description}\n${a.persona}` })),
-  ...Object.entries(siblings)
-    .filter(([k]) => !k.startsWith("_"))
-    .map(([k, v]) => ({ from: `personas[${k}]`, text: `${v.name}\n${v.description}\n${v.persona}` })),
-];
+// All persona-bearing text: the seed's self-carried agents.
+const texts = seed.agents.map((a) => ({ from: `seed.agents[${a.id}]`, text: `${a.name}\n${a.description}\n${a.persona}` }));
 
 // Forbidden content: internal-ops information and replaced v3 lexicon. Patterns
 // are word-boundary/mode-based so ordinary prose cannot trip them (design D4).
@@ -81,7 +73,7 @@ test("the front desk carries the explicit legal→Lex routing (promote Lex)", ()
 });
 
 test("官网研究/服务口径归前台、永忆归壹座——不为此单设专家", () => {
-  const ids = seed.agents.map((a) => a.id).concat(Object.keys(siblings).filter((k) => !k.startsWith("_")));
+  const ids = seed.agents.map((a) => a.id);
   assert.ok(!ids.some((id) => /xingyan|research|yongyi|memory/.test(id)), "不得为研究线/永忆单设岗位");
   const yizuo = seed.agents.find((a) => a.id === "intro-yizuo");
   assert.match(yizuo.persona, /永忆/, "永忆（开源自托管形态）必须并入壹座专家叙事");
@@ -89,14 +81,14 @@ test("官网研究/服务口径归前台、永忆归壹座——不为此单设�
   assert.match(guide.persona, /微调|论文/, "官网「研究与业务」口径（论文/微调服务）必须并入前台话术");
 });
 
-test("sibling personas exactly cover the seed's existing-persona posts", () => {
-  const refPosts = seed.fleet.members.filter((m) => m.target.kind === "existing-persona");
-  const wanted = refPosts.map((m) => m.target.id.replace(/^\{\{/, "").replace(/\}\}$/, "").replace(/_PERSONA$/, "").toLowerCase()).sort();
-  const have = Object.keys(siblings).filter((k) => !k.startsWith("_")).sort();
-  assert.deepEqual(have, wanted, "姊妹文件的 persona 键必须与种子的引用岗一一对应");
-  for (const [k, v] of Object.entries(siblings)) {
-    if (k.startsWith("_")) continue;
-    assert.ok(v.name && v.description && v.persona, `personas[${k}] 缺字段`);
+test("the team is fully self-carried — six agents, every member a pack-preset", () => {
+  assert.equal(seed.agents.length, 6, "六岗全部自载（maxAgents 50 后不再拆引用岗）");
+  const agentIds = new Set(seed.agents.map((a) => a.id));
+  for (const m of seed.fleet.members) {
+    assert.equal(m.target.kind, "pack-preset", `成员 ${m.ref} 必须指向包内岗位`);
+    assert.equal(m.target.packId, "{{PACK_ID}}", `成员 ${m.ref} 的 packId 必须是 {{PACK_ID}} 占位`);
+    assert.ok(agentIds.has(m.target.presetId), `成员 ${m.ref} 的 presetId ${m.target.presetId} 必须是自载 agent`);
+    assert.ok(m.cadence == null, `成员 ${m.ref} 为会话型，无节奏（缺省或 null）`);
   }
-  assert.ok(refPosts.every((m) => m.cadence === null), "引用岗为会话型，无节奏");
+  assert.ok(seed.agents.every((a) => a.name && a.persona && a.persona.length <= 16 * 1024), "每岗有人名与 persona 且不超 PACK_LIMITS.maxPersonaChars");
 });

@@ -62,4 +62,4 @@ persona 字段是纯文本，官网级知识（每线 300-500 字）+ 背书数�
 ## Open Questions
 
 - 前台与专家的 KPI 槽位：已裁定不设（kpiSlots: []，守恒+实例化路径无强制），种子注释已记录。
-- **结构修正（实现期发现）**：pack 自载 agents 上限 3（`lib/pack-manifest.js` PACK_LIMITS，运营策略上限、铸造实证），六岗全自载不可行。落地结构=前台+壹座+识律 3 自载（识律为用户裁定的推送线、壹座为旗舰），柏讯/谦面/萬星为 existing-persona 引用岗，persona 真源在姊妹文件 product-intro-personas.json（红线测试同钉）；托管部署装机前预创建，外来安装者逐岗如实降级（公司种子同款先例）。
+- **结构定案（实现期两修）**：实现期发现 pack 自载 agents 上限 3（`lib/pack-manifest.js` PACK_LIMITS，v1 市场老边界），曾按 3 自载+3 existing-persona 引用岗落地；用户随后裁决**放宽上限到 50**（75df6914，对齐成员名册闸 TEMPLATE_MEMBER_LIMIT，测试钉 50/51 边界）——最终结构=**六岗全部自载**（前台/壹座/识律/柏讯/谦面/萬星），包自带完整团队，外来安装者零预创建、无降级路径；原姊妹文件 product-intro-personas.json 已折入种子并删除，红线测试改为纯种子断言（含六岗全 pack-preset 的结构断言）；守恒测试的 3 字面上限改为引用 PACK_LIMITS.maxAgents。

@@ -4229,3 +4229,49 @@ turn=cron-job_1792719144227_3lpcem#r1793228411907-2   （23:00:18 CEO）
 **待续**：柏讯后续再增工具时，除自报外仍须通知壹座重导出商业名单（那一腿自报不覆盖）。
 
 **挂账清账（6.6 `executed_at`）**：真机 `decision_items` 复查，`d_1793228497338_p7knh6`（deputy 裁决、已送达）`delivered_at=executed_at=1793241645081`（北京 10:40:45）——送达即同笔回填，链路闭环；`d_1793219379758_eh6yw0` 仍 `approved`，执行事实为 0 是**语义正确**（未送达不该有）。tasks 6.6 已勾。本 change 无遗留。
+
+### §15.90 评审模型换型：从「钉着一个不可用的模型」到「三态区分力有据可依」（2026-10-29 夜）
+
+用户令「你处理吧」——处理上一节挂的「把评审模型换成更强的一档」。结论与过程都比预期重要：**问题不是模型弱，是模型根本不可用**。
+
+#### 两个实测事实
+
+用新建的 `scripts/probe-blueprint-judge-model.mjs`（三组用例 × 3 次，自带 429/5xx 指数退避）在生产 pod 内实测：
+
+| 模型 | 三态区分力 | 可达性 |
+|---|---|---|
+| `cohere/north-mini-code:free`（原钉） | **0/9** | 全程 429 / 503，一次都没通 |
+| `deepseek-v4-pro` | **14/14 全判对**（跨两轮累计） | 短窗口可达，均 3.9s |
+| `deepseek-v4.1-flash` | 0/9（可达性差） | 多次超时 18s+ |
+
+所以生产此前**所有 llm-judged 断言必然判不出结果**——它不是「判得准不准」，是压根调不通。这也解释了之前 A/B 测试里「cohere 一直判 pass」的假象：那些 pass 是更早（`01:03Z` 前）的旧镜像记录，不是这个模型的判断力。
+
+选型口径因此改写：**只测可用性不够，必须测区分力**。一个永远说 pass 的评委等于没有评委。探针的三组用例正是按这个设计的——充分→pass、违反→fail、缺载体→insufficient-evidence，三者都判对才算数。
+
+#### 改动
+
+1. **GitOps 换模型**（`721f165`，platform + agent-runner-serving 两面 env）：`BLUEPRINT_JUDGE_MODEL` → `deepseek-v4-pro`。
+   禁自证核对：生产实际产出默认是 `volces/deepseek-v4.1-flash`（cell 的 `llm-providers` 默认指针，不是 `LLM_MODEL` env），与 `deepseek-v4-pro` 不同，不构成自评。
+2. **代码补一侧盲区**（paas `20f304c3`）：**判据没跑成 ≠ 证据不足**。车道 429/5xx/超时时，原实现一律落 `insufficient-evidence`，报告上与「模型看过证据说不够」完全同形，而两者的处置方向相反（前者重跑即可，后者要改证据或判据）。现在 audit 上打 `laneError = { status, kind }`（`rate-limited` / `upstream` / `unreachable`），判决值不变（绝不因基础设施失败判绿或判红），界面显示「模型：未跑成（车道不可用）」。
+3. **出片上产**（`sha-90275ea`，digest `4e395e92`；快照 `49819a4e`；GitOps `7979ebd`）：上一轮只改 env 没换镜像，而旧镜像 `sha-9560fe2` 里没有 `laneError`——实测 503 仍被伪装成证据不足。这次把代码也带上。祖先核对：快照含 `4ff0a80d`（当时的 production paas，digest 超时可配修复），不回退别人的改动。
+
+#### 真机实证（换型后，新镜像）
+
+三态全部在产走过，且每次理由都直接引用证据原文：
+
+| 用例 | 判据 | 判决 | 理由（节选） |
+|---|---|---|---|
+| 正例 | 两个岗位均已落位 | `pass` | 证据中明确列出选题岗(已落位)、初稿岗(已落位) |
+| 缺载体 | 三个岗位均已落位（实际两个） | `insufficient-evidence` | 未提及质检岗是否落位，证据覆盖不完整 |
+| 违反 | 只有一个岗位（实际两个） | `fail` | 证据显示两个岗位，与判据要求的只有一个岗位明确不符 |
+
+laneError 双向也各验一次：真判时 `laneError=null`；车道超时时 `laneError={status:null,kind:"unreachable"}` 且显示为「未跑成」。两者在报告里可区分。
+
+构造集四份真场景全部回到**绿 + 已签 + 已再铸**可售态（跨境电商政策盯梢 v6 / 客服工单分诊 v10 / 内容工厂 v4 / 投研晨会 v4）。两份早期测试空壳 pack 已 unlist（删除被设计性拒绝——已铸造蓝图不可删，市场包才是账）。
+
+#### 留待
+
+- **车道可用性是最外层约束**：本轮多次遇到整体 503（连 `/models` 都间歇失败），期间所有评测都是噪声。探针已内置退避重试，但仍建议在批量试跑前先探一次。
+- `deepseek-v4-pro` 不在 cell 名册（`judge-default` 回显 `judgeSource: fallback` + 「deployment default 不在名册」），走的是部署 env 路由。功能正确，但**「回落」这个词会误导读者以为配置没生效**——实际是 cell 名册为空导致的正常路径。若要消掉这行提示，需把该模型加进 cell 的 `llm-providers.json`（跨面，未做）。
+
+**测试**：蓝图 6 套 **82/82 绿**（新增 laneError 3 条：429→rate-limited、503→upstream、网络异常→unreachable，外加反向断言「模型真判 insufficient-evidence 时不得带 laneError」）。typecheck 绿，biome 绿，locale 五语绿（+`blueprints.judge.verdict.laneError`）。

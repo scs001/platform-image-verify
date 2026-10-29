@@ -2,17 +2,17 @@
 
 ## 1. fd-memory：自适应预算
 
-- [ ] 1.1 `src/metrics.ts` 增加只读的近期成功样本分位读取（复用现有 `embedSamples` 滑动窗），不改 `/admin/metrics` 输出形状
-- [ ] 1.2 `src/http.ts` 把 `EMBED_DEADLINE_MS` 常量改为按 `p90 × 1.5` 推导并 clamp 到 `[3000, FD_MEMORY_DIGEST_EMBED_DEADLINE_MS]`；样本数 < 5 时用保守默认值
-- [ ] 1.3 超时分支在 reject 前记录真实 `elapsed`，样本写 `reason: "timeout"`（与 `cooling_down`、上游错误可区分）
-- [ ] 1.4 单测：快样本→预算收紧；慢样本→预算放宽但不超上限；无样本→默认；样本自强化不发生（p90 只吃成功样本）
-- [ ] 1.5 `npm test` 全绿 + `npx tsc --noEmit` 零错误
+- [x] 1.1 `src/metrics.ts` 增加只读的近期成功样本分位读取（复用现有 `embedSamples` 滑动窗），不改 `/admin/metrics` 输出形状
+- [x] 1.2 `src/http.ts` 把 `EMBED_DEADLINE_MS` 常量改为按 `p90 × 1.5` 推导并 clamp 到 `[3000, FD_MEMORY_DIGEST_EMBED_DEADLINE_MS]`；样本数 < 5 时用保守默认值
+- [x] 1.3 超时分支在 reject 前记录真实 `elapsed`，样本写 `reason: "timeout"`（与 `cooling_down`、上游错误可区分）
+- [x] 1.4 单测：快样本→预算收紧；慢样本→预算放宽但不超上限；无样本→默认；样本自强化不发生（p90 只吃成功样本）
+- [x] 1.5 `npm test` 全绿 + `npx tsc --noEmit` 零错误
 
 ## 2. paas：调用方超时可配
 
-- [ ] 2.1 `server/cluster-memory.js`：5s 硬编码改为 `CELL_MEMORY_DIGEST_TIMEOUT_MS`，默认 9000
-- [ ] 2.2 确认 chat 面与集群面走同一个 `digestLadder`，一处改动两面生效（无第二处硬编码）
-- [ ] 2.3 单测：默认 9s 生效；显式配置覆盖；超时触发的降级 warn 仍只落一行
+- [x] 2.1 `server/cluster-memory.js`：5s 硬编码改为 `CELL_MEMORY_DIGEST_TIMEOUT_MS`，默认 9000
+- [x] 2.2 确认 chat 面与集群面走同一个 `digestLadder`，一处改动两面生效（无第二处硬编码）
+- [x] 2.3 单测：默认 9s 生效；显式配置覆盖；超时触发的降级 warn 仍只落一行
 
 ## 3. 文档与契约
 

@@ -15,6 +15,18 @@ export function clusterProjectId(clusterId) {
   return out || "cluster";
 }
 
+// The digest read timeout (fix-digest-adaptive-embed-deadline). Must sit ABOVE
+// fd-memory's internal embed budget cap, or we hang up on a request the
+// callee is still finishing and lose the block instead of receiving its
+// degraded form. Defaults to 9000 (cap 8000 + transport headroom); set it
+// below the cap and the ladder will skip straight past the digest rung, which
+// is exactly the misconfiguration this exists to make visible.
+export function digestTimeoutMs(env = process.env) {
+  const raw = Number(env.CELL_MEMORY_DIGEST_TIMEOUT_MS ?? 9000);
+  const n = Number.isFinite(raw) && raw > 0 ? Math.round(raw) : 9000;
+  return Math.max(500, Math.min(60_000, n));
+}
+
 // Returns { readShared, writeDigest } or null (config off / no owner / mint
 // failure). The person token is the same one the memory mount mints and
 // caches on disk — one mint per owner, restart-stable.
@@ -43,8 +55,16 @@ export async function clusterMemoryFor(env, ownerEmail, fetchImpl = fetch) {
         return await r.json();
       },
       // The digest read face (add-cluster-digest-injection): server-side
-      // rendered block from fd-memory — 5s budget, one shot, no retry (the
-      // caller's ladder falls back to the title list on any failure).
+      // rendered block from fd-memory — one shot, no retry (the caller's ladder
+      // falls back to the title list on any failure).
+      //
+      // Timeout (fix-digest-adaptive-embed-deadline): this used to be a flat
+      // 5s, which sat BELOW fd-memory's own embed budget (8000ms). When the
+      // embedding upstream was slow, fd-memory was still working on the answer
+      // while we had already hung up — so the block was lost outright instead
+      // of arriving in its degraded (keyword) form. The caller must be more
+      // patient than the callee's internal budget, hence the 9s default; it
+      // costs nothing on the fast path (milliseconds) and is configurable.
       async readDigest(clusterId, q, { k = 5, budget = 1500 } = {}) {
         const u = new URL(`${cfg.url}/digest`);
         u.searchParams.set("project", clusterProjectId(clusterId));
@@ -52,7 +72,7 @@ export async function clusterMemoryFor(env, ownerEmail, fetchImpl = fetch) {
         u.searchParams.set("k", String(k));
         u.searchParams.set("budget", String(budget));
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 5000);
+        const timer = setTimeout(() => controller.abort(), digestTimeoutMs(env));
         try {
           const r = await fetchImpl(u, { headers: { authorization: `Bearer ${token}` }, signal: controller.signal });
           if (!r.ok) throw new Error(`digest HTTP ${r.status}`);

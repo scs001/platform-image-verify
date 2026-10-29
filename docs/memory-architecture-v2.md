@@ -133,6 +133,21 @@ L0 观测形状（v2.0 起）：`{session, agent, event: turn_start|tool_call|to
 - v2.2：词元 `POST /v1/embeddings`（`Qwen/Qwen3-Embedding-8B`，`dimensions=1024`，复用 chat 鉴权/账本）→ SQLite 向量列；混合 = FTS + 向量 + RRF（k=60）；**脱敏前置**（上游教训：embedding 路径曾发未脱敏全文）；`expires_at` 到期降级/剔除；`forget` 显式 API。
 - 结果契约：每条带 `source`（own|shared）、`layer`（L0-L3）、`sources[]`（溯源）、`confidence`。
 
+### 8.1 向量档位的预算与降级纪律（fix-digest-adaptive-embed-deadline，2026-10-29）
+
+- **单次 embed 预算自适应**：按近期**成功**样本 p90 × 余量（默认 1.5）推导，clamp 在 `[3000, FD_MEMORY_DIGEST_EMBED_DEADLINE_MS]`。`FD_MEMORY_DIGEST_EMBED_DEADLINE_MS`（现网 8000）语义是**上限**而非固定值——车道快时不再空等到上限。样本不足 5 条时直接用上限，不按噪声调参。
+- **失败样本不入预算输入**：超时样本的耗时被截断在当时的预算上，喂回去会让预算自我强化（慢→预算大→记录更大）。超时单独标 `timeout` 类，与 `cooling_down`、上游错误在 `failure_reasons` 里可区分。
+- **调用方必须比被调用方更有耐心**：paas `readDigest` 超时由 `CELL_MEMORY_DIGEST_TIMEOUT_MS` 配置（默认 9000 = fd-memory 上限 8000 + 传输余量）。原硬编码 5s **低于** fd-memory 的 8s 预算，导致慢 embed 时 digest 整块丢失而不是降级返回。chat 面与集群面共用同一个 `readDigest`，一处生效两面。
+- **误配可辨识**：把调用方超时配到低于 fd-memory 上限时，表现为持续的 digest 超时降级 warn，而不是静默的「记忆好像不太灵」。
+- **空查询是独立档**：`q` 为空白时不调 embed（无向量可算），`rung=empty` 单独计数且**不进** `vector_ratio` 分母。此前的实现把空查询的 `texts_required` 400 报成「vector lane unavailable」，既误报故障又污染健康指标。
+
+### 8.2 向量检索的规模安全区（harden-memory-surfaces 口径）
+
+- **当前实现是全表扫描**：`allPageVectors(model)` 取回该模型全部向量再逐条解 `Float32Array`。实测（2026-10-29）：全局 1065 条向量 / 19 个有向量根 / 最大单根 304 条，单次 digest 的解码开销在毫秒级。
+- **安全区的判断依据是「单根条数」而非全局**：一次 digest 只扫一个根。当前最大单根 304，距离需要换索引还有很大余量。
+- **跨过安全区后的处置方向**：先测真实瓶颈（很可能是 float 解码而非扫描本身），再决定是加缓存列、分块，还是换 ANN 近似——**ANN 会引入近似误差，与向量一致性诉求冲突，属于最后手段**。
+- **观测口径**：规模数值与超阈标记由 `/admin/metrics` 的 `vectors.scale` 暴露，阈值可配（`FD_MEMORY_VECTOR_WARN_MAX_PER_ROOT` / `FD_MEMORY_VECTOR_WARN_TOTAL`）。文档阈值与代码默认值必须同源。
+
 ## 9. 引擎缝（Distiller 契约）
 
 ```

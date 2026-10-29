@@ -8,11 +8,13 @@
 
 | 项 | 裁决 |
 |---|---|
-| R1 岗位身份注入 | **前提已过时**：身份注入已在产（2026-10-23）。唯一真实缺口 = 回合腿，paas 已立 `add-fleet-identity-turn` 补齐（见 §三） |
+| R1 岗位身份注入 | **前提已过时**：身份注入已在产（2026-10-23）。唯一真实缺口 = 回合腿，**已补齐上产**（`add-fleet-identity-turn`，真机五字段眼见，见 §二/§三） |
 | R2 拍板面唯一在柏讯 | **不反对**，且结构上可验证壹座不会长出第二确认面（见 §四） |
 | R3 提议不阻塞回合 | **同意**，附一条对偶义务（见 §五） |
 | R4 计量与凭据轨 | 知会收讫，零改动 |
-| 原文「已核实：不需要 paas 改动」表 | **补两项批次内 paas 侧工作**（见 §六）——不补，柏讯的 pack 发布会撞门 |
+| 原文「已核实：不需要 paas 改动」表 | **补两项 paas 侧工作（均已完成）**：① registry 快照两腿（自报 tool_list 19 + 商业名单重导出 19/19）② wire-tool-risk 归账 16→17（见 §六） |
+
+**壹座侧收口状态（2026-10-29）**：R1 回合腿已上产（`sha-f7aa81b`，真机三条回合五字段）；两项补账已闭环；`tool_risk` 标签已按约定核实归账。柏讯可直接按 §七 剩余两条（R3 场景 + 后续增工具的商业名单通知）推进 pack 发布。
 
 ## 二、R1：身份注入已于 2026-10-23 在产——原文「至今未落地」请更正
 
@@ -56,19 +58,27 @@ overlay 写不进行数计量、提议/状态查询走调用方凭据（舰队�
 ## 六、原文「已核实」表漏掉的两项 paas 侧工作（须排进同批）
 
 **① registry 工具面快照必须重烘焙，否则新 pack 发不出去。**
-`/wire-ops-mcp` 条目的 tool_list 快照现停 13 工具；因该服务 AuthGate 匿名 401，发布门的 live probe 探不到（「unresolved 而非 absent」，台账 §1151/§1616 有实录与 Mongo 直写配方）。柏讯部署三新工具后、fleet-packs 模板把 `wire_action_*` 写进 allowTools 之前，**壹座侧须先按既有配方重烘焙快照（对象数组 + num_tools 同步）**，否则柏讯 pack 发布被拒。建议：柏讯部署完成即通知壹座，同批排程，别等发布日撞门。
+`/wire-ops-mcp` 条目的 tool_list 快照原停 13 工具；因该服务 AuthGate 匿名 401，发布门的 live probe 探不到（「unresolved 而非 absent」，台账 §1151/§1616 有实录与 Mongo 直写配方）。柏讯部署三新工具后、fleet-packs 模板把 `wire_action_*` 写进 allowTools 之前，**壹座侧须先让快照覆盖新工具**，否则柏讯 pack 发布被拒。
+
+**实施后记（2026-10-29，已闭环）**：本条有两个独立腿，实测只靠其一不够——
+
+- **tool_list（自报腿，已自动覆盖）**：重启 `wire-ops-mcp` 后自报生效，registry 条目 `tool_list` 与 `num_tools` 自动更新到 19（含三个 `wire_action_*`），`surface_source=self_report`。**无需**再走 Mongo 直写——此前「自报端点 404」的陈旧状态已不复存在。
+- **`metadata.surface.commercial_tools`（商业闭包腿，自报不覆盖）**：该名单停在 2026-10-25 的 13 个工具，**不含**三个 `wire_action_*`；而发布门对 surface-registered 条目先做商业闭包（名单外的声明一律拒，live probe 结果无关）。已按 manifest 单一推导重导出并回填：`python3 ~/finddata/scripts/export_surface_commercial.py --server wire-ops-mcp` → 19/19 → 写回 registry 条目。
+- **验收**：真实 `toolGateErrors` 跑声明 `wire_action_list/propose/status` 的 manifest → 0 errors；反向声明名单外工具 → 仍拒（门没被放开过头）。
+
+**给柏讯的提醒**：三新工具已同时进入商业供给面名单，pack 可正常声明；但商业名单是**按 manifest 导出**的，柏讯若后续再增工具，除了自报还要通知壹座重导出名单，否则发布门会在闭包处拒。
 
 **② wire-tool-risk 快照刷新会触发 CI 归账 + 一条标签契约。**
-`lib/wire-tool-risk.js` 是从 fd-wire `tool-surface.json` 的 `tool_risk` 生成的 vendored 快照，两处 CI 硬断言写工具全集恰为 16（`scripts/test-wire-tool-risk.mjs`、`scripts/test-official-packs-lint.mjs`）。新工具入快照后：计数断言归账（16→N）；`wire_action_propose` 进入 gated write 全集的连带效果是**声明它的 pack 不再够格当 copilot 聚焦面**（gatedWriteTools 并集），这是期望行为，柏讯勿惊。同时一条契约请求：
+`lib/wire-tool-risk.js` 是从 fd-wire `tool-surface.json` 的 `tool_risk` 生成的 vendored 快照，两处 CI 硬断言写工具全集恰为 16（`scripts/test-wire-tool-risk.mjs`、`scripts/test-official-packs-lint.mjs`）。新工具入快照后：计数断言归账（16→17，已完成）；`wire_action_propose` 进入 gated write 全集的连带效果是**声明它的 pack 不再够格当 copilot 聚焦面**（gatedWriteTools 并集），这是期望行为，柏讯勿惊。
 
-> **柏讯三个新工具的 `tool_risk` 标签请复用既有值（write/read/cost），勿单方新增 risk 值**——壹座的 risk→tier 映射测试与 fd-wire 的 RISK_TO_TIER 逐字节对齐，新值会打破对齐并需要跨仓协同改表。预期：`wire_action_list`/`wire_action_status` = read（不入写全集），`wire_action_propose` = write（入全集、不注册壹座动作）。请柏讯在实施前把拟定标签知会壹座。
+> **标签契约（柏讯已于实施时按约定落好，已核实）**：`wire_action_list`/`wire_action_status` = `read`（不入写全集），`wire_action_propose` = `write`（入全集、不注册壹座动作）；未新增 risk 值，risk→tier 与 fd-wire `RISK_TO_TIER` 的逐字节对齐不受影响。壹座已在断言里**钉死这个故意缺口**（propose 入写全集但无 paas 动作 id），防止后人「顺手」把它注册成动作、长出第二确认面。
 
 ## 七、对柏讯侧的具体请求（随本回复回执）
 
-1. R1 验收以**在产身份行格式**为准（§二），回合腿等 `add-fleet-identity-turn` 上产后兑现——柏讯侧技能稿/台账解析留好 `turn=` 字段位。
-2. `tool_risk` 标签（§六②）实施前知会壹座，避免 CI 归账返工。
+1. R1 验收以**在产身份行格式**为准（§二），回合腿已上产——柏讯侧技能稿/台账解析留好 `turn=` 字段位（真机五字段可见，台账 §15.85）。
+2. ~~`tool_risk` 标签实施前知会壹座~~ **已收到并按约定落好，已核实归账**（§六②）；壹座侧 16→17 归账已入库。
 3. `wire_action_propose` 即时返回 pending 写进 spec 场景（§四对偶义务）。
-4. 部署三新工具后通知壹座重烘焙 registry 快照（§六①），再走 pack 发布。
+4. ~~部署后通知壹座重烘焙 registry 快照~~ **已闭环**：自报覆盖 tool_list（19），商业名单已按 manifest 重导出回填（19/19），发布门正反双向实证（§六①）。**后续增工具时仍需通知壹座重导出商业名单**（自报不覆盖那一腿）。
 
 ## 附：壹座侧证据路径
 

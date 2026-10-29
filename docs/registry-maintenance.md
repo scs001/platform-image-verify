@@ -4206,3 +4206,24 @@ turn=cron-job_1792719144227_3lpcem#r1793228411907-2   （23:00:18 CEO）
 - 首次两次戳发都 `error_kind=model_upstream`，`503 {"message":"Service temporarily unavailable","type":"api_error"}`，40 秒内终、`usage_input=0` —— **上游模型不可用，与本变更无关**（与 `turn_budget_exceeded` / `stalled` 不同类：那两类是 `usage_input>0` 的预算或挂起结局）。上游恢复后第三次戳发 `status=ok, usage_input=1879`，上下文注入链在真机全绿。
 
 **判读口径**：`model_upstream` + `usage_input=0` + 40s 内终 = 车道侧 5xx，不要当成本变更的缺陷；要区分就只看 `usage_input` 是否大于 0。
+
+### §15.86 wire-domain-actions 上牌收口：registry 双名单 + tool_risk 归账（2026-10-29 午）
+
+**触发**：柏讯部署 wire-ops-mcp 三新工具（`wire_action_list/propose/status`）后回执——`tool_risk` 已按约定标注，要求壹座重启自报 + 刷新 vendored 快照。
+
+**关键发现（评审预判不足，实测修正）**：registry 快照有**两条独立腿**，自报只覆盖其一。
+
+| 腿 | 字段 | 自报是否覆盖 | 处置 |
+|---|---|---|---|
+| 工具面 | `tool_list` / `num_tools` | ✅ 是 | 重启 `fd-prod/wire-ops-mcp` → 自报生效 → 19 工具，`surface_source=self_report`，无需 Mongo 直写 |
+| 商业闭包 | `metadata.surface.commercial_tools` | ❌ 否（停 2026-10-25 的 13 个） | `export_surface_commercial.py --server wire-ops-mcp` 从 manifest 单一推导 → 19/19 → 写回条目 |
+
+**为什么商业闭包是生死线**：`lib/publish-tool-gate.js` 对 surface-registered 条目**先做商业闭包**（名单外声明一律拒，live probe 结果无关）。若只补 tool_list，柏讯 pack 声明 `wire_action_propose` 仍会被拒在闭包处。
+
+**验收（正反双向）**：真实 `toolGateErrors` 跑声明三 action 的 manifest → **0 errors**；反向声明名单外工具（`wire_dataset_correct`）→ **仍拒**「tools outside its commercial set」，门未被放开过头。
+
+**tool_risk 归账**：`refresh-wire-tool-surface.mjs` 重生成 vendored 快照（16→17，净增 `wire_action_propose: write / wire-ops-mcp`）；两处 CI 计数断言归账 17，并在 `test-wire-tool-risk.mjs` 里**钉死故意缺口**——propose 入 gated write 全集但不注册壹座动作（单一拍板面禁令），另钉 `wire_action_list/status` 在全集外。37/37 绿。
+
+**连带语义（柏讯需知）**：声明 `wire_action_propose` 的 pack 不再够格当 copilot 聚焦面（`gatedWriteTools()` 并集）——期望行为，非缺陷。
+
+**待续**：柏讯后续再增工具时，除自报外仍须通知壹座重导出商业名单（那一腿自报不覆盖）。

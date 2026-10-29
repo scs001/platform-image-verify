@@ -4132,3 +4132,61 @@ turn=cron-job_1792719144227_3lpcem#r1793228411907-2   （23:00:18 CEO）
 4. **`memory_handoff_list` 单次 49KB**（放大器）：里面还混着 10-23 的陈旧抱怨（「duplicate post registration blocks report_status」），模型会当成现行阻塞去追。
 
 **归属**：四条全部落在 `agent-fleet-templates` / `agent-fleet-report-lane` 的既有范围，**与 add-deputy-decision-delegate 无关**（该 change 的三批修复都已真机验证）。本条目只记录诊断，不改代码——修法与取舍需要单独拍板（提示词收紧 + 工作区报告归档策略 + 工具面按岗位裁剪，三项都会改变现有舰队行为）。
+
+**修法（`f34a4167`，三刀对应四成因）**
+
+| 成因 | 修法 | 为什么这样选 |
+|---|---|---|
+| ① 提示词无边界（直接原因） | **平台侧注入** `PATROL_DISCIPLINE`（`server/fleet-context.js`），排在上下文之后：注入即完整输入／不要翻工作区与历史文件／先报数再补充／空手超时是最差结局（宁可报无新数据）／追问用 `dispatch_post` | 改 seed 只影响**新建**舰队，而病在**现役**岗位上。平台注入对所有现役舰队立即生效，且不动任何人写在岗位上的提示词 |
+| ② 工作区自我累积（放大器） | 纪律明写「写历史文件是可选的副产品，不要为了写记录而先把旧记录读一遍」 | 真正的归档策略（谁清理那些 56KB 文件、留几轮）需要单独定规则；先切断「为写而先读」这个循环 |
+| ③ 常务岗工具对全员可见 | 工具清单是**每 cell 静态**的（`fleet-mcp.js` 一个子进程、服务端按回合归因），没法只对常务岗露出 → 改为**拒绝话术自带结论与下一步**（新 `server/fleet-mcp-hints.js`），并分开两种 403 | 「不是常务岗」叫它收手去报数——指它去 `decision_escalate_to_owner` 会再烧两步（那工具它同样调不通）；「常务岗越权」才叫它上升给主人。抽出独立模块是因为 `fleet-mcp.js` 顶层 `await server.connect()` 占 stdio，任何测试 import 都会挂住 |
+| ④ `memory_handoff_list` 49KB | 纪律里点名「记忆也不必另翻」 | 不裁剪记忆工具本身——它对续作场景仍有价值，只是巡逻轮不该去翻 |
+
+**测试**：fleet 全 13 套**串行 280/280 绿**（新增：纪律注入 1 条钉住四句关键约束且排在报数之后；拒绝话术 3 条含两条反向断言——「非常务岗不得被指去 escalate-to-owner」「500/429 不得被当成权限问题加话术」）。typecheck 绿，locale 2398 keys 五语绿。
+
+**并发假红留痕**：并行跑 13 个 test-fleet-* 文件时出现过一次 `test-fleet-runs` 文件级红（1253ms，无具体用例）；单跑 22/22、串行全套 280/280 均绿——与既有「多文件并发假红、单跑转绿」同族，不追。
+
+### §15.89 蓝图构造间：造真数据真跑，揪出三处只有真跑才露的缺陷（2026-10-29）
+
+用户令「现在就构造一些数据，然后进行迭代；等真实用户再优化对我们来说不可取，太慢了」。于是不再等用量，直接造数据跑真链路。
+
+**构造集**（`scripts/blueprint-corpus.mjs`，9 例）：4 个真场景（跨境电商政策盯梢 / 客服工单分诊 / 内容工厂 / 投研晨会，各带机器断言 + llm-judged）+ 5 个应被指名拒绝的坏例（无成员 / 坏 cron / 端点型数据源 / 空 rubric / pack-preset 缺 presetId）。配两个驱动：`blueprint-corpus-run.mjs`（本地校验链对拍，**9/9 与预期一致**）与 `blueprint-corpus-seed.mjs`（生产全链驱动，幂等可按名过滤）。
+
+**生产全链**：4 个真场景全部走通「草稿→校验→批准→铸造→试跑→签字→再铸（reseal）」，市场里 4 份模板都带上了绿 + 模型判决 + 主人签字的报告位。
+
+#### 三处真缺陷（都不是单测能抓的）
+
+| # | 缺陷 | 机理 | 证据 |
+|---|---|---|---|
+| ① | 证据不带集群身份 → llm-judged 恒判 `insufficient-evidence` | 判据常写「在试跑集群中均已落位」这类带载体的口径，而证据只说「岗位：X(已落位)」。模型如实答「证据没说这是哪个集群」——**判对了，是喂的证据缺载体**。集群名/id 属运行事实（源自装台结果，非蓝图自述），补进证据 | A/B 各 8 次同 prompt：旧证据 1/8 判不足证据，新证据 **0/8** |
+| ② | 判据输出尾部多余引号 → **3/8 解析失败误判不绿** | 抓原件：模型常吐 `{"verdict":"pass",...}"}"`。原解析取「第一个 `{` 到最后一个 `}`」把尾部垃圾切进切片 → `JSON.parse` 失败 → 按不足证据判不绿 → 一份本该全绿的试跑随机变红。改为从第一个 `{` 起逐个 `}` **由后向前**试解析，取首个成功者 | 探针 9/9 绿；生产实跑 **12/12 可解析**（修前 3/8 失败） |
+| ③ | 评审模型下拉文案渲染成**原始键名** | UI 用 `blueprints.judge.model.*`，而资源里那批键躺在 `blueprints.model.*` 下（无人引用的孤儿块）。locale 门只比「五语之间一致」——**一致地缺失照样全绿**，故一直漏过 | 真机眼见：修后标签是 `Reviewer model`、提示是 `Follow deployment default — resolves to cohere/north-mini-code:free` |
+
+#### 同批三处优化
+
+- **判据结果缓存**：键 = provider + 模型 + `promptHash`（已含提示词模板 + 判据原文 + 证据全文，故改一字必换键，不存在「旧判决冒充新判决」）。**只缓存 pass/fail**——基础设施失败与 `insufficient-evidence` 不缓存，否则会把偶发问题冻成永久结论。命中件标 `cached:true` 并保留原始 `judgedAt`。生产实测：第二次试跑 `cached:true, cacheAgeMs:31394`。
+- **判据日配额**：按 owner × UTC 日计**真实模型调用**次数（缓存命中不计、失败不计），超限如实拒并指名额度。默认 200/日，`BLUEPRINT_JUDGE_DAILY_QUOTA` 可调；读 env 的时机后置，故拒绝分支可被单测真实走到。
+- **「跟随部署默认」解析探测**：新增 `GET /api/blueprints/judge-default`（**必须排在 `/:id` 之前**，否则被当成蓝图 id），用与判据同一个 `resolveJudgeLane` 回答。真机返回值同时暴露了一个部署事实：`judgeSource: fallback` + `deployment default 'cohere/north-mini-code:free' is not in the roster`——**本部署的评审车道其实是回落来的**，用的是 `cohere/north-mini-code:free`（小模型，这解释了①②里观测到的判决摇摆）。
+
+#### locale 门补了一条代码侧检查
+
+上面③的前提是「各语言一致 ≠ 代码引用的键存在」。已在 `scripts/check-locales.js` 补上 `t("…")` 字面量键存在性检查，并分级处置：**本 change 前缀（`blueprints.`）缺键即失败**，其余车道只列报告警不判红（属并行会话在途功能，替人补文案会与其改动抢同一份资源文件）。
+
+该检查当场另揪出 **8 处既存同类问题**（登记为告警，待各自车道处置）：`chat.composer.attachments`、`fleets.configBar.trafficHint`、`botsPage.disabled`、`packs.detail.fleetWizardBtn`、`packs.earnings.periodKind`、`packs.earnings.onceKind`、`common.dismiss`、`fleet.live.summary`。
+
+#### 出片与生产
+
+| 项 | 值 |
+|---|---|
+| 镜像 | `ccr…/yizuo/platform:sha-561fe50`（digest `e8431a1c`；快照 HEAD `d39a9f86`） |
+| 通道 | `scs001/platform-image-verify` 公开仓免费线；快照按律**修剪到只剩 `image.yml`**（原快照带 app-e2e/win-smoke 等重腿） |
+| GitOps | `e448c20`（platform + agent-runner-serving 两面）；**只滚我这两面**，facet 属另一服务面未动 |
+| 生产 | ArgoCD `Synced\|Healthy` @ `e448c20`；两 pod 均已滚到 `sha-561fe50` |
+
+#### 本轮踩到的三个协作坑
+
+1. **我的暂存被并行会话的 `git add -A` 扫走**：`282ebf8f` 的提交信息是别人的 embedding 台账，里面却含我全部 17 个文件（内容完整、逐文件核过）。未推送，故不改写历史（会与并行会话抢 HEAD），只在此记明归属。
+2. **gitee 分支被 force push 覆盖**：我推 GitHub 成功后，gitee 的 main 被并行会话 force 到别人的提交，我的 roll 丢失。改为 reset 到 gitee 最新后重做，并以快进方式推送（不 force，避免覆盖别人）。
+3. **生产 pod 在我验证期间被并行会话又滚到 `sha-fa5ff48`**：核过镜像内 `cached` / `judge-default` / `试跑集群` 三处代码均在场（它从含我修复的祖先提交出片），未被回退。
+
+**测试**：蓝图相关 6 套 **79/79 绿**（含新增：缓存 4 条、配额 2 条、证据集群身份 1 条、尾部引号解析 1 条、judge-default 路由 1 条）。locale 门五语全绿 + 代码侧引用检查通过。全仓 `test:unit` 串行跑在某处挂起（输出 0 字节、非本变更文件），本变更相关文件单跑均秒级结束。

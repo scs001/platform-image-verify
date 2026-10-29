@@ -4114,3 +4114,21 @@ turn=cron-job_1792719144227_3lpcem#r1793228411907-2   （23:00:18 CEO）
 - `d_1793228497338…` 属于 CEO（cron 每小时）。手动触发 CEO 那一轮（`POST /api/cron/job_1792719144227_3lpcem/run`）后：job 卡 `state=running` 约 10 分钟后终态为 **`failed / error_kind=timeout / "turn timed out"`**（回合 10 分钟预算耗尽）；会话里只落了 4 条**空 assistant 消息**（内容就是 `\n\n\n\n`），最后一句可见输出是「Let me explore the workspace for recent patrol files…」，`member_turn_events` 只补了一行 failed——**代理空输出空转**，与本 change 的代码无关（CEO 岗 20:00 那轮同样 `turn timed out`，早于本日首次出片）。旁证：CEO 岗现 `failureStreak=2`（连续失败 ≥3 才降级 `failing`，既有机制正常工作），同期其他岗位回合多为 ok。
 - 回填链路本身在产且有单测覆盖（`test-fleet-delegation`「执行事实：送达即回填 executed_at」）；`markDelivered` 的触发条件是 `engine.addOnFinished` 且 `task.state === 'done'`，即「送达回合真的成功跑完」。
 - **结论**：这是「等一个健康的自然回合」，不是缺陷。不造数据、不伪造时间戳。同时记一笔**舰队回合在空输出下的空转**现象（`stream closed with reason: error` / 连续空 assistant 消息）——它属既有的回合可靠性议题，不并入本 change。
+
+### §15.88 诊断：舰队巡逻回合「空输出超预算」的真因（2026-10-29，只诊断未改）
+
+**现象**：公司式集群 CEO 岗（`m_1792719144128_og2v64`）的回合约每 6 次有 1 次以 `failed / error_kind=timeout / "turn timed out"` 收场，且**零产出**（没有 `report_status`）。CEO 岗历史分布：`ok 75 / timeout 21 / model_upstream 14 / other 9 / interrupted 5 / tool_permission 4 / context_budget 1`；全舰队近两日 85 轮里 timeout 13 轮（≈15%）。
+
+**取证（失败轮 `turn_6899713f7358428292db`，2026-10-29 01:25:33 → 01:35:41）**：
+- `detail = {"kind":"turn_budget_exceeded","steps":13,"lastTool":"grep"}`——按 `cron-runner.timeoutError()` 的判据，`turn_budget_exceeded` 表示**所有工具调用都回来了，是步数/墙钟预算耗尽**，不是某个工具卡住（那是 `stalled`）。
+- 工具序列：`memory_handoff_list → memory_query ×2 → read → decision_queue → read → glob → bash → read ×4 → grep`。**13 步里 10 步在翻工作区/记忆，一次 `report_status` 都没有。**
+- 对照**成功轮** `turn_8b6bb3f7`（22:02:46，2 分 13 秒，同样 13 步）：`memory_handoff_list → decision_queue ×3 → escalate ×2 → report_status ×2 → handoff_begin`——**主要用舰队工具、报了数**。步数相同，耗时差 5 倍。
+- 上下文被撑爆的量级：`memory_handoff_list` 单次返回 **49,931 字符**；`read patrol-2026-10-23/ceo-patrol-round4.md` 分三段读回 27,892 + 5,159 + 2,870 字符，而该文件实际 **56,554 字节**（里面装的是第 4 轮到第 43+ 轮的历史巡视记录）；另读 `ceo-patrol-2026-10-28.md` 4,591、`org-metrics-20261028.json` 8,387、`fleet-brief-2026-10-28-wanxing.md` 4,394、`ceo-patrol-report-round2.md` 3,633。**每读一次就把后续每一步都拖慢**，13 步于是吃掉 10 分钟预算。
+
+**四个成因（按杠杆排序）**：
+1. **巡逻提示词没有边界**（直接原因）：`company-fleet.seed.json` 的 CEO 提示词是「巡视全队：阅读下级各部门的最新报数与主人拍板结果，汇总异常并决定是否需要 escalate。收尾务必调用 report_status 报数。{{fleetContext}}」——**上下文已经注入**，但没有任何一句说「不要再去翻工作区」「先报数再补充」。模型于是把注入的陈旧报数当成「需要核实」的线索，跑去翻历史文件。
+2. **工作区自我累积**（放大器）：每一轮的巡视报告都写成 workspace 里的 md，下一轮又把它当资料读回来。`ceo-patrol-round4.md` 已长到 56KB 且内含 40+ 轮记录——**这是个自增强的上下文陷阱**。
+3. **常务岗专用工具对全员可见**（白耗步数）：`decision_queue` 对所有舰队岗位暴露，CEO 调它必然得 `Error: this post is not the fleet's delegated deputy`。失败轮浪费 1 步，成功轮里更是连调 3 次。
+4. **`memory_handoff_list` 单次 49KB**（放大器）：里面还混着 10-23 的陈旧抱怨（「duplicate post registration blocks report_status」），模型会当成现行阻塞去追。
+
+**归属**：四条全部落在 `agent-fleet-templates` / `agent-fleet-report-lane` 的既有范围，**与 add-deputy-decision-delegate 无关**（该 change 的三批修复都已真机验证）。本条目只记录诊断，不改代码——修法与取舍需要单独拍板（提示词收紧 + 工作区报告归档策略 + 工具面按岗位裁剪，三项都会改变现有舰队行为）。

@@ -13,8 +13,13 @@
 // 免得把「模型不会按格式答」误当成「判错」。
 //
 //   # 在生产 pod 内跑（车道的 key 不出容器）
-//   kubectl --context cheap exec -i -n fd-prod <pod> -- sh -c 'cat > /tmp/bench.mjs' < scripts/probe-blueprint-judge-model.mjs
+//   kubectl --context cheap -n fd-prod cp scripts/probe-blueprint-judge-model.mjs <pod>:/tmp/bench.mjs
 //   kubectl --context cheap exec -n fd-prod <pod> -- sh -c 'CANDIDATES="a,b" node /tmp/bench.mjs'
+//
+//   文件进出用 kubectl cp，不要用 `exec -i … sh -c 'cat > path' < localfile`：
+//   后者在客户端中断/stdin 未正常关闭时容器内 cat 永远等 EOF，进程与管道都不
+//   释放（2026-10-30 在 cheap-1 清出三个跑了 15 天的僵死 cat，各烧 ~40% CPU
+//   把主机 load 顶到 60+）。必须走 exec 流式时加 timeout 兜底。
 //
 // 车道抖动纪律：429/5xx 自带指数退避重试（单发失败即弃跑会烧掉整轮，测出来
 // 的分数是噪声）。见 memory sub2api-embedding-rerank-lanes。

@@ -4190,3 +4190,19 @@ turn=cron-job_1792719144227_3lpcem#r1793228411907-2   （23:00:18 CEO）
 3. **生产 pod 在我验证期间被并行会话又滚到 `sha-fa5ff48`**：核过镜像内 `cached` / `judge-default` / `试跑集群` 三处代码均在场（它从含我修复的祖先提交出片），未被回退。
 
 **测试**：蓝图相关 6 套 **79/79 绿**（含新增：缓存 4 条、配额 2 条、证据集群身份 1 条、尾部引号解析 1 条、judge-default 路由 1 条）。locale 门五语全绿 + 代码侧引用检查通过。全仓 `test:unit` 串行跑在某处挂起（输出 0 字节、非本变更文件），本变更相关文件单跑均秒级结束。
+
+**第五刀（收尾时新发现，`c43c243b`）：手动戳发绕过了上下文注入**
+
+真机收尾核对发现 CEO 07:55 那轮 prompt 只有 **249 字符**、且不含「集群巡视上下文」（正常轮 2880）。根因：手动触发链 `cron.runJobNow` → `engine.runTaskNow` → `engine.enqueueExecution` **完全跳过 `fireTask`**，而 `fireTask` 是唯一做 `{{fleetContext}}` 替换的地方——纯模板被原样喂给代理。
+
+这不是走查失真的小事：**一个没有巡视上下文的巡逻岗看不到各部门报数，只能去翻工作区和历史文件**——与上面诊断出的空输出空转是同一件事的两面。此前人点「立即执行」和被走查触发的回合都中招，也解释了为什么某些轮上下文完整、某些是空的。
+
+修：注入抽成 `applyFleetContext(id, task)`，`fireTask` 与 `runJobNow` 共用；空段/渲染失败仍**显式失败**（`{ok:false,error}`），绝不拿裸模板静默跑。测试 +2（手动戳发成功注入 / 手动戳发空段显式失败且不跑裸模板），**突变验证**：把 `runJobNow` 退回直调 `runTaskNow`，两条立刻红。fleet 全 13 套串行 **282/282 绿**。
+
+**第五刀真机验证**（`sha-a5e1d4f` / digest `2b18ccd2` / GitOps `9cf76f8`，production + demo 双面 `Synced`；`Degraded` 来自无关的 `fd-info-ship-spool` 作业）：
+
+- 戳发前：`prompt len=249, has_ctx=0, has_disc=0`（裸模板）
+- 戳发后：`prompt len=3177, has_ctx=235, has_disc=2892` — 巡视上下文与巡逻纪律都在场
+- 首次两次戳发都 `error_kind=model_upstream`，`503 {"message":"Service temporarily unavailable","type":"api_error"}`，40 秒内终、`usage_input=0` —— **上游模型不可用，与本变更无关**（与 `turn_budget_exceeded` / `stalled` 不同类：那两类是 `usage_input>0` 的预算或挂起结局）。上游恢复后第三次戳发 `status=ok, usage_input=1879`，上下文注入链在真机全绿。
+
+**判读口径**：`model_upstream` + `usage_input=0` + 40s 内终 = 车道侧 5xx，不要当成本变更的缺陷；要区分就只看 `usage_input` 是否大于 0。

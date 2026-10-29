@@ -3952,6 +3952,24 @@ change ②`add-tier-promotion-candidates` 按用户「继续」令实施并当�
 
 **遗留**：①车道恢复后首批**真 AI 提议**落库与 UI 区块眼见（走查账号 u-aloadtree@gmail.com 有 135 draft L2 页，首班自然可见）；②`harden-memory-surfaces`（change ③）仍待 apply；③本 change 待 archive（用户令后）。测试残留说明：aloadtree 根内两页为验收探针所动（fact_3dddaa72 经人批面转 stable/origin=human；fact_8b085c53 提议 ignored_at 置位），走查账号可复核。
 
+#### §15.79 续六：change ③ harden-memory-surfaces 上产——向量规模从「注释里的假设」变成指标（2026-10-30，源 2a83f85 / fd-memory `sha-e988305`，digest 708cea83）
+
+**实现**：
+- **规模观测**：`db.vectorCount()` 是 `COUNT(*)`（**绝不解码向量**——否则观测本身变成那个瓶颈）；`Service.vectorCountsByRoot()` 合并「live roots 缓存 + owners 目录发现」逐根计数（启动后没人碰的根也在内）；`metrics.ts` 新增 `sampleVectorsScale` 与 `vectors.scale:{roots,total,max_root,over_threshold,threshold}`，在 `/admin/metrics` **读时实时采样**（缓存值只会报上次读者的状态）。零向量根不计入 `roots`。
+- **阈值可配**：`FD_MEMORY_VECTOR_WARN_MAX_PER_ROOT`（默认 **2000**＝实测最大单根 304 的 6.5x）/ `FD_MEMORY_VECTOR_WARN_TOTAL`（默认 **10000**＝实测全局 1065 的 9x）；非法值回落默认而非 0/NaN。任一越线即 `over_threshold:true`。告警通道（cron/webhook）明确不在范围。
+- **路由边界契约**（`src/test/http-routes.test.ts`，8 测，真端口真令牌）：`/digest` 缺 project→400 `project_required`、scope 三分支（platform 缺 rootKey 400 / person 带 rootKey 400 / agent 403）、**空白 q 三档 200 且无 model_note**（并断言 `empty` 计数 +3 而 `total`/`vector_ratio` 不动）、k/budget 越界 clamp；`/pages/mutate` 非法 tier→400 `invalid_tier` 且不落盘、未知 op→400 带 `allowed:["set_tier","set_tags"]`；`/pages/write` 非法 tier **归一 draft**（已钉死）且 fact/experience **拒写**（`unknown_page_type`，这两类归蒸馏器）；`/memory` 脏筛选（`tier=verified`/空 tag/坏时间）仍 200 不 500、agent 403。
+- **实测新数据（2026-10-30）**：全局 **1178** 向量 / **19** 个有向量根 / 最大单根 **340**（`d-4FHjSKpibRr2d0_9BXaCqQ`），次高 335、232。较 10-29 的 1065/19/304 小幅增长，仍在安全区内。文档 §8.2 数字已同步（2000/10000 与代码 `VECTOR_WARN_*_DEFAULT` 同源）。
+
+**踩坑**：**ArgoCD 同步有延迟**——`rollout status` 报成功但 `get deploy -o image` 仍是旧 tag（rollout 对"未变更"的 deployment 立即返回成功）。**必须先核镜像 tag 变更再看 rollout**，否则会误判已上产（本次等 ~60s 后 tag 才变 e988305，同步态随后转 Synced/Healthy）。
+
+**真机验收**：
+- **4.2 规模指标** ✓：生产 `/admin/metrics`（POST）读到 `scale:{roots:19,total:1178,max_root:340,over_threshold:false,threshold:{max_per_root:2000,total:10000}}`；**独立直查库**（遍历 owners 逐根 `COUNT(*)`）得 `{roots:19,total:1178,max:340,maxRoot:d-4FHjSKpibRr2d0_9BXaCqQ}` —— 完全一致。
+- **4.3 空查询回归** ✓：生产三档（`""` / `"   "` / `"\n\t"`）均 200、无 `model_note`、`items:8`；指标 `digest:{vector:0,keyword:0,cooling:0,empty:3,vector_ratio:null}` —— 空查询独立成档且不进降级分母。
+- **4.1 滚版** ✓：GitOps 9947fb0 两处 tag；pod 内特征串 `vectorCount`(db) / `vectors.scale`(metrics) / `vectorCountsByRoot`(http) 全在位。
+- 测试：fd-memory **118 绿**（+14：vector-scale 6 + http-routes 8）。
+
+**遗留**：change ②③ 均待 archive（用户令后）；`vectors.scale` 的告警通道按设计不建。
+
 ### §15.84 常务岗桥面鉴权缺口（真机走查揪出，2026-10-29）
 
 **发现方式**：§15.82 留下的「留给 owner：真机 deputy 巡逻回合」——本次真机跑了一轮。常务岗自己的回合报告原文：

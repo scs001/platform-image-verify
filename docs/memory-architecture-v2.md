@@ -145,8 +145,13 @@ L0 观测形状（v2.0 起）：`{session, agent, event: turn_start|tool_call|to
 
 - **当前实现是全表扫描**：`allPageVectors(model)` 取回该模型全部向量再逐条解 `Float32Array`。实测（2026-10-29）：全局 1065 条向量 / 19 个有向量根 / 最大单根 304 条，单次 digest 的解码开销在毫秒级。
 - **安全区的判断依据是「单根条数」而非全局**：一次 digest 只扫一个根。当前最大单根 304，距离需要换索引还有很大余量。
+- **默认告警阈值（与代码同源，`src/metrics.ts` 的 `VECTOR_WARN_*_DEFAULT` 是唯一真源）**：
+  - 单根上限 **2000**（`FD_MEMORY_VECTOR_WARN_MAX_PER_ROOT`）＝ 实测最大单根 304 的约 6.5 倍余量；
+  - 全局上限 **10000**（`FD_MEMORY_VECTOR_WARN_TOTAL`）＝ 实测全局 1065 的约 9 倍余量。
+  - 两个阈值任一被越过，`/admin/metrics` 的 `vectors.scale.over_threshold` 即为 `true`。设成紧值会让生产天天亮灯而失去意义——先宽后收。
 - **跨过安全区后的处置方向**：先测真实瓶颈（很可能是 float 解码而非扫描本身），再决定是加缓存列、分块，还是换 ANN 近似——**ANN 会引入近似误差，与向量一致性诉求冲突，属于最后手段**。
-- **观测口径**：规模数值与超阈标记由 `/admin/metrics` 的 `vectors.scale` 暴露，阈值可配（`FD_MEMORY_VECTOR_WARN_MAX_PER_ROOT` / `FD_MEMORY_VECTOR_WARN_TOTAL`）。文档阈值与代码默认值必须同源。
+- **观测口径**：`/admin/metrics` 的 `vectors.scale: {roots, total, max_root, over_threshold, threshold}` 在**读指标时实时采样**（遍历 `roots` 缓存 + owners 目录发现，每根一次 `COUNT(*)`，**绝不调用 `allPageVectors` 解码**——否则观测本身就成了那个瓶颈）。空库/零向量根不计入 `roots`。告警通道（cron/webhook）不在范围：指标面只暴露事实。
+- **改阈值必须同步本节数字**（3.2 同源核对）；文档说 500 而代码报 2000 是典型漂移源。
 
 ## 9. 引擎缝（Distiller 契约）
 

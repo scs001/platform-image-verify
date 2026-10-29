@@ -3914,3 +3914,21 @@ turn=cron-job_1792719144227_3lpcem#r1793228411907-2   （23:00:18 CEO）
 
 
 **最终上产（`sha-a52efc0` / digest `6a427063` / GitOps `5034df1`，源 `3bc3db01`）**：两面跑 `sha-a52efc0`，ArgoCD Synced Healthy。`resetPrompt` 生产实证：先用 `PATCH members` 人为写回「旧版职责：按判例裁决」模拟存量岗位 → `POST /:id/deputy {memberId, resetPrompt:true}` 返回 200 且岗位提示词升到新版（`contains新规范: true / 旧文本还在: false`），连测三次稳定。首次调用返回 500「task engine is still starting」是 cell 刚起、引擎未就绪的既有契约（不是本次缺陷），退避重试即过。策略终态：`enabled=true / routine-ops→deputy / maxSeverity=normal / dailyBudget=20 / model=deepseek-v4.1-flash / digest=daily / deputyMemberId=m_1793223622441_akv3fj`。
+
+#### §15.81 评审模型可选（add-blueprint-judge-model-choice）上产 — 2026-10-29
+
+**用户裁决**：judge 模型不该钉死在部署 env（换模型要改 GitOps+滚版、全平台只能一个），应当让用户为自己的蓝图选。现网也印证：`glm-5.3-flash` 503、`nvidia/*:free` 404，钉死一个值很脆。
+
+**三层解析**：蓝图 `content.judgeModel` → 部署 `BLUEPRINT_JUDGE_MODEL` → 名册首个。**回落必留痕**：审计件带 `judgeSource`（`blueprint`/`deployment`/`fallback`）与 `judgeFallbackReason`——否则事后无法解释「为什么这份报告用的不是我选的那个」。修了一处判别错：原按「有没有配」判来源，「配了但不在册」被错标成 `deployment`，现按**最终命中**判。
+
+**禁自证在蓝图级重算**：用户选了与产出相同的模型 → 拒判并指名冲突，**不自动换模型**（自动换会掩盖选择错误）。蓝图选了不在册的模型 → 校验面 `/validate` 逐字段指名（`entry: judgeModel`），不在试跑时才暴露。
+
+**生产实证逮出两处真缺陷（同一根因的两个面）**：**每个 cell 是独立 server 进程**（`PLATFORM_DATA_DIR=/data/cells/<hash>/data`），它读的是**该 cell 自己**的 `llm-providers.json`——那份常为空（模型配置在网关/部署侧）。
+1. **校验面**：cell 名册为空 → `judgeModelFindings` 静默降级成「在册」，错模型照样过。修=名册三源合并（cell 名册 ∪ default 指针 ∪ 部署 env），全不可知才降级。
+2. **判定面**：同样为空 → `resolveJudgeLane` 判「所选模型不在册」→ 判定整体失能。修=只有名册**可见且确实不含**才 unavailable；名册不可见但有部署 env 路由时照发，让上游如实回答（真错=404/502 → `insufficient-evidence` 带原因）。
+
+**生产实证（真 LLM）**：三条分支全对——在册放行（校验 ok）/ 不在册逐字段指名（`entry: judgeModel`）/ 未声明向后兼容（零额外校验）；端到端 `green: true`，`judgeModelUsed=cohere/north-mini-code:free`，`judgeSource: "blueprint"`，真模型回「证据显示盯梢岗和简报岗均已落位，直接满足判据要求」。
+
+**一次 bump 事故（纪律再次生效）**：并行会话在同一时间窗基于 `a96074c4` 出片并滚，把已滚的我的 `sha-2c1bc92` 盖掉（其源不含我的修复）。按「bump 前核祖先」重出基于最新主干（`8f44901`，同时含双方）的 `sha-0e54d99` 才对齐。**教训**：并发出片窗口里，滚版前必须核「我这条修复是否在候选镜像的源提交祖先链里」，不能只看时间新旧。
+
+**滚版**：`sha-c54390a` → `sha-2c1bc92`（被盖）→ `sha-0e54d99` → `sha-7bbd62e`（终版，paas `aa5a1380`）。测试 58/58，strict 绿，locale 闸 2407。

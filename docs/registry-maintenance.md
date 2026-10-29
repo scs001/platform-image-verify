@@ -3968,7 +3968,19 @@ change ②`add-tier-promotion-candidates` 按用户「继续」令实施并当�
 - **4.1 滚版** ✓：GitOps 9947fb0 两处 tag；pod 内特征串 `vectorCount`(db) / `vectors.scale`(metrics) / `vectorCountsByRoot`(http) 全在位。
 - 测试：fd-memory **118 绿**（+14：vector-scale 6 + http-routes 8）。
 
-**遗留**：change ②③ 均待 archive（用户令后）；`vectors.scale` 的告警通道按设计不建。
+**遗留**：`vectors.scale` 的告警通道按设计不建。
+
+#### §15.79 续七：三 change 归档（2026-10-30）
+
+用户「处理吧」→ 按 openspec-archive 流程归档全部三个 change（`openspec/changes/archive/2026-10-30-<name>`）。
+
+**归档前必须同步主 spec**（否则 spec 与已上产行为分叉）——本次六处：
+- 新能力三条：`memory-digest-embed-lane`（5 需求）、`memory-tier-promotion`（4）、`memory-surface-hardening`（4），Purpose 沿 delta 原文复制；
+- MODIFIED 三条：`chat-memory`（主聊天注入补 `CELL_MEMORY_DIGEST_TIMEOUT_MS` 与「取消固定 5s」+ 两个新场景）、`memory-federation`（超时可配段 + 场景 7→9，**整块替换前先做场景集合差集断言**，确认 delta 未丢主 spec 场景）、`memory-distiller`（打标支线扩为「覆盖 L2 页型 + AI 不直接晋级」，场景 2→5，同样先差集）。
+
+**教训（可复用）**：MODIFIED 的 delta 必须携带**完整需求块**（含主 spec 已有的全部场景），否则归档时丢场景。做法=脚本先算 `main_scenarios - delta_scenarios`，非空即中止；本次三处差集均为空才落笔。归档后 `openspec validate --specs` **209/0 全绿**，六份主 spec 均无 `## ADDED/MODIFIED Requirements` 残留头。
+
+**遗留**：无（本线四 change 全归档；②的首批真 AI 提议仍待车道恢复后 UI 眼见，属运行观察不属本 change 未完成项）。
 
 ### §15.84 常务岗桥面鉴权缺口（真机走查揪出，2026-10-29）
 

@@ -38,7 +38,9 @@ fd-memory SHALL 支持 `platform` 族令牌：仅可调用铸造面为其用户�
 
 壹座 cell 的 dsh 组合 SHALL 注入 fd-memory MCP 行（工具名 `mcp__fd-memory__*`）：人令牌按 owner 由 cell 后端经 platform 令牌代铸并缓存，注入路径与既有 MCP 凭据引用纪律同源（值不落明文配置文件）；挂载开启时，cell 的每个 persona 预设 SHALL 同时携带记忆纪律文案（引导 agent 开场查交接、收尾写交接），文案与舰队部署的纪律文案 MUST 取自同一来源（单一模块，字节相同）；fd-memory 不可达时 cell 会话 MUST 降级开放（无记忆工具或工具报不可用，会话不因此失败）；挂载可经部署配置关闭，关闭时 MCP 行与纪律文案 MUST 一并消失。
 
-集群回合的注入挂点（cron 引擎 fan-out 前）SHALL 优先注入 **digest 块**：以 person 令牌调平台缝 digest 读面（`q` = 本回合任务 prompt 原文，一次渲染全员注入），块替换既有标题列表进入每个成员的任务 prompt；k 与预算默认 k=5 / budget=1500，可经 cell 配置覆盖。注入 SHALL 遵守三档降级阶梯：digest 读面失败（含超时，paas 侧超时上限 5s）→ 回退既有 `/pages` 标题列表注入 → 再失败 → 无块、任务照常；每档降级 MUST 落一行 warn 日志，MUST NOT 使回合失败。集群记忆开关关闭时，两档注入与写回 MUST 全部不发生（与无记忆行为字节等同）。写回挂点（聚合 digest 落 cluster project）不变。
+集群回合的注入挂点（cron 引擎 fan-out 前）SHALL 优先注入 **digest 块**：以 person 令牌调平台缝 digest 读面（`q` = 本回合任务 prompt 原文，一次渲染全员注入），块替换既有标题列表进入每个成员的任务 prompt；k 与预算默认 k=5 / budget=1500，可经 cell 配置覆盖。注入 SHALL 遵守三档降级阶梯：digest 读面失败（含超时）→ 回退既有 `/pages` 标题列表注入 → 再失败 → 无块、任务照常；每档降级 MUST 落一行 warn 日志，MUST NOT 使回合失败。集群记忆开关关闭时，两档注入与写回 MUST 全部不发生（与无记忆行为字节等同）。写回挂点（聚合 digest 落 cluster project）不变。
+
+digest 调用超时 SHALL 可配置（`CELL_MEMORY_DIGEST_TIMEOUT_MS`），未配置时 MUST 使用与 fd-memory embed 预算上限相匹配的默认值；生效超时 MUST 大于 fd-memory 侧 embed 预算上限，否则 digest 会在能返回结果前被放弃。原「paas 侧超时上限 5s」的固定上限取消——它与 fd-memory 的 embed 等待预算冲突（5s < 8000ms），使慢 embed 时 digest 整块丢失而非降级到关键词档。
 
 #### Scenario: digest 块注入成员任务 prompt
 
@@ -49,6 +51,16 @@ fd-memory SHALL 支持 `platform` 族令牌：仅可调用铸造面为其用户�
 
 - **WHEN** digest 读面超时或 5xx，而 /pages 面可用
 - **THEN** 成员 prompt 收到既有形状的标题列表块，回合继续，落降级 warn 一行
+
+#### Scenario: 慢 embed 不因调用方超时先弃
+
+- **WHEN** fd-memory embed 预算上限 8000ms、调用方超时按默认 9s，某次 embed 耗时 6s
+- **THEN** digest 在调用方放弃前完成并返回（向量档或带降级注记的关键词档），成员仍拿到 digest 块而非标题列表
+
+#### Scenario: 调用方超时可配
+
+- **WHEN** 部署侧设置 `CELL_MEMORY_DIGEST_TIMEOUT_MS`
+- **THEN** 注入挂点使用该值作为 digest 调用超时，其余阶梯行为不变
 
 #### Scenario: 两档全失败任务照常
 

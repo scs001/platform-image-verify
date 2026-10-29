@@ -218,3 +218,15 @@ curl -s https://memory.finddatatech.cloud/healthz                       # 仍须
 ```
 
 其余一切（路径门、反代、缓存策略）保持 §八 原样。
+
+### 执行记录（2026-10-29，雷池侧完成）
+
+- **换版完成，公网验证全绿**：`/` 含 cheap=0、示例 evidence/部署教程/node-b/会话会结束 全部在位；
+  healthz 200、digest 401、admin/mint 404、capture 404 无回归；公网响应体 sha256 与工单逐位一致
+  （index `fff0dfb53400ef29` / script `c23f06542e79c787`；style `6ea63c59c5f36400`、landing `79e399d6ab893a28` 未动），
+  边缘无旧缓存残留。旧版留档 `index.html.bak-precompliance-20261029` / `script.js.bak-precompliance-20261029`。
+- **拉取通道教训**：`raw.githubusercontent.com` 在雷池机与 cheap1 均不通（SSL 连接被重置）。
+  等价路径= `codeload.github.com/FindDataTechnology/fd-memory/tar.gz/refs/heads/master` 拉整仓取 `site/` 下同名文件，
+  内容同世代、sha256 逐位核对一致。**后续本域补给单一律以 codeload 整包为默认通道**，raw 列为备用。
+- diff 为纯文案级（index 7/249 行、script 2/205 行），外部资源引用仅多出工单预期的 DEPLOYMENT.md 一条，
+  无结构性差异——工单第四/五节的核对纪律有效，照此执行。

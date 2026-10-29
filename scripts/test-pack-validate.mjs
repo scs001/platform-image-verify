@@ -512,3 +512,19 @@ test("pack ceilings default to 6 MCP refs and are operator-overridable", async (
   // Unrelated env keys leave the limits untouched.
   assert.deepEqual(packLimits({ SOMETHING_ELSE: "99" }), { ...PACK_LIMITS });
 });
+
+// ── pack agent ceiling raised 3 → 50 (2026-10-30) ──────────────────────────
+// The v1 marketplace default of 3 forced official seeds to split their teams
+// into self-carried posts + existing-persona reference posts. A pack can now
+// carry a whole team self-contained; the ceiling aligns with the fleet
+// template member roster cap (TEMPLATE_MEMBER_LIMIT) and stays
+// operator-overridable via PACK_MAX_AGENTS.
+test("pack agents ceiling defaults to 50 — a full team fits in one pack", async () => {
+  const { validatePackManifest, PACK_LIMITS } = await import("../lib/pack-manifest.js");
+  const withAgents = (n) =>
+    manifest({ agents: Array.from({ length: n }, (_, i) => ({ id: `agent-${i}`, name: `岗${i}`, persona: `你是第${i}号岗位。` })) });
+
+  assert.equal(PACK_LIMITS.maxAgents, 50, "default ceiling (raised from the v1 marketplace default 3)");
+  assert.equal(validatePackManifest(withAgents(50)).some((e) => /agents/.test(e.error)), false, "50 self-carried agents pass");
+  assert.ok(validatePackManifest(withAgents(51)).some((e) => /at most 50/.test(e.error)), "51 is rejected");
+});

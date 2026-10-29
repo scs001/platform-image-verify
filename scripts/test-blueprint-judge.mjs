@@ -227,10 +227,49 @@ test("三层解析：蓝图指定 / 部署默认 / 名册首个，judgeSource �
     const byFallback = resolveJudgeLane({ entries });
     assert.equal(byFallback.model, "m-a");
     assert.equal(byFallback.judgeSource, "fallback");
-    assert.match(String(byFallback.fallbackReason), /not in the roster/);
+    assert.match(String(byFallback.fallbackReason), /not in this deployment's model roster/);
+    assert.match(String(byFallback.fallbackReason), /'m-a'/, "理由要点名实际用了哪个模型");
   } finally {
     if (prev === undefined) delete process.env.BLUEPRINT_JUDGE_MODEL;
     else process.env.BLUEPRINT_JUDGE_MODEL = prev;
+  }
+});
+
+// 2026-10-30 生产实证：cell 名册为空（生产常态）时，部署默认走的是 env 路由，
+// **用的就是配的那个模型**——不能再标成 fallback 说「回落到名册首个」。
+test("名册不可见时部署默认走 env 路由 → judgeSource=deployment，不说假话", async () => {
+  const { resolveJudgeLane } = await import("../server/blueprint-judge.js");
+  const emptyEntries = { providers: {}, models: [] };
+  const prevModel = process.env.BLUEPRINT_JUDGE_MODEL;
+  const prevBase = process.env.LLM_BASE_URL;
+  try {
+    process.env.BLUEPRINT_JUDGE_MODEL = "minimax-m3.1-flash";
+    process.env.LLM_BASE_URL = "http://127.0.0.1:32080";
+    const r = resolveJudgeLane({ entries: emptyEntries });
+    assert.equal(r.model, "minimax-m3.1-flash", "用的就是配置的那个模型");
+    assert.equal(r.providerId, "env-route");
+    assert.equal(r.judgeSource, "deployment", "配置生效，不能标 fallback");
+    // 理由如实说明「不在本 cell 名册、改走部署 env 路由」，且不得声称回落到了别的模型
+    assert.match(String(r.fallbackReason), /not listed in this cell's llm-providers\.json/);
+    assert.equal(/fell back to the first listed model/.test(String(r.fallbackReason)), false);
+  } finally {
+    if (prevModel === undefined) delete process.env.BLUEPRINT_JUDGE_MODEL; else process.env.BLUEPRINT_JUDGE_MODEL = prevModel;
+    if (prevBase === undefined) delete process.env.LLM_BASE_URL; else process.env.LLM_BASE_URL = prevBase;
+  }
+});
+
+test("名册可见且确实不含 → 仍按 fallback 且点名实际模型（真实回落）", async () => {
+  const { resolveJudgeLane } = await import("../server/blueprint-judge.js");
+  const entries = { providers: { p1: { baseURL: "https://x/v1", apiKeyEnv: "K1", models: [] } }, models: [{ id: "m-a", provider: "p1" }, { id: "m-b", provider: "p1" }] };
+  const prevModel = process.env.BLUEPRINT_JUDGE_MODEL;
+  try {
+    process.env.BLUEPRINT_JUDGE_MODEL = "minimax-m3.1-flash";
+    const r = resolveJudgeLane({ entries });
+    assert.equal(r.model, "m-a");
+    assert.equal(r.judgeSource, "fallback");
+    assert.match(String(r.fallbackReason), /fell back to the first listed model 'm-a'/);
+  } finally {
+    if (prevModel === undefined) delete process.env.BLUEPRINT_JUDGE_MODEL; else process.env.BLUEPRINT_JUDGE_MODEL = prevModel;
   }
 });
 

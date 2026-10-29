@@ -201,16 +201,44 @@ export function resolveJudgeLane({ entries = null, preferredModel = null } = {})
   }
   const model = hit || doc.models?.[0];
   const provider = model ? doc.providers?.[model.provider] : null;
-  // judgeSource 按**最终命中**判，不按"有没有配"判：配了但不在册只能算 fallback
-  // （2026-10-29 测试逮住：原写法把"配了但落空"错标成 deployment，事后无法解释
-  // 为什么实际用的不是配的那个）。
-  const judgeSource = blueprintPick ? "blueprint" : deployDefault && hit ? "deployment" : "fallback";
-  const fallbackReason =
-    judgeSource === "fallback"
-      ? deployDefault
-        ? `deployment default '${deployDefault}' is not in the roster; fell back to the first listed model`
-        : "no blueprint judgeModel and no deployment default; fell back to the first listed model"
-      : null;
+  const providerBase = provider ? provider.baseURL || provider.baseUrl || "" : "";
+  const willUseEnvRoute = !(model && provider && providerBase);
+
+  // 判据来源按「最终真正用的是哪个模型」判，且理由必须说真话。
+  //
+  // 2026-10-30 生产实证修正：原写法把「部署默认配了、只是不在本 cell 名册」一律标成
+  // fallback + 「fell back to the first listed model」。但在 cell 名册为空（生产常
+  // 态：40/41 个 cell 无 llm-providers.json）时，实际走的是部署 env 路由，用的**就是
+  // 那个配的模型**，根本没有「回落到别的模型」。这句理由会把读者引向错误结论
+  // （以为配置没生效），也让 judge-default 端点回显骗人。
+  //
+  // 现在的三分：
+  //   blueprint  —— 用了蓝图选的模型（无论经名册还是经部署 env 路由）
+  //   deployment —— 用了部署默认的模型（同上）
+  //   fallback   —— 真的没用上指定的那个（配置了但名册可见且不含 → 用了名册首个）
+  let judgeSource;
+  let fallbackReason = null;
+  if (blueprintPick) {
+    judgeSource = "blueprint";
+    if (!hit && willUseEnvRoute) {
+      fallbackReason = `the blueprint's judgeModel '${blueprintPick}' is not listed in this cell's llm-providers.json; routed via the deployment env route instead (normal when the cell has an empty roster)`;
+    }
+  } else if (deployDefault) {
+    if (hit) {
+      judgeSource = "deployment";
+    } else if (willUseEnvRoute) {
+      // 名册不可见 → 部署 env 路由用的仍是 deployDefault，配置是生效的。
+      judgeSource = "deployment";
+      fallbackReason = `'${deployDefault}' is not listed in this cell's llm-providers.json; routed via the deployment env route instead (normal when the cell has an empty roster)`;
+    } else {
+      // 名册可见且确实不含 → 真的用了名册首个，这才是 fallback。
+      judgeSource = "fallback";
+      fallbackReason = `deployment default '${deployDefault}' is not in this deployment's model roster; fell back to the first listed model '${model.id}'`;
+    }
+  } else {
+    judgeSource = "fallback";
+    fallbackReason = "no blueprint judgeModel and no deployment default; used the first listed model";
+  }
 
   if (model && provider) {
     const apiKey = apiKeyFor(provider);

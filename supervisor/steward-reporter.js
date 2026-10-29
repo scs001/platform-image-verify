@@ -126,6 +126,11 @@ export function createStewardReporter({
     let res;
     try {
       res = await doFetch(`${state.gatewayUrl}/api/gateway/desired-fleet`, {
+        // GET, explicitly: the door mounts on app.get and defaultFetch's POST
+        // default would fall through to the generic session-auth layer
+        // (401 "Authentication required"), which the reporter reads as a
+        // revoked pairing — burning a healthy identity on the first tick.
+        method: "GET",
         headers: { authorization: `Bearer ${state.token}` },
       });
     } catch {
@@ -139,6 +144,7 @@ export function createStewardReporter({
         fs.writeFileSync(path.join(dataDir, PAIR_FILE), JSON.stringify({ ...state, token: refreshed }, null, 2), { mode: 0o600 });
         try {
           res = await doFetch(`${state.gatewayUrl}/api/gateway/desired-fleet`, {
+            method: "GET",
             headers: { authorization: `Bearer ${refreshed}` },
           });
         } catch {
@@ -155,7 +161,7 @@ export function createStewardReporter({
       state.pullFailures = Math.min(state.pullFailures + 1, 999);
       return;
     }
-    const body = await res.json().catch(() => null);
+    const body = res.body ?? null; // defaultFetch's contract: {status, body}
     if (!body || typeof body.version !== "number" || !Array.isArray(body.entries)) {
       state.pullFailures = Math.min(state.pullFailures + 1, 999);
       return;

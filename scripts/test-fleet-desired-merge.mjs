@@ -234,9 +234,14 @@ function reporterFixture({ token = "steward-tok", responses = [] } = {}) {
   const calls = [];
   const queue = [...responses];
   const doFetch = async (url, opts = {}) => {
-    calls.push({ url, opts, body: opts.body });
+    // Mirror defaultFetch's wire semantics: its POST default is part of the
+    // contract — the live walkthrough proved a pull that omits `method: GET`
+    // arrives as a POST, trips generic auth 401, and burns the pairing.
+    const wire = { method: "POST", ...opts };
+    calls.push({ url, method: wire.method, opts, body: wire.body });
     const next = queue.length > 0 ? queue.shift() : { status: 202 };
-    return { status: next.status, json: async () => next.json ?? {} };
+    // Same shape defaultFetch hands the reporter in production: {status, body}.
+    return { status: next.status, body: next.json ?? {} };
   };
   const steward = { running: true, cellId: "cellx", registry: { get: () => null, put: () => {} } };
   const storage = { remove: async () => {} };
@@ -267,7 +272,10 @@ test("3.1 pull writes the desired beacon on version change only", async () => {
   assert.equal(beacon.entries[0].packId, "p1");
   const pullCall = calls.find((c) => c.url.includes("desired-fleet"));
   assert.ok(pullCall, "pull door was called");
+  assert.equal(pullCall.method, "GET", "the pull rides GET — a POST default falls to generic auth and self-destructs the pairing (walkthrough defect)");
   assert.equal(pullCall.opts.body, undefined, "the pull carries no device parameter (self-scoped)");
+  const reportCalls = calls.filter((c) => c.url.includes("cell-report"));
+  assert.ok(reportCalls.every((c) => c.method === "POST"), "report legs stay POST");
 
   // Same version again → beacon untouched (no rewrite).
   const before = fs.readFileSync(path.join(dataDir, "fleet-desired.json"), "utf8");

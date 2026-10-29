@@ -14,6 +14,25 @@ const PER_POST_LIMIT = 4 * 1024;
 const TOTAL_LIMIT = 24 * 1024;
 const SUMMARY_LINE_LIMIT = 300;
 
+// 巡逻纪律（2026-10-29 真机诊断 §15.88）。平台侧注入，对所有现役舰队立即生效，
+// 不改任何存量岗位的提示词。
+//
+// 起因：公司式集群 CEO 岗约每 6 轮就有 1 轮以 `turn_budget_exceeded` 收场且零
+// 产出——13 步里 10 步在翻工作区/记忆（`read`×5 + `glob`/`bash`/`grep`），一次
+// `report_status` 都没调。工作区里躺着一份 56KB 的 `ceo-patrol-round4.md`（内含
+// 40+ 轮历史记录，是历轮自己写下的），每读一次就把后续每一步都拖慢，最终吃掉
+// 10 分钟回合预算。根因有两层：提示词没说「注入的即全部输入」，而工作区又把
+// 每轮产出累积成下一轮的阅读材料。
+//
+// 这段只写「怎么用已经给你的」，不新增任何工具或数据面。
+const PATROL_DISCIPLINE = [
+  "## 本轮怎么干（巡逻纪律）",
+  "- 上面的报数**就是本轮的完整输入**——它由平台在开火时现算并注入。不要再去工作区、记忆或历史文件里找「更全的报数」；那些是往轮留下的副本，只会是旧的。",
+  "- 先报数再补充：读完上下文就调用 report_status 交本轮的数（槽位值 + 阻塞 + 摘要），然后才做别的。**空手超时是最差结局**——宁可报「本轮无新数据」也不要一轮下来什么都没交。",
+  "- 需要往下追问时用 dispatch_post（要 memberId，不是部门显示名），不要靠翻文件推断别部状态。",
+  "- 写历史文件是可选的副产品，不是完成任务的前提；不要为了写记录而先把旧记录读一遍。",
+].join("\n");
+
 function truncateWithMark(text, limit) {
   if (text.length <= limit) return text;
   return `${text.slice(0, limit)}…[截断]`;
@@ -105,5 +124,6 @@ export async function buildFleetContext(sourceTag, _task, deps) {
   }
 
   sections.push("（以上为系统注入的巡视上下文，供你巡视与决策参考。）");
+  sections.push(PATROL_DISCIPLINE);
   return sections.join("\n\n");
 }

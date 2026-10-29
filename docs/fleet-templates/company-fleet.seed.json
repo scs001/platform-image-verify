@@ -48,7 +48,7 @@
         "cadence": {
           "cron": "${ceoCron}",
           "tz": "Asia/Shanghai",
-          "promptTemplate": "巡视全队：阅读下级各部门的最新报数与主人拍板结果，汇总异常并决定是否需要 escalate。收尾务必调用 report_status 报数。{{fleetContext}}"
+          "promptTemplate": "巡视全队：系统注入的巡视上下文就是本轮完整输入（各部门最新报数与主人拍板结果都在里面），不要再去工作区或历史文件里找更全的报数。汇总异常，需要主人定夺的用 escalate，收尾务必调用 report_status 报数。{{fleetContext}}"
         }
       },
       {
@@ -75,7 +75,7 @@
         "cadence": {
           "cron": "${dailyBriefCron}",
           "tz": "Asia/Shanghai",
-          "promptTemplate": "巡视 GitHub 仓库指标并报数。取不到的数据如实标注。收尾调用 report_status。{{fleetContext}}"
+          "promptTemplate": "巡视 GitHub 仓库指标并报数。取不到的数据如实标注。系统注入的巡视上下文即本轮输入，不必另翻工作区；收尾调用 report_status。{{fleetContext}}"
         }
       },
       {
@@ -102,7 +102,7 @@
         "cadence": {
           "cron": "20 9 * * *",
           "tz": "Asia/Shanghai",
-          "promptTemplate": "巡视模拟盘持仓与观察标的并报数。收尾调用 report_status。{{fleetContext}}"
+          "promptTemplate": "巡视模拟盘持仓与观察标的并报数。系统注入的巡视上下文即本轮输入，不必另翻工作区；收尾调用 report_status。{{fleetContext}}"
         }
       },
       {
@@ -123,7 +123,7 @@
         "cadence": {
           "cron": "30 9 * * *",
           "tz": "Asia/Shanghai",
-          "promptTemplate": "全网信息巡检并汇总要点。收尾调用 report_status。{{fleetContext}}"
+          "promptTemplate": "全网信息巡检并汇总要点。系统注入的巡视上下文即本轮输入，不必另翻工作区；收尾调用 report_status。{{fleetContext}}"
         }
       },
       {
@@ -146,7 +146,7 @@
         "cadence": {
           "cron": "0 10 * * *",
           "tz": "Asia/Shanghai",
-          "promptTemplate": "巡视店铺销售并报数（连接器未就绪时如实报待补岗）。收尾调用 report_status。{{fleetContext}}"
+          "promptTemplate": "巡视店铺销售并报数（连接器未就绪时如实报待补岗）。系统注入的巡视上下文即本轮输入，不必另翻工作区；收尾调用 report_status。{{fleetContext}}"
         }
       },
       {

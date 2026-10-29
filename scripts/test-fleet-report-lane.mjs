@@ -741,3 +741,31 @@ test("fleetIdentityFor: unique post resolves; no post and ambiguity yield null",
   fixtureMember(fleetDb, fleet.id, { id: "m_id2", title: "内容岗", targetId: "persona-a" });
   assert.equal(fleetIdentityFor(fleetDb, "persona-a"), null, "ambiguous → null");
 });
+
+// ── 巡逻纪律注入（2026-10-29 §15.88 真机诊断） ──────────────────────────────
+//
+// 真机：CEO 岗约每 6 轮有 1 轮 `turn_budget_exceeded` 且零产出——13 步里 10 步
+// 在翻工作区（read×5/glob/bash/grep），一次 report_status 都没调，因为工作区
+// 躺着一份 56KB 的自写历史巡视记录（40+ 轮），每读一次就把后续每一步拖慢。
+// 纪律由平台侧注入（不改任何存量岗位提示词），必须出现在每个巡逻上下文末尾。
+test("fleet-context: 每份巡逻上下文都带纪律——注入即全部输入、先报数、别翻工作区", async () => {
+  const fleet = fixtureFleet(fleetDb, "纪律舰队");
+  const _ceo = fixtureMember(fleetDb, fleet.id, { id: "m_dc", title: "CEO", targetId: "persona-dc", cadence: { cron: "0 * * * *", tz: null, promptTemplate: "巡视 {{fleetContext}}", enabled: true } });
+  const child = fixtureMember(fleetDb, fleet.id, { id: "m_dc_shop", title: "电商部", parentId: "m_dc", targetId: "persona-dcs" });
+  fixtureReport(fleetDb, child, { metrics: {}, summary: "正常" });
+
+  const text = await buildFleetContext({ fleetId: fleet.id, memberId: "m_dc" }, {}, contextDeps(fleetDb));
+  assert.match(text, /本轮怎么干（巡逻纪律）/, "纪律段必须在");
+  assert.match(text, /就是本轮的完整输入/, "钉住「注入即全部输入」");
+  assert.match(text, /不要再去工作区、记忆或历史文件里找/, "钉住「别翻工作区」");
+  assert.match(text, /先报数再补充/, "钉住「先报数」");
+  assert.match(text, /空手超时是最差结局/, "钉住「宁可报无新数据也不要空手」");
+  assert.match(text, /dispatch_post/, "追问走 dispatch_post 而不是翻文件");
+  // 纪律在上下文之后（模型读到的最后一段），不是被埋在报数中间
+  assert.ok(text.lastIndexOf("巡逻纪律") > text.lastIndexOf("### 电商部"), "纪律排在报数之后");
+
+  // 无下级的孤立岗同样要拿到纪律——它们最容易「没事干就去翻文件」
+  const _solo = fixtureMember(fleetDb, fleet.id, { id: "m_dc_solo", title: "独立岗", targetId: "persona-dcsolo", cadence: { cron: "0 * * * *", tz: null, promptTemplate: "巡视 {{fleetContext}}", enabled: true } });
+  const soloText = await buildFleetContext({ fleetId: fleet.id, memberId: "m_dc_solo" }, {}, contextDeps(fleetDb));
+  assert.match(soloText, /本轮怎么干（巡逻纪律）/, "孤立岗也带纪律");
+});

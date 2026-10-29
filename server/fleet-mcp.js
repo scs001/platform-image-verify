@@ -16,6 +16,7 @@ import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
+import { deputyToolErrorText, decisionResolveErrorText } from "./fleet-mcp-hints.js";
 
 // The stdio channel IS the protocol: stdout must carry JSON-RPC and nothing
 // else.
@@ -233,7 +234,10 @@ async function bridgePost(path, body) {
 
 async function toolDecisionQueue() {
   const { ok, status, data } = await bridgePost("/api/fleets/deputy/queue", {});
-  if (!ok) return errOut(data.error || `decision_queue failed (${status})`);
+  if (!ok) {
+    const msg = data.error || `decision_queue failed (${status})`;
+    return errOut(deputyToolErrorText(msg, status));
+  }
   const q = data.queue ?? [];
   if (q.length === 0) {
     return textOut(
@@ -280,12 +284,8 @@ async function toolDecisionResolve({ itemId, kind, choice, note, evidence }) {
     evidence,
   });
   if (!ok) {
-    return errOut(
-      `${data.error || `decision_resolve failed (${status})`}` +
-        (status === 403 || status === 429
-          ? " — this is beyond your delegation mandate: escalate it to the owner (decision_escalate_to_owner) instead of retrying."
-          : ""),
-    );
+    const msg = data.error || `decision_resolve failed (${status})`;
+    return errOut(decisionResolveErrorText(msg, status));
   }
   const d = data.decision ?? {};
   const label = d.options?.find((o) => o.value === d.resolution?.choice)?.label ?? d.resolution?.choice ?? "";
@@ -298,7 +298,10 @@ async function toolDecisionResolve({ itemId, kind, choice, note, evidence }) {
 
 async function toolDecisionEscalateToOwner({ itemId, analysis }) {
   const { ok, status, data } = await bridgePost("/api/fleets/deputy/escalate-to-owner", { itemId, analysis });
-  if (!ok) return errOut(data.error || `decision_escalate_to_owner failed (${status})`);
+  if (!ok) {
+    const msg = data.error || `decision_escalate_to_owner failed (${status})`;
+    return errOut(deputyToolErrorText(msg, status));
+  }
   return textOut(
     `Escalated ${itemId} to the owner with your analysis. It now counts in the owner's queue. ` +
       `Write a one-line entry to memory (what you found + why you couldn't rule) so the owner sees it there too.`,

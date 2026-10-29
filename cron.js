@@ -216,29 +216,46 @@ function setFleetContextRenderer(fn) {
   renderFleetContextFn = typeof fn === "function" ? fn : null;
 }
 
+// 舰队巡逻上下文注入（唯一入口）：把本轮算出的 segment 写成本次执行的临时
+// promptOverride（存着的 prompt 仍是可复用模板）。返回 { ok } 或 { ok:false, error }
+// —— 空段/渲染失败必须**显式失败这一次开火**，绝不静默地让巡逻在没有上下文的
+// 情况下跑一轮。
+//
+// 抽成函数是因为它有两个调用者：定时/补跑的 fireTask，以及手动触发
+// （runJobNow → engine.runTaskNow）。此前手动路径直接 enqueueExecution，**完全
+// 绕过这里**——于是 `{{fleetContext}}` 从不被展开，手动触发的舰队回合拿到的
+// 是一份没有巡视上下文的裸模板（2026-10-29 真机取证：CEO 一轮 prompt 只有
+// 249 字符，正常轮是 2880；这既让手动走查失真，也让被手动触发的会话看起来
+// 「没上下文」而四处去翻文件）。
+async function applyFleetContext(id, task) {
+  if (!renderFleetContextFn || !task?.sourceTag?.fleetId) return { ok: true };
+  if (typeof task.prompt !== "string" || !task.prompt.includes("{{fleetContext}}")) return { ok: true };
+  let segment;
+  try {
+    segment = await renderFleetContextFn(task.sourceTag, task);
+  } catch (err) {
+    return { ok: false, error: `fleetContext render failed: ${err?.message || err}` };
+  }
+  if (typeof segment !== "string" || !segment.trim()) {
+    return { ok: false, error: "fleetContext renderer returned an empty segment" };
+  }
+  engine.setPromptOverride(id, task.prompt.replace(/\{\{fleetContext\}\}/g, segment));
+  return { ok: true };
+}
+
 // One trigger of an armed task: the injection seam (agent-fleet-report-lane
 // D6). A fleet-tagged task whose prompt carries the {{fleetContext}} placeholder
 // gets the context SEGMENT from the renderer and substitutes it into this
-// fire's prompt only (a transient engine override — the stored prompt stays
-// the reusable template); a render failure or empty segment fails the fire
+// fire's prompt only; a render failure or empty segment fails the fire
 // explicitly (never a silent empty-context patrol); everything else — non-fleet
 // tasks, templates without the placeholder — enqueues byte-for-byte as before.
 async function fireTask(id) {
   const task = engine.getRecord(id);
   if (!task) return;
-  if (renderFleetContextFn && task.sourceTag?.fleetId && typeof task.prompt === "string" && task.prompt.includes("{{fleetContext}}")) {
-    let segment;
-    try {
-      segment = await renderFleetContextFn(task.sourceTag, task);
-    } catch (err) {
-      engine.recordFailedFire(id, `fleetContext render failed: ${err?.message || err}`);
-      return;
-    }
-    if (typeof segment !== "string" || !segment.trim()) {
-      engine.recordFailedFire(id, "fleetContext renderer returned an empty segment");
-      return;
-    }
-    engine.setPromptOverride(id, task.prompt.replace(/\{\{fleetContext\}\}/g, segment));
+  const ctx = await applyFleetContext(id, task);
+  if (!ctx.ok) {
+    engine.recordFailedFire(id, ctx.error);
+    return;
   }
   engine.enqueueExecution(id);
 }
@@ -549,7 +566,15 @@ async function resumeJob(id) {
 // engine's enqueue result: { ok, already?, state?, error? } — already-queued
 // or running executions are a no-op carrying the current state, and re-run of
 // a failed/interrupted execution is allowed.
+//
+// 舰队任务的上下文注入与定时开火**同一条路**（applyFleetContext）。手动触发
+// 曾经直接 enqueueExecution，`{{fleetContext}}` 从未被展开——走查看到的舰队
+// 回合是裸模板，和人手点「立即执行」后代理四处翻文件是同一件事的两面。
 async function runJobNow(id) {
+  const task = engine.getRecord(id);
+  if (!task) return engine.runTaskNow(id);
+  const ctx = await applyFleetContext(id, task);
+  if (!ctx.ok) return { ok: false, error: ctx.error };
   return engine.runTaskNow(id);
 }
 

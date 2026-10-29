@@ -769,3 +769,55 @@ test("fleet-context: 每份巡逻上下文都带纪律——注入即全部输�
   const soloText = await buildFleetContext({ fleetId: fleet.id, memberId: "m_dc_solo" }, {}, contextDeps(fleetDb));
   assert.match(soloText, /本轮怎么干（巡逻纪律）/, "孤立岗也带纪律");
 });
+
+// ── 手动戳发也走同一条注入路径（2026-10-29 真机取证） ──────────────────────
+//
+// 真机发现：`POST /api/cron/:id/run`（人点「立即执行」/走查触发）走的是
+// cron.runJobNow → engine.runTaskNow → enqueueExecution，**完全绕过 fireTask**，
+// 于是 `{{fleetContext}}` 从不被展开——CEO 那轮拿到的 prompt 只有 249 字符
+// （正常轮 2880），既没有巡视上下文也没有纪律。这既让手动走查失真，也让被
+// 手动触发的代理因为「没上下文」而四处翻文件——与 §15.88 的空转同源。
+test("fire chain: 手动戳发同样注入 fleetContext（与定时开火同一条路）", async () => {
+  firedPrompts.length = 0;
+  const fleet = fixtureFleet(fleetDb);
+  const member = fixtureMember(fleetDb, fleet.id, { targetId: "persona-manual" });
+  const task = await cron.addJob({
+    cron: "0 3 1 1 *",
+    prompt: "巡视下属。{{fleetContext}}",
+    preset: "persona-manual",
+    sourceTag: { fleetId: fleet.id, memberId: member.id },
+  });
+
+  cron.setFleetContextRenderer(async () => "手动帧上下文");
+  const r = await cron.runJobNow(task.id);
+  await engine.idle();
+  assert.equal(r?.ok, true, "手动戳发要成功");
+  assert.equal(
+    firedPrompts[firedPrompts.length - 1],
+    "巡视下属。手动帧上下文",
+    "手动触发必须展开占位符，不能把裸模板喂给代理",
+  );
+  // 存着的仍是模板
+  assert.equal(cron.getJob(task.id).prompt, "巡视下属。{{fleetContext}}");
+});
+
+test("fire chain: 手动戳发遇到渲染失败时明确失败，不静默跑裸模板", async () => {
+  firedPrompts.length = 0;
+  const fleet = fixtureFleet(fleetDb);
+  const member = fixtureMember(fleetDb, fleet.id, { targetId: "persona-manual-fail" });
+  const task = await cron.addJob({
+    cron: "0 3 1 1 *",
+    prompt: "巡视 {{fleetContext}}",
+    preset: "persona-manual-fail",
+    sourceTag: { fleetId: fleet.id, memberId: member.id },
+  });
+  cron.setFleetContextRenderer(async () => "");   // 空段
+  const r = await cron.runJobNow(task.id);
+  await engine.idle();
+  assert.equal(r?.ok, false, "空段必须显式失败");
+  assert.match(String(r?.error ?? ""), /empty segment/);
+  assert.ok(
+    !firedPrompts.some((p) => p === "巡视 {{fleetContext}}" || p === "巡视 "),
+    "绝不能拿裸模板或无上下文 prompt 跑这一轮",
+  );
+});

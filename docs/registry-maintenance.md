@@ -3899,6 +3899,38 @@ HTTP 503 -> fd-memory: "[hybrid] embed query failed — keyword-only candidates:
 
 **当日终态**：词元 `sha-2faf622`（GitOps `e68ccec`）+ fd-memory `sha-0aa8f52`（GitOps `410842d`）双在产；embedding 双上游双 IP 同向量空间；探针可 gate。
 
+#### §15.79 续四：fd-memory 四项立案并上产——自适应死线 + 真机验收推翻自己的设计（2026-10-30，源 a47c9ee / fd-memory `sha-93d18c9` / paas `sha-9560fe2`）
+
+用户令「先把 ①②③④ 立成 openspec change」。拆三个 change（均 4/4 artifacts、validate 绿）：①`fix-digest-adaptive-embed-deadline`（自适应死线+调用方预算协商）②`add-tier-promotion-candidates`（tier 晋升）③`harden-memory-surfaces`（向量规模观测+边界测试）。①当场实施上产，②③立完待 apply。
+
+**①的两半**：
+- **fd-memory 自适应预算**：固定 8000ms 死线改为按近期成功样本 `p90 × 1.5` 推导、clamp `[3000, 上限]`。`FD_MEMORY_DIGEST_EMBED_DEADLINE_MS` 语义由「固定值」变「上限」（现网 8000 天花板不变，车道快时不再空等）。超时样本单独标 `timeout` 类且记真实 elapsed。
+- **paas 调用方超时**：`server/cluster-memory.js` 硬编码 5s 改为 `CELL_MEMORY_DIGEST_TIMEOUT_MS`（默认 9000 = 8000 上限 + 传输余量）。**契约依据**：memory-federation spec 明文写「paas 侧超时上限 5s」而 fd-memory 等 8s——调用方比被调用方更没耐心，慢 embed 时 digest 整块丢失而不是降级返回。chat 与集群共用同一 readDigest（`digestLadder`），一处生效两面；`/memory` 浏览面两处 5s 不动（直读库不涉 embed）。
+
+**最有价值的一条：真机验收推翻了 D1 自己的设计**。原设计「预算=成功样本 p90×余量，失败样本不入输入」逻辑自洽，但真机构造双峰分布（50%@2s / 50%@12s）当场证伪：慢调用持续超时→进不了样本→p90 看着很快→预算收到下界 3000→慢的那一半**永久饿死**。**收缩的依据恰好排除了它正在饿死的请求**。修正：超时是**右删失观测**（censored observation，含义「真实延迟 ≥ 当时预算」），必须为预算提供下界：
+```
+budget = clamp( max(p90_success × headroom , maxTimeoutElapsed × 1.2) , floor , cap )
+```
+快车道无超时第二项为 0、收益不丢；出现超时则抬到「已证明不够」之上。**但只有 timeout 类**给下界——120ms 的上游 500 不说明车道需要 120ms。design.md 新增 D1' 段、spec 新增 Requirement 钉住这条。
+
+**出片与上线（全走 GitOps，续二/续三 的 selfHeal 教训已内化）**：
+- fd-memory `sha-93d18c9`（源 a47c9ee，先 0698463 后删失修正重出）→ relay → GitOps `be54f4e`（`all-services/prod/fd-memory.yaml` 主容器+initContainer 两处）→ ArgoCD sync。
+- paas `sha-9560fe2`（源 4ff0a80d）→ **走 scs001/platform-image-verify 公开线**：私有池 `fd-craw-private` 三个 run 全 3-11s 秒败 + `payments failed` 注解=额度耗尽非缺陷（判红两分法）；快照脚本按设计剔 `image.yml`，须补提交（坑在册）。GitOps 滚 `platform.yaml`+`platform-demo.yaml`（其余 facet/agent-runner-serving 不动——cluster-memory 只在 platform 进程，调用方 cron-runner/ws/zhiyu 三面同源）。
+- 滚前核祖先：c43c243b/282ebf8f/f847f0bc 均 4ff0a80d 祖先，前进安全（gitops-bump-ancestry-check）。
+
+**生产验收五证**：
+1. pod 内 `grep` 确认 `recentEmbedTimeoutFloor`/`provenTooSmall * 1.2` 在产；
+2. **12 连发全 vector 零降级**（最慢 3262ms 被自适应预算 ~4467ms=p90 2978×1.5 接住），`vector_ratio: 1`、`failure_reasons: {}`——快车道收紧且不塌缩；
+3. 探针 `scripts/probe-embedding-lane.mjs` 健康态 exit 0、1178 向量全在 Qwen 一家 19 根零污染；
+4. `digestTimeoutMs` 真机六种输入（默认 9000/显式 12000/脏值 abc→9000/0→9000/10→500 下限/999999→60000 上限）全对；
+5. 既有 test-zhiyu-room-memory 5 + test-cluster-tasks 21 零回归；新增 test-digest-timeout-config 7 全绿。
+
+**坑在案**：
+- **测试隔离**：`embedSamples`/熔断都是模块级状态，前一个测试残留的 timeout 会撑大后一个的预算（伪装成产品 bug 实为测试串味）。`withLane` 必须同时 `__resetEmbedGate()` + `__resetMetrics()`。
+- **CI lint 既有红**：platform-image-verify 的 CI 门在 `gateway/packs.js`/`web/*.tsx` 等 8 个文件报 19 错——**均非本轮改动**（`git log -1` 证明最后改动早于本次），按并行会话红归因法：先 HEAD 复现再判，别默认自己引入。
+
+**遗留**：②③ 两个 change 已立案待 apply；②的真根因（`referencesNeedingTags` 只覆盖 reference 且只挑无 tag→2435 draft 空转）已在 design 写明，等用户令再实施。
+
 ### §15.84 常务岗桥面鉴权缺口（真机走查揪出，2026-10-29）
 
 **发现方式**：§15.82 留下的「留给 owner：真机 deputy 巡逻回合」——本次真机跑了一轮。常务岗自己的回合报告原文：

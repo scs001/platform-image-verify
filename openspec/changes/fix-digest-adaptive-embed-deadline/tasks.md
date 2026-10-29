@@ -17,14 +17,14 @@
 
 ## 3. 文档与契约
 
-- [ ] 3.1 `CONTEXT.md` / `docs/memory-architecture-v2.md` 补「调用方超时 > fd-memory embed 预算上限」不变量与新 env
-- [ ] 3.2 `docs/registry-maintenance.md` 补 §15.79 续四：自适应死线与预算协商的上产记录
+- [x] 3.1 `CONTEXT.md` / `docs/memory-architecture-v2.md` 补「调用方超时 > fd-memory embed 预算上限」不变量与新 env
+- [x] 3.2 `docs/registry-maintenance.md` 补 §15.79 续四：自适应死线与预算协商的上产记录
 
 ## 4. 上产与真机验收
 
-- [ ] 4.1 fd-memory 出片（`yizuo/fd-memory`）+ 走 GitOps `all-services/prod/fd-memory.yaml`（**主容器与 initContainer 两处**）
-- [ ] 4.2 paas 出片 + 滚版
-- [ ] 4.3 真机验：连发 6 次 digest，记录档位与耗时；确认快样本后预算收紧（不再每次赌 8s）
-- [ ] 4.4 真机验：制造一次慢 embed，确认 `failure_reasons` 出现 `timeout` 分类且耗时记录为真实值
-- [ ] 4.5 真机验：`CELL_MEMORY_DIGEST_TIMEOUT_MS` 生效（设小值观察降级、设默认观察恢复），chat 与集群两面一致
-- [ ] 4.6 探针回归：`scripts/probe-embedding-lane.mjs` 在健康态 exit 0、制造降级时 exit 1
+- [x] 4.1 fd-memory 出片（`yizuo/fd-memory`）+ 走 GitOps `all-services/prod/fd-memory.yaml`（**主容器与 initContainer 两处**）
+- [x] 4.2 paas 出片 + 滚版
+- [x] 4.3 真机验：连发 6 次 digest，记录档位与耗时；确认快样本后预算收紧（不再每次赌 8s）
+- [x] 4.4 真机验：制造一次慢 embed，确认 `failure_reasons` 出现 `timeout` 分类且耗时记录为真实值
+- [x] 4.5 真机验：`CELL_MEMORY_DIGEST_TIMEOUT_MS` 生效（设小值观察降级、设默认观察恢复），chat 与集群两面一致
+- [x] 4.6 探针回归：`scripts/probe-embedding-lane.mjs` 在健康态 exit 0、制造降级时 exit 1

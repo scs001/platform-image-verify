@@ -4495,3 +4495,59 @@ openai_chat_completions.account_select_failed
 脚本 `/tmp/real_gate_check.mjs`（一次性，不入户）。结论：柏讯 pack 声明三 action 工具**当前即可发布**，无需再做任何 registry 操作。
 
 **柏讯文档需补的一条**：`fd-wire/docs/paas-domain-action-requirements.md` §六 只提「重烘焙工具面快照」，未提 `metadata.surface.commercial_tools` 这条腿。后者自报**不覆盖**（本轮实测：只重启时 tool_list 自动到 19，商业名单仍停 13 个 10-25 快照），且发布门**先判商业闭包**、名单外一律拒——漏掉这条会让 pack 在闭包处被拒且错误信息不提「重烘焙」。已在评审回复 §六① 写明；柏讯后续增工具时须通知壹座重导出名单。
+
+### §15.92 「加进 cell 名册」这条路不通，改判定逻辑；并查清 503 真因是账号池真空（2026-10-30）
+
+用户说「加吧，没事」。查下去发现两条路都堵着，最后改的是**代码在说谎**那一处。
+
+#### 一、往各 cell 写 llm-providers.json 不成立
+
+三个硬事实：
+
+1. **cell 随空闲销毁**：同一台 pod 上，上午 41 个 cell，下午只剩 26 个（absent=24 / empty=1 / has=1）。
+   往会消失的目录里写配置，等于追着跑。
+2. **名册里的 apiKey 是明文**（`sk-or-…`，30 字符）。给几十个 cell 复制密钥 = 把密钥摊在几十
+   份文件里，且这些文件随 cell 生灭无人清理。
+3. **换了链路**：命中的 provider 的 baseUrl 是 `https://token.finddatatech.cloud/v1`（公网），
+   而当前判据走 pod 内 `127.0.0.1:32080`。实测公网那条从 pod 出去 502/7.2s 或 503/0.3-1.2s，
+   本地代理 503/63ms——**加名册反而换到一条更慢更不通的路**。
+
+#### 二、真正的问题：来源判定在说假话（已修，paas `48addabc`）
+
+原逻辑把「部署默认配了、只是不在本 cell 名册」一律标 `fallback` + 「fell back to the first
+listed model」。但名册为空时实际走的是部署 env 路由，**用的就是配的那个模型**，压根没有
+「回落到别的模型」。后果是 judge-default 端点自相矛盾：
+
+```
+resolved.model = "minimax-m3.1-flash"          ← 用的是它
+reason = "… is not in the roster; fell back to the first listed model"   ← 却说回落了
+```
+
+用户读到这句会以为配置没生效、跑去重配，实际已经是好的。新三分按「最终真正用了哪个模型」判：
+`blueprint` / `deployment`（名册空走 env 路由也归这里）/ `fallback`（名册可见且确实不含，真回落，
+理由点名实际用的模型）。测试 28/28（新增 2 条钉住新语义 + 1 条反向断言「不得出现 fell back 字样」）。
+
+#### 三、503 的真因不是配置，是账号池真空
+
+`minimax-m3.1-flash` 早先探针 9/9、真机三态全过，之后突然全网 503（~70ms 快失败）。查
+sub2api 日志与库，链条如下：
+
+```
+account_select_failed: no available OpenAI accounts supporting model:
+  <model> (pool=2, filtered: model_not_supported=2)
+```
+
+- 组 3（core，我们用的 key）绑了 5 个账号：14 openrouter-main / 15 openrouter-new /
+  43、44 两个语音账号 / 46 windows-sub2api。
+- 逐个核对上游清单（`accounts.extra.upstream_model_metadata.models`）：**没有一个**含裸名
+  `minimax-m3.1-flash` 或 `deepseek-v4.1-flash`；它们用的是 `deepseek/deepseek-v4.1-flash`、
+  `minimax/minimax-01`、`minimax/minimax-m2-her` 这类带前缀的名字。
+- 组 3 **没有任何 `composite_model_routes`**（组 2 才有 23 条），所以裸名只能靠账号清单直匹配。
+- 过去 1 小时 `model_not_supported=2` 出现 221 次，其中 `deepseek-v4.1-flash` 126 次
+  ——**连平台默认产出模型都选不到账号**，不只是判据。
+
+结论：这是词元站账号池/上游映射的问题，不是蓝图构造间的配置问题，也不该在这里改账号映射。
+`pool=2` 说明当时只有 14、15 参与调度，46 号那台接入机没进池——早先 9/9 很可能是它接的。
+
+**留给词元站（sub2api）处置**：要么给组 3 补 `composite_model_routes` 把裸名映射到账号认的
+上游名，要么把账号上游清单刷成含裸名，要么把 46 号重新纳入调度。

@@ -3782,6 +3782,44 @@ change 3 的真机睡眠/唤醒一幕。
 - **in-pod 行为实证**（拿生产库副本 `/tmp/verify.db` 跑真实 `gateway/packs.js`，不碰线上数据）：publish → `setUnlisted` → `get()`=null 且不在列表 → `publishVersion` → v2 且 `get()` 可见、列表含该 id → 非作者 `publishVersion` = `forbidden` 且仍 unlisted。四态全对。
 - 线上复核：`grep "unlisted = 0 WHERE id" /app/gateway/packs.js` = 1 处（第 599 行）；`ADMIN_GROUPS=platform` 仍在；facet 伺服 `index-DOTZJRjY.js` 含 `Scan to bind`（英文修复在线）、`萬星` 6 处；`C8wx14-4h7zJ0N19-J4NwQ` 仍 `unlisted=false / public`。
 
+#### §15.79 续：词元站「后台看不见 embedding 账号与模型」三件闭合（2026-10-29 晨，ciyuan-v0.2.16-16 / sha-2faf622）
+
+§15.79 末尾把「账号 32/47 没有 `model_mapping`、组白名单没有 embedding」记成「留待词元站修」。本班把它做完，并在过程中**推翻了当时的两条判断**：
+
+**判断一被推翻**：账号 47 **有** `model_mapping`（`{"Qwen/Qwen3-Embedding-8B":"Qwen/Qwen3-Embedding-8B"}`），当时看到的是账号 34（`1253774197@qq.com-embedding`，走 openai-next 车道、只映射 text-embedding-3-*）。真正的缺陷不是「没有 mapping」，而是**有 mapping 也被吞掉**：
+- `GetAvailableModels` 先走 `FetchOpenAIAccountModels`；
+- 那条路 = 上游 `/v1/models` → `projectAccountModelsBody` 按 mapping 投影；
+- 投影要求目标模型存在于上游目录（`byID[target]`），不存在即 `continue` 丢弃；
+- OpenRouter `/v1/models` 一条 embedding 都没有（421 条）→ 全丢 → **空数组且 `err == nil`**；
+- handler 里 `if models, fetchErr := ...; fetchErr == nil { response.Success(models); return }` **直接短路**，连「无 mapping 时回落静态目录」的分支都走不到。
+- 生产实证：`GET /api/v1/admin/accounts/47/models` → `{"code":0,"message":"success","data":[]}`。**成功但空**是最难查的形态——不是报错、日志无异常、后端指标全绿。
+
+**判断二被推翻**：组 8/12 的 `model_allowlist` 确实要补 embedding，但更前置的是「候选列表里根本没有 embedding 可勾」——`defaultModelsListCandidateIDs` 只认 `DefaultModelIDs()`（全是 gpt-5.x/gpt-image）。两处都补了。
+
+**三件落地**（同一 ciyuan tag，三次提交）：
+1. `0aec374df` 静态目录 `service/embedding_model_catalog.go`（只列本部署**实际承载过流量**的 4 个模型：Qwen3-Embedding-8B + OpenAI 三个），`withEmbeddingModels`/`WithEmbeddingModelsForPicker` 在两处读面**只追加**，既有条目顺序零改动（有测试钉住）。
+2. `361814727`/`76b4a7430` 前端：`useModelWhitelist` 补 embedding 清单 + 编辑账号弹窗新增「Embedding 细分渠道（钉扎）」区块（Nebius/SiliconFlow/DeepInfra/未钉扎，载入回填、保存写回、空=删键）。**v-12 的 `extra.embedding_provider_only` 后端一直认，但前端从来没有任何入口**——运维看不见钉哪家、也改不了，只能 SQL。
+3. `99942a69c` **恒空真根因**：`FetchOpenAIAccountModels` 出口补 `WithEmbeddingModelsFromMapping`——只把账号 mapping 里 `IsEmbeddingModelID(公开名‖目标)` 命中、且被投影丢掉的行补回 picker。chat 模型仍「上游没列就不展示」（既有安全语义不变），未声明 embedding 的账号零变化。
+
+**为什么这条必须修而不是「让运维手填 mapping 就行」**：填了也没用（投影丢弃），且**前两件修完仍然空**——短路在投影之后、回落之前。若只上①②，生产仍是 `data:[]`。这是本班最有价值的一条：**「修在回落处」必须确认回落分支真能被执行到**。
+
+**出片与上线**：`sha-2faf622`（源 `4c48d27c9`，run 40791130108 绿，target `finddata/sub2api`）；GitOps `e68ccec`（`fd-infra-deploy/all-services/sub2api/01-sub2api-deployment.yaml`）→ ArgoCD 自动同步滚产。
+
+**生产验收六证**：
+1. `GET /admin/accounts/47/models`：`data:[]` → `[{"id":"Qwen/Qwen3-Embedding-8B","object":"model","type":"model"}]`；
+2. 组 8 `embedding-interactive` / 组 12 `embedding-bulk` 的 `model-allowlist-candidates` 各 **24 条含 4 个 embedding**（Qwen3-Embedding-8B + text-embedding-3-{large,small} + ada-002）；
+3. 账号详情回读 `extra.embedding_provider_only = Nebius`，`model_mapping` 完好；
+4. **UI 眼见**（ego-browser 真机，admin token 注入 + `auth_user` 齐备才过路由守卫）：编辑弹窗出现黄色「Embedding provider (pin)」区块，下拉四选项齐全、回填 `Nebius`、警告文案在产（"Each provider quantizes differently, so their vector spaces are NOT interchangeable… silently corrupts recall. Pick one and keep it stable; re-embed history after any change."）；同弹窗模型区显示 `Qwen/Qwen3-Embedding-8B`（1 models）；
+5. **UI 保存不丢配置**：弹窗点 Update 后 8 个 extra 键**一个不丢**（含 `duplicate_operation_id`）——证明前端「以账号现有 extra 为合并基准」的选择是对的；
+6. **向量一致性硬证**（用户的最硬约束「embedding 模型一致性」）：钉扎 Nebius 下同文本连调 3 次 **cos=1.000000000**；批量组（key 143）/交互组（key 131）**跨车道 cos=1.000000000**，dim=4096 恒定。渠道锁死不可换的前提下，一致性由「钉扎 + 上游稳定」共同保证，本班只做可见/可控，不碰向量空间。
+
+**三个坑在案**：
+- **ArgoCD selfHeal 会静默回滚**：`kubectl set image` 后 78 秒被改回旧镜像（app health=`Healthy` 但 `OutOfSync`，自愈把手工改动覆盖）。判据：`kubectl -n argocd get application sub2api` 看 `OutOfSync | rev=<旧 sha>`。**这一面必须走 GitOps**，手工 kubectl 只用于**先验证再回退**。
+- **直连 PUT `{extra:{单键}}` 是整对象替换**：`UpdateAccount` 里 `normalizeXxxUpdateExtra` 以 `input.Extra` 为基准，只回填系统受管白名单（quota_* / probe_* / grokBilling 等），其余键全丢。我验收时用裸 curl 只传 `embedding_provider_only` → 抹掉 `duplicate_operation_id` + `openai_responses_supported` + 两个 ws 开关（已原值恢复）。**裸 curl 验收禁用单键 PUT**；前端无此问题。
+- **build-pool 的 `BUILD_NAMESPACE` 残留**：上次出片（fd-memory）留在池变量里，本次首轮推出 `yizuo/sub2api`；relay 清单只认 `finddata/sub2api`（`/etc/tcr-relay/repos.conf:35`），**不会携带**。出片后必须核 run 的 `target:` 行。另外 relay 有 flock，手动补单与 5 分钟 cron 撞车时静默退出（`EXIT=0` 但无 OK 行）——等下一轮 cron 自然携带即可。
+
+**遗留**：组 8/12 的 `model_allowlist.enabled` 仍是 `false`（模型候选可见≠白名单启用）；如需按组收紧到只允许 embedding，需在后台勾选保存——这是策略选择，留给 owner。
+
 ### §15.84 常务岗桥面鉴权缺口（真机走查揪出，2026-10-29）
 
 **发现方式**：§15.82 留下的「留给 owner：真机 deputy 巡逻回合」——本次真机跑了一轮。常务岗自己的回合报告原文：

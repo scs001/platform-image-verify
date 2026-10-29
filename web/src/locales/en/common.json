@@ -3139,7 +3139,8 @@
       "verdict": {
         "pass": "Model: pass",
         "fail": "Model: fail",
-        "insufficient-evidence": "Model: insufficient evidence"
+        "insufficient-evidence": "Model: insufficient evidence",
+        "laneError": "Model: did not run (lane unavailable)"
       },
       "model": {
         "label": "Reviewer model",

@@ -3139,7 +3139,8 @@
       "verdict": {
         "pass": "モデル：合格",
         "fail": "モデル：不合格",
-        "insufficient-evidence": "モデル：証拠不十分"
+        "insufficient-evidence": "モデル：証拠不十分",
+        "laneError": "モデル：実行できず（レーン利用不可）"
       },
       "model": {
         "label": "評価モデル",

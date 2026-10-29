@@ -140,6 +140,11 @@ export interface TrialJudgement {
     judgeSource?: "blueprint" | "deployment" | "fallback" | null;
     judgeFallbackReason?: string | null;
     judgedAt?: string;
+    // 判据没跑成（车道 429/5xx/不可达）与「模型看过说证据不足」是两件事。
+    laneError?: { status: number | null; kind: "rate-limited" | "upstream" | "unreachable" } | null;
+    cached?: boolean;
+    cacheAgeMs?: number;
+    quotaExceeded?: boolean;
   };
 }
 

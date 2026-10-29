@@ -413,3 +413,55 @@ test("配额：缓存命中不消耗配额", async () => {
   await judgeAssertion({ ...base, now: 3000 });
   assert.equal(__judgeQuotaUsed("q2@x", 1000), 1, "只第一次真调了模型");
 });
+
+// ── 车道故障 vs 证据不足：必须可区分（2026-10-29 生产实证） ────────────────
+// 车道抖动时若只报「证据不足」，用户分不清「模型看过说不够」（该改证据/判据）
+// 和「判据根本没跑成」（重跑即可）。audit.laneError 是这条区分。
+test("车道 429/5xx → 标 laneError，不冒充证据不足", async () => {
+  __resetJudgeState();
+  for (const [status, kind] of [[429, "rate-limited"], [503, "upstream"]]) {
+    const r = await judgeAssertion({
+      assertionId: "a1",
+      rubric: "判据",
+      evidenceText: "证据",
+      productionLanes: [{ providerId: "prod", model: "producer" }],
+      lane: LANE,
+      fetchImpl: async () => ({ ok: false, status, text: async () => "upstream says no" }),
+      now: 5000,
+    });
+    assert.equal(r.verdict, "insufficient-evidence");
+    assert.deepEqual(r.audit.laneError, { status, kind });
+  }
+});
+
+test("车道不可达 → laneError.kind=unreachable", async () => {
+  __resetJudgeState();
+  const r = await judgeAssertion({
+    assertionId: "a1",
+    rubric: "判据",
+    evidenceText: "证据",
+    productionLanes: [{ providerId: "prod", model: "producer" }],
+    lane: LANE,
+    fetchImpl: async () => {
+      throw new Error("ECONNREFUSED");
+    },
+    now: 6000,
+  });
+  assert.equal(r.verdict, "insufficient-evidence");
+  assert.equal(r.audit.laneError.kind, "unreachable");
+});
+
+test("模型真判 insufficient-evidence 时不带 laneError（两者不可混）", async () => {
+  __resetJudgeState();
+  const r = await judgeAssertion({
+    assertionId: "a1",
+    rubric: "判据",
+    evidenceText: "证据",
+    productionLanes: [{ providerId: "prod", model: "producer" }],
+    lane: LANE,
+    fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '{"verdict":"insufficient-evidence","reason":"证据不足"}' } }] }) }),
+    now: 7000,
+  });
+  assert.equal(r.verdict, "insufficient-evidence");
+  assert.equal(r.audit.laneError, undefined);
+});

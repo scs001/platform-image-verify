@@ -3139,7 +3139,8 @@
       "verdict": {
         "pass": "模型：判绿",
         "fail": "模型：判不绿",
-        "insufficient-evidence": "模型：证据不足"
+        "insufficient-evidence": "模型：证据不足",
+        "laneError": "模型：未跑成（车道不可用）"
       },
       "model": {
         "label": "评审模型",

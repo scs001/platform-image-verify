@@ -3139,7 +3139,8 @@
       "verdict": {
         "pass": "Modèle : conforme",
         "fail": "Modèle : non conforme",
-        "insufficient-evidence": "Modèle : preuves insuffisantes"
+        "insufficient-evidence": "Modèle : preuves insuffisantes",
+        "laneError": "Modèle : non exécuté (canal indisponible)"
       },
       "model": {
         "label": "Modèle évaluateur",

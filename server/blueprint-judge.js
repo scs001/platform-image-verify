@@ -470,7 +470,11 @@ export async function judgeAssertion({ assertionId, rubric, evidenceText, produc
       return {
         verdict: "insufficient-evidence",
         reason: `judge lane HTTP ${res.status}: ${body.slice(0, 160)}`,
-        audit: { ...audit, verdict: "insufficient-evidence", rawVerdict: null },
+        // 2026-10-29 生产实证：车道抖动（429 限流 / 502-503 上游不可用）时，
+        // 若只报「证据不足」，用户分不清「模型看过证据说不够」和「判据根本没
+        // 跑成」。这是两种完全不同的事：前者该改证据或判据，后者该等一会儿
+        // 重跑。laneError 让报告如实区分，界面据此给不同措辞。
+        audit: { ...audit, verdict: "insufficient-evidence", rawVerdict: null, laneError: { status: res.status, kind: res.status === 429 ? "rate-limited" : "upstream" } },
       };
     }
     const json = await res.json().catch(() => null);
@@ -479,7 +483,7 @@ export async function judgeAssertion({ assertionId, rubric, evidenceText, produc
     return {
       verdict: "insufficient-evidence",
       reason: `judge lane unreachable: ${err?.message || err}`,
-      audit: { ...audit, verdict: "insufficient-evidence", rawVerdict: null },
+      audit: { ...audit, verdict: "insufficient-evidence", rawVerdict: null, laneError: { status: null, kind: "unreachable" } },
     };
   }
 

@@ -745,7 +745,14 @@ export function BlueprintStudioPage() {
                                     : "border-destructive/40 bg-destructive/5 text-destructive"
                                 }`}
                               >
-                                {a.kind === "llm-judged" ? t(`blueprints.judge.verdict.${a.verdict ?? "insufficient-evidence"}`) : a.pass ? t("blueprints.trial.pass") : t("blueprints.trial.fail")}
+                                {a.kind === "llm-judged"
+                                  ? a.audit?.laneError
+                                    ? // 判据没跑成 ≠ 证据不足：前者重跑即可，后者要改证据或判据。
+                                      t("blueprints.judge.verdict.laneError")
+                                    : t(`blueprints.judge.verdict.${a.verdict ?? "insufficient-evidence"}`)
+                                  : a.pass
+                                    ? t("blueprints.trial.pass")
+                                    : t("blueprints.trial.fail")}
                               </span>
                               <span className="font-mono text-muted-foreground">{a.id}</span>
                               <span className="text-muted-foreground">{a.kind}</span>

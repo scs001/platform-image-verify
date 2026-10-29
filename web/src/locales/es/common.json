@@ -3139,7 +3139,8 @@
       "verdict": {
         "pass": "Modelo: cumple",
         "fail": "Modelo: no cumple",
-        "insufficient-evidence": "Modelo: evidencia insuficiente"
+        "insufficient-evidence": "Modelo: evidencia insuficiente",
+        "laneError": "Modelo: no se ejecutó (canal no disponible)"
       },
       "model": {
         "label": "Modelo revisor",

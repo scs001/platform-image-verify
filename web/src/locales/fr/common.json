@@ -832,7 +832,8 @@
       "telegram": "Telegram",
       "feishu": "Feishu / Lark",
       "wecom": "WeCom",
-      "wechat-oa": "Compte officiel WeChat"
+      "wechat-oa": "Compte officiel WeChat",
+      "wecom-bot": "Bot WeCom (groupes)"
     },
     "effort": "Profondeur de raisonnement",
     "effortInherit": "Hériter (par défaut)",
@@ -3010,11 +3011,11 @@
     "busyHint": "L’agent répond ; les interrupteurs se débloquent à la fin du tour."
   },
   "memory": {
-      "promotions": {
-        "title": "Promotions à confirmer",
-        "accept": "Accepter",
-        "ignore": "Ignorer"
-      },
+    "promotions": {
+      "title": "Promotions à confirmer",
+      "accept": "Accepter",
+      "ignore": "Ignorer"
+    },
     "title": "Mémoire",
     "subtitle": "Tout ce que vos agents retiennent",
     "all": "Tout",

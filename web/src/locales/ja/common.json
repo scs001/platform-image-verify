@@ -832,7 +832,8 @@
       "telegram": "Telegram",
       "feishu": "Feishu / Lark",
       "wecom": "WeCom",
-      "wechat-oa": "WeChat 公式アカウント"
+      "wechat-oa": "WeChat 公式アカウント",
+      "wecom-bot": "WeCom ボット（グループ）"
     },
     "effort": "思考深度",
     "effortInherit": "継承（既定）",
@@ -3010,11 +3011,11 @@
     "busyHint": "エージェントが応答中です。ターン終了後に切り替えできます。"
   },
   "memory": {
-      "promotions": {
-        "title": "昇格の確認待ち",
-        "accept": "承認",
-        "ignore": "却下"
-      },
+    "promotions": {
+      "title": "昇格の確認待ち",
+      "accept": "承認",
+      "ignore": "却下"
+    },
     "title": "記憶",
     "subtitle": "エージェントが覚えているすべて",
     "all": "すべて",

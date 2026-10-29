@@ -832,7 +832,8 @@
       "telegram": "Telegram",
       "feishu": "Feishu / Lark",
       "wecom": "WeCom",
-      "wechat-oa": "WeChat Official Account"
+      "wechat-oa": "WeChat Official Account",
+      "wecom-bot": "WeCom Bot (groups)"
     },
     "effort": "Thinking depth",
     "effortInherit": "Inherit (deployment default)",
@@ -3010,11 +3011,11 @@
     "busyHint": "The agent is responding; toggles unlock when the turn ends."
   },
   "memory": {
-      "promotions": {
-        "title": "Pending promotions",
-        "accept": "Accept",
-        "ignore": "Ignore"
-      },
+    "promotions": {
+      "title": "Pending promotions",
+      "accept": "Accept",
+      "ignore": "Ignore"
+    },
     "title": "Memory",
     "subtitle": "Everything your agents remember",
     "all": "All",

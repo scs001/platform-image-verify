@@ -44,6 +44,25 @@ export function WecomIcon({ className }: Props) {
   );
 }
 
+// WeCom intelligent robot (API mode): the group-capable sibling of the
+// self-built app. Same brand blue, but the bubble carries a member group
+// (two heads) instead of a plain speech bubble — the two tiles sit side by
+// side in the channels grid and must not be confusable.
+export function WecomBotIcon({ className }: Props) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+      <rect x="3" y="3" width="18" height="18" rx="5" fill="#0082EF" />
+      <path
+        d="M12 6.2c-3.5 0-6.3 2.2-6.3 5 0 1.6.9 3 2.4 3.9l-.6 2.2 2.5-1.3c.6.2 1.3.3 2 .3 3.5 0 6.3-2.2 6.3-5.1s-2.8-5-6.3-5Z"
+        fill="#fff"
+      />
+      <circle cx="9.6" cy="10.6" r="1.5" fill="#0082EF" />
+      <circle cx="14.4" cy="10.6" r="1.5" fill="#0082EF" />
+      <path d="M9.2 13.9c.5-1.1 1.6-1.8 2.8-1.8s2.3.7 2.8 1.8c-.8.6-1.8 1-2.8 1s-2-.4-2.8-1Z" fill="#0082EF" />
+    </svg>
+  );
+}
+
 export function WechatOaIcon({ className }: Props) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
@@ -62,6 +81,7 @@ const ICONS = {
   feishu: FeishuIcon,
   wecom: WecomIcon,
   "wechat-oa": WechatOaIcon,
+  "wecom-bot": WecomBotIcon,
 } as const;
 
 // The one component the page uses; an unknown type falls back to a neutral dot.

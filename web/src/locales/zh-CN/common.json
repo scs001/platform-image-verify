@@ -832,7 +832,8 @@
       "telegram": "Telegram",
       "feishu": "飞书",
       "wecom": "企业微信",
-      "wechat-oa": "微信公众号"
+      "wechat-oa": "微信公众号",
+      "wecom-bot": "企业微信·智能机器人"
     },
     "effort": "思考深度",
     "effortInherit": "继承（部署默认）",
@@ -3010,11 +3011,11 @@
     "busyHint": "agent 正在回复，回复结束后可切换。"
   },
   "memory": {
-      "promotions": {
-        "title": "待确认晋升",
-        "accept": "接受",
-        "ignore": "忽略"
-      },
+    "promotions": {
+      "title": "待确认晋升",
+      "accept": "接受",
+      "ignore": "忽略"
+    },
     "title": "记忆",
     "subtitle": "智能体记得的一切，都在这里",
     "all": "全部",

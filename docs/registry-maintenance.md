@@ -4227,3 +4227,5 @@ turn=cron-job_1792719144227_3lpcem#r1793228411907-2   （23:00:18 CEO）
 **连带语义（柏讯需知）**：声明 `wire_action_propose` 的 pack 不再够格当 copilot 聚焦面（`gatedWriteTools()` 并集）——期望行为，非缺陷。
 
 **待续**：柏讯后续再增工具时，除自报外仍须通知壹座重导出商业名单（那一腿自报不覆盖）。
+
+**挂账清账（6.6 `executed_at`）**：真机 `decision_items` 复查，`d_1793228497338_p7knh6`（deputy 裁决、已送达）`delivered_at=executed_at=1793241645081`（北京 10:40:45）——送达即同笔回填，链路闭环；`d_1793219379758_eh6yw0` 仍 `approved`，执行事实为 0 是**语义正确**（未送达不该有）。tasks 6.6 已勾。本 change 无遗留。

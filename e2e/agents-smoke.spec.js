@@ -26,12 +26,12 @@ test("@smoke agents page renders (no white screen)", async ({ page }) => {
   await expect(page.getByRole("dialog")).toBeVisible({ timeout: 10000 });
   await page.keyboard.press("Escape");
 
-  // The cluster empty state must speak about clusters, not about agents
+  // The group empty state must speak about groups, not about agents
   // (the composer's "No agents available" line was reused here by mistake).
   const empty = page.getByTestId("clusters-empty");
   if (await empty.count()) {
     const txt = await empty.innerText();
-    expect(txt, "arrays empty state must mention arrays").toMatch(/cluster|array|阵列|clúster/i);
+    expect(txt, "groups empty state must mention groups").toMatch(/group|小组|grupo|groupe|グループ/i);
     expect(txt, "must not reuse the composer's no-agents line").not.toMatch(/No agents available/i);
   }
 

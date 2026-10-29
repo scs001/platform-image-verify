@@ -44,6 +44,7 @@ import { GATEWAY_SECRET_HEADER, secretMatches } from "../server/auth.js";
 import { isBusinessRole } from "../server/roles.js";
 import { registerWanxingRoutes } from "./wanxing/index.js";
 import { registerZhiyuRoutes } from "./zhiyu/index.js";
+import { registerFleetRoomBridge } from "./fleet-room-bridge.js";
 import { createZhiyuAgentLane } from "./zhiyu/agent-lane.js";
 import { createCellFleetReporter } from "./fleet-cells.js";
 import { registerOwnerCellsRoute } from "./fleet-board.js";
@@ -771,6 +772,15 @@ if (facetBase) {
     rateMax: Number(process.env.PACK_PUBLISH_RATE_MAX || 10),
     vendors: packRegistry.vendors,
     market: packRegistry.market,
+    // Official showcase (add-official-pack-showcase): anonymous market read is
+    // a deployment choice (default OFF — existing deployments see zero change);
+    // the official roster is the ONLY official-badge source, author-declared
+    // "official" anything is structurally ignored.
+    anonymousRead: process.env.PACK_ANONYMOUS_READ === "1",
+    officialAuthors: (process.env.OFFICIAL_AUTHOR_EMAILS || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
   });
   // Vendor supply-open (add-vendor-supply-open): identity + 供方上牌闸 ride
   // the same registry file and identity seam — the embedded (壹座 local-mount)
@@ -839,6 +849,38 @@ const zhiyu = registerZhiyuRoutes(app, {
   settleTurn: zhiyuLane.settleTurn,
   cellExport: exportSessionFromCell,
 });
+
+// Fleet ↔ room bridge (add-zhiyu-team-memory 刀B): rooms subscribe to their
+// principal's fleets; a pull tick samples the OWNER'S OWN cell overview over
+// the forged-identity channel (no push into cells, no new uplink fields) and
+// appends rate-merged system rows. Summon = batch-invite serving members
+// through the store's existing invite handshake + the subscription.
+{
+  const bridgeTickMs = Number(process.env.FLEET_ROOM_BRIDGE_MS || 60_000);
+  const bridge = registerFleetRoomBridge(app, {
+    store: zhiyu.store,
+    resolveUser,
+    rejectUnauthenticated,
+    sampleFleets: async (ownerEmail, path = "/api/fleets/overview") => {
+      // The owner's OWN cell, over the same forged-identity channel the
+      // projection lane uses (owner email + the shared secret). A dead or
+      // erroring cell reports nothing — absence this tick, never an error.
+      try {
+        const cell = await registry.ensure({ email: ownerEmail, groups: [] });
+        const res = await fetch(`http://127.0.0.1:${cell.port}${path}`, {
+          headers: forwardedHeaders({ headers: {} }, { email: ownerEmail, groups: [] }, SECRET),
+          signal: AbortSignal.timeout(15_000),
+        });
+        if (!res.ok) return null;
+        return await res.json();
+      } catch {
+        return null;
+      }
+    },
+  });
+  const bridgeTimer = setInterval(() => void bridge.tick(), bridgeTickMs);
+  bridgeTimer.unref?.();
+}
 
 // ── Bot webhooks: machine callers with no platform identity ────────────────
 // Chat-platform servers (WeChat OA / WeCom / Feishu / Telegram) sign their own

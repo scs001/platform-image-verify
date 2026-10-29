@@ -1677,7 +1677,9 @@
       "agentSize": "エージェント数で絞り込む",
       "agentSizeAny": "すべて",
       "agentSizeValue": "{{value}} エージェント",
-      "assistantHint": "マーケットガイド：右下のコパイロットは「謙面助手」フォーカスで応答します。このセルにアシスタントエージェントが未インストールです——インストールするとガイドが自動フォーカスします。"
+      "assistantHint": "マーケットガイド：右下のコパイロットは「謙面助手」フォーカスで応答します。このセルにアシスタントエージェントが未インストールです——インストールするとガイドが自動フォーカスします。",
+      "official": "公式",
+      "officialBadge": "公式"
     },
     "detail": {
       "notFound": "エージェントが見つからないか公開終了しました",
@@ -1971,7 +1973,8 @@
       "stepInstall": "購読してインストール中…",
       "stepPay": "購入手続きを完了中…",
       "stepProvision": "パラメータに従いエージェントチームを実体化中…"
-    }
+    },
+    "draftsBuilderPointer": "チャット内でパック作者に下書きさせることができます——インタビューして manifest を組み立て、編集可能な下書きとして保存します。"
   },
   "overlay": {
     "title": "リソース調整",
@@ -2995,6 +2998,15 @@
       "guest_joined": "訪問者がルームに入りました",
       "guest_identified": "訪問者の身元が確認されました",
       "guest_greeting": "ようこそ——当番シートが質問を受け付けています"
+    },
+    "fleet": {
+      "title": "チーム購読",
+      "none": "購読中のチームはありません",
+      "unsubscribe": "解除",
+      "fleetIdPlaceholder": "チーム ID（コックピットからコピー）",
+      "preview": "召喚可能を確認",
+      "summon": "一括召喚",
+      "cockpitOnly": "{title}：サービス面なし——コックピットで確認/行動"
     }
   },
   "plugins": {
@@ -3125,7 +3137,7 @@
     },
     "castPack": "エージェント {{packId}}",
     "draft": {
-      "hint": "チャットでブループリント構築エージェントにプロンプトを渡し、返ってきた JSON をここに貼り付けてください。同じ下書きプールに入り、検証チェーンも同一です。",
+      "hint": "プロンプトをチャット内のブループリント建築家に渡し、返された JSON を貼り付けてください——同じプール、同じ検証チェーン。公式 Blueprint Architect パック入りのセルでは、チャット内で直接起草して保存できます。",
       "copy": "プロンプトをコピー",
       "copied": "コピーしました",
       "copyFailed": "クリップボードを利用できません。プロンプトを選択して手動でコピーしてください。",
@@ -3231,6 +3243,62 @@
       "disable": "無効にする",
       "remove": "削除",
       "saveError": "保存に失敗しました。再試行してください"
+    }
+  },
+  "agentTeams": {
+    "views": {
+      "overview": "サマリー",
+      "manage": "管理",
+      "owner": "オーナーボード"
+    },
+    "overview": {
+      "summaryTitle": "全エージェントチーム",
+      "total": "{{count}} チーム",
+      "running": "稼働 {{count}}",
+      "abnormal": "異常 {{count}}",
+      "abnormalUnknown": "異常統計は取得できません",
+      "decisions": "あなたの判定待ち {{count}} 件",
+      "runs24h": "24h ターン {{count}}",
+      "members": "{{count}} ポスト",
+      "lastActivity": "最終活動 {{time}}",
+      "onDuty": "在席 {{count}}",
+      "state": {
+        "missing": "応答なし {{count}}",
+        "vacant": "空席 {{count}}",
+        "failing": "連続失敗 {{count}}"
+      },
+      "empty": "エージェントチームがありません——テンプレート棚から実体化するか、新規作成してください。",
+      "sourceUnavailable": "データソースが利用できません",
+      "retry": "再試行",
+      "loading": "読み込み中…",
+      "builderPointer": "チャット内でチーム建築家にチーム構築を任せたり、ブループリント建築家にシナリオを公開可能なテンプレートに編んでもらうこともできます。"
+    },
+    "manage": {
+      "colName": "チーム",
+      "colState": "状態",
+      "colModel": "既定モデル",
+      "colMembers": "ポスト",
+      "colDecisions": "判定待ち",
+      "colActions": "操作",
+      "batchPause": "一時停止",
+      "batchResume": "再開",
+      "batchArchive": "アーカイブ",
+      "selected": "{{count}} 件選択中",
+      "receipt": "成功 {{ok}} / 失敗 {{failed}}",
+      "confirmArchive": "アーカイブは取り消せません。選択したチームをアーカイブしますか？",
+      "editName": "クリックで改名",
+      "modelInherit": "継承",
+      "openCockpit": "コックピットを開く",
+      "selectRow": "{{name}} を選択",
+      "scopeNote": "行内編集：名前・既定モデル・状態。編成エッジと effort/コンテキスト予算はコックピットで編集します。"
+    }
+  },
+  "loginHero": {
+    "official": {
+      "title": "公式アセット",
+      "kindTemplate": "チームテンプレート",
+      "kindFeatured": "公式ピックアップ",
+      "hint": "ログインして購読・インストール——上のログインボタンからどうぞ。"
     }
   }
 }

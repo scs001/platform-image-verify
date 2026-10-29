@@ -1677,7 +1677,9 @@
       "agentSize": "Filter by agent count",
       "agentSizeAny": "Any count",
       "agentSizeValue": "{{value}} agents",
-      "assistantHint": "Market guide: the copilot (bottom-right) answers with 谦面助手 focused. The assistant agent is not installed on this cell — install it to focus the guide."
+      "assistantHint": "Market guide: the copilot (bottom-right) answers with 谦面助手 focused. The assistant agent is not installed on this cell — install it to focus the guide.",
+      "official": "Official",
+      "officialBadge": "Official"
     },
     "detail": {
       "notFound": "Agent not found or unlisted",
@@ -1971,7 +1973,8 @@
       "igniteBtn": "Ignite first run",
       "lit": "Lit — team is now running.",
       "doneBtn": "Done"
-    }
+    },
+    "draftsBuilderPointer": "Or let the pack author draft it in chat — it interviews you, compiles the manifest, and lands an editable draft."
   },
   "overlay": {
     "title": "Resource adjustments",
@@ -2995,6 +2998,15 @@
       "revoke": "Revoke embed",
       "makeLink": "Create join link",
       "onceOnly": "Shown only once — copy and keep these:"
+    },
+    "fleet": {
+      "title": "Team subscriptions",
+      "none": "No subscribed teams yet",
+      "unsubscribe": "unsubscribe",
+      "fleetIdPlaceholder": "Fleet id (copy from the cockpit)",
+      "preview": "Preview summonable",
+      "summon": "Summon",
+      "cockpitOnly": "{title}: no serving face — see/act in the cockpit"
     }
   },
   "plugins": {
@@ -3125,7 +3137,7 @@
     },
     "castPack": "agent {{packId}}",
     "draft": {
-      "hint": "Hand the prompt to the blueprint-constructor capability agent in a chat, then paste its JSON back — it lands in the same draft pool (same validation chain).",
+      "hint": "Hand the prompt to an in-chat blueprint architect and paste the JSON back — same pool, same chain. On cells with the official Blueprint Architect pack, it can draft and land the pool directly in conversation.",
       "copy": "Copy prompt",
       "copied": "Copied",
       "copyFailed": "Clipboard unavailable — select the prompt and copy it manually.",
@@ -3231,6 +3243,62 @@
       "disable": "Disable",
       "remove": "Remove",
       "saveError": "Save failed — try again"
+    }
+  },
+  "agentTeams": {
+    "views": {
+      "overview": "Overview",
+      "manage": "Manage",
+      "owner": "Owner board"
+    },
+    "overview": {
+      "summaryTitle": "All agent teams",
+      "total": "{{count}} teams",
+      "running": "{{count}} running",
+      "abnormal": "{{count}} abnormal",
+      "abnormalUnknown": "abnormal stats unavailable",
+      "decisions": "{{count}} awaiting you",
+      "runs24h": "24h turns {{count}}",
+      "members": "{{count}} posts",
+      "lastActivity": "last activity {{time}}",
+      "onDuty": "on duty {{count}}",
+      "state": {
+        "missing": "missing {{count}}",
+        "vacant": "vacant {{count}}",
+        "failing": "failing {{count}}"
+      },
+      "empty": "No agent teams yet — provision one from the template shelf, or create one.",
+      "sourceUnavailable": "source unavailable",
+      "retry": "retry",
+      "loading": "loading…",
+      "builderPointer": "Or let the fleet architect build a team in chat, or the blueprint architect turn a scenario into a publishable template."
+    },
+    "manage": {
+      "colName": "Team",
+      "colState": "State",
+      "colModel": "Default model",
+      "colMembers": "Posts",
+      "colDecisions": "Awaiting",
+      "colActions": "Actions",
+      "batchPause": "Pause selected",
+      "batchResume": "Resume selected",
+      "batchArchive": "Archive selected",
+      "selected": "{{count}} selected",
+      "receipt": "{{ok}} succeeded / {{failed}} failed",
+      "confirmArchive": "Archiving is terminal and cannot be undone. Archive the selected teams?",
+      "editName": "Click to rename",
+      "modelInherit": "Inherit",
+      "openCockpit": "Open cockpit",
+      "selectRow": "Select {{name}}",
+      "scopeNote": "Inline-editable: name, default model, state. Orchestration edges and effort/context budget live in the cockpit."
+    }
+  },
+  "loginHero": {
+    "official": {
+      "title": "Official assets",
+      "kindTemplate": "Team template",
+      "kindFeatured": "Official pick",
+      "hint": "Sign in to subscribe and install — use the sign-in button above."
     }
   }
 }

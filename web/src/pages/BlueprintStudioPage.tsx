@@ -216,7 +216,7 @@ export function BlueprintStudioPage() {
   const status = detail?.status ?? "draft";
 
   // ── 起草轨（task 2.3，提示词桥）─────────────────────────────────────────
-  // NL→草稿承袭构造师 pack 能力的编译产物：提示词给会话里的能力包，返回的
+  // NL→草稿承袭构造师 pack 能力的编译产物：提示词给会话里的智能体，返回的
   // JSON 粘回同一草稿池（与 2.2 双轨同源），不引第二个编译源、不新造端点。
   const draftPrompt = useMemo(
     () =>

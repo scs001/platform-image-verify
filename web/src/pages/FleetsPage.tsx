@@ -9,10 +9,12 @@
 
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate, useParams } from "react-router-dom";
-import { useCronStore } from "@platform/core";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useCronStore, useChatStore } from "@platform/core";
 import { useFleetStore } from "@/store/fleet-store";
 import { useListCache } from "@/hooks/useListCache";
+import { TeamsOverviewBoard } from "@/components/fleet/TeamsOverviewBoard";
+import { TeamsManagementView } from "@/components/fleet/TeamsManagementView";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { OwnerBoardStrip } from "@/components/fleet/OwnerBoardStrip";
@@ -122,6 +124,11 @@ interface FleetRow {
   memberCount?: number;
   statusCounts?: Record<string, number>;
   openDecisions?: number;
+  // Row-level quick-edit fields (agent-teams-first-class 3.1, only-additive).
+  defaultModel?: string | null;
+  effort?: string | null;
+  contextBudget?: number | null;
+  spend?: { windows: Record<string, { runs: number; turns: number }> } | null;
 }
 
 interface FleetDetail {
@@ -248,14 +255,6 @@ function cadenceText(t: (k: string, opts?: Record<string, unknown>) => string, c
 
 const LAST_FLEET_KEY = "fleets.lastSelectedId";
 
-function readRememberedFleet(): string | null {
-  try {
-    return localStorage.getItem(LAST_FLEET_KEY);
-  } catch {
-    return null;
-  }
-}
-
 function rememberFleet(id: string | null): void {
   try {
     if (id) localStorage.setItem(LAST_FLEET_KEY, id);
@@ -282,7 +281,10 @@ export function FleetsPage() {
   const fleets = listCache.data?.fleets ?? [];
   const fleetsLoading = listCache.status === "loading";
   const [detail, setDetail] = useState<FleetDetail | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(() => readRememberedFleet());
+  // No remembered init (agent-teams-first-class D1): with no deep link the
+  // overview board IS the face; the remembered localStorage value stays
+  // written for other consumers but no longer forces a cockpit on return.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const listError = error ?? listCache.error;
   const [createOpen, setCreateOpen] = useState(false);
@@ -336,10 +338,33 @@ export function FleetsPage() {
   }, []);
 
   // Deep link /:fleetId selects the fleet (the cockpit is THE fleet page, D6).
+  // The clear runs ONLY on a route change into bare /fleets — manual selection
+  // (rail click, card click, create) happens on an unchanged route and must
+  // survive this effect.
   const { fleetId: routeFleetId } = useParams();
+  const prevRouteFleetId = useRef<string | undefined>(undefined);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: route-change-only effect — manual selections ride an unchanged route and must not be cleared
   useEffect(() => {
-    if (routeFleetId && routeFleetId !== selectedId) setSelectedId(routeFleetId);
-  }, [routeFleetId, selectedId]);
+    const hadRoute = prevRouteFleetId.current;
+    prevRouteFleetId.current = routeFleetId;
+    if (routeFleetId) {
+      if (routeFleetId !== selectedId) setSelectedId(routeFleetId);
+    } else if (hadRoute) {
+      setSelectedId(null);
+    }
+  }, [routeFleetId]);
+
+  // View switch inside the nav item (agent-teams-first-class D1): /fleets is
+  // the overview board by default, ?view=manage the management table,
+  // ?view=owner the owner board (the pre-existing 经营坞). A selected fleet
+  // renders the cockpit and the switch disappears — /fleets/:id deep links
+  // never land in a switch state.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const hubView = searchParams.get("view") === "manage" || searchParams.get("view") === "owner" ? searchParams.get("view") : null;
+  const setHubView = (v: "manage" | "owner" | null) => {
+    if (v) setSearchParams({ view: v });
+    else setSearchParams({});
+  };
 
   // Remember the selection across navigations (the deep link above still wins).
   useEffect(() => {
@@ -534,11 +559,9 @@ export function FleetsPage() {
     };
   }, [selectedId, loadDetail]);
 
-  // Autofollow the first fleet when the list arrives and nothing is selected.
-  useEffect(() => {
-    const first = fleets[0];
-    if (!selectedId && first) setSelectedId(first.id);
-  }, [fleets, selectedId]);
+  // (Autofollow removed, agent-teams-first-class D1: with no selection the
+  // overview board IS the face — auto-picking the first fleet would push the
+  // aggregate aside and re-create the "one team at a time" world.)
 
   const refresh = useCallback(async () => {
     await listCache.refresh();
@@ -556,6 +579,41 @@ export function FleetsPage() {
     if (!r.ok) setError((await r.json().catch(() => ({}))).error ?? `patch ${r.status}`);
     await refresh();
   };
+
+  // Management-face writes (agent-teams-management): per-row error contract —
+  // an inline edit that fails reports in its row, never as a global error.
+  const modelRoster = useChatStore((st) => st.models);
+
+  const managePatch = useCallback(
+    async (id: string, body: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> => {
+      const r = await fetch(`/api/fleets/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) {
+        return { ok: false, error: (await r.json().catch(() => ({}))).error ?? `patch ${r.status}` };
+      }
+      await listCache.refresh();
+      return { ok: true };
+    },
+    [listCache.refresh],
+  );
+
+  const manageBatch = useCallback(
+    async (action: string, ids: string[]) => {
+      const r = await fetch("/api/fleets/batch", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action, ids }),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) return { ok: false, error: body.error ?? `batch ${r.status}` };
+      await listCache.refresh();
+      return { ok: true, body };
+    },
+    [listCache.refresh],
+  );
 
   const dissolveFleet = async (id: string) => {
     if (!window.confirm(t("fleets.ops.confirmDissolve"))) return;
@@ -602,7 +660,35 @@ export function FleetsPage() {
   return (
     <div className="flex h-full flex-col" data-testid="fleets-page">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <h1 className="text-lg font-semibold">{t("fleets.title")}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-semibold">{t("fleets.title")}</h1>
+          {/* View switch (agent-teams-first-class D1): overview | manage | owner.
+              Hidden while a fleet is selected — the cockpit is its own face and
+              /fleets/:id deep links never land in a switch state. */}
+          {!selected ? (
+            <nav className="flex gap-1" data-testid="teams-view-switch">
+              {(
+                [
+                  [null, "agentTeams.views.overview", "teams-view-overview"],
+                  ["manage", "agentTeams.views.manage", "teams-view-manage"],
+                  ["owner", "agentTeams.views.owner", "teams-view-owner"],
+                ] as const
+              ).map(([value, key, testId]) => (
+                <button
+                  key={key}
+                  type="button"
+                  data-testid={testId}
+                  onClick={() => setHubView(value)}
+                  className={`rounded-md px-2 py-1 text-xs ${
+                    hubView === value ? "bg-primary/10 font-medium text-primary" : "text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {t(key)}
+                </button>
+              ))}
+            </nav>
+          ) : null}
+        </div>
         <Button variant="outline" size="sm" data-testid="fleet-create" onClick={() => setCreateOpen(true)}>
           {t("fleets.create")}
         </Button>
@@ -613,8 +699,11 @@ export function FleetsPage() {
         </p>
       ) : null}
       <div className="flex min-h-0 flex-1">
-        {/* fleet list */}
-        <div className="w-64 shrink-0 overflow-y-auto border-r border-border p-3" data-testid="fleet-list">
+        {/* fleet list rail — hidden on the manage face (the table IS the list) */}
+        <div
+          className={`overflow-y-auto border-r border-border p-3 ${hubView === "manage" && !selected ? "hidden" : "w-64 shrink-0"}`}
+          data-testid="fleet-list"
+        >
           {fleets.length > 0 ? (
             fleets.map((f) => (
               <button
@@ -652,14 +741,35 @@ export function FleetsPage() {
           )}
         </div>
 
-        {/* detail */}
+        {/* detail — cockpit when a fleet is selected; otherwise the hub face
+            (overview default, manage table, owner board) by query switch */}
         <div className="min-w-0 flex-1 overflow-y-auto p-4" data-testid="fleet-detail">
-          {!detail || !selected ? (
-            <OwnerBoardStrip
-              onSelect={(fleetId) => {
-                setSelectedId(fleetId);
-              }}
+          {hubView === "manage" && !selected ? (
+            <TeamsManagementView
+              fleets={fleets}
+              modelRoster={modelRoster ?? []}
+              onPatch={managePatch}
+              onBatch={manageBatch}
+              onOpenCockpit={(id) => setSelectedId(id)}
+              onCreate={() => setCreateOpen(true)}
             />
+          ) : !detail || !selected ? (
+            hubView === "owner" ? (
+              <OwnerBoardStrip
+                onSelect={(fleetId) => {
+                  setSelectedId(fleetId);
+                }}
+              />
+            ) : (
+              <TeamsOverviewBoard
+                roster={fleets}
+                rosterError={listError}
+                onRetryRoster={() => void listCache.refresh()}
+                onSelect={(fleetId) => setSelectedId(fleetId)}
+                onOpenManage={() => setHubView("manage")}
+                onOpenOwner={() => setHubView("owner")}
+              />
+            )
           ) : (
             <>
               <div className="flex flex-wrap items-center justify-between gap-3">

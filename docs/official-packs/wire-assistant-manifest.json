@@ -2,7 +2,12 @@
   "name": "柏讯助手",
   "description": "在壹座中使用柏讯（wire）的专用助手——看数据集、查产物、跟需求单、浏览市场，全部只读直通；建集、发布、归档、改错、提需求单、订阅市场等写操作一律经动作闸提议，由你在确认卡上亲自确认后执行。",
   "notes": "v2 — agent id 由 assistant 改为 wire-assistant：同 cell 装多个官方助手时 catalog agent id 不再互撞（copilot-dock-focused-preset D6）。v1.0.0 — add-wire-line-board 初始版本。读面 = wire-ops-mcp 7 读工具 + wire-build-mcp 4 读工具；写工具一律不进白名单（仓库测试 scripts/test-official-packs-lint.mjs 钉死）。先 private，验收 cell 实测后转 public。",
-  "tags": ["assistant", "wire", "柏讯", "data-ops"],
+  "tags": [
+    "assistant",
+    "wire",
+    "柏讯",
+    "data-ops"
+  ],
   "category": "operations",
   "visibility": "private",
   "skills": [
@@ -59,5 +64,38 @@
         "body": "新建表单/扫码页草稿、生成分享二维码等目前在柏讯控制台完成；助手会给你直达链接，壹座的柏讯看板 /boards/wire 则随时可看整体状态。"
       }
     ]
+  },
+  "i18n": {
+    "en": {
+      "name": "Wire Assistant",
+      "description": "Dedicated Wire (Baxun) assistant in Yizuo — view datasets, inspect artifacts, follow demand tickets, browse the market; read-only and direct. Writes (publish, archive, correct, ticket, subscribe) ride the action gate as proposals.",
+      "notes": "v2 — agent id renamed assistant → wire-assistant so several official assistants coexist in one cell without colliding on the catalog agent id.",
+      "guide": {
+        "steps": [
+          {
+            "title": "See what I have",
+            "body": "Use wire_datasets_list / wire_artifact_list to enumerate datasets and artifacts; the assistant reads them straight from Wire."
+          },
+          {
+            "title": "Start a write action",
+            "body": "Say \"publish artifact #7\", \"write a correction to the fertilization record\" or \"file a demand ticket\" — the assistant drafts a proposal for you to confirm in the action gate."
+          },
+          {
+            "title": "Outside the boundary, go to Wire",
+            "body": "New forms, QR draft pages and share codes are done in the Wire console for now; the assistant hands you a direct link."
+          }
+        ]
+      },
+      "skills": {
+        "wire-console-playbook": {
+          "description": "The Wire console workflow (ledger → form → QR page → confirm publish → daily corrections) as followed from inside Yizuo."
+        }
+      },
+      "agents": {
+        "wire-assistant": {
+          "name": "Wire Assistant"
+        }
+      }
+    }
   }
 }

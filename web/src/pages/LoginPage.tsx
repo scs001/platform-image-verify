@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuthStore, withReturnTo } from "@/hooks/useAuth";
 import { useAppConfig, useBranding } from "@/hooks/useAppConfig";
+import { OfficialShowcaseStrip } from "@/components/login/OfficialShowcaseStrip";
 import { resolveLoginHero } from "@/lib/login-hero";
 import { useLanguage } from "@/i18n/useLanguage";
 import type { Locale } from "@/i18n/config";
@@ -121,8 +122,9 @@ export function LoginPage() {
     // Neutral form (unconfigured, or links-only): the pre-change layout,
     // byte-for-byte — the open-source default.
     return (
-      <main className="flex h-dvh items-center justify-center bg-background p-6" data-testid="login-page">
+      <main className="flex h-dvh flex-col items-center justify-center gap-4 overflow-auto bg-background p-6" data-testid="login-page">
         {card}
+        <OfficialShowcaseStrip testId="login-official-neutral" />
       </main>
     );
   }
@@ -159,6 +161,10 @@ export function LoginPage() {
             ))}
           </ul>
         )}
+        {/* Official assets (add-official-pack-showcase): renders nothing on an
+            unconfigured deployment; cards never write, they surface the
+            sign-in guidance. */}
+        <OfficialShowcaseStrip />
       </section>
       <div className="flex flex-1 items-center justify-center p-6">{card}</div>
     </main>

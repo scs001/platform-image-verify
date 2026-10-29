@@ -1156,6 +1156,12 @@ export function registerPackRoutes(app, {
   // for the detail route's `purchased` flag (install gate reads it). When
   // null, the flag is omitted — behavior byte-identical to pre-market.
   market = null,
+  // Official showcase (add-official-pack-showcase): the deployment-side
+  // author roster that decides the `official` badge and the three-segment
+  // /api/packs/official aggregation. Authors CANNOT self-declare — the
+  // roster is the only source. Empty/absent → every row reads official:false
+  // and the showcase answers empty segments (honest empty, not an error).
+  officialAuthors = null,
 }) {
   // Agent-serving wiring (3.2): injected config wins (tests), env falls back
   // to the dedicated AGENT_SERVING_* names, then the market-bridge vars —
@@ -1302,6 +1308,18 @@ export function registerPackRoutes(app, {
     return anonymousRead ? { email: "", groups: [] } : null;
   };
 
+  // ── Official showcase (add-official-pack-showcase) ─────────────────────────
+  // Official = the deployment-side author roster, matched case-insensitively.
+  // The badge is presentation-level only: it never gates visibility,
+  // immutability, installability, or pricing (pack-marketplace delta).
+  const officialRoster = (Array.isArray(officialAuthors) ? officialAuthors : [])
+    .map((e) => String(e).trim().toLowerCase())
+    .filter(Boolean);
+  const isOfficial = (email) => officialRoster.includes(String(email ?? "").trim().toLowerCase());
+  // The flag rides EVERY row (pack-marketplace delta: listing/detail SHALL
+  // carry it) — an empty roster means all-false, not a missing key.
+  const withOfficial = (rows) => rows.map((p) => ({ ...p, official: isOfficial(p.authorEmail) }));
+
   // Publish (first version or next). Body: { packId?, manifest } — packId
   // targets an existing pack (author-checked); omitting it mints a new one.
   app.post("/api/packs", express.json({ limit: jsonLimit }), async (req, res) => {
@@ -1390,7 +1408,7 @@ export function registerPackRoutes(app, {
     const user = authRead(req);
     if (!user) return rejectUnauthenticated(req, res);
     const { search = "", tag = "", category = "", author = "", page, pageSize } = req.query;
-    res.json(registry.list({
+    const payload = registry.list({
       search: String(search),
       tag: String(tag),
       category: String(category),
@@ -1404,7 +1422,32 @@ export function registerPackRoutes(app, {
       // then Accept-Language's first tag, then zh. A zh (or absent) request
       // returns exactly the pre-change payload.
       locale: resolveLocale({ locale: req.query.locale, acceptLanguage: req.headers["accept-language"] }),
-    }));
+    });
+    payload.packs = withOfficial(payload.packs);
+    res.json(payload);
+  });
+
+  // Official showcase (add-official-pack-showcase): three segments aggregated
+  // from the PUBLIC listing — team templates (blueprint badge), conversational
+  // assistants (facade/assistant badge), and curated featured. Anonymous-
+  // readable regardless of the anonymousRead switch: the endpoint exposes
+  // public-face fields only, and a missing roster answers empty segments
+  // (honest empty, not an error). Registered BEFORE /:id so the literal path
+  // wins over the id route.
+  app.get("/api/packs/official", (req, res) => {
+    const locale = resolveLocale({ locale: req.query.locale, acceptLanguage: req.headers["accept-language"] });
+    const { packs } = registry.list({ pageSize: 100, viewer: { email: "", admin: false }, locale });
+    const flagged = withOfficial(packs);
+    res.json({
+      // Segments are OFFICIAL assets: roster members only. The featured
+      // segment keeps roster-external curated packs (D5: "运营推荐 ≠ 官方出品"
+      // — they render without the badge, official first).
+      templates: flagged.filter((p) => p.official && p.badge === "blueprint"),
+      assistants: flagged.filter((p) => p.official && (p.badge === "facade" || p.badge === "assistant")),
+      featured: flagged
+        .filter((p) => p.featured)
+        .sort((a, b) => Number(b.official ?? false) - Number(a.official ?? false)),
+    });
   });
 
   // Curation write (add-facet-content-management): featured is admin-only,
@@ -1512,6 +1555,7 @@ export function registerPackRoutes(app, {
     // file inventory, not the tree's contents — browsing stays cheap; the
     // per-file route below serves each body on demand.
     pack.manifest = projectManifestForDetail(pack.manifest);
+    pack.official = isOfficial(pack.authorEmail);
     res.json(pack);
   });
 

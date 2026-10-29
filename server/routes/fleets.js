@@ -1594,6 +1594,11 @@ export function createFleetRoutes(app, ctx = null) {
       try {
         ctx?.fleetDecisionNotifier?.(fleet, item, member);
       } catch { /* best-effort by contract */ }
+      // Fleet working memory (add-zhiyu-team-memory): the decision opening is
+      // a team fact. Fire-and-forget; capture never surfaces into the path.
+      try {
+        ctx?.captureFleetFact?.(fleet.id, member.id, "decision-opened", item.question, `严重度 ${item.severity}${route ? `，路由 ${route}` : ""}`);
+      } catch { /* capture never surfaces */ }
       res.status(201).json({
         ok: true,
         itemId: item.id,
@@ -2278,6 +2283,11 @@ export function createFleetRoutes(app, ctx = null) {
           console.warn(`[fleets] iteration cast callback failed (decision kept): ${e?.message || e}`);
         }
       }
+      // Fleet working memory (add-zhiyu-team-memory): the ruling is a team
+      // fact — the digest lets every member see what the owner decided.
+      try {
+        ctx?.captureFleetFact?.(owned.fleet.id, updated.memberId, "decision-resolved", updated.question, `${op === "reject" ? "驳回" : "批准"}：${String(resolution.resolution?.detail ?? resolution.resolution?.choice ?? "").slice(0, 200)}（裁决者 ${owned.user.email}）`);
+      } catch { /* capture never surfaces */ }
       res.json(iteration ? { decision: updated, iteration } : { decision: updated });
     } catch (err) {
       console.error("[fleets] decision op error:", err.message);
@@ -2317,6 +2327,14 @@ export function createFleetRoutes(app, ctx = null) {
             state: fleet.state,
             memberCount: members.length,
             statusCounts: counts,
+            // Row-level quick-edit fields (agent-teams-management D4): the
+            // three inline-editable fields ride the list so the management
+            // view never needs a per-row detail round-trip. Absent = null.
+            defaultModel: fleet.defaultModel ?? null,
+            effort: fleet.effort ?? null,
+            contextBudget: fleet.contextBudget ?? null,
+            // Spend projection mirrors owner/board (same source of truth).
+            spend: db.spendProjection(fleet.id),
             // The pending-decision count the nav badge reads (add-fleet-decision-lane
             // 刀3): the badge is derived from this list, so the number has to
             // ride here — a badge computed from a field the list never carried
@@ -2332,6 +2350,67 @@ export function createFleetRoutes(app, ctx = null) {
       res.json({ fleets });
     } catch (err) {
       console.error("[fleets] list error:", err.message);
+      res.status(500).json({ error: err.message || "internal error" });
+    }
+  });
+
+  // ── 批量动作（agent-teams-management D3）：逐条执行既有单团队语义、逐条回执 ──
+  // pause/resume/archive share the PATCH /:id state semantics verbatim
+  // (FLEET_STATES gate, archived-is-terminal 409 → per-item error). Any single
+  // failure MUST NOT stop the rest; a shape-valid request answers 200 with
+  // per-item results — partial failure is a business result, not a request
+  // error. Foreign/unknown ids answer "not found" (probing teaches nothing).
+  const FLEET_BATCH_MAX = Number(process.env.FLEET_BATCH_MAX || 50);
+  const FLEET_BATCH_ACTIONS = { pause: "paused", resume: "active", archive: "archived" };
+
+  router.post("/batch", async (req, res) => {
+    try {
+      const user = resolveUser(req);
+      if (!user) return res.status(401).json({ error: "Authentication required" });
+      const action = req.body?.action;
+      const ids = req.body?.ids;
+      if (!FLEET_BATCH_ACTIONS[action]) {
+        return res.status(400).json({ error: `action must be one of ${Object.keys(FLEET_BATCH_ACTIONS).join(", ")}` });
+      }
+      if (!Array.isArray(ids) || ids.length === 0 || !ids.every((id) => typeof id === "string" && id.trim())) {
+        return res.status(400).json({ error: "ids must be a non-empty array of fleet ids" });
+      }
+      // Dedupe preserving order — a repeated id executes once.
+      const unique = [...new Set(ids)];
+      if (unique.length > FLEET_BATCH_MAX) {
+        return res.status(400).json({
+          error: `batch limited to ${FLEET_BATCH_MAX} fleets per call (got ${unique.length})`,
+          code: "batch_limit_exceeded",
+        });
+      }
+      const db = getFleetDatabase();
+      const targetState = FLEET_BATCH_ACTIONS[action];
+      const results = [];
+      for (const id of unique) {
+        const fleet = db.getFleet(id);
+        if (!fleet || fleet.ownerEmail !== user.email) {
+          results.push({ id, ok: false, error: "not found" });
+          continue;
+        }
+        if (fleet.state === "archived") {
+          results.push({ id, ok: false, error: "This fleet is archived — archived is terminal" });
+          continue;
+        }
+        try {
+          db.updateFleet(fleet.id, { state: targetState }, auditMeta(req, `POST /api/fleets/batch ${action}`));
+          await runReconcile(fleet.id);
+          results.push({ id, ok: true, state: targetState });
+        } catch (err) {
+          results.push({ id, ok: false, error: err.message || "internal error" });
+        }
+      }
+      const summary = {
+        ok: results.filter((r) => r.ok).length,
+        failed: results.filter((r) => !r.ok).length,
+      };
+      res.json({ action, results, summary });
+    } catch (err) {
+      console.error("[fleets] batch error:", err.message);
       res.status(500).json({ error: err.message || "internal error" });
     }
   });
@@ -2690,6 +2769,11 @@ export function createFleetRoutes(app, ctx = null) {
 
       const updated = db.updateMember(member.id, { targetKind, targetId });
       const reconcile = await runReconcile(fleet.id);
+      // Fleet working memory (add-zhiyu-team-memory): the restaff is a team
+      // fact — the incoming member's next digest tells it whose post it took.
+      try {
+        ctx?.captureFleetFact?.(fleet.id, member.id, "swap", `岗位「${member.title}」换防`, `新在岗者 ${String(targetId).slice(0, 80)}${req.body?.freshSession === true ? "（清史重开——对话史清空，记忆与报数史照旧）" : ""}`);
+      } catch { /* capture never surfaces */ }
       const tasks = taskIndexFor(fleet.id);
       const view = memberView(db, fleet, updated, tasks, { resolver: targetResolver, model: modelCtx() });
       res.json({ member: view, reconcile });

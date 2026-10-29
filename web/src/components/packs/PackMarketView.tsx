@@ -107,12 +107,28 @@ export function PackMarketView({
     setSizeKeyState(key);
   }, []);
   const sizeFilter = AGENT_SIZE_FILTERS.find((f) => f.key === sizeKey) ?? AGENT_SIZE_FILTERS[0];
+  // Official filter (add-official-pack-showcase): URL-persisted like the size
+  // filter. Rows without the flag (pre-upgrade server) pass through
+  // unfiltered rather than vanishing; the chip renders only when the server
+  // actually derives official rows (a rosterless deployment has none).
+  const [officialOnly, setOfficialOnly] = useState(
+    () => new URLSearchParams(window.location.search).get("official") === "1",
+  );
+  const setOfficialFilter = useCallback((on: boolean) => {
+    const url = new URL(window.location.href);
+    if (on) url.searchParams.set("official", "1");
+    else url.searchParams.delete("official");
+    window.history.replaceState({}, "", url.toString());
+    setOfficialOnly(on);
+  }, []);
+  const hasOfficialRows = packs.some((p) => p.official === true);
   // Countless summaries (a pre-upgrade server) pass through unfiltered
   // rather than vanishing.
   const visiblePacks = packs.filter(
     (p) =>
-      p.agentCount === undefined ||
-      (p.agentCount >= sizeFilter.min && p.agentCount <= sizeFilter.max),
+      (p.agentCount === undefined ||
+        (p.agentCount >= sizeFilter.min && p.agentCount <= sizeFilter.max)) &&
+      (!officialOnly || p.official === true),
   );
 
   const refresh = useCallback(
@@ -214,8 +230,19 @@ export function PackMarketView({
         </select>
       </div>
 
-      {categories.length > 0 && (
+      {(categories.length > 0 || hasOfficialRows) && (
         <div className="flex flex-wrap gap-1.5 mb-3" data-testid="pack-category-chips">
+          {hasOfficialRows && (
+            <button
+              onClick={() => setOfficialFilter(!officialOnly)}
+              className={`rounded-full border px-2.5 py-0.5 text-xs transition-colors ${
+                officialOnly ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:text-foreground"
+              }`}
+              data-testid="pack-official-chip"
+            >
+              {t("packs.market.official")}
+            </button>
+          )}
           <button
             onClick={() => {
               setCategory("");
@@ -297,6 +324,9 @@ export function PackMarketView({
             <div className="flex items-center justify-between gap-2">
               <span className="font-medium text-foreground flex items-center gap-1.5">
                 {pack.name}
+                {pack.official === true && (
+                  <Badge data-testid={`pack-official-badge-${pack.id}`}>{t("packs.market.officialBadge")}</Badge>
+                )}
                 {pack.badge ? (
                   <Badge data-testid={`pack-type-badge-${pack.id}`}>{t(`packs.badge.${pack.badge}`)}</Badge>
                 ) : (

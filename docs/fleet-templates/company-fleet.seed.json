@@ -248,6 +248,91 @@
         "default": "0 11 * * 1",
         "label": "周会周期"
       }
-    ]
+    ],
+    "i18n": {
+      "en": {
+        "name": "AI Company",
+        "members": {
+          "ceo": {
+            "title": "CEO",
+            "kpiSlots": {
+              "escalated": {
+                "label": "Awaiting owner decision"
+              },
+              "patrol_notes": {
+                "label": "Patrol notes"
+              }
+            }
+          },
+          "oss": {
+            "title": "Open-Source Div",
+            "kpiSlots": {
+              "issues_open": {
+                "label": "Open issues"
+              },
+              "stars_week": {
+                "label": "Stars this week"
+              }
+            }
+          },
+          "invest": {
+            "title": "Investment Div",
+            "kpiSlots": {
+              "watch_count": {
+                "label": "Watchlist"
+              },
+              "pnl_day": {
+                "label": "Day P&L"
+              }
+            }
+          },
+          "assist": {
+            "title": "Assistant Div",
+            "kpiSlots": {
+              "briefs_count": {
+                "label": "Briefing points"
+              }
+            }
+          },
+          "shop": {
+            "title": "E-commerce Div",
+            "kpiSlots": {
+              "sales_week": {
+                "label": "Sales this week"
+              }
+            }
+          },
+          "content": {
+            "title": "Content Div",
+            "kpiSlots": {
+              "videos_week": {
+                "label": "Videos this week"
+              }
+            }
+          },
+          "wanxing": {
+            "title": "Wanxing Runner Seat",
+            "kpiSlots": {}
+          }
+        }
+      }
+    }
+  },
+  "i18n": {
+    "en": {
+      "name": "AI Company (official seed)",
+      "description": "Official fleet-template exemplar: a CEO patrol ({{fleetContext}} injection) + three real-data posts (open-source/investment) + an assistant reference post + two connector empty-state posts (e-commerce/content, demonstrating the vacant-post downgrade) + a Wanxing runner-seat reference post.",
+      "agents": {
+        "company-ceo": {
+          "name": "CEO"
+        },
+        "company-oss": {
+          "name": "Open-Source Div"
+        },
+        "company-invest": {
+          "name": "Investment Div"
+        }
+      }
+    }
   }
 }

@@ -175,6 +175,67 @@
         "default": "40 7 * * *",
         "label": "市场面晨检时刻"
       }
-    ]
+    ],
+    "i18n": {
+      "en": {
+        "name": "Morning Brief Station",
+        "members": {
+          "chief": {
+            "title": "Briefing editor",
+            "kpiSlots": {
+              "sources_covered": {
+                "label": "Sources covered"
+              },
+              "brief_digest": {
+                "label": "Brief highlights"
+              }
+            }
+          },
+          "tech": {
+            "title": "Tech scout",
+            "kpiSlots": {
+              "top_story": {
+                "label": "Top story"
+              },
+              "tech_hits": {
+                "label": "Tech intel"
+              }
+            }
+          },
+          "market": {
+            "title": "Market scout",
+            "kpiSlots": {
+              "watch_alerts": {
+                "label": "Alert signals"
+              },
+              "market_moves": {
+                "label": "Market moves"
+              }
+            }
+          },
+          "cluster": {
+            "title": "Deep-dive Seat",
+            "kpiSlots": {}
+          }
+        }
+      }
+    }
+  },
+  "i18n": {
+    "en": {
+      "name": "Morning Brief Station (official seed)",
+      "description": "Official fleet template: a daily morning-brief intel station — the tech and market scouts patrol separately every early morning, and the briefing editor synthesizes the morning brief at 8; plus a cluster-reference post (existing-cluster, weekly deep aggregation, demonstrating cluster fan-out).",
+      "agents": {
+        "intel-chief": {
+          "name": "Briefing editor"
+        },
+        "intel-tech": {
+          "name": "Tech scout"
+        },
+        "intel-market": {
+          "name": "Market scout"
+        }
+      }
+    }
   }
 }

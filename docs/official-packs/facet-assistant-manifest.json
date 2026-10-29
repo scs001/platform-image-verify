@@ -81,5 +81,53 @@
         "body": "壹座内「订阅并安装」一键落位；外部编辑器用 facet CLI（默认 Claude Code，--target cursor 可选）。"
       }
     ]
+  },
+  "i18n": {
+    "en": {
+      "name": "Facet Assistant",
+      "description": "Dedicated Facet assistant in Yizuo — browse the catalog, read details, pre-validate publishes, guided authoring. Read-only tools + proposal lane; writes go through the action gate",
+      "notes": "v3 — add-facet-copilot market-guide round: the skill face absorbs four families of guide questions (concepts / recommendations / permission explanations / install guidance), sourced from facts.",
+      "guide": {
+        "steps": [
+          {
+            "title": "Describe and get recommended",
+            "body": "Say what capability you need; the assistant searches with browse/read and points at market entries with reasons."
+          },
+          {
+            "title": "Understand the tool face",
+            "body": "The detail view and the assistant disclose each MCP reference allowTools whitelist and required group, item by item."
+          },
+          {
+            "title": "Pick an install path",
+            "body": "Inside Yizuo use subscribe-and-install in one click; external editors use the facet CLI (Claude Code by default)."
+          }
+        ]
+      },
+      "skills": {
+        "facet-browse-guidance": {
+          "description": "Guides the user through the facet-market-mcp browse/read tools."
+        },
+        "facet-validate-guidance": {
+          "description": "Guides the user through validate for a pre-publish check."
+        },
+        "facet-concepts": {
+          "description": "Answers Facet concept questions: what a pack is, subscribe vs install, version snapshot semantics."
+        },
+        "facet-recommend": {
+          "description": "Recommends packs by need: triage first, then search, pointing at market entries."
+        },
+        "facet-permissions": {
+          "description": "Explains how a pack discloses its MCP references and tool faces (allowTools)."
+        },
+        "facet-install-guidance": {
+          "description": "Guides both install paths: one-click subscribe-and-install in Yizuo / CLI install into Claude Code."
+        }
+      },
+      "agents": {
+        "facet-assistant": {
+          "name": "Facet Assistant"
+        }
+      }
+    }
   }
 }

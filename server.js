@@ -70,6 +70,8 @@ import { registerBotRelayRoutes, RELAY_PREFIX } from "./server/routes/bot-relay.
 import { createClusterRoutes, startAutoTerminationJob } from "./server/routes/clusters.js";
 import { createFleetRoutes, resolveFleetTarget } from "./server/routes/fleets.js";
 import { createBlueprintRoutes } from "./server/routes/blueprints.js";
+import { registerBlueprintAuthorRoutes } from "./server/blueprint-author.js";
+import { registerPackAuthorRoutes } from "./server/pack-author.js";
 import { getFleetDatabase } from "./server/routes/fleets-db.js";
 import { reconcileAllFleets, deriveMemberStatus } from "./server/fleet-reconcile.js";
 import { buildFleetContext } from "./server/fleet-context.js";
@@ -77,6 +79,7 @@ import { derivedReportFromTask, fleetIdentityFor, fleetModelFor } from "./server
 import { recordTurnEvent } from "./server/fleet-events.js";
 import { setEffortDeclarations } from "./server/fleet-model.js";
 import { createFleetTurnLedger } from "./server/fleet-runs.js";
+import { fleetMemoryFor, createFleetMemoryCapture, createHealthFlipTracker } from "./server/fleet-memory.js";
 import { outgoingHandoffs, outgoingFanouts, constraintsOf } from "./server/fleet-orchestration.js";
 import { triggerFleetEventWake } from "./server/fleet-event-wake.js";
 import * as engine from "./task-engine.js";
@@ -333,8 +336,12 @@ registerAppRoutes(ctx);
     callerEmail: (req) =>
       req.user?.email ??
       ctx.appAuth.accountFromToken(String(req.headers.authorization || "").startsWith("Bearer ") ? req.headers.authorization.slice(7) : "")?.email ??
-      null,
-    isAdmin: (req) => (ctx.isAdminUser ? ctx.isAdminUser(req.user ?? {}) : false),
+      // Auth-off (desktop / standalone) has no req.user: the requester IS the
+      // machine owner — the same convention requireAdmin and the market routes
+      // above already use. Without it the whole machines surface 401s on every
+      // desktop install, which is this console's primary consumer.
+      (ctx.authEnabled ? null : ctx.cellUserEmail || "owner@local"),
+    isAdmin: (req) => (ctx.authEnabled ? (ctx.isAdminUser ? ctx.isAdminUser(req.user ?? {}) : false) : true),
   });
 }
 registerRegistryRoutes(ctx);
@@ -352,6 +359,11 @@ createFleetRoutes(app, ctx);
 // validate/approve/cast routes. 治包不治舰（design D1）——与 architect 的
 // 活舰编排互不引写路径；auth 语义与 fleets 同款（owner 作用域资产）。
 createBlueprintRoutes(app, ctx);
+// Builder bridges (add-builder-team-templates): the blueprint-author and
+// pack-author MCP children land validation-green drafts into the owner's
+// pools. Loopback-only credential (auth.js), owner resolved server-side.
+registerBlueprintAuthorRoutes(app, ctx);
+registerPackAuthorRoutes(app, ctx);
 // Cluster monitoring (agent-cluster-platform). The Phase 4/5/8/10 siblings
 // this shipped with (model-binding provider routes, the hardcoded template
 // "marketplace", the optimization endpoints with fabricated cache metrics)
@@ -1191,6 +1203,52 @@ ctx.fleetTurnLedger = createFleetTurnLedger({
   trace,
   rosterPresetId,
 });
+
+// Fleet working memory (add-zhiyu-team-memory 刀A): turn facts captured as
+// L0/L1 pages into the owner's `f/<fleetId>` memory project over fd-memory's
+// platform-seam — the SAME lane cluster shared memory uses. Degrade open
+// everywhere: a capture failure is a counter, never a failed turn; an
+// unavailable memory face is a missing fleetContext section, never a
+// placeholder.
+{
+  const healthFlip = createHealthFlipTracker();
+  let memoryClient = null;
+  let memoryClientTried = false;
+  const memoryFor = async () => {
+    if (!memoryClientTried) {
+      memoryClientTried = true;
+      memoryClient = await fleetMemoryFor(process.env, ctx.cellUserEmail ?? null);
+    }
+    return memoryClient;
+  };
+  ctx.fleetMemoryCapture = createFleetMemoryCapture({ memory: { async writeFleetPage(f, t, b) { const m = await memoryFor(); if (!m) throw new Error("fleet memory off"); await m.writeFleetPage(f, t, b); } } });
+  // Fire-and-forget: the seam caller never awaits memory.
+  ctx.captureFleetFact = (fleetId, memberId, kind, title, body) => {
+    void ctx.fleetMemoryCapture?.capture(fleetId, memberId, kind, title, body)?.catch?.(() => {});
+  };
+  // Turn settle capture (the seam every member turn passes through): turn
+  // outcome + health flips. Wrapped around recordFleetTurnEvent below.
+  ctx.captureFleetTurnFact = (job, outcome) => {
+    try {
+      const fleetId = job?.sourceTag?.fleetId ?? job?.origin?.fleet?.fleetId ?? null;
+      const memberId = job?.sourceTag?.memberId ?? job?.origin?.fleet?.memberId ?? null;
+      if (!fleetId || !memberId) return;
+      const status = outcome?.status ?? "failed";
+      ctx.captureFleetFact(fleetId, memberId, "turn", `回合${status === "ok" ? "成功" : "失败"}`, String(outcome?.text ?? outcome?.error ?? "").slice(0, 400));
+      if (healthFlip(fleetId, memberId, status)) {
+        ctx.captureFleetFact(fleetId, memberId, "health", `状态迁移 → ${status}`, `岗位 ${memberId} 的执行状态从 ${status === "ok" ? "失败" : "成功"}迁回。`);
+      }
+    } catch { /* capture never surfaces into the turn path */ }
+  };
+  // The fleetContext memory section: member-relevant digest over the fleet's
+  // `f/` project; null = section absent (degrade open).
+  ctx.fleetMemoryDigest = async (fleetId, memberTitle) => {
+    const m = await memoryFor();
+    if (!m) return null;
+    const out = await m.readDigest(fleetId, memberTitle ?? "", { budget: 1200 });
+    return typeof out?.block === "string" && out.block.trim() ? out.block : null;
+  };
+}
 // Settle backstop (agent-fleet-runs): the seam settles after each TURN, but a
 // chained task can die at the ENGINE layer without ever entering the turn seam
 // (schedule-side block, pre-execution failure) — its run's header would leak
@@ -1231,6 +1289,7 @@ setInterval(sweepRuns, 60 * 60 * 1000).unref();
 // open here too — the warn is the whole blast radius.
 ctx.recordFleetTurnEvent = (job, outcome, meta) => {
   try {
+    ctx.captureFleetTurnFact?.(job, outcome);
     if (meta?.ledgerTurn) return ctx.fleetTurnLedger.end(job, meta.ledgerTurn, outcome, meta);
     return recordTurnEvent(getFleetDatabase(), job, outcome, { ...meta, rosterPresetId });
   } catch (e) {
@@ -1495,6 +1554,9 @@ await Promise.all([
           const items = getFleetDatabase().listDecisions({ fleetId, pendingDeliveryFor: memberId });
           return renderDecisionSegment(items);
         },
+        // Fleet working memory (add-zhiyu-team-memory 刀A): the seam is
+        // member-relevant by title; null = absent.
+        memoryDigest: ctx.fleetMemoryDigest,
       }),
   }),
 ]);

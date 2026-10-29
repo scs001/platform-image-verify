@@ -128,6 +128,17 @@ const isInternalDelegationBridge = (req) =>
 const isInternalFleetArchitectBridge = (req) =>
   req.path.startsWith("/api/fleet-architect/") && isLoopback(req.socket?.remoteAddress);
 
+// The builder bridges (add-builder-team-templates) — the blueprint-author and
+// pack-author MCP children land VALIDATION-GREEN drafts into the owner's
+// pools over /api/blueprint-author and /api/pack-author. Loopback only; the
+// bridges resolve the acting owner from the cell context server-side (same
+// model as the architect bridge), and neither carries any approve/publish/
+// mint verb — the owner's gates in the Studio and the pack editor are the
+// only paths to effect.
+const isInternalBuilderBridges = (req) =>
+  (req.path.startsWith("/api/blueprint-author/") || req.path.startsWith("/api/pack-author/")) &&
+  isLoopback(req.socket?.remoteAddress);
+
 // The save-library bridge (`save_to_library`, openspec: add-save-to-library-tool)
 // — the fourth bridge, same credential model: the dsh child's tool ingests
 // workspace files the CURRENT turn produced. Loopback is its credential, and
@@ -285,6 +296,10 @@ export function registerAuth(ctx) {  ctx.app.use((req, res, next) => {
     }
     if (isInternalFleetArchitectBridge(req)) {
       req.user = { email: "fleet-architect@internal", internal: true };
+      return next();
+    }
+    if (isInternalBuilderBridges(req)) {
+      req.user = { email: "builder-author@internal", internal: true };
       return next();
     }
     if (isInternalSaveBridge(req)) {

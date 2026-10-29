@@ -71,5 +71,50 @@
     "delegation": [],
     "stance": "hosted"
   },
-  "notes": "v5：接待声明 serving.toolFace=chat——物化层裁掉 bash/文件/web/子代理内建工具行（结构性闸，补 v4 persona 纪律）；保留 skill 语料入口与桥注入三件套。v4：接待硬纪律。v3：词汇换皮。委派清单空：a2a 专家委派随新版本追加。语料快照 scripts/facade-corpus-snapshot.mjs 周更。"
+  "notes": "v5：接待声明 serving.toolFace=chat——物化层裁掉 bash/文件/web/子代理内建工具行（结构性闸，补 v4 persona 纪律）；保留 skill 语料入口与桥注入三件套。v4：接待硬纪律。v3：词汇换皮。委派清单空：a2a 专家委派随新版本追加。语料快照 scripts/facade-corpus-snapshot.mjs 周更。",
+  "i18n": {
+    "en": {
+      "name": "FindData AI Facade",
+      "description": "The corporate AI facade of FindData: to learn who we are, what projects we run and what our products can do, just chat with the facade. Answers come from the curated corpus frozen with each version, every claim carrying its corpus-as-of date; anything uncovered is honestly declined.",
+      "notes": "v5: the reception role declares serving.toolFace=chat — the materializer strips the bash/file/web/subagent built-in tool rows (a structural cut, not a prompt request).",
+      "guide": {
+        "steps": [
+          {
+            "title": "Open the facade",
+            "body": "Deploy the facade, then anyone can chat with it from the catalog link — visitors chat free, costs ride your quota."
+          },
+          {
+            "title": "Just ask",
+            "body": "Ask about the company, running projects or product capabilities. One-click sample questions ride the catalog card."
+          },
+          {
+            "title": "Get honest answers",
+            "body": "Honest answers with corpus dates; uncovered or stale questions are declined, contact requests open a matter."
+          }
+        ]
+      },
+      "skills": {
+        "corpus-company": {
+          "description": "Company corpus: who FindData is, the twin-star one-base product positioning, core concepts."
+        },
+        "corpus-projects": {
+          "description": "Projects corpus: twin-star roadmap milestones, exit criteria, in-flight changes."
+        },
+        "corpus-capabilities": {
+          "description": "Capabilities corpus: Facet verticals on the shelf, Wanxing service forms, what they can be used for."
+        }
+      },
+      "agents": {
+        "reception": {
+          "name": "FindData Reception",
+          "serving": {
+            "card": {
+              "name": "FindData AI Facade",
+              "description": "Want to know FindData? Chat with this reception role: who the company is, what projects are running, what the products can do."
+            }
+          }
+        }
+      }
+    }
+  }
 }

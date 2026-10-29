@@ -159,6 +159,13 @@ registerPackRoutes(app, {
   anonymousRead: true,
   vendors: registry.vendors,
   market: registry.market,
+  // Official showcase (add-official-pack-showcase): the facet market is
+  // anonymous-first, so the badge rides its rows too — same roster env as the
+  // gateway mount, one deployment one truth.
+  officialAuthors: (process.env.OFFICIAL_AUTHOR_EMAILS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean),
 });
 
 // Vendor supply-open (add-vendor-supply-open): identity + 供方上牌闸 — both

@@ -284,6 +284,28 @@ export function ZhiyuRoomPage() {
   const isOwner = Boolean(room && me && room.ownerEmail === me.ref);
   const active = room?.status === "active";
 
+  // Fleet bridge state (add-zhiyu-team-memory 刀B). Subscriptions are event
+  // sources, not members; the summon plan separates serving members (can be
+  // invited) from cockpit-only posts (named honestly, never fake-invited).
+  interface FleetSub { id: string; fleetId: string; fleetName: string }
+  interface SummonPlan { fleetId: string; fleetName: string; summonable: { ref: string; title?: string }[]; cockpitOnly: string[] }
+  const [fleetSubs, setFleetSubs] = useState<FleetSub[] | null>(null);
+  const [fleetIdDraft, setFleetIdDraft] = useState("");
+  const [summonPlan, setSummonPlan] = useState<SummonPlan | null>(null);
+  const [summonResult, setSummonResult] = useState<{ ref: string; ok: boolean; error?: string }[] | null>(null);
+  const reloadFleetSubs = useCallback(async () => {
+    if (!isOwner || !active) return setFleetSubs(null);
+    try {
+      const r = await jcall<{ subscriptions: FleetSub[] }>("GET", `/api/zhiyu/rooms/${roomId}/fleet-subscriptions`);
+      setFleetSubs(r.subscriptions);
+    } catch {
+      setFleetSubs(null); // the bridge face degrades to absence, not an error
+    }
+  }, [isOwner, active, roomId]);
+  useEffect(() => {
+    void reloadFleetSubs();
+  }, [reloadFleetSubs]);
+
   const label = (row: StreamRow): string => {
     if (row.provenance) return t("zhiyu.room.hatchedSender");
     const m = row.senderMemberId ? memberById.get(row.senderMemberId) : null;
@@ -526,6 +548,90 @@ export function ZhiyuRoomPage() {
             </li>
           ))}
         </ul>
+
+        {/* Fleet bridge (add-zhiyu-team-memory 刀B): owner-facing subscription
+            list + summon. Subscriptions are event sources, NOT members — the
+            section names that distinction itself. */}
+        {isOwner && active && (
+          <div className="mt-4 border-t pt-3" data-testid="zy-fleet-bridge">
+            <h3 className="mb-1.5 text-xs font-medium">{t("zhiyu.fleet.title")}</h3>
+            <ul className="space-y-1" data-testid="zy-fleet-subs">
+              {(fleetSubs ?? []).map((s) => (
+                <li key={s.id} className="flex items-center justify-between gap-2 rounded-md border px-2 py-1 text-xs">
+                  <span className="min-w-0 truncate">{s.fleetName}</span>
+                  <button
+                    type="button"
+                    className="shrink-0 text-xs text-destructive hover:underline"
+                    onClick={async () => {
+                      await jcall("DELETE", `/api/zhiyu/rooms/${roomId}/fleet-subscriptions/${s.id}`);
+                      await reloadFleetSubs();
+                    }}
+                    data-testid={`zy-fleet-unsub-${s.id}`}
+                  >
+                    {t("zhiyu.fleet.unsubscribe")}
+                  </button>
+                </li>
+              ))}
+              {(fleetSubs ?? []).length === 0 && <li className="text-xs text-muted-foreground">{t("zhiyu.fleet.none")}</li>}
+            </ul>
+            <div className="mt-2">
+              <input
+                className="h-7 w-full rounded-md border border-border bg-background px-2 text-xs"
+                placeholder={t("zhiyu.fleet.fleetIdPlaceholder")}
+                value={fleetIdDraft}
+                onChange={(e) => setFleetIdDraft(e.target.value)}
+                data-testid="zy-fleet-id-input"
+              />
+              <div className="mt-1 flex gap-2">
+                <button
+                  type="button"
+                  className="flex-1 rounded-md border border-border px-2 py-1 text-xs hover:bg-muted"
+                  onClick={async () => {
+                    setSummonPlan(null);
+                    const r = await jcall<{ plan: SummonPlan }>("POST", `/api/zhiyu/rooms/${roomId}/fleet-summon`, { fleetId: fleetIdDraft, dryRun: true });
+                    setSummonPlan(r.plan);
+                  }}
+                  data-testid="zy-fleet-preview"
+                >
+                  {t("zhiyu.fleet.preview")}
+                </button>
+                <button
+                  type="button"
+                  className="flex-1 rounded-md bg-primary px-2 py-1 text-xs text-primary-foreground disabled:opacity-50"
+                  disabled={!summonPlan || !summonPlan.summonable.length}
+                  onClick={async () => {
+                    const r = await jcall<{ results: { ref: string; ok: boolean; error?: string }[] }>("POST", `/api/zhiyu/rooms/${roomId}/fleet-summon`, { fleetId: fleetIdDraft });
+                    setSummonResult(r.results);
+                    setFleetIdDraft("");
+                    await reloadFleetSubs();
+                  }}
+                  data-testid="zy-fleet-summon"
+                >
+                  {t("zhiyu.fleet.summon")}
+                </button>
+              </div>
+              {summonPlan && (
+                <div className="mt-1.5 space-y-0.5 text-xs text-muted-foreground" data-testid="zy-fleet-plan">
+                  {summonPlan.summonable.map((m) => (
+                    <div key={m.ref}>✓ {m.title ?? m.ref}</div>
+                  ))}
+                  {summonPlan.cockpitOnly.map((title) => (
+                    <div key={title} className="text-amber-600">• {t("zhiyu.fleet.cockpitOnly", { title })}</div>
+                  ))}
+                </div>
+              )}
+              {summonResult && (
+                <div className="mt-1.5 space-y-0.5 text-xs" data-testid="zy-fleet-summon-result">
+                  {summonResult.map((r) => (
+                    <div key={r.ref} className={r.ok ? "text-primary" : "text-destructive"}>
+                      {r.ok ? "✓" : "✗"} {r.ref}{r.error ? `：${r.error}` : ""}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </aside>
 
       <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>

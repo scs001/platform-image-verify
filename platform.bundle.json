@@ -37,7 +37,21 @@
       "args": [
         "server/fleet-architect-mcp.js"
       ],
-      "_comment": "集群架构师工具面(agent-fleet-architect):读态/草稿/落地三段五工具,bundled 种子自激活,loopback 桥身份=cell owner"
+      "_comment": "团队架构师工具面(agent-fleet-architect):读态/草稿/落地三段五工具,bundled 种子自激活,loopback 桥身份=cell owner"
+    },
+    "blueprint-author": {
+      "command": "node",
+      "args": [
+        "server/blueprint-author-mcp.js"
+      ],
+      "_comment": "蓝图构造师工具面(add-builder-team-templates):list/validate/save 三工具,bundled 种子自激活,loopback 桥身份=cell owner;无 approve/cast/trial"
+    },
+    "pack-author": {
+      "command": "node",
+      "args": [
+        "server/pack-author-mcp.js"
+      ],
+      "_comment": "智能体作者工具面(add-builder-team-templates):drafts/market-servers/validate/save 四工具,bundled 种子自激活,loopback 桥身份=cell owner;无 publish/pricing/deploy"
     },
     "playwright": {
       "command": "node",

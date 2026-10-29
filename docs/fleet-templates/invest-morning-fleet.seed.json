@@ -174,6 +174,71 @@
         "default": "10 9 * * 1-5",
         "label": "板块晨检时刻"
       }
-    ]
+    ],
+    "i18n": {
+      "en": {
+        "name": "Investment Morning Meeting",
+        "members": {
+          "chief": {
+            "title": "Chief analyst",
+            "kpiSlots": {
+              "escalated": {
+                "label": "Awaiting owner decision"
+              },
+              "morning_notes": {
+                "label": "Meeting notes"
+              }
+            }
+          },
+          "macro": {
+            "title": "Macro researcher",
+            "kpiSlots": {
+              "watch_count": {
+                "label": "Watched events"
+              },
+              "macro_view": {
+                "label": "Macro view"
+              }
+            }
+          },
+          "sector": {
+            "title": "Sector researcher",
+            "kpiSlots": {
+              "top_ticker": {
+                "label": "Top watchlist"
+              },
+              "sector_pick": {
+                "label": "Sector view"
+              }
+            }
+          },
+          "risk": {
+            "title": "Risk officer",
+            "kpiSlots": {
+              "risk_flags": {
+                "label": "Risk flags"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "i18n": {
+    "en": {
+      "name": "Investment Morning Meeting (official seed)",
+      "description": "Official fleet template: a three-tier cascaded investment morning meeting — the chief analyst aggregates the macro/sector researchers' morning reports and escalates decisions upward, while the risk officer is a passive post (woken by delegation or a decision reply).",
+      "agents": {
+        "invest-chief": {
+          "name": "Chief analyst"
+        },
+        "invest-macro": {
+          "name": "Macro researcher"
+        },
+        "invest-sector": {
+          "name": "Sector researcher"
+        }
+      }
+    }
   }
 }

@@ -65,5 +65,47 @@
     "delegation": [],
     "stance": "hosted"
   },
-  "notes": "v6：自己的 builder 接待同样声明 serving.toolFace=chat——教人裁工具面的分身先裁自己（自示范一致性）。v5：模板骨架带 chat 面。v4：接待纪律接事项面。v3：自身成为分身。v2：词汇换皮+隐私闸。"
+  "notes": "v6：自己的 builder 接待同样声明 serving.toolFace=chat——教人裁工具面的分身先裁自己（自示范一致性）。v5：模板骨架带 chat 面。v4：接待纪律接事项面。v3：自身成为分身。v2：词汇换皮+隐私闸。",
+  "i18n": {
+    "en": {
+      "name": "Facade Builder",
+      "description": "Chat with the builder and it turns your knowledge into a publishable AI facade: interviews you, organizes the corpus, generates the reception persona and manifest.json, and hands you the publish steps. Deployed, anyone can chat with your facade from the catalog — visitors free, costs yours (hosted).",
+      "notes": "v6: the builder reception declares serving.toolFace=chat itself — a facade that teaches tool-face trimming trims itself first (self-demonstrating consistency). v5: template skeleton carries the chat face. v4: reception discipline wired to the matter lane. v3: the builder became a facade itself. v2: vocabulary reskin + privacy gate.",
+      "guide": {
+        "steps": [
+          {
+            "title": "Install and open",
+            "body": "Subscribe to Facade Builder in the market, install it, then pick the Facade Builder role in a Yizuo chat."
+          },
+          {
+            "title": "Answer the interview",
+            "body": "One question at a time: the facade name, what visitors should learn, material pasted straight into the chat (text, bullets, doc fragments)."
+          },
+          {
+            "title": "Take the manifest and publish",
+            "body": "It produces a complete manifest.json (workspace file + full text in chat) and the three-step publish guide: publish from the list → deploy as a service → send the direct link to anyone."
+          }
+        ]
+      },
+      "skills": {
+        "facade-builder-guide": {
+          "description": "The facade interview and generation flow: four-step interview, corpus editing discipline, manifest assembly rules, publish guidance."
+        },
+        "facade-manifest-template": {
+          "description": "The facade manifest skeleton: a fill-in-ready complete structure with the facade config block and minimal corpus/reception examples."
+        }
+      },
+      "agents": {
+        "builder": {
+          "name": "Facade Builder",
+          "serving": {
+            "card": {
+              "name": "Facade Builder",
+              "description": "Want an AI facade of your own? Chat with the builder: it interviews you, organizes the corpus, and generates a publish-ready manifest plus publish guidance."
+            }
+          }
+        }
+      }
+    }
+  }
 }

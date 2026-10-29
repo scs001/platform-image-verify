@@ -38,5 +38,33 @@
       "fullSurfaceReason": "工具面上界由平台操作员面统一治理（标准 98 面：无 fork 专属、无发送类，发送走动作闸 crm.message.send）；pack 不另持名单副本，随平台面演进。"
     }
   ],
-  "notes": "工具面 = Chatwoot 标准 98 面（不含 fork 专属与发送类）；发送经动作闸 crm.message.send 以你自己的凭据执行。删除消息与 Kanban/定时消息不在能力范围。"
+  "notes": "工具面 = Chatwoot 标准 98 面（不含 fork 专属与发送类）；发送经动作闸 crm.message.send 以你自己的凭据执行。删除消息与 Kanban/定时消息不在能力范围。",
+  "i18n": {
+    "en": {
+      "name": "CRM Service Desk Suite",
+      "description": "Customer-service suite for merchants bringing their own Chatwoot: connect your account and it reads unhandled conversations, drafts replies, sends after your confirmation — your tenant, your credentials (BYOK).",
+      "notes": "Tool face = the standard Chatwoot 98 (no fork-specific or send-class tools); sending rides the crm.message.send action gate.",
+      "guide": {
+        "steps": [
+          {
+            "title": "Connect your Chatwoot",
+            "body": "Paste your Chatwoot token in Settings → Connections; the suite only ever reads and writes your own tenant."
+          },
+          {
+            "title": "Subscribe and install",
+            "body": "Subscribe to this suite in the market and install it from Settings → Agents → Mine."
+          },
+          {
+            "title": "Start receiving",
+            "body": "Open the reception role in a chat: it reads unhandled conversations, drafts replies and waits for your confirmation before sending."
+          }
+        ]
+      },
+      "skills": {
+        "crm-desk-reception-merchant": {
+          "description": "Customer-service reception (merchant-supplied Chatwoot tenant): discover the account, read unhandled conversations, draft replies, send after confirmation."
+        }
+      }
+    }
+  }
 }

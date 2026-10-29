@@ -121,7 +121,12 @@ export function PackDraftsView({ onPublished }: { onPublished?: () => void }) {
       {error && <div className="bg-destructive/10 text-destructive px-4 py-3 rounded-md mb-4">{error}</div>}
       {loading && <p className="text-sm text-muted-foreground">{t("common.loading")}</p>}
       {!loading && drafts.length === 0 && (
-        <p className="text-sm text-muted-foreground">{t("packs.drafts.empty")}</p>
+        <div>
+          <p className="text-sm text-muted-foreground">{t("packs.drafts.empty")}</p>
+          <p className="mt-1 text-xs text-muted-foreground" data-testid="pack-drafts-builder-pointer">
+            {t("packs.draftsBuilderPointer")}
+          </p>
+        </div>
       )}
       <div className="grid gap-3">
         {drafts.map((d) => (

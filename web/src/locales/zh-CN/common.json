@@ -1677,7 +1677,9 @@
       "agentSize": "按 agent 数筛选",
       "agentSizeAny": "任意数量",
       "agentSizeValue": "{{value}} 个 agent",
-      "assistantHint": "市场向导：右下角副驾以「谦面助手」聚焦应答。当前 cell 未安装助手智能体——安装后向导自动聚焦。"
+      "assistantHint": "市场向导：右下角副驾以「谦面助手」聚焦应答。当前 cell 未安装助手智能体——安装后向导自动聚焦。",
+      "official": "官方",
+      "officialBadge": "官方"
     },
     "detail": {
       "notFound": "智能体不存在或已下架",
@@ -1971,7 +1973,8 @@
       "igniteBtn": "点燃首跑",
       "lit": "已点燃，智能体团队进入在跑。",
       "doneBtn": "完成"
-    }
+    },
+    "draftsBuilderPointer": "也可以在对话里让智能体作者帮你起草——它采访你、编 manifest、落成可编辑草稿。"
   },
   "overlay": {
     "title": "资源微调",
@@ -2995,6 +2998,15 @@
       "revoke": "吊销嵌入",
       "makeLink": "生成进房链接",
       "onceOnly": "下面两样只显示这一次，复制收好："
+    },
+    "fleet": {
+      "title": "团队订阅",
+      "none": "尚未订阅任何团队",
+      "unsubscribe": "解除",
+      "fleetIdPlaceholder": "团队 id（从驾驶舱复制）",
+      "preview": "预览可召唤",
+      "summon": "一键召唤",
+      "cockpitOnly": "{title}：无服务面，去驾驶舱查看/行动"
     }
   },
   "plugins": {
@@ -3125,7 +3137,7 @@
     },
     "castPack": "智能体 {{packId}}",
     "draft": {
-      "hint": "把提示词交给会话里的蓝图构造师智能体，再把返回的 JSON 粘回来——落进同一草稿池，走同一校验链。",
+      "hint": "把提示词交给会话里的蓝图构造师，再把返回的 JSON 粘回来——落进同一草稿池，走同一校验链。装了官方蓝图构造师包的 cell，也可直接在会话里让它起草并落池。",
       "copy": "复制提示词",
       "copied": "已复制",
       "copyFailed": "剪贴板不可用——请选中提示词手动复制。",
@@ -3231,6 +3243,62 @@
       "disable": "改为停用",
       "remove": "移除期望",
       "saveError": "保存失败，请重试"
+    }
+  },
+  "agentTeams": {
+    "views": {
+      "overview": "综合看板",
+      "manage": "管理",
+      "owner": "经营坞"
+    },
+    "overview": {
+      "summaryTitle": "全部智能体团队",
+      "total": "{{count}} 支",
+      "running": "{{count}} 支在跑",
+      "abnormal": "{{count}} 支异常",
+      "abnormalUnknown": "异常统计不可用",
+      "decisions": "等你拍板 {{count}} 件",
+      "runs24h": "24h 回合 {{count}}",
+      "members": "{{count}} 岗",
+      "lastActivity": "最近活动 {{time}}",
+      "onDuty": "在岗 {{count}}",
+      "state": {
+        "missing": "失联 {{count}}",
+        "vacant": "待补岗 {{count}}",
+        "failing": "需关注 {{count}}"
+      },
+      "empty": "还没有智能体团队——从模板货架实化一支，或点右上角创建。",
+      "sourceUnavailable": "该数据源暂不可用",
+      "retry": "重试",
+      "loading": "加载中…",
+      "builderPointer": "也可以在对话里让团队架构师帮你搭队，或让蓝图构造师把场景编成可上架的模板。"
+    },
+    "manage": {
+      "colName": "团队",
+      "colState": "状态",
+      "colModel": "默认模型",
+      "colMembers": "岗位",
+      "colDecisions": "待拍板",
+      "colActions": "操作",
+      "batchPause": "批量暂停",
+      "batchResume": "批量恢复",
+      "batchArchive": "批量归档",
+      "selected": "已选 {{count}} 支",
+      "receipt": "成功 {{ok}} / 失败 {{failed}}",
+      "confirmArchive": "归档为终态、不可逆。确认批量归档所选团队？",
+      "editName": "点击改名",
+      "modelInherit": "继承",
+      "openCockpit": "进驾驶舱",
+      "selectRow": "选择 {{name}}",
+      "scopeNote": "行内可改：名称、默认模型、状态。编导边与思考深度/上下文预算在驾驶舱内修改。"
+    }
+  },
+  "loginHero": {
+    "official": {
+      "title": "官方资产",
+      "kindTemplate": "团队模板",
+      "kindFeatured": "官方精选",
+      "hint": "登录后即可订阅安装——点右上角登录。"
     }
   }
 }

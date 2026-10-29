@@ -44,6 +44,10 @@ export interface PackSummary {
   /** Facade flag (add-principal-facade): the latest version carries a facade
    *  block — the pack is a principal's conversational front door. */
   facade?: boolean;
+  /** Official badge (add-official-pack-showcase): derived server-side from
+   *  the deployment's author roster — never author-declared. Absent on
+   *  pre-upgrade servers (pass-through, unfiltered). */
+  official?: boolean;
   /** Structure-derived type badge (add-ai-native-lexicon): blueprint =
    *  fleet/cluster organization block; facade = facade block or a serving
    *  agent; assistant = agents only; toolkit = no agents. Computed by the

@@ -177,6 +177,71 @@
         "default": "0 10 * * 2-4",
         "label": "写作产出周期"
       }
-    ]
+    ],
+    "i18n": {
+      "en": {
+        "name": "Content Pipeline",
+        "members": {
+          "editor": {
+            "title": "Editor-in-chief",
+            "kpiSlots": {
+              "escalated": {
+                "label": "Awaiting owner decision"
+              },
+              "brief_notes": {
+                "label": "Weekly notes"
+              }
+            }
+          },
+          "planner": {
+            "title": "Topic planner",
+            "kpiSlots": {
+              "picked": {
+                "label": "Greenlit this week"
+              },
+              "topics_pool": {
+                "label": "Topic pool"
+              }
+            }
+          },
+          "writer": {
+            "title": "Writer",
+            "kpiSlots": {
+              "words_week": {
+                "label": "Words this week"
+              },
+              "drafts_done": {
+                "label": "Drafts done"
+              }
+            }
+          },
+          "reviewer": {
+            "title": "Reviewer",
+            "kpiSlots": {
+              "reviews_done": {
+                "label": "Reviews done"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "i18n": {
+    "en": {
+      "name": "Content Pipeline (official seed)",
+      "description": "Official fleet template: a weekly content-factory pipeline — the editor-in-chief runs Monday's topic meeting, the topic planner greenlights pieces, the writer drafts Tuesday–Thursday, and the reviewer is a passive post (woken by delegation, demonstrating the only lateral member-to-member collaboration channel).",
+      "agents": {
+        "content-editor": {
+          "name": "Editor-in-chief"
+        },
+        "content-planner": {
+          "name": "Topic planner"
+        },
+        "content-writer": {
+          "name": "Writer"
+        }
+      }
+    }
   }
 }

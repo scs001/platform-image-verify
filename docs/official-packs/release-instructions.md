@@ -4,7 +4,7 @@
 
 发布两个 read-only 助手 pack，用于壹座中的谦面和萬星操作：
 1. **谦面助手** (`facet-assistant`) — 只读 facet-market-mcp + facet-ops-mcp
-2. **萬星舰队助手** (`wanxing-fleet-assistant`) — 只读 wanxing-ops-mcp
+2. **萬星机群助手** (`wanxing-fleet-assistant`) — 只读 wanxing-ops-mcp
 
 ## 前置条件
 
@@ -22,7 +22,7 @@ cd docs/official-packs
 # 谦面助手
 facet validate facet-assistant-manifest.json
 
-# 萬星舰队助手
+# 萬星机群助手
 facet validate wanxing-fleet-assistant-manifest.json
 ```
 
@@ -36,10 +36,10 @@ facet publish facet-assistant-manifest.json \
   --from https://facet.finddatatech.cloud \
   --new-name "谦面助手"
 
-# 萬星舰队助手
+# 萬星机群助手
 facet publish wanxing-fleet-assistant-manifest.json \
   --from https://facet.finddatatech.cloud \
-  --new-name "萬星舰队助手"
+  --new-name "萬星机群助手"
 ```
 
 CLI 会打开设备配对页，粘贴 6 位码完成绑定。
@@ -59,7 +59,7 @@ CLI 会打开设备配对页，粘贴 6 位码完成绑定。
 - 尝试写操作：「帮我发布一个新包」
 - 预期：助手生成 propose_action 提议，展示影响面和风险等级
 
-#### 萬星舰队助手
+#### 萬星机群助手
 - 对话：「列出所有 agent」
 - 预期：助手调用 `wanxing_agents_browse()` 返回结果
 - 尝试写操作：「部署一个 agent」
@@ -70,7 +70,7 @@ CLI 会打开设备配对页，粘贴 6 位码完成绑定。
 未走 CLI 设备配对——用的是 **cell 里已连接的 facet-market 设备凭据直调市场 MCP**：
 `facet_market_pack_validate`（干跑）→ `facet_market_pack_publish`。两包均已上架：
 - 谦面助手：`qCEIutJzQd49jnDtV4qeqw` v1 public（作者 aloadtree@gmail.com）
-- 萬星舰队助手：`INdsRWpgpp2Q03I0z3XoFA` v1 public（同上）
+- 萬星机群助手：`INdsRWpgpp2Q03I0z3XoFA` v1 public（同上）
 
 前提：发布身份的 cell 已有 facet-market 凭据（aloadtree 早已配对）且在 creators 组。
 发版 = 同 manifest 再调 publish（版本自动 +1）。无凭据的新身份仍需设置页一次配对。
@@ -124,7 +124,7 @@ persona、工具白名单、技能都不动。仓库测试 `scripts/test-officia
 （网关剥 Authorization → 走 NodePort 直连 `http://cheap6.mesh.finddata.cn:31893/mcp`），
 `facet_market_pack_validate`（干跑）→ `facet_market_pack_publish`（同 pack id，版本自动 +1）：
 - 谦面助手 `qCEIutJzQd49jnDtV4qeqw` → v2
-- 萬星舰队助手 `INdsRWpgpp2Q03I0z3XoFA` → v2
+- 萬星机群助手 `INdsRWpgpp2Q03I0z3XoFA` → v2
 - 柏讯助手 `ALuUIiL23WP5OqLIgSRX1g` → v2（仍 private）
 
 **验收**：验收 cell 把已装的三包升级到 v2 后，`GET /api/boards/{facet,wanxing,wire}/copilot` 三线各自非 `null`，

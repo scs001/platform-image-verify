@@ -143,7 +143,8 @@ test.describe("fleets board", () => {
   });
 
   test("org tree renders depth-ordered posts with derived badges", async ({ page }) => {
-    await page.goto("/fleets");
+    // Deep link to the cockpit (bare /fleets is the overview now).
+    await page.goto(`/fleets/${FLEET_ID}`);
     await expect(page.getByTestId("fleets-page")).toBeVisible({ timeout: 15000 });
     await expect(page.getByTestId("fleet-card-fleet_demo")).toBeVisible();
 
@@ -352,7 +353,8 @@ test.describe("fleet cockpit", () => {
   });
 
   test("await-start banner, decision banner, health chips, stream, newer notice", async ({ page }) => {
-    await page.goto("/fleets");
+    // Deep link to the cockpit (bare /fleets is the overview now).
+    await page.goto(`/fleets/${FLEET_ID}`);
     await expect(page.getByTestId("fleets-page")).toBeVisible({ timeout: 15000 });
     // The paused template fleet shows the start banner, not the plain resume.
     await expect(page.getByTestId("fleet-await-start")).toBeVisible();
@@ -447,7 +449,9 @@ test.describe("fleet decision queue", () => {
   });
 
   test("badge opens the queue; approve flips the item to awaiting delivery", async ({ page }) => {
-    await page.goto("/fleets");
+    // Deep link: the cockpit is the per-fleet face — bare /fleets is now the
+    // cross-team overview (agent-teams-first-class).
+    await page.goto(`/fleets/${FLEET_ID}`);
     await expect(page.getByTestId("fleets-page")).toBeVisible({ timeout: 15000 });
     await expect(page.getByTestId("decisions-open")).toContainText("1 awaiting you");
     await page.getByTestId("decisions-open").click();
@@ -1204,7 +1208,7 @@ test.describe("post card skipped round", () => {
       route.fulfill({ contentType: "application/json", body: JSON.stringify({ total: 0, runs: [] }) }),
     );
 
-    await page.goto("/fleets");
+    await page.goto(`/fleets/${FLEET_ID}`);
     const tree = page.getByTestId("fleets-tree");
     await expect(tree.getByTestId("member-card-skippy")).toBeVisible({ timeout: 15000 });
 

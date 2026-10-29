@@ -1677,7 +1677,9 @@
       "agentSize": "Filtrer par nombre d'agents",
       "agentSizeAny": "Tous",
       "agentSizeValue": "{{value}} agents",
-      "assistantHint": "Guide du marché : le copilote (en bas à droite) répond avec 谦面助手 en focus. L'agent assistant n'est pas installé sur cette cellule — installez-le pour focaliser le guide."
+      "assistantHint": "Guide du marché : le copilote (en bas à droite) répond avec 谦面助手 en focus. L'agent assistant n'est pas installé sur cette cellule — installez-le pour focaliser le guide.",
+      "official": "Officiel",
+      "officialBadge": "Officiel"
     },
     "detail": {
       "notFound": "Agent introuvable ou retiré",
@@ -1971,7 +1973,8 @@
       "stepInstall": "Abonnement et installation…",
       "stepPay": "Finalisation de lachat…",
       "stepProvision": "Provisionnement de l'équipe…"
-    }
+    },
+    "draftsBuilderPointer": "Ou laissez l'auteur de packs le rédiger dans le chat — il vous interviewe, compile le manifest et dépose un brouillon éditable."
   },
   "overlay": {
     "title": "Ajustement des ressources",
@@ -2995,6 +2998,15 @@
       "guest_joined": "Un visiteur est entré dans le salon",
       "guest_identified": "Identité du visiteur confirmée",
       "guest_greeting": "Bienvenue — les sièges de garde sont là pour vos questions"
+    },
+    "fleet": {
+      "title": "Abonnements d'équipes",
+      "none": "Aucune équipe abonnée",
+      "unsubscribe": "désabonner",
+      "fleetIdPlaceholder": "Id d'équipe (copiez-le du cockpit)",
+      "preview": "Aperçu invitable",
+      "summon": "Invoquer",
+      "cockpitOnly": "{title} : pas de face de service — voir/agir dans le cockpit"
     }
   },
   "plugins": {
@@ -3125,7 +3137,7 @@
     },
     "castPack": "agent {{packId}}",
     "draft": {
-      "hint": "Confiez le prompt au paquet de capacité de construction de plans dans un chat, puis recollez son JSON : il atterrit dans le même brouillon (même chaîne de validation).",
+      "hint": "Confiez le prompt à un architecte de blueprints dans le chat et recollez le JSON — même bassin, même chaîne. Sur les cellules équipées du pack officiel Blueprint Architect, il peut rédiger et déposer directement dans la conversation.",
       "copy": "Copier le prompt",
       "copied": "Copié",
       "copyFailed": "Presse-papiers indisponible : sélectionnez le prompt et copiez-le à la main.",
@@ -3231,6 +3243,62 @@
       "disable": "Désactiver",
       "remove": "Retirer",
       "saveError": "Échec de l'enregistrement — réessayez"
+    }
+  },
+  "agentTeams": {
+    "views": {
+      "overview": "Vue d'ensemble",
+      "manage": "Gérer",
+      "owner": "Tableau du propriétaire"
+    },
+    "overview": {
+      "summaryTitle": "Toutes les équipes d'agents",
+      "total": "{{count}} équipes",
+      "running": "{{count}} en marche",
+      "abnormal": "{{count}} anormales",
+      "abnormalUnknown": "stats d'anomalies indisponibles",
+      "decisions": "{{count}} pour vous",
+      "runs24h": "tours 24h {{count}}",
+      "members": "{{count}} postes",
+      "lastActivity": "dernière activité {{time}}",
+      "onDuty": "en poste {{count}}",
+      "state": {
+        "missing": "perdus {{count}}",
+        "vacant": "vacants {{count}}",
+        "failing": "en échec {{count}}"
+      },
+      "empty": "Aucune équipe d'agents — provisionnez-en une depuis l'étagère de gabarits ou créez-en une.",
+      "sourceUnavailable": "source indisponible",
+      "retry": "réessayer",
+      "loading": "chargement…",
+      "builderPointer": "Ou laissez l'architecte de flottes monter une équipe dans le chat, ou l'architecte de blueprints transformer un scénario en gabarit publiable."
+    },
+    "manage": {
+      "colName": "Équipe",
+      "colState": "État",
+      "colModel": "Modèle par défaut",
+      "colMembers": "Postes",
+      "colDecisions": "En attente",
+      "colActions": "Actions",
+      "batchPause": "Mettre en pause",
+      "batchResume": "Reprendre",
+      "batchArchive": "Archiver",
+      "selected": "{{count}} sélectionnées",
+      "receipt": "{{ok}} réussies / {{failed}} échouées",
+      "confirmArchive": "L'archivage est définitif. Archiver les équipes sélectionnées ?",
+      "editName": "Cliquer pour renommer",
+      "modelInherit": "Hériter",
+      "openCockpit": "Ouvrir le cockpit",
+      "selectRow": "Sélectionner {{name}}",
+      "scopeNote": "Modifiable en ligne : nom, modèle par défaut, état. Les edges d'orchestration et l'effort/budget se règlent dans le cockpit."
+    }
+  },
+  "loginHero": {
+    "official": {
+      "title": "Actifs officiels",
+      "kindTemplate": "Gabarit d'équipe",
+      "kindFeatured": "Sélection officielle",
+      "hint": "Connectez-vous pour vous abonner et installer — bouton de connexion ci-dessus."
     }
   }
 }

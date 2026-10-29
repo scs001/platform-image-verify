@@ -1677,7 +1677,9 @@
       "agentSize": "Filtrar por número de agentes",
       "agentSizeAny": "Cualquiera",
       "agentSizeValue": "{{value}} agentes",
-      "assistantHint": "Guía del mercado: el copiloto (abajo a la derecha) responde con 谦面助手 enfocado. El agente asistente no está instalado en esta celda — instálalo para enfocar la guía."
+      "assistantHint": "Guía del mercado: el copiloto (abajo a la derecha) responde con 谦面助手 enfocado. El agente asistente no está instalado en esta celda — instálalo para enfocar la guía.",
+      "official": "Oficial",
+      "officialBadge": "Oficial"
     },
     "detail": {
       "notFound": "Paquete no encontrado o retirado",
@@ -1971,7 +1973,8 @@
       "stepInstall": "Suscibiendo e instalando…",
       "stepPay": "Completando la compra…",
       "stepProvision": "Aprovisionando el equipo…"
-    }
+    },
+    "draftsBuilderPointer": "O deja que el autor de packs lo redacte en el chat — te entrevista, compila el manifest y guarda un borrador editable."
   },
   "overlay": {
     "title": "Ajuste de recursos",
@@ -2995,6 +2998,15 @@
       "guest_joined": "Un visitante entró en la sala",
       "guest_identified": "Identidad del visitante confirmada",
       "guest_greeting": "Bienvenido/a — los asientos de guardia están para tus preguntas"
+    },
+    "fleet": {
+      "title": "Suscripciones de equipos",
+      "none": "Aún no hay equipos suscritos",
+      "unsubscribe": "dar de baja",
+      "fleetIdPlaceholder": "Id del equipo (cópialo de la cabina)",
+      "preview": "Ver invocables",
+      "summon": "Invocar",
+      "cockpitOnly": "{title}: sin cara de servicio — consulta/actúa en la cabina"
     }
   },
   "plugins": {
@@ -3125,7 +3137,7 @@
     },
     "castPack": "agente {{packId}}",
     "draft": {
-      "hint": "Entregue el prompt al agente de capacidad de construcción de planos en un chat y pegue de vuelta su JSON: aterriza en el mismo borrador (misma cadena de validación).",
+      "hint": "Entrega el prompt a un arquitecto de blueprints en el chat y pega el JSON de vuelta — mismo grupo, misma cadena. En celdas con el paquete oficial Blueprint Architect, puede redactar y guardar directamente en la conversación.",
       "copy": "Copiar prompt",
       "copied": "Copiado",
       "copyFailed": "Portapapeles no disponible: seleccione el prompt y cópielo a mano.",
@@ -3231,6 +3243,62 @@
       "disable": "Desactivar",
       "remove": "Quitar",
       "saveError": "Error al guardar; reintenta"
+    }
+  },
+  "agentTeams": {
+    "views": {
+      "overview": "Resumen",
+      "manage": "Gestionar",
+      "owner": "Panel del propietario"
+    },
+    "overview": {
+      "summaryTitle": "Todos los equipos de agentes",
+      "total": "{{count}} equipos",
+      "running": "{{count}} en marcha",
+      "abnormal": "{{count}} con anomalías",
+      "abnormalUnknown": "estadísticas de anomalías no disponibles",
+      "decisions": "{{count}} esperándote",
+      "runs24h": "turnos 24h {{count}}",
+      "members": "{{count}} puestos",
+      "lastActivity": "última actividad {{time}}",
+      "onDuty": "en servicio {{count}}",
+      "state": {
+        "missing": "desconectados {{count}}",
+        "vacant": "vacantes {{count}}",
+        "failing": "en fallo {{count}}"
+      },
+      "empty": "Aún no hay equipos de agentes — provisión uno desde la estantería de plantillas o crea uno.",
+      "sourceUnavailable": "fuente no disponible",
+      "retry": "reintentar",
+      "loading": "cargando…",
+      "builderPointer": "O deja que el arquitecto de flotas monte un equipo en el chat, o que el arquitecto de blueprints convierta un escenario en una plantilla publicable."
+    },
+    "manage": {
+      "colName": "Equipo",
+      "colState": "Estado",
+      "colModel": "Modelo por defecto",
+      "colMembers": "Puestos",
+      "colDecisions": "Esperando",
+      "colActions": "Acciones",
+      "batchPause": "Pausar seleccionados",
+      "batchResume": "Reanudar seleccionados",
+      "batchArchive": "Archivar seleccionados",
+      "selected": "{{count}} seleccionados",
+      "receipt": "{{ok}} con éxito / {{failed}} con fallo",
+      "confirmArchive": "Archivar es terminal y no se puede deshacer. ¿Archivar los equipos seleccionados?",
+      "editName": "Clic para renombrar",
+      "modelInherit": "Heredar",
+      "openCockpit": "Abrir cabina",
+      "selectRow": "Seleccionar {{name}}",
+      "scopeNote": "Editable en línea: nombre, modelo por defecto y estado. La orquestación y el esfuerzo/presupuesto se editan en la cabina."
+    }
+  },
+  "loginHero": {
+    "official": {
+      "title": "Activos oficiales",
+      "kindTemplate": "Plantilla de equipo",
+      "kindFeatured": "Selección oficial",
+      "hint": "Inicia sesión para suscribirte e instalar — usa el botón de acceso."
     }
   }
 }

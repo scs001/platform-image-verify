@@ -135,6 +135,19 @@ export function createZhiyuStore({ file }) {
   // for caps changes, joins, calls, take-overs; `event` rows (pass marks …)
   // are observability, clients do not render them as bubbles. visibility is
   // 'shared' or 'private:<memberId>' (the private window).
+  // Fleet subscriptions (add-zhiyu-team-memory 刀B): a room ↔ fleet event
+  // source declaration — NOT a member form (a team is not one speaker). The
+  // ownerEmail records WHO subscribed (ownership was verified at subscribe).
+  db.exec(`CREATE TABLE IF NOT EXISTS zy_fleet_subs (
+    id TEXT PRIMARY KEY,
+    room_id TEXT NOT NULL,
+    fleet_id TEXT NOT NULL,
+    fleet_name TEXT NOT NULL DEFAULT '',
+    owner_email TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    UNIQUE (room_id, fleet_id)
+  )`);
+
   db.exec(`CREATE TABLE IF NOT EXISTS zy_room_messages (
     room_id TEXT NOT NULL,
     seq INTEGER NOT NULL,
@@ -553,6 +566,46 @@ export function createZhiyuStore({ file }) {
     },
     widgetNoncePurgeOlderThan(thresholdTs) {
       db.prepare(`DELETE FROM zy_widget_nonces WHERE created_at < ?`).run(thresholdTs);
+    },
+
+    // ── Fleet subscriptions (add-zhiyu-team-memory 刀B) ─────────────────────
+    fleetSubAdd({ roomId, fleetId, fleetName, ownerEmail }) {
+      const existing = db.prepare(`SELECT * FROM zy_fleet_subs WHERE room_id = ? AND fleet_id = ?`).get(roomId, fleetId);
+      if (existing) return this._fleetSubPublic(existing); // idempotent
+      const row = {
+        id: `fs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        room_id: roomId,
+        fleet_id: fleetId,
+        fleet_name: fleetName,
+        owner_email: ownerEmail,
+        created_at: now(),
+      };
+      db.prepare(
+        `INSERT INTO zy_fleet_subs (id, room_id, fleet_id, fleet_name, owner_email, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      ).run(row.id, row.room_id, row.fleet_id, row.fleet_name, row.owner_email, row.created_at);
+      return this._fleetSubPublic(row);
+    },
+    fleetSubsOf(roomId) {
+      return db
+        .prepare(`SELECT * FROM zy_fleet_subs WHERE room_id = ? ORDER BY created_at`)
+        .all(roomId)
+        .map((r) => this._fleetSubPublic(r));
+    },
+    fleetSubsAll() {
+      return db
+        .prepare(`SELECT * FROM zy_fleet_subs ORDER BY created_at`)
+        .all()
+        .map((r) => this._fleetSubPublic(r));
+    },
+    fleetSubRemove(roomId, subId) {
+      const row = db.prepare(`SELECT * FROM zy_fleet_subs WHERE room_id = ? AND id = ?`).get(roomId, subId);
+      if (!row) return null;
+      db.prepare(`DELETE FROM zy_fleet_subs WHERE room_id = ? AND id = ?`).run(roomId, subId);
+      return this._fleetSubPublic(row);
+    },
+    _fleetSubPublic(r) {
+      return { id: r.id, roomId: r.room_id, fleetId: r.fleet_id, fleetName: r.fleet_name, ownerEmail: r.owner_email, createdAt: r.created_at };
     },
 
     // ── Messages ────────────────────────────────────────────────────────────

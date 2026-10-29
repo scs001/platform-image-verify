@@ -4035,3 +4035,28 @@ turn=cron-job_1792719144227_3lpcem#r1793228411907-2   （23:00:18 CEO）
 | 迁移 v108 | ✓ 两个 cell 的 app.db 达 v108，`local_fleet_deployments` 列含 `source` |
 
 **挂账**：①双平台 CI 腿（探针已扩腿，随下次安装包 snapshot 出片跑）；②真机走查（真配对→云上编辑期望→机器节拍内领取，需桌面 v1.3.25）；③台账本行。
+
+### §15.87 两个 digest 的接线缺口 + 长期「120s 超时」真相（2026-10-29 收尾）
+
+**① deputy digest 的 tick 永远轮不到**：只挂了 `setInterval(60min)`。cell 是**按需启动**的——一个频繁滚版的 cell 活不过一个 60 分钟的间隔，日摘要因此一次都不会执行（当日生产实证：pod 滚了 7 次，`delegationDigestAt:*` 一格没写）。改：先跑一次再挂表；时点事实源在 `cell_settings`，重启既不双发也不漏期。
+
+**② 报数 digest 从来没执行过**（同族但更彻底）：`fleet-digest.js` 的 `startDigestRunner` **写了却没有任何调用点**——而 `OwnerBoardStrip.tsx:79` 的订阅开关是活的、`/api/fleets/:id/digest-subscribe` 是通的。用户点「订阅日报」，库里落一行订阅，然后**永远收不到东西**。这是「功能面齐了、执行面没接」的又一例。改：两个 digest 共用同一个 tick（语义一致，时点都在库里），并摘掉 `routes/fleets.js` 里那条从未使用的 `runDueDigests` 死导入。
+
+**③ 长期挂账的「test-fleet-runs 120s 超时」不是链路坏了**：根因是 `RUNTIME_READY_WAIT_MS = 120_000`（`server/cron-runner.js:33`）——舰队任务走 `awaitRuntimeReadyForJob`，测试 ctx 没挂 `dshBridge` 时会**按上限空等 120 秒**，正好等于测试超时，于是这些用例长期以「超时」红着，被误读成链路逻辑缺陷。四处 `ctx` 补「恒就绪」替身即归零：`test-fleet-runs.buildCtx`、`test-fleet-orchestration` 的两个 `ctx` 与 `failBind`（后者是全新对象、不继承 ctx，最容易漏）。**同族教训**：其他所有 fleet 测试都挂了 bridge 替身，只有这几处漏了——「大家都这么做」的约定没有结构性保障，靠下一次有人踩到。
+
+**④ 顺带修一条陈旧断言**：派发提示的词头早已从「舰队派发」改为「集群派发」（舰队→集群词汇终词），断言没跟上；且原写法是三目两分支同值的死代码。改为直接断言「集群派发」。
+
+**测试**：fleet 全 12 套 **276/276 绿**（此前 273/277，4 红）；typecheck 绿；locale 2398 keys 五语绿。
+
+**上产与真机终验（`sha-dcf5964` / digest `0e7ddc15` / GitOps `66ee404`，源 `cb1ebb71`）**：两面跑 `sha-dcf5964`，ArgoCD Synced Healthy。
+
+- **deputy digest 首轮真机落地**：cell 唤醒即写 `default/references/deputy-digest-fleet_1792719144128_qap1vx.md`（`updated_at 2026-10-29T01:20:27Z`，与 pod 启动同刻），`delegationDigestAt:fleet_1792719144128_qap1vx = 1793236827372` 同步落库——**启动即跑这条修复由「摘要真的出现了」自证**（此前跑 7 次滚版一次没出）。
+- **摘要内容用生产库副本真渲染核对**（不碰线上数据）：`本期裁决 1 条（已执行 0 条，待执行 1 条）` + 逐条「[severity/category] 问题 → 批准「甲」」+ 依据摘要 200 字 + `跟踪中的问题单: 无`——规格要的「批了没执行」区分与「最老未决」口径都在。
+- **报数 digest 接线**：`fleet_digest_subscriptions` 当前 0 行，故 `runDueDigests` 空跑静默——这是正确行为；接线本身由「同一个 `runFleetDigestPass()` 里的 deputy digest 确实执行了」自证（两者同函数同 tick）。
+
+**`executed_at` 挂账判定（收尾结论）**：两条 deputy 裁决的 `delivered_at` / `executed_at` 仍为 0。查实的原因是**投递目标岗的回合没跑成**，不是回填代码有问题：
+
+- `d_1799219379758…` 属于助理部（cron `30 9 * * *`，每日一轮，当日的还没到）。
+- `d_1793228497338…` 属于 CEO（cron 每小时）。手动触发 CEO 那一轮（`POST /api/cron/job_1792719144227_3lpcem/run`）后：job 停在 `state=running` 12 分钟不退，会话里只落了 4 条**空 assistant 消息**（内容就是 `\n\n\n\n`），`member_turn_events` 没有新行——**上游流层空转**，与本 change 的代码无关。
+- 回填链路本身在产且有单测覆盖（`test-fleet-delegation`「执行事实：送达即回填 executed_at」）；`markDelivered` 的触发条件是 `engine.addOnFinished` 且 `task.state === 'done'`，即「送达回合真的成功跑完」。
+- **结论**：这是「等一个健康的自然回合」，不是缺陷。不造数据、不伪造时间戳。同时记一笔**舰队回合在空输出下的空转**现象（`stream closed with reason: error` / 连续空 assistant 消息）——它属既有的回合可靠性议题，不并入本 change。

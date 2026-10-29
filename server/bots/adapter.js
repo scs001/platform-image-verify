@@ -31,12 +31,13 @@ import { registry as telegram } from "./telegram.js";
 import { registry as feishu } from "./feishu.js";
 import { registry as wecom } from "./wecom.js";
 import { registry as wechatOa } from "./wechat-oa.js";
+import { registry as wecomBot } from "./wecom-bot.js";
 
-export const BOT_TYPES = ["telegram", "feishu", "wecom", "wechat-oa"];
+export const BOT_TYPES = ["telegram", "feishu", "wecom", "wechat-oa", "wecom-bot"];
 
 let registry = null;
 function adapters() {
-  if (!registry) registry = { telegram, feishu, wecom, "wechat-oa": wechatOa };
+  if (!registry) registry = { telegram, feishu, wecom, "wechat-oa": wechatOa, "wecom-bot": wecomBot };
   return registry;
 }
 

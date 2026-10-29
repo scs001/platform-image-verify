@@ -4482,3 +4482,16 @@ openai_chat_completions.account_select_failed
 
 **新律：判据 503 + 极快失败（<200ms）先怀疑「模型名无账号支持」，不要当车道抖动。**
 真抖动的特征是秒级超时或 429 限流；90ms 的 503 一定是路由层选不到账号。
+
+#### §15.86 补记 — 真机数据跑真实门的终验（2026-10-30，柏讯回执后）
+
+柏讯回执称「还需重烘焙」，实际两项已于 2026-10-29 闭环。本补记补一条**比模拟更强的证据**：从生产 Mongo 取 `/wire-ops-mcp` 条目原文（`tool_list` 19 / `metadata.surface.commercial_tools` 19 / `mcp_endpoint`），按 `registry-bridge.registryServerIndex` 同款映射构造 `serverInfo`，喂真实 `lib/publish-tool-gate.js`：
+
+| 用例 | 结果 |
+|---|---|
+| 声明 `wire_action_list/propose/status` + `wire_dataset_query` + `wire_demand_submit` 的 manifest | **0 errors**（放行） |
+| 声明商业名单外的 `wire_dataset_correct`（负控） | **1 error**「tools outside its commercial set」——门未被放开过头 |
+
+脚本 `/tmp/real_gate_check.mjs`（一次性，不入户）。结论：柏讯 pack 声明三 action 工具**当前即可发布**，无需再做任何 registry 操作。
+
+**柏讯文档需补的一条**：`fd-wire/docs/paas-domain-action-requirements.md` §六 只提「重烘焙工具面快照」，未提 `metadata.surface.commercial_tools` 这条腿。后者自报**不覆盖**（本轮实测：只重启时 tool_list 自动到 19，商业名单仍停 13 个 10-25 快照），且发布门**先判商业闭包**、名单外一律拒——漏掉这条会让 pack 在闭包处被拒且错误信息不提「重烘焙」。已在评审回复 §六① 写明；柏讯后续增工具时须通知壹座重导出名单。

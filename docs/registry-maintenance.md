@@ -4716,3 +4716,17 @@ B5 `<thinking>` 混进正文；B6 首启秒回 still initializing）随本变更
 **坑三枚**：①`finddatatech.cloud` **裸域 443 证书 SNI 不匹配**（curl 直连 code=000），`www.finddatatech.cloud` 才 200——核站一律带 www，裸域证书属既有挂账；②脚本重跑第二遍 `nothing to commit` 红=**幂等正态**（首遍已双推），勿当真败；③release-sync 的 GH_REPO 默认 FindDataTechnology/platform，**桌面 Release 在池仓**，必须显式 `GH_REPO=testaction005/build-pool`（1.3.24 班亦此口径）。
 
 **§15.98 补记（GitHub runner = 真实外机对生产，用户令「真机测试直接用 GitHub」）**：池新增 dispatch 腿 `prod-pair-smoke.yml`（**触发桩必须落池 main=dispatch 须默认分支有文件的池通道真相再演**；源分支同文件执行）。编排=本机铸 cookie 取 bindcode（5min TTL）→ `gh workflow run --ref desktop-release/v1.3.27` → runner checkout+npm 单包 cron-parser（真 reporter 仅第三方依赖它）→ **真码 pairSteward 对生产配对（dispatch 后 10s 罗册即现）**→ 本机 PUT desired v1 → runner 轮询 tick 拉信标 → **断言三绿**（拉到云期望 version=1 entries 齐/配对未自焚=GET 修复对生产边缘成立/真实外机非本机非本地门）→ 生产 `/data/cells/fleet-machines.json` 眼见 `gh-runner-walk-01` presence=running+desiredV=1 落盘。run `41012878574` 绿。至此生产环=本 Mac 仓底 cell 九腿+GitHub runner 真外机腿+installer e2e 装机腿三面互证；测试机 mac-prod-walk-01 与 gh-runner-walk-01 留名册作证据（清退=PUT entries 空后名册页 revoke）。
+
+### §15.99 v4 存量市场包改名 + 类目→线归位上产（add-legacy-pack-rebrand，2026-10-30）
+
+愿景口径落地的运营+代码收口。**原则**：名字只说「谁/干什么活」——结构归徽章（badge）、来源归 official 标、归属归类目线词，三层正交，历史 category 值零迁移。
+
+| 项 | 内容 |
+|---|---|
+| 代码 | `lib/pack-category-lines.js`（14 现网真类目→五线：cluster/fleet/fleet-shared→壹座·智能体团队、wire/research→柏讯·数据与情报、legal→识律·法律智能、facet/text/doc-studio/crm/operations/business→谦面·业务流、wanxing→萬星·智能体连接、facade/company→null 由 badge 承担；未映射透传；`PACK_CATEGORY_LINES` 部署侧可覆写，malformed 诚实回落）。接进 `gateway/packs.js` 行投影加 `line`+`list()` 线词展开回 slug、`facet/marketplace-json.js` 插件投影归位、`PackMarketView` chip 从 `p.line` 聚合。**写面仍收原 slug（零迁移）**。加 10 项映射单测；marketplace-json 既有测试改按 `lineOf` 断言（投影归位=预期契约变化）。全量 2768 测零红 |
+| 现网改名 | 22 枚发新版（id 不变、走查 admin 内部信道 pod 内直连 facet、groups 含 platform 免限流但逐枚仍按 author_email 校验）：去「（模板）/（官方种子）」尾、「能力包·X·Y」→功能名、名/描述「集群→团队」「能力包→智能体」、en.name 去「Fleet ·」前缀+尾。发前全量 `/api/packs/validate` 干跑 22/22 绿，发后核验旧词包名=1 |
+| 唯一遗留 | **两枚「投研晨会」同名冲突**：`Bo2…`单岗 v5 vs `YMSt…`三员级联官方种子 v4（后者=starter 引导卡/公开教程指向的那枚）；同作者去尾即撞同名单 409。留哪枚/退役旧枚/区分命名=产品组合裁决，**未擅动**（`投研晨会（官方种子）`保持原样）。另 3.2（六自种子重铸核验）随下次铸造 |
+| 留痕 | `docs/legacy-pack-rename-2026-10-30.md` 全量 before/after 表 |
+| 出片 | 第三班 run 41014016061(image)/41014016057(CI gates) 双绿 → **sha-9b6600a** digest `5a7b7a0a`（relay 14:36 OK、ccr skopeo 实证）；GitOps `eb374ab` 三面（platform+platform-demo+**facet**）前进滚；祖先链核 b5c03b26/1a38885d∈main，不回退并行会话修复 |
+| 生产实证 | facet pod imageID=`5a7b7a0a`；公网 `GET /api/packs` 79 行**每行带 `line`**、**分面恰五线词**（壹座·智能体团队/柏讯·数据与情报/萬星·智能体连接/识律·法律智能/谦面·业务流）、旧词包名=1（仅待裁那枚） |
+| 坑 | ① 需求书假设散类目 daas/data/authoring 现网**根本不存在**——真类目是 cluster/fleet/wire/legal/facet… 14 个；先拉现网普查再定表，没照需求书空写 ② `cluster`/`fleet` 等**代码 slug 正原样显示在中文市场**（B3 类内部词外泄），归位表是治它 ③ en 副轨名也漏 `Fleet ·` 前缀（11 枚），英文访客可见，同 v3 泄漏一并清 ④ 发新版必须原样回带 pricing/vendor（body 缺省即变免费=价格篡改事故）⑤ `node /dev/stdin` 在容器里 pipe fd 失效，脚本先 `cat>/tmp` 落文件再 exec（kubectl exec 无 `-e`） |

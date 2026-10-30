@@ -4988,3 +4988,42 @@ decision-lane 10 全绿／web typecheck + biome + locale 门（五语言 2542 �
 `4112651xxxx`）；relay digest 两面一致（`7bc489a3`→`b40e7a71`→第三班）；ArgoCD
 `Synced|Healthy`；两 pod 同代；测试 22→23→25 全绿；locale 五语 2542 键绿；typecheck
 + biome 绿。
+
+### §15.104 蓝图死锁三刀全链真机走通 + 第四刀（真形态 409）补刀（2026-10-30）
+
+承接 §15.103。三刀代码已上产（`sha-35267a6`），真机走回路时**正例（本蓝图活包认回）连续两次失败**，
+drill 才逮出致命假设错误——这是本次最值钱的一课：
+
+- **真形态是 409 不是 404**：pod 内直接 `import createFacetPublishClient` drill 三连
+  （`getPack` / `publish({packId:死id})` / `publish({packId:同名活包})`）实证——facet 对
+  「旧 id 已失效 + 同名活包存在」**先撞同名闸回 409**，404 分支根本进不去。第三刀
+  「认回」写死在 `status===404` 判断里，故前三刀在真机上**全是白做**（单测里我把 publish
+  桩写成 `404`，25/25 绿也照不出来——桩错了形态，测试就自洽地骗了我）。
+- **修法**（`e24ebf04`，镜像 `sha-29b24a0`）：陈旧指针形态判据从 `===404` 扩为
+  「404 **或** 409 且文案含『同名包已存在』」；两者都进同一套重建/认回。认回的 provenance
+  双证不变（`manifest._casting.blueprintId===本蓝图` 且作者===本人），不符照旧透传 409、指针不动。
+  新增 409 形态用例，26/26 绿。
+
+**真机全链实证（`sha-29b24a` 两 pod 同代，drill 在 pod 内跑真模块真 env 零会话污染）**
+
+| 段 | 实证 |
+|---|---|
+| 反例·投研晨会 | 同名活包是官方种子（`_casting.blueprintId=None`）→ provenance 不符 → **如实透传 409、指针不动**（`Bo2MWrb…`） |
+| 正例·指针自愈验证 | 本蓝图活包 `_casting.blueprintId` 完全匹配 → **认回**：`rebuilt:true, reclaimedPackId:nV8EYLLlqZPFu9iAyP6ktg`，指针从死 id 改到活包 **v4** |
+| 试跑（指针修好后） | 真建台真跑，**`green:true`**（`post-up`/`watch-fired` 均 pass） |
+| 签字 | `signoff.by=aloadtree@gmail.com` |
+| 再铸（reseal） | 绿+签报告刷入包内报告位 → **v5** |
+| **可售闸输入** | 包内 `_casting.trialReport={green:true, ranAt, signoff.reportRanAt===ranAt}` → **可售闸判据 true** |
+
+**教训（写进配方）**
+- **真机 drill 是唯一能逮出「桩写错形态」的手段**：单测自洽地绿不代表对真 facet 有效。
+  凡是「我造的桩」与「真服务行为」可能对不上（错误码/文案/字段名），必须在 pod 内 import
+  真模块、用真 env、打真端点 drill 一遍。
+- **facet 对死 id 不直接回 404**：同名闸先于 404 检查。任何「id 失效」类自愈都必须兼容
+  409+同名文案形态，不能只认 404。
+- **CI 一条 flaky**：`scripts/test-app-pairing.mjs`（「server on 4045 never became healthy」）
+  既有 flaky，非本次改动（只动 blueprints 两文件），`gh run rerun --failed` 重跑后全绿。
+
+**证据**：`sha-29b24a0` 三面 CI+image+check 全绿（重跑后）；relay OK（3s，digest
+`3550ce52`）；ArgoCD `Synced|Healthy`；两 pod `sha-29b24a0` 同代 `sameNameHint` grep 在场；
+测试 22→23→25→26 全绿；真机反例/正例/试跑/签字/reseal/可售闸六段全实证。

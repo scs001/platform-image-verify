@@ -23,6 +23,8 @@
 //   --out        output tree (default ./mcp-registry-out)
 //   --dry-run    fetch + project + validate + report, write nothing
 //   --publish    run `mcp-publisher publish` per server (CI only)
+//   --skip <name>  exclude a server from publishing (repeatable; bare name or
+//                full reverse-DNS). First-batch operational exclusions land here.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -54,30 +56,6 @@ if (PUBLISH && DRY) {
 // rule — a malformed name must never reach the filesystem as a path.
 const NAME_RE = /^[a-zA-Z0-9.-]+\/[a-zA-Z0-9._-]+$/;
 
-// Second lock on reachability: the registry lists for the whole internet, so an
-// internal endpoint (cluster mesh host, bare cheapN node, RFC1918, non-https) is
-// both a dead link for a stranger and a permanent public leak of our hostnames
-// and port layout. The projector already drops these; this refuses them again
-// so a projection regression cannot publish one.
-const PRIVATE_IP_RE =
-  /^(127\.\d+\.\d+\.\d+|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|169\.254\.\d+\.\d+|0\.0\.0\.0)$/;
-function isPublicUrl(u) {
-  if (typeof u !== "string" || !/^https:\/\//.test(u)) return false;
-  let host;
-  try {
-    host = new URL(u).hostname.toLowerCase();
-  } catch {
-    return false;
-  }
-  if (!host) return false;
-  if (PRIVATE_IP_RE.test(host)) return false;
-  if (host === "localhost" || host.endsWith(".localhost")) return false;
-  if (host.endsWith(".local") || host.endsWith(".internal")) return false;
-  if (/(^|\.)mesh\.finddata\.cn$/.test(host)) return false;
-  if (/^cheap\d+(\.|$)/.test(host)) return false;
-  return true;
-}
-
 // The official schema's required fields, checked again here so a broken
 // projection cannot be published by a CI run that skipped the unit tests.
 function validateDoc(doc) {
@@ -91,7 +69,6 @@ function validateDoc(doc) {
   for (const [i, r] of (doc?.remotes ?? []).entries()) {
     if (!["streamable-http", "sse"].includes(r?.type)) problems.push(`remotes[${i}].type 非法：${JSON.stringify(r?.type)}`);
     if (typeof r?.url !== "string" || !/^https?:\/\//.test(r.url)) problems.push(`remotes[${i}].url 非绝对 URL`);
-    else if (!isPublicUrl(r.url)) problems.push(`remotes[${i}].url 不可公网达（内网主机/非 https）：${r.url}`);
     if (r && "headers" in r) problems.push(`remotes[${i}].headers 必须整块省略（免键端点）`);
   }
   return problems;
@@ -107,6 +84,35 @@ async function fetchProjection() {
   const doc = await res.json();
   if (!Array.isArray(doc?.servers)) throw new Error("投影响应缺少 servers 数组");
   return doc.servers;
+}
+
+// ── publish eligibility gate (pre-publish visibility gate, task 2.4) ─────────
+// The projection serves every group-free public server — and some of those
+// entries point at internal addresses (mesh hostnames, hostPort, plain http).
+// Those belong to the catalog face but must NEVER reach the community MCP
+// Registry: listing is irrevocable and an internal hostname in a public
+// registry document is a topology leak. The gate SKIPS with a reported reason
+// (the skip set = exactly the entries ops must fix at the registry source);
+// it never rewrites a URL to make it pass.
+const PUBLIC_HOST_RE = /(^|\.)finddatatech\.cloud$/i;
+function publishEligibility(doc) {
+  for (const r of doc.remotes ?? []) {
+    let u;
+    try {
+      u = new URL(r.url);
+    } catch {
+      return `remote url 无法解析：${r.url}`;
+    }
+    if (u.protocol !== "https:") return `非 https：${u.protocol}//${u.host}`;
+    if (!PUBLIC_HOST_RE.test(u.hostname)) return `非公网发布域：${u.hostname}`;
+  }
+  return null;
+}
+
+// Repeated --skip <name> (bare server name or full reverse-DNS name).
+const SKIP_NAMES = [];
+for (let i = 0; i < args.length; i += 1) {
+  if (args[i] === "--skip" && args[i + 1] && !args[i + 1].startsWith("--")) SKIP_NAMES.push(args[i + 1]);
 }
 
 const servers = await fetchProjection();
@@ -125,8 +131,31 @@ if (rejects.length) {
   process.exit(1);
 }
 
+const eligible = [];
+const gateSkipped = [];
+for (const doc of servers) {
+  const reason = publishEligibility(doc);
+  if (reason) {
+    gateSkipped.push({ name: doc.name, reason });
+    continue;
+  }
+  const short = doc.name.split("/")[1];
+  if (SKIP_NAMES.includes(doc.name) || SKIP_NAMES.includes(short)) {
+    gateSkipped.push({ name: doc.name, reason: "--skip 名单（首批人工排除）" });
+    continue;
+  }
+  eligible.push(doc);
+}
+
+if (eligible.length === 0) {
+  console.error("✗ 发布闸后零可发布条目——发布无意义，中止（查投影/网关）");
+  process.exit(1);
+}
+
 if (DRY) {
-  for (const doc of servers) console.log(`  ✓ ${doc.name} → ${doc.remotes[0].url}`);
+  console.log(`发布闸：可发 ${eligible.length}，跳过 ${gateSkipped.length}`);
+  for (const doc of eligible) console.log(`  ✓ ${doc.name} → ${doc.remotes[0].url}`);
+  for (const s of gateSkipped) console.log(`  ✗ ${s.name} —— ${s.reason}`);
   console.log("✓ 自检通过（--dry-run，未写盘、未发布）");
   console.log("  发布源可见性：本脚本只消费 facet 的公开投影（groups=[] 的 server），");
   console.log("  不读私有仓、不含凭据（remotes 无 headers 块）。");
@@ -140,7 +169,7 @@ const staging = mkdtempSync(path.join(parent, ".mcp-registry-out-staging-"));
 
 try {
   let files = 0;
-  for (const doc of servers) {
+  for (const doc of eligible) {
     // "<namespace>/<server>" → "<namespace>__<server>" is NOT what the registry
     // wants: mcp-publisher reads the tree relative to cwd and takes name from
     // the document itself, so a flat directory per server is the shape.
@@ -163,7 +192,7 @@ try {
   if (PUBLISH) {
     let published = 0;
     const failures = [];
-    for (const doc of servers) {
+    for (const doc of eligible) {
       try {
         execFileSync("mcp-publisher", ["publish"], {
           cwd: path.join(OUT, doc.name.replace(/\//g, "__")),
@@ -175,10 +204,11 @@ try {
         failures.push({ name: doc.name, message: String(e?.message || e).split("\n")[0] });
       }
     }
-    console.log(`✓ 发布完成：${published}/${servers.length}`);
+    console.log(`✓ 发布完成：${published}/${eligible.length}`);
     if (failures.length) {
       for (const f of failures) console.error(`  ✗ ${f.name}: ${f.message}`);
       process.exitCode = 1;
+      console.error(`  （${gateSkipped.length} 条被发布闸跳过，见 --dry-run 报告）`);
     }
   } else {
     console.log("  （未 --publish；仅写出。CI 的 OIDC 登录由 workflow 负责）");

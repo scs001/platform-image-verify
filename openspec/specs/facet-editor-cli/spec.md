@@ -7,7 +7,7 @@
 
 ### Requirement: Skills install into editor targets
 
-The `@finddatatechnology/facet` CLI SHALL install a published pack's skills from the facet service into supported editor targets — Claude Code, Cursor, ZCode, Codex, Gemini CLI, and WorkBuddy — each target using its native skill layout (user-level by default, project-level where the target supports it). Installing SHALL write each skill's content with its name and description metadata, taken from the referenced pack version's snapshot.
+The `@finddatatechnology/facet` CLI SHALL install a published pack's skills from the facet service into supported editor targets — CC, Cursor, ZCode, Codex, Gemini CLI, and WorkBuddy — each target using its native skill layout (user-level by default, project-level where the target supports it). Installing SHALL write each skill's content with its name and description metadata, taken from the referenced pack version's snapshot. Installing SHALL NOT require any credential and SHALL NOT depend on the target's MCP authorization behaviour.
 
 #### Scenario: Claude Code user-level install
 
@@ -37,41 +37,63 @@ The `@finddatatechnology/facet` CLI SHALL install a published pack's skills from
 
 ### Requirement: MCP references are honest about credentials
 
-The CLI and the download face SHALL present a pack's MCP references with their real connection endpoint and an explicit notice of the credential requirement. Without a caller key on file, the CLI SHALL NOT write key-bearing MCP connection configuration into any editor target; the keyless OAuth form is written only when the user explicitly opts in (`--oauth`) and only against a target whose OAuth behavior is verified. With a caller key established through the connect flow, the CLI SHALL offer to write each target's native MCP configuration — endpoint plus Authorization header carrying that key — for the pack's MCP references, and SHALL say exactly which files it wrote.
+The CLI and the download face SHALL present a pack's MCP references with their real connection endpoint and an explicit notice of the credential requirement, and SHALL select the connection lane for a target from the machine-verified capability table rather than from documentation.
 
-For the WorkBuddy target the native configuration SHALL be the client's own MCP file at user level (`~/.workbuddy/mcp.json`) and at project level (`<project>/.workbuddy/mcp.json`). Two connection forms are supported against this target: the key-bearing form (`type: "http"`, gateway `url`, `headers.Authorization`), and, when the user explicitly opts in (`--oauth`, optionally `--oauth-client <id>`), a credential-free form declaring the pre-registered static OAuth client (`type: "http"`, gateway `url`, `oauth.clientId`, `oauth.scope`). The static-client lane was verified end-to-end against our gateway (authorize → token → 200 → tools listed); the key-bearing form is the working path when the target client does not yet consume the oauth block — as of WorkBuddy 5.9.3 its user-file loader drops it (only connector/marketplace-template items honor `oauth.clientId`), and the CLI SHALL say which lane is live for the target instead of implying authorization will complete unattended. A keyless request against a target whose OAuth behavior has not been verified SHALL be refused with an explanation, writing nothing.
+Three lanes exist:
+
+- **Native OAuth** — a pre-registered static client identifier is written and the client performs authorization itself; nothing secret enters the file. Written only when the target's capability record evidences that the client consumes a static client identifier.
+- **Brokered token** — the CLI completes the authorization flow and writes a short-lived access token into the target's static `Authorization` header. This lane requires no client-side OAuth support and SHALL be the default where the client honours static headers but does not consume a static client identifier.
+- **Caller key** — the device-flow key established by the connect flow, retained for headless and scripted use.
+
+Without any credential on file and without an explicit lane request, the CLI SHALL NOT write MCP connection configuration into any editor target. With a credential established, the CLI SHALL offer to write each target's native MCP configuration and SHALL say exactly which files it wrote and which lane it used.
+
+For the WorkBuddy target the native configuration SHALL be the client's own MCP file at user level (`~/.workbuddy/mcp.json`) and at project level (`<project>/.workbuddy/mcp.json`). As of WorkBuddy 5.9.3 its user-file loader drops the `oauth` block, so the brokered-token form is the working lane for this target and the native-OAuth form SHALL NOT be presented as working there until the capability record evidences otherwise.
 
 #### Scenario: MCP reference prints endpoint and notice
 
-- **WHEN** an installed pack declares MCP references and no caller key is on file
-- **THEN** the CLI output lists each server's connection endpoint with a notice that connecting requires a caller key
+- **WHEN** an installed pack declares MCP references and no credential is on file
+- **THEN** the CLI output lists each server's connection endpoint with a notice that connecting requires an authorization
 - **AND** no editor MCP configuration file is created or modified
 
 #### Scenario: Connected install writes MCP configuration
 
-- **WHEN** a pack with MCP references is installed while a verified caller key is on file and the user accepts the write
-- **THEN** the target's native MCP configuration gains an entry per referenced server with the gateway endpoint and the key-bearing Authorization header
-- **AND** the CLI reports every file it wrote
+- **WHEN** a pack with MCP references is installed while a verified credential is on file and the user accepts the write
+- **THEN** the target's native MCP configuration gains an entry per referenced server with the gateway endpoint and a bearer credential
+- **AND** the CLI reports every file it wrote and the lane it selected
 
 #### Scenario: WorkBuddy MCP write uses the client's own files and shape
 
-- **WHEN** a connected install targets WorkBuddy
+- **WHEN** a connection is written for WorkBuddy
 - **THEN** the entry is written into `~/.workbuddy/mcp.json` at user level, or `<project>/.workbuddy/mcp.json` when a project directory is named
-- **AND** the entry carries `type: "http"`, the gateway `url`, and `headers.Authorization` with the caller key
+- **AND** the entry carries `type: "http"`, the gateway `url`, and an `Authorization` header
 - **AND** no other client's configuration file is touched
 
 #### Scenario: WorkBuddy keyless write carries no credential
 
-- **WHEN** an install with `--oauth` targets WorkBuddy and the user accepts the write, whether or not a caller key is on file
-- **THEN** the entry carries `type: "http"`, the gateway `url`, and a static OAuth client (`oauth.clientId` + `oauth.scope`) — and carries no Authorization header or other secret
-- **AND** the CLI states the lane's real status for this client version (server lane verified; the 5.9.3 user-file loader does not yet consume the block — the key-bearing form is today's working path)
-- **AND** `--oauth-client <id>` overrides the client id when a deployment registers its own application
+- **WHEN** a native-OAuth write is requested for WorkBuddy on a client build whose capability record says the user-file loader does not consume the OAuth block
+- **THEN** the CLI refuses that lane for this build and names the brokered-token lane as the working alternative
+- **AND** if the record later evidences that the block is consumed, the same write proceeds carrying `oauth.clientId` and `oauth.scope` with no Authorization header or other secret
 
 #### Scenario: Keyless opt-in declined on unverified targets
 
-- **WHEN** `--oauth` is combined with a target whose OAuth behavior has not been verified
-- **THEN** the CLI refuses with an explanation naming the verified targets and points to the caller-key flow
+- **WHEN** a native-OAuth write is requested for a target with no capability record or a stale one
+- **THEN** the CLI refuses with an explanation naming the verified targets and points to the brokered-token and caller-key lanes
 - **AND** no configuration file is created or modified
+
+#### Scenario: Brokered token is short-lived and does not carry a refresh token
+
+- **WHEN** the CLI writes a brokered token into a target's configuration
+- **THEN** the written value is an access token with its expiry reported to the user, no refresh token is written, and the file's permissions are restricted so that only the owner can read it
+
+#### Scenario: Native OAuth lane is only offered where evidenced
+
+- **WHEN** a native-OAuth write is requested for a target
+- **THEN** the write proceeds only if the target's capability record evidences that the client consumes a static client identifier; otherwise the CLI refuses with an explanation naming the brokered-token and caller-key alternatives and writes nothing
+
+#### Scenario: Credential expiry is renewable in one step
+
+- **WHEN** the stored credential has expired
+- **THEN** a single refresh action renews it and rewrites the target's configuration, or — absent a refresh token — re-authorizes in one step, and the CLI reports which of the two happened
 
 ### Requirement: Download face serves editor-neutral content
 

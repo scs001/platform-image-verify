@@ -3195,7 +3195,8 @@
       "clear": "Withdraw",
       "cleared": "Signature withdrawn."
     },
-    "recast": "Re-cast (refresh green report)"
+    "recast": "Re-cast (refresh green report)",
+    "recastRepair": "Rebuild (the published pack no longer exists)"
   },
   "machines": {
     "title": "Machines",

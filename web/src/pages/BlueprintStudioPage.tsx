@@ -390,7 +390,18 @@ export function BlueprintStudioPage() {
   const canApprove = Boolean(verdict?.ok) && !verdictStale && !dirty && status !== "cast";
   // 「再铸」：铸造后拿到了**已签署的绿色报告**，把报告刷新进上架包里（可售闸
   // 读的是包内报告位）。没有可刷新的绿+签报告时按钮维持铸造期的禁用原样。
-  const canRecast = status === "cast" && Boolean(trial?.green && trial?.signoff);
+  // 例外=陈旧指针：市场包 id 已失效（改名/重建换 id）时试跑恒 404，而报告只能由
+  // 试跑产出——此时必须允许再铸来重建包并把指针改到新 id，否则蓝图永久卡死
+  // （服务端以旧 id 发版被 404 拒时会重建，见 routes/blueprints.js）。
+  const reportedErrors: string[] = [
+    ...(trial?.errors ?? []),
+    ...((detail?.trialReport as { errors?: string[] } | null | undefined)?.errors ?? []),
+  ];
+  const pointerStale = reportedErrors.some((e) => /Pack (version )?not found/i.test(e));
+  const canRecast = status === "cast" && (Boolean(trial?.green && trial?.signoff) || pointerStale);
+  const castLabel = pointerStale && !(trial?.green && trial?.signoff)
+    ? t("blueprints.recastRepair")
+    : t("blueprints.recast");
   const diffRows = useMemo(() => {
     if (!detail?.diffSummary) return null;
     try {
@@ -489,7 +500,7 @@ export function BlueprintStudioPage() {
                     disabled={(status !== "approved" && !canRecast) || busy !== null}
                     data-testid="blueprint-cast"
                   >
-                    {busy === "cast" ? t("blueprints.casting") : canRecast ? t("blueprints.recast") : t("blueprints.cast")}
+                    {busy === "cast" ? t("blueprints.casting") : canRecast ? castLabel : t("blueprints.cast")}
                   </button>
                   <button
                     type="button"

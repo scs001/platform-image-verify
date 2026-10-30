@@ -3195,7 +3195,8 @@
       "clear": "撤签",
       "cleared": "已撤签。"
     },
-    "recast": "再铸上架（刷新绿色报告）"
+    "recast": "再铸上架（刷新绿色报告）",
+    "recastRepair": "再造并修复指针（原市场包已不存在）"
   },
   "machines": {
     "title": "机器",

@@ -3195,7 +3195,8 @@
       "clear": "Retirar firma",
       "cleared": "Firma retirada."
     },
-    "recast": "Volver a publicar (informe verde)"
+    "recast": "Volver a publicar (informe verde)",
+    "recastRepair": "Reconstruir (el paquete publicado ya no existe)"
   },
   "machines": {
     "title": "Máquinas",

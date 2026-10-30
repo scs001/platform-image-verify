@@ -3,7 +3,7 @@
 //
 // Pins the three contract faces:
 //   1. the mapping lib: mapped slug→line word, unmapped→itself (present-as-is),
-//      company→null (suppressed from the facet, badge carries it), env override,
+//      facade/company→null (suppressed from the facet, badge carries them), env override,
 //      isLineWord distinguishes a line selection from a raw-slug query
 //   2. the read face: a facet selection carrying the LINE word expands to the slugs
 //      it stands for; a raw-slug query still matches exactly; every row carries `line`
@@ -35,51 +35,72 @@ const {
 
 // ── 1. mapping lib ───────────────────────────────────────────────────────────
 
-test("lineOf: mapped→line word, unmapped→itself, company→null, empty→empty", () => {
-  assert.equal(lineOf("daas"), "柏讯供给");
-  assert.equal(lineOf("wire"), "柏讯供给");
-  assert.equal(lineOf("data"), "数据");
-  assert.equal(lineOf("dash"), "数据");
-  assert.equal(lineOf("authoring"), "创作与文档");
-  assert.equal(lineOf("company"), null, "company suppressed — the facade badge carries it");
+const TEAM = "壹座 · 智能体团队";
+const DATA = "柏讯 · 数据与情报";
+const LEGAL = "识律 · 法律智能";
+const FLOW = "谦面 · 业务流";
+const CONNECT = "萬星 · 智能体连接";
+
+test("lineOf: 现网 14 类目按五线归位，facade/company 剔除，未映射透传", () => {
+  assert.equal(lineOf("cluster"), TEAM);
+  assert.equal(lineOf("fleet"), TEAM);
+  assert.equal(lineOf("fleet-shared"), TEAM);
+  assert.equal(lineOf("wire"), DATA);
+  assert.equal(lineOf("research"), DATA);
+  assert.equal(lineOf("legal"), LEGAL);
+  assert.equal(lineOf("facet"), FLOW);
+  assert.equal(lineOf("text"), FLOW);
+  assert.equal(lineOf("doc-studio"), FLOW);
+  assert.equal(lineOf("crm"), FLOW);
+  assert.equal(lineOf("operations"), FLOW);
+  assert.equal(lineOf("business"), FLOW);
+  assert.equal(lineOf("wanxing"), CONNECT);
+  // 历史散类目向后兼容
+  assert.equal(lineOf("daas"), DATA);
+  assert.equal(lineOf("data"), DATA);
+  assert.equal(lineOf("authoring"), FLOW);
+  // 分身类由 badge=facade 承担
+  assert.equal(lineOf("facade"), null, "facade suppressed — the facade badge carries it");
+  assert.equal(lineOf("company"), null);
   assert.equal(lineOf("custom-xyz"), "custom-xyz", "unmapped category presents as-is");
   assert.equal(lineOf(""), "", "no category → no line");
   assert.equal(lineOf(undefined), "", "absent category → no line");
 });
 
 test("slugsForLine: many slugs collapse to one line word", () => {
-  assert.deepEqual(slugsForLine("柏讯供给").sort(), ["daas", "wire"]);
-  assert.deepEqual(slugsForLine("数据").sort(), ["analytics", "dash", "data"]);
+  assert.deepEqual(slugsForLine(TEAM).sort(), ["cluster", "fleet", "fleet-shared"]);
+  assert.deepEqual(slugsForLine(DATA).sort(), ["analytics", "daas", "dash", "data", "research", "wire"]);
+  assert.deepEqual(slugsForLine(LEGAL), ["legal"]);
   assert.deepEqual(slugsForLine("不存在"), [], "a word no slug maps to → empty");
 });
 
 test("isLineWord: a line selection is expanded, a raw slug is matched exactly", () => {
-  assert.equal(isLineWord("柏讯供给"), true);
-  assert.equal(isLineWord("数据"), true);
-  assert.equal(isLineWord("daas"), false, "daas is a stored slug, not a line word — exact match");
+  assert.equal(isLineWord(TEAM), true);
+  assert.equal(isLineWord(DATA), true);
+  assert.equal(isLineWord("wire"), false, "wire is a stored slug, not a line word — exact match");
   assert.equal(isLineWord("custom-xyz"), false, "unmapped slug is not a line word");
   assert.equal(isLineWord(""), false);
 });
 
 test("facetLinesOf: aggregates to sorted distinct line words, drops the null bucket", () => {
-  assert.deepEqual(facetLinesOf(["daas", "wire", "data", "company", "custom-xyz"]), [
+  assert.deepEqual(facetLinesOf(["wire", "research", "cluster", "facade", "custom-xyz"]), [
     "custom-xyz",
-    "数据",
-    "柏讯供给",
-  ], "daas+wire collapse to one chip; company dropped; unmapped passes through");
+    TEAM,
+    DATA,
+  ], "wire+research collapse to one chip; facade dropped; unmapped passes through");
 });
 
 test("the table is deployment-configurable via PACK_CATEGORY_LINES (and falls back when malformed)", () => {
   _resetCategoryLinesCache();
-  process.env.PACK_CATEGORY_LINES = JSON.stringify({ daas: "开放数据", company: "公司", ml: null });
-  assert.equal(lineOf("daas"), "开放数据");
-  assert.equal(lineOf("company"), "公司", "override can un-suppress company");
+  process.env.PACK_CATEGORY_LINES = JSON.stringify({ wire: "开放数据", facade: "公司", ml: null });
+  assert.equal(lineOf("wire"), "开放数据");
+  assert.equal(lineOf("facade"), "公司", "override can un-suppress facade");
   assert.equal(lineOf("ml"), null);
-  assert.equal(lineOf("data"), "data", "slugs absent from the override present as-is (override REPLACES the table)");
+  assert.equal(lineOf("legal"), "legal", "slugs absent from the override present as-is (override REPLACES the table)");
   // malformed JSON → honest fallback to the built-in, never a broken face
   _resetCategoryLinesCache();
   process.env.PACK_CATEGORY_LINES = "{not json";
-  assert.equal(lineOf("daas"), "柏讯供给");
+  assert.equal(lineOf("cluster"), TEAM);
   _resetCategoryLinesCache();
   delete process.env.PACK_CATEGORY_LINES;
   assert.equal(Object.keys(categoryLines()).length > 0, true);
@@ -105,7 +126,6 @@ function mount(reg) {
     resolveUser: () => ({ email: "author@x", groups: [] }),
     rejectUnauthenticated: (_req, res) => res.status(401).json({ error: "Authentication required" }),
     creatorGroups: ["creators"],
-    isAdmin: () => true, // seed curation freely as admin
   });
   const server = http.createServer(app);
   server.listen(0);
@@ -127,13 +147,11 @@ const listGet = async (server, qs) =>
   fetch(`http://127.0.0.1:${server.address().port}/api/packs${qs}`).then((r) => r.json());
 
 test("a line-word facet selection expands to the slugs it stands for", async () => {
-  const { server } = (() => {
-    const { reg } = seed();
-    return { server: mount(reg) };
-  })();
+  const { reg } = seed();
+  const server = mount(reg);
   try {
-    const { packs } = await listGet(server, `?category=${encodeURIComponent("柏讯供给")}`);
-    assert.deepEqual(packs.map((p) => p.name).sort(), ["包-daas", "包-wire"], "both daas and wire return under one line");
+    const { packs } = await listGet(server, `?category=${encodeURIComponent(DATA)}`);
+    assert.deepEqual(packs.map((p) => p.name).sort(), ["包-daas", "包-data", "包-wire"], "daas+data+wire return under one line");
   } finally {
     server.close();
   }
@@ -144,7 +162,7 @@ test("a raw-slug query still matches exactly (API clients unaffected by the mapp
   const server = mount(reg);
   try {
     const { packs } = await listGet(server, "?category=daas");
-    assert.deepEqual(packs.map((p) => p.name), ["包-daas"], "daas alone, not wire");
+    assert.deepEqual(packs.map((p) => p.name), ["包-daas"], "daas alone, not wire/data");
   } finally {
     server.close();
   }
@@ -157,7 +175,7 @@ test("every row carries `line` (its归位 word) while `category` stays the store
     const { packs } = await listGet(server, "");
     const byName = Object.fromEntries(packs.map((p) => [p.name, p]));
     assert.equal(byName["包-daas"].category, "daas", "stored value is byte-for-byte the slug");
-    assert.equal(byName["包-daas"].line, "柏讯供给");
+    assert.equal(byName["包-daas"].line, DATA);
     assert.equal(byName["包-company"].category, "company");
     assert.equal(byName["包-company"].line, null, "company has no facet line");
     assert.equal(byName["包-custom-xyz"].line, "custom-xyz", "unmapped passes through");
@@ -166,7 +184,7 @@ test("every row carries `line` (its归位 word) while `category` stays the store
   }
 });
 
-test("company never appears as a facet chip (badge=facade carries 分身)", async () => {
+test("company/facade never appear as facet chips (badge carries 分身)", async () => {
   const { reg, ids } = seed();
   const server = mount(reg);
   try {
@@ -175,7 +193,7 @@ test("company never appears as a facet chip (badge=facade carries 分身)", asyn
       packs.map((p) => (p.line === undefined ? p.category : p.line) || "").filter(Boolean),
     );
     assert.equal(facetSet.has("company"), false, "the raw company slug must not resurface");
-    assert.equal(facetSet.has("柏讯供给"), true);
+    assert.equal(facetSet.has(DATA), true);
     // and it is still installable/visible — the mapping is display-only
     assert.ok(ids.company, "the company pack still exists with its row");
   } finally {
@@ -190,5 +208,5 @@ test("the curation WRITE still takes and stores the original slug (zero migratio
   assert.equal(res.category, "wire", "write endpoint speaks slugs, not line words");
   const row = reg.list({ pageSize: 100 }).packs.find((p) => p.id === ids.daas);
   assert.equal(row.category, "wire");
-  assert.equal(row.line, "柏讯供给", "and it re-projects to the same line word");
+  assert.equal(row.line, DATA, "and it re-projects to the same line word");
 });

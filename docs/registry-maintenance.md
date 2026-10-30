@@ -5174,3 +5174,10 @@ L2 单测全绿之后上真机走 `auth → 写配置 → 客户端连上 → �
   需源内分位归一，作独立小单；热度永不作准入。
 
 **未完（后续班）**：1.4 桥消费侧、2.3 真实内联快照写入、2.4 转正动作落库、2.5 工具面默认 chat、3.x 前端/facet 渲染。
+
+**归属更正（2026-10-31，本条必读）**：本节实现的 8 个文件（`lib/license-gate.js`、`lib/upstream-license.js`、
+`lib/pack-provenance.js`、`lib/pack-manifest.js`、`gateway/packs.js`、两份测试、本单 `tasks.md`）在提交时被
+**并行会话的 `0a2bcd4b`（feat(facet): 能力探针 + 市场 connect 块 + 续期回写）一并扫走**——本会话已 `git restore --staged`
+剔除 8 个外来文件，但并行会话在同一时间窗内重新 `git add` 时把 index 整体带上。**内容逐字节无损**（已核 `git diff HEAD` 为空、
+`111/111` 复跑全绿），仅是 commit 归属错位。这是本仓已知事故形态（同一形态见本文件「扫宽事故一枚（如实记）」：归档移动用宽路径 add 卷进并行会话在树改动），
+**再证一条纪律：多文件暂存期间，任何 `git add` 都可能被并行会话的 index 操作放大成全表提交；提交必须 add 后立刻 commit，不留窗口。**

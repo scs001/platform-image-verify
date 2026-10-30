@@ -3087,7 +3087,10 @@
       "invalid": "Validation failed — see the issues below.",
       "approved": "Approved — casting is unlocked.",
       "cast": "Cast to the market (agent {{packId}}).",
-      "conflict": "Version conflict — reload the blueprint to continue."
+      "conflict": "Version conflict — reload the blueprint to continue.",
+      "trialGreen": "Trial is green — sign the report, then re-cast to embed it in the published pack.",
+      "trialNotGreen": "Trial is not green — each assertion is listed in the report; fix the evidence or the rubric for the ones that missed.",
+      "trialFailed": "The trial did not run (lane or sandbox failure) — no report was written; just rerun."
     },
     "editor": {
       "pick": "Pick a blueprint on the left, or create one.",
@@ -3139,7 +3142,9 @@
       "pass": "Pass",
       "fail": "Fail",
       "ranAt": "ran {{when}}",
-      "judgedCount": "{{count}} model-judged"
+      "judgedCount": "{{count}} model-judged",
+      "run": "Run trial",
+      "running": "Trial running — posts are really created and the first round really fires"
     },
     "castPack": "agent {{packId}}",
     "draft": {
@@ -3188,7 +3193,8 @@
       "by": "Signed by {{who}} · {{when}}",
       "clear": "Withdraw",
       "cleared": "Signature withdrawn."
-    }
+    },
+    "recast": "Re-cast (refresh green report)"
   },
   "machines": {
     "title": "Machines",

@@ -19,6 +19,7 @@ import {
   getJudgeDefault,
   getTrialReport,
   listBlueprints,
+  runTrial,
   signTrialReport,
   skeletonContent,
   unsignTrialReport,
@@ -364,7 +365,34 @@ export function BlueprintStudioPage() {
       setTrial(out.report ?? null);
     });
 
+  // 试跑触发（铸过的蓝图才有意义：服务端在临时沙盒里真建岗位、真点首轮，
+  // 全部断言逐条落判决。跑完自动载入报告——绿色报告是签字与再铸的前提。）
+  const onRunTrial = () =>
+    run("trialRun", async () => {
+      if (!detail) return;
+      let out;
+      try {
+        out = await runTrial(detail.id);
+      } catch (e) {
+        // 车道/沙盒故障 ≠ 判不过：报告不落，如实说「重跑即可」，并附原始错误。
+        setNotice({ kind: "err", text: `${t("blueprints.notice.trialFailed")} ${String((e as Error).message).slice(0, 160)}` });
+        return;
+      }
+      setTrial(out.report ?? null);
+      setDetail(out.blueprint ?? null);
+      await refreshList();
+      setNotice({
+        kind: out.report?.green ? "ok" : "err",
+        text: out.report?.green
+          ? t("blueprints.notice.trialGreen")
+          : t("blueprints.notice.trialNotGreen"),
+      });
+    });
+
   const canApprove = Boolean(verdict?.ok) && !verdictStale && !dirty && status !== "cast";
+  // 「再铸」：铸造后拿到了**已签署的绿色报告**，把报告刷新进上架包里（可售闸
+  // 读的是包内报告位）。没有可刷新的绿+签报告时按钮维持铸造期的禁用原样。
+  const canRecast = status === "cast" && Boolean(trial?.green && trial?.signoff);
   const diffRows = useMemo(() => {
     if (!detail?.diffSummary) return null;
     try {
@@ -460,10 +488,10 @@ export function BlueprintStudioPage() {
                     type="button"
                     className="rounded-md bg-emerald-600/90 px-2.5 py-1 text-xs text-white hover:bg-emerald-600 disabled:opacity-40"
                     onClick={onCast}
-                    disabled={status !== "approved" || busy !== null}
+                    disabled={(status !== "approved" && !canRecast) || busy !== null}
                     data-testid="blueprint-cast"
                   >
-                    {busy === "cast" ? t("blueprints.casting") : t("blueprints.cast")}
+                    {busy === "cast" ? t("blueprints.casting") : canRecast ? t("blueprints.recast") : t("blueprints.cast")}
                   </button>
                   <button
                     type="button"
@@ -688,6 +716,9 @@ export function BlueprintStudioPage() {
                 <div className="mt-4 rounded-md border border-border p-3" data-testid="blueprint-trial">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-medium">{t("blueprints.trial.title")}</span>
+                    <button type="button" className="rounded-md bg-primary/90 px-2 py-0.5 text-[11px] text-primary-foreground hover:bg-primary disabled:opacity-40" onClick={onRunTrial} disabled={busy !== null} data-testid="blueprint-trial-run">
+                      {busy === "trialRun" ? t("blueprints.trial.running") : t("blueprints.trial.run")}
+                    </button>
                     <button type="button" className="rounded-md border border-border px-2 py-0.5 text-[11px] hover:bg-muted" onClick={onLoadTrial} data-testid="blueprint-trial-load">
                       {t("blueprints.trial.load")}
                     </button>

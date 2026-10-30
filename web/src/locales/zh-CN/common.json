@@ -3087,7 +3087,10 @@
       "invalid": "校验未过——见下方未过项。",
       "approved": "已批准，铸造闸已解锁。",
       "cast": "已铸造上架（智能体 {{packId}}）。",
-      "conflict": "版本冲突——重新载入蓝图后继续。"
+      "conflict": "版本冲突——重新载入蓝图后继续。",
+      "trialGreen": "试跑全绿——对报告签字后，可再铸上架把报告刷进包里。",
+      "trialNotGreen": "试跑未全绿——断言逐条列在报告里，按缺的那条补证据或改判据。",
+      "trialFailed": "试跑没跑成（车道或沙盒故障）——报告不落，重跑即可。"
     },
     "editor": {
       "pick": "从左侧选一份蓝图，或新建一份。",
@@ -3139,7 +3142,9 @@
       "pass": "通过",
       "fail": "未过",
       "ranAt": "跑于 {{when}}",
-      "judgedCount": "{{count}} 条模型判据"
+      "judgedCount": "{{count}} 条模型判据",
+      "run": "试跑",
+      "running": "试跑中——岗位真建、首轮真点，请稍候"
     },
     "castPack": "智能体 {{packId}}",
     "draft": {
@@ -3188,7 +3193,8 @@
       "by": "由 {{who}} 签字 · {{when}}",
       "clear": "撤签",
       "cleared": "已撤签。"
-    }
+    },
+    "recast": "再铸上架（刷新绿色报告）"
   },
   "machines": {
     "title": "机器",
